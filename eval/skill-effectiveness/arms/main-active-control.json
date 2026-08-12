@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "arm_id": "Mg",
+  "scope": "main",
+  "treatment": "active_control",
+  "runnable": false,
+  "allowlisted_diff": ["skill_inventory", "hook_command_config", "ccl_layer"],
+  "active_control_selection": {
+    "status": "pending",
+    "required_independent_candidates": 2,
+    "selection_blinded_before_outcomes": true
+  },
+  "bundle_policy": "equal-structure generic guidance plus matched-call gate; unavailable until independently selected"
+}

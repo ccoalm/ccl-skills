@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "skill-effectiveness.reviewer-calibration.response.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "request_id", "status"],
+  "properties": {
+    "schema": {
+      "const": "skill-effectiveness.reviewer-calibration.response.v1"
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "status": {
+      "enum": ["ok", "invalid", "blocked", "error"]
+    },
+    "action": {
+      "enum": ["probe", "sample", "finalize"]
+    },
+    "result": {
+      "type": "object"
+    },
+    "reason_code": {
+      "type": "string",
+      "enum": [
+        "artifact_root_mismatch",
+        "artifact_root_quarantined",
+        "finalization_recovery_required",
+        "finalize_already_started",
+        "fixture_drift",
+        "fixture_invalid",
+        "internal_error",
+        "invalid_artifact_root",
+        "invalid_cost_policy",
+        "invalid_executable",
+        "invalid_field",
+        "invalid_json",
+        "invalid_payload",
+        "invalid_provider_configuration",
+        "invalid_request",
+        "invalid_request_id",
+        "invalid_sample_set",
+        "invalid_timeout",
+        "model_call_unresolved",
+        "protocol_mismatch",
+        "provider_identity_unavailable",
+        "request_too_large",
+        "runtime_drift",
+        "runtime_manifest_unavailable",
+        "sample_already_exists",
+        "sample_binding_mismatch",
+        "sample_finality_unknown",
+        "sample_intent_mismatch",
+        "sample_invalid",
+        "sample_lock_unavailable",
+        "sample_publication_failed",
+        "sample_set_mismatch",
+        "unsupported_action",
+        "unsupported_provider"
+      ]
+    }
+  }
+}

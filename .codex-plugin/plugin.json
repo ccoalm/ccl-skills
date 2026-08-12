@@ -1,0 +1,5 @@
+{
+  "name": "ccl-skills",
+  "description": "CCL 研发技能全库 + 团队护栏（worktree-isolation 技能 + 路由 bootstrap）。Codex 端 skills 与 SessionStart 路由 bootstrap 均生效；PreToolUse 编辑隔离 hook 在 Codex 上跑但 deny 不强制，故为 advisory。",
+  "skills": "./skills/"
+}

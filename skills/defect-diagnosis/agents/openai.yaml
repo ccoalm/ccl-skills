@@ -1,0 +1,4 @@
+interface:
+  display_name: "Defect Diagnosis"
+  short_description: "Diagnose defects and route prevention"
+  default_prompt: "Use $defect-diagnosis to debug a bug, failed test, or regression with root-cause evidence."

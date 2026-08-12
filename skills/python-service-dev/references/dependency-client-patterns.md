@@ -1,0 +1,39 @@
+# Dependency Client Patterns
+
+Use this for external HTTP clients, SDKs, object storage, service discovery, generated clients, and inference clients.
+
+## Rules
+
+- Create clients through explicit providers or app startup, not scattered constructors.
+- Import-time or module-level convenience clients must be replaceable through dependency overrides, app lifespan wiring, or provider injection. If initialization can perform network I/O or fail, keep it in startup/bootstrap and expose constructors that return ordinary errors for request-time dependencies.
+- A must-never-break-the-caller adapter over an OPTIONAL dependency catches `Exception` on import/init, not just `ImportError` — a third-party module's import-time side effects can raise anything — but does not swallow `BaseException` subclasses such as `KeyboardInterrupt`/`SystemExit`. Degrade to a safe default and test the raising-import path, not only the missing-module path.
+- Set timeout, retry, base URL, credentials, user agent, and observability labels.
+- **A middleware/client WRAPPER (interceptor, governance layer) owns deadline *propagation*, not a fixed timeout *policy* — but every production call still gets a bounded effective deadline.** Honor the caller's deadline (the `context` / `asyncio.timeout` the caller set); don't bake an arbitrary fixed default into a wrapper that overrides it. But "no wrapper default" ≠ "unbounded": a caller with no deadline plus a hung dependency pins tasks/connections forever, so apply an **env-configured max backstop** as the effective deadline when the caller supplies none, overridable at the call site, with an explicit opt-out only for long-lived watch/stream calls **that still bound their own liveness** (idle/read timeout, heartbeat, bounded reconnect, cancel cleanup) — opt-out is from the request deadline only, not from all bounds, or a half-open stream pins tasks/connections forever. Clamp **every untrusted/external inbound deadline** — an inbound gRPC `grpc-timeout` as much as an HTTP deadline header — to platform min/max **before** honoring or propagating it, or an external caller sets a huge deadline to hold resources (slow-DoS). Propagate with the transport's **native** deadline mechanism where it exists (gRPC `grpc-timeout`, propagated + decremented), not a reinvented header — but an HTTP client's own timeout bounds only the *local* call and is **not** sent downstream: HTTP has no native on-wire deadline, so cross-hop propagation needs an explicit deadline-header contract, and that header is untrusted (strip a caller-supplied one at ingress; generate the internal one from the server-side clamped context). Don't add an *independent competing* timer, but a **derived** per-attempt cap is correct — `per-attempt = min(caller-remaining, configured max)`; and before each retry recompute the remaining budget and **skip** the attempt when it can't cover attempt + backoff + cleanup (doomed retries amplify overload).
+- Validate status codes and response schemas.
+- Wrap provider-specific exceptions into canonical service errors.
+- Provide fakes for tests.
+- Close async clients and connection pools.
+- **Per-object state registries: release on lifecycle, and never key by `id()`.** When you keep state in a long-lived dict/registry tied to a per-object thing (a DB engine, connection, session, or client — e.g. per-engine listeners or per-connection counters), release the entry when that object is closed/disposed, or it leaks for the process lifetime. Do NOT key the registry by `id(obj)` — CPython **reuses** `id()` values after an object is garbage-collected, so a retained stale entry silently attributes one object's state to a *different, later* object. Prefer a `weakref.WeakKeyDictionary` (auto-releases when the object is collected) — but it needs **hashable, weak-referenceable** keys (a class with `__slots__` and no `__weakref__`, most C-extension/builtin types, or a type with `__eq__` but no `__hash__` raises `TypeError`); for those, use an owned stable token/wrapper plus a deterministic delete on close. It also keys by the object's `__eq__`/`__hash__`, **not identity** — a key type with value-based `__eq__`/`__hash__` aliases two distinct live objects into one entry (cross-attribution), so require identity equality/hash (default `object` identity) or key by an owned per-object identity token. And it only auto-releases when the stored **value does not strongly reference the key** — a listener/closure/back-pointer capturing the object keeps it alive, so the weak key never collects and you still leak; when values can reach the key, deterministic close-delete is mandatory, not weak auto-release. Make the registry own its lock: keep the `closed`/tombstone flag and the state under the **same** critical section, reject post-close get/create, and drain in-flight users before the final delete — otherwise a concurrent thread/task recreates stale state right after disposal. Keep the closed flag on the object itself (not only in the registry entry) so the delete doesn't erase the tombstone and let a later call on the still-referenced object recreate state.
+- **Adapter / fake / test-substitution boundaries are typed with `typing.Protocol` (PEP 544, structural typing), not abstract base classes**. The Protocol declares the surface the application code needs (`def get(url: str) -> Response: ...`); production client and test fake both satisfy it implicitly — no inheritance, no registration. Reserve `abc.ABC` / nominal base classes for cases where you genuinely need an authoritative runtime type gate, or a published-package public hierarchy that downstream code subclasses. If a Protocol must be used with `isinstance`, decorate it `@runtime_checkable` and treat the check as a shallow runtime guard (it checks attribute presence, not signature shape) — prefer ABC / nominal base classes when the runtime gate must be authoritative. Do not invent an `IUserRepository` per concrete class out of habit — that is Java-style nominal interface inflation; Python's structural typing makes it unnecessary.
+
+## HTTP Clients
+
+- Prefer `httpx` for modern sync/async clients when repo conventions allow it.
+- Use `aiohttp` only when the project standard or dependency requires it.
+- Avoid `requests` inside async endpoints unless isolated.
+
+## Dynamic Config And Discovery
+
+- Wrap service discovery, secret lookup, and dynamic config behind typed provider classes or functions; do not let raw backend keys, registry metadata, or secret-store payload shape leak into route or domain code.
+- Centralize namespace and backend key construction in the provider; list/watch APIs should return caller-facing keys or documented resume markers.
+- Cache hot config reads with a bounded TTL only when stale behavior is acceptable, and expose cache hit/miss/error metrics when the stack supports it.
+- Listener or watch callbacks should recover/log exceptions, update local cache atomically, and stop cleanly during application shutdown.
+- Tests should cover missing config, malformed payloads, dependency failure, cache behavior, and dependency override/fake behavior.
+
+## Object Storage
+
+- Add source service, environment/lane, request id, ownership, retention, and content metadata on writes when the provider supports it.
+- For copy or migration tools, define overwrite/conflict policy before transfer, tag migrated objects with source identity, emit replayable success/error/conflict records, bound concurrency, and close or flush report writers on shutdown.
+- Signed URLs must have explicit expiry and requester scope; do not log full signed URLs when they contain credentials.
+
+Evidence note: object-migration rules here are generalized backend mechanics from Go shared-package evidence, not Python-source confirmation. When a Python codebase has its own object-migration framework, confirm or narrow these rules against that framework before treating them as local convention.

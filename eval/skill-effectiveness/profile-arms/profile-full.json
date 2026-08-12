@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "registry_schema": "paired-profile",
+  "arm_id": "profile-full",
+  "scope": "main",
+  "treatment": "full",
+  "allowlisted_diff": ["profile_payload"],
+  "runnable": true
+}

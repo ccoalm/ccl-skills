@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ccl-skills:heldout-manifest:v1",
+  "title": "Held-out generalization task manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "task_family",
+    "cohort",
+    "skill_content_cutoff",
+    "curator_independent",
+    "prompt_ref",
+    "repo_snapshot",
+    "expected_owners",
+    "should_invoke",
+    "risk_tags",
+    "graders",
+    "negative_control",
+    "frozen_at_sha",
+    "corpus_version"
+  ],
+  "properties": {
+    "task_id": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+    "task_family": {
+      "enum": ["implementation", "review", "diagnosis", "plan", "shared_gate", "delegation"]
+    },
+    "cohort": {"const": "held-out-generalization"},
+    "skill_content_cutoff": {"type": "string", "minLength": 1},
+    "curator_independent": {"const": true},
+    "prompt_ref": {"type": "string", "pattern": "^corpus://"},
+    "repo_snapshot": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "expected_owners": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^ccl-skills:"},
+      "uniqueItems": true
+    },
+    "should_invoke": {"type": "boolean"},
+    "risk_tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "graders": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "negative_control": {"type": "boolean"},
+    "frozen_at_sha": {"type": "string", "pattern": "^[0-9a-f]{40,64}$"},
+    "corpus_version": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"negative_control": {"const": true}}},
+      "then": {
+        "required": ["should_invoke", "expected_owners"],
+        "properties": {
+          "should_invoke": {"const": false},
+          "expected_owners": {"maxItems": 0}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"negative_control": {"const": false}}},
+      "then": {
+        "required": ["should_invoke", "expected_owners"],
+        "properties": {
+          "should_invoke": {"const": true},
+          "expected_owners": {"minItems": 1}
+        }
+      }
+    }
+  ]
+}

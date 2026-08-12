@@ -1,0 +1,4 @@
+interface:
+  display_name: "LLM Inference Integration"
+  short_description: "Design and operate LLM inference systems"
+  default_prompt: "Use $llm-inference-integration to design, implement, review, or debug an LLM, prompt, agent, RAG, streaming, evaluation, or inference-capacity feature."

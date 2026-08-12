@@ -1,0 +1,4 @@
+interface:
+  display_name: "Go Microservice Dev"
+  short_description: "Build Go microservice backend features"
+  default_prompt: "Use $go-microservice-dev to implement a product-agnostic Go backend feature."

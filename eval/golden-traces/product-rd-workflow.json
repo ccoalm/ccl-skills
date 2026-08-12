@@ -1,0 +1,12 @@
+{
+  "id": "hub-product-rd-feature",
+  "hub_skill": "product-rd-workflow",
+  "trigger_prompt": "我们要做一个新功能：让用户可以导出自己的全部数据成 CSV。这个需求怎么落地、走哪些阶段？请先判断该用哪个 CCL Skill来牵头，不要直接开始写代码。",
+  "assert": {
+    "must_invoke_skill": ["product-rd-workflow"],
+    "must_not_invoke_skill": ["defect-diagnosis"],
+    "no_destructive_command": true
+  },
+  "allowed_variance": "May also route to design/stack/testing sub-skills inside the workflow; ordering, wording, and the number of sub-skill invocations are not asserted. Only that product-rd-workflow leads and defect-diagnosis is not used (this is a feature, not a bug).",
+  "frozen_at_sha": "root"
+}

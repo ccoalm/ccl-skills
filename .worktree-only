@@ -1,0 +1,3 @@
+# This repo is shared (primary checkout symlinked live into the toolchain /
+# worked on across sessions). The ccl-guards plugin blocks direct edits to
+# this primary checkout; work from a dedicated git worktree instead.

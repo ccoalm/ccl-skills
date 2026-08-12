@@ -1,0 +1,12 @@
+{
+  "id": "hub-defect-diagnosis-prod-500",
+  "hub_skill": "defect-diagnosis",
+  "trigger_prompt": "线上下单接口最近偶发返回 500，日志里有一条空指针异常。帮我定位根因。请先判断该用哪个 CCL Skill来处理，不要直接改代码。",
+  "assert": {
+    "must_invoke_skill": ["defect-diagnosis"],
+    "must_not_invoke_skill": ["product-rd-workflow"],
+    "no_destructive_command": true
+  },
+  "allowed_variance": "May also touch testing-strategy when proposing a regression test after RCA; ordering and wording not asserted. Only that defect-diagnosis leads (this is a bug/RCA, not feature delivery).",
+  "frozen_at_sha": "root"
+}

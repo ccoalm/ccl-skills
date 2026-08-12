@@ -1,0 +1,566 @@
+{
+  "event_contract_version": "skill-events-v2",
+  "known_answer_source": "Expected values are hand-authored, never generated from parser output. Transcript rows carry only the key topology a content-free diagnostic observed on a real host: tool identity, tool_use id, the invoked skill name, and result linkage. Tool arguments, briefs, prompts, project names and result bodies are sanitized out.",
+  "contract_boundary": "These fixtures pin the transcript-to-invocation projection only. A matching projection proves an extractor agrees on shape and ordering; it never proves a skill was loaded on a live host, and invocation counts are a manipulation check, never an effectiveness claim.",
+  "registered_drivers": ["claude-code", "opencode"],
+  "driver_notes": {
+    "claude-code": "A dedicated Skill tool. One invocation spans two events: a tool_use block carrying the skill identity, and a separate tool_result block linked by tool_use_id. Skill identities are namespaced (bundle:name).",
+    "opencode": "A dedicated skill tool. One invocation is a single record holding the call and its outcome together: the invoked name, an opaque call id, and a terminal status, so no call/result pairing is needed. Skill identities are bare names with no bundle prefix.",
+    "open_decisions": [
+      "Identifier normalization: the same CCL skill appears namespaced on one driver and bare on another, so a cross-driver comparison needs an agreed normal form before invocation identity can be compared across drivers.",
+      "tool_use_id uniqueness scope: this contract requires ids unique across all skill invocations, but a real driver emits short literal ids that repeat across sessions. Either the scope narrows to one session, or literal-id invocations stay unverifiable. Until that is decided, the boundary case below pins the current global rule."
+    ]
+  },
+  "unregistered_driver_semantics": "A driver whose transcript shape is not registered yields invocation_unverifiable for every run: the item records the degradation, keeps outcome evidence usable, and never converts missing invocation data into a compliance pass. Unregistered means no known-answer case has been authored and agreed for that shape; it does not assert that the driver emits no observable invocation evidence.",
+  "cases": [
+    {
+      "id": "claude-code-completed-owner-invocation-before-task-tool",
+      "driver": "claude-code",
+      "target_bundle_id": "ccl-skills:testing-strategy",
+      "transcript": [
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {
+                "type": "tool_use",
+                "id": "toolu_owner",
+                "name": "Skill",
+                "input": {"skill": "ccl-skills:testing-strategy"}
+              }
+            ]
+          }
+        },
+        {
+          "type": "user",
+          "message": {
+            "content": [
+              {"type": "tool_result", "tool_use_id": "toolu_owner"}
+            ]
+          }
+        },
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {"type": "tool_use", "id": "toolu_task", "name": "Task", "input": {}}
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "schema_version": 1,
+        "event_contract_version": "skill-events-v2",
+        "event_contract_status": "stable",
+        "skill_events_available": true,
+        "task_tool_events_available": true,
+        "first_task_tool_event_index": 1,
+        "event_index_source": "fixture-modeled-single-monotonic-stream",
+        "skills_invoked": [
+          {
+            "skill": "ccl-skills:testing-strategy",
+            "event_index": 0,
+            "tool_use_id": "toolu_owner",
+            "matching_tool_result": true,
+            "completed": true
+          }
+        ]
+      },
+      "expected_matched_call": {
+        "decision": "fixture-pass",
+        "reason_code": "fixture_matched_call_satisfied"
+      }
+    },
+    {
+      "id": "claude-code-two-invocations-keep-unique-indexes-and-ids",
+      "driver": "claude-code",
+      "target_bundle_id": "ccl-skills:testing-strategy",
+      "transcript": [
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {
+                "type": "tool_use",
+                "id": "toolu_first",
+                "name": "Skill",
+                "input": {"skill": "superpowers:brainstorming"}
+              },
+              {
+                "type": "tool_use",
+                "id": "toolu_second",
+                "name": "Skill",
+                "input": {"skill": "ccl-skills:testing-strategy"}
+              }
+            ]
+          }
+        },
+        {
+          "type": "user",
+          "message": {
+            "content": [
+              {"type": "tool_result", "tool_use_id": "toolu_first"},
+              {"type": "tool_result", "tool_use_id": "toolu_second"}
+            ]
+          }
+        },
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {"type": "tool_use", "id": "toolu_task", "name": "Task", "input": {}}
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "schema_version": 1,
+        "event_contract_version": "skill-events-v2",
+        "event_contract_status": "stable",
+        "skill_events_available": true,
+        "task_tool_events_available": true,
+        "first_task_tool_event_index": 2,
+        "event_index_source": "fixture-modeled-single-monotonic-stream",
+        "skills_invoked": [
+          {
+            "skill": "superpowers:brainstorming",
+            "event_index": 0,
+            "tool_use_id": "toolu_first",
+            "matching_tool_result": true,
+            "completed": true
+          },
+          {
+            "skill": "ccl-skills:testing-strategy",
+            "event_index": 1,
+            "tool_use_id": "toolu_second",
+            "matching_tool_result": true,
+            "completed": true
+          }
+        ]
+      },
+      "expected_matched_call": {
+        "decision": "fixture-pass",
+        "reason_code": "fixture_matched_call_satisfied"
+      }
+    },
+    {
+      "id": "claude-code-invocation-without-matching-result-is-incomplete",
+      "driver": "claude-code",
+      "target_bundle_id": "ccl-skills:testing-strategy",
+      "transcript": [
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {
+                "type": "tool_use",
+                "id": "toolu_owner",
+                "name": "Skill",
+                "input": {"skill": "ccl-skills:testing-strategy"}
+              }
+            ]
+          }
+        },
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {"type": "tool_use", "id": "toolu_task", "name": "Task", "input": {}}
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "schema_version": 1,
+        "event_contract_version": "skill-events-v2",
+        "event_contract_status": "stable",
+        "skill_events_available": true,
+        "task_tool_events_available": true,
+        "first_task_tool_event_index": 1,
+        "event_index_source": "fixture-modeled-single-monotonic-stream",
+        "skills_invoked": [
+          {
+            "skill": "ccl-skills:testing-strategy",
+            "event_index": 0,
+            "tool_use_id": "toolu_owner",
+            "matching_tool_result": false,
+            "completed": false
+          }
+        ]
+      },
+      "expected_matched_call": {
+        "decision": "deny",
+        "reason_code": "matched_call_required"
+      }
+    },
+    {
+      "id": "claude-code-error-result-does-not-complete-an-invocation",
+      "driver": "claude-code",
+      "target_bundle_id": "ccl-skills:testing-strategy",
+      "transcript": [
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {
+                "type": "tool_use",
+                "id": "toolu_owner",
+                "name": "Skill",
+                "input": {"skill": "ccl-skills:testing-strategy"}
+              }
+            ]
+          }
+        },
+        {
+          "type": "user",
+          "message": {
+            "content": [
+              {"type": "tool_result", "tool_use_id": "toolu_owner", "is_error": true}
+            ]
+          }
+        },
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {"type": "tool_use", "id": "toolu_task", "name": "Task", "input": {}}
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "schema_version": 1,
+        "event_contract_version": "skill-events-v2",
+        "event_contract_status": "stable",
+        "skill_events_available": true,
+        "task_tool_events_available": true,
+        "first_task_tool_event_index": 1,
+        "event_index_source": "fixture-modeled-single-monotonic-stream",
+        "skills_invoked": [
+          {
+            "skill": "ccl-skills:testing-strategy",
+            "event_index": 0,
+            "tool_use_id": "toolu_owner",
+            "matching_tool_result": false,
+            "completed": false
+          }
+        ]
+      },
+      "expected_matched_call": {
+        "decision": "deny",
+        "reason_code": "matched_call_required"
+      }
+    },
+    {
+      "id": "claude-code-invocation-after-first-task-tool-is-late",
+      "driver": "claude-code",
+      "target_bundle_id": "ccl-skills:testing-strategy",
+      "transcript": [
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {"type": "tool_use", "id": "toolu_task", "name": "Task", "input": {}}
+            ]
+          }
+        },
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {
+                "type": "tool_use",
+                "id": "toolu_owner",
+                "name": "Skill",
+                "input": {"skill": "ccl-skills:testing-strategy"}
+              }
+            ]
+          }
+        },
+        {
+          "type": "user",
+          "message": {
+            "content": [
+              {"type": "tool_result", "tool_use_id": "toolu_owner"}
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "schema_version": 1,
+        "event_contract_version": "skill-events-v2",
+        "event_contract_status": "stable",
+        "skill_events_available": true,
+        "task_tool_events_available": true,
+        "first_task_tool_event_index": 0,
+        "event_index_source": "fixture-modeled-single-monotonic-stream",
+        "skills_invoked": [
+          {
+            "skill": "ccl-skills:testing-strategy",
+            "event_index": 1,
+            "tool_use_id": "toolu_owner",
+            "matching_tool_result": true,
+            "completed": true
+          }
+        ]
+      },
+      "expected_matched_call": {
+        "decision": "deny",
+        "reason_code": "matched_call_late"
+      }
+    },
+    {
+      "id": "claude-code-missing-tool-use-id-degrades-the-projection",
+      "driver": "claude-code",
+      "target_bundle_id": "ccl-skills:testing-strategy",
+      "transcript": [
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {
+                "type": "tool_use",
+                "name": "Skill",
+                "input": {"skill": "ccl-skills:testing-strategy"}
+              }
+            ]
+          }
+        },
+        {
+          "type": "assistant",
+          "message": {
+            "content": [
+              {"type": "tool_use", "id": "toolu_task", "name": "Task", "input": {}}
+            ]
+          }
+        }
+      ],
+      "expected": {
+        "schema_version": 1,
+        "event_contract_version": "skill-events-v2",
+        "event_contract_status": "degraded",
+        "skill_events_available": true,
+        "task_tool_events_available": true,
+        "first_task_tool_event_index": 1,
+        "event_index_source": "fixture-modeled-single-monotonic-stream",
+        "skills_invoked": []
+      },
+      "expected_matched_call": {
+        "decision": "deny",
+        "reason_code": "event_contract_unverifiable"
+      },
+      "degradation": {
+        "status": "invocation_unverifiable",
+        "reason": "missing_invocation_field"
+      }
+    },
+    {
+      "id": "opencode-completed-skill-tool-before-task-tool",
+      "driver": "opencode",
+      "target_bundle_id": "testing-strategy",
+      "transcript": [
+        {
+          "type": "tool",
+          "tool": "skill",
+          "callID": "call_sanitizedA",
+          "state": {
+            "status": "completed",
+            "input": {"name": "testing-strategy"}
+          }
+        },
+        {
+          "type": "tool",
+          "tool": "task",
+          "callID": "call_sanitizedTask",
+          "state": {"status": "completed", "input": {}}
+        }
+      ],
+      "expected": {
+        "schema_version": 1,
+        "event_contract_version": "skill-events-v2",
+        "event_contract_status": "stable",
+        "skill_events_available": true,
+        "task_tool_events_available": true,
+        "first_task_tool_event_index": 1,
+        "event_index_source": "fixture-modeled-single-monotonic-stream",
+        "skills_invoked": [
+          {
+            "skill": "testing-strategy",
+            "event_index": 0,
+            "tool_use_id": "call_sanitizedA",
+            "matching_tool_result": true,
+            "completed": true
+          }
+        ]
+      },
+      "expected_matched_call": {
+        "decision": "fixture-pass",
+        "reason_code": "fixture_matched_call_satisfied"
+      }
+    },
+    {
+      "id": "opencode-denied-invocation-is-not-completed",
+      "driver": "opencode",
+      "target_bundle_id": "testing-strategy",
+      "note": "A terminal error status still names the attempted skill. The projection must record the attempt without ever promoting it to a completed invocation; on the observed host this shape comes from a permission rule denying the call.",
+      "transcript": [
+        {
+          "type": "tool",
+          "tool": "skill",
+          "callID": "call_sanitizedB",
+          "state": {
+            "status": "error",
+            "input": {"name": "testing-strategy"},
+            "error": "<sanitized: the call was denied by a permission rule>"
+          }
+        },
+        {
+          "type": "tool",
+          "tool": "task",
+          "callID": "call_sanitizedTask",
+          "state": {"status": "completed", "input": {}}
+        }
+      ],
+      "expected": {
+        "schema_version": 1,
+        "event_contract_version": "skill-events-v2",
+        "event_contract_status": "stable",
+        "skill_events_available": true,
+        "task_tool_events_available": true,
+        "first_task_tool_event_index": 1,
+        "event_index_source": "fixture-modeled-single-monotonic-stream",
+        "skills_invoked": [
+          {
+            "skill": "testing-strategy",
+            "event_index": 0,
+            "tool_use_id": "call_sanitizedB",
+            "matching_tool_result": false,
+            "completed": false
+          }
+        ]
+      },
+      "expected_matched_call": {
+        "decision": "deny",
+        "reason_code": "matched_call_required"
+      }
+    },
+    {
+      "id": "opencode-repeated-literal-call-id-is-unverifiable-under-the-global-rule",
+      "driver": "opencode",
+      "target_bundle_id": "testing-strategy",
+      "note": "Observed on a real host: a short literal call id is reused for skill invocations in different sessions, naming different skills. This contract requires ids unique across all skill invocations, so a record carrying the collision is unverifiable rather than a pass. Pinning it here keeps the open scope decision visible instead of letting an extractor silently pick a rule.",
+      "transcript": [
+        {
+          "type": "tool",
+          "tool": "skill",
+          "callID": "skill_0",
+          "state": {"status": "completed", "input": {"name": "testing-strategy"}}
+        },
+        {
+          "type": "tool",
+          "tool": "skill",
+          "callID": "skill_0",
+          "state": {"status": "completed", "input": {"name": "defect-diagnosis"}}
+        },
+        {
+          "type": "tool",
+          "tool": "task",
+          "callID": "call_sanitizedTask",
+          "state": {"status": "completed", "input": {}}
+        }
+      ],
+      "expected": {
+        "schema_version": 1,
+        "event_contract_version": "skill-events-v2",
+        "event_contract_status": "stable",
+        "skill_events_available": true,
+        "task_tool_events_available": true,
+        "first_task_tool_event_index": 2,
+        "event_index_source": "fixture-modeled-single-monotonic-stream",
+        "skills_invoked": [
+          {
+            "skill": "testing-strategy",
+            "event_index": 0,
+            "tool_use_id": "skill_0",
+            "matching_tool_result": true,
+            "completed": true
+          },
+          {
+            "skill": "defect-diagnosis",
+            "event_index": 1,
+            "tool_use_id": "skill_0",
+            "matching_tool_result": true,
+            "completed": true
+          }
+        ]
+      },
+      "expected_matched_call": {
+        "decision": "deny",
+        "reason_code": "event_contract_unverifiable"
+      },
+      "open_decision": "tool_use_id_uniqueness_scope"
+    },
+    {
+      "id": "codex-cli-skill-md-read-is-observable-but-unregistered",
+      "driver": "codex-cli",
+      "target_bundle_id": "ccl-skills:testing-strategy",
+      "observed_mechanism": "This driver has no skill tool. Its session advertises skills with a root-alias table and instructs the agent to read the skill's SKILL.md before acting, so an invocation appears as a generic tool call whose arguments name <declared skill root>/<name>/SKILL.md. That is observable, but registering it needs a typed exception to the argument-exclusion rule, a rule separating skill-root reads from ordinary repository file reads, and defined de-duplication for repeat reads. Until those are decided, this driver stays unregistered.",
+      "transcript": [
+        {
+          "type": "response_item",
+          "payload": {
+            "type": "custom_tool_call",
+            "call_id": "call_sanitized",
+            "name": "exec",
+            "status": "completed",
+            "input": "read_file(\"<skill-root>/testing-strategy/SKILL.md\")"
+          }
+        },
+        {
+          "type": "response_item",
+          "payload": {"type": "custom_tool_call_output", "call_id": "call_sanitized"}
+        }
+      ],
+      "degradation": {
+        "status": "invocation_unverifiable",
+        "reason": "driver_shape_unregistered"
+      }
+    },
+    {
+      "id": "cursor-agent-has-no-skill-tool-and-no-grounded-invocation-evidence",
+      "driver": "cursor-agent",
+      "target_bundle_id": "testing-strategy",
+      "observed_mechanism": "This driver records paired tool-call and tool-result objects linked by a call id, which would map cleanly, but its recorded tool set carries no skill tool: the observed names are shell, file read, edit, search, todo and task tools only. Its skill trees exist on disk, so an invocation would again have to be inferred from a file read of a SKILL.md under a skill root. On the inspected host the few such reads target other hosts' skill trees during ordinary repository work, so there is no grounded invocation evidence to author a known answer from. Unregistered for lack of evidence, not by assumption.",
+      "transcript": [
+        {
+          "type": "tool-call",
+          "toolCallId": "call_sanitized",
+          "toolName": "Read",
+          "args": {"path": "<other-host-skill-root>/some-skill/SKILL.md"}
+        },
+        {
+          "type": "tool-result",
+          "toolCallId": "call_sanitized",
+          "toolName": "Read",
+          "result": "<sanitized>"
+        }
+      ],
+      "degradation": {
+        "status": "invocation_unverifiable",
+        "reason": "driver_shape_unregistered"
+      }
+    },
+    {
+      "id": "unknown-driver-shape-is-never-a-compliance-pass",
+      "driver": "unknown-driver",
+      "target_bundle_id": "ccl-skills:testing-strategy",
+      "transcript": [
+        {"event": "tool", "tool": "Skill", "skill": "ccl-skills:testing-strategy"}
+      ],
+      "degradation": {
+        "status": "invocation_unverifiable",
+        "reason": "driver_shape_unregistered"
+      }
+    }
+  ]
+}

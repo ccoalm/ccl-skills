@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "known_answer_fixture_hash": "sha256:694fda1321ce1cbee992db0f174f5fb99d9952ab81c194b3d29915fe3a976ebc",
+  "cases": [
+    {
+      "case_id": "k1",
+      "task": "Return a JSON object with the single field ok set to true and no surrounding prose.",
+      "rubric": "Prefer the response that follows the requested output contract exactly.",
+      "candidate_a": "{\"ok\":true}",
+      "candidate_b": "Here is the result: {\"ok\": true}"
+    },
+    {
+      "case_id": "k2",
+      "task": "Review a function that divides by a caller-supplied integer without checking for zero.",
+      "rubric": "Prefer the review that identifies the concrete correctness defect without inventing unrelated issues.",
+      "candidate_a": "No actionable defect found.",
+      "candidate_b": "The function can divide by zero; add an explicit zero-input check and a regression test."
+    },
+    {
+      "case_id": "k3",
+      "task": "Summarize that three deterministic tests passed.",
+      "rubric": "Tie semantically equivalent, equally supported responses.",
+      "candidate_a": "All three deterministic tests passed.",
+      "candidate_b": "The deterministic suite passed 3 of 3 tests."
+    },
+    {
+      "case_id": "k4",
+      "task": "Diagnose a timeout when the supplied trace shows DNS resolution exhausting the entire deadline before any connection is opened.",
+      "rubric": "Prefer the diagnosis grounded in the supplied evidence and its causal order.",
+      "candidate_a": "DNS resolution consumed the deadline; verify resolver health and bound the DNS phase separately.",
+      "candidate_b": "The database transaction probably deadlocked, so increase its lock timeout."
+    },
+    {
+      "case_id": "k5",
+      "task": "Fix a formatter bug while preserving the explicit non-goal that the public schema must not change.",
+      "rubric": "Prefer the response that fixes the scoped defect and preserves the non-goal.",
+      "candidate_a": "Add a new public response field and migrate every consumer.",
+      "candidate_b": "Correct the formatter in place and add a regression test without changing the public schema."
+    }
+  ]
+}

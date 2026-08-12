@@ -1,0 +1,4 @@
+interface:
+  display_name: "Requirement Scope"
+  short_description: "Map product change scope"
+  default_prompt: "Use $requirement-scope to map in/out scope, affected objects, version slices, dependencies, risks, and acceptance boundaries for a product change."

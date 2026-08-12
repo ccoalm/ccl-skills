@@ -1,0 +1,119 @@
+# GitHub Actions template — run tests, publish Feishu report, comment on PR.
+#
+# Replace <unit> placeholders with your deployable-unit directory (e.g. "web",
+# "app", "services/auth"). Copy this into .github/workflows/test-<unit>.yml.
+#
+# Required repository secrets:
+#   LARK_BOT_APP_ID      — Feishu bot app id (for lark-cli --as bot)
+#   LARK_BOT_APP_SECRET  — Feishu bot app secret  (piped via stdin, NEVER in argv)
+#
+# Already committed in <unit>/test/.report-config.json (resource IDs, not secrets):
+#   base_token, table_id, folder_token (optional), report_doc_url
+
+name: Test (<unit>)
+
+on:
+  pull_request:
+    paths:
+      - '<unit>/**'
+      - '.github/workflows/test-<unit>.yml'
+  push:
+    branches: [main]
+    paths:
+      - '<unit>/**'
+
+# Serialize same-unit runs to avoid concurrent Bitable writes losing each other
+# (gen_report.py has no CAS; last-write-wins).
+concurrency:
+  group: tc-report-<unit>-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write   # required for gh pr comment
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: <unit>
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Stack setup (pick one; remove the rest) ─────────────────────────
+      - uses: actions/setup-node@v4    # Vitest / Jest
+        with: { node-version: '20' }
+      # - uses: actions/setup-python@v5
+      #   with: { python-version: '3.12' }
+      # - uses: actions/setup-go@v5
+      #   with: { go-version: '1.22' }
+
+      - name: Install lark-cli + auth (stdin, no argv exposure)
+        env:
+          LARK_BOT_APP_ID: ${{ secrets.LARK_BOT_APP_ID }}
+          LARK_BOT_APP_SECRET: ${{ secrets.LARK_BOT_APP_SECRET }}
+        run: |
+          npm i -g @larksuiteoapi/lark-cli  # adjust to your distribution channel
+          # Pipe the secret via stdin; --app-secret-stdin keeps it OUT of ps/argv.
+          printf '%s' "$LARK_BOT_APP_SECRET" | \
+            lark-cli config init \
+              --app-id "$LARK_BOT_APP_ID" \
+              --app-secret-stdin \
+              --brand feishu
+
+      # Cache key includes run_id so each run produces a NEW cache entry that
+      # actions/cache will save (otherwise an exact-key hit prevents the save).
+      # restore-keys falls back to the most recent prior cache for this branch,
+      # then to main.
+      - name: Restore last-run snapshot (for vs-last-run diff)
+        uses: actions/cache@v4
+        with:
+          path: <unit>/test/results/last-run.json
+          key: tc-last-run-<unit>-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            tc-last-run-<unit>-${{ github.ref_name }}-
+            tc-last-run-<unit>-main-
+
+      - name: Install dependencies
+        run: npm ci      # or: uv pip install -e . / go mod download
+
+      - name: Run tests + sync Bitable + publish Feishu report
+        id: report_run
+        run: make report-run
+        env:
+          # bot identity is auto-detected by gen_report.py when CI=true
+          CI: 'true'
+          # Sidecar write failures should fail tests (no silent Bitable staleness).
+          TC_SIDECAR_STRICT: '1'
+
+      # IMPORTANT: run even when report_run failed — that's when the summary
+      # matters most. fail-soft (continue-on-error + || true) so missing
+      # python / config / helper doesn't fail the job AFTER red tests.
+      # Write under the unit working-dir so hashFiles() (workspace-relative)
+      # can see the artifact in the next step.
+      - name: Build PR comment summary
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        run: |
+          set +e
+          python test/scripts/gen_report.py \
+            --config test/.report-config.json \
+            --pr-summary --fail-on=never > pr-summary.md 2>pr-summary.err || true
+
+      - name: Post PR comment
+        if: always() && github.event_name == 'pull_request' && hashFiles('<unit>/pr-summary.md') != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body-file pr-summary.md || true
+
+      - name: Upload JUnit + sidecar (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-<unit>
+          path: <unit>/test/results/
+          retention-days: 7

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Multi-Agent Delegation"
+  short_description: "Execute plans with supervised AI agents"
+  default_prompt: "Use $multi-agent-delegation to split, delegate, review, and verify agent-executed work."
+

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ccl-skills:human-adjudication:v1",
+  "schema_version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "pair_id",
+    "grader_id",
+    "verdict",
+    "reason",
+    "rubric_version",
+    "confidence",
+    "needs_adjudication"
+  ],
+  "properties": {
+    "pair_id": {"type": "string", "pattern": "^pair-[0-9a-f]{64}$"},
+    "grader_id": {"type": "string", "minLength": 1},
+    "verdict": {"enum": ["A win", "tie", "B win"]},
+    "reason": {"type": "string", "minLength": 1},
+    "rubric_version": {"type": "string", "minLength": 1},
+    "confidence": {"enum": ["high", "low"]},
+    "needs_adjudication": {"type": "boolean"}
+  }
+}

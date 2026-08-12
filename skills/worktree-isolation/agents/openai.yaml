@@ -1,0 +1,4 @@
+interface:
+  display_name: "Worktree Isolation"
+  short_description: "Isolate edits in a dedicated git worktree"
+  default_prompt: "Use $worktree-isolation to ensure you are in a dedicated git worktree before editing a repo that may be worked on concurrently."

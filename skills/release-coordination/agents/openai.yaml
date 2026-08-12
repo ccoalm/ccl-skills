@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Coordination"
+  short_description: "Coordinate production release lifecycle gates"
+  default_prompt: "Use $release-coordination to coordinate release docs, MR authorization, tag gates, production pipeline evidence, watchers, and post-release reset."

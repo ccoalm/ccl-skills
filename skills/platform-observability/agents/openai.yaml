@@ -1,0 +1,4 @@
+interface:
+  display_name: "Platform Observability"
+  short_description: "Design and verify backend observability"
+  default_prompt: "Use $platform-observability to design, review, or debug logs, metrics, distributed tracing, dashboards, alerts, and SLI/SLO for a backend product."

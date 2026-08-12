@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "frozen_before_outcomes": true,
+  "enforcement": "advisory",
+  "evidence_tier": {
+    "schema_version": 1,
+    "requested_tier": "advisory-paired",
+    "waived_items": [
+      "access_root_enforcement",
+      "complete_access_audit",
+      "live_matched_call_gate",
+      "memory_isolation_proof",
+      "mount_evidence",
+      "provider_side_persistence_proof"
+    ]
+  },
+  "meaning": "runner_eval_validity_only",
+  "reviewer_calibration_fixture_hash": "sha256:694fda1321ce1cbee992db0f174f5fb99d9952ab81c194b3d29915fe3a976ebc",
+  "reviewer_calibration_case_fixture_hash": "sha256:62d0844e5e6332bf40ac08124a6637a288775c0e3d7327098a13b0bb01eace4b",
+  "thresholds": {
+    "runner_completion_rate_min": 0.95,
+    "samples_per_task_arm_min": 3,
+    "smoke_tasks_per_arm_min": 2,
+    "skill_event_unverifiable_rate_max": 0.05,
+    "missing_shape_task_family_stop_count": 2,
+    "matched_call_smoke_rate_min": 1.0,
+    "reviewer_family_count_min": 1,
+    "reviewer_self_consistency_min": 0.8,
+    "reviewer_known_answer_accuracy_min": 0.8,
+    "reviewer_pairwise_agreement_min": 0.8,
+    "reviewer_pairwise_kappa_min": 0.6,
+    "contamination_rate_max": 0.05,
+    "arm_contamination_gap_max": 0.05
+  },
+  "budgets": {
+    "tokens": null,
+    "wall_time_seconds": null,
+    "tool_calls": null,
+    "cost_units": null
+  },
+  "primary_outcomes": {
+    "implementation": "deterministic_task_success",
+    "review": "verified_defect_precision_recall",
+    "diagnosis": "verified_root_cause_and_regression",
+    "plan": "frozen_acceptance_coverage",
+    "shared_gate": "false_allow_false_deny",
+    "delegation": "sealed_worker_outcome_success"
+  },
+  "minimum_effects": {
+    "implementation": 0.05,
+    "review": 0.05,
+    "diagnosis": 0.05,
+    "plan": 0.05,
+    "shared_gate": 0.02,
+    "delegation": 0.05
+  },
+  "active_control": {
+    "status": "pending-independent-candidates",
+    "effect_claim_when_pending": "ccl_specific_content_unanswerable",
+    "allowed_comparison_when_pending": "owner_bundle_only"
+  }
+}

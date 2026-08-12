@@ -1,0 +1,50 @@
+# Client And Runtime Test Matrices
+
+Deep per-surface matrices for Workflow step 3 (choose the lowest sufficient
+test layer) in `SKILL.md`. Load this file whenever the change touches a
+client API-backed surface, mini-program or mobile runtime smoke, device/E2E
+readiness, runtime-client mechanisms, native bridges, app-hosted H5,
+terminal/CLI/TUI runtime tests, or streaming/async finality. Every bullet is an obligation at layer-selection time, not
+optional advice.
+
+## Client API-Backed Surfaces: Default Layer Split
+
+For client API-backed surfaces, apply this default split unless the repository has a stronger convention:
+
+- Unit/component: form validation, state transitions, empty/loading/error/success rendering, permission-gated controls, mode switches, and emitted request intent.
+- API client/contract: URL, headers, request body, request/trace/operation identifiers, duration/long-task metadata, cancellation semantics, envelope parsing, empty/invalid response handling, non-2xx behavior, auth expiry, permission/feature-closed responses, and typed error messages.
+- Browser/device/E2E smoke: open the real page or app screen, perform the primary action with controlled data or a stable test backend, verify the visible success path, then verify one realistic failure path is readable and non-crashing.
+- Mini-program smoke: compile or preview in the relevant platform developer tool, open the real page or preview build, verify route/scene params, loading/success/failure states, auth or permission behavior when relevant, and one host-platform capability path such as share, payment, subscribe message, camera, scan, or webview bridge when touched. Developer-tool compile or preview is structural evidence only; it does not replace assertion-based behavior tests or rendered flow checks.
+
+## Runtime Smoke: Blocking Rules And Evidence Surface
+
+- Runtime-dependent client smoke is blocking when lower layers cannot prove the changed behavior, including platform request/chunking, streaming finality, foreground/background restore, host navigation, permission/capability prompts, native or mini-program bridge callbacks, storage/session restore, and host-rendered error or recovery states. If the runner is missing, first attempt normal setup/remediation; if still unavailable, stop at `pre-runtime-test ready` or `blocked` with owner, commands attempted, residual risk, and next unblock action.
+- For mini-program and mobile runtime smoke, treat app identity, plugin authorization, dev-tool login, service-port availability, and host permissions as part of the evidence surface. If those inputs are wrong or missing after remediation, classify the slice as `blocked` or `pre-runtime-test ready` rather than converting the gap into a code correctness claim.
+- For mini-program flows whose correctness depends on real-host completion state, classify the strategy as "real WeChat / real device required" and point the project checklist at a reusable host-flow template: target app entry, minimal real input, first-chunk observation, final closure, and evidence capture. Keep the concrete app name and search path in the project checklist; keep the skill-level rule generic.
+- Device/environment readiness: when a mobile, browser, or service runner is required, verify readiness with the runner's own discovery command and one direct health/state command. For Android, for example, do not trust a wrapper script alone; confirm `adb devices -l`, `adb -s <serial> get-state`, and boot readiness before treating the device E2E layer as available or unavailable.
+
+## Mechanism-Triggered Tests
+
+- Dangerous or irreversible operation tests: assert operator, reason, confirmation, permission, audit/support context, duplicate-submit behavior, and visible final status before treating the UI or API as ready.
+- Runtime-client mechanism tests: when code changes route guards, permission trees, request interceptors, generated clients, upload wrappers, long-task polling, safe-area/keyboard/orientation handling, or foreground/background restore, add focused unit/component/client tests for that mechanism plus rendered browser/device smoke when the behavior is visual or container-dependent.
+- Terminal/CLI/TUI runtime tests: choose focused unit/buffer tests for deterministic parser/rendering/state logic, PTY/integration tests for runtime boundaries, and real terminal smoke when emulator behavior affects the claim. Keep cleanup, finality, stale-state rejection, and diagnostics redaction in scope; detailed terminal runtime, paste/clipboard, configurable keybinding, and modal editing matrices live in `references/non-functional-specialized-scenarios.md` (`Terminal, command-line, and text UI surfaces`, `Terminal paste and clipboard ingress`, `Configurable terminal keybinding tests`, `Modal terminal text editing`).
+- Native-bridge and app-hosted H5 tests: when code changes bridge initialization, callback registration/cleanup, capability detection, old/new bridge fallback, device status mapping, or debug gating, add adapter tests for success/failure/timeout/missing-host cases plus one device or host-container smoke when the feature depends on a real native shell.
+
+## Reusable Scenario Dimensions
+
+Build scenario matrices from these reusable dimensions; do not paste product-specific matrices into the skill. Product-specific lists such as report workbenches, roster sync, resource libraries, or one named business workflow belong in the project checklist or the product/domain skill that owns that surface.
+
+- Host/container dimension: entry path, route/deep link, host-provided app info, bridge present/missing, foreground/background, safe area/keyboard/orientation, and real-host smoke when container behavior affects the claim.
+- Identity/permission dimension: unauthenticated, authenticated, expired, no-permission, partially permitted, account switch/logout cleanup, and sensitive-storage cleanup.
+- Data/state dimension: empty, loading, success, partial/stale, invalid, long/overflowing, pagination/no-more, restored local state, and authoritative refetch after mutation.
+- Async/finality dimension: first start, pending, progress, timeout, cancellation, dependency failure, duplicate start/retry, partial-state persistence, terminal success/failure, repair/retry visibility, and trace/support evidence.
+- Visual/interaction dimension: primary path, disabled reason, error/retry, confirmation consequence, return context, narrow/mobile stress, text scaling, focus order, and accessible labels for compact/icon-only controls.
+- High-consequence dimension: destructive account action, money/quota/write finality, generated content, permission prompt, native capability, or irreversible external side effect; require explicit confirmation, idempotency/finality evidence, and visible recovery status.
+
+## Streaming And Async-Finality Tests
+
+When code changes model streams, queued jobs, MQ consumers, scheduled prompt tasks, cron tasks, persisted tool-output artifacts, or long-running exports, cover timeout, cancellation, provider/dependency error, duplicate start/retry, partial-state persistence, terminal success/failure, and repair/alert evidence at the lowest sufficient layer.
+
+- For local scheduled prompts, assert schedule parsing and next-run proof, local-time interpretation, session-only versus durable lifetime, explicit durable intent, durable-disable fallback, max-job caps, malformed record dropping, single-owner scheduler lock or lease, stale owner takeover, file or store reload stability, loading or active-turn deferral, assistant/daemon mode gates, missed one-shot confirmation before execution, deletion or fencing before catch-up surfacing, recurring last-fire persistence, no catch-up storms after restart, deterministic jitter or equivalent load spreading, recurring auto-expiry and permanent exceptions, in-flight double-fire suppression, target-agent ownership and orphan cleanup, low-priority/meta queueing, workload attribution, shutdown cleanup, and diagnostics redaction for raw prompt bodies, task ids, recipient ids, local paths, credentials, and free-form scheduler errors.
+- For persisted tool-output artifacts, apply the full matrix in `references/non-functional-specialized-scenarios.md` and add async-specific assertions for atomic publish, stale abort cleanup, stable replacement across resume/replay/cache, no premature summary or absence claims before chunk reads, and no permission widening through saved paths.
+- For streaming or long-lived connections, client cancel/disconnect propagation is transport behavior: an application-layer unit test that cancels a context does not prove a physical client disconnect actually reaches the server handler's context — prove it with a real in-process client whose connection is physically closed mid-stream. For a stateful streaming protocol, derive chain-level and replay tests from the spec's state-transition matrix at design time; edge transitions the design doc did not enumerate (e.g. a cancel arriving before the first content event must not clobber a prior good answer) are forced out by chain-level tests, not by unit tests or event-format review. When a regression test simulates a disconnect in a way the transport never produces, distinguish "defect" from "test failed to reproduce reality": fix the repro's fidelity before concluding the transport has a bug (route cause analysis through `defect-diagnosis`).

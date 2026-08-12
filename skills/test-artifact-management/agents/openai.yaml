@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test Artifact Management"
+  short_description: "Generate structured test cases to Bitable"
+  default_prompt: "Use $test-artifact-management to turn requirements or code into structured test cases in Feishu Bitable."

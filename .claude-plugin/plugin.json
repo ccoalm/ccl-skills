@@ -1,0 +1,5 @@
+{
+  "name": "ccl-skills",
+  "description": "CCL 研发技能全库（按交付物路由：product-rd-workflow / testing-strategy / test-artifact-management / defect-diagnosis / skill-extraction-workflow / tighten-doc / 各 *-dev / *-architecture …）+ 团队护栏（编辑隔离 PreToolUse hook + 研发路由 SessionStart bootstrap + worktree-isolation 技能）。",
+  "skills": "./skills/"
+}

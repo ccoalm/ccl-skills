@@ -1,0 +1,4 @@
+interface:
+  display_name: "Python Service Architecture"
+  short_description: "Design Python backend and service architectures"
+  default_prompt: "Use $python-service-architecture to design a product-agnostic Python backend architecture and choose service boundaries from ownership, data, runtime, scale, release, and rollback evidence."

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["AGENTS.md", "./agent-context/session-start.md"],
+  "skills": {
+    "paths": ["./skills"]
+  },
+  "command": {
+    "rd": {
+      "description": "Plan or route product R&D work",
+      "template": "使用 product-rd-workflow 处理以下需求：$ARGUMENTS\n\n按产品意图、技能路由、质量门、验收证据和下一步顺序输出；若信息不足，先问最小必要问题。"
+    },
+    "risk": {
+      "description": "Classify feature risk and gates",
+      "template": "使用 feature-risk-router 判断以下改动的风险和必跑门禁：$ARGUMENTS\n\n输出 risk tags、required gates、skippable gates、stop reasons、verification evidence。"
+    },
+    "bug": {
+      "description": "Diagnose a bug or failing test",
+      "template": "使用 defect-diagnosis 排查以下问题：$ARGUMENTS\n\n先读取一手失败证据，再复现、隔离、判断根因、提出修复和回归验证。"
+    },
+    "test": {
+      "description": "Design test strategy and coverage",
+      "template": "使用 testing-strategy 为以下需求或改动设计测试方案：$ARGUMENTS\n\n输出测试层选择、场景矩阵、fixture/mock 策略、CI gate、验证证据和阻塞项。"
+    },
+    "tc": {
+      "description": "Generate or update structured test cases",
+      "template": "使用 test-artifact-management 处理以下测试用例任务：$ARGUMENTS\n\n先明确来源和风险矩阵，再生成/更新结构化 TC、自动化挂钩和报告同步方案。"
+    },
+    "retro": {
+      "description": "Extract reusable lessons into skills",
+      "template": "使用 skill-extraction-workflow 复盘并沉淀以下经验：$ARGUMENTS\n\n先设 charter 和 RCA，再判断 keep / merge / discard / route，最后给出应更新的技能或引用。"
+    },
+    "doc": {
+      "description": "Tighten and polish documentation",
+      "template": "使用 tighten-doc 优化以下文档或文本：$ARGUMENTS\n\n保留事实和决策，删除废话、重复、AI 腔和不清晰结构；如实质未定，先说明需要 owner 决策。"
+    },
+    "agent": {
+      "description": "Plan agent delegation or parallel execution",
+      "template": "使用 multi-agent-delegation 评估并执行以下 agent 分工任务：$ARGUMENTS\n\n先判断是否值得委托或并行，明确每个 worker 的范围、owner skill、权限、验证和停止条件。"
+    },
+    "ui": {
+      "description": "Design or review product UI/UX",
+      "template": "使用 product-ui-ux-design 处理以下 UI/UX 任务：$ARGUMENTS\n\n覆盖用户路径、布局、交互、状态、可访问性、设计系统一致性和验收证据。"
+    },
+    "check": {
+      "description": "Run or explain ccl-skills gates",
+      "template": "按本仓门禁检查当前改动：$ARGUMENTS\n\n先说明将运行的验证，再运行 `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` 和 `git diff --check`；若不能运行，说明阻塞原因和替代证据。"
+    },
+    "update": {
+      "description": "Refresh CCL skills for OpenCode",
+      "template": "刷新 OpenCode CCL 技能：$ARGUMENTS\n\n先判断安装方式：源仓安装则在 ccl-skills 仓库根目录 `git pull --ff-only` 后运行 `bash scripts/install-opencode.sh`（如用户传 `--project` 则保留参数）；npm 包安装则先运行 `ccl-skills-opencode update` 预览，只有用户明确确认后才运行 `ccl-skills-opencode update --yes`。完成后提示必须重启 OpenCode 或开新会话才会加载更新。"
+    }
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Product R&D Workflow"
+  short_description: "Coordinate product delivery from idea to release"
+  default_prompt: "Use $product-rd-workflow to plan and execute an end-to-end product R&D workflow."

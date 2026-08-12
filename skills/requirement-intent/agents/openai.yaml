@@ -1,0 +1,4 @@
+interface:
+  display_name: "Requirement Intent"
+  short_description: "Clarify product requirements"
+  default_prompt: "Use $requirement-intent to turn product requirement discussions into knowns, unknowns, user paths, non-goals, acceptance points, and a question pool."

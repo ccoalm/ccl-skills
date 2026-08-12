@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "arm_id": "S1",
+  "scope": "subagent",
+  "treatment": "oracle",
+  "runnable": true,
+  "allowlisted_diff": ["skill_inventory", "hook_command_config", "ccl_layer"],
+  "active_control_selection": {"status": "not-applicable"},
+  "bundle_policy": "only the frozen oracle owner and matched-call gate are visible"
+}

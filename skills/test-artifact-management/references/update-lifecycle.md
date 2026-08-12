@@ -1,0 +1,62 @@
+# Update 生命周期细则
+
+SKILL.md `### Update (需求变更 / 迭代补充)` 节的生命周期细则全文。正文保留变更分类表与各级硬规则摘要（级联时效、误标安全闸、键/镜像/漂移三原则）；本文件承载步骤与命令细节。何时读：执行功能废弃级联、处理无 TC ID 测试代码、误标恢复、多人编辑后的漂移检查前。
+
+## 功能废弃 → 测试代码级联
+
+废弃一条 TC 后，立即执行以下步骤，不要留到后续迭代：
+
+1. 找该 TC 关联的测试：grep sidecar `test/results/tc-map.jsonl` 取测试名/路径；同时 grep 源码里的 `tc("<TC ID>")` / `tc.Mark(t, "<TC ID>")` / `tcTest([..."<TC ID>"]` / `@pytest.mark.tc("<TC ID>")` 找到 declaration 处
+2. 判断该测试所覆盖的业务代码是否还有效（代码是否已删除或功能已下线）。用每端 dev skill 的"废弃级联：业务代码是否仍在用"段里的 import-graph 命令，不要只 grep：
+   - 业务代码已删/功能已下线 → 在同一 commit 删除该测试函数
+   - 业务代码仍有效 → 默认不处理（TC 可能是提前标废弃，代码尚未清理）
+3. 一条测试同时关联多个 TC（如 `tc("TC-SY-001", "TC-SY-002")`），且只有部分废弃 → 从 marker/`tc(...)` 参数列表里去掉废弃 ID，不删整个测试
+4. 没有 TC 关联的测试（既没 marker 也没 `tc(...)` 调用）不进入此流程（见下方「无 TC ID 测试代码」规则）
+
+## 无 TC ID 测试代码
+
+无 TC ID 的测试代码覆盖范围更广（单元逻辑、边界条件、内部不变式），默认不受 TC 废弃影响。
+但当业务代码本身被删除或功能下线时，需额外检查：
+
+1. grep 所有测试文件，找出覆盖已删业务代码的测试函数（无 `tc(...)` 调用）
+2. 判断这些测试是否还有价值（测试目标是否已不存在）：
+   - 测试目标已不存在 → **提示用户决定是否删除**，不自动删
+   - 测试目标仍有效 → 不处理
+
+## 误标恢复（废弃 → 未测试）
+
+`废弃` 是逻辑上的"永久终态"，但人会误标。恢复路径：
+
+```bash
+python test/scripts/gen_report.py \
+  --config test/.report-config.json \
+  --unfreeze "TC-SY-001,TC-SY-003" \
+  --unfreeze-reason "误标恢复：功能未下线"
+```
+
+执行结果：状态从 `废弃` → `未测试`；信息流转追加 `[<author> <date>] 误标恢复（误标恢复：功能未下线）：废弃 → 未测试`。
+**`--unfreeze-reason` 必填**（脚本会 `parser.error` 阻止空 reason），日后审计要看到为什么"永久终态"被打开。已是 `未测试`/`通过`/等其他状态的 TC 会被跳过（只对 `废弃` 生效）。
+
+**不要与 `--run-tests` 同跑** — `--unfreeze` 是 Bitable 写操作，gate 仅看 suite 命令退出码，不看测试结果内容。如果测试套件命令本身退 0 但内部有失败，`--unfreeze` 仍会执行。若需要"测红就不解冻"，先单独 `make test`，看通过后再单独 `--unfreeze`。
+
+## update 操作原则
+
+- 用例ID 是唯一稳定键，不能修改；匹配记录时以 用例ID 为准
+- 信息流转是 rolling log：先读当前值，追加 `[姓名 日期] 内容`，再写回；写回时只保留最近 N 条（默认 100，`TC_INFO_KEEP` 可配；`=0` 表示无限——只受 Bitable 单字段长度限制）
+- 状态字段修改前确认当前值，避免将「通过」误回滚为「未测试」
+- 批量更新时先列出受影响的 用例ID 清单，与用户确认后再执行
+- Bitable 是执行权威源；本地 md 是用例定义字段的可读镜像。md 只同步用例定义字段（用例ID、模块、功能点、优先级、测试层级、测试类型、前置条件、操作步骤、预期结果），不同步状态/跟进人/信息流转
+- md 同步匹配必须以 用例ID 为唯一键；模块名或功能点相同不代表是同一条记录
+- 若 md 先于 Bitable 被修改（如直接编辑文件），需将 md 变更反向同步到 Bitable，再按 update 工作流补信息流转
+- **漂移检查**：定期运行 `python gen_report.py --config test/.report-config.json --diff-md test/cases/all.md` 显示 md 与 Bitable 的 added/removed/changed；废弃记录自动排除（不在 md 里属正常）；多人编辑后必跑一次再 commit
+- `+record-upsert --record-id` 中的 record_id 是 Bitable 内部 ID，必须先用 `get_record_index()` 从 用例ID 查出，不能直接用 用例ID 代替
+
+## update 工作流
+
+1. **明确变更范围** — 哪些功能点变了？哪些用例受影响？列出 用例ID 清单
+2. **拉取现有记录** — `lark-cli base +record-list` 查当前状态，见 `references/bitable-setup.md`
+3. **分类变更** — 对照变更分类表分类每条记录的操作
+4. **执行更新** — 单条用 `+record-upsert --record-id`，批量用 Python 脚本，信息流转 rolling-append（默认保留最近 100 条）
+5. **新增记录** — 新功能点调用 `+record-upsert`（无 --record-id），ID 从现有最大序号续编
+6. **同步本地 md** — 对照变更分类表，在本地 md 对应模块中同步增/改/标废弃
+7. **验收** — 检查受影响记录的状态和信息流转是否正确；确认本地 md 与 Bitable 一致

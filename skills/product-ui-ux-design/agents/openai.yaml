@@ -1,0 +1,9 @@
+interface:
+  display_name: "Product UI/UX Design"
+  short_description: "Design, build, launch-check, and iterate product UI/UX"
+  # brand_color intentionally omitted — the host renders a default; product
+  # brand tokens live in the project's design-system file referenced by
+  # references/*.md and must not leak into agent metadata.
+  default_prompt: "Use $product-ui-ux-design to design, develop, launch-check, or iterate a product screen, including UI/UX audit, interaction flows, states, feedback, visual system, accessibility, and release acceptance."
+policy:
+  allow_implicit_invocation: true

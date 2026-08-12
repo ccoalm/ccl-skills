@@ -1,0 +1,4 @@
+interface:
+  display_name: "Platform Release Engineering"
+  short_description: "Plan safe release, canary, and rollback"
+  default_prompt: "Use $platform-release-engineering to design env/lane matrix, canary, blue-green, promotion gates, and rollback for a change."

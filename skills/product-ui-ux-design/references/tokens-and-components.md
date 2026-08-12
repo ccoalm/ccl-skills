@@ -1,0 +1,47 @@
+# Tokens And Components
+
+Use this file as a router for shared token/component decisions. Load the detailed design-system references only when the task needs concrete token names, component states, or platform-specific component behavior.
+
+## Desktop Design System
+
+The team's current desktop design system is a `class: A1` published source. It may be team-authored from scratch, abstracted out of a product framework file, or aligned to (or mirrored from) a third-party component library's spec. Read `platform-web-desktop-patterns.md` for desktop tokens, variable modes, component groups, and practical component-state extraction. Treat desktop pages or components marked as `todo` in the source as weak references only. Use `design-system-source-of-truth.md` to identify which file is the actual source when multiple desktop "design system" candidates exist.
+
+## Mobile Design System
+
+The team's current mobile design system is a `class: A1` published source for the mobile end. It may be team-authored, abstracted out of a mobile product framework file, or aligned to a third-party mobile component library. Read `platform-mobile-patterns.md` for mobile tokens, component groups, theming, and mobile state coverage. Use `design-system-source-of-truth.md` to identify the actual source when multiple candidates exist.
+
+## Usage Rules
+
+- Use published design-system files for tokens, component names, variants, and theme behavior.
+- Use product UI files for page composition, state coverage, and interaction-pattern evidence; do not inherit their old domain requirements.
+- Use third-party UI kits and icon libraries only as reference-only coverage checks for component categories, state variants, icon discipline, and documentation quality. Do not copy their brand, marketing IA, or visual identity into the product skill.
+- Do not hardcode colors, spacing, radii, or typography when a design-system token exists.
+- **Color tokens 优先 HSL 而非 Hex / RGB**（hand-tuning same-hue 变体）：HSL 让"同色不同亮度"（hover、disabled、bg tint、border-on-bg shade）通过只改 L 直接派生；Hex / RGB 改 1 个亮度需要算 3 通道易调不准。toolchain 支持时**优先 OKLCH / LCH** 做感知一致的 color ramp（HSL 在跨 hue 时亮度不感知统一）。Token 源用 HSL/OKLCH 表达 intent；输出层（CSS / iOS / Android）按需 convert；设计工具如 Figma 可能存 RGB，token spec 保留 HSL/OKLCH 语义即可。
+
+## Token Sync Pipeline (Figma → Front End)
+
+Design tokens have a **design-tool source of truth**, typically a Figma file with a curated token set (color, spacing, radii, typography, shadow, motion). Tokens reach the front end through a project-specific sync mechanism, not through manual front-end authoring.
+
+- The Figma token set is the canonical source. Front-end token files (CSS variables, framework theme entry, `tokens.ts`, generated SCSS / LESS variables, etc.) are downstream artifacts of the sync.
+- The sync mechanism varies by project: Style Dictionary build pipeline, Tokens Studio plugin export, a Figma-API-driven script, the component suite's theme entry that mirrors the Figma token set, or a Feishu/Lark-hosted spec doc that a script consumes. Architecture records which mechanism this project uses and where the sync script / config lives so future agents do not invent a parallel path.
+- Front-end consumers (component code, page styles) reference the synced tokens by name; they do not declare raw color literals, spacing literals, or font-size literals in component code. Hard-coded literals across components are a sync-pipeline finding, not a per-component fix.
+- Adding a token: define it in Figma first, then run the sync, then reference it in code. Adding a token only on the front end (without the Figma source) is design drift that compounds across apps.
+- Renaming or removing a token: same direction — update Figma, sync, propagate. The sync output should fail the build (or at least produce a reviewable diff) when token names change, so consumers notice.
+- Introducing a second theme (dark mode, multi-tenant brand) becomes a token-set switch in the Figma source plus a sync re-run, not a code rewrite, when this pipeline is in place.
+- **Design Tokens Format Module reached first stable version 2025.10 (published 28 October 2025 by the W3C Design Tokens Community Group)** — adopt the `$value` + `$type` JSON schema as the *interchange format* between design tools (Tokens Studio, Style Dictionary, Supernova, Figma Variables exporters) and platform code generators. Two scope caveats: (1) Community Group reports are NOT W3C Standards and not on the W3C Standards Track — DTCG is industry-converged interchange, not normative spec, so do not cite it as a compliance gate; (2) DTCG is NOT a source-of-truth replacement — source authority still lives in the design tool's connected token panel (Figma Variables / equivalent), per the team's existing "token source = design tool, not JSON export" rule. What DTCG actually buys: a token rename in the source produces a predictable downstream diff, `$type` can be set at the group level so individual tokens inherit it (per-token `$type` override is also valid and necessary in mixed-type groups — inheritance is a default, not a constraint), composite token `$value` is a structured object / array for shadow / gradient / typography / transition (not a scalar) so legacy exporters that flatten composite values will break on the migration and must be updated alongside it, and cross-tool migrations stop reinventing per-vendor JSON shapes. When picking up a project that already has a non-DTCG token JSON (e.g. legacy Style Dictionary v3 layout, raw `{"color":{"primary":"#xxx"}}` blob), schedule the migration to DTCG `$value`/`$type` alongside the next token-set restructure rather than as a separate refactor, and audit exporter/generator support for composite types as part of the migration gate.
+- Treat component coverage as a capability map, not a visual shortcut. A component is usable only when its states, placement role, density, accessibility, and failure behavior match the product surface.
+- For web, prefer mature component semantics and adapt density to the community surface: lighter for feed/profile/content consumption, denser for creator tools, moderation, settings, and AI workspaces.
+- For mobile, prefer mobile-specific components such as NavBar, TabBar, CapsuleTabs, FloatingPanel, SearchBar, SafeArea, and mobile List/Card patterns.
+- For community UI, make interaction states complete: liked/followed/joined, commenting/replying, creating/submitting, loading, empty, error, muted/blocked/reported, AI-generating, and permission-gated states. For finance/data or operational UI, make scope, permission, evidence, pending/final, export, support, and recovery states complete.
+
+## Cross-Platform Component Capability Map
+
+- Shell and navigation: desktop `Layout`, `Menu`, `Breadcrumb`, `Dropdown`, `Pagination`, `Steps`, `Splitter`; mobile `NavBar`, `TabBar`, `Tabs`, `CapsuleTabs`, `SideBar`, `IndexBar`. Use them to preserve route context, selected state, overflow, long labels, and return paths.
+- Input and creation: desktop `Form`, `Input`, `Select`, `Upload`, `DatePicker`, `Transfer`, `TreeSelect`; mobile `Form`, `Input`, `TextArea`, `Picker`, `Selector`, `ImageUploader`, `NumberKeyboard`, `PasscodeInput`. Cover focus, validation, disabled reason, keyboard/safe-area, upload progress, and preview-before-commit.
+- Content display: desktop `Card`, `List`, `Avatar`, `Image`, `Tag`, `Badge`, `Tooltip`, `Popover`, `Statistic`, `Tree`; mobile `Card`, `List`, `Avatar`, `Image`, `ImageViewer`, `Tag`, `Ellipsis`, `FloatingPanel`, `InfiniteScroll`. Cover long content, media failure, skeleton, empty, selected/hover/pressed, and secondary actions.
+- Feedback and recovery: desktop `Alert`, `Message`, `Notification`, `Modal`, `Drawer`, `Popconfirm`, `Progress`, `Result`, `Skeleton`; mobile `Toast`, `Dialog`, `Modal/Bottom sheet`, `Popup`, `ActionSheet`, `NoticeBar`, `ProgressBar`, `ProgressCircle`, `ErrorBlock`, `ResultPage`. Match feedback strength to risk: toast for lightweight status, inline alert for scoped context, modal/dialog for decisions, result page for terminal state.
+- Trust and high-impact states: use `Alert`/`NoticeBar`, `Tag`/`Badge`, `Popover`/`Drawer`, `Modal`/`Dialog`, and progress/result components to expose source, permission, pending/final state, retry safety, and support/recovery context.
+- Charts, metrics, and progress: use chart axes, legends, markers, metric cards, and progress steps only when they explain comparison, trend, distribution, current stage, or next action. Every chart needs empty/loading/partial/stale states plus a route to detail, drill-down, or exact rows when the decision depends on the data.
+- Flow and annotation: use step indicators, labels, pointers, measures, hot zones, cursor/gesture hints, and inline annotations to clarify complex interactions during design, review, onboarding, or UAT. Remove them from the final product surface unless they serve an actual user state, tooltip, or guidance role.
+- Icon discipline: icon-only controls need consistent stroke/fill weight, hit area, selected/disabled/loading/error states, accessible labels, and tooltip/sheet titles for unfamiliar actions. Do not use arbitrary icons when text, a menu label, or a safer confirmation is needed.
+- Common mobile icon set observed in source coverage: add, camera, chat, check, close, delete, edit, eye, file, filter, flag, global, heart, like, link, location, lock, mail, message, more, picture, search, send, setting, star, tag, team, warning, and error. Map icons semantically instead of decoratively.

@@ -1,0 +1,5 @@
+{
+  "_comment": "Optional per-repo config for the control-plane detector (.control-plane.json at the repo top level). Defaults are built into the engine and apply WITHOUT this file. extend_globs adds repo-specific control-plane paths (never cancelled by overrides); product_overrides declassifies DEFAULT matches this repo deliberately treats as product code (e.g. a scripts/ dir holding product CLIs). The enforcement chain is hard-pinned and can never be overridden: .control-plane.json itself, scripts/control-plane/**, scripts/owner-dispatch/**, .owner-dispatch.json, tools/check-agent-contract-coverage.sh, .gitleaks.toml/.gitleaksignore, CI files (.gitlab-ci.yml/.gitlab/.github/ci), hooks, and the root Makefile. TRUST ROOT: the engine reads this config from the MERGE-BASE tree, so a candidate diff can never declassify itself; malformed, empty, or unknown-key configs fail closed (exit 3).",
+  "extend_globs": ["deploy/**"],
+  "product_overrides": ["scripts/product-cli/**"]
+}

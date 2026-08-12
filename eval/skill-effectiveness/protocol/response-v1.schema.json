@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "skill-effectiveness.bridge.response.v1",
+  "title": "Skill-effectiveness evaluator bridge response",
+  "description": "Exactly one JSON object on stdout; diagnostics go to stderr. Exit 0 for ok, 3 for a typed blocked result, 2 for invalid input, 4 for I/O or internal failure. Reason codes never carry paths, prompts, model output or source text.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "request_id",
+    "status",
+    "reason_code",
+    "runtime_binding",
+    "result"
+  ],
+  "properties": {
+    "schema": {
+      "const": "skill-effectiveness.bridge.response.v1"
+    },
+    "request_id": {
+      "description": "Echoes the request id when it was well formed, otherwise the redacted placeholder.",
+      "type": "string"
+    },
+    "status": {
+      "enum": ["ok", "blocked", "error"]
+    },
+    "reason_code": {
+      "oneOf": [
+        {
+          "enum": [
+            "artifact_mismatch",
+            "artifact_missing",
+            "cancelled",
+            "capability_unavailable",
+            "causal_core_unavailable",
+            "cost_policy_exceeded",
+            "cost_policy_required",
+            "evidence_invalid",
+            "invocation_unverifiable",
+            "isolation_violation",
+            "no_progress",
+            "protocol_mismatch",
+            "reviewer_calibration_failed",
+            "stale_state",
+            "timeout",
+            "trial_budget_exceeded",
+            "unknown_finality",
+            "unsupported_evaluator"
+          ]
+        },
+        {"type": "null"}
+      ]
+    },
+    "runtime_binding": {
+      "description": "Empty only when the request failed before the runtime could be identified.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_revision": {"type": "string"},
+        "phase": {"enum": ["manifest", "full"]},
+        "bridge_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "manifest_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "configuration_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "interpreter": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "configured_executable",
+            "resolved_executable",
+            "version",
+            "implementation",
+            "user_site_disabled"
+          ],
+          "properties": {
+            "configured_executable": {"type": "string"},
+            "resolved_executable": {"type": "string"},
+            "version": {"type": "string"},
+            "implementation": {"type": "string"},
+            "user_site_disabled": {
+              "description": "Evidence for the fixed-minimal-environment requirement: user-site imports must be disabled so an ambient package cannot replace the pinned runtime. Required, so a bridge that omits it fails closed rather than being silently accepted.",
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "result": {
+      "description": "Action output. Empty for every error response.",
+      "type": "object"
+    }
+  }
+}

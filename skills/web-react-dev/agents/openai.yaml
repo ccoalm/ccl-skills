@@ -1,0 +1,4 @@
+interface:
+  display_name: "Web React Dev"
+  short_description: "Build React web client features"
+  default_prompt: "Use $web-react-dev to design, implement, test, or release a React web client feature."

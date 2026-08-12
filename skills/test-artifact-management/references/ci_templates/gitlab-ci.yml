@@ -1,0 +1,76 @@
+# GitLab CI template — run tests, sync Bitable, publish Feishu report, comment on MR.
+#
+# Replace <unit> placeholders with your deployable-unit directory. Add this file
+# to the repository pipeline configuration or include it from that configuration.
+#
+# Required CI/CD variables:
+#   LARK_BOT_APP_ID
+#   LARK_BOT_APP_SECRET
+#   GITLAB_API_TOKEN
+
+variables:
+  UNIT: "<unit>"
+  TC_GEN_REPORT: "test/scripts/gen_report.py"
+
+.tc_report_template:
+  image: node:20
+  stage: test
+  resource_group: "tc-report-${UNIT}-${CI_COMMIT_REF_SLUG}"
+  cache:
+    - key: "tc-last-run-${UNIT}-${CI_COMMIT_REF_SLUG}"
+      paths:
+        - "${UNIT}/test/results/last-run.json"
+      fallback_keys:
+        - "tc-last-run-${UNIT}-${CI_DEFAULT_BRANCH}"
+  before_script:
+    - npm i -g @larksuiteoapi/lark-cli
+    - printf '%s' "$LARK_BOT_APP_SECRET" |
+        lark-cli config init
+          --app-id "$LARK_BOT_APP_ID"
+          --app-secret-stdin
+          --brand feishu
+  variables:
+    TC_SIDECAR_STRICT: "1"
+  script:
+    - cd "$UNIT"
+    - npm ci
+    - make report-run
+  after_script:
+    - |
+      set +e
+      [ -z "$CI_MERGE_REQUEST_IID" ] && exit 0
+      for tool in python curl jq; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+          echo "after_script: $tool missing — skipping MR comment" >&2
+          exit 0
+        fi
+      done
+      cd "$UNIT" 2>/dev/null || exit 0
+      python "$CI_PROJECT_DIR/$TC_GEN_REPORT" \
+        --config test/.report-config.json --pr-summary --fail-on=never \
+        > /tmp/mr-summary.md 2>/tmp/mr-summary.err
+      [ -s /tmp/mr-summary.md ] || exit 0
+      curl --silent --max-time 30 --connect-timeout 10 --request POST \
+        --header "PRIVATE-TOKEN: $GITLAB_API_TOKEN" \
+        --header "Content-Type: application/json" \
+        --data "$(jq -Rn --rawfile body /tmp/mr-summary.md '{body:$body}')" \
+        "$CI_API_V4_URL/projects/$CI_PROJECT_ID/merge_requests/$CI_MERGE_REQUEST_IID/notes" \
+        > /dev/null || echo "after_script: MR comment failed" >&2
+      exit 0
+  artifacts:
+    when: always
+    paths:
+      - "${UNIT}/test/results/"
+    expire_in: 7 days
+    reports:
+      junit: "${UNIT}/test/results/*.xml"
+
+test-<unit>:
+  extends: .tc_report_template
+  variables:
+    UNIT: "<unit>"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      changes: ['<unit>/**/*']
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: ['<unit>/**/*']

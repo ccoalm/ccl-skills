@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "known_answers": [
+    {
+      "case_id": "k1",
+      "expected_verdict": "A win"
+    },
+    {
+      "case_id": "k2",
+      "expected_verdict": "B win"
+    },
+    {
+      "case_id": "k3",
+      "expected_verdict": "tie"
+    },
+    {
+      "case_id": "k4",
+      "expected_verdict": "A win"
+    },
+    {
+      "case_id": "k5",
+      "expected_verdict": "B win"
+    }
+  ]
+}

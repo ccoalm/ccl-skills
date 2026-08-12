@@ -1,0 +1,4 @@
+interface:
+  display_name: "Multi-Perspective Research"
+  short_description: "Research a topic from multiple expert perspectives"
+  default_prompt: "Use $multi-perspective-research to research a topic before writing: perspective enumeration, contradiction map, synthesis brief, and self-critique with evidence-grounding discipline. Selection/evaluation decisions route to product-rd-workflow."

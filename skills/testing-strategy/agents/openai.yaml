@@ -1,0 +1,4 @@
+interface:
+  display_name: "Testing Strategy"
+  short_description: "Plan unit, integration, E2E, and scenario tests"
+  default_prompt: "Use $testing-strategy to decide test scope, write or review unit/integration/E2E/scenario tests, and define verification evidence."

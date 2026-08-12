@@ -1,0 +1,4 @@
+interface:
+  display_name: "Go Microservice Architecture"
+  short_description: "Design Go microservice backend systems"
+  default_prompt: "Use $go-microservice-architecture to design a product-agnostic Go backend architecture."

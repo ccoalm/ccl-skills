@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "registry_schema": "paired-profile",
+  "arm_id": "profile-reference",
+  "scope": "main",
+  "treatment": "reference",
+  "allowlisted_diff": ["profile_payload"],
+  "runnable": true
+}

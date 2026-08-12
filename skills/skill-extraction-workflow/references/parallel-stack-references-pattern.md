@@ -1,0 +1,164 @@
+# Parallel Stack-Specific References (Sibling-Sync Pattern)
+
+Use when extracting a body of architecture knowledge that has a substantial **stack-agnostic core** but renders differently in each stack (Go vs Python service architecture, web vs mobile client work, etc.). Two parallel references — one under each stack-skill — with an explicit sibling-sync invariant and an enforceable grep gate.
+
+This pattern was developed across two extractions with complementary coverage, and a third (data-platform) was authored from scratch using the pattern. The event-driven architecture extraction (`<arch>/references/event-driven-architecture.md` Go + Python pair) ran 2 rounds of dual-track, P0 dropping 5 → 0 by R2, and validated the parallel-file layout, H2 parity, and sibling-mirroring discipline; it was originally landed without an in-file gate and subsequently retrofitted (ops checklist moved to mirrored core, mirrored stack-syntax genericized, embedded grep-gate added at end of stack-glue). The multi-tenant isolation extraction (`<arch>/references/multi-tenant-isolation.md` Go + Python pair) ran 4 rounds and validated the full R1 → R4 trajectory (R1 = missing gates → R2 = composition → R3 = propagation → R4 = scope/degradation) plus the embedded grep-gate, the `## Topic-extension backlog` H2, and the convergence-on-non-zero-floor signal — its P0 stabilized at a non-zero floor of 2 (a historical trajectory from before the current three-round Agent budget; residual findings now route through `dual-track-review-gate.md`'s post-budget human checkpoint). The data-platform extraction (`<arch>/references/data-platform-architecture.md` Go + Python pair) was authored fresh using the multi-tenant template shape; dual-track history begins at its first R1 round. All three pairs now have embedded grep-gate subsections.
+
+## When this pattern applies
+
+Apply when:
+- the knowledge body has 10+ stack-agnostic concepts (delivery semantics, idempotency design, schema evolution, etc.) plus stack-specific implementation glue,
+- both stack skills (Go arch, Python arch) have callers who will route in from their own skill, and forcing one stack to route to the other's reference creates an awkward Go-first or Python-first asymmetry,
+- the stack-glue is genuinely distinct (different library choices, different runtime mechanics) and meaningful in its own right — not just a thin wrapper.
+
+Skip when:
+- the knowledge is purely architectural with no stack-specific glue worth writing twice (route to a single shared file under one skill; the other stack routes to it),
+- the body is small enough (< 80 lines) that one file with a "Go" and a "Python" subsection works.
+
+For 3+ stacks (Go + Python + Java + Node + ...), the choice is a real decision, not a categorical skip:
+- *Per-stack siblings still apply* when each stack has substantial distinct glue (Go context propagation vs Python contextvars vs Java thread-local-with-reactor-context vs Node async-hooks) AND each stack has its own callers who route in from their own skill. Three or four sibling files with the same mirrored core and the same grep gate are sustainable; the sibling-sync invariant scales linearly.
+- *A separate shared skill* makes more sense when stack glue is thin (the architecture is mostly stack-agnostic with brief library notes per stack) OR callers do not naturally route from a single-stack skill (an architect designing a polyglot system reads one shared reference and follows links into stack skills for implementation).
+- Choose by the same criteria as 2-stack: each stack having real callers + substantial glue → siblings; thin glue or non-stack-specific callers → shared skill. Do not skip parallel siblings just because N is larger.
+
+## File layout
+
+Each stack skill gets its own reference:
+
+```
+<stack-1>/references/<topic>.md       # e.g., go-microservice-architecture/references/event-driven-architecture.md
+<stack-2>/references/<topic>.md       # e.g., python-service-architecture/references/event-driven-architecture.md
+```
+
+Routing line in each stack's `SKILL.md` points to its own reference and **names the sibling-sync invariant explicitly** ("Stack-agnostic core sections mirror the sibling `<other-stack>/references/<topic>.md`; maintainers updating those sections must update both files in the same change").
+
+## File structure (each file mirrors)
+
+Each file has the same H2 structure. The **stack-specific implementation patterns** H2 is the last divergent section (it differs by stack). The **only allowed mirrored H2 after stack-glue** is an optional `## Topic-extension backlog` — both files include it with identical or near-identical wording, and it is part of mirrored content even though it sits after the stack-glue H2. **No other mirrored H2 is allowed in the post-stack-glue region**: any new mirrored content (validation, extension evidence, follow-up rules) must be placed BEFORE the stack-glue H2 so the grep gate's awk command scans it. If a future maintainer needs a post-stack-glue mirrored section other than Topic-extension backlog, the gate's awk command must be extended to cover it (and the methodology updated to allow that new section), not silently bypassed by placing arbitrary mirrored content after stack-glue. The grep gate's awk command stops at the stack-glue H2 and therefore does not scan the backlog section, which is what lets the backlog name specific external vendors / workflow engines / regulator regimes that mirrored-core content cannot. H2 count parity in the mirrored-core region is the first validation (a maintainer adding a mirrored-core section to one file must add it to the other).
+
+**H2 parity is scoped to the mirrored core, not to the whole file.** A stack may legitimately need a concept H2 that has no sibling equivalent — a Python file's "async cancellation and background-task lifetime" section captures architecture-level failure modes Go does not share; a Java file's "JVM-classloader-aware schema evolution" section captures runtime constraints absent from Go/Python. For those: place the stack-only concept as an H2 inside the *stack-specific implementation patterns* section (not in mirrored core), and have the sibling explicitly record a one-line "not applicable to this stack — <reason>" entry at the corresponding section, so the asymmetry is intentional and reviewable rather than a sync drift.
+
+1. **Header — sibling-sync invariant + sanitization boundary.**
+   - Sibling-sync: names the partner file, the rule that mirrored sections must update together, and points to the mirrored-section grep gate by section name. **Crucially: the header itself must NOT name the forbidden tokens** (doing so makes the gate's own regex match the header — review caught this in round 2 of the multi-tenant extraction). Refer to category classes only: "DB-engine-specific syntax, runtime/concurrency-mechanic names, library/framework API names." The concrete tokens live in the grep-gate subsection.
+   - Sanitization boundary: a positive audience list, not a negative one. "Internal" is not safety — internal documents get forwarded. The boundary covers: external/client-facing, customer-specific, regulator/auditor evidence, SOC/compliance reports, procurement responses, internal compliance reviews, sales-engineering or security-questionnaire appendices, partner architecture drafts, and anything that could be forwarded to those audiences.
+2. **When this applies / does not apply.** Same in both files.
+3. **Concept sections (10–15 H2s).** Stack-agnostic. Same content, same wording where possible (intentional duplication; the cost of duplication is less than the cost of cross-file routing for callers).
+4. **Anti-patterns.** Same in both files.
+5. **Operations checklist.** Same in both files. Each item is a verifiable action ("synthetic over-quota test for each quota," not "quotas tested"), not an acceptance statement.
+6. **Stack-specific implementation patterns.** Diverges. Same H2 heading shape; same number of bullet items per stack where possible; only the body content is stack-localized.
+7. **Mirrored-section grep gate (subsection of stack-glue).** Defined below.
+
+## The sibling-sync invariant — what mirrors, what diverges
+
+Mirrored sections must match in **meaning**, not necessarily in punctuation. The acceptable divergences, enumerated:
+
+- **Routing references** — Go's "route to `api-security-boundaries.md`" vs Python's "route to `web-framework-boundaries.md`" is fine; each stack's reference tree differs. This is the **one allowed mirrored-section divergence** and is explicitly stated in the sibling-sync header.
+- **Examples that name the stack** — when a mirrored section names a generic example, it can use a stack-neutral placeholder ("the session-level tenant variable") and let the stack-glue section name the specific syntax.
+- **Length differences from stack-neutral phrasing** — Go-rendered and Python-rendered phrasings of the same concept can differ in length by a few words.
+
+Hard constraints that must NOT diverge:
+- **Concept set** — every rule, every gate, every carve-out present in one mirrored section is present in the other.
+- **Anti-pattern list** — same list, same ordering.
+- **Operations checklist items** — same items, same verification criteria.
+- **Decision-rule conditions** — when one side says "do X if A and B and C", the other side says the same.
+
+## The mirrored-section grep gate (the meta-rule that prevents drift)
+
+The hardest rule to keep is: *stack-specific syntax must stay in stack-glue, not creep into mirrored sections*. Dual-track caught this regression in three separate rounds across two extractions. The fix is a physical gate in the file itself, not a verbal promise.
+
+Each file ends its stack-glue with a `### Mirrored-section grep gate` subsection that contains:
+
+- The **forbidden token categories** named: DB-engine syntax, runtime/concurrency mechanics, library/framework API names.
+- The **concrete token list** (typically 30–50 tokens covering the file's stack ecosystem). The list is the source of truth.
+- The **run command** (an `awk` to extract the mirrored region by stopping at the stack-glue H2, piped to `grep -nE` with the token list as the regex). The regex is generated *from* the token list and must match it exactly — token list changes require regenerating the regex. Word boundaries (`\b…\b`) are preserved to prevent false positives on substrings.
+- **The expected output:** zero hits. Any hit means a mirrored section has been polluted with stack syntax and must be moved to stack-glue.
+- **Allowed exceptions** — the *sibling sync* header itself names the category classes (without tokens, so the gate does not match its own description); the *sanitization boundary* header does not contain any tokens. No other exceptions; the gate runs on every commit.
+
+## The dual-track trajectory expected by this pattern
+
+Each parallel-stack extraction follows a predictable trajectory across dual-track rounds. Use it to calibrate: if your round-over-round results match this shape, you are converging; if they do not, something is wrong.
+
+| Round | What the round catches | Typical P0 count | Typical total |
+|---|---|---|---|
+| R1 | Missing primary gates (no schema-evolution rule, no idempotency design, no DLQ semantics, no tenant-context discipline). Big concept misses. | 3–5 | 15–20 |
+| R2 | Composition gaps between R1 gates (R1 added gates A and B; R2 catches that A bypasses B, or that B's failure mode invalidates A). | 3–5 | 10–15 |
+| R3 | Propagation gaps (the R1+R2 gates exist and compose, but information doesn't flow between them: a denylist that isn't ack'd, a generation that doesn't guarantee snapshot completeness). | 1–3 | 8–12 |
+| R4 | Scope/degradation gaps (the gates work as designed but don't handle edge audiences: external/runtime sources missed in dependency declarations, single-operator orgs that can't separate planes, runtime-created relations missed by enumeration). | 0–2 | 5–11 |
+
+If R3 still has P0 = 5 or R4 P0 > R3 P0, the topic is wider than this loop can close in the standard 4 rounds; route to topic-extension via the convergence rule in `dual-track-review-gate.md`. Don't try to brute-force more rounds.
+
+## Sibling-sync verification checklist (run before every commit that touches mirrored content)
+
+- H2 parity in the mirrored core: `grep -c '^## '` from start of file to the `## <Stack>-specific implementation patterns` heading returns the same number on both files. Stack-only concept H2s under stack-glue are exempt; the sibling records a "not applicable — <reason>" entry for each.
+- Mirrored-section grep gate: `awk` + `grep -nE` from the stack-glue gate subsection returns zero hits on both files.
+- Grep-gate token-list parity, by subset:
+  - *Shared-DB tokens* (PostgreSQL keywords like `SET LOCAL`, `BYPASSRLS`, `FORCE ROW LEVEL SECURITY`, `set_config(`, etc., when both stacks use PostgreSQL) **must be identical** between siblings; a divergence is the bug. If the stacks use different DBs (Go on PostgreSQL, Python on MySQL), this subset's contents differ legitimately but the divergence must be documented in each file's gate-subsection preamble.
+  - *Foreign-stack leakage tokens* (Python tokens in the Go file's forbidden list, Go tokens in the Python file's forbidden list — the cross-stack tokens whose presence in mirrored sections would be the leakage) **must be symmetric**: the Go file forbids the Python-side leakage tokens and vice versa. A token forbidden in only one direction is a sync gap.
+  - *Own-stack implementation tokens* (each stack's own library / framework / runtime tokens — Go's `GORM`/`Hertz`/`Kitex`; Python's `SQLAlchemy`/`FastAPI`/`Pydantic`) **may diverge by stack** and need not match between siblings. Each file's reviewer verifies its own-stack token list is comprehensive; cross-file diffing is not required for this subset.
+  When adding a new token during a dual-track round, classify it into one of the three subsets and apply the corresponding rule.
+- Grep-gate regex matches its token list: extract every token from the list, build the regex line from those tokens with declared word boundaries preserved, and verify it equals the regex in the `Run` command block of that file. A token declared in the list but absent from the regex (or vice versa) is the bug.
+- Anti-pattern count parity: count of `- **<bold-anti-pattern>**` rows match.
+- Operations checklist count parity: count of checklist items match.
+- The header's sanitization boundary list matches between files; the audience list is positive (procurement / compliance / regulator / etc.), not negative ("not for external").
+- The routing-reference divergence is recorded in the sibling-sync invariant; no other divergences allowed.
+- **Semantic-parity gate** (manual; no regex substitute exists). The H2 count, anti-pattern count, checklist count, grep gate, and token-list parity checks all measure *structure and stack-syntax*; they do NOT catch semantic divergence within mirrored content. Two siblings can pass every measurable gate while one says "retry happens after commit" and the other says "retry happens inside the transaction" — no stack token is involved, so the gate is silent. Before commit, do a meaning-diff review of:
+  - **Mirrored core** — extract the same region from both siblings (e.g., `awk` to slice through the `## *-specific implementation patterns` H2), read side-by-side, focus on decision conditions, checklist criteria, ordering / sequencing words, carve-outs, and failure semantics.
+  - **Semantically-coupled stack-glue rows** — stack-glue is allowed to diverge by stack syntactically, but bullets that describe the same shared engine, protocol, or domain concept (DB engine advisory-lock primitives, broker-wire semantics, OS-level rate-limit primitives, etc.) must be semantically aligned across siblings. A Go-side bullet says "TiDB supports GET_LOCK cluster-wide" while the Python sibling silently says "GET_LOCK not available on TiDB" is the exact class of drift that all measurable gates miss but the topic does not allow.
+  Record the result in the commit note as a scoped, per-pair line: `semantic parity: pair=<fileA>↔<fileB>; mirrored-core reviewed; coupled stack-glue candidates=<changed-bullets-or-shared-concepts>; reviewed=<bullets-or-none>; none_reason=<why no changed stack-glue row maps to a sibling concept>; findings=<n>`. Required fields:
+  - `pair=...` — names the two parallel-stack sibling files reviewed. Mixed commits that touch a parallel pair AND a methodology-only file get one `semantic parity` line per pair plus an explicit `non-parallel files=<paths reviewed under separate rule>` line for the single-file changes (those have no sibling to mirror and cannot satisfy this gate; they are not silently rolled into the pair's `findings`).
+  - `coupled stack-glue candidates=...` — the inventory of changed stack-glue bullets in this commit OR the shared concepts they touch (DB engine, broker/protocol, external system, quota, lock, ordering, delivery semantics, idempotency, failure mode). `none` is invalid when any changed stack-glue row names a shared engine / protocol / external system / quota / lock / ordering / delivery / idempotency / failure-mode concept; in that case list the candidate even if you concluded after review that the bullets do not couple semantically.
+  - `reviewed=...` — the subset of candidates actually meaning-diffed; `none` is valid only when `candidates=none` is also true. `none_reason=...` is required when `reviewed=none` and is invalid as "no time" or "trivial change" — it must name why no changed bullet maps to a sibling concept.
+  - `findings=<n>` — zero is a valid record; the record is an assertion about the review, not a license to skip it.
+  This gate exists because a real failure of this exact class shipped in R7 — a TiDB clause was fixed in Go stack-glue but the Python sibling silently retained the old wording, passing all measurable gates while the meaning had drifted. R7's incident specifically involved stack-glue rows (not mirrored core); R8's first version of this gate covered only mirrored core, so the gate would not have caught the incident that motivated it; R9 extended it to coupled stack-glue rows; R10 added the candidate-inventory and `none_reason` requirements to prevent the gate's claim of `reviewed=none` from becoming a false-clean signal. The accumulating discipline is itself the evidence that "rule-added-in-round-N-incomplete-in-round-N+1" is a recurring class — see the methodology's own anti-pattern catalog.
+
+## Anti-patterns specific to this pattern
+
+- **Header self-violation** — the sibling-sync header lists the forbidden tokens by name, defeating the grep gate (the gate's own regex matches the header). The header names category classes only; tokens live in the grep-gate subsection.
+- **Stack-syntax creep into mirrored sections** — `SET LOCAL`, `BYPASSRLS`, `FORCE ROW LEVEL SECURITY`, `context.Context`, `contextvars`, `asyncio`, `GORM`, `SQLAlchemy`, `FastAPI`, `run_in_executor`, etc. in mirrored content. The grep gate catches this; treat any hit as a structural failure, not a wording polish.
+- **Mirrored-section regression after body strengthening** — strengthening the body without updating the operations checklist. The checklist must track every body strengthening; review catches this in 3+ findings on the round after a major body update. Build the checklist update into the same commit as the body change.
+- **One file edits, sibling doesn't** — even a sentence-level edit to a mirrored section must be applied to both files in the same commit. The sibling-sync invariant is a discipline, not a tool — git pre-commit hooks can grep for `^## ` count match but cannot enforce semantic parity.
+- **Stack-glue concepts hidden in mirrored sections** — saying "use the stack-glue section for the engine-specific syntax" in mirrored content is fine; saying "in PostgreSQL, use `pg_try_advisory_xact_lock`" in mirrored content is not. The first names the routing; the second is the syntax itself.
+- **Grep gate run command doesn't match declared token list** — review caught this on round 4 of multi-tenant: the gate declared 30+ tokens but the regex omitted half of them and dropped word boundaries declared as `\b…\b`. The regex must be **generated from** the token list and visibly match it; token list edits require regenerating the regex.
+- **Routing-reference forced to be identical** — Go's route to a Go-stack reference (`api-security-boundaries.md`) cannot be identical to Python's route to a Python-stack reference (`web-framework-boundaries.md`). Carve this out explicitly in the sibling-sync invariant; do not treat it as a sync failure.
+- **Cross-stack token leakage in stack-glue** — Python stack-glue mentioning `goroutine`, or Go stack-glue mentioning `contextvars`. The stack-glue is single-stack; the grep gate for each file forbids the OTHER stack's tokens in its own mirrored sections, not in its own stack-glue (where they would obviously belong if accurate). Cross-stack token in same-stack glue is a separate bug — usually a copy-paste from the wrong sibling.
+- **New gate landed without retroactive self-test against its motivating incident.** When adding a gate or rule to prevent class X, the gate's first version frequently misses class X's actual scope — observed across R8 (added Semantic-parity gate covering only mirrored core; missed R7's stack-glue incident), R9 (extended the gate but the first commit using it missed a coupled-row drift R10 then caught), and the general recurring pattern of "rule added in round N is incomplete in round N+1, gets fixed in round N+2, then introduces a new gap in round N+3." Mitigation: every new gate must record a **retroactive self-test** in its landing commit note, with `incident=<id-or-class>; expected_catch=<what the gate would flag>; result=<pass/fail>; gap=<if fail>` fields. A gate that records `result=fail` does not land until extended; a gate that lands without the self-test is treated as untested and the next round must add the self-test as part of its first finding.
+
+## When the pattern does NOT apply (audit findings from existing arch-reference pairs)
+
+The pattern targets parallel-stack references with a substantial stack-agnostic core. An audit of the existing Go-arch + Python-arch reference pairs (same-name files in both `go-microservice-architecture/references/` and `python-service-architecture/references/`) found three other shapes that look like sibling pairs but are NOT:
+
+- **One-sided stubs**: one stack's file is substantially more complete than the other (e.g., one is 130 lines / 7 H2 while the sibling is 35 lines / 3 H2). The thin side is not a mirror; it is an incomplete file. Treat as future work — either elevate the thin side to match, or document the asymmetry honestly in the file headers.
+- **Stack-specific architecture content with shared topic**: both files cover the same meta-topic (data modeling, redis usage, etc.) but the H2 sets diverge because the stack-specific architectural concerns genuinely differ (Go has GORM / sharding / migration-strategy concerns; Python has connection-pool / proxy-topology / read-replica / long-running-tx concerns). These are not mirrored pairs; they are stack-architectural views of the same domain. Do NOT force them into the gate shape; the content divergence is principled.
+- **Methodology templates with per-row stack divergence**: a file whose H2 structure is identical between stacks but whose content (typically a dimension table or a checklist) has stack-specific rows by design (e.g., a source-evidence-map where the dimensions table includes IDL/protobuf for Go and Pydantic/asyncio/AI-hosting/Packaging for Python). The H2 mirror is real; the gate is not, because the divergence is at the row level inside an H2, by design, and the gate would force the table to omit half its useful content. Skip the gate here.
+
+The pattern's grep gate applies only to files whose mirrored sections carry the same content with stack-specific *implementation tokens* relegated to a single stack-glue H2. Files with intentional per-row stack divergence inside mirrored H2s, or files where the stacks legitimately need different H2 sets, are out of scope.
+
+## Worked examples
+
+Two extractions used this pattern with complementary coverage; the artifacts live in the shared skill tree:
+
+- `go-microservice-architecture/references/event-driven-architecture.md` + `python-service-architecture/references/event-driven-architecture.md` — delivery semantics taxonomy, transactional outbox, schema evolution, saga, end-to-end exactly-once illusion. 15 H2 sections per file (14 mirrored-core + 1 stack-glue); **2 rounds of dual-track; final P0 = 0**. Originally landed without an in-file grep gate; subsequently retrofitted (operations checklist moved before stack-glue; mirrored-section stack-syntax genericized; `### Mirrored-section grep gate` added at the end of the stack-glue section). Now conforms to the pattern and may be used as a template for new parallel-stack extractions — preferred when the topic does not need a `## Topic-extension backlog` (i.e., expected to converge by R2 with P0 = 0).
+- `go-microservice-architecture/references/multi-tenant-isolation.md` + `python-service-architecture/references/multi-tenant-isolation.md` — placement decision tree (data × compute), engine-policy bypass governance, denylist propagation barriers, deletion modes, crypto-erasure conditions. 15 H2 sections per file (13 mirrored-core + 1 stack-glue + 1 topic-extension backlog); **4 rounds of dual-track (historical, pre-dating the current three-round Agent budget); final P0 = 2 (topic-wider-than-loop signal — residual findings now route through `dual-track-review-gate.md`'s post-budget human checkpoint)**. Demonstrates the full R1 → R4 trajectory, the embedded grep-gate subsection, and the convergence-on-non-zero-floor case. **This is the reference shape for non-zero-floor extractions** (topics expected to plateau with residual extension vectors after dual-track converges). Both files include the embedded grep-gate at the end of their stack-glue section followed by a `## Topic-extension backlog` H2 (mirrored between siblings) that names the residual extension vectors (their prior-round severity if relevant), the general-level rule that the final round put in place, the residual gap that remained, and the specific incident-driven evidence a future extension would need. The backlog is for vectors that the final round fixed at the general level but left as per-integration / per-store-class residuals; it does not name unresolved P0s (which are either fixed in-round or block the file from landing). **Do not add a convergence-derived Topic-extension backlog preemptively** — it is added only after a dual-track round leaves the file with accepted/deferred residuals; fresh extractions that have not yet converged have no convergence-derived backlog to write.
+
+**Exception — known design-deferred extension candidates may be recorded preemptively when the charter accepts them.** Some topics (security boundaries, compliance regimes, regulatory residency, RFP-sensitive vendor naming, jurisdiction-specific erasure acceptance) have residuals the team already knows cannot be closed generically at design time. Forcing dual-track to "discover" them is process distortion. For these, the file may include a `## Topic-extension backlog` H2 from the first commit. Each preemptive entry **must** include all five of the following fields (vague entries are not accepted; they would let "design-deferred" hide unresolved current-scope P0/P1 work):
+
+1. **Label** — the entry is explicitly tagged `not convergence-derived` (the methodology distinguishes this from convergence-derived entries that arrive later in the same backlog).
+2. **Charter anchor** — the specific charter section / decision id where the deferral was accepted (so a future maintainer can re-read the rationale at its source).
+3. **Exact deferred residual** — the named gap that is being deferred (not "vendor-specific behavior" but "regulator X's interpretation of erasure on cold storage in jurisdiction Y").
+4. **Why outside generic closure** — explicit statement of why the residual cannot be addressed at the generic level (per-integration / per-jurisdiction / per-regulator / per-vendor-contract / etc).
+5. **Owner + revisit trigger** — who owns the deferral and what concrete event (charter revisit, regulator clarification, vendor RFP outcome, etc.) would unblock extension.
+
+The carve-out is for genuine design-time acceptance, not a hatch to defer unresolved current-scope work. An entry missing any of the five fields is not a valid preemptive backlog entry; the work either belongs in current-scope (fix in the round) or has not been deferred (do not list).
+
+Normal dual-track still runs to validate the rest of the file. Convergence-derived residuals are appended to the same backlog when later rounds surface them, with the distinct `convergence-derived` label. The label distinction matters for future maintainers: convergence-derived residuals invite incident-driven extension when evidence appears; design-deferred residuals invite charter revisit when the deferral assumption changes.
+
+For a new parallel-stack extraction, choose the template by expected complexity: event-driven for topics expected to converge by R2 (no topic-extension backlog needed); multi-tenant for topics expected to retain residual extension vectors at convergence (the historical non-zero-floor case, now resolved at the post-budget human checkpoint). All three templates (event-driven, multi-tenant, data-platform) now adopt the grep gate; the gate cost is small (~30 lines per file) and the cost of skipping it is the residual drift seen in the pre-retrofit event-driven version. The `## Topic-extension backlog` H2 is added later for **convergence-derived** entries (only after dual-track convergence leaves residual extension vectors) — fresh extractions do not preemptively include convergence-derived backlog entries; preemptive **design-deferred** entries are allowed only under the charter exception above with all five required fields.
+
+## How to bootstrap a new parallel-stack extraction
+
+1. **Charter** — name both stacks in scope; declare the sibling-sync invariant and the grep-gate placement; declare the H2 structure and which H2 is the stack-glue.
+2. **Draft one stack first** — usually the more familiar one. Write all mirrored H2s + the stack-glue + the grep-gate subsection at the end.
+3. **Mirror to sibling** — copy the file; rewrite the stack-glue section for the other stack; rewrite the grep-gate token list for the other stack's tokens.
+4. **First grep-gate run** — typically catches 2–5 cross-stack tokens that snuck into mirrored sections during the copy. Fix and re-run until zero hits.
+5. **Dual-track R1** — proceed per `dual-track-review-gate.md`. Expect the R1 → R4 trajectory above; budget 4 rounds, **but the stopping condition is not P0=0 alone**. Stop early only when review AND challenge produce no new P0/P1 in the latest round, every existing P0/P1 is either fixed or explicitly accepted/deferred, and the gate prompt's read scope still covers the latest fix-up. A round that reports P0=0 but still has open P1 correctness bugs from the previous round's fixes has not converged.
+6. **Commit each round's fixes as one commit, both files together.** Do not let a sibling commit lag; the second file is always one round behind otherwise.
+7. **Grep-gate parity between siblings.** When a stack-glue grep-gate's token list is updated on one file (after a review finding adds, say, `databases` or `pgvector` to the Python file's forbidden-token list), the sibling file's token list must be updated in the same commit unless the new token is genuinely stack-local. Without this check, both files' gates stay locally green while drifting away from each other. The sibling-sync verification checklist below includes a token-list parity comparison.

@@ -1,0 +1,45 @@
+# Local-only working files (project-specific consumption / drafts / process notes).
+# Live alongside skill source for convenience; not pushed to shared remote.
+_local/
+
+# Claude Code 本地状态（settings.local.json / scheduled_tasks.lock 等），各人各机不入库
+.claude/
+
+# Python bytecode caches
+__pycache__/
+*.pyc
+
+# F4 health roll-up history — advisory telemetry, per-checkout, not shared.
+# Kept out of the tree on purpose: a committed score invites tuning the number
+# instead of the repo (Goodhart). Regenerate with `make eval-health`.
+eval/health-history.jsonl
+
+# §3.3 behavioral A/B raw output — saved agent responses + run log, per-checkout.
+# Kept out of the tree: responses may quote local repo context / paths and must
+# not be accidentally committed; regenerate with skill-behavior-eval.py.
+behavior-eval-out/
+
+# Defense-in-depth for accidental local output. The runner itself requires
+# --out outside this source checkout because artifacts may contain prompts,
+# model output, paths, access events and private corpus references.
+eval/skill-effectiveness/out/
+
+# OpenCode project install output; committed command templates stay under
+# .opencode/commands/, while generated skills/plugin/manifest remain local.
+.opencode/ccl-skills/
+.opencode/plugins/
+.opencode/skills/
+
+# CortexKit local index/cache output.
+.cortexkit/
+
+# Deepwork local progress files for long-running coding sessions.
+.slim/deepwork/
+
+# Local worktree lanes and per-lane metadata; never scan or commit.
+.work/
+
+# Node / npm package artifacts
+node_modules/
+*.tgz
+.DS_Store

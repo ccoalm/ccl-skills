@@ -1,0 +1,10 @@
+{
+  "_comment": "Copy to a PRODUCT repo root as `.owner-dispatch.json` and commit it to opt that repo into the owner-dispatch firing gate. Absent or enabled:false => the gate is a complete no-op. ccl-skills itself is NOT a product repo and intentionally ships no such file (its own edits are shared-skill/process edits, exempt from owner-load).",
+  "enabled": true,
+  "strict": false,
+  "gate_bash": true,
+  "product_globs": ["src/**", "internal/**", "app/**", "pkg/**", "cmd/**"],
+  "exclude_globs": ["**/*_test.*", "**/*.test.*", "test/**", "tests/**", "docs/**", "**/testdata/**", "**/*.gen.*"],
+  "ci_artifact": "design/owner-dispatch-map.md",
+  "owner_hint": "product-rd-workflow, then the touched stack owner (*-dev / *-architecture / testing-strategy / product-ui-ux-design)"
+}

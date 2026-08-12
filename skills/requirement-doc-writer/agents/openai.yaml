@@ -1,0 +1,4 @@
+interface:
+  display_name: "Requirement Doc Writer"
+  short_description: "Assemble lifecycle-ready PRDs"
+  default_prompt: "Use $requirement-doc-writer to assemble a human-readable PRD only after the lifecycle has issued PRD Ready; otherwise return the product decision view, next actions, and machine-ledger reference without drafting PRD content."

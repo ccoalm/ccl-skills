@@ -1,0 +1,16 @@
+{
+  "name": "ccl-skills",
+  "owner": {
+    "name": "ccl-skills maintainers"
+  },
+  "plugins": [
+    {
+      "name": "ccl-skills",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ccoalm/ccl-skills.git"
+      },
+      "description": "CCL 研发技能全库 + 团队护栏（编辑隔离 hook + 路由 bootstrap + worktree-isolation 技能）"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# CCL Skills gate — LOCAL fast-feedback convenience (NOT a hard gate).
+#
+# IMPORTANT — this is advisory, not enforcement:
+#   - it runs only if a clone opts in with `git config core.hooksPath .githooks`
+#     (a fresh clone that never ran that silently skips it);
+#   - it can be skipped with `git push --no-verify`;
+#   - it validates the CURRENT checkout (HEAD / working tree), not arbitrary
+#     pushed refs.
+# It exists to catch gate failures before you push so they don't reach review.
+# The authoritative, non-bypassable gate must be SERVER-SIDE (GitHub Actions /
+# protected-branch required checks). See README "启用提交闸".
+#
+# pre-push (not pre-commit) so the impact-chain check — which inspects committed
+# history (HEAD vs its merge-base with upstream/main) — sees real commits.
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+gate="$root/skills/skill-extraction-workflow/scripts/check-ccl-skills.sh"
+zero="0000000000000000000000000000000000000000"
+head_sha="$(git rev-parse HEAD 2>/dev/null || echo)"
+
+# git feeds pre-push one line per ref: "<local_ref> <local_sha> <remote_ref> <remote_sha>".
+any_update=0
+head_pushed=0
+mismatch=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [[ -z "${local_ref:-}" ]] && continue
+  [[ "$local_sha" == "$zero" ]] && continue          # branch/tag deletion — nothing to validate
+  any_update=1
+  if [[ -n "$head_sha" && "$local_sha" == "$head_sha" ]]; then
+    head_pushed=1
+  else
+    mismatch=1
+  fi
+done
+
+[[ "$any_update" -eq 0 ]] && exit 0                   # delete-only / empty push — skip
+
+if [[ "$mismatch" -eq 1 ]]; then
+  echo "[pre-push] NOTE: a pushed ref differs from the checked-out HEAD; this hook validates HEAD/working-tree only, so that ref was NOT gated here — run the gate manually for it (or rely on server-side enforcement)." >&2
+fi
+
+# Only run/block when the checkout we can actually validate (HEAD) is among the
+# pushed commits. If nothing being pushed matches HEAD, do NOT block on unrelated
+# ambient working-tree state — this is advisory, not enforcement.
+if [[ "$head_pushed" -eq 0 ]]; then
+  echo "[pre-push] no pushed ref matches the checked-out HEAD; gate not run here (advisory) — run it manually if needed." >&2
+  exit 0
+fi
+
+if [[ ! -x "$gate" ]]; then
+  echo "[pre-push] gate script missing or not executable: $gate" >&2
+  echo "[pre-push] run the gate manually before merge (verify your checkout)." >&2
+  exit 1
+fi
+
+echo "[pre-push] running ccl-skills gate on the current checkout..."
+if bash "$gate" "$root"; then
+  echo "[pre-push] gate passed."
+else
+  echo "[pre-push] gate FAILED — push blocked. Fix the findings above, or 'git push --no-verify' to override (then re-run the gate before merging)." >&2
+  exit 1
+fi

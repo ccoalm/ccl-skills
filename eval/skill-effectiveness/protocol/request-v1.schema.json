@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "skill-effectiveness.bridge.request.v1",
+  "title": "Skill-effectiveness evaluator bridge request",
+  "description": "One JSON object on stdin. Unknown fields, unknown actions and oversized input fail closed with exit 2. The bridge never calls a model, selects a provider, or modifies skills.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "request_id", "action", "artifact_root", "payload"],
+  "properties": {
+    "schema": {
+      "const": "skill-effectiveness.bridge.request.v1"
+    },
+    "request_id": {
+      "description": "Opaque caller-owned id. Repeating it with an identical binding replays the stored receipt; a different payload under the same id is rejected as stale_state.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "action": {
+      "enum": ["probe", "prepare", "checkpoint", "evaluate"]
+    },
+    "artifact_root": {
+      "description": "null for probe; otherwise an absolute private directory outside the source checkout, owned by the caller and not group/world writable.",
+      "oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "max_request_bytes": {
+      "description": "The bridge reads at most 1048576 bytes of UTF-8 stdin.",
+      "const": 1048576
+    },
+    "probe_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase"],
+      "properties": {
+        "phase": {"enum": ["manifest", "full"]},
+        "pinned_manifest": {"$ref": "#/$defs/runtime_manifest"}
+      }
+    },
+    "runtime_manifest": {
+      "description": "Enumerates every evaluator code and configuration file the bridge may read. Phase one returns it without importing any evaluator module; the host re-hashes each entry before pinning it, and phase two accepts configuration only under the pinned manifest.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "entries", "manifest_hash"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "manifest_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "entries": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "sha256", "size"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+              "size": {"type": "integer", "minimum": 0}
+            }
+          }
+        }
+      }
+    },
+    "prepare_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registry_schema",
+        "task",
+        "manifest",
+        "runtime",
+        "budget",
+        "sample_index"
+      ],
+      "properties": {
+        "registry_schema": {"enum": ["skill-content", "paired-profile"]},
+        "task": {"type": "object"},
+        "manifest": {"type": "object"},
+        "runtime": {"type": "object"},
+        "budget": {"type": "object"},
+        "sample_index": {"type": "integer", "minimum": 1},
+        "expected_isolation_evidence": {
+          "oneOf": [{"type": "null"}, {"type": "object"}]
+        },
+        "expected_read_allow_roots": {"type": "array", "items": {"type": "string"}},
+        "expected_write_allow_roots": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "checkpoint_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trial_path", "status"],
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["access_audit_complete", "access_roots_enforced"],
+          "properties": {
+            "status": {"const": "completed"}
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "running",
+                "interim-budget-stop",
+                "contaminated",
+                "failed"
+              ]
+            }
+          }
+        }
+      ],
+      "properties": {
+        "trial_path": {
+          "description": "Relative to <artifact_root>/trials; traversal segments are rejected.",
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {"type": "string"},
+        "resume_cursor": {"oneOf": [{"type": "null"}, {"type": "object"}]},
+        "stop_reason": {"oneOf": [{"type": "null"}, {"type": "string"}]},
+        "isolation_evidence": {"oneOf": [{"type": "null"}, {"type": "object"}]},
+        "read_allow_roots": {"type": "array", "items": {"type": "string"}},
+        "write_allow_roots": {"type": "array", "items": {"type": "string"}},
+        "access_audit_complete": {"type": "boolean"},
+        "access_roots_enforced": {"type": "boolean"},
+        "expected_state_version": {
+          "oneOf": [{"type": "null"}, {"type": "integer", "minimum": 1}]
+        }
+      }
+    },
+    "evaluate_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registry_schema",
+        "evidence_path",
+        "config",
+        "expected_tasks",
+        "expected_manifests",
+        "expected_trials"
+      ],
+      "properties": {
+        "registry_schema": {"enum": ["skill-content", "paired-profile"]},
+        "evidence_path": {
+          "description": "Relative to <artifact_root>; the evidence bundle written by the caller.",
+          "type": "string",
+          "minLength": 1
+        },
+        "config": {"type": "object"},
+        "expected_tasks": {"type": "object"},
+        "expected_manifests": {"type": "object"},
+        "expected_trials": {"type": "array"}
+      }
+    }
+  }
+}

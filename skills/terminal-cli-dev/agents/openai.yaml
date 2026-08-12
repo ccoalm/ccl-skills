@@ -1,0 +1,4 @@
+interface:
+  display_name: "Terminal CLI Dev"
+  short_description: "Build CLI, TUI, and terminal surfaces"
+  default_prompt: "Use $terminal-cli-dev to design, implement, or test command-line, TUI, PTY, and ANSI-rendered terminal product surfaces."

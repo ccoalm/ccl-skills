@@ -1,0 +1,4 @@
+interface:
+  display_name: "Platform Service Connectivity"
+  short_description: "Design service-to-service connectivity"
+  default_prompt: "Use $platform-service-connectivity to design mesh, service discovery, mTLS, retries/timeouts, circuit breakers, and cross-service routing."

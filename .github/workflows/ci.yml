@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  repository-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install validation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep ruby
+          python3 -m pip install pytest pyyaml
+      - name: Public sanitization regression
+        run: python3 scripts/test_check_public_sanitization.py
+      - name: Public sanitization gate
+        run: python3 scripts/check-public-sanitization.py .
+      - name: Markdown link gate
+        run: python3 scripts/check-markdown-links.py .
+      - name: Repository test suite
+        env:
+          CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -n "$CANDIDATE_BASE_REF" ]] && git merge-base "$CANDIDATE_BASE_REF" HEAD >/dev/null 2>&1; then
+            export CCL_SKILL_BASE_REF="$CANDIDATE_BASE_REF"
+          fi
+          make test
+
+  npm-packages:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [packages/codex-npm, packages/opencode-npm]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ${{ matrix.package }}/package-lock.json
+      - working-directory: ${{ matrix.package }}
+        run: npm ci
+      - working-directory: ${{ matrix.package }}
+        run: npm test
+      - working-directory: ${{ matrix.package }}
+        run: npm run build

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Python Service Dev"
+  short_description: "Build Python backend and service features"
+  default_prompt: "Use $python-service-dev to implement a product-agnostic Python backend feature in the smallest service, worker, package, or script shape justified by the repo and boundary evidence."

@@ -1,0 +1,184 @@
+{
+  "event_contract_version": "skill-events-v1",
+  "known_answer_source": "Expected values are hand-authored, never generated from parser output; host variants contain only key topology observed by a content-free diagnostic.",
+  "cases": [
+    {
+      "id": "completed-ccl-and-arbitrary-skill",
+      "brief": "Review the change.\nrequired_skills: [ccl-skills:multi-agent-delegation]",
+      "events": [
+        {"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_generic", "name": "Skill", "input": {"skill": "superpowers:brainstorming"}}, {"type": "tool_use", "id": "toolu_owner", "name": "Skill", "input": {"skill": "ccl-skills:multi-agent-delegation"}}]}},
+        {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "toolu_generic", "content": "loaded"}, {"type": "tool_result", "tool_use_id": "toolu_owner", "content": "loaded"}]}}
+      ],
+      "expected": {
+        "skill_events_available": true,
+        "declared_required_skills_available": true,
+        "required_skills_declared": true,
+        "declared_required_skills": ["ccl-skills:multi-agent-delegation"],
+        "skills_invoked": ["superpowers:brainstorming", "ccl-skills:multi-agent-delegation"],
+        "ccl_skills_invoked": ["ccl-skills:multi-agent-delegation"],
+        "declared_ccl_skills_completed": ["ccl-skills:multi-agent-delegation"],
+        "declared_owner_match_status": "complete",
+        "event_contract_status": "stable",
+        "owner_gate_degraded": false
+      }
+    },
+    {
+      "id": "partial-declared-owner-completion",
+      "brief": "Assess the implementation.\nrequired_skills: [ccl-skills:testing-strategy, ccl-skills:llm-inference-integration]",
+      "events": [
+        {"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_test", "name": "Skill", "input": {"skill": "ccl-skills:testing-strategy"}}, {"type": "tool_use", "id": "toolu_llm", "name": "Skill", "input": {"skill": "ccl-skills:llm-inference-integration"}}]}},
+        {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "toolu_test", "content": "loaded"}]}}
+      ],
+      "expected": {
+        "skill_events_available": true,
+        "declared_required_skills_available": true,
+        "required_skills_declared": true,
+        "declared_required_skills": ["ccl-skills:testing-strategy", "ccl-skills:llm-inference-integration"],
+        "skills_invoked": ["ccl-skills:testing-strategy", "ccl-skills:llm-inference-integration"],
+        "ccl_skills_invoked": ["ccl-skills:testing-strategy", "ccl-skills:llm-inference-integration"],
+        "declared_ccl_skills_completed": ["ccl-skills:testing-strategy"],
+        "declared_owner_match_status": "partial",
+        "event_contract_status": "stable",
+        "owner_gate_degraded": false
+      }
+    },
+    {
+      "id": "arbitrary-skill-without-declaration",
+      "brief": "Locate the relevant call sites and quote their paths.",
+      "events": [
+        {"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_generic", "name": "Skill", "input": {"skill": "superpowers:brainstorming"}}]}},
+        {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "toolu_generic", "content": "loaded"}]}}
+      ],
+      "expected": {
+        "skill_events_available": true,
+        "declared_required_skills_available": true,
+        "required_skills_declared": false,
+        "declared_required_skills": [],
+        "skills_invoked": ["superpowers:brainstorming"],
+        "ccl_skills_invoked": [],
+        "declared_ccl_skills_completed": [],
+        "declared_owner_match_status": "not_declared",
+        "event_contract_status": "stable",
+        "owner_gate_degraded": false
+      }
+    },
+    {
+      "id": "declared-empty-for-pure-retrieval",
+      "brief": "Locate the source text only.\nrequired_skills: []",
+      "events": [
+        {"type": "assistant", "message": {"content": [{"type": "text", "text": "Located the source text."}]}}
+      ],
+      "expected": {
+        "skill_events_available": true,
+        "declared_required_skills_available": true,
+        "required_skills_declared": true,
+        "declared_required_skills": [],
+        "skills_invoked": [],
+        "ccl_skills_invoked": [],
+        "declared_ccl_skills_completed": [],
+        "declared_owner_match_status": "not_required",
+        "event_contract_status": "stable",
+        "owner_gate_degraded": false
+      }
+    },
+    {
+      "id": "declared-owner-with-no-skill-tool-use",
+      "brief": "Assess the patch.\nrequired_skills: [ccl-skills:testing-strategy]",
+      "events": [
+        {"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_bash", "name": "Bash", "input": {"command": "true"}}]}},
+        {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "toolu_bash", "content": "ok"}]}}
+      ],
+      "expected": {
+        "skill_events_available": true,
+        "declared_required_skills_available": true,
+        "required_skills_declared": true,
+        "declared_required_skills": ["ccl-skills:testing-strategy"],
+        "skills_invoked": [],
+        "ccl_skills_invoked": [],
+        "declared_ccl_skills_completed": [],
+        "declared_owner_match_status": "missing",
+        "event_contract_status": "stable",
+        "owner_gate_degraded": false
+      }
+    },
+    {
+      "id": "user-authored-skill-lookalike",
+      "brief": "Find the source location only.",
+      "events": [
+        {"type": "user", "message": {"content": [{"type": "tool_use", "id": "fake", "name": "Skill", "input": {"skill": "ccl-skills:testing-strategy"}}]}},
+        {"type": "assistant", "message": {"content": [{"type": "text", "text": "No Skill call was made."}]}}
+      ],
+      "expected": {
+        "skill_events_available": true,
+        "declared_required_skills_available": true,
+        "required_skills_declared": false,
+        "declared_required_skills": [],
+        "skills_invoked": [],
+        "ccl_skills_invoked": [],
+        "declared_ccl_skills_completed": [],
+        "declared_owner_match_status": "not_declared",
+        "event_contract_status": "stable",
+        "owner_gate_degraded": false
+      }
+    },
+    {
+      "id": "observed-host-caller-and-args-topology",
+      "brief": "Review the patch.\nrequired_skills: [ccl-skills:testing-strategy, ccl-skills:llm-inference-integration]",
+      "events": [
+        {"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_caller", "name": "Skill", "input": {"skill": "ccl-skills:testing-strategy"}, "caller": {"type": "direct"}}, {"type": "tool_use", "id": "toolu_args", "name": "Skill", "input": {"skill": "ccl-skills:llm-inference-integration", "args": ""}, "caller": {"type": "direct"}}]}},
+        {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "toolu_caller", "content": "loaded", "is_error": false}, {"type": "tool_result", "tool_use_id": "toolu_args", "content": "loaded"}]}}
+      ],
+      "expected": {
+        "skill_events_available": true,
+        "declared_required_skills_available": true,
+        "required_skills_declared": true,
+        "declared_required_skills": ["ccl-skills:testing-strategy", "ccl-skills:llm-inference-integration"],
+        "skills_invoked": ["ccl-skills:testing-strategy", "ccl-skills:llm-inference-integration"],
+        "ccl_skills_invoked": ["ccl-skills:testing-strategy", "ccl-skills:llm-inference-integration"],
+        "declared_ccl_skills_completed": ["ccl-skills:testing-strategy", "ccl-skills:llm-inference-integration"],
+        "declared_owner_match_status": "complete",
+        "event_contract_status": "stable",
+        "owner_gate_degraded": false
+      }
+    },
+    {
+      "id": "failed-skill-tool-result-is-not-completion",
+      "brief": "Review the patch.\nrequired_skills: [ccl-skills:testing-strategy]",
+      "events": [
+        {"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_failed", "name": "Skill", "input": {"skill": "ccl-skills:testing-strategy"}, "caller": {"type": "direct"}}]}},
+        {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "toolu_failed", "content": "load failed", "is_error": true}]}}
+      ],
+      "expected": {
+        "skill_events_available": true,
+        "declared_required_skills_available": true,
+        "required_skills_declared": true,
+        "declared_required_skills": ["ccl-skills:testing-strategy"],
+        "skills_invoked": ["ccl-skills:testing-strategy"],
+        "ccl_skills_invoked": ["ccl-skills:testing-strategy"],
+        "declared_ccl_skills_completed": [],
+        "declared_owner_match_status": "missing",
+        "event_contract_status": "stable",
+        "owner_gate_degraded": false
+      }
+    },
+    {
+      "id": "skill-input-shape-drift",
+      "brief": "Review the patch.\nrequired_skills: [ccl-skills:testing-strategy]",
+      "events": [
+        {"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_drift", "name": "Skill", "input": {"arguments": {"skill": "ccl-skills:testing-strategy"}}}]}}
+      ],
+      "expected": {
+        "skill_events_available": false,
+        "declared_required_skills_available": true,
+        "required_skills_declared": true,
+        "declared_required_skills": ["ccl-skills:testing-strategy"],
+        "skills_invoked": [],
+        "ccl_skills_invoked": [],
+        "declared_ccl_skills_completed": [],
+        "declared_owner_match_status": "unverifiable",
+        "event_contract_status": "degraded",
+        "owner_gate_degraded": true
+      }
+    }
+  ]
+}

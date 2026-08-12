@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "fixture_kind": "synthetic-runner-calibration",
+  "live_model_calls": false,
+  "samples": 3,
+  "seed": 19,
+  "synthetic_extra_access_events": [],
+  "tasks": [
+    {
+      "task_id": "smoke-review",
+      "task_family": "review",
+      "cohort": "known-regression",
+      "prompt_ref": "fixture://F8",
+      "execution_mode": "answer_only",
+      "expected_owners": ["ccl-skills:testing-strategy"],
+      "frozen_at_sha": "root",
+      "corpus_version": "behavior-fixtures-v1"
+    },
+    {
+      "task_id": "smoke-diagnosis",
+      "task_family": "diagnosis",
+      "cohort": "known-regression",
+      "prompt_ref": "fixture://F6",
+      "execution_mode": "answer_only",
+      "expected_owners": ["ccl-skills:defect-diagnosis", "ccl-skills:testing-strategy"],
+      "frozen_at_sha": "root",
+      "corpus_version": "behavior-fixtures-v1"
+    }
+  ],
+  "arms": [
+    {
+      "template_ref": "arms/subagent-off.json",
+      "components": {
+        "system_prompt": "synthetic-base-system",
+        "bootstrap": "",
+        "skill_inventory": "",
+        "tool_schema": "synthetic-read-write-tools",
+        "hook_command_config": "",
+        "repo_instructions": "synthetic-task-contract",
+        "ccl_layer": ""
+      }
+    },
+    {
+      "template_ref": "arms/subagent-oracle-owner.json",
+      "components": {
+        "system_prompt": "synthetic-base-system",
+        "bootstrap": "",
+        "skill_inventory": "synthetic-oracle-owner-only",
+        "tool_schema": "synthetic-read-write-tools",
+        "hook_command_config": "synthetic-matched-call-gate",
+        "repo_instructions": "synthetic-task-contract",
+        "ccl_layer": "synthetic-frozen-owner-bundle"
+      }
+    },
+    {
+      "template_ref": "arms/subagent-full.json",
+      "components": {
+        "system_prompt": "synthetic-base-system",
+        "bootstrap": "synthetic-full-bootstrap",
+        "skill_inventory": "synthetic-full-skill-inventory",
+        "tool_schema": "synthetic-read-write-tools",
+        "hook_command_config": "synthetic-full-hooks",
+        "repo_instructions": "synthetic-task-contract",
+        "ccl_layer": "synthetic-full-ccl-layer"
+      }
+    }
+  ],
+  "isolation_evidence": {
+    "fresh_session": true,
+    "forked_from_existing": false,
+    "auto_memory_enabled": false,
+    "vector_retrieval_enabled": false,
+    "session_recall_enabled": false,
+    "cross_session_cache_enabled": false,
+    "provider_persistence": "disabled",
+    "canary_leak_detected": false
+  },
+  "capability_matrix": [
+    {
+      "runner": "fixture",
+      "provider": "none",
+      "task_family": "review",
+      "evidence": {
+        "mount_boundary": {
+          "probe_id": "filesystem-boundary-v1",
+          "status": "verified",
+          "observations": {
+            "outside_read_denied": true,
+            "outside_write_denied": true
+          }
+        },
+        "access_audit": {
+          "probe_id": "access-audit-replay-v1",
+          "status": "verified",
+          "observations": {
+            "all_accesses_recorded": true,
+            "tamper_check_passed": true
+          }
+        },
+        "memory_isolation": {
+          "probe_id": "fresh-session-canary-v1",
+          "status": "verified",
+          "observations": {
+            "fresh_session": true,
+            "cross_session_recall_detected": false
+          }
+        }
+      },
+      "evidence_hash": "sha256:d7efb10d95c4a25f627a8928fd495c84d6bcdd722bed2257c76cc6aa35dc7ad2"
+    },
+    {
+      "runner": "fixture",
+      "provider": "none",
+      "task_family": "diagnosis",
+      "evidence": {
+        "mount_boundary": {
+          "probe_id": "filesystem-boundary-v1",
+          "status": "verified",
+          "observations": {
+            "outside_read_denied": true,
+            "outside_write_denied": true
+          }
+        },
+        "access_audit": {
+          "probe_id": "access-audit-replay-v1",
+          "status": "verified",
+          "observations": {
+            "all_accesses_recorded": true,
+            "tamper_check_passed": true
+          }
+        },
+        "memory_isolation": {
+          "probe_id": "fresh-session-canary-v1",
+          "status": "verified",
+          "observations": {
+            "fresh_session": true,
+            "cross_session_recall_detected": false
+          }
+        }
+      },
+      "evidence_hash": "sha256:5a66ec9db7aa5a5674bc320a0143c05751a145a3f0b1fa8ec6d8a527d037d4d2"
+    }
+  ],
+  "calibration": {
+    "status": "not_evaluated_synthetic"
+  }
+}

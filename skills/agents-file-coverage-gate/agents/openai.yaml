@@ -1,0 +1,4 @@
+interface:
+  display_name: "AGENTS.md File Coverage Gate"
+  short_description: "Scaffold, verify, and enforce AGENTS.md across a repo's source directories"
+  default_prompt: "Use $agents-file-coverage-gate to check, scaffold, or enforce that the repo root and every source-code directory carry an AGENTS.md; it runs product-rd-workflow's check-agent-contract-coverage.sh (--check/--fix/--enforce) and can bootstrap a pre-commit/CI gate."

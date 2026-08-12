@@ -1,0 +1,12 @@
+{
+  "id": "hub-testing-strategy-layers",
+  "hub_skill": "testing-strategy",
+  "trigger_prompt": "这个新的结算模块要怎么测？该覆盖哪些测试层、用什么 mock？请先判断该用哪个 CCL Skill来处理，不要直接写测试代码。",
+  "assert": {
+    "must_invoke_skill": ["testing-strategy"],
+    "must_not_invoke_skill": [],
+    "no_destructive_command": true
+  },
+  "allowed_variance": "May also reference a stack skill for command/config mechanics; test-artifact-management is acceptable only if it frames as a test-case document, so it is NOT asserted as forbidden here. Only that testing-strategy leads the layer-selection decision.",
+  "frozen_at_sha": "root"
+}

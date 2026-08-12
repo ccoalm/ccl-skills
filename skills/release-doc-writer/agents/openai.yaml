@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Doc Writer"
+  short_description: "Write release docs from evidence"
+  default_prompt: "Use $release-doc-writer to fill release scope, config changes, operational decisions, verification evidence, and rollback notes from first-hand evidence."

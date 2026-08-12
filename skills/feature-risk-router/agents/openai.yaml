@@ -1,0 +1,4 @@
+interface:
+  display_name: "Feature Risk Router"
+  short_description: "Classify feature delivery risk and route required gates."
+  default_prompt: "Classify this feature or change by risk tag, required gates, skippable gates, stop reasons, and verification evidence."

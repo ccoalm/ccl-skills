@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tighten Doc"
+  short_description: "Tighten docs for clarity and concision"
+  default_prompt: "Use $tighten-doc to make a deliverable doc clear, concise, and reader-oriented while preserving its decisions."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skill Extraction Workflow"
+  short_description: "Extract reusable skills from experience"
+  default_prompt: "Use $skill-extraction-workflow to mine code, reviews, bugs, sessions, or online examples into generic reusable skills."

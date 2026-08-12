@@ -1,0 +1,150 @@
+---
+name: defect-diagnosis
+description: bug / 报错 / test 挂了 / 线上问题 / 复现 / 找根因 / debug → diagnose first-hand failure evidence, isolate cause, verify before fixing, add regression proof, and route prevention. Also use for AI-proposed causes or fixes.
+---
+
+# Defect Diagnosis
+
+Use this skill for the full defect discipline: diagnose the immediate failure, fix it with evidence, then decide whether root-cause prevention should update a product, architecture, development, testing, release, or tooling skill.
+
+## Non-Negotiable Rules
+
+- Do not skip the problem because another path appears to work.
+- Do not delete, comment out, or weaken a failing test just to make the suite pass.
+- Do not call a workaround the fix unless the owner explicitly accepts the tradeoff and residual risk is recorded.
+- Do not start broad refactoring while the cause is unknown. Isolate and fix first; refactor after the behavior is understood.
+- Do not stop at "this line was wrong" when the defect reveals a missing contract, guardrail, test, review check, or skill rule.
+- Do not state or act on a root-cause verdict — even as a confident aside — before you have read the failing owner's own evidence with your own eyes (assertion diff for a test, stack/exception for a crash, trace/log slice for a production symptom, source only when it is itself the failing artifact). Until then, label every cause as a hypothesis and name the evidence that would confirm or reject it. This applies to your OWN analysis, not only to LLM-proposed causes. Mitigation is exempt: you may roll back, flag-off, or shed traffic from symptoms while cause stays marked unknown — what is forbidden is choosing or applying a *fix* as though a cause is proven.
+
+## Phase A: Diagnose
+
+1. Reproduce.
+   - Record exact steps, inputs, environment, command, config, and observed failure.
+   - Prefer a failing test, trace, payload, or smallest runnable reproduction.
+   - If intermittent, record frequency, timing, data shape, and resource conditions.
+   - **Before declaring a bug non-reproducible — or an environment / service / tool / dataset needed to reproduce it "unavailable" or "blocked" — run the normal remediation for that layer first.** Start the service / emulator / container / dependency and wait for readiness, run the repo setup or fixture/seed script, restart the client daemon, provision or refresh the test data, or try a *different* reproduction strategy (smaller or adversarial input, a different transport/endpoint, added tracing, or an engineered-interleaving / race-detector harness for a concurrency bug). Only record `can't-reproduce` / `unavailable` / `blocked` **after** the bounded remediation for that layer fails, with the command evidence, the residual risk, and the next concrete unblock action. A confident "I can't reproduce it" or "the env is down" with no remediation attempt is not a closed defect — it is `pending`.
+     - **This is not an escape hatch to never close or escalate.** Remediation attempts are *bounded* and subject to the same frame-change / escalation discipline as hypotheses below (`Frame-change-or-escalate`, `Escalation does not close the defect`): after repeated failed bounded attempts, stop inventing new "different" strategies, escalate with a handoff packet, and keep the defect open under an owner — do not sit on an endless `pending`.
+     - **Safety preflight for any mutating remediation** (setup / fixture / seed / data-refresh / daemon-restart, or `docker compose up`-style stack start): first prove the target endpoint, credential, and namespace are synthetic and disposable — never a live/prod/shared DB, API, token, or environment — and disable or isolate any side-effecting consumers, webhooks, or scheduled jobs the start would wake (they can process real queued events or reconnect to shared staging). If you cannot confirm the target is safe/scratch, the remediation is itself `blocked` — do not run destructive setup/refresh to chase a repro.
+
+2. Isolate.
+   - Narrow by layer, recent change, dependency, data shape, permission, timing, or environment.
+   - Use minimal reproduction, binary search, feature flags, dependency substitution, or generated-file drift checks when useful.
+   - **When the failure has no useful binary-search axis (no orderable/partitionable commit, input, dependency version, config/env, or dataset with a reliable good/bad predicate), compare against a known-working analog** — a confirmed-passing sibling test, the same operation on another service/endpoint, or a last-good build/env/config — and enumerate *every* difference between the working and broken cases, however small; do not pre-dismiss one as "that can't matter". Verify the analog is genuinely passing and contract-comparable first (a superficially similar but different-contract analog misleads). Do this only after reading the failing owner's own evidence (per the evidence-first Non-Negotiable above; for a failing test, the assertion-first rule below), and treat each enumerated difference as a hypothesis to verify (Phase A.3), not a proven cause.
+   - **`git bisect` is the default binary-search tool when the failure is a regression with a known-good and known-bad commit**.
+     - Per `git-scm.com/docs/git-bisect`: `git bisect start && git bisect bad <bad-sha> && git bisect good <good-sha> && git bisect run <script>` automates the search.
+     - Script-exit-code contract per `git-scm.com/docs/git-bisect`: **0 = commit is good; any non-zero exit in 1..127 except 125 = commit is bad; 125 = commit is untestable (skip)**.
+     - The `make || exit 125` idiom belongs to the build / setup phase of the script — emit 125 ONLY when the commit cannot even be built/prepared, not when the actual test fails (test failure should propagate as exit 1 so bisect counts it as bad).
+     - For a regression caused inside a merge, `git bisect --first-parent` follows mainline only so the search doesn't dive into intermediate feature-branch commits that don't matter.
+     - **The script must be deterministic** — flaky-reproduction-rate < 100% will cause bisect to converge on the wrong commit; if reproduction is flaky, fix the reproduction script first (loop N times, assert ≥M failures, then exit 1) OR switch from bisect to logging/tracing diagnosis.
+     - Routing: stack-specific bisect-script idioms (`pytest -x` / `go test -run` / `npm test --bail`) belong in stack dev skills; this skill owns the workflow + exit-code contract.
+   - For build or release-tool failures, shrink the failing command to the smallest owning tool before editing application code. Examples include moving from app build to native build settings, compiler, asset/storyboard compiler, package resolver, code generator, or emulator/simulator runtime discovery.
+   - Identify whether the failure is in product logic, contract mapping, persistence, cache, async processing, dependency behavior, runtime config, release state, or test setup.
+   - If the failure appears only in tests or CI, classify the test evidence before changing code: deterministic assertion, fixed external data, live infrastructure, random/log-only behavior, long sleep, allow-failure gate, generated/vendor test, or deploy/build-only pipeline.
+   - **A red CI pipeline/job is not by itself a code/dependency defect — read the failing job's own trace (not the red/green summary) and classify the cause before touching code.** Refining the classes above into why-CI-is-red-but-code-may-be-fine: (a) **trigger-variant artifact** — when the same job runs under more than one trigger-scoped config (branch/push vs merge-request vs manual/scheduled; vendor terms vary — the analog on any CI is the trigger *event/context*), the trigger can resolve different default variables or a different checked-out ref, so a red on a non-gating trigger may be benign — but conclude that ONLY after confirming the *same failing check* ran and is green on the gating path (a gating pipeline that is overall green yet never runs the failing check does not clear it; if that check's coverage is unique to the non-gating trigger — e.g. a scheduled/manual-only suite — treat it as genuine (d), not a variant artifact); (b) **retriable infra flake** — concurrent tools colliding on a shared-runner build/lint lock, etc.: confirm per the flaky rule below (rerun N times + record the ratio; a 100%-reproducible red is deterministic, not a flake), and still read the red run's trace for the collision signature, since one green rerun cannot separate an infra flake from a genuine intermittent code bug; (c) **deterministic non-code infra fault** — toolchain/runner-image drift, stale cache/vendored artifact, credential/quota expiry: reproduces identically (NOT a flake) AND must be shown **code-independent** before disowning — confirm the same failure reproduces on a known-good baseline (parent/last-good commit, or a build without the change) under the same runner/toolchain; if the red appears only *with* the change it is (d) however much it resembles drift → route to platform/infra only after that baseline check, then do not attribute to code; (d) **genuine code/dependency failure**. (Single-variant repos skip the (a) check; the trace-first and cause-classification still apply.)
+   - **For a failing test, read the actual assertion error (Expected/Actual) and the failing test body FIRST — before diagnosing flakiness, concurrency, shared state, mock setup, or external-dependency causes.** A passing/failing count, a `REQUEST POST`-style debug log line, or "passes in isolation, fails in suite" is a symptom, not the assertion evidence; naming a cause from those alone is the exact failure this skill exists to prevent. If the test is suspected flaky, rerun N times and record the pass/fail ratio before calling it flaky (100% reproducible failure is deterministic, not flaky), and confirm the test's network/dependency boundary by reading its setup (e.g. whether it is already mocked) rather than inferring from logs.
+
+3. Hypothesize.
+   - Write concrete causes that can be proven or rejected.
+   - For each hypothesis, define the expected observation if it is true.
+
+4. Instrument.
+   - Add targeted logs, assertions, traces, metrics, local probes, or debugger breakpoints.
+   - Keep instrumentation narrow. Remove or downgrade temporary noise before finishing.
+   - **Observability-driven RCA: when the failure is observable in production telemetry, start from the bad metric/alert and walk back through traces, not from the application code reading bottom-up**.
+     - Per `opentelemetry.io/docs/specs/otel/metrics/data-model/` and the OTel exemplars spec, modern observability platforms (OpenTelemetry SDK + Prometheus + Tempo / Jaeger / Grafana / similar) link metrics to a sample of traces via **exemplars** — a metric data point can carry the trace-id of a request that produced it, letting the diagnoser jump from "p99 latency spiked at 14:23" to a representative slow-request trace with one click.
+     - The cardinality discipline rule (never put trace-id / request-id as a metric label) makes exemplars necessary — they preserve high-cardinality drill-down without exploding the metric.
+     - **Workflow**: alert fires → open dashboard → pick an exemplar trace from the spike → read the span tree (downstream service called, timing, attributes) → jump from span to logs via shared trace-id → form hypothesis.
+     - Reading application code without first checking the trace is the most common time-sink in production-symptom diagnosis.
+     - The trace-shipping pipeline / dashboard / alert routing belong to `platform-observability`; this skill owns the diagnoser-facing workflow.
+   - **AI-assisted diagnosis (Claude Code / Cursor / Copilot / similar) is a default-on hypothesis generator, NOT a default-on root-cause verdict**.
+     - The pattern that works: paste the stack trace / failing test output / log excerpt / OTel trace JSON to the assistant, ask for ranked hypothesis list with evidence-collection commands for each, then YOU verify each candidate by running the proposed commands and reading the actual output.
+     - The pattern that breaks production: accept a confident LLM-named root cause as the answer and ship a fix without running the verification commands — LLMs hallucinate plausible-sounding root causes from partial evidence routinely, especially when the stack trace is for a class of bug they've seen many times but the actual code path differs.
+     - **Required discipline when AI-assisting diagnosis**: (a) record the prompt + assistant output as part of the diagnosis evidence (so reviewers can spot a hallucinated root cause from the original conversation), (b) the human still owns the final cause verdict + the regression test, (c) never let the assistant apply a fix without first writing or strengthening a regression test that fails before the fix and passes after — the AI's "I fixed it" claim is not verification, the failing-then-passing test is, (d) **sanitize before the error leaves the trust boundary** — before pasting a stack trace / log / failing-test output / query / trace JSON to an *external* assistant or searching it on the public web, strip internal hostnames, IPs, internal URLs/paths, raw SQL and query bodies, customer data / PII, secrets / tokens, env values, and proprietary identifiers; send only the generic error class + framework/version (search the error *category*, not the raw message). A self-hosted / in-VPC assistant under a no-retention, no-training contract may receive more *diagnostic context*, but secrets / tokens, customer data / PII, request/response bodies, headers, env values, and credential-bearing variable values are minimized regardless of channel; if an error cannot be safely sanitized, do not send it externally — diagnose from local evidence. Pasting the raw trace is the convenient default and the data-leak footgun. The prompt/assistant-output you record under (a) is then subject to the same evidence-sanitization rule as any other persisted evidence (Phase B "Record evidence"), so the recording step does not re-leak what this strip removed.
+     - Safe-to-delegate work: log/trace summarization, repro-script drafting, hypothesis fan-out, refactoring-after-fix.
+     - Not-safe-to-delegate: the root-cause verdict, the fix application without test, the prevention routing decision.
+
+5. Verify cause.
+   - Prove the cause with evidence.
+   - When the cause is environment/toolchain state, prove it from the tool that owns that state, not only from the high-level wrapper. A wrapper failure is a symptom until the underlying compiler, generator, runtime registry, dependency resolver, or platform destination evidence explains it.
+   - If disproven, return to hypotheses instead of guessing.
+   - Separate symptom, immediate cause, contributing factors, and prevention.
+
+## Convergence Control And Escalation
+
+The hypothesize → instrument → verify loop must not run forever, and escalation must not drop the discipline. Apply these signals:
+
+- **Frame-change-or-escalate (three-strike).** Count evidence-backed rejected hypotheses within the same frame (same layer, evidence source, and reproduction). After about three, pause for reassessment before adding another from that frame. Continue in the same frame only when the next hypothesis is materially new, has a distinct falsifier, and is backed by new or deeper evidence that can distinguish it from the rejected class; otherwise record a material frame change (new reproduction, layer, independent evidence source, owning invariant, or a tool that exposes new evidence rather than re-reading the same signal) or escalate. Rephrasing the same hypothesis class, swapping tools that observe the same evidence, or renaming owners does not reset the count. This is a reassessment signal, not a numeric cap on valid evidence-driven hypotheses.
+- **Escalation does not close the defect.** Handoff, "instrument and wait", or re-scope leaves the defect OPEN; it never waives the verified cause, fresh verification, or regression evidence before any fix is accepted. A handoff packet carries: symptom, reproduction, rejected hypotheses with evidence, current mitigation, next owner, and the open verification/regression obligations.
+- **"Instrument and wait" needs a severity gate.** It is acceptable only with an explicit classification: no plausible user, data-integrity, security, compliance, or SLA impact; mitigation is not applicable or would be riskier; an owner accepts observe-only; and an alert + timeout + owner are recorded. Unknown or latent-uncertain severity defaults to mitigate/escalate, not wait. Emergency mitigation (roll back, flag off, shed traffic) stays available immediately while the cause is unknown, per the Non-Negotiable mitigation rule.
+- **Wrong-layer smell.** If each fix makes a new problem appear elsewhere, you are patching symptoms at the wrong layer or abstraction — stop patching and re-trace to the layer that owns the broken invariant. A fix proposed before its cause is verified by evidence (per Phase A) is a guess, not a fix.
+- **Recurring-area smell.** A defect recurring in the same module or files across separate fixes is a trigger to investigate whether the cause is structural — not a verdict that it is. Mitigate or land the minimal verified fix first, then route prevention to the owning skill via Prevention Routing (architecture only when the cause is genuinely structural — service boundary, source-of-truth, contract, auth, runtime/release, or data ownership; otherwise dev/testing/product/tooling per the table).
+
+## Phase B: Fix And Verify
+
+1. Fix minimally.
+   - Address the proven cause with the smallest correct change.
+   - Preserve contracts unless the task explicitly requires a contract change.
+   - If the minimal fix would change a shared deterministic gate/verifier (workspace verifier, conformance/contract-coverage script, status-source validator, CI harness, continuation-state checker) or shared/cross-repo contract/status/version/release/compatibility semantics — whether in a named surface or in code, generated artifacts, config, or scripts — stop before editing and route the fix through `product-rd-workflow`'s shared-gate classification (its *Enforce quality gates* shared deterministic gate/verifier rule: artifact classification + persistent repo-local plan + `feature-risk-router` shared-gate route). Diagnosis still owns the verified cause and regression test; that handoff governs only how the fix lands.
+   - Keep unrelated cleanup separate.
+
+2. Add regression evidence.
+   - Add or update a test that would have caught the defect when feasible.
+   - Prefer a test that fails before the fix and passes after the fix.
+   - Do not treat a random, log-only, sleep-heavy, or live-data script as sufficient regression evidence unless it is explicitly marked as a manual/integration probe and paired with a deterministic check.
+   - Run narrow verification first, then broader affected tests based on risk.
+
+3. Record evidence.
+   - Do not claim the defect is fixed until fresh verification has been run and read.
+   - Symptom and reproduction.
+   - Proven cause and rejected hypotheses.
+   - Fix summary.
+   - Verification command/result.
+   - Regression test or why it was not feasible.
+   - **Sanitize evidence that is persisted or shared.** Any diagnosis evidence copied to a ticket, MR, repo-local file, or shared doc — repro inputs, env/config, commands, request/response headers and bodies, logs, verification output, and AI-assist transcripts (per Phase A item (d)) — is minimized and redacted first of the *same categories* Phase A item (d) strips before an external send: secrets/tokens, customer data / PII, credential-bearing values, internal hostnames / IPs / internal URLs / paths, raw SQL and query bodies, request/response bodies, env/config values, and proprietary identifiers. Raw unredacted repro artifacts live only in an access-controlled incident store with a retention rule, referenced by link, never pasted into shared diagnosis evidence; recording the failure must not become the leak the live system avoided.
+
+## Phase C: Root Cause And Prevention
+
+Run 5 Whys after the immediate defect is understood:
+
+- Why did the observable failure happen?
+- Why did that code/data/config condition exist?
+- Why did tests, review, monitoring, or runtime checks miss it?
+- Why was the contract, workflow, or assumption unclear?
+- What durable prevention changes future behavior?
+
+Stop when the answer points to a reusable prevention mechanism, not when it only names the broken code. Reject disguised non-causes — "developer was careless / didn't follow the rule / will be more careful next time" name the human's diligence, not the mechanism. When a control that was *expected* to catch this (a test/check/review/CI/lint/type/contract/runbook) existed but did not fire, and the failure would recur for others, that is not the root cause — the next why is "why did no trigger/gate make that control fire", and the prevention is the mechanism that fires next time (a failing-first regression test, CI check, lint, type, contract, or review-checklist item). A genuine one-off low-risk human slip that an existing check already caught may stop at "no shared change needed" — but never at "try harder next time".
+
+The 5 Whys lineage is generic industrial-quality practice (popularized by Toyota Production System manufacturing-quality work; widely adopted across software incident review). For incident-class defects (production outage, data corruption, security event), pair 5 Whys with two additional named lenses commonly applied in modern SRE practice (repeated/recurring defects are routed by the complexity rule below, which fires the widen lens regardless of user-visibility):
+
+- **Blameless postmortem** (per Google SRE Book chapter on Postmortem Culture, `sre.google/sre-book/postmortem-culture/`): write the incident review assuming everyone involved acted with the right intent given the information they had at the time. The point is to extract systemic prevention (gates, alerts, contracts, runbooks) rather than to assign individual fault. Templates capture timeline, impact, contributing causes, action items with owners + due dates, and what worked/didn't in response. Influenced by the broader safety-critical-incident investigation and human-factors literature where punitive incident review demonstrably reduces report rate AND hides repeating failure classes.
+- **Swiss Cheese model** (attributed to James Reason in the safety/accident causation literature; widely applied to software incidents): every defense layer (test, code review, monitoring, alerting, runbook, on-call response) has holes; an incident reaches production when holes line up. The action items from a postmortem should close the relevant hole at MULTIPLE layers, not just the one closest to the bug — adding a unit test alone leaves the alert + the runbook + the on-call playbook still empty. List which layers had a hole this time and which closures the team commits to.
+
+Scale Phase C depth to defect **complexity**, not only to user-visible incident status:
+
+- **Simple deterministic non-incident** — one local cause plus one regression/control fully explains the defect (test caught it, dev fixed it, no user impact): the linear 5 Whys above is sufficient.
+- **Complex defect** — intermittent/flaky/racy, multi-component, repeated/recurring, required a Phase-A frame change (the three-strike signal), spans more than one Diagnosis Playbook lens category (e.g. a contract + timing + cache interaction) or the test layer is itself causal, or more than one expected control failed: **widen before deepening, even with no user-visible impact.** Enumerate the contributing factors across the Diagnosis Playbook lenses (contract / state / time / dependency / runtime / test / human-agent workflow), separate the immediate cause from the enabling/latent conditions (applying the blameless / local-rationality framing — assume right intent given the information available at the time; that framing is the *lens* and applies here, separate from the formal *ceremony* below), counterfactually rank the primary cause against the failed secondary controls (close each failed layer per Swiss Cheese, not only the one nearest the bug), then route prevention for each. A single straight 5-Why chain that stops at one cause is the documented failure mode here — a complex defect with no branches means you stopped early. Record the **complexity verdict** (`simple` / `complex` + which trigger fired) in the diagnosis evidence, so the widen path cannot be silently skipped on a bug that warranted it.
+
+The **widen + multi-layer (Swiss Cheese) lens fires on complexity above, not only on visible impact** — so a repeated regression (a named complexity trigger above) is widened even when caught in CI with no user impact. Reserve only the **formal blameless-postmortem ceremony** (timeline / impact / action-items with owners + due dates) for incidents with user-visible or business-visible impact.
+
+## Prevention Routing
+
+- Product workflow issue -> `product-rd-workflow`.
+- Go backend architecture issue -> `go-microservice-architecture`.
+- Go backend implementation, testing, codegen, DB, Redis, MQ, or protobuf issue -> `go-microservice-dev` references.
+- Python backend, AI-service host, worker, SDK/package, or batch-job architecture issue -> `python-service-architecture`.
+- Python implementation, pytest, packaging, schema, ORM/migration, Redis, queue, async, or service-wiring issue -> `python-service-dev` references.
+- LLM, inference, RAG, prompt, model-routing, streaming, fallback, evaluation, replay, shadow, token-cost, or agent-runtime/tool-call issue -> `llm-inference-integration`.
+- Mobile app issue involving Flutter, Android, iOS, navigation, state, platform bridge, device capability, build/release, crash, accessibility, or performance -> `app-cross-platform-dev`.
+- Mini-program issue involving WeChat/Alipay/Douyin/Baidu page routing, host-platform APIs, developer tools, review submission, release, real-device preview, or platform capability -> `miniapp-product-dev`.
+- React web issue involving components, routing, browser state, frontend API integration, forms, build/deploy, accessibility, or browser performance -> `web-react-dev`.
+- Terminal, CLI, or TUI issue involving ANSI rendering, text layout, PTY behavior, keyboard/mouse/paste/focus input, selection/copy, scrollback, resize, color fallback, or terminal cleanup -> `terminal-cli-dev`.
+- Tests, CI, fixture, mock, E2E, device/browser, or verification-layer miss -> `testing-strategy`.
+- Regression test case needs to be written and tracked in Feishu Bitable after a bug is fixed -> `test-artifact-management`.
+- Hands-on diagnosis method issue -> `defect-diagnosis`.
+- UI/product interaction issue -> `product-ui-ux-design` first when UX is unclear, then `app-cross-platform-dev`, `miniapp-product-dev`, `web-react-dev`, or `terminal-cli-dev` for implementation.
+- One-off business/domain issue -> do not convert to a generic skill rule.
+
+## Reference Loading
+
+- For diagnosis lenses and evidence templates, read `references/diagnosis-playbook.md`.
+- For prevention types and skill update rules, read `references/prevention-routing.md`.

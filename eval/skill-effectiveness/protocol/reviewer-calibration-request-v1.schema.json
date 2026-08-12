@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "skill-effectiveness.reviewer-calibration.request.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "request_id", "action", "payload"],
+  "properties": {
+    "schema": {
+      "const": "skill-effectiveness.reviewer-calibration.request.v1"
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,128}$"
+    },
+    "action": {
+      "enum": ["probe", "sample", "finalize"]
+    },
+    "artifact_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "action": {
+          "const": "probe"
+        },
+        "payload": {
+          "type": "object",
+          "maxProperties": 0
+        }
+      },
+      "not": {
+        "required": ["artifact_root"]
+      }
+    },
+    {
+      "required": ["artifact_root"],
+      "properties": {
+        "action": {
+          "const": "sample"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sample_id",
+            "provider",
+            "executable",
+            "model",
+            "reviewer_family",
+            "timeout_seconds",
+            "max_model_calls",
+            "runtime_manifest_hash"
+          ],
+          "properties": {
+            "sample_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            },
+            "provider": {
+              "const": "codex"
+            },
+            "executable": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+            },
+            "reviewer_family": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            },
+            "timeout_seconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 600
+            },
+            "max_model_calls": {
+              "const": 1
+            },
+            "runtime_manifest_hash": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        }
+      }
+    },
+    {
+      "required": ["artifact_root"],
+      "properties": {
+        "action": {
+          "const": "finalize"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sample_ids", "runtime_manifest_hash"],
+          "properties": {
+            "sample_ids": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 5,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+              }
+            },
+            "runtime_manifest_hash": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Miniapp Product Dev"
+  short_description: "Build and ship mini-program product features"
+  default_prompt: "Use $miniapp-product-dev to design, implement, test, or release a WeChat, Alipay, Douyin, Baidu, or similar mini-program feature."

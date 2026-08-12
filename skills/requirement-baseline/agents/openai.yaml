@@ -1,0 +1,4 @@
+interface:
+  display_name: "Requirement Baseline"
+  short_description: "Inventory product current state"
+  default_prompt: "Use $requirement-baseline to inventory current product flows, capabilities, facts, gaps, risks, and uncertainties before deciding what to change."

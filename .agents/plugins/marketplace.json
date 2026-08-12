@@ -1,0 +1,19 @@
+{
+  "name": "ccl-skills",
+  "interface": {
+    "displayName": "CCL Skills"
+  },
+  "plugins": [
+    {
+      "name": "ccl-skills",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ccoalm/ccl-skills.git"
+      },
+      "policy": {
+        "installation": "AVAILABLE"
+      },
+      "category": "Engineering"
+    }
+  ]
+}

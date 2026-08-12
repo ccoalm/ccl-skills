@@ -1,0 +1,63 @@
+# E2E And Real-Flow Testing
+
+Use this for critical user journeys, cross-service flows, release smoke, browser workflows, and runtime integration that lower-level tests cannot prove.
+
+## When E2E Is Worth It
+
+- Login/onboarding/payment/publish/export/import or other primary user flows.
+- Permission-sensitive or role-sensitive workflows.
+- Cross-service state change where API, UI, worker, and persistence must align.
+- Browser-specific interaction such as routing, forms, uploads, keyboard/safe-area behavior, dialogs, or responsive layout.
+- Release smoke for the highest-risk changed path.
+
+Before adding a new E2E test, create or update the scenario matrix in `scenario-testing.md`. Keep only the cross-boundary proof in E2E; push deterministic permutations down to unit, contract, component, or integration tests.
+
+## Browser E2E Rules
+
+- Use stable selectors or accessible labels; avoid brittle text-only or CSS-position selectors.
+- Prefer accessibility-tree element references or role/name selectors when the browser tool supports them; they survive layout changes better than coordinates or CSS paths.
+- Re-read visible state after every action that should change the page.
+- Wait for explicit conditions: URL transition, visible text, DOM state, event, network idle, persisted state, or backend signal.
+- Avoid fixed sleeps except as a last resort with a clear reason.
+- Use isolated browser/session contexts for different users or roles.
+- Save authenticated state only when the test is not about login.
+- Capture console errors, failed network requests, screenshots/traces/video when useful.
+- Use network interception only to control nondeterminism or assert payloads; do not mock away the contract that the E2E test is meant to prove.
+- **Playwright 1.5x baseline (Microsoft, ongoing 2024-2026)** is the current default-recommendation browser-E2E framework for new web testing. Key features to use deliberately, per `playwright.dev` docs: (a) **Trace Viewer** is the load-bearing debugging surface — every CI failure should produce a `trace.zip` artifact. Set `trace: 'retain-on-failure'` (not `'on-first-retry'`) when CI runs with `retries: 0` for deterministic gating — `'on-first-retry'` produces no trace unless the test actually retries, leaving teams with zero diagnostics on first-failure-then-fix-the-flake debugging cycles. Reviewers open the artifact locally or via `trace.playwright.dev` to step through actions, screenshots, network, and console without re-running the test. (b) **Soft assertions** via `const softExpect = expect.configure({ soft: true })` let one test report multiple failures rather than stopping at the first — useful for state-snapshot assertions where the team wants the whole-page diff in one run, NOT a substitute for the "one test, one behavior" discipline. (c) `toMatchAriaSnapshot()` (Playwright 1.49+) is the structured accessibility-tree assertion — call it on a locator (`expect(page.locator('main')).toMatchAriaSnapshot(...)` or `await page.locator(...).ariaSnapshot()`), preferred over DOM-string snapshots for resilience to non-semantic markup changes. (d) **Component testing** (`@playwright/experimental-ct-{react,vue,svelte}`) is still labeled experimental — use Vitest browser mode for component-level tests until Playwright component-test API stabilizes. (e) **Projects** in `playwright.config.ts` define run matrices (browser × device emulation × baseURL × config variant) and produce one merged HTML report. Note: Projects ≠ sharding — sharding is a separate `--shard=k/n` mechanism that splits a single project's tests across multiple workers/machines; teams often combine both (projects for the matrix, sharding for parallelism per project). Pin worker count and shard count for CI determinism, do not let auto-detect choose. Routing the per-stack Playwright config implementation goes to `web-react-dev/references/web-quality-release.md`; this skill owns the test-layer policy.
+
+## Runtime QA Sweep
+
+Use this only as bounded runtime acceptance / release-smoke evidence for the scenario-matrix paths whose risk needs runtime proof — it is not exploratory QA and cannot close coverage on its own; push deterministic permutations down to unit/contract/component/integration tests. When smoke-testing a running web surface, sweep these bug categories (not only the one happy path); several are invisible in the rendered UI unless you look:
+
+- **Functional:** dead controls (click does nothing), broken or wrong-destination links, form validation that is missing or bypassable, state not persisting across refresh / back-button, and double-submit or stale-data races.
+- **Console / network:** check the console *and* the network panel after interactions, not only on load. Watch uncaught JS exceptions, failed 4xx/5xx user-path requests, and the often UI-silent classes — CORS failures, mixed content (an HTTP resource on an HTTPS page), CSP violations, and deprecation warnings (these surface in the console and frequently as blocked/failed network entries). **Classify before calling any of them a defect** (per the skill's verification-warning rule): product-owned exceptions, failed supported-user-path requests, enforced CSP breaks, blocked mixed content, and unexpected CORS on a supported environment are defects; CSP report-only entries, expected negative/preflight denials, dev-only proxy noise, and third-party deprecations outside the team's control are observations unless they block a supported user path or the current slice caused them — record owner + residual risk rather than failing the sweep blindly.
+- **Performance:** cumulative unexpected layout shift across the page lifecycle (CLS — e.g. content jumping after a late-loading image or ad, not only after first paint), and request-pattern smells (unexpected growth versus baseline, duplicate requests, N+1 fan-out, unbounded polling, or unbatched fetches). A high request count alone is not a smell — dashboards, feeds, maps, and streaming surfaces legitimately make many requests with documented pagination or parallel panels.
+- **Auth boundary:** what the surface does when logged out and across the relevant user roles, not only the authenticated happy path. **Run these only against staging, synthetic tenants, or read-only / dry-run paths.** Verify privileged or destructive actions by their guardrails — visibility, disabled state, confirmation copy, permission denial, and audit metadata — or via a dry-run / mocked request; do NOT execute the privileged/destructive action itself (irreversible writes, account/session changes, money/quota mutations, deletes, admin repairs) against real data as part of a sweep. A genuine end-to-end test of such an action is a separately-authorized E2E case against synthetic data, never a sweep step.
+
+Capture evidence per the `Browser E2E Rules` above (console/network/screenshot/trace). Preserve every runtime failure or ambiguous red signal as evidence and route it through `defect-diagnosis` (label "confirmed defect" only after triage — never drop or greenwash an unconfirmed failure). Proven categories belong in the `scenario-testing.md` matrix and lower-layer tests, not re-verified by hand every release.
+
+A sweep is **report-and-route, not fix-in-place**: document each finding (severity, category, expected-vs-actual, repro evidence) and route it through `defect-diagnosis` for triage — only confirmed defects proceed to cause + fix + regression evidence; observations (CSP report-only, expected denials, third-party deprecations, ambiguous reds) stay recorded with owner, residual risk, and follow-up path, not treated as defects before triage. During the sweep, treat product/runtime code as read-only (external-state mutation stays governed by the auth-boundary rule above — controlled synthetic/dry-run submits for the functional checks are fine; unrequested or real-data destructive mutation is not): you may write evidence artifacts and scoped QA/test files when they are part of the requested deliverable, but do not make a finding green by patching product code, so a read-only QA / acceptance pass cannot silently become unrequested code changes. If the current-turn request explicitly asks for QA *and* fixing, close the sweep evidence first, then start a separate `defect-diagnosis` phase before any product-code edit.
+
+## Backend/API Real Flows
+
+- Assert response envelope, canonical error code, trace/log id, persisted state, emitted event, and dependency outcome.
+- Include setup and teardown or use isolated test tenants/namespaces.
+- Make idempotency, retry, and compensation behavior visible.
+- Treat live-data scripts, production-like IDs, replay tools, and tests that only log or panic on error as diagnostic until they are isolated, repeatable, and assertion-based.
+
+## E2E Scope Control
+
+- Do not reproduce every unit branch through E2E.
+- Keep E2E flows few, stable, and tied to user/business risk.
+- Prefer one happy path plus high-risk negative paths over many shallow click-throughs.
+- A click-through without assertions is not E2E evidence.
+- If a scenario can be proven with a stable API/contract/integration test and only needs one browser smoke for confidence, do not duplicate all permutations in the browser.
+
+## Failure Handling
+
+If E2E fails:
+
+- Treat it as a real signal until proven invalid.
+- Preserve trace, screenshot, console/network errors, payload, and environment.
+- Route through `defect-diagnosis`.
+- Do not replace the scenario with a thinner mock-only test unless the E2E scenario was invalid or redundant.
