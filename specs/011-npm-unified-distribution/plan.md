@@ -2,7 +2,9 @@
 
 ## Artifact classification
 
-主体是 `runtime/code`（`packages/` 下的实现），附带一条 CI 发布自动化（publish job）。**不改任何 gate 判据**：`skills/` 正文、`hooks/` 行为、`check-ccl-skills.sh` 的阻断项都不动，打包只是把它们原样搬进 tarball。因此不触发 shared-gate 分类；文档改动与 `7038b93` 同批走。
+**本节只分类 011 这个交付本身，不代表所在分支的全部内容。** 011 主体是 `runtime/code`（`packages/` 下的实现），附带一条 CI 发布自动化（publish job）；它不改任何 gate 判据 —— `skills/` 正文、`hooks/` 行为、`check-ccl-skills.sh` 的阻断项都不动，打包只是把它们原样搬进 tarball，所以 011 自身不触发 shared-gate 分类。
+
+**分支上另有一笔独立交付**：提炼轮对 `skills/tighten-doc/SKILL.md` 的规则作用域修改。那是 **shared-skill / shared-gate 改动**，按它自己的 dual-track 闸走，不因与 011 同分支而适用本节的分类结论。评审或落地时两者必须分别判定。
 
 ## 已定决策
 
@@ -81,7 +83,9 @@ CLI 默认检测所有已装 host 并逐个安装，`--host claude|codex|opencod
 
 **首选做法：把产物放进 npm 独占的命名空间**（评审 P1-6 的结论）。可变的 manifest 不能自己给自己授权删除 —— 它被改过之后可以指向 allowlist 内任何一个用户文件并记下该文件当前的类型与 hash，下面那四道校验会全部通过。只要 npm 只往自己独占的路径写，卸载就根本不碰共享路径，这一整类问题消失。
 
-仅当某个 host 强制要求写入共享目录（OpenCode 的 `~/.config/opencode/skills/` 是已知的一处）时，才退到下面的 manifest 方案，并且**删除授权必须来自 manifest 之外**：与一份独立可信的来源清单取交集，manifest 完整性无法确立时 **fail closed**。
+仅当某个 host 强制要求写入共享目录（OpenCode 的 `~/.config/opencode/skills/` 是已知的一处）时，才退到下面的 manifest 方案，并且**删除授权必须来自 manifest 之外**。那个外部权威要具体到不留解释空间：**包内自带的不可变 inventory**，每条记 归一化相对路径 + 类型 + 该内容在包里的期望 hash。但**共享路径上 `uninstall` 一律不删**。理由是所有权在那里根本证明不了：字节相同的替换（marketplace 或用户装了同样内容）会让 inventory、安装回执、类型、hash 全部匹配，而它已经不属于 npm。既然判据无法区分，就不要那个删除能力 —— 共享路径上只**保留并报告**，把清理交给人。inventory + 回执双匹配仍然要做，但它的用途是**报告归属**，不是授权删除。
+
+A12 因此要覆盖：d) 伪造条目；b) 替换内容与安装内容**字节相同**时同样不删（只测内容不同的替换会 false-green）。
 
 **manifest 会过期，所以卸载不能只信它**（评审 P1-5）：装完之后用户可能改了那个文件，或 marketplace 把它换掉了；manifest 本身也可能被篡改成指向别处。`uninstall` 因此按下面执行：
 
@@ -111,7 +115,7 @@ CLI 默认检测所有已装 host 并逐个安装，`--host claude|codex|opencod
 | A4 | 单端限定 | `--host codex` 只动 Codex，其余两端零副作用 |
 | A5 | 快照可追溯 | `release.json` 的 `sourceCommit` 等于构建时 HEAD，`snapshotHash` 稳定可复算 |
 | A6 | update | 默认 dry-run 不碰网络与全局 npm 状态；`--yes` 才升级并刷资产 |
-| A7 | uninstall | 三端产物清干净，不留孤儿 marketplace 条目 |
+| A7 | uninstall | 独占命名空间下的产物清干净、不留孤儿 marketplace 条目；**共享路径下的产物一律保留并报告**（见「通道所有权」节）—— A7 与那条规则冲突时以那条为准，不得为满足"清干净"去删共享路径 |
 | A8 | doctor 报双装 | 人为造出 marketplace + npm 双装，doctor 明确报出并给二选一 |
 | A9 | 发布链 | tag 触发 CI publish job，`npm view @ccoalm/ccl-skills` 可见且带 provenance |
 
