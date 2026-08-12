@@ -28,21 +28,45 @@ cd ccl-skills
 make install
 ```
 
-Restart the coding-agent CLI so it reloads the skills.
+`make install` configures every CLI it detects — Claude Code, Codex, and OpenCode. Restart the CLI afterwards so it reloads the skills.
 
-OpenCode only:
+Confirm the install landed:
 
 ```bash
-bash scripts/install-opencode.sh --no-agent
+claude plugin list            # expect ccl-skills@ccl-skills
+codex plugin list             # expect ccl-skills
+ls ~/.config/opencode/skills  # expect the skill directories
 ```
 
-Use the skills from one OpenCode project checkout:
+To pin one OpenCode project to this checkout instead of the global install:
 
 ```bash
 bash scripts/install-opencode.sh --project
 ```
 
-Run `make help` to see the available install and update commands. Node.js 20 or later is required to build or run both npm packages.
+Run `make help` for every install, update, and evaluation target. Building the npm packages needs Node.js 20 or later for `packages/codex-npm` and Node.js 18 or later for `packages/opencode-npm`.
+
+## Install and update
+
+How a new version reaches you differs per host. `make update` refreshes all three.
+
+| Host | What an update actually requires |
+| --- | --- |
+| Claude Code | `make install` writes `extraKnownMarketplaces.ccl-skills` with `autoUpdate: true`, so Claude periodically refreshes the marketplace metadata. That does **not** guarantee a reinstall. For a deterministic update run `make update`, which calls `claude plugin update` — `claude plugin install` no-ops on an already-installed plugin and never updates it. |
+| Codex | No native auto-update. `make update` runs `codex plugin marketplace upgrade` (refreshes the git snapshot) and then `codex plugin add` (installs a copy of that snapshot); running only one of the two leaves you on the old code. `make install-codex-cron` schedules those two steps daily — it edits your crontab, so it is opt-in. |
+| OpenCode | `scripts/install-opencode.sh` installs from the **current checkout and never fetches**. Either `git pull` first, or use `make update-opencode` / `make update-opencode-no-agent`, which run `git pull --ff-only` before installing. |
+
+Claude keeps one cache directory per installed version and they accumulate. `make prune-cache` removes the stale ones and keeps the active version; it refuses to delete anything when it cannot determine which version is active.
+
+## Install the gates into your own repository
+
+The repository checks are also distributable. This adds the agent-contract, owner-dispatch, and control-plane gates to a product repository:
+
+```bash
+make install-gates TARGET=/path/to/repo
+```
+
+The install is additive and **warn-only** — it writes the mechanics plus a GitLab CI fragment at `ci/agent-gates.gitlab-ci.yml` that tolerates failure. Turning a gate from warn to blocking is always a deliberate manual step: set `enabled: true`, pass `--enforce` in CI, and remove `allow_failure`.
 
 ## Use a skill
 
@@ -66,21 +90,30 @@ The coding agent can also choose a skill from the task. It reads `skills/<name>/
 | --- | --- |
 | Claude Code | `make install` |
 | Codex | `make install` or [`packages/codex-npm`](packages/codex-npm/README.md) |
-| OpenCode | [`scripts/install-opencode.sh`](scripts/install-opencode.sh) or [`packages/opencode-npm`](packages/opencode-npm/README.md) |
+| OpenCode | `make install` or [`packages/opencode-npm`](packages/opencode-npm/README.md); [`scripts/install-opencode.sh --project`](scripts/install-opencode.sh) pins a single project |
 
 ## Repository layout
 
 ```text
-skills/          Skills, references, and their scripts
-agent-context/   Text injected into agent sessions; one file per injecting hook
-docs/            Guides for users and contributors
-hooks/           Claude Code runtime checks
-packages/        Distributables: npm packages and the standalone OpenCode plugin
-scripts/         Installers and repository checks
-eval/            Skill evaluation cases
-AGENTS.md        Rules for coding agents working in this repository
-.worktree-only   Repository-root marker: edits here must go through a worktree
+skills/           Skills, references, and their scripts
+agent-context/    Text injected into agent sessions; one file per injecting hook
+docs/             Guides for users and contributors
+hooks/            Claude Code runtime checks
+scripts/          Installers, gate installers, and repository checks
+packages/         Distributables: two npm shells and the standalone OpenCode plugin
+eval/             Skill evaluation cases
+specs/            Design notes for in-flight repository changes
+.claude-plugin/   Claude Code marketplace and plugin manifests
+.codex-plugin/    Codex plugin manifest
+.agents/          Codex marketplace manifest
+.github/          CI workflow
+.githooks/        Opt-in local git hooks; enable with `git config core.hooksPath .githooks`
+opencode.json     OpenCode config for using the skills from inside this checkout
+AGENTS.md         Rules for coding agents working in this repository
+.worktree-only    Repository-root marker: edits here must go through a worktree
 ```
+
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) carries the full table, including what each manifest is for and which hook runs on which event.
 
 ## Contributing
 

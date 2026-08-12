@@ -20,7 +20,7 @@
 | `skills/skill-extraction-workflow/` | 元技能:如何提炼/更新/评审技能(贡献规则的权威来源) |
 | `skills/skill-extraction-workflow/scripts/check-ccl-skills.sh` | 仓库验证门禁(frontmatter / overlay / 泄漏 / 路由 / 引用),内含 F4 Tier-1 路由分析器 |
 | `skills/skill-extraction-workflow/scripts/eval-routing*.rb` · `eval-golden-trace.rb` | F4 路由有效性 harness(静态分析器 / 廉价 grader / 真 agent 回放),见治理段 |
-| `hooks/` | Claude Code plugin 的运行时护栏,11 个脚本挂在 7 个事件上(见下方路由模型的运行时拦截行) |
+| `hooks/` | Claude Code plugin 的运行时护栏,`hooks.json` 把 10 个脚本挂在 7 个事件上(见下方路由模型的运行时拦截行);另有 1 个被 `session-start.sh` source 的 helper(`session-context.sh`)和 6 个 `test_*.sh` |
 | `agent-context/session-start.md` | 注入每个会话的路由指引(被 SessionStart hook 加载) |
 | `agent-context/subagent-start.md` | 子 agent 派活时的 owner 路由约定(被 SubagentStart hook 加载) |
 | `AGENTS.md` · `opencode.json` | OpenCode / 通用 agent 开工契约、项目级技能扫描配置和高频场景 command |
@@ -56,7 +56,7 @@
 
 整库是一个**多端 plugin**,另有 `packages/` 下两个 npm 分发壳(`codex-npm` / `opencode-npm`,CI 单独构建发布)。
 
-安装、autoUpdate 边界、`make update` / `prune-cache` 的真实行为见 [`README.md`](../README.md) 的"安装和更新"段。要点:autoUpdate 只定期刷 marketplace 元数据、不保证当场重装;可靠更新用 `make update`(Claude 必须 `plugin update`,`install` 会 no-op)。
+安装、autoUpdate 边界、`make update` / `prune-cache` 的真实行为见 [`README.md`](../README.md) 的 "Install and update" 段。要点:autoUpdate 只定期刷 marketplace 元数据、不保证当场重装;可靠更新用 `make update`(Claude 必须 `plugin update`,`install` 会 no-op;Codex 要 `marketplace upgrade` + `plugin add` 两步;OpenCode 装的是当前 checkout、自身不联网拉)。
 
 ## 治理
 
