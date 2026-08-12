@@ -1309,6 +1309,70 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
 check "an empty candidate fails before provider execution" \
   '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" status=inconclusive reason_code=empty_diff fallback_eligible=false next_action=stop_reviewer_lane'
 
+# --challenge-index is derived, not defaulted: in each shape exactly one value is
+# legal, so an omitted flag resolves to that value instead of to a constant that
+# is illegal in the mode the flag exists for. Explicit values keep their old
+# validation, which is what the last three rows here pin.
+challenge_gate_no_index() {
+  REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+    --mode challenge --cwd "$WORK/repo" --diff-file "$WORK/diff.patch" \
+    --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+    --challenge-budget 1 --focus fallback-contract "$@"
+}
+
+reset_case quota passed unavailable
+out="$(challenge_gate_no_index --allow-fallback-egress)"; rc=$?
+check "an untracked challenge without --challenge-index resolves to its only legal index" \
+  '[ "$rc" = 0 ] && json_fields "$out" mode=challenge challenge_index=1'
+
+reset_case quota passed unavailable
+out="$(challenge_gate_no_index --allow-fallback-egress --challenge-index 0)"; rc=$?
+check "an explicit --challenge-index 0 is still rejected in challenge mode" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input'
+
+# Budget 2 on purpose: with budget 1 an index of 2 is caught by the range check
+# first, so it would never reach the tracked-chain requirement this row pins.
+reset_case quota passed unavailable
+out="$(challenge_gate_no_index --allow-fallback-egress --challenge-budget 2 --challenge-index 2)"; rc=$?
+check "an explicit later untracked challenge index still demands a tracked chain" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_required'
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --cwd "$WORK/repo" --diff-file "$WORK/diff.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --challenge-index 1)"; rc=$?
+check "--challenge-index outside challenge mode is still rejected" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input'
+
+# The guard reads `challenge_index != 0`, so it rejects a nonzero index outside
+# challenge mode and an explicit 0 keeps running. Pinned because the resolver now
+# makes explicit-0 and omitted distinguishable, so a later presence-sensitive
+# tightening would be a silent CLI break rather than a caught one.
+reset_case passed unavailable unavailable
+out="$(run_gate --challenge-index 0)"; rc=$?
+check "an explicit --challenge-index 0 outside challenge mode is not rejected on the index" \
+  '[ "$rc" = 0 ] && json_fields "$out" mode=review challenge_index=0'
+
+reset_case passed unavailable unavailable
+out="$(run_gate)"; rc=$?
+check "review mode without --challenge-index still carries index 0" \
+  '[ "$rc" = 0 ] && json_fields "$out" mode=review challenge_index=0'
+
+# An orphan --autonomous-review-index (no --review-chain-id) is rejected before
+# the derivation could matter. Pinned so that if that guard ever moves, the
+# resolver is already keyed off chain presence rather than silently deriving a
+# tracked value for an untracked invocation.
+reset_case passed unavailable unavailable
+out="$(challenge_gate_no_index --challenge-budget 2 --autonomous-review-index 3)"; rc=$?
+check "an untracked challenge carrying an orphan Agent review index is rejected before derivation" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid'
+
+reset_case passed unavailable unavailable
+out="$(run_completion_gate --completion-review-result-file "$WORK/completion-review.json")"; rc=$?
+check "complete mode without --challenge-index still carries index 0" \
+  '[ "$rc" = 0 ] && json_fields "$out" mode=complete challenge_index=0'
+
 reset_case legacy passed passed
 out="$(run_gate --allow-fallback-egress)"; rc=$?
 check "legacy inconclusive without machine fields fails closed" \
@@ -2192,6 +2256,25 @@ reset_case passed unavailable unavailable
 out="$(run_challenge_gate --challenge-budget 2 --challenge-index 1 --focus missing-history --review-chain-id long-task --autonomous-review-index 2)"; rc=$?
 check "a tracked Agent round rejects omitted prior results before provider execution" \
   '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid'
+
+# In a tracked chain the challenge index is not free: the chain requires
+# autonomous_review_index == challenge_index + 1, so an omitted flag has exactly
+# one legal value to resolve to, and a chain declared as Agent round 1 still has
+# none.
+reset_case passed unavailable unavailable
+out="$(challenge_gate_no_index --challenge-budget 2 --focus derived-tracked --review-chain-id long-task --autonomous-review-index 2 --prior-review-result-file "$WORK/chain-round-one.json")"; rc=$?
+check "a tracked challenge derives its index from the Agent review index" \
+  '[ "$rc" = 0 ] && json_fields "$out" review_chain_tracked=true autonomous_review_index=2 challenge_index=1'
+
+reset_case passed unavailable unavailable
+out="$(challenge_gate_no_index --challenge-budget 2 --focus derived-tracked-last --review-chain-id long-task --autonomous-review-index 3 --prior-review-result-file "$WORK/chain-round-one.json" --prior-review-result-file "$WORK/chain-round-two.json")"; rc=$?
+check "the derived tracked index follows the Agent review index past the first challenge" \
+  '[ "$rc" = 0 ] && json_fields "$out" autonomous_review_index=3 challenge_index=2'
+
+reset_case passed unavailable unavailable
+out="$(challenge_gate_no_index --challenge-budget 2 --focus derived-round-one --review-chain-id long-task --autonomous-review-index 1)"; rc=$?
+check "a tracked challenge declared as Agent round 1 still fails on the derived index" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input'
 
 reset_case passed unavailable unavailable
 out="$(run_challenge_gate --challenge-budget 2 --challenge-index 1 --focus changed-chain --review-chain-id renamed-task --autonomous-review-index 2 --prior-review-result-file "$WORK/chain-round-one.json")"; rc=$?
