@@ -33,7 +33,7 @@
 | `--challenge-budget` 必须为正 | `challenge mode requires a positive challenge budget` |
 | `--challenge-index` 是 **1-based** | `--challenge-index must be within the challenge budget` |
 
-第三条是真缺陷：`review_gate.py` 要求 `challenge_index >= 1`，而 argparse 的默认值是 `0`——**默认值在 challenge 模式下永远非法**。尚未修复，单独立项。
+第三条是真缺陷：`review_gate.py` 要求 `challenge_index >= 1`，而 argparse 的默认值是 `0`——**默认值在 challenge 模式下永远非法**。**已修复**（`specs/012-challenge-index-default/plan.md`）：省略该 flag 时不再取常量默认值，而是按调用形态推导——非 challenge 模式为 `0`，untracked challenge 只有 `1` 合法，tracked challenge 由 `autonomous_review_index - 1` 唯一确定。显式传入的值仍走原有全部校验。
 
 ---
 
