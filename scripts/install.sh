@@ -61,7 +61,7 @@ if command -v claude >/dev/null 2>&1; then
       echo "  ⚠ settings.json 未自动写入（jq 出错或 settings 非 JSON 对象），原文件未动；手动补：extraKnownMarketplaces.$MP = {\"source\":{\"source\":\"git\",\"url\":\"$HTTP_URL\"},\"autoUpdate\":true}。"
     fi
   else
-    echo "  ⚠ 未自动写（缺 jq 或无 settings.json）；手动加完整条目：extraKnownMarketplaces.$MP = {\"source\":{\"source\":\"git\",\"url\":\"$HTTP_URL\"},\"autoUpdate\":true}。只填 autoUpdate 会让整个 settings.json 失效（见 README「自动更新」）。"
+    echo "  ⚠ 未自动写（缺 jq 或无 settings.json）；手动加完整条目：extraKnownMarketplaces.$MP = {\"source\":{\"source\":\"git\",\"url\":\"$HTTP_URL\"},\"autoUpdate\":true}。只填 autoUpdate 会让整个 settings.json 失效（见 README 的 \"Install and update\" 段）。"
   fi
   claude plugin install "$PLUGIN" 2>&1 | tail -1 || true
 else
