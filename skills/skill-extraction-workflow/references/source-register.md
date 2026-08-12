@@ -51,6 +51,23 @@ Required for upstream-owner skill changes:
 | A homograph collision decides routing when nobody claims the request: the audit sense of a word and the coverage sense of the same word send an unclaimed utterance to the literally-nearest gate skill | `skill-extraction-workflow` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: command:skills/skill-extraction-workflow/scripts/eval-routing-bank.rb | updated | `skill-extraction-workflow/SKILL.md`; 3/10 before, 10/10 after, all pre-change losses at confidence 0.15–0.45 |
 | A mechanism skill whose trigger is phrased as a delivery entry intercepts entry requests at high confidence; the trigger names the mechanical act, not the lifecycle moment | `worktree-isolation` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: command:skills/skill-extraction-workflow/scripts/eval-routing-bank.rb | updated | `worktree-isolation/SKILL.md`; narrowing alone moves 3/10 to 6/10 — that is the ceiling of the executor-side fix |
 | A reviewer-dispatch skill does not adjudicate delivery value; without that Skip it becomes the catch-all for any utterance mentioning a commit | `code-review` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/code-review/SKILL.md#description | updated | `code-review/SKILL.md`; 1/10 before, 10/10 after, pre-change losses at confidence 0.55–0.85 |
+| Bounding a relayed reviewer stop means removing the free-text path, not capping it — a length cap still rests on the denylist the shape summary exists to avoid; extends the relay-bounded-by-construction row above to the remaining lane, whose parser keeps the whole text for internal audit while only the egress is bounded | `code-review` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: command:skills/code-review/scripts/opencode_review.sh | updated | `code-review/SKILL.md`; `code-review/scripts/opencode_review.sh`; `code-review/scripts/test_opencode_review_retry.sh`; `code-review/scripts/test_review_gate.sh`; `code-review/references/client-routing.md` |
+
+**Un-landed lesson note (reviewer-relay round).** That round surfaced a process
+lesson this ledger deliberately does NOT carry as a row: *extending an invariant to
+a new call site re-opens the mechanism choice, so the owning module's recorded
+REJECTED alternatives are read before picking the helper.* It was self-caught
+in-round with no gate firing — three review rounds each defeated a different
+copy-detector before the design converged on building the verdict from an
+allowlist, which is the shape the owning module had already recorded as the
+resolution of the same class one level down.
+
+It gets a note, not a row, because the table's grammar assumes a landed
+upstream→downstream propagation with owner-scoped firing evidence, and this lesson
+has none: no mechanism makes the next agent read the rejection. Writing a row would
+have required inventing a firing path for something that does not fire — the same
+record-masquerading-as-mechanism failure the lesson is about. Landing it needs a
+real gate in the owning skill, which is its own shared-skill round.
 
 **Superseded-row note (routing round).** The retarget row this ledger carried for
 `testing-strategy` was true of the round that added it, and stopped being true of the

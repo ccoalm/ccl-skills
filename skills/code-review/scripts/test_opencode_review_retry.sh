@@ -123,6 +123,13 @@ if [ "$1" = "export" ]; then
   prose_with_dotfile='{"type":"text","text":"Something in the pipeline change at .github/workflows/ci.yml:12 seems off but I cannot phrase it formally."}'
   prose_concern_only='{"type":"text","text":"This can silently discard the original reviewer concern and approve a broken change."}'
   prose_mixed='{"type":"text","text":"Overall this looks good, but it can silently discard the original reviewer concern."}'
+  # A clean no-findings assertion padded with punctuation: the retry gate's
+  # whole-reply anchor allows unlimited surrounding [[:space:][:punct:]], so a
+  # reply of any size passes the gate and lands in the retry verdict.
+  prose_padded="{\"type\":\"text\",\"text\":\"No issues found.$(awk 'BEGIN { for (i = 0; i < 2000; i++) printf "." }')\"}"
+  # Long malformed prose carrying a locator: findings-like, so it is never
+  # retried and lands on the terminal concern-evidence path with its full text.
+  prose_long_concern="{\"type\":\"text\",\"text\":\"I cannot phrase this formally but handlers/auth.code:3 looks wrong. ZZPROSESENTINELZZ $(awk 'BEGIN { for (i = 0; i < 400; i++) printf "padding word " }')\"}"
   MODE="$(cat "$STATE/review_mode")"
   body="$prose"
   case "$MODE" in
@@ -140,6 +147,8 @@ if [ "$1" = "export" ]; then
     launder_semantic) if [ "$n" -ge 2 ]; then body="$conforming"; else body="$prose_concern_only"; fi;;
     launder_mixed) if [ "$n" -ge 2 ]; then body="$conforming"; else body="$prose_mixed"; fi;;
     findings_on_retry) [ "$n" -ge 2 ] && body="$finding_line";;
+    padded_first) if [ "$n" -ge 2 ]; then body="$conforming"; else body="$prose_padded"; fi;;
+    long_concern) body="$prose_long_concern";;
   esac
   finish_reason=stop
   [ "$MODE" = "unfinished_concern" ] && finish_reason=length
@@ -348,7 +357,13 @@ check "resolved forbidden tool stops before model inference" \
 
 out="$(run_wrapper launder)"; rc=$?
 check "findings-like prose (P1 + dotted path) is never retried" '[ "$rc" = 2 ] && [ "$(field reason "$out")" = unparseable_findings ] && [ "$(runs)" = 1 ]'
-check "ineligible verdict still carries the first reply text" 'printf %s "$out" | grep -q "auth handling"'
+# The prose itself no longer rides out (see the concern-evidence egress in
+# opencode_review.sh); what must survive is the operator's ability to locate the
+# concern, which the excerpt carries as the severity and locator it matched.
+check "ineligible verdict still identifies the concern" \
+  'printf %s "$(field concern_excerpt "$out")" | grep -q "severities: P1" && printf %s "$(field concern_excerpt "$out")" | grep -q "text withheld"'
+check "ineligible verdict no longer relays the model prose" \
+  '! printf %s "$out" | grep -q "auth handling"'
 
 out="$(run_wrapper launder_high)"; rc=$?
 check "judge-vocabulary severity word (HIGH) blocks the retry" '[ "$rc" = 2 ] && [ "$(field reason "$out")" = unparseable_findings ] && [ "$(runs)" = 1 ]'
@@ -370,6 +385,42 @@ out="$(run_wrapper findings_on_retry)"; rc=$?
 check "retry findings are surfaced" '[ "$rc" = 0 ] && [ "$(field status "$out")" = findings ]'
 check "retry finding text preserved" 'printf %s "$out" | grep -q "handlers/auth.code:3"'
 check "retry verdict carries the replaced first reply" '[ -n "$(field retry_first_reply_text "$out")" ]'
+
+# The replaced reply is untrusted model text relayed into a durable evidence
+# row. The retry gate bounds its SHAPE (no findings-like content, whole-reply
+# assertion) but not its SIZE, so without an explicit cap an arbitrarily long
+# reply rides out verbatim — the class this repo already closed for the other
+# lanes with bounded_reason_detail.
+out="$(run_wrapper padded_first)"; rc=$?
+check "an over-long first reply is bounded before it reaches the verdict" \
+  '[ "$rc" = 0 ] && [ "$(field retry_first_reply_text "$out" | wc -c | tr -d " ")" -lt 400 ]'
+check "bounding keeps the reply identifiable" \
+  'printf %s "$(field retry_first_reply_text "$out")" | grep -q "No issues found"'
+
+# The terminal concern-evidence path relays the parser's full `.text`. That text
+# is arbitrary NON-conforming model prose, not a structured verdict, so it is the
+# unbounded-relay class the other lanes closed with a capped concern excerpt.
+# `.text` stays whole inside the wrapper (the retry gate and this audit both read
+# it); only what leaves on stdout is bounded.
+out="$(run_wrapper long_concern)"; rc=$?
+check "long malformed concern prose stays terminal" \
+  '[ "$rc" = 2 ] && [ "$(field concern_evidence "$out")" = True ] && [ "$(field cascade_eligible "$out")" = False ]'
+# Measured against the WHOLE serialized verdict, not the `text` field: the egress
+# drops one key and re-emits the rest of the payload, so a per-field assertion
+# passes while any other parser-retained key still carries the prose.
+check "terminal concern verdict does not relay the prose in ANY field" \
+  '! printf %s "$out" | grep -q ZZPROSESENTINELZZ'
+check "terminal concern verdict does not relay the full reply text" \
+  '[ "$(field text "$out" | wc -c | tr -d " ")" -lt 400 ]'
+check "terminal concern verdict carries a bounded excerpt instead" \
+  '[ -n "$(field concern_excerpt "$out")" ]'
+# The verdict is built from an allowlist, so its key set is the contract. Pinning
+# it catches BOTH failure directions without needing a mutated parser: a new
+# parser field that nobody classified changes the set (and would otherwise ride
+# out unexamined), and a routing field the allowlist forgot changes it too.
+verdict_keys() { printf '%s' "$1" | python3 -c 'import sys,json;print(",".join(sorted(json.load(sys.stdin))))'; }
+check "terminal concern verdict emits exactly the allowlisted key set" \
+  '[ "$(verdict_keys "$out")" = "cascade_eligible,concern_evidence,concern_excerpt,concern_excerpt_truncated,credential_binding,mode,model,provider,reason,reason_code,reviewer,reviewer_family,runtime_isolation,session_id,status,version" ]'
 
 out="$(run_wrapper no_session)"; rc=$?
 check "sessionless run is not automatically re-run" '[ "$rc" = 2 ] && [ "$(field reason "$out")" = review_session_missing ] && [ "$(runs)" = 1 ]'

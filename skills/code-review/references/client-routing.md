@@ -57,6 +57,19 @@ contains no concern evidence. If malformed output still contains a severity and
 file/line-shaped concern, the lane stops so another client cannot launder that
 finding into a pass.
 
+The most common `capability_missing` in practice is Kimi's inline size ceiling.
+Kimi's prompt mode has no stdin or prompt-file interface, so the packet rides in
+argv, where same-host process inspection can read it; the wrapper therefore caps
+the composed prompt (`MAX_INLINE_PROMPT_BYTES`) to bound both that exposure and
+silent middle-elision. A larger candidate is not an error: the lane reports
+`packet_too_large_for_inline` before invoking Kimi at all and cascades to a
+file-backed client. It only bites when Kimi is the client you specifically need,
+typically because every other client is same-family as the implementer. The path
+then is candidate partitioning per `SKILL.md` — split by file group or risk
+class, one packet and one recorded hash per partition, no candidate-wide claim
+until every partition is conclusive. The gate will not partition for you; that is
+a caller-level protocol with no executable support.
+
 Packet/input/binding/tool-boundary failures are terminal. Unknown errors and
 legacy inconclusive objects without machine fields are also terminal. Claude or
 Kimi `auth_path_unavailable`, and Codex's exact sandbox-only in-process

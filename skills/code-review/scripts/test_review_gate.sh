@@ -614,6 +614,7 @@ case "$behavior" in
   boundary) printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"unsafe tool","reason_code":"tool_boundary_violation","cascade_eligible":false}\n' "$client" "$mode"; exit 2 ;;
   mismatch) printf '{"reviewer":"%s","mode":"challenge","status":"passed","reviewer_family":"%s","provider":"%s","model":"local-default","findings":[]}\n' "$client" "$family" "$provider"; exit 0 ;;
   unavailable) printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"missing","reason_code":"client_unavailable","cascade_eligible":true}\n' "$client" "$mode"; exit 2 ;;
+  oversize_inline) printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"packet_too_large_for_inline","reason_code":"capability_missing","cascade_eligible":true}\n' "$client" "$mode"; exit 2 ;;
   hang)
     trap '' TERM
     while :; do sleep 1; done
@@ -1185,6 +1186,17 @@ check "all attempted clients receive the same frozen packet" \
 claude_profile_hash="$(cat "$WORK/state/claude_profile_hash")"
 check "all attempted clients receive the same staged review profile" \
   '[ "$claude_profile_hash" = "$(cat "$WORK/state/kimi_profile_hash")" ] && [ "$claude_profile_hash" = "$(cat "$WORK/state/opencode_profile_hash")" ] && json_fields "$out" review_profile_sha256="$claude_profile_hash" stage=build review_depth=build challenge_budget=0 reviewed_concerns.0=correctness'
+
+# A client that can only take the packet inline (Kimi has no stdin or prompt-file
+# interface, so its packet rides in argv and is capped for exposure and silent-
+# elision reasons) stops on any candidate above that ceiling. That stop is a
+# property of the client, not of the candidate, so it must cascade — dropping
+# capability_missing out of the cascade set would turn a routine size ceiling
+# into a lane-fatal failure with nothing to catch it.
+reset_case quota oversize_inline passed
+out="$(run_gate --allow-fallback-egress)"; rc=$?
+check "an inline-only client's size ceiling cascades instead of stopping the lane" \
+  '[ "$rc" = 0 ] && [ "$(tr "\n" " " < "$WORK/state/client_sequence")" = "claude kimi opencode " ] && json_fields "$out" selected_client=opencode attempts.1.reason_code=capability_missing'
 
 reset_case quota concern_cascade passed
 out="$(run_gate --allow-fallback-egress)"; rc=$?
