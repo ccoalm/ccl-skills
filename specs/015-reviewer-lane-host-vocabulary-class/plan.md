@@ -177,6 +177,8 @@ is measured, not predicted.
 | N | every routing phrase used as a bare identifier | — | must not reach a softer arm than its own class |
 | O | this repo's live init at closeout | TOLERATED | TOLERATED — no regression on the real CLI |
 | P | a **structured** (dict) entry whose reported `name` is bare | — | TERMINAL — a sibling key may carry proof the soft class would ignore |
+| Q | a structured entry whose `name` is an **allowed built-in**, carrying a path-shaped sibling key | **ACCEPTED** (reproduced) | TERMINAL — the shape gate runs before the allowlist |
+| R | `plugins` carrying its normal dict entry | TOLERATED | TOLERATED — the gate must not spread to the field that legitimately uses dicts |
 
 ## Test / register coverage
 
@@ -247,7 +249,9 @@ applied, not imagined — the walk is in `test_init_policy_matrix.sh`):
 | I4 | the class is actually reachable, i.e. the fix is load-bearing | `is_bare_host_identifier` → `return False` | `terminalize-host-vocabulary` → 28 mismatches |
 | I5 | no CLI-supplied text selects a softer routing arm | drop the field-name sanitizer | `drop-field-name-sanitizer` → 6 mismatches; plus 16 `steer-vocab-*` rows crossing every routing phrase through both parse paths |
 | I6 | both parse paths reach the same class for the same input | — | the new `skill-probe` path exists to check this; 252/252 agree |
-| I7 | the soft class is reached only from a PLAIN STRING entry, so unread evidence in a sibling key cannot launder a customization | drop the `isinstance(entry, str)` guard | `accept-structured-entries-as-host-vocabulary` → 4 mismatches (both structured rows, both paths). Added in response to review round 1 |
+| I9 | **nothing is discarded to reach a verdict** — no dict key, no truncated suffix, and no surrounding whitespace: the entry's value, case-folded with at most one leading `/` removed, must reproduce the identifier the decision uses | replace the comparison with `return True`; or re-introduce `.strip()` | `drop-whole-value-gate` → 40; `weaken-whole-value-gate-to-shape-only` → 32; `strip-before-the-whole-value-comparison` → 10. One predicate subsuming what had been three separate guards, each of which had let the same class through |
+| I7 | a structured entry in a host-vocabulary field is never cleared, **including when its `name` is an allowed built-in** — so unread evidence in a sibling key can neither launder a customization into the soft class nor reach acceptance | drop the shape gate | `drop-structured-entry-shape-gate` → 8 mismatches; the two smuggled rows report `got tolerated`, i.e. the acceptance class. Added for review round 1 and then moved ahead of the allowlist for round 5, which is where the same class resurfaced |
+| I8 | the wrapper's real routing table agrees with the mirrored one the oracle reads | delete the routing arm from `claude_review.sh` | the probe suite goes RED: the wrapper falls to its default arm, `reason_code: unknown` / `stop_reviewer_lane` |
 
 **Enumeration set-diff** (axis 6 — the change defines a set, so the check is a
 set-diff against the authoritative source, not a taste call).
@@ -318,6 +322,45 @@ Verifier discovery (run green on this branch before implementation):
 `check-public-sanitization.py`, `check-markdown-links.py`,
 `check-spec-references.py`, then `make test`.
 
+## Executed evidence
+
+Both lanes objected that the packet asserted green suites without carrying their
+output, so the results are recorded here rather than claimed. Every command was
+run from the worktree by absolute path — a relative invocation can silently
+evaluate the primary checkout, which is clean and would pass while proving
+nothing — and the suite log's first line records the tree it ran in.
+
+| Command | Observed | Status |
+| --- | --- | --- |
+| `make test` | `MAKE_TEST_RC=0`, log line 1 = the worktree path | pass |
+| `test_init_policy_matrix.sh` | `cases: 278  mismatches: 0`; guard self-check rejects a broken mutant *for the right reason*; then 11 mutants each detected — `tolerate-all-unknown-containers` 18, `drop-authority-name-guard` 10, `drop-authority-presence-requirement` 6, `drop-field-name-sanitizer` 6, `widen-host-vocabulary-to-any-entry` 12, `terminalize-host-vocabulary` 12, `drop-whole-value-gate` 40, `weaken-whole-value-gate-to-shape-only` 32, `strip-before-the-whole-value-comparison` 10, `drop-host-vocabulary-breach-guard` 4, `drop-host-vocabulary-from-main-path` 5 | pass |
+| whitespace probes against the real parser | `"import "`, `" import"`, `"\timport"`, `"verify "` → TERMINAL; `"brand-new"` → cascade; baseline and `ccl-skills:<selected>` → ACCEPTED | pass |
+| `test_parse_probe_result.sh` | `parse_probe_result_tests_ok` | pass |
+| `test_claude_review_probe.sh` | `claude_review_runtime_tests_ok`, including the two new end-to-end wrapper routing cases | pass |
+| routing arm deleted (disposable mutation, wrapper restored byte-identically) | the wrapper falls to its default arm — `reason_code: unknown`, `next_action: stop_reviewer_lane` — and the new assertion goes RED | sensitivity proven |
+| shape gate removed (disposable mutation) | 8 mismatches, and the two smuggled rows report `got tolerated` — the acceptance class, not merely a softer refusal | sensitivity proven |
+| the five verifiers named below | each exit 0 | pass |
+| real CLI init, as captured at 2.1.220 | still ACCEPTED — no regression | pass |
+| same init + one new host built-in command | FALLBACK / cascade | pass |
+| same init + one new host built-in skill | FALLBACK / cascade | pass |
+| same init + a namespaced foreign command | TERMINAL / stop_reviewer_lane | pass |
+
+**One fixture was contaminated, and differential attribution is what caught it.**
+The first version of the two smuggled-entry rows reused a name already present in
+the base list (`init`), so the duplicate-identifier check made them terminal for
+an unrelated reason — removing the shape gate flipped *nothing* on those rows.
+That is a finding about the test, not a clean result. The rows now smuggle under
+an allowed built-in absent from the base list, and the mutation flips all eight.
+
+Two honest bounds on the above. **The digest cannot bind to itself**: this table
+is part of the candidate, so it names the results it was written from rather than
+a digest computed after writing it — the reviewed candidate and the landed tree
+differ only by this section's own text, and the commands are re-runnable from the
+landing commit. **The counts are recorded once**, here, and deliberately not
+copied into the register row: a count kept in two places drifts from the
+candidate as soon as a case is added, which a prior round in this repo already
+caught between two versions of a row.
+
 ## Review rounds
 
 Reviewer `codex` (non-same-family; `IMPLEMENTER_FAMILY=anthropic` excludes the
@@ -329,9 +372,51 @@ had been invoked with different ones, which reads as a mid-chain scope change.
 | Round | Finding | Disposition |
 | --- | --- | --- |
 | 2 (review, fresh full scope) | the mutation walk accepted ANY nonzero exit as sensitivity, so a mutant that crashed instead of being detected would bank as proof | **accepted — and this is the rule I had read and still broke.** The dual-track reference states it outright: a mutant that breaks syntax or fixture setup also exits nonzero, so the exit code alone is not attribution. The walk now requires positive evidence: the same case count as the control, a parsed positive mismatch total, no `got unparseable` verdict, and at least one MISMATCH naming a real verdict class. **The guard then got its own self-check**, because a guard whose failure path is untested is the same defect one level up: the walk applies a deliberately broken mutant and asserts it is REJECTED, and that check runs before any mutant result is trusted. Widening the check also false-positived immediately — a bare `unparseable` substring test rejected a good mutant because a legitimate fixture is *named* `unparseable-identifier` — so the needle is anchored to the verdict token |
-| 2 (review, fresh full scope) | the packet carries test definitions and prose but no command output bound to the candidate digest, so release-stage acceptance cannot be independently established from it | **accepted as an evidence-recording gap, not a code defect.** The runs existed but lived outside the packet. The executed-evidence section below now records each command with its result and the candidate digest it was run against. Not fixed by widening the packet: the reviewer is packet-only by design, and shipping raw suite logs into it would trade that bound for volume |
+| 10 (review + challenge, fresh full scope) | **no findings in either lane** — the first clean round, on candidate `a113db4f6533` | Converged. The two preceding rounds' remediations (the table-terminating blank line, and the surviving `head -1` in the walk's success path) carried no new findings, so the gate is discharged for this candidate. Reviewer `codex` in both lanes |
+| 9 (review + challenge) | the blank line before the newest register row terminated the Markdown table again, and `printf \| head -1` in the walk's SUCCESS path could still take SIGPIPE under `pipefail` | **both accepted, both mine, both reintroductions of defects this same slice had already fixed once** — the table break by inserting a row after the earlier fix, the pipeline by fixing every early-exit consumer except the success line. Fixed with the structural forms already chosen for their siblings: the row is contiguous, and the first line comes from parameter expansion |
+| 9 (review **and** challenge, independently) | `host_entry_is_whole` called `.strip()`, so surrounding whitespace was erased before the comparison: `"import "` compared equal to the identifier, was declared whole, and the **allowlist then ACCEPTED it with isolation reported verified** | **accepted — the fourth instance of the class, this time reproduced inside the fix meant to end it.** The whole-value premise was right; my implementation inherited the very lossy call it was written to reject. `.strip()` is gone, so surrounding whitespace now disqualifies an entry, and both directions were verified first-hand: `"import "`, `" import"`, `"\timport"` and `"verify "` all terminal, a clean unknown name still cascades, the baseline and legitimate namespaced entries still accepted. Pre-existing as an allowlist bypass, so the round closed a hole that predated the slice as well. A mutant now re-introduces the strip and must flip |
+| 6 (challenge) | a plain string such as `"brand-new evil-plugin:pwn"` truncates to `brand-new`, so the discarded suffix — the very proof of a customization — was never read, and the entry reached the soft class | **accepted, reproduced, and this is where the class was finally fixed at its premise.** Third instance of one shape: a dict's sibling key, a dict under an allowed name, and now a whitespace-hidden suffix. Patching a third instance was the wrong move; the shared premise was that the classification consumed the identifier helper's output, which is deliberately lossy (first token, or a dict's `name`) because it exists for DIAGNOSTICS. The decision now requires the entry's whole normalized value to reproduce that identifier exactly, so any remainder or other shape disqualifies it — one predicate covering all three instances, checked before the allowlist because the allowlist reads the same lossy token. Legitimate namespaced entries are unaffected: their whole value *is* their identifier, pinned by a row so the gate cannot be tightened into rejecting the surface review-skill mode depends on |
+| 6 (review) | the register row recorded a case count that later rows made stale, contradicting the plan | **accepted, fixed by removing the duplicate rather than re-syncing it** — which is this repo's own recorded lesson about counts kept in two places, now demonstrated on the very row that restated it |
+| 5 (review) | `customization_entry_allowed` runs BEFORE the plain-string check, so a structured entry whose `name` is an ALLOWED built-in cleared the allowlist outright, its other keys were never inspected, and the run reached **ACCEPTED with isolation reported verified** | **accepted, and reproduced first-hand before fixing** — with the caveat that the reviewer's own example did not reproduce: it used `help`, which is not in this repo's allowlist, so `customization_entry_allowed` returned False and the entry was already refused. Substituting a genuinely allowed name (`init`) reproduced it exactly: `{"name":"init","command":"/x/y","extra":["Bash"]}` was ACCEPTED. **This is the round-1 class returning in the other branch**, so per the same-class rule the fix is not a second patch: one shape gate now runs BEFORE the allowlist for host-vocabulary fields, covering the allowed and disallowed branches together. Pre-existing rather than introduced here, but adjacent to this diff, more severe than round 1 (it reaches acceptance), and required by this slice's own stated policy. `plugins` legitimately carries dicts and is pinned as such so the gate cannot spread to it |
+| 5 (review + challenge) | under `pipefail`, `printf … \| grep -q` can fail from SIGPIPE when the consumer exits early, so the walk's guard could report the wrong rejection reason nondeterministically | **accepted, fixed structurally rather than per-pipeline**: the parsing and matching now use bash's own regex and substring tests, with no producer/consumer pipe at all. The same hazard applied to an assignment under `set -e`, which would have aborted the script outright |
+| 5 (challenge) | the oracle mirrors the wrapper's routing table by reading its source; no test invoked the real wrapper, so a divergence between bash pattern matching and the mirror could launder a breach while the oracle stayed green | **accepted, closed with an end-to-end test** through the real wrapper: an unrecognised bare built-in must cascade (`capability_missing` / `fallback`), and the same init carrying a namespaced breach must stay terminal (`tool_boundary_violation` / `stop_reviewer_lane`) with the new phrase absent. **Proven able to fail**: deleting the routing arm makes the wrapper fall to its default arm (`reason_code: unknown`, `stop_reviewer_lane`) and the assertion goes red — which also settles a design question, since the reason does **not** match the late `*"init"*` catch-all, so relying on that instead of an explicit arm would have been terminal, not fallback |
+| 2 (review) | the packet carries test definitions and prose but no command output, so release-stage acceptance cannot be independently established from it | **accepted as an evidence-recording gap, not a code defect.** The runs existed but lived outside the packet, so the Executed-evidence section above now carries them. Not fixed by widening the packet: the reviewer is packet-only by design, and shipping raw suite logs into it would trade that bound for volume |
+| 3 (review **and** challenge, independently) | the plan *claimed* an executed-evidence section that did not exist in the packet, so a failing suite was indistinguishable from the asserted green state | **accepted — this was a live overclaim in my own document**, not a packaging nit: round 2's disposition said the section "now records" the results while no such section had been written. Both lanes caught the same thing on the same candidate. The section exists as of this round, with the two bounds it cannot escape stated in it |
+| 3 (review) | the outer guard self-check treated ANY nonzero return as proof the broken mutant was rejected, so a moved anchor or a failed copy would print success without the guard ever being exercised | **accepted — the same defect the round-2 fix addressed, reproduced one level up in the fix itself.** The self-check now requires the specific rejection reason in stderr, and the distinction was verified by construction: breaking the self-check's own anchor makes the script exit 1 reporting `failed for the WRONG reason`, instead of claiming the guard works |
+| 3 (review) | a stale blank line before the two added register rows terminated the Markdown table, so the new rows rendered outside it | **accepted, fixed.** The blank line predated the insertion point; the rows are now contiguous with the table they belong to |
 | 1 (review) | a structured entry such as `{"name":"brand-new-builtin","command":"/x/y"}` is classified on its bare `name`, so a sibling key carrying path-shaped proof of a real customization is ignored and the entry reaches the softer class | **accepted, and it sharpened the policy rather than only patching it.** The plan had recorded this as an accepted residual on the grounds that no path reaches acceptance. That defence was too weak: this class is for entries whose customization status *cannot be shown*, and here it was shown and merely unread. The soft class is now restricted to plain string entries. Cost measured before accepting the fix rather than assumed — the real CLI emits both host-vocabulary fields as plain strings and uses dicts only for `plugins`, which was already excluded, so the restriction costs nothing operationally. Row P and a dedicated mutant were added; the residual-risk bullet is retired rather than reworded |
+
+## The ledger gate caught a process violation, not a code defect
+
+Worth recording because it was self-inflicted and mechanically caught. Across
+rounds I kept **editing** the register row I had already appended, to fold each
+round's disposition into it. The ledger is append-only by contract — "never
+edit/delete a row", supersede by pointer — and `impact-chain-gate.rb` enforces
+that structurally: a row counts for a round only if its exact text is NEW at HEAD
+relative to base, with a per-text budget so a re-added row cannot be reused. My
+edits changed the text of a row two later rounds were relying on, so those rounds
+ended up with no surviving row and the gate failed closed with `changed:
+code-review/SKILL.md / missing evidence path`.
+
+Diagnosing it took four wrong guesses — staging, base ref, cell parsing, round
+partition — each of which the evidence refuted before the gate's own source
+settled it. The fix was to comply rather than work around: the branch is
+unpushed, so the owner-code commits were consolidated into one round that carries
+all four appended rows, leaving the three documentation commits intact so the
+self-review row still provably predates the reviews.
 
 ## Landing state
 
-`plan drafted`. Branch `worktree-claude-lane-bare-vocabulary`, cut from `main`.
+`local status` — implemented, suites green, and the dual-track gate **discharged**:
+review and challenge both returned no findings on candidate `a113db4f6533`, after
+nine rounds that did. Branch
+`worktree-claude-lane-bare-vocabulary`, cut from `main`, unpushed. Not merged and
+not authorized for merge: a shared-branch push or MR is a separate step, and
+merging requires the user's explicit instruction for that MR.
+
+Sibling item deliberately **not** folded in: the prior round also routed a
+generalizable half — an out-of-scope item named in a spec needs an owner or it
+rots — to `product-rd-workflow` plan authoring, pending its own dual-track round.
+That is a different owner with a different reviewer focus, so mixing it into a
+reviewer-isolation security change would blur both packets. It stays open and
+named rather than silently absorbed here.

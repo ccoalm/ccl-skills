@@ -488,21 +488,16 @@ KNOWN_SAFE_BUILTIN_SLASH_COMMANDS = {
     "fewer-permission-prompts",
     "goal",
     "heapdump",
-    # STOPGAP, not a resolution. Claude Code shipped `/import` as a built-in and
-    # this allowlist is a snapshot of the built-ins that existed when it was
-    # written, so an unrecognised name is classified as an unexpected
-    # customization -- a TERMINAL, non-cascadable breach. One new built-in
-    # therefore takes out the whole reviewer lane for every non-anthropic
-    # implementer, and no other client is even attempted. Registering the name
-    # is the vocabulary-predicate anti-pattern this repo has already recorded
-    # once, and it guarantees the next CLI release breaks the lane again; it is
-    # done here only because the alternative is leaving every shared-gate change
-    # unreviewable, including the change that fixes this. The real fix is to
-    # stop predicating on a vocabulary this repo does not own -- an
-    # unclassifiable BARE command name is not proven to be a customization, so
-    # it belongs in the existing `runtime_drift_only` class (cascade to another
-    # client) rather than in the terminal-breach class. Namespaced entries stay
-    # strict. Tracked as its own slice; do not add a fourth name here instead.
+    # `/import` arrived in a CLI release after this snapshot was written, which
+    # is how the snapshot's cost was discovered: an unrecognised name used to be
+    # classified as a proven customization -- terminal and non-cascadable -- so
+    # one new built-in took out the whole reviewer lane. That is fixed at the
+    # CLASS level now (see is_bare_host_identifier): a bare name this list does
+    # not know is unverifiable and cascades. This list therefore no longer
+    # decides whether review is POSSIBLE, only whether the Claude lane is the
+    # one that serves it, so a missing name costs a client switch instead of the
+    # capability. Keep it accurate where it is cheap; do not treat adding a name
+    # as the fix for a lane outage.
     "import",
     "init",
     "insights",
@@ -645,14 +640,17 @@ def init_surface_state(
     expected_tools: set[str] | None = None,
     expected_native_skills: set[str] | None = None,
     required_native_skills: set[str] | None = None,
-) -> tuple[set[str], set[str], set[str], set[str], set[str], set[str]] | None:
+) -> tuple[
+    set[str], set[str], set[str], set[str], set[str], set[str], set[str]
+] | None:
     """Return init isolation state across all init events.
 
     Result fields: missing/invalid required fields, non-empty customization
-    fields, declared tool names, unrecognized surface-shaped fields, and
-    fields declaring an unsafe value. A missing or wrongly typed required
-    field is not treated as empty, because that would turn a CLI schema change
-    into a silent gate bypass. Unknown *scalar* metadata is tolerated on
+    fields, declared tool names, unrecognized surface-shaped fields, fields
+    declaring an unsafe value, fields whose authority is unverifiable, and
+    unclassifiable host-vocabulary identifiers. A missing or wrongly typed
+    required field is not treated as empty, because that would turn a CLI schema
+    change into a silent gate bypass. Unknown *scalar* metadata is tolerated on
     purpose — see the drift policy on KNOWN_SAFE_INIT_METADATA_FIELDS.
 
     Unsafe *values* are kept apart from unrecognized *shapes* on purpose: an
@@ -661,6 +659,12 @@ def init_surface_state(
     value — `permissionMode: "bypassPermissions"` — is a breached boundary and
     must terminate the lane. Merging them would let a real privilege escalation
     inherit the drift class's softer next_action.
+
+    Unrecognized *identifiers* split the same way, and for the same reason: a
+    bare command/skill name outside the built-in snapshot cannot be shown to be
+    a customization, because the snapshot is of a vocabulary the host owns, so
+    it reports as unverifiable. A namespaced, path-shaped, duplicated or
+    unparseable entry IS a customization and stays in `nonempty`.
     """
     expected_native_skills = expected_native_skills or set()
     required_native_skills = {
@@ -679,6 +683,12 @@ def init_surface_state(
     # change exists to remove. A KNOWN field carrying a KNOWN-unsafe value stays
     # terminal in `unsafe_values`, because that one is proven.
     unverifiable_authority: set[str] = set()
+    # Host vocabulary this snapshot does not recognise. Kept apart from
+    # `nonempty` for the same reason `unverifiable_authority` is: reporting an
+    # unverifiable thing in the proven-breach class is what turned a routine CLI
+    # release into a total review outage. Bare identifiers only — see
+    # is_bare_host_identifier for what stays terminal.
+    unclassifiable_vocabulary: set[str] = set()
     declared_customizations: dict[str, set[str]] = {
         "slash_commands": set(),
         "skills": set(),
@@ -719,9 +729,33 @@ def init_surface_state(
                     nonempty.add(field)
                 if value and expected_native_skills:
                     for entry in value:
-                        if not customization_entry_allowed(
+                        identifier = customization_entry_identifier(entry)
+                        if field in HOST_VOCABULARY_FIELDS and (
+                            not host_entry_is_whole(entry, identifier)
+                        ):
+                            # Nothing may be discarded to reach a verdict on
+                            # these fields — see host_entry_is_whole. Runs BEFORE
+                            # the allowlist, because the allowlist consumes the
+                            # same lossy identifier and would clear the entry
+                            # outright on a truncated or dict-supplied name.
+                            # Legitimate namespaced entries are unaffected: their
+                            # whole value IS the identifier.
+                            nonempty.add(field)
+                            continue
+                        if customization_entry_allowed(
                             field, entry, expected_native_skills
                         ):
+                            continue
+                        if field in HOST_VOCABULARY_FIELDS and (
+                            is_bare_host_identifier(identifier)
+                        ):
+                            # Cannot be shown to be a customization: the
+                            # allowlist it failed is a snapshot of a vocabulary
+                            # the host owns. Refuse, but stay cascadable.
+                            unclassifiable_vocabulary.add(
+                                f"{field}:{identifier}"
+                            )
+                        else:
                             nonempty.add(field)
                 elif value:
                     nonempty.add(field)
@@ -810,6 +844,7 @@ def init_surface_state(
         unknown_fields,
         unsafe_values,
         unverifiable_authority,
+        unclassifiable_vocabulary,
     )
 
 
@@ -850,6 +885,84 @@ def customization_entry_allowed(
             or identifier in selected_namespaced
         )
     return False
+
+
+# Fields whose entries, in a real run, come from the HOST's built-in vocabulary
+# rather than from anything this repo installs: measured at CLI 2.1.220, the
+# review-skill invocation reports 46 built-in commands and 16 built-in skills and
+# nothing else. `plugins` is deliberately absent -- a plugin is user-installed by
+# definition, and the expected set there is exactly the one this repo owns.
+HOST_VOCABULARY_FIELDS = ("slash_commands", "skills")
+# A bare identifier: no namespace, no path. Deliberately NOT "anything the
+# allowlist missed" -- the discriminator has to be a property of the identifier
+# itself, because the allowlist is the thing that cannot be trusted to be
+# current.
+BARE_HOST_IDENTIFIER = re.compile(r"[a-z0-9][a-z0-9_.-]*\Z")
+
+
+def host_entry_is_whole(entry: object, identifier: str) -> bool:
+    """True when nothing about a host-vocabulary entry was discarded to read it.
+
+    `customization_entry_identifier` is deliberately lossy — it keeps the first
+    whitespace-delimited token and reads a dict's `name` — which is right for a
+    DIAGNOSTIC string and wrong for a trust decision. Three review findings in
+    this slice were one shape: evidence present in the entry but never read. A
+    dict hid a path in a sibling key; a dict hid it under an allowed built-in
+    name; and `"brand-new evil-plugin:pwn"` truncated to `brand-new` while the
+    discarded suffix was the very proof of a customization.
+
+    So the classification consumes the WHOLE value: the entry must be a plain
+    string whose normalization — case folding and at most one leading `/`, the
+    only normalization the identifier helper itself applies — reproduces the
+    identifier exactly. Any remainder, any other shape, and the entry is a
+    customization this parser cannot clear. Checked BEFORE the allowlist,
+    because the allowlist reads the same truncated token.
+    """
+    if not isinstance(entry, str):
+        return False
+    # Deliberately NO `.strip()`. The first version of this function called it,
+    # which reproduced inside the fix the exact lossiness the fix exists to
+    # reject: `"import "` stripped to `import`, compared equal to the identifier,
+    # was declared whole, and the allowlist then ACCEPTED it with isolation
+    # reported verified. Surrounding whitespace is part of the value, so an entry
+    # carrying any is not a plain host name.
+    normalized = entry.lower()
+    if normalized.startswith("/"):
+        normalized = normalized[1:]
+    return normalized == identifier
+
+
+def is_bare_host_identifier(identifier: str) -> bool:
+    """True when a disallowed entry cannot be PROVEN to be a customization.
+
+    Only ever consulted for a PLAIN STRING entry — see the caller. A dict entry
+    is a structured descriptor whose other keys this parser does not validate,
+    so `{"name": "brand-new", "command": "/x/y"}` would otherwise be classified
+    on its bare `name` while a sibling key carried path-shaped proof of a real
+    customization. That is not the unclassifiable case this class is for: the
+    evidence was present and merely unread. Measured against the real CLI, both
+    host-vocabulary fields arrive as plain strings (only `plugins`, already
+    excluded, uses dicts), so refusing dicts here costs nothing operationally.
+
+    `customization_entry_identifier` has already lowercased, stripped a leading
+    `/`, and replaced anything it could not parse with `<unidentified>`. What is
+    left is bare only if it carries no namespace separator and no path
+    separator, so each of these stays a proven breach:
+
+      * `evil-plugin:pwn` -- a namespace proves a surface beyond the one
+        expected plugin, which is a customization, not host vocabulary.
+      * `dir/cmd` -- no host built-in is spelled as a path.
+      * `<unidentified>` -- an entry that failed the charset or was not a
+        string/dict is not evidence of anything, least of all of host origin.
+
+    Note what this does NOT claim: a bare name may still be a user-authored
+    command. The point is that we cannot tell, and the unclassifiable case
+    belongs in the class that refuses and cascades rather than the class that
+    refuses and destroys the capability. Isolation itself is still proven only
+    by the exact `tools` allowlist, the tool_use scan, and the value-pinned
+    `permissionMode` -- none of which any identifier here can affect.
+    """
+    return bool(BARE_HOST_IDENTIFIER.fullmatch(identifier))
 
 
 def unexpected_customization_identifiers(
@@ -980,14 +1093,21 @@ def stream_probe_passed(
         unknown_fields,
         unsafe_values,
         unverifiable_authority,
+        unclassifiable_vocabulary,
     ) = state
     invoked = invoked_tool_names(events)
+    # Every state set refuses here, including the unclassifiable-vocabulary one.
+    # That is the whole safety argument for reclassifying it: the softer class
+    # changes which client serves the review, never whether an unverified
+    # isolation surface is ACCEPTED. There is no path from a bare unrecognised
+    # name to a passing probe.
     if (
         missing_or_invalid
         or nonempty
         or unknown_fields
         or unsafe_values
         or unverifiable_authority
+        or unclassifiable_vocabulary
         or declared_tools != expected_tools
         or invoked - expected_tools
         or (invoked and not allow_expected_tool_use)
@@ -1145,6 +1265,7 @@ def classify_failure(
             unknown_fields,
             unsafe_values,
             unverifiable_authority,
+            unclassifiable_vocabulary,
         ) = state
         if missing_or_invalid:
             return (
@@ -1207,7 +1328,33 @@ def classify_failure(
                 "verify isolation",
                 False,
             )
-        if surface_breached or unknown_fields or unverifiable_authority:
+        if unclassifiable_vocabulary and not surface_breached:
+            # Same guard, same reason as the two branches above: reached only
+            # when nothing is actually breached, so a hostile CLI cannot use a
+            # bare name to launder a real breach into "try another client".
+            #
+            # A distinct phrase, not a reuse of the surface-shaped one: what is
+            # unrecognised here is an IDENTIFIER, not a field, and describing it
+            # as the wrong thing is a diagnostic this repo has already paid for.
+            # `claude_review.sh` carries a matching arm ahead of its terminal
+            # arm; relying on its late `*"init"*` catch-all would make routing
+            # depend on `case`-arm order alone.
+            return (
+                "Claude reviewer lane found an unclassifiable host-vocabulary "
+                "entry ("
+                + ", ".join(
+                    safe_identifier(v) for v in sorted(unclassifiable_vocabulary)
+                )
+                + "); the built-in allowlist cannot prove whether the host or a "
+                "user owns that name, so this lane cannot verify isolation",
+                False,
+            )
+        if (
+            surface_breached
+            or unknown_fields
+            or unverifiable_authority
+            or unclassifiable_vocabulary
+        ):
             if expected_tools:
                 surface_reason = (
                     f"{check_label} runtime capability surface does not match the expected boundary; "
@@ -1410,18 +1557,30 @@ def main() -> int:
             runtime_detail = ""
             runtime_drift_only = False
             if runtime_state is not None:
-                missing, nonempty, declared, unknown, unsafe, unverifiable = runtime_state
+                (
+                    missing,
+                    nonempty,
+                    declared,
+                    unknown,
+                    unsafe,
+                    unverifiable,
+                    vocabulary,
+                ) = runtime_state
                 # Schema drift routes the same way on the main-invocation path as
                 # on the probe path. Without this, an unrecognized init container
                 # would terminate the lane here while merely falling back there —
                 # the same condition, two verdicts, decided by which parse ran.
                 #
-                # `unexpected_identifiers` is deliberately absent from the guard:
-                # it is derived from the same customization lists, and any entry
-                # it reports also marks that field in `nonempty`, so listing it
-                # would be redundant. Fixtures pin the combined drift+breach case
-                # so this stays true rather than being taken on faith.
-                runtime_drift_only = bool(unknown or unverifiable) and not (
+                # `unexpected_identifiers` is deliberately absent from the guard,
+                # but NOT because it is redundant with `nonempty` — that was true
+                # only while every unrecognised entry was a breach. An entry it
+                # reports now lands in either `nonempty` (proven customization)
+                # or `vocabulary` (unclassifiable host name), both of which ARE
+                # in the guard; it stays out because it would double-count them
+                # while distinguishing neither. Fixtures pin the combined
+                # drift+breach and vocabulary+breach cases so this stays true
+                # rather than being taken on faith.
+                runtime_drift_only = bool(unknown or unverifiable or vocabulary) and not (
                     missing
                     or nonempty
                     or unsafe
@@ -1458,8 +1617,22 @@ def main() -> int:
                     + joined(unsafe)
                     + "; unverifiable_authority="
                     + joined(unverifiable)
+                    + "; unclassifiable_host_vocabulary="
+                    + joined(vocabulary)
                 )
-            if runtime_drift_only:
+            if runtime_drift_only and not (unknown or unverifiable):
+                # The new class gets its own phrase only when it is the SOLE
+                # unverifiable finding. Combined with schema drift or an
+                # unverifiable authority knob, the existing phrase still applies
+                # and still routes to the same fallback-eligible arm, so the
+                # wording of every pre-existing case is left exactly as it was.
+                runtime_reason = (
+                    "Claude main invocation found an unclassifiable "
+                    "host-vocabulary entry; the built-in allowlist cannot prove "
+                    "whether the host or a user owns that name, so this reviewer "
+                    "lane cannot verify isolation" + runtime_detail
+                )
+            elif runtime_drift_only:
                 runtime_reason = (
                     "Claude main invocation found an unrecognized surface-shaped "
                     "init field; the stream-json schema must be reviewed before "

@@ -87,6 +87,13 @@ emit_runtime_inconclusive() {
     # of a breached boundary, so it falls back to another reviewer client
     # instead of terminating the review.
     *"unrecognized surface-shaped init field"*) emit_inconclusive_payload "$reason" capability_missing true fallback ;;
+    # Must precede the tool-boundary branch for the same reason, and needs its
+    # own arm rather than the late catch-all below: a bare command/skill name
+    # outside the built-in snapshot is a vocabulary this repo does not own, so it
+    # is unverifiable rather than a proven customization. The lane still refuses;
+    # it just does not take the other reviewer clients down with it, which is
+    # what one upstream CLI release used to do.
+    *"unclassifiable host-vocabulary entry"*) emit_inconclusive_payload "$reason" capability_missing true fallback ;;
     *"permission"*|*"tool invocation"*|*"unexpected tool"*|*"runtime isolation"*|*"runtime capability"*|*"Bash tool"*) emit_inconclusive_payload "$reason" tool_boundary_violation false stop_reviewer_lane ;;
     *"auth-path false negative"*|*"not logged in"*|*"auth-path evidence"*)
       if [ "$host_remediation_attempted" -eq 1 ]; then
