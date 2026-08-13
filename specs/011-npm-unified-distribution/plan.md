@@ -214,6 +214,8 @@ chain `npm-unified-011d`，候选 `344f592c0ee93c0f297a9ffa0bfdb39b055019d363759
 
 ## Landing state
 
-`local status`。分支 `worktree-npm-unified-distribution`（从 `worktree-docs-readme-freshness` 切，含文档修复 `7038b93`）。未推送、未开 PR。合并需显式授权。
+**计划本身已 `landed`，实现尚未开始。** 分支 `worktree-npm-unified-distribution`（从 `worktree-docs-readme-freshness` 切，含文档修复 `7038b93`）经 PR #1 合入 `main`，合并提交 `15a89e9`。落地的是本计划文档与同批的提炼轮改动，**不含任何 `packages/ccl-skills-npm` 代码**。
 
-`skill-extraction-workflow` 提炼轮同样未跑 —— 上一批改了 `scripts/install.sh`（repo-root `scripts/`），按 closeout gate 那批提交在提炼轮跑完前记 **interim**。本轮开工前需先处置。
+对着 `15a89e9` 复核实现侧：`packages/` 下无 `ccl-skills-npm`，上面现状取证表的「CI 无 publish job」「Makefile 声称有」两行仍然成立。P1–P6 全部未动工。
+
+`skill-extraction-workflow` 提炼轮**已跑**（`6965a18`，tighten-doc 的入站引用规则），随后 `3dbb275` 补上该改动欠的 impact-chain 行。上一版此处记的"提炼轮未跑、本轮开工前需先处置"已作废。

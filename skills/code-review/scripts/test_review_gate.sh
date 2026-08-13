@@ -614,6 +614,7 @@ case "$behavior" in
   boundary) printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"unsafe tool","reason_code":"tool_boundary_violation","cascade_eligible":false}\n' "$client" "$mode"; exit 2 ;;
   mismatch) printf '{"reviewer":"%s","mode":"challenge","status":"passed","reviewer_family":"%s","provider":"%s","model":"local-default","findings":[]}\n' "$client" "$family" "$provider"; exit 0 ;;
   unavailable) printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"missing","reason_code":"client_unavailable","cascade_eligible":true}\n' "$client" "$mode"; exit 2 ;;
+  oversize_inline) printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"packet_too_large_for_inline","reason_code":"capability_missing","cascade_eligible":true}\n' "$client" "$mode"; exit 2 ;;
   hang)
     trap '' TERM
     while :; do sleep 1; done
@@ -1186,6 +1187,17 @@ claude_profile_hash="$(cat "$WORK/state/claude_profile_hash")"
 check "all attempted clients receive the same staged review profile" \
   '[ "$claude_profile_hash" = "$(cat "$WORK/state/kimi_profile_hash")" ] && [ "$claude_profile_hash" = "$(cat "$WORK/state/opencode_profile_hash")" ] && json_fields "$out" review_profile_sha256="$claude_profile_hash" stage=build review_depth=build challenge_budget=0 reviewed_concerns.0=correctness'
 
+# A client that can only take the packet inline (Kimi has no stdin or prompt-file
+# interface, so its packet rides in argv and is capped for exposure and silent-
+# elision reasons) stops on any candidate above that ceiling. That stop is a
+# property of the client, not of the candidate, so it must cascade — dropping
+# capability_missing out of the cascade set would turn a routine size ceiling
+# into a lane-fatal failure with nothing to catch it.
+reset_case quota oversize_inline passed
+out="$(run_gate --allow-fallback-egress)"; rc=$?
+check "an inline-only client's size ceiling cascades instead of stopping the lane" \
+  '[ "$rc" = 0 ] && [ "$(tr "\n" " " < "$WORK/state/client_sequence")" = "claude kimi opencode " ] && json_fields "$out" selected_client=opencode attempts.1.reason_code=capability_missing'
+
 reset_case quota concern_cascade passed
 out="$(run_gate --allow-fallback-egress)"; rc=$?
 check "gate never cascades past explicit concern evidence" \
@@ -1273,6 +1285,105 @@ reset_case unavailable unavailable unavailable host_path
 out="$(CODE_REVIEW_CLIENT_ORDER=codex run_gate --implementer-family anthropic --host-remediation-attempted --allow-fallback-egress)"; rc=$?
 check "Codex repeated host-path failure becomes fallback-eligible only after retry" \
   '[ "$rc" = 2 ] && json_fields "$out" reason_code=host_path_unavailable_after_host_retry'
+
+# The gate's own fail-closed floor: when the configured order contains no
+# cross-family client, every candidate is skipped in preflight and the loop
+# exhausts without ever setting a per-client reason. The initial
+# `no_independent_reviewer_available` must survive to the terminal envelope --
+# an independent review that never ran must not read as a clean lane.
+reset_case unavailable unavailable unavailable
+out="$(CODE_REVIEW_CLIENT_ORDER=claude run_gate --implementer-family anthropic)"; rc=$?
+# client_sequence is appended only after the fake wrapper's argument loop, so on
+# its own it cannot tell "never spawned" from "spawned and died early". The
+# wrapper records ${client}_timeout inside that loop, strictly earlier, so
+# asserting both is what pins the skip to preflight rather than to a short-lived
+# provider process.
+check "an order without any cross-family reviewer fails closed instead of reporting a clean lane" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && [ ! -e "$WORK/state/claude_timeout" ] && json_fields "$out" status=inconclusive reason_code=no_independent_reviewer_available next_action=stop_reviewer_lane skipped_clients.0.client=claude skipped_clients.0.stage=preflight skipped_clients.0.reason_code=same_family_as_implementer'
+
+# Precision row for the guard above: skipping a same-family client must cost
+# that client only, not the lane. A tightening that turned the skip into a
+# terminal outcome would pass the case above and fail here.
+reset_case unavailable passed unavailable
+out="$(CODE_REVIEW_CLIENT_ORDER=claude,kimi run_gate --implementer-family anthropic)"; rc=$?
+check "a same-family skip still leaves a cross-family reviewer usable" \
+  '[ "$rc" = 0 ] && [ "$(cat "$WORK/state/client_sequence")" = kimi ] && json_fields "$out" selected_client=kimi skipped_clients.0.reason_code=same_family_as_implementer'
+
+printf '' >"$WORK/empty-diff.patch"
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --cwd "$WORK/repo" --diff-file "$WORK/empty-diff.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json")"; rc=$?
+# No ${client}_timeout assertion here: freeze_packet raises before the client
+# loop exists, so no wrapper is ever spawned on this path and the clause would
+# be unreachable decoration. reason_code plus the absent client_sequence is the
+# whole reachable surface.
+check "an empty candidate fails before provider execution" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" status=inconclusive reason_code=empty_diff fallback_eligible=false next_action=stop_reviewer_lane'
+
+# --challenge-index is derived, not defaulted: in each shape exactly one value is
+# legal, so an omitted flag resolves to that value instead of to a constant that
+# is illegal in the mode the flag exists for. Explicit values keep their old
+# validation, which is what the last three rows here pin.
+challenge_gate_no_index() {
+  REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+    --mode challenge --cwd "$WORK/repo" --diff-file "$WORK/diff.patch" \
+    --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+    --challenge-budget 1 --focus fallback-contract "$@"
+}
+
+reset_case quota passed unavailable
+out="$(challenge_gate_no_index --allow-fallback-egress)"; rc=$?
+check "an untracked challenge without --challenge-index resolves to its only legal index" \
+  '[ "$rc" = 0 ] && json_fields "$out" mode=challenge challenge_index=1'
+
+reset_case quota passed unavailable
+out="$(challenge_gate_no_index --allow-fallback-egress --challenge-index 0)"; rc=$?
+check "an explicit --challenge-index 0 is still rejected in challenge mode" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input'
+
+# Budget 2 on purpose: with budget 1 an index of 2 is caught by the range check
+# first, so it would never reach the tracked-chain requirement this row pins.
+reset_case quota passed unavailable
+out="$(challenge_gate_no_index --allow-fallback-egress --challenge-budget 2 --challenge-index 2)"; rc=$?
+check "an explicit later untracked challenge index still demands a tracked chain" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_required'
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --cwd "$WORK/repo" --diff-file "$WORK/diff.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --challenge-index 1)"; rc=$?
+check "--challenge-index outside challenge mode is still rejected" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input'
+
+# The guard reads `challenge_index != 0`, so it rejects a nonzero index outside
+# challenge mode and an explicit 0 keeps running. Pinned because the resolver now
+# makes explicit-0 and omitted distinguishable, so a later presence-sensitive
+# tightening would be a silent CLI break rather than a caught one.
+reset_case passed unavailable unavailable
+out="$(run_gate --challenge-index 0)"; rc=$?
+check "an explicit --challenge-index 0 outside challenge mode is not rejected on the index" \
+  '[ "$rc" = 0 ] && json_fields "$out" mode=review challenge_index=0'
+
+reset_case passed unavailable unavailable
+out="$(run_gate)"; rc=$?
+check "review mode without --challenge-index still carries index 0" \
+  '[ "$rc" = 0 ] && json_fields "$out" mode=review challenge_index=0'
+
+# An orphan --autonomous-review-index (no --review-chain-id) is rejected before
+# the derivation could matter. Pinned so that if that guard ever moves, the
+# resolver is already keyed off chain presence rather than silently deriving a
+# tracked value for an untracked invocation.
+reset_case passed unavailable unavailable
+out="$(challenge_gate_no_index --challenge-budget 2 --autonomous-review-index 3)"; rc=$?
+check "an untracked challenge carrying an orphan Agent review index is rejected before derivation" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid'
+
+reset_case passed unavailable unavailable
+out="$(run_completion_gate --completion-review-result-file "$WORK/completion-review.json")"; rc=$?
+check "complete mode without --challenge-index still carries index 0" \
+  '[ "$rc" = 0 ] && json_fields "$out" mode=complete challenge_index=0'
 
 reset_case legacy passed passed
 out="$(run_gate --allow-fallback-egress)"; rc=$?
@@ -2157,6 +2268,25 @@ reset_case passed unavailable unavailable
 out="$(run_challenge_gate --challenge-budget 2 --challenge-index 1 --focus missing-history --review-chain-id long-task --autonomous-review-index 2)"; rc=$?
 check "a tracked Agent round rejects omitted prior results before provider execution" \
   '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid'
+
+# In a tracked chain the challenge index is not free: the chain requires
+# autonomous_review_index == challenge_index + 1, so an omitted flag has exactly
+# one legal value to resolve to, and a chain declared as Agent round 1 still has
+# none.
+reset_case passed unavailable unavailable
+out="$(challenge_gate_no_index --challenge-budget 2 --focus derived-tracked --review-chain-id long-task --autonomous-review-index 2 --prior-review-result-file "$WORK/chain-round-one.json")"; rc=$?
+check "a tracked challenge derives its index from the Agent review index" \
+  '[ "$rc" = 0 ] && json_fields "$out" review_chain_tracked=true autonomous_review_index=2 challenge_index=1'
+
+reset_case passed unavailable unavailable
+out="$(challenge_gate_no_index --challenge-budget 2 --focus derived-tracked-last --review-chain-id long-task --autonomous-review-index 3 --prior-review-result-file "$WORK/chain-round-one.json" --prior-review-result-file "$WORK/chain-round-two.json")"; rc=$?
+check "the derived tracked index follows the Agent review index past the first challenge" \
+  '[ "$rc" = 0 ] && json_fields "$out" autonomous_review_index=3 challenge_index=2'
+
+reset_case passed unavailable unavailable
+out="$(challenge_gate_no_index --challenge-budget 2 --focus derived-round-one --review-chain-id long-task --autonomous-review-index 1)"; rc=$?
+check "a tracked challenge declared as Agent round 1 still fails on the derived index" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input'
 
 reset_case passed unavailable unavailable
 out="$(run_challenge_gate --challenge-budget 2 --challenge-index 1 --focus changed-chain --review-chain-id renamed-task --autonomous-review-index 2 --prior-review-result-file "$WORK/chain-round-one.json")"; rc=$?

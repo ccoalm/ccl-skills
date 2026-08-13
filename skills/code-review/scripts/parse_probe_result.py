@@ -488,6 +488,22 @@ KNOWN_SAFE_BUILTIN_SLASH_COMMANDS = {
     "fewer-permission-prompts",
     "goal",
     "heapdump",
+    # STOPGAP, not a resolution. Claude Code shipped `/import` as a built-in and
+    # this allowlist is a snapshot of the built-ins that existed when it was
+    # written, so an unrecognised name is classified as an unexpected
+    # customization -- a TERMINAL, non-cascadable breach. One new built-in
+    # therefore takes out the whole reviewer lane for every non-anthropic
+    # implementer, and no other client is even attempted. Registering the name
+    # is the vocabulary-predicate anti-pattern this repo has already recorded
+    # once, and it guarantees the next CLI release breaks the lane again; it is
+    # done here only because the alternative is leaving every shared-gate change
+    # unreviewable, including the change that fixes this. The real fix is to
+    # stop predicating on a vocabulary this repo does not own -- an
+    # unclassifiable BARE command name is not proven to be a customization, so
+    # it belongs in the existing `runtime_drift_only` class (cascade to another
+    # client) rather than in the terminal-breach class. Namespaced entries stay
+    # strict. Tracked as its own slice; do not add a fourth name here instead.
+    "import",
     "init",
     "insights",
     "loop",

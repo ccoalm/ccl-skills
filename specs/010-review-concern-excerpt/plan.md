@@ -60,8 +60,10 @@ Out of scope, named rather than silently dropped:
 - `review_gate.py:2576-2603` (gate-side coverage failure) already retains the
   wrapper's `findings` in `result["attempts"]` via `record_attempt` before the
   status overwrite. No change needed.
-- `scripts/AGENTS.md:38` points at `specs/009-claude-review-tool-boundary/validation-log.md`,
-  a path absent from this repo. Stale contract pointer, unrelated to this defect.
+- `scripts/AGENTS.md:38` points at a validation log under a
+  specs/009-claude-review-tool-boundary directory absent from this repo. Stale
+  contract pointer, unrelated to this defect.
+  **Closed by a later slice** — see the follow-up disposition below.
 
 Confidentiality posture: a schema-valid `findings` result already persists
 severity/file/line/failure_path/smallest_fix into the same evidence rows, so
@@ -246,8 +248,9 @@ Exercised directly on the same packet after the root-cause fix:
 | opencode | `findings`, exit 0 — reviewer `deepseek / deepseek-v4-pro` |
 | kimi | `capability_missing: packet_too_large_for_inline` — an honest size limit on a 47 KB packet, not a boundary violation |
 
-So two independent non-same-family reviewers work; the kimi lane needs packet
-partitioning at this size, which is the documented split path, not a defect.
+So two independent non-same-family reviewers work. The kimi ceiling is 16 KB
+inline (`MAX_INLINE_PROMPT_BYTES`), not 47 KB — 47 KB is only what this packet
+measured — and above it the lane cascades rather than failing. Disposition below.
 
 ## Review and challenge rounds
 
@@ -319,3 +322,88 @@ Remaining follow-ups, named rather than folded in: the kimi lane needs packet
 partitioning above ~47 KB (documented split path, not a defect), and
 `opencode_review.sh:612` still retains its full reply text unbounded — a hardening
 item in the same class this slice closed for the other lanes.
+
+### Follow-up disposition (later slice)
+
+Both are closed; neither was quite what the wording above said.
+
+**kimi partitioning — closed as not-a-defect.** The ceiling is 16 KB inline, not
+47 KB, and it is a deliberate argv-exposure bound (see the lane table above).
+Over-limit already cascades to a file-backed client, so no review is lost. What
+was genuinely missing was a guard: nothing pinned `capability_missing` in the
+gate's `CANDIDATE_LOCAL_CODES`, so a future edit could have turned this routine
+size ceiling into a lane-fatal stop silently. `test_review_gate.sh` now covers
+it, mutation-verified by removing the code from that set. Candidate partitioning
+stays a caller-level protocol in `SKILL.md`, unimplemented by design.
+
+**`opencode_review.sh` unbounded relay — fixed, in two places.** The named line
+is the terminal concern-evidence path, which relayed the parser's whole `.text`
+— arbitrary NON-conforming model prose, exactly the class this slice bounded for
+the other lanes.
+
+Capping it at 300 chars and redacting it — the first attempt — was replaced: a
+cap still bets on the redaction denylist, and `_shape_summary` exists precisely
+because that bet does not converge. The field is now **dropped** at the wrapper's
+egress, and `concern_fields` carries the stop instead — severities and locators
+the module matched itself, never the surrounding prose. Same shape as the other
+lanes.
+
+The drop sits at the egress, not in the parser: `.text` stays whole inside the
+wrapper because both the retry gate and this audit read it, and
+`test_parse_opencode_review.sh` pins that availability.
+
+**Recorded cost.** An operator who previously read the reviewer's own wording on
+this path now gets only what the pattern matched. On the fixture prose that is
+`severities: P1` with no locator — the prose wrote "handlers/auth.code line 3"
+without a colon, so nothing locator-shaped existed to extract. Accepted on the
+same grounds as the original `_shape_summary` decision: an incomplete denylist
+over arbitrary prose is the larger exposure, and the reject-and-rerun remediation
+does not depend on the wording.
+
+**How the egress is built, and why detection was abandoned.** Three review rounds
+each defeated a different copy-detector on the same predicate: drop `.text`, then
+test the serialized document (misses every reply containing a character JSON
+escapes), then walk the decoded values (misses an escaped, chunked, or re-encoded
+copy). Detecting copies of untrusted content is the same non-converging denylist
+`_shape_summary` exists to avoid — rebuilt one level up. The verdict is now BUILT
+from an allowlist of contract-owned machine fields; nothing has to be detected.
+Neither direction is silent: an unlisted key fails closed to
+`concern_audit_failed` for a human to classify, and a routing field the allowlist
+forgot changes the emitted key set, which a test pins. Both directions are
+mutation-verified.
+
+**Named follow-up — allowlisted metadata is unvalidated (out of scope here).** The
+allowlist bounds WHICH keys leave, not WHAT is in them, and `session_id`, `model`,
+`provider`, and `version` all come from the untrusted OpenCode export.
+`model`/`provider` carry binding checks that stop the lane on mismatch;
+`version` (`parse_opencode_review.py:236`) is taken from the export unchecked.
+Verified pre-existing rather than introduced here: the pre-change block re-emitted
+the same payload through `jq -c '. + {…}'`, so these fields already egressed
+verbatim. It is also wider than this path — `base` reaches every `_result` on the
+inconclusive paths, so the real fix is a per-field output schema across the
+wrapper. Fixing it only on the concern-evidence path would read as coverage while
+every other verdict stayed unbounded, so it is recorded here instead of folded in.
+
+Auditing that path surfaced a second unbounded relay the follow-up had not
+named: `retry_first_reply_text`. The retry gate constrains that reply's *shape*
+(no findings-like content, whole-reply no-findings assertion) but never its
+*size* — the anchor permits unlimited surrounding whitespace and punctuation —
+so a reply of any length rode out verbatim. Same treatment, same helper.
+
+Both fixes were driven by RED tests in `test_opencode_review_retry.sh`. A
+`findings`-status verdict still relays its text whole: that is reviewer prose
+about the diff, the class a schema-valid result already persists, per the
+acceptance recorded above.
+
+**Scope's third named item — the validation-log pointer — closed by deletion,
+not by writing the file.** Two places cited it: the recipe step in
+`scripts/AGENTS.md` and the header comment of `test_init_policy_matrix.sh`. The
+file never landed in this repo, and there is no validation-log convention here to
+restore — every slice since records its RED round inside its own
+`specs/<NNN>-<slug>/plan.md`. Creating the missing file would have meant
+back-filling evidence for a round nobody ran, so both citations were repointed at
+what the repo actually does: the recipe now says record the RED round in the
+slice's own plan, and the matrix suite states its mutation check inline (weakened
+parser via `argv[1]`) rather than citing a file for it. `check-markdown-links.py`
+does not open non-Markdown files, which is why the shell-script copy outlived the
+one 010 named.

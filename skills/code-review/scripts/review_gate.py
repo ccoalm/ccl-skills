@@ -466,6 +466,20 @@ class GateArgumentParser(argparse.ArgumentParser):
     def error(self, message: str) -> None:
         raise GateError(message)
 
+    def parse_known_args(self, *parse_args: Any, **parse_kwargs: Any) -> Any:  # type: ignore[override]
+        """Resolve the mode-dependent challenge index at the parser boundary.
+
+        Overriding the lower entry point, not ``parse_args``: argparse's
+        ``parse_args`` delegates to ``parse_known_args``, so hooking the latter
+        covers both and leaves no caller able to observe the unresolved value.
+        Doing it here rather than in ``main`` keeps one invariant for every
+        caller — what comes out of the parser always carries an int.
+        """
+
+        namespace, remaining = super().parse_known_args(*parse_args, **parse_kwargs)
+        namespace.challenge_index = resolve_challenge_index(namespace)
+        return namespace, remaining
+
 
 def self_review_gate(
     *,
@@ -2238,6 +2252,41 @@ def wrapper_command(
     return command
 
 
+def resolve_challenge_index(args: argparse.Namespace) -> int:
+    """Return the challenge index an omitted ``--challenge-index`` must carry.
+
+    This derives, it does not guess: in each shape exactly one value is legal,
+    and the caller had no freedom the default takes away.
+
+    * Outside challenge mode the index must be 0.
+    * An untracked challenge rejects any index but 1 (``review_chain_required``),
+      because later challenges require a tracked chain.
+    * A tracked challenge must satisfy
+      ``autonomous_review_index == challenge_index + 1``, and
+      ``--autonomous-review-index`` is mandatory for a tracked chain.
+
+    Trackedness keys off ``--review-chain-id``, matching the one definition the
+    rest of the gate uses (``review_chain_tracked = args.review_chain_id is not
+    None``). Keying off ``--autonomous-review-index`` instead would derive a
+    tracked value for an untracked invocation carrying an orphan index; that
+    combination is separately rejected today, so the wrong predicate is currently
+    unobservable, but it would start deriving silently wrong values the moment
+    that guard moved.
+
+    A derived value that lands out of range is still rejected by the existing
+    range check, so a tracked challenge declared as Agent round 1 keeps failing.
+    An explicitly supplied value is never touched here.
+    """
+
+    if args.challenge_index is not None:
+        return args.challenge_index
+    if args.mode != "challenge":
+        return 0
+    if args.review_chain_id is not None and args.autonomous_review_index is not None:
+        return args.autonomous_review_index - 1
+    return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = GateArgumentParser(description=__doc__)
     parser.add_argument(
@@ -2252,7 +2301,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--stage", choices=tuple(STAGE_CONCERNS), default="build")
     parser.add_argument("--risk-tag", action="append", default=[])
     parser.add_argument("--challenge-budget", type=int)
-    parser.add_argument("--challenge-index", type=int, default=0)
+    # No argparse default: 0 is illegal in challenge mode and required outside
+    # it, so a single static default is wrong for one of the two. main() derives
+    # the omitted value from the invocation instead -- see resolve_challenge_index.
+    parser.add_argument("--challenge-index", type=int)
     parser.add_argument("--review-chain-id")
     parser.add_argument("--autonomous-review-index", type=int)
     parser.add_argument("--prior-review-result-file", action="append", default=[])

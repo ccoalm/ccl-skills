@@ -565,8 +565,11 @@ run_review_and_judge "$PROMPT"
 # discard a concern, so recall wins over precision. Any other inconclusive
 # reason (timeout/binding/family) is not retried, and the retry fires
 # only within the run budget, so total `opencode run` invocations are capped at
-# 2. Retry verdicts carry the replaced first reply verbatim
-# (retry_first_reply_text) for the consumer.
+# 2. Retry verdicts carry the replaced first reply (retry_first_reply_text) for
+# the consumer, bounded and redacted rather than verbatim: the gate above
+# constrains that reply's SHAPE, never its SIZE — the whole-reply anchor allows
+# unlimited surrounding whitespace/punctuation — so an arbitrarily long reply
+# would otherwise land in a durable evidence row untouched.
 FINDINGS_LIKE_RE='(^|[^a-z0-9])(p[0-3]|blocker|critical|major|minor|high|medium|low)([^a-z0-9]|$)|[a-z0-9_.-]*[./][a-z0-9_./-]*:[0-9]+|(^|[^a-z0-9_./-])[a-z_][a-z0-9_.-]*:[0-9]+|^check[[:space:]]+[a-z][a-z0-9_]*[[:space:]]+\|'
 # Positive condition: after surrounding whitespace/punctuation, the ENTIRE first
 # reply must be one informal no-findings assertion. A substring match would let
@@ -594,10 +597,23 @@ ${DIFF_SECTION}"
     [ "$RETRY_PROMPT_BYTES" -le "$MAX_PROMPT_BYTES" ] \
       || die_inconclusive "prompt_too_large" invalid_input false
     run_review_and_judge "$RETRY_PROMPT"
+    # Bound on the same terms the other lanes use (single line, capped width,
+    # machine-detectable secrets redacted). The text goes over stdin, not argv,
+    # so it is not exposed to same-host process inspection. A bounding failure
+    # DROPS the field: the retry verdict stands without it, and falling back to
+    # the raw reply would defeat the bound at exactly the moment it is needed.
+    BOUNDED_FIRST_TEXT="$(printf '%s' "$FIRST_TEXT" \
+      | python3 -c 'import sys
+sys.path.insert(0, sys.argv[1])
+from concern_excerpt import bounded_reason_detail
+print(bounded_reason_detail(sys.stdin.read()))' "$SCRIPT_DIR" 2>/dev/null)" \
+      || BOUNDED_FIRST_TEXT=""
     # Capture enrichment separately: a jq that emits partial output before
     # failing must not concatenate with the fallback into malformed stdout.
-    enriched="$(printf '%s' "$OUT" | jq -c --arg t "$FIRST_TEXT" '. + {retry_first_reply_text:$t}' 2>/dev/null)" || enriched=""
-    [ -n "$enriched" ] && OUT="$enriched"
+    if [ -n "$BOUNDED_FIRST_TEXT" ]; then
+      enriched="$(printf '%s' "$OUT" | jq -c --arg t "$BOUNDED_FIRST_TEXT" '. + {retry_first_reply_text:$t}' 2>/dev/null)" || enriched=""
+      [ -n "$enriched" ] && OUT="$enriched"
+    fi
   fi
 fi
 # A malformed reply that is not a clean no-findings assertion may contain a
@@ -609,7 +625,44 @@ if [ "$PCODE" -ne 0 ] \
   if [ -n "$FINAL_TEXT" ] \
     && { grep -qiE "$FINDINGS_LIKE_RE" <<<"$FINAL_TEXT" \
       || ! grep -qiE "$NO_FINDINGS_ASSERTION_RE" <<<"$FINAL_TEXT"; }; then
-    enriched="$(jq -c '. + {cascade_eligible:false, concern_evidence:true}' <<<"$OUT" 2>/dev/null)" || enriched=""
+    # `.text` here is arbitrary NON-conforming model prose. The parser keeps it
+    # whole so this audit and the retry gate above can read it, but it must not
+    # leave on stdout: relaying it verbatim puts an unbounded model payload in a
+    # durable evidence row, and merely capping it would reinstate the free-text
+    # relay `concern_excerpt` deliberately removed — a length cap still bets on
+    # a redaction denylist, and that bet is the one five review rounds showed
+    # does not converge. So drop the field and let the excerpt carry the stop:
+    # severities and locators the module matched itself, never the surrounding
+    # prose. This is the same shape the other lanes emit.
+    # The verdict is BUILT from the contract's own machine fields rather than
+    # produced by deleting `text` from the parser's payload. Deleting cannot work:
+    # this code does not own the parser, so any sibling key may hold another copy
+    # of the same prose, and three review rounds each produced a representation
+    # the previous copy-detector could not see (JSON-escaped, chunked, re-encoded).
+    # Detecting copies of untrusted content is the same non-converging denylist
+    # that `concern_excerpt` exists to avoid; enumerating what may LEAVE converges.
+    # An unlisted key is not silently dropped either — dropping one the gate routes
+    # on would be its own failure — so it fails closed to concern_audit_failed and
+    # a human decides whether the new field is machine metadata or model content.
+    enriched="$(printf '%s' "$OUT" | python3 -c 'import sys, json
+sys.path.insert(0, sys.argv[1])
+from concern_excerpt import concern_fields
+EGRESS_KEYS = frozenset({
+    "reviewer", "status", "reason", "reason_code", "cascade_eligible",
+    "candidate_ineligible", "session_id", "model", "provider", "version",
+    "mode", "reviewer_family", "runtime_isolation", "credential_binding",
+})
+payload = json.load(sys.stdin)
+text = payload.pop("text", "") or ""
+if set(payload) - EGRESS_KEYS:
+    raise SystemExit(1)
+out = {key: value for key, value in payload.items() if key in EGRESS_KEYS}
+out.update(concern_fields(text))
+out["cascade_eligible"] = False
+# The shell audit already matched. The excerpt scan is additive evidence and
+# must never downgrade a stop that audit raised.
+out["concern_evidence"] = True
+print(json.dumps(out, ensure_ascii=False, separators=(",", ":")))' "$SCRIPT_DIR" 2>/dev/null)" || enriched=""
     if [ -n "$enriched" ]; then
       OUT="$enriched"
     else
