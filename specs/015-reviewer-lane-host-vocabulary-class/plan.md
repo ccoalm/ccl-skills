@@ -176,6 +176,7 @@ is measured, not predicted.
 | M | a later init event adding a bare unknown entry | — | FALLBACK — evaluated per event, not on the union |
 | N | every routing phrase used as a bare identifier | — | must not reach a softer arm than its own class |
 | O | this repo's live init at closeout | TOLERATED | TOLERATED — no regression on the real CLI |
+| P | a **structured** (dict) entry whose reported `name` is bare | — | TERMINAL — a sibling key may carry proof the soft class would ignore |
 
 ## Test / register coverage
 
@@ -245,7 +246,8 @@ applied, not imagined — the walk is in `test_init_policy_matrix.sh`):
 | I3 | the soft class is reachable only from a BARE identifier in a host-vocabulary field | `is_bare_host_identifier` → `return True` | `widen-host-vocabulary-to-any-entry` → 14 mismatches |
 | I4 | the class is actually reachable, i.e. the fix is load-bearing | `is_bare_host_identifier` → `return False` | `terminalize-host-vocabulary` → 28 mismatches |
 | I5 | no CLI-supplied text selects a softer routing arm | drop the field-name sanitizer | `drop-field-name-sanitizer` → 6 mismatches; plus 16 `steer-vocab-*` rows crossing every routing phrase through both parse paths |
-| I6 | both parse paths reach the same class for the same input | — | the new `skill-probe` path exists to check this; 250/250 agree |
+| I6 | both parse paths reach the same class for the same input | — | the new `skill-probe` path exists to check this; 252/252 agree |
+| I7 | the soft class is reached only from a PLAIN STRING entry, so unread evidence in a sibling key cannot launder a customization | drop the `isinstance(entry, str)` guard | `accept-structured-entries-as-host-vocabulary` → 4 mismatches (both structured rows, both paths). Added in response to review round 1 |
 
 **Enumeration set-diff** (axis 6 — the change defines a set, so the check is a
 set-diff against the authoritative source, not a taste call).
@@ -294,9 +296,6 @@ terminal.
   a bare unrecognised name. It cannot reach ACCEPTED, and the same steering is
   already reachable through `unknown_fields` / `unverifiable_authority`; the
   change widens the inputs to that existing exposure, not the exposure.
-- An entry dict whose `name` is bare while another key carries something else is
-  classified on the name, so it lands in the soft class. Pinned as a row
-  (`dict-entry-bare-name`) rather than left implicit.
 - A user-authored bare command is indistinguishable from a host built-in and so
   gets the soft class. It is still refused; only cascade is granted.
 - The main path emits the broader drift phrase when the new class co-occurs with
@@ -318,6 +317,18 @@ Verifier discovery (run green on this branch before implementation):
 `check-agent-contract-coverage.sh --enforce`, `check-ccl-skills.sh`,
 `check-public-sanitization.py`, `check-markdown-links.py`,
 `check-spec-references.py`, then `make test`.
+
+## Review rounds
+
+Reviewer `codex` (non-same-family; `IMPLEMENTER_FAMILY=anthropic` excludes the
+Claude lane). Chain `host-vocab-r2` — the first chain attempt was abandoned
+because the gate correctly rejected it: a tracked chain binds `--focus` and
+`--challenge-budget` into its scope digest, and the review and challenge lanes
+had been invoked with different ones, which reads as a mid-chain scope change.
+
+| Round | Finding | Disposition |
+| --- | --- | --- |
+| 1 (review) | a structured entry such as `{"name":"brand-new-builtin","command":"/x/y"}` is classified on its bare `name`, so a sibling key carrying path-shaped proof of a real customization is ignored and the entry reaches the softer class | **accepted, and it sharpened the policy rather than only patching it.** The plan had recorded this as an accepted residual on the grounds that no path reaches acceptance. That defence was too weak: this class is for entries whose customization status *cannot be shown*, and here it was shown and merely unread. The soft class is now restricted to plain string entries. Cost measured before accepting the fix rather than assumed — the real CLI emits both host-vocabulary fields as plain strings and uses dicts only for `plugins`, which was already excluded, so the restriction costs nothing operationally. Row P and a dedicated mutant were added; the residual-risk bullet is retired rather than reworded |
 
 ## Landing state
 
