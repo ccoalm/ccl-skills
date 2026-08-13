@@ -11,6 +11,24 @@ This gate owns *when* two passes run, *what each catches*, and what a finding st
 | **Fact/consistency review** (`codex review` or equivalent) | Technical inaccuracies (semantic claims that are wrong), contradictions across references, sanitization gaps (residual ccl-specific names/IPs/hostnames), over-prescription (saying MUST when industry has multiple acceptable patterns), API/path inconsistencies | Production-safety chaos modes: race conditions, data-loss paths, security holes, algorithm flaws, operational footguns |
 | **Adversarial challenge** (`codex exec` with adversarial prompt) | Production-down scenarios under chaos, attacker-style abuse paths, edge cases that break the documented happy path, sequencing/timing issues, broken algorithms at small/large scale | The flat-text consistency layer (handled by the first pass) |
 
+### Closeout reads the LANE NAMES, not the round count
+
+A slice can record many rounds and still have run only one lane, because the only
+record of which lanes ran is the landing artifact's own author-written rounds
+table. At closeout:
+
+- **Count lane names, never rounds**: enumerate the lanes the slice's own gate section requires, and confirm each one has a recorded outcome.
+- **A rounds table naming one lane while the gate requires two is `interim`, never landed** — no round count and no green deterministic gate substitutes for a lane that never ran.
+- **Where lanes leave evidence in a local store, a chain must exist for THIS slice** — check what the stored packets actually covered rather than assuming one is there.
+
+Observed: a mandatory, fail-closed repository gate landed with nine review-mode
+rounds recorded, no challenge lane run, and a landing state still reading
+`plan drafted`. Run afterwards against the landed diff, the challenge found a
+one-character bypass of that gate in a single round — appending one bracket
+anywhere in a citation skipped resolution entirely, so the gate reported success
+on exactly the input it exists to reject. The defect lived in "how would this
+break", which is the question only the missing lane asks.
+
 Skipping the challenge is how P0/P1 issues survive into shared skills. Real example from one multi-batch real-project extraction:
 - Review pass found 8 issues (P2/P3): all factual/consistency.
 - Challenge pass found 19 issues (3 P0 + 14 P1 + 2 P2): production-down + security + algorithm + footgun.

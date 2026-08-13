@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail when a backticked `specs/<slug>/...` citation names a path this repo lacks.
+"""Fail when a backticked specs/ citation names a path this repo lacks.
 
 `check-markdown-links.py` resolves only Markdown inline-link destinations in
 tracked `*.md`, so a backticked path in prose is invisible to it even inside
@@ -26,7 +26,13 @@ from pathlib import Path
 
 # Anchored on the separator so `specsheet.md` and `specs-old/x.md` are not
 # spec citations. The token is whatever sits between backticks on one line.
-CITATION_RE = re.compile(r"`(specs/[^`\n]+)`")
+#
+# A single-backtick pattern is sufficient for EVERY delimiter run: a path
+# contains no backtick, so in a multi-backtick span the innermost pair always
+# matches. A review round reported multi-backtick spans as an evasion; measured
+# against the pattern they are not, and a run-matching version was reverted after
+# its own mutation flipped nothing. The double-backtick cases below stay as pins.
+CITATION_RE = re.compile(r"`(?P<path>specs/[^`\n]+)`")
 
 # A trailing `:63` / `:63-70` is a line locator, not part of the path.
 LOCATOR_RE = re.compile(r":\d+(?:-\d+)?$")
@@ -38,14 +44,40 @@ LOCATOR_RE = re.compile(r":\d+(?:-\d+)?$")
 # false positive of that shape blocks every landing.
 FRAGMENT_RE = re.compile(r"#.*$")
 
-# `specs/<NNN>-<slug>/plan.md` is a path SHAPE, not a citation — the angle
-# brackets say so on their face, and backticking a template that way is the
-# clearest way to write one. Found by dogfooding the gate against this repo,
-# which is also why the discriminator is structural rather than a list of the
-# templates that happen to exist today. An abbreviation (`specs/<n>-…/x.md`) is
-# deliberately NOT exempt: it still points a reader somewhere, so it is a
-# citation and must resolve.
-PLACEHOLDER_RE = re.compile(r"[<>]")
+# THERE IS NO TEMPLATE EXEMPTION, and its removal is the point.
+#
+# An earlier version exempted a token containing angle brackets, on the reasoning
+# that a path SHAPE is not a citation. That exemption was the gate's entire
+# attack surface: two review rounds found five separate ways through it — the
+# test ran on the raw token before the fragment and locator were resolved; one
+# valid placeholder segment licensed a malformed sibling; a zero-width character
+# passed as a placeholder body; the marker suppressed the containment check as
+# well as the existence check; and `..` cancelled the placeholder segment so a
+# contained dead path still read as a shape. Each fix was correct and each was
+# followed by another shape, which is the signal to remove the capability rather
+# than adjudicate it again.
+#
+# The ambiguity was never really about paths: BACKTICKS were overloaded, marking
+# both "a real path you can open" and "a shape you cannot". A gate cannot tell
+# those apart from syntax, so the overload is gone instead. A backticked token
+# beginning specs/ is a citation and must resolve — no exemption to evade.
+#
+# A template is written so it is not one such token: name the shape without the
+# prefix and put the prefix in prose ("a `<NNN>-<slug>/plan.md` file under
+# specs/"). Backticks are kept there on purpose, because an unbackticked angle
+# bracket is swallowed as an HTML tag when Markdown renders.
+#
+# DECLARED SCOPE, and the residual that comes with it. The unit is the canonical
+# token, not everything a renderer might display as a path. Exotic spellings that
+# RENDER as one path while not being one token — the prefix split across a code
+# span, a padded span CommonMark trims — are not detected. A round of review
+# chased them and the honest conclusion was that completing it means writing an
+# inline-Markdown parser inside a repo gate. This gate's declared trust model is
+# an honest author citing a path that does not exist, which is how the defect
+# that motivated it arose; it is not an adversary crafting an evasion, and it
+# never was. Detecting those spellings was reverted rather than half-built, and
+# the corpus uses none of them. An unbackticked prose mention was already out of
+# scope (014 row 7); this residual is its neighbour and is accepted the same way.
 
 # There is deliberately NO test-file exemption. A first version skipped every
 # test-named file so this gate's own fixtures would not trip it; independent
@@ -90,7 +122,10 @@ def escapes_root(root: Path, target: str) -> bool:
     try:
         resolved = (root / target).resolve()
         resolved.relative_to(root.resolve())
-    except (ValueError, OSError):
+    except (ValueError, OSError, RuntimeError):
+        # RuntimeError covers the symlink-loop shape older Pythons raise from
+        # resolve(); an unresolvable target is treated as escaping, never as
+        # contained, so a hostile link cannot crash a mandatory gate.
         return True
     return False
 
@@ -120,13 +155,24 @@ def broken_spec_references(root: Path, unreadable: list[tuple[str, str]] | None 
             unreadable.append((name, str(error)))
             continue
         for number, line in enumerate(text.splitlines(), start=1):
-            for raw in CITATION_RE.findall(line):
-                if PLACEHOLDER_RE.search(raw):
-                    continue
+            for match in CITATION_RE.finditer(line):
+                raw = match.group("path")
                 target = resolve_target(raw)
                 if not target:
                     continue
-                if escapes_root(root, target) or not (root / target).exists():
+                # Containment is reported separately from non-existence so a
+                # citation that leaves the checkout is never silently confirmed
+                # by whatever the runner's filesystem happens to have there.
+                # `exists()` is a syscall and CAN raise on a hostile target — a
+                # citation long enough to exceed the filesystem's name limit
+                # raised ENAMETOOLONG and crashed this mandatory gate mid-run.
+                # Fail CLOSED: a target that cannot even be interrogated has not
+                # been shown to resolve.
+                try:
+                    resolves = (root / target).exists()
+                except OSError:
+                    resolves = False
+                if escapes_root(root, target) or not resolves:
                     findings.append((name, number, raw.strip()))
     return findings
 
@@ -141,8 +187,10 @@ def main(argv: list[str]) -> int:
         print(f"{name}:{number}: spec citation does not resolve: {target}", file=sys.stderr)
     if findings or unreadable:
         print(
-            "spec_reference_check_failed: a backticked `specs/<slug>/...` citation must "
-            "name a path in this repo; describe a dead path instead of citing it",
+            "spec_reference_check_failed: a backticked specs/ citation must name a "
+            "path in this repo. Describe a dead path instead of citing it; write a "
+            "path TEMPLATE without the specs/ prefix inside the backticks, or in a "
+            "fenced block, so it is not read as a citation.",
             file=sys.stderr,
         )
         return 1
