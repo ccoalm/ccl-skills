@@ -19,6 +19,7 @@ specs/014-spec-reference-existence-gate/plan.md.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -88,6 +89,25 @@ FRAGMENT_RE = re.compile(r"#.*$")
 # and keeps the corpus whole.
 
 
+
+def display(text: str) -> str:
+    """Render untrusted repo text safe to print on one physical line.
+
+    A tracked filename may legally contain a newline, an ANSI escape, or (after
+    os.fsdecode) a surrogate for a byte that is not valid UTF-8. Interpolated
+    raw, one filename splits a finding across two physical lines, so anything
+    reading this output line by line — a human, a CI annotation parser — sees a
+    forged line. Escaping is display-only; the value used for resolution is
+    untouched. Printable non-ASCII (an ordinary CJK filename) is preserved.
+    """
+    # Backslash FIRST, then every non-printable character including tab:
+    # otherwise the encoding is not reversible — a real newline and a filename
+    # containing a literal backslash-n both render as the same two characters,
+    # so two distinct tracked paths produce an identical diagnostic. Printable
+    # non-ASCII (an ordinary CJK filename) is preserved.
+    escaped = text.replace("\\", "\\\\")
+    return "".join(ch if ch.isprintable() else repr(ch)[1:-1] for ch in escaped)
+
 def tracked_files(root: Path) -> list[str]:
     # Split on NUL as BYTES, then decode each entry -- the idiom the sibling
     # checkers in this directory already use. `text=True` would decode the whole
@@ -101,7 +121,13 @@ def tracked_files(root: Path) -> list[str]:
         check=True,
         capture_output=True,
     )
-    return [item.decode("utf-8") for item in result.stdout.split(b"\0") if item]
+    # os.fsdecode, not a strict decode: git tracks raw bytes and Linux allows a
+    # filename that is not valid UTF-8, which made every one of these three
+    # checkers crash with a traceback before scanning anything. macOS rejects
+    # such names outright, so it is unreachable on this team's own machines and
+    # reachable on the ubuntu CI runner. surrogateescape round-trips back to the
+    # original bytes when the path is opened, so the file is still scanned.
+    return [os.fsdecode(item) for item in result.stdout.split(b"\0") if item]
 
 
 def resolve_target(raw: str) -> str:
@@ -182,9 +208,15 @@ def main(argv: list[str]) -> int:
     unreadable: list[tuple[str, str]] = []
     findings = broken_spec_references(root, unreadable)
     for name, error in unreadable:
-        print(f"{name}: tracked file could not be read: {error}", file=sys.stderr)
+        print(
+            f"{display(name)}: tracked file could not be read: {display(error)}",
+            file=sys.stderr,
+        )
     for name, number, target in findings:
-        print(f"{name}:{number}: spec citation does not resolve: {target}", file=sys.stderr)
+        print(
+            f"{display(name)}:{number}: spec citation does not resolve: {display(target)}",
+            file=sys.stderr,
+        )
     if findings or unreadable:
         print(
             "spec_reference_check_failed: a backticked specs/ citation must name a "

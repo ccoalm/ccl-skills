@@ -428,5 +428,109 @@ class SpecReferenceCheckTest(unittest.TestCase):
         self.assertEqual(MODULE.main([str(dirty)]), 1)
 
 
+class InvalidUtf8FilenameTest(unittest.TestCase):
+    """git tracks raw bytes and Linux allows a filename that is not valid UTF-8.
+
+    A strict decode made this checker raise before scanning anything, so one such
+    tracked file hard-failed the whole gate on the ubuntu CI runner. The name
+    cannot be created on macOS (APFS rejects it), so the enumeration is driven
+    directly rather than through the filesystem.
+    """
+
+    def test_invalid_utf8_tracked_name_does_not_crash(self) -> None:
+        class FakeRun:
+            stdout = b"README.md\x00bad\xff-name.md\x00"
+            returncode = 0
+
+        real = MODULE.subprocess.run
+        MODULE.subprocess.run = lambda *a, **k: FakeRun()
+        try:
+            entries = MODULE.tracked_files(Path("."))
+        finally:
+            MODULE.subprocess.run = real
+        self.assertEqual(len(entries), 2, entries)
+        # count alone would pass for a LOSSY decode; the point is that the
+        # name round-trips back to the original bytes so the file can be opened.
+        import os as _os
+        self.assertEqual(_os.fsencode(_os.fspath(entries[1])).split(b"/")[-1], b"bad\xff-name.md")
+
+
+class DisplayEscapingTest(unittest.TestCase):
+    """The display encoding must be reversible and must not eat legitimate text."""
+
+    def test_distinct_names_do_not_collide(self) -> None:
+        # A real newline and a filename containing a literal backslash-n are
+        # different tracked paths; if both render the same, a finding is
+        # misattributable.
+        self.assertNotEqual(MODULE.display("a\nb.md"), MODULE.display("a\\nb.md"))
+
+    def test_control_characters_are_escaped(self) -> None:
+        for raw in ("a\nb.md", "a\tb.md", "a\x1b[31mb.md", "a\rb.md"):
+            rendered = MODULE.display(raw)
+            self.assertNotIn("\n", rendered)
+            self.assertNotIn("\t", rendered)
+            self.assertNotIn("\x1b", rendered)
+            self.assertNotIn("\r", rendered)
+
+    def test_printable_non_ascii_is_preserved(self) -> None:
+        # Escaping must not mangle an ordinary non-English filename.
+        self.assertEqual(MODULE.display("\u65e5\u672c\u8a9e.md"), "\u65e5\u672c\u8a9e.md")
+
+
+class UnreadableFileDiagnosticTest(unittest.TestCase):
+    """The unreadable-file diagnostic interpolates the same untrusted name."""
+
+    def test_unreadable_name_is_escaped(self) -> None:
+        sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        root = sandbox / "repo"
+        (root / "docs").mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+        target = root / "docs" / "unre\nadable.md"
+        target.write_text("x\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+        target.chmod(0o000)
+        self.addCleanup(target.chmod, 0o644)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), str(root)], capture_output=True, text=True
+        )
+        unreadable_lines = [
+            line for line in result.stderr.splitlines() if "could not be read" in line
+        ]
+        if not unreadable_lines:
+            self.skipTest("file stayed readable (running with elevated privileges)")
+        self.assertEqual(len(unreadable_lines), 1, result.stderr)
+        # STARTSWITH, not "in": the OSError message repr()s the path itself, so a
+        # substring check passes even when the diagnostic's own name field was
+        # split across lines. The escaped name must be the line's first field.
+        self.assertTrue(
+            unreadable_lines[0].startswith("docs/unre\\nadable.md:"),
+            unreadable_lines[0],
+        )
+
+
+class ControlCharacterDiagnosticTest(unittest.TestCase):
+    """A filename may legally contain a newline; a finding must stay one line."""
+
+    def test_newline_in_filename_does_not_split_the_diagnostic(self) -> None:
+        sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        root = sandbox / "repo"
+        (root / "docs").mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+        (root / "docs" / "inno\ncent.md").write_text(
+            "see " + cite("specs/009-absent/plan.md") + "\n", encoding="utf-8"
+        )
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), str(root)], capture_output=True, text=True
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        finding_lines = [
+            line for line in result.stderr.splitlines() if "does not resolve" in line
+        ]
+        self.assertEqual(len(finding_lines), 1, result.stderr)
+        self.assertIn("inno\\ncent.md", finding_lines[0])
+        self.assertNotIn("\n", finding_lines[0].replace("\\n", ""))
+
+
 if __name__ == "__main__":
     unittest.main()
