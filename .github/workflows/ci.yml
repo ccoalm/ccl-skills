@@ -29,6 +29,8 @@ jobs:
         run: python3 scripts/check-public-sanitization.py .
       - name: Markdown link gate
         run: python3 scripts/check-markdown-links.py .
+      - name: Spec reference gate
+        run: python3 scripts/check-spec-references.py .
       - name: Repository test suite
         env:
           CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}

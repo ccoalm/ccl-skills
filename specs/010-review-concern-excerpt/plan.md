@@ -60,8 +60,10 @@ Out of scope, named rather than silently dropped:
 - `review_gate.py:2576-2603` (gate-side coverage failure) already retains the
   wrapper's `findings` in `result["attempts"]` via `record_attempt` before the
   status overwrite. No change needed.
-- `scripts/AGENTS.md:38` points at `specs/009-claude-review-tool-boundary/validation-log.md`,
-  a path absent from this repo. Stale contract pointer, unrelated to this defect.
+- `scripts/AGENTS.md:38` points at a validation log under a
+  specs/009-claude-review-tool-boundary directory absent from this repo. Stale
+  contract pointer, unrelated to this defect.
+  **Closed by a later slice** — see the follow-up disposition below.
 
 Confidentiality posture: a schema-valid `findings` result already persists
 severity/file/line/failure_path/smallest_fix into the same evidence rows, so
@@ -392,3 +394,16 @@ Both fixes were driven by RED tests in `test_opencode_review_retry.sh`. A
 `findings`-status verdict still relays its text whole: that is reviewer prose
 about the diff, the class a schema-valid result already persists, per the
 acceptance recorded above.
+
+**Scope's third named item — the validation-log pointer — closed by deletion,
+not by writing the file.** Two places cited it: the recipe step in
+`scripts/AGENTS.md` and the header comment of `test_init_policy_matrix.sh`. The
+file never landed in this repo, and there is no validation-log convention here to
+restore — every slice since records its RED round inside its own
+`specs/<NNN>-<slug>/plan.md`. Creating the missing file would have meant
+back-filling evidence for a round nobody ran, so both citations were repointed at
+what the repo actually does: the recipe now says record the RED round in the
+slice's own plan, and the matrix suite states its mutation check inline (weakened
+parser via `argv[1]`) rather than citing a file for it. `check-markdown-links.py`
+does not open non-Markdown files, which is why the shell-script copy outlived the
+one 010 named.

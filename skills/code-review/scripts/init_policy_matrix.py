@@ -26,7 +26,9 @@ Every row below is (case, init-event, expected verdict class), run through BOTH
 parse paths. Pass an alternate parser path as argv[1] to check a candidate or a
 mutant against the same policy -- that is how this oracle is validated: it must
 report mismatches for a deliberately weakened parser, or its clean verdict means
-nothing. Recorded validation (see the spec validation log): the pre-change
+nothing. Recorded validation, kept here because this docstring is the only
+durable record of it — an earlier version cited a spec validation log that does
+not exist in this repo: the pre-change
 parser scores 54 mismatches, and mutants that tolerate all unknown fields, drop
 the authority-name guard, drop the authority-presence requirement, or drop the
 field-name sanitizer score 16 / 8 / 2 / 1 respectively.

@@ -11,6 +11,8 @@ test: ## 运行本仓确定性 gate、脚本测试和 Python 回归
 	bash skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh --repo . --enforce
 	python3 scripts/test_check_markdown_links.py
 	python3 scripts/check-markdown-links.py .
+	python3 scripts/test_check_spec_references.py
+	python3 scripts/check-spec-references.py .
 	bash skills/code-review/scripts/test_classify_envelope.sh
 	bash skills/code-review/scripts/test_concern_excerpt.sh
 	bash skills/code-review/scripts/test_claude_review_probe.sh

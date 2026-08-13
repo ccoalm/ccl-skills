@@ -34,9 +34,9 @@ Rules:
   in the required-empty set, not the allowlist; (3) if it is host metadata, add
   the name to `KNOWN_SAFE_INIT_METADATA_FIELDS` (or give it a shape check),
   never a value whitelist; (4) add RED/GREEN fixtures to
-  `test_parse_probe_result.sh` and a RED round to
-  `specs/009-claude-review-tool-boundary/validation-log.md`; (5) full dual-track
-  before landing.
+  `test_parse_probe_result.sh` and record the RED round in the slice's own plan
+  under `specs/` (see `specs/012-challenge-index-default/plan.md` under
+  "Test / register coverage" for the shape); (5) full dual-track before landing.
 - **A fail-closed stop must carry the evidence that justifies it.** When a lane
   refuses to cascade *because* the output may hold a real finding
   (`concern_evidence`), a boolean plus a fixed reason string is not enough: the
@@ -52,6 +52,14 @@ Rules:
 - Do not execute target-repo code or grant broad tools from the reviewer lane.
 - Parser changes need tests with positive, finding, malformed, and inconclusive
   cases.
+- A recipe step here must never cite a repo path that does not exist in this
+  repo, and a step whose target is absent is not a step — a contributor cannot
+  run it. Backticked paths in prose are invisible to `check-markdown-links.py`,
+  which resolves only Markdown inline-link destinations in tracked `*.md`, so
+  nothing else catches this: verify each cited path resolves before landing, and
+  when one is already dead, repoint it at what the repo does rather than
+  creating the missing target — back-filling it fabricates evidence for a round
+  nobody ran.
 
 Validation:
 
