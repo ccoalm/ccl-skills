@@ -58,8 +58,10 @@ dogfooding rather than designed up front.** A dead path is *described*, not
 backticked as though a reader could open it, so historical mentions are rewritten
 instead of registered. On top of that:
 
-- **angle brackets mark a shape.** `specs/<NNN>-<slug>/plan.md` is a template,
-  not a citation, and backticking it that way is the clearest way to write one.
+- **angle brackets mark a shape.** A path template is not a citation. **SUPERSEDED
+  by 016**: this exemption was the gate's whole attack surface — five separate
+  evasions across two review rounds — and is deleted. A template now names the
+  shape without the prefix, or lives in a fenced block.
 - **there is deliberately NO test-file exemption.** A first version skipped
   every test-named file so this gate's own fixtures would not trip it.
   Independent review killed it: one of the two dead pointers that motivated this
@@ -110,7 +112,7 @@ Required for any new mechanical gate.
 | 9 | a path starting `specs` but not `specs/` (`specsheet.md`) | pass — no false positive on the prefix |
 | 10 | multiple dead references in one file | all reported, not just the first |
 | 11 | this repo as it stands at closeout | zero findings |
-| 12 | `` `specs/<NNN>-<slug>/plan.md` `` | pass — angle brackets make it a path **shape**, not a citation |
+| 12 | a backticked template carrying the specs/ prefix | ~~pass~~ → **fail, superseded by 016**: the exemption is deleted, so write the prefix outside the backticks |
 | 13 | an abbreviated citation whose target is absent (literal input in `test_abbreviated_citation_is_not_exempt`) | fail — an abbreviation still points a reader somewhere, so it is a citation |
 | 14 | a dead citation inside a tracked `test_*` file | **fail** — no test-file exemption; this is the shape of the surviving original |
 | 15 | a tracked file carrying an invalid UTF-8 byte **and** a dead citation | fail — decoding is lossless, so one bad byte cannot silently remove a file from the corpus |
@@ -258,6 +260,33 @@ confirm-my-fixes pass.
 | 3 | a citation may traverse outside the repository | **accepted.** Containment checked on the resolved path |
 | 3 | this plan's mutation evidence contradicted the diff | **accepted.** A stale sentence survived a design change and described a row the matrix no longer had. The table above is now generated from the executed walk rather than written alongside it |
 
+## Challenge lane, run late
+
+This slice's own gate above requires **both** lanes before a shared-branch push
+or MR merge. Only the review lane ran; the challenge lane did not, and the gate
+landed anyway. Confirmed rather than assumed: no chain in the local review-
+evidence store corresponds to this slice, and no packet in it touches
+`check-spec-references`.
+
+Run afterwards, against the landed diff, it found in one round what nine
+review-mode rounds had not: the template exemption tested the raw token for any
+angle bracket, before the fragment and locator were resolved, so a dead citation
+carrying a bracket anywhere skipped resolution and this mandatory gate reported
+success. Both lanes found it independently, and it reproduced first-hand against
+the landed checker.
+
+Fixed in specs/016-spec-citation-template-exemption/plan.md. The lesson is about
+the gate that was skipped, not only the bug: a review lane answers "is this
+correct", a challenge lane answers "how would this break", and the bypass lived
+squarely in the second question.
+
+The same run re-reported the invalid-UTF-8 filename crash this plan already
+records below as an accepted residual routed to the three-checker round. It stays
+routed there — with one correction owed to that round: row 22 uses a *valid*
+UTF-8 name, so it cannot detect the invalid-byte case it appears to cover.
+
 ## Landing state
 
-`plan drafted`. Branch `worktree-stale-records-fix`, cut from `dev`.
+`landed` — the gate runs in `make test` and CI as of the commit that introduced
+`scripts/check-spec-references.py`. This line previously read `plan drafted`,
+which was stale from the moment the slice landed; corrected here.

@@ -52,14 +52,21 @@ Rules:
 - Do not execute target-repo code or grant broad tools from the reviewer lane.
 - Parser changes need tests with positive, finding, malformed, and inconclusive
   cases.
-- A recipe step here must never cite a repo path that does not exist in this
-  repo, and a step whose target is absent is not a step — a contributor cannot
-  run it. Backticked paths in prose are invisible to `check-markdown-links.py`,
-  which resolves only Markdown inline-link destinations in tracked `*.md`, so
-  nothing else catches this: verify each cited path resolves before landing, and
-  when one is already dead, repoint it at what the repo does rather than
-  creating the missing target — back-filling it fabricates evidence for a round
-  nobody ran.
+- A recipe step here must never cite a repo path that does not exist in this repo — for the specs/ namespace that is now machine-checked and blocking — and a step whose target is absent is not a step, because a contributor cannot run it. Backticked paths in prose are invisible to `check-markdown-links.py`,
+  which resolves only Markdown inline-link destinations in tracked `*.md`; the
+  gap that leaves is now closed for one namespace by
+  `scripts/check-spec-references.py`, which runs in `make test` and CI and fails
+  when a backticked specs/ token does not resolve. Verify each cited path
+  resolves before landing, and when one is already dead, repoint it at what the
+  repo does rather than creating the missing target — back-filling it fabricates
+  evidence for a round nobody ran.
+- **A path TEMPLATE is not written as a citation.** That checker has no
+  exemption: a backticked token beginning specs/ must resolve, full stop, because
+  the exemption that used to carve out angle-bracket shapes produced five
+  separate bypasses and was deleted. Write a shape by naming it without the
+  prefix and leaving the prefix in prose — a `<NNN>-<slug>/plan.md` file under
+  specs/ — or put it in a fenced block. Keep the backticks: an unbackticked angle
+  bracket is swallowed as an HTML tag when the Markdown renders.
 
 Validation:
 

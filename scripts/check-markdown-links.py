@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -16,13 +17,38 @@ FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
 SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 
 
+
+def display(text: str) -> str:
+    """Render untrusted repo text safe to print on one physical line.
+
+    A tracked filename may legally contain a newline, an ANSI escape, or (after
+    os.fsdecode) a surrogate for a byte that is not valid UTF-8. Interpolated
+    raw, one filename splits a finding across two physical lines, so anything
+    reading this output line by line — a human, a CI annotation parser — sees a
+    forged line. Escaping is display-only; the value used for resolution is
+    untouched. Printable non-ASCII (an ordinary CJK filename) is preserved.
+    """
+    # Backslash FIRST, then every non-printable character including tab:
+    # otherwise the encoding is not reversible — a real newline and a filename
+    # containing a literal backslash-n both render as the same two characters,
+    # so two distinct tracked paths produce an identical diagnostic. Printable
+    # non-ASCII (an ordinary CJK filename) is preserved.
+    escaped = text.replace("\\", "\\\\")
+    return "".join(ch if ch.isprintable() else repr(ch)[1:-1] for ch in escaped)
+
 def tracked_markdown_paths(root: Path) -> list[Path]:
     result = subprocess.run(
         ["git", "-C", str(root), "ls-files", "-z", "--", "*.md"],
         check=True,
         capture_output=True,
     )
-    return [root / item.decode("utf-8") for item in result.stdout.split(b"\0") if item]
+    # os.fsdecode, not a strict decode: git tracks raw bytes and Linux allows a
+    # filename that is not valid UTF-8, which made every one of these three
+    # checkers crash with a traceback before scanning anything. macOS rejects
+    # such names outright, so it is unreachable on this team's own machines and
+    # reachable on the ubuntu CI runner. surrogateescape round-trips back to the
+    # original bytes when the path is opened, so the file is still scanned.
+    return [root / os.fsdecode(item) for item in result.stdout.split(b"\0") if item]
 
 
 def destination(raw: str) -> str:
@@ -141,7 +167,9 @@ def main() -> int:
     findings = broken_links(root)
     if findings:
         for path, line_number, target in findings:
-            print(f"{path}:{line_number}: missing local Markdown target: {target}")
+            print(
+                f"{display(path)}:{line_number}: missing local Markdown target: {display(target)}"
+            )
         print(f"markdown_link_check_failed: {len(findings)} broken link(s)")
         return 1
     print("markdown_link_check_ok: tracked local Markdown targets exist")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -73,6 +74,34 @@ def main() -> int:
             assert result.returncode == 1, f"{label} unexpectedly passed"
             subprocess.run(["git", "-C", str(root), "reset", "-q", "HEAD", "--", relative], check=False)
             (root / relative).unlink()
+
+    # git tracks raw bytes and Linux allows a filename that is not valid UTF-8; a
+    # strict decode made this checker raise before scanning anything, hard-failing
+    # the gate on the ubuntu CI runner. macOS rejects such a name (APFS), so the
+    # enumeration is driven directly instead of through the filesystem.
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_public_sanitization", CHECKER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    class FakeRun:
+        stdout = b"README.md\x00bad\xff-name.md\x00"
+        returncode = 0
+
+    real_run = module.subprocess.run
+    module.subprocess.run = lambda *a, **k: FakeRun()
+    try:
+        entries = module.tracked_paths(Path("."))
+    finally:
+        module.subprocess.run = real_run
+    if len(entries) != 2:
+        print(f"expected both tracked names to survive decoding, got {entries}", file=sys.stderr)
+        return 1
+    # count alone would pass for a LOSSY decode; require the byte round-trip.
+    if os.fsencode(entries[1]).split(b"/")[-1] != b"bad\xff-name.md":
+        print(f"tracked name did not round-trip to its original bytes: {entries[1]!r}", file=sys.stderr)
+        return 1
 
     print("public_sanitization_test_ok")
     return 0
