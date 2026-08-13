@@ -119,10 +119,13 @@ type only:
 
 | Kind | Keys | Check |
 | --- | --- | --- |
-| contract-enum | `reviewer`, `status`, `mode`, `reason`, `reason_code`, `reviewer_family` | value ∈ the module's own declared set |
-| contract-scalar | `cascade_eligible`, `candidate_ineligible`, `concern_evidence`, `runtime_isolation`, `credential_binding`, `transport_exit_code` | type only (bool / int / declared string) |
+| contract-enum | `reviewer`, `status`, `mode` | value ∈ the module's own declared set |
+| contract-identifier | `reason`, `reason_code`, `reviewer_family`, `runtime_isolation`, `credential_binding` | `[A-Za-z0-9][A-Za-z0-9._-]{0,63}` |
+| contract-boolean | `cascade_eligible`, `candidate_ineligible`, `concern_evidence` | `is True` / `is False` |
+| contract-exit-code | `transport_exit_code` | `int` in −256…256, or ≤3 digits as a string |
 | export-token | `session_id`, `model`, `provider`, `version` | the grammar below |
-| structured | `concern_results`, `findings`, `severities`, `locators` | shape-checked by their existing owners; unchanged here |
+| export-token-list | `exposed_tools`, `missing_tools`, `missing_disabled_tools` | `list`, ≤64 elements, each an export-token |
+| structured | `concern_results`, `findings`, `severities`, `locators`, `text` | shape-checked by their existing owners; unchanged here |
 
 **export-token grammar**: `str` or `None`; length ≤ 200; every character in
 `[A-Za-z0-9._:/@+-]`. That covers a provider-qualified model id, a semver, and an
@@ -131,8 +134,25 @@ whitespace — the shapes that let a value stop being a single field.
 
 ### On violation
 
-The value is replaced with `None` and the **field name** is appended to a new
-`field_schema_violations` list. Names come from the module's own declared set, so
+**Revised after review round 1** — the original wording below applied one
+response to every kind, which review found to be false advertising for the
+contract kinds. Drop-and-report applies **only to export-derived fields**
+(`export-token`, `export-token-list`). For contract fields the value cannot have
+come from the export — every `reason` and `reason_code` is a literal in this
+repo's scripts, and `reviewer_family` is a lookup *result* — so an illegal value
+is an internal bug, and `apply` raises `ContractFieldViolation` rather than
+emitting a nulled one. Nulling `status` would be precisely the verdict change
+this schema promises never to make.
+
+`field_schema_violations` is **output-only** and has no schema row, so it is
+rejected on input: accepting a caller-supplied one leaves it the single
+unvalidated field, free to carry arbitrary prose and to forge or suppress the
+report that records tampering. It *is* carried in `CONCERN_RELAY_KEYS`, because
+a report that trips the concern path's fail-closed would hand a crafted export a
+verdict change through the back door.
+
+For an export-derived field, the value is replaced with `None` and the
+**field name** is appended to a new `field_schema_violations` list. Names come from the module's own declared set, so
 nothing untrusted rides out on the violation report itself — the mistake `010`
 made once, when the block reason quoted the text it was blocking.
 
@@ -177,9 +197,14 @@ side effect.
 Per `skills/code-review/scripts/AGENTS.md`: parser changes need tests with
 positive, finding, malformed, and inconclusive cases.
 
+A new suite that `make test` does not enumerate is not a gate. This repo's
+Makefile lists every suite by name rather than globbing, so registering
+`test_egress_schema.sh` there is part of this landing, not a follow-up — it was
+initially missed and caught by reading the Makefile rather than by any check.
+
 | Layer | Rows | Command | State |
 | --- | --- | --- | --- |
-| unit (new) | 1-7, 10, 12 | `bash skills/code-review/scripts/test_egress_schema.sh` | add |
+| unit (new) | 1-7, 10-12 | `bash skills/code-review/scripts/test_egress_schema.sh` | landed, registered in `make test` |
 | integration (parser) | 8, and every `**base` return | `bash skills/code-review/scripts/test_parse_opencode_review.sh` | add cases |
 | integration (wrapper) | 9, 11 | `bash skills/code-review/scripts/test_opencode_review_retry.sh` | add cases |
 | integration (gate) | payload still parses; stop still terminal | `bash skills/code-review/scripts/test_review_gate.sh` | run |
@@ -233,7 +258,165 @@ Verifier discovery (repo agent contract + Makefile + CI): `check-ccl-skills.sh`,
 `check-markdown-links.py`, `make test`, `git diff --check`. All authoritative, all
 run before the slice is claimed complete.
 
+## Implementation deviations from this plan
+
+Three things this plan got wrong, found while implementing it. Recorded here
+rather than silently absorbed, because each one changes what the table means.
+
+**1. The key table was incomplete — the plan under-enumerated its own subject.**
+AST-walking every `_result` call site turned up four emitted keys the table never
+mentions: `exposed_tools`, `missing_tools`, `missing_disabled_tools`, and `text`.
+Since an undeclared key *raises*, shipping the table as written would have broken
+the parser on its first isolation failure. The first three are lists of tool names
+lifted from the export — untrusted, and exactly the kind of field this slice
+exists to bound — so they became a new `export-token-list` kind checked per
+element. `text` is the reviewer's raw prose, already owned elsewhere, so it is
+`structured`.
+
+The lesson is about method, not about four names: the table was written from the
+plan's reading of the payload, and the payload was never enumerated mechanically.
+An enumeration that decides what may leave has to be derived from the code, not
+recalled from it.
+
+**2. `reason` and `reason_code` are not closed sets, so they are not enums.**
+The plan filed both under `contract-enum`. Their vocabulary is spread across five
+scripts (21 distinct `reason` values in the parser alone, plus more built in the
+shell, plus interpolated forms like `reviewer_exit_{code}`). An enum that fell out
+of sync with any of them would blank a legitimate diagnostic on the exact failure
+path a human is trying to read — trading an integrity bug for an availability one.
+They are values *this repo* chooses, never the export's, so the honest bound is a
+shape bound: `contract-identifier`. `reviewer_family`, `runtime_isolation`, and
+`credential_binding` moved for the same reason. The three fields whose sets really
+are closed and verifiable here (`reviewer`, `status`, `mode`) stayed enums.
+
+**3. "One table, not two" cannot mean "one set".**
+The plan's `:657-658` reading was right that the shell fails an unlisted key
+closed, but wrong that the two ends can therefore share one set. The shell's list
+is *deliberately narrower* than everything the parser may emit: on the
+concern-audit enrichment path, a key outside it fails closed to
+`concern_audit_failed` so a human classifies the new field. Importing the full
+`EGRESS_KEYS` there would have converted that fail-closed into a pass-through for
+five keys — a silent widening of the exact boundary this slice is supposed to
+tighten. Resolved by declaring `CONCERN_RELAY_KEYS` in the same module, with an
+import-time assertion that it stays a subset and a test that it stays a *strict*
+one containing no model content. One file to edit, two sets with a checked
+relation.
+
+**Two gates fired only after the work was staged, and both were real.** The R0
+leakage audit ran clean when invoked by hand and then failed inside `make test`
+one commit later, because it reads the committed diff — an untracked new file is
+outside its input entirely, so "I ran the audit" is not evidence until the file
+is staged. It objected to the fixture session ids, whose opaque prefixed shape
+read as real captured identifiers; they are now canonical `sample*` placeholders, which
+costs the test nothing since the property under test is the *charset*, not the
+prefix. The Makefile omission above is the same shape: both were caught by
+running the gate against the real artifact rather than by reasoning about it.
+
+## Mutation evidence
+
+Five mutations, each applied to a disposable copy of `egress_schema.py` and
+restored byte-identical afterwards (verified by comparison, not by re-reading):
+
+| Mutation | Result | Flipped |
+| --- | --- | --- |
+| relax the export-token charset to any non-NUL string | CAUGHT | `row4` embedded-newline case |
+| drop the 200-character length cap | CAUGHT | `row3` |
+| emit `field_schema_violations` unconditionally | CAUGHT | `row1-passthrough` (row 7's property) |
+| include the offending value in the violation report | CAUGHT | `row2-report` |
+| accept an undeclared key instead of raising | CAUGHT | `row10` |
+| check keys against `EGRESS_KEYS`, re-admitting the output-only field | CAUGHT | `violation-field-input[str]` |
+| sanitize contract fields instead of refusing to emit | CAUGHT | `contract-raises[status]` |
+| drop the violation report from the concern relay set | CAUGHT | `violation-field-relayable` |
+| restore the blanket `None` skip | CAUGHT | `contract-none[status]` |
+
+The last four re-create every defect the two review lanes found, so each finding
+has a mutant that fails if its fix is ever undone.
+
+Each flipped the case that owns the property, not merely *some* case — the check
+that distinguishes a real sensitivity test from a suite that fails for an
+unrelated reason.
+
+## Executed review rounds
+
+Recorded per lane NAME, not per round count — the closeout rule this repo added
+after a slice landed with nine review rounds and zero challenge runs.
+
+| # | Lane | Chain | Client | Outcome |
+| --- | --- | --- | --- | --- |
+| 0 | review | `egress-schema-013-r1` | none | `inconclusive` / `review_chain_invalid` — a tracked chain needs `--autonomous-review-index`; operator error, re-run |
+| 1 | review | `egress-schema-013-r1` | none | `inconclusive` / `egress_denied` on codex, kimi *and* opencode; claude skipped `same_family_as_implementer`. **This was a real defect in this slice, not gate noise** — see below |
+| 2 | review | `egress-schema-013-r2` | codex | `findings`, 2 × P1, both accepted and fixed |
+| 3 | challenge | budget 1, index 1 | codex | `findings`, 1 × P1, accepted and fixed |
+
+**Round 1's block was self-inflicted and is the transferable part.** The gate's
+egress scanner found `aws_access_key_id` and `secret_assignment` in the diff:
+the row-12 fixture used a credential-*shaped* literal to prove that an offending
+value never reaches the violation report. It was a documentation-example key and
+therefore harmless, but its SHAPE made the diff unreviewable by every non-Claude
+lane, and the Claude lane was already excluded as same-family — so the slice had
+no reviewer at all. `--allow-fallback-egress` exists and would have "fixed" it in
+one flag; that would have approved shipping a key-shaped literal into the tree
+to work around a gate that was doing its job. The fixture now uses a
+non-credential-shaped canary, which tests the identical property. **A test that
+needs a secret-shaped value should ask whether the property really needs that
+shape** — here it did not.
+
+Round 2's two findings, both P1, both accepted:
+
+1. `apply()` subtracted `EGRESS_KEYS` rather than `SCHEMA`, and `EGRESS_KEYS`
+   carries the output-only `field_schema_violations`. A payload arriving with
+   that key was therefore treated as declared while having no schema row — the
+   one field that could carry arbitrary content, and the one whose forgery would
+   hide the tampering. Fixed by validating keys against `SCHEMA` alone.
+2. The single violation branch nulled *any* invalid field including `status`,
+   which contradicts this plan's own "a violation never changes the verdict"
+   invariant — and the plan's test asserted the contradiction, so the suite was
+   pinning the wrong behavior. Fixed by splitting contract fields (raise) from
+   export fields (drop and report), with a case asserting the verdict fields
+   survive an export-field violation.
+
+The second finding is the instructive one: the invariant was stated in the plan,
+implemented as its opposite, and then *locked in by a test I wrote to match the
+implementation rather than the claim*. A written invariant is not evidence; the
+case that would fail if it were violated is.
+
+**Round 3 (challenge) found the same mistake one branch further in**, which is
+why the second lane is not optional. The round-2 fix split violation *handling*
+by provenance but left the `if value is None: continue` skip blanket — so a
+contract field set to `None` bypassed the raise entirely and reached egress as a
+null verdict. Accepted and fixed: `None` stays legal for an export field (the
+export need not carry one) and raises for a contract field.
+
+It is **unreachable from today's call sites** — AST-walking every `_result`
+invocation shows no contract field is ever passed explicitly, so none can be
+`None`. That is exactly why only an adversarial read found it, and why it was
+still worth fixing: the review lane checked whether the code does what it says,
+and the challenge lane checked what the code does at inputs no current caller
+produces. A mutant restoring the blanket skip now fails `contract-none[status]`.
+
+The transferable shape across rounds 2 and 3 is one thing seen twice: **a rule
+applied uniformly across a boundary the design says is not uniform.** Both
+findings were a blanket branch — one for violations, one for `None` — sitting
+above a provenance split the module had already declared.
+
+Both lanes have now run with recorded outcomes, and no lane is outstanding.
+
 ## Landing state
 
-`plan drafted`. Branch `worktree-stale-records-fix`, cut from `dev`. No
-implementation edits yet.
+`implemented, both lanes run, all findings fixed`. Branch
+`worktree-opencode-egress-schema`, cut from `dev` at `a632465`.
+
+Landed: `skills/code-review/scripts/egress_schema.py` (new),
+`test_egress_schema.sh` (new, ran RED before the helper existed),
+`parse_opencode_review.py` (`_result` now the single choke point),
+`opencode_review.sh` (inline allowlist replaced by the shared declaration).
+
+Both lanes of the `## Review / challenge gate` have run with recorded outcomes
+(see `## Executed review rounds`). The recursion note is satisfied by
+observation rather than by argument: the reviewer selected on every scoring
+round was **codex**, not `opencode`, so no verdict on this diff was produced by
+the code under review. The claude lane was excluded throughout as
+`same_family_as_implementer`.
+
+Remaining before merge: this branch is not merged to `dev`, and merging to the
+default branch is the user's call, not this plan's.
