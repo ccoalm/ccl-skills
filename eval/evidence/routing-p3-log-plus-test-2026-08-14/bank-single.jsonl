@@ -1,0 +1,1 @@
+{"id": "p3-log-plus-test", "utterance": "给登录接口加上结构化日志和 trace 透传，再写测试覆盖它", "expected_skill": "platform-observability", "why_expected": "compound: leading deliverable = structured logging/trace propagation = observability", "frozen_at_sha": "root", "must_not_route_to": ["testing-strategy"]}

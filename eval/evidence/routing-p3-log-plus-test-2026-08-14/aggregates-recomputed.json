@@ -1,0 +1,780 @@
+{
+  "note": "deterministic recompute of every aggregate cited by this round's closeout; per-round rows below are the raw basis",
+  "recomputed_claims": {
+    "this_round_baseline_p3": "8/10",
+    "oncall_neighbor_before_p3 (claimed 5/9, base 6a795af arm)": "5/9",
+    "oncall_post_change_arms_p3 (claimed 19/27, v1+v2+unbound-v3+desc-bound-v3+full-surface-bound)": "19/27",
+    "token_sibling_new_observability_fields (claimed 15/15)": "15/15",
+    "p3_must_not_testing_strategy_hits_bound_25 (claimed 0 across this baseline + oncall neighbor-before/after)": "0 hits in 25 rounds",
+    "p3_must_not_testing_strategy_hits_all_enumerated": "0 hits in 46 rounds"
+  },
+  "group_tallies": {
+    "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after": {
+      "p3-log-plus-test": "3/6",
+      "new-observability-fields": "6/6"
+    },
+    "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before": {
+      "p3-log-plus-test": "5/9",
+      "new-observability-fields": "9/9"
+    },
+    "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after": {
+      "p3-log-plus-test": "5/6",
+      "new-observability-fields": "6/6"
+    },
+    "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after": {
+      "p3-log-plus-test": "4/6",
+      "new-observability-fields": "6/6"
+    },
+    "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v1/neighbor-after": {
+      "p3-log-plus-test": "3/3",
+      "new-observability-fields": "3/3"
+    },
+    "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after": {
+      "p3-log-plus-test": "4/6",
+      "new-observability-fields": "6/6"
+    },
+    "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds": {
+      "p3-log-plus-test": "8/10"
+    }
+  },
+  "rows": [
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after/round-1.json",
+      "sha256": "965e0fc2b98877e26860ce9d0a825d2c18273651dd8b188c6b82588c2aee3ed3",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.96
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after/round-1.json",
+      "sha256": "965e0fc2b98877e26860ce9d0a825d2c18273651dd8b188c6b82588c2aee3ed3",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "go-microservice-dev",
+      "confidence": 0.55
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after/round-2.json",
+      "sha256": "96c1041b5f4814844a0d2cbfc1f3d41530bb9e97f380bbc7a1e4f0b745534490",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.9
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after/round-2.json",
+      "sha256": "96c1041b5f4814844a0d2cbfc1f3d41530bb9e97f380bbc7a1e4f0b745534490",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "go-microservice-dev",
+      "confidence": 0.75
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after/round-3.json",
+      "sha256": "1d08177631b2481023c845ff490405817d3b67586eee81fb9a9e06dcc06b6f6f",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after/round-3.json",
+      "sha256": "1d08177631b2481023c845ff490405817d3b67586eee81fb9a9e06dcc06b6f6f",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.75
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after/round-4.json",
+      "sha256": "f6ff02f86254ba730e9b839ba700195152d81620cfa56a85bb4e66f5df5e5e19",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.85
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after/round-4.json",
+      "sha256": "f6ff02f86254ba730e9b839ba700195152d81620cfa56a85bb4e66f5df5e5e19",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.7
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after/round-5.json",
+      "sha256": "4654519edc428bdaf5e9a0078c6a0f29441fe7b542322c5474117d787932df64",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after/round-5.json",
+      "sha256": "4654519edc428bdaf5e9a0078c6a0f29441fe7b542322c5474117d787932df64",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "go-microservice-dev",
+      "confidence": 0.5
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after/round-6.json",
+      "sha256": "1b0e7d4d98d77f588fb2a2ec8794f7c1b4a858130079355674f6f89cb171b99a",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after/round-6.json",
+      "sha256": "1b0e7d4d98d77f588fb2a2ec8794f7c1b4a858130079355674f6f89cb171b99a",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.75
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-1.json",
+      "sha256": "12e37badbdd3ec087e35a3e0e036720c0136b6e900bd3d42a8648b26085badb4",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-1.json",
+      "sha256": "12e37badbdd3ec087e35a3e0e036720c0136b6e900bd3d42a8648b26085badb4",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.7
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-2.json",
+      "sha256": "097f04ef8fe011f3be5c3369847b13ecd73179fca3fc47971768c6a9ee1ec950",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-2.json",
+      "sha256": "097f04ef8fe011f3be5c3369847b13ecd73179fca3fc47971768c6a9ee1ec950",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.65
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-3.json",
+      "sha256": "927b77ef7d953630f4db66cdd24aeda763dcf7dfd4488d31064ab078611f6c35",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-3.json",
+      "sha256": "927b77ef7d953630f4db66cdd24aeda763dcf7dfd4488d31064ab078611f6c35",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.75
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-4.json",
+      "sha256": "f6e00792e975e802f3c8d267dce3d9e6c9f7a02d1bbd406b2416775629a22732",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.9
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-4.json",
+      "sha256": "f6e00792e975e802f3c8d267dce3d9e6c9f7a02d1bbd406b2416775629a22732",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "python-service-dev",
+      "confidence": 0.5
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-5.json",
+      "sha256": "60354b0df80dbd841a82333fdbbdc0d41a5f37eea193084ef274d2ab2708aecc",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.9
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-5.json",
+      "sha256": "60354b0df80dbd841a82333fdbbdc0d41a5f37eea193084ef274d2ab2708aecc",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "go-microservice-dev",
+      "confidence": 0.55
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-6.json",
+      "sha256": "764ce232101f7fcaf4c0a56d9a86191d721f2cf7938acb0109cf6967828e0ffd",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-6.json",
+      "sha256": "764ce232101f7fcaf4c0a56d9a86191d721f2cf7938acb0109cf6967828e0ffd",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "product-rd-workflow",
+      "confidence": 0.65
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-7.json",
+      "sha256": "6fb24a393d5a7ace99241dca9d223bc93ae40fe5afd71aae9731a09eae708c2b",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-7.json",
+      "sha256": "6fb24a393d5a7ace99241dca9d223bc93ae40fe5afd71aae9731a09eae708c2b",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.75
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-8.json",
+      "sha256": "41a05c8f9ac4b2fea39aa7112b921828c6d51b81f125d95b788e62d71b9a91f2",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.85
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-8.json",
+      "sha256": "41a05c8f9ac4b2fea39aa7112b921828c6d51b81f125d95b788e62d71b9a91f2",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "go-microservice-dev",
+      "confidence": 0.65
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-9.json",
+      "sha256": "834603c50fc408c259dd62e48e53dedf57334b78ed2438cbbc732870e2cbeb11",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before/round-9.json",
+      "sha256": "834603c50fc408c259dd62e48e53dedf57334b78ed2438cbbc732870e2cbeb11",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/neighbor-before",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.8
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after/round-1.json",
+      "sha256": "dc54907384ac5dda409d46a3e9cd81f0fe1ecbfa545a3d72496cf1519dc74f10",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after/round-1.json",
+      "sha256": "dc54907384ac5dda409d46a3e9cd81f0fe1ecbfa545a3d72496cf1519dc74f10",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.75
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after/round-2.json",
+      "sha256": "8155fe6d7a707d799782f15c62ebba5538b9aa7067d91b9f342a807c509b0312",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after/round-2.json",
+      "sha256": "8155fe6d7a707d799782f15c62ebba5538b9aa7067d91b9f342a807c509b0312",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.75
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after/round-3.json",
+      "sha256": "e9496d89d404bbf13c7eee2a05eaac5619f2cceaf488deb74fc92897fc7e1073",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.9
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after/round-3.json",
+      "sha256": "e9496d89d404bbf13c7eee2a05eaac5619f2cceaf488deb74fc92897fc7e1073",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.65
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after/round-4.json",
+      "sha256": "d73ea26edfb3e132350d44ebaa8300322cde5cb4bd429fb396ba46c58c2e2a09",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after/round-4.json",
+      "sha256": "d73ea26edfb3e132350d44ebaa8300322cde5cb4bd429fb396ba46c58c2e2a09",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.78
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after/round-5.json",
+      "sha256": "8fff12f96c8bfae5002b2bd4eb69cc99f3564a960ace79c5b93835bfe47ff574",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after/round-5.json",
+      "sha256": "8fff12f96c8bfae5002b2bd4eb69cc99f3564a960ace79c5b93835bfe47ff574",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "go-microservice-dev",
+      "confidence": 0.55
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after/round-6.json",
+      "sha256": "108a371ee4f8eb2afcb8791aa316aeb0c2e924768e2ac0f57ad6909b2599bca8",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.8
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after/round-6.json",
+      "sha256": "108a371ee4f8eb2afcb8791aa316aeb0c2e924768e2ac0f57ad6909b2599bca8",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-bound-v3-desc-only/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.68
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after/round-1.json",
+      "sha256": "488f61eac80936e2583caf2e5cd37aa11b5a65275b1bd587efd986321aa528ef",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.92
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after/round-1.json",
+      "sha256": "488f61eac80936e2583caf2e5cd37aa11b5a65275b1bd587efd986321aa528ef",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.65
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after/round-2.json",
+      "sha256": "daa8b54a7314f2ef53ca506c9aabaf06394694fcfe1ee81e771bca7040b72705",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after/round-2.json",
+      "sha256": "daa8b54a7314f2ef53ca506c9aabaf06394694fcfe1ee81e771bca7040b72705",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "python-service-dev",
+      "confidence": 0.65
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after/round-3.json",
+      "sha256": "5a29b792bd469d87acd61de89947f1d694fd90025f73f5d4e8928104dcbdba7e",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.88
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after/round-3.json",
+      "sha256": "5a29b792bd469d87acd61de89947f1d694fd90025f73f5d4e8928104dcbdba7e",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.7
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after/round-4.json",
+      "sha256": "10d3f8cac87140c0e663615d7bf17ec169fadc2dfdbe0e5d6350fa50ba6c46b5",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after/round-4.json",
+      "sha256": "10d3f8cac87140c0e663615d7bf17ec169fadc2dfdbe0e5d6350fa50ba6c46b5",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "go-microservice-dev",
+      "confidence": 0.65
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after/round-5.json",
+      "sha256": "84ccfa1931d33e862391b9f1d7e280b9864cbc2b466e568115858f7ede7af9f3",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after/round-5.json",
+      "sha256": "84ccfa1931d33e862391b9f1d7e280b9864cbc2b466e568115858f7ede7af9f3",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.8
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after/round-6.json",
+      "sha256": "e95d49117847f29ae29bec9819326298671a0b69299c6b4b506369843eb0be0b",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.96
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after/round-6.json",
+      "sha256": "e95d49117847f29ae29bec9819326298671a0b69299c6b4b506369843eb0be0b",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-unbound-v3/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.75
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v1/neighbor-after/round-1.json",
+      "sha256": "511d1f6fb54561b1b7d73fb3e064be2aad496cf2922ce5402c071dc86c0618b8",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v1/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.92
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v1/neighbor-after/round-1.json",
+      "sha256": "511d1f6fb54561b1b7d73fb3e064be2aad496cf2922ce5402c071dc86c0618b8",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v1/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.65
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v1/neighbor-after/round-2.json",
+      "sha256": "c3a988fda8ce6f84eef64c283b3bb8941b5df1e6f549dd7b2f61be0930287d6a",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v1/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v1/neighbor-after/round-2.json",
+      "sha256": "c3a988fda8ce6f84eef64c283b3bb8941b5df1e6f549dd7b2f61be0930287d6a",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v1/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.65
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v1/neighbor-after/round-3.json",
+      "sha256": "560fd9cbca526e1a49c146d22441d1f931b8513a22f012d125118cbfa2140da4",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v1/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v1/neighbor-after/round-3.json",
+      "sha256": "560fd9cbca526e1a49c146d22441d1f931b8513a22f012d125118cbfa2140da4",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v1/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.75
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after/round-1.json",
+      "sha256": "634137b14cb09042c6e6da10baac7dd19d6f64324686d23d4987298664dd2e84",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after/round-1.json",
+      "sha256": "634137b14cb09042c6e6da10baac7dd19d6f64324686d23d4987298664dd2e84",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.85
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after/round-2.json",
+      "sha256": "a179c3fb79e2f2ebde87d0ba2d32e2714ca7d520ec1c0e731cac40ea2dbef0da",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after/round-2.json",
+      "sha256": "a179c3fb79e2f2ebde87d0ba2d32e2714ca7d520ec1c0e731cac40ea2dbef0da",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "product-rd-workflow",
+      "confidence": 0.55
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after/round-3.json",
+      "sha256": "9c81f919ad615747d85c915b2c5ad4b9b66ee1f1d994e9510a387ec972c0baaa",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.96
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after/round-3.json",
+      "sha256": "9c81f919ad615747d85c915b2c5ad4b9b66ee1f1d994e9510a387ec972c0baaa",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.7
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after/round-4.json",
+      "sha256": "6479e5cdbda84974d333ac311e6b6c89f6dea530e9af1736262b36f422e2b604",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after/round-4.json",
+      "sha256": "6479e5cdbda84974d333ac311e6b6c89f6dea530e9af1736262b36f422e2b604",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.75
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after/round-5.json",
+      "sha256": "f4f4be98154ed2649705a9ce798c855b412c254718bc98c0f5880e786192790f",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after/round-5.json",
+      "sha256": "f4f4be98154ed2649705a9ce798c855b412c254718bc98c0f5880e786192790f",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "go-microservice-dev",
+      "confidence": 0.5
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after/round-6.json",
+      "sha256": "7f81b4348977b78f194032d5a4b536e2abfbfafb8499987b72363fbdc75ac868",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after",
+      "case": "new-observability-fields",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.92
+    },
+    {
+      "file": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after/round-6.json",
+      "sha256": "7f81b4348977b78f194032d5a4b536e2abfbfafb8499987b72363fbdc75ac868",
+      "group": "eval/evidence/routing-oncall-sop-2026-08-14/superseded-wording-v2/neighbor-after",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.7
+    },
+    {
+      "file": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds/round-1.json",
+      "sha256": "479873ced8e9fbecd81da9696b6ad0ba3cfe3700fc53a88598d792407154f10a",
+      "group": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "go-microservice-dev",
+      "confidence": 0.85
+    },
+    {
+      "file": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds/round-10.json",
+      "sha256": "ac18662c04a4f9eb9f560c702ccf840483898d418ccd81b8f64a09eaa82e4df5",
+      "group": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.75
+    },
+    {
+      "file": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds/round-2.json",
+      "sha256": "50d725a83091fca31c1fa00d27954c68b7055fb7e9e8ba7e89c351c67c8f765e",
+      "group": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.85
+    },
+    {
+      "file": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds/round-3.json",
+      "sha256": "e146c070aeff8c97b0d2626cd24eff453a581573e799b58c2db1240fac4419af",
+      "group": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.92
+    },
+    {
+      "file": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds/round-4.json",
+      "sha256": "5b80f6608850d97e608edac12ab06f4927e4b42297ee6c8f0f3f7c704608cba5",
+      "group": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.95
+    },
+    {
+      "file": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds/round-5.json",
+      "sha256": "5f8511af652e3a00eca75c2f9499f049deda17fb8cde79e8ee1256355bd1d786",
+      "group": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.65
+    },
+    {
+      "file": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds/round-6.json",
+      "sha256": "59f667748776b6d08eae32c80b0bd1074ed33280975ef425b83b1a4b7d09f29c",
+      "group": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds",
+      "case": "p3-log-plus-test",
+      "status": "FAIL",
+      "selected": "go-microservice-dev",
+      "confidence": 0.65
+    },
+    {
+      "file": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds/round-7.json",
+      "sha256": "ac18662c04a4f9eb9f560c702ccf840483898d418ccd81b8f64a09eaa82e4df5",
+      "group": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.75
+    },
+    {
+      "file": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds/round-8.json",
+      "sha256": "ac18662c04a4f9eb9f560c702ccf840483898d418ccd81b8f64a09eaa82e4df5",
+      "group": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.75
+    },
+    {
+      "file": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds/round-9.json",
+      "sha256": "c69f9f8eaf8332648598a0064fd42dede2e0e8dae5f31022c50c22933ae8b7be",
+      "group": "eval/evidence/routing-p3-log-plus-test-2026-08-14/baseline-rounds",
+      "case": "p3-log-plus-test",
+      "status": "PASS",
+      "selected": "platform-observability",
+      "confidence": 0.7
+    }
+  ]
+}
