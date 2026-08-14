@@ -31,7 +31,8 @@
     "run-bound-round.sh": "checkout-independent revision of the binding wrapper (chain r1 P1 fix). The generating revision, preserved verbatim at commit 9fcba9d, differed only by hard-coding the generating worktree root and requiring absolute bank/outdir arguments; it produced every *.binding.json sidecar.",
     "recompute-aggregates.py": "deterministic generator for aggregates-recomputed.json (chain r2 challenge P1 fix): enumerates every raw round file behind the cited aggregates with per-file sha256 and per-round verdicts, then recomputes 5/9, 19/27, 15/15, and the must_not zero-hit totals",
     "aggregates-recomputed.json": "committed output of recompute-aggregates.py; every recomputed value matches the cited aggregates exactly, and strengthens the must_not claim to 0 hits in all 46 enumerated rounds",
-    "test-run-bound-round.sh": "stub-evaluator regression test for the wrapper's output-validation guard (chain r3 review P1 fix): evaluator-exits-0-writes-nothing and malformed-JSON must fail closed (nonzero exit, binding_valid=false); structurally valid output must pass. Differential RED proof recorded: the pre-fix wrapper revision (commit c8046e9) accepts cases 1-2 with rc=0 (false green) while case 3 passes in both revisions."
+    "test-run-bound-round.sh": "stub-evaluator regression test for the wrapper's output-validation guard (chain r3 review P1 fix): evaluator-exits-0-writes-nothing and malformed-JSON must fail closed (nonzero exit, binding_valid=false); structurally valid output must pass. Differential RED proof recorded: the pre-fix wrapper revision (commit c8046e9) accepts cases 1-2 with rc=0 (false green) while case 3 passes in both revisions.",
+    "AGENTS.md": "living directory contract (agent-contract coverage gate); unlike the audit record it may be edited, but every edit re-hashes here"
   },
   "measurement_note": "random-sampling measurement: recomputable (invocation + grader recorded) but per-round numbers are not bit-reproducible; the n=10 discipline exists for this. All aggregates in this manifest are recomputed from the raw round files, not copied forward.",
   "files_sha256": {
@@ -60,7 +61,8 @@
     "run-bound-round.sh": "4cc1f2ad56b7a40005ef7ff9bbb9fbd8125d369ce0e6de2a7440aa49defacbd4",
     "recompute-aggregates.py": "50b8f21c67eddc3b21efb65f6d8450bef585c050be29f3483e2e40518fc9f1c6",
     "aggregates-recomputed.json": "0f9ae638c52e955a4be02aaf700392d3354b58642445a0c0413177bbd7cded5e",
-    "test-run-bound-round.sh": "ea2eea66f2235d26d840e2f01fd0b77297ddafed85830a42c27fb2a910620b97"
+    "test-run-bound-round.sh": "ea2eea66f2235d26d840e2f01fd0b77297ddafed85830a42c27fb2a910620b97",
+    "AGENTS.md": "66e343d66fd87ed3f9b36622189d2ca05f137ca39b9a1fd7104d5c2ccf748103"
   },
   "provenance_correction": {
     "chain": "routing-p3-log-plus-test-r1 (codex dual-lane, both P1s same class)",
