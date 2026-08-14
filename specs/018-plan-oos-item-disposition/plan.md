@@ -52,8 +52,14 @@ explicit "scope decisions and non-goals carry no owner duty" sentence was in the
 first draft and was deleted on review round 1's finding — it was the exemption
 clause the form table prohibits, a relabeling hole. An item already owned
 elsewhere is not terminal by assertion: it takes the existing owner's durable
-locator (round 1's second finding). One slot added to the assessment-plan
-required-field list: "the disposition of findings named but not selected".
+locator (round 1's second finding). Challenge round 2 tightened the locator
+itself: a generic destination ("the owning skill", a team, a gate) is an
+ownership assertion wearing a path — every locator form must resolve to an
+item-specific durable entry that names the work — and the downstream
+cross-references were reduced to pure pointers (name the instance, never its
+operative requirement, which would drift). One slot added to the
+assessment-plan required-field list: "the disposition of findings named but not
+selected".
 
 Form choice per `rule-consolidation.md` form-by-failure: the baseline failure is
 an omitted element in an artifact the author already produces → REQUIRED slot,
@@ -96,7 +102,7 @@ happens.
 | resource bounds | Bounded by predicate: only named known-work items owe a disposition, and a terminal disposition costs one clause. Non-goals owe nothing. |
 | rollout/migration ordering | No ordering. The rule is additive prose; no existing artifact breaks. |
 | over-broad absolute | The predicate keys to known work and delimits alone. The first draft added an explicit non-goals exemption sentence; review round 1 identified it as the exemption clause the form table prohibits (a deferred item relabeled "non-goal" evades the duty) and it was deleted — the positive predicate cannot reach a non-goal, so nothing is lost. |
-| enumeration-completeness | Item classes enumerated: defect observed in passing / debt or hardening / follow-up work. Locator forms enumerated open-set (tracker row, issue, status doc, owning skill or gate, successor slice, existing owner's locator for already-owned items). Terminal form: declined, with reason — already-owned is a locator case, not a terminal case, per round 1. |
+| enumeration-completeness | Item classes enumerated: defect observed in passing / debt or hardening / follow-up work. Locator forms enumerated open-set, each required to resolve to an item-specific durable entry (tracker row, issue, status doc, item-specific entry in the owning skill or gate, successor slice, existing owner's item-specific locator) — a bare destination is not a locator, per challenge round 2. Terminal form: declined, with reason — already-owned is a locator case, not a terminal case, per round 1. |
 
 ## Scope
 
@@ -175,6 +181,27 @@ Rounds are appended below as they complete.
   the round-1 ledger row stays as landed, superseded by pointer from the
   appended round-2 row (append-only, never edited — the first attempt edited it
   and the impact-chain gate rejected the round).
+
+- **Round 2 — challenge, codex, `status=findings`, 3×P1: two accepted, one
+  declined with reason.** (chain `oos-owner-018`, index 2, challenge-index 1,
+  full adversarial focus over the exact landing candidate.)
+  (1) Accepted: "the owning skill or gate" as a locator form admits a generic
+  destination holding no item-specific record — an ownership assertion wearing
+  a path; fixed by requiring every locator form to resolve to an item-specific
+  durable entry that names the work. (2) Accepted: the bullet restated the
+  downstream instances' operative requirements (drift risk, and a violation of
+  this slice's own acceptance criterion 3); fixed by reducing both to pure
+  pointers that name the instance only. (3) **Declined, with reason**: the
+  proposed fix — controller-captured checker output bound into the review
+  packet — is the digest-bound evidence apparatus the impact-chain gate
+  evaluated and removed (recorded in its own ledger row: per-iteration
+  regeneration cost), and verification of the checker claims is already
+  mechanical outside the packet: `check-ccl-skills.sh` (impact-chain verdict,
+  `r0_status`) is recomputed on the exact candidate by the server-side gate at
+  merge time, so a false prose claim cannot land — the plan's prose is a
+  record, not the enforcement surface. The kernel of the finding (prose is not
+  proof) is honored by transcribing the final gate output verbatim into the
+  Landing state below, labeled as author-transcribed.
 
 ## The RED, recomputed (round-1 finding 3)
 
