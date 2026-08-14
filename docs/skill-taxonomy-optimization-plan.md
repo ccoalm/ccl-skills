@@ -222,6 +222,8 @@ Claude 端还留着三个按 commit 钉住的旧版本缓存目录（`7f9cdb9b49
 
 **测量出处**：全部原始逐轮 JSON（基线 10，每轮带 `*.binding.json` sidecar：32 条 description 行 + bank 文件全表面前后哈希 + HEAD + skills 树干净证明）连同 bank-single.jsonl、bank-neighbors.jsonl（prepared-unused：为修复路径预建的 11 用例邻居集，分类判定后未启用）、绑定 wrapper `run-bound-round.sh` 本体与 `MANIFEST.json`（逐文件 sha256、精确 runner 调用、grader 身份、聚合数从 raw 重算）提交在树内 `eval/evidence/routing-p3-log-plus-test-2026-08-14/`。随机采样测量：可复算、逐轮数字不可逐位复现。
 
+**dual-track（chain `routing-p3-log-plus-test-r1`，candidate sha256 `304e5ad4…`，codex 双 lane，native 绑定 established，claude 因同族被排除）**：review 与 challenge 各 1×P1，同类收敛——MANIFEST 记录的 runner 调用以相对路径书写，而生成期 wrapper 硬编码 worktree 根并在 `cd` 后才传参，照记录逐字执行无法复现所提交工件（provenance 记录缺陷）。**accepted，适配落地**：MANIFEST 调用记录改为真实的绝对路径形态并落 `provenance_correction` 块；wrapper 修为 checkout 无关（repo 根从脚本自身位置推导、bank/outdir 先绝对化再 cd），生成期原版逐字保留在 commit `9fcba9d` 供审计。challenge smallest_fix 的「再生成 10 轮」分支**驳回为不必要**，三点证据：相对 bank 路径在生成期 cd 语义下必然指向不存在的 `<worktree-root>/bank-single.jsonl` 而报错，实际 10 轮全部 rc=0 出有效 JSON——生成调用必为绝对路径（机械证明）；工件有效性由逐轮 sidecar（全表面 hash 前后一致 + HEAD + 树干净）承载而非由重跑承载；随机采样逐轮数字本就不可逐位复现。修复后候选换 chain `routing-p3-log-plus-test-r2` 全新双 lane 终审（见下）。
+
 ### mem-oncall-sop 独立一轮落地记录（分支 `worktree-routing-oncall-sop`）
 
 **charter 先行**：目的/范围/深度/根因/证据计划/完成标准在任何深读与编辑前落盘于会话 scratch；本节是其 sanitized 落地记录。

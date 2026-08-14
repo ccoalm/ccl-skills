@@ -21,14 +21,14 @@
     "surface_scope": "all skills/*/SKILL.md description lines (dir-name-tagged, sorted glob order) + the bank file; hash captured before AND after each round (run-bound-round.sh, included)"
   },
   "runner": {
-    "invocation": "bash run-bound-round.sh <n> bank-single.jsonl baseline-rounds  ->  ruby skills/skill-extraction-workflow/scripts/eval-routing-bank.rb <worktree-root> --bank bank-single.jsonl --timeout 120 --json baseline-rounds/round-<n>.json (all 10 rounds --timeout 120; no grader timeouts)",
+    "invocation": "actual generating invocation (chain r1 P1 correction — the earlier relative-path rendering could not reproduce the artifacts): bash run-bound-round.sh <n> <ABS-MEASUREMENT-DIR>/bank-single.jsonl <ABS-MEASUREMENT-DIR>/baseline-rounds -> (cd <worktree-root> && ruby skills/skill-extraction-workflow/scripts/eval-routing-bank.rb . --bank <abs bank> --timeout 120 --json <abs out>) (all 10 rounds --timeout 120; no grader timeouts)",
     "grader": "claude --print --tools \"\" --model claude-haiku-4-5 (runner default)"
   },
   "contents": {
     "baseline-rounds": "10 bound rounds on the unmodified dev 512b77a surface: 8/10 PASS; binding_valid 10/10; unique repo_head 1; unique surface hash 1",
     "bank-single.jsonl": "the single frozen-bank line for p3-log-plus-test, extracted verbatim from eval/routing-tasks.jsonl at 512b77a",
     "bank-neighbors.jsonl": "PREPARED-UNUSED: 11-case neighbor set built for the fix path before classification; no neighbor rounds were run because the no-edit disposition made them moot",
-    "run-bound-round.sh": "the atomic full-surface binding wrapper that produced every *.binding.json sidecar"
+    "run-bound-round.sh": "checkout-independent revision of the binding wrapper (chain r1 P1 fix). The generating revision, preserved verbatim at commit 9fcba9d, differed only by hard-coding the generating worktree root and requiring absolute bank/outdir arguments; it produced every *.binding.json sidecar."
   },
   "measurement_note": "random-sampling measurement: recomputable (invocation + grader recorded) but per-round numbers are not bit-reproducible; the n=10 discipline exists for this. All aggregates in this manifest are recomputed from the raw round files, not copied forward.",
   "files_sha256": {
@@ -54,6 +54,16 @@
     "baseline-rounds/round-8.json.binding.json": "9cd1d999fbefe317bd1a6dd67b35b39f1128c89a6bdb330f97d4a7dacf1363ae",
     "baseline-rounds/round-9.json": "c69f9f8eaf8332648598a0064fd42dede2e0e8dae5f31022c50c22933ae8b7be",
     "baseline-rounds/round-9.json.binding.json": "2f54b5df06d596c17c7b23a87bbbb7b4f0232d7a5aaf3b8d7dd4bf81d3f6b0c8",
-    "run-bound-round.sh": "7f3a519f738bc43afb70dde81b897b10dfa74e06329478f80cec7ffb163cbc9f"
+    "run-bound-round.sh": "c26f2850496b9a06af6c3bdc8320cb2af45f44dd457ef764cd37273840e49bae"
+  },
+  "provenance_correction": {
+    "chain": "routing-p3-log-plus-test-r1 (codex dual-lane, both P1s same class)",
+    "finding": "MANIFEST documented the runner invocation with relative bank/outdir paths; the generating wrapper cd's to the worktree root before invoking ruby, so that rendering cannot reproduce the committed artifacts and the hard-coded worktree root does not exist on another checkout.",
+    "disposition": "accepted with adapted fix: invocation record corrected to the actual absolute-path form; wrapper made checkout-independent (repo root derived from the script location, bank/outdir resolved to absolute before cd). Regeneration of the 10 rounds declined as unnecessary:",
+    "artifact_validity_proof": [
+      "mechanical: under the generating wrapper's cd, a relative bank path would resolve to <worktree-root>/bank-single.jsonl, which does not exist — the runner would have failed; all 10 rounds returned rc=0 with valid single-task JSON, so the generating invocations necessarily used absolute paths",
+      "binding: every round carries a *.binding.json sidecar pinning the full routing input surface hash (before==after), repo HEAD 512b77a, and skills-tree clean state at generation time — artifact validity is bound by the sidecars, not by rerunning",
+      "random-sampling rounds are not bit-reproducible by design, so regeneration cannot confirm or deny provenance; the n=10 discipline exists for this"
+    ]
   }
 }

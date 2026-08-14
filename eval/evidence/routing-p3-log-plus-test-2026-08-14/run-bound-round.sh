@@ -4,12 +4,19 @@
 #   binding sidecar = hash of the FULL routing input surface (all skills/*/SKILL.md
 #   description lines, dir-name-tagged, in sorted glob order + the bank file bytes),
 #   captured before AND after each round, plus repo HEAD and skills-tree clean proof.
+# This committed copy is the checkout-independent revision (chain r1 P1 fix): the
+# generating revision at commit 9fcba9d differed only by hard-coding the generating
+# worktree root and requiring absolute bank/outdir arguments; see MANIFEST.json
+# provenance_correction for the exact generating invocation and validity proof.
 # Usage: run-bound-round.sh <round-number> <bank-file> <out-dir>
 set -uo pipefail
 
-WT="/Users/asen/work/code/src/github.com/ccoalm/ccl-skills/.work/worktrees/routing-p3-log-plus-test"
-N="$1"; BANK="$2"; OUTDIR="$3"
-mkdir -p "$OUTDIR"
+WT="$(git -C "$(cd "$(dirname "$0")" && pwd -P)" rev-parse --show-toplevel)" || exit 1
+N="$1"
+BANK="$(cd "$(dirname "$2")" && pwd -P)/$(basename "$2")" || exit 1
+test -r "$BANK" || { echo "bank file not readable: $BANK" >&2; exit 1; }
+mkdir -p "$3" || exit 1
+OUTDIR="$(cd "$3" && pwd -P)" || exit 1
 OUT="$OUTDIR/round-$N.json"
 
 surface_hash() {
