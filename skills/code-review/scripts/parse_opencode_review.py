@@ -25,9 +25,15 @@ Output: one JSON line. Exit 0 for passed/findings, 2 for inconclusive.
 
 import argparse
 import json
+import os
 from pathlib import PurePosixPath
 import re
 import sys
+
+# Same-directory import. The lane runs this as a script and the tests load it by
+# path, so neither can rely on the package machinery.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from egress_schema import apply as apply_egress_schema  # noqa: E402
 
 
 # providerID segment (before "/" in an opencode model id) -> canonical reviewer
@@ -85,7 +91,10 @@ def _result(status, reason=None, **extra):
     if extra.get("concern_results") == []:
         extra.pop("concern_results")
     out.update(extra)
-    return out
+    # Single choke point for the field schema: every verdict this module emits
+    # goes through here, so bounding it here bounds the lane. The schema drops
+    # malformed values and names them; it never changes `status` or `reason`.
+    return apply_egress_schema(out)
 
 
 def session_id_from_events(events_text):

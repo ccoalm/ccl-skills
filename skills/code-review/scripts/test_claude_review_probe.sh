@@ -188,6 +188,12 @@ if [ "$has_stream_json" = "1" ]; then
   if [ "${CLAUDE_FAKE_EXTRA_CUSTOMIZATION:-0}" = "1" ]; then
     customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","unrelated:danger"],"skills":["testing-strategy","unrelated-skill"],"plugins":["ccl-skills"]'
   fi
+  if [ "${CLAUDE_FAKE_HOST_VOCABULARY:-0}" = "1" ]; then
+    customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","brand-new-builtin"],"skills":["testing-strategy"],"plugins":["ccl-skills"]'
+  fi
+  if [ "${CLAUDE_FAKE_HOST_VOCABULARY_PLUS_BREACH:-0}" = "1" ]; then
+    customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","brand-new-builtin","rogue:exfil"],"skills":["testing-strategy"],"plugins":["ccl-skills"]'
+  fi
   if [ "${CLAUDE_FAKE_COLLIDING_CUSTOMIZATION:-0}" = "1" ]; then
     customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy"],"skills":["testing-strategy","debug","debug"],"plugins":["ccl-skills"]'
   fi
@@ -688,6 +694,64 @@ reason = payload["reason"]
 assert "slash_commands:unrelated:danger" in reason, payload
 assert "skills:unrelated-skill" in reason, payload
 assert "description" not in reason, payload
+PY
+
+# Host-vocabulary routing, asserted through the REAL wrapper rather than through
+# a mirror of its routing table. The policy matrix reads the wrapper's `case`
+# block out of its source, which catches an edited arm but cannot catch a
+# difference between bash pattern matching and the mirror's substring matching --
+# so these two cases drive the actual wrapper end to end: an unrecognised bare
+# built-in must cascade, and the same init carrying a real breach must NOT be
+# laundered into the softer class by the presence of the new phrase.
+set +e
+PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_HOST_VOCABULARY=1 \
+  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
+  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
+  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
+  >"$tmp_dir/native-skill-host-vocabulary.json"
+host_vocabulary_rc=$?
+set -e
+if [ "$host_vocabulary_rc" -ne 2 ]; then
+  printf 'expected an unrecognised bare built-in to still refuse (exit 2), got %s\n' "$host_vocabulary_rc" >&2
+  exit 1
+fi
+python3 - "$tmp_dir/native-skill-host-vocabulary.json" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+# refuses, but cascades: the whole point is that one new CLI built-in must not
+# take the other reviewer clients down with it.
+assert payload["reason_code"] == "capability_missing", payload
+assert payload["fallback_eligible"] is True, payload
+assert payload["next_action"] == "fallback", payload
+assert "unclassifiable host-vocabulary entry" in payload["reason"], payload
+assert "slash_commands:brand-new-builtin" in payload["reason"], payload
+PY
+
+set +e
+PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_HOST_VOCABULARY_PLUS_BREACH=1 \
+  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
+  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
+  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
+  >"$tmp_dir/native-skill-host-vocabulary-breach.json"
+host_vocabulary_breach_rc=$?
+set -e
+if [ "$host_vocabulary_breach_rc" -ne 2 ]; then
+  printf 'expected a breach alongside host vocabulary to refuse (exit 2), got %s\n' "$host_vocabulary_breach_rc" >&2
+  exit 1
+fi
+python3 - "$tmp_dir/native-skill-host-vocabulary-breach.json" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+# the namespaced entry is a PROVEN customization, so the run must stay terminal
+# no matter that an unclassifiable name sits beside it.
+assert payload["reason_code"] == "tool_boundary_violation", payload
+assert payload["fallback_eligible"] is False, payload
+assert payload["next_action"] == "stop_reviewer_lane", payload
+assert "unclassifiable host-vocabulary entry" not in payload["reason"], payload
 PY
 
 set +e

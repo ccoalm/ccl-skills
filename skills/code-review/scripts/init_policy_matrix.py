@@ -21,17 +21,31 @@ Intended policy (stated here, not derived from the code):
      stronger class.
   F. The verdict must never be steerable by CLI-supplied text: a field NAME
      cannot select which routing arm matches.
+  G. HOST VOCABULARY is unverifiable, not a proven breach. The built-in
+     command/skill allowlists are a snapshot of names the host owns and this
+     repo does not, so a BARE identifier they do not recognise cannot be shown
+     to be a user customization -- it is class C, not class A. A NAMESPACED,
+     path-shaped, duplicated or unparseable entry is still a customization and
+     stays terminal, and `plugins` is never host vocabulary. Refusal is
+     unchanged either way; only the next action differs, so no path that was
+     terminal becomes TOLERATED.
 
-Every row below is (case, init-event, expected verdict class), run through BOTH
-parse paths. Pass an alternate parser path as argv[1] to check a candidate or a
-mutant against the same policy -- that is how this oracle is validated: it must
-report mismatches for a deliberately weakened parser, or its clean verdict means
-nothing. Recorded validation, kept here because this docstring is the only
-durable record of it — an earlier version cited a spec validation log that does
-not exist in this repo: the pre-change
-parser scores 54 mismatches, and mutants that tolerate all unknown fields, drop
-the authority-name guard, drop the authority-presence requirement, or drop the
-field-name sanitizer score 16 / 8 / 2 / 1 respectively.
+Every row below is (case, init-event, expected verdict class), run through the
+parse paths it declares. Policy G rows declare the review-skill paths, because
+that is the only invocation shape whose customization lists are populated at all
+(measured: 46 commands / 16 skills under `--plugin-dir`, both empty under
+`--disable-slash-commands`) -- and it is the shape the skill-free paths never
+exercised, which is why an earlier vocabulary outage passed a green matrix.
+Each shape is crossed over BOTH parse implementations, since only
+`--runtime-surface-only` selects the main-invocation branch.
+
+Pass an alternate parser path as argv[1] to check a candidate or a mutant
+against the same policy -- that is how this oracle is validated: it must report
+mismatches for a deliberately weakened parser, or its clean verdict means
+nothing. That walk is now EXECUTED by `test_init_policy_matrix.sh` rather than
+recorded here as prose: per-mutant scores were a hand-maintained number that
+every added row invalidated, and a sensitivity claim nothing runs is one
+refactor away from being vacuous.
 """
 from __future__ import annotations
 
@@ -73,8 +87,19 @@ def init(**overrides):
     return ev
 
 
-def case(name, ev, expected, extra_events=()):
-    return {"name": name, "events": [ev, *extra_events, RESULT], "expected": expected}
+def case(name, ev, expected, extra_events=(), paths=("probe", "main")):
+    """One row. `paths` names the invocation shapes it is meaningful under.
+
+    The two default paths declare no native skills, so their customization
+    lists are empty in every real run and any entry is a breach. Policy G rows
+    therefore declare the two review-skill paths instead -- see SKILL_BASE.
+    """
+    return {
+        "name": name,
+        "events": [ev, *extra_events, RESULT],
+        "expected": expected,
+        "paths": paths,
+    }
 
 
 # Routing arms in claude_review.sh, mirrored here so field-name steering is
@@ -87,6 +112,7 @@ ROUTING_PHRASES = [
     "runtime capability",
     "Bash tool",
     "unrecognized surface-shaped init field",
+    "unclassifiable host-vocabulary entry",
 ]
 
 CASES = [
@@ -194,6 +220,177 @@ for phrase in ROUTING_PHRASES:
                           {"type": "tool_use", "name": phrase, "input": {}}]}}]))
 
 
+# --- G: host vocabulary, on the review-skill path --------------------------
+# The only shape whose customization lists are populated in a real run. The
+# selected skill name must NOT also be a built-in skill name, or the
+# ambiguous-selected-owner guard fires on every row and masks the verdict under
+# test (observed while measuring the pre-change behaviour).
+SELECTED_SKILL = "product-rd-workflow"
+SKILL_BASE = {
+    **BASE,
+    "slash_commands": ["init", "agents"],
+    "skills": [f"ccl-skills:{SELECTED_SKILL}", "dataviz"],
+    "plugins": [{"name": "ccl-skills"}],
+}
+
+
+def skill_init(**overrides):
+    ev = dict(SKILL_BASE)
+    for key, value in overrides.items():
+        if value is ...:
+            ev.pop(key, None)
+        else:
+            ev[key] = value
+    return ev
+
+
+def skill_case(name, ev, expected, extra_events=()):
+    return case(name, ev, expected, extra_events,
+                paths=("skill", "skill-probe"))
+
+
+def with_command(*extra):
+    return skill_init(slash_commands=[*SKILL_BASE["slash_commands"], *extra])
+
+
+def with_skill(*extra):
+    return skill_init(skills=[*SKILL_BASE["skills"], *extra])
+
+
+CASES += [
+    # the base itself must be accepted, or every row below proves nothing
+    skill_case("skill-clean", skill_init(), TOLERATED),
+
+    # the defect: a name the host added and this snapshot does not know
+    skill_case("host-vocab-new-command", with_command("brand-new-builtin"), FALLBACK),
+    skill_case("host-vocab-new-skill", with_skill("brand-new-skill"), FALLBACK),
+    # identifiers are normalized before classification, so case is not a class
+    skill_case("host-vocab-mixed-case", with_command("BrandNewBuiltin"), FALLBACK),
+
+    # ...and everything that is NOT host vocabulary stays a proven breach
+    skill_case("namespaced-foreign-command", with_command("evil-plugin:pwn"), TERMINAL),
+    skill_case("namespaced-foreign-skill", with_skill("evil-plugin:pwn"), TERMINAL),
+    skill_case("path-shaped-identifier", with_command("dir/cmd"), TERMINAL),
+    skill_case("unparseable-identifier", with_command("ev!l"), TERMINAL),
+    skill_case("duplicate-identifiers", with_command("init"), TERMINAL),
+    skill_case("foreign-plugin",
+               skill_init(plugins=[{"name": "ccl-skills"}, {"name": "other"}]),
+               TERMINAL),
+    # A STRUCTURED entry stays terminal even when its reported `name` is bare:
+    # the identifier helper reads `name` first, so a sibling key can carry
+    # path-shaped proof of a real customization that the soft class would then
+    # ignore. Unread evidence is not the same as absent evidence, which is the
+    # only thing this class is for. Costs nothing: measured against the real
+    # CLI, both host-vocabulary fields arrive as plain strings.
+    skill_case("dict-entry-bare-name",
+               with_command({"name": "brand-new-builtin", "command": "/x/y"}),
+               TERMINAL),
+    # ...and the same shape with no smuggled key is still terminal, so the rule
+    # is "structured entries are not host vocabulary", not "we grep for paths".
+    skill_case("dict-entry-bare-name-only",
+               with_command({"name": "brand-new-builtin"}), TERMINAL),
+    # The severe variant, and the one a round-5 review found: a structured entry
+    # whose `name` is an ALLOWED built-in used to clear the allowlist outright,
+    # so its other keys were never inspected and the run reached TOLERATED with
+    # isolation reported verified. Reproduced before it was fixed. Both fields,
+    # because the shape gate must not be per-field folklore.
+    # The smuggled `name` must be an allowed built-in that is NOT already in the
+    # base list: reusing one duplicates an identifier, and the duplicate check
+    # then makes the row terminal for an unrelated reason. Caught by differential
+    # attribution — with the first fixtures, removing the shape gate flipped
+    # nothing here, which is a finding about the test, not a clean result.
+    skill_case("dict-entry-smuggled-under-allowed-command",
+               with_command({"name": "import", "command": "/x/y",
+                             "extra": ["Bash"]}), TERMINAL),
+    skill_case("dict-entry-smuggled-under-allowed-skill",
+               with_skill({"name": "verify", "command": "/x/y"}), TERMINAL),
+    # ...while `plugins` legitimately carries dicts in every real run, so the
+    # gate must not spread to it: this is what stops the fix from breaking the
+    # actual CLI.
+    skill_case("plugin-dict-stays-legitimate",
+               skill_init(plugins=[{"name": "ccl-skills", "path": "/p"}]),
+               TOLERATED),
+    # The third instance of the same class: a PLAIN STRING whose first token is
+    # bare while the discarded remainder carries the proof. The identifier helper
+    # keeps only that first token, so judging the token instead of the whole
+    # value read `brand-new evil-plugin:pwn` as host vocabulary.
+    skill_case("whitespace-hides-a-namespace",
+               with_command("brand-new evil-plugin:pwn"), TERMINAL),
+    skill_case("whitespace-hides-a-path",
+               with_command("brand-new dir/cmd"), TERMINAL),
+    skill_case("whitespace-hides-a-routing-phrase",
+               with_command("brand-new runtime isolation"), TERMINAL),
+    skill_case("whitespace-hides-a-namespace-in-skills",
+               with_skill("brand-new evil-plugin:pwn"), TERMINAL),
+    # SURROUNDING whitespace is the fourth instance, and the worst: wrapping an
+    # ALLOWLISTED name reached TOLERATED, because both the allowlist and the
+    # first version of the whole-value check stripped before comparing.
+    skill_case("trailing-space-on-an-allowlisted-command",
+               with_command("import "), TERMINAL),
+    skill_case("leading-space-on-an-allowlisted-command",
+               with_command(" import"), TERMINAL),
+    skill_case("trailing-space-on-an-allowlisted-skill",
+               with_skill("verify "), TERMINAL),
+    skill_case("trailing-space-on-an-unknown-command",
+               with_command("brand-new "), TERMINAL),
+    skill_case("tab-wrapped-allowlisted-command",
+               with_command("\timport"), TERMINAL),
+    # ...and the legitimate namespaced entry must survive all of that, since its
+    # whole value IS its identifier. Without this row the gate could be tightened
+    # into rejecting the surface the review-skill mode depends on.
+    skill_case("selected-namespaced-command-still-allowed",
+               with_command(f"ccl-skills:{SELECTED_SKILL}"), TOLERATED),
+
+    # E in review-skill mode: the softer class must never absorb a real breach
+    skill_case("host-vocab+tool-breach",
+               skill_init(slash_commands=[*SKILL_BASE["slash_commands"], "brand-new"],
+                          tools=["Write"]), TERMINAL),
+    skill_case("host-vocab+unsafe-value",
+               skill_init(slash_commands=[*SKILL_BASE["slash_commands"], "brand-new"],
+                          permissionMode="bypassPermissions"), TERMINAL),
+    skill_case("host-vocab+namespaced",
+               with_command("brand-new", "evil-plugin:pwn"), TERMINAL),
+    skill_case("host-vocab+invoked-tool",
+               with_command("brand-new"), TERMINAL,
+               extra_events=[{"type": "assistant", "message": {"content": [
+                   {"type": "tool_use", "name": "Write", "input": {}}]}}]),
+    # two unverifiables are still one unverifiable
+    skill_case("host-vocab+unknown-container",
+               skill_init(slash_commands=[*SKILL_BASE["slash_commands"], "brand-new"],
+                          future_surface=["x"]), FALLBACK),
+
+    # per event, not on the union
+    skill_case("second-init-adds-host-vocab", skill_init(), FALLBACK,
+               extra_events=[with_command("brand-new-builtin")]),
+    skill_case("second-init-adds-namespaced", skill_init(), TERMINAL,
+               extra_events=[with_command("evil-plugin:pwn")]),
+
+    # invariants that must survive in this mode too
+    skill_case("skill-missing-plugin", skill_init(plugins=[]), TERMINAL),
+    skill_case("skill-required-absent",
+               skill_init(skills=["ccl-skills:other-skill"]), TERMINAL),
+    skill_case("skill-authority-absent", skill_init(permissionMode=...), FALLBACK),
+    skill_case("skill-declared-tool", skill_init(tools=["Write"]), TERMINAL),
+]
+
+# F in review-skill mode: the new class is reached through a CLI-supplied
+# IDENTIFIER rather than a field name, so re-run the steering check over it. A
+# phrase is normalized to its first token, which is bare -- so the softest arm
+# it can reach is its own class, and it must never soften a breach.
+for phrase in ROUTING_PHRASES:
+    # A phrase containing whitespace cannot be a plain host name at all, so the
+    # whole-value gate disqualifies it and it stays TERMINAL — stricter than the
+    # single-token case, and the property under test is unchanged either way: a
+    # CLI-supplied identifier never reaches an arm SOFTER than its own class.
+    CASES.append(skill_case(f"steer-vocab-command[{phrase}]",
+                            with_command(phrase),
+                            FALLBACK if " " not in phrase else TERMINAL))
+    CASES.append(skill_case(f"steer-vocab-breach[{phrase}]",
+                            skill_init(
+                                slash_commands=[*SKILL_BASE["slash_commands"], phrase],
+                                tools=["Write"]), TERMINAL))
+
+
 def wrapper_arm(reason: str) -> str:
     """Mirror emit_runtime_inconclusive's case order from the wrapper source."""
     source = WRAPPER.read_text()
@@ -223,6 +420,21 @@ PATHS = {
     "probe": [],
     "main": ["--require-empty-init", "--expected-tools", "",
              "--allow-expected-tool-use", "--runtime-surface-only"],
+    # The review-skill shape, carrying the native-skill flags the wrapper really
+    # passes. Added because the two paths above declare no skills, so their
+    # customization lists are empty in every real run -- leaving the branch that
+    # actually classifies host vocabulary untested by a green matrix.
+    "skill": ["--require-empty-init", "--expected-tools", "",
+              "--expected-native-skills", SELECTED_SKILL,
+              "--required-native-skills", SELECTED_SKILL,
+              "--allow-expected-tool-use", "--runtime-surface-only"],
+    # ...and the same shape through the OTHER parse path. `--runtime-surface-only`
+    # is what selects the main-invocation branch, so without this the review-skill
+    # cases would only ever exercise one of the two implementations that have
+    # drifted apart in opposite directions twice before.
+    "skill-probe": ["--require-empty-init", "--expected-tools", "",
+                    "--expected-native-skills", SELECTED_SKILL,
+                    "--required-native-skills", SELECTED_SKILL],
 }
 
 
@@ -247,13 +459,15 @@ def run_case(entry, parser=PARSER, path="probe"):
 def main():
     parser = Path(sys.argv[1]) if len(sys.argv) > 1 else PARSER
     failures = []
+    runs = 0
     for entry in CASES:
-        for path in PATHS:
+        for path in entry["paths"]:
+            runs += 1
             actual, reason = run_case(entry, parser, path)
             if actual != entry["expected"]:
                 failures.append((f"{entry['name']}/{path}", entry["expected"],
                                  actual, reason[:160]))
-    print(f"cases: {len(CASES) * len(PATHS)}  mismatches: {len(failures)}")
+    print(f"cases: {runs}  mismatches: {len(failures)}")
     for name, expected, actual, reason in failures:
         print(f"  MISMATCH {name}: expected {expected}, got {actual}")
         if reason:

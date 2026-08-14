@@ -400,7 +400,7 @@ not by writing the file.** Two places cited it: the recipe step in
 `scripts/AGENTS.md` and the header comment of `test_init_policy_matrix.sh`. The
 file never landed in this repo, and there is no validation-log convention here to
 restore — every slice since records its RED round inside its own
-`specs/<NNN>-<slug>/plan.md`. Creating the missing file would have meant
+`<NNN>-<slug>/plan.md` under specs/. Creating the missing file would have meant
 back-filling evidence for a round nobody ran, so both citations were repointed at
 what the repo actually does: the recipe now says record the RED round in the
 slice's own plan, and the matrix suite states its mutation check inline (weakened

@@ -17,6 +17,7 @@ test: ## 运行本仓确定性 gate、脚本测试和 Python 回归
 	bash skills/code-review/scripts/test_concern_excerpt.sh
 	bash skills/code-review/scripts/test_claude_review_probe.sh
 	bash skills/code-review/scripts/test_parse_opencode_review.sh
+	bash skills/code-review/scripts/test_egress_schema.sh
 	bash skills/code-review/scripts/test_parse_probe_result.sh
 	bash skills/code-review/scripts/test_init_policy_matrix.sh
 	bash skills/code-review/scripts/test_parse_review_json.sh

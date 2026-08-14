@@ -647,11 +647,7 @@ if [ "$PCODE" -ne 0 ] \
     enriched="$(printf '%s' "$OUT" | python3 -c 'import sys, json
 sys.path.insert(0, sys.argv[1])
 from concern_excerpt import concern_fields
-EGRESS_KEYS = frozenset({
-    "reviewer", "status", "reason", "reason_code", "cascade_eligible",
-    "candidate_ineligible", "session_id", "model", "provider", "version",
-    "mode", "reviewer_family", "runtime_isolation", "credential_binding",
-})
+from egress_schema import CONCERN_RELAY_KEYS as EGRESS_KEYS
 payload = json.load(sys.stdin)
 text = payload.pop("text", "") or ""
 if set(payload) - EGRESS_KEYS:
