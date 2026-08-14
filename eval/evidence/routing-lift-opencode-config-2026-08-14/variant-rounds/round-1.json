@@ -1,0 +1,98 @@
+{
+  "model": "claude-haiku-4-5",
+  "tasks": 7,
+  "pass": 7,
+  "fail": 0,
+  "error": 0,
+  "desc_budget_chars": null,
+  "co_change_bank_and_descriptions": false,
+  "co_change_check_available": true,
+  "frozen_drift": [],
+  "newly_failed": [],
+  "newly_passed": [],
+  "results": [
+    {
+      "id": "var-pos-bare-filename",
+      "utterance": "本仓 opencode.json 要加一个快捷命令",
+      "expected": "skill-extraction-workflow",
+      "selected": "skill-extraction-workflow",
+      "confidence": 0.75,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-pos-register-command",
+      "utterance": "给 ccl-skills 的 OpenCode 项目配置注册一个新 command",
+      "expected": "skill-extraction-workflow",
+      "selected": "skill-extraction-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-pos-shared-repo-norm",
+      "utterance": "共享技能仓的 opencode 配置想加条快捷命令，有什么规范要注意",
+      "expected": "skill-extraction-workflow",
+      "selected": "skill-extraction-workflow",
+      "confidence": 0.65,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-neg-opencode-review",
+      "utterance": "用 opencode 给当前分支的 diff 出个第二意见",
+      "expected": "code-review",
+      "selected": "code-review",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "skill-extraction-workflow"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-neg-tui-commands",
+      "utterance": "给产品的终端 TUI 界面设计快捷键和命令面板",
+      "expected": "terminal-cli-dev",
+      "selected": "terminal-cli-dev",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "skill-extraction-workflow"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-neg-worktree-first",
+      "utterance": "在 ccl-skills 仓里改一个技能文件之前要不要先建 worktree",
+      "expected": "worktree-isolation",
+      "selected": "worktree-isolation",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-neg-product-shortcut-feature",
+      "utterance": "给我们产品加个新功能：用户可以自定义快捷命令",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "skill-extraction-workflow"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    }
+  ]
+}

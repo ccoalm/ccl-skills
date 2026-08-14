@@ -1,6 +1,6 @@
 ---
 name: skill-extraction-workflow
-description: 复盘 / 沉淀 / 总结经验 / 补进技能 / 技能缺陷 / 流程优化 / would other teammates hit this / will we forget next time / teamwide recurrence / extract skill / post-mortem / 深度 review·审计技能仓库 / 对标外部技能包找 gap（benchmark superpowers·gstack 等） / 核查全局安装点（~/.config/opencode 等）旧快照是否遮蔽本仓技能 → turn reusable lessons into durable CCL skills.
+description: 复盘 / 沉淀 / 总结经验 / 补进技能 / 技能缺陷 / 流程优化 / would other teammates hit this / will we forget next time / teamwide recurrence / extract skill / post-mortem / 深度 review·审计技能仓库 / 对标外部技能包找 gap（benchmark superpowers·gstack 等） / 核查全局安装点（~/.config/opencode 等）旧快照是否遮蔽本仓技能 / 本仓（ccl-skills 等共享技能仓）OpenCode 项目配置·命令治理 → turn reusable lessons into durable CCL skills.
 ---
 
 # Skill Extraction Workflow
@@ -129,7 +129,7 @@ Use this skill to turn observed experience into durable agent skills without cop
 - UI/UX judgment extraction must use observable proxies, not adjectives. Read state families, navigation/entry/return paths, disabled reasons, recovery controls, timing/feedback, accessibility, responsive/device variants, and code state machines before claiming behavioral or psychology rules. Use `references/uiux-judgment-extraction.md` for the required method.
 - UI/UX lessons usually route to multiple owners. Before editing, map each candidate to design, web, app, miniapp, testing, product workflow, or this extraction workflow using `references/uiux-routing-map.md`; do not land only the design rule when implementation or scenario testing is required. For mini-program lessons, `testing-strategy` owns layer/scenario selection, while `miniapp-product-dev` owns host-platform implementation, developer-tool or real-device evidence, review/release mechanics, and miniapp runtime constraints.
 - Judgment-layer extraction must name what changed. For UI/UX/client sources, record whether each judgment layer produced a new rule, confirmed an existing rule, narrowed an existing rule, or found no new evidence. If the pass only improves execution/validation, say so instead of implying new aesthetic, behavioral, psychology, or interaction knowledge.
-- For UI/UX/client extraction, the judgment-dimension axis is enumerated in `references/uiux-judgment-extraction.md`: visual direction/tokens, aesthetics, interaction logic, behavioral logic, psychology, accessibility, implementation ownership, testing evidence, and product readiness. When the adjacency-scan rule fires on a UI/UX source, use that enumeration.
+- For UI/UX/client extraction, the judgment-dimension axis enumeration lives in `references/uiux-judgment-extraction.md`. When the adjacency-scan rule fires on a UI/UX source, walk that enumeration — do not re-derive the axis list from memory.
 - A UI/UX judgment-delta row is not complete with labels such as `confirmed`, `narrowed`, or `no new evidence` alone. Each visual direction/tokens row must satisfy the field list in `references/uiux-judgment-extraction.md`; if those fields were not inspected, mark the row `pending` or `out of scope` and do not claim design-judgment extraction.
 
 ### Retrospectives, corrections & auto-triggered learning（复盘 / 纠正 / 自触发学习）
