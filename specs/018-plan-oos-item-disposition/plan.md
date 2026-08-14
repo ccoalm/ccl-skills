@@ -138,9 +138,12 @@ Out of scope, each with its disposition (this rule's own dogfood):
   `check-ccl-skills.sh` passes including the impact-chain gate over the new
   ledger row and `r0_status=private-ok`.
 - Changed-file scope: `skills/product-rd-workflow/references/delivery-lifecycle.md`
-  (two hunks), `specs/018-plan-oos-item-disposition/plan.md` (new),
-  `skills/skill-extraction-workflow/references/source-register.md` (one appended
-  row). Nothing else.
+  (two regions — the disposition bullet, evolved across rounds 1–5, and the
+  field-list slot), `specs/018-plan-oos-item-disposition/plan.md` (new),
+  `skills/skill-extraction-workflow/references/source-register.md` (five
+  appended rows, one per impact-chain round). Nothing else. (Row refreshed
+  before the human-granted extension chain ran; the original row predates the
+  first review round, per the ordering rule.)
 - Edge/failure paths: over-fire on non-goals (bounded by the positive predicate
   alone; the drafted exemption sentence was deleted on review round 1's
   finding); under-fire on items not phrased as defect/debt/follow-up (mitigated
