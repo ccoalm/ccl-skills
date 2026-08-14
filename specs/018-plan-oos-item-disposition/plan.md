@@ -311,6 +311,19 @@ Rounds are appended below as they complete.
   recorded here. The items stay open until then, so nothing is terminated by
   the author's assertion.
 
+- **h2 round 3 — challenge, codex, `status=findings`, 1×P1: valid, and
+  resolvable only by the risk owner.** The two proposed declines sit in this
+  plan's own out-of-scope list with no recorded decision or acceptance; once
+  the plan lands it is an archive, so by the letter of the rule this slice
+  lands with two unowned known-work items — the exact prohibited path. The
+  finding's fix requires the risk owner's explicit durable decisions before
+  landing. The decisions were put to the risk owner directly in the delivery
+  report of this round; their verbatim-adjacent record (decision, date, by
+  whom) lands in the paragraph under the out-of-scope list, resolving this
+  finding, before any integration. The dogfood conclusion is itself evidence
+  the rule works: the slice cannot land while its own out-of-scope items are
+  ownerless.
+
 ## The RED, recomputed (round-1 finding 3)
 
 Run from the worktree, base pinned at ec8b2a2:
