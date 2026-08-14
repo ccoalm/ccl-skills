@@ -40,11 +40,11 @@
 | 项 | 说明 |
 | --- | --- |
 | 两个新路由靶子 | `mem-oncall-sop`（两臂同形不稳，非本轮引入）、`route-opencode-project-config`（本来就坏）——见「路由提升轮的待办」。**均已结清**：各自独立一轮补 10 轮基线后修复，`route-opencode-project-config` 2/10 → 10/10；`mem-oncall-sop` 1/10 → 全表面绑定终测 10/10，经维护者批准的加时终审（h1a/h1b2）收敛后结清（见各自落地记录节）。加时轮顺带查明 `p3-log-plus-test` 为先存两臂不稳用例（base 臂 5/9），列为下一轮独立靶子。**该靶子亦已由独立一轮结清（基线 8/10，判非稳定失败——复合题面固有不稳，按测量纪律不动 description，见其落地记录节）** |
-| renamed-away owner 逃过轮次 presence | 前一轮实质改了 X、中间有账本边界关掉那轮而没给 X 的行、后一轮把 X 改名走：两轮都不要求它。**非分区引入**——同一 fixture 在分区前的闸上同样放行（差分实测）。根在 `bad_evidence_files` 按工作树查 SKILL.md 存在性而非按轮次 head，修它是另一条改动 |
+| renamed-away owner 逃过轮次 presence | 前一轮实质改了 X、中间有账本边界关掉那轮而没给 X 的行、后一轮把 X 改名走：两轮都不要求它。**非分区引入**——同一 fixture 在分区前的闸上同样放行（差分实测）。根在 `bad_evidence_files` 按工作树查 SKILL.md 存在性而非按轮次 head，修它是另一条改动。**已结清（分支 `worktree-gate-round-head-presence`，specs/019）**：证据存在性改按行所属轮次 head 查；主体选集沿各轮 git rename_pairs 传播 **lineage**——excused 源名与瞬态中间跳名在其存在于轮次 head 的轮次里被要求且被认可，行申报映射与 RED 底线校验迭代同步（删除 owner 从未被剔除，fail-closed 不变）。六向差分 RED→GREEN：逃逸形（`case-round-scope-renamed-away-pre-rename-round`，修前 rc=0 应 1）、合法 pre-rename 行接纳形（`case-round-scope-renamed-away-row-at-round-head`，修前 rc=1 应 0）、瞬态跳逃逸形（`case-round-scope-transient-rename-hop-undeclared`，dual-track r1 双 lane 同类命中后补，一修候选上 rc=0 应 1）、跨轮删+重建洗白形（`case-round-scope-delete-then-recreate-lookalike`，r2 review 命中，二修候选上 rc=0 应 1——豁免收紧为原子轮内 rename）、诚实 rename 环误拒形（`case-round-scope-declared-rename-cycle`，r2 challenge 命中，二修候选上 rc=1 应 0——absent 名仅在本轮改名到选集后继时抑制要求）、SKILL.md 同名目录伪装形（`case-round-scope-skillmd-directory-masquerade`，维护者批准的加时终审 h1 challenge 命中——raw_blob 存在性把树读作在场，属本轮引入回归，改 `regular_blob_at` 模式判定修复，加时前候选上 rc=0 应 1）各实测 RED |
 
 **证据行按轮次写、闸按累积 diff 判：已解决**（分支 `worktree-gate-round-scope`）。分类与 presence 双双收窄到「切在碰账本的 commit 上」的轮次，owner 级 RED 底线仍按累积（两者中更严的读法）。三处对抗评审各击穿一次并已修：行按文本布尔判存活可被「base 已有同文本 → 追加 → 后轮删一条」洗白（改为 HEAD 减 base 的多重集配额）；no-behavior 契约的措辞仍写着 whole diff（已改）；merge 形状全无覆盖（已补两条 fixture）。
 
-**残留（如实记）**：新增的 merge fixture 证明了合并轮次这个形状可用，但去掉 `--first-parent` 后整套仍绿——这个 flag 本身**未被证明承重**，覆盖它需要一条能区分两种走法的用例。
+**残留（如实记）**：新增的 merge fixture 证明了合并轮次这个形状可用，但去掉 `--first-parent` 后整套仍绿——这个 flag 本身**未被证明承重**，覆盖它需要一条能区分两种走法的用例。**已结清（分支 `worktree-gate-round-head-presence`，specs/019）**：判别用例 `case-round-scope-merged-row-before-work`（分支上账本行先于 owner 变更、`--no-ff` 合并）——first-parent 走法整分支收敛为一轮而通过，全走法在分支内账本 commit 处切轮、变更落进无行的后一轮而拒绝。差分实测：现行闸整套绿；仅去掉 `--first-parent` 的突变体恰在该用例的具名断言处转红。
 
 PR #2 的 size 闸是**红着合的**：搬迁相对合并前的 main 读作新增每会话注入文件，而闸已不再有任何识别搬迁的机制（见下）。这是设计本意——搬迁就该停下来让人拍板。合并后自愈，main 上复跑为 `ccl_skill_check_clean_ok`。
 

@@ -138,11 +138,16 @@ upstream_owner_skills = %w[
   testing-strategy
   tighten-doc
 ]
-upstream = changed.select do |path|
+# Name-level selection predicate, shared by the cumulative subject filter and
+# the per-round rename-away suppression below: whether a NAME is a decision
+# owner is a property of the name, independent of whether it exists at the
+# range endpoints.
+selectable_path = lambda do |path|
   path.end_with?("-architecture/SKILL.md") ||
     path.start_with?("platform-") && path.end_with?("/SKILL.md") ||
     upstream_owner_skills.any? { |skill| path == "#{skill}/SKILL.md" }
 end
+upstream = changed.select { |path| selectable_path.call(path) }
 # Subject selection reasons about the whole range, so it reads the cumulative
 # pairs; the per-round classifiers take their pairs from their own scope.
 rename_pairs = cumulative.rename_pairs
@@ -154,6 +159,20 @@ rename_pattern = cumulative.rename_pattern
 raw_blob_at = lambda do |ref, relative|
   out = IO.popen(["git", "-C", root, "show", "#{ref}:#{relative}", err: File::NULL], &:read)
   $?.success? ? out.force_encoding(Encoding::BINARY) : nil
+end
+# Existence at a ref must mean A REGULAR FILE. `git show ref:path` also succeeds
+# for a TREE, so a directory named SKILL.md would read as "present" and let a
+# row vouch for an owner whose entrypoint was effectively deleted (the
+# extension-challenge P1). ls-tree exposes the entry's mode; only a regular
+# blob counts, so symlinks, submodules, and directories all read as absent and
+# fall through to the deletion fail-closed path.
+regular_blob_at = lambda do |ref, relative|
+  out = IO.popen(["git", "-C", root, "ls-tree", "-z", ref, "--", relative], err: File::NULL, &:read)
+  next false unless $?.success?
+  entry = out.split("\0").reject(&:empty?).first
+  next false unless entry
+  mode = entry.split(/\s+/, 2).first
+  mode == "100644" || mode == "100755"
 end
 # Every tracked entry in an owner package at one ref, as "<mode> <path>". The MODE
 # is part of the identity: names and contents alone would let a diff drop the
@@ -219,10 +238,14 @@ package_reproduces = lambda do |scope, base_owner, owner|
       base_bytes.gsub(scope.rename_pattern) { |hit| scope.rename_pairs.fetch(hit) } == head_bytes
   end
 end
-# A RENAMED-AWAY owner cannot be the subject of a row: the evidence check below
-# rejects any row citing a missing SKILL.md, so demanding one asks for the exact
-# row it then refuses. Its successor is itself in `changed` and carries the
-# declaration, so the change is still declared once, against the surviving name.
+# A RENAMED-AWAY owner is excused from the CUMULATIVE subject set: for the
+# rename round itself its successor is in `changed` and carries the declaration,
+# so the rename is declared once, against the surviving name. The excuse is
+# cumulative only — a round BEFORE the rename that substantively changed the
+# owner still owes a row under the old name, and the evidence check reads each
+# row against its own round head, so that row is writable and stays valid after
+# the rename. The per-round subject set below re-admits the excused owner for
+# exactly those rounds.
 #
 # A DELETED owner is not that case and stays a subject. Excluding every missing
 # path would let removing a decision owner outright — the larger change of the
@@ -240,6 +263,10 @@ end
 # contradiction this replaced, which at least failed closed. The destination must
 # already be in the selected set for the declaration to have somewhere to land.
 selected_paths = upstream.to_h { |path| [path, true] }
+# Owners dropped here are remembered: the per-round subject set and the row
+# recognition below re-admit them for the rounds where their SKILL.md still
+# existed, so the cumulative excuse cannot leak backwards onto pre-rename work.
+rename_excused = {}
 upstream = upstream.reject do |path|
   owner = path.sub(%r{/SKILL\.md\z}, "")
   destination = rename_pairs[owner]
@@ -248,10 +275,18 @@ upstream = upstream.reject do |path|
   # only makes reproduction fail — but dropping a subject on a wrong pair is the
   # opposite, so this drop is tied to hard evidence instead: the destination
   # package must actually be the source package with the identifiers rewritten.
-  !File.file?(File.join(root, "skills", path)) &&
+  excused = !File.file?(File.join(root, "skills", path)) &&
     destination && File.file?(File.join(root, "skills", destination, "SKILL.md")) &&
     selected_paths["#{destination}/SKILL.md"] &&
-    package_moved.call(cumulative, owner, destination)
+    package_moved.call(cumulative, owner, destination) &&
+    # The cumulative endpoints also pair a round-A DELETE with a round-B ADD of
+    # a lookalike — a laundering shape, not a rename. An honest rename is atomic
+    # inside one round, so the excuse additionally requires some single round's
+    # OWN pairs to contain the source; a cross-round delete/recreate split has
+    # no such pair and stays a deletion, which fails closed.
+    round_bounds.any? { |span_base, span_head| scope_at.call(span_base, span_head).rename_pairs.key?(owner) }
+  rename_excused[path] = true if excused
+  excused
 end
 if upstream.any?
   # Rows are collected PER ROUND and carry the scope they were authored against,
@@ -339,22 +374,62 @@ if upstream.any?
   rows_by_upstream_path = Hash.new { |h, k| h[k] = [] }
   declared_in_round = {}
   upstream_set = upstream.to_h { |path| [path, true] }
+  # Selected-owner rename LINEAGE. A transient intermediate name — X renamed to
+  # Y in one round, Y to Z in a later one — appears in neither the cumulative
+  # diff (which pairs X with Z directly) nor the excused set, yet a round that
+  # substantively changed Y owes its row like any other selected owner (both
+  # review lanes independently found this laundering path). Walk the rounds in
+  # order and propagate selection through each round's OWN rename pairs; every
+  # name reached this way is treated exactly like the directly-excused source
+  # name: demanded and recognized wherever it exists at a round head. Pairs come
+  # from git per span, never from an author declaration, and a name outside the
+  # selected lineage can never join, so this only ever adds obligations.
+  lineage_extra = rename_excused.dup
+  round_bounds.each do |span_base, span_head|
+    scope_at.call(span_base, span_head).rename_pairs.each do |from_owner, to_owner|
+      from_path = "#{from_owner}/SKILL.md"
+      to_path = "#{to_owner}/SKILL.md"
+      next unless upstream_set[from_path] || lineage_extra[from_path]
+      lineage_extra[to_path] = true unless upstream_set[to_path]
+    end
+  end
   # One round's subject set: the same normalization the cumulative pass uses,
-  # intersected with the cumulative selection. Intersecting rather than re-running
-  # the curated-list and rename-drop filters means a round can never demand a row
-  # for an owner the cumulative pass already excused (a renamed-away owner has no
-  # surviving SKILL.md for a row to cite), so this can only ever add obligations
-  # inside the set that already carries them.
+  # intersected with the cumulative selection — so a round can never demand a row
+  # for an owner the curated-list filter never picked. A lineage name (the
+  # rename-excused source or a transient intermediate hop) is admitted for
+  # exactly the rounds where its SKILL.md still exists at the round head: those
+  # rounds' rows cite a name that was real when the round landed and stays
+  # checkable against that round's head. In the round that renames it away the
+  # SKILL.md is gone at the head, so the old name is not demanded there and the
+  # successor carries that round's declaration — which is the whole cumulative
+  # excuse, now scoped to the one round it is sound for. A DELETED owner was
+  # never excused and is unaffected.
   upstream_for_round = lambda do |scope|
     scope.changed_paths.filter_map do |path|
       next nil if path == LEDGER_PATH
       m = path.match(%r{\Askills/([^/]+)/.+\z}m)
       "#{m[1]}/SKILL.md" if m
-    end.uniq.select { |candidate| upstream_set[candidate] }
+    end.uniq.select do |candidate|
+      next false unless upstream_set[candidate] || lineage_extra[candidate]
+      next true if regular_blob_at.call(scope.head, "skills/#{candidate}")
+      # Absent at this round's head. The demand is suppressed ONLY when this
+      # round's own git-verified pairs rename the name to a SELECTED successor —
+      # that successor carries this round's declaration, and a rename CYCLE
+      # (A to B, then B back to A) stays fully declarable without ever asking
+      # for a row the evidence check must refuse. Everything else stays
+      # demanded: a deletion has no pair and fails closed, and a rename to an
+      # unselected slug keeps the curated source bound as the named subject.
+      owner = candidate.sub(%r{/SKILL\.md\z}, "")
+      destination = scope.rename_pairs[owner]
+      !(destination && selectable_path.call("#{destination}/SKILL.md"))
+    end
   end
   rows.each do |row|
     paths = row[:evidence].scan(/(?<![\w\/.-])([a-z][a-z0-9_-]+\/SKILL\.md)(?![\w\/.-])/).flatten.uniq
-    upstream_paths_in_row = paths.select { |path| upstream_set[path] }
+    # A lineage name's rows are recognized as declarations, matching the
+    # per-round subject set above — demanding a row the mapping then ignored
+    # would be the same contradiction the excuse used to justify.
+    upstream_paths_in_row = paths.select { |path| upstream_set[path] || lineage_extra[path] }
     if upstream_paths_in_row.length > 1
       ambiguous_evidence_rows << { line: row[:line].sub(/^\+/, "").strip, paths: upstream_paths_in_row }
     end
@@ -371,13 +446,20 @@ if upstream.any?
       warn "  row: #{row[:line]}"
     end
   end
+  # Existence is checked against the ROW'S OWN ROUND HEAD, not the working tree.
+  # A row is authored against one round's diff, so the name it cites only has to
+  # be real when that round landed: reading the working tree instead made a later
+  # rename retroactively invalidate honest pre-rename rows — and that impossible
+  # row was the stated excuse for dropping renamed-away owners from every round's
+  # subject set, which let their pre-rename work escape undeclared. A row citing
+  # a name its own round never had stays rejected.
   rows.each do |row|
     row[:evidence].scan(/(?<![\w\/.-])([a-z][a-z0-9_-]+\/SKILL\.md)(?![\w\/.-])/).flatten.each do |path|
-      bad_evidence_files << path unless File.file?(File.join(root, "skills", path))
+      bad_evidence_files << path unless regular_blob_at.call(row[:scope].head, "skills/#{path}")
     end
   end
   if bad_evidence_files.any?
-    warn "impact_chain_evidence_missing_file: unchanged evidence cites missing SKILL.md"
+    warn "impact_chain_evidence_missing_file: evidence cites a SKILL.md missing at its round head"
     bad_evidence_files.uniq.each { |path| warn "  missing: #{path}" }
     exit 1
   end
@@ -758,7 +840,11 @@ if upstream.any?
         enforcing_file_locator_valid.call(scope, parts)
     end
   end
-  upstream.each do |path|
+  # Lineage names join the walk: their recognized rows must clear the same
+  # behavior-evidence and firing-path bar as everyone else's (each row judged
+  # against its own round, where its anchors resolve), or the admission above
+  # would accept rows it never validates.
+  (upstream + lineage_extra.keys).each do |path|
     owner_rows = rows_by_upstream_path[path]
     next if owner_rows.empty? # reported by impact_chain_gate_missing above
     owner = path.sub(%r{/SKILL\.md\z}, "")
