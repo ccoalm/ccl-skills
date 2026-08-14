@@ -128,13 +128,14 @@ Out of scope, each with its disposition (this rule's own dogfood):
   declined**: plans are freeform prose by design; the slot form lands only in
   the one enumerated field list that exists (assessment-shape plans).
 
-Deciding authority for both declines (added on the extension chain's review
-finding — the rule this slice lands requires it, and the plan author alone
-cannot terminate known work): both are *proposed* here with their reasons and
-operability legs, and *decided* by the human risk owner whose merge of this
-slice is the durable decision record; a merge of this slice ratifies both
-declines, and a risk owner who disagrees strikes the item back into scope
-before merging.
+Decision state for both declines (tightened on the h2 challenge finding —
+ratification-by-merge names no made decision, and a bare authority name is not
+a decision): both are **proposed declines, pending the explicit decision of the
+identified decision owner** — the repository risk owner, who was asked directly
+in this round's delivery report. Until that decision is recorded here, both
+items are OPEN known work whose item-specific entry is this list. When the
+decision arrives, this paragraph records it verbatim-adjacent (decision, date,
+by whom) as the durable decision record the rule requires.
 
 ## Self-review row (persisted before the independent review)
 
@@ -297,6 +298,18 @@ Rounds are appended below as they complete.
   per-round row obligation and the append-only contract (the impact-chain gate
   rejected exactly the edit-in-place shape earlier in this slice); reader
   navigation is carried by each row's explicit supersede-by-pointer clause.
+
+- **h2 round 2 — challenge, codex, `status=findings`, 1×P1, accepted in both
+  halves.** Naming is not accepting: (rule half) the locator's durable entry
+  must RECORD the accepting owner's acceptance, and a terminal decline must
+  CITE the decision's durable record — a bare owner or authority name was one
+  more assertion costume, and the sibling closeout instance already carries
+  exactly this made-decision bar; (plan half) this plan's own
+  ratification-by-merge paragraph named a future merge, not a made decision —
+  replaced by proposed-declines-pending-explicit-decision, with the identified
+  decision owner asked directly in the delivery report and the answer to be
+  recorded here. The items stay open until then, so nothing is terminated by
+  the author's assertion.
 
 ## The RED, recomputed (round-1 finding 3)
 
