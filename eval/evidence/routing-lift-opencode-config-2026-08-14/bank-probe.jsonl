@@ -1,0 +1,1 @@
+{"id": "probe-combined-impl-intent", "utterance": "在共享技能仓给 OpenCode 新增一个由脚本实现的项目命令", "expected_skill": "skill-extraction-workflow", "why_expected": "probe only: challenger-proposed combined implementation-intent utterance", "frozen_at_sha": "root", "must_not_route_to": []}

@@ -12,6 +12,8 @@ Figma and code have different evidence roles:
 
 For any extraction that claims interaction logic, behavioral logic, psychology, development guidance, testing guidance, or launch acceptance, corresponding frontend/app/client code is required unless it is unavailable or explicitly out of scope. If code is unavailable, mark the result as design-intent extraction only and do not claim runtime behavior was validated.
 
+The judgment-dimension axis (the enumeration the entrypoint's adjacency-scan rule points at): visual direction/tokens, aesthetics, interaction logic, behavioral logic, psychology, accessibility, implementation ownership, testing evidence, and product readiness.
+
 ## Required Method
 
 Do not start by writing principles. For each target workflow or screen family, build this chain:
