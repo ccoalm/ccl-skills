@@ -57,10 +57,10 @@
     "baseline-rounds/round-8.json.binding.json": "9cd1d999fbefe317bd1a6dd67b35b39f1128c89a6bdb330f97d4a7dacf1363ae",
     "baseline-rounds/round-9.json": "c69f9f8eaf8332648598a0064fd42dede2e0e8dae5f31022c50c22933ae8b7be",
     "baseline-rounds/round-9.json.binding.json": "2f54b5df06d596c17c7b23a87bbbb7b4f0232d7a5aaf3b8d7dd4bf81d3f6b0c8",
-    "run-bound-round.sh": "ff75f75e02a0b9da60de28b24e3af4167013634b2fed872368b7a60dc389d2aa",
+    "run-bound-round.sh": "4cc1f2ad56b7a40005ef7ff9bbb9fbd8125d369ce0e6de2a7440aa49defacbd4",
     "recompute-aggregates.py": "50b8f21c67eddc3b21efb65f6d8450bef585c050be29f3483e2e40518fc9f1c6",
     "aggregates-recomputed.json": "0f9ae638c52e955a4be02aaf700392d3354b58642445a0c0413177bbd7cded5e",
-    "test-run-bound-round.sh": "de068759883665cf0eca3edb0c6549bbc4864db07352430a18fc0cef8ba5a122"
+    "test-run-bound-round.sh": "ea2eea66f2235d26d840e2f01fd0b77297ddafed85830a42c27fb2a910620b97"
   },
   "provenance_correction": {
     "chain": "routing-p3-log-plus-test-r1 (codex dual-lane, both P1s same class)",
@@ -78,6 +78,11 @@
     "chain_r3": {
       "review_P1": "wrapper set binding_valid=true on surface/cleanliness/rc alone — an evaluator returning rc=0 without a usable round file yielded a false-green sidecar; accepted and fixed: OUT must be a non-empty regular file with a parseable results[] structure before binding_valid, and the wrapper now exits nonzero when binding is invalid; test-run-bound-round.sh is the regression proof (differential: pre-fix revision fails it for the right reason). The 10 committed rounds are unaffected: their round files exist and were individually json.load'ed by recompute-aggregates.py (82 rows).",
       "budget_note": "Agent-autonomous budget 5/5 consumed (r1 review+challenge, r2 review+challenge, r3 review). This r3-finding fix executes the reviewer's own smallest_fix verbatim and, per the oncall/opencode-round regression stop-point precedent, is exposed to the maintainer with the merge decision rather than opening another Agent round; r3's declared-but-unconsumed challenge capacity is likewise the maintainer's call."
+    },
+    "extension_round_h1": {
+      "authority": "maintainer-requested extension review (2026-08-14), outside the exhausted Agent-autonomous budget; consumed chain r3's declared-but-unused challenge capacity on the landed candidate (512b77a..dev merge 2a0ec22)",
+      "challenge_P1": "stale-output reuse: rerunning a round number into an outdir already holding a valid round-N.json while the evaluator exits 0 without writing let the wrapper hash and validate the STALE file (binding_valid=true false green on retries — the protocol's own timeout-rerun scenario); the fresh-directory regression test could not exercise it. Accepted and fixed per smallest_fix: evaluator now writes to a mktemp path that is validated and only then atomically moved into place (stale files are never hashed or validated as this run's result; round_file_sha256 is empty on failure); test case 4 pre-seeds a stale valid round file with a no-output evaluator and requires fail-closed. Differential proof: the pre-fix revision (dev 2a0ec22) fails only case 4 with rc=0 while cases 1-3 pass in both revisions.",
+      "note": "the 10 committed baseline rounds are unaffected: each was generated into a fresh directory in strictly increasing round order, and every retained round file was independently parsed by recompute-aggregates.py"
     }
   }
 }

@@ -38,16 +38,26 @@ BEFORE=$(surface_hash)
 HEAD_SHA=$(git -C "$WT" rev-parse HEAD)
 DIRTY=$(git -C "$WT" status --porcelain -- skills/ | wc -l | tr -d ' ')
 
-(cd "$WT" && ruby skills/skill-extraction-workflow/scripts/eval-routing-bank.rb . --bank "$BANK" --timeout 120 --json "$OUT")
+# Evaluator writes to a fresh temp path; it is validated and only then atomically
+# moved into place, so a stale pre-existing round-$N.json can never be hashed or
+# validated as this run's result (extension-challenge P1: stale-output reuse).
+TMP_OUT="$(mktemp "$OUTDIR/.round-$N.json.XXXXXX")" || exit 1
+trap 'rm -f "$TMP_OUT"' EXIT
+(cd "$WT" && ruby skills/skill-extraction-workflow/scripts/eval-routing-bank.rb . --bank "$BANK" --timeout 120 --json "$TMP_OUT")
 RC=$?
 
 AFTER=$(surface_hash)
 DESC_SHA=$(grep -m1 '^description:' "$WT/skills/platform-observability/SKILL.md" | shasum -a 256 | awk '{print $1}')
-ROUND_SHA=$(shasum -a 256 "$OUT" 2>/dev/null | awk '{print $1}')
 OUT_OK=false
-if [ -f "$OUT" ] && [ -s "$OUT" ] && [ -n "$ROUND_SHA" ] \
-   && python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); rs=d["results"]; assert isinstance(rs,list) and rs and all("status" in r and "selected" in r for r in rs)' "$OUT" 2>/dev/null; then
+if [ -f "$TMP_OUT" ] && [ -s "$TMP_OUT" ] \
+   && python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); rs=d["results"]; assert isinstance(rs,list) and rs and all("status" in r and "selected" in r for r in rs)' "$TMP_OUT" 2>/dev/null; then
   OUT_OK=true
+fi
+ROUND_SHA=""
+if [ "$OUT_OK" = "true" ]; then
+  mv -f "$TMP_OUT" "$OUT" || exit 1
+  ROUND_SHA=$(shasum -a 256 "$OUT" 2>/dev/null | awk '{print $1}')
+  [ -n "$ROUND_SHA" ] || OUT_OK=false
 fi
 VALID=false
 if [ "$BEFORE" = "$AFTER" ] && [ "$DIRTY" = "0" ] && [ "$RC" = "0" ] && [ "$OUT_OK" = "true" ]; then VALID=true; fi

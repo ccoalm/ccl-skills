@@ -58,5 +58,20 @@ if grep -q '"binding_valid": true' "$TMP/out-c3/round-3.json.binding.json" && [ 
   echo "FAIL case3: rc=$rc (structurally valid output must pass)"; fail=1
 fi
 
-if [ "$fail" = "0" ]; then echo "PASS: all 3 cases"; else echo "FAILURES present"; fi
+# case 4: outdir pre-seeded with a stale VALID round file; evaluator exits 0
+# writing nothing -> must fail closed (stale result must not be re-validated as
+# this run's result; extension-challenge P1: stale-output reuse on retries)
+cat > "$TMP/bin/ruby" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+chmod +x "$TMP/bin/ruby"
+mkdir -p "$TMP/out-c4"
+printf '{"results":[{"id":"stale","status":"PASS","selected":"y"}]}' > "$TMP/out-c4/round-4.json"
+run 4 "$TMP/out-c4" >/dev/null 2>&1; rc=$?
+if grep -q '"binding_valid": false' "$TMP/out-c4/round-4.json.binding.json" && [ "$rc" != "0" ]; then :; else
+  echo "FAIL case4: rc=$rc (stale pre-existing round file must not be accepted when the evaluator produced no output)"; fail=1
+fi
+
+if [ "$fail" = "0" ]; then echo "PASS: all 4 cases"; else echo "FAILURES present"; fi
 exit $fail
