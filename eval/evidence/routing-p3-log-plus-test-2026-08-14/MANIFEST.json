@@ -1,0 +1,59 @@
+{
+  "round": "routing-p3-log-plus-test (independent baseline + classification round; NO-EDIT disposition)",
+  "date": "2026-08-14",
+  "base": "dev 512b77abe064f219245532f9672622ac821ef6d2 (== branch worktree-routing-p3-log-plus-test fork point; no skill or bank file was modified in this round)",
+  "classification": {
+    "verdict": "NOT a stable failure - persistent low-grade two-arm instability intrinsic to the compound utterance",
+    "baseline": "8/10 PASS; fails: round-1.json selected=go-microservice-dev conf=0.85; round-6.json selected=go-microservice-dev conf=0.65",
+    "pass_confidence": {
+      "median": 0.75,
+      "min": 0.65,
+      "max": 0.95
+    },
+    "must_not_testing_strategy_hits": 0,
+    "historical_arms": "base(6a795af) 5/9; post-change arms 19/27 (oncall-round h1b2 recount); this round base(512b77a) 8/10 - same-rate same-shape across surface versions",
+    "mechanism": "lexical-anchor-deficit hypothesis FALSIFIED by token-sibling new-observability-fields (15/15 across oncall-round neighbor arms, same 结构化日志/trace 透传/接口 tokens, zero Chinese description anchor); the only distinguishing features of p3-log-plus-test are the compound test tail 再写测试覆盖它 and pure implementation phrasing 给登录接口加上 - flips (all to stack-dev, conf 0.5-0.85) are the implementer reading of a genuinely compound utterance",
+    "disposition": "per skills/skill-extraction-workflow/references/eval-routing.md §Bank 用例修复的测量纪律 rule 1 (抖动不得作为修改依据): no description edit, no bank edit; case retained as characterized known-unstable compound sentinel; sentinel treatment (keep vs wording rebalance) routed to the next bank round"
+  },
+  "candidate_binding": {
+    "note": "NO candidate wording exists - this round changed no routing surface. The bound surface in every sidecar is the unmodified dev 512b77a surface.",
+    "platform_observability_description_line_sha256": "02abf437bd601733d71bb09cff921047f7e0f52bce399e7cf4b968b25f85810e",
+    "surface_scope": "all skills/*/SKILL.md description lines (dir-name-tagged, sorted glob order) + the bank file; hash captured before AND after each round (run-bound-round.sh, included)"
+  },
+  "runner": {
+    "invocation": "bash run-bound-round.sh <n> bank-single.jsonl baseline-rounds  ->  ruby skills/skill-extraction-workflow/scripts/eval-routing-bank.rb <worktree-root> --bank bank-single.jsonl --timeout 120 --json baseline-rounds/round-<n>.json (all 10 rounds --timeout 120; no grader timeouts)",
+    "grader": "claude --print --tools \"\" --model claude-haiku-4-5 (runner default)"
+  },
+  "contents": {
+    "baseline-rounds": "10 bound rounds on the unmodified dev 512b77a surface: 8/10 PASS; binding_valid 10/10; unique repo_head 1; unique surface hash 1",
+    "bank-single.jsonl": "the single frozen-bank line for p3-log-plus-test, extracted verbatim from eval/routing-tasks.jsonl at 512b77a",
+    "bank-neighbors.jsonl": "PREPARED-UNUSED: 11-case neighbor set built for the fix path before classification; no neighbor rounds were run because the no-edit disposition made them moot",
+    "run-bound-round.sh": "the atomic full-surface binding wrapper that produced every *.binding.json sidecar"
+  },
+  "measurement_note": "random-sampling measurement: recomputable (invocation + grader recorded) but per-round numbers are not bit-reproducible; the n=10 discipline exists for this. All aggregates in this manifest are recomputed from the raw round files, not copied forward.",
+  "files_sha256": {
+    "bank-neighbors.jsonl": "8f19363ea3666852042dff296e7289e04a75c7069e0c7374d3af23816e852b17",
+    "bank-single.jsonl": "49f40978ba87c303dcdfb8bd2ed005cab3733f8f26a0ebf525027b654eeb587e",
+    "baseline-rounds/round-1.json": "479873ced8e9fbecd81da9696b6ad0ba3cfe3700fc53a88598d792407154f10a",
+    "baseline-rounds/round-1.json.binding.json": "d2ced6ebeea5d3ceb3edb15356ce437b585bee4e2b0f2b20e3a050e5db37f953",
+    "baseline-rounds/round-10.json": "ac18662c04a4f9eb9f560c702ccf840483898d418ccd81b8f64a09eaa82e4df5",
+    "baseline-rounds/round-10.json.binding.json": "dc8d4f8a0a6ff0818290f4752e7e1a683f78d470ca6541d264539e60aabbf320",
+    "baseline-rounds/round-2.json": "50d725a83091fca31c1fa00d27954c68b7055fb7e9e8ba7e89c351c67c8f765e",
+    "baseline-rounds/round-2.json.binding.json": "9272e87c499c4650f7ff7c026845f79f6bdb2a9ddb67cb99b08def60b93e62b4",
+    "baseline-rounds/round-3.json": "e146c070aeff8c97b0d2626cd24eff453a581573e799b58c2db1240fac4419af",
+    "baseline-rounds/round-3.json.binding.json": "1ec4a79a315ba7f8acc4c2567c7cc0bd8d8f3a67433911d31bf74c38d1e4574c",
+    "baseline-rounds/round-4.json": "5b80f6608850d97e608edac12ab06f4927e4b42297ee6c8f0f3f7c704608cba5",
+    "baseline-rounds/round-4.json.binding.json": "95607bef16c9acc8e0acbe2c5df44425a050e8e36e65e24090bf18f073e33c8e",
+    "baseline-rounds/round-5.json": "5f8511af652e3a00eca75c2f9499f049deda17fb8cde79e8ee1256355bd1d786",
+    "baseline-rounds/round-5.json.binding.json": "75e45573f5290cc5a1db5d43d01d985800eaba3e5769c0cf0c0099735ee98f7d",
+    "baseline-rounds/round-6.json": "59f667748776b6d08eae32c80b0bd1074ed33280975ef425b83b1a4b7d09f29c",
+    "baseline-rounds/round-6.json.binding.json": "11dd65e4e55a14fad9a75eea32bf3db9879813e3b468c357436b491fdea12b98",
+    "baseline-rounds/round-7.json": "ac18662c04a4f9eb9f560c702ccf840483898d418ccd81b8f64a09eaa82e4df5",
+    "baseline-rounds/round-7.json.binding.json": "58e5f43337044dc3b304712cfd9e3334ca422c691885119f4b931daa8553b23c",
+    "baseline-rounds/round-8.json": "ac18662c04a4f9eb9f560c702ccf840483898d418ccd81b8f64a09eaa82e4df5",
+    "baseline-rounds/round-8.json.binding.json": "9cd1d999fbefe317bd1a6dd67b35b39f1128c89a6bdb330f97d4a7dacf1363ae",
+    "baseline-rounds/round-9.json": "c69f9f8eaf8332648598a0064fd42dede2e0e8dae5f31022c50c22933ae8b7be",
+    "baseline-rounds/round-9.json.binding.json": "2f54b5df06d596c17c7b23a87bbbb7b4f0232d7a5aaf3b8d7dd4bf81d3f6b0c8",
+    "run-bound-round.sh": "7f3a519f738bc43afb70dde81b897b10dfa74e06329478f80cec7ffb163cbc9f"
+  }
+}

@@ -39,7 +39,7 @@
 
 | 项 | 说明 |
 | --- | --- |
-| 两个新路由靶子 | `mem-oncall-sop`（两臂同形不稳，非本轮引入）、`route-opencode-project-config`（本来就坏）——见「路由提升轮的待办」。**均已结清**：各自独立一轮补 10 轮基线后修复，`route-opencode-project-config` 2/10 → 10/10；`mem-oncall-sop` 1/10 → 全表面绑定终测 10/10，经维护者批准的加时终审（h1a/h1b2）收敛后结清（见各自落地记录节）。加时轮顺带查明 `p3-log-plus-test` 为先存两臂不稳用例（base 臂 5/9），列为下一轮独立靶子 |
+| 两个新路由靶子 | `mem-oncall-sop`（两臂同形不稳，非本轮引入）、`route-opencode-project-config`（本来就坏）——见「路由提升轮的待办」。**均已结清**：各自独立一轮补 10 轮基线后修复，`route-opencode-project-config` 2/10 → 10/10；`mem-oncall-sop` 1/10 → 全表面绑定终测 10/10，经维护者批准的加时终审（h1a/h1b2）收敛后结清（见各自落地记录节）。加时轮顺带查明 `p3-log-plus-test` 为先存两臂不稳用例（base 臂 5/9），列为下一轮独立靶子。**该靶子亦已由独立一轮结清（基线 8/10，判非稳定失败——复合题面固有不稳，按测量纪律不动 description，见其落地记录节）** |
 | renamed-away owner 逃过轮次 presence | 前一轮实质改了 X、中间有账本边界关掉那轮而没给 X 的行、后一轮把 X 改名走：两轮都不要求它。**非分区引入**——同一 fixture 在分区前的闸上同样放行（差分实测）。根在 `bad_evidence_files` 按工作树查 SKILL.md 存在性而非按轮次 head，修它是另一条改动 |
 
 **证据行按轮次写、闸按累积 diff 判：已解决**（分支 `worktree-gate-round-scope`）。分类与 presence 双双收窄到「切在碰账本的 commit 上」的轮次，owner 级 RED 底线仍按累积（两者中更严的读法）。三处对抗评审各击穿一次并已修：行按文本布尔判存活可被「base 已有同文本 → 追加 → 后轮删一条」洗白（改为 HEAD 减 base 的多重集配额）；no-behavior 契约的措辞仍写着 whole diff（已改）；merge 形状全无覆盖（已补两条 fixture）。
@@ -205,10 +205,22 @@ Claude 端还留着三个按 commit 钉住的旧版本缓存目录（`7f9cdb9b49
 | 用例 | 期望 → 实得 | 观测 |
 | --- | --- | --- |
 | `mem-oncall-sop` | `platform-observability` → `product-rd-workflow` | 改前 7/10、改后 6/10，两臂同形不稳；非本轮引入。**已由独立一轮结清（基线实测 1/10 稳定失败而非抖动，修复后全表面绑定终测 10/10，经批准加时终审收敛，见下方落地记录）** |
-| `p3-log-plus-test` | `platform-observability` → 分散（python-dev / go-dev / product-rd，0.5–0.75） | mem-oncall-sop 加时轮查明：base 臂 5/9 与改后各臂同率同形（19/27），先存两臂不稳，非该轮引入。**待独立一轮**（准入同上：先 10 轮基线） |
+| `p3-log-plus-test` | `platform-observability` → 分散（python-dev / go-dev / product-rd，0.5–0.75） | mem-oncall-sop 加时轮查明：base 臂 5/9 与改后各臂同率同形（19/27），先存两臂不稳，非该轮引入。**已由独立一轮结清（基线 8/10 判非稳定失败——复合题面固有不稳，词面锚机制被同 token 兄弟例 15/15 证伪，按测量纪律第 1 条不动 description；哨兵处置 routed 下一 bank 轮，见下方落地记录）** |
 | `route-opencode-project-config` | `skill-extraction-workflow` → `product-rd-workflow` / `worktree-isolation` | 改前 0/3、改后 1/3，本来就坏，置信度 0.3–0.65。**已由基线补测轮结清（2/10 → 10/10，见下节）** |
 
 纪律不变：第二档 A 臂实测过，描述覆盖面一宽就跟更宽的邻居抢，多出的错会掉给 `product-rd-workflow` 和发布类技能。本轮又添一条实证——**收窄一个技能的 Skip 时，要同时检查它自己保留的所有权是否被这条 Skip 反噬**（`pytest 配置` 一度同时匹配"归技术栈"和"CI gate 归本技能"，由两条评审轨各自独立命中）。
+
+### p3-log-plus-test 独立一轮落地记录（分支 `worktree-routing-p3-log-plus-test`，NO-EDIT 结清）
+
+**charter 先行**：目的/范围/深度/根因/证据计划/完成标准（含双分支完成标准：稳定失败→修复路径；非稳定失败→如实记录不硬改）在任何深读与编辑前落盘于会话 scratch；本节是其 sanitized 落地记录。
+
+**基线（10 有效观测，全程 `--timeout 120`，无超时轮，全部按 oncall 轮 h1a 终态方法学做全路由输入面原子绑定）**：**8/10 PASS**，10/10 轮 binding_valid、单一 HEAD（dev `512b77a`）、单一 surface hash。失败 2 轮均 selected=`go-microservice-dev`（置信 0.85/0.65）；PASS 置信中位仅 0.75（0.65–0.95）。**must_not→`testing-strategy` 在本轮 10 轮 + oncall 轮邻居臂 9+6 轮共 25 轮绑定观测中 0 命中**（硬约束成立）。历史对照：base(6a795af) 5/9、改后各臂 19/27、本轮 base(512b77a) 8/10——两臂同率同形，跨表面版本持续存在。**判定：非稳定失败**（稳定失败先例对照：oncall 1/10、opencode 2/10），属复合题面固有的持续低度不稳。
+
+**机制归因（widen 分支，编辑前完成，故本轮零编辑）**：「期望 owner 缺中文词面锚」假设被**证伪**——同 token 兄弟例 `new-observability-fields`（「给这个现有接口补齐结构化日志字段、metrics 和 trace 透传，让它在生产可观测」）在 oncall 轮邻居臂 9/9 + 6/6 = **15/15 稳过**，用的是同一份零中文锚 description，说明 结构化日志/trace 透传/接口 这组 token 本身路由良好。p3 与它的仅有差异是复合尾句「再写测试覆盖它」与纯实现句式「给登录接口加上」；翻转全部流向 stack-dev（实现读法）且低-中置信、非集中抢词指纹。所有权核对：bank why_expected 与 `platform-observability` body 第 8/14/18/29-30 行（structured logs、log_id/trace_id propagation、"deciding what log fields propagate"）自洽，用例规格无缺陷，本就是 leading-deliverable 硬探针。反事实：足以压过测试尾句的强锚会同步加大偷「先加点日志看看」（`p-live500-addlog`→defect-diagnosis）、「调试日志脱敏」（`mem-api-log-redact`→app-dev）、「结构化测试用例」（→test-artifact-management）的风险，期望收益仅 +2/10，且该 description 已 799/800 无扩词余量。
+
+**处置（按 `references/eval-routing.md` §Bank 用例修复的测量纪律 第 1 条「抖动不得作为修改依据」——本轮即该闸的 firing 实例）**：不动任何 description、不动冻结 bank；用例保留为已刻画的 known-unstable 复合哨兵（dashboard 上该行 ~20–40% 翻转属已知特征而非新回归）；哨兵处置（保留 vs 措辞再平衡）**routed 下一 bank 轮**（非 co-change 轮不动 bank，与 oncall 轮混合句 decoy 同一处置路径）。owner map 全量 unchanged（platform-observability / 两个 stack-dev / product-rd 协调轴 / testing-strategy guard），零技能 diff；行为证据行 not-applicable: docs-only。「middle-band 分类命名 + 兄弟例对照诊断法」单次观测按证据纪律 deferred，二次出现再提炼进测量纪律。
+
+**测量出处**：全部原始逐轮 JSON（基线 10，每轮带 `*.binding.json` sidecar：32 条 description 行 + bank 文件全表面前后哈希 + HEAD + skills 树干净证明）连同 bank-single.jsonl、bank-neighbors.jsonl（prepared-unused：为修复路径预建的 11 用例邻居集，分类判定后未启用）、绑定 wrapper `run-bound-round.sh` 本体与 `MANIFEST.json`（逐文件 sha256、精确 runner 调用、grader 身份、聚合数从 raw 重算）提交在树内 `eval/evidence/routing-p3-log-plus-test-2026-08-14/`。随机采样测量：可复算、逐轮数字不可逐位复现。
 
 ### mem-oncall-sop 独立一轮落地记录（分支 `worktree-routing-oncall-sop`）
 
