@@ -128,14 +128,14 @@ Out of scope, each with its disposition (this rule's own dogfood):
   declined**: plans are freeform prose by design; the slot form lands only in
   the one enumerated field list that exists (assessment-shape plans).
 
-Decision state for both declines (tightened on the h2 challenge finding —
-ratification-by-merge names no made decision, and a bare authority name is not
-a decision): both are **proposed declines, pending the explicit decision of the
-identified decision owner** — the repository risk owner, who was asked directly
-in this round's delivery report. Until that decision is recorded here, both
-items are OPEN known work whose item-specific entry is this list. When the
-decision arrives, this paragraph records it verbatim-adjacent (decision, date,
-by whom) as the durable decision record the rule requires.
+Decision record for both declines (the durable decision record the rule
+requires): on 2026-08-14 the repository risk owner, asked directly through the
+host's structured decision prompt in this slice's delivery session, **approved
+both declines** — (a) answered "批准 decline（推荐）" for the mechanical
+checker, (b) answered "批准 decline（推荐）" for the format standardization.
+Both terminal declines therefore cite the authority's made decision here; the
+proposing analysis and operability legs remain recorded above as the reasons.
+This record resolves the h2 rounds 1–3 findings on these two items.
 
 ## Self-review row (persisted before the independent review)
 
@@ -358,10 +358,13 @@ applied; one declined with reason), challenge (index 4, one applied; three
 declined as one recorded class), challenge (index 5, one applied — the Agent
 budget's final round). The parked decision was resolved: the human risk owner
 granted a fresh extension chain (`oos-owner-018-h2`, in-session instruction,
-2026-08-14). h2 review completed (two accepted fixes above, two recorded
-declines); the h2 fresh full challenge of the exact final candidate closes the
-gate — its result is recorded here before any merge. Every finding across all
-rounds is dispositioned (fixed, or declined with a recorded reason).
+2026-08-14) — review (index 1: two accepted, two recorded declines), challenge
+(index 2: the recorded-acceptance tightening), challenge (index 3: the slice's
+own declines needed the risk owner's made decisions — obtained and recorded in
+the decision paragraph above on 2026-08-14). **Status: converged.** Every
+finding across both chains is dispositioned: fixed, declined with a recorded
+reason, or resolved by the risk owner's recorded decision. Integration into
+dev follows; the merge records itself.
 
 Gate output, author-transcribed, from `check-ccl-skills.sh` run against this
 candidate tree (rule, ledger rows, and this section's text included; the
