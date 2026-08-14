@@ -27,7 +27,7 @@
       "utterance": "团队要建 oncall 制度，告警先进一个统一接收处再分给对应负责人",
       "expected": "platform-observability",
       "selected": "platform-observability",
-      "confidence": 0.85,
+      "confidence": 0.9,
       "must_not_route_to": [],
       "status": "PASS",
       "error": null,
@@ -49,7 +49,7 @@
       "utterance": "制定发布值班 SOP，P0/P1 时打断排班并决定是否回滚",
       "expected": "platform-release-engineering",
       "selected": "platform-release-engineering",
-      "confidence": 0.72,
+      "confidence": 0.8,
       "must_not_route_to": [
         "platform-observability"
       ],
@@ -62,7 +62,7 @@
       "utterance": "上线前评估这个改动的风险等级，P0/P1 类问题要走哪些 gate 和审批",
       "expected": "feature-risk-router",
       "selected": "feature-risk-router",
-      "confidence": 0.95,
+      "confidence": 0.98,
       "must_not_route_to": [
         "platform-observability"
       ],
@@ -88,7 +88,7 @@
       "utterance": "给运营团队做一个值班排班管理功能，需求怎么拆",
       "expected": "product-rd-workflow",
       "selected": "requirement-scope",
-      "confidence": 0.7,
+      "confidence": 0.85,
       "must_not_route_to": [
         "platform-observability"
       ],

@@ -1,8 +1,8 @@
 {
   "model": "claude-haiku-4-5",
   "tasks": 7,
-  "pass": 7,
-  "fail": 0,
+  "pass": 6,
+  "fail": 1,
   "error": 0,
   "desc_budget_chars": null,
   "co_change_bank_and_descriptions": false,
@@ -27,7 +27,7 @@
       "utterance": "团队要建 oncall 制度，告警先进一个统一接收处再分给对应负责人",
       "expected": "platform-observability",
       "selected": "platform-observability",
-      "confidence": 0.92,
+      "confidence": 0.87,
       "must_not_route_to": [],
       "status": "PASS",
       "error": null,
@@ -62,7 +62,7 @@
       "utterance": "上线前评估这个改动的风险等级，P0/P1 类问题要走哪些 gate 和审批",
       "expected": "feature-risk-router",
       "selected": "feature-risk-router",
-      "confidence": 1.0,
+      "confidence": 0.98,
       "must_not_route_to": [
         "platform-observability"
       ],
@@ -87,12 +87,12 @@
       "id": "variant-neg-prd-shift-feature",
       "utterance": "给运营团队做一个值班排班管理功能，需求怎么拆",
       "expected": "product-rd-workflow",
-      "selected": "product-rd-workflow",
-      "confidence": 0.85,
+      "selected": "requirement-scope",
+      "confidence": 0.95,
       "must_not_route_to": [
         "platform-observability"
       ],
-      "status": "PASS",
+      "status": "FAIL",
       "error": null,
       "frozen_at_sha_is_ancestor": true
     }

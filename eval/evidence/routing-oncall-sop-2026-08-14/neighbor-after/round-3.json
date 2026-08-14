@@ -41,7 +41,7 @@
       "utterance": "线上出了个事故，帮我复现并定位根因",
       "expected": "defect-diagnosis",
       "selected": "defect-diagnosis",
-      "confidence": 0.95,
+      "confidence": 1.0,
       "must_not_route_to": [
         "platform-observability"
       ],
@@ -65,7 +65,7 @@
       "utterance": "给这个现有接口补齐结构化日志字段、metrics 和 trace 透传，让它在生产可观测",
       "expected": "platform-observability",
       "selected": "platform-observability",
-      "confidence": 0.9,
+      "confidence": 0.95,
       "must_not_route_to": [],
       "status": "PASS",
       "error": null,
@@ -76,7 +76,7 @@
       "utterance": "这个迭代涉及前端、后端、测试三块，帮我统筹排期",
       "expected": "product-rd-workflow",
       "selected": "product-rd-workflow",
-      "confidence": 0.85,
+      "confidence": 0.95,
       "must_not_route_to": [
         "multi-agent-delegation"
       ],
@@ -89,7 +89,7 @@
       "utterance": "给登录接口加上结构化日志和 trace 透传，再写测试覆盖它",
       "expected": "platform-observability",
       "selected": "platform-observability",
-      "confidence": 0.65,
+      "confidence": 0.75,
       "must_not_route_to": [
         "testing-strategy"
       ],

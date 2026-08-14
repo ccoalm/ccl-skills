@@ -27,7 +27,7 @@
       "utterance": "服务的日志、指标、分布式链路追踪和告警怎么设计",
       "expected": "platform-observability",
       "selected": "platform-observability",
-      "confidence": 0.95,
+      "confidence": 0.98,
       "must_not_route_to": [
         "platform-service-connectivity",
         "platform-release-engineering"
@@ -65,7 +65,7 @@
       "utterance": "给这个现有接口补齐结构化日志字段、metrics 和 trace 透传，让它在生产可观测",
       "expected": "platform-observability",
       "selected": "platform-observability",
-      "confidence": 0.8,
+      "confidence": 0.95,
       "must_not_route_to": [],
       "status": "PASS",
       "error": null,
@@ -76,7 +76,7 @@
       "utterance": "这个迭代涉及前端、后端、测试三块，帮我统筹排期",
       "expected": "product-rd-workflow",
       "selected": "product-rd-workflow",
-      "confidence": 0.88,
+      "confidence": 0.95,
       "must_not_route_to": [
         "multi-agent-delegation"
       ],
@@ -89,7 +89,7 @@
       "utterance": "给登录接口加上结构化日志和 trace 透传，再写测试覆盖它",
       "expected": "platform-observability",
       "selected": "platform-observability",
-      "confidence": 0.68,
+      "confidence": 0.75,
       "must_not_route_to": [
         "testing-strategy"
       ],
@@ -102,7 +102,7 @@
       "utterance": "写一份新能力的技术方案和工作量评估文档",
       "expected": "product-rd-workflow",
       "selected": "product-rd-workflow",
-      "confidence": 1.0,
+      "confidence": 0.95,
       "must_not_route_to": [
         "tighten-doc"
       ],

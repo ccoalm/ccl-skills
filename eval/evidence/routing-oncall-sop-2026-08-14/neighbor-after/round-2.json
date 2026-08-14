@@ -1,8 +1,8 @@
 {
   "model": "claude-haiku-4-5",
   "tasks": 8,
-  "pass": 8,
-  "fail": 0,
+  "pass": 7,
+  "fail": 1,
   "error": 0,
   "desc_budget_chars": null,
   "co_change_bank_and_descriptions": false,
@@ -16,7 +16,7 @@
       "utterance": "这个改动风险大不大，要不要走灰度",
       "expected": "feature-risk-router",
       "selected": "feature-risk-router",
-      "confidence": 0.98,
+      "confidence": 0.95,
       "must_not_route_to": [],
       "status": "PASS",
       "error": null,
@@ -41,7 +41,7 @@
       "utterance": "线上出了个事故，帮我复现并定位根因",
       "expected": "defect-diagnosis",
       "selected": "defect-diagnosis",
-      "confidence": 0.99,
+      "confidence": 1.0,
       "must_not_route_to": [
         "platform-observability"
       ],
@@ -65,7 +65,7 @@
       "utterance": "给这个现有接口补齐结构化日志字段、metrics 和 trace 透传，让它在生产可观测",
       "expected": "platform-observability",
       "selected": "platform-observability",
-      "confidence": 0.95,
+      "confidence": 0.9,
       "must_not_route_to": [],
       "status": "PASS",
       "error": null,
@@ -76,7 +76,7 @@
       "utterance": "这个迭代涉及前端、后端、测试三块，帮我统筹排期",
       "expected": "product-rd-workflow",
       "selected": "product-rd-workflow",
-      "confidence": 0.85,
+      "confidence": 0.92,
       "must_not_route_to": [
         "multi-agent-delegation"
       ],
@@ -88,12 +88,12 @@
       "id": "p3-log-plus-test",
       "utterance": "给登录接口加上结构化日志和 trace 透传，再写测试覆盖它",
       "expected": "platform-observability",
-      "selected": "platform-observability",
+      "selected": "go-microservice-dev",
       "confidence": 0.75,
       "must_not_route_to": [
         "testing-strategy"
       ],
-      "status": "PASS",
+      "status": "FAIL",
       "error": null,
       "frozen_at_sha_is_ancestor": true
     },
@@ -102,7 +102,7 @@
       "utterance": "写一份新能力的技术方案和工作量评估文档",
       "expected": "product-rd-workflow",
       "selected": "product-rd-workflow",
-      "confidence": 0.95,
+      "confidence": 0.97,
       "must_not_route_to": [
         "tighten-doc"
       ],

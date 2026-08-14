@@ -16,7 +16,7 @@
       "utterance": "给小团队设计一套 oncall SOP，一个入口加领域路由，只有 P0/P1 才打断排班",
       "expected": "platform-observability",
       "selected": "platform-observability",
-      "confidence": 0.95,
+      "confidence": 0.96,
       "must_not_route_to": [],
       "status": "PASS",
       "error": null,
