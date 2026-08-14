@@ -102,11 +102,20 @@ happens.
 | resource bounds | Bounded by predicate: only named known-work items owe a disposition, and a terminal disposition costs one clause. Non-goals owe nothing. |
 | rollout/migration ordering | No ordering. The rule is additive prose; no existing artifact breaks. |
 | over-broad absolute | The predicate keys to known work and delimits alone. The first draft added an explicit non-goals exemption sentence; review round 1 identified it as the exemption clause the form table prohibits (a deferred item relabeled "non-goal" evades the duty) and it was deleted — the positive predicate cannot reach a non-goal, so nothing is lost. |
-| enumeration-completeness | Item classes enumerated: defect observed in passing / debt or hardening / follow-up work. Locator forms enumerated open-set, each required to resolve to an item-specific durable entry (tracker row, issue, status doc, item-specific entry in the owning skill or gate, successor slice, existing owner's item-specific locator) — a bare destination is not a locator, per challenge round 2. Terminal form: declined, with reason — already-owned is a locator case, not a terminal case, per round 1. |
+| enumeration-completeness | Item classes enumerated: defect observed in passing / debt or hardening / follow-up work. Locator forms enumerated open-set, each required to resolve to an item-specific durable entry (tracker row, issue, status doc, item-specific entry in the owning skill or gate, existing successor slice carrying the item as in-scope work, existing owner's item-specific locator) — a bare destination is not a locator (challenge round 2), and a successor slice counts only when it exists and takes the item as in-scope work (challenge round 3). Terminal form: declined, with reason — already-owned is a locator case, not a terminal case, per round 1. |
 
 ## Scope
 
-In scope: the two hunks in `delivery-lifecycle.md`, this plan, the ledger row.
+In scope: the two hunks in `delivery-lifecycle.md`, this plan, the appended
+ledger rows, and the retroactive sweep of landed specs 010–017 for still-unowned
+out-of-scope items — performed this round, not deferred (moved here from the out
+list on challenge round 3's finding: "closed this round" is not a disposition
+the rule permits for an out-of-scope item, and work actually performed belongs
+in scope). Sweep result: 010's three items were closed by later slices
+(dispositions recorded in `specs/010-review-concern-excerpt/plan.md`), 014's
+routed follow-up was discharged by 016/017, 015's open item is discharged by
+this slice, and the remaining out-of-scope entries are scope decisions outside
+the predicate. No unowned known-work item remains.
 
 Out of scope, each with its disposition (this rule's own dogfood):
 
@@ -117,13 +126,7 @@ Out of scope, each with its disposition (this rule's own dogfood):
   author-written either way — same legs on which the lanes-recorded checker was
   declined in `specs/016-spec-citation-template-exemption/plan.md`). A future
   slice may reopen on new evidence; this plan is the record to argue against.
-- (b) Retroactive audit of landed specs 010–017 for still-unowned items —
-  **closed this round**: sweep found 010's three items closed by later slices
-  (dispositions recorded in `specs/010-review-concern-excerpt/plan.md`), 014's
-  routed follow-up discharged by 016/017, 015's open item discharged by this
-  slice, and the remaining out-of-scope entries are scope decisions, outside the
-  predicate. No unowned known-work item remains.
-- (c) Standardizing an out-of-scope list format across spec plans — **terminal:
+- (b) Standardizing an out-of-scope list format across spec plans — **terminal:
   declined**: plans are freeform prose by design; the slot form lands only in
   the one enumerated field list that exists (assessment-shape plans).
 
@@ -203,6 +206,30 @@ Rounds are appended below as they complete.
   proof) is honored by transcribing the final gate output verbatim into the
   Landing state below, labeled as author-transcribed.
 
+- **Round 3 — challenge, codex, `status=findings`, 4×P1: three accepted, one
+  declined with reason.** (chain `oos-owner-018`, index 3, challenge-index 2,
+  fresh full pass with reachability/operability/dogfood angles added.)
+  (1) Accepted: "a successor slice that names it in scope" admits a
+  nonexistent future slice — the ownership-assertion class again; narrowed to
+  "an existing successor slice that carries it as in-scope work". (2)
+  **Declined, with reason**: the reachability finding asked for
+  entrypoint-routing evidence in the packet or an entrypoint edit; the routing
+  already exists and is verifiable in-repo — `skills/product-rd-workflow/SKILL.md`
+  step 3 routes to §Plan Authoring at three firing moments: plan depth ("model
+  in `references/delivery-lifecycle.md` §Plan Authoring", L103), the formal-plan
+  upgrade decision ("conditions in ... §Plan Authoring", L106), and the
+  assessment-plan fields ("required fields in ... §Plan Authoring", L130) — the
+  reviewer's no-tools posture cannot see unchanged lines, and adding entrypoint
+  text for a rule already routed three times would violate the
+  anti-monotonic-growth discipline; this rule's reachability equals its section
+  peers', and that residual is recorded rather than patched. (3) Accepted:
+  this plan's own out item (b) was dispositioned "closed this round", which the
+  landed rule does not permit for an out-of-scope item — the sweep was actually
+  performed, so it moved into in-scope completed work (the finding caught the
+  plan violating its own rule; the dogfood held). (4) Accepted: the Landing
+  state was stale against the rounds record; rewritten with the transcribed
+  gate output.
+
 ## The RED, recomputed (round-1 finding 3)
 
 Run from the worktree, base pinned at ec8b2a2:
@@ -231,5 +258,24 @@ Run from the worktree, base pinned at ec8b2a2:
 
 ## Landing state
 
-Interim: rule drafted, self-review row persisted, ledger row staged; round 1
-findings applied; review rerun and challenge lanes pending.
+Rounds completed: review (index 1, findings applied), challenge (index 2,
+findings applied; one declined with reason), challenge (index 3, findings
+applied; one declined with reason). A fresh full challenge of the exact landing
+candidate follows this commit; the slice lands only if it converges (no
+undispositioned P0/P1).
+
+Gate output, author-transcribed, from `check-ccl-skills.sh` run against this
+candidate tree (rule, ledger rows, and this section's text included; the
+merge-time server gate recomputes the same verdicts on the final candidate —
+that recomputation, not this transcription, is the enforcement):
+
+```
+alias_audit_ok
+r0_status=private-ok
+ccl_skill_check_ok
+ccl_skill_check_clean_ok
+```
+
+impact-chain: green (each round's ledger row declared in its own round; the
+gate's earlier rejections of the edited-in-place row and of the missing
+normative anchor are recorded in the rounds narrative above).
