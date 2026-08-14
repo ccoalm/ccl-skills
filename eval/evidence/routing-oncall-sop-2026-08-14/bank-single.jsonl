@@ -1,0 +1,1 @@
+{"id": "mem-oncall-sop", "utterance": "给小团队设计一套 oncall SOP，一个入口加领域路由，只有 P0/P1 才打断排班", "expected_skill": "platform-observability", "why_expected": "on-call routing/SOP is owned by observability per its description", "frozen_at_sha": "root"}
