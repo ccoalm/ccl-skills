@@ -10,9 +10,9 @@
       "min": 0.65,
       "max": 0.95
     },
-    "must_not_testing_strategy_hits": 0,
-    "historical_arms": "base(6a795af) 5/9; post-change arms 19/27 (oncall-round h1b2 recount); this round base(512b77a) 8/10 - same-rate same-shape across surface versions",
-    "mechanism": "lexical-anchor-deficit hypothesis FALSIFIED by token-sibling new-observability-fields (15/15 across oncall-round neighbor arms, same 结构化日志/trace 透传/接口 tokens, zero Chinese description anchor); the only distinguishing features of p3-log-plus-test are the compound test tail 再写测试覆盖它 and pure implementation phrasing 给登录接口加上 - flips (all to stack-dev, conf 0.5-0.85) are the implementer reading of a genuinely compound utterance",
+    "must_not_testing_strategy_hits": "0 in the 25 bound rounds cited (this baseline + oncall neighbor-before/after); 0 in all 46 enumerated rounds — see aggregates-recomputed.json",
+    "historical_arms": "recomputed deterministically from every in-tree raw round file — see aggregates-recomputed.json (generator recompute-aggregates.py, both committed): base(6a795af) 5/9; post-change arms 19/27 (v1 3/3 + v2 4/6 + unbound-v3 4/6 + desc-bound-v3 5/6 + full-surface-bound 3/6); this round base(512b77a) 8/10 — same-rate same-shape across surface versions",
+    "mechanism": "lexical-anchor-deficit hypothesis FALSIFIED by token-sibling new-observability-fields (15/15 across oncall-round neighbor arms — recomputed in aggregates-recomputed.json, same 结构化日志/trace 透传/接口 tokens, zero Chinese description anchor); the only distinguishing features of p3-log-plus-test are the compound test tail 再写测试覆盖它 and pure implementation phrasing 给登录接口加上 - flips (all to stack-dev, conf 0.5-0.85) are the implementer reading of a genuinely compound utterance",
     "disposition": "per skills/skill-extraction-workflow/references/eval-routing.md §Bank 用例修复的测量纪律 rule 1 (抖动不得作为修改依据): no description edit, no bank edit; case retained as characterized known-unstable compound sentinel; sentinel treatment (keep vs wording rebalance) routed to the next bank round"
   },
   "candidate_binding": {
@@ -28,7 +28,9 @@
     "baseline-rounds": "10 bound rounds on the unmodified dev 512b77a surface: 8/10 PASS; binding_valid 10/10; unique repo_head 1; unique surface hash 1",
     "bank-single.jsonl": "the single frozen-bank line for p3-log-plus-test, extracted verbatim from eval/routing-tasks.jsonl at 512b77a",
     "bank-neighbors.jsonl": "PREPARED-UNUSED: 11-case neighbor set built for the fix path before classification; no neighbor rounds were run because the no-edit disposition made them moot",
-    "run-bound-round.sh": "checkout-independent revision of the binding wrapper (chain r1 P1 fix). The generating revision, preserved verbatim at commit 9fcba9d, differed only by hard-coding the generating worktree root and requiring absolute bank/outdir arguments; it produced every *.binding.json sidecar."
+    "run-bound-round.sh": "checkout-independent revision of the binding wrapper (chain r1 P1 fix). The generating revision, preserved verbatim at commit 9fcba9d, differed only by hard-coding the generating worktree root and requiring absolute bank/outdir arguments; it produced every *.binding.json sidecar.",
+    "recompute-aggregates.py": "deterministic generator for aggregates-recomputed.json (chain r2 challenge P1 fix): enumerates every raw round file behind the cited aggregates with per-file sha256 and per-round verdicts, then recomputes 5/9, 19/27, 15/15, and the must_not zero-hit totals",
+    "aggregates-recomputed.json": "committed output of recompute-aggregates.py; every recomputed value matches the cited aggregates exactly, and strengthens the must_not claim to 0 hits in all 46 enumerated rounds"
   },
   "measurement_note": "random-sampling measurement: recomputable (invocation + grader recorded) but per-round numbers are not bit-reproducible; the n=10 discipline exists for this. All aggregates in this manifest are recomputed from the raw round files, not copied forward.",
   "files_sha256": {
@@ -54,7 +56,9 @@
     "baseline-rounds/round-8.json.binding.json": "9cd1d999fbefe317bd1a6dd67b35b39f1128c89a6bdb330f97d4a7dacf1363ae",
     "baseline-rounds/round-9.json": "c69f9f8eaf8332648598a0064fd42dede2e0e8dae5f31022c50c22933ae8b7be",
     "baseline-rounds/round-9.json.binding.json": "2f54b5df06d596c17c7b23a87bbbb7b4f0232d7a5aaf3b8d7dd4bf81d3f6b0c8",
-    "run-bound-round.sh": "c26f2850496b9a06af6c3bdc8320cb2af45f44dd457ef764cd37273840e49bae"
+    "run-bound-round.sh": "4dfb2db09956dfcad0bb6653ed68ee65d27301a920820d644d0b9aabc0f1a179",
+    "recompute-aggregates.py": "50b8f21c67eddc3b21efb65f6d8450bef585c050be29f3483e2e40518fc9f1c6",
+    "aggregates-recomputed.json": "0f9ae638c52e955a4be02aaf700392d3354b58642445a0c0413177bbd7cded5e"
   },
   "provenance_correction": {
     "chain": "routing-p3-log-plus-test-r1 (codex dual-lane, both P1s same class)",
@@ -64,6 +68,10 @@
       "mechanical: under the generating wrapper's cd, a relative bank path would resolve to <worktree-root>/bank-single.jsonl, which does not exist — the runner would have failed; all 10 rounds returned rc=0 with valid single-task JSON, so the generating invocations necessarily used absolute paths",
       "binding: every round carries a *.binding.json sidecar pinning the full routing input surface hash (before==after), repo HEAD 512b77a, and skills-tree clean state at generation time — artifact validity is bound by the sidecars, not by rerunning",
       "random-sampling rounds are not bit-reproducible by design, so regeneration cannot confirm or deny provenance; the n=10 discipline exists for this"
-    ]
+    ],
+    "chain_r2": {
+      "review_P1": "wrapper interpolated unvalidated round-number into the output path (path-escape/data-loss); accepted and fixed — argument-count check plus positive-decimal validation before constructing OUT",
+      "challenge_P1": "historical aggregates (5/9, 19/27, 15/15, 25-round zero-hit) were operator-asserted with no deterministic verification artifact; accepted, stronger smallest_fix branch executed — recompute-aggregates.py + aggregates-recomputed.json enumerate every named historical raw file with hashes and per-round verdicts; all recomputed values match the claims exactly"
+    }
   }
 }

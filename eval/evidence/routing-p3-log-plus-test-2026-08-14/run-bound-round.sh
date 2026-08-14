@@ -12,6 +12,10 @@
 set -uo pipefail
 
 WT="$(git -C "$(cd "$(dirname "$0")" && pwd -P)" rev-parse --show-toplevel)" || exit 1
+[ "$#" -eq 3 ] || { echo "usage: run-bound-round.sh <round-number> <bank-file> <out-dir>" >&2; exit 2; }
+case "$1" in
+  ''|*[!0-9]*|0*) echo "round-number must be a positive decimal integer, got: $1" >&2; exit 2;;
+esac
 N="$1"
 BANK="$(cd "$(dirname "$2")" && pwd -P)/$(basename "$2")" || exit 1
 test -r "$BANK" || { echo "bank file not readable: $BANK" >&2; exit 1; }

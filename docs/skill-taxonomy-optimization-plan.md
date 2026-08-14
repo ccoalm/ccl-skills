@@ -224,6 +224,8 @@ Claude 端还留着三个按 commit 钉住的旧版本缓存目录（`7f9cdb9b49
 
 **dual-track（chain `routing-p3-log-plus-test-r1`，candidate sha256 `304e5ad4…`，codex 双 lane，native 绑定 established，claude 因同族被排除）**：review 与 challenge 各 1×P1，同类收敛——MANIFEST 记录的 runner 调用以相对路径书写，而生成期 wrapper 硬编码 worktree 根并在 `cd` 后才传参，照记录逐字执行无法复现所提交工件（provenance 记录缺陷）。**accepted，适配落地**：MANIFEST 调用记录改为真实的绝对路径形态并落 `provenance_correction` 块；wrapper 修为 checkout 无关（repo 根从脚本自身位置推导、bank/outdir 先绝对化再 cd），生成期原版逐字保留在 commit `9fcba9d` 供审计。challenge smallest_fix 的「再生成 10 轮」分支**驳回为不必要**，三点证据：相对 bank 路径在生成期 cd 语义下必然指向不存在的 `<worktree-root>/bank-single.jsonl` 而报错，实际 10 轮全部 rc=0 出有效 JSON——生成调用必为绝对路径（机械证明）；工件有效性由逐轮 sidecar（全表面 hash 前后一致 + HEAD + 树干净）承载而非由重跑承载；随机采样逐轮数字本就不可逐位复现。修复后候选换 chain `routing-p3-log-plus-test-r2` 全新双 lane 终审（见下）。
 
+**dual-track 第二对（chain `routing-p3-log-plus-test-r2`，candidate sha256 `d5624058…`，codex 双 lane，各 1×P1、非同类复现）**：(1) review——修正版 wrapper 的 `<round-number>` 实参未校验即拼进输出路径，`../../…` 类值可逃逸输出目录覆盖无关可写文件（data-loss 路径）。**accepted 修复**：实参个数 + 正十进制校验（拒 `0`/前导零/非数字/路径），非法值 rc=2 fail-closed（已实测含逃逸样例）。(2) challenge——闭环承重的历史聚合（5/9、19/27、15/15、25 轮 0 命中）只有 operator 断言、无确定性可验工件，无法排除 h1b2 抓过的聚合算错失败类。**accepted，按其 smallest_fix 强分支执行**：落 `recompute-aggregates.py` + `aggregates-recomputed.json`（确定性枚举两条承重用例在树内全部 82 条 raw 轮记录：逐文件 sha256 + 逐轮判决 + 分组重算），重算结果与全部引用值**逐项精确一致**（5/9=5/9、19/27=3/3+4/6+4/6+5/6+3/6、15/15、25 轮 0 命中），且把 must_not 结论加强为**全部枚举 46 轮 0 命中**。预算记账：r1 双 lane + r2 双 lane = 4/5 轮；第 5 轮用于对含上述修复的最终候选跑 review lane（chain r3），其结果与本段修复增量一并暴露给维护者的合并决定（无限回归止点，与 oncall/opencode 轮先例同构）。
+
 ### mem-oncall-sop 独立一轮落地记录（分支 `worktree-routing-oncall-sop`）
 
 **charter 先行**：目的/范围/深度/根因/证据计划/完成标准在任何深读与编辑前落盘于会话 scratch；本节是其 sanitized 落地记录。
