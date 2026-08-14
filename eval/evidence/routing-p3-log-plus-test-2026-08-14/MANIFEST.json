@@ -30,7 +30,8 @@
     "bank-neighbors.jsonl": "PREPARED-UNUSED: 11-case neighbor set built for the fix path before classification; no neighbor rounds were run because the no-edit disposition made them moot",
     "run-bound-round.sh": "checkout-independent revision of the binding wrapper (chain r1 P1 fix). The generating revision, preserved verbatim at commit 9fcba9d, differed only by hard-coding the generating worktree root and requiring absolute bank/outdir arguments; it produced every *.binding.json sidecar.",
     "recompute-aggregates.py": "deterministic generator for aggregates-recomputed.json (chain r2 challenge P1 fix): enumerates every raw round file behind the cited aggregates with per-file sha256 and per-round verdicts, then recomputes 5/9, 19/27, 15/15, and the must_not zero-hit totals",
-    "aggregates-recomputed.json": "committed output of recompute-aggregates.py; every recomputed value matches the cited aggregates exactly, and strengthens the must_not claim to 0 hits in all 46 enumerated rounds"
+    "aggregates-recomputed.json": "committed output of recompute-aggregates.py; every recomputed value matches the cited aggregates exactly, and strengthens the must_not claim to 0 hits in all 46 enumerated rounds",
+    "test-run-bound-round.sh": "stub-evaluator regression test for the wrapper's output-validation guard (chain r3 review P1 fix): evaluator-exits-0-writes-nothing and malformed-JSON must fail closed (nonzero exit, binding_valid=false); structurally valid output must pass. Differential RED proof recorded: the pre-fix wrapper revision (commit c8046e9) accepts cases 1-2 with rc=0 (false green) while case 3 passes in both revisions."
   },
   "measurement_note": "random-sampling measurement: recomputable (invocation + grader recorded) but per-round numbers are not bit-reproducible; the n=10 discipline exists for this. All aggregates in this manifest are recomputed from the raw round files, not copied forward.",
   "files_sha256": {
@@ -56,9 +57,10 @@
     "baseline-rounds/round-8.json.binding.json": "9cd1d999fbefe317bd1a6dd67b35b39f1128c89a6bdb330f97d4a7dacf1363ae",
     "baseline-rounds/round-9.json": "c69f9f8eaf8332648598a0064fd42dede2e0e8dae5f31022c50c22933ae8b7be",
     "baseline-rounds/round-9.json.binding.json": "2f54b5df06d596c17c7b23a87bbbb7b4f0232d7a5aaf3b8d7dd4bf81d3f6b0c8",
-    "run-bound-round.sh": "4dfb2db09956dfcad0bb6653ed68ee65d27301a920820d644d0b9aabc0f1a179",
+    "run-bound-round.sh": "ff75f75e02a0b9da60de28b24e3af4167013634b2fed872368b7a60dc389d2aa",
     "recompute-aggregates.py": "50b8f21c67eddc3b21efb65f6d8450bef585c050be29f3483e2e40518fc9f1c6",
-    "aggregates-recomputed.json": "0f9ae638c52e955a4be02aaf700392d3354b58642445a0c0413177bbd7cded5e"
+    "aggregates-recomputed.json": "0f9ae638c52e955a4be02aaf700392d3354b58642445a0c0413177bbd7cded5e",
+    "test-run-bound-round.sh": "de068759883665cf0eca3edb0c6549bbc4864db07352430a18fc0cef8ba5a122"
   },
   "provenance_correction": {
     "chain": "routing-p3-log-plus-test-r1 (codex dual-lane, both P1s same class)",
@@ -72,6 +74,10 @@
     "chain_r2": {
       "review_P1": "wrapper interpolated unvalidated round-number into the output path (path-escape/data-loss); accepted and fixed — argument-count check plus positive-decimal validation before constructing OUT",
       "challenge_P1": "historical aggregates (5/9, 19/27, 15/15, 25-round zero-hit) were operator-asserted with no deterministic verification artifact; accepted, stronger smallest_fix branch executed — recompute-aggregates.py + aggregates-recomputed.json enumerate every named historical raw file with hashes and per-round verdicts; all recomputed values match the claims exactly"
+    },
+    "chain_r3": {
+      "review_P1": "wrapper set binding_valid=true on surface/cleanliness/rc alone — an evaluator returning rc=0 without a usable round file yielded a false-green sidecar; accepted and fixed: OUT must be a non-empty regular file with a parseable results[] structure before binding_valid, and the wrapper now exits nonzero when binding is invalid; test-run-bound-round.sh is the regression proof (differential: pre-fix revision fails it for the right reason). The 10 committed rounds are unaffected: their round files exist and were individually json.load'ed by recompute-aggregates.py (82 rows).",
+      "budget_note": "Agent-autonomous budget 5/5 consumed (r1 review+challenge, r2 review+challenge, r3 review). This r3-finding fix executes the reviewer's own smallest_fix verbatim and, per the oncall/opencode-round regression stop-point precedent, is exposed to the maintainer with the merge decision rather than opening another Agent round; r3's declared-but-unconsumed challenge capacity is likewise the maintainer's call."
     }
   }
 }

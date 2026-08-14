@@ -44,12 +44,19 @@ RC=$?
 AFTER=$(surface_hash)
 DESC_SHA=$(grep -m1 '^description:' "$WT/skills/platform-observability/SKILL.md" | shasum -a 256 | awk '{print $1}')
 ROUND_SHA=$(shasum -a 256 "$OUT" 2>/dev/null | awk '{print $1}')
+OUT_OK=false
+if [ -f "$OUT" ] && [ -s "$OUT" ] && [ -n "$ROUND_SHA" ] \
+   && python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); rs=d["results"]; assert isinstance(rs,list) and rs and all("status" in r and "selected" in r for r in rs)' "$OUT" 2>/dev/null; then
+  OUT_OK=true
+fi
 VALID=false
-if [ "$BEFORE" = "$AFTER" ] && [ "$DIRTY" = "0" ] && [ "$RC" = "0" ]; then VALID=true; fi
+if [ "$BEFORE" = "$AFTER" ] && [ "$DIRTY" = "0" ] && [ "$RC" = "0" ] && [ "$OUT_OK" = "true" ]; then VALID=true; fi
 
 cat > "$OUT.binding.json" <<EOF
 {"round_file": "round-$N.json", "round_file_sha256": "$ROUND_SHA", "routing_surface_sha256_before": "$BEFORE", "routing_surface_sha256_after": "$AFTER", "surface_scope": "all skills/*/SKILL.md description lines (dir-name-tagged, sorted glob order) + the bank file", "platform_observability_description_line_sha256": "$DESC_SHA", "skills_tree_dirty_entries": $DIRTY, "binding_valid": $VALID, "repo_head": "$HEAD_SHA", "runner_rc": $RC, "captured_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
 EOF
 
 echo "round-$N rc=$RC binding_valid=$VALID"
-exit $RC
+if [ "$RC" != "0" ]; then exit "$RC"; fi
+[ "$VALID" = "true" ] || exit 1
+exit 0

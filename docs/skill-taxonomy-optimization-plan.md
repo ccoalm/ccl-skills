@@ -226,6 +226,8 @@ Claude 端还留着三个按 commit 钉住的旧版本缓存目录（`7f9cdb9b49
 
 **dual-track 第二对（chain `routing-p3-log-plus-test-r2`，candidate sha256 `d5624058…`，codex 双 lane，各 1×P1、非同类复现）**：(1) review——修正版 wrapper 的 `<round-number>` 实参未校验即拼进输出路径，`../../…` 类值可逃逸输出目录覆盖无关可写文件（data-loss 路径）。**accepted 修复**：实参个数 + 正十进制校验（拒 `0`/前导零/非数字/路径），非法值 rc=2 fail-closed（已实测含逃逸样例）。(2) challenge——闭环承重的历史聚合（5/9、19/27、15/15、25 轮 0 命中）只有 operator 断言、无确定性可验工件，无法排除 h1b2 抓过的聚合算错失败类。**accepted，按其 smallest_fix 强分支执行**：落 `recompute-aggregates.py` + `aggregates-recomputed.json`（确定性枚举两条承重用例在树内全部 82 条 raw 轮记录：逐文件 sha256 + 逐轮判决 + 分组重算），重算结果与全部引用值**逐项精确一致**（5/9=5/9、19/27=3/3+4/6+4/6+5/6+3/6、15/15、25 轮 0 命中），且把 must_not 结论加强为**全部枚举 46 轮 0 命中**。预算记账：r1 双 lane + r2 双 lane = 4/5 轮；第 5 轮用于对含上述修复的最终候选跑 review lane（chain r3），其结果与本段修复增量一并暴露给维护者的合并决定（无限回归止点，与 oncall/opencode 轮先例同构）。
 
+**dual-track 第三轮（chain `routing-p3-log-plus-test-r3`，candidate sha256 `7afcd28b…`，codex review lane，预算第 5/5 轮）**：1×P1——wrapper 仅凭 surface hash/树干净/rc 就置 `binding_valid=true`，评测器 rc=0 但不产出可用 round 文件时会出假绿 sidecar（false-green guard 失败类）。**accepted 修复（执行其 smallest_fix 原文）**：`binding_valid` 前置 OUT 非空常规文件 + `results[]` 结构可解析校验，绑定无效时 wrapper 本身非零退出；补 stub 评测器回归测试 `test-run-bound-round.sh`（三例：无输出/坏 JSON 必须 fail-closed、合法输出必须通过），并做差分 RED 证明——修复前版本（`c8046e9`）对前两例 rc=0 假绿、对照例两版皆绿，红恰落在被守护断言上。已提交的 10 轮不受影响（其 round 文件俱在且被 recompute 脚本逐个解析过，82 行）。**止点声明**：Agent 自主预算 5/5 用尽（r1 双 lane + r2 双 lane + r3 review），本段修复增量不再另开 Agent 轮，连同 r3 已声明未消费的 challenge 容量一并暴露给维护者的合并决定；各链（r1/r2/r3）至此无未处置 P0/P1。
+
 ### mem-oncall-sop 独立一轮落地记录（分支 `worktree-routing-oncall-sop`）
 
 **charter 先行**：目的/范围/深度/根因/证据计划/完成标准在任何深读与编辑前落盘于会话 scratch；本节是其 sanitized 落地记录。
