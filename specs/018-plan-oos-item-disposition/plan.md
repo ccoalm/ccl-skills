@@ -128,6 +128,14 @@ Out of scope, each with its disposition (this rule's own dogfood):
   declined**: plans are freeform prose by design; the slot form lands only in
   the one enumerated field list that exists (assessment-shape plans).
 
+Deciding authority for both declines (added on the extension chain's review
+finding — the rule this slice lands requires it, and the plan author alone
+cannot terminate known work): both are *proposed* here with their reasons and
+operability legs, and *decided* by the human risk owner whose merge of this
+slice is the durable decision record; a merge of this slice ratifies both
+declines, and a risk owner who disagrees strikes the item back into scope
+before merging.
+
 ## Self-review row (persisted before the independent review)
 
 - Acceptance criteria: (1) §Plan Authoring carries the disposition rule keyed to
@@ -273,6 +281,23 @@ Rounds are appended below as they complete.
   terminal form now matches the closeout instance's authority bar without
   restating it; the field-list slot is untouched.
 
+- **Extension chain `oos-owner-018-h2`, granted by the human risk owner**
+  (in-session instruction, 2026-08-14) after the exhausted-budget checkpoint:
+  a fresh tracked review→challenge pair on the exact final candidate.
+- **h2 round 1 — review, codex, `status=findings`, 3×P1 + 1×P2: two accepted,
+  two declined.** (1) Accepted, and the dogfood bit the author again: this
+  plan's two terminal declines named no deciding authority — the exact form
+  round 5 prohibited; fixed by the authority paragraph under the out-of-scope
+  list (proposed here, decided by the risk owner whose merge is the durable
+  decision record). (2) Accepted: the landing gate lacked the human decision
+  it was parked on; the grant and this chain's outcomes are now recorded. (3)
+  Declined: packet-completeness class, fourth appearance; the keep-absent
+  decision stands as recorded in the round-4 entry above. (4) Declined (P2):
+  consolidating the five ledger rows into one would break the machine-enforced
+  per-round row obligation and the append-only contract (the impact-chain gate
+  rejected exactly the edit-in-place shape earlier in this slice); reader
+  navigation is carried by each row's explicit supersede-by-pointer clause.
+
 ## The RED, recomputed (round-1 finding 3)
 
 Run from the worktree, base pinned at ec8b2a2:
@@ -305,12 +330,12 @@ Rounds completed: review (index 1, findings applied), challenge (index 2,
 findings applied; one declined with reason), challenge (index 3, findings
 applied; one declined with reason), challenge (index 4, one applied; three
 declined as one recorded class), challenge (index 5, one applied — the Agent
-budget's final round). **Status: interim.** Every finding across five rounds is
-dispositioned (fixed, or declined with a recorded reason), but the round-5 fix
-postdates the last budgeted challenge, so the exact final candidate has had no
-fresh full challenge. Parked for the human risk owner: grant one fresh
-challenge round on the final candidate, or accept it as-is. No merge, no
-landed claim, until that decision.
+budget's final round). The parked decision was resolved: the human risk owner
+granted a fresh extension chain (`oos-owner-018-h2`, in-session instruction,
+2026-08-14). h2 review completed (two accepted fixes above, two recorded
+declines); the h2 fresh full challenge of the exact final candidate closes the
+gate — its result is recorded here before any merge. Every finding across all
+rounds is dispositioned (fixed, or declined with a recorded reason).
 
 Gate output, author-transcribed, from `check-ccl-skills.sh` run against this
 candidate tree (rule, ledger rows, and this section's text included; the
