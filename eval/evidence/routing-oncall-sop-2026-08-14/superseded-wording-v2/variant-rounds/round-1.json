@@ -1,0 +1,100 @@
+{
+  "model": "claude-haiku-4-5",
+  "tasks": 7,
+  "pass": 6,
+  "fail": 1,
+  "error": 0,
+  "desc_budget_chars": null,
+  "co_change_bank_and_descriptions": false,
+  "co_change_check_available": true,
+  "frozen_drift": [],
+  "newly_failed": [],
+  "newly_passed": [],
+  "results": [
+    {
+      "id": "variant-oncall-natural-1",
+      "utterance": "轮值同学总被小报警吵醒，帮我定个告警升级和喊人机制，只有最高级别才半夜叫人",
+      "expected": "platform-observability",
+      "selected": "platform-observability",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "variant-oncall-natural-2",
+      "utterance": "团队要建 oncall 制度，告警先进一个统一接收处再分给对应负责人",
+      "expected": "platform-observability",
+      "selected": "platform-observability",
+      "confidence": 0.85,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "variant-oncall-natural-3",
+      "utterance": "新服务上线后夜里报警谁接？定一下响应分级和升级路径",
+      "expected": "platform-observability",
+      "selected": "platform-observability",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "variant-neg-release-watch-sop",
+      "utterance": "制定发布值班 SOP，P0/P1 时打断排班并决定是否回滚",
+      "expected": "platform-release-engineering",
+      "selected": "platform-release-engineering",
+      "confidence": 0.9,
+      "must_not_route_to": [
+        "platform-observability"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "variant-neg-risk-gates-p0",
+      "utterance": "上线前评估这个改动的风险等级，P0/P1 类问题要走哪些 gate 和审批",
+      "expected": "feature-risk-router",
+      "selected": "feature-risk-router",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "platform-observability"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "variant-neg-defect-p0-alert",
+      "utterance": "线上 P0 报警了，服务大量 500，帮我复现并定位根因",
+      "expected": "defect-diagnosis",
+      "selected": "defect-diagnosis",
+      "confidence": 0.99,
+      "must_not_route_to": [
+        "platform-observability"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "variant-neg-prd-shift-feature",
+      "utterance": "给运营团队做一个值班排班管理功能，需求怎么拆",
+      "expected": "product-rd-workflow",
+      "selected": "requirement-scope",
+      "confidence": 0.72,
+      "must_not_route_to": [
+        "platform-observability"
+      ],
+      "status": "FAIL",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    }
+  ]
+}

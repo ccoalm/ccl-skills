@@ -1,0 +1,114 @@
+{
+  "model": "claude-haiku-4-5",
+  "tasks": 8,
+  "pass": 7,
+  "fail": 1,
+  "error": 0,
+  "desc_budget_chars": null,
+  "co_change_bank_and_descriptions": false,
+  "co_change_check_available": true,
+  "frozen_drift": [],
+  "newly_failed": [],
+  "newly_passed": [],
+  "results": [
+    {
+      "id": "ctrl-risk",
+      "utterance": "这个改动风险大不大，要不要走灰度",
+      "expected": "feature-risk-router",
+      "selected": "feature-risk-router",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-plat-obs",
+      "utterance": "服务的日志、指标、分布式链路追踪和告警怎么设计",
+      "expected": "platform-observability",
+      "selected": "platform-observability",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "platform-service-connectivity",
+        "platform-release-engineering"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-incident-rca",
+      "utterance": "线上出了个事故，帮我复现并定位根因",
+      "expected": "defect-diagnosis",
+      "selected": "defect-diagnosis",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "platform-observability"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-feasibility-capability",
+      "utterance": "评估下做一个新的实时通知能力的技术方案和工作量",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-observability-fields",
+      "utterance": "给这个现有接口补齐结构化日志字段、metrics 和 trace 透传，让它在生产可观测",
+      "expected": "platform-observability",
+      "selected": "platform-observability",
+      "confidence": 0.96,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p3-iteration-coordinate",
+      "utterance": "这个迭代涉及前端、后端、测试三块，帮我统筹排期",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "multi-agent-delegation"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p3-log-plus-test",
+      "utterance": "给登录接口加上结构化日志和 trace 透传，再写测试覆盖它",
+      "expected": "platform-observability",
+      "selected": "go-microservice-dev",
+      "confidence": 0.55,
+      "must_not_route_to": [
+        "testing-strategy"
+      ],
+      "status": "FAIL",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-tech-plan-effort-doc",
+      "utterance": "写一份新能力的技术方案和工作量评估文档",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "tighten-doc"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    }
+  ]
+}

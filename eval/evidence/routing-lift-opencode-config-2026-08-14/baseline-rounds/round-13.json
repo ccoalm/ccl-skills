@@ -1,0 +1,30 @@
+{
+  "model": "claude-haiku-4-5",
+  "tasks": 1,
+  "pass": 0,
+  "fail": 1,
+  "error": 0,
+  "desc_budget_chars": null,
+  "co_change_bank_and_descriptions": false,
+  "co_change_check_available": true,
+  "frozen_drift": [],
+  "newly_failed": [],
+  "newly_passed": [],
+  "results": [
+    {
+      "id": "route-opencode-project-config",
+      "utterance": "这是 ccl-skills/shared-skill 仓库的 OpenCode 项目配置/命令治理：本仓 opencode.json 要加一个快捷命令，不是 App、终端 CLI 或 LLM runtime 实现；注意不要写模型、密钥、MCP 或本机绝对路径",
+      "expected": "skill-extraction-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.35,
+      "must_not_route_to": [
+        "llm-inference-integration",
+        "terminal-cli-dev",
+        "web-react-dev"
+      ],
+      "status": "FAIL",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    }
+  ]
+}

@@ -50,6 +50,15 @@
 - **防作弊**:runner 校验每 task 的 `frozen_at_sha` 是 HEAD 祖先(非祖先 = drift,排除出回归判定);同一改动若同时动 task-bank 和 SKILL.md description 会显式告警(防"改 skill 顺手改测试让它过")。
 - `--baseline <json>` 给 diff 式报告(newly_failed / newly_passed)。
 
+### Bank 用例修复的测量纪律(normative)
+
+对 bank 失败用例做路由面修复时,以下每条都是修复轮的过闸条件,不是建议:
+
+1. 动任何 description 之前必须先跑 **≥10 轮有效观测**的稳定性基线,把稳定失败与抖动分开;抖动不得作为修改依据(grader 超时/不可解析轮不算有效观测,须补跑)。
+2. 改后通过数必须在**最终措辞**上重测:中间稿的通过数在措辞再变的那一刻作废,不得挪用到最终候选的证据里。
+3. 受影响邻居用例集必须改前/改后各 **≥3 轮**,集合须含期望 owner 自己的兄弟用例与高词面重叠的他 owner 用例;任何邻居回归都阻断本轮。
+4. 每轮判决必须连同 **runner 调用、grader 模型身份、候选身份**(commit 或描述内容指纹)与**原始逐轮工件的持久定位符**一并记入轮记录;没有定位符的通过数只能标注为 operator-reported,不得据以宣称修复轮已 concluded。
+
 ## Tier-3:hub golden trace 真 agent 回放(已落地,advisory,人工判定)
 
 `scripts/eval-golden-trace.rb <repo-root> [--traces d] [--max-turns N] [--timeout S] [--only id] [--limit N] [--json p] [--dry-run]`。`make eval-golden-trace`。

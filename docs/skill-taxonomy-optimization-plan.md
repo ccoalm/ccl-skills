@@ -39,7 +39,7 @@
 
 | 项 | 说明 |
 | --- | --- |
-| 两个新路由靶子 | `mem-oncall-sop`（两臂同形不稳，非本轮引入）、`route-opencode-project-config`（本来就坏）——见「路由提升轮的待办」。**未动**：需要 eval bank 前后各 10 轮实测，独立一轮 |
+| 两个新路由靶子 | `mem-oncall-sop`（两臂同形不稳，非本轮引入）、`route-opencode-project-config`（本来就坏）——见「路由提升轮的待办」。**均已结清**：各自独立一轮补 10 轮基线后修复，`route-opencode-project-config` 2/10 → 10/10；`mem-oncall-sop` 1/10 → 全表面绑定终测 10/10，经维护者批准的加时终审（h1a/h1b2）收敛后结清（见各自落地记录节）。加时轮顺带查明 `p3-log-plus-test` 为先存两臂不稳用例（base 臂 5/9），列为下一轮独立靶子。**该靶子亦已由独立一轮结清（基线 8/10，判非稳定失败——复合题面固有不稳，按测量纪律不动 description，见其落地记录节）** |
 | renamed-away owner 逃过轮次 presence | 前一轮实质改了 X、中间有账本边界关掉那轮而没给 X 的行、后一轮把 X 改名走：两轮都不要求它。**非分区引入**——同一 fixture 在分区前的闸上同样放行（差分实测）。根在 `bad_evidence_files` 按工作树查 SKILL.md 存在性而非按轮次 head，修它是另一条改动 |
 
 **证据行按轮次写、闸按累积 diff 判：已解决**（分支 `worktree-gate-round-scope`）。分类与 presence 双双收窄到「切在碰账本的 commit 上」的轮次，owner 级 RED 底线仍按累积（两者中更严的读法）。三处对抗评审各击穿一次并已修：行按文本布尔判存活可被「base 已有同文本 → 追加 → 后轮删一条」洗白（改为 HEAD 减 base 的多重集配额）；no-behavior 契约的措辞仍写着 whole diff（已改）；merge 形状全无覆盖（已补两条 fixture）。
@@ -204,10 +204,93 @@ Claude 端还留着三个按 commit 钉住的旧版本缓存目录（`7f9cdb9b49
 
 | 用例 | 期望 → 实得 | 观测 |
 | --- | --- | --- |
-| `mem-oncall-sop` | `platform-observability` → `product-rd-workflow` | 改前 7/10、改后 6/10，两臂同形不稳；非本轮引入 |
-| `route-opencode-project-config` | `skill-extraction-workflow` → `product-rd-workflow` / `worktree-isolation` | 改前 0/3、改后 1/3，本来就坏，置信度 0.3–0.65 |
+| `mem-oncall-sop` | `platform-observability` → `product-rd-workflow` | 改前 7/10、改后 6/10，两臂同形不稳；非本轮引入。**已由独立一轮结清（基线实测 1/10 稳定失败而非抖动，修复后全表面绑定终测 10/10，经批准加时终审收敛，见下方落地记录）** |
+| `p3-log-plus-test` | `platform-observability` → 分散（python-dev / go-dev / product-rd，0.5–0.75） | mem-oncall-sop 加时轮查明：base 臂 5/9 与改后各臂同率同形（19/27），先存两臂不稳，非该轮引入。**已由独立一轮结清（基线 8/10 判非稳定失败——复合题面固有不稳，词面锚机制被同 token 兄弟例 15/15 证伪，按测量纪律第 1 条不动 description；哨兵处置 routed 下一 bank 轮，见下方落地记录）** |
+| `route-opencode-project-config` | `skill-extraction-workflow` → `product-rd-workflow` / `worktree-isolation` | 改前 0/3、改后 1/3，本来就坏，置信度 0.3–0.65。**已由基线补测轮结清（2/10 → 10/10，见下节）** |
 
 纪律不变：第二档 A 臂实测过，描述覆盖面一宽就跟更宽的邻居抢，多出的错会掉给 `product-rd-workflow` 和发布类技能。本轮又添一条实证——**收窄一个技能的 Skip 时，要同时检查它自己保留的所有权是否被这条 Skip 反噬**（`pytest 配置` 一度同时匹配"归技术栈"和"CI gate 归本技能"，由两条评审轨各自独立命中）。
+
+### p3-log-plus-test 独立一轮落地记录（分支 `worktree-routing-p3-log-plus-test`，NO-EDIT 结清）
+
+**charter 先行**：目的/范围/深度/根因/证据计划/完成标准（含双分支完成标准：稳定失败→修复路径；非稳定失败→如实记录不硬改）在任何深读与编辑前落盘于会话 scratch；本节是其 sanitized 落地记录。
+
+**基线（10 有效观测，全程 `--timeout 120`，无超时轮，全部按 oncall 轮 h1a 终态方法学做全路由输入面原子绑定）**：**8/10 PASS**，10/10 轮 binding_valid、单一 HEAD（dev `512b77a`）、单一 surface hash。失败 2 轮均 selected=`go-microservice-dev`（置信 0.85/0.65）；PASS 置信中位仅 0.75（0.65–0.95）。**must_not→`testing-strategy` 在本轮 10 轮 + oncall 轮邻居臂 9+6 轮共 25 轮绑定观测中 0 命中**（硬约束成立）。历史对照：base(6a795af) 5/9、改后各臂 19/27、本轮 base(512b77a) 8/10——两臂同率同形，跨表面版本持续存在。**判定：非稳定失败**（稳定失败先例对照：oncall 1/10、opencode 2/10），属复合题面固有的持续低度不稳。
+
+**机制归因（widen 分支，编辑前完成，故本轮零编辑）**：「期望 owner 缺中文词面锚」假设被**证伪**——同 token 兄弟例 `new-observability-fields`（「给这个现有接口补齐结构化日志字段、metrics 和 trace 透传，让它在生产可观测」）在 oncall 轮邻居臂 9/9 + 6/6 = **15/15 稳过**，用的是同一份零中文锚 description，说明 结构化日志/trace 透传/接口 这组 token 本身路由良好。p3 与它的仅有差异是复合尾句「再写测试覆盖它」与纯实现句式「给登录接口加上」；翻转全部流向 stack-dev（实现读法）且低-中置信、非集中抢词指纹。所有权核对：bank why_expected 与 `platform-observability` body 第 8/14/18/29-30 行（structured logs、log_id/trace_id propagation、"deciding what log fields propagate"）自洽，用例规格无缺陷，本就是 leading-deliverable 硬探针。反事实：足以压过测试尾句的强锚会同步加大偷「先加点日志看看」（`p-live500-addlog`→defect-diagnosis）、「调试日志脱敏」（`mem-api-log-redact`→app-dev）、「结构化测试用例」（→test-artifact-management）的风险，期望收益仅 +2/10，且该 description 已 799/800 无扩词余量。
+
+**处置（按 `references/eval-routing.md` §Bank 用例修复的测量纪律 第 1 条「抖动不得作为修改依据」——本轮即该闸的 firing 实例）**：不动任何 description、不动冻结 bank；用例保留为已刻画的 known-unstable 复合哨兵（dashboard 上该行 ~20–40% 翻转属已知特征而非新回归）；哨兵处置（保留 vs 措辞再平衡）**routed 下一 bank 轮**（非 co-change 轮不动 bank，与 oncall 轮混合句 decoy 同一处置路径）。owner map 全量 unchanged（platform-observability / 两个 stack-dev / product-rd 协调轴 / testing-strategy guard），零技能 diff；行为证据行 not-applicable: docs-only。「middle-band 分类命名 + 兄弟例对照诊断法」单次观测按证据纪律 deferred，二次出现再提炼进测量纪律。
+
+**测量出处**：全部原始逐轮 JSON（基线 10，每轮带 `*.binding.json` sidecar：32 条 description 行 + bank 文件全表面前后哈希 + HEAD + skills 树干净证明）连同 bank-single.jsonl、bank-neighbors.jsonl（prepared-unused：为修复路径预建的 11 用例邻居集，分类判定后未启用）、绑定 wrapper `run-bound-round.sh` 本体与 `MANIFEST.json`（逐文件 sha256、精确 runner 调用、grader 身份、聚合数从 raw 重算）提交在树内 `eval/evidence/routing-p3-log-plus-test-2026-08-14/`。随机采样测量：可复算、逐轮数字不可逐位复现。
+
+**dual-track（chain `routing-p3-log-plus-test-r1`，candidate sha256 `304e5ad4…`，codex 双 lane，native 绑定 established，claude 因同族被排除）**：review 与 challenge 各 1×P1，同类收敛——MANIFEST 记录的 runner 调用以相对路径书写，而生成期 wrapper 硬编码 worktree 根并在 `cd` 后才传参，照记录逐字执行无法复现所提交工件（provenance 记录缺陷）。**accepted，适配落地**：MANIFEST 调用记录改为真实的绝对路径形态并落 `provenance_correction` 块；wrapper 修为 checkout 无关（repo 根从脚本自身位置推导、bank/outdir 先绝对化再 cd），生成期原版逐字保留在 commit `9fcba9d` 供审计。challenge smallest_fix 的「再生成 10 轮」分支**驳回为不必要**，三点证据：相对 bank 路径在生成期 cd 语义下必然指向不存在的 `<worktree-root>/bank-single.jsonl` 而报错，实际 10 轮全部 rc=0 出有效 JSON——生成调用必为绝对路径（机械证明）；工件有效性由逐轮 sidecar（全表面 hash 前后一致 + HEAD + 树干净）承载而非由重跑承载；随机采样逐轮数字本就不可逐位复现。修复后候选换 chain `routing-p3-log-plus-test-r2` 全新双 lane 终审（见下）。
+
+**dual-track 第二对（chain `routing-p3-log-plus-test-r2`，candidate sha256 `d5624058…`，codex 双 lane，各 1×P1、非同类复现）**：(1) review——修正版 wrapper 的 `<round-number>` 实参未校验即拼进输出路径，`../../…` 类值可逃逸输出目录覆盖无关可写文件（data-loss 路径）。**accepted 修复**：实参个数 + 正十进制校验（拒 `0`/前导零/非数字/路径），非法值 rc=2 fail-closed（已实测含逃逸样例）。(2) challenge——闭环承重的历史聚合（5/9、19/27、15/15、25 轮 0 命中）只有 operator 断言、无确定性可验工件，无法排除 h1b2 抓过的聚合算错失败类。**accepted，按其 smallest_fix 强分支执行**：落 `recompute-aggregates.py` + `aggregates-recomputed.json`（确定性枚举两条承重用例在树内全部 82 条 raw 轮记录：逐文件 sha256 + 逐轮判决 + 分组重算），重算结果与全部引用值**逐项精确一致**（5/9=5/9、19/27=3/3+4/6+4/6+5/6+3/6、15/15、25 轮 0 命中），且把 must_not 结论加强为**全部枚举 46 轮 0 命中**。预算记账：r1 双 lane + r2 双 lane = 4/5 轮；第 5 轮用于对含上述修复的最终候选跑 review lane（chain r3），其结果与本段修复增量一并暴露给维护者的合并决定（无限回归止点，与 oncall/opencode 轮先例同构）。
+
+**dual-track 第三轮（chain `routing-p3-log-plus-test-r3`，candidate sha256 `7afcd28b…`，codex review lane，预算第 5/5 轮）**：1×P1——wrapper 仅凭 surface hash/树干净/rc 就置 `binding_valid=true`，评测器 rc=0 但不产出可用 round 文件时会出假绿 sidecar（false-green guard 失败类）。**accepted 修复（执行其 smallest_fix 原文）**：`binding_valid` 前置 OUT 非空常规文件 + `results[]` 结构可解析校验，绑定无效时 wrapper 本身非零退出；补 stub 评测器回归测试 `test-run-bound-round.sh`（三例：无输出/坏 JSON 必须 fail-closed、合法输出必须通过），并做差分 RED 证明——修复前版本（`c8046e9`）对前两例 rc=0 假绿、对照例两版皆绿，红恰落在被守护断言上。已提交的 10 轮不受影响（其 round 文件俱在且被 recompute 脚本逐个解析过，82 行）。**止点声明**：Agent 自主预算 5/5 用尽（r1 双 lane + r2 双 lane + r3 review），本段修复增量不再另开 Agent 轮，连同 r3 已声明未消费的 challenge 容量一并暴露给维护者的合并决定；各链（r1/r2/r3）至此无未处置 P0/P1。
+
+**维护者批准的加时轮（2026-08-14，人工请求，Agent 预算之外；续 r3 链消费其未用 challenge 容量，candidate = 已落地内容 `512b77a..dev@2a0ec22`，codex challenge lane）**：1×P1，恰落在此前唯一未被对抗过的修复增量上——**陈旧输出复用假绿**：向已含合法 `round-N.json` 的目录补跑同轮号、评测器 rc=0 但未写出输出时，wrapper 会哈希并校验**旧文件**出 `binding_valid=true`（协议自己的「超时轮补跑」正是该场景），而全新目录的回归测试测不到它。**accepted 修复（执行其 smallest_fix 原文）**：评测器改写入 mktemp 临时路径、结构校验通过后才原子 move 进位（陈旧文件永不被当作本轮结果哈希/校验，失败时 `round_file_sha256` 置空）；回归测试补 case 4（预置陈旧合法 round 文件 + 无输出评测器，必须 fail-closed），差分证明：修复前版本（dev `2a0ec22`）**仅 case 4 假绿（rc=0）**、case 1-3 两版皆绿，红恰落在新守护上。已提交的 10 轮基线不受影响（各轮按严格递增轮号写入全新目录，且每个留存 round 文件被 recompute 脚本独立解析过）。本加时轮修复增量按同一止点规则随本记录暴露给维护者；至此含加时轮在内无未处置 P0/P1。
+
+### mem-oncall-sop 独立一轮落地记录（分支 `worktree-routing-oncall-sop`）
+
+**charter 先行**：目的/范围/深度/根因/证据计划/完成标准在任何深读与编辑前落盘于会话 scratch；本节是其 sanitized 落地记录。
+
+**基线（10 有效观测，全程 `--timeout 120`，无超时轮）**：1/10 PASS，判定**稳定失败**而非抖动。指纹与 opencode-config 轮相反——误路由**高度集中**：`product-rd-workflow` ×9，置信 0.65–0.92（中位 0.85）。集中+高置信即「特定邻居强势抢词」：题面「设计一套…SOP」「一个入口加领域路由」词面直喂 `product-rd-workflow` 的 技术方案/方案评估 中文触发词墙 + "router" 一词。注意起草时观测 7/10 → 本轮 1/10 的恶化与 routing-lift 轮自评审预警的「拓宽最宽协调器会抢邻居」方向一致（该轮给 product-rd-workflow 加了触发词）。
+
+**所有权核对（widen 分支，编辑前）**：`platform-observability` body 第 8/32/110 行明文声明 on-call routing、告警评估路由到 on-call、P0/P1 告警分级——bank 用例 why_expected 与之自洽，用例规格无缺陷。缺陷在 description：on-call 所有权全英文（"alerts, on-call routing, SLI/SLO"），对纯中文 utterance 零词面锚。`product-rd-workflow` description/body 均未声明 oncall/值班域，无 body↔routing-surface 矛盾，不加 Skip（收窄最宽协调器有反噬其 16 个 bank 用例的实证风险），修复走「强化期望 owner 中文信号」路径。
+
+**单点修改（终稿 v3，经 dual-track 两轮迭代）**：`platform-observability` description 在 "on-call routing" 后插入 `（值班/排班 SOP、P0/P1 打断；发布值班/回滚除外）`，尾部 boilerplate 删 "internal " 抵扣，终态 799/800，压着 checker 的 `description_too_long_for_opencode` 字符上限过闸（该 description 在 600+ warning 区，下一次扩词必须先减后加）。措辞迭代史（每版全臂重测，中间稿的数作废不挪用）：v1 无 carve-out（798/800，主靶 10/10 但混合句被抢，见 dual-track 节）→ v2 加 carve-out 并删 "distributed" 抵扣（796/800，混合句翻正，但 `p3-log-plus-test` 邻居例出现低置信翻转，嫌疑指向删词）→ v3 恢复 "distributed tracing"、改删尾部 "internal "（799/800，翻转仍在=嫌疑机制证伪，属该复合题面固有抖动）。token 预检：值班/排班/SOP/打断/告警 在其余 31 个 description 均无认领；P0/P1 锚定在打断/排班括注内，不触 `defect-diagnosis`（线上问题）与 `feature-risk-router`（风险定级）的语义域；「发布值班/回滚除外」carve-out 与既有英文 handoff（点名 `platform-release-engineering`）构成「不在这+去哪」双信号。
+
+**前后对比数（终稿 v3 实测）**：
+
+| 面 | 改前 | 改后（最终措辞实测） |
+| --- | --- | --- |
+| `mem-oncall-sop` | 1/10（唯一 PASS 置信 0.88） | **10/10**（置信中位 0.95） |
+| 邻居 8 用例（3 个期望 owner 兄弟例 + 3 个 `product-rd-workflow` 高重叠例含「统筹排期」+ `ctrl-risk` + `new-incident-rca`） | 7 例各 3/3；base 臂加测至 n=9 后 `p3-log-plus-test` 实为 **5/9**（翻转 →python-dev 0.5 / →go-dev 0.55、0.65 / →product-rd 0.65） | 全表面绑定终测 n=6：7 例各 6/6 零回归；`p3-log-plus-test` 3/6。**归因（逐目录点名重算，h1b2 修正）**：改后各轮 v1 3/3、v2 4/6、unbound-v3 4/6、desc-bound-v3 5/6、full-surface-bound-v3 3/6 = 19/27（~30% 翻转），base 臂 5/9（~44% 翻转）——两臂同率同形（目标分散 3 个 stack owner + 协调器、置信 0.5–0.75、零次流向本次拓宽的 observability），且 v3 恢复 "distributed" 后仍翻。判定：**先存两臂不稳用例，非本轮引入**（最初 before 3/3 系小样本；删词嫌疑已证伪）。与 `mem-oncall-sop` 当初同类，列入下一轮独立靶子清单 |
+| 混合句「制定发布值班 SOP，P0/P1 时打断排班并决定是否回滚」（双 P1 闭合硬标准） | —（base 无锚，探针类比 3/3 release） | **3/3 `platform-release-engineering`**（carve-out 生效） |
+| 发布 SOP 探针（无值班词） | 3/3 release 0.95 | 3/3 release 0.95+ |
+| Tier-1 `make eval-routing` | 0 blocking 0 advisory | 0 blocking 0 advisory |
+
+**测量出处**：全部原始逐轮 JSON（基线 10；全表面绑定终测：改后 10 + 邻居改后 6 + 发布探针改后 3 + 变体 3×7，每轮带 `*.binding.json` sidecar；改前臂：邻居 9（含归因加测）+ 发布探针 3；作废轮次留档 `superseded-wording-v1/`、`superseded-wording-v2/`、`superseded-unbound-v3/`、`superseded-bound-v3-desc-only/` 供审计，归属标注为 operator-asserted）连同四个 bank/探针文件与 `MANIFEST.json`（逐文件 sha256、候选绑定 = description 行 sha256 双向 + 全路由输入面 hash 方法学 + 每目录 graded-against 映射、精确 runner 调用、grader 身份）提交在树内 `eval/evidence/routing-oncall-sop-2026-08-14/`。随机采样测量：可复算、逐轮数字不可逐位复现，n=10 纪律为此设。
+
+**dual-track（chain `routing-oncall-sop-r1`，candidate sha256 `3129d2ea…`，review_gate 双 lane，codex，owner-aware native 绑定 `platform-observability`）**：review 1×P2——SOP token 可能吸走发布 SOP/runbook 请求，smallest_fix 要求补 release-SOP 负例前后测。**已按其执行并关闭**：评审者措辞探针（发布/灰度/回滚主导、无值班词）改前/改后各 3 轮，6/6 全部 `platform-release-engineering`（0.95+），零抢词。challenge 1×P1 两子项——(a) 邻居负例不含新增 token、正例逐字复读插入措辞，覆盖缺口；**accepted，按 smallest_fix 跑 evidence-only 变体轮 3×7**（不动冻结 bank，防 co-change 污染前后对比）：3 条无锚自然正例 8/9 通过（「要建 oncall 制度」句式 1/3 偶发滑向协调器，记录为残余抖动）；4 条含锚负例中 风险/缺陷 各 3/3 守住，「制定发布值班 SOP，P0/P1 时打断排班并决定是否回滚」（challenger 原句，全锚点复合）3/3 被吸到 observability（0.95）——**accepted 已知抢词边界（值班 SOP × 发布语境复合类）+ routed**：该复合 decoy 列为下一 bank 轮冻结用例候选，措辞再平衡随彼轮做（本轮不动 bank 的同一理由）；「值班排班管理**功能**」负例 3/3 落 `requirement-scope`，系探针 expected 规格错（「需求怎么拆」本就是其触发词），其承重断言 must_not→observability 3/3 成立。(b) 逐轮 JSON 应内嵌被评 description SHA——**部分接受，适配落地**：MANIFEST 补 base/final 双 description 行 sha256 + 每目录 graded-against 映射（改 runner 属共享闸 co-change，routed 为下一 bank/runner 轮提案）。
+
+**dual-track 第二对（chain `routing-oncall-sop-r2`，candidate sha256 `b61b1cd0…`，处置后候选）**：review 1×P1——两 lane 连续命中同一失败类（混合句被抢 3/3@0.95 而候选记为 accepted boundary），按「同类 finding 跨轮复现=设计信号」规则停止辩护处置、改措辞：**accepted**，其 smallest_fix 前半（收窄括注区分 on-call 告警升级与发布值守/回滚）落为 v2/v3 的 `；发布值班/回滚除外` carve-out，混合句改后 3/3 翻正 `platform-release-engineering`（闭合硬标准成立）；后半（该混合句晋升冻结 bank）**routed 下一 bank 轮**——bank+description 同轮 co-change 被 runner 标记且污染前后对比，与 r3/h1b 先例同理，本轮以 evidence-only 变体承担看护。措辞变更触发全臂重测两次（v2、v3），r2 的 review 因候选被取代未接 challenge，同链预算让位给终审链。终审链 `routing-oncall-sop-r3` 于 v3 终稿候选上重跑双 lane（Agent 自主预算 5 轮：r1 双 lane + r2 review + r3 双 lane，恰好用满）。
+
+**dual-track 第三对（chain `routing-oncall-sop-r3`，candidate sha256 `d071cf87…`，两轮同包，codex 双 lane）**：review 1×P2——MANIFEST/plan 把 v1/v2 时代的「naturals 8/9、natural-2 抖动」结论 copy-forward 进 v3 终稿汇总，而 v3 raw 实为 9/9；**accepted 并修复**：全部汇总数改为从 raw 重算，终稿 naturals 9/9（v1 时代抖动未复现）。challenge 1×P1——逐轮 JSON 不含被评 description SHA，MANIFEST 的目录→措辞归属系 operator 断言，无法机器排除「错措辞跑出的工件冒充终稿证据」；同类第二次被独立 lane 命中（r1 challenge 子项 b 为第一次）。**accepted，按其 smallest_fix 第二分支执行**：终审用 final 四臂全部以原子绑定 wrapper 重新生成——每轮前后各采集一次 description 行 sha256 落 sidecar（`*.binding.json`，含轮次文件 sha256 / repo HEAD / binding_valid），22/22 绑定有效且唯一 SHA = 终稿候选；重生成后绑定终测：主靶 **10/10**（中位 0.95）、邻居见上表、混合句 3/3 release、发布探针 3/3、naturals 9/9。改 runner 内嵌 SHA 属共享闸 co-change，升格为携两 lane 背书的下一 bank/runner 轮提案；改前臂（基线 10 + 邻居 3 + 探针 3）成于绑定机制之前，残余为 operator 断言（against dev 6a795af），由上一轮全量对照对该靶的独立观测（6-7/10 两臂不稳）侧证其失败存在性。
+
+**评审轮预算记账与收敛（诚实披露）**：r1 双 lane + r2 review + r3 双 lane = 5 轮，Agent 自主预算「initial review + ≤4 challenges = 5 轮」用满；r3 后增量未经无偏终审，按 exhausted-budget checkpoint 停下待人裁决，**维护者批了一轮加时（2026-08-14）**。加时轮对已提交候选按 200KB 包上限分区：A 区（决策面 + 现行证据，chain `routing-oncall-sop-h1a`，candidate `e96a4bcf…`，codex 双 lane）、B 区（superseded 审计目录 + 共享上下文，chain `h1b`→加宽重跑 `h1b2`）。处置：h1a review 1×P1（顶层追踪表写「已结清」与细节段 interim 自相矛盾）**accepted 修复**——本段与追踪表统一为「经批准加时终审后结清」；h1a challenge 1×P1（sidecar 只绑 platform-observability 一条 description 行，邻居描述被临时改动测不出）**accepted，按其 smallest_fix 执行**——绑定 wrapper 升级为对完整路由输入面（全部 32 条 description 行 + 该臂 bank 文件）前后哈希 + HEAD + skills 树干净证明，final 四臂全部重生成（22/22 绑定有效、单一 HEAD、每 bank 一个恒定 surface hash），重生成后主靶仍 **10/10**（中位 0.95）、混合句仍 3/3 release、发布探针 3/3、naturals 9/9。h1b 两条 P1 系包边界伪影（description 改动与绑定工件在 A 区包内，B 区 reviewer 不可见）——**input defect，加宽包（补入 SKILL.md diff）+ 分区映射 focus 重跑为 h1b2，不改候选**（opencode h1 同款先例）；h1b2 余 2×P2 **均 accepted 修复**：(1) `p3-log-plus-test` 聚合「18 轮翻 5 次」算错——逐目录点名重算并加测 base 臂至 n=9，见上表归因；(2) 无 sidecar 的 v1/v2/unbound-v3/desc-bound-v3 目录归属降级标注为 operator-asserted（因果结论现以 base 臂 n=9 的两臂同形证据为主承重，不再依赖中间稿目录的措辞归属）。**无限回归止点（声明）**：加时轮修复产生的增量（绑定重生成 + 聚合纠错 + 本段记录）不再另开 Agent 轮，随本记录一并暴露给维护者的合并决定——该止点与 opencode 轮 h1b 先例同构，且维护者的加时批准即以「无未处置 P0/P1 后合并」为条件授权。至此各链（r1/r2/r3/h1a/h1b2）无未处置 P0/P1。
+
+### route-opencode-project-config 基线补测轮落地记录（分支 `worktree-routing-baseline-opencode-config`）
+
+**charter 先行**（上一轮的 interim 缺陷不复现）：目的/范围/深度/根因/证据计划/完成标准在任何源读取与编辑前落盘于会话 scratch；本节是其 sanitized 落地记录。
+
+**基线（10 有效观测，grader 超时轮以 `--timeout 120` 补跑）**：2/10 PASS，判定**稳定失败**而非抖动。误路由高度分散——`terminal-cli-dev` ×3（0.2–0.65）、`product-rd-workflow` ×3（0.08–0.4）、`requirement-intent` ×1（0.7）、`worktree-isolation` ×1（0.25）；仅有的 PASS 置信度 0.3/0.55。分散+低置信即「期望 owner 无一词覆盖该 utterance，评分模型在半贴合邻居间乱选」的指纹。
+
+**所有权核对（widen 分支，编辑前）**：opencode.json 治理规则本体在仓库 `AGENTS.md`（只注册 skills/AGENTS/session-start/短 command；禁模型、密钥、MCP、绝对路径）；bank 用例的 why_expected 与之自洽，用例规格无缺陷；`skill-extraction-workflow` body 对此沉默（非矛盾），description 只广告了「全局安装点快照核查」——缺的是「本仓项目配置/命令治理」一词。
+
+**单点修改**：description 追加「 / 本仓（ccl-skills 等共享技能仓）OpenCode 项目配置·命令治理」——以 OpenCode+项目配置双锚定，避开裸「命令/CLI」词。落地时连撞两道仓库自己的闸，处置如下：
+
+1. **域名泄漏扫描**：第一稿用了字面量 `opencode.json`，被 `code\.[[:alnum:].-]+` 模式误中（子串 `code.json`）。该模式是防业务域名的硬 fail-closed 闸，放宽闸须过最严的 design-time 检查，不值得为一个可绕开的词法碰撞开口子，故改词为「OpenCode」；utterance 原文自带「OpenCode 项目配置/命令治理」，词法匹配不降。**技能文件（SKILL.md/references）里的路由词表受该扫描约束：任何含 `code.` 子串的词（含 opencode.json）写不进去**——后来者别再撞一次。
+2. **severe 入口零净增长**：`skill-extraction-workflow` 的 SKILL.md 属 severe 超预算入口，任何正增量即 block，且无豁免旗。三个英文自问触发词（would other teammates hit this 等）曾是删词候选，但它们被 `check-ccl-skills.sh` 的 teammate-trigger 精确短语闸钉死在 SKILL.md 里，不可删。最终抵扣走闸文案自己建议的路径：把 UI/UX 判断维度九项枚举从入口内联搬进其 canonical owner `references/uiux-judgment-extraction.md`（reference 原文只散见各节、无单点全列，故为「搬移补全」非删除；入口留指针）。零损失义务映射：九项枚举 → reference「The judgment-dimension axis」一行逐字幸存；adjacency-scan 指令原位保留。加上「命令注册治理→命令治理」收紧（与 utterance 更贴），净变化 **-37 字节**（122256 → 122219）。第三道闸随后现身：impact-chain 闸要求台账行的 firing-path 锚在**本轮变更的规范行**上（带规范动词的编号/列表规则行；frontmatter 描述标量被明文排除，routing-surface-only 豁免类又对「自带台账的 owner」不可用——台账行与描述必然同包），而搬移后的指针子弹句原是祈使语气、无规范动词。处置：给该句补上本就该有的约束语气（"walk that enumeration — do not re-derive the axis list from memory"，与本技能「charter 不得凭记忆填写」的既有纪律同向），锚落真实变更的规范句。教训：**该闸只在 commit 后可见（base..HEAD 为空时静态全绿），worktree 里必须 commit 后再跑一次完整 checker 才算过闸**。
+
+**前后对比数**：
+
+| 面 | 改前 | 改后（最终措辞实测；措辞每变一次即重测，中间稿的数不挪用） |
+| --- | --- | --- |
+| `route-opencode-project-config` | 2/10（PASS 置信 0.3/0.55） | **10/10**（置信中位 0.92） |
+| 邻居 8 用例抢词（含须保持 pass 的 `route-opencode-global-snapshot-audit`、`route-provider-neutral-diff-review` 及三个 CLI/命令用例、`ctrl-feature`、`new-worktree-ctrl`、`skip-pytest-cmd`） | 各 3/3 | 各 3/3，零回归 |
+| Tier-1 `make eval-routing` | 0 blocking 0 advisory | 0 blocking 0 advisory |
+| `check-ccl-skills.sh` | —（dev 基线绿） | `ccl_skill_check_clean_ok`（私有 R0 审计 `alias_audit_ok`，非公共 fallback） |
+
+**dual-track（chain `routing-lift-opencode-config-r3`，candidate sha256 `113d61d4…c9a5`，两轮同包）**：review（codex）passed 零发现；challenge（codex）1×P1——新触发词或吸走「在共享技能仓给 OpenCode 新增一个由脚本实现的项目命令」类实现意图请求，且邻居集未测组合意图。处置 **declined with reason**：本仓契约证据三点同向——extraction-gate stop hook 的领域范围明文含 repo-root scripts/ 与 hooks/（共享技能仓里加脚本命令本就必须过本技能的闸）、AGENTS.md 的 OpenCode 配置治理约束由本技能守、bank 兄弟用例的 decoy 设计同向；经验探针以挑战者原句跑 5 轮，5/5 路由 `skill-extraction-workflow`（置信 0.7–0.95）——落点正是契约要求的 owner，非误路由（产品仓的 CLI 实现仍归 stack 技能，触发词以「本仓/共享技能仓」锚定，不触产品仓语料）。半接受的测量缺口 **routed（提案，待维护者接受）**：bank 增补组合意图碰撞用例（实现意图 × 新高信号词 × 他仓变体）列为下一 bank 轮候选；本轮不动 bank——与 description 同轮 co-change 会污染前后对比证据。
+
+**测量出处（r4/r5 challenge 两轮修复后的终态）**：全部原始逐轮 JSON（基线 13 文件含 3 超时补跑、最终措辞 10 轮、邻居改前/改后各 3 轮、反证探针 5 轮）连同三个 bank 文件与 `MANIFEST.json`（逐文件 sha256、候选绑定 = 最终 description 行的 sha256、精确 runner 调用、grader 身份）**提交在树内** `eval/evidence/routing-lift-opencode-config-2026-08-14/`。r4 修复曾放 checkout 本地 evidence 目录，r5 两 lane 同时指出该定位符随 checkout 消失、不满足本轮自己新立的持久定位符规则——改为进树。健康分历史的 Goodhart 顾虑不适用于已定案轮的审计工件（它不是持续可调的指标）。这些是随机采样测量：可复算（调用与 grader 已记录）但逐轮数字不可逐位复现，n=10 的纪律正为此设。
+
+**dual-track 第二对（chain `routing-lift-opencode-config-r4`，candidate sha256 `a44df2dd…e627`，两轮同包，codex 双 lane）**：各出 1×P1，均接受并修复——(1) review：台账行 firing-path 锚在语义无关的 UI/UX 句上（"借变更行凑锚"被抓）；修复：本节的测量纪律落成 `references/eval-routing.md` §Bank 用例修复的测量纪律 的 normative 规则，行锚改指该规则。(2) challenge：轮记录的数字缺独立可验出处；修复：上方测量出处块 + 工件归档。**dual-track 第三对（chain `routing-lift-opencode-config-r5`，candidate sha256 `adf210ac…bd38`，codex 双 lane）**：两 lane 收敛于同一条 P1——r4 修复选用的 checkout 本地 evidence 目录随 checkout 消失，不是本轮自己新立规则要求的持久定位符，测量只算 operator-reported。接受，取其 smallest_fix 的更强一支修复：工件 bundle + hash manifest 提交进树（见上方测量出处块终态）。
+
+**评审轮预算记账与收敛（诚实披露）**：候选每次实质变更都换 chain 重评，r3/r4/r5 三对共 6 轮已超 Agent 自主预算「initial review + ≤4 challenges = 5 轮」，按 exhausted-budget checkpoint 停下待人裁决；维护者当场批了一轮加时（2026-08-14）。加时轮 h1 两 lane 收敛于同一条包 composition 缺陷（原始工件为控包体积被排除在评审包外）——按「input defect 加宽包重跑该 lane、不改候选」规则以 h1b 重跑：**review passed 零发现**；challenge 余 1×P1——已测的 10/10 只绑定单条 coached utterance，自然变体与高重叠混合意图未测，且 r3 反证探针把争议 owner 设为期望答案、无法裁决碰撞。处置：**accepted，按其 smallest_fix 原样执行**——description 冻结，新增 evidence-only 变体轮（3 条无 coaching 排除语的自然正例 + 4 条高重叠负例：OpenCode diff 评审→code-review、终端 TUI 命令面板→terminal-cli-dev、共享仓改文件先建 worktree→worktree-isolation、产品「用户自定义快捷命令」新功能→product-rd-workflow），3 轮 ×7 用例**全 3/3**，工件与 bank 文件并入树内证据束（manifest 同步重算）。至此 h1b 无未处置 P0/P1，chain 按「no undispositioned P0/P1」标准收敛；该变体证据本身未再另开挑战轮（无限回归止于此），随本记录一并暴露给维护者的合并/push 决定。
+
+**顺带发现（有处置，按 018 规则）**：本轮 stop hook 假阳性暴露宿主全局安装点 `~/.claude/hooks/skill-repo-extraction-gate.sh` 为 7 月旧快照（仍用 `company-skills:` 前缀做 transcript 检测，仓库已更名 `ccl-skills`，故真实调用被判未调用；且缺新版的 session_id 消毒）。这正是本技能 description 与 `route-opencode-global-snapshot-audit` 用例点名的失效类的一次线上实例。处置：**routed——待维护者按本仓 `hooks/skill-extraction-gate-stop.sh` 现行版刷新宿主安装点**（宿主变更影响全局路由，agent 不擅自执行；无托管安装脚本覆盖此 hook 是既知空缺，随本条一并归维护者裁决）。
 
 ### 路由提升轮落地记录（分支 `worktree-routing-lift`，从 dev 切，**interim**）
 

@@ -1,0 +1,119 @@
+{
+  "model": "claude-haiku-4-5",
+  "tasks": 8,
+  "pass": 8,
+  "fail": 0,
+  "error": 0,
+  "desc_budget_chars": null,
+  "co_change_bank_and_descriptions": false,
+  "co_change_check_available": true,
+  "frozen_drift": [],
+  "newly_failed": [],
+  "newly_passed": [],
+  "results": [
+    {
+      "id": "ctrl-feature",
+      "utterance": "我们要加一个新功能，这个需求怎么做",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "skip-pytest-cmd",
+      "utterance": "pytest 这个命令具体怎么写",
+      "expected": "python-service-dev",
+      "selected": "python-service-dev",
+      "confidence": 0.8,
+      "must_not_route_to": [
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-worktree-ctrl",
+      "utterance": "开始改这个功能前先建个隔离的 worktree 分支",
+      "expected": "worktree-isolation",
+      "selected": "worktree-isolation",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-opencode-global-snapshot-audit",
+      "utterance": "帮我看看用户全局 ~/.config/opencode 里有没有旧的同名CCL 技能覆盖本仓技能，只读核查",
+      "expected": "skill-extraction-workflow",
+      "selected": "skill-extraction-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "agents-file-coverage-gate",
+        "web-react-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-provider-neutral-diff-review",
+      "utterance": "按我本机的 reviewer 优先级 review 这个 diff，Claude 不可用就走 Kimi、OpenCode 或 Codex",
+      "expected": "code-review",
+      "selected": "code-review",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "skill-extraction-workflow",
+        "defect-diagnosis",
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-python-cli-not-terminal",
+      "utterance": "用 Python 写个命令行工具怎么写",
+      "expected": "python-service-dev",
+      "selected": "python-service-dev",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "terminal-cli-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-go-cli-not-terminal",
+      "utterance": "用 Go 写个命令行工具怎么写",
+      "expected": "go-microservice-dev",
+      "selected": "go-microservice-dev",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "terminal-cli-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-cli-contract-design-not-stack",
+      "utterance": "帮我设计这个 CLI 的子命令、flag 和 help 文案，不涉及 TUI 渲染",
+      "expected": "terminal-cli-dev",
+      "selected": "terminal-cli-dev",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "go-microservice-dev",
+        "python-service-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    }
+  ]
+}
