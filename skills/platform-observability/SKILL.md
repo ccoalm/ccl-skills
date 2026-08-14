@@ -16,6 +16,7 @@ You do not own:
 ## Skill Routing
 
 - Use this skill for: instrumenting a new service, reviewing whether a service is observable, designing a dashboard, drafting an alert, sizing an SLO, hunting a missing signal, deciding what log fields propagate, deciding sampling rates, deciding metric label cardinality, judging whether a release has enough observability evidence to be promoted.
+- Own on-call SOP design end to end — 值班/排班 SOP、告警统一入口与分级路由、P0/P1 打断策略 MUST be designed here; hand release-period duty and rollback decisions（发布值班/回滚）to `platform-release-engineering`.
 - Use `platform-service-connectivity` first when the question is about traffic policy, mesh, routing, retries, or service-to-service identity.
 - Use `platform-release-engineering` first when the question is "can this change be promoted?" or "did rollback work?" — those skills consume your SLIs as evidence.
 - Use `defect-diagnosis` first when the user reports a specific failure; come back here only to land the missing-signal lesson if observability gaps allowed the bug to escape.
