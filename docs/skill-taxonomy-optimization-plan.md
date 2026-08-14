@@ -228,6 +228,8 @@ Claude 端还留着三个按 commit 钉住的旧版本缓存目录（`7f9cdb9b49
 
 **dual-track 第三轮（chain `routing-p3-log-plus-test-r3`，candidate sha256 `7afcd28b…`，codex review lane，预算第 5/5 轮）**：1×P1——wrapper 仅凭 surface hash/树干净/rc 就置 `binding_valid=true`，评测器 rc=0 但不产出可用 round 文件时会出假绿 sidecar（false-green guard 失败类）。**accepted 修复（执行其 smallest_fix 原文）**：`binding_valid` 前置 OUT 非空常规文件 + `results[]` 结构可解析校验，绑定无效时 wrapper 本身非零退出；补 stub 评测器回归测试 `test-run-bound-round.sh`（三例：无输出/坏 JSON 必须 fail-closed、合法输出必须通过），并做差分 RED 证明——修复前版本（`c8046e9`）对前两例 rc=0 假绿、对照例两版皆绿，红恰落在被守护断言上。已提交的 10 轮不受影响（其 round 文件俱在且被 recompute 脚本逐个解析过，82 行）。**止点声明**：Agent 自主预算 5/5 用尽（r1 双 lane + r2 双 lane + r3 review），本段修复增量不再另开 Agent 轮，连同 r3 已声明未消费的 challenge 容量一并暴露给维护者的合并决定；各链（r1/r2/r3）至此无未处置 P0/P1。
 
+**维护者批准的加时轮（2026-08-14，人工请求，Agent 预算之外；续 r3 链消费其未用 challenge 容量，candidate = 已落地内容 `512b77a..dev@2a0ec22`，codex challenge lane）**：1×P1，恰落在此前唯一未被对抗过的修复增量上——**陈旧输出复用假绿**：向已含合法 `round-N.json` 的目录补跑同轮号、评测器 rc=0 但未写出输出时，wrapper 会哈希并校验**旧文件**出 `binding_valid=true`（协议自己的「超时轮补跑」正是该场景），而全新目录的回归测试测不到它。**accepted 修复（执行其 smallest_fix 原文）**：评测器改写入 mktemp 临时路径、结构校验通过后才原子 move 进位（陈旧文件永不被当作本轮结果哈希/校验，失败时 `round_file_sha256` 置空）；回归测试补 case 4（预置陈旧合法 round 文件 + 无输出评测器，必须 fail-closed），差分证明：修复前版本（dev `2a0ec22`）**仅 case 4 假绿（rc=0）**、case 1-3 两版皆绿，红恰落在新守护上。已提交的 10 轮基线不受影响（各轮按严格递增轮号写入全新目录，且每个留存 round 文件被 recompute 脚本独立解析过）。本加时轮修复增量按同一止点规则随本记录暴露给维护者；至此含加时轮在内无未处置 P0/P1。
+
 ### mem-oncall-sop 独立一轮落地记录（分支 `worktree-routing-oncall-sop`）
 
 **charter 先行**：目的/范围/深度/根因/证据计划/完成标准在任何深读与编辑前落盘于会话 scratch；本节是其 sanitized 落地记录。
