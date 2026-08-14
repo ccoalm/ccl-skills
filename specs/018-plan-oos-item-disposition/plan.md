@@ -46,10 +46,14 @@ that later slices happened to audit the same files.
 
 One bullet in §Plan Authoring: naming known work (defect observed in passing,
 debt/hardening item, follow-up work) out of scope requires a disposition that
-outlives the plan — an owner locator or a terminal disposition with reason —
-while scope decisions and non-goals carry no owner duty. One slot added to the
-assessment-plan required-field list: "the disposition of findings named but not
-selected".
+outlives the plan — an owner locator, or a declined-with-reason terminal
+disposition. The duty attaches only through the known-work predicate: an
+explicit "scope decisions and non-goals carry no owner duty" sentence was in the
+first draft and was deleted on review round 1's finding — it was the exemption
+clause the form table prohibits, a relabeling hole. An item already owned
+elsewhere is not terminal by assertion: it takes the existing owner's durable
+locator (round 1's second finding). One slot added to the assessment-plan
+required-field list: "the disposition of findings named but not selected".
 
 Form choice per `rule-consolidation.md` form-by-failure: the baseline failure is
 an omitted element in an artifact the author already produces → REQUIRED slot,
@@ -91,8 +95,8 @@ happens.
 | concurrency & lifecycle | No runtime. Lifecycle: fires at authoring time; landed plans stay valid archives — no retroactive invalidation duty (the one live backlog was swept this round, see out item (b)). |
 | resource bounds | Bounded by predicate: only named known-work items owe a disposition, and a terminal disposition costs one clause. Non-goals owe nothing. |
 | rollout/migration ordering | No ordering. The rule is additive prose; no existing artifact breaks. |
-| over-broad absolute | The predicate keys to known work; "scope decisions and non-goals are decisions, not work" is the boundary sentence, structured so the rule cannot reach them. |
-| enumeration-completeness | Item classes enumerated: defect observed in passing / debt or hardening / follow-up work. Locator forms enumerated open-set (tracker row, issue, status doc, owning skill or gate, successor slice). Terminal forms: declined / already-owned, with reason. |
+| over-broad absolute | The predicate keys to known work and delimits alone. The first draft added an explicit non-goals exemption sentence; review round 1 identified it as the exemption clause the form table prohibits (a deferred item relabeled "non-goal" evades the duty) and it was deleted — the positive predicate cannot reach a non-goal, so nothing is lost. |
+| enumeration-completeness | Item classes enumerated: defect observed in passing / debt or hardening / follow-up work. Locator forms enumerated open-set (tracker row, issue, status doc, owning skill or gate, successor slice, existing owner's locator for already-owned items). Terminal form: declined, with reason — already-owned is a locator case, not a terminal case, per round 1. |
 
 ## Scope
 
@@ -130,8 +134,9 @@ Out of scope, each with its disposition (this rule's own dogfood):
   (two hunks), `specs/018-plan-oos-item-disposition/plan.md` (new),
   `skills/skill-extraction-workflow/references/source-register.md` (one appended
   row). Nothing else.
-- Edge/failure paths: over-fire on non-goals (bounded by the predicate
-  sentence); under-fire on items not phrased as defect/debt/follow-up (mitigated
+- Edge/failure paths: over-fire on non-goals (bounded by the positive predicate
+  alone; the drafted exemption sentence was deleted on review round 1's
+  finding); under-fire on items not phrased as defect/debt/follow-up (mitigated
   by the "known work" head noun plus three-class enumeration); drift between the
   bullet and the line-110 slot (the slot names a field only, the bullet owns the
   rule); rot of the two backticked pointers (both targets exist; backticked
@@ -153,9 +158,51 @@ Rounds are appended below as they complete.
 
 ### Rounds
 
-(appended per round)
+- **Round 1 — review, codex, `status=findings`, 3×P1, all accepted.** (chain
+  `oos-owner-018`, index 1, stage release, base ec8b2a2, plan
+  implementer-supplied, native skill binding established, secret scan clean.)
+  (1) The "scope decisions and non-goals" sentence was the prohibited exemption
+  clause — a deferred item relabeled "non-goal" evades the duty; fixed by
+  deletion, the positive predicate delimits alone. (2) "Already-owned, with the
+  reason" as terminal recreated the target failure — an unfindable ownership
+  assertion; fixed by folding already-owned into the locator branch (cite the
+  existing owner's durable locator) and reserving reason-only terminal for
+  declined. (3) The plan cited checker success as acceptance without recorded,
+  recomputable evidence; fixed by the "The RED, recomputed" section below and
+  this rounds record. Fixes landed as a new commit on top of the reviewed
+  candidate (201cda9), per the findings-fix commit discipline, with the ledger
+  append split into its own commit so each impact-chain round carries its row;
+  the round-1 ledger row stays as landed, superseded by pointer from the
+  appended round-2 row (append-only, never edited — the first attempt edited it
+  and the impact-chain gate rejected the round).
+
+## The RED, recomputed (round-1 finding 3)
+
+Run from the worktree, base pinned at ec8b2a2:
+
+- `git show ec8b2a2:skills/product-rd-workflow/references/delivery-lifecycle.md | grep -c -i "out of scope"`
+  → `0` (exit 1, no match): the base plan-authoring contract carries no
+  out-of-scope rule text.
+- `git show ec8b2a2:specs/010-review-concern-excerpt/plan.md | sed -n '55p'`
+  → `Out of scope, named rather than silently dropped:` — the naming, with no
+  disposition mechanism.
+- `git show ec8b2a2:specs/014-spec-reference-existence-gate/plan.md | sed -n '29p'`
+  → `| naming it out-of-scope in \`010\`'s Scope | prose in a spec that then
+  landed. Nothing carried it forward, and only one of its two copies was ever
+  found |` — the recorded outcome of that naming.
+- `git show ec8b2a2:specs/015-reviewer-lane-host-vocabulary-class/plan.md | sed -n '418,419p'`
+  → the open item this slice discharges ("…needs an owner or it rots — to
+  \`product-rd-workflow\` plan authoring, pending its own dual-track round").
+- Sweep (010–017): every named out-of-scope item is either closed by a later
+  slice with its disposition recorded in `specs/010-review-concern-excerpt/plan.md`,
+  a scope decision outside the predicate, or the 015 open item discharged here.
+- `check-ccl-skills.sh` on the candidate: `ccl_skill_check_clean_ok` with
+  `r0_status=private-ok` (private alias audit ran to `alias_audit_ok`; range
+  origin/dev..HEAD + worktree; profiles process-retro + 10 alias files) and the
+  impact-chain gate green over the appended ledger row — rerun after every fix
+  commit; the Landing state section records the final run.
 
 ## Landing state
 
-Interim: rule drafted, self-review row persisted, ledger row staged; review and
-challenge lanes pending.
+Interim: rule drafted, self-review row persisted, ledger row staged; round 1
+findings applied; review rerun and challenge lanes pending.
