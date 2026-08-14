@@ -70,12 +70,10 @@ clause.
 Consolidation record: `consolidation: no candidate (new theme)` for §Plan
 Authoring — mother-theme grep ("out of scope", "owner", "deferred") over
 `delivery-lifecycle.md` at base returns zero rule text. The invariant's two
-existing downstream instances are pointed to, not restated:
-`implementation-completeness-and-minimality.md` (deferred coverage point needs a
-durable follow-up locator, closeout time) and `code-review-checklist.md`
-(deferred/accepted-risk items need an accepting owner in the MR description,
-review time). This slice adds the missing FIRST firing point — where the naming
-happens.
+existing downstream instances are pointed to, not restated: the deferred-point
+rule in `implementation-completeness-and-minimality.md` (closeout time) and the
+accepted-risk/deferred-items row in `code-review-checklist.md` (review time).
+This slice adds the missing FIRST firing point — where the naming happens.
 
 ## RCA, widened
 
@@ -229,6 +227,28 @@ Rounds are appended below as they complete.
   plan violating its own rule; the dogfood held). (4) Accepted: the Landing
   state was stale against the rounds record; rewritten with the transcribed
   gate output.
+
+- **Round 4 — challenge, codex, `status=findings`, 4×P1: one accepted, three
+  declined as one already-dispositioned class.** (chain `oos-owner-018`,
+  index 4, challenge-index 3, final-angle focus incl. challenging the prior
+  declines themselves.)
+  (1) Accepted: this plan's own narrative still carried two parenthetical
+  restatements of the downstream instances' requirements; trimmed to instance
+  names. (2)–(4) **Declined, one class, disposition unchanged and re-verified
+  candidate-relative**: all three re-raise the packet-completeness demand —
+  controller-captured, digest-bound evidence (base-revision excerpts, gate
+  output, entrypoint lines) inside the bounded packet. The class was
+  dispositioned in round 2 and again in round 3: the digest-bound evidence
+  apparatus was evaluated and REMOVED by the impact-chain gate's own recorded
+  design decision, and enforcement lives in the merge-time recomputation on the
+  exact candidate, which a no-tools packet reviewer structurally cannot see.
+  Candidate-relative re-check: every cited revision (ec8b2a2, e567986, b34fc58)
+  is a branch commit any tooled verifier recomputes; the three entrypoint
+  routes are quoted verbatim with line numbers in the round-3 record of this
+  plan, which is itself inside the packet. Per the repeated-same-class design
+  rule, the keep/delete decision is recorded: **keep-absent** — the recurring
+  finding pushes against a design boundary the owning gate already decided and
+  documented; re-opening it per round would rebuild the removed apparatus.
 
 ## The RED, recomputed (round-1 finding 3)
 
