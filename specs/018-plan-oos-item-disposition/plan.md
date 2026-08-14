@@ -250,6 +250,26 @@ Rounds are appended below as they complete.
   finding pushes against a design boundary the owning gate already decided and
   documented; re-opening it per round would rebuild the removed apparatus.
 
+- **Round 5 — challenge, codex, `status=findings`, 1×P1, accepted; budget
+  exhausted.** (chain `oos-owner-018`, index 5, challenge-index 4 — final
+  budgeted round.) The finding is a genuinely new class and aligns with the
+  sibling instances' existing bar: an ownerless status-document entry is a
+  second archive, and a plan author's unilateral "declined, with the reason" is
+  termination without authority (the closeout instance already requires the
+  active product or human source to make out/deferred decisions; the review
+  instance already requires an accepting owner). Fixed: the locator's durable
+  entry must name the work and its accepting owner; a terminal decline names
+  the deciding authority or its durable decision record. **Because this fix
+  lands after the fifth round, the post-fix candidate has had no fresh full
+  challenge. The slice is therefore interim at the exhausted-budget checkpoint:
+  the parked human decision is to grant a fresh challenge round on the final
+  candidate, or to accept it as-is.** Post-budget deep self-review of the fix,
+  walked against every prior finding class: no exemption clause added; the
+  accepting owner is named inside the durable entry, not asserted in the plan;
+  the already-owned and successor-slice forms inherit the head requirement; the
+  terminal form now matches the closeout instance's authority bar without
+  restating it; the field-list slot is untouched.
+
 ## The RED, recomputed (round-1 finding 3)
 
 Run from the worktree, base pinned at ec8b2a2:
@@ -280,9 +300,14 @@ Run from the worktree, base pinned at ec8b2a2:
 
 Rounds completed: review (index 1, findings applied), challenge (index 2,
 findings applied; one declined with reason), challenge (index 3, findings
-applied; one declined with reason). A fresh full challenge of the exact landing
-candidate follows this commit; the slice lands only if it converges (no
-undispositioned P0/P1).
+applied; one declined with reason), challenge (index 4, one applied; three
+declined as one recorded class), challenge (index 5, one applied — the Agent
+budget's final round). **Status: interim.** Every finding across five rounds is
+dispositioned (fixed, or declined with a recorded reason), but the round-5 fix
+postdates the last budgeted challenge, so the exact final candidate has had no
+fresh full challenge. Parked for the human risk owner: grant one fresh
+challenge round on the final candidate, or accept it as-is. No merge, no
+landed claim, until that decision.
 
 Gate output, author-transcribed, from `check-ccl-skills.sh` run against this
 candidate tree (rule, ledger rows, and this section's text included; the
