@@ -1,0 +1,924 @@
+{
+  "arms": {
+    "baseline-rounds": {
+      "description": "pre-change surface (dev c0561c7), bank-single.jsonl, 10 rounds",
+      "rounds": [
+        {
+          "file": "baseline-rounds/round-1.json",
+          "pass": 0,
+          "repo_head": "c0561c74e0f7249b8041f7c5800a8d6deadf496f",
+          "sha256": "db68902c06d3653b2b00fe6233083af39fe7871df7109c0044e53f33cf026d57",
+          "sidecar_sha256": "7f41d75eefc7cba4d6a6f6f3f70c65806d36813a991ba20d5b39f5f07e53519c",
+          "surface_sha256": "3ef792c0e21fde203281881800c9696a876a87600ac78439f9eb1a12f50416a3",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.85,
+              "id": "new-tighten-vs-owner",
+              "selected": "requirement-intent",
+              "status": "FAIL"
+            }
+          ]
+        },
+        {
+          "file": "baseline-rounds/round-2.json",
+          "pass": 1,
+          "repo_head": "c0561c74e0f7249b8041f7c5800a8d6deadf496f",
+          "sha256": "12ab356db73f9f4516401f09a6ef4ea5be023418f827e5581b599c95e0587e06",
+          "sidecar_sha256": "047b2b78d5d0dbc257a732e136e86bb6f7875906a5a215737feadc47aeb77281",
+          "surface_sha256": "3ef792c0e21fde203281881800c9696a876a87600ac78439f9eb1a12f50416a3",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.85,
+              "id": "new-tighten-vs-owner",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "baseline-rounds/round-3.json",
+          "pass": 1,
+          "repo_head": "c0561c74e0f7249b8041f7c5800a8d6deadf496f",
+          "sha256": "53d7a2f250be9d2a8fdc40eeaef58156752b0c6cce0802c413f94c4b1ac1d4b4",
+          "sidecar_sha256": "c850d4b83390b87f2e01defb20e4c1727305ed7c959170fc5fdb4c49781ff25a",
+          "surface_sha256": "3ef792c0e21fde203281881800c9696a876a87600ac78439f9eb1a12f50416a3",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.92,
+              "id": "new-tighten-vs-owner",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "baseline-rounds/round-4.json",
+          "pass": 0,
+          "repo_head": "c0561c74e0f7249b8041f7c5800a8d6deadf496f",
+          "sha256": "60b687b4b73e98dec478bad85701d4d33940bc09b768cb2cf7769dac80a78d48",
+          "sidecar_sha256": "b126b673f540c5915793989d782cdd80edec5759ef12980721ef8dbaa7b2e340",
+          "surface_sha256": "3ef792c0e21fde203281881800c9696a876a87600ac78439f9eb1a12f50416a3",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.65,
+              "id": "new-tighten-vs-owner",
+              "selected": "requirement-intent",
+              "status": "FAIL"
+            }
+          ]
+        },
+        {
+          "file": "baseline-rounds/round-5.json",
+          "pass": 0,
+          "repo_head": "c0561c74e0f7249b8041f7c5800a8d6deadf496f",
+          "sha256": "c19a7d8fc47bf0617ae1a32b11cbbbbaf90838096e6c9421bcb1850dcccbffb9",
+          "sidecar_sha256": "a6638bbed3e31002febf3db2b1fc78f26bca0281806a937ae9fac40a2232069b",
+          "surface_sha256": "3ef792c0e21fde203281881800c9696a876a87600ac78439f9eb1a12f50416a3",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.75,
+              "id": "new-tighten-vs-owner",
+              "selected": "requirement-intent",
+              "status": "FAIL"
+            }
+          ]
+        },
+        {
+          "file": "baseline-rounds/round-6.json",
+          "pass": 1,
+          "repo_head": "c0561c74e0f7249b8041f7c5800a8d6deadf496f",
+          "sha256": "8eb508f7e2a6b1f53c1407afe27c2da009a35979bef31b30ea943454a6132577",
+          "sidecar_sha256": "d7c9b5d2f3a107d71139a16ee22cb1a63a6a2b3b5eaff67088c84d6b86f724bd",
+          "surface_sha256": "3ef792c0e21fde203281881800c9696a876a87600ac78439f9eb1a12f50416a3",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.65,
+              "id": "new-tighten-vs-owner",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "baseline-rounds/round-7.json",
+          "pass": 0,
+          "repo_head": "c0561c74e0f7249b8041f7c5800a8d6deadf496f",
+          "sha256": "db68902c06d3653b2b00fe6233083af39fe7871df7109c0044e53f33cf026d57",
+          "sidecar_sha256": "913edefca7a6ee6b83f3c7424f0cb376973b25fb2b1aa5c084a8a7fe4940f4a2",
+          "surface_sha256": "3ef792c0e21fde203281881800c9696a876a87600ac78439f9eb1a12f50416a3",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.85,
+              "id": "new-tighten-vs-owner",
+              "selected": "requirement-intent",
+              "status": "FAIL"
+            }
+          ]
+        },
+        {
+          "file": "baseline-rounds/round-8.json",
+          "pass": 0,
+          "repo_head": "c0561c74e0f7249b8041f7c5800a8d6deadf496f",
+          "sha256": "2c91bdefb73a71a8f3d1b7afc95edddb34f1773761440d112444919b4ff6240c",
+          "sidecar_sha256": "3b017fdd0dc12150b5e3b3aaaa87c7f67c7357bfce86bf44857756ab1ce94a0f",
+          "surface_sha256": "3ef792c0e21fde203281881800c9696a876a87600ac78439f9eb1a12f50416a3",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.7,
+              "id": "new-tighten-vs-owner",
+              "selected": "requirement-intent",
+              "status": "FAIL"
+            }
+          ]
+        },
+        {
+          "file": "baseline-rounds/round-9.json",
+          "pass": 0,
+          "repo_head": "c0561c74e0f7249b8041f7c5800a8d6deadf496f",
+          "sha256": "60b687b4b73e98dec478bad85701d4d33940bc09b768cb2cf7769dac80a78d48",
+          "sidecar_sha256": "39786b92a0bbc26d327068a2f2cda88daf4b41a6edcebdd487eecaba3c51707f",
+          "surface_sha256": "3ef792c0e21fde203281881800c9696a876a87600ac78439f9eb1a12f50416a3",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.65,
+              "id": "new-tighten-vs-owner",
+              "selected": "requirement-intent",
+              "status": "FAIL"
+            }
+          ]
+        },
+        {
+          "file": "baseline-rounds/round-10.json",
+          "pass": 0,
+          "repo_head": "c0561c74e0f7249b8041f7c5800a8d6deadf496f",
+          "sha256": "60b687b4b73e98dec478bad85701d4d33940bc09b768cb2cf7769dac80a78d48",
+          "sidecar_sha256": "9a3ed7b8a6acd978b134a7be01bfd8ad4409bc022eccf2534b9ea660e6fea94b",
+          "surface_sha256": "3ef792c0e21fde203281881800c9696a876a87600ac78439f9eb1a12f50416a3",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.65,
+              "id": "new-tighten-vs-owner",
+              "selected": "requirement-intent",
+              "status": "FAIL"
+            }
+          ]
+        }
+      ],
+      "unique_heads": [
+        "c0561c74e0f7249b8041f7c5800a8d6deadf496f"
+      ],
+      "unique_surfaces": [
+        "3ef792c0e21fde203281881800c9696a876a87600ac78439f9eb1a12f50416a3"
+      ]
+    },
+    "neighbors-after": {
+      "description": "post-change surface (final candidate 411367a), bank-neighbors.jsonl, 3 rounds",
+      "rounds": [
+        {
+          "file": "neighbors-after/round-1.json",
+          "pass": 11,
+          "repo_head": "411367a18a40c896e4afcfc3985aa288612cf645",
+          "sha256": "f787782474998f3334e159cb0145f09c95ab39194497ac420ce669235b4fa3aa",
+          "sidecar_sha256": "a9c84c551a4521b299d323dc7d98dd6b52196b430641d8ee2d880a865f7e91d2",
+          "surface_sha256": "e6f3ff4b9ea65cc5531c51842cbd0c42c834ad13b20cfeb76a16b6d13e9529cf",
+          "tasks": 11,
+          "verdicts": [
+            {
+              "confidence": 0.98,
+              "id": "ctrl-feature",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ctrl-tighten",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.99,
+              "id": "p3-transition-impl",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.75,
+              "id": "p3-spec-then-tc",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "mem-llm-gateway-doc",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "route-tech-plan-effort-doc",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "route-doc-polish-fixed-substance",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ab-c2",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.98,
+              "id": "ab-c4",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ab-c6",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ab-n1",
+              "selected": "requirement-doc-writer",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "neighbors-after/round-2.json",
+          "pass": 11,
+          "repo_head": "411367a18a40c896e4afcfc3985aa288612cf645",
+          "sha256": "e06915f1ff9bcdd853a71080b676d2f1b65c55d50fe3c9a356fd7f3cdc8942b8",
+          "sidecar_sha256": "bf751c063d6a6f8c975afea4302af9f1407b73c20d98727c3d7d20224de90c47",
+          "surface_sha256": "e6f3ff4b9ea65cc5531c51842cbd0c42c834ad13b20cfeb76a16b6d13e9529cf",
+          "tasks": 11,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "ctrl-feature",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ctrl-tighten",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "p3-transition-impl",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.7,
+              "id": "p3-spec-then-tc",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.96,
+              "id": "mem-llm-gateway-doc",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "route-tech-plan-effort-doc",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.98,
+              "id": "route-doc-polish-fixed-substance",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ab-c2",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.92,
+              "id": "ab-c4",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ab-c6",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.96,
+              "id": "ab-n1",
+              "selected": "requirement-doc-writer",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "neighbors-after/round-3.json",
+          "pass": 10,
+          "repo_head": "411367a18a40c896e4afcfc3985aa288612cf645",
+          "sha256": "e57341ada66102d4c8ed9d8e6b3df6f5f5688bebc0e1e840209a9a3ce4a11820",
+          "sidecar_sha256": "b8c1a7ec39a8c6eaba20cb77e41d59fa0af5758001e33534bcc9447dd406ab4d",
+          "surface_sha256": "e6f3ff4b9ea65cc5531c51842cbd0c42c834ad13b20cfeb76a16b6d13e9529cf",
+          "tasks": 11,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "ctrl-feature",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.97,
+              "id": "ctrl-tighten",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.98,
+              "id": "p3-transition-impl",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.8,
+              "id": "p3-spec-then-tc",
+              "selected": "requirement-doc-writer",
+              "status": "FAIL"
+            },
+            {
+              "confidence": 0.95,
+              "id": "mem-llm-gateway-doc",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "route-tech-plan-effort-doc",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.96,
+              "id": "route-doc-polish-fixed-substance",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.98,
+              "id": "ab-c2",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.92,
+              "id": "ab-c4",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.98,
+              "id": "ab-c6",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ab-n1",
+              "selected": "requirement-doc-writer",
+              "status": "PASS"
+            }
+          ]
+        }
+      ],
+      "unique_heads": [
+        "411367a18a40c896e4afcfc3985aa288612cf645"
+      ],
+      "unique_surfaces": [
+        "e6f3ff4b9ea65cc5531c51842cbd0c42c834ad13b20cfeb76a16b6d13e9529cf"
+      ]
+    },
+    "neighbors-before": {
+      "description": "pre-change surface (dev c0561c7), bank-neighbors.jsonl, 3 rounds",
+      "rounds": [
+        {
+          "file": "neighbors-before/round-1.json",
+          "pass": 10,
+          "repo_head": "c0561c74e0f7249b8041f7c5800a8d6deadf496f",
+          "sha256": "0edacda9abd4ebe6f12bb3e1a74a41ebc920f9d4ac7771479bb21a680a0ab70d",
+          "sidecar_sha256": "b39bb42369a62bdaf9a9aa3f7d2862a34e80391d0995592b5303e843a7e2a4fa",
+          "surface_sha256": "b6333785762b16a2145f25059f0686edd006787acfa763a98f046848f74d08cb",
+          "tasks": 11,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "ctrl-feature",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ctrl-tighten",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.98,
+              "id": "p3-transition-impl",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.72,
+              "id": "p3-spec-then-tc",
+              "selected": "requirement-intent",
+              "status": "FAIL"
+            },
+            {
+              "confidence": 0.95,
+              "id": "mem-llm-gateway-doc",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "route-tech-plan-effort-doc",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.98,
+              "id": "route-doc-polish-fixed-substance",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.98,
+              "id": "ab-c2",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ab-c4",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ab-c6",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.98,
+              "id": "ab-n1",
+              "selected": "requirement-doc-writer",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "neighbors-before/round-2.json",
+          "pass": 10,
+          "repo_head": "c0561c74e0f7249b8041f7c5800a8d6deadf496f",
+          "sha256": "dfbaeba039194f68f4217aad5bfbc4697876046b99e1cef12a87a54eb0feeb03",
+          "sidecar_sha256": "b9c247109cec7c52509dd5a179cf8ad819500cc791311e72a1bbeae053cd99ee",
+          "surface_sha256": "b6333785762b16a2145f25059f0686edd006787acfa763a98f046848f74d08cb",
+          "tasks": 11,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "ctrl-feature",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ctrl-tighten",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "p3-transition-impl",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.85,
+              "id": "p3-spec-then-tc",
+              "selected": "requirement-doc-writer",
+              "status": "FAIL"
+            },
+            {
+              "confidence": 0.95,
+              "id": "mem-llm-gateway-doc",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "route-tech-plan-effort-doc",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.98,
+              "id": "route-doc-polish-fixed-substance",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ab-c2",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ab-c4",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 1.0,
+              "id": "ab-c6",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.98,
+              "id": "ab-n1",
+              "selected": "requirement-doc-writer",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "neighbors-before/round-3.json",
+          "pass": 11,
+          "repo_head": "c0561c74e0f7249b8041f7c5800a8d6deadf496f",
+          "sha256": "9685cb75638b0b9a299b7aa8559c43dc221388606bb8c663b60f09748ec950db",
+          "sidecar_sha256": "b0d745049d064f3592a06faa470f3b218811ac32ce8c18c3532fffb1b82c6a7c",
+          "surface_sha256": "b6333785762b16a2145f25059f0686edd006787acfa763a98f046848f74d08cb",
+          "tasks": 11,
+          "verdicts": [
+            {
+              "confidence": 0.98,
+              "id": "ctrl-feature",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ctrl-tighten",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "p3-transition-impl",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.85,
+              "id": "p3-spec-then-tc",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "mem-llm-gateway-doc",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "route-tech-plan-effort-doc",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.98,
+              "id": "route-doc-polish-fixed-substance",
+              "selected": "tighten-doc",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ab-c2",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ab-c4",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.98,
+              "id": "ab-c6",
+              "selected": "requirement-intent",
+              "status": "PASS"
+            },
+            {
+              "confidence": 0.95,
+              "id": "ab-n1",
+              "selected": "requirement-doc-writer",
+              "status": "PASS"
+            }
+          ]
+        }
+      ],
+      "unique_heads": [
+        "c0561c74e0f7249b8041f7c5800a8d6deadf496f"
+      ],
+      "unique_surfaces": [
+        "b6333785762b16a2145f25059f0686edd006787acfa763a98f046848f74d08cb"
+      ]
+    },
+    "target-after-rounds": {
+      "description": "post-change surface (final candidate 411367a), bank-single.jsonl, 10 rounds",
+      "rounds": [
+        {
+          "file": "target-after-rounds/round-1.json",
+          "pass": 1,
+          "repo_head": "411367a18a40c896e4afcfc3985aa288612cf645",
+          "sha256": "95e36cf9f0d26d5b0ad043556801ecdbefd4ca5d6b7010145559c4c8cc053a0e",
+          "sidecar_sha256": "d0c93d39dc6eafe455b602041375ac6abac56b691001bac6574d11321e565e9c",
+          "surface_sha256": "ec162367d4a4071828f1c22b6c9af482996ea818b180c57b10e634e984706711",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "new-tighten-vs-owner",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "target-after-rounds/round-2.json",
+          "pass": 1,
+          "repo_head": "411367a18a40c896e4afcfc3985aa288612cf645",
+          "sha256": "95e36cf9f0d26d5b0ad043556801ecdbefd4ca5d6b7010145559c4c8cc053a0e",
+          "sidecar_sha256": "54918b523e68e8f8b53b4749b29801ecbe862c8f17809fa687b62374ca9eefe1",
+          "surface_sha256": "ec162367d4a4071828f1c22b6c9af482996ea818b180c57b10e634e984706711",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "new-tighten-vs-owner",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "target-after-rounds/round-3.json",
+          "pass": 1,
+          "repo_head": "411367a18a40c896e4afcfc3985aa288612cf645",
+          "sha256": "95e36cf9f0d26d5b0ad043556801ecdbefd4ca5d6b7010145559c4c8cc053a0e",
+          "sidecar_sha256": "a3468ae8ec169973266bdfba9c8c812e7c3014df7d1f8da5b3377971e26be8ce",
+          "surface_sha256": "ec162367d4a4071828f1c22b6c9af482996ea818b180c57b10e634e984706711",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "new-tighten-vs-owner",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "target-after-rounds/round-4.json",
+          "pass": 1,
+          "repo_head": "411367a18a40c896e4afcfc3985aa288612cf645",
+          "sha256": "95e36cf9f0d26d5b0ad043556801ecdbefd4ca5d6b7010145559c4c8cc053a0e",
+          "sidecar_sha256": "30a792eefab5fc2e15f4f73ade6d3da5a8cee50c3a19c31f8b89564c7ea7c0b2",
+          "surface_sha256": "ec162367d4a4071828f1c22b6c9af482996ea818b180c57b10e634e984706711",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "new-tighten-vs-owner",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "target-after-rounds/round-5.json",
+          "pass": 1,
+          "repo_head": "411367a18a40c896e4afcfc3985aa288612cf645",
+          "sha256": "95e36cf9f0d26d5b0ad043556801ecdbefd4ca5d6b7010145559c4c8cc053a0e",
+          "sidecar_sha256": "6b224c152a7e2f1d8cbe776a088653c05231ad6adfa03cdf3dc1191be36b6e04",
+          "surface_sha256": "ec162367d4a4071828f1c22b6c9af482996ea818b180c57b10e634e984706711",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "new-tighten-vs-owner",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "target-after-rounds/round-6.json",
+          "pass": 1,
+          "repo_head": "411367a18a40c896e4afcfc3985aa288612cf645",
+          "sha256": "95e36cf9f0d26d5b0ad043556801ecdbefd4ca5d6b7010145559c4c8cc053a0e",
+          "sidecar_sha256": "7aad4fced1c38c12582e9185fb12989549ce712cc3d96958488fe1ad5ada88c9",
+          "surface_sha256": "ec162367d4a4071828f1c22b6c9af482996ea818b180c57b10e634e984706711",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "new-tighten-vs-owner",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "target-after-rounds/round-7.json",
+          "pass": 1,
+          "repo_head": "411367a18a40c896e4afcfc3985aa288612cf645",
+          "sha256": "95e36cf9f0d26d5b0ad043556801ecdbefd4ca5d6b7010145559c4c8cc053a0e",
+          "sidecar_sha256": "b2bb090c4596585c4702beaba4b0087a2e5fe98cf0b90d01a4232f49c211cd1e",
+          "surface_sha256": "ec162367d4a4071828f1c22b6c9af482996ea818b180c57b10e634e984706711",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "new-tighten-vs-owner",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "target-after-rounds/round-8.json",
+          "pass": 1,
+          "repo_head": "411367a18a40c896e4afcfc3985aa288612cf645",
+          "sha256": "95e36cf9f0d26d5b0ad043556801ecdbefd4ca5d6b7010145559c4c8cc053a0e",
+          "sidecar_sha256": "2d1fb77858d90eed4a7b4209e3857934a45e1dcd8035d9f25aee86d214018ec0",
+          "surface_sha256": "ec162367d4a4071828f1c22b6c9af482996ea818b180c57b10e634e984706711",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "new-tighten-vs-owner",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "target-after-rounds/round-9.json",
+          "pass": 1,
+          "repo_head": "411367a18a40c896e4afcfc3985aa288612cf645",
+          "sha256": "95e36cf9f0d26d5b0ad043556801ecdbefd4ca5d6b7010145559c4c8cc053a0e",
+          "sidecar_sha256": "1c5a8afe90c1f30ccd5578b6f38d22a765d95b2d019b550f824042bb1903d966",
+          "surface_sha256": "ec162367d4a4071828f1c22b6c9af482996ea818b180c57b10e634e984706711",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "new-tighten-vs-owner",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "file": "target-after-rounds/round-10.json",
+          "pass": 1,
+          "repo_head": "411367a18a40c896e4afcfc3985aa288612cf645",
+          "sha256": "95e36cf9f0d26d5b0ad043556801ecdbefd4ca5d6b7010145559c4c8cc053a0e",
+          "sidecar_sha256": "60ddba58557af403e7f9eb9986e88ae08e04d21a6cb62adbff59de9741afaae1",
+          "surface_sha256": "ec162367d4a4071828f1c22b6c9af482996ea818b180c57b10e634e984706711",
+          "tasks": 1,
+          "verdicts": [
+            {
+              "confidence": 0.95,
+              "id": "new-tighten-vs-owner",
+              "selected": "product-rd-workflow",
+              "status": "PASS"
+            }
+          ]
+        }
+      ],
+      "unique_heads": [
+        "411367a18a40c896e4afcfc3985aa288612cf645"
+      ],
+      "unique_surfaces": [
+        "ec162367d4a4071828f1c22b6c9af482996ea818b180c57b10e634e984706711"
+      ]
+    }
+  },
+  "must_not": {
+    "constraint": "new-tighten-vs-owner must never route to tighten-doc",
+    "hits": 0,
+    "target_rounds_enumerated": 20
+  },
+  "neighbor_cases": {
+    "neighbors-after": {
+      "ab-c2": "3/3",
+      "ab-c4": "3/3",
+      "ab-c6": "3/3",
+      "ab-n1": "3/3",
+      "ctrl-feature": "3/3",
+      "ctrl-tighten": "3/3",
+      "mem-llm-gateway-doc": "3/3",
+      "p3-spec-then-tc": "2/3",
+      "p3-transition-impl": "3/3",
+      "route-doc-polish-fixed-substance": "3/3",
+      "route-tech-plan-effort-doc": "3/3"
+    },
+    "neighbors-before": {
+      "ab-c2": "3/3",
+      "ab-c4": "3/3",
+      "ab-c6": "3/3",
+      "ab-n1": "3/3",
+      "ctrl-feature": "3/3",
+      "ctrl-tighten": "3/3",
+      "mem-llm-gateway-doc": "3/3",
+      "p3-spec-then-tc": "1/3",
+      "p3-transition-impl": "3/3",
+      "route-doc-polish-fixed-substance": "3/3",
+      "route-tech-plan-effort-doc": "3/3"
+    }
+  },
+  "target_case": {
+    "baseline-rounds": {
+      "fail_confidences": [
+        0.65,
+        0.65,
+        0.65,
+        0.7,
+        0.75,
+        0.85,
+        0.85
+      ],
+      "fail_selected": [
+        "requirement-intent"
+      ],
+      "pass": "3/10",
+      "pass_confidence_median": 0.85,
+      "pass_confidences": [
+        0.65,
+        0.85,
+        0.92
+      ]
+    },
+    "target-after-rounds": {
+      "fail_confidences": [],
+      "fail_selected": [],
+      "pass": "10/10",
+      "pass_confidence_median": 0.95,
+      "pass_confidences": [
+        0.95,
+        0.95,
+        0.95,
+        0.95,
+        0.95,
+        0.95,
+        0.95,
+        0.95,
+        0.95,
+        0.95
+      ]
+    }
+  }
+}

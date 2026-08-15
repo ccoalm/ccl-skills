@@ -1,0 +1,1 @@
+{"id": "new-tighten-vs-owner", "utterance": "这个产品 spec 里写的流程是错的，帮我改对", "expected_skill": "product-rd-workflow", "why_expected": "fixing spec SUBSTANCE = owner; tighten=form-only", "frozen_at_sha": "root", "must_not_route_to": ["tighten-doc"]}
