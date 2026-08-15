@@ -22,7 +22,7 @@
 | 2 | anchor 修后、计数守卫未修 | 尾部 `expected 16 assertions, saw 13` FAIL | RED 实测（已执行，先于计数修正） |
 | 3 | README 无合规标题（假想输入） | 派生守卫 `fail` 快停，不 seed 不可解析行 | 代码路径（`[ -n "$seed_anchor" ] \|\| fail`），由 dual-track 评审员核 |
 | 4 | `--full` @ 本轮候选 | heavy 5/5 status=0、exit 0 | 首版候选实测 exit 0（wiring 144s status=0）；终版候选复跑回填于"终版候选验证"节 |
-| 5 | PR #5 重生成 merge ref @ CI | 四 job 全绿（含新 `regression-heavy`） | 推送后回填（detached-HEAD 行为的活体证明也在此步） |
+| 5 | PR #5 重生成 merge ref @ CI | 四 job 全绿（含新 `regression-heavy`） | 首跑（run 31895063645 @ dev `19a04b6`）：repository-gates/npm ×2 绿，`regression-heavy` 红——fast 层 `test_check_ccl_skill_catalog.sh` 在克隆内 `impact_chain_merge_base_missing: origin/main`（detached-HEAD 活证腿命中真实环境缺口：新 job 镜像了依赖安装但漏了 repository-gates 的 `CCL_SKILL_BASE_REF` 导出，克隆继承不到 base）。修复=env 守卫逐字平价（见"CI 首跑修复"节，本地合并锚 sim 差分：无 env 同款红 / 有 env `ok`）；修复后 CI 结果回填于此 |
 | 6 | （历史）围栏/混标记 decoy fixtures @ 派生设计 | 派生选真标题 | RED 取证 ×2 留档（旧正则选围栏 decoy、旧布尔翻转选混标记 decoy）；**派生设计已按 r3 `replace` 裁决整体删除**——anchor 改为 fixture 自有注记文件，解析面不复存在，本行与行 7 保留为过程证据 |
 | 7 | （历史）无合规标题 fixture @ 派生设计 | 派生输出空 → fail 快停 | 同上，随派生设计删除；自有注记文件设计下 seed 无条件可解析 |
 | 8 | 脚本自身 pass 清单 vs 守卫字面量 | 三向一致（静态清单 = 守卫 = 执行数，终态 14） | 计数自测过（14/14 suite 绿）；守卫咬合的实测证据 = 观测到的 expected-16-saw-13 活体 RED |
@@ -76,3 +76,9 @@
 
 - 候选 `9119e81`（log 首两行 pwd+SHA 自证）：`make test` exit 0——checker `r0_status=private-ok` / `ccl_skill_check_clean_ok`、`test_check_ccl_regressions_fast_ok`、全部文档/契约闸过；`test_check_ccl_regressions.sh --full` → `test_check_ccl_regressions_full_ok`，heavy 层全 status=0，其中 `test_register_firing_path_wiring.sh` 141s status=0、`register_firing_path_wiring_tests_ok (14 assertions)`；整个日志零 `status=1`。组合命令退出 `final candidate verification exit: 0`。
 - 本节数字由验证运行后的收尾 docs 提交回填（021 轮同款收口）；随合并暴露给维护者的增量 = r3 后的 `replace` 设计改造 + 本回填。CI 行为活证（detached-HEAD、新 job 首跑）见判定表行 5，前置于 PR 合并。
+
+#### CI 首跑修复（判定表行 5 的 firing 实例）
+
+- 现象：`regression-heavy` 首跑红于 fast 层 `test_check_ccl_skill_catalog.sh`——该测试克隆 CI 检出跑 checker，克隆内既无本地分支也无 `origin/main`，impact-chain 闸 fail-closed（`impact_chain_merge_base_missing`）。repository-gates 同 run 同树绿，因其步骤导出 `CCL_SKILL_BASE_REF=$CANDIDATE_BASE_REF`（SHA 在克隆对象闭包内可解析——CI 检出为合并提交，父含 base）。
+- 修复：`regression-heavy` 步骤逐字镜像该 env 守卫块。差分（本地合并锚 detached 无分支 sim）：无 env → `impact_chain_merge_base_missing: origin/main` rc=1（与 CI 逐字一致）；`CCL_SKILL_BASE_REF=<base-sha>` → `test_check_ccl_skill_catalog: ok` rc=0。
+- 纪律记录：这是判定表行 5 预留的 detached-HEAD 活证腿按设计 fire——heavy 层首次真实执行即暴露环境缺口，恰证明该 job 的价值。ci.yml-only 变更，无 skills/ 面、无台账行要求；Agent 评审预算已尽（5/5），本增量按 021/p3 先例随合并决定暴露给维护者（变更实质=复制同文件内已评审过的既有块）。

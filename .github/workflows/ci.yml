@@ -58,7 +58,17 @@ jobs:
           sudo apt-get install -y ripgrep ruby
           python3 -m pip install pytest pyyaml
       - name: Heavy regression lane
-        run: bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --full
+        # Same base-ref guard as the Repository test suite step: clone-driving
+        # tests inherit CCL_SKILL_BASE_REF, and a clone of the detached Actions
+        # checkout has no origin/main for the impact-chain fallback — observed
+        # on this job's first run as impact_chain_merge_base_missing.
+        env:
+          CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -n "$CANDIDATE_BASE_REF" ]] && git merge-base "$CANDIDATE_BASE_REF" HEAD >/dev/null 2>&1; then
+            export CCL_SKILL_BASE_REF="$CANDIDATE_BASE_REF"
+          fi
+          bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --full
 
   npm-packages:
     runs-on: ubuntu-latest
