@@ -11,6 +11,7 @@ const BOOTSTRAP_PATHS = [
   join(process.env.HOME ?? "", ".config", "opencode", "ccl-skills", "bootstrap.md"),
 ]
 const MANIFEST_PATHS = [
+	join(process.env.HOME ?? "", ".config", "opencode", "ccl-skills-npm", "install-manifest.json"),
   join(LOCAL_REPO_ROOT, ".opencode", "ccl-skills", "install-manifest.json"),
   join(LOCAL_REPO_ROOT, "ccl-skills", "install-manifest.json"),
   join(process.env.HOME ?? "", ".config", "opencode", "ccl-skills", "install-manifest.json"),
@@ -39,6 +40,10 @@ function readManifest() {
     try {
       if (!existsSync(path)) continue
       return JSON.parse(readFileSync(path, "utf8")) as {
+		installedAt?: string
+		sourceCommit?: string
+		sourceKind?: string
+		npmPackage?: string
         installed_at?: string
         source_commit?: string
         install_mode?: string
@@ -56,19 +61,22 @@ function updateReminder() {
   if (!Number.isFinite(UPDATE_REMINDER_DAYS) || UPDATE_REMINDER_DAYS <= 0) return ""
 
   const manifest = readManifest()
-  if (typeof manifest?.installed_at !== "string") return ""
+  const installedAtValue = manifest?.installedAt ?? manifest?.installed_at
+  if (typeof installedAtValue !== "string") return ""
 
-  const installedAt = Date.parse(manifest.installed_at)
+  const installedAt = Date.parse(installedAtValue)
   if (!Number.isFinite(installedAt)) return ""
 
   const ageDays = Math.floor((Date.now() - installedAt) / 86_400_000)
   if (ageDays < UPDATE_REMINDER_DAYS) return ""
 
-  const commit = typeof manifest.source_commit === "string" ? ` commit ${manifest.source_commit.slice(0, 12)}` : ""
-  const mode = typeof manifest.install_mode === "string" ? ` (${manifest.install_mode})` : ""
-  const isNpmInstall = manifest.installer === "ccl-skills-opencode-cli"
+  const sourceCommit = manifest.sourceCommit ?? manifest.source_commit
+  const commit = typeof sourceCommit === "string" ? ` commit ${sourceCommit.slice(0, 12)}` : ""
+  const modeValue = manifest.sourceKind ?? manifest.install_mode
+  const mode = typeof modeValue === "string" ? ` (${modeValue})` : ""
+  const isNpmInstall = manifest.npmPackage === "@ccoalm/ccl-skills" || manifest.installer === "ccl-skills-opencode-cli"
   const updateInstruction = isNpmInstall
-    ? "Installed via the npm package. Ask before changing global npm state: run `ccl-skills-opencode update` to preview; only after explicit confirmation run `ccl-skills-opencode update --yes`, then restart OpenCode."
+    ? "Installed via the npm package. Ask before changing global npm state: run `ccl-skills update` to preview; only after explicit confirmation run `ccl-skills update --yes`, then restart OpenCode."
     : "Installed from a source checkout. Run `/ccl-update-skills` (or fast-forward the ccl-skills checkout and run `bash scripts/install-opencode.sh`), then restart OpenCode."
   return [
     "\n# CCL Skills Update Reminder",

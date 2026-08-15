@@ -27,7 +27,7 @@
 | `scripts/install.sh` · `Makefile` | 安装/更新/清缓存/跑门禁与 eval(`make help` 列全部目标) |
 | `scripts/control-plane/` · `scripts/owner-dispatch/` · `scripts/verify-sandbox/` | 给产品仓装的 gate backstop、owner 派发闸、沙箱校验(`make install-gates` 一键装) |
 | `eval/` | F4 用的任务库和夹具:路由任务、golden trace、技能有效性、行为夹具 |
-| `packages/` | 对外分发物:`codex-npm` / `opencode-npm` 两个 npm 壳(`make npm-*` 构建与验证)加独立插件 `opencode-plugin` |
+| `packages/` | 对外分发物：统一 npm 包 `ccl-skills-npm`（三端 CLI、离线资产与发布校验）加 OpenCode 插件源码 `opencode-plugin` |
 | `.github/workflows/ci.yml` · `.githooks/` | GitHub Actions 门禁接线和本地 git hook |
 | `docs/` | 给人读的手册和本仓 review;agent 执行用的门禁/模板仍在各技能 `references/` |
 | `.claude-plugin/{marketplace,plugin}.json` · `.codex-plugin/plugin.json` | 两端 plugin manifest |
@@ -54,7 +54,7 @@
 
 ## 分发与更新
 
-整库是一个**多端 plugin**,另有 `packages/` 下两个 npm 分发壳(`codex-npm` / `opencode-npm`,CI 单独构建发布)。
+整库是一个**多端 plugin**，并通过 `packages/ccl-skills-npm` 作为唯一 npm 分发入口；CI 验证单一 tarball，受保护的 tag workflow 才能发布。
 
 安装、autoUpdate 边界、`make update` / `prune-cache` 的真实行为见 [`README.md`](../README.md) 的 "Install and update" 段。要点:autoUpdate 只定期刷 marketplace 元数据、不保证当场重装;可靠更新用 `make update`(Claude 必须 `plugin update`,`install` 会 no-op;Codex 要 `marketplace upgrade` + `plugin add` 两步;OpenCode 装的是当前 checkout、自身不联网拉)。
 

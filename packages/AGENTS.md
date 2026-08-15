@@ -1,7 +1,7 @@
 # packages Agent Contract
 
-`packages/` holds everything this repository ships to other machines: the two
-npm distribution shells (`codex-npm`, `opencode-npm`) and the standalone
+`packages/` holds everything this repository ships to other machines: the unified
+npm distribution (`ccl-skills-npm`) and the standalone
 OpenCode plugin source (`opencode-plugin`). The boundary is *distributable*, not
 *npm package* — a subdirectory belongs here when its content is copied or
 published to a host outside this checkout.
@@ -23,5 +23,5 @@ Rules:
 
 Validation:
 
-- `make npm-verify`, `make npm-pack-dry`, `make codex-npm-pack-verify`
+- `make npm-test`, `make npm-pack-verify`, `make npm-publish-dry`
 - `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .`
