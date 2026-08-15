@@ -19,14 +19,14 @@ git pull --ff-only && \
 bash scripts/install-opencode.sh $ARGUMENTS
 ```
 
-## npm CLI mode (`ccl-skills-opencode`)
+## npm CLI mode (`ccl-skills`)
 
-If ccl-skills was installed via the npm package (`npm install -g @ccoalm/ccl-skills-opencode`), do NOT silently run a global npm install. Instead:
+If ccl-skills was installed via the npm package (`npm install -g @ccoalm/ccl-skills`), do NOT silently run a global npm install. Instead:
 
 1. First preview what the update would do (this is a dry-run, no changes):
 
 ```bash
-ccl-skills-opencode update
+ccl-skills update
 ```
 
 2. Show the user the preview output and ask them to confirm before proceeding.
@@ -34,10 +34,10 @@ ccl-skills-opencode update
 3. Only after the user explicitly confirms, run the real update:
 
 ```bash
-ccl-skills-opencode update --yes
+ccl-skills update --yes
 ```
 
-The update command runs `npm install -g @ccoalm/ccl-skills-opencode@latest` (using the user's npm config for registry/auth) and then refreshes plugin/bootstrap/commands/manifest.
+The update command runs `npm install -g @ccoalm/ccl-skills@latest` (using the user's npm config for registry/auth) and then refreshes the assets for every detected host. Pass `--host opencode` to limit the operation.
 
 ## After updating (both modes)
 

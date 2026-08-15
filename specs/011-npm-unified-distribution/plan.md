@@ -108,7 +108,7 @@ A12 因此要覆盖：d) 伪造条目；b) 替换内容与安装内容**字节�
 | --- | --- | --- |
 | A1 | 无 checkout 装 Claude | 干净 HOME 下 `npm i -g` 后 `claude plugin list` 出现 ccl-skills，注入内容与仓库源逐字节相同 |
 | A2 | 无 checkout 装 Codex | 同上，`codex plugin list` 可见 |
-| A3 | 无 checkout 装 OpenCode | `~/.config/opencode/skills` 出现 32 个技能目录，**且内容来源可判定**（来自 tarball 而非某个 checkout）。只断言"目录数对"会让 A10b 的回归 false-green |
+| A3 | 无 checkout 装 OpenCode | `~/.config/opencode/skills` 出现 tarball 动态发现的全部技能目录，**且内容来源可判定**（来自 tarball 而非某个 checkout）。技能数只作当前快照信息，不写死为门禁；只断言"目录数对"会让 A10b 的回归 false-green |
 | A10 | 既有产物不被破坏 | 目标路径先放 marketplace 装的和手工定制的文件 → 安装失败或 `uninstall` 之后，这些文件**逐字节存活** |
 | A11 | `CCL_SKILLS_REPO` override | a) 设了有效 override → 装的是 override 的内容；b) 未设 → 可离线用 bundled 装；c) 无效 override → **任何写入之前**失败 |
 | A12 | manifest 过期 / 被篡改也不误删 | a) 装后改动该产物 → `uninstall` 保留并报告；b) 装后被 marketplace 替换 → 同样保留；c) manifest 被改成指向 allowlist 根之外或符号链接 → 拒绝，不删任何东西；d) **allowlist 内的伪造条目**（指向别的用户文件并记下其真实 hash）→ 仍拒绝删除 |
@@ -139,7 +139,7 @@ A12 因此要覆盖：d) 伪造条目；b) 替换内容与安装内容**字节�
 2. **P2 Claude adapter**：A1。closure 加 `.claude-plugin` + `subagent-start.md` + `hooks/`。
 3. **P3 OpenCode adapter**：A3。这是唯一的模型变更（读 checkout → 读 bundled），工作量最大。
 4. **P4 收口**：CLI 合一、doctor 双装检测（A8）、uninstall（A7）、update（A6）。
-5. **P5 发版链**：CI publish job、Makefile 目标收敛、删掉 `make help` 里那句虚述、README/ARCHITECTURE 同步。**认证路径必须先定死并验证**：`id-token: write` 只服务 provenance，不提供发布权限 —— 要么在 npmjs 上把 trusted publisher 绑到确切的 repo + workflow（首选），要么配 `registry-url` + `NODE_AUTH_TOKEN`。二选一，写进 P6 的前置检查。
+5. **P5 发版链**：CI publish job、Makefile 目标收敛、删掉 `make help` 里那句虚述、README/ARCHITECTURE 同步。认证采用 npm [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)：npmjs 绑定确切的 GitHub repo + workflow，workflow 申请 `id-token: write`，用 OIDC 短期凭据发布并自动生成 provenance。发布环境固定为 Node.js 24，npm CLI 不低于 11.5.1；包的 `repository.url` 必须与 GitHub 仓库精确匹配。P6 真发前先核对 npmjs 绑定已生效。
 6. **P6 首发**：先确认 P5 选定的认证路径已生效 → `--dry-run` 预演并核对 `files` 清单 → 真发 → A9 验证。
 
 旧的 `packages/codex-npm` / `packages/opencode-npm` 在 P4 通过前保留，P4 绿了再删；两者从未发布，无需 deprecate。
@@ -153,7 +153,7 @@ A12 因此要覆盖：d) 伪造条目；b) 替换内容与安装内容**字节�
 | `skills/` 增长推高每次发布体积 | 记录在案，不本轮处理；后续可考虑按 host 裁剪 closure |
 | 首发即公开不可撤 | npm unpublish 有 72 小时窗口且有限制；P6 先 `--dry-run`，确认 `files` 清单无多余内容再发 |
 | **CI 路径把未跟踪文件打进公开包**（评审 P1-2） | `build-assets.mjs:16-22` 的 CI fallback 在 git 不可用时按 `CI=true` + commit SHA 放行，然后递归拷贝 asset root 下**所有**条目，不按 tracked 清单；`removeIgnored` 只删 `.gitignore` 文件、不删 ignored 内容。仓里现有实例：`skills/*/scripts/__pycache__/`。处置：git 元数据不可用时**fail closed**，除非构建收到一份可验证的 tracked 清单；并按上表加未跟踪哨兵用例 |
-| **发布认证路径未定**（评审 P1-1） | `id-token: write` 只给 provenance，不提供发布权限。未绑 trusted publisher 或未配 token 时 `npm publish` 未认证失败，A9 与首发全卡。处置见 P5 |
+| **Trusted Publisher 尚未在 npmjs 绑定**（评审 P1-1） | workflow 只实现 OIDC 发布入口；npmjs 仍须把 `@ccoalm/ccl-skills` 绑定到确切 repo + workflow。未绑定时 `npm publish` 认证失败，A9 与首发全卡。处置见 P5/P6 |
 
 停止条件：A1/A2/A3 任一在干净 HOME 下装不出可用技能 → 停下报告，不用"本机能跑"替代。
 
@@ -219,3 +219,113 @@ chain `npm-unified-011d`，候选 `344f592c0ee93c0f297a9ffa0bfdb39b055019d363759
 对着 `15a89e9` 复核实现侧：`packages/` 下无 `ccl-skills-npm`，上面现状取证表的「CI 无 publish job」「Makefile 声称有」两行仍然成立。P1–P6 全部未动工。
 
 `skill-extraction-workflow` 提炼轮**已跑**（`6965a18`，tighten-doc 的入站引用规则），随后 `3dbb275` 补上该改动欠的 impact-chain 行。上一版此处记的"提炼轮未跑、本轮开工前需先处置"已作废。
+
+## 2026-08-15 实现重入记录
+
+用户在当前交付中明确选择本方案作为实现基线。对 `dev@673fece` 复核后，P1–P6 仍未落地：`packages/ccl-skills-npm` 和 publish workflow 均不存在，两个旧包在 npm registry 查询仍为 404。本轮实现 P1–P5；P6 的 npmjs 配置和真实发布需要单独授权。
+
+### 实现边界
+
+| 项 | 结论 |
+| --- | --- |
+| active baseline | 本文件；已落地，当前选择后重新核实 |
+| implementation owner | `terminal-cli-dev`；一次性 CLI，沿用既有 Codex/OpenCode 机制 |
+| release owner | `platform-release-engineering`；包管理器接管更新，CI 只使用 OIDC 短期凭据 |
+| risk | `release-ops`、`external-integration`、`security-review`；不提交 token，不执行真实 publish |
+| delegation | 不适用；P1–P5 共用包结构、ownership 模型和发布产物，按依赖顺序串行 |
+| visible surface | CLI help、错误和 doctor 输出；无 ANSI、raw mode、PTY 或交互式 TUI |
+| test source | 本文件 A1–A12 与“测试层决策表” |
+| landing target | 本地功能分支；commit、push、PR、合并、tag、publish 分别授权 |
+
+### CLI 设计 checkpoint
+
+- Surface：一次性 installer/updater CLI，紧凑纯文本输出，不依赖颜色。
+- Primary flow：`install | update | uninstall | doctor | help`，`--host` 可限定单端。
+- States：成功、无 host、参数错误、冲突拒绝、dry-run、外部 CLI 不可用、部分 host 失败。
+- Safety：写入前完成来源与碰撞检查；错误信息点明 host、未执行的动作和修复方式。
+- Evidence：单元测试覆盖解析与状态；临时 HOME host smoke 覆盖真实输出和副作用。页面级 redesign gate 不触发，因为没有布局或视觉系统变更。
+- Owner checkpoint：`product-ui-ux-design` + `terminal-cli-dev` + `testing-strategy`；checkpoint rules read: `product-ui-ux-design/SKILL.md#implementation-owner-checkpoint`。Rendered evidence 先记 `planned`，由 host smoke 的真实 CLI 输出在收口时补齐。
+
+### P1 验收与测试登记
+
+| ID | 场景 | 层 | RED / 验证命令 |
+| --- | --- | --- | --- |
+| A2 | 无 checkout 安装 Codex | integration / host smoke | `npm test`；`npm run smoke:host` |
+| A5 | release metadata 可追溯、hash 可复算 | unit / pack | `npm run test:pack` |
+| P1-pack | tarball closure 完整、mode 仅 644/755 | pack | `npm run test:pack` |
+| P1-build | git 与 CI 构建路径都只含 tracked closure | build-modes | `npm test`，含未跟踪哨兵 |
+
+Objective：交付 P1 的统一包骨架与 Codex adapter。Member unit：上表四个验收点；集合由本方案固定，不存在运行期新增成员，`population: does-not-fire`。正向、负向、恢复和表面成功四类分别由成功安装、无效输入/缺失资产、事务恢复、写入后核验覆盖；缺口在对应测试为绿前保持 `gap`。
+
+P1 只保留三类新概念：统一包目录对应单包决策；host adapter 边界对应三端差异；可复算 release metadata 对应 A5。没有为未来 host、远程下载器或第二套更新协议预留扩展层。
+
+## 2026-08-15 实现候选收口
+
+### 分阶段状态
+
+| 阶段 | 状态 | 当前证据 |
+| --- | --- | --- |
+| P1 统一包骨架 | 本地候选完成 | `@ccoalm/ccl-skills@0.1.0` 构建、137 个包测试和 9 个实际 tarball 测试通过 |
+| P2 Claude adapter | 本地候选完成 | 临时 HOME lifecycle、未拥有 marketplace、符号链接和 host 缺失分支均有断言 |
+| P3 OpenCode adapter | 本地候选完成 | bundled / override / invalid override 三分支通过；共享文件在卸载时保留 |
+| P4 CLI 收口 | 本地候选完成 | 默认多 host、显式单 host、doctor 双装、update / uninstall 和故障恢复均通过 |
+| P5 发版链 | 本地候选完成 | tag-only workflow、固定 action SHA、Node 24、npm 11.5.1、OIDC、精确 tarball 发布和发布手册均已落到候选 |
+| P6 首发 | `blocked` | GitHub `npm` environment 和发布 tag 保护已配置并回读；npm 包当前仍为 404，包级 Trusted Publisher 只能在首发后配置，真实 publish 尚未授权或执行 |
+
+### Acceptance → implementation → evidence
+
+| ID | 实现面 | 2026-08-15 新鲜证据 | 状态 |
+| --- | --- | --- | --- |
+| A1 | `claude-adapter.ts` 的 package-owned local marketplace lifecycle | `npm test` 中 Claude lifecycle、冲突拒绝、符号链接和 host-missing 场景通过；三宿主 smoke 通过 | satisfied |
+| A2 | 既有 Codex transaction engine + 统一 dispatcher | 事务、信号中断、rollback / partial finality 测试通过；三宿主 smoke 通过 | satisfied |
+| A3 | `opencode-adapter.ts` bundled install | bundled、有效 override、无效 override、tampered manifest 测试通过；三宿主 smoke 通过 | satisfied |
+| A4 | `--host` 显式隔离 | `explicit Codex host has zero Claude and OpenCode side effects` 通过 | satisfied |
+| A5 | `build-assets.mjs` + `release.json` | 522 文件校验，`snapshotHash=34e90fdb97d0b9372dfb9edc06301ee14fcb187ce16c35fa0a73ef5f4c3f14c0`；dirty worktree 正确标记 `development-dirty` | satisfied for local candidate |
+| A6 | dry-run update + `--yes` self-update/delegate | 缺失安装拒绝、默认无变更、fresh CLI delegation 测试通过 | satisfied |
+| A7 | 独占根删除；OpenCode 共享文件保留 | clean uninstall、修改文件保留、共享文件 retained、故障恢复测试通过 | satisfied |
+| A8 | legacy / npm 双装检测 | doctor double-install 测试通过 | satisfied |
+| A9 | tag → OIDC publish → registry read-back | workflow 和 YAML 静态检查通过；GitHub `npm` environment 与 `ccl-skills-v*` tag 保护已配置；真实 tag、Trusted Publisher 与 publish 未执行 | blocked at P6 |
+| A10 | 写前碰撞检查和 package-owned roots | unowned registration、legacy、custom file、symlink、unknown state 测试通过 | satisfied |
+| A11 | `CCL_SKILLS_REPO` override | valid / absent / invalid 三分支测试通过 | satisfied |
+| A12 | manifest 与路径安全 | traversal、malformed JSON、tamper、drift、symlink、hash 不匹配和 shared retention 测试通过 | satisfied |
+
+Objective closure：member unit 是 A1–A12；A9 的真实 registry 终态属于 P6，已按用户授权边界保留为 `blocked`，因此本轮只能声称“P1–P5 本地候选完成”，不能声称 011 全部完成或 release-ready。正向、负向、恢复和表面成功四类分别由三宿主成功路径、写前拒绝、事务/故障恢复、public-state 与 tarball 再校验覆盖；A9 的真实成功类仍待首发。
+
+### Structural minimality
+
+| 新概念 | 当前需要 | 更简单方案 | 结论 |
+| --- | --- | --- | --- |
+| 单一 `ccl-skills-npm` 包 | 单包决策和 A1–A9 | 继续维护两个包无法覆盖 Claude，且重复 release contract | keep |
+| Claude / Codex / OpenCode adapter 边界 | 三端宿主协议和所有权模型不同 | 单一无类型分支会混淆碰撞与卸载语义 | keep |
+| package-owned marketplace snapshot | A1、A2、A5、A10 | 运行时下载 git 违反自包含和钉版目标 | keep |
+| OpenCode shared-file retention | A7、A10、A12 | 自动删除无法证明当前所有权 | keep |
+| 独立 tag publish workflow | A9 和发布权限隔离 | 在普通 CI 或本地发布扩大凭据与误发面 | keep |
+
+没有加入远程下载器、新 host 扩展框架、第二套版本协议或长期 npm token。两个旧 npm 包在统一包测试通过后删除，属于已定单包迁移，不保留重复实现。
+
+### 验证记录
+
+- `NPM_CONFIG_CACHE=/private/tmp/ccl-skills-npm-cache npm test`：137/137 passed。
+- `NPM_CONFIG_CACHE=/private/tmp/ccl-skills-npm-cache npm run test:pack`：9/9 passed；产物 `ccl-skills-0.1.0.tgz`，integrity `sha512-FpFVHmdWIsU5+ALZ4XW96aalFQ3kS2bp34BXFlN45oo4ya1j6TANm9B3IDBdnRxZyEabuGD8OcUv6mX2qlM9ow==`，shasum `9a72de350622bdbf03ae0023f441343f942e5c44`。
+- `npm run smoke:host`：`three-host-smoke-passed`；Codex trust 仍明确为 `pending-unverified`，OpenCode shared files 为 `retained`。
+- tarball 中有 19 个 `hooks/` 条目；`hooks.json`、`session-start.sh`、`guard-edit-isolation.sh` 同时存在于 tarball 和 hash 绑定的 `release.json`。
+- workflow YAML、agent contract coverage、`check-ccl-skills.sh`、public sanitization、Markdown links、staged / unstaged diff check 全部通过；`check-ccl-skills.sh` 只有基线 advisory，无 blocking。
+- `npm whoami`（隔离 cache）返回 `ccoalm`；`npm view @ccoalm/ccl-skills` 返回 404，未发生首发。
+- GitHub `npm` environment 已设置 `ccoalm` required reviewer，并只允许 `ccl-skills-v*` tag 部署；active tag ruleset 仅允许 `ccoalm` 创建、改写或删除该命名空间。当前仓库只有这一名管理员，因此 environment 保留 `prevent_self_review=false`，避免首发永久阻塞。
+- `actions/checkout@v6.0.2` 与 `actions/setup-node@v6.4.0` 的官方 tag 分别解析到 workflow 固定的完整 SHA。
+
+### 许可证与发布边界
+
+用户已明确允许复用，候选采用 Apache License 2.0：仓库根和 npm 包都带完整 `LICENSE`，`package.json` 声明 `Apache-2.0`，pack test 同时校验元数据与许可证正文。本轮未发现需要额外 `NOTICE` 的已知归属材料；发布手册要求每次发布前复核。
+
+GitHub 发布侧配置已获授权并完成；commit 与本地 `dev` merge 也已获授权，执行证据在提交后回报。push、PR、tag 和 `npm publish` 未获授权，也未执行。由于包尚不存在，npm 官网没有该包的 Settings / Trusted Publisher 页面；P6 必须从一次明确授权的 bootstrap publish 开始，随后立即绑定 Trusted Publisher、撤销 bootstrap 凭据，并补 registry provenance 与干净 HOME 安装证据。
+
+### 实现评审状态
+
+实现者自审已按 correctness、filesystem authority、failure finality、compatibility、release safety、tests、observability 和 external-boundary 八个关注面完成。OpenCode 独立 reviewer 对首个 runtime 分区在 600 秒内未返回终态，记录为 `inconclusive/timeout`，候选哈希 `538ae45f9cecc647ce41bdcd81aaad34fb0caf6ebe9a6f49c5e06b58158e2c8b`；该结果不计通过。按用户决定，OpenCode reviewer 自身的修复转到独立会话，不在 npm worktree 扩 scope。
+
+Claude 直接 CLI 的无工具独立 review + challenge 首轮共指出 10 类有效问题，均已按一手源码复核后接受：发布前改为重验实际 tgz 及 metadata integrity；tag 必须属于默认分支历史；多宿主遇到 `partial` / interrupt 停止后续写入并保留更强退出码；Claude/OpenCode 接入 interrupt channel；OpenCode 拒绝共享路径 symlink；缺失 HOME 时 fail closed；Claude 卸载后清理失败报 `partial`；包内许可证与根许可证逐字一致；技能数量从资产动态发现；首次发布前的 README/Makefile npm 入口显式门控。正式 `review_gate` 因 Claude CLI 初始化能力字段不兼容返回 `capability_missing`，不冒充通过；最终冻结候选另做一次直接 Claude review + challenge，结果只绑定该候选并在交付记录中报告。
+
+哈希 `801525ef8d08acd5c51211644fbb55a4c1d6078843907f7eb29363fbf45f78e4` 的 staged 候选随后由 Claude Opus 直接 CLI 进行无工具 review + challenge，两路均返回 findings（8 + 7 条，合并为 13 类修复），不计通过。全部按源码复核后接受并增加 RED→GREEN 回归：OpenCode 中断清理空目录且可重试、更新删除旧 owned entries、版本不变内容 hash 时不误删 active snapshot；默认 doctor/uninstall 纳入 CLI 已消失但 manifest 仍在的 host；Claude CLI 不可达时保留 ownership；Claude 路径比较处理 macOS canonical alias；两端快照有界保留且清理失败报 partial；OpenCode 卸载清理失败报 partial；self-update 先做无变更 preflight、downgrade 不先装 `@latest`、dry-run/help 明示全局包更新；`artifacts/` 不污染 sourceState；release metadata 同时绑定 assets 与编译后 JS runtime；稳定版规则在构建前失败；Makefile 区分 E404 与 registry 故障。修复后第一次 host smoke 还暴露“OpenCode 版本变但内容 hash 相同，清理误删 active snapshot”，已补回归并修复，重跑三宿主 smoke 通过。
+
+哈希 `ccaa7c142da39d390313aaaddf0d6cce11deeab800d44e08afb30ce9c213631f` 的 staged 候选再由 Claude Opus 做最终直接 review，返回 5 条 finding，均经源码复核后接受并修复：生产 CLI 的 `CCL_SKILLS_REPO` 回退到 `process.env`；OpenCode 临时 staging 不再残留于共享目录阻塞重试；Claude 在任何变更前收到 interrupt 时不再误入 rollback；默认 update 只选择已拥有的可用 host；OpenCode dry-run 先执行 preflight，且 delegated self-update 失败时明确披露全局包已经更新。对应回归使包测试增至 137 项，最终 tarball 9 项和三宿主 smoke 重新通过。按已声明的评审停止边界，没有再启动 post-fix 模型 clean pass；最终结论以这些 finding 的逐项处置和确定性门禁为依据，不将 Claude 结果表述为 clean/pass。

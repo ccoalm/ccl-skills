@@ -61,16 +61,12 @@ python3 scripts/check-markdown-links.py .
 git diff --check
 ```
 
-Run the focused tests for every changed script or package. For npm adapters:
+Run the focused tests for every changed script or package. For the unified npm package:
 
 ```bash
-npm --prefix packages/codex-npm ci
-npm --prefix packages/codex-npm test
-npm --prefix packages/codex-npm run build
-
-npm --prefix packages/opencode-npm ci
-npm --prefix packages/opencode-npm test
-npm --prefix packages/opencode-npm run build
+npm --prefix packages/ccl-skills-npm ci
+npm --prefix packages/ccl-skills-npm test
+npm --prefix packages/ccl-skills-npm run test:pack
 ```
 
 Install the optional local pre-push hook for an extra check before pushing:
@@ -80,6 +76,8 @@ git config core.hooksPath .githooks
 ```
 
 GitHub Actions reruns the repository and package checks. Branch protection and required reviews remain repository-administration settings; the workflow file alone cannot enforce them.
+
+Release maintainers must follow the [npm release runbook](npm-release.md). A code change does not authorize a version bump, tag, registry mutation, or publish.
 
 ## Submit a focused change
 
