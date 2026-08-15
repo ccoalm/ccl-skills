@@ -1,6 +1,6 @@
 # @ccoalm/ccl-skills
 
-Self-contained CCL Skills installer for Claude Code, Codex, and OpenCode. The package carries an immutable skill snapshot, so normal installation does not need a Git checkout.
+Self-contained CCL Skills installer for Claude Code, Codex, and OpenCode. The package carries an immutable snapshot of the skills, agent context, plugin manifests, and runtime hooks, so normal installation does not need a Git checkout.
 
 ## Requirements
 
@@ -13,6 +13,12 @@ Self-contained CCL Skills installer for Claude Code, Codex, and OpenCode. The pa
 ```bash
 npm install --global @ccoalm/ccl-skills
 ccl-skills install
+```
+
+Run without a global install:
+
+```bash
+npx @ccoalm/ccl-skills@latest install
 ```
 
 The CLI detects installed hosts. Limit an operation with `--host claude`, `--host codex`, or `--host opencode`.

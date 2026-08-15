@@ -20,7 +20,16 @@ flowchart LR
 
 ## Quick start
 
-Install from a checkout today:
+Install the unified package with Node.js 20 or later:
+
+```bash
+npm install --global @ccoalm/ccl-skills
+ccl-skills install
+```
+
+The npm tarball includes the skills, agent context, plugin manifests, and runtime hooks. Installation does not need a Git checkout.
+
+If npm returns `E404` before the initial registry release, install from source:
 
 ```bash
 git clone https://github.com/ccoalm/ccl-skills.git
@@ -28,14 +37,7 @@ cd ccl-skills
 make install
 ```
 
-The self-contained npm package requires Node.js 20 or later and will be available after the first registry release:
-
-```bash
-npm install --global @ccoalm/ccl-skills
-ccl-skills install
-```
-
-`make install` configures every CLI it detects — Claude Code, Codex, and OpenCode. Restart the CLI afterwards so it reloads the skills.
+Both install paths configure every CLI they detect — Claude Code, Codex, and OpenCode. Restart the CLI afterwards so it reloads the skills.
 
 Confirm the install landed:
 
@@ -55,7 +57,7 @@ Run `make help` for every install, update, and evaluation target. The unified np
 
 ## Install and update
 
-Git-checkout installs use `make update`. After the first registry release, npm installs use one command for all detected hosts:
+npm installs use one command for all detected hosts:
 
 ```bash
 ccl-skills update       # preview; no network or global mutation
@@ -63,6 +65,8 @@ ccl-skills update --yes # upgrade the package and refresh host assets
 ```
 
 By default `update --yes` upgrades the global npm package to `@latest` first. Set `CCL_SKILLS_SKIP_SELF_UPDATE=1` for an assets-only refresh; `--allow-downgrade` always uses the currently invoked package instead of installing `@latest`.
+
+Git-checkout installs use `make update`.
 
 The host-specific behavior is:
 
@@ -104,7 +108,7 @@ The coding agent can also choose a skill from the task. It reads `skills/<name>/
 
 ## Supported tools
 
-The `npx` commands below become available with the first published npm version; checkout installation works now.
+Use `npx` to run the package without installing it globally. If the registry still returns `E404`, use the checkout alternative.
 
 | Tool | Install from this repository |
 | --- | --- |
