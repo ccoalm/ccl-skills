@@ -11,7 +11,7 @@
 | Root cause | gate 对 `Date` 的可用性押在 psych 传递加载的偶然行为上；`rescue StandardError` 把基础设施错误（NameError）与数据错误（非法 YAML）折叠为同一 verdict，使缺陷既静默又 host 相关。触发窗口：`#description` 规范字段定位器（019 后引入）首次被 CI 的评审 diff 覆盖即本 PR。 |
 | RCA analysis | 反事实成立：ruby 3.2.11 @ PR 测试合并 `4ca9a97`，未修 gate exit 1 且失败文案与 CI 逐字一致；+`require "date"` 副本 exit 0。widen：全仓扫描（skills/*/scripts/*.rb）仅此一处引用未 require 的 `Date`；`register-firing-path-resolution.rb` 无 Date 引用。掩蔽机制：dev 机 ruby 4.0.5/psych 5.3.1 由 psych.rb:2 `require 'date'` 兜底。 |
 | Failure mode analysis | 修法失败面：(i) require 位置/语法错 → gate 崩溃（`ruby -c` + 全 suite 防）；(ii) 回归测试的 host 模拟不忠实 → dateless shim 拦截 psych 传递 require、放行显式 require，已在 ruby 4.0.5 与 3.2.11 双 host 空跑验证（yaml-only → `Date` nil；显式 require → constant；`safe_load([Date,Time])` → NameError）；(iii) 测试对未修 gate 不红 → mutation 归因腿：对剥掉 require 行的 gate 副本同 fixture 必须 rc 1，且先 `cmp` 证明 mutation 真实生效。 |
-| Evidence plan | 已产：CI 失败日志逐字比对；ruby 3.2 @ `4ca9a97` 差分（红/绿）；psych 上游源码矩阵（v5.0.0/v5.1.2 scalar_scanner 带 require date 但实测 3.2.11 不生效=懒加载、v5.2.0 双无、v5.2.6 psych.rb 自载）；shim 双 ruby 空跑。待产：新差分 case 对未修 gate RED → 修后 GREEN；mutation 腿；make test 修前 baseline + 修后全绿；dual-track 双 lane 链。 |
+| Evidence plan | 已产：CI 失败日志逐字比对；ruby 3.2 @ `4ca9a97` 差分（红/绿）；psych 上游源码矩阵（v5.0.0/v5.1.2 scalar_scanner 带 require date 但实测 3.2.11 不生效=懒加载、v5.2.0 双无、v5.2.6 psych.rb 自载）；shim 双 ruby 空跑。charter 时待产、现全部已产：新差分 case 对未修 gate RED → 修后 GREEN；mutation 腿；make test 修前 baseline + 修后全绿；dual-track 链（执行证据见验收判定表与评审记录节）。 |
 | Completion standard | 新 case RED→GREEN 差分成立且 mutation 归因（仅剥 require 行 → 仅 dateless 腿红）；make test 修前/修后全绿（ruby 4 host）+ ruby 3.2 对修后 gate 定向复测绿（本仓 fixture + PR 聚合形态）；checker clean；dual-track 无未处置 P0/P1；register 行 + 本 plan 落树；dev 推送后 PR #5 重生成 merge ref 的 CI 三 job 全绿；PR 合并另候用户显式指令。 |
 
 ## 缺陷与修法
@@ -37,7 +37,7 @@
 
 | owner | direction | status | changed-file-or-reason |
 | --- | --- | --- | --- |
-| skill-extraction-workflow | self（gate owner） | updated | `scripts/impact-chain-gate.rb` +1 require；`scripts/test_check_ccl_impact_chain_refscripts.sh` 新 case |
+| skill-extraction-workflow | self（gate owner） | updated | `scripts/impact-chain-gate.rb` +1 require；`scripts/test_check_ccl_impact_chain_refscripts.sh` 新 case（heavy 层）；`scripts/test_impact_chain_gate_dateless_host.sh` 新增（fast 层含护）；`scripts/test_check_ccl_regressions.sh` fast_tests 注册 |
 | source-register | ledger | updated | impact-chain 行（scripts 变更，firing-path: command:scripts/impact-chain-gate.rb） |
 | specs | plan | added | 本文件 |
 | CI workflow / 其余 skill | — | unchanged | 零语义变更；修复对 date-preloading host 是无操作 |
@@ -45,7 +45,7 @@
 ## 实施边界记录（implementation boundary）
 
 - baseline：本 plan（轮分支 `worktree-gate-date-require`，自 dev `fb55157` 分出）。
-- scope：见 charter Scope in 列，共 4 个文件。
+- scope：见 charter Scope in 列，共 6 个文件（其中 2 个为 dual-track 处置新增）。
 - 实现机制 owner：仓内 ruby gate 脚本无独立 stack skill，按 skill-extraction-workflow scripts 惯例执行；测试机制 owner：`testing-strategy`（实现测试前在会话内加载）。
 - `multi-agent-delegation`：local——单一微小串行 slice（1 行修复 + 1 case），无可并行独立切片，delegation 不成立。
 - visible surface: no——gate 脚本无渲染面，不触发设计检查点。
@@ -62,7 +62,12 @@
 
 - **chain `gate-date-require-r1a`**（candidate sha256 `f4641c21…` = 首版提交 13228df 的冻结 packet，codex 双 lane，`native_skill_binding=established`，reviewed_skills：skill-extraction-workflow / terminal-cli-dev / testing-strategy；claude 因同族被排除）：review 与 challenge 各 1×P1，**同类收敛**——三条回归腿全在 heavy 层（`--full`），`make test` 与现有 CI 均不执行，将来剥掉 `require "date"` 时全部必跑检查仍绿，host 依赖 verdict 无合并时红灯地复活。**均 accepted，按 smallest_fix 菜单第二项落**：新增 fast 层含护测试 `test_impact_chain_gate_dateless_host.sh`（微型合成 repo；初版三腿，r2 challenge 将对照腿升级为 `-rdate` 显式预载并补 mutant 对照腿成四腿，见 r2 记录；含 cmp 非空变更守卫）并注册进 fast_tests——每次 `make test`（本地与 CI）均执行；沿 umbrella 既有"行为在 fast 层、wiring 在 heavy 层"先例，不动 CI workflow（scope out 维持）。双 ruby 实测过。前序 chain id `gate-date-require-r1` 在 plan 校验期零模型消耗失败（self_review 缺派生 owner terminal-cli-dev 行），无评审内容，evidence 目录仅存空 stderr，弃用。
 - **chain `gate-date-require-r2`**（candidate sha256 `eb954833…` = amend 提交 84798c8 的冻结 packet，codex 双 lane，binding established，同前 reviewed_skills）：各 1×P1，非同类。(1) challenge——fast 测试第 3 腿空 `RUBYOPT` 在 date-less host 上测不到 date-preloading 条件（gate 自己的 require 定义了 Date，腿必绿）。**accepted，按其 smallest_fix 落**：第 3 腿改 `-rdate` 显式预载（任意 host 上确定性对照），补第 4 腿 mutant+`-rdate` rc 0——腿 2×4 构成"同一 mutant 跨 host 翻转 verdict"差分，机器化钉住掩蔽机制；双 ruby 复测 ok。(2) review——发布验收依赖散文断言，packet 内无原始命令/版本/退出码，也无证明 fast_tests 被 make test 执行的 runner 接线上下文。**部分为 packet 组成缺陷**（diff-only packet 看不到未变更的 runner 上下文——按 packet 规则加宽而非改候选），**实质部分 accepted**：原始执行证据块落入本 plan 下节，r3 终审 packet 以 `--diff-file` 组装（全量 diff + 未变更 runner 接线摘录 + 原始运行输出）。
-- **chain `gate-date-require-r3`**（终审候选，review lane；Agent 预算第 5/5 轮，按 p3-log-plus-test 轮先例）：（回填于下）
+- **chain `gate-date-require-r3`**（candidate sha256 `3cae80ba…` = 终审提交 ac66335 的加宽 packet（全量 diff + 未变更 runner 接线摘录 + 原始运行 transcript），codex review lane，binding established；Agent 预算第 5/5 轮，按 p3-log-plus-test 轮先例）：1×P1——验收要求候选 SHA 上的 make test 结果，而 plan 该格当时写"回填于终审后"、packet 只含修前基线 transcript。**accepted，按其 smallest_fix 执行**：在候选 ac66335 上跑完 `make test` + `--full` 并把原始结果落入下节（本段即该回填）。**止点声明**：Agent 自主预算 5/5 用尽（r1a 双 lane + r2 双 lane + r3 review），r3 未消费的 challenge 容量与本 docs 回填增量（plan 单文件、不触闸/测试/台账行为面）一并随合并决定暴露给维护者；各链（r1a/r2/r3）至此无未处置 P0/P1。
+
+#### 终审候选 ac66335 的验证结果（r3 P1 的 accepted 回填）
+
+- `make test`（轮 worktree，HEAD=ac66335，log 首两行为 pwd 与 SHA 自证）：**exit 0**——checker `alias_audit_ok` / `r0_status=private-ok` / `ccl_skill_check_clean_ok`（R0 私有审计干净）、Tier-1 路由闸零 blocking、fast 层 `test_impact_chain_gate_dateless_host.sh: ok`（status=0，已被 `make test` 实际执行——runner 接线自证）、`test_check_ccl_regressions_fast_ok`、契约覆盖闸与链接/引用闸全过。
+- `test_check_ccl_regressions.sh --full`（同候选）：heavy 层 `test_check_ccl_r0_status.sh` / `test_check_ccl_source_register_lifecycle.sh` / `test_check_ccl_impact_chain_refscripts.sh`（34s，80 gate runs，含本轮三腿深版）全 status=0；**`test_register_firing_path_wiring.sh` status=1——既有损坏，非本轮引入**：其自 seed 的 fixture 行 anchor `file:README.md#Reusable Agent Skills and host integrations` 在 README 无命中（grep=0），且在修前基线 detached worktree @ dev `fb55157` 上同命令同样 exit 1、同一失败文案（行号 134 vs 本轮 135 之差恰为本轮追加的一行台账）——差分证明失败面与本轮 diff 无交集。处置：随"未做项(2) heavy 层无 CI job"一并路由维护者（该失败正是 heavy 层长期不执行的实证成本）；本轮不扩 scope 去修 README/wiring fixture。
 
 #### 原始执行证据（r2 review P1 的 accepted 落点）
 
@@ -70,5 +75,5 @@
 - heavy 层深版：`bash skills/skill-extraction-workflow/scripts/test_check_ccl_impact_chain_refscripts.sh` → `test_check_ccl_impact_chain_refscripts: ok`，exit 0（host A 与 host B 各一遍，80 gate runs；RED 先行：修复前同命令在新 case 处 `FAIL: expected rc=0 got rc=1 (a date-less host must not refuse the routing-surface class)`，suite exit 1）。
 - fast 层含护：`bash skills/skill-extraction-workflow/scripts/test_impact_chain_gate_dateless_host.sh` → `test_impact_chain_gate_dateless_host: ok`，exit 0（host A 与 host B 各一遍，四腿版）。
 - runner 接线：`Makefile` `test` 目标第 2 行 `bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --fast`；该脚本 `fast_tests` 数组含 `test_impact_chain_gate_dateless_host.sh`（本轮注册），故本地与 CI 的每次 `make test` 均执行 fast 层含护测试。
-- 修前干净基线：detached worktree @ dev `fb55157`，`make test` exit 0（全 21 个回归计时行 status=0）。修后全量：amend 候选上 `make test` + `test_check_ccl_regressions.sh --full` 结果回填于终审后（见止点节）。
+- 修前干净基线：detached worktree @ dev `fb55157`，`make test` exit 0（全 21 个回归计时行 status=0）。修后全量：终审候选 ac66335 的完整结果见"终审候选 ac66335 的验证结果"节（make test exit 0；heavy 层唯一红灯为既有 wiring 损坏，差分证明与本轮无关）。
 - CI 失败复现与修复对照：`CCL_SKILL_BASE_REF=2aa8cd3… ruby(3.2.11) impact-chain-gate.rb <PR#5 测试合并 4ca9a97 检出>` → 未修 exit 1（文案与 CI 日志逐字一致）/ 修后 exit 0。
