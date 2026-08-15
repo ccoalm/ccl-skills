@@ -973,7 +973,166 @@ commit_case "after the merge: undeclared owner edit"
 run_gate
 assert_rc "$rc" 1 "work committed after a merged round must not ride on that round's row"
 
+# Round scoping 7: a renamed-away owner must not escape the rounds BEFORE its
+# rename. Round 1 substantively changes an owner and a ledger append closes that
+# round with no row for it; round 2 renames the owner away with a row on the
+# surviving name. The cumulative pass rightly excuses the old name for the
+# RENAME round — but the pre-rename round still owes the row, and since the
+# evidence check reads each row against its own round head that row was never
+# impossible to write.
+new_case case-round-scope-renamed-away-pre-rename-round
+printf '\n- Never skip the fixture pre-rename rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
+commit_case "round 1: owner work with no row"
+printf 'Fixture ledger note closing round one without the owner row.\n' >> "$REGISTER"
+commit_case "round 1 boundary: ledger append without the owner row"
+git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
+printf '\n- MUST enforce Fixture renamed owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+commit_case "round 2: rename the owner with a row on the surviving name"
+run_gate
+assert_rc "$rc" 1 "owner work in a pre-rename round must not escape with the later rename"
+assert_contains "impact_chain_gate_missing" "$out" "the pre-rename round's work is undeclared"
+assert_contains "platform-observability/SKILL.md" "$out" "the missing row must name the owner under its pre-rename name"
+
+# The legitimate counterpart: the pre-rename round DID carry its row, citing the
+# owner name that existed at that round's head. The rename must not retroactively
+# invalidate it — rejecting it would demand a row no honest author could write.
+new_case case-round-scope-renamed-away-row-at-round-head
+printf '\n- Never skip the fixture pre-rename declared rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
+printf '| Fixture pre-rename declared row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture pre-rename declared rule | `updated` | `platform-observability/SKILL.md` pre-rename round |\n' >> "$REGISTER"
+commit_case "round 1: owner work with its row"
+git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
+printf '\n- MUST enforce Fixture renamed owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+commit_case "round 2: rename the owner with a row on the surviving name"
+run_gate
+assert_rc "$rc" 0 "a pre-rename round declared against its own round head must pass"
+assert_not_contains "impact_chain_evidence_missing_file" "$out" "a row citing the name that existed at its round head is valid evidence"
+
+# Round scoping 8: the --first-parent discriminator. On the branch the ledger
+# append lands BEFORE the owner work; first-parent collapses the merged branch
+# to one boundary (the merge), so row and work share a round. A full walk would
+# instead cut the round at the branch's ledger commit, stranding the work in a
+# rowless later round — so this fixture goes red if --first-parent is dropped,
+# which is what proves the flag load-bearing.
+new_case case-round-scope-merged-row-before-work
+git -C "$REPO" switch -q -c feature-round-row-first
+printf '| Fixture row-first merged round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture row-first rule | `updated` | `platform-observability/SKILL.md` merged round |\n' >> "$REGISTER"
+commit_case "worktree round: ledger append first"
+printf '\n- Never skip the fixture row-first rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
+commit_case "worktree round: owner work after the append"
+git -C "$REPO" switch -q case-round-scope-merged-row-before-work
+git -C "$REPO" merge -q --no-ff -m "Merge branch 'feature-round-row-first': one worktree round" feature-round-row-first
+run_gate
+assert_rc "$rc" 0 "a merged worktree round collapses to one boundary even when the row precedes the work"
+
+# Round scoping 9: a TRANSIENT intermediate rename hop must not launder work.
+# X renames to Y (declared), a later round substantively changes Y with no row,
+# then Y renames to Z (declared). The cumulative diff sees only X and Z, so Y is
+# in neither the cumulative selection nor the excused set — selection must follow
+# the rename lineage through each round's own pairs, or the Y round escapes.
+new_case case-round-scope-transient-rename-hop-undeclared
+git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
+printf '\n- MUST enforce Fixture renamed owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+commit_case "round A: rename X to Y with a row on the surviving name"
+printf '\n- Never skip the fixture transient-hop rule for this gate.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
+printf 'Fixture ledger note closing the transient round without the owner row.\n' >> "$REGISTER"
+commit_case "round B: substantive Y edit closed with no Y row"
+git -C "$REPO" mv skills/platform-signal-evidence skills/platform-telemetry-evidence
+printf '\n- MUST enforce Fixture final renamed owner rule.\n' >> "$REPO/skills/platform-telemetry-evidence/SKILL.md"
+printf '| Fixture final renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-telemetry-evidence/SKILL.md#Fixture final renamed owner rule | `updated` | `platform-telemetry-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+commit_case "round C: rename Y to Z with a row on the surviving name"
+run_gate
+assert_rc "$rc" 1 "a substantive round on a transient rename hop must not escape undeclared"
+assert_contains "impact_chain_gate_missing" "$out" "the transient-hop round's work is undeclared"
+assert_contains "platform-signal-evidence/SKILL.md" "$out" "the missing row must name the transient owner"
+
+# The declared counterpart: the transient-hop round carries its own row citing
+# the name that existed at that round's head; the whole chain must pass.
+new_case case-round-scope-transient-rename-hop-declared
+git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
+printf '\n- MUST enforce Fixture renamed owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+commit_case "round A: rename X to Y with a row on the surviving name"
+printf '\n- Never skip the fixture transient-hop rule for this gate.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
+printf '| Fixture transient hop row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture transient-hop rule | `updated` | `platform-signal-evidence/SKILL.md` transient round |\n' >> "$REGISTER"
+commit_case "round B: substantive Y edit with its own Y row"
+git -C "$REPO" mv skills/platform-signal-evidence skills/platform-telemetry-evidence
+printf '\n- MUST enforce Fixture final renamed owner rule.\n' >> "$REPO/skills/platform-telemetry-evidence/SKILL.md"
+printf '| Fixture final renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-telemetry-evidence/SKILL.md#Fixture final renamed owner rule | `updated` | `platform-telemetry-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+commit_case "round C: rename Y to Z with a row on the surviving name"
+run_gate
+assert_rc "$rc" 0 "a declared transient-hop chain must pass end to end"
+assert_not_contains "impact_chain_evidence_missing_file" "$out" "rows citing each hop's round-head name are valid evidence"
+
+# Round scoping 10: deleting an owner in one round and recreating a lookalike
+# under a new name in a LATER round must stay a deletion, not become a rename.
+# The cumulative endpoints pair the delete with the later add, but no single
+# round's own pairs contain the source — the excuse requires an atomic in-round
+# rename, so the cross-round split keeps the deletion fail-closed.
+new_case case-round-scope-delete-then-recreate-lookalike
+cp -R "$REPO/skills/platform-observability" "$TMP/stash-lookalike"
+git -C "$REPO" rm -qr skills/platform-observability
+printf 'Fixture ledger note closing the deletion round without the owner row.\n' >> "$REGISTER"
+commit_case "round A: delete the owner with no row"
+cp -R "$TMP/stash-lookalike" "$REPO/skills/platform-signal-evidence"
+retarget_all "$REPO/skills/platform-signal-evidence"
+printf '\n- MUST enforce Fixture recreated owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
+printf '| Fixture recreated owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture recreated owner rule | `updated` | `platform-signal-evidence/SKILL.md` recreated owner |\n' >> "$REGISTER"
+commit_case "round B: recreate a lookalike under a new name with its own row"
+run_gate
+assert_rc "$rc" 1 "a cross-round delete-then-recreate must stay an undeclared deletion"
+assert_contains "platform-observability/SKILL.md" "$out" "the deleted owner must stay a subject"
+
+# Round scoping 11: a declared rename CYCLE (A to B, then B back to A) is an
+# honest, fully-declared shape — each round's row cites the name that existed at
+# its own round head. Demanding an A row in the round that renamed A away would
+# ask for a row the evidence check must then refuse.
+new_case case-round-scope-declared-rename-cycle
+git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
+printf '\n- MUST enforce Fixture renamed owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+commit_case "round 1: rename A to B with a row on the surviving name"
+git -C "$REPO" mv skills/platform-signal-evidence skills/platform-observability
+printf '\n- MUST enforce Fixture reverted owner rule.\n' >> "$REPO/skills/platform-observability/SKILL.md"
+printf '| Fixture reverted owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Fixture reverted owner rule | `updated` | `platform-observability/SKILL.md` reverted owner |\n' >> "$REGISTER"
+commit_case "round 2: rename B back to A with a row on the surviving name"
+run_gate
+assert_rc "$rc" 0 "a fully-declared rename cycle must pass"
+assert_not_contains "impact_chain_evidence_missing_file" "$out" "each round's row cites the name real at its own head"
+
+# The undeclared half of the cycle: no row for B in the round that created it.
+new_case case-round-scope-undeclared-rename-cycle
+git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
+printf '\n- MUST enforce Fixture renamed owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
+printf 'Fixture ledger note closing the outbound rename round without a row.\n' >> "$REGISTER"
+commit_case "round 1: rename A to B with no row"
+git -C "$REPO" mv skills/platform-signal-evidence skills/platform-observability
+printf '\n- MUST enforce Fixture reverted owner rule.\n' >> "$REPO/skills/platform-observability/SKILL.md"
+printf '| Fixture reverted owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Fixture reverted owner rule | `updated` | `platform-observability/SKILL.md` reverted owner |\n' >> "$REGISTER"
+commit_case "round 2: rename B back to A with a row on the surviving name"
+run_gate
+assert_rc "$rc" 1 "the round that created the transient name still owes its row"
+assert_contains "platform-signal-evidence/SKILL.md" "$out" "the undeclared transient name must be demanded"
+
+# Round scoping 12: a DIRECTORY masquerading as SKILL.md must read as absence.
+# `git show ref:path` succeeds for a tree, so replacing the entrypoint with a
+# same-named directory and vouching through a nested-file anchor would let a
+# row certify an owner whose entrypoint was effectively deleted — existence at
+# a round head must mean a regular blob, and everything else falls through to
+# the deletion fail-closed path.
+new_case case-round-scope-skillmd-directory-masquerade
+git -C "$REPO" rm -q skills/platform-observability/SKILL.md
+mkdir -p "$REPO/skills/platform-observability/SKILL.md"
+printf -- '- MUST enforce Fixture masquerade rule.\n' > "$REPO/skills/platform-observability/SKILL.md/rules.md"
+printf '| Fixture masquerade row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md/rules.md#Fixture masquerade rule | `updated` | `platform-observability/SKILL.md` masquerade |\n' >> "$REGISTER"
+commit_case "replace the entrypoint with a same-named directory and vouch via a nested anchor"
+run_gate
+assert_rc "$rc" 1 "a directory masquerading as SKILL.md must not read as a present entrypoint"
+assert_contains "platform-observability/SKILL.md" "$out" "the masqueraded owner must be named"
+
 assert_rc "$full_check_runs" 1 "fixture suite must retain exactly one full checker wiring case"
-assert_rc "$gate_runs" 68 "all remaining impact-chain fixtures must run the standalone gate"
+assert_rc "$gate_runs" 77 "all remaining impact-chain fixtures must run the standalone gate"
 
 echo "test_check_ccl_impact_chain_refscripts: ok"
