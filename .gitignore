@@ -39,6 +39,12 @@ eval/skill-effectiveness/out/
 # Local worktree lanes and per-lane metadata; never scan or commit.
 .work/
 
+# Dual-track review/challenge lane raw output (per-chain round*-review.json /
+# round*-challenge.json), referenced by specs as per-checkout 留档. Kept out of
+# the tree: lane output quotes local paths and raw model responses; the durable
+# sanitized evidence is committed under eval/evidence/<round>/ instead.
+.review-evidence/
+
 # Node / npm package artifacts
 node_modules/
 *.tgz

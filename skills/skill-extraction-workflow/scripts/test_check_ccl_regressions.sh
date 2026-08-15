@@ -16,6 +16,7 @@
 #   - test_check_sync_pointers.sh
 #   - test_check_ccl_register_pending_exclusion.sh
 #   - test_eval_routing_bank_grader_diagnostics.sh
+#   - test_eval_routing_bank_surface_binding.sh
 #   - test_eval_routing_prose_target.sh
 #   - test_validate_skill_credential_cwd.sh
 #   - test_validate_skill_root_depth.sh
@@ -88,7 +89,12 @@ fast_tests=(
   test_check_sync_pointers.sh
   test_check_ccl_register_pending_exclusion.sh
   test_register_firing_path_resolution.sh
+  # Merge-time containment for the gate's date dependency; the deep three-leg
+  # differential stays in the heavy suite, but a require-date regression must
+  # go RED in every `make test`, not only under --full.
+  test_impact_chain_gate_dateless_host.sh
   test_eval_routing_bank_grader_diagnostics.sh
+  test_eval_routing_bank_surface_binding.sh
   test_eval_routing_prose_target.sh
   test_validate_skill_credential_cwd.sh
   test_validate_skill_root_depth.sh

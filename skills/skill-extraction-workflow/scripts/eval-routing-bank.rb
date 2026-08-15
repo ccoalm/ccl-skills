@@ -30,6 +30,7 @@ require "json"
 require "open3"
 require "shellwords"
 require "timeout"
+require "digest"
 
 def arg(flag, default = nil)
   i = ARGV.index(flag)
@@ -70,8 +71,12 @@ unless File.file?(bank_path)
   exit 2
 end
 
+# ONE immutable snapshot of the bank: the tasks are parsed from, and every
+# bank-derived hash below is computed from, the SAME bytes — so grading and the
+# report's self-identification cannot diverge if the file changes mid-run.
+bank_bytes = File.binread(bank_path)
 tasks = []
-File.foreach(bank_path).with_index(1) do |line, n|
+bank_bytes.dup.force_encoding(Encoding::UTF_8).each_line.with_index(1) do |line, n|
   line = line.strip
   next if line.empty?
   begin
@@ -147,6 +152,35 @@ if ARGV.include?("--with-bootstrap")
     exit 2
   end
 end
+
+# --- routing-surface self-identification -------------------------------------
+# Every emitted report names the exact surface it graded, so a round artifact
+# can never be attributed to the wrong wording by operator assertion alone.
+# descriptions_sha256 mirrors the binding wrapper's surface_hash byte-for-byte
+# (dir-name-tagged RAW description lines of every skills/*/SKILL.md in sorted
+# glob order — grep semantics, YAML unparsed, trailing newline included — plus
+# the bank file bytes), so a sidecar recomputing the same quantity externally
+# is an independent check of this claim. per_skill maps each description line
+# to its own hash; catalog_sha256 identifies the GRADED catalog text (post
+# YAML-parse, post desc-budget truncation), which is what the model actually
+# saw. Grading semantics are untouched: nothing below feeds the prompt or the
+# verdicts.
+surface_parts = +"".b
+per_skill_desc_sha = {}
+Dir[File.join(root, "skills", "*", "SKILL.md")].sort.each do |path|
+  name = File.basename(File.dirname(path))
+  line = File.open(path, "rb") { |f| f.each_line.find { |l| l.start_with?("description:") } }
+  next unless line
+  surface_parts << name.b << "\t".b << line.b
+  per_skill_desc_sha[name] = Digest::SHA256.hexdigest(line)
+end
+routing_surface = {
+  descriptions_sha256: Digest::SHA256.hexdigest(surface_parts + bank_bytes),
+  per_skill_description_line_sha256: per_skill_desc_sha,
+  catalog_sha256: Digest::SHA256.hexdigest(catalog),
+  bank_sha256: Digest::SHA256.hexdigest(bank_bytes),
+  bootstrap_layer_sha256: bootstrap_layer ? Digest::SHA256.hexdigest(bootstrap_layer) : nil
+}
 
 def build_prompt(catalog, utterance, bootstrap_layer = nil)
   <<~PROMPT
@@ -338,7 +372,7 @@ end
 
 report = {
   model: model, tasks: results.size, pass: passes, fail: fails.size, error: errors.size,
-  desc_budget_chars: desc_budget,
+  desc_budget_chars: desc_budget, routing_surface: routing_surface,
   co_change_bank_and_descriptions: co_change, co_change_check_available: co_change_check_ok,
   frozen_drift: drift.map { |r| r[:id] },
   newly_failed: newly_failed, newly_passed: newly_passed, results: results
