@@ -22,7 +22,7 @@
 | 2 | anchor 修后、计数守卫未修 | 尾部 `expected 16 assertions, saw 13` FAIL | RED 实测（已执行，先于计数修正） |
 | 3 | README 无合规标题（假想输入） | 派生守卫 `fail` 快停，不 seed 不可解析行 | 代码路径（`[ -n "$seed_anchor" ] \|\| fail`），由 dual-track 评审员核 |
 | 4 | `--full` @ 本轮候选 | heavy 5/5 status=0、exit 0 | 首版候选实测 exit 0（wiring 144s status=0）；终版候选复跑回填于"终版候选验证"节 |
-| 5 | PR #5 重生成 merge ref @ CI | 四 job 全绿（含新 `regression-heavy`） | 首跑（run 31895063645 @ dev `19a04b6`）：repository-gates/npm ×2 绿，`regression-heavy` 红——fast 层 `test_check_ccl_skill_catalog.sh` 在克隆内 `impact_chain_merge_base_missing: origin/main`（detached-HEAD 活证腿命中真实环境缺口：新 job 镜像了依赖安装但漏了 repository-gates 的 `CCL_SKILL_BASE_REF` 导出，克隆继承不到 base）。修复=env 守卫逐字平价（见"CI 首跑修复"节，本地合并锚 sim 差分：无 env 同款红 / 有 env `ok`）；修复后 CI 结果回填于此 |
+| 5 | PR #5 重生成 merge ref @ CI | 四 job 全绿（含新 `regression-heavy`） | 首跑（run 31895063645 @ dev `19a04b6`）：repository-gates/npm ×2 绿，`regression-heavy` 红——fast 层 `test_check_ccl_skill_catalog.sh` 在克隆内 `impact_chain_merge_base_missing: origin/main`（detached-HEAD 活证腿命中真实环境缺口：新 job 镜像了依赖安装但漏了 repository-gates 的 `CCL_SKILL_BASE_REF` 导出，克隆继承不到 base）。修复=env 守卫逐字平价（见"CI 首跑修复"节，本地合并锚 sim 差分：无 env 同款红 / 有 env `ok`）。修复后（run 31896468755 @ dev `0fd26e7`）：**四 job 全绿**——repository-gates 16m0s、`regression-heavy` 7m9s（heavy 层首次在 CI 真实执行并通过，detached-HEAD 活证完成）、npm ×2；PR #5 遂以 head `0fd26e7` 经维护者显式指令合并（merge commit `95f06b2`，2026-08-15） |
 | 6 | （历史）围栏/混标记 decoy fixtures @ 派生设计 | 派生选真标题 | RED 取证 ×2 留档（旧正则选围栏 decoy、旧布尔翻转选混标记 decoy）；**派生设计已按 r3 `replace` 裁决整体删除**——anchor 改为 fixture 自有注记文件，解析面不复存在，本行与行 7 保留为过程证据 |
 | 7 | （历史）无合规标题 fixture @ 派生设计 | 派生输出空 → fail 快停 | 同上，随派生设计删除；自有注记文件设计下 seed 无条件可解析 |
 | 8 | 脚本自身 pass 清单 vs 守卫字面量 | 三向一致（静态清单 = 守卫 = 执行数，终态 14） | 计数自测过（14/14 suite 绿）；守卫咬合的实测证据 = 观测到的 expected-16-saw-13 活体 RED |
