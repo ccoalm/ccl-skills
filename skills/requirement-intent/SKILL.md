@@ -1,6 +1,6 @@
 ---
 name: requirement-intent
-description: 产品需求沟通 / 需求讨论完善 / 产品需求澄清 / 澄清 PRD / 需求对齐会 / 需求讨论会后整理 / 用户故事 / 验收标准 / 产品意图 / 需求不清楚 / clarify requirement / requirement discussion —— 交付物是「这需求到底要什么」：意图、目标用户、成功标准、用户路径、意图级非目标、功能点验收点、拷问问题池、决策关闭 backlog。Skip 要的是现状清单（现有流程·页面·API·数据·运营规则怎么运作、已有什么能力、缺口在哪）→ requirement-baseline；要的是变更边界（in/out、受影响对象、依赖、版本切片、appetite）→ requirement-scope；要成文 PRD → requirement-doc-writer；一问一答拷问 → grill-me；多阶段交付计划 → product-rd-workflow。
+description: 产品需求沟通 / 需求讨论完善 / 产品需求澄清 / 澄清 PRD / 需求对齐会 / 需求讨论会后整理 / 用户故事 / 验收标准 / 产品意图 / 需求不清楚 / clarify requirement / requirement discussion —— 交付物是「这需求到底要什么」：意图、目标用户、成功标准、用户路径、意图级非目标、功能点验收点、拷问问题池、决策关闭 backlog。Skip 要的是现状清单（现有流程·页面·API·数据·运营规则怎么运作、已有什么能力、缺口在哪）→ requirement-baseline；要的是变更边界（in/out、受影响对象、依赖、版本切片、appetite）→ requirement-scope；要成文 PRD → requirement-doc-writer；一问一答拷问 → grill-me；已有 spec/PRD 实质内容写错要改对（substance 修正，非澄清）、多阶段交付计划 → product-rd-workflow。
 ---
 
 # Requirement Intent
@@ -54,6 +54,7 @@ description: 产品需求沟通 / 需求讨论完善 / 产品需求澄清 / 澄�
 - 把结论沉淀成 PRD / 需求文档正文 → `requirement-doc-writer`（且须 lifecycle 已判 `PRD Ready`）。
 - 一问一答压力测试、只追问一个阻塞决策 → `grill-me`；本技能只生成问题池并整理拷问后的结论。
 - 技术实现计划、研发排期、跨阶段生命周期 → `product-rd-workflow`。
+- 已有 spec/PRD 实质内容写错要改对（substance 修正）→ `product-rd-workflow`：改实质是变更重入，不是意图澄清；只动措辞不动实质才是 `tighten-doc`。
 - 结构化测试用例 / Feishu TC → `test-artifact-management`；测试层与验证策略 → `testing-strategy`。
 - 风险定级、灰度、必跑 gate → `feature-risk-router`。
 
