@@ -1,6 +1,6 @@
 ---
 name: product-rd-workflow
-description: 加功能 / 新需求 / 技术方案 / 方案评估 / 技术选型 / 可行性评估 / 工作量评估 / 多阶段重构 / 推倒重来 / 重新开发 / 完全重新开始 / 清除代码重新开发 / redo-from-scratch / 项目分析 / 方案评审通过开始实现 / 进入实现阶段 → end-to-end product R&D router for requirement shaping, spec/plan, implementation gates, assessment, redo/refactor (incl. clearing code and restarting an in-flight delivery — re-enter here, don't code from memory), and multi-stack standards.
+description: 加功能 / 新需求 / 技术方案 / 方案评估 / 技术选型 / 可行性评估 / 工作量评估 / 多阶段重构 / 推倒重来 / 重新开发 / 完全重新开始 / 清除代码重新开发 / redo-from-scratch / 项目分析 / spec·PRD·需求文档实质内容写错要改对（substance 修正） / 方案评审通过开始实现 / 进入实现阶段 → end-to-end product R&D router for requirement shaping, spec/plan, implementation gates, assessment, redo/refactor, and multi-stack standards.
 ---
 
 # Product R&D Workflow
