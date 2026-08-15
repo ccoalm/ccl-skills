@@ -1,0 +1,129 @@
+{
+  "model": "claude-haiku-4-5",
+  "tasks": 6,
+  "pass": 6,
+  "fail": 0,
+  "error": 0,
+  "desc_budget_chars": null,
+  "routing_surface": {
+    "descriptions_sha256": "567d9775439d4cfc9a182b2b4e146b0fdfe70859cc9de8c1e66e133e9714462a",
+    "per_skill_description_line_sha256": {
+      "agents-file-coverage-gate": "663ce7e5a22c6551792cd1dca29d2a472a38e591c989156dbff8225b2ce84870",
+      "app-cross-platform-dev": "c60f12feb2d924b884cc7f1a33a4fd4d9fb69842482d2fe1b7b5669a64ef6696",
+      "code-review": "b73dfb25bb779b8429a12a2f53636bc44b97649290384c503574c0ddb248e045",
+      "defect-diagnosis": "ef3664baab79c7c6c59de6900e71510a1d96ba0565cbfb91316c8c6e3e8cdc72",
+      "feature-risk-router": "53438b25822673c852717471aab374a9e505ce54e294c577463f6344ccf04ddf",
+      "go-microservice-architecture": "509ec19cb780c80883bd2165433c02fd0a00e06d8ad12ecb4ade117c4600fbe2",
+      "go-microservice-dev": "7437a83839fdb0ddd5eebc2c566d6d680e529fb0b8a8abc49eeb95056afaff9a",
+      "grill-me": "21de34fae39e375cbc496e7cabd6e167cf178cc9cbb3ae438c5412577c7e4a2c",
+      "llm-inference-integration": "de73da80dafa8d3335e6c545c7d84ab3cbbf4130ea6558c40c9c3dd4b73628df",
+      "miniapp-product-dev": "1b48b240e496ab221ce0f5de09a342b3b1b3021739ba8a41c340a2b4365e9642",
+      "multi-agent-delegation": "d33161502ceb4ac6b4592f9d9f543310c37b0f3095a00e4fbb298a6b85ee9298",
+      "multi-perspective-research": "9507077c59c8687db839e39e3d8526aa5540ba1147490f5f5fbafd20e80203ff",
+      "platform-observability": "02abf437bd601733d71bb09cff921047f7e0f52bce399e7cf4b968b25f85810e",
+      "platform-release-engineering": "1d5d13bc695c855187f00314c96656fb413a139cc72df746df5f8e0513a0afbf",
+      "platform-service-connectivity": "9639078bae01e666d392d31db2d8d946b316ea18140a2a2597708b9d710b3ec1",
+      "product-rd-workflow": "39f2dc7a58f9353d8e78bce7957f7fcf9ec5b06637242f1ca715d33bb4de4ec7",
+      "product-ui-ux-design": "5b393b29e02f5be9f5de58cb9fa68f1e295ec2322454a8ae043bb062c732f67b",
+      "python-service-architecture": "7e937633e5c801303b792fbed2ca77dbaf64c1025ff36d75e492595564fb35f9",
+      "python-service-dev": "28a21817c5202052c6abfe709b9eba3e64f84d7507c38b622b04fa785dc68dd0",
+      "release-coordination": "f88133c5ac8d4ee9188029a45753c51e994ecca68bcc3fbe70c643f44c390f0b",
+      "release-doc-writer": "2a0a565b502b8599f891642d13c4c6c3fdcafdbf2f473a63ffc8fa3324e073d3",
+      "requirement-baseline": "89660426e6bc23a01f8a13aa7080f09ad97f452c80d1a178a6a07ed25273ce57",
+      "requirement-doc-writer": "7ae74bd2d707a40ab7535f16d901f0fc3a7525ea7348934be0e73a5fbe7170d3",
+      "requirement-intent": "a8ea50f4756b74a90ef0ed2a8d9f0e199e4f77a1a08e039cbcb1065326b9da45",
+      "requirement-scope": "0bb177c1d8c0b3d6491732c1bc525755983fa007aabcfa1e26481af6c31fca90",
+      "skill-extraction-workflow": "beedf2d25568df4601b5fd58ea6cbb5ef940cd635902f8ff074b6477c8645a5c",
+      "terminal-cli-dev": "0004598019cb26b1f399603f9cc3dccb24dc18c50634c41f7e3774e8e01aa486",
+      "test-artifact-management": "85e93275be87f627f3cc06d0d165c6ae636a56a68b112a3f1aec7f177a430a22",
+      "testing-strategy": "f608c18fe027cfe70b9026bc12782ee14b21cea65536df1a859077f08d447e76",
+      "tighten-doc": "aecf37a070e13dd8d678ff29c31b204987bb0fc56e8c90dad7e351164f2bb400",
+      "web-react-dev": "9523899f148a70c62cf15c4ffa0a8b26c654b3016a8e63a89a0128fbfc6946ce",
+      "worktree-isolation": "fc9715e52670f7ab4aad68d28fab2fc635c1c91a2eba7a8c33440e3f15931b5c"
+    },
+    "catalog_sha256": "592b7be6fbd91331bc5b8672db8cae5c112e40cb612f1afa67fd7d4bff593699",
+    "bank_sha256": "ed60298316aec6e8219a3582a3d1907d2afcc742a20e2c3e48b6d6353ceb5a84",
+    "bootstrap_layer_sha256": null
+  },
+  "co_change_bank_and_descriptions": false,
+  "co_change_check_available": true,
+  "frozen_drift": [],
+  "newly_failed": [],
+  "newly_passed": [],
+  "results": [
+    {
+      "id": "variant-neg-release-watch-sop",
+      "utterance": "制定发布值班 SOP，P0/P1 时打断排班并决定是否回滚",
+      "expected": "platform-release-engineering",
+      "selected": "platform-release-engineering",
+      "confidence": 0.8,
+      "must_not_route_to": [
+        "platform-observability"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "probe-combined-impl-intent",
+      "utterance": "在共享技能仓给 OpenCode 新增一个由脚本实现的项目命令",
+      "expected": "skill-extraction-workflow",
+      "selected": "skill-extraction-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-neg-opencode-review",
+      "utterance": "用 opencode 给当前分支的 diff 出个第二意见",
+      "expected": "code-review",
+      "selected": "code-review",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "skill-extraction-workflow"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-neg-tui-commands",
+      "utterance": "给产品的终端 TUI 界面设计快捷键和命令面板",
+      "expected": "terminal-cli-dev",
+      "selected": "terminal-cli-dev",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "skill-extraction-workflow"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-neg-worktree-first",
+      "utterance": "在 ccl-skills 仓里改一个技能文件之前要不要先建 worktree",
+      "expected": "worktree-isolation",
+      "selected": "worktree-isolation",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-neg-product-shortcut-feature",
+      "utterance": "给我们产品加个新功能：用户可以自定义快捷命令",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "skill-extraction-workflow"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    }
+  ]
+}

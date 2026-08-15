@@ -1,0 +1,1727 @@
+{
+  "model": "claude-haiku-4-5",
+  "tasks": 136,
+  "pass": 133,
+  "fail": 3,
+  "error": 0,
+  "desc_budget_chars": null,
+  "routing_surface": {
+    "descriptions_sha256": "32636445663f824ba393bde2dc40a8bc4266640a4e4b066e3fe09b2bdc1bd969",
+    "per_skill_description_line_sha256": {
+      "agents-file-coverage-gate": "663ce7e5a22c6551792cd1dca29d2a472a38e591c989156dbff8225b2ce84870",
+      "app-cross-platform-dev": "c60f12feb2d924b884cc7f1a33a4fd4d9fb69842482d2fe1b7b5669a64ef6696",
+      "code-review": "b73dfb25bb779b8429a12a2f53636bc44b97649290384c503574c0ddb248e045",
+      "defect-diagnosis": "ef3664baab79c7c6c59de6900e71510a1d96ba0565cbfb91316c8c6e3e8cdc72",
+      "feature-risk-router": "53438b25822673c852717471aab374a9e505ce54e294c577463f6344ccf04ddf",
+      "go-microservice-architecture": "509ec19cb780c80883bd2165433c02fd0a00e06d8ad12ecb4ade117c4600fbe2",
+      "go-microservice-dev": "7437a83839fdb0ddd5eebc2c566d6d680e529fb0b8a8abc49eeb95056afaff9a",
+      "grill-me": "21de34fae39e375cbc496e7cabd6e167cf178cc9cbb3ae438c5412577c7e4a2c",
+      "llm-inference-integration": "de73da80dafa8d3335e6c545c7d84ab3cbbf4130ea6558c40c9c3dd4b73628df",
+      "miniapp-product-dev": "1b48b240e496ab221ce0f5de09a342b3b1b3021739ba8a41c340a2b4365e9642",
+      "multi-agent-delegation": "d33161502ceb4ac6b4592f9d9f543310c37b0f3095a00e4fbb298a6b85ee9298",
+      "multi-perspective-research": "9507077c59c8687db839e39e3d8526aa5540ba1147490f5f5fbafd20e80203ff",
+      "platform-observability": "02abf437bd601733d71bb09cff921047f7e0f52bce399e7cf4b968b25f85810e",
+      "platform-release-engineering": "1d5d13bc695c855187f00314c96656fb413a139cc72df746df5f8e0513a0afbf",
+      "platform-service-connectivity": "9639078bae01e666d392d31db2d8d946b316ea18140a2a2597708b9d710b3ec1",
+      "product-rd-workflow": "39f2dc7a58f9353d8e78bce7957f7fcf9ec5b06637242f1ca715d33bb4de4ec7",
+      "product-ui-ux-design": "5b393b29e02f5be9f5de58cb9fa68f1e295ec2322454a8ae043bb062c732f67b",
+      "python-service-architecture": "7e937633e5c801303b792fbed2ca77dbaf64c1025ff36d75e492595564fb35f9",
+      "python-service-dev": "28a21817c5202052c6abfe709b9eba3e64f84d7507c38b622b04fa785dc68dd0",
+      "release-coordination": "f88133c5ac8d4ee9188029a45753c51e994ecca68bcc3fbe70c643f44c390f0b",
+      "release-doc-writer": "2a0a565b502b8599f891642d13c4c6c3fdcafdbf2f473a63ffc8fa3324e073d3",
+      "requirement-baseline": "89660426e6bc23a01f8a13aa7080f09ad97f452c80d1a178a6a07ed25273ce57",
+      "requirement-doc-writer": "7ae74bd2d707a40ab7535f16d901f0fc3a7525ea7348934be0e73a5fbe7170d3",
+      "requirement-intent": "a8ea50f4756b74a90ef0ed2a8d9f0e199e4f77a1a08e039cbcb1065326b9da45",
+      "requirement-scope": "0bb177c1d8c0b3d6491732c1bc525755983fa007aabcfa1e26481af6c31fca90",
+      "skill-extraction-workflow": "beedf2d25568df4601b5fd58ea6cbb5ef940cd635902f8ff074b6477c8645a5c",
+      "terminal-cli-dev": "0004598019cb26b1f399603f9cc3dccb24dc18c50634c41f7e3774e8e01aa486",
+      "test-artifact-management": "85e93275be87f627f3cc06d0d165c6ae636a56a68b112a3f1aec7f177a430a22",
+      "testing-strategy": "f608c18fe027cfe70b9026bc12782ee14b21cea65536df1a859077f08d447e76",
+      "tighten-doc": "aecf37a070e13dd8d678ff29c31b204987bb0fc56e8c90dad7e351164f2bb400",
+      "web-react-dev": "9523899f148a70c62cf15c4ffa0a8b26c654b3016a8e63a89a0128fbfc6946ce",
+      "worktree-isolation": "fc9715e52670f7ab4aad68d28fab2fc635c1c91a2eba7a8c33440e3f15931b5c"
+    },
+    "catalog_sha256": "592b7be6fbd91331bc5b8672db8cae5c112e40cb612f1afa67fd7d4bff593699",
+    "bank_sha256": "b30280289422e9c7b92679a70fa63df69a14c1eef43f1d6aaab43746f1eddc70",
+    "bootstrap_layer_sha256": null
+  },
+  "co_change_bank_and_descriptions": false,
+  "co_change_check_available": true,
+  "frozen_drift": [],
+  "newly_failed": [],
+  "newly_passed": [],
+  "results": [
+    {
+      "id": "ctrl-unit-test",
+      "utterance": "帮我给这个函数写单元测试",
+      "expected": "testing-strategy",
+      "selected": "testing-strategy",
+      "confidence": 0.75,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ctrl-testcase-doc",
+      "utterance": "写一份测试用例文档同步到飞书 Bitable",
+      "expected": "test-artifact-management",
+      "selected": "test-artifact-management",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ctrl-defect",
+      "utterance": "线上这个接口偶发 500，帮我复现并找根因",
+      "expected": "defect-diagnosis",
+      "selected": "defect-diagnosis",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ctrl-feature",
+      "utterance": "我们要加一个新功能，这个需求怎么做",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ctrl-risk",
+      "utterance": "这个改动风险大不大，要不要走灰度",
+      "expected": "feature-risk-router",
+      "selected": "feature-risk-router",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ctrl-tighten",
+      "utterance": "把这个飞书方案文档精简一下",
+      "expected": "tighten-doc",
+      "selected": "tighten-doc",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ctrl-retro",
+      "utterance": "复盘一下这次的问题，看看技能要不要改",
+      "expected": "skill-extraction-workflow",
+      "selected": "skill-extraction-workflow",
+      "confidence": 0.96,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "miss-refactor-servicewide",
+      "utterance": "把整个 Python 用户服务重构一遍，涉及好几个模块，分阶段交付",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "miss-refactor-narrow",
+      "utterance": "重构这个 Python 用户服务里的这一个函数，只动这一处局部",
+      "expected": "python-service-dev",
+      "selected": "python-service-dev",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "miss-restart",
+      "utterance": "之前那版不要了，清除代码完全重新开发",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "miss-refactor-react",
+      "utterance": "重构这个 React 组件（局部）",
+      "expected": "web-react-dev",
+      "selected": "web-react-dev",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "skip-pytest-cmd",
+      "utterance": "pytest 这个命令具体怎么写",
+      "expected": "python-service-dev",
+      "selected": "python-service-dev",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "skip-tailwind",
+      "utterance": "用 Tailwind 实现这个布局",
+      "expected": "web-react-dev",
+      "selected": "web-react-dev",
+      "confidence": 0.9,
+      "must_not_route_to": [
+        "product-ui-ux-design"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "skip-miniapp-build",
+      "utterance": "微信开发者工具怎么编译小程序",
+      "expected": "miniapp-product-dev",
+      "selected": "miniapp-product-dev",
+      "confidence": 0.7,
+      "must_not_route_to": [
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ctrl-ai-risk",
+      "utterance": "这个 AI 生成的答案直接发给用户，风险大不大",
+      "expected": "feature-risk-router",
+      "selected": "feature-risk-router",
+      "confidence": 0.92,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ctrl-llm-integration",
+      "utterance": "接入大模型推理，处理流式输出和工具调用",
+      "expected": "llm-inference-integration",
+      "selected": "llm-inference-integration",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-plat-obs",
+      "utterance": "服务的日志、指标、分布式链路追踪和告警怎么设计",
+      "expected": "platform-observability",
+      "selected": "platform-observability",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "platform-service-connectivity",
+        "platform-release-engineering"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-plat-release",
+      "utterance": "这个功能上线怎么设计灰度发布、回滚方案和环境泳道",
+      "expected": "platform-release-engineering",
+      "selected": "platform-release-engineering",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "feature-risk-router"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-plat-conn",
+      "utterance": "服务间调用要加重试、超时、熔断和 mTLS 怎么搞",
+      "expected": "platform-service-connectivity",
+      "selected": "platform-service-connectivity",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "platform-observability"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-agentic",
+      "utterance": "这几个互相独立的改动并行分发给多个子 agent 去做",
+      "expected": "multi-agent-delegation",
+      "selected": "multi-agent-delegation",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-agent-contract",
+      "utterance": "检查这个仓库是不是每个源码目录都有 AGENTS.md，补上缺的",
+      "expected": "agents-file-coverage-gate",
+      "selected": "agents-file-coverage-gate",
+      "confidence": 0.99,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-arch-vs-dev",
+      "utterance": "这个 Go 服务的服务边界和模块该怎么拆分",
+      "expected": "go-microservice-architecture",
+      "selected": "go-microservice-architecture",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "go-microservice-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-ui-vs-impl",
+      "utterance": "这个页面的按钮间距、空状态和错误提示怎么设计才好",
+      "expected": "product-ui-ux-design",
+      "selected": "product-ui-ux-design",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "web-react-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-app-flutter",
+      "utterance": "用 Flutter 写这个 App 的个人主页页面",
+      "expected": "app-cross-platform-dev",
+      "selected": "app-cross-platform-dev",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-terminal",
+      "utterance": "这个 CLI 的全屏 TUI 怎么渲染、怎么处理键盘和滚动",
+      "expected": "terminal-cli-dev",
+      "selected": "terminal-cli-dev",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-tighten-vs-owner",
+      "utterance": "这个产品 spec 里写的流程是错的，帮我改对",
+      "expected": "product-rd-workflow",
+      "selected": "requirement-intent",
+      "confidence": 0.68,
+      "must_not_route_to": [
+        "tighten-doc"
+      ],
+      "status": "FAIL",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-security-review",
+      "utterance": "这个改动要做威胁建模和安全评审",
+      "expected": "feature-risk-router",
+      "selected": "feature-risk-router",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-defect-vs-test",
+      "utterance": "这个单元测试一直挂，帮我查为什么挂的",
+      "expected": "defect-diagnosis",
+      "selected": "defect-diagnosis",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-miniapp-feat",
+      "utterance": "微信小程序这个页面的分享和登录授权怎么做",
+      "expected": "miniapp-product-dev",
+      "selected": "miniapp-product-dev",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-redo-variant",
+      "utterance": "这个支付模块推倒重来，重新设计和实现",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 1.0,
+      "must_not_route_to": [
+        "worktree-isolation"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-py-arch",
+      "utterance": "这个 Python 服务的分层和 Celery worker 边界怎么设计",
+      "expected": "python-service-architecture",
+      "selected": "python-service-architecture",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "python-service-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-py-dev",
+      "utterance": "用 FastAPI 写这个接口、再加个 Django model",
+      "expected": "python-service-dev",
+      "selected": "python-service-dev",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-go-dev",
+      "utterance": "用 Kitex 写这个 RPC 接口的具体实现",
+      "expected": "go-microservice-dev",
+      "selected": "go-microservice-dev",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "go-microservice-architecture"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-web-impl",
+      "utterance": "用 React 加 Tailwind 实现这个表单页面",
+      "expected": "web-react-dev",
+      "selected": "web-react-dev",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-worktree-ctrl",
+      "utterance": "开始改这个功能前先建个隔离的 worktree 分支",
+      "expected": "worktree-isolation",
+      "selected": "worktree-isolation",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-claude-review",
+      "utterance": "让 Claude 看看这个 diff，出一份独立的第二意见代码评审",
+      "expected": "code-review",
+      "selected": "code-review",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-testcase-from-code",
+      "utterance": "根据这个模块的代码生成结构化测试用例",
+      "expected": "test-artifact-management",
+      "selected": "test-artifact-management",
+      "confidence": 0.85,
+      "must_not_route_to": [
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-design-review",
+      "utterance": "帮我做一次页面的设计走查和设计验收",
+      "expected": "product-ui-ux-design",
+      "selected": "product-ui-ux-design",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-incident-rca",
+      "utterance": "线上出了个事故，帮我复现并定位根因",
+      "expected": "defect-diagnosis",
+      "selected": "defect-diagnosis",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "platform-observability"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-llm-rag",
+      "utterance": "实现一个 RAG 检索，再加模型评测和回放",
+      "expected": "llm-inference-integration",
+      "selected": "llm-inference-integration",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-deprecation",
+      "utterance": "这个功能要下线，废弃相关代码、测试用例和告警",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.85,
+      "must_not_route_to": [
+        "test-artifact-management"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-feasibility-capability",
+      "utterance": "评估下做一个新的实时通知能力的技术方案和工作量",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-observability-fields",
+      "utterance": "给这个现有接口补齐结构化日志字段、metrics 和 trace 透传，让它在生产可观测",
+      "expected": "platform-observability",
+      "selected": "platform-observability",
+      "confidence": 0.85,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "new-testlayer-strategy",
+      "utterance": "这个跨服务改动该用哪个测试层来证明——单元、契约还是 E2E",
+      "expected": "testing-strategy",
+      "selected": "testing-strategy",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "platform-release-engineering"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-testcase-ambiguous-code",
+      "utterance": "补测试用例，直接在代码里补单元测试覆盖",
+      "expected": "testing-strategy",
+      "selected": "testing-strategy",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "test-artifact-management"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-testcase-regression-code",
+      "utterance": "给这个接口补一条回归测试用例并写测试代码",
+      "expected": "testing-strategy",
+      "selected": "testing-strategy",
+      "confidence": 0.85,
+      "must_not_route_to": [
+        "test-artifact-management"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-testcase-structured-bitable",
+      "utterance": "根据这份需求补充结构化测试用例并同步到飞书 Bitable",
+      "expected": "test-artifact-management",
+      "selected": "test-artifact-management",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-testcase-bare-colloquial",
+      "utterance": "补测试用例",
+      "expected": "testing-strategy",
+      "selected": "testing-strategy",
+      "confidence": 0.7,
+      "must_not_route_to": [
+        "test-artifact-management"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p-live500-addlog",
+      "utterance": "线上接口 500 了，先加点日志看看哪里报错",
+      "expected": "defect-diagnosis",
+      "selected": "defect-diagnosis",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "platform-observability"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p-tc-bitable",
+      "utterance": "把这个需求的测试用例文档同步到飞书多维表格",
+      "expected": "test-artifact-management",
+      "selected": "test-artifact-management",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-testcase-bitable-init",
+      "utterance": "给这个项目初始化测试用例多维表格",
+      "expected": "test-artifact-management",
+      "selected": "test-artifact-management",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p-agentic-parallel",
+      "utterance": "这三个独立的小重构帮我并行委托出去跑",
+      "expected": "multi-agent-delegation",
+      "selected": "multi-agent-delegation",
+      "confidence": 1.0,
+      "must_not_route_to": [
+        "worktree-isolation"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p-go-scale",
+      "utterance": "这个 Go 微服务怎么设计能支撑十倍流量",
+      "expected": "go-microservice-architecture",
+      "selected": "go-microservice-architecture",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "go-microservice-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p-go-errgroup",
+      "utterance": "把这段 Go 的并发逻辑用 errgroup 重写一下",
+      "expected": "go-microservice-dev",
+      "selected": "go-microservice-dev",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "go-microservice-architecture"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p-agent-schema",
+      "utterance": "给这个 agent 的工具调用定义个输入输出 schema 契约",
+      "expected": "llm-inference-integration",
+      "selected": "llm-inference-integration",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "agents-file-coverage-gate"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p-conn-timeout",
+      "utterance": "帮我设计两个服务之间的超时、重试和熔断策略配置",
+      "expected": "platform-service-connectivity",
+      "selected": "platform-service-connectivity",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "defect-diagnosis"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p-en-uxredesign",
+      "utterance": "the checkout page feels clunky, redesign the UX",
+      "expected": "product-ui-ux-design",
+      "selected": "product-ui-ux-design",
+      "confidence": 0.9,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p-en-flaky-rca",
+      "utterance": "find the root cause of this flaky test",
+      "expected": "defect-diagnosis",
+      "selected": "defect-diagnosis",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p3-feat-plus-perf",
+      "utterance": "加个用户数据导出功能，顺便把导出接口的慢查询也优化一下",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "defect-diagnosis"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p3-retro-after-fix",
+      "utterance": "这个线上事故已经修好了，复盘下流程哪里要改进",
+      "expected": "skill-extraction-workflow",
+      "selected": "skill-extraction-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "defect-diagnosis"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p3-transition-impl",
+      "utterance": "技术方案评审通过了，现在开始写代码实现",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p3-resume-refactor",
+      "utterance": "继续之前那个支付模块的重构开发",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.75,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p3-design-confirmed-react",
+      "utterance": "设计稿已经确认了，帮我把这个 React 前端页面实现出来",
+      "expected": "web-react-dev",
+      "selected": "web-react-dev",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p3-cpu-spike",
+      "utterance": "线上 CPU 突然飙高，帮我定位是哪个接口造成的",
+      "expected": "defect-diagnosis",
+      "selected": "defect-diagnosis",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "platform-observability"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p3-iteration-coordinate",
+      "utterance": "这个迭代涉及前端、后端、测试三块，帮我统筹排期",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.92,
+      "must_not_route_to": [
+        "multi-agent-delegation"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p3-perf-plus-regression",
+      "utterance": "把这个慢接口优化了，并补一条回归测试防止再退化",
+      "expected": "defect-diagnosis",
+      "selected": "defect-diagnosis",
+      "confidence": 0.85,
+      "must_not_route_to": [
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p3-spec-then-tc",
+      "utterance": "先把这个需求文档写出来，再根据它生成测试用例",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.72,
+      "must_not_route_to": [
+        "test-artifact-management"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "p3-log-plus-test",
+      "utterance": "给登录接口加上结构化日志和 trace 透传，再写测试覆盖它",
+      "expected": "platform-observability",
+      "selected": "go-microservice-dev",
+      "confidence": 0.62,
+      "must_not_route_to": [
+        "testing-strategy"
+      ],
+      "status": "FAIL",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "mem-reuse-vs-greenfield",
+      "utterance": "这个新的舆情雷达产品，是在现有项目上改合适还是新开一个，工作量差多少",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "mem-plan-gate-miss",
+      "utterance": "这个 DB 适配器我打算直接开始写了，但好像动手前还没写 plan 和 specs，该怎么办",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "mem-install-gates",
+      "utterance": "把项目的 AGENTS 契约覆盖 gate 以 warn-only 方式装到这几个子仓库里",
+      "expected": "agents-file-coverage-gate",
+      "selected": "agents-file-coverage-gate",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "mem-miniapp-blankscreen",
+      "utterance": "小程序从分享链接进来、登录态过期的时候一直转圈白屏，帮我复现定位下为什么",
+      "expected": "defect-diagnosis",
+      "selected": "defect-diagnosis",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "mem-api-log-redact",
+      "utterance": "这个 Flutter App 的 ApiClient 调试日志把 token 和手机号都打出来了，帮我改成脱敏",
+      "expected": "app-cross-platform-dev",
+      "selected": "app-cross-platform-dev",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "feature-risk-router"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "mem-llm-gateway-doc",
+      "utterance": "把这个 LLM 网关的架构文档定稿成飞书最终版，别留解释说明的话，跟图对齐",
+      "expected": "tighten-doc",
+      "selected": "tighten-doc",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "llm-inference-integration"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "mem-uiux-redesign-slice",
+      "utterance": "把这个 App 个人中心当成一个产品切片重新设计，参考设置页的信息分组方式做方法论，不是照抄设置页 UI",
+      "expected": "product-ui-ux-design",
+      "selected": "product-rd-workflow",
+      "confidence": 0.72,
+      "must_not_route_to": [
+        "app-cross-platform-dev"
+      ],
+      "status": "FAIL",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "mem-oncall-sop",
+      "utterance": "给小团队设计一套 oncall SOP，一个入口加领域路由，只有 P0/P1 才打断排班",
+      "expected": "platform-observability",
+      "selected": "platform-observability",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "mem-slice-smoke-fail",
+      "utterance": "这个 slice 的 CI smoke job 一上来就报 Missing test MySQL config 挂了，帮我查为什么",
+      "expected": "defect-diagnosis",
+      "selected": "defect-diagnosis",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-opencode-project-config",
+      "utterance": "这是 ccl-skills/shared-skill 仓库的 OpenCode 项目配置/命令治理：本仓 opencode.json 要加一个快捷命令，不是 App、终端 CLI 或 LLM runtime 实现；注意不要写模型、密钥、MCP 或本机绝对路径",
+      "expected": "skill-extraction-workflow",
+      "selected": "skill-extraction-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "llm-inference-integration",
+        "terminal-cli-dev",
+        "web-react-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-opencode-global-snapshot-audit",
+      "utterance": "帮我看看用户全局 ~/.config/opencode 里有没有旧的同名CCL 技能覆盖本仓技能，只读核查",
+      "expected": "skill-extraction-workflow",
+      "selected": "skill-extraction-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "agents-file-coverage-gate",
+        "web-react-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-tech-plan-effort-doc",
+      "utterance": "写一份新能力的技术方案和工作量评估文档",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "tighten-doc"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-doc-polish-fixed-substance",
+      "utterance": "这个方案内容已经定了，只帮我润色结构、删废话，不要改事实和决策",
+      "expected": "tighten-doc",
+      "selected": "tighten-doc",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "product-rd-workflow"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-ordinary-diff-review",
+      "utterance": "让 Claude 做一次独立第二意见，review 这个 diff 有没有明显 bug 和测试遗漏",
+      "expected": "code-review",
+      "selected": "code-review",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "skill-extraction-workflow",
+        "defect-diagnosis",
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-provider-neutral-diff-review",
+      "utterance": "按我本机的 reviewer 优先级 review 这个 diff，Claude 不可用就走 Kimi、OpenCode 或 Codex",
+      "expected": "code-review",
+      "selected": "code-review",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "skill-extraction-workflow",
+        "defect-diagnosis",
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-review-to-skill-retro",
+      "utterance": "这次 review 暴露了我们流程技能的缺口，复盘并沉淀到技能里",
+      "expected": "skill-extraction-workflow",
+      "selected": "skill-extraction-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "code-review",
+        "defect-diagnosis"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-security-risk-gates",
+      "utterance": "这个改动要不要安全评审、双人 review 和灰度 gate",
+      "expected": "feature-risk-router",
+      "selected": "feature-risk-router",
+      "confidence": 0.99,
+      "must_not_route_to": [
+        "platform-release-engineering"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-release-runbook",
+      "utterance": "给这个版本准备灰度发布步骤、回滚 runbook 和发布后观察项",
+      "expected": "platform-release-engineering",
+      "selected": "platform-release-engineering",
+      "confidence": 0.93,
+      "must_not_route_to": [
+        "feature-risk-router"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-release-coordination-merge-tag",
+      "utterance": "今天发版，合并 pre-release 到 main 后打 tag",
+      "expected": "release-coordination",
+      "selected": "release-coordination",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "platform-release-engineering",
+        "release-doc-writer"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-release-doc-fill",
+      "utterance": "补上线文档/发布文档",
+      "expected": "release-doc-writer",
+      "selected": "release-doc-writer",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "release-coordination",
+        "tighten-doc"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-test-handoff-doc",
+      "utterance": "根据这次改动和测试证据写一份提测文档",
+      "expected": "release-doc-writer",
+      "selected": "release-doc-writer",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "platform-release-engineering",
+        "test-artifact-management"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-canary-rollback-strategy",
+      "utterance": "设计 canary/rollback 发布策略",
+      "expected": "platform-release-engineering",
+      "selected": "platform-release-engineering",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "release-coordination",
+        "feature-risk-router"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-pre-release-risk-gate",
+      "utterance": "上线前判断风险 gate",
+      "expected": "feature-risk-router",
+      "selected": "feature-risk-router",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "release-coordination",
+        "platform-release-engineering"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-post-release-api-error",
+      "utterance": "发布后接口报错",
+      "expected": "defect-diagnosis",
+      "selected": "defect-diagnosis",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "release-coordination",
+        "platform-observability"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-post-release-reset-env",
+      "utterance": "发版后 reset dev/test 到 main",
+      "expected": "release-coordination",
+      "selected": "release-coordination",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "release-doc-writer",
+        "worktree-isolation"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-release-canary-rollback-plan-en",
+      "utterance": "prepare canary rollback plan",
+      "expected": "platform-release-engineering",
+      "selected": "platform-release-engineering",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "release-coordination",
+        "feature-risk-router"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-release-notes-from-diff-en",
+      "utterance": "write release notes from diff evidence",
+      "expected": "release-doc-writer",
+      "selected": "release-doc-writer",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "release-coordination",
+        "tighten-doc"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-post-release-smoke-failing-en",
+      "utterance": "post-release smoke is failing, find root cause",
+      "expected": "defect-diagnosis",
+      "selected": "defect-diagnosis",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "release-coordination",
+        "platform-release-engineering"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-release-scope-confirmation",
+      "utterance": "确认这次上线范围有没有超出预期，再决定能不能合并发版",
+      "expected": "release-coordination",
+      "selected": "release-coordination",
+      "confidence": 0.9,
+      "must_not_route_to": [
+        "release-doc-writer",
+        "platform-release-engineering"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-release-doc-scope-from-diff",
+      "utterance": "根据已经确认的 diff 范围补上线文档",
+      "expected": "release-doc-writer",
+      "selected": "release-doc-writer",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "release-coordination",
+        "platform-release-engineering"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-release-doc-with-test-scope",
+      "utterance": "补上线文档，并把本次测试范围也写进去",
+      "expected": "release-doc-writer",
+      "selected": "release-doc-writer",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "release-coordination",
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-release-test-scope-prompt",
+      "utterance": "根据这次已确认的上线范围输出测试范围提示",
+      "expected": "release-coordination",
+      "selected": "release-coordination",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "release-doc-writer",
+        "testing-strategy"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-release-test-strategy-full",
+      "utterance": "为这次上线设计完整测试矩阵和 CI gate",
+      "expected": "testing-strategy",
+      "selected": "testing-strategy",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "release-coordination",
+        "release-doc-writer"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-change-worth-fixing-verdict",
+      "utterance": "这个提交还有价值么，是做什么的，是否值得修",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "multi-perspective-research"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-topic-research-brief",
+      "utterance": "帮我多视角深度调研一下 CRDT 协同编辑这个主题，整理一份研究简报",
+      "expected": "multi-perspective-research",
+      "selected": "multi-perspective-research",
+      "confidence": 0.97,
+      "must_not_route_to": [
+        "product-rd-workflow"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "miss-refactor-miniapp",
+      "utterance": "重构一下这个小程序的商品详情页",
+      "expected": "miniapp-product-dev",
+      "selected": "miniapp-product-dev",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "app-cross-platform-dev",
+        "product-rd-workflow"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "miss-refactor-python-unqualified",
+      "utterance": "重构这个 Python 用户服务",
+      "expected": "python-service-architecture",
+      "selected": "python-service-architecture",
+      "confidence": 0.72,
+      "must_not_route_to": [
+        "python-service-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-python-cli-not-terminal",
+      "utterance": "用 Python 写个命令行工具怎么写",
+      "expected": "python-service-dev",
+      "selected": "python-service-dev",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "terminal-cli-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-go-cli-not-terminal",
+      "utterance": "用 Go 写个命令行工具怎么写",
+      "expected": "go-microservice-dev",
+      "selected": "go-microservice-dev",
+      "confidence": 0.98,
+      "must_not_route_to": [
+        "terminal-cli-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "route-cli-contract-design-not-stack",
+      "utterance": "帮我设计这个 CLI 的子命令、flag 和 help 文案，不涉及 TUI 渲染",
+      "expected": "terminal-cli-dev",
+      "selected": "terminal-cli-dev",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "go-microservice-dev",
+        "python-service-dev"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-c1",
+      "utterance": "开完需求对齐会，帮我把讨论结果整理成已知、未知和待确认",
+      "expected": "requirement-intent",
+      "selected": "requirement-intent",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-c2",
+      "utterance": "这需求到底要什么？产品那边只给了一句话，缺哪些信息",
+      "expected": "requirement-intent",
+      "selected": "requirement-intent",
+      "confidence": 0.99,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-c3",
+      "utterance": "把这个需求写成用户故事，再补一组验收标准",
+      "expected": "requirement-intent",
+      "selected": "requirement-intent",
+      "confidence": 0.88,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-c4",
+      "utterance": "写 PRD 之前先把目标用户、场景、用户路径和约束补齐",
+      "expected": "requirement-intent",
+      "selected": "requirement-intent",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-c5",
+      "utterance": "准备做需求拷问，先给我一份问题池和推荐默认值",
+      "expected": "requirement-intent",
+      "selected": "requirement-intent",
+      "confidence": 0.92,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-c6",
+      "utterance": "产品意图不清楚，帮我澄清一下这个 PRD 到底要解决什么",
+      "expected": "requirement-intent",
+      "selected": "requirement-intent",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-b1",
+      "utterance": "先盘点一下现在的下单流程、相关页面和接口是怎么运作的",
+      "expected": "requirement-baseline",
+      "selected": "requirement-baseline",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-b2",
+      "utterance": "当前能力梳理一下，已有哪些能力、缺口在哪里",
+      "expected": "requirement-baseline",
+      "selected": "requirement-baseline",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-b3",
+      "utterance": "改需求前先弄清楚现在到底怎么工作的",
+      "expected": "requirement-baseline",
+      "selected": "requirement-baseline",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-b4",
+      "utterance": "做个 as-is audit，把现有运营规则和数据结构列出来",
+      "expected": "requirement-baseline",
+      "selected": "requirement-baseline",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-b5",
+      "utterance": "按当前代码说明订单状态是怎样产生和消费的",
+      "expected": "requirement-baseline",
+      "selected": "requirement-baseline",
+      "confidence": 0.55,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-b6",
+      "utterance": "现有系统的用户路径和系统路径分别是什么，不确定的地方标出来",
+      "expected": "requirement-baseline",
+      "selected": "requirement-baseline",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-d1",
+      "utterance": "方向定了，帮我划一下这次的改动范围和影响范围",
+      "expected": "requirement-scope",
+      "selected": "requirement-scope",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-d2",
+      "utterance": "把需求切成 MVP 和下一版，哪些先不做",
+      "expected": "requirement-scope",
+      "selected": "requirement-scope",
+      "confidence": 0.97,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-d3",
+      "utterance": "这次改动会影响哪些对象、有哪些依赖",
+      "expected": "requirement-scope",
+      "selected": "requirement-scope",
+      "confidence": 0.88,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-d4",
+      "utterance": "给这个需求定个 appetite 和 timebox，超了砍什么",
+      "expected": "requirement-scope",
+      "selected": "requirement-scope",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-d5",
+      "utterance": "需求已经有方向了，需要界定 in/out 和验收范围",
+      "expected": "requirement-scope",
+      "selected": "requirement-scope",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-d6",
+      "utterance": "列一下本轮的版本切片和兼容/回滚边界",
+      "expected": "requirement-scope",
+      "selected": "requirement-scope",
+      "confidence": 0.9,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-n1",
+      "utterance": "需求都关闭了，把它组装成一份正式 PRD",
+      "expected": "requirement-doc-writer",
+      "selected": "requirement-doc-writer",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-n2",
+      "utterance": "代码里有这个开关，线上已经启用了吗",
+      "expected": "platform-observability",
+      "selected": "platform-observability",
+      "confidence": 0.8,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-n3",
+      "utterance": "帮我一问一答拷问这个方案，一次问一个",
+      "expected": "grill-me",
+      "selected": "grill-me",
+      "confidence": 0.98,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "ab-n4",
+      "utterance": "这个改动要不要灰度、需要哪些 gate",
+      "expected": "feature-risk-router",
+      "selected": "feature-risk-router",
+      "confidence": 1.0,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "variant-neg-release-watch-sop",
+      "utterance": "制定发布值班 SOP，P0/P1 时打断排班并决定是否回滚",
+      "expected": "platform-release-engineering",
+      "selected": "platform-release-engineering",
+      "confidence": 0.78,
+      "must_not_route_to": [
+        "platform-observability"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "probe-combined-impl-intent",
+      "utterance": "在共享技能仓给 OpenCode 新增一个由脚本实现的项目命令",
+      "expected": "skill-extraction-workflow",
+      "selected": "skill-extraction-workflow",
+      "confidence": 0.85,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-neg-opencode-review",
+      "utterance": "用 opencode 给当前分支的 diff 出个第二意见",
+      "expected": "code-review",
+      "selected": "code-review",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "skill-extraction-workflow"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-neg-tui-commands",
+      "utterance": "给产品的终端 TUI 界面设计快捷键和命令面板",
+      "expected": "terminal-cli-dev",
+      "selected": "terminal-cli-dev",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "skill-extraction-workflow"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-neg-worktree-first",
+      "utterance": "在 ccl-skills 仓里改一个技能文件之前要不要先建 worktree",
+      "expected": "worktree-isolation",
+      "selected": "worktree-isolation",
+      "confidence": 0.95,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "var-neg-product-shortcut-feature",
+      "utterance": "给我们产品加个新功能：用户可以自定义快捷命令",
+      "expected": "product-rd-workflow",
+      "selected": "product-rd-workflow",
+      "confidence": 0.95,
+      "must_not_route_to": [
+        "skill-extraction-workflow"
+      ],
+      "status": "PASS",
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    }
+  ]
+}
