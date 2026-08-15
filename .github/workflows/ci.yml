@@ -40,6 +40,26 @@ jobs:
           fi
           make test
 
+  # The heavy regression lane (--full = fast + the whole-repo-clone suites:
+  # r0 status, source-register lifecycle, impact-chain refscripts, firing-path
+  # wiring). `make test` deliberately runs --fast, so without this job the
+  # heavy suites never execute anywhere and can rot silently — observed once
+  # as a wiring fixture that stayed broken undetected. Runs in parallel with
+  # repository-gates, so it does not extend the critical path.
+  regression-heavy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install validation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep ruby
+          python3 -m pip install pytest pyyaml
+      - name: Heavy regression lane
+        run: bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --full
+
   npm-packages:
     runs-on: ubuntu-latest
     strategy:

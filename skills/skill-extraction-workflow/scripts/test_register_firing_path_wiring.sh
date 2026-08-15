@@ -24,6 +24,15 @@ passed=0
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { passed=$((passed + 1)); echo "PASS: $*"; }
 
+# Static/executed three-way pin: the tail guard's literal must equal the
+# script's own pass-call inventory, so a dropped or added case cannot leave the
+# guard silently stale again (the observed drift shape: a 16 guarding 13
+# executed cases, accumulated while this suite could not run).
+static_pass_calls="$(grep -c '^pass "' "$0")"
+[ "$static_pass_calls" = "14" ] \
+  || fail "pass-call inventory drifted: counted $static_pass_calls, guard expects 14"
+pass "executed-count guard matches the script's own pass-call inventory"
+
 REPO="$TMP/repo"
 git clone -q "$ROOT" "$REPO"
 git -C "$REPO" config user.email test@example.invalid
@@ -46,11 +55,22 @@ REGISTER="$REPO/skills/skill-extraction-workflow/references/source-register.md"
 
 # The distributed register starts as a source-neutral template. Add one live,
 # repository-local locator to this clone so the wiring test can mutate a real
-# anchor without shipping task provenance in the published repository.
-printf '%s\n' \
-  '| wiring fixture | firing-path: file:README.md#Reusable Agent Skills and host integrations | `updated` | synthetic test |' \
-  >> "$REGISTER"
-git -C "$REPO" add "$REGISTER"
+# anchor without shipping task provenance in the published repository. The
+# anchor lives in a note file THIS FIXTURE writes and commits itself, so every
+# byte of the anchor vocabulary is suite-owned: the previous design pinned a
+# README heading literal (stale the moment the README evolved, undetected while
+# the heavy lane never ran), and the replacement runtime-derivation grew a
+# fence-parsing surface that produced same-class findings across two adversarial
+# rounds (fenced decoy, mixed-marker fence, close-suffix recognition) — parsing
+# an artifact the suite does not own was the defect class, so the capability is
+# deleted rather than hardened further.
+FIXTURE_NOTE_REL="skills/skill-extraction-workflow/references/wiring-fixture-note.md"
+FIXTURE_ANCHOR="Wiring fixture anchor heading for the resolution gate"
+printf '# %s\n\nSynthetic fixture note committed by the wiring suite; the heading above is the seeded firing-path anchor.\n' \
+  "$FIXTURE_ANCHOR" > "$REPO/$FIXTURE_NOTE_REL"
+printf '| wiring fixture | firing-path: file:%s#%s | `updated` | synthetic test |\n' \
+  "$FIXTURE_NOTE_REL" "$FIXTURE_ANCHOR" >> "$REGISTER"
+git -C "$REPO" add "$REGISTER" "$FIXTURE_NOTE_REL"
 git -C "$REPO" commit -qm "Add wiring fixture"
 git -C "$REPO" branch -f fixture-base HEAD
 
@@ -390,5 +410,5 @@ case "$out" in
 esac
 pass "a failure inside the cleanup-trap window keeps its exit status"
 
-[ "$passed" -eq 16 ] || fail "expected 16 assertions, saw $passed"
+[ "$passed" -eq 14 ] || fail "expected 14 assertions, saw $passed"
 echo "register_firing_path_wiring_tests_ok ($passed assertions)"
