@@ -72,6 +72,7 @@
 - `--full` 识别与全执行：本轮首版候选 `--full` exit 0，逐 suite `regression_test_timing` 行覆盖 heavy 全部 5 个 suite（wiring 144s status=0）。
 - `regression-heavy` job 依赖步骤与 repository-gates 逐字一致（ripgrep/ruby/pytest/pyyaml + fetch-depth 0）。
 
-#### 终版候选验证（closeout 回填）
+#### 终版候选验证
 
-- （amend 后复跑 make test + `--full`，回填于此）
+- 候选 `9119e81`（log 首两行 pwd+SHA 自证）：`make test` exit 0——checker `r0_status=private-ok` / `ccl_skill_check_clean_ok`、`test_check_ccl_regressions_fast_ok`、全部文档/契约闸过；`test_check_ccl_regressions.sh --full` → `test_check_ccl_regressions_full_ok`，heavy 层全 status=0，其中 `test_register_firing_path_wiring.sh` 141s status=0、`register_firing_path_wiring_tests_ok (14 assertions)`；整个日志零 `status=1`。组合命令退出 `final candidate verification exit: 0`。
+- 本节数字由验证运行后的收尾 docs 提交回填（021 轮同款收口）；随合并暴露给维护者的增量 = r3 后的 `replace` 设计改造 + 本回填。CI 行为活证（detached-HEAD、新 job 首跑）见判定表行 5，前置于 PR 合并。
