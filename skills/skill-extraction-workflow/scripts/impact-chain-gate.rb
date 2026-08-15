@@ -14,6 +14,10 @@
 # failure, 0 otherwise.
 
 require "yaml"
+# `description_is_scalar` passes Date to safe_load's permitted_classes; psych
+# only sometimes loads date transitively (<=5.1 lazily, 5.2.0-5.2.5 never,
+# 5.2.6+ eagerly), so declare the dependency instead of riding on that.
+require "date"
 
 root = ARGV.fetch(0)
 # Diff reads FAIL CLOSED: a git failure that returned empty output would

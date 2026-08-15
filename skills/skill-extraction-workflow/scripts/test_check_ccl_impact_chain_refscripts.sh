@@ -753,6 +753,71 @@ commit_case "routing-surface: date-valued sibling frontmatter key"
 run_gate
 assert_rc "$rc" 0 "a date-valued sibling key must not refuse the class"
 
+# A date-less host must not change any verdict. On hosts where `require "yaml"`
+# leaves Date undefined (apt ruby 3.2 / psych <= 5.2.5: psych loads date lazily
+# or not at all), a gate that rides on psych's transitive load raises NameError
+# at `permitted_classes: [Date, Time]`, which `rescue StandardError` folds into
+# "not a scalar description" — silently refusing the routing-surface class on
+# one host while granting it on another. The gate must declare `require "date"`
+# itself. The shim reproduces that host class on any modern ruby: it blocks
+# psych's transitive date require while letting explicit ones through.
+DATELESS_SHIM="$TMP/dateless-require-shim.rb"
+cat > "$DATELESS_SHIM" <<'RUBY'
+module DatelessRequireShim
+  def require(name)
+    if name == "date" && caller.any? { |frame| frame.include?("/psych") || frame.include?("psych.rb") }
+      return false
+    end
+    super
+  end
+end
+Object.prepend(DatelessRequireShim)
+RUBY
+run_gate_dateless() {
+  gate_runs=$((gate_runs + 1))
+  set +e
+  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="-r$DATELESS_SHIM" ruby "$GATE_SCRIPT" "$REPO" 2>&1)"
+  rc=$?
+  set -e
+}
+new_case case-routing-surface-dateless-host
+perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
+printf '| Fixture routing-surface dateless row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description judged on a date-less host |\n' >> "$REGISTER"
+commit_case "routing-surface: description-only change judged on a date-less host"
+run_gate_dateless
+assert_rc "$rc" 0 "a date-less host must not refuse the routing-surface class"
+
+# Mutation attribution for the property this case names: strip the gate's own
+# `require "date"` and the same fixture must show the date-less refusal. The
+# cmp guard proves the mutation actually removed a line — if the require is
+# ever renamed or dropped, this fails loudly instead of running a no-op
+# differential that would false-green a broken shim or a regressed gate.
+GATE_DATELESS_MUTANT="$TMP/impact-chain-gate-dateless-mutant.rb"
+grep -v '^require "date"$' "$GATE_SCRIPT" > "$GATE_DATELESS_MUTANT"
+cmp -s "$GATE_SCRIPT" "$GATE_DATELESS_MUTANT" && fail "dateless mutation is a no-op: the gate no longer contains its require \"date\" line"
+run_gate_dateless_mutant() {
+  gate_runs=$((gate_runs + 1))
+  set +e
+  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="-r$DATELESS_SHIM" ruby "$GATE_DATELESS_MUTANT" "$REPO" 2>&1)"
+  rc=$?
+  set -e
+}
+run_gate_dateless_mutant
+assert_rc "$rc" 1 "without its own require-date the gate must show the date-less refusal this case guards against"
+assert_contains "impact_chain_firing_path_missing" "$out" "the mutant must fail for the guarded reason, not some other error"
+assert_contains "product-rd-workflow/SKILL.md" "$out" "the mutant must name the refused owner"
+
+# The deepest Date-dependent path on a date-less host: safe_load must actually
+# instantiate a Date for the sibling key, so this proves the explicit require
+# makes the constant real, not merely referenceable.
+git -C "$REPO" switch -q -C case-routing-surface-dateless-dated-sibling fixture-dated
+git -C "$REPO" branch --set-upstream-to=fixture-dated case-routing-surface-dateless-dated-sibling >/dev/null 2>&1
+perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
+printf '| Fixture routing-surface dateless dated row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` dated sibling on a date-less host |\n' >> "$REGISTER"
+commit_case "routing-surface: date-valued sibling judged on a date-less host"
+run_gate_dateless
+assert_rc "$rc" 0 "parsing a date-valued sibling on a date-less host must still qualify"
+
 # A file MOVED OUT of the owner package must take back the ordinary bar: the diff
 # is read with --no-renames, so the vacated path still counts as an owner change.
 new_case case-routing-surface-file-moved-out
@@ -1133,6 +1198,6 @@ assert_rc "$rc" 1 "a directory masquerading as SKILL.md must not read as a prese
 assert_contains "platform-observability/SKILL.md" "$out" "the masqueraded owner must be named"
 
 assert_rc "$full_check_runs" 1 "fixture suite must retain exactly one full checker wiring case"
-assert_rc "$gate_runs" 77 "all remaining impact-chain fixtures must run the standalone gate"
+assert_rc "$gate_runs" 80 "all remaining impact-chain fixtures must run the standalone gate"
 
 echo "test_check_ccl_impact_chain_refscripts: ok"
