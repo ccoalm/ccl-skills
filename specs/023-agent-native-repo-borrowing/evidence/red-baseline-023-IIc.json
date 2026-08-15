@@ -1,0 +1,103 @@
+{
+  "model": "claude-haiku-4-5",
+  "rounds": 4,
+  "base_rev": "759dc6030e9ae6ba8dca06d77a4afdb93231b12a",
+  "head_rev": "2a2e06000e83f3f87e063546f384013682f684d9",
+  "results": {
+    "wt-lease-order": {
+      "task_sha256": "2ca25e00e0943eea4b54e1f02d12505df43c66db24a4240c1bfbffd282f552d8",
+      "required": [
+        "observed|记下|观察到|亲眼|显式.{0,8}OID|:<.{0,12}oid|=.{0,12}:.{0,20}oid",
+        "fetch",
+        "重审|重新.{0,4}审|失效|不再是|作废|重新 fetch|approval|评论锚点|线程"
+      ],
+      "base": {
+        "rev": "759dc6030e9ae6ba8dca06d77a4afdb93231b12a",
+        "body_sha256": "f033ddd129b5c04c838e50d05228ee570cead8ac99306751d641f4363506748d",
+        "prompt_sha256": "c33eb83ccec8755e1bf707b0bf5e446af9e52425cd9bf6741a98729f47b0ec2c",
+        "pass": 0,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "observed|记下|观察到|亲眼|显式.{0,8}OID|:<.{0,12}oid|=.{0,12}:.{0,20}oid"
+            ],
+            "len": 1671,
+            "raw": "看这个计划，我得按 **Worktree Isolation** 技能的「合并回目标分支前」部分给你指出几个问题：\n\n## 核心问题：不应该 rebase\n\n**已推送、挂着 MR、有 review 评论的分支不能无脑 rebase。** 技能明确说：\n\n> **已推送 / 挂着 MR / 别人可能在上面工作的分支**：**别无脑 rebase**（重写历史→要 force-push，会冲掉远端独有 commit、废掉 review 上下文）。改为把目标并进分支。\n\n你的 rebase 会：\n- 废掉 MR 上已有的 review 评论（历史重写后评论行号/提交失效）\n- 让评审者无法追踪改动历史\n- 失去 review thread 的上下文\n\n## 正确做法（仍需满足的前置）\n\n如果**必须**基线更新，用 `merge` 而非 `rebase`：\n\n```bash\n# 前置：确认 Step 0 状态 SAFE\nbash skills/worktree-isolation/scripts/worktree-status.sh --slug <task-slug>\n\n# 或手工检查\nGIT_COMMON=$(git rev-parse --git-common-dir)\nBRANCH=$(git symbolic-ref --short HEAD)\n# → 如果不在独立 worktree 的功能分支上，先建 worktree\n\n# 然后把 origin/main 并进来（不重写历史）\ngit merge origin/main -m \"Merge branch 'origin/main' into '$BRANCH': update base\"\ngit push --force-with-lease  # 仍然是 --force-with-lease，但现在是\"一个新的 merge commit\"\n```\n\n## 如果你非要 rebase（需满足全部条件）\n\n只在这些条件**全部**满足时才这样做：\n\n1. **确认无其他人在该分支工作**（独占所有权）\n2. **获得 review 者的同意**（他们知道 review 会失效，且同意）\n3. **本地 rebase 后立即重新 review 一遍全部改动**（`git diff origin/main...HEAD`），确认没有意外合并冲突导致的内容丢失\n4. 用 `--force-with-lease`（永不裸 `--force`）\n5. **在 MR 里补充说明**\"已 rebase 到最新 main，review 已失效，请重新审视\"\n\n## 你的 rev-list 命令\n\n```bash\ngit rev-list --left-right --count mybr...origin/mybr\n```\n\n这个命令本身没问题（会输出两个数字：左侧 mybr 独有 commit 数、右侧 origin/mybr 独有 commit 数），但要正确解读：\n- 右侧数字应该是 `0`（远端没有独有提交 ✓）\n- 但**无法检测你是否也是**\"某个公共 commit 之后完全独立\"（要看是不是真的落后了）\n\n更安全的检查：\n\n```bash\ngit fetch origin\nTARGET=$(git rev-parse origin/main)\nBRANCH_OLD=$(git rev-parse mybr)\ngit merge-base --is-ancestor \"$TARGET\" \"$BRANCH_OLD\"\n# 返回 0 = mybr 已含 origin/main（无需更新）\n# 返回 1 = mybr 落后于 origin/main（真的需要基线更新）\n```\n\n**总结**：你的计划在形式上\"不会炸\"，但它违反了技能的原则。改成 `git merge origin/main` 即可，同样更新基线，还不废 review。\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "observed|记下|观察到|亲眼|显式.{0,8}OID|:<.{0,12}oid|=.{0,12}:.{0,20}oid",
+              "fetch",
+              "重审|重新.{0,4}审|失效|不再是|作废|重新 fetch|approval|评论锚点|线程"
+            ],
+            "len": 956,
+            "raw": "你的技术检查是对的，但工作流协议上缺一个**关键决策**。\n\n根据 Worktree Isolation 技能：**已推送、挂着 MR、有 review 评论的分支，不应该无脑 rebase。** 原因：rebase 会重写历史、force-push 会冲掉审计链、**评论会变成游离的，可审性大幅下降**。\n\n**你的计划缺了什么：**\n\n1. **\"为什么要 rebase？\"的判断**\n   - 只想**更新基线**（吸收 main 最新改动）→ 别 rebase，用 `git merge origin/main`（保留审计、保留评论、force-push 变成 ff-only）\n   - 想**改进提交历史本身**（重组、挤压、改信息）→ 继续你的计划，但要通知 reviewer\n\n2. **reviewer 的知情**\n   - rebase 后原评论会\"跑到历史里\"，新 commit 看不到旧评论上下文\n   - 如果 reviewer 是重要的（比如 domain owner），应该**先说一声要 rebase 再动**\n\n**简化建议：**\n\n```bash\n# 如果只是需要最新 main 的内容：\ngit merge origin/main\ngit push --force-with-lease   # 这时可能变成 ff，就不需要 force\n\n# 如果确实要重组 commit：\ngit rev-list --left-right --count mybr...origin/mybr  # 确认右侧 = 0（✓ 你已做）\ngit rebase -i origin/main     # 交互式 rebase，改你要改的\ngit push --force-with-lease   # 你的计划已足\n# 但之前 → 通知 reviewer \"要 rebase 重组提交，你的评论会在旧历史里\"\n```\n\n**最安全的路径**（尤其有 2 条评论时）：**用平台的 \"update branch\" 功能**（Merge main into this branch），这样既拿到最新内容，也不废评论链。\n\n所以你的技术检查完整了，只缺**协议层**的\"通知 + 选择合并策略\"。\n"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "observed|记下|观察到|亲眼|显式.{0,8}OID|:<.{0,12}oid|=.{0,12}:.{0,20}oid",
+              "fetch"
+            ],
+            "len": 920,
+            "raw": "你的方案**在 git 拓扑层面是对的**，但缺了一个关键考虑。按 SKILL.md 的\"合并回目标分支前\"这一节规则：\n\n## 你的方案的问题\n\n**已推送且挂着 MR 的分支不建议 rebase。** 关键引用：\n\n> **已推送 / 挂着 MR / 别人可能在上面工作的分支**：**别无脑 rebase**（重写历史→要 force-push，会冲掉远端独有 commit、**废掉 review 上下文**）。\n\n你那两条 review 评论指向的是现有的 commit hash。Rebase 改写历史后，那些评论仍在 MR 里，但**指向的 commit 已不存在** → 平台可能折叠/灰化那些评论，或让它们变成\"孤立\"状态，读不出对应代码行。\n\n## 更安全的两个替代方案\n\n### **方案 A（推荐）：用平台的 \"update branch\" 流程**\nGitLab/GitHub 都有自动更新按钮。不改本地，平台自己把 main 并进你的分支 → review 评论完整保留，无 force-push。\n\n### **方案 B（如果一定要 rebase）：照 SKILL.md 的完整流程**\n如果非得 rebase（如为了清理 commit 历史），你的检查充分，但改动后需要：\n\n1. 你的检查 ✓：`git rev-list --left-right --count mybr...origin/mybr` 右侧为 0\n2. `git rebase origin/main`\n3. `git push --force-with-lease` ✓  \n4. **rebase 后立即在 MR 页面补一条评论**，说明\"已更新到 main 并重组 commit\"（让 reviewer 知道历史改了，可能需要重新 review），且**建议审阅者检查两条旧评论是否仍有效**\n\n## 短答案\n\n**拓扑安全但评论会失效。** 优先用平台的 auto-update，其次改 merge 而非 rebase（把 main 并进你的分支）。非要 rebase 就照上面补 MR 评论让 reviewer 知道历史改了。\n"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "observed|记下|观察到|亲眼|显式.{0,8}OID|:<.{0,12}oid|=.{0,12}:.{0,20}oid",
+              "fetch",
+              "重审|重新.{0,4}审|失效|不再是|作废|重新 fetch|approval|评论锚点|线程"
+            ],
+            "len": 1460,
+            "raw": "你的计划在**技术上安全**，但与该仓的 Worktree Isolation 技能有个策略冲突。先答你的问题，再提建议。\n\n## 你的计划：技术检查清单\n\n✅ **`git rev-list --left-right --count mybr...origin/mybr`** — 正确的拓扑检查（右侧计数必须为 0）  \n✅ **`--force-with-lease`** — 正确的 force 方式（绝不用 `--force`）  \n❌ **缺少**：显式指定工作目录\n\n**绝不依赖 ambient cwd**（机械纪律）：\n```bash\ngit -C \"<abs-worktree-path>\" rev-list --left-right --count mybr...origin/mybr\ngit -C \"<abs-worktree-path>\" rebase origin/main\ngit -C \"<abs-worktree-path>\" push --force-with-lease\n```\ncwd 会在工具调用间被静默重置，光靠 `cd` 一次不够。\n\n---\n\n## 策略冲突：技能建议对已推送/挂 MR 的分支用 **merge 更新**，不 rebase\n\n你的分支已推送 + 挂着 MR + 有两条 review 评论。技能规定（「合并回目标分支前」节）：\n\n> 已推送 / 挂着 MR / 别人可能在上面工作的分支：**别无脑 rebase**（重写历史→要 force-push，会冲掉远端独有 commit、**废掉 review 上下文**）。改为把目标并进分支…或走平台的 \"update branch\" 流程；非要 rebase 则…\n\n所以有三个选项，按优先级：\n\n1. **首选：平台 \"update branch\"**（GitHub/GitLab Web UI 的一键按钮）— 最安全，历史清晰，review 不破坏\n2. **次选：把 `origin/main` 并进你的分支**（`git merge origin/main`，带上技能规定的「合并方向必须可读」的信息格式）— 保留 review，保留原始提交\n3. **非要 rebase**（你的方案）— 技术安全但废掉两条 review，除非有特殊原因（如 commit message 需要清理、提交历史太脏）\n\n---\n\n## 如果坚持 rebase，还缺什么\n\n除了上面的 `git -C` 前缀外：\n\n- **Step 0 自检**：先跑 `bash skills/worktree-isolation/scripts/worktree-status.sh --slug <task-slug>` 确认你在独立 worktree 的功能分支上（不在 main 或 detached）\n- **冲突处理**：rebase 中若有冲突，别用 `-X ours/theirs`，要重新生成（如格式化产物/lockfile），保证冲突解不掉目标分支已修复的内容\n- **推送后验证**：push 后检查 MR 页面，确认 head 已更新，CI/状态是否干净\n\n---\n\n**建议**：除非 review 已明确说\"rebase 再来\"或有其他迫切原因，用平台的 update-branch 或本地 merge 会更友好——review 不中断，MR 审阅链条保留。你看是哪个原因促使要 rebase？\n"
+          }
+        ]
+      },
+      "head": {
+        "rev": "2a2e06000e83f3f87e063546f384013682f684d9",
+        "body_sha256": "515d4bd66f1fe36dc0dfb2900b9d69857efb051bb7901bf08905a9fe5c3d4d84",
+        "prompt_sha256": "d369b57eb653684be5e66b94cd1314e3cd4a2a181306a7b832a19ea367f88130",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 1491,
+            "raw": "看起来你的计划**缺了几个关键安全步骤**。技能文档里对 rebase+force-push 有详细的配方，这里是你需要补的：\n\n## 关键缺失\n\n**1. `--force-with-lease` 必须钉住观察到的 OID**\n\n你的 `git push --force-with-lease` 没有参数，这意味着它拿当下的本地 tracking ref 当租约——**在你的命令执行之间，tracking ref 可能被自动 fetch/IDE/工具推进**，租约就失效了，等于没防护。\n\n```bash\ngit fetch origin mybr\noid=$(git rev-parse origin/mybr)    # ← 立刻记下，这次取到的 OID\ngit rebase origin/main\n# ... 解决冲突（见下）...\ngit push --force-with-lease=mybr:$oid  # ← 用钉住的 OID，不是裸 --force-with-lease\n```\n\n**2. 你的 `rev-list` 语法可能有歧义**\n\n`git rev-list --left-right --count mybr...origin/mybr` 用的是三点（对称差），虽然技术上对，但标准写法应该是：\n```bash\ngit rev-list --left-right --count origin/mybr...mybr\n```\n左侧（origin 独有）应该是 0，右侧（本地独有）也应该是 0，才能安全 rebase。\n\n**3. Rebase 后冲突时的坑**\n\n如果碰到冲突，**别直接取你这边（`--theirs` 或直接接受你的版本）**——文档警告说这是\"回退高发点\"。特别是生成物（lockfile、格式化产物）别盲目用旧版本；需要重新生成就重跑生成。\n\n**4. Force-push 后要重审**\n\n```bash\ngit fetch -q origin mybr\ngit diff origin/mybr...HEAD   # 看看实际推上去了什么\n```\n\n推送后 MR 的行内评论锚点可能失效（特别是你改了上下文），**评审状态全部当失效重审** —— CI 要重跑，已有的两条 review 评论的行号可能错位。\n\n## 完整安全流程\n\n```bash\n# 1. 准备\ngit fetch origin mybr\noid=$(git rev-parse origin/mybr)\ngit rev-list --left-right --count origin/mybr...mybr  # 确认 0 0\n\n# 2. Rebase（任何冲突时别盲目接受你这边的旧版本）\ngit rebase origin/main\n\n# 3. Push with 租约\ngit push --force-with-lease=mybr:$oid\n\n# 4. 验证\ngit fetch origin mybr\n[ \"$(git rev-parse origin/mybr)\" = \"$oid\" ] && echo \"force-push 被拒（远端在你推之间被别人动过）\" || echo \"推送成功\"\n```\n\n最后一行其实是 `--force-with-lease` 已经帮你挡住的场景，但显式验证一遍心里踏实。\n\n**summary**: 你的计划缺「钉住 OID」和「force-push 参数」两个关键点，补上这两个就够安全了。\n"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 1282,
+            "raw": "按 Worktree Isolation 技能的「非要 rebase 则按一个固定次序走」规范评估，**你的计划缺两个关键环节**：\n\n## 缺的地方\n\n### 1. **缺明确钉住 OID** \n你的 rev-list 检查之前没有 `git fetch` 和记住观察到的 OID。应该是：\n\n```bash\ngit fetch origin mybr\nOID=$(git rev-parse origin/mybr)           # ← 钉住这个值\ngit rev-list --left-right --count mybr...origin/mybr  # 右侧必须为 0\n```\n\n这样后面的 lease 才能用**你亲眼看过的那个值**。\n\n### 2. **`--force-with-lease` 要绑定 OID，不能裸着用**\n\n```bash\n# ❌ 不够安全\ngit push --force-with-lease\n\n# ✅ 正确\ngit push --force-with-lease=mybr:$OID\n```\n\n裸的 `--force-with-lease` 会用**当下的本地 tracking ref**当租约，它在你 rebase 和 push 之间可能被后台 fetch 刷新，租约就失效了。显式钉住你观察到的 OID 才能保证「远端在这之间被别人动过就会被拒」。\n\n### 3. **重写的后果**（已挂 MR 时尤其关键）\n\n- **评论锚点失效**：rebase 改变 commit hash，行内评论指向的行号会失配\n- **mergeable 状态需重新核验**：rebase 可能改变与 main 的冲突状态，CI 也要重跑\n- **MR 的 approval/review 状态**：通常 rebase 后审查链条作废，需要重审或至少知道这个后果\n\n---\n\n## 补全的完整计划\n\n```bash\ngit fetch origin mybr\nOID=$(git rev-parse origin/mybr)\ngit rev-list --left-right --count mybr...origin/mybr  # 验证右侧 = 0\ngit rebase origin/main\n# 验证 rebase 后的内容\ngit log --oneline -n 5\ngit diff origin/main -- <你改的文件>      # 快速看一眼冲突/内容\ngit push --force-with-lease=mybr:$OID    # 用钉住的 OID\n```\n\n**rebase 后必须做**：\n1. 等待 CI 重跑\n2. 检查 MR 状态（mergeable、评论失效、approval 需否重审）\n3. 若有冲突或意外改动，停下确认再合并\n\n安全关键是**先记住`origin/mybr`的 OID → rebase → 用那个 OID push**，中间不能再 fetch 它。\n"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 1699,
+            "raw": "你的方案**缺关键环节**，特别是 lease 绑定。按技能规范，这样做会降级回\"和远端现状比较\"——远端在 rebase 中间被推进就会被你覆盖而不是拒绝。完整的安全序列是：\n\n## 缺失的环节\n\n1. **显式钉住你亲眼看过的远端 OID**  \n   `git rev-parse origin/<branch>` 拿的是本地 tracking ref，它可能随时被后台 fetch 刷新。你需要**在 fetch 后立刻记下 SHA**，然后所有后续判断都对着这个值。\n\n2. **lease 必须绑 OID**  \n   `git push --force-with-lease` 不带参数会用当下的 tracking ref，等于没有真正的保护。正确做法是 `--force-with-lease=mybr:<你记下的OID>`——这样远端如果被别人推进，推送就被拒，不会无声覆盖。\n\n3. **缺少 rebase 后的内容验证**  \n   rebase 完成后要确认没有意外改动（特别是碰撞或被覆盖的内容）。\n\n4. **重写后评论失效**  \n   commit hash 改变意味着 MR 上现有的行内评论锚点全部作废，你需要**重新评审 CI 和 review 状态**。\n\n## 完整、安全的步骤\n\n```bash\n# 1. Step 0：确认你在独立 worktree 的功能分支上，不是主检出的 main\ngit branch --show-current                # 必须是 mybr，不是 main\n\n# 2. 显式 fetch 并钉住远端 OID\ngit fetch origin mybr\nOBSERVED_OID=$(git rev-parse origin/mybr)\necho \"Observed remote OID: $OBSERVED_OID\"\n\n# 3. 检查远端无独有提交（你的方案这一步对）\ngit rev-list --left-right --count mybr...origin/mybr\n# 右侧（origin 独有）必须是 0；否则停下先 pull 别人的改动\n\n# 4. 检查要 rebase 的目标确实是你想要的\ngit fetch origin main\ngit log --oneline -3 origin/main\n\n# 5. 执行 rebase\ngit rebase origin/main\n# 处理任何冲突；碰撞集里的生成物/lockfile 要**重新生成**，不要照搬旧版本\n\n# 6. rebase 后验证内容\ngit log --oneline -5\ngit diff origin/main -- <你改的文件>  # 确认改动符合预期\n\n# 7. Force-push，用 OID 明确绑定 lease\ngit push --force-with-lease=mybr:$OBSERVED_OID\n```\n\n## 关键红线\n\n- **lease 参数省不得**：裸 `--force-with-lease` 在 rebase 期间可能被 IDE/后台工具 fetch 更新，租约就失效了。显式绑 `$OBSERVED_OID` 才能保证「变了就拒」。\n- **重写后立刻重审**：commit hash 改变，MR 上的行内评论锚点不再有效，需要重新评审 CI、reviewer approval、mergeable 状态。旧的 review 评论看不上，需要 reviewer 重审或你自己确认没逻辑漏洞。\n- **不在主检出上做 rebase**：如果你目前在主检出（`git rev-parse --git-common-dir` 等于 `.git`），按技能规范先给这个分支建功能 worktree 再进去做。\n\n你的 `rev-list` 检查逻辑对，但推送命令必须改成 `git push --force-with-lease=mybr:$OBSERVED_OID`。\n"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 1505,
+            "raw": "你的计划**少了关键步骤**。按 SKILL.md「合并回目标分支前」这节的 rebase 配方，缺这些：\n\n## 必须补的三处\n\n**1. fetch 的时序与 lease 的绑定**\n\n```bash\ngit fetch origin mybr                                    # 先 fetch 本分支\nOBSERVED_SHA=$(git rev-parse origin/mybr)              # 立刻记下远端OID——这个值后面不变\ngit rev-list --left-right --count mybr...origin/mybr    # 同一个引用做检查，右侧必须=0\n# （如果右侧≠0，停下先并入，不要 rebase）\ngit rebase origin/main\ngit push --force-with-lease=mybr:${OBSERVED_SHA}       # lease 绑死那个 OID\n```\n\n关键在：\n- **Lease 必须绑 SHA**，不能裸 `--force-with-lease`（tracking ref 在你 rebase 期间可能被后台 fetch 刷新，租约失效）\n- **Fetch 和检查要紧挨着**，中间不插别的操作\n\n**2. 目标分支也要拿最新**\n\n```bash\ngit fetch origin main  # rebase 前也要确保 origin/main 是最新的\n```\n\n**3. Rebase 后的验证**\n\n检查是否把目标分支已修复的内容改回旧版本：\n\n```bash\n# Rebase 前钉住分叉点（此刻再查一次，因为 rebase 后它会变成 origin/main）\nOLD_BASE=$(git merge-base mybr origin/main)\n# Rebase 后看碰撞集内容有无回退\ngit diff origin/main HEAD -- <你改过的文件>  # 确认没把 main 新 hunk 改回旧样\n```\n\n---\n\n## 额外风险点\n\n**4. Review 评论会失效**  \nForce-push 重写历史，MR 上现有的两条评论行号会脱轨（线程保留但锚点失效）。Rebase 推送后，把评审状态当作**全部失效**，重新请求审批。\n\n**5. MR 自身的合并资格也会重评**  \nCI/mergeable 状态会reset，推送后要看一遍新 CI 通过、MR 的 mergeable 灯亮了再动合并。\n\n---\n\n## 检查清单\n\n```bash\n# ① 整套序列，一条贯通（别让 cwd 重置打断）\ngit fetch origin mybr main\nOBSERVED_SHA=$(git rev-parse origin/mybr)\ngit rev-list --left-right --count mybr...origin/mybr   # 右侧必须=0\ngit rebase origin/main\n# ② 验证内容无回退\ngit diff origin/main HEAD -- <文件> | grep -E \"^-|^\\+\"  # 看是否有意外改动\n# ③ 推送\ngit push --force-with-lease=mybr:${OBSERVED_SHA}\n```\n\n足够安全吗？**流程上是的**。但上面四个补项都得做，特别是 lease 绑 SHA + rebase 后验证这两块。\n"
+          }
+        ]
+      }
+    }
+  }
+}

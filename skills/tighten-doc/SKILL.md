@@ -35,8 +35,8 @@ After multi-round edits that added, restructured, or changed reader-facing prose
 4. 无动作语气词: "周会点名" (doesn't say who / when / what) — replace with the real mechanism.
 5. 无谓条件前缀 / 连接: "…时", "节奏跑不动时", "总之", "换句话说", "值得一提的是".
 6. 重复: a heading restating the table's column names; a clause duplicated in another section. **Index docs especially**: define each term/role exactly once — later sections reference, never re-explain. When a line is challenged, first check if its content already appears in another section; keep only the delta. Aggregation / cross-cut / "references" sections are the prime filler suspect (they compress per-card content into slash-soup that also duplicates the cards) — collapse to a plain short gate list or delete.
-   **近义词斜杠堆 = 重复**：一行里 `A/B/C` 若各词在该语境同指一件事，收成 1 个代表词；仅当各项确为不同事才留斜杠列表。**逻辑子集措辞 = 表面冗余**：并列两项中一项是另一项的子集时读着冗余——要么删子集项，要么点名两个不同失效机制让区分显式。**跨节正反复述 = 隐蔽 dup**：同一组判据被一节正面写（"满足 A+B = 通过"），另一节反面 / 否决形式重写（"反面 ¬A / ¬B 任一成立 = 不通过"）——内核同一份内容、换面孔。审查主动配对扫：每个"判定为 Y"句的 criteria 在别处是否以"否决 / 反证 / 不通过"形式重列；命中 pick 一处保留（通常留反向 / 否决列表，更直接 checkable），另处删。这类 dup 在"已清"二审里最易漏过，是 R1 review-completeness 的重点 watch。
-   **图↔文字双写 = 重复**：图承载流程 / 连线 / 状态迁移；文字别再逐条复述这些。但文字要保留图说不清或**不能丢的执行信息**——判据 / 为什么 / 例外 / owner / 硬规则 / 阈值 / 后果 / 验收 / 非渲染 fallback（即 KEEP 项一律留，别当"复述图"删掉）。
+   **近义词斜杠堆 = 重复**：一行里 `A/B/C` 若各词同指一件事，收成 1 个代表词；各项确为不同事才留斜杠列表。**逻辑子集措辞 = 表面冗余**：并列两项中一项是另一项子集时读着冗余——删子集项，或点名两个不同失效机制让区分显式。**跨节正反复述 = 隐蔽 dup**：同一组判据被一节正面写（"满足 A+B = 通过"），另一节反面 / 否决形式重写（"反面 ¬A / ¬B 任一成立 = 不通过"）——内核同一份内容、换面孔。审查主动配对扫：每个"判定为 Y"句的 criteria 在别处是否以"否决 / 反证 / 不通过"形式重列；命中 pick 一处保留（通常留反向 / 否决列表，更直接 checkable），另处删。这类 dup 在"已清"二审里最易漏过，是 R1 review-completeness 的重点 watch。
+   **图↔文字双写 = 重复**：图承载流程 / 连线 / 状态迁移，文字别逐条复述。但文字要保留图说不清或**不能丢的执行信息**——判据 / 为什么 / 例外 / owner / 硬规则 / 阈值 / 后果 / 验收 / 非渲染 fallback（即 KEEP 项一律留，别当"复述图"删掉）。
    **加图 / 表后必做配对扫**（加图时最常自引入的 dup）：是找 delete candidate **不是命中即删**——只删**纯步骤 / 节点复述**；查的范围覆盖图所在小节 + 相邻小节 + 验收 / 红线段，不只邻近 bullet。
    **Row-granularity in an index/owner/lane table**: one row per domain/lane. A row that is actually a sub-component of another row's domain (e.g. an SDK or a gateway sub-piece listed beside whole domains) → merge it into the parent row (fold its owner/progress/goal in), renumber, update the heading count. Do NOT merge two rows with distinct owners or timelines — that loses accountability; an owner-justified split stays.
 7. 病句 / bulk-replace artifacts: e.g. "一键回退排障手册" (missing separator).
@@ -44,7 +44,7 @@ After multi-round edits that added, restructured, or changed reader-facing prose
 9. 编辑性括号副标题: "（按对的赌注不折中）", "（诚实校准）", "（怎么算通过）", "（含…前置底座）".
 10. 画蛇添足的解释尾: "中途不换手", "（DoD）" tacked onto an already-clear line.
 11. 假目标: a 目标/DoD cell that is a bare verb with no object or threshold ("V1 修完 + V2 决议", "止血/打通/完善", "韧性补齐"). Not filler-to-delete but filler-to-fix → rewrite as a falsifiable DoD traced to the owning card (never invent a threshold); if the real DoD lives in that card, replace with the pointer "见〔X 域卡〕". If the cell references an undefined term (e.g. "V2"), trace it to its definition point and either inline-gloss it once so the cell is self-explanatory, or point to the card — a reader having to ask "X 是啥" means the cell failed.
-12. 会话视角泄漏：句子立足于写作会话而非文档——死的设计会话引用、PR/stack 视角、变更叙事与版本戳、评审编排、对评审者辩护、推导流水账、hedge 残留、工作语言碎片；判据 = HEAD 读者无会话记录能否解析；**必须先重述仍为真的事实再删过程**，issue 引用/抑制理由/反事实现在时/实测值不得删；详见 `references/session-vantage-leakage.md`。
+12. 会话视角泄漏：句子立足于写作会话而非文档——死的设计会话引用、PR/stack 视角、变更叙事与无锚点指代（稳定 API/schema 版本号不算）、评审编排、对评审者辩护、推导流水账、hedge、工作语言碎片。判据 = HEAD 读者无会话记录能否解析；**必须先重述仍为真的事实再删过程**，issue 引用/抑制理由/反事实现在时/实测值不得删。见 `references/session-vantage-leakage.md`。
 
 ## KEEP (实质 — NOT filler; deleting them drops a decision)
 
@@ -181,4 +181,4 @@ When the user probes sentence-by-sentence ("这是废话么 / 什么意思 / 能
 
 ## CROSS-MODEL / CODEX CO-REVIEW CAVEAT
 
-Cross-model agreement is a recommendation, not a decision: accept only hits matching this rubric, reject every 口语化→书面 rewrite or re-expansion of a deliberately terse line, present its output verbatim and state what you took/rejected and why — full caveat: `references/cross-model-co-review.md`.
+Cross-model agreement is a recommendation, not a decision: take only rubric hits, reject every 口语化→书面 rewrite and any re-expansion of a deliberately terse line, present its output verbatim, state what you took/rejected and why — `references/cross-model-co-review.md`.

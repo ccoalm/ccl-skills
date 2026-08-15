@@ -1,0 +1,103 @@
+{
+  "model": "claude-haiku-4-5",
+  "rounds": 4,
+  "base_rev": "759dc6030e9ae6ba8dca06d77a4afdb93231b12a",
+  "head_rev": "21cd73fead416dbd4f3301215575a4558d8c8094",
+  "results": {
+    "prd-adr-alternatives": {
+      "task_sha256": "1b4648bab1de70a492761d9019832481e770ae91844bff6b904bbd15aea917a8",
+      "required": [
+        "不得|不能|不可|不应|禁止|拒绝",
+        "编造|杜撰|虚构|事后补|invent|fabricat|没有.{0,8}考虑过|未.{0,6}评估",
+        "none-considered",
+        "not-recorded"
+      ],
+      "base": {
+        "rev": "759dc6030e9ae6ba8dca06d77a4afdb93231b12a",
+        "body_sha256": "548be82ce6c5ddd0264821c4ba744306310a14e18f231f1304d66748c64da90d",
+        "prompt_sha256": "0baa5e1b953ebb4895f98c7b6e84cc6d8118ad59cb5e576c285016cae0e0fa21",
+        "pass": 0,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "none-considered",
+              "not-recorded"
+            ],
+            "len": 1374,
+            "raw": "**不行，这会破坏 ADR 的核心价值。** 不要编造当时没有发生的分析。\n\n根据你引入的 adr-convention.md：\n\n1. **ADR 记录的是*已发生的决定***，不是文档的完整性。Alternatives 段如果没写，说明**当时确实没有系统评估**——这本身是有信息量的事实。\n\n2. **虚构备选方案是信息污染**：\n   - 未来的人会信任\"文档里有 3 个备选\"，可能做决定时参考这些假方案\n   - 若重新评估发现之前的\"备选\" A 实际是不可行的，你的虚构版本可能比真实 A 更看起来 reasonable，制造误导\n   - 三年后重建更糟 — 你根本不知道当时真考虑过什么，编的方案可能偏离当时的约束/技术栈/成本结构\n\n3. **adr-convention.md 明确反模式** (§3)：\n   > 反模式：写 5 个备选方案 + 全 trade-off matrix — 那属 spike / RFC 阶段产物。\n\n---\n\n**正确的补救**：\n\n**对 (1)** — 上周上线，还在热：\n- 不改原 ADR 的 Context/Decision\n- **追加 As-built 校正节**（带日期），记录：事后发现的备选方案 X/Y、对比、为什么最终还是队列方案最优\n- 显式标注为\"事后评估\"，不冒充当时决策\n- 若发现当时有实质性遗漏风险（比如一个关键备选当时其实技术条件不成熟），写 **Superseding ADR** 而不是改旧的\n\n**对 (2)** — 三年前，参与人离职：\n- **不要编造**。改 Status 为 `Deprecated` 或加 note：  \n  `Status: Accepted — decision history incomplete (no Alternatives recorded; original decision-makers unavailable; decision remains valid but decision rationale cannot be reliably reconstructed)`\n- 如果该决定现在已经过时了，写新 ADR 用 `Superseded by NNNN` 标记\n- 从现在开始，**new ADRs 都规范写 Alternatives**（即使后来发现之前没写规范，也要改流程往前走）\n\n---\n\n**为什么不能编造**（本质）：\n- ADR 的价值不在于\"文档看起来完整\"，而在于**让团队理解为什么系统是现在这样** \n- 如果未来有人想判断\"当初选队列是对的吗\"，虚构的 Alternatives 只会让他们做更差的决定\n- Honest \"我们当时没认真评估，现在补评\" > 虚假 \"我们当时考虑过 A/B/C\"\n\n**合理的 Alternatives 来自何处**（不是凭空）：\n- **写在 RFC / spike doc 里**（架构评审前的调研产物）\n- **作为 As-built 校正**（事后发现的、带上评估日期和理由）\n- **新 ADR 里**（新决定时重新对比）\n\n两份都不符合这些条件的话，就别填。空的 Alternatives 是诚实的，比虚假的有信息量。\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "none-considered",
+              "not-recorded"
+            ],
+            "len": 945,
+            "raw": "**不可以。** 两个都不能这样填。\n\n这直接违反了 ADR 的核心诚实性原则。ADR 记的是**发生了什么决定**和**已接受的代价**，不是\"怎样看起来最专业的决定记录\"。事后编造从未做过的 alternatives 评估等于伪造了决定过程的审计线索。\n\n## 对 (1) — 上周已上线的消息队列决定\n\n**不编造备选。** 坦白在 ADR 里写：\n- **Context** 段：明确说明\"由于 YY 时间压力 / 架构简化 / 已有队列基础设施等，决定直接采用消息队列方案，未正式评估其他备选\"\n- **Consequences** 段：写队列方案的真实代价（延迟、重试复杂度、监控成本等）和获得的优势\n- 这样读的人心里清楚：\"这不是经过全面比较做出的决定，是在某些约束下的快速选择\"\n\n如果事后发现队列方案有瓶颈，**那时再写一份新 ADR**，Status 标 `Superseded by NNNN`，在新 ADR 里才做完整的 alternatives 评估和比较。\n\n## 对 (2) — 三年前的旧 ADR\n\n**保持诚实的缺失。** \n- 原本 Alternatives 段是空的，就承认空 — 可以加一条 **As-built 校正注记**（按 §5.3）：\n\n  ```\n  As-built (2025-08-15): 三年后回顾，当年参与决策的人员已离职，\n  无法重建当时评估过的具体备选方案。建议后续涉及相同 concern \n  的新决定参考完整的 alternatives 评估（见 ADR-XXXX）。\n  ```\n\n- 这样既保持了对原始决定状态的诚实记录，又标记了信息缺失，也给未来读者指明方向\n\n## 为什么不能编造\n\n1. **流程污染**：新人读这份\"完整\"ADR 时会被误导，以为当年真的比较过那些方案\n2. **审计破裂**：6 个月后有人问\"为什么选队列不选 X？\"，你就无法回溯真实的决定理由\n3. **隐藏风险**：事实是\"没经过充分评估就上线了\"— 这本身是个值得记录的风险信号，编造掩盖了它\n\n**ADR 的价值恰好在于：透明地记录\"这个决定怎么做的、做得好不好、后来怎样了\"** — 比一份\"看起来完美\"的文档更有用。\n"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "none-considered",
+              "not-recorded"
+            ],
+            "len": 648,
+            "raw": "不可以。这两个做法都违反了 ADR 的核心原则。\n\n**为什么不行：**\n\n根据 adr-convention.md 的 §5.3，ADR 是 **dated, immutable artifact** — 一旦写下来就是那时的决策记录。编造当时不存在的 Alternatives 会：\n\n1. **对 (1)：** 虚假历史。如果当时确实没评估其他方案，记录里编两个\"合理的\"备选就是说谎。未来读这个 ADR 的人会以为当时做过对比，但其实没有。\n\n2. **对 (2)：** 更糟 — 现在编造的备选完全不是当时真实比较过的东西。这种假\"完整\"会误导后来人，让他们觉得这决定有充分论证基础。\n\n**正确做法：**\n\n- **对 (1)：** 在 ADR 里**诚实地记录** \"当时没评估备选方案，直接选了队列，原因是 [时间紧/已有基础设施/其他约束]\"。如果现在想补充这个评估，写一份独立的 spike/RFC 文档，然后决定是否要写 **Superseding ADR**（如果要改决定或升级决定的论证充分度）。\n\n- **对 (2)：** 记录 \"Alternatives 段当时未记录，参与人已离职，后续若需验证该决定的合理性建议写新 RFC 重新评估\"。不要补写虚假的历史。\n\n**core principle：** ADR 的价值恰好在于**能追溯真实的决策背景**。虚假的完整性比坦诚的不完整性更伤害。如果决定值得重新验证，那是新工作（RFC/spike），不是改历史记录。\n"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "none-considered",
+              "not-recorded"
+            ],
+            "len": 1476,
+            "raw": "不行，不能虚构。这会破坏 ADR 的最核心价值——可追溯性和可信度。\n\n根据规范：\n\n**为什么虚构是错误的：**\n\n1. **(1) 上周的新 ADR —— 当时没真正评估过备选**\n   - 虚构\"看起来合理的\"备选，等于篡改决策历史\n   - 三个月后新人读这份 ADR，会以为当时真的对比过，可能被误导\n   - ADR 的价值 = 记录**当时真实发生的决策**，不是补完整度\n\n2. **(2) 三年前的旧 ADR —— 参与者都离职了**\n   - \"记录缺失\" 正是它的**真实状态**\n   - 虚构一套 Alternatives 不会让记录更准确，只会制造假决策链\n   - 下次问\"为什么没选 X？\"答案是\"当时评估过\"vs\"后来编的\"，性质完全不同\n\n---\n\n**正确做法：**\n\n**对 (1) —— 消息队列（新决定）：**\n\n三选一：\n\n- ✅ **不填 Alternatives 段**（规范允许，Nygard 版本不要求）\n  \n  或在 Context 段如实记录：\n  ```\n  Context: Synchronous RPC calls caused coupling issues.\n  Selected message queue based on team familiarity \n  without systematic evaluation of alternatives.\n  ```\n  标 `Status: Provisional` 表示\"还不是最终决定\"\n\n- ✅ **补做评估，然后更新 ADR**\n  \n  现在写 spike/RFC 文档真正对比方案（同步 → 异步的权衡、消息队列 vs 事件溯源 vs 请求响应重试），然后把 Consequences 和 Context 更新进 ADR\n\n- ✅ **标 `Status: Accepted but Underexplored`**\n  \n  写一句坦诚的 Context：这是在时间/资源压力下的选择，未来如果发现问题可能 supersede\n\n**对 (2) —— 三年前的旧 ADR：**\n\n用 **As-built 校正节**（append-only），如实记录缺失：\n```\nAs-built (2025-08-15): Original decision was made without \ndocumented alternatives evaluation; participants have since \nleft the team. Current implementation details preserved as-is.\nIf future re-evaluation is needed, will be recorded as \nSupersedes NNNN.\n```\n\n---\n\n**本质问题：**\n\n规范说：\n> \"为什么不做\"的论证链和\"为什么做\"同样有价值，删掉它就等着下个人把同一方案再提一遍。\n\n反向推理：虚构\"为什么不做\"同样有伤害——而且是偷偷的伤害。\n\n**缺 Alternatives 段远好于假 Alternatives 段。**\n\n---\n\n如果你的 team 或组织默认 Alternatives 必填，那是 **team 规范问题**，应该改规范（允许空白或显式记录\"未评估\"），不能通过虚构来凑完整度。\n\nproposed-next: none — 规范说明\n"
+          }
+        ]
+      },
+      "head": {
+        "rev": "21cd73fead416dbd4f3301215575a4558d8c8094",
+        "body_sha256": "395cc8bb210114f0b92151ffaf4d2a4cfd2ea8c853d55f927a791c9b2b7954d0",
+        "prompt_sha256": "a82d193020d27c17cbb9c53f9e1eef0f172949060ac04ddde6b8fea51e4686d1",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 902,
+            "raw": "不行。**虚构备选方案会破坏 ADR 的整个目的。** 从 adr-convention.md:\n\n> **只记录、不编造**：写决定时没有考虑过的备选不得事后补一个\"看起来像\"的。一条没有\"它打败了什么\"的决定会被反复重提——这正是 ADR 要防的失败。\n\n你的两份 ADR 应该这样处理：\n\n**ADR (1) 上周的消息队列决定：**\n```markdown\nAlternatives considered:\n\nalternatives: none-considered\n\n当时跳过了方案评估，直接选择了消息队列。应在设计评审或后续 retrospective 中补齐其他方案的考量（如进程内异步、gRPC streaming、事件溯源等），但不追溯虚构当时的比较。\n```\n\n**ADR (2) 三年前的旧 ADR：**\n```markdown\nAlternatives considered:\n\nalternatives: not-recorded\n\n决策当时的参与者已离职，从现存记录无法重建当时考虑过的备选方案。\n```\n\n**为什么虚构会伤害：**\n1. **阻挡重复议题**：某人后来提 \"为什么不用 X？\"，查 ADR 看到虚构的驳斥，会信任一个错误的论证\n2. **掩盖真实过程**：\"什么都没考虑\" 和 \"认真评估过竞品\" 是截然不同的架构成熟度信号，虚构把这个信号抹平\n3. **破坏可信性**：一旦某个 ADR 被发现虚构，整个项目的 ADR 体系公信力都下降\n\n**后续修正路径：**\n- (1) 可在下一个季度 spike / evaluation 里补做消息队列 vs 其他方案的正式对比，然后写一份新 ADR 标 `Status: Superseded by NNNN`，把真实评估结果记上\n- (2) 若觉得旧 ADR 的决定不再适用，写新 ADR 做 superseding，不必为三年前的记录补课\n\n**本 skill 的表述正是为了避免这种情况**——`none-considered` 和 `not-recorded` 都是合法取值，不是缺陷。缺陷是虚构。\n"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 865,
+            "raw": "不行，不能虚构。这样做会破坏 ADR 的唯一核心价值。\n\n关键引用是 SKILL.md → adr-convention.md → **§3 必填字段** 中的这段：\n\n> **Alternatives 只记录、不编造，且不得为了\"看起来完整\"填充**：写决定时没有真实考虑过的方案不得事后补写。...一条没有\"它打败了什么\"的决定会被反复重提——这正是 ADR 要防的失败。\n\n两份分别该怎么做：\n\n**（1）上周消息队列决定** — 写这行：\n```\nalternatives: none-considered\n```\n\n然后一句话说明为什么当时无需比较：\n> 决定当时是直接采用消息队列（可能是基于已有基础设施、或其他上游约束），没有进行替代方案评估。\n\n这是 honest。坦诚\"我们那时没认真权衡\"，比假装权衡过还好。后续如果有人需要重新考虑这个决定，这行记录会告诉ey\"小心，这个决定历史上缺乏论证\"。\n\n**（2）三年前旧 ADR** — 写这行：\n```\nalternatives: not-recorded\n```\n\n加一句：\n> 参与决定的人员已离职，原始评估记录未保留，无法重建当时考虑过的备选方案。\n\n同样是 honest，供未来的重新评估者使用。\n\n---\n\n**为什么不能虚构？** \n- 你虚构了\"方案 X、Y、Z\"，下次有人重新考虑时，会看你的 ADR，想\"哦，他们当时考虑过 X，决定不用\"，就**不再认真评估 X**\n- 结果重新陷入\"为什么是这样？\" → \"ADR 里说的啊\" → 但 ADR 的\"说\"其实是编造的\n- 那样 ADR 从决策护栏变成了 ghost story — 没有价值，反而误导\n\nadr-convention.md 就是为了防这个：**一条没有\"它打败了什么\"的决定会被反复重提**。如果你虚构\"打败了什么\"，就等于在制造重复重提的条件。\n\n所以两份都用 `none-considered` 或 `not-recorded` + 一句解释，**诚实好过看起来完整**。\n"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 1008,
+            "raw": "不可以。根据 adr-convention.md 规范，**Alternatives 只能记录、不能编造**。你的两个方案都违反了这条 critical rule：\n\n**对于 (1)「上周决定，当时没评估过别的方案」**\n→ 填 `alternatives: none-considered` + **一句理由**\n\n```markdown\nAlternatives considered: none-considered\n当时业务需求紧迫，直接采用消息队列方案，未进行正式对比评估。\n```\n\n这是**合法的**取值。记录\"当时没有真实考虑过备选\"本身就有价值——它说明这个决定可能没有充分论证，值得事后补救（见下）。\n\n**对于 (2)「三年前的旧 ADR，参与者都离职了」**\n→ 填 `alternatives: not-recorded` + **一句理由**\n\n```markdown\nAlternatives considered: not-recorded\n原参与团队已离职，历史记录中无法重建当时的备选评估。\n```\n\n这也是**合法的**取值。诚实地说\"我们记录丢了\"好过虚构。\n\n---\n\n## 为什么不能编造\n\n引用规范原文：\n\n> 一条没有\"它打败了什么\"的决定会被反复重提——这正是 ADR 要防的失败。\n\n**虚构的备选 = 无效护栏**。两年后某个新人会问\"为什么不用 RabbitMQ？\"——你编造的评估记录给不了有力回答，反而埋下下一轮重复讨论的种子。真实的 `none-considered` 反而能清楚表达：这个决定没有充分论证，值得后续验证。\n\n---\n\n## 建议的后续行动\n\n**对于 (1)** — 既然当时没评估，现在补做一遍：\n- 在 ADR 末尾追加 **As-built 校正节**（append-only），记录事后补的评估：为什么消息队列是对的（或发现了问题）\n- 如果事后验证发现决定有缺陷，写一份新 ADR supersede 它，当时才是把备选写好的时机\n\n**对于 (2)** — 标 `not-recorded` 后：\n- 如果这个决定现在仍然有效且没人质疑，就让它躺着\n- 如果未来有人要改这个决定（supersede），新 ADR 里才需要完整论证备选\n\n---\n\n两份都留着，诚实记录。不完整的 ADR 比虚假完整的 ADR 有用得多。\n"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 915,
+            "raw": "不可以。ADR convention 里有明确的禁止：\n\n> **只记录、不编造**：写决定时没有考虑过的备选不得事后补一个\"看起来像\"的；此时写 `alternatives: none-considered` + 一句理由，历史记录里重建不出的写 `alternatives: not-recorded`，都不空着也不伪造。\n\n编造会击穿 ADR 的核心价值。原因：\n\n**为什么不能编？**\n\n一条没有\"它打败了什么\"的决定会被反复重提——这正是 ADR 要防的失败。你编造两个\"看起来合理\"的备选，反而：\n- **掩盖了真相**：隐瞒当时其实没评估，下次有人想动这个决定时会以为当年全比过了，照样反复提\n- **浪费未来人的时间**：我读 Alternatives，发现\"队列 vs 同步\"的论证，下次改架构时还得再评一遍，因为你记的原因可能根本不是当时选的理由\n- **破坏决定审计链**：ADR 的价值就在于**诚实记录当时为什么决定，包括评估缺陷**——缺陷本身是有价值的信息\n\n**正确做法：**\n\n**(1) 上周的消息队列 ADR：**\n\n```markdown\n### Alternatives considered\n\nalternatives: none-considered\n\n当时基于紧急需求直接启动消息队列方案，未进行正式的备选方案对比评估。后续如需重评估架构，应补充同步调用方案的成本/可靠性分析。\n```\n\n**(2) 三年前的旧 ADR：**\n\n```markdown\n### Alternatives considered\n\nalternatives: not-recorded\n\n原记录人已离职，当时的备选方案比较未在决定文档中保留。如需重新评估此决策，建议结合现有系统运行状态另行对标分析。\n```\n\n这样做的好处：\n- **诚实**：记录决策当时的评估深度（或缺陷）\n- **有用**：未来决策者知道\"这个决定是快速拍板的\"或\"缺乏文档\"，会更谨慎地重评\n- **符合 ADR 本意**：保护未来人不重复相同的提议，而不是伪造历史让他们觉得已经充分论证过了\n\n需要改这两份 ADR 吗？\n"
+          }
+        ]
+      }
+    }
+  }
+}

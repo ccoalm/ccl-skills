@@ -1,0 +1,264 @@
+{
+  "model": "claude-haiku-4-5",
+  "rounds": 4,
+  "base_rev": "673fece3cf3d893ed6707119f60cd656f3ae6331",
+  "head_rev": "09ba4e8e4ccbf0b266530a8058a78b77ee6c0193",
+  "results": {
+    "td-session-vantage": {
+      "task_sha256": "338457e355d78df6292eaabb988e7ed4938370f35da344d61187791dce754a81",
+      "required": [
+        "decision 7|§4\\.7|设计会话|会话|design ledger|PR #212|reviewer|评审|round 3|轮",
+        "现在|当前|现状|present|改写|重述|HEAD",
+        "TODO|界限|hedge|probably|以后|标记"
+      ],
+      "base": {
+        "rev": "673fece3cf3d893ed6707119f60cd656f3ae6331",
+        "body_sha256": "04611218226a0090975955373bd02bda95562af5dd05301a4749cf62028ded73",
+        "prompt_sha256": "be4ef5dbbb99939befeff53648fd3b165fb361a77f12efb6735e3cc5486019af",
+        "pass": 3,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 806,
+            "raw": "改后文本：\n\n「The type cast is safe: it narrows the value type to the module's expected signature.」\n\n---\n\n## 修改理由\n\n| 问题 | 改法 | 规则 |\n|------|------|------|\n| \"This module used to parse...\" | 删除。说历史、说过去的架构都是元语自证——读者不关心\"用过 legacy loader\"，只关心\"现在为什么要 cast\"。 | DELETE #1（元语自证） |\n| \"see design §4.7 and decision 7\" | 删除。非作者无法导航内部设计文档参考；若决定必须记录，属于代码注释或提交信息，不属于 README。 | FORM（内部参考不可导航） |\n| \"after PR #212\" | 删除。翻旧账，PR 号对理解当前代码无帮助。 | DELETE #2（翻旧账） |\n| \"it simply narrows...\" | 改为\"narrows\"，删\"simply\"。简化修饰词，加强陈述确定性。 | 句子层（肯定式陈述） |\n| \"as the reviewer confirmed in round 3\" | 删除。这是过程痕迹（评审历史），不是代码决定。README 记录的是当前状态，不是它怎么被论证的。 | DELETE #1（过程自述） |\n| \"Probably fine for now\" | 删除。修辞尾巴＋不确定语气。README 里cast要么\"safe\"，要么标记为\"provisional\"有 issue 跟进；不能\"可能还行\"。 | DELETE #3（修辞尾）+ 句子层（肯定式陈述） |\n\n**结果**：从过程叙述（谁评审过、PR 怎么改的）重写为状态陈述（当前为什么这样）。\n"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 999,
+            "raw": "用 Tighten-doc 优化。\n\n**改后文本：**\n\n```\nThe type cast here is safe: it narrows the config to the expected schema without reinterpreting the value.\n```\n\n---\n\n**修改理由：**\n\n| 原文片段 | 问题分类 | 改法 |\n|---------|--------|------|\n| `This module used to parse config through the legacy loader… after PR #212 it no longer does.` | **DELETE #2 翻旧账** — 版本历史对 README 读者无用。README 是\"现在怎么用\"，不是 changelog。 | 删除整句。当前代码行为已说清楚；过去用什么的背景在 README 里无信息量。 |\n| `see design §4.7 and decision 7` | **DELETE #6 交叉引用不透明** — 编号引用（§4.7、decision 7）对读者不自解释；且这类上下文应在专用文档（设计 doc），不该在 README 里分散。 | 删除。如有必要，单独行的设计文档链接（不是跳转号），不混在代码注释里。 |\n| `as the reviewer confirmed in round 3` | **DELETE #1 元语自证** — 纯过程自述（评审回合数）。读者只需知道\"转换为什么是安全的\"，不需知道\"谁确认了\"。 | 删除。用技术事实替代过程背书。 |\n| `Probably fine for now.` | **DELETE #3 / #4 修辞尾 + 无动作语气词** — 既不是决定也不是保留下来的理由。\"Probably\"不做承诺，\"for now\"暗示有风险。 | 改成正面的技术陈述：`The type cast here is safe:` + 给出**为什么**安全（只做类型收窄，无值的重新解释）。 |\n\n---\n\n**核心改进：** 从\"版本历史 + 过程背书 + 悬而未决\"转为\"现在的技术事实 + 可信的原因\"。README 读者只关心\"为什么现在的代码这样写\"，不关心\"怎么演进到这里的\"。\n"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "现在|当前|现状|present|改写|重述|HEAD"
+            ],
+            "len": 2440,
+            "raw": "Using tighten-doc to optimize this README passage.\n\n**Problems identified:**\n\n1. **Process artifacts (DELETE #1/#2)** — \"as the reviewer confirmed in round 3\" + PR #212 reference are revision history, not reader-facing content. Belongs in PR/review thread, not the README.\n2. **Vague conclusion (DELETE #11 假目标)** — \"Probably fine for now\" is a non-falsifiable hedge. If the cast is safe, state it. If it's provisional, state *when* it becomes unsafe and what to do.\n3. **Unclear references** — \"design §4.7 and decision 7\" are opaque chapter numbers. Readers need either a real link/title or the reason stated inline.\n4. **History + decision conflated** — Two separate facts (legacy-loader migration, type-cast safety) should be split; the history isn't necessary for using this module.\n\n---\n\n**Revised version:**\n\n> The type cast below is safe — it narrows the type, which is guaranteed by \\[concrete reason: e.g., \"the input is always validated to invariant X before reaching this point\"\\].\n\n**Or, if the concrete reason isn't available yet:**\n\n> The type cast below is safe. [If there's a concrete reason, state it; if not, flag it as a tech-debt item and track separately.]\n\n---\n\n**Detailed reasoning per change:**\n\n| Original | Deleted | Why |\n|----------|---------|-----|\n| \"This module used to parse config through the legacy loader (see design §4.7 and decision 7); after PR #212 it no longer does.\" | Entire historical frame | Reader doesn't need to know the migration history to understand the current behavior. If the legacy path is relevant to a *warning* or *constraint*, keep it; otherwise it's narrative clutter. Opaque chapter refs (§4.7, decision 7) + PR numbers don't help a new reader — if design rationale matters, either hyperlink a real doc or state it plainly here. |\n| \"as the reviewer confirmed in round 3\" | Removed | Evaluation-round history is a process artifact. Technical confidence in the code should rest on the *reason* it's safe (preconditions, invariants, type contract), not on \"someone approved it.\" |\n| \"Probably fine for now.\" | \"Probably\" + \"for now\" | 非决策的含糊词。Either the cast is safe (state why) or it's a known risk (state the threshold for fixing). \"Probably / fine for now\" satisfies neither — it's a hedge that tells the next maintainer nothing actionable. |\n\n**What to keep:** The core claim — the cast narrows the type safely. Supply the *reason* (what makes it safe?) to make it defensible.\n"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 1198,
+            "raw": "我用 **tighten-doc** 技能来审阅这段文字。\n\n## 改后文本\n\n「The module parses config directly without the legacy loader. The type cast below is safe — it narrows the type only.」\n\n## 每处修改的理由\n\n| 删除 / 修改 | 原因 |\n|-----------|------|\n| 删除 \"used to… after PR #212 it no longer does\" | 版本历史（\"曾经用 legacy loader\"）对 README 读者无用；他们看当前模块，不需要知道迁移过程。如果历史对维护有意义，应该在 commit 信息或 CHANGELOG，不在 README。 |\n| 删除 \"see design §4.7 and decision 7\" | 内部编码引用（`§4.7`, `decision 7`）是元语自证 — 在描述\"本文档有个引用\"而非传递决策。读者看不到那些源。如果需要，给出真实链接或在代码注释里说明，不在 README 里做引用号。 |\n| 删除 \"as the reviewer confirmed in round 3\" | 过程自述 / 翻旧账：评审轮次、评审历史属于 PR 讨论，不进成品文档。\"reviewer 确认过\"不是读者需要的安全论据。 |\n| 删除 \"Probably fine for now\" | 修辞尾巴 + 假完成：这句留下疑虑但无动作（\"也许可以？以后呢？\"）。要么说\"安全\"并给出为什么（接在前一句的 dash 后），要么如果确实未定就改 \"Pending validation under [condition]\" 并给出 owner / deadline。 |\n| \"The cast below is safe — it simply narrows the type\" → \"The cast below is safe — it narrows the type only\" | 删冗词：`simply` 是修辞词，`only` 已经表达了同一个意思（\"仅仅是类型窄化，没有值的改变\"）。 |\n\n## 补充建议\n\n如果这段是在某个代码块之前，更好的做法是 **把注释写进代码本身**，而不是在 README 里重述：\n\n```typescript\n// Safe to cast: we narrow the type only after removing the legacy loader path.\nconst config = sourceConfig as NarrowedType;\n```\n\n这样 README 可以直接删掉这整段，让读者去代码里找真相。\n"
+          }
+        ]
+      },
+      "head": {
+        "rev": "09ba4e8e4ccbf0b266530a8058a78b77ee6c0193",
+        "body_sha256": "5a7ee9f7d496ce235891e6ec2395a3396f181c4da3c5c4876979a2eae71b14c5",
+        "prompt_sha256": "5616a1b5f97e4a6b264bc06d7c8a2d8e9d52d8100e2a783e033fd1a191bd44d5",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 1097,
+            "raw": "根据 tighten-doc 中的 **session-vantage-leakage** 规则，这段文字包含多个会话视角泄漏。改后版本和理由如下：\n\n---\n\n**改后文本：**\n\n```\nThis module parses config through [specify the method]. The cast below is safe—it narrows the type without changing the underlying value.\n```\n\n---\n\n**修改理由：**\n\n| 原文部分 | 问题类别 | 改法与理由 |\n|---------|--------|---------|\n| `used to parse...no longer does` | 变更叙事（泄漏 #3） | 删除。README 描述现状，不叙述变更历史；用现在式陈述当前行为。 |\n| `(see design §4.7 and decision 7)` | 死设计会话引用（泄漏 #1） | 删除。未提交内部草稿的阶段代号（如 decision 7）和设计引用只在工作会话内有效；HEAD 读者无法解析。如有已发布设计文档应按真实名称+路径引用。 |\n| `after PR #212` | Stack 视角（泄漏 #2） | 删除。PR 号是工作过程信息，不是代码状态描述。变更故事属于 commit/PR 讨论，不属 README。 |\n| `as the reviewer confirmed in round 3` | 对评审者的辩护（泄漏 #5） | 删除。评审轮次和评审者意见是工作过程；README 读者不需要这个上下文。只保留最终决定的事实。 |\n| `Probably fine for now` | Hedge 与规划残留（泄漏 #7） | 删除。模糊的\"probably\"既不表达安全保证，也不标注已知限制。改写为明确机制说明（类型窄化且值不变）。 |\n| `The cast below is safe — it simply narrows the type` | 补强论据 | 补充 `without changing the underlying value`，使安全论据完整。仅说\"narrowing type\"可能让读者误解还有其他风险；明确值不变才是完整的安全保证。 |\n\n---\n\n**核心改变：** 从工作过程叙述（变更史、评审编排、设计会话引用）转换为现状描述（当前行为 + 安全机制），让 README 读者不需要会话记录就能理解。\n"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 1037,
+            "raw": "# 审阅与优化\n\n## 改后文本\n\n「This module parses config through the current loader, not the legacy loader. The type cast narrows the type safely.」\n\n或（如需保留变更参考）：\n\n「This module parses config through the current loader (see #212), not the legacy loader. The type cast narrows the type safely.」\n\n---\n\n## 修改理由\n\n| 删改项 | 类别 | 理由 |\n|------|------|------|\n| 删\"used to…no longer\" | 会话视角泄漏第 3 类（变更史代替现状） | README 只需说**现在是什么**，不说**以前是什么**。改为现在时陈述 `parses…` 让读者秒懂当前行为。 |\n| 删\"see design §4.7 and decision 7\" | 会话视角泄漏第 1 类（死的会话引用） | 这些是未提交的内部草稿引用，HEAD 处的读者无法解析。若有重要背景，应进 issue/PR description 或决策记录，不在 README。 |\n| 保留 #212（可选） | 例外：issue/ticket 引用 | 如果需要指向完整变更，#212 是可解析的公开引用，可保留作为深度链接。 |\n| 删\"as the reviewer confirmed in round 3\" | 会话视角泄漏第 4 类（评审编排） | 删掉评审过程标记（谁、哪轮）。保留结论：cast 的安全性在于\"narrows the type\"这个事实。 |\n| 删\"Probably fine for now\" | 会话视角泄漏第 7 类（hedge 与规划残留） | 模糊的 hedge 不属于 README。若代码现在可用就说\"safely\"；若有已知后续工作，转成 `TODO` 或独立 issue。 |\n\n---\n\n## 总体评价\n\n原文是典型的**会话视角泄漏**：混入了变更故事（\"used to\"）、死的会话引用（设计 § 号、round 3）、和对评审者的辩护。改后删掉所有过程痕迹，只保留 HEAD 处读者的必读信息：现在的机制 + 代码为何安全。\n"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 779,
+            "raw": "改后文本：\n\n> This module parses config with a type-narrowing cast.\n\n---\n\n## 修改理由\n\n1. **删掉变更叙事** (\"used to\"、\"no longer\")  \n   会话视角泄漏第 3 类。README 写现在是什么，不是过去的历史。\n\n2. **删掉死的会话引用** (\"see design §4.7 and decision 7\")  \n   会话视角泄漏第 1 类。内部草稿在 HEAD 无法解析；如果有已提交的决策记录，应替换为实际文档路径；否则直接删。\n\n3. **删掉 PR 视角** (\"after PR #212\")  \n   会话视角泄漏第 2 类。PR 号属于 git log，不是 README 的内容。\n\n4. **删掉对评审者的辩护** (\"The cast below is safe — it simply narrows the type, as the reviewer confirmed in round 3\")  \n   会话视角泄漏第 4 类 + DELETE #5。评审过程和\"评审者说它是对的\"都不是维护者需要知道的；这类说明应该在代码注释里，如果确实需要的话。\n\n5. **删掉无标记的规划残留** (\"Probably fine for now\")  \n   会话视角泄漏第 7 类。这既不是明确的已知限制，也不是 TODO 标记；改成一句现在时陈述或开 issue。\n\n---\n\n**判据**：一个只看 HEAD 仓库、没有这次会话、PR 讨论、设计稿的读者，能否理解这段话？原文的每一句都要求读者了解\"过去做过什么\"\"哪个 PR 改了\"\"第 3 轮评审怎么说的\"——这些都是仓库里读不到的。改后文本是一句独立的、现时的陈述。\n"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 1293,
+            "raw": "**改后文本：**\n\n```\nThis module parses config through the new loader. The cast below is safe because it simply narrows the type.\n```\n\n**每处修改的理由：**\n\n| 原文 | 改后 | 理由 |\n|------|------|------|\n| \"This module used to parse config through the legacy loader\" | \"This module parses config through the new loader\" | **变更叙事** (session-vantage #3)：README 描述现状，不描述历史。\"used to\" 暗示过去时，应改成现在时陈述。核心事实是\"现在用新 loader\"，写现在就好。 |\n| \"(see design §4.7 and decision 7)\" | 删除 | **死的设计会话引用** (session-vantage #1)：`§4.7` 和 `decision 7` 都是会话内部编号，HEAD 读者无法解析。无法用可访问的引用替代时应删除；如果这个背景对 README 读者很关键，应转成本仓的链接（如 `README.md#config-migration` 或 issue 号）。 |\n| \"after PR #212 it no longer does\" | 删除 | **PR 视角 + 变更叙事** (session-vantage #2, #3)：\"after PR\" 假设读者在看这个 PR 的堆栈；\"no longer\" 是变更叙事。现状类页面直写现在的事实，不引入 PR 栈上下文。PR 号留在 git 历史，不在README。 |\n| \"The cast below is safe — it simply narrows the type, as the reviewer confirmed in round 3.\" | \"The cast below is safe because it simply narrows the type.\" | **评审编排** (session-vantage #4)：\"as the reviewer confirmed in round 3\" 面向评审者，不是维护者。直写\"为什么安全\"（理由：类型收窄），删掉\"谁说的\"。 |\n| \"Probably fine for now.\" | 删除 | **Hedge 与规划残留** (session-vantage #7)：\"Probably\" 表达不确定，\"for now\" 暗示有改动计划。持久文档应给明确的界限或转成 `TODO`；没有进一步的改动计划就直接删。 |\n\n**总体效果：** 从会话中心的变更叙事转换为仓库中心的现状陈述，让一个只读 README 无会话记录的新手能清楚理解这段代码的现状和 cast 的安全理由。\n"
+          }
+        ]
+      }
+    },
+    "prd-enforcement-review": {
+      "task_sha256": "66691ada105b6a9d4e3bb21a6f86d137c03e56ac7f671b79e35044db7b5ea142",
+      "required": [
+        "执行器|executor|执行层|执行时|运行时检查|绕过|bypass|直接调用",
+        "prompt|提示|schema",
+        "transport|plugin|gRPC|实现细节|实现词汇|模型.{0,6}(不需要|无关)"
+      ],
+      "base": {
+        "rev": "673fece3cf3d893ed6707119f60cd656f3ae6331",
+        "body_sha256": "87135449d107303114d2ce1adff4fa6349cd4dd89ade0ca1c7d36a1407458b8c",
+        "prompt_sha256": "20864f507370aa6bb125f94049769987fe87aabfa38a74799857f90a403a12be",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 1862,
+            "raw": "# Agent 工具 PR 评审：`delete_branch(name)`\n\n**结论：REJECTED — 严重的安全防护设计缺陷**\n\n## 关键问题\n\n### 1. 防护位置错误（Security/Fail-Closed Violation）\n\n**问题**：防护措施全部在执行器外围，执行器本身无检查。\n- 系统提示：\"绝不对 main 调用\" → 容易被遗忘、遗漏或 prompt injection 绕过\n- Schema 描述删除 main 选项 → 隐藏，不是强制\n- 执行器本身：**无任何检查**\n\n**为什么这是缺陷**：\n- Code Review Checklist §Security: \"*Protected endpoints authenticate before side effects and authorize resource access*\"\n- 根据 high-risk-resilience-gates，**分支删除**影响代码库完整性、发布状态、team 工作流 → 属于 write-finality/critical-operation 类\n- LLM 系统提示是**不可靠的防护层**（会话隔离、多轮衰减、模型变更、prompt injection）\n- 删除 main 分支是**无法撤销的破坏性操作**，需要 fail-closed 防护\n\n### 2. 防护应该在代码执行层\n\n**正确做法**：\n```\n工具执行器：\nif name == \"main\" or is_protected_branch(name):\n    return error(\"Cannot delete protected branch: %s\", name)\n```\n\n**不应该依赖**：\n- ✗ 系统提示的指示\n- ✗ Schema 中隐藏选项\n- ✓ 工具执行器中的显式检查\n\n### 3. 额外的问题\n\n**\"通过 GitOpsPlugin 的 gRPC transport 执行\"**：\n- 这句话暗示防护可能在 GitOpsPlugin 层\n- **评审缺上下文**：GitOpsPlugin 是否已有 main 保护？如果有，为什么工具层不重复它（defense-in-depth）？如果没有，这句话就是虚假的防护声称\n\n## 要求的修复\n\n**阻塞合并**，直到满足以下条件之一：\n\n1. **工具执行器添加显式检查**：\n   - 在 executor 层拒绝 protected_branches（main, develop, release/* 等，按仓库 policy）\n   - 返回清晰的错误信息\n   - 有单元测试证明 main 拒绝生效\n\n2. **明确说明防护链**：\n   - 如果依赖 GitOpsPlugin 保护，在 PR 中证明：仓库配置里 GitOpsPlugin 已启用、已配置 main 为 protected、测试证明 gRPC 调用被拒绝\n   - 然后在工具层添加冗余检查（defense-in-depth）\n\n3. **测试覆盖**：\n   - 单测：`test_delete_branch_rejects_main()` \n   - 单测：`test_delete_branch_rejects_protected_branches()`\n   - 确认 Schema 中的 main 删除不会造成漏洞\n\n## 风险分类\n\n- **Severity**: 🔴 Critical\n- **Category**: Destructive operation without fail-closed guard\n- **Blast radius**: Repository state corruption, team workflow disruption, release branch loss\n- **Detection difficulty**: High (LLM-based system prompt guards are unreliable)\n\n---\n\n**反馈给作者**：防护不能依赖 LLM 的记忆或系统提示。分支删除是破坏性操作，必须在代码执行器本身硬编码拒绝列表。参考 Code Review Checklist §Security 和 high-risk-resilience-gates。\n"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 4280,
+            "raw": "# 代码评审 — `delete_branch(name)` 工具 PR\n\n## 总体结论\n\n**不可通过合并。严重安全缺陷**：防护层级错位 + 执行端无检查 + 防护依赖隐藏而非拒绝。\n\n---\n\n## 关键问题\n\n### 1. **防护层级错位** ⚠️ 高危\n\n**问题**：系统提示中写「绝不对 main 调用」是 instruction，不是执行防护。\n- Agent 可能受到 prompt injection\n- 系统提示是上下文指导，**不是安全边界**\n- 用户或其他 agent 调用可能绕过系统提示\n\n**正确做法**：执行层（工具函数本身）必须有显式检查\n\n```python\n# ❌ 不足\ndef delete_branch(name: str):\n    # \"系统提示说了，所以 agent 不会调用 main\"\n    return git.delete_branch(name)\n\n# ✅ 正确\ndef delete_branch(name: str):\n    if name.strip() in [\"main\", \"master\", \"develop\"]:\n        return {\"error\": \"Cannot delete protected branch\"}\n    return git.delete_branch(name)\n```\n\n**影响**：任何绕过系统提示的方式（如 prompt injection、直接 API 调用、多轮对话混淆）都能删除 main。\n\n---\n\n### 2. **Schema 删除 = 隐藏，不是防护** ⚠️ 中危\n\n**问题**：\n- 把 schema 中 main 选项删掉 ≠ 防止传入 \"main\"\n- Agent 可以：\n  - 通过变量拼接构造 main：`branch = \"m\" + \"ain\"`\n  - 尝试其他受保护分支名：develop / staging / release-*\n  - 通过字符串操作规避检查\n\n**正确做法**：\n- 保留 schema 中的完整分支名选项（如果适用），但在执行层拒绝\n- 或显式在 schema 的 `description` 中说\"不支持 main/master/develop\" + 执行层检查，两层都有\n\n---\n\n### 3. **执行器无检查** ⚠️ 最严重\n\n**缺陷**：工具执行端完全无防护逻辑\n\n```python\n# 假设当前实现\ndef delete_branch(name: str):\n    git_command = f\"git push origin --delete {name}\"\n    subprocess.run(git_command, shell=True)  # 如果 name=\"main\"？\n```\n\n如果执行层没有检查，即使系统提示 + schema 限制都存在，只要 agent 调用了参数 `name=\"main\"`，执行器就会执行。\n\n**验证项**：\n- [ ] 工具实现中是否有 `if name in PROTECTED_BRANCHES: raise/return error`？\n- [ ] 如果没有，这是 **critical bug**，不能合并\n\n---\n\n### 4. **\"通过 GitOpsPlugin 的 gRPC transport 执行\"含义不清** ⚠️ 中危\n\n**问题**：\n- 这句描述暗示\"传输层可能有防护\"\n- 但工具文档中没有明确说：gRPC transport 是否会拒绝 main？\n- 这可能是在推卸工具层防护职责\n\n**必须澄清**：\n- 工具层（本工具）是否负责检查？**是的，必须**\n- 传输层（gRPC）是否也有防护？如果是，需要在审查中验证\n- 不能依赖\"下游可能挡住\"就认为本工具可以不挡\n\n---\n\n## 代码评审检查清单命中\n\n根据 **code-review-checklist.md** §Security：\n\n| 项目 | 状态 | 说明 |\n|------|------|------|\n| **Inputs are validated server-side for type, length, format, range, and authorization scope** | ❌ 失败 | 分支名入参无范围/授权检查 |\n| **Protected endpoints authenticate before side effects and authorize resource access** | ❌ 失败 | 删除操作无权限控制（无检查保护分支） |\n| **Security policy in prompts ≠ security boundary** | ❌ 违反 | 依赖系统提示而不是代码执行检查 |\n\n---\n\n## 修复方案（必须完成才能合并）\n\n### 1. 执行器加显式检查（必须）\n\n```python\ndef delete_branch(name: str) -> dict:\n    \"\"\"Delete a git branch.\n    \n    Args:\n        name: Branch name to delete\n        \n    Returns:\n        {\"success\": bool, \"error\": str or None}\n        \n    Raises:\n        ValueError: If branch is protected\n    \"\"\"\n    PROTECTED_BRANCHES = {\"main\", \"master\", \"develop\", \"staging\"}\n    \n    if name.strip().lower() in PROTECTED_BRANCHES:\n        return {\n            \"success\": False,\n            \"error\": f\"Cannot delete protected branch: {name}\"\n        }\n    \n    try:\n        # 实际删除逻辑\n        result = git.delete_branch(name)\n        return {\"success\": True, \"error\": None}\n    except Exception as e:\n        return {\"success\": False, \"error\": str(e)}\n```\n\n### 2. Schema 描述补充（必须）\n\n```json\n{\n  \"name\": \"delete_branch\",\n  \"description\": \"Delete a git branch. Protected branches (main, master, develop, staging) cannot be deleted.\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"name\": {\n        \"type\": \"string\",\n        \"description\": \"Branch name to delete (not main, master, develop, or staging)\"\n      }\n    },\n    \"required\": [\"name\"]\n  }\n}\n```\n\n### 3. 移除系统提示中的防护声明（应该）\n\n系统提示中 `\"绝不对 main 调用\"` 应该删除或改成：\n- `\"delete_branch tool will reject main/master/develop/staging — the tool enforces this protection\"`\n\n这样 agent 才知道是工具层的硬限制，不是建议。\n\n### 4. 澄清 gRPC transport 防护（应该）\n\n在工具文档中明确：\n```\n执行流程：Agent 调用 delete_branch(name) → 本工具检查保护分支 \n         → 允许时调用 GitOpsPlugin gRPC transport → 删除执行\n\n安全防护：\n  - 一级：工具层显式检查（本工具）✓ 必须\n  - 二级：传输层权限检查（GitOpsPlugin gRPC）[待确认]\n```\n\n---\n\n## 检查清单\n\n- [ ] 工具执行器添加 PROTECTED_BRANCHES 检查\n- [ ] 分支名检查在执行前，不在系统提示\n- [ ] Schema description 明确说明保护分支限制\n- [ ] 测试用例：`delete_branch(\"main\")` 返回 error，不执行删除\n- [ ] 测试用例：`delete_branch(\"feature/x\")` 正常执行\n- [ ] 移除或改写系统提示中的防护声明\n- [ ] 文档澄清：本工具是防护第一线\n\n---\n\n## 建议的验证命令\n\n```bash\n# 验证工具是否拒绝 main\ncurl -X POST /api/tools/delete_branch -d '{\"name\": \"main\"}' \n# 预期：{\"success\": false, \"error\": \"Cannot delete protected branch: main\"}\n\n# 验证工具允许常规分支\ncurl -X POST /api/tools/delete_branch -d '{\"name\": \"feature/test-123\"}' \n# 预期：{\"success\": true}\n```\n\n---\n\n## 结论\n\n**本 PR 不可合并**。必须先完成 §修复方案 中的\"必须\"项，补充执行层防护，然后重新提交审查。安全防护必须在执行代码中实现，不能依赖系统提示或 schema 隐藏。\n"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 1543,
+            "raw": "使用 Product R&D Workflow 的 Code-Review-Checklist 框架评审这个 PR：\n\n---\n\n## 评审结论：**NOT READY** — 高风险防护失效\n\n### Critical Issues\n\n#### 1. **执行端硬检查缺失** ⚠️ BLOCKING\n- **位置**：工具执行器实现  \n- **问题**：工具执行时无条件删除分支，没有任何代码层防护  \n- **为何不足**：\n  - 系统提示和 schema 隐藏都是文本/UI 层，**对执行器无约束力**\n  - Agent 可能被 prompt injection 绕过、误解指令、或权限提升后直接调用\n  - 删除 main/default branch 属于 **write-finality risk**（不可恢复的破坏性写操作），必须 fail-closed\n- **影响**：仓库可被削除到不可用状态  \n- **修复**：在执行端硬检查\n  ```\n  删除操作前必须验证：\n  1. branch name 不在禁止列表（main, master, develop, 以及 repo 配置的 protected branches）\n  2. 失败返回明确 error，不沉默失败\n  3. 操作日志完整记录\n  ```\n\n#### 2. **防护策略倒置** ⚠️ BLOCKING\n- **问题**：依赖 agent/人的自律，而非代码层强制  \n- **背离标准**：\n  - 本 workflow 的 High-risk resilience gating：写操作、权限、数据隔离类需显式 gate\n  - Code-Review-Checklist Security：protected endpoints 在执行前鉴权、有强制guards\n- **案例对标**：Git CLI 本身有 `-D` 强制删除但会警告；webhook/API 应该在服务端硬防 protected branch，不能只在文档里说「不要删」\n\n#### 3. **gRPC transport 描述含糊** ⚠️ MEDIUM\n- **问题**：在工具描述里加「通过 GitOpsPlugin 的 gRPC transport 执行」  \n- **为何有问题**：\n  - 这是实现细节还是信任边界/权限模型的变化？\n  - 如果涉及权限/审计模型变化 ⇒ 应在设计文档明确、评审完成后再落地\n  - 如果只是 transport 实现 ⇒ 属于代码注释，不应暴露在工具 schema 描述里\n- **修复**：澄清背景，挪到代码注释或补充设计文档\n\n#### 4. **缺少防护测试** ⚠️ HIGH\n- **缺失**：\n  - ❌ 删除 main 应返回 error 的单测\n  - ❌ protected branch list 校验的覆盖\n  - ❌ 正常分支能成功删除的对照测试\n- **修复**：补全防护场景的测试矩阵\n\n---\n\n## 验收标准（Fix 后重审）\n\n1. ✅ 执行端有硬检查代码（不是文本警告）  \n2. ✅ 禁止分支列表可配置，至少包含 main/master  \n3. ✅ 违反防护时返回有意义的 error message  \n4. ✅ 完整的单测覆盖（删除 main→error，删除普通分支→success）  \n5. ✅ gRPC transport 信息改为代码注释，或补充设计文档说明权限模型  \n\n---\n\n**不能因为「系统提示说了」或「schema 隐藏了」就认为 safe，高风险写操作必须在执行代码里硬防护。**\n"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 1858,
+            "raw": "根据代码评审清单对这个 PR 进行评审：\n\n## 评审结论：**REJECT** — 关键安全防护缺失\n\n---\n\n## 主要问题\n\n### 1. **Security — Fail-Closed 原则违反**（HIGH）\n\n系统提示中的「绝不对 main 调用」是**行为指导，不是技术防护**。这个设计有三个严重缺陷：\n\n- **Agent 可绕过系统提示**：Agent 的行为指导无法成为安全边界；恶意 Agent、错误的系统提示版本、或上游 Agent 的指令可以轻易绕过\n- **Schema 描述删除 ≠ 实际防护**：从 schema 中移除 `main` 选项只是隐藏，执行器仍会接受并执行 `delete_branch(\"main\")`\n- **执行器无检查**：关键的危险操作（删除主分支会导致仓库不可用、破坏 CI/CD、阻断团队工作）必须在**执行端**有硬制约，不能依赖调用方的自律\n\n**修复要求**：\n```python\ndef delete_branch(name: str):\n    if name in [\"main\", \"master\", \"develop\"]:  # 硬制约\n        raise PermissionError(f\"Cannot delete protected branch: {name}\")\n    # 执行删除逻辑\n```\n\n---\n\n### 2. **Correctness — 虚假的安全架构**（HIGH）\n\n三层防护中有两层失效：\n- 系统提示 — 无技术强制力\n- Schema 移除 — 虚假的 UX 安全\n- **执行器检查 — 完全缺失**（这是唯一可信的层）\n\n这种设计会给代码审阅者、用户、和运维造成虚假的安全感，实际上没有任何防护。\n\n---\n\n### 3. **Scope Completeness — 缺少风险场景覆盖**（MEDIUM）\n\n没有交付：\n- 被保护分支的枚举逻辑（是固定列表还是通过 Git config 读取？）\n- 测试用例：直接尝试删除 `main` 时的行为\n- 回滚/错误处理：如果删除失败，错误信息是否会暴露仓库结构\n\n---\n\n### 4. **设计问题 — 工具描述泄露实现细节**（MEDIUM）\n\n> \"通过 GitOpsPlugin 的 gRPC transport 执行\"\n\n这行文字：\n- 是实现细节，不是用户接口约定\n- 在 schema/description 中出现表明契约设计不清晰\n- 如果 transport 改成 REST 或其他，这句就过时了\n\n**修复**：工具描述应只说\"删除 Git 分支\"，transport 细节放在内部文档或代码注释。\n\n---\n\n## 修复清单\n\n必须修复后才可考虑合并：\n\n1. ✅ **在执行器中添加硬制约**（非协商项）\n   ```python\n   PROTECTED_BRANCHES = {\"main\", \"master\"}  # 可从 config 读取\n   if name in PROTECTED_BRANCHES:\n       raise PermissionError(...)\n   ```\n\n2. ✅ **写测试用例** — 验证删除 `main` 被拒绝\n   ```python\n   def test_delete_protected_branch_fails():\n       with pytest.raises(PermissionError):\n           delete_branch(\"main\")\n   ```\n\n3. ✅ **更新 schema 和文档** — 移除 gRPC 实现细节，明确说明哪些分支是受保护的\n\n4. ✅ **移除系统提示中的防护描述** — 不要依赖 prompt 来保证安全（对用户造成虚假安全感）\n\n---\n\n## 为什么这个 PR 不能按现状合并\n\n这个工具会直接暴露给 Agent 使用。Agent 的行为依赖系统提示，但系统提示可能：\n- 被用户覆盖\n- 被上游 Agent 忽略\n- 被版本控制中的陈旧指导绕过\n\n**硬制约在执行端失效时**，删除 `main` 分支就成了可能的灾难性操作。这不是代码质量问题，是**可用性事件**。\n\n---\n\n**Author Action**: 修复上述 4 个检查点，重新提交评审。\n"
+          }
+        ]
+      },
+      "head": {
+        "rev": "09ba4e8e4ccbf0b266530a8058a78b77ee6c0193",
+        "body_sha256": "b57c233161b0a30ffd798adc2d699b943f8c1b1814584442dbd3d67c8f0588d3",
+        "prompt_sha256": "df6d718e47197e94288999b08de79028f96bb0ae09082046ce3ad90b5c112d57",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 1088,
+            "raw": "评审结论：**BLOCKER — 安全执行缺陷**\n\n---\n\n## 问题\n\n根据 code-review-checklist 的 **Model-Facing And Enforcement** 规则：\n\n> Schema omission, prompt filtering, facades, wrappers, and listener ordering are not enforcement when a direct or alternate caller can bypass them; **the deny must be tested through the executor.**\n\n本 PR 违反了这条核心原则：\n\n1. **Prompt-level 约束不可信**  \n   系统提示中的「绝不对 main 调用」是劝阻性建议，不是代码执行约束。模型可能：\n   - 被用户注入攻击绕过\n   - 在多轮对话中遗忘约束\n   - 通过其他工具间接调用\n\n2. **Schema 删除选项不是防御**  \n   从 schema 描述里删掉 main 选项只是隐藏了UI层的选择，但：\n   - 模型可以直接传入 `name=\"main\"` 调用工具\n   - 不能阻止任何调用路径\n\n3. **执行器无检查 ⇒ 防御失效**  \n   工具执行器本身对 main 分支没有任何保护逻辑，所以上述两层防御全部可绕过，最终还是会执行删除。\n\n---\n\n## 必需的修复\n\n在 `delete_branch()` 执行器中添加**显式拒绝**逻辑：\n\n```python\ndef delete_branch(name: str) -> Result:\n    if name == \"main\":\n        return Error(\"Cannot delete main branch — protected by policy\")\n    # ... 执行删除 ...\n```\n\n验证方式：写一个测试用例，直接调用 `delete_branch(\"main\")`，验证它返回拒绝而不是执行删除。\n\n---\n\n## 次要问题\n\n- 工具描述里提到「通过 GitOpsPlugin 的 gRPC transport 执行」：  \n  如果这是在暗示 transport 层会做检查，**必须明确这个依赖**，并在 PR 描述中引用 GitOpsPlugin 的防御代码行数。隐含的跨组件防御不可靠。\n\n---\n\n## 结论\n\n不合并。修复后重审。\n"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 1249,
+            "raw": "# Agent 工具 PR 审查：delete_branch 工具\n\n**阻断问题（Blocker）**\n\n---\n\n**问题 1：执行层缺失 main 分支防护检查**\n\n- **位置**：delete_branch 工具执行器函数\n- **严重性**：阻断（Security）\n- **问题描述**：  \n  当前防护依赖于两层用户可见层：系统提示中的自然语言指导 + schema 中的 main 选项删除。但执行器本身无任何检查。这违反了代码审查清单中的核心规则：\n  \n  > \"Schema omission, prompt filtering, facades, wrappers, and listener ordering are not enforcement when a direct or alternate caller can bypass them; the deny must be tested through the executor.\"\n  \n  攻击者、误配置的客户端、或在某些上下文中模型忽略系统提示时，都可以直接调用 `delete_branch('main')`，系统完全无法阻止。\n\n- **建议修复**：\n  ```\n  def delete_branch(name: str):\n      if name == 'main' or name == 'master':\n          raise ValueError(\"Cannot delete protected branch 'main'\")\n      # 执行删除逻辑\n  ```\n  防护必须在执行层强制实施，不能依赖提示或 schema 过滤。\n\n---\n\n**非阻断但需要修正**\n\n---\n\n**问题 2：工具描述中包含实现细节**\n\n- **位置**：工具描述文本（「通过 GitOpsPlugin 的 gRPC transport 执行」）\n- **严重性**：中等（Model-facing clarity）\n- **问题描述**：  \n  工具对模型可见的描述不应包含「通过 GitOpsPlugin 的 gRPC transport 执行」这类实现细节。模型：\n  - 无法也无需理解 gRPC transport 的存在\n  - 可能因为读到这个细节而尝试构造相关的调用逻辑\n  - 增加了认知负担，偏离了工具的实际语义\n\n- **建议修复**：  \n  从模型可见的工具描述中删除该句。保留清晰的、面向调用者的描述：`\"Delete a Git branch by name. Protected branches cannot be deleted.\"`\n\n---\n\n**结论**\n\n此 PR **不适合合并**。执行层的缺失防护是关键安全漏洞——多层用户可见的防护（提示 + schema）给了虚假安全感，但真正的强制必须在代码中。修复后需重新审查。\n"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 1922,
+            "raw": "# 评审结论：阻塞（Blocking）\n\n## 核心问题\n\n**执行器缺少防护，安全防御靠 prompt/schema 过滤无法达成。**\n\n---\n\n## 详细发现\n\n### 1. **虚假的删除防护** — Blocking Severity\n\n**问题：** 防止删除 `main` 的三层防护都是无效的：\n\n| 防护层 | 形式 | 为什么无效 |\n|--------|------|----------|\n| 系统提示 | 文本规则\"绝不对 main 调用\" | Model 可被诱导、prompt 注入、或上下文冲突覆盖该指示 |\n| Schema 删除 | 从 schema 中删除 main 选项 | Schema omission 是**隐藏**不是**拒绝**；执行器本身无校验 |\n| 执行器 | **无任何检查** | ⚠️ 最关键的缺陷：直接调用方（其他脚本、CI/CD、SDK 用户）可绕过所有上游过滤 |\n\n**代码评审清单规则**（Model-Facing and Enforcement）：\n> \"Schema omission, prompt filtering, facades, wrappers, and listener ordering are not enforcement when a direct or alternate caller can bypass them; **the deny must be tested through the executor**.\"\n\n**具体风险：**\n- 执行器 `delete_branch(name)` 直接接收 `name` 参数，没有 `if name == \"main\": reject` \n- 恶意用户、其他工具、或失控的 agent loop 都可以调用执行器，绕过 schema 和 prompt\n- `main` 分支被删除后，通常无法恢复（git reflog 可能过期），影响整个团队\n\n---\n\n### 2. **隐藏实现细节无益** — Non-Blocking Clarification\n\n**问题：** 工具描述中加入\"通过 GitOpsPlugin 的 gRPC transport 执行\"。\n\n**为什么是问题：**\n- Model 看不懂这句话（无法对 gRPC 或 plugin 做任何操作）\n- 这是实现细节，不是工具契约的一部分\n- 反而增加了 model 的混淆，可能导致生成的调用逻辑错误\n\n**建议：** 删除该句或移到内部注释。工具描述应该只说**做什么**（删除 git 分支），不说**怎么做**（transport 细节）。\n\n---\n\n## 修复方案（必须）\n\n### 执行器层级添加防护：\n\n```python\ndef delete_branch(name: str) -> Dict[str, Any]:\n    \"\"\"删除 Git 分支。\"\"\"\n    # 执行器层的强制检查\n    if name in [\"main\", \"master\", \"develop\"]:\n        return {\n            \"success\": False,\n            \"error\": f\"Cannot delete protected branch: {name}\"\n        }\n    \n    # 继续执行删除逻辑\n    ...\n```\n\n### 恢复 Schema：\n\n- **保留** `name` 参数的 enum 或 description，说明\"不支持删除 main/master/develop\"\n- 这是**文档**，不是**防护**，但帮助用户和 model 理解限制\n\n### 更新工具描述：\n\n```\n删除指定的 Git 分支。不支持删除 main、master、develop 等保护分支。\n```\n\n（删除 gRPC transport 细节）\n\n---\n\n## 验收标准\n\nMR 可合并当且仅当：\n\n1. ✅ 执行器中有 hardcoded 检查拒绝 `main` 等保护分支\n2. ✅ 检查通过单元测试验证（调用 `delete_branch(\"main\")` 返回错误）\n3. ✅ 工具描述清晰说明保护分支限制，移除实现细节\n4. ✅ 系统提示中的防护改为**参考性说明**而非**唯一依赖**\n\n---\n\n**建议：** 先修改执行器和测试再重新提交。Schema + Prompt 防护不足以保护高权限操作。\n"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 1324,
+            "raw": "Loading code-review checklist from product-rd-workflow to apply model-facing and enforcement rules.\n\n## 评审结论：REJECT — 阻塞性 Enforcement 缺陷\n\n### 阻塞问题（P0）\n\n**Schema omission 和 prompt filtering 不构成 enforcement**\n\n- 作者删除 schema 中的 `main` 选项，**但这不是真正的防护**。Agent 仍可直接传入 `name: \"main\"`，executor 会执行。\n- 系统提示中的「绝不对 main 调用」是**建议性文本**，不是防护。LLM 可能遵从，也可能被对抗性绕过或忽视。\n- **工具执行器本身没有检查** — 这是致命缺陷。删除分支是权限影响的破坏性操作，**必须在后端 enforce**，不能依赖 schema 隐藏或 prompt 建议。\n\n**要求：在 executor 里添加守护**\n```python\ndef delete_branch(name: str):\n    if name in [\"main\", \"master\", \"develop\"]:  # 按项目配置\n        raise PermissionError(f\"Cannot delete protected branch: {name}\")\n    # ... 真正的删除逻辑\n```\n\n或更佳：通过 RBAC/permission 检查，而非硬编码分支名单。\n\n**参考规则**（code-review-checklist.md § Model-Facing And Enforcement）：\n> Follow every denial path to the operation that executes it. Schema omission, prompt filtering, facades, wrappers, and listener ordering are not enforcement when a direct or alternate caller can bypass them; the deny must be tested through the executor.\n\n---\n\n### 非阻塞问题\n\n**Implementation 细节泄露**\n- 「通过 GitOpsPlugin 的 gRPC transport 执行」是 session-vantage leakage（实现细节）。Agent 不需要知道 transport 机制。\n- 修正：改为「删除指定的 Git 分支」。\n\n---\n\n### 建议（修复后再讨论）\n\n- 单元测试：证明 `delete_branch(\"main\")` 被拒绝\n- 错误处理：分支不存在/权限不足时的清晰错误消息\n- Audit 日志：删除分支操作应被记录\n\n**决议**：修复 executor enforcement → 重新提交。\n"
+          }
+        ]
+      }
+    },
+    "dd-postmortem-criteria": {
+      "task_sha256": "ecbbe54021c4e92912298a88f87a7ab4c8112bbc9e08fe4149daa82893a34fd3",
+      "required": [
+        "subtle|systemic|costly|微妙|非显然|系统性|重新发现|再发现|代价|工具.{0,4}缺口|测试.{0,4}缺口",
+        "执行摘要|executive|30 秒|三十秒|开头|一段话",
+        "guardrail|护栏|回链|链接|测试|规则|决策记录"
+      ],
+      "base": {
+        "rev": "673fece3cf3d893ed6707119f60cd656f3ae6331",
+        "body_sha256": "9e0fbeac6e4e90ff34a7fcf8a27ab7eed8712dfd78e84057c868da85b061d7e4",
+        "prompt_sha256": "cb530aed750ddfe1339282057304f7e270c1480e6b5d4e2771413bedd9d3f0a6",
+        "pass": 0,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "subtle|systemic|costly|微妙|非显然|系统性|重新发现|再发现|代价|工具.{0,4}缺口|测试.{0,4}缺口"
+            ],
+            "len": 1648,
+            "raw": "根据 **defect-diagnosis** 规则中的 **Phase C 复杂性分级**，这个 bug **应该写正式 postmortem**。理由：\n\n## 判断依据\n\n**触发\"复杂缺陷\"的信号**（至少两个）：\n1. **Test layer is itself causal** — 测试全绿而产品崩，说明测试覆盖不足，无法catch加载器的行为\n2. **More than one expected control failed** — 既然崩在server启动，有多个防线应该挡住：\n   - 单测（失效了）\n   - 类型系统/构建时检查（如果有）\n   - 加载器的contract验证（失效了）\n3. **User-visible impact** — server无法启动 = 生产级业务影响\n\n**不是\"简单非事件\"** — 这不是\"开发者修了一处本地bug+单测就够了\"的情况，因为两个防线都失手了。\n\n---\n\n## 正式 postmortem 的必需部分\n\n**开头必须有：**\n1. **Timeline** — 何时发现、何时影响user、何时修复\n2. **Impact classification** — 多少用户/服务受影响、业务影响范围（启动失败=完全不可用）\n3. **Contributing causes（分层列举）** — 不是只说\"插件用了 default export\"，要说：\n   - 代码层：插件选了 default export\n   - 测试层：测试为什么没覆盖加载器依赖注入的路径\n   - 契约层：加载器对依赖申明的验证/假设是什么、为什么被绕过了\n\n**结尾必须链接：**\n1. **Action items** — 每项都要带 owner + deadline，例如：\n   - `@owner-1: Add regression test for default-export + DI injection path [due: DATE]`\n   - `@owner-2: Add pre-startup validator that checks loader can resolve DI declarations [due: DATE]`\n   - `@owner-3: Review plugin type/contract schema — clarify whether default export is prohibited [due: DATE]`\n2. **Swiss Cheese 多层防御** — 列出应该加的防线（不只fix代码）：\n   - 测试层：regression case\n   - 合规/contract层：lint/type rule禁止或标记default export\n   - 运行时层：loader启动时的assert/validation\n3. **What worked / didn't** — 例如：\n   - ❌ 单测未覆盖\n   - ❌ 加载器未在启动时验证DI完整性  \n   - ✅ X系统的告警catch了（如果有的话）\n\n---\n\n## 简明判断表\n\n| 信号 | 你的情况 | 结论 |\n|------|--------|------|\n| User-visible impact | ✓ (server崩) | → 写postmortem |\n| Test layer causal | ✓ (测试全绿但崩) | → 加复杂性权重 |\n| Multiple controls failed | ✓ (test + loader) | → 需要Swiss Cheese |\n| Repeated/recurring | ? | 如果有历史，权重加倍 |\n\n**一句话**：因为不仅是修一个插件的代码，还需要检讨为什么两个独立的防线都失手了。\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "subtle|systemic|costly|微妙|非显然|系统性|重新发现|再发现|代价|工具.{0,4}缺口|测试.{0,4}缺口"
+            ],
+            "len": 1241,
+            "raw": "根据 defect-diagnosis skill 的规则，**这个 bug 值得写正式 postmortem**。\n\n## 判据\n\nSkill 中明确划分了何时需要正式 ceremony：\n\n> Reserve only the **formal blameless-postmortem ceremony** (timeline / impact / action-items with owners + due dates) for incidents with **user-visible or business-visible impact**.\n\n**这个 bug 是 user/business-visible**：产品启动自动化 server 就崩 → 这是产品侧的可见故障，触发了正式 ceremony 的条件。\n\n同时需要「widen 分析」，因为这是复杂缺陷（complexity trigger 命中）：\n- **多层失效**：test layer 全绿但 runtime 才发现 → 测试层有漏洞\n- **跨越多个 Diagnosis Playbook 维度**：涉及设计（default export 处理）、加载器合约、测试隔离\n- 一个预期的控制失败（单测没抓住这个 contract 问题）\n\n所以需要 **Swiss Cheese 分析**，不仅修好代码，还要枚举各层的漏洞并补救。\n\n---\n\n## 正式 Postmortem 的结构\n\n**开头必须有**：\n1. **Timeline**（发现/影响/修复的时间点）\n2. **Impact**（有多少用户/部署受影响、持续时间）\n3. **Root Cause**（插件 default export + 加载器丢依赖注入的机制）\n\n**结尾必须链接**：\n1. **Action Items**（每项 with 责任人 + 截止日期），至少覆盖：\n   - 依赖注入加载器的 contract 加固或文档\n   - 回归测试（集成或 e2e，不只单测）\n   - 可选的 linter/type check 规则（检测插件 export 方式）\n\n2. **Prevention Routing**（根据 skill 的 Prevention Routing 表）：\n   - 如果是设计侧（export 模式、加载器合约）→ 架构技能\n   - 如果是测试层漏洞（单测隔离不足）→ `testing-strategy`\n   - 如果是加载器实现 bug → 对应的 dev skill\n\n3. **Swiss Cheese 分析**（各层的失败原因 + 补救）：\n   - 代码层：default export 的 contract 不清晰\n   - 测试层：单测没有集成加载器逻辑 → 加集成或 e2e 回归\n   - CI/部署层：生产前没有运行完整初始化 → 考虑预发布检查\n"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "subtle|systemic|costly|微妙|非显然|系统性|重新发现|再发现|代价|工具.{0,4}缺口|测试.{0,4}缺口"
+            ],
+            "len": 1100,
+            "raw": "根据 Defect Diagnosis 技能的 Phase C 规则，判断标准分两层：\n\n## 是否写正式 Postmortem\n\n**应该写**，因为满足触发条件：**有用户/业务可见影响**（server 无法启动）。\n\n技能明确指出：\n> Reserve only the **formal blameless-postmortem ceremony** (timeline / impact / action-items with owners + due dates) for incidents with user-visible or business-visible impact.\n\n你这个是自动化 server 启动失败，属于业务影响，达到 postmortem 的基线。\n\n## 判断依据\n\n但要注意复杂度分类——这个 bug **可能是「复杂」触发**，即使根因单一：\n\n- **单测全绿但崩溃** → 测试层有洞（缺少集成测试或端到端测试）\n- **跨多领域**：export 机制 + 加载器设计 + 依赖注入声明 + 测试覆盖\n- **多层防控同时失效** → Swiss Cheese 模型：代码审查、集成测试、加载验证都没挡住\n\n如果是「复杂」，即使没有用户影响也该宽化分析；既有用户影响又复杂，postmortem 就该覆盖多层闭包。\n\n## 如果写正式 Postmortem，必须有\n\n**开头必须包括**（Google SRE 书模板）：\n- **Timeline**：什么时候发现、什么时候确认、什么时候修好\n- **Impact**：有多少用户受影响、持续多长时间、业务损失量化（如果可能）\n- **Contributing Causes**：列出所有促成条件，不只是「default export」\n\n**结尾必须链接**（Swiss Cheese 模型）：\n- **哪些防控层有洞**：\n  - 代码审查为什么没挡住 export 机制风险？\n  - 单测为什么没有集成测试？\n  - 加载器为什么没有依赖声明验证？\n  - CI 为什么没有 smoke test（实际启动服务）？\n- **多层闭包承诺**：不只修代码，还要补测试、补检查、补 CI 阶段，每项都要有 owner + deadline\n\n**关键分支**：如果这个 bug 在同一模块重复出现过，或者其他插件也用了 default export，那就从「可能」升级到「必须」做复杂度宽化 + 多层改进。\n\n需要我帮你检查这个 bug 是否触发了\"重复\"或\"多层失效\"的复杂度信号吗？\n"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "subtle|systemic|costly|微妙|非显然|系统性|重新发现|再发现|代价|工具.{0,4}缺口|测试.{0,4}缺口"
+            ],
+            "len": 1306,
+            "raw": "根据 **Defect Diagnosis** skill 的 Phase C 判断标准：\n\n## 值不值得写正式 postmortem\n\n**判据是：用户/业务可见影响 vs 无用户影响**\n\n```\nReserve only the formal blameless-postmortem ceremony \n(timeline / impact / action-items with owners + due dates) \nfor incidents with user-visible or business-visible impact.\n```\n\n你这个 bug：\n- **CI 全绿 vs 启动崩** → 测试层有漏洞（multi-layer control failure）\n- **插件 default export** → 单点根因，但测试覆盖不足（test layer is itself causal）\n- 这是 **complex defect** 触发器\n\n**结论**：\n- 如果是 **测试/预发布环境**发现 → **不需要正式 ceremony**，但必须写 **5 Whys + 多层次分析**\n- 如果已**影响生产/用户** → **需要正式 ceremony**\n\n---\n\n## 为什么要做多层次分析（即使无用户影响）\n\n这是 **complex defect**（\"test layer is itself causal\" + \"more than one expected control failed\"）：\n- Layer 1 失败：单测没捕获插件导入方式\n- Layer 2 失败：可能还有 e2e/integration 测试、类型检查/lint 也没挡住\n\n→ 每层都要修复（Swiss Cheese 原则），不能只修代码\n\n---\n\n## 如果写 postmortem，开头和结尾包含什么\n\n**开头必须**：\n1. **Summary** — 现象 + 影响范围 + 发现时机\n2. **Timeline** — 各关键事件（何时发现、何时定位、何时修复）\n3. **Impact** — 用户/业务影响（具体数字）\n\n**结尾必须链接**：\n1. **Root Cause & Contributing Factors** — 分层列举\n   - 直接因：default export 导入方式\n   - 启用因：单测没有覆盖插件加载路径\n   - 二级控制失败：（e2e/类型检查等）\n2. **Action Items** — 各层修复，分别指派 owner + due date\n   - 代码修复（已完成）\n   - 单测补全（谁，何时）\n   - e2e/集成测试加强（谁，何时）\n   - 可选：加 lint 规则禁用 default export（如果风险大）\n\n**可选**：补充为什么测试全绿但启动崩（单测 scope 问题的分析）\n\n---\n\n**最常见的漏洞**：只修代码、不记录为什么多个控制层都漏掉了，下次还会重复。\n"
+          }
+        ]
+      },
+      "head": {
+        "rev": "09ba4e8e4ccbf0b266530a8058a78b77ee6c0193",
+        "body_sha256": "cc04dcd6302ab23341f200610d2344d8c9e32646adb6ba743700153d0a8701a5",
+        "prompt_sha256": "f8b24f85ac3613ae28de5746da1e5022f5c7af07e2c2c79b86f7e521e3c6edc5",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 991,
+            "raw": "根据 Defect-Diagnosis 技能的 Phase C（Root Cause And Prevention）指导，**应该写正式 postmortem**。\n\n## 判断依据（来自技能的 Scale Phase C depth to defect complexity）\n\n你的 bug 符合以下三个 postmortem 触发条件：\n\n1. **有业务可见影响** ✓  \n   Server 启动就崩 → 明确的业务影响\n\n2. **Subtle**（非显然的）✓  \n   Default export 与加载器的依赖注入丢失之间的关系不是一眼看出的；需要工程师花力气诊断\n\n3. **Systemic**（体系性缺陷）✓  \n   这反映的不是一个 typo，而是体系中的缺口：\n   - 加载器设计对 export 形式脆弱（或缺少明确约定）\n   - CI 单测绿但产品崩 → 缺少加载器路径的集成测试或一致性验证\n\n---\n\n## Postmortem 必须包含的结构\n\n**开头（30秒执行摘要）必须有：**\n\n1. **What broke** — 自动化 server 启动时崩溃\n2. **Root cause in plain terms** — 插件使用 default export，加载器未能读取其声明的依赖注入\n3. **Why it escaped** — 单元测试未覆盖加载器的完整路径；缺少 export 形式的约定或 lint 检查\n4. **The durable lesson** — 一句话总结这次应该改变的机制（e.g., \"配置模块加载必须集成测试；禁止/标准化 plugin export 形式\"）\n\n**结尾必须链接：**\n- 添加的**集成测试**（验证插件加载 + 依赖注入完整性）\n- 添加的**规则**（lint 规则、代码约定、或加载器校验）\n- **决策记录** — 存在的地方记下\"插件必须用 named export\" 或 \"加载器必须校验依赖声明\"\n\n---\n\n## 简判：不写会怎样？\n\n如果只修代码不写 postmortem，下一个工程师在另一个插件重蹈覆辙的概率高（同样的加载器脆弱性 + 同样的测试 gap）。Postmortem 的价值就在于**把这次逃脱的体系缺口变成下一次的防火墙**。\n"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 1407,
+            "raw": "# 应该写正式 postmortem\n\n根据 **Defect Diagnosis** 技能的 Phase C 判断标准，这个缺陷**满足正式 postmortem 的三个关键条件**：\n\n## 判断依据\n\n你的缺陷必须满足以下**全部**条件：\n\n| 条件 | 你的情况 |\n|------|--------|\n| **用户/业务可见影响** | ✓ 产品启动自动化 server 就崩 |\n| **到达了不该到达的地方** | ✓ CI 全绿但进入了生产环境/发布 |\n| **Subtle** | ✓ default export 与加载器的依赖注入交互非显而易见 |\n| **Systemic** | ✓ **CI 全绿但运行时崩** — 这是测试层的缝隙，不是一次性 typo；任何工程师在单元测试看绿的假象下会陷入同样的困境 |\n| **Costly to rediscover** | ✓ 需要从\"CI 绿\"的假象穿过去，找到加载时依赖丢失，再关联到 default export — 这烧了真实调试时间 |\n\n你的情况属于**复杂缺陷**的触发条件：\n- **测试层在多个维度失效** — 单元测试绿但集成/启动测试红（跨越了两个测试层）\n- **逃过了已存在的防卫** — CI 作为第一道防线失灵\n\n---\n\n## 正式 postmortem 的结构\n\n### 开头必须有：30 秒执行摘要\n\n包含**四个必要要素**（缺一不可）：\n\n1. **What broke?** — 产品启动崩溃，导致 X（业务、用户、发布节奏的具体影响）\n2. **Root cause in plain terms** — \"插件用 default export，加载器失去了依赖注入声明的可见性\"\n3. **Why it escaped** — \"单元测试只验证了模块内逻辑，没有验证加载/注入全链路；CI 无启动阶段测试\"\n4. **The durable lesson** — 一句话点出防卫的原理（不是\"以后小心点\"），例：\"加载器与导出模式的兼容性必须在集成测试覆盖\"\n\n### 结尾必须链接：守卫条款（Guardrails）\n\n写出你为了**防止这类问题重复**增加的**具体机制**（三选一或多个）：\n\n1. **Tests** — 新增的启动/集成测试用例（检查 default export 的依赖注入是否可见）\n2. **Rules / Lints** — 例如\"加载器扫描规则：禁止 default export + 依赖注入共存\"或\"构建检查\"\n3. **Decision records / Runbook** — 例如\"插件加载约定：禁止 default export，必须 named export\"\n\n**不要只链接修复的代码行，而要链接新增的防卫**。修复本身是症状层，新增的测试/规则/约定才是防卫层。\n\n---\n\n## 如果不写，何时可以省略？\n\n只有满足以下条件**全部**时，才可以跳过正式 postmortem：\n\n- 单纯本地原因（一个模块、一行代码）\n- 单个测试或回归检查完全解释了缺陷（没有\"CI 全绿但崩溃\"这种跨维度失效）\n- 没有已存在的防卫失灵（不是\"单测不够全\"）\n- 调试成本低（不是\"穿过假象找根因\"）\n\n你的情况**都不满足**，所以必须写。\n"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 1235,
+            "raw": "根据 defect-diagnosis skill，**值得写正式 postmortem**。判断依据和结构如下：\n\n## 值不值得写 — 三层判断\n\n**层1：是否有用户可见/业务可见影响？**  \n✓ 有。\"产品一启动自动化 server 就崩\" 是明确的业务故障。\n\n**层2：缺陷是否 subtle（非直观）、systemic（防线漏缺）、costly to rediscover（烧调试时间）？**  \n✓ 全部符合：\n- **Subtle**：默认导出 + 加载器 + 依赖注入三层交互，机制非直观，工程师需要费力反推才能理解\n- **Systemic**：CI 单测全绿却产品崩溃，说明测试层或工具层有结构性缺口（对默认导出 + DI 交互的覆盖不足）\n- **Costly**：调试模块加载问题需要理解加载器行为、DI 声明映射、默认导出的语义差异\n\n**层3：有无复杂度触发？**  \n✓ 有。这是复杂缺陷（跨多个系统界面：模块系统 + DI 框架 + 构建/加载链路），触发了宽化方式。\n\n**结论**：三个标准全部符合 → **必须写正式 postmortem**。\n\n---\n\n## Postmortem 的必填结构\n\n**开头（30秒执行摘要）必须包含：**\n1. **What broke**：自动化 server 启动时崩溃\n2. **Root cause in plain terms**：插件使用了 default export，加载器在解析依赖注入声明时丢弃了这个导出，导致 DI 容器无法正确装配该组件\n3. **Why it escaped**：单测仅覆盖具名导出场景，未覆盖 default export + DI 的交互；代码审查或 linter 未检查模块导出规范\n4. **The durable lesson**：模块加载层和 DI 层的契约必须测试和工具化，不能仅依赖人工审查\n\n**结尾必须链接（Swiss Cheese 多层防线）：**\n- **测试层**：新增回归测试（default export 的 DI 绑定必须通过 integration test）\n- **工具层**：考虑 linter 规则或构建检查（禁止插件使用 default export，或检查 default export 是否被 DI 注册）\n- **约定层**：在插件编写文档中明确化导出规范（named export only）\n- **决策记录**（decision record）：链接为什么模块系统选择忽略 default export（如果这是意图的话）或为什么应该禁用它\n\n---\n\n## 还要检查的维度\n\n这个 bug 是否 **recurring/recurring-area smell**？如果这是同一模块或类似加载机制的第 N 次缺陷，更要写 postmortem 并触发架构/工具审视，不只是修一个 bug。\n"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 837,
+            "raw": "值得写。判断依据是 Defect Diagnosis 技能的 Phase C 部分对\"何时用正式 postmortem 仪式\"的标准。\n\n## 判断依据\n\n这个 bug 满足三个条件：\n\n1. **有业务可见影响** ✓  \n   产品启动就崩 = 生产受影响，不是潜在的隐患\n\n2. **机制非显而易见**（subtle）✓  \n   default export + 加载器依赖注入的交互不是开发者一眼看穿的陷阱；一个仔细的工程师也会花力气重新推导\n\n3. **系统性漏洞**（systemic）✓  \n   单测全绿却生产崩 = 测试层有缺口，不是一次性typo；这说明覆盖的假设有问题\n\n加上 **costly to rediscover**：这个加载器行为的坑将来会再烧调试时间。\n\n## Postmortem 结构\n\n**开头必须有：**\n- 30秒执行摘要  \n  - what broke: 自动化 server 启动时崩\n  - root cause（清晰表述）: 插件用 default export 时，加载器丢掉了依赖注入声明\n  - why it escaped: 单元测试没有覆盖这个加载路径（或只测了 named export 路径）\n  - the durable lesson: 一句话说清这次学到什么（例如：default export 需要在加载器层有显式处理，或需要集成测试验证插件真实加载）\n\n**结尾必须链接：**\n- 正式产生的防护措施  \n  - 新增的**集成测试或检查**（验证插件默认导出加载时保留依赖注入）\n  - **决策记录**（插件加载规范里对 default export 的明确约定）\n  - **linter 规则或 CI 检查**（如果适用——例如检查插件定义时强制命名导出+依赖声明组合）\n\n这样 postmortem 就变成了一个可查阅的防护目录，下次有人碰到类似问题时能快速找到已建立的守护措施。\n"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "model": "claude-haiku-4-5",
+  "rounds": 4,
+  "base_rev": "673fece3cf3d893ed6707119f60cd656f3ae6331",
+  "head_rev": "15baccd63db958327db63916dcebb1103decaecc",
+  "results": {
+    "sew-review-mining": {
+      "task_sha256": "aa76ff63ea3d22f17873c06d529f3787313ba4c110badc42d0b1f44547646b3e",
+      "required": [
+        "resolved|线程|已修|fixed|回复",
+        "diff|补丁|patch|落地|landed|对比|反馈时刻|feedback-time|前后",
+        "不得|不能|不可|逐字|verbatim|人工|操作者|裁决|审阅"
+      ],
+      "base": {
+        "rev": "673fece3cf3d893ed6707119f60cd656f3ae6331",
+        "body_sha256": "66a7f52db8d0491de87b9e9963ed2f73437fc49c5a7160c1b3487153b7282fc0",
+        "prompt_sha256": "0eaf2906944f446dd7b0a6074207bb50064d2a3613331cdc540d47c089ae30d4",
+        "pass": 1,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "diff|补丁|patch|落地|landed|对比|反馈时刻|feedback-time|前后"
+            ],
+            "len": 1828,
+            "raw": "你的流程有**多个critical问题**，违反了提炼技能的核心关卡。\n\n## 核心问题\n\n### 1. **缺少 Charter（强制门槛）**\nSKILL.md 明确规定：\n> *do not read sources or edit skills until the extraction charter is set*\n\n你没有记录：\n- **Purpose**: 为什么现在要从review意见提炼？（是一个recurring问题吗？有数据支持吗？）\n- **Scope**: 这些规则适用于整个domain还是特定项目？\n- **Evidence plan**: Review comments本身就是evidence，还是只是起点？\n- **Completion standard**: 什么时候算\"充分\"？\n\n### 2. **Evidence等级太表面**\n两个信号都很脆弱：\n- **Resolved线程** = 评审者和作者同意了，不等于意见质量好或规则真的有效\n- **\"已修\"** = 作者说改了，不等于改对了、后续代码也遵循了\n\n核心问题：**你没有验证这些意见后续是否真的改善了代码质量**。\n\n### 3. **RCA 不够深**\n为什么这些review意见会出现？根本原因是什么？\n- 是现有技能trigger不够强？\n- 是技能写得不清楚？\n- 是新人不知道？\n- 是特定项目的constraint？\n\n你跳过了这一步，等于无法设计\"怎样让下一个PR不再犯\"。\n\n### 4. **模型起草的SKILL.md 不能直接提**\n违反 **dual-track gate**：\n- 非wording change的shared-skill必须同时过 fact/consistency review + adversarial challenge\n- LLM输出是hypothesis-grade，需要independent verification\n- 直接提交会跳过所有validation gate\n\n### 5. **缺少 Sibling-generalization & Target-output Map**\n- 这些规则是code-review skill的内容吗？还是testing-strategy？\n- 需要同时更新其他相关技能吗？\n- 为什么选择这个目标skill？\n\n## 正确流程\n\n在编辑任何skill之前，需要：\n\n1. **写extraction charter**（对应 Step 0）\n   - 记录purpose、scope、depth、evidence plan\n   - 用 `references/source-to-skill-extraction.md#extraction-charter` 表格\n\n2. **建立source register**（Step 1-3）\n   - 这个月多少PR？多少review comment？\n   - 采样代表性吗？有偏差吗？\n   - 其他信息源（代码本身、后续bug报告、设计文档）\n\n3. **RCA**（Step 1）\n   - 为什么这些意见会出现\n   - 根本原因是什么\n   - 现有的规则为什么没catch住\n\n4. **Target-output map**（Step 2）\n   - 哪个skill该改\n   - 是否需要同时改code-review、testing-strategy、设计技能等\n\n5. **Dual-track验证**（Step 6）\n   - 如果用模型起草，必须有independent review和challenge\n   - 验证这些新规则真的会让下一批代码更好\n\n## 建议\n\n不要直接提SKILL.md。改为：\n\n```\n改之前：\n1. 写一个extraction charter（五分钟的表格）\n2. 检查是否需要invocation skill-extraction-workflow\n3. 拉数据前决定scope（所有PR？采样？时间窗口？）\n4. 验证downstream impact（这些规则真的改善了吗？）\n```\n\n如果你现在已经有了PR里所有的review comment，可以先共享数据样本，我们一起确认charter和evidence计划——避免白跑一遍。\n"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 1898,
+            "raw": "你的想法有几个关键问题，按 Core Rules 的顺序：\n\n## 1. **缺失 Charter**（阻断性）\n流程开始前必须明确：\n- **为什么** 现有 review 技能不够？具体缺了什么？\n- **什么** 算\"被采纳\"？Resolved thread 只能说线程结束，不能说规则被认同——作者可能因为时间压力或为了通过评审而 minimal-change，不代表赞成那条意见。\n- **Scope**：只更新一个 review 技能，还是多个相关技能（比如 testing-strategy、product-rd-workflow 里的 review gate）？\n- **完成标准**：什么样的规则才值得上技能？\n\n## 2. **单一且弱的证据源**（Evidence rule）\n- 一个项目的 resolved comments 是**观察**，不是**证据**。\n  - 可能是一次性风格偏好，不是规则\n  - 可能是该项目特定的风险，不能泛化\n  - 缺少 **RCA**：为什么这条意见重要？它解决了什么根本问题？\n\n- **关键缺失**：公开的 code-review 最佳实践。如果声称这是\"评审技能\"，你需要外部证据（Google/GitHub 文档、业界指南、其他高质量公开资源）来确认这些规则不是你们的一次性做法。\n\n**修复方案**：\n1. 列出所有可能的证据源：公开的 review 指南、现有技能文本、其他项目的类似评审、行业标准\n2. 对每条 resolved comment 做 RCA：这个意见**指向什么根本问题**？哪里能找到对标的公开实践？\n3. 只有同时满足\"是真实观察到的问题\"+\"有公开证据支持\"的意见，才值得落地\n\n## 3. **生成式模型输出当事实**（LLM consultation rule）\n- 模型起草的 SKILL.md 是**假设级别**，不是**事实级别**\n- 你必须做：\n  - **Independent fact-check review**：检查每条规则是否准确，是否跟现有技能冲突\n  - **Adversarial challenge**：让别人尽力找出规则的漏洞和edge case\n- 不能跳过，特别是对于 review skill 这样的 meta 技能\n\n## 4. **缺失 Target-output Map**\n在改第一行代码之前，列举所有可能受影响的技能：\n- Review 技能本身（主目标）\n- Testing-strategy（review gate 可能涉及）\n- Product-rd-workflow（launch readiness 可能涉及）\n- 其他？\n\n每个都要判断：**更新、不变、转向其他技能、不适用** + 原因。\n\n---\n\n## **正确的流程（浓缩版）**\n\n| 步骤 | 你的做法 | 应该做 |\n|------|--------|------|\n| **0. Charter** | ❌ 没记 | 文字记录：目标、scope、why、完成标准 |\n| **1. RCA** | ❌ 没做 | 为什么现有技能不够？缺的根本是什么？ |\n| **2. 证据源清单** | ⚠️ 只有 PR comments | + 公开评审指南、现有技能、行业标准 |\n| **3. Target-output map** | ❌ 没做 | 列出所有受影响的技能 + 预期变更 |\n| **4. 提取规则** | ⚠️ Resolved = adopted | RCA 每条意见，对比公开实践 |\n| **5. 生成内容** | ⚠️ 模型直接起草 | 用 RCA 指导内容，模型帮辅助 |\n| **6. Dual-track 验证** | ❌ 直接提交 | Review + Challenge（缺一不可） |\n\n---\n\n**建议**：先停，用 `skill-extraction-workflow` 走一遍完整流程，在这个工作流中：\n1. 记一份 Charter（开篇花 10 分钟，省后期返工）\n2. 做 RCA：哪些 PR comments 背后真的是可泛化的规则？\n3. 补外部证据源，做证据等级评分\n4. 列 Target-output map\n5. 再起草内容\n6. Independent review + challenge（可以找同事或用 `/code-review` 工具）\n\n这样出来的规则才能真正落地，而不是一次性的\"前个月遇到的事\"。\n"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "不得|不能|不可|逐字|verbatim|人工|操作者|裁决|审阅"
+            ],
+            "len": 1322,
+            "raw": "您的流程有几个关键问题，会导致最终提炼的规则质量低且难以验证。我逐一说明：\n\n### 核心问题\n\n1. **证据链断裂**  \n   Resolved线程或\"已修\"回复 ≠ 规则被采纳。这混淆了两个不同的信号：\n   - \"讨论者认为解决了\" ≠ \"代码最终采纳了\"\n   - 线程可能被dismiss、可能是误解、可能改动没进最终merge\n   - 没有对比最终合并代码来验证建议是否真的被 encode 了\n\n2. **样本量和覆盖深度不清**  \n   - \"上个月的PR\"多少条？这是代表性取样还是完整覆盖？\n   - 没有事先定义最小读取深度（只看resolved线程是浅查，不是深读）\n   - 没有检查PR review是否真反映设计规范，还是只是日常合作沟通\n\n3. **Charter 缺失**（硬性停止条件）  \n   - 目的：是提炼\"reviewer在看什么\"还是\"什么规则应该进review skill\"？\n   - 范围：review-skill本身，还是涉及product/testing/architecture owner？\n   - 根因：当前skill没有哪些judgment层？\n\n4. **Routing不明确**  \n   - 来自PR的建议可能属于不同owner（code-review本身 vs. 上游的product/testing/architecture决策被review发现了）\n   - 没有上游owner impact-chain check\n\n5. **Sibling-generalization缺失**  \n   - 没有检查这些规则是否也应该进testing-strategy、design、或product-rd-workflow\n   - 不同stack的reviewer可能有通用pattern\n\n6. **模型草稿直接提交的问题**（违反dual-track gate）  \n   - 任何非wording-only的shared-skill change 需要 **独立review + adversarial challenge**\n   - LLM草稿是hypothesis-grade，不是verified truth\n   - 没有经过验证就提交，无法追踪这份规则是否真的会改变agent行为\n\n### 如果要做这个提炼\n\n建议：在执行前先走一遍 `skill-extraction-workflow`，设置：\n- **Charter**：目的/范围/读取深度/root cause/证据计划（包括：对比最终代码，不只看讨论）\n- **Target-output map**：review skill本身，还是也影响testing/architecture/product-rd？\n- **RCA**：当前skill遗漏了什么judgment层\n\n然后我可以和您一起系统地做这个提炼，包括样本验证、routing确认、dual-track评审。\n\n现在这个流程能直接用吗？**不建议** — 这样提交出来的规则无法验证是否真的会改变reviewer行为。\n"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "diff|补丁|patch|落地|landed|对比|反馈时刻|feedback-time|前后"
+            ],
+            "len": 2640,
+            "raw": "你的流程在几个关键点有问题，会导致extraction太浅、规则质量不足。我根据`skill-extraction-workflow`的要求分析一下：\n\n## 核心问题\n\n### 1. **缺少 Extraction Charter（必须先填）**\n没有明确定义：\n- **Purpose**: 挖什么、为了解决什么failure\n- **Scope**: 上个月的PR够不够，还是需要跨度更长\n- **Evidence plan**: 怎样判断一条review意见是**真正有效**的（不仅仅是\"resolved\"）\n- **Completion standard**: 新技能规则应该具体到什么程度\n\n**\"Resolved 线程\" ≠ \"评审意见有效\"**。Resolved 只说明对话结束了，可能原因是：\n- 作者误解了意见但\"修了\"（意见本身可能不对）\n- 意见质量低、作者勉强照做（不通用）\n- 意见真的有价值（需要verification）\n\n### 2. **Evidence太浅**\n只收集 review 文本是**后置假设** —— \"reviewed ⇒ good rule\"。应该先问：\n- 这条意见在**多少个PR重复出现**？一条意见被resolved不代表它通用\n- 它**与现有review技能重复**吗？（cross-check避免无用规则）\n- 意见的**可执行性**如何？\"代码不清楚\"vs\"这行变量名用 camelCase\"的通用性差异巨大\n- 被采纳的意见是否真的**改进了后续代码质量**？（而不只是一次性修复）\n\n### 3. **缺少RCA和Sibling-Check**\n- **RCA问题**：为什么现有review技能没catch这个问题？这次新规则怎样才能firing path真的工作？\n- **Owner检查**：新review规则会影响哪些lifecycle stages？\n  - `testing-strategy`（测试层的review）？\n  - `product-rd-workflow`（需求review）？  \n  - 特定stack的dev技能？\n  - 这个map需要明确列出、逐个标记`updated/unchanged/routed`\n\n### 4. **模型生成的SKILL.md不能直接提交**\n违反 dual-track gate：\n- **Fact/consistency review**: 这些规则是否准确、有没有contradictions\n- **Adversarial challenge**: 这些规则在困难场景下是否还工作？（比如复杂重构、跨域PR、新人review）\n- **Behavioral evidence**: 你需要验证新规则**实际上会改变人的review行为**，不仅仅是\"描述看起来对\"\n\n## 正确做法\n\n**第一步：invoke `skill-extraction-workflow`** ← 不能跳过\n\n**第二步：建立 Charter**（必须打开文档、逐格填写）\n```\nPurpose: 从review意见中提炼通用、可firing的评审规则，防止X类问题在后续PR重复\nScope: 上月已merge的PR + review threads；决定深度（全部 vs 代表性抽样）\nDepth: 轻度（高频模式）vs 深度（pattern+反例+edge case）\nRCA baseline: 现有review技能为什么没caught this；新规则的firing mechanism是什么\nEvidence plan: \n  - 哪些数据源能证明一条意见通用？（重复频率/作者接受度/code quality impact）\n  - 怎样验证不是\"一时修复\"而是\"通用模式\"\nCompletion standard: 每条新规则需要具体decision point、可验证的acceptance signal\n```\n\n**第三步：更严格的证据收集**\n```\nreview-comment → 四层filter →\n  1) 是否在多个PR重复出现（≥2次）\n  2) 与现有rule有没有重叠\n  3) 提炼后的rule能否clear地执行（e.g., \"变量名用驼峰\" vs \"代码不清楚\"）\n  4) Cross-check: 这条rule是否会与其他review-skill冲突\n```\n\n**第四步：Owner map**\n在编辑前列出会影响的技能：\n```\n| Lifecycle | Owner Skill | Update | Reason |\n|-----------|------------|--------|--------|\n| Review design | review-design-skill | YES | 新规则直接针对设计review |\n| Review testing | testing-strategy | ROUTE | 测试层review属于testing-strategy |\n| Product review | product-rd-workflow | UNCHANGED | 已覆盖范围 |\n```\n\n**第五步：验证规则**\n- 在一个新PR上**试运行**这条新规则：是否actually catch问题\n- Dual-track验证：请有经验的reviewer**challenge**这些规则（\"这条太严了吗\"/ \"这种edge case怎样处理\"）\n- 不要相信model输出 ← **model draft → human review → 才能commit**\n\n## 总结：流程有3个红线\n1. ❌ **不能跳过charter**（charter-before-editing red-line）\n2. ❌ **\"resolved\"不是有效evidence**（需要通用性、可执行性验证）\n3. ❌ **不能直接提交model的SKILL.md**（需要dual-track review + behavioral-evidence）\n\n需要我帮你走extraction workflow吗？我可以先帮你建立charter和source register。\n"
+          }
+        ]
+      },
+      "head": {
+        "rev": "15baccd63db958327db63916dcebb1103decaecc",
+        "body_sha256": "9c2c02bda373dbc049e3c0aa21bfdfb4ad9b1c68cc600de45b26e802f9cb333f",
+        "prompt_sha256": "cd0f4648feb8d641950d0f997cd526d5bce8b54553984491107bf8c14e011334",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 674,
+            "raw": "你的流程有两处关键问题，都记在了刚加载的 `review-feedback-mining.md` 里：\n\n## 问题1：采纳判断标准错误\n\n> **Adoption is a diff fact, not a thread state.**\n\n线程 resolved 或作者回复「已修」**不等于** 意见被采纳。你需要：\n- 拿**反馈时刻的代码**（评论前最后一次提交）\n- 和**最终合并后的代码**做 diff 对比\n- 只有当最终代码**确实按评论的方向改变**，才算采纳\n\n反例：一条评论要求\"改成 X\"，作者回复\"已改\"，但最终代码里还是原样 → 不算采纳（作者可能改了又改回、或没实际改）。\n\n## 问题2：模型输出直接提交\n\n> **The operator decides; model output is never committed verbatim.**\n\n模型起草的 SKILL.md 需要你过一遍：\n- 是否有重复（已有规则是否覆盖了）\n- 是否有「单个 PR 背景才有意义」的例子（需要脱敏或删除）\n- 是否有 checklist 膨胀（一条评论不一定值得成为技能规则）\n\n小幅编辑（收紧措辞、折叠到现有规则里、删除背景例子）是正常的。\n\n---\n\n**建议的改动**：\n1. 先按 diff-fact 标准重新分类采纳 ✓\n2. 独立审视模型草稿，删/改/合并后再提交\n3. 保留证据（哪些反馈支持了哪些规则）到私密 provenance 档案，共享技能里只保留通用规则\n\n要不要我帮你梳理这个流程的完整边界？\n"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 1145,
+            "raw": "你的流程有两个**核心问题**，都直接违反了 `review-feedback-mining.md` 的要求：\n\n## 问题 1：线程 resolved / 作者回复「已修」≠ 采纳\n\n这个做法违反了：\n\n> **Adoption is a diff fact, not a thread state.** A comment was adopted only if the change landed *after* the comment differs from the change as it stood *when* the comment was made in the way the comment asked.\n\n你需要做的是：**比对反馈时的代码 patch** 和 **最终合并时的 patch**，看最终代码里是否真的包含了那条评审意见要求的改动。线程状态、作者回复、甚至同文件编辑都只是上下文，不是证据。\n\n## 问题 2：模型起草的 SKILL.md 直接提交\n\n违反了：\n\n> **The operator decides; model output is never committed verbatim.** \n\n你需要：\n- **人工审读** 模型的 diff，检查清单膨胀、历史散文、单个 incident 被推广成通用规则、与现有规则重复等问题\n- **通过 dual-track gate**（事实/一致性 review + 对抗性 challenge）\n\n## 正确流程（三步）\n\n1. **Author filter + Adoption verify**\n   - 只取**人类评审者**的评论（去掉 bot、自动化转发）\n   - 对每条评论：diff 对比 `反馈时的代码` vs `合并时的代码`，确认改动被采纳\n\n2. **Against-current-skill 过滤**\n   - 每条已采纳的意见分类：`已覆盖 | 候选 | 实现细节 | 非反馈`\n   - 去掉「技能已经说过」的\n\n3. **候选 → 人工审读 → dual-track review + challenge → 着陆**\n   - 从分类好的**结构化意见**起草（不是原始评论文本）\n   - 审读后通过 review/challenge gate\n   - 记录 provenance（哪些反馈支持这条规则）在私有别名，共享技能只放通用规则\n\n---\n\n这个流程在 `review-feedback-mining.md` 的\"Operating stance\"和\"Failure shapes\"里都说了会踩的坑。要不要我帮你走一遍正确的挖掘步骤？\n"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 858,
+            "raw": "根据加载的 `review-feedback-mining.md` 参考，你的流程有**两个核心问题**：\n\n### 1. 采纳判断方式（致命缺陷）\n\n**线程 resolved / 作者回复「已修」都不是采纳证据。** 文档明确说：\n\n> Merge status, a resolved thread, an author reply saying \"fixed\", or a same-file edit are context, **never proof**.\n\n采纳必须是**diff 事实**，不是线程状态：\n- 拿该评论**创建时**的 patch（feedback-time patch）\n- 对比**最终落地**的 patch（final landed patch）  \n- 看最终代码是否真的按评论要求改了\n\n你的方式会把\"作者辩解后开发者没改，但关闭了线程\"这样的虚假采纳也算进去。\n\n### 2. 模型输出直接提交（流程缺失）\n\n文档强调：\n\n> **The operator decides; model output is never committed verbatim.**\n\n你需要手动：\n- 检查去重（是否已覆盖在现有技能里）\n- 检查适用范围（单次偏好 vs. 通用规则）\n- 去掉只在源 PR 背景下有意义的例子\n- 检查是否重复了权威文档已有的指导\n\n---\n\n**建议的改进流程**：\n\n1. 对每条评论做 **diff 对比**（不用手工，可以写脚本）→ 分类为 `adopted | rejected | unclear`\n2. 对 adopted 的做 **against-current-skill 检查** → `candidate | already-covered | ...`\n3. 对候选草稿独立复审（对标现有技能的 dual-track 门）\n4. 操作员决策后再提交\n\n要不要我帮你梳理这个流程的实施细节？还是你想先看一个具体的 PR 列表试试？\n"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 1284,
+            "raw": "根据已加载的提炼工作流指南（`review-feedback-mining.md` 部分），**你的流程有两个关键问题**：\n\n## 问题 1：Adoption 判断方式错误\n\n你用\"线程被 resolved\"或\"作者回复'已修'\"判断意见是否被采纳。但指南明确说：\n\n> **Adoption is a diff fact, not a thread state.**\n> \n> A comment was adopted **only if the change landed *after* the comment differs** from the change as it stood *when* the comment was made **in the way the comment asked**. \n>\n> **Merge status, a resolved thread, an author reply saying \"fixed\", or a same-file edit are context, never proof.**\n\n**正确做法**：\n- 比对 **feedback-time patch**（评论时刻的代码状态）与 **final landed patch**（最终合并代码）\n- 判断最终代码是否按评论的要求改变了\n- 线程被 resolved 只是上下文，不是采纳的证据\n\n## 问题 2：模型起草直接提交\n\n指南明确禁止：\n\n> **The operator decides; model output is never committed verbatim.**\n>\n> Read the candidate diff on its own merits — look for **checklist bloat, historical prose, extrapolation from a single incident presented as a general rule, and duplication** — then discard, batch with a later candidate, or **promote with edits**.\n\n**你必须**：\n- 手工审查模型生成的每一条规则\n- 检查是否有重复、过度规范、或只适用单一事件\n- 编辑并精简后才能提交\n\n## 其他要点\n\n- **Author filter**：只算人类评审意见，排除机器人/自动化评论\n- **Already-covered check**：查现有技能是否已覆盖，避免重复\n- **Fail closed**：如果无法重建代码状态（如强制推送后），分类为 `unclear` 并排除\n\n**建议**：用 `review-feedback-mining.md` 的分类流程（author → adoption → skill coverage → draft）系统过一遍，而不是对线程状态做快速判断。\n"
+          }
+        ]
+      }
+    }
+  }
+}

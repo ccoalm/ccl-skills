@@ -56,13 +56,13 @@
 | **Decision** | 做了什么（1 short paragraph，1-3 句；composite 决策可写 split："choose A for X, B for Y, sharing tooling Z"）| ✅ |
 | **Consequences** | 正面 + 负面 outcome；**2-5 bullets**，写已接受的代价 / 后果（不是 PROs/CONs 全比较）| ✅ |
 
-**本 skill 要求的第 6 个必填段（Nygard 原始 5 字段之外，采自 agent-native 仓的决策记录实践并与 MADR 的 options 段同向）**：
+**本 skill 要求的第 6 个必填段（Nygard 原始 5 字段之外，与 MADR 的 options 段同向）**：
 
 | 字段 | 内容 | 必填 |
 |---|---|---|
-| **Alternatives considered** | 每个**真实考虑过**的备选与它为什么输，一段一项（或每个有争议项一个 `### Why not X?`）。**只记录、不编造**：写决定时没有考虑过的备选不得事后补一个"看起来像"的；历史记录里重建不出备选的旧 ADR 显式标注 `alternatives: not-recorded`，而不是空着或伪造。一条没有"它打败了什么"的决定会被反复重提——这正是 ADR 要防的失败 | ✅ |
+| **Alternatives considered** | 每个**真实考虑过**的备选与它为什么输，一段一项（或每个有争议项一个 `### Why not X?`）。**只记录、不编造**：写决定时没有考虑过的备选不得事后补一个"看起来像"的；此时写 `alternatives: none-considered` + 如实的原因（含"当时就是没做"），历史记录里重建不出的写 `alternatives: not-recorded`，都不空着也不伪造。一条没有"它打败了什么"的决定会被反复重提——这正是 ADR 要防的失败 | ✅ |
 
-- **Alternatives 只记录、不编造，且不得为了"看起来完整"填充**：写决定时没有真实考虑过的方案不得事后补写；旧记录里重建不出备选的，必须显式标注 `alternatives: not-recorded`，而不是留空或虚构。一条没有"它打败了什么"的决定会被反复重提——这正是 ADR 要防的失败。
+- **Alternatives 只记录、不编造，且不得为了"看起来完整"填充**：写决定时没有真实考虑过的方案不得事后补写；新决定确实**没有真实考虑过任何备选**时，写 `alternatives: none-considered` 并**如实**写出当时为什么没有比较——可以是"确实无需比较"（唯一可行路径 / 上游强制 / 已由更上层 ADR 决定），也可以是"就是没做"（赶时间、当时没想到、流程疏漏）。后者是合法且被鼓励如实记录的答案：把疏漏粉饰成"无需比较"就是在编造决策史，与本条要防的是同一件事；旧记录里重建不出备选的标 `alternatives: not-recorded`。两者都不得留空，更不得虚构。一条没有"它打败了什么"的决定会被反复重提——这正是 ADR 要防的失败。
 
 **本 skill 加的 local 字段**（推荐，方便检索 / 治理）：
 
