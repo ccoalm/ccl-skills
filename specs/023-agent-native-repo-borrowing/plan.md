@@ -1,19 +1,20 @@
-# 023 — 对标 agent-native 产品仓的开发纪律：借鉴沉淀轮（batch I–III + 待裁决 IV）
+# 023 — 对标 agent-native 产品仓的开发纪律：借鉴沉淀轮（Batch I–III 已合入本地 dev）
 
 ## Extraction charter
 
 | Field | Answer |
 | --- | --- |
-| Purpose | 关闭一个源类缺口：ccl 的规则几乎全部来自内部纠错复盘（friction-biased digest），外部对标只做过技能包（superpowers / gstack）；"被 agent 大量参与开发、且把开发纪律整套开源的产品仓"从未列为源类，导致 agent 写文档 / 写测试 / 做评审 / 挖评审意见时的一批已被业界识别的病（会话视角泄漏、自述当证据、源码路径当真实入口、评审意见"已修"当采纳）在 ccl 缺席或只有零散一句。本轮把第 2 轮候选台账（A1–E5，会话 scratchpad `dsh-extraction-ledger.md`）中低争议、纯 merge 的候选落进各 owner；C3（SKILL.md 词数预算 validator）单列 batch IV 等维护者裁决。 |
-| Artifact classification | `shared-skill non-wording text`（多 owner 规则文本 merge，无脚本、无 gate 语义变更、不改任何 `description`/frontmatter → 不触发 routing gate；仅 skill-extraction 新增 1 个 reference 文件 + `SKILL.md` 内 1 句 source-class 措辞）。feature-risk-router 定级：`shared-skill`（跨 7 个 owner）+ `no-routing-surface`；security-review 变更臂：**D3（权限边界不在 schema/prompt 层）、D4/D6（沙箱范围词汇、子进程环境清洗）、E5（受控提权分流）为 security-sensitive**——各自落地前必须走 feature-risk-router security-review gate，并在本 plan 判定表与 source-register 行记录具名安全 owner 的处置（approve / narrow / reject）；其余候选 not-applicable（无执行面、无凭据/权限语义变更）；D1 因触及敏感内容持久化语义已移出本轮落地范围（batch V，需具名安全 owner 参与的独立设计，见批次表）。 |
-| Scope | in：candidates A1 A2 A4 B1 B2 B4 B5 B6 B7 C1 C2 C5 D2 D3 D5 E1 E2 E3 E4 E5 → owners `testing-strategy` / `llm-inference-integration` / `tighten-doc` / `product-rd-workflow`(adr-convention, code-review-checklist, implementation-completeness-and-minimality) / `defect-diagnosis` / `worktree-isolation` / `skill-extraction-workflow`；本 plan；source-register 行。out：C3 词数预算 validator（batch IV，需裁决）；D1 model-visible/日志账目不变量（batch V，需具名安全 owner 的独立设计——023-plan-r4/r5/r6 三轮同类 P1 后按同类复发规则移出）；A3（dsh implemented 记录随事实更新 vs ccl immutable+as-built——记为已知差异不引入）；三语配对 gate、Cordis/invariant 伴生插件、Agent Note 路径编码与归档 manifest（产品/规模特定）；任何 `description` 改动；任何 dsh 具体名词（`dsh-*` / Cordis / 包名 / 文件名）进入可执行文本。pending-verify 行（B8 / C4 / D4 / D6）在各 batch 全文读 owner 后就地关闭为 covered / merge / discard，不新开范围。 |
-| Depth | Node/artifact inventory 已完成（第 2 轮：dsh AGENTS.md、docs/AGENTS.md、.agents/notes 制度、.agents/skills 6/11、testing.md、defensive-patterns、postmortem 制度、human-review-skill-maintenance note；ccl 侧为定向 grep + 段读）→ 本轮升为**每个 owner 目标段全文读**后再 merge。 |
-| Root cause | (1) source-register 无"外部 agent-native 产品仓治理层"源类；(2) 第 1 轮只读 digest（README/官网）——digest-masks-corpus 实例；(3) 触发依赖用户追问"哪些可借鉴"。 |
-| RCA analysis | widen：(a) 源类缺失（必要因；反事实：源类存在则任何"对标外部"轮会枚举到它）；(b) digest 陷阱（放大因；反事实：第 1 轮读到 code corpus 就会在同轮发现 `.agents/`）；(c) 检测缺口——无 gate 要求 benchmark 轮列出对标对象类别。控制：源类行本轮落 source-register；skill-extraction 的 benchmark 规则补"对标对象含 agent-native 产品仓"一句（batch III）。 |
-| Failure mode analysis | (1) 抄术语——dsh 词汇（seam / Cordis / dsh-* / Agent Note）进可执行文本 → R0 + 对抗评审；(2) 把 evolving 仓的做法当 best practice → 每条以"业界形态之一"措辞落地，不写"标准做法"，附外部锚点仅限已在 ccl 存在的（Nygard ADR、SRE postmortem）；(3) 追加 bullet 而非 merge → 每 owner 先读全文、定位既有同类规则、改写它；(4) 例子集源形状泄漏 → C1 的例子做 example-domain 预选（`(decision 7)` / `T4` / `§4.7` 形状通用可用；不复制 dsh 的具体句子）；(5) 落地过程本身成为下一个"未沉淀"——本 plan 即轮记录，闭环写回 source-register。 |
-| Lifecycle impact | testing（B*）、implementation（D*、E3）、debugging（A4）、review（E2、C1 指针）、iteration/onboarding（A1 A2 C2）、team-process（E1、E4、E5、C5）、LLM 运行时（D2 D3、B6；D1 已移出）；product intent / design / release：not-applicable（dsh 无对应纪律可见）。 |
-| Evidence plan | 已产：dsh 源文件逐条摘录（台账）；ccl 侧定向 grep。待产（每 batch）：owner 目标段全文读记录；draft diff；sibling mini-map；R0 `check-ccl-skills.sh` 输出；dual-track（review + challenge）链记录；behavioral-evidence 行（每 owner 至少一条 semantic-control：改前后对同一任务形状的输出差异，或 RED-baseline 若某规则可用 eval task 复现）；source-register 行。 |
-| Completion standard | 全部 in-scope 候选每条有终态（landed / merged-into / covered / discarded-with-reason）且 diff 与 target-output map 逐行一致；pending-verify 行零残留；`check-ccl-skills.sh` clean（R0 `private-ok` 或 interim 标注）；dual-track 无未处置 P0/P1；source-register 行落树；合 dev 候用户显式指令；batch IV / V 单独等待裁决与设计，不阻塞 I–III。 |
+| Purpose | 关闭一个源类缺口：ccl 的规则几乎全部来自内部纠错复盘（friction-biased digest），外部对标只做过技能包（superpowers / gstack）；"被 agent 大量参与开发、且把开发纪律整套开源的产品仓"从未列为源类，导致 agent 写文档 / 写测试 / 做评审 / 挖评审意见时的一批已被业界识别的病（会话视角泄漏、自述当证据、源码路径当真实入口、评审意见"已修"当采纳）在 ccl 缺席或只有零散一句。Batch I–III 已把本轮接受的候选落进各 owner；C3、D1、E5 留到后续，不计入本轮完成范围。 |
+| Artifact classification | Batch I–III 为 `shared-skill non-wording text`（跨 7 个 owner；不改 `description`/frontmatter）。本次迭代是单文件、非 shared-skill 的 plan 更新，不改 `skills/**`、source-register、脚本、gate 或路由面，不新增 operational / security claim。历史 security-sensitive 候选 D3、D4、D6 的处置见判定表；E5 已移出本轮，不在本轮请求安全处置。 |
+| Scope | in：candidates A1 A2 A4 B1 B2 B4 B5 B6 B7 C1 C2 C5 D2 D3 D5 E1 E2 E3 E4 → owners `testing-strategy` / `llm-inference-integration` / `tighten-doc` / `product-rd-workflow`（adr-convention、code-review-checklist、implementation-completeness-and-minimality）/ `defect-diagnosis` / `worktree-isolation` / `skill-extraction-workflow`；本 plan；source-register 行。out：C3 词数预算 validator；D1 model-visible / 日志账目不变量；E5 受控提权规则。三项均留到后续，不属于本轮未完成项。A3、三语配对 gate、Cordis/invariant 伴生插件、Agent Note 路径编码与归档 manifest、任何 `description` 改动及源仓具体名词进入可执行文本仍保持 out。B8、C4、D4、D6 已关闭为 covered / merge / discard。 |
+| Depth | Batch I–III 已完成 owner 目标段全文读与落地。本次迭代为 targeted artifact/status refresh：只核对本地 dev、已产出的 023 diff/evidence、plan 与终态表，不读取新来源，不新增技能行为。 |
+| Covered-through watermark | 本地 `dev@12f783f` 已包含 Batch I–III；本次只覆盖其后的范围校正。C3、D1、E5 不推进、不验证、不作完成声明。 |
+| Root cause | 原提炼根因：(1) source-register 缺少“外部 agent-native 产品仓治理层”源类；(2) 第 1 轮只读 digest（README/官网），未枚举 code corpus；(3) 触发依赖用户追问“哪些可借鉴”。本次迭代根因：计划在评审中把 E5 移到后续，但 charter 的 in-scope 列表仍保留 E5，且标题把后续 Batch IV 写成当前待裁决项，导致“项目设想全集”和“本轮完成范围”混写。 |
+| RCA analysis | 原提炼控制已落 source-register 与 skill-extraction benchmark 规则。本次 widen：(a) 评审处置已更新候选表，但未同步 charter；(b) 标题仍把后续批次放在当前轮；(c) 完成标准只说后续不阻塞，未明确后续项不属于当前完成集合。反事实：若 charter、批次表和完成标准共同维护一个 current-scope 集合，E5 不会同时出现 in-scope 与 held。控制：三处统一列出 C3、D1、E5 为后续，并用 `dev@12f783f` 作为 I–III 的 covered-through watermark。 |
+| Failure mode analysis | 若不校正，后续 agent 可能把 E5 当成本轮待开发项，或因 C3 / D1 / E5 未落地而误判 Batch I–III 未完成；更严重时会在没有安全 owner 处置的情况下继续受控提权设计。当前 plan 必须把三项排除在本轮实现、验证和完成声明之外。 |
+| Lifecycle impact | testing（B*）、implementation（D2、D3、D5、E3）、debugging（A4）、review（E2、C1 指针）、iteration/onboarding（A1、A2、C2）、team-process（E1、E4、C5）、LLM 运行时（D2、D3、B6）。C3、D1、E5 本轮均 not-applicable；product intent / design / release 仍 not-applicable。 |
+| Evidence plan | 先核对已产物：`dev@12f783f`、023 合并 diff、现有 evidence 与终态表；再核对 plan 中全部候选、Batch IV/V、target-output map 和 completion 语句。当前迭代不新增 source-register 行，不读取外部来源，不借旧 review verdict 证明新范围文本。 |
+| Completion standard | 当前 in-scope 候选全部有 landed / merged-into / covered / discarded-with-reason 终态，target-output map 与本地 dev diff 一致，pending-verify 为零；当前 charter、批次表、候选表、判定表与 target-output map 只把 C3、D1、E5 列为“后续、本轮不做”，旧 dual-track 记录继续保留历史处置。运行仓库文档门禁、`git diff --check` 与针对本次 diff 的独立 review；不推送、不合并、不发布。 |
 
 ## 批次划分（按问题域，非时间片）
 
@@ -22,10 +23,10 @@
 | I | 测试证据 + agent 运行时契约 | B1 B2 B4 B5 B7 → testing-strategy；B6 D2 D3 → llm-inference-integration；关闭 B8 D4 D6 pending-verify | `skills/testing-strategy/SKILL.md`（core rules 对应条目就地改写）+ 需要时 `references/ci-fixtures-and-flake-control.md`；`skills/llm-inference-integration/references/agent-session-persistence.md`、`references/agent-tool-dispatch.md`、`references/agent-command-sandbox.md`、`SKILL.md` 指针 | `023-I` |
 | II | 文档散文 + 决策记录 + 评审 + git 操作 | C1 C2 → tighten-doc；A1 A2 → product-rd adr-convention；E2 → product-rd code-review-checklist；E3 → product-rd implementation-completeness-and-minimality；A4 → defect-diagnosis；E4 → worktree-isolation；关闭 C4 pending-verify | `skills/tighten-doc/SKILL.md`（新小节"session-vantage leakage"或并入既有 DELETE 列表）；`skills/product-rd-workflow/references/{adr-convention,code-review-checklist,implementation-completeness-and-minimality}.md`；`skills/defect-diagnosis/SKILL.md` postmortem 段；`skills/worktree-isolation/SKILL.md`「落后就先更新」段的 force-with-lease 条 | `023-II` |
 | III | 提炼工作流自身 | E1（新 reference `review-feedback-mining.md`）；C5 → rule-consolidation.md；D5 → harness-patterns-and-eval.md（业界形态记录，非规则）；benchmark 源类一句 → `SKILL.md`；source-register 行（本轮 impact-chain 行 + 源类行） | `skills/skill-extraction-workflow/{SKILL.md,references/*}` | `023-III` |
-| IV（待裁决）| SKILL.md 正文词数预算 validator | C3 | `skill-extraction-workflow/scripts/` + manifest；先过 design-time 四腿检查（author-dogfood：现有 SKILL.md 多数会红→需 baseline 冻结策略；marginal-cost；trust-model；premise）| 裁决后另开 spec |
-| V（待设计）| 模型可见内容与事件日志的账目不变量 + 受控提权验证 | D1 E5 | `llm-inference-integration/references/agent-session-persistence.md`、`skill-extraction-workflow/references/source-to-skill-extraction.md#blocked-verification`；前置：具名安全 owner（由 feature-risk-router security-review gate 指定并在 spec 内记录其批准）参与设计——需覆盖凭证/敏感载荷不持久化、可重建 vs 显式不可重建的分类、低熵值摘要可枚举（不得记内容摘要，或用独立保管密钥的 keyed MAC 并写明威胁模型）、引用目标不可变版本化且与日志同保留/访问策略，以及沙箱阻断分流与受控提权 | 另开 spec，附具名安全 owner 批准为完成条件 |
+| IV（后续，本轮不做）| SKILL.md 正文词数预算 validator | C3 | `skill-extraction-workflow/scripts/` + manifest；先过 design-time 四腿检查（author-dogfood、marginal-cost、trust-model、premise），再决定是否实施 | 另开 spec 后重新定范围 |
+| V（后续，本轮不做）| 模型可见内容与事件日志的账目不变量 + 受控提权验证 | D1 E5 | `llm-inference-integration/references/agent-session-persistence.md`、`skill-extraction-workflow/references/source-to-skill-extraction.md#blocked-verification`；前置：具名安全 owner 参与设计并记录批准。设计需覆盖凭证/敏感载荷不持久化、可重建与不可重建分类、低熵值摘要可枚举风险、引用目标不可变版本化、日志保留/访问策略、沙箱阻断分流与受控提权 | 另开 spec；安全 owner 批准是完成条件 |
 
-每 batch 内循环：owner 目标段全文读（记录行号范围）→ draft（merge 进既有规则）→ sibling mini-map → sanitize（R0 + example-domain 预选）→ dual-track（review + challenge，`code-review` 技能 wrapper）→ 处置 P0/P1 → `check-ccl-skills.sh` → 一批一 commit（`git -C` 绝对路径）→ 更新本 plan 的判定表 trace。
+Batch I–III 内循环：owner 目标段全文读（记录行号范围）→ draft（merge 进既有规则）→ sibling mini-map → sanitize（R0 + example-domain 预选）→ dual-track（review + challenge，`code-review` 技能 wrapper）→ 处置 P0/P1 → `check-ccl-skills.sh` → 一批一 commit（`git -C` 绝对路径）→ 更新本 plan 的判定表 trace。
 
 ## 每候选落地意图（drafting 输入，非最终措辞）
 
@@ -38,7 +39,7 @@
 | B7 | testing-strategy runner-config policy / evidence 条 | 增：evidence-to-surface 选择（行为→focused test；模型/用户可见输出→snapshot；文档→doc gate；发布路径→build+built smoke；外部 provider→real e2e）；本地不默认全量、CI 拥有穷尽；报告只列实跑命令；**已过检查可复用的前提是被测 commit/树与相关依赖、环境输入未变且有记录**——amend / rebase / 重生成 / 改配置之后受影响的检查必须重跑，不得以旧绿当 push 证据 | merge（与既有"CI 权威"措辞合并）|
 | B8 | testing-strategy ci-fixtures 参考 | 全文读后判：e2e 资源归测试自己（afterEach 释放含失败/超时）；共享 fixture 放 plain 模块不 import 另一 spec | pending-verify → covered/merge |
 | B6 | llm-inference-integration eval/replay 段 | 增（收窄）：推理便宜或自有模型时，real-model smoke 是一等 tier，keyless 只证明管道；self-skip 是无钥匙保护不是成本信号；第三方不可控模型仍按 testing-strategy weak 判定 | narrow + merge |
-| D1 | （移出本轮 → batch V）| 023-plan-r4/r5/r6 三轮同类 P1（凭证持久化 → 可变引用 → 低熵摘要可枚举 + 安全 owner 不具名）触发同类复发规则：不再原地补丁，整体移出 batch I，另开需具名安全 owner 的设计 spec；本轮 agent-session-persistence.md 不改 | held（narrow→defer）|
+| D1 | 后续（本轮不做） | 023-plan-r4/r5/r6 三轮同类 P1（凭证持久化 → 可变引用 → 低熵摘要可枚举 + 安全 owner 不具名）触发同类复发规则：不再原地补丁，另开需具名安全 owner 的设计 spec；本轮不改 agent-session-persistence.md | deferred |
 | D2 | agent-tool-dispatch.md / prompt 段 | 增：模型面契约从模型视角写（只含任务概念，不含 UI/传输/实现词汇）；措辞即行为——稳定文本逐字 pin，改措辞走 snapshot/eval | merge |
 | D3 | agent-tool-dispatch.md 权限/工具段 | 增：schema 省略、prompt 过滤、facade、监听顺序不是权限边界；拒绝路径在执行器测；指向 testing-strategy enforcement 矩阵 | merge |
 | D4/D6 | agent-command-sandbox.md | 全文读后判：沙箱模式词汇明示范围（文件效果 vs 网络/进程）、enforcement 是"报告的事实"（full/partial）；子进程 scrubbed env / 私有临时目录 / link-shaped path 用 lstat+unlink | pending-verify → covered/merge |
@@ -53,7 +54,7 @@
 | E4 | worktree-isolation 「落后就先更新」force-with-lease 条 | 增：重写前记观察到的远端 OID 并 `--force-with-lease=<branch>:<oid>`；重写后重 fetch 并重审 review threads / approvals / checks（旧 hash 与行内评论锚点不再是当前证据）；无法在重写与发布之间验证的工具→事后立即验证并 hold merge | merge |
 | E1 | skill-extraction 新 reference `review-feedback-mining.md` + SKILL.md Reference Loading 一行 | 采纳证据纪律：只取 human-authored 且被采纳；采纳 = 反馈时刻补丁 vs 最终落地补丁（merge / resolved / "fixed" 回复 / 同文件编辑都不算）；无法重建基线 fail-closed 为 unclear；独立评审器分类+起草+审同一 diff；singleton 可成立；对当前技能幂等（covered 不再进候选）；"无候选"是常态；操作者裁决、不逐字提交模型输出；agent-quality 指向 | new reference |
 | C5 | rule-consolidation.md | 增：临时性规则须写明退役触发条件（"X 发生时删除本节"）| merge 一句 |
-| E5 | **held（待维护者安全处置）** | 起草意图不变（先分流沙箱阻断 vs 真实失败；提权只对已审阅可信命令、只授被阻断能力、须宿主策略与用户批准；不作默认动作；不绕过真实失败），但本轮**不落地**——判定表第 10 行要求安全 owner 处置，执行 agent 不得自任 | held |
+| E5 | 后续（本轮不做） | 保留设计问题：先分流沙箱阻断与真实失败；受控提权只适用于已审阅可信命令，只授予被阻断能力，并要求宿主策略、用户批准及“不绕过真实失败”。本轮不设计、不落地、不请求维护者处置 | deferred |
 | D5 | harness-patterns-and-eval.md | 增一段"插件式 harness 形态"业界记录（无特权核心、能力三角、事件即扩展点、profile/bundle 分层），标注为形态记录非执行规则、evolving 来源；**不含任何日志/持久化表述**——凡涉及模型可见内容与事件日志的内容一律归 batch V（按 023-plan-r7 challenge P1）| route（记录，无日志措辞）|
 | 源类 | skill-extraction SKILL.md benchmark 规则（"A deep review / benchmark of the skill repo…"）| 一句：对标对象含被 agent 开发的产品仓的治理层（AGENTS/notes/repo skills/testing policy），不只技能包 | merge 一句 |
 
@@ -61,31 +62,32 @@
 
 | # | 输入 | 预期 | trace |
 | --- | --- | --- | --- |
-| 1 | 每 owner 目标段全文读 | 记录文件 + 行号范围 + 既有同类规则定位（merge 点） | done：Batch I 读取 testing-strategy 与 llm-inference-integration 的入口及相关 references；Batch II 读取 tighten-doc、product-rd-workflow 三个目标 reference、defect-diagnosis 与 worktree-isolation 的现有同类段；Batch III 读取 skill-extraction-workflow 入口及 review mining / consolidation / coverage / harness 相邻 references。D3、D4、D6 判 covered，C4 判 covered，B8 判 merge；E5 保持 held |
+| 1 | 每 owner 目标段全文读 | 记录文件 + 行号范围 + 既有同类规则定位（merge 点） | done：Batch I 读取 testing-strategy 与 llm-inference-integration 的入口及相关 references；Batch II 读取 tighten-doc、product-rd-workflow 三个目标 reference、defect-diagnosis 与 worktree-isolation 的现有同类段；Batch III 读取 skill-extraction-workflow 入口及 review mining / consolidation / coverage / harness 相邻 references。D3、D4、D6 判 covered，C4 判 covered，B8 判 merge；E5 已移出本轮 |
 | 2 | draft diff vs 台账 | 每候选一个 merge 点，零新增顶层 bullet 除非无既有同类规则（记录理由） | done：现有同类规则均就地合并；只在没有既有承载面的 session-vantage、review-feedback-mining 与 cross-model caveat 新建 reference。入口增长用既有 reference 指针压缩抵消；未引入新的 description/frontmatter 路由面 |
 | 3 | R0：`scripts/check-ccl-skills.sh` @ 候选 | `ccl_skill_check_clean_ok`（r0_status=private-ok）或 interim 标注；grep `dsh\|Cordis\|deepseek\|Agent Note` 于变更文件可执行文本 = 0 命中（provenance 段除外） | Batch I @ 8713cf4：`ccl_skill_check_clean_ok`、`r0_status=private-ok`、`entrypoint_size_blocking_ok`、impact-chain 行齐；leakage grep 0 命中 |
 | 4 | dual-track chain 023-I/II/III | review + challenge 各 ≥1 轮，终轮为对最终候选的 fresh full challenge；无未处置 P0/P1 | 历史各 batch 链见下。Kimi 对候选 `dd52ab3` 的完整 diff 初审产出 1×P2（CI blocking-job 限定只留在懒加载 reference），已接受并在 `8de5167` 把承重限定恢复到 testing 入口；合并前对含修复、rebind 与本 plan 的最终完整 diff 再执行 fresh Kimi review + challenge，仓外原始 artifact 为权威，任一 finding 或无效终态均阻断合并 |
 | 5 | behavioral-evidence | 每 owner ≥1 semantic-control 行；仓库 impact-chain gate 要求非措辞 owner 至少一条 RED-baseline 行；runner 必须对 provider 非零退出与空输出 fail closed | done。register 回填 run（base=`759dc603`、head=`fb41e11b`）保留为对应行的原始 truth；最终 evidence 均为 provider=`codex`、model=`gpt-5.6-luna`、4 rounds/arm，且持久化 regex source + flags，可从 raw 独立重评分。Kimi 修复后 Batch I 重新绑定 base=`31d3b3f`、head=`17b3231`：ts-verify-world **0/4→0/4**、with-key **4/4→4/4**、wording **0/4→4/4**；Batch IIb alternatives 独立最终文件绑定 `17b3231` 为 **0/4→4/4**，consumer corpus 的 prompt inputs 从 `f4e03ed` 到 `17b3231` 逐字节相同，保留原 **0/4→1/4** 与原 revision；Batch III review mining 绑定 `17b3231` 为 **4/4→4/4**。其余未触及输入仍绑定 `f4e03ed`：Batch II session-vantage **3/4→4/4**、enforcement **4/4→4/4**、postmortem **0/4→4/4**；Batch IIc lease **0/4→3/4**。全部有效调用均有非空 raw、无 ERROR；consumer 补跑因 21 分钟仍无首条输出以 exit 130 终止，不计为证据；无差分与弱差分原样保留 |
 | 6 | 例子集（C1）| example-domain 预选记录：选定中性域、抽象记录拒绝的源域、核对的例子清单 | done：F22/F23 使用通用文件搜索与部署域；F24–F27 使用通用 ADR、事故、git 重写与公开 API 删除域；拒绝源仓专名、包名、文件名。F0-contract 明示语料仅人工 advisory，分数引用已改绑 fail-closed provider 结果 |
-| 7 | target-output map vs 最终 diff | 每行 updated 有实 diff；unchanged/covered/routed/discarded 有理由；pending-verify 零残留 | done：B8 merge；C4、D3、D4、D6 covered；E5 held 并移入 batch V；其余 in-scope 行均有对应 diff，未把 held 项写入技能 |
+| 7 | target-output map vs 最终 diff | 每行 updated 有实 diff；unchanged/covered/routed/discarded 有理由；pending-verify 零残留 | done：B8 merge；C4、D3、D4、D6 covered；其余 in-scope 行均有对应 diff。C3、D1、E5 属后续，不计入本轮 diff 与完成集合 |
 | 8 | source-register | 本轮每个 changed owner 有 row，真实分数回填，`impact-chain-gate.rb` 通过 | done：testing / llm / tighten / product-rd / defect / worktree / skill-extraction 均有行；register 保留对应落地 run 的原始分数，最终 evidence 由判定表 5 绑定。candidate=`56c15a6` 的真实单次 merge 形态以 parent=`31d3b3f` 运行 `CCL_SKILL_BASE_REF=31d3b3f bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .`，exit 0，`r0_status=private-ok`、56 个 firing-path locator resolved、`ccl_skill_check_clean_ok`。Kimi 修复后 severe entrypoint 相对基线为 testing -146 bytes、skill-extraction -118 bytes，大小 blocking gate 通过；旧临时 merge 上叠第二次 merge 的验证拓扑已废弃且不冒充候选失败 |
 | 9 | 合并候选 | 最终候选 `make test` 与仓库必跑门禁全绿；合 dev 候用户显式指令 | 用户已明确授权 commit + 本地 dev merge，不授权 push/main。全新临时 worktree 从 parent=`31d3b3f` 单次 no-ff merge feature=`56c15a6`，merge tree 与 feature tree 逐字节相同；在无外部真实推理进程争用时，`CCL_SKILL_BASE_REF=31d3b3f make test` exit 0。此前一轮完整套件及一次 owning-script 复跑只在未改动的 Codex formal-hang 墙钟 `<=8s` 断言失败，结果字段仍为预期 timeout/cascade/exit137；独立 Kimi 600s 进程退出后，owning script 与完整套件均 exit 0，归类为资源争用时序抖动。其后只回填本 plan，不再改变技能/runner/eval/evidence；最终重跑 contract coverage、public sanitization、markdown links 与 `git diff --check`。未设 base 的 plain gate 会把本地 dev 上已合入、但不属于本轮的 code-review lane 纳入 `origin/dev..HEAD`，不作为本轮候选判据 |
-| 10 | security-sensitive 候选（D3 D4 D6 E5）| 全文读安全 owner 后先分类：现有规则已完整覆盖且本轮不改安全文本的候选退出 landing scope；仍要新增/改写安全语义的候选才需 feature-risk-router security-review gate 记录 + **安全 owner 处置**（approve / narrow / reject）后落地。安全 owner = **本仓维护者（仓库 owner 账户持有人）**；**执行 agent 不得自任或代填**。维护者未处置的 landing 候选 = held | **D3 / D4 / D6：全文读 owner 后判 `covered` 并退出 landing scope，本轮未新增/改写安全规则，故没有待处置 landing 候选**（`agent-tool-dispatch.md` 已有 exposure-vs-authorization、cached-manifest-never-bypasses-authorization、side-effect authorization boundary；`agent-command-sandbox.md` 已有 profile 枚举、network 独立授权、显式降级、scrubbed env / closed FDs / 私有 temp / symlink canonicalization）。**E5：held，未落地**——它需要新增沙箱阻断分流 + 受控提权语义，等待 batch V 具名维护者处置；`source-to-skill-extraction.md#blocked-verification` 本轮不改 |
+| 10 | 本轮 security-sensitive 候选（D3 D4 D6） | 全文读安全 owner 后分类：现有规则完整覆盖且本轮不改安全文本的候选退出 landing scope；仍需新增/改写安全语义时，必须先取得 feature-risk-router security-review 记录与安全 owner 处置 | done：D3、D4、D6 全文读后判 `covered` 并退出 landing scope，本轮未新增或改写安全规则。E5 已移出本轮，本次不设计、不落地，也不请求安全 owner 处置 |
+| 11 | 本次 scope closeout | `dev@12f783f` 已含 Batch I–III；C3、D1、E5 在全部 current-scope 表面均为后续；仅 plan 有 diff；文档门禁与独立 review 无阻断 finding | pending：验证后回填 |
 
 ## Target-output map
 
 | owner | direction | status | changed-file-or-reason |
 | --- | --- | --- | --- |
 | testing-strategy | executor | updated | B1/B2/B4/B5/B7 合并进 SKILL.md 与三个既有 references；B8 合并进 ci-fixtures |
-| llm-inference-integration | executor | updated + covered | B6/D2 落 agent instruction / workflow；D3、D4、D6 现有规则已覆盖；D1 保持 batch V |
+| llm-inference-integration | executor | updated + covered | B6/D2 落 agent instruction / workflow；D3、D4、D6 现有规则已覆盖；D1 属后续，本轮不做 |
 | tighten-doc | executor | updated + covered | C1/C2 落 session-vantage reference 与入口指针；C4 由现有 scope 规则覆盖；cross-model caveat 独立 reference |
 | product-rd-workflow | coordinator | updated | A1/A2、E2、E3 分别合入 adr-convention、code-review-checklist、implementation-completeness-and-minimality |
 | defect-diagnosis | executor | updated | A4 合入 Phase C postmortem 段 |
 | worktree-isolation | executor | updated | E4 合入 published-branch history rewrite / explicit lease 条 |
-| skill-extraction-workflow | this workflow | updated + held | E1/C5/D5 与 benchmark 源类落地；source-register 七个 owner 行已落；E5 未改 source-to-skill-extraction，保持 batch V held |
-| 本仓维护者（安全 owner）| authority | no current action | D3/D4/D6 判 covered，无新增安全语义；E5 未落地，待 batch V 独立设计时再请求明确处置 |
+| skill-extraction-workflow | this workflow | updated | E1/C5/D5 与 benchmark 源类落地；source-register 七个 owner 行已落；E5 属后续，本轮不改 source-to-skill-extraction |
+| 本仓维护者（安全 owner）| authority | no current action | D3/D4/D6 判 covered，无新增安全语义；E5 本轮不请求处置，后续独立 spec 重新进入 security-review gate |
 | code-review | executor | unchanged→pointer | C1/E2 由 tighten-doc 与 product-rd checklist 持有；本技能是否加一行指针在 batch II 判 |
-| agents-file-coverage-gate | executor | unchanged | C2/C3 的 AGENTS.md 分层与预算：C2 不抄 tier 表；C3 归 batch IV |
+| agents-file-coverage-gate | executor | unchanged | C2 不抄 AGENTS.md 分层 tier 表；C3 属后续，本轮不做 |
 | multi-agent-delegation | sibling | unchanged: covered | B1 已有"不信 agent 自述"（SKILL.md）；testing-strategy 落地时互相指向 |
 | go/python-dev、go/python-architecture | sibling | unchanged: covered | D6 的子进程环境与生命周期规则已有 owner 覆盖，本轮不改 |
 | agent-quality | sibling | unchanged: routed | E1 采纳证据标准归 skill-extraction；本轮无需增加跨仓指针 |
@@ -96,11 +98,12 @@
 
 ## 实施边界与评审门
 
-- 实施边界：baseline = 本 plan；worktree `.work/worktrees/dsh-borrowing`（分支 `worktree-dsh-borrowing`）自 dev `673fece` 分出；每条 git 变更 `git -C "<abs>"`；`multi-agent-delegation`: local（三批串行，共享 source-register 文件不并行）；visible surface: no（不改 description）；`feature-risk-router`: shared-skill + no-routing-surface（见 charter）；portfolio-stability: dsh = evolving → 措辞为"形态之一 / 可借鉴"，不写"标准做法"。
+- Batch I–III 实施边界：worktree `.work/worktrees/dsh-borrowing`（分支 `worktree-dsh-borrowing`）自 dev `673fece` 分出；三批串行，共享 source-register 文件不并行；visible surface: no（不改 description）；`feature-risk-router`: shared-skill + no-routing-surface；portfolio-stability: evolving，措辞为“形态之一 / 可借鉴”，不写“标准做法”。
+- 本次范围校正边界：baseline = 本地 `dev@12f783f`；worktree `.work/worktrees/023-scope-closeout`（分支 `worktree-023-scope-closeout`）；只改本 plan，不改技能、证据、source-register 或路由面。
 - 评审门：每批一条 dual-track 链（review + challenge），终轮 fresh full challenge；P0/P1 处置后才 commit；R0 每批跑；Agent 预算每链独立计（初审 + ≤4 challenge）。
 - status-sync：本 plan 即轮记录，判定表 trace 与 dual-track 记录随批回填；source-register 行终稿一次落（routing-round-ledger-append-once）。
 - 授权边界（按 023-plan-r1 / r2 / r3 的 review 与 challenge P1 逐轮收窄）：**本 plan 不授予任何变更权限**——包括对 owner 文件的本地编辑、任何有状态的验证（会写盘/改仓库状态的检查）、本地 commit、push、创建/更新 MR、合并 dev、任何 `main` 推进。每个 batch 的执行开始（首次编辑）以及上述每一项动作，都以会话中**各自独立、可记录的用户明确指令**为前提，由执行者在动作前核对该指令存在并在轮记录中注明其出处；本文只描述范围与判定标准，任何句子都不得被引为授权依据。不在此列的只有**已核实无本地/网络/凭证/子进程/远端效果**的只读操作（读文件、只读 grep）；`--dry-run` 之类靠命令拼写声明的"只读"不算——其实际效果未核实前按有状态验证处理。
-- Batch IV（C3）：不与 I–III 同批；先出 design-time 四腿检查文书交维护者裁决，裁决通过再开 spec。
+- 后续 backlog：C3、D1、E5 均需另开 spec 并重新定范围；本轮不产出 design-time 文书，不请求安全处置。
 
 ### Dual-track 评审记录
 
