@@ -99,7 +99,13 @@
             "raw": "不可以。ADR 的 `Alternatives considered` 记录的是“当时真实考虑过的方案”，不能为了完整而补造。\n\n应分别这样填写：\n\n1. 上周的 ADR：\n\n```text\n### Alternatives considered\n\nalternatives: none-considered\n\n当时直接选择了消息队列，决策过程中没有实际评估或比较其他方案。\n```\n\n如果上线后的复盘评估了同步调用、事件总线等方案，应另起“后续评估”或追加带日期的说明，不能伪装成当时的备选方案。\n\n2. 三年前的 ADR：\n\n```text\n### Alternatives considered\n\nalternatives: not-recorded\n\n原始记录未保留当时比较过的方案，相关参与者目前也无法确认或重建该决策过程。\n```\n\n`none-considered` 表示明确知道当时没有比较；`not-recorded` 表示无法知道。两者都比虚构历史更准确，也正是 ADR 防止决策被反复重提的原因。\n\nproposed-next: none — status only"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i",
+        "i"
+      ]
     },
     "prd-consumer-corpus": {
       "task_sha256": "73f34be5843b5c262b40fb24b8946f8632c1200146fb897bf02c5553c940c87d",
@@ -197,7 +203,12 @@
             "raw": "结论：不够。`grep` 只能证明“当前仓库里没有静态生产调用”，不能证明它不是外部公开契约。\n\n至少还要确认：\n\n- `resolveLegacyToken()` 是否属于公开导出面：public class、package export、SDK/API、插件接口等。公开接口的消费者可能在仓库外，仓内无调用不能作为删除依据。\n- README 示例是否代表承诺的用法，而不只是历史草稿；同时检查 API 文档、变更日志、版本兼容承诺和发布包。\n- 是否存在动态调用：反射、字符串查找、注册表、配置/序列化字段、生成代码、脚本或其他语言绑定。\n- 是否有下游仓库、示例项目、集成测试或外部客户端依赖它。\n- 查看 git 历史和发布版本：它是否已被弃用、是否承诺过兼容窗口，删除是否需要 major version、迁移说明或替代 API。\n- 检查测试和 README 引用的语义：如果 README 是有效公共示例，删除代码前应同步删除或改写示例；测试可以随 API 删除，但不能把测试删除误当成兼容性验证。\n- 删除后运行完整导出/API surface 检查、相关测试、构建和 lint，并确认没有生成产物或文档链接残留。\n\n判断标准可以简化为：\n\n| 情况 | 是否可直接删除 |\n|---|---|\n| 私有内部实现、无公开导出、无动态/生成引用 | 通常可以，补齐静态检查和测试 |\n| 公开导出，但确认无外部兼容承诺且允许破坏性版本 | 需要按版本/迁移流程删除 |\n| 公开导出或兼容性边界不明 | 不能直接删；先弃用、提供替代或确认外部消费者 |\n| README 是公开用法示例 | 不能只删测试；必须同步处理文档和兼容说明 |\n\n因此，当前结论应是：`仓内生产调用为零，删除候选成立；公开 API 删除资格尚未证明`。公开方法要先按“外部契约”处理，而不是按 grep 结果处理。\n\nproposed-next: none — status only"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
     }
   }
 }

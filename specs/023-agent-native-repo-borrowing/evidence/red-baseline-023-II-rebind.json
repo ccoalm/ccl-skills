@@ -87,7 +87,12 @@
             "raw": "改后文本：\n\n> The loader validates the value before this point, so this cast only narrows its static type to the validated shape.\n\n修改理由：\n\n1. 删除 “used to…after PR #212”：这是变更历史，README 应描述当前机制；PR 引用应留在变更记录或决策文档中。\n2. 删除 “design §4.7 and decision 7”：这是无法独立解析的会话内部引用。\n3. 将 “The cast below is safe” 改为具体不变量：安全性来自 loader 已完成校验，而不是“类型收窄”本身。\n4. 删除 “as the reviewer confirmed in round 3”：这是评审过程信息，不属于 README。\n5. 删除 “Probably fine for now”：这是无依据的 hedge；若存在已知风险，应改成带 owner 和 issue 的 TODO。\n\n形式已优化；“loader 已校验该值”这一技术断言未对源码核验。"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
     },
     "prd-enforcement-review": {
       "task_sha256": "66691ada105b6a9d4e3bb21a6f86d137c03e56ac7f671b79e35044db7b5ea142",
@@ -169,7 +174,12 @@
             "raw": "结论：**阻塞，不建议合并。**\n\n主要问题：\n\n- **高危：删除保护仅存在于系统提示和 schema 描述中。** 这不是安全边界；模型或其他调用方仍可直接调用 `delete_branch(\"main\")`。必须在工具执行器/实际副作用入口强制拒绝 `main`，并增加测试覆盖。\n- **高危：缺少执行层授权测试。** 至少验证 `main` 被拒绝，大小写/别名规范化后的主分支也不会被绕过；普通分支删除及失败路径应保持正确。\n- **中危：工具描述泄露无关内部实现细节。** “通过 GitOpsPlugin 的 gRPC transport 执行”是模型不可操作的内部架构信息，不能替代工具契约；应删除，或仅描述调用语义、权限和副作用。\n\n修复后应重新评审实际 diff，并确认拒绝逻辑位于执行删除操作的代码路径，而不是只改 prompt/schema。\n\nproposed-next: none — status only"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
     },
     "dd-postmortem-criteria": {
       "task_sha256": "ecbbe54021c4e92912298a88f87a7ab4c8112bbc9e08fe4149daa82893a34fd3",
@@ -259,7 +269,12 @@
             "raw": "值得写，尤其因为它满足“微妙、系统性、重新排查代价高”三项：\n\n- 微妙：`default export` 导致加载器静默丢失依赖注入，机制不直观。\n- 系统性：CI 单测全绿，却没有覆盖真实插件加载契约。\n- 代价高：只有产品启动自动化 server 才暴露，容易重复踩坑。\n\n如果这个问题已经进入合并变更、发布版本，或影响了用户/业务，则应正式写 postmortem；只要有用户或业务影响，无论机制看起来多简单，都必须写。若只发生在本地、未合并且无影响，则正式 postmortem 可不写，但仍应做完整的复杂度分析，因为测试层和运行时契约都失效了。\n\n开头必须有一段“三十秒执行摘要”，明确说明：\n\n1. 什么坏了；\n2. 根因是什么；\n3. 为什么 CI 没拦住；\n4. 持久性的教训是什么。\n\n结尾必须链接这次产出的护栏，让读者能验证问题以后会被及时发现，例如：\n\n- 防止错误 export 形式的回归测试；\n- 插件加载/依赖注入契约或类型检查；\n- CI、启动检查或集成测试；\n- 必要的开发规则、review checklist、runbook；\n- 若形成了架构或流程决策，还要链接对应 decision record。\n\n此外，这属于复杂缺陷，应按多层 Swiss Cheese 视角说明测试、加载器契约、启动验证和开发约定分别哪里有漏洞，以及各自如何补上。"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
     }
   }
 }

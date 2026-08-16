@@ -85,7 +85,12 @@
             "raw": "有问题，主要有两处关键误判：\n\n1. **“resolved”或作者说“已修”不能证明采纳。**  \n   线程状态和作者回复只是上下文，必须比较：\n\n   - 评论产生前的 feedback-time patch\n   - 最终合并的 landed patch\n\n   只有最终 diff 实际实现了评论要求，才能标记为 `human-authored ∧ adopted`。如果经历 force-push、基线无法重建或时间线不清，应标记 `unclear` 并排除。还要排除机器人评论、转发自动化结果，以及作者自己的评论。\n\n2. **不能直接提交模型起草的 `SKILL.md`。**  \n   模型输出只能作为候选草稿，不能作为最终规则。应先把已采纳的评论整理成脱敏、结构化的“ reviewer asked what / why / final diff evidence”，再判断它是：\n\n   - `candidate`\n   - `already-covered`\n   - `implementation-specific`\n   - `not-feedback`\n\n   只有真正可复用、非业务特定、当前技能尚未覆盖的候选，才进入技能修改；并且修改后要经过独立的一致性 review 和对抗性 challenge。\n\n更稳妥的流程是：\n\n1. 过滤人类 reviewer，并确认评论和最后合并时间都严格早于 merge。\n2. 重建评论时的 patch 与最终 landed patch。\n3. 只保留实际被 diff 采纳的意见；无法重建的 fail closed。\n4. 从“结构化、泛化后的指导”起草规则，不复制原评论或业务细节。\n5. 对照当前技能去重，避免把已有规则再次提案。\n6. 将候选映射到真正的 owner skill，并做脱敏/R0 审计。\n7. 对最终 diff 执行事实一致性 review、 adversarial challenge 和行为证据验证。\n\n因此，你当前的方法会系统性地把“线程关闭但未实现”的意见误判为已采纳，也可能把模型臆造或源 PR 特有的内容直接写进共享技能。技能规则中明确强调：**adoption 是 diff fact，不是 thread state；模型草稿必须经过人工判断和双轨评审后才能落地。**"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
     }
   }
 }

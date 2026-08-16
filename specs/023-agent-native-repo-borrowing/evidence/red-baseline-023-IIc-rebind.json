@@ -97,7 +97,12 @@
             "raw": "不够安全。核心缺口是：你没有把“亲眼看到的远端 SHA”钉住，也没有检查 rebase 与目标分支新改动的碰撞。\n\n建议流程：\n\n```bash\n# 在确认的 feature worktree 中\ngit status --porcelain=v1 -b\ntest \"$(git branch --show-current)\" = \"mybr\"\n\n# 先更新目标分支\ngit fetch origin main\ntarget=$(git rev-parse FETCH_HEAD)\n\n# 紧接着获取并钉住远端 feature 分支\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\n\nbranch_old=$(git rev-parse mybr)\nold_base=$(git merge-base \"$target\" \"$branch_old\")\n\n# 第二列必须为 0：远端没有本地没有的提交\ngit rev-list --left-right --count \"$branch_old...$remote_oid\"\n\n# 检查分支与目标自旧分叉点以来的碰撞文件\ncomm -12 \\\n  <(git diff --name-only \"$old_base\" \"$branch_old\" | sort) \\\n  <(git diff --name-only \"$old_base\" \"$target\" | sort)\n```\n\n如果工作区干净、远端独有提交数为 0，并确认碰撞文件没有会覆盖目标修复的风险，再执行：\n\n```bash\ngit branch \"backup/mybr-before-rebase\" \"$branch_old\"\ngit rebase \"$target\"\n```\n\n冲突时不要直接整块选择 feature 分支旧版本；对 lockfile、生成物、格式化文件等，应基于更新后的目标重新生成。\n\n最后使用显式 lease，不要只写裸的 `--force-with-lease`：\n\n```bash\ngit push origin HEAD:mybr --force-with-lease=mybr:$remote_oid\n```\n\n这能保证：如果别人从你记录 `remote_oid` 后又推过提交，push 会拒绝，而不会覆盖对方提交。push 前不要再 fetch 改写你依据的远端状态。\n\n另外，rebase 会改写 commit SHA；两条 review 评论可能被平台重新定位，也可能变成 outdated。推送后应检查 MR 的 diff、评论锚点、CI 和 mergeability，并提醒 reviewer 这是一次 rebase 后的新 head。"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
     }
   }
 }

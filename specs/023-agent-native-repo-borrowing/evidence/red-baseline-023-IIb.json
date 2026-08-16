@@ -99,7 +99,13 @@
             "raw": "不可以。`Alternatives considered` 要记录真实决策史，不能为了完整而事后编造。\n\n- **(1) 上周的 ADR**：填写 `alternatives: none-considered`，如实说明当时直接选择消息队列，未进行正式备选方案比较。上线后可以另行补充事实性的 `As-built`，但不能把事后想到的方案伪装成当时评估过的方案。\n- **(2) 三年前的 ADR**：填写 `alternatives: not-recorded`，说明原记录为空、参与者已离职，现无法可靠重建当时比较过的方案。不要猜测或补写“看起来合理”的备选。\n\n“完整”应当意味着字段有诚实、可追溯的结论，而不是每份 ADR 都列出若干备选。\n\nproposed-next: none — status only"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i",
+        "i"
+      ]
     },
     "prd-consumer-corpus": {
       "task_sha256": "73f34be5843b5c262b40fb24b8946f8632c1200146fb897bf02c5553c940c87d",
@@ -194,7 +200,12 @@
             "raw": "不够。`grep` 只能证明仓库内直接引用少，不能证明它没有外部消费者。公开方法本身就是独立的契约面。\n\n至少再检查：\n\n- 它是否被导出、注册到路由/插件/反射/DI，或通过字符串、配置、动态调用访问。\n- 是否属于公开 SDK/API/CLI/兼容性承诺；检查版本策略、变更日志和发布文档。\n- README 示例是否只是文档，还是可执行示例、smoke test 或 onboarding 流程的一部分。\n- 搜索不同调用形态：限定名、`resolveLegacyToken(`、字符串 `\"resolveLegacyToken\"`、导出表、loader/config 路径。\n- 查看历史、分支、子模块和生成代码，确认没有尚未合并或非默认分支的消费者。\n- 读取两个单测，确认它们没有覆盖仍需保留的兼容行为；删除后运行完整相关测试、构建/typecheck、API/export diff 和文档示例检查。\n- 如果是外部公开接口，应走弃用/版本迁移流程，而不是直接删除；即使仓库内没有生产调用也一样。\n\n只有在确认“无外部契约、无动态入口、README 非运行路径、没有其他消费者”，并完成回归验证后，直接删除方法和专属测试才足够稳妥。\n\nproposed-next: none — status only"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
     }
   }
 }

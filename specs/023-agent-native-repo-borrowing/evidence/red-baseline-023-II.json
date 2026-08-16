@@ -85,7 +85,12 @@
             "raw": "改后文本：\n\n> The module parses configuration through the current loader. The cast narrows the parsed value’s static type and must remain consistent with the loader’s output shape.\n\n修改理由：\n\n1. `used to ... legacy loader` → `parses ... through the current loader`  \n   改为描述当前机制，删除变更史叙事。\n\n2. 删除 `see design §4.7 and decision 7`  \n   这些是当前读者无法稳定解析的会话内部引用。\n\n3. 删除 `after PR #212 it no longer does`  \n   README 应说明现状；PR 变更过程应放在 PR、变更记录或决策记录中。\n\n4. `The cast below is safe` → `The cast narrows the parsed value’s static type`  \n   保留可验证的技术事实，删除未经源码或不变量支持的安全背书。\n\n5. 删除 `as the reviewer confirmed in round 3`  \n   这是评审过程信息，不是模块的长期行为或约束。\n\n6. `Probably fine for now.` → `must remain consistent with the loader’s output shape`  \n   删除不确定语气，改为明确的维护约束。"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
     },
     "prd-enforcement-review": {
       "task_sha256": "66691ada105b6a9d4e3bb21a6f86d137c03e56ac7f671b79e35044db7b5ea142",
@@ -167,7 +172,12 @@
             "raw": "评审结论：阻塞合并（Blocking）。\n\n1. **高危：删除保护仅存在于系统提示，执行器未强制校验**  \n   `delete_branch(name)` 的真实副作用发生在工具执行器；任何直接调用、绕过模型提示、替代调用路径或提示注入都可能删除 `main`。  \n   必须在执行器/副作用边界实施服务端保护：拒绝 `name == \"main\"`，并为拒绝路径增加测试。若分支名可变，还应明确大小写、别名和默认分支配置语义。\n\n2. **高危：从 schema 删除 `main` 选项不能视为授权控制**  \n   schema 描述只是模型可见信息，不是安全边界；隐藏一个选项不等于禁止操作。应恢复准确的工具契约描述，并让执行器承担最终拒绝责任。\n\n3. **中危：工具描述泄露无关的内部实现细节**  \n   “通过 GitOpsPlugin 的 gRPC transport 执行”是内部插件/传输实现信息，模型既不需要也不能据此正确调用工具。它会增加提示噪声并把不稳定的实现细节变成模型可见行为。描述应只说明工具能力、参数约束、成功/失败语义及不可删除受保护分支。\n\n4. **缺失验证**  \n   至少需要覆盖：\n\n   - `delete_branch(\"main\")` 在执行器层被拒绝，且无删除副作用；\n   - 正常分支仍可删除；\n   - 直接/替代调用路径同样受保护；\n   - 工具 schema、提示和错误响应保持一致。\n\n在完成执行器授权检查、修正 schema/描述并补齐测试前，不应批准该 PR。\n\nproposed-next: 修复执行器授权检查、恢复准确的 schema 契约并删除内部 transport 描述后重新提交评审"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
     },
     "dd-postmortem-criteria": {
       "task_sha256": "ecbbe54021c4e92912298a88f87a7ab4c8112bbc9e08fe4149daa82893a34fd3",
@@ -255,7 +265,12 @@
             "raw": "值得，至少应按“复杂缺陷”做完整 RCA；是否需要正式 postmortem 取决于逃逸范围和成本。\n\n判定依据：\n\n- 若已进入 release 或用户环境：必须写。产品启动即崩属于用户/业务可见影响，不论根因看起来多简单。\n- 若只进入 merged change、尚未影响用户：当同时满足以下三项，也值得正式写：\n  - subtle：`default export` 导致依赖注入静默丢失，机制不直观；\n  - systemic：单测全绿却漏过启动时的真实加载链路，说明测试/契约/加载器防线存在系统性缺口；\n  - costly：已经花费实际排查时间，且同类问题会重复发生。\n- 若仅是未合并的本地问题、无用户影响且成本很低：通常不必正式 postmortem，但仍应完成复杂度分析和回归测试，因为测试层和运行时契约都失效了。\n\n如果写，开头必须先有一段约三十秒可读的执行摘要，明确：\n\n1. 什么坏了；\n2. 根因是什么，用 plain language 说明；\n3. 为什么 CI 没抓住；\n4. 持久性教训是什么。\n\n结尾必须链接它产生的防线，例如：\n\n- 能在修复前失败、修复后通过的启动/加载回归测试；\n- 插件导出格式与依赖注入契约；\n- loader 校验、lint/type/CI 检查；\n- 必要时的运行手册或设计决策记录。\n\npostmortem 回顾的是这次失败及防线为何失效；设计决策本身应链接到相应的决策记录，而不是用 postmortem 替代它。"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
     }
   }
 }

@@ -79,7 +79,8 @@ results = {}
 PROBES.select { |p| only.nil? || p[:id] == only }.each do |p|
   arms = { "base" => { sha: BASE_SHA, body: arm_body(BASE_SHA, p[:skill], p[:refs]) },
            "head" => { sha: HEAD_SHA, body: arm_body(HEAD_SHA, p[:skill], p[:refs]) } }
-  results[p[:id]] = { task_sha256: Digest::SHA256.hexdigest(p[:task]), required: p[:required].map(&:source) }
+  results[p[:id]] = { task_sha256: Digest::SHA256.hexdigest(p[:task]), required: p[:required].map(&:source),
+                      required_flags: p[:required].map { |re| [["i", Regexp::IGNORECASE], ["m", Regexp::MULTILINE], ["x", Regexp::EXTENDED]].filter_map { |flag, bit| flag unless (re.options & bit).zero? }.join } }
   arms.each do |arm, a|
     prompt = "以下是当前生效的技能规则（SKILL.md 正文 + 参考）。严格按其中规则回答任务。\n\n=====SKILL=====\n#{a[:body]}\n=====TASK=====\n#{p[:task]}"
     hits = 0; details = []

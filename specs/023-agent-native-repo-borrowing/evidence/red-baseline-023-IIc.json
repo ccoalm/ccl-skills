@@ -93,7 +93,12 @@
             "raw": "不够安全，核心问题是你依赖了可能过期的 `origin/mybr`，且 `--force-with-lease` 没有绑定你实际观察到的远端 SHA。\n\n建议顺序：\n\n```bash\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\n\ngit rev-list --left-right --count mybr...\"$remote_oid\"\n```\n\n确认右侧（远端独有提交）为 `0` 后，再固定目标基线：\n\n```bash\ngit fetch origin main\ntarget=$(git rev-parse origin/main)\nold_tip=$(git rev-parse mybr)\nold_base=$(git merge-base \"$target\" \"$old_tip\")\n```\n\n同时确认：\n\n```bash\ngit status --porcelain=v1 -b\ngit branch --show-current\n```\n\n工作树应干净，并确认你位于正确的功能 worktree/分支。然后：\n\n```bash\ngit rebase \"$target\"\n```\n\n解决冲突后，尤其是生成物、lockfile、格式化文件，应从更新后的目标重新生成，不能直接照搬旧分支版本。rebase 完成后检查 review 评论涉及的 diff 是否仍然存在，因为提交哈希和行号锚点都会变化。\n\n最后用观察到的精确 SHA 作为 lease：\n\n```bash\ngit push --force-with-lease=mybr:\"$remote_oid\" origin HEAD:mybr\n```\n\n这比裸 `git push --force-with-lease` 安全；后者可能受本地 tracking ref 被后台 fetch 刷新的影响。推送前最好再核对 `git rev-parse HEAD` 是你预期的 rebase tip。\n\n另外，rebase 会重写 MR 历史，已有两条 review 评论和 CI 状态应视为需要重新确认；如果远端在检查后又变化，lease 应拒绝推送，此时不要强推，重新 fetch、确认变化并重新评估。"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
     }
   }
 }

@@ -102,7 +102,12 @@
             "raw": "验收断言应独立于 agent 自己写入的日志，重新观察部署系统和运行环境：\n\n- **部署状态断言**：权威部署平台中，目标环境的部署记录状态为 `成功/完成`，且关联唯一的 `release_id = release-2026`。\n- **版本断言**：通过真实发布入口查询运行实例，所有应部署实例均报告目标版本或目标 artifact digest，而非仅检查脚本退出码。\n- **一致性断言**：运行实例实际加载的 artifact digest 与本次发布物 digest 完全一致。\n- **可用性断言**：通过发布后的真实入口执行关键只读健康检查，返回符合产品契约的响应、版本信息和必要依赖状态。\n- **覆盖率断言**：目标环境中应更新的实例/节点全部达到目标版本；不存在旧版本实例、未完成实例或失败实例。\n- **持久化断言**：部署平台的独立审计记录包含目标环境、release ID、artifact digest、完成时间和成功状态，并能与运行状态关联。\n- **副作用断言**：部署范围外的受保护资源与部署前保持一致；不得以 agent 自己生成的 `release-2026.log` 作为完成证明。\n- **失败闭环断言**：若任一实例未达到目标版本、健康检查失败、审计记录缺失或状态不一致，则验收失败；不能用“脚本已执行”或“日志写入成功”替代。\n\n最低可接受证据组合是：权威部署状态 + 真实运行版本/digest + 发布入口健康检查 + 独立审计记录。"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "",
+        "i"
+      ]
     },
     "llm-withkey-skip": {
       "task_sha256": "0072b20f20ec1ddbe3b193b2be180f45a51e676afe3fdd82450f5692f24e532b",
@@ -184,7 +189,12 @@
             "raw": "结论：不能据此宣称 agent 功能验收通过，也不能仅凭这些结果批准上线。\n\n理由：\n\n- with-key 真实模型 e2e/smoke 套件是 **self-skip，不是通过**。绿色只表示测试框架正常跳过，不能证明真实模型可路由、模型能正确选工具、工具效果、流式链路、权限与最终状态持久化都正常。\n- keyless 单测证明代码和基础逻辑，replay 证明确定性回放链路；二者都不能替代“启动实际组装产品、发送真实请求并验证文件/工具效果”的 assembled-product smoke。\n- 发布验收若依赖真实模型行为，必须有一个针对当前候选代码或构建产物、绑定模型/配置/依赖/环境信息的 **非跳过 live-model job**。缺少 API key 时应标记为 `blocked` / `not run`，而不是 `passed`。\n- 因此当前最多能说“keyless 检查和 replay 通过，真实模型验收未执行，存在未验证风险”。除非产品负责人明确接受该残余风险并完成相应审批，否则不能作为 agent 功能验收通过或上线依据。\n\n应补跑隔离测试租户中的真实模型 smoke：使用最小权限、仅允许可逆工具，并单独报告 `passed`、`failed`、`skipped`；在 smoke 成功前冻结上线结论。"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        ""
+      ]
     },
     "llm-wording": {
       "task_sha256": "f166855db6ee6a9b921c47b393f39b0c35c9a6d2f90ddfbcafde2a5847dcee9b",
@@ -272,7 +282,12 @@
             "raw": "评审结论：阻塞合入。\n\n有两处问题：\n\n1. 工具描述泄露了实现细节并改变了语义  \n   `FsIndexPlugin`、LSP transport、renderer panel 都是模型不可操作的内部概念。尤其把 `scope` 从“搜索范围”改成“渲染面板”会改变参数契约，可能导致模型选择错误的值或误用工具。\n\n   建议恢复为：\n\n   > Search files under the current workspace root; `scope` is one of `workspace|selection|open-editors`.\n\n2. 诊断信息不足以帮助模型修复调用  \n   `unknown scope; try again` 没有指出字段名和允许值，无法形成可靠的自修复指引。应至少返回：\n\n   > Unknown value for `scope`; allowed values: `workspace`, `selection`, `open-editors`.\n\n该 PR 修改的是模型可见的工具描述和诊断，属于行为变化；合入前还应补充相应的 schema/golden 变更检查，以及覆盖错误参数自修复和正确 scope 选择的 replay/eval。"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
     }
   }
 }

@@ -85,7 +85,12 @@
             "raw": "有，两个核心判断都不成立。\n\n1. “线程 resolved / 作者说已修”不等于采纳\n\n应先过滤：\n\n- 只保留人类评审者的意见；排除机器人、自动化转发，以及作者自己的评论。\n- 重新构造意见产生时的 patch：取评论前最后一个提交。\n- 再与最终合并到目标分支的 patch 比较，确认最终代码确实按意见发生了对应变化。\n- 评论创建和最后编辑时间都必须早于合并时间。\n- 如果 force-push 等原因导致无法重建当时的 patch，应标为 `unclear` 并排除，不能猜。\n\n线程状态、作者回复“已修”、评论是否被关闭，都只能作为背景信息，不能作为采纳证据。\n\n2. 模型生成的 SKILL.md 不能直接提交\n\n模型输出只能作为候选草稿。还需要：\n\n- 将具体评论抽象成可复用规则，去掉 PR、项目、业务和代码标识。\n- 对照当前技能分类为：`candidate`、`already-covered`、`implementation-specific` 或 `not-feedback`，避免重复和清单膨胀。\n- 人工审阅并修改草稿，不能原样提交。\n- 对共享技能变更执行独立的事实/一致性 review，以及独立的对抗性 challenge。\n- 记录来源到目标规则的映射；如果是非文字性变更，还要有行为验证证据。\n\n建议流程是：\n\n`人类作者过滤 → 重建 feedback-time/final diff → 判断 adopted → 泛化并脱敏 → 对照现有技能去重 → 人工整理 → 独立 review + adversarial challenge → 验证后提交`\n\n另外，如果这次确实要更新共享评审技能，还应先建立提炼 charter、RCA、source register 和 target-output map；否则最多只能称为候选分析，不能称为已完成的技能提炼。"
           }
         ]
-      }
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
     }
   }
 }
