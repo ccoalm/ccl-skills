@@ -45,8 +45,15 @@ assert_rc() { [ "$1" = "$2" ] || fail "expected rc=$2 got rc=$1${3:+ ($3)}"; }
 assert_contains() { case "$2" in *"$1"*) : ;; *) fail "expected output to contain: $1${3:+ ($3)}";; esac; }
 assert_not_contains() { case "$2" in *"$1"*) fail "expected output NOT to contain: $1${3:+ ($3)}";; *) : ;; esac; }
 
-# repeat_char <char> <count> — emit <count> copies of <char> with no newline.
+# repeat_char <single-byte-char> <count> — emit copies with no newline.
 repeat_char() { head -c "$2" /dev/zero | tr '\0' "$1"; }
+
+# repeat_word <word> <count> — emit whitespace-delimited words with one newline.
+repeat_word() {
+  awk -v word="$1" -v count="$2" 'BEGIN {
+    for (i = 1; i <= count; i++) printf "%s%s", word, (i == count ? "\n" : " ")
+  }'
+}
 
 # Run the size script with a guaranteed-unset base ref env; capture stdout+stderr+rc.
 run_size() {
@@ -87,6 +94,8 @@ assert_contains "entrypoint_size_severe_debt_count_base=0" "$out" "severe trend 
 assert_contains "entrypoint_size_severe_debt_count_head=0" "$out" "severe trend head count available"
 assert_contains "entrypoint_size_severe_debt_count_delta=+0" "$out" "severe trend delta is signed"
 assert_contains "entrypoint_size_budget_advisory_ok" "$out" "final advisory marker present"
+assert_contains "entrypoint_word_budget_over_limit_count_head=0" "$out" "no body-word debt"
+assert_contains "entrypoint_word_budget_blocking_ok" "$out" "word-budget verdict is clean"
 assert_not_contains "changed_entrypoint_above_recommended" "$out" "no changed-entrypoint token when nothing changed"
 
 # Case b: baseline small -> head grows above recommended (tracked, uncommitted) =>
@@ -621,6 +630,192 @@ set -e
 assert_rc "$rc" 0 "base-less clean tree keeps the advisory exit contract"
 assert_contains "entrypoint_size_blocking_unevaluated" "$out" "un-evaluated delta gate says so"
 assert_not_contains "entrypoint_size_blocking_ok" "$out" "a base-less run must never claim a blocking pass"
+
+# ---------------------------------------------------------------------------
+# C3 body-word budget series (fresh repos, deterministic): frontmatter is out
+# of scope; a new/within-limit entrypoint may not exceed 5000 body words; a
+# historical over-limit entrypoint may stay level or shrink but may not grow.
+WORD_REPO="$TMP/repo-word-budget"
+mkdir -p "$WORD_REPO/skills/demo-skill" "$WORD_REPO/skills/legacy-unchanged"
+git init -q -b main "$WORD_REPO"
+git -C "$WORD_REPO" config user.email test@example.invalid
+git -C "$WORD_REPO" config user.name "Test User"
+WORD_SKILL="$WORD_REPO/skills/demo-skill/SKILL.md"
+LEGACY_UNCHANGED_WORD_SKILL="$WORD_REPO/skills/legacy-unchanged/SKILL.md"
+
+write_skill_with_body_words() { # <path> <body-word-count> [word]
+  local skill_name
+  skill_name="$(basename "$(dirname "$1")")"
+  {
+    printf -- '---\nname: %s\ndescription: word-budget fixture.\n---\n\n' "$skill_name"
+    repeat_word "${3:-word}" "$2"
+  } > "$1"
+}
+
+write_skill_with_body_words "$WORD_SKILL" 2
+write_skill_with_body_words "$LEGACY_UNCHANGED_WORD_SKILL" 5001 legacy
+git -C "$WORD_REPO" add -A
+git -C "$WORD_REPO" commit -qm "small word-budget baseline"
+git -C "$WORD_REPO" checkout -qb feature
+
+# Case f1: frontmatter words do not consume the body budget. The changed-file
+# token pins the exact metric so silently counting YAML makes this test red.
+{
+  printf -- '---\nname: demo-skill\ndescription: '
+  repeat_word meta 6000
+  printf -- '---\n\nonly two\n'
+} > "$WORD_SKILL"
+set +e
+out="$(env -u CCL_SKILL_BASE_REF bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 0 "frontmatter words must not consume the body-word budget"
+assert_contains "changed_entrypoint_word_delta: skills/demo-skill/SKILL.md" "$out" "body-word delta token emitted"
+assert_contains "head_body_words=2" "$out" "only body words are counted"
+assert_contains "entrypoint_word_budget_over_limit_count_head=1" "$out" "unchanged historical over-limit entrypoint remains visible"
+assert_contains "entrypoint_word_budget_blocking_ok" "$out" "frontmatter-only growth remains within the word budget"
+git -C "$WORD_REPO" checkout -- skills/demo-skill/SKILL.md
+
+# Case f2: a new entrypoint above the uniform limit blocks with path, actual,
+# and allowed counts in a machine-readable diagnostic.
+mkdir -p "$WORD_REPO/skills/fresh-skill"
+FRESH_WORD_SKILL="$WORD_REPO/skills/fresh-skill/SKILL.md"
+write_skill_with_body_words "$FRESH_WORD_SKILL" 5001
+set +e
+out="$(env -u CCL_SKILL_BASE_REF bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 1 "new entrypoint above the word limit must block"
+assert_contains "entrypoint_word_budget_block: skills/fresh-skill/SKILL.md" "$out" "word-budget block names the file"
+assert_contains "head_body_words=5001" "$out" "word-budget block reports actual words"
+assert_contains "allowed_body_words=5000" "$out" "word-budget block reports the uniform allowance"
+assert_contains "entrypoint_word_budget_blocking_failed" "$out" "word-budget failed marker present"
+assert_contains "entrypoint_size_blocking_failed" "$out" "legacy aggregate marker also reports a word-only size-budget failure"
+assert_not_contains "entrypoint_size_block: skills/fresh-skill/SKILL.md" "$out" "word-only failure does not fabricate a byte-specific block line"
+assert_not_contains "entrypoint_word_budget_blocking_ok" "$out" "no word-budget ok marker next to a block"
+rm -rf "$WORD_REPO/skills/fresh-skill"
+
+# Case f3: the metric cannot be bypassed with unspaced Han text. Each Han
+# ideograph is one deterministic word-equivalent unit; no language segmenter or
+# optional runtime dependency is required.
+mkdir -p "$WORD_REPO/skills/han-skill"
+HAN_WORD_SKILL="$WORD_REPO/skills/han-skill/SKILL.md"
+{
+  printf -- '---\nname: han-skill\ndescription: Han fixture.\n---\n\n'
+  ruby -e 'print([0x5B57].pack("U") * 5001)'
+  printf '\n'
+} > "$HAN_WORD_SKILL"
+ruby -e 's = File.binread(ARGV.fetch(0)).force_encoding(Encoding::UTF_8); exit(s.valid_encoding? ? 0 : 1)' "$HAN_WORD_SKILL" \
+  || fail "f3 fixture: generated invalid UTF-8"
+set +e
+out="$(env -u CCL_SKILL_BASE_REF LC_ALL=C bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 1 "unspaced Han body above the word-equivalent limit must block under the C locale"
+assert_contains "entrypoint_word_budget_block: skills/han-skill/SKILL.md" "$out" "Han over-limit block names the file"
+assert_contains "head_body_words=5001" "$out" "Han units are counted deterministically"
+rm -rf "$WORD_REPO/skills/han-skill"
+
+# Case f3b: invalid UTF-8 must not crash the existing raw-byte gate or disappear
+# from the body-word metric. Each invalid byte becomes one counted replacement
+# unit, so 5000 valid words plus one invalid byte crosses the uniform limit.
+mkdir -p "$WORD_REPO/skills/invalid-utf8-skill"
+INVALID_UTF8_WORD_SKILL="$WORD_REPO/skills/invalid-utf8-skill/SKILL.md"
+write_skill_with_body_words "$INVALID_UTF8_WORD_SKILL" 5000
+ruby -e 'File.open(ARGV.fetch(0), "ab") { |f| f.write([0xFF].pack("C")) }' "$INVALID_UTF8_WORD_SKILL"
+set +e
+out="$(env -u CCL_SKILL_BASE_REF LC_ALL=C bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 1 "invalid UTF-8 byte must be counted without crashing the size gate"
+assert_contains "entrypoint_word_budget_block: skills/invalid-utf8-skill/SKILL.md" "$out" "invalid UTF-8 fixture blocks as a word-budget violation"
+assert_contains "head_body_words=5001" "$out" "each invalid byte contributes one deterministic replacement unit"
+assert_not_contains "entrypoint_size_gate_error" "$out" "invalid UTF-8 must not disable the raw-byte gate"
+rm -rf "$WORD_REPO/skills/invalid-utf8-skill"
+
+# Case f4: a historical over-limit entrypoint is frozen at its merge-base
+# count. Same-count edits and shrinkage pass; one added word blocks.
+git -C "$WORD_REPO" checkout -q main
+write_skill_with_body_words "$WORD_SKILL" 5001 legacy
+git -C "$WORD_REPO" add -A
+git -C "$WORD_REPO" commit -qm "historical over-limit word baseline"
+git -C "$WORD_REPO" checkout -qb legacy-feature
+write_skill_with_body_words "$WORD_SKILL" 5001 changed
+set +e
+out="$(env -u CCL_SKILL_BASE_REF bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 0 "same-count edit of historical over-limit entrypoint must pass"
+assert_contains "entrypoint_word_budget_legacy_ok: skills/demo-skill/SKILL.md" "$out" "legacy allowance is explicit"
+assert_contains "allowed_body_words=5001" "$out" "legacy allowance equals the base count"
+
+write_skill_with_body_words "$WORD_SKILL" 5002 changed
+set +e
+out="$(env -u CCL_SKILL_BASE_REF bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 1 "historical over-limit entrypoint growth must block"
+assert_contains "entrypoint_word_budget_block: skills/demo-skill/SKILL.md" "$out" "legacy growth block names the file"
+assert_contains "base_body_words=5001" "$out" "legacy growth reports base words"
+assert_contains "head_body_words=5002" "$out" "legacy growth reports head words"
+assert_contains "allowed_body_words=5001" "$out" "legacy growth allowance is frozen at base"
+
+write_skill_with_body_words "$WORD_SKILL" 4999 changed
+set +e
+out="$(env -u CCL_SKILL_BASE_REF bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 0 "historical over-limit entrypoint may shrink below the uniform limit"
+assert_contains "entrypoint_word_budget_blocking_ok" "$out" "shrink below the limit passes"
+
+# Case f4b: an actual git rename carries the historical allowance to its own new
+# path, but adding a word during that rename still blocks.
+git -C "$WORD_REPO" reset --hard -q HEAD
+mkdir -p "$WORD_REPO/skills/moved-skill"
+git -C "$WORD_REPO" mv skills/demo-skill/SKILL.md skills/moved-skill/SKILL.md
+set +e
+out="$(env -u CCL_SKILL_BASE_REF bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 0 "rename of historical over-limit entrypoint without growth must pass"
+assert_contains "entrypoint_word_budget_move_ok: skills/moved-skill/SKILL.md" "$out" "rename carries only its own historical allowance"
+write_skill_with_body_words "$WORD_REPO/skills/moved-skill/SKILL.md" 5002 legacy
+set +e
+out="$(env -u CCL_SKILL_BASE_REF bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 1 "rename plus word growth must block"
+assert_contains "entrypoint_word_budget_block: skills/moved-skill/SKILL.md" "$out" "rename growth block names the new path"
+assert_contains "base_body_words=5001" "$out" "rename growth uses the moved historical baseline"
+assert_contains "allowed_body_words=5001" "$out" "rename growth allowance is frozen at the moved baseline"
+assert_contains "moved_from=skills/demo-skill/SKILL.md" "$out" "rename growth diagnostic proves the rename branch ran"
+git -C "$WORD_REPO" reset --hard -q HEAD
+
+# Case f5: after a shrink is in the baseline, the historical allowance is gone;
+# growing back above the uniform limit blocks even if an older revision was larger.
+git -C "$WORD_REPO" checkout -q main
+write_skill_with_body_words "$WORD_SKILL" 5000 landed
+git -C "$WORD_REPO" add -A
+git -C "$WORD_REPO" commit -qm "land shrink to uniform word limit"
+git -C "$WORD_REPO" checkout -qb within-limit-feature
+write_skill_with_body_words "$WORD_SKILL" 5001 regrown
+set +e
+out="$(env -u CCL_SKILL_BASE_REF bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 1 "entrypoint whose base is within limit may not regrow above it"
+assert_contains "allowed_body_words=5000" "$out" "uniform allowance replaces historical allowance"
+
+# Case f6: a changed over-limit entrypoint with an unresolvable base fails
+# closed. Losing the baseline must not turn compatibility into a waiver.
+set +e
+out="$(env CCL_SKILL_BASE_REF=definitely-not-a-ref bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 1 "over-limit word budget with unknown base must fail closed"
+assert_contains "entrypoint_word_budget_block_partial: skills/demo-skill/SKILL.md: base unknown" "$out" "word-budget partial names the file"
+assert_contains "entrypoint_word_budget_blocking_failed" "$out" "word-budget partial emits failed marker"
+assert_not_contains "entrypoint_word_budget_blocking_ok" "$out" "unknown baseline never earns a word-budget pass"
 
 # Case e8: gate wiring anchors — the validator must fail the gate on non-zero
 # and must not demote the size gate back to advisory.

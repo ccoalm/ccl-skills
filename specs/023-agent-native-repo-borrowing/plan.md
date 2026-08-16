@@ -1,6 +1,64 @@
-# 023 — 对标 agent-native 产品仓的开发纪律：借鉴沉淀轮（Batch I–III 已合入本地 dev）
+# 023 — 对标 agent-native 产品仓的开发纪律：借鉴沉淀轮（Batch I–III 已合入本地 dev；Batch IV / C3 本地交付）
 
-## Extraction charter
+## Batch IV / C3 active addendum
+
+本节是当前执行基线，覆盖并取代下方历史 closeout 中“C3 后续另开”的状态；下方 Batch I–III 记录继续作为已完成历史保留。C3 实现起点是本地 `dev@5254e93e5a9ef98c0ba4de02ab32b52dca5afbab`；用户随后明确授权 commit 并合并到当前本地 `dev`。授权仍不覆盖 D1、E5、push、MR、release 或 deploy。
+
+| Field | Current decision |
+| --- | --- |
+| Artifact classification | `gate design` → `gate implementation`：在现有 entrypoint size gate 上增加正文词数预算，不新建平行 gate。 |
+| Scope | in：`SKILL.md` 正文词数度量、Git merge-base 存量基线、阻断判定、诊断、focused tests、`check-ccl-skills.sh` 传播与本 plan 状态。out：独立 manifest、D1、E5、批量改写现有技能正文、路由/frontmatter、发布与远端动作。 |
+| Product outcome | 防止入口正文继续膨胀，同时不让 C3 首次落地把当前存量全部判红；存量只可持平或缩短，降到统一上限后不再使用历史额度。frontmatter 继续由 canonical validator 的既有 YAML/description 约束负责。 |
+| Status source | 本 plan 的本节与 C3 判定表；实现与验证结果在这里回填。 |
+| Review gate | non-wording shared-gate：test-case-first `RED-baseline`、实现者 self-review、独立 fact/consistency review + adversarial challenge；候选变化后两条 lane 全量重跑。 |
+
+### C3 verdict decision table
+
+`body_words` 只统计 YAML frontmatter 之后的正文，统一上限固定为 5000。Unicode 字母/数字连续串按一个词单位计，Han 字符逐字计，非法 UTF-8 每字节按一个替代单位计，标点不计；这个无需分词依赖的度量针对以空白分词的文本与 Han 无空格正文，其他无空格书写系统仍按 Unicode 连续串计。存量额度直接取现有 size gate 已解析的 Git merge-base，不生成候选可自行改写的 manifest。
+
+| Input class | Base state | Head state | Verdict | Required trace |
+| --- | --- | --- | --- | --- |
+| 新入口或已在统一上限内的入口 | none / `body_words <= uniform_limit` | `body_words <= uniform_limit` | pass | block/spare fixture |
+| 新入口或已在统一上限内的入口 | none / `body_words <= uniform_limit` | `body_words > uniform_limit` | fail | RED fixture；诊断含 path / actual / allowed |
+| 存量超限入口 | `body_words > uniform_limit` | `body_words <= base body_words` | pass | unchanged + reduced spare fixtures |
+| 存量超限入口 | `body_words > uniform_limit` | `body_words > base body_words` | fail | growth RED fixture；allowed = base body words |
+| 需比较存量、但基线不可解析 | unavailable / malformed | any | unevaluated / blocking | fail-closed propagation fixture |
+
+### C3 acceptance and test register
+
+| ID | Acceptance / scenario | Layer | Expected baseline | Blocking command / evidence | Status |
+| --- | --- | --- | --- | --- | --- |
+| C3-A | 正文词数稳定、frontmatter 不计入；无空格 Han 正文不可绕过 | focused script fixture | RED：旧实现缺少 word delta；frontmatter mutation 使合法样例误红 | `bash skills/skill-extraction-workflow/scripts/test_check_ccl_size_budget.sh` | passed |
+| C3-B | 新入口超统一上限时阻断并给出 path / actual / allowed 诊断 | focused script fixture | RED：旧实现放行 5001；现实现阻断 English 与 Han 两种样例 | same focused command | passed |
+| C3-C | 存量超限入口持平、缩短或无增长 rename 通过；增长阻断；回落后重新受统一上限约束 | focused base/head fixture | RED：禁用 growth predicate 后 5001→5002 错误放行 | same focused command | passed |
+| C3-D | 基线不可解析时不输出 false-green `ok` token | focused failure fixture | over-limit changed entrypoint 报 partial、rc=1、无 ok | same focused command | passed |
+| C3-E | canonical `check-ccl-skills.sh` 传播 C3 成败 | existing wrapper + owner regression + exact-candidate canonical run | wrapper 继续传播 `check-size-budget.sh` 非零；无第二条接线 | `test_check_ccl_regressions.sh` + `CCL_SKILL_BASE_REF=dev check-ccl-skills.sh .` | passed |
+| C3-F | 当前完整 `SKILL.md` 语料在初始落地时有合法路径，且普通改动无需重生成 manifest | corpus premise + author dogfood | 32 个入口；base/head 各 11 个超限、delta `+0`；候选输出 `entrypoint_word_budget_blocking_ok` | exact-candidate canonical run | passed |
+
+### C3 implementation boundary and operability
+
+- implementation owner：`skill-extraction-workflow`；test layer owner：`testing-strategy`；risk tag：`shared-gate`。visible UI、security-review、release、external integration 均 not-applicable。
+- multi-agent delegation：not-applicable；validator、既有 wrapper 传播与 focused tests 是一个耦合单元，本轮不并行改共享文件。
+- author dogfood：必须通过现有 `check-ccl-skills.sh` 的同一 base-resolution 路径，并覆盖一次普通后续正文改动；不要求状态无关 gate 的虚构 multi-commit 仪式。
+- marginal cost：一次只读本地扫描；普通入口改动不生成或刷新 manifest，基线仍由现有 Git merge-base 解析路径提供。exact-candidate canonical gate 约 11 秒完成。
+- trust model：防 trusted contributor 无意增长与遗漏；不声称抵御能同时修改 validator 与测试的恶意作者，policy diff 由双轨评审覆盖。候选不能通过修改 manifest 给自己扩额度，因为没有 manifest。
+- premise：当前 32 个入口中 11 个超过 5000 词单位；全量硬切会把无关存量判红。synthetic fixture 已证明存量持平/缩短不被误杀、增长会阻断。
+- structural minimality：复用现有 `check-size-budget.sh`、`Metric`、base resolver、rename map、现有测试与 canonical wrapper；不增加依赖、manifest、第二套 runner 或批量技能重写。
+
+### C3 exact-candidate evidence
+
+| Evidence | Result |
+| --- | --- |
+| RED baseline | 旧实现运行新增 focused fixtures 时 rc=1，首个失败为缺少 `changed_entrypoint_word_delta`。 |
+| Focused GREEN | `bash skills/skill-extraction-workflow/scripts/test_check_ccl_size_budget.sh` → rc=0。 |
+| Mutation 1 | 临时令 `strip_frontmatter` 失效后，frontmatter fixture rc=1；恢复后 GREEN。 |
+| Mutation 2 | 临时禁用历史增长 predicate 后，5001→5002 fixture 错误返回 0 并使 suite rc=1；恢复后 GREEN。 |
+| Owner regression | `bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh` → `test_check_ccl_regressions_fast_ok`。 |
+| Canonical gate | `CCL_SKILL_BASE_REF=dev bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` → rc=0，`entrypoint_word_budget_over_limit_count_base=11`、head=11、delta=`+0`、`entrypoint_word_budget_blocking_ok`。 |
+| Required repository gates | contract coverage、public sanitization、Markdown links、`git diff --check` 均 rc=0。 |
+| Dual-track binding | 评审结果不写回被评候选自证；以冻结 packet 的 `candidate_sha256` 和 `.work/review-evidence/023-c3-*` 外部行作为 authoritative review evidence。 |
+
+## Batch I–III extraction charter（历史 closeout）
 
 | Field | Answer |
 | --- | --- |
@@ -23,7 +81,7 @@
 | I | 测试证据 + agent 运行时契约 | B1 B2 B4 B5 B7 → testing-strategy；B6 D2 D3 → llm-inference-integration；关闭 B8 D4 D6 pending-verify | `skills/testing-strategy/SKILL.md`（core rules 对应条目就地改写）+ 需要时 `references/ci-fixtures-and-flake-control.md`；`skills/llm-inference-integration/references/agent-session-persistence.md`、`references/agent-tool-dispatch.md`、`references/agent-command-sandbox.md`、`SKILL.md` 指针 | `023-I` |
 | II | 文档散文 + 决策记录 + 评审 + git 操作 | C1 C2 → tighten-doc；A1 A2 → product-rd adr-convention；E2 → product-rd code-review-checklist；E3 → product-rd implementation-completeness-and-minimality；A4 → defect-diagnosis；E4 → worktree-isolation；关闭 C4 pending-verify | `skills/tighten-doc/SKILL.md`（新小节"session-vantage leakage"或并入既有 DELETE 列表）；`skills/product-rd-workflow/references/{adr-convention,code-review-checklist,implementation-completeness-and-minimality}.md`；`skills/defect-diagnosis/SKILL.md` postmortem 段；`skills/worktree-isolation/SKILL.md`「落后就先更新」段的 force-with-lease 条 | `023-II` |
 | III | 提炼工作流自身 | E1（新 reference `review-feedback-mining.md`）；C5 → rule-consolidation.md；D5 → harness-patterns-and-eval.md（业界形态记录，非规则）；benchmark 源类一句 → `SKILL.md`；source-register 行（本轮 impact-chain 行 + 源类行） | `skills/skill-extraction-workflow/{SKILL.md,references/*}` | `023-III` |
-| IV（后续，本轮不做）| SKILL.md 正文词数预算 validator | C3 | `skill-extraction-workflow/scripts/` + manifest；先过 design-time 四腿检查（author-dogfood、marginal-cost、trust-model、premise），再决定是否实施 | 另开 spec 后重新定范围 |
+| IV（本地交付）| SKILL.md 正文词数预算 validator | C3 | 复用 `skill-extraction-workflow/scripts/check-size-budget.sh`、现有 test 与 canonical wrapper；当前判定与验证要求见顶部 active addendum | `023-C3`，实现与本地验证完成；review 以冻结 packet 外部证据绑定 |
 | V（后续，本轮不做）| 模型可见内容与事件日志的账目不变量 + 受控提权验证 | D1 E5 | `llm-inference-integration/references/agent-session-persistence.md`、`skill-extraction-workflow/references/source-to-skill-extraction.md#blocked-verification`；前置：具名安全 owner 参与设计并记录批准。设计需覆盖凭证/敏感载荷不持久化、可重建与不可重建分类、低熵值摘要可枚举风险、引用目标不可变版本化、日志保留/访问策略、沙箱阻断分流与受控提权 | 另开 spec；安全 owner 批准是完成条件 |
 
 Batch I–III 内循环：owner 目标段全文读（记录行号范围）→ draft（merge 进既有规则）→ sibling mini-map → sanitize（R0 + example-domain 预选）→ dual-track（review + challenge，`code-review` 技能 wrapper）→ 处置 P0/P1 → `check-ccl-skills.sh` → 一批一 commit（`git -C` 绝对路径）→ 更新本 plan 的判定表 trace。
@@ -103,7 +161,7 @@ Batch I–III 内循环：owner 目标段全文读（记录行号范围）→ dr
 - 评审门：每批一条 dual-track 链（review + challenge），终轮 fresh full challenge；P0/P1 处置后才 commit；R0 每批跑；Agent 预算每链独立计（初审 + ≤4 challenge）。
 - status-sync：本 plan 即轮记录，判定表 trace 与 dual-track 记录随批回填；source-register 行终稿一次落（routing-round-ledger-append-once）。
 - 授权边界（按 023-plan-r1 / r2 / r3 的 review 与 challenge P1 逐轮收窄）：**本 plan 不授予任何变更权限**——包括对 owner 文件的本地编辑、任何有状态的验证（会写盘/改仓库状态的检查）、本地 commit、push、创建/更新 MR、合并 dev、任何 `main` 推进。每个 batch 的执行开始（首次编辑）以及上述每一项动作，都以会话中**各自独立、可记录的用户明确指令**为前提，由执行者在动作前核对该指令存在并在轮记录中注明其出处；本文只描述范围与判定标准，任何句子都不得被引为授权依据。不在此列的只有**已核实无本地/网络/凭证/子进程/远端效果**的只读操作（读文件、只读 grep）；`--dry-run` 之类靠命令拼写声明的"只读"不算——其实际效果未核实前按有状态验证处理。
-- 后续 backlog：C3、D1、E5 均需另开 spec 并重新定范围；本轮不产出 design-time 文书，不请求安全处置。
+- 后续 backlog：D1、E5 仍需另开 spec 并重新定范围；C3 已由顶部 active addendum 重新进入 Batch IV。本轮仍不请求 D1/E5 的安全处置。
 
 ### Dual-track 评审记录
 

@@ -34,6 +34,16 @@
 # Two metrics, two thresholds (kept distinct on purpose):
 #   - entrypoint body CHARS  > 5000  => "debt" (over the recommended 1k–5k body band)
 #   - whole-file BYTES       > 50000 => "severe debt" (historical mega-entrypoint)
+# A third metric is blocking for changed entrypoints:
+#   - entrypoint body WORDS  > 5000  => block for new/within-limit files; a
+#     historical over-limit file may stay level or shrink, but may not grow.
+# The word metric excludes YAML frontmatter. It counts Unicode letter/number
+# runs as words and each Han ideograph as one deterministic word-equivalent unit.
+# The anti-bypass guarantee is therefore calibrated for space-delimited scripts
+# plus Han; other unspaced scripts remain one Unicode letter/number run.
+# The canonical validator separately parses frontmatter as YAML and rejects a
+# description longer than 800 chars. Other frontmatter keys are outside this
+# body-word gate and are not claimed to have a length cap here.
 # Body chars are measured after stripping YAML frontmatter (the recommended-band
 # metric the B0 checklist uses); whole-file bytes are the LC_ALL=C-equivalent size
 # (Ruby File.size returns bytes), matching the legacy `wc -c` 50KB advisory.
@@ -69,7 +79,7 @@ if [[ ! -d "$root/skills" ]]; then
   exit 0
 fi
 
-ruby -e '
+ruby -e '# encoding: UTF-8
 begin
 root = ARGV.fetch(0)
 size_state = "ok"
@@ -95,19 +105,25 @@ else
   warn "size_budget_advisory: agent-context/session-start.md missing or unreadable — size check skipped (advisory, not blocking)"
 end
 
-# --- entrypoint body-char debt + whole-file byte severe-debt ----------------
+# --- entrypoint body-char/word debt + whole-file byte severe-debt -----------
 def strip_frontmatter(text)
-  text.sub(/\A---\n.*?\n---\n/m, "")
+  text.sub(/\A---\r?\n.*?\r?\n---\r?\n/m, "")
 end
 
-Metric = Struct.new(:body_chars, :bytes, keyword_init: true)
+WORD_BUDGET_MAX = 5000
+WORD_TOKEN_PATTERN = /\p{Han}|\uFFFD|(?:(?!\p{Han})[\p{L}\p{N}])+(?:[\u0027\u2019_-](?:(?!\p{Han})[\p{L}\p{N}])+)*/u
+
+Metric = Struct.new(:body_chars, :body_words, :bytes, keyword_init: true)
 
 def metric_for_text(text)
-  Metric.new(body_chars: strip_frontmatter(text).length, bytes: text.bytesize)
+  raw = text.b
+  text = raw.dup.force_encoding(Encoding::UTF_8).scrub { |invalid| "\uFFFD" * invalid.bytesize }
+  body = strip_frontmatter(text)
+  Metric.new(body_chars: body.length, body_words: body.scan(WORD_TOKEN_PATTERN).length, bytes: raw.bytesize)
 end
 
 def metric_for_file(path)
-  Metric.new(body_chars: strip_frontmatter(File.read(path)).length, bytes: File.size(path))
+  metric_for_text(File.binread(path))
 end
 
 def debt_count(metrics)
@@ -116,6 +132,10 @@ end
 
 def severe_count(metrics)
   metrics.count { |m| m.bytes > 50000 }
+end
+
+def word_over_limit_count(metrics)
+  metrics.count { |m| m.body_words > WORD_BUDGET_MAX }
 end
 
 def git_success?(*args, root:)
@@ -202,6 +222,7 @@ skill_files.each do |path|
 end
 head_debt_count = debt_count(head_metrics.values)
 head_severe_count = severe_count(head_metrics.values)
+head_word_over_limit_count = word_over_limit_count(head_metrics.values)
 
 base, base_source = resolve_base(root)
 base_metrics = nil
@@ -217,6 +238,7 @@ end
 
 base_debt_count = base_metrics ? debt_count(base_metrics.values) : nil
 base_severe_count = base_metrics ? severe_count(base_metrics.values) : nil
+base_word_over_limit_count = base_metrics ? word_over_limit_count(base_metrics.values) : nil
 
 # --- changed skills/*/SKILL.md (diff-scoped; same detection shape the validator
 #     uses elsewhere) get a STABLE per-file token at edit time ----------------
@@ -264,6 +286,7 @@ changed.sort.each do |rel|
   end
   base_metric = base_metric_for_path(root, base, rel)
   puts "changed_entrypoint_size_delta: #{rel} base_body_chars=#{fmt_metric_value(base_metric, :body_chars)} head_body_chars=#{fmt_metric_value(head_metric, :body_chars)} delta_body_chars=#{fmt_delta(base_metric, head_metric, :body_chars)} base_bytes=#{fmt_metric_value(base_metric, :bytes)} head_bytes=#{fmt_metric_value(head_metric, :bytes)} delta_bytes=#{fmt_delta(base_metric, head_metric, :bytes)}"
+  puts "changed_entrypoint_word_delta: #{rel} base_body_words=#{fmt_metric_value(base_metric, :body_words)} head_body_words=#{fmt_metric_value(head_metric, :body_words)} delta_body_words=#{fmt_delta(base_metric, head_metric, :body_words)}"
 end
 
 unless severe_lines.empty?
@@ -281,9 +304,13 @@ puts "entrypoint_size_debt_count_delta=#{base_debt_count.nil? ? "unknown" : form
 puts "entrypoint_size_severe_debt_count_base=#{base_severe_count.nil? ? "unknown" : base_severe_count}"
 puts "entrypoint_size_severe_debt_count_head=#{head_severe_count}"
 puts "entrypoint_size_severe_debt_count_delta=#{base_severe_count.nil? ? "unknown" : format("%+d", head_severe_count - base_severe_count)}"
+puts "entrypoint_word_budget_over_limit_count_base=#{base_word_over_limit_count.nil? ? "unknown" : base_word_over_limit_count}"
+puts "entrypoint_word_budget_over_limit_count_head=#{head_word_over_limit_count}"
+puts "entrypoint_word_budget_over_limit_count_delta=#{base_word_over_limit_count.nil? ? "unknown" : format("%+d", head_word_over_limit_count - base_word_over_limit_count)}"
 puts "size_budget_visibility_note: counts above are visibility/debt-management only — NOT a clean-landing waiver and NOT authorization to keep growing entrypoints; a new or expanded large entrypoint must record its rationale and split plan."
 
 # --- delta-blocking verdict ---------------------------------------------------
+# Word-over-limit entrypoints follow the baseline-freeze rule described above.
 # New/crossing severe entrypoints and growth of existing severe entrypoints block.
 # Base unknown => the growth check is unavailable; say so (partial), never silent.
 # Move map: a git-detected RENAME (R with similarity >= 90) from a severe old
@@ -314,6 +341,8 @@ end
 
 blocks = []
 partials = []
+word_blocks = []
+word_partials = []
 partials << "agent-context/session-start.md: changed-detection failed (#{bootstrap_scan_error}) — net-growth check unavailable (fail-closed)" if bootstrap_scan_error && File.file?(File.join(root, "agent-context/session-start.md"))
 changed.sort.each do |rel|
   begin
@@ -327,24 +356,44 @@ changed.sort.each do |rel|
     partials << "#{rel}: head metric unavailable (#{head_metric}) — size check unavailable (fail-closed)"
     next
   end
-  next unless head_metric.bytes > 50000
   base_metric = base_metric_for_path(root, base, rel)
-  if base_metric == :unknown
-    partials << "#{rel}: base unknown — severe-growth check unavailable (fail-closed)"
-    next
+
+  if head_metric.body_words > WORD_BUDGET_MAX
+    if base_metric == :unknown
+      word_partials << "#{rel}: base unknown — historical word allowance unavailable (fail-closed)"
+    elsif base_metric == :missing || base_metric.body_words <= WORD_BUDGET_MAX
+      source_rel = move_map[rel]
+      source_metric = source_rel ? base_metric_for_path(root, base, source_rel) : nil
+      if source_metric.is_a?(Metric) && source_metric.body_words > WORD_BUDGET_MAX
+        if head_metric.body_words <= source_metric.body_words
+          puts "entrypoint_word_budget_move_ok: #{rel} head_body_words=#{head_metric.body_words} allowed_body_words=#{source_metric.body_words} moved_from=#{source_rel}"
+        else
+          word_blocks << "#{rel}: base_body_words=#{source_metric.body_words} head_body_words=#{head_metric.body_words} allowed_body_words=#{source_metric.body_words} moved_from=#{source_rel} — moved historical over-limit entrypoint grew; keep it level, shrink it, or move detail into references/"
+        end
+      else
+        word_blocks << "#{rel}: base_body_words=#{fmt_metric_value(base_metric, :body_words)} head_body_words=#{head_metric.body_words} allowed_body_words=#{WORD_BUDGET_MAX} — new or within-limit entrypoint exceeds the uniform body-word budget; move detail into references/"
+      end
+    elsif head_metric.body_words > base_metric.body_words
+      word_blocks << "#{rel}: base_body_words=#{base_metric.body_words} head_body_words=#{head_metric.body_words} allowed_body_words=#{base_metric.body_words} — historical over-limit entrypoint grew; keep it level, shrink it, or move detail into references/"
+    else
+      puts "entrypoint_word_budget_legacy_ok: #{rel} base_body_words=#{base_metric.body_words} head_body_words=#{head_metric.body_words} allowed_body_words=#{base_metric.body_words}"
+    end
   end
-  if base_metric == :missing || base_metric.bytes <= 50000
-    source_rel = move_map[rel]
-    if source_rel
-      source_metric = base_metric_for_path(root, base, source_rel)
+
+  if head_metric.bytes > 50000
+    if base_metric == :unknown
+      partials << "#{rel}: base unknown — severe-growth check unavailable (fail-closed)"
+    elsif base_metric == :missing || base_metric.bytes <= 50000
+      source_rel = move_map[rel]
+      source_metric = source_rel ? base_metric_for_path(root, base, source_rel) : nil
       if source_metric.is_a?(Metric) && source_metric.bytes > 50000 && head_metric.bytes <= source_metric.bytes
         puts "entrypoint_size_move_ok: #{rel} bytes=#{head_metric.bytes} — moved from #{source_rel} without growing"
-        next
+      else
+        blocks << "#{rel}: new severe entrypoint bytes=#{head_metric.bytes} (> 50000) — split into references before landing"
       end
+    elsif head_metric.bytes > base_metric.bytes
+      blocks << "#{rel}: severe entrypoint grew base_bytes=#{base_metric.bytes} head_bytes=#{head_metric.bytes} — consolidate an existing rule or move detail into references/ (there is no exempt marker or waiver flag); a rule set must not grow monotonically"
     end
-    blocks << "#{rel}: new severe entrypoint bytes=#{head_metric.bytes} (> 50000) — split into references before landing"
-  elsif head_metric.bytes > base_metric.bytes
-    blocks << "#{rel}: severe entrypoint grew base_bytes=#{base_metric.bytes} head_bytes=#{head_metric.bytes} — consolidate an existing rule or move detail into references/ (there is no exempt marker or waiver flag); a rule set must not grow monotonically"
   end
 end
 
@@ -402,21 +451,29 @@ end
 # — but the token says un-evaluated, not ok.
 # NOTE: this comment lives inside the single-quoted `ruby -e` program; an
 # apostrophe here terminates the shell quote and breaks the script.
-if blocks.empty? && partials.empty?
+if blocks.empty? && partials.empty? && word_blocks.empty? && word_partials.empty?
   puts "size_budget_advisory_#{size_state}"
   puts "entrypoint_size_budget_advisory_ok"
   if base.nil?
     puts "entrypoint_size_blocking_unevaluated: base=unknown — committed changes were NOT delta-checked; this is not a pass"
+    puts "entrypoint_word_budget_blocking_unevaluated: base=unknown — committed changes were NOT delta-checked; this is not a pass"
     if File.file?(File.join(root, "agent-context/session-start.md"))
       puts "bootstrap_size_delta_unevaluated: base=unknown — agent-context/session-start.md committed changes were NOT delta-checked; this is not a pass"
     end
   else
     puts "entrypoint_size_blocking_ok"
+    puts "entrypoint_word_budget_blocking_ok"
   end
   exit 0
 end
 blocks.each { |b| warn "entrypoint_size_block: #{b}" }
 partials.each { |b| warn "entrypoint_size_block_partial: #{b}" }
+word_blocks.each { |b| warn "entrypoint_word_budget_block: #{b}" }
+word_partials.each { |b| warn "entrypoint_word_budget_block_partial: #{b}" }
+puts "entrypoint_word_budget_blocking_failed" unless word_blocks.empty? && word_partials.empty?
+# Legacy aggregate token for every blocking verdict owned by this size-budget
+# script, including the body-word rule. Keep it unconditional so existing
+# consumers cannot miss a new word-only failure.
 puts "entrypoint_size_blocking_failed"
 exit 1
 rescue StandardError, ScriptError => e
