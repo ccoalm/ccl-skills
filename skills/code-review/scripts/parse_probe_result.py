@@ -444,6 +444,13 @@ KNOWN_SAFE_INIT_METADATA_FIELDS = {
     "uuid",
     "fast_mode_state",
 }
+KNOWN_SAFE_INIT_LIST_METADATA_FIELDS = {
+    # Claude Code 2.1.233 added this classification-only subset of the already
+    # declared slash_commands surface. It is safe only when every entry is a
+    # whole plain string already present in slash_commands; otherwise the new
+    # schema remains unverifiable and the lane fails closed.
+    "terminal_slash_commands",
+}
 KNOWN_SAFE_PERMISSION_MODES = {"default", "plan"}
 KNOWN_SAFE_BUILTIN_SKILLS = {
     "batch",
@@ -640,6 +647,7 @@ def init_surface_state(
     expected_tools: set[str] | None = None,
     expected_native_skills: set[str] | None = None,
     required_native_skills: set[str] | None = None,
+    host_init_baseline: dict[str, object] | None = None,
 ) -> tuple[
     set[str], set[str], set[str], set[str], set[str], set[str], set[str]
 ] | None:
@@ -670,6 +678,21 @@ def init_surface_state(
     required_native_skills = {
         name.lower() for name in (required_native_skills or set())
     }
+    baseline_commands = (
+        set(host_init_baseline.get("slash_commands", ()))
+        if host_init_baseline
+        else set()
+    )
+    baseline_skills = (
+        set(host_init_baseline.get("skills", ()))
+        if host_init_baseline
+        else set()
+    )
+    baseline_version = (
+        host_init_baseline.get("claude_code_version")
+        if host_init_baseline
+        else None
+    )
     saw_init = False
     missing_or_invalid: set[str] = set()
     nonempty: set[str] = set()
@@ -699,6 +722,7 @@ def init_surface_state(
         "capabilities",
         *REQUIRED_EMPTY_INIT_FIELDS,
         *KNOWN_SAFE_INIT_METADATA_FIELDS,
+        *KNOWN_SAFE_INIT_LIST_METADATA_FIELDS,
     }
     for ev in events:
         if ev.get("type") != "system" or ev.get("subtype") != "init":
@@ -743,7 +767,11 @@ def init_surface_state(
                             nonempty.add(field)
                             continue
                         if customization_entry_allowed(
-                            field, entry, expected_native_skills
+                            field,
+                            entry,
+                            expected_native_skills,
+                            baseline_commands,
+                            baseline_skills,
                         ):
                             continue
                         if field in HOST_VOCABULARY_FIELDS and (
@@ -796,10 +824,36 @@ def init_surface_state(
             elif field == "permissionMode":
                 if value not in KNOWN_SAFE_PERMISSION_MODES:
                     unsafe_values.add(field)
+            elif field in KNOWN_SAFE_INIT_LIST_METADATA_FIELDS:
+                if not isinstance(value, list) or any(
+                    not isinstance(item, str) for item in value
+                ):
+                    unknown_fields.add(field)
+                else:
+                    identifiers = [
+                        customization_entry_identifier(item) for item in value
+                    ]
+                    if (
+                        len(identifiers) != len(set(identifiers))
+                        or any(
+                            not host_entry_is_whole(item, identifier)
+                            for item, identifier in zip(value, identifiers)
+                        )
+                        or not set(identifiers).issubset(
+                            declared_customizations["slash_commands"]
+                        )
+                    ):
+                        unknown_fields.add(field)
             elif field in KNOWN_SAFE_INIT_METADATA_FIELDS and isinstance(
                 value, (list, dict)
             ):
                 unknown_fields.add(field)
+        if baseline_version is not None and ev.get("claude_code_version") != baseline_version:
+            # The two invocations no longer prove one same-version host
+            # vocabulary snapshot. Refuse this lane, but treat the mismatch as
+            # capability drift rather than a proven tool/authority breach so a
+            # different reviewer may continue.
+            unknown_fields.add("claude_code_version:host-baseline-mismatch")
     if not saw_init:
         return None
     if expected_native_skills:
@@ -864,9 +918,18 @@ def customization_entry_identifier(entry: object) -> str:
 
 
 def customization_entry_allowed(
-    field: str, entry: object, expected_native_skills: set[str]
+    field: str,
+    entry: object,
+    expected_native_skills: set[str],
+    baseline_commands: set[str] | None = None,
+    baseline_skills: set[str] | None = None,
 ) -> bool:
     identifier = customization_entry_identifier(entry)
+    baseline_commands = baseline_commands or set()
+    # Baseline skills remain available to drift diagnostics, but never grant
+    # formal-run authority: a future safe-mode regression could otherwise turn
+    # one leaked user skill into an accepted callable capability.
+    baseline_skills = baseline_skills or set()
     selected_names = {name.lower() for name in expected_native_skills}
     selected_namespaced = {
         f"ccl-skills:{name}" for name in selected_names
@@ -882,6 +945,7 @@ def customization_entry_allowed(
     if field == "slash_commands":
         return (
             identifier in KNOWN_SAFE_BUILTIN_SLASH_COMMANDS
+            or identifier in baseline_commands
             or identifier in selected_namespaced
         )
     return False
@@ -965,11 +1029,134 @@ def is_bare_host_identifier(identifier: str) -> bool:
     return bool(BARE_HOST_IDENTIFIER.fullmatch(identifier))
 
 
+def load_host_init_baseline(path: str) -> tuple[dict[str, object] | None, str | None]:
+    """Read one safe-mode, no-plugin init capture as version-owned vocabulary.
+
+    The baseline is not a verdict and its model result is ignored. It may name
+    host commands and skills only because the wrapper invocation disables
+    setting sources, CLAUDE.md, auto-memory, MCP, tools, and plugins. Any tool,
+    plugin, malformed identifier, authority drift, or unknown non-empty surface
+    keeps the baseline unusable rather than laundering it into the main run.
+    """
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None, "Claude host-vocabulary baseline could not be read"
+    events = stream_events(normalize(text))
+    stream_like, stream_corrupt = stream_classification(text, events)
+    init_events = [
+        event
+        for event in events
+        if event.get("type") == "system" and event.get("subtype") == "init"
+    ]
+    if not stream_like or stream_corrupt or len(init_events) != 1:
+        return None, "Claude host-vocabulary baseline lacks one intact init event"
+    if invoked_tool_names(events):
+        return None, "Claude host-vocabulary baseline invoked a tool"
+    init_event = init_events[0]
+    if init_event.get("tools") != []:
+        return None, "Claude host-vocabulary baseline exposed a tool"
+    # Keep this set-derived rather than spelling today's MCP/plugin fields
+    # twice. If the formal init adds another required-empty customization
+    # surface, the baseline must prove it empty before its command vocabulary
+    # can carry authority. Known metadata such as `agents` is deliberately not
+    # in REQUIRED_EMPTY_INIT_FIELDS: with tools pinned empty it is descriptive,
+    # not model-invocable.
+    for field in REQUIRED_EMPTY_INIT_FIELDS:
+        if field not in HOST_VOCABULARY_FIELDS and init_event.get(field) != []:
+            return None, f"Claude host-vocabulary baseline exposed {field}"
+    if init_event.get("permissionMode") != "default":
+        return None, "Claude host-vocabulary baseline changed permission authority"
+    version = init_event.get("claude_code_version")
+    if not isinstance(version, str) or not version or len(version) > 120:
+        return None, "Claude host-vocabulary baseline lacks a bounded CLI version"
+
+    surfaces: dict[str, tuple[str, ...]] = {}
+    for field in HOST_VOCABULARY_FIELDS:
+        known_host_identifiers = (
+            KNOWN_SAFE_BUILTIN_SLASH_COMMANDS
+            if field == "slash_commands"
+            else KNOWN_SAFE_BUILTIN_SKILLS
+        )
+        value = init_event.get(field)
+        if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+            return None, f"Claude host-vocabulary baseline has malformed {field}"
+        identifiers = [customization_entry_identifier(item) for item in value]
+        if (
+            len(identifiers) != len(set(identifiers))
+            or any(
+                not host_entry_is_whole(item, identifier)
+                for item, identifier in zip(value, identifiers)
+            )
+            or any(
+                identifier not in known_host_identifiers
+                and not is_bare_host_identifier(identifier)
+                for identifier in identifiers
+            )
+        ):
+            return None, f"Claude host-vocabulary baseline has unsafe {field}"
+        surfaces[field] = tuple(identifiers)
+
+    terminal_commands = init_event.get("terminal_slash_commands", [])
+    if not isinstance(terminal_commands, list) or any(
+        not isinstance(item, str) for item in terminal_commands
+    ):
+        return None, "Claude host-vocabulary baseline has malformed terminal commands"
+    terminal_identifiers = [
+        customization_entry_identifier(item) for item in terminal_commands
+    ]
+    if (
+        len(terminal_identifiers) != len(set(terminal_identifiers))
+        or any(
+            not host_entry_is_whole(item, identifier)
+            for item, identifier in zip(terminal_commands, terminal_identifiers)
+        )
+        or not set(terminal_identifiers).issubset(set(surfaces["slash_commands"]))
+    ):
+        return None, "Claude host-vocabulary baseline has unsafe terminal commands"
+
+    known_fields = {
+        "tools",
+        "capabilities",
+        *REQUIRED_EMPTY_INIT_FIELDS,
+        *KNOWN_SAFE_INIT_METADATA_FIELDS,
+        *KNOWN_SAFE_INIT_LIST_METADATA_FIELDS,
+    }
+    for field, value in init_event.items():
+        if field not in known_fields and is_authority_name(field):
+            return None, "Claude host-vocabulary baseline has unverifiable authority"
+        if field not in known_fields and isinstance(value, (list, dict)) and value:
+            return None, "Claude host-vocabulary baseline has an unknown non-empty surface"
+        if field in ("agents", "capabilities") and (
+            not isinstance(value, list)
+            or any(not isinstance(item, str) for item in value)
+        ):
+            return None, f"Claude host-vocabulary baseline has malformed {field}"
+
+    return {
+        "claude_code_version": version,
+        "slash_commands": surfaces["slash_commands"],
+        "skills": surfaces["skills"],
+    }, None
+
+
 def unexpected_customization_identifiers(
-    events: list[dict], expected_native_skills: set[str] | None = None
+    events: list[dict],
+    expected_native_skills: set[str] | None = None,
+    host_init_baseline: dict[str, object] | None = None,
 ) -> set[str]:
     """Return bounded identifiers without exposing customization bodies."""
     expected_native_skills = expected_native_skills or set()
+    baseline_commands = (
+        set(host_init_baseline.get("slash_commands", ()))
+        if host_init_baseline
+        else set()
+    )
+    baseline_skills = (
+        set(host_init_baseline.get("skills", ()))
+        if host_init_baseline
+        else set()
+    )
     unexpected: set[str] = set()
     for ev in events:
         if ev.get("type") != "system" or ev.get("subtype") != "init":
@@ -980,7 +1167,11 @@ def unexpected_customization_identifiers(
                 continue
             for entry in value:
                 if customization_entry_allowed(
-                    field, entry, expected_native_skills
+                    field,
+                    entry,
+                    expected_native_skills,
+                    baseline_commands,
+                    baseline_skills,
                 ):
                     continue
                 unexpected.add(
@@ -1074,6 +1265,7 @@ def stream_probe_passed(
     runtime_surface_only: bool = False,
     expected_native_skills: set[str] | None = None,
     required_native_skills: set[str] | None = None,
+    host_init_baseline: dict[str, object] | None = None,
 ) -> bool:
     """Ground-truth pass: all init capability surfaces are present and empty,
     no tool was invoked, and the result envelope is clean. Reply text is ignored."""
@@ -1083,6 +1275,7 @@ def stream_probe_passed(
         expected_tools,
         expected_native_skills,
         required_native_skills,
+        host_init_baseline,
     )
     if state is None:
         return False
@@ -1142,6 +1335,7 @@ def classify_failure(
     allow_expected_tool_use: bool = False,
     expected_native_skills: set[str] | None = None,
     required_native_skills: set[str] | None = None,
+    host_init_baseline: dict[str, object] | None = None,
 ):
     expected_tools = expected_tools or set()
     check_label = "Claude runtime isolation check" if expected_tools else "Claude no-tool probe"
@@ -1251,6 +1445,7 @@ def classify_failure(
             expected_tools,
             expected_native_skills,
             required_native_skills,
+            host_init_baseline,
         )
         if state is None:
             return (
@@ -1380,6 +1575,7 @@ def main() -> int:
             "[--require-empty-init] [--expected-tools CSV] "
             "[--expected-native-skills CSV] "
             "[--required-native-skills CSV] "
+            "[--host-init-baseline FILE] [--validate-host-init-baseline] "
             "[--allow-expected-tool-use] [--runtime-surface-only]",
             file=sys.stderr,
         )
@@ -1390,6 +1586,8 @@ def main() -> int:
     required_native_skills: set[str] = set()
     allow_expected_tool_use = False
     runtime_surface_only = False
+    host_init_baseline_path = ""
+    validate_host_init_baseline = False
     option_index = 4
     while option_index < len(sys.argv):
         option = sys.argv[option_index]
@@ -1423,6 +1621,12 @@ def main() -> int:
         elif option == "--runtime-surface-only":
             runtime_surface_only = True
             option_index += 1
+        elif option == "--host-init-baseline" and option_index + 1 < len(sys.argv):
+            host_init_baseline_path = sys.argv[option_index + 1]
+            option_index += 2
+        elif option == "--validate-host-init-baseline":
+            validate_host_init_baseline = True
+            option_index += 1
         else:
             print("unknown or incomplete probe parser option", file=sys.stderr)
             return 64
@@ -1447,6 +1651,20 @@ def main() -> int:
 
     stdout = Path(sys.argv[2]).read_text(encoding="utf-8", errors="replace")
     stderr = Path(sys.argv[3]).read_text(encoding="utf-8", errors="replace")
+    host_init_baseline = None
+    if validate_host_init_baseline:
+        host_init_baseline, baseline_error = load_host_init_baseline(sys.argv[2])
+        if baseline_error is not None:
+            print(json.dumps({"reason": baseline_error, "generic_failure": False}))
+            return 1
+        return 0
+    if host_init_baseline_path:
+        host_init_baseline, baseline_error = load_host_init_baseline(
+            host_init_baseline_path
+        )
+        if baseline_error is not None:
+            print(json.dumps({"reason": baseline_error, "generic_failure": False}))
+            return 1
     normalized_stdout = normalize(stdout)
     stderr_surface = classification_surface(None, "", stderr)
     env = parse_json_object(normalized_stdout)
@@ -1498,6 +1716,7 @@ def main() -> int:
                 runtime_surface_only,
                 expected_native_skills,
                 required_native_skills,
+                host_init_baseline,
             ):
                 return 0
         elif not require_empty_init:
@@ -1553,6 +1772,7 @@ def main() -> int:
                 expected_tools,
                 expected_native_skills,
                 required_native_skills,
+                host_init_baseline,
             )
             runtime_detail = ""
             runtime_drift_only = False
@@ -1589,7 +1809,7 @@ def main() -> int:
                     or (invoked_tools and not allow_expected_tool_use)
                 )
                 unexpected_identifiers = unexpected_customization_identifiers(
-                    events, expected_native_skills
+                    events, expected_native_skills, host_init_baseline
                 )
                 # EVERY interpolated identifier is CLI-supplied, not just the
                 # field names: tool names, skill/plugin/command identifiers and
@@ -1661,6 +1881,7 @@ def main() -> int:
         allow_expected_tool_use,
         expected_native_skills,
         required_native_skills,
+        host_init_baseline,
     )
     print(
         json.dumps(

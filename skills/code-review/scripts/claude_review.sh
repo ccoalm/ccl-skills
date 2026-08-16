@@ -238,6 +238,7 @@ if [ "$timeout_s" -gt 600 ]; then
   printf 'claude_review.sh: clamping --timeout %s to 600 seconds\n' "$timeout_s" >&2
   timeout_s=600
 fi
+wrapper_started=$SECONDS
 if [ "$mode" = "consult" ] && [ -z "${extra//[[:space:]]/}" ]; then
   emit_inconclusive_payload "consult mode requires a non-empty --extra bounded question" invalid_input false stop_reviewer_lane
   exit 2
@@ -336,7 +337,12 @@ if [ "$mode" = "consult" ] && [ "$include_diff" -ne 1 ] && [ "$prompt_only" -ne 
   fi
 fi
 
-help_text="$(claude -p --help 2>/dev/null || true)"
+claude_bin_path="$(command -v claude 2>/dev/null || true)"
+if [ -z "$claude_bin_path" ] || [ ! -x "$claude_bin_path" ]; then
+  emit_inconclusive_payload "Claude CLI is unavailable" client_unavailable true fallback
+  exit 2
+fi
+help_text="$("$claude_bin_path" -p --help 2>/dev/null || true)"
 flags=(--print)
 challenge_no_tools=0
 review_no_tools=0
@@ -352,6 +358,30 @@ has_help_flag() {
       }
     }
     END { exit found ? 0 : 1 }
+  ' <<<"$help_text"
+}
+safe_mode_disables_skills() {
+  awk '
+    /^[[:space:]]*--safe-mode([[:space:]]|$)/ {
+      capture = 1
+    }
+    capture && seen && /^[[:space:]]*-{1,2}[[:alnum:]]/ {
+      capture = 0
+    }
+    capture && seen && /^[[:space:]]*$/ {
+      capture = 0
+    }
+    capture {
+      text = text " " tolower($0)
+      seen = 1
+    }
+    END {
+      if (text ~ /skills[^.;]*(unaffected|remain(s)?[[:space:]]+enabled|not[[:space:]]+disabl)/) {
+        exit 1
+      }
+      exit (text ~ /disabl[a-z]*[[:space:]]+(all[[:space:]]+)?(inherited[[:space:]]+)?skills/ ||
+            text ~ /skills[^.;]*disabl[a-z]*/) ? 0 : 1
+    }
   ' <<<"$help_text"
 }
 run_claude_prompt_file() {
@@ -419,13 +449,17 @@ else
   emit_inconclusive_payload "Claude CLI cannot disable inherited user/project/local settings; setting-source isolation is required" capability_missing true fallback
   exit 2
 fi
-if has_help_flag "--safe-mode"; then
+if has_help_flag "--safe-mode" && safe_mode_disables_skills; then
   flags+=(--safe-mode)
 else
-  emit_inconclusive_payload "Claude CLI cannot disable inherited Claude customizations; safe mode is required" capability_missing true fallback
+  emit_inconclusive_payload "Claude CLI cannot prove that safe mode disables inherited Claude skills and customizations" capability_missing true fallback
   exit 2
 fi
 if [ "$review_skill_count" -gt 0 ]; then
+  if ! has_help_flag "--max-budget-usd"; then
+    emit_inconclusive_payload "Claude CLI cannot produce a bounded host-vocabulary baseline" capability_missing true fallback
+    exit 2
+  fi
   if has_help_flag "--plugin-dir"; then
     ccl_plugin_root="$(cd "$skill_registry_root/.." && pwd -P)" \
       || { emit_inconclusive_payload "cannot resolve installed CCL skill plugin" local_tool_failure false stop_reviewer_lane; exit 2; }
@@ -506,16 +540,53 @@ if [ "$direct_schema" -eq 1 ] && [ "$structured_ok" -ne 1 ]; then
   emit_inconclusive_payload "--direct requires Claude CLI --output-format and --json-schema support" capability_missing true fallback
   exit 2
 fi
+if ! has_help_flag "--output-format" || ! has_help_flag "--verbose"; then
+  emit_inconclusive_payload "Claude CLI cannot verify the runtime isolation surface; stream-json init evidence requires --output-format and --verbose" capability_missing true fallback
+  exit 2
+fi
 export CLAUDE_REVIEW_WRAPPER_MODE="$mode"
+
+# Validate every helper before the owner-aware host-vocabulary probe. A missing
+# parser must stop locally rather than spending a provider request and only then
+# discovering that the resulting boundary evidence cannot be checked.
+if [ ! -r "$runtime_parser" ]; then
+  emit_inconclusive_payload "Claude runtime-surface classifier missing: parse_probe_result.py" policy_denied false stop_reviewer_lane
+  exit 2
+fi
+if [ ! -r "$capture_runner" ]; then
+  emit_inconclusive_payload "Claude review helper missing: run_claude_capture.py" policy_denied false stop_reviewer_lane
+  exit 2
+fi
+if [ ! -r "$envelope_classifier" ]; then
+  emit_inconclusive_payload "Claude review helper missing: classify_envelope.py" policy_denied false stop_reviewer_lane
+  exit 2
+fi
+if [ ! -r "$result_parser" ]; then
+  emit_inconclusive_payload "Claude review helper missing: parse_review_json.py" policy_denied false stop_reviewer_lane
+  exit 2
+fi
 
 prompt_file="$(make_temp_file claude-review-prompt)"
 output_file="$(make_temp_file claude-review-output)"
 err_file="$(make_temp_file claude-review-error)"
 parsed_file="$(make_temp_file claude-review-parsed)"
 reply_text_file="$(make_temp_file claude-review-reply-text)"
-chmod 600 "$prompt_file" "$output_file" "$err_file" "$parsed_file" "$reply_text_file"
+host_baseline_prompt_file="$(make_temp_file claude-review-host-baseline-prompt)"
+host_baseline_output_file="$(make_temp_file claude-review-host-baseline-output)"
+host_baseline_err_file="$(make_temp_file claude-review-host-baseline-error)"
+host_baseline_cwd=""
+formal_timeout_s="$timeout_s"
+chmod 600 "$prompt_file" "$output_file" "$err_file" "$parsed_file" "$reply_text_file" \
+  "$host_baseline_prompt_file" "$host_baseline_output_file" "$host_baseline_err_file"
 cleanup() {
-  rm -f "$prompt_file" "$output_file" "$err_file" "$parsed_file" "$reply_text_file"
+  rm -f "$prompt_file" "$output_file" "$err_file" "$parsed_file" "$reply_text_file" \
+    "$host_baseline_prompt_file" "$host_baseline_output_file" "$host_baseline_err_file"
+  if [ -n "$host_baseline_cwd" ]; then
+    case "${host_baseline_cwd##*/}" in
+      claude-review-host-baseline-cwd.*) rm -rf -- "$host_baseline_cwd" ;;
+      *) rmdir "$host_baseline_cwd" 2>/dev/null || true ;;
+    esac
+  fi
 }
 trap cleanup EXIT
 signal_inconclusive() {
@@ -524,6 +595,105 @@ signal_inconclusive() {
   exit 2
 }
 trap signal_inconclusive TERM INT HUP
+
+if [ "$review_skill_count" -gt 0 ]; then
+  # Keep the baseline's own prerequisites explicit at the call site. The main
+  # invocation already requires these flags above; repeating the check here
+  # prevents a future refactor from making host vocabulary less strict.
+  for required_baseline_flag in \
+    --tools --strict-mcp-config --mcp-config --setting-sources --safe-mode
+  do
+    if ! has_help_flag "$required_baseline_flag"; then
+      emit_inconclusive_payload "Claude CLI cannot isolate the host-vocabulary baseline; required flag unavailable: $required_baseline_flag" capability_missing true fallback
+      exit 2
+    fi
+  done
+  host_baseline_cwd="$(mktemp -d "${TMPDIR:-/tmp}/claude-review-host-baseline-cwd.XXXXXX")" \
+    || { emit_inconclusive_payload "cannot create isolated Claude host-vocabulary baseline directory" local_tool_failure false stop_reviewer_lane; exit 2; }
+  chmod 700 "$host_baseline_cwd" \
+    || { emit_inconclusive_payload "cannot secure isolated Claude host-vocabulary baseline directory" local_tool_failure false stop_reviewer_lane; exit 2; }
+  printf '%s\n' 'Return a short acknowledgement.' > "$host_baseline_prompt_file"
+  host_baseline_flags=(
+    --print
+    --tools ""
+    --strict-mcp-config
+    --mcp-config '{"mcpServers":{}}'
+    --setting-sources ""
+    --safe-mode
+    --output-format stream-json
+    --verbose
+    --max-budget-usd 0.000001
+  )
+  if has_help_flag "--no-session-persistence"; then
+    host_baseline_flags+=(--no-session-persistence)
+  fi
+  if has_help_flag "--effort"; then
+    host_baseline_flags+=(--effort low)
+  fi
+  host_baseline_timeout_s="$timeout_s"
+  if [ "$host_baseline_timeout_s" -gt 30 ]; then
+    host_baseline_timeout_s=30
+  fi
+  host_baseline_started=$SECONDS
+  set +e
+  (
+    cd "$host_baseline_cwd" \
+      && run_claude_prompt_file \
+        "$host_baseline_timeout_s" \
+        "$host_baseline_output_file" \
+        "$host_baseline_err_file" \
+        "$host_baseline_prompt_file" \
+        "$claude_bin_path" "${host_baseline_flags[@]}"
+  )
+  host_baseline_rc=$?
+  set -e
+  if [ "$host_baseline_rc" -eq "$capture_signal_rc" ]; then
+    emit_inconclusive_payload "Claude host-vocabulary baseline was terminated by a signal" operator_interrupt false stop_reviewer_lane
+    exit 2
+  fi
+  if [ "$host_baseline_rc" -eq "$capture_timeout_rc" ]; then
+    emit_inconclusive_payload "Claude host-vocabulary baseline timed out" timeout true fallback
+    exit 2
+  fi
+  # This detects writes only inside the isolated cwd; it is not proof that the
+  # CLI made no writes elsewhere. External authority is constrained separately
+  # by the required isolation flags and the validated zero-tool init surface.
+  if [ -n "$(find "$host_baseline_cwd" -mindepth 1 -print -quit 2>/dev/null)" ]; then
+    # This acknowledgement-only baseline never sees candidate bytes or concern
+    # evidence. Refuse its vocabulary, but let an independent reviewer continue.
+    emit_inconclusive_payload "Claude host-vocabulary baseline wrote into its isolated working directory" capability_missing true fallback
+    exit 2
+  fi
+  set +e
+  host_baseline_validation="$(
+    python3 "$runtime_parser" \
+      "$host_baseline_rc" \
+      "$host_baseline_output_file" \
+      "$host_baseline_err_file" \
+      --validate-host-init-baseline
+  )"
+  host_baseline_validation_rc=$?
+  set -e
+  if [ "$host_baseline_validation_rc" -ne 0 ]; then
+    host_baseline_reason="$(python3 - "$host_baseline_validation" <<'PY_HOST_BASELINE_REASON'
+import json
+import sys
+
+try:
+    print(json.loads(sys.argv[1]).get("reason") or "Claude host-vocabulary baseline is invalid")
+except json.JSONDecodeError:
+    print("Claude host-vocabulary baseline is invalid")
+PY_HOST_BASELINE_REASON
+)"
+    emit_inconclusive_payload "$host_baseline_reason" capability_missing true fallback
+    exit 2
+  fi
+  formal_timeout_s=$((timeout_s - (SECONDS - wrapper_started)))
+  if [ "$formal_timeout_s" -lt 1 ]; then
+    emit_inconclusive_payload "Claude host-vocabulary baseline exhausted the review timeout" timeout true fallback
+    exit 2
+  fi
+fi
 
 if [ "$no_tools_mode" -eq 1 ]; then
   no_tool_scope_verb="review"
@@ -795,14 +965,6 @@ if [ ! -r "$envelope_classifier" ]; then
   emit_inconclusive_payload "Claude review helper missing: classify_envelope.py" policy_denied false stop_reviewer_lane
   exit 2
 fi
-if [ ! -r "$result_parser" ]; then
-  emit_inconclusive_payload "Claude review helper missing: parse_review_json.py" policy_denied false stop_reviewer_lane
-  exit 2
-fi
-if ! has_help_flag "--output-format" || ! has_help_flag "--verbose"; then
-  emit_inconclusive_payload "Claude CLI cannot verify the runtime isolation surface; stream-json init evidence requires --output-format and --verbose" capability_missing true fallback
-  exit 2
-fi
 if [ "$no_tools_mode" -eq 1 ]; then
   runtime_expected_tools=""
 else
@@ -860,7 +1022,12 @@ if [ "$review_skill_count" -gt 0 ]; then
 fi
 while [ "$attempts" -lt "$max_attempts" ]; do
   attempts=$((attempts + 1))
-  run_args=(claude "${flags[@]}")
+  formal_timeout_s=$((timeout_s - (SECONDS - wrapper_started)))
+  if [ "$formal_timeout_s" -lt 1 ]; then
+    emit_inconclusive "Claude review retry budget was exhausted" timeout true fallback
+    exit 2
+  fi
+  run_args=("$claude_bin_path" "${flags[@]}")
   main_expected_tools="$runtime_expected_tools"
   run_args+=(--output-format stream-json --verbose)
   if [ "$structured_ok" -eq 1 ]; then
@@ -872,7 +1039,7 @@ while [ "$attempts" -lt "$max_attempts" ]; do
     fi
   fi
   set +e
-  (cd "$repo_root" && run_claude_prompt_file "$timeout_s" "$output_file" "$err_file" "$prompt_file" "${run_args[@]}")
+  (cd "$repo_root" && run_claude_prompt_file "$formal_timeout_s" "$output_file" "$err_file" "$prompt_file" "${run_args[@]}")
   rc=$?
   set -e
   if [ "$rc" -eq "$capture_signal_rc" ]; then
@@ -880,12 +1047,21 @@ while [ "$attempts" -lt "$max_attempts" ]; do
     exit 2
   fi
   if [ "$rc" -eq "$capture_timeout_rc" ]; then
-    emit_inconclusive "Claude invocation timed out after $timeout_s seconds" timeout true fallback
+    emit_inconclusive "Claude invocation timed out after $formal_timeout_s seconds" timeout true fallback
     exit 2
   fi
   if [ "$rc" -eq 0 ] && [ -s "$output_file" ]; then
     main_runtime_reason=""
-    if ! main_runtime_result="$(python3 "$runtime_parser" "$rc" "$output_file" "$err_file" --require-empty-init --expected-tools "$main_expected_tools" ${runtime_skill_args[@]+"${runtime_skill_args[@]}"} --allow-expected-tool-use --runtime-surface-only)"; then
+    main_runtime_args=(
+      --require-empty-init
+      --expected-tools "$main_expected_tools"
+      ${runtime_skill_args[@]+"${runtime_skill_args[@]}"}
+    )
+    if [ "$review_skill_count" -gt 0 ]; then
+      main_runtime_args+=(--host-init-baseline "$host_baseline_output_file")
+    fi
+    main_runtime_args+=(--allow-expected-tool-use --runtime-surface-only)
+    if ! main_runtime_result="$(python3 "$runtime_parser" "$rc" "$output_file" "$err_file" "${main_runtime_args[@]}")"; then
       main_runtime_reason="$(python3 - "$main_runtime_result" <<'PY_REASON'
 import json
 import sys

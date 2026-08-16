@@ -49,40 +49,44 @@ PY
 
 # --- fixtures (real opencode shapes: flat info.modelID/providerID; export id) ---
 printf '{"type":"step_start","sessionID":"%s","part":{"type":"step-start"}}\n' "$SESSION_OK" >"$WORK/ev_ok.json"
+cp "$WORK/ev_ok.json" "$WORK/ev_complete.json"
+printf '{"type":"step_finish","sessionID":"%s","part":{"type":"step-finish","reason":"stop"}}\n' "$SESSION_OK" >>"$WORK/ev_complete.json"
+cp "$WORK/ev_complete.json" "$WORK/ev_trailing_sessionless.json"
+printf '%s\n' '{"type":"error","error":{"message":"tail still active"}}' >>"$WORK/ev_trailing_sessionless.json"
 printf '{"type":"step_start","sessionID":"%s","part":{"type":"step-start"}}\n' "$SESSION_OTHER" >"$WORK/ev_other.json"
 printf '%s\n' 'not-json' >"$WORK/ev_corrupt.json"
 printf '{"type":"step_start","sessionID":"%s","part":{"type":"step-start"}}\n' "$SESSION_OK" >>"$WORK/ev_corrupt.json"
-# Public debug-agent fixtures: core write/exec/subagent routes are disabled;
-# trusted skill and extra plugin tools may be enabled. Provider/model is bound.
+# Public debug-agent fixtures: only invalid and a controller-selected skill may
+# be enabled unless a case explicitly exercises an extra plugin-tool refusal.
 cat >"$WORK/agent_deepseek.json" <<'EOF'
-{"name":"ccl-review","mode":"primary","model":{"providerID":"deepseek","modelID":"deepseek-chat"},"tools":{"invalid":true,"question":false,"bash":false,"read":true,"glob":true,"grep":true,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":true}}
+{"name":"ccl-review","mode":"primary","model":{"providerID":"deepseek","modelID":"deepseek-chat"},"tools":{"invalid":true,"question":false,"bash":false,"read":false,"glob":false,"grep":false,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":false}}
 EOF
 cat >"$WORK/agent_default.json" <<'EOF'
-{"name":"ccl-review","mode":"primary","model":null,"tools":{"invalid":true,"question":false,"bash":false,"read":true,"glob":true,"grep":true,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":true}}
+{"name":"ccl-review","mode":"primary","model":null,"tools":{"invalid":true,"question":false,"bash":false,"read":false,"glob":false,"grep":false,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":false}}
 EOF
 cat >"$WORK/agent_deepseek_v4.json" <<'EOF'
-{"name":"ccl-review","mode":"primary","model":{"providerID":"deepseek","modelID":"deepseek-v4-pro"},"tools":{"invalid":true,"question":false,"bash":false,"read":true,"glob":true,"grep":true,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":true}}
+{"name":"ccl-review","mode":"primary","model":{"providerID":"deepseek","modelID":"deepseek-v4-pro"},"tools":{"invalid":true,"question":false,"bash":false,"read":false,"glob":false,"grep":false,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":false}}
 EOF
 cat >"$WORK/agent_kimi.json" <<'EOF'
-{"name":"ccl-review","mode":"primary","model":{"providerID":"kimi","modelID":"kimi-k3"},"tools":{"invalid":true,"question":false,"bash":false,"read":true,"glob":true,"grep":true,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":true}}
+{"name":"ccl-review","mode":"primary","model":{"providerID":"kimi","modelID":"kimi-k3"},"tools":{"invalid":true,"question":false,"bash":false,"read":false,"glob":false,"grep":false,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":false}}
 EOF
 cat >"$WORK/agent_exposed.json" <<'EOF'
-{"name":"ccl-review","mode":"primary","model":{"providerID":"deepseek","modelID":"deepseek-chat"},"tools":{"invalid":true,"bash":true,"read":true,"glob":true,"grep":true,"skill":true,"ccl_context":true}}
+{"name":"ccl-review","mode":"primary","model":{"providerID":"deepseek","modelID":"deepseek-chat"},"tools":{"invalid":true,"bash":true,"read":false,"glob":false,"grep":false,"skill":true,"ccl_context":false}}
 EOF
 cat >"$WORK/agent_missing.json" <<'EOF'
-{"name":"ccl-review","mode":"primary","model":{"providerID":"deepseek","modelID":"deepseek-chat"},"tools":{"invalid":true,"question":false,"bash":false,"read":true,"glob":true,"grep":false,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":true}}
+{"name":"ccl-review","mode":"primary","model":{"providerID":"deepseek","modelID":"deepseek-chat"},"tools":{"invalid":true,"question":false,"bash":false,"read":false,"glob":false,"grep":false,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":false,"ccl_context":false}}
 EOF
-cat >"$WORK/agent_skill_disabled.json" <<'EOF'
-{"name":"ccl-review","mode":"primary","model":{"providerID":"deepseek","modelID":"deepseek-chat"},"tools":{"invalid":true,"question":false,"bash":false,"read":true,"glob":true,"grep":true,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":false,"ccl_context":true}}
+cat >"$WORK/agent_extra_plugin_tool_enabled.json" <<'EOF'
+{"name":"ccl-review","mode":"primary","model":{"providerID":"deepseek","modelID":"deepseek-chat"},"tools":{"invalid":true,"question":false,"bash":false,"read":false,"glob":false,"grep":false,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":true}}
 EOF
 cat >"$WORK/agent_sparse.json" <<'EOF'
-{"name":"ccl-review","mode":"primary","model":{"providerID":"deepseek","modelID":"deepseek-chat"},"tools":{"invalid":true,"bash":false,"read":true,"glob":true,"grep":true,"skill":true,"ccl_context":true}}
+{"name":"ccl-review","mode":"primary","model":{"providerID":"deepseek","modelID":"deepseek-chat"},"tools":{"invalid":true,"bash":false,"read":false,"glob":false,"skill":true,"ccl_context":false}}
 EOF
 cat >"$WORK/agent_claude.json" <<'EOF'
-{"name":"ccl-review","mode":"primary","model":{"providerID":"anthropic","modelID":"claude-x"},"tools":{"invalid":true,"question":false,"bash":false,"read":true,"glob":true,"grep":true,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":true}}
+{"name":"ccl-review","mode":"primary","model":{"providerID":"anthropic","modelID":"claude-x"},"tools":{"invalid":true,"question":false,"bash":false,"read":false,"glob":false,"grep":false,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":false}}
 EOF
 cat >"$WORK/agent_unmapped.json" <<'EOF'
-{"name":"ccl-review","mode":"primary","model":{"providerID":"some-new-vendor","modelID":"m"},"tools":{"invalid":true,"question":false,"bash":false,"read":true,"glob":true,"grep":true,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":true}}
+{"name":"ccl-review","mode":"primary","model":{"providerID":"some-new-vendor","modelID":"m"},"tools":{"invalid":true,"question":false,"bash":false,"read":false,"glob":false,"grep":false,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":false}}
 EOF
 
 cat >"$WORK/exp_pass.json"   <<EOF
@@ -146,9 +150,9 @@ EOF
 printf '%s\n' '{"type":"step_start","sessionID":"modelhistory1","part":{"type":"step-start"}}' >"$WORK/ev_model_switch.json"
 
 P() { python3 "$PARSER" "$@"; }
-OKARGS=(--events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude)
+OKARGS=(--events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --require-skill-tool)
 # kimi-lane args: dedicated events file whose session id matches exp_kimi.json (non-ses_ shape)
-KP() { python3 "$PARSER" --events "$WORK/ev_kimi.json" --agent-boundary "$WORK/agent_kimi.json" --implementer-family "$1" --export "$WORK/exp_kimi.json"; }
+KP() { python3 "$PARSER" --events "$WORK/ev_kimi.json" --agent-boundary "$WORK/agent_kimi.json" --implementer-family "$1" --require-skill-tool --export "$WORK/exp_kimi.json"; }
 
 legacy_out="$(P "${OKARGS[@]}" --export "$WORK/exp_pass.json")"
 check "clean sentinel -> passed" passed "$legacy_out"
@@ -167,28 +171,50 @@ else
   echo "FAIL - OpenCode discarded per-concern conclusions :: $coverage_out"
   fails=$((fails+1))
 fi
-check_reason "configured agent model mismatch -> blocked" inconclusive agent_model_mismatch "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_deepseek_v4.json" --implementer-family claude --export "$WORK/exp_pass.json")"
+check_reason "configured agent model mismatch -> blocked" inconclusive agent_model_mismatch "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_deepseek_v4.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_pass.json")"
 out="$(P "${OKARGS[@]}" --export "$WORK/exp_find.json")"
 check "schema findings -> findings" findings "$out"
 check_finding_fields "OpenCode findings use the shared structured schema" "$out"
 check_reason "praise/LGTM -> unparseable_findings" inconclusive unparseable_findings "$(P "${OKARGS[@]}" --export "$WORK/exp_lgtm.json")"
-check_reason "reviewer timeout -> inconclusive" inconclusive reviewer_timeout "$(P "${OKARGS[@]}" --export "$WORK/exp_pass.json" --exit-code 124)"
+unbound_timeout_out="$(P --events "$WORK/ev_complete.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_pass.json" --exit-code 124)"
+check_reason "stop-finished legacy export without a frozen concern contract stays timeout" inconclusive reviewer_timeout "$unbound_timeout_out"
+timeout_complete_out="$(P --events "$WORK/ev_complete.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --require-skill-tool --required-concern correctness --export "$WORK/exp_pass_coverage.json" --exit-code 124)"
+check "complete profile-bound export survives a timed-out run tail" passed "$timeout_complete_out"
+if [ "$(field transport_tail_timeout "$timeout_complete_out")" = True ]; then
+  echo "ok   - recovered OpenCode verdict records the timed-out run tail"
+else
+  echo "FAIL - recovered OpenCode verdict omitted timed-out run-tail evidence :: $timeout_complete_out"
+  fails=$((fails+1))
+fi
+check_reason "timeout-tail recovery requires every bound concern conclusion" inconclusive reviewer_timeout \
+  "$(P --events "$WORK/ev_complete.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --require-skill-tool --required-concern correctness --export "$WORK/exp_pass.json" --exit-code 124)"
+check_reason "malformed final text after a timed-out run remains timeout" inconclusive reviewer_timeout \
+  "$(P --events "$WORK/ev_complete.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --require-skill-tool --required-concern correctness --export "$WORK/exp_lgtm.json" --exit-code 124)"
+check "timeout-tail recovery accepts a complete bound concern contract" passed \
+  "$(P --events "$WORK/ev_complete.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --require-skill-tool --required-concern correctness --export "$WORK/exp_pass_coverage.json" --exit-code 124)"
+check_reason "unfinished export after reviewer timeout stays inconclusive" inconclusive reviewer_timeout "$(P "${OKARGS[@]}" --export "$WORK/exp_unfinished.json" --exit-code 124)"
+check_reason "export stop without terminal event evidence stays timeout" inconclusive reviewer_timeout "$(P "${OKARGS[@]}" --export "$WORK/exp_pass.json" --exit-code 124)"
+check_reason "sessionless event after terminal stop keeps timeout active" inconclusive reviewer_timeout "$(P --events "$WORK/ev_trailing_sessionless.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_pass.json" --exit-code 124)"
 check_reason "nonzero exit -> inconclusive" inconclusive reviewer_exit_1 "$(P "${OKARGS[@]}" --export "$WORK/exp_pass.json" --exit-code 1)"
 check_reason "debug-agent forbidden tool -> blocked" inconclusive agent_forbidden_tool_available \
-  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_exposed.json" --implementer-family claude --export "$WORK/exp_pass.json")"
-check_reason "debug-agent missing read tool -> blocked" inconclusive agent_required_tool_missing \
+  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_exposed.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_pass.json")"
+check_reason "debug-agent missing skill tool -> blocked" inconclusive agent_required_tool_missing \
+  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_missing.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_pass.json")"
+check "debug-agent may disable skill when no owner skill was selected" passed \
   "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_missing.json" --implementer-family claude --export "$WORK/exp_pass.json")"
-check "debug-agent may harden the optional skill tool" passed \
-  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_skill_disabled.json" --implementer-family claude --export "$WORK/exp_pass.json")"
+check_reason "debug-agent must disable skill when no owner skill was selected" inconclusive agent_forbidden_tool_available \
+  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --export "$WORK/exp_pass.json")"
+check_reason "debug-agent enabled plugin tool -> blocked" inconclusive agent_forbidden_tool_available \
+  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_extra_plugin_tool_enabled.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_pass.json")"
 check_reason "debug-agent sparse known-tool map -> blocked" inconclusive agent_disabled_tool_missing \
-  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_sparse.json" --implementer-family claude --export "$WORK/exp_pass.json")"
+  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_sparse.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_pass.json")"
 check_reason "assistant history model switch -> blocked" inconclusive session_model_history_mismatch \
-  "$(P --events "$WORK/ev_model_switch.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --export "$WORK/exp_model_switch.json")"
+  "$(P --events "$WORK/ev_model_switch.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_model_switch.json")"
 check_reason "multi-text-part sentinel forgery -> blocked" inconclusive unparseable_findings "$(P "${OKARGS[@]}" --export "$WORK/exp_multitext.json")"
 check_reason "same family -> blocked" inconclusive same_family_as_implementer \
-  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_claude.json" --implementer-family claude --export "$WORK/exp_claude.json")"
+  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_claude.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_claude.json")"
 check_reason "unmapped family -> inconclusive" inconclusive missing_or_unmapped_reviewer_family \
-  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_unmapped.json" --implementer-family claude --export "$WORK/exp_unmapped.json")"
+  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_unmapped.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_unmapped.json")"
 check "kimi provider -> moonshot family, independent vs claude implementer" passed "$(KP claude)"
 check_reason "kimi provider (moonshot) vs moonshot implementer -> same family" inconclusive same_family_as_implementer "$(KP moonshot)"
 check_reason "unfinished run -> inconclusive" inconclusive missing_final_text "$(P "${OKARGS[@]}" --export "$WORK/exp_unfinished.json")"
@@ -202,17 +228,17 @@ else
 fi
 check_reason "session mismatch -> blocked" inconclusive session_id_mismatch "$(P "${OKARGS[@]}" --export "$WORK/exp_mismatch.json")"
 check_reason "cross-message forgery -> missing_final_text" inconclusive missing_final_text "$(P "${OKARGS[@]}" --export "$WORK/exp_forge.json")"
-check_reason "missing events -> blocked" inconclusive missing_events "$(P --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --export "$WORK/exp_pass.json")"
+check_reason "missing events -> blocked" inconclusive missing_events "$(P --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_pass.json")"
 check_reason "corrupt event stream -> blocked" inconclusive event_stream_unparseable \
-  "$(P --events "$WORK/ev_corrupt.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --export "$WORK/exp_pass.json")"
+  "$(P --events "$WORK/ev_corrupt.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_pass.json")"
 check_reason "missing export -> inconclusive" inconclusive missing_export "$(P "${OKARGS[@]}")"
 check_reason "refusal quoting file:line -> unparseable" inconclusive unparseable_findings "$(P "${OKARGS[@]}" --export "$WORK/exp_refusal.json")"
 check_reason "export without session id -> mismatch" inconclusive session_id_mismatch "$(P "${OKARGS[@]}" --export "$WORK/exp_noid.json")"
 check_reason "implementer providerID anthropic vs reviewer anthropic -> same family" inconclusive same_family_as_implementer \
-  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_claude.json" --implementer-family anthropic --export "$WORK/exp_claude.json")"
-check_reason "unmapped implementer family -> blocked" inconclusive unmapped_implementer_family "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family bogusvendor --export "$WORK/exp_pass.json")"
+  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_claude.json" --implementer-family anthropic --require-skill-tool --export "$WORK/exp_claude.json")"
+check_reason "unmapped implementer family -> blocked" inconclusive unmapped_implementer_family "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family bogusvendor --require-skill-tool --export "$WORK/exp_pass.json")"
 check_reason "implementer family deepseek vs reviewer deepseek -> blocked" inconclusive same_family_as_implementer \
-  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family deepseek --export "$WORK/exp_pass.json")"
+  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family deepseek --require-skill-tool --export "$WORK/exp_pass.json")"
 missing_boundary_rc=0
 if missing_boundary_out="$(P --events "$WORK/ev_ok.json" --export "$WORK/exp_pass.json" --implementer-family claude 2>/dev/null)"; then
   missing_boundary_rc=0
@@ -226,7 +252,7 @@ else
   fails=$((fails+1))
 fi
 check_reason "native OpenCode default still enforces exported family independence" inconclusive same_family_as_implementer \
-  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_default.json" --implementer-family deepseek --export "$WORK/exp_pass.json")"
+  "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_default.json" --implementer-family deepseek --require-skill-tool --export "$WORK/exp_pass.json")"
 
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "ALL PASS"; else echo "$fails FAIL"; exit 1; fi

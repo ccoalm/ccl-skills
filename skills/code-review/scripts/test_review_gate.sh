@@ -1193,15 +1193,12 @@ out="$(run_gate --allow-fallback-egress)"; rc=$?
 check "native owner-skill timeout receipt remains fail-closed and cascade-eligible through the gate" \
   '[ "$rc" = 2 ] && [ "$(tr "\n" " " < "$WORK/state/client_sequence")" = "claude kimi opencode " ] && json_fields "$out" status=inconclusive reason_code=timeout attempts.2.status=inconclusive attempts.2.reason=review_native_skill_stream_timeout attempts.2.reason_code=timeout attempts.2.cascade_eligible=true attempts.2.timeout_diagnostic.native_owner_skills_requested=true attempts.2.diagnostic_artifacts.retained=true'
 
-# A client that can only take the packet inline (Kimi has no stdin or prompt-file
-# interface, so its packet rides in argv and is capped for exposure and silent-
-# elision reasons) stops on any candidate above that ceiling. That stop is a
-# property of the client, not of the candidate, so it must cascade — dropping
-# capability_missing out of the cascade set would turn a routine size ceiling
-# into a lane-fatal failure with nothing to catch it.
+# A reviewer-local input ceiling is a client capability failure, not a candidate
+# defect. It must cascade; dropping capability_missing from the allowed set
+# would turn a routine transport limit into a lane-fatal result.
 reset_case quota oversize_inline passed
 out="$(run_gate --allow-fallback-egress)"; rc=$?
-check "an inline-only client's size ceiling cascades instead of stopping the lane" \
+check "a client-local input ceiling cascades instead of stopping the lane" \
   '[ "$rc" = 0 ] && [ "$(tr "\n" " " < "$WORK/state/client_sequence")" = "claude kimi opencode " ] && json_fields "$out" selected_client=opencode attempts.1.reason_code=capability_missing'
 
 reset_case quota concern_cascade passed

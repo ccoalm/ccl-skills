@@ -26,31 +26,49 @@ fails=0
 command -v jq >/dev/null 2>&1 || { echo "FAIL - jq is required for opencode_review.sh and its tests"; exit 1; }
 REAL_PYTHON_BIN="$(command -v python3)"
 export REAL_PYTHON_BIN
+REAL_TIMEOUT_BIN="$(command -v timeout)"
+export REAL_TIMEOUT_BIN
 
 mkdir -p "$WORK/bin" "$WORK/state" "$WORK/tmp" "$WORK/source-data/opencode"
 printf '%s\n' '{"deepseek":{"type":"api","key":"test-only"}}' >"$WORK/source-data/opencode/auth.json"
+
+cat >"$WORK/bin/timeout" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$STUB_STATE_DIR/timeout_args"
+exec "$REAL_TIMEOUT_BIN" "$@"
+STUB
+chmod +x "$WORK/bin/timeout"
 
 cat >"$WORK/bin/opencode" <<'STUB'
 #!/usr/bin/env bash
 # Deterministic opencode stub. Behavior is driven by $STUB_STATE_DIR:
 #   review_mode: pass_first | pass_on_retry | never_pass | tool_exposed |
+#                completed_session_timeout | completed_malformed_timeout |
+#                idless_export_timeout | invalid_export_timeout |
 #                native_stream_timeout | native_large_log_timeout |
 #                native_slow_copy_timeout | legacy_stream_timeout |
-#                pre_stream_timeout
+#                pre_stream_timeout | provider_balance_exhausted |
+#                provider_balance_then_server_error | provider_auth_then_server_error
 set -u
 STATE="$STUB_STATE_DIR"
 MODE="$(cat "$STATE/review_mode")"
 [ -z "${OPENCODE_PURE:-}" ] || touch "$STATE/pure_mode_forced"
 if [ "$1" = "debug" ] && [ "${2:-}" = "agent" ]; then
+  sleep "${STUB_BOUNDARY_DELAY_S:-0}"
   grep -q '^model:' .opencode/agent/ccl-review.md 2>/dev/null && touch "$STATE/agent_model_override"
-  grep -q '^  write: deny$' .opencode/agent/ccl-review.md 2>/dev/null && touch "$STATE/write_explicitly_denied"
+  grep -q '^  "\*": deny$' .opencode/agent/ccl-review.md 2>/dev/null \
+    && touch "$STATE/packet_only_permissions"
+  grep -q '^    "testing-strategy": allow$' .opencode/agent/ccl-review.md 2>/dev/null \
+    && touch "$STATE/selected_skill_only"
   model_full="$(cat "$STATE/resolved_model" 2>/dev/null || printf '%s' deepseek/deepseek-chat)"
   provider="${model_full%%/*}"
   model="${model_full#*/}"
   bash_enabled=false
+  skill_enabled=false
   [ "$MODE" = "tool_exposed" ] && bash_enabled=true
-  printf '{"name":"ccl-review","mode":"primary","model":{"providerID":"%s","modelID":"%s"},"tools":{"invalid":true,"question":false,"bash":%s,"read":true,"glob":true,"grep":true,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":true}}\n' \
-    "$provider" "$model" "$bash_enabled"
+  [ -e "$STATE/selected_skill_only" ] && skill_enabled=true
+  printf '{"name":"ccl-review","mode":"primary","model":{"providerID":"%s","modelID":"%s"},"tools":{"invalid":true,"question":false,"bash":%s,"read":false,"glob":false,"grep":false,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":%s,"ccl_context":false}}\n' \
+    "$provider" "$model" "$bash_enabled" "$skill_enabled"
   exit 0
 fi
 if [ "$1" = "run" ]; then
@@ -96,6 +114,22 @@ if [ "$1" = "run" ]; then
   if [ "$MODE" = "signal_exit" ]; then
     exit 143
   fi
+  if [ "$MODE" = "provider_balance_exhausted" ]; then
+    printf '%s\n' '{"type":"error","sessionID":"sid-review-billing","error":{"name":"APIError","data":{"message":"Insufficient Balance","statusCode":402,"isRetryable":false}}}'
+    exit 1
+  fi
+  if [ "$MODE" = "provider_balance_then_server_error" ]; then
+    printf '%s\n' \
+      '{"type":"error","sessionID":"sid-review-billing","error":{"name":"APIError","data":{"message":"Insufficient Balance","statusCode":402,"isRetryable":false}}}' \
+      '{"type":"error","sessionID":"sid-review-billing","error":{"name":"APIError","data":{"message":"upstream failed","statusCode":500,"isRetryable":true}}}'
+    exit 1
+  fi
+  if [ "$MODE" = "provider_auth_then_server_error" ]; then
+    printf '%s\n' \
+      '{"type":"error","sessionID":"sid-review-auth","error":{"name":"APIError","data":{"message":"Unauthorized","statusCode":401,"isRetryable":false}}}' \
+      '{"type":"error","sessionID":"sid-review-auth","error":{"name":"APIError","data":{"message":"upstream failed","statusCode":500,"isRetryable":true}}}'
+    exit 1
+  fi
   if [ "$MODE" = "retry_timeout" ] && [ "$n" -ge 2 ]; then
     sleep 8
   fi
@@ -108,6 +142,14 @@ if [ "$1" = "run" ]; then
   fi
   if [ "$MODE" = "session_only_timeout" ]; then
     printf '%s\n' "{\"type\":\"session_created\",\"sessionID\":\"sid-review-$n\"}"
+    sleep 8
+  fi
+  if [ "$MODE" = "completed_session_timeout" ] \
+    || [ "$MODE" = "completed_malformed_timeout" ] \
+    || [ "$MODE" = "idless_export_timeout" ] \
+    || [ "$MODE" = "invalid_export_timeout" ]; then
+    printf '%s\n' "{\"type\":\"step_start\",\"sessionID\":\"sid-review-$n\",\"part\":{\"type\":\"step-start\"}}"
+    printf '%s\n' "{\"type\":\"step_finish\",\"sessionID\":\"sid-review-$n\",\"part\":{\"type\":\"step-finish\",\"reason\":\"stop\"}}"
     sleep 8
   fi
   if [ "$MODE" = "legacy_stream_timeout" ]; then
@@ -150,6 +192,10 @@ if [ "$1" = "export" ]; then
   MODE="$(cat "$STATE/review_mode")"
   [ "$MODE" = "export_fail" ] && exit 1
   [ "$MODE" = "export_timeout" ] && sleep 8
+  if [ "$MODE" = "invalid_export_timeout" ]; then
+    printf '%s\n' 'not-json'
+    exit 0
+  fi
   n="${sid#sid-review-}"
   MODEL_INFO='"info":{"role":"assistant","modelID":"deepseek-chat","providerID":"deepseek"}'
   [ "$MODE" = "missing_attribution" ] && MODEL_INFO='"info":{"role":"assistant"}'
@@ -174,6 +220,8 @@ if [ "$1" = "export" ]; then
   body="$prose"
   case "$MODE" in
     pass_first) body="$conforming";;
+    completed_session_timeout) body="$conforming";;
+    completed_malformed_timeout) body="$prose_with_finding";;
     auth_refresh) body="$conforming";;
     missing_attribution) body="$conforming";;
     missing_final) body="$empty_text";;
@@ -192,7 +240,19 @@ if [ "$1" = "export" ]; then
   esac
   finish_reason=stop
   [ "$MODE" = "unfinished_concern" ] && finish_reason=length
-  printf '{"id":"%s","messages":[{%s,"parts":[%s,{"type":"step-finish","reason":"%s"}]}]}\n' "$sid" "$MODEL_INFO" "$body" "$finish_reason"
+  case "$MODE" in
+    retry_timeout)
+      [ "$n" -lt 2 ] || finish_reason=tool-calls
+      ;;
+    session_only_timeout|legacy_stream_timeout|native_stream_timeout|native_large_log_timeout|native_slow_copy_timeout)
+      finish_reason=tool-calls
+      ;;
+  esac
+  if [ "$MODE" = "idless_export_timeout" ]; then
+    printf '{"messages":[{%s,"parts":[%s,{"type":"step-finish","reason":"%s"}]}]}\n' "$MODEL_INFO" "$body" "$finish_reason"
+  else
+    printf '{"id":"%s","messages":[{%s,"parts":[%s,{"type":"step-finish","reason":"%s"}]}]}\n' "$sid" "$MODEL_INFO" "$body" "$finish_reason"
+  fi
   exit 0
 fi
 exit 1
@@ -295,20 +355,23 @@ run_wrapper() { # $1=review_mode; prints stdout, returns rc
   local profile_file="${3:-$WORK/review-profile.json}"
   printf '%s' "$1" >"$WORK/state/review_mode"
   rm -f "$WORK/state/review_runs" "$WORK/state"/review_prompt_* \
-    "$WORK/state/audit_files_visible" "$WORK/state/write_explicitly_denied" \
+    "$WORK/state/audit_files_visible" "$WORK/state/packet_only_permissions" \
+    "$WORK/state/selected_skill_only" \
     "$WORK/state/prompt_file_transport" "$WORK/state/option_separator" \
     "$WORK/state/positional_prompt" "$WORK/state/extra_positional_prompt"
   env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" \
     XDG_DATA_HOME="$WORK/source-data" FAIL_CAT_KIND="${FAIL_CAT_KIND:-}" TEST_PROFILE_PATH="$profile_file" \
+    STUB_BOUNDARY_DELAY_S="${STUB_BOUNDARY_DELAY_S:-0}" \
     bash "$WRAPPER" --implementer-family claude \
     --diff-file "$diff_file" \
-    --review-profile-file "$profile_file" --timeout 30
+    --review-profile-file "$profile_file" --timeout "${REVIEW_TEST_TIMEOUT:-30}"
 }
 
 run_legacy_wrapper() { # $1=review|challenge; prints stdout, returns rc
   printf '%s' pass_first >"$WORK/state/review_mode"
   rm -f "$WORK/state/review_runs" "$WORK/state"/review_prompt_* \
-    "$WORK/state/audit_files_visible" "$WORK/state/write_explicitly_denied" \
+    "$WORK/state/audit_files_visible" "$WORK/state/packet_only_permissions" \
+    "$WORK/state/selected_skill_only" \
     "$WORK/state/prompt_file_transport"
   env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" \
     XDG_DATA_HOME="$WORK/source-data" \
@@ -319,7 +382,8 @@ run_legacy_wrapper() { # $1=review|challenge; prints stdout, returns rc
 run_native_wrapper() {
   printf '%s' pass_first >"$WORK/state/review_mode"
   rm -f "$WORK/state/review_runs" "$WORK/state"/review_prompt_* \
-    "$WORK/state/native-opencode.json" "$WORK/state/prompt_file_transport"
+    "$WORK/state/native-opencode.json" "$WORK/state/prompt_file_transport" \
+    "$WORK/state/selected_skill_only"
   env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" \
     XDG_DATA_HOME="$WORK/source-data" \
     bash "$WRAPPER" --implementer-family claude \
@@ -329,8 +393,9 @@ run_native_wrapper() {
     --timeout 30
 }
 
-run_native_timeout_wrapper() { # $1=review_mode $2=diagnostic-dir-or-empty
+run_native_timeout_wrapper() { # $1=review_mode $2=diagnostic-dir-or-empty $3=timeout-or-default
   local diagnostic_dir="${2:-}"
+  local timeout_seconds="${3:-5}"
   printf '%s' "$1" >"$WORK/state/review_mode"
   rm -f "$WORK/state/review_runs" "$WORK/state"/review_prompt_* \
     "$WORK/state/native-opencode.json" "$WORK/state/prompt_file_transport"
@@ -341,7 +406,7 @@ run_native_timeout_wrapper() { # $1=review_mode $2=diagnostic-dir-or-empty
       --diff-file "$WORK/diff.patch" \
       --review-profile-file "$WORK/native-review-profile.json" \
       --skill-registry-root "$WORK/skill-registry" --review-skill testing-strategy \
-      --timeout 5 --diagnostic-dir "$diagnostic_dir"
+      --timeout "$timeout_seconds" --diagnostic-dir "$diagnostic_dir"
   else
     env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" \
       XDG_DATA_HOME="$WORK/source-data" \
@@ -349,7 +414,7 @@ run_native_timeout_wrapper() { # $1=review_mode $2=diagnostic-dir-or-empty
       --diff-file "$WORK/diff.patch" \
       --review-profile-file "$WORK/native-review-profile.json" \
       --skill-registry-root "$WORK/skill-registry" --review-skill testing-strategy \
-      --timeout 5
+      --timeout "$timeout_seconds"
   fi
 }
 
@@ -426,9 +491,11 @@ check "OpenCode rejects a native owner profile when owner arguments are omitted"
 out="$(run_native_wrapper)"; rc=$?
 check "native owner skill run passes" '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ]'
 check "OpenCode registers the controller skill registry natively" \
-  'jq -e --arg root "$WORK/skill-registry" ".skills.paths == [\$root] and .permission.skill == \"allow\"" "$WORK/state/native-opencode.json" >/dev/null'
+  'jq -e --arg root "$WORK/skill-registry" ".skills.paths == [\$root] and (has(\"permission\") | not)" "$WORK/state/native-opencode.json" >/dev/null'
 check "OpenCode prompt names the selected owner skill" \
   'grep -q "testing-strategy" "$WORK/state/review_prompt_1"'
+check "OpenCode agent permits only the controller-selected native skill" \
+  '[ -e "$WORK/state/selected_skill_only" ]'
 out="$(run_native_timeout_wrapper pass_first relative-diagnostics)"; rc=$?
 check "OpenCode rejects a relative diagnostic directory before inference" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = relative_diagnostic_dir_rejected ] && [ "$(field reason_code "$out")" = invalid_input ] && [ "$(runs)" = 0 ]'
@@ -474,14 +541,23 @@ check "no third attempt (bounded retry)" '[ "$(runs)" = 2 ]'
 out="$(run_wrapper pass_first)"; rc=$?
 check "conforming first reply -> passed with no retry" '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ "$(runs)" = 1 ]'
 check "one conforming review uses exactly one model invocation" '[ "$(runs)" = 1 ]'
+rm -f "$WORK/state/timeout_args"
+out="$(REVIEW_TEST_TIMEOUT=180 run_wrapper pass_first)"; rc=$?
+check "OpenCode caps the pre-inference boundary probe and preserves the unspent formal budget" \
+  '[ "$rc" = 0 ] && grep -q -- "60s opencode debug agent ccl-review" "$WORK/state/timeout_args" && grep -q -- "170s opencode run" "$WORK/state/timeout_args"'
+rm -f "$WORK/state/timeout_args"
+out="$(STUB_BOUNDARY_DELAY_S=2 REVIEW_TEST_TIMEOUT=10 run_wrapper pass_first)"; rc=$?
+formal_timeout="$(awk '/ opencode run / { value=$1; sub(/s$/, "", value); print value; exit }' "$WORK/state/timeout_args")"
+check "OpenCode charges the boundary probe against run and retry time" \
+  '[ "$rc" = 0 ] && [ "$formal_timeout" -ge 1 ] && [ "$formal_timeout" -lt 10 ]'
 check "OpenCode receives the prompt after an explicit option terminator" \
   '[ -e "$WORK/state/option_separator" ] && [ "$(cat "$WORK/state/positional_prompt")" = "Review the attached bounded instruction and candidate packet." ] && [ ! -e "$WORK/state/extra_positional_prompt" ]'
 check "wrapper leaves model selection to user OpenCode config" \
   '[ ! -e "$WORK/state/cli_model_override" ] && [ ! -e "$WORK/state/agent_model_override" ]'
 check "reviewer project cannot read wrapper audit artifacts" \
   '[ ! -e "$WORK/state/audit_files_visible" ]'
-check "generated agent explicitly denies the audited write tool" \
-  '[ -e "$WORK/state/write_explicitly_denied" ]'
+check "generated agent denies packet-external tools" \
+  '[ -e "$WORK/state/packet_only_permissions" ]'
 
 out="$(FAIL_CAT_KIND=profile run_wrapper pass_first)"; rc=$?
 check "profile read failure stops before inference" \
@@ -615,6 +691,22 @@ check "review timeout remains eligible for the next review client" \
   '[ "$(field reason_code "$out")" = timeout ] && [ "$(field cascade_eligible "$out")" = True ]'
 
 mkdir -p "$WORK/timeout-diagnostics"
+out="$(run_native_timeout_wrapper completed_session_timeout)"; rc=$?
+check "a stop-finished exported OpenCode session survives a timed-out run tail" \
+  '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ "$(field native_skill_binding "$out")" = established ] && [ "$(field transport_tail_timeout "$out")" = True ]'
+
+out="$(run_native_timeout_wrapper completed_malformed_timeout)"; rc=$?
+check "a stop-finished malformed concern remains terminal despite a timed-out run tail" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = unparseable_findings ] && [ "$(field reason_code "$out")" = invalid_model_output ] && [ "$(field cascade_eligible "$out")" = False ] && [ "$(field concern_evidence "$out")" = True ] && [ "$(field transport_tail_timeout "$out")" = True ]'
+
+out="$(run_native_timeout_wrapper idless_export_timeout)"; rc=$?
+check "a timed-out run with an idless export remains fallback-eligible timeout" \
+  '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = timeout ] && [ "$(field cascade_eligible "$out")" = True ]'
+
+out="$(run_native_timeout_wrapper invalid_export_timeout)"; rc=$?
+check "a timed-out run with an invalid export remains fallback-eligible timeout" \
+  '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = timeout ] && [ "$(field cascade_eligible "$out")" = True ]'
+
 out="$(run_native_timeout_wrapper native_stream_timeout "$WORK/timeout-diagnostics")"; rc=$?
 check "native owner-skill stream timeout is classified precisely but remains inconclusive" \
   '[ "$rc" = 2 ] && [ "$(field status "$out")" = inconclusive ] && [ "$(field reason "$out")" = review_native_skill_stream_timeout ] && [ "$(field reason_code "$out")" = timeout ] && [ "$(field cascade_eligible "$out")" = True ]'
@@ -682,7 +774,7 @@ check "failed timeout enrichment without a diagnostic request keeps requested fa
   '\'' >/dev/null'
 
 mkdir -p "$WORK/large-log-diagnostics"
-out="$(run_native_timeout_wrapper native_large_log_timeout "$WORK/large-log-diagnostics")"; rc=$?
+out="$(run_native_timeout_wrapper native_large_log_timeout "$WORK/large-log-diagnostics" 8)"; rc=$?
 large_log_diagnostic_name="$(printf '%s' "$out" | jq -r '.diagnostic_artifacts.directory_name // empty')"
 large_log_diagnostic_path="$WORK/large-log-diagnostics/$large_log_diagnostic_name"
 check "oversized runtime logs are omitted and reported as truncated" \
@@ -777,7 +869,8 @@ check "session creation without a structured stream part keeps the generic timeo
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = review_timeout ] && [ "$(field reason_code "$out")" = timeout ] && [ "$(field cascade_eligible "$out")" = True ]'
 
 printf '%s' legacy_stream_timeout >"$WORK/state/review_mode"
-rm -f "$WORK/state/review_runs" "$WORK/state"/review_prompt_*
+rm -f "$WORK/state/review_runs" "$WORK/state"/review_prompt_* \
+  "$WORK/state/selected_skill_only"
 out="$(env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" XDG_DATA_HOME="$WORK/source-data" bash "$WRAPPER" --implementer-family claude --diff-file "$WORK/diff.patch" --timeout 5)"; rc=$?
 check "structured stream progress without owner skills keeps the generic timeout" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = review_timeout ] && [ "$(field reason_code "$out")" = timeout ] && [ "$(field cascade_eligible "$out")" = True ]'
@@ -790,6 +883,18 @@ check "successful native owner-skill review does not retain timeout diagnostics"
 out="$(run_wrapper signal_exit)"; rc=$?
 check "OpenCode process signals are terminal operator interrupts" \
   '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = operator_interrupt ] && [ "$(field cascade_eligible "$out")" = False ]'
+
+out="$(run_wrapper provider_balance_exhausted)"; rc=$?
+check "OpenCode classifies structured provider billing exhaustion as fallback quota" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = provider_billing_exhausted ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
+
+out="$(run_wrapper provider_balance_then_server_error)"; rc=$?
+check "OpenCode preserves an earlier structured billing error when later events differ" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = provider_billing_exhausted ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
+
+out="$(run_wrapper provider_auth_then_server_error)"; rc=$?
+check "OpenCode preserves an earlier structured authentication error when later events differ" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = provider_auth_unavailable ] && [ "$(field reason_code "$out")" = provider_unavailable ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 
 printf '%s' interrupt_wait >"$WORK/state/review_mode"
 rm -f "$WORK/state/review_runs" "$WORK/state"/review_prompt_* "$WORK/state/interrupt_waiting"

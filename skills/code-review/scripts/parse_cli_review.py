@@ -10,6 +10,7 @@ import re
 from typing import Any
 
 from concern_excerpt import bounded_reason_detail, concern_fields
+from kimi_packet_mcp import MAX_CHUNK_BYTES
 
 
 FAMILIES = {
@@ -285,17 +286,17 @@ def parse_kimi_tool_calls(
 def kimi_text(
     args: argparse.Namespace, events: list[dict[str, Any]]
 ) -> tuple[str | None, dict[str, Any] | None]:
+    packet_tool = "mcp__code_review_packet__read_packet"
     assistant_texts: list[str] = []
     packet_path = Path(args.packet).resolve()
-    expected_packet = str(packet_path)
     try:
-        packet_line_count = len(
-            packet_path.read_bytes().decode("utf-8", "replace").splitlines()
-        )
-    except OSError:
+        packet_bytes = packet_path.read_bytes()
+        packet_bytes.decode("utf-8")
+    except (OSError, UnicodeDecodeError):
         return None, inconclusive(
             args, "Kimi packet could not be inspected", "binding_mismatch", False
         )
+    packet_byte_count = len(packet_bytes)
     packet_read = False
     packet_read_started = False
     packet_read_ids: dict[str, tuple[int, int]] = {}
@@ -303,16 +304,16 @@ def kimi_text(
     premature_texts: list[str] = []
 
     def full_packet_covered() -> bool:
-        if packet_line_count == 0:
+        if packet_byte_count == 0:
             return True
-        cursor = 1
+        cursor = 0
         for start, end in sorted(covered_ranges):
             if start > cursor:
                 return False
-            cursor = max(cursor, end + 1)
-            if cursor > packet_line_count:
+            cursor = max(cursor, end)
+            if cursor >= packet_byte_count:
                 return True
-        return cursor > packet_line_count
+        return cursor >= packet_byte_count
     for event in events:
         role = event.get("role")
         metadata_kind = safe_kimi_metadata_kind(event)
@@ -374,35 +375,28 @@ def kimi_text(
             # prefix.
             continue
         for call_id, name, arguments in parsed_calls:
-            path = (arguments or {}).get("path")
-            try:
-                supplied_path = Path(path) if isinstance(path, str) else None
-                actual_path = (
-                    str(supplied_path.resolve())
-                    if supplied_path is not None and supplied_path.is_absolute()
-                    else None
-                )
-            except OSError:
-                actual_path = None
             argument_keys = set(arguments or {})
             page_span: tuple[int, int] | None = None
-            if name == "Read" and actual_path == expected_packet:
-                if argument_keys == {"path", "line_offset", "n_lines"}:
-                    line_offset = (arguments or {}).get("line_offset")
-                    n_lines = (arguments or {}).get("n_lines")
+            if name == packet_tool:
+                if argument_keys == {"byte_offset", "max_bytes"}:
+                    byte_offset = (arguments or {}).get("byte_offset")
+                    max_bytes = (arguments or {}).get("max_bytes")
                     if (
-                        isinstance(line_offset, int)
-                        and not isinstance(line_offset, bool)
-                        and line_offset >= 1
-                        and line_offset <= packet_line_count
-                        and isinstance(n_lines, int)
-                        and not isinstance(n_lines, bool)
-                        and 1 <= n_lines <= 1000
-                    ):
-                        page_span = (
-                            line_offset,
-                            min(line_offset + n_lines - 1, packet_line_count),
+                        isinstance(byte_offset, int)
+                        and not isinstance(byte_offset, bool)
+                        and byte_offset >= 0
+                        and (
+                            byte_offset < packet_byte_count
+                            or (
+                                byte_offset == packet_byte_count
+                                and full_packet_covered()
+                            )
                         )
+                        and isinstance(max_bytes, int)
+                        and not isinstance(max_bytes, bool)
+                        and 1 <= max_bytes <= MAX_CHUNK_BYTES
+                    ):
+                        page_span = (byte_offset, max_bytes)
             if page_span is None:
                 return None, inconclusive(
                     args,
@@ -430,17 +424,30 @@ def kimi_text(
                     "tool_boundary_violation",
                     False,
                 )
-            expected_start, expected_end = packet_read_ids[tool_call_id]
-            returned_lines: list[int] = []
-            for output_line in tool_content.splitlines():
-                match = re.match(r"^([1-9][0-9]*)\t", output_line)
-                if match is None:
-                    returned_lines = []
-                    break
-                returned_lines.append(int(match.group(1)))
-            if returned_lines == list(range(expected_start, expected_end + 1)):
-                covered_ranges.append((expected_start, expected_end))
-                packet_read = full_packet_covered()
+            expected_start, requested_bytes = packet_read_ids[tool_call_id]
+            header, separator, chunk = tool_content.partition("\n")
+            match = re.fullmatch(r"PACKET_CHUNK ([0-9]+):([0-9]+)/([0-9]+)", header)
+            if match is not None and separator:
+                returned_start, returned_end, returned_total = map(int, match.groups())
+                valid_page = (
+                    returned_start == expected_start
+                    and returned_total == packet_byte_count
+                    and returned_start < returned_end <= min(
+                        returned_start + requested_bytes, packet_byte_count
+                    )
+                    and chunk.encode("utf-8") == packet_bytes[returned_start:returned_end]
+                )
+                valid_eof_confirmation = (
+                    returned_start == expected_start == packet_byte_count
+                    and returned_end == packet_byte_count
+                    and chunk == ""
+                    and full_packet_covered()
+                )
+                if valid_page:
+                    covered_ranges.append((returned_start, returned_end))
+                    packet_read = full_packet_covered()
+                elif valid_eof_confirmation:
+                    packet_read = True
         remaining_event = {
             key: value for key, value in event.items() if key != "tool_calls"
         }
@@ -495,13 +502,38 @@ def kimi_text(
         return None, inconclusive(
             args, "Kimi produced no final assistant text", "invalid_model_output", True
         )
-    return "\n".join(assistant_texts), None
+    combined_text = "\n".join(assistant_texts)
+    expected_receipt = getattr(args, "packet_receipt", "")
+    if expected_receipt:
+        output_lines = combined_text.splitlines()
+        if not output_lines or output_lines[0].strip() != expected_receipt:
+            concern_text = "\n".join(
+                line
+                for line in output_lines
+                if not CONCERN_RESULT_RE.match(line.strip())
+                and line.strip() != "NO_BLOCKING_FINDINGS"
+                and not line.strip().startswith("KIMI_PACKET_RECEIPT_")
+            )
+            return None, invalid_model_output(
+                args,
+                "Kimi did not echo the terminal packet receipt first",
+                concern_text,
+            )
+        combined_text = "\n".join(output_lines[1:]).strip()
+        if not combined_text:
+            return None, inconclusive(
+                args,
+                "Kimi echoed the packet receipt without a review verdict",
+                "invalid_model_output",
+                True,
+            )
+    return combined_text, None
 
 
 def kimi_inline_text(
     args: argparse.Namespace, events: list[dict[str, Any]]
 ) -> tuple[str | None, dict[str, Any] | None]:
-    """Audit a Kimi stream whose frozen packet was delivered inline."""
+    """Audit a no-tools Kimi stream with a pre-delivered frozen packet."""
     assistant_texts: list[str] = []
     for event in events:
         role = event.get("role")
@@ -509,7 +541,7 @@ def kimi_inline_text(
             if safe_kimi_metadata_kind(event) is None:
                 return None, inconclusive(
                     args,
-                    "Kimi emitted metadata outside the inline stream allowlist",
+                    "Kimi emitted metadata outside the no-tools stream allowlist",
                     "tool_boundary_violation",
                     False,
                 )
@@ -517,7 +549,7 @@ def kimi_inline_text(
         if role != "assistant" or set(event) - KIMI_ASSISTANT_KEYS:
             return None, inconclusive(
                 args,
-                "Kimi emitted an event outside the no-tools inline boundary",
+                "Kimi emitted an event outside the no-tools packet boundary",
                 "tool_boundary_violation",
                 False,
             )
@@ -525,21 +557,21 @@ def kimi_inline_text(
         if call_error == "invalid_container":
             return None, inconclusive(
                 args,
-                "Kimi emitted an invalid tool-call container during inline review",
+                "Kimi emitted an invalid tool-call container during no-tools review",
                 "invalid_model_output",
                 True,
             )
         if call_error is not None:
             return None, inconclusive(
                 args,
-                "Kimi emitted an invalid tool-call envelope during inline review",
+                "Kimi emitted an invalid tool-call envelope during no-tools review",
                 "tool_boundary_violation",
                 False,
             )
         if calls:
             return None, inconclusive(
                 args,
-                "Kimi attempted tool activity during inline review",
+                "Kimi attempted tool activity during no-tools review",
                 "tool_boundary_violation",
                 False,
                 attempted_tool=calls[0][1],
@@ -550,7 +582,7 @@ def kimi_inline_text(
         if has_unrecognized_tool_activity(remaining_event):
             return None, inconclusive(
                 args,
-                "Kimi emitted nested tool activity during inline review",
+                "Kimi emitted nested tool activity during no-tools review",
                 "tool_boundary_violation",
                 False,
             )
@@ -558,7 +590,7 @@ def kimi_inline_text(
         if content is not None and not isinstance(content, str):
             return None, inconclusive(
                 args,
-                "Kimi emitted non-text inline review content",
+                "Kimi emitted non-text no-tools review content",
                 "tool_boundary_violation",
                 False,
             )
@@ -566,7 +598,7 @@ def kimi_inline_text(
             assistant_texts.append(content.strip())
     if not assistant_texts:
         return None, inconclusive(
-            args, "Kimi produced no inline review text", "invalid_model_output", True
+            args, "Kimi produced no no-tools review text", "invalid_model_output", True
         )
     combined_text = "\n".join(assistant_texts)
     expected_receipt = getattr(args, "packet_receipt", "")
@@ -582,7 +614,7 @@ def kimi_inline_text(
             )
             return None, invalid_model_output(
                 args,
-                "Kimi did not echo the terminal inline-packet receipt first",
+                "Kimi did not echo the terminal packet receipt first",
                 concern_text,
             )
         combined_text = "\n".join(output_lines[1:]).strip()
@@ -875,10 +907,10 @@ def judge(args: argparse.Namespace) -> dict[str, Any]:
             args, event_error or "invalid_event_stream", raw_events
         )
     if args.client == "kimi":
-        if args.packet_delivery == "inline":
-            text, failure = kimi_inline_text(args, events)
-        else:
+        if args.packet_delivery == "mcp":
             text, failure = kimi_text(args, events)
+        else:
+            text, failure = kimi_inline_text(args, events)
         return failure or parse_text_contract(args, text or "")
     failure = audit_codex(args, events)
     return failure or parse_json_contract(args)
@@ -894,14 +926,14 @@ def main() -> int:
     parser.add_argument("--model", default="")
     parser.add_argument("--events", required=True)
     parser.add_argument("--packet")
-    parser.add_argument("--packet-delivery", choices=("read", "inline"), default="read")
+    parser.add_argument("--packet-delivery", choices=("mcp", "inline"), default="mcp")
     parser.add_argument("--packet-receipt", default="")
     parser.add_argument("--result-file")
     args = parser.parse_args()
     if args.client == "kimi" and not args.packet:
         parser.error("--packet is required for Kimi")
-    if args.client == "kimi" and args.packet_delivery == "inline" and not args.packet_receipt:
-        parser.error("--packet-receipt is required for inline Kimi delivery")
+    if args.client == "kimi" and not args.packet_receipt:
+        parser.error("--packet-receipt is required for Kimi delivery")
     if args.client == "codex" and not args.result_file:
         parser.error("--result-file is required for Codex")
 

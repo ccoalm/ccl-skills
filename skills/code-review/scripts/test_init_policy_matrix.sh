@@ -177,6 +177,55 @@ mutate_and_expect_mismatch terminalize-host-vocabulary \
   '    return bool(BARE_HOST_IDENTIFIER.fullmatch(identifier))' \
   '    return False'
 
+# Dynamic host command vocabulary is useful only if both halves are enforced:
+# the baseline must affect the allow decision, and its CLI version must bind the
+# formal init. Baseline skills are deliberately not authority because a leaked
+# user skill would otherwise become callable in the formal run.
+mutate_and_expect_mismatch drop-host-baseline-vocabulary \
+  '                        if customization_entry_allowed(
+                            field,
+                            entry,
+                            expected_native_skills,
+                            baseline_commands,
+                            baseline_skills,
+                        ):' \
+  '                        if customization_entry_allowed(
+                            field,
+                            entry,
+                            expected_native_skills,
+                            set(),
+                            set(),
+                        ):'
+
+mutate_and_expect_mismatch authorize-host-baseline-skill \
+  '            identifier in KNOWN_SAFE_BUILTIN_SKILLS
+            or identifier in selected_names' \
+  '            identifier in KNOWN_SAFE_BUILTIN_SKILLS
+            or identifier in baseline_skills
+            or identifier in selected_names'
+
+mutate_and_expect_mismatch drop-host-baseline-required-empty-check \
+  '        if field not in HOST_VOCABULARY_FIELDS and init_event.get(field) != []:' \
+  '        if field not in HOST_VOCABULARY_FIELDS and False:'
+
+mutate_and_expect_mismatch widen-host-baseline-to-namespaced-entries \
+  '            or any(
+                identifier not in known_host_identifiers
+                and not is_bare_host_identifier(identifier)
+                for identifier in identifiers
+            )' \
+  '            or any(identifier == "<unidentified>" for identifier in identifiers)'
+
+mutate_and_expect_mismatch drop-host-baseline-version-binding \
+  '        if baseline_version is not None and ev.get("claude_code_version") != baseline_version:
+            # The two invocations no longer prove one same-version host
+            # vocabulary snapshot. Refuse this lane, but treat the mismatch as
+            # capability drift rather than a proven tool/authority breach so a
+            # different reviewer may continue.
+            unknown_fields.add("claude_code_version:host-baseline-mismatch")' \
+  '        if False:
+            unknown_fields.add("claude_code_version:host-baseline-mismatch")'
+
 # The shape gate. Dropping it lets a structured entry be judged on its `name`
 # alone, which reaches TOLERATED when that name is an allowed built-in -- the
 # most severe class in this file, so it needs its own mutant rather than riding

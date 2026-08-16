@@ -93,5 +93,6 @@ Validation:
 - `bash skills/code-review/scripts/test_review_gate.sh`
 - `bash skills/code-review/scripts/test_review_client_order.sh`
 - `bash skills/code-review/scripts/test_cli_review_wrappers.sh`
+- `python3 skills/code-review/scripts/test_kimi_packet_mcp.py`
 - `python3 skills/code-review/scripts/test_review_client_compat.py`
 - `bash skills/code-review/scripts/test_code_review_identity.sh`

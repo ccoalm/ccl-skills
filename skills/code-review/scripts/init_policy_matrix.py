@@ -29,6 +29,9 @@ Intended policy (stated here, not derived from the code):
      stays terminal, and `plugins` is never host vocabulary. Refusal is
      unchanged either way; only the next action differs, so no path that was
      terminal becomes TOLERATED.
+  H. A same-executable, no-tool, no-plugin baseline may establish whole-string
+     host command/skill names only for a formal init reporting the same CLI
+     version. The baseline never establishes tools, authority, or schema.
 
 Every row below is (case, init-event, expected verdict class), run through the
 parse paths it declares. Policy G rows declare the review-skill paths, because
@@ -87,7 +90,14 @@ def init(**overrides):
     return ev
 
 
-def case(name, ev, expected, extra_events=(), paths=("probe", "main")):
+def case(
+    name,
+    ev,
+    expected,
+    extra_events=(),
+    paths=("probe", "main"),
+    host_baseline=None,
+):
     """One row. `paths` names the invocation shapes it is meaningful under.
 
     The two default paths declare no native skills, so their customization
@@ -99,6 +109,7 @@ def case(name, ev, expected, extra_events=(), paths=("probe", "main")):
         "events": [ev, *extra_events, RESULT],
         "expected": expected,
         "paths": paths,
+        "host_baseline": host_baseline,
     }
 
 
@@ -244,9 +255,10 @@ def skill_init(**overrides):
     return ev
 
 
-def skill_case(name, ev, expected, extra_events=()):
+def skill_case(name, ev, expected, extra_events=(), host_baseline=None):
     return case(name, ev, expected, extra_events,
-                paths=("skill", "skill-probe"))
+                paths=("skill", "skill-probe"),
+                host_baseline=host_baseline)
 
 
 def with_command(*extra):
@@ -260,6 +272,147 @@ def with_skill(*extra):
 CASES += [
     # the base itself must be accepted, or every row below proves nothing
     skill_case("skill-clean", skill_init(), TOLERATED),
+
+    # Real Claude Code 2.1.233 owner-aware init drift. These three commands and
+    # terminal_slash_commands were captured from the exact safe-mode/plugin
+    # invocation used by claude_review.sh. They are host vocabulary/metadata,
+    # not an extra invocable surface; the exact tools list remains independently
+    # pinned by policy A.
+    skill_case(
+        "real-2.1.233-owner",
+        skill_init(
+            slash_commands=[
+                *SKILL_BASE["slash_commands"],
+                "__remote-workflow",
+                "auto-mode-setup",
+                "autocompact",
+                "list-agents",
+            ],
+            terminal_slash_commands=["init", "agents"],
+            claude_code_version="2.1.233",
+        ),
+        TOLERATED,
+        host_baseline=init(
+            slash_commands=[
+                *SKILL_BASE["slash_commands"],
+                "__remote-workflow",
+                "auto-mode-setup",
+                "autocompact",
+                "list-agents",
+            ],
+            skills=["dataviz"],
+            plugins=[],
+            terminal_slash_commands=["init", "agents"],
+            claude_code_version="2.1.233",
+        ),
+    ),
+    skill_case(
+        "host-baseline-version-mismatch",
+        skill_init(
+            slash_commands=[
+                *SKILL_BASE["slash_commands"],
+                "auto-mode-setup",
+            ],
+            claude_code_version="2.1.234",
+        ),
+        FALLBACK,
+        host_baseline=init(
+            slash_commands=["auto-mode-setup"],
+            claude_code_version="2.1.233",
+        ),
+    ),
+    skill_case(
+        "host-baseline-does-not-allow-unbaselined-command",
+        skill_init(
+            slash_commands=[
+                *SKILL_BASE["slash_commands"],
+                "baseline-command",
+                "formal-only-command",
+            ],
+            claude_code_version="2.1.233",
+        ),
+        FALLBACK,
+        host_baseline=init(
+            slash_commands=["baseline-command"],
+            skills=["dataviz"],
+            claude_code_version="2.1.233",
+        ),
+    ),
+    skill_case(
+        "host-baseline-does-not-authorize-new-skill",
+        skill_init(
+            skills=[*SKILL_BASE["skills"], "brand-new-host-skill"],
+            claude_code_version="2.1.233",
+        ),
+        FALLBACK,
+        host_baseline=init(
+            skills=["brand-new-host-skill"],
+            claude_code_version="2.1.233",
+        ),
+    ),
+    skill_case(
+        "host-baseline-rejects-namespaced-command",
+        skill_init(
+            slash_commands=[*SKILL_BASE["slash_commands"], "rogue:exfil"],
+            claude_code_version="2.1.233",
+        ),
+        TERMINAL,
+        host_baseline=init(
+            slash_commands=["rogue:exfil"],
+            claude_code_version="2.1.233",
+        ),
+    ),
+    skill_case(
+        "host-baseline-rejects-namespaced-skill",
+        skill_init(
+            skills=[*SKILL_BASE["skills"], "vendor:skill"],
+            claude_code_version="2.1.233",
+        ),
+        TERMINAL,
+        host_baseline=init(
+            skills=["vendor:skill"],
+            claude_code_version="2.1.233",
+        ),
+    ),
+    skill_case(
+        "host-baseline-does-not-allow-unbaselined-skill",
+        skill_init(
+            skills=[*SKILL_BASE["skills"], "formal-only-host-skill"],
+            claude_code_version="2.1.233",
+        ),
+        FALLBACK,
+        host_baseline=init(
+            skills=["brand-new-host-skill"],
+            claude_code_version="2.1.233",
+        ),
+    ),
+    skill_case(
+        "host-baseline-rejects-required-empty-surface",
+        skill_init(claude_code_version="2.1.233"),
+        TERMINAL,
+        host_baseline=init(
+            plugins=["untrusted-plugin"],
+            claude_code_version="2.1.233",
+        ),
+    ),
+    skill_case(
+        "terminal-commands-must-be-declared",
+        skill_init(terminal_slash_commands=["not-declared"]),
+        FALLBACK,
+    ),
+    skill_case(
+        "terminal-commands-ignore-json-key-order",
+        {
+            "terminal_slash_commands": ["init", "agents"],
+            **skill_init(),
+        },
+        TOLERATED,
+    ),
+    skill_case(
+        "terminal-commands-must-be-plain-strings",
+        skill_init(terminal_slash_commands=[{"name": "init"}]),
+        FALLBACK,
+    ),
 
     # the defect: a name the host added and this snapshot does not know
     skill_case("host-vocab-new-command", with_command("brand-new-builtin"), FALLBACK),
@@ -444,8 +597,18 @@ def run_case(entry, parser=PARSER, path="probe"):
         err = Path(tmp, "stderr")
         out.write_text("\n".join(json.dumps(ev) for ev in entry["events"]))
         err.write_text("")
+        parser_args = [*PATHS[path]]
+        if entry["host_baseline"] is not None:
+            baseline = Path(tmp, "host-baseline")
+            baseline.write_text(
+                "\n".join(
+                    json.dumps(ev)
+                    for ev in (entry["host_baseline"], RESULT)
+                )
+            )
+            parser_args.extend(["--host-init-baseline", str(baseline)])
         proc = subprocess.run(
-            [sys.executable, str(parser), "0", str(out), str(err), *PATHS[path]],
+            [sys.executable, str(parser), "0", str(out), str(err), *parser_args],
             capture_output=True, text=True)
     if proc.returncode == 0:
         return TOLERATED, ""
