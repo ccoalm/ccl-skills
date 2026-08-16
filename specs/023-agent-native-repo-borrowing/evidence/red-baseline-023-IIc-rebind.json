@@ -1,0 +1,103 @@
+{
+  "provider": "codex",
+  "model": "gpt-5.6-luna",
+  "rounds": 4,
+  "base_rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+  "head_rev": "f4e03edc6455c3d2a4c25efe5e005a9395af3ffb",
+  "results": {
+    "wt-lease-order": {
+      "task_sha256": "2ca25e00e0943eea4b54e1f02d12505df43c66db24a4240c1bfbffd282f552d8",
+      "required": [
+        "observed|记下|观察到|亲眼|显式.{0,8}OID|:<.{0,12}oid|=.{0,12}:.{0,20}oid",
+        "fetch",
+        "重审|重新.{0,4}审|失效|不再是|作废|重新 fetch|approval|评论锚点|线程"
+      ],
+      "base": {
+        "rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+        "body_sha256": "f033ddd129b5c04c838e50d05228ee570cead8ac99306751d641f4363506748d",
+        "prompt_sha256": "c33eb83ccec8755e1bf707b0bf5e446af9e52425cd9bf6741a98729f47b0ec2c",
+        "pass": 0,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "observed|记下|观察到|亲眼|显式.{0,8}OID|:<.{0,12}oid|=.{0,12}:.{0,20}oid",
+              "重审|重新.{0,4}审|失效|不再是|作废|重新 fetch|approval|评论锚点|线程"
+            ],
+            "len": 1348,
+            "raw": "不够。你的方向基本正确，但还缺几道关键闸门。\n\n建议按这个顺序执行：\n\n1. 确认当前确实在 `mybr` 的独立 worktree，且没有未提交改动：\n\n```bash\ngit status --porcelain=v1 -b\ngit branch --show-current\ngit worktree list\n```\n\n2. 先获取并钉住远端状态：\n\n```bash\ngit fetch origin\nTARGET=$(git rev-parse origin/main)\nLOCAL=$(git rev-parse mybr)\nREMOTE=$(git rev-parse origin/mybr)\ngit rev-list --left-right --count \"$LOCAL...$REMOTE\"\n```\n\n第二列必须为 `0`，否则不要 rebase；远端有独有提交时，先处理它们。\n\n3. 在 rebase 前记录旧分叉点和碰撞文件：\n\n```bash\nOLD_BASE=$(git merge-base \"$TARGET\" \"$LOCAL\")\n\ncomm -12 \\\n  <(git diff --name-only \"$OLD_BASE\" \"$LOCAL\" | sort) \\\n  <(git diff --name-only \"$OLD_BASE\" \"$TARGET\" | sort)\n```\n\n这些文件在 rebase 冲突时要重点检查，尤其是生成物、lockfile 和格式化文件。冲突时不要机械选择你的分支版本；生成物应从新的 `origin/main` 重新生成。\n\n4. 确认 review 评论对应的提交不会因 rebase 被误解。rebase 会改变 commit SHA，MR 评论可能变成 outdated；最好保留旧 SHA 映射，并在 MR 里说明这是基线更新。不要在 rebase 中顺手改 review 相关内容，除非明确需要。\n\n5. rebase 后验证，再用租约保护强推：\n\n```bash\ngit rebase \"$TARGET\"\n\ngit diff \"$TARGET\"...HEAD --stat\ngit status --porcelain=v1 -b\ngit push --force-with-lease origin mybr\n```\n\n更稳妥的是在 push 前再次获取远端，并确认远端仍是你 rebase 前记录的 `REMOTE`；如果期间远端变化，停止并重新确认，不要覆盖。\n\n另外，`--force-with-lease` 只保护远端 ref 没被别人改变，不能保护你 rebase 后内容正确。因此至少还要检查：\n\n- rebase 后的 diff 是否只包含预期改动；\n- 目标分支的新修复没有被旧分支内容覆盖；\n- 测试和生成步骤是否通过；\n- MR 的 head SHA 是否已更新为本地预期 tip。\n\n结论：可以 rebase，但应采用“确认远端无独有提交 → 钉住目标与旧远端 SHA → 记录碰撞集 → rebase/解决冲突 → 验证 → `--force-with-lease`”的完整流程。"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "observed|记下|观察到|亲眼|显式.{0,8}OID|:<.{0,12}oid|=.{0,12}:.{0,20}oid"
+            ],
+            "len": 871,
+            "raw": "还不够。你的方向基本对，但应补上这些安全闸：\n\n1. 先确认在该分支自己的 worktree，且工作树干净：\n\n```bash\ngit worktree list\ngit -C <worktree> status --porcelain=v1 -b\n```\n\n不要在 main 或 detached HEAD 上操作。\n\n2. 先获取最新远端，并锁定旧远端 SHA：\n\n```bash\ngit fetch origin\nOLD_REMOTE=$(git rev-parse origin/mybr)\ngit rev-list --left-right --count mybr...origin/mybr\n```\n\n只有右侧为 `0` 才表示远端没有本地未知提交；同时确认没有其他协作者正在继续向该 MR 分支提交。\n\n3. 确认目标分支确实是你要 rebase 的最新版本：\n\n```bash\nTARGET=$(git rev-parse origin/main)\ngit rebase \"$TARGET\"\n```\n\n解决冲突后不要直接照搬旧分支版本，尤其是生成物、lockfile 和格式化文件，应基于新目标重新生成。\n\n4. rebase 后检查差异、运行必要测试，并确认 review 评论对应的改动仍存在。rebase 会改变 commit SHA，平台可能使 approval 失效或将评论标记为 outdated，应提前通知 reviewer。\n\n5. 使用带明确旧 SHA 的 lease，比普通 `--force-with-lease` 更稳：\n\n```bash\ngit push --force-with-lease=refs/heads/mybr:$OLD_REMOTE origin HEAD:mybr\n```\n\n推送后再核对远端分支 SHA 和 MR head SHA 都等于 rebase 后的本地 tip。\n\n如果右侧不是 `0`、分支有人继续使用、或 MR 处于关键审核阶段，应先停下协调；不要强推覆盖新提交。"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "observed|记下|观察到|亲眼|显式.{0,8}OID|:<.{0,12}oid|=.{0,12}:.{0,20}oid",
+              "重审|重新.{0,4}审|失效|不再是|作废|重新 fetch|approval|评论锚点|线程"
+            ],
+            "len": 1568,
+            "raw": "不完全够安全。你的核心方向是对的，但还缺少几个关键闸门，尤其是“远端状态竞态”和“rebase 前可恢复点”。\n\n建议流程：\n\n```bash\n# 1. 在该分支对应的独立 worktree 中操作，并确认分支正确\ngit status --short --branch\ngit branch --show-current\n\n# 2. 同时刷新目标分支和 MR 源分支\ngit fetch origin main mybr\n\n# 3. 确认远端没有其他人新增提交\ngit rev-list --left-right --count mybr...origin/mybr\n# 右侧必须为 0；左侧是你本地相对远端多出的提交\n\n# 4. 记录远端旧 SHA，作为 force-with-lease 的精确保护值\nOLD_REMOTE=$(git rev-parse origin/mybr)\n\n# 5. 建本地恢复点\ngit branch backup/mybr-before-rebase mybr\n\n# 6. 确认是否落后目标，并检查碰撞文件\nTARGET=$(git rev-parse origin/main)\nBRANCH_OLD=$(git rev-parse mybr)\nOLD_BASE=$(git merge-base \"$TARGET\" \"$BRANCH_OLD\")\n\ngit diff --name-only \"$OLD_BASE\" \"$BRANCH_OLD\" | sort > /tmp/branch-files\ngit diff --name-only \"$OLD_BASE\" \"$TARGET\" | sort > /tmp/target-files\ncomm -12 /tmp/branch-files /tmp/target-files\n\n# 7. rebase\ngit rebase \"$TARGET\"\n\n# 8. 解决冲突后检查，运行相关测试\ngit diff ORIG_HEAD..HEAD\n# 然后执行项目测试/构建\n\n# 9. 用精确旧 SHA 推送\ngit push --force-with-lease=refs/heads/mybr:$OLD_REMOTE origin HEAD:refs/heads/mybr\n```\n\n还要注意：\n\n- `git status --short --branch` 必须确认没有未提交改动；不要把工作区改动误以为已包含在 rebase 中。\n- `git rev-list` 检查应在 `fetch` 之后做，否则本地的 `origin/mybr` 可能是旧的。\n- `--force-with-lease` 最好使用显式旧 SHA，而不是无参数形式；这样即使远端在检查后被别人推进，也会拒绝覆盖。\n- 如果碰撞集非空，必须逐文件检查目标分支的新修改是否会被旧分支内容覆盖；不要用 `-X ours/theirs` 粗暴解决。\n- 两条 review 评论对应的代码位置可能在 force-push 后变成 outdated。推送后应检查 MR diff、评论上下文和 CI，并在 MR 中说明发生了 rebase。\n- 已推送且挂 MR 的分支，rebase 前应确认没有其他人也在该分支上工作；`rev-list` 只能发现远端分支上的提交，不能解决协作约定问题。\n- rebase 和 force-push 都应在功能 worktree 中执行，不能在 main 工作树上操作。\n\n所以：你的方案可以作为基础，但至少要补上 `fetch`、干净工作树检查、恢复分支、碰撞集检查、测试，以及带明确旧 SHA 的 `--force-with-lease`。"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "observed|记下|观察到|亲眼|显式.{0,8}OID|:<.{0,12}oid|=.{0,12}:.{0,20}oid"
+            ],
+            "len": 1021,
+            "raw": "还不够，但方向基本正确。关键是把“远端没有独有提交”检查放在一次明确的 `fetch` 之后，并锁定远端状态。\n\n建议顺序：\n\n```bash\ngit fetch origin\n\ngit -C \"$WT\" status --porcelain=v1 -b\ngit -C \"$WT\" branch --show-current\ngit -C \"$WT\" rev-list --left-right --count mybr...origin/mybr\n```\n\n这里输出的第二列必须为 `0`，表示 `origin/mybr` 没有本地不存在的提交。第一列可以大于 `0`，那是本地尚未推送的提交。\n\n然后：\n\n1. 确认 worktree 干净，且确实是 `mybr`，不是主检出或别的 worktree。\n2. 记录当前分支 SHA，必要时建可恢复引用：\n\n   ```bash\n   git branch backup/mybr-before-rebase mybr\n   ```\n\n3. 锁定本次目标：\n\n   ```bash\n   TARGET=$(git rev-parse origin/main)\n   ```\n\n4. rebase 到这个固定 SHA，而不是之后可能变化的 `origin/main`：\n\n   ```bash\n   git rebase \"$TARGET\"\n   ```\n\n5. 解决冲突时不要直接机械选择旧分支版本；尤其是生成物、lockfile、格式化文件，应基于新的 main 重新生成。\n6. rebase 完成后再次检查提交范围和测试。\n7. 使用 lease force-push：\n\n   ```bash\n   git push --force-with-lease origin mybr\n   ```\n\n`--force-with-lease` 会防止覆盖你上次观测之后别人推送的内容，但它不是绝对锁；如果推送被拒，先重新 fetch、确认 MR 状态和新提交归属，不要改用 `--force`。\n\n另外，rebase 会改变 MR 的 commit SHA。两条 review 评论通常仍会保留，但可能变成 outdated，且某些平台/项目策略会重置 approval 或影响 mergeability；推送后应核对 MR head SHA、评论状态、CI 和 approval 状态。"
+          }
+        ]
+      },
+      "head": {
+        "rev": "f4e03edc6455c3d2a4c25efe5e005a9395af3ffb",
+        "body_sha256": "1add7a1754f10817f5202be766a8e2a4d3cdf05f3b343b20627dfeefb27e1b11",
+        "prompt_sha256": "e800dd87cdf98a22b3b7a0b030523bc178c69f61756fa7672d25be1eaa70279d",
+        "pass": 3,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 1094,
+            "raw": "不够安全，主要缺少“钉住远端 SHA”和“rebase 后验证”两道闸。`origin/mybr` 可能在检查后被刷新或变旧，裸 `--force-with-lease` 也可能依赖被后台 fetch 更新过的 tracking ref。\n\n建议按这个顺序：\n\n```bash\n# 1. 确认在正确的隔离 worktree/分支，且没有本地改动\ngit branch --show-current\ngit status --porcelain=v1 -b\ngit worktree list\n\n# 2. 立即获取并钉住远端分支的精确 SHA\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\n\n# 3. 确认远端没有你尚未包含的提交\ngit rev-list --left-right --count mybr...$remote_oid\n# 右侧必须为 0；否则先停止并处理远端新提交\n\n# 4. 获取并钉住目标分支\ngit fetch origin main\ntarget_oid=$(git rev-parse FETCH_HEAD)\n\n# 5. rebase\ngit rebase \"$target_oid\"\n```\n\nrebase 完成后：\n\n- 解决冲突时不要直接选旧分支版本；重新检查目标分支的修复是否保留。\n- 检查 `git diff \"$target_oid\"...HEAD`、运行测试和必要的 lint/build。\n- 确认 MR 上的两条评论是否因 commit 重写而失去锚点；rebase 后应把评论内容重新核对并通知 reviewer 重新检查。CI、approval 和 mergeability 通常也应视为需要重新验证。\n\n最后只使用带明确旧 SHA 的 lease：\n\n```bash\ngit push origin HEAD:mybr \\\n  --force-with-lease=mybr:$remote_oid\n```\n\n不要使用裸 `--force`，也不要只依赖裸 `--force-with-lease`。如果远端在此期间被别人推进，显式 lease 会拒绝 push；此时不要强行覆盖，应重新 fetch、确认新提交归属，再决定是合并、重新 rebase，还是请 reviewer 处理。\n\npush 后再验证远端 MR source head 已等于你预期的新 `HEAD`，并把 rebase 导致 review/CI 状态重置的影响告知 reviewer。"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 1169,
+            "raw": "不够安全，关键缺少“先抓取并钉住远端 SHA”。`origin/mybr` 可能是过期的 tracking ref，不能直接作为 lease 依据。\n\n建议顺序：\n\n```bash\nWT=/absolute/path/to/worktree\n\ngit -C \"$WT\" status --porcelain=v1 -b\ngit -C \"$WT\" branch --show-current\n```\n\n确认工作树干净、当前确实是 `mybr`，然后：\n\n```bash\ngit -C \"$WT\" fetch origin mybr\nREMOTE_OID=$(git -C \"$WT\" rev-parse FETCH_HEAD)\n\ngit -C \"$WT\" rev-list --left-right --count mybr...\"$REMOTE_OID\"\n```\n\n要求右侧计数为 `0`，表示远端没有本地尚未包含的提交。若不是 `0`，先停止，不能 rebase 覆盖远端变化。\n\n再固定目标分支：\n\n```bash\ngit -C \"$WT\" fetch origin main\nTARGET_OID=$(git -C \"$WT\" rev-parse FETCH_HEAD)\n\ngit -C \"$WT\" rebase \"$TARGET_OID\"\n```\n\n解决冲突并完成验证后，使用绑定到刚才观察到的精确 SHA 的 lease：\n\n```bash\ngit -C \"$WT\" push --force-with-lease=mybr:\"$REMOTE_OID\" origin HEAD:mybr\n```\n\n这比裸 `--force-with-lease` 安全，因为后台 fetch 或其他工具更新 tracking ref 时，不会悄悄削弱保护。\n\n还要注意：\n\n- rebase 会改变 MR 的 commit SHA；两条 review 评论可能变成 outdated，行内评论锚点和 approvals、CI、mergeability 都应重新检查。\n- force-push 前确认没有其他人正在该分支上继续提交；否则即使远端当前没有独有提交，也可能影响他们随后推送。\n- 如果 rebase 冲突涉及 lockfile、生成代码或格式化产物，应基于新的 `main` 重新生成，不要直接保留旧分支版本。\n- push 后重新 fetch/查看 MR，确认 MR head 等于预期的新 tip，并重新跑必要的测试和 review。\n\n因此，核心修正是：`fetch → 保存 FETCH_HEAD 的远端 SHA → 拓扑检查 → 钉住 main SHA rebase → 显式 SHA lease force-push`。"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "重审|重新.{0,4}审|失效|不再是|作废|重新 fetch|approval|评论锚点|线程"
+            ],
+            "len": 984,
+            "raw": "还不够安全，关键缺两点：必须先固定你亲眼看到的远端 SHA，并用这个 SHA 做 lease；另外你当前的 rev-list 方向写反了。\n\n建议流程：\n\n```bash\ngit fetch origin main\n\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\n\ngit rev-list --left-right --count mybr...\"$remote_oid\"\n# 必须是：左侧=0，右侧=0\n# 右侧 > 0 表示远端有你本地没有的提交，停止\n```\n\n然后确认：\n\n```bash\ngit -C /绝对/worktree/path status --porcelain=v1 -b\ngit -C /绝对/worktree/path branch --show-current\n```\n\n确保工作区干净、确实在 `mybr`，且没有未提交的 review 修复或其他人的提交。再执行：\n\n```bash\ngit -C /绝对/worktree/path rebase origin/main\ngit -C /绝对/worktree/path push origin HEAD:mybr \\\n  --force-with-lease=mybr:\"$remote_oid\"\n```\n\n注意：\n\n- `mybr...origin/mybr` 的右侧才是远端独有提交；最好使用刚刚保存的 `FETCH_HEAD` SHA，而不是可能过期的 tracking ref。\n- 不要使用裸 `--force-with-lease`；显式绑定 `mybr:$remote_oid`，才能防止 fetch 之后远端再次被别人推进。\n- rebase 会改变提交 SHA。force-push 后，两条 review 评论可能失去锚点或需要重新确认；应重新检查评论对应的代码，并重新跑 CI。\n- 如果 rebase 冲突涉及生成文件、lockfile 或格式化产物，应基于新的 `origin/main` 重新生成，不要直接选旧分支版本。\n- 如果分支已挂 MR，force-push 前确认没有其他人正在基于该分支继续提交；否则 `rev-list` 只能保护远端当前状态，不能判断协作意图。"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 1185,
+            "raw": "不够安全。核心缺口是：你没有把“亲眼看到的远端 SHA”钉住，也没有检查 rebase 与目标分支新改动的碰撞。\n\n建议流程：\n\n```bash\n# 在确认的 feature worktree 中\ngit status --porcelain=v1 -b\ntest \"$(git branch --show-current)\" = \"mybr\"\n\n# 先更新目标分支\ngit fetch origin main\ntarget=$(git rev-parse FETCH_HEAD)\n\n# 紧接着获取并钉住远端 feature 分支\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\n\nbranch_old=$(git rev-parse mybr)\nold_base=$(git merge-base \"$target\" \"$branch_old\")\n\n# 第二列必须为 0：远端没有本地没有的提交\ngit rev-list --left-right --count \"$branch_old...$remote_oid\"\n\n# 检查分支与目标自旧分叉点以来的碰撞文件\ncomm -12 \\\n  <(git diff --name-only \"$old_base\" \"$branch_old\" | sort) \\\n  <(git diff --name-only \"$old_base\" \"$target\" | sort)\n```\n\n如果工作区干净、远端独有提交数为 0，并确认碰撞文件没有会覆盖目标修复的风险，再执行：\n\n```bash\ngit branch \"backup/mybr-before-rebase\" \"$branch_old\"\ngit rebase \"$target\"\n```\n\n冲突时不要直接整块选择 feature 分支旧版本；对 lockfile、生成物、格式化文件等，应基于更新后的目标重新生成。\n\n最后使用显式 lease，不要只写裸的 `--force-with-lease`：\n\n```bash\ngit push origin HEAD:mybr --force-with-lease=mybr:$remote_oid\n```\n\n这能保证：如果别人从你记录 `remote_oid` 后又推过提交，push 会拒绝，而不会覆盖对方提交。push 前不要再 fetch 改写你依据的远端状态。\n\n另外，rebase 会改写 commit SHA；两条 review 评论可能被平台重新定位，也可能变成 outdated。推送后应检查 MR 的 diff、评论锚点、CI 和 mergeability，并提醒 reviewer 这是一次 rebase 后的新 head。"
+          }
+        ]
+      }
+    }
+  }
+}
