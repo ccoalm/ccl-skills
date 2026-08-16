@@ -7,6 +7,7 @@ require "json"; require "open3"; require "timeout"; require "tmpdir"; require "d
 WT = ARGV[0] or abort "usage: red-baseline-023-II.rb <worktree> [rounds] [model] [base-rev] [head-rev]"
 ROUNDS = (ARGV[1] || "4").to_i
 MODEL = ARGV[2] || "claude-haiku-4-5"
+PROVIDER = ENV.fetch("PROBE_PROVIDER", "claude")
 BASE_REV = ARGV[3] || "dev"
 HEAD_REV = ARGV[4] || "HEAD"
 
@@ -50,15 +51,32 @@ PROBES = [
     why: "新规则：subtle+systemic+costly 三判据；30 秒执行摘要；回链催生的 guardrail" },
 ]
 
+# A failed provider call (auth, rate limit, transport) exits non-zero without raising.
+# Grading its empty stdout would score a miss and could manufacture a base->head
+# "improvement", so the status and stderr are checked before anything is graded.
 def ask(prompt)
-  out = +""
+  out = +""; err = +""; st = nil
   Dir.mktmpdir("rb023") do |neutral|
-    Timeout.timeout(180) do
-      Open3.popen3("claude", "--print", "--tools", "", "--model", MODEL, chdir: neutral) do |i, o, e, t|
-        i.write(prompt); i.close; out << o.read; e.read; t.value
+    Timeout.timeout(PROVIDER == "codex" ? 300 : 180) do
+      case PROVIDER
+      when "claude"
+        out, err, st = Open3.capture3("claude", "--print", "--tools", "", "--model", MODEL,
+                                     stdin_data: prompt, chdir: neutral)
+      when "codex"
+        last = File.join(neutral, "last-message.txt")
+        _transcript, err, st = Open3.capture3(
+          "codex", "exec", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check",
+          "--ephemeral", "-s", "read-only", "-C", neutral, "-m", MODEL, "--color", "never",
+          "-o", last, prompt, stdin_data: "", chdir: neutral
+        )
+        out = File.exist?(last) ? File.read(last) : ""
+      else
+        return "ERROR: unsupported provider=#{PROVIDER}"
       end
     end
   end
+  return "ERROR: exit=#{st&.exitstatus} stderr=#{err.strip[0, 400]}" unless st&.success?
+  return "ERROR: empty stdout (exit 0) stderr=#{err.strip[0, 400]}" if out.strip.empty?
   out
 rescue => ex
   "ERROR: #{ex.class}: #{ex.message}"
@@ -85,4 +103,4 @@ PROBES.select { |p| only.nil? || p[:id] == only }.each do |p|
     results[p[:id]][arm] = { rev: a[:sha], body_sha256: Digest::SHA256.hexdigest(a[:body]), prompt_sha256: Digest::SHA256.hexdigest(prompt), pass: hits, of: ROUNDS, details: details }
   end
 end
-puts JSON.pretty_generate({ model: MODEL, rounds: ROUNDS, base_rev: BASE_SHA, head_rev: HEAD_SHA, results: results })
+puts JSON.pretty_generate({ provider: PROVIDER, model: MODEL, rounds: ROUNDS, base_rev: BASE_SHA, head_rev: HEAD_SHA, results: results })
