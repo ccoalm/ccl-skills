@@ -61,34 +61,34 @@
 
 | # | 输入 | 预期 | trace |
 | --- | --- | --- | --- |
-| 1 | 每 owner 目标段全文读 | 记录文件 + 行号范围 + 既有同类规则定位（merge 点） | Batch I done：testing-strategy/SKILL.md Core Rules L31–95 全读（merge 点 L39/40/41/43/48/65）、references/ci-fixtures-and-flake-control.md 全读、e2e-real-flow-testing.md L41–60、test-code-authoring-patterns.md §3/§5/§6；llm-inference-integration/SKILL.md L89–100、references/agent-tool-dispatch.md 全读（D3 covered）、agent-command-sandbox.md 结构+关键段（D4/D6 covered）、agent-instruction-composition.md 全读、model-prompt-evaluation.md 结构。Batch II/III pending |
-| 2 | draft diff vs 台账 | 每候选一个 merge 点，零新增顶层 bullet 除非无既有同类规则（记录理由） | Batch I：SKILL.md 零新增顶层 bullet（B1/B2/B4/B5/B7 各就地扩一句+指针；B6 一条 bullet 进 Core Workflow step 5 既有列表）；D2 为 reference 新小节（无既有同类段，理由：instruction-composition 只有精度格/命令段）；testing-strategy 入口净 −33B（压缩了 change-detector / vendored-drift / regression-set / 合并两条重复 bullet 等已被 reference 承载的行文）|
+| 1 | 每 owner 目标段全文读 | 记录文件 + 行号范围 + 既有同类规则定位（merge 点） | done：Batch I 读取 testing-strategy 与 llm-inference-integration 的入口及相关 references；Batch II 读取 tighten-doc、product-rd-workflow 三个目标 reference、defect-diagnosis 与 worktree-isolation 的现有同类段；Batch III 读取 skill-extraction-workflow 入口及 review mining / consolidation / coverage / harness 相邻 references。D3、D4、D6 判 covered，C4 判 covered，B8 判 merge；E5 保持 held |
+| 2 | draft diff vs 台账 | 每候选一个 merge 点，零新增顶层 bullet 除非无既有同类规则（记录理由） | done：现有同类规则均就地合并；只在没有既有承载面的 session-vantage、review-feedback-mining 与 cross-model caveat 新建 reference。入口增长用既有 reference 指针压缩抵消；未引入新的 description/frontmatter 路由面 |
 | 3 | R0：`scripts/check-ccl-skills.sh` @ 候选 | `ccl_skill_check_clean_ok`（r0_status=private-ok）或 interim 标注；grep `dsh\|Cordis\|deepseek\|Agent Note` 于变更文件可执行文本 = 0 命中（provenance 段除外） | Batch I @ 8713cf4：`ccl_skill_check_clean_ok`、`r0_status=private-ok`、`entrypoint_size_blocking_ok`、impact-chain 行齐；leakage grep 0 命中 |
 | 4 | dual-track chain 023-I/II/III | review + challenge 各 ≥1 轮，终轮为对最终候选的 fresh full challenge；无未处置 P0/P1 | pending |
 | 5 | behavioral-evidence | 每 owner ≥1 semantic-control 行；仓库 impact-chain gate 要求非措辞 owner 至少一条 RED-baseline 行；runner 必须对 provider 非零退出与空输出 fail closed | **已回填 preliminary truth，待最终 HEAD 绑定重跑**：base=`759dc603`、head=`fb41e11b`，provider=`codex`、model=`gpt-5.6-luna`、4 rounds/arm。Batch I：ts-verify-world **0/4→0/4**，llm-withkey-skip **4/4→4/4**，llm-wording **2/4→4/4**。Batch II：tighten session-vantage **4/4→4/4**，product enforcement **4/4→4/4**，defect postmortem **1/4→4/4**；Batch IIb：ADR alternatives **0/4→4/4**，consumer corpus **1/4→1/4**；Batch IIc：worktree lease **0/4→4/4**；Batch III：review mining **4/4→4/4**。所有无差分结果原样保留，不沿用更强的旧分数；runner、输入摘要与每轮 raw answer 在 evidence 目录 |
-| 6 | 例子集（C1）| example-domain 预选记录：选定中性域、抽象记录拒绝的源域、核对的例子清单 | Batch II 待做；Batch I 新增例子：behavior fixtures F22（文件搜索工具 schema 改写）/F23（部署脚本自述日志）——中性域（通用文件搜索 / 通用部署），拒绝的源域为源仓的具体工具与文件名（抽象记录），两条例子已核对不含源仓标识 |
-| 7 | target-output map vs 最终 diff | 每行 updated 有实 diff；unchanged/covered/routed/discarded 有理由；pending-verify 零残留 | pending |
-| 8 | source-register | 本轮行（源类行 + impact-chain 行）落树，`impact-chain-gate.rb` 过 | pending |
-| 9 | 合并候选 | `make test`（或仓库既定入口）绿；合 dev 候用户显式指令 | pending |
+| 6 | 例子集（C1）| example-domain 预选记录：选定中性域、抽象记录拒绝的源域、核对的例子清单 | done：F22/F23 使用通用文件搜索与部署域；F24–F27 使用通用 ADR、事故、git 重写与公开 API 删除域；拒绝源仓专名、包名、文件名。F0-contract 明示语料仅人工 advisory，分数引用已改绑 fail-closed provider 结果 |
+| 7 | target-output map vs 最终 diff | 每行 updated 有实 diff；unchanged/covered/routed/discarded 有理由；pending-verify 零残留 | done：B8 merge；C4、D3、D4、D6 covered；E5 held 并移入 batch V；其余 in-scope 行均有对应 diff，未把 held 项写入技能 |
+| 8 | source-register | 本轮每个 changed owner 有 row，真实分数回填，`impact-chain-gate.rb` 通过 | rows landed：testing / llm / tighten / product-rd / defect / worktree / skill-extraction 均有行；fail-closed 分数已回填；gate 待最终候选执行 |
+| 9 | 合并候选 | 最终候选 `make test` 与仓库必跑门禁全绿；合 dev 候用户显式指令 | 用户已明确授权 commit + 本地 dev merge；`fb41e11` 上的 pre-backfill `make test` exit 0，只作历史证据；最终候选仍须重跑，且不授权 push/main |
 | 10 | security-sensitive 候选（D3 D4 D6 E5）| 各自有 feature-risk-router security-review gate 记录 + **安全 owner 处置**（approve / narrow / reject）后才可落地。安全 owner = **本仓维护者（仓库 owner 账户持有人）**，是本仓唯一有权批准 security-sensitive 共享规则的身份；**执行 agent 不得自任或代填**；批准 artifact = 维护者在会话中对该候选逐条给出的明确处置，原样记入本表 trace 与 source-register 行（注明其出处），并独立于执行者。维护者未处置 = 该候选 held | **D3 / D4 / D6：全文读 owner 后判 `covered`——未新增任何安全规则，故无处置需求**（`agent-tool-dispatch.md` 已有 exposure-vs-authorization、cached-manifest-never-bypasses-authorization、side-effect authorization boundary；`agent-command-sandbox.md` 已有 profile 枚举、network 独立授权、显式降级、scrubbed env / closed FDs / 私有 temp / symlink canonicalization）。**E5：held，未落地**——它是唯一新增的安全语义（沙箱阻断分流 + 受控提权），等待维护者逐条处置；`source-to-skill-extraction.md#blocked-verification` 本轮不改 |
 
 ## Target-output map
 
 | owner | direction | status | changed-file-or-reason |
 | --- | --- | --- | --- |
-| testing-strategy | executor | pending-update | SKILL.md（B1 B2 B4 B5 B7）；ci-fixtures 参考（B8 判后）|
-| llm-inference-integration | executor | pending-update | agent-tool-dispatch.md（D2 D3）；agent-session-persistence.md 本轮不改（D1 → batch V）、eval 段（B6）、agent-command-sandbox.md（D4/D6 判后）|
-| tighten-doc | executor | pending-update | SKILL.md（C1 C2；C4 判后）|
-| product-rd-workflow | coordinator | pending-update | adr-convention.md（A1 A2）、code-review-checklist.md（E2）、implementation-completeness-and-minimality.md（E3）|
-| defect-diagnosis | executor | pending-update | SKILL.md postmortem 段（A4）|
-| worktree-isolation | executor | pending-update | SKILL.md force-with-lease 条（E4）|
-| skill-extraction-workflow | this workflow | pending-update | 新 references/review-feedback-mining.md（E1）、rule-consolidation.md（C5）、source-to-skill-extraction.md（E5，security-sensitive：待维护者处置）、harness-patterns-and-eval.md（D5）、SKILL.md（源类一句 + Reference Loading 一行）、references/source-register.md（行）|
-| 本仓维护者（安全 owner）| authority | pending-disposition | D3 D4 D6 E5 的 security 处置（approve / narrow / reject）由维护者本人给出并记录；执行 agent 不得代填 |
+| testing-strategy | executor | updated | B1/B2/B4/B5/B7 合并进 SKILL.md 与三个既有 references；B8 合并进 ci-fixtures |
+| llm-inference-integration | executor | updated + covered | B6/D2 落 agent instruction / workflow；D3、D4、D6 现有规则已覆盖；D1 保持 batch V |
+| tighten-doc | executor | updated + covered | C1/C2 落 session-vantage reference 与入口指针；C4 由现有 scope 规则覆盖；cross-model caveat 独立 reference |
+| product-rd-workflow | coordinator | updated | A1/A2、E2、E3 分别合入 adr-convention、code-review-checklist、implementation-completeness-and-minimality |
+| defect-diagnosis | executor | updated | A4 合入 Phase C postmortem 段 |
+| worktree-isolation | executor | updated | E4 合入 published-branch history rewrite / explicit lease 条 |
+| skill-extraction-workflow | this workflow | updated + held | E1/C5/D5 与 benchmark 源类落地；source-register 七个 owner 行已落；E5 未改 source-to-skill-extraction，保持 batch V held |
+| 本仓维护者（安全 owner）| authority | no current action | D3/D4/D6 判 covered，无新增安全语义；E5 未落地，待 batch V 独立设计时再请求明确处置 |
 | code-review | executor | unchanged→pointer | C1/E2 由 tighten-doc 与 product-rd checklist 持有；本技能是否加一行指针在 batch II 判 |
 | agents-file-coverage-gate | executor | unchanged | C2/C3 的 AGENTS.md 分层与预算：C2 不抄 tier 表；C3 归 batch IV |
 | multi-agent-delegation | sibling | unchanged: covered | B1 已有"不信 agent 自述"（SKILL.md）；testing-strategy 落地时互相指向 |
-| go/python-dev、go/python-architecture | sibling | pending-verify | D6 子进程/生命周期条目是否已覆盖（batch I 判）|
-| agent-quality | sibling | routed | E1 采纳证据标准落 skill-extraction；agent-quality 只加指针或 unchanged |
+| go/python-dev、go/python-architecture | sibling | unchanged: covered | D6 的子进程环境与生命周期规则已有 owner 覆盖，本轮不改 |
+| agent-quality | sibling | unchanged: routed | E1 采纳证据标准归 skill-extraction；本轮无需增加跨仓指针 |
 | release-coordination | sibling | unchanged | E4 归 worktree-isolation（推送/重写纪律）；release 只做授权 |
 | product intent / design / release-eng | lifecycle | not-applicable | dsh 无对应纪律可见 |
 | superpowers:receiving-code-review（外部）| reference-only | unchanged | "verify each claim, no performative agreement" 已由其持有，E2 不重复 |
