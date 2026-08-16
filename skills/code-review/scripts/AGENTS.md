@@ -46,8 +46,20 @@ Rules:
   (`concern_excerpt.py`) — matched lines only, never the raw verdict, which may
   echo the packet and would widen the evidence row past the class a schema-valid
   `findings` result already persists. Wrapper run dirs are deleted on exit and the
-  gate unlinks the frozen packet, so anything not in the emitted payload is gone.
+  gate unlinks the frozen packet, so anything not in the emitted payload is gone;
+  the OpenCode timeout path may additionally retain only its explicitly requested,
+  curated private diagnostic copy under the contract in
+  `../references/timeout-auth-and-capabilities.md`.
   `test_concern_excerpt.sh` is the firing path; keep new stop paths covered by it.
+- **Timeout diagnostics separate portable summary from sensitive raw evidence.**
+  The ordinary payload may keep bounded counts/types/booleans needed to classify
+  a stall, but never raw event, log, prompt, diff, session-id, credential, or model
+  text. Raw OpenCode artifacts require an explicit private diagnostic directory,
+  restrictive permissions with no extended ACL, a sensitivity marker,
+  caller-owned retention, and a test proving credential bindings are excluded.
+  A requested owner profile alone
+  does not prove a native-skill stall: require positive structured stream-part
+  evidence or keep the generic timeout classification.
 - Keep review and challenge lanes distinct; do not let one satisfy the other.
 - Do not execute target-repo code or grant broad tools from the reviewer lane.
 - Parser changes need tests with positive, finding, malformed, and inconclusive

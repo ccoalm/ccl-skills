@@ -6,11 +6,16 @@ from __future__ import annotations
 import argparse
 import importlib.util
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+import review_gate
+
 SPEC = importlib.util.spec_from_file_location(
     "parse_cli_review", SCRIPT_DIR / "parse_cli_review.py"
 )
@@ -20,6 +25,32 @@ SPEC.loader.exec_module(PARSER)
 
 
 class ReviewClientCompatibilityTest(unittest.TestCase):
+    def test_gate_attempt_record_preserves_opencode_timeout_receipt(self) -> None:
+        result = {"attempts": [], "primary": None, "fallbacks": [], "fallback_attempt_count": 0}
+        payload = {
+            "status": "inconclusive",
+            "reason": "review_native_skill_stream_timeout",
+            "reason_code": "timeout",
+            "cascade_eligible": True,
+            "timeout_diagnostic": {
+                "stage": "review",
+                "native_owner_skills_requested": True,
+                "selected_skill_count": 1,
+            },
+            "diagnostic_artifacts": {
+                "requested": True,
+                "retained": True,
+                "directory_name": "opencode-review-timeout.fixture",
+            },
+        }
+
+        attempt = review_gate.record_attempt(result, "opencode", payload)
+
+        self.assertEqual(attempt["reason_code"], "timeout")
+        self.assertTrue(attempt["cascade_eligible"])
+        self.assertTrue(attempt["timeout_diagnostic"]["native_owner_skills_requested"])
+        self.assertTrue(attempt["diagnostic_artifacts"]["retained"])
+
     def test_opencode_file_option_is_terminated_before_prompt(self) -> None:
         wrapper = (SCRIPT_DIR / "opencode_review.sh").read_text(encoding="utf-8")
         self.assertIn(

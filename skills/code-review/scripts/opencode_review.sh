@@ -19,7 +19,8 @@
 # Usage:
 #   opencode_review.sh --implementer-family <fam> \
 #       --base <git-base> [--paths <p>...] [--diff-file <path>] \
-#       [--mode review|challenge] [--timeout 220] [--challenge-classes "..."]
+#       [--mode review|challenge] [--timeout 220] [--challenge-classes "..."] \
+#       [--diagnostic-dir <existing-private-directory>]
 #
 # Output: one JSON line (the judge's verdict). Exit 0 = passed/findings, 2 = inconclusive.
 set -uo pipefail
@@ -27,6 +28,12 @@ umask 077
 
 BASE=""; DIFF_FILE=""; REVIEW_PROFILE_FILE=""; MODE="review"; IMPL_FAMILY=""; TIMEOUT="600"
 SKILL_REGISTRY_ROOT=""
+DIAGNOSTIC_DIR=""
+TIMEOUT_ARTIFACT_NAME=""
+TIMEOUT_ARTIFACT_PATH=""
+TIMEOUT_ARTIFACT_REPORTED="false"
+TIMEOUT_ARTIFACTS_TRUNCATED="false"
+TIMEOUT_LOGS_TRUNCATED="false"
 REVIEW_SKILLS=()
 REVIEW_SKILL_COUNT=0
 MAX_DIFF_BYTES=200000
@@ -109,6 +116,29 @@ print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 PY_JSON
 }
 
+private_diagnostic_dir_valid() { # $1=absolute diagnostic parent
+  local path="$1" mode owner permissions group_digit other_digit listing access_mode
+  [ -d "$path" ] && [ -w "$path" ] && [ ! -L "$path" ] || return 1
+  if stat -c '%a' "$path" >/dev/null 2>&1; then
+    mode="$(stat -c '%a' "$path")" || return 1
+    owner="$(stat -c '%u' "$path")" || return 1
+  else
+    mode="$(stat -f '%Lp' "$path")" || return 1
+    owner="$(stat -f '%u' "$path")" || return 1
+  fi
+  mode="00$mode"
+  permissions="${mode: -3}"
+  case "$permissions" in [0-7][0-7][0-7]) ;; *) return 1 ;; esac
+  group_digit="${permissions:1:1}"
+  other_digit="${permissions:2:1}"
+  [ "$owner" = "$(id -u)" ] || return 1
+  case "$group_digit" in 2|3|6|7) return 1 ;; esac
+  case "$other_digit" in 2|3|6|7) return 1 ;; esac
+  listing="$(LC_ALL=C ls -ld "$path" 2>/dev/null)" || return 1
+  access_mode="${listing%%[[:space:]]*}"
+  case "$access_mode" in *+*) return 1 ;; esac
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --base) [ "$#" -ge 2 ] && [ -n "${2:-}" ] || die_inconclusive "base_value_required"; BASE="$2"; shift 2;;
@@ -116,6 +146,7 @@ while [ $# -gt 0 ]; do
     --review-profile-file) [ "$#" -ge 2 ] && [ -n "${2:-}" ] || die_inconclusive "review_profile_file_value_required"; REVIEW_PROFILE_FILE="$2"; shift 2;;
     --skill-registry-root) [ "$#" -ge 2 ] && [ -n "${2:-}" ] || die_inconclusive "skill_registry_root_value_required"; SKILL_REGISTRY_ROOT="$2"; shift 2;;
     --review-skill) [ "$#" -ge 2 ] && [ -n "${2:-}" ] || die_inconclusive "review_skill_value_required"; REVIEW_SKILLS+=("$2"); REVIEW_SKILL_COUNT=$((REVIEW_SKILL_COUNT + 1)); shift 2;;
+    --diagnostic-dir) [ "$#" -ge 2 ] && [ -n "${2:-}" ] || die_inconclusive "diagnostic_dir_value_required"; DIAGNOSTIC_DIR="$2"; shift 2;;
     --mode) [ "$#" -ge 2 ] && [ -n "${2:-}" ] || die_inconclusive "mode_value_required"; MODE="$2"; shift 2;;
     --implementer-family) [ "$#" -ge 2 ] && [ -n "${2:-}" ] || die_inconclusive "implementer_family_value_required"; IMPL_FAMILY="$2"; shift 2;;
     --timeout) [ "$#" -ge 2 ] && [ -n "${2:-}" ] || die_inconclusive "timeout_value_required"; TIMEOUT="$2"; shift 2;;
@@ -146,6 +177,19 @@ if [ -n "$DIFF_FILE" ] && { [ ! -f "$DIFF_FILE" ] || [ ! -r "$DIFF_FILE" ] || [ 
 fi
 if [ -n "$REVIEW_PROFILE_FILE" ] && { [ ! -f "$REVIEW_PROFILE_FILE" ] || [ ! -r "$REVIEW_PROFILE_FILE" ] || [ -L "$REVIEW_PROFILE_FILE" ]; }; then
   die_inconclusive "invalid_review_profile_file" invalid_input false
+fi
+if [ -n "$DIAGNOSTIC_DIR" ]; then
+  case "$DIAGNOSTIC_DIR" in
+    /*) ;;
+    *) die_inconclusive "relative_diagnostic_dir_rejected" invalid_input false ;;
+  esac
+  while [ "$DIAGNOSTIC_DIR" != / ] && [ "${DIAGNOSTIC_DIR%/}" != "$DIAGNOSTIC_DIR" ]; do
+    DIAGNOSTIC_DIR="${DIAGNOSTIC_DIR%/}"
+  done
+  [ -d "$DIAGNOSTIC_DIR" ] && [ -w "$DIAGNOSTIC_DIR" ] && [ ! -L "$DIAGNOSTIC_DIR" ] \
+    || die_inconclusive "invalid_diagnostic_dir" invalid_input false
+  private_diagnostic_dir_valid "$DIAGNOSTIC_DIR" \
+    || die_inconclusive "non_private_diagnostic_dir" invalid_input false
 fi
 if [ -n "$DIFF_FILE" ]; then
   if stat -c '%h' "$DIFF_FILE" >/dev/null 2>&1; then
@@ -215,11 +259,19 @@ DIFF_BYTES=$(wc -c <"$TMP_DIFF")
 PROJ="$(mktemp -d "${TMPDIR:-/tmp}/oc-review.XXXXXX")"
 RUNTIME_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/oc-runtime.XXXXXX")"
 cleanup() {
+  if [ "${TIMEOUT_ARTIFACT_REPORTED:-false}" != true ] && [ -n "${TIMEOUT_ARTIFACT_PATH:-}" ]; then
+    discard_timeout_artifacts || true
+  fi
   rm -rf "$PROJ" "$RUNTIME_ROOT" "$TMP_DIFF"
 }
 trap cleanup EXIT
 signal_cleanup() {
   emit_inconclusive "opencode_review_terminated" operator_interrupt false
+  cleanup
+  trap - EXIT
+  exit 2
+}
+post_handoff_signal_cleanup() {
   cleanup
   trap - EXIT
   exit 2
@@ -342,6 +394,313 @@ run_opencode() { # $1=events $2=stderr $3=prompt ; echoes exit code
   run_rc=$?
   rm -f "$prompt_file"
   echo "$run_rc"
+}
+
+persist_timeout_artifacts() { # $1=stage $2=events $3=stderr $4=export $5=export-stderr; sets TIMEOUT_ARTIFACT_NAME
+  local stage="$1" events_file="$2" stderr_file="$3" export_file="$4" export_stderr_file="$5"
+  local target log_root log_file rel_path source_file dest_name
+  discard_timeout_artifacts || true
+  TIMEOUT_ARTIFACT_NAME=""
+  TIMEOUT_ARTIFACT_PATH=""
+  TIMEOUT_ARTIFACT_REPORTED="false"
+  TIMEOUT_ARTIFACTS_TRUNCATED="false"
+  TIMEOUT_LOGS_TRUNCATED="false"
+  [ -n "$DIAGNOSTIC_DIR" ] || return 0
+  private_diagnostic_dir_valid "$DIAGNOSTIC_DIR" || return 1
+  TIMEOUT_ARTIFACT_PATH="$(mktemp -d "$DIAGNOSTIC_DIR/opencode-review-timeout.XXXXXX")" || return 1
+  target="$TIMEOUT_ARTIFACT_PATH"
+  if ! (
+    set -e
+    max_file_bytes=5242880
+    max_total_bytes=20971520
+    max_log_files=1000
+    max_log_entries=5000
+    copied_file_count=0
+    copied_bytes=0
+    observed_log_files=0
+    observed_log_entries=0
+    artifacts_truncated=false
+    logs_truncated=false
+
+    copy_bounded_artifact() { # $1=source $2=destination $3=core|log
+      local source="$1" destination="$2" kind="$3" file_bytes destination_dir copy_limit partial
+      [ -f "$source" ] && [ ! -L "$source" ] || return 0
+      copy_limit=$((max_total_bytes - copied_bytes))
+      [ "$copy_limit" -le "$max_file_bytes" ] || copy_limit="$max_file_bytes"
+      if [ "$copy_limit" -le 0 ]; then
+        artifacts_truncated=true
+        [ "$kind" != log ] || logs_truncated=true
+        return 0
+      fi
+      destination_dir="${destination%/*}"
+      [ "$destination_dir" = "$destination" ] || mkdir -p "$destination_dir"
+      partial="$(mktemp "$target/.copy.XXXXXX")"
+      if ! head -c $((copy_limit + 1)) "$source" >"$partial" 2>/dev/null; then
+        rm -f "$partial"
+        artifacts_truncated=true
+        [ "$kind" != log ] || logs_truncated=true
+        return 0
+      fi
+      file_bytes="$(wc -c <"$partial" | tr -d '[:space:]')"
+      if [ "$file_bytes" -gt "$copy_limit" ]; then
+        rm -f "$partial"
+        artifacts_truncated=true
+        [ "$kind" != log ] || logs_truncated=true
+        return 0
+      fi
+      mv "$partial" "$destination"
+      chmod 0600 "$destination"
+      copied_file_count=$((copied_file_count + 1))
+      copied_bytes=$((copied_bytes + file_bytes))
+    }
+
+    chmod 0700 "$target"
+    for source_file in "$events_file" "$stderr_file" "$export_file" "$export_stderr_file" "$AGENT_BOUNDARY" "$AGENT_BOUNDARY_ERR"; do
+      [ -f "$source_file" ] || continue
+      case "$source_file" in
+        "$events_file") dest_name="review-events.jsonl" ;;
+        "$stderr_file") dest_name="review-stderr.log" ;;
+        "$export_file") dest_name="review-export.json" ;;
+        "$export_stderr_file") dest_name="review-export-stderr.log" ;;
+        "$AGENT_BOUNDARY") dest_name="agent-boundary.json" ;;
+        *) dest_name="agent-boundary-stderr.log" ;;
+      esac
+      copy_bounded_artifact "$source_file" "$target/$dest_name" core
+    done
+    log_root="$RUN_XDG_DATA_HOME/opencode/log"
+    if [ -d "$log_root" ]; then
+      while IFS= read -r -d '' log_file; do
+        observed_log_entries=$((observed_log_entries + 1))
+        if [ "$observed_log_entries" -gt "$max_log_entries" ]; then
+          artifacts_truncated=true
+          logs_truncated=true
+          break
+        fi
+        [ -f "$log_file" ] && [ ! -L "$log_file" ] || continue
+        observed_log_files=$((observed_log_files + 1))
+        if [ "$observed_log_files" -gt "$max_log_files" ]; then
+          artifacts_truncated=true
+          logs_truncated=true
+          break
+        fi
+        rel_path="${log_file#"$log_root"/}"
+        copy_bounded_artifact "$log_file" "$target/opencode-logs/$rel_path" log
+      done < <(find "$log_root" -mindepth 1 -print0)
+    fi
+    python3 - "$target/manifest.json" "$stage" "$artifacts_truncated" "$logs_truncated" \
+      "$copied_file_count" "$copied_bytes" "$max_file_bytes" "$max_total_bytes" \
+      "$max_log_files" "$max_log_entries" "$target/.truncation-flags" <<'PY_MANIFEST'
+import json
+from pathlib import Path
+import sys
+
+artifacts_truncated = sys.argv[3] == "true"
+logs_truncated = sys.argv[4] == "true"
+Path(sys.argv[1]).write_text(
+    json.dumps(
+        {
+            "stage": sys.argv[2],
+            "contains_sensitive_review_data": True,
+            "credential_files_copied": False,
+            "retention_owner": "caller",
+            "artifacts_truncated": artifacts_truncated,
+            "logs_truncated": logs_truncated,
+            "copied_file_count": int(sys.argv[5]),
+            "copied_bytes": int(sys.argv[6]),
+            "limits": {
+                "max_file_bytes": int(sys.argv[7]),
+                "max_total_bytes": int(sys.argv[8]),
+                "max_log_files": int(sys.argv[9]),
+                "max_log_entries": int(sys.argv[10]),
+            },
+        },
+        separators=(",", ":"),
+    ) + "\n",
+    encoding="utf-8",
+)
+Path(sys.argv[11]).write_text(
+    f"{str(artifacts_truncated).lower()}\n{str(logs_truncated).lower()}\n",
+    encoding="utf-8",
+)
+PY_MANIFEST
+    chmod 0600 "$target/manifest.json" "$target/.truncation-flags"
+  ); then
+    rm -rf "$target"
+    return 1
+  fi
+  if ! {
+    IFS= read -r TIMEOUT_ARTIFACTS_TRUNCATED
+    IFS= read -r TIMEOUT_LOGS_TRUNCATED
+  } <"$target/.truncation-flags"; then
+    discard_timeout_artifacts || true
+    return 1
+  fi
+  rm -f "$target/.truncation-flags"
+  case "$TIMEOUT_ARTIFACTS_TRUNCATED:$TIMEOUT_LOGS_TRUNCATED" in
+    true:true|true:false|false:true|false:false) ;;
+    *) discard_timeout_artifacts || true; return 1 ;;
+  esac
+  TIMEOUT_ARTIFACT_NAME="${target##*/}"
+}
+
+discard_timeout_artifacts() {
+  [ -n "${TIMEOUT_ARTIFACT_PATH:-}" ] || return 0
+  case "$TIMEOUT_ARTIFACT_PATH" in
+    "$DIAGNOSTIC_DIR"/opencode-review-timeout.*) rm -rf "$TIMEOUT_ARTIFACT_PATH" ;;
+    *) return 1 ;;
+  esac
+  TIMEOUT_ARTIFACT_NAME=""
+  TIMEOUT_ARTIFACT_PATH=""
+  TIMEOUT_ARTIFACT_REPORTED="false"
+  TIMEOUT_ARTIFACTS_TRUNCATED="false"
+  TIMEOUT_LOGS_TRUNCATED="false"
+}
+
+attach_timeout_diagnostics() { # $1=payload $2=stage $3=events $4=stderr $5=export $6=export-stderr $7=artifact-name
+  python3 - "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$RUN_XDG_DATA_HOME/opencode/log" \
+    "$REVIEW_SKILL_COUNT" "$([ -n "$DIAGNOSTIC_DIR" ] && printf true || printf false)" \
+    "${TIMEOUT_ARTIFACTS_TRUNCATED:-false}" "${TIMEOUT_LOGS_TRUNCATED:-false}" <<'PY_DIAGNOSTIC'
+import json
+from pathlib import Path
+import sys
+
+
+def size(path_string):
+    try:
+        path = Path(path_string)
+        return path.stat().st_size if path.is_file() else 0
+    except OSError:
+        return 0
+
+
+payload = json.loads(sys.argv[1])
+events_path = Path(sys.argv[3])
+event_count = 0
+event_scan_truncated = False
+session_observed = False
+try:
+    with events_path.open("rb") as events:
+        event_bytes = events.read(1048577)
+    event_scan_truncated = len(event_bytes) > 1048576
+    event_lines = event_bytes[:1048576].decode("utf-8", errors="replace").splitlines()
+    if len(event_lines) > 1000:
+        event_scan_truncated = True
+    for line in event_lines[:1000]:
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        event_count += 1
+        if isinstance(event.get("sessionID"), str) and event["sessionID"]:
+            session_observed = True
+except OSError:
+    event_scan_truncated = True
+
+log_count = 0
+log_entry_count = 0
+log_bytes = 0
+log_scan_truncated = False
+log_root = Path(sys.argv[8])
+try:
+    for path in log_root.rglob("*"):
+        log_entry_count += 1
+        if log_entry_count > 5000:
+            log_scan_truncated = True
+            break
+        if path.is_file() and not path.is_symlink():
+            if log_count >= 1000:
+                log_scan_truncated = True
+                break
+            log_count += 1
+            log_bytes += path.stat().st_size
+except OSError:
+    log_scan_truncated = True
+
+selected_skill_count = int(sys.argv[9])
+payload["timeout_diagnostic"] = {
+    "stage": sys.argv[2],
+    "native_owner_skills_requested": selected_skill_count > 0,
+    "selected_skill_count": selected_skill_count,
+    "events_bytes": size(sys.argv[3]),
+    "stderr_bytes": size(sys.argv[4]),
+    "export_bytes": size(sys.argv[5]),
+    "export_stderr_bytes": size(sys.argv[6]),
+    "event_count": event_count,
+    "event_scan_truncated": event_scan_truncated,
+    "session_id_observed": session_observed,
+    "runtime_log_file_count": log_count,
+    "runtime_log_entry_count": log_entry_count,
+    "runtime_log_bytes": log_bytes,
+    "runtime_log_scan_truncated": log_scan_truncated,
+}
+artifact_name = sys.argv[7]
+diagnostic_requested = sys.argv[10] == "true"
+payload["diagnostic_artifacts"] = {
+    "retained": bool(artifact_name),
+    "requested": diagnostic_requested,
+}
+if artifact_name:
+    payload["diagnostic_artifacts"].update(
+        directory_name=artifact_name,
+        contains_sensitive_review_data=True,
+        credential_files_copied=False,
+        retention_owner="caller",
+        artifacts_truncated=sys.argv[11] == "true",
+        logs_truncated=sys.argv[12] == "true",
+    )
+elif diagnostic_requested:
+    payload["diagnostic_artifacts"]["error"] = "retention_failed"
+print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+PY_DIAGNOSTIC
+}
+
+attach_retention_failed_receipt() { # $1=payload $2=requested-json-boolean
+  jq -c --argjson requested "$2" '
+    . + {diagnostic_artifacts:(
+      {requested:$requested,retained:false}
+      + (if $requested then {error:"retention_failed"} else {} end)
+    )}
+  ' <<<"$1" 2>/dev/null
+}
+
+has_stream_event() { # $1=events; bounded positive evidence check
+  python3 - "$1" <<'PY_STREAM_EVENT'
+import json
+from pathlib import Path
+import sys
+
+try:
+    with Path(sys.argv[1]).open("rb") as events:
+        event_bytes = events.read(1048576)
+    for line in event_bytes.decode("utf-8", errors="replace").splitlines()[:1000]:
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        part = event.get("part") if isinstance(event, dict) else None
+        if (
+            isinstance(event, dict)
+            and isinstance(event.get("sessionID"), str)
+            and bool(event["sessionID"])
+            and isinstance(part, dict)
+            and isinstance(part.get("type"), str)
+            and bool(part["type"])
+        ):
+            raise SystemExit(0)
+except OSError:
+    pass
+raise SystemExit(1)
+PY_STREAM_EVENT
+}
+
+classify_native_stream_timeout() { # $1=exit-code $2=events; updates TRANSPORT_REASON only with positive stream evidence
+  [ "$1" = 124 ] || return 0
+  [ "$TRANSPORT_CODE" = timeout ] || return 0
+  [ "$REVIEW_SKILL_COUNT" -gt 0 ] || return 0
+  has_stream_event "$2" || return 0
+  TRANSPORT_REASON="review_native_skill_stream_timeout"
 }
 
 classify_run_failure() { # $1=stage $2=exit-code $3=stderr-file; sets TRANSPORT_*
@@ -505,7 +864,19 @@ run_review_and_judge() { # $1=prompt; sets OUT, PCODE, JUDGE_REASON
       OUT="$(emit_inconclusive review_session_missing transport_unverifiable false)"
     else
       classify_run_failure review "$rex" "$rev_err"
+      classify_native_stream_timeout "$rex" "$rev_ev"
       OUT="$(emit_inconclusive "$TRANSPORT_REASON" "$TRANSPORT_CODE" "$TRANSPORT_CASCADE" "$rex")"
+      if [ "$TRANSPORT_CODE" = timeout ]; then
+        persist_timeout_artifacts review "$rev_ev" "$rev_err" "$rev_export" "$rev_export_err" || true
+        enriched="$(attach_timeout_diagnostics "$OUT" review "$rev_ev" "$rev_err" "$rev_export" "$rev_export_err" "$TIMEOUT_ARTIFACT_NAME")" || enriched=""
+        if [ -n "$enriched" ]; then
+          OUT="$enriched"
+        else
+          discard_timeout_artifacts || true
+          fallback="$(attach_retention_failed_receipt "$OUT" "$([ -n "$DIAGNOSTIC_DIR" ] && printf true || printf false)")" || fallback=""
+          [ -z "$fallback" ] || OUT="$fallback"
+        fi
+      fi
     fi
     PCODE=2
     JUDGE_REASON="$(printf '%s' "$OUT" | jq -r '.reason // empty' 2>/dev/null)"
@@ -531,7 +902,19 @@ run_review_and_judge() { # $1=prompt; sets OUT, PCODE, JUDGE_REASON
     PCODE=2
   elif [ "$rex" != 0 ]; then
     classify_run_failure review "$rex" "$rev_err"
+    classify_native_stream_timeout "$rex" "$rev_ev"
     OUT="$(emit_inconclusive "$TRANSPORT_REASON" "$TRANSPORT_CODE" "$TRANSPORT_CASCADE" "$rex")"
+    if [ "$TRANSPORT_CODE" = timeout ]; then
+      persist_timeout_artifacts review "$rev_ev" "$rev_err" "$rev_export" "$rev_export_err" || true
+      enriched="$(attach_timeout_diagnostics "$OUT" review "$rev_ev" "$rev_err" "$rev_export" "$rev_export_err" "$TIMEOUT_ARTIFACT_NAME")" || enriched=""
+      if [ -n "$enriched" ]; then
+        OUT="$enriched"
+      else
+        discard_timeout_artifacts || true
+        fallback="$(attach_retention_failed_receipt "$OUT" "$([ -n "$DIAGNOSTIC_DIR" ] && printf true || printf false)")" || fallback=""
+        [ -z "$fallback" ] || OUT="$fallback"
+      fi
+    fi
     PCODE=2
   else
     OUT="$(python3 "$PARSER" \
@@ -678,5 +1061,19 @@ if [ "$PCODE" -eq 0 ]; then
     PCODE=2
   fi
 fi
-printf '%s\n' "$OUT"
+if [ -n "$TIMEOUT_ARTIFACT_NAME" ] \
+  && ! jq -e --arg name "$TIMEOUT_ARTIFACT_NAME" \
+    '.diagnostic_artifacts.directory_name == $name' <<<"$OUT" >/dev/null 2>&1; then
+  discard_timeout_artifacts || true
+fi
+trap '' INT TERM HUP PIPE
+if printf '%s\n' "$OUT"; then
+  [ -z "$TIMEOUT_ARTIFACT_NAME" ] || TIMEOUT_ARTIFACT_REPORTED="true"
+  trap post_handoff_signal_cleanup INT TERM HUP
+  trap - PIPE
+  exit $PCODE
+fi
+trap signal_cleanup INT TERM HUP
+trap - PIPE
+PCODE=2
 exit $PCODE

@@ -610,6 +610,7 @@ case "$behavior" in
   findings) printf '{"reviewer":"%s","mode":"%s","status":"findings","reviewer_family":"%s","provider":"%s","model":"local-default","native_skill_binding":"%s","concern_results":%s,"findings":[{"severity":"P1","file":"fallback.py","line":7,"failure_path":"selected fallback finding","smallest_fix":"fix fallback path"}]}\n' "$client" "$mode" "$family" "$provider" "$native_skill_binding" "$concern_results"; exit 0 ;;
   spoof_controller) printf '{"reviewer":"%s","mode":"%s","status":"passed","reviewer_family":"%s","provider":"%s","model":"local-default","stage":"release","review_depth":"release","owner_selection_source":"spoofed","owner_selection_evidence":[{"skill":"spoofed"}],"skill_delivery":"spoofed","selected_skills":["spoofed"],"reviewed_skills":["spoofed"],"owner_gaps":[],"residual_risks":[],"self_review_gate":{"required":false},"concern_results":%s,"findings":[]}\n' "$client" "$mode" "$family" "$provider" "$concern_results"; exit 0 ;;
   quota) printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"quota","reason_code":"quota","cascade_eligible":true}\n' "$client" "$mode"; exit 2 ;;
+  native_timeout) printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"review_native_skill_stream_timeout","reason_code":"timeout","cascade_eligible":true,"timeout_diagnostic":{"stage":"review","native_owner_skills_requested":true,"selected_skill_count":1},"diagnostic_artifacts":{"requested":true,"retained":true,"directory_name":"opencode-review-timeout.fixture"}}\n' "$client" "$mode"; exit 2 ;;
   concern_cascade) printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"malformed concern","reason_code":"invalid_model_output","cascade_eligible":true,"concern_evidence":true}\n' "$client" "$mode"; exit 2 ;;
   boundary) printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"unsafe tool","reason_code":"tool_boundary_violation","cascade_eligible":false}\n' "$client" "$mode"; exit 2 ;;
   mismatch) printf '{"reviewer":"%s","mode":"challenge","status":"passed","reviewer_family":"%s","provider":"%s","model":"local-default","findings":[]}\n' "$client" "$family" "$provider"; exit 0 ;;
@@ -1186,6 +1187,11 @@ check "all attempted clients receive the same frozen packet" \
 claude_profile_hash="$(cat "$WORK/state/claude_profile_hash")"
 check "all attempted clients receive the same staged review profile" \
   '[ "$claude_profile_hash" = "$(cat "$WORK/state/kimi_profile_hash")" ] && [ "$claude_profile_hash" = "$(cat "$WORK/state/opencode_profile_hash")" ] && json_fields "$out" review_profile_sha256="$claude_profile_hash" stage=build review_depth=build challenge_budget=0 reviewed_concerns.0=correctness'
+
+reset_case quota quota native_timeout passed
+out="$(run_gate --allow-fallback-egress)"; rc=$?
+check "native owner-skill timeout receipt remains fail-closed and cascade-eligible through the gate" \
+  '[ "$rc" = 2 ] && [ "$(tr "\n" " " < "$WORK/state/client_sequence")" = "claude kimi opencode " ] && json_fields "$out" status=inconclusive reason_code=timeout attempts.2.status=inconclusive attempts.2.reason=review_native_skill_stream_timeout attempts.2.reason_code=timeout attempts.2.cascade_eligible=true attempts.2.timeout_diagnostic.native_owner_skills_requested=true attempts.2.diagnostic_artifacts.retained=true'
 
 # A client that can only take the packet inline (Kimi has no stdin or prompt-file
 # interface, so its packet rides in argv and is capped for exposure and silent-
