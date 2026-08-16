@@ -25,6 +25,9 @@ Usage: claude [options] [prompt]
   --no-session-persistence
   --effort <level>
 HELP
+  if [ "${CLAUDE_FAKE_NO_MAX_BUDGET:-0}" != "1" ]; then
+    printf '%s\n' '  --max-budget-usd <amount>'
+  fi
   if [ "${CLAUDE_FAKE_NO_VERBOSE:-0}" != "1" ]; then
     printf '%s\n' '  --verbose'
   fi
@@ -32,7 +35,24 @@ HELP
     printf '%s\n' '  --disable-slash-commands'
   fi
   if [ "${CLAUDE_FAKE_NO_SAFE_MODE:-0}" != "1" ]; then
-    printf '%s\n' '  --safe-mode'
+    if [ "${CLAUDE_FAKE_SAFE_MODE_NO_SKILL_CONTRACT:-0}" = "1" ]; then
+      printf '%s\n' '  --safe-mode  Start with customizations disabled'
+    elif [ "${CLAUDE_FAKE_SAFE_MODE_SKILLS_UNAFFECTED:-0}" = "1" ]; then
+      printf '%s\n' '  --safe-mode  Other customizations are disabled; skills are unaffected'
+    elif [ "${CLAUDE_FAKE_SAFE_MODE_DISABLE_STEM:-0}" = "1" ]; then
+      printf '%s\n' '  --safe-mode  Disables skills, plugins, hooks, MCP servers, custom commands and agents'
+    else
+      printf '%s\n' \
+        '  --safe-mode  Start with all customizations' \
+        '               (CLAUDE.md, skills, plugins, hooks, MCP servers,' \
+        '               custom commands and agents) disabled'
+    fi
+  fi
+  if [ "${CLAUDE_FAKE_SHORT_OPTION_SKILL_TEXT:-0}" = "1" ]; then
+    printf '%s\n' '  -v, --verbose  Disables skills while tracing diagnostics'
+  fi
+  if [ "${CLAUDE_FAKE_TRAILING_SKILL_TEXT:-0}" = "1" ]; then
+    printf '\n%s\n' 'Examples: skills are disabled in sandbox mode'
   fi
   if [ "${CLAUDE_FAKE_NO_BARE:-0}" != "1" ]; then
     printf '%s\n' '  --bare'
@@ -67,17 +87,33 @@ if [ "${CLAUDE_CODE_DISABLE_CLAUDE_MDS:-}" != "1" ]; then
 fi
 
 prompt="$(cat)"
+is_host_baseline=0
+if [ "$prompt" = "Return a short acknowledgement." ]; then
+  is_host_baseline=1
+fi
+if [ -n "${CLAUDE_ENV_LOG:-}" ]; then
+  printf '%s\t%s\t%s\n' \
+    "$is_host_baseline" \
+    "${CLAUDE_CODE_DISABLE_AUTO_MEMORY:-}" \
+    "${CLAUDE_CODE_DISABLE_CLAUDE_MDS:-}" >> "$CLAUDE_ENV_LOG"
+fi
 
 if [ -n "${CLAUDE_ARGV_LOG:-}" ]; then
   # Record one block per Claude invocation: a \037 record-separator line tagged
   # with the invocation kind, then the argv one token per line. The wrapper must
   # make exactly one model call for a conforming review/challenge.
   argv_kind=main
+  if [ "$is_host_baseline" = "1" ]; then
+    argv_kind=host-baseline
+  fi
   printf '\037%s\n' "$argv_kind" >> "$CLAUDE_ARGV_LOG"
   for a in "$@"; do printf '%s\n' "$a"; done >> "$CLAUDE_ARGV_LOG"
 fi
 if [ -n "${CLAUDE_PROMPT_LOG:-}" ]; then
   printf '%s\n' "$prompt" > "$CLAUDE_PROMPT_LOG"
+fi
+if [ -n "${CLAUDE_CWD_LOG:-}" ]; then
+  printf '%s\t%s\n' "$is_host_baseline" "$PWD" >> "$CLAUDE_CWD_LOG"
 fi
 
 has_output_json=0
@@ -114,6 +150,35 @@ for arg in "$@"; do
     expect_plugin_dir_value=1
   fi
 done
+if [ "$is_host_baseline" = "1" ]; then
+  if [ "${CLAUDE_FAKE_BASELINE_SLEEP_S:-0}" != "0" ]; then
+    sleep "$CLAUDE_FAKE_BASELINE_SLEEP_S"
+  fi
+  if [ "${CLAUDE_FAKE_BASELINE_WRITE:-0}" = "1" ]; then
+    mkdir -p baseline-leak/nested
+    printf '%s\n' leak > baseline-leak/nested/state
+  fi
+  if [ "${CLAUDE_FAKE_BASELINE_SIGNAL:-0}" = "1" ]; then
+    kill -TERM "$$"
+  fi
+  baseline_commands='["auto-mode-setup","doctor"]'
+  baseline_skills='[]'
+  if [ "${CLAUDE_FAKE_HOST_VOCABULARY:-0}" = "1" ] \
+    || [ "${CLAUDE_FAKE_HOST_VOCABULARY_PLUS_BREACH:-0}" = "1" ]; then
+    baseline_commands='["auto-mode-setup","doctor","brand-new-builtin"]'
+  fi
+  if [ "${CLAUDE_FAKE_BASELINE_NEW_SKILL:-0}" = "1" ]; then
+    baseline_skills='["brand-new-host-skill"]'
+  fi
+  baseline_tools='[]'
+  if [ "${CLAUDE_FAKE_BASELINE_TOOL:-0}" = "1" ]; then
+    baseline_tools='["Read"]'
+  fi
+  printf '{"type":"system","subtype":"init","claude_code_version":"%s","permissionMode":"default","tools":%s,"mcp_servers":[],"slash_commands":%s,"terminal_slash_commands":["doctor"],"skills":%s,"plugins":[]}\n' \
+    "${CLAUDE_FAKE_BASELINE_VERSION:-2.1.233}" "$baseline_tools" "$baseline_commands" "$baseline_skills"
+  printf '%s\n' '{"type":"result","subtype":"error_max_budget_usd","is_error":true,"result":"budget exhausted after init"}'
+  exit "${CLAUDE_FAKE_BASELINE_RC:-1}"
+fi
 if [ -n "$plugin_dir_value" ] && [ -n "${CLAUDE_NATIVE_PLUGIN_MARKER:-}" ]; then
   [ -f "$plugin_dir_value/.claude-plugin/plugin.json" ] \
     && [ -f "$plugin_dir_value/skills/testing-strategy/SKILL.md" ] \
@@ -168,7 +233,7 @@ fi
 if [ "$has_stream_json" = "1" ]; then
   customization_fields='"mcp_servers":[],"slash_commands":[],"skills":[],"plugins":[]'
   if [ "$has_plugin_dir" = "1" ]; then
-    customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy"],"skills":["testing-strategy"],"plugins":["ccl-skills"]'
+    customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","auto-mode-setup","doctor"],"terminal_slash_commands":["doctor"],"skills":["testing-strategy"],"plugins":["ccl-skills"]'
   fi
   if [ "${CLAUDE_FAKE_FULL_REGISTRY_CUSTOMIZATIONS:-0}" = "1" ]; then
     customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","ccl-skills:terminal-cli-dev"],"skills":["testing-strategy","terminal-cli-dev"],"plugins":["ccl-skills"]'
@@ -191,6 +256,12 @@ if [ "$has_stream_json" = "1" ]; then
   if [ "${CLAUDE_FAKE_HOST_VOCABULARY:-0}" = "1" ]; then
     customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","brand-new-builtin"],"skills":["testing-strategy"],"plugins":["ccl-skills"]'
   fi
+  if [ "${CLAUDE_FAKE_BASELINE_NEW_SKILL:-0}" = "1" ]; then
+    customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy"],"skills":["testing-strategy","brand-new-host-skill"],"plugins":["ccl-skills"]'
+  fi
+  if [ "${CLAUDE_FAKE_UNBASELINED_HOST_VOCABULARY:-0}" = "1" ]; then
+    customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","formal-only-command"],"skills":["testing-strategy"],"plugins":["ccl-skills"]'
+  fi
   if [ "${CLAUDE_FAKE_HOST_VOCABULARY_PLUS_BREACH:-0}" = "1" ]; then
     customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","brand-new-builtin","rogue:exfil"],"skills":["testing-strategy"],"plugins":["ccl-skills"]'
   fi
@@ -207,6 +278,7 @@ if [ "$has_stream_json" = "1" ]; then
   if [ -n "${CLAUDE_FAKE_INIT_EXTRA:-}" ]; then
     customization_fields="$customization_fields,$CLAUDE_FAKE_INIT_EXTRA"
   fi
+  customization_fields="$customization_fields,\"claude_code_version\":\"${CLAUDE_FAKE_MAIN_VERSION:-2.1.233}\""
   if [ "$tools_value" = "Read,Grep,Glob" ] && [ "$has_json_schema" = "1" ]; then
     printf '{"type":"system","subtype":"init","tools":["Read","Grep","Glob","StructuredOutput"],%s}\n' "$customization_fields"
   elif [ "$tools_value" = "Read,Grep,Glob" ]; then
@@ -696,37 +768,88 @@ assert "skills:unrelated-skill" in reason, payload
 assert "description" not in reason, payload
 PY
 
-# Host-vocabulary routing, asserted through the REAL wrapper rather than through
-# a mirror of its routing table. The policy matrix reads the wrapper's `case`
-# block out of its source, which catches an edited arm but cannot catch a
-# difference between bash pattern matching and the mirror's substring matching --
-# so these two cases drive the actual wrapper end to end: an unrecognised bare
-# built-in must cascade, and the same init carrying a real breach must NOT be
-# laundered into the softer class by the presence of the new phrase.
-set +e
+# Host-vocabulary routing, asserted through the real wrapper. A new built-in
+# reported by the same-version, no-plugin baseline is safe to accept; a command
+# absent from that baseline remains a proven customization and must not be
+# laundered by the presence of an accepted built-in.
 PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_HOST_VOCABULARY=1 \
+  CLAUDE_CWD_LOG="$tmp_dir/native-skill-cwds.log" \
+  CLAUDE_ENV_LOG="$tmp_dir/native-skill-env.log" \
   "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
   --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
   --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
   >"$tmp_dir/native-skill-host-vocabulary.json"
-host_vocabulary_rc=$?
-set -e
-if [ "$host_vocabulary_rc" -ne 2 ]; then
-  printf 'expected an unrecognised bare built-in to still refuse (exit 2), got %s\n' "$host_vocabulary_rc" >&2
-  exit 1
-fi
 python3 - "$tmp_dir/native-skill-host-vocabulary.json" <<'PY'
 import json
 import sys
 
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
-# refuses, but cascades: the whole point is that one new CLI built-in must not
-# take the other reviewer clients down with it.
+assert payload["mode"] == "challenge", payload
+assert payload["native_skill_binding"] == "established", payload
+PY
+python3 - "$tmp_dir/native-skill-cwds.log" "$tmp_dir/repo" <<'PY'
+import os
+import sys
+
+rows = [line.rstrip("\n").split("\t", 1) for line in open(sys.argv[1], encoding="utf-8")]
+baseline_cwds = [cwd for baseline, cwd in rows if baseline == "1"]
+assert len(baseline_cwds) == 1, rows
+assert os.path.realpath(baseline_cwds[0]) != os.path.realpath(sys.argv[2]), rows
+PY
+python3 - "$tmp_dir/native-skill-env.log" <<'PY'
+import sys
+
+rows = [line.rstrip("\n").split("\t") for line in open(sys.argv[1], encoding="utf-8")]
+baseline_env = [row[1:] for row in rows if row[0] == "1"]
+assert baseline_env == [["1", "1"]], rows
+PY
+
+set +e
+PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_BASELINE_NEW_SKILL=1 \
+  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
+  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
+  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
+  >"$tmp_dir/native-skill-baseline-new-skill.json"
+baseline_new_skill_rc=$?
+set -e
+if [ "$baseline_new_skill_rc" -ne 2 ]; then
+  printf 'expected a baseline-only new skill to refuse (exit 2), got %s\n' \
+    "$baseline_new_skill_rc" >&2
+  exit 1
+fi
+python3 - "$tmp_dir/native-skill-baseline-new-skill.json" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
 assert payload["reason_code"] == "capability_missing", payload
 assert payload["fallback_eligible"] is True, payload
 assert payload["next_action"] == "fallback", payload
-assert "unclassifiable host-vocabulary entry" in payload["reason"], payload
-assert "slash_commands:brand-new-builtin" in payload["reason"], payload
+assert "skills:brand-new-host-skill" in payload["reason"], payload
+PY
+
+set +e
+PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_UNBASELINED_HOST_VOCABULARY=1 \
+  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
+  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
+  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
+  >"$tmp_dir/native-skill-unbaselined-host-vocabulary.json"
+unbaselined_host_vocabulary_rc=$?
+set -e
+if [ "$unbaselined_host_vocabulary_rc" -ne 2 ]; then
+  printf 'expected a formal-only host-vocabulary entry to refuse (exit 2), got %s\n' \
+    "$unbaselined_host_vocabulary_rc" >&2
+  exit 1
+fi
+python3 - "$tmp_dir/native-skill-unbaselined-host-vocabulary.json" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload["reason_code"] == "capability_missing", payload
+assert payload["fallback_eligible"] is True, payload
+assert payload["next_action"] == "fallback", payload
+assert "slash_commands:formal-only-command" in payload["reason"], payload
 PY
 
 set +e
@@ -752,6 +875,78 @@ assert payload["reason_code"] == "tool_boundary_violation", payload
 assert payload["fallback_eligible"] is False, payload
 assert payload["next_action"] == "stop_reviewer_lane", payload
 assert "unclassifiable host-vocabulary entry" not in payload["reason"], payload
+PY
+
+for baseline_failure in version-mismatch exposed-tool; do
+  expected_reason_code=capability_missing
+  set +e
+  if [ "$baseline_failure" = "version-mismatch" ]; then
+    expected_reason="host-baseline-mismatch"
+    PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_MAIN_VERSION=2.1.234 \
+      "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
+      --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
+      --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
+      >"$tmp_dir/native-skill-$baseline_failure.json"
+  else
+    expected_reason="Claude host-vocabulary baseline exposed a tool"
+    PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_BASELINE_TOOL=1 \
+      "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
+      --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
+      --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
+      >"$tmp_dir/native-skill-$baseline_failure.json"
+  fi
+  baseline_failure_rc=$?
+  set -e
+  if [ "$baseline_failure_rc" -ne 2 ]; then
+    printf 'expected Claude host-baseline %s to exit 2, got %s\n' \
+      "$baseline_failure" "$baseline_failure_rc" >&2
+    exit 1
+  fi
+  grep -q "\"reason_code\": \"$expected_reason_code\"" \
+    "$tmp_dir/native-skill-$baseline_failure.json"
+  grep -Fq "$expected_reason" "$tmp_dir/native-skill-$baseline_failure.json"
+done
+
+rm -f "$tmp_dir/native-skill-baseline-write-cwds.log"
+set +e
+PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_BASELINE_WRITE=1 \
+  CLAUDE_CWD_LOG="$tmp_dir/native-skill-baseline-write-cwds.log" \
+  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
+  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
+  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
+  >"$tmp_dir/native-skill-baseline-write.json"
+baseline_write_rc=$?
+set -e
+if [ "$baseline_write_rc" -ne 2 ]; then
+  printf 'expected a host-baseline cwd write to exit 2, got %s\n' "$baseline_write_rc" >&2
+  exit 1
+fi
+grep -Fq 'Claude host-vocabulary baseline wrote into its isolated working directory' \
+  "$tmp_dir/native-skill-baseline-write.json"
+baseline_write_cwd="$(awk -F '\t' '$1 == "1" { print $2 }' "$tmp_dir/native-skill-baseline-write-cwds.log")"
+[ -n "$baseline_write_cwd" ] && [ ! -e "$baseline_write_cwd" ]
+
+set +e
+PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_BASELINE_WRITE=1 CLAUDE_FAKE_BASELINE_SIGNAL=1 \
+  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
+  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
+  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
+  >"$tmp_dir/native-skill-baseline-signal-after-write.json"
+baseline_signal_after_write_rc=$?
+set -e
+if [ "$baseline_signal_after_write_rc" -ne 2 ]; then
+  printf 'expected a signaled host baseline to exit 2, got %s\n' \
+    "$baseline_signal_after_write_rc" >&2
+  exit 1
+fi
+python3 - "$tmp_dir/native-skill-baseline-signal-after-write.json" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload["reason_code"] == "operator_interrupt", payload
+assert payload["fallback_eligible"] is False, payload
+assert payload["next_action"] == "stop_reviewer_lane", payload
 PY
 
 set +e
@@ -1291,6 +1486,27 @@ assert "cannot disable inherited user/project/local settings" in payload["reason
 PY
 
 set +e
+PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+  "$script_dir/claude_review.sh" review --cwd "$tmp_dir/repo" \
+  > "$tmp_dir/review-no-claude-binary.json"
+no_claude_binary_rc=$?
+set -e
+if [ "$no_claude_binary_rc" -ne 2 ]; then
+  printf 'expected a missing Claude binary to exit 2, got %s\n' "$no_claude_binary_rc" >&2
+  exit 1
+fi
+python3 - "$tmp_dir/review-no-claude-binary.json" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload["status"] == "inconclusive", payload
+assert payload["reason_code"] == "client_unavailable", payload
+assert payload["fallback_eligible"] is True, payload
+assert payload["next_action"] == "fallback", payload
+PY
+
+set +e
 PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_NO_SAFE_MODE=1 \
   "$script_dir/claude_review.sh" review --cwd "$tmp_dir/repo" > "$tmp_dir/review-no-safe-mode.json"
 no_safe_mode_rc=$?
@@ -1306,7 +1522,106 @@ import sys
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
 assert payload["mode"] == "review", payload
 assert payload["status"] == "inconclusive", payload
-assert "cannot disable inherited Claude customizations" in payload["reason"], payload
+assert "cannot prove that safe mode disables inherited Claude skills" in payload["reason"], payload
+PY
+
+set +e
+PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_SAFE_MODE_NO_SKILL_CONTRACT=1 \
+  "$script_dir/claude_review.sh" review --cwd "$tmp_dir/repo" \
+  > "$tmp_dir/review-safe-mode-without-skill-contract.json"
+safe_mode_without_skill_contract_rc=$?
+set -e
+if [ "$safe_mode_without_skill_contract_rc" -ne 2 ]; then
+  printf 'expected review without a documented safe-mode skill boundary to exit 2, got %s\n' \
+    "$safe_mode_without_skill_contract_rc" >&2
+  exit 1
+fi
+grep -Fq 'cannot prove that safe mode disables inherited Claude skills' \
+  "$tmp_dir/review-safe-mode-without-skill-contract.json"
+
+set +e
+PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_SAFE_MODE_NO_SKILL_CONTRACT=1 \
+  CLAUDE_FAKE_SHORT_OPTION_SKILL_TEXT=1 \
+  "$script_dir/claude_review.sh" review --cwd "$tmp_dir/repo" \
+  > "$tmp_dir/review-safe-mode-short-option-spill.json"
+safe_mode_short_option_spill_rc=$?
+set -e
+if [ "$safe_mode_short_option_spill_rc" -ne 2 ]; then
+  printf 'expected safe-mode capture to stop before a short-option entry, got %s\n' \
+    "$safe_mode_short_option_spill_rc" >&2
+  exit 1
+fi
+grep -Fq 'cannot prove that safe mode disables inherited Claude skills' \
+  "$tmp_dir/review-safe-mode-short-option-spill.json"
+
+set +e
+PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_SAFE_MODE_NO_SKILL_CONTRACT=1 \
+  CLAUDE_FAKE_TRAILING_SKILL_TEXT=1 \
+  "$script_dir/claude_review.sh" review --cwd "$tmp_dir/repo" \
+  > "$tmp_dir/review-safe-mode-trailing-prose.json"
+safe_mode_trailing_prose_rc=$?
+set -e
+if [ "$safe_mode_trailing_prose_rc" -ne 2 ]; then
+  printf 'expected safe-mode capture to stop before trailing prose, got %s\n' \
+    "$safe_mode_trailing_prose_rc" >&2
+  exit 1
+fi
+grep -Fq 'cannot prove that safe mode disables inherited Claude skills' \
+  "$tmp_dir/review-safe-mode-trailing-prose.json"
+
+set +e
+PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_SAFE_MODE_SKILLS_UNAFFECTED=1 \
+  "$script_dir/claude_review.sh" review --cwd "$tmp_dir/repo" \
+  > "$tmp_dir/review-safe-mode-skills-unaffected.json"
+safe_mode_skills_unaffected_rc=$?
+set -e
+if [ "$safe_mode_skills_unaffected_rc" -ne 2 ]; then
+  printf 'expected negated safe-mode skill boundary to exit 2, got %s\n' \
+    "$safe_mode_skills_unaffected_rc" >&2
+  exit 1
+fi
+grep -Fq 'cannot prove that safe mode disables inherited Claude skills' \
+  "$tmp_dir/review-safe-mode-skills-unaffected.json"
+
+PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_SAFE_MODE_DISABLE_STEM=1 \
+  "$script_dir/claude_review.sh" review --cwd "$tmp_dir/repo" \
+  >"$tmp_dir/review-safe-mode-disable-stem.json"
+python3 - "$tmp_dir/review-safe-mode-disable-stem.json" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload == {
+    "mode": "review",
+    "findings": [],
+    "lens_id": "code-review:review:no-tools",
+    "tool_identity": "code-review:no-tools",
+    "native_skill_binding": "not_requested",
+}, payload
+PY
+
+set +e
+PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_NO_MAX_BUDGET=1 \
+  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
+  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
+  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
+  >"$tmp_dir/native-skill-no-max-budget.json"
+no_max_budget_rc=$?
+set -e
+if [ "$no_max_budget_rc" -ne 2 ]; then
+  printf 'expected missing max-budget support to exit 2, got %s\n' \
+    "$no_max_budget_rc" >&2
+  exit 1
+fi
+python3 - "$tmp_dir/native-skill-no-max-budget.json" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload["reason_code"] == "capability_missing", payload
+assert payload["fallback_eligible"] is True, payload
+assert payload["next_action"] == "fallback", payload
+assert "bounded host-vocabulary baseline" in payload["reason"], payload
 PY
 
 set +e
@@ -1965,6 +2280,30 @@ assert "after 5 seconds" in payload["reason"], payload
 assert payload["reason_code"] == "timeout", payload
 assert payload["fallback_eligible"] is True, payload
 assert payload["next_action"] == "fallback", payload
+PY
+
+set +e
+PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_BASELINE_SLEEP_S=2 CLAUDE_FAKE_MAIN_SLEEP_S=30 \
+  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" --timeout 5 \
+  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
+  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
+  > "$tmp_dir/baseline-budget-timeout.json"
+baseline_budget_timeout_rc=$?
+set -e
+if [ "$baseline_budget_timeout_rc" -ne 2 ]; then
+  printf 'expected baseline-budgeted main timeout exit 2, got %s\n' \
+    "$baseline_budget_timeout_rc" >&2
+  exit 1
+fi
+python3 - "$tmp_dir/baseline-budget-timeout.json" <<'PY'
+import json
+import re
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+match = re.search(r"after ([0-9]+) seconds", payload["reason"])
+assert payload["reason_code"] == "timeout", payload
+assert match is not None and 1 <= int(match.group(1)) < 5, payload
 PY
 
 printf 'claude_review_runtime_tests_ok\n'

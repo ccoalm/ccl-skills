@@ -64,6 +64,10 @@ PROVIDER_FAMILY = {
 }
 
 FINDING_RE = re.compile(r"^(P[0-2])\s+(\S+):(\d+)\s+(.+?)\s+\|\s+(.+)$")
+CONCERN_EVIDENCE_RE = re.compile(
+    r"(?i)(?:^|[^a-z0-9])(p[0-2]|blocker|critical|major|minor|high|medium|low)"
+    r"(?:[^a-z0-9]|$)|[a-z0-9_.-]*[./][a-z0-9_./-]*:\d+"
+)
 
 
 def family_for_provider(provider_id):
@@ -99,6 +103,7 @@ def _result(status, reason=None, **extra):
 
 def session_id_from_events(events_text):
     session_id = None
+    last_event = None
     for line in events_text.splitlines():
         line = line.strip()
         if not line:
@@ -106,32 +111,30 @@ def session_id_from_events(events_text):
         try:
             ev = json.loads(line)
         except json.JSONDecodeError:
-            return None, "event_stream_unparseable"
+            return None, "event_stream_unparseable", False
         if not isinstance(ev, dict):
-            return None, "event_stream_unparseable"
+            return None, "event_stream_unparseable", False
+        last_event = ev
         sid = ev.get("sessionID")
         if sid and session_id is None:
             session_id = sid
-    return session_id, None
+    terminal_stop = bool(
+        isinstance(last_event, dict)
+        and last_event.get("sessionID") == session_id
+        and last_event.get("type") == "step_finish"
+        and isinstance(last_event.get("part"), dict)
+        and last_event["part"].get("type") == "step-finish"
+        and last_event["part"].get("reason") == "stop"
+    )
+    return session_id, None, terminal_stop
 
 
-# User-installed skills and plugins are trusted inputs in the user's own
-# workspace. The review agent therefore allows `skill` and does not reject an
-# unknown plugin tool merely because it is extra. It still rejects the known
-# mutation, execution, network, interactive, and subagent routes below. The
-FORBIDDEN_TOOLS = {
-    "write",
-    "edit",
-    "patch",
-    "apply_patch",
-    "bash",
-    "webfetch",
-    "websearch",
-    "task",
-    "question",
-    "todowrite",
-}
-REQUIRED_REVIEW_TOOLS = {"read", "glob", "grep"}
+# Packet-only OpenCode review needs no invocable capability unless the
+# controller selected native owner skills. In that case `skill` is required.
+# The `invalid` pseudo-tool reports rejected calls and is not an external
+# capability. Any other enabled built-in, plugin, or MCP tool widens the packet
+# boundary and is terminal.
+ALWAYS_ALLOWED_ENABLED_TOOLS = {"invalid"}
 REQUIRED_DISABLED_TOOLS = {
     "bash",
     "edit",
@@ -140,6 +143,9 @@ REQUIRED_DISABLED_TOOLS = {
     "webfetch",
     "question",
     "todowrite",
+    "read",
+    "glob",
+    "grep",
 }
 
 
@@ -162,7 +168,10 @@ def validate_agent_boundary(args):
     ):
         return _result("inconclusive", "agent_tools_invalid")
     enabled = {name for name, value in tools.items() if value}
-    exposed = sorted(enabled & FORBIDDEN_TOOLS)
+    allowed_enabled = set(ALWAYS_ALLOWED_ENABLED_TOOLS)
+    if args.require_skill_tool:
+        allowed_enabled.add("skill")
+    exposed = sorted(enabled - allowed_enabled)
     if exposed:
         return _result(
             "inconclusive", "agent_forbidden_tool_available", exposed_tools=exposed
@@ -174,7 +183,8 @@ def validate_agent_boundary(args):
             "agent_disabled_tool_missing",
             missing_disabled_tools=disabled_missing,
         )
-    missing = sorted(REQUIRED_REVIEW_TOOLS - enabled)
+    required_review_tools = {"skill"} if args.require_skill_tool else set()
+    missing = sorted(required_review_tools - enabled)
     if missing:
         return _result(
             "inconclusive", "agent_required_tool_missing", missing_tools=missing
@@ -313,21 +323,30 @@ def parse_review_text(text):
 
 
 def judge(args):
-    # 1. transport-level failures are fail-closed.
-    if args.exit_code == 124:
-        return _result("inconclusive", "reviewer_timeout")
-    if args.exit_code not in (0, None):
+    # 1. Non-timeout transport failures are fail-closed. A timeout may still
+    # leave a public export that proves the assistant turn finished with stop;
+    # validate that export through every ordinary binding and schema check
+    # before deciding whether the timeout was only a post-completion run tail.
+    transport_timed_out = args.exit_code == 124
+    if len(set(args.required_concern)) != len(args.required_concern) or any(
+        re.fullmatch(r"[a-z][a-z0-9_]*", concern) is None
+        for concern in args.required_concern
+    ):
+        return _result("inconclusive", "invalid_required_concern")
+    if args.exit_code not in (0, 124, None):
         return _result("inconclusive", f"reviewer_exit_{args.exit_code}")
 
     # 2. events are required; capture the run's session id for the binding check.
     if not args.events:
         return _result("inconclusive", "missing_events")
     with open(args.events) as fh:
-        ev_sid, event_error = session_id_from_events(fh.read())
+        ev_sid, event_error, event_terminal_stop = session_id_from_events(fh.read())
     if event_error:
         return _result("inconclusive", event_error)
     if not ev_sid:
         return _result("inconclusive", "missing_session_id")
+    if transport_timed_out and not event_terminal_stop:
+        return _result("inconclusive", "reviewer_timeout")
 
     # 3. Validate the resolved debug-agent tool surface without another model call.
     agent_failure = validate_agent_boundary(args)
@@ -351,10 +370,16 @@ def judge(args):
         "version": meta["version"],
         "mode": args.mode,
     }
+    if transport_timed_out:
+        base["transport_tail_timeout"] = True
 
     # 5. the exported session must be present AND be the one we actually ran
     #    (a crafted export with no id must not skip the binding check).
-    if not meta["session_id"] or meta["session_id"] != ev_sid:
+    if not meta["session_id"]:
+        if transport_timed_out:
+            return _result("inconclusive", "reviewer_timeout", **base)
+        return _result("inconclusive", "session_id_mismatch", **base)
+    if meta["session_id"] != ev_sid:
         return _result("inconclusive", "session_id_mismatch", **base)
 
     # Attribution is mandatory even when the user leaves ccl-review.model
@@ -398,13 +423,21 @@ def judge(args):
 
     # 7. the run must have finished (stop) with non-empty final text.
     if meta["final_reason"] != "stop" or not meta["final_text"]:
+        if transport_timed_out:
+            return _result("inconclusive", "reviewer_timeout", **base)
         extra = {"text": meta["final_text"]} if meta["final_text"] else {}
         return _result("inconclusive", "missing_final_text", **extra, **base)
 
     # 8. content verdict, with schema validation so praise/refusals don't pass.
+    if transport_timed_out and not args.required_concern:
+        return _result("inconclusive", "reviewer_timeout", **base)
     parsed_review = parse_review_text(meta["final_text"])
     if parsed_review is not None:
         status, concern_results, findings = parsed_review
+        if transport_timed_out and args.required_concern:
+            observed_concerns = {item["concern"] for item in concern_results}
+            if observed_concerns != set(args.required_concern):
+                return _result("inconclusive", "reviewer_timeout", **base)
         extra = {"text": meta["final_text"]} if findings else {}
         return _result(
             status,
@@ -413,6 +446,8 @@ def judge(args):
             **extra,
             **base,
         )
+    if transport_timed_out and not CONCERN_EVIDENCE_RE.search(meta["final_text"]):
+        return _result("inconclusive", "reviewer_timeout", **base)
     return _result(
         "inconclusive", "unparseable_findings", text=meta["final_text"], **base
     )
@@ -426,6 +461,8 @@ def main(argv=None):
     p.add_argument("--exit-code", type=int, default=0)
     p.add_argument("--mode", choices=["review", "challenge"], default="review")
     p.add_argument("--implementer-family", required=True)
+    p.add_argument("--require-skill-tool", action="store_true")
+    p.add_argument("--required-concern", action="append", default=[])
     args = p.parse_args(argv)
 
     result = judge(args)

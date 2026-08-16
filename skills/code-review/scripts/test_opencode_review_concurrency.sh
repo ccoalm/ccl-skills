@@ -24,7 +24,7 @@ if [ "$1" = "debug" ] && [ "${2:-}" = "agent" ]; then
   provider="${model_full%%/*}"
   model="${model_full#*/}"
   printf '%s|%s|debug\n' "$XDG_DATA_HOME" "$XDG_STATE_HOME" >>"$state/runtime_paths"
-  printf '{"name":"ccl-review","mode":"primary","model":{"providerID":"%s","modelID":"%s"},"tools":{"invalid":true,"question":false,"bash":false,"read":true,"glob":true,"grep":true,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":true,"ccl_context":true}}\n' \
+  printf '{"name":"ccl-review","mode":"primary","model":{"providerID":"%s","modelID":"%s"},"tools":{"invalid":true,"question":false,"bash":false,"read":false,"glob":false,"grep":false,"edit":false,"write":false,"task":false,"webfetch":false,"todowrite":false,"skill":false,"ccl_context":false}}\n' \
     "$provider" "$model"
   exit 0
 fi

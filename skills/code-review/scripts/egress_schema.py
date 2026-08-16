@@ -66,6 +66,7 @@ SCHEMA = {
     "cascade_eligible": (BOOLEAN, None),
     "candidate_ineligible": (BOOLEAN, None),
     "concern_evidence": (BOOLEAN, None),
+    "transport_tail_timeout": (BOOLEAN, None),
     "transport_exit_code": (EXIT_CODE, None),
     "session_id": (TOKEN, None),
     "model": (TOKEN, None),
@@ -110,7 +111,7 @@ EGRESS_KEYS = frozenset(SCHEMA) | {VIOLATION_FIELD}
 # to edit, not one set. The assertion below is what keeps them from drifting.
 CONCERN_RELAY_KEYS = frozenset({
     "reviewer", "status", "reason", "reason_code", "cascade_eligible",
-    "candidate_ineligible", "session_id", "model", "provider", "version",
+    "candidate_ineligible", "transport_tail_timeout", "session_id", "model", "provider", "version",
     "mode", "reviewer_family", "runtime_isolation", "credential_binding",
     VIOLATION_FIELD,
 })

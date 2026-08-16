@@ -57,18 +57,22 @@ contains no concern evidence. If malformed output still contains a severity and
 file/line-shaped concern, the lane stops so another client cannot launder that
 finding into a pass.
 
-The most common `capability_missing` in practice is Kimi's inline size ceiling.
-Kimi's prompt mode has no stdin or prompt-file interface, so the packet rides in
-argv, where same-host process inspection can read it; the wrapper therefore caps
-the composed prompt (`MAX_INLINE_PROMPT_BYTES`) to bound both that exposure and
-silent middle-elision. A larger candidate is not an error: the lane reports
-`packet_too_large_for_inline` before invoking Kimi at all and cascades to a
-file-backed client. It only bites when Kimi is the client you specifically need,
-typically because every other client is same-family as the implementer. The path
-then is candidate partitioning per `SKILL.md` — split by file group or risk
-class, one packet and one recorded hash per partition, no candidate-wide claim
-until every partition is conclusive. The gate will not partition for you; that is
-a caller-level protocol with no executable support.
+Kimi keeps composed prompts up to `MAX_INLINE_PROMPT_BYTES` inline. Larger
+packets, up to the wrapper's global packet limit, use a private explicit agent
+that exposes only a generated stdio MCP server's
+`read_packet(byte_offset, max_bytes)`. Candidate bytes never enter the agent
+system prompt or process argv. The tool accepts no path, rechecks the frozen
+packet SHA-256 on every call, and returns UTF-8-safe chunks with exact byte
+ranges until the parser proves complete coverage. The parser verifies every
+chunk body against the frozen packet bytes, so even a physical line larger than
+one bounded 48 KB tool result remains reviewable without trusting claimed
+offsets. Non-UTF-8 large packets still degrade before alternate delivery. The
+gate never synthesizes candidate-wide claims from partitions.
+
+`EMFILE` or `too many open files` from either Kimi preflight or the formal run is
+classified as fallback-eligible `kimi_host_resource_exhausted` with
+`client_unavailable`. It is a local CLI/runtime failure, not OAuth, provider
+authentication, or a model verdict.
 
 Packet/input/binding/tool-boundary failures are terminal. Unknown errors and
 legacy inconclusive objects without machine fields are also terminal. Claude or
@@ -149,7 +153,16 @@ The shared repository never chooses a provider or model:
 `null`; it is not a general default-model resolver. The wrapper therefore binds
 the exported review session's actual provider/model. When debug reports a
 configured model, the export must match it. Every assistant message must remain
-on the same actual provider/model.
+on the same actual provider/model. The local boundary probe uses at most 60
+seconds of the controller-granted wrapper timeout, and its elapsed time is
+charged against later run, retry, and export calls. Each call receives only the
+remaining wrapper timeout. Model runs also reserve 10% of the original budget,
+clamped to 3–10 seconds, so a completed session still has bounded time to export
+the verdict after a run-tail timeout. Timeout-tail recovery additionally
+requires the export's final assistant message to contain the exact frozen set
+of required concern conclusions; an ordinary stop/sentinel without that bound
+coverage remains a timeout. Legacy calls with no frozen concern set therefore
+never recover a verdict from exit 124.
 
 To make OpenCode reviews use a different model from everyday OpenCode work,
 configure only the local agent entry, using provider/model names that exist on
@@ -180,11 +193,46 @@ operators bypass a broken executable shim with explicit `KIMI_BIN`.
 
 ## Client Tool Boundaries
 
+Claude owner-aware review takes a bounded host-vocabulary baseline before the
+formal invocation. The baseline uses the same resolved Claude executable with
+an independent empty working directory and no tools, plugins, MCP servers,
+settings, workspace instructions, custom commands, agents, or user skills. Its
+model result is ignored; only the init event is used. The wrapper also requires
+the installed CLI's own `--safe-mode` help contract to state that skills are
+disabled; if an upgrade removes that contract, this lane refuses and may
+cascade instead of treating user vocabulary as host vocabulary. The formal
+init may reuse unique whole-string baseline commands only when each name is
+either bare or an already pinned built-in with a non-bare spelling, and both
+events report the same CLI version. Baseline-reported skills never grant
+formal-run authority: a new skill remains fallback-eligible until it is pinned
+as a reviewed built-in or selected by the controller. `terminal_slash_commands`
+must be a unique plain-string subset of the declared slash commands.
+
+The baseline and formal invocation share one caller-granted timeout budget.
+Baseline elapsed time, including validation, is deducted before the formal
+call; if no whole second remains, the Claude lane reports a fallback-eligible
+timeout instead of extending the controller deadline.
+
+The baseline never weakens the executable boundary. Any baseline tool, plugin,
+MCP server, permission change, malformed entry, or unknown non-empty surface
+invalidates the lane. The formal invocation still rejects tools, authority
+drift, namespaced customizations, and host names absent from its baseline. A
+version mismatch or an unbaselined bare host identifier refuses this Claude
+lane but may cascade as unverified capability drift; a proven tool, authority,
+or customization breach remains terminal.
+Owner-free review disables slash commands and does not need this probe. Routine
+Claude built-in command changes therefore do not require a repository allowlist
+update. A new skill, tool, authority mode, or unreviewed schema may still make
+the Claude lane unavailable by design because those surfaces can carry
+capability rather than display-only vocabulary.
+
 Kimi retains the user's credentials and ordinary provider/model settings by
 seeding a private writable runtime home from the validated source home. Session,
 log, history, telemetry, update, workspace-index, binary, hook, MCP, plugin,
 skill, agent, and `AGENTS.md` inputs are excluded so the formal reviewer cannot
-inherit executable extensions. The `credentials/` and legacy `oauth/`
+inherit executable extensions. Controller-selected native skill names must
+match the package-name grammar before they can enter the generated agent body.
+The `credentials/` and legacy `oauth/`
 directories are never copied: each validated one is linked back to its
 user-owned path, because the CLI persists OAuth credentials with an atomic
 tmp/fsync/rename write and uses the legacy path for cross-process refresh
@@ -268,71 +316,41 @@ including partial copy failure and trappable signal paths, and emits at most one
 terminal inconclusive result when those paths overlap. `SIGKILL`
 or a host crash cannot run cleanup and may leave the private home in `TMPDIR`;
 operators treat that as infrastructure cleanup evidence, never review success.
-The formal run does not inherit executable review extensions: the private config
-decodes TOML table headers before removing hook and inherited permission tables
-(including quoted-key spellings), decodes top-level assignment keys before
-removing hook, permission, and both skill-discovery controls in table or inline
-form. It semantically verifies that the entire permission object is exactly the
-generated three-rule policy and that hooks or skill discovery are absent. The
-rendered config is written as a private mode-0600 sibling and atomically replaces
-the copied file, so a read-only source config remains usable and unchanged. It omits
-top-level `AGENTS.md`, MCP, hook, plugin, skill, and agent inputs. Runs without selected
-owners pass an empty `--skills-dir`; owner-aware runs pass the controller-verified full
-installed CCL skill registry through `--skills-dir` and explicitly name only the
-selected owners in the prompt. It then installs static Kimi permission rules that allow only the
-frozen packet `Read`: `Read(!<exact-normalized-packet>)` denies every other read,
-while `!Read` denies every non-Read tool. This complement form is intentional:
-Kimi 0.28 evaluates deny policy before allow policy, so a global `deny "*"`
-would also suppress the exact allow. The wrapper resolves its fresh runtime root
-with `pwd -P` before constructing the packet, prompt, allow, and complementary
-deny, so macOS `/var`/`/private/var` aliases cannot give those surfaces different
-spellings. The stream audit remains a second boundary and
-rejects any non-packet or mutating model tool event. The packet is hashed before
-and after the formal run, so mutation produces terminal `binding_mismatch`.
-The prompt requires bounded contiguous reads of the exact packet, starting at
-line 1. The parser correlates each `Read` result with its `line_offset` and
-`n_lines`, rejects unpaginated reads and generated preview `output_path` reads,
-rejects page offsets beyond the packet, requires every successful result line
-to carry the expected contiguous line
-number, and accepts a verdict only after the page ranges cover every packet
-line. Candidate text that merely contains a tool diagnostic cannot change that
-decision. The controller freezes valid staged profiles in a canonical multiline
-form that every wrapper consumes unchanged, so Kimi's per-line preview limit
-cannot hide `required_concerns`; valid resume hints remain metadata and
-do not count as either packet coverage or verdict text.
-Because Kimi interprets permission arguments as picomatch patterns, a physical
-packet path containing pattern metacharacters is rejected before inference as
-fallback-eligible `kimi_packet_path_unrepresentable`; it is never interpolated
-as a falsely exact rule.
+The formal run removes inherited hooks, permissions, MCP, plugins, skills,
+agents, and workspace instructions from the private runtime. Its generated
+config preserves only provider, model, and thinking settings, then installs a
+non-matching global tool allowlist for no-tools delivery. `kimi doctor config`
+validates that config. For both inline and MCP delivery, a bounded cooperative
+probe attempts forbidden Read/Glob/Grep calls and rejects any observed tool
+activity before candidate content is sent; MCP's one packet reader remains
+separately constrained by the generated agent, server, and formal parser.
 
-Kimi is therefore a supported reviewer client, not version-quarantined. The
-wrapper gates on a **minimum verified permission-engine version, not an equality
-pin**: what the check actually gates is Kimi's own engine (deny-before-allow
-ordering plus the picomatch complement form), which is monotone in the version
-being at least the verified one — an equality pin took the lane down on every
-Kimi release while proving nothing more. Below the floor, and any unparseable
-`--version` output, are refused before inference as fallback-eligible
-`capability_missing`; a deterministic wrapper regression covers the floor
-itself, versions above it, below-floor versions, and unparseable output. Set
-`KIMI_MIN_VERSION` to raise the floor when a future engine change is verified.
-The preflight version probe has a ten-second TERM deadline plus a one-second
-forced-kill grace, and real host runs completed real inference through the
-shared source lock. The documented negative host probes were re-run against the
-generated three-rule policy at both verified points (0.28.1 and 0.29.1) and
-returned Kimi's pre-execution permission denial for `Bash pwd`
-(`code-review rejects non-Read tools`) and `/etc/hosts` Read
-(`code-review rejects packet-external reads`); neither operation executed, and
-the exact-packet Read stayed allowed. A version above the highest verified point
-remains unverified by construction — the version-independent stream audit and
-packet hashing stay terminal there, so the boundary degrades from prevention to
-detection rather than disappearing; re-run the probes on a permission-engine
-change.
-The formal Kimi invocation uses the caller timeout plus the same one-second
-forced-kill grace; exit 137 is fallback-eligible timeout only after elapsed whole
-seconds exceed the configured deadline, while an early or pre-deadline 137 remains
-terminal operator interruption.
-Generated-config failure is fallback-eligible `capability_missing`; raising the
-600-second ceiling or weakening the stream audit is not a remedy.
+Packets at or below 16 KB stay in the no-tools prompt. Every larger packet uses
+a mode-0600 explicit agent whose frontmatter enables only
+`mcp__code_review_packet__read_packet`; candidate bytes remain in the private
+packet file rather than gaining system-prompt authority. Generated MCP config
+binds its pathless server to the one private packet path and hash. The wrapper
+hashes the frozen packet and every generated agent/MCP artifact before and
+after inference.
+It also executes the server's packet validation before Kimi starts, including
+the UTF-8 chunk bound. The agent/MCP user prompt never reveals the packet
+receipt; the reviewer must obtain it from the packet tail. Mutation is terminal
+`binding_mismatch`.
+
+The stream parser accepts only safe Kimi metadata and final assistant text for
+no-tools transports. MCP delivery additionally accepts only the exact pathless
+tool schema and packet-matching byte chunks; arbitrary paths, other tools, and
+incomplete coverage are terminal. A verdict is accepted only when its first
+line echoes the packet-specific receipt and the remaining text matches the
+review contract. Pre-inference setup and the capability probe are charged
+against the controller-granted lane budget, and the probe itself is capped at
+60 seconds. MCP review receives
+the remaining budget up to the wrapper's existing 600-second ceiling; inline
+review is additionally capped at 120 seconds because its bounded prompt remains
+visible in process argv. Both
+use a one-second forced-kill grace; a deadline timeout may cascade, while an
+early process signal remains terminal operator interruption. Generated-config or
+unsupported explicit-agent input failures remain explicit inconclusive results.
 
 Codex retains local config/rules/skills as trusted workstation inputs, receives
 the complete prompt over stdin, and runs `read-only`, `ephemeral`, and outside
@@ -368,11 +386,29 @@ OpenCode uses a private XDG data/state runtime for logs, sessions, and state.
 Only `auth.json` is linked to the user's normal credential file so a rotated
 OAuth refresh token is not stranded in a deleted private copy. The link is
 checked after every public debug/run/export command; replacement is terminal.
-The temporary `ccl-review` agent allows read/glob/grep/skill and denies
-known write, shell, network, interactive, and subagent routes. Additional
-installed plugin tools are not rejected by name. Boundary proofs, event
-streams, exports, and stderr stay outside the agent's readable project
-directory.
+The temporary `ccl-review` agent denies every built-in, plugin, and MCP tool by
+wildcard, then permits native skill loading only for the controller-selected
+skill names. The complete diff is already attached to the prompt, so workspace
+read/glob/grep access is neither needed nor available. The debug-agent boundary
+must resolve with `skill` as the only enabled capability when owner skills were
+selected; a zero-owner run requires `skill` to remain disabled. The parser gets
+that controller-owned expectation explicitly, so it cannot weaken an
+owner-aware run. OpenCode's inert `invalid` pseudo-tool may also be present
+because it only reports rejected tool calls. Boundary proofs, event streams,
+exports, and stderr stay outside the agent project directory.
+
+If `opencode run` reaches its deadline but the public session export already
+binds the same session/provider/model, the event stream itself ends with a
+matching `step_finish`/`step-finish: stop`, and the export contains the same
+final stop plus schema-valid review text, the parser accepts that verdict and
+records `transport_tail_timeout: true`. Export-only completion or any other
+incomplete evidence remains a timeout and may
+retain only the existing bounded, explicitly requested diagnostic evidence.
+HTTP 401/402/429 provider errors can arrive anywhere in a multi-event stream
+while stderr stays empty. The wrapper examines the entire bounded stream, so a
+later unrelated error cannot erase an earlier authentication, quota, or billing
+failure. Those failures remain fallback-eligible instead of becoming terminal
+`transport_unverifiable`.
 
 The OpenCode debug-agent surface is a mandatory local structural check; it does
 not invoke a model. OpenCode has no separate behavior-canary request. The formal
