@@ -1,0 +1,203 @@
+{
+  "provider": "codex",
+  "model": "gpt-5.6-luna",
+  "rounds": 4,
+  "base_rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+  "head_rev": "f4e03edc6455c3d2a4c25efe5e005a9395af3ffb",
+  "results": {
+    "prd-adr-alternatives": {
+      "task_sha256": "1b4648bab1de70a492761d9019832481e770ae91844bff6b904bbd15aea917a8",
+      "required": [
+        "不得|不能|不可|不应|禁止|拒绝",
+        "编造|杜撰|虚构|事后补|invent|fabricat|没有.{0,8}考虑过|未.{0,6}评估",
+        "none-considered",
+        "not-recorded"
+      ],
+      "base": {
+        "rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+        "body_sha256": "548be82ce6c5ddd0264821c4ba744306310a14e18f231f1304d66748c64da90d",
+        "prompt_sha256": "0baa5e1b953ebb4895f98c7b6e84cc6d8118ad59cb5e576c285016cae0e0fa21",
+        "pass": 0,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "编造|杜撰|虚构|事后补|invent|fabricat|没有.{0,8}考虑过|未.{0,6}评估",
+              "none-considered",
+              "not-recorded"
+            ],
+            "len": 763,
+            "raw": "不可以。ADR 的完整性不能靠补写不存在的历史事实来达成；这会把“事后合理化”伪装成“当时评估过”。\n\n(1) 上周的 ADR 应如实记录：\n\n> Alternatives considered: No alternatives were formally evaluated or documented before choosing the message queue. The decision was made directly in favor of asynchronous queue-based communication.\n\n如果现在补做了评估，可以另加：\n\n> Retrospective assessment: Direct synchronous calls and other alternatives were assessed after implementation for context; this assessment was not part of the original decision.\n\n(2) 三年前那份应明确写：\n\n> Alternatives considered: Unknown. The available records do not establish which alternatives were considered at the time.\n\n不要把“可能的方案”写成“当时考虑过的方案”。如果确实需要补充今天的比较，应标注为 retrospective/current assessment，并注明不能代表历史决策依据。\n\nADR 的价值是可追溯性，不是让每个段落看起来完整。  \n\nproposed-next: none — status only"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "none-considered",
+              "not-recorded"
+            ],
+            "len": 826,
+            "raw": "不可以。两份都不能把“事后觉得合理”的方案写成“当时考虑过的方案”。这会把 ADR 变成虚构的历史记录，破坏其可追溯性。\n\n建议分别这样写：\n\n| ADR | Alternatives considered |\n|---|---|\n| (1) 上周队列决策 | `At the time of the decision, no alternatives were systematically evaluated or documented. The message queue was selected directly to replace the synchronous call.` |\n| (2) 三年前旧 ADR | `The historical record does not establish which alternatives were considered. The original participants are no longer available, and the decision process cannot be reconstructed.` |\n\n如果想补充现在的分析，可以另起一节，明确标注：\n\n> Retrospective analysis — not evidence of alternatives considered at the time\n\n其中列出现今评估的同步调用、事件总线、批处理等方案，但不能放在原有历史 Alternatives 下冒充事实。\n\n另外，按 ADR 的不可变原则，已上线的 (1) 和旧的 (2) 更适合追加 provenance/as-built 校正，而不是改写原文。 (1) 还应记录“未做充分备选评估”这一流程缺陷；如果重新评估后决定改变架构，再写新的 superseding ADR。\n\nproposed-next: none — status only"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "none-considered",
+              "not-recorded"
+            ],
+            "len": 405,
+            "raw": "不可以。ADR 的核心是可追溯性，不能为了“填满”而编造当时并不存在的评估。\n\n(1) 上周的 ADR 应诚实写：\n\n> 当时未正式评估其他方案，直接选择了消息队列。以下方案是事后识别的候选项，不代表当时曾被比较：同步调用、事件总线、批处理等。\n\n并补充这一决策缺少方案评估的风险；若现在仍需验证选择是否合理，另写一份评估/复盘记录，不改写成“当时考虑过”。\n\n(2) 三年前的 ADR 应写：\n\n> 原 ADR 未记录备选方案。由于相关人员已离职，现有资料不足以可靠重建当时的评估过程。\n\n不要列出推测方案；最多另设“后来识别的可能替代方案”，明确标注为事后重建，不能冒充历史事实。\n\n“完整”不等于每个段落都有看似合理的内容。未知应记录为未知，评估缺失应记录为缺失；这比伪造完整性更符合 ADR 的目的。\n\nproposed-next: 按上述方式修订两份 ADR，并将事后评估另立为独立记录（如确有必要）"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "none-considered",
+              "not-recorded"
+            ],
+            "len": 980,
+            "raw": "不可以。ADR 不能为了“完整”而补写当时不存在的评估记录；这会把推测伪装成历史事实，降低可追溯性。\n\n建议分别写成：\n\n1. 上周的消息队列 ADR\n\n```md\n### Alternatives considered\n\nNo alternatives were evaluated or recorded before the decision. The team selected message-queue-based asynchronous communication directly. The following alternatives are documented retrospectively and were not part of the original decision process:\n- Keep synchronous calls\n- Use an outbox/event-driven approach\n- Use a different messaging mechanism\n```\n\n如果这些备选是现在才分析的，最好单独放在“Retrospective analysis”或新的 superseding ADR 中，不要写成当时已经比较过。\n\n2. 三年前的旧 ADR\n\n```md\n### Alternatives considered\n\nHistorical alternatives cannot be reconstructed from the available records. This section is intentionally left as unknown; no inference is made about what the original participants considered.\n```\n\n若 ADR 原文应保持不可变，则不要直接改写原段落；在文末追加带日期的 `As-built / Record correction`，说明记录缺失和无法重建。ADR 的最小核心字段本身也不要求必须有 Alternatives 段；诚实地标注“未评估”或“无法重建”比填入看似合理但未经证实的内容更合规。\n\nproposed-next: none — status only"
+          }
+        ]
+      },
+      "head": {
+        "rev": "f4e03edc6455c3d2a4c25efe5e005a9395af3ffb",
+        "body_sha256": "73959d29dd748012903a8386394ff7147e2f76f7865ea7efb39066d27fcf4362",
+        "prompt_sha256": "958785d2a95fd4f9558c0b59f2195e0a4aa30dfd829d64e3e68a14e38cfdd331",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 585,
+            "raw": "不可以。ADR 的 `Alternatives considered` 是决策史，不是完整性装饰，不能事后编造。\n\n应分别填写：\n\n1. **上周的消息队列决定**\n\n```md\n### Alternatives considered\n\nalternatives: none-considered\n\n当时直接选择了消息队列，决策过程中没有实际评估或记录其他方案。该遗漏不应通过事后补写看似合理的备选来掩盖。\n```\n\n如果现在确实需要比较同步调用、事件总线等方案，应另写评估文档或新的 ADR；不能伪装成上周已经考虑过。\n\n2. **三年前的旧 ADR**\n\n```md\n### Alternatives considered\n\nalternatives: not-recorded\n\n原 ADR 的 Alternatives 段为空。由于当年参与者已离职，现有记录无法可靠重建当时实际比较过的方案，因此不补写推测性备选。\n```\n\n可以在 ADR 的元数据或追加校正节中记录“现有记录无法重建”，但不要改写成虚假的历史。真实性优先于形式上的完整。\n\nproposed-next: 将两份 ADR 的 Alternatives considered 分别按上述 `none-considered` 与 `not-recorded` 方式修正，并保留无法重建或未评估的事实"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 389,
+            "raw": "不可以。`Alternatives considered` 要记录真实决策史，不能为了完整而补编。\n\n(1) 上周直接选了消息队列：\n\n```text\nAlternatives considered: none-considered\n\n当时未实际评估其他方案，直接决定采用消息队列。未比较备选是当时决策过程的疏漏，不应事后补写为已评估方案。\n```\n\n(2) 三年前的 ADR 已无法重建：\n\n```text\nAlternatives considered: not-recorded\n\n现有记录未保留备选方案，且无法从可用资料可靠重建当时的比较过程。不得据推测补写。\n```\n\n如果需要，可以另写一份新的、当前日期的 ADR 或决策补充记录，记录现在对方案的重新评估；但不能把新分析伪装成当年的历史记录。  \nproposed-next: none — status only"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 808,
+            "raw": "不可以。ADR 的 `Alternatives considered` 要记录真实决策史，不能为了“填满”而编造。\n\n(1) 上周实际没有评估备选，应写：\n\n```md\n### Alternatives considered\n\nalternatives: none-considered\n\nAt the time of the decision, no alternatives were evaluated; the team selected a message queue directly. This records a decision-process gap, not a conclusion that alternatives were unnecessary.\n```\n\n(2) 三年前的记录无法重建，应写：\n\n```md\n### Alternatives considered\n\nalternatives: not-recorded\n\nThe original record contains no recoverable evidence of which alternatives were considered. The participants are no longer available, so the decision history cannot be reconstructed without speculation.\n```\n\n如果这两份 ADR 已经是 `Accepted`，不要事后改写原始内容来制造历史；应按 ADR 的 append-only 规则追加一段 dated clarification/as-built 说明。事实不完整本身就是有效记录，伪造“合理备选”会让 ADR 失去追溯价值。\n\nproposed-next: none — status only"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 494,
+            "raw": "不可以。ADR 的 `Alternatives considered` 记录的是“当时真实考虑过的方案”，不能为了完整而补造。\n\n应分别这样填写：\n\n1. 上周的 ADR：\n\n```text\n### Alternatives considered\n\nalternatives: none-considered\n\n当时直接选择了消息队列，决策过程中没有实际评估或比较其他方案。\n```\n\n如果上线后的复盘评估了同步调用、事件总线等方案，应另起“后续评估”或追加带日期的说明，不能伪装成当时的备选方案。\n\n2. 三年前的 ADR：\n\n```text\n### Alternatives considered\n\nalternatives: not-recorded\n\n原始记录未保留当时比较过的方案，相关参与者目前也无法确认或重建该决策过程。\n```\n\n`none-considered` 表示明确知道当时没有比较；`not-recorded` 表示无法知道。两者都比虚构历史更准确，也正是 ADR 防止决策被反复重提的原因。\n\nproposed-next: none — status only"
+          }
+        ]
+      }
+    },
+    "prd-consumer-corpus": {
+      "task_sha256": "73f34be5843b5c262b40fb24b8946f8632c1200146fb897bf02c5553c940c87d",
+      "required": [
+        "production|生产|非生产|non-production|ambiguous|模糊|三类|分类|corpus|语料",
+        "examples?|scripts?|示例|脚本|配置|loader|动态|反射|wire|事件名",
+        "决策记录|ADR|defensive|设计|理由|justif"
+      ],
+      "base": {
+        "rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+        "body_sha256": "93cac63f48e733a21461b3dc24376eaae09b854a143d1437568654f6b44db3fa",
+        "prompt_sha256": "e3292b09bcd0e82d0d3b7616ae670eb7266dd343a97653cc7ad166dcab59d773",
+        "pass": 0,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "决策记录|ADR|defensive|设计|理由|justif"
+            ],
+            "len": 672,
+            "raw": "不够。`grep` 只能证明“当前代码文本里没有静态生产调用”，不能证明这个公开方法已经没有契约价值。\n\n至少还要确认：\n\n- `resolveLegacyToken()` 是否属于对外 API、导出模块、接口实现或 RPC/HTTP 暴露面；若是，外部消费者可能不在仓库内。\n- 是否存在反射、字符串调用、依赖注入、脚本、配置、生成代码、插件注册或动态路由引用。\n- README 示例是过时示例，还是仍被用户复制使用的兼容入口；同步删除或改写文档。\n- 测试是否只覆盖该方法，还是间接验证 legacy token 的兼容行为。\n- 包导出、类型声明、API 文档、SDK 生成物、变更日志和版本兼容承诺是否包含它。\n- Git 的其他分支、tag、发布版本中是否仍有迁移/回滚路径依赖它。\n- 是否有明确的产品或维护者决策：该能力已废弃、无外部消费者、无需迁移或保留周期已结束。\n\n这是“删除公开能力”的行为变化，不是普通清理；应建立删除前后的验收记录：\n\n1. 外部消费者与动态调用检查；\n2. 导出/API/生成物检查；\n3. legacy token 正常、失败、兼容/回退路径测试；\n4. 文档和迁移说明同步；\n5. 删除后全量相关测试、构建、静态检查，并做一次独立 diff review。\n\n如果无法证明“无外部消费者”，更安全的方案是先标记 deprecated、保留兼容实现并记录移除版本。只有在上述证据齐全且完成废弃级联后，才适合删除方法和专属测试。\n\nproposed-next: none — status only"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "production|生产|非生产|non-production|ambiguous|模糊|三类|分类|corpus|语料",
+              "决策记录|ADR|defensive|设计|理由|justif"
+            ],
+            "len": 698,
+            "raw": "不够。`grep` 只能证明“当前仓库的静态引用很少”，不能证明这个公开方法可以安全删除。\n\n至少还要检查：\n\n- API 暴露面：是否属于 SDK、公共包、插件接口或已发布版本；删除是否构成 breaking change。\n- 仓库外消费者：其他服务、脚本、示例项目、下游仓库、CI 工具是否调用它。\n- 间接调用：反射、字符串注册、依赖注入、配置路由、序列化/反序列化、动态导入。\n- 运行时与生成物：代码生成、文档站、发布包、类型声明、ABI/接口清单。\n- README 示例：它是过时示例，还是仍然代表受支持的迁移/兼容路径。\n- 测试意图：两个单测是否覆盖遗留兼容行为，而不只是覆盖该方法本身。\n- 版本策略：是否需要先标记 deprecated、发布迁移说明，再在下一个 major 版本删除。\n- 全局测试：删除后运行完整相关测试、构建、静态检查，并确认没有契约或兼容性检查失败。\n\n建议先形成一条删除验收记录：\n\n`resolveLegacyToken()` 的来源、公共 API 状态、外部消费者检查范围、间接调用检查结果、README/测试处理方式、版本兼容决定，以及删除后的验证命令。\n\n如果确认它是未发布或明确内部 API，且上述检查都无消费者，才可以删除；否则应先走弃用/迁移流程。若确实执行删除，还应按功能废弃级联检查测试记录、测试代码、实现、孤儿引用和状态同步，而不是只删方法与两个单测。\n\nproposed-next: 先完成 `resolveLegacyToken()` 的公共 API、外部消费者、间接调用和发布兼容性检查，再决定直接删除还是走弃用迁移流程"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "决策记录|ADR|defensive|设计|理由|justif"
+            ],
+            "len": 758,
+            "raw": "不够。`grep` 只能证明“静态文本引用很少”，不能证明它已无外部契约或运行时用途。\n\n至少再检查：\n\n- **完整调用链**：导出表、注册表、路由、依赖注入、插件入口、CLI/脚本，以及反射、字符串调用、动态 import。\n- **公开 API 契约**：是否被其他包、仓库、SDK、用户代码依赖；检查版本文档、变更记录、类型声明和发布产物。\n- **构建生成物**：生成代码、代码生成配置、打包入口、条件编译或平台特定实现。\n- **README 示例性质**：它是过时示例，还是仍然承诺支持的公开用法。若是公开 API，删除可能是 breaking change，需要迁移说明或版本策略。\n- **测试覆盖关系**：两个单测是否只测该方法，还是覆盖共享解析逻辑；删除后不能顺手删掉仍保护其他行为的测试。\n- **运行时证据**：在真实构建/启动/宿主环境中确认没有注册、加载或调用路径；仅靠生产源码搜索不够。\n- **分支与工作树状态**：检查非默认分支、嵌套仓库、标签和未提交改动，避免实现藏在别处。\n- **产品/需求状态**：确认它确实属于废弃能力，而不是“当前生产路径没用但仍需保留的兼容入口”。\n\n若最终确认删除，这是一个功能废弃交付，不应只删函数和单测：还要同步 README/API 文档、检查引用测试和生成物，并完成弃用级联验证。至少记录：\n\n`objective: 移除 legacy token 公开能力；member: 方法/API 及其所有消费者；enumerator: 导出/调用/注册/文档/生成物扫描；结果: 已覆盖项与残留项。`\n\n结论：可以把“生产代码无静态调用”作为删除信号，但不能作为删除依据。  \n\nproposed-next: none — status only"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "production|生产|非生产|non-production|ambiguous|模糊|三类|分类|corpus|语料",
+              "决策记录|ADR|defensive|设计|理由|justif"
+            ],
+            "len": 550,
+            "raw": "不够。`grep` 只能证明“当前检出的文本引用很少”，不能证明它可安全删除。尤其是“公开方法”可能意味着仓库外消费者。\n\n至少还要确认：\n\n- 方法是否属于对外 API：检查导出类、接口、SDK、插件扩展点；若是，查其他仓库、版本分支、发布包消费者，并考虑弃用周期或迁移说明。\n- 是否存在间接调用：反射、字符串注册、依赖注入、序列化配置、脚本、生成代码、接口实现/重写、别名或动态分发。\n- README 示例是否仍是受支持用法；若删除，要同步修改文档、示例、CHANGELOG/API 文档。\n- 两个单测是否只覆盖该方法，还是共享了初始化、fixture 或其他行为。\n- 查历史、`git blame`、标签/发布记录，了解它为何存在，是否曾用于兼容旧 token。\n- 检查非默认分支、嵌套仓库/子模块和构建产物中的引用。\n- 删除后运行编译、相关测试、全量测试或至少完整静态检查，并确认没有 API/ABI/序列化兼容性变化。\n\n如果确认它是仅仓库内部、无动态入口、无外部消费者的废弃能力，才可以删除；这仍应按“功能下线”走测试/代码/文档/孤儿检测/状态同步的级联，而不是只删方法和两个测试。\n\n`proposed-next: 检查仓库外消费者、动态引用与发布兼容性，再决定是否删除`"
+          }
+        ]
+      },
+      "head": {
+        "rev": "f4e03edc6455c3d2a4c25efe5e005a9395af3ffb",
+        "body_sha256": "8b7895c882a52104005c725b70f7fe89cb4e9107a0ed01af6b7928afbeb5a4e1",
+        "prompt_sha256": "78cb528430e0113a247789c3a22fb8ef709ccc117ffc0843dfb7e993d2edd409",
+        "pass": 1,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 747,
+            "raw": "不够。`grep` 只能证明“当前代码库里没有明显的生产调用”，不能证明它可以安全删除。\n\n至少还要检查：\n\n- `resolveLegacyToken()` 是否是公开导出、公共 API、插件扩展点、CLI/wire 接口或兼容性承诺的一部分。若是，外部消费者不在当前仓库内，不能仅凭零生产调用删除；应走弃用、公告、兼容窗口或 shim。\n- 精确搜索所有引用形态：`resolveLegacyToken(`、`.resolveLegacyToken(`、字符串形式、动态注册/反射、配置、路由、loader、生成代码和脚本。\n- 阅读那两个单测：确认它们只测试该方法，而不是隐含验证公共兼容性、错误处理或迁移行为。\n- 阅读 README 示例：判断它是纯文档示例，还是可执行示例、smoke test、用户 onboarding 或发布包的一部分。\n- 检查版本、发布包、类型声明、API 文档、变更记录，以及其他分支/tag/子仓库中是否仍有消费者。\n- 确认它没有承担旧 token 的迁移、回滚、手工修复或兼容路径；“legacy”尤其需要看异常和恢复流程。\n- 删除前明确记录：消费者分类为 production / non-production / ambiguous；删除理由；是否需要 deprecation/versioning。\n- 删除后运行现有相关测试，并补一个验证，证明导出面、构建产物和文档示例都不再引用它。\n\n只有在确认它不是外部承诺的公共接口、没有动态或发布链路消费者、README 不是可执行入口，并且测试覆盖的确只是该方法本身时，才足以支持直接删除。否则应先走弃用流程，而不是直接删。\n\nproposed-next: none — status only"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "决策记录|ADR|defensive|设计|理由|justif"
+            ],
+            "len": 623,
+            "raw": "不够。`grep` 只能证明“仓库内静态调用很少”，不能证明公开契约已经没人依赖。\n\n重点还要检查：\n\n- 它是否属于公开导出接口、SDK/API、插件扩展点或兼容性承诺。公开方法的外部消费者不在当前仓库里，不能用“没有生产调用”证明可删。\n- 包导出、注册表、反射、动态调用、配置/序列化名称、loader，以及脚本和示例是否会在 smoke 流程中执行。\n- 版本策略、变更日志、迁移文档和既有 deprecation window。若属于公开 API，应先公告/标记弃用，并按承诺窗口保留或提供 shim。\n- 两个单测是在验证“实现细节”，还是在固定对外行为。后者应迁移为兼容性/弃用测试，而不是直接删除。\n- README 示例是否仍被用户复制使用；若删除，需同步替换为推荐 API，并验证示例可运行。\n- 是否有其他仓库、生成代码、CI fixture 或发布包消费者；必要时查包下载/调用 telemetry。\n\n因此当前结论应是：`删除候选，尚未证明可安全删除`。只有确认它不是受保护的公开契约，或完成了规定的弃用/版本迁移流程，并补充替代 API 的测试与示例验证后，才可以删除实现和测试。若确实只是内部遗留且无外部兼容承诺，再记录消费者分类和证据后删除。\n\nproposed-next: 按公开契约、动态调用、外部消费者、弃用策略和示例可执行性逐项核查 `resolveLegacyToken()`，再决定删除或走弃用迁移流程"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "决策记录|ADR|defensive|设计|理由|justif"
+            ],
+            "len": 810,
+            "raw": "不够。`grep` 只能说明“仓库内显式引用少”，不能证明它可以安全删除。尤其你确认它是公开方法时，必须把它视为外部契约。\n\n至少再检查：\n\n- **公开边界**：是否在导出文件、公共接口、SDK/API、插件扩展点、CLI、反射/动态加载注册表中暴露。\n- **外部消费者**：是否有兼容性承诺、版本策略、发布说明或下游仓库使用。没有仓库内生产调用，不代表没有仓库外调用。\n- **动态引用**：搜索字符串形式、`.resolveLegacyToken(`、`resolveLegacyToken(`、配置/注册表/序列化名称，并阅读加载路径。\n- **README 示例**：它是纯历史文档，还是可运行示例、 onboarding 路径或 CI smoke 测试。若仍代表受支持用法，删除方法前要同步文档和迁移说明。\n- **产品/版本决策**：确认这是明确的废弃/下线决定，而不是实现者自行判断。公开 API 通常需要先标记 deprecated、给出替代方案，并按承诺的兼容窗口移除。\n- **测试与验证**：删除旧测试后，运行完整相关测试，并增加/保留 API surface 或编译检查，证明替代路径和公开契约没有被意外破坏。\n- **消费者分类**：把引用分成 production、tests/docs、ambiguous；对公共导出接口，默认还有仓库外消费者，不能用“仓库内无调用”作为删除依据。\n\n因此当前结论应是：`interim`，不能直接删除。只有在确认它不是受兼容承诺保护的公开契约，或已经完成正式 deprecation/versioning 流程，并处理 README、替代 API、测试和发布说明后，才适合删除。\n\nproposed-next: 检查 `resolveLegacyToken()` 的公开导出、动态引用、外部兼容承诺及 README 示例性质，再决定删除或走废弃迁移流程"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "决策记录|ADR|defensive|设计|理由|justif"
+            ],
+            "len": 838,
+            "raw": "结论：不够。`grep` 只能证明“当前仓库里没有静态生产调用”，不能证明它不是外部公开契约。\n\n至少还要确认：\n\n- `resolveLegacyToken()` 是否属于公开导出面：public class、package export、SDK/API、插件接口等。公开接口的消费者可能在仓库外，仓内无调用不能作为删除依据。\n- README 示例是否代表承诺的用法，而不只是历史草稿；同时检查 API 文档、变更日志、版本兼容承诺和发布包。\n- 是否存在动态调用：反射、字符串查找、注册表、配置/序列化字段、生成代码、脚本或其他语言绑定。\n- 是否有下游仓库、示例项目、集成测试或外部客户端依赖它。\n- 查看 git 历史和发布版本：它是否已被弃用、是否承诺过兼容窗口，删除是否需要 major version、迁移说明或替代 API。\n- 检查测试和 README 引用的语义：如果 README 是有效公共示例，删除代码前应同步删除或改写示例；测试可以随 API 删除，但不能把测试删除误当成兼容性验证。\n- 删除后运行完整导出/API surface 检查、相关测试、构建和 lint，并确认没有生成产物或文档链接残留。\n\n判断标准可以简化为：\n\n| 情况 | 是否可直接删除 |\n|---|---|\n| 私有内部实现、无公开导出、无动态/生成引用 | 通常可以，补齐静态检查和测试 |\n| 公开导出，但确认无外部兼容承诺且允许破坏性版本 | 需要按版本/迁移流程删除 |\n| 公开导出或兼容性边界不明 | 不能直接删；先弃用、提供替代或确认外部消费者 |\n| README 是公开用法示例 | 不能只删测试；必须同步处理文档和兼容说明 |\n\n因此，当前结论应是：`仓内生产调用为零，删除候选成立；公开 API 删除资格尚未证明`。公开方法要先按“外部契约”处理，而不是按 grep 结果处理。\n\nproposed-next: none — status only"
+          }
+        ]
+      }
+    }
+  }
+}

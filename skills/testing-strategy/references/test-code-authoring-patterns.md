@@ -196,6 +196,7 @@ def test_admin_can_export_when_quota_zero():
 
 **落地**：
 - 默认状态验证；只在 cross-boundary 副作用（外部 IO / event emit / metric）时上 mock
+- 替身放在**昂贵、非确定、不安全/不可逆、需特权、或不可用的边界**（模型适配器 / 网络 / 时钟 / 设备 / 部署·迁移·支付执行器 / 删除类文件操作）；单元隔离与确定性故障注入（拒绝、回滚、部分失败）也可用替身；边界内其余下游用真实现——**且只在隔离的、测试自有的资源上**运行。给正式组件手搓的替身只证明"桥接把字节搬过去了"，证明不了该组件按断言行为——集成/桥接类测试用脚本化的边界替身 + 真工具/真执行器（发布入口 smoke 仍按 e2e 参考走真实路径）
 - 行为验证必须 assert 业务可观察的 interaction（"以正确参数调了一次"），不是"调了某 helper"
 - 一个测试只用一种风格 — 混用难读
 
@@ -239,6 +240,7 @@ internal_helper_mock.parse.assert_called_once()  # 重构改 parse 就挂
 - critical-path 模块单独定 ratchet（如 `<critical-module> line ≥ 90% 且 branch ≥ 80%`）— 模块名按 repo 实际填
 - 用 mutation testing 周期性检查（见 source-to-case-workflows §C.1）— 比追 100% line 更省力且更真实
 - coverage 报告 + uncovered lines 进 PR comment（不要靠开发者主动看）
+- 覆盖门下的 uncovered line **先当删除候选、再当补测候选**：门在正确地标记死代码/不可达分支时，补一个测试只是把死代码钉死；行覆盖是必要不充分——证明行跑过了，不证明功能按交付形态工作
 
 ---
 

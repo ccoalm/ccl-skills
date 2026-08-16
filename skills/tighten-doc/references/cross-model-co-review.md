@@ -1,0 +1,3 @@
+# Cross-model / codex co-review caveat
+
+A second model (codex etc.) co-reviewing the doc systematically pushes toward formal/书面 register: formalizing punchy 白话, deleting user-approved compact `/`/`+` enumerations, re-expanding deliberately short lines, adding "客户/验证" corporate nouns. **Cross-model agreement is a recommendation, not a decision.** Accept only hits matching this rubric (元语 / 翻旧账 / 修辞尾 / 重复 / 结构: low-info section, subtitle 元语); reject every "口语化 → 书面" rewrite and any re-expansion of an intentionally terse line — the user's short/白话/punchy taste wins. Present its output verbatim, then state what you took, what you rejected, and why.
