@@ -209,8 +209,11 @@
             "missed": [
               "快照|snapshot|replay|eval|评测|行为变更|行为"
             ],
-            "len": 614,
-            "raw": "审查结论：Request changes，不建议合入。\n\n阻断问题：\n\n1. 工具契约语义被改坏了  \n   `scope` 原本表达搜索范围（`workspace|selection|open-editors`），现在却表达 renderer panel。模型会据此生成错误参数，且搜索权限/范围与展示层职责混在一起。`FsIndexPlugin`、LSP transport 也是实现细节，不应替代用户可理解的搜索语义。\n\n2. 诊断信息不足以帮助模型恢复  \n   `unknown scope; try again` 没有说明允许值，也没有指出参数应代表搜索范围。模型无法可靠纠错，容易重复相同调用。应返回结构化、与 schema 一致的错误，例如：\n\n   `invalid scope: expected one of workspace, selection, open-editors`\n\n建议恢复原有 `scope` 语义；若确实需要控制 renderer panel，应使用独立且明确的内部参数，并限制其对模型的暴露。同步更新 schema、校验器、测试和模型可见错误。`/var/folders/pf/rc8nt71164nd78qh1_l1xp7h0000gn/T/rb02320260815-76945-du19ca` 中没有可读取的 Git 仓库或 PR diff，因此以上结论基于你提供的改动描述。"
+            "len": 553,
+            "raw": "审查结论：Request changes，不建议合入。\n\n阻断问题：\n\n1. 工具契约语义被改坏了  \n   `scope` 原本表达搜索范围（`workspace|selection|open-editors`），现在却表达 renderer panel。模型会据此生成错误参数，且搜索权限/范围与展示层职责混在一起。`FsIndexPlugin`、LSP transport 也是实现细节，不应替代用户可理解的搜索语义。\n\n2. 诊断信息不足以帮助模型恢复  \n   `unknown scope; try again` 没有说明允许值，也没有指出参数应代表搜索范围。模型无法可靠纠错，容易重复相同调用。应返回结构化、与 schema 一致的错误，例如：\n\n   `invalid scope: expected one of workspace, selection, open-editors`\n\n建议恢复原有 `scope` 语义；若确实需要控制 renderer panel，应使用独立且明确的内部参数，并限制其对模型的暴露。同步更新 schema、校验器、测试和模型可见错误。`<probe-tmpdir>` 中没有可读取的 Git 仓库或 PR diff，因此以上结论基于你提供的改动描述。",
+            "redactions": [
+              "host temp path replaced with <probe-tmpdir>"
+            ]
           },
           {
             "round": 2,

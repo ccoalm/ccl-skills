@@ -150,6 +150,7 @@
 #### Kimi final-candidate lane
 - 正式 wrapper 先后在大包上以 `packet_too_large_for_inline`、在 16KB 内语义包上以 `kimi_tool_capability_unverified` fail closed，均未产生模型 verdict、不得计入评审。诊断确认后者是本机 Kimi capability probe 启动时 Node watcher 报 `EMFILE`；用户明确授权本会话手工使用 Kimi，wrapper 修复在独立会话进行。
 - 手工 Kimi 初审在无 Git 的仓外临时目录只读取完整 diff（candidate=`dd52ab3`，548044 bytes，sha256=`30111d12d8dbe18d34c4bb2898eebd44891f05a8d12d5ac401d520f8786cdd66`），逐块覆盖 3176 行并重读长行，产出 1×P2：testing 入口无条件写「leave exhaustive matrix to CI」，把 blocking-job 限定只放在 lazy reference，能在 absent/partial/non-blocking CI 下制造假绿。回查属实，accepted；`8de5167` 恢复行内限定，Batch I 在该 head 重跑并以新分数回填。
-- 最终完整 diff 的 fresh Kimi review + challenge 在本 plan closeout commit 后执行；原始事件与提取 verdict 保存在仓外临时 artifact，只有两轮均为明确 clean 才可合并。
+- 对 candidate=`8e5a28c` 的 fresh 完整 review 产出 1×P2：历史 raw answer 泄漏本机 `/var/folders/.../rb023...` 临时路径，使 evidence 子契约的 no-host-path 声明为假。回查属实，accepted；仅把该路径替换为 `<probe-tmpdir>`，同步 `len` 并增加显式 `redactions` 元数据，评分关键词、pass/missed 与分数不变。
+- 上述处置后的最终完整 diff 重新执行 fresh Kimi review + challenge；原始事件与提取 verdict 保存在仓外临时 artifact，只有两轮均为明确 clean 才可合并。
 
 - 过程教训（进 batch III）：(a) 评审器只见 diff，凡引用 reference 的行内压缩会被判"丢失不变量"——压缩时把承重不变量留在行内；(b) 探针评分器先自证能报失败再用；(c) 宿主 shell 是 zsh，`--paths $VAR` 不拆词会得到空 packet（`empty_diff`），字面写路径或 `${=VAR}`；(d) `review_gate.sh --timeout` 传 >600 直接判 `invalid_input`（不是 clamp），packet >200KB 同样 `invalid_input`；(e) bounded packet 评审器看不到 paths 之外的文件，「证据缺失」类 finding 要先判是候选缺陷还是 packet 视野——后者补 paths 或另跑证据专审 lane，不要改候选去迎合；(f) 自建测量脚本先按本仓「先证明检查器能报失败」规则自测——本轮 runner 忽略 CLI 退出码的缺陷正是评审在证据专审 lane 抓到的。
