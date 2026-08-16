@@ -32,7 +32,7 @@ fi
 for version in 1.0.0 2.0.0; do
   stage="synthetic-$version-source"
   source="$tmp/source-$version"; source_pkg="$source/packages/ccl-skills-npm"; mkdir -p "$source_pkg"; cp -R "$pkg_dir"/. "$source_pkg/"; rm -rf "$source_pkg/node_modules" "$source_pkg/dist" "$source_pkg"/*.tgz
-  for asset in .claude-plugin .codex-plugin agent-context/session-start.md skills hooks packages/opencode-plugin scripts/owner-dispatch .worktree-only; do mkdir -p "$(dirname "$source/$asset")"; cp -R "$pkg_dir/../../$asset" "$source/$asset"; done
+  for asset in .claude-plugin .codex-plugin agent-context skills hooks packages/opencode-plugin scripts/owner-dispatch .worktree-only; do mkdir -p "$(dirname "$source/$asset")"; cp -R "$pkg_dir/../../$asset" "$source/$asset"; done
   stage="synthetic-$version-version"
   (cd "$source_pkg" && npm ci >/dev/null && npm version "$version" --no-git-tag-version --allow-same-version >/dev/null)
   rm -rf "$source_pkg/node_modules"
@@ -88,6 +88,20 @@ stage=opencode-install-v1
 node "$cli_v1" install --host opencode --json | grep -q '"status":"installed"'
 expected_skills=$(find "$tmp/install-v1/node_modules/@ccoalm/ccl-skills/dist/assets/marketplace/plugins/ccl-skills/skills" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d ' ')
 [ "$(find "$HOME/.config/opencode/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = "$expected_skills" ]
+for runtime_asset in hooks/hooks.json hooks/guard-merge-authorization.sh hooks/merge-authorization-prompt.sh agent-context/subagent-start.md scripts/owner-dispatch/owner-dispatch.sh; do
+  test -f "$HOME/.config/opencode/ccl-skills/runtime/$runtime_asset"
+done
+stage=opencode-plugin-load-v1
+opencode_config="$tmp/opencode-config.json"
+(cd "$tmp/workspace" && opencode debug config) >"$opencode_config"
+node -e '
+const fs = require("node:fs");
+const config = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+if (!Array.isArray(config.plugin) || !config.plugin.some((entry) =>
+  typeof entry === "string" && entry.endsWith("/plugins/ccl-skills.ts"))) {
+  process.exit(1);
+}
+' "$opencode_config"
 stage=opencode-update-v2
 node "$cli_v2" update --host opencode --yes --json | grep -q '"status":"updated"'
 node "$cli_v2" doctor --host opencode --json | grep -q '"status":"healthy"'
@@ -95,4 +109,4 @@ stage=opencode-uninstall-v2
 node "$cli_v2" uninstall --host opencode --yes --json | grep -q '"status":"uninstalled-shared-retained"'
 [ -f "$HOME/.config/opencode/skills/product-rd-workflow/SKILL.md" ]
 
-printf '%s\n' '{"status":"three-host-smoke-passed","codexTrust":"pending-unverified","openCodeSharedFiles":"retained"}'
+printf '%s\n' '{"status":"three-host-smoke-passed","codexHooks":"native-plugin-registered","openCodeHooks":"plugin-registered","openCodeSharedFiles":"retained"}'

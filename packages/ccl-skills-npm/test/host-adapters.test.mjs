@@ -23,6 +23,13 @@ import { fixture as codexFixture } from "./helpers.mjs";
 
 const assets = resolve("dist/assets");
 
+function listFiles(root, prefix = "") {
+	return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+		const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+		return entry.isDirectory() ? listFiles(join(root, entry.name), relative) : [relative];
+	}).sort();
+}
+
 function fixture() {
 	const root = mkdtempSync(join(tmpdir(), "ccl-unified-host-"));
 	const home = join(root, "home"), bin = join(root, "bin"), state = join(root, "state");
@@ -146,9 +153,29 @@ test("OpenCode installs bundled skills and preserves shared files on uninstall",
 	assert.equal(readdirSync(skills, { withFileTypes: true }).filter((entry) => entry.isDirectory()).length, expectedSkillCount);
 	const sample = join(skills, "product-rd-workflow/SKILL.md");
 	assert.equal(readFileSync(sample, "utf8"), readFileSync(join(assets, "marketplace/plugins/ccl-skills/skills/product-rd-workflow/SKILL.md"), "utf8"));
+	const runtime = join(f.home, ".config/opencode/ccl-skills/runtime");
+	const pluginAssets = join(assets, "marketplace/plugins/ccl-skills");
+	const expectedRuntimeFiles = [
+		"hooks/hooks.json",
+		...readdirSync(join(pluginAssets, "hooks"), { withFileTypes: true })
+			.filter((entry) => entry.isFile() && entry.name.endsWith(".sh") && !entry.name.startsWith("test_"))
+			.map((entry) => `hooks/${entry.name}`),
+		"scripts/owner-dispatch/owner-dispatch.sh",
+		"agent-context/session-start.md",
+		"agent-context/subagent-start.md",
+	].sort();
+	assert.deepEqual(listFiles(runtime), expectedRuntimeFiles, "OpenCode runtime closure must be exact");
+	for (const path of expectedRuntimeFiles) {
+		assert.equal(
+			readFileSync(join(runtime, path), "utf8"),
+			readFileSync(join(pluginAssets, path), "utf8"),
+			`OpenCode runtime asset drifted: ${path}`,
+		);
+	}
 	result = runOpenCode("uninstall", { yes: true }, context);
 	assert.equal(result.status, "uninstalled-shared-retained", result.message);
 	assert.equal(existsSync(sample), true);
+	assert.equal(existsSync(join(runtime, "hooks/hooks.json")), true);
 	assert.equal(existsSync(join(f.home, ".config/opencode/ccl-skills-npm")), false);
 });
 

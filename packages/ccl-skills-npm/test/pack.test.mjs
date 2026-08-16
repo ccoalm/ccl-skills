@@ -104,7 +104,7 @@ test("published tarball carries the plugin hooks in the verified snapshot", () =
 		release = JSON.parse(spawnSync("tar", ["-xOzf", artifact, "package/dist/assets/release.json"], { encoding: "utf8" }).stdout),
 		releasePaths = new Set(release.files.map((entry) => entry.path));
 	assert.equal(listing.status, 0, listing.stderr);
-	for (const path of ["hooks/hooks.json", "hooks/session-start.sh", "hooks/guard-edit-isolation.sh"]) {
+	for (const path of ["hooks/hooks.json", "hooks/session-start.sh", "hooks/guard-edit-isolation.sh", "agent-context/subagent-start.md"]) {
 		const assetPath = `marketplace/plugins/ccl-skills/${path}`;
 		assert.match(listing.stdout, new RegExp(`package/dist/assets/${assetPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
 		assert.equal(releasePaths.has(assetPath), true, `${assetPath} missing from release manifest`);

@@ -27,7 +27,7 @@ npm install --global @ccoalm/ccl-skills
 ccl-skills install
 ```
 
-The npm tarball includes the skills, agent context, plugin manifests, and runtime hooks. Installation does not need a Git checkout.
+The npm tarball includes the skills, agent context, plugin manifests, and runtime hooks. Claude Code and Codex consume the plugin hooks directly. OpenCode installs a native plugin plus the same bundled hook runtime, including edit isolation for `edit`, `write`, and `apply_patch`. Installation does not need a Git checkout.
 
 If npm returns `E404` before the initial registry release, install from source:
 
@@ -45,6 +45,7 @@ Confirm the install landed:
 claude plugin list            # expect ccl-skills@ccl-skills
 codex plugin list             # expect ccl-skills
 ls ~/.config/opencode/skills  # expect the skill directories
+test -f ~/.config/opencode/ccl-skills/runtime/hooks/hooks.json
 ```
 
 To pin one OpenCode project to this checkout instead of the global install:
@@ -76,7 +77,7 @@ The host-specific behavior is:
 | Codex | No native auto-update. `make update` runs `codex plugin marketplace upgrade` (refreshes the git snapshot) and then `codex plugin add` (installs a copy of that snapshot); running only one of the two leaves you on the old code. `make install-codex-cron` schedules those two steps daily — it edits your crontab, so it is opt-in. |
 | OpenCode | `scripts/install-opencode.sh` installs from the **current checkout and never fetches**. Either `git pull` first, or use `make update-opencode` / `make update-opencode-no-agent`, which run `git pull --ff-only` before installing. |
 
-For npm installs, Claude and Codex register package-owned local marketplaces. OpenCode writes host-visible shared paths only after collision checks; npm uninstall retains those shared files and reports them for manual cleanup.
+For npm installs, Claude and Codex register package-owned local marketplaces and consume their plugin hooks. OpenCode installs its skills, native plugin, and hook runtime into host-visible shared paths after collision checks. npm uninstall retains those shared files and reports them for manual cleanup.
 
 Claude keeps one cache directory per installed version and they accumulate. `make prune-cache` removes the stale ones and keeps the active version; it refuses to delete anything when it cannot determine which version is active.
 
@@ -122,7 +123,7 @@ Use `npx` to run the package without installing it globally. If the registry sti
 skills/           Skills, references, and their scripts
 agent-context/    Text injected into agent sessions; one file per injecting hook
 docs/             Guides for users and contributors
-hooks/            Claude Code runtime checks
+hooks/            Canonical runtime checks consumed by Claude Code, Codex, and the OpenCode adapter
 scripts/          Installers, gate installers, and repository checks
 packages/         Unified npm package and the standalone OpenCode plugin source
 eval/             Skill evaluation cases

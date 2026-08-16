@@ -100,9 +100,9 @@ function source(context: OpenCodeContext) {
 	const root = resolve(override || join(p.assets, "marketplace", "plugins", "ccl-skills"));
 	if (override && (!existsSync(root) || lstatSync(root).isSymbolicLink() || !lstatSync(root).isDirectory()))
 		throw new Error("invalid CCL_SKILLS_REPO: expected a real checkout directory");
-	const skills = join(root, "skills"), plugin = join(root, "packages/opencode-plugin/ccl-skills.ts"), bootstrap = join(root, "agent-context/session-start.md"), commands = join(root, "packages/opencode-plugin/commands");
-	if (!existsSync(skills) || !lstatSync(skills).isDirectory() || !existsSync(commands) || !lstatSync(commands).isDirectory())
-		throw new Error("invalid CCL_SKILLS_REPO: skills or OpenCode commands are missing");
+	const skills = join(root, "skills"), plugin = join(root, "packages/opencode-plugin/ccl-skills.ts"), bootstrap = join(root, "agent-context/session-start.md"), commands = join(root, "packages/opencode-plugin/commands"), hooks = join(root, "hooks"), ownerDispatch = join(root, "scripts/owner-dispatch"), agentContext = join(root, "agent-context");
+	if (!existsSync(skills) || !lstatSync(skills).isDirectory() || !existsSync(commands) || !lstatSync(commands).isDirectory() || !existsSync(hooks) || !lstatSync(hooks).isDirectory() || !existsSync(ownerDispatch) || !lstatSync(ownerDispatch).isDirectory() || !existsSync(agentContext) || !lstatSync(agentContext).isDirectory())
+		throw new Error("invalid CCL_SKILLS_REPO: skills, OpenCode commands, or hook runtime are missing");
 	regular(plugin); regular(bootstrap);
 	const skillNames = readdirSync(skills, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync(join(skills, entry.name, "SKILL.md"))).map((entry) => entry.name).sort();
 	if (!skillNames.length) throw new Error("invalid CCL_SKILLS_REPO: no skills found");
@@ -110,6 +110,9 @@ function source(context: OpenCodeContext) {
 	entries.push({ source: "packages/opencode-plugin/ccl-skills.ts", destination: "plugins/ccl-skills.ts", sha256: sha256(plugin), mode: regular(plugin).mode & 0o777 });
 	entries.push({ source: "agent-context/session-start.md", destination: "ccl-skills/bootstrap.md", sha256: sha256(bootstrap), mode: regular(bootstrap).mode & 0o777 });
 	entries.push(...walk(commands, "packages/opencode-plugin/commands", "commands").filter((entry) => /^commands\/ccl-[^/]+\.md$/.test(entry.destination)));
+	entries.push(...walk(hooks, "hooks", "ccl-skills/runtime/hooks").filter((entry) => entry.source === "hooks/hooks.json" || /^hooks\/(?!test_)[^/]+\.sh$/.test(entry.source)));
+	entries.push(...walk(ownerDispatch, "scripts/owner-dispatch", "ccl-skills/runtime/scripts/owner-dispatch").filter((entry) => entry.source === "scripts/owner-dispatch/owner-dispatch.sh"));
+	entries.push(...walk(agentContext, "agent-context", "ccl-skills/runtime/agent-context").filter((entry) => /^agent-context\/(session-start|subagent-start)\.md$/.test(entry.source)));
 	entries = entries.sort((a, b) => a.destination.localeCompare(b.destination));
 	const snapshotHash = createHash("sha256").update(JSON.stringify(entries.map(({ source: s, sha256: hash, mode }) => ({ source: s, sha256: hash, mode })))).digest("hex");
 	const release = readRelease(join(p.assets, "release.json"));
@@ -122,7 +125,7 @@ function source(context: OpenCodeContext) {
 }
 
 function allowedDestination(path: string) {
-	return /^skills\/[^/]+\/.+/.test(path) || path === "plugins/ccl-skills.ts" || path === "ccl-skills/bootstrap.md" || /^commands\/ccl-[^/]+\.md$/.test(path);
+	return /^skills\/[^/]+\/.+/.test(path) || path === "plugins/ccl-skills.ts" || path === "ccl-skills/bootstrap.md" || /^commands\/ccl-[^/]+\.md$/.test(path) || /^ccl-skills\/runtime\/(hooks|scripts\/owner-dispatch|agent-context)\/[^/]+$/.test(path);
 }
 
 function readManifest(path: string, root: string): OpenManifest | null {

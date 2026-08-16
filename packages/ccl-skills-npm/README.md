@@ -1,6 +1,6 @@
 # @ccoalm/ccl-skills
 
-Self-contained CCL Skills installer for Claude Code, Codex, and OpenCode. The package carries an immutable snapshot of the skills, agent context, plugin manifests, and runtime hooks, so normal installation does not need a Git checkout.
+Self-contained CCL Skills installer for Claude Code, Codex, and OpenCode. The package carries an immutable snapshot of the skills, agent context, plugin manifests, and runtime hooks, so normal installation does not need a Git checkout. Claude Code and Codex consume their plugin hooks directly; OpenCode installs a native event adapter and the same bundled hook runtime.
 
 ## Requirements
 
@@ -36,7 +36,7 @@ ccl-skills uninstall --yes
 
 After `ccl-skills uninstall --yes`, remove the CLI package itself with `npm uninstall --global @ccoalm/ccl-skills` if it is no longer needed.
 
-Claude and Codex use package-owned local marketplace snapshots. OpenCode must expose skills through shared host directories; installation refuses unknown collisions, and uninstall preserves those shared files for manual cleanup instead of guessing ownership.
+Claude and Codex use package-owned local marketplace snapshots. OpenCode exposes skills, its native plugin, and `ccl-skills/runtime` through shared host directories. The native adapter maps the shipped session, tool, prompt, subagent, and stop behaviors to OpenCode events and covers `edit`, `write`, and `apply_patch`. Installation refuses unknown collisions, and uninstall preserves shared files for manual cleanup instead of guessing ownership.
 
 Set `CCL_SKILLS_REPO` to a valid checkout to override only the OpenCode asset source. An invalid override fails before writing host files. Without the variable, installation is offline after npm has downloaded the package.
 

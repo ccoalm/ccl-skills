@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 import { execFileSync } from "node:child_process"
 
 const pkg=resolve(dirname(fileURLToPath(import.meta.url)),".."),repo=resolve(pkg,"../.."),out=join(pkg,"dist/assets"),market=join(out,"marketplace"),plugin=join(market,"plugins/ccl-skills")
-const roots=[".claude-plugin",".codex-plugin","agent-context/session-start.md","skills","hooks","packages/opencode-plugin","scripts/owner-dispatch",".worktree-only"],sourceRoots=[...roots,"packages/ccl-skills-npm"]
+const roots=[".claude-plugin",".codex-plugin","agent-context","skills","hooks","packages/opencode-plugin","scripts/owner-dispatch",".worktree-only"],sourceRoots=[...roots,"packages/ccl-skills-npm"]
 function git(args,options={}){return execFileSync("git",args,{cwd:repo,encoding:options.encoding??"utf8"})}
 function gitAvailable(){try{git(["--version"]);return true}catch{return false}}
 function ciCommit(){const value=process.env.GITHUB_SHA??process.env.CI_COMMIT_SHA;return value?.match(/^[0-9a-f]{40}$/)?.[0]??null}
