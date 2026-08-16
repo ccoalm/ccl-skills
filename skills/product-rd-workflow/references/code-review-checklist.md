@@ -31,6 +31,7 @@ Use this for a general product R&D review pass before merge or release. Stack-sp
 - Inputs are validated server-side for type, length, format, range, and authorization scope.
 - Queries and commands do not concatenate untrusted input.
 - Protected endpoints authenticate before side effects and authorize resource access; no IDOR-style access.
+- **Enforcement lives in the operation that performs the side effect.** For an agent/LLM surface specifically: a tool omitted from the schema, filtered out of the prompt, hidden behind a facade/wrapper, or gated by listener order is *not* denied — a direct or alternate caller still reaches the executor. Trace every denial path to the code that executes it and require the deny to be tested there (`llm-inference-integration/references/agent-tool-dispatch.md` owns exposure-vs-authorization; `testing-strategy` owns the enforcement matrix).
 - Secrets, tokens, credentials, and PII are not committed, logged, exposed in errors, or returned in responses.
 - Public callbacks, uploads, redirects, outbound fetches, and dependency calls have explicit validation and limits.
 - Rate limits, concurrency limits, or cost guards exist for expensive or abuse-prone paths.
@@ -58,7 +59,7 @@ Use this for a general product R&D review pass before merge or release. Stack-sp
 - Modules have clear responsibility and dependency direction.
 - Duplicated logic is removed only when shared abstraction is genuinely clearer.
 - Generated files are reproducible and not hand-edited.
-- Comments explain non-obvious decisions, not obvious statements.
+- Comments explain non-obvious decisions, not obvious statements, and state contracts rather than the authoring session — flag dead design-session citations, PR/stack vantage, change narration, reviewer-addressed justification, and hedges per `tighten-doc/references/session-vantage-leakage.md`.
 
 ## Scope Completeness And Concept Delta
 
@@ -68,6 +69,8 @@ Use this for a general product R&D review pass before merge or release. Stack-sp
 - Reconcile the active acceptance-source stable ID set against the closeout table and verify every out/deferred row cites a real product/human decision. Accept two-axis `not-applicable` only for a reviewed documentation-only diff. For a pure refactor or mechanical maintenance with no contract/behavior delta, accept functional-axis `not-applicable` only with the concept-delta table still present. The implementer's label alone is never evidence, and diffs touching the behavior-bearing surface classes enumerated in `implementation-completeness-and-minimality.md` (contracts, schemas/migrations, permissions, quotas/pricing, config defaults, user-visible copy — that list is canonical) qualify for no exemption. A rejected classification returns the delivery to the implementer to build the required tables; do not reconstruct them in review.
 
 ## Testing And Evidence
+
+- **Model-visible wording is behavior.** For agent/LLM changes, inspect the exact prompts, tool schemas, tool results, and diagnostics the model receives in every affected mode: flag implementation-only concepts (internal plugin/transport/renderer names the model can neither act on nor needs for a valid call), confirm legitimate tool-contract discriminators survived, and require snapshot/replay or eval evidence for the wording change — "just reworded the description" is an unreviewed behavior change (`llm-inference-integration/references/agent-instruction-composition.md`).
 
 - New behavior has focused tests at the right level.
 - Contract-visible changes include an explicit test matrix before MR readiness is claimed: unit, API/contract, integration, and browser/device/E2E where relevant, with executed commands and unavailable layers called out as residual risk.

@@ -56,6 +56,12 @@
 | **Decision** | 做了什么（1 short paragraph，1-3 句；composite 决策可写 split："choose A for X, B for Y, sharing tooling Z"）| ✅ |
 | **Consequences** | 正面 + 负面 outcome；**2-5 bullets**，写已接受的代价 / 后果（不是 PROs/CONs 全比较）| ✅ |
 
+**本 skill 要求的第 6 个必填段（Nygard 原始 5 字段之外，与 MADR 的 options 段同向）**：
+
+| 字段 | 内容 | 必填 |
+|---|---|---|
+| **Alternatives considered** | 每个**真实考虑过**的备选与它为什么输，一段一项（或每个有争议项一个 `### Why not X?`）。**只记录、不编造**：写决定时没有考虑过的备选不得事后补一个"看起来像"的；此时写 `alternatives: none-considered` + 如实原因——既可写唯一可行/上游强制，也可承认赶时间、没想到或流程疏漏，不能把后者粉饰成"无需比较"。历史记录里重建不出的写 `alternatives: not-recorded`；都不空着也不伪造。一条没有"它打败了什么"的决定会被反复重提——这正是 ADR 要防的失败 | ✅ |
+
 **本 skill 加的 local 字段**（推荐，方便检索 / 治理）：
 
 | 字段 | 内容 | 必填 |
@@ -109,7 +115,7 @@ implementation PR 不能在缺 ADR 时 merge；先开 ADR PR → review pass →
 3. **分类**：`Full supersede`（旧 ADR 完全废）vs `Partial supersede`（旧 ADR 部分仍生效，明确哪部分）
 4. **同 PR 改两边**：superseder 创建 + 旧 ADR Status 修改在**同一个 PR** 里完成（避免半 superseded 状态）
 
-**Rejected / Deferred**：被评审推翻的设计标 `Rejected`，搁置的标 `Deferred`，被拆分的把拆出部分链接到新 ADR — 原文一律保留、不删不改写。"为什么不做"的论证链和"为什么做"同样有价值，删掉它就等着下个人把同一方案再提一遍。
+**Rejected / Deferred**：被评审推翻的设计标 `Rejected`，搁置的标 `Deferred`，被拆分的把拆出部分链接到新 ADR — 原文一律保留、不删不改写。"为什么不做"的论证链和"为什么做"同样有价值，删掉它就等着下个人把同一方案再提一遍。**保留 vs 归档按"未来决策价值"判，不按字数、年龄或配额**：一条 `Rejected` 只要它挡住的方案仍然诱人、且记录写清了它为什么输，就留在活动目录里当护栏；一条 `Accepted`/`Superseded` 的记录当其备选、否定性保证、耐久/线上格式语义、所有权边界、安全规则或"何时可重新引入"的条件仍可能约束未来改动时保持活动，否则移入冻结的归档区（不删、不改写、不再作为现行权威）。判定逐条按语义做，一次审核把同类记录归在一个原则下处理；不要为了"清爽"设归档配额。
 
 **As-built 校正**：`Accepted` 后实现与设计出现事实性偏离时，在文末**追加**带日期的 `As-built` 校正节（append-only；原 Context/Decision 文本不改写）— 按实现事实校正比装作设计一次到位诚实。边界：as-built 只**记录事实**，不是偏离的批准通道，也从不关闭风险——**实质性偏离**（auth/权限、数据保留/丢失语义、超时/失败模式、对外契约等改变决策实质的）**无论何时发现**都触发决策 owner 评审：合并前发现的，评审通过（superseding ADR 或显式决策记录）前 block 合并；合并后/线上发现的，追加 as-built 记录事实的同时必须走缓解/回滚或 superseding 决策，不能以"已如实记录"当作处置完毕。实现者不能靠追加 as-built 节自行放行。偏离大到推翻决策本身时，写 superseding ADR 而不是校正节。
 

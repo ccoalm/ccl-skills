@@ -1,0 +1,212 @@
+{
+  "schema": "round-023-stored-raw-strict-regrade-v1",
+  "method": "No model calls. Re-grade raw answers from immutable source files; bind each source and raw answer by sha256.",
+  "sources": {
+    "red-baseline-023-I-final.json": "b900de1a56ec93a9a06fa6c9021ea8313927ec31efc83d488cd67a30ff2b62a1",
+    "red-baseline-023-II.json": "5043c4e6c69a97c24beb5dddc76f049f220df192186c01f9e77113bc7bcbe45c"
+  },
+  "results": {
+    "llm-wording": {
+      "source": "red-baseline-023-I-final.json",
+      "task_sha256": "f166855db6ee6a9b921c47b393f39b0c35c9a6d2f90ddfbcafde2a5847dcee9b",
+      "required": [
+        "plugin|transport|renderer|实现细节|实现词汇|传输",
+        "scope|枚举|判别|允许值|allowed|enum",
+        "快照|snapshot|replay|eval|评测|行为.{0,8}(证据|验证|测试|评估|复核)"
+      ],
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ],
+      "base": {
+        "rev": "759dc6030e9ae6ba8dca06d77a4afdb93231b12a",
+        "pass": 0,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "快照|snapshot|replay|eval|评测|行为.{0,8}(证据|验证|测试|评估|复核)"
+            ],
+            "len": 553,
+            "raw_sha256": "b547025fddace408db8fecdc88d6e183d56c876ef0accb65980c2bc8c99e97a8"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "快照|snapshot|replay|eval|评测|行为.{0,8}(证据|验证|测试|评估|复核)"
+            ],
+            "len": 529,
+            "raw_sha256": "0df32fa23e424c8364e48bfe30f171b954dd8c145e2a20cdd42a228008ce7ebc"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "快照|snapshot|replay|eval|评测|行为.{0,8}(证据|验证|测试|评估|复核)"
+            ],
+            "len": 696,
+            "raw_sha256": "a618c53f5fdafc9bd6216b1bdf0ad42e84db8c7b8ead334c32a3447cc1c49e21"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "快照|snapshot|replay|eval|评测|行为.{0,8}(证据|验证|测试|评估|复核)"
+            ],
+            "len": 945,
+            "raw_sha256": "80146fdefb7f66676d964ed94de4d8ecacf3d9a30f82448f977fbbc6821c8b8b"
+          }
+        ]
+      },
+      "head": {
+        "rev": "fb41e11b6bd17e0fed5878d8355f43994d9d6cef",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 449,
+            "raw_sha256": "625255471f97c19b4f595302859e29194352f80b069a56bf9d73340aa3da7ae8"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 613,
+            "raw_sha256": "9b6e35d3bdd187508747c413fbc52a723d84d44d0b8f2fe003cd80faa6897d39"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 746,
+            "raw_sha256": "807733876d6000b29adc54e903de6e79740a34a3ed5ede394d34abc2ef38091d"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 523,
+            "raw_sha256": "c906a8820fb46e18cb0becdcddb94d9c85bb42b0cd69d118bfff1006ad267984"
+          }
+        ]
+      }
+    },
+    "dd-postmortem-criteria": {
+      "source": "red-baseline-023-II.json",
+      "task_sha256": "ecbbe54021c4e92912298a88f87a7ab4c8112bbc9e08fe4149daa82893a34fd3",
+      "required": [
+        "subtle|微妙|非显然|隐蔽|不直观",
+        "systemic|系统性|工具.{0,6}缺口|测试.{0,6}缺口|流程.{0,6}缺口",
+        "costly|重新发现|再发现|复现.{0,4}代价|代价.{0,4}(高|大)|高成本",
+        "执行摘要|executive|30 秒|三十秒|开头.{0,8}(摘要|一段话)",
+        "guardrail|护栏|回链|链接.{0,8}(测试|规则|决策记录)"
+      ],
+      "required_flags": [
+        "i",
+        "i",
+        "i",
+        "i",
+        "i"
+      ],
+      "base": {
+        "rev": "759dc6030e9ae6ba8dca06d77a4afdb93231b12a",
+        "pass": 0,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "subtle|微妙|非显然|隐蔽|不直观",
+              "systemic|系统性|工具.{0,6}缺口|测试.{0,6}缺口|流程.{0,6}缺口",
+              "costly|重新发现|再发现|复现.{0,4}代价|代价.{0,4}(高|大)|高成本",
+              "执行摘要|executive|30 秒|三十秒|开头.{0,8}(摘要|一段话)"
+            ],
+            "len": 416,
+            "raw_sha256": "47f177cafa9aaf696b92c7d451141fef9f06ff31a2bb68e80e150b0be9a58ccb"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "subtle|微妙|非显然|隐蔽|不直观",
+              "systemic|系统性|工具.{0,6}缺口|测试.{0,6}缺口|流程.{0,6}缺口",
+              "costly|重新发现|再发现|复现.{0,4}代价|代价.{0,4}(高|大)|高成本",
+              "执行摘要|executive|30 秒|三十秒|开头.{0,8}(摘要|一段话)",
+              "guardrail|护栏|回链|链接.{0,8}(测试|规则|决策记录)"
+            ],
+            "len": 693,
+            "raw_sha256": "8a392bdd0350ee580f241876ac719d963ef68d5d55e0d6d73879896287c10798"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "subtle|微妙|非显然|隐蔽|不直观",
+              "costly|重新发现|再发现|复现.{0,4}代价|代价.{0,4}(高|大)|高成本",
+              "执行摘要|executive|30 秒|三十秒|开头.{0,8}(摘要|一段话)",
+              "guardrail|护栏|回链|链接.{0,8}(测试|规则|决策记录)"
+            ],
+            "len": 726,
+            "raw_sha256": "cb07d1313dce7688914e16db4e0031b2af33bf71acf22388439456df5c85aac3"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "subtle|微妙|非显然|隐蔽|不直观",
+              "systemic|系统性|工具.{0,6}缺口|测试.{0,6}缺口|流程.{0,6}缺口",
+              "costly|重新发现|再发现|复现.{0,4}代价|代价.{0,4}(高|大)|高成本",
+              "执行摘要|executive|30 秒|三十秒|开头.{0,8}(摘要|一段话)",
+              "guardrail|护栏|回链|链接.{0,8}(测试|规则|决策记录)"
+            ],
+            "len": 768,
+            "raw_sha256": "c95e78753220ef7afbff0a2f3275c8ac9eba9fd7b34e8079349603654c2398cf"
+          }
+        ]
+      },
+      "head": {
+        "rev": "fb41e11b6bd17e0fed5878d8355f43994d9d6cef",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 721,
+            "raw_sha256": "1ccfe987638412786458577fee4dde4222634aa39d02bcb2c732f8f35972e322"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 818,
+            "raw_sha256": "cab771313850c954d5456effd22c621c4290c42bc4c9a1466c94cf97f04d0140"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 624,
+            "raw_sha256": "562fad54b1ddff951db001a88fc3e49a171ef35d973c3bc59133992fb1272347"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 643,
+            "raw_sha256": "dbefbcd09d0c847695886be4308944929bf67b79b14359ae4df0a8bd6ed29790"
+          }
+        ]
+      }
+    }
+  }
+}
