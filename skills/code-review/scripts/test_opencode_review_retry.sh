@@ -542,9 +542,40 @@ out="$(run_wrapper pass_first)"; rc=$?
 check "conforming first reply -> passed with no retry" '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ "$(runs)" = 1 ]'
 check "one conforming review uses exactly one model invocation" '[ "$(runs)" = 1 ]'
 rm -f "$WORK/state/timeout_args"
-out="$(REVIEW_TEST_TIMEOUT=180 run_wrapper pass_first)"; rc=$?
+cat >"$WORK/formal-budget-trace-env.sh" <<'STUB'
+if [ "${0:-}" = "${TRACE_WRAPPER_PATH:-}" ]; then
+  exec 9>"$STUB_STATE_DIR/formal-budget.trace"
+  BASH_XTRACEFD=9
+  PS4='+${FUNCNAME[0]:-main}: '
+  set -x
+fi
+STUB
+out="$(
+  export BASH_ENV="$WORK/formal-budget-trace-env.sh" TRACE_WRAPPER_PATH="$WRAPPER"
+  REVIEW_TEST_TIMEOUT=180 run_wrapper pass_first
+)"; rc=$?
+# Capture the wrapper's actual remaining budget and clamped reserve from this
+# invocation. That keeps the oracle independent of wall-clock jitter while
+# proving the production relation exactly: formal = remaining - reserve.
+capped_formal="$(awk '/ opencode run / { value=$1; sub(/s$/, "", value); print value; exit }' "$WORK/state/timeout_args")"
+remaining_before_reserve="$(awk '
+  /^[+]+run_opencode: run_timeout=[0-9]+$/ {
+    value=$0
+    sub(/^.*=/, "", value)
+    if (first == "") first=value
+  }
+  END { print first }
+' "$WORK/state/formal-budget.trace")"
+applied_export_reserve="$(awk '
+  /^[+]+run_opencode: export_reserve=[0-9]+$/ {
+    value=$0
+    sub(/^.*=/, "", value)
+    last=value
+  }
+  END { print last }
+' "$WORK/state/formal-budget.trace")"
 check "OpenCode caps the pre-inference boundary probe and preserves the unspent formal budget" \
-  '[ "$rc" = 0 ] && grep -q -- "60s opencode debug agent ccl-review" "$WORK/state/timeout_args" && grep -q -- "170s opencode run" "$WORK/state/timeout_args"'
+  '[ "$rc" = 0 ] && grep -q -- "60s opencode debug agent ccl-review" "$WORK/state/timeout_args" && [ -n "$remaining_before_reserve" ] && [ -n "$applied_export_reserve" ] && [ "$capped_formal" -eq $((remaining_before_reserve - applied_export_reserve)) ]'
 rm -f "$WORK/state/timeout_args"
 out="$(STUB_BOUNDARY_DELAY_S=2 REVIEW_TEST_TIMEOUT=10 run_wrapper pass_first)"; rc=$?
 formal_timeout="$(awk '/ opencode run / { value=$1; sub(/s$/, "", value); print value; exit }' "$WORK/state/timeout_args")"

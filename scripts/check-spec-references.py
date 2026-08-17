@@ -14,11 +14,15 @@ product-agnostic skill naming a path in the *consuming* product repo. `specs/`
 is a directory only this repo has, so a citation into it is always resolvable.
 
 Design decisions and the acceptance matrix live in
-specs/014-spec-reference-existence-gate/plan.md.
+specs/014-spec-reference-existence-gate/plan.md; the deletion of the template
+exemption in specs/016-spec-citation-template-exemption/plan.md; the row-bound
+waiver for a citation frozen in an append-only ledger line in
+specs/025-spec-reference-correction/plan.md.
 """
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import subprocess
@@ -79,6 +83,92 @@ FRAGMENT_RE = re.compile(r"#.*$")
 # never was. Detecting those spellings was reverted rather than half-built, and
 # the corpus uses none of them. An unbackticked prose mention was already out of
 # scope (014 row 7); this residual is its neighbour and is accepted the same way.
+
+# ROW-BOUND WAIVERS, for a citation frozen inside an append-only ledger line.
+#
+# This is NOT the deleted exemption returning. That one asked "does this token
+# LOOK like a shape", which is a grammar, and a grammar is a thing to evade --
+# five ways through were found. This asks "are these exact bytes, on this exact
+# line, in this exact file, the ones a reviewer waived", which is an identity.
+# There is no shape to imitate: the same token one line away, one byte away, or
+# one file away is a finding like any other, and CITATION_RE, resolve_target and
+# the containment check are all untouched. 016 separately rejected allowlisting
+# the known template STRINGS -- that predicates the gate on a vocabulary, and its
+# reach is every file and every line; this reach is one line.
+#
+# It exists because two contracts intersect. This gate is repo-wide and scans
+# every tracked file, including skills/skill-extraction-workflow/references/
+# source-register.md. That ledger is append-only by contract: a landed row is
+# never edited or deleted. So a citation defect frozen into a row has no legal
+# repair, and would hard-red a mandatory gate forever. This repository already
+# resolved that exact class twice against that exact file -- exempt_historical_
+# routes in skills/skill-extraction-workflow/scripts/check-ccl-skills.sh and
+# EXEMPT_ROW_DIGESTS in the register-firing-path-resolution.rb beside it -- and
+# both chose a SHA-256 of the waived line over an occurrence count, because a
+# count says "one row" but never WHICH row, so it silently transfers onto a new
+# row when the old one moves. Same choice here, for the same reason.
+#
+# Keyed by (repo-relative path, the RAW token between the backticks) and pinned
+# to (LINE NUMBER, SHA-256 of the stored line INCLUDING its terminator). Keying
+# on the raw token rather than the resolved target is deliberate: a locator or
+# fragment appended to a waived token makes a DIFFERENT token, which the waiver
+# must not cover.
+#
+# Both halves of the pin were added after independent review defeated a weaker
+# version, and both are load-bearing:
+#
+#   LINE NUMBER, because content alone identifies a LINE SHAPE, not an
+#   occurrence. Copy the frozen row verbatim to a second line and the copy
+#   matched path, token and digest too, so the waiver silently covered a row
+#   nobody reviewed. An append-only ledger never renumbers a landed row, so
+#   pinning the number costs an honest author nothing and any shift goes stale
+#   rather than transferring.
+#
+#   THE TERMINATOR, because splitlines() discards it. Rewriting the pinned row
+#   from LF to CRLF, or dropping the file's final newline, changed the stored
+#   bytes while leaving the digest identical -- so a pin advertised as covering
+#   a line's bytes did not. The digest is taken over the line as stored.
+#
+# Fail-closed in both directions. An applied waiver is printed, never silent. A
+# pin that matches no line in a waived file that WAS scanned fails the run: on an
+# append-only ledger that means the row was edited, reflowed, or deleted, and the
+# waiver has to be re-reviewed rather than quietly covering nothing.
+#
+# AND a waived path that never reaches the corpus fails too, for the SHIPPED table
+# scanning its OWN repository. That case used to be inert, which the adversarial
+# lane showed was a bypass by omission: delete or untrack the waived ledger and
+# `git ls-files` stops yielding it, so the path is never scanned, its pins are
+# never checked, and the gate exits 0 with the waiver covering nothing -- the
+# guard voided by removing the file instead of by satisfying it. Reproduced
+# against this table: with the ledger deleted, and again with it untracked,
+# findings=0 waived=0 stale=0 and the CLI exited 0.
+#
+# The inertness is kept exactly where it was written for -- a foreign corpus.
+# Two conditions must BOTH hold before absence is an error: the default table is
+# in use, and the scan root is the repository this checker ships in. So this
+# gate's own fixtures, which point the checker at synthetic repositories, and any
+# caller passing an explicit or empty table, keep the old semantics; only the
+# shipped waiver against its own repository must find its file.
+#
+# Adding an entry is a reviewed act: the table's own diff and the printed waiver
+# lines are the artifacts the mandatory independent review reads.
+LEDGER_CITATION_WAIVERS: dict[tuple[str, str], tuple[str, tuple[tuple[int, str], ...]]] = {
+    (
+        "skills/skill-extraction-workflow/references/source-register.md",
+        "specs/*/evidence/AGENTS.md",
+    ): (
+        "round-025 impact-chain row 152 declares that its local base/head "
+        "observation is NOT a frozen measurement under the per-spec evidence "
+        "contract, and writes that contract as a glob standing for the class. "
+        "The referent is real -- this repository holds one instance, at "
+        "specs/023-agent-native-repo-borrowing/evidence/AGENTS.md -- and the "
+        "row's claim needs no file at the literal path. The register is "
+        "append-only, so the token cannot be respelled. See "
+        "specs/025-spec-reference-correction/plan.md.",
+        ((152, "73d3e6f2801cefdb9807293d0b2cda8275921272197498671fa19722eaf29f5d"),),
+    ),
+}
+
 
 # There is deliberately NO test-file exemption. A first version skipped every
 # test-named file so this gate's own fixtures would not trip it; independent
@@ -156,9 +246,74 @@ def escapes_root(root: Path, target: str) -> bool:
     return False
 
 
-def broken_spec_references(root: Path, unreadable: list[tuple[str, str]] | None = None) -> list[tuple[str, int, str]]:
+def owning_repository_root() -> Path:
+    """The repository this checker ships in.
+
+    It lives at `<repo>/scripts/check-spec-references.py`, so the owning root is
+    two levels up. Used only to decide whether a missing waived path is an error
+    (this repository) or inert (a foreign corpus a fixture pointed us at).
+    """
+    return Path(__file__).resolve().parent.parent
+
+
+def line_digest(stored_line: str) -> str:
+    """SHA-256 of one line's original bytes, terminator included.
+
+    The corpus is decoded with surrogateescape, so re-encoding the same way
+    round-trips back to the bytes git tracks -- a pin therefore covers a line
+    that is not valid UTF-8 as faithfully as one that is.
+
+    The argument is the line AS STORED, still carrying whatever terminator it
+    had. Hashing the stripped line instead would let an LF-to-CRLF rewrite, or
+    the removal of the file's final newline, change the stored bytes while the
+    pin kept matching.
+    """
+    return hashlib.sha256(stored_line.encode("utf-8", errors="surrogateescape")).hexdigest()
+
+
+def broken_spec_references(
+    root: Path,
+    unreadable: list[tuple[str, str]] | None = None,
+    waived: list[tuple[str, int, str, str]] | None = None,
+    stale: list[tuple[str, str, str]] | None = None,
+    waivers: dict[tuple[str, str], tuple[str, tuple[tuple[int, str], ...]]] | None = None,
+) -> list[tuple[str, int, str]]:
     findings: list[tuple[str, int, str]] = []
     unreadable = [] if unreadable is None else unreadable
+    waived = [] if waived is None else waived
+    stale = [] if stale is None else stale
+    # Whether the SHIPPED table is in play, captured before the default is
+    # substituted: an explicitly passed table -- including an empty one -- keeps
+    # the old inert-on-absence behaviour, because only the shipped waiver makes a
+    # claim about this repository's own files.
+    using_default_waivers = waivers is None
+    waivers = LEDGER_CITATION_WAIVERS if waivers is None else waivers
+    require_waived_paths_present = (
+        using_default_waivers and root.resolve() == owning_repository_root()
+    )
+    # Per waived PATH, the union of every (line number, digest) pin written for
+    # it. Digesting is done only for those paths: every other tracked file keeps
+    # its previous cost.
+    pins_by_path: dict[str, set[tuple[int, str]]] = {}
+    for (path, _token), (_reason, pins) in waivers.items():
+        pins_by_path.setdefault(path, set()).update(pins)
+    # A pin is "seen" when its line is found at its pinned number AND that line
+    # actually carries the token the waiver names. Not when a finding is waived:
+    # if the citation ever started resolving on its own the waiver would become
+    # unnecessary, and reporting that as staleness would red the gate on a good
+    # state. But requiring the token is what stops a MISTYPED or obsolete waiver
+    # key from sitting there covering nothing while its pin still matches -- the
+    # digest proves the line, and only the token proves the waiver has a subject.
+    # Keyed by the full waiver key, so one entry's health never masks another's.
+    seen_pins: set[tuple[str, str, tuple[int, str]]] = set()
+    scanned_waived_paths: set[str] = set()
+    # A waiver is spent by ONE citation. The predicate is evaluated per regex
+    # match and a line can carry the same dead token twice, so without this the
+    # single reviewed waiver silently covered every repeat on that line -- a
+    # second unresolved citation riding in on the first one's approval. Keyed by
+    # (path, token, pin) so a waiver written for two pinned lines still covers
+    # one citation on each.
+    spent: set[tuple[str, str, tuple[int, str]]] = set()
     for name in tracked_files(root):
         path = root / name
         # lstat, not is_file(): `git ls-files` returns tracked symlinks, and
@@ -180,8 +335,31 @@ def broken_spec_references(root: Path, unreadable: list[tuple[str, str]] | None 
         except OSError as error:
             unreadable.append((name, str(error)))
             continue
-        for number, line in enumerate(text.splitlines(), start=1):
-            for match in CITATION_RE.finditer(line):
+        pins_here = pins_by_path.get(name)
+        if pins_here is not None:
+            scanned_waived_paths.add(name)
+        # keepends: the digest has to cover the terminator, so the split must
+        # keep it. `stored.splitlines()[0]` recovers exactly the line the scan
+        # used before, including for the exotic separators splitlines() honours.
+        for number, stored in enumerate(text.splitlines(keepends=True), start=1):
+            line = stored.splitlines()[0] if stored.splitlines() else ""
+            # Parse the line ONCE and use the result for both the seen-marking
+            # and the scan, so the two can never disagree about what a citation
+            # on this line is. Matching the waiver's token against raw text
+            # instead would be a substring test: a token that is merely part of
+            # a LONGER citation, or that appears in prose, would mark the pin
+            # seen while the entry covered no actual citation -- the covering-
+            # nothing hole this check exists to close, reopened one level down.
+            matches = list(CITATION_RE.finditer(line))
+            tokens_on_line = {found.group("path").strip() for found in matches}
+            pin = ()
+            if pins_here is not None:
+                pin = (number, line_digest(stored))
+                if pin in pins_here:
+                    for (path, token), (_reason, entry_pins) in waivers.items():
+                        if path == name and pin in entry_pins and token in tokens_on_line:
+                            seen_pins.add((path, token, pin))
+            for match in matches:
                 raw = match.group("path")
                 target = resolve_target(raw)
                 if not target:
@@ -198,15 +376,74 @@ def broken_spec_references(root: Path, unreadable: list[tuple[str, str]] | None 
                     resolves = (root / target).exists()
                 except OSError:
                     resolves = False
-                if escapes_root(root, target) or not resolves:
-                    findings.append((name, number, raw.strip()))
+                escaped = escapes_root(root, target)
+                if escaped or not resolves:
+                    token = raw.strip()
+                    entry = waivers.get((name, token))
+                    # All three must match: this file, this exact token, and
+                    # these exact line bytes. Any one of them differing leaves
+                    # the finding standing.
+                    #
+                    # A waiver covers NON-EXISTENCE only. A citation that leaves
+                    # the checkout is a different failure -- it would be
+                    # confirmed by whatever the runner's filesystem happens to
+                    # hold -- and no frozen ledger row needs one, so containment
+                    # stays unwaivable rather than resting on nobody ever pinning
+                    # such a line.
+                    spend_key = (name, token, pin)
+                    if (
+                        not escaped
+                        and entry is not None
+                        and pin
+                        and pin in entry[1]
+                        and spend_key not in spent
+                    ):
+                        spent.add(spend_key)
+                        waived.append((name, number, token, entry[0]))
+                        continue
+                    findings.append((name, number, token))
+    for path, token in sorted(waivers):
+        if path not in scanned_waived_paths:
+            # Absent from the tracked corpus. An error for the shipped table
+            # against its own repository -- otherwise deleting or untracking the
+            # waived file voids the guard instead of satisfying it -- and inert
+            # for a foreign corpus, which is what the inertness was written for.
+            if require_waived_paths_present:
+                for number, digest in sorted(waivers[(path, token)][1]):
+                    stale.append(
+                        (path, token, f"{number}:{digest} absent-from-tracked-corpus")
+                    )
+            continue
+        for number, digest in sorted(waivers[(path, token)][1]):
+            if (path, token, (number, digest)) not in seen_pins:
+                stale.append((path, token, f"{number}:{digest}"))
     return findings
 
 
 def main(argv: list[str]) -> int:
     root = Path(argv[0] if argv else ".").resolve()
     unreadable: list[tuple[str, str]] = []
-    findings = broken_spec_references(root, unreadable)
+    waived: list[tuple[str, int, str, str]] = []
+    stale: list[tuple[str, str, str]] = []
+    findings = broken_spec_references(root, unreadable, waived, stale)
+    # Printed on every run, including a passing one: a waiver that nobody sees
+    # is a hole, and this is the line a reviewer reads to decide whether the
+    # table still deserves its entry.
+    for name, number, target, reason in waived:
+        print(
+            f"spec_citation_waived: {display(name)}:{number}: "
+            f"{display(target)} -- {display(reason)}"
+        )
+    for path, token, pin in stale:
+        cause = (
+            "waived path is absent from the tracked corpus"
+            if pin.endswith("absent-from-tracked-corpus")
+            else "waiver pin matches no line in this file"
+        )
+        print(
+            f"{display(path)}: {cause}: {display(token)} {pin}",
+            file=sys.stderr,
+        )
     for name, error in unreadable:
         print(
             f"{display(name)}: tracked file could not be read: {display(error)}",
@@ -217,6 +454,18 @@ def main(argv: list[str]) -> int:
             f"{display(name)}:{number}: spec citation does not resolve: {display(target)}",
             file=sys.stderr,
         )
+    if stale:
+        print(
+            "spec_reference_waiver_stale: a row-bound citation waiver no longer has "
+            "the subject it was written for -- either its pinned line is not in the "
+            "file, or its file is not in the tracked corpus at all. The ledger it "
+            "waives is append-only, so a missing row means it was edited, reflowed, "
+            "or deleted, and a missing FILE means the waived path was deleted or "
+            "untracked, which must not be a way to void this guard instead of "
+            "satisfying it. Re-review the waiver and regenerate its digest, restore "
+            "the path, or remove the entry. A waiver is never left covering nothing.",
+            file=sys.stderr,
+        )
     if findings or unreadable:
         print(
             "spec_reference_check_failed: a backticked specs/ citation must name a "
@@ -225,6 +474,7 @@ def main(argv: list[str]) -> int:
             "fenced block, so it is not read as a citation.",
             file=sys.stderr,
         )
+    if findings or unreadable or stale:
         return 1
     print("spec_reference_check_ok: backticked specs/ citations resolve")
     return 0

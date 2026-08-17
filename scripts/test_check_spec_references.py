@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -530,6 +531,428 @@ class ControlCharacterDiagnosticTest(unittest.TestCase):
         self.assertEqual(len(finding_lines), 1, result.stderr)
         self.assertIn("inno\\ncent.md", finding_lines[0])
         self.assertNotIn("\n", finding_lines[0].replace("\\n", ""))
+
+
+class LedgerCitationWaiverTest(unittest.TestCase):
+    """Row 025 — a citation frozen in an append-only ledger line.
+
+    Every case here exists to show the waiver is bound by IDENTITY, not by
+    shape. The token below is a glob on purpose: if any of these started
+    passing because the token looks like a template, the deleted exemption
+    would be back.
+    """
+
+    LEDGER = "ledger/register.md"
+    FROZEN = "specs/090-absent/evidence/AGENTS.md"
+    OTHER_DEAD = "specs/091-absent/plan.md"
+
+    def make_repo(self, files: dict[str, str]) -> Path:
+        sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        root = sandbox / "repo"
+        root.mkdir()
+        subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+        for name, content in files.items():
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+        return root
+
+    def waivers(
+        self,
+        line: str,
+        token: str | None = None,
+        path: str | None = None,
+        number: int = 1,
+        terminator: str = "\n",
+    ) -> dict:
+        """A pin is (line number, digest of the line AS STORED).
+
+        `line` is passed without its terminator for readability; the digest is
+        taken over `line + terminator`, which is what the checker hashes.
+        """
+        return {
+            (path or self.LEDGER, token or self.FROZEN): (
+                "frozen in an append-only row",
+                ((number, MODULE.line_digest(line + terminator)),),
+            )
+        }
+
+    def run_scan(self, root: Path, waivers: dict):
+        waived: list[tuple[str, int, str, str]] = []
+        stale: list[tuple[str, str, str]] = []
+        findings = MODULE.broken_spec_references(root, None, waived, stale, waivers)
+        return findings, waived, stale
+
+    # Row 2 — the pinned line, the pinned token, the pinned file.
+    def test_pinned_citation_is_waived_and_reported(self) -> None:
+        line = "row: not a frozen measurement under " + cite(self.FROZEN) + " here"
+        root = self.make_repo({self.LEDGER: line + "\n"})
+        findings, waived, stale = self.run_scan(root, self.waivers(line))
+        self.assertEqual(findings, [])
+        self.assertEqual(stale, [])
+        self.assertEqual(len(waived), 1, waived)
+        self.assertEqual(waived[0][0], self.LEDGER)
+        self.assertEqual(waived[0][1], 1)
+        self.assertEqual(waived[0][2], self.FROZEN)
+
+    # Row 3 — the same token in the same file, one line whose bytes differ.
+    def test_waiver_does_not_bleed_to_another_line(self) -> None:
+        pinned = "row one: " + cite(self.FROZEN) + " frozen"
+        other = "row two: " + cite(self.FROZEN) + " appended later"
+        root = self.make_repo({self.LEDGER: pinned + "\n" + other + "\n"})
+        findings, waived, _ = self.run_scan(root, self.waivers(pinned))
+        self.assertEqual(len(waived), 1, waived)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(findings[0][1], 2)
+        self.assertEqual(findings[0][2], self.FROZEN)
+
+    # An identical COPY of the pinned row is a row nobody reviewed. Content
+    # alone identifies a line shape, not an occurrence, so the pin carries the
+    # line number too and only that occurrence is waived. Independent review
+    # found this by copying the frozen row; without the number both copies were
+    # waived and the duplicate rode in under a green gate.
+    def test_verbatim_duplicate_of_the_pinned_line_still_fails(self) -> None:
+        line = "row: " + cite(self.FROZEN) + " frozen"
+        root = self.make_repo({self.LEDGER: line + "\n" + line + "\n"})
+        findings, waived, stale = self.run_scan(root, self.waivers(line, number=1))
+        self.assertEqual(stale, [])
+        self.assertEqual(len(waived), 1, waived)
+        self.assertEqual(waived[0][1], 1)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(findings[0][1], 2)
+
+    # One waiver is spent by ONE citation. The predicate runs per regex match,
+    # so a line carrying the same dead token twice used to get both suppressed
+    # by the single reviewed waiver -- a second unresolved citation riding in on
+    # the first one's approval. Independent review found this after the line
+    # number and terminator were already pinned.
+    def test_waiver_is_spent_by_one_citation_on_the_pinned_line(self) -> None:
+        line = "row: " + cite(self.FROZEN) + " and again " + cite(self.FROZEN)
+        root = self.make_repo({self.LEDGER: line + "\n"})
+        findings, waived, stale = self.run_scan(root, self.waivers(line, number=1))
+        self.assertEqual(stale, [])
+        self.assertEqual(len(waived), 1, waived)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(findings[0][2], self.FROZEN)
+
+    # A waiver whose TOKEN is mistyped or obsolete covers nothing. The digest
+    # proves the line, so the pin still matches and staleness would never fire;
+    # only requiring the token proves the entry still has a subject. The
+    # adversarial lane found this hiding behind the line-and-digest pin.
+    def test_waiver_naming_a_token_absent_from_the_pinned_line_is_stale(self) -> None:
+        line = "row: " + cite(self.FROZEN) + " frozen"
+        root = self.make_repo({self.LEDGER: line + "\n"})
+        typo = self.waivers(line, token="specs/090-absent/evidence/AGENT.md", number=1)
+        findings, waived, stale = self.run_scan(root, typo)
+        self.assertEqual(waived, [])
+        self.assertEqual(len(stale), 1, stale)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(findings[0][2], self.FROZEN)
+
+    # Sharper than the typo case: the waiver's token IS present in the line's
+    # raw text, but only as part of a longer citation. A substring test would
+    # mark the pin seen and the entry would sit there covering nothing; the
+    # tokens are compared as parsed citations instead.
+    def test_waiver_token_that_is_only_a_substring_of_another_citation_is_stale(self) -> None:
+        longer = self.FROZEN + ".bak"
+        line = "row: " + cite(longer) + " frozen"
+        root = self.make_repo({self.LEDGER: line + "\n"})
+        findings, waived, stale = self.run_scan(root, self.waivers(line, number=1))
+        self.assertEqual(waived, [])
+        self.assertEqual(len(stale), 1, stale)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(findings[0][2], longer)
+
+    # Same hole from the prose side: the token appears on the pinned line but
+    # not inside backticks, so it is not a citation and cannot be the subject.
+    def test_waiver_token_only_in_unbackticked_prose_is_stale(self) -> None:
+        line = "row: we deliberately do not cite " + self.FROZEN + " here"
+        root = self.make_repo({self.LEDGER: line + "\n"})
+        findings, waived, stale = self.run_scan(root, self.waivers(line, number=1))
+        self.assertEqual(waived, [])
+        self.assertEqual(findings, [])
+        self.assertEqual(len(stale), 1, stale)
+
+    # The pinned row at a DIFFERENT number is not the pinned occurrence: it is
+    # not waived, and the pin that now matches nothing goes stale.
+    def test_pinned_row_moved_to_another_line_is_not_waived(self) -> None:
+        line = "row: " + cite(self.FROZEN) + " frozen"
+        root = self.make_repo({self.LEDGER: "a preceding note\n" + line + "\n"})
+        findings, waived, stale = self.run_scan(root, self.waivers(line, number=1))
+        self.assertEqual(waived, [])
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(len(stale), 1, stale)
+
+    # splitlines() discards the terminator, so hashing the STRIPPED line let an
+    # LF-to-CRLF rewrite change the stored bytes while the pin kept matching.
+    # The digest is taken over the line as stored.
+    def test_crlf_terminator_change_breaks_the_waiver(self) -> None:
+        line = "row: " + cite(self.FROZEN) + " frozen"
+        root = self.make_repo({self.LEDGER: line + "\r\n"})
+        findings, waived, stale = self.run_scan(
+            root, self.waivers(line, number=1, terminator="\n")
+        )
+        self.assertEqual(waived, [])
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(len(stale), 1, stale)
+
+    # Same defect from the other side: dropping the file's final newline also
+    # changes the stored bytes of the pinned row.
+    def test_missing_final_newline_breaks_the_waiver(self) -> None:
+        line = "row: " + cite(self.FROZEN) + " frozen"
+        root = self.make_repo({self.LEDGER: line})
+        findings, waived, stale = self.run_scan(
+            root, self.waivers(line, number=1, terminator="\n")
+        )
+        self.assertEqual(waived, [])
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(len(stale), 1, stale)
+
+    # Row 3 again, at one byte of distance: a reflow is not the pinned row.
+    def test_one_byte_change_to_the_pinned_line_stops_the_waiver(self) -> None:
+        pinned = "row: " + cite(self.FROZEN) + " frozen"
+        root = self.make_repo({self.LEDGER: pinned + " \n"})
+        findings, waived, stale = self.run_scan(root, self.waivers(pinned))
+        self.assertEqual(waived, [])
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(len(stale), 1, stale)
+
+    # Row 4 — the identical line, in a file the waiver does not name.
+    def test_waiver_does_not_bleed_to_another_file(self) -> None:
+        line = "row: " + cite(self.FROZEN) + " frozen"
+        root = self.make_repo({self.LEDGER: line + "\n", "docs/copy.md": line + "\n"})
+        findings, waived, _ = self.run_scan(root, self.waivers(line))
+        self.assertEqual(len(waived), 1, waived)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(findings[0][0], "docs/copy.md")
+
+    # Row 5 — the waiver is token-bound, so it cannot cover a second dead
+    # citation that happens to sit on the very line it waives.
+    def test_waiver_is_token_bound_on_the_pinned_line(self) -> None:
+        line = "row: " + cite(self.FROZEN) + " and also " + cite(self.OTHER_DEAD)
+        root = self.make_repo({self.LEDGER: line + "\n"})
+        findings, waived, _ = self.run_scan(root, self.waivers(line))
+        self.assertEqual(len(waived), 1, waived)
+        self.assertEqual(waived[0][2], self.FROZEN)
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(findings[0][2], self.OTHER_DEAD)
+
+    # Row 6 — a neighbouring glob spelling has no standing at all.
+    def test_other_template_spellings_still_fail(self) -> None:
+        line = "row: " + cite(self.FROZEN) + " frozen"
+        neighbours = "a " + cite("specs/*/plan.md") + " b " + cite("specs/*/evidence/x.md")
+        root = self.make_repo({self.LEDGER: line + "\n" + neighbours + "\n"})
+        findings, _, _ = self.run_scan(root, self.waivers(line))
+        self.assertEqual(
+            sorted(target for _, _, target in findings),
+            ["specs/*/evidence/x.md", "specs/*/plan.md"],
+            findings,
+        )
+
+    # Row 7 — a locator makes a different token, so it inherits nothing. The
+    # pin is of THIS line, so only the key mismatch can be doing the work.
+    def test_waived_token_with_locator_still_fails(self) -> None:
+        line = "row: " + cite(self.FROZEN + ":12") + " frozen"
+        root = self.make_repo({self.LEDGER: line + "\n"})
+        findings, waived, stale = self.run_scan(root, self.waivers(line))
+        self.assertEqual(waived, [])
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(findings[0][2], self.FROZEN + ":12")
+        # And the waiver is STALE, not merely inert: the token it names is not a
+        # citation on that line, so the entry covers nothing and has to be
+        # re-reviewed rather than sit there looking healthy.
+        self.assertEqual(len(stale), 1, stale)
+
+    # A waiver covers non-existence, never a citation that leaves the checkout.
+    def test_waiver_never_covers_a_containment_escape(self) -> None:
+        escaping = "specs/../../outside/AGENTS.md"
+        line = "row: " + cite(escaping) + " frozen"
+        root = self.make_repo({self.LEDGER: line + "\n"})
+        findings, waived, _ = self.run_scan(root, self.waivers(line, token=escaping))
+        self.assertEqual(waived, [])
+        self.assertEqual(len(findings), 1, findings)
+        self.assertEqual(findings[0][2], escaping)
+
+    # Row 8 — the waived file is present and the pinned row is gone. On an
+    # append-only ledger that means it was edited or deleted; a waiver is never
+    # left silently covering nothing.
+    def test_stale_pinned_digest_fails_closed(self) -> None:
+        pinned = "the row as it was reviewed"
+        root = self.make_repo({self.LEDGER: "the row after somebody edited it\n"})
+        findings, waived, stale = self.run_scan(root, self.waivers(pinned))
+        self.assertEqual(findings, [])
+        self.assertEqual(waived, [])
+        self.assertEqual(len(stale), 1, stale)
+        self.assertEqual(stale[0][0], self.LEDGER)
+
+    # Row 9 — the same waiver against a corpus that has no such file is inert.
+    # Without this the table would red every unrelated repository the checker
+    # is pointed at, including this suite's own fixtures.
+    def test_waiver_for_absent_file_is_inert(self) -> None:
+        root = self.make_repo({"docs/guide.md": "nothing to see\n"})
+        findings, waived, stale = self.run_scan(root, self.waivers("some pinned row"))
+        self.assertEqual(findings, [])
+        self.assertEqual(waived, [])
+        self.assertEqual(stale, [])
+
+    # A stale pin exits non-zero through the CLI, with its own reason code, so
+    # it can never be mistaken for the passing run it would otherwise resemble.
+    def test_stale_pin_is_a_cli_failure(self) -> None:
+        root = self.make_repo({"a.md": "x\n"})
+        probe = root / "probe.py"
+        probe.write_text(
+            "import importlib.util, sys\n"
+            "spec = importlib.util.spec_from_file_location('c', %r)\n"
+            "m = importlib.util.module_from_spec(spec)\n"
+            "spec.loader.exec_module(m)\n"
+            "m.LEDGER_CITATION_WAIVERS = {('a.md', 'specs/x/y.md'): ('r', ((1, 'deadbeef'),))}\n"
+            "sys.exit(m.main([%r]))\n" % (str(SCRIPT), str(root)),
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [sys.executable, str(probe)], capture_output=True, text=True
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("spec_reference_waiver_stale", result.stderr)
+
+
+class ProductionWaiverTableTest(unittest.TestCase):
+    """Row 1 — the shipped table, against the repository it was written for.
+
+    This is the case that keeps the ledger row honest: the pin is of the whole
+    line, so an edit, a reflow, or a deletion of the waived row turns this RED
+    without anyone having to notice.
+    """
+
+    REPO = SCRIPT.parent.parent
+
+    def test_shipped_waivers_all_apply_to_this_repository(self) -> None:
+        waived: list[tuple[str, int, str, str]] = []
+        stale: list[tuple[str, str, str]] = []
+        findings = MODULE.broken_spec_references(self.REPO, None, waived, stale)
+        self.assertEqual(stale, [], "a shipped waiver pin no longer matches its row")
+        self.assertEqual(findings, [], findings)
+        # Every shipped entry is exercised: an entry covering nothing is a
+        # waiver nobody can review the need for.
+        self.assertEqual(
+            sorted({(path, token) for path, _, token, _ in waived}),
+            sorted(MODULE.LEDGER_CITATION_WAIVERS),
+        )
+
+    def test_shipped_waiver_is_printed_by_the_cli(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), str(self.REPO)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        printed = [
+            line for line in result.stdout.splitlines()
+            if line.startswith("spec_citation_waived:")
+        ]
+        self.assertEqual(len(printed), len(MODULE.LEDGER_CITATION_WAIVERS), result.stdout)
+
+
+class WaivedPathPresenceTest(unittest.TestCase):
+    """A shipped waiver may not be voided by REMOVING its file.
+
+    The adversarial lane found this: `git ls-files` stops yielding a deleted or
+    untracked path, so the path was never scanned, its pins were never checked,
+    and the gate exited 0 with the waiver covering nothing -- the guard voided by
+    omission rather than satisfied. Reproduced against the shipped table before
+    the fix: deleted and untracked both gave findings=0 waived=0 stale=0, exit 0.
+
+    The two conditions that make absence an error are checked separately below, so
+    neither can be dropped without a case going RED.
+    """
+
+    def clone_candidate(self, mutate) -> Path:
+        """A synthetic repo carrying a COPY of this checker, so the copy's own
+        parent-of-parent is that repo and the shipped table is judged against it.
+
+        The waived ledger and the `specs/` tree it cites are both copied, so the
+        control is a faithful mini-candidate that passes cleanly. Copying only the
+        ledger left its OTHER citations unresolvable, and the resulting findings
+        made the mutants' non-zero exit unattributable -- caught by the control.
+        """
+        sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        root = sandbox / "repo"
+        source_root = SCRIPT.parent.parent
+        waived_path = next(iter(MODULE.LEDGER_CITATION_WAIVERS))[0]
+        (root / "scripts").mkdir(parents=True)
+        (root / "scripts" / SCRIPT.name).write_bytes(SCRIPT.read_bytes())
+        target = root / waived_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((source_root / waived_path).read_bytes())
+        shutil.copytree(source_root / "specs", root / "specs")
+        subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+        mutate(root, waived_path)
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+        return root
+
+    def run_cli(self, root: Path) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(root / "scripts" / SCRIPT.name), str(root)],
+            capture_output=True,
+            text=True,
+        )
+
+    def test_control_waived_path_present_still_passes(self) -> None:
+        root = self.clone_candidate(lambda root, path: None)
+        result = self.run_cli(root)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("spec_citation_waived:", result.stdout)
+
+    def test_deleting_the_waived_path_is_stale_and_red(self) -> None:
+        root = self.clone_candidate(lambda root, path: (root / path).unlink())
+        result = self.run_cli(root)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("spec_reference_waiver_stale", result.stderr)
+        self.assertIn("absent-from-tracked-corpus", result.stderr)
+
+    def test_untracking_the_waived_path_is_stale_and_red(self) -> None:
+        def untrack(root: Path, path: str) -> None:
+            (root / ".gitignore").write_text(path + "\n", encoding="utf-8")
+
+        root = self.clone_candidate(untrack)
+        result = self.run_cli(root)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("spec_reference_waiver_stale", result.stderr)
+        self.assertIn("absent-from-tracked-corpus", result.stderr)
+
+    # Compatibility positive 1: a FOREIGN corpus. This checker, running from its
+    # own repository, pointed at an unrelated repository that has no such file,
+    # must stay inert -- which is what every other fixture in this suite relies on.
+    def test_foreign_corpus_without_the_waived_path_stays_inert(self) -> None:
+        sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        root = sandbox / "foreign"
+        root.mkdir()
+        (root / "docs").mkdir()
+        (root / "docs" / "guide.md").write_text("nothing to see\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), str(root)], capture_output=True, text=True
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("spec_reference_check_ok", result.stdout)
+
+    # Compatibility positive 2: an EXPLICIT table, including an empty one, keeps
+    # the old inert-on-absence semantics even against this repository.
+    def test_explicit_waiver_table_stays_inert_on_absence(self) -> None:
+        source_root = SCRIPT.parent.parent
+        for table in ({}, {("no/such/file.md", "specs/090-absent/plan.md"): ("r", ((1, "deadbeef"),))}):
+            waived: list[tuple[str, int, str, str]] = []
+            stale: list[tuple[str, str, str]] = []
+            findings = MODULE.broken_spec_references(source_root, None, waived, stale, table)
+            self.assertEqual(stale, [], f"explicit table {table!r} was not inert")
+            self.assertEqual(waived, [])
+            # With an explicit table the shipped waiver does not apply, so the
+            # frozen ledger citation is an ordinary finding.
+            self.assertTrue(
+                any(f[2] == "specs/*/evidence/AGENTS.md" for f in findings), findings
+            )
 
 
 if __name__ == "__main__":
