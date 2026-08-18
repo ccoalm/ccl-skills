@@ -54,6 +54,8 @@ STATE="$STUB_STATE_DIR"
 MODE="$(cat "$STATE/review_mode")"
 [ -z "${OPENCODE_PURE:-}" ] || touch "$STATE/pure_mode_forced"
 if [ "$1" = "debug" ] && [ "${2:-}" = "agent" ]; then
+  "$REAL_PYTHON_BIN" -c 'import time; print(time.monotonic_ns())' \
+    >>"$STATE/boundary_started_ns"
   sleep "${STUB_BOUNDARY_DELAY_S:-0}"
   grep -q '^model:' .opencode/agent/ccl-review.md 2>/dev/null && touch "$STATE/agent_model_override"
   grep -q '^  "\*": deny$' .opencode/agent/ccl-review.md 2>/dev/null \
@@ -72,6 +74,8 @@ if [ "$1" = "debug" ] && [ "${2:-}" = "agent" ]; then
   exit 0
 fi
 if [ "$1" = "run" ]; then
+  "$REAL_PYTHON_BIN" -c 'import time; print(time.monotonic_ns())' \
+    >>"$STATE/run_started_ns"
   review_dir=""
   prompt_file=""
   previous=""
@@ -358,7 +362,10 @@ run_wrapper() { # $1=review_mode; prints stdout, returns rc
     "$WORK/state/audit_files_visible" "$WORK/state/packet_only_permissions" \
     "$WORK/state/selected_skill_only" \
     "$WORK/state/prompt_file_transport" "$WORK/state/option_separator" \
-    "$WORK/state/positional_prompt" "$WORK/state/extra_positional_prompt"
+    "$WORK/state/positional_prompt" "$WORK/state/extra_positional_prompt" \
+    "$WORK/state/lane_pre_seconds" "$WORK/state/lane_post_seconds" \
+    "$WORK/state/elapsed_pre_seconds" "$WORK/state/elapsed_post_seconds" \
+    "$WORK/state/boundary_started_ns" "$WORK/state/run_started_ns"
   env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" \
     XDG_DATA_HOME="$WORK/source-data" FAIL_CAT_KIND="${FAIL_CAT_KIND:-}" TEST_PROFILE_PATH="$profile_file" \
     STUB_BOUNDARY_DELAY_S="${STUB_BOUNDARY_DELAY_S:-0}" \
@@ -542,9 +549,89 @@ out="$(run_wrapper pass_first)"; rc=$?
 check "conforming first reply -> passed with no retry" '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ "$(runs)" = 1 ]'
 check "one conforming review uses exactly one model invocation" '[ "$(runs)" = 1 ]'
 rm -f "$WORK/state/timeout_args"
-out="$(REVIEW_TEST_TIMEOUT=180 run_wrapper pass_first)"; rc=$?
-check "OpenCode caps the pre-inference boundary probe and preserves the unspent formal budget" \
-  '[ "$rc" = 0 ] && grep -q -- "60s opencode debug agent ccl-review" "$WORK/state/timeout_args" && grep -q -- "170s opencode run" "$WORK/state/timeout_args"'
+cat >"$WORK/formal-budget-clock-env.sh" <<'STUB'
+if [ "${0:-}" = "${CLOCK_WRAPPER_PATH:-}" ]; then
+  set -T
+  trap 'ccl_command=${BASH_COMMAND:-}; ccl_caller=${FUNCNAME[1]:-}; if [ "${CCL_LANE_POST_PENDING:-0}" = 1 ]; then printf "%s\n" "$SECONDS" >>"$STUB_STATE_DIR/lane_post_seconds"; CCL_LANE_POST_PENDING=0; fi; if [ "${CCL_ELAPSED_POST_PENDING:-0}" = 1 ]; then ccl_elapsed_post=$SECONDS; if [ "${STUB_FORCE_FIRST_AMBIGUOUS_SAMPLE:-0}" = 1 ] && [ ! -e "$STUB_STATE_DIR/forced_ambiguous_sample" ]; then ccl_elapsed_post=$((ccl_elapsed_post + 1)); : >"$STUB_STATE_DIR/forced_ambiguous_sample"; fi; printf "%s\n" "$ccl_elapsed_post" >>"$STUB_STATE_DIR/elapsed_post_seconds"; CCL_ELAPSED_POST_PENDING=0; fi; case "$ccl_command" in LANE_BUDGET_STARTED=*) printf "%s\n" "$SECONDS" >>"$STUB_STATE_DIR/lane_pre_seconds"; CCL_LANE_POST_PENDING=1;; elapsed=*LANE_BUDGET_STARTED*) [ "$ccl_caller" != run_opencode ] || { printf "%s\n" "$SECONDS" >>"$STUB_STATE_DIR/elapsed_pre_seconds"; CCL_ELAPSED_POST_PENDING=1; };; esac' DEBUG
+fi
+STUB
+review_timeout=180
+# A controller hook brackets each producer clock read: DEBUG supplies the pre
+# value, and the next DEBUG event supplies the post value after the assignment.
+# Boundary/run stubs remain independent call/cardinality evidence. Every file
+# must contain exactly one numeric observation before arithmetic is attempted.
+# A pre/post pair that crosses an integer-second boundary is ambiguous: widening
+# the accepted interval would hide a one-second producer regression. Retry that
+# isolated probe up to three times and accept only a zero-width pair; exhaustion
+# reaches the named assertion as a failure instead of becoming a false green.
+budget_inputs_ok=false
+budget_sample_stable=false
+rm -f "$WORK/state/forced_ambiguous_sample"
+for budget_attempt in 1 2 3; do
+  rm -f "$WORK/state/timeout_args"
+  out="$(
+    export BASH_ENV="$WORK/formal-budget-clock-env.sh" CLOCK_WRAPPER_PATH="$WRAPPER" STUB_FORCE_FIRST_AMBIGUOUS_SAMPLE=1
+    STUB_BOUNDARY_DELAY_S=3 REVIEW_TEST_TIMEOUT="$review_timeout" run_wrapper pass_first
+  )"; rc=$?
+  capped_formal="$(awk '/ opencode run / { value=$1; sub(/s$/, "", value); print value; exit }' "$WORK/state/timeout_args")"
+  run_timeout_count="$(awk '/ opencode run / { count++ } END { print count + 0 }' "$WORK/state/timeout_args")"
+  budget_inputs_ok=true
+  lane_pre_seconds=""
+  lane_post_seconds=""
+  elapsed_pre_seconds=""
+  elapsed_post_seconds=""
+  boundary_started_ns=""
+  run_started_ns=""
+  for clock_file in lane_pre_seconds lane_post_seconds elapsed_pre_seconds elapsed_post_seconds boundary_started_ns run_started_ns; do
+    if [ -s "$WORK/state/$clock_file" ]; then
+      observation_count="$(wc -l <"$WORK/state/$clock_file" | tr -d ' ')"
+      value="$(sed -n '1p' "$WORK/state/$clock_file")"
+      [ "$observation_count" -eq 1 ] || budget_inputs_ok=false
+      case "$value" in
+        ''|*[!0-9]*) budget_inputs_ok=false ;;
+        *)
+          case "$clock_file" in
+            lane_pre_seconds) lane_pre_seconds="$value" ;;
+            lane_post_seconds) lane_post_seconds="$value" ;;
+            elapsed_pre_seconds) elapsed_pre_seconds="$value" ;;
+            elapsed_post_seconds) elapsed_post_seconds="$value" ;;
+            boundary_started_ns) boundary_started_ns="$value" ;;
+            run_started_ns) run_started_ns="$value" ;;
+          esac
+          ;;
+      esac
+    else
+      budget_inputs_ok=false
+    fi
+  done
+  case "$capped_formal" in
+    ''|*[!0-9]*) budget_inputs_ok=false ;;
+  esac
+  [ "$run_timeout_count" -eq 1 ] || budget_inputs_ok=false
+  [ "$budget_inputs_ok" = true ] || break
+  if [ "$lane_pre_seconds" -eq "$lane_post_seconds" ] && \
+     [ "$elapsed_pre_seconds" -eq "$elapsed_post_seconds" ]; then
+    budget_sample_stable=true
+    break
+  fi
+done
+expected_reserve=$((review_timeout / 10))
+[ "$expected_reserve" -ge 3 ] || expected_reserve=3
+[ "$expected_reserve" -le 10 ] || expected_reserve=10
+expected_elapsed=-1
+charged_elapsed=-1
+if [ "$budget_inputs_ok" = true ] && [ "$budget_sample_stable" = true ]; then
+  expected_elapsed=$((elapsed_pre_seconds - lane_pre_seconds))
+  charged_elapsed=$((review_timeout - expected_reserve - capped_formal))
+fi
+check "OpenCode budget probe captures one complete numeric observation set" \
+  '[ "$budget_inputs_ok" = true ]'
+check "OpenCode budget probe obtains a stable clock sample within its retry bound" \
+  '[ "$budget_inputs_ok" != true ] || [ "$budget_sample_stable" = true ]'
+check "OpenCode budget probe preserves controller cap boundary and retry evidence" \
+  '[ "$budget_inputs_ok" != true ] || [ "$budget_sample_stable" != true ] || { [ "$rc" = 0 ] && [ -e "$WORK/state/forced_ambiguous_sample" ] && [ "$budget_attempt" -ge 2 ] && grep -q -- "60s opencode debug agent ccl-review" "$WORK/state/timeout_args" && [ "$boundary_started_ns" -le "$run_started_ns" ] && [ $((run_started_ns - boundary_started_ns)) -ge 3000000000 ]; }'
+check "OpenCode formal timeout equals independently observed elapsed budget" \
+  '[ "$budget_inputs_ok" != true ] || [ "$budget_sample_stable" != true ] || [ "$charged_elapsed" -eq "$expected_elapsed" ]'
 rm -f "$WORK/state/timeout_args"
 out="$(STUB_BOUNDARY_DELAY_S=2 REVIEW_TEST_TIMEOUT=10 run_wrapper pass_first)"; rc=$?
 formal_timeout="$(awk '/ opencode run / { value=$1; sub(/s$/, "", value); print value; exit }' "$WORK/state/timeout_args")"
