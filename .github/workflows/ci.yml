@@ -18,11 +18,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Install validation dependencies
+      - name: Install validation tools
         run: |
           sudo apt-get update
           sudo apt-get install -y ripgrep ruby
-          python3 -m pip install pytest pyyaml
+      - name: Install Python test dependencies
+        run: python3 -m pip install -r requirements-test.txt
       - name: Public sanitization regression
         run: python3 scripts/test_check_public_sanitization.py
       - name: Public sanitization gate
@@ -52,11 +53,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install validation dependencies
+      - name: Install validation tools
         run: |
           sudo apt-get update
           sudo apt-get install -y ripgrep ruby
-          python3 -m pip install pytest pyyaml
+      - name: Install Python test dependencies
+        run: python3 -m pip install -r requirements-test.txt
       - name: Heavy regression lane
         # Same base-ref guard as the Repository test suite step: clone-driving
         # tests inherit CCL_SKILL_BASE_REF, and a clone of the detached Actions

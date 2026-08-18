@@ -639,3 +639,1051 @@ suite green with its added cases RED at the frozen base; every applied mutation
 RED against a green control; the private-R0 clean tokens; row 152 byte-identical
 to base; and both review lanes conclusive on one frozen packet with every code
 finding dispositioned.
+
+## Human-requested chain h3 — independent oracles and shipped-entry semantics
+
+The user authorized a direct manual Claude run. The first command used the
+installed gate with `--review-harness`; it stopped at policy validation before
+selecting a provider, so it is retained as an inconclusive invocation and is not
+counted as review. The corrected h3b chain used the repository-local gate against
+committed candidate `04b8b47` and one frozen packet, SHA-256
+`b758023bad20890850b27a2f16b7daf63f83c09c21050fec29f8f7cef3dff876`.
+Claude passed the fact/consistency review, then returned three challenge
+findings. That review and challenge cover only the pre-fix candidate.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| h3-1 | The timeout test derived both operands of its semantic relation from wrapper-owned trace values, so a second subtraction inside the producer could move them together and pass | **Confirmed and fixed.** The test now anchors the remaining budget to the externally supplied timeout and the traced elapsed value before checking the reserve subtraction. The old assertion passes the applied producer mutant; the strengthened assertion fails exactly the named case; the unmutated suite passes |
+| h3-2 | Passing the shipped waiver table explicitly applied the same entries but skipped the waived-path presence guard | **Confirmed and fixed.** Presence is now decided per entry by equality with the shipped table's key and value under the owning repository, not by whether the optional argument was omitted. The new test covers both the shipped object and an equal copy |
+| h3-3 | Comparing the resolved scan root with the checker's owning root can be bypassed by subdirectory, symlink, nested-checkout, or bind-mount invocation | **Refuted for this contract.** The supported repository gate scans `.`; a subdirectory is deliberately a partial or foreign corpus and must not inherit root-wide presence obligations. A symlink spelling resolves to the owning root and keeps the guard. A separate checkout or a bind mount of both script and root has its own matching owner root. No code changed for this finding |
+
+### Remediation charter and RCA
+
+| Field | Decision |
+| --- | --- |
+| Purpose | Prevent two verifier false greens: producer-owned values drifting together, and a shipped safety entry losing its semantics when supplied explicitly |
+| Scope | The two confirmed h3 findings, their focused tests, the 025 plan, and the append-only impact-chain register. F3, production timeout behavior, routing, release, and repository-root semantics are out of scope |
+| Depth | Targeted review-follow-up with applied killing mutations; no new skill rule or routing change |
+| Root cause | F1's oracle compared values from one producer. F2 represented semantic identity with a call-site omission sentinel |
+| Failure mode | A wrapper can spend the reserve twice while its verifier passes; a caller can apply a shipped waiver entry while silently dropping its deletion guard |
+| Lifecycle impact | Implementation and testing only. Product intent, UI, release, onboarding, and source-less use are unchanged |
+| Evidence plan | h3b review/challenge JSON, focused RED/GREEN logs, one killing mutation per confirmed finding, the F3 root-semantics probes, repository gates, and a fresh exact-candidate dual-track run |
+| Completion standard | Both controls pass, both mutants fail for the named assertion, all required repository gates pass, and a newly authorized review/challenge pair is conclusive on one later frozen candidate |
+
+The widened RCA found two latent controls rather than an implementer-diligence
+problem. For F1, the test name promised budget preservation while its oracle
+could not disagree with a self-consistent producer; fixing the independent
+input-to-intermediate relation is necessary and the existing mutation walk is
+the confirming feedback. For F2, using `None` was locally convenient because it
+preserved custom-table fixtures, but it conflated invocation shape with entry
+identity; per-entry shipped-content matching is the narrower control and keeps
+custom entries plus foreign corpora inert. The dual-track gate itself needs no
+change: its adversarial pass found both gaps before landing.
+
+### Target-output map
+
+| Target | Decision | Reason or firing point |
+| --- | --- | --- |
+| `skills/code-review/scripts/test_opencode_review_retry.sh` | updated | F1 now checks external timeout minus observed elapsed before checking remaining minus reserve; the applied producer mutant kills this assertion |
+| `scripts/check-spec-references.py` and its focused test | updated | F2 keeps shipped-entry presence semantics for the shipped object and an equal copy; the guard-removal mutant kills the new case |
+| `specs/025-spec-reference-correction/plan.md` | updated | Records the h3 chain, dispositions, RCA, evidence boundary, and current authorization state |
+| `skills/skill-extraction-workflow/references/source-register.md` | updated | Adds append-only behavioral-evidence rows for both confirmed failure classes |
+| `testing-strategy` | unchanged | Its existing core rule already rejects expectations derived from the same source and requires a killing mutation; the repaired tests are the mechanical firing points |
+| `product-rd-workflow` and `code-review/SKILL.md` | unchanged | The required challenge fired and found the defects; no lifecycle or reviewer-routing rule failed |
+
+| Source mechanism | Executable landing | Test owner | Status |
+| --- | --- | --- | --- |
+| A producer mutation can move all values used by its own oracle | Timeout verifier asserts an external-input relation before the downstream subtraction | `test_opencode_review_retry.sh` control plus producer mutant | landed |
+| A shipped table entry must retain its guard when supplied explicitly | Checker classifies each matching shipped entry by table content under the owning root | `test_check_spec_references.py` object/copy case plus guard-removal mutant | landed |
+
+## Current landing state after h3 findings
+
+`interim — the h3 review is clean for the pre-fix candidate; the challenge's two
+confirmed findings have focused RED/GREEN and killing-mutation evidence; and the
+third finding is refuted with root-semantics probes. The focused suites and all
+required repository gates pass, including private R0 with the process-retro
+profile and the final ccl_skill_check_clean_ok token. The code-bearing candidate
+`aaf3e9c8` has a complete 38-step ledger under the trace's
+`fix/full-aaf3e9c-h3-v2` directory: 38 zero exits, command-order and log-hash
+agreement, a passing recorder control, unchanged register row 152, and private
+R0 clean tokens. The only later tree delta is this landing-state text. It owes
+the affected Markdown, citation, sanitization, diff, coverage, and skill checks,
+not a second run of unrelated runtime and hook suites. Once those incremental
+checks pass, the five-file findings fix still owes only a newly authorized fresh
+review/challenge pair before it can be called complete or committed.`
+
+The first full-run attempt used a login Bash that selected the system Ruby and
+failed before candidate tests; a later exact-tree replay was stopped after step
+1 when the risk owner challenged the value of rerunning all 38 steps for a
+status-only Markdown delta. Both attempts remain diagnostic evidence and neither
+is counted as a candidate pass.
+
+No h3 findings fix is committed, merged, pushed, tagged, released, or cleaned
+up. The prior `04b8b47` commit remains the feature-branch HEAD; h3b is not review
+coverage for the dirty worktree tree.
+
+## Human-requested chain h4b — trace operands from different calls
+
+The h4b fact/consistency review ran through the repository-local Claude gate on
+the cumulative six-file packet, SHA-256
+`37bba283f683c0aaeb5508d4707ff667a12d7a54d113cabba8124a980fc4ec1e`.
+It returned one P2 finding and therefore did not open the challenge round.
+
+The finding is **confirmed**. The boundary probe calls
+`remaining_lane_timeout` before `run_opencode` calls it again. The test selected
+the first traced elapsed value but the first `run_timeout` assignment, so a
+one-second boundary delay paired elapsed `0` from the boundary call with the
+later run budget and failed a correct wrapper. A disposable copy with only that
+delay made exactly the named budget case RED.
+
+The repaired case now fixes the one-second difference into its ordinary control,
+records the first boundary elapsed value, and selects the most recent elapsed
+value preceding the first `run_timeout` assignment. It requires the paired
+elapsed value to exceed the boundary value before checking both production
+relations. The complete unmutated verifier suite exits 0; the earlier producer
+mutant still makes exactly the named case fail. `opencode_review.sh` remains
+unchanged.
+
+This is a new candidate. The prior 38-step ledger still covers every unchanged
+runtime, hook, and gate path; the new delta is one verifier case plus this plan
+and one appended source-register row. It owes the changed verifier suite, the
+required repository gates, and a fresh cumulative review/challenge pair. It does
+not re-owe unrelated runtime suites solely because evidence prose changed.
+
+## Current landing state after h4b
+
+`interim — h4b finding confirmed and repaired with a deterministic RED control,
+a green complete verifier suite, and the original producer mutant still RED.
+The repair is uncommitted and h4b has no challenge pass. Submission and local-dev
+merge remain authorized but blocked until the refreshed gates and a new exact
+candidate Claude review/challenge pair pass.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chains h5 and h6 — candidate binding and independent time
+
+The h5 fact/consistency review used cumulative packet
+`123f183010f63c490f76caf1b30d0e4fcd1e5bf8e79cee30552f569af6270902`
+and returned one P2 evidence finding: the final candidate ledger did not contain
+direct runs of all three changed tests. Those tests were run against synthetic
+candidate `2971d71f`; all exited zero, with candidate, source, raw-log, and bound
+transcript hashes recorded. This closed the missing-run gap, but deterministic
+test output remained byte-identical to an older run.
+
+The h6 fact/consistency review passed packet
+`100128345b2166e7a270949725ec8fcf39d53ddb5513e2790b9fd64d61af9770`.
+Its challenge returned four P2 findings. All four are confirmed:
+
+| Finding | Disposition |
+| --- | --- |
+| The timeout oracle still trusted the producer's elapsed value | Replaced producer trace operands with monotonic timestamps written by the test stub at the boundary and formal-run entrypoints. The charged elapsed time must stay within the independently observed gap, allowing only one second on either side for integer-second quantization |
+| A near-copy waiver with the shipped key but changed metadata could waive the citation while dropping the path-presence guard | Presence now follows membership of the shipped key, not equality of mutable reason or pin metadata. A changed-reason near-copy is the focused RED case |
+| Selecting the latest trace value before the first run assignment inferred call identity from position | Eliminated the trace and positional pairing entirely; the external boundary/run entrypoints are the pairing surface |
+| A self-written transcript header did not prove which test bytes executed | Accepted as an evidence-runner defect. The next candidate ledger must compute the test source hash inside the same captured command that executes that test; old headers are not completion evidence |
+
+The waiver test was RED before the checker change: 70 tests ran and only
+`test_explicit_shipped_table_still_requires_its_waived_path` failed. The fixed
+suite exits zero. The new timeout control exits zero on the production wrapper.
+A disposable mutant that adds ten seconds only when `TIMEOUT=180` makes exactly
+the named formal-budget case fail; the other cases remain green. An earlier
+unscoped mutant changed every short-timeout path and caused 24 failures, so it is
+retained as invalid attribution evidence rather than counted.
+
+## Current landing state after h6
+
+`interim — the four h6 challenge findings have confirmed dispositions and the
+two code/test changes have focused control and RED evidence. The candidate is
+still uncommitted. It owes documentation closeout, the exact-candidate affected
+tests and required repository gates with in-command source hashes, and one fresh
+cumulative Claude review/challenge pair. No prior review covers this later tree.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h7 — bounded interval and executable receipts
+
+The h7 fact/consistency review ran against candidate `3ea38fec` with packet
+SHA-256 `e9109616ee581ab7f10a6ae5618f3da171c7a3ea43a1a0cbf5c8fdab471e4f60`.
+It returned two P2 findings and did not open a challenge round. Both are
+confirmed.
+
+First, the parse-review receipt misspelled `parse_review_json.py` with a hyphen.
+Because the compound `bash -c` command did not enable `set -e`, `shasum` failed
+but the later passing test supplied the row's zero exit. The corrected runner
+uses the real underscore path and `set -euo pipefail`, so a missing hash target
+cannot be overwritten by a later command.
+
+Second, the timeout verifier used boundary-entry to run-entry time for both
+sides of its bound. Lane accounting starts just before the boundary timeout is
+prepared, so scheduling between lane start and the stub's boundary entry is
+legitimately charged but absent from that interval. The revised verifier uses
+two controller-owned intervals: boundary-entry to run-entry is the lower bound
+that proves the three-second boundary delay was charged; controller-before-
+wrapper-launch to run-entry is the upper bound that includes all legitimate
+pre-boundary work. One second on either side covers integer-second
+quantization. The production-wrapper control passes, while the scoped
+elapsed-plus-ten mutant still makes exactly the named case fail.
+
+## Current landing state after h7
+
+`interim — both h7 findings are fixed. The code remains uncommitted and the h7
+review covers only its earlier candidate. The later tree owes one exact-candidate
+source-bound focused ledger, required repository gates, documentation closeout,
+and a fresh cumulative review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chains h8 and h8b — historical counts and scan state
+
+The h8 review used candidate `1d13ee35` and packet
+`0a80d6dd3af0f4745fa4fe7366a152fe38286bb82079826ac438eb5e8481c72e`.
+Its first P2 finding treated register row 153's 69-case count as a current total.
+That reading is refuted by the register's per-round contract and a clean local
+clone at the row-introducing commit `04b8b47`: the suite exits zero after 69
+tests. Its second P2 finding is confirmed: three review-plan evidence strings
+still named the h7 candidate. The h8b packet corrected those strings and carried
+the historical checkout evidence.
+
+The h8b review used packet
+`6ea38ae2fdef13fd145abb9747a9cb4a4c00101fc530d89a9ab5df240bb9f0af`.
+It returned two P2 findings. The count concern is resolved without rewriting
+append-only history: a superseding row now states the cumulative progression.
+Row 153 remains accurate for its own round; the accumulated suite has since
+grown from 43 to 71 cases through 28 additions. Twenty-five historical RED
+cases plus the later changed-reason and tracked-symlink RED cases make 27
+observed RED additions across their respective pre-fix baselines.
+
+The second h8b finding is confirmed for tracked symlinks and read failures; its
+NUL example does not apply because this checker decodes bytes with
+`surrogateescape` rather than skipping them. Previously, a tracked waived path
+that could not be scanned received the deletion/untracking suffix
+`absent-from-tracked-corpus`. A new symlink test runs 71 cases and fails only
+because `present-but-unscanned` is missing. The checker now records waived paths
+when `git ls-files` yields them, separately records successfully scanned paths,
+and emits `present-but-unscanned` for the former-minus-latter set. The verdict
+stays fail-closed; only the operator diagnosis becomes accurate.
+
+## Current landing state after h8b
+
+`interim — both h8b findings are closed with a superseding count row and a
+focused diagnostic RED/fix. The later candidate remains uncommitted and owes
+the exact-candidate focused tests, required gates, documentation closeout, and a
+fresh cumulative review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h9 — lane-clock identity and guarded inputs
+
+The h9 fact/consistency review passed candidate `0a805ef9` with packet
+`b7c89303f281147e4563e9127ea50ff29d67af18ac10499d70d781344224552f`.
+Its challenge returned three P2 findings, all in the formal-budget test fixture.
+
+The prior controller-before-wrapper upper interval included setup that the lane
+clock does not charge, so small elapsed inflation could hide inside that slack.
+The fixture now installs a test-only `BASH_ENV` DEBUG hook that records monotonic
+time immediately before the production wrapper executes its
+`LANE_BUDGET_STARTED` assignment. The allowed interval is therefore lane-start
+to first formal-run entry; boundary-entry to that same run remains the required
+lower interval. The only tolerance is Bash's one-second `SECONDS` quantization.
+The production control passes, while a scoped two-second elapsed mutant makes
+exactly the named case fail.
+
+The other findings are confirmed fixture robustness defects. Clock files and
+the extracted formal timeout are validated before arithmetic; a missing value
+sets `budget_inputs_ok=false` and reaches the named assertion instead of
+aborting the shell. Run timestamps are appended, the verifier selects the first,
+and the case requires exactly one `opencode run` timeout. A disposable stub that
+omits only this case's run timestamp exits with exactly the named failure and no
+shell error.
+
+## Current landing state after h9
+
+`interim — all three h9 challenge findings are fixed with a green control, a
+two-second producer mutant RED, and a missing-input named RED. The later tree is
+uncommitted and owes exact-candidate focused tests, required repository gates,
+documentation closeout, and a fresh cumulative review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h10 — live-corpus evidence and variable identity
+
+The h10 review used candidate `03ab5ae4` and packet
+`547cc3f325fffc288123bf38bed878a646577e7d8fd93cfe0dca550ef0d18380`.
+It returned two P2 findings and did not open a challenge round.
+
+Both are confirmed. The spec-reference suite imports the checker but also reads
+the live source register and specs tree, so equal checker/test hashes do not make
+an older result candidate-equivalent after those corpus files change. The next
+ledger must run that suite directly on the current candidate. Separately, the
+seen-pin loop reused `path` for a waiver-key string while the outer file loop
+used it for a `Path`. No current statement read the outer value afterward, but
+the shadowing made a later use type-unsafe. The inner names are now
+`waived_path` and `waived_token`; behavior is unchanged.
+
+## Current landing state after h10
+
+`interim — both h10 findings are fixed. The later candidate remains uncommitted
+and owes a direct current-corpus spec suite, affected source-bound evidence,
+required repository gates, documentation closeout, and a fresh cumulative
+review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h11 — exact shell clock and tracked fixtures
+
+The h11 fact/consistency review passed candidate `3d5bce0c` with packet
+`8c8b4779892418af6d6a70451c0d7a2d4921a89e1447b84a34d7acd37149309e`.
+Its challenge returned five P2 findings.
+
+Three timeout-fixture findings are confirmed and handled together. The DEBUG
+hook now uses `set -T` so it observes function bodies and appends the wrapper
+shell's own integer `SECONDS` value at both the unique lane assignment and the
+elapsed calculation whose caller is `run_opencode`. The verifier requires one
+numeric lane, elapsed, boundary, and run observation, plus one formal timeout,
+before arithmetic. Charged elapsed must equal the exact observed shell-clock
+difference; there is no broad timing interval. The production control passes.
+Scoped `+1s`, missing-run-clock, and duplicate-boundary mutants each fail exactly
+the named case and leave every other case green.
+
+The root-equality finding is refuted under the already decided whole-repository
+contract. A partial root is a partial or foreign corpus and must not acquire a
+root-wide presence obligation. A copied checkout that carries the checker moves
+`__file__` and its owning root together; `clone_candidate` is that positive and
+its deletion/untracking cases are RED. Pointing the original checker at a second
+checkout is deliberately foreign-corpus behavior.
+
+The fixture-hermeticity finding is confirmed. `clone_candidate` no longer uses
+`shutil.copytree` on the live specs directory. It enumerates `git ls-files -z --
+specs` and copies only those tracked worktree bytes, preserving symlinks. An
+untracked or ignored scratch citation can no longer pollute the synthetic
+control, while current tracked candidate content remains under test. The
+71-case control exits zero.
+
+## Current landing state after h11
+
+`interim — four confirmed h11 findings are fixed and the root-scope finding is
+refuted against the established contract. The later tree is uncommitted and
+owes exact-candidate affected tests, required gates, documentation closeout, and
+a fresh cumulative review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h12 — pre/post shell-clock brackets
+
+The h12 fact/consistency review used candidate `20522c95` with packet
+`f0cb70d0be5e1937596b5effa5c3c6eb14d2dd608002facc8b7b6926a75fb2e0`.
+It returned one P2 finding and did not open a challenge round.
+
+The finding is confirmed. Sampling `SECONDS` only before each producer command
+still leaves a second-boundary race: the lane-start command can run after its
+sample's second and the elapsed command can run after its sample's second, so an
+exact pre-sample difference can reject a correct wrapper. The DEBUG hook now
+appends a pre sample at each uniquely identified command and a post sample at
+the next DEBUG event. The verifier requires exactly one numeric observation in
+all six streams and accepts the charged elapsed only inside the resulting
+controller-observed interval, from elapsed-pre minus lane-post through
+elapsed-post minus lane-pre. This is a bracket over the two producer reads, not
+a guessed timing tolerance.
+
+The production-wrapper control exits zero with `opencode_review_retry_tests_ok`.
+Scoped `+1s`, missing-run-clock, and duplicate-boundary mutants each leave every
+other case green and fail exactly the named budget case. Production
+`opencode_review.sh` remains unchanged.
+
+## Review-entry state after h12
+
+`At review entry, the h12 finding is fixed with a green control and three
+differential RED probes. The tree is uncommitted; landing remains gated on one
+frozen-candidate focused ledger, the required repository gates, and a fresh
+cumulative Claude review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h13b — reject ambiguous clock samples
+
+The h13b fact/consistency review used candidate `92eb31c0` with packet
+`0b3419866506e83bd9ae9b5c48069fe1b97bad34509c601983ac9fee30d3ce84`.
+It returned two P2 findings and did not open a challenge round. Both are
+confirmed.
+
+First, accepting the whole pre/post interval removed the h12 false RED but
+could hide a `+1s` producer regression whenever either bracket widened by one.
+The fixture now treats a widened bracket as ambiguous instead of passing it. It
+retries only this isolated probe up to three times and accepts a sample only
+when both pre/post pairs are zero-width; exhaustion reaches the named failure.
+The control deliberately widens the first elapsed-post sample, so the retry is
+not an unexercised fallback. Its second sample is stable and the complete suite
+passes. Against the same deterministic first ambiguity, a scoped `+1s` producer
+mutant fails exactly the named budget case. Missing-run-clock and
+duplicate-boundary mutants do the same.
+
+Second, the h13b packet reported each mutant's one-failure count but omitted the
+actual `FAIL -` line. The underlying logs do name the same budget case in all
+three runs. The replacement packet must embed those lines so a reviewer can
+verify attribution without leaving the bounded packet.
+
+## Review-entry state after h13b
+
+`At review entry, both h13b findings are closed: ambiguous timing samples are
+boundedly resampled rather than admitted, and the next packet includes named
+mutant failures. The uncommitted tree remains gated on source-bound evidence,
+required repository gates, and one fresh cumulative Claude review/challenge
+pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h14 — retry outcome, not attempt index
+
+The h14 fact/consistency review used candidate `e6b6cb11` with packet
+`c8442182fff94676b5dd7a7bbecaf2ceb83e72c3d9940efec9472827af16163e`.
+It returned one P2 finding and did not open a challenge round. The finding is
+confirmed.
+
+The first ambiguous sample is forced, but the second sample can independently
+cross a real second boundary. The loop correctly permits a stable third sample;
+requiring `budget_attempt == 2` nevertheless rejected that recovered outcome.
+The assertion now proves that the forced-ambiguity marker was consumed and that
+at least one retry occurred. It does not pin which later attempt succeeds.
+Cardinality, zero-width bracket, bounded exhaustion, exact charged elapsed, and
+all external boundary/run checks remain unchanged.
+
+## Review-entry state after h14
+
+`At review entry, the h14 false-RED path is closed without weakening the
+semantic oracle. The uncommitted tree remains gated on a fresh frozen candidate,
+source-bound verification, and one cumulative Claude review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h15b — discriminating failures and root invocation
+
+The h15b fact/consistency review passed candidate `1aaa6f39` with packet
+`c636eb584742f7a073b313850cd55a955732cc1d29ddc49936b4facfe0594f2b`.
+Its challenge returned three P2 findings.
+
+The timeout attribution finding is confirmed. Observation validity, stable
+sampling, and elapsed arithmetic now have separate mutually exclusive checks.
+The semantic check is not evaluated as a failure when an earlier prerequisite
+is unavailable. The correct wrapper passes; scoped `+1s` fails only the
+arithmetic check, missing-run and duplicate-boundary fail only observation
+completeness, and forced three-attempt ambiguity fails only stable sampling.
+
+The fixture finding is confirmed only for tracked worktree deletions. A tracked
+name can be absent from disk, so the tracked-corpus copier now preserves that
+absence instead of raising before the copied checker can diagnose the candidate.
+The separately copied waived ledger follows the same conditional rule, and its
+parent remains available to mutation cases. The positive control also requires
+the terminal `spec_reference_check_ok` token. The claim that an omitted
+unstaged plan could make the suite look attributed is refuted: the positive
+control already requires exit zero, so an unrelated unresolved citation makes
+the suite RED.
+
+The root-scope finding is refuted as a request to change the established
+whole-repository contract. Mandatory invocations in both Makefile and CI are
+`python3 scripts/check-spec-references.py .`; a new focused case pins those
+exact argv and the checker's owning-root identity. Partial and foreign corpus
+scans deliberately retain inert shipped-presence semantics. The focused suite
+now runs 72 tests.
+
+## Review-entry state after h15b
+
+`At review entry, the two confirmed challenge findings are fixed and the root
+scope is pinned to the actual mandatory invocations without semantic expansion.
+The uncommitted tree remains gated on a fresh frozen candidate, source-bound
+verification, and one cumulative Claude review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h16 — pure arithmetic attribution
+
+The h16 fact/consistency review passed candidate `fed81efb` with packet
+`1546a8a2c49478e7cd561f8d90e2fd87085c4ef532d06d244c97a062e03aa798`.
+Its challenge returned four P2 findings.
+
+The remaining attribution finding is confirmed. Controller exit, forced retry,
+boundary ordering, minimum charged work, and the exact 60-second boundary cap
+now have their own named check. The arithmetic label contains only equality
+between charged elapsed and the independently observed stable value. Five
+parallel runs are discriminating: the correct wrapper passes; `+1s` fails only
+arithmetic; missing and duplicate observations fail only completeness; and
+three-attempt ambiguity fails only stability.
+
+The request to copy an untracked plan is refuted because it conflicts with the
+already decided VCS-corpus boundary. Ambient untracked files must not enter a
+synthetic candidate. If the checker depends on a target outside that corpus,
+the positive control's required zero exit makes the suite RED; it cannot make
+the mutants appear attributed.
+
+The success-token concern is an evidence gap, not a production defect. The
+checker's existing return precedes the token whenever `stale` is non-empty. A
+stale-only CLI regression now also asserts that `spec_reference_check_ok` is
+absent, making the ordering explicit in the focused suite.
+
+The root-invocation execution concern is confirmed. In addition to pinning the
+Makefile and CI text, the focused case now runs their exact argv from the
+resolved repository root, requires exit zero, and requires the success token.
+The shipped presence guard therefore remains bound to the actual mandatory
+whole-repository invocation without changing partial or foreign scans.
+
+## Review-entry state after h16
+
+`At review entry, three confirmed h16 findings are closed and the untracked-file
+proposal is refuted against the tracked-only fixture contract. The uncommitted
+tree remains gated on a fresh frozen candidate, source-bound verification, and
+one cumulative Claude review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h17 — symmetric elapsed attribution
+
+The h17 fact/consistency review passed candidate `c713297a` with packet
+`0ce0e8a4f7d17ee982725572aa6814bc4ef2cde06edb60eed537a0f5a4aeeea2`.
+Its challenge returned three P2 findings.
+
+The external-checker finding is refuted under the established owner-root
+contract. The supported gate is the checker shipped inside and invoked from its
+own repository; a copied checker moves with a copied checkout. Installing that
+checker in an unrelated tools directory and pointing it back at this repository
+is neither a mandatory invocation nor a supported foreign-corpus form, and it
+must not extend the shipped waiver table's reach.
+
+The recipe-binding finding is confirmed without invoking the entire `make test`
+suite. The focused test now extracts the command from the Makefile `test` target
+and the CI `repository-gates` job's named Spec reference gate step, rejects any
+effective workflow/job working directory, then executes the exact `python3`
+argv from the resolved owner root and requires the success token.
+
+The asymmetric attribution finding is confirmed. Controller evidence no longer
+uses the producer-derived charged elapsed for its three-second floor; it uses
+the independent monotonic interval between boundary and run stubs. A new
+`-1s` producer mutant complements `+1s`. Both fail only pure arithmetic, while
+missing, duplicate, and exhaustion retain their unique labels. The correct
+wrapper passes; six parallel runs have no collateral failures.
+
+## Review-entry state after h17
+
+`At review entry, the two confirmed h17 findings are fixed and the external
+checker proposal is refuted against the owner-root contract. The uncommitted
+tree remains gated on a fresh frozen candidate, source-bound verification, and
+one cumulative Claude review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h18 — exact Make target anchor
+
+The h18 fact/consistency review used candidate `78bd3d16` with packet
+`7d732d5409d6b1c4fd851dabbe23f9881e05995130e9ecc8e99e682f1b56780a`.
+It returned one P2 finding and did not open a challenge round. The finding is
+confirmed.
+
+The Makefile extractor still split on a bare `test:` substring, so an earlier
+`fast-test:` or comment could redirect it to an unrelated block. It now finds
+the first line whose text starts exactly with `test:`, then consumes only its
+immediately following tab-indented recipe lines. The exact spec-check command
+must be one of those lines. CI job/step scoping, working-directory checks, and
+the executed owner-root argv remain unchanged. The 72-case suite exits zero.
+
+## Review-entry state after h18
+
+`At review entry, the h18 configuration false green is closed with exact target
+line and recipe boundaries. The uncommitted tree remains gated on a fresh frozen
+candidate, source-bound verification, and one cumulative Claude
+review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h19 — effective CI enablement and waivable liveness
+
+The h19 fact/consistency review passed candidate `5d50d3d0` with packet
+`365973f3c9151ef8ab86e0897405a2fea874fe31b72205c0984ab91ceeca184d`.
+Its challenge returned three P2 findings. All are confirmed.
+
+Effective CI cwd is now checked independently of YAML key order. The test scans
+every top-level `defaults` block wherever it appears and rejects a run working
+directory there, while separately rejecting any working directory inside the
+`repository-gates` job. An initial whole-file prohibition correctly failed on
+the unrelated npm job and was narrowed rather than weakening that job. The
+repository-gates job header and the named Spec reference gate step also reject
+an `if:` key, so the mandatory command cannot remain textually present while
+being disabled.
+
+Waiver liveness now uses the same hard boundary as waiver application. A pin is
+seen only when its parsed token resolves to a non-escaping target. A pinned
+containment escape therefore remains an ordinary finding and also makes the
+covering-nothing waiver stale. The focused containment case now asserts both
+outcomes. The 72-case suite exits zero.
+
+## Review-entry state after h19
+
+`At review entry, all three h19 findings are closed: effective CI cwd and
+enablement are pinned, and containment-only waivers cannot appear live. The
+uncommitted tree remains gated on a fresh frozen candidate, source-bound
+verification, and one cumulative Claude review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h20 — fail-closed CI keys
+
+The h20 fact/consistency review used final candidate `2290ee60` with chained
+packet `61e203396fdfa3b7ab378f7b230bcffac82f1bf9cb618d9cff4d64ea30cea9ab`.
+It returned one P2 finding and did not open a challenge round. The finding is
+confirmed.
+
+Job-level YAML keys are order-independent just like top-level defaults. The
+test now rejects a four-space `if:` anywhere in the full `repository-gates` job
+rather than only before `steps`. It also rejects job-level
+`continue-on-error`, and the named Spec reference gate step rejects its own
+eight-space `if:` and `continue-on-error`. These indentation-specific checks do
+not prohibit unrelated steps or jobs from using their own controls. The
+72-case suite exits zero.
+
+## Review-entry state after h20
+
+`At review entry, the h20 CI-disable paths are closed while unrelated job
+configuration remains allowed. The uncommitted tree remains gated on a fresh
+frozen candidate, source-bound verification, and one cumulative Claude
+review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chains h21/h21b — resolver domain and CI reachability
+
+The h21 fact/consistency review used candidate `f941616a` with packet
+`504f0acbfd2385a172afbac3328dd95031817f43811be69eae67638dc8d1d819`.
+Its sole P2 assumed `resolve_target` could return `None`; the function is
+str-only and the scanner skips its only false value, an empty string, before
+waiver application. The repository bytes were unchanged for the evidence-only
+h21b packet `17744ccd3a968b114e35412d60e9573660b459457c51ec3e8aab8090f03f20e5`;
+review passed, then challenge returned three P2 findings.
+
+The first challenge example remains unreachable under the production citation
+grammar, whose matches always start with a non-empty `specs/` prefix. The guard
+nevertheless now states the complete invariant with `bool(waived_target)`, and
+a widened-parser regression proves an empty-resolving token cannot make a pin
+live. This prevents a later grammar change from splitting application and
+liveness semantics.
+
+The other two findings are confirmed. The mandatory CI assertion now pins the
+workflow entry contract—unconditional pull requests and the established
+push-to-main branch—and rejects a `needs` dependency on `repository-gates` in
+addition to cwd, `if`, and `continue-on-error` overrides. The source register
+also corrects its h17 evidence wording: missing-run and duplicate-boundary are
+different mutants in the same observation-completeness failure class, so they
+intentionally share one label. The focused suite now runs 73 tests.
+
+## Review-entry state after h21b
+
+`At review entry, the h21b findings are either closed or source-refuted: empty
+targets cannot mark waivers live, workflow entry and job dependencies are
+pinned, and timeout attribution is described per failure class. The
+uncommitted tree remains gated on a fresh frozen candidate, source-bound
+verification, and one cumulative Claude review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h22 — semantic trigger contract and shared waiver predicate
+
+The h22 fact/consistency review passed candidate `506e3f4a` with packet
+`022cbeaf0f3b14ef0ce67e42404726b4fcac2c1ed297d1fa0fb45329b7a63144`.
+Its challenge returned four P2 findings. All are confirmed as delivery-evidence
+or maintainability defects rather than changes to the accepted product scope.
+
+The final evidence must be embedded in the packet body, not only summarized in
+the review plan beside an older evidence block. Waiver application and
+liveness now call the same `waiver_can_apply_to_target` predicate, and its test
+pins empty, escaping, and eligible resolved targets directly instead of
+mocking one hypothetical parser. This removes both the split semantic and the
+test's dependence on a second citation grammar.
+
+Workflow entry is now checked semantically with PyYAML's BaseLoader. Equivalent
+spellings—quoted `on`, comments, inline event lists, legitimate event types,
+and branch filters that retain `main`—stay green. Missing pull-request or push
+events, path filters, exclusion of `main`, and pull-request type lists without
+`opened` and `synchronize` fail with a specific message. The existing job and
+step checks still reject `needs`, cwd overrides, `if`, and
+`continue-on-error`. Positive and negative trigger tables bring the focused
+suite to 75 tests.
+
+## Review-entry state after h22
+
+`At review entry, all h22 findings are closed: final logs are required inside
+the next packet, waiver application and liveness share one directly tested
+predicate, and CI entry is semantic without locking valid YAML formatting. The
+uncommitted tree remains gated on a fresh frozen candidate, source-bound
+verification, and one cumulative Claude review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h23 — declared semantic-test dependency
+
+The h23 fact/consistency review used candidate `a41cdb9d` with packet
+`6016303cb57381b3c15f379a94a33ba83f2bff4e4df6ee9a6b1a63aa8b2d29af`.
+It returned one P2 finding and did not open a challenge round. The finding is
+confirmed.
+
+The semantic workflow check imports PyYAML at module load, while the repository
+previously declared that dependency only as duplicated CI install arguments.
+`requirements-test.txt` now names the existing `pytest` and `pyyaml` test
+dependencies. Both CI jobs install from that file, and the contribution guide
+uses the same command for local setup. The trigger contract remains mandatory;
+it is not conditionally skipped when dependencies are missing.
+
+## Review-entry state after h23
+
+`At review entry, the h23 dependency gap is closed through one contributor-and-
+CI manifest. The uncommitted tree remains gated on a fresh frozen candidate,
+source-bound verification, and one cumulative Claude review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h24b — staged manifest and executable dependency wiring
+
+The corrected h24b candidate `ba3d26c1` explicitly included the previously
+untracked requirements manifest and used packet
+`548fd48d3838b53992c40e8998de1c20144168e48d51c276c7f3309fe4b88161`.
+Fact/consistency review passed; challenge returned one P1 and three P2
+findings. All are confirmed as delivery-chain or evidence gaps.
+
+The real commit path must stage `requirements-test.txt`; a synthetic tree is
+not enough. Before final review, the exact candidate paths are staged and the
+manifest is verified with `git ls-files --error-unmatch`, so a tracked-only
+commit cannot omit the file CI now consumes.
+
+The dependency contract now has a permanent firing point. The 76th focused
+case reads the manifest, requires exactly `pytest` and `pyyaml`, checks checkout
+precedes the named install step in both CI jobs, rejects install/job cwd
+overrides, and confirms CONTRIBUTING uses the same root command. A separate
+`pip install --dry-run --ignore-installed` resolves the clean would-install set
+instead of reporting only packages already present in the developer
+environment.
+
+## Review-entry state after h24b
+
+`At review entry, all h24b findings are closed: the manifest is part of the
+real staged candidate, dependency wiring and step order are mutation-sensitive,
+and clean resolution has ignore-installed evidence. The candidate remains
+gated on source-bound verification and one cumulative Claude review/challenge
+pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h25 — diagnostic semantic anchors
+
+The h25 fact/consistency review used staged candidate `d1df90cf` with packet
+`9c83378b0f216eab30679ed6d0b2e898c7d2d62629b03f6454e58c7a508358ce`.
+It returned one P2 finding and did not open a challenge round. The finding is
+confirmed.
+
+The dependency-wiring case no longer locates checkout by exact action version
+or installation by a mutable step label. It accepts any `actions/checkout@*`
+version, locates the exact manifest command, and fails missing anchors with
+job-specific messages instead of bare `StopIteration`. A disposable checkout
+v5 plus renamed-install control remains green; missing-checkout and missing-
+manifest-install probes each fail with their named diagnostic. The production
+suite remains 76 tests.
+
+## Review-entry state after h25
+
+`At review entry, the h25 false-red and opaque-diagnostic paths are closed
+without weakening checkout-before-install semantics. The staged candidate
+remains gated on source-bound verification and one cumulative Claude
+review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h26b — executable install-line recognition
+
+The compact h26b closure review passed candidate `8e8eb624` with packet
+`f50f3ed2899ddade669b27d3f2e6de33ba75d216c813e9406595d5aab48efe12`.
+Its challenge returned one P1 and three P2 findings. All describe the same
+confirmed root defect: substring matching proves a textual mention, not an
+executed dependency command.
+
+`step_runs_exact_command` now accepts only a non-comment `run` line whose
+stripped text exactly equals the required command and treats null or non-string
+run values as non-matches. The owning test also rejects step-level `if` and
+`continue-on-error`. A permanent decoy table covers echo, comment, null, and
+list values, bringing the focused suite to 77 cases. The install step still
+accepts benign label changes and checkout action-version upgrades.
+
+## Review-entry state after h26b
+
+`At review entry, the h26b false-green and opaque-TypeError paths are closed by
+one permanently tested executable-line predicate. The staged candidate remains
+gated on source-bound verification and one Claude closure review/challenge
+pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h27 — full dependency execution hierarchy
+
+The compact h27 closure review passed candidate `7d05d7b6` with packet
+`9d2d35ff904f9c01c8c027dcecc2b1a56ba3a7d60148e85e09ffcef3147c7248`.
+Its challenge returned one P1 and four P2 findings. They share one confirmed
+cause: step-level matching alone does not prove the job and workflow preserve
+owner-root execution.
+
+Each CI job now has a separate, single-command Python dependency step. The
+shared `dependency_wiring_violation` validates root and job run defaults,
+job-level `if`, `continue-on-error`, and `needs`, exactly one checkout-family
+step with no disabling or alternate-path options, checkout-before-install
+ordering, exactly one whole-step manifest command, and no install-step
+disabling or cwd controls. Its permanent workflow table covers every rejected
+class plus the echo decoy; a checkout-v5/arbitrary-label workflow is the
+positive control. The focused suite now runs 78 tests.
+
+## Review-entry state after h27
+
+`At review entry, the h27 root/job/checkout/install bypass classes are closed
+through one production-used validator and a permanent positive/negative table.
+The staged candidate remains gated on source-bound verification and one Claude
+closure review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h28 — exhaustive hierarchy mutants
+
+The h28 closure review used candidate `6f4c454a` with packet
+`f2c29066f5bdee996311f1f3e2fe6bb909da3f9c1f9cc744a5ffda2a20d4ff3c`.
+It returned one P2 finding and did not open a challenge round. The finding is
+confirmed: five implemented validator branches were missing from the permanent
+matrix even though the history called it exhaustive.
+
+The rejected workflow table now also covers checkout
+`continue-on-error`, checkout `sparse-checkout`, install
+`working-directory`, install `continue-on-error`, and install-before-checkout
+ordering. Each subcase asserts its branch-specific diagnostic. Production
+behavior is unchanged and the 78-test suite exits zero.
+
+## Review-entry state after h28
+
+`At review entry, every root/job/checkout/install rejection branch named by the
+dependency hierarchy has a permanent mutant. The staged candidate remains
+gated on source-bound verification and one Claude closure review/challenge
+pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h29 — bounded evidence and prospective matrix rule
+
+The h29 closure review passed candidate `cc27d866` with packet
+`9df06e065aa5df4a70d0ed4ff0a50852c976b5a4232a021a57fca2ebd50c5747`.
+Its challenge returned four P2 findings: the compact packet omitted the
+validator and the first half of the matrix, the append-only register used
+future-unstable exhaustive wording, and reused-test identity lacked blob/tree
+hashes. These are confirmed evidence defects; production logic is unchanged.
+
+The durable register rule is now prospective: every new rejection branch must
+land with its branch-specific permanent mutant. The next closure packet must
+include the complete validator and matrix, not selected line ranges, and bind
+dependency reuse to the requirements blob plus code-review reuse to the whole
+subtree hash at both prior and final candidates.
+
+## Review-entry state after h29
+
+`At review entry, h29 evidence scope is explicit and future-stable: the packet
+must show complete source plus prior/final object identity, while later
+validator growth carries its own mutant obligation. The staged candidate
+remains gated on one Claude closure review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h30 — structural matrix and executable identity gates
+
+The h30 evidence-closure review passed candidate `dc25bb40` with packet
+`0e9e0b2ec1c87105da7bb3ff23c2362d873aed620e21637d8cd88cccf6fbf6d5`.
+Its challenge returned one P1 and three P2 findings. The identity commands
+produced empty logs, the full source exposed unmutated structure/cardinality
+branches and the default two-job path, and the latest register evidence still
+contained a completed-coverage sentence. All are confirmed evidence defects.
+
+Identity gates must print prior and final object IDs before comparing them. The
+matrix now includes invalid YAML and document shapes, non-mapping defaults/jobs/
+steps/checkout options, missing and duplicate checkout/install steps, and a
+default two-job case where only `regression-heavy` is disabled. The register
+keeps only the prospective obligation; it makes no permanent completeness
+claim for the current table.
+
+## Review-entry state after h30
+
+`At review entry, h30 identity evidence is required to be non-empty and
+machine-compared, while every newly identified structure/cardinality path has a
+candidate-bound mutant. The staged candidate remains gated on one Claude
+closure review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h31 — prove both object-comparison directions
+
+The h31 closure review used candidate `3868dfb8` with packet
+`2f0604c3ece1a59547efe043e92e05f71a1e1521662ebef77cf9051003fc9278`.
+It returned one P2 finding and did not open a challenge round: the packet
+showed equal prior/final object IDs and a zero gate exit, but did not show the
+comparison command or prove that unequal objects make the same predicate fail.
+The finding is confirmed; production and test behavior remain unchanged.
+
+The reusable evidence command is:
+
+```bash
+compare_blob() {
+  prior_blob=$(git rev-parse "$1:$3") || return
+  final_blob=$(git rev-parse "$2:$3") || return
+  printf 'path=%s prior=%s final=%s\n' "$3" "$prior_blob" "$final_blob"
+  test "$prior_blob" = "$final_blob"
+}
+```
+
+Against prior `d1df90c` and candidate `3868dfb8`, applying it to unchanged
+`requirements-test.txt` printed equal blob IDs and exited `0`. Applying the
+same function to changed `scripts/test_check_spec_references.py` printed
+`15e217415013497b0033104239e81df5d3dec708` versus
+`b7de7c64c2f8b309e33b17673fb9e5caf8ed63ce` and exited `1`; the enclosing
+harness required that non-zero result and then exited `0`. Reuse is therefore
+decided by an executable equality predicate whose passing and failing
+directions are both observed.
+
+## Review-entry state after h31
+
+`At review entry, object-identity reuse is bound to a printed equality command
+with candidate-specific positive and negative executions. The staged candidate
+remains gated on one Claude closure review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h32 — retire reuse instead of growing a permanent gate
+
+The h32 review passed candidate `15bf30fe` with packet
+`7b617413d7569f7bc2b58286b3a43f1e39024ba680f344a73fc919ff47e8011b`.
+Its challenge returned two P1 and two P2 findings. Three correctly identify
+that the one-time comparison evidence was incomplete: the negative pair was
+not the pair named by the closure chain, not every reused object had an
+individual executable result, and the packet omitted the enclosing assertion.
+The fourth asks for a permanent checked-in object-comparison gate.
+
+Candidate `81b9a40c` no longer relies on object identity or reused results, so
+none of those comparison predicates adjudicates its completion. The three
+affected commands were run directly against that staged candidate tree:
+
+| Gate | Exit | Log SHA-256 |
+| --- | ---: | --- |
+| `python3 -m pip install --dry-run --ignore-installed -r requirements-test.txt` | 0 | `b17b873b96faf6bda1136e7760153955ea9a98196b0403b2e151b9e9a6703bed` |
+| `bash skills/code-review/scripts/test_parse_review_json.sh` | 0 | `3f1a5ceb837fa8124e377f2ec62181356fba29b1765bfaf41f9bf18ccbbd02b5` |
+| `bash skills/code-review/scripts/test_opencode_review_retry.sh` | 0 | `3f29d4ae7f8f0092b7e433131f903ef2c46bbfe26c6e879da477a707bf83225a` |
+
+A permanent Git-object comparison script is intentionally not added. It would
+not prove that a future review actually ran the relevant behavioral command,
+and the current completion decision no longer consumes reuse evidence. Any
+future candidate that chooses reuse must supply its own candidate-bound
+adjudication; this candidate uses direct executions instead. Production code,
+tests, CI, and dependency bytes are unchanged from h32.
+
+## Review-entry state after h32
+
+`At review entry, all previously reused checks have direct final-candidate
+executions, so object-comparison evidence is historical and does not adjudicate
+completion. The staged candidate remains gated on one Claude closure
+review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chains h33–h35 — deterministic evidence boundary
+
+The h33 review used candidate `81b9a40c` and packet
+`11968eaa7b3fb90998282a25bca24aa9dac0818bff506cfabaf35944ca605f2b`.
+It returned one P2 transcription finding: the plan retained the 90-second
+duration from the preceding run while the h33 result recorded 91 seconds.
+
+The h34 review passed candidate `45782242` with packet
+`e16845d2f518e23cdcf59510e8e434d46a8c2a9580bc4779b8926518d6de2f18`.
+Its challenge returned three P2 findings: direct executions were not explicitly
+attributed to `81b9a40c`, wall-clock durations were treated as durable facts,
+and the packet asserted candidate identity without literal Git output.
+
+The h35 review passed candidate `700654ac` with packet
+`ef28d53810625cda69cfff4972b1988ec4c8a087e29e75fe5b5e7e2d7f623efe`.
+Its challenge returned two P1 and two P2 findings: raw-log hashes can drift with
+time and tool-version output; the no-executable-change claim needed an
+executable path comparison from `81b9a40c`; the equality command was
+paraphrased; and the durable history ended at h32.
+
+This row supersedes the h32 review-entry wording. The three behavioral commands
+ran directly on `81b9a40c` (tree
+`d37f78d0353a70a467349e89d972b639b0707310`); their hashes identify those
+recorded logs only and are not reproducibility predicates. For candidate
+`212d852a`, the executed `git diff --name-only 81b9a40c 212d852a` returned
+exactly this plan path, and the index tree equaled its candidate tree. This is a
+historical candidate fact, not a gate or evidence inherited by future
+candidates. Any future executable change must run its relevant behavioral
+checks. Exit codes and inspected log content adjudicate the h33 run; elapsed
+time and future raw-log hash equality do not.
+
+## Review-entry state after h35
+
+`At review entry, behavioral evidence is attributed to candidate 81b9a40c and
+the h36 candidate-specific plan-only comparison is historical evidence only.
+No future candidate inherits it. The staged candidate remains gated on one
+Claude closure review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h36 — bound history without a permanent gate
+
+The h36 review passed candidate `212d852a` with packet
+`6de869764acf7e1c4617278617609856276e875c6bb07c3a81072172ab90cb7d`.
+Its challenge returned one P1 and three P2 findings. They correctly distinguish
+a candidate-specific evidence command from a permanent repository gate: the
+plan must not promise a checked-in future gate, a loose synthetic commit should
+not become a required long-lived ref, ignored files are outside the existing
+non-ignored-untracked assertion, and future candidates cannot be described as
+already plan-only.
+
+The h36 facts remain candidate-specific and record the tested tree ID rather
+than requiring the loose commit to remain reachable. At that run, Git listed
+29 ignored files, all under `.pytest_cache/` or `__pycache__/`, and zero
+non-ignored untracked paths. Those generated caches are explicitly outside the
+clean-source assertion; the next packet enumerates them and confirms there is
+no ignored `.env`, `sitecustomize.py`, `conftest.py`, or requirements copy.
+Nothing here creates a permanent CI rule or lets a later candidate inherit the
+h33 behavioral result.
+
+The synthetic h33 commit and tree may become unreachable after branch/worktree
+cleanup and Git garbage collection. Their hashes are historical run
+identifiers, not a promise that a future checkout can resolve those objects.
+
+## Review-entry state after h36
+
+`At review entry, h33 behavioral results bind to their recorded tree; h36 Git
+checks are historical candidate evidence, not a future gate. Ignored generated
+caches are enumerated separately from the zero non-ignored-untracked claim.
+The staged candidate remains gated on one Claude closure review/challenge
+pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.
+
+## Human-requested chain h37 — visible predicates and repository-root scope
+
+The h37 review passed candidate `2f5eb5be` with packet
+`415f0079ede192cb9d4bd114dd2b643e59836c469fb5988631f7985ecf1f387b`.
+Its challenge returned two P1 and two P2 findings. The packet must show the
+literal candidate-binding and ignored-path predicates, plus a negative
+allowlist execution; exit labels alone are not reviewable. The object
+durability finding is addressed above by explicitly allowing the historical
+synthetic objects to become unreachable.
+
+The remaining `.work` finding is rejected by first-hand path evidence. The Git
+top level for the candidate is the feature worktree itself; the parent
+integration checkout's `.work/` directory is outside that root. All h37 gate
+artifacts are under `/private/tmp/ccl-025-h37-gates.2f5eb5b`, also outside the
+candidate root. Therefore their absence from `git ls-files --others` is
+expected and does not show pruning. The 29-path inventory covers files beneath
+the candidate Git root, which is the stated scope.
+
+## Review-entry state after h37
+
+`At review entry, the packet must include literal command bodies and raw output
+for candidate binding and ignored-path checks, including a deliberately denied
+synthetic path. Historical object hashes may become unreachable. The ignored
+inventory is scoped to the candidate Git root, with external evidence paths
+reported separately. The staged candidate remains gated on one Claude closure
+review/challenge pair.`
+
+Nothing has been merged, pushed, tagged, released, deployed, or cleaned up.

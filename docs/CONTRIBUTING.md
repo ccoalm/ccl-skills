@@ -51,6 +51,13 @@ Do not store private provenance in the distributed repository. Keep restricted s
 
 ## Validate the change
 
+Install the declared Python test dependencies once in your development
+environment:
+
+```bash
+python3 -m pip install -r requirements-test.txt
+```
+
 Run the minimum repository gates from the root:
 
 ```bash

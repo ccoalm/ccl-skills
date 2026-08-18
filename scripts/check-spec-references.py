@@ -246,6 +246,11 @@ def escapes_root(root: Path, target: str) -> bool:
     return False
 
 
+def waiver_can_apply_to_target(target: str, escaped: bool) -> bool:
+    """Use one target-domain predicate for application and liveness."""
+    return bool(target) and not escaped
+
+
 def owning_repository_root() -> Path:
     """The repository this checker ships in.
 
@@ -282,14 +287,19 @@ def broken_spec_references(
     unreadable = [] if unreadable is None else unreadable
     waived = [] if waived is None else waived
     stale = [] if stale is None else stale
-    # Whether the SHIPPED table is in play, captured before the default is
-    # substituted: an explicitly passed table -- including an empty one -- keeps
-    # the old inert-on-absence behaviour, because only the shipped waiver makes a
-    # claim about this repository's own files.
-    using_default_waivers = waivers is None
     waivers = LEDGER_CITATION_WAIVERS if waivers is None else waivers
-    require_waived_paths_present = (
-        using_default_waivers and root.resolve() == owning_repository_root()
+    # Presence is a property of each SHIPPED entry, not of whether the caller
+    # omitted the optional table argument. Passing the shipped table explicitly
+    # must not turn deletion or untracking into a way to void its guard. Custom
+    # entries remain inert on absence, as do all entries against a foreign corpus.
+    required_waiver_keys = (
+        {
+            key
+            for key in waivers
+            if key in LEDGER_CITATION_WAIVERS
+        }
+        if root.resolve() == owning_repository_root()
+        else set()
     )
     # Per waived PATH, the union of every (line number, digest) pin written for
     # it. Digesting is done only for those paths: every other tracked file keeps
@@ -306,6 +316,7 @@ def broken_spec_references(
     # digest proves the line, and only the token proves the waiver has a subject.
     # Keyed by the full waiver key, so one entry's health never masks another's.
     seen_pins: set[tuple[str, str, tuple[int, str]]] = set()
+    tracked_waived_paths: set[str] = set()
     scanned_waived_paths: set[str] = set()
     # A waiver is spent by ONE citation. The predicate is evaluated per regex
     # match and a line can carry the same dead token twice, so without this the
@@ -316,6 +327,9 @@ def broken_spec_references(
     spent: set[tuple[str, str, tuple[int, str]]] = set()
     for name in tracked_files(root):
         path = root / name
+        pins_here = pins_by_path.get(name)
+        if pins_here is not None:
+            tracked_waived_paths.add(name)
         # lstat, not is_file(): `git ls-files` returns tracked symlinks, and
         # is_file() FOLLOWS them, so read_bytes() would read the target. For a
         # mandatory CI gate that means scanning data outside the checkout, or
@@ -335,7 +349,6 @@ def broken_spec_references(
         except OSError as error:
             unreadable.append((name, str(error)))
             continue
-        pins_here = pins_by_path.get(name)
         if pins_here is not None:
             scanned_waived_paths.add(name)
         # keepends: the digest has to cover the terminator, so the split must
@@ -356,9 +369,20 @@ def broken_spec_references(
             if pins_here is not None:
                 pin = (number, line_digest(stored))
                 if pin in pins_here:
-                    for (path, token), (_reason, entry_pins) in waivers.items():
-                        if path == name and pin in entry_pins and token in tokens_on_line:
-                            seen_pins.add((path, token, pin))
+                    for (waived_path, waived_token), (
+                        _reason,
+                        entry_pins,
+                    ) in waivers.items():
+                        waived_target = resolve_target(waived_token)
+                        if (
+                            waived_path == name
+                            and pin in entry_pins
+                            and waived_token in tokens_on_line
+                            and waiver_can_apply_to_target(
+                                waived_target, escapes_root(root, waived_target)
+                            )
+                        ):
+                            seen_pins.add((waived_path, waived_token, pin))
             for match in matches:
                 raw = match.group("path")
                 target = resolve_target(raw)
@@ -392,7 +416,7 @@ def broken_spec_references(
                     # such a line.
                     spend_key = (name, token, pin)
                     if (
-                        not escaped
+                        waiver_can_apply_to_target(target, escaped)
                         and entry is not None
                         and pin
                         and pin in entry[1]
@@ -408,10 +432,15 @@ def broken_spec_references(
             # against its own repository -- otherwise deleting or untracking the
             # waived file voids the guard instead of satisfying it -- and inert
             # for a foreign corpus, which is what the inertness was written for.
-            if require_waived_paths_present:
+            if (path, token) in required_waiver_keys:
+                state = (
+                    "present-but-unscanned"
+                    if path in tracked_waived_paths
+                    else "absent-from-tracked-corpus"
+                )
                 for number, digest in sorted(waivers[(path, token)][1]):
                     stale.append(
-                        (path, token, f"{number}:{digest} absent-from-tracked-corpus")
+                        (path, token, f"{number}:{digest} {state}")
                     )
             continue
         for number, digest in sorted(waivers[(path, token)][1]):
@@ -435,11 +464,12 @@ def main(argv: list[str]) -> int:
             f"{display(target)} -- {display(reason)}"
         )
     for path, token, pin in stale:
-        cause = (
-            "waived path is absent from the tracked corpus"
-            if pin.endswith("absent-from-tracked-corpus")
-            else "waiver pin matches no line in this file"
-        )
+        if pin.endswith("absent-from-tracked-corpus"):
+            cause = "waived path is absent from the tracked corpus"
+        elif pin.endswith("present-but-unscanned"):
+            cause = "waived path is tracked but was not scanned"
+        else:
+            cause = "waiver pin matches no line in this file"
         print(
             f"{display(path)}: {cause}: {display(token)} {pin}",
             file=sys.stderr,
@@ -457,11 +487,12 @@ def main(argv: list[str]) -> int:
     if stale:
         print(
             "spec_reference_waiver_stale: a row-bound citation waiver no longer has "
-            "the subject it was written for -- either its pinned line is not in the "
-            "file, or its file is not in the tracked corpus at all. The ledger it "
+            "the subject it was written for -- its pinned line may be absent, its "
+            "file may be unscannable, or its file may not be tracked at all. The ledger it "
             "waives is append-only, so a missing row means it was edited, reflowed, "
-            "or deleted, and a missing FILE means the waived path was deleted or "
-            "untracked, which must not be a way to void this guard instead of "
+            "or deleted; an unscanned FILE means the verdict does not cover it; and "
+            "an absent FILE means the waived path was deleted or untracked. None "
+            "may void this guard instead of "
             "satisfying it. Re-review the waiver and regenerate its digest, restore "
             "the path, or remove the entry. A waiver is never left covering nothing.",
             file=sys.stderr,

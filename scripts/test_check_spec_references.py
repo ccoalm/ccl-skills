@@ -22,6 +22,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 
 TICK = chr(96)
 
@@ -29,6 +31,138 @@ TICK = chr(96)
 def cite(path: str) -> str:
     """A backticked spec citation, built so it never appears literally here."""
     return TICK + path + TICK
+
+
+def workflow_entry_violation(workflow: str) -> str | None:
+    """Return why CI entry can skip the mandatory gate, if it can."""
+    try:
+        document = yaml.load(workflow, Loader=yaml.BaseLoader)
+    except yaml.YAMLError as exc:
+        return f"CI workflow YAML is invalid: {exc}"
+    if not isinstance(document, dict) or "on" not in document:
+        return "CI workflow has no top-level on trigger"
+    triggers = document["on"]
+    if isinstance(triggers, list):
+        trigger_map = {str(event): {} for event in triggers}
+    elif isinstance(triggers, dict):
+        trigger_map = triggers
+    else:
+        return "CI workflow on trigger must be a list or mapping"
+
+    def values(raw) -> set[str]:
+        if isinstance(raw, list):
+            return {str(item) for item in raw}
+        return {str(raw)}
+
+    for event in ("pull_request", "push"):
+        if event not in trigger_map:
+            return f"CI workflow is missing the {event} trigger"
+        raw_config = trigger_map[event]
+        if raw_config in (None, "", "null", "Null", "NULL", "~"):
+            config = {}
+        elif isinstance(raw_config, dict):
+            config = raw_config
+        else:
+            return f"CI workflow {event} trigger has unsupported configuration"
+        for path_key in ("paths", "paths-ignore"):
+            if path_key in config:
+                return f"CI workflow {event} trigger may not use {path_key}"
+        if "branches" in config and "main" not in values(config["branches"]):
+            return f"CI workflow {event} branches must include main"
+        if "branches-ignore" in config and "main" in values(
+            config["branches-ignore"]
+        ):
+            return f"CI workflow {event} branches-ignore may not exclude main"
+        if event == "pull_request" and "types" in config:
+            required_types = {"opened", "synchronize"}
+            if not required_types.issubset(values(config["types"])):
+                return "CI workflow pull_request types must include opened and synchronize"
+    return None
+
+
+def step_runs_exact_command(step: dict, command: str) -> bool:
+    """True only when the whole run step is the required command."""
+    run = step.get("run")
+    return isinstance(run, str) and run.strip() == command
+
+
+def dependency_wiring_violation(
+    workflow: str,
+    command: str,
+    job_names: tuple[str, ...] = ("repository-gates", "regression-heavy"),
+) -> str | None:
+    """Return why a required CI job may not execute the dependency command."""
+    try:
+        document = yaml.load(workflow, Loader=yaml.BaseLoader)
+    except yaml.YAMLError as exc:
+        return f"CI workflow YAML is invalid: {exc}"
+    if not isinstance(document, dict):
+        return "CI workflow must be a mapping"
+
+    root_defaults = document.get("defaults") or {}
+    if not isinstance(root_defaults, dict):
+        return "CI workflow defaults must be a mapping"
+    root_run_defaults = root_defaults.get("run") or {}
+    if not isinstance(root_run_defaults, dict):
+        return "CI workflow run defaults must be a mapping"
+    if "working-directory" in root_run_defaults:
+        return "CI workflow defaults may not set a run working-directory"
+
+    jobs = document.get("jobs")
+    if not isinstance(jobs, dict):
+        return "CI workflow has no jobs mapping"
+    for job_name in job_names:
+        job = jobs.get(job_name)
+        if not isinstance(job, dict):
+            return f"CI workflow has no {job_name} job"
+        for key in ("if", "continue-on-error", "needs"):
+            if key in job:
+                return f"{job_name} may not set job-level {key}"
+        job_defaults = job.get("defaults") or {}
+        if not isinstance(job_defaults, dict):
+            return f"{job_name} defaults must be a mapping"
+        job_run_defaults = job_defaults.get("run") or {}
+        if not isinstance(job_run_defaults, dict):
+            return f"{job_name} run defaults must be a mapping"
+        if "working-directory" in job_run_defaults:
+            return f"{job_name} defaults may not set a run working-directory"
+
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            return f"{job_name} has no steps list"
+        checkout_matches = [
+            (index, step)
+            for index, step in enumerate(steps)
+            if isinstance(step, dict)
+            and str(step.get("uses", "")).startswith("actions/checkout@")
+        ]
+        if len(checkout_matches) != 1:
+            return f"{job_name} must have exactly one actions/checkout step"
+        checkout_index, checkout_step = checkout_matches[0]
+        for key in ("if", "continue-on-error"):
+            if key in checkout_step:
+                return f"{job_name} checkout may not set {key}"
+        checkout_options = checkout_step.get("with") or {}
+        if not isinstance(checkout_options, dict):
+            return f"{job_name} checkout options must be a mapping"
+        for key in ("path", "sparse-checkout"):
+            if key in checkout_options:
+                return f"{job_name} checkout may not set {key}"
+
+        install_matches = [
+            (index, step)
+            for index, step in enumerate(steps)
+            if isinstance(step, dict) and step_runs_exact_command(step, command)
+        ]
+        if len(install_matches) != 1:
+            return f"{job_name} must execute exactly one {command} step"
+        install_index, install_step = install_matches[0]
+        if checkout_index >= install_index:
+            return f"{job_name} must checkout before installing test dependencies"
+        for key in ("working-directory", "if", "continue-on-error"):
+            if key in install_step:
+                return f"{job_name} dependency install may not set {key}"
+    return None
 
 
 SCRIPT = Path(__file__).with_name("check-spec-references.py")
@@ -769,10 +903,25 @@ class LedgerCitationWaiverTest(unittest.TestCase):
         escaping = "specs/../../outside/AGENTS.md"
         line = "row: " + cite(escaping) + " frozen"
         root = self.make_repo({self.LEDGER: line + "\n"})
-        findings, waived, _ = self.run_scan(root, self.waivers(line, token=escaping))
+        findings, waived, stale = self.run_scan(
+            root, self.waivers(line, token=escaping)
+        )
         self.assertEqual(waived, [])
         self.assertEqual(len(findings), 1, findings)
         self.assertEqual(findings[0][2], escaping)
+        self.assertEqual(len(stale), 1, stale)
+
+    # Application and liveness call this same predicate. Pin the empty domain
+    # directly rather than inventing a second citation grammar in the test.
+    def test_empty_resolved_target_is_not_waivable(self) -> None:
+        self.assertEqual(MODULE.resolve_target("/"), "")
+        self.assertFalse(MODULE.waiver_can_apply_to_target("", escaped=False))
+        self.assertFalse(
+            MODULE.waiver_can_apply_to_target(self.FROZEN, escaped=True)
+        )
+        self.assertTrue(
+            MODULE.waiver_can_apply_to_target(self.FROZEN, escaped=False)
+        )
 
     # Row 8 — the waived file is present and the pinned row is gone. On an
     # append-only ledger that means it was edited or deleted; a waiver is never
@@ -815,6 +964,7 @@ class LedgerCitationWaiverTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("spec_reference_waiver_stale", result.stderr)
+        self.assertNotIn("spec_reference_check_ok", result.stdout)
 
 
 class ProductionWaiverTableTest(unittest.TestCase):
@@ -884,8 +1034,33 @@ class WaivedPathPresenceTest(unittest.TestCase):
         (root / "scripts" / SCRIPT.name).write_bytes(SCRIPT.read_bytes())
         target = root / waived_path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes((source_root / waived_path).read_bytes())
-        shutil.copytree(source_root / "specs", root / "specs")
+        source_target = source_root / waived_path
+        if source_target.is_symlink():
+            target.symlink_to(os.readlink(source_target))
+        elif source_target.is_file():
+            target.write_bytes(source_target.read_bytes())
+        tracked_specs = subprocess.run(
+            ["git", "-C", str(source_root), "ls-files", "-z", "--", "specs"],
+            check=True,
+            stdout=subprocess.PIPE,
+        ).stdout.split(b"\0")
+        for raw_name in tracked_specs:
+            if not raw_name:
+                continue
+            relative = Path(os.fsdecode(raw_name))
+            source = source_root / relative
+            # `git ls-files` also reports tracked worktree deletions. Preserve
+            # that candidate state as absence in the synthetic repository so
+            # the copied checker can diagnose it instead of the fixture raising
+            # FileNotFoundError before the control runs.
+            if not source.exists() and not source.is_symlink():
+                continue
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if source.is_symlink():
+                destination.symlink_to(os.readlink(source))
+            else:
+                destination.write_bytes(source.read_bytes())
         subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
         mutate(root, waived_path)
         subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
@@ -903,9 +1078,10 @@ class WaivedPathPresenceTest(unittest.TestCase):
         result = self.run_cli(root)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("spec_citation_waived:", result.stdout)
+        self.assertIn("spec_reference_check_ok", result.stdout)
 
     def test_deleting_the_waived_path_is_stale_and_red(self) -> None:
-        root = self.clone_candidate(lambda root, path: (root / path).unlink())
+        root = self.clone_candidate(lambda root, path: (root / path).unlink(missing_ok=True))
         result = self.run_cli(root)
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("spec_reference_waiver_stale", result.stderr)
@@ -920,6 +1096,48 @@ class WaivedPathPresenceTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("spec_reference_waiver_stale", result.stderr)
         self.assertIn("absent-from-tracked-corpus", result.stderr)
+
+    def test_tracked_symlink_is_reported_as_present_but_unscanned(self) -> None:
+        def replace_with_symlink(root: Path, path: str) -> None:
+            target = root / path
+            target.unlink(missing_ok=True)
+            target.symlink_to("missing-ledger-target")
+
+        root = self.clone_candidate(replace_with_symlink)
+        result = self.run_cli(root)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("spec_reference_waiver_stale", result.stderr)
+        self.assertIn("present-but-unscanned", result.stderr)
+        self.assertNotIn("absent-from-tracked-corpus", result.stderr)
+
+    def test_explicit_shipped_table_still_requires_its_waived_path(self) -> None:
+        root = self.clone_candidate(lambda root, path: (root / path).unlink(missing_ok=True))
+        script = root / "scripts" / SCRIPT.name
+        spec = importlib.util.spec_from_file_location("copied_checker", script)
+        copied = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(copied)
+
+        near_copy = dict(copied.LEDGER_CITATION_WAIVERS)
+        shipped_key = next(iter(near_copy))
+        shipped_reason, shipped_pins = near_copy[shipped_key]
+        near_copy[shipped_key] = (shipped_reason + " caller-local change", shipped_pins)
+        for table in (
+            copied.LEDGER_CITATION_WAIVERS,
+            dict(copied.LEDGER_CITATION_WAIVERS),
+            near_copy,
+        ):
+            waived: list[tuple[str, int, str, str]] = []
+            stale: list[tuple[str, str, str]] = []
+            findings = copied.broken_spec_references(
+                root, None, waived, stale, table
+            )
+            self.assertEqual(findings, [])
+            self.assertEqual(waived, [])
+            self.assertTrue(
+                any(pin.endswith("absent-from-tracked-corpus") for _, _, pin in stale),
+                f"explicit shipped table {table!r} covered nothing without going stale",
+            )
 
     # Compatibility positive 1: a FOREIGN corpus. This checker, running from its
     # own repository, pointed at an unrelated repository that has no such file,
@@ -937,6 +1155,254 @@ class WaivedPathPresenceTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("spec_reference_check_ok", result.stdout)
+
+    def test_repository_gate_invocations_scan_the_owning_root(self) -> None:
+        command = "python3 scripts/check-spec-references.py ."
+        repository = SCRIPT.parent.parent.resolve()
+        self.assertEqual(MODULE.owning_repository_root(), repository)
+        makefile = (repository / "Makefile").read_text()
+        make_lines = makefile.splitlines()
+        test_index = next(
+            index for index, line in enumerate(make_lines) if line.startswith("test:")
+        )
+        test_recipe: list[str] = []
+        for line in make_lines[test_index + 1 :]:
+            if not line.startswith("\t"):
+                break
+            test_recipe.append(line)
+        self.assertIn("\t" + command, test_recipe)
+        workflow = (repository / ".github/workflows/ci.yml").read_text()
+        workflow_lines = workflow.splitlines()
+        trigger_violation = workflow_entry_violation(workflow)
+        self.assertIsNone(trigger_violation, trigger_violation)
+        repository_job = workflow.split("\n  repository-gates:", 1)[1].split(
+            "\n  regression-heavy:", 1
+        )[0]
+        spec_step = repository_job.split(
+            "\n      - name: Spec reference gate", 1
+        )[1].split("\n      - ", 1)[0]
+        self.assertIn("\n        run: " + command, spec_step)
+        for defaults_index, line in enumerate(workflow_lines):
+            if not line.startswith("defaults:"):
+                continue
+            defaults_block = [line]
+            for nested in workflow_lines[defaults_index + 1 :]:
+                if nested and not nested.startswith(" "):
+                    break
+                defaults_block.append(nested)
+            self.assertNotIn("working-directory:", "\n".join(defaults_block))
+        self.assertNotIn("working-directory:", repository_job)
+        self.assertNotIn("\n    needs:", repository_job)
+        self.assertNotIn("\n    if:", repository_job)
+        self.assertNotIn("\n    continue-on-error:", repository_job)
+        self.assertNotIn("\n        if:", spec_step)
+        self.assertNotIn("\n        continue-on-error:", spec_step)
+        result = subprocess.run(
+            ["python3", "scripts/check-spec-references.py", "."],
+            cwd=repository,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("spec_reference_check_ok", result.stdout)
+
+    def test_declared_test_dependencies_are_wired_after_checkout(self) -> None:
+        repository = SCRIPT.parent.parent.resolve()
+        requirements = {
+            line.strip()
+            for line in (repository / "requirements-test.txt").read_text().splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        }
+        self.assertEqual(requirements, {"pytest", "pyyaml"})
+
+        workflow = (repository / ".github/workflows/ci.yml").read_text()
+        dependency_command = "python3 -m pip install -r requirements-test.txt"
+        wiring_violation = dependency_wiring_violation(workflow, dependency_command)
+        self.assertIsNone(wiring_violation, wiring_violation)
+
+        contributing = (repository / "docs" / "CONTRIBUTING.md").read_text()
+        self.assertIn(dependency_command, contributing)
+
+    def test_dependency_command_recognizer_rejects_decoys(self) -> None:
+        command = "python3 -m pip install -r requirements-test.txt"
+        self.assertTrue(
+            step_runs_exact_command({"run": "  " + command + "\n"}, command)
+        )
+        decoys = (
+            {"run": "sudo apt-get update\n" + command},
+            {"run": 'echo "' + command + '"'},
+            {"run": "# " + command},
+            {"run": None},
+            {"run": [command]},
+        )
+        for step in decoys:
+            with self.subTest(step=step):
+                self.assertFalse(step_runs_exact_command(step, command))
+
+    def test_dependency_wiring_rejects_disabled_or_relocated_execution(self) -> None:
+        command = "python3 -m pip install -r requirements-test.txt"
+        job_block = (
+            "  repository-gates:\n"
+            "    steps:\n"
+            "      - uses: actions/checkout@v5\n"
+            "      - name: Arbitrary label\n"
+            "        run: " + command + "\n"
+        )
+        valid = "jobs:\n" + job_block
+        self.assertIsNone(
+            dependency_wiring_violation(valid, command, ("repository-gates",))
+        )
+        rejected = {
+            "defaults:\n  run:\n    working-directory: subdir\n" + valid:
+                "workflow defaults",
+            valid.replace("    steps:\n", "    if: false\n    steps:\n"):
+                "job-level if",
+            valid.replace("    steps:\n", "    continue-on-error: true\n    steps:\n"):
+                "job-level continue-on-error",
+            valid.replace("    steps:\n", "    needs: never-runs\n    steps:\n"):
+                "job-level needs",
+            valid.replace(
+                "    steps:\n",
+                "    defaults:\n      run:\n        working-directory: subdir\n    steps:\n",
+            ): "defaults may not set a run working-directory",
+            valid.replace(
+                "      - uses: actions/checkout@v5\n",
+                "      - uses: actions/checkout@v5\n        if: false\n",
+            ): "checkout may not set if",
+            valid.replace(
+                "      - uses: actions/checkout@v5\n",
+                "      - uses: actions/checkout@v5\n        continue-on-error: true\n",
+            ): "checkout may not set continue-on-error",
+            valid.replace(
+                "      - uses: actions/checkout@v5\n",
+                "      - uses: actions/checkout@v5\n        with:\n          path: subdir\n",
+            ): "checkout may not set path",
+            valid.replace(
+                "      - uses: actions/checkout@v5\n",
+                "      - uses: actions/checkout@v5\n        with:\n          sparse-checkout: scripts\n",
+            ): "checkout may not set sparse-checkout",
+            valid.replace(
+                "      - name: Arbitrary label\n",
+                "      - name: Arbitrary label\n        if: false\n",
+            ): "install may not set if",
+            valid.replace(
+                "      - name: Arbitrary label\n",
+                "      - name: Arbitrary label\n        working-directory: subdir\n",
+            ): "install may not set working-directory",
+            valid.replace(
+                "      - name: Arbitrary label\n",
+                "      - name: Arbitrary label\n        continue-on-error: true\n",
+            ): "install may not set continue-on-error",
+            valid.replace(
+                "      - uses: actions/checkout@v5\n"
+                "      - name: Arbitrary label\n"
+                "        run: " + command + "\n",
+                "      - name: Arbitrary label\n"
+                "        run: " + command + "\n"
+                "      - uses: actions/checkout@v5\n",
+            ): "must checkout before installing test dependencies",
+            valid.replace("        run: " + command, "        run: echo " + command):
+                "must execute exactly one",
+        }
+        for workflow, expected in rejected.items():
+            with self.subTest(expected=expected):
+                violation = dependency_wiring_violation(
+                    workflow, command, ("repository-gates",)
+                )
+                self.assertIsNotNone(violation)
+                self.assertIn(expected, violation or "")
+
+        structural_rejected = {
+            "jobs: [": "workflow YAML is invalid",
+            "- jobs": "workflow must be a mapping",
+            "defaults: [invalid]\n" + valid: "workflow defaults must be a mapping",
+            "defaults:\n  run: [invalid]\n" + valid:
+                "workflow run defaults must be a mapping",
+            "jobs: []\n": "workflow has no jobs mapping",
+            "jobs: {}\n": "workflow has no repository-gates job",
+            "jobs:\n  repository-gates: []\n":
+                "workflow has no repository-gates job",
+            valid.replace("    steps:\n", "    defaults: [invalid]\n    steps:\n"):
+                "defaults must be a mapping",
+            valid.replace(
+                "    steps:\n",
+                "    defaults:\n      run: [invalid]\n    steps:\n",
+            ): "run defaults must be a mapping",
+            valid.replace("    steps:\n", "    steps: {}\n    ignored:\n"):
+                "has no steps list",
+            valid.replace("      - uses: actions/checkout@v5\n", ""):
+                "exactly one actions/checkout step",
+            valid.replace(
+                "      - uses: actions/checkout@v5\n",
+                "      - uses: actions/checkout@v5\n"
+                "      - uses: actions/checkout@v6\n",
+            ): "exactly one actions/checkout step",
+            valid.replace(
+                "      - uses: actions/checkout@v5\n",
+                "      - uses: actions/checkout@v5\n        with: invalid\n",
+            ): "checkout options must be a mapping",
+            valid.replace(
+                "      - name: Arbitrary label\n        run: " + command + "\n",
+                "",
+            ): "must execute exactly one",
+            valid.replace(
+                "      - name: Arbitrary label\n        run: " + command + "\n",
+                "      - name: Arbitrary label\n        run: " + command + "\n"
+                "      - name: Duplicate install\n        run: " + command + "\n",
+            ): "must execute exactly one",
+        }
+        for workflow, expected in structural_rejected.items():
+            with self.subTest(structural=expected):
+                violation = dependency_wiring_violation(
+                    workflow, command, ("repository-gates",)
+                )
+                self.assertIsNotNone(violation)
+                self.assertIn(expected, violation or "")
+
+        second_job_disabled = (
+            "jobs:\n"
+            + job_block
+            + job_block.replace("repository-gates", "regression-heavy").replace(
+                "    steps:\n", "    if: false\n    steps:\n"
+            )
+        )
+        second_job_violation = dependency_wiring_violation(
+            second_job_disabled, command
+        )
+        self.assertIsNotNone(second_job_violation)
+        self.assertIn("regression-heavy may not set job-level if", second_job_violation or "")
+
+    def test_workflow_entry_accepts_equivalent_nonweakening_yaml(self) -> None:
+        accepted = (
+            "on: [push, pull_request]\n",
+            '"on": # workflow entry\n'
+            "  pull_request:\n"
+            "    branches: [main]\n"
+            "    types: [opened, synchronize]\n"
+            "  push:\n"
+            "    branches:\n"
+            "      - main\n",
+            "'on':\n  pull_request: {}\n  push: {}\n",
+            "on: {pull_request: null, push: null}\n",
+        )
+        for workflow in accepted:
+            with self.subTest(workflow=workflow):
+                self.assertIsNone(workflow_entry_violation(workflow))
+
+    def test_workflow_entry_rejects_execution_narrowing(self) -> None:
+        rejected = {
+            "on:\n  pull_request:\n    paths: [docs/**]\n  push:\n": "paths",
+            "on:\n  pull_request:\n  push:\n    paths-ignore: [scripts/**]\n": "paths-ignore",
+            "on:\n  pull_request:\n    branches: [dev]\n  push:\n": "include main",
+            "on:\n  pull_request:\n    branches-ignore: [main]\n  push:\n": "exclude main",
+            "on:\n  pull_request:\n    types: [closed]\n  push:\n": "opened and synchronize",
+            "on:\n  workflow_dispatch:\n": "missing the pull_request trigger",
+        }
+        for workflow, expected in rejected.items():
+            with self.subTest(workflow=workflow):
+                violation = workflow_entry_violation(workflow)
+                self.assertIsNotNone(violation)
+                self.assertIn(expected, violation or "")
 
     # Compatibility positive 2: an EXPLICIT table, including an empty one, keeps
     # the old inert-on-absence semantics even against this repository.
