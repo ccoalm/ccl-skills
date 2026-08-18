@@ -1,0 +1,264 @@
+{
+  "status": "audit-only",
+  "source_sha256": "562c0fb130e631cd1ffa1f56dc28ab89b46f42fe96a164a7a2e65444a07516da",
+  "grader_sha256": "bcc380179393e414db10353b72291bcbfc449793cd5b865f69334bd86f6f1301",
+  "provider": "claude",
+  "model": "claude-haiku-4-5",
+  "rounds": 2,
+  "base_rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+  "head_rev": "df606bafbf7fb04fa81556da0de428756c480ec2",
+  "results": {
+    "tighten-eight-class-walk": {
+      "task_sha256": "6ebe8ca34509e792a56fd548dadb9710aa157549aad15ea51b94906a1772cf66",
+      "mutation": "remove DELETE #12 and withhold its canonical reference",
+      "runner_time_scores": {
+        "base": {
+          "pass": 0,
+          "of": 2
+        },
+        "head": {
+          "pass": 0,
+          "of": 2
+        },
+        "mutant": {
+          "pass": 0,
+          "of": 2
+        }
+      },
+      "arms": {
+        "base": {
+          "rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+          "body_sha256": "166f6bae85542a6682ed715990cb80e3a2956f7680b4aa301c0760a56282ea2e",
+          "prompt_sha256": "e2726cd5cb15dbfed1f2e3b0e0468bb53008eb3bf311be2a8490d753e45ec22d",
+          "pass": 0,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": false,
+              "missed": [
+                "working-language"
+              ],
+              "answer_sha256": "249fe993fdc5a090ac6d5aca7abd6dd6eff23a426d8323e73aafb087f0122f65"
+            },
+            {
+              "round": 2,
+              "pass": false,
+              "missed": [
+                "working-language"
+              ],
+              "answer_sha256": "c5ee93585caade1116e60f4914b48a1e3f33091329d765be60c5f778944fa1c1"
+            }
+          ]
+        },
+        "head": {
+          "rev": "df606bafbf7fb04fa81556da0de428756c480ec2",
+          "body_sha256": "eb9b7eeed2904c24fa8b96b57526d37ede6d3c508afe542a53c46fa96c9a6147",
+          "prompt_sha256": "e77e3545a8321e46c266dc115f19be52e376e0eb9ae113bac91c3886959ad0b5",
+          "pass": 2,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": true,
+              "missed": [],
+              "answer_sha256": "76a78bb64dea380b449bfb009c218de64e642e8fc9741370fa9b55a1dd3f027c"
+            },
+            {
+              "round": 2,
+              "pass": true,
+              "missed": [],
+              "answer_sha256": "59638c4b9f1036791844ebe3e114771ddd989ad8a57af2f24a87ff35ff4778d5"
+            }
+          ]
+        },
+        "mutant": {
+          "rev": "df606bafbf7fb04fa81556da0de428756c480ec2",
+          "body_sha256": "18ba7f38c1b9f9ad9d988dd5f96f5b9a5588ba5d831849486058de8b138c7fd5",
+          "prompt_sha256": "a162b1d8ba6c6646a598b8411efc8fd0c441da1afcb32bf28c78fa046526227e",
+          "pass": 0,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": false,
+              "missed": [
+                "dead-session",
+                "change-and-unanchored",
+                "review-choreography",
+                "defense",
+                "derivation-ledger",
+                "hedge",
+                "working-language"
+              ],
+              "answer_sha256": "90a86eb33028e1ed1386954423bd2eaab5e01e2c9240caa3524ef634e28bd991"
+            },
+            {
+              "round": 2,
+              "pass": false,
+              "missed": [
+                "dead-session",
+                "change-and-unanchored",
+                "review-choreography",
+                "defense",
+                "hedge",
+                "working-language"
+              ],
+              "answer_sha256": "abd767aef02b1d345f632b855eaefac250385aac84563771235b2324aa54bb3d"
+            }
+          ]
+        }
+      },
+      "status": "post-hoc-rubric",
+      "reason": "The runner-time grader scored head 0/2; the later label-coverage rubric regraded the same frozen answers as head 2/2. This superseded task is not current evidence."
+    },
+    "worktree-one-fetch-order": {
+      "task_sha256": "5691754e8c8c93cb265571b3228917b9c7b911209d173fb357033965bdca4666",
+      "mutation": "replace the sole action/stop sequence with an unbound bare-lease instruction",
+      "runner_time_scores": {
+        "base": {
+          "pass": 0,
+          "of": 2
+        },
+        "head": {
+          "pass": 0,
+          "of": 2
+        },
+        "mutant": {
+          "pass": 0,
+          "of": 2
+        }
+      },
+      "arms": {
+        "base": {
+          "rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+          "body_sha256": "6e9bcf10a01dedd6701ddaafbceb6171f6cfe1e00ea38f39598ceb32fb9d0153",
+          "prompt_sha256": "0930810a4c94b38315151b4d1ef2fb9b30aa261bec90a70c1ef03456f88e70a7",
+          "pass": 0,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": false,
+              "missed": [
+                "exact-topology-command",
+                "no-malformed-topology-command",
+                "rebase-after-check",
+                "review-state-approval",
+                "review-state-mergeable",
+                "review-state-CI",
+                "review-state-commit",
+                "review-state-thread",
+                "review-state-line-anchor"
+              ],
+              "answer_sha256": "fa17f0c2ef0dc3b7dc19ab7a616c06bd6faecb7805be04d88d8eadbc125be33d"
+            },
+            {
+              "round": 2,
+              "pass": false,
+              "missed": [
+                "exact-topology-command",
+                "no-malformed-topology-command",
+                "right-zero-stop",
+                "rebase-after-check",
+                "review-state-approval",
+                "review-state-mergeable",
+                "review-state-CI",
+                "review-state-commit",
+                "review-state-thread",
+                "review-state-line-anchor"
+              ],
+              "answer_sha256": "7af59a235c268c4e592bb6576aa0dc86f444630a5ec9bf0519ba944ee0a461b9"
+            }
+          ]
+        },
+        "head": {
+          "rev": "df606bafbf7fb04fa81556da0de428756c480ec2",
+          "body_sha256": "ffc92936b11328c23cd21bc28496057958dbcf569cb3e022e951b37b35ea5cd6",
+          "prompt_sha256": "9f8eb2b6fb5f7926fbb45b32bd7c29337309627eeb77a76535a953fef0c76301",
+          "pass": 0,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": false,
+              "missed": [
+                "exact-topology-command",
+                "no-malformed-topology-command",
+                "rebase-after-check",
+                "review-state-approval",
+                "review-state-mergeable",
+                "review-state-commit",
+                "review-state-thread"
+              ],
+              "answer_sha256": "4184cea17bf2e8a2c48dbd89a6ec9e303deb93d3aa05c407618bc1402c6664eb"
+            },
+            {
+              "round": 2,
+              "pass": false,
+              "missed": [
+                "exact-topology-command",
+                "right-zero-stop",
+                "rebase-after-check",
+                "review-state-approval",
+                "review-state-mergeable",
+                "review-state-CI",
+                "review-state-commit",
+                "review-state-thread",
+                "review-state-line-anchor"
+              ],
+              "answer_sha256": "26d68cf8609e72e2d50311a1feb004bbcbd40f8d18db0d1581ad49206634a23a"
+            }
+          ]
+        },
+        "mutant": {
+          "rev": "df606bafbf7fb04fa81556da0de428756c480ec2",
+          "body_sha256": "39b0118a60e0762a8c3c16eb89cc5ff69c11b508b77b1dc343b2c947c3c6b45e",
+          "prompt_sha256": "75f1529aeb9469ea0018c322f6fc3fe70c0db82d8f5a12189b52dba5570d37f8",
+          "pass": 0,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": false,
+              "missed": [
+                "one-branch-fetch-before-push",
+                "literal-fetch-head-oid",
+                "exact-topology-command",
+                "no-malformed-topology-command",
+                "right-zero-stop",
+                "rebase-after-check",
+                "explicit-oid-lease",
+                "post-push-fetch",
+                "review-state-approval",
+                "review-state-mergeable",
+                "review-state-CI",
+                "review-state-commit",
+                "review-state-thread",
+                "review-state-line-anchor"
+              ],
+              "answer_sha256": "c392387fdd35db6e1d850ef682d6bd1fd3e1a24c31882e4ae830f429a475216f"
+            },
+            {
+              "round": 2,
+              "pass": false,
+              "missed": [
+                "exact-topology-command",
+                "right-zero-stop",
+                "rebase-after-check",
+                "review-state-approval",
+                "review-state-mergeable",
+                "review-state-CI",
+                "review-state-commit",
+                "review-state-thread",
+                "review-state-line-anchor"
+              ],
+              "answer_sha256": "5fe4613497c475601c16f9bcbd770cafa97574eca2e0cf3a69febc13f253cfa5"
+            }
+          ]
+        }
+      },
+      "status": "audit-only"
+    }
+  }
+}

@@ -1,0 +1,243 @@
+{
+  "status": "audit-only",
+  "provider": "claude",
+  "model": "claude-haiku-4-5",
+  "rounds": 2,
+  "base_rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+  "head_rev": "df606bafbf7fb04fa81556da0de428756c480ec2",
+  "selected_arms": [
+    "base",
+    "head",
+    "mutant"
+  ],
+  "canonical": true,
+  "results": {
+    "tighten-eight-class-walk": {
+      "task_sha256": "6ebe8ca34509e792a56fd548dadb9710aa157549aad15ea51b94906a1772cf66",
+      "mutation": "remove DELETE #12 and withhold its canonical reference",
+      "status": "post-hoc-rubric",
+      "reason": "The runner-time grader scored head 0/2; the later label-coverage rubric regraded the same frozen answers as head 2/2. This superseded task is not current evidence.",
+      "base": {
+        "rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+        "body_sha256": "166f6bae85542a6682ed715990cb80e3a2956f7680b4aa301c0760a56282ea2e",
+        "prompt_sha256": "e2726cd5cb15dbfed1f2e3b0e0468bb53008eb3bf311be2a8490d753e45ec22d",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "死会话",
+              "PR-stack",
+              "变更史与无锚点",
+              "推导账",
+              "工作语"
+            ],
+            "answer_sha256": "249fe993fdc5a090ac6d5aca7abd6dd6eff23a426d8323e73aafb087f0122f65",
+            "len": 1174,
+            "raw": "# 会话视角泄漏审阅表\n\n| 序号 | 类别 | 原文节段 | 泄漏形态 | 处理 |\n|-----|------|--------|--------|------|\n| 1 | 设计引用 | \"按 design §4.7 的 decision 7\" | 死的设计会话引用，未提交内部决策 | 删除；若需回溯用决策记录 URL 替代 |\n| 2 | PR视角 | \"在 stacked PR #212 之后\" | stack / PR 视角，工作会话定位 | 删除栈位置；仅保留真实机制 |\n| 3 | 变更叙事 | \"把旧 loader 改掉\" | 变更叙事，非现状陈述 | 改写现在时：新 loader / 当前 loader |\n| 4 | 变更叙事 | \"today 这个 cut 已经够了\" | 指示性时间戳 + \"this cut\" 指代 | 删除，现状类页面禁用 |\n| 5 | 评审编排 | \"reviewer 在 round 3 也确认过\" | 评审轮次归因 | 删除\"round 3\"；保留确认的事实 |\n| 6 | 评审辩护 | \"这个 cast 显然安全\" | 对评审者的辩护性陈述 | 改写为不变量或契约：\"cast 满足 XXX 要求\" |\n| 7 | 推导流水 | \"推导过程是 A→B→C\" | 控制流叙述复述 | 删除；非必需的显然推导 |\n| 8 | Hedge残留 | \"probably fine，暂定先这样\" | hedge + 未完成规划 | 升级为 `TODO(owner):` 或删除；写清界限 |\n\n---\n\n## 必须保留的稳定事实\n\n以下原样保留，是现状契约和观测：\n- **apiVersion: v2** — 稳定版本标识（现状事实）\n- **issue #42 记录兼容原因** — issue 引用（HEAD 可解析）\n- **p95=120ms** — 实测数值（校准事实）\n\n---\n\n## 改写示例（删除过程后的现状描述）\n\n**原文问题**：变更叙事混杂、评审过程、规划 hedge、设计引用无法独立解析。\n\n**改写后**（仅保留稳定事实）：\n\n> 当前使用新 loader，契约为 apiVersion: v2。性能指标满足要求（实测 p95=120ms）。兼容性处理见 [issue #42](...)。\n\n**削除内容**：\n- ✗ design §4.7 / decision 7（死设计引用）\n- ✗ PR #212（PR 栈位置）\n- ✗ today / this cut（时间戳）\n- ✗ reviewer / round 3（评审编排）\n- ✗ cast 显然安全（评审辩护）\n- ✗ A→B→C（推导流水）\n- ✗ probably fine（hedge）\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "死会话",
+              "PR-stack",
+              "变更史与无锚点",
+              "推导账",
+              "工作语"
+            ],
+            "answer_sha256": "c5ee93585caade1116e60f4914b48a1e3f33091329d765be60c5f778944fa1c1",
+            "len": 947,
+            "raw": "# 会话视角泄漏分类\n\n| 短类名 | 原文片段 | 检测依据 |\n|--------|---------|--------|\n| 类1: 死的设计会话引用 | \"按 design §4.7 的 decision 7\" | 内部草稿节点引用，HEAD 读者无从解析\"decision 7\"指什么 |\n| 类2: stack/PR 视角 | \"在 stacked PR #212 之后\" | \"stacked\"与 PR 位置在 stack 中的引用（#212 本身是 issue 号，应单独保留） |\n| 类3: 变更叙事与指示性时间戳 | \"today 这个 cut\" | \"today\"与\"this cut\"仅在写作时刻有意义，换个时间读者无法定位 |\n| 类4: 评审编排 | \"reviewer 在 round 3 也确认过\" | 评审轮次、评审者名号，过程信息不是决定本身 |\n| 类5: 对评审者辩护的注释 | \"这个 cast 显然安全\" | 向评审者解释代码为何正确，非不变量描述 |\n| 类6: 复述与推导流水账 | \"推导过程是 A→B→C\" | 逐步控制流叙述，显然分支不需要在文档复述 |\n| 类7: hedge 与规划残留 | \"probably fine，暂定先这样\" | 不确定词汇与无明确界限的规划语气 |\n\n---\n\n## 必须保留的稳定事实\n\n| 事实 | 类型 | 原因 |\n|------|------|------|\n| `apiVersion: v2` | 稳定版本标识 | 协议版本号，决定客户端使用的契约 |\n| `issue #42` | issue 引用 | HEAD 可解析，指向兼容性决策记录 |\n| 实测 `p95=120ms` | 实测数值 | 带出处词\"实测\"，性能校准依据 |\n\n---\n\n## 删除会话过程后的改写\n\n**保留事实重述：**\n- loader 当前契约版本为 apiVersion: v2\n- 兼容性设计见 issue #42  \n- 实测 p95 延迟为 120ms\n\n**改写稿：**\n「loader 使用 apiVersion: v2；issue #42 记录兼容性决策；实测 p95 延迟 120ms。」\n"
+          }
+        ]
+      },
+      "head": {
+        "rev": "df606bafbf7fb04fa81556da0de428756c480ec2",
+        "body_sha256": "eb9b7eeed2904c24fa8b96b57526d37ede6d3c508afe542a53c46fa96c9a6147",
+        "prompt_sha256": "e77e3545a8321e46c266dc115f19be52e376e0eb9ae113bac91c3886959ad0b5",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "死会话",
+              "PR-stack",
+              "变更史与无锚点",
+              "推导账"
+            ],
+            "answer_sha256": "76a78bb64dea380b449bfb009c218de64e642e8fc9741370fa9b55a1dd3f027c",
+            "len": 892,
+            "raw": "| 序号 | 泄漏类别 | 原文片段 | 判定 |\n|------|---------|---------|------|\n| 1 | 死的设计会话引用 | `design §4.7 的 decision 7` | 删除；未提交的设计会话交付物引用，无法在 HEAD 解析 |\n| 2 | stack/PR 视角 | `stacked PR #212 之后` | PR #212 保留；删除\"之后\"的相对位置指代 |\n| 3 | 变更叙事与指示性时间戳 | `本轮`、`把旧 loader 改掉`（用了\"旧\"）、`today`、`这个 cut 已经够了` | 删除；改写为现在时陈述 |\n| 4 | 评审编排 | `reviewer 在 round 3 也确认过` | 删除；评审论据与过程不写进现状说明 |\n| 5 | 对评审者辩护的注释 | `这个 cast 显然安全` | 删除；代码若安全，不需要为自己说话 |\n| 6 | 复述与推导流水账 | `推导过程是 A→B→C` | 删除 |\n| 7 | hedge 与规划残留 | `probably fine`、`暂定先这样` | 删除；无具体界限的规划残留 |\n| 8 | 工作语言碎片 | ——无跨语言碎片—— | N/A |\n\n---\n\n## 必须保留的稳定事实（原样写出）\n\n- `apiVersion: v2`  →  稳定版本标识，决定调用端契约\n- `issue #42`  →  issue 引用，可在 HEAD 解析；记录兼容原因依据\n- `实测 p95=120ms`  →  实测数值与出处词\"实测\"承重，是性能基线\n\n---\n\n## 整理后版本（删除过程、保留事实）\n\n> 当前 loader 契约为 `apiVersion: v2`。兼容原因见 [issue #42](#42)。性能指标（实测 p95=120ms）。\n\n或更完整的说法：\n\n> loader 使用 `apiVersion: v2` 协议。与前版本的兼容性考量记录在 [issue #42](#42)；实测 p95 延迟为 120ms。\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "死会话",
+              "PR-stack",
+              "变更史与无锚点",
+              "推导账"
+            ],
+            "answer_sha256": "59638c4b9f1036791844ebe3e114771ddd989ad8a57af2f24a87ff35ff4778d5",
+            "len": 1138,
+            "raw": "# 会话视角泄漏审阅结果\n\n## 检出表（按技能 8 类）\n\n| 短类名 | 原文片段 | 检出理由 | 处理 |\n|---|---|---|---|\n| 死的设计会话引用 | `design §4.7` / `decision 7` | 未提交内部草稿引用，HEAD 不可独立解析 | 删除 |\n| stack/PR 视角 | `stacked PR #212 之后` | PR 序列视角（\"之后\"）；工作通常指向已完成机制，不是序列 | 改写为现在架构状态 |\n| 变更叙事与时间戳 | `本轮` / `today` / `这个 cut` / `当前契约是` | 只在写作会话有意义的指代；`当前` 在 README 现状类页面中是时间指示词 | 删除 /改写为\"契约是\" |\n| 评审编排 | `reviewer 在 round 3 也确认过` | 轮次与人物归因，无锚点的评审史 | 删除\"谁在什么时候\"层；决定本身可保留 |\n| 对评审者辩护 | `这个 cast 显然安全` | 为代码正确性向评审者辩护 | 删除；若有安全约束则写不变量 |\n| 控制流叙述 | `推导过程是 A→B→C` | 显然分支的工作流水账 | 删除 |\n| hedge 与规划残留 | `probably fine` / `暂定先这样` | 无标记的模糊 hedge 与规划延期 | 升级为 `TODO` 或删除 |\n| 工作语言碎片 | `round 3` (混入中文段落) | 未本地化工作用语 | 删除或改中文 |\n\n---\n\n## 必须保留的稳定事实（原样）\n\n```\napiVersion: v2\nissue #42\np95=120ms\n```\n\n---\n\n## 改写建议\n\n**删除过程后的现状陈述**：\n\n> 当前使用 `apiVersion: v2` 进行兼容性管理（见 issue #42）。该实现在实测中 p95 延时为 120ms。\n\n**说明**：\n- 删除所有设计会话引用（`design §4.7` / `decision 7`）\n- 删除 PR 序列视角（`stacked PR #212 之后`）\n- 删除时间指代（`本轮` / `today` / `这个 cut`；将 `当前契约是` 改为 `使用`）\n- 删除评审编排（`reviewer 在 round 3 也确认过`）\n- 删除辩护与推导（`显然安全` / `推导过程`）\n- 删除 hedge（`probably fine` / `暂定先这样`）\n- 删除未本地化工作语言（`round 3`）\n\n三条稳定事实（版本标识、issue 链接、实测数值）在改写中原位保留，成为现状描述的承重信息。\n"
+          }
+        ]
+      },
+      "mutant": {
+        "rev": "df606bafbf7fb04fa81556da0de428756c480ec2",
+        "body_sha256": "18ba7f38c1b9f9ad9d988dd5f96f5b9a5588ba5d831849486058de8b138c7fd5",
+        "prompt_sha256": "a162b1d8ba6c6646a598b8411efc8fd0c441da1afcb32bf28c78fa046526227e",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "死会话",
+              "PR-stack",
+              "变更史与无锚点",
+              "评审编排",
+              "辩护",
+              "推导账",
+              "hedge",
+              "工作语"
+            ],
+            "answer_sha256": "90a86eb33028e1ed1386954423bd2eaab5e01e2c9240caa3524ef634e28bd991",
+            "len": 823,
+            "raw": "# 会话视角泄漏表（8 类）\n\n| 类别 | 问题文本 | 来源与说明 |\n|------|--------|---------|\n| 1. 元语自证 | \"本轮按 design §4.7 的 decision 7…把旧 loader 改掉\"<br/>\"today 这个 cut 已经够了\" | 讲本轮过程和作者行动，不讲现态；交付文档不是工作日志 |\n| 2. 翻旧账 | \"design §4.7 的 decision 7\"<br/>\"stacked PR #212 之后\" | 历史决定、历史 PR 编号，读者关心现在是什么，不是怎么改到的 |\n| 3. 修辞尾巴 | \"暂定先这样\" | 口号式结尾，无决定内容；既然不是正式决定就不该在交付文档里 |\n| 4. 无动作语气词 | \"reviewer 在 round 3 也确认过\" | 这是过程确认状态（谁/何时/何事不清），不是现态陈述 |\n| 5. 无谓条件前缀 | \"当前契约是 apiVersion: v2\" | \"当前\"是时间修饰词，删不改义；直接\"契约：apiVersion: v2\" |\n| 6. 重复 | (无) | 文中无明显跨节重复 |\n| 7. 病句 | (无) | 无语法/切词歧义 |\n| 8. 自造版本号 | (无) | 无自造版本号或虚拟前缀 |\n\n---\n\n## 必须保留的稳定事实\n\n```\n- apiVersion: v2\n- issue #42 记录兼容原因\n- p95=120ms\n```\n\n---\n\n## 删除过程后的版本\n\n以下是去除过程叙述、保留决定与验收事实的改写：\n\n**当前 API 版本为 v2；兼容原因详见 issue #42；实测 p95=120ms。**\n\n或按交付文档形式：\n- **契约**：apiVersion: v2\n- **兼容原因**：见 [#42](issue-url)\n- **性能验收**：p95=120ms\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "死会话",
+              "PR-stack",
+              "变更史与无锚点",
+              "评审编排",
+              "辩护",
+              "推导账",
+              "hedge",
+              "工作语"
+            ],
+            "answer_sha256": "abd767aef02b1d345f632b855eaefac250385aac84563771235b2324aa54bb3d",
+            "len": 485,
+            "raw": "**保留的稳定事实**\n\n- apiVersion: v2\n- issue #42\n- p95=120ms\n\n---\n\n**会话视角泄漏分类表**\n\n| 泄漏类别 | 具体原文 | 问题说明 |\n|---------|---------|---------|\n| 元语自证 | 本轮按 · 推导过程是 A→B→C | 陈述过程/时序，不是决定本身 |\n| 病句 | design §4.7 的 decision 7 | 内部引用，外部读者无源可查 |\n| 翻旧账 | 在 stacked PR #212 之后 · reviewer 在 round 3 也确认过 | 过程/评审历史回顾 |\n| 修辞尾巴 | 已经够了 · probably fine · 暂定先这样 | 不确定或无含义的口号式结尾 |\n| 无动作语气词 | 这个 cast 显然安全 | \"显然\"修饰词无决定力，删掉或改为\"cast 安全\" |\n\n---\n\n**清理后的可交付形式**\n\n当前契约为 apiVersion: v2，p95 实测 120ms；兼容原因见 [issue #42](...)。\n"
+          }
+        ]
+      }
+    },
+    "worktree-one-fetch-order": {
+      "task_sha256": "5691754e8c8c93cb265571b3228917b9c7b911209d173fb357033965bdca4666",
+      "mutation": "replace the sole action/stop sequence with an unbound bare-lease instruction",
+      "status": "audit-only",
+      "base": {
+        "rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+        "body_sha256": "6e9bcf10a01dedd6701ddaafbceb6171f6cfe1e00ea38f39598ceb32fb9d0153",
+        "prompt_sha256": "0930810a4c94b38315151b4d1ef2fb9b30aa261bec90a70c1ef03456f88e70a7",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "exact-topology-command",
+              "no-malformed-topology-command",
+              "review-state-revalidation"
+            ],
+            "answer_sha256": "fa17f0c2ef0dc3b7dc19ab7a616c06bd6faecb7805be04d88d8eadbc125be33d",
+            "len": 1637,
+            "raw": "# mybr rebase 到 origin/main 的安全序列\n\n按技能中\"非要 rebase 则按一个固定次序走\"的规范：\n\n## 前置验证\n\n```bash\n# 确认当前分支和状态\ngit symbolic-ref --short HEAD        # 必须输出 mybr\ngit status --porcelain=v1 -b         # 必须为空（无未提交改动）\n```\n\n## Step ①②：单次 fetch + 立刻存 remote_oid\n\n```bash\n# 先获取目标分支的最新状态\ngit fetch -q origin main\n\n# 再 fetch 源分支，FETCH_HEAD 指向它\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\n\necho \"记录的 remote_oid: $remote_oid\"\n```\n\n## Step ③：拓扑检查（停止条件）\n\n```bash\n# 检查 1：本地 mybr 是否全部推送过（右侧必须为 0）\ngit rev-list --left-right --count \"$remote_oid\"...HEAD\n# 格式: <远端独有>\t<本地领先>\n# 右侧 > 0 → 有未推送 commit，停止\n\n# 检查 2：mybr 是否落后于 main\nif git merge-base --is-ancestor origin/main HEAD; then\n    echo \"mybr 已包含 origin/main，无需 rebase\"\n    exit 0\nelif [ $? -ne 1 ]; then\n    echo \"ERROR: merge-base 异常\"\n    exit 1\nfi\n# 落后就继续下一步\n```\n\n## Step ④：Rebase\n\n```bash\ngit rebase origin/main\n# 有冲突则 git rebase --abort，停下处理冲突后手工重试\n```\n\n## Step ⑤：Force-with-lease push\n\n```bash\n# 租约绑定 fetch 时观察到的远端 OID\ngit push --force-with-lease=mybr:$remote_oid origin mybr\n# 被拒（exit 非0）→ 远端被他人推进，停下用人工判断\n```\n\n## Step ⑥：重写后的证据重验\n\n```bash\n# 立刻 fetch 新状态\ngit fetch origin mybr\nnew_remote_oid=$(git rev-parse FETCH_HEAD)\n\n# 验证 1：mybr 现在包含 origin/main\ngit merge-base --is-ancestor origin/main HEAD || exit 1\necho \"✓ mybr 包含 origin/main\"\n\n# 验证 2：本地和远端一致（无未推送 commit）\ngit rev-list --count \"$new_remote_oid\"...HEAD\n# 必须输出 0\n\n# 验证 3：查看 rebase 后的历史\ngit log --oneline -5\necho \"Remote HEAD: $new_remote_oid\"\n```\n\n**关键点**：\n- `$remote_oid` 在 fetch mybr 后立刻存，之后不再 fetch\n- 拓扑检查用的是字面 `$remote_oid`，不用 `origin/mybr`（tracking ref 可能滞后）\n- force-with-lease 参数绑定观察到的远端 OID，绝不裸 `--force`\n- push 成功后必须重新 fetch 验证，不假设成功\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "exact-topology-command",
+              "no-malformed-topology-command",
+              "right-zero-stop"
+            ],
+            "answer_sha256": "7af59a235c268c4e592bb6576aa0dc86f444630a5ec9bf0519ba944ee0a461b9",
+            "len": 1992,
+            "raw": "根据技能「Worktree Isolation」中「合并回目标分支前：落后就先更新到目标分支」的安全 rebase 序列，这是**已推送分支 + 挂着 MR** 下的严格步骤：\n\n```bash\n# ===== 阶段 1：获取远端最新状态 =====\ngit fetch origin main\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\necho \"记录远端 mybr OID: $remote_oid\"\n\n# ===== 阶段 2：拓扑检查（停止条件）=====\n# 检查 mybr 是否有本地独有的提交（相对远端）\n# 格式：git rev-list --left-right --count <branch>...$remote_oid\n# 左侧=本地独有  右侧=远端独有（≠0时停止）\necho \"拓扑检查...\"\nresult=$(git rev-list --left-right --count mybr...$remote_oid)\nleft=$(echo \"$result\" | awk '{print $1}')\nright=$(echo \"$result\" | awk '{print $2}')\necho \"  本地独有: $left  |  远端独有: $right\"\n\nif [ \"$right\" -gt 0 ]; then\n  echo \"❌ 停止：远端有本地未包含的提交\"\n  echo \"   必须先用 merge 而非 rebase（见技能「合并方向」条款）\"\n  exit 1\nfi\n\n# ===== 阶段 3：执行 rebase =====\ngit rebase origin/main mybr\n# 如果有冲突，手工解决后 git rebase --continue\n\n# ===== 阶段 4：force-push 绑定租约 =====\n# 租约绑定 $remote_oid（fetch 时观察到的确切 SHA）\n# 推送被拒 ↔ 远端已变 ↔ 别人新推提交 ↔ 停下排查\ngit push origin --force-with-lease=mybr:$remote_oid mybr\n\n# ===== 阶段 5：推送后重新 fetch 并验证 =====\ngit fetch -q origin mybr\nlocal_sha=$(git rev-parse mybr)\nremote_sha=$(git rev-parse FETCH_HEAD)\n\necho \"本地 mybr SHA:  $local_sha\"\necho \"远端 HEAD SHA:  $remote_sha\"\n\nif [ \"$local_sha\" = \"$remote_sha\" ]; then\n  echo \"✓ rebase 和 push 成功\"\n  echo \"⚠️  重写后 review 线程中旧 commit hash 已失效，需重新审查\"\nelse\n  echo \"❌ SHA 不一致，push 失败或未完全同步\"\n  exit 1\nfi\n```\n\n**关键保障点**：\n\n| 步骤 | 目的 | 失败处理 |\n|-----|------|--------|\n| 单次 `fetch origin mybr` + 立刻 `$(git rev-parse FETCH_HEAD)` | 记录租约基准，禁止后续再 fetch | 若重复 fetch，`$remote_oid` 过期 → force-push 租约失效 |\n| `git rev-list --left-right` 右侧≠0 时**停止** | 防止覆盖别人已推的新提交 | 非零 → 改用 `git merge origin/main` 而非 rebase（见技能「合并方向」） |\n| `--force-with-lease=mybr:$remote_oid` | 租约绑定**观察到的确切 SHA**，而非当前 tracking ref | 推送被拒 → 停下检查远端是否被他人推进 |\n| 推送后重新 `fetch + 比 SHA` | 证明本地已推上远端且两者一致 | SHA 不同 → 排查远端 CI/webhook 是否改写了提交 |\n\n**不能用的形式**：\n- ~~`--force`~~（无防护，会覆盖他人新推提交）\n- ~~`--force-with-lease`~~（无绑定值 → 拿当前 tracking ref，但中间可能被后台 fetch 刷新成远端最新，租约退化）\n- ~~`git rebase` 前不做拓扑检查~~（右侧 > 0 时 rebase 会把远端新提交吞掉）\n"
+          }
+        ]
+      },
+      "head": {
+        "rev": "df606bafbf7fb04fa81556da0de428756c480ec2",
+        "body_sha256": "ffc92936b11328c23cd21bc28496057958dbcf569cb3e022e951b37b35ea5cd6",
+        "prompt_sha256": "9f8eb2b6fb5f7926fbb45b32bd7c29337309627eeb77a76535a953fef0c76301",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "exact-topology-command",
+              "no-malformed-topology-command",
+              "right-zero-stop",
+              "rebase-after-check"
+            ],
+            "answer_sha256": "4184cea17bf2e8a2c48dbd89a6ec9e303deb93d3aa05c407618bc1402c6664eb",
+            "len": 2173,
+            "raw": "# 已共享分支 mybr 的安全 rebase 序列\n\n严格按技能文档 `shared-branch-rebase.md` 和「把落后分支更新到最新目标」条给出：\n\n## 完整拓扑命令\n\n```bash\n# 1. 先 fetch 目标，钉住目标 SHA\ngit fetch origin main\nTARGET=$(git rev-parse origin/main)\n\n# 2. 仅一次 fetch 本分支，立即保存 $remote_oid（禁再 fetch）\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\n\n# 3. 检查本地是否有未推送提交（停止条件 1）\nahead=$(git rev-list --left-right --count \"$remote_oid\"...mybr 2>/dev/null | cut -f2)\nif [ \"$ahead\" -gt 0 ]; then\n    echo \"STOP: 本地 mybr 领先 $remote_oid，右侧=$ahead 个未推送提交\"\n    echo \"右侧非 0 → 禁 rebase，应并入而非 rebase\"\n    exit 1\nfi\n\n# 4. 检查分支是否已包含目标（停止条件 2）\nif git merge-base --is-ancestor \"$TARGET\" mybr; then\n    echo \"分支已含 origin/main，无需 rebase\"\n    exit 0\nfi\n\n# 5. 拓扑命令：执行 rebase\ngit rebase \"$TARGET\" mybr\nif [ $? -ne 0 ]; then\n    echo \"STOP: rebase 出错或产生冲突\"\n    echo \"继续：git rebase --continue\"\n    echo \"放弃：git rebase --abort\"\n    exit 1\nfi\n```\n\n## Push 命令（显式 lease）\n\n```bash\n# 6. Push 时使用显式 OID lease，禁 --force 裸推\ngit push -f origin mybr:mybr --force-with-lease=mybr:\"$remote_oid\"\n\nif [ $? -ne 0 ]; then\n    echo \"STOP: push 被拒绝 - 远端在观察后发生变化\"\n    echo \"ACTION: 重新 fetch 本分支并重估是否需要 rebase\"\n    exit 1\nfi\n```\n\n## 重写后的证据重验\n\n```bash\n# 7. Post-push fetch + 证据重验（thread/approval/mergeable/CI/commit/行锚全失效）\ngit fetch origin mybr\nnew_oid=$(git rev-parse FETCH_HEAD)\n\necho \"Rebase 推送完成: $remote_oid → $new_oid\"\necho \"\"\necho \"重写后的证据失效（必须重新验证）：\"\necho \"  • 评论锚点 (line anchors in threads) → 行号已变\"\necho \"  • approval 状态 → commit hash 已变\"\necho \"  • mergeable 状态 → 需重新评估\"\necho \"  • CI 运行 → 需重新触发\"\necho \"  • commit 内容 → hash 与历史已改\"\necho \"\"\necho \"ACTION: 在 MR 页面逐层重审，绿前禁合并\"\necho \"  1. 线程中断的行锚是否失效\"\necho \"  2. 评审者需重新审看 diff\"\necho \"  3. CI 全绿后才能安全合并\"\n```\n\n---\n\n## 关键停止条件总结\n\n| 条件 | 触发 | 处置 |\n|------|------|------|\n| 本地有未推送提交 | `ahead > 0` | ❌ 禁 rebase，先 `git push` |\n| 分支已包含目标 | `merge-base --is-ancestor TARGET mybr` 返回 0 | ✓ 无需更新，退出 |\n| Rebase 冲突 | `git rebase` 非零退出 | ❌ 停止，解决冲突或 `--abort` |\n| Push 被拒 | lease 守卫 `--force-with-lease=mybr:$remote_oid` 失败 | ❌ 远端变化，重新评估 |\n\n---\n\n**关键约束**：\n- mybr **仅 fetch 一次**（第 2 步），之后禁再 fetch 本分支\n- **禁用 `--force`**，必须 `--force-with-lease=mybr:$remote_oid`（绑定原远端 OID）\n- Rebase 改变所有 commit hash → 重写后**所有证据失效**，MR 线程、评审、CI、合并资格全部重验，绿前禁合并\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "exact-topology-command",
+              "right-zero-stop"
+            ],
+            "answer_sha256": "26d68cf8609e72e2d50311a1feb004bbcbd40f8d18db0d1581ad49206634a23a",
+            "len": 3828,
+            "raw": "# mybr rebase 到 origin/main 的安全序列\n\n严格按 `worktree-isolation/SKILL.md` 和 `shared-branch-rebase.md` 给出唯一序列：\n\n## 第一步：钉住目标分支\n\n```bash\ngit fetch origin main\nTARGET=$(git rev-parse origin/main)\n```\n\n## 第二步：判断落后状态\n\n```bash\nBRANCH_OLD=$(git rev-parse mybr)\nOLD_BASE=$(git merge-base \"$TARGET\" \"$BRANCH_OLD\")\n\nif git merge-base --is-ancestor \"$TARGET\" \"$BRANCH_OLD\"; then\n  echo \"✗ 分支已包含目标，无需更新\"\n  exit 0\nelif [ $? -eq 1 ]; then\n  echo \"✓ 分支落后，继续\"\nelse\n  echo \"✗ merge-base 失败（非 0/1），中止\"\n  exit 1\nfi\n```\n\n停止条件：**若输出「已包含」则停止，分支已是目标祖先**。\n\n## 第三步：仅一次 fetch 本分支并保存远端 OID\n\n```bash\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\necho \"远端 mybr head: $remote_oid\"\n```\n\n停止条件：**保存后不再 fetch mybr**。\n\n## 第四步：分析碰撞集（rebase 前必检）\n\n```bash\ncollision_files=$(comm -12 \\\n  <(git diff --name-only \"$OLD_BASE\" \"$BRANCH_OLD\" | sort) \\\n  <(git diff --name-only \"$OLD_BASE\" \"$TARGET\" | sort))\n\nif [ -n \"$collision_files\" ]; then\n  echo \"⚠ 碰撞集（两侧都改过）：\"\n  echo \"$collision_files\"\n  echo \"\"\n  echo \"下一步 rebase 遇到这些文件的冲突时：解决冲突后若涉及生成物，从目标重新生成，不取分支旧版本\"\nfi\n```\n\n## 第五步：执行 rebase\n\n```bash\ngit rebase origin/main\n```\n\n停止条件：\n- **无冲突**：直接进第六步\n- **有冲突**：`git status` 显示 \"both modified\"\n  - 编辑文件解决冲突（对碰撞集文件：不要拿分支旧版本，从目标重新生成）\n  - `git add <resolved-files>`\n  - `git rebase --continue`\n- **想中止**：`git rebase --abort`（回到 rebase 前的状态）\n\n## 第六步：验证 rebase 结果（内容层，--stat 看不出来）\n\n```bash\nAFTER=$(git rev-parse HEAD)\n\necho \"=== 验证碰撞集：是否有内容被改回旧值 ===\"\nif [ -n \"$collision_files\" ]; then\n  git diff \"$TARGET\" \"$AFTER\" -- $collision_files\n  echo \"\"\n  echo \"=== 对照：目标侧本应保留的修复 ===\"\n  git diff \"$OLD_BASE\" \"$TARGET\" -- $collision_files\n  echo \"\"\n  echo \"⚠ 上两块输出中，若发现目标已修复的行被改回 OLD_BASE 旧内容 → RED FLAG，停止并排查\"\nfi\n\necho \"\"\necho \"=== 文件层：相对目标的新增/删除 ===\"\ngit diff \"$TARGET\" \"$AFTER\" --stat\n```\n\n停止条件：**发现碰撞集内容被意外改回旧值，或意外删除/新增文件 → 中止推送，排查冲突解决步骤**。\n\n## 第七步：推送，显式 OID lease\n\n```bash\ngit push --force-with-lease=mybr:$remote_oid origin mybr\n```\n\n停止条件：\n- **成功**：进第八步\n- **409/rejected**：远端已变化（`$remote_oid` 不再指向当前 remote head）\n  - 意味着 rebase 后有人又推了新提交到 mybr\n  - 需重新协调：重新 fetch 评估、与推送者沟通、或重新 rebase\n\n## 第八步：重写后的证据全部重验（必做，不可跳过）\n\n**关键**：rebase 改变了所有 commit hash，之前的所有证据失效。\n\n```bash\n# 1. 确认远端已更新\ngit fetch origin mybr\nnew_remote_head=$(git rev-parse FETCH_HEAD)\necho \"推送后远端 mybr: $new_remote_head\"\necho \"本地 HEAD:        $(git rev-parse HEAD)\"\n[ \"$(git rev-parse HEAD)\" = \"$new_remote_head\" ] || echo \"⚠ 本地与远端不同步\"\n\n# 2. 在平台 Web UI 或 API 检查：\necho \"\"\necho \"必须等待并验证以下全部通过：\"\necho \"  ☐ CI Pipeline：重新运行（commit hash 已变，旧结果作废）\"\necho \"  ☐ Mergeable 状态：转绿（平台自动重新计算）\"\necho \"  ☐ 审查评论锚点：旧行号已失效，需确认评论是否仍指向有效代码位置\"\necho \"  ☐ Approval / 审查状态：commit hash 变化可能清空部分 approval，需重新审查确认\"\necho \"\"\necho \"在所有检查通过前，絕不合并\"\n```\n\n**必验清单**（平台自动或手工）：\n| 项目 | 说明 |\n|-----|------|\n| **CI** | 旧 CI 结果作废，必须等新 CI 重跑并通过 |\n| **Mergeable** | 平台自动重算，需转绿 |\n| **Review 评论** | 行锚点已失效，确认评论逻辑仍成立或已解决 |\n| **Approval** | commit hash 变后，部分平台会清空 approval，需重新确认 |\n\n---\n\n## 完整脚本（一键运行）\n\n```bash\n#!/bin/bash\nset -e\n\ngit fetch origin main\nTARGET=$(git rev-parse origin/main)\n\nBRANCH_OLD=$(git rev-parse mybr)\nOLD_BASE=$(git merge-base \"$TARGET\" \"$BRANCH_OLD\")\n\nif git merge-base --is-ancestor \"$TARGET\" \"$BRANCH_OLD\"; then\n  echo \"分支已包含目标\"\n  exit 0\nelif [ $? -ne 1 ]; then\n  echo \"merge-base 失败\"\n  exit 1\nfi\n\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\necho \"保存 remote_oid=$remote_oid\"\n\ncollision_files=$(comm -12 <(git diff --name-only \"$OLD_BASE\" \"$BRANCH_OLD\" | sort) <(git diff --name-only \"$OLD_BASE\" \"$TARGET\" | sort))\n[ -z \"$collision_files\" ] || echo \"碰撞集: $collision_files\"\n\ngit rebase origin/main\n\nAFTER=$(git rev-parse HEAD)\nif [ -n \"$collision_files\" ]; then\n  echo \"验证碰撞集...\"\n  git diff \"$TARGET\" \"$AFTER\" -- $collision_files || true\nfi\n\ngit push --force-with-lease=mybr:$remote_oid origin mybr\n\necho \"\"\necho \"✓ 推送完成，现在需在平台验证：\"\necho \"  • 等待 CI 通过\"\necho \"  • 检查 mergeable 状态\"\necho \"  • 审查评论锚点有效性\"\necho \"  • 确认无碰撞集内容回退\"\n```\n"
+          }
+        ]
+      },
+      "mutant": {
+        "rev": "df606bafbf7fb04fa81556da0de428756c480ec2",
+        "body_sha256": "39b0118a60e0762a8c3c16eb89cc5ff69c11b508b77b1dc343b2c947c3c6b45e",
+        "prompt_sha256": "75f1529aeb9469ea0018c322f6fc3fe70c0db82d8f5a12189b52dba5570d37f8",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "literal-fetch-head-oid",
+              "exact-topology-command",
+              "no-malformed-topology-command",
+              "right-zero-stop",
+              "explicit-oid-lease"
+            ],
+            "answer_sha256": "c392387fdd35db6e1d850ef682d6bd1fd3e1a24c31882e4ae830f429a475216f",
+            "len": 3439,
+            "raw": "# 已共享 mybr 分支的安全 rebase 序列\n\n按技能要求，严格按以下唯一序列执行。任何偏离停止条件的操作都必须中止。\n\n## 第一阶段：入口与 OID 锚定\n\n```bash\n# 1. 刷新目标分支一次（仅一次）\ngit fetch origin main:refs/remotes/origin/main\n\n# 2. 单分支 fetch 本分支一次，保存 OID（此后不再 fetch mybr）\ngit fetch origin mybr:refs/remotes/origin/mybr\nremote_oid=$(git rev-parse refs/remotes/origin/mybr)\necho \"Captured remote OID: $remote_oid\"\n```\n\n## 第二阶段：前置检验（停止条件）\n\n```bash\n# 停止条件 1: 确认当前分支是 mybr（不依赖 ambient cwd）\ncurrent=$(git rev-parse --abbrev-ref HEAD)\n[ \"$current\" = \"mybr\" ] || { echo \"ERROR: 当前不在 mybr 分支，停止\"; exit 1; }\n\n# 停止条件 2: 工作树必须干净（无未提交/未暂存改动）\ngit status --porcelain=v1 | grep -q . && { echo \"ERROR: 工作树不干净，停止\"; exit 1; }\n\n# 停止条件 3: mybr 本地不能超前远端（防止本地 commit 未推送被 rebase 丢掉）\nahead_behind=$(git rev-list --left-right --count refs/remotes/origin/mybr...HEAD)\nahead=$(echo \"$ahead_behind\" | awk '{print $2}')\n[ \"$ahead\" -eq 0 ] || { echo \"ERROR: 本地 HEAD 超前远端 $ahead 个 commit，先 push 再 rebase，停止\"; exit 1; }\n```\n\n## 第三阶段：执行 rebase\n\n```bash\n# 拓扑形式：rebase 本分支到 origin/main（不使用 --interactive）\ngit rebase origin/main\n\n# 停止条件 4: rebase 成功且分支状态正确\nrebase_exit=$?\n[ $rebase_exit -eq 0 ] || { echo \"ERROR: rebase 失败或中止（冲突未解决），停止\"; exit 1; }\n\n# 确认仍在 mybr（不是 detached）\ncurrent=$(git rev-parse --abbrev-ref HEAD)\n[ \"$current\" = \"mybr\" ] || { echo \"ERROR: rebase 后进入 detached state，停止\"; exit 1; }\n\n# 停止条件 5: 验证新 HEAD 是 origin/main 的后代\ngit merge-base --is-ancestor origin/main HEAD || { echo \"ERROR: rebase 未正确变基到 main，停止\"; exit 1; }\n\n# 停止条件 6: 记录新 commit SHA（用于后续验证）\nnew_head=$(git rev-parse HEAD)\necho \"Rebase 完成。新 HEAD: $new_head\"\n\n# 停止条件 7: 确认确实发生了历史重写（非 ff-merge）\nif [ \"$new_head\" = \"$remote_oid\" ]; then\n  echo \"WARNING: Rebase 是快进（无历史重写），考虑是否真的需要 rebase\"\nfi\n```\n\n## 第四阶段：Push 与租约绑定\n\n```bash\n# 显式 --force-with-lease 绑定：推送时检查远端是否仍为 $remote_oid\n# 若远端在 fetch 后又被别人推进，此命令会拒绝（防止覆盖）\ngit push origin mybr --force-with-lease=refs/heads/mybr:${remote_oid}\n\npush_exit=$?\n[ $push_exit -eq 0 ] || { echo \"ERROR: push 被拒绝（remote_oid 已变化），停止\"; exit 1; }\necho \"✅ Push 成功\"\n```\n\n## 第五阶段：推送后验证\n\n```bash\n# 重新 fetch 验证远端确实指向我们推送的 commit\ngit fetch origin mybr:refs/remotes/origin/mybr --quiet\npushed_remote=$(git rev-parse refs/remotes/origin/mybr)\n\n[ \"$pushed_remote\" = \"$new_head\" ] || { echo \"ERROR: 推送后远端 HEAD 不匹配，停止\"; exit 1; }\necho \"✅ 远端验证通过：origin/mybr → $new_head\"\n```\n\n## 第六阶段：证据重验声明（关键）\n\n```bash\ncat <<EOF\n⚠️  CRITICAL: Rebase 重写了提交历史，以下证据已失效，合并前必须重验：\n\n【已失效（不可用作合并授权根据）】\n  ❌ MR 现有的 approval 状态（针对旧 commit SHA）\n  ❌ 已完成的 CI 流水线（针对旧 commit）\n  ❌ Review 评论的行内锚点（commit SHA 已变）\n  ❌ mergeable 状态（需重算）\n\n【必须立即重验】\n  1️⃣  MR mergeable 状态 → 刷新平台页面，等待新状态计算\n  2️⃣  CI 流水线 → 新 commit SHA ($new_head) 的新构建必须全绿\n  3️⃣  Review 线程 → 检查行内评论是否失效，必要时请评审人重新 approve\n  4️⃣  冲突解决复查 → 若 rebase 有冲突手工解决，再次确认仍有效\n\n【推送信息】\n  分支: mybr\n  旧头: $remote_oid\n  新头: $new_head\n  目标: origin/main\n\n⛔️  未完成上述重验前，绝不能执行 MR 合并。\nEOF\n```\n\n---\n\n## 核心保险丝\n\n| 检查点 | 失败行为 | 恢复方式 |\n|--------|--------|--------|\n| fetch 仅一次 | 若再 fetch，$remote_oid 过期，push 租约失效 | 不允许重 fetch；若误执行需重新捕获新 OID 并用新值 push |\n| rebase 冲突 | 需手工解决再 `git rebase --continue` | 解决所有冲突后继续第三阶段剩余检验 |\n| push 被拒 | 远端已变化（别人推送了）→ 取消本次 push | 从第一阶段重新开始（重 fetch + 重评估是否仍需 rebase） |\n| 推送后远端不匹配 | 平台故障或竞态 | 停止，通知平台管理员 |\n\n---\n\n## 为什么每一步都不能省\n\n- **单分支 fetch**：remote-tracking ref 可能被后台 fetch 推进，仅保存 `FETCH_HEAD` 不够，必须用 `git rev-parse` 立即捕获 OID\n- **显式 lease OID**：`--force-with-lease` 缺省用本地 tracking ref，若 tracking ref 被更新（IDE 自动 fetch、并发命令等）会失效，**必须显式绑定** `${remote_oid}`\n- **重验所有证据**：commit hash 改变后，CI、approval、mergeable 都需重算，**无法沿用旧状态作合并授权**\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "exact-topology-command",
+              "right-zero-stop",
+              "rebase-after-check"
+            ],
+            "answer_sha256": "5fe4613497c475601c16f9bcbd770cafa97574eca2e0cf3a69febc13f253cfa5",
+            "len": 2638,
+            "raw": "# 已共享分支 mybr rebase 到 origin/main 的安全序列\n\n严格按技能「把落后分支更新到最新目标」（共享分支）+ `shared-branch-rebase.md` 规则：\n\n## 前置：拓扑确认与准备\n\n```bash\n# 确认当前在 mybr（不靠 cwd，用显式检查）\n[ \"$(git symbolic-ref --quiet --short HEAD)\" = \"mybr\" ] || git checkout mybr\n\n# 确认 mybr 已推送（有 @{u}）\ngit rev-parse --verify mybr@{u} >/dev/null || { echo \"错误：mybr 无上游配置\"; exit 1; }\n```\n\n## 1. 钉住目标基线 OID（可先行）\n\n```bash\ngit fetch -q origin main\nTARGET=$(git rev-parse FETCH_HEAD)\n```\n\n## 2. 单次 fetch mybr，保存当前远端 OID 为租约锚点\n\n```bash\ngit fetch -q origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\necho \"remote_oid=$remote_oid\"  # 记录以验证\n```\n\n**停止条件**：$remote_oid 必须非空；之后**绝不再 fetch mybr**——任何后续 fetch 其它 ref 都用显式 refspec 避免更新 mybr 的 tracking ref。\n\n## 3. Rebase 本分支到目标\n\n```bash\ngit rebase \"$TARGET\" mybr\n```\n\n**停止条件矩阵**：\n\n| 场景 | 检查命令 | 处理 |\n|-----|--------|------|\n| 无冲突自动完成 | `git status \\| grep -q \"On branch mybr\"` 为真 | 进入第 4 步 |\n| 有冲突暂停 | `git status` 显示 `both modified:` / `both added:` | 手工解决，`git add <files>` 后 `git rebase --continue` |\n| 冲突无法解 | 多次冲突无法推进 | `git rebase --abort` 回滚，停止本流程 |\n\n冲突解决后：\n\n```bash\ngit rebase --continue\n# 若再次冲突，重复上述；直到 git status 无冲突\n```\n\n## 4. Rebase 完成后校验\n\n```bash\n# 验证 rebase 完成、当前 HEAD\ngit status\ngit log --oneline -n 3 mybr\n\n# 对比：本分支相对目标的改动（应该是预期的本分支 feature）\ngit diff \"$TARGET\"..mybr --stat\n```\n\n**停止条件**：`git status` 应无未提交改动；log 应显示 mybr 特有的 commit；diff 不应包含目标侧的修复被意外回退（见技能「合并回目标分支前」的碰撞集验证——本场景 rebase 改写，同样校验）。\n\n## 5. 带显式租约推送\n\n```bash\ngit push --force-with-lease=mybr:$remote_oid origin mybr\n```\n\n**停止条件**：\n\n- **推送成功**（exit 0）→ 进入第 6 步\n- **被拒 (exit 1)**，输出含 \"stale info\" / \"does not point to\" → 远端在你 fetch 后已变化，**不得重试或 `--force`**；需向用户报告\"分支已被并发推进\"并重新 fetch + rebase\n- **其它错误**（权限、连接）→ 排查后重试，仍用同一 `$remote_oid`\n\n## 6. 重写后的证据重验（自动失效，需显式重新验证）\n\nRebase 改写了 commit hash，以下证据全部失效：\n\n```bash\n# 1. 行级评论锚点失效（MR/PR 平台显示评论已过期）\n#    → 用户需要在 MR 平台重新审查代码\n#    → 旧 approval/review state 自动重置为待审\n\n# 2. CI 管道状态重新计算\n#    → 等待平台触发新的 CI 运行（通常 30s 内自动触发）\n#    → 查看新 CI 结果；旧 CI 结果可存档但不代表当前状态\n\n# 3. MR mergeable 状态\n#    → 平台重新计算：与目标分支合并冲突、通过 CI、approval 状态等\n#    → 若新 mergeable 为 false，查看具体阻断原因再处理\n\n# 4. 验证本地 tip 确实已推到远端（可选，只读）\ngit fetch -q origin mybr\n[ \"$(git rev-parse origin/mybr)\" = \"$(git rev-parse mybr)\" ] && echo \"✓ 本地 tip 已推进远端\" || echo \"✗ 本地领先远端（不应发生）\"\n```\n\n**用户需要的后续动作**：\n- 登入 MR 平台重新审查（旧评论已标记过期）\n- 等待新 CI 通过并确认 mergeable\n- 重新 approve 或要求修改\n\n---\n\n## 完整一行脚本（非交互）\n\n```bash\ngit fetch -q origin main && TARGET=$(git rev-parse FETCH_HEAD) && \\\ngit fetch -q origin mybr && remote_oid=$(git rev-parse FETCH_HEAD) && \\\ngit rebase \"$TARGET\" mybr && \\\ngit push --force-with-lease=mybr:$remote_oid origin mybr\n```\n\n**停止条件**：任何 fetch/rebase/push 失败（exit 非 0）则整条中止；rebase 冲突会暂停交互。\n"
+          }
+        ]
+      }
+    }
+  }
+}

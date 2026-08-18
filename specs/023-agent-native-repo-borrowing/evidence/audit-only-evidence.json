@@ -1,0 +1,74 @@
+{
+  "status": "audit-only",
+  "reason": "Superseded runner and grader contracts; these records are retained only as iteration history and are not current evidence.",
+  "records": [
+    {
+      "round": "r5-tighten",
+      "files": [
+        "red-baseline-023-c3-tighten-strict-r5.json",
+        "red-baseline-023-c3-tighten-strict-r5-regrade.json"
+      ],
+      "tasks": [
+        "tighten-eight-class-walk"
+      ],
+      "demotion_reason": "superseded-noncanonical-grader",
+      "reproducibility": {
+        "status": "unavailable",
+        "reason": "The producing grader is not present in this tree; the pinned files are retained as non-reproducible iteration history."
+      },
+      "superseded_by": [
+        {
+          "file": "red-baseline-023-c3-tighten-current-r9.json",
+          "task": "tighten-eight-class-walk"
+        }
+      ]
+    },
+    {
+      "round": "r4-worktree",
+      "files": [
+        "red-baseline-023-c3-worktree-strict-r4.json",
+        "red-baseline-023-c3-worktree-strict-r4-regrade.json"
+      ],
+      "tasks": [
+        "worktree-one-fetch-order"
+      ],
+      "demotion_reason": "superseded-noncanonical-grader",
+      "reproducibility": {
+        "status": "unavailable",
+        "reason": "The producing grader is not present in this tree; the pinned files are retained as non-reproducible iteration history."
+      },
+      "superseded_by": [
+        {
+          "file": "red-baseline-023-c3-worktree-safe-r8.json",
+          "task": "worktree-one-fetch-order"
+        }
+      ]
+    },
+    {
+      "round": "r6-mixed",
+      "files": [
+        "red-baseline-023-c3-safe-mode-r6.json",
+        "red-baseline-023-c3-safe-mode-r6-regrade.json"
+      ],
+      "tasks": [
+        "tighten-eight-class-walk",
+        "worktree-one-fetch-order"
+      ],
+      "demotion_reason": "post-hoc-rubric-drift",
+      "reproducibility": {
+        "status": "unavailable",
+        "reason": "The record contains a post-hoc rubric annotation and runner/regrade score drift; it is retained only as non-canonical iteration history."
+      },
+      "superseded_by": [
+        {
+          "file": "red-baseline-023-c3-tighten-current-r9.json",
+          "task": "tighten-eight-class-walk"
+        },
+        {
+          "file": "red-baseline-023-c3-worktree-safe-r8.json",
+          "task": "worktree-one-fetch-order"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "provider": "claude",
+  "model": "claude-haiku-4-5",
+  "rounds": 2,
+  "base_rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+  "head_rev": "e21ffeafe82c44d64a8a7ff7e2ccba39b9358f91",
+  "results": {
+    "worktree-one-fetch-order": {
+      "task_sha256": "879ddd43c69afd37e43a83a67857c5e4a307919808abea7fae0767a87a7eaab8",
+      "mutation": "replace the sole action/stop sequence with an unbound bare-lease instruction",
+      "base": {
+        "rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+        "body_sha256": "6e9bcf10a01dedd6701ddaafbceb6171f6cfe1e00ea38f39598ceb32fb9d0153",
+        "prompt_sha256": "ef6bf3911d9fc284dd2cae163997c5f9aeaae02888a6db21c7158cc03dc55874",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "one-fetch-before-push",
+              "no-malformed-topology-command",
+              "right-zero-stop",
+              "rebase-after-check",
+              "review-state-revalidation"
+            ],
+            "answer_sha256": "552abdb679086e3df9fd4bdf5d818a6c06b69da19fac42211fea037b24c49c20",
+            "len": 2260,
+            "raw": "使用 worktree-isolation 技能的 **rebase 协议** 处理已推送分支。以下是唯一安全序列：\n\n```bash\n# ① Fetch mybr 并记录 remote OID\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\n\n# ② Fetch 目标分支\ngit fetch origin main\nTARGET=$(git rev-parse origin/main)\n\n# ③ 拓扑检查：分支是否真的落后（停止条件 1）\nif git merge-base --is-ancestor \"$TARGET\" mybr; then\n  echo \"mybr 已包含 origin/main，无需 rebase\" >&2\n  exit 1\nfi\n\n# ③ 拓扑检查：检查未推送的 commit（停止条件 2）\n# mybr...$remote_oid 中左侧计数 = mybr 独有（未推送）\nmapfile -t counts < <(git rev-list --left-right --count mybr...\"$remote_oid\" 2>/dev/null)\nunpushed_count=\"${counts[0]}\"\nif [ -z \"$unpushed_count\" ] || [ \"$unpushed_count\" -gt 0 ]; then\n  echo \"ERROR: mybr 有 ${unpushed_count:-unknown} 个未推送提交\" >&2\n  echo \"停止 rebase。先执行: git push origin mybr\" >&2\n  exit 1\nfi\n\n# ④ 执行 Rebase\ngit rebase \"$TARGET\" mybr\nrebase_exit=$?\nif [ $rebase_exit -ne 0 ]; then\n  echo \"ERROR: rebase 失败（可能有冲突），停止 push\" >&2\n  exit $rebase_exit\nfi\n\n# ⑤ Push 只用 --force-with-lease，绑定观察到的远端 OID\ngit push origin --force-with-lease=mybr:\"$remote_oid\" mybr\npush_exit=$?\nif [ $push_exit -ne 0 ]; then\n  echo \"ERROR: push 被拒（remote_oid 可能已变化），停止\" >&2\n  exit $push_exit\nfi\n\n# ⑥ 重写后证据重验（关键，不要省略）\necho \"=== Rebase 后验证 ===\" >&2\n\n# 验证 1：mybr 现在包含 origin/main\ngit merge-base --is-ancestor \"$TARGET\" mybr && \\\n  echo \"✓ mybr 现在包含 origin/main\" >&2 || \\\n  { echo \"ERROR: rebase 后 mybr 未包含 origin/main\" >&2; exit 1; }\n\n# 验证 2：查看本地 mybr 相对旧 remote 的变化（rebase 会改历史）\ngit rev-list --left-right --count mybr...\"$remote_oid\" 2>/dev/null | {\n  read left right\n  echo \"✓ rebase 后本地领先远端 $left commits（历史已改写）\" >&2\n}\n\n# 验证 3：检查工作区状态\ngit status --porcelain=v1 -b | grep -q \"^?\" && \\\n  echo \"⚠ 注意：有未跟踪文件\" >&2 || true\ngit status --porcelain=v1 | grep -v \"^??\" | grep -q . && \\\n  { echo \"ERROR: 工作区有改动，不应发生\" >&2; exit 1; } || \\\n  echo \"✓ 工作区干净\" >&2\n\n# 验证 4：查看 rebase 改动（确认无意外内容回退）\necho \"=== Rebase 变更摘要 ===\" >&2\ngit log --oneline \"$remote_oid\"..mybr | head -5\necho \"（共 $(git rev-list --count \"$remote_oid\"..mybr) 个 commits）\" >&2\n\necho \"✓ rebase 和 push 完成\" >&2\n```\n\n**关键保证**：\n- **未推送检查**：`rev-list --left-right --count` 左侧 > 0 = 停止，防止覆盖评审历史  \n- **Lease 防护**：`--force-with-lease=mybr:\"$remote_oid\"` 绑定观察到的远端 OID，被并发推送会立即拒绝  \n- **Push 失败是安全退出**：lease 被拒 = 远端已变，不盲目重试，停下让人判断  \n- **重验四层**：merge-base、历史变化计数、工作区、变更摘要 — 缺任何一个都无法证明 rebase 安全\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "no-malformed-topology-command",
+              "review-state-revalidation"
+            ],
+            "answer_sha256": "ff7bc034803f66c9d94a694c64de5debcba1531ddf7e597f28992f9ff8d873a0",
+            "len": 1298,
+            "raw": "使用技能中「合并回目标分支前」小节规定的**固定次序**：\n\n```bash\n# ① fetch 分支，中间不插入其他 fetch\ngit fetch origin mybr\n\n# ② 立刻记录观察到的远端 OID（来自 FETCH_HEAD）\nremote_oid=$(git rev-parse FETCH_HEAD)\necho \"Observed remote: $remote_oid\"\n\n# ③ 拓扑检查：mybr 相对于远端 OID 的关系\n# 格式：git rev-list --left-right --count <本地分支>...<远端OID>\n# 输出格式：左侧<TAB>右侧（右侧 = 远端独有提交）\ngit rev-list --left-right --count mybr...$remote_oid\n\n# **停止条件**：右侧计数必须为 0\n# 如果右侧 ≠ 0，说明远端被他人推进，停止—— merge 而非 rebase\n```\n\n若拓扑检查右侧为 0，继续：\n\n```bash\n# ④ rebase 到目标分支\ngit rebase origin/main mybr\n\n# ⑤ push —— 租约绑定到观察到的远端 OID（绝不 --force）\ngit push origin mybr:mybr --force-with-lease=mybr:$remote_oid\n```\n\n**重写后证据重验**（两轴并行验证）：\n\n```bash\n# 取最新远端状态，更新 tracking ref\ngit fetch origin mybr:refs/remotes/origin/mybr\n\n# 轴 1：拓扑验证（rebase 成功标志）\n# 本地 mybr 应该是 origin/main 的后代\ngit merge-base --is-ancestor origin/main mybr && echo \"✓ Rebase succeeded\" || echo \"✗ Topology failed\"\n\n# 轴 2：内容验证（确保未丢失提交）\n# 打印 rebase 后新增相对于原远端的提交\necho \"Commits added by rebase:\"\ngit log --oneline $remote_oid..mybr\n\n# 轴 3：确认推送完成（本地 mybr = origin/mybr）\n[ \"$(git rev-parse mybr)\" = \"$(git rev-parse origin/mybr)\" ] && echo \"✓ Remote synced\" || echo \"✗ Push mismatch\"\n```\n\n**关键约束**（技能硬纪律）：\n- 若拓扑检查右侧非 0 → **停止，先 merge 而非 rebase**\n- lease 必须绑定**观察到的字面 OID**（`$remote_oid`），不绑则退化为无保护 `--force`\n- ① ② ③ 必须连贯（不插其他 fetch，否则 lease 失效）\n"
+          }
+        ]
+      },
+      "head": {
+        "rev": "e21ffeafe82c44d64a8a7ff7e2ccba39b9358f91",
+        "body_sha256": "cd01d10a3b03b854eca36bbd101c61a6233c855dc09dcae17edbf4870189f7d4",
+        "prompt_sha256": "1ebe84b2fe8480a70c108b2e726cfc33788e0b3bed90bc9bdadfb383bba075c8",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "exact-topology-command",
+              "no-malformed-topology-command"
+            ],
+            "answer_sha256": "e5816ad05a4b3143e2ea3bb52986b861da7b17b86c654927a95fd383c8587ce3",
+            "len": 1426,
+            "raw": "按 `worktree-isolation/SKILL.md`「把落后分支更新到最新目标」的共享分支段落和 `references/shared-branch-rebase.md`，给出唯一安全序列：\n\n## 安全序列\n\n**第 1 步：单次 fetch 钉住当前远端状态**\n```bash\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\n```\n- 仅一次 fetch，不重复\n- `FETCH_HEAD` 记录本次查证的 OID，作为 lease 守卫值\n- 禁止改用 `origin/mybr`（tracking ref 会被后台 fetch 推进，导致租约失效）\n\n**第 2 步：停止条件 — 检查本地是否已推送全部改动**\n```bash\ngit rev-list --left-right --count @{u}...HEAD\n```\n- 右侧（HEAD 侧）**必须为 0**，否则本地还有未推送的 commit，禁止 rebase\n- 若右侧 > 0：停止，先 `git push origin mybr` 补齐再重来\n- 若右侧 = 0：通过，继续第 3 步\n\n**第 3 步：Rebase 到目标分支**\n```bash\ngit rebase origin/main\n```\n- 将 mybr 变基到 origin/main 的当前 tip\n- 如遇冲突，解决后 `git rebase --continue`\n\n**第 4 步：推送时显式绑定 lease 到钉住的 OID**\n```bash\ngit push origin mybr --force-with-lease=mybr:$remote_oid\n```\n- **仅用 `--force-with-lease=mybr:$remote_oid`**，禁止 `--force` 或裸 `--force-with-lease`\n- lease 绑定到第 1 步记录的 `$remote_oid`，拒绝覆盖并发新提交\n\n## 推送后必须重验证（重写后证据全部失效）\n\n重写后评论行锚、CI 状态、approval、mergeable 全部失效，**逐层重验**：\n\n```bash\n# 1. 取最新远端状态（验证推送成功）\ngit fetch origin mybr\n\n# 2. 验证拓扑（新 tip 是否真的基于 origin/main）\ngit log --oneline origin/main..origin/mybr | head -3  # 新提交清单\n\n# 3. 验证 MR 状态\n#    - CI 是否在当前 head SHA 上重新通过\n#    - review 线程和行锚是否失效（预期：全失效）\n#    - mergeable 是否恢复（通常需重新检查）\n#    检查 MR 平台（glab mr view / gh pr view）\n\n# 4. 手工审阅关键行是否完整\n#    - 若改动涉及生成物（lockfile、codegen），需重新生成/验证\n#    - 若改动涉及格式化产物，需重新跑 formatter\n```\n\n**全部通过前禁合并**：CI green + 新 review 通过 + 行锚修复完毕 + mergeable 恢复才允许落地。\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "no-malformed-topology-command"
+            ],
+            "answer_sha256": "0be8d754b29d1154daf9b84e5cbb0eb853a0355655d204933974ac8f7f8371b9",
+            "len": 1061,
+            "raw": "使用 **Worktree Isolation** 技能中的 `shared-branch-rebase.md` 要求，给出唯一安全序列：\n\n```bash\n# Step 1: 仅一次 fetch，钉住远端 OID\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\n\n# Step 2: 停止条件——检查本地是否领先远端\ngit rev-list --left-right --count mybr...$remote_oid\n# ❌ 右侧非 0 = 远端有本地未拉取的提交\n#    →  停止。不得 rebase，改用 git merge origin/main mybr 并入\n\n# Step 3: 确认 mybr 落后于 origin/main（右侧须 0 才进入 rebase）\n# 右侧为 0 继续\nOLD_BASE=$(git merge-base mybr origin/main)\n\n# Step 4: 执行 rebase（推前禁再 fetch）\ngit rebase origin/main mybr\n\n# Step 5: 带租约推送（OID 必须是 Step 1 钉住的值）\ngit push --force-with-lease=mybr:$remote_oid origin mybr\n\n# Step 6: 推送后立刻重新 fetch 并记录新 OID\ngit fetch origin mybr\npost_push_oid=$(git rev-parse FETCH_HEAD)\n\n# Step 7: 证据重验清单\n# ❌ review 线程与行内注释锚点已失效（commit hash 改变）\n# ❌ CI 状态已失效（需重新跑）\n# ❌ approval 已失效（需重新审核）\n# ❌ mergeable 状态已失效（需重新检查）\n#\n# 必须等待：\n#  • CI 绿灯\n#  • 评审者确认新提交\n#  • MR mergeable 状态恢复\n# 全部通过前禁合并\n```\n\n**硬闸点**：\n1. `git rev-list` 右侧非 0 → **停止**，改并入\n2. 推送前绝不再 fetch（`Step 1` 之后到 `Step 5` 禁止任何 fetch）\n3. 租约 **必须** 用 `$remote_oid` 绑定，禁 `--force` 裸推\n4. 重写后证据全失效，**逐层重验**后才能合并\n"
+          }
+        ]
+      },
+      "mutant": {
+        "rev": "e21ffeafe82c44d64a8a7ff7e2ccba39b9358f91",
+        "body_sha256": "6a7f8f012e07e0f347211c5c0dbe862dc564d1d0c5dea976e64762e716f7b8ca",
+        "prompt_sha256": "d9eefd3284832a9a01394a7fc8331d04463b6fd10e961a92189d13fbd35d536e",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "initial-branch-fetch",
+              "literal-fetch-head-oid",
+              "exact-topology-command",
+              "right-zero-stop"
+            ],
+            "answer_sha256": "8e3635e3b8a5f500e2b8eaf3a57445a6b4fc193c5ec1eb71964ed842fb498ac8",
+            "len": 1808,
+            "raw": "根据 Worktree Isolation 技能中「已共享分支的安全 rebase」的要求，以下是唯一安全序列：\n\n```bash\n# ===== 第 1 步：钉住当前远端状态 =====\ngit fetch origin\nremote_oid=$(git rev-parse origin/mybr)\ntarget_oid=$(git rev-parse origin/main)\n\n# ===== 第 2 步：记录 rebase 前的拓扑 =====\nmybr_old=$(git rev-parse mybr)\nold_base=$(git merge-base mybr origin/main)\n\n# ===== 第 3 步：执行 rebase =====\ngit checkout mybr\ngit rebase origin/main\n\n# ===== 第 4 步：停止条件——检查 rebase 是否完成无冲突 =====\nif [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then\n    echo \"FAIL: rebase 中断（冲突）\"\n    echo \"需要手工解决冲突后 git rebase --continue，或 git rebase --abort 放弃\"\n    exit 1\nfi\n\nif ! git merge-base --is-ancestor origin/main mybr; then\n    echo \"FAIL: rebase 结果异常，mybr 未基于 origin/main\"\n    exit 1\nfi\n\nmybr_new=$(git rev-parse mybr)\necho \"OK: rebase 完成，commit hash 已变\"\necho \"  新 SHA: $mybr_new（旧：$mybr_old）\"\n\n# ===== 第 5 步：使用显式 OID lease 推送 =====\n# 显式绑定远端状态，若有后台 fetch 改了 tracking ref 会拒绝\ngit push origin mybr --force-with-lease=mybr:$remote_oid\n\n# ===== 第 6 步：重写后的证据重验（失效内容）=====\necho \"\"\necho \"⚠️  重写后证据全部失效：\"\necho \"  • MR 的所有 review 评论锚点（基于旧 commit hash）→ 需要平台重新验证\"\necho \"  • 旧 CI 运行结果 → 新提交需要重新触发 CI\"\necho \"  • 旧 approval/mergeable 状态 → 平台需要重新判定\"\necho \"\"\necho \"必须在 MR 平台确认：\"\necho \"  1. 新 CI 运行通过\"\necho \"  2. review 是否需要重新申请（由仓库策略定）\"\necho \"  3. 是否 mergeable\"\n```\n\n**关键硬性要求（技能非协商项）：**\n\n| 项目 | 要求 | 理由 |\n|------|------|------|\n| **fetch 时机** | rebase 前一次 | 钉住当前远端状态，避免后台 fetch 改变 tracking ref |\n| **Lease 形式** | `--force-with-lease=mybr:$remote_oid` | 显式 OID 绑定，裸 `--force-with-lease` 会被后续 fetch 推翻 |\n| **停止条件** | `.git/rebase-*` 存在 = 中断 | rebase 冲突必须显式处理，不可跳过 |\n| **重验范围** | MR 平台重新判定（CI、review、mergeable） | commit hash 改变→所有旧证据失效，机制无法自动补救 |\n\n**不能做的：**\n- ❌ 省略 `remote_oid` 钉住（会被后台 fetch 偷改）  \n- ❌ 用裸 `--force-with-lease` 推送  \n- ❌ 跳过 rebase 冲突检查  \n- ❌ 假设 MR review/CI 自动重新验证（需人工操作或仓库 webhook）\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "initial-branch-fetch",
+              "literal-fetch-head-oid",
+              "exact-topology-command",
+              "right-zero-stop"
+            ],
+            "answer_sha256": "45de8083370b8e8c545708c3dbfb3c5f87ea004a8e02b2ef620a4f81f7ad8140",
+            "len": 2183,
+            "raw": "我按 Worktree Isolation 技能中\"把落后分支更新到最新目标\"和 shared-branch-rebase.md 的规则给出安全序列：\n\n```bash\n# ===== 阶段 1：fetch 与状态钉住 =====\ngit fetch origin\nTARGET=$(git rev-parse origin/main)\nBRANCH_OLD=$(git rev-parse mybr)\nOLD_BASE=$(git merge-base \"$TARGET\" \"$BRANCH_OLD\")\n\n# ===== 停止条件 1：检查是否需要 rebase =====\nif git merge-base --is-ancestor \"$TARGET\" \"$BRANCH_OLD\"; then\n  echo \"mybr 已含 origin/main，无需 rebase\"\n  exit 0\nelif [ $? -ne 1 ]; then\n  echo \"merge-base 检查异常，停止\"\n  exit 1\nfi\n\n# ===== 阶段 2：执行 rebase =====\ngit checkout mybr\ngit rebase origin/main\n\n# 停止条件 2：冲突时\n# 用户需要手动解决后 git rebase --continue，或 git rebase --abort 放弃\nif [ $? -ne 0 ]; then\n  echo \"rebase 有冲突，停止。解决后 git rebase --continue\"\n  exit 1\nfi\n\nBRANCH_NEW=$(git rev-parse HEAD)\n\n# ===== 阶段 3：验证碰撞文件无回退 =====\nCOLLISION_FILES=$(comm -12 \\\n  <(git diff --name-only \"$OLD_BASE\" \"$BRANCH_OLD\" | sort) \\\n  <(git diff --name-only \"$OLD_BASE\" \"$TARGET\" | sort))\n\nif [ -n \"$COLLISION_FILES\" ]; then\n  echo \"碰撞文件集（双方都改过）：\"\n  echo \"$COLLISION_FILES\"\n  echo \"检查内容：\"\n  git diff \"$OLD_BASE\" \"$TARGET\" -- $COLLISION_FILES  # main 侧的修复\n  git diff \"$TARGET\" \"$BRANCH_NEW\" -- $COLLISION_FILES # 新版本与 main 的差异\n  echo \"⚠ 确认 main 的修复未被改回旧值后，继续\"\nfi\n\n# ===== 阶段 4：整体文件验证 =====\ngit diff origin/main --stat\n\n# ===== 停止条件 3：人工审视后继续 =====\nread -p \"确认无误，准备推送? (y/N): \" && [ \"$REPLY\" = \"y\" ] || exit 0\n\n# ===== 阶段 5：force-with-lease 推送 =====\nremote_oid=$BRANCH_OLD\ngit push origin +mybr --force-with-lease=mybr:$remote_oid\n\n# 停止条件 4：推送被拒（remote 已变）\nif [ $? -ne 0 ]; then\n  echo \"推送失败：remote mybr 已被他人更新\"\n  git fetch origin\n  git rev-parse origin/mybr\n  exit 1\nfi\n\n# ===== 阶段 6：重写后证据重验 =====\necho \"✓ 推送成功\"\necho \"\"\necho \"重写后需重验的证据：\"\necho \"  旧 tip: $BRANCH_OLD\"\necho \"  新 tip: $BRANCH_NEW\"\necho \"  • commit hash 已变，CI 将重新运行\"\necho \"  • 旧 review 评论的行号锚点可能失效，需人工跟进\"\necho \"  • 之前的 approve 不再有效，需 reviewer 重新认可\"\necho \"\"\necho \"请在 MR 平台检查：\"\ngit log --oneline origin/main..HEAD\n```\n\n**关键安全机制：**\n\n1. **一次性 fetch 钉住** `TARGET` 和 `BRANCH_OLD`，防后续 fetch 改变值\n2. **显式租约绑定** `--force-with-lease=mybr:$remote_oid`（其中 `$remote_oid=$BRANCH_OLD`），被拒时 exit 而非覆盖他人推送\n3. **碰撞文件双轴验证**：用 `OLD_BASE` 计算于 rebase 前，确保检查真正的共同改动区域\n4. **内容验证在推送前**，重写后无法取消\n5. **重验证据清单**指出 commit hash 变化导致的无效证据，需人工审视\n"
+          }
+        ]
+      }
+    }
+  }
+}

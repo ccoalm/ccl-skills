@@ -1,0 +1,128 @@
+{
+  "provider": "claude",
+  "model": "claude-haiku-4-5",
+  "rounds": 2,
+  "base_rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+  "head_rev": "e21ffeafe82c44d64a8a7ff7e2ccba39b9358f91",
+  "results": {
+    "tighten-eight-class-walk": {
+      "task_sha256": "6ebe8ca34509e792a56fd548dadb9710aa157549aad15ea51b94906a1772cf66",
+      "mutation": "remove DELETE #12 and withhold its canonical reference",
+      "base": {
+        "rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+        "body_sha256": "166f6bae85542a6682ed715990cb80e3a2956f7680b4aa301c0760a56282ea2e",
+        "prompt_sha256": "e2726cd5cb15dbfed1f2e3b0e0468bb53008eb3bf311be2a8490d753e45ec22d",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "死会话",
+              "PR-stack",
+              "变更史与无锚点",
+              "推导账"
+            ],
+            "answer_sha256": "510cb56e23ba2dfc1b5be531c8b5451574460acaebc6853007d78c5f5ecf201a",
+            "len": 1018,
+            "raw": "按 `session-vantage-leakage.md` 的 8 类逐行分类：\n\n| 泄漏类别 | 原文片段 | 分类理由 | 处理方式 |\n|---------|---------|---------|---------|\n| 1. 死的设计会话引用 | design §4.7 的 decision 7 | 内部草稿阶段号与决策编号，HEAD 无法解析 | 删除引用，改为陈述现状事实 |\n| 3. 变更叙事与指示性时间戳 | 本轮；today；旧 loader；这个 cut | \"本轮\"\"today\" 无锚点；\"旧 loader\"\"这个 cut\" 隐含\"以前/现在\"对比 | 改为现在时（loader 采用…） |\n| 2. stack/PR 视角 | stacked PR #212 之后 | 位置指示用了栈顺序；但 #212 本身是可解析的引用 | 保留 PR 号，删除 \"stacked…之后\" 的位置语 |\n| 4. 评审编排 | reviewer 在 round 3 也确认过 | \"round 3\" 阶段代号与评审者归因 | 删除；决定本身若重要，单独陈述 |\n| 5. 对评审者辩护 | 这个 cast 显然安全 | 为代码正确性向评审者辩护 | 改为陈述不变量或删除 |\n| 6. 复述与推导流水账 | 推导过程是 A→B→C | 显然分支的证明过程 | 删除整句 |\n| 7. hedge 与规划残留 | probably fine；暂定先这样 | 无明确边界的推卸与模糊承诺 | 改为明确的 `TODO` 并写具体界限，或删除 |\n| 8. 工作语言碎片 | （无） | N/A | N/A |\n\n---\n\n## 必须保留的稳定事实（原样）\n\n```\napiVersion: v2\nissue #42\np95=120ms\n```\n\n---\n\n## 清洁版本\n\n**重述保留事实：**\n\n新 loader 实现采用了类型安全的转换。当前 API 契约为 apiVersion: v2（兼容原因见 issue #42）。实测 p95=120ms。\n\n**说明：**删除了所有会话视角（设计引用、本轮/today、stacked 位置、评审轮次、推导过程、hedge）；保留了稳定的 API 版本、issue 追溯与实测数据。如果需要说明转换为什么安全，改为显式的不变量或设计原理，而非\"显然安全\"式的辩护。\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "死会话",
+              "PR-stack",
+              "变更史与无锚点",
+              "推导账",
+              "工作语"
+            ],
+            "answer_sha256": "f2cb6ee97c9d23da7dfce36d263c4494b16c37a93d936273b99c19026da8ea6e",
+            "len": 1176,
+            "raw": "# 会话视角泄漏审阅表\n\n| 序号 | 原文 | 8类分类 | 判定 | 处理 |\n|------|------|--------|------|------|\n| 1 | `design §4.7 的 decision 7` | 死的设计会话引用 | 泄漏 | 删除；改写为能独立站住的现状说明（若设计已交付，按名字+路径引用；若未交付，替换为事实陈述） |\n| 2 | `在 stacked PR #212 之后` | stack/PR视角 | 泄漏 | PR #212 本身可保留（issue 引用），但\"之后\"的叙事视角改为现状描述 |\n| 3 | `today 这个 cut 已经够了` | 变更叙事与指示性时间戳 | 泄漏 | 删除\"今天\"\"这一次改动\"；改为现状描述（如\"当前实现已包含…\"） |\n| 4 | `把旧 loader 改掉` | 变更叙事 | 泄漏 | 删除变更史叙述；改为描述新 loader 的现在时机制 |\n| 5 | `reviewer 在 round 3 也确认过` | 评审编排 | 泄漏 | 删除\"round 3\"的轮次归因；若需表达确认，写成\"已验证该 cast 安全\" |\n| 6 | `这个 cast 显然安全` | 对评审者辩护 | 泄漏 | 改为写出让代码安全的**不变量或契约**（具体条件），删掉\"显然\"的评审态度词 |\n| 7 | `推导过程是 A→B→C` | 复述与推导流水账 | 泄漏 | 删除；代码与不变量已自证 |\n| 8 | `probably fine，暂定先这样` | hedge与规划残留 | 泄漏 | 升级为 `TODO` 并写实际界限，或直接改为确定的现状说明 |\n\n---\n\n## 必须保留的稳定事实（原样不动）\n\n- **`apiVersion: v2`** — 稳定版本标识，现状契约，任何页面都留\n- **`issue #42`** — issue 引用，在 HEAD 可解析，必须保留\n- **`p95=120ms`** — 实测数值，校准数据，出处已标记\n\n---\n\n## 改写后（删除过程，保留事实）\n\n**原稿问题密度：8 处泄漏 + 3 个稳定事实被过程夹杂**\n\n**改写版本：**\n\n> 新 loader 使用 apiVersion: v2 合规约定。支持向后兼容（见 issue #42）。性能目标已验证（p95=120ms）。\n\n**或扩展到需要说明安全性时：**\n\n> 新 loader 采用 apiVersion: v2，符合当前契约要求。cast 的安全性由〔具体不变量或类型检查〕保证。支持向后兼容（issue #42）；实测 p95=120ms。\n\n（具体的不变量/条件由 owner 补充；hedge 改为具体的界限或 TODO。）\n"
+          }
+        ]
+      },
+      "head": {
+        "rev": "e21ffeafe82c44d64a8a7ff7e2ccba39b9358f91",
+        "body_sha256": "eb9b7eeed2904c24fa8b96b57526d37ede6d3c508afe542a53c46fa96c9a6147",
+        "prompt_sha256": "e77e3545a8321e46c266dc115f19be52e376e0eb9ae113bac91c3886959ad0b5",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "死会话",
+              "PR-stack",
+              "变更史与无锚点",
+              "推导账",
+              "工作语"
+            ],
+            "answer_sha256": "2684616e732829280868704c8e153b4d3a7628b52f598fc38e77c17f9665231d",
+            "len": 1016,
+            "raw": "# 会话视角泄漏分类表\n\n| 泄漏片段 | 类别 | 说明 |\n|---------|------|------|\n| `design §4.7 的 decision 7` | 死的设计会话引用 | 内部阶段代号与决策编号，只在写作会话可解析 |\n| `stacked PR #212 之后` | stack/PR 视角 | PR 堆栈顺序的指代，不是现状事实 |\n| `把旧 loader 改掉` | 变更叙事 | \"旧\"隐含对过去状态的对比，非现在时陈述 |\n| `today 这个 cut` | 指示性时间戳 | \"today\"、\"这个 cut\" 只在写作那刻有意义 |\n| `显然安全` | 对评审者辩护 | 为 cast 正确性向评审者辩护，非维护者需知 |\n| `reviewer 在 round 3 也确认过` | 评审编排 | 评审轮次与评审者名义，应删留决定本身 |\n| `推导过程是 A→B→C` | 复述推导流水账 | 显然分支的证明过程 |\n| `probably fine，暂定先这样` | hedge 与规划残留 | 未决的规划与模糊限定 |\n\n---\n\n## 必须保留的稳定事实（原样保留）\n\n- **apiVersion: v2** —— 稳定版本标识，决定现在的契约\n- **issue #42** —— issue 引用，可在仓库 HEAD 解析\n- **实测 p95=120ms** —— 实测数值与出处词 \"measured\"\n\n---\n\n## 清理后的版本\n\n> loader 当前使用 apiVersion: v2，以保证与遗留版本的兼容（见 issue #42）。实测延迟 p95=120ms。\n\n**说明**：\n- 删除 `design §4.7 decision 7` → 无一手文档则不引用\n- 删除 `PR #212` 与堆栈上下文 → 改动已交付，指代过时\n- 删除 `today`、`这个 cut` → 无锚点的指示性时间戳\n- 删除 `显然安全` → 代码自己说明的内容\n- 删除 `reviewer 在 round 3` → 留决定（兼容需求），删评审编排\n- 删除 `A→B→C`、`probably fine`、`暂定` → 推导过程与 hedge\n- 保留 `apiVersion: v2`、`issue #42`、`p95=120ms` → 现状事实与有效引用\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "死会话",
+              "PR-stack",
+              "变更史与无锚点",
+              "推导账"
+            ],
+            "answer_sha256": "b9883f283e61485254b691a83014f4d54404be05e973497ee30bd06ac47d7fdf",
+            "len": 1257,
+            "raw": "我来逐项分析这段草稿，按技能的 8 类会话视角泄漏分类：\n\n| 类别 | 泄漏内容 | 判定 | 修法 |\n|------|---------|------|------|\n| 1. 死的设计会话引用 | `design §4.7`、`decision 7` | 删除 — 未提交的内部阶段代号 | 删；若有必要指向设计文档则用路径链接 |\n| 2. stack / PR 视角 | `stacked PR #212 之后` | 删除 — \"之后\"是 stack 位置叙述 | 删；保留 `#212` 作为 issue 引用如需追溯 |\n| 3. 变更叙事与指示性时间戳 | `today 这个 cut 已经够了`、`把旧 loader 改掉` | 删除 — 指示性时间与变更故事 | 改为现在时事实：写现状机制，删\"今天\"与\"旧\" |\n| 4. 评审编排 | `reviewer 在 round 3 也确认过` | 删除 — 轮次归因与评审者身份 | 删；留下决定结论：cast 安全（需证据支撑） |\n| 5. 对评审者辩护的注释 | `这个 cast 显然安全` | 改写 — 辩护性而非证据 | 写出让 cast 安全的不变量/约束；删\"显然\" |\n| 6. 复述与推导流水账 | `推导过程是 A→B→C` | 删除 — 推导步骤叙述 | 删；非显然的契约单独列 |\n| 7. hedge 与规划残留 | `probably fine`、`暂定先这样` | 删除 — 无边界的犹豫 | 升级为 `TODO` + 实际界限，或直接写界限 |\n| 8. 工作语言碎片 | 无 | — | — |\n\n---\n\n### 必须保留的稳定事实：\n```\n- apiVersion: v2（协议版本号，现状事实）\n- issue #42（可在 HEAD 解析的 issue 引用）\n- p95=120ms（实测数值，带出处 \"measured\"）\n```\n\n---\n\n### 修订后版本：\n\n```\nLoader 已重新实现。Cast 安全性由 [issue #42] 的兼容性约束保障。\n当前契约：apiVersion: v2。性能指标（实测）：p95=120ms。\n\nTODO: [owner] 在 [deadline] 前完成性能验证阈值（目标 ≤100ms 或确认 120ms 为稳定值）。\n```\n\n**删除指南总结：**\n- ✓ 删：`design §4.7`、`decision 7`、`stacked PR #212`、`today`、`这个 cut`、`旧`、`reviewer`、`round 3`、`显然`、`A→B→C`、`probably fine`、`暂定`  \n- ✓ 保：`apiVersion: v2`、`issue #42`、`p95=120ms`  \n- ✓ 升级：`probably fine` → `TODO + 具体界限`；`这个 cast 安全` → 改成约束或验证条件\n"
+          }
+        ]
+      },
+      "mutant": {
+        "rev": "e21ffeafe82c44d64a8a7ff7e2ccba39b9358f91",
+        "body_sha256": "18ba7f38c1b9f9ad9d988dd5f96f5b9a5588ba5d831849486058de8b138c7fd5",
+        "prompt_sha256": "a162b1d8ba6c6646a598b8411efc8fd0c441da1afcb32bf28c78fa046526227e",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "死会话",
+              "PR-stack",
+              "变更史与无锚点",
+              "评审编排",
+              "辩护",
+              "推导账",
+              "hedge",
+              "工作语"
+            ],
+            "answer_sha256": "a11847ceb74944549f895010488da4a955e13a8de53fe26697c112e8d24a35dc",
+            "len": 864,
+            "raw": "使用 tighten-doc 技能审阅这段 README 草稿。\n\n## 会话视角泄漏识别表\n\n| 泄漏类别 | 原文片段 | 问题 |\n|---------|--------|------|\n| 元语自证 | \"本轮按 design §4.7 的 decision 7\" | 过程说明：设计文档与决策号只对内部有意义，不是交付物内容 |\n| 自造版本号或前缀 | \"PR #212\"\"design §4.7\"\"decision 7\"\"round 3\" | 内部流程编号，读者无法追溯，说明作者在哪一步而非交付物本身 |\n| 无谓条件前缀 | \"today\" | 日期泄漏，使文档立即过期；应用日期无关的陈述方式 |\n| Jargon 未解释 | \"cut\"\"cast\" | 工程术语，target reader（非核心圈层）不清楚含义 |\n| 修辞尾巴 | \"显然安全\"\"probably fine\" | 修辞感、AI感、不确定修饰，技术文档不该用 |\n| 元语自证 | \"推导过程是 A→B→C\" | \"推导过程\"明确标记这是思维过程，不是事实 |\n| 无谓条件前缀 | \"暂定先这样\" | 草稿感：表示未锁定，README 不该说\"暂定\"（意味可能改） |\n\n## 必须保留的稳定事实\n\n- **apiVersion: v2**  \n- **issue #42**（记录兼容原因）  \n- **p95=120ms**（实测基准）\n\n## 清理后的 README 表述\n\n```\n旧 loader 已改为支持 apiVersion: v2。\n此变更安全；兼容原因见 issue #42。\n实测 p95 延迟 120ms。\n```\n\n**理由**：  \n保留了技术事实（API 版本、兼容性证据、性能基准）和决定本身（旧 loader 已改），删除了全部过程痕迹（设计§、PR号、review轮数、推导链、草稿态）。reader 需要知道\"现状是什么、依据在哪、指标是多少\"，不需要知道\"如何决策的、第几轮确认、暂不暂定\"。\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "死会话",
+              "PR-stack",
+              "变更史与无锚点",
+              "评审编排",
+              "辩护",
+              "推导账",
+              "hedge",
+              "工作语"
+            ],
+            "answer_sha256": "ea7631e877faedcc8d2ff25d3a2dd9c30d984d1fee3a651dc2943f7337e7f518",
+            "len": 895,
+            "raw": "Looking at the tighten-doc skill's DELETE section, I'll classify the session-perspective leaks in this README draft.\n\n**必须保留的稳定事实：**\n- apiVersion: v2\n- issue #42（兼容性溯源）\n- p95=120ms（性能实测）\n\n**会话视角泄漏分类表：**\n\n| 泄漏类型 | 内容片段 | DELETE 条款 | 处置 |\n|--------|--------|-----------|------|\n| 翻旧账（过程溯源） | \"按 design §4.7 的 decision 7\"、\"stacked PR #212\" | #2 | 删除 |\n| 翻旧账（评审历史） | \"reviewer 在 round 3 也确认过\" | #2 | 删除 |\n| 元语自证（推导过程） | \"推导过程是 A→B→C，暂定先这样\" | #1 | 删除 |\n| 修辞尾巴 | \"这个 cast 显然安全\"、\"probably fine\" | #3 | 删除 |\n| 无动作语气词 | \"today 这个 cut 已经够了\" | #4 | 改为具体陈述或删除 |\n| 过程定性 | \"推导过程…probably fine\" | #1 元语 | 删除 |\n| 参考指向不当 | \"issue #42 记录兼容原因\"（被动态） | 形式 | 改为「见 issue #42」 |\n\n**删除过程后的最终版本：**\n\n> 当前契约是 apiVersion: v2，兼容原因见 issue #42。实测 p95=120ms。\n\n（可根据上下文扩展为：「API 协议当前为 v2（见 issue #42 兼容性说明），实测 p95=120ms。」）\n\n---\n\n**说明：** \n- 六类核心泄漏（翻旧账×2、元语、修辞、无动作词、参考形式）均指向工作沟通或决策过程，不属于最终交付文档。\n- 稳定事实三项（版本号、issue、性能数据）是硬约束，保留并形式改正。\n"
+          }
+        ]
+      }
+    }
+  }
+}
