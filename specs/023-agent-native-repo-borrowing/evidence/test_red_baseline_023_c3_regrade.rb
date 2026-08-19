@@ -15,26 +15,28 @@ CANONICAL_RAW = File.join(EVIDENCE_DIR, "red-baseline-023-c3-worktree-safe-r8.js
 CANONICAL_TIGHTEN_RAW = File.join(EVIDENCE_DIR, "red-baseline-023-c3-tighten-current-r9.json")
 CANONICAL_CASES = [
   ["red-baseline-023-c3-tighten-current-r9.json", "red-baseline-023-c3-tighten-current-r9-regrade.json", ["tighten-eight-class-walk"]],
-  ["red-baseline-023-c3-worktree-current-r10.json", "red-baseline-023-c3-worktree-current-r10-regrade.json", ["worktree-one-fetch-order"]]
+  ["red-baseline-023-c3-worktree-current-r11.json", "red-baseline-023-c3-worktree-current-r11-regrade.json", ["worktree-one-fetch-order"]]
 ].freeze
 CANONICAL_FILE_SHA256 = {
   "red-baseline-023-c3-tighten-current-r9.json" => "7140b7993f8953ec7c9672b3b1659a814da8b54f0c5670f453eb166837be897f",
   "red-baseline-023-c3-tighten-current-r9-regrade.json" => "b07296773870f6969ecc571db7d2344362bcb38b0710bea1476088c81e0f9ebe",
-  "red-baseline-023-c3-worktree-current-r10.json" => "d8aea1bacd214014e90bc24c9928400df6e629264479924281336e8b54771754",
-  "red-baseline-023-c3-worktree-current-r10-regrade.json" => "3815637eeff2f5f37b9d2bcb3dec75c572ce1899b85e74f82f9ba40d7f8f2b1d"
+  "red-baseline-023-c3-worktree-current-r11.json" => "c048937241b193284b44678224885fd7c057d9c2f9723a30370a915b18e6d89c",
+  "red-baseline-023-c3-worktree-current-r11-regrade.json" => "f940dd074f3726a5b2f2ca2a34a45e3d3a04e9a8407f22dc0b97af8a60bc9458"
 }.freeze
 AUDIT_ONLY_MANIFEST = File.join(EVIDENCE_DIR, "audit-only-evidence.json")
-AUDIT_ONLY_MANIFEST_SHA256 = "f154e1d9d5b01a1aa30f28ab189e0dfa52ae079c6cfdb09eb88b9bb215b8e32e"
+AUDIT_ONLY_MANIFEST_SHA256 = "503034847a1c182b050b16e970ef6460abd8177389670e13653a931079f8a95c"
 REJECTION = "refusing non-canonical partial replay"
 OWNER_BODY_BINDINGS = [
   ["red-baseline-023-c3-tighten-current-r9.json", "tighten-eight-class-walk", "skills/tighten-doc/SKILL.md", "skills/tighten-doc/references/session-vantage-leakage.md"],
-  ["red-baseline-023-c3-worktree-current-r10.json", "worktree-one-fetch-order", "skills/worktree-isolation/SKILL.md", "skills/worktree-isolation/references/shared-branch-rebase.md"]
+  ["red-baseline-023-c3-worktree-current-r11.json", "worktree-one-fetch-order", "skills/worktree-isolation/SKILL.md", "skills/worktree-isolation/references/shared-branch-rebase.md"]
 ].freeze
 AUDIT_FILE_SHA256 = {
   "red-baseline-023-c3-safe-mode-r6.json" => "562c0fb130e631cd1ffa1f56dc28ab89b46f42fe96a164a7a2e65444a07516da",
   "red-baseline-023-c3-safe-mode-r6-regrade.json" => "d1fe811bf0f55f01c4c98309c40740feecf82cfbb32554ed352a505bc985e36d",
   "red-baseline-023-c3-tighten-strict-r5.json" => "cde706996bf1a32c6334848011171dadebdedbcd958d4dc8df01cfd44bdb0e8b",
   "red-baseline-023-c3-tighten-strict-r5-regrade.json" => "016d0d8b87671d200ef0b0e8365823e312f1228ea9904f7e1d719700069dae43",
+  "red-baseline-023-c3-worktree-current-r10.json" => "d8aea1bacd214014e90bc24c9928400df6e629264479924281336e8b54771754",
+  "red-baseline-023-c3-worktree-current-r10-regrade.json" => "3815637eeff2f5f37b9d2bcb3dec75c572ce1899b85e74f82f9ba40d7f8f2b1d",
   "red-baseline-023-c3-worktree-safe-r8.json" => "24afe65299c1174c1945635226eca0ebd78ffaf89a104fbdcb30af85f2be1bc1",
   "red-baseline-023-c3-worktree-safe-r8-regrade.json" => "bfb218da2a31783cc1d81babb1c180df30c306f75b8d4df7f024bd707fd8ee76",
   "red-baseline-023-c3-worktree-strict-r4.json" => "afd02d08b8c9c4521725c472a7ad0137072c7e4e8d4ad52622ee01cbf0663fb8",

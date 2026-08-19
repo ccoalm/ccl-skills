@@ -1,0 +1,126 @@
+{
+  "provider": "claude",
+  "model": "claude-haiku-4-5",
+  "rounds": 2,
+  "base_rev": "61f5b2e1937c87ed4eeb763c1adf883fdbc97d79",
+  "head_rev": "cbac5c51aefbc486078dbdf91ecb31a341b8934e",
+  "selected_arms": [
+    "base",
+    "head",
+    "mutant"
+  ],
+  "canonical": true,
+  "results": {
+    "worktree-one-fetch-order": {
+      "task_sha256": "41a81ea1beac104a762fe67f1082d7ad8cf460f9753f99fd87e612d5b9080e47",
+      "mutation": "replace the sole action/stop sequence and withhold its guard reference",
+      "base": {
+        "rev": "61f5b2e1937c87ed4eeb763c1adf883fdbc97d79",
+        "body_sha256": "1add7a1754f10817f5202be766a8e2a4d3cdf05f3b343b20627dfeefb27e1b11",
+        "prompt_sha256": "618df635dcb03b8b326aed9f77a60285cf46801b82d880592da246c0a9794373",
+        "pass": 1,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "review-state-approval",
+              "review-state-mergeable",
+              "review-state-CI",
+              "review-state-commit",
+              "review-state-thread",
+              "review-state-line-anchor"
+            ],
+            "answer_sha256": "4a2fb321bb92c7d35677d840b3809eb2cc6cf8522f256e71e25b707caf2b0025",
+            "len": 590,
+            "raw": "```bash\ngit fetch origin main\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\n\n# 拓扑检查：右侧>0 表示 mybr 落后，需先并入\nright_count=$(git rev-list --left-right --count mybr...$remote_oid 2>/dev/null | cut -f2)\nif [ \"$right_count\" -gt 0 ]; then\n  echo \"mybr 落后于 origin/main，需先并入\"\n  exit 1\nfi\n\ngit rebase origin/main\ngit push --force-with-lease=mybr:$remote_oid\ngit fetch origin mybr\n```\n\n失效证据：\n- 工作区/暂存区有未提交改动（status --porcelain 非空）\n- 分支无上游配置（rev-parse @{u} 失败）\n- 本地 tip 未全推送（rev-list @{u}...HEAD 右侧 > 0）\n- 分支落后于目标（merge-base --is-ancestor 返回 1）\n- 拓扑检查失败（rev-list mybr...$remote_oid 右侧 > 0）\n"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "answer_sha256": "17c32492260cdb6bd7fedce06178cb5140578c56a7cdecdafffe2a893ded8cb8",
+            "len": 579,
+            "raw": "```bash\n# 刷新目标\ngit fetch origin\n\n# 只 fetch 一次 mybr，选择不更新 tracking ref 的形式\ngit fetch origin mybr\n\n# 立刻保存 $remote_oid\nremote_oid=$(git rev-parse FETCH_HEAD)\n\n# 完整拓扑命令和右侧非 0 的停止注释\nright_count=$(git rev-list --left-right --count mybr...$remote_oid | awk '{print $2}')\n[ \"$right_count\" -eq 0 ] || { echo \"error: right count is non-zero ($right_count)\"; exit 1; }\n\n# rebase\ngit rebase origin/main mybr\n\n# 显式 OID lease push\ngit push --force-with-lease=mybr:$remote_oid origin mybr\n\n# push 后 fetch\ngit fetch origin mybr\n```\n\n失效证据（需重审）：评审线程、approval、mergeable 状态、CI 状态、commit hash、行内评论锚点\n"
+          }
+        ]
+      },
+      "head": {
+        "rev": "cbac5c51aefbc486078dbdf91ecb31a341b8934e",
+        "body_sha256": "241aae73498f49e15675658f2da7375b4bab23fa2664d7eba7bd737b43cb9928",
+        "prompt_sha256": "a66fbd532d5aff4d66ea140ec7e6f4ca8a4ec8b27bdbf933fd412fcb73e95e73",
+        "pass": 1,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "answer_sha256": "bedd158728fa431a9bfa3619ea0cd1c8e50b127979e208a42057e9a1851bc0e0",
+            "len": 859,
+            "raw": "```bash\n#!/bin/bash\nset -e\n\n# 刷新目标\ngit fetch origin\n\n# 钉住目标 SHA\nTARGET=$(git rev-parse origin/main)\n\n# 钉住更新前的分支 tip\nBRANCH_OLD=$(git rev-parse mybr)\n\n# 计算旧分叉点\nOLD_BASE=$(git merge-base \"$TARGET\" \"$BRANCH_OLD\")\n\n# 检查落后状态\nif git merge-base --is-ancestor \"$TARGET\" \"$BRANCH_OLD\"; then\n    echo \"分支已含该目标，无需更新\"\nelif [ $? -eq 1 ]; then\n    echo \"分支落后，需先更新到 $TARGET\"\nelse\n    echo \"merge-base 出错（非 0/1），先排查别当落后处理\"\n    exit 1\nfi\n\n# 只 fetch 一次 mybr（不更新 tracking ref）\ngit fetch origin mybr\n\n# 立刻保存 remote_oid\nremote_oid=$(git rev-parse FETCH_HEAD)\n\n# 完整拓扑命令：右侧非 0 = 并入、禁 rebase\ngit rev-list --left-right --count mybr...$remote_oid 2>/dev/null\n\n# rebase 到 origin/main\ngit rebase origin/main\n\n# 显式 OID lease push\ngit push --force-with-lease=mybr:$remote_oid origin mybr\n\n# push 后 fetch\ngit fetch origin mybr\n```\n\n**失效证据**：commit hash、行内评论锚点、评审线程、approval、mergeable、CI 状态\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "review-state-commit",
+              "review-state-line-anchor"
+            ],
+            "answer_sha256": "19a37c87069bf41923cea1944e3c7160760cfb0966804017823ce0548b08b73f",
+            "len": 315,
+            "raw": "```bash\ngit fetch origin\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\ngit rev-list --left-right --count mybr...$remote_oid 2>/dev/null  # 右侧>0=远端独有,禁rebase\ngit rebase origin/main\ngit push origin mybr --force-with-lease=mybr:$remote_oid\ngit fetch origin mybr\n```\n\n失效证据：旧评审线程、approval、mergeable、CI 状态\n"
+          }
+        ]
+      },
+      "mutant": {
+        "rev": "cbac5c51aefbc486078dbdf91ecb31a341b8934e",
+        "body_sha256": "c48c11ecf9e4134bfdaa1419523189ad8eec5bf3ba126ef291527896f05d1786",
+        "prompt_sha256": "b24422cac08f8c340007ff17ef9c5188602e05a118fa859d9b33d973ff60e6d3",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "exact-topology-command",
+              "no-malformed-topology-command",
+              "right-zero-stop",
+              "rebase-after-check",
+              "review-state-approval",
+              "review-state-mergeable",
+              "review-state-CI",
+              "review-state-commit",
+              "review-state-thread",
+              "review-state-line-anchor"
+            ],
+            "answer_sha256": "329864826bb0b9dd837ae7ec0cf98cb9e3ed833c4d8bda412fc487604c1fade7",
+            "len": 395,
+            "raw": "```bash\ngit fetch origin\ngit fetch -q origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\ngit rev-list --left-right --count mybr@{u}...mybr | awk '$2 == 0 { print \"拓扁检查：右侧为 0，停止\"; exit 1 }'\ngit rebase origin/main mybr\ngit push --force-with-lease=mybr:$remote_oid origin mybr\ngit fetch -q origin mybr\n```\n\n失效证据：无上游 | 本地领先 | 落地对象不符 | 分支已含该目标 | 分支落后 | merge-base 出错（非 0/1） | 出现意外删除 | 出现目标已修复内容被改回旧值\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "exact-topology-command",
+              "no-malformed-topology-command",
+              "right-zero-stop",
+              "rebase-after-check",
+              "review-state-approval",
+              "review-state-mergeable",
+              "review-state-CI",
+              "review-state-commit",
+              "review-state-thread",
+              "review-state-line-anchor"
+            ],
+            "answer_sha256": "919d0ffc5e013ab6c6af2d8477657914eaf4eacb96dba79b10d208f32c7912dd",
+            "len": 862,
+            "raw": "```bash\n#!/bin/bash\nset -e\n\ngit fetch origin\n\ngit fetch origin mybr\nremote_oid=$(git rev-parse FETCH_HEAD)\n\nTARGET=$(git rev-parse origin/main)\nBRANCH_OLD=$(git rev-parse mybr)\nOLD_BASE=$(git merge-base \"$TARGET\" \"$BRANCH_OLD\")\n\nif git merge-base --is-ancestor \"$TARGET\" \"$BRANCH_OLD\"; then\n  echo \"分支已含该目标，无需更新\"\n  exit 0\nelif [ $? -eq 1 ]; then\n  echo \"分支落后，进行 rebase\"\nfi\n\ngit rev-list --left-right --count @{u}...HEAD 2>/dev/null || true\n\ngit rebase origin/main\n\ngit push --force-with-lease=mybr:\"$remote_oid\" origin mybr\n\ngit fetch origin mybr\n```\n\n失效证据清单：\n- git fetch origin\n- git fetch origin mybr\n- remote_oid\n- TARGET\n- BRANCH_OLD\n- OLD_BASE\n- git merge-base --is-ancestor \"$TARGET\" \"$BRANCH_OLD\"\n- git rev-list --left-right --count @{u}...HEAD\n- git rebase origin/main\n- git push --force-with-lease=mybr:\"$remote_oid\" origin mybr\n- git fetch origin mybr\n"
+          }
+        ]
+      }
+    }
+  }
+}

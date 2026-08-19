@@ -39,7 +39,7 @@
       },
       "superseded_by": [
         {
-          "file": "red-baseline-023-c3-worktree-current-r10.json",
+          "file": "red-baseline-023-c3-worktree-current-r11.json",
           "task": "worktree-one-fetch-order"
         }
       ]
@@ -65,7 +65,7 @@
           "task": "tighten-eight-class-walk"
         },
         {
-          "file": "red-baseline-023-c3-worktree-current-r10.json",
+          "file": "red-baseline-023-c3-worktree-current-r11.json",
           "task": "worktree-one-fetch-order"
         }
       ]
@@ -86,7 +86,28 @@
       },
       "superseded_by": [
         {
-          "file": "red-baseline-023-c3-worktree-current-r10.json",
+          "file": "red-baseline-023-c3-worktree-current-r11.json",
+          "task": "worktree-one-fetch-order"
+        }
+      ]
+    },
+    {
+      "round": "r10-worktree",
+      "files": [
+        "red-baseline-023-c3-worktree-current-r10.json",
+        "red-baseline-023-c3-worktree-current-r10-regrade.json"
+      ],
+      "tasks": [
+        "worktree-one-fetch-order"
+      ],
+      "demotion_reason": "superseded-stale-owner-body",
+      "reproducibility": {
+        "status": "unavailable",
+        "reason": "This record measured the entrypoint between the gloss restore and the size-budget trim; that intermediate body does not exist at HEAD and cannot be reproduced against the current carriers."
+      },
+      "superseded_by": [
+        {
+          "file": "red-baseline-023-c3-worktree-current-r11.json",
           "task": "worktree-one-fetch-order"
         }
       ]
