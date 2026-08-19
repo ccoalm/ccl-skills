@@ -1,0 +1,101 @@
+{
+  "source_sha256": "afd02d08b8c9c4521725c472a7ad0137072c7e4e8d4ad52622ee01cbf0663fb8",
+  "grader_sha256": "7ffcd83328e2ed6c83ae55014c3f474553a45ec746f3ad799535c59018d20d50",
+  "provider": "claude",
+  "model": "claude-haiku-4-5",
+  "rounds": 2,
+  "base_rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+  "head_rev": "e21ffeafe82c44d64a8a7ff7e2ccba39b9358f91",
+  "results": {
+    "worktree-one-fetch-order": {
+      "task_sha256": "879ddd43c69afd37e43a83a67857c5e4a307919808abea7fae0767a87a7eaab8",
+      "mutation": "replace the sole action/stop sequence with an unbound bare-lease instruction",
+      "arms": {
+        "base": {
+          "rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+          "body_sha256": "6e9bcf10a01dedd6701ddaafbceb6171f6cfe1e00ea38f39598ceb32fb9d0153",
+          "prompt_sha256": "ef6bf3911d9fc284dd2cae163997c5f9aeaae02888a6db21c7158cc03dc55874",
+          "pass": 0,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": false,
+              "missed": [
+                "one-fetch-before-push",
+                "right-zero-stop",
+                "rebase-after-check",
+                "review-state-revalidation"
+              ],
+              "answer_sha256": "552abdb679086e3df9fd4bdf5d818a6c06b69da19fac42211fea037b24c49c20"
+            },
+            {
+              "round": 2,
+              "pass": false,
+              "missed": [
+                "no-malformed-topology-command",
+                "review-state-revalidation"
+              ],
+              "answer_sha256": "ff7bc034803f66c9d94a694c64de5debcba1531ddf7e597f28992f9ff8d873a0"
+            }
+          ]
+        },
+        "head": {
+          "rev": "e21ffeafe82c44d64a8a7ff7e2ccba39b9358f91",
+          "body_sha256": "cd01d10a3b03b854eca36bbd101c61a6233c855dc09dcae17edbf4870189f7d4",
+          "prompt_sha256": "1ebe84b2fe8480a70c108b2e726cfc33788e0b3bed90bc9bdadfb383bba075c8",
+          "pass": 1,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": false,
+              "missed": [
+                "exact-topology-command",
+                "no-malformed-topology-command"
+              ],
+              "answer_sha256": "e5816ad05a4b3143e2ea3bb52986b861da7b17b86c654927a95fd383c8587ce3"
+            },
+            {
+              "round": 2,
+              "pass": true,
+              "missed": [],
+              "answer_sha256": "0be8d754b29d1154daf9b84e5cbb0eb853a0355655d204933974ac8f7f8371b9"
+            }
+          ]
+        },
+        "mutant": {
+          "rev": "e21ffeafe82c44d64a8a7ff7e2ccba39b9358f91",
+          "body_sha256": "6a7f8f012e07e0f347211c5c0dbe862dc564d1d0c5dea976e64762e716f7b8ca",
+          "prompt_sha256": "d9eefd3284832a9a01394a7fc8331d04463b6fd10e961a92189d13fbd35d536e",
+          "pass": 0,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": false,
+              "missed": [
+                "initial-branch-fetch",
+                "literal-fetch-head-oid",
+                "exact-topology-command",
+                "right-zero-stop"
+              ],
+              "answer_sha256": "8e3635e3b8a5f500e2b8eaf3a57445a6b4fc193c5ec1eb71964ed842fb498ac8"
+            },
+            {
+              "round": 2,
+              "pass": false,
+              "missed": [
+                "initial-branch-fetch",
+                "literal-fetch-head-oid",
+                "exact-topology-command",
+                "right-zero-stop"
+              ],
+              "answer_sha256": "45de8083370b8e8c545708c3dbfb3c5f87ea004a8e02b2ef620a4f81f7ad8140"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

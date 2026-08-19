@@ -44,7 +44,7 @@ After multi-round edits that added, restructured, or changed reader-facing prose
 9. 编辑性括号副标题: "（按对的赌注不折中）", "（诚实校准）", "（怎么算通过）", "（含…前置底座）".
 10. 画蛇添足的解释尾: "中途不换手", "（DoD）" tacked onto an already-clear line.
 11. 假目标: a 目标/DoD cell that is a bare verb with no object or threshold ("V1 修完 + V2 决议", "止血/打通/完善", "韧性补齐"). Not filler-to-delete but filler-to-fix → rewrite as a falsifiable DoD traced to the owning card (never invent a threshold); if the real DoD lives in that card, replace with the pointer "见〔X 域卡〕". If the cell references an undefined term (e.g. "V2"), trace it to its definition point and either inline-gloss it once so the cell is self-explanatory, or point to the card — a reader having to ask "X 是啥" means the cell failed.
-12. 会话视角泄漏：句子立足于写作会话而非文档——死的设计会话引用、PR/stack 视角、变更叙事与无锚点指代（稳定 API/schema 版本号不算）、评审编排、对评审者辩护、推导流水账、hedge、工作语言碎片。判据 = HEAD 读者无会话记录能否解析；**必须先重述仍为真的事实再删过程**，issue 引用/抑制理由/反事实现在时/实测值不得删。见 `references/session-vantage-leakage.md`。
+12. 会话视角泄漏：句子立足于写作会话而非文档；**必须先读 `references/session-vantage-leakage.md`，逐项走完 8 类：死会话 / PR-stack / 变更史与无锚点 / 评审编排 / 辩护 / 推导账 / hedge / 工作语言**；HEAD-reader 可解？存事实、删过程；勿删稳定版本、issue、抑制理由、反事实钉、实测。
 
 ## KEEP (实质 — NOT filler; deleting them drops a decision)
 

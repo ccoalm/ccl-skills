@@ -32,6 +32,16 @@ new_case() {
   CASE_INDEX=$((CASE_INDEX + 1))
   CASE_DIR="$TEST_ROOT/case$CASE_INDEX"
   git clone --quiet --no-local "$REPO_ROOT" "$CASE_DIR"
+  # This suite owns catalog mutations, not the source repo's accumulated
+  # impact-chain diff. Pin each clone to the exact source tree so unrelated
+  # branch ancestry cannot make the pristine catalog case red.
+  source_head="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+  git -C "$CASE_DIR" fetch --quiet --no-tags "$REPO_ROOT" HEAD
+  [ "$(git -C "$CASE_DIR" rev-parse FETCH_HEAD)" = "$source_head" ] || {
+    echo "catalog fixture fetched the wrong source HEAD" >&2
+    exit 1
+  }
+  git -C "$CASE_DIR" update-ref refs/heads/ccl-test-base FETCH_HEAD
   # The clone carries the default branch; copy the working-tree versions of the
   # three files under test so the gate runs against what is about to land.
   cp "$REPO_ROOT/docs/SKILLS.md" "$CASE_DIR/docs/SKILLS.md"
@@ -42,7 +52,7 @@ new_case() {
 
 run_case() {
   set +e
-  CASE_OUTPUT="$(bash "$CASE_DIR/skills/skill-extraction-workflow/scripts/check-ccl-skills.sh" "$CASE_DIR" 2>&1)"
+  CASE_OUTPUT="$(CCL_SKILL_BASE_REF=ccl-test-base bash "$CASE_DIR/skills/skill-extraction-workflow/scripts/check-ccl-skills.sh" "$CASE_DIR" 2>&1)"
   CASE_STATUS=$?
   set -e
 }

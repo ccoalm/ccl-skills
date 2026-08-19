@@ -44,6 +44,7 @@ new_fixture() {
 1. Never bypass the demo isolation boundary when dispatching work.
 MD
   printf '#!/usr/bin/env bash\nexit 0\n' > "$FIX/skills/demo-skill/scripts/demo.sh"
+  printf 'guard_enabled = true\n' > "$FIX/skills/demo-skill/scripts/demo.rb"
   chmod +x "$FIX/skills/demo-skill/scripts/demo.sh"
   { echo "| head | head | head |"; for row in "$@"; do echo "$row"; done; } \
     > "$FIX/$REGDIR/source-register.md"
@@ -340,6 +341,94 @@ run_gate "$FIX"
 assert_rc "$rc" 1 "a live row after a nested-fence block must still be checked"
 pass "shorter inner fence run does not close a longer fence (live rows stay visible)"
 
+# ── 20. Exact-line digests bind source shape, not a surviving comment ────────
+LINE_SHA='0764-44d0-8750-8666-a5ba-350d-a8df-263b-08ec-4f7c-8e8e-46df-b863-8439-7728-cd1a'
+LINE_DIGEST="| p | c | prose; firing-path: file:skills/demo-skill/scripts/demo.rb#line-sha256:$LINE_SHA | \`updated\` | demo |"
+new_fixture line_digest_green "$LINE_DIGEST"
+run_gate "$FIX"
+assert_rc "$rc" 0 "the digest of a present trimmed source line must resolve"
+pass "line-sha256 resolves an exact trimmed source line"
+
+new_fixture line_digest_comment_decoy "$LINE_DIGEST"
+sed -i.bak 's/^guard_enabled/# guard_enabled/' "$FIX/skills/demo-skill/scripts/demo.rb"
+run_gate "$FIX"
+assert_rc "$rc" 1 "commenting out the exact source line must break its digest locator"
+assert_contains "line-sha256 source line absent from target" "$out" "comment decoy"
+pass "comment decoy cannot satisfy an exact-line digest locator"
+
+SHELL_LINE_DIGEST='| p | c | prose; firing-path: file:skills/demo-skill/scripts/demo.sh#line-sha256:c229-95ad-c297-57a9-9bc9-2429-26a5-d5b5-a800-7ecc-78f3-0943-161c-f072-af42-d9d2 | `updated` | demo |'
+new_fixture line_digest_unclassified_source "$SHELL_LINE_DIGEST"
+run_gate "$FIX"
+assert_rc "$rc" 1 "a source language without a token classifier must fail closed"
+assert_contains "line-sha256 target language has no code-token classifier" "$out" "unclassified source language"
+pass "line-sha256 rejects source languages without a code-token classifier"
+
+# A malformed digest must fail closed instead of falling back to literal-text or
+# heading-slug matching and accidentally resolving against its own declaration.
+BAD_LINE_DIGEST='| p | c | prose; firing-path: file:skills/demo-skill/scripts/demo.rb#line-sha256:not-a-digest | `updated` | demo |'
+new_fixture line_digest_malformed "$BAD_LINE_DIGEST"
+run_gate "$FIX"
+assert_rc "$rc" 1 "a malformed line digest must fail closed"
+assert_contains "not 64 lowercase hex characters after grouping" "$out" "malformed line digest"
+pass "malformed line-sha256 locator is rejected"
+
+EMPTY_LINE_DIGEST='| p | c | prose; firing-path: file:skills/demo-skill/scripts/demo.rb#line-sha256:e3b0-c442-98fc-1c14-9afb-f4c8-996f-b924-27ae-41e4-649b-934c-a495-991b-7852-b855 | `updated` | demo |'
+new_fixture line_digest_empty "$EMPTY_LINE_DIGEST"
+run_gate "$FIX"
+assert_rc "$rc" 1 "a ubiquitous blank line must not satisfy an exact-line locator"
+assert_contains "line-sha256 source line absent from target" "$out" "blank-line digest"
+pass "blank-line digest cannot create a vacuous firing path"
+
+# Ruby line locators additionally require a code token on the matching physical
+# line. An exact byte-for-byte copy inside a heredoc must not resurrect a deleted
+# guard implementation line.
+RUBY_LINE_DIGEST="| p | c | prose; firing-path: file:skills/demo-skill/scripts/demo.rb#line-sha256:5172-b00d-c562-745a-83e9-d49b-2881-464c-cc65-0836-8782-6c54-1ccb-5466-124d-40d0 | \`updated\` | demo |"
+new_fixture ruby_line_digest_green "$RUBY_LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+%w[MAKEFLAGS MFLAGS GNUMAKEFLAGS].each { |key| ENV[key] = "-q" }
+RB
+run_gate "$FIX"
+assert_rc "$rc" 0 "an exact Ruby implementation line with code tokens must resolve"
+pass "Ruby line-sha256 resolves a live code line"
+
+new_fixture ruby_line_digest_heredoc "$RUBY_LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+payload = <<~TEXT
+%w[MAKEFLAGS MFLAGS GNUMAKEFLAGS].each { |key| ENV[key] = "-q" }
+TEXT
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "an exact line inside Ruby heredoc content must not satisfy a code locator"
+assert_contains "line-sha256 source line absent from target" "$out" "Ruby heredoc decoy"
+pass "Ruby heredoc decoy cannot satisfy an exact code-line digest"
+
+new_fixture ruby_line_digest_word_list "$RUBY_LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+decoy = %w[
+%w[MAKEFLAGS MFLAGS GNUMAKEFLAGS].each { |key| ENV[key] = "-q" }
+]
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "an exact line inside Ruby word-list content must not satisfy a code locator"
+assert_contains "line-sha256 source line absent from target" "$out" "Ruby word-list decoy"
+pass "Ruby word-list decoy cannot satisfy an exact code-line digest"
+
+# Markdown fence stripping belongs to prose anchors, not source lexing. If it
+# removes a heredoc opener from malformed Ruby before Ripper sees the bytes, the
+# inert exact line below becomes synthetic top-level code and falsely resolves.
+new_fixture ruby_line_digest_fence_heredoc "$RUBY_LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+````
+payload = <<~TEXT
+````
+%w[MAKEFLAGS MFLAGS GNUMAKEFLAGS].each { |key| ENV[key] = "-q" }
+TEXT
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "fence stripping must not rewrite Ruby before code-token classification"
+assert_contains "line-sha256 source line absent from target" "$out" "fence-bracketed Ruby heredoc decoy"
+pass "fence stripping cannot turn inert Ruby bytes into a live digest line"
+
 # ── 25. A register that declares nothing resolves clean at zero ─────────────
 # Both shapes that carry no live declaration — no marker at all, and a fenced
 # illustration of one — must stay clean. This is the pair that two successive
@@ -367,5 +456,5 @@ run_gate "$FIX"
 assert_rc "$rc" 0 "a fenced example row is an illustration, not a live declaration"
 pass "fenced declaration-looking example does not red a register with no live declarations"
 
-[ "$passed" -eq 29 ] || fail "expected 29 assertions, saw $passed (a case was skipped or misplaced)"
+[ "$passed" -eq 38 ] || fail "expected 38 assertions, saw $passed (a case was skipped or misplaced)"
 echo "register_firing_path_resolution_tests_ok ($passed assertions)"

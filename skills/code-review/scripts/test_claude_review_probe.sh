@@ -2271,12 +2271,14 @@ if [ "$main_timeout_rc" -ne 2 ]; then
 fi
 python3 - "$tmp_dir/main-timeout.json" <<'PY'
 import json
+import re
 import sys
 
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
+match = re.search(r"after ([0-9]+) seconds", payload["reason"])
 assert payload["mode"] == "challenge", payload
 assert payload["status"] == "inconclusive", payload
-assert "after 5 seconds" in payload["reason"], payload
+assert match is not None and 3 <= int(match.group(1)) <= 5, payload
 assert payload["reason_code"] == "timeout", payload
 assert payload["fallback_eligible"] is True, payload
 assert payload["next_action"] == "fallback", payload

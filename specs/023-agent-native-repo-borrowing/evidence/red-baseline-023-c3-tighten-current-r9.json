@@ -1,0 +1,110 @@
+{
+  "provider": "claude",
+  "model": "claude-haiku-4-5",
+  "rounds": 2,
+  "base_rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+  "head_rev": "744b5053afc47f474510bac809d3c691aa1f7f3b",
+  "selected_arms": [
+    "base",
+    "head",
+    "mutant"
+  ],
+  "canonical": true,
+  "results": {
+    "tighten-eight-class-walk": {
+      "task_sha256": "58ab45fbb455eee136ea4724f780efe7c307ff72d3ed9b357eb4c0684c9214a8",
+      "mutation": "remove DELETE #12, which removes the only load path to its canonical reference",
+      "base": {
+        "rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+        "body_sha256": "166f6bae85542a6682ed715990cb80e3a2956f7680b4aa301c0760a56282ea2e",
+        "prompt_sha256": "9c1d6d03591d41fd3b584d40b25c151d537f3d6b2c3f338d9a2433c78b70af69",
+        "pass": 2,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "answer_sha256": "b0651aa03fccc05ce9bcdfc1662700746941267c1051b3d127f7fb34efb2072b",
+            "len": 491,
+            "raw": "| 泄漏类别 | 本草稿中的示例 |\n|---------|----------------|\n| 死的设计会话引用 | design §4.7、decision 7 |\n| stack / PR 视角 | stacked PR #212、在之后把旧 loader 改掉 |\n| 变更叙事与指示性时间戳 | today、这个 cut |\n| 评审编排 | reviewer 在 round 3 也确认过 |\n| 对评审者辩护的注释 | 这个 cast 显然安全 |\n| 复述与推导流水账 | 推导过程是 A→B→C |\n| hedge 与规划残留 | probably fine、暂定先这样 |\n| 工作语言碎片 | （本草稿中无此类） |\n\n## 保留\n\n- **API 契约**：apiVersion: v2\n- **兼容性追踪**：issue #42（记录兼容原因）  \n- **性能基准**：实测 p95=120ms\n\n删除会话视角和过程叙述后的最终陈述：\n\n当前采用 apiVersion: v2；兼容性考量由 issue #42 追踪；性能测量为 p95=120ms。\n"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "answer_sha256": "1a432c0259c68fb27eecd012c12f2b47c27f106d2867c1ff3c34c225da9c970a",
+            "len": 722,
+            "raw": "| 泄漏类别 | 该草稿的实例 |\n|---------|-----------|\n| 1. 死的设计会话引用 | design §4.7、decision 7 |\n| 2. Stack / PR 视角 | stacked PR #212 之后 |\n| 3. 变更叙事与指示性时间戳 | today 这个 cut、把旧 loader 改掉 |\n| 4. 评审编排 | reviewer 在 round 3 也确认过 |\n| 5. 对评审者辩护的注释 | 这个 cast 显然安全 |\n| 6. 复述与推导流水账 | 推导过程是 A→B→C |\n| 7. Hedge 与规划残留 | probably fine、暂定先这样 |\n| 8. 工作语言碎片 | （无） |\n\n## 保留\n\n- **apiVersion: v2** —— 稳定版本标识，客户端契约需求；必保留。\n- **issue #42** —— issue 引用，记录版本兼容原因；必保留。\n- **p95=120ms** —— 实测性能基准值；必保留。\n\n改写后的现状陈述：当前契约版本为 apiVersion: v2，兼容原因已在 issue #42 记录，实测 p95 性能为 120ms。\n\n删除的过程内容：设计节点号（design §4.7、decision 7）、PR 堆栈位置（stacked PR #212 之后）、变更指示（today、这个 cut、把旧 loader 改掉）、评审流程（reviewer 在 round 3 也确认过）、辩护性说明（这个 cast 显然安全）、推导步骤（A→B→C）、规划 hedge（probably fine、暂定先这样）。\n"
+          }
+        ]
+      },
+      "head": {
+        "rev": "744b5053afc47f474510bac809d3c691aa1f7f3b",
+        "body_sha256": "eb9b7eeed2904c24fa8b96b57526d37ede6d3c508afe542a53c46fa96c9a6147",
+        "prompt_sha256": "b58b2468cc58b987e6904a01e68f212066cf3e12195f7de6477c9f458b5e15cc",
+        "pass": 2,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "answer_sha256": "fd1c796328157fdf7ecf6e520de6cec21f634971503a157f91ead1fc4f130e5f",
+            "len": 469,
+            "raw": "| 类别 | 示例 |\n|------|------|\n| 1. 死的设计会话引用 | design §4.7、decision 7 |\n| 2. Stack / PR 视角 | stacked PR #212 之后 |\n| 3. 变更叙事与指示性时间戳 | today、这个 cut、把旧 loader 改掉 |\n| 4. 评审编排 | reviewer 在 round 3 也确认过 |\n| 5. 对评审者辩护的注释 | 这个 cast 显然安全 |\n| 6. 复述与推导流水账 | 推导过程是 A→B→C |\n| 7. Hedge 与规划残留 | probably fine、暂定先这样 |\n| 8. 工作语言碎片 | 无 |\n\n## 保留\n\n保留事项：\n- apiVersion: v2（当前契约，稳定版本标识）\n- issue #42 记录兼容原因（issue 引用）\n- p95=120ms（实测数值）\n\n删除过程泄漏后：当前契约是 apiVersion: v2；issue #42 记录兼容原因；实测 p95=120ms。\n"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "answer_sha256": "c85a57a619bb7597bf5c1f4656659df715af573053468b8ce08210db95f3a626",
+            "len": 763,
+            "raw": "## 会话视角泄漏分类表\n\n| 类别 | 特征与形态 | 本草稿示例 |\n|-----|---------|---------|\n| 1. 死的设计会话引用 | 阶段代号、内部审计编号、未交付设计文档的引用 | `design §4.7 的 decision 7` |\n| 2. Stack / PR 视角 | 栈内相对位置、\"之后/之前\"指代 | `stacked PR #212 之后` |\n| 3. 变更叙事与指示性时间戳 | 时间指代、\"today/this cut\"、变更动作 | `today 这个 cut`、`把旧 loader 改掉` |\n| 4. 评审编排 | 轮次归因、评审者确认 | `reviewer 在 round 3 也确认过` |\n| 5. 对评审者辩护的注释 | 为代码正确性的防守性说明 | `这个 cast 显然安全` |\n| 6. 复述与推导流水账 | 控制流叙述、显然分支证明 | `推导过程是 A→B→C` |\n| 7. Hedge 与规划残留 | 无标记的规划、模糊限定词 | `probably fine`、`暂定先这样` |\n| 8. 工作语言碎片 | 混语言、未翻译术语、工作分隔符 | （本草稿无示例） |\n\n## 保留\n\n应保留的三类事实：\n\n- **稳定版本标识**：`apiVersion: v2` 是当前契约，决定客户端使用哪份接口——现状必须写。\n- **Issue 引用**：`issue #42` 在仓库中可解析，记录兼容性决策理由。\n- **实测数值**：`p95=120ms` 是系统的可测属性，带出处标记。\n\n修订后陈述：\n\n「Loader 已更新。当前契约为 apiVersion: v2；兼容原因见 issue #42；实测 p95=120ms。」\n"
+          }
+        ]
+      },
+      "mutant": {
+        "rev": "744b5053afc47f474510bac809d3c691aa1f7f3b",
+        "body_sha256": "18ba7f38c1b9f9ad9d988dd5f96f5b9a5588ba5d831849486058de8b138c7fd5",
+        "prompt_sha256": "66f6c4c146282728ac50f09514c93a7248809875ef9015a5c756be639495def5",
+        "pass": 0,
+        "of": 2,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "dead-session",
+              "pr-stack",
+              "change-and-unanchored",
+              "review-choreography",
+              "defense",
+              "hedge",
+              "working-language"
+            ],
+            "answer_sha256": "1da09edd1708dd4a0a2dde8f8c48f8fd5b3542beb34309d78f98c26f1cc75c44",
+            "len": 467,
+            "raw": "| 泄漏类别 | 该文本中的体现 |\n|--------|-------------|\n| 元语自证 | \"本轮按…decision 7\"、\"今天这个 cut 已经够了\"（自述工作流而非事实） |\n| 翻旧账 | \"reviewer 在 round 3 也确认过\"（过程评审历史痕迹） |\n| 修辞尾巴 | \"probably fine，暂定先这样\"（不确定的口号式收尾） |\n| 无动作语气词 | \"今天\"\"推导过程…\"（缺施动者或对象） |\n| 无谓条件前缀 | \"本轮\"\"当前契约\"（不必要的时间限定词） |\n| 重复 | 无 |\n| 病句 | \"这个 cast 显然安全\"（英文缩写混杂造成理解障碍） |\n| 自造版本号 | \"design §4.7\"、\"decision 7\"、\"round 3\"（未验证的内部编号） |\n\n## 保留\n\n- apiVersion: v2（当前契约）\n- issue #42（兼容原因记录）\n- p95=120ms（实测性能指标）\n\n删除过程痕迹：工作流自述、评审历史、不确定的推理性语气。\n"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "dead-session",
+              "change-and-unanchored",
+              "review-choreography",
+              "defense",
+              "hedge",
+              "working-language",
+              "measurement"
+            ],
+            "answer_sha256": "ea4287ec5e50a6480f650c763a8641eaf4d5eb930ad5c1ee20a42d43dcc3902d",
+            "len": 683,
+            "raw": "| 缺陷类型 | 本草稿示例 |\n|--------|---------|\n| 元语自证 / doc-about-itself | \"本轮按 design §4.7 的 decision 7；today 这个 cut 已经够了\" |\n| 翻旧账 / blame | \"在 stacked PR #212 之后\" |\n| 修辞尾巴 / 口号 | \"这个 cast 显然安全\" |\n| 无动作语气词 | \"probably fine，暂定先这样\" |\n| 无谢条件前缀 / 连接 | \"today 这个\"（时间前缀） |\n| 重复 | reviewer 确认与\"显然安全\"的叙述重合 |\n| 病句 / bulk-replace | （本草稿无） |\n| 自造版本号 | （本草稿无） |\n\n## 保留\n\n当前 API 版本定为 apiVersion: v2。兼容性考虑已在 issue #42 中记录。实测 p95 延迟 120ms。安全评审已通过。\n\n删除内容：\n- \"本轮按 design §4.7 的 decision 7\" —— 过程背景（元语自证）\n- \"在 stacked PR #212 之后\" —— 历史溯源（翻旧账）\n- \"today 这个 cut 已经够了\" —— 临时评估与时间前缀（无谢条件前缀）\n- \"这个 cast 显然安全\" —— 修辞尾巴\n- \"reviewer 在 round 3 也确认过\" —— 过程痕迹（元语自证）\n- \"推导过程是 A→B→C，probably fine，暂定先这样\" —— 摸索过程与模糊确认（无动作语气词）\n"
+          }
+        ]
+      }
+    }
+  }
+}
