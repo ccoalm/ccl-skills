@@ -1206,6 +1206,49 @@ class WaivedPathPresenceTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("spec_reference_check_ok", result.stdout)
 
+    def test_required_jobs_share_pinned_ripgrep_install(self) -> None:
+        repository = SCRIPT.parent.parent.resolve()
+        workflow = yaml.load(
+            (repository / ".github/workflows/ci.yml").read_text(),
+            Loader=yaml.BaseLoader,
+        )
+        self.assertIsInstance(workflow, dict)
+        self.assertEqual(workflow["env"]["RIPGREP_VERSION"], "15.2.0")
+        self.assertEqual(
+            workflow["env"]["RIPGREP_SHA256"],
+            "33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c",
+        )
+
+        install_runs: dict[str, str] = {}
+        for job_name in ("repository-gates", "regression-heavy"):
+            steps = workflow["jobs"][job_name]["steps"]
+            matches = [
+                step.get("run")
+                for step in steps
+                if isinstance(step, dict)
+                and step.get("name") == "Install validation tools"
+            ]
+            self.assertEqual(len(matches), 1, job_name)
+            self.assertIsInstance(matches[0], str)
+            install_runs[job_name] = matches[0]
+
+        self.assertEqual(
+            install_runs["repository-gates"], install_runs["regression-heavy"]
+        )
+        install_run = install_runs["repository-gates"]
+        for required in (
+            "--retry-max-time 900",
+            "--max-time 300",
+            "sha256sum --check -",
+            "sudo install --mode 0755",
+            " /usr/local/bin/rg",
+            'resolved_rg="$(command -v rg)"',
+            'installed_version="$(rg --version | head -n 1)"',
+            "failed to download pinned ripgrep",
+        ):
+            self.assertIn(required, install_run)
+        self.assertNotIn("apt-get", install_run)
+
     def test_declared_test_dependencies_are_wired_after_checkout(self) -> None:
         repository = SCRIPT.parent.parent.resolve()
         requirements = {
