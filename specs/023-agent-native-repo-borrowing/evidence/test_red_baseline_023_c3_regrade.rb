@@ -15,49 +15,33 @@ CANONICAL_RAW = File.join(EVIDENCE_DIR, "red-baseline-023-c3-worktree-safe-r8.js
 CANONICAL_TIGHTEN_RAW = File.join(EVIDENCE_DIR, "red-baseline-023-c3-tighten-current-r9.json")
 CANONICAL_CASES = [
   ["red-baseline-023-c3-tighten-current-r9.json", "red-baseline-023-c3-tighten-current-r9-regrade.json", ["tighten-eight-class-walk"]],
-  ["red-baseline-023-c3-worktree-safe-r8.json", "red-baseline-023-c3-worktree-safe-r8-regrade.json", ["worktree-one-fetch-order"]]
+  ["red-baseline-023-c3-worktree-current-r10.json", "red-baseline-023-c3-worktree-current-r10-regrade.json", ["worktree-one-fetch-order"]]
 ].freeze
 CANONICAL_FILE_SHA256 = {
   "red-baseline-023-c3-tighten-current-r9.json" => "7140b7993f8953ec7c9672b3b1659a814da8b54f0c5670f453eb166837be897f",
   "red-baseline-023-c3-tighten-current-r9-regrade.json" => "b07296773870f6969ecc571db7d2344362bcb38b0710bea1476088c81e0f9ebe",
-  "red-baseline-023-c3-worktree-safe-r8.json" => "24afe65299c1174c1945635226eca0ebd78ffaf89a104fbdcb30af85f2be1bc1",
-  "red-baseline-023-c3-worktree-safe-r8-regrade.json" => "bfb218da2a31783cc1d81babb1c180df30c306f75b8d4df7f024bd707fd8ee76"
+  "red-baseline-023-c3-worktree-current-r10.json" => "d8aea1bacd214014e90bc24c9928400df6e629264479924281336e8b54771754",
+  "red-baseline-023-c3-worktree-current-r10-regrade.json" => "3815637eeff2f5f37b9d2bcb3dec75c572ce1899b85e74f82f9ba40d7f8f2b1d"
 }.freeze
 AUDIT_ONLY_MANIFEST = File.join(EVIDENCE_DIR, "audit-only-evidence.json")
-AUDIT_ONLY_MANIFEST_SHA256 = "7f2837877ac4115d38cd4c549267185d7be8851a26f9bdd9280c69e287cc34b5"
+AUDIT_ONLY_MANIFEST_SHA256 = "f154e1d9d5b01a1aa30f28ab189e0dfa52ae079c6cfdb09eb88b9bb215b8e32e"
 REJECTION = "refusing non-canonical partial replay"
 OWNER_BODY_BINDINGS = [
   ["red-baseline-023-c3-tighten-current-r9.json", "tighten-eight-class-walk", "skills/tighten-doc/SKILL.md", "skills/tighten-doc/references/session-vantage-leakage.md"],
-  ["red-baseline-023-c3-worktree-safe-r8.json", "worktree-one-fetch-order", "skills/worktree-isolation/SKILL.md", "skills/worktree-isolation/references/shared-branch-rebase.md"]
+  ["red-baseline-023-c3-worktree-current-r10.json", "worktree-one-fetch-order", "skills/worktree-isolation/SKILL.md", "skills/worktree-isolation/references/shared-branch-rebase.md"]
 ].freeze
 AUDIT_FILE_SHA256 = {
   "red-baseline-023-c3-safe-mode-r6.json" => "562c0fb130e631cd1ffa1f56dc28ab89b46f42fe96a164a7a2e65444a07516da",
   "red-baseline-023-c3-safe-mode-r6-regrade.json" => "d1fe811bf0f55f01c4c98309c40740feecf82cfbb32554ed352a505bc985e36d",
   "red-baseline-023-c3-tighten-strict-r5.json" => "cde706996bf1a32c6334848011171dadebdedbcd958d4dc8df01cfd44bdb0e8b",
   "red-baseline-023-c3-tighten-strict-r5-regrade.json" => "016d0d8b87671d200ef0b0e8365823e312f1228ea9904f7e1d719700069dae43",
+  "red-baseline-023-c3-worktree-safe-r8.json" => "24afe65299c1174c1945635226eca0ebd78ffaf89a104fbdcb30af85f2be1bc1",
+  "red-baseline-023-c3-worktree-safe-r8-regrade.json" => "bfb218da2a31783cc1d81babb1c180df30c306f75b8d4df7f024bd707fd8ee76",
   "red-baseline-023-c3-worktree-strict-r4.json" => "afd02d08b8c9c4521725c472a7ad0137072c7e4e8d4ad52622ee01cbf0663fb8",
   "red-baseline-023-c3-worktree-strict-r4-regrade.json" => "6e49926ab2334cd52e09b8ba7905d290df703945b5b4491bfe4bc2a22a11ae65"
 }.freeze
-R8_ADVISORY_REASON = "The pre-repair runner rendered the absent base reference as a named empty block, so this arm does not support a base-to-head claim."
-CANONICAL_ARM_STATUS_ALLOWLIST = {
-  "red-baseline-023-c3-worktree-safe-r8.json" => {
-    ["worktree-one-fetch-order", "base"] => { "status" => "advisory", "reason" => R8_ADVISORY_REASON }
-  }
-}.freeze
-CANONICAL_MISSED_DRIFT_ALLOWLIST = {
-  ["red-baseline-023-c3-worktree-safe-r8.json", "worktree-one-fetch-order", "base", 1] => {
-    "runner_time" => %w[exact-topology-command no-malformed-topology-command review-state-approval review-state-mergeable review-state-CI review-state-commit review-state-thread review-state-line-anchor],
-    "current_regrade" => %w[exact-topology-command no-malformed-topology-command rebase-after-check review-state-approval review-state-mergeable review-state-CI review-state-commit review-state-thread review-state-line-anchor]
-  },
-  ["red-baseline-023-c3-worktree-safe-r8.json", "worktree-one-fetch-order", "mutant", 1] => {
-    "runner_time" => %w[target-refresh exact-topology-command right-zero-stop review-state-approval review-state-mergeable review-state-CI review-state-commit review-state-thread review-state-line-anchor],
-    "current_regrade" => %w[exact-topology-command right-zero-stop rebase-after-check review-state-approval review-state-mergeable review-state-CI review-state-commit review-state-thread review-state-line-anchor]
-  },
-  ["red-baseline-023-c3-worktree-safe-r8.json", "worktree-one-fetch-order", "mutant", 2] => {
-    "runner_time" => %w[one-branch-fetch-before-push literal-fetch-head-oid exact-topology-command no-malformed-topology-command right-zero-stop review-state-approval review-state-mergeable review-state-CI review-state-commit review-state-thread review-state-line-anchor],
-    "current_regrade" => %w[one-branch-fetch-before-push literal-fetch-head-oid exact-topology-command no-malformed-topology-command right-zero-stop rebase-after-check review-state-approval review-state-mergeable review-state-CI review-state-commit review-state-thread review-state-line-anchor]
-  }
-}.freeze
+CANONICAL_ARM_STATUS_ALLOWLIST = {}.freeze
+CANONICAL_MISSED_DRIFT_ALLOWLIST = {}.freeze
 C3_LANDING_PATH = "specs/023-agent-native-repo-borrowing/c3-release-gate-repair.md"
 C3_GATE_ENTRYPOINT = "Makefile"
 C3_EVIDENCE_DIR_PATH = "specs/023-agent-native-repo-borrowing/evidence"
@@ -437,7 +421,7 @@ end
 
 audit_only.fetch("records").each do |record|
   demotion_reason = record.fetch("demotion_reason")
-  allowed_demotion_reasons = %w[superseded-noncanonical-grader post-hoc-rubric-drift]
+  allowed_demotion_reasons = %w[superseded-noncanonical-grader post-hoc-rubric-drift superseded-stale-owner-body]
   abort "audit-only record has an unknown demotion reason" unless allowed_demotion_reasons.include?(demotion_reason)
   reproducibility = record.fetch("reproducibility")
   abort "audit-only record overclaims reproducibility" unless reproducibility.fetch("status") == "unavailable" && !reproducibility.fetch("reason").empty?
