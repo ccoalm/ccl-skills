@@ -3,6 +3,7 @@
 
 require "digest"
 require "json"
+require "ripper"
 
 #
 # Register firing-path RESOLUTION gate: every `firing-path:` locator recorded in
@@ -27,6 +28,7 @@ require "json"
 # Locator forms accepted (mirroring the impact-chain gate's vocabulary):
 #   command:<repo-relative path>          -> must exist and be executable
 #   file:<repo-relative path>#<anchor>    -> file must exist and carry the anchor
+#   file:<path>.rb#line-sha256:<hex>       -> a trimmed Ruby code line must hash to hex
 #
 # An anchor resolves EITHER as literal text in the file (the convention the
 # impact-chain gate enforces on added rows) OR as a GitHub-style heading slug
@@ -43,6 +45,16 @@ require "json"
 # validate only the fragment before the comma, so deleting the rest of the
 # anchored sentence would still pass — a false negative in exactly the direction
 # this gate exists to close.
+#
+# `line-sha256:` is intentionally exact-line rather than substring evidence. It
+# is for Ruby guard implementation lines where replacing executable-looking text
+# with a comment must not preserve the locator. The digest is SHA-256 over
+# `line.strip` bytes and may group its lowercase hex in four-character chunks
+# with hyphens; whitespace-only reindentation is allowed, while commenting,
+# rewording, or deleting the line turns the whole-ledger gate red. The matching
+# line must also carry at least one Ripper token outside whitespace, comments,
+# embedded docs, and heredoc/string content. Other target languages fail closed
+# until they have an equivalent code-token classifier.
 
 root = ARGV.fetch(0) { abort "usage: register-firing-path-resolution.rb <repo-root>" }
 
@@ -122,6 +134,18 @@ def resolves_inside?(root, rel)
   real == real_root || real.start_with?(real_root + File::SEPARATOR)
 rescue Errno::ENOENT, Errno::ELOOP, Errno::ENAMETOOLONG
   false
+end
+
+RUBY_NON_CODE_LINE_TOKENS = %i[
+  on_sp on_ignored_sp on_comment on_nl on_ignored_nl
+  on_tstring_content on_words_sep on_heredoc_end
+  on_embdoc on_embdoc_beg on_embdoc_end
+].freeze
+
+def ruby_code_line_numbers(body)
+  Ripper.lex(body).each_with_object({}) do |((line_number, _column), token_type, _text, _state), lines|
+    lines[line_number] = true unless RUBY_NON_CODE_LINE_TOKENS.include?(token_type)
+  end
 end
 
 unresolved = []
@@ -235,7 +259,32 @@ File.foreach(register_path).with_index(1) do |line, lineno|
         # NEW row from inheriting the waiver by quoting the retired locator.
         next if anchor_waived
 
-        body = strip_fences(File.read(target))
+        raw_body = File.read(target)
+        body = strip_fences(raw_body)
+        if anchor.start_with?("line-sha256:")
+          encoded_line_sha256 = anchor.delete_prefix("line-sha256:")
+          expected_line_sha256 = encoded_line_sha256.delete("-")
+          unless expected_line_sha256.match?(/\A[0-9a-f]{64}\z/)
+            unresolved << [lineno, locator, "line-sha256 anchor is not 64 lowercase hex characters after grouping"]
+            next
+          end
+
+          unless File.extname(target) == ".rb"
+            unresolved << [lineno, locator, "line-sha256 target language has no code-token classifier"]
+            next
+          end
+
+          ruby_code_lines = ruby_code_line_numbers(raw_body)
+          next if raw_body.each_line.with_index(1).any? do |source_line, line_number|
+            normalized_line = source_line.strip
+            !normalized_line.empty? &&
+              ruby_code_lines[line_number] &&
+              Digest::SHA256.hexdigest(normalized_line) == expected_line_sha256
+          end
+
+          unresolved << [lineno, locator, "line-sha256 source line absent from target"]
+          next
+        end
         next if body.include?(anchor)
         next if heading_slugs(body).include?(anchor.downcase)
 

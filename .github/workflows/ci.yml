@@ -11,6 +11,7 @@ permissions:
 jobs:
   repository-gates:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -18,11 +19,32 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Install validation dependencies
+      - name: Install validation tools
+        # `apt-get` here has no natural bound: on 2026-08-19 both attempts of the
+        # heavy lane stalled inside `apt-get update` right after fetching
+        # noble-security InRelease and produced no output for 72 minutes, while an
+        # identical step in the sibling job happened to reach a working mirror.
+        # Without `timeout` a stalled mirror burns the job's whole budget before
+        # anyone notices, so bound each apt call, retry on a fresh mirror, and skip
+        # the network entirely when the image already ships the tools (ruby does;
+        # ripgrep does not).
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ripgrep ruby
-          python3 -m pip install pytest pyyaml
+          if command -v rg >/dev/null 2>&1 && command -v ruby >/dev/null 2>&1; then
+            echo "validation tools already present; skipping apt"
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            if sudo timeout 180 apt-get update \
+              && sudo timeout 300 apt-get install -y ripgrep ruby; then
+              exit 0
+            fi
+            echo "apt attempt $attempt failed or timed out; retrying" >&2
+            sleep 10
+          done
+          echo "could not install validation tools after 3 attempts" >&2
+          exit 1
+      - name: Install Python test dependencies
+        run: python3 -m pip install -r requirements-test.txt
       - name: Public sanitization regression
         run: python3 scripts/test_check_public_sanitization.py
       - name: Public sanitization gate
@@ -48,15 +70,37 @@ jobs:
   # repository-gates, so it does not extend the critical path.
   regression-heavy:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install validation dependencies
+      - name: Install validation tools
+        # `apt-get` here has no natural bound: on 2026-08-19 both attempts of the
+        # heavy lane stalled inside `apt-get update` right after fetching
+        # noble-security InRelease and produced no output for 72 minutes, while an
+        # identical step in the sibling job happened to reach a working mirror.
+        # Without `timeout` a stalled mirror burns the job's whole budget before
+        # anyone notices, so bound each apt call, retry on a fresh mirror, and skip
+        # the network entirely when the image already ships the tools (ruby does;
+        # ripgrep does not).
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ripgrep ruby
-          python3 -m pip install pytest pyyaml
+          if command -v rg >/dev/null 2>&1 && command -v ruby >/dev/null 2>&1; then
+            echo "validation tools already present; skipping apt"
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            if sudo timeout 180 apt-get update \
+              && sudo timeout 300 apt-get install -y ripgrep ruby; then
+              exit 0
+            fi
+            echo "apt attempt $attempt failed or timed out; retrying" >&2
+            sleep 10
+          done
+          echo "could not install validation tools after 3 attempts" >&2
+          exit 1
+      - name: Install Python test dependencies
+        run: python3 -m pip install -r requirements-test.txt
       - name: Heavy regression lane
         # Same base-ref guard as the Repository test suite step: clone-driving
         # tests inherit CCL_SKILL_BASE_REF, and a clone of the detached Actions
@@ -72,19 +116,16 @@ jobs:
 
   npm-packages:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        package: [packages/codex-npm, packages/opencode-npm]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: ${{ matrix.package }}/package-lock.json
-      - working-directory: ${{ matrix.package }}
+          cache-dependency-path: packages/ccl-skills-npm/package-lock.json
+      - working-directory: packages/ccl-skills-npm
         run: npm ci
-      - working-directory: ${{ matrix.package }}
+      - working-directory: packages/ccl-skills-npm
         run: npm test
-      - working-directory: ${{ matrix.package }}
-        run: npm run build
+      - working-directory: packages/ccl-skills-npm
+        run: npm run test:pack

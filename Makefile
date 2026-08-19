@@ -1,5 +1,5 @@
 # ccl-skills 安装与更新（薄封装，逻辑在 scripts/install*.sh）
-.PHONY: help test test-check-ccl-regressions test-verify-sandbox install install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health npm-build npm-verify npm-pack-dry npm-publish-dry codex-npm-build codex-npm-test codex-npm-pack-verify codex-npm-host-smoke
+.PHONY: help test test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
 .DEFAULT_GOAL := help
 
 help: ## 显示可用目标
@@ -7,6 +7,7 @@ help: ## 显示可用目标
 
 test: ## 运行本仓确定性 gate、脚本测试和 Python 回归
 	bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
+	ruby specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb --candidate
 	bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --fast
 	bash skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh --repo . --enforce
 	python3 scripts/test_check_markdown_links.py
@@ -125,32 +126,33 @@ prune-cache: ## 删除 Claude 端 ccl-skills 旧版本插件缓存（保留当�
 	removed=0; for d in "$$base"/*/; do v=$$(basename "$$d"); [ "$$v" = "$$active" ] && continue; echo "删除旧版本缓存 $$v"; rm -rf "$$d"; removed=1; done; \
 	[ "$$removed" = 0 ] && echo "无旧版本缓存可清（当前 $${active}）" || echo "完成，保留当前版本 $$active"
 
-# --- npm 分发壳（packages/opencode-npm）---
-NPM_PKG_DIR := packages/opencode-npm
+# --- 统一 npm 分发（Claude Code + Codex + OpenCode）---
+NPM_PKG_DIR := packages/ccl-skills-npm
 
-npm-build: ## 构建 npm 分发壳（tsc + 复制 assets 到 dist/）
+install-npm: ## 从 @ccoalm/ccl-skills 安装所有检测到的宿主
+	@out=$$(npm view @ccoalm/ccl-skills version 2>&1) || { case "$$out" in *E404*) echo "@ccoalm/ccl-skills 尚未完成首次发布；当前请使用 make install" >&2 ;; *) echo "npm registry 查询失败；请检查网络、registry 和登录状态" >&2 ;; esac; exit 4; }
+	npm install --global @ccoalm/ccl-skills
+	ccl-skills install
+
+update-npm: ## 升级 npm 包并刷新所有检测到的宿主
+	@out=$$(npm view @ccoalm/ccl-skills version 2>&1) || { case "$$out" in *E404*) echo "@ccoalm/ccl-skills 尚未完成首次发布；当前请使用 make update" >&2 ;; *) echo "npm registry 查询失败；请检查网络、registry 和登录状态" >&2 ;; esac; exit 4; }
+	ccl-skills update --yes
+
+uninstall-npm: ## 卸载 npm 管理的注册；OpenCode 共享文件保留并报告
+	ccl-skills uninstall --yes
+	npm uninstall --global @ccoalm/ccl-skills
+
+npm-build: ## npm ci + 构建统一 npm 包
 	cd $(NPM_PKG_DIR) && npm ci && npm run build
 
-npm-verify: ## 运行 npm 包确定性验证（build + pack 内容 + CLI help/doctor + install-commands 往返）
-	cd $(NPM_PKG_DIR) && node scripts/verify.mjs
+npm-test: ## 运行三端 adapter、事务和安全回归
+	cd $(NPM_PKG_DIR) && npm ci && npm test
 
-npm-pack-dry: ## 预览 npm pack 内容（不实际打包）
-	cd $(NPM_PKG_DIR) && npm pack --dry-run
+npm-pack-verify: ## 构建并验证统一包的精确 tarball closure
+	cd $(NPM_PKG_DIR) && npm run test:pack
 
-npm-publish-dry: ## 构建 + 预览 pack + 验证，不发布（发布走 CI 手动 publish job）
-	cd $(NPM_PKG_DIR) && npm ci && npm run build && npm pack --dry-run && node scripts/verify.mjs
+npm-host-smoke: ## 用临时 HOME 和真实宿主 CLI 跑 lifecycle smoke
+	cd $(NPM_PKG_DIR) && npm run smoke:host
 
-# --- Codex npm local-marketplace 管理器 ---
-CODEX_NPM_PKG_DIR := packages/codex-npm
-
-codex-npm-build: ## npm ci + 构建 Codex npm 包
-	cd $(CODEX_NPM_PKG_DIR) && npm ci && npm run build
-
-codex-npm-test: ## 运行 Codex npm fake-host 与 pack mutation 测试
-	cd $(CODEX_NPM_PKG_DIR) && npm ci && npm test && npm run test:pack
-
-codex-npm-pack-verify: ## 构建并验证 Codex npm packed closure
-	cd $(CODEX_NPM_PKG_DIR) && npm run build && node scripts/verify-packed.mjs dist/assets && npm pack --dry-run
-
-codex-npm-host-smoke: ## 用临时 HOME/CODEX_HOME 和真实 Codex 跑 tgz lifecycle
-	cd $(CODEX_NPM_PKG_DIR) && npm run smoke:host
+npm-publish-dry: ## 构建 + 预览 pack + 验证，不发布（发布只走受保护的 tag workflow）
+	cd $(NPM_PKG_DIR) && npm ci && npm test && npm run test:pack && npm pack --dry-run

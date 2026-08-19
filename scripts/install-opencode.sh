@@ -17,6 +17,7 @@ OPENCODE_PLUGIN_DST="$OPENCODE_PLUGIN_DIR/ccl-skills.ts"
 # stays bootstrap.md (uninstall manifests and the plugin runtime key on it).
 OPENCODE_BOOTSTRAP_SRC="$REPO_ROOT/agent-context/session-start.md"
 OPENCODE_BOOTSTRAP_DST="$OPENCODE_DATA_DIR/bootstrap.md"
+OPENCODE_RUNTIME_DIR="$OPENCODE_DATA_DIR/runtime"
 OPENCODE_MANIFEST_NAME="install-manifest.json"
 PROJECT_MODE=0
 SKIP_AGENT_SKILLS=0
@@ -34,10 +35,11 @@ Default:
   - sync skills to ~/.config/opencode/skills for OpenCode native global discovery
   - install ~/.config/opencode/plugins/ccl-skills.ts
   - install ~/.config/opencode/ccl-skills/bootstrap.md
+  - install ~/.config/opencode/ccl-skills/runtime (host hook runtime)
   - install ~/.config/opencode/commands/ccl-*.md
 
 --project:
-  sync skills, plugin, bootstrap, and commands only to .opencode/ in the current repository
+  sync skills, plugin, bootstrap, hook runtime, and commands only to .opencode/ in the current repository
 
 --no-agent:
   skip the cross-tool ~/.agents/skills compat sync; install skills only to the
@@ -127,6 +129,32 @@ sync_commands() {
   cp "$REPO_ROOT"/packages/opencode-plugin/commands/ccl-*.md "$dst_root"/
 }
 
+sync_runtime() {
+  local data_dir="$1"
+  local runtime="$data_dir/runtime"
+  local backup="$data_dir/.runtime-backup/$BACKUP_STAMP"
+  local stage src
+
+  mkdir -p "$data_dir" || return 1
+  stage=$(mktemp -d "$data_dir/.runtime-stage.XXXXXX") || return 1
+  case "$stage" in "$data_dir"/.runtime-stage.*) ;; *) return 1 ;; esac
+  mkdir -p "$stage/hooks" "$stage/scripts/owner-dispatch" "$stage/agent-context" || { rm -rf -- "$stage"; return 1; }
+  cp "$REPO_ROOT/hooks/hooks.json" "$stage/hooks/" || { rm -rf -- "$stage"; return 1; }
+  for src in "$REPO_ROOT"/hooks/*.sh; do
+    case "$(basename "$src")" in test_*) continue ;; esac
+    cp "$src" "$stage/hooks/" || { rm -rf -- "$stage"; return 1; }
+  done
+  cp "$REPO_ROOT/scripts/owner-dispatch/owner-dispatch.sh" "$stage/scripts/owner-dispatch/" || { rm -rf -- "$stage"; return 1; }
+  cp "$REPO_ROOT/agent-context/session-start.md" "$REPO_ROOT/agent-context/subagent-start.md" "$stage/agent-context/" || { rm -rf -- "$stage"; return 1; }
+
+  mkdir -p "$runtime" || { rm -rf -- "$stage"; return 1; }
+  copy_dir_replace "$stage/hooks" "$runtime/hooks" "$backup" || { rm -rf -- "$stage"; return 1; }
+  mkdir -p "$runtime/scripts" || { rm -rf -- "$stage"; return 1; }
+  copy_dir_replace "$stage/scripts/owner-dispatch" "$runtime/scripts/owner-dispatch" "$backup" || { rm -rf -- "$stage"; return 1; }
+  copy_dir_replace "$stage/agent-context" "$runtime/agent-context" "$backup" || { rm -rf -- "$stage"; return 1; }
+  rm -rf -- "$stage" || return 1
+}
+
 source_commit() {
   git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || printf 'unknown'
 }
@@ -156,6 +184,7 @@ install_opencode_assets() {
   mkdir -p "$base/plugins" "$data_dir"
   cp "$OPENCODE_PLUGIN_SRC" "$base/plugins/ccl-skills.ts"
   cp "$OPENCODE_BOOTSTRAP_SRC" "$data_dir/bootstrap.md"
+  sync_runtime "$data_dir" || return 1
   write_manifest "$data_dir" "project"
 }
 
@@ -185,13 +214,15 @@ if [ "$PROJECT_MODE" = 0 ]; then
     sync_commands "$OPENCODE_COMMANDS_DIR"
     cp "$OPENCODE_PLUGIN_SRC" "$OPENCODE_PLUGIN_DST"
     cp "$OPENCODE_BOOTSTRAP_SRC" "$OPENCODE_BOOTSTRAP_DST"
+    sync_runtime "$OPENCODE_DATA_DIR" || exit 1
     write_manifest "$OPENCODE_DATA_DIR" "global"
     echo "  ✔ OpenCode plugin 已安装：$OPENCODE_PLUGIN_DST"
     echo "  ✔ OpenCode bootstrap 已安装：$OPENCODE_BOOTSTRAP_DST"
+    echo "  ✔ OpenCode hooks runtime 已安装：$OPENCODE_RUNTIME_DIR"
     echo "  ✔ OpenCode install manifest 已写入：$OPENCODE_DATA_DIR/$OPENCODE_MANIFEST_NAME"
     echo "  ✔ OpenCode commands 已安装：$OPENCODE_COMMANDS_DIR/ccl-*.md"
     echo "    - 注入本仓 agent-context/session-start.md"
-    echo "    - 拦截主检出 edit/write（.worktree-only 标记仓不分分支；有并行活动 worktree 时也拦截）"
+    echo "    - 拦截主检出 edit/write/apply_patch（.worktree-only 标记仓不分分支；有并行活动 worktree 时也拦截）"
   else
     echo "  ⚠ 未找到 OpenCode plugin 源文件：$OPENCODE_PLUGIN_SRC"
   fi

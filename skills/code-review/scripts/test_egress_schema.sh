@@ -126,6 +126,8 @@ for field, bad in (("status", "not-a-status"), ("cascade_eligible", "yes"),
         check(f"contract-raises[{field}]", field in str(error) and str(bad) not in str(error), f"got {error}")
 out = schema.apply(dict(clean, cascade_eligible=False))
 check("scalar-legal", out["cascade_eligible"] is False, "a real bool must pass")
+out = schema.apply(dict(clean, transport_tail_timeout=True))
+check("timeout-tail-scalar-legal", out["transport_tail_timeout"] is True, "timeout recovery evidence must remain a bool")
 # The verdict fields are never nulled on ANY path the schema takes.
 out = schema.apply(dict(clean, version="bad value", session_id="also bad"))
 check("verdict-untouched", out["status"] == "inconclusive" and out["reason"] == "session_id_mismatch",

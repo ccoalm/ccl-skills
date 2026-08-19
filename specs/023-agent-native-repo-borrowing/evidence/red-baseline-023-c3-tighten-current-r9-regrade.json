@@ -1,0 +1,114 @@
+{
+  "source_sha256": "7140b7993f8953ec7c9672b3b1659a814da8b54f0c5670f453eb166837be897f",
+  "grader_sha256": "f0971b4a39bbcbeb04df7d3f9879050a6b05b24af5551250f4fed0353bf1c4a0",
+  "provider_attestation": {
+    "status": "unavailable",
+    "reason": "Claude CLI did not expose a signed provider request/response attestation."
+  },
+  "provider": "claude",
+  "model": "claude-haiku-4-5",
+  "rounds": 2,
+  "base_rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+  "head_rev": "744b5053afc47f474510bac809d3c691aa1f7f3b",
+  "results": {
+    "tighten-eight-class-walk": {
+      "task_sha256": "58ab45fbb455eee136ea4724f780efe7c307ff72d3ed9b357eb4c0684c9214a8",
+      "mutation": "remove DELETE #12, which removes the only load path to its canonical reference",
+      "runner_time_scores": {
+        "base": {
+          "pass": 2,
+          "of": 2
+        },
+        "head": {
+          "pass": 2,
+          "of": 2
+        },
+        "mutant": {
+          "pass": 0,
+          "of": 2
+        }
+      },
+      "arms": {
+        "base": {
+          "rev": "653c98561be4d50f80f1baa7c8f928f565cbc22a",
+          "body_sha256": "166f6bae85542a6682ed715990cb80e3a2956f7680b4aa301c0760a56282ea2e",
+          "prompt_sha256": "9c1d6d03591d41fd3b584d40b25c151d537f3d6b2c3f338d9a2433c78b70af69",
+          "pass": 2,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": true,
+              "missed": [],
+              "answer_sha256": "b0651aa03fccc05ce9bcdfc1662700746941267c1051b3d127f7fb34efb2072b"
+            },
+            {
+              "round": 2,
+              "pass": true,
+              "missed": [],
+              "answer_sha256": "1a432c0259c68fb27eecd012c12f2b47c27f106d2867c1ff3c34c225da9c970a"
+            }
+          ]
+        },
+        "head": {
+          "rev": "744b5053afc47f474510bac809d3c691aa1f7f3b",
+          "body_sha256": "eb9b7eeed2904c24fa8b96b57526d37ede6d3c508afe542a53c46fa96c9a6147",
+          "prompt_sha256": "b58b2468cc58b987e6904a01e68f212066cf3e12195f7de6477c9f458b5e15cc",
+          "pass": 2,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": true,
+              "missed": [],
+              "answer_sha256": "fd1c796328157fdf7ecf6e520de6cec21f634971503a157f91ead1fc4f130e5f"
+            },
+            {
+              "round": 2,
+              "pass": true,
+              "missed": [],
+              "answer_sha256": "c85a57a619bb7597bf5c1f4656659df715af573053468b8ce08210db95f3a626"
+            }
+          ]
+        },
+        "mutant": {
+          "rev": "744b5053afc47f474510bac809d3c691aa1f7f3b",
+          "body_sha256": "18ba7f38c1b9f9ad9d988dd5f96f5b9a5588ba5d831849486058de8b138c7fd5",
+          "prompt_sha256": "66f6c4c146282728ac50f09514c93a7248809875ef9015a5c756be639495def5",
+          "pass": 0,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": false,
+              "missed": [
+                "dead-session",
+                "pr-stack",
+                "change-and-unanchored",
+                "review-choreography",
+                "defense",
+                "hedge",
+                "working-language"
+              ],
+              "answer_sha256": "1da09edd1708dd4a0a2dde8f8c48f8fd5b3542beb34309d78f98c26f1cc75c44"
+            },
+            {
+              "round": 2,
+              "pass": false,
+              "missed": [
+                "dead-session",
+                "change-and-unanchored",
+                "review-choreography",
+                "defense",
+                "hedge",
+                "working-language",
+                "measurement"
+              ],
+              "answer_sha256": "ea4287ec5e50a6480f650c763a8641eaf4d5eb930ad5c1ee20a42d43dcc3902d"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

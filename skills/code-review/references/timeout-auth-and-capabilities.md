@@ -79,6 +79,57 @@ Any timeout is an inconclusive result, not an empty-finding result. The final st
 
 The wrapper traps TERM/INT and emits an inconclusive JSON result when the shell gives it a recoverable termination signal. SIGKILL and host crashes cannot be trapped, so callers must still treat non-zero exit without valid JSON as inconclusive/manual-review-required, never as success.
 
+### OpenCode native-skill timeout diagnostics
+
+An OpenCode review timeout after an owner-aware run has emitted stream events is
+reported as `reason: review_native_skill_stream_timeout` while retaining the
+existing `reason_code: timeout` category and cascade eligibility. The specific
+reason is evidence-scoped: selected native owner skills plus a valid event with
+a non-empty session identifier and structured stream `part.type`. Empty output,
+non-JSON bytes, and session creation without model-step progress remain the
+generic `review_timeout`; the wrapper must not infer a native-skill stall from
+the requested profile alone.
+
+On a best-effort basis, an OpenCode review-run timeout attaches a bounded
+`timeout_diagnostic` summary:
+stage, selected-skill count, capped event/log observations and byte counts,
+whether a session identifier was observed, and explicit scan-truncated flags. It
+contains no event text, stderr text, log text, session identifier, prompt, diff,
+credential, or model reply, so it can survive the private runtime cleanup
+without widening the ordinary result's evidence class.
+
+For a deeper local investigation, pass `--diagnostic-dir` with an existing,
+absolute, writable, non-symlink directory owned by the invoking user and not
+group- or world-writable, with no extended ACL. Only on a review-run timeout,
+the wrapper creates one mode-0700 child and copies the public event/export
+captures, their stderr captures, the validated agent-boundary output, and regular
+OpenCode log files as mode-0600 files. It never copies `auth.json`, credential
+links, the wrapper prompt file, or the frozen diff as standalone files; event,
+export, and log content may still contain candidate or model data. The result
+reports only the child directory name (the caller already owns the parent) and marks it
+`contains_sensitive_review_data:true`; the caller owns access, retention,
+redaction, and deletion. Credential files are not copied, but captured stderr
+and logs may themselves contain API keys, OAuth material, or other secrets; the
+caller must inspect and redact them before sharing. Files larger than 5 MiB, or
+larger than the remaining 20 MiB copied-payload budget, are skipped entirely;
+at most 5000 runtime-log-tree entries and 1000 regular log files are inspected
+for copying. The manifest and result report only that artifacts or logs were
+skipped, not a per-file list. If summary
+enrichment fails, the wrapper returns the original inconclusive timeout result
+and removes any unreported diagnostic child. No diagnostic child is created on
+success.
+Removal depends on the wrapper's exit and signal handlers. A SIGKILL or host
+crash can strand an unnamed mode-0700 `opencode-review-timeout.*` child, so the
+caller must periodically sweep unreported entries in the diagnostic parent.
+Every successfully enriched review-run timeout also carries a
+`diagnostic_artifacts` object reporting `requested` and `retained`. Requested
+retention that cannot be completed reports `error:retention_failed` with no
+directory name. Successful retention additionally reports `directory_name`,
+`contains_sensitive_review_data`, `credential_files_copied`, `retention_owner`,
+`artifacts_truncated`, and `logs_truncated`.
+Raw artifacts are diagnosis evidence only and cannot reconstruct a missing
+terminal verdict or authorize fallback, merge, or completion.
+
 ## Auth And CLI Pitfalls
 
 On this machine, Claude Code and Kimi Code may be logged in locally while a

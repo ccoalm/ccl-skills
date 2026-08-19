@@ -47,7 +47,7 @@
     },
     "update": {
       "description": "Refresh CCL skills for OpenCode",
-      "template": "刷新 OpenCode CCL 技能：$ARGUMENTS\n\n先判断安装方式：源仓安装则在 ccl-skills 仓库根目录 `git pull --ff-only` 后运行 `bash scripts/install-opencode.sh`（如用户传 `--project` 则保留参数）；npm 包安装则先运行 `ccl-skills-opencode update` 预览，只有用户明确确认后才运行 `ccl-skills-opencode update --yes`。完成后提示必须重启 OpenCode 或开新会话才会加载更新。"
+      "template": "刷新 OpenCode CCL 技能：$ARGUMENTS\n\n先判断安装方式：源仓安装则在 ccl-skills 仓库根目录 `git pull --ff-only` 后运行 `bash scripts/install-opencode.sh`（如用户传 `--project` 则保留参数）；npm 包安装则先运行 `ccl-skills update --host opencode` 预览，只有用户明确确认后才运行 `ccl-skills update --host opencode --yes`。完成后提示必须重启 OpenCode 或开新会话才会加载更新。"
     }
   }
 }

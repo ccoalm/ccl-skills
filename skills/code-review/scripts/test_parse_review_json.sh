@@ -124,7 +124,30 @@ run_wrapper_identity_tests() {
 set -euo pipefail
 
 if [ "${1:-}" = "-p" ] && [ "${2:-}" = "--help" ]; then
-  printf '%s\n' '--print --allowedTools --tools --add-dir --permission-mode --safe-mode --strict-mcp-config --mcp-config --setting-sources --no-session-persistence --output-format --json-schema --verbose --disable-slash-commands --effort'
+  # One flag per line with its description, because the wrapper reads more than
+  # the flag NAMES out of this text: it also has to prove from --safe-mode's own
+  # description that safe mode disables inherited skills. A flat space-separated
+  # list carries every name and no description, so the wrapper can never clear
+  # that gate and every case below dies on a capability_missing exit before its
+  # own assertion runs.
+  printf '%s\n' \
+    '  --print' \
+    '  --allowedTools <tools...>' \
+    '  --tools <tools...>' \
+    '  --add-dir <dirs...>' \
+    '  --permission-mode <mode>' \
+    '  --safe-mode  Start with all customizations' \
+    '               (CLAUDE.md, skills, plugins, hooks, MCP servers,' \
+    '               custom commands and agents) disabled' \
+    '  --strict-mcp-config' \
+    '  --mcp-config <config>' \
+    '  --setting-sources <sources>' \
+    '  --no-session-persistence' \
+    '  --output-format <format>' \
+    '  --json-schema <schema>' \
+    '  --verbose' \
+    '  --disable-slash-commands' \
+    '  --effort <level>'
   exit 0
 fi
 
@@ -187,7 +210,27 @@ FAKE_CLAUDE
 set -euo pipefail
 
 if [ "${1:-}" = "-p" ] && [ "${2:-}" = "--help" ]; then
-  printf '%s\n' '--print --allowedTools --tools --add-dir --permission-mode --safe-mode --strict-mcp-config --mcp-config --setting-sources --no-session-persistence --output-format --json-schema --verbose --disable-slash-commands --effort'
+  # Same flag set as the no-tools fake, and the same reason for the per-line
+  # shape: this fake must be rejected for advertising a Bash tool in its init,
+  # not for a help text the wrapper cannot read a description out of.
+  printf '%s\n' \
+    '  --print' \
+    '  --allowedTools <tools...>' \
+    '  --tools <tools...>' \
+    '  --add-dir <dirs...>' \
+    '  --permission-mode <mode>' \
+    '  --safe-mode  Start with all customizations' \
+    '               (CLAUDE.md, skills, plugins, hooks, MCP servers,' \
+    '               custom commands and agents) disabled' \
+    '  --strict-mcp-config' \
+    '  --mcp-config <config>' \
+    '  --setting-sources <sources>' \
+    '  --no-session-persistence' \
+    '  --output-format <format>' \
+    '  --json-schema <schema>' \
+    '  --verbose' \
+    '  --disable-slash-commands' \
+    '  --effort <level>'
   exit 0
 fi
 
@@ -202,7 +245,25 @@ FAKE_CLAUDE_TOOL_ENABLED
 set -euo pipefail
 
 if [ "${1:-}" = "-p" ] && [ "${2:-}" = "--help" ]; then
-  printf '%s\n' '--print --add-dir --permission-mode --safe-mode --strict-mcp-config --mcp-config --setting-sources --disable-slash-commands --no-session-persistence --output-format --json-schema --verbose'
+  # Deliberately advertises NO --tools / --allowedTools: this fake exists to be
+  # rejected for having no no-tool review mode. Everything else, --safe-mode's
+  # description included, is present so that rejection stays attributable to the
+  # missing allowlist flag and cannot be satisfied by an earlier gate instead.
+  printf '%s\n' \
+    '  --print' \
+    '  --add-dir <dirs...>' \
+    '  --permission-mode <mode>' \
+    '  --safe-mode  Start with all customizations' \
+    '               (CLAUDE.md, skills, plugins, hooks, MCP servers,' \
+    '               custom commands and agents) disabled' \
+    '  --strict-mcp-config' \
+    '  --mcp-config <config>' \
+    '  --setting-sources <sources>' \
+    '  --disable-slash-commands' \
+    '  --no-session-persistence' \
+    '  --output-format <format>' \
+    '  --json-schema <schema>' \
+    '  --verbose'
   exit 0
 fi
 
@@ -234,6 +295,29 @@ FAKE_CLAUDE_NO_FLAGS
   fi
   printf '%s\n' "$tool_enabled_out" | grep -F '"status"' >/dev/null
   printf '%s\n' "$tool_enabled_out" | grep -F 'inconclusive' >/dev/null
+  # WHICH inconclusive. `inconclusive` alone is reached by every capability gate
+  # ahead of the tool boundary, so this case passed for years without ever
+  # exercising what it is named for: a stale fake help text stopped the wrapper
+  # at safe-mode capability detection, and the assertion could not tell that
+  # apart from the tool-boundary rejection it exists to prove. Pin the reason.
+  # Explicit checks rather than bare greps under `set -e`: a failing grep here
+  # kills the suite with no output at all, which is exactly the silent-exit-2
+  # failure mode that let this file rot in the first place.
+  if ! printf '%s\n' "$tool_enabled_out" | grep -F '"reason_code": "tool_boundary_violation"' >/dev/null; then
+    printf 'expected tool-enabled fake to be rejected by the TOOL BOUNDARY; got: %s\n' \
+      "$tool_enabled_out" >&2
+    return 1
+  fi
+  if ! printf '%s\n' "$tool_enabled_out" | grep -F 'declared_tools=bash,structuredoutput' >/dev/null; then
+    printf 'expected the tool-boundary rejection to name the declared tool set; got: %s\n' \
+      "$tool_enabled_out" >&2
+    return 1
+  fi
+  if printf '%s\n' "$tool_enabled_out" | grep -F 'capability_missing' >/dev/null; then
+    printf 'tool-enabled fake was rejected by a capability gate, not the tool boundary: %s\n' \
+      "$tool_enabled_out" >&2
+    return 1
+  fi
   set +e
   no_flag_out="$(PATH="$no_flag_bin:$PATH" "$script_dir/claude_review.sh" review --cwd "$repo_dir" --base HEAD --timeout 30 --direct)"
   no_flag_rc=$?
@@ -245,6 +329,18 @@ FAKE_CLAUDE_NO_FLAGS
   printf '%s\n' "$no_flag_out" | grep -F '"status"' >/dev/null
   printf '%s\n' "$no_flag_out" | grep -F 'inconclusive' >/dev/null
   printf '%s\n' "$no_flag_out" | grep -F 'no no-tool review mode' >/dev/null
+  # Same discipline on this one: it must be the MISSING ALLOWLIST FLAG that
+  # rejects it, so its help text carries everything the later gates need and a
+  # regression there cannot masquerade as this case still passing.
+  if ! printf '%s\n' "$no_flag_out" | grep -F '"reason_code": "capability_missing"' >/dev/null; then
+    printf 'expected no-allowlist fake to report capability_missing; got: %s\n' "$no_flag_out" >&2
+    return 1
+  fi
+  if printf '%s\n' "$no_flag_out" | grep -F 'safe mode' >/dev/null; then
+    printf 'no-allowlist fake was rejected by the safe-mode gate, not the missing --tools flag: %s\n' \
+      "$no_flag_out" >&2
+    return 1
+  fi
   rm -rf "$tmp_dir"
 }
 

@@ -1,0 +1,280 @@
+{
+  "provider": "codex",
+  "model": "gpt-5.6-luna",
+  "rounds": 4,
+  "base_rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+  "head_rev": "f4e03edc6455c3d2a4c25efe5e005a9395af3ffb",
+  "results": {
+    "td-session-vantage": {
+      "task_sha256": "338457e355d78df6292eaabb988e7ed4938370f35da344d61187791dce754a81",
+      "required": [
+        "decision 7|§4\\.7|设计会话|会话|design ledger|PR #212|reviewer|评审|round 3|轮",
+        "现在|当前|现状|present|改写|重述|HEAD",
+        "TODO|界限|hedge|probably|以后|标记"
+      ],
+      "base": {
+        "rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+        "body_sha256": "04611218226a0090975955373bd02bda95562af5dd05301a4749cf62028ded73",
+        "prompt_sha256": "be4ef5dbbb99939befeff53648fd3b165fb361a77f12efb6735e3cc5486019af",
+        "pass": 3,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 778,
+            "raw": "### 改后文本\n\n> Since PR #212, this module no longer parses configuration with the legacy loader. The cast below narrows the value to the expected type.\n\n### 修改理由\n\n| 原文 | 修改理由 |\n|---|---|\n| `used to parse config through` | 改为 `no longer parses configuration with`，更直接，避免绕行表达。 |\n| `legacy loader (see design §4.7 and decision 7)` | 删除未提供可访问链接的内部引用；README 中应改成真实的命名超链接，否则读者无法定位。 |\n| `after PR #212 it no longer does` | 改为完整句，明确“不再使用旧加载器”这一结论。 |\n| `The cast below is safe` | 删除未经证明的安全判断；“safe”属于需要源码或验证支持的技术断言。 |\n| `it simply narrows the type` | 改为 `narrows the value to the expected type`，说明动作和目标，避免 `simply` 弱化技术含义。 |\n| `as the reviewer confirmed in round 3` | 删除评审过程记录。它不属于 README 的运行或维护信息。 |\n| `Probably fine for now` | 删除模糊且缺乏可执行含义的判断。 |\n\n形式已优化；由于当前未提供源码、PR #212 或设计文档，以上内容未做事实核验。"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 668,
+            "raw": "建议改为：\n\n> The module no longer uses the legacy config loader. The cast below narrows the value to the expected type and is safe because the loader guarantees that type.\n\n修改理由：\n\n| 原文 | 修改理由 |\n|---|---|\n| `used to parse config ... after PR #212 it no longer does` | 改成当前状态，删除实现历史。README 读者通常关心现在的行为；如需追溯，再保留 PR 链接。 |\n| `see design §4.7 and decision 7` | 删除不易导航的内部引用。若这些文档是读者必须查看的依据，应改成可访问的命名链接。 |\n| `The cast below is safe — it simply narrows the type` | 拆成清晰的因果句，避免破折号堆叠；保留类型转换的实际含义。 |\n| `as the reviewer confirmed in round 3` | 删除评审过程信息。它属于工作记录，不是模块使用说明。 |\n| `Probably fine for now` | 删除模糊且削弱可信度的判断，改为明确的安全前提。 |\n\n内容核验提示：上文保留了“loader 保证该类型”这一技术断言，但当前未读取源码或测试，形式已优化、内容未核。"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "现在|当前|现状|present|改写|重述|HEAD"
+            ],
+            "len": 767,
+            "raw": "### 改后文本\n\n```text\nSince PR #212, this module no longer uses the legacy loader. The cast only narrows the static type; it does not validate the runtime value. Ensure the value has been validated before applying the cast.\n```\n\n### 修改理由\n\n1. 删除 `see design §4.7 and decision 7`  \n   这是内部导航信息。README 中应改为可点击的正式文档链接，否则读者无法定位。\n\n2. 将 `after PR #212 it no longer does` 改为 `Since PR #212, this module no longer uses the legacy loader`  \n   补全主语和对象，避免 `does` 指代不清。\n\n3. 删除 `as the reviewer confirmed in round 3`  \n   评审轮次属于过程记录，不是读者执行模块所需的信息。若该结论必须保留，应链接正式评审记录。\n\n4. 将 `The cast below is safe` 改为条件化说明  \n   类型转换“缩窄静态类型”不等于运行时值已被验证。原句把两者混为一谈，可能造成错误安全感。\n\n5. 删除 `Probably fine for now`  \n   表达含糊，也不适合作为 README 结论。若仍存在已知风险，应明确写出风险、适用条件或后续任务。\n\n内容只做了形式和表达层优化，未核验 PR #212、类型转换安全性或相关设计决策。"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 569,
+            "raw": "### 改后文本\n\n> The module parses configuration through the current loader. The cast narrows the static type at this call site; it does not convert the runtime value.\n\n### 修改理由\n\n- 删除 “used to” 和 “after PR #212”：README 应描述当前行为，PR 历史放在提交记录或变更日志中。\n- 删除 “see design §4.7 and decision 7”：内部编号无法独立导航；未提供可验证链接，不在 README 中保留。\n- 将 “config” 改为 “configuration”：更适合正式技术文档。\n- 将 “safe” 改为可核验的行为描述：说明这是静态类型收窄，不是运行时转换，避免无依据地给出安全结论。\n- 删除 “as the reviewer confirmed in round 3”：评审过程属于元信息，不是模块使用者需要的运行规则。\n- 删除 “Probably fine for now”：表达含糊，也没有可执行的边界或后果。\n\n内容本身未对照源码核验；以上是形式和表达优化，不等于确认该类型转换确实安全。"
+          }
+        ]
+      },
+      "head": {
+        "rev": "f4e03edc6455c3d2a4c25efe5e005a9395af3ffb",
+        "body_sha256": "166f6bae85542a6682ed715990cb80e3a2956f7680b4aa301c0760a56282ea2e",
+        "prompt_sha256": "9c30a3e5ead890e71ae30df04786a8aac47471aa0cd47b33fbcb5429345b71e6",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 642,
+            "raw": "### 改后文本\n\n> This module parses configuration through the current loader. The cast only narrows the value’s static type; it does not change the runtime value.\n\n### 修改理由\n\n1. **删除 `used to`、`legacy loader` 和 PR #212**  \n   README 描述当前行为，不保留无锚点的变更过程。PR 引用适合放在变更记录或决策记录中。\n\n2. **删除 `see design §4.7 and decision 7`**  \n   这些是当前会话或内部设计过程中的引用，读者无法仅凭 README 稳定解析。\n\n3. **保留并改写类型转换的事实**  \n   将 “simply narrows the type” 改成更明确的当前时陈述，说明转换只影响静态类型，不改变运行时值。\n\n4. **删除 `as the reviewer confirmed in round 3`**  \n   这是评审编排信息，不是维护者需要的代码不变量。\n\n5. **删除 `Probably fine for now.`**  \n   这是未标注边界的 hedge。若确有风险，应改成明确的限制或 `TODO`，不能写成模糊判断。\n\n以上是形式与表达优化；未取得模块源码，因此未核验类型转换断言。"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 497,
+            "raw": "改后文本：\n\n> This module parses configuration through the current loader. The cast below narrows the type.\n\n修改理由：\n\n- 删除 `used to`、`legacy loader`、`after PR #212`：README 描述当前行为，不写变更过程；PR 引用也不承担当前使用说明。\n- 删除 `see design §4.7 and decision 7`：这些内部会话/草稿引用无法帮助当前读者理解模块行为。\n- 将否定式改为当前事实：直接说明模块现在如何解析配置。\n- 删除 `as the reviewer confirmed in round 3`：这是评审过程信息，不是 README 的运行约束。\n- 删除 `Probably fine for now`：属于无依据的 hedge。\n- 保留类型转换的实质信息，但去掉未经证据支持的“安全”结论；“narrows the type”已足够说明用途。\n\n形式已优化；当前加载器的准确名称及类型转换的安全前提尚未依据源码核验。"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 588,
+            "raw": "改后文本：\n\n> The module parses configuration with the current loader. The cast narrows the value to the expected configuration type.\n\n修改理由：\n\n1. 删除 “used to parse…” 和 “after PR #212…”\n   - 这是变更叙事，不是模块当前状态。\n   - README 直接描述现行行为即可。\n   - PR #212 如需保留，应放在变更记录或决策文档中。\n\n2. 删除 “see design §4.7 and decision 7”\n   - 这是当前读者无法稳定解析的会话内部引用。\n   - 未提供可访问的正式链接，保留会造成导航阻塞。\n\n3. 将 “The cast below is safe” 改为 “The cast narrows…”\n   - 删除面向评审者的自我辩护。\n   - 只保留可直接理解的类型行为。\n\n4. 删除 “as the reviewer confirmed in round 3”\n   - 属于评审编排和过程记录，不属于 README 的现状说明。\n\n5. 删除 “Probably fine for now.”\n   - 这是未标记边界的 hedge，没有提供可执行信息。"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 505,
+            "raw": "改后文本：\n\n> The loader validates the value before this point, so this cast only narrows its static type to the validated shape.\n\n修改理由：\n\n1. 删除 “used to…after PR #212”：这是变更历史，README 应描述当前机制；PR 引用应留在变更记录或决策文档中。\n2. 删除 “design §4.7 and decision 7”：这是无法独立解析的会话内部引用。\n3. 将 “The cast below is safe” 改为具体不变量：安全性来自 loader 已完成校验，而不是“类型收窄”本身。\n4. 删除 “as the reviewer confirmed in round 3”：这是评审过程信息，不属于 README。\n5. 删除 “Probably fine for now”：这是无依据的 hedge；若存在已知风险，应改成带 owner 和 issue 的 TODO。\n\n形式已优化；“loader 已校验该值”这一技术断言未对源码核验。"
+          }
+        ]
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
+    },
+    "prd-enforcement-review": {
+      "task_sha256": "66691ada105b6a9d4e3bb21a6f86d137c03e56ac7f671b79e35044db7b5ea142",
+      "required": [
+        "执行器|executor|执行层|执行时|运行时检查|绕过|bypass|直接调用",
+        "prompt|提示|schema",
+        "transport|plugin|gRPC|实现细节|实现词汇|模型.{0,6}(不需要|无关)"
+      ],
+      "base": {
+        "rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+        "body_sha256": "87135449d107303114d2ce1adff4fa6349cd4dd89ade0ca1c7d36a1407458b8c",
+        "prompt_sha256": "20864f507370aa6bb125f94049769987fe87aabfa38a74799857f90a403a12be",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 593,
+            "raw": "结论：`Request changes`，不可合入。\n\n- **阻断级 / Critical：安全保护仅存在于系统提示。**  \n  `delete_branch(name)` 的执行器没有拒绝 `main` 的逻辑；调用方仍可传入 `main`，schema 描述删除选项也不是约束。提示词、描述文本都不能作为删除保护。必须在执行器或更下游 GitOpsPlugin 侧做不可绕过的校验，并增加 `main` 删除回归测试。\n\n- **高风险 / High：危险操作缺少防御性校验。**  \n  应明确校验规范化后的分支名/引用、保护分支别名及授权范围，并在实际产生删除副作用前拒绝受保护分支。若分支删除是不可逆或影响共享环境，还应考虑确认/审批或 dry-run 机制。\n\n- **中风险 / Medium：transport 描述未经实现证据支持。**  \n  “通过 GitOpsPlugin 的 gRPC transport 执行”只有在代码确实固定走该 transport、且其权限与失败语义可验证时才应写入工具描述；否则会误导模型和评审者，不能替代执行器的安全边界。\n\n在补齐执行层保护、测试和真实 transport 证据前，不建议批准。\n\nproposed-next: 修复执行器及下游保护分支校验，并补充删除 `main` 的失败测试与 transport 路径验证"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 605,
+            "raw": "结论：阻塞合并（Request changes）。当前实现不能接受。\n\n- 高危：`delete_branch(name)` 的安全边界只存在于系统提示和 schema 描述，执行器没有强制检查。调用方可直接传入 `main`，因此工具实际允许删除受保护分支；这是典型的 LLM 信任边界问题。\n- 高危：删除 schema 中的 `main` 选项不是安全控制。`name` 仍是可传入的字符串，且执行器未拒绝该值。\n- 中危/待核实：工具描述声称“通过 GitOpsPlugin 的 gRPC transport 执行”。描述本身不能证明实际 transport；应核对注册、调用链和错误处理，否则这是误导性能力声明。\n\n合并前至少需要：\n\n1. 在执行器或更下游的 GitOps 服务端实施不可绕过的保护：拒绝删除 `main`（并明确其他受保护分支策略）。\n2. 增加直接调用执行器、正常工具调用、绕过 schema 传入 `main` 的回归测试。\n3. 用实际代码/运行证据确认 gRPC transport，而不是仅依赖工具描述。\n\n在这些条件满足并重新评审前，不应批准或合并。\n\nproposed-next: block merge pending executor guard, bypass-path regression tests, and transport verification"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 585,
+            "raw": "结论：阻塞合并（Block）。\n\n主要问题：\n\n- 严重：`delete_branch(name)` 的安全约束只写在系统提示和 schema 描述中，执行器没有服务端校验。调用方仍可直接传入 `main`，导致受保护分支被删除。安全规则必须在工具执行边界 fail-closed 地校验，不能依赖模型提示或 schema。\n- 高：从 schema 中删除 `main` 选项只能改善文档/提示，不能构成安全控制，也不能防止手工构造请求或其他客户端调用。\n- 中：描述中新增“通过 `GitOpsPlugin` 的 gRPC transport 执行”属于可验证的运行时/架构声明。若实际执行路径未证明经过该 transport，应删除或补充对应实现与测试；否则会误导调用方和评审者。\n\n最低修复要求：\n\n1. 在执行器或更靠近删除操作的可信边界拒绝 `main`（建议规范化名称后检查，并采用 fail-closed 策略）。\n2. 增加测试：删除 `main` 被拒绝，大小写/别名变体按产品规则处理，普通分支仍可删除。\n3. 验证并覆盖 gRPC transport 的真实调用链；无法证明则不要写入工具描述。\n4. 重新进行安全和契约评审。\n\nproposed-next: 修复服务端保护与 gRPC 调用链证据，并补充拒绝 `main` 的测试后重新提交评审"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 631,
+            "raw": "结论：**Request changes / 不应合入**。\n\n发现一个高危安全问题：\n\n- `delete_branch(name)` 是破坏性操作，但执行器没有任何保护。\n- 系统提示中的“绝不对 main 调用”只是模型行为约束，不能作为安全边界；模型可能误调用、被提示注入，或直接传入 `\"main\"`。\n- 删除 schema 中的 `main` 选项只改善了表面引导，无法阻止任意字符串调用。因此当前实现仍可实际删除 `main`。\n- 应在工具执行器或更下层的 GitOpsPlugin 服务端做不可绕过的校验，并覆盖默认分支、受保护分支、权限和审计要求；不能只在客户端/schema 层处理。\n- “通过 GitOpsPlugin 的 gRPC transport 执行”属于实现声明，需有真实调用链或测试证据支持；即使属实，也不替代服务端授权和分支保护。\n\n至少应补充：\n\n1. 执行路径中的服务端保护，拒绝 `main` 及配置的受保护分支。\n2. 未授权、分支不存在、删除失败等错误语义。\n3. 对直接构造工具参数绕过 schema 的测试。\n4. 对提示注入/模型误调用不影响安全结果的测试。\n5. gRPC transport 的实际链路与集成测试证据。\n\n在这些保护和测试落地前，不能批准该 PR。\n\nproposed-next: 要求作者补齐执行器/服务端分支保护、绕过 schema 的回归测试及 gRPC 链路证据后重新提交评审"
+          }
+        ]
+      },
+      "head": {
+        "rev": "f4e03edc6455c3d2a4c25efe5e005a9395af3ffb",
+        "body_sha256": "ca0e6eafaf8151a9b5ce31c99ca8b44d40f88be839f83e492bc94fe22514c8a3",
+        "prompt_sha256": "044d229330a7e1db1b73ae996315043e8da63667b42748045340514b08972cf7",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 534,
+            "raw": "评审结论：阻塞合并（至少 2 个高危问题）。\n\n1. 高危：删除保护仅存在于系统提示和 schema 描述中，执行器没有检查。  \n   这不是有效的权限控制；直接调用执行器、绕过 schema 或使用备用调用路径仍可删除 `main`。应在真正执行删除的操作处做服务端拒绝，并覆盖 `main`、`refs/heads/main`、别名/大小写等边界测试。\n\n2. 高危：缺少执行层回归测试。  \n   必须验证直接调用 `delete_branch(\"main\")` 不产生副作用，并验证其他受保护分支路径；仅测试模型不会选择 `main` 不足以证明安全性。\n\n3. 中危：把 `GitOpsPlugin` 的 gRPC transport 写进工具描述。  \n   这是模型不可操作的内部实现细节，会污染工具语义。除非模型确实需要该信息来正确调用，否则应移除；描述变更还应补充 prompt/tool-schema snapshot 或 replay 证据。\n\n在上述执行器保护、测试和描述清理完成并重新评审前，结论应为 `changes requested`，不可标记 MR-ready。\n\nproposed-next: none — status only"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 526,
+            "raw": "结论：**阻塞合并（Request changes）**。\n\n- **高危安全缺陷**：删除 `main` 的 schema 选项、系统提示中的“绝不调用”都不是安全边界。执行器本身无检查时，任何直接调用、替代调用方或绕过模型的路径仍可删除 `main`。拒绝逻辑必须位于实际执行删除副作用的 executor 中，并覆盖 `name == \"main\"`。\n- **必须补测试**：执行器级别验证 `main` 被拒绝；非 `main` 分支仍可删除；同时覆盖直接/替代调用路径，证明 schema 和提示词之外的调用也受保护。\n- **工具描述不应暴露实现细节**：`GitOpsPlugin`、gRPC transport 是模型无法直接操作的内部实现名，属于不必要的 model-visible wording，可能造成模型对能力或调用方式的错误推断。描述应只说明工具的业务语义、参数、限制和失败行为。\n\n在 executor 防护和回归测试补齐前，不能视为通过评审或 MR-ready。\n\nproposed-next: 修复 executor 的 main 分支拒绝逻辑、补齐绕过路径回归测试，并移除工具描述中的内部 transport 信息"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 406,
+            "raw": "结论：**Request changes，阻塞合入。**\n\n1. **高危：`main` 保护仅存在于提示词和 schema，执行器未校验。**  \n   直接调用 `delete_branch(\"main\")` 仍可能执行删除。模型提示与隐藏 schema 选项都不是安全边界；拒绝逻辑必须位于实际执行删除的代码路径，并补充直接调用回归测试。\n\n2. **中危：工具描述泄露无关的内部实现细节。**  \n   「通过 GitOpsPlugin 的 gRPC transport 执行」是模型无法操作、也不需要知道的内部传输信息，应删除，改为描述工具的可观察行为。该描述变化应补充 prompt/tool-schema snapshot 或 replay 验证。\n\n在执行器拒绝 `main`（含对应测试）且清理工具描述前，不建议批准 PR。\n\nproposed-next: none — status only"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 419,
+            "raw": "结论：**阻塞，不建议合并。**\n\n主要问题：\n\n- **高危：删除保护仅存在于系统提示和 schema 描述中。** 这不是安全边界；模型或其他调用方仍可直接调用 `delete_branch(\"main\")`。必须在工具执行器/实际副作用入口强制拒绝 `main`，并增加测试覆盖。\n- **高危：缺少执行层授权测试。** 至少验证 `main` 被拒绝，大小写/别名规范化后的主分支也不会被绕过；普通分支删除及失败路径应保持正确。\n- **中危：工具描述泄露无关内部实现细节。** “通过 GitOpsPlugin 的 gRPC transport 执行”是模型不可操作的内部架构信息，不能替代工具契约；应删除，或仅描述调用语义、权限和副作用。\n\n修复后应重新评审实际 diff，并确认拒绝逻辑位于执行删除操作的代码路径，而不是只改 prompt/schema。\n\nproposed-next: none — status only"
+          }
+        ]
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
+    },
+    "dd-postmortem-criteria": {
+      "task_sha256": "ecbbe54021c4e92912298a88f87a7ab4c8112bbc9e08fe4149daa82893a34fd3",
+      "required": [
+        "subtle|systemic|costly|微妙|非显然|系统性|重新发现|再发现|代价|工具.{0,4}缺口|测试.{0,4}缺口",
+        "执行摘要|executive|30 秒|三十秒|开头|一段话",
+        "guardrail|护栏|回链|链接|测试|规则|决策记录"
+      ],
+      "base": {
+        "rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+        "body_sha256": "9e0fbeac6e4e90ff34a7fcf8a27ab7eed8712dfd78e84057c868da85b061d7e4",
+        "prompt_sha256": "cb530aed750ddfe1339282057304f7e270c1480e6b5d4e2771413bedd9d3f0a6",
+        "pass": 0,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "subtle|systemic|costly|微妙|非显然|系统性|重新发现|再发现|代价|工具.{0,4}缺口|测试.{0,4}缺口"
+            ],
+            "len": 1003,
+            "raw": "结论：是否写“正式 postmortem”，主要依据用户/业务影响，不依据 CI 是否全绿。\n\n这个缺陷本身应判为 `complex`，因为同时触发了：\n\n- Contract：插件导出形式与加载器依赖注入契约不一致；\n- Runtime：应用启动阶段才暴露；\n- Test：单测覆盖了插件逻辑，却没有覆盖真实加载边界；\n- Swiss Cheese：单测、加载器契约检查、启动 smoke test 至少有多层防线失效。\n\n判断标准：\n\n- 如果已影响用户、线上环境、发布、演示或业务 SLA：应写正式、无责的 postmortem。\n- 如果只在开发/预发布环境发现，未造成用户或业务影响：通常不必走正式事故 ceremony，但应写一份轻量 defect diagnosis / engineering review，记录 5 Whys、复杂度判定、回归测试和防复发措施。\n- “CI 全绿”不能作为不写的理由；它反而说明测试防线没有覆盖真实启动契约。\n\n如果写正式 postmortem，开头必须先写清楚事实性 Incident Summary，至少包括：\n\n- 影响对象和影响范围；\n- 开始/结束时间或发现时间；\n- 用户/业务影响；\n- 当前状态与缓解措施；\n- 一句话复现路径。\n\n随后再写时间线、证据、已验证根因、贡献因素和行动项。应采用无责表述，不从“谁写错了 default export”开始。\n\n结尾必须链接到可验证的闭环证据，而不是只写“已修复”：\n\n- 修复 PR/commit；\n- 修复前失败、修复后通过的回归测试；\n- 覆盖真实插件加载/依赖注入的启动或 contract test；\n- 必要的 smoke test、loader 校验或 review/checklist 更新；\n- 每个防复发行动的负责人和截止时间。\n\n最关键的结尾形式可以是：\n\n> Fix: [PR/commit]  \n> Regression evidence: [failing-before/passing-after test]  \n> Prevention actions: [owned tickets/checks with owners and due dates]\n\n若没有实际用户或业务影响，正式 postmortem 的“事故仪式”可以省略，但这些诊断和回归证据不能省略。"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "subtle|systemic|costly|微妙|非显然|系统性|重新发现|再发现|代价|工具.{0,4}缺口|测试.{0,4}缺口"
+            ],
+            "len": 511,
+            "raw": "值得，前提是这个“产品启动即崩”影响真实用户、业务流程或发布流程。CI 全绿不能降低严重性；它说明测试层和启动集成契约都失效了。\n\n即使没有用户影响，也应写一份轻量 RCA，因为它符合“复杂缺陷”：\n\n- 同时涉及插件导出契约、加载器依赖注入、运行时启动路径；\n- 测试层没有覆盖真实加载方式；\n- 至少有两个防线失效：类型/模块契约与启动集成测试。\n\n正式 postmortem 的判据不是“是否已经修好”，而是：\n\n1. 是否有用户或业务影响；\n2. 是否跨组件、跨防线或测试本身具有因果作用；\n3. 是否需要多层预防，而不只是补一条单测。\n\n如果写，开头必须先有“影响摘要”：发生了什么、影响谁/什么流程、影响时间和范围、当前状态。随后明确采用 blameless framing，不归咎个人。\n\n结尾必须有可执行的行动项闭环：每项措施都要有 owner、截止时间和状态，并链接到修复提交、回归测试/CI 运行结果，以及必要的监控或运行手册。共享文档中的日志和复现材料必须先脱敏；原始材料只能通过受控链接引用。\n\n这次至少应补一条真实插件加载路径的回归测试，验证 default export 不会丢失依赖注入声明。"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "subtle|systemic|costly|微妙|非显然|系统性|重新发现|再发现|代价|工具.{0,4}缺口|测试.{0,4}缺口"
+            ],
+            "len": 540,
+            "raw": "值得不值得写，判据不是“CI 是否全绿”，而是是否产生了用户可见或业务可见影响：\n\n- 若自动化 server 在真实产品环境启动即崩，导致功能不可用、发布受阻或业务损失：应写正式 postmortem。\n- 若只影响本地/内部开发环境，没有用户或业务影响：不必做正式 ceremony，但仍应保留缺陷诊断记录和回归测试。\n\n即使没有用户影响，这个案例也属于 `complex`：插件导出形式、加载器依赖注入、启动路径和测试覆盖之间存在跨层失效，且预期的测试控制没有捕获它。因此应做多层 Swiss Cheese 分析，不能只记录“改成 named export”。\n\n正式 postmortem 开头必须先写清：\n\n1. 影响、范围、持续时间和检测方式；\n2. 可复现的症状；\n3. 无责归因声明：假设相关人员当时基于已有信息做出了合理判断，不把责任归咎于个人。\n\n结尾必须链接到带有 owner 和 due date 的预防行动项，至少包括：\n\n- 插件导出/加载契约校验；\n- 覆盖真实 server 启动与依赖注入的回归测试；\n- 对 CI 测试边界的补强。\n\n并链接到对应的回归测试、契约检查或变更 PR；如果已有正式事故记录，还应链接 incident/ticket。"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "subtle|systemic|costly|微妙|非显然|系统性|重新发现|再发现|代价|工具.{0,4}缺口|测试.{0,4}缺口"
+            ],
+            "len": 550,
+            "raw": "值得不值得写，分两个维度判：\n\n- **复杂度**：这个缺陷应判为 `complex`。它同时涉及插件导出契约、运行时加载器、启动路径，以及测试层遗漏；而且预期的 CI 单测控制没有覆盖真实启动场景。应做多层 Swiss Cheese 分析，不能只写“default export 写错了”。\n- **影响**：是否举行“正式 postmortem”取决于是否有用户或业务可见影响，而不是 CI 是否全绿。  \n  - 若产品启动即不可用、影响用户/发布/验收/业务流程：应写正式 blameless postmortem。  \n  - 若只影响本地开发、没有用户或业务影响：不必举行正式 postmortem，但仍应保留完整缺陷诊断/RCA 和预防措施。\n\n如果写，开头必须先有经过脱敏的：\n\n1. 事件摘要与影响范围；\n2. 受影响对象、检测方式、当前状态/缓解措施；\n3. 时间线入口。\n\n措辞应保持 blameless，不把责任归因于个人。\n\n结尾至少要链接：\n\n- 能证明“修复前失败、修复后通过”的回归测试；\n- 修复 PR/提交及验证结果；\n- 每项预防措施的 owner 和截止时间。\n\n这里最关键的预防链接应是回归测试：不能只链接“修复了 default export”的代码提交。"
+          }
+        ]
+      },
+      "head": {
+        "rev": "f4e03edc6455c3d2a4c25efe5e005a9395af3ffb",
+        "body_sha256": "8faa32bb256234ae72c075037a20412228f1571c3f723af3b4641b5fe0e5849d",
+        "prompt_sha256": "5692071a998e28848e6afa3adecb71178959bb3429ba9e19c38afd2cad106383",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 641,
+            "raw": "值得写，而且在满足下列任一条件时属于“必须写”：\n\n- 启动崩溃已经造成用户或业务可见影响；或\n- 该缺陷已进入合并变更、发布版本或用户环境，并且同时满足：\n  1. 机制隐蔽：`default export` 导致依赖注入丢失并非一眼可见；\n  2. 具有系统性：CI 单测没有覆盖真实启动/插件加载契约；\n  3. 重新发现代价高：需要从启动崩溃反推加载器与导出约定。\n\n本例至少触发了“复杂缺陷”分析：涉及导出契约、运行时加载和测试层缺口。即使没有用户影响，也应记录多层原因和防线缺口；若已发布或影响用户，则应正式 postmortem。\n\n开头必须有一段“三十秒执行摘要”，明确写出：\n\n- 什么坏了；\n- 根因是什么，用 plain language 表述；\n- 为什么 CI 没拦住；\n- 可复用的长期教训是什么。\n\n若属于正式 incident，还应继续包含影响、时间线、贡献因素、行动项、负责人和截止日期。\n\n结尾必须链接它产出的 guardrails，让读者能验证问题已变得“会再次响铃”，例如：\n\n- 能捕获错误导出形式的回归测试；\n- 插件导出/依赖注入契约或 lint/type/check 规则；\n- 启动级集成测试；\n- 相关运行手册或排障 runbook；\n- 若涉及架构或约定变化，对应的 decision record。\n\npostmortem 负责复盘事故；设计决策应写在 decision record 中，不能用 postmortem 代替。"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 579,
+            "raw": "值得写，而且按这份规则大概率应写正式 postmortem。\n\n判定依据：\n\n- 若已进入合并变更、发布版本，或用户/业务可见：只要发生了产品启动即崩溃，正式 postmortem 是无条件要求。\n- 即使没有用户可见影响，也同时满足三项：\n  - subtle：default export 使加载器静默丢失依赖注入，机制不直观；\n  - systemic：单测覆盖了插件逻辑，却没有覆盖真实启动加载契约；\n  - costly：这类问题会消耗调试时间，并可能再次发生。\n\n因此不能因为“CI 单测全绿”而免除。这个缺陷还应标记为 `complex`：它跨越了模块导出契约、运行时加载、依赖注入和测试覆盖层，至少有测试防线失效。\n\n开头必须有一段“三十秒 executive summary”，用通俗语言说明：\n\n1. 发生了什么；\n2. 根因是什么；\n3. 为什么测试/流程没有拦住；\n4. 长期要吸取的教训是什么。\n\n结尾必须链接这次产生的持久防线，让读者能验证问题已经会再次失败得足够早，例如：\n\n- 回归测试或启动集成测试；\n- 插件导出/加载契约规则；\n- CI 检查或 lint；\n- 相关运行手册；\n- 如有架构或流程决定，链接对应 decision record。\n\npostmortem 是回顾故障及失效防线的文档，不应替代架构决策记录。"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 847,
+            "raw": "值得写，而且按规则应写正式 postmortem，前提是该缺陷已经进入合并变更、发布版本或用户环境；“CI 单测全绿”不构成豁免。\n\n判定依据是三项是否同时成立：\n\n- **Subtle（隐蔽）**：`default export` 与加载器依赖注入解析之间存在不明显的契约耦合。\n- **Systemic（系统性）**：单测没有覆盖真实的插件加载/自动化 server 启动路径，暴露的是测试或加载器契约防线缺口，不只是一次拼写错误。\n- **Costly（重新发现成本高）**：问题只在产品启动时出现，排查需要跨插件、加载器和依赖注入链路，未来容易重复消耗调试时间。\n\n此外，这个缺陷至少触发了“测试层本身具有因果作用”和“多组件/多 lens”两个复杂度信号，应按 `complex` 做 widened 分析，覆盖：\n\n- contract：插件导出形式与加载器识别约定；\n- runtime：启动时动态加载和依赖注入；\n- test：单测未覆盖真实启动装配；\n- workflow：导出约定未被明确成可执行检查。\n\npostmortem 开头必须有一个约 30 秒可读的执行摘要，明确四件事：\n\n1. 什么坏了：自动化 server 启动即崩；\n2. 根因是什么：插件使用 `default export`，加载器未识别其声明的依赖注入；\n3. 为什么逃过了：单测覆盖了插件逻辑，却没有覆盖真实启动加载链路/导出契约；\n4. 持久教训是什么：插件导出与依赖注入契约必须由测试、校验或加载器保护。\n\n结尾必须链接它产生的 guardrails，让读者能验证该类问题以后会被及时暴露，例如：\n\n- 回归测试或启动集成测试；\n- 插件导出/依赖注入契约检查；\n- 相关开发或 review 规则；\n- 必要时的 runbook、决策记录或 CI gate。\n\n如果问题只发生在本地、尚未进入合并变更、发布或用户环境，则通常不需要正式 postmortem；但仍需保留缺陷诊断证据和回归测试。"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 591,
+            "raw": "值得写，尤其因为它满足“微妙、系统性、重新排查代价高”三项：\n\n- 微妙：`default export` 导致加载器静默丢失依赖注入，机制不直观。\n- 系统性：CI 单测全绿，却没有覆盖真实插件加载契约。\n- 代价高：只有产品启动自动化 server 才暴露，容易重复踩坑。\n\n如果这个问题已经进入合并变更、发布版本，或影响了用户/业务，则应正式写 postmortem；只要有用户或业务影响，无论机制看起来多简单，都必须写。若只发生在本地、未合并且无影响，则正式 postmortem 可不写，但仍应做完整的复杂度分析，因为测试层和运行时契约都失效了。\n\n开头必须有一段“三十秒执行摘要”，明确说明：\n\n1. 什么坏了；\n2. 根因是什么；\n3. 为什么 CI 没拦住；\n4. 持久性的教训是什么。\n\n结尾必须链接这次产出的护栏，让读者能验证问题以后会被及时发现，例如：\n\n- 防止错误 export 形式的回归测试；\n- 插件加载/依赖注入契约或类型检查；\n- CI、启动检查或集成测试；\n- 必要的开发规则、review checklist、runbook；\n- 若形成了架构或流程决策，还要链接对应 decision record。\n\n此外，这属于复杂缺陷，应按多层 Swiss Cheese 视角说明测试、加载器契约、启动验证和开发约定分别哪里有漏洞，以及各自如何补上。"
+          }
+        ]
+      },
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ]
+    }
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "provider": "codex",
+  "model": "gpt-5.6-luna",
+  "rounds": 4,
+  "base_rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+  "head_rev": "17b323157034f1730825168a229ba8948f9b8699",
+  "results": {
+    "prd-adr-alternatives": {
+      "task_sha256": "1b4648bab1de70a492761d9019832481e770ae91844bff6b904bbd15aea917a8",
+      "required": [
+        "不得|不能|不可|不应|禁止|拒绝",
+        "编造|杜撰|虚构|事后补|invent|fabricat|没有.{0,8}考虑过|未.{0,6}评估",
+        "none-considered",
+        "not-recorded"
+      ],
+      "required_flags": [
+        "i",
+        "i",
+        "i",
+        "i"
+      ],
+      "base": {
+        "rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+        "body_sha256": "548be82ce6c5ddd0264821c4ba744306310a14e18f231f1304d66748c64da90d",
+        "prompt_sha256": "0baa5e1b953ebb4895f98c7b6e84cc6d8118ad59cb5e576c285016cae0e0fa21",
+        "pass": 0,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "none-considered",
+              "not-recorded"
+            ],
+            "len": 740,
+            "raw": "不可以。ADR 不能补写当时并未发生的评估；“完整”不等于“填满 Alternatives”。\n\n建议分别这样处理：\n\n1. 上周的 ADR\n\n明确记录事实：\n\n> Alternatives considered: No alternatives were evaluated or recorded before selecting the message queue. The decision was made directly in favor of asynchronous messaging.\n\n如果同步调用只是当时的既有方案，可以写成 baseline，但不要写成“已认真比较过”。如需现在补做比较，另建 retrospective spike/RFC，并注明这是事后评估，不是原始决策依据。\n\n2. 三年前的 ADR\n\n不要猜测。保留原文不变，追加一条带日期的记录说明：\n\n> Alternatives considered: Not recorded. The original alternatives cannot be reconstructed from the available records.\n\n如果 ADR 格式允许维护性补充，可在文末增加 `Record-keeping note`；不要伪造当年的 Alternatives，也不要把今天推测的方案冒充历史事实。\n\nADR 的核心是可追溯和诚实记录，不要求每份 ADR 都有真实存在的备选方案。空白最好改成“未记录/无法重建”的显式说明，但不能用编造内容填空。\n\nproposed-next: 将两份 ADR 分别改为事实性缺失说明，并把任何事后方案评估另存为独立 spike/RFC】【。"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "none-considered",
+              "not-recorded"
+            ],
+            "len": 1149,
+            "raw": "不可以。ADR 的核心是可追溯性，不能为了“完整”补写当时不存在的评估。\n\n建议这样填：\n\n1. 上周的消息队列 ADR\n\n```md\n## Alternatives considered\n\nNone were evaluated before the decision. The team selected asynchronous messaging directly; no documented comparison against synchronous calls, scheduled jobs, or other mechanisms exists.\n```\n\n如果需要补充现在的认识，另加明确标注的段落，不能伪装成当时的评估：\n\n```md\n## Retrospective analysis\n\nAfter implementation, synchronous calls and other alternatives were identified as possible options. This analysis is retrospective and was not part of the original decision.\n```\n\n由于已经上线，如果这是对原 ADR 的事实补充，应使用 append-only 的 `As-built` 校正；不要改写原始决策叙述。若补充分析改变了架构决策本身，则应由决策 owner 评审，必要时创建 superseding ADR。\n\n2. 三年前的旧 ADR\n\n```md\n## Alternatives considered\n\nUnknown. The original alternatives were not recorded, and the available records are insufficient to reconstruct them reliably. No alternatives are asserted here.\n```\n\n不要根据常识猜测当年比较过什么。可以另加：\n\n```md\n## Record-quality note\n\nThe participants and original decision context are no longer available, so historical reconstruction is not possible.\n```\n\n“没有评估过”和“无法知道是否评估过”必须区分；前者适用于 (1)，后者适用于 (2)。完整但虚构的 ADR 比明确记录未知更有害。\n\nproposed-next: none — status only"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "none-considered",
+              "not-recorded"
+            ],
+            "len": 1004,
+            "raw": "不可以。ADR 的价值是可追溯，不能为了“完整”编造历史事实；而且原始 ADR 的正文应保持不可变。\n\n建议这样写：\n\n1. 上周的 ADR\n\n```md\n### Alternatives considered\n\nNo alternatives were formally evaluated or recorded before the decision.\nThe message queue was selected directly. Any alternatives listed in a later\nretrospective must not be interpreted as options considered at decision time.\n```\n\n如果现在要补做方案比较，应另写一份 retrospective/spike 或 superseding ADR，明确标注为“事后评估”，不能伪装成当时的决策依据。\n\n2. 三年前的 ADR\n\n```md\n### Alternatives considered\n\nThe surviving records do not identify which alternatives were considered.\nThe original evaluation cannot be reliably reconstructed because the\nparticipants are no longer available.\n```\n\n如果确实想提供今天的比较，可另设：\n\n```md\n### Retrospective assessment (2026-08-16)\n\nThe following options are a current assessment, not evidence of the\nalternatives considered in the original decision.\n```\n\n另外，ADR 的最小规范并不要求必须有一个填满的 Alternatives 段；诚实地记录“未评估”或“不可重建”，比制造完整性更符合 ADR 的目的。\n\nproposed-next: 将两份 ADR 的 Alternatives 分别改为“未正式评估”和“无法可靠重建”，并把任何当前补充分析独立标记为事后评估。"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "none-considered",
+              "not-recorded"
+            ],
+            "len": 831,
+            "raw": "不可以。ADR 应记录当时真实发生的决策，不能事后编造“看起来合理”的备选方案。\n\n建议分别这样写：\n\n1. 上周的 ADR：\n\n> **Alternatives considered:**  \n> No alternatives were documented or evaluated before the decision. The team selected a message queue directly to replace the synchronous call. A retrospective comparison may be conducted separately; it must not be presented as part of the original decision record.\n\n如果现在补做评估，应放在独立的 spike/评估文档，或追加标明日期的 retrospective note，不能伪装成当时的分析。\n\n2. 三年前的 ADR：\n\n> **Alternatives considered:**  \n> The historical record does not establish which alternatives were considered. The original participants are no longer available, and no reliable reconstruction was found. This information is unknown.\n\n不要用推测内容填空。ADR 的完整性来自可追溯和诚实，不是每个段落都必须有丰富内容；给定的 ADR 规范本身也没有把 Alternatives 列为必填字段。\n\nproposed-next: 在两份 ADR 中分别记录“当时未评估”和“历史不可重建”，将新的方案比较另存为带日期的追溯性评估大小规律"
+          }
+        ]
+      },
+      "head": {
+        "rev": "17b323157034f1730825168a229ba8948f9b8699",
+        "body_sha256": "bd34f5f1e27f14a7984aa73be0f6871594909a1dca96734c33a75cc0be2c947a",
+        "prompt_sha256": "37efb2c32605be050ac2ce5ffe690b4896ad3964a1f3ced5184c275f15c426d6",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 455,
+            "raw": "不可以。ADR 的 Alternatives considered 要记录真实决策历史，不能为了“完整”事后编造。\n\n(1) 应填写：\n\n> `alternatives: none-considered`  \n> 当时直接选择消息队列，未实际评估其他方案，因此无法列出真实被比较过的备选。\n\n如已上线且实现与原决定有事实偏差，再追加 As-built 校正；不要用虚构备选补历史。\n\n(2) 应填写：\n\n> `alternatives: not-recorded`  \n> 原始记录没有 Alternatives 信息，相关参与者已无法访谈，现有材料也无法可靠重建当时比较过的方案。\n\n只有找到会议记录、评审材料、代码或其他可靠证据，才能补写具体备选；推测出来的“合理方案”不算历史事实。\n\n因此，两份 ADR 的字段都可以是有效且完整的诚实记录，`none-considered` 与 `not-recorded` 本身就是规范允许的值。\n\nproposed-next: none — status only"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 368,
+            "raw": "不可以。ADR 的 `Alternatives considered` 要记录历史事实，不能事后编造。\n\n- **(1) 上周的决定**：填写  \n  `alternatives: none-considered`  \n  并说明：当时直接选择消息队列，未进行备选方案评估。可另记一项后续行动：补做架构复盘或风险评估，但不能把事后想到的方案伪装成当时考虑过的方案。\n\n- **(2) 三年前的 ADR**：填写  \n  `alternatives: not-recorded`  \n  并说明：原始记录为空，参与者已无法确认，现无法重建当时的比较过程。\n\n如果 ADR 已被接受，不应改写原有历史内容；应通过追加的历史澄清/校正节记录这两个事实。完整不等于虚构完整。\n\nproposed-next: none — status only"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 790,
+            "raw": "不可以。ADR 的完整性不能靠编造事实来满足；虚构备选会破坏决策记录的可信度。\n\n建议分别这样填：\n\n1. 上周的决定：\n\n```md\n### Alternatives considered\n\nalternatives: none-considered\n\nAt the time of the decision, no alternative was recorded as having been evaluated; the team selected a message queue directly. This section does not reconstruct alternatives retrospectively.\n```\n\n如果现在发现该决定存在重大未评估风险，应另开评估或 superseding ADR，而不是伪造当时的比较过程。\n\n2. 三年前的 ADR：\n\n```md\n### Alternatives considered\n\nalternatives: not-recorded\n\nThe historical record does not identify which alternatives were considered, and the original participants are no longer available to reconstruct them reliably. No alternatives are inferred retrospectively.\n```\n\n核心区别是：`none-considered` 表示明确知道当时没有记录过评估；`not-recorded` 表示无法可靠重建。两者都比“看起来合理但未经证实”的备选诚实。\n\nproposed-next: none — status only"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 872,
+            "raw": "不可以。ADR 的 `Alternatives considered` 必须记录真实发生过的比较，不能事后编造。\n\n两份应分别这样处理：\n\n1. 上周的消息队列 ADR：\n\n```text\nAlternatives considered: none-considered\n\nThe decision was made by directly selecting a message queue. No alternative was seriously evaluated or recorded at the time. This is a decision-process gap, not evidence that alternatives were inferior.\n```\n\n既然已经上线，不要改写原始决策内容；可追加一段 dated `As-built`，如实记录“未进行替代方案评估”。如果现在要比较同步调用、事件总线等方案，应作为新的评估或 superseding ADR，明确这是事后评估。\n\n2. 三年前的 ADR：\n\n```text\nAlternatives considered: not-recorded\n\nThe original participants are no longer available, and the available records do not allow the alternatives considered at the time to be reconstructed. No historical alternatives are being inferred or invented.\n```\n\n同样不要把今天推测出的方案伪装成当年的比较结果。可以在追加说明中记录重建失败及其原因。\n\n完整不等于填满；`none-considered` 和 `not-recorded` 正是该字段要求的诚实状态。  \n\nproposed-next: none — status only"
+          }
+        ]
+      }
+    }
+  }
+}

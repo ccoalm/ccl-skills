@@ -13,11 +13,19 @@ cleanup_work() {
 trap cleanup_work EXIT
 fails=0
 
-mkdir -p "$WORK/bin" "$WORK/cmux-cli-shims/test" "$WORK/system-bin" "$WORK/nonexec-bin" "$WORK/fail-mode-bin" "$WORK/state" "$WORK/kimi-source/credentials" "$WORK/kimi-source/oauth" "$WORK/kimi-source/skills/local" "$WORK/kimi-source/agents/local" "$WORK/kimi-source/data/local" "$WORK/kimi-credentials-only/credentials" "$WORK/kimi-bare-model" "$WORK/kimi-dotted-model" "$WORK/kimi-inline-control/credentials" "$WORK/kimi-readonly/credentials" "$WORK/kimi-readonly/data/local" "$WORK/kimi-uninitialized/credentials" "$WORK/kimi-external-sensitive" "$WORK/custom-kimi-home/bin" "$WORK/codex-source" "$WORK/codex-missing" "$WORK/tmp" "$WORK/tmp[glob]"
+mkdir -p "$WORK/bin" "$WORK/cmux-cli-shims/test" "$WORK/system-bin" "$WORK/nonexec-bin" "$WORK/fail-mode-bin" "$WORK/timeout-probe-bin" "$WORK/state" "$WORK/kimi-source/credentials" "$WORK/kimi-source/oauth" "$WORK/kimi-source/skills/local" "$WORK/kimi-source/agents/local" "$WORK/kimi-source/data/local" "$WORK/kimi-credentials-only/credentials" "$WORK/kimi-bare-model" "$WORK/kimi-dotted-model" "$WORK/kimi-inline-control/credentials" "$WORK/kimi-readonly/credentials" "$WORK/kimi-readonly/data/local" "$WORK/kimi-uninitialized/credentials" "$WORK/kimi-external-sensitive" "$WORK/custom-kimi-home/bin" "$WORK/codex-source" "$WORK/codex-missing" "$WORK/tmp" "$WORK/tmp[glob]"
 for tool in bash cat chmod cp dirname grep mkdir mktemp python3 rm timeout tr wc; do
   tool_path="$(command -v "$tool")" || exit 1
   ln -s "$tool_path" "$WORK/system-bin/$tool"
 done
+REAL_TIMEOUT_BIN="$(command -v timeout)"
+export REAL_TIMEOUT_BIN
+cat >"$WORK/timeout-probe-bin/timeout" <<'TIMEOUT_SHIM'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$REVIEW_WRAPPER_TEST_STATE/timeout_args"
+exec "$REAL_TIMEOUT_BIN" "$@"
+TIMEOUT_SHIM
+chmod +x "$WORK/timeout-probe-bin/timeout"
 cat >"$WORK/fail-mode-bin/python3" <<'PYTHON_SHIM'
 #!/usr/bin/env bash
 if [ "$#" = 3 ] && [ "$1" = - ] \
@@ -176,6 +184,7 @@ printf '%s' "$KIMI_CODE_HOME" >"$state/kimi_runtime_home"
 mkdir -p "$KIMI_CODE_HOME/sessions" && touch "$KIMI_CODE_HOME/sessions/test-session" \
   && touch "$state/kimi_runtime_home_writable"
 prompt=""
+agent_file=""
 has_stream=no
 has_model=no
 has_skills_dir=no
@@ -183,6 +192,7 @@ skills_dir_path=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -p|--prompt) prompt="$2"; shift 2 ;;
+    --agent-file) agent_file="$2"; shift 2 ;;
     --output-format) [ "$2" = stream-json ] && has_stream=yes; shift 2 ;;
     --skills-dir) [ -d "$2" ] && has_skills_dir=yes; skills_dir_path="$2"; shift 2 ;;
     -m|--model) has_model=yes; shift 2 ;;
@@ -194,6 +204,10 @@ printf '%s' "$has_model" >"$state/kimi_model_override"
 printf '%s' "$has_skills_dir" >"$state/kimi_skills_dir"
 printf '%s' "$skills_dir_path" >"$state/kimi_skills_dir_path"
 printf '%s' "$prompt" >"$state/kimi_prompt"
+printf '%s' "$agent_file" >"$state/kimi_agent_file_path"
+if [ -n "$agent_file" ]; then
+  cp "$agent_file" "$state/kimi_agent_file"
+fi
 if [ -f "$KIMI_CODE_HOME/config.toml" ]; then
   grep -q 'extra_skill_dirs' "$KIMI_CODE_HOME/config.toml" && touch "$state/kimi_skills_preserved"
   grep -q '/trusted/local/hook-marker' "$KIMI_CODE_HOME/config.toml" && touch "$state/kimi_hooks_preserved"
@@ -210,6 +224,24 @@ if config.get("providers") and config.get("models"):
     Path(sys.argv[3]).touch()
 PY
 fi
+if [ -f "$KIMI_CODE_HOME/mcp.json" ]; then
+  cp "$KIMI_CODE_HOME/mcp.json" "$state/kimi_mcp_json"
+  python3 - "$KIMI_CODE_HOME/mcp.json" "$agent_file" <<'PY' \
+    && touch "$state/kimi_packet_mcp_verified"
+import json, sys
+from pathlib import Path
+
+config = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+server = config["mcpServers"]["code_review_packet"]
+assert server["enabled"] is True
+assert server["enabledTools"] == ["read_packet"]
+assert server["args"][1] == "--packet"
+assert server["args"][3] == "--sha256"
+agent = Path(sys.argv[2]).read_text(encoding="utf-8")
+assert "tools: [mcp__code_review_packet__read_packet]" in agent
+assert "subagents: []" in agent
+PY
+fi
 if [[ "$prompt" = "No-tools capability probe."* ]]; then
   printf '%s' "$skills_dir_path" >"$state/kimi_probe_skills_dir_path"
   if [ "${STUB_BEHAVIOR:-pass}" = capability_timeout ]; then
@@ -218,6 +250,13 @@ if [[ "$prompt" = "No-tools capability probe."* ]]; then
   if [ "${STUB_BEHAVIOR:-pass}" = capability_hang ]; then
     trap '' TERM
     while :; do /bin/sleep 1; done
+  fi
+  if [ "${STUB_BEHAVIOR:-pass}" = capability_delay ]; then
+    /bin/sleep 2
+  fi
+  if [ "${STUB_BEHAVIOR:-pass}" = capability_emfile ]; then
+    printf '%s\n' 'EMFILE: too many open files, watch' >&2
+    exit 1
   fi
   if [ "${STUB_BEHAVIOR:-pass}" = capability_missing ]; then
     printf '%s\n' '{"role":"meta","type":"system.version","version":"future"}'
@@ -292,7 +331,7 @@ PY
 packet="${KIMI_CODE_HOME%/*}/review-packet.txt"
 cp "$packet" "$state/kimi_packet"
 grep -q 'END_OF_PACKET_MARKER' "$packet" && touch "$state/kimi_full_packet"
-python3 - "$KIMI_CODE_HOME/config.toml" "$packet" <<'PY' \
+python3 - "$KIMI_CODE_HOME/config.toml" "$packet" "$([ -f "$KIMI_CODE_HOME/mcp.json" ] && printf true || printf false)" <<'PY' \
   && touch "$state/kimi_no_tools_policy_verified"
 from pathlib import Path
 import sys
@@ -300,7 +339,10 @@ import tomllib
 
 config = tomllib.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 Path(sys.argv[2]).resolve(strict=True)
-assert config["tools"] == {"enabled": ["*"]}
+expected_tools = (
+    ["mcp__code_review_packet__read_packet"] if sys.argv[3] == "true" else ["*"]
+)
+assert config["tools"] == {"enabled": expected_tools}
 assert "permission" not in config
 assert "hooks" not in config
 assert "mcp" not in config
@@ -322,6 +364,14 @@ fi
 if [ "$behavior" = "crash" ]; then
   printf '%s\n' 'unexpected Kimi process failure' >&2
   exit 42
+fi
+if [ "$behavior" = "agent_file_unsupported" ] && [ -n "$agent_file" ]; then
+  printf '%s\n' 'error: unrecognized option --agent-file' >&2
+  exit 2
+fi
+if [ "$behavior" = "emfile" ]; then
+  printf '%s\n' 'Error: EMFILE: too many open files, watch' >&2
+  exit 1
 fi
 if [ "$behavior" = "auth_lock_denied" ]; then
   printf '%s\n' 'error: Unable to prepare OAuth refresh lock for "kimi-code": EPERM: operation not permitted' >&2
@@ -386,10 +436,14 @@ fi
 if [ "$behavior" = "mutate_packet" ]; then
   printf '%s\n' 'mutated after wrapper freeze' >"$packet"
 fi
-python3 - "$packet" "$behavior" <<'PY'
+mcp_mode=false
+[ ! -f "$KIMI_CODE_HOME/mcp.json" ] || mcp_mode=true
+python3 - "$packet" "$behavior" "$mcp_mode" <<'PY'
 import json, sys
-path, behavior = sys.argv[1:]
-packet_lines = open(path, encoding="utf-8").read().splitlines()
+path, behavior, mcp_mode_raw = sys.argv[1:]
+mcp_mode = mcp_mode_raw == "true"
+packet_data = open(path, "rb").read()
+packet_lines = packet_data.decode("utf-8").splitlines()
 receipt = next(
     (line for line in reversed(packet_lines) if line.startswith("KIMI_PACKET_RECEIPT_")),
     "",
@@ -447,11 +501,38 @@ if behavior == "corrupt_stream_concern":
     print(json.dumps({"role":"assistant","content":"P1 src/example.py:7 truncated finding | keep the finding visible","tool_calls":[]}))
     print("{not-json")
     raise SystemExit(0)
+if mcp_mode:
+    offset = 1 if behavior == "mcp_gap" else 0
+    index = 1
+    while offset < len(packet_data):
+        end = min(offset + 46_000, len(packet_data))
+        while end > offset:
+            try:
+                chunk = packet_data[offset:end].decode("utf-8")
+                break
+            except UnicodeDecodeError:
+                end -= 1
+        call_id = f"packet-{index}"
+        arguments = {"byte_offset": offset, "max_bytes": 46_000}
+        print(json.dumps({"role":"assistant","content":"","tool_calls":[{"type":"function","id":call_id,"function":{"name":"mcp__code_review_packet__read_packet","arguments":json.dumps(arguments)}}]}))
+        content = f"PACKET_CHUNK {offset}:{end}/{len(packet_data)}\n{chunk}"
+        if behavior == "mcp_bad_chunk" and index == 1:
+            content = content[:-1] + ("!" if content[-1:] != "!" else "?")
+        print(json.dumps({"role":"tool","tool_call_id":call_id,"content":content}))
+        offset = end
+        index += 1
+    if behavior == "mcp_eof_confirmation":
+        call_id = f"packet-{index}"
+        arguments = {"byte_offset": len(packet_data), "max_bytes": 46_000}
+        print(json.dumps({"role":"assistant","content":"","tool_calls":[{"type":"function","id":call_id,"function":{"name":"mcp__code_review_packet__read_packet","arguments":json.dumps(arguments)}}]}))
+        content = f"PACKET_CHUNK {len(packet_data)}:{len(packet_data)}/{len(packet_data)}\n"
+        print(json.dumps({"role":"tool","tool_call_id":call_id,"content":content}))
 clean_body = "CHECK correctness | Independently checked correctness against the frozen candidate.\nNO_BLOCKING_FINDINGS"
 clean = f"{receipt}\n{clean_body}"
 clean_with_separator = f"{receipt}\nCHECK correctness | Independently checked correctness against the frozen candidate.\n\nNO_BLOCKING_FINDINGS"
 content = {
     "pass": clean,
+    "capability_delay": clean,
     "capability_noncanonical": clean,
     "legacy_pass": f"{receipt}\nNO_BLOCKING_FINDINGS",
     "missing_receipt": clean_body,
@@ -466,6 +547,9 @@ content = {
     "nested_tool": clean,
     "unknown_event": clean,
     "multi_message": clean,
+    "mcp_bad_chunk": clean,
+    "mcp_eof_confirmation": clean,
+    "mcp_gap": clean,
     "mutate_packet": clean,
     "real_stream_shape": clean,
     "paged_read": clean,
@@ -746,8 +830,13 @@ awk 'BEGIN { for (i = 0; i < 180000; i++) printf "x" }' >"$WORK/many-lines.patch
 printf '%s\n' END_OF_PACKET_MARKER >>"$WORK/many-lines.patch"
 awk 'BEGIN { for (i = 0; i < 9000; i++) printf "x" }' >"$WORK/inline-safe.patch"
 printf '%s\n' END_OF_PACKET_MARKER >>"$WORK/inline-safe.patch"
+awk 'BEGIN { for (i = 0; i < 17000; i++) printf "x"; print "${cwd}" }' >"$WORK/template-inline.patch"
+awk 'BEGIN { for (i = 0; i < 17000; i++) printf "x"; print "${HOME}" }' >"$WORK/unknown-template-inline.patch"
 awk 'BEGIN { for (i = 0; i < 200000; i++) printf "x" }' >"$WORK/max-diff.patch"
+printf '%s\n' MAX_PACKET_TAIL_MARKER >>"$WORK/max-diff.patch"
 awk 'BEGIN { printf "{\"x\":\""; for (i = 0; i < 39992; i++) printf "p"; printf "\"}" }' >"$WORK/max-profile.json"
+awk 'BEGIN { for (i = 1; i <= 8000; i++) print "+template-line-" i; print "+${cwd}" }' >"$WORK/agent-template.patch"
+awk 'BEGIN { for (i = 0; i < 70000; i++) printf "x"; print "${cwd}" }' >"$WORK/oversized-template-line.patch"
 
 run_kimi() {
   local diff_file="${4:-$WORK/diff.patch}"
@@ -1013,6 +1102,9 @@ check "Kimi rejects a no-tools probe with no assistant response" \
 out="$(run_kimi capability_tool_exposed)"; rc=$?
 check "Kimi rejects any tool exposed during the no-tools probe" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ]'
+out="$(run_kimi capability_emfile)"; rc=$?
+check "Kimi classifies probe-time EMFILE as a local client failure" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_host_resource_exhausted ] && [ "$(field reason_code "$out")" = client_unavailable ] && [ "$(field cascade_eligible "$out")" = True ]'
 probe_started=$SECONDS
 out="$(REVIEW_TEST_TIMEOUT=5 run_kimi capability_hang)"; rc=$?
 probe_elapsed=$((SECONDS - probe_started))
@@ -1068,6 +1160,20 @@ check "Kimi permits a blank separator before the final verdict" \
   '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ "$(field concern_results.0.concern "$out")" = correctness ]'
 check "Kimi uses stream JSON and never overrides the user's model" \
   '[ "$(cat "$WORK/state/kimi_stream")" = yes ] && [ "$(cat "$WORK/state/kimi_model_override")" = no ]'
+rm -f "$WORK/state/timeout_args"
+out="$(REVIEW_TEST_TIMEOUT=180 REVIEW_TEST_PATH_PREFIX="$WORK/timeout-probe-bin" run_kimi pass)"; rc=$?
+check "Kimi caps argv-exposed inline review at 120 seconds" \
+  '[ "$rc" = 0 ] && grep -q -- "--kill-after=1s 120s " "$WORK/state/timeout_args"'
+rm -f "$WORK/state/timeout_args"
+out="$(REVIEW_TEST_TIMEOUT=180 REVIEW_TEST_PATH_PREFIX="$WORK/timeout-probe-bin" run_kimi pass claude "$WORK/kimi-source" "$WORK/agent-template.patch")"; rc=$?
+formal_timeout="$(tail -n 1 "$WORK/state/timeout_args" | awk '{ value=$2; sub(/s$/, "", value); print value }')"
+check "Kimi gives private MCP review only the remaining controller budget" \
+  '[ "$rc" = 0 ] && [ "$formal_timeout" -ge 1 ] && [ "$formal_timeout" -le 180 ]'
+rm -f "$WORK/state/timeout_args"
+out="$(REVIEW_TEST_TIMEOUT=10 REVIEW_TEST_PATH_PREFIX="$WORK/timeout-probe-bin" run_kimi capability_delay claude "$WORK/kimi-source" "$WORK/agent-template.patch")"; rc=$?
+formal_timeout="$(tail -n 1 "$WORK/state/timeout_args" | awk '{ value=$2; sub(/s$/, "", value); print value }')"
+check "Kimi charges the capability probe against the MCP lane timeout" \
+  '[ "$rc" = 0 ] && [ "$formal_timeout" -ge 1 ] && [ "$formal_timeout" -lt 10 ]'
 out="$(STUB_BEHAVIOR=pass REVIEW_WRAPPER_TEST_STATE="$WORK/state" PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" KIMI_CODE_HOME="$WORK/kimi-source" /bin/bash "$DIR/kimi_review.sh" --implementer-family claude --diff-file "$WORK/diff.patch" --review-profile-file "$WORK/review-profile.json" --mode review --timeout 30)"; rc=$?
 check "Kimi no-owner profile remains Bash 3.2 compatible" \
   '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ]'
@@ -1078,6 +1184,10 @@ check "Kimi rejects a native owner profile when owner arguments are omitted" \
 out="$(run_kimi pass claude "$WORK/kimi-source" "$WORK/diff.patch" "$WORK/owner-profile-without-delivery.json")"; rc=$?
 check "Kimi rejects an owner profile whose native delivery marker was omitted" \
   '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = binding_mismatch ] && [ ! -e "$WORK/state/kimi_invoked" ]'
+rm -f "$WORK/state/kimi_invoked"
+out="$(STUB_BEHAVIOR=pass REVIEW_WRAPPER_TEST_STATE="$WORK/state" PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" KIMI_CODE_HOME="$WORK/kimi-source" bash "$DIR/kimi_review.sh" --implementer-family claude --diff-file "$WORK/diff.patch" --review-profile-file "$WORK/native-review-profile.json" --skill-registry-root "$WORK/skill-registry" --review-skill $'testing-strategy\ninjected' --mode review --timeout 30)"; rc=$?
+check "Kimi rejects an instruction-shaped review skill name before inference" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = invalid_review_skill_name ] && [ "$(field reason_code "$out")" = invalid_input ] && [ ! -e "$WORK/state/kimi_invoked" ]'
 out="$(run_kimi_native)"; rc=$?
 check "Kimi binds the selected owner through its native skills directory" \
   '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ "$(cat "$WORK/state/kimi_skills_dir_path")" = "$WORK/skill-registry" ] && [ "$(cat "$WORK/state/kimi_probe_skills_dir_path")" = "$WORK/skill-registry" ] && grep -q "testing-strategy" "$WORK/state/kimi_prompt"'
@@ -1359,10 +1469,56 @@ out="$(run_kimi pass claude "$WORK/kimi-source" "$WORK/inline-safe.patch")"; rc=
 check "Kimi preserves an inline-safe large packet" \
   '[ "$rc" = 0 ] && grep -q END_OF_PACKET_MARKER "$WORK/state/kimi_prompt"'
 
-rm -f "$WORK/state/kimi_invoked" "$WORK/state/kimi_doctor_checked"
+rm -f "$WORK/state/kimi_agent_file" "$WORK/state/kimi_agent_file_path" \
+  "$WORK/state/kimi_packet_mcp_verified" "$WORK/state/kimi_mcp_json"
+out="$(run_kimi pass claude "$WORK/kimi-source" "$WORK/template-inline.patch")"; rc=$?
+check "Kimi routes every over-inline template-bearing packet through the pathless packet MCP" \
+  '[ "$rc" = 0 ] && [ -e "$WORK/state/kimi_packet_mcp_verified" ] && [ -e "$WORK/state/kimi_mcp_json" ] && ! grep -Fq "\${cwd}" "$WORK/state/kimi_prompt"'
+
+rm -f "$WORK/state/kimi_agent_file" "$WORK/state/kimi_agent_file_path" \
+  "$WORK/state/kimi_packet_mcp_verified" "$WORK/state/kimi_mcp_json"
+out="$(run_kimi pass claude "$WORK/kimi-source" "$WORK/unknown-template-inline.patch")"; rc=$?
+check "Kimi routes unknown template identifiers through the pathless packet MCP" \
+  '[ "$rc" = 0 ] && [ -e "$WORK/state/kimi_packet_mcp_verified" ] && [ -e "$WORK/state/kimi_mcp_json" ] && ! grep -Fq "\${HOME}" "$WORK/state/kimi_prompt"'
+
+rm -f "$WORK/state/kimi_invoked" "$WORK/state/kimi_doctor_checked" \
+  "$WORK/state/kimi_agent_file" "$WORK/state/kimi_agent_file_path" \
+  "$WORK/state/kimi_packet_mcp_verified" "$WORK/state/kimi_mcp_json"
 out="$(run_kimi pass claude "$WORK/kimi-source" "$WORK/max-diff.patch" "$WORK/max-profile.json")"; rc=$?
-check "Kimi cascades a packet above the portable single-argument ceiling" \
-  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = packet_too_large_for_inline ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ ! -e "$WORK/state/kimi_doctor_checked" ] && [ ! -e "$WORK/state/kimi_invoked" ]'
+check "Kimi delivers every oversized packet through the pathless packet MCP" \
+  '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ -e "$WORK/state/kimi_invoked" ] && [ -e "$WORK/state/kimi_packet_mcp_verified" ] && [ -e "$WORK/state/kimi_mcp_json" ] && ! grep -q MAX_PACKET_TAIL_MARKER "$WORK/state/kimi_agent_file" && ! grep -q MAX_PACKET_TAIL_MARKER "$WORK/state/kimi_prompt" && ! grep -q KIMI_PACKET_RECEIPT_ "$WORK/state/kimi_prompt"'
+
+rm -f "$WORK/state/kimi_invoked" "$WORK/state/kimi_doctor_checked" \
+  "$WORK/state/kimi_packet_mcp_verified" "$WORK/state/kimi_mcp_json"
+out="$(run_kimi pass claude "$WORK/kimi-source" "$WORK/agent-template.patch")"; rc=$?
+check "Kimi reads a large template-bearing packet through the pathless packet MCP" \
+  '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ -e "$WORK/state/kimi_invoked" ] && [ -e "$WORK/state/kimi_packet_mcp_verified" ] && [ -e "$WORK/state/kimi_mcp_json" ] && ! grep -Fq "\${cwd}" "$WORK/state/kimi_agent_file" && ! grep -q KIMI_PACKET_RECEIPT_ "$WORK/state/kimi_prompt"'
+
+out="$(run_kimi agent_file_unsupported claude "$WORK/kimi-source" "$WORK/agent-template.patch")"; rc=$?
+check "Kimi treats explicit-agent CLI drift as fallback-eligible capability loss" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_agent_file_unsupported ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ]'
+
+out="$(run_kimi mcp_bad_chunk claude "$WORK/kimi-source" "$WORK/agent-template.patch")"; rc=$?
+check "Kimi rejects an MCP page whose body does not match the frozen packet" \
+  '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = invalid_model_output ] && [ "$(field cascade_eligible "$out")" = True ]'
+
+out="$(run_kimi mcp_gap claude "$WORK/kimi-source" "$WORK/agent-template.patch")"; rc=$?
+check "Kimi rejects MCP ranges that leave packet bytes uncovered" \
+  '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = invalid_model_output ] && [ "$(field cascade_eligible "$out")" = True ]'
+
+out="$(run_kimi mcp_eof_confirmation claude "$WORK/kimi-source" "$WORK/agent-template.patch")"; rc=$?
+check "Kimi accepts an exact-end MCP read after full packet coverage" \
+  '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ]'
+
+rm -f "$WORK/state/kimi_packet_mcp_verified" "$WORK/state/kimi_mcp_json"
+out="$(run_kimi foreign_tool claude "$WORK/kimi-source" "$WORK/agent-template.patch")"; rc=$?
+check "Kimi rejects every non-packet tool in pathless MCP mode" \
+  '[ "$rc" = 2 ] && [ -e "$WORK/state/kimi_packet_mcp_verified" ] && [ "$(field reason_code "$out")" = tool_boundary_violation ] && [ "$(field cascade_eligible "$out")" = False ]'
+
+rm -f "$WORK/state/kimi_invoked"
+out="$(run_kimi pass claude "$WORK/kimi-source" "$WORK/oversized-template-line.patch")"; rc=$?
+check "Kimi chunks an MCP packet line that cannot fit one bounded tool result" \
+  '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ -e "$WORK/state/kimi_invoked" ]'
 
 rm -f "$WORK/state/kimi_invoked"
 same_family_before_count="$(find "$WORK/tmp" -mindepth 1 -maxdepth 1 -type d -name 'kimi-review.*' | wc -l | tr -d ' ')"
@@ -1434,6 +1590,10 @@ check "Kimi truncated stream cannot discard an earlier concern" \
 out="$(run_kimi crash)"; rc=$?
 check "Kimi unknown process failures are terminal" \
   '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = unknown_client_failure ] && [ "$(field cascade_eligible "$out")" = False ]'
+
+out="$(run_kimi emfile)"; rc=$?
+check "Kimi classifies formal-run EMFILE as a local client failure" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_host_resource_exhausted ] && [ "$(field reason_code "$out")" = client_unavailable ] && [ "$(field cascade_eligible "$out")" = True ]'
 
 probe_started=$SECONDS
 out="$(REVIEW_TEST_TIMEOUT=5 run_kimi formal_hang)"; rc=$?

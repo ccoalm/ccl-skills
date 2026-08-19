@@ -34,6 +34,24 @@ The same placement principle applies to the *guidance about the gate*, not only 
 
 When the self-detect firing point fires (your own output names 沉淀 / 提炼 / 复盘 / "distil this into a skill" as a recommended or deferred next action), concretely: invoke the workflow and do the read-only part (charter, RCA, owner map) rather than parking it as a low-priority follow-up; but **shared-skill edits still need the authority you already have** — when the user's request covered only a status review or a narrow fix, record the extraction as `pending` with the owner named and ask, instead of self-authorising a shared-skill change off your own suggestion. Observed shape: the agent proposes "沉淀方法论" as one of several optional next steps, the user answers "是应该沉淀", and only then is the workflow invoked — so recognition was owed one turn earlier, while the edit authority arrived with the user's answer.
 
+### The output-shape sibling — your own deliverable names the owner the entry phrasing did not
+
+The self-detect firing point above triggers on what your output *mentions*; this one triggers on what your output *has become*. Entry phrasing and deliverable shape diverge routinely — the request reads as a narrow how-to ("how do I configure X"), and the answer grows into candidate comparison, rejection rationale, and a recommendation. At that point the deliverable is a selection/assessment artifact regardless of how the request was worded, and the owner that governs it never entered.
+
+Walk these three shapes against your own draft — holding them as one conjunction is what fails, so check them one at a time. Any single hit means the deliverable is a selection/assessment artifact regardless of how the request was worded:
+
+Throughout, **candidate** means a component, service, product, library, vendor, or replacement that is actually up for selection — never a configuration value, parameter, or technique when nothing is being selected. Comparing fixed delay with exponential backoff inside a how-to is not a candidate comparison.
+
+- Named candidates compared side by side.
+- An adopt / reject / replace verdict on a named candidate — "just use X" counts, with or without a comparison.
+- As-is evidence gathered across several artifacts to support such a verdict.
+
+- **On any hit, re-judge the entry owner before writing further** — you must not keep writing under the initial narrow classification, because the gates that would have constrained the work (research routing before a selection verdict, named-source-plus-freshness discipline on as-is claims) hang off that owner; with no owner in play, none of them fire, and the output looks complete while resting on unexamined evidence.
+
+A fourth trigger on recommendation *wording* was tried and removed: it kept firing on ordinary how-to advice that prefers one configuration value or technique over another ("enable jitter", "prefer exponential backoff over fixed delay") while adding no coverage, because recommending a named candidate is already an adopt verdict. The three that remain key on the deliverable's SHAPE, which is what this section is about; a wording-keyed trigger drifts back toward matching phrases.
+
+Observed shape: an entry judged as configuration how-to produced several rounds of candidate comparison and a recommendation; the current-state evidence discipline and the research-routing rule both stayed dormant for the whole stretch, surfacing only when the user challenged what the conclusion rested on. Same honesty bound as the rest of this section — this is recognition-dependent and must not be overclaimed as a mechanical gate; what is self-checkable is the shape of your own output, not the intent behind the request.
+
 ## The record-field corollary — expansion (the forgery surface, relocated from `SKILL.md`)
 
 When you land an owner gate as a *field in a record* — a checklist row, a boundary-record line, a CLI flag taking owner names, a "decision:" slot — that field is fillable without invoking the owner, and filling it is what *feels* like discharging the gate, so the record reads complete while none of the owner's mechanical rules fired. Any field naming an owner therefore carries an explicit invoke bar on its triggered values, and the coverage question is a **set-diff over every owner-naming field in that record**, not a fix for the one owner that just failed (the recurrence shape: a record whose salient fields carry the bar while its siblings silently do not). Prefer a firing point the controller cannot route around: when the gated action produces no local artifact — delegation dispatch being the worked case, where substance is produced by a worker and the controller edits nothing — every edit-triggered and dirty-tree-triggered backstop stays silent, so the gate must hang on the action itself (`hooks/guard-delegation-owner.sh` asks once per session at dispatch when the delegation owner was never invoked).

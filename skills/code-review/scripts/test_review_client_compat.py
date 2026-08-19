@@ -6,11 +6,16 @@ from __future__ import annotations
 import argparse
 import importlib.util
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+import review_gate
+
 SPEC = importlib.util.spec_from_file_location(
     "parse_cli_review", SCRIPT_DIR / "parse_cli_review.py"
 )
@@ -20,6 +25,32 @@ SPEC.loader.exec_module(PARSER)
 
 
 class ReviewClientCompatibilityTest(unittest.TestCase):
+    def test_gate_attempt_record_preserves_opencode_timeout_receipt(self) -> None:
+        result = {"attempts": [], "primary": None, "fallbacks": [], "fallback_attempt_count": 0}
+        payload = {
+            "status": "inconclusive",
+            "reason": "review_native_skill_stream_timeout",
+            "reason_code": "timeout",
+            "cascade_eligible": True,
+            "timeout_diagnostic": {
+                "stage": "review",
+                "native_owner_skills_requested": True,
+                "selected_skill_count": 1,
+            },
+            "diagnostic_artifacts": {
+                "requested": True,
+                "retained": True,
+                "directory_name": "opencode-review-timeout.fixture",
+            },
+        }
+
+        attempt = review_gate.record_attempt(result, "opencode", payload)
+
+        self.assertEqual(attempt["reason_code"], "timeout")
+        self.assertTrue(attempt["cascade_eligible"])
+        self.assertTrue(attempt["timeout_diagnostic"]["native_owner_skills_requested"])
+        self.assertTrue(attempt["diagnostic_artifacts"]["retained"])
+
     def test_opencode_file_option_is_terminated_before_prompt(self) -> None:
         wrapper = (SCRIPT_DIR / "opencode_review.sh").read_text(encoding="utf-8")
         self.assertIn(
@@ -48,17 +79,164 @@ class ReviewClientCompatibilityTest(unittest.TestCase):
                             "type": "function",
                             "id": "read-1",
                             "function": {
-                                "name": "Read",
+                                "name": "mcp__code_review_packet__read_packet",
                                 "arguments": {
-                                    "path": str(packet),
-                                    "line_offset": 1,
-                                    "n_lines": 1,
+                                    "byte_offset": 0,
+                                    "max_bytes": 46_000,
                                 },
                             },
                         }
                     ],
                 },
-                {"role": "tool", "tool_call_id": "read-1", "content": "1\tcandidate"},
+                {
+                    "role": "tool",
+                    "tool_call_id": "read-1",
+                    "content": "PACKET_CHUNK 0:10/10\ncandidate\n",
+                },
+                {"role": "assistant", "content": "NO_BLOCKING_FINDINGS"},
+            ]
+
+            text, failure = PARSER.kimi_text(args, events)
+
+            self.assertIsNone(failure)
+            self.assertEqual(text, "NO_BLOCKING_FINDINGS")
+
+    def test_kimi_rejects_a_packet_chunk_with_mismatched_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            packet = Path(temp_dir) / "packet.txt"
+            packet.write_text("candidate\n", encoding="utf-8")
+            args = argparse.Namespace(
+                client="kimi",
+                mode="review",
+                reviewer_family="moonshot",
+                provider="kimi",
+                model="configured-model",
+                packet=str(packet),
+            )
+            events = [
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "id": "read-1",
+                            "function": {
+                                "name": "mcp__code_review_packet__read_packet",
+                                "arguments": {"byte_offset": 0, "max_bytes": 46_000},
+                            },
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "read-1",
+                    "content": "PACKET_CHUNK 0:10/10\nCandidate\n",
+                },
+                {"role": "assistant", "content": "NO_BLOCKING_FINDINGS"},
+            ]
+
+            text, failure = PARSER.kimi_text(args, events)
+
+            self.assertIsNone(text)
+            self.assertEqual(failure["reason_code"], "invalid_model_output")
+
+    def test_kimi_rejects_noncontiguous_packet_ranges(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            packet = Path(temp_dir) / "packet.txt"
+            packet.write_text("abcdefghij", encoding="utf-8")
+            args = argparse.Namespace(
+                client="kimi",
+                mode="review",
+                reviewer_family="moonshot",
+                provider="kimi",
+                model="configured-model",
+                packet=str(packet),
+            )
+            events = []
+            for index, (start, end) in enumerate(((0, 4), (5, 10)), start=1):
+                call_id = f"read-{index}"
+                events.extend(
+                    [
+                        {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "type": "function",
+                                    "id": call_id,
+                                    "function": {
+                                        "name": "mcp__code_review_packet__read_packet",
+                                        "arguments": {
+                                            "byte_offset": start,
+                                            "max_bytes": end - start,
+                                        },
+                                    },
+                                }
+                            ],
+                        },
+                        {
+                            "role": "tool",
+                            "tool_call_id": call_id,
+                            "content": f"PACKET_CHUNK {start}:{end}/10\n"
+                            + packet.read_text(encoding="utf-8")[start:end],
+                        },
+                    ]
+                )
+            events.append({"role": "assistant", "content": "NO_BLOCKING_FINDINGS"})
+
+            text, failure = PARSER.kimi_text(args, events)
+
+            self.assertIsNone(text)
+            self.assertEqual(failure["reason_code"], "invalid_model_output")
+
+    def test_kimi_accepts_exact_end_confirmation_after_full_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            packet = Path(temp_dir) / "packet.txt"
+            packet.write_text("candidate\n", encoding="utf-8")
+            args = argparse.Namespace(
+                client="kimi",
+                mode="review",
+                reviewer_family="moonshot",
+                provider="kimi",
+                model="configured-model",
+                packet=str(packet),
+            )
+            events = [
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "id": "read-1",
+                            "function": {
+                                "name": "mcp__code_review_packet__read_packet",
+                                "arguments": {"byte_offset": 0, "max_bytes": 46_000},
+                            },
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "read-1",
+                    "content": "PACKET_CHUNK 0:10/10\ncandidate\n",
+                },
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "type": "function",
+                            "id": "read-eof",
+                            "function": {
+                                "name": "mcp__code_review_packet__read_packet",
+                                "arguments": {"byte_offset": 10, "max_bytes": 46_000},
+                            },
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "read-eof",
+                    "content": "PACKET_CHUNK 10:10/10\n",
+                },
                 {"role": "assistant", "content": "NO_BLOCKING_FINDINGS"},
             ]
 
@@ -138,7 +316,12 @@ class ReviewClientCompatibilityTest(unittest.TestCase):
                     {
                         "role": "assistant",
                         "tool_calls": [
-                            {"type": "function", "function": {"name": "Read"}}
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": "mcp__code_review_packet__read_packet"
+                                },
+                            }
                         ],
                     }
                 ],
@@ -234,12 +417,17 @@ class ReviewClientCompatibilityTest(unittest.TestCase):
         self.assertIsNone(failure)
         self.assertEqual(text, "NO_BLOCKING_FINDINGS")
 
-    def test_kimi_bounds_inline_argv_exposure(self) -> None:
+    def test_kimi_bounds_inline_argv_exposure_and_file_backs_large_packets(self) -> None:
         wrapper = (SCRIPT_DIR / "kimi_review.sh").read_text(encoding="utf-8")
 
-        self.assertIn('[ "$TIMEOUT" -le 120 ] || TIMEOUT=120', wrapper)
-        self.assertIn("visible in this process argv", wrapper)
+        self.assertIn('[ "$TIMEOUT" -le 600 ] || TIMEOUT=600', wrapper)
+        self.assertIn("visible in process argv", wrapper)
         self.assertIn("MAX_INLINE_PROMPT_BYTES=16000", wrapper)
+        self.assertIn('[ "$FORMAL_TIMEOUT" -le 120 ] || FORMAL_TIMEOUT=120', wrapper)
+        self.assertIn("PACKET_DELIVERY=mcp", wrapper)
+        self.assertNotIn("PACKET_DELIVERY=agent-file", wrapper)
+        self.assertIn('--agent-file "$AGENT_FILE"', wrapper)
+        self.assertIn("mcp__code_review_packet__read_packet", wrapper)
 
 
 if __name__ == "__main__":

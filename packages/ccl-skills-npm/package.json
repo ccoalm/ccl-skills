@@ -1,0 +1,35 @@
+{
+  "name": "@ccoalm/ccl-skills",
+	"version": "0.1.0",
+  "description": "Self-contained CCL Skills installer for Claude Code, Codex, and OpenCode",
+	"keywords": ["agent-skills", "claude-code", "codex", "opencode", "developer-tools"],
+  "type": "module",
+  "bin": { "ccl-skills": "dist/cli.js" },
+  "exports": { ".": "./dist/index.js", "./package.json": "./package.json" },
+  "files": ["dist", "dist/assets/marketplace/.agents/plugins/marketplace.json", "LICENSE", "README.md"],
+  "scripts": {
+    "clean": "rm -rf dist *.tgz",
+    "build": "tsc && chmod 755 dist/cli.js && node scripts/build-assets.mjs",
+    "test": "npm run build && node scripts/test-build-modes.mjs && node --test test/*.test.mjs",
+    "test:pack": "rm -rf artifacts && node scripts/pack-artifact.mjs artifacts && node --test test/pack.test.mjs",
+    "smoke:host": "bash scripts/host-smoke.sh",
+    "prepublishOnly": "node -e \"if(!process.env.CI)throw Error('publish is CI-only')\""
+  },
+  "engines": { "node": ">=20" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ccoalm/ccl-skills.git",
+    "directory": "packages/ccl-skills-npm"
+  },
+	"homepage": "https://github.com/ccoalm/ccl-skills#readme",
+	"bugs": {
+		"url": "https://github.com/ccoalm/ccl-skills/issues"
+	},
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "license": "Apache-2.0",
+  "os": ["darwin", "linux"],
+  "devDependencies": { "@types/node": "^22.0.0", "typescript": "^5.6.0" }
+}

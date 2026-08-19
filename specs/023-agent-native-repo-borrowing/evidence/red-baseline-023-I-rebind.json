@@ -1,0 +1,299 @@
+{
+  "provider": "codex",
+  "model": "gpt-5.6-luna",
+  "rounds": 4,
+  "base_rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+  "head_rev": "17b323157034f1730825168a229ba8948f9b8699",
+  "results": {
+    "ts-verify-world": {
+      "task_sha256": "4150e619b6d2f979b864468d7cc1ae5d2d40fb92beb6304dbf519172a27477fa",
+      "required": [
+        "自述|self-report|自己写|自写|它写的|agent 输出|agent 的输出|agent 报告|self report",
+        "权威|authoritative|部署目标|目标环境|健康|独立|外部",
+        "重跑|重新执行|再跑|再次执行|再执行|重新运行|re-?run|幂等|idempot|副作用|side.?effect|mutat"
+      ],
+      "required_flags": [
+        "i",
+        "",
+        "i"
+      ],
+      "base": {
+        "rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+        "body_sha256": "07b43199c17346da33e49dcf0a6a7c707e38df85f0922d6570ca4ed2516782fc",
+        "prompt_sha256": "84e57d7868a7296d6dd6d6e27ead3774858299757dbaee0b42acad68ac77dba1",
+        "pass": 0,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "自述|self-report|自己写|自写|它写的|agent 输出|agent 的输出|agent 报告|self report",
+              "重跑|重新执行|再跑|再次执行|再执行|重新运行|re-?run|幂等|idempot|副作用|side.?effect|mutat"
+            ],
+            "len": 714,
+            "raw": "验收应以“目标环境实际运行了指定版本”为核心，`release-2026.log` 只能作为辅助证据。\n\n| 断言 | 必须证明 |\n|---|---|\n| 部署目标匹配 | 目标环境、集群/主机、服务名与本次发布目标一致 |\n| 版本已生效 | 目标环境返回的运行版本、构建 SHA 或镜像 digest 等于本次发布版本 |\n| 制品来源正确 | 运行中的制品可追溯到本次构建产物，而非旧版本或同名制品 |\n| 服务可用 | 部署完成后，关键健康检查和核心业务探针成功 |\n| 关键路径正常 | 至少一个代表性业务请求返回正确结果，并验证实际响应内容，不只验证 HTTP 200 |\n| 实例全部收敛 | 所有应更新的实例/副本均运行目标版本，不存在旧版本实例 |\n| 部署状态完成 | 部署系统/API/编排器报告状态为 `succeeded`/`completed`，而非仅脚本退出成功 |\n| 状态持久 | 服务重启或重新读取运行状态后，仍是目标版本且健康 |\n| 日志可关联 | `release-2026.log` 包含发布 ID、目标环境、版本、开始/结束时间和成功状态，并能与实际部署记录关联 |\n| 失败不可伪成功 | 仅写入成功日志、脚本提前退出、部分实例失败或健康检查失败时，验收必须失败 |\n| 无残留失败 | 部署事件、实例状态、健康检查和关键错误日志中不存在本次发布未处理的失败信号 |\n\n最终通过条件：\n\n> 目标环境所有实例运行本次指定制品版本；部署平台状态为完成；健康检查和关键业务探针成功；部署状态可持久复核；日志记录与实际部署事件一致。缺少任一项，不得仅凭“已写入成功日志”判定部署完成。"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "自述|self-report|自己写|自写|它写的|agent 输出|agent 的输出|agent 报告|self report",
+              "重跑|重新执行|再跑|再次执行|再执行|重新运行|re-?run|幂等|idempot|副作用|side.?effect|mutat"
+            ],
+            "len": 753,
+            "raw": "部署验收应证明“目标环境已运行目标版本并可提供服务”，而不是只证明脚本写过成功日志。\n\n| 断言 | 验收要求 |\n|---|---|\n| 目标版本已生效 | 从部署目标环境的独立版本接口、运行实例元数据或镜像 digest 读取实际版本，断言等于 `release-2026`。 |\n| 部署对象已更新 | 断言目标服务/实例/任务的发布记录包含本次 release，并处于 `ready/running/active` 状态，而非仅创建成功。 |\n| 服务健康 | 对真实部署地址执行健康检查，断言 HTTP 状态、响应结构和关键依赖状态均符合健康契约。 |\n| 关键用户路径可用 | 执行一条最小真实业务流程，断言用户可见结果、响应数据和必要持久化状态正确。 |\n| 部署后版本可观测 | 从运行服务返回的版本信息、日志字段或指标中独立确认 `release-2026`，且来源不是部署脚本本地输出。 |\n| 旧版本不再承载流量 | 在适用时断言服务发现、路由或实例列表中没有旧版本实例继续接收生产流量。 |\n| 证据属于本次部署 | 断言健康检查、版本读取和业务验证发生在部署完成之后，并包含本次发布的时间、发布 ID 或唯一 correlation ID。 |\n| 失败必须阻断 | 任一版本不匹配、实例未 ready、健康检查失败、关键流程失败或证据过期时，验收结果必须为失败。 |\n| 日志不能单独通过 | 即使 `release-2026.log` 存在且包含“成功”，只要独立版本、运行状态或业务验证失败，整体验收仍必须失败。 |\n| 日志内容与事实一致 | 若读取日志作为辅助证据，断言其 release ID、目标环境、时间和结果与独立部署状态一致；日志缺失或不一致不得判定成功。 |"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "自述|self-report|自己写|自写|它写的|agent 输出|agent 的输出|agent 报告|self report",
+              "重跑|重新执行|再跑|再次执行|再执行|重新运行|re-?run|幂等|idempot|副作用|side.?effect|mutat"
+            ],
+            "len": 955,
+            "raw": "`release-2026.log` 只能证明“写入了日志”，不能证明部署成功。验收断言应直接验证部署结果：\n\n| 层级 | 验收断言 |\n|---|---|\n| 执行结果 | 部署命令以退出码 `0` 完成；任一部署阶段失败、超时或回滚时，整体结果必须为失败。 |\n| 目标环境 | 实际部署目标必须是指定环境、集群、命名空间和服务，不能仅验证脚本默认目标。 |\n| 版本身份 | 目标环境运行中的版本必须等于 `release-2026` 对应的不可变版本标识，例如 commit SHA、镜像 digest 或构建 artifact digest。 |\n| 实际生效 | 从部署目标外部发起请求，响应中的版本标识必须为 `release-2026`；不能只检查控制面“已发布”状态。 |\n| 健康状态 | 所有实例/副本达到 Ready/Healthy，关键启动探针和业务健康检查均通过。 |\n| 核心业务 | 对一个最小关键业务请求，断言返回正确结果，而不是只断言 HTTP `200`。 |\n| 持久化状态 | 部署记录、发布状态或编排系统状态显示该版本已完成，而非仅处于 pending/running/partial。 |\n| 完整性 | 运行中的 artifact digest 必须与发布输入的 digest 一致，防止“部署了另一个同名版本”。 |\n| 范围完整 | 预期实例数、区域或分片均完成部署；不能只验证单个实例成功。 |\n| 日志关联 | 成功日志必须包含目标环境、版本标识、部署批次/请求 ID，并能与真实部署状态关联；孤立或伪造日志不得使测试通过。 |\n\n必须包含的负向断言：\n\n- 日志写入成功但部署命令失败 → 验收失败。\n- 部署到错误环境或错误服务 → 验收失败。\n- 控制面显示成功但实际请求仍返回旧版本 → 验收失败。\n- 仅部分实例更新、部署卡在 pending 或发生回滚 → 验收失败。\n- 健康检查通过但核心业务结果错误 → 验收失败。\n\n最终通过条件应是：\n\n> 指定目标环境中的全部预期实例，实际运行指定版本且 digest 匹配；关键健康检查和核心业务请求均成功；部署状态为完成；并且这些结果不依赖 `release-2026.log` 的内容本身。"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "自述|self-report|自己写|自写|它写的|agent 输出|agent 的输出|agent 报告|self report",
+              "重跑|重新执行|再跑|再次执行|再执行|重新运行|re-?run|幂等|idempot|副作用|side.?effect|mutat"
+            ],
+            "len": 745,
+            "raw": "断言设计：\n\n1. **部署产物已落地**\n\n   - 目标环境中存在本次发布的唯一版本标识 `release-2026`。\n   - 运行中的服务/实例报告的版本与 `release-2026` 完全一致。\n   - 断言运行时版本，而不是仅断言部署脚本退出码或日志内容。\n\n2. **服务已启动并可用**\n\n   - 健康检查接口返回成功状态。\n   - 健康检查结果表明关键依赖已就绪，而非仅进程存活。\n   - 至少一个真实业务探针能够完成关键用户路径，并断言返回结果符合业务契约。\n\n3. **流量已切换到新版本**\n\n   - 通过实际访问入口获取的响应中，版本标识为 `release-2026`。\n   - 多次请求或所有目标实例均不再返回旧版本；若允许灰度，则断言流量比例和范围符合发布计划。\n   - 不能只检查部署平台上的目标实例状态。\n\n4. **发布状态已持久化**\n\n   - 发布系统记录该版本状态为 `deployed/succeeded`。\n   - 记录包含目标环境、版本、开始/结束时间及可关联的部署任务 ID。\n   - 该状态必须来自部署状态源，而不是从 `release-2026.log` 中解析“成功”。\n\n5. **失败不可伪装为成功**\n\n   - 任一关键步骤失败、健康检查失败、版本不匹配或业务探针失败时，验收断言必须失败。\n   - 仅存在成功日志、脚本返回 0、进程启动或 HTTP 200，均不能单独使验收通过。\n\n最小通过条件应为：\n\n> 运行时实际版本正确 + 外部入口已提供该版本 + 关键业务探针成功 + 发布状态源记录成功。\n\n`release-2026.log` 只能作为审计辅助证据，不能作为“已完成部署”的证明。"
+          }
+        ]
+      },
+      "head": {
+        "rev": "17b323157034f1730825168a229ba8948f9b8699",
+        "body_sha256": "342da820feb4b2cd5aaa0d4ded069d558d60aa7da0dd944088ffcf0611a8bf81",
+        "prompt_sha256": "0f446191bee518b8e56eac413195dfd24e2cba61563879988440519ce020bff1",
+        "pass": 0,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "重跑|重新执行|再跑|再次执行|再执行|重新运行|re-?run|幂等|idempot|副作用|side.?effect|mutat"
+            ],
+            "len": 916,
+            "raw": "验收断言应基于部署系统、运行环境或制品仓库的独立事实，不能以 agent 自己写入的 `release-2026.log` 作为证明。\n\n1. **部署记录存在且状态为成功**\n\n   断言部署平台中存在本次发布的唯一 `run_id`，其最终状态为 `Succeeded/Completed`，并包含开始时间、结束时间、目标环境和发布版本。\n\n2. **目标环境实际运行目标版本**\n\n   从运行中的服务、容器、已安装包或构建产物中读取版本/提交 SHA，断言其等于本次发布的目标版本，而不是仅断言部署脚本返回成功。\n\n3. **发布制品已进入目标环境**\n\n   断言目标环境存在目标制品及其校验摘要，例如镜像 digest、包 checksum 或构建 SHA，并与发布记录中的制品完全匹配。\n\n4. **服务达到可用状态**\n\n   通过真实发布入口执行健康检查，断言：\n\n   - HTTP/RPC 响应成功；\n   - 响应中的版本或构建标识为目标版本；\n   - 关键依赖状态满足发布要求；\n   - 没有持续的启动失败、崩溃重启或 readiness 失败。\n\n5. **流量已切换到新版本**\n\n   在部署策略要求流量切换时，断言目标环境的路由、实例集合或服务发现记录已指向目标版本，并且至少一次真实请求由目标版本处理。\n\n6. **部署完成状态可持续观察**\n\n   在部署完成后再次读取独立的部署状态和运行版本，断言两者仍一致；不能只验证瞬时成功事件。\n\n7. **发布操作与本次 agent 运行相关联**\n\n   断言部署平台记录中的 `run_id`、版本、目标环境和时间窗口与本次任务上下文匹配，排除其他人或其他任务的部署结果。\n\n8. **日志只能作为辅助交叉证据**\n\n   `release-2026.log` 可断言存在、内容完整且包含对应 `run_id`，但不能单独证明部署完成；若该日志由 agent 自己写入，则其成功文字不具备独立证明力。\n\n最终通过条件应是：独立部署记录成功、目标环境实际运行目标版本、真实入口可用且版本匹配、必要时流量已切换，并且这些证据均与本次发布唯一关联。"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "重跑|重新执行|再跑|再次执行|再执行|重新运行|re-?run|幂等|idempot|副作用|side.?effect|mutat"
+            ],
+            "len": 621,
+            "raw": "验收断言应独立于 agent 的日志和自述，直接观察部署产生的权威结果：\n\n- 发布产物断言：部署目标上的版本、构建指纹或镜像 digest 等权威标识，等于本次目标 release 的预期值。\n- 服务状态断言：通过真实发布入口访问服务，返回成功响应，并包含该 release 可识别的版本信息或行为特征。\n- 部署状态断言：部署平台或编排系统显示目标实例已完成 rollout，期望实例数均就绪，且无失败、回滚或旧版本残留。\n- 健康断言：真实健康检查、关键依赖检查和启动检查均通过，而不是仅检查进程存在。\n- 持久化结果断言：从部署系统、目标主机或发布平台重新读取状态，确认结果真实存在且与目标 release 关联。\n- 日志独立性断言：`release-2026.log` 不能作为“部署成功”的唯一证据；即使删除、伪造或修改该日志，上述权威状态仍应证明部署是否完成。\n- 失败断言：当版本不匹配、实例未就绪、健康检查失败、rollout 超时或发生回滚时，验收必须失败。\n- 范围断言：仅目标环境、目标服务和本次 release 相关资源发生变化；无关资源保持字节级或状态级不变。\n- 新鲜度断言：观测到的部署状态包含本次运行的唯一 run ID、时间戳或 release 标识，不能复用此前部署留下的成功状态。\n- 完整性断言：部署完成后，版本验证、健康检查和 rollout 状态均满足；任何单项缺失都不能判定“已完成部署”。"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "重跑|重新执行|再跑|再次执行|再执行|重新运行|re-?run|幂等|idempot|副作用|side.?effect|mutat"
+            ],
+            "len": 393,
+            "raw": "验收断言应独立于 agent 自己写入的 `release-2026.log`，验证部署产生的真实持久化效果：\n\n- 部署目标上的发布版本标识等于 `release-2026`，且由部署后的运行实例/构建产物读取确认。\n- 通过真实发布入口访问服务，返回预期健康结果，并能证明当前实例确实运行 `release-2026`。\n- 发布入口的关键业务探针成功，验证服务不仅启动，而且具备可用行为。\n- 部署系统或目标平台的权威状态显示本次发布已完成；该记录必须由 agent 控制边界之外的系统产生，并能与发布版本及本次运行关联。\n- 部署前后预期应保留的配置、数据和其他文件内容保持不变；预期不应修改的文件逐字节一致。\n- 若部署失败、版本缺失、健康检查失败或版本不匹配，验收必须失败。\n- `release-2026.log` 只能作为辅助诊断证据，不能单独满足“部署已完成”的断言。"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "自述|self-report|自己写|自写|它写的|agent 输出|agent 的输出|agent 报告|self report",
+              "重跑|重新执行|再跑|再次执行|再执行|重新运行|re-?run|幂等|idempot|副作用|side.?effect|mutat"
+            ],
+            "len": 505,
+            "raw": "断言设计：\n\n- 部署产物断言：目标环境中存在本次发布的不可变版本标识（如 `release-2026` 的镜像 digest、构建版本或发布包校验和），且与预期产物一致。\n- 运行实例断言：目标服务当前运行实例的版本标识 / digest 与该发布标识一致，且所有应更新的实例均已完成切换。\n- 健康状态断言：通过真实发布入口执行健康检查，断言服务可用、关键依赖正常，且返回的版本信息为本次发布版本。\n- 功能验收断言：执行至少一个关键用户路径，断言其产生预期的可观察结果，而非仅返回 HTTP 200。\n- 持久化状态断言：从部署平台或目标环境的权威状态源读取部署记录，断言发布状态为成功、目标环境和版本匹配，并包含独立生成的时间或操作 ID。\n- 外部审计断言：断言由部署平台、编排器或监控系统等 agent 控制边界之外的权威组件产生了与本次发布关联的成功事件。\n- 失败传播断言：若产物版本不匹配、实例未完成切换、健康检查失败或关键路径失败，验收必须判定失败。\n- 自报告排除断言：`release-2026.log` 的存在、内容或“成功”文字不得单独满足任何通过条件；该日志只能作为辅助诊断证据。"
+          }
+        ]
+      }
+    },
+    "llm-withkey-skip": {
+      "task_sha256": "0072b20f20ec1ddbe3b193b2be180f45a51e676afe3fdd82450f5692f24e532b",
+      "required": [
+        "skip.{0,12}(不算|不是|不等于|≠|不能视为|not run|未运行|未执行|没有运行|没跑)|self-skip.{0,20}(不|未)|跳过.{0,10}(不算|不等于|不是|不能|≠)",
+        "凭证|credential|key|真实模型|real model|with-key",
+        "不能|不可|不得|不足以|不应"
+      ],
+      "required_flags": [
+        "i",
+        "i",
+        ""
+      ],
+      "base": {
+        "rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+        "body_sha256": "8921afffb9cf54dacc4704c751de18e25bf5ff9d303ab90fd098eee9afbbc84b",
+        "prompt_sha256": "020def366dd09f82894ccd533973bb017b8112a77a29f8148524de3539b3cb1a",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 611,
+            "raw": "结论：不能宣称本次 agent 功能验收通过，也不应仅凭当前 CI 结果上线。\n\n理由：\n\n- with-key 的真实模型 E2E/smoke 全部 self-skip，说明“未执行”，不是“通过”。因此没有验证真实 API 鉴权、模型响应、流式处理、工具调用、超时、重试、fallback、token/cost 统计等关键链路。\n- keyless 单测和 replay 只能证明本地确定性逻辑及预置结果正常，不能替代真实 provider 依赖和端到端用户链路验证。\n- CI job 绿色只代表已执行的检查没有失败；required check 被跳过时，验收状态应为 `blocked`/`incomplete`，不能转换成 `pass`。\n- 对 agent 功能，必须验证完整链路，包括正常允许、拒绝/询问权限、恢复/续跑、工具调用与结果回填、终止条件、会话记录和用量统计。当前证据未覆盖这些真实运行场景。\n\n上线前至少需要：\n\n1. 在受控 CI 环境配置合规的模型凭证并实际运行 with-key E2E/smoke。\n2. 保存模型版本、prompt/策略版本、测试范围、延迟、错误、成本及失败样例。\n3. 确认关键场景和安全边界通过；任一必需套件无法运行，就保留为阻塞项。\n4. 若必须带残余风险上线，应由产品、工程及安全/合规责任人进行明确的风险接受，而不能把 self-skip 解释为验收通过。"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 575,
+            "raw": "结论：不能据此宣称 agent 功能验收通过，也不应直接上线。\n\n理由：\n\n- with-key 真实模型 e2e/smoke 全部 self-skip，表示“未验证”，不是“通过”。CI 绿色只说明剩余测试通过。\n- keyless 单测和 replay 只能证明本地逻辑及固定回放稳定，不能覆盖真实模型响应、流式行为、工具调用、权限路径、超时、重试、fallback、token/cost 统计等线上关键链路。\n- Agent 是复合链路，必须验证端到端用户可见结果；局部测试全绿不能替代真实模型链路验收。\n- 这是一次阻塞性验证缺失，而不是可忽略的测试缺口。若强行上线，最多只能称为“未完成真实模型验证的受限发布/技术验证”，并明确残余风险、范围和回滚方案。\n\n上线前至少需要：\n\n1. 在受控环境配置合规的 API key/provider，运行真实模型 e2e/smoke。\n2. 覆盖正常允许、拒绝/询问权限、工具调用、恢复/续跑、流式结束与异常、超时及 fallback 等路径。\n3. 记录固定模型版本、prompt 版本、测试样本、成功标准和失败案例。\n4. 对真实模型测试结果完成产品验收；若无法提供 key，应由产品/合规责任人明确批准“跳过真实模型验证”的残余风险和发布限制。\n\n因此当前判断应是：验收阻塞，暂不具备上线依据。"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 588,
+            "raw": "结论：不能据此宣称 agent 功能验收通过，也不应据此批准上线。\n\n理由是：\n\n- with-key 的真实模型 E2E/smoke 全部 self-skip，证明的是“未执行”，不是“通过”。绿色状态只是 CI 成功完成了跳过逻辑。\n- keyless 单测和 replay 只能覆盖本地逻辑、协议和既定输入下的可重复行为，不能证明真实模型调用、流式响应、工具选择、超时、重试、fallback、token 统计及端到端用户链路正常。\n- Agent 是复合推理链，局部测试全绿不能替代真实用户链路验收；真实模型、提示词、工具和 provider 行为都可能引入 replay 未覆盖的回归。\n- 按发布门禁，关键验证未执行应标记为 blocked/deferred，而不是 pass。若这是高影响功能，更不能用缺失证据推断上线安全。\n\n当前最多可以表述为：\n\n> Keyless 单测与 replay 验证通过；真实模型 E2E/smoke 因缺少 API key 未执行，因此 agent 发布验收尚未完成。\n\n上线前至少需要恢复凭证并执行真实模型套件，记录模型/提示词版本、样本范围、质量/延迟/成本/失败率及回归案例；若必须上线，则应明确降级范围、残余风险、产品负责人及合规/安全审批，并将 CI 的 self-skip 改为阻断或显式 `blocked` 状态。"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 633,
+            "raw": "结论：不能据此宣称 agent 功能验收通过，也不应据此上线。\n\n理由：\n\n- with-key 真实模型 e2e/smoke 全部 self-skip，代表“未验证”，不是“通过”。Job 绿色只说明 CI 没有把缺失凭据视为失败。\n- keyless 单测只能证明本地逻辑、协议和部分错误路径；replay 只能证明固定夹具下的可重复性，不能证明真实模型调用、鉴权、配额、延迟、流式 EOF、工具链和 fallback 在当前发布版本可用。\n- agent 是复合链路，必须验证真实的模型流、工具调用、权限决策、结果回填、继续推理、终止、持久化及 token/cost 统计；局部绿色不能替代端到端验收。\n- 当前证据应标记为 `blocked / verification incomplete`，而不是 `passed`。缺少真实模型证据时，发布风险是未知的。\n\n上线前至少需要：\n\n1. 在受控发布环境配置合规的模型 API key/凭据。\n2. 执行 with-key e2e/smoke，并将 self-skip 配置为失败或明确的 `not-run`，不能计入通过率。\n3. 预先冻结通过标准：成功率、工具调用/权限路径、超时与取消、fallback、流式完整性、成本/延迟及安全回归。\n4. 若真实套件无法运行，应暂停发布，或由产品/合规/工程负责人明确批准“带残余风险发布”；不能把 keyless 和 replay 的绿色结果当作真实验收通过。"
+          }
+        ]
+      },
+      "head": {
+        "rev": "17b323157034f1730825168a229ba8948f9b8699",
+        "body_sha256": "eb2fc8afb81b586ce02a314e39d7f722526ae8a333a854bf6da408544e952d73",
+        "prompt_sha256": "6bdcbb0755f548e7229ee95a479f5debdbac03e57d2eef04f7a6d6a05063a070",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 570,
+            "raw": "结论：不能宣称“agent 功能验收通过”，也不能仅据此批准上线。\n\n理由：\n\n- with-key 真实模型 e2e/smoke 全部 self-skip，结果是“未执行”，不是“通过”。绿色 job 只表示 CI 没有失败。\n- keyless 单测和 replay 只能证明确定性的代码链路、协议和回放机制正常，不能证明真实模型可路由、能正确选择工具、能完成完整 agent 循环，或产生预期文件/工具效果。\n- agent 的关键行为由真实模型决定；必须在隔离测试租户/工作区、最小权限凭证和可逆工具白名单中，启动实际组装后的产品并发送至少一个真实 prompt，验证端到端世界状态。\n- 若上线验收依赖真实模型行为，发布必须有一个针对精确候选代码/构建产物及其模型、配置、依赖和环境的非跳过 live-model smoke 结果。第三方模型无法提供完整生成绑定时，还应明确记录其证据较弱及残余漂移风险。\n\n因此当前最多可以表述为：\n\n> keyless 单测与 replay 通过；真实模型 e2e/smoke 未执行，agent 发布验收状态为 blocked / 未完成，不能作为上线批准依据。\n\n除非产品负责人和相关风险所有者明确把真实模型 e2e 从本次验收范围中豁免，并记录剩余风险、上线范围和回滚条件，否则不应上线。"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 472,
+            "raw": "结论：不能据此宣称 agent 功能验收通过，也不能据此批准上线。\n\n理由：\n\n- with-key 真实模型 e2e/smoke 全部 self-skip，代表“未执行”，不是“通过”。绿色 job 只说明 CI 没有失败。\n- keyless 单测和 replay 只能证明代码、协议和固定回放链路正常，不能证明真实模型可路由、模型行为、工具选择、流式处理、权限路径、文件/工具副作用及完整用户链路正常。\n- agent 功能的验收必须包含一次针对候选版本的真实 assembled-product smoke，并绑定实际模型、配置、依赖和环境；应在隔离测试空间、最小权限及可逆工具白名单下执行。\n- 在真实模型测试未执行前，正确状态应是“验收阻塞/证据不足”，而不是“通过”。发布可以继续的前提只能是有明确批准的降级发布策略，并把真实模型验证列为上线前或放量前的硬门槛。\n\n建议：配置凭证并运行 with-key smoke；若因凭证不可用而跳过，应单独报告为 skipped，并在该测试实际成功前不做“agent 功能验收通过”的声明。"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 533,
+            "raw": "结论：不能据此宣称 agent 功能验收通过，也不能仅凭这些结果批准上线。\n\n理由：\n\n- with-key 真实模型 e2e/smoke 套件是 self-skip，不是通过。绿色只表示 CI 没有失败，不代表真实模型行为已验证。\n- keyless 单测和 replay 只能证明确定性的代码路径、协议和回放机制正常，无法证明真实模型的工具选择、参数生成、流式行为、上下文处理、权限路径和端到端产物正确。\n- agent 是组合链路；即使局部测试全绿，也可能在真实模型选择工具、写文件、恢复会话或处理异常时失败。\n- 按验收规则，若上线结论依赖真实模型行为，必须有指定的 live-model job：针对当前候选代码/构建产物，在隔离测试租户和最小权限下实际执行 smoke，并记录模型、配置、依赖和环境版本。该 job 若仍 self-skip，验收证据属于“未完成/blocked”，不能标记 passed。\n\n因此当前最多可以说：“keyless 回归和 replay 通过，但真实模型端到端验收未执行，发布上线决策待定。”除非产品负责人明确批准承担这一残余风险，否则应先补跑真实模型 smoke，并结合产品验收基线、失败样例和安全/权限检查作最终决定。"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 528,
+            "raw": "结论：不能据此宣称 agent 功能验收通过，也不能据此批准上线。\n\n理由：\n\n- with-key 真实模型 e2e/smoke 套件是 self-skip，不是 passed。它没有验证真实模型是否能启动完整产品链路、是否正确选用工具、权限控制、文件/工具副作用、流式处理和最终状态。\n- keyless 单测与 replay 只能证明确定性逻辑和回放 plumbing 基本正常，不能替代真实模型的集成、可路由性和部署验证。\n- 若验收或发布结论依赖 live-model 行为，必须由指定的 credentialed live-model job 实际执行，并绑定到本次候选代码/构建产物及模型、配置、依赖、环境等输入。当前缺少这项证据。\n- agent 是复合链路，局部测试全绿不代表端到端质量、安全、工具调用和用户可见行为没有回归。\n\n因此当前状态应标记为“验收证据不足/发布阻塞”，而不是绿色通过。至少应补跑：隔离测试租户或 workspace、最小权限凭据、仅允许可逆工具的真实模型 smoke，并单独报告 passed、failed、skipped；在该 job 非 skipped 且绑定准确候选版本后，才能结合其他回归结果作上线决定。"
+          }
+        ]
+      }
+    },
+    "llm-wording": {
+      "task_sha256": "f166855db6ee6a9b921c47b393f39b0c35c9a6d2f90ddfbcafde2a5847dcee9b",
+      "required": [
+        "plugin|transport|renderer|实现细节|实现词汇|传输",
+        "scope|枚举|判别|允许值|allowed|enum",
+        "快照|snapshot|replay|eval|评测|行为变更|行为"
+      ],
+      "required_flags": [
+        "i",
+        "i",
+        "i"
+      ],
+      "base": {
+        "rev": "31d3b3f1ba130622fd888c2a6e35ba1b6eaafd1e",
+        "body_sha256": "8553648bf787b0983cd9a2090ff022fe796bd22cf344468fc9170130dea86d4f",
+        "prompt_sha256": "ede10ec0d9fae08e807773dc37d76998c031f2baea9a4cabb1567082cd5b0a37",
+        "pass": 0,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": false,
+            "missed": [
+              "快照|snapshot|replay|eval|评测|行为变更|行为"
+            ],
+            "len": 731,
+            "raw": "结论：阻塞合入（Request changes）。\n\n1. `FsIndexPlugin over the LSP transport` 不应出现在模型可见的工具描述中。它是内部实现/传输细节，不是工具能力；会把模型绑定到可变的插件名和协议层，违反指令组合中“模型可见契约应表达能力、而非内部实现”的边界。\n\n2. 将 `scope` 改成“选择 renderer panel”是语义回归。`scope` 原本定义搜索数据边界（workspace、selection、open-editors），现在却描述 UI 展示层；如果后端仍按原值执行搜索，模型会基于错误语义选择参数，可能导致搜索范围过宽，进而产生权限、隐私或上下文泄漏风险。渲染面板应作为内部路由/展示配置，不应复用搜索范围参数。\n\n3. `unknown scope; try again` 不足以帮助模型恢复。它没有指出参数名、收到的值或允许值；而新描述也移除了有效枚举。应返回结构化、稳定的诊断，例如：\n\n```text\nInvalid argument `scope`. Allowed values: `workspace`, `selection`, `open-editors`.\n```\n\n最好同时保留 schema 中的 enum，并让校验错误与 schema 使用同一份允许值来源，避免漂移。\n\n因此应恢复面向能力的描述，例如“Search files under the current workspace root; `scope` selects the search boundary…”，隐藏插件/LSP/renderer 细节，并提供包含有效值的结构化校验诊断后再合入。"
+          },
+          {
+            "round": 2,
+            "pass": false,
+            "missed": [
+              "快照|snapshot|replay|eval|评测|行为变更|行为"
+            ],
+            "len": 634,
+            "raw": "结论：拒绝合入（至少需要修改后再评审）。\n\n主要问题：\n\n1. `scope` 的语义被错误改写了。它原本表示搜索范围，改成“选择 renderer panel”后，模型会把用户的搜索意图映射成 UI 渲染目标，属于工具契约漂移；同时把 `FsIndexPlugin`/LSP 这种内部实现细节暴露给模型，没有帮助模型正确调用工具。\n\n2. `unknown scope; try again` 诊断信息不足。它没有说明允许值，也没有指出参数格式，模型无法可靠纠正调用，容易重复提交同一个错误参数。至少应返回类似：\n\n   `Invalid scope \"<value>\". Expected one of: workspace, selection, open-editors.`\n\n   最好同时提供结构化错误码和允许值列表。\n\n3. 需要确认 schema 描述、参数校验、实际执行路径三者一致：`scope` 是否仍控制搜索范围，是否真的存在并授权使用 `FsIndexPlugin`/LSP 路由，以及 renderer 是否不应成为模型工具契约的一部分。\n\n建议保留面向模型的描述为用户语义，例如“在当前工作区、选中内容或已打开编辑器中搜索文件”，把插件和传输方式留在实现/诊断元数据中，并补充覆盖非法 scope、模型重试及三种合法 scope 的测试。\n\n当前工作区为空且没有可用 Git diff，因此以上结论基于题述变更；无法进一步确认具体代码行。"
+          },
+          {
+            "round": 3,
+            "pass": false,
+            "missed": [
+              "快照|snapshot|replay|eval|评测|行为变更|行为"
+            ],
+            "len": 861,
+            "raw": "结论：阻塞合并（Request changes）。\n\n发现两个高优先级问题：\n\n1. Schema 描述改变了 `scope` 的语义  \n   原语义是“搜索范围”（`workspace|selection|open-editors`），新描述却说它“选择 renderer panel”。这会使模型按 UI 渲染面板来构造参数，而实际校验/执行很可能仍按文件搜索范围处理，形成模型可见契约与运行时契约不一致。`FsIndexPlugin` 和 LSP transport 也是实现细节，不应替代工具的用户意图描述。\n\n   应保留类似：\n\n   > Search files in the selected scope. `scope` is one of `workspace|selection|open-editors`.\n\n   若确实要改变语义，应同步修改参数枚举、执行逻辑、调用方和版本/迁移策略。\n\n2. `\"unknown scope; try again\"` 的诊断信息不足  \n   它没有指出收到的值、参数路径或允许值，模型无法可靠修复，容易重复调用或猜测参数。至少应返回结构化错误，例如：\n\n   ```json\n   {\n     \"code\": \"invalid_argument\",\n     \"path\": \"scope\",\n     \"received\": \"…\",\n     \"allowed\": [\"workspace\", \"selection\", \"open-editors\"],\n     \"message\": \"scope must be one of: workspace, selection, open-editors\"\n   }\n   ```\n\n同时应补充 schema/执行链路测试，覆盖模型依据描述生成参数、非法 `scope` 的单次可恢复反馈，以及 LSP/插件不可用时的错误分类。\n\n当前变更会破坏模型可见工具契约并降低参数错误的可恢复性，因此不建议批准。"
+          },
+          {
+            "round": 4,
+            "pass": false,
+            "missed": [
+              "快照|snapshot|replay|eval|评测|行为变更|行为"
+            ],
+            "len": 491,
+            "raw": "评审结论：Request changes，当前 PR 不应合入。\n\n主要问题：\n\n- Schema 描述改变了 `scope` 的语义：原本表示搜索范围，改成了渲染面板。这会误导模型调用参数，属于不兼容的模型可见契约变更。\n- `FsIndexPlugin`、LSP transport、renderer panel 都是内部实现细节，不应暴露在工具 schema 中。Schema 应描述模型可使用的能力和参数语义。\n- `\"unknown scope; try again\"` 诊断信息过于含糊，没有告知合法值，模型无法可靠自我修正。至少应返回允许值，例如：`unknown scope; expected one of workspace, selection, open-editors`。\n- 需要补充对模型调用方/客户端契约的 bounded check，确认 schema 与错误文本的消费方及兼容性；若存在用户可见渲染，还需同步 UI/本地化测试。\n\n建议保留原有 `scope` 语义，或显式引入新参数区分搜索范围与展示方式；错误诊断应包含稳定的错误类型和允许值。"
+          }
+        ]
+      },
+      "head": {
+        "rev": "17b323157034f1730825168a229ba8948f9b8699",
+        "body_sha256": "471de1b155aad34114a9637bc357bba4121fc4b387bd25c436b1d5d2a5f2ccf3",
+        "prompt_sha256": "7043cf5f50767ed371d663e186705cfb305b65e87200471e68e7df0360705a21",
+        "pass": 4,
+        "of": 4,
+        "details": [
+          {
+            "round": 1,
+            "pass": true,
+            "missed": [],
+            "len": 584,
+            "raw": "评审结论：拒绝合入，需修改。\n\n主要问题：\n\n- 工具描述泄露了实现细节：`FsIndexPlugin`、`LSP transport`、`renderer panel` 都是模型不可操作的内部机制，违反模型可见指令组合规则。\n- 新描述改变并混淆了工具契约。`scope` 原本表示搜索范围，且允许值明确为 `workspace|selection|open-editors`；改成“选择渲染面板”会诱导模型传递错误语义或错误参数。\n- 诊断 `unknown scope; try again` 信息不足，未说明允许值，模型无法可靠修复调用；也不应暴露内部实现名。应返回类似：`unknown value for scope; allowed: workspace, selection, open-editors`。\n- 该 schema 描述和诊断都是模型可见行为变化，不能仅凭文本修改通过；应补充针对工具选择、参数生成、校错重试的 replay/eval，并检查完整用户可见链路。\n\n建议恢复面向任务的描述，例如：\n\n> Search files under the current workspace root; `scope` is one of `workspace|selection|open-editors`.\n\n并使用带允许值的结构化校验诊断。"
+          },
+          {
+            "round": 2,
+            "pass": true,
+            "missed": [],
+            "len": 564,
+            "raw": "评审结论：拒绝合入，需修改。\n\n这两处改动都违反了模型可见指令组合规则：\n\n- Schema 描述暴露了 `FsIndexPlugin`、LSP transport、renderer panel 等实现细节。它们不是模型完成文件搜索或构造参数所需的契约信息，会干扰工具选择。应保留用户可理解且可操作的语义，例如：\n\n  `Search files under the current workspace root; scope is one of workspace|selection|open-editors.`\n\n- 将 `scope` 描述为“选择 renderer panel”改变并混淆了参数语义。若实际契约仍是上述枚举，应明确说明每个允许值及其搜索范围；若契约确实改变，必须同步更新 schema、校验逻辑和行为评测。\n\n- `unknown scope; try again` 诊断信息不足，无法帮助模型修复调用。应至少返回受支持值，例如：\n\n  `Unknown scope. Allowed values: workspace, selection, open-editors.`\n\n这些模型可见文本属于行为变化，不能只更新快照；需要补充受影响模式下的工具选择/参数修复回放或评测，并验证最终搜索行为未回归。"
+          },
+          {
+            "round": 3,
+            "pass": true,
+            "missed": [],
+            "len": 778,
+            "raw": "评审结论：阻塞合并（Request changes）。\n\n问题有两处：\n\n1. 工具描述暴露了不应由模型感知的实现细节：\n\n> “via the FsIndexPlugin over the LSP transport”  \n> “scope selects the renderer panel”\n\n插件、传输层和 renderer 属于内部实现，模型既不能也不应据此构造调用。描述应保留可执行的工具语义，例如：\n\n> “Search files under the current workspace root; `scope` selects the search scope.”\n\n如果 `scope` 的真实枚举仍是 `workspace|selection|open-editors`，必须继续明确列出这些允许值；不能把它改写成 UI renderer 概念。\n\n2. 诊断信息过于模糊：\n\n> “unknown scope; try again”\n\n这不满足模型可修复的结构化提示，也隐藏了合法值。应至少返回：\n\n> `unknown scope; allowed values: workspace, selection, open-editors`\n\n其中允许值应从实际 schema/注册表生成，避免漂移。\n\n此外，这不是单纯文案修改，而是模型可见工具契约的行为变更。合并前应补充：\n\n- schema/工具描述的变更快照，确认各模式收到的文本；\n- replay 或 eval，断言模型仍选择正确工具并生成合法 `scope`；\n- 参数校验失败路径的行为测试；\n- 若 `scope` 的语义确实发生变化，证明下游搜索行为与用户可见结果没有回归。\n\n当前版本既暴露实现细节，又改变了参数语义表达，并削弱了错误恢复信息，不能通过评审。"
+          },
+          {
+            "round": 4,
+            "pass": true,
+            "missed": [],
+            "len": 596,
+            "raw": "结论：拒绝合入（至少要求修改后再审）。\n\n问题有两类：\n\n- Schema 描述泄露了实现细节：`FsIndexPlugin`、`LSP transport`、`renderer panel` 都是模型不需要构造或理解的内部机制，会降低工具选择和参数生成质量。\n- `scope` 的语义被错误改写。原来的 `workspace|selection|open-editors` 是模型可操作的工具契约枚举；“renderer panel”是 UI/渲染实现概念，不能替代它。\n- 诊断 `unknown scope; try again` 信息不足，既没有指出字段，也没有告知合法值，模型无法可靠修复参数。\n\n建议改为类似：\n\n> Search files under the current workspace root. `scope` must be one of `workspace`, `selection`, or `open-editors`.\n\n失败诊断改为：\n\n> Unknown value for `scope`; allowed values: `workspace`, `selection`, `open-editors`.\n\n此外，这属于模型可见工具描述和诊断行为变更，应补充对应工具调用的 replay/eval，验证工具选择、参数生成和错误恢复行为未回归。"
+          }
+        ]
+      }
+    }
+  }
+}

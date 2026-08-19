@@ -25,6 +25,20 @@ find "$TEST_HOME/.config/opencode/.ccl-skills-backup/skills" \
   -path '*/claude-code-review/SKILL.md' -type f | grep -q .
 grep -q '保留未识别的同名目录' "$TEST_HOME/install.out"
 
+runtime="$TEST_HOME/.config/opencode/ccl-skills/runtime"
+expected_hook_count=1
+cmp "$REPO_ROOT/hooks/hooks.json" "$runtime/hooks/hooks.json"
+for src in "$REPO_ROOT"/hooks/*.sh; do
+  case "$(basename "$src")" in test_*) continue ;; esac
+  cmp "$src" "$runtime/hooks/$(basename "$src")"
+  expected_hook_count=$((expected_hook_count + 1))
+done
+test "$(find "$runtime/hooks" -maxdepth 1 -type f | wc -l | tr -d ' ')" = "$expected_hook_count"
+test "$(find "$runtime/agent-context" -maxdepth 1 -type f | wc -l | tr -d ' ')" = 2
+cmp "$REPO_ROOT/agent-context/session-start.md" "$runtime/agent-context/session-start.md"
+cmp "$REPO_ROOT/agent-context/subagent-start.md" "$runtime/agent-context/subagent-start.md"
+cmp "$REPO_ROOT/scripts/owner-dispatch/owner-dispatch.sh" "$runtime/scripts/owner-dispatch/owner-dispatch.sh"
+
 no_agent_legacy="$NO_AGENT_HOME/.agents/skills/claude-code-review"
 mkdir -p "$no_agent_legacy/scripts"
 printf '%s\n' '---' 'name: claude-code-review' '---' >"$no_agent_legacy/SKILL.md"

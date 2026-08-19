@@ -1,0 +1,130 @@
+{
+  "source_sha256": "c048937241b193284b44678224885fd7c057d9c2f9723a30370a915b18e6d89c",
+  "grader_sha256": "f0971b4a39bbcbeb04df7d3f9879050a6b05b24af5551250f4fed0353bf1c4a0",
+  "provider_attestation": {
+    "status": "unavailable",
+    "reason": "Claude CLI did not expose a signed provider request/response attestation."
+  },
+  "provider": "claude",
+  "model": "claude-haiku-4-5",
+  "rounds": 2,
+  "base_rev": "61f5b2e1937c87ed4eeb763c1adf883fdbc97d79",
+  "head_rev": "cbac5c51aefbc486078dbdf91ecb31a341b8934e",
+  "results": {
+    "worktree-one-fetch-order": {
+      "task_sha256": "41a81ea1beac104a762fe67f1082d7ad8cf460f9753f99fd87e612d5b9080e47",
+      "mutation": "replace the sole action/stop sequence and withhold its guard reference",
+      "runner_time_scores": {
+        "base": {
+          "pass": 1,
+          "of": 2
+        },
+        "head": {
+          "pass": 1,
+          "of": 2
+        },
+        "mutant": {
+          "pass": 0,
+          "of": 2
+        }
+      },
+      "arms": {
+        "base": {
+          "rev": "61f5b2e1937c87ed4eeb763c1adf883fdbc97d79",
+          "body_sha256": "1add7a1754f10817f5202be766a8e2a4d3cdf05f3b343b20627dfeefb27e1b11",
+          "prompt_sha256": "618df635dcb03b8b326aed9f77a60285cf46801b82d880592da246c0a9794373",
+          "pass": 1,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": false,
+              "missed": [
+                "review-state-approval",
+                "review-state-mergeable",
+                "review-state-CI",
+                "review-state-commit",
+                "review-state-thread",
+                "review-state-line-anchor"
+              ],
+              "answer_sha256": "4a2fb321bb92c7d35677d840b3809eb2cc6cf8522f256e71e25b707caf2b0025"
+            },
+            {
+              "round": 2,
+              "pass": true,
+              "missed": [],
+              "answer_sha256": "17c32492260cdb6bd7fedce06178cb5140578c56a7cdecdafffe2a893ded8cb8"
+            }
+          ]
+        },
+        "head": {
+          "rev": "cbac5c51aefbc486078dbdf91ecb31a341b8934e",
+          "body_sha256": "241aae73498f49e15675658f2da7375b4bab23fa2664d7eba7bd737b43cb9928",
+          "prompt_sha256": "a66fbd532d5aff4d66ea140ec7e6f4ca8a4ec8b27bdbf933fd412fcb73e95e73",
+          "pass": 1,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": true,
+              "missed": [],
+              "answer_sha256": "bedd158728fa431a9bfa3619ea0cd1c8e50b127979e208a42057e9a1851bc0e0"
+            },
+            {
+              "round": 2,
+              "pass": false,
+              "missed": [
+                "review-state-commit",
+                "review-state-line-anchor"
+              ],
+              "answer_sha256": "19a37c87069bf41923cea1944e3c7160760cfb0966804017823ce0548b08b73f"
+            }
+          ]
+        },
+        "mutant": {
+          "rev": "cbac5c51aefbc486078dbdf91ecb31a341b8934e",
+          "body_sha256": "c48c11ecf9e4134bfdaa1419523189ad8eec5bf3ba126ef291527896f05d1786",
+          "prompt_sha256": "b24422cac08f8c340007ff17ef9c5188602e05a118fa859d9b33d973ff60e6d3",
+          "pass": 0,
+          "of": 2,
+          "details": [
+            {
+              "round": 1,
+              "pass": false,
+              "missed": [
+                "exact-topology-command",
+                "no-malformed-topology-command",
+                "right-zero-stop",
+                "rebase-after-check",
+                "review-state-approval",
+                "review-state-mergeable",
+                "review-state-CI",
+                "review-state-commit",
+                "review-state-thread",
+                "review-state-line-anchor"
+              ],
+              "answer_sha256": "329864826bb0b9dd837ae7ec0cf98cb9e3ed833c4d8bda412fc487604c1fade7"
+            },
+            {
+              "round": 2,
+              "pass": false,
+              "missed": [
+                "exact-topology-command",
+                "no-malformed-topology-command",
+                "right-zero-stop",
+                "rebase-after-check",
+                "review-state-approval",
+                "review-state-mergeable",
+                "review-state-CI",
+                "review-state-commit",
+                "review-state-thread",
+                "review-state-line-anchor"
+              ],
+              "answer_sha256": "919d0ffc5e013ab6c6af2d8477657914eaf4eacb96dba79b10d208f32c7912dd"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

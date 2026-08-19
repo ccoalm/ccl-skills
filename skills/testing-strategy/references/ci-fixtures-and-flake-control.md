@@ -44,6 +44,18 @@ Use `test-data-and-determinism.md` as the canonical source for fixture shape, an
 - High line coverage with weak assertions is not safety.
 - For high-risk pure logic, consider mutation testing or equivalent assertion-strength checks.
 
+## Local Evidence Selection
+
+There is no universal local baseline beyond the repository's own hooks. CI owns the exhaustive suite and the platform matrix **only where CI is verified to run blocking jobs that cover the affected matrix** (per the entry-point's "skip CI / no runner" rule); where CI is absent, partial, or non-blocking for a surface the diff touches, run the missing affected gate locally or mark verification incomplete and block the completion/release claim — never let "CI owns it" stand in for a gate that nothing runs. Before a commit or push, select the narrowest evidence that would fail for the diff's regression, by the surface the diff actually touches:
+
+- **Behavior in a package/module/script** → the owning focused tests (file or test-name filter); add adjacent tests only when a shared contract changed.
+- **Model-, editor-, CLI-, or user-visible output** → the snapshot/golden or runnable-example scenario that owns that output (a changed transcript is a behavior change, review its diff as one).
+- **Docs, generated catalogs, doc-linked comments** → the documentation gates.
+- **Manifests, public exports, build config, bin/worker entries, bundling** → build, the relevant hygiene checks, and the built-artifact smoke (see `e2e-real-flow-testing.md`, Published Entry Path).
+- **A real external provider or model** → the owning real e2e when credentials are available; never print secrets.
+
+Run the full local rehearsal only on explicit request, while diagnosing a CI failure, or for a change so repository-wide that no narrower set is credible. Do not re-run a passing check merely because commit or push follows — but an earlier green counts for a later commit/push **only when the tested commit/tree and its dependency and environment inputs are unchanged and that fact is recorded**; after an amend, rebase, regeneration, or config change the affected checks run again. Report only the commands actually run; if a relevant check fails before push, stop and fix or explain — do not push and hope CI differs.
+
 ## Verification Report
 
 When claiming tests pass, report:
