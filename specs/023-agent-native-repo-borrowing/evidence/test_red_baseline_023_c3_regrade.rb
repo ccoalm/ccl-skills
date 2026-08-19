@@ -72,6 +72,7 @@ C3_REGISTER_CONTROL_PATHS = [
 ].freeze
 C3_CONTROL_WORKTREE_PATHS = [
   C3_LANDING_PATH,
+  C3_GATE_ENTRYPOINT,
   C3_AUDIT_MANIFEST,
   C3_CONTRACT_PATH,
   *C3_REGISTER_CONTROL_PATHS,
@@ -216,6 +217,11 @@ abort "measured owner carrier inventory drifted" unless C3_MEASURED_OWNER_PATHS.
 abort "measured owner carrier escaped the C3 surface" unless C3_MEASURED_OWNER_PATHS.all? { |path| c3_landing_path?(path) }
 abort "unmeasured owner-package path entered the C3 surface" if c3_landing_path?("skills/worktree-isolation/references/unrelated.md")
 abort "Makefile escaped the C3 surface" unless c3_landing_path?(C3_GATE_ENTRYPOINT)
+# The trigger surface alone left the gate entrypoint out of the dirty-abort set, so an
+# uncommitted Makefile could weaken the effective recipe while the run still bound
+# committed carrier bytes and printed the clean token. Both surfaces must carry it.
+abort "Makefile escaped the C3 control-plane worktree surface" unless C3_CONTROL_WORKTREE_PATHS.include?(C3_GATE_ENTRYPOINT)
+abort "unrelated path entered the C3 control-plane worktree surface" if C3_CONTROL_WORKTREE_PATHS.include?("README.md")
 abort "C3 contract escaped the C3 surface" unless c3_landing_path?(C3_CONTRACT_PATH)
 abort "register control inventory drifted" unless C3_REGISTER_CONTROL_PATHS.length == 3
 abort "register control escaped the C3 surface" unless C3_REGISTER_CONTROL_PATHS.all? { |path| c3_landing_path?(path) }

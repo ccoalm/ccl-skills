@@ -113,7 +113,7 @@ else echo "merge-base 出错（非 0/1），先排查别当落后处理"; fi
 把落后分支更新到最新目标——**先分清分支是否已共享**：
 
 - **私有 / 未推送分支**：可 `git rebase "$TARGET"`（历史更干净）。
-- **已推送 / 挂着 MR / 别人可能在上面工作的分支**：默认并入目标/平台 “update branch”，**别无脑 rebase**；方向/报告见「收尾·合并方向必须可读」`-F`。rebase 前**必须读** `references/shared-branch-rebase.md`：`git fetch origin` 刷新目标；再 fetch 本分支一次（`git fetch origin <branch>` / `git fetch origin <branch>:refs/remotes/origin/<branch>`，择一），`remote_oid=$(git rev-parse FETCH_HEAD)`（禁读 `origin/<branch>`），推前勿再 fetch 本分支；必须原样 `git rev-list --left-right --count <branch>...$remote_oid`，右侧非 `0` 即并入、禁 rebase，`git diff` 不证拓扑；`0` 才 rebase；`--force-with-lease=<branch>:$remote_oid`，禁 `--force` / 裸 lease；post-push fetch，重审六项 thread / approval / mergeable / CI / commit / 行锚；工具合并重写/发布后逐层重验，绿前禁合并。
+- **已推送 / 挂着 MR / 别人可能在上面工作的分支**：默认并入目标/平台 “update branch”，**别无脑 rebase**；方向/报告见「收尾·合并方向必须可读」`-F`。rebase 前**必须读** `references/shared-branch-rebase.md`：`git fetch origin` 刷新目标；再 fetch 本分支一次（`git fetch origin <branch>` / `git fetch origin <branch>:refs/remotes/origin/<branch>`，择一），`remote_oid=$(git rev-parse FETCH_HEAD)`（禁读 `origin/<branch>`），推前勿再 fetch 本分支；必须原样 `git rev-list --left-right --count <branch>...$remote_oid`，右侧（远端独有）非 `0` 即并入、禁 rebase，`git diff` 不证拓扑；`0` 才 rebase；`--force-with-lease=<branch>:$remote_oid`，禁 `--force` / 裸 lease；post-push fetch，重审六项 thread / approval / mergeable / CI / commit / 行锚；工具合并重写/发布后逐层重验，绿前禁合并。
 
 **冲突解析就是回退的高发点**（rebase/merge 只是把碰撞提前暴露，不是修复本身）：冲突里**别直接取分支那侧的旧快照**。对生成物 / lockfile / 格式化产物，**从更新后的目标重新生成**，不要照搬分支版本，也不要 `-X ours/theirs` 一把带过——那等于亲手把目标的修复盖掉，而且事后 `--stat` 看不出来。
 

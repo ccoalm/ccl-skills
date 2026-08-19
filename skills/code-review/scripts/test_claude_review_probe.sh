@@ -2278,7 +2278,7 @@ payload = json.load(open(sys.argv[1], encoding="utf-8"))
 match = re.search(r"after ([0-9]+) seconds", payload["reason"])
 assert payload["mode"] == "challenge", payload
 assert payload["status"] == "inconclusive", payload
-assert match is not None and 1 <= int(match.group(1)) <= 5, payload
+assert match is not None and 3 <= int(match.group(1)) <= 5, payload
 assert payload["reason_code"] == "timeout", payload
 assert payload["fallback_eligible"] is True, payload
 assert payload["next_action"] == "fallback", payload
