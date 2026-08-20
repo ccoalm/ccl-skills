@@ -1,5 +1,7 @@
 # C3 release-gate repair
 
+Status: SUPERSEDED as an active gate by `specs/028-c3-preservation-gate-retirement/plan.md`. Every present-tense statement below about `make test` enforcing the measured-carrier binding described this round's shipped behavior and no longer holds: the `test` recipe no longer invokes the C3 regrade contract, so no measured-carrier drift blocks a build. The record itself stands unedited as the round's own account, and the evidence directory stays frozen under its agent contract.
+
 ## Charter
 
 | Field | Decision |
