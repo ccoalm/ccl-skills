@@ -1,6 +1,6 @@
 # C3 Preservation Gate Retirement
 
-Status: charter recorded; edits pending; dual-track review pending
+Status: interim. Gate retired and ledger rows landed; `make test` green; review round 1 returned one P1 that is fixed here, so the dual-track pair is rerun against the refreshed candidate. The mechanism-operability prevention clause stays `pending` to its own round, so this round never claims `complete`. Merge authorization is the user's.
 
 ## Charter
 
@@ -59,3 +59,26 @@ Consequence to state plainly: with the `Makefile` recipe no longer carrying the 
 | Regression test | None added, and the reason is recorded rather than waived: the change removes a gate, so the only assertable property is the absence of a command, and a test asserting that absence would lock in the removal without proving anything about behavior. The load-bearing proof is instead differential — the repository's full deterministic suite must stay green with the line removed, which demonstrates no other gate depended on it. `make -n test` before/after is the direct evidence for invariant (1). |
 | Deterministic gates run | `check-ccl-skills.sh .` → exit 0, terminal `ccl_skill_check_clean_ok` (private R0 audit ran and passed; this is the clean-landing token, not the public interim fallback). It proves structural validation, frontmatter, markdown-reference resolution, leakage scan, and entrypoint budgets. `make --no-print-directory -n test` proves the effective recipe. Full `make test` result is recorded in the verification section. |
 | Known residual risks | (a) The retired contract can no longer verify itself: `make_test_candidate_invocation?` requires the exact recipe line, so running it manually now aborts — accepted and stated in the plan, since the record's purpose after retirement is readability, not execution. (b) Nothing now pins the four carriers to any measurement; the accepted position is that the measurement never supported the preservation claim, and that `check-ccl-skills.sh`'s changed-entrypoint scan keeps model-independent friction on skill entrypoints. (c) The durable prevention clause for the failure class (*enforcement must not outlive its claim*) is `pending`, not landed: it belongs in `product-rd-workflow/references/design-review-gate-mechanics.md`, and landing it there makes that a non-wording owner package, which the ledger contract requires to carry at least one `RED-baseline` row. That evidence deserves its own round rather than being improvised here, so this round is `interim` on the prevention axis and the class is recorded in the ledger row instead. |
+
+## Verification record
+
+All commands run in the isolated worktree `worktree-c3-gate-retirement`, on the landing candidate `9274558`.
+
+| Check | Result |
+| --- | --- |
+| `make test` (full deterministic suite, C3 line removed) | exit 0. Run twice: once on the gate-and-ledger change set, and once again on the final candidate after the plan and repair-record edits. Both green, so no other gate in the suite depended on the retired invocation. |
+| `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` | exit 0, terminal tokens `ccl_skill_check_ok` then `ccl_skill_check_clean_ok`. The clean token means the private alias audit ran and passed (`r0_status=private-ok`), not the public interim fallback. |
+| `make --no-print-directory -n test` | 38 effective recipe lines; a search for `test_red_baseline_023_c3_regrade` across that output returns zero matches, while every other recipe line is unchanged. This is the direct proof for invariant (1): the C3 invocation is gone and nothing else moved. |
+| Consumer sweep | A repository-wide search for `test_red_baseline_023_c3_regrade` outside `evidence/` returns three prose mentions only — the round-023 repair record, this plan, and the ledger — and no executable caller. `.github/workflows/ci.yml` reaches the suite only through `make test`. |
+| Frozen-evidence invariant | `git diff --cached --stat -- specs/023-agent-native-repo-borrowing` lists no `evidence/` path; only the repair record's status banner appears under that spec. |
+| Append-only invariant | The staged register diff contains zero deletion lines, so both rows are pure appends and no prior row was edited. |
+
+### Independent review and challenge
+
+| Lane | Reviewer | Result |
+| --- | --- | --- |
+| Review, round 1 (chain `c3gate-9274558`, stage `release`, risk tags `shared-gate` + `release-ops`) | `codex` (OpenAI family). Claude was skipped at preflight with `same_family_as_implementer`, since the implementer family is `anthropic`. `native_skill_binding=established`, `reviewed_skills=['skill-extraction-workflow']`, packet egress clean (`secret_scan: []`). | One P1, accepted and fixed: the plan promised a verification section that did not exist, so the reviewer could not confirm from the packet that the remaining suite still passed or that only the intended invocation disappeared. This section is that fix. Under the changed-candidate rule the fix voids that round, so review and challenge are rerun against the new frozen candidate and the rerun rows are recorded below. |
+
+### Self-review row refreshed after the round-1 P1 fix
+
+The candidate changed after review round 1, so the row above is refreshed rather than reused. Delta: this verification record was added, the status line now reads `interim`, and the round-1 finding is dispositioned as accepted-and-fixed. No executable path changed — `Makefile`, the register rows, and the repair-record banner are byte-identical to the reviewed candidate — so the five load-bearing invariants and their checks stand as recorded, and the full suite green cited above was taken on this content. The rerun below is therefore a fresh full-scope pair on the new frozen candidate, not a scoped "confirm my fix" pass.
