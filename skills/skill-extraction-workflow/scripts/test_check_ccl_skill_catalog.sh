@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Caller Git routing must never override any fixture `git -C` operation. The
+# c12 hostile-context wrapper reintroduces synthetic values only around checker
+# subprocesses, then restores this clean baseline before later ref mutations.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+  GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+  GIT_NAMESPACE
+
 # Catalog contract gate. docs/SKILLS.md is the single authoritative human catalog,
 # and agent-context/session-start.md is the always-on entry routing layer. Nothing
 # stops those two from drifting apart on the next skill added, so the gate below is
@@ -19,6 +26,7 @@ set -euo pipefail
 #   c9  the routing layer file is absent            => unevaluated, never contract_ok
 #   c10 a row whose only clause is a redirect        => skill_catalog_missing_use_line
 #   c11 a leaf routed in the always-on layer         => skill_bootstrap_leaf_in_region
+#   c12 unset base override covers upstream/fallback x empty/changed diff
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
@@ -52,9 +60,142 @@ new_case() {
 
 run_case() {
   set +e
-  CASE_OUTPUT="$(CCL_SKILL_BASE_REF=ccl-test-base bash "$CASE_DIR/skills/skill-extraction-workflow/scripts/check-ccl-skills.sh" "$CASE_DIR" 2>&1)"
+  CASE_OUTPUT="$(
+    unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+      GIT_NAMESPACE
+    CCL_SKILL_BASE_REF=ccl-test-base \
+      bash "$CASE_DIR/skills/skill-extraction-workflow/scripts/check-ccl-skills.sh" "$CASE_DIR" 2>&1
+  )"
   CASE_STATUS=$?
   set -e
+}
+
+run_case_with_default_base() {
+  set +e
+  CASE_OUTPUT="$(
+    unset CCL_SKILL_BASE_REF GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE \
+      GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR \
+      GIT_CEILING_DIRECTORIES GIT_NAMESPACE
+    bash "$CASE_DIR/skills/skill-extraction-workflow/scripts/check-ccl-skills.sh" "$CASE_DIR" 2>&1
+  )"
+  CASE_STATUS=$?
+  set -e
+  return "$CASE_STATUS"
+}
+
+run_case_with_base() {
+  local base="$1"
+  set +e
+  CASE_OUTPUT="$(
+    unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+      GIT_NAMESPACE
+    CCL_SKILL_BASE_REF="$base" \
+      bash "$CASE_DIR/skills/skill-extraction-workflow/scripts/check-ccl-skills.sh" "$CASE_DIR" 2>&1
+  )"
+  CASE_STATUS=$?
+  set -e
+  return "$CASE_STATUS"
+}
+
+run_with_hostile_git_context() {
+  local git_dir_was_set="${GIT_DIR+x}" git_dir_before="${GIT_DIR-}"
+  local git_work_tree_was_set="${GIT_WORK_TREE+x}" git_work_tree_before="${GIT_WORK_TREE-}"
+  local git_index_was_set="${GIT_INDEX_FILE+x}" git_index_before="${GIT_INDEX_FILE-}"
+  local status
+
+  export GIT_DIR="$HOSTILE_GIT_DIR"
+  export GIT_WORK_TREE="$HOSTILE_GIT_WORK_TREE"
+  export GIT_INDEX_FILE="$HOSTILE_GIT_INDEX"
+  if "$@"; then
+    status=0
+  else
+    status=$?
+  fi
+
+  if [ "$git_dir_was_set" = x ]; then export GIT_DIR="$git_dir_before"; else unset GIT_DIR; fi
+  if [ "$git_work_tree_was_set" = x ]; then export GIT_WORK_TREE="$git_work_tree_before"; else unset GIT_WORK_TREE; fi
+  if [ "$git_index_was_set" = x ]; then export GIT_INDEX_FILE="$git_index_before"; else unset GIT_INDEX_FILE; fi
+  return "$status"
+}
+
+retain_only_ref_at_oid() {
+  local oid="$1" expected_ref="$2" label="$3"
+  local refs_at_oid expected_label ref_name
+  refs_at_oid="$(git -C "$CASE_DIR" for-each-ref --points-at "$oid" --format='%(refname)')"
+  while read -r ref_name; do
+    if [ -n "$ref_name" ] && [ "$ref_name" != "$expected_ref" ]; then
+      git -C "$CASE_DIR" update-ref --no-deref -d "$ref_name"
+    fi
+  done <<<"$refs_at_oid"
+  refs_at_oid="$(git -C "$CASE_DIR" for-each-ref --points-at "$oid" --format='%(refname)')"
+  expected_label="${expected_ref:-no ref}"
+  [ "$refs_at_oid" = "$expected_ref" ] || {
+    echo "FAIL[$label]: expected $expected_label at the fixture base" >&2
+    printf '%s\n' "$refs_at_oid" >&2
+    exit 1
+  }
+}
+
+seed_base_alias_tags() {
+  local oid="$1" label="$2"
+  git -C "$CASE_DIR" \
+    -c user.name='CCL Fixture' \
+    -c user.email=fixture@example.invalid \
+    tag -a "catalog-fixture-annotated-$label" \
+    -m "catalog fixture annotated alias $label" "$oid"
+  git -C "$CASE_DIR" \
+    -c advice.nestedTag=false \
+    -c user.name='CCL Fixture' \
+    -c user.email=fixture@example.invalid \
+    tag -a "catalog-fixture-nested-$label" \
+    -m "catalog fixture nested alias $label" \
+    "refs/tags/catalog-fixture-annotated-$label"
+}
+
+expect_base_alias_tags_removed() {
+  local label="$1" ref
+  for ref in \
+    "refs/tags/catalog-fixture-annotated-$label" \
+    "refs/tags/catalog-fixture-nested-$label"; do
+    if git -C "$CASE_DIR" show-ref --verify --quiet "$ref"; then
+      echo "FAIL[$label]: peeled fixture alias survived ref cleanup: $ref" >&2
+      exit 1
+    fi
+  done
+}
+
+expect_changed_entrypoint_warning() {
+  local label="$1" skill="$2"
+  [ "$CASE_STATUS" -eq 0 ] || {
+    echo "FAIL[$label]: checker failed before the changed-entrypoint oracle" >&2
+    printf '%s\n' "$CASE_OUTPUT" >&2
+    exit 1
+  }
+  grep -q \
+    "$skill: entrypoint_body_above_recommended_for_changed_file" \
+    <<<"$CASE_OUTPUT" || {
+    echo "FAIL[$label]: changed-entrypoint warning missing" >&2
+    printf '%s\n' "$CASE_OUTPUT" >&2
+    exit 1
+  }
+}
+
+expect_no_changed_entrypoint_warning() {
+  local label="$1" skill="$2"
+  [ "$CASE_STATUS" -eq 0 ] || {
+    echo "FAIL[$label]: checker failed before the unchanged-entrypoint oracle" >&2
+    printf '%s\n' "$CASE_OUTPUT" >&2
+    exit 1
+  }
+  if grep -q \
+    "$skill: entrypoint_body_above_recommended_for_changed_file" \
+    <<<"$CASE_OUTPUT"; then
+    echo "FAIL[$label]: unchanged entrypoint was reported as changed" >&2
+    printf '%s\n' "$CASE_OUTPUT" >&2
+    exit 1
+  fi
 }
 
 expect_block() {
@@ -202,5 +343,149 @@ open(p,"w",encoding="utf-8").write(s)
 PYX
 run_case
 expect_block c11 'skill_bootstrap_leaf_in_region: tighten-doc'
+
+# c12 — exercise both default-base branches without depending on the source
+# repository's ancestry. For upstream and origin/main fallback alike, run an
+# empty-diff arm at H and a changed-diff arm at B. The checker must track that
+# matrix with the override unset; a no-base path that marks everything changed
+# or a wrong-ref path cannot satisfy all four arms.
+new_case
+DEFAULT_CHANGED_SKILL=catalog-default-base-fixture
+mkdir -p "$CASE_DIR/skills/$DEFAULT_CHANGED_SKILL/agents"
+python3 - \
+  "$CASE_DIR/skills/$DEFAULT_CHANGED_SKILL/SKILL.md" \
+  "$CASE_DIR/skills/$DEFAULT_CHANGED_SKILL/agents/openai.yaml" \
+  "$CASE_DIR/docs/SKILLS.md" <<'PYBASE'
+import re
+import sys
+
+skill_path, overlay_path, catalog_path = sys.argv[1:]
+body = (
+    "# Catalog Default-Base Fixture\n\n"
+    "fixture-state-base\n\n"
+    + "fixture-line\n" * 420
+)
+assert len(body.encode("utf-8")) > 5000, "c12 baseline body must exceed the warning threshold"
+frontmatter = """---
+name: catalog-default-base-fixture
+description: "Synthetic skill used only inside the catalog default-base regression clone. Skip: never route it in real work."
+---
+"""
+open(skill_path, "w", encoding="utf-8").write(frontmatter + body)
+open(overlay_path, "w", encoding="utf-8").write(
+    """interface:
+  display_name: "Catalog Default-Base Fixture"
+  short_description: "Synthetic default-base regression fixture"
+  default_prompt: "Use $catalog-default-base-fixture only inside its generated regression clone."
+"""
+)
+catalog_text = open(catalog_path, encoding="utf-8").read()
+anchor = re.search(r"(?m)^- `[a-z0-9-]+` `leaf` ", catalog_text)
+assert anchor, "c12 catalog has no leaf row anchor"
+fixture_row = (
+    "- `catalog-default-base-fixture` `leaf` — 用：仅供 catalog default-base 合成回归夹具。\n"
+    "  - 不用：真实任务一律不路由到这个合成技能。\n"
+)
+open(catalog_path, "w", encoding="utf-8").write(
+    catalog_text[: anchor.start()] + fixture_row + catalog_text[anchor.start() :]
+)
+PYBASE
+git -C "$CASE_DIR" add \
+  "skills/$DEFAULT_CHANGED_SKILL/SKILL.md" \
+  "skills/$DEFAULT_CHANGED_SKILL/agents/openai.yaml" \
+  docs/SKILLS.md
+git -C "$CASE_DIR" \
+  -c user.name='CCL Fixture' \
+  -c user.email=fixture@example.invalid \
+  commit --quiet -m 'catalog default-base baseline'
+DEFAULT_BASE_OID="$(git -C "$CASE_DIR" rev-parse HEAD)"
+git -C "$CASE_DIR" update-ref refs/heads/catalog-fixture-base "$DEFAULT_BASE_OID"
+git -C "$CASE_DIR" checkout --quiet -B catalog-default-base "$DEFAULT_BASE_OID"
+git -C "$CASE_DIR" branch --set-upstream-to=catalog-fixture-base catalog-default-base >/dev/null
+python3 - "$CASE_DIR/skills/$DEFAULT_CHANGED_SKILL/SKILL.md" <<'PYBASE'
+import sys
+
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+assert text.count("fixture-state-base") == 1, "c12 baseline state marker missing or duplicated"
+updated = text.replace("fixture-state-base", "fixture-state-head")
+assert len(updated.encode("utf-8")) == len(text.encode("utf-8")), "c12 state change must be size neutral"
+open(path, "w", encoding="utf-8").write(updated)
+PYBASE
+git -C "$CASE_DIR" add "skills/$DEFAULT_CHANGED_SKILL/SKILL.md"
+git -C "$CASE_DIR" \
+  -c user.name='CCL Fixture' \
+  -c user.email='fixture@example.invalid' \
+  commit --quiet -m 'catalog default-base fixture'
+DEFAULT_HEAD_OID="$(git -C "$CASE_DIR" rev-parse HEAD)"
+git -C "$CASE_DIR" update-ref refs/remotes/origin/main "$DEFAULT_HEAD_OID"
+HOSTILE_GIT_DIR="$TEST_ROOT/hostile.git"
+HOSTILE_GIT_WORK_TREE="$TEST_ROOT/hostile-worktree"
+HOSTILE_GIT_INDEX="$TEST_ROOT/hostile-index"
+mkdir -p "$HOSTILE_GIT_WORK_TREE"
+git init --bare --quiet "$HOSTILE_GIT_DIR"
+
+# Calibrate the observable independently of default discovery. If the size
+# metric or fixture contract changes, fail under this explicit base label
+# instead of misreporting a resolver regression in one of the four arms.
+# The wrapper propagates the checker rc only after restoring Git routing. The
+# next assertion owns the diagnostic and reads the same rc from CASE_STATUS.
+run_with_hostile_git_context run_case_with_base "$DEFAULT_BASE_OID" || :
+expect_changed_entrypoint_warning c12-explicit-base-calibration "$DEFAULT_CHANGED_SKILL"
+
+# Upstream, empty diff: the sole configured upstream resolves to H.
+git -C "$CASE_DIR" update-ref refs/heads/catalog-fixture-base "$DEFAULT_HEAD_OID"
+seed_base_alias_tags "$DEFAULT_BASE_OID" c12-upstream-empty
+retain_only_ref_at_oid "$DEFAULT_BASE_OID" '' c12-upstream-empty
+expect_base_alias_tags_removed c12-upstream-empty
+[ "$(git -C "$CASE_DIR" merge-base '@{upstream}' HEAD)" = "$DEFAULT_HEAD_OID" ] || {
+  echo 'FAIL[c12]: empty-diff upstream does not resolve to fixture HEAD' >&2
+  exit 1
+}
+run_with_hostile_git_context run_case_with_default_base || :
+expect_no_changed_entrypoint_warning c12-upstream-empty "$DEFAULT_CHANGED_SKILL"
+
+# Upstream, changed diff: the sole B-valued ref is the configured upstream.
+git -C "$CASE_DIR" update-ref refs/heads/catalog-fixture-base "$DEFAULT_BASE_OID"
+seed_base_alias_tags "$DEFAULT_BASE_OID" c12-upstream-changed
+retain_only_ref_at_oid \
+  "$DEFAULT_BASE_OID" refs/heads/catalog-fixture-base c12-upstream-changed
+expect_base_alias_tags_removed c12-upstream-changed
+[ "$(git -C "$CASE_DIR" merge-base '@{upstream}' HEAD)" = "$DEFAULT_BASE_OID" ] || {
+  echo 'FAIL[c12]: changed-diff upstream does not resolve to fixture base' >&2
+  exit 1
+}
+run_with_hostile_git_context run_case_with_default_base || :
+expect_changed_entrypoint_warning c12-upstream-changed "$DEFAULT_CHANGED_SKILL"
+
+# Fallback, empty diff: no upstream exists and origin/main resolves to H.
+git -C "$CASE_DIR" branch --unset-upstream
+git -C "$CASE_DIR" update-ref refs/remotes/origin/main "$DEFAULT_HEAD_OID"
+seed_base_alias_tags "$DEFAULT_BASE_OID" c12-fallback-empty
+retain_only_ref_at_oid "$DEFAULT_BASE_OID" '' c12-fallback-empty
+expect_base_alias_tags_removed c12-fallback-empty
+git -C "$CASE_DIR" rev-parse '@{upstream}' >/dev/null 2>&1 && {
+  echo 'FAIL[c12]: fallback arm still has an upstream' >&2
+  exit 1
+}
+[ "$(git -C "$CASE_DIR" merge-base origin/main HEAD)" = "$DEFAULT_HEAD_OID" ] || {
+  echo 'FAIL[c12]: empty-diff origin/main does not resolve to fixture HEAD' >&2
+  exit 1
+}
+run_with_hostile_git_context run_case_with_default_base || :
+expect_no_changed_entrypoint_warning c12-fallback-empty "$DEFAULT_CHANGED_SKILL"
+
+# Fallback, changed diff: the sole B-valued ref is origin/main.
+git -C "$CASE_DIR" update-ref refs/remotes/origin/main "$DEFAULT_BASE_OID"
+seed_base_alias_tags "$DEFAULT_BASE_OID" c12-fallback-changed
+retain_only_ref_at_oid \
+  "$DEFAULT_BASE_OID" refs/remotes/origin/main c12-fallback-changed
+expect_base_alias_tags_removed c12-fallback-changed
+[ "$(git -C "$CASE_DIR" merge-base origin/main HEAD)" = "$DEFAULT_BASE_OID" ] || {
+  echo 'FAIL[c12]: changed-diff origin/main does not resolve to fixture base' >&2
+  exit 1
+}
+run_with_hostile_git_context run_case_with_default_base || :
+expect_changed_entrypoint_warning c12-fallback-changed "$DEFAULT_CHANGED_SKILL"
 
 echo "test_check_ccl_skill_catalog: ok"
