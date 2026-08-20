@@ -1,6 +1,6 @@
 # Catalog Fixture Default-Base Coverage
 
-Status: r14 challenge triaged; `GIT_NAMESPACE` fix applied; Bash 3.2 focused, fast, and repository gates passed with private R0; final dual-track rerun pending
+Status: final dual-track rerun completed 2026-08-20 on chain `catalog-default-base-final-r1` — review lane passed with zero findings; the challenge lane's single P1 was refuted by applied probes; no undispositioned P0/P1 remains. The candidate had merged to dev before this rerun executed; that gate skip is recorded below as a process defect, and the rerun ran post-merge on the frozen candidate rather than being waived.
 
 ## Charter
 
@@ -92,3 +92,16 @@ This table freezes the state before the final deterministic and dual-track rerun
 | Implementer self-review | recorded | Acceptance, exact changed-file scope, failure paths, and residual risks are recorded above before external review. |
 | Independent review | passed, invalidated by fix | Tracked r14 review passed with no findings on candidate `9a6b21e27696d63f66ade03aade4248b273aa6fea4dd7a10c7addd796151114a`; the later namespace fix invalidated it. |
 | Adversarial challenge | findings triaged; rerun pending | r14 challenge repeated the already controlled hostile-wrapper and out-of-contract pseudoref premises; both are rejected. Its `GIT_NAMESPACE` subfinding is accepted and fixed. Global Git config isolation is outside this narrow ref/ancestry fixture and unchanged from c1-c11. |
+
+## Final dual-track rerun (post-merge remediation)
+
+Process defect first: the namespace-fixed candidate landed on dev (commit `7a10a43`, merge `4516e30`) while this plan still said `final dual-track rerun pending`, so the merge happened without a valid dual-track pair on the landed candidate — the earlier r14 review had been invalidated by the namespace fix. The maintainer chose remediation over waiver: rerun the full pair post-merge on the frozen candidate.
+
+The packet froze the complete landing candidate — the full `7a10a43` commit (message plus diff) and the entire post-change catalog script at that revision — with packet sha256 `2dd4c4ab461c1b36fd1d5b26a2f5570491a347b50d2c017ef7e53288259c48b8`. Both lanes ran tracked on chain `catalog-default-base-final-r1` (codex on both lanes with `native_skill_binding=established`; claude excluded as the implementer family; secret scan clean). Result files and probe transcripts live under the ignored `.work/review-evidence/catalog-default-base-final-r1/` store, outside the candidate as this plan already required.
+
+| Lane | Result | Disposition |
+| --- | --- | --- |
+| Independent review | passed, zero findings | Candidate hash bound to the packet above. |
+| Adversarial challenge | one P1: process-local Git configuration (`GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` or `GIT_CONFIG_PARAMETERS`) carrying `core.worktree` would survive the header unsets and redirect `REPO_ROOT` discovery or fixture `git -C` mutations onto a caller worktree | Rejected: refuted by applied probes. On the host Git (2.50.1) all three injection forms — the `GIT_CONFIG_*` env list, `GIT_CONFIG_PARAMETERS`, and a `GIT_CONFIG_GLOBAL` config file — are ignored for `core.worktree` during normal `git -C <worktree>` discovery: `rev-parse --show-toplevel`, `checkout`, `reset --hard`, and `add` all stayed inside the probe repo. The probe harness proved it can fail: the repo-local `.git/config` positive control did redirect the checkout and overwrote the external victim file. The only effective vector therefore requires filesystem write access to a repository's own `.git/config`, which is the host-owned configuration posture already recorded in the residual-risk row (unchanged from c1-c11) and outside this fixture's threat contract. |
+
+Convergence: no undispositioned P0/P1. The candidate received no edits after the challenge round, so that round stands as the fresh full challenge of the exact landing candidate.
