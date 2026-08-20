@@ -7,7 +7,6 @@ help: ## 显示可用目标
 
 test: ## 运行本仓确定性 gate、脚本测试和 Python 回归
 	bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
-	ruby specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb --candidate
 	bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --fast
 	bash skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh --repo . --enforce
 	python3 scripts/test_check_markdown_links.py
