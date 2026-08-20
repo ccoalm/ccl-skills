@@ -62,7 +62,7 @@ Consequence to state plainly: with the `Makefile` recipe no longer carrying the 
 
 ## Verification record
 
-All commands run in the isolated worktree `worktree-c3-gate-retirement`, on the landing candidate `9274558`.
+All commands run in the isolated worktree `worktree-c3-gate-retirement`. Every deterministic check below is re-run on the branch tip that is actually pushed, and the recorded results are the last such run; earlier identical runs on intermediate candidates are not cited as the evidence. Because recording a review outcome inside this file would itself change the candidate that outcome describes, per-round reviewer attribution, packet hash, and finding disposition are recorded in the merge request description and in the durable chain evidence rows, not here — this section carries only the deterministic evidence, which is stable across those recordings.
 
 | Check | Result |
 | --- | --- |
@@ -75,10 +75,11 @@ All commands run in the isolated worktree `worktree-c3-gate-retirement`, on the 
 
 ### Independent review and challenge
 
-| Lane | Reviewer | Result |
-| --- | --- | --- |
-| Review, round 1 (chain `c3gate-9274558`, stage `release`, risk tags `shared-gate` + `release-ops`) | `codex` (OpenAI family). Claude was skipped at preflight with `same_family_as_implementer`, since the implementer family is `anthropic`. `native_skill_binding=established`, `reviewed_skills=['skill-extraction-workflow']`, packet egress clean (`secret_scan: []`). | One P1, accepted and fixed: the plan promised a verification section that did not exist, so the reviewer could not confirm from the packet that the remaining suite still passed or that only the intended invocation disappeared. This section is that fix. Under the changed-candidate rule the fix voids that round, so review and challenge are rerun against the new frozen candidate and the rerun rows are recorded below. |
+Both lanes run through `review_gate.sh` at stage `release` with risk tags `shared-gate` and `release-ops`, implementer family `anthropic`. Claude is therefore skipped at preflight with `same_family_as_implementer`, and `codex` (OpenAI family) is the acting reviewer, with `native_skill_binding=established` and a clean packet secret scan.
 
-### Self-review row refreshed after the round-1 P1 fix
+Findings dispositioned so far, both accepted rather than argued:
 
-The candidate changed after review round 1, so the row above is refreshed rather than reused. Delta: this verification record was added, the status line now reads `interim`, and the round-1 finding is dispositioned as accepted-and-fixed. No executable path changed — `Makefile`, the register rows, and the repair-record banner are byte-identical to the reviewed candidate — so the five load-bearing invariants and their checks stand as recorded, and the full suite green cited above was taken on this content. The rerun below is therefore a fresh full-scope pair on the new frozen candidate, not a scoped "confirm my fix" pass.
+- Round 1 on the first candidate: the plan promised a verification section that did not exist, so the packet could not show the remaining suite still passed. Fixed by adding this section.
+- Round 1 on the second candidate: that verification section still cited the superseded candidate, so its green results described different content. Fixed by binding the deterministic evidence to the pushed branch tip and moving per-round reviewer attribution out of the reviewed file, which is what stops the record-then-invalidate loop.
+
+The reviewer identity, packet hash, per-round finding disposition, and the final challenge result for the pushed tip are recorded in the merge request description and the chain evidence rows. This file is not the carrier for them, so it does not have to change again in order to be reviewed.
