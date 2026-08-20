@@ -72,14 +72,66 @@ SYNC_REF="$REPO_ROOT/skills/product-rd-workflow/references/sync-spec-repo-contra
 # while that trigger no longer routes anywhere. Entrypoint bullets are one line
 # each, so the line carrying the firing phrase is the bounded scope.
 assert_same_bullet() {
+  assert_same_line "$@"
+}
+
+# The real primitive underneath: phrase and pointer must share one PHYSICAL LINE.
+# `assert_same_bullet` is the entrypoint-shaped name for it and stays, because
+# there a bullet IS one line. Callers outside that shape use this name instead, so
+# the assertion advertises the unit it actually enforces rather than borrowing a
+# name whose justification ("entrypoint bullets are one line each") does not hold
+# for them. The unit matters: it is only a co-location guarantee while the host
+# block stays unwrapped, so a caller pointing at prose is asserting that too.
+
+assert_same_line() {
   local file="$1" phrase="$2" pointer="$3" label="$4"
   [[ -f "$file" ]] || fail "$label: missing file $file"
-  local bullet
-  bullet="$(grep -F -m1 -- "$phrase" "$file")" \
-    || fail "$label: firing phrase absent from entrypoint: $phrase"
-  case "$bullet" in
+  local line
+  line="$(grep -F -m1 -- "$phrase" "$file")" \
+    || fail "$label: firing phrase absent from $file: $phrase"
+  case "$line" in
     *"$pointer"*) : ;;
-    *) fail "$label: firing phrase found, but its own bullet does not carry the load pointer: $pointer" ;;
+    *) fail "$label: firing phrase found, but its own line does not carry the load pointer: $pointer" ;;
+  esac
+}
+
+# Anchor inside ONE Markdown section, not anywhere in the file. A whole-file grep
+# cannot tell a normative rule from a mention of it, so relocating the clause into
+# commentary elsewhere in the reference would keep a file-wide check green. The
+# section is the heading line through the next heading at any level.
+# Co-location within one Markdown PARAGRAPH (blank-line delimited). Prose is
+# wrapped by formatters, so binding a prose pointer to a physical line makes an
+# ordinary rewrap red the gate while rendered routing is untouched — a false red
+# on a shared gate is a real cost, and the guarantee that actually matters is
+# that a reader meeting the trigger meets the pointer without leaving the block.
+assert_same_paragraph() {
+  local file="$1" phrase="$2" pointer="$3" label="$4"
+  [[ -f "$file" ]] || fail "$label: missing file $file"
+  local para
+  para="$(awk -v p="$phrase" '
+    BEGIN {RS = ""}
+    index($0, p) {print; exit}
+  ' "$file")"
+  [[ -n "$para" ]] || fail "$label: firing phrase absent from $file: $phrase"
+  case "$para" in
+    *"$pointer"*) : ;;
+    *) fail "$label: firing phrase found, but its own paragraph does not carry the load pointer: $pointer" ;;
+  esac
+}
+
+assert_in_section() {
+  local file="$1" heading="$2" text="$3" label="$4"
+  [[ -f "$file" ]] || fail "$label: missing file $file"
+  local section
+  section="$(awk -v h="$heading" '
+    $0 == h {inside = 1; next}
+    inside && /^#/ {exit}
+    inside {print}
+  ' "$file")"
+  [[ -n "$section" ]] || fail "$label: section not found or empty: $heading"
+  case "$section" in
+    *"$text"*) : ;;
+    *) fail "$label: text missing from section $heading: $text" ;;
   esac
 }
 
@@ -88,6 +140,103 @@ assert_contains "$MECHANISM_REF" 'A mechanism failing this check is redesigned o
 assert_contains "$MECHANISM_REF" 'trust-model fit' "mechanism gate leg (destination)"
 assert_same_bullet "$PRODUCT_SKILL" 'Mechanism-operability check** fires whenever the design proposes' \
   "references/design-review-gate-mechanics.md" "mechanism gate (entry signal+pointer)"
+
+# 1b. Claim liveness — the mechanism check's SECOND firing point, whose actor is
+# whoever withdraws the claim rather than the machinery's author. The design-time
+# pins above cannot notice its loss: every one of them stays green with the
+# claim-liveness rule deleted, because they assert the design-time legs only. Its
+# two halves are pinned separately on purpose — "retire the gate" without the
+# obligation walk is the failure that walk exists to prevent, and a reworded
+# retirement sentence would keep the first pin green while dropping the second.
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 're-based onto a claim that still holds, or retired, in that same landing' \
+  "claim liveness (destination rule)"
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'obligations it carried that never depended on the dead claim do not die with it' \
+  "claim liveness (destination retirement walk)"
+# The rule offers TWO dispositions and the walk must cover both. Scoping it to
+# retirement alone leaves re-basing free to rewrite the enforcement surface — an
+# independent obligation quietly dropped, or the withdrawn claim still enforced
+# under a new name, with every other pinned clause satisfied.
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'Neither path is a free edit' \
+  "claim liveness (walk covers re-base as well as retirement)"
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'no component still enforces the withdrawn claim' \
+  "claim liveness (a re-base must not carry the dead claim forward)"
+# The walk above says "disposition each", and one of the dispositions is giving an
+# obligation up. Without the next clause that disposition is self-serviceable, so
+# a claim withdrawal becomes a route to delete a permission, data-safety, or
+# finality control by writing "accepted" about your own landing. This is the
+# highest-consequence sentence in the rule; pin it separately from the walk so a
+# rewrite cannot drop the approver while keeping the walk green.
+#
+# Pin the clause's OBLIGATIONS one by one, not its headline. Three review rounds
+# in a row found the same class of gap — an anchor on the sentence stays green
+# while a sub-requirement inside it is deleted — so the unit here is "one
+# assertion per thing the clause actually requires", and each is mutation-tested
+# on its own. The headline and the teeth are independently droppable, which is
+# precisely why they are independently pinned.
+#
+# WHAT THESE PROVE, AND WHAT THEY DO NOT. They prove each obligation is PRESENT
+# and lives INSIDE the owning section — that is, they catch deletion, rewording
+# away, and relocation into commentary. They do NOT prove the safety SEMANTICS
+# survived: a later sentence added to this same section ("except availability
+# controls may be self-accepted") leaves every fragment in place and every
+# assertion green while gutting the rule. That gap is accepted deliberately, not
+# overlooked — closing it needs a normative-block comparator, which reds on every
+# legitimate wording edit and defends only against an author who would edit this
+# fixture in the same commit. Catching a deliberate weakening is the dual-track
+# review's job, not this file's. Do not cite a green run here as evidence that
+# the rule still MEANS what it meant.
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'That last disposition is not self-serviceable' \
+  "claim liveness (headline: acceptance is not self-serviceable)"
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'named accountable risk owner' \
+  "claim liveness (obligation: a named accountable approver exists)"
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'routes through `feature-risk-router`' \
+  "claim liveness (obligation: escalation route)"
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'keeps enforcing — retained or re-based — until a' \
+  "claim liveness (obligation: enforcement continues until acceptance)"
+# The rule binds every abandoned control, with no protected-class list. That is a
+# deliberate shape, not an omission: a list is one unlisted class away from
+# letting a real control out, and review found exactly that twice. Pin the
+# unconditional scope, or a later edit "clarifies" it into an enumeration and the
+# assertions above keep passing for whichever classes survive the narrowing.
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'deliberately carries no class list to narrow' \
+  "claim liveness (obligation: scope is unconditional, not an enumeration)"
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'it binds whatever that control protects' \
+  "claim liveness (obligation: binds regardless of what is protected)"
+# The deferral escape hatch is the rule's own re-entry point for the failure it
+# prevents: "pending" with no approver, no end, and no consequence lets the dead
+# claim keep charging rent forever, which is exactly the tax being outlawed. Its
+# three teeth are pinned individually for the same reason as the clause above.
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'accepted risk with an end, not a note' \
+  "claim liveness (deferral: pending is an accepted risk, not a note)"
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'risk owner accepts the deferral itself' \
+  "claim liveness (deferral: owner approves the deferral)"
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'the first landing that pays the cost' \
+  "claim liveness (deferral: bounded by an observable end event)"
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'the next one that invokes or modifies the mechanism' \
+  "claim liveness (deferral: the bound is whoever PAYS, not whoever edits)"
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'the per-change cost being paid meanwhile' \
+  "claim liveness (deferral: the standing cost is recorded)"
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'escalates through `feature-risk-router` instead of renewing quietly' \
+  "claim liveness (deferral: expiry escalates, never renews silently)"
+assert_in_section "$MECHANISM_REF" '## Mechanism-operability check' 'about its own landing is not an acceptance' \
+  "claim liveness (obligation: self-acceptance is rejected)"
+# The entrypoint must advertise the second trigger in the SAME bullet as the load
+# pointer, for the same routing reason assert_same_bullet exists above: the actor
+# who withdraws a claim never matches the design-time phrasing, so a firing signal
+# that lost its pointer would route that actor nowhere.
+assert_same_bullet "$PRODUCT_SKILL" 'and again when a landing withdraws or downgrades the evidentiary claim' \
+  "references/design-review-gate-mechanics.md" "claim liveness (entry signal+pointer)"
+# The shared-skill instantiation reaches the rule only through this pointer; the
+# observed failure (round 028) was a shared-skill gate, so losing it re-opens the
+# exact path that failed. Co-location is the assertion, not presence: this side is
+# ONLY a pointer, so a check on the trigger phrase alone would stay green after the
+# destination path is deleted from it — leaving a reader who is told a fifth firing
+# point exists and never told where the rule lives, which is the reachability
+# failure this whole round exists to close.
+assert_same_paragraph "$REPO_ROOT/skills/skill-extraction-workflow/references/dual-track-review-gate.md" \
+  'withdraws or downgrades the evidentiary claim an existing gate rests on' \
+  "product-rd-workflow/references/design-review-gate-mechanics.md" \
+  "claim liveness (shared-skill instantiation pointer)"
 
 # 2. Affirmative-assent binding
 assert_contains "$PRE_FINAL_REF" 'the required `proposed-next:` marker makes that binding observable' "assent binding (destination)"
