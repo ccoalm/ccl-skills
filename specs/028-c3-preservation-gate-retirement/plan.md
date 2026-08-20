@@ -2,6 +2,8 @@
 
 Status: interim. Gate retired and ledger rows landed; `make test` green; review round 1 returned one P1 that is fixed here, so the dual-track pair is rerun against the refreshed candidate. The mechanism-operability prevention clause stays `pending` to its own round, so this round never claims `complete`. Merge authorization is the user's.
 
+> **Forward status (added by round 029).** The `pending` prevention-clause row in this round's target-output map is closed: the claim-liveness rule landed as executable guidance in `skills/product-rd-workflow/references/design-review-gate-mechanics.md`'s `Mechanism-operability check`, with the second firing point advertised at the entrypoint and pinned by `test_ai_coding_implementation_gates.sh`. This round's `interim` label on the prevention axis is therefore superseded; its body is left unedited, since the statements above described what this round shipped. See `specs/029-claim-liveness-operability-leg/plan.md`.
+
 ## Charter
 
 | Field | Decision |
