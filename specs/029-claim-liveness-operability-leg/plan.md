@@ -2,6 +2,8 @@
 
 Status: interim — dual-track converged and protected CI is green on the skill-change commit; what remains is the maintainer's merge decision, which this round never makes for itself. The clause, its second firing point, the sibling pointer, the fixture pins and the ledger rows are landed and committed on the round branch; `check-ccl-skills.sh` is clean-green with a real private R0 audit and the impact-chain gate satisfied. The dual-track pair has not run yet, so this round cannot be reported complete. Merge authorization is the user's.
 
+> **Forward status (post-merge).** The one item the status above leaves open — the maintainer's merge decision — landed: PR #7 merged this round into `dev` on 2026-08-20 as merge commit `408e111`. Reviewer attribution, per-round finding disposition, and the authoritative CI execution live in that merge request's description, where this plan already places them. The status line was assembled across rounds; its "dual-track pair has not run yet" fragment is an earlier candidate's remnant — the merge record supersedes the whole line. The body below stays unedited as the round's own account.
+
 ## Charter
 
 | Field | Decision |
