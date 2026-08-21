@@ -1,6 +1,6 @@
 # D1 — Model-Visible Accounting Invariant (design round)
 
-Status: design-for-approval — this round produces the design and stops; it edits no `skills/**` file. Completion condition, fixed by the round-023 deferral: the named security owner (the repository maintainer) participates in the design and records approval. Until that approval is recorded, the round is `interim`; the landing round that edits the owner reference runs afterwards under the shared-skill non-wording gates (ledger `RED-baseline` row, dual-track review, adversarial challenge).
+Status: design approved — the named security owner (the repository maintainer) approved all five decision points by default on 2026-08-20, in-session, after being offered per-point amendment; the verdicts are recorded in the decision table below. The landing slice now runs on this same branch under the shared-skill non-wording gates (ledger `RED-baseline` row, deterministic pins, dual-track review, adversarial challenge bound to the landing diff). Merge authorization stays with the maintainer.
 
 ## Authorization and lineage
 
@@ -94,11 +94,11 @@ Each row needs the security owner's recorded verdict; defaults are the design ab
 
 | # | Decision | Default offered | Owner verdict |
 | --- | --- | --- | --- |
-| D-1 | Classification taxonomy: exactly three classes (raw / by-immutable-reference / non-reconstructable), no fourth "partially reconstructable" class. | Three classes; partial forms classify as non-reconstructable with reason. | pending |
-| D-2 | Digest discipline: plain digest only beside raw content; keyed digest (key-id + algorithm-id + retained keyring) wherever the digest is the only residue; no sensitivity class list. | As stated. | pending |
-| D-3 | Secrets: never model-visible raw (reference-resolution boundary); defect path records a typed exposure event, never the value or any digest of it. | As stated. | pending |
-| D-4 | Assertions audit completeness/validity only; no assertion may require raw persistence. | As stated. | pending |
-| D-5 | Landing surface: reference §3 block + one Non-negotiables bullet; entrypoint (`skills/llm-inference-integration/SKILL.md`) untouched unless the landing round's size gate shows the theme word fits without growth. | Reference-only landing. | pending |
+| D-1 | Classification taxonomy: exactly three classes (raw / by-immutable-reference / non-reconstructable), no fourth "partially reconstructable" class. | Three classes; partial forms classify as non-reconstructable with reason. | approved as offered — maintainer, 2026-08-20, in-session |
+| D-2 | Digest discipline: plain digest only beside raw content; keyed digest (key-id + algorithm-id + retained keyring) wherever the digest is the only residue; no sensitivity class list. | As stated. | approved as offered — maintainer, 2026-08-20, in-session |
+| D-3 | Secrets: never model-visible raw (reference-resolution boundary); defect path records a typed exposure event, never the value or any digest of it. | As stated. | approved as offered — maintainer, 2026-08-20, in-session |
+| D-4 | Assertions audit completeness/validity only; no assertion may require raw persistence. | As stated. | approved as offered — maintainer, 2026-08-20, in-session |
+| D-5 | Landing surface: reference §3 block + one Non-negotiables bullet; entrypoint (`skills/llm-inference-integration/SKILL.md`) untouched unless the landing round's size gate shows the theme word fits without growth. | Reference-only landing. | approved as offered — maintainer, 2026-08-20, in-session |
 
 ## Mechanism-operability check (recorded)
 
@@ -131,4 +131,4 @@ The design proposes no new enforcement machinery in this repository: the clause 
 | Check | Result |
 | --- | --- |
 | `make test` (full deterministic suite) | Implementer-run: exit 0, no `FAIL`/`ERROR` line, on the candidate tree whose only later edit is this row's own text (a result row inside the tip it describes cannot cite a run of that exact tip). The authoritative execution is the protected CI run on the pushed branch, recorded in the merge request. |
-| Security-owner approval | pending — the round's completion condition. |
+| Security-owner approval | recorded — all five decision points approved by default by the maintainer on 2026-08-20, in-session, after being offered per-point amendment; the verdict column above is the record. The agent recorded the verdicts; the approval act itself is the maintainer's, per the r6 rule that an agent's self-acceptance is not an acceptance. |
