@@ -86,6 +86,112 @@ Not every in-memory event belongs in the durable log. Define an explicit policy:
   model consumed. Sanitize/redact at persistence time as well as display time.
 - Support more than one persistence mode (e.g. a lean default vs an extended/debug mode that keeps
   larger payloads) so verbosity is a policy choice, not hardcoded.
+- **Model-visible ⟹ accounted-for.** Every item in the client-dispatched envelope must carry
+  exactly one durable accounting classification (the sealed envelope defined below; the
+  provider-effective context is the separate, conditional surface at the end of this rule).
+  The policy above decides what is durable; this invariant decides what is *explainable
+  afterwards* — user/assistant messages, tool outputs, injected context, and resolved
+  instruction surfaces all count. The classes:
+  - **Reconstructable (raw)** — the persisted content is byte-equivalent to its item in the
+    sealed client-dispatched envelope and lives in the session log itself (per the truncation
+    rule above, the client dispatched the same truncated form that was persisted; what the
+    provider did after that is the provider-effective surface at the end of this rule). A payload stored out-of-line classifies by
+    reference below — never raw — so the availability and authorization criteria apply to it.
+    An item transformed by persistence-time redaction does not classify raw — classify it
+    non-reconstructable, with the redacted derivative recorded as the marker's metadata rather
+    than as the item.
+  - **Reconstructable (by reference)** — the log carries an immutable, versioned reference
+    (an opaque pinned id or version; for content-derived ids see the digest rule below)
+    plus a digest, and the referenced store keeps the item
+    resolvable for the session log's whole retention horizon, with access no broader than
+    the log's policy while the authorized replay principal keeps access. "Stricter policy" is
+    not the test: a store that purges earlier than the log, or denies the replay principal,
+    fails it — availability and authorization are what make the promise true.
+    A mutable reference target does not qualify: replay would resolve different or missing
+    content, turning "reconstructable" into a false promise — classify such an item
+    non-reconstructable instead.
+  - **Non-reconstructable** — an explicit marker carrying the reason (policy forbids persistence,
+    the payload was ephemeral, the source lives behind stricter access control) plus either a
+    keyed digest or an explicit no-digest note.
+- **The accounting invariant audits records; it must never force raw persistence.** Assertions
+  over a session log check completeness (no envelope item without a classification) and
+  validity (by-reference targets immutable and policy-aligned) — never "everything model-visible
+  is persisted raw"; that inversion is how an accounting rule becomes a credential-persistence
+  bug. Completeness is only as real as the record it audits: assign stable per-item ids at
+  context assembly and durably commit each item's complete accounting record — the id, the
+  classification, and that classification's evidence (the raw content itself, the validated
+  pinned reference plus digest, or the full non-reconstructable marker) — before model
+  dispatch, failing closed if that commit fails; a retry reuses the ids so a replayed
+  dispatch deduplicates rather than double-classifies. The denominator must be authoritative
+  too: derive one atomic, invocation-scoped manifest from the finalized dispatch payload
+  itself — the ordered item ids and boundaries — and commit it with the records, so an audit
+  checks the log against the invocation's own manifest rather than against whatever subset of
+  records happened to land. Seal before you account: freeze the dispatch payload into an
+  immutable envelope, derive the manifest and records from that sealed envelope, and let
+  transport and retries send only the sealed envelope — a payload middleware can still mutate
+  between commit and send re-opens the window (the same check-then-act closure the §4 config
+  lock pins with a generation). Account the attempt, not only the content: record durable
+  attempt states around the sealed envelope — prepared, dispatch-attempted, then accepted or
+  delivery-uncertain — plus the provider request/idempotency key; the durable
+  dispatch-attempted state (unique attempt id plus that key) commits before transport is
+  invoked, failing closed like the item records, and after transport the state moves only to
+  accepted, delivery-uncertain, or rejected — the last a provider-attested definitive rejection
+  before model execution, recording that no invocation occurred; a corrected resend after it is
+  a new sealed invocation with its own envelope and key, since an idempotency key may only ever
+  cover one identical payload — so a retry that may have
+  invoked the model twice shows as two attempts even while item accounting deduplicates.
+  Recovery treats a stale dispatch-attempted record as delivery-uncertain — a crash just after
+  the commit and a crash after provider acceptance leave the same record — reconciling by
+  provider request id where the provider supports it, and auto-retrying only under
+  provider-guaranteed idempotency with the invocation's original key and the identical sealed
+  envelope — a retry that mints a fresh key is a second invocation, not a retry; otherwise the
+  uncertainty is surfaced, not retried through. A stale prepared record — committed but never
+  dispatch-attempted, so transport cannot have run — is recovered explicitly too: either cancel
+  it into a typed terminal state, its committed evidence following the normal retention or
+  erasure policy, or resume by committing dispatch-attempted and sending the identical sealed
+  envelope under the original key; left prepared forever it surfaces nothing and strands
+  committed evidence with no invocation to explain it.
+  Version the accounting schema and apply it prospectively: an invocation recorded before the
+  accounting existed carries a typed legacy marker (the non-reconstructable family, with
+  pre-accounting as the reason) — never synthesized classifications — the same rule §4 applies
+  to sessions recorded before the config lock existed. The guarantee is honest about its edge:
+  it is scoped to what the client dispatched. A provider can inject, truncate, or compact
+  server-side, so the accounting claims the sealed envelope, not the provider's effective
+  context — where authoritative provider evidence of the effective context exists, record it;
+  where it does not, the invocation carries a typed model-context-unverifiable marker rather
+  than an implied full-fidelity claim. A crash between dispatch and append
+  otherwise leaves items whose classification landed but whose evidence never did, and a
+  log-only audit sees neither gap.
+  Credentials and secrets never reach this accounting as content, because they are never
+  model-visible raw (resolve them by reference at the boundary — `agent-credentials-auth.md`).
+  A secret detected in the sealed envelope before dispatch aborts the transport and records a
+  rejected-exposure event, itself under the same discipline as every exposure record (never
+  the value, never a plain digest); accounting for a known exposure never licenses sending it.
+  The scan
+  runs before accounting evidence is derived or committed and fails closed itself: a scanner
+  error, timeout, or absence never reads as no detection — the dispatch waits or aborts; where
+  any persistence preceded
+  detection, the late-discovery transition below applies to the aborted dispatch as well. If a
+  secret is discovered only after it reached model context, classify that item
+  non-reconstructable with an explicit no-digest note — never raw, never by reference — and
+  attach the exposure as that marker's metadata: the accounting records a typed exposure event
+  (class, source, span) — never the value, and never a plain digest of it. Late discovery is a
+  transition, not a label, and it covers every class that persisted content: whether the item
+  was raw in the log or reachable through a by-reference target, supersede the classification,
+  contain read access to the affected records and the referenced target at once, and purge or
+  cryptographically erase the persisted or referenced content, its replicas, and any digest or
+  content-derived identifier stored for it, where the store supports it —
+  an append-only log does this as a supersession event plus erasure, never a silent rewrite —
+  recording any residue that could not be erased as part of the exposure event. A digest is itself a
+  disclosure channel: a plain content hash of an enumerable value is reversible by dictionary,
+  so a plain digest is allowed only where the same record already persists the content raw
+  (pure integrity use). A content-derived reference identifier is a digest under this rule, so
+  a by-reference record identifies its target by an opaque pinned id or version, or a keyed
+  derivation — never a plain content hash of the referenced content. Where the digest is the
+  only residue — the by-reference and
+  non-reconstructable classes — use a keyed digest with a non-secret key-id and algorithm-id,
+  verified against a retained keyring, rotation handled as `migration-required` (the same
+  discipline the §4 config lock specifies for sensitive-but-behavior-affecting fields).
 
 ## 4. Resume and fork: replay the log, and restore the accounting too
 
@@ -284,6 +390,12 @@ When a session's estimated context approaches the model window, compact it.
   compaction must shrink the kept set, and bounded growth needs segmented logs + durable checkpoints.
 - A compaction summary is marked as a summary, recorded as a log marker, and produced/accepted only
   after the keep/drop filter; durable system/tool context is re-injected at a deterministic position.
+- Every item in the client-dispatched envelope is accounted for as reconstructable-raw, reconstructable by immutable
+  reference (digest + policy-aligned store), or explicitly non-reconstructable with reason;
+  accounting assertions check completeness and classification, never force raw persistence; secrets
+  stay reference-resolved — a leaked secret classifies non-reconstructable with an explicit
+  no-digest note and a typed exposure event as metadata — and a digest that is the only
+  residue of an item is keyed, never plain.
 
 ## Routing
 

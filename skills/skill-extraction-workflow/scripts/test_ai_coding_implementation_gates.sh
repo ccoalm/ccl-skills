@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Semantic-anchor regression for the two independent implementation gates.
+# Semantic-anchor regression for the independent implementation-gate pin families.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
@@ -260,5 +260,245 @@ assert_contains "$SYNC_REF" 'default to the access-controlled pointer + revision
 assert_same_bullet "$PRODUCT_SKILL" 'upstream-owned value set' \
   "references/sync-spec-repo-contract.md" "no-copy rule (entry signal+pointer)"
 assert_contains "$PRODUCT_SKILL" 'cite the access-controlled pointer + revision' "dependency default (entry variant)"
+
+# 7. Model-visible accounting invariant (agent session persistence, round 030).
+# The clause is a security-owner-approved rule whose historical failure modes are
+# each a specific sentence: forcing raw persistence (r4), accepting mutable
+# reference targets (r5), and leaving a plain digest as the only residue (r6).
+# One assertion per obligation, section-bound, for the same reasons as family 1b:
+# a sentence-level anchor stays green while a sub-obligation inside it is
+# deleted, and a whole-file grep cannot tell a normative rule from a mention.
+# The same limits stated there apply here: these pins catch deletion,
+# rewording-away, and relocation — not a weakening sentence added beside them;
+# that is the dual-track review's job.
+PERSISTENCE_REF="$REPO_ROOT/skills/llm-inference-integration/references/agent-session-persistence.md"
+PERSISTENCE_POLICY_SECTION='## 3. A persistence policy decides what is durable, ephemeral, or truncated'
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'client-dispatched envelope must carry' \
+  "model-visible accounting (invariant: envelope items are the accounted set)"
+# Review round 27 (codex) P1: weakening "exactly one" to "one or more" kept
+# the lead pin green — the uniqueness quantifier gets its own pin.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'exactly one durable accounting classification' \
+  "model-visible accounting (invariant: the classification is exactly one)"
+# Review round 3 (codex): the invariant pin alone lets the three class
+# DEFINITIONS be deleted or weakened while everything stays green, and the raw
+# class needed byte-equivalence semantics (a persistence-redacted item is not
+# what the model saw, so calling it raw breaks replay while completeness checks
+# pass). One pin per class definition, plus the raw-semantics pair.
+# Review round 22 (codex) P1: "byte-equivalent to what the model saw"
+# contradicted the provider-effective scoping, which admits consumption is
+# unverifiable — raw binds to the envelope item, the only thing the client can
+# actually guarantee bytes for.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'byte-equivalent to its item in the' \
+  "model-visible accounting (class: raw means byte-equivalent to the envelope item)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'transformed by persistence-time' \
+  "model-visible accounting (class: a redacted item does not classify raw)"
+# Review round 4 (codex) P1: raw's out-of-line parenthetical re-opened the
+# availability hole — an out-of-line store may purge before the log expires or
+# deny the replay principal, yet the raw class required neither. Out-of-line is
+# by-reference by definition; pinned so the routing sentence cannot be dropped.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'A payload stored out-of-line classifies by' \
+  "model-visible accounting (class: out-of-line payloads classify by reference, never raw)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'the log carries an immutable, versioned reference' \
+  "model-visible accounting (class: by-reference means immutable versioned reference)"
+# Review round 7 (codex) P2: "plus a digest" was droppable — the reference pin
+# does not require a digest and the keyed-residue pins only constrain a digest
+# when one exists, so the class could lose its integrity requirement silently.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'plus a digest, and the referenced store keeps the item' \
+  "model-visible accounting (class: a by-reference record carries a mandatory digest)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'an explicit marker carrying the reason' \
+  "model-visible accounting (class: non-reconstructable carries a reason)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'digest or an explicit no-digest note' \
+  "model-visible accounting (class: non-reconstructable carries a keyed digest or a no-digest note)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'no envelope item without a classification' \
+  "model-visible accounting (obligation: assertions check completeness)"
+# Review round 9 (codex) P1: a crash between model dispatch and the append, or
+# a duplicating retry, leaves items a log-only audit cannot see — completeness
+# was only as real as whatever reached the log. Round 10 deepened it: a manifest
+# of ids+classifications alone still passes while a raw item's CONTENT never
+# landed, so the pre-dispatch commit carries each classification's evidence.
+# Four teeth, pinned individually.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" "durably commit each item's complete accounting record" \
+  "model-visible accounting (obligation: the complete accounting record commits before dispatch)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" "and that classification's evidence" \
+  "model-visible accounting (obligation: the pre-dispatch commit includes the classification's evidence)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'failing closed if that commit fails' \
+  "model-visible accounting (obligation: a failed manifest commit fails closed)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'reuses the ids so a replayed' \
+  "model-visible accounting (obligation: retries deduplicate by stable item ids)"
+# Review round 11 (codex) P1: with no authoritative denominator, an
+# under-enumeration defect commits records for a subset and the audit checks
+# the log against that same subset — a dropped item (injected instructions
+# included) is invisible. The manifest derives from the finalized dispatch
+# payload itself; both teeth pinned.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'invocation-scoped manifest from the finalized dispatch payload' \
+  "model-visible accounting (obligation: the manifest derives from the finalized dispatch payload)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'rather than against whatever subset of' \
+  "model-visible accounting (obligation: the audit denominator is the invocation manifest)"
+# Review round 12 (codex) P1: deriving manifest and records from a payload that
+# middleware can still mutate re-opens the commit-to-send window — the model
+# sees the changed payload while the audit passes against the unchanged
+# manifest. Sealed-envelope closure, both teeth pinned.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'derive the manifest and records from that sealed envelope' \
+  "model-visible accounting (obligation: manifest and records derive from the sealed envelope)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'transport and retries send only the sealed envelope' \
+  "model-visible accounting (obligation: transport sends only the sealed envelope)"
+# Review round 13 (codex), two P1s: (a) after a transport failure or lost ack
+# the log was indistinguishable from a consumed invocation, and an id-reusing
+# retry could invoke the model twice while accounting showed one — the attempt
+# needs its own durable states and provider idempotency key; (b) fail-closed
+# auditing bricked pre-accounting sessions, and synthesizing records for them
+# would fabricate evidence — the schema is versioned and prospective, legacy
+# history carries a typed marker. Four teeth, pinned individually.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'prepared, dispatch-attempted, then accepted or' \
+  "model-visible accounting (obligation: durable attempt states around the sealed envelope)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'shows as two attempts even while item accounting deduplicates' \
+  "model-visible accounting (obligation: a possible double invocation is visible as two attempts)"
+# Review rounds 15/16 (codex) P1s: appending dispatch-attempted AFTER calling
+# the provider loses the attempt on a crash between send and append, and a
+# wording that let `prepared` satisfy the pre-transport commit kept that window
+# open. The durable state that commits pre-transport IS dispatch-attempted, and
+# post-transport transitions are accepted/delivery-uncertain only.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'dispatch-attempted state (unique attempt id plus that key) commits before transport' \
+  "model-visible accounting (obligation: dispatch-attempted itself commits before transport)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'after transport the state moves only to' \
+  "model-visible accounting (obligation: post-transport states come from the closed enumeration)"
+# Review round 26 (codex) P1: the closed post-transport enumeration had no
+# place for a definitive provider rejection before model execution, forcing
+# false uncertainty. `rejected` is provider-attested and records that no
+# invocation occurred.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'provider-attested definitive rejection' \
+  "model-visible accounting (obligation: rejected is provider-attested with no invocation)"
+# Self-audit after round 27 (lifecycle walk, both found by the implementer, not
+# a reviewer): (H1) a corrected resend after `rejected` must be a NEW sealed
+# invocation — an idempotency key may only ever cover one identical payload;
+# (H2) the rejected-exposure event had no content constraint.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'new sealed invocation with its own envelope and key' \
+  "model-visible accounting (obligation: a corrected resend after rejected is a new invocation)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'itself under the same discipline as every exposure record' \
+  "model-visible accounting (obligation: the rejected-exposure event carries no value or plain digest)"
+# Review round 17 (codex) P1: a crash just after the dispatch-attempted commit
+# and a crash after provider acceptance leave the same record, so recovery
+# could either drop a delivered invocation or blind-retry into a double one.
+# Stale records resolve to delivery-uncertain, reconcile by provider request
+# id, and auto-retry only under provider-guaranteed idempotency.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'treats a stale dispatch-attempted record as delivery-uncertain' \
+  "model-visible accounting (obligation: recovery resolves stale attempts to delivery-uncertain)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" "provider-guaranteed idempotency with the invocation's original key" \
+  "model-visible accounting (obligation: auto-retry only under provider-guaranteed idempotency with the original key)"
+# Review round 21 (codex) P1: a retry that mints a fresh idempotency key is a
+# distinct request to the provider — the model runs twice while the accounting
+# shows a retry. The key binds to the sealed logical invocation.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'a retry that mints a fresh key is a second invocation' \
+  "model-visible accounting (obligation: a fresh-key retry counts as a second invocation)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'uncertainty is surfaced, not retried through' \
+  "model-visible accounting (obligation: unresolved uncertainty is surfaced, never retried through)"
+# Challenge (chain r23) P1: a record committed but never dispatch-attempted had
+# no recovery path — indefinitely prepared, surfacing nothing, stranding
+# committed evidence. Cancel-or-resume, both teeth pinned.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'A stale prepared record — committed but never' \
+  "model-visible accounting (obligation: stale prepared records are recovered explicitly)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'resume by committing dispatch-attempted and sending the identical sealed' \
+  "model-visible accounting (obligation: resume recommits dispatch-attempted with the identical envelope)"
+# Review round 21 (codex) P1: raw evidence could be durably committed before
+# the pre-transport secret scan rejected the envelope, leaving the value in the
+# log with the erasure transition scoped to post-model discovery only.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'runs before accounting evidence is derived or committed' \
+  "model-visible accounting (obligation: the secret scan precedes evidence derivation and commit)"
+# Review round 24 (codex) P1: a scanner timeout/error/absence read as "no
+# detection" and the envelope shipped unscanned — the scan itself fails closed.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'never reads as no detection' \
+  "model-visible accounting (obligation: a failed or absent scan never reads as clean)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'the late-discovery transition below applies to the aborted dispatch' \
+  "model-visible accounting (obligation: an aborted dispatch with prior persistence takes the erasure transition)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'Version the accounting schema and apply it prospectively' \
+  "model-visible accounting (obligation: the schema is versioned and prospective)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'never synthesized classifications' \
+  "model-visible accounting (obligation: legacy history is marked, never fabricated)"
+# Review round 14 (codex) P1: a provider that injects, truncates, or compacts
+# server-side makes the model's effective context differ from the sealed
+# envelope while every local record passes — the guarantee must claim the
+# client-dispatched envelope and mark the rest unverifiable, not imply
+# full fidelity it cannot see. Both teeth pinned.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'scoped to what the client dispatched' \
+  "model-visible accounting (obligation: the guarantee is scoped to client-dispatched context)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'typed model-context-unverifiable marker' \
+  "model-visible accounting (obligation: absent provider evidence, unverifiability is marked)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'resolve them by reference at the boundary' \
+  "model-visible accounting (obligation: secrets are reference-resolved, never model-visible raw)"
+# Review round 19 (codex) P1: a secret DETECTED before dispatch was accounted
+# for and then sent anyway — the rule only failed closed on commit failure, so
+# accounting a known exposure licensed shipping it. Detection aborts transport;
+# the leak classification is reserved for post-dispatch discovery.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'before dispatch aborts the transport' \
+  "model-visible accounting (obligation: a detected secret aborts the dispatch)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'accounting for a known exposure never licenses sending it' \
+  "model-visible accounting (obligation: accounting never licenses sending a known exposure)"
+# Challenge (chain r20) P1: an unrecognized secret classified raw leaves its
+# value readable in the append-only log after late discovery — relabeling did
+# not touch the persisted bytes. The late-discovery transition has four teeth,
+# pinned individually.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'covers every class that persisted content' \
+  "model-visible accounting (obligation: late discovery covers raw and by-reference items)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'contain read access to the affected records and the referenced target at once' \
+  "model-visible accounting (obligation: containment reaches the referenced target too)"
+# Review round 25 (codex) P1: erasure named the value and replicas but not the
+# plain integrity digest legitimately stored beside a raw record — once the
+# value is erased, that digest is the enumerable residue of a low-entropy
+# secret. The erasure list includes it.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'erase the persisted or referenced content, its replicas, and any digest or' \
+  "model-visible accounting (obligation: erasure covers content, replicas, digests, and derived identifiers)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'recording any residue that could not be erased' \
+  "model-visible accounting (obligation: unerased residue is recorded in the exposure event)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'A mutable reference target does not qualify:' \
+  "model-visible accounting (obligation: immutable reference targets only)"
+# Review round 1 (codex) P1: "policy at least as strict" was wrong on both axes —
+# a store purging EARLIER than the log, or denying the replay principal, passed
+# the old wording while replay silently failed. The criterion is availability +
+# authorization, and both corrected clauses are pinned so a reword back to the
+# strictness proxy reds here.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" "resolvable for the session log's whole retention horizon" \
+  "model-visible accounting (obligation: by-reference availability spans the retention horizon)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'or denies the replay principal,' \
+  "model-visible accounting (obligation: the replay principal keeps access)"
+# Review round 5 (codex) P2: the no-broader-access clause was the one criterion
+# of the by-reference class left unpinned — droppable while the horizon and
+# principal pins stayed green, widening who can read replay data.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'with access no broader than' \
+  "model-visible accounting (obligation: reference-store access is no broader than the log policy)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'it must never force raw persistence' \
+  "model-visible accounting (obligation: audits records, never forces persistence)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'the accounting records a typed exposure event' \
+  "model-visible accounting (obligation: leaked secret becomes a typed exposure event)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'never the value, and never a plain digest of it' \
+  "model-visible accounting (obligation: no value and no plain digest of a leaked secret)"
+# Review round 1 (codex) P1: a leaked secret was covered by the exactly-one-
+# classification invariant yet assigned no class, so a consumer had to leave it
+# unclassified or invent one that could retain forbidden material. The corrected
+# clause names the class and forbids the other two; pinned so the assignment
+# cannot be dropped while the exposure-event pin stays green.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'explicit no-digest note — never raw, never by reference' \
+  "model-visible accounting (obligation: a leaked secret classifies non-reconstructable, no digest)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'allowed only where the same record already persists the content raw' \
+  "model-visible accounting (obligation: plain digest only beside raw content)"
+# Review round 6 (codex) P1: a content-addressed id IS a plain content hash, so
+# a low-entropy value stored out-of-line under a conventional CAS id was
+# enumerable from the log while every digest pin stayed green — the rule keyed
+# the companion digest and forgot the identifier. Both teeth pinned.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'A content-derived reference identifier is a digest under this rule' \
+  "model-visible accounting (obligation: reference identifiers fall under the digest rule)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'never a plain content hash of the referenced content' \
+  "model-visible accounting (obligation: no plain content hash as the log-visible identifier)"
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'keyed digest with a non-secret key-id and algorithm-id' \
+  "model-visible accounting (obligation: residue digests are keyed)"
+# Review round 2 (codex) P1: the keyed-digest pin stays green with the
+# retained-keyring / rotation clause deleted, and without that clause an
+# implementation may discard old keys on rotation, leaving retained
+# by-reference records unverifiable before the log expires. Pinned separately
+# so dropping or weakening rotation semantics reds while the keyed pin alone
+# would stay green.
+assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'verified against a retained keyring, rotation handled as' \
+  "model-visible accounting (obligation: keyring is retained across rotation)"
+assert_in_section "$PERSISTENCE_REF" '## Non-negotiables' 'residue of an item is keyed, never plain' \
+  "model-visible accounting (non-negotiable bullet present)"
 
 echo "test_ai_coding_implementation_gates: ok"
