@@ -501,4 +501,195 @@ assert_in_section "$PERSISTENCE_REF" "$PERSISTENCE_POLICY_SECTION" 'verified aga
 assert_in_section "$PERSISTENCE_REF" '## Non-negotiables' 'residue of an item is keyed, never plain' \
   "model-visible accounting (non-negotiable bullet present)"
 
+# 8. Sandbox-denial triage and controlled privilege escalation (round 031, E5).
+# The clause is a security-owner-approved rule whose historical failure mode is
+# the 023 review P1: the source rule's "retry with escalation before diagnosing"
+# default is safe only for a repo's own trusted commands, and generalized as
+# written it lets a repo-controlled command use a sandbox denial as a pretext to
+# obtain host credentials or network. One assertion per obligation, section-bound,
+# with the same limits as families 1b and 7: these pins catch deletion,
+# rewording-away, and relocation — not a weakening sentence added beside them;
+# that is the dual-track review's job.
+EXTRACTION_METHOD_REF="$REPO_ROOT/skills/skill-extraction-workflow/references/source-to-skill-extraction.md"
+BLOCKED_VERIFICATION_SECTION='## Blocked Verification And Source-Read Remediation'
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'Sandbox-denial triage precedes any escalation' \
+  "controlled escalation (invariant: triage before escalation, never a default)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'never inference from a bare non-zero exit' \
+  "controlled escalation (triage: denial evidence is observed, not inferred)"
+# Challenge round 2 (codex, chain ua11) P1: "observed denial" without a
+# provenance requirement let command-controlled stderr fake an EPERM story.
+# Denial evidence comes from the host's own enforcement/telemetry channel,
+# bound to the invocation and denied capability; command output alone never
+# qualifies.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'trusted host-controlled enforcement or telemetry channel' \
+  "controlled escalation (triage: denial evidence provenance is the host channel)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" "never the command's own stdout/stderr alone" \
+  "controlled escalation (triage: command-controlled output alone is never denial evidence)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'classifies as genuine for this rule and never qualifies for escalation' \
+  "controlled escalation (triage: indeterminate fails closed)"
+# Challenge round 1 (codex, chain ua10) P1: a run can show BOTH a genuine
+# failure and a deliberately-triggered denial; forcing only indeterminate to
+# genuine let mixed evidence justify a grant. The denial must be the sole
+# proximate cause, mixed/conflicting evidence classifying as genuine.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'so does mixed or conflicting evidence' \
+  "controlled escalation (triage: mixed or conflicting evidence classifies as genuine)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'the sole proximate cause preventing completion' \
+  "controlled escalation (triage: the denial must be the sole proximate cause)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'bypassing one via escalation is prohibited' \
+  "controlled escalation (invariant: genuine failures are never escalated around)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'only when every condition holds' \
+  "controlled escalation (gate: conditions are conjunctive, refusal falls back to blocked)"
+# Review round 10 (codex, chain ua9) P2: the walk only proves pins that exist,
+# so unpinned obligations were silently deletable. Full obligation-to-pin
+# enumeration re-walked; the six gaps found are pinned here.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'otherwise the item stays `blocked` with the normal remediation record' \
+  "controlled escalation (gate: refusal falls back to the blocked record, stated not implied)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'never pasted' \
+  "controlled escalation (condition 2: credential grants stay reference-resolved, never pasted)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 're-run **unchanged**' \
+  "controlled escalation (condition 2: the command is re-run unchanged)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'host policy permits the grant AND the user approves' \
+  "controlled escalation (condition 3: host policy and user approval are both required)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'this specific escalation' \
+  "controlled escalation (condition 3: approval is for this specific escalation)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'never inferred by the agent' \
+  "controlled escalation (condition 3: approval is never agent-inferred)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'reviewed this session by the operator side' \
+  "controlled escalation (condition 1: command trust is in-session review)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" "never because the repo's own docs say to run them" \
+  "controlled escalation (condition 1: repo entrypoints are untrusted until reviewed)"
+# Review round 1 (codex) P1: binding trust to the command string is a TOCTOU
+# hole — the blocked first run or a concurrent actor rewrites a script, symlink
+# target, or generated file, and the textually unchanged re-run resolves to
+# unreviewed content under the grant. Trust binds to content identity, verified
+# at the escalated re-run, failing closed. Three teeth, pinned individually.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'binds to the reviewed content, not the command string' \
+  "controlled escalation (condition 1: trust binds to content identity, not the command string)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 're-verify them immediately before the escalated re-run' \
+  "controlled escalation (condition 1: content identity is re-verified at the escalated re-run)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'failing closed to re-review on any mismatch' \
+  "controlled escalation (condition 1: a content mismatch fails closed to re-review)"
+# Review round 2 (codex, chain ua1) P1: verify-then-execute on a live path is
+# non-atomic — after re-verification a concurrent actor swaps the file before
+# the unchanged command opens it. The re-run executes the reviewed snapshot
+# itself, or verifies the exact bytes it subsequently executes. Both teeth pinned.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'executes the reviewed snapshot itself' \
+  "controlled escalation (condition 1: the re-run executes the reviewed snapshot or verified bytes)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'never a live path re-verified separately from execution' \
+  "controlled escalation (condition 1: no verify-then-execute swap window on a live path)"
+# Review round 3 (codex, chain ua2) P1: atomic verify-and-execute stated only
+# for "the re-run" leaves descendants open — a reviewed parent running from its
+# snapshot can still invoke a swapped live helper under the grant. Chain-wide
+# requirement pinned.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'every repository-controlled executable or loadable code unit in the runtime chain' \
+  "controlled escalation (condition 1: snapshot-or-atomic-verify holds chain-wide, descendants included)"
+# Review round 4 (codex, chain ua3) P1: sealing keyed to executables/loadable
+# code leaves non-code inputs open — swapped configuration, data, environment
+# files, or symlink targets change what the reviewed code does under the grant.
+# Review round 6 (codex, chain ua5) P1 widened the origin: content fetched over
+# the granted network/IPC/host channel during the re-run is equally mutable and
+# untrusted. Sealing is keyed by effect; an unsealable input refuses the
+# escalation.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'every untrusted mutable input that can affect privileged behavior' \
+  "controlled escalation (condition 1: sealing is keyed by effect over every untrusted origin)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'content fetched over the granted network' \
+  "controlled escalation (condition 1: sealing covers content fetched over the granted channel)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'when such an input cannot be sealed' \
+  "controlled escalation (condition 1: an unsealable input refuses the escalation, fail closed)"
+# Review round 5 (codex, chain ua4) P1: naming non-code inputs "sealed" while
+# the consumption mechanics stayed code-only let a verified configuration be
+# consumed as swapped bytes. Non-code inputs consume under the same discipline
+# as code — snapshot, or verified bytes held stable through use.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'held stable through use' \
+  "controlled escalation (condition 1: non-code inputs consume verified bytes held stable through use)"
+# Review round 8 (codex, chain ua7) P1: "verified" without an anchor lets an
+# attacker-controlled channel response be verified-and-stable yet unapproved.
+# Verification anchors to an immutable expected identity reviewed before
+# escalation and bound into the approval; no pre-grant identity means blocked.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'verified against an immutable expected identity' \
+  "controlled escalation (condition 1: verification anchors to a pre-reviewed expected identity)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'no expected identity can be established before the grant' \
+  "controlled escalation (condition 1: no pre-grant expected identity means blocked)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'never from unreviewed mutable input' \
+  "controlled escalation (net invariant: privileged behavior derives only from reviewed, approval-bound content)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'narrowest blocked capability only' \
+  "controlled escalation (condition 2: grant minimality)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'never a general sandbox disable' \
+  "controlled escalation (condition 2: no general sandbox disable)"
+# Challenge round 4 (codex, chain ua13) P1: approval bound a capability NAME —
+# a credential reference, host, or path that can re-resolve to a different
+# account, endpoint, object, or principal before the privileged run. The grant
+# binds the canonical resolved identity, re-verified atomically at use.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'canonical resolved capability identity' \
+  "controlled escalation (condition 2: the grant binds the resolved capability identity, not the name)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'any resolution change treated as a mismatch' \
+  "controlled escalation (condition 2: a capability re-resolution is a mismatch)"
+# Challenge round 7 (codex, chain ua22) P2: the atomic re-resolution clause sat
+# between two pinned phrases and was itself deletable.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 're-resolved and verified atomically at use' \
+  "controlled escalation (condition 2: capability identity re-resolves atomically at use)"
+# Challenge round 8 (codex, chain ua23) P2: the mismatch CONSEQUENCE clause was
+# itself deletable while the mismatch pin stayed green.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'invalidates approval and denial record alike' \
+  "controlled escalation (condition 2: a resolution mismatch invalidates approval and denial record)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'once per approval' \
+  "controlled escalation (condition 2: single unchanged re-run per approval)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'binds to this command, this capability, this session' \
+  "controlled escalation (condition 3: approval binding)"
+# Review round 7 (codex, chain ua6) P1: approval bound only to command string,
+# capability, and session let an old approval authorize content re-reviewed
+# after a mismatch. Approval also binds the reviewed content identity; a
+# mismatch invalidates it and re-reviewed content needs fresh user approval.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'the reviewed content identity it was granted for' \
+  "controlled escalation (condition 3: approval binds the reviewed content identity)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'content re-reviewed after a mismatch needs fresh user approval' \
+  "controlled escalation (condition 3: re-reviewed content needs fresh approval)"
+# Challenge round 3 (codex, chain ua12) P1: denial evidence bound only to
+# invocation/capability let content B inherit content A's denial record after a
+# mismatch and re-review. Denial evidence binds the executed content identity;
+# mismatch invalidates it and the new identity re-establishes its own denial.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'produced by an unprivileged run of the same reviewed content identity' \
+  "controlled escalation (condition 3: denial evidence binds the executed content identity)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'also invalidates the prior denial record' \
+  "controlled escalation (condition 3: a mismatch invalidates the denial record too)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'never cached, never standing' \
+  "controlled escalation (condition 3: no cached or standing approval)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'any product sandbox that is itself under test' \
+  "controlled escalation (condition 4: product sandbox under test is untouchable)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'records the sandbox-denial evidence either way' \
+  "controlled escalation (condition 4: denial evidence recorded on every outcome)"
+# Challenge round 5 (codex, chain ua16) P1: the denied first run may already
+# have performed non-denied side effects, which the unchanged escalated re-run
+# would duplicate or compound. Condition 5 accounts for prior effects before
+# any re-run; unaccountable effects stay blocked.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'proven absent, rolled back, or contained' \
+  "controlled escalation (condition 5: prior external effects are accounted for)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'cannot duplicate or compound a side effect' \
+  "controlled escalation (condition 5: the re-run cannot duplicate prior side effects)"
+# Review round ua17 P1: "contained" alone left the duplicate inside the
+# container, materialized by a later commit or export. Contained state resets
+# to the pre-run snapshot (or a proven idempotency/dedup guarantee applies).
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'discarded or reset to its pre-run snapshot' \
+  "controlled escalation (condition 5: contained state resets before the re-run)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'containment alone never qualifies' \
+  "controlled escalation (condition 5: containment alone is not accounting)"
+# Challenge round 6 (codex, chain ua18) P1: condition-5 accounting evidence had
+# no provenance requirement, so command output could claim absence/rollback.
+# The same host-channel provenance as denial evidence applies, bound to the
+# invocation, content identity, and affected targets.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'independently verified transactional or state telemetry' \
+  "controlled escalation (condition 5: accounting evidence has trusted provenance)"
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'never proving absence, rollback, or deduplication' \
+  "controlled escalation (condition 5: command output alone never proves accounting)"
+# Review round ua19 P2: the A15 binding sub-clause was itself unpinned.
+assert_in_section "$EXTRACTION_METHOD_REF" "$BLOCKED_VERIFICATION_SECTION" 'bound to the exact unprivileged invocation, reviewed content identity, and affected targets' \
+  "controlled escalation (condition 5: accounting evidence binds invocation, content, and targets)"
+# Review round ua14 P2: the escalation rule body lives in this reference, so
+# prove the entrypoint's mandatory blocked-read rule still routes readers to
+# the owning section (dual-side discipline, same rationale as family 1b) —
+# firing signal and pointer must share the entrypoint bullet.
+assert_same_bullet "$EXTRACTION_SKILL" 'A blocked source read is not closed by naming the blockage' \
+  "references/source-to-skill-extraction.md#blocked-verification-and-source-read-remediation" \
+  "controlled escalation (reachability: entrypoint routes to the Blocked Verification section)"
+
 echo "test_ai_coding_implementation_gates: ok"
