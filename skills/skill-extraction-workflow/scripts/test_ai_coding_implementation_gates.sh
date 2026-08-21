@@ -692,4 +692,138 @@ assert_same_bullet "$EXTRACTION_SKILL" 'A blocked source read is not closed by n
   "references/source-to-skill-extraction.md#blocked-verification-and-source-read-remediation" \
   "controlled escalation (reachability: entrypoint routes to the Blocked Verification section)"
 
+# --- Family 9: review-program process controls (multi-round program discipline) ---
+# One assertion per obligation sentence, SECTION-BOUND to the owning rule (review
+# round 1 P1: whole-file assert_contains lets a relocated or duplicated phrase stay
+# green), enumerated sentence-by-sentence per the reverse-coverage rule this family
+# itself pins: each pin shown RED under its own applied deletion AND relocation
+# mutation in a throwaway copy with the unmutated control green.
+DUAL_TRACK_REF="$REPO_ROOT/skills/skill-extraction-workflow/references/dual-track-review-gate.md"
+LEDGER_REF="$REPO_ROOT/skills/skill-extraction-workflow/references/source-register.md"
+WALK_REF="$REPO_ROOT/skills/testing-strategy/references/run-killing-mutation-walk.md"
+DT_SELF_AUDIT_SECTION='### The self-adversary enumeration — method detail (relocated from `SKILL.md`)'
+DT_AUTHORITY_SECTION='### Findings, autonomous budget, and human authority'
+TS_CORE_RULES_SECTION='## Core Rules'
+WALK_PROBE_SECTION='## Encoded Probe For Destructive Artifacts'
+LEDGER_RULE_PARAGRAPH='Round-consolidation rule (append-once)'
+
+# Each owning rule-LINE is section-anchored once; every clause pin then binds to its
+# rule's own physical line (round-2 challenge P1: convergence and continuation pins
+# bounded only by the shared section let a clause move between the two rules stay
+# green — assert_same_line reds a cross-move as well as a deletion or relocation).
+assert_in_section "$DUAL_TRACK_REF" "$DT_SELF_AUDIT_SECTION" '**Re-owe after fixes.**' \
+  "process controls (re-owe rule anchored in the self-audit section)"
+assert_in_section "$DUAL_TRACK_REF" "$DT_AUTHORITY_SECTION" 'A convergence or closure declaration must be written falsifiably.' \
+  "process controls (falsifiable closure declaration anchored in the authority section)"
+assert_in_section "$DUAL_TRACK_REF" "$DT_AUTHORITY_SECTION" '`continuation_authorization`' \
+  "process controls (continuation authorization anchored in the authority section)"
+# Remediation re-owes the pre-cover axes; third same-class round escalates to one full-matrix self-enumeration.
+assert_same_line "$DUAL_TRACK_REF" 'remediation text written mid-round re-owes the draft-time axes BEFORE the candidate goes back to the reviewer' \
+  '**Re-owe after fixes.**' \
+  "process controls (remediation re-owes pre-cover axes)"
+assert_same_line "$DUAL_TRACK_REF" 'supplies findings in a **third** round' \
+  '**Re-owe after fixes.**' \
+  "process controls (escalation trigger: third same-class round)"
+assert_same_line "$DUAL_TRACK_REF" 'stop the per-finding loop and run one full-matrix implementer self-enumeration' \
+  '**Re-owe after fixes.**' \
+  "process controls (escalation action: full-matrix enumeration)"
+assert_same_line "$DUAL_TRACK_REF" 'before any further external round' \
+  '**Re-owe after fixes.**' \
+  "process controls (escalation sequencing: enumeration precedes the next external round)"
+assert_same_line "$DUAL_TRACK_REF" 'states × failure points × orderings × residues × cross-references' \
+  '**Re-owe after fixes.**' \
+  "process controls (full-matrix axes named)"
+# Convergence/closure declarations are falsifiable: named candidate/evidence/axes/open items, scoped adjectives.
+assert_same_line "$DUAL_TRACK_REF" 'Name the exact candidate identity it covers' \
+  'must be written falsifiably' \
+  "process controls (declaration names the candidate identity)"
+assert_same_line "$DUAL_TRACK_REF" "each lane's terminal evidence, the axes/dimensions the closing self-audit actually crossed, and every standing open item by name" \
+  'must be written falsifiably' \
+  "process controls (declaration components named)"
+assert_same_line "$DUAL_TRACK_REF" 'cannot be checked false and is inconclusive' \
+  'must be written falsifiably' \
+  "process controls (axis-free closure claim is inconclusive)"
+assert_same_line "$DUAL_TRACK_REF" 'any "full X" adjective is scoped to the named axes, never wider' \
+  'must be written falsifiably' \
+  "process controls (full-adjective scoped to named axes)"
+# Continuation authorization: third human state; binding dead-end is by design; checkpoint names the remainder.
+assert_same_line "$DUAL_TRACK_REF" 'it waives nothing and decides no merge' \
+  '`continuation_authorization`' \
+  "process controls (continuation authorization waives nothing)"
+assert_same_line "$DUAL_TRACK_REF" 'both lanes stay intact and blocking' \
+  '`continuation_authorization`' \
+  "process controls (both lanes stay intact and blocking)"
+assert_same_line "$DUAL_TRACK_REF" 'never counted as Agent-autonomous' \
+  '`continuation_authorization`' \
+  "process controls (human-authorized rounds not Agent-autonomous)"
+assert_same_line "$DUAL_TRACK_REF" 'run as a fresh chain bound to the current candidate' \
+  '`continuation_authorization`' \
+  "process controls (continuation rounds take a fresh current-candidate chain)"
+assert_same_line "$DUAL_TRACK_REF" "carries forward the complete review ledger and every prior round's focuses and dispositions" \
+  '`continuation_authorization`' \
+  "process controls (fresh chain restarts binding, never history)"
+assert_same_line "$DUAL_TRACK_REF" 'The grant itself is scope-bound, not reusable' \
+  '`continuation_authorization`' \
+  "process controls (continuation grant is scope-bound)"
+assert_same_line "$DUAL_TRACK_REF" "it names the granting session and either one exact candidate or, explicitly, this program's rounds to convergence in that session" \
+  '`continuation_authorization`' \
+  "process controls (the grant scope is defined: session plus exact candidate or explicit to-convergence)"
+assert_same_line "$DUAL_TRACK_REF" 'a candidate or session outside the named scope requires a fresh authorization' \
+  '`continuation_authorization`' \
+  "process controls (out-of-scope continuation needs a fresh grant)"
+assert_same_line "$DUAL_TRACK_REF" "a finding's fix that edits the owner package's own files breaks the review chain's content binding" \
+  '`continuation_authorization`' \
+  "process controls (binding dead-end is by design)"
+assert_same_line "$DUAL_TRACK_REF" 'refuses both another autonomous round and a challenge bound to the stale prior result' \
+  '`continuation_authorization`' \
+  "process controls (tracker refusal on stale binding)"
+assert_same_line "$DUAL_TRACK_REF" "names each lane's terminal state and the exact un-run remainder" \
+  '`continuation_authorization`' \
+  "process controls (interim checkpoint names the un-run remainder)"
+assert_same_line "$DUAL_TRACK_REF" 'explicit risk acceptance with the record as the disposition trail' \
+  '`continuation_authorization`' \
+  "process controls (risk-acceptance alternative recorded)"
+assert_same_line "$DUAL_TRACK_REF" 'Never Agent self-authorization' \
+  '`continuation_authorization`' \
+  "process controls (no agent self-authorization)"
+assert_same_line "$DUAL_TRACK_REF" "never a lane waiver inferred from the human's silence" \
+  '`continuation_authorization`' \
+  "process controls (no inferred lane waiver)"
+assert_same_line "$DUAL_TRACK_REF" 'or from the authorization to continue' \
+  '`continuation_authorization`' \
+  "process controls (continuing is not waiving)"
+# Ledger append-once: rule sentences bound to the Round-consolidation paragraph.
+assert_same_paragraph "$LEDGER_REF" 'APPEND each row to this ledger exactly once' \
+  "$LEDGER_RULE_PARAGRAPH" \
+  "process controls (ledger append-once)"
+assert_same_paragraph "$LEDGER_REF" 'in the same squashed landing commit as the changes it declares' \
+  "$LEDGER_RULE_PARAGRAPH" \
+  "process controls (rows land with the changes they declare)"
+assert_same_paragraph "$LEDGER_REF" 'corrected by re-pressing the unpushed landing commit' \
+  "$LEDGER_RULE_PARAGRAPH" \
+  "process controls (pre-push row correction re-presses, never edits)"
+assert_same_paragraph "$LEDGER_REF" 'never an edit or a silent deletion' \
+  "$LEDGER_RULE_PARAGRAPH" \
+  "process controls (post-push correction supersedes, never edits)"
+# Reverse pin coverage: artifact → pin; probes keep the self-contained walk honest.
+assert_in_section "$TESTING_SKILL" "$TS_CORE_RULES_SECTION" 'coverage runs in the reverse direction, artifact → pin' \
+  "process controls (reverse coverage direction)"
+assert_in_section "$TESTING_SKILL" "$TS_CORE_RULES_SECTION" 'an unpinned obligation produces no signal in any walk and is silently deletable' \
+  "process controls (unpinned obligation is silently deletable)"
+assert_in_section "$TESTING_SKILL" "$TS_CORE_RULES_SECTION" 'must name the pin that reds on its deletion' \
+  "process controls (entry rule: obligation sentence must name its pin)"
+assert_same_bullet "$TESTING_SKILL" 'coverage runs in the reverse direction' \
+  "references/run-killing-mutation-walk.md" \
+  "process controls (reachability: reverse-coverage bullet routes to the walk reference)"
+assert_in_section "$WALK_REF" "$WALK_PROBE_SECTION" 'a pinned section moved elsewhere in the file must still be matched' \
+  "process controls (relocation probe)"
+assert_in_section "$WALK_REF" "$WALK_PROBE_SECTION" "assert the entrypoint's route to it still resolves" \
+  "process controls (reachability probe)"
+assert_in_section "$WALK_REF" "$WALK_PROBE_SECTION" "mutants applied to a throwaway copy go RED there while the live tree's run stays green" \
+  "process controls (tree-isolation probe)"
+assert_in_section "$WALK_REF" "$WALK_PROBE_SECTION" 'the probe discovers its pin list by parsing the fixture rather than a hand-kept list' \
+  "process controls (parser completeness probe)"
+assert_in_section "$WALK_REF" "$WALK_PROBE_SECTION" 'every obligation sentence of the pinned artifact names its pin' \
+  "process controls (walk cannot detect unpinned obligations)"
+
 echo "test_ai_coding_implementation_gates: ok"
