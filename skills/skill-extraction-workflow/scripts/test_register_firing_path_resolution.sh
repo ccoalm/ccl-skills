@@ -391,6 +391,270 @@ run_gate "$FIX"
 assert_rc "$rc" 0 "an exact Ruby implementation line with code tokens must resolve"
 pass "Ruby line-sha256 resolves a live code line"
 
+new_fixture ruby_line_digest_unparseable_ruby "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+guard_enabled = true
+if
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "unparseable Ruby must fail closed"
+assert_contains "line-sha256 target Ruby did not parse" "$out" "unparseable Ruby source"
+pass "Ruby parse failure has a distinct diagnostic"
+
+new_fixture ruby_line_digest_partial_parse_error "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+guard_enabled = true
+1 +
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "Ruby with a partial sexp and parse error must fail closed"
+assert_contains "line-sha256 target Ruby did not parse" "$out" "partial Ruby parse error"
+pass "Ruby partial parse failure has the parse-error diagnostic"
+
+new_fixture ruby_line_digest_nested_lambda_receiver "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+wrap(
+  -> do
+    guard_enabled = true
+  end
+).call
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "a lambda passed into a called receiver expression is not itself invoked"
+assert_contains "line-sha256 source line is not statically reachable" "$out" "Ruby nested receiver lambda"
+pass "Ruby nested receiver lambda cannot fabricate a direct call"
+
+new_fixture ruby_line_digest_parenthesized_inline_lambda "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+(-> do
+  guard_enabled = true
+end).call
+RB
+run_gate "$FIX"
+assert_rc "$rc" 0 "a parenthesized inline lambda that is directly called must remain eligible"
+pass "Ruby parenthesized inline lambda remains reachable"
+
+new_fixture ruby_line_digest_unused_lambda "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+unused = -> do
+  guard_enabled = true
+end
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "a guard inside an uncalled lambda must not satisfy a firing-path digest"
+assert_contains "line-sha256 source line is not statically reachable" "$out" "Ruby uncalled lambda guard"
+pass "Ruby guard inside an uncalled lambda cannot satisfy an exact code-line digest"
+
+new_fixture ruby_line_digest_self_called_lambda "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+worker = -> do
+  guard_enabled = true
+  worker.call
+end
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "a lambda's self-call cannot make its body initially reachable"
+assert_contains "line-sha256 source line is not statically reachable" "$out" "Ruby self-called lambda guard"
+pass "Ruby lambda self-call does not fabricate an entry call"
+
+new_fixture ruby_line_digest_lambda_call_in_uncalled_method "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+def invoke_worker
+  worker = -> do
+    guard_enabled = true
+  end
+  worker.call
+end
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "a call inside an uncalled method cannot make a lambda body reachable"
+assert_contains "line-sha256 source line is not statically reachable" "$out" "Ruby method-nested lambda call"
+pass "Ruby lambda call inside an uncalled method does not fabricate an entry call"
+
+new_fixture ruby_line_digest_reassigned_lambda "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+worker = -> do
+  guard_enabled = true
+end
+worker = nil
+worker.call
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "a call after reassignment cannot make the old lambda body reachable"
+assert_contains "line-sha256 source line is not statically reachable" "$out" "Ruby reassigned lambda guard"
+pass "Ruby call after reassignment does not revive the old lambda body"
+
+new_fixture ruby_line_digest_dead_reassignment "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+worker = -> do
+  guard_enabled = true
+end
+worker = nil if false
+worker.call
+RB
+run_gate "$FIX"
+assert_rc "$rc" 0 "a literal-dead reassignment cannot hide a later live lambda call"
+pass "Ruby dead reassignment does not suppress a live lambda call"
+
+new_fixture ruby_line_digest_called_lambda "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+worker = -> do
+  guard_enabled = true
+end
+worker.call
+RB
+run_gate "$FIX"
+assert_rc "$rc" 0 "a guard inside a directly called lambda must remain eligible"
+pass "Ruby guard inside a directly called lambda remains reachable"
+
+for postcondition_form in while_false until_true; do
+  new_fixture "ruby_line_digest_postcondition_$postcondition_form" "$LINE_DIGEST"
+  case "$postcondition_form" in
+    while_false)
+      printf 'begin\n  guard_enabled = true\nend while false\n' > "$FIX/skills/demo-skill/scripts/demo.rb"
+      ;;
+    until_true)
+      printf 'begin\n  guard_enabled = true\nend until true\n' > "$FIX/skills/demo-skill/scripts/demo.rb"
+      ;;
+  esac
+  run_gate "$FIX"
+  assert_rc "$rc" 0 "$postcondition_form begin body executes once and must remain eligible"
+done
+pass "Ruby literal postcondition-loop bodies remain reachable"
+
+new_fixture ruby_line_digest_called_lambda_in_called_method "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+def run_worker
+  worker = -> do
+    guard_enabled = true
+  end
+  worker.call
+end
+run_worker
+RB
+run_gate "$FIX"
+assert_rc "$rc" 0 "a guard inside a lambda called by a live top-level method must remain eligible"
+pass "Ruby guard inside a lambda called by a live method remains reachable"
+
+new_fixture ruby_line_digest_called_lambda_in_transitively_called_method "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+def main
+  run_worker
+end
+
+def run_worker
+  worker = -> do
+    guard_enabled = true
+  end
+  worker.call
+end
+
+main
+RB
+run_gate "$FIX"
+assert_rc "$rc" 0 "a guard inside a lambda reached through live top-level methods must remain eligible"
+pass "Ruby guard inside a transitively called method remains reachable"
+
+new_fixture ruby_line_digest_dead_lambda_call "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+worker = -> do
+  guard_enabled = true
+end
+worker.call if false
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "a call under if false must not make a lambda body reachable"
+assert_contains "line-sha256 source line is not statically reachable" "$out" "Ruby dead lambda call"
+pass "Ruby lambda call under if false does not revive its body"
+
+new_fixture ruby_line_digest_if_false "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+if false
+  guard_enabled = true
+end
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "a guard under if false must not satisfy a firing-path digest"
+assert_contains "line-sha256 source line is not statically reachable" "$out" "Ruby if-false guard"
+pass "Ruby guard under if false cannot satisfy an exact code-line digest"
+
+new_fixture ruby_line_digest_elsif_false "$LINE_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+if runtime_flag
+  live_path = true
+elsif false
+  guard_enabled = true
+end
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "a guard under elsif false must not satisfy a firing-path digest"
+assert_contains "line-sha256 source line is not statically reachable" "$out" "Ruby elsif-false guard"
+pass "Ruby guard under elsif false cannot satisfy an exact code-line digest"
+
+for dead_form in if_nil unless_true while_false until_true; do
+  new_fixture "ruby_line_digest_$dead_form" "$LINE_DIGEST"
+  case "$dead_form" in
+    if_nil)
+      printf 'if nil\n  guard_enabled = true\nend\n' > "$FIX/skills/demo-skill/scripts/demo.rb"
+      ;;
+    unless_true)
+      printf 'unless true\n  guard_enabled = true\nend\n' > "$FIX/skills/demo-skill/scripts/demo.rb"
+      ;;
+    while_false)
+      printf 'while false\n  guard_enabled = true\nend\n' > "$FIX/skills/demo-skill/scripts/demo.rb"
+      ;;
+    until_true)
+      printf 'until true\n  guard_enabled = true\nend\n' > "$FIX/skills/demo-skill/scripts/demo.rb"
+      ;;
+  esac
+  run_gate "$FIX"
+  assert_rc "$rc" 1 "$dead_form must not satisfy a firing-path digest"
+  assert_contains "line-sha256 source line is not statically reachable" "$out" "$dead_form"
+done
+pass "Ruby literal-dead branch forms cannot satisfy an exact code-line digest"
+
+for positionless_form in return super yield empty_array; do
+  case "$positionless_form" in
+    return)
+      positionless_code='return'
+      positionless_sha='7187-f067-5eb3-8279-3974-1acf-7342-ba78-836e-cec2-1a31-ecf3-f34a-5530-9d3b-ee8a'
+      ;;
+    super)
+      positionless_code='super'
+      positionless_sha='73d1-b1b1-bc1d-abfb-97f2-16d8-97b7-968e-44b0-6457-920f-00f2-dc6c-1ed3-be25-ad4c'
+      ;;
+    yield)
+      positionless_code='yield'
+      positionless_sha='8bbc-ba42-d48d-cffe-6ea6-efa3-f565-6ec8-b8e0-d5c9-3109-1c17-a125-16eb-5d19-3e41'
+      ;;
+    empty_array)
+      positionless_code='[]'
+      positionless_sha='4f53-cda1-8c2b-aa0c-0354-bb5f-9a3e-cbe5-ed12-ab4d-8e11-ba87-3c2f-1116-1202-b945'
+      ;;
+  esac
+  positionless_digest="| p | c | prose; firing-path: file:skills/demo-skill/scripts/demo.rb#line-sha256:$positionless_sha | \`updated\` | demo |"
+  new_fixture "ruby_line_digest_positionless_$positionless_form" "$positionless_digest"
+  printf 'def run_worker\n  if false\n    %s\n  end\nend\nrun_worker\n' "$positionless_code" > "$FIX/skills/demo-skill/scripts/demo.rb"
+  run_gate "$FIX"
+  assert_rc "$rc" 1 "$positionless_form under if false must not satisfy a firing-path digest"
+  assert_contains "line-sha256 source line is not statically reachable" "$out" "$positionless_form"
+done
+pass "Ruby positionless AST statements under if false remain unreachable"
+
+MULTILINE_RETURN_DIGEST='| p | c | prose; firing-path: file:skills/demo-skill/scripts/demo.rb#line-sha256:3bdf-6664-de6c-9b8b-b89c-af41-0c59-7f25-c570-a706-aead-63b8-7f3f-e85a-88ab-874e | `updated` | demo |'
+new_fixture ruby_line_digest_multiline_return "$MULTILINE_RETURN_DIGEST"
+cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
+if false
+  return(
+    1
+  )
+end
+RB
+run_gate "$FIX"
+assert_rc "$rc" 1 "the start of a multiline return under if false must remain unreachable"
+assert_contains "line-sha256 source line is not statically reachable" "$out" "multiline return"
+pass "Ruby multiline dead-statement start remains unreachable"
+
 new_fixture ruby_line_digest_heredoc "$RUBY_LINE_DIGEST"
 cat > "$FIX/skills/demo-skill/scripts/demo.rb" <<'RB'
 payload = <<~TEXT
@@ -456,5 +720,5 @@ run_gate "$FIX"
 assert_rc "$rc" 0 "a fenced example row is an illustration, not a live declaration"
 pass "fenced declaration-looking example does not red a register with no live declarations"
 
-[ "$passed" -eq 38 ] || fail "expected 38 assertions, saw $passed (a case was skipped or misplaced)"
+[ "$passed" -eq 57 ] || fail "expected 57 assertions, saw $passed (a case was skipped or misplaced)"
 echo "register_firing_path_resolution_tests_ok ($passed assertions)"

@@ -5,6 +5,22 @@ require "digest"
 require "json"
 require "ripper"
 
+# `Ripper.sexp` omits positions from tokenless statement nodes such as
+# `return0` and `zsuper`. Append an inert location child to every semantic parser
+# node so dead-subtree line collection also covers those statements without
+# changing the event's existing child indexes.
+class PositionedRubySexpBuilder < Ripper::SexpBuilderPP
+  Ripper::PARSER_EVENTS.each do |event|
+    define_method("on_#{event}") do |*arguments|
+      node = super(*arguments)
+      if node.is_a?(Array) && node[0].is_a?(Symbol) && !node[0].to_s.start_with?("@")
+        node << [:@__location, "", [lineno, column]]
+      end
+      node
+    end
+  end
+end
+
 #
 # Register firing-path RESOLUTION gate: every `firing-path:` locator recorded in
 # `references/source-register.md` must still resolve, for the WHOLE ledger — not
@@ -53,8 +69,9 @@ require "ripper"
 # with hyphens; whitespace-only reindentation is allowed, while commenting,
 # rewording, or deleting the line turns the whole-ledger gate red. The matching
 # line must also carry at least one Ripper token outside whitespace, comments,
-# embedded docs, and heredoc/string content. Other target languages fail closed
-# until they have an equivalent code-token classifier.
+# embedded docs, and heredoc/string content, and it must not sit in a statically
+# unreachable branch or an uncalled lambda body. Other target languages fail
+# closed until they have an equivalent classifier.
 
 root = ARGV.fetch(0) { abort "usage: register-firing-path-resolution.rb <repo-root>" }
 
@@ -146,6 +163,257 @@ def ruby_code_line_numbers(body)
   Ripper.lex(body).each_with_object({}) do |((line_number, _column), token_type, _text, _state), lines|
     lines[line_number] = true unless RUBY_NON_CODE_LINE_TOKENS.include?(token_type)
   end
+end
+
+def ruby_ast_each(node, &block)
+  return unless node.is_a?(Array)
+
+  yield node if node.first.is_a?(Symbol)
+  node.each { |child| ruby_ast_each(child, &block) if child.is_a?(Array) }
+end
+
+def ruby_ast_each_with_ancestors(node, ancestors = [], &block)
+  return unless node.is_a?(Array)
+
+  node_type = node.first if node.first.is_a?(Symbol)
+  yield node, ancestors if node_type
+  child_ancestors = node_type ? ancestors + [node] : ancestors
+  node.each do |child|
+    ruby_ast_each_with_ancestors(child, child_ancestors, &block) if child.is_a?(Array)
+  end
+end
+
+def ruby_ast_line_numbers(node)
+  lines = {}
+  ruby_ast_each(node) do |child|
+    next unless child.first.to_s.start_with?("@")
+    next unless child[2].is_a?(Array) && child[2][0].is_a?(Integer)
+
+    lines[child[2][0]] = true
+  end
+  lines
+end
+
+def ruby_dead_body_line_numbers(body, preceding, code_lines)
+  body_lines = ruby_ast_line_numbers(body)
+  return {} if body_lines.empty?
+
+  preceding_line = ruby_ast_line_numbers(preceding).keys.max || 0
+  last_body_line = body_lines.keys.max
+  code_lines.select do |line_number, _|
+    line_number > preceding_line && line_number <= last_body_line
+  end
+end
+
+def ruby_local_name(node, wrapper)
+  return unless node.is_a?(Array) && node[0] == wrapper
+
+  token = node[1]
+  token[1] if token.is_a?(Array) && token[0] == :@ident
+end
+
+def ruby_condition_truthiness(node)
+  return :unknown unless node.is_a?(Array)
+
+  if node[0] == :var_ref && node[1].is_a?(Array) && node[1][0] == :@kw
+    return :falsey if %w[false nil].include?(node[1][1])
+    return :truthy if node[1][1] == "true"
+  end
+
+  return ruby_condition_truthiness(node[1][0]) if node[0] == :paren &&
+                                                   node[1].is_a?(Array) &&
+                                                   node[1].length == 1
+
+  :unknown
+end
+
+def ruby_method_definition_name(node)
+  return unless node.is_a?(Array) && node[0] == :def
+
+  token = node[1]
+  token[1] if token.is_a?(Array) && token[0] == :@ident
+end
+
+def ruby_direct_method_call(node)
+  token = case node[0]
+          when :vcall, :fcall, :command then node[1]
+          end
+  return unless token.is_a?(Array) && token[0] == :@ident
+
+  [token[1], token[2][0]]
+end
+
+def ruby_reachable_method_definition_ids(ast, unreachable)
+  definitions = Hash.new { |hash, key| hash[key] = [] }
+  top_level_calls = []
+  method_calls = Hash.new { |hash, key| hash[key] = [] }
+
+  ruby_ast_each_with_ancestors(ast) do |node, ancestors|
+    if (name = ruby_method_definition_name(node))
+      definition_line = node[1][2][0]
+      deferred = ancestors.any? do |ancestor|
+        %i[class module sclass def defs lambda].include?(ancestor[0])
+      end
+      definitions[name] << [node.object_id, definition_line] unless
+        deferred || unreachable[definition_line]
+    end
+
+    call = ruby_direct_method_call(node)
+    next unless call
+
+    name, call_line = call
+    next if unreachable[call_line]
+    next if ancestors.any? { |ancestor| %i[class module sclass defs lambda].include?(ancestor[0]) }
+
+    enclosing_definitions = ancestors.select { |ancestor| ancestor[0] == :def }
+    if enclosing_definitions.empty?
+      top_level_calls << [name, call_line]
+    elsif enclosing_definitions.length == 1
+      method_calls[enclosing_definitions[0].object_id] << name
+    end
+  end
+
+  reachable = {}
+  pending = top_level_calls.filter_map do |name, entry_line|
+    target = definitions[name].select { |_id, line| line < entry_line }.max_by(&:last)
+    [target[0], entry_line] if target
+  end
+  visited = {}
+
+  until pending.empty?
+    definition_id, entry_line = pending.shift
+    next if visited[[definition_id, entry_line]]
+
+    visited[[definition_id, entry_line]] = true
+    reachable[definition_id] = true
+    method_calls[definition_id].each do |name|
+      target = definitions[name].select { |_id, line| line < entry_line }.max_by(&:last)
+      pending << [target[0], entry_line] if target
+    end
+  end
+
+  reachable
+end
+
+def ruby_direct_lambda_receiver(receiver)
+  candidate = receiver
+  loop do
+    return candidate if candidate.is_a?(Array) && candidate[0] == :lambda
+    return unless candidate.is_a?(Array) && candidate[0] == :paren
+    return unless candidate[1].is_a?(Array) && candidate[1].length == 1
+
+    candidate = candidate[1][0]
+  end
+end
+
+def ruby_lambda_invocations(ast, unreachable)
+  bindings = {}
+  assignments = Hash.new { |hash, key| hash[key] = [] }
+  invocation_lines = Hash.new { |hash, key| hash[key] = [] }
+  invoked_lambdas = {}
+  reachable_methods = ruby_reachable_method_definition_ids(ast, unreachable)
+
+  ruby_ast_each_with_ancestors(ast) do |node, ancestors|
+    enclosing_scope = ancestors.reverse.find do |ancestor|
+      %i[lambda def defs].include?(ancestor[0])
+    end
+    scope_id = enclosing_scope&.object_id
+
+    if node[0] == :assign
+      name = ruby_local_name(node[1], :var_field)
+      if name
+        assignment_line = node[1][1][2][0]
+        next if unreachable[assignment_line]
+
+        assignments[[scope_id, name]] << assignment_line
+        bindings[node[2].object_id] = [scope_id, name, assignment_line] if
+          node[2].is_a?(Array) && node[2][0] == :lambda
+      end
+    end
+
+    next unless node[0] == :call
+    next unless node[3].is_a?(Array) && node[3][0] == :@ident && node[3][1] == "call"
+    next if unreachable[node[3][2][0]]
+    next if ancestors.any? { |ancestor| ancestor[0] == :lambda }
+    next if enclosing_scope&.first == :defs
+    next if enclosing_scope&.first == :def && !reachable_methods[scope_id]
+
+    receiver = node[1]
+    name = ruby_local_name(receiver, :var_ref)
+    invocation_lines[[scope_id, name]] << node[3][2][0] if name
+    direct_lambda = ruby_direct_lambda_receiver(receiver)
+    invoked_lambdas[direct_lambda.object_id] = true if direct_lambda
+  end
+
+  bindings.each do |lambda_id, (scope_id, name, binding_line)|
+    key = [scope_id, name]
+    next_assignment = assignments[key].select { |line| line > binding_line }.min
+    called = invocation_lines[key].any? do |line|
+      line > binding_line && (next_assignment.nil? || line < next_assignment)
+    end
+    invoked_lambdas[lambda_id] = true if called
+  end
+
+  invoked_lambdas
+end
+
+def ruby_unreachable_line_numbers(ast, code_lines)
+  unreachable = {}
+
+  ruby_ast_each(ast) do |node|
+    case node[0]
+    when :if, :elsif, :unless
+      truthiness = ruby_condition_truthiness(node[1])
+      body = node[2]
+      alternate = node[3]
+      positive_condition = %i[if elsif].include?(node[0])
+      unreachable.merge!(ruby_dead_body_line_numbers(body, node[1], code_lines)) if
+        (positive_condition && truthiness == :falsey) ||
+        (node[0] == :unless && truthiness == :truthy)
+      unreachable.merge!(ruby_dead_body_line_numbers(alternate, [node[1], body], code_lines)) if
+        (positive_condition && truthiness == :truthy) ||
+        (node[0] == :unless && truthiness == :falsey)
+    when :if_mod, :unless_mod
+      truthiness = ruby_condition_truthiness(node[1])
+      statement = node[2]
+      unreachable.merge!(ruby_ast_line_numbers(statement)) if
+        (node[0] == :if_mod && truthiness == :falsey) ||
+        (node[0] == :unless_mod && truthiness == :truthy)
+    when :while
+      unreachable.merge!(ruby_dead_body_line_numbers(node[2], node[1], code_lines)) if
+        ruby_condition_truthiness(node[1]) == :falsey
+    when :while_mod
+      unreachable.merge!(ruby_ast_line_numbers(node[2])) if
+        node[2][0] != :begin && ruby_condition_truthiness(node[1]) == :falsey
+    when :until
+      unreachable.merge!(ruby_dead_body_line_numbers(node[2], node[1], code_lines)) if
+        ruby_condition_truthiness(node[1]) == :truthy
+    when :until_mod
+      unreachable.merge!(ruby_ast_line_numbers(node[2])) if
+        node[2][0] != :begin && ruby_condition_truthiness(node[1]) == :truthy
+    end
+  end
+
+  invoked_lambdas = ruby_lambda_invocations(ast, unreachable)
+  ruby_ast_each(ast) do |node|
+    next unless node[0] == :lambda
+    next if invoked_lambdas[node.object_id]
+
+    unreachable.merge!(ruby_dead_body_line_numbers(node[2], node[1], code_lines))
+  end
+
+  unreachable
+end
+
+def ruby_line_classification(body)
+  code_lines = ruby_code_line_numbers(body)
+  builder = PositionedRubySexpBuilder.new(body)
+  ast = builder.parse
+  return [code_lines, {}, false] if ast.nil? || builder.error?
+
+  unreachable = ruby_unreachable_line_numbers(ast, code_lines)
+  reachable = code_lines.reject { |line_number, _| unreachable[line_number] }
+  [code_lines, reachable, true]
 end
 
 unresolved = []
@@ -274,12 +542,24 @@ File.foreach(register_path).with_index(1) do |line, lineno|
             next
           end
 
-          ruby_code_lines = ruby_code_line_numbers(raw_body)
-          next if raw_body.each_line.with_index(1).any? do |source_line, line_number|
+          ruby_code_lines, ruby_reachable_lines, ruby_parsed = ruby_line_classification(raw_body)
+          digest_lines = raw_body.each_line.with_index(1).filter_map do |source_line, line_number|
             normalized_line = source_line.strip
-            !normalized_line.empty? &&
-              ruby_code_lines[line_number] &&
-              Digest::SHA256.hexdigest(normalized_line) == expected_line_sha256
+            next if normalized_line.empty?
+            next unless Digest::SHA256.hexdigest(normalized_line) == expected_line_sha256
+
+            line_number
+          end
+          next if digest_lines.any? { |line_number| ruby_reachable_lines[line_number] }
+
+          if digest_lines.any? { |line_number| ruby_code_lines[line_number] }
+            reason = if ruby_parsed
+                       "line-sha256 source line is not statically reachable"
+                     else
+                       "line-sha256 target Ruby did not parse"
+                     end
+            unresolved << [lineno, locator, reason]
+            next
           end
 
           unresolved << [lineno, locator, "line-sha256 source line absent from target"]
