@@ -17,6 +17,8 @@ Do not create a service only because:
 - A team wants a cleaner folder.
 - A future scale concern is speculative.
 
+- External grounding (adopted in part): the criteria above take [Bounded Context](https://martinfowler.com/bliki/BoundedContext.html) (Fowler's overview of the central DDD strategic-design pattern; origin credited there to Eric Evans, *Domain-Driven Design*) as an input to boundary drawing — a boundary is where one internally consistent model stops being valid, so boundaries follow model and responsibility lines, never noun or table count — and [Conway's Law](https://martinfowler.com/bliki/ConwaysLaw.html) (Melvin Conway, ["How Do Committees Invent?", 1968](https://www.melconway.com/Home/Committees_Paper.html); Fowler's overview) — a system's structure mirrors the communication structure of the organization that builds it, which is why team ownership and communication structure are a legitimate split input. Two limits: the transactional-data-ownership, scaling, deployment-cadence, and rollback tests above are this skill's own operational criteria, attributed to neither source; and a bounded context does not require its own deployable service — several contexts can ship inside one modular monolith (this skill's monolith-first default), so these sources justify model/ownership boundaries, not a service-per-context split. Borrowed scope: boundary-input criteria only; no claim to the full DDD strategic-design method (context maps, ubiquitous language) or an inverse-Conway process. Sibling: `python-service-architecture/references/architecture-playbook.md` ("Architecture Decisions") carries the same grounding; keep the two in sync.
+
 ## Recommended Service Types
 
 ### API Gateway / HTTP Service
