@@ -1,6 +1,6 @@
 ---
 name: tighten-doc
-description: "润色文档 / 精简文档 / 改下文档 / AI 味太重 / 废话太多 / polish / make shorter / remove AI tone → finalize wording after substance is settled: clarify, shorten, restructure lightly, preserve decisions, and keep comments safe."
+description: "润色文档 / 精简文档 / 改下文档 / AI 味太重 / 废话太多 / polish / make shorter / remove AI tone → finalize wording after substance is settled: clarify, shorten, restructure lightly, preserve decisions, and keep comments safe. Proactively draft a no-owner deliverable doc（「写一份分享/给同事的文档」）. Skip while a sibling owns the substance（定稿仍回本技能）: spec/PRD/标准 → product-rd-workflow; 技术方案/架构文档 → architecture 技能; 发布文档 → release-doc-writer; 测试用例文档 → test-artifact-management."
 ---
 
 # tighten-doc — 文档写作与优化
@@ -9,17 +9,17 @@ Use this as the default document finalization and editing skill; new-substance a
 
 ## When to use
 
-Use any time you rewrite, revise, tighten, polish, or finalize a doc someone else must read after the substantive owner and scope are clear: strategy, plan, spec, task card, index doc, runbook, JD, release note, review note, or Feishu/Lark collaborative doc.
+Use any time you rewrite, tighten, polish, or finalize a doc someone else must read, after owner and scope are clear: strategy, plan, spec, task card, runbook, release note, or collaborative doc.
 
-This skill is not only for shortening. It has three modes:
+Three modes:
 
-- Draft: after the owner skill has settled the substance, turn rough intent, notes, meeting output, or task context into a readable first version. Route to an owner only when substance is not settled and the artifact type matches an installed owner skill: spec/standards/guideline -> `product-rd-workflow`, test cases -> `test-artifact-management`, architecture -> architecture skill, code/correctness -> stack/review skill. For new standards/spec authoring, `product-rd-workflow` is the single entry and this skill is only its internal finalization step. The hand-back marker is product-rd `owner-ready` with authority statement, doc-family layer, and enumeration evidence; after that, finish wording here. If that marker is absent for a standards/spec artifact, polish only locally, mark `pre-owner blocked`, and do not share/publish until the marker exists. Single standalone non-spec/non-standard/non-guideline artifacts with no child/family references do not need this marker. If no owner skill is installed or reachable, tighten only user-supplied substance and state that substantive decisions remain owner/user-provided.
+- Draft: after the owner skill has settled the substance, turn rough intent, notes, meeting output, or task context into a readable first version. Route to an owner when substance is unsettled and the type matches an installed owner skill: spec/standards/guideline -> `product-rd-workflow`, test cases -> `test-artifact-management`, architecture -> architecture skill, code/correctness -> stack/review skill. For new standards/spec authoring, `product-rd-workflow` is the single entry; the hand-back marker is product-rd `owner-ready` with authority statement, doc-family layer, and enumeration evidence — after that, finish wording here. If that marker is absent for a standards/spec artifact, polish only locally and mark `pre-owner blocked` (share/publish gate below). Standalone non-spec artifacts without family references skip it. If no owner skill is installed or reachable, draft from the charter plus user/session-supplied substance — never invent substantive decisions; they stay owner/user-provided. 多轮文档先锁 charter：`references/doc-charter-first.md`
 - Rewrite: restructure an existing doc so decisions, owners, gates, and next actions are easier to scan.
 - Tighten: remove filler, duplication, AI tone, meta narration, and over-long sentences without deleting decisions.
 
 For a **technical / developer-facing** doc, classify its reader-mode — the four Diataxis documentation modes: **tutorial** (learning by doing), **how-to** (recipe for one task), **reference** (look up exact facts), **explanation** (understand why). Keep one dominant mode per doc and watch for a **muddled purpose** — a doc trying to be a full tutorial *and* a full reference at once serves neither reader; that is the failure, not a compact options/env table inside an otherwise how-to doc. Use the four modes as a *guide to spot muddle*, not a top-down plan that forces four separate docs. The one-page operational-manual default above is the how-to / reference shape; a tutorial or explanation doc legitimately differs, so don't force it into that shape. This stays within finalization scope: **flag a reader-mode split candidate, but do not create, split, or reorder sibling docs, nor route doc generation, before the substantive owner settles the doc set** (`product-rd-workflow` for spec/standards/guideline families, per its `owner-ready` gate) — a doc-generation skill is executor-only, never an owner replacement.
 
-For spec/standard/guideline artifacts, the `pre-owner blocked` marker rule applies to Draft, Rewrite, and Tighten modes. Do not share/publish those artifacts until the owner marker exists; local wording polish may continue but must preserve the blocked label.
+For spec/standard/guideline artifacts, the `pre-owner blocked` marker rule applies to all three modes — do not share/publish until the owner marker exists; local wording polish must preserve the blocked label.
 
 Before sharing, syncing, committing, or publishing a concrete deliverable artifact, run Tighten mode by default. Do not ask the user whether to optimize unless the edit would change a substantive decision, remove required detail, or risk collaborative-comment loss. A request to write a template, SOP, report, checklist, Feishu/Lark doc, task card, or launch material already includes the optimization pass after the owner skill has settled the substance.
 
