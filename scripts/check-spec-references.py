@@ -166,11 +166,12 @@ LEDGER_CITATION_WAIVERS: dict[tuple[str, str], tuple[str, tuple[tuple[int, str],
         "append-only, so the token cannot be respelled. See "
         "specs/025-spec-reference-correction/plan.md. The pinned line moved from "
         "152 to 153 when a corrective rewrite of the round-023 borrowing merge "
-        "inserted the impact-chain row that merge had omitted, and from 153 to "
+        "inserted the impact-chain row that merge had omitted, from 153 to "
         "168 when the round-032 Round-consolidation note landed above it in the "
-        "ledger's notes block; the waived row itself is byte-identical across "
-        "both moves, which is why its digest is unchanged.",
-        ((168, "73d3e6f2801cefdb9807293d0b2cda8275921272197498671fa19722eaf29f5d"),),
+        "ledger's notes block, and from 168 to 171 when the round-033 tier-1 "
+        "rows landed above it in the mid-ledger table; the waived row itself is "
+        "byte-identical across all moves, which is why its digest is unchanged.",
+        ((171, "73d3e6f2801cefdb9807293d0b2cda8275921272197498671fa19722eaf29f5d"),),
     ),
 }
 
