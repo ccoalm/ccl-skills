@@ -1,33 +1,23 @@
 # ccl-skills 安装与更新（薄封装，逻辑在 scripts/install*.sh）
-.PHONY: help test test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
+.PHONY: help test test-repo-gates test-regressions-fast test-code-review test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
 .DEFAULT_GOAL := help
 
 help: ## 显示可用目标
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-20s %s\n", $$1, $$2}'
 
-test: ## 运行本仓确定性 gate、脚本测试和 Python 回归
+# `test` 是纯 prerequisites 聚合、无自有 recipe：往本地全量测试加套件必须落进某个
+# 子目标，而三个子目标全部被 CI 消费（repository-gates / code-review-regressions
+# 直跑，fast lane 经 regression-heavy 的 --full 超集），杜绝"进了 make test 却不进
+# 任何 CI job"的 false-green（specs/035-ci-critical-path-split/plan.md）。
+test: test-repo-gates test-regressions-fast test-code-review ## 运行本仓确定性 gate、脚本测试和 Python 回归
+
+test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository-gates job；不含 code-review 族与 fast 回归 lane）
 	bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
-	bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --fast
 	bash skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh --repo . --enforce
 	python3 scripts/test_check_markdown_links.py
 	python3 scripts/check-markdown-links.py .
 	python3 scripts/test_check_spec_references.py
 	python3 scripts/check-spec-references.py .
-	bash skills/code-review/scripts/test_classify_envelope.sh
-	bash skills/code-review/scripts/test_concern_excerpt.sh
-	bash skills/code-review/scripts/test_claude_review_probe.sh
-	bash skills/code-review/scripts/test_parse_opencode_review.sh
-	bash skills/code-review/scripts/test_egress_schema.sh
-	bash skills/code-review/scripts/test_parse_probe_result.sh
-	bash skills/code-review/scripts/test_init_policy_matrix.sh
-	bash skills/code-review/scripts/test_parse_review_json.sh
-	bash skills/code-review/scripts/test_opencode_review_retry.sh
-	bash skills/code-review/scripts/test_opencode_review_concurrency.sh
-	bash skills/code-review/scripts/test_review_gate.sh
-	bash skills/code-review/scripts/test_review_client_order.sh
-	bash skills/code-review/scripts/test_cli_review_wrappers.sh
-	python3 skills/code-review/scripts/test_review_client_compat.py
-	bash skills/code-review/scripts/test_code_review_identity.sh
 	bash scripts/test_install_opencode_skill_migration.sh
 	bash hooks/test_guard_delegation_owner.sh
 	bash hooks/test_guard_edit_isolation.sh
@@ -44,6 +34,26 @@ test: ## 运行本仓确定性 gate、脚本测试和 Python 回归
 	bash scripts/control-plane/test.sh
 	python3 -m pytest -q skills/test-artifact-management/references/test_gen_report.py
 	python3 -m unittest eval.test_subagent_owner_audit eval.test_skill_effectiveness_bridge eval.test_skill_effectiveness_trial eval.test_reviewer_calibration_protocol
+
+test-regressions-fast: ## fast 回归 lane（CI 上由 regression-heavy 的 --full 超集覆盖，仅本地 make test 直跑）
+	bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --fast
+
+test-code-review: ## code-review 技能回归族（CI code-review-regressions 并行 job）
+	bash skills/code-review/scripts/test_classify_envelope.sh
+	bash skills/code-review/scripts/test_concern_excerpt.sh
+	bash skills/code-review/scripts/test_claude_review_probe.sh
+	bash skills/code-review/scripts/test_parse_opencode_review.sh
+	bash skills/code-review/scripts/test_egress_schema.sh
+	bash skills/code-review/scripts/test_parse_probe_result.sh
+	bash skills/code-review/scripts/test_init_policy_matrix.sh
+	bash skills/code-review/scripts/test_parse_review_json.sh
+	bash skills/code-review/scripts/test_opencode_review_retry.sh
+	bash skills/code-review/scripts/test_opencode_review_concurrency.sh
+	bash skills/code-review/scripts/test_review_gate.sh
+	bash skills/code-review/scripts/test_review_client_order.sh
+	bash skills/code-review/scripts/test_cli_review_wrappers.sh
+	python3 skills/code-review/scripts/test_review_client_compat.py
+	bash skills/code-review/scripts/test_code_review_identity.sh
 
 test-check-ccl-regressions: ## 运行 check-ccl-skills shell wrapper 全量回归（CI changes-gated 同入口）
 	bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --full

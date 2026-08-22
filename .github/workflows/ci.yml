@@ -66,21 +66,88 @@ jobs:
         run: python3 scripts/check-markdown-links.py .
       - name: Spec reference gate
         run: python3 scripts/check-spec-references.py .
-      - name: Repository test suite
+      # test-repo-gates, not `make test`: the code-review family runs in the
+      # parallel code-review-regressions job, and the fast regression lane runs
+      # exactly once per pipeline inside regression-heavy's --full superset —
+      # this job's `make test` used to be the 18-minute critical path
+      # (specs/035-ci-critical-path-split/plan.md).
+      - name: Repository gate suite
         env:
           CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           if [[ -n "$CANDIDATE_BASE_REF" ]] && git merge-base "$CANDIDATE_BASE_REF" HEAD >/dev/null 2>&1; then
             export CCL_SKILL_BASE_REF="$CANDIDATE_BASE_REF"
           fi
-          make test
+          make test-repo-gates
+
+  # The code-review skill's regression family (~11 min serial) split out of
+  # repository-gates so it runs in parallel instead of extending the critical
+  # path. Setup steps and the base-ref guard mirror repository-gates verbatim
+  # (the 022 round's first CI run went red exactly because a new job dropped
+  # the env guard). Must be a required check: without it a red code-review
+  # suite could merge while repository-gates stays green.
+  code-review-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install validation tools
+        run: |
+          set -euo pipefail
+          archive="ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          extract_dir="${archive%.tar.gz}"
+          download_url="https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/${archive}"
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+          if ! curl --fail --location --silent --show-error \
+            --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 900 \
+            --connect-timeout 15 --max-time 300 \
+            --output "$temp_dir/$archive" \
+            "$download_url"; then
+            echo "failed to download pinned ripgrep ${RIPGREP_VERSION} asset: $download_url" >&2
+            exit 1
+          fi
+          printf '%s  %s\n' "$RIPGREP_SHA256" "$temp_dir/$archive" | sha256sum --check -
+          tar --extract --gzip --file "$temp_dir/$archive" --directory "$temp_dir"
+          sudo install --mode 0755 "$temp_dir/$extract_dir/rg" /usr/local/bin/rg
+          resolved_rg="$(command -v rg)"
+          if [[ "$resolved_rg" != /usr/local/bin/rg ]]; then
+            echo "unexpected ripgrep on PATH: $resolved_rg" >&2
+            exit 1
+          fi
+          installed_version="$(rg --version | head -n 1)"
+          case "$installed_version" in
+            "ripgrep $RIPGREP_VERSION"*) ;;
+            *) echo "unexpected ripgrep version: $installed_version" >&2; exit 1 ;;
+          esac
+          printf '%s\n' "$installed_version"
+          # ubuntu-latest includes Ruby; fail fast if that runner contract changes
+          # instead of reintroducing the apt mirror dependency on this required job.
+          ruby --version
+      - name: Install Python test dependencies
+        run: python3 -m pip install -r requirements-test.txt
+      - name: Code-review regression family
+        env:
+          CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -n "$CANDIDATE_BASE_REF" ]] && git merge-base "$CANDIDATE_BASE_REF" HEAD >/dev/null 2>&1; then
+            export CCL_SKILL_BASE_REF="$CANDIDATE_BASE_REF"
+          fi
+          make test-code-review
 
   # The heavy regression lane (--full = fast + the whole-repo-clone suites:
   # r0 status, source-register lifecycle, impact-chain refscripts, firing-path
-  # wiring). `make test` deliberately runs --fast, so without this job the
-  # heavy suites never execute anywhere and can rot silently — observed once
-  # as a wiring fixture that stayed broken undetected. Runs in parallel with
-  # repository-gates, so it does not extend the critical path.
+  # wiring). Local `make test` runs the fast lane directly; in CI this job's
+  # --full superset is the fast lane's only execution (repository-gates no
+  # longer duplicates it), so without this job the heavy suites never execute
+  # anywhere and can rot silently — observed once as a wiring fixture that
+  # stayed broken undetected. Runs in parallel with repository-gates, so it
+  # does not extend the critical path.
   regression-heavy:
     runs-on: ubuntu-latest
     timeout-minutes: 45
