@@ -88,7 +88,7 @@ flowchart LR
 
 | 技能 | 思想内核 | 变成了哪条规则 | 想深入读 |
 |---|---|---|---|
-| `product-ui-ux-design` | 界面的完整性是**状态的完整性**，不是把 happy-path 画好看 | 空 / 加载 / 错误 / 成功 / 最终态都要设计；高风险流程加韧性状态 | 包内引的是公开 UX 实践材料，且只覆盖社区设计这一个透镜 🔗——平台级规范（见下一行的 HIG / Material）尚未纳入 |
+| `product-ui-ux-design` | 界面的完整性是**状态的完整性**，不是把 happy-path 画好看 | 空 / 加载 / 错误 / 成功 / 最终态都要设计；高风险流程加韧性状态 | 包内两个透镜均有引用 🔗：社区实践材料，加 HIG / Material 平台规范蒸馏成的走查判据（`external-ui-ux-quality-benchmarks.md` 平台走查节，逐条标单源出处、显式弃项另列） |
 | `web-react-dev` | 框架默认转义，风险集中在**裸 HTML / URL 汇点** | `dangerouslySetInnerHTML` 等原始汇点要显式治理 | [OWASP Top 10 2021 A03](https://owasp.org/Top10/) |
 | `app-cross-platform-dev`<br>`miniapp-product-dev` | 宿主平台的能力与审核约束是硬边界，不能靠猜 | 各端渲染证据形态不同：设备 / 模拟器 / 开发者工具 | [Apple Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines)、[Material Design 3](https://m3.material.io/)、[微信小程序运营规范](https://developers.weixin.qq.com/miniprogram/product/) |
 | `terminal-cli-dev` | 终端是**有状态的渲染目标**，字符串快照证明不了交互态 | 交互 / 控制态要 PTY 生命周期断言 + 清理断言 + 真实终端 smoke | [ECMA-48 控制序列](https://ecma-international.org/publications-and-standards/standards/ecma-48/)、[POSIX `termios`](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/termios.h.html)；命令契约另见 [clig.dev](https://clig.dev/) |
