@@ -1,6 +1,6 @@
 # 034 — 理论基底欠账清偿计划（三批次）
 
-Status: 批次一进行中（本轮）；批次二、三待排。本文件是 `docs/skills-theory-foundations.md` 自点名欠账的分批执行计划；每批次独立 fresh invocation + charter + worktree + dual-track，round WIP 与 charter 存 per-host scratch（provenance 不入共享树）。
+Status: 批次一 **interim**——机械闸全绿、dual-track 评审 + 4 轮 challenge 跑毕（链见批次一 gate 记录）；余一项决策依赖：r3 P1-a 闸缺口的 defer / 扩轮裁决，由 PR 合并人行使（merge=批准 defer，拒绝=扩轮修闸后重走收敛）；裁决前不标完成，理论文档的清偿表述与本候选同一落地原子生效。批次二、三待排。本文件是 `docs/skills-theory-foundations.md` 自点名欠账的分批执行计划；每批次独立 fresh invocation + charter + worktree + dual-track，round WIP 与 charter 存 per-host scratch（provenance 不入共享树）。
 
 ## 背景
 
@@ -17,7 +17,20 @@ Status: 批次一进行中（本轮）；批次二、三待排。本文件是 `d
 - 范围锁死：两个架构技能的**边界与契约主线**补外部一手源举证（限界上下文 / 康威定律或经核验更贴切的源），写清借了哪部分、没声称哪部分；不重写规则实质。
 - 同步面：`docs/skills-theory-foundations.md` ⚠️ 行升级为 🔗、文末欠账注记删除；`references/source-register.md` 补两条 impact-chain 行（`*-architecture` 属 `check-ccl-skills.sh` 机械闸清单）。
 - 附带裁决（批次一内做，不预设结论）：事后认出理论的"回填包内"义务要不要在 `skill-extraction-workflow` 落 firing point、要不要机械闸扫架构类技能外部源——按 design-time operability check 四腿（author-dogfood / marginal-cost / trust-model fit / premise check）裁决 update / unchanged。
+  - 裁决结果（2026-08-22）：**机械闸不建**——URL 存在是形态代理，证不了 grounding 质量（oracle 只能假绿）；边际成本落在每个新架构规则上，而外部举证的触发类只是 state-of-art claim 子集（over-broad hook）；premise 是单次欠账、无复发证据。**firing point 落在理论文档演进规则**（〔事后认出〕小节新增回填义务条）而非 extraction workflow 包：认出对应关系的动作发生在编辑本文时，读者必经该节；extraction workflow 的 external-authoritative-source 规则已覆盖新提炼轮，`unchanged`。
 - 引用核验纪律：一律 WebFetch 核标题与内容，不凭记忆写出处（theory doc 有 PubMed ID 挂错先例）。
+- Gate 记录（2026-08-22，落地候选）：
+  - 源核验：Fowler 两页标题+内容实取确认；Conway 1968 论文作者自存页（"Committees Paper"，thesis 原文确认）作为一手源入引；Evans 归属经 Fowler 页内脚注（"Eric Evans in Domain-Driven Design"）核实。
+  - 机械闸：`check-ccl-skills.sh` → `ccl_skill_check_clean_ok`（r0_status=private-ok，零命中）；`make eval-routing` → blocking none。
+  - RED-baseline（applied、差分归因、一次性副本）：改写 Go / Python 锚行各自使 impact-chain 闸红且只点名本侧 owner，恢复即绿；删除探针在 Python 侧退化（删行还原 base、owner 退出 changed 集、行不被检查）——已如实记入台账行并改用改写突变。
+  - dual-track 评审：codex review r1 = 1 P1 + 2 P2，全部采纳修复（限界上下文降为边界输入、不再把事务所有权判据归给源、显式否认 context=service 一比一；补 Conway 一手源与 Evans 归属核验；计划状态与理论文档表述对齐）。
+  - dual-track challenge 链：codex challenge r1（对 v2 候选）= 2 P2，均采纳修复：(1) 理论文档行把「边界与契约」整条欠账标为全额清偿，而引用只覆盖边界输入判据——行内改为精确表述：边界半边清偿 🔗，契约/数据所有权操作判据按包内显式声明记为技能自有（团队取舍性质的准确留白）；(2) 计划状态先于 challenge 记录声称 dual-track 完成——本链记录落入计划，最终轮对含本记录的候选重跑，收敛判定=无未处置 P0/P1。
+  - challenge r2（对 v3 候选）= 1 P1（协议性发现：pending 占位与清偿声明同候选落地，且回填后候选将异于被审候选）——采纳：回填本行并对回填后的精确 diff 继续跑轮。
+  - challenge r3（对 v4 候选）= 2 P1 + 1 P2，处置：
+    - P1-a（真缺口，deferred + 登记）：本轮如实记录的退化探针暴露 impact-chain 闸的既有缺口——owner 文件被冲突解决 / rebase / partial cherry-pick 还原为 base 时退出 changed 集，其台账行与清偿声明留存而闸保持绿，落地内容可被静默丢失（暴露类：单行新增型 owner 变更）。修复在闸侧（新增/修改的台账行无论 owner 是否在 changed 集都校验 firing path），属共享工具轮，超出本批锁定范围——登记为 `skill-extraction-workflow` 闸硬化跟进项，绑定其下一轮 gate 工具变更；此 scope-cut 需风险 owner 裁决，载体即本 PR 的合并决定（合并=批准 defer，拒绝=本批扩轮修闸）。
+    - P1-b（终局记录可靠性，采纳）：收敛轮结果不入 PR 描述（可变、可丢），改为**计划内回填**：收敛轮 clean 后，唯一允许的审后编辑是把该轮 verdict 逐字回填到下方 r4 行（仅限 gate 记录行本身，规则实质零变动；任何其他 diff 使收敛作废、必须重跑）。
+    - P2（采纳修复）：Conway 归属收窄为团队所有权/沟通结构这一分割输入；deployment/release cadence、scaling、rollback 判据在两 playbook 中显式归为技能自有操作判据，不归任一来源。
+  - challenge r4（对 v5 候选，packet SHA-256 26493f72a5c86a804c9dcbab5a82118385901b4f27d040b9dab4aa7c04790033）= 2 P1：其一为记录递归协议类（r2/r3 P1-b 已处置——本回填即其 smallest_fix 的执行，规则实质零变动）；其二重申 r3 P1-a 并反对 prose-only defer、要求先修闸再发布清偿声明。Agent 自主 challenge 预算（初审 + 4 轮）至此用尽，P1-a 按预算规则 park 为**决策依赖项**：本批不自标完成，状态 interim，裁决权在 PR 合并人——merge = 批准 defer（闸硬化跟进项已登记并绑定 skill-extraction-workflow 下一轮 gate 工具变更），拒绝 = 本批扩轮修闸（新增/修改台账行无条件校验 firing path + owner-restored-to-base 回归 fixture）后重走收敛。
 
 ### 批次二：UI/UX 平台规范落成走查判据
 
