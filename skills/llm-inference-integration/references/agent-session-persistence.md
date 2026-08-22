@@ -59,6 +59,21 @@ Use a background writer fed by a queue with explicit control messages:
   or a transcript consumer that a turn/session completed, flush the log. A "done" that outraces the
   writer can lose the last turn on crash. (This mirrors the background-task finality rule in
   `terminal-cli-dev`: retain final output until consumers have acknowledged it.)
+- **Checkpoint before external commitments, not only before finality.** Flush the recorded log
+  prefix durable *before a model adapter receives a request*, *before any tool call may produce an
+  external side effect — nested and delegated calls (code-mode sub-calls, sub-agent tool use)
+  included, since they route through the same effect surface*, and at each pre-step boundary — and treat a rejected/failed checkpoint
+  as blocking that dispatch or side effect (fail closed), not as a warning. Finality-only flushing
+  leaves a mid-turn window where a crash loses the prior response and ordered tool results that an
+  already-executed side effect or the next request acted on. The flushed prefix alone still cannot
+  distinguish *never dispatched* from *dispatched, outcome unknown* after a crash — so pair the
+  checkpoint with a durable dispatch-intent/attempt record appended-and-flushed before the action
+  and a completion record after: for model requests that is exactly §3's attempt-state rule
+  (prepared → dispatch-attempted → accepted/uncertain/rejected, idempotency-keyed); apply the same
+  shape to non-idempotent tool side effects, where an unresolved attempt is reconciled or surfaced
+  as a typed indeterminate outcome — never auto-retried (the task-level counterpart lives in
+  `agent-task-orchestration.md`'s effect-finality rule). (This is the event-log half; the §3
+  accounting records carry their own commit-before-dispatch rule — complementary, not duplicates.)
 - **Make writer failure observable.** If the writer task dies (disk full, IO error), record a
   terminal-failure state that every later append/flush call surfaces — never let the recorder keep
   accepting events into the void. A dropped persist is a data-loss bug, not a best-effort log line.
@@ -323,7 +338,42 @@ When a session's estimated context approaches the model window, compact it.
   baseline and a window ordinal so "how much have we grown" is measured since the previous compaction,
   not from zero. **Prefer server-reported token usage over local estimation** when the provider
   returns it; estimation is the fallback that drives the trigger when no server count is available
-  yet.
+  yet. Feed the trigger from **one unified token meter**, not per-consumer recounts: a single
+  replay-aware event source (rebuilt from the log on resume/replay, per §4's restore-accounting
+  rule), deduplicating repeated *ingestion of the same attempt* (a replayed or re-read response)
+  by attempt/request id. Keep two projections over that one source, and derive each correctly:
+  the **logical/pressure projection** (compaction trigger, budget displays) measures the *current
+  model-visible envelope*: the latest authoritative envelope measurement — server-reported context
+  size bound to the *accepted canonical attempt*, not merely the newest report — **plus the
+  estimated size of every model-visible item appended since that measurement** (a large tool
+  result landing after the report otherwise dispatches an over-window request unpruned), or a
+  fresh full-envelope estimate taken before dispatch; never a sum across sequential requests,
+  which re-counts the resent history every turn and trips the watermark while the real context
+  still fits; the
+  **per-attempt/billing projection** sums every real provider attempt — a genuine retry consumes
+  and may bill tokens even when its payload duplicates the first attempt. Collapsing the two
+  either underreports spend or triggers needless lossy compaction; consumers that recount for
+  themselves disagree about when pressure exists.
+- **Run a deterministic pruning layer before the summarization layer.** Before invoking any
+  model-written summary, apply a model-free, replay-safe pruning pass over the candidate window —
+  dropping or trimming stale tool-call/tool-output payloads under the same keep/drop rules — and
+  only summarize if the window is still over pressure afterwards. Pruning is deterministic, cheap,
+  and reversible in design terms; jumping straight to LLM summarization pays nondeterminism and
+  fidelity loss for reduction that pruning could have achieved. Declare which of two shapes the
+  pruning layer is, because a prune that relieves pressure without a summary has no summary-bearing
+  compaction marker to ride on: **ephemeral** pruning is applied at context assembly from the same
+  versioned rules every time, never mutates the log, and replay reproduces it by re-running the
+  rules; **committed** pruning persists a typed prune-only marker — covered range, rule/version,
+  resulting kept-set references, and the window-baseline update, with the summary field legitimately
+  absent — so resume neither reconstructs the unpruned envelope nor re-triggers compaction. An
+  unclassified prune that changes the model-visible envelope without either contract breaks
+  faithful replay. (The trim-to-fit rule below stays as the last-resort fallback *after* a
+  summary; this layer runs *first*.)
+- **Manual/user-invoked compaction fails with typed codes, not a generic error.** Distinguish at
+  least: another compaction already in flight, cancelled, context changed since the request,
+  summarization failed, and commit/persistence failed — the caller's correct reaction (retry,
+  re-read, give up, surface data-loss risk) is different for each, and a generic failure trains
+  users to spam retry across all of them.
 - **Two strategies, chosen by provider capability:** *local/inline* compaction (you send the history
   to the model with a dedicated summarization prompt and replace it with the returned summary) or
   *provider-remote* compaction (the provider compacts server-side). Pick per provider; do not assume
@@ -361,7 +411,9 @@ When a session's estimated context approaches the model window, compact it.
 - Crash-safety requires the §2 preconditions: one exclusive writer per session, whole-record atomic
   append, `fsync` before acking Flush, and a monotonic sequence number.
 - Flush the log before signaling turn/session finality; never let a completion signal outrace the
-  writer.
+  writer. The same checkpoint discipline gates external commitments mid-turn: flush the recorded
+  prefix before model dispatch and before a tool's external side effect, and a failed checkpoint
+  blocks the action, fail closed.
 - A failed persist/flush is raised and made observable, never swallowed as empty success.
 - Always persist the structural markers (session meta, turn context, compaction) that replay needs.
 - Truncating a persisted payload is allowed only if it matches what the model saw (or the full
