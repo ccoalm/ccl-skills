@@ -46,7 +46,10 @@
 | 链 R1 | chain `spec036-shards-r1`，round1 review + round2 challenge，tracked，同一 candidate（`candidate_sha256=e34fb165…`，packet=diff origin/dev...6f62428 + runner lane 上下文 + required-checks 现状）。评审端 codex（openai 族，anthropic 同族排除）。证据：`.work/review-evidence/spec036-shards-r1/`（本地）。 |
 | Findings R1 | P1×2（round1/round2 同指 required-checks 换名窗口与顺序）+ P2×1（`--heavy-only` 无自动回归）。 |
 | 处置 | P1：收紧为单次原子 PATCH runbook（判定 7），无先加后删窗口；旧名残留方向 fail-safe。P2：采纳并落地 `test_regression_runner_lanes.sh` + `REGRESSION_SCRIPTS_DIR` 执行面重定向（判定 3c），注册进 fast_tests。 |
-| 链 R2 | candidate 因 P2 修复变更 → 全程重跑（新 packet，回填于下）。 |
+| 链 R2 | chain `spec036-shards-r2`（codex，tracked，candidate `429d9138…` = head b998c31 的 packet）。Findings：P1（建议加 `code-review-regressions` 兼容 job 过渡）→ **不采纳**：旧名残留只使 dev→main 晋升 pending（fail-safe，可用性非安全），判定 7 原子 PATCH runbook 已覆盖，兼容 job 引入 needs-join 复杂度且需后续再删一轮（与 035 先例的合并时换保护一致）；P1（注册审计 advisory-only 的自引用洞：把 guard 测试自身移出 fast_tests 后 advisory exit 0，CI 无红）→ **采纳**：正常执行模式下 unregistered 非空即硬失败（advisory 尾巴删除），lanes 测试补 unregistered-sibling 案例（fixture 内造未注册 test_*.sh，断言 --fast 非零且报名）。 |
+| 链 R3 | candidate 因硬失败收紧再变更 → 再次全程重跑（回填于下）。 |
+
+**注册硬失败的 design-time operability check**（收紧既有 verdict）：author-dogfood = 当前树 unregistered 为空，`--fast`/`--heavy-only`/lanes/registration 守卫本地全绿；marginal-cost = 新增测试文件者必须先注册进某 lane 才能让任何 lane 过（原本只有 guard 测试红，这正是想要的强制）；trust-model = 消除"guard 测试必须自己保持注册"的自引用依赖，false-green 类（未注册套件静默不跑）从 advisory 升为硬红；premise = 收紧——当前语料干净不算证据，RED 路径由 lanes 测试的 fixture 案例机械证明。
 
 ## 实现边界记录（implementation boundary）
 

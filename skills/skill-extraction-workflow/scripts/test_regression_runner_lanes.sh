@@ -77,4 +77,15 @@ if REGRESSION_SCRIPTS_DIR="$FIX" bash "$RUNNER" --heavy-only >"$TMP/out.red" 2>&
 fi
 write_stub "$first_heavy"
 
+# Unregistered-sibling enforcement (036 challenge P1): an unregistered
+# test_*.sh must hard-fail every execution mode, independent of the
+# registration guard test staying registered.
+: >"$FIX/test_unregistered_probe.sh"
+if REGRESSION_SCRIPTS_DIR="$FIX" bash "$RUNNER" --fast >"$TMP/out.unreg" 2>&1; then
+  fail "--fast exited zero although an unregistered sibling test exists"
+fi
+grep -q 'test_unregistered_probe.sh' "$TMP/out.unreg" \
+  || fail "unregistered-sibling failure did not name the offending file"
+rm "$FIX/test_unregistered_probe.sh"
+
 echo "regression_runner_lanes_ok"

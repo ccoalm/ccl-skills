@@ -167,6 +167,15 @@ if [ "$mode" = "list-unregistered" ]; then
   exit 0
 fi
 
+# Unregistered siblings hard-fail every execution mode (036 challenge P1): the
+# old advisory-only tail made enforcement depend on the registration guard test
+# itself staying registered — removing it from fast_tests silenced the only red
+# path. Failing here keeps enforcement independent of any one array entry.
+if [ -n "$unregistered" ]; then
+  echo "FAIL: test_*.sh not registered in fast_tests/heavy_tests (CI would silently skip them):$unregistered" >&2
+  exit 1
+fi
+
 if [ "$mode" != "heavy-only" ]; then
   for test_name in "${fast_tests[@]}"; do
     run_test "$test_name"
@@ -184,7 +193,3 @@ case "$mode" in
   heavy-only) echo "test_check_ccl_regressions_heavy_only_ok" ;;
   *) echo "test_check_ccl_regressions_fast_ok" ;;
 esac
-
-if [ -n "$unregistered" ]; then
-  echo "regression_runner_unregistered_tests_advisory: not in fast_tests/heavy_tests, CI will NOT run them:$unregistered" >&2
-fi
