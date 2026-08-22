@@ -22,7 +22,7 @@
 | 3 | CI 内 fast lane 执行次数：repository-gates 步骤不再含 `test_check_ccl_regressions.sh`；`--full` 含 fast_tests | 每流水线恰好 1 次（regression-heavy 内） | PASS：ci.yml 全文仅 regression-heavy 一处 `test_check_ccl_regressions.sh --full`；runner 源码 `--full` = fast_tests + heavy_tests 已核 |
 | 3b | 聚合化后 `make test-repo-gates` @ 本 worktree | 全绿；且 Makefile-recipe 守卫在守卫更新前应 RED | 守卫 RED 实测（`not found in []`，先于守卫更新）；守卫更新后全套件绿（run2 日志） |
 | 4 | 子目标某行失败（make 逐行 recipe 失败即目标失败，同既有 `test:` 机制） | 对应 CI job 红 | 机制继承，不新增验证面；判定 3b 的守卫 RED 即为该机制的活体实测（recipe 行失败 → 目标失败 exit 2） |
-| 5 | PR 的 CI 运行 @ 本轮候选 | 四 job 全绿；repository-gates 从 ~18.5min 降至 ~3min 量级，code-review-regressions ~12min，关键路径 ≈ max(code-review, regression-heavy) ≈ ~12min | 待产（PR 首跑回填） |
+| 5 | PR 的 CI 运行 @ 本轮候选 | 四 job 全绿；repository-gates 从 ~18.5min 降至 ~3min 量级，code-review-regressions ~12min，关键路径 ≈ max(code-review, regression-heavy) ≈ ~12min | PASS（PR #23 首跑，run 32593624728 @ c112bf6）：repository-gates **2m18s**（基线 18m31s，run 32590712961）、code-review-regressions **11m33s**、regression-heavy **9m33s**、npm-packages 1m58s；关键路径 11m33s，整线约 -42%～-45% |
 | 6 | 分支保护 required checks | 现状读取；目标 = 现状 + `code-review-regressions`（repository-gates 语义收窄但名称保留） | 现状已读（gh api）：main 保护 contexts=[repository-gates, regression-heavy, npm-packages]、strict=true；dev 无保护、npm tag ruleset 无关。写入随合并授权处置 |
 
 **新增机械 gate 的 design-time operability check**（`code-review-regressions` job）：author-dogfood = PR 首跑全绿后才请求合并（判定 5）；marginal-cost = +1 并行 runner ~12min，但 repository-gates 减 ~16min、去掉 5min 重复 fast lane，每流水线 runner 总时长净降 ~9min；trust-model = 覆盖集合恰好一次不变，防的是关键路径浪费而非新增 verdict；premise = 纯拓扑变更，不收紧不放宽任何既有 verdict 语义。
@@ -36,6 +36,16 @@
 | specs | plan | added | 本文件 |
 | source-register | ledger | not-applicable | 无 skill 脚本变更，无外部借鉴源 |
 | branch protection | status sync | pending | `code-review-regressions` 加入 required checks（合并授权时处置） |
+
+## 独立评审记录（dual-track）
+
+| Field | Answer |
+| --- | --- |
+| 链 | chain `spec035-ci-split-r2`，round1 review + round2 challenge，`review_chain_tracked=true`，同一 candidate（`candidate_sha256=c97e6d52…`，packet=diff origin/dev...c112bf6 + runner 超集上下文 + required-checks 现状）。证据行：`.work/review-evidence/spec035-ci-split-r2/`（本地持久，不入库）。 |
+| 评审端 | `selected_client=codex`（family=openai；implementer=anthropic 同族排除生效）；`native_skill_binding=established`，`reviewed_skills=[python-service-dev, testing-strategy]`；`review_plan_source=derived-default`；depth=release，risk tags=[release-ops, shared-gate]。 |
+| Findings | 两轮各 1 条 P1，同一缺口：code-review 族移出 repository-gates 后，若 `code-review-regressions` 不进 main 的 required checks，红 code-review 套件可在全部现有必需检查绿的情况下合并（即判定 6 / Failure mode (3) 已钉住的缺口，评审独立复现）。 |
+| 处置 | 接受，顺序化缓解：required-checks 更新（+`code-review-regressions`）在 dev 合并**之前或同时**执行——先加保护只会挡住不含该 job 的 main 晋升（fail-safe 方向），不产生 false-green 窗口；评审端的备选缓解（把 test-code-review 留在 repository-gates 直至保护更新确认）会抵消本轮全部收益，不采纳。protection 写入是仓库设置面动作，随合并授权一并请示用户。 |
+| 复审绑定 | 本 verdict 绑定实现 candidate（Makefile / ci.yml / 守卫测试，c112bf6 后不再变更）。此后提交仅允许 `specs/035-*/plan.md` 证据回填（git diff 可机验）；任何代码文件再变更即触发全程重跑。 |
 
 ## 实现边界记录（implementation boundary）
 
