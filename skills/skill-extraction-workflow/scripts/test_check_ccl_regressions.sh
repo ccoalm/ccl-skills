@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Aggregate deterministic shell regressions for check-ccl-skills wrappers.
 #
-# Default / local layer: --fast. CI has a changes-gated job that runs --full so
-# Makefile and CI both call this single entrypoint instead of copying test lists.
+# Default / local layer: --fast. CI runs the two layers as parallel jobs
+# (regression-fast --fast, regression-heavy --heavy-only); --full remains the
+# local aggregate (`make test-check-ccl-regressions`). Makefile and CI both call
+# this single entrypoint instead of copying test lists.
 #
 # Usage:
-#   bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh [--fast|--full]
+#   bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh [--fast|--full|--heavy-only]
 #
 # --fast runs the quick/mid wrapper regressions:
 #   - test_ai_coding_implementation_gates.sh
@@ -35,15 +37,17 @@ SCRIPTS_DIR="$REPO_ROOT/skills/skill-extraction-workflow/scripts"
 
 usage() {
   cat <<'EOF'
-Usage: test_check_ccl_regressions.sh [--fast|--full]
+Usage: test_check_ccl_regressions.sh [--fast|--full|--heavy-only]
 
 Runs deterministic shell regressions for check-ccl-skills wrapper behavior.
-Default is --fast to keep local `make test` light. GitLab CI runs --full from a
-changes-gated job for public deterministic regressions.
+Default is --fast to keep local `make test` light. CI runs --fast and
+--heavy-only as parallel jobs; --full is the local aggregate.
 
 Modes:
   --fast  the quick/mid wrapper regressions (exact set = the fast_tests array below / the list above)
   --full  fast layer plus R0 status and source-register lifecycle regressions
+  --heavy-only  only the heavy full-checker regressions (the heavy_tests array);
+          gives CI a heavy execution surface that does not repeat the fast layer
   --list-unregistered  print sibling test_*.sh NOT in fast_tests/heavy_tests (one per
           line) and exit 0; used by the registration guard test so a new test cannot
           silently skip CI. REGRESSION_SCRIPTS_DIR overrides the scanned directory.
@@ -54,6 +58,7 @@ mode="fast"
 case "${1:-}" in
   ""|--fast) mode="fast" ;;
   --full) mode="full" ;;
+  --heavy-only) mode="heavy-only" ;;
   --list-unregistered) mode="list-unregistered" ;;
   -h|--help) usage; exit 0 ;;
   *) usage >&2; exit 2 ;;
@@ -155,18 +160,23 @@ if [ "$mode" = "list-unregistered" ]; then
   exit 0
 fi
 
-for test_name in "${fast_tests[@]}"; do
-  run_test "$test_name"
-done
+if [ "$mode" != "heavy-only" ]; then
+  for test_name in "${fast_tests[@]}"; do
+    run_test "$test_name"
+  done
+fi
 
-if [ "$mode" = "full" ]; then
+if [ "$mode" = "full" ] || [ "$mode" = "heavy-only" ]; then
   for test_name in "${heavy_tests[@]}"; do
     run_test "$test_name"
   done
-  echo "test_check_ccl_regressions_full_ok"
-else
-  echo "test_check_ccl_regressions_fast_ok"
 fi
+
+case "$mode" in
+  full) echo "test_check_ccl_regressions_full_ok" ;;
+  heavy-only) echo "test_check_ccl_regressions_heavy_only_ok" ;;
+  *) echo "test_check_ccl_regressions_fast_ok" ;;
+esac
 
 if [ -n "$unregistered" ]; then
   echo "regression_runner_unregistered_tests_advisory: not in fast_tests/heavy_tests, CI will NOT run them:$unregistered" >&2
