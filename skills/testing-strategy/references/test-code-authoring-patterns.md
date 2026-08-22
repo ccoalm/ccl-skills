@@ -90,7 +90,7 @@ def test_export_request_returns_signed_url_when_user_has_quota():
 | **Conditional Test Logic**（Meszaros） | 测试体内有 if/else/loop | 实际测的是什么不明 |
 | **Mystery Guest**（Meszaros 子项） | 依赖外部文件/数据但未声明 | 不可复现 |
 
-**用**：code review / 重构 / 排查 flaky test 时按这清单查。Slow Test 阈值只对**默认快速单测目标**（unit 层）严卡；integration / E2E / host-smoke / benchmark 测必有独立的更宽 budget，按 marker 分离（如 `@pytest.mark.integration` / Go `-short` 区分），不混入 unit 套时间预算。
+**用**：code review / 重构 / 排查 flaky test 时按这清单查。Slow Test 阈值只对**默认快速单测目标**（unit 层）严卡；integration / E2E / host-smoke / benchmark 测必有独立的更宽 budget，按 marker 分离（如 `@pytest.mark.integration` / Go `-short` 区分）或按 runner 配置级 include 清单隔成独立套（perf/stress 类车道优先用清单——清单可审计，运行时 skip 标记会静默腐烂，见 `ci-fixtures-and-flake-control.md` Coverage As Signal），不混入 unit 套时间预算。
 
 **不用**：写新测试时不必预先记住名字 — 用 §1 §2 §7 等正面规则反过来就避开了大半。
 
@@ -235,11 +235,11 @@ internal_helper_mock.parse.assert_called_once()  # 重构改 parse 就挂
 - **不把整库平均覆盖率作 PR gate**（个别 PR 不应承担整体覆盖率波动）
 
 **落地**：
-- CI floor：仓库整体 line ≥ X%
+- CI floor：仓库整体 line ≥ X%；要防"大文件覆盖率补贴裸文件"时改用 per-file 门（阈值团队定，见 `ci-fixtures-and-flake-control.md` Coverage As Signal）
 - **PR 覆盖率不可下降原则有例外**：删冗余测试 / 移除已废弃代码 / 合并重复 fixture 等清理类 PR 覆盖率下降允许，但 PR 描述必须给 **preservation proof row**：`deleted: <test path/name>; preserved scenario: <TC-ID or behavior statement>; replacement: <test path or "still covered by <existing test>">; oracle parity: <断言形状等价说明>; evidence: <command output / report ref>`。没 row = 当作场景失守 = 阻挡。Reviewer 用 row 验证：跑 replacement test 应能 catch 删掉的 mutant；equivalent assertion 不是"两个都跑过"，是"等价业务断言"
 - critical-path 模块单独定 ratchet（如 `<critical-module> line ≥ 90% 且 branch ≥ 80%`）— 模块名按 repo 实际填
 - 用 mutation testing 周期性检查（见 source-to-case-workflows §C.1）— 比追 100% line 更省力且更真实
-- coverage 报告 + uncovered lines 进 PR comment（不要靠开发者主动看）
+- coverage 报告 + uncovered lines 进 PR comment（不要靠开发者主动看）；覆盖门失败输出指名到可点击的 `path:line:col`（runner 内建只报文件名时加自定义 reporter，绿时静默）——只报文件名等于让作者本地重跑一遍才能找到缺口
 - 覆盖门下的 uncovered line **先当删除候选、再当补测候选**：门在正确地标记死代码/不可达分支时，补一个测试只是把死代码钉死；行覆盖是必要不充分——证明行跑过了，不证明功能按交付形态工作
 
 ---
