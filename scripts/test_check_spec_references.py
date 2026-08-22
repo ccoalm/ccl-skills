@@ -1162,14 +1162,30 @@ class WaivedPathPresenceTest(unittest.TestCase):
         self.assertEqual(MODULE.owning_repository_root(), repository)
         makefile = (repository / "Makefile").read_text()
         make_lines = makefile.splitlines()
-        test_index = next(
-            index for index, line in enumerate(make_lines) if line.startswith("test:")
+        # `test:` may be a pure-prerequisite aggregate (specs/035): the gate
+        # invocation then lives in a prerequisite target's recipe. The invariant
+        # is reachability from `make test`, so collect the recipe of `test`
+        # plus the recipes of every prerequisite target it names.
+        def make_recipe(target: str) -> list[str]:
+            target_index = next(
+                index
+                for index, line in enumerate(make_lines)
+                if line.startswith(target + ":")
+            )
+            recipe: list[str] = []
+            for line in make_lines[target_index + 1 :]:
+                if not line.startswith("\t"):
+                    break
+                recipe.append(line)
+            return recipe
+
+        test_line = next(
+            line for line in make_lines if line.startswith("test:")
         )
-        test_recipe: list[str] = []
-        for line in make_lines[test_index + 1 :]:
-            if not line.startswith("\t"):
-                break
-            test_recipe.append(line)
+        prerequisites = test_line.split(":", 1)[1].split("##", 1)[0].split()
+        test_recipe = make_recipe("test")
+        for prerequisite in prerequisites:
+            test_recipe.extend(make_recipe(prerequisite))
         self.assertIn("\t" + command, test_recipe)
         workflow = (repository / ".github/workflows/ci.yml").read_text()
         workflow_lines = workflow.splitlines()
