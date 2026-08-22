@@ -20,10 +20,11 @@
 | 1 | `make -n test` 命令多重集 vs 035 基线（38 行） | 逐行排序 diff 为空（本地集合语义继续不变） | 待执行 |
 | 2 | `test-code-review-1` / `-2` 交集；两分片并集 vs 原 `test-code-review` 15 套件 | 交集空；并集恰好 15 | 待执行 |
 | 3 | 修后 runner：`--heavy-only` 实跑 | 4 个 heavy 套件各 1 行 timing、`test_check_ccl_regressions_heavy_only_ok`、exit 0；实现前同参数 RED（usage + exit 2，已实测） | RED 已捕获；GREEN 待执行 |
-| 4 | 修后 runner：`--fast` / `--list-unregistered` / 无参 / 非法参 | 行为与修前逐字节等价（fast 尾 token 不变；非法参仍 usage + exit 2） | 待执行 |
-| 5 | CI 内每套件执行次数：fast_tests 仅 `regression-fast`，heavy_tests 仅 `regression-heavy`，code-review 15 套件仅两分片 | 每流水线恰好 1 次 | 待执行（grep ci.yml + 判定 2） |
+| 4 | 修后 runner：`--fast` / `--list-unregistered` / 无参 / 非法参 | rc-parity 与修前一致（fast 尾 token 不变；非法参仍 usage + exit 2） | PASS：`--list-unregistered`/`--bogus`/`-h` 三探针新旧 rc 相等；lane 语义整套由判定 3c 机械持有 |
+| 3c | 新增 `test_regression_runner_lanes.sh`（036 challenge P2 处置）@ stub fixture | 三模式各自恰好执行本 lane 多重集、heavy 红 stub 传播非零、per-mode 尾 token；已注册进 fast_tests（registration guard 绿） | PASS：`regression_runner_lanes_ok` + `test_regression_runner_registration: ok` |
+| 5 | CI 内每套件执行次数：fast_tests 仅 `regression-fast`，heavy_tests 仅 `regression-heavy`，code-review 15 套件仅两分片 | 每流水线恰好 1 次 | PASS：ci.yml 六 job（YAML 解析确认），`--full` 不再被 CI 调用；配合判定 2/3c 的多重集证明 |
 | 6 | PR 的 CI 运行 @ 本轮候选 | 六 job 全绿；关键路径 ≈ max(分片 ~6.6min, regression-fast ~6min, heavy-only ~3–5min) ≈ ~6.5min | 待产（PR 首跑回填） |
-| 7 | 分支保护 required checks | 目标 = [repository-gates, npm-packages, regression-heavy, regression-fast, code-review-regressions-1, code-review-regressions-2]，移除 `code-review-regressions`（名字已不存在，残留=永久 pending 挡一切合并） | 现状已知（035 轮更新后含旧名）；换名随合并授权由用户执行 |
+| 7 | 分支保护 required checks | 目标 = [repository-gates, npm-packages, regression-heavy, regression-fast, code-review-regressions-1, code-review-regressions-2]，移除 `code-review-regressions` | Runbook（036 评审两轮 P1 处置，收紧为无窗口形态）：用户以**单次原子 PATCH** 把 contexts 数组一次替换为终态六项（单调用无先加后删的中间窗口），回读确认后方可合并本 PR 的后续 dev→main 晋升；本 PR 目标 dev（无保护），合并本身不受影响；换名前旧名残留只会让晋升 pending（fail-safe），不会放行红套件 |
 
 **新增机械 gate 的 design-time operability check**（regression-fast / 分片 jobs）：author-dogfood = PR 首跑全绿后才请求合并；marginal-cost = job 数 4→6，每流水线 runner 总时长基本持平（拆分不复制工作，仅 +2 次 setup ~80s）；trust-model = 覆盖恰好一次不变，防关键路径浪费；premise = 纯拓扑 + runner 模式增量，不改任何 verdict 语义。
 
@@ -40,7 +41,12 @@
 
 ## 独立评审记录（dual-track）
 
-待评审后回填（同 035 流程：codex chain，排除 anthropic 同族）。
+| Field | Answer |
+| --- | --- |
+| 链 R1 | chain `spec036-shards-r1`，round1 review + round2 challenge，tracked，同一 candidate（`candidate_sha256=e34fb165…`，packet=diff origin/dev...6f62428 + runner lane 上下文 + required-checks 现状）。评审端 codex（openai 族，anthropic 同族排除）。证据：`.work/review-evidence/spec036-shards-r1/`（本地）。 |
+| Findings R1 | P1×2（round1/round2 同指 required-checks 换名窗口与顺序）+ P2×1（`--heavy-only` 无自动回归）。 |
+| 处置 | P1：收紧为单次原子 PATCH runbook（判定 7），无先加后删窗口；旧名残留方向 fail-safe。P2：采纳并落地 `test_regression_runner_lanes.sh` + `REGRESSION_SCRIPTS_DIR` 执行面重定向（判定 3c），注册进 fast_tests。 |
+| 链 R2 | candidate 因 P2 修复变更 → 全程重跑（新 packet，回填于下）。 |
 
 ## 实现边界记录（implementation boundary）
 

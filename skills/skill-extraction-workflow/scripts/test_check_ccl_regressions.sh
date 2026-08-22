@@ -33,7 +33,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || { cd "$SCRIPT_DIR/../../.." && pwd -P; })"
-SCRIPTS_DIR="$REPO_ROOT/skills/skill-extraction-workflow/scripts"
+# REGRESSION_SCRIPTS_DIR redirects the whole runner (execution and audit) at a
+# fixture tree, so the lane-semantics regression can prove mode dispatch with
+# stub suites instead of the real multi-minute ones.
+SCRIPTS_DIR="${REGRESSION_SCRIPTS_DIR:-$REPO_ROOT/skills/skill-extraction-workflow/scripts}"
 
 usage() {
   cat <<'EOF'
@@ -111,6 +114,10 @@ fast_tests=(
   test_validate_skill_cross_refs.sh
   test_git_identity_predicate_gate.sh
   test_regression_runner_registration.sh
+  # Lane-semantics guard for this runner itself (036 challenge P2): proves
+  # --heavy-only / --fast / --full each run exactly their lane against a stub
+  # fixture via REGRESSION_SCRIPTS_DIR, and that a red heavy stub propagates.
+  test_regression_runner_lanes.sh
   test_routing_pointer_integrity.sh
   test_routing_bank_integrity.sh
   test_governing_chain_diff.sh
