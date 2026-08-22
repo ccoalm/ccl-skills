@@ -25,6 +25,16 @@ heavy_lane="$(extract_lane heavy_tests)"
 [ -n "$fast_lane" ] || fail "could not extract fast_tests from the runner"
 [ -n "$heavy_lane" ] || fail "could not extract heavy_tests from the runner"
 
+# Exactly-once contract at the array level (r4 challenge P2): a suite listed
+# twice in one lane, or in both lanes, would run twice in CI while every
+# per-mode comparison here still passed — reject it before building stubs.
+dup_fast="$(sort <<<"$fast_lane" | uniq -d)"
+[ -z "$dup_fast" ] || fail "duplicate entries inside fast_tests: $dup_fast"
+dup_heavy="$(sort <<<"$heavy_lane" | uniq -d)"
+[ -z "$dup_heavy" ] || fail "duplicate entries inside heavy_tests: $dup_heavy"
+overlap="$(comm -12 <(sort <<<"$fast_lane") <(sort <<<"$heavy_lane"))"
+[ -z "$overlap" ] || fail "entries registered in both lanes (would run twice per pipeline): $overlap"
+
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 FIX="$TMP/skills/skill-extraction-workflow/scripts"

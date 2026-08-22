@@ -3,7 +3,7 @@
 .DEFAULT_GOAL := help
 
 help: ## 显示可用目标
-	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-20s %s\n", $$1, $$2}'
+	@grep -E '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-20s %s\n", $$1, $$2}'
 
 # `test` 是纯 prerequisites 聚合、无自有 recipe：往本地全量测试加套件必须落进某个
 # 子目标，而每个叶子子目标都被 CI 消费（repository-gates / code-review-regressions-1/-2

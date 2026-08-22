@@ -47,7 +47,9 @@
 | Findings R1 | P1×2（round1/round2 同指 required-checks 换名窗口与顺序）+ P2×1（`--heavy-only` 无自动回归）。 |
 | 处置 | P1：收紧为单次原子 PATCH runbook（判定 7），无先加后删窗口；旧名残留方向 fail-safe。P2：采纳并落地 `test_regression_runner_lanes.sh` + `REGRESSION_SCRIPTS_DIR` 执行面重定向（判定 3c），注册进 fast_tests。 |
 | 链 R2 | chain `spec036-shards-r2`（codex，tracked，candidate `429d9138…` = head b998c31 的 packet）。Findings：P1（建议加 `code-review-regressions` 兼容 job 过渡）→ **不采纳**：旧名残留只使 dev→main 晋升 pending（fail-safe，可用性非安全），判定 7 原子 PATCH runbook 已覆盖，兼容 job 引入 needs-join 复杂度且需后续再删一轮（与 035 先例的合并时换保护一致）；P1（注册审计 advisory-only 的自引用洞：把 guard 测试自身移出 fast_tests 后 advisory exit 0，CI 无红）→ **采纳**：正常执行模式下 unregistered 非空即硬失败（advisory 尾巴删除），lanes 测试补 unregistered-sibling 案例（fixture 内造未注册 test_*.sh，断言 --fast 非零且报名）。 |
-| 链 R3 | candidate 因硬失败收紧再变更 → 再次全程重跑（回填于下）。 |
+| 链 R3 | chain `spec036-shards-r3`（codex，tracked，candidate `d373543a…` = head 5f5b141）。两轮各 1×P1，同为 required-checks 换名验证类（与 r1/r2 同类）：保护变更在仓外，candidate 无法自含 PATCH/回读证据 → 维持判定 7 处置（用户在晋升前执行原子替换 + 回读；旧名残留方向 fail-safe），兼容 job 备选再次不采纳（同 R2 理由）。P1 类至此收敛（已处置的合法重复，非新洞）。 |
+| 链 R4 | chain `spec036-shards-r4`（codex，tracked，candidate `e4725a0f…` = merge dev 后 head 73a62ca；台账冲突 append-only 解决，branch-vs-dev 台账 diff 恰 +1 行）。**P1 清零**；P2×2 均采纳修复：`make help` 正则不含数字漏掉分片目标（改 `^[a-z0-9-]+:`，help 现列出两分片）；lanes 测试对"同套件跨 lane 重复→CI 跑两次仍绿"盲区（补 intra-lane 去重 + 跨 lane 交集断言）。 |
+| 链 R5 | P2 修复后终轮全程重跑（回填于下）。 |
 
 **注册硬失败的 design-time operability check**（收紧既有 verdict）：author-dogfood = 当前树 unregistered 为空，`--fast`/`--heavy-only`/lanes/registration 守卫本地全绿；marginal-cost = 新增测试文件者必须先注册进某 lane 才能让任何 lane 过（原本只有 guard 测试红，这正是想要的强制）；trust-model = 消除"guard 测试必须自己保持注册"的自引用依赖，false-green 类（未注册套件静默不跑）从 advisory 升为硬红；premise = 收紧——当前语料干净不算证据，RED 路径由 lanes 测试的 fixture 案例机械证明。
 
