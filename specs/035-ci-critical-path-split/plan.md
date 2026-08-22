@@ -45,7 +45,7 @@
 | 评审端 | `selected_client=codex`（family=openai；implementer=anthropic 同族排除生效）；`native_skill_binding=established`，`reviewed_skills=[python-service-dev, testing-strategy]`；`review_plan_source=derived-default`；depth=release，risk tags=[release-ops, shared-gate]。 |
 | Findings | 两轮各 1 条 P1，同一缺口：code-review 族移出 repository-gates 后，若 `code-review-regressions` 不进 main 的 required checks，红 code-review 套件可在全部现有必需检查绿的情况下合并（即判定 6 / Failure mode (3) 已钉住的缺口，评审独立复现）。 |
 | 处置 | 接受，顺序化缓解：required-checks 更新（+`code-review-regressions`）在 dev 合并**之前或同时**执行——先加保护只会挡住不含该 job 的 main 晋升（fail-safe 方向），不产生 false-green 窗口；评审端的备选缓解（把 test-code-review 留在 repository-gates 直至保护更新确认）会抵消本轮全部收益，不采纳。protection 写入是仓库设置面动作，随合并授权一并请示用户。 |
-| 复审绑定 | 本 verdict 绑定实现 candidate（Makefile / ci.yml / 守卫测试，c112bf6 后不再变更）。此后提交仅允许 `specs/035-*/plan.md` 证据回填（git diff 可机验）；任何代码文件再变更即触发全程重跑。 |
+| 复审绑定 | 本 verdict 绑定实现 candidate（Makefile / ci.yml / 守卫测试，c112bf6 后不再变更）。此后提交仅允许 `specs/035-ci-critical-path-split/plan.md` 证据回填（git diff 可机验）；任何代码文件再变更即触发全程重跑。 |
 
 ## 实现边界记录（implementation boundary）
 
