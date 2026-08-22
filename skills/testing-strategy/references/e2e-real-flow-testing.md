@@ -60,6 +60,7 @@ When the deliverable ships as a built or installed artifact — a package `bin`,
 - Prefer one happy path plus high-risk negative paths over many shallow click-throughs.
 - A click-through without assertions is not E2E evidence.
 - If a scenario can be proven with a stable API/contract/integration test and only needs one browser smoke for confidence, do not duplicate all permutations in the browser.
+- External-provider fault/recovery permutations (disconnects, malformed streams, rate limits) belong at the protocol-real fault-server and recorded-replay layers (`ci-fixtures-and-flake-control.md`, Fault-Injection Layers); the live credentialed e2e keeps one wiring sanity path, not the fault matrix.
 
 ## Failure Handling
 

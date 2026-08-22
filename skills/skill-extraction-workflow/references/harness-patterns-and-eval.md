@@ -271,6 +271,7 @@ skill 改动后，让 agent 重跑这条 trace，**结构性偏离 = 回归信�
 - **组合分层**：运行时 = 有序的 profile/bundle 层叠加出来的插件树，每层可用 patch 覆盖任一行配置；能打印出机器实际启动的树来核对。
 - **决策在执行处强制**：schema 省略、prompt 过滤、facade、监听顺序都不是权限边界（已进 `llm-inference-integration` / `product-rd-workflow` 评审清单）。
 - 与之相对，把插件系统的**依赖注入与跨插件解析**做得很重是否值得，业界有争议（一线 harness 作者的公开评价：多数插件互不依赖，复杂 DI 在 90% 场景不带来收益，且跨插件类型仍需另解）；本仓不采纳"人人可发的插件生态"作为 skill 分发形态。
+- **可执行落点在 llm-inference-integration，本节只留形态记录**：设计或评审 agent 运行时按该 skill 的 `agent-capability-composition.md`（能力三元、可逆注册、子 agent provider seam）、`agent-tool-dispatch.md`（结果外溢与护栏 wrapper）、`agent-session-persistence.md`（剪枝先于摘要、请求前 checkpoint）、`agent-command-sandbox.md`（policy 单一解析 owner）执行；不得再从本节直接提炼可执行规则——那会与 owner 侧产生双写漂移。
 
 不含日志/持久化表述——模型可见内容与事件日志的账目不变量另由安全 owner 参与的独立设计处理。
 

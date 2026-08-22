@@ -59,6 +59,41 @@ Express the filesystem/network posture as a closed enum of named profiles. A min
 Default network to **off** in every write-capable profile. Network is a separate grant from
 filesystem write (§4).
 
+**One resolution owner; many enforcement backends.** Resolve "which profile + which writable
+root(s) apply to this call" in exactly one place — a single policy owner that combines the
+deployment default, the session's durable mode override, and any explicitly approved per-call mode
+(explicit approval outranks session override outranks default — but only among profiles the
+deployment/managed policy permits, and only after the §5/§6 authorization decision: a managed hard
+deny or a mandatory sandbox ceiling is non-overridable by per-call approval, per §6's layered
+precedence), and canonicalizes the session's
+working root with filesystem semantics before it becomes the writable root. Every enforcing
+backend — file tools, one-shot shell, persistent interactive sessions (§10) — consumes that one
+resolved mode-and-root result per call, keeping only its platform dialect (§4) local. If each
+backend re-resolves its own mode + root, they drift into a split world where the file layer and
+the shell layer disagree about what is confined — a gap a command that touches both walks straight
+through. One caveat is load-bearing: handing a backend the newly-resolved policy cannot *revoke*
+a kernel sandbox an already-running persistent session (§10) was launched under — those sessions
+bind the resolved policy and roots at creation, and whenever the creation-time grant is not a
+subset of the current grant, or the policy/root generation has changed incompatibly (a swapped
+writable root is not "narrower", yet the old root's access is revoked), the §10
+generation-binding rule applies: tear down and recreate under the new sandbox, or reject the
+command — never dispatch into the stale sandbox. (This is the policy/enforcement split of `agent-capability-composition.md` §3 applied to
+the sandbox.)
+
+**Present the resolved policy to the model as a replay-safe snapshot, not a capability inventory.**
+Before each request, the model should see the currently-resolved policy as part of a cache-safe
+runtime-context snapshot that is recorded into model-visible history — so replay can reconstruct
+exactly what the model was told without rewriting the stable system prompt (prompt-cache churn;
+see `llm-client-gateway.md`). Every generation persists for replay, but context construction
+exposes only the *current* snapshot to the model and supersedes prior ones for subsequent
+requests — after a broad-to-narrow policy change, stale snapshots left in the live envelope keep
+advertising permissions and roots the enforcement layer no longer grants (denied attempts,
+needless escalation, stale-path disclosure). Write that policy text as *what the policy means for operations*,
+never as an enumerated capability/tool inventory (the maybe-absent-tool steering anti-pattern in
+`agent-tool-dispatch.md`), and include the instruction that the model should not refuse an action
+merely because policy *might* deny it — attempt the tool and follow the denial/escalation guidance
+(§7) — otherwise the model self-censors more broadly than the policy actually restricts.
+
 **Reads need a confidentiality boundary too, not just writes.** A profile that confines *writes* but
 allows reading the whole host is still an exfil hole: an auto-approved "safe" read (`cat`, `rg`,
 `sed`, `find`) can slurp `~/.ssh`, `~/.aws`/cloud-credential files, browser profiles, keychains,

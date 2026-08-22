@@ -24,7 +24,8 @@ Use this for product backend work that calls, hosts, evaluates, or operates LLM 
   - Core: model/version registry, prompt lifecycle, request schema, safety boundaries, streaming protocol, retry/fallback, eval datasets, replay/shadow rollout, token/cost metrics, batch/concurrency control, audit trails.
   - agent-skill-system runtime (progressive-disclosure loading, description-driven skill routing, skill trust/sandbox boundary)
   - MCP integration (server primitives, server-as-untrusted-domain trust boundary, OAuth 2.1 / audience-binding auth)
-  - agent command-execution sandbox (OS-sandbox composition, command-policy DSL, approval/escalation state machine, loopback-only egress proxy — see `references/agent-command-sandbox.md`)
+  - agent capability composition (seam/provider/model-facing-tool decomposition, reversible registration with scope-owned disposal, policy-plugin-vs-enforcement split, sub-agent provider seam with one-shot/continuable separation — see `references/agent-capability-composition.md`)
+  - agent command-execution sandbox (OS-sandbox composition, single-owner policy resolution consumed by every enforcement backend, command-policy DSL, approval/escalation state machine, loopback-only egress proxy — see `references/agent-command-sandbox.md`)
   - agent session persistence (append-only event-log source of truth, background-writer flush-before-finality, resume/fork with restored token accounting, context-window compaction — see `references/agent-session-persistence.md`)
   - agent ambient context freshness (diffable world-state sections vs one-shot fragments, comparison-snapshot-vs-rendered-text staleness detection, supersede-stale-in-band-not-retract, self-recognizing injections, derivable baseline + merge-patch re-derive on resume, budget-signaling-vs-compaction-enforcement — see `references/agent-context-freshness.md`)
   - robust model-driven file-edit (context-anchored hunks over line numbers, graduated-strictness matching, resolve-all-before-write, honest partial-failure reporting — see `references/agent-file-edit-protocol.md`)
@@ -72,6 +73,7 @@ Use this for product backend work that calls, hosts, evaluates, or operates LLM 
    - Trace representative turns through every state transformation: at minimum the normal allow path, deny/ask permission path, resume/recovery path, and dynamic-tool-change path. Each trace must cover user input normalization, context construction, budget or compaction projection, model streaming, tool-call validation, permission decision, tool-result insertion, continuation, terminal stop condition, transcript write, and usage/cost accounting.
    - Each runtime concern below gets layer-separation, and its gate / assertions / routing live in the named reference (read before gating that concern):
      - Runtime startup & config bootstrap -> `references/agent-runtime-bootstrap.md`
+     - Capability composition — module/plugin boundaries, registration lifecycle, sub-agent providers -> `references/agent-capability-composition.md`
      - Turn lifecycle — per-turn loop, fg/bg handoff, progress, plan-to-execute, recap -> `references/agent-turn-lifecycle.md`
      - Session & transport — discovery/fork, history sync, workspace scope, protocol/stdout, settings migration -> `references/agent-session-persistence.md`
      - Hooks — hook/classifier output trust, hook config control plane, post-turn hooks -> `references/agent-lifecycle-hooks.md`

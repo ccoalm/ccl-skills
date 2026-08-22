@@ -4,13 +4,15 @@
 
 Use layered gates:
 
-- Fast PR gate: format, compile/typecheck, lint/static checks, focused unit tests, deterministic codegen clean check.
+- Fast PR gate: format, compile/typecheck, lint/static checks, duplication and dead-code gates where configured, focused unit tests, deterministic codegen clean check.
 - Integration gate: DB/Redis/MQ/API/dependency adapter tests with stable local containers or provisioned CI infra.
 - Scenario gate: selected acceptance/risk scenarios mapped to unit, contract, integration, component, or E2E commands. Keep it small enough to diagnose failures quickly.
 - E2E/release gate: critical browser/API workflows and smoke tests in an isolated environment.
 - Optional long gate: replay, load, compatibility matrix, visual regression, or migration dry-run.
 
 Use the same command wrapper locally and in CI when feasible. If CI invokes a wrapper such as `scripts/run_tests.sh`, `scripts/dev.sh test`, `make test`, or service-local package commands, use that wrapper for local verification unless debugging a lower-level runner.
+
+Duplication and dead-code gates run with explicit configuration, not defaults: the copy-paste detector gets a minimum-token/line floor and exits non-zero, test code is excluded, and justified duplication is fenced by explicit inline ignore markers (an untracked "dedupe later" is how parallel implementations drift); an unused-export/dead-code gate runs beside it, and each finding axis gets exactly one owning tool so two gates do not contest the same class. Derived committed artifacts (generated notices, catalogs, indexes) get caught stale at the pre-commit hook — not discovered later as a test-lane failure the author no longer connects to the edit. Scope that hook's trigger to every input the generator reads, including the generator script itself. The recommended form is reject-and-instruct: the hook fails and prints the exact regeneration command, so the author reruns and stages deliberately. Auto-staging the regenerated output demands genuine atomicity over every state the hook reads or writes (staged-input identity, output worktree file, output index entry — an exclusive repository lock plus crash-safe rollback), which most hook tooling cannot guarantee; without that guarantee it silently commits or overwrites content the author did not select, so keep it out of the default path. Keep a freshness assertion over the committed tree in the test lane as the gate for everything hooks cannot see (deletions, uninstalled hooks, aborted or partial-commit drift): the hook is convenience; the test lane is the gate.
 
 ## Frozen Regression Set And Adversarial Passes
 
@@ -21,6 +23,16 @@ The proactive complement — the adversarial pass over code already considered "
 ## Fixtures
 
 Use `test-data-and-determinism.md` as the canonical source for fixture shape, anonymization, data builders, golden-file normalization, and deterministic clocks/randomness/ordering.
+
+### Fault-Injection Layers For External-Provider Recovery Paths
+
+Recovery behavior against an external provider (a model API, payment/storage backend, streaming dependency) needs its fault permutations proven below the live layer. Layer the fixtures; prove each fault class at the most protocol-real layer that can still script it deterministically:
+
+- **Protocol-real fault server** (wire boundary): a scriptable in-test server speaking the provider's real HTTP/streaming protocol, where each accepted request consumes one scripted behavior from an explicit fault taxonomy — transport faults (connection reset, mid-stream disconnect, stall), protocol faults (malformed payload or stream event, wrong content type, truncated stream), and semantic faults (empty-but-successful response, rate limit, auth error, context/quota limits). The fixture stays policy-free: it never retries or interprets the policy under test, so the retry/backoff/error-mapping behavior the test observes is entirely the product's. When the product under test may retry or parallelize requests, arrival-order consumption misassigns faults to the wrong attempt — bind each scripted behavior to its intended attempt (correlation key or strict single-flight sequencing) and fail the test on unexpected, out-of-order, or unconsumed behaviors.
+- **Recorded replay** (adapter seam): reconstruct dependency responses from recorded real sessions and short-circuit the adapter, so scenario suites run keyless and deterministic. A recording cannot reconstruct every case — a thrown mid-stream error, a hang awaiting cancellation — so the replay format carries explicit override entries for those, not silent absence. Record from synthetic test accounts and non-production sessions — production or customer traffic is never a fixture source, since redaction cannot reliably scrub sensitive values from legitimate free-text fields; on top of that, capture through a schema allowlist with credentials and sensitive fields redacted before persistence (anonymization canon: `test-data-and-determinism.md`) and gate fixture commits on a secret/PII scan.
+- **Live credentialed e2e**: wiring sanity only, under the env-gated live-lane rules in Verification Report below — keyless environments skip visibly, the credentialed lane treats a missing secret as a preflight failure (never a skip), and it runs on synthetic/test-scoped credentials, tenants, and resources per those rules, never production ones.
+
+The live layer proves wiring and credentials, never the fault matrix.
 
 ## Flake Control
 
@@ -43,6 +55,11 @@ Use `test-data-and-determinism.md` as the canonical source for fixture shape, an
 - Use coverage to find untested risk, not as a target to hit.
 - High line coverage with weak assertions is not safety.
 - For high-risk pure logic, consider mutation testing or equivalent assertion-strength checks.
+- A failing coverage gate names exact locations: print every uncovered statement, branch path, and function as a clickable `path:line:col` (a custom reporter when the runner's built-in failure names only the file), and print nothing when green — a gate that names only the file forces the author to re-run coverage locally just to find the gap.
+- Enforce thresholds per file rather than repo-aggregate when the goal is stopping a well-covered big file from subsidizing a bare one; the threshold value stays the team's choice (floor-not-goal and cleanup exceptions: `test-code-authoring-patterns.md` §6).
+- A platform- or capability-conditional coverage exemption derives from the same probe that makes the corresponding suites skip, so the exemption is active exactly when those tests cannot run; a hand-maintained exemption list drifts into exempting files whose tests actually run. Guard the shared probe's common-mode failure: distinguish "capability genuinely absent" from "probe errored", and a CI lane that declares the capability treats an unavailable result as a failure, never as skip-plus-exemption.
+- When instrumented runs are slow, partition the suite across parallel coverage processes and merge reports; thresholds run once against the merged report, never inside a partition (a partition sees only its slice and would false-fail). The merge validates that every expected partition reported exactly once for the current run: use a run-scoped artifact directory (cleaning only that private directory) and bind every report and the expected-partition manifest to the same run identity (run id / commit / config), so a missing, stale, foreign, or duplicate partition artifact fails the run instead of silently shrinking or backfilling the report.
+- Perf/stress/high-cardinality diagnostic suites stay outside the coverage and PR gates by config-level include inventory — a separate runner config that enumerates them — not by runtime skip marks: an inventory is auditable; skip marks rot silently (skip semantics: Verification Report below).
 
 ## Local Evidence Selection
 
