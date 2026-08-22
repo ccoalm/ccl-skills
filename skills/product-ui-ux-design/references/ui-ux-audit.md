@@ -45,6 +45,7 @@ Always include concrete file/line references for code reviews and Figma file/pag
 7. **Check accessibility basics**: readable contrast, keyboard/focus where relevant, touch target size, visible labels, reduced-motion risk, safe-area/keyboard behavior on mobile.
 8. **Check visual craft**: anti-slop, product-level identity, spacing rhythm, typography scale, consistent iconography, appropriate density.
 9. **Check serious-domain adaptation** when relevant: source, timestamp, partial data, confirmation, audit labels, and no unsafe optimistic UI.
+10. **Check platform-convention conformance** for iOS/Android app surfaces: run the pass/fail criteria in `external-ui-ux-quality-benchmarks.md` Platform Convention Walkthrough (HIG/Material state completeness, platform accessibility minima, and platform conventions) against the rendered surface.
 
 ## UI Checks
 
