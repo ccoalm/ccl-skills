@@ -9,6 +9,7 @@
 #
 # --fast runs the quick/mid wrapper regressions:
 #   - test_ai_coding_implementation_gates.sh
+#   - test_controlled_escalation_pins.sh
 #   - test_check_ccl_size_budget.sh
 #   - test_check_ccl_skill_catalog.sh
 #   - test_generic_r0_leak_scan.sh
@@ -81,6 +82,10 @@ run_test() {
 
 fast_tests=(
   test_ai_coding_implementation_gates.sh
+  # Reproducible RED-baseline for the controlled-escalation pin family: parses
+  # family 8 out of the fixture above and proves each pin reds under its own
+  # applied deletion mutation in a throwaway copy (spec 031 review disposition).
+  test_controlled_escalation_pins.sh
   test_check_ccl_size_budget.sh
   test_check_ccl_skill_catalog.sh
   test_check_mr_target_freshness.sh
