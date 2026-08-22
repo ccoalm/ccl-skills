@@ -73,7 +73,7 @@ flowchart LR
 
 | 技能 | 思想内核 | 变成了哪条规则 | 想深入读 |
 |---|---|---|---|
-| `go-microservice-architecture`<br>`python-service-architecture` | **[限界上下文](https://martinfowler.com/bliki/BoundedContext.html)**：服务边界按语言和职责切，不按技术分层切；**[康威定律](https://martinfowler.com/bliki/ConwaysLaw.html)**——系统结构会长成沟通结构的样子 | 定边界、契约、数据所有权之后才写代码；跨语言契约归被改边界那一侧 | 限界上下文与康威定律（链接见左，本文补的延伸阅读）；数据清除另据 [NIST SP 800-88](https://csrc.nist.gov/pubs/sp/800/88/r1/final)（加密擦除作为清除手段的条件）<br>⚠️ 两个技能包里**没有出现过"限界上下文""康威定律"这两个名字**，也没有对应引用——边界与契约这条主线仍是零外部举证，而仓库规则要求这类技能举证。这是真该补的欠账 |
+| `go-microservice-architecture`<br>`python-service-architecture` | **[限界上下文](https://martinfowler.com/bliki/BoundedContext.html)**：服务边界按语言和职责切，不按技术分层切；**[康威定律](https://martinfowler.com/bliki/ConwaysLaw.html)**——系统结构会长成沟通结构的样子 | 定边界、契约、数据所有权之后才写代码；跨语言契约归被改边界那一侧 | 限界上下文与康威定律 🔗（两包 `references/architecture-playbook.md` 已落引用并写明借鉴边界：只借**边界输入判据**，不声称完整 DDD 战略设计或逆康威方法；契约/数据所有权的操作性判据在包内显式标注为技能自有规则——性质同「团队取舍」，按本文原则准确留白而非硬套理论；2026-08-22 边界半边清偿，见 `specs/034-theory-debt-repayment/plan.md` 批次一）；数据清除另据 [NIST SP 800-88](https://csrc.nist.gov/pubs/sp/800/88/r1/final)（加密擦除作为清除手段的条件） |
 | `go-microservice-dev`<br>`python-service-dev` | 依赖指向内层，数据访问隔离在边界；契约由代码生成保证单一真值 | 实现时保留架构决策不偷改边界；DAL / DI / codegen 按既定分层 | [整洁架构](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)、[六边形架构](https://alistair.cockburn.us/hexagonal-architecture/) 的依赖方向与端口隔离 |
 
 ### 平台基建
@@ -169,8 +169,8 @@ flowchart LR
 - **事后认出了对应关系**：认出来之后顺手做两件事：
   - 去看那套理论还讲了什么我们没覆盖的、以及它已知的失效边界；
   - 把其中有价值的部分变成技能里的新规则。
+  - 另有一条回填义务：认出的对应落在仓库规则要求外部举证的技能类上（如架构类的 state-of-art 主线）时，**当轮把引用回填进技能包**并写清借鉴边界——引用只留在本文不算清偿，本文是索引不是技能包的闸（架构技能的 ⚠️ 欠账拖到 034 批次一才清，就是缺这条的代价）。
 - **理论和规则打架**：以**规则的实际行为**为准改这份文档，别反过来把规则往理论上硬掰。我们的场景和理论成立的场景未必相同——真不同就写清楚哪里不同，那本身是有价值的信息。
 - **标「团队取舍」的行**：不必长期背着愧疚，也不必想办法消灭它。它只说明这条规则的权威来自团队共识，谁拿出更好的依据都可以推翻。
 - **加 / 改链接时**：**一律核标题，不只核 HTTP 200**——本文有过引用挂到无关论文上的实例（一个凭记忆写的 PubMed ID 指向了完全无关的内分泌论文）。核实方式是取回页面标题，和你要引的作者 / 篇名对上。
 - **标 🔗 之前**：去技能包里 grep 那个 URL。**包里提了理论的名字不等于有可点的引用**——本文上一版有 12 行是这么标错的。跨包指针（如调研技能指向 `external-practice-controls.md`）算数，但要在 `SKILL.md` 里写明。
-- **⚠️ 那一行**：仓库自己的规则要求架构类技能必须有外部权威源，两个架构技能目前连理论名都没写进包里——这一条是真该补的。
