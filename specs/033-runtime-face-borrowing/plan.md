@@ -1,6 +1,6 @@
 # 033 — 借鉴轮计划：agent-native 产品仓的运行时架构面（phase 2）
 
-Status: plan-only（评估轮已完成，候选未落地）。本文件是落地轮的分档执行计划；候选台账与真实来源指针存 per-host 私有档（provenance 不入共享树，见 extraction-lifecycle-handoff）。
+Status: 三档全部处置完毕——第一档已落地（05a5b65）、第二档已落地（b586b40）、第三档 route/defer 登记见下文处置表。本文件是落地轮的分档执行计划；候选台账与真实来源指针存 per-host 私有档（provenance 不入共享树，见 extraction-lifecycle-handoff）。
 
 ## 背景
 
@@ -31,6 +31,18 @@ Status: plan-only（评估轮已完成，候选未落地）。本文件是落地
 - 应用层 rolling provider transition → `platform-release-engineering`：hypothesis-grade（单源、论文自认 observational），落地前需 ≥2 独立外部源佐证，暂 defer 并挂在该 owner 的下次设计轮。
 - 包自有 runtime invariants 注册表 → `*-architecture` 泛化评估，弱保留。
 - 其余：launch-env 分层溯源（discard-lean）；理论演算章（no-new-lesson，可执行含义已由第一档承载）；model-facing 文案细节（confirm-only，归 023 已落规则作佐证）。
+
+### 第三档处置登记（2026-08-22，本档闭环）
+
+| 项 | 处置 | owner 侧登记行 / 显式理由 |
+| --- | --- | --- |
+| 应用层 rolling provider transition | defer（hypothesis-grade：单源且源自述 observational） | `skills/platform-release-engineering/references/canary-and-rollout-strategy.md` § Topic-extension backlog：采纳条件 ≥2 独立外部源；绑定该 owner 下次触及 provider transition / blue-green / 进程内流量切换的设计轮 |
+| 包自有 runtime invariants 注册表 | weak-keep，泛化评估延至架构轮 | Go：`skills/go-microservice-architecture/references/cross-cutting-concerns.md` § Topic-extension backlog；Python：`skills/python-service-architecture/references/packaging-runtime-readiness.md` § Topic-extension backlog（两栈各一条，登记候选而非采纳指南） |
+| launch-env 分层溯源快照 | discard（终态） | 过窄：单源单次观察，且现有 release/config owner 无配置溯源缺口佐证其必要性。裁决权威：本计划的分档决定（PR #17 用户合并批准）。若未来 owner 侧出现真实配置溯源缺口，按新证据另开候选，不复活本条 |
+| 理论演算章 | no-new-lesson（终态） | 可执行含义已由第一档 A 簇落地承载（05a5b65）；演算本体不转 agent 规则。裁决权威同上 |
+| model-facing 文案工程细节 | confirm-only（终态） | 登记为 023 已落「model-facing wording is behavior」规则的第二次独立观察（confirming evidence），不另立规则、不改 owner 文本。裁决权威同上 |
+
+第三档闭环判定：本表齐备 + 前两项的 owner 侧登记行已落，满足验收「每条在 owner 侧有 route/defer 的登记行或显式 discard 理由」。至此 033 三档全部处置完毕，per-host 程序记忆随本轮更新为 phase-2 closed。
 
 ## 每轮硬性 gate（不因分档减免）
 

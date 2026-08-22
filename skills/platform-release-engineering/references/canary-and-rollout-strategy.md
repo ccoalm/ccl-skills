@@ -161,3 +161,9 @@ Rollback path post-promotion:
 - Force a canary abort → traffic returns to stable within seconds (mesh weight propagation time).
 - Trigger header-lane canary with the opt-in header → request lands on canary subset; without header → lands on stable.
 - Mirror enabled → mirror target sees traffic; primary handler is unaffected; metrics tagged distinctly.
+
+## Topic-extension backlog
+
+Entries here are registered candidates, not adopted guidance. Each names the candidate, its evidence status, and the condition that unblocks adoption; the round that evaluates one records keep/narrow/discard against its entry.
+
+- **Application-layer rolling provider transition (deferred candidate).** Observed form, from one agent-native product repository (evolving portfolio): a new backend provider registers with an in-process broker as an additional route, traffic shifts to it by weight, and the old provider unloads once it has no in-flight work — demoting blue-green from an infrastructure operation to an in-process composition pattern. Evidence status: hypothesis-grade — single source, and the source itself labels the account observational. Do not land this as executable rollout guidance until at least two independent external sources corroborate the pattern in production use; re-evaluate at the next design round touching provider transition, blue-green, or in-process traffic shifting.

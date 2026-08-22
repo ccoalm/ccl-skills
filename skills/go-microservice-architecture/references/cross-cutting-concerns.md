@@ -70,3 +70,9 @@
 - Every ctx key has a typed accessor; bare-string `ctx.Value(...)` returning `any` is an architecture finding, not an idiom to spread. Type assertion lives behind helpers, not in domain code.
 - For frameworks that propagate metadata over the wire, define which keys travel persistently (every downstream hop forwards them) versus transiently (one hop only). Lane, stress tag, and trace identity are typically persistent; one-off control flags should not be promoted to persistent.
 - Dual-injection compatibility: when one binary serves multiple transports (TTHeader Thrift + HTTP/2 gRPC), the propagation layer writes to both the framework's persistent value (`metainfo.WithPersistentValue`) and the transport's outgoing metadata so the framework's meta handler picks the right wire format at send time. Application code stays transport-agnostic.
+
+## Topic-extension backlog
+
+Entries here are registered candidates, not adopted guidance. Each names the candidate, its evidence status, and the condition that unblocks adoption; the round that evaluates one records keep/narrow/discard against its entry.
+
+- **Package-owned runtime-invariant registries (weak-keep candidate).** Observed form, from one agent-native product repository (evolving portfolio): each package contributes its own invariant checks from a companion module, normal entrypoints do not depend on the diagnostics layer, and allowlist/blocklist configuration selects which checks run. Evidence status: weak — single source; whether this generalizes as a cross-cutting pattern, and which reference should own it, is undecided. Evaluate the generalization at the next architecture round touching diagnostics, invariant checking, or startup validation, and record the outcome against this entry. The Python-stack sibling registration lives in `../python-service-architecture/references/packaging-runtime-readiness.md`.
