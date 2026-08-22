@@ -31,7 +31,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
       - name: Pin an OIDC-capable npm CLI
-        run: npm install --global npm@11.5.1
+        run: npm install --global npm@11.19.0
       - name: Verify tag matches package version
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -52,4 +52,10 @@ jobs:
         env:
           EXPECT_SOURCE_COMMIT: ${{ github.sha }}
           REQUIRE_CLEAN_RELEASE: "1"
+          # Blank out setup-node's placeholder token so a failed OIDC exchange
+          # fails loudly as ENEEDAUTH instead of publishing with a garbage
+          # bearer token (registry masks that as E404).
+          NODE_AUTH_TOKEN: ""
+          # Surface npm's oidc decision trail (logged at verbose level only).
+          NPM_CONFIG_LOGLEVEL: verbose
         run: node scripts/publish-artifact.mjs artifacts/pack-metadata.json
