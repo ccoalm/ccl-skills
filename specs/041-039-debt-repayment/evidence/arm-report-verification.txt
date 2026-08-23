@@ -1,0 +1,18 @@
+file                  tasks pass fail err  selected
+del-AB-run1.json      1     0    1    0    agents-file-coverage-gate
+del-AB-run2.json      1     0    1    0    agents-file-coverage-gate
+del-AB-run3.json      1     0    1    0    agents-file-coverage-gate
+del-AB-run4.json      1     0    1    0    requirement-baseline
+del-AB-run5.json      1     0    1    0    agents-file-coverage-gate
+del-B-run1.json       1     1    0    0    skill-extraction-workflow
+del-B-run2.json       1     1    0    0    skill-extraction-workflow
+del-B-run3.json       1     1    0    0    skill-extraction-workflow
+del-B-run4.json       1     1    0    0    skill-extraction-workflow
+del-B-run5.json       1     1    0    0    skill-extraction-workflow
+
+grader_error_total  = 0
+every_report_1_task = True
+verdict_accounted   = True
+distinct_surfaces   = 2
+    6c2a111744f85003 -> ['del-AB']
+    8e1fe56cbe2d4e6f -> ['del-B']

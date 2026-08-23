@@ -1,0 +1,31 @@
+register_firing_path_unrunnable_target: ADVISORY -- an anchored executable has no runner
+  cause: the anchor resolves (its text is present) but no entry point outside specs/
+         names that file, so nothing can execute what the row claims fires.
+  fix: point the row at a live command, or supersede it if the mechanism retired.
+  skills/skill-extraction-workflow/references/source-register.md:218: specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
+      anchor: c3_regrade_contract_tests_pending_dirty_owners
+  skills/skill-extraction-workflow/references/source-register.md:220: specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
+      anchor: CANONICAL_FILE_SHA256
+  skills/skill-extraction-workflow/references/source-register.md:221: specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
+      anchor: C3_EVIDENCE_JSON_PREFIXES
+  skills/skill-extraction-workflow/references/source-register.md:222: specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
+      anchor: C3_CONTROL_WORKTREE_PATHS
+  skills/skill-extraction-workflow/references/source-register.md:223: specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
+      anchor: make_test_candidate_invocation?
+  skills/skill-extraction-workflow/references/source-register.md:224: specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
+      anchor: make_test_candidate_invocation?
+  skills/skill-extraction-workflow/references/source-register.md:225: specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
+      anchor: effective_c3_invocations
+  skills/skill-extraction-workflow/references/source-register.md:226: specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
+      anchor: line-sha256:5172-b00d-c562-745a-83e9-d49b-2881-464c-cc65-0836-8782-6c54-1ccb-5466-124d-40d0
+  skills/skill-extraction-workflow/references/source-register.md:226: specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
+      anchor: line-sha256:7f8e-93c0-5652-31f3-d4c0-f1cf-8f70-399e-11c9-512c-10a6-20ac-14ac-f9f4-e533-9c51
+  skills/skill-extraction-workflow/references/source-register.md:227: specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
+      anchor: line-sha256:cfb5-50a0-c72b-db21-0fd8-16db-4798-7e01-57bd-07ad-497a-f268-ab70-c06a-a7b0-9ae0
+  covered runner shapes: *.{sh,py,rb,yml,yaml} and **/{Makefile,makefile} outside specs/ and .git/,
+    matched by literal basename or by a wildcard sweep over the target's directory. NOT covered:
+    Rakefiles, extensionless bin scripts, and `find <dir> -name` style invocation — a target fired
+    only through those reads as unrunnable here.
+  advisory only: this never changes the exit status.
+register_firing_path_resolution_ok (187 locators resolved)
+gate rc=0

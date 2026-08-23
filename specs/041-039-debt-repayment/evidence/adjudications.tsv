@@ -1,0 +1,12 @@
+# path	line	reason —— 逐条裁定：为什么该候选不是「会执行目标」的调用者
+# 共同判据：读取/枚举文件 ≠ 执行文件。只有会把目标当程序跑起来的才是 firing point。
+scripts/check-spec-references.py	164	字符串字面量里提到该 evidence 目录的 AGENTS.md（报错文案）；本脚本校验 spec 引用，从不执行 .rb
+skills/skill-extraction-workflow/scripts/register-firing-path-resolution.rb	435	就是 advisory 自身的语料构建：把候选文件当文本读来找「谁提到了目标」，且显式 reject specs/；读不是跑
+skills/skill-extraction-workflow/scripts/register-firing-path-resolution.rb	436	同上，Makefile 分支
+eval/evidence/routing-new-tighten-vs-owner-2026-08-15/recompute-aggregates.py	120	Python 字符串里嵌的 Ruby 片段，glob 范围是 skills/*/SKILL.md，覆盖不到 specs/**/*.rb
+scripts/check-spec-references.py	140	注释，讲 git ls-files 的行为；非代码路径
+scripts/check-spec-references.py	339	注释；非代码路径
+scripts/test_check_spec_references.py	1010	注释；非代码路径
+scripts/test_check_spec_references.py	1052	注释；非代码路径
+skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh	128	用 git ls-files 枚举文件以判定目录是否缺 AGENTS.md；只看路径，不执行任何被枚举文件
+skills/skill-extraction-workflow/scripts/generic-r0-leak-scan.sh	244	泄漏扫描器，把 git ls-files 的结果当文本读；不执行
