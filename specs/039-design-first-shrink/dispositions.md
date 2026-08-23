@@ -239,3 +239,67 @@
 三处都是脚本开头的通用 helper，**不是规则所断言的那段逻辑**。故 `rc=0` 只说明「那个无关分支没被测试覆盖」，对本槽位无判别力，判为**非结论**并重做打靶突变。
 
 这是本轮第三次同类拦截（前两次为槽位 1 的 redirect 误突变、槽位 8 的未定位突变）。三次都遵循同一条：**先证明突变改的是承重代码，再读红绿**。
+
+---
+
+## 槽位 4 / 10 / 11 / 12 / 15 / 24 / 25 / 26 / 27 / 29 — 打靶突变后转红，终态 `keep`
+
+首轮通用突变器在这些组上给出 `mutant_rc=0`，经突变有效性复核判为**无效探针**（打在脚本开头的通用 helper、或打在不存在的收集器上），重做打靶突变后：
+
+| 槽位 | firing path（测试） | 打靶突变 | 控制组 → 突变 |
+| --- | --- | --- | --- |
+| 24,25,26 | `test_check_ccl_skill_catalog.sh` | `check-ccl-skills.sh` 的 `catalog_bad` 收集点短路（13 处） | `rc=0` → **`rc=1`** |
+| 11,12,15 | `test_opencode_review_retry.sh` | `opencode_review.sh` 的 `RETRY_RESERVE_BYTES` 短路 | `rc=0` → **`rc=1`** |
+| 27,29 | `test_ai_coding_implementation_gates.sh` | 删除 `product-rd-workflow/SKILL.md` 的 `Mechanism-operability check` 锚句 | `rc=0` → **`rc=1`** |
+| 10 | `test_check_spec_references.py` | `check-spec-references.py` 失败返回短路 | `rc=0` → **`rc=1`** |
+| 4 | `test_routing_pointer_integrity.sh` | 删除 `platform-release-engineering/SKILL.md` 中被断言的 routing pointer 短语 | `rc=0` → **`rc=1`** |
+
+复原后 `git status --porcelain` 为空。突变均打在**判定路径或被断言的契约内容**上，不是规则自身文本的存在性。
+
+**终态：十者均 `keep`。动作：不改动。** granularity 限定同前：证明 firing path 活、强制被移除即转红，非逐子句 pin。
+
+---
+
+## 槽位 23 — ordinal 142 —— 两次突变均为空操作，判 `证据不足`
+
+`firing-path: command:…/test_register_firing_path_resolution.sh`。控制组 `rc=0`。
+
+| 突变尝试 | 结果 |
+| --- | --- |
+| 通用突变器：`impact-chain-gate.rb` 首个 `exit 1`（行 29） | 打在开头通用 helper，无判别力 |
+| 定向：向首个 `def *firing*` 方法插 `return nil` | **未定位**——该文件没有任何 firing/path/resolve/anchor 命名的方法 |
+| 定向：把首个含 `firing` 的正则改为永不匹配 | 突变生效，测试仍 `rc=0` |
+
+第三次突变生效但测试不红。**然而该测试自述「Each assertion below is mutation-verified: the fixture is built GREEN first」——它自建 fixture，可能根本不读活树的闸实现**，故"改活树的闸而测试不红"未必说明无覆盖。两种解释都成立而无法区分 → 判 `证据不足`（非终态）。
+
+**待补证的具体动作**：读该测试的 fixture 构造方式，确定它断言的是活树还是自建副本；若是后者，改在 fixture 上做突变。本轮未做。
+
+---
+
+## 槽位 2 / 9 — ordinal 32 / 66 —— firing path 活但缺合规 oracle，判 `证据不足`
+
+`firing-path: command:…/eval-routing-bank.rb`。
+
+**受阻验证的补救已执行**（不得凭"需要 CLI"直接判不可用）：`claude` 在 PATH，版本 2.1.235；`eval-routing-bank.rb . --limit 3` 实跑 `rc=0`，输出 `eval-routing-bank (claude-haiku-4-5): 3/3 pass, 0 fail, 0 grader-error`。**firing path 是活的、可执行的。**
+
+**双臂尝试（任务 #78，同形词案例）**
+
+任务：`帮我看看用户全局 ~/.config/opencode 里有没有旧的同名CCL 技能覆盖本仓技能，只读核查`，expect `skill-extraction-workflow`。规则治理的消歧子句为描述里的「核查全局安装点（~/.config/opencode 等）旧快照是否**遮蔽**本仓技能」——用「遮蔽」避开「覆盖」的覆盖率义。
+
+| 臂 | 结果 |
+| --- | --- |
+| 控制 | `1/1 pass` |
+| 突变（删除该消歧子句，突变已确认 applied） | `1/1 pass` |
+| 复原 | `git diff --quiet` 通过 |
+
+**不据此下「该规则无效」的结论。** 本轮冻结判据要求：随机性系统的双臂须预注册提示词、解码参数、每臂运行次数、唯一聚合函数，并配同注入点的安慰剂臂与有意义的假阳上限。本探针 n=1、单次、无安慰剂、无假阳界，**不满足自有合格条件**，凭它判定正是判据明令排除的形态。
+
+**终态：`证据不足`（非终态）。待补证的具体动作**：按冻结的统计控制跑合规双臂（预注册清单落盘留哈希、每臂多次、安慰剂臂改在同一注入点、明写假阳上限）。本轮未做。
+
+---
+
+## 槽位 6 — ordinal 50 —— 与槽位 22 同族，终态 `keep`
+
+`firing-path: command:…/claude_review.sh`（实现本体）。其守护测试 `test_claude_review_probe.sh` 控制组 `rc=0`（`claude_review_runtime_tests_ok`），短路 `claude_review.sh` 失败判定后 `rc=2`（非零，差分成立），复原干净——与槽位 22 为同一次实跑的两个受益行。
+
+**终态：`keep`。动作：不改动。**
