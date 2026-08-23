@@ -148,3 +148,53 @@
 | 待独立认定（作者判断无真实触发证据） | 3、18、19、20、21、30 | 6 |
 
 **已浮现的形态差异**：拿得出因果制品的两条，其证据都来自**独立测试套件对规则做 applied mutation 并差分归因**（槽位 28 甚至自带位移探针主动排除存在性解释）；拿不出的六条，firing path 要么指向规则自身所在文件，要么指向一个**已无人执行的死文件**。
+
+---
+
+## 槽位 13 / 14 / 16 / 17 — ordinal 100 / 105 / 113 / 116（合并处置，共用 firing path）
+
+四行的 firing-path 同为 `command:scripts/test_check_spec_references.py`。
+
+**keep (a)**：该测试与其守护的 `scripts/check-spec-references.py` 是两个独立文件，均在 owner 包之外的仓根 `scripts/`，与台账行文本无关。
+
+**keep (b) applied-removal（实跑）**
+
+| 臂 | 操作 | 结果 |
+| --- | --- | --- |
+| 控制组 | 未突变 | `rc=0`（本轮控制组批跑记录） |
+| 突变 | 把 `check-spec-references.py` 里第一个失败返回 `return 1` 短路为 `pass` | **`rc=1`**，输出 `spec_reference_check_ok: backticked specs/ citations resolve` |
+| 复原 | `cp` 回备份 | `git diff --quiet` 通过 |
+
+突变打的是**失败判定路径**而非规则文本，故不属被排除的存在性/哈希/锚点检查。
+
+**终态：`keep`。动作：不改动。**
+
+**granularity 限定，如实标注**：该制品证明的是「这条 firing path 是活的、其强制被移除即转红」，**不是**四条子句各自被单独 pin。台账行自己声明的 firing path 就是这个命令，故按行自述的粒度成立；若要逐子句归因，需要四个各自的突变，本轮未做。
+
+**耗时**：四槽位合计约 4 分钟。
+
+---
+
+## 槽位 8 — ordinal 53 / frame line 134 / owner `code-review`
+
+**主张**：一个拒绝对输入做有损读取的控制，自己不得做有损读取；决定信任的检查必须消费调用方实际发出的那个值。
+**firing-path**：`command:skills/code-review/scripts/parse_probe_result.py` —— 指向的是**解析器模块本身**，不是测试。
+
+**实测**
+
+| 检查 | 结果 |
+| --- | --- |
+| 裸跑该 firing-path 命令 | `rc=64`（用法错误）—— 它是解析器不是测试，"跑一下看红不红" 对它无效 |
+| 专属测试 `test_parse_probe_result.sh` 控制组 | `rc=0`，输出 `parse_probe_result_tests_ok` |
+| applied-removal：把 `host_entry_is_whole` 的 `isinstance` 分支由 `return False` 改为 `return True`（dict 型条目一律判为「未丢失」） | **`rc=0` —— 测试仍绿** |
+| 复原 | `git diff --quiet` 通过 |
+
+**突变有效性已单独复核**：`git diff` 确认改的是可执行分支（`- return False` / `+ return True`），不是 docstring；该分支正是函数 docstring 点名的三个评审发现之一（"A dict hid a path in a sibling key"）。
+
+**判读**：firing path 声明的命令不可作为 oracle 使用；专属测试存在且绿，但**对该规则的一个承重分支无覆盖**——短路它测试不红。故 keep(b) 在该分支上不成立。
+
+**终态：待独立通道正面认定**。作者判断：规则本身有实现、有测试，但其 dict 分支无行为覆盖，属**部分覆盖**而非死路径，与槽位 3 / 18–21 不同类。认定前记 `证据不足`。
+
+**附带发现（登记，不在本轮处置）**：`test_parse_probe_result.sh` 对 `host_entry_is_whole` 的非字符串条目分支无覆盖——把它短路为恒真，测试不红。这是一处真实的测试覆盖缺口，owner 为 `code-review`。
+
+**耗时**：约 9 分钟（含一次无效突变的复核与重做）。
