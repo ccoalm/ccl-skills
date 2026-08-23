@@ -1,99 +1,79 @@
 # 039 承重事实原始取证
-# base(权威口径): origin/dev = 5146b3b315c487f93ba352584a0b27af9414676b
-# captured-at-commit(候选态): 56d4a64903bacf1038bf4186ad9828263bad831b
-# 全部 base 指标一律用 5146b3b315c487f93ba352584a0b27af9414676b 计算，不用 HEAD；候选态指标单列并标注。
-# 每块：命令 → 未编辑 stdout/stderr → exit status（set -o pipefail，故非管道末位掩盖）。
+# base(权威口径) = 5146b3b315c487f93ba352584a0b27af9414676b
+# captured-at-commit(候选态) = 7209246182590cac36189c4c7fcbfb8248c5adfd
+# base 指标一律由该 SHA 的 git 对象计算，不读工作树、不算到 HEAD。
+# 每块：命令 → 未编辑输出 → 退出码（pipefail 开，非管道末位掩盖）。
 
 $ git rev-list --max-parents=0 5146b3b315c487f93ba352584a0b27af9414676b | tail -1
 206facb3cea895621ce052d62bf2b3e281de976b
-[exit=0]  # pipefail on
+[exit=0]  # set -o pipefail
 
 $ git show --numstat --format='' 206facb3cea895621ce052d62bf2b3e281de976b -- 'skills/**' | awk 'NF==3 && $1!="-"{a+=$1} END{print "init_snapshot_added=" a}'
 init_snapshot_added=79990
-[exit=0]  # pipefail on
+[exit=0]  # set -o pipefail
 
-# 增删比：base 口径（权威）
+# 增删比（base 口径，权威）
 
 $ git log --numstat --format='' 206facb3cea895621ce052d62bf2b3e281de976b..5146b3b315c487f93ba352584a0b27af9414676b -- 'skills/**' | awk 'NF==3 && $1!="-"{a+=$1;d+=$2} END{printf "added=%d deleted=%d ratio=%.1f\n", a, d, a/d}'
 added=9157 deleted=708 ratio=12.9
-[exit=0]  # pipefail on
+[exit=0]  # set -o pipefail
 
-# 同一指标的候选口径（本候选只动 specs/，故与 base 相同；单列以示口径区分）
+# 静态体量：base 的 git 对象字节（非 du 块数）
 
-$ git log --numstat --format='' 206facb3cea895621ce052d62bf2b3e281de976b..HEAD -- 'skills/**' | awk 'NF==3 && $1!="-"{a+=$1;d+=$2} END{printf "added=%d deleted=%d ratio=%.1f\n", a, d, a/d}'
-added=9157 deleted=708 ratio=12.9
-[exit=0]  # pipefail on
+$ git ls-tree -r -l 5146b3b315c487f93ba352584a0b27af9414676b skills/ | awk '{split($5,p,"/"); s[p[2]]+=$4} END{t=0; for(k in s) t+=s[k]; two=s["skill-extraction-workflow"]+s["code-review"]; printf "total=%d two_pkg=%d share=%.1f%%\n", t, two, 100*two/t}'
+total=7736475 two_pkg=3130021 share=40.5%
+[exit=0]  # set -o pipefail
 
-# 以下均从 base 对象读取，不读工作树
+$ git ls-tree -r -l 5146b3b315c487f93ba352584a0b27af9414676b skills/ | awk '{split($5,p,"/"); s[p[2]]+=$4} END{for(k in s) print s[k], k}' | sort -rn | head -4
+1889389 skill-extraction-workflow
+1240632 code-review
+550059 product-ui-ux-design
+454081 llm-inference-integration
+[exit=0]  # set -o pipefail
 
-$ git ls-tree -r --name-only 5146b3b315c487f93ba352584a0b27af9414676b skills | grep 'SKILL.md$' | while read f; do printf '%s %s\n' "$(git cat-file -s $(git rev-parse 5146b3b315c487f93ba352584a0b27af9414676b:$f))" "$f"; done | sort -rn | head -4
+# entrypoint 体量（base 对象）
+
+$ git ls-tree -r -l 5146b3b315c487f93ba352584a0b27af9414676b skills/ | awk '$5 ~ /SKILL.md$/ {print $4, $5}' | sort -rn | head -3
 122101 skills/skill-extraction-workflow/SKILL.md
 77340 skills/product-rd-workflow/SKILL.md
 52077 skills/testing-strategy/SKILL.md
-49975 skills/tighten-doc/SKILL.md
-[exit=0]  # pipefail on
+[exit=0]  # set -o pipefail
 
-$ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md | awk -F'|' '/behavioral-evidence/ { if (match($3, /`[a-z0-9-]+`/)) { k=substr($3,RSTART+1,RLENGTH-2); c[k]++; t++ } } END { print "total=" t; for (k in c) print c[k], k }' | sort -rn | head -6
+# 台账 owner 分布（base 对象）
+
+$ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md | awk -F'|' '/behavioral-evidence/ { if (match($3, /`[a-z0-9-]+`/)) { k=substr($3,RSTART+1,RLENGTH-2); c[k]++; t++ } } END { print "total=" t; for (k in c) print c[k], k }' | sort -rn | head -4
 86 skill-extraction-workflow
 40 code-review
 11 product-rd-workflow
 7 worktree-isolation
-6 testing-strategy
-5 llm-inference-integration
-[exit=0]  # pipefail on
-
-# observed-failure：plan.md 一律用行数口径；3 行内出现两次，出现次数口径另计。
+[exit=0]  # set -o pipefail
 
 $ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md | grep -c 'observed-failure: *yes'
 101
-[exit=0]  # pipefail on
+[exit=0]  # set -o pipefail
 
 $ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md | grep -c 'observed-failure: *no'
 83
-[exit=0]  # pipefail on
+[exit=0]  # set -o pipefail
 
-# specs 轮次分类：不报裸数，逐轮列出判定，读者可逐条反对
+# specs 轮次：base 枚举 → 与仓内分类清单逐条比对 → 计数由清单同一份字节算出
 
-$ git ls-tree --name-only 5146b3b315c487f93ba352584a0b27af9414676b specs | sed 's#specs/##' | wc -l | tr -d ' '
-1
-[exit=0]  # pipefail on
+$ git ls-tree --name-only 5146b3b315c487f93ba352584a0b27af9414676b specs/ | wc -l | tr -d ' '
+29
+[exit=0]  # set -o pipefail
 
-# 判定「交付物是流程或工具自身」= P，「其他」= C（作者判断，非机械导出）：
-010-review-concern-excerpt P
-011-npm-unified-distribution C
-012-challenge-index-default P
-013-opencode-egress-field-schema P
-014-spec-reference-existence-gate P
-015-reviewer-lane-host-vocabulary-class P
-016-spec-citation-template-exemption P
-017-repo-root-checker-filename-decode P
-018-plan-oos-item-disposition P
-019-impact-chain-round-head-presence P
-020-bank-runner-round P
-021-impact-chain-gate-date-require P
-022-heavy-lane-wiring-and-ci P
-023-agent-native-repo-borrowing C
-023-opencode-timeout-evidence P
-024-agent-research-broker-feasibility C
-024-kimi-packet-review P
-025-spec-reference-correction P
-026-register-firing-reachability P
-027-catalog-default-base-coverage P
-028-c3-preservation-gate-retirement P
-029-claim-liveness-operability-leg P
-030-d1-model-visible-accounting C
-031-e5-controlled-privilege-escalation C
-032-review-program-process-controls P
-033-runtime-face-borrowing C
-034-theory-debt-repayment C
-035-ci-critical-path-split P
-036-ci-parallel-shards P
-039-design-first-shrink P
+$ diff <(git ls-tree --name-only 5146b3b315c487f93ba352584a0b27af9414676b specs/ | sed 's#specs/##;s#/$##' | sort) <(cut -f1 specs/039-design-first-shrink/specs-classification.tsv | sort) && echo manifest_matches_base_exactly
+manifest_matches_base_exactly
+[exit=0]  # set -o pipefail
 
-$ awk '{print $2}' /tmp/039class.txt | sort | uniq -c
-   7 C
-  23 P
-[exit=0]  # pipefail on
+$ shasum -a 256 specs/039-design-first-shrink/specs-classification.tsv
+626615a15150b4b6babd1733a1123dd7b705997ef54ba9a6f79e2f63ee4ab63f  specs/039-design-first-shrink/specs-classification.tsv
+[exit=0]  # set -o pipefail
+
+$ awk -F'\t' '{c[$2]++} END{for(k in c) print k, c[k]}' specs/039-design-first-shrink/specs-classification.tsv
+C 7
+P 22
+[exit=0]  # set -o pipefail
 
 # 抽样器完整源码（内联；去行首 "# " 即为可运行文件）
 # ---8<--- draw_sample.py ---8<---
@@ -174,19 +154,19 @@ $ awk '{print $2}' /tmp/039class.txt | sort | uniq -c
 #     sys.exit(main(sys.argv))
 # ---8<--- end ---8<---
 
-# 抽样复现：抽出的内联源码 + 钉在 base 的 register blob（非工作树）
+# 抽样复现：抽出的内联源码 + 钉在 base 的 register blob
 
 $ shasum -a 256 /tmp/039extracted.py
 31283bf8c9db4fa1a478f9b07787e74d7f19d21729f11b2423ef8da0a497ca65  /tmp/039extracted.py
-[exit=0]  # pipefail on
+[exit=0]  # set -o pipefail
 
 $ git rev-parse 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md
 1fc647e2113db1a827611f2152d5de5a25847f33
-[exit=0]  # pipefail on
+[exit=0]  # set -o pipefail
 
 $ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md > /tmp/r.md && shasum -a 256 /tmp/r.md
 b654f5ab81aa2bbae47c1b4264867ab87d74fa5172464e8a6e531ab0aed09618  /tmp/r.md
-[exit=0]  # pipefail on
+[exit=0]  # set -o pipefail
 
 $ python3 /tmp/039extracted.py 5146b3b315c487f93ba352584a0b27af9414676b /tmp/r.md
 frame_all=183 pool_two_owners=126 seed_source=5146b3b3 seed=1363588019
@@ -221,7 +201,7 @@ ordinal:file_line:owner
 164:255:skill-extraction-workflow
 165:256:skill-extraction-workflow
 181:272:skill-extraction-workflow
-[exit=0]  # pipefail on
+[exit=0]  # set -o pipefail
 
 # 入口尺寸闸 applied-mutation：控制组 → 突变 → 复原；闸退出码单独保留
 
@@ -232,7 +212,7 @@ entrypoint_word_budget_blocking_ok
 
 $ cp skills/skill-extraction-workflow/SKILL.md /tmp/039mut.bak && python3 -c "open('skills/skill-extraction-workflow/SKILL.md','a').write(chr(10)+'x'*3000+chr(10))" && wc -c skills/skill-extraction-workflow/SKILL.md
   125103 skills/skill-extraction-workflow/SKILL.md
-[exit=0]  # pipefail on
+[exit=0]  # set -o pipefail
 
 $ CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-size-budget.sh .   # 突变组
 entrypoint_size_block: skills/skill-extraction-workflow/SKILL.md: severe entrypoint grew base_bytes=122101 head_bytes=125103 — consolidate an existing rule or move detail into references/ (there is no exempt marker or waiver flag); a rule set must not grow monotonically
@@ -243,7 +223,7 @@ entrypoint_size_blocking_failed
 
 $ cp /tmp/039mut.bak skills/skill-extraction-workflow/SKILL.md && git diff --quiet -- skills/skill-extraction-workflow/SKILL.md && echo restored_clean
 restored_clean
-[exit=0]  # pipefail on
+[exit=0]  # set -o pipefail
 
 $ CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-size-budget.sh .   # 复原后
 entrypoint_size_blocking_ok
@@ -267,4 +247,4 @@ $ git show 5146b3b315c487f93ba352584a0b27af9414676b:eval/body-compliance-eval.rb
 # gates, and every rule in the other 28 skills. A green run means these twelve fired,
 # nothing more.
 #
-[exit=0]  # pipefail on
+[exit=0]  # set -o pipefail
