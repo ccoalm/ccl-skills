@@ -48,14 +48,32 @@ RUNNER = REPO / "skills/skill-extraction-workflow/scripts/test_check_ccl_regress
 # around that occurrence, not from anywhere on the line. A path already rooted at
 # a variable (`"$WORK/tmp/x"`) never matches in the first place, because the
 # pattern's lookbehind rejects a preceding word character.
-# The exemption must end EXACTLY at the occurrence. A looser "mktemp appears
-# somewhere earlier on the line" window is what lets `WORK="$(mktemp -d)"; cp x
-# /tmp/shared` pass — the masking shape this gate exists to catch.
-TMP_OCCURRENCE_SAFE = re.compile(r"(?:TMPDIR:-|mktemp(?:\s+-[A-Za-z]+)*\s+)$")
+# The ONLY exempt /tmp occurrence is one inside a mktemp TEMPLATE -- the line
+# calls mktemp and the token holding the occurrence carries the XXXXXX placeholder
+# that makes the path unique per call. Exempting on proximity to `mktemp`, or on a
+# bare `${TMPDIR:-/tmp}` default, would wave through `mktemp -d /tmp/shared` and
+# `touch "${TMPDIR:-/tmp}/shared"` -- both fixed paths every concurrent suite meets.
+UNIQUE_TEMPLATE = re.compile(r"XXX")
+
+
+def tmp_occurrence_is_template(line: str, start: int, end: int) -> bool:
+    if "mktemp" not in line:
+        return False
+    left = start
+    while left > 0 and line[left - 1] not in " \t\"'`(":
+        left -= 1
+    right = end
+    while right < len(line) and line[right] not in " \t\"'`)":
+        right += 1
+    return bool(UNIQUE_TEMPLATE.search(line[left:right]))
+
 
 HAZARDS = [
     # Shared temp roots, however spelled.
-    ("fixed-tmp", re.compile(r"(?<![\w$}])/(?:var/)?tmp/"), True),
+    # `/tmp` however it terminates: `/tmp/x`, `${TMPDIR:-/tmp}/x` (which ends the
+    # occurrence with `}`), or a bare trailing `/tmp`. Requiring a trailing slash
+    # missed the TMPDIR-default form entirely.
+    ("fixed-tmp", re.compile(r"(?<![\w$}])/(?:var/)?tmp(?![\w-])"), True),
     # Any global git mutation, not just `config`.
     ("git-global", re.compile(r"git\s+(?:config\s+--global|--global\s+config)"), False),
     # $HOME as a write target in any form: redirect, or a mutating command's
@@ -90,6 +108,13 @@ ALLOWED = {
     ("test_cli_review_wrappers.sh", "fixed-tmp", 'command = "touch /tmp/forbidden"'),
     ("test_review_gate.sh", "fixed-tmp", '"--review-plan-file", "/tmp/plan.json",'),
     ("test_review_gate.sh", "fixed-tmp", '"--diff-file", "/tmp/diff.patch",'),
+    # An argv fixture compared as text against what a stub received; no directory
+    # is entered and no file is opened.
+    ("test_review_gate.sh", "fixed-tmp", '"--cwd", "/tmp",'),
+    # A `case` PATTERN matching an argument the stub was handed -- a comparison,
+    # not a path the suite writes.
+    ("test_opencode_review_retry.sh", "fixed-tmp",
+     'case "${FAIL_CAT_KIND:-}:${1:-}" in diff:"${TMPDIR:-/tmp}"/oc-diff.*) exit 42;; esac'),
     # The two opencode suites' XDG reads, enumerated one occurrence at a time
     # rather than exempted by a rule. Every rule that tried to express "this file
     # scopes the variable" was, across three review rounds, shown to be evadable
@@ -293,7 +318,9 @@ def scan(paths: list[Path]) -> set[tuple[str, str, str]]:
                     if names and all(name in scoped for name in names):
                         continue
                 for match in pattern.finditer(line):
-                    if occurrence_exempt and TMP_OCCURRENCE_SAFE.search(line[: match.start()]):
+                    if occurrence_exempt and tmp_occurrence_is_template(
+                        line, match.start(), match.end()
+                    ):
                         continue
                     findings.add((path.name, hazard, line))
                     break
@@ -322,6 +349,10 @@ def self_check() -> None:
         "bare fixed /tmp write": 'printf hi > /tmp/shared-fixture.txt',
         "workspace token masking a /tmp write": 'printf \'%s\' "$TMP" > /tmp/shared-fixture.txt',
         "mktemp masking a later /tmp write": 'WORK="$(mktemp -d)"; cp x /tmp/shared-fixture.txt',
+        "a TMPDIR default used as a path, not a template":
+            'touch "${TMPDIR:-/tmp}/shared-fixture"',
+        "a mktemp template with no unique placeholder":
+            'D="$(mktemp -d /tmp/shared-fixture)"',
         "workspace token masking a global git write": 'git config --global user.name "$TMP"',
         "workspace token masking a HOME write": 'printf "$TMP" >> "$HOME/.ccl-shared"',
         "workspace token masking a port": 'curl "$TMP" http://localhost:8080/x',
