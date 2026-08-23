@@ -72,20 +72,25 @@ if [ "$#" -gt 1 ]; then
   exit 2
 fi
 
-run_test() {
-  local test_name="$1"
-  local test_path="$SCRIPTS_DIR/$test_name"
-  local started_at ended_at rc
-  [ -f "$test_path" ] || { echo "FAIL: missing regression test: $test_path" >&2; exit 1; }
-  started_at="$(date +%s)"
-  if bash "$test_path"; then
-    rc=0
-  else
-    rc=$?
-  fi
-  ended_at="$(date +%s)"
-  echo "regression_test_timing: test=$test_name seconds=$((ended_at - started_at)) status=$rc"
-  return "$rc"
+# Lanes execute through the shared bounded-concurrency runner: these suites are
+# dominated by waiting (process timeouts, stub sleeps) and by independent
+# subprocesses, so serial execution burned wall-clock the runner host was not
+# using. The runner owns the missing-file precondition, the per-suite timing
+# line, in-order output replay, and failure propagation; assertions inside the
+# suites are untouched. `SUITE_JOBS=1` restores serial execution for debugging a
+# suspected concurrency interaction. See specs/037-ci-intra-job-parallel/plan.md
+# for the per-lane shared-state audit that makes this safe.
+PARALLEL_RUNNER="$REPO_ROOT/scripts/run-parallel-suites.sh"
+
+run_lane() {
+  local label="$1"; shift
+  local paths=() entry
+  for entry in "$@"; do paths+=("$SCRIPTS_DIR/$entry"); done
+  [ -f "$PARALLEL_RUNNER" ] || {
+    echo "FAIL: missing parallel suite runner: $PARALLEL_RUNNER" >&2
+    exit 1
+  }
+  bash "$PARALLEL_RUNNER" --label "$label" "${paths[@]}"
 }
 
 fast_tests=(
@@ -177,15 +182,11 @@ if [ -n "$unregistered" ]; then
 fi
 
 if [ "$mode" != "heavy-only" ]; then
-  for test_name in "${fast_tests[@]}"; do
-    run_test "$test_name"
-  done
+  run_lane regression_fast_lane "${fast_tests[@]}"
 fi
 
 if [ "$mode" = "full" ] || [ "$mode" = "heavy-only" ]; then
-  for test_name in "${heavy_tests[@]}"; do
-    run_test "$test_name"
-  done
+  run_lane regression_heavy_lane "${heavy_tests[@]}"
 fi
 
 case "$mode" in

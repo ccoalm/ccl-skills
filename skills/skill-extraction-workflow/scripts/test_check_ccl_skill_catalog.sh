@@ -205,7 +205,10 @@ expect_block() {
     printf '%s\n' "$CASE_OUTPUT" >&2
     exit 1
   }
-  printf '%s\n' "$CASE_OUTPUT" | grep -q "$token" || {
+  # SIGPIPE-safe match; see the note at the first such comparison below.
+  # `=~`, not a glob: callers pass REGEX tokens (c1 uses `.*`), so a literal
+  # substring test would reject a correct gate message.
+  [[ "$CASE_OUTPUT" =~ $token ]] || {
     echo "FAIL[$label]: gate blocked without naming $token" >&2
     printf '%s\n' "$CASE_OUTPUT" >&2
     exit 1
@@ -258,7 +261,11 @@ run_case
   printf '%s\n' "$CASE_OUTPUT" >&2
   exit 1
 }
-printf '%s\n' "$CASE_OUTPUT" | grep -q 'skill_catalog_contract_ok' || {
+# Pure-bash substring match, not `printf | grep -q`: grep -q exits on its first
+# hit, the producer takes SIGPIPE, and under `set -o pipefail` the SUCCESS path
+# then reports failure. Timing-dependent, so it stayed latent until this lane
+# ran concurrently (specs/037-ci-intra-job-parallel/plan.md).
+[[ "$CASE_OUTPUT" == *skill_catalog_contract_ok* ]] || {
   echo "FAIL[c6]: pristine tree passed without the contract marker" >&2
   printf '%s\n' "$CASE_OUTPUT" >&2
   exit 1
@@ -313,12 +320,12 @@ run_case
 new_case
 rm -f "$CASE_DIR/agent-context/session-start.md"
 run_case
-printf '%s\n' "$CASE_OUTPUT" | grep -q 'skill_catalog_entry_coverage_unevaluated' || {
+[[ "$CASE_OUTPUT" == *skill_catalog_entry_coverage_unevaluated* ]] || {
   echo "FAIL[c9]: missing routing layer was not reported as unevaluated" >&2
   printf '%s\n' "$CASE_OUTPUT" >&2
   exit 1
 }
-printf '%s\n' "$CASE_OUTPUT" | grep -q 'skill_catalog_contract_ok' && {
+[[ "$CASE_OUTPUT" == *skill_catalog_contract_ok* ]] && {
   echo "FAIL[c9]: contract_ok claimed while entry coverage was never evaluated" >&2
   printf '%s\n' "$CASE_OUTPUT" >&2
   exit 1

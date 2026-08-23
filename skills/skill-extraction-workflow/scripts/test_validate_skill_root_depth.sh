@@ -39,7 +39,11 @@ printf 'not-frontmatter\n' > "$tmp/repo/skills/sample-skill/fixtures/SKILL.md"
 mkdir -p "$tmp/repo/vendor/thing"
 printf 'not-frontmatter\n' > "$tmp/repo/vendor/thing/SKILL.md"
 out="$(bash "$VALIDATE" "$tmp/repo" 2>&1)" || fail "repo-root run exited non-zero: $out"
-printf '%s\n' "$out" | grep -q 'validating 1 skill root(s)' \
+# Pure-bash substring match, not `printf | grep -q`: grep -q exits on its first
+# hit, the producer takes SIGPIPE, and under `set -o pipefail` the SUCCESS path
+# then reports failure. Timing-dependent, so it stayed latent until this lane
+# ran concurrently (specs/037-ci-intra-job-parallel/plan.md).
+[[ "$out" == *"validating 1 skill root(s)"* ]] \
   || fail "expected exactly 1 root (nested fixture must be excluded): $out"
 
 # (2) a tree with no SKILL.md still fails loudly (exit 2, no silent green).
@@ -47,7 +51,7 @@ mkdir -p "$tmp/empty/sub/deeper"
 if out="$(bash "$VALIDATE" "$tmp/empty" 2>&1)"; then
   fail "empty tree unexpectedly passed: $out"
 fi
-printf '%s\n' "$out" | grep -q 'no_skill_roots_found' \
+[[ "$out" == *no_skill_roots_found* ]] \
   || fail "empty tree missing loud no_skill_roots_found: $out"
 
 echo "PASS: validate-skill discovers skills/<name>/SKILL.md and stays loud on empty trees"
