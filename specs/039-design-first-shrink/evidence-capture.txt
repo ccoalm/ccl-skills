@@ -1,6 +1,6 @@
 # 039 承重事实原始取证
 # base: origin/dev = 5146b3b315c487f93ba352584a0b27af9414676b
-# captured-at-commit: acdff3980afcdf3e7fa85e95a9bb8c6f51e34b26
+# captured-at-commit: c817844479a7dbacbe1ec57ff663b8b992c59195
 # 每块记录：命令 → 未编辑 stdout/stderr → exit status。可原样复跑比对。
 
 $ git rev-list --max-parents=0 HEAD | tail -1
@@ -31,8 +31,7 @@ $ awk -F'|' '/behavioral-evidence/ { if (match($3, /`[a-z0-9-]+`/)) { k=substr($
 5 llm-inference-integration
 [exit=0]
 
-# observed-failure 两个口径：plan.md 一律用行数口径 101/83；
-#   3 行内该标记出现两次，故出现次数口径为 102/84。两者都列，避免混用。
+# observed-failure：plan.md 一律用行数口径 101/83；3 行内出现两次，故出现次数口径 102/84。
 
 $ grep -c 'observed-failure: *yes' skills/skill-extraction-workflow/references/source-register.md
 101
@@ -42,19 +41,11 @@ $ grep -c 'observed-failure: *no' skills/skill-extraction-workflow/references/so
 83
 [exit=0]
 
-$ grep -o 'observed-failure: *yes' skills/skill-extraction-workflow/references/source-register.md | wc -l | tr -d ' '
-102
-[exit=0]
-
-$ grep -o 'observed-failure: *no' skills/skill-extraction-workflow/references/source-register.md | wc -l | tr -d ' '
-84
-[exit=0]
-
 $ ls specs | wc -l
       30
 [exit=0]
 
-# 抽样器完整源码（内联，不单独成文件；去掉行首 "# " 即可另存运行）
+# 抽样器完整源码（内联；去掉行首 "# " 即为可运行文件）
 # ---8<--- draw_sample.py ---8<---
 # #!/usr/bin/env python3
 # """039 抽样脚本：样本是公开输入的确定性函数，无可挑选的自由参数。
@@ -133,7 +124,21 @@ $ ls specs | wc -l
 #     sys.exit(main(sys.argv))
 # ---8<--- end ---8<---
 
-$ python3 /tmp/039draw.py 5146b3b315c487f93ba352584a0b27af9414676b skills/skill-extraction-workflow/references/source-register.md
+# 抽样复现：用上面这段源码本身，喂钉在 base 上的 register blob（非可变工作树）
+
+$ sed -n '/---8<--- draw_sample.py ---8<---/,/---8<--- end ---8<---/p' specs/039-design-first-shrink/evidence-capture.txt | sed '1d;$d' | sed 's/^# \{0,1\}//' > /tmp/e.py && shasum -a 256 /tmp/e.py
+31283bf8c9db4fa1a478f9b07787e74d7f19d21729f11b2423ef8da0a497ca65  /tmp/e.py
+[exit=0]
+
+$ git rev-parse 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md
+1fc647e2113db1a827611f2152d5de5a25847f33
+[exit=0]
+
+$ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md > /tmp/r.md && shasum -a 256 /tmp/r.md
+b654f5ab81aa2bbae47c1b4264867ab87d74fa5172464e8a6e531ab0aed09618  /tmp/r.md
+[exit=0]
+
+$ python3 /tmp/e.py 5146b3b315c487f93ba352584a0b27af9414676b /tmp/r.md
 frame_all=183 pool_two_owners=126 seed_source=5146b3b3 seed=1363588019
 ordinal:file_line:owner
 5:31:code-review
@@ -168,32 +173,32 @@ ordinal:file_line:owner
 181:272:skill-extraction-workflow
 [exit=0]
 
-# 入口尺寸闸 applied-mutation：控制组 → 突变 → 复原，含命令与退出码
+# 入口尺寸闸 applied-mutation：控制组 → 突变 → 复原；闸退出码单独保留
 
-$ CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-size-budget.sh . 2>&1 | grep -E 'entrypoint_(size|word_budget)_block|blocking_(ok|failed)'
+$ CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-size-budget.sh .   # 控制组
 entrypoint_size_blocking_ok
 entrypoint_word_budget_blocking_ok
-[exit=0]
+[gate_exit=0]  <- 闸自身退出码，未被管道掩盖
 
 $ cp skills/skill-extraction-workflow/SKILL.md /tmp/039mut.bak && python3 -c "open('skills/skill-extraction-workflow/SKILL.md','a').write(chr(10)+'<!-- applied mutation probe -->'+chr(10)+'x'*3000+chr(10))" && wc -c skills/skill-extraction-workflow/SKILL.md
   125135 skills/skill-extraction-workflow/SKILL.md
 [exit=0]
 
-$ CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-size-budget.sh . 2>&1 | grep -E 'entrypoint_(size|word_budget)_block|blocking_(ok|failed)'
+$ CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-size-budget.sh .   # 突变组
 entrypoint_size_block: skills/skill-extraction-workflow/SKILL.md: severe entrypoint grew base_bytes=122101 head_bytes=125135 — consolidate an existing rule or move detail into references/ (there is no exempt marker or waiver flag); a rule set must not grow monotonically
 entrypoint_word_budget_block: skills/skill-extraction-workflow/SKILL.md: base_body_words=16957 head_body_words=16961 allowed_body_words=16957 — historical over-limit entrypoint grew; keep it level, shrink it, or move detail into references/
 entrypoint_word_budget_blocking_failed
 entrypoint_size_blocking_failed
-[exit=0]
+[gate_exit=1]  <- 闸自身退出码，未被管道掩盖
 
 $ cp /tmp/039mut.bak skills/skill-extraction-workflow/SKILL.md && git diff --quiet -- skills/skill-extraction-workflow/SKILL.md && echo restored_clean
 restored_clean
 [exit=0]
 
-$ CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-size-budget.sh . 2>&1 | grep -E 'entrypoint_(size|word_budget)_block|blocking_(ok|failed)'
+$ CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-size-budget.sh .   # 复原后
 entrypoint_size_blocking_ok
 entrypoint_word_budget_blocking_ok
-[exit=0]
+[gate_exit=0]  <- 闸自身退出码，未被管道掩盖
 
 # 脚本自述摘录（「来源明确陈述」，非独立验证其运行行为）
 
