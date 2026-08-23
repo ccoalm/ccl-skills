@@ -40,7 +40,8 @@ fi
 ORIG="$(mktemp)"; cp "$SKILL" "$ORIG" || exit 2
 # 复原前先确认目标仍逐字节等于本脚本自己写下的内容。模型调用最长 120 秒，
 # 期间若有人改了这个文件，无条件盖回旧快照就会静默吞掉那次并发编辑（评审 r3 第 12 条）。
-MUTATED=""   # 每次 apply 之后由 run_arm 写入：此刻目标应有的 sha256
+MUTATED=""          # 每次 apply 之后由 run_arm 写入：此刻目标应有的 sha256
+RESTORE_REFUSED=0   # 复原被拒过就置 1；置 1 后不再有任何一臂会启动
 restore() {
   [ -f "$ORIG" ] || return 0
   if [ -n "$MUTATED" ]; then
@@ -48,7 +49,10 @@ restore() {
     if [ "$now" != "$MUTATED" ]; then
       echo "FATAL: ${SKILL_REL} 在本次运行期间被第三方修改（期望 ${MUTATED}，实得 ${now}）；" >&2
       echo "       不覆盖、保留现场。原始字节留在 ${ORIG}，请人工比对后处置。" >&2
+      # 清掉 trap 是为了不让 EXIT 再跑一次 restore；同时**保留** ORIG 供人工比对，
+      # 所以这里不能用带 rm 的那三个 trap。
       trap - EXIT INT TERM
+      RESTORE_REFUSED=1
       return 1
     fi
   fi
@@ -117,8 +121,10 @@ PY
   git -C "$WT" diff --quiet -- "$SKILL_REL" && echo "restore clean: OK" || { echo "FATAL: restore dirty" >&2; return 1; }
 }
 
-rc=0
-run_arm "del-AB" "$A" "$B" || rc=1
-run_arm "del-B"  "$B"      || rc=1
-echo "=== DONE rc=$rc ==="
-exit "$rc"
+# 一臂失败即整体中止：若第一臂的复原被拒（目标被第三方改过），继续跑第二臂会让
+# 它在那个并发版本上再突变一次，其后的复原又把 run 前的 ORIG 盖上去——第一次
+# 拒绝保住的并发编辑会被第二臂静默删掉（加时轮 h1 第 1 条）。
+run_arm "del-AB" "$A" "$B" || { echo "=== ABORTED at del-AB ===" >&2; exit 1; }
+run_arm "del-B"  "$B"      || { echo "=== ABORTED at del-B ===" >&2; exit 1; }
+echo "=== DONE rc=0 ==="
+exit 0
