@@ -75,3 +75,23 @@ $ sed -n '4,17p' eval/body-compliance-eval.rb
 # nothing more.
 #
 [exit=0]
+
+## 附录：入口尺寸闸 applied-mutation 实证
+# base: origin/dev = 5146b3b315c487f93ba352584a0b27af9414676b
+
+$ # 控制组：未突变时
+  entrypoint_size_blocking_ok
+  entrypoint_word_budget_blocking_ok
+  [control]
+
+$ # 突变组：给已 severe 的 skill-extraction-workflow/SKILL.md 追加 ~3KB
+  entrypoint_size_block: skills/skill-extraction-workflow/SKILL.md: severe entrypoint grew base_bytes=122101 head_bytes=125161 — consolidate an existing rule or move detail into references/ (there is no exempt marker or waiver flag); a rule set must not grow monotonically
+  entrypoint_word_budget_block: skills/skill-extraction-workflow/SKILL.md: base_body_words=16957 head_body_words=16965 allowed_body_words=16957 — historical over-limit entrypoint grew; keep it level, shrink it, or move detail into references/
+  entrypoint_word_budget_blocking_failed
+  entrypoint_size_blocking_failed
+  [mutant]
+
+$ # 复原后
+  entrypoint_size_blocking_ok
+  entrypoint_word_budget_blocking_ok
+  [restored]
