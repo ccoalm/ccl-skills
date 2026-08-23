@@ -1,6 +1,6 @@
 # 039 承重事实原始取证
 # 单一钉点 base = 5146b3b315c487f93ba352584a0b27af9414676b（开轮时的 dev；不随 dev 前进追平）
-# captured-at-commit = d7cf4db977ee70d2daaa3f0c3c4e89fa1ab1f655
+# captured-at-commit = 37075ccaf09f66fe64d957ac8ef2678299d33656
 # 每块：命令 → 未编辑输出 → 退出码（pipefail 开）。全部读 base 的 git 对象，不读工作树。
 
 $ git show --numstat --format='' 206facb3cea895621ce052d62bf2b3e281de976b -- 'skills/**' | awk 'NF==3 && $1!="-"{a+=$1} END{print "init_snapshot_added=" a}'
@@ -66,9 +66,29 @@ $ shasum -a 256 specs/039-design-first-shrink/specs-classification.tsv
 b9c60d319cc294ad4e5b8a9c04d9458b9db071ec578a81d9163aa22d87d9f92d  specs/039-design-first-shrink/specs-classification.tsv
 [exit=0]  # set -o pipefail
 
-# 抽样：本取证不含名单，也不跑抽样器。
-#   seed 取自本 PR 的 merge commit SHA，在本文件生成时不存在，作者无从预览或挑选。
-#   抽样器源码内联于文末（哈希见下），合并后按 plan 中的命令复算即得名单。
+# 抽样框：钉死的不可变 blob；本取证只验框，不抽样（抽样需用户提供的一次性 seed）
+
+$ git rev-parse 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md
+1fc647e2113db1a827611f2152d5de5a25847f33
+[exit=0]  # set -o pipefail
+
+$ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md | shasum -a 256
+b654f5ab81aa2bbae47c1b4264867ab87d74fa5172464e8a6e531ab0aed09618  -
+[exit=0]  # set -o pipefail
+
+$ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md > /tmp/frame.$$ && python3 -c "
+import importlib.util,pathlib,sys
+spec=importlib.util.spec_from_file_location('d','/tmp/039extracted.py'); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+f=m.build_frame(pathlib.Path('/tmp/frame.$$'))
+print('frame_all=',len(f),'pool=',len([r for r in f if r['owner'] in m.POOL_OWNERS]))
+" && rm -f /tmp/frame.$$
+frame_all= 183 pool= 126
+[exit=0]  # set -o pipefail
+
+$ shasum -a 256 /tmp/039extracted.py
+a3b882a2e9dc18f50bb0eda6351a848cf4389170d3da91f06eee0b82fc0a6219  /tmp/039extracted.py
+[exit=0]  # set -o pipefail
+# 名单不在本文件，也不在 plan —— 含即意味着作者已算过。拿到 seed 后按 plan 的命令复算。
 
 # 入口尺寸闸 applied-mutation：唯一临时备份 + trap 复原 + 复原校验
 
@@ -88,7 +108,7 @@ entrypoint_word_budget_blocking_failed
 entrypoint_size_blocking_failed
 [gate_exit=1]  # 闸自身退出码，未经管道
 
-$ cp '/var/folders/pf/rc8nt71164nd78qh1_l1xp7h0000gn/T//039mut.CklXRS' skills/skill-extraction-workflow/SKILL.md && git diff --quiet -- skills/skill-extraction-workflow/SKILL.md && echo restored_verified_clean
+$ cp '/var/folders/pf/rc8nt71164nd78qh1_l1xp7h0000gn/T//039mut.ybgski' skills/skill-extraction-workflow/SKILL.md && git diff --quiet -- skills/skill-extraction-workflow/SKILL.md && echo restored_verified_clean
 restored_verified_clean
 [exit=0]  # set -o pipefail
 
@@ -135,10 +155,17 @@ entrypoint_word_budget_blocking_ok
 # run "diff <(git ls-tree --name-only $BASE specs/ | sed 's#specs/##;s#/\$##' | sort) <(grep -v '^#' $CLS | cut -f1 | sort) && echo manifest_matches_base_exactly"
 # run "grep -v '^#' $CLS | awk -F'\t' '{c[\$2]++} END{for(k in c) print k, c[k]}'"
 # run "shasum -a 256 $CLS"
-# printf '\n# 抽样复现：内联源码 + 钉在 base 的 register blob\n'
-# run "shasum -a 256 /tmp/039extracted.py"
+# printf '\n# 抽样框：钉死的不可变 blob；本取证只验框，不抽样（抽样需用户提供的一次性 seed）\n'
 # run "git rev-parse $BASE:$RP"
-# run "git show $BASE:$RP > /tmp/r.\$\$ && shasum -a 256 /tmp/r.\$\$ && python3 /tmp/039extracted.py $BASE /tmp/r.\$\$ | head -3 && rm -f /tmp/r.\$\$"
+# run "git show $BASE:$RP | shasum -a 256"
+# run "git show $BASE:$RP > /tmp/frame.\$\$ && python3 -c \"
+# import importlib.util,pathlib,sys
+# spec=importlib.util.spec_from_file_location('d','/tmp/039extracted.py'); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+# f=m.build_frame(pathlib.Path('/tmp/frame.\$\$'))
+# print('frame_all=',len(f),'pool=',len([r for r in f if r['owner'] in m.POOL_OWNERS]))
+# \" && rm -f /tmp/frame.\$\$"
+# run "shasum -a 256 /tmp/039extracted.py"
+# printf '# 名单不在本文件，也不在 plan —— 含即意味着作者已算过。拿到 seed 后按 plan 的命令复算。\n'
 # printf '\n# 入口尺寸闸 applied-mutation：唯一临时备份 + trap 复原 + 复原校验\n'
 # BK=$(mktemp "${TMPDIR:-/tmp}/039mut.XXXXXX") || exit 1
 # cleanup(){ [ -s "$BK" ] && cp "$BK" "$S"; rm -f "$BK"; }
@@ -161,13 +188,15 @@ entrypoint_word_budget_blocking_ok
 
 # ---8<--- draw_sample.py ---8<---
 # #!/usr/bin/env python3
-# """039 抽样脚本：样本是公开输入的确定性函数，无可挑选的自由参数。
+# """039 抽样器：名单是「不可变抽样框 + 一次性 seed」的确定性函数。
 # 
-# seed 由 base commit SHA 推导（本轮开始前即固定、公开、起草方不可控），
-# 因此不存在「先看行、再挑一个好看的 seed」的空间。同样的输入必得同样的名单。
+# 抽样框只读一个钉死的 git blob，不读分支、merge tree 或工作树 —— dev 前进、
+# 分支编辑、行增删重排都影响不到成员与序号。
+# seed 来自用户在处置开始时提供的一次性随机串，作者不生成、不预览、不重试。
 # 
-# 用法: draw-sample.py <base-sha> <register-path>
-# 退出: 0 成功；2 参数或输入错误。
+# 用法: draw_sample.py <seed-hex> <frame-blob-path>
+#       frame-blob-path 由 `git show <blob-object-id> > frame.md` 取得
+# 退出: 0 成功；2 参数或输入错误
 # """
 # from __future__ import annotations
 # 
@@ -181,11 +210,10 @@ entrypoint_word_budget_blocking_ok
 # OWNER_RE = re.compile(r"`([a-z0-9-]+)`")
 # 
 # 
-# def build_frame(register: Path) -> list[dict]:
-#     """台账中带 behavioral-evidence 且第二列能解出 owner 的行，按出现顺序编号。"""
-#     frame: list[dict] = []
-#     text = register.read_text(encoding="utf-8")
-#     for file_line, line in enumerate(text.splitlines(), start=1):
+# def build_frame(frame: Path) -> list[dict]:
+#     """抽样框：blob 中带 behavioral-evidence 且第二列能解出 owner 的行。"""
+#     rows: list[dict] = []
+#     for file_line, line in enumerate(frame.read_text(encoding="utf-8").splitlines(), start=1):
 #         stripped = line.strip()
 #         if not stripped.startswith("|") or "behavioral-evidence" not in stripped:
 #             continue
@@ -195,40 +223,32 @@ entrypoint_word_budget_blocking_ok
 #         owner = OWNER_RE.search(cells[1])
 #         if owner is None:
 #             continue
-#         frame.append(
-#             {"ordinal": len(frame) + 1, "file_line": file_line, "owner": owner.group(1)}
-#         )
-#     return frame
+#         rows.append({"ordinal": len(rows) + 1, "file_line": file_line, "owner": owner.group(1)})
+#     return rows
 # 
 # 
 # def main(argv: list[str]) -> int:
 #     if len(argv) != 3:
-#         print(f"usage: {Path(argv[0]).name} <base-sha> <register-path>", file=sys.stderr)
+#         print(f"usage: {Path(argv[0]).name} <seed-hex> <frame-blob-path>", file=sys.stderr)
 #         return 2
-#     base_sha, register_path = argv[1], Path(argv[2])
-#     if not re.fullmatch(r"[0-9a-f]{8,40}", base_sha):
-#         print(f"base-sha must be 8-40 lowercase hex chars, got {base_sha!r}", file=sys.stderr)
+#     seed_hex, frame_path = argv[1], Path(argv[2])
+#     if not re.fullmatch(r"[0-9a-f]{8,}", seed_hex):
+#         print(f"seed must be >=8 lowercase hex chars, got {seed_hex!r}", file=sys.stderr)
 #         return 2
-#     if not register_path.is_file():
-#         print(f"register not found: {register_path}", file=sys.stderr)
+#     if not frame_path.is_file():
+#         print(f"frame blob not found: {frame_path}", file=sys.stderr)
 #         return 2
 # 
-#     seed = int(base_sha[:8], 16)
-#     frame = build_frame(register_path)
-#     pool = [row for row in frame if row["owner"] in POOL_OWNERS]
+#     frame = build_frame(frame_path)
+#     pool = [r for r in frame if r["owner"] in POOL_OWNERS]
 #     if len(pool) < SAMPLE_SIZE:
 #         print(f"pool has {len(pool)} rows, need {SAMPLE_SIZE}", file=sys.stderr)
 #         return 2
 # 
-#     print(
-#         f"frame_all={len(frame)} pool_two_owners={len(pool)} "
-#         f"seed_source={base_sha[:8]} seed={seed}"
-#     )
-#     sample = sorted(
-#         random.Random(seed).sample(pool, SAMPLE_SIZE), key=lambda row: row["ordinal"]
-#     )
+#     seed = int(seed_hex[:8], 16)
+#     print(f"frame_all={len(frame)} pool={len(pool)} seed_hex={seed_hex[:8]} seed={seed}")
 #     print("ordinal:file_line:owner")
-#     for row in sample:
+#     for row in sorted(random.Random(seed).sample(pool, SAMPLE_SIZE), key=lambda r: r["ordinal"]):
 #         print(f"{row['ordinal']}:{row['file_line']}:{row['owner']}")
 #     return 0
 # 
