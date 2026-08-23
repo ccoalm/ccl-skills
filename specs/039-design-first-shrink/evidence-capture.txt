@@ -1,0 +1,77 @@
+# 039 承重事实原始取证
+# base: origin/dev = 5146b3b315c487f93ba352584a0b27af9414676b
+# captured-at-commit: 4906d08b8334de4a40651de6cd0bc19b13bda3e4
+# 每块为：命令 → 原始 stdout → exit status。可原样复跑比对。
+
+$ git rev-list --max-parents=0 HEAD | tail -1
+206facb3cea895621ce052d62bf2b3e281de976b
+[exit=0]
+
+$ git show --numstat --format='' 206facb3cea895621ce052d62bf2b3e281de976b -- 'skills/**' | awk 'NF==3 && $1!="-"{a+=$1} END{print "init_snapshot_added=" a}'
+init_snapshot_added=79990
+[exit=0]
+
+$ git log --numstat --format='' 206facb3cea895621ce052d62bf2b3e281de976b..HEAD -- 'skills/**' | awk 'NF==3 && $1!="-"{a+=$1;d+=$2} END{printf "added=%d deleted=%d ratio=%.1f
+", a, d, a/d}'
+added=9157 deleted=708 ratio=12.9
+[exit=0]
+
+$ ls skills/*/SKILL.md | xargs wc -c | sort -rn | head -4
+ 1008266 total
+  122101 skills/skill-extraction-workflow/SKILL.md
+   77340 skills/product-rd-workflow/SKILL.md
+   52077 skills/testing-strategy/SKILL.md
+[exit=0]
+
+$ awk -F'|' '/behavioral-evidence/ { if (match($3, /`[a-z0-9-]+`/)) { k=substr($3,RSTART+1,RLENGTH-2); c[k]++; t++ } } END { print "total=" t; for (k in c) print c[k], k }' skills/skill-extraction-workflow/references/source-register.md | sort -rn | head -8
+86 skill-extraction-workflow
+40 code-review
+11 product-rd-workflow
+7 worktree-isolation
+6 testing-strategy
+5 llm-inference-integration
+4 tighten-doc
+3 python-service-architecture
+[exit=0]
+
+$ grep -c 'observed-failure: *yes' skills/skill-extraction-workflow/references/source-register.md
+101
+[exit=0]
+
+$ grep -c 'observed-failure: *no' skills/skill-extraction-workflow/references/source-register.md
+83
+[exit=0]
+
+$ ls specs | wc -l
+      30
+[exit=0]
+
+$ sed -n '3,12p' skills/skill-extraction-workflow/scripts/check-size-budget.sh
+#
+# Blocking (delta-scoped, per changed skills/*/SKILL.md):
+#   - a changed entrypoint that is NEW or CROSSES over 50000 bytes (base was not
+#     severe)                => block ("new severe entrypoint")
+#   - a changed entrypoint already over 50000 bytes in base that GREW
+#     (head_bytes > base_bytes) => block ("severe entrypoint grew")
+# Existing severe files may be edited and shrunk — only growth blocks. Files at or
+# under 50000 bytes may grow freely up to the threshold. This delta shape stops
+# the monotonic-growth bleeding without retroactively gating every edit of the
+# three legacy mega-entrypoints, and without rewarding a rush to pre-shrink.
+[exit=0]
+
+$ sed -n '4,17p' eval/body-compliance-eval.rb
+# Body-compliance probe (advisory): does an agent APPLY a skill's hard rules
+# once the skill is already active?
+#
+# Companion to eval-routing-bank.rb, which grades ACTIVATION from name+description
+# only and therefore cannot see whether any rule inside the body ever fires. Here
+# the SKILL.md body IS the prompt, the task is engineered to trip one named hard
+# rule, and grading is a per-probe marker contract.
+#
+# Coverage is a NAMED SUBSET, not every rule: 12 probes over the four requirement-*
+# skills. Unprobed today include the closure-table field permissions, freshness /
+# authority conflict handling, the writer's back-projection and stranger-retelling
+# gates, and every rule in the other 28 skills. A green run means these twelve fired,
+# nothing more.
+#
+[exit=0]
