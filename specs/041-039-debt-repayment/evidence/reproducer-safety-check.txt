@@ -14,3 +14,10 @@ syntax_check=ok
 ## 未做的事（如实标注）
 本文件只验安全性与前置，不重跑两臂——评审发现指向的是脚本的数据安全，不是那批数本身；
 那批数的有效性由 verify_arm_reports.py 对 10 份报告的事后校验承担。
+
+## 3) 复原窗口竞态分支（评审 r3 第 12 条）—— 提取 restore() 逻辑实跑
+突变后由第三方追加编辑，再调 restore：
+REFUSED_OVERWRITE
+restore returned nonzero (expected)
+并发编辑保住了: YES
+测试后目标文件干净: OK

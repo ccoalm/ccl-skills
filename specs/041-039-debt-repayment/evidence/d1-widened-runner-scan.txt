@@ -1,7 +1,7 @@
 root=/Users/asen/work/code/src/github.com/ccoalm/ccl-skills/.work/worktrees/041-039-debt-repayment
 target=specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
 target_exists=yes
-revision=2623d85
+revision=76bd94f
 adjudications=10 条
 
 ## 扫描范围（逐项枚举，非概括）

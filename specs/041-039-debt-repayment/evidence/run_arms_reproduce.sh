@@ -31,19 +31,37 @@ mkdir -p "$OUT" || exit 2
 
 # 前置 1：目标文件必须干净。脏树下跑本脚本会在复原时吞掉别人的改动。
 if ! git -C "$WT" diff --quiet -- "$SKILL_REL" || ! git -C "$WT" diff --cached --quiet -- "$SKILL_REL"; then
-  echo "FATAL: $SKILL_REL 有未提交改动；先提交或 stash 再跑（本脚本拒绝在脏目标上做突变）" >&2
+  echo "FATAL: ${SKILL_REL} 有未提交改动；先提交或 stash 再跑（本脚本拒绝在脏目标上做突变）" >&2
   exit 2
 fi
 
 # 前置 2：原始字节自己留一份，复原走它，不走 git checkout——
 # 这样即便脚本被中断，恢复的也正是本次读到的内容。
 ORIG="$(mktemp)"; cp "$SKILL" "$ORIG" || exit 2
-restore() { [ -f "$ORIG" ] && cp "$ORIG" "$SKILL"; }
+# 复原前先确认目标仍逐字节等于本脚本自己写下的内容。模型调用最长 120 秒，
+# 期间若有人改了这个文件，无条件盖回旧快照就会静默吞掉那次并发编辑（评审 r3 第 12 条）。
+MUTATED=""   # 每次 apply 之后由 run_arm 写入：此刻目标应有的 sha256
+restore() {
+  [ -f "$ORIG" ] || return 0
+  if [ -n "$MUTATED" ]; then
+    local now; now="$(shasum -a 256 "$SKILL" 2>/dev/null | cut -d' ' -f1)"
+    if [ "$now" != "$MUTATED" ]; then
+      echo "FATAL: ${SKILL_REL} 在本次运行期间被第三方修改（期望 ${MUTATED}，实得 ${now}）；" >&2
+      echo "       不覆盖、保留现场。原始字节留在 ${ORIG}，请人工比对后处置。" >&2
+      trap - EXIT INT TERM
+      return 1
+    fi
+  fi
+  cp "$ORIG" "$SKILL" || return 1
+  # 复原完成后清掉期望哈希：否则 EXIT trap 再跑一次 restore 会拿突变哈希
+  # 去比一个已经复原的文件，误报成「被第三方修改」。
+  MUTATED=""
+}
 trap 'restore; rm -f "$ORIG"' EXIT
 trap 'restore; rm -f "$ORIG"; exit 130' INT
 trap 'restore; rm -f "$ORIG"; exit 143' TERM
 
-grep "\"$TASK_ID\"" "$WT/eval/routing-tasks.jsonl" > "$BANK" || { echo "FATAL: task $TASK_ID 不在冻结 bank 里" >&2; exit 2; }
+grep "\"$TASK_ID\"" "$WT/eval/routing-tasks.jsonl" > "$BANK" || { echo "FATAL: task ${TASK_ID} 不在冻结 bank 里" >&2; exit 2; }
 [ "$(wc -l < "$BANK" | tr -d ' ')" = "1" ] || { echo "FATAL: 单用例 bank 应恰好 1 行" >&2; exit 2; }
 
 apply() { # 逐字节删除给定跨度；任一跨度不存在即失败
@@ -67,6 +85,7 @@ run_arm() { # arm-name, spans...
   if git -C "$WT" diff --quiet -- "$SKILL_REL"; then
     echo "FATAL: mutation not applied for $arm" >&2; return 1
   fi
+  MUTATED="$(shasum -a 256 "$SKILL" | cut -d' ' -f1)"
   local pass=0 i
   for i in 1 2 3 4 5; do
     local json="$OUT/$arm-run$i.json" log="$OUT/$arm-run$i.txt" rc
@@ -89,7 +108,7 @@ PY
     case "$verdict" in
       PASS) pass=$((pass+1)); echo "  run$i: PASS";;
       FAIL) echo "  run$i: FAIL";;
-      *)    echo "FATAL: $arm run$i 报告不合格：$verdict" >&2; return 1;;
+      *)    echo "FATAL: ${arm} run${i} 报告不合格：${verdict}" >&2; return 1;;
     esac
   done
   echo "ARM $arm pass_count=$pass/5"
