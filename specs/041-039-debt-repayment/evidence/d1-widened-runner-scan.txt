@@ -1,20 +1,40 @@
-# 加宽的 runner 扫描（覆盖 specs/、任意文件类型、目录通配、find -name），2ea1dc3
-## 1) 全仓任意文本文件提及该基名
-specs/041-039-debt-repayment/dispositions.md
-specs/041-039-debt-repayment/evidence/d1-gate-out.txt
-specs/023-agent-native-repo-borrowing/c3-release-gate-repair.md
-specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
-specs/028-c3-preservation-gate-retirement/plan.md
-specs/039-design-first-shrink/dispositions.md
-skills/skill-extraction-workflow/references/source-register.md
-## 2) specs/ 内可执行类型提及
-specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb:53:C3_CONTRACT_PATH = "#{C3_EVIDENCE_DIR_PATH}/test_red_baseline_023_c3_regrade.rb"
-## 3) 目录通配 sweep 该 evidence 目录（可执行类型）
-specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb:49:C3_EVIDENCE_DIR_PATH = "specs/023-agent-native-repo-borrowing/evidence"
-specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb:73:    CCL_C3_ALLOW_MODEL_REFRESH=1 ONLY=tighten-eight-class-walk ARMS=base,head,mutant ruby specs/023-agent-native-repo-borrowing/evidence/red-baseline-023-c3-preservation.rb . 2 claude-haiku-4-5 dev HEAD > /tmp/c3-tighten-refresh.json
-specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb:74:    ruby specs/023-agent-native-repo-borrowing/evidence/red-baseline-023-c3-regrade.rb /tmp/c3-tighten-refresh.json > /tmp/c3-tighten-refresh-regrade.json
-specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb:75:    CCL_C3_ALLOW_MODEL_REFRESH=1 ONLY=worktree-one-fetch-order ARMS=base,head,mutant ruby specs/023-agent-native-repo-borrowing/evidence/red-baseline-023-c3-preservation.rb . 2 claude-haiku-4-5 dev HEAD > /tmp/c3-worktree-refresh.json
-specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb:76:    ruby specs/023-agent-native-repo-borrowing/evidence/red-baseline-023-c3-regrade.rb /tmp/c3-worktree-refresh.json > /tmp/c3-worktree-refresh-regrade.json
-scripts/check-spec-references.py:164:        "specs/023-agent-native-repo-borrowing/evidence/AGENTS.md -- and the "
-## 4) find -name *.rb 形态
-(空 = 无)
+root=/Users/asen/work/code/src/github.com/ccoalm/ccl-skills/.work/worktrees/041-039-debt-repayment
+target=specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
+target_exists=yes
+revision=2623d85
+adjudications=10 条
+
+## 扫描范围（逐项枚举，非概括）
+  A 基名字面引用 —— specs/ 之外（advisory 的语料）
+  B 基名字面引用 —— specs/ 之内（advisory 盲区）
+  C 目标所在目录的字面引用（目录 sweep 形态）
+  D find … -name 动态发现
+  E 通用 glob/清单发现，模式经 fnmatch 与目标路径实测比对
+  F Rakefile 入口
+  G 无扩展名可执行入口（depth<=3）
+  排除：本 evidence 目录自身、目标文件自身、npm dist 生成物镜像
+
+## 候选（发现范围能覆盖目标的表达式）：9 条
+  C	scripts/check-spec-references.py:164:        "specs/023-agent-native-repo-borrowing/evidence/AGENTS.md -- and the "
+  E	skills/skill-extraction-workflow/scripts/register-firing-path-resolution.rb:435:(Dir.glob(File.join(root, "**", "*.{sh,py,rb,yml,yaml}"), File::FNM_DOTMATCH) +
+  E?	eval/evidence/routing-new-tighten-vs-owner-2026-08-15/recompute-aggregates.py:120:'catalog = Dir[File.join(root, "skills", "*", "SKILL.md")].sort.map { |path| '
+  E?	scripts/check-spec-references.py:140:# `git ls-files` stops yielding it, so the path is never scanned, its pins are
+  E?	scripts/check-spec-references.py:339:# lstat, not is_file(): `git ls-files` returns tracked symlinks, and
+  E?	scripts/test_check_spec_references.py:1010:The adversarial lane found this: `git ls-files` stops yielding a deleted or
+  E?	scripts/test_check_spec_references.py:1052:# `git ls-files` also reports tracked worktree deletions. Preserve
+  E?	skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh:128:git ls-files -co --exclude-standard -z >"$tmp_dir/files.z"
+  E?	skills/skill-extraction-workflow/scripts/generic-r0-leak-scan.sh:244:done < <(git ls-files --others --exclude-standard -- "${surfaces[@]}" 2>/dev/null || true)
+
+## 逐条对照 adjudications.tsv
+  [已裁定] scripts/check-spec-references.py:164 — 字符串字面量里提到该 evidence 目录的 AGENTS.md（报错文案）；本脚本校验 spec 引用，从不执行 .rb
+  [已裁定] skills/skill-extraction-workflow/scripts/register-firing-path-resolution.rb:435 — 就是 advisory 自身的语料构建：把候选文件当文本读来找「谁提到了目标」，且显式 reject specs/；读不是跑
+  [已裁定] eval/evidence/routing-new-tighten-vs-owner-2026-08-15/recompute-aggregates.py:120 — Python 字符串里嵌的 Ruby 片段，glob 范围是 skills/*/SKILL.md，覆盖不到 specs/**/*.rb
+  [已裁定] scripts/check-spec-references.py:140 — 注释，讲 git ls-files 的行为；非代码路径
+  [已裁定] scripts/check-spec-references.py:339 — 注释；非代码路径
+  [已裁定] scripts/test_check_spec_references.py:1010 — 注释；非代码路径
+  [已裁定] scripts/test_check_spec_references.py:1052 — 注释；非代码路径
+  [已裁定] skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh:128 — 用 git ls-files 枚举文件以判定目录是否缺 AGENTS.md；只看路径，不执行任何被枚举文件
+  [已裁定] skills/skill-extraction-workflow/scripts/generic-r0-leak-scan.sh:244 — 泄漏扫描器，把 git ls-files 的结果当文本读；不执行
+
+candidates=9 unadjudicated=0
+d1_widened_scan_ok: 无未裁定的合格调用者 —— 目标不可被任何机械入口到达
