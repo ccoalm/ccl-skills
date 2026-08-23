@@ -140,9 +140,11 @@ Base `origin/dev`@5146b3b，下列指标均可直接复跑复核，命令记在�
    | 1 | `superseded` | 存在另一条现存规则或机械闸，其义务逐条覆盖本单元——即零损失义务表可填满且无 `intentionally-dropped` 行 |
    | 2 | `收窄` | 能举出至少一个具体情形：按当前措辞会触发，但触发是错的；该情形须写成一句可判定的断言 |
    | 3 | `休眠` | 三项**全部**成立：(a) 其台账行 `observed-failure: no` 或该字段缺失；(b) 全仓 grep 不到后续轮次引用该锚点；(c) 无 RED-baseline 或等价证据表明它能红 |
-   | 4 | `keep` | 前三项皆不成立，且**同时**满足：(a) 能命名当前树中 grep 得到的**具体** firing point（文件 + 行锚，「closeout 会走查」这类泛指不算）；(b) 能指出至少一次它**实际拦下或改变了某个决定**的证据——台账行 `observed-failure: yes` 的证据指针、RED-baseline、或某轮记录里它触发的实例 |
+   | 4 | `keep` | 前三项皆不成立，且**同时**满足：(a) 能命名当前树中 grep 得到的**具体** firing point（文件 + 行锚，「closeout 会走查」这类泛指不算）；(b) 能指出至少一次**该规则落地之后**实际拦下或改变了某个决定的证据——某轮记录里它触发的实例、RED-baseline 显示移除它会转红、或机械闸因它而拒 |
 
-   **(4b) 是 `keep` 的举证责任，也是本判据的承重条款。** 说不出「它曾经真的改变过一个决定」的规则不得判 `keep`，按第 3 项判休眠。这堵死了「把 keep 定义成泛化的机械可达性、于是 30 条全判 keep、零工作量通过」这条路——全 keep 要求每一条都拿得出实际生效证据，那本身就是个强结论而非默认值。
+   **(4b) 是 `keep` 的举证责任，也是本判据的承重条款。** 说不出「它落地之后真的改变过一个决定」的规则不得判 `keep`，按第 3 项判休眠。这堵死了「把 keep 定义成泛化的机械可达性、于是全判 keep、零工作量通过」这条路——全 keep 要求每一条都拿得出落地后的实际生效证据，那本身就是个强结论而非默认值。
+
+   **(4b) 明确排除台账行的 `observed-failure: yes` 标记。** 该标记证明的是「当初有个失败促成了这条规则」，不是「这条规则后来起过作用」；全仓 102 行带该标记（`grep -c 'observed-failure: *yes'`），把它算作 keep 证据等于把举证责任还原成默认通过——本条即为堵这个洞而写。
 
    **零损失义务表字段（冻结）**，每条判 `superseded` / `休眠` / `收窄` 的单元附一张，每行一条 before 义务：
 
@@ -259,10 +261,16 @@ ls skills/*/SKILL.md | xargs wc -c | sort -rn | head -3
 #    52077 skills/testing-strategy/SKILL.md
 
 # 台账行数与 owner 分布（owner 取行内第二列的首个反引号标识）
-grep -c 'behavioral-evidence' skills/skill-extraction-workflow/references/source-register.md   # 183
-# skill-extraction-workflow 86 / code-review 40 / 合计 126 = 68.9%
-# 客户端·设计面五包（product-ui-ux-design, app-cross-platform-dev,
-#   miniapp-product-dev, web-react-dev, terminal-cli-dev）合计 3 行
+awk -F'|' '/behavioral-evidence/ {
+    if (match($3, /`[a-z0-9-]+`/)) { k=substr($3,RSTART+1,RLENGTH-2); c[k]++; t++ }
+  } END { print "total=" t; for (k in c) print c[k], k }'   skills/skill-extraction-workflow/references/source-register.md | sort -rn
+#   total=183；skill-extraction-workflow 86、code-review 40 → 126 = 68.9%
+#   客户端·设计面五包（product-ui-ux-design / app-cross-platform-dev /
+#   miniapp-product-dev / web-react-dev / terminal-cli-dev）合计 3
+
+# keep 判据 (4b) 排除该标记的理由：带 observed-failure: yes 的行占多数
+grep -c 'observed-failure: *yes' skills/skill-extraction-workflow/references/source-register.md  # 102
+grep -c 'observed-failure: *no'  skills/skill-extraction-workflow/references/source-register.md  # 84
 
 # 抽样复现（seed 冻结）
 #   frame = 上述 126 行按文件出现顺序编号
