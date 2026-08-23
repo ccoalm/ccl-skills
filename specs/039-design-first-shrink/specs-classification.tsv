@@ -1,0 +1,34 @@
+# 分类定义（冻结）：判定一轮 specs 的**交付物**指向何处。
+#   P = 交付物是本仓自身的流程、闸、评审机制、CI、台账或元制品
+#   C = 交付物是被本仓服务的对象——技能内容、能力借鉴、可行性或理论判断
+# 判据是该轮 plan 的交付物本身，不是它使用了什么手段。作者判断，逐行可反对。
+# round	label	rationale（交付物是什么）
+010-review-concern-excerpt	P	评审 packet 的 concern 摘录机制
+011-npm-unified-distribution	C	对外分发与安装路径
+012-challenge-index-default	P	challenge 轮索引默认值
+013-opencode-egress-field-schema	P	评审客户端出口字段 schema
+014-spec-reference-existence-gate	P	spec 引用存在性闸
+015-reviewer-lane-host-vocabulary-class	P	评审 lane 的宿主词汇分类
+016-spec-citation-template-exemption	P	spec 引用模板豁免规则
+017-repo-root-checker-filename-decode	P	仓根检查器的文件名解码
+018-plan-oos-item-disposition	P	计划中范围外项的处置规则
+019-impact-chain-round-head-presence	P	impact-chain 闸的轮头判定
+020-bank-runner-round	P	eval task-bank runner
+021-impact-chain-gate-date-require	P	impact-chain 闸的日期要求
+022-heavy-lane-wiring-and-ci	P	重 lane 接线与 CI
+023-agent-native-repo-borrowing	C	从外部仓借鉴 agent 原生能力进技能
+023-opencode-timeout-evidence	P	评审客户端超时证据处理
+024-agent-research-broker-feasibility	C	调研 broker 能力的可行性判断
+024-kimi-packet-review	P	Kimi 评审 packet 通道
+025-spec-reference-correction	P	spec 引用修正
+026-register-firing-reachability	P	台账 firing path 可达性
+027-catalog-default-base-coverage	P	目录默认 base 覆盖
+028-c3-preservation-gate-retirement	P	退役一道失效的闸
+029-claim-liveness-operability-leg	P	设计期可操作性检查的一条腿
+030-d1-model-visible-accounting	C	模型可见账的能力设计
+031-e5-controlled-privilege-escalation	C	受控提权的能力设计
+032-review-program-process-controls	P	评审 program 的流程控制
+033-runtime-face-borrowing	C	运行时面的能力借鉴
+034-theory-debt-repayment	C	技能的理论基底举证
+035-ci-critical-path-split	P	CI 关键路径拆分
+036-ci-parallel-shards	P	CI 并行分片
