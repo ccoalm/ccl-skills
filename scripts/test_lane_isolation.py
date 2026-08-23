@@ -107,10 +107,32 @@ ALLOWED = {
 #     root at runtime. A text scanner cannot resolve that, which is precisely the
 #     boundary this gate declares; it is recorded here as a reviewed exception
 #     instead of being hidden by a rule loose enough to mask real hazards.
-ALLOWED_FILE_HAZARD = {
-    ("test_opencode_review_retry.sh", "shared-config-root"),
-    ("test_opencode_review_concurrency.sh", "shared-config-root"),
-}
+# Encoded as a RULE rather than a hand-checked allowlist: an occurrence of an XDG
+# root is exempt only when the file assigns that exact variable at least once and
+# EVERY assignment of it -- standalone or as a command prefix -- is workspace
+# scoped. That is precisely the property verified by hand for the two opencode
+# suites, but checked on every run instead of trusted from one reading, so a
+# later unsafe assignment of the same variable re-arms the gate.
+# Deliberately XDG-only. The whole-file grant is WEAKER evidence than a preceding
+# assignment: it says every assignment is workspace-scoped, not that the use site
+# runs under one. That is sound for the verified XDG shape -- the reads live in
+# stub scripts the suite generates and always invokes under the scoping prefix --
+# and unsound for HOME, where `HOME="$WORK/h" cmd` followed by a direct
+# `touch "$HOME/x"` genuinely touches the inherited root. HOME therefore keeps the
+# strict source-ordered rule only.
+ANY_ASSIGNMENT = re.compile(
+    r"""(?:^|\s)(XDG_[A-Z]+_HOME)=("[^"]*"|'[^']*'|\S*)"""
+)
+
+
+def fully_scoped_vars(text: str) -> set[str]:
+    seen: dict[str, bool] = {}
+    for raw in text.splitlines():
+        if raw.strip().startswith("#"):
+            continue
+        for name, value in ANY_ASSIGNMENT.findall(raw):
+            seen[name] = seen.get(name, True) and is_workspace_value(value)
+    return {name for name, ok in seen.items() if ok}
 
 # Long fixture lines are matched by prefix so an unrelated edit elsewhere on the
 # line does not silently re-arm the gate against reviewed content.
@@ -208,6 +230,13 @@ ASSIGNMENT_LINE = re.compile(
 # `HOME="$TMPDIR/home"` or `$WORKSPACE` -- neither of which is a private
 # per-suite directory -- and silently grant scope.
 WORKSPACE_VALUE = re.compile(r"\$\{(?:WORK|TMP)\}|\$(?:WORK|TMP)(?![A-Za-z0-9_])|\$\(mktemp")
+# `HOME="$WORK/../shared"` mentions the workspace and still resolves outside it,
+# where every suite meets. A scoped value must stay beneath its workspace.
+ESCAPES_WORKSPACE = re.compile(r"(?:^|/)\.\.(?:/|\"|'|$)")
+
+
+def is_workspace_value(value: str) -> bool:
+    return bool(WORKSPACE_VALUE.search(value)) and not ESCAPES_WORKSPACE.search(value)
 # The hazard patterns that a per-variable scope can exempt. `shared-config-root`
 # resolves to the SPECIFIC XDG variable on the line: scoping XDG_DATA_HOME says
 # nothing about an inherited XDG_CONFIG_HOME or XDG_CACHE_HOME.
@@ -234,7 +263,7 @@ def apply_assignment(raw: str, scoped: set[str]) -> None:
     if not match:
         return
     var = match.group(1)
-    if WORKSPACE_VALUE.search(match.group(2)):
+    if is_workspace_value(match.group(2)):
         scoped.add(var)
     else:
         scoped.discard(var)
@@ -244,7 +273,10 @@ def scan(paths: list[Path]) -> set[tuple[str, str, str]]:
     findings: set[tuple[str, str, str]] = set()
     for path in paths:
         body = path.read_text(encoding="utf-8", errors="replace")
+        # Two independent grants: source-ordered assignments seen so far, plus
+        # variables the whole file only ever assigns to its own workspace.
         scoped: set[str] = set()
+        always_scoped = fully_scoped_vars(body)
         for raw in body.splitlines():
             apply_assignment(raw, scoped)
             line = raw.strip()
@@ -254,7 +286,9 @@ def scan(paths: list[Path]) -> set[tuple[str, str, str]]:
                 if hazard in VAR_SCOPED_HAZARDS:
                     fixed = VAR_SCOPED_HAZARDS[hazard]
                     names = [fixed] if fixed else XDG_ON_LINE.findall(line)
-                    if names and all(name in scoped for name in names):
+                    if names and all(
+                        name in scoped or name in always_scoped for name in names
+                    ):
                         continue
                 for match in pattern.finditer(line):
                     if occurrence_exempt and TMP_OCCURRENCE_SAFE.search(line[: match.start()]):
@@ -268,8 +302,6 @@ def allowed(finding: tuple[str, str, str]) -> bool:
     if finding in ALLOWED:
         return True
     name, hazard, line = finding
-    if (name, hazard) in ALLOWED_FILE_HAZARD:
-        return True
     return any(
         name == a_name and hazard == a_hazard and line.startswith(a_prefix)
         for a_name, a_hazard, a_prefix in ALLOWED_PREFIX
@@ -326,6 +358,11 @@ def self_check() -> None:
             'HOME="$TMPDIR/home"\ntouch "$HOME/.shared"',
         "$WORKSPACE is not a per-suite workspace":
             'HOME="$WORKSPACE/home"\ntouch "$HOME/.shared"',
+        "a scoped value that escapes the workspace is not scoped":
+            'WORK="$(mktemp -d)"\nHOME="$WORK/../shared"\ntouch "$HOME/file"',
+        "one unsafe assignment re-arms the whole variable":
+            'WORK="$(mktemp -d)"\nXDG_DATA_HOME="$WORK/data" run_one\n'
+            'XDG_DATA_HOME=/var/lib/shared run_two\nprintf hi > "$XDG_DATA_HOME/x"',
         "scoping one XDG root does not scope another":
             'WORK="$(mktemp -d)"\nXDG_DATA_HOME="$WORK/data"\n'
             'printf hi > "$XDG_CONFIG_HOME/opencode/config.json"',
@@ -393,11 +430,7 @@ def main() -> None:
             print(f"  {name}: {hazard}: {line[:120]}", file=sys.stderr)
         raise SystemExit(1)
 
-    covered_file_hazards = {(name, hazard) for name, hazard, _ in findings}
-    stale = sorted(
-        [entry for entry in ALLOWED if entry not in findings]
-        + [entry for entry in ALLOWED_FILE_HAZARD if entry not in covered_file_hazards]
-    )
+    stale = sorted(entry for entry in ALLOWED if entry not in findings)
     if stale:
         print(
             "FAIL: reviewed exceptions no longer match anything. An allowlist that only "
