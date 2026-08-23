@@ -497,7 +497,7 @@
 | author-dogfood | 加上后本仓当前即有命中，作者自己的工作流第一时间面对它 |
 | marginal-cost | 常规改动（指向活命令的新行）零成本；只有指向可执行制品且无运行入口的才被标 |
 | trust-model fit | 防「闸退役后 firing path 静默腐烂」，已实证 |
-| premise check（收紧方向必做） | **当前语料不干净**——实跑标出 5 行，检查有牙，非空跑 |
+| premise check（收紧方向必做） | **当前语料不干净**——实跑标出 10 个定位符、涉及 9 条台账行，检查有牙，非空跑 |
 
 **实现**：`register-firing-path-resolution.rb` 增 advisory 检查。仅对扩展名为 `.rb`/`.sh`/`.py` 的 `file:` 目标生效；在 `specs/` 之外的 `*.sh|py|rb|yml|yaml` 与 `Makefile` 中查是否有入口提及该文件基名，无则标出。**散文锚点（`.md`）刻意不标**——它们是被读的，不是被运行的。
 
@@ -505,7 +505,7 @@
 
 | 检查 | 结果 |
 | --- | --- |
-| 对本仓实跑 | 标出 **5 行**，全部指向已退役闸的证据脚本 |
+| 对本仓实跑 | 标出 **10 个定位符（9 条台账行）**，多数指向已退役闸的证据脚本 |
 | 退出码 | **0**——advisory 不阻断，`register_firing_path_resolution_ok (176 locators resolved)` 照常输出 |
 | 散文锚点误标 | **0** |
 | `ruby -c` 语法 | OK |

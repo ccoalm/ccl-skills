@@ -422,16 +422,18 @@ locator_count = 0
 # Advisory only. A `file:` locator whose target is an EXECUTABLE artifact asserts
 # firing evidence that some runner reaches; when no entry point outside specs/ names
 # that file, the anchor still resolves (the text is there) while nothing can run it.
-# Observed 2026-08: five rows anchored into a retired gate's evidence script, green
+# Observed 2026-08: ten locators across nine ledger rows anchored into an executable
+# nothing runs, green
 # for the whole life of the retirement. Prose anchors (.md) are a different class --
 # they are read, not run -- and are deliberately NOT flagged.
 unrunnable = []
+skipped_runners = []
 # Built once, lazily: a repo with no executable locators never pays for it, and a
 # repo with many does not re-walk the tree per locator (O(locators x files)).
 runner_corpus = nil
 build_runner_corpus = lambda do |root|
   (Dir.glob(File.join(root, "**", "*.{sh,py,rb,yml,yaml}"), File::FNM_DOTMATCH) +
-   Dir.glob(File.join(root, "Makefile"))).reject do |cand|
+   Dir.glob(File.join(root, "**", "{Makefile,makefile}"), File::FNM_DOTMATCH)).reject do |cand|
     cand.start_with?(File.join(root, "specs") + File::SEPARATOR) ||
       cand.start_with?(File.join(root, ".git") + File::SEPARATOR) ||
       !File.file?(cand)
@@ -443,6 +445,7 @@ build_runner_corpus = lambda do |root|
     begin
       [cand, File.read(cand, encoding: "UTF-8", invalid: :replace)]
     rescue SystemCallError, IOError
+      skipped_runners << cand
       nil
     end
   end
@@ -750,6 +753,14 @@ unless unrunnable.empty?
     warn "  #{REGISTER}:#{lineno}: #{rel}"
     anchor = locator.split("#", 2)[1]
     warn "      anchor: #{anchor}" if anchor && !anchor.empty?
+  end
+  warn "  covered runner shapes: *.{sh,py,rb,yml,yaml} and **/{Makefile,makefile} outside specs/ and .git/,"
+  warn "    matched by literal basename or by a wildcard sweep over the target's directory. NOT covered:"
+  warn "    Rakefiles, extensionless bin scripts, and `find <dir> -name` style invocation — a target fired"
+  warn "    only through those reads as unrunnable here."
+  unless skipped_runners.empty?
+    warn "  #{skipped_runners.size} candidate(s) were unreadable and skipped; if a named row is fired only by"
+    warn "    one of those, this report is a false alarm rather than a decayed anchor."
   end
   warn "  advisory only: this never changes the exit status."
 end
