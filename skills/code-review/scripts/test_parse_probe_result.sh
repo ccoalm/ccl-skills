@@ -309,7 +309,7 @@ run_reason_expected_native_skills 'testing-strategy' 'testing-strategy' 0 \
 # allowlist reads it; flipping its non-string branch to True makes this case
 # pass, which is exactly the regression this asserts.
 run_reason_expected_native_skills 'testing-strategy' 'testing-strategy' 0 \
-  $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","workflow-launch-exec",{"name":"ultrareview","path":"/tmp/evil"}],"skills":["testing-strategy"],"plugins":["ccl-skills"]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' \
+  $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","workflow-launch-exec",{"name":"ultrareview","path":"hidden-sibling-value"}],"skills":["testing-strategy"],"plugins":["ccl-skills"]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' \
   'runtime capability surface is not empty'
 
 # A matching name in either executable surface is still terminal. Built-in UI
