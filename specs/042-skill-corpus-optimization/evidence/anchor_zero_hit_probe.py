@@ -35,7 +35,12 @@ if failed or zero != []:
     print("  FAIL  期望：扫描失败=0 且零命中=0"); rc = 1
 else:
     print("  PASS  每个真实锚都至少命中一次——`休眠`=零命中 不可满足")
-ctl = ["ZZZ-anchor-that-cannot-exist-042", "另一条不可能存在的锚文本-042"]
+# 对照锚必须在运行时由片段拼出：写成字面量后，本文件一旦被 git 跟踪，
+# `git grep -F` 就会在本文件里命中它自己，对照腿永远红。
+# 这正是本探针要演示的那条规则（规则自己的文本永远命中）——独立评审发现探针
+# 落盘后栽在了自己的发现上，树里那份 PASS 输出是文件还未被跟踪时产生的假绿。
+ctl = ["".join(["ZZZ-anch", "or-that-cannot", "-exist-042"]),
+       "".join(["另一条不可能", "存在的锚文", "本-042"])]
 bad = [(c, hits(c)) for c in ctl if hits(c) != 0]
 if bad:
     print(f"  FAIL  对照腿：合成锚未返回 0 -> {bad}，检查无鉴别力"); rc = 1
