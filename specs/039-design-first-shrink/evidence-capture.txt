@@ -1,6 +1,6 @@
 # 039 承重事实原始取证
 # 单一钉点 base = 5146b3b315c487f93ba352584a0b27af9414676b（开轮时的 dev；不随 dev 前进追平）
-# captured-at-commit = 37075ccaf09f66fe64d957ac8ef2678299d33656
+# captured-at-commit = e284ab2fe0156ee52b4bddf9c1f7257a243e21b1
 # 每块：命令 → 未编辑输出 → 退出码（pipefail 开）。全部读 base 的 git 对象，不读工作树。
 
 $ git show --numstat --format='' 206facb3cea895621ce052d62bf2b3e281de976b -- 'skills/**' | awk 'NF==3 && $1!="-"{a+=$1} END{print "init_snapshot_added=" a}'
@@ -88,6 +88,11 @@ frame_all= 183 pool= 126
 $ shasum -a 256 /tmp/039extracted.py
 a3b882a2e9dc18f50bb0eda6351a848cf4389170d3da91f06eee0b82fc0a6219  /tmp/039extracted.py
 [exit=0]  # set -o pipefail
+# 完整复放链（拿到 nonce 后可跑通，本取证不含 nonce 故只到框为止）：
+#   1) 从本文件抽出内联源码 → 校验 sha256 与记录一致
+#   2) git show 1fc647e2113db1a827611f2152d5de5a25847f33 > frame.md → 校验 sha256 与记录一致
+#   3) python3 draw_sample.py <nonce> frame.md
+#   4) 与落盘 commit 中的名单逐字节比对
 # 名单不在本文件，也不在 plan —— 含即意味着作者已算过。拿到 seed 后按 plan 的命令复算。
 
 # 入口尺寸闸 applied-mutation：唯一临时备份 + trap 复原 + 复原校验
@@ -108,7 +113,7 @@ entrypoint_word_budget_blocking_failed
 entrypoint_size_blocking_failed
 [gate_exit=1]  # 闸自身退出码，未经管道
 
-$ cp '/var/folders/pf/rc8nt71164nd78qh1_l1xp7h0000gn/T//039mut.ybgski' skills/skill-extraction-workflow/SKILL.md && git diff --quiet -- skills/skill-extraction-workflow/SKILL.md && echo restored_verified_clean
+$ cp '/var/folders/pf/rc8nt71164nd78qh1_l1xp7h0000gn/T//039mut.MLDlYe' skills/skill-extraction-workflow/SKILL.md && git diff --quiet -- skills/skill-extraction-workflow/SKILL.md && echo restored_verified_clean
 restored_verified_clean
 [exit=0]  # set -o pipefail
 
@@ -165,6 +170,11 @@ entrypoint_word_budget_blocking_ok
 # print('frame_all=',len(f),'pool=',len([r for r in f if r['owner'] in m.POOL_OWNERS]))
 # \" && rm -f /tmp/frame.\$\$"
 # run "shasum -a 256 /tmp/039extracted.py"
+# printf '# 完整复放链（拿到 nonce 后可跑通，本取证不含 nonce 故只到框为止）：\n'
+# printf '#   1) 从本文件抽出内联源码 → 校验 sha256 与记录一致\n'
+# printf '#   2) git show 1fc647e2113db1a827611f2152d5de5a25847f33 > frame.md → 校验 sha256 与记录一致\n'
+# printf '#   3) python3 draw_sample.py <nonce> frame.md\n'
+# printf '#   4) 与落盘 commit 中的名单逐字节比对\n'
 # printf '# 名单不在本文件，也不在 plan —— 含即意味着作者已算过。拿到 seed 后按 plan 的命令复算。\n'
 # printf '\n# 入口尺寸闸 applied-mutation：唯一临时备份 + trap 复原 + 复原校验\n'
 # BK=$(mktemp "${TMPDIR:-/tmp}/039mut.XXXXXX") || exit 1
@@ -256,3 +266,16 @@ entrypoint_word_budget_blocking_ok
 # if __name__ == "__main__":
 #     sys.exit(main(sys.argv))
 # ---8<--- end ---8<---
+
+# === 复放链自检（对本文件成品执行）===
+# 内联源码位于本文件第 200–267 行（用显式行号，因标记串在生成器源码中也出现，按标记匹配会抽错区段）
+$ sed -n '200,267p' evidence-capture.txt | sed 's/^# \{0,1\}//' | shasum -a 256
+a3b882a2e9dc18f50bb0eda6351a848cf4389170d3da91f06eee0b82fc0a6219  (从本文件抽出)
+a3b882a2e9dc18f50bb0eda6351a848cf4389170d3da91f06eee0b82fc0a6219  (前文记录的抽样器哈希)
+extracted_matches_recorded_hash
+
+# 完整复放链（拿到 nonce 后可跑通；本取证不含 nonce，故只到框为止）：
+#   1) 按上面行号抽出内联源码 → sha256 应等于上面两行
+#   2) git show 1fc647e2113db1a827611f2152d5de5a25847f33 > frame.md → sha256 应等于前文记录
+#   3) python3 draw_sample.py <nonce> frame.md
+#   4) 与落盘 commit 中的名单逐字节比对
