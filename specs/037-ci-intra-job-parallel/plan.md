@@ -50,7 +50,10 @@
 | 链 R1 | chain `spec037-parallel-r1`（codex，openai 族，tracked）。5 条有效发现全部采纳：① lane 隔离只是散文审计 → 落地 `scripts/test_lane_isolation.py` 机械闸；② 取消时子进程被遗弃 → `set -m` + 进程组 TERM/KILL；③ 变异 worker 死亡无状态文件被当成功 → 每个 index 必须写显式终态；④ 尾随 `--jobs`/`--label` 无操作数会死循环 → 校验操作数；⑤ dash 前缀套件名被当解释器选项（`bash --help` 静默 exit 0）→ `bash --` / `python3 --`。第 6 条（CI 证据待产）由判定 8 关闭。 |
 | CI 首跑暴露的两处（非评审发现，同轮修复） | ① 两个 lane 套件的 `printf \| grep -q` 在 pipefail 下因 SIGPIPE 误判失败——**并发只是改变时序把这个既有缺陷暴露出来**，本仓别处早已因同一理由改用纯 bash 匹配；含正则 token 的调用点保留 `=~`。② impact-chain 闸判 `code-review` 欠台账行（改了其 scripts 即算 owner 变更），补行；且**基线刷新从 merge 改为 rebase**——merge commit 会多造一个轮 span，闸就看不到本轮的台账行（本仓已记录过的教训）。 |
 | 链 R2 | chain `spec037-parallel-r2`（codex，tracked，candidate `0890f48c…`）。3 条有效发现全部采纳：① KILL 阶段重读 `jobs -rp` 会漏掉「组长已退出但后代仍在」的进程组 → 改为复用 TERM 前捕获的组列表；② **lane 闸 SAFE 命中即跳过整行**（两轮同判）——`printf "$TMP" > /tmp/shared` 这类同时带安全标记与真实危害的行会被漏掉 → 改为**逐个命中判定**，豁免上下文必须紧邻匹配点，并补 6 个 must-flag（含掩盖形态）+ 2 个 must-stay-quiet 自检；收紧后立刻暴露出一行此前被跳过的 MCP 诱饵，已按同类核实入白名单；③ 选项守卫探针放在位置参数之后，解析早停 → 移到解析位并精确断言 exit 2（变异验证：去掉守卫即挂死 124 被抓）。 |
-| 链 R3 | 修复后终轮全程重跑（回填于下）。 |
+| 链 R3 | chain `spec037-parallel-r3`（codex，tracked，candidate `26913616…`）。CI 在该候选上**六 job 全绿、关键路径 3m02s**。三条发现：① 扫描器覆盖窄（漏 `touch "$HOME/x"`、`/var/tmp`、`python -m http.server 8000` 等）；② 只扫套件自身，不跟进它 source/执行的本地助手；③ 两个 P2：`timeout(1)` 在原生 macOS 缺失会让 `make test-repo-gates` 无法运行；失败清单用空白拼接 + `wc -w`，含空格的路径会被算成多条。 |
+| **同类复现的设计裁决**（R1/R2/R3 三轮都在追「隔离扫描器还漏了哪种写法」） | 按 dual-track 的同类复现规则，这不该再打一个补丁，而要裁决主张边界。**裁决 = narrow（收窄主张）+ 取具体覆盖增量**：静态文本无法证明隔离（套件随时可以调用任意工具、运行期拼路径），所以本闸在文档与命名上明确定位为**已枚举危害类的回归绊线**，不是隔离证明；长期保障 = 当轮成员审计 + CI 本身（真竞态表现为 flakiness）。同时把评审点名的具体形态一次补齐：`/var/tmp`、`$HOME` 作为写目标的各种形式（不止重定向）、XDG 共享根、`http.server`/`--port`/`--bind`/`nc -l` 端口占用，并跟进套件 source/执行的本地助手（有 visited 集与深度上限）。 |
+| R3 覆盖增量的副产物 | 收紧后立刻在两个套件里扫出 XDG 用法；核实为**它们自己**把 `XDG_DATA_HOME` 指向 `$WORK/...`，属误报 → 增加「变量是否被本文件限定到工作区」的按变量判定（有赋值证据，区别于已被否决的整行跳过），并补 4 条自检：继承的 XDG／HOME 必须报，自限定的必须不报。 |
+| 链 R4 | 修复后终轮全程重跑（回填于下）。 |
 
 ## Target-output map
 

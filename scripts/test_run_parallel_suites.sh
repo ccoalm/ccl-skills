@@ -111,14 +111,38 @@ set -e
 #    already stopped, so a probe there would pass even with the guard removed.
 #    And the expected code is asserted exactly — merely excluding the timeout's
 #    124 would also accept a 127 from a missing watchdog.
-command -v timeout >/dev/null 2>&1 \
-  || fail "this guard needs timeout(1): the defect it catches hangs rather than fails"
+#    The watchdog is built from bash itself rather than timeout(1), which stock
+#    macOS does not ship -- requiring it would make `make test-repo-gates`
+#    unrunnable there on a host the runner otherwise supports.
+run_with_deadline() {  # <seconds> <command...>; 137 means the deadline killed it
+  local secs="$1"; shift
+  "$@" >/dev/null 2>&1 &
+  local cmd_pid=$!
+  ( sleep "$secs"; kill -KILL "$cmd_pid" 2>/dev/null ) &
+  local watchdog=$!
+  local rc=0
+  wait "$cmd_pid" 2>/dev/null || rc=$?
+  kill -KILL "$watchdog" 2>/dev/null || true
+  wait "$watchdog" 2>/dev/null || true
+  return "$rc"
+}
 set +e
-timeout 10 bash "$RUNNER" --jobs >/dev/null 2>&1; noval_rc=$?
-timeout 10 bash "$RUNNER" --label >/dev/null 2>&1; nolabel_rc=$?
+run_with_deadline 10 bash "$RUNNER" --jobs; noval_rc=$?
+run_with_deadline 10 bash "$RUNNER" --label; nolabel_rc=$?
 set -e
 [ "$noval_rc" = 2 ] || fail "a --jobs with no value must exit 2, got $noval_rc"
 [ "$nolabel_rc" = 2 ] || fail "a --label with no value must exit 2, got $nolabel_rc"
+
+# 9b) a FAILING suite whose path contains spaces is reported as one failure.
+mkdir -p "$TMP/fail dir"
+printf '#!/usr/bin/env bash\nexit 4\n' >"$TMP/fail dir/red suite.sh"
+set +e
+ws_out="$(bash "$RUNNER" --jobs 2 "$TMP/fail dir/red suite.sh" 2>&1)"
+ws_rc=$?
+set -e
+[ "$ws_rc" -ne 0 ] || fail "a failing whitespace path did not fail the runner"
+printf '%s' "$ws_out" | grep -q '1 suite(s) failed' \
+  || fail "a failing path with spaces was miscounted: $(printf '%s' "$ws_out" | grep 'suite(s) failed')"
 
 # 10) a dash-prefixed suite name must EXECUTE, not be read as an interpreter
 #     option. `bash --help` exits 0 without running anything, so the marker is

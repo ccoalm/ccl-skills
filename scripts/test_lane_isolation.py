@@ -10,10 +10,21 @@ lanes would race with no gate objecting.
 
 So the audit lives here as an executable check. It derives the ACTUAL lane
 membership (Makefile shard targets plus the regression runner's own arrays --
-never a hand-copied list that could drift), scans each member for hazard
-patterns, and fails on any hit that is not an explicitly reviewed exception.
+never a hand-copied list that could drift), follows the local helpers those
+members source or execute, scans for hazard patterns, and fails on any hit that
+is not an explicitly reviewed exception.
 
 Stale exceptions fail too: an allowlist that may only grow is a rubber stamp.
+
+WHAT THIS IS NOT. It is a regression tripwire over the enumerated hazard classes
+below, not a proof of isolation. A suite can always reach shared state by a route
+static text cannot see (a tool it invokes, a path it computes at runtime), so
+successive review rounds will always be able to name one more shape. Chasing them
+one at a time buys less than being honest about the boundary: the standing
+assurance is the reviewed audit of current membership plus CI itself, where a real
+race surfaces as flakiness. This gate exists so the COMMON shapes cannot regress
+silently between audits, and so adding a suite that obviously shares state is
+caught at the moment it is added.
 """
 from __future__ import annotations
 
@@ -43,10 +54,24 @@ RUNNER = REPO / "skills/skill-extraction-workflow/scripts/test_check_ccl_regress
 TMP_OCCURRENCE_SAFE = re.compile(r"(?:TMPDIR:-|mktemp(?:\s+-[A-Za-z]+)*\s+)$")
 
 HAZARDS = [
-    ("fixed-tmp", re.compile(r"(?<![\w$}])/tmp/"), True),
-    ("git-global", re.compile(r"git config --global"), False),
-    ("home-write", re.compile(r">>?\s*\"?\$\{?HOME"), False),
-    ("listen-port", re.compile(r"(?:localhost|127\.0\.0\.1):\d+"), False),
+    # Shared temp roots, however spelled.
+    ("fixed-tmp", re.compile(r"(?<![\w$}])/(?:var/)?tmp/"), True),
+    # Any global git mutation, not just `config`.
+    ("git-global", re.compile(r"git\s+(?:config\s+--global|--global\s+config)"), False),
+    # $HOME as a write target in any form: redirect, or a mutating command's
+    # argument. `touch "$HOME/x"` was invisible to a redirect-only pattern.
+    ("home-write", re.compile(
+        r">>?\s*\"?\$\{?HOME"
+        r"|(?:touch|cp|mv|rm|mkdir|tee|install|ln)\s[^\n]*\$\{?HOME"
+        r"|\$\{?HOME\}?/[^\s\"']*\s*<<"), False),
+    # Shared XDG/config roots outside the suite's own workspace.
+    ("shared-config-root", re.compile(r"\$\{?XDG_(?:CONFIG|CACHE|DATA)_HOME"), False),
+    # Anything that occupies a fixed port: URL form, or a server/bind invocation.
+    ("listen-port", re.compile(
+        r"(?:localhost|127\.0\.0\.1|0\.0\.0\.0):\d+"
+        r"|http\.server\s+\d+"
+        r"|--(?:port|bind)[= ]\d+"
+        r"|\bnc\s+-l\b"), False),
 ]
 
 # Reviewed exceptions, keyed by (file, hazard, exact stripped line). Content-keyed
@@ -112,14 +137,68 @@ def lane_members() -> list[Path]:
     return resolved
 
 
+# A suite can put the hazard in a helper it sources or runs, leaving its own text
+# clean. Follow local repo-relative helpers so the scan covers what a lane member
+# actually executes, bounded by a visited set (helpers form cycles) and a depth
+# cap (a full call graph is not what this tripwire promises).
+HELPER_REF = re.compile(
+    r"""(?:^|\s)(?:\.|source|bash|sh|python3?)\s+"?\$?\{?(?:SCRIPT_DIR|REPO_ROOT|REPO)?\}?/?"""
+    r"""([A-Za-z0-9_./-]+\.(?:sh|py|bash))"""
+)
+
+
+def with_helpers(paths: list[Path], max_depth: int = 2) -> list[Path]:
+    seen: set[Path] = set()
+    frontier = list(paths)
+    depth = 0
+    while frontier and depth <= max_depth:
+        nxt: list[Path] = []
+        for path in frontier:
+            if path in seen or not path.exists():
+                continue
+            seen.add(path)
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for ref in HELPER_REF.findall(text):
+                for base in (path.parent, REPO):
+                    candidate = (base / ref).resolve()
+                    if candidate.exists() and REPO in candidate.parents and candidate not in seen:
+                        nxt.append(candidate)
+                        break
+        frontier = nxt
+        depth += 1
+    return sorted(seen)
+
+
+# A file that ASSIGNS an environment root to its own workspace has scoped that
+# root for everything it then invokes, so later uses of the variable are not
+# shared state. This is a per-VARIABLE, per-FILE judgement backed by the
+# assignment -- not the discredited "any safe-looking token anywhere on the line"
+# skip, which hid independent hazards sitting on the same line.
+SCOPING_ASSIGNMENT = re.compile(
+    r"\b(HOME|XDG_[A-Z]+_HOME)=\s*\"?[^\s\"']*(?:\$\{?WORK|\$\{?TMP|\$\(mktemp)"
+)
+VAR_SCOPED_HAZARDS = {"home-write": "HOME", "shared-config-root": "XDG"}
+
+
+def scoped_roots(text: str) -> set[str]:
+    scoped = set()
+    for name in SCOPING_ASSIGNMENT.findall(text):
+        scoped.add("HOME" if name == "HOME" else "XDG")
+    return scoped
+
+
 def scan(paths: list[Path]) -> set[tuple[str, str, str]]:
     findings: set[tuple[str, str, str]] = set()
     for path in paths:
-        for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        body = path.read_text(encoding="utf-8", errors="replace")
+        scoped = scoped_roots(body)
+        for raw in body.splitlines():
             line = raw.strip()
             if line.startswith("#"):
                 continue
             for hazard, pattern, occurrence_exempt in HAZARDS:
+                if VAR_SCOPED_HAZARDS.get(hazard) in scoped:
+                    continue
                 for match in pattern.finditer(line):
                     if occurrence_exempt and TMP_OCCURRENCE_SAFE.search(line[: match.start()]):
                         continue
@@ -158,7 +237,38 @@ def self_check() -> None:
         "path rooted at a workspace variable": 'printf hi > "$WORK/tmp/thing.txt"',
         "TMPDIR default inside a mktemp template": 'TMP="$(mktemp -d "${TMPDIR:-/tmp}/suite.XXXXXX")"',
     }
+    # Whole-file cases: a root the file scopes to its own workspace is not shared,
+    # but merely USING an inherited root is.
+    multiline_must_flag = {
+        "inherited XDG root used without scoping it":
+            'auth="$XDG_DATA_HOME/opencode/auth.json"\nprintf hi > "$auth"',
+        "inherited HOME used as a write target":
+            'touch "$HOME/.ccl-shared"',
+    }
+    multiline_must_stay_quiet = {
+        "XDG root scoped to the suite workspace":
+            'WORK="$(mktemp -d)"\nXDG_DATA_HOME="$WORK/data" run_thing\n'
+            'auth="$XDG_DATA_HOME/opencode/auth.json"',
+        "HOME scoped to the suite workspace":
+            'WORK="$(mktemp -d)"\nHOME="$WORK/home"\ntouch "$HOME/.thing"',
+    }
+    # A hazard that lives only in a sourced helper must still be found; scanning
+    # the registered suite alone would report clean while the lane races.
+    helper_dir = REPO / "scripts"
     with tempfile.TemporaryDirectory() as tmp:
+        helper = helper_dir / "_lane_isolation_selfcheck_helper.sh"
+        caller = helper_dir / "_lane_isolation_selfcheck_caller.sh"
+        try:
+            helper.write_text('#!/usr/bin/env bash\nprintf hi > /tmp/helper-shared.txt\n',
+                              encoding="utf-8")
+            caller.write_text(f'#!/usr/bin/env bash\nsource "$SCRIPT_DIR/{helper.name}"\n',
+                              encoding="utf-8")
+            if not scan(with_helpers([caller])):
+                fail("a hazard reachable only through a sourced helper was not found")
+        finally:
+            helper.unlink(missing_ok=True)
+            caller.unlink(missing_ok=True)
+
         for label, body in must_flag.items():
             probe = Path(tmp) / "test_probe.sh"
             probe.write_text(f"#!/usr/bin/env bash\n{body}\n", encoding="utf-8")
@@ -170,6 +280,17 @@ def self_check() -> None:
             found = scan([probe])
             if found:
                 fail(f"the scanner cried wolf on a workspace-scoped line ({label}): {found}")
+        for label, body in multiline_must_flag.items():
+            probe = Path(tmp) / "test_probe.sh"
+            probe.write_text(f"#!/usr/bin/env bash\n{body}\n", encoding="utf-8")
+            if not scan([probe]):
+                fail(f"the scanner missed an inherited shared root ({label})")
+        for label, body in multiline_must_stay_quiet.items():
+            probe = Path(tmp) / "test_probe.sh"
+            probe.write_text(f"#!/usr/bin/env bash\n{body}\n", encoding="utf-8")
+            found = scan([probe])
+            if found:
+                fail(f"the scanner cried wolf on a self-scoped root ({label}): {found}")
 
 
 def main() -> None:
@@ -181,7 +302,7 @@ def main() -> None:
     if len(members) < 20:
         fail(f"lane derivation produced only {len(members)} members; it is broken, not clean")
 
-    findings = scan(members)
+    findings = scan(with_helpers(members))
     unreviewed = sorted(f for f in findings if not allowed(f))
     if unreviewed:
         print(

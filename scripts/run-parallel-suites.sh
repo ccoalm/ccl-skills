@@ -140,7 +140,10 @@ for suite in "$@"; do
 done
 wait
 
-failed=""
+# An array, not a whitespace-joined string: a failing suite path containing
+# spaces would otherwise be counted by `wc -w` as several failures and reported
+# split across lines.
+failed=()
 index=0
 for suite in "$@"; do
   rc="$(cat "$work/rc.$index" 2>/dev/null || echo 1)"
@@ -148,12 +151,13 @@ for suite in "$@"; do
   printf '===== %s (status=%s, %ss)\n' "$suite" "$rc" "$sec"
   cat "$work/out.$index" 2>/dev/null
   printf 'regression_test_timing: test=%s seconds=%s status=%s\n' "$suite" "$sec" "$rc"
-  [ "$rc" = 0 ] || failed="$failed $suite"
+  [ "$rc" = 0 ] || failed+=("$suite")
   index=$((index + 1))
 done
 
-if [ -n "$failed" ]; then
-  printf 'FAIL: %s: %s suite(s) failed:%s\n' "$label" "$(printf '%s' "$failed" | wc -w | tr -d ' ')" "$failed" >&2
+if [ "${#failed[@]}" -gt 0 ]; then
+  printf 'FAIL: %s: %s suite(s) failed:\n' "$label" "${#failed[@]}" >&2
+  for suite in "${failed[@]}"; do printf '  %s\n' "$suite" >&2; done
   exit 1
 fi
 printf '%s_ok: %s suites, jobs=%s\n' "$label" "$#" "$jobs_n"
