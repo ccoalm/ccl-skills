@@ -301,11 +301,16 @@ while [ "$walk_i" -lt "$walk_total" ]; do
   # line count would read one running job as several and degrade to serial.
   while [ "$(jobs -rp 2>/dev/null | wc -l)" -ge "$mutation_jobs" ]; do sleep 0.1; done
   (
-    if mutate_and_expect_mismatch \
+    # The status is recorded by an EXIT trap, and the helper is a SIMPLE command.
+    # Putting the call in an `if` condition would disable errexit for the whole
+    # function body, so an unguarded failure partway through could still be
+    # followed by the helper's final successful command and bank as `ok`. As a
+    # simple command under `set -e`, any such failure aborts the subshell and the
+    # trap records the real status.
+    trap 'printf "%s\n" "$?" >"$tmp_dir/walk_status_$walk_i"' EXIT
+    mutate_and_expect_mismatch \
       "${mutation_names[$walk_i]}" "${mutation_finds[$walk_i]}" "${mutation_replaces[$walk_i]}" \
       >"$tmp_dir/walk_out_$walk_i" 2>"$tmp_dir/walk_err_$walk_i"
-    then printf 'ok\n' >"$tmp_dir/walk_status_$walk_i"
-    else printf 'failed\n' >"$tmp_dir/walk_status_$walk_i"; fi
   ) &
   walk_i=$((walk_i + 1))
 done
@@ -325,7 +330,7 @@ while [ "$walk_i" -lt "$walk_total" ]; do
       "${mutation_names[$walk_i]}" >&2
     cat "$tmp_dir/walk_err_$walk_i" 2>/dev/null >&2
     walk_failed=1
-  elif [ "$(cat "$tmp_dir/walk_status_$walk_i")" != ok ]; then
+  elif [ "$(cat "$tmp_dir/walk_status_$walk_i")" != 0 ]; then
     cat "$tmp_dir/walk_err_$walk_i" >&2
     walk_failed=1
   fi

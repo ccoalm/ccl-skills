@@ -90,6 +90,40 @@ ALLOWED = {
     ("test_cli_review_wrappers.sh", "fixed-tmp", 'command = "touch /tmp/forbidden"'),
     ("test_review_gate.sh", "fixed-tmp", '"--review-plan-file", "/tmp/plan.json",'),
     ("test_review_gate.sh", "fixed-tmp", '"--diff-file", "/tmp/diff.patch",'),
+    # The two opencode suites' XDG reads, enumerated one occurrence at a time
+    # rather than exempted by a rule. Every rule that tried to express "this file
+    # scopes the variable" was, across three review rounds, shown to be evadable
+    # by ordering or by an assignment placed elsewhere; an explicit list has no
+    # such surface. Verified for each: the reads live inside stub scripts the
+    # suite GENERATES into its own $WORK (the `cat >"$WORK/bin/opencode" <<'STUB'`
+    # heredoc and its siblings), and every XDG assignment in these files points at
+    # "$WORK/...", so at runtime the stubs only ever see a workspace-scoped root.
+    # A new occurrence -- the case a file-wide exemption would have waved through
+    # -- is not on this list and fails the gate.
+    ('test_opencode_review_concurrency.sh', 'shared-config-root',
+     '[ "$expected_home" = "$XDG_DATA_HOME" ] || touch "$state/export_runtime_mismatch"'),
+    ('test_opencode_review_concurrency.sh', 'shared-config-root',
+     'auth="$XDG_DATA_HOME/opencode/auth.json"'),
+    ('test_opencode_review_concurrency.sh', 'shared-config-root',
+     'case "$XDG_DATA_HOME" in "$project_dir"/*) touch "$state/auth_inside_project" ;; esac'),
+    ('test_opencode_review_concurrency.sh', 'shared-config-root',
+     'printf \'%s\\n\' "$XDG_DATA_HOME" >"$state/$sid.data_home"'),
+    ('test_opencode_review_concurrency.sh', 'shared-config-root',
+     'printf \'%s|%s|debug\\n\' "$XDG_DATA_HOME" "$XDG_STATE_HOME" >>"$state/runtime_paths"'),
+    ('test_opencode_review_concurrency.sh', 'shared-config-root',
+     'printf \'%s|%s|export\\n\' "$XDG_DATA_HOME" "$XDG_STATE_HOME" >>"$state/runtime_paths"'),
+    ('test_opencode_review_concurrency.sh', 'shared-config-root',
+     'printf \'%s|%s|run\\n\' "$XDG_DATA_HOME" "$XDG_STATE_HOME" >>"$state/runtime_paths"'),
+    ('test_opencode_review_retry.sh', 'shared-config-root',
+     '>"$XDG_DATA_HOME/opencode/auth.json"'),
+    ('test_opencode_review_retry.sh', 'shared-config-root',
+     '>"$XDG_DATA_HOME/opencode/log/reviewer.log"'),
+    ('test_opencode_review_retry.sh', 'shared-config-root',
+     '>"$XDG_DATA_HOME/opencode/log/slow-copy.log"'),
+    ('test_opencode_review_retry.sh', 'shared-config-root',
+     'head -c 6000000 /dev/zero >"$XDG_DATA_HOME/opencode/log/oversized.log"'),
+    ('test_opencode_review_retry.sh', 'shared-config-root',
+     'mkdir -p "$XDG_DATA_HOME/opencode/log"'),
     # Same canary class: the /tmp path is a payload inside an untrusted MCP
     # fixture the wrapper must refuse to execute; the redirect target is $WORK.
     ("test_cli_review_wrappers.sh", "fixed-tmp",
@@ -107,33 +141,6 @@ ALLOWED = {
 #     root at runtime. A text scanner cannot resolve that, which is precisely the
 #     boundary this gate declares; it is recorded here as a reviewed exception
 #     instead of being hidden by a rule loose enough to mask real hazards.
-# Encoded as a RULE rather than a hand-checked allowlist: an occurrence of an XDG
-# root is exempt only when the file assigns that exact variable at least once and
-# EVERY assignment of it -- standalone or as a command prefix -- is workspace
-# scoped. That is precisely the property verified by hand for the two opencode
-# suites, but checked on every run instead of trusted from one reading, so a
-# later unsafe assignment of the same variable re-arms the gate.
-# Deliberately XDG-only. The whole-file grant is WEAKER evidence than a preceding
-# assignment: it says every assignment is workspace-scoped, not that the use site
-# runs under one. That is sound for the verified XDG shape -- the reads live in
-# stub scripts the suite generates and always invokes under the scoping prefix --
-# and unsound for HOME, where `HOME="$WORK/h" cmd` followed by a direct
-# `touch "$HOME/x"` genuinely touches the inherited root. HOME therefore keeps the
-# strict source-ordered rule only.
-ANY_ASSIGNMENT = re.compile(
-    r"""(?:^|\s)(XDG_[A-Z]+_HOME)=("[^"]*"|'[^']*'|\S*)"""
-)
-
-
-def fully_scoped_vars(text: str) -> set[str]:
-    seen: dict[str, bool] = {}
-    for raw in text.splitlines():
-        if raw.strip().startswith("#"):
-            continue
-        for name, value in ANY_ASSIGNMENT.findall(raw):
-            seen[name] = seen.get(name, True) and is_workspace_value(value)
-    return {name for name, ok in seen.items() if ok}
-
 # Long fixture lines are matched by prefix so an unrelated edit elsewhere on the
 # line does not silently re-arm the gate against reviewed content.
 ALLOWED_PREFIX = {
@@ -273,10 +280,7 @@ def scan(paths: list[Path]) -> set[tuple[str, str, str]]:
     findings: set[tuple[str, str, str]] = set()
     for path in paths:
         body = path.read_text(encoding="utf-8", errors="replace")
-        # Two independent grants: source-ordered assignments seen so far, plus
-        # variables the whole file only ever assigns to its own workspace.
         scoped: set[str] = set()
-        always_scoped = fully_scoped_vars(body)
         for raw in body.splitlines():
             apply_assignment(raw, scoped)
             line = raw.strip()
@@ -286,9 +290,7 @@ def scan(paths: list[Path]) -> set[tuple[str, str, str]]:
                 if hazard in VAR_SCOPED_HAZARDS:
                     fixed = VAR_SCOPED_HAZARDS[hazard]
                     names = [fixed] if fixed else XDG_ON_LINE.findall(line)
-                    if names and all(
-                        name in scoped or name in always_scoped for name in names
-                    ):
+                    if names and all(name in scoped for name in names):
                         continue
                 for match in pattern.finditer(line):
                     if occurrence_exempt and TMP_OCCURRENCE_SAFE.search(line[: match.start()]):
