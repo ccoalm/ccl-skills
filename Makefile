@@ -20,6 +20,8 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	python3 scripts/test_check_spec_references.py
 	python3 scripts/check-spec-references.py .
 	bash scripts/test_install_opencode_skill_migration.sh
+	bash scripts/test_run_parallel_suites.sh
+	python3 scripts/test_lane_isolation.py
 	bash hooks/test_guard_delegation_owner.sh
 	bash hooks/test_guard_edit_isolation.sh
 	bash hooks/test_guard_merge_authorization.sh
@@ -46,23 +48,25 @@ test-regressions-fast: ## fast 回归 lane（CI regression-fast 并行 job；本
 test-code-review: test-code-review-1 test-code-review-2 ## code-review 技能回归族（CI 两个并行分片 job）
 
 test-code-review-1: ## code-review 分片 1（CI code-review-regressions-1 job）
-	bash skills/code-review/scripts/test_classify_envelope.sh
-	bash skills/code-review/scripts/test_concern_excerpt.sh
-	bash skills/code-review/scripts/test_parse_opencode_review.sh
-	bash skills/code-review/scripts/test_egress_schema.sh
-	bash skills/code-review/scripts/test_parse_probe_result.sh
-	bash skills/code-review/scripts/test_init_policy_matrix.sh
-	bash skills/code-review/scripts/test_parse_review_json.sh
-	bash skills/code-review/scripts/test_opencode_review_retry.sh
+	bash scripts/run-parallel-suites.sh --label code_review_shard_1 \
+	  skills/code-review/scripts/test_classify_envelope.sh \
+	  skills/code-review/scripts/test_concern_excerpt.sh \
+	  skills/code-review/scripts/test_parse_opencode_review.sh \
+	  skills/code-review/scripts/test_egress_schema.sh \
+	  skills/code-review/scripts/test_parse_probe_result.sh \
+	  skills/code-review/scripts/test_init_policy_matrix.sh \
+	  skills/code-review/scripts/test_parse_review_json.sh \
+	  skills/code-review/scripts/test_opencode_review_retry.sh
 
 test-code-review-2: ## code-review 分片 2（CI code-review-regressions-2 job）
-	bash skills/code-review/scripts/test_claude_review_probe.sh
-	bash skills/code-review/scripts/test_opencode_review_concurrency.sh
-	bash skills/code-review/scripts/test_review_gate.sh
-	bash skills/code-review/scripts/test_review_client_order.sh
-	bash skills/code-review/scripts/test_cli_review_wrappers.sh
-	python3 skills/code-review/scripts/test_review_client_compat.py
-	bash skills/code-review/scripts/test_code_review_identity.sh
+	bash scripts/run-parallel-suites.sh --label code_review_shard_2 \
+	  skills/code-review/scripts/test_claude_review_probe.sh \
+	  skills/code-review/scripts/test_opencode_review_concurrency.sh \
+	  skills/code-review/scripts/test_review_gate.sh \
+	  skills/code-review/scripts/test_review_client_order.sh \
+	  skills/code-review/scripts/test_cli_review_wrappers.sh \
+	  skills/code-review/scripts/test_review_client_compat.py \
+	  skills/code-review/scripts/test_code_review_identity.sh
 
 test-check-ccl-regressions: ## 运行 check-ccl-skills shell wrapper 全量回归（CI changes-gated 同入口）
 	bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --full
