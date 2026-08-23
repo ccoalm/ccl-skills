@@ -1,5 +1,8 @@
-import re, os
-WT="/Users/asen/work/code/src/github.com/ccoalm/ccl-skills/.work/worktrees/041-039-debt-repayment"
+import re, os, sys
+# 仓库根从参数取，缺省由本文件位置上溯（evidence/ -> spec 目录 -> specs/ -> repo root）。
+# 不得硬编码某个 checkout：那样在别的克隆里会静默读到无关状态。
+WT = sys.argv[1] if len(sys.argv) > 1 else os.path.abspath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 reg=os.path.join(WT,"skills/skill-extraction-workflow/references/source-register.md")
 rows=[]; fence=False
 for n,line in enumerate(open(reg,encoding="utf-8"),1):

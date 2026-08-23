@@ -1,0 +1,20 @@
+# 加宽的 runner 扫描（覆盖 specs/、任意文件类型、目录通配、find -name），2ea1dc3
+## 1) 全仓任意文本文件提及该基名
+specs/041-039-debt-repayment/dispositions.md
+specs/041-039-debt-repayment/evidence/d1-gate-out.txt
+specs/023-agent-native-repo-borrowing/c3-release-gate-repair.md
+specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb
+specs/028-c3-preservation-gate-retirement/plan.md
+specs/039-design-first-shrink/dispositions.md
+skills/skill-extraction-workflow/references/source-register.md
+## 2) specs/ 内可执行类型提及
+specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb:53:C3_CONTRACT_PATH = "#{C3_EVIDENCE_DIR_PATH}/test_red_baseline_023_c3_regrade.rb"
+## 3) 目录通配 sweep 该 evidence 目录（可执行类型）
+specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb:49:C3_EVIDENCE_DIR_PATH = "specs/023-agent-native-repo-borrowing/evidence"
+specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb:73:    CCL_C3_ALLOW_MODEL_REFRESH=1 ONLY=tighten-eight-class-walk ARMS=base,head,mutant ruby specs/023-agent-native-repo-borrowing/evidence/red-baseline-023-c3-preservation.rb . 2 claude-haiku-4-5 dev HEAD > /tmp/c3-tighten-refresh.json
+specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb:74:    ruby specs/023-agent-native-repo-borrowing/evidence/red-baseline-023-c3-regrade.rb /tmp/c3-tighten-refresh.json > /tmp/c3-tighten-refresh-regrade.json
+specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb:75:    CCL_C3_ALLOW_MODEL_REFRESH=1 ONLY=worktree-one-fetch-order ARMS=base,head,mutant ruby specs/023-agent-native-repo-borrowing/evidence/red-baseline-023-c3-preservation.rb . 2 claude-haiku-4-5 dev HEAD > /tmp/c3-worktree-refresh.json
+specs/023-agent-native-repo-borrowing/evidence/test_red_baseline_023_c3_regrade.rb:76:    ruby specs/023-agent-native-repo-borrowing/evidence/red-baseline-023-c3-regrade.rb /tmp/c3-worktree-refresh.json > /tmp/c3-worktree-refresh-regrade.json
+scripts/check-spec-references.py:164:        "specs/023-agent-native-repo-borrowing/evidence/AGENTS.md -- and the "
+## 4) find -name *.rb 形态
+(空 = 无)
