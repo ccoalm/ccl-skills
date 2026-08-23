@@ -525,15 +525,25 @@ File.foreach(register_path).with_index(1) do |line, lineno|
           # stripped stem matched anywhere was trivially satisfiable: `run.sh`
           # became `run`, which any `run_tests` identifier or prose mention
           # cleared, so a decayed anchor read as reachable and this stayed quiet.
+          # Reachability is either a literal mention of the file, or a runner
+          # that sweeps its directory with a wildcard -- `for t in dir/*.sh` names
+          # no basename yet fires every file there. Missing the second shape is a
+          # FALSE ALARM on a live locator, which the acceptance bars, so both count.
           needle = /(?<![\w.-])#{Regexp.escape(File.basename(rel))}(?![\w-])/
+          dirn = File.dirname(rel)
+          sweep = /#{Regexp.escape(dirn)}\/[^\s"']*[*?]/
           # FNM_DOTMATCH is required, not cosmetic: the yml/yaml shapes this glob
           # seeks live in .github/workflows, and without it the glob never
           # descends there -- a target fired only by CI read as unrunnable.
           runners = Dir.glob(File.join(root, "**", "*.{sh,py,rb,yml,yaml}"), File::FNM_DOTMATCH) +
                     Dir.glob(File.join(root, "Makefile"))
           reachable = runners.any? do |cand|
-            next false if cand.start_with?(File.join(root, "specs") + File::SEPARATOR) || File.identical?(cand, target)
-            File.file?(cand) && File.read(cand, encoding: "UTF-8", invalid: :replace).match?(needle)
+            next false if cand.start_with?(File.join(root, "specs") + File::SEPARATOR)
+            next false if cand.start_with?(File.join(root, ".git") + File::SEPARATOR)
+            next false if File.identical?(cand, target)
+            next false unless File.file?(cand)
+            body = File.read(cand, encoding: "UTF-8", invalid: :replace)
+            body.match?(needle) || body.match?(sweep)
           end
           unrunnable << [lineno, locator, rel] unless reachable
         end
