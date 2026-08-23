@@ -521,12 +521,19 @@ File.foreach(register_path).with_index(1) do |line, lineno|
           next
         end
         if %w[.rb .sh .py].include?(File.extname(rel)) && !anchor_waived
-          base = File.basename(rel, ".*")
-          runners = Dir.glob(File.join(root, "**", "*.{sh,py,rb,yml,yaml}")) +
+          # Match the basename WITH its extension at a non-word boundary. The
+          # stripped stem matched anywhere was trivially satisfiable: `run.sh`
+          # became `run`, which any `run_tests` identifier or prose mention
+          # cleared, so a decayed anchor read as reachable and this stayed quiet.
+          needle = /(?<![\w.-])#{Regexp.escape(File.basename(rel))}(?![\w-])/
+          # FNM_DOTMATCH is required, not cosmetic: the yml/yaml shapes this glob
+          # seeks live in .github/workflows, and without it the glob never
+          # descends there -- a target fired only by CI read as unrunnable.
+          runners = Dir.glob(File.join(root, "**", "*.{sh,py,rb,yml,yaml}"), File::FNM_DOTMATCH) +
                     Dir.glob(File.join(root, "Makefile"))
           reachable = runners.any? do |cand|
             next false if cand.start_with?(File.join(root, "specs") + File::SEPARATOR) || File.identical?(cand, target)
-            File.file?(cand) && File.read(cand, encoding: "UTF-8", invalid: :replace).include?(base)
+            File.file?(cand) && File.read(cand, encoding: "UTF-8", invalid: :replace).match?(needle)
           end
           unrunnable << [lineno, locator, rel] unless reachable
         end
