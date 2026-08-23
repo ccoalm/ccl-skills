@@ -99,3 +99,52 @@
 **附带发现（超出本槽位，登记不在本轮处置）**：台账的 firing-path 完整性检查只验**锚点文本是否存在于目标文件**，不验**该目标是否仍被执行**。因此一个闸退役之后，指向其证据文件的台账行会**永远保持绿**。这与槽位 3 的存在性锚问题同源：`check-ccl-skills.sh` 验的是文本在不在，不是它还起不起作用。
 
 **耗时**：四槽位合计约 6 分钟。
+
+---
+
+## 槽位 28 — ordinal 164 / frame line 255 / owner `skill-extraction-workflow`
+
+**主张**：blocked-verification 的补救获得 sandbox 拒绝分诊与受控提权规则的安全形态——必需命令失败时先分诊，提权绝不作为默认动作。
+**锚点**：`references/source-to-skill-extraction.md:306`。**firing-path**：`file:…#Sandbox-denial triage precedes any escalation`。
+
+**keep (a) 目标文本之外的 firing point**：`skills/skill-extraction-workflow/scripts/test_controlled_escalation_pins.sh` —— 独立文件，以该短语为断言（第 102 行）。
+
+**keep (b) 因果制品（实跑）**：控制组 `rc=0`，输出
+`test_controlled_escalation_pins: ok (52 applied mutations, each red on its owning assertion; controls green)`。
+
+该套件自带两类突变，均非存在性检查：
+
+- **删除突变**：把该短语从副本中删掉 → 必须红；未红即 fail。
+- **位移探针**：把短语从其所属小节删掉、改附到文末的诱饵标题下 → **必须仍然红，且红在正确的那条断言上**（`controlled escalation (invariant: triage before escalation…)`）。这一条正好排除了「全文 grep 式存在性检查」——短语在文件里还在，断言照样红。
+
+**终态：`keep`。动作：不改动。** 这是本抽样里最强的因果制品：52 个突变逐个差分归因，且位移探针主动证伪了存在性解释。
+**耗时**：约 3 分钟。
+
+---
+
+## 槽位 30 — ordinal 180 / frame line 271 / owner `skill-extraction-workflow`
+
+**主张**：but-for 检验带一条涌现结果边界——反事实在难解交互中无法稳定时，重构出来的因子应……
+**锚点**：`references/source-to-skill-extraction.md:115`，位于「反事实检验每个候选原因」那条编号项内部的一个子句。
+
+| 检查 | 结果 |
+| --- | --- |
+| 有无测试 pin 该短语（`*.sh`/`*.py`/`*.rb` 全仓） | **零命中** |
+| 目标文件与台账之外的 md 引用 | **零命中** |
+| firing-path 声明 | 指向该规则所在的同一份 reference 文件 |
+
+**判读**：keep(a) 不成立——firing path 指向自身所在文件，且全仓无任何独立决策点触达；keep(b) 无从谈起——没有会因它被删而转红的检查。`superseded` 无承接者，`收窄` 未举出误报形态。
+
+**终态：待独立通道正面认定**，作者判断为 `休眠`。认定前记 `证据不足`。
+**耗时**：约 2 分钟。
+
+---
+
+## 阶段小结（8 / 30 已处置）
+
+| 终态 | 槽位 | 数 |
+| --- | --- | --- |
+| `keep`（因果制品实跑） | 1、28 | 2 |
+| 待独立认定（作者判断无真实触发证据） | 3、18、19、20、21、30 | 6 |
+
+**已浮现的形态差异**：拿得出因果制品的两条，其证据都来自**独立测试套件对规则做 applied mutation 并差分归因**（槽位 28 甚至自带位移探针主动排除存在性解释）；拿不出的六条，firing path 要么指向规则自身所在文件，要么指向一个**已无人执行的死文件**。
