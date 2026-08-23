@@ -17,9 +17,175 @@ cleanup_escaped_descendant() {
   case "$escaped_cleanup_pid" in
     ''|*[!0-9]*) return 0 ;;
   esac
-  kill -KILL "$escaped_cleanup_pid" 2>/dev/null || true
+  # Same ownership re-proof as the wrapper reaper: this pid was cached earlier and the
+  # case may already have killed it, so by the time an abort runs this trap the number
+  # can belong to someone else. The descendant setsid's away from the wrapper's group but
+  # keeps this run's state path in its argv, which is what identifies it.
+  case "$(ps -o command= -p "$escaped_cleanup_pid" 2>/dev/null || true)" in
+    *"$WORK/"*|*"$WORK_REAL/"*) kill -KILL "$escaped_cleanup_pid" 2>/dev/null || true ;;
+  esac
 }
-trap 'cleanup_escaped_descendant; rm -rf "$WORK"' EXIT
+# The controller starts every reviewer wrapper with start_new_session=True, so each
+# sits in its own session where no group- or terminal-directed signal reaches it, and
+# several fixture behaviors deliberately ignore SIGTERM — which leaves the controller
+# as the only party that reaps them on the happy path. An abort that removes the
+# controller first (tree-kill, CI cancellation, host suspend) leaves them with no
+# reaper at all; one such wrapper was observed alive for 39 hours with ppid=1. This is
+# the suite's own reaper for that case.
+#
+# Two records answer "did this run start it", and the union is what the suite audits
+# and reaps:
+#
+#   by GROUP  — every wrapper writes its process-group id under state/pgids before it
+#               does anything else, and the controller starts each wrapper with
+#               start_new_session, so that group holds the wrapper AND everything it
+#               spawns, including a descendant whose argv names no path at all.
+#   by PATH   — anything naming this run's private WORK directory. This still matters:
+#               the controller itself, and any descendant that outlives its group's
+#               record, is caught here.
+#
+# Neither alone is enough. A path-only scan misses a bare `sleep`; a pgid-only scan
+# misses whatever ran before its wrapper recorded a group. Known residual boundary: a
+# descendant that deliberately setsid's out of its wrapper's group AND carries no WORK
+# path leaves both records — the escaped-descendant case does exactly that on purpose
+# and carries its own dedicated cleanup above.
+#
+# The needles go through the environment, NOT through `awk -v`: `ps -e` lists this very
+# awk, and an argv-passed needle makes the scanner match itself — a fresh pid every call
+# that is already gone by the time anything inspects it. Measured as a false leak report
+# on a clean run.
+#
+# Zombies are excluded: an unreaped corpse still appears in ps, and whether its parent
+# has gotten around to reaping it is the OS's business, not this suite's.
+prune_dead_pgid_records() {
+  local pgid
+  for pgid in $(review_owned_pgids); do
+    ps -eo pgid= 2>/dev/null | tr -d ' ' | grep -qx "$pgid" && continue
+    rm -f "$WORK/state/pgids/$pgid" 2>/dev/null || true
+  done
+}
+# A group id is a recycled number, so the record stores the LEADER's start time and
+# every read re-proves the group is still the one that registered. Three cases, and the
+# middle one is why the record is trusted at all:
+#   leader alive, start time matches   -> ours
+#   no process holds pid == pgid       -> ours: the leader died, so anything still
+#                                         carrying that group id descends from it, and
+#                                         nothing can have become that group's leader
+#   leader alive, start time differs   -> the number was recycled; drop the record and
+#                                         never signal that group
+# REPORTING may be broad; SIGNALLING may only be what identity proves. That split is
+# the structural answer to a class of narrowing objections about recycled group ids,
+# and it is deliberate rather than a compromise: on a shared gate a false leak REPORT
+# costs a red run, while a false SIGNAL kills a stranger's process group.
+#
+#   verified  — a process still holds pid == pgid and its start time matches the record.
+#               The group is provably ours: report AND signal it.
+#   leaderless— nothing holds pid == pgid. Anything still carrying the id is most likely
+#               our dead leader's descendant, but the id could also have been recycled by
+#               a process that led a group and exited while its children ran on. Report
+#               it, never signal it.
+#   recycled  — a leader exists with a different start time. Drop the record entirely.
+review_owned_pgids() {   # $1: "verified" to exclude leaderless records
+  local pgid_file pgid recorded_start current_start leader_command leader_owned
+  for pgid_file in "$WORK"/state/pgids/*; do
+    [ -e "$pgid_file" ] || continue
+    pgid="${pgid_file##*/}"
+    case "$pgid" in ''|*[!0-9]*) continue ;; esac
+    current_start="$(ps -o lstart= -p "$pgid" 2>/dev/null || true)"
+    if [ -z "$current_start" ]; then
+      [ "${1:-}" = "verified" ] && continue
+      printf '%s\n' "$pgid"
+      continue
+    fi
+    recorded_start="$(cat "$pgid_file" 2>/dev/null || true)"
+    leader_command="$(ps -o command= -p "$pgid" 2>/dev/null || true)"
+    # Start time alone is second-granular, so a pid recycled inside the same second would
+    # match. The leader of one of our groups is always a wrapper, and a wrapper's command
+    # line names this run's private WORK path — require both. Matched with `case` rather
+    # than a regex so the path needs no escaping.
+    leader_owned=0
+    case "$leader_command" in
+      *"$WORK/"*|*"$WORK_REAL/"*) leader_owned=1 ;;
+    esac
+    if [ "$current_start" != "$recorded_start" ] || [ "$leader_owned" != 1 ]; then
+      rm -f "$pgid_file" 2>/dev/null || true
+      continue
+    fi
+    printf '%s\n' "$pgid"
+  done
+}
+# The escaped-descendant fixture deliberately setsid's out of its wrapper's group and
+# carries no WORK path, so it is invisible to both records above — the one member of the
+# residual boundary this suite actually knows the pid of. Its own case kills it inline
+# and the EXIT trap kills it again, but neither is what PROVES it is gone: read the pid
+# the fixture recorded, so a cleanup that silently stops working is caught here instead
+# of leaving a detached process the exit assertion cannot see.
+review_escaped_descendant_alive() {
+  local pid
+  local record start
+  record="$(cat "$WORK/state/audit/escaped_pid" 2>/dev/null || true)"
+  pid="${record%% *}"
+  case "$pid" in ''|*[!0-9]*) return 0 ;; esac
+  start="$(ps -o lstart= -p "$pid" 2>/dev/null || true)"
+  [ -n "$start" ] || return 0
+  # The record carries the descendant's start time for the same reason every other
+  # ownership check here does: a bare pid outlives its process and a recycled one would
+  # be reported as this suite's leak.
+  [ "$start" = "${record#* }" ] || return 0
+  case "$(ps -o stat= -p "$pid" 2>/dev/null || true)" in
+    *Z*) return 0 ;;
+  esac
+  printf '%s\n' "$pid"
+}
+review_harness_pids_by_path() {
+  ps -eo pid=,stat=,command= 2>/dev/null |
+    REVIEW_WORK_DIR="$WORK/" REVIEW_WORK_DIR_REAL="$WORK_REAL/" \
+    awk 'BEGIN { a = ENVIRON["REVIEW_WORK_DIR"]; b = ENVIRON["REVIEW_WORK_DIR_REAL"] }
+         (index($0, a) || index($0, b)) && $2 !~ /Z/ { print $1 }'
+}
+review_harness_pids_alive() {
+  {
+    review_escaped_descendant_alive
+    review_harness_pids_by_path
+    review_owned_pgids | while read -r owned_pgid; do
+      ps -eo pid=,pgid=,stat= 2>/dev/null |
+        awk -v want="$owned_pgid" '$2 == want && $3 !~ /Z/ { print $1 }'
+    done
+  } | sort -un
+}
+# Irreducible residual, stated rather than patched further: every ownership proof here is
+# a `ps` read followed by a `kill`, and nothing in a shell binds the two — a group or pid
+# that dies in that gap and is recycled would receive the signal. Successive review rounds
+# can always name a narrower instance of this window; what the code can do is prove
+# ownership as late as possible (which it does, immediately before each signal) and keep
+# the dangerous half narrow: only groups with a verified live leader are signalled, and a
+# leaderless record is reported but never signalled.
+reap_review_wrappers() {
+  local pid pgid
+  # Groups first, so a wrapper's descendants go with it rather than being re-parented
+  # into a second pass that no longer recognises them.
+  for pgid in $(review_owned_pgids verified); do
+    kill -KILL -"$pgid" 2>/dev/null || true
+  done
+  # By pid, and only for pids the PATH scan just matched: a pid known solely through a
+  # leaderless group record is reported, not signalled. Re-prove ownership immediately
+  # before signalling — the scan above is already history, and a pid that exited in
+  # between is a number the OS hands to someone else.
+  for pid in $(review_harness_pids_by_path); do
+    case "$(ps -o command= -p "$pid" 2>/dev/null || true)" in
+      *"$WORK/"*|*"$WORK_REAL/"*) : ;;
+      *) continue ;;
+    esac
+    kill -KILL -"$pid" 2>/dev/null || true
+    kill -KILL "$pid" 2>/dev/null || true
+  done
+}
+trap 'cleanup_escaped_descendant; reap_review_wrappers; rm -rf "$WORK"' EXIT
+# `exit` runs the EXIT trap above, so the abort paths reuse one cleanup body. Without
+# these, an interrupted run leaves the wrappers behind: that is the defect this
+# guards, and EXIT alone never fires on a signal.
+trap 'exit 130' INT
+trap 'exit 143' TERM HUP
 fails=0
 
 mkdir -p "$WORK/harness/scripts" "$WORK/state" "$WORK/repo" "$WORK/empty-registry"
@@ -394,6 +560,18 @@ cat >"$WORK/harness/scripts/claude_review.sh" <<'CLAUDE_STUB'
 #!/usr/bin/env bash
 set -u
 state="$REVIEW_GATE_TEST_STATE"
+# Record this wrapper's process GROUP before anything else. The suite reaps and audits
+# by group, not by pid: a descendant started from here can carry an argv that names no
+# path under WORK (a bare `sleep`), and a pid-keyed record would name only the wrapper
+# while the group is what actually holds everything this wrapper spawned.
+review_pgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
+case "$review_pgid" in
+  ''|*[!0-9]*) : ;;
+  *)
+    mkdir -p "$state/pgids" 2>/dev/null &&
+      ps -o lstart= -p "$review_pgid" 2>/dev/null >"$state/pgids/$review_pgid" 2>/dev/null
+    ;;
+esac
 mode="$1"
 shift
 diff_file=""
@@ -473,7 +651,14 @@ case "$behavior" in
     (
       trap '' TERM
       printf '%s\n' "$BASHPID" >"$state/hang_child_pid"
-      while :; do sleep 1; done
+      # Bounded, like the escaped-descendant fixture below: this must outlive every
+      # budget any case gives it (largest is --total-timeout 50) so the controller's
+      # kill is what ends it, but it must NOT be unbounded. When an abort removes the
+      # controller before its timeout path runs, nothing else can signal this process
+      # group — it is TERM-immune and lives in its own session — so an unbounded loop
+      # is a wrapper that survives for days. Measured before this bound: 39 hours.
+      hang_left="${REVIEW_GATE_TEST_HANG_SECONDS:-300}"
+      while [ "$hang_left" -gt 0 ]; do sleep 1; hang_left=$((hang_left-1)); done
     ) &
     wait "$!"
     ;;
@@ -561,6 +746,16 @@ cat >"$WORK/harness/scripts/candidate_stub.sh" <<'CLIENT_STUB'
 #!/usr/bin/env bash
 set -u
 state="$REVIEW_GATE_TEST_STATE"
+# Same process-group record as the claude stub; the fallback clients run the same
+# TERM-immune hang behaviors and leak the same way.
+review_pgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
+case "$review_pgid" in
+  ''|*[!0-9]*) : ;;
+  *)
+    mkdir -p "$state/pgids" 2>/dev/null &&
+      ps -o lstart= -p "$review_pgid" 2>/dev/null >"$state/pgids/$review_pgid" 2>/dev/null
+    ;;
+esac
 client="$(basename "$0" _review.sh)"
 mode=review
 diff_file=""
@@ -618,7 +813,10 @@ case "$behavior" in
   oversize_inline) printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"packet_too_large_for_inline","reason_code":"capability_missing","cascade_eligible":true}\n' "$client" "$mode"; exit 2 ;;
   hang)
     trap '' TERM
-    while :; do sleep 1; done
+    # Bounded for the same reason as the claude stub's hang: an abort that removes
+    # the controller leaves this TERM-immune process with no other reaper.
+    hang_left="${REVIEW_GATE_TEST_HANG_SECONDS:-300}"
+    while [ "$hang_left" -gt 0 ]; do sleep 1; hang_left=$((hang_left-1)); done
     ;;
   auth)
     if [ "$host_attempted" = 1 ]; then
@@ -794,7 +992,16 @@ cat >"$WORK/near-limit-plan.json" <<JSON
 JSON
 
 reset_case() {
-  rm -f "$WORK/state"/*
+  # Files only: the process-group record is a directory and must survive case resets —
+  # a wrapper still running from the previous case would otherwise lose the only handle
+  # the suite has on its group.
+  find "$WORK/state" -maxdepth 1 -type f -exec rm -f {} +
+  # Drop records whose group has no live member. A group id is a recycled number, so a
+  # record kept past its group's life can eventually name a stranger's group — and this
+  # suite signals groups. Pruning between cases bounds that staleness to a single case,
+  # a window in which the OS cannot plausibly have recycled the number, while a record
+  # whose wrapper is still running (the leak this all exists for) is kept.
+  prune_dead_pgid_records
   printf '%s' "$1" >"$WORK/state/claude_behavior"
   printf '%s' "$2" >"$WORK/state/kimi_behavior"
   printf '%s' "$3" >"$WORK/state/opencode_behavior"
@@ -2141,6 +2348,14 @@ out="$(cat "$escaped_out_file" 2>/dev/null || true)"
 escaped_elapsed="$(( $(date +%s) - escaped_started_at ))"
 escaped_child_pid="$(cat "$WORK/state/escaped_hang_child_pid" 2>/dev/null || true)"
 escaped_child_trap_pid="$escaped_child_pid"
+# Audit copy, in a directory neither this case nor reset_case clears: the working pid
+# file below is removed as part of this case's own cleanup, so a mutation that disables
+# the kill while leaving the removal in place would erase the only handle the exit
+# assertion could have used.
+mkdir -p "$WORK/state/audit" 2>/dev/null || true
+printf '%s %s\n' "$escaped_child_pid" \
+  "$(ps -o lstart= -p "$escaped_child_pid" 2>/dev/null || true)" \
+  >"$WORK/state/audit/escaped_pid" 2>/dev/null || true
 # Read the beat BEFORE the liveness probe so a descendant that dies between the two
 # still reports how far it got; empty means it never reached its own setsid.
 # Wait for the descendant to TESTIFY, not for time to pass: a live holder stamps
@@ -2402,6 +2617,35 @@ check "base packet freezes tracked and untracked changes once" \
 
 check "owner selection source has one controller-owned definition" \
   '[ "$(grep -c '\''"implementer-declared"'\'' "$DIR/review_gate.py")" = 1 ]'
+
+# The acceptance object for wrapper cleanup is a clean process table, not a green
+# case: every case above can pass while a wrapper the controller failed to reap is
+# still running. Read the ledger last, so a wrapper any case abandoned is named here
+# instead of surviving the run silently.
+# Settle first: the last cases' wrappers may still be tearing down when this line is
+# reached, and flagging a process that is already exiting makes this check flaky
+# rather than load-bearing (measured: one pid reported, already gone by the time the
+# diagnostic below ran). The bound stays far under the fixture's own 300s hang bound,
+# so a wrapper nobody reaped still fails here.
+leaked_settle_deadline="$(( $(date +%s) + 10 ))"
+while :; do
+  leaked_wrappers="$(review_harness_pids_alive | tr '\n' ' ')"
+  [ -z "$leaked_wrappers" ] && break
+  [ "$(date +%s)" -ge "$leaked_settle_deadline" ] && break
+  sleep 1
+done
+[ -z "$leaked_wrappers" ] || {
+  printf 'leaked reviewer wrappers: %s\n' "$leaked_wrappers" >&2
+  # One `ps` per pid: a space-separated list after a single -p relies on BSD operand
+  # parsing and does not carry across ps implementations. Redirection ORDER is
+  # load-bearing: `2>/dev/null >&2` points fd2 at /dev/null and then duplicates fd1 onto
+  # THAT, sending the diagnostic to /dev/null — measured, three times, as a failure that
+  # named pids it could not describe.
+  for leaked_pid in $leaked_wrappers; do
+    ps -o pid=,ppid=,etime=,stat=,command= -p "$leaked_pid" >&2 2>/dev/null || true
+  done
+}
+check "the suite leaves no reviewer wrapper running" '[ -z "$leaked_wrappers" ]'
 
 printf '%s\n' '----'
 if [ "$fails" -eq 0 ]; then
