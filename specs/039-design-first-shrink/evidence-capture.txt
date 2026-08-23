@@ -66,22 +66,9 @@ $ shasum -a 256 specs/039-design-first-shrink/specs-classification.tsv
 b9c60d319cc294ad4e5b8a9c04d9458b9db071ec578a81d9163aa22d87d9f92d  specs/039-design-first-shrink/specs-classification.tsv
 [exit=0]  # set -o pipefail
 
-# 抽样复现：内联源码 + 钉在 base 的 register blob
-
-$ shasum -a 256 /tmp/039extracted.py
-31283bf8c9db4fa1a478f9b07787e74d7f19d21729f11b2423ef8da0a497ca65  /tmp/039extracted.py
-[exit=0]  # set -o pipefail
-
-$ git rev-parse 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md
-1fc647e2113db1a827611f2152d5de5a25847f33
-[exit=0]  # set -o pipefail
-
-$ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md > /tmp/r.$$ && shasum -a 256 /tmp/r.$$ && python3 /tmp/039extracted.py 5146b3b315c487f93ba352584a0b27af9414676b /tmp/r.$$ | head -3 && rm -f /tmp/r.$$
-b654f5ab81aa2bbae47c1b4264867ab87d74fa5172464e8a6e531ab0aed09618  /tmp/r.87410
-frame_all=183 pool_two_owners=126 seed_source=5146b3b3 seed=1363588019
-ordinal:file_line:owner
-5:31:code-review
-[exit=0]  # set -o pipefail
+# 抽样：本取证不含名单，也不跑抽样器。
+#   seed 取自本 PR 的 merge commit SHA，在本文件生成时不存在，作者无从预览或挑选。
+#   抽样器源码内联于文末（哈希见下），合并后按 plan 中的命令复算即得名单。
 
 # 入口尺寸闸 applied-mutation：唯一临时备份 + trap 复原 + 复原校验
 
