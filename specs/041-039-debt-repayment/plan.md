@@ -1,6 +1,8 @@
 # 041 — 039 两笔欠账的清偿（两批）
 
-Status: **design**（开轮计划）。批 1 触及共享闸语义（`register-firing-path-resolution.rb` 的判定面）与 039 的冻结判据，本文件被评审前不落地实现。
+Status: **executed**（两批已跑完，见 [`dispositions.md`](dispositions.md)；工件与哈希清单在 [`evidence/`](evidence/)）。
+
+**实得与本文件设计的偏离，如实先写在这里**：批 1 的 D2 腿在**测量阶段即宣告失败**（全台账命中 51/186，远宽于它要解决的 2 个槽位；收紧口径又漏掉其中一个），按下方第二节第 4 条不做二次调参、不采纳。因此**本轮没有对 `register-firing-path-resolution.rb` 产生任何代码改动**——批 1 只用了该脚本 039 已落地的 D1 advisory。共享闸的实现面未变，随之 `testing-strategy` 的 RED-first 回归一项记 `not-applicable: 无代码 diff`。
 
 | 项 | 值 |
 | --- | --- |
