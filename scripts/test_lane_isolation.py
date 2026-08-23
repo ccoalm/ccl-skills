@@ -27,15 +27,26 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 RUNNER = REPO / "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh"
 
-# A line matching a hazard is a finding unless it also carries one of these
-# markers, which show the path is scoped to the suite's own workspace.
-SAFE = re.compile(r"\$WORK|\$TMP|\$\{TMPDIR|mktemp|TMPDIR:-")
+# Hazards are judged PER OCCURRENCE, never per line. Skipping a whole line
+# because it happens to mention a workspace variable is how a real hazard hides:
+# `printf '%s' "$TMP" > /tmp/shared` and `git config --global x "$TMP"` both carry
+# a safe-looking token and still mutate state shared across concurrent suites.
+#
+# A `/tmp/` occurrence is workspace-scoped only when it is part of a mktemp
+# template or a `${TMPDIR:-/tmp}` default — decided from the text immediately
+# around that occurrence, not from anywhere on the line. A path already rooted at
+# a variable (`"$WORK/tmp/x"`) never matches in the first place, because the
+# pattern's lookbehind rejects a preceding word character.
+# The exemption must end EXACTLY at the occurrence. A looser "mktemp appears
+# somewhere earlier on the line" window is what lets `WORK="$(mktemp -d)"; cp x
+# /tmp/shared` pass — the masking shape this gate exists to catch.
+TMP_OCCURRENCE_SAFE = re.compile(r"(?:TMPDIR:-|mktemp(?:\s+-[A-Za-z]+)*\s+)$")
 
 HAZARDS = [
-    ("fixed-tmp", re.compile(r"(?<![\w$}])/tmp/")),
-    ("git-global", re.compile(r"git config --global")),
-    ("home-write", re.compile(r">>?\s*\"?\$\{?HOME")),
-    ("listen-port", re.compile(r"(?:localhost|127\.0\.0\.1):\d+")),
+    ("fixed-tmp", re.compile(r"(?<![\w$}])/tmp/"), True),
+    ("git-global", re.compile(r"git config --global"), False),
+    ("home-write", re.compile(r">>?\s*\"?\$\{?HOME"), False),
+    ("listen-port", re.compile(r"(?:localhost|127\.0\.0\.1):\d+"), False),
 ]
 
 # Reviewed exceptions, keyed by (file, hazard, exact stripped line). Content-keyed
@@ -54,6 +65,10 @@ ALLOWED = {
     ("test_cli_review_wrappers.sh", "fixed-tmp", 'command = "touch /tmp/forbidden"'),
     ("test_review_gate.sh", "fixed-tmp", '"--review-plan-file", "/tmp/plan.json",'),
     ("test_review_gate.sh", "fixed-tmp", '"--diff-file", "/tmp/diff.patch",'),
+    # Same canary class: the /tmp path is a payload inside an untrusted MCP
+    # fixture the wrapper must refuse to execute; the redirect target is $WORK.
+    ("test_cli_review_wrappers.sh", "fixed-tmp",
+     'printf \'%s\\n\' \'{"mcpServers":{"untrusted":{"command":"touch","args":["/tmp/forbidden-mcp-json"]}}}\' >"$WORK/kimi-source/mcp.json"'),
 }
 # Long fixture lines are matched by prefix so an unrelated edit elsewhere on the
 # line does not silently re-arm the gate against reviewed content.
@@ -104,10 +119,10 @@ def scan(paths: list[Path]) -> set[tuple[str, str, str]]:
             line = raw.strip()
             if line.startswith("#"):
                 continue
-            if SAFE.search(line):
-                continue
-            for hazard, pattern in HAZARDS:
-                if pattern.search(line):
+            for hazard, pattern, occurrence_exempt in HAZARDS:
+                for match in pattern.finditer(line):
+                    if occurrence_exempt and TMP_OCCURRENCE_SAFE.search(line[: match.start()]):
+                        continue
                     findings.add((path.name, hazard, line))
                     break
     return findings
@@ -124,23 +139,37 @@ def allowed(finding: tuple[str, str, str]) -> bool:
 
 
 def self_check() -> None:
-    """Prove the scanner can fail before trusting a clean verdict over the tree."""
-    with tempfile.TemporaryDirectory() as tmp:
-        planted = Path(tmp) / "test_planted_hazard.sh"
-        planted.write_text(
-            '#!/usr/bin/env bash\nprintf hi > /tmp/shared-fixture.txt\n', encoding="utf-8"
-        )
-        found = scan([planted])
-        if not any(h == "fixed-tmp" for _, h, _ in found):
-            fail("the scanner did not flag a planted fixed-/tmp write; it proves nothing")
+    """Prove the scanner can fail — and can stay quiet — before trusting a verdict.
 
-        safe = Path(tmp) / "test_planted_safe.sh"
-        safe.write_text(
-            '#!/usr/bin/env bash\nWORK="$(mktemp -d)"\nprintf hi > "$WORK/tmp/thing.txt"\n',
-            encoding="utf-8",
-        )
-        if scan([safe]):
-            fail("the scanner flagged a workspace-scoped path; it would cry wolf")
+    The masked cases are the point: a line may carry a workspace token AND an
+    independent hazard, and an earlier version of this gate skipped such a line
+    wholesale. Each must-flag case below therefore pairs a safe-looking token with
+    a real hazard on the same line.
+    """
+    must_flag = {
+        "bare fixed /tmp write": 'printf hi > /tmp/shared-fixture.txt',
+        "workspace token masking a /tmp write": 'printf \'%s\' "$TMP" > /tmp/shared-fixture.txt',
+        "mktemp masking a later /tmp write": 'WORK="$(mktemp -d)"; cp x /tmp/shared-fixture.txt',
+        "workspace token masking a global git write": 'git config --global user.name "$TMP"',
+        "workspace token masking a HOME write": 'printf "$TMP" >> "$HOME/.ccl-shared"',
+        "workspace token masking a port": 'curl "$TMP" http://localhost:8080/x',
+    }
+    must_stay_quiet = {
+        "path rooted at a workspace variable": 'printf hi > "$WORK/tmp/thing.txt"',
+        "TMPDIR default inside a mktemp template": 'TMP="$(mktemp -d "${TMPDIR:-/tmp}/suite.XXXXXX")"',
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        for label, body in must_flag.items():
+            probe = Path(tmp) / "test_probe.sh"
+            probe.write_text(f"#!/usr/bin/env bash\n{body}\n", encoding="utf-8")
+            if not scan([probe]):
+                fail(f"the scanner missed a planted hazard ({label}); it proves nothing")
+        for label, body in must_stay_quiet.items():
+            probe = Path(tmp) / "test_probe.sh"
+            probe.write_text(f"#!/usr/bin/env bash\n{body}\n", encoding="utf-8")
+            found = scan([probe])
+            if found:
+                fail(f"the scanner cried wolf on a workspace-scoped line ({label}): {found}")
 
 
 def main() -> None:

@@ -107,12 +107,18 @@ set -e
 # 9) a missing option operand is a usage error, not an infinite parse loop.
 #    Guarded by a hard timeout: the defect this catches HANGS rather than fails,
 #    so a plain exit-code assertion would never return.
+#    The option must sit in PARSER position: after a positional the parser has
+#    already stopped, so a probe there would pass even with the guard removed.
+#    And the expected code is asserted exactly — merely excluding the timeout's
+#    124 would also accept a 127 from a missing watchdog.
+command -v timeout >/dev/null 2>&1 \
+  || fail "this guard needs timeout(1): the defect it catches hangs rather than fails"
 set +e
-timeout 10 bash "$RUNNER" "$TMP/fast.sh" --jobs >/dev/null 2>&1; noval_rc=$?
-timeout 10 bash "$RUNNER" "$TMP/fast.sh" --label >/dev/null 2>&1; nolabel_rc=$?
+timeout 10 bash "$RUNNER" --jobs >/dev/null 2>&1; noval_rc=$?
+timeout 10 bash "$RUNNER" --label >/dev/null 2>&1; nolabel_rc=$?
 set -e
-[ "$noval_rc" = 124 ] && fail "trailing --jobs hung instead of reporting a usage error"
-[ "$nolabel_rc" = 124 ] && fail "trailing --label hung instead of reporting a usage error"
+[ "$noval_rc" = 2 ] || fail "a --jobs with no value must exit 2, got $noval_rc"
+[ "$nolabel_rc" = 2 ] || fail "a --label with no value must exit 2, got $nolabel_rc"
 
 # 10) a dash-prefixed suite name must EXECUTE, not be read as an interpreter
 #     option. `bash --help` exits 0 without running anything, so the marker is

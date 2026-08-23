@@ -93,15 +93,21 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/parallel-suites.XXXXXX")" || exit 1
 set -m
 
 terminate_children() {
-  local pids pid waited=0
-  pids="$(jobs -rp 2>/dev/null)"
-  [ -n "$pids" ] || return 0
-  for pid in $pids; do kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true; done
+  # The group list is captured ONCE, before signalling, and reused for the KILL
+  # pass. Re-reading `jobs -rp` after the grace period would miss the dangerous
+  # case: a group leader that exits while a descendant ignores TERM drops off the
+  # jobs table, so its still-live process group would never be killed.
+  local groups pid waited=0
+  groups="$(jobs -rp 2>/dev/null)"
+  [ -n "$groups" ] || return 0
+  for pid in $groups; do
+    kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+  done
   while [ "$waited" -lt 20 ] && [ -n "$(jobs -rp 2>/dev/null)" ]; do
     sleep 0.1
     waited=$((waited + 1))
   done
-  for pid in $(jobs -rp 2>/dev/null); do
+  for pid in $groups; do
     kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
   done
   return 0

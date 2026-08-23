@@ -43,6 +43,15 @@
 
 **新增机械 gate 的 design-time operability check**（`run-parallel-suites.sh`）：author-dogfood = 本轮四条 lane 全部经它跑通后才提交；marginal-cost = 零新增 CI job、零 required-checks 变更，单次调用替代逐行 recipe；trust-model = 它不新增任何判定，只改调度，**唯一新增的失败面是并发本身**，由守卫的并发/顺序/传播三组断言 + lane 共享状态审计共同兜住；premise = 不是「当前语料干净」，三处施加式变异证明守卫能红。
 
+## 独立评审记录（dual-track）
+
+| Field | Answer |
+| --- | --- |
+| 链 R1 | chain `spec037-parallel-r1`（codex，openai 族，tracked）。5 条有效发现全部采纳：① lane 隔离只是散文审计 → 落地 `scripts/test_lane_isolation.py` 机械闸；② 取消时子进程被遗弃 → `set -m` + 进程组 TERM/KILL；③ 变异 worker 死亡无状态文件被当成功 → 每个 index 必须写显式终态；④ 尾随 `--jobs`/`--label` 无操作数会死循环 → 校验操作数；⑤ dash 前缀套件名被当解释器选项（`bash --help` 静默 exit 0）→ `bash --` / `python3 --`。第 6 条（CI 证据待产）由判定 8 关闭。 |
+| CI 首跑暴露的两处（非评审发现，同轮修复） | ① 两个 lane 套件的 `printf \| grep -q` 在 pipefail 下因 SIGPIPE 误判失败——**并发只是改变时序把这个既有缺陷暴露出来**，本仓别处早已因同一理由改用纯 bash 匹配；含正则 token 的调用点保留 `=~`。② impact-chain 闸判 `code-review` 欠台账行（改了其 scripts 即算 owner 变更），补行；且**基线刷新从 merge 改为 rebase**——merge commit 会多造一个轮 span，闸就看不到本轮的台账行（本仓已记录过的教训）。 |
+| 链 R2 | chain `spec037-parallel-r2`（codex，tracked，candidate `0890f48c…`）。3 条有效发现全部采纳：① KILL 阶段重读 `jobs -rp` 会漏掉「组长已退出但后代仍在」的进程组 → 改为复用 TERM 前捕获的组列表；② **lane 闸 SAFE 命中即跳过整行**（两轮同判）——`printf "$TMP" > /tmp/shared` 这类同时带安全标记与真实危害的行会被漏掉 → 改为**逐个命中判定**，豁免上下文必须紧邻匹配点，并补 6 个 must-flag（含掩盖形态）+ 2 个 must-stay-quiet 自检；收紧后立刻暴露出一行此前被跳过的 MCP 诱饵，已按同类核实入白名单；③ 选项守卫探针放在位置参数之后，解析早停 → 移到解析位并精确断言 exit 2（变异验证：去掉守卫即挂死 124 被抓）。 |
+| 链 R3 | 修复后终轮全程重跑（回填于下）。 |
+
 ## Target-output map
 
 | owner | direction | status | changed-file-or-reason |
