@@ -204,8 +204,15 @@ def with_helpers(paths: list[Path], max_depth: int = 2, root: Path | None = None
 ASSIGNMENT_LINE = re.compile(
     r"""^\s*(?:export\s+)?(HOME|XDG_[A-Z]+_HOME)=("[^"]*"|'[^']*'|\S+)\s*(?:#.*)?$"""
 )
-WORKSPACE_VALUE = re.compile(r"\$\{?WORK|\$\{?TMP|\$\(mktemp")
-VAR_SCOPED_HAZARDS = {"home-write": "HOME", "shared-config-root": "XDG"}
+# EXACT variable names, with a boundary. A prefix match would accept
+# `HOME="$TMPDIR/home"` or `$WORKSPACE` -- neither of which is a private
+# per-suite directory -- and silently grant scope.
+WORKSPACE_VALUE = re.compile(r"\$\{(?:WORK|TMP)\}|\$(?:WORK|TMP)(?![A-Za-z0-9_])|\$\(mktemp")
+# The hazard patterns that a per-variable scope can exempt. `shared-config-root`
+# resolves to the SPECIFIC XDG variable on the line: scoping XDG_DATA_HOME says
+# nothing about an inherited XDG_CONFIG_HOME or XDG_CACHE_HOME.
+VAR_SCOPED_HAZARDS = {"home-write": "HOME", "shared-config-root": None}
+XDG_ON_LINE = re.compile(r"\$\{?(XDG_[A-Z]+_HOME)")
 
 
 def apply_assignment(raw: str, scoped: set[str]) -> None:
@@ -226,7 +233,7 @@ def apply_assignment(raw: str, scoped: set[str]) -> None:
     match = ASSIGNMENT_LINE.match(raw)
     if not match:
         return
-    var = "HOME" if match.group(1) == "HOME" else "XDG"
+    var = match.group(1)
     if WORKSPACE_VALUE.search(match.group(2)):
         scoped.add(var)
     else:
@@ -244,8 +251,11 @@ def scan(paths: list[Path]) -> set[tuple[str, str, str]]:
             if line.startswith("#"):
                 continue
             for hazard, pattern, occurrence_exempt in HAZARDS:
-                if VAR_SCOPED_HAZARDS.get(hazard) in scoped:
-                    continue
+                if hazard in VAR_SCOPED_HAZARDS:
+                    fixed = VAR_SCOPED_HAZARDS[hazard]
+                    names = [fixed] if fixed else XDG_ON_LINE.findall(line)
+                    if names and all(name in scoped for name in names):
+                        continue
                 for match in pattern.finditer(line):
                     if occurrence_exempt and TMP_OCCURRENCE_SAFE.search(line[: match.start()]):
                         continue
@@ -312,6 +322,13 @@ def self_check() -> None:
             'touch "$HOME/.shared"\nWORK="$(mktemp -d)"\nHOME="$WORK/home"',
         "an unsafe reassignment revokes the scope":
             'WORK="$(mktemp -d)"\nHOME="$WORK/home"\nHOME=/home/runner\ntouch "$HOME/.shared"',
+        "$TMPDIR is not a per-suite workspace":
+            'HOME="$TMPDIR/home"\ntouch "$HOME/.shared"',
+        "$WORKSPACE is not a per-suite workspace":
+            'HOME="$WORKSPACE/home"\ntouch "$HOME/.shared"',
+        "scoping one XDG root does not scope another":
+            'WORK="$(mktemp -d)"\nXDG_DATA_HOME="$WORK/data"\n'
+            'printf hi > "$XDG_CONFIG_HOME/opencode/config.json"',
     })
     with tempfile.TemporaryDirectory() as tmp:
         # A hazard that lives only in a sourced helper must still be found; scanning
