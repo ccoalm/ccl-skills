@@ -111,6 +111,13 @@ fast_tests=(
   # differential stays in the heavy suite, but a require-date regression must
   # go RED in every `make test`, not only under --full.
   test_impact_chain_gate_dateless_host.sh
+  # Row-ownership attribution probes: a control leg plus the refusals the gate
+  # owes on a surviving row that vouches for an unchanged owner, a row citing a
+  # package path other than SKILL.md, a row resolving to two selected owners,
+  # and the two shapes that must keep their prior silent skip (an unrelated
+  # five-column register table, a non-curated owner). Synthetic repos only, no
+  # clone, so it belongs in the lane every run exercises.
+  test_impact_chain_round_attribution.sh
   test_eval_routing_bank_grader_diagnostics.sh
   test_eval_routing_bank_surface_binding.sh
   test_eval_routing_prose_target.sh
@@ -146,6 +153,12 @@ heavy_tests=(
   # here costs no enforcement — it only stops charging every pre-commit run for a
   # repo clone, and stops a slow entry competing for the runner host.
   test_register_firing_path_wiring.sh
+  # No-verdict-regression differential: materializes twelve pinned integration
+  # points as detached worktrees and runs both the baseline and candidate gate
+  # against each. Proves the other half of a gate change — that it did not start
+  # refusing what it used to accept — which is the half that blocks every author
+  # when it goes wrong. Worktree-per-point makes it far too slow for pre-commit.
+  test_impact_chain_gate_verdict_differential.sh
 )
 
 # Registration self-audit: every sibling test_*.sh must appear in fast_tests or
