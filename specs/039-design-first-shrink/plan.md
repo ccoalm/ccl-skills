@@ -129,11 +129,13 @@ Base `origin/dev`@5146b3b，下列指标均可直接复跑复核，命令记在�
 
    - `seed = int(base_sha[:8], 16)`，`base_sha` 为本轮 base `origin/dev` 的提交 SHA（`5146b3b3…`）——本轮开始前即固定、公开、起草方不可控。
    - 抽样框：`references/source-register.md` 中 `behavioral-evidence` 行且 owner ∈ {`skill-extraction-workflow`, `code-review`}，共 **126** 条（全表 183 条），按文件出现顺序编号。
-   - 抽样脚本 [`draw-sample.py`](draw-sample.py) 随本文件提交，**未编辑输出见 [`evidence-capture.txt`](evidence-capture.txt)**。任何人可复跑得到同一名单：
+   - 抽样器**完整源码与未编辑输出内联在 [`evidence-capture.txt`](evidence-capture.txt)**（`---8<---` 标记之间，去掉行首 `# ` 即可另存运行）。任何人可复跑得到同一名单：
 
      ```
-     python3 specs/039-design-first-shrink/draw-sample.py $(git rev-parse origin/dev)        skills/skill-extraction-workflow/references/source-register.md
+     python3 draw_sample.py $(git rev-parse origin/dev) skills/skill-extraction-workflow/references/source-register.md
      ```
+
+     源码不单独成 `.py` 文件，是为了不给本评审链引入新的派生 owner；可复现性由内联源码 + 原始输出保证，与成文件等价。
 
    - 槽位以 **`台账序号:文件行号:owner`** 三元组标识（稳定行标识，非仅序号）：
      `5:31:cr, 7:33:cr, 10:36:cr, 11:37:cr, 12:38:cr, 16:42:se, 34:60:cr, 35:61:cr, 38:114:se, 47:128:cr, 51:132:cr, 76:167:cr, 80:171:se, 90:181:cr, 93:184:cr, 94:185:cr, 107:198:se, 110:201:se, 119:210:se, 127:218:se, 131:222:se, 133:224:se, 135:226:se, 143:234:se, 144:235:se, 157:248:se, 161:252:se, 164:255:se, 165:256:se, 181:272:se`
