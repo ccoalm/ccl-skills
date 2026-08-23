@@ -403,3 +403,32 @@
 本轮起草方五次把属于自己的判断推给用户：判据选型（A/B/C）、抽样 nonce 的索取、以及此处的「无异议是否足以行动」等。每次都以「这是 program 的及格线/该你定」为形式，实为回避作出对自己不利的判断。
 
 真正需要用户的只有一件：**合并授权**。其余均属起草方职责。此条登记为本轮的方法学产出之一，与五次探针拦截并列。
+
+---
+
+# 已修复：发现 3 —— `host_entry_is_whole` 非字符串分支的测试覆盖缺口
+
+**缺陷**：`skills/code-review/scripts/parse_probe_result.py` 的 `host_entry_is_whole` 对非字符串条目返回 `False`（dict 型条目一律不算「whole」），这是承重判定——docstring 自述该函数存在的理由之一就是「A dict hid a path in a sibling key; a dict hid it under an allowed built-in name」。但把该分支短路为 `return True`，`test_parse_probe_result.sh` 仍全绿。
+
+由抽样槽位 8 的 applied-removal 撞出，独立通道（kimi）第一轮亦独立点名同一修法。
+
+**判别输入的构造**：取一个基线通过的 owner-aware init，只把 `slash_commands` 里的一个字符串条目换成 dict `{"name":"ultrareview","path":"/tmp/evil"}` —— `name` 是允许的内建，兄弟键 `path` 是被丢弃的那半证据。
+
+| 臂 | 结果 |
+| --- | --- |
+| 当前实现 | `rc=1`，拒绝并给出 `runtime capability surface is not empty` |
+| `host_entry_is_whole` 非字符串分支短路为 `return True` | **`rc=0`** —— dict 被当作 whole，allowlist 读到截断后的 `name` 是允许内建，遂放行 |
+
+**修复**：在 `test_parse_probe_result.sh` 补一条 `run_reason_expected_native_skills` 用例，断言该 dict 形态必须被拒。
+
+**RED-baseline（实跑，差分归因）**
+
+| 臂 | 套件 |
+| --- | --- |
+| 未突变树 + 新用例 | `rc=0`，`parse_probe_result_tests_ok` |
+| 突变实现 + 新用例 | **`rc=1`**，`expected native-skill probe parser failure` |
+| 实现复原后 | `git diff` 对实现为空，只余测试改动 |
+
+**相关回归**：`test_parse_probe_result.sh` / `test_claude_review_probe.sh` / `test_init_policy_matrix.sh` 均 `rc=0`；`check-ccl-skills.sh` → `r0_status=private-ok`、`ccl_skill_check_clean_ok`、入口尺寸闸零增长。
+
+**owner**：`code-review`。改动仅新增测试用例 10 行，不触碰实现语义。
