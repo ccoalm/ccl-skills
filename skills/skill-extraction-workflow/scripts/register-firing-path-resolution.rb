@@ -419,6 +419,13 @@ end
 unresolved = []
 malformed = []
 locator_count = 0
+# Advisory only. A `file:` locator whose target is an EXECUTABLE artifact asserts
+# firing evidence that some runner reaches; when no entry point outside specs/ names
+# that file, the anchor still resolves (the text is there) while nothing can run it.
+# Observed 2026-08: four rows anchored into a retired gate's evidence script, green
+# for the whole life of the retirement. Prose anchors (.md) are a different class --
+# they are read, not run -- and are deliberately NOT flagged.
+unrunnable = []
 # Where each EXEMPT locator was actually cited. A waiver is written for ONE
 # historical row that can no longer be repaired; a second row quoting the same
 # retired locator is a new claim, not that row, and must not inherit the waiver.
@@ -512,6 +519,16 @@ File.foreach(register_path).with_index(1) do |line, lineno|
         if !File.file?(target)
           unresolved << [lineno, locator, "file not found"]
           next
+        end
+        if %w[.rb .sh .py].include?(File.extname(rel)) && !anchor_waived
+          base = File.basename(rel, ".*")
+          runners = Dir.glob(File.join(root, "**", "*.{sh,py,rb,yml,yaml}")) +
+                    Dir.glob(File.join(root, "Makefile"))
+          reachable = runners.any? do |cand|
+            next false if cand.start_with?(File.join(root, "specs")) || File.identical?(cand, target)
+            File.file?(cand) && File.read(cand, encoding: "UTF-8", invalid: :replace).include?(base)
+          end
+          unrunnable << [lineno, locator, rel] unless reachable
         end
         if !resolves_inside?(root, rel)
           unresolved << [lineno, locator, "path escapes the repository"]
@@ -689,6 +706,15 @@ unless unresolved.empty?
   unresolved.each do |lineno, locator, why|
     warn "  #{REGISTER}:#{lineno}: #{why}: #{locator}"
   end
+end
+
+unless unrunnable.empty?
+  warn "register_firing_path_unrunnable_target: ADVISORY -- an anchored executable has no runner"
+  warn "  cause: the anchor resolves (its text is present) but no entry point outside specs/"
+  warn "         names that file, so nothing can execute what the row claims fires."
+  warn "  fix: point the row at a live command, or supersede it if the mechanism retired."
+  unrunnable.each { |lineno, locator, rel| warn "  #{REGISTER}:#{lineno}: #{rel} (#{locator})" }
+  warn "  advisory only: this never changes the exit status."
 end
 
 exit 1 unless malformed.empty? && unresolved.empty?
