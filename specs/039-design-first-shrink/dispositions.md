@@ -432,3 +432,27 @@
 **相关回归**：`test_parse_probe_result.sh` / `test_claude_review_probe.sh` / `test_init_policy_matrix.sh` 均 `rc=0`；`check-ccl-skills.sh` → `r0_status=private-ok`、`ccl_skill_check_clean_ok`、入口尺寸闸零增长。
 
 **owner**：`code-review`。改动仅新增测试用例 10 行，不触碰实现语义。
+
+---
+
+# 槽位 23 改判：`证据不足` → `keep`
+
+**原判的成因是打错了脚本。** 台账行的 firing-path 为 `command:…/test_register_firing_path_resolution.sh`，而该测试第 18 行写明 `GATE="$SCRIPT_DIR/register-firing-path-resolution.rb"` —— 它断言的是**这个**闸；此前三次突变全打在 `impact-chain-gate.rb` 上，与被断言对象无关，故那三次的 `rc=0` 对本槽位从来没有判别力。fixture 为 `mktemp` 下的合成台账，改活树亦不影响。
+
+**打对靶后的 applied-removal（实跑，双突变差分归因）**
+
+| 臂 | 结果 | 红在哪条断言 |
+| --- | --- | --- |
+| 控制组 | `rc=0`，`register_firing_path_resolution_tests_ok (57 assertions)` | —— |
+| 突变 A：`resolves_inside?` 恒真 | **`rc=1`** | `a symlink pointing outside the repo must not satisfy an anchor` |
+| 突变 B：`syntactically_contained?` 恒真 | **`rc=1`** | `containment for /etc/hosts#localhost` |
+| 复原 | `git diff --quiet` 通过 | —— |
+
+两个突变方向不同、各自点名不同的拥有断言，属差分归因；突变打在解析谓词而非规则文本，不属被排除的存在性检查。
+
+**keep (a)**：`register-firing-path-resolution.rb` 与 `test_register_firing_path_resolution.sh` 均为独立文件，与台账行文本无关。
+**keep (b)**：上表。
+
+**终态：`keep`。动作：不改动。**
+
+**方法学补记（第六次拦截）**：前三次突变全部无判别力，而它们给出的 `rc=0` 形式上支持「该测试对此规则无覆盖」。拦下它的是 kimi 的 fix 指示——「inspect the fixture construction and rerun the mutation against **the artifact the test actually asserts**」。这是独立通道第一次不是确认起草方的结论，而是**纠正起草方的方法**。
