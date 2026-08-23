@@ -198,3 +198,44 @@
 **附带发现（登记，不在本轮处置）**：`test_parse_probe_result.sh` 对 `host_entry_is_whole` 的非字符串条目分支无覆盖——把它短路为恒真，测试不红。这是一处真实的测试覆盖缺口，owner 为 `code-review`。
 
 **耗时**：约 9 分钟（含一次无效突变的复核与重做）。
+
+---
+
+## 槽位 5 / 7 / 22 — ordinal 47 / 52 / 138（各自独立，证据形态相同）
+
+三者的 firing-path 分别为 `test_review_gate.sh`、`test_init_policy_matrix.sh`、`test_claude_review_probe.sh`，均为 `code-review` 包内的独立测试文件。
+
+**keep (a)**：三个测试都是与规则文本无关的独立文件，且各自守护一个实现模块。
+
+**keep (b) applied-removal（实跑，控制组来自本轮批跑）**
+
+| 槽位 | 被守护实现 | 控制组 | 突变后 |
+| --- | --- | --- | --- |
+| 5 | `review_gate.py` | `rc=0` | **`rc=1`** |
+| 7 | `init_policy_matrix.py` | `rc=0` | **`rc=1`** |
+| 22 | `claude_review.sh` | `rc=0`（`claude_review_runtime_tests_ok`） | **`rc=2`** |
+
+突变均为短路实现里的失败判定路径（`return 1` / `sys.exit(1)` / `fail`），非规则文本改动，故不属被排除的存在性检查。复原后 `git status --porcelain` 为空，三处复原均已校验。
+
+槽位 22 的 `rc=2` 与 1 的区别只是该脚本自身的失败码；控制组为 0、突变为非 0，差分成立。
+
+**终态：三者均 `keep`。动作：不改动。**
+**granularity 限定**：同 13/14/16/17 —— 制品证明各自的 firing path 是活的、其强制被移除即转红，不是每条子句被单独 pin。
+
+**耗时**：三槽位合计约 5 分钟（批跑）。
+
+---
+
+## 方法学记录：一次被拦下的错误结论
+
+批跑首轮对槽位 24/25/26、11/12/15、23 得到 `mutant_rc=0`，形式上完全可以写成「测试对该规则无覆盖」。**未记录**，原因是先做了突变有效性复核：
+
+| 目标 | 通用突变器实际打中的位置 |
+| --- | --- |
+| `check-ccl-skills.sh` | 行 31 `return 1` |
+| `opencode_review.sh` | 行 560 `return 1` |
+| `impact-chain-gate.rb` | 行 29 `exit 1` |
+
+三处都是脚本开头的通用 helper，**不是规则所断言的那段逻辑**。故 `rc=0` 只说明「那个无关分支没被测试覆盖」，对本槽位无判别力，判为**非结论**并重做打靶突变。
+
+这是本轮第三次同类拦截（前两次为槽位 1 的 redirect 误突变、槽位 8 的未定位突变）。三次都遵循同一条：**先证明突变改的是承重代码，再读红绿**。
