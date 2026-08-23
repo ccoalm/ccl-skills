@@ -95,6 +95,23 @@ ALLOWED = {
     ("test_cli_review_wrappers.sh", "fixed-tmp",
      'printf \'%s\\n\' \'{"mcpServers":{"untrusted":{"command":"touch","args":["/tmp/forbidden-mcp-json"]}}}\' >"$WORK/kimi-source/mcp.json"'),
 }
+# Whole (file, hazard) exemptions, for a case where every occurrence in a file
+# shares one verified reason and listing them individually would be noise.
+#
+#   test_opencode_review_retry.sh / test_opencode_review_concurrency.sh --
+#     shared-config-root. Verified rather than assumed: the reading lines sit
+#     inside stub scripts the suite GENERATES into its own $WORK (e.g. the
+#     `cat >"$WORK/bin/opencode" <<'STUB'` heredoc), and every XDG_DATA_HOME
+#     assignment in each file -- all 14 in the retry suite, none excepted --
+#     points at "$WORK/...". The stubs therefore only ever see a workspace-scoped
+#     root at runtime. A text scanner cannot resolve that, which is precisely the
+#     boundary this gate declares; it is recorded here as a reviewed exception
+#     instead of being hidden by a rule loose enough to mask real hazards.
+ALLOWED_FILE_HAZARD = {
+    ("test_opencode_review_retry.sh", "shared-config-root"),
+    ("test_opencode_review_concurrency.sh", "shared-config-root"),
+}
+
 # Long fixture lines are matched by prefix so an unrelated edit elsewhere on the
 # line does not silently re-arm the gate against reviewed content.
 ALLOWED_PREFIX = {
@@ -147,7 +164,12 @@ HELPER_REF = re.compile(
 )
 
 
-def with_helpers(paths: list[Path], max_depth: int = 2) -> list[Path]:
+def with_helpers(paths: list[Path], max_depth: int = 2, root: Path | None = None) -> list[Path]:
+    # `root` bounds traversal to one tree. It is a parameter so the self-check can
+    # run wholly inside a temporary directory: writing probe files into the source
+    # tree would clobber whatever sits at those paths, break a read-only checkout,
+    # and let two concurrent runs corrupt each other.
+    allowed = (root or REPO).resolve()
     seen: set[Path] = set()
     frontier = list(paths)
     depth = 0
@@ -159,9 +181,9 @@ def with_helpers(paths: list[Path], max_depth: int = 2) -> list[Path]:
             seen.add(path)
             text = path.read_text(encoding="utf-8", errors="replace")
             for ref in HELPER_REF.findall(text):
-                for base in (path.parent, REPO):
+                for base in (path.parent, allowed):
                     candidate = (base / ref).resolve()
-                    if candidate.exists() and REPO in candidate.parents and candidate not in seen:
+                    if candidate.exists() and allowed in candidate.parents and candidate not in seen:
                         nxt.append(candidate)
                         break
         frontier = nxt
@@ -174,16 +196,26 @@ def with_helpers(paths: list[Path], max_depth: int = 2) -> list[Path]:
 # shared state. This is a per-VARIABLE, per-FILE judgement backed by the
 # assignment -- not the discredited "any safe-looking token anywhere on the line"
 # skip, which hid independent hazards sitting on the same line.
-SCOPING_ASSIGNMENT = re.compile(
-    r"\b(HOME|XDG_[A-Z]+_HOME)=\s*\"?[^\s\"']*(?:\$\{?WORK|\$\{?TMP|\$\(mktemp)"
+# Only a STANDALONE or exported assignment scopes the variable for the rest of
+# the file, and the assignment must be the WHOLE statement: `HOME=... some_cmd`
+# is a command prefix that scopes just that one command, and a mention inside a
+# comment scopes nothing. Counting either would let a real hazard elsewhere in
+# the file be suppressed.
+ASSIGNMENT_LINE = re.compile(
+    r"""^\s*(?:export\s+)?(HOME|XDG_[A-Z]+_HOME)=("[^"]*"|'[^']*'|\S+)\s*(?:#.*)?$"""
 )
+WORKSPACE_VALUE = re.compile(r"\$\{?WORK|\$\{?TMP|\$\(mktemp")
 VAR_SCOPED_HAZARDS = {"home-write": "HOME", "shared-config-root": "XDG"}
 
 
 def scoped_roots(text: str) -> set[str]:
     scoped = set()
-    for name in SCOPING_ASSIGNMENT.findall(text):
-        scoped.add("HOME" if name == "HOME" else "XDG")
+    for raw in text.splitlines():
+        if raw.strip().startswith("#"):
+            continue
+        match = ASSIGNMENT_LINE.match(raw)
+        if match and WORKSPACE_VALUE.search(match.group(2)):
+            scoped.add("HOME" if match.group(1) == "HOME" else "XDG")
     return scoped
 
 
@@ -211,6 +243,8 @@ def allowed(finding: tuple[str, str, str]) -> bool:
     if finding in ALLOWED:
         return True
     name, hazard, line = finding
+    if (name, hazard) in ALLOWED_FILE_HAZARD:
+        return True
     return any(
         name == a_name and hazard == a_hazard and line.startswith(a_prefix)
         for a_name, a_hazard, a_prefix in ALLOWED_PREFIX
@@ -246,28 +280,34 @@ def self_check() -> None:
             'touch "$HOME/.ccl-shared"',
     }
     multiline_must_stay_quiet = {
-        "XDG root scoped to the suite workspace":
-            'WORK="$(mktemp -d)"\nXDG_DATA_HOME="$WORK/data" run_thing\n'
-            'auth="$XDG_DATA_HOME/opencode/auth.json"',
-        "HOME scoped to the suite workspace":
+        "HOME scoped by a standalone assignment":
             'WORK="$(mktemp -d)"\nHOME="$WORK/home"\ntouch "$HOME/.thing"',
+        "XDG scoped by an exported assignment":
+            'WORK="$(mktemp -d)"\nexport XDG_DATA_HOME="$WORK/data"\n'
+            'auth="$XDG_DATA_HOME/opencode/auth.json"',
     }
-    # A hazard that lives only in a sourced helper must still be found; scanning
-    # the registered suite alone would report clean while the lane races.
-    helper_dir = REPO / "scripts"
+    # A command-prefix assignment scopes only that command, and a comment scopes
+    # nothing — neither may suppress a hazard elsewhere in the file.
+    multiline_must_flag.update({
+        "command-local assignment does not scope the rest of the file":
+            'WORK="$(mktemp -d)"\nHOME="$WORK/home" run_thing\ntouch "$HOME/.shared"',
+        "a commented assignment scopes nothing":
+            '# HOME="$WORK/home"\ntouch "$HOME/.shared"',
+    })
     with tempfile.TemporaryDirectory() as tmp:
-        helper = helper_dir / "_lane_isolation_selfcheck_helper.sh"
-        caller = helper_dir / "_lane_isolation_selfcheck_caller.sh"
-        try:
-            helper.write_text('#!/usr/bin/env bash\nprintf hi > /tmp/helper-shared.txt\n',
-                              encoding="utf-8")
-            caller.write_text(f'#!/usr/bin/env bash\nsource "$SCRIPT_DIR/{helper.name}"\n',
-                              encoding="utf-8")
-            if not scan(with_helpers([caller])):
-                fail("a hazard reachable only through a sourced helper was not found")
-        finally:
-            helper.unlink(missing_ok=True)
-            caller.unlink(missing_ok=True)
+        # A hazard that lives only in a sourced helper must still be found; scanning
+        # the registered suite alone would report clean while the lane races. Both
+        # probes live in the temp tree, and traversal is bounded to it.
+        probe_root = Path(tmp) / "probe-root"
+        probe_root.mkdir()
+        helper = probe_root / "helper.sh"
+        caller = probe_root / "caller.sh"
+        helper.write_text('#!/usr/bin/env bash\nprintf hi > /tmp/helper-shared.txt\n',
+                          encoding="utf-8")
+        caller.write_text('#!/usr/bin/env bash\nsource "$SCRIPT_DIR/helper.sh"\n',
+                          encoding="utf-8")
+        if not scan(with_helpers([caller], root=probe_root)):
+            fail("a hazard reachable only through a sourced helper was not found")
 
         for label, body in must_flag.items():
             probe = Path(tmp) / "test_probe.sh"
@@ -317,8 +357,10 @@ def main() -> None:
             print(f"  {name}: {hazard}: {line[:120]}", file=sys.stderr)
         raise SystemExit(1)
 
+    covered_file_hazards = {(name, hazard) for name, hazard, _ in findings}
     stale = sorted(
-        entry for entry in ALLOWED if entry not in findings
+        [entry for entry in ALLOWED if entry not in findings]
+        + [entry for entry in ALLOWED_FILE_HAZARD if entry not in covered_file_hazards]
     )
     if stale:
         print(
@@ -326,8 +368,8 @@ def main() -> None:
             "grows stops being a review; drop these entries.",
             file=sys.stderr,
         )
-        for name, hazard, line in stale:
-            print(f"  {name}: {hazard}: {line[:120]}", file=sys.stderr)
+        for entry in stale:
+            print("  " + ": ".join(str(part)[:120] for part in entry), file=sys.stderr)
         raise SystemExit(1)
 
     print(f"lane_isolation_ok: {len(members)} lane members, "
