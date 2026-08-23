@@ -426,6 +426,17 @@ locator_count = 0
 # for the whole life of the retirement. Prose anchors (.md) are a different class --
 # they are read, not run -- and are deliberately NOT flagged.
 unrunnable = []
+# Built once, lazily: a repo with no executable locators never pays for it, and a
+# repo with many does not re-walk the tree per locator (O(locators x files)).
+runner_corpus = nil
+build_runner_corpus = lambda do |root|
+  (Dir.glob(File.join(root, "**", "*.{sh,py,rb,yml,yaml}"), File::FNM_DOTMATCH) +
+   Dir.glob(File.join(root, "Makefile"))).reject do |cand|
+    cand.start_with?(File.join(root, "specs") + File::SEPARATOR) ||
+      cand.start_with?(File.join(root, ".git") + File::SEPARATOR) ||
+      !File.file?(cand)
+  end.map { |cand| [cand, File.read(cand, encoding: "UTF-8", invalid: :replace)] }
+end
 # Where each EXEMPT locator was actually cited. A waiver is written for ONE
 # historical row that can no longer be repaired; a second row quoting the same
 # retired locator is a new claim, not that row, and must not inherit the waiver.
@@ -535,14 +546,9 @@ File.foreach(register_path).with_index(1) do |line, lineno|
           # FNM_DOTMATCH is required, not cosmetic: the yml/yaml shapes this glob
           # seeks live in .github/workflows, and without it the glob never
           # descends there -- a target fired only by CI read as unrunnable.
-          runners = Dir.glob(File.join(root, "**", "*.{sh,py,rb,yml,yaml}"), File::FNM_DOTMATCH) +
-                    Dir.glob(File.join(root, "Makefile"))
-          reachable = runners.any? do |cand|
-            next false if cand.start_with?(File.join(root, "specs") + File::SEPARATOR)
-            next false if cand.start_with?(File.join(root, ".git") + File::SEPARATOR)
+          runner_corpus ||= build_runner_corpus.call(root)
+          reachable = runner_corpus.any? do |cand, body|
             next false if File.identical?(cand, target)
-            next false unless File.file?(cand)
-            body = File.read(cand, encoding: "UTF-8", invalid: :replace)
             body.match?(needle) || body.match?(sweep)
           end
           unrunnable << [lineno, locator, rel] unless reachable
