@@ -713,7 +713,11 @@ unless unrunnable.empty?
   warn "  cause: the anchor resolves (its text is present) but no entry point outside specs/"
   warn "         names that file, so nothing can execute what the row claims fires."
   warn "  fix: point the row at a live command, or supersede it if the mechanism retired."
-  unrunnable.each { |lineno, locator, rel| warn "  #{REGISTER}:#{lineno}: #{rel} (#{locator})" }
+  unrunnable.each do |lineno, locator, rel|
+    warn "  #{REGISTER}:#{lineno}: #{rel}"
+    anchor = locator.split("#", 2)[1]
+    warn "      anchor: #{anchor}" if anchor && !anchor.empty?
+  end
   warn "  advisory only: this never changes the exit status."
 end
 
