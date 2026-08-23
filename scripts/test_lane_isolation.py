@@ -208,23 +208,38 @@ WORKSPACE_VALUE = re.compile(r"\$\{?WORK|\$\{?TMP|\$\(mktemp")
 VAR_SCOPED_HAZARDS = {"home-write": "HOME", "shared-config-root": "XDG"}
 
 
-def scoped_roots(text: str) -> set[str]:
-    scoped = set()
-    for raw in text.splitlines():
-        if raw.strip().startswith("#"):
-            continue
-        match = ASSIGNMENT_LINE.match(raw)
-        if match and WORKSPACE_VALUE.search(match.group(2)):
-            scoped.add("HOME" if match.group(1) == "HOME" else "XDG")
-    return scoped
+def apply_assignment(raw: str, scoped: set[str]) -> None:
+    """Update the running scope from one line, in source order.
+
+    Scope is granted by a PRECEDING assignment and revoked by a later unsafe one.
+    Computing it over the whole file at once would let `touch "$HOME/.shared"`
+    followed by `HOME="$WORK/home"` suppress the earlier hazard, and would keep
+    suppressing after a reassignment back to an inherited root.
+
+    Declared residual, per this gate's narrowed claim: whether an assignment is
+    actually REACHED (inside a conditional, a function never called, a branch not
+    taken) is not decidable from text. Such a case is a reviewed exception, not a
+    rule to loosen.
+    """
+    if raw.strip().startswith("#"):
+        return
+    match = ASSIGNMENT_LINE.match(raw)
+    if not match:
+        return
+    var = "HOME" if match.group(1) == "HOME" else "XDG"
+    if WORKSPACE_VALUE.search(match.group(2)):
+        scoped.add(var)
+    else:
+        scoped.discard(var)
 
 
 def scan(paths: list[Path]) -> set[tuple[str, str, str]]:
     findings: set[tuple[str, str, str]] = set()
     for path in paths:
         body = path.read_text(encoding="utf-8", errors="replace")
-        scoped = scoped_roots(body)
+        scoped: set[str] = set()
         for raw in body.splitlines():
+            apply_assignment(raw, scoped)
             line = raw.strip()
             if line.startswith("#"):
                 continue
@@ -293,6 +308,10 @@ def self_check() -> None:
             'WORK="$(mktemp -d)"\nHOME="$WORK/home" run_thing\ntouch "$HOME/.shared"',
         "a commented assignment scopes nothing":
             '# HOME="$WORK/home"\ntouch "$HOME/.shared"',
+        "a hazard BEFORE the scoping assignment is still a hazard":
+            'touch "$HOME/.shared"\nWORK="$(mktemp -d)"\nHOME="$WORK/home"',
+        "an unsafe reassignment revokes the scope":
+            'WORK="$(mktemp -d)"\nHOME="$WORK/home"\nHOME=/home/runner\ntouch "$HOME/.shared"',
     })
     with tempfile.TemporaryDirectory() as tmp:
         # A hazard that lives only in a sourced helper must still be found; scanning

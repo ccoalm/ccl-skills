@@ -39,7 +39,7 @@
 | 5 | 把某个已登记变异改成 no-op | 走查必须红且报「flipped NOTHING」 | PASS：rc=1，命中该串；控制组恢复后绿 |
 | 6 | `--fast` / `--heavy-only` / lane 语义守卫 / 注册守卫 | 与改前同集合、同判定；036 的 lane 守卫仍绿 | PASS：`regression_runner_lanes_ok` + `test_regression_runner_registration: ok`（并发执行下） |
 | 7 | 四条 lane 本地实跑 | 全绿，且各自耗时降到「最慢单套件」量级 | PASS（本机 jobs=8，CI 上 nproc=4 故增益略低）：shard-1 rc=0 **97s**、shard-2 rc=0 **152s**、fast lane rc=0 **169s**、heavy lane rc=0 **170s**；对照 CI 串行基线 341s／362s／279s／231s |
-| 8 | PR 的 CI 运行 @ 本轮候选 | 六 job 全绿；关键路径 ≈ max(shard-2 ~167s, fast ~101s, shard-1 ~85s) + setup ≈ ~3.5min | 待产（PR 首跑回填） |
+| 8 | PR 的 CI 运行 @ 本轮候选 | 六 job 全绿；关键路径 ≈ ~3.5min | PASS（PR #28，run 32619750500 @ 准确候选 7f764fd）：code-review-regressions-2 **2m59s**（关键路径）、regression-heavy 2m41s、repository-gates 2m28s、regression-fast 2m27s、code-review-regressions-1 2m22s、npm 53s。对照 036 终态 6m13s → **2m59s**；连同 035/036，整线自 ~19–21min 降至 ~3min。（前两个候选 6dcdbad／2578448 亦各自六 job 全绿，同量级） |
 
 **新增机械 gate 的 design-time operability check**（`run-parallel-suites.sh`）：author-dogfood = 本轮四条 lane 全部经它跑通后才提交；marginal-cost = 零新增 CI job、零 required-checks 变更，单次调用替代逐行 recipe；trust-model = 它不新增任何判定，只改调度，**唯一新增的失败面是并发本身**，由守卫的并发/顺序/传播三组断言 + lane 共享状态审计共同兜住；premise = 不是「当前语料干净」，三处施加式变异证明守卫能红。
 
@@ -55,7 +55,8 @@
 | R3 覆盖增量的副产物 | 收紧后立刻在两个套件里扫出 XDG 用法；核实为**它们自己**把 `XDG_DATA_HOME` 指向 `$WORK/...`，属误报 → 增加「变量是否被本文件限定到工作区」的按变量判定（有赋值证据，区别于已被否决的整行跳过），并补 4 条自检：继承的 XDG／HOME 必须报，自限定的必须不报。 |
 | 链 R4 | chain `spec037-parallel-r4`（codex，tracked，candidate `42c4dbe2…`）。两条 P1 均采纳：① **自检往源码树写探针文件再删**——会覆盖同名用户文件、只读检出直接失败、并发调用互踩；改为探针全部落在临时目录，`with_helpers` 增加 `root` 参数把遍历限定在该临时树内。② `scoped_roots` 按整文件且不看顺序/注释判定；`HOME=... cmd` 是命令前缀、只对那一条命令生效，注释里的赋值更是什么都不限定 → 改为**必须是整条语句的独立/export 赋值**，并补两条自检（命令前缀不生效、注释不生效）。第三条 P1（CI 证据须对准确候选）由判定 8 关闭。 |
 | R4 收紧的副产物 | 严格化后两个 opencode 套件的 XDG 行重新暴露。**实地核实而非假设**：这些读取行位于套件用 `cat >"$WORK/bin/opencode" <<'STUB'` 生成的桩脚本内，且该文件 14 处 `XDG_DATA_HOME` 赋值全部指向 `$WORK`，无例外——运行期只会看到工作区内的根。文本扫描无法解析这一点（正是本闸声明的边界），故登记为**文件级已核实例外**，而不是把规则放松到会掩盖真实危害；陈旧的文件级例外同样会让闸变红。 |
-| 链 R5 | 修复后终轮全程重跑（回填于下）。 |
+| 链 R5 | chain `spec037-parallel-r5`（codex，tracked，candidate `f5c8a6a0…`）。两条 P1：① 作用域按整文件计算、不看顺序——`touch "$HOME/.shared"` 出现在 `HOME="$WORK/home"` **之前**仍被抑制，安全赋值后又被不安全重赋值也继续抑制 → 改为**按源码顺序**推进作用域（前置赋值才授予、不安全重赋值即撤销），并补两条自检（危害在赋值之前、重赋值撤销）。② CI 证据须对准确候选 → 已产（判定 8，run 32619750500 @ 7f764fd 六 job 全绿）。另：赋值是否**实际被执行到**（条件分支、未调用的函数）文本不可判定，已按本闸声明的边界写进代码注释——属已声明残余，走已核实例外而不是放松规则。 |
+| 链 R6 | 修复后终轮全程重跑（回填于下）。 |
 
 ## Target-output map
 
