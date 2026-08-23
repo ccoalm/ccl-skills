@@ -435,7 +435,17 @@ build_runner_corpus = lambda do |root|
     cand.start_with?(File.join(root, "specs") + File::SEPARATOR) ||
       cand.start_with?(File.join(root, ".git") + File::SEPARATOR) ||
       !File.file?(cand)
-  end.map { |cand| [cand, File.read(cand, encoding: "UTF-8", invalid: :replace)] }
+  end.filter_map do |cand|
+    # An advisory must never change the exit status, so an unreadable candidate is
+    # skipped rather than raised: one chmod-000 file in the tree previously took
+    # the whole gate red with Errno::EACCES. Skipping biases toward silence on
+    # that candidate, which is the safe direction for a non-blocking report.
+    begin
+      [cand, File.read(cand, encoding: "UTF-8", invalid: :replace)]
+    rescue SystemCallError, IOError
+      nil
+    end
+  end
 end
 # Where each EXEMPT locator was actually cited. A waiver is written for ONE
 # historical row that can no longer be repaired; a second row quoting the same
