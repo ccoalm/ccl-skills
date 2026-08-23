@@ -422,7 +422,7 @@ locator_count = 0
 # Advisory only. A `file:` locator whose target is an EXECUTABLE artifact asserts
 # firing evidence that some runner reaches; when no entry point outside specs/ names
 # that file, the anchor still resolves (the text is there) while nothing can run it.
-# Observed 2026-08: four rows anchored into a retired gate's evidence script, green
+# Observed 2026-08: five rows anchored into a retired gate's evidence script, green
 # for the whole life of the retirement. Prose anchors (.md) are a different class --
 # they are read, not run -- and are deliberately NOT flagged.
 unrunnable = []
@@ -525,7 +525,7 @@ File.foreach(register_path).with_index(1) do |line, lineno|
           runners = Dir.glob(File.join(root, "**", "*.{sh,py,rb,yml,yaml}")) +
                     Dir.glob(File.join(root, "Makefile"))
           reachable = runners.any? do |cand|
-            next false if cand.start_with?(File.join(root, "specs")) || File.identical?(cand, target)
+            next false if cand.start_with?(File.join(root, "specs") + File::SEPARATOR) || File.identical?(cand, target)
             File.file?(cand) && File.read(cand, encoding: "UTF-8", invalid: :replace).include?(base)
           end
           unrunnable << [lineno, locator, rel] unless reachable
