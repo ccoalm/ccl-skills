@@ -55,11 +55,9 @@ FIRING_F="firing-path: file:skills/product-rd-workflow/SKILL.md#must record a RE
 new_case case-a; withdraw_fixture
 add_row "| A fixture claim is refuted by its primary source and is withdrawn wholesale | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case A: compliant source-refuted withdrawal"; run_gate
-if [ "${EXPECT_A_GREEN:-1}" = "1" ]; then
-  [ "$RC" = "0" ] && ok "A 合规撤回 -> 绿" || fail "A 应绿，实得 rc=$RC: $(printf '%s' "$OUT" | tail -2)"
-else
-  [ "$RC" != "0" ] && ok "A 合规撤回 -> 红（未实现类时的基线）" || fail "A 在未实现类时不该绿"
-fi
+# A 的期望值在裁决后由绿改红：该类不再顶起 RED 底线（见 frozen-acceptance.md 的裁决记录）。
+# 合规撤回现在仍然被拦——它要么配一条 RED 行，要么由具名风险 owner 人工放行。
+[ "$RC" != "0" ] && ok "A 合规撤回 -> 仍红（该类不顶底线，撤回需人工放行）" || fail "A 不得自动放行"
 
 # ---- B：真行为变更披该标签 —— 任何时候都必须红 ----
 new_case case-b

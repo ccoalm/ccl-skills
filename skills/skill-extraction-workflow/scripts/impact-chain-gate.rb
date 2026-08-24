@@ -1300,9 +1300,15 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
     # 与一条搭便车的 semantic-control 行并存时，`any?` 会把整个 owner 放行——独立
     # 评审实测出的洞。bar 4（本轮不得新增规范规则行）已挡住带规范动词的搭车，这里
     # 再要求该 owner 的**全部**非 no-behavior 行都是撤回类，连非规范措辞的搭车一并挡掉。
-    all_rows_source_refuted = evaluated.any? { |e| e[:source_refuted] } &&
-                              evaluated.all? { |e| e[:source_refuted] }
-    valid &&= evaluated.any? { |entry| entry[:red_declared] } || all_rows_source_refuted ||
+    # `source-refuted` **不顶起这道底线**。七轮独立评审逐一击穿了保护它的每一版门槛
+    # （净字节、规范行启发式、name-status、文件存在、子串锚、形式合规），两条通道两次
+    # 给出同一条建议：在指针能被绑到被撤回的那条义务之前，不要让它清掉 RED 底线。
+    # 剩下的缺口本质不可机械验证——指针可以指向真实标题、逐字抄录被删文本，而
+    # 「这个一手源确实否证了那条陈述」仍然只有人能判。按本仓「同类跨轮复现是设计
+    # 信号不是补丁信号」，这里删掉的是那个能力本身，不是再补一道门槛。
+    # 该类保留的作用：让标签诚实、强制产出零损失义务对照、并把诊断指向正确的补法。
+    # 撤回仍需一条 RED 行，或由**具名风险 owner** 经既有通道人工放行。
+    valid &&= evaluated.any? { |entry| entry[:red_declared] } ||
               wording_only_diff_for.call(cumulative, path) ||
               identifier_rename_diff_for.call(cumulative, path)
     next if valid
@@ -1328,7 +1334,7 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
   end
   unless behavior_failures.empty?
     warn "impact_chain_behavior_evidence_missing: at least one added upstream-owner row lacks a complete behavioral-evidence declaration"
-    warn "  fix: every added row for a changed upstream owner needs `behavioral-evidence: RED-baseline` (observed deltas; observed-failure: yes requires it) `semantic-control` (only with observed-failure: no), or `source-refuted` (a pure-deletion withdrawal of a claim a primary source refutes: observed-failure no, a refuting source URL, a resolvable zero-loss pointer, the owner's round diff touches only modified regular Markdown files whose file mode is unchanged, adds zero lines and deletes at least one, and every row for that owner is in the same class), plus `observed-failure: yes/no` and an owner-scoped `firing-path:`; a non-wording owner package needs at least one RED-baseline row; only deterministically wording-only diffs (no letters or digits changed) may use `not-required wording-only`, and only diffs whose base bytes are reproduced exactly by applying git-derived skill-rename pairs may use `not-required identifier-rename` (both drop the firing-path requirement and require observed-failure: no); an owner whose ENTIRE change is the SKILL.md frontmatter description entry keeps the RED-baseline bar and may anchor its firing path on that changed description line"
+    warn "  fix: every added row for a changed upstream owner needs `behavioral-evidence: RED-baseline` (observed deltas; observed-failure: yes requires it) `semantic-control` (only with observed-failure: no), or `source-refuted` (a pure-deletion withdrawal of a claim a primary source refutes: observed-failure no, a refuting source URL, a resolvable zero-loss pointer, the owner's round diff touches only modified regular Markdown files whose file mode is unchanged, adds zero lines and deletes at least one, and every row for that owner is in the same class) — note that `source-refuted` records an honest label and forces a zero-loss map, but does NOT by itself lift the per-owner RED floor: a withdrawal still needs a RED-baseline row or a named risk owner's waiver, plus `observed-failure: yes/no` and an owner-scoped `firing-path:`; a non-wording owner package needs at least one RED-baseline row; only deterministically wording-only diffs (no letters or digits changed) may use `not-required wording-only`, and only diffs whose base bytes are reproduced exactly by applying git-derived skill-rename pairs may use `not-required identifier-rename` (both drop the firing-path requirement and require observed-failure: no); an owner whose ENTIRE change is the SKILL.md frontmatter description entry keeps the RED-baseline bar and may anchor its firing path on that changed description line"
     behavior_failures.each { |path| warn "  incomplete: #{path}" }
     exit 1
   end
