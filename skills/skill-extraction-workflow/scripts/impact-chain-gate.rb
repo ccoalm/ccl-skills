@@ -1102,7 +1102,7 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
           declarations[m[1].downcase] ||= m[2]
         end
       end
-      status = declarations["behavioral-evidence"]&.[](/\A(RED-baseline|semantic-control|not-required\s+wording-only|not-required\s+identifier-rename)\z/i, 1)
+      status = declarations["behavioral-evidence"]&.[](/\A(RED-baseline|semantic-control|source-refuted|not-required\s+wording-only|not-required\s+identifier-rename)\z/i, 1)
       normalized_status = status&.downcase&.gsub(/\s+/, " ")
       declared_wording_only = normalized_status == "not-required wording-only"
       wording_only = declared_wording_only && wording_only_diff_for.call(row_scope, path)
@@ -1114,7 +1114,38 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
       no_behavior_class = wording_only || identifier_rename
       observed = declarations["observed-failure"]&.[](/\A(yes|no)\z/i, 1)&.downcase
       semantic_control = normalized_status == "semantic-control" && observed == "no"
-      status_allowed = no_behavior_class || normalized_status == "red-baseline" || semantic_control
+      # `source-refuted` —— 撤回一条被一手源否证的陈述。它不是豁免，是**换一种证据**：
+      # 行为证据在这里造不出来（删掉一句假陈述往往无可测行为差异），而一手源否证
+      # 与义务保全是可核的。四道门槛全部机械可判，缺一即不成立：
+      #   (1) observed-failure: no —— 这条闸问的是规则有没有失灵；被撤回的陈述触发
+      #       正常，它只是假的。自选 yes 不得走本类。
+      #   (2) 证据列含否证该陈述的一手源 URL。
+      #   (3) 证据列含零损失义务对照的可解析指针，且目标文件存在且非空。
+      #   (4) 该 owner 包在本行所属轮次的净字节变化 <= 0。撤回会让包缩小；这条挡住
+      #       借事实更正之名夹带新规则。它是**机械下限不是证明**——净删除仍可能在别处
+      #       夹带，那由 dual-track 的零损失审查兜，本闸不假装能替代它。
+      evidence_cell = row[:evidence].to_s
+      refuting_source = evidence_cell.match?(%r{https?://\S+})
+      zero_loss_ptr = evidence_cell[/`([^`]+#[^`]+)`/, 1]
+      zero_loss_ok = begin
+        rel = zero_loss_ptr&.split("#", 2)&.first&.strip
+        !rel.nil? && !rel.empty? && File.file?(File.join(root, rel)) && File.size(File.join(root, rel)) > 0
+      end
+      owner_net_bytes = lambda do
+        out = IO.popen(["git", "-C", root, "diff", "--numstat", row_scope.base, row_scope.head,
+                        "--", "skills/#{owner}/"], err: File::NULL, &:read)
+        return 1 unless $?.success?
+        added = removed = 0
+        out.each_line do |ln|
+          a, d, _ = ln.split("\t", 3)
+          added += a.to_i if a =~ /\A\d+\z/
+          removed += d.to_i if d =~ /\A\d+\z/
+        end
+        added - removed
+      end
+      source_refuted = normalized_status == "source-refuted" && observed == "no" &&
+        refuting_source && zero_loss_ok && owner_net_bytes.call <= 0
+      status_allowed = no_behavior_class || normalized_status == "red-baseline" || semantic_control || source_refuted
       firing_path = declarations["firing-path"]&.[](/\A((?:command|file):.+)\z/i, 1)&.strip
       firing_parts = locator_parts.call(firing_path)
       firing_path_valid = firing_locator_valid.call(row_scope, firing_parts, owner)
@@ -1142,6 +1173,7 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
       end
       {
         red_declared: normalized_status == "red-baseline",
+        source_refuted: source_refuted,
         row_valid: row_valid,
         firing_path_valid: firing_path_valid
       }
@@ -1161,7 +1193,11 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
     # that happened to be punctuation-only. Cumulative is the strictly stricter
     # reading of the two, so the round scoping cannot loosen this floor.
     valid = evaluated.all? { |entry| entry[:row_valid] }
-    valid &&= evaluated.any? { |entry| entry[:red_declared] } ||
+    # `source-refuted` 与两个 no-behavior 类一样可以顶起这道底线，理由同构：底线存在
+    # 是因为 semantic-control 标签只能为某一个具名行为背书、包里其余部分无人担保。
+    # 而一次经四道门槛核过的撤回**没有未担保的余量**——它净删除、义务对照可查、
+    # 一手源可查。对它坚持「必须有一条观察到的行为差异」只会逼人去发明一个。
+    valid &&= evaluated.any? { |entry| entry[:red_declared] || entry[:source_refuted] } ||
               wording_only_diff_for.call(cumulative, path) ||
               identifier_rename_diff_for.call(cumulative, path)
     next if valid
