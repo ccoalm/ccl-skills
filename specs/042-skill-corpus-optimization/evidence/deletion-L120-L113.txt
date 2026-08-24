@@ -1,0 +1,21 @@
+  note: L120 的 marker 在组内另有承载 [116]（冗余假设的直接候选）
+
+-- 复现轮 1/2 --
+  full             L120=2/10 L113=8/10 ctrl=7/10 err=0
+  minus_control    L120=6/10 L113=7/10 ctrl=0/10 err=0
+  minus_L120       L120=2/10 L113=10/10 ctrl=9/10 err=0
+  minus_L113       L120=8/10 L113=2/10 ctrl=10/10 err=0
+
+-- 复现轮 2/2 --
+  full             L120=4/10 L113=5/10 ctrl=8/10 err=0
+  minus_control    L120=5/10 L113=8/10 ctrl=0/10 err=0
+  minus_L120       L120=1/10 L113=9/10 ctrl=10/10 err=0
+  minus_L113       L120=7/10 L113=0/10 ctrl=10/10 err=0
+
+== 跨 2 次复现 ==
+  轮1: apparatus=ok (对照掉 7/10)
+  轮2: apparatus=ok (对照掉 8/10)
+  L120: NOT_REPLICATED (REMOVABLE_ON_PROBED_POINTS,LOAD_BEARING)   REMOVABLE_ON_PROBED_POINTS (掉 0/10) | LOAD_BEARING (掉 3/10)
+  L113: LOAD_BEARING   LOAD_BEARING (掉 6/10) | LOAD_BEARING (掉 5/10)
+final: {120 => "NOT_REPLICATED (REMOVABLE_ON_PROBED_POINTS,LOAD_BEARING)", 113 => "LOAD_BEARING"}
+raw -> /Users/asen/work/code/src/github.com/ccoalm/ccl-skills/.work/worktrees/042-criteria-terminal-set/specs/042-skill-corpus-optimization/evidence/deletion-L120-L113.json
