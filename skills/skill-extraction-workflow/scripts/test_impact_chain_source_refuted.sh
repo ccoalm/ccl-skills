@@ -110,6 +110,20 @@ add_row "| A smuggled rule hidden behind an offsetting deletion | \`downstream-e
 commit_case "case H: offset addition with bogus anchor"; run_gate
 [ "$RC" != "0" ] && ok "H 抵消式新增 + 假锚点 -> 仍红" || fail "H 不得通过（新增规范行 / 锚点不解析）"
 
+# ---- I：脚本改动、零删除 —— 必须红（旧代理谓词看不见脚本）----
+new_case case-i
+printf '\n# fixture: an added shell line that changes behaviour without matching any prose predicate\n' >> "$REPO/skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh"
+add_row "| A script change wearing the withdrawal label with nothing deleted | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+commit_case "case I: script change, no deletion"; run_gate
+[ "$RC" != "0" ] && ok "I 脚本改动零删除 -> 仍红" || fail "I 不得通过（非 .md、且无删除）"
+
+# ---- J：`Always` 规则、零删除 —— 必须红（旧谓词故意排除 always）----
+new_case case-j
+printf '\n- Always authenticate fixture requests before dispatch.\n' >> "$REPO/$OWNER_REF"
+add_row "| An Always-phrased rule wearing the withdrawal label with nothing deleted | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+commit_case "case J: Always rule, no deletion"; run_gate
+[ "$RC" != "0" ] && ok "J Always 规则零删除 -> 仍红" || fail "J 不得通过（有新增行）"
+
 echo
 if [ "$fails" = "0" ]; then
   echo "all frozen cases behaved as specified"

@@ -1153,22 +1153,42 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
           false
         end
       end
-      # 撤回必须是**纯删除**。原本的「净字节 <= 0」可以用无关删除抵消一条新增规则
-      # （独立挑战实测出的绕过），所以改为更强的机械判据：本轮该 owner 的 diff 里
-      # **不得出现任何新增的规范规则行**（沿用本闸判锚点用的同一条「列表项 + 规范
-      # 动词」谓词）。撤回只删不加；要解释为什么撤回，写进 reference，不写进被撤回
-      # 的那一行旁边。
-      owner_adds_normative_rule = lambda do
-        out = IO.popen(["git", "-C", root, "diff", "--no-renames", "-U0", row_scope.base, row_scope.head,
-                        "--", "skills/#{owner}/"], err: File::NULL, &:read)
-        return true unless $?.success?
-        out.each_line.any? do |ln|
-          next false unless ln.start_with?("+") && !ln.start_with?("+++")
-          normative_rule_line.call(ln[1..].to_s)
+      # 撤回必须是**纯删除**，而"纯删除"有精确的机械定义——先前那版用「不得新增
+      # 规范规则行」去近似它，是**代理不是不变量**：脚本改动、非列表格式的行为指令、
+      # 以 `Always` 开头的规则（该谓词故意排除 always）全都不匹配，照过。两轮独立
+      # 评审各自实测出这条绕过。改为直接分类整个 owner diff：
+      #   · 每个变更路径都是 skills/<owner>/ 下的常规 .md（脚本、模板、二进制一律不合格）
+      #   · 每个路径的状态都是 M（新增/删除/改名/复制/改权限一律不合格）
+      #   · 全 diff 新增行数 == 0，删除行数 > 0
+      pure_deletion_owner_diff = lambda do
+        ns = IO.popen(["git", "-C", root, "diff", "--no-renames", "-z", "--name-status",
+                       row_scope.base, row_scope.head, "--", "skills/#{owner}/"],
+                      err: File::NULL, &:read)
+        return false unless $?.success?
+        fields = ns.split("\0").reject(&:empty?)
+        return false if fields.empty?
+        i = 0
+        while i < fields.length
+          st = fields[i]; path = fields[i + 1]
+          return false if path.nil?
+          return false unless st == "M"
+          return false unless path.end_with?(".md")
+          i += 2
         end
+        stat = IO.popen(["git", "-C", root, "diff", "--no-renames", "--numstat",
+                         row_scope.base, row_scope.head, "--", "skills/#{owner}/"],
+                        err: File::NULL, &:read)
+        return false unless $?.success?
+        added = deleted = 0
+        stat.each_line do |ln|
+          a, d, _ = ln.split("\t", 3)
+          return false unless a =~ /\A\d+\z/ && d =~ /\A\d+\z/   # 二进制显示为 "-"
+          added += a.to_i; deleted += d.to_i
+        end
+        added.zero? && deleted.positive?
       end
       source_refuted = normalized_status == "source-refuted" && observed == "no" &&
-        refuting_source && zero_loss_ok && !owner_adds_normative_rule.call
+        refuting_source && zero_loss_ok && pure_deletion_owner_diff.call
       status_allowed = no_behavior_class || normalized_status == "red-baseline" || semantic_control || source_refuted
       firing_path = declarations["firing-path"]&.[](/\A((?:command|file):.+)\z/i, 1)&.strip
       firing_parts = locator_parts.call(firing_path)
