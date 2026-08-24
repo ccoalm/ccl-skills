@@ -92,4 +92,9 @@ commit_case "case F: existing RED-baseline path"; run_gate
 if [ "$RC" = "0" ]; then ok "F 既有 RED-baseline 路径 -> 绿（无回归）"; else echo "--- F 完整输出 ---"; printf '%s\n' "$OUT"; fail "F 回归"; fi
 
 echo
-[ "$fails" = "0" ] && echo "source_refuted_cases_ok (6 of 6)" || { echo "source_refuted_cases_FAILED ($fails)"; exit 1; }
+if [ "$fails" = "0" ]; then
+  echo "all six frozen cases behaved as specified"
+else
+  echo "frozen cases did not all behave as specified"
+  exit 1
+fi
