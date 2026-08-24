@@ -25,8 +25,10 @@ ZLOSS="specs/043-evidence-class-source-refuted/zero-loss-fixture.md"
 
 # 种子：给 owner 的 reference 加一段可被后续用例整段删掉的文本（保证净字节 < 0），
 # 以及一份非空的零损失义务对照 fixture。
+WITHDRAWN_TEXT='A fixture claim that a later case withdraws wholesale; it is long enough that removing it makes the owner package shrink by a clear margin.'
 mkdir -p "$REPO/$(dirname "$ZLOSS")"
-printf '# 零损失义务对照（fixture）\n\n| before 义务 | 去向 |\n| --- | --- |\n| 撤回段落承载的义务 A | survives-verbatim: 同文件上一段 |\n' > "$REPO/$ZLOSS"
+printf '# 零损失义务对照\n\n被撤回的原文（逐字）：\n\n> %s\n\n| before 义务 | 去向 |\n| --- | --- |\n| 该段承载的义务 | survives-verbatim: 同文件上一段 |\n' "$WITHDRAWN_TEXT" > "$REPO/$ZLOSS"
+printf '\n%s\n' "$WITHDRAWN_TEXT" >> "$REPO/$OWNER_REF"
 printf '\n<!-- fixture-withdrawable-start -->\nA fixture claim that a later case withdraws wholesale; it is long enough that removing it makes the owner package shrink by a clear margin, which is what the net-bytes floor checks.\n<!-- fixture-withdrawable-end -->\n' >> "$REPO/$OWNER_REF"
 git -C "$REPO" add -A >/dev/null
 git -C "$REPO" commit -qm "seed fixtures for source-refuted cases"
@@ -36,17 +38,15 @@ new_case() { git -C "$REPO" switch -q -C "$1" fixture-base; git -C "$REPO" branc
 commit_case() { git -C "$REPO" add -A >/dev/null; git -C "$REPO" commit -qm "$1"; }
 run_gate() { set +e; OUT="$(env -u CCL_SKILL_BASE_REF ruby "$GATE" "$REPO" 2>&1)"; RC=$?; set -e 2>/dev/null || true; }
 add_row() { printf '%s\n' "$1" >> "$REPO/$REGISTER"; }
-withdraw_fixture() {  # **纯删除**：撤回只删不加。新增任何规范规则行都会被第四道门槛拒绝，
-                      # 说明文字该进 reference，不写在被撤回的那行旁边。
-  python3 - "$REPO/$OWNER_REF" <<'PYX'
-import io,re,sys
-p=sys.argv[1]; s=io.open(p,encoding='utf-8').read()
-s=re.sub(r"\n<!-- fixture-withdrawable-start -->.*?<!-- fixture-withdrawable-end -->\n",
-         "\n",
-         s,flags=re.S)
-io.open(p,'w',encoding='utf-8').write(s)
+withdraw_fixture() {  # **纯删除**：只删那一行，不加任何内容。说明文字进 reference。
+  python3 - "$REPO/$OWNER_REF" "$WITHDRAWN_TEXT" <<'PYX'
+import io,sys
+p, txt = sys.argv[1], sys.argv[2]
+s = io.open(p, encoding='utf-8').read()
+io.open(p, 'w', encoding='utf-8').write(s.replace("\n" + txt + "\n", "\n", 1))
 PYX
 }
+
 SRC="https://example.invalid/primary-source-that-refutes-the-claim"
 FIRING="firing-path: file:skills/product-rd-workflow/SKILL.md#must survive verbatim above"
 FIRING_F="firing-path: file:skills/product-rd-workflow/SKILL.md#must record a RED-baseline row before it lands"
@@ -131,6 +131,43 @@ chmod 755 "$REPO/skills/product-rd-workflow/references/adr-convention.md"
 add_row "| A mode change riding along with a genuine deletion | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case K: chmod plus deletion"; run_gate
 [ "$RC" != "0" ] && ok "K 改权限 + 删除 -> 仍红" || fail "K 不得通过（mode 变更未被 numstat 反映）"
+
+# ---- L：指针路径穿越出仓 —— 必须红 ----
+new_case case-l; withdraw_fixture
+add_row "| A withdrawal whose zero-loss pointer escapes the repository | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`../../../etc/hosts#localhost\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+commit_case "case L: traversal pointer"; run_gate
+[ "$RC" != "0" ] && ok "L 指针穿越出仓 -> 仍红" || fail "L 不得通过（路径逃出仓库）"
+
+# ---- M：锚点是存在但无意义的单字符子串 —— 必须红 ----
+new_case case-m; withdraw_fixture
+add_row "| A withdrawal whose anchor is a bare existing substring | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#a\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+commit_case "case M: one-character substring anchor"; run_gate
+[ "$RC" != "0" ] && ok "M 单字符子串锚 -> 仍红" || fail "M 不得通过（锚点未落在标题上）"
+
+# ---- N：锚点是存在但不相干的整词 —— 必须红 ----
+new_case case-n; withdraw_fixture
+add_row "| A withdrawal whose anchor is an unrelated existing word | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#survives-verbatim\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+commit_case "case N: unrelated existing substring anchor"; run_gate
+[ "$RC" != "0" ] && ok "N 不相干整词锚 -> 仍红" || fail "N 不得通过（锚点未落在标题上）"
+
+# ---- O：既有 semantic-control 路径不得回归（配对 RED 行）----
+new_case case-o
+printf '\n- Every fixture control rule must be recorded before it lands. zzsemctl\n' >> "$REPO/$OWNER_REF"
+add_row "| An unchanged control alongside a RED-baseline row | \`downstream-executor\` | behavioral-evidence: semantic-control; observed-failure: no; firing-path: file:skills/product-rd-workflow/SKILL.md#must be recorded before it lands | \`updated\` | \`product-rd-workflow/SKILL.md\` |"
+add_row "| The behaviour change the control accompanies | \`downstream-executor\` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#must be recorded before it lands | \`updated\` | \`product-rd-workflow/SKILL.md\` |"
+commit_case "case O: semantic-control beside RED-baseline"; run_gate
+[ "$RC" = "0" ] && ok "O semantic-control + RED-baseline -> 绿（无回归）" || { echo "--- O ---"; printf '%s\n' "$OUT" | tail -3; fail "O 既有路径回归"; }
+
+# ---- P：对照表没有逐字交代被删内容 —— 必须红 ----
+new_case case-p; withdraw_fixture
+python3 - "$REPO/$ZLOSS" <<'PYP'
+import io,sys
+p=sys.argv[1]
+io.open(p,'w',encoding='utf-8').write("# 零损失义务对照\n\n| before 义务 | 去向 |\n| --- | --- |\n| 某条义务 | survives-verbatim: 别处 |\n")
+PYP
+add_row "| A withdrawal whose map does not quote what was removed | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+commit_case "case P: map does not account for deleted text"; run_gate
+[ "$RC" != "0" ] && ok "P 对照表未逐字交代被删内容 -> 仍红" || fail "P 不得通过（删了什么没抄出来）"
 
 echo
 if [ "$fails" = "0" ]; then

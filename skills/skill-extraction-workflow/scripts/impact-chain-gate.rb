@@ -1142,13 +1142,37 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
       zero_loss_ok = begin
         rel, anchor = zero_loss_ptr.to_s.split("#", 2)
         rel = rel.to_s.strip; anchor = anchor.to_s.strip
-        full = rel.empty? ? nil : File.join(root, rel)
-        if full && !anchor.empty? && File.file?(full)
-          body = File.read(full, mode: "rb").force_encoding("UTF-8")
-          slug = lambda { |t| t.downcase.gsub(/[^\p{Word}\- ]/, "").strip.gsub(/\s+/, "-") }
-          body.include?(anchor) || body.each_line.any? { |ln|
-            ln.start_with?("#") && slug.call(ln.sub(/\A#+\s*/, "").strip) == slug.call(anchor)
-          }
+        # 路径必须是**仓内、被 git 跟踪的常规 blob**，且在本行所属轮次的 head 上存在。
+        # 先前用 File.join(root, rel) + File.file? 判定，`../../仓外文件` 与逃出检出的
+        # 符号链接都能过，File.read 还没有上限——独立评审实测出的绕过。改为只信 git：
+        # 路径不得绝对、不得含 `..`，且必须能在 head 上取到 100644 的 blob。
+        safe_rel = !rel.empty? && !rel.start_with?("/") &&
+                   !rel.split("/").include?("..") && !anchor.empty?
+        if safe_rel
+          meta = IO.popen(["git", "-C", root, "ls-tree", "-z", row_scope.head, "--", rel],
+                          err: File::NULL, &:read)
+          entry = $?.success? ? meta.split("\0").reject(&:empty?).first : nil
+          mode, type, = entry.to_s.split(/\s+/, 3)
+          if mode == "100644" && type == "blob" && rel.end_with?(".md")
+            body = IO.popen(["git", "-C", root, "cat-file", "blob", "#{row_scope.head}:#{rel}"],
+                            err: File::NULL) { |io| io.read(512 * 1024) }   # 有界读
+            if $?.success? && body
+              body.force_encoding("UTF-8")
+              # 锚点必须落在**标题**上。先前允许任意子串命中，于是 `README.md#a`
+              # 只要文件里有字母 a 就过——独立挑战实测出的绕过。子串回退整条删除。
+              slug = lambda { |t| t.downcase.gsub(/[^\p{Word}\- ]/, "").strip.gsub(/\s+/, "-") }
+              want = slug.call(anchor)
+              body.each_line.any? do |ln|
+                next false unless ln.start_with?("#")
+                head_text = ln.sub(/\A#+\s*/, "").strip
+                head_text == anchor || slug.call(head_text) == want
+              end
+            else
+              false
+            end
+          else
+            false
+          end
         else
           false
         end
@@ -1195,8 +1219,28 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
         end
         added.zero? && deleted.positive?
       end
+      # 把指针**绑到撤回本身**，而不是只验它形式合规：本轮删掉的每一行有实质内容的
+      # 文本，都必须逐字出现在零损失对照文件里。前六版门槛全部被独立评审击穿，共同点
+      # 是它们只验「这个指针看起来合规」，从不验「它交代的正是被删掉的东西」。删了什么
+      # 就必须抄出来——攻击者要删一条真实义务，就得把它原样写进对照表，藏不住。
+      deleted_lines_accounted = lambda do
+        rel = zero_loss_ptr.to_s.split("#", 2).first.to_s.strip
+        map_body = IO.popen(["git", "-C", root, "cat-file", "blob", "#{row_scope.head}:#{rel}"],
+                            err: File::NULL) { |io| io.read(512 * 1024) }
+        return false unless $?.success? && map_body
+        map_body.force_encoding("UTF-8")
+        diff = IO.popen(["git", "-C", root, "diff", "--no-renames", "-U0",
+                         row_scope.base, row_scope.head, "--", "skills/#{owner}/"],
+                        err: File::NULL, &:read)
+        return false unless $?.success?
+        removed = diff.each_line.select { |ln| ln.start_with?("-") && !ln.start_with?("---") }
+                      .map { |ln| ln[1..].to_s.strip }
+                      .reject { |ln| ln.empty? || ln.length < 12 }
+        return false if removed.empty?
+        removed.all? { |ln| map_body.include?(ln) }
+      end
       source_refuted = normalized_status == "source-refuted" && observed == "no" &&
-        refuting_source && zero_loss_ok && pure_deletion_owner_diff.call
+        refuting_source && zero_loss_ok && pure_deletion_owner_diff.call && deleted_lines_accounted.call
       status_allowed = no_behavior_class || normalized_status == "red-baseline" || semantic_control || source_refuted
       firing_path = declarations["firing-path"]&.[](/\A((?:command|file):.+)\z/i, 1)&.strip
       firing_parts = locator_parts.call(firing_path)
