@@ -1,0 +1,17 @@
+== 实腿（当前工作树，只读） ==
+  PASS  d2_strict(041) live                            51
+  PASS  selfref_probe(042) live                        51
+== 零腿（未突变副本；证明复制机制本身不改数） ==
+  PASS  d2_strict null-copy                            51
+  PASS  selfref_probe null-copy                        51
+== 对照腿 m2：非自指行(:140)改成自指 -> 两版都应 +1 ==
+  PASS  d2_strict m2                                   52
+  PASS  selfref_probe m2                               52
+== 对照腿 m3：自指行(:53)改指 Evidence 里没有的路径 -> 两版都应 -1 ==
+  PASS  d2_strict m3                                   50
+  PASS  selfref_probe m3                               50
+== 对照腿 m1：自指行(:53)改指其 Evidence 已列的可执行体 ==
+   这正是 13 行的修复动作。两版在此分岔——这条腿是本次复验的实质发现。
+  PASS  d2_strict m1  (不响应修复=不适格)      51
+  PASS  selfref_probe m1 (正确 -1)                   50
+control_legs_ok

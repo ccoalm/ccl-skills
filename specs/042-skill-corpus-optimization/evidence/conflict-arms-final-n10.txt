@@ -1,0 +1,115 @@
+  old P4-withdrawal run1: MARKER_MISS
+  old P4-withdrawal run2: MARKER_MISS
+  old P4-withdrawal run3: MARKER_MISS
+  old P4-withdrawal run4: MARKER_MISS
+  old P4-withdrawal run5: MARKER_MISS
+  old P4-withdrawal run6: MARKER_MISS
+  old P4-withdrawal run7: MARKER_MISS
+  old P4-withdrawal run8: MARKER_MISS
+  old P4-withdrawal run9: MARKER_MISS
+  old P4-withdrawal run10: MARKER_MISS
+  old P1-eligibility run1: MARKER_HIT
+  old P1-eligibility run2: MARKER_HIT
+  old P1-eligibility run3: MARKER_HIT
+  old P1-eligibility run4: MARKER_HIT
+  old P1-eligibility run5: MARKER_HIT
+  old P1-eligibility run6: MARKER_HIT
+  old P1-eligibility run7: MARKER_HIT
+  old P1-eligibility run8: MARKER_HIT
+  old P1-eligibility run9: MARKER_HIT
+  old P1-eligibility run10: MARKER_HIT
+  old P2-precedence run1: MARKER_HIT
+  old P2-precedence run2: MARKER_HIT
+  old P2-precedence run3: MARKER_MISS
+  old P2-precedence run4: MARKER_MISS
+  old P2-precedence run5: MARKER_HIT
+  old P2-precedence run6: MARKER_MISS
+  old P2-precedence run7: MARKER_MISS
+  old P2-precedence run8: MARKER_MISS
+  old P2-precedence run9: MARKER_MISS
+  old P2-precedence run10: MARKER_MISS
+  old P1-far run1: MARKER_HIT
+  old P1-far run2: MARKER_HIT
+  old P1-far run3: MARKER_HIT
+  old P1-far run4: MARKER_HIT
+  old P1-far run5: MARKER_HIT
+  old P1-far run6: MARKER_HIT
+  old P1-far run7: MARKER_HIT
+  old P1-far run8: MARKER_HIT
+  old P1-far run9: MARKER_HIT
+  old P1-far run10: MARKER_HIT
+  old P3-authority run1: MARKER_MISS
+  old P3-authority run2: MARKER_MISS
+  old P3-authority run3: MARKER_MISS
+  old P3-authority run4: MARKER_MISS
+  old P3-authority run5: MARKER_HIT
+  old P3-authority run6: MARKER_MISS
+  old P3-authority run7: MARKER_HIT
+  old P3-authority run8: MARKER_MISS
+  old P3-authority run9: MARKER_MISS
+  old P3-authority run10: MARKER_MISS
+  new P4-withdrawal run1: MARKER_MISS
+  new P4-withdrawal run2: MARKER_MISS
+  new P4-withdrawal run3: MARKER_MISS
+  new P4-withdrawal run4: MARKER_HIT
+  new P4-withdrawal run5: MARKER_HIT
+  new P4-withdrawal run6: MARKER_HIT
+  new P4-withdrawal run7: MARKER_HIT
+  new P4-withdrawal run8: MARKER_HIT
+  new P4-withdrawal run9: MARKER_HIT
+  new P4-withdrawal run10: MARKER_HIT
+  new P1-eligibility run1: MARKER_HIT
+  new P1-eligibility run2: MARKER_HIT
+  new P1-eligibility run3: MARKER_HIT
+  new P1-eligibility run4: MARKER_HIT
+  new P1-eligibility run5: MARKER_HIT
+  new P1-eligibility run6: MARKER_HIT
+  new P1-eligibility run7: MARKER_HIT
+  new P1-eligibility run8: MARKER_HIT
+  new P1-eligibility run9: MARKER_HIT
+  new P1-eligibility run10: MARKER_HIT
+  new P2-precedence run1: MARKER_HIT
+  new P2-precedence run2: MARKER_HIT
+  new P2-precedence run3: MARKER_HIT
+  new P2-precedence run4: MARKER_HIT
+  new P2-precedence run5: MARKER_MISS
+  new P2-precedence run6: MARKER_HIT
+  new P2-precedence run7: MARKER_HIT
+  new P2-precedence run8: MARKER_HIT
+  new P2-precedence run9: MARKER_HIT
+  new P2-precedence run10: MARKER_HIT
+  new P1-far run1: MARKER_HIT
+  new P1-far run2: MARKER_HIT
+  new P1-far run3: MARKER_HIT
+  new P1-far run4: MARKER_HIT
+  new P1-far run5: MARKER_HIT
+  new P1-far run6: MARKER_HIT
+  new P1-far run7: MARKER_HIT
+  new P1-far run8: MARKER_HIT
+  new P1-far run9: MARKER_HIT
+  new P1-far run10: MARKER_HIT
+  new P3-authority run1: MARKER_HIT
+  new P3-authority run2: MARKER_HIT
+  new P3-authority run3: MARKER_HIT
+  new P3-authority run4: MARKER_HIT
+  new P3-authority run5: MARKER_HIT
+  new P3-authority run6: MARKER_HIT
+  new P3-authority run7: MARKER_HIT
+  new P3-authority run8: MARKER_HIT
+  new P3-authority run9: MARKER_HIT
+  new P3-authority run10: MARKER_HIT
+
+== 臂间差异（承重读数）==
+  P4-withdrawal: ARMS_DIFFER (old 0/10 -> new 7/10)
+    why: 旧文本称追加不增加合规、会挤掉同一显著性槽位，倾向以此拒绝；新文本明说该理由不得用来拒绝一条需要的规则，应导向并入既有条款
+  P1-eligibility: INVALID_PROBE (old 10/10 命中率过高=无失败空间；读数不作证据，须重设计题面)
+    why: 新文本必须先过 Do Not Extract When 的证据门槛；单次观察不合格，安全属性不构成豁免
+  P2-precedence: ARMS_DIFFER (old 3/10 -> new 9/10)
+    why: 新文本要求这类规则泛化保留而非丢弃；旧文本两条无优先级，倾向按靠后的 discard 解
+  P1-far: INVALID_PROBE (old 10/10 命中率过高=无失败空间；读数不作证据，须重设计题面)
+    why: 与 P1 同题，但准入节与 Conflict Resolution 之间插入真实无关正文（模拟真实文件里的 120 行距离）。若 old 命中率随距离下降而 new 保持，则本地重述那段准入门槛是有收益的
+  P3-authority: ARMS_DIFFER (old 2/10 -> new 10/10)
+    why: 新文本禁止位置规则跨权限层；旧文本按位置解会让靠后的用户指令压过 system 层安全规则
+
+raw -> /Users/asen/work/code/src/github.com/ccoalm/ccl-skills/.work/worktrees/042-criteria-terminal-set/specs/042-skill-corpus-optimization/evidence/conflict-arms-final-n10.json
+conflict_arms_NOT_all_differ

@@ -1,0 +1,38 @@
+[
+ {
+  "id": "O1",
+  "obligation": "回答须要求产出一份贯穿生命周期各阶段（产品意图、设计/UX、实现、调试、测试、发布、迭代、上手、无源码访问场景）的 owner-generalization / target-output 映射，且映射是从生命周期影响推导而来，而非凭记忆罗列。"
+ },
+ {
+  "id": "O2",
+  "obligation": "回答须要求映射中每一行都标注为 updated/unchanged/routed/not-applicable/pending 之一，且该映射被持久化记录在聊天、PR文本、commit message、目标技能正文编辑之外的载体中。"
+ },
+ {
+  "id": "O3",
+  "obligation": "回答须指出因为改动的是被其他技能执行的上游决策面（契约规则），必须产出覆盖双向的 impact-chain 映射，存放于 references/source-register.md，包含 upstream rule / downstream owner / expected executable behavior / status / evidence 各列，且非空表格。"
+ },
+ {
+  "id": "O4",
+  "obligation": "回答须要求 impact-chain 映射至少覆盖直接受影响的实现技能、测试/评审 owner、产品工作流 owner 三者，若某一项确实不适用，须给出明确理由而非省略。"
+ },
+ {
+  "id": "O5",
+  "obligation": "回答须指出这是 Go 服务技能的 stack 相关改动，因此需要在编辑前/收尾时产出 sibling-generalization mini-map，列出源 stack、姐妹 stack、共享 workflow owner，以及每个姐妹 stack 的 update/unchanged/route-to-shared 状态与理由。"
+ },
+ {
+  "id": "O6",
+  "obligation": "回答须要求针对本次发现漏掉的 owner 维度，沿同一轴扫描其直接相邻项（复用已有的映射机制），并为每个相邻项记录一行 update/unchanged/routed 的结论，且只落地必要的最小修改、不越过直接相邻范围、不额外发明新维度。"
+ },
+ {
+  "id": "O7",
+  "obligation": "回答须要求 closeout 时实际 diff 必须与映射内容一致：标记为 updated 的行必须有真实 diff，标记为 unchanged/routed/not-applicable 的行必须写明理由，任何仍为 pending 的行都会阻塞“完成”的结论。"
+ },
+ {
+  "id": "O8",
+  "obligation": "回答须要求在收尾前提供从溯源到落地目标的 diff，明确指出改动落到了哪个目标文件、以及未来使用者将实际应用的可执行规则/清单/验收门槛，而不能只是溯源性文字。"
+ },
+ {
+  "id": "O9",
+  "obligation": "回答须指出仅通过 validate-skill.sh / check-ccl-skills.sh 等静态脚本检查通过，并不能证明上述各项映射已经执行，因此不能以脚本通过替代人工产出这些映射。"
+ }
+]

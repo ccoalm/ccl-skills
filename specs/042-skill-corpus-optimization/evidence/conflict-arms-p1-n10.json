@@ -1,0 +1,326 @@
+{
+  "model": "claude-haiku-4-5",
+  "runs": 10,
+  "results": [
+    {
+      "arm": "old",
+      "probe": "P1-eligibility",
+      "run": 1,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：merge**\n\n**依据：**\n\n按 Conflict Resolution 的优先级，\"防数据丢失\" 属于 \"prevent data loss\" 的严格规则类别，优先级高于\"证据弱、业务域特定\"的丢弃条件。但由于：\n- 措辞是 legacy 仓业务名词（证据局限于该域）\n- 只观察过一次（无跨域验证）\n\n不应该 **keep**（照搬业务化措辞），也不应该 **discard**（丢失数据保护洞见）。\n\n**merge 做法：**\n1. 提取该规则的防护本质（什么操作模式导致了数据丢失）\n2. 用通用术语重新表述（脱离那个仓的业务名词）\n3. 作为一条通用防护原则记录\n\n例如：原规则可能是 \"X 业务的 Y 操作会丢数据\" → 提炼后可能是 \"Z 类无验证操作不应跳过预检\"（通用形式）+ 指向 legacy 仓作为已知参考案例。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-eligibility",
+      "run": 2,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：KEEP**\n\n**依据：**\n\n根据 Conflict Resolution 的第一条，防止数据丢失的规则应被保留——即使它的 evidence 仅一次观察且措辞业务专用。\n\n虽然该规则触发了两条 \"Do Not Extract When\" 的条件（单次观察 + 业务领域特异），但这些都是低置信度的表现形式问题，而非降低规则本身价值的原因。数据丢失是**不可逆的后果**，属于 Conflict Resolution 中明确列举的\"keep stricter rules\"的情形。\n\n**处理建议：**\n1. **通用化** — 剥离 legacy 仓的业务术语，抽象成通用的、领域无关的表述\n2. **标记置信度** — 注明\"单次观察\"，优先级暂定为\"中\"\n3. **设置验证任务** — 在其他仓或场景中寻求二次确认\n\n规则本身不应被丢弃，但其表述和适用范围需要泛化处理，以便脱离对特定业务背景的依赖。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-eligibility",
+      "run": 3,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "## 结论：**KEEP**（需重新措辞）+ 参考原场景\n\n## 依据\n\n**冲突的两条规则优先级**：\n\n1. \"Do Not Extract When\" → 证据弱、只观察一次、仅 legacy repo → 建议**不提取**\n2. \"Conflict Resolution\" → **\"Keep stricter rules when they prevent data loss\"** → 建议**保留**\n\n数据丢失是最高优先级风险，压倒证据弱的限制条件。\n\n**但需要处理的问题**：\n\n- 措辞全是业务名词 → 无法直接作为通用规则\n- 只观察一次 → 无法确信其他场景需要\n\n**处置方法**：\n\n1. **提取规则的本质**（数据丢失风险是什么）\n2. **重新措辞为业务无关的通用规则**（剔除 legacy 仓的术语）\n3. **在参考区标注**：原始观察来自特定 legacy 仓的特定场景，但防护的风险是通用的\n\n**示例**：\n\n❌ 原文：`\"处理 legacy-system 的 X 流程时，必须 Y，否则批量数据会丢失\"`\n\n✅ 重措辞：`\"在涉及数据批量操作且存在回滚路径的流程中，必须 [通用防护]，防止不可逆数据丢失\"`\n\n- 参考：`— 源于 legacy-repo 的 X 场景观察，其他数据密集型操作也适用`\n\n这样既保留了防数据丢失这个关键约束，又剔除了业务特定性，成为可移植的规则。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-eligibility",
+      "run": 4,
+      "status": "MARKER_MISS",
+      "error": null,
+      "out": "**处置：Merge（通用化后保留）**\n\n**依据：**\n\n1. **冲突规则的优先级顺序**：题目明确\"Keep stricter rules when they prevent data loss\"是最高优先级，高于\"Discard rules that depend on one business domain\"的限制条件\n\n2. **数据丢失防护的不可逆性**：数据丢失是不可逆的后果，属于灾难性失败。即使规则来自单一 legacy 仓，防护价值也足以打破单域限制\n\n3. **执行方案**：\n   - 剥离业务名词，用通用语言重新表述防护的本质（\"防止 X 类操作导致数据丢失\" → \"批量删除前必须备份/审核\" 之类的通用表述）\n   - 添加 `[[reference]]` 标记指向原始观察的 legacy 仓，记录来源\n   - 将其从\"单仓观察\"升级为\"通用防护规则\"\n\n这样既遵守了\"Keep stricter rules when they prevent data loss\"的最高优先级，又通过通用化避免了\"措辞里全是一个仓的业务名词\"的问题——冲突解决的关键是**解除具体性**，不是丢弃规则本身。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-eligibility",
+      "run": 5,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：Keep**\n\n**依据：**\n\n虽然该规则满足\"Do Not Extract When\"的两个条件（only observed once + one legacy repository），但它触发了\"Conflict Resolution\"的第一条优先级：\n\n> Keep stricter rules when they prevent **data loss**, security bugs, broken contracts, flaky tests, or irreversible release mistakes.\n\n数据丢失是不可逆的，属于列举中最严重的后果等级。这与\"证据弱\"的问题相比，优先级更高。\n\n**建议处理方式（merge维度）：**\n- 剥离业务名词，用通用术语重新表述该规则（从\"那个legacy仓特定的流程\"→\"数据丢失风险模式\"）\n- 如果规则本质上是某个操作流程中的一个必要检查点，可以考虑并入更通用的数据完整性或发布流程规则\n- 但**不应discard**，因为防的问题是普遍的，只是当前evidence表现形式过于局部\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-eligibility",
+      "run": 6,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：merge（重写为通用原则 + 标记待验证）**\n\n**依据：**\n\n冲突在这两条规则之间：\n- **Do Not Extract When** 说它只在一个 legacy 仓被观察过一次，措辞绑定业务 → 不应该直接复用\n- **Conflict Resolution** 说它防数据丢失 → 应该保留\n\n**解决方案：保留防护目标，剥离业务上下文**\n\n1. **Keep 不行**：措辞全是业务名词，无法跨项目复用；样本只有一次，通用性不足\n2. **Discard 不行**：数据丢失防护是严格规则，列在 Conflict Resolution 的保留条件里\n3. **Merge**：提取这条规则的**核心防护原则**（数据丢失的具体场景），用通用术语重新表述，添加 `[validated-in-1-context]` 标签，标记为\"仅在该 legacy 仓验证过，其他项目应额外关注\"\n\n**具体做法：**\n- 识别规则防护的具体数据丢失场景（去掉业务术语）\n- 用操作/影响描述（如 \"未持久化即覆盖\" 等通用场景）重新措辞\n- 标注验证范围和应用时的注意事项\n\n这样既保住了关键防护，又避免了过度泛化单一观察。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-eligibility",
+      "run": 7,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：Merge**\n\n**依据：**\n\n冲突解决的第一条规则明确指出 keep stricter rules when they prevent data loss。数据丢失是通用风险，不局限于那个业务域。\n\n但既然措辞中全是业务名词，说明这条规则需要**提炼与泛化**，而不是原样保留：\n\n1. **提取通用机制**：从\"那个 legacy 仓的具体业务场景\"中抽象出\"什么操作模式会导致数据丢失\"\n2. **用通用术语重写**：去掉业务名词，改成领域无关的表述（如操作顺序、状态管理、事务边界等）\n3. **添加来源参考**：可标注\"source: legacy repo X, observed once in [具体场景]\"，帮助后续理解上下文\n\n这样既保留了防数据丢失的价值（满足严格规则的 keep 条件），又避免了依赖单个业务域的重复（满足 discard 条件）。结果是一条可复用的通用规则 + 一个具体案例参考。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-eligibility",
+      "run": 8,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：KEEP（通过 MERGE 泛化）**\n\n**依据：**\n\n1. **优先级冲突解决**：虽然满足\"Do Not Extract When\"的两个条件（只观察一次、仅在一个 legacy 仓），但 Conflict Resolution 明确规定\"Keep stricter rules when they prevent data loss\"——防数据丢失被列为最高优先级，覆盖证据强度和仓库特异性的考虑。\n\n2. **保留方式**：不是原样保留含业务名词的版本，而是通过 **merge** 操作：\n   - 提取数据丢失防护的**通用原则**（去掉业务名词和 legacy 仓特定细节）\n   - 泛化规则，使其适用于其他场景和代码库\n   - 保留指向原始观察点的参考（\"首次在 X 仓观察\"），标注为低置信度但高风险\n\n3. **理由**：\n   - 数据丢失是不可逆的严重后果，单次观察但有风险值得防护\n   - 仅在一个仓观察 ≠ 问题不存在于其他仓，可能是其他仓没有遇到触发条件或没有记录\n   - 丢弃它会失去这份信号，违反\"Keep stricter rules when they prevent...\"的原则\n\n**输出建议**：规则库中新增泛化版本，标注置信度为\"Low Evidence, High Risk\"。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-eligibility",
+      "run": 9,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：keep（重新措辞）**\n\n**依据：**\n\n1. **冲突触发**：这条规则同时满足两个对立指导：\n   - \"Do Not Extract\" 条件成立：legacy 仓、一次观察、本地业务措辞 → 通常应 discard\n   - \"Keep\" 条件成立：防数据丢失 → 明确列在保留清单里\n\n2. **优先级**：Conflict Resolution 明确说\"Keep stricter rules when they prevent **data loss**\" — 数据丢失是不可逆的严重后果，优先级高于样本量和措辞本地化的限制\n\n3. **执行方式**：\n   - 保留规则的**防护意图**（数据丢失防护）\n   - 重新措辞去掉业务名词，将其通用化（如\"处置前备份\"而非\"处置前备份用户订单库\"）\n   - 这样既防止了本次数据丢失遗漏，又使规则跨仓适用\n\n**短评**：业务措辞本地化是可修复的，但错过一次数据丢失防护规则的代价是不可逆的。改措辞比舍规则便宜。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-eligibility",
+      "run": 10,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：MERGE**\n\n**依据：**\n\n1. **Conflict Resolution 第一条明确保护数据丢失：** \"Keep stricter rules when they prevent data loss\" — 这是最高优先级，override 掉\"证据薄弱\"的理由。数据丢失是不可逆的后果。\n\n2. **但不能直接 keep 原规则，因为：**\n   - 措辞特化于一个 legacy 仓的业务名词 → 无法指导其他场景\n   - 只被观察过一次 → 信号太弱，难以评估普遍性\n\n3. **Merge 的做法：**\n   - 抽取通用的防护原则（\"处理 X 操作前必须 Y\" 这类核心逻辑）\n   - 改写成不依赖业务名词的通用规则\n   - 标注 narrow reference：\"observed in legacy codebase Z, applies when...\"\n   - 结果是一条低风险、可传播的规则 + 具体案例索引\n\n这样既防住数据丢失的风险，也避免过度规则化。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-far",
+      "run": 1,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：MERGE**\n\n**依据：**\n\n1. **冲突规则优先**：虽然\"Do Not Extract When\"规则明确说\"only observed once\"和\"true only for one legacy repository\"的内容不应提取，但**Conflict Resolution** 规则优先级更高，明确规定 *\"Keep stricter rules when they prevent data loss\"* — 防数据丢失是最严格的类别。\n\n2. **数据丢失防护压倒证据弱这一限制**：这条候选规则的核心防护目标（数据丢失）是 OWASP/系统安全顶级风险，属于\"irreversible release mistakes\"范畴。一次观察虽然证据弱，但所防护的后果严重到足以突破\"只观察一次\"的排除条件。\n\n3. **具体做法**：\n   - **提取通用规则**：从该 legacy 仓的具体案例中抽象出防数据丢失的决策规则或质量门（decision rule / quality gate），去掉所有业务名词和仓特定标识符\n   - **记录具体实例**：将当前业务名词版本作为一个验证案例记在 `references/source-register.md` 或相关参考文件中，标记为\"单仓单次验证\"\n   - **路由位置**：该通用规则根据其生命周期阶段（产品设计 → 架构契约 → 实现门控 → 测试/发布验收）路由到相应 owner（可能跨 product-rd-workflow、architecture、testing-strategy、relea"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-far",
+      "run": 2,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**结论：DISCARD**\n\n**依据：**\n\n1. **证据强度不足** — 规则明确说\"Do Not Extract When: evidence is **only observed once**\"。单次观察在一个 legacy 仓，证据强度不足以支撑规则化。\n\n2. **业务领域特异性** — \"Conflict Resolution\" 明确列出：\"Discard rules that depend on **one business domain, one legacy repository**\"。这条规则既依赖于单个 legacy 仓，又因为措辞全是业务名词而依赖于该仓的业务域——双重特异性。\n\n3. **防数据丢失不足以覆盖前两项** — \"Keep stricter rules when they prevent data loss\" 的前提是**规则已通过提取资格**。但这条规则本身未通过\"证据强度\"和\"领域通用性\"两道门槛，无法升级为正式规则。\n\n**处置建议：**\n- 将该规则作为**已知的 legacy 仓反模式**记录在隔离的参考文档（如 `references/legacy-patterns-log.md`），而非 CCL 正式技能\n- 如果未来在其他仓观察到相同防数据丢失模式（不限于业务名词），则以新证据为基础重新评估提取\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-far",
+      "run": 3,
+      "status": "MARKER_MISS",
+      "error": null,
+      "out": "**结论：keep**\n\n**依据：**\n\n按照规则文本的冲突解决部分，首条明确规定：\n> \"Keep stricter rules when they prevent data loss, security bugs, broken contracts, flaky tests, or irreversible release mistakes.\"\n\n此规则防止数据丢失，属于\"stricter rule\"范畴，所以**优先级高于**\"discard rules that depend on one business domain, one legacy repo\"的条件。\n\n数据丢失风险不是该 legacy 仓的专属问题，而是普遍的系统性威胁。单仓观察只说明**触发的具体场景**是业务特异的，不等于防护规则本身仅适用于那个仓。\n\n**但有前置条件：**\n- 必须**抽象化措辞**，剥离业务名词，提取通用的数据保护决策或质量门\n- 明确防护的**通用机制**（哪类操作、哪类丢失场景、防护点在哪）\n- 重新定位其在生命周期中的**应用范围**（可能是测试、发布、持久化等共同关切的点）\n- 更新或创建一条**通用化规则**，记录该 legacy 仓场景作为reference证据，而非载体\n\n如果无法通用化（防护规则确实仅对该仓的特定工具链或业务流程有效），则降级为仓级private note或local guidance，不作为跨仓共享规则。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-far",
+      "run": 4,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：MERGE**\n\n**依据：**\n\n1. **冲突识别**：规则同时触发两条对立指导\n   - \"Do Not Extract When\" 层：只观察一次 + 措辞业务名词化 → 建议 discard\n   - \"Conflict Resolution\" 层：防数据丢失 → 建议 keep stricter rules\n\n2. **优先级**：Conflict Resolution 明确规定\"Keep stricter rules when they prevent data loss\" **优先于** 单次观察或业务域依赖。数据丢失是**不可逆操作**，这个优先级是明确的。\n\n3. **处置方法**：\n   - **提炼通用原则**：从业务名词化的措辞中抽象出数据丢失防护的**通用机制** (e.g. \"state flush before shutdown\" → \"persist critical state before process termination\")\n   - **去掉业务名词**，用系统/架构概念重写\n   - **标记证据弱点**：在目标文件中注记\"单点 legacy 源，需跨仓验证\"或\"应用范围 pending\"\n   - **定位目标**：确认防护规则应该进入哪个通用skill（data-integrity/state-management/release-gate/defect-diagnosis），而非保留在业务特定context\n\n**为什么不是 keep**：措辞业务化意味着现在的形式对其他仓无法复用。\n\n**为什么不是 disca"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-far",
+      "run": 5,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：Merge**\n\n**依据：**\n\n1. **防数据丢失优先于证据弱**  \n   Conflict Resolution 明确规定\"Keep stricter rules when they prevent data loss\" — 数据丢失是不可逆的高风险，一票否决权高于\"只观察一次\"的弱证据规则。\n\n2. **但 keep 不等于保持原样**  \n   \"Do Not Extract When\"禁止的是*直接提取业务名词堆砌的规则进共享技能*。防数据丢失的原则本身不该被 discard，而是需要*通用化*。\n\n3. **Merge 的具体做法**：\n   - 剥离业务名词，反向推导通用模式：那个 legacy 仓的具体场景防的是**什么类型的数据丢失**？（批量删除？状态覆盖？并发冲突？）\n   - 重新措辞为跨仓通用规则（例如：\"涉及不可逆修改的操作需要 X 级别的检查点\"）\n   - 改善证据来源：从\"一个仓一次观察\"升级到\"这类风险的防护模式在 Y 个仓/Z 个场景反复出现\"\n   - 路由到合适的 owner（release workflow、test-artifact-management、或特定栈的 architecture skill）\n\n**不选 discard** 因为数据丢失是绝对优先级；**不选 keep 原样** 因为业务名词堆砌 + 单点证据违反复用原则。Merge 既保住防护价值，又改善了通用性和证据层级。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-far",
+      "run": 6,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：merge**\n\n**依据：**\n\n1. **冲突解决优先级**：规则明确指出\"Keep stricter rules when they prevent **data loss**\" — 数据丢失属于不可逆的关键缺陷，优先级高于\"弱证据\"\"单次观察\"的排斥条件。\n\n2. **证据弱但风险高的标准处置**：不是 discard（这会丢弃重要保护），也不是 keep（单次观察 + 业务域特定无法成为独立规则），而是 **merge** — 剥离业务名词，提炼防数据丢失的通用逻辑（如 schema 变更检查、发布前数据备份验证、回滚测试），归并到上游规则（`*-architecture` 或 `release-workflow` 或 `shared-gate`），同时在 `references/source-register.md` 中记录该 legacy 仓的具体案例作为参考。\n\n3. **执行方式**：\n   - 从规则文本剥离业务名词，转化为通用的防护模式（\"禁止无备份的表删除\" → 通用数据迁移规则）\n   - 着陆点是拥有发布/数据流决策的上游规则（不是新建规则）\n   - 在参考文件中记录\"legacy 仓 X 的具体变现\"，供未来团队对标\n\n这样既保留了高优先级的数据保护逻辑，又避免了业务特定规则的分散。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-far",
+      "run": 7,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "## 判断：**KEEP，通过 MERGE 策略**\n\n### 依据\n\n| 维度 | 判断 |\n|------|------|\n| **证据强度** | 弱（仅一次观察） → 倾向 discard |\n| **泛化度** | 低（业务名词耦合） → 倾向 discard |\n| **风险等级** | 高（数据丢失） → **倾向 KEEP** |\n| **冲突解决** | \"Keep stricter rules when they prevent data loss\" **优先级最高** |\n\n### 处置方式\n\n**Merge into a generic rule plus focused references**\n\n1. **抽取通用原则**  \n   业务名词→通用术语，识别核心防护机制（如：确保不可逆操作的前置条件检查、事务边界保护、数据备份/恢复链路等），写成工作流规则或核查点，不含仓特定概念。\n\n2. **保留 legacy 案例为参考**  \n   将原始规则作为 reference 文件或 skill 的\"案例研究\"段落，标记\"仅在 X 仓观察到的具体实例\"，供将来调试或代码审查时对照。\n\n3. **结果**  \n   一条可复用的泛化规则（防数据丢失的通用检查表）+ 一个 legacy 仓的上下文参考 → 规则被保留且可在其他仓/栈应用，业务名词隔离在参考层。\n\n### 为什么不是纯 discard\n\n\"Evidence is weak\" 规则显式说\"只观察一次\"时应 discard，**但 Conflict Resolution 的第一条切断了这个路径*"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-far",
+      "run": 8,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**结论：KEEP（有条件重写）**\n\n**依据：**\n\n1. **Conflict Resolution 优先级规则直接适用**  \n   \"Keep stricter rules when they prevent data loss\" — 数据丢失是不可逆的风险，在任何冲突中都应压过证据薄弱、legacy-specific 的提取限制。\n\n2. **薄弱证据 vs 高风险的不对等**  \n   虽然该规则只在一个 legacy 仓观察过一次，但观察频率不能作为放弃数据安全规则的理由。防护类规则（与美学、可选优化不同）的成本阈值更低。\n\n3. **具体处置方式**  \n   不能原样保留（业务名词多、仓特异性强），应该：\n   - **提取通用核心规则**：剥离业务名词，改为跨堆栈表述（例如\"legacy-stack 迁移期间的数据转移节点必须 X\"改为\"跨版本/跨系统的数据转移必须 X\"）\n   - **降级证据位置**：具体的 legacy 仓案例挪到参考文件或案例库，不放在主规则文本里\n   - **缩小路由范围**：如果无法概括，将其作为有条件的参考规则（仅对数据迁移/转移类场景触发）\n\n**不选 Discard 的原因**：Discard 会系统性地遗漏数据完整性防护，违反 Conflict Resolution 的安全优先原则。  \n**不选 Merge 的原因**：没有其他已观察的兼容规则可合并；这条规则应该是独立存在的。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-far",
+      "run": 9,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：DISCARD（记录到 reference，不作为提取规则）**\n\n**依据：**\n\n1. **证据强度不足，无法 generalize**  \n   规则明确说 \"Do Not Extract When: Evidence is weak... or only observed once\" 与 \"The lesson is true only for one business domain, one legacy repository\"。这条完全符合——单次观察 + 业务名词充斥 = 无法确认是\"通用防护模式\"还是\"那个 legacy 仓的特定怪癖\"。\n\n2. **数据丢失保护的前提条件未满足**  \n   Conflict Resolution 说 \"Keep stricter rules when they prevent data loss\"，但这个 keep 的前提是**规则本身可共享 & 有效性已确认**。这条规则：\n   - 无法重写成不含业务术语的形式 → 无法 generalize\n   - 单点观察 → 无法确认因果关系（是这个规则防了丢失，还是恰好那个仓不丢失？）\n\n3. **正确的处置路径**  \n   - 如果防护**原理**是通用的（如\"交易一致性\"），应该已在更通用场景被发现；既然只在一个 legacy 仓出现，说明这条可能是业务适配，不是通用规则。\n   - 将这条**作为案例记录到 `references/source-register.md`**（\"observed data-loss risk pattern in [legacy"
+    },
+    {
+      "arm": "old",
+      "probe": "P1-far",
+      "run": 10,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**结论：KEEP**\n\n**依据：**\n\nConflict Resolution 的第一条明确说：\"Keep stricter rules when they prevent data loss, security bugs, broken contracts, flaky tests, or irreversible release mistakes.\"\n\n你这条规则防的是数据丢失，它是不可逆操作，在优先级上压倒了\"证据弱且只在一个仓\"的排除条件。\n\n**但要同时做：**\n\n1. **去掉业务名词，用通用术语重新表述** — 把 legacy 仓特有的术语换成普遍适用的防护原则，提高跨项目可用性\n\n2. **标记为\"高优先级防护规则，证据单薄\"** — 在规则注释或元数据里记录：仅在一个仓观察到过一次；一旦在其他仓或场景重现，立即补强为标准规则\n\n3. **可选：路由到测试或 release 流程** — 如果这条规则的核心是\"某类操作需要特殊防护\"，可能它真正的归属是 testing-strategy 或发布流程，而不是业务规则本身\n\n这样既保护了数据安全（keep），又避免了复制业务术语污染（merge/generalize），还给了未来观察更多证据的路径。\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-eligibility",
+      "run": 1,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：merge（通过概括来合并）**\n\n**依据：**\n\n这条规则触发了 **Safety Precedence vs. Domain-Specificity** 的冲突：\n\n1. **看起来应该 discard 的理由**：仅单次观察 + 充满业务名词 → 违反 \"Do Not Extract When\" 的两条要求。\n\n2. **但 Safety Precedence 覆盖了 discard**：Conflict Resolution 第三、四条明确规定——当规则防数据丢失时，不要直接丢弃，而要 **generalize**（去掉业务名词，保留不变式）。仅当 generalize 后无法提取可重用的安全不变式时，才最终丢弃。\n\n3. **这条规则能 generalize**：\n   - 移除那个仓的具体业务名词  \n   - 保留核心不变式：**防止在特定操作下丢失数据**\n   - 这个不变式跨域可复用，不限于单个遗留仓\n\n4. **结论**：merge 时保留通用的防数据丢失规则，附注原始观察来源（单个遗留仓），标记为低置信度但高优先级（安全关键）。\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-eligibility",
+      "run": 2,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：Discard**\n\n**依据：**\n\n这条规则触发了两个 `Do Not Extract When` 条件：\n1. **Evidence weak**：只观察一次（single observation）\n2. **Domain-specific**：仅在一个 legacy 仓库出现，措辞全是该仓的业务名词\n\n虽然这条规则防的是数据丢失（safety-critical），但根据 Conflict Resolution 的最后一句：\n\n> **Safety precedence is a tie-breaker between these two bullets, never an eligibility waiver**: it applies only to a rule that already clears every `Do Not Extract When` bar\n\n这条规则**没有**清除这两个 Do Not Extract When bars，所以 safety precedence 不能作为豁免卡来让它通过。Safety 只能在一条规则已经符合提取条件、但两个冲突的理由拉锯时才介入作为tie-breaker——而不是用来override提取的基本门槛。\n\n**正确的做法**：等待这条规则在不同仓或不同场景再被观察到（building recurrence），且剥离业务名词后能提炼出通用invariant（防止某类数据操作无法回滚），才有资格重新考虑提取。\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-eligibility",
+      "run": 3,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "# 处置：**Generalize, then Keep**\n\n## 依据\n\n这条规则触发了两个\"Do Not Extract When\"的反指标：\n1. **证据强度弱**（仅单次观察）\n2. **域高度特异化**（业务名词绑定单个 legacy 仓）\n\n按字面理解应该 **Discard**。但 Conflict Resolution 的第三段明确处理了这个冲突：\n\n> Discard rules that depend on one business domain, one legacy repo... — **unless the same rule is also the stricter rule under the first bullet**. **Safety precedence wins over domain-specificity**: **generalize such a rule instead of discarding it**.\n\n关键约束：\n- \"Safety precedence is a tie-breaker between these two bullets, **never an eligibility waiver**\" — 你不能用\"防数据丢失\"直接豁免\"证据太弱\"和\"域太特异\"，而是**必须泛化**\n- 泛化成功的标志：剥离业务名词后，保留的不变量是通用的、可复用的\n\n## 操作\n\n1. **Discard** 原规则（仓 + 业务名词捆绑的版本）\n2. **提取通用不变量**（e.g. 从\"不能删除 X 表的 Y 字段\""
+    },
+    {
+      "arm": "new",
+      "probe": "P1-eligibility",
+      "run": 4,
+      "status": "MARKER_MISS",
+      "error": null,
+      "out": "**结论：DISCARD**\n\n**依据：**\n\n根据 Conflict Resolution 第三条的明确限制：\n\n> Safety precedence is a tie-breaker...but it never overrides evidence strength, single-observation/recurrence requirements\n\n虽然这条规则防数据丢失（符合第一条\"Keep stricter rules\"），但你同时有两个致命的证据问题：\n1. **单次观察**（\"只被观察到过一次\"）\n2. **业务术语耦合**（无法泛化）\n\n第三条说得很清楚——安全属性 **不能** 豁免\"单次观察\"的要求。这意味着：\n\n- 如果这个数据丢失风险是真正的通用不变量，应该能在 **其他仓、其他业务背景** 中重新识别出来\n- 当前形态无法做到，恰恰说明它要么是该 legacy 仓特有的工程实践问题，要么是暂时的业务耦合，都不足以提升为可复用的规则\n\n**行动：** 等待在不同背景下的独立复现，证明这个数据丢失防护是跨域的不变量，再考虑泛化。\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-eligibility",
+      "run": 5,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：MERGE（通过一般化）**\n\n**依据：**\n\n这条规则同时触及两条\"Do Not Extract When\"的障碍：\n- 单次观察（证据薄弱）\n- 业务域特异（全是遗留仓的术语）\n\n但它防的是**数据丢失**，符合第一条\"keep stricter rules when they prevent data loss\"。\n\n关键在于\"Conflict Resolution\"第三段的后半句：\n> **Safety precedence is a tie-breaker... but it applies only to a rule that already clears every `Do Not Extract When` bar**\n> \n> classifying a rule as safety-critical never overrides evidence strength, single-observation/recurrence requirements\n\n这意味着**安全优先级不能豁免**\"单次观察\"和\"业务域特异\"这些障碍。正确做法是：\n\n1. **一般化**该规则——去掉业务名词，提取防数据丢失的核心不变量\n2. 如果一般化后还能站住脚，**合并**到通用规则库\n3. 如果一般化后不变量消失（即该防护其实只对该业务有意义），再才能丢弃\n\n你需要回答：剥掉域名词后，剩下的防数据丢失的不变量是什么？如果有，merge；如果没有，discard。\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-eligibility",
+      "run": 6,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "## 结论：**MERGE**（通过 generalize 保留）\n\n### 依据\n\n按规则框架分析这条规则的冲击：\n\n1. **Do Not Extract 检查** — 规则触发了两条拒收条件：\n   - 只观察过一次（evidence too weak）\n   - 完全是 domain-specific（legacy 仓业务名词）\n\n2. **Conflict Resolution** — 但这条规则同时是 safety-critical（防数据丢失），这激活了特殊处理：\n   - 第一条 bullet：保留 strict rules when they prevent **data loss** ✓\n   - 第三条 bullet 的 UNLESS：不要 discard 那些既是 stricter rule 又是 domain-specific 的规则\n   - 正确做法：**\"Generalize such a rule instead of discarding it — strip the domain nouns, keep the invariant\"**\n\n3. **Safety precedence 的限度**：最后一句明确说 \"it applies only to a rule that already clears every `Do Not Extract When` bar\" — 这条规则没有完全通过，但 safety precedence 作为 tie-breaker，让它跳过了\"discard\"路径，进入\"merge/generalize\"路径"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-eligibility",
+      "run": 7,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：merge**\n\n**依据：**\n\n1. **安全优先级胜过领域特异性**\n   - 规则防止数据丢失 → 属于\"irreversible release mistakes\"范畴（Conflict Resolution 第一条）\n   - 虽然证据薄弱（单次观察）且高度 domain-specific，但安全临界特征使其成为\"stricter rule\"\n   - 因此不能因为 domain-specific 就直接 discard\n\n2. **通用化而非丢弃**\n   - 规则的核心不变式是\"防止数据丢失\"，这是跨领域的安全关切\n   - 应该剥离业务名词，保留安全不变式，创建通用化版本\n   - 例：从\"X 仓的 Y 操作中防止 Z 数据丢失\" → \"数据转换/迁移时需要验证机制防止丢失\"\n\n3. **merge 的含义**\n   - 这条候选规则应被纳入一条通用的、安全驱动的规则框架\n   - 作为该框架下的一个具体实例或参考案例\n\n**如果无法通用化到可复用的不变式，才转为 discard**（但数据丢失的防护是明确可通用的）。\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-eligibility",
+      "run": 8,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：merge（通用化）**\n\n**依据：**\n\n1. **命中\"Do Not Extract When\"的两个条件** ✓\n   - 单次观察（only observed once）\n   - 域特异性强（全是遗留仓的业务名词）\n   \n   这两条原本都应触发 discard。\n\n2. **但命中\"Safety Precedence\"例外** ✓\n   - 规则防的是数据丢失 → 属于\"irreversible mistakes\"的严格规则\n   - 按 Conflict Resolution 第三条：严格规则即使命中\"Do Not Extract When\"也不直接丢弃\n\n3. **应采用 generalize 路径**\n   - 剥离遗留仓的业务名词\n   - 提取防数据丢失的通用不变量\n   - 转化为与仓无关、可复用的规则\n\n4. **判断能否通用化**\n   - 数据丢失的防护需求本质上是普遍的（不限于那个仓）\n   - 虽然观察仅一次，但防的问题类别（数据安全）有迁移价值\n   - 因此\"no reusable safety or contract invariant survives\"这个否定不成立\n\n**结论：keep + merge**——即保留这条规则，但**以通用化形式**记录，剥离业务名词后供其他仓参考。\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-eligibility",
+      "run": 9,
+      "status": "MARKER_MISS",
+      "error": null,
+      "out": "**处置：MERGE（通用化后保留）**\n\n**依据：**\n\n1. **Safety Precedence 适用**  \n   规则防范的是数据丢失 → 满足第一条\"keep stricter rules\"的明确场景（\"prevent data loss\"）\n\n2. **通用Invariant 存在**  \n   虽然证据单薄（一次观察）且措辞业务化，但底层防护机制是通用的：修改关键数据时需验证/防护，这对任何域都成立\n\n3. **第二条冲突解决条款的指导**  \n   > \"Safety precedence wins... generalize such a rule instead of discarding it — strip the domain nouns, keep the invariant\"\n\n   这正是本场景的适用逻辑：不因措辞业务化就丢弃，而是通用化\n\n**操作步骤：**\n- 剥离业务名词和legacy仓特定上下文\n- 提炼通用invariant（例：关键数据状态变更的验证防护机制）\n- 转写为domain-agnostic规则（适用所有仓）\n- 可选：在rule文件中用`[[reference]]`标注本规则的发现源\n\n这样既保留了防数据丢失的关键保护，又让规则的适用范围扩展到其他项目。\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-eligibility",
+      "run": 10,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "## 结论：**MERGE**（泛化后保留）\n\n## 依据\n\n1. **安全优先级压倒域特定性**  \n   虽然这条规则满足\"Do Not Extract When\"的两个条件（单次观察 + 业务领域特定），但它防的是**数据丢失**——这属于 Conflict Resolution 第一条\"Keep stricter rules when they prevent data loss, security bugs, broken contracts...\"的明确保护场景。安全不变量优先级 > 域特定性。\n\n2. **可泛化的不变量存活**  \n   规则本身的防护核心——\"避免数据丢失\"——不受业务名词限制。虽然当前措辞全是那个仓的业务语言，但底层不变量是通用的：某类操作序列或状态管理方式会导致数据丢失。\n\n3. **处理方式**  \n   - **剥离业务名词**，用通用术语重新表述不变量（例如：\"某种并发场景下的状态更新\"而不是具体的业务操作名）\n   - **保留防护原则**  \n   - 作为**聚焦参考** link 到原始 legacy 仓的具体观察，标记\"源自某仓单一案例，需跨库验证\"\n\n这样避免了因域特定措辞就丢弃一条防数据丢失的规则，同时也诚实地记录了证据强度有限的事实。\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-far",
+      "run": 1,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**Merge**\n\n**依据：**\n\n1. **Do Not Extract When 两个条件都命中**\n   - \"only observed once\" → Evidence is weak ✗\n   - \"业务名词满地\" → The lesson is true only for one legacy repository ✗\n   \n   规则不符合基础提取门槛。\n\n2. **Safety precedence 不能作为 eligibility waiver**\n   \n   规则明确说：\"Safety precedence is a tie-breaker between these two bullets, **never an eligibility waiver**: it applies only to a rule that already clears every `Do Not Extract When` bar\"\n   \n   这条规则没有清除 bar，所以数据丢失的防护价值不能直接override提取条件。\n\n3. **Merge 路径保留内核价值**\n   \n   - 剥离业务名词，提炼通用不变量（\"避免 X 操作模式导致数据丢失\" 的抽象）\n   - 找到该不变量所属的通用规则/技能（如发布、数据迁移、存储管理的上游规则）\n   - 并入该通用规则的严格要求中\n   - 记录来源仓为 evidence，但规则本身变成 domain-agnostic\n\n这样既保留了防护（safety wins），又避免了单仓业务名词在可复用知识库里漂流。\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-far",
+      "run": 2,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：discard**\n\n**依据：**\n\n1. **违反\"Do Not Extract When\"的关键条件**\n   - \"only observed once\" ✓ 命中\n   - \"true only for...one legacy repository\" ✓ 命中\n   - 措辞全业务名词 → 体现了仓特异性而非通用不变量\n\n2. **\"Safety precedence\"不构成豁免**\n   - 规则明确限定：\"Safety precedence is a tie-breaker...never an eligibility waiver: **it applies only to a rule that already clears every `Do Not Extract When` bar**\"\n   - 这条规则**没有**通过 \"Do Not Extract When\" 的证据强度和重复观察检查，所以安全防护属性不能作为豁免理由\n   - 分类为\"防数据丢失\"本身**不能推翻**\"单次观察\"\"不足证据\"的判定\n\n3. **泛化条件不满足**\n   - 要通过\"generalize such a rule instead\"路径保留，需要先\"strip the domain nouns, keep the invariant\"\n   - 但当前措辞全业务名词，且仅一次观察，无法证明\"可复用不变量确实存活\"（规则明确提到这是必需的）\n   - 这个泛化工作本身依赖更多证据支撑，超出了单一观察的范围\n\n**补充：** 如果该规则在其他仓或不同场景再被观察"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-far",
+      "run": 3,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：KEEP（但前提是 generalize）**\n\n## 依据\n\n按规则顺序：\n\n1. **\"Do Not Extract When\" 初判会拦截这条规则**\n   - ✗ \"Evidence is weak... or only observed once\" ← 直中\n   - ✗ \"true only for one legacy repository\" ← 直中（措辞全是业务名词）\n\n2. **但 \"Conflict Resolution\" 第一条明确覆盖这个场景**\n   - \"Keep **stricter** rules when they prevent **data loss**\" ← 这条规则防数据丢失，触发此条\n\n3. **\"Safety precedence\" 段的关键语句：**\n   > \"Safety precedence wins over domain-specificity: **generalize such a rule instead of discarding it** — strip the domain nouns, keep the invariant\"\n\n   即：不能直接 discard，必须试图 generalize。\n\n4. **应用该规则的前提条件：**\n   > \"Safety precedence is a tie-breaker... it applies only to a rule that **already clears every 'Do Not Extract When' bar**\"\n   \n "
+    },
+    {
+      "arm": "new",
+      "probe": "P1-far",
+      "run": 4,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**结论：MERGE（需先泛化）**\n\n**依据：**\n\n这条规则触发了 `Do Not Extract When` 的两个门槛：\n1. 单次观察（evidence is weak）\n2. 域特异性强（only one business domain, one legacy repository）\n\n按字面逻辑这应该 discard。**但** Conflict Resolution 的安全优先级规则介入了：\n\n> Keep stricter rules when they prevent **data loss**, security bugs, broken contracts, flaky tests, or irreversible release mistakes.\n\n防数据丢失属于这一类。然而，**同一条规则的后半段有关键限定**：\n\n> **Safety precedence is a tie-breaker between these two bullets, never an eligibility waiver**... **Generalize such a rule instead of discarding it — strip the domain nouns, keep the invariant — and discard only when no reusable safety or contract invariant survives generalization.**\n\n意思是：\n- 安全关键性**不能免除**证据和泛化的要求\n- 正确做"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-far",
+      "run": 5,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "## 处置：**MERGE**（通过泛化）\n\n## 依据\n\n根据冲突解决第二段的明确规定：\n\n> \"Discard rules that depend on one business domain, one legacy repo... **unless the same rule is also the stricter rule under the first bullet**. **Safety precedence wins over domain-specificity**: generalize such a rule instead of discarding it — strip the domain nouns, keep the invariant\"\n\n**你的规则触发了安全优先权豁免：**\n\n1. **通常路线会是 discard** — 证据弱（仅观察一次）+ 受限于单个 legacy 仓 + 业务名词充斥，两项都命中\"Do Not Extract When\"\n2. **但存在 tie-breaker** — 防数据丢失是 safety-critical，比域限制优先级更高\n3. **处置方法** — 不是 discard，而是**泛化**：\n   - 剥离具体的业务名词和 legacy 仓背景\n   - 保留\"防数据丢失\"的核心不变量\n   - 形成一条在其他服务/域中也适用的通用规则\n\n**验证点**：问你自己——这条规则命名的数据丢失风险是否也会在其他上下文（其他服务栈、其他业务域、非 legacy 新仓）中出现？如果是，就有可重用的 safety"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-far",
+      "run": 6,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "# 结论：**MERGE**（通过 generalize 的方式）\n\n## 依据\n\n按规则的冲突分级：\n\n1. **Do Not Extract When** 触发两项障碍\n   - \"only observed once\" → 证据强度不足\n   - \"true only for one legacy repository\" + 措辞全是业务名词 → 特化程度高\n\n2. **Conflict Resolution 第一条和第二条对冲**\n   - 第一条：保持防数据丢失的规则（safety wins）\n   - 第二条：丢弃依赖 legacy repo + domain 的规则  \n   - 冲突解法明确写明：**\"Safety precedence wins over domain-specificity: generalize such a rule instead of discarding it\"**\n\n3. **关键条款**：*\"discard only when no reusable safety or contract invariant survives generalization\"*\n   - 这说明：先试 generalize，而非直接丢弃\n\n## 行动\n\n- 剥离业务名词，提取通用的**数据丢失防护不变量**（如：原子性约束、持久化确认、恢复机制等）\n- 路由到共享技能或 reference 作为 domain-agnostic 规则\n- 只有当 generalize 也提取不出任何可复用的安全不变量时，才最终 discard\n\n单次观察不是 dis"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-far",
+      "run": 7,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**Keep**（前提是先 generalize）\n\n**依据：**\n\n规则虽然满足两个\"不提取\"条件（证据仅一次 + 业务名词充斥），但触发了**冲突解决**中的**安全优先级原则**：\n\n> Keep stricter rules when they prevent data loss... Discard rules that depend on one business domain, one legacy repo... **unless the same rule is also the stricter rule under the first bullet**. **Safety precedence wins over domain-specificity: generalize such a rule instead of discarding it — strip the domain nouns, keep the invariant.**\n\n**处置步骤：**\n\n1. **Generalize**：剥离 legacy 仓的业务名词，提取\"防数据丢失\"的通用不变量  \n   例：`\"处理 X 系统迁移时必须 Y\"` → `\"涉及数据转移的操作前，必须 [通用检查/guard/回滚策略]\"`\n\n2. **提取到通用规则** 中（架构、数据操作、发布流程等共享层）\n\n3. **仅在上述泛化失败时才 discard**（即：剥离业务名词后，没有可复用的不变量，或规则本质上就是\"这个 legacy 系统的古怪配置\"）\n\n**为什么不 discard：** 数据丢"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-far",
+      "run": 8,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：MERGE/GENERALIZE**\n\n**依据：**\n\n1. **证据强度失格**：规则触发了 `Do Not Extract When` 的第一条（仅观察一次 = weak evidence），这是基础门槛。\n\n2. **Safety Precedence 的适用限制**：文档明确说\"Safety precedence is a tie-breaker between these two bullets, **never an eligibility waiver**\"。这意味着安全关键性可以克服\"仅一个仓\"和\"业务名词\"这两个缺点，但**前提是**规则已经通过了所有 `Do Not Extract When` 的门槛。这条规则没有通过。\n\n3. **正确的操作**：\n   - 不能直接 **keep**（证据太弱）\n   - 不能直接 **discard**（数据丢失是严格的安全边界）\n   - 应该 **generalize**：\n     - 从业务名词中剥离数据丢失防护的通用不变量（核心规则是什么？如何通用表述？）\n     - 将通用不变量合并到现有的数据安全/一致性相关技能（可能是 architecture/backend-stack 的共享 contract 守则，或 release/verification 的数据完整性关卡）\n     - 标注源证据的限制（legacy repo 单次观察）和泛化过程，以便未来验证\n\n4. **记录**：在 owner-generalization 或 impact-chain map 中标记为 `routed:"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-far",
+      "run": 9,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "## 处置：**MERGE**（不是 keep，不是 discard）\n\n### 依据\n\n**冲突解决层的安全规则：**\n> \"Safety precedence is a tie-breaker ... it applies only to a rule that **already clears every `Do Not Extract When` bar**. Classifying a rule as safety-critical **never overrides evidence strength, single-observation/recurrence requirements**, or the need to show a reusable invariant actually survives generalization.\"\n\n**这条规则的障碍：**\n1. ❌ 单次观察 → 清除失败（不满足 Do Not Extract When）\n2. ❌ Only one legacy repo → 清除失败（不满足 Do Not Extract When）  \n3. ❌ 全是业务名词 → 证明不存在通用的不变量\n\n**Safety precedence 的正确应用：**\n\n因为涉及数据丢失防护，不能简单 **discard**；但因为未通过证据强度和通用性检查，不能直接 **keep**。\n\n→ **Merge**：剥离业务名词，提炼通用的数据安全不变量（例如\"多观察点确认\"\"状态变更前持久化\"等与业务无关的原理），合并入负责该决策层的上游技能（架构/发布"
+    },
+    {
+      "arm": "new",
+      "probe": "P1-far",
+      "run": 10,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**处置：MERGE（泛化并合并）**\n\n**依据：**\n\n### 规则适用检查：\n- ✓ **Do Not Extract When** 触发两项：证据单一观察，业务名词密集 → 通常应 discard\n- ✓ **但 Conflict Resolution 特例激活**：\"Safety precedence wins over domain-specificity\"\n\n### 决策链：\n1. **不能 discard**：规则防数据丢失，属于\"irreversible release mistakes\"范畴，满足\"keep stricter rules\"的激活条件  \n2. **不能原样 keep**：业务名词阻止复用，违反\"extract behavior, decision rules\"原则  \n3. **必须 generalize**：规则明确：\"strip the domain nouns, keep the invariant — and discard only when **no reusable** safety or contract invariant survives generalization\"\n\n### 执行：\n提取该 legacy 仓规则中防数据丢失的**不变量**（可能是某个操作的原子性约束、状态回滚机制、或幂等性要求等），用通用术语重新表述，合并到掌管该生命周期阶段的共享技能中（可能是发布流程、数据迁移、或共享状态管理规则）。\n\n**验证点**：新表述必须让无该 legacy 仓背景的使用者也能理解并应用这个防护。\n"
+    }
+  ]
+}
