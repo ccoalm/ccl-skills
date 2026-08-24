@@ -807,6 +807,16 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
   # change is accounted for byte-for-byte — one changed file, identical body,
   # identical frontmatter apart from the single description entry. Every shape the
   # split cannot fully account for refuses the class.
+
+  # 「新增行是否是一条规范规则」——与下方锚点判据同一套形状，抽出来供 source-refuted
+  # 的纯删除检查复用，避免两处各写一份而漂移。
+  normative_rule_line = lambda do |line|
+    next false if line.nil? || line.include?("<!--")
+    list_rule = line.lstrip.match?(/\A(?:[-*+]\s+|\d+[.)]\s+)/)
+    normative = line.match?(/(?:\b(?:must|shall|never|do\s+not|don'?t|required?|requires?|block(?:s|ed)?|reject(?:s|ed)?|deny|denied|invalidates?|forbid(?:s|den)?|cannot|enforcement)\b|必须|不得|禁止|拒绝|作废|仅限|只能|应当|应该|务必|不能|不允许|不可)/i)
+    list_rule && normative
+  end
+
   routing_surface_cache = {}
   # The file MODE is part of the entrypoint's identity, exactly as it is for the
   # package comparison above: bytes alone would let `chmod +x` on SKILL.md ride
@@ -1102,7 +1112,7 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
           declarations[m[1].downcase] ||= m[2]
         end
       end
-      status = declarations["behavioral-evidence"]&.[](/\A(RED-baseline|semantic-control|not-required\s+wording-only|not-required\s+identifier-rename)\z/i, 1)
+      status = declarations["behavioral-evidence"]&.[](/\A(RED-baseline|semantic-control|source-refuted|not-required\s+wording-only|not-required\s+identifier-rename)\z/i, 1)
       normalized_status = status&.downcase&.gsub(/\s+/, " ")
       declared_wording_only = normalized_status == "not-required wording-only"
       wording_only = declared_wording_only && wording_only_diff_for.call(row_scope, path)
@@ -1114,7 +1124,124 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
       no_behavior_class = wording_only || identifier_rename
       observed = declarations["observed-failure"]&.[](/\A(yes|no)\z/i, 1)&.downcase
       semantic_control = normalized_status == "semantic-control" && observed == "no"
-      status_allowed = no_behavior_class || normalized_status == "red-baseline" || semantic_control
+      # `source-refuted` —— 撤回一条被一手源否证的陈述。它不是豁免，是**换一种证据**：
+      # 行为证据在这里造不出来（删掉一句假陈述往往无可测行为差异），而一手源否证
+      # 与义务保全是可核的。四道门槛全部机械可判，缺一即不成立：
+      #   (1) observed-failure: no —— 这条闸问的是规则有没有失灵；被撤回的陈述触发
+      #       正常，它只是假的。自选 yes 不得走本类。
+      #   (2) 证据列含否证该陈述的一手源 URL。
+      #   (3) 证据列含零损失义务对照的可解析指针，且目标文件存在且非空。
+      #   (4) 该 owner 包在本行所属轮次的净字节变化 <= 0。撤回会让包缩小；这条挡住
+      #       借事实更正之名夹带新规则。它是**机械下限不是证明**——净删除仍可能在别处
+      #       夹带，那由 dual-track 的零损失审查兜，本闸不假装能替代它。
+      evidence_cell = row[:evidence].to_s
+      refuting_source = evidence_cell.match?(%r{https?://\S+})
+      # 零损失指针：不止文件要在，**锚点必须解析得到**。只检文件存在非空时，
+      # `README.md#不存在的锚` 就能廉价满足——独立挑战实测出的绕过。
+      zero_loss_ptr = evidence_cell[/`([^`]+#[^`]+)`/, 1]
+      zero_loss_ok = begin
+        rel, anchor = zero_loss_ptr.to_s.split("#", 2)
+        rel = rel.to_s.strip; anchor = anchor.to_s.strip
+        # 路径必须是**仓内、被 git 跟踪的常规 blob**，且在本行所属轮次的 head 上存在。
+        # 先前用 File.join(root, rel) + File.file? 判定，`../../仓外文件` 与逃出检出的
+        # 符号链接都能过，File.read 还没有上限——独立评审实测出的绕过。改为只信 git：
+        # 路径不得绝对、不得含 `..`，且必须能在 head 上取到 100644 的 blob。
+        safe_rel = !rel.empty? && !rel.start_with?("/") &&
+                   !rel.split("/").include?("..") && !anchor.empty?
+        if safe_rel
+          meta = IO.popen(["git", "-C", root, "ls-tree", "-z", row_scope.head, "--", rel],
+                          err: File::NULL, &:read)
+          entry = $?.success? ? meta.split("\0").reject(&:empty?).first : nil
+          mode, type, = entry.to_s.split(/\s+/, 3)
+          if mode == "100644" && type == "blob" && rel.end_with?(".md")
+            body = IO.popen(["git", "-C", root, "cat-file", "blob", "#{row_scope.head}:#{rel}"],
+                            err: File::NULL) { |io| io.read(512 * 1024) }   # 有界读
+            if $?.success? && body
+              body.force_encoding("UTF-8")
+              # 锚点必须落在**标题**上。先前允许任意子串命中，于是 `README.md#a`
+              # 只要文件里有字母 a 就过——独立挑战实测出的绕过。子串回退整条删除。
+              slug = lambda { |t| t.downcase.gsub(/[^\p{Word}\- ]/, "").strip.gsub(/\s+/, "-") }
+              want = slug.call(anchor)
+              body.each_line.any? do |ln|
+                next false unless ln.start_with?("#")
+                head_text = ln.sub(/\A#+\s*/, "").strip
+                head_text == anchor || slug.call(head_text) == want
+              end
+            else
+              false
+            end
+          else
+            false
+          end
+        else
+          false
+        end
+      end
+      # 撤回必须是**纯删除**，而"纯删除"有精确的机械定义——先前那版用「不得新增
+      # 规范规则行」去近似它，是**代理不是不变量**：脚本改动、非列表格式的行为指令、
+      # 以 `Always` 开头的规则（该谓词故意排除 always）全都不匹配，照过。两轮独立
+      # 评审各自实测出这条绕过。改为直接分类整个 owner diff：
+      #   · 每个变更路径都是 skills/<owner>/ 下的常规 .md（脚本、模板、二进制一律不合格）
+      #   · 每个路径的状态都是 M（新增/删除/改名/复制/改权限一律不合格）
+      #   · 全 diff 新增行数 == 0，删除行数 > 0
+      pure_deletion_owner_diff = lambda do
+        # `--raw` 而不是 `--name-status`：后者把 chmod 也显示为 M、且 numstat 记 0/0，
+        # 于是「改权限 + 一次真删除」能整体通过——独立评审实测出的绕过。raw 带出
+        # 新旧两侧的 mode，可以直接要求两侧都是常规 blob 且 mode 一致。
+        raw = IO.popen(["git", "-C", root, "diff", "--no-renames", "--raw", "-z",
+                        row_scope.base, row_scope.head, "--", "skills/#{owner}/"],
+                       err: File::NULL, &:read)
+        return false unless $?.success?
+        fields = raw.split("\0").reject(&:empty?)
+        return false if fields.empty?
+        i = 0
+        while i < fields.length
+          meta = fields[i]
+          return false unless meta.start_with?(":")
+          parts = meta[1..].split(/\s+/)
+          old_mode, new_mode, _old_sha, _new_sha, status = parts
+          path = fields[i + 1]
+          return false if path.nil? || status.nil?
+          return false unless status == "M"
+          return false unless old_mode == "100644" && new_mode == "100644"
+          return false unless path.end_with?(".md")
+          i += 2
+        end
+        stat = IO.popen(["git", "-C", root, "diff", "--no-renames", "--numstat",
+                         row_scope.base, row_scope.head, "--", "skills/#{owner}/"],
+                        err: File::NULL, &:read)
+        return false unless $?.success?
+        added = deleted = 0
+        stat.each_line do |ln|
+          a, d, _ = ln.split("\t", 3)
+          return false unless a =~ /\A\d+\z/ && d =~ /\A\d+\z/
+          added += a.to_i; deleted += d.to_i
+        end
+        added.zero? && deleted.positive?
+      end
+      # 把指针**绑到撤回本身**，而不是只验它形式合规：本轮删掉的每一行有实质内容的
+      # 文本，都必须逐字出现在零损失对照文件里。前六版门槛全部被独立评审击穿，共同点
+      # 是它们只验「这个指针看起来合规」，从不验「它交代的正是被删掉的东西」。删了什么
+      # 就必须抄出来——攻击者要删一条真实义务，就得把它原样写进对照表，藏不住。
+      deleted_lines_accounted = lambda do
+        rel = zero_loss_ptr.to_s.split("#", 2).first.to_s.strip
+        map_body = IO.popen(["git", "-C", root, "cat-file", "blob", "#{row_scope.head}:#{rel}"],
+                            err: File::NULL) { |io| io.read(512 * 1024) }
+        return false unless $?.success? && map_body
+        map_body.force_encoding("UTF-8")
+        diff = IO.popen(["git", "-C", root, "diff", "--no-renames", "-U0",
+                         row_scope.base, row_scope.head, "--", "skills/#{owner}/"],
+                        err: File::NULL, &:read)
+        return false unless $?.success?
+        removed = diff.each_line.select { |ln| ln.start_with?("-") && !ln.start_with?("---") }
+                      .map { |ln| ln[1..].to_s.strip }
+                      .reject { |ln| ln.empty? || ln.length < 12 }
+        return false if removed.empty?
+        removed.all? { |ln| map_body.include?(ln) }
+      end
+      source_refuted = normalized_status == "source-refuted" && observed == "no" &&
+        refuting_source && zero_loss_ok && pure_deletion_owner_diff.call && deleted_lines_accounted.call
+      status_allowed = no_behavior_class || normalized_status == "red-baseline" || semantic_control || source_refuted
       firing_path = declarations["firing-path"]&.[](/\A((?:command|file):.+)\z/i, 1)&.strip
       firing_parts = locator_parts.call(firing_path)
       firing_path_valid = firing_locator_valid.call(row_scope, firing_parts, owner)
@@ -1127,7 +1254,10 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
       # regeneration cost (full-suite reruns on every owner-script byte change)
       # far outweighed the staleness detection it added under the
       # unsigned-repository-local trust model.
-      row_valid = if no_behavior_class
+      row_valid = if source_refuted
+        # 纯删除没有新增的规范行可供锚定，与两个 no-behavior 类同理免 firing-path。
+        true
+      elsif no_behavior_class
         # Neither `not-required` class is an author-controlled waiver: each is
         # accepted only when the owner diff itself passes the matching
         # deterministic classifier — letters/digits-free for wording-only,
@@ -1142,6 +1272,7 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
       end
       {
         red_declared: normalized_status == "red-baseline",
+        source_refuted: source_refuted,
         row_valid: row_valid,
         firing_path_valid: firing_path_valid
       }
@@ -1161,6 +1292,22 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
     # that happened to be punctuation-only. Cumulative is the strictly stricter
     # reading of the two, so the round scoping cannot loosen this floor.
     valid = evaluated.all? { |entry| entry[:row_valid] }
+    # `source-refuted` 与两个 no-behavior 类一样可以顶起这道底线，理由同构：底线存在
+    # 是因为 semantic-control 标签只能为某一个具名行为背书、包里其余部分无人担保。
+    # 而一次经四道门槛核过的撤回**没有未担保的余量**——它净删除、义务对照可查、
+    # 一手源可查。对它坚持「必须有一条观察到的行为差异」只会逼人去发明一个。
+    # 撤回类顶起底线时必须是**整包**的性质，不能是包里某一行的性质：一条合规撤回
+    # 与一条搭便车的 semantic-control 行并存时，`any?` 会把整个 owner 放行——独立
+    # 评审实测出的洞。bar 4（本轮不得新增规范规则行）已挡住带规范动词的搭车，这里
+    # 再要求该 owner 的**全部**非 no-behavior 行都是撤回类，连非规范措辞的搭车一并挡掉。
+    # `source-refuted` **不顶起这道底线**。七轮独立评审逐一击穿了保护它的每一版门槛
+    # （净字节、规范行启发式、name-status、文件存在、子串锚、形式合规），两条通道两次
+    # 给出同一条建议：在指针能被绑到被撤回的那条义务之前，不要让它清掉 RED 底线。
+    # 剩下的缺口本质不可机械验证——指针可以指向真实标题、逐字抄录被删文本，而
+    # 「这个一手源确实否证了那条陈述」仍然只有人能判。按本仓「同类跨轮复现是设计
+    # 信号不是补丁信号」，这里删掉的是那个能力本身，不是再补一道门槛。
+    # 该类保留的作用：让标签诚实、强制产出零损失义务对照、并把诊断指向正确的补法。
+    # 撤回仍需一条 RED 行，或由**具名风险 owner** 经既有通道人工放行。
     valid &&= evaluated.any? { |entry| entry[:red_declared] } ||
               wording_only_diff_for.call(cumulative, path) ||
               identifier_rename_diff_for.call(cumulative, path)
@@ -1187,7 +1334,7 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
   end
   unless behavior_failures.empty?
     warn "impact_chain_behavior_evidence_missing: at least one added upstream-owner row lacks a complete behavioral-evidence declaration"
-    warn "  fix: every added row for a changed upstream owner needs `behavioral-evidence: RED-baseline` (observed deltas; observed-failure: yes requires it) or `semantic-control` (only with observed-failure: no), plus `observed-failure: yes/no` and an owner-scoped `firing-path:`; a non-wording owner package needs at least one RED-baseline row; only deterministically wording-only diffs (no letters or digits changed) may use `not-required wording-only`, and only diffs whose base bytes are reproduced exactly by applying git-derived skill-rename pairs may use `not-required identifier-rename` (both drop the firing-path requirement and require observed-failure: no); an owner whose ENTIRE change is the SKILL.md frontmatter description entry keeps the RED-baseline bar and may anchor its firing path on that changed description line"
+    warn "  fix: every added row for a changed upstream owner needs `behavioral-evidence: RED-baseline` (observed deltas; observed-failure: yes requires it) `semantic-control` (only with observed-failure: no), or `source-refuted` (a pure-deletion withdrawal of a claim a primary source refutes: observed-failure no, a refuting source URL, a resolvable zero-loss pointer, the owner's round diff touches only modified regular Markdown files whose file mode is unchanged, adds zero lines and deletes at least one, and every row for that owner is in the same class) — note that `source-refuted` records an honest label and forces a zero-loss map, but does NOT by itself lift the per-owner RED floor: a withdrawal still needs a RED-baseline row or a named risk owner's waiver, plus `observed-failure: yes/no` and an owner-scoped `firing-path:`; a non-wording owner package needs at least one RED-baseline row; only deterministically wording-only diffs (no letters or digits changed) may use `not-required wording-only`, and only diffs whose base bytes are reproduced exactly by applying git-derived skill-rename pairs may use `not-required identifier-rename` (both drop the firing-path requirement and require observed-failure: no); an owner whose ENTIRE change is the SKILL.md frontmatter description entry keeps the RED-baseline bar and may anchor its firing path on that changed description line"
     behavior_failures.each { |path| warn "  incomplete: #{path}" }
     exit 1
   end
