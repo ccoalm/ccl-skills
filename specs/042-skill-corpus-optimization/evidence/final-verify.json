@@ -1,0 +1,53 @@
+[
+ {
+  "rep": 1,
+  "case": "authority",
+  "arm": "old",
+  "CONFIRM": 3,
+  "DELETE": 7
+ },
+ {
+  "rep": 1,
+  "case": "authority",
+  "arm": "new",
+  "CONFIRM": 10
+ },
+ {
+  "rep": 1,
+  "case": "append",
+  "arm": "old",
+  "ADD": 9,
+  "REFUSE": 1
+ },
+ {
+  "rep": 1,
+  "case": "append",
+  "arm": "new",
+  "ADD": 10
+ },
+ {
+  "rep": 2,
+  "case": "authority",
+  "arm": "old",
+  "DELETE": 9,
+  "CONFIRM": 1
+ },
+ {
+  "rep": 2,
+  "case": "authority",
+  "arm": "new",
+  "CONFIRM": 10
+ },
+ {
+  "rep": 2,
+  "case": "append",
+  "arm": "old",
+  "ADD": 10
+ },
+ {
+  "rep": 2,
+  "case": "append",
+  "arm": "new",
+  "ADD": 10
+ }
+]
