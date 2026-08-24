@@ -2,7 +2,9 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { paths } from "./paths.js";
+import { cachePath, emitNotice } from "./update-notice.js";
 import type { Host, Options, Result } from "./types.js";
 const pkg = JSON.parse(
 	readFileSync(
@@ -10,7 +12,7 @@ const pkg = JSON.parse(
 		"utf8",
 	),
 ) as { version: string };
-const HELP = `ccl-skills — npm snapshot installer for Claude Code, Codex, and OpenCode\n\nUsage:\n  ccl-skills install [--host claude|codex|opencode] [--json]\n  ccl-skills update [--host claude|codex|opencode] [--yes] [--allow-downgrade] [--json]\n  ccl-skills doctor [--host claude|codex|opencode] [--json]\n  ccl-skills uninstall [--host claude|codex|opencode] [--yes] [--json]\n\nWithout --host, every installed or package-owned host is selected.\nUpdate and uninstall are dry-run unless --yes is supplied.\nBy default update --yes upgrades the global npm package to @latest before refreshing assets.\nSet CCL_SKILLS_SKIP_SELF_UPDATE=1 for an assets-only refresh; --allow-downgrade always uses the invoked package without installing @latest first.`;
+const HELP = `ccl-skills — npm snapshot installer for Claude Code, Codex, and OpenCode\n\nUsage:\n  ccl-skills install [--host claude|codex|opencode] [--json]\n  ccl-skills update [--host claude|codex|opencode] [--yes] [--allow-downgrade] [--json]\n  ccl-skills doctor [--host claude|codex|opencode] [--json]\n  ccl-skills uninstall [--host claude|codex|opencode] [--yes] [--json]\n\nWithout --host, every installed or package-owned host is selected.\nUpdate and uninstall are dry-run unless --yes is supplied.\nBy default update --yes upgrades the global npm package to @latest before refreshing assets.\nSet CCL_SKILLS_SKIP_SELF_UPDATE=1 for an assets-only refresh; --allow-downgrade always uses the invoked package without installing @latest first.\n\nAn interactive run prints an update notice on stderr at most once a day.\nSet CCL_SKILLS_NO_UPDATE_NOTIFIER=1 (or NO_UPDATE_NOTIFIER) to silence it; it is\nalready silent under --json, in CI, and when output is not a terminal.`;
 type Parsed = {
 	direct?: { code: number; stream: "stdout" | "stderr"; text: string };
 	command?: string;
@@ -198,6 +200,32 @@ function selfUpdate(options: Options): Result {
 		return { code: 5, status: "package-updated-assets-unknown", message: "npm package updated, but the fresh CLI returned an invalid result" };
 	}
 }
+/** Secondary guidance chrome. It is handed a stderr writer only, runs after the
+ * command's own output, and schedules its registry check in a detached child,
+ * so it can neither reach stdout nor add latency to this invocation. */
+function notifyUpdate(json: boolean): void {
+	emitNotice(
+		{
+			current: pkg.version,
+			now: Date.now(),
+			env: process.env,
+			stdoutTTY: !!process.stdout.isTTY,
+			stderrTTY: !!process.stderr.isTTY,
+			columns: process.stdout.columns,
+			json,
+		},
+		cachePath(paths().root),
+		{
+			stderr: (text) => write(process.stderr, text),
+			spawnCheck: () =>
+				spawn(
+					process.execPath,
+					[fileURLToPath(new URL("./version-check.js", import.meta.url))],
+					{ detached: true, stdio: "ignore" },
+				).unref(),
+		},
+	);
+}
 export async function main(args: string[]): Promise<number> {
 	const parsed = parseArgs(args);
 	if (parsed.direct) {
@@ -205,6 +233,7 @@ export async function main(args: string[]): Promise<number> {
 			parsed.direct.stream === "stdout" ? process.stdout : process.stderr,
 			parsed.direct.text,
 		);
+		notifyUpdate(false);
 		return parsed.direct.code;
 	}
 	const shouldSelfUpdate = parsed.command === "update" && parsed.options!.yes && !parsed.options!.allowDowngrade && process.env.CCL_SKILLS_SKIP_SELF_UPDATE !== "1";
@@ -223,6 +252,7 @@ export async function main(args: string[]): Promise<number> {
 			? JSON.stringify(result)
 			: `${result.status}: ${result.message}${result.plan ? `\n${result.plan.map((x) => `- ${x}`).join("\n")}` : ""}`,
 	);
+	notifyUpdate(!!parsed.json);
 	return result.code;
 }
 export function isDirectEntrypoint(

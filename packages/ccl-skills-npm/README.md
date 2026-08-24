@@ -36,6 +36,18 @@ ccl-skills uninstall --yes
 
 After `ccl-skills uninstall --yes`, remove the CLI package itself with `npm uninstall --global @ccoalm/ccl-skills` if it is no longer needed.
 
+## Update notice
+
+Nothing here updates itself. An interactive run prints a one-line notice on **stderr** when a newer version exists, at most once a day per version:
+
+```
+Update available: 0.2.0 -> 0.3.0
+Run: ccl-skills update --yes
+Silence: CCL_SKILLS_NO_UPDATE_NOTIFIER=1
+```
+
+The registry check runs at most once every 24 hours in a detached background process, so no invocation waits for the network, and its result is shown by the next run. The notice and its check are both silent under `--json`, in CI, when stdout or stderr is not a terminal, in terminals narrower than 60 columns, and when `CCL_SKILLS_NO_UPDATE_NOTIFIER` or `NO_UPDATE_NOTIFIER` is set. State lives in `version-check.json` under the managed root; a failed check keeps the last known version and never blocks or fails the command.
+
 Claude and Codex use package-owned local marketplace snapshots. OpenCode exposes skills, its native plugin, and `ccl-skills/runtime` through shared host directories. The native adapter maps the shipped session, tool, prompt, subagent, and stop behaviors to OpenCode events and covers `edit`, `write`, and `apply_patch`. Installation refuses unknown collisions, and uninstall preserves shared files for manual cleanup instead of guessing ownership.
 
 Set `CCL_SKILLS_REPO` to a valid checkout to override only the OpenCode asset source. An invalid override fails before writing host files. Without the variable, installation is offline after npm has downloaded the package.
