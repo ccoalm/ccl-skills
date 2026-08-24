@@ -55,7 +55,7 @@ FIRING_F="firing-path: file:skills/product-rd-workflow/SKILL.md#must record a RE
 new_case case-a; withdraw_fixture
 add_row "| A fixture claim is refuted by its primary source and is withdrawn wholesale | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case A: compliant source-refuted withdrawal"; run_gate
-if [ "${EXPECT_A_GREEN:-0}" = "1" ]; then
+if [ "${EXPECT_A_GREEN:-1}" = "1" ]; then
   [ "$RC" = "0" ] && ok "A 合规撤回 -> 绿" || fail "A 应绿，实得 rc=$RC: $(printf '%s' "$OUT" | tail -2)"
 else
   [ "$RC" != "0" ] && ok "A 合规撤回 -> 红（未实现类时的基线）" || fail "A 在未实现类时不该绿"
@@ -123,6 +123,14 @@ printf '\n- Always authenticate fixture requests before dispatch.\n' >> "$REPO/$
 add_row "| An Always-phrased rule wearing the withdrawal label with nothing deleted | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case J: Always rule, no deletion"; run_gate
 [ "$RC" != "0" ] && ok "J Always 规则零删除 -> 仍红" || fail "J 不得通过（有新增行）"
+
+# ---- K：改权限 + 一次真删除 —— 必须红 ----
+#      独立评审：chmod 在 --name-status 里显示为 M、在 --numstat 里记 0/0。
+new_case case-k; withdraw_fixture
+chmod 755 "$REPO/skills/product-rd-workflow/references/adr-convention.md"
+add_row "| A mode change riding along with a genuine deletion | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+commit_case "case K: chmod plus deletion"; run_gate
+[ "$RC" != "0" ] && ok "K 改权限 + 删除 -> 仍红" || fail "K 不得通过（mode 变更未被 numstat 反映）"
 
 echo
 if [ "$fails" = "0" ]; then

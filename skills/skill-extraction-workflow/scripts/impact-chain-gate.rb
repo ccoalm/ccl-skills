@@ -1161,17 +1161,25 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
       #   · 每个路径的状态都是 M（新增/删除/改名/复制/改权限一律不合格）
       #   · 全 diff 新增行数 == 0，删除行数 > 0
       pure_deletion_owner_diff = lambda do
-        ns = IO.popen(["git", "-C", root, "diff", "--no-renames", "-z", "--name-status",
-                       row_scope.base, row_scope.head, "--", "skills/#{owner}/"],
-                      err: File::NULL, &:read)
+        # `--raw` 而不是 `--name-status`：后者把 chmod 也显示为 M、且 numstat 记 0/0，
+        # 于是「改权限 + 一次真删除」能整体通过——独立评审实测出的绕过。raw 带出
+        # 新旧两侧的 mode，可以直接要求两侧都是常规 blob 且 mode 一致。
+        raw = IO.popen(["git", "-C", root, "diff", "--no-renames", "--raw", "-z",
+                        row_scope.base, row_scope.head, "--", "skills/#{owner}/"],
+                       err: File::NULL, &:read)
         return false unless $?.success?
-        fields = ns.split("\0").reject(&:empty?)
+        fields = raw.split("\0").reject(&:empty?)
         return false if fields.empty?
         i = 0
         while i < fields.length
-          st = fields[i]; path = fields[i + 1]
-          return false if path.nil?
-          return false unless st == "M"
+          meta = fields[i]
+          return false unless meta.start_with?(":")
+          parts = meta[1..].split(/\s+/)
+          old_mode, new_mode, _old_sha, _new_sha, status = parts
+          path = fields[i + 1]
+          return false if path.nil? || status.nil?
+          return false unless status == "M"
+          return false unless old_mode == "100644" && new_mode == "100644"
           return false unless path.end_with?(".md")
           i += 2
         end
@@ -1182,7 +1190,7 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
         added = deleted = 0
         stat.each_line do |ln|
           a, d, _ = ln.split("\t", 3)
-          return false unless a =~ /\A\d+\z/ && d =~ /\A\d+\z/   # 二进制显示为 "-"
+          return false unless a =~ /\A\d+\z/ && d =~ /\A\d+\z/
           added += a.to_i; deleted += d.to_i
         end
         added.zero? && deleted.positive?
@@ -1276,7 +1284,7 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
   end
   unless behavior_failures.empty?
     warn "impact_chain_behavior_evidence_missing: at least one added upstream-owner row lacks a complete behavioral-evidence declaration"
-    warn "  fix: every added row for a changed upstream owner needs `behavioral-evidence: RED-baseline` (observed deltas; observed-failure: yes requires it) `semantic-control` (only with observed-failure: no), or `source-refuted` (a pure-deletion withdrawal of a claim a primary source refutes: observed-failure no, a refuting source URL, a resolvable zero-loss pointer, no added normative rule line in the owner's round diff, and every row for that owner in the same class), plus `observed-failure: yes/no` and an owner-scoped `firing-path:`; a non-wording owner package needs at least one RED-baseline row; only deterministically wording-only diffs (no letters or digits changed) may use `not-required wording-only`, and only diffs whose base bytes are reproduced exactly by applying git-derived skill-rename pairs may use `not-required identifier-rename` (both drop the firing-path requirement and require observed-failure: no); an owner whose ENTIRE change is the SKILL.md frontmatter description entry keeps the RED-baseline bar and may anchor its firing path on that changed description line"
+    warn "  fix: every added row for a changed upstream owner needs `behavioral-evidence: RED-baseline` (observed deltas; observed-failure: yes requires it) `semantic-control` (only with observed-failure: no), or `source-refuted` (a pure-deletion withdrawal of a claim a primary source refutes: observed-failure no, a refuting source URL, a resolvable zero-loss pointer, the owner's round diff touches only modified regular Markdown files whose file mode is unchanged, adds zero lines and deletes at least one, and every row for that owner is in the same class), plus `observed-failure: yes/no` and an owner-scoped `firing-path:`; a non-wording owner package needs at least one RED-baseline row; only deterministically wording-only diffs (no letters or digits changed) may use `not-required wording-only`, and only diffs whose base bytes are reproduced exactly by applying git-derived skill-rename pairs may use `not-required identifier-rename` (both drop the firing-path requirement and require observed-failure: no); an owner whose ENTIRE change is the SKILL.md frontmatter description entry keeps the RED-baseline bar and may anchor its firing path on that changed description line"
     behavior_failures.each { |path| warn "  incomplete: #{path}" }
     exit 1
   end
