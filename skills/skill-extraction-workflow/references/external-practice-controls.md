@@ -73,3 +73,43 @@ Because a withdrawal is a pure deletion it has no added line to anchor on, so th
 These bars are **mechanical floors, not proof**: they cannot bind the cited source to the specific obligation withdrawn. The zero-loss review in the dual-track gate remains what catches that, and this gate does not pretend to replace it.
 
 **This class does not lift the per-owner RED floor.** Seven independent review rounds broke every successive bar built to make an automatic lift safe — a net-byte floor, a normative-line heuristic, a status-letter check, a file-exists check, a substring anchor, and finally a well-formed-but-unbound pointer — and two lanes twice recommended not granting the lift until the pointer can be bound to the obligation actually withdrawn. The residual gap is not machine-checkable in principle: a pointer can resolve to a real heading and quote the deleted text verbatim while the cited source has nothing to do with the claim. So the class does what a machine can do — force an honest label, a real obligation map, and a genuinely pure deletion — and leaves the judgement where it belongs: a withdrawal still needs a `RED-baseline` row, or a named risk owner's waiver through the existing human channel.
+
+## Designing a behavioral-evidence measurement
+
+A `RED-baseline` row is only as good as the measurement behind it. The failure modes below were each observed while measuring one small skill change; **all of them biased the same way — toward "the change worked" and "the measurement is sound".** That is the tell: when the person designing the measurement is the author of the change being measured, design errors are not random.
+
+**The one rule that matters: the grading standard must precede the change.** Not "write the rubric carefully afterwards" — afterwards you already know what the new text says, and the rubric grows into its shape. Either freeze the rubric before editing, or have a party that has not seen the candidate produce it. This repo already applies preregistration to *dispositions* (a preregistered reading rule committed before any run); apply it to the *instrument* too.
+
+Everything else is hygiene, but each was observed failing:
+
+| Failure | What it looked like | Rule |
+| --- | --- | --- |
+| Ceiling | The unchanged arm already passed 9/10, so no improvement was detectable | The arm you expect to fail must be *able* to fail; verify before comparing |
+| Vocabulary inheritance | Regex written after the new text; the old arm said the same thing in other words and scored 0 (`剥离` vs a regex for `剥掉`) | Grade the **obligation**, paraphrase-tolerant, by a grader blind to which arm produced the answer |
+| Tautology by construction | A "marker must be uniquely carried by this line" rule forced markers that only that line's vocabulary could satisfy — removing the line trivially removed the word | A validity constraint built for one polarity becomes a bias generator in the other: uniqueness is required of the **control**, never of the candidate (other carriers are the redundancy evidence, not an artifact) |
+| Underpowered null | n=3 nulls recorded as findings; one flipped to a large effect at n=10 | Nulls need power and replication; large separations survive small n, nulls do not |
+| Cross-run drift | Identical inputs, same n, unchanged arm scored 2/10 and 6/10 in two runs | Replicate; report the spread, never a point estimate |
+| Transcribed arms | The "old" arm was hand-copied and did not match the real prior text; it inflated the effect | Extract both arms from version control |
+| Slice inflation | Removing one line from a 22-line excerpt overstates its weight versus the 338-line artifact | Use the whole artifact, or report both readings |
+| Post-hoc analysis change | Verdict logic was changed after an unwelcome result | Freeze thresholds and decision order with the rubric; if changed later, publish the full sensitivity grid, never the favourable cell |
+
+**Proving a removal is harmless is not the mirror of proving an addition helps.** An addition is evidenced by a difference; a removal is evidenced by an *absence* of difference, which is indistinguishable from an instrument that detects nothing. So a deletion claim needs a **positive control** — remove something known to carry an obligation and show that obligation's satisfaction actually drops. Better still, remove two candidates in the same run so each is the other's control: a double dissociation (removing A drops only A's obligations, removing B only B's) validates the instrument and both verdicts at once.
+
+## Instruction-following mechanisms
+
+Referenced from `SKILL.md`'s "The mechanism underneath" rule. This section holds the withdrawn predecessor, the sources, and their evidence grade; the entrypoint holds only the operative rules.
+
+**Withdrawn (do not cite).** An earlier version said: *prose rules do not reliably co-fire — at any single decision point the agent tends to actively apply roughly the ONE most-salient rule*, with the corollary that *appending a bullet does not ADD compliance — it competes for, and can displace, the same salience slot*. Neither vendor's guidance nor any public benchmark supports a winner-take-all salience slot, and the corollary is contradicted outright: OpenAI's guidance is that a single unequivocal sentence is usually enough to steer the model. The claim rested on one session's self-observation.
+
+**Sources and what each actually supports.**
+
+| Source | What it gives | Evidence grade |
+| --- | --- | --- |
+| [Anthropic, *Effective context engineering for AI agents*](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) | finite attention budget; "context rot" reported as gentler in some models but emerging across those tested; smallest-set-of-high-signal-tokens; the right-altitude failure modes | vendor engineering post — no dataset, n, or error bars; version-bound; commercially aligned with context-management tooling |
+| [OpenAI, *GPT-4.1 Prompting Guide*](https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide) | conflicting instructions tend to resolve to the one nearer the end; instructions at both ends of long context beat either alone; check-conflicts-first; a single clear sentence usually steers | same class; explicitly model-generation-bound ("GPT-4.1 tends to…") |
+| [OpenAI, *GPT-5.1 Prompting Guide*](https://cookbook.openai.com/examples/gpt-5/gpt-5-1_prompting_guide) | check-conflicts-first; a published metaprompt recipe for finding contradictions in your own system prompt | same class |
+| [RECAST](https://arxiv.org/html/2505.19030) | joint satisfaction degrades with constraint count; best model averaged 39.75% all-constraints-satisfied on their benchmark | benchmark paper proposing its own dataset and method — a low baseline flatters the contribution; that number is one hard benchmark's order of magnitude, not a usage failure rate |
+
+**Why recency is a hazard, not a rule.** Vendor guidance reports that models *tend to follow* whichever instruction sits later — an observation about behaviour, not a licence to resolve conflicts by position. Two ways position becomes dangerous if read as a rule: a later permissive line beats an earlier stricter one (directly contradicting `Conflict Resolution`, which keeps the stricter data-loss/security/contract guard); and text embedded in **untrusted data** — a diff under review, a retrieved document, tool output — sits later within the same authority level and would win by placement alone, which is prompt injection with extra steps. Treat recency as a bias to design against: put the load-bearing rule where the decision happens, and never let placement confer authority.
+
+**How to use them.** Vendor guidance and benchmarks are **hypotheses with good provenance** — they tell you what to test on your own corpus, they do not substitute for testing it. Citing them as settled is the same error as landing an unverified claim; so is overruling one with an underpowered probe.
