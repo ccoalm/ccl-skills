@@ -135,4 +135,4 @@ git worktree list && git branch # 验证都没了
 
 - [worktree-isolation 技能](../skills/worktree-isolation/SKILL.md)（含合并前更新的完整命令序）
 - [架构总览](ARCHITECTURE.md)
-- 交互式 merge 菜单：若装了 `superpowers:finishing-a-development-branch`，可 route 给它
+- 交互式 merge 菜单：若装了 `superpowers:finishing-a-development-branch`，可交给它处理

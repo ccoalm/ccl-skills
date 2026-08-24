@@ -45,6 +45,16 @@
 - **OpenCode 原生路径**:`scripts/install-opencode.sh` 默认同步 skills、commands、plugin、bootstrap 和 `ccl-skills/runtime`，并兼容刷新 `~/.agents/skills`；`--project` 把同一闭包同步到当前仓 `.opencode/`。
 - **运行时拦截**:路由没走对也拦得住这一层,靠 hook 在动手那一刻校验,不靠模型自觉。
 
+技能协同要同时看三种结构，不能把它们压成一张平铺清单或一条固定链：
+
+| 结构 | 回答的问题 | 运行方式 |
+|---|---|---|
+| owner 路由矩阵 | 这个交付物由谁负责？ | 窄请求直达唯一窄 owner；边界争议由相邻技能的 `Use when` / `Skip` 互指消解 |
+| 生命周期链 | 跨阶段任务何时交给谁？ | `product-rd-workflow` 依次分派需求、架构、实现、测试、评审和发布 owner |
+| 横切约束 | 每个阶段都必须满足什么？ | 风险、worktree、权限、评审、可观测与验证门禁横切各阶段，不成为新的交付物 owner |
+
+owner 之间的关系边按作用分四组：路由与边界（入口分派、Skip 互指）、执行与交接（主+子步骤、回调产底稿）、复用与同步（canonical 指针、sibling 泛化）、变更与依赖（impact-chain、条件性外部依赖）。这些是协作机制，不是另一套“八大理论”。
+
 | 事件 | hook 干什么 |
 |---|---|
 | `SessionStart` · `SubagentStart` | 注入 `agent-context/` 下同名文件的路由纪律 + 当前 repo/branch/head/dirty/近期提交等会话上下文 |
