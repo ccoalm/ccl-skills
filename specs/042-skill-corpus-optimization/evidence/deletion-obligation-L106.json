@@ -1,0 +1,54 @@
+{
+ "runs": 4,
+ "reps": 1,
+ "candidate": 106,
+ "control": 107,
+ "results": [
+  {
+   "tally": {
+    "full": {
+     "cand": 1,
+     "ctrl": 1,
+     "n_c": 4,
+     "n_t": 4
+    },
+    "minus_candidate": {
+     "cand": 3,
+     "ctrl": 4,
+     "n_c": 4,
+     "n_t": 4
+    },
+    "minus_control": {
+     "cand": 1,
+     "ctrl": 2,
+     "n_c": 4,
+     "n_t": 4
+    }
+   },
+   "outs": {
+    "full": [
+     "按规则逐项列全，以下是 **必须产出的东西**（闭环）：\n\n---\n\n## Closeout 清单\n\n### 1. **Owner-generalization map**（耐久存储）\n- 格式：`owner | direction(upstream/downstream/sibling) | status | changed-file-or-reason`\n- 涵盖所有 lifecycle 阶段：product intent, design/UX, implementation, debugging, testing, launch, iteration, onboarding, no-source-access usage\n- **必须包含当前 session available-skills 里的所有外部 skill 候选项**（不只 ccl-internal），标记每阶段是否路由到外部 skill\n- 发现的漏掉 owner 维度**也要在此 map 中记录**（标记 `pending` → `updated` 的转移）\n\n### 2. **Impact-chain map**（`references/source-register.md` 中）\n- 格式：`upstream rule | downstream owner | expected executable behavior | status(updated/unchanged/routed/not-applicable) | evidence`\n- **必须包含**（除非显式标记 `not-applicable` + 原因）：\n  - 直接受影响的 implementation skill 及其具体执行规则\n  - testing/review owner 及验证方式\n  - product-workfl",
+     "按规则逐项列全，基于你的场景（Go服务技能→上游契约规则编辑、跨越决策面、发现漏掉owner维度）：\n\n## 必须产出清单\n\n1. **Owner-generalization map**（主映射）\n   - 格式：`owner | direction | status | changed-file-or-reason`\n   - 覆盖：所有生命周期阶段 + 已安装外部skills + 当前repo内CCL skills\n   - 每行标记状态：`updated` / `unchanged` / `routed` / `not-applicable`\n   - 包含：刚发现的漏掉owner维度及其邻近owners\n\n2. **Impact-chain map**（决策面链条映射，因为编辑的是上游规则）\n   - 位置：`references/source-register.md`（持久化）\n   - 格式：`upstream rule | downstream owner | expected executable behavior | status | evidence`\n   - 至少包括：直接受影响的implementation skill + testing/review owner + product-workflow owner\n   - 标记每行状态：`updated` / `unchanged` / `routed` / `not-applicable`（有原因说明）\n\n3. **Sibling-generalization mini-map**（栈姐妹映射，因为改的是Go服务技能）\n   - 内容：Go service(source stack) | 其他service stacks | shared workflow owner\n   - 每个sibli",
+     "按规则逐项列全，closeout 必须产出：\n\n## 必须产出的工件\n\n1. **Owner-generalization map**（主地图）\n   - 格式：`owner | direction(upstream/downstream/sibling) | status | changed-file-or-reason`\n   - 包含所有 plausible owners：改的 Go 服务技能 + 上游 owners（architecture/设计/product-workflow）+ 下游 owners（implementation/testing/release）\n   - 每行标记 `updated` / `unchanged` / `routed` / `not-applicable` / `pending` 并说明理由\n   - 持久化存放（非 chat/PR/commit message）\n\n2. **Impact-chain map**（因为改的是上游契约规则）\n   - 存放在 `references/source-register.md`\n   - 格式：`upstream rule | downstream owner | expected executable behavior | status(updated/unchanged/routed/not-applicable) | evidence`\n   - 至少覆盖：directly affected implementation skill(s) + testing/review owner + product-workflow owner\n   - 跨整条决策面→执行的链路\n\n3. **Neighbor scan map**（因为发现漏掉了 owner 维度）\n   - 对发现的漏掉维度做",
+     "按规则顺序，closeout 必须产出：\n\n1. **Owner-Generalization + Target-Output Map**（durable record）\n   - 格式：`owner | direction(upstream/downstream/sibling) | status | changed-file-or-reason`\n   - 覆盖所有受影响的 lifecycle stages（每个 stage 要么有 owner+status，要么写明\"无 owner + 原因\"）\n   - 列全所有 plausible owners：Go 技能本身、product-rd-workflow、testing-strategy、release、相关外部包（current session available-skills 中的）\n   - 标记每个候选 target 的 editability（editable CCL / reference-only external / local note / discarded）\n\n2. **Impact-Chain Map**（存入 `references/source-register.md`）\n   - 因为改的是上游契约规则且被下游技能执行，必须双向 map\n   - 格式：`upstream rule | downstream owner | expected executable behavior | status(updated/unchanged/routed/not-applicable) | evidence`\n   - 必须包含至少：directly affected implementation skill(s)、testing/review owner、product-workflow own"
+    ],
+    "minus_candidate": [
+     "## Closeout 必须产出的完整清单\n\n按RULES的层次逐项：\n\n### 1. **Owner-generalization map（核心产出）**\n   - 格式：`owner | direction(upstream/downstream/sibling) | status | changed-file-or-reason`\n   - 覆盖范围：\n     - ✓ 产品工作流\n     - ✓ 设计/UX\n     - ✓ 实现（Go后端栈）\n     - ✓ 调试\n     - ✓ 测试与test-artifact-management\n     - ✓ 发布/launch\n     - ✓ 可观测性\n     - ✓ 安全\n     - ✓ 当前Go服务技能本身\n     - ✓ 漏掉的owner维度（命名）\n   - 每行标记：`updated` / `unchanged` / `routed` / `not-applicable` / `pending`\n   - **记录位置：durable source（不在chat/PR/commit/技能文本内）**\n\n### 2. **外部技能包扫描清单**\n   - 当前session可用技能列表中的installed外部包（superpowers、gstack等）\n   - 对每个lifecycle stage，列出外部包候选与CCL候选\n   - 标记路由决策：哪些routed到外部包，理由\n\n### 3. **Sibling-generalization mini-map**（因为涉及栈）\n   - source stack: `Go 服务技能`\n   - sibling stacks: 列出关联的其他语言/栈技能\n   - shared workflow owner: 跨栈共享的工作流owner\n  ",
+     "根据规则，closeout 必须产出的东西**逐项如下**：\n\n## 核心产出物（持久化记录）\n\n1. **Owner-generalization & impact-chain map**（持久化存储，非对话/PR/commit/skill注释内）\n   - 格式: `owner | direction(upstream/downstream/sibling) | status | reason`\n   - 覆盖所有 lifecycle stages（需求→设计→实现→调试→测试→发布→迭代）\n   - 包含所有 plausible owners（CCL workflow + installed external skills）\n   - 每行标记：`updated` / `unchanged` / `routed` / `not-applicable` / `pending`\n\n2. **Sibling-generalization mini-map**（因改动影响多个技能）\n   - Source stack：Go 服务技能\n   - Sibling stacks：其他执行该决策面的技能（逐一枚举）\n   - Shared workflow owner：上游契约规则的宿主 owner\n   - Per-sibling status：每个 sibling 标记 `update` / `unchanged` / `route-to-shared` 及理由\n\n3. **Immediate-neighbor scan 结果**（因发现漏掉一个 owner 维度）\n   - 该维度的相邻 owner/lifecycle stage（逐一检查）\n   - 每个相邻元素标记 status + 理由（为何更新或不更新）\n\n4. **Upstream/downstream owner-",
+     "根据 RULES 的要求，你必须在 closeout 时产出以下内容：\n\n## 必须产出项（逐项）\n\n1. **Owner-generalization & target-output map** — Durable 格式记录\n   - 每个 lifecycle stage（设计、实现、测试、发布、迭代等）对应的 plausible owning skill\n   - 必须包含：CCL 内部 skills + 当前 session available-skills list 中的所有 installed external packages（如 `gstack-*`、`superpowers:*` 等）\n   - 每行格式：`owner | direction(upstream/downstream/sibling) | status(updated/unchanged/routed/not-applicable/pending) | changed-file-or-reason`\n   - 在 closeout 前验证：actual diff 必须与 map 中标记为 `updated` 的行对应\n\n2. **Sibling-generalization mini-map** — 因为改动的规则\"同时是别的技能要执行的决策面\"\n   - Source stack（Go 服务技能）\n   - 所有相关 sibling stacks（其他服务栈、通用工作流技能等）\n   - Shared workflow owner（共享层）\n   - Per-sibling 行：`sibling name | update/unchanged/route-to-shared | 理由`\n   - 必须明确记录：为什么某个 sibling 保持 unchanged（即使规则是通用的）\n\n3. ",
+     "根据 RULES，你的 closeout 必须产出以下物件（按依赖顺序）：\n\n---\n\n## 1. **Owner-Generalization Map**（必须、持久化）\n- 行格式：`lifecycle-stage | owner-candidate | status | changed-file-or-reason`\n- 覆盖范围：产品意图、设计/UX、实现、调试、测试、发布、迭代、可观测性、安全等完整生命周期\n- 每行标记：`updated` / `unchanged` / `routed` / `not-applicable` / `pending`\n- **位置**：独立文件或持久化记录（不在 chat/PR/commit/target skill 文本里）\n\n---\n\n## 2. **Sibling-Generalization Mini-Map**（必须、持久化）\n因为这是 stack-specific 编辑（Go 服务技能），必须包含：\n- 源栈（Go 服务技能）\n- 兄弟栈列表（其他 stack 技能）\n- 共享 workflow owner\n- 每个兄弟的状态：`update` / `unchanged` / `route-to-shared` + 理由\n- **规则**：即使后来补全了更大的 map，这个 mini-map 的决策必须 durable 记录，不补会被视为流程失败\n\n---\n\n## 3. **Immediate-Neighbor Scan 结果**（必须、持久化）\n因为发现了漏掉的 owner 维度：\n- 该维度的 immediate neighbors（同轴相邻的维度/技能）\n- 每个邻居一行：`file | status | reason`\n- **限制**：仅扫描立即邻近的，不超越\n\n---\n\n## 4. **Upstream/D"
+    ],
+    "minus_control": [
+     "根据 RULES，**Closeout 必须逐项产出**：\n\n---\n\n### 必须产出清单（按阶段）\n\n**1. Owner-generalization map（编辑前应已产出，closeout 时验证完整性）**\n   - 格式：持久化记录（非聊天、PR、commit message）\n   - 内容：每个生命周期阶段（产品意图、设计/UX、实现、测试、调试、发布、迭代、可观测性、安全等）列出所有可能 owner + 标记状态\n   - 每行：`owner | direction(upstream/downstream/sibling) | status | changed-file-or-reason`\n   - **包含外部技能包候选** — 扫描 session available-skills list，对每阶段同时名出 external-skill 和 ccl-skill 候选\n\n**2. Impact-chain map（因为编辑的是上游契约规则，必须映射双向）**\n   - 位置：`references/source-register.md`（持久化）\n   - 内容（非空行）：`upstream rule | downstream owner | expected executable behavior | status(updated/unchanged/routed/not-applicable) | evidence`\n   - 必须包含：所有 downstream owner（实现技能、测试/review owner、product-workflow owner）\n   - **若涉及新的 upstream-owner skill**，更新 `scripts/check-ccl-skills.sh` 列表或记录理由\n\n**3. Sibling ",
+     "按规则，以下是必须产出的完整清单（按规则逐条）：\n\n## 必须产出清单\n\n### 1. **Owner-generalization & target-output map** \n- 列表形式：lifecycle stage | plausible owners (包括installed external skills) | 实际更新的owner | 状态 `updated/unchanged/routed/not-applicable/pending`\n- 覆盖所有 plausible owners：product-rd-workflow, testing-strategy, 设计 owner, backend 技能栈, release, observability, security, test-artifact-management, 当前技能\n- 对缺少 owner 的任何生命周期阶段，显式说\"not-applicable: 原因\"而不是省略\n- **Editability 分类**（每个候选目标）：`editable CCL target` / `reference-only external skill` / `local note` / `discarded`\n- 标记设计+实现的源：两个都 update 还是都 skip？\n\n### 2. **Impact-chain map → `references/source-register.md`**（核心，因为改的是上游契约规则）\n- 表格行格式：`upstream rule | downstream owner(s) | expected executable behavior | status | evidence`\n- **必须包含的 downstream owners**（不能空或缺）：\n  - dir",
+     "基于规则的 closeout 清单（逐项）：\n\n---\n\n## 必须产出\n\n### 1. **Owner-generalization & target-output & impact-chain 映射**（持久化记录）\n   - 位置：推荐 `references/source-register.md`（或本次工作对应的持久载体，不在 chat/PR/commit 内）\n   - 格式：`upstream rule | downstream owner | expected executable behavior | status | evidence`\n   - 内容：\n     - 上游规则本身（Go 服务技能中修改的那条契约规则）\n     - 所有直接受影响的下游 owner（implementation skills、testing/review owner、product-workflow owner）\n     - 每行标记为 `updated` / `unchanged` / `routed` / `not-applicable`（带理由）\n     - 任何 `pending` 行阻止完成声明\n\n### 2. **漏掉的 owner 维度 — 邻居扫描小图**\n   - 同一轴上的立即邻居（不超出直接相邻）\n   - Sibling-generalization mini-map 格式\n   - 每个邻居一行：`[owner name] | upstream/downstream/sibling | update/unchanged/routed | [理由]`\n\n### 3. **Diff 验证记录**\n   - `updated` 状态的行：列出**实际改过的文件和具体改动**\n   - `unchanged` / `routed` 状态的行：说明*",
+     "按规则\"Map every owner/target before the first edit; verify the diff against it at closeout\"及相关约束，closeout 必须逐项产出：\n\n## Closeout 产出清单\n\n1. **Owner-generalization map（核心）**\n   - 表格：lifecycle阶段 | 方向（upstream/downstream/sibling） | 状态（updated/unchanged/routed/not-applicable） | 改了的文件或原因\n   - 涵盖所有相关生命周期：产品意图、设计/UX、实现、调试、测试、发布、迭代、onboarding、观测、安全\n   - 无output的阶段需说明\"无输出原因\"而不是沉默省略\n   - 包含当前session的installed external packages（superpowers:*、gstack-*等）作为plausible owner候选\n\n2. **Impact-chain map（双向决策面映射）**\n   - 持久化文件：`references/source-register.md`\n   - 格式：上游规则 | 下游所有者 | 预期可执行行为 | 状态 | 证据\n   - 必须覆盖：直接受影响的实现技能、测试/review所有者、产品工作流所有者\n   - 非空行；无表头只表、无free-text段落\n   - 如改动涉及 `*-architecture` 或 `platform-*` 入口点，同步更新 `scripts/check-ccl-skills.sh` 列表\n\n3. **Sibling-generalization mini-map（漏掉的owner维度）**\n   - 列出该维度的所有兄弟"
+    ]
+   }
+  }
+ ],
+ "verdicts": [
+  "INVALID_APPARATUS (对照只掉 -1)"
+ ],
+ "final": "INVALID_APPARATUS"
+}
