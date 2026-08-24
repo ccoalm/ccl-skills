@@ -65,8 +65,11 @@ The class is not a waiver; it swaps one kind of evidence for another. All four b
 1. `observed-failure: no` — this gate asks whether the owning rule failed to *fire*; a withdrawn claim fired fine, it was simply wrong. Self-declaring `yes` cannot use this class.
 2. The evidence cell cites a **primary source that refutes the claim** (a URL).
 3. The evidence cell carries a resolvable pointer to a **zero-loss obligation map**, and its target exists and is non-empty.
-4. The owner package's **net byte change for that row's round is ≤ 0**. A withdrawal shrinks the package; this blocks smuggling new rules in under a correction's label.
+4. The owner's round diff **adds no normative rule line at all** (same list-item-plus-normative-verb predicate this gate uses for anchors). A withdrawal only deletes. An earlier draft used a net-byte floor instead; adversarial review broke it by offsetting a smuggled rule with unrelated deletions.
+5. **Every** row for that owner in the round is in this class. A lone compliant withdrawal must not lift the floor for a sibling row carrying a real change.
 
-Bar 4 is a **floor, not a proof** — a net deletion can still hide an addition elsewhere. The zero-loss review in the dual-track gate remains what catches that; the gate does not pretend to replace it.
+Because a withdrawal is a pure deletion it has no added line to anchor on, so this class drops the firing-path requirement exactly as the two `not-required` classes do. Write the explanation of *why* the claim was withdrawn into a reference, not beside the line being removed — an inline note is an added normative line and bar 4 refuses it.
+
+These bars are **mechanical floors, not proof**: they cannot bind the cited source to the specific obligation withdrawn. The zero-loss review in the dual-track gate remains what catches that, and this gate does not pretend to replace it.
 
 The class lifts the per-owner RED floor for the same reason the two `not-required` classes do: that floor exists because a `semantic-control` label vouches for one named behaviour and leaves the rest of the package unvouched-for, whereas a withdrawal clearing all four bars has no unvouched-for remainder. Demanding an observed delta there would only be satisfiable by inventing one.
