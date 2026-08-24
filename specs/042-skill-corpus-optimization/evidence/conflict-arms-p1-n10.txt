@@ -1,0 +1,49 @@
+  old P1-eligibility run1: MARKER_HIT
+  old P1-eligibility run2: MARKER_HIT
+  old P1-eligibility run3: MARKER_HIT
+  old P1-eligibility run4: MARKER_MISS
+  old P1-eligibility run5: MARKER_HIT
+  old P1-eligibility run6: MARKER_HIT
+  old P1-eligibility run7: MARKER_HIT
+  old P1-eligibility run8: MARKER_HIT
+  old P1-eligibility run9: MARKER_HIT
+  old P1-eligibility run10: MARKER_HIT
+  old P1-far run1: MARKER_HIT
+  old P1-far run2: MARKER_HIT
+  old P1-far run3: MARKER_MISS
+  old P1-far run4: MARKER_HIT
+  old P1-far run5: MARKER_HIT
+  old P1-far run6: MARKER_HIT
+  old P1-far run7: MARKER_HIT
+  old P1-far run8: MARKER_HIT
+  old P1-far run9: MARKER_HIT
+  old P1-far run10: MARKER_HIT
+  new P1-eligibility run1: MARKER_HIT
+  new P1-eligibility run2: MARKER_HIT
+  new P1-eligibility run3: MARKER_HIT
+  new P1-eligibility run4: MARKER_MISS
+  new P1-eligibility run5: MARKER_HIT
+  new P1-eligibility run6: MARKER_HIT
+  new P1-eligibility run7: MARKER_HIT
+  new P1-eligibility run8: MARKER_HIT
+  new P1-eligibility run9: MARKER_MISS
+  new P1-eligibility run10: MARKER_HIT
+  new P1-far run1: MARKER_HIT
+  new P1-far run2: MARKER_HIT
+  new P1-far run3: MARKER_HIT
+  new P1-far run4: MARKER_HIT
+  new P1-far run5: MARKER_HIT
+  new P1-far run6: MARKER_HIT
+  new P1-far run7: MARKER_HIT
+  new P1-far run8: MARKER_HIT
+  new P1-far run9: MARKER_HIT
+  new P1-far run10: MARKER_HIT
+
+== 臂间差异（承重读数）==
+  P1-eligibility: NO_DIFF (old 9/10, new 8/10) —— 该改动无可测行为差异
+    why: 新文本必须先过 Do Not Extract When 的证据门槛；单次观察不合格，安全属性不构成豁免
+  P1-far: ARMS_DIFFER (old 9/10 -> new 10/10)
+    why: 与 P1 同题，但准入节与 Conflict Resolution 之间插入真实无关正文（模拟真实文件里的 120 行距离）。若 old 命中率随距离下降而 new 保持，则本地重述那段准入门槛是有收益的
+
+raw -> /Users/asen/work/code/src/github.com/ccoalm/ccl-skills/.work/worktrees/042-criteria-terminal-set/specs/042-skill-corpus-optimization/evidence/conflict-arms-p1-n10.json
+conflict_arms_NOT_all_differ

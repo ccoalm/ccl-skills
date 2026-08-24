@@ -1,0 +1,166 @@
+{
+  "model": "claude-haiku-4-5",
+  "runs": 10,
+  "results": [
+    {
+      "arm": "old",
+      "probe": "P4-withdrawal",
+      "run": 1,
+      "status": "MARKER_MISS",
+      "error": null,
+      "out": "**该补这句限定。** 这是修正而非追加。\n\n## 依据\n\n系统提示的机制说明了为什么同事的顾虑**对新增规则成立，但对澄清现有规则的边界不成立**：\n\n1. **现有规则已在竞争 salience**  \n   这条规则的适用条件不清导致了实际误用，这本身证明它有足够的显眼度（被考虑过、被应用过）。问题不是规则太隐形，而是**其边界不清**。\n\n2. **追加≠补充限定**  \n   同事的\"稀释\"风险（新bullet挤开其他规则）适用于引入第9条新规则。但补一句限定是**修正第N条规则的范围**，不增加竞争方数量。\n\n3. **适用条件不清本身就是一个bug**  \n   一条被误用的规则比一条条文长的规则对整体合规的伤害更大。误用一次暴露的间隙会被反复踩。\n\n## 关键操作改进\n\n不是简单地追加一句散列的prose，而是：**在该规则的firing point处，用walked enumeration重写其适用条件**（checklist 或条件矩阵），而不是扩展bullet数。这样补充限定反而**收紧了表述**，降低了认知负荷。\n\n**结论：补。但改写方式要从\"追加一句\"变成\"该规则本体的条件用枚举重构\"。**\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P4-withdrawal",
+      "run": 2,
+      "status": "MARKER_MISS",
+      "error": null,
+      "out": "**结论：不该补。同事是对的。**\n\n**依据：**\n\n你提到的 RULES 部分已经说明了机制：\n> agent 倾向于只积极应用**最显著的那一条规则**，其他共存规则往往保持休眠\n\n这不是文字描述性观察，而是 **salient-slot 竞争** — 每个决策点只有一个优先级插槽。加 bullet 不是加法，是 **挤占**。\n\n现状分析：\n- **短期收益**：那一条规则的边界从\"模糊\"→\"明确\"\n- **长期代价**：8条→9条，整个规则集的显著性均匀分散，导致最关键的 1-2 条规则被挤下显著性排序，决策点忽视它们的概率上升\n\n**应该做的：**\n\n问题不在 bullet 数，在于这条规则的**设计有缺陷**。重构它，而不是贴膏药：\n\n1. **重写这条规则**，让适用条件写成自明的陈述（不需额外限定）\n2. **或拆解**：把这条规则的核心和限定合并成更内聚的表述\n3. **或重定位**：如果这个限定只对某个特定场景激活，把它写在那个**场景的局部 checklist**，不放全局列表\n\n**走枚举来避免遗漏**（RULES 也强调过）— 真正的修复是在应用规则的地方结构化，不是通过堆砌全局 bullet。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P4-withdrawal",
+      "run": 3,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**结论：应该补。**\n\n**依据：**\n\n同事的逻辑——\"长度稀释salience\"——混淆了两件事：\n\n1. **加新规则** → 竞争salience，挤掉其它 ✗\n2. **澄清现有规则的边界** → 减少误激活，反而**降低**与其它规则的冲突 ✓\n\n你的情况是第二种。问题不在\"规则太多\"，而在**这条规则什么时候应该开火、什么时候不该开火**。不清晰的适用条件导致它在**错误的决策点被激活**，这本身就是一种\"坏竞争\"——它在不该激活的地方占据了salience槽位，把正确的规则挤掉了。\n\n补一句限定：\n- **修复边界** → 这条规则只在正确的场景激活\n- **间接降低竞争** → 它不再在边界场景跟其它规则打架\n\n规则给出的核心机制是\"要让联合条件真正生效，用**走清单**而非靠并存的prose\"。你这里正是在做这个工作——**把一条模糊的规则变成可走的清单项**。\n\n**额外因素：** 已有一次真实误用，说明问题不是假设性的。修复它的收益（避免重复误用）明显高于增加1-2行文字的成本。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P4-withdrawal",
+      "run": 4,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**该补。**\n\n反对理由的前提有误。澄清一条**现有规则的适用条件** ≠ 添加竞争者。\n\n---\n\n## 依据\n\n**机制的两层含义：**\n\n根据规则开头描述，在任何决策点，agent 倾向于激活**最显著的那一条规则**。\n\n这里的关键：**显著 = 可及性 + 清晰度**，不只是列表位置。\n\n- 一条模糊的规则：名义上占位，实际效能低（已被误用证明）\n- 澄清这条规则：不是占用**额外**的可见性预算，而是**提升现有位置的实际有效性**\n\n反对理由假设\"加一句 = 列表变长 = 其他规则被挤下去\"。但你做的不是**新增竞争者**，而是**修复既有规则的执行精度**。\n\n---\n\n## 权衡计算\n\n| | 值 |\n|---|---|\n| **已验证的伤害** | 一次真实纠正暴露出这条规则被误用 → 成本明确非零 |\n| **字数增加的假设伤害** | 其他规则\"可能\"可见性下降 → 成本未证实，且添加一句限定的幅度通常很小 |\n| **修复的收益** | 防止**同一条规则**在下次决策点重复误用 → 成本明确为零（修复已有规则） |\n\n**已证实的风险 > 假设的风险**。按降低实际误用的逻辑应该优先澄清。\n\n---\n\n## 排版建议\n\n如果确实担心列表长度，澄清可以写成：\n\n- 一句括号补充（保持单条形式）  \n- 脚注或参考表（主列表长度不变）  \n- 一行内的条件式限定，而非额外 bullet\n\n关键是**不要为了保持列表\"短\"而牺牲规则清晰度**——模糊的规则占的\"心理位置\"反而比澄清后的长规则更大。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P4-withdrawal",
+      "run": 5,
+      "status": "MARKER_MISS",
+      "error": null,
+      "out": "**不该补。直接改那条规则。**\n\n---\n\n## 依据\n\n你已在前面的 RULES 给出了答案：\n\n> \"appending a bullet does not ADD compliance — it competes for, and can displace, the same salience slot, **which is why merge-into-canonical beats append**\"\n\n关键是 **merge-into-canonical**，不是 append。\n\n**具体做法：**\n\n1. 找出那条\"适用条件写得不清楚\"的 bullet\n2. 直接在**那条规则内部**补这句限定（改措辞、加条件、明确作用域）\n3. 就此完成——没有新 bullet，没有长度增加\n\n**为什么这样行：**\n\n- 规则 1 条从\"条件含糊\"变成\"条件明确\" = 这一条的命中率 ↑（下次相同场景真的会应用它，而不是再误用）\n- 不与其他 7 条竞争显著性槽位\n- 整体合规反而更好：该应用的规则真的被应用，而不是被长列表淹没\n\n**同事的直觉是对的**（长列表会稀释），**但解决方案不是忍住不改——而是改的方式从\"追加\"换成\"就地修复\"**。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P4-withdrawal",
+      "run": 6,
+      "status": "MARKER_MISS",
+      "error": null,
+      "out": "**不该补。改变结构，把这条规则 promote 到 firing point 的 walked enumeration。**\n\n---\n\n## 依据\n\n你同事的观察是对的——这是 prose rules 的根本特性：**新增 bullet 不会 ADD compliance，只会竞争 salience slot，挤掉其他规则**。前面的规则框架已经说明：「at any single decision point the agent tends to actively apply roughly the ONE most-salient rule」——加8条 bullet 不等于 8 条都被 apply，通常只有 1~2 条真正 activate。\n\n## 真正的问题\n\n这条规则被误用，根本原因**不是缺一句限定**，而是**它在 prose section 这种结构里本身就无法可靠 fire**。Prose bullet 依赖 agent 在众多规则间自主选择，而 salience 极易被刷新、被忽视。\n\n## 解决方案（non-negotiable）\n\n把这条规则从 prose section **promotion 为 walked enumeration**，放在它实际会被用到的 decision point——不是作为可选的 bullet，而是作为一个**逐项 walk through 的 checklist 或 validator**：\n\n- 在 firing point 做完整性检查（逐行确认各个条件）\n- 不增加 section 长度（反而是条件分散到使用它的地"
+    },
+    {
+      "arm": "old",
+      "probe": "P4-withdrawal",
+      "run": 7,
+      "status": "MARKER_MISS",
+      "error": null,
+      "out": "**不该补。同事的反对是对的。**\n\n**依据：**\n\n根据你前面给的机制说明，散文并列的 bullet 不能可靠地共同触发。在任何单一决策点，agent 倾向于只有效应用最显著的那一条，其余保持 dormant。\n\n补限定的代价是：\n- **短期收益**：这一条规则的适用条件更清楚，可能减少这一条的误用频率\n- **长期代价**：列表从 8 增到 9，每条规则的相对 salience 都降低，其他 7 条被激活的概率整体下沉，全局合规率反而变差\n\n**核心问题不是\"限定不够清楚\"，而是这条规则没有足够的 salience。** 补限定只是把症状局部化，不解决根因。\n\n**正确的做法是重构这条规则的触发结构：**\n\n1. **合并到更 canonical 的规则** — 如果这条规则在逻辑上是某个更大原则的特例，应该 merge-into-canonical，而不是追加为独立 bullet\n2. **改成 walked enumeration** — 如果这条规则必须独立存在，把它从散文列表挪到真实决策点的 checklist、validator 或 axis list 里，用逐项走过的方式确保触发，而不是靠共存的 co-resident prose\n\n列表够长了。不要追加；要重构。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P4-withdrawal",
+      "run": 8,
+      "status": "MARKER_MISS",
+      "error": null,
+      "out": "**明确结论：应该补，但结构化方式不同。**\n\n同事的观察是对的（多 bullet 导致显著性竞争），但结论反了。根本问题不是\"要不要记录这个限定\"，而是\"在哪记录\"。\n\n### 依据\n\n前文规则框架指出：prose rules 在单个决策点会互相竞争显著性，只有约 1 条被真正应用。这意味着：\n\n- **直接在这一节加限定句**：这条规则会变更长/更复杂，反而降低显著性，新规则仍可能被挤下。**问题没解决**。\n- **已有实际误用** — 这不是假设性的质量改进，而是故障修复。隐瞒限定条件，下次还会踩。\n\n### 正确方案\n\n不是\"加不加限定\"，而是**把规则从 prose 竞争域移到结构化决策前置**：\n\n**选一种**（优先级从高到低）：\n\n1. **决策检查清单** — 这 8 条中最易误用/最依赖上下文的 2-3 条，提炼成\"在应用任何规则前必须走过的决策树\"或枚举清单。被误用的那条现在带着明确的适用条件成为\"第 X 步检查\"的一部分，不再竞争 prose 显著性。✓ 解决 8 条互挤的问题 ✓ 保证这条规则的限定条件必执行\n\n2. **优先级排序** — 明确列出\"最高优先 3 条、其次 3 条、备选 2 条\"，降低任意决策点的规则搜索空间。被误用的规则如果不在最高优先，就带着新限定移到\"次优先\"区。\n\n3. **按场景拆节** — 8 条规则分到 2-3 个小节（按适用场景/决策类型），每节 3-4 条。单个决策点面对的规则数降低，显著性竞争减弱。\n\n**不该选**：直接在这一节加限定句。同事的危险观察是对的，但退出是错误反应。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P4-withdrawal",
+      "run": 9,
+      "status": "MARKER_MISS",
+      "error": null,
+      "out": "# 结论：**不该在列表里补限定，应该在规则的发火点补**\n\n## 依据\n\n你引用的规则本身已给出答案：\n\n> \"do not rely on co-resident prose for requirements that must hold JOINTLY — structure them as a **walked enumeration at their firing point**\"\n\n**同事说对了一半：在已有8条的列表里再加第9条，确实会稀释其它规则的显著性。** 但问题不在于\"要不要加\"，而在于**加在哪里**。\n\n## 区别\n\n- **清单里加限定** = 这条规则本身还是会在错的时候被激活（因为列表太长，人们根本看不全或记不住完整的条件）\n- **发火点加限定** = 在这条规则实际会被应用的那个决策现场，用一个**具体的检查清单或条件列表**拦住不符合条件的情况\n\n## 方案\n\n**删除这条歧义规则，或在它实际使用的地方重写它。** 比如：\n\n- 如果这条规则在\"代码review时\"发动，就在review checklist的对应项上加限定  \n- 如果它在\"设计决策时\"发动，就在那个决策框架里加guard条件  \n- 不要指望靠\"列表条目加一句话\"来改善精度\n\n## 结果\n\n- 主列表保持清爽（不稀释其它规则）  \n- 这条规则在需要它的地方有准确的条件（真正改善合规）  \n- 两全其美\n\n接受同事反对**列表编辑**，但拒绝接受\"不补限定\"——应该是\"补到正确的地方\"。\n"
+    },
+    {
+      "arm": "old",
+      "probe": "P4-withdrawal",
+      "run": 10,
+      "status": "MARKER_MISS",
+      "error": null,
+      "out": "**结论：不应该补限定句。**\n\n**依据：**\n\n你的同事观察到的是正确的系统级权衡。根据文档开头的机制描述，关键点是：\n\n> 在任何单一决策点，代理倾向于**主动应用大约一条最显著的规则**，其余的往往保持休眠。\n\n这意味着：\n1. **饱和节点里补信息 ≠ 解决问题**。这条规则被误用，症状是\"限定条件不清楚\"，但根本原因是\"节点已有 8 条，这条规则的显著性不足\"。补限定句只会增加节点复杂度，进一步拉低其他 7 条规则的显著性——反而扩大损伤。\n\n2. **最坏情况**：补限定句后，这条规则的合规率可能确实提升，但其他 2-3 条重要规则会因为显著性下降而违规增加，净合规率反而下降。\n\n**正确做法是重构，不是补充：**\n- 把这条易误用的规则**提升到更高的决策层级**（它应该是一个入口检查，不是列表里的平行项）\n- 或**合并相关的 bullet**，把 8 条压缩为 4-5 条更高层的概念\n- 或用**决策树/逐项走读清单**替代平面列表（这正是文档倒数第二段建议的：联合需求必须结构化为走读式列表，而不是靠共存来实现）\n\n**一句话**：同事触及了根本问题。不补，改结构。\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P4-withdrawal",
+      "run": 1,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**应该补。**\n\n## 依据\n\n同事的论证混淆了两个效应机制：\n\n### 1. **Bulk/Context Rot 不等于\"任何新增都有害\"**\n题目规则明确说：\"最小数量的**高信号** token\"——关键词是*高信号*。一句消除**现实纠正中已经暴露**的歧义，是高信号，不是噪音。Context rot 针对冗余和模糊，不是针对必要的澄清。\n\n### 2. **规则文件直接反驳了这个立场**\n> \"一条清晰、不冲突的指令确实会改变行为...**do not cite position to let a later instruction override a needed rule**\"\n\n这显式说：不应该因为规则已经多就放弃必要的补充。\n\n### 3. **补限定是降低总成本，不是增加**\n- **补**：一次性加一句限定，+1 条线\n- **不补**：下次同样的误用重复时，再经历一轮纠正讨论、重新读这条规则、重新澄清——成本更高，还多花了时间\n\n这一条**既然已经因为歧义被真实纠正过一次**，就有具体的失败成本做支撑，补齐限定是投资回报最好的地方。\n\n### 4. **如果这一节真的过长——优化的手段不是\"不补\"**\n应该做的是：\n- 删掉冗余/过时的条目（降噪）\n- 重组分组（结构优化）\n- 或提高现有条目的密度\n\n补一句**必要**的澄清不是加害，拒绝它反而让同一条规则的误用面扩大。\n\n---\n\n**明确结论**：补这句限定。它消除的是已经实际发生过的误用，成本极低，收益是防止重复。\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P4-withdrawal",
+      "run": 2,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**结论：应该补这句限定。**\n\n**依据：**\n\n1. **规则明确否定了\"长度已够，不要再加\"的逻辑**  \n   规则说：\"'appending never helps' is **false and must not be used to refuse a needed rule**\"。这直接驳斥对方的反对理由。\n\n2. **这是真实发生的失误，不是假设风险**  \n   一次真实纠正暴露出适用条件不清，说明当前表述**已经造成了实际伤害**。这不是\"预防性地防止潜在误解\"，是\"修复真实错误\"。\n\n3. **Bulk 问题的补救是\"高信号 token\"，不是\"少加\"**  \n   规则明确：\"*The remedy is the smallest set of high-signal tokens at the right altitude*\"。一句清晰的限定通常是高信号的——它直击一个已被证明会误解的点。\"稀释\"发生在**低信号冗余**堆积时，不在清晰补充时。\n\n4. **规则认可\"一句清晰的限定能改变行为\"**  \n   \"*A clear, non-conflicting instruction does steer behavior (a single unequivocal sentence is usually enough)*\"。这正是你要做的。\n\n---\n\n**但有一个条件：**  \n补的这句必须简洁且直指适用条件的**关键分界**。如果这一节全是模糊、冗余的表述，那应该**重写整节**而不是疲劳式堆加。但如果其他 7 条都清晰，这第 8 条需要一句澄清"
+    },
+    {
+      "arm": "new",
+      "probe": "P4-withdrawal",
+      "run": 3,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**结论：应该补这句限定。**\n\n---\n\n## 依据\n\n同事的论理隐含了一个未被检验的假设——**总数量超过某个阈值就会自动稀释理解**。但系统提示的框架否定了这个假设：\n\n### 1. **Position 问题不是数量问题**\n\"Consolidate and retire rules\" 中对 Position 的分析指向的是**突显度**（开头/结尾 vs 中间），而非\"超过 N 条就失效\"的硬上限。加第 9 条不会因为多了 1 而让第 2-8 条自动被推进\"遗忘区\"。\n\n### 2. **Clarity 是高信号内容，不是噪声**\n- 已有纠正**暴露了实际误用** → 这条规则当前是**产生伤害的**\n- 一句澄清性限定 = 修复现有规则的缺陷，不是\"添加\"内容\n- 模糊规则持续被误用的成本 > 多一句清晰限定的成本\n\n系统提示强调的是\"**smallest set of high-signal tokens**\"。一句消除已知歧义的限定词就是高信号；相比之下，保持模糊来维持\"短度\"是低信号。\n\n### 3. **RECAST 的启示反向支持补充**\n39.75% 的全约束满足率低，**根因是联合约束结构不清**——解决方案是\"walked enumeration\"（逐项明确），不是\"减少约束数\"。\n\n8 条清晰的规则 + 1 句限定 **>** 8 条其中一条模糊的规则。\n\n---\n\n## 如何做\n如果担心篇幅，可以：\n- 把限定**集成进原 bullet 的措辞**（改现有文本，不增行数）\n- 或用短形式（一个从句）而不是解释段落\n\n但**绝对不能**因为\"节已"
+    },
+    {
+      "arm": "new",
+      "probe": "P4-withdrawal",
+      "run": 4,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**应该补。**\n\n## 结论与依据\n\n同事的论点依赖了**已被明确撤销的假设**。\n\n规则部分开篇明确说：\n> **Withdrawn**: the earlier single-mechanism version said the agent applies roughly the ONE most-salient rule and the rest stay dormant. ... the corollary it generated — \"appending a bullet does not ADD compliance\" — is contradicted outright.\n\n你同事的\"再加只会稀释其它规则、把它们挤下去\"论证，正是这个旧版本的余留。它假设每条规则占据一个竞争的 slot。这假设**没有供应商指导或公开基准的支持**，已被推翻。\n\n## 为什么应该补\n\n1. **澄清 ≠ 添加** — 这不是新增独立规则，而是对**已存在规则的适用条件边界的澄清**。澄清本身是减少矛盾表面（contradiction surface），而不是增加。\n\n2. **高信号纠正** — \"一次真实纠正暴露\"是已验证的 failure mode 信号。规则部分指出最小集合应该在\"right altitude\"上包含\"high-signal tokens\"。一个已被实际触发的错误边界就是高信号的，值得投入 attention budget。\n\n3. **实质改变行为** — 规则部分明确说：\n   > a clear, non-conflicting instructio"
+    },
+    {
+      "arm": "new",
+      "probe": "P4-withdrawal",
+      "run": 5,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "## 结论：**应该补这句限定。**\n\n---\n\n## 依据\n\n**1. 同事的论证基于已被明确否定的假设**\n\n前文 rules 部分**明确撤销**了\"appending a bullet does not ADD compliance\"的说法，理由是：\n- 没有 vendor 或 benchmark 支持\"赢家通吃的 salience slot\"\n- 明确指出：**\"a clear, non-conflicting instruction does steer behavior\"**  \n- 结论：**\"appending never helps\" is false and must not be used to refuse a needed rule**\n\n你要加的正是这种情况——明确、非冲突、针对已知误用的限定。\n\n---\n\n**2. Bulk（体量）问题的真正补救方案不是\"别加\"，而是结构优化**\n\n- ❌ 加入模糊/易冲突/低信号的规则 → 稀释\n- ✓ 加入明确的限定条件修复已暴露的bug → 改进合规性\n\n体量过大的补救是：重组叙述让限定更紧凑、或在该规则的使用点加注，**而不是保留缺陷**。\n\n---\n\n**3. 现实的合规权衡**\n\n| | 成本 | 收益 |\n|---|---|---|\n| **不补** | 零增量 context | -∞（已暴露误用继续发生） |\n| **补限定** | +1句 ~10 tokens | 消除已知误用路径 |\n\n一句明确的限定条件的 context 成本是完全可控的；持续的实际误用不可控。\n\n---\n\n## 行动\n\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P4-withdrawal",
+      "run": 6,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**结论：应该补。**\n\n---\n\n## 依据\n\n规则文本已经推翻了同事的论证。具体有三点：\n\n### 1. **\"不能以 bulk 为借口拒绝必要的规则\"**\n文中明确写道：\n> a clear, non-conflicting instruction does steer behavior (a single unequivocal sentence is usually enough), so \"appending never helps\" is false and **must not be used to refuse a needed rule**.\n\n一句清晰的限定，确实会改变行为。同事说\"再加只会稀释其它规则\"是被显式推翻的论点。\n\n### 2. **问题不在\"总长度\"，而在\"触发点的可达性\"**\n三个独立机制中：\n- **Bulk**：token 消耗注意力预算 ✓ 成立\n- **Position**：开头末尾被注意，中间丢失 ✓ 成立  \n- **Joint satisfaction**：必须**联合满足的约束**需要结构化为检查表而非散文 ✓ 成立\n\n但这一条规则**已经暴露出误用**（一次真实纠正发现）。问题的根因是**模糊性，不是位置**。模糊规则在应用时产生多种理解，这本身就是失败。补一句限定，反而是**在触发点处增强清晰度**。\n\n### 3. **模糊规则的代价 > 新增一行的 bulk 代价**\n- 模糊规则导致已实际发生的误用\n- 新增一行的 bulk 成本是潜在的 context rot\n\n已经触发的缺陷（误用发生了）优先于潜在风险（多一行"
+    },
+    {
+      "arm": "new",
+      "probe": "P4-withdrawal",
+      "run": 7,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**结论：该补。**\n\n**依据：**\n\n你同事的论断基于一个已经被撤销的理论模型——\"规则slot有限，append必然挤压他者\"。根据规则中明确的**Withdrawn声明**，这种\"单slot胜出\"机制没有实验支撑。\n\n真实的三重机制是：\n\n1. **这条规则有实际缺陷** — 真实纠正证明了不清楚的适用条件导致了误用，这是现实信号，不是假设。\n\n2. **清晰限定不增加复杂度，反而降低它** — \n   - 模糊的8条规则（其中一条边界不清）= 持续的歧义成本 + 重复误用成本\n   - 清晰的8条+1句限定 = 一次性的bulk成本 + 消除后续误用\n   - RECAST的39.75%是在约束**独立且未结构化**时测得的；一句**enumerate限定**（明确说\"不适用于X场景\"）实际上是**明确边界**，反而降低约束复杂度\n\n3. **\"append永不帮助\"已被明确驳斥**：\n   > \"a clear, non-conflicting instruction does steer behavior (a single unequivocal sentence is usually enough), so 'appending never helps' is false and must not be used to refuse a needed rule\"\n\n**行动方案：**补这句限定，**但结构化它**：\n- 不要模糊地说\"某些情况下不适用\"  \n- 用**负向列表或if-then**明确禁用场景：`\"不适用于 [具体场景A/B/C]\"` 或 `\"仅"
+    },
+    {
+      "arm": "new",
+      "probe": "P4-withdrawal",
+      "run": 8,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**结论：该补这句限定。**\n\n## 依据\n\n**1. 这是澄清，不是膨胀**\n已有规则的适用条件写得不清楚导致误用是**真实bug**。补充限定是对现有指令的精度修复，不是新增约束。\n\n**2. 材料直接支持**\n背景文件明确说：\n> a clear, non-conflicting instruction does steer behavior (a single unequivocal sentence is usually enough)\n\n一句澄清正是这个样子——清晰、非冲突、最小化。\n\n**3. 反驳同事假设的薄弱性**\n同事逻辑链条是：+1行 → 整体变长 → 中间内容被遗忘 → 合规下降。\n\n但问题在：\n- **Bulk** 的补救不是\"什么都别加\"，而是在 **right altitude** 加最小化token。一句澄清正符合。\n- **Position** 的失效点是\"buried mid-file\"。这一条**已经存在且被用**，不存在可见性问题；问题是clarity（清晰度），不是visibility（可见度）。一行增加不足以把它从活跃区推入遗忘区。\n- 材料明说：\"appending a clear, non-conflicting instruction does steer behavior\" ——反面是，\"appending never helps\"这个自我限制**是错的，不能用来拒绝needed rule**。\n\n**4. 成本收益**\n- 成本：+1 行（~10 token）\n- 收益：阻止已暴露bug的重复发生\n- 在Bulk预算内，且收"
+    },
+    {
+      "arm": "new",
+      "probe": "P4-withdrawal",
+      "run": 9,
+      "status": "MARKER_HIT",
+      "error": null,
+      "out": "**结论：应该补这句限定。**\n\n---\n\n## 依据\n\n### 1. \"追加稀释合规率\" 的假设不成立\n规则明确说：**\"appending a bullet does not ADD compliance\"这个论断已被撤回**。原理由——\"追加挤占某个位置\"——没有根据。真正影响合规的是三个机制：冲突、注意力预算消耗、结构位置被遗忘。\n\n### 2. 这一句限定不满足\"降低合规率\"的条件\n- **无冲突** — 它是**澄清现有规则**，不是引入新约束\n- **不消耗预算** — 一句**清晰的限定句** 算最小的 token 开销，符合\"小而精\"\n- **不会被埋没** — 紧跟在已误用的规则后，结构可见\n\n规则说：\"**a clear, non-conflicting instruction does steer behavior (a single unequivocal sentence is usually enough)**\"——你的限定正是这样的指令。\n\n### 3. 已有误用是最强的证据\n这条规则**已经被误用过**，说明现有表述确实有歧义。补限定直接修复这个缺口，**提升合规率**，不会降低。\n\n---\n\n## 实施建议\n- 让这句限定尽可能简洁（一句话，<15词）\n- 放在该规则的末尾或紧随其后（位置）\n- 在提交前检查与其他 7 条规则是否有潜在冲突（Conflict 检查）\n\n同事的\"稀释\" 模型把长度当成了根本变量，但根本变量是**信息质量和结构**。一句清晰的澄清比 7 句含糊的规则好合规。\n"
+    },
+    {
+      "arm": "new",
+      "probe": "P4-withdrawal",
+      "run": 10,
+      "status": "MARKER_MISS",
+      "error": null,
+      "out": "**明确结论：应该补这句限定。**\n\n**依据：**\n\n同事的反对论点基于一个**已被明确撤销的假设**。\n\n文件开篇就标记了 **Withdrawn**：\n> the earlier single-mechanism version said... \"appending a bullet does not ADD compliance\" ... is **contradicted outright**. No vendor guidance or public benchmark supports a winner-take-all salience slot.\n\n文件给出的实际判决是：\n> **A rule corpus never checked for contradictions is the highest-yield place to look.**  \n> **A clear, non-conflicting instruction does steer behavior** (\"a single unequivocal sentence is usually enough\")\n\n**对这个具体情况：**\n\n1. **Conflict 检查** — 补限定句澄清歧义，不制造冲突 ✓\n2. **Bulk 机制** — bulk 的坏效果来自三种源头：冲突、模糊、位置不当。这里都不存在：\n   - 限定句贴在原规则旁 → 位置在 firing point\n   - 限定句是**澄清**，非冲突 → 不增加矛盾表面  \n   - 限定句必须清晰 → 符合 \"right"
+    }
+  ]
+}

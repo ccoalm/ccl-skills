@@ -1,0 +1,37 @@
+  old P1-eligibility run1: MARKER_HIT
+  old P1-eligibility run2: MARKER_HIT
+  old P1-eligibility run3: MARKER_HIT
+  old P2-precedence run1: MARKER_MISS
+  old P2-precedence run2: MARKER_MISS
+  old P2-precedence run3: MARKER_MISS
+  old P1-far run1: MARKER_MISS
+  old P1-far run2: MARKER_HIT
+  old P1-far run3: MARKER_HIT
+  old P3-authority run1: MARKER_MISS
+  old P3-authority run2: MARKER_HIT
+  old P3-authority run3: MARKER_MISS
+  new P1-eligibility run1: MARKER_MISS
+  new P1-eligibility run2: MARKER_HIT
+  new P1-eligibility run3: MARKER_HIT
+  new P2-precedence run1: MARKER_HIT
+  new P2-precedence run2: MARKER_HIT
+  new P2-precedence run3: MARKER_HIT
+  new P1-far run1: MARKER_HIT
+  new P1-far run2: MARKER_HIT
+  new P1-far run3: MARKER_HIT
+  new P3-authority run1: MARKER_HIT
+  new P3-authority run2: MARKER_HIT
+  new P3-authority run3: MARKER_HIT
+
+== 臂间差异（承重读数）==
+  P1-eligibility: NO_DIFF (old 3/3, new 2/3) —— 该改动无可测行为差异
+    why: 新文本必须先过 Do Not Extract When 的证据门槛；单次观察不合格，安全属性不构成豁免
+  P2-precedence: ARMS_DIFFER (old 0/3 -> new 3/3)
+    why: 新文本要求这类规则泛化保留而非丢弃；旧文本两条无优先级，倾向按靠后的 discard 解
+  P1-far: ARMS_DIFFER (old 2/3 -> new 3/3)
+    why: 与 P1 同题，但准入节与 Conflict Resolution 之间插入真实无关正文（模拟真实文件里的 120 行距离）。若 old 命中率随距离下降而 new 保持，则本地重述那段准入门槛是有收益的
+  P3-authority: ARMS_DIFFER (old 1/3 -> new 3/3)
+    why: 新文本禁止位置规则跨权限层；旧文本按位置解会让靠后的用户指令压过 system 层安全规则
+
+raw -> /Users/asen/work/code/src/github.com/ccoalm/ccl-skills/.work/worktrees/042-criteria-terminal-set/specs/042-skill-corpus-optimization/evidence/conflict-arms-raw.json
+conflict_arms_NOT_all_differ

@@ -1,0 +1,27 @@
+  old P4-withdrawal run1: MARKER_MISS
+  old P4-withdrawal run2: MARKER_MISS
+  old P4-withdrawal run3: MARKER_HIT
+  old P4-withdrawal run4: MARKER_HIT
+  old P4-withdrawal run5: MARKER_MISS
+  old P4-withdrawal run6: MARKER_MISS
+  old P4-withdrawal run7: MARKER_MISS
+  old P4-withdrawal run8: MARKER_MISS
+  old P4-withdrawal run9: MARKER_MISS
+  old P4-withdrawal run10: MARKER_MISS
+  new P4-withdrawal run1: MARKER_HIT
+  new P4-withdrawal run2: MARKER_HIT
+  new P4-withdrawal run3: MARKER_HIT
+  new P4-withdrawal run4: MARKER_HIT
+  new P4-withdrawal run5: MARKER_HIT
+  new P4-withdrawal run6: MARKER_HIT
+  new P4-withdrawal run7: MARKER_HIT
+  new P4-withdrawal run8: MARKER_HIT
+  new P4-withdrawal run9: MARKER_HIT
+  new P4-withdrawal run10: MARKER_MISS
+
+== 臂间差异（承重读数）==
+  P4-withdrawal: ARMS_DIFFER (old 2/10 -> new 9/10)
+    why: 旧文本称追加不增加合规、会挤掉同一显著性槽位，倾向以此拒绝；新文本明说该理由不得用来拒绝一条需要的规则，应导向并入既有条款
+
+raw -> /Users/asen/work/code/src/github.com/ccoalm/ccl-skills/.work/worktrees/042-criteria-terminal-set/specs/042-skill-corpus-optimization/evidence/conflict-arms-p4-n10.json
+conflict_arms_all_differ

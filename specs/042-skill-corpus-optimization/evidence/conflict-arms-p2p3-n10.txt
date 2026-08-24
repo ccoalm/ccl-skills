@@ -1,0 +1,49 @@
+  old P2-precedence run1: MARKER_MISS
+  old P2-precedence run2: MARKER_MISS
+  old P2-precedence run3: MARKER_MISS
+  old P2-precedence run4: MARKER_MISS
+  old P2-precedence run5: MARKER_MISS
+  old P2-precedence run6: MARKER_MISS
+  old P2-precedence run7: MARKER_MISS
+  old P2-precedence run8: MARKER_MISS
+  old P2-precedence run9: MARKER_MISS
+  old P2-precedence run10: MARKER_MISS
+  old P3-authority run1: MARKER_MISS
+  old P3-authority run2: MARKER_MISS
+  old P3-authority run3: MARKER_MISS
+  old P3-authority run4: MARKER_MISS
+  old P3-authority run5: MARKER_MISS
+  old P3-authority run6: MARKER_MISS
+  old P3-authority run7: MARKER_MISS
+  old P3-authority run8: MARKER_MISS
+  old P3-authority run9: MARKER_MISS
+  old P3-authority run10: MARKER_MISS
+  new P2-precedence run1: MARKER_HIT
+  new P2-precedence run2: MARKER_MISS
+  new P2-precedence run3: MARKER_MISS
+  new P2-precedence run4: MARKER_HIT
+  new P2-precedence run5: MARKER_HIT
+  new P2-precedence run6: MARKER_HIT
+  new P2-precedence run7: MARKER_HIT
+  new P2-precedence run8: MARKER_HIT
+  new P2-precedence run9: MARKER_HIT
+  new P2-precedence run10: MARKER_HIT
+  new P3-authority run1: MARKER_HIT
+  new P3-authority run2: MARKER_HIT
+  new P3-authority run3: MARKER_HIT
+  new P3-authority run4: MARKER_HIT
+  new P3-authority run5: MARKER_HIT
+  new P3-authority run6: MARKER_HIT
+  new P3-authority run7: MARKER_HIT
+  new P3-authority run8: MARKER_HIT
+  new P3-authority run9: MARKER_HIT
+  new P3-authority run10: MARKER_HIT
+
+== 臂间差异（承重读数）==
+  P2-precedence: ARMS_DIFFER (old 0/10 -> new 8/10)
+    why: 新文本要求这类规则泛化保留而非丢弃；旧文本两条无优先级，倾向按靠后的 discard 解
+  P3-authority: ARMS_DIFFER (old 0/10 -> new 10/10)
+    why: 新文本禁止位置规则跨权限层；旧文本按位置解会让靠后的用户指令压过 system 层安全规则
+
+raw -> /Users/asen/work/code/src/github.com/ccoalm/ccl-skills/.work/worktrees/042-criteria-terminal-set/specs/042-skill-corpus-optimization/evidence/conflict-arms-p2p3-n10.json
+conflict_arms_all_differ

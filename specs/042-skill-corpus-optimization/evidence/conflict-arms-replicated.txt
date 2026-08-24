@@ -1,0 +1,26 @@
+
+-- 复现轮 1/3 --
+  P4-withdrawal: ARMS_DIFFER (old 0/10 -> new 7/10)
+  P2-precedence: ARMS_DIFFER (old 0/10 -> new 9/10)
+  P3-authority: INVALID_PROBE (old 5/10 命中率过高=无失败空间；读数不作证据，须重设计题面)
+
+-- 复现轮 2/3 --
+  P4-withdrawal: ARMS_DIFFER (old 1/10 -> new 6/10)
+  P2-precedence: ARMS_DIFFER (old 3/10 -> new 10/10)
+  P3-authority: ARMS_DIFFER (old 3/10 -> new 10/10)
+
+-- 复现轮 3/3 --
+  P4-withdrawal: ARMS_DIFFER (old 3/10 -> new 8/10)
+  P2-precedence: INVALID_PROBE (old 5/10 命中率过高=无失败空间；读数不作证据，须重设计题面)
+  P3-authority: ARMS_DIFFER (old 2/10 -> new 10/10)
+
+== 跨 3 次复现的承重读数 ==
+  P4-withdrawal: REPLICATED_ARMS_DIFFER (0->7 | 1->6 | 3->8)
+    why: 旧文本称追加不增加合规、会挤掉同一显著性槽位，倾向以此拒绝；新文本明说该理由不得用来拒绝一条需要的规则，应导向并入既有条款
+  P2-precedence: NOT_REPLICATED (跨次 verdict 不一致：ARMS_DIFFER, INVALID_PROBE；散布 0->9 | 3->10 | 5->7)
+    why: 新文本要求这类规则泛化保留而非丢弃；旧文本两条无优先级，倾向按靠后的 discard 解
+  P3-authority: NOT_REPLICATED (跨次 verdict 不一致：INVALID_PROBE, ARMS_DIFFER；散布 5->10 | 3->10 | 2->10)
+    why: 新文本禁止位置规则跨权限层；旧文本按位置解会让靠后的用户指令压过 system 层安全规则
+
+raw -> /Users/asen/work/code/src/github.com/ccoalm/ccl-skills/.work/worktrees/042-criteria-terminal-set/specs/042-skill-corpus-optimization/evidence/conflict-arms-replicated.json
+conflict_arms_NOT_replicated

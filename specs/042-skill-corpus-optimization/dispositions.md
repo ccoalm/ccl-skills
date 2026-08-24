@@ -1,5 +1,7 @@
 # 042 处置记录
 
+> **本文件属已撤回的形态**（判据终态集合重设）。保留它是为了记录该形态**为何**被撤回——四条 P1 的逐条核验就是撤回依据的一半。当前轮次的计划见 `plan.md`，执行结果见 `batch-1-result.md`。
+
 本 program 不自判通过。下列为 dual-track 两轮 4 条 P1 的逐条核验与处置；值不值、下一步做什么由用户裁决。
 
 链 `042-terminal-set-r1a`，candidate `d40ebb935d48e25a…`，两轮同包同候选（已机械核对 `candidate_sha256` 相等）。review 3×P1、challenge 1×P1。`review_plan_source=derived-default`（未提交实现方 plan 文件；实现方自审行另存 `self-review.md` 并先于两轮落盘，顺序由分支历史可核）。**4 条全部接受，无 declined。**
