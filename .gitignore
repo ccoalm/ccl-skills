@@ -49,3 +49,4 @@ eval/skill-effectiveness/out/
 node_modules/
 *.tgz
 .DS_Store
+.gstack/
