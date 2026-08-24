@@ -292,12 +292,20 @@ upstream = upstream.reject do |path|
   rename_excused[path] = true if excused
   excused
 end
-if upstream.any?
+# The block runs when a selected owner changed (there is something to demand) OR
+# when the ledger itself changed (there is something to validate). It used to
+# gate on `upstream.any?` alone, which is the demand side only — and that is the
+# other half of the restored-owner hole: revert the owner and the range has no
+# changed owner at all, so the entire row evaluation was skipped and the
+# surviving row was never even looked at. With no ledger change there are no
+# added rows, so the skip stays exactly as cheap as before for unrelated diffs.
+if upstream.any? || changed_paths.include?(LEDGER_PATH)
   # Rows are collected PER ROUND and carry the scope they were authored against,
   # so the classifiers below judge a row against its own round's diff. Reading the
   # cumulative register diff instead would re-judge every earlier round's rows
   # against a range that keeps growing — the defect this partition removes.
   rows = []
+  added_lines = []
   round_bounds.each do |span_base, span_head|
     round_scope = scope_at.call(span_base, span_head)
     register_diff = git_read.call("diff", span_base, span_head, "--", LEDGER_PATH)
@@ -308,6 +316,13 @@ if upstream.any?
     # the pending-status scan below normalizes identically, keeping the two
     # consistent (previously "+|" alone falsely blocked a valid indented row).
     stripped = line.sub(/\A\+/, "").strip
+    # EVERY added line is a candidate, recorded before any structural rejection.
+    # Enumerating rejection paths one at a time was the wrong shape: a stray pipe,
+    # an empty cell, an unrecognized status word and a missing outer pipe are four
+    # spellings of one escape, and each was found separately. The scoped check
+    # below is defined by "this line did not become a row" rather than by which
+    # check turned it away, so a fifth spelling closes with them.
+    added_lines << { line: line.strip, raw: stripped }
     next unless stripped.start_with?("|") && stripped.end_with?("|")
     raw = stripped[1..-2]
     # Honor markdown-escaped pipes (\|) so a literal | inside a cell does not
@@ -374,6 +389,7 @@ if upstream.any?
   end
   bad_evidence_files = []
   ambiguous_evidence_rows = []
+  unchanged_owner_rows = []
   evidence_rows_by_upstream_path = Hash.new(0)
   rows_by_upstream_path = Hash.new { |h, k| h[k] = [] }
   declared_in_round = {}
@@ -428,27 +444,241 @@ if upstream.any?
       !(destination && selectable_path.call("#{destination}/SKILL.md"))
     end
   end
+  # OWNERSHIP RESOLUTION reads the evidence cell by OWNER-PACKAGE PREFIX, not by
+  # an exact `<slug>/SKILL.md` match. The exact match was a proxy for "this row
+  # is about that owner" and it under-matched the register's own writing
+  # convention: measured over the shipped ledger, a large minority of rows carry
+  # a full behavioral-evidence declaration while citing a path INSIDE the owner
+  # package (`<owner>/scripts/...`, `<owner>/references/...`) and never the
+  # SKILL.md itself. Those rows bound to nothing, so nothing ever evaluated the
+  # declaration they make — the row was silently inert rather than rejected.
+  # Any path under an owner package identifies the owner just as well, which is
+  # the same normalization the subject set above already applies to the diff.
+  #
+  # RESOLUTION IS SEPARATE FROM CHANGED-NESS. The old predicate filtered the
+  # cited paths through `upstream_set` (the CUMULATIVE changed set) while
+  # resolving them, so an owner that was absent from that set produced an empty
+  # list — and an empty list meant "not this gate's business", silently. That
+  # single filter switched off BOTH obligations at once: the row stopped being
+  # evaluated AND stopped being demanded. An owner restored to its base bytes
+  # (a rebase or a conflict resolved to the base side) leaves the changed set
+  # while its row survives at HEAD, and the row kept vouching for a change the
+  # delivered diff no longer contains. Resolution now answers only "which owner
+  # is this row about" (a property of the NAME); changed-ness is asked
+  # afterwards, as its own question with its own refusal.
+  # The lookbehind refuses a match preceded by a path character, which is what
+  # keeps a URL or a longer unrelated path from resolving to an owner. It also
+  # refuses the two forms an author writes without meaning anything unusual — a
+  # leading `./` or a rooted `/skills/...` — and a citation that resolves to
+  # nothing is silently skipped, which is precisely the state the new refusals
+  # exist to remove. So `skills/` may be reached through an explicit `./` or `/`
+  # prefix, and only through it: the prefix must be followed by the literal
+  # `skills/` segment, so widening here cannot admit an arbitrary deep path.
+  # A `..` segment is NOT normalized; a citation that walks out of the package it
+  # names is dishonest authorship, which this gate's trust model already assigns
+  # to the mandatory independent review rather than to a lexical check.
+  #
+  # Only the PREFIX form is widened. It is the one gated behind a
+  # behavioral-evidence declaration, so widening it can only reach rows this gate
+  # already governs. The exact form stays byte-for-byte as it was, because it is
+  # unconditional: widening it would newly bind rows in the register's other
+  # tables and drag them into evaluation — the regression the declaration
+  # condition exists to prevent.
+  # The prefix allowance is `./skills/` or `/skills/` — a separator is admitted
+  # only when the literal `skills/` segment follows it. That keeps out the forms
+  # that are not paths inside this repository's owner package (`../skills/...`,
+  # `../<owner>/...`, a bare `/<owner>/...`), while the lookbehind still excludes
+  # a `skills/` segment sitting inside a URL or a longer path, since the
+  # character before the separator is then a word character. Leaving the rooted
+  # form out was itself an evasion: the citation resolved to nothing, and a row
+  # that resolves to nothing is skipped before any refusal can apply.
+  # OWNERSHIP RESOLUTION IS A MEMBERSHIP TEST, NOT A PATH PARSE.
+  #
+  # The evidence cell is prose that happens to mention paths, and four review
+  # rounds each found another path spelling the parse did not accept — `./skills/`,
+  # a rooted `/skills/`, a remainder starting `@` or holding a non-ASCII
+  # character, and an ordinary Markdown-relative `../../<owner>/…`. Every miss had
+  # the same consequence: the citation resolved to nothing, and a row that
+  # resolves to nothing is skipped before any refusal can apply. Same class four
+  # times is the signal to stop patching the proxy.
+  #
+  # So the predicate no longer reasons about path syntax at all. The gate owns a
+  # finite vocabulary — the selectable owner names — and asks only whether the
+  # cell mentions one of them as a path segment. There is no grammar left to
+  # exhaust: every spelling above contains `<owner>/`, and a name is admitted only
+  # when the character before it is not a word character or hyphen, so a longer
+  # slug ending in a shorter one never matches.
+  #
+  # The residual is the mirror image and is smaller: a URL whose path happens to
+  # carry a selectable name binds the row to that owner. Such a link usually
+  # points AT that skill, so the binding is right; when it is not, the cost is one
+  # visible refusal carrying a diagnostic, against the alternative of rows that
+  # are silently never evaluated at all.
+  owner_names_at = lambda do |ref|
+    out = IO.popen(["git", "-C", root, "ls-tree", "-z", "--name-only", "#{ref}:skills"],
+                   err: File::NULL, &:read)
+    $?.success? ? out.split("\0").reject(&:empty?) : []
+  end
+  resolvable_owner_names = (
+    upstream_owner_skills +
+    owner_names_at.call("HEAD") + owner_names_at.call(base_ref)
+  ).uniq.select { |name| selectable_path.call("#{name}/SKILL.md") }
+  owner_mentioned = lambda do |evidence, name|
+    evidence.match?(/(?<![\w-])#{Regexp.escape(name)}\//)
+  end
+  owner_skill_md_path = %r{(?<![\w/.-])([a-z][a-z0-9_-]+)/SKILL\.md(?![\w/.-])}
   rows.each do |row|
-    paths = row[:evidence].scan(/(?<![\w\/.-])([a-z][a-z0-9_-]+\/SKILL\.md)(?![\w\/.-])/).flatten.uniq
+    # THE REGISTER HOLDS MORE THAN THIS GATE'S TABLE. Its row filter is
+    # deliberately loose — five columns, a status word, a non-header first cell —
+    # and the exact `<slug>/SKILL.md` match was doing double duty as the de-facto
+    # discriminator: an unrelated five-column row almost never contains one.
+    # Widening resolution to any owner-package path removed that discriminator,
+    # so an unrelated row citing `skills/<owner>/references/note.md` would newly
+    # resolve to a selected owner and could be refused as an unchanged-owner row
+    # or dragged into behavioral validation. Adversarial review caught this
+    # against this change's own acceptance criterion that other table shapes keep
+    # their prior behavior.
+    #
+    # The widening is therefore conditioned on the row making an impact-chain
+    # CLAIM — carrying a `behavioral-evidence:` fragment, the declaration this
+    # gate owns and no other register table uses. Exact SKILL.md resolution stays
+    # unconditional so no pre-existing refusal path is lost, and a row with no
+    # claim is not held to the new unchanged-owner refusal either: a row that
+    # declares nothing is not vouching for anything.
+    # THE BIFURCATION. A row carrying the declaration is one of this gate's rows
+    # and gets the new semantics. A row without one keeps the OLD predicate
+    # verbatim — including its changed-set filter — because "prior behavior" has
+    # to mean the whole predicate, not just the parts that were convenient to
+    # keep. Conditioning only the widening while sharing the counting step looks
+    # equivalent and is not: a two-owner citation where only one owner changed
+    # used to resolve to that one owner and be evaluated, and sharing the
+    # name-level count turned it into an ambiguity that drops the row, losing a
+    # refusal while the change was billed as a tightening.
+    declares_impact_chain = row[:behavior].split(";").any? do |fragment|
+      fragment.match?(/\A\s*behavioral-evidence:/i)
+    end
+    candidate_paths =
+      if declares_impact_chain
+        # Name-level resolution: which owner is this row about, independent of
+        # whether that owner changed. Changed-ness is asked separately below.
+        # `lineage_extra` carries the rename chain's transient names — X renamed to
+        # Y, then Y to Z. A row citing Y is a real declaration and the map exists
+        # to keep it one, so the vocabulary is "selectable names OR lineage names",
+        # the same admission the per-round subject set uses.
+        lineage_names = lineage_extra.keys.map { |path| path.sub(%r{/SKILL\.md\z}, "") }
+        (resolvable_owner_names | lineage_names)
+          .select { |name| owner_mentioned.call(row[:evidence], name) }
+          .map { |name| "#{name}/SKILL.md" }.uniq
+      else
+        # Prior behavior, unchanged: exact SKILL.md citations filtered through the
+        # cumulative changed set. The scan captures the slug, so it is mapped back
+        # to the owner path the changed set is keyed by.
+        row[:evidence].scan(owner_skill_md_path).flatten.uniq
+           .map { |slug| "#{slug}/SKILL.md" }
+           .select { |path| upstream_set[path] || lineage_extra[path] }
+      end
+    next if candidate_paths.empty?
+    if candidate_paths.length > 1
+      # BLOCKING for a declaring row: advisory plus drop is the worst pairing for
+      # a row this gate governs — the author sees a warning, the row is never
+      # evaluated, and the exit code says the gate passed. Measured over the
+      # shipped ledger no declaring row resolves to more than one selected owner,
+      # so blocking refuses a shape the register does not use. A non-declaring row
+      # keeps the old advisory, reached only through the old predicate above.
+      ambiguous_evidence_rows << {
+        line: row[:line].sub(/^\+/, "").strip,
+        paths: candidate_paths,
+        blocking: declares_impact_chain
+      }
+      next
+    end
+    path = candidate_paths.first
     # A lineage name's rows are recognized as declarations, matching the
     # per-round subject set above — demanding a row the mapping then ignored
     # would be the same contradiction the excuse used to justify.
-    upstream_paths_in_row = paths.select { |path| upstream_set[path] || lineage_extra[path] }
-    if upstream_paths_in_row.length > 1
-      ambiguous_evidence_rows << { line: row[:line].sub(/^\+/, "").strip, paths: upstream_paths_in_row }
+    unless upstream_set[path] || lineage_extra[path]
+      # A row that declares nothing is not vouching for a change, so it is not
+      # held to this refusal; it simply resolves to nothing this gate governs.
+      #
+      # There is deliberately NO author-declared escape here. A corrective
+      # rewrite that back-fills a row for a round which merged red produces this
+      # exact shape, and the diff cannot tell it apart from a reverted owner — but
+      # an author-controlled marker would weaken the refusal for everyone in order
+      # to smooth a rare, deliberate, user-run repair, and it also cannot exempt
+      # one refusal without skipping the row's remaining validation. The repair is
+      # already an operation a person adjudicates; it can adjudicate this red too.
+      unchanged_owner_rows << { line: row[:line].sub(/^\+/, "").strip, path: path } if declares_impact_chain
+      next
     end
-    if upstream_paths_in_row.length == 1
-      evidence_rows_by_upstream_path[upstream_paths_in_row.first] += 1
-      rows_by_upstream_path[upstream_paths_in_row.first] << row
-      declared_in_round[[row[:scope].base, row[:scope].head, upstream_paths_in_row.first]] = true
+    evidence_rows_by_upstream_path[path] += 1
+    rows_by_upstream_path[path] << row
+    declared_in_round[[row[:scope].base, row[:scope].head, path]] = true
+  end
+  # A malformed line is blocking only when it is BOTH making this gate's
+  # declaration and naming a selected owner — the exact pair that would otherwise
+  # buy silence. Everything else stays advisory, because the register carries
+  # other tables whose prose can hold a status word and a citation.
+  # Malformed lines face the SAME survival budget as parsed rows. Without it a
+  # declaring row that was malformed in one round and corrected or removed in a
+  # later one would keep blocking at HEAD — the gate would refuse the very repair
+  # it asked for. The budget is shared with the parsed rows deliberately: a line
+  # is one occurrence whether or not it parsed.
+  # Whatever did not become a row is the escape surface, however it failed.
+  parsed_line_texts = Hash.new(0)
+  rows.each { |row| parsed_line_texts[row[:line].sub(/\A\+/, "").strip] += 1 }
+  malformed_rows = added_lines.reject do |entry|
+    key = entry[:line].sub(/\A\+/, "").strip
+    if parsed_line_texts[key].positive?
+      parsed_line_texts[key] -= 1
+      true
+    else
+      false
     end
   end
+  malformed_rows.select! do |entry|
+    # The budget is keyed by the row text without the diff marker, the same key
+    # the parsed rows use; keeping the marker here would never match and would
+    # quietly drop every malformed row back out of the check.
+    key = entry[:line].sub(/\A\+/, "").strip
+    next false unless row_budget[key].positive?
+    row_budget[key] -= 1
+    true
+  end
+  smuggled_malformed = malformed_rows.select do |entry|
+    # A malformed row has no trustworthy columns, so the declaration is matched at
+    # a fragment boundary in the raw line — start of line, a cell delimiter, or a
+    # semicolon — rather than by splitting cells that did not parse.
+    entry[:raw].match?(/(?:\A|[|;])\s*behavioral-evidence:/i) &&
+      (resolvable_owner_names | lineage_extra.keys.map { |path| path.sub(%r{/SKILL\.md\z}, "") })
+        .any? { |name| owner_mentioned.call(entry[:raw], name) }
+  end
+  unless smuggled_malformed.empty?
+    warn "impact_chain_row_blocking_malformed: a row carrying a behavioral-evidence declaration and naming a selected owner did not parse as five columns"
+    warn "  note: a malformed row is skipped by every later check, so this pair — a real declaration plus a selected owner — cannot be left advisory: it would buy silence for the row"
+    warn "  fix: escape any literal pipe inside a cell as backslash-pipe so the row parses, then let it face the ordinary checks"
+    smuggled_malformed.each { |entry| warn "  row: #{entry[:line]}" }
+    exit 1
+  end
+  unless unchanged_owner_rows.empty?
+    warn "impact_chain_row_vouches_for_unchanged_owner: an added source-register row declares an upstream owner that this diff does not change"
+    warn "  note: the row survives at HEAD but the owner package is byte-identical to the base — typically a rebase or a conflict resolved to the base side that reverted the owner while leaving its ledger row behind"
+    warn "  fix: restore the owner change the row declares, or remove the row; a row must not vouch for a change the delivered diff does not contain"
+    warn "  note: a paired-control row for an UNCHANGED downstream owner names it WITHOUT a path (`testing-strategy`, not `testing-strategy/SKILL.md`) — the evidence cell's owner key identifies the CHANGED upstream owner this row declares, so a package path there is read as that claim"
+    warn "  note: if this row back-fills a round that merged with the gate red, the owner change sits below this base and the diff cannot tell that apart from a reverted owner — that repair is adjudicated by a person, who decides whether to accept this red"
+    unchanged_owner_rows.each do |entry|
+      warn "  unchanged owner: #{entry[:path]}"
+      warn "  row: #{entry[:line]}"
+    end
+    exit 1
+  end
   unless ambiguous_evidence_rows.empty?
-    warn "impact_chain_row_ambiguous: source-register evidence row cites multiple changed upstream SKILL.md paths; split into one row per changed upstream SKILL.md"
+    warn "impact_chain_row_ambiguous: source-register evidence row cites multiple selected upstream owner packages; split into one row per changed upstream SKILL.md"
     ambiguous_evidence_rows.each do |row|
       warn "  paths: #{row[:paths].join(", ")}"
       warn "  row: #{row[:line]}"
+      warn "  note: advisory — this row carries no behavioral-evidence declaration, so it is not one of this gate's rows and keeps its prior skip" unless row[:blocking]
     end
+    exit 1 if ambiguous_evidence_rows.any? { |row| row[:blocking] }
   end
   # Existence is checked against the ROW'S OWN ROUND HEAD, not the working tree.
   # A row is authored against one round's diff, so the name it cites only has to
@@ -577,6 +807,16 @@ if upstream.any?
   # change is accounted for byte-for-byte — one changed file, identical body,
   # identical frontmatter apart from the single description entry. Every shape the
   # split cannot fully account for refuses the class.
+
+  # 「新增行是否是一条规范规则」——与下方锚点判据同一套形状，抽出来供 source-refuted
+  # 的纯删除检查复用，避免两处各写一份而漂移。
+  normative_rule_line = lambda do |line|
+    next false if line.nil? || line.include?("<!--")
+    list_rule = line.lstrip.match?(/\A(?:[-*+]\s+|\d+[.)]\s+)/)
+    normative = line.match?(/(?:\b(?:must|shall|never|do\s+not|don'?t|required?|requires?|block(?:s|ed)?|reject(?:s|ed)?|deny|denied|invalidates?|forbid(?:s|den)?|cannot|enforcement)\b|必须|不得|禁止|拒绝|作废|仅限|只能|应当|应该|务必|不能|不允许|不可)/i)
+    list_rule && normative
+  end
+
   routing_surface_cache = {}
   # The file MODE is part of the entrypoint's identity, exactly as it is for the
   # package comparison above: bytes alone would let `chmod +x` on SKILL.md ride
@@ -872,7 +1112,7 @@ if upstream.any?
           declarations[m[1].downcase] ||= m[2]
         end
       end
-      status = declarations["behavioral-evidence"]&.[](/\A(RED-baseline|semantic-control|not-required\s+wording-only|not-required\s+identifier-rename)\z/i, 1)
+      status = declarations["behavioral-evidence"]&.[](/\A(RED-baseline|semantic-control|source-refuted|not-required\s+wording-only|not-required\s+identifier-rename)\z/i, 1)
       normalized_status = status&.downcase&.gsub(/\s+/, " ")
       declared_wording_only = normalized_status == "not-required wording-only"
       wording_only = declared_wording_only && wording_only_diff_for.call(row_scope, path)
@@ -884,7 +1124,124 @@ if upstream.any?
       no_behavior_class = wording_only || identifier_rename
       observed = declarations["observed-failure"]&.[](/\A(yes|no)\z/i, 1)&.downcase
       semantic_control = normalized_status == "semantic-control" && observed == "no"
-      status_allowed = no_behavior_class || normalized_status == "red-baseline" || semantic_control
+      # `source-refuted` —— 撤回一条被一手源否证的陈述。它不是豁免，是**换一种证据**：
+      # 行为证据在这里造不出来（删掉一句假陈述往往无可测行为差异），而一手源否证
+      # 与义务保全是可核的。四道门槛全部机械可判，缺一即不成立：
+      #   (1) observed-failure: no —— 这条闸问的是规则有没有失灵；被撤回的陈述触发
+      #       正常，它只是假的。自选 yes 不得走本类。
+      #   (2) 证据列含否证该陈述的一手源 URL。
+      #   (3) 证据列含零损失义务对照的可解析指针，且目标文件存在且非空。
+      #   (4) 该 owner 包在本行所属轮次的净字节变化 <= 0。撤回会让包缩小；这条挡住
+      #       借事实更正之名夹带新规则。它是**机械下限不是证明**——净删除仍可能在别处
+      #       夹带，那由 dual-track 的零损失审查兜，本闸不假装能替代它。
+      evidence_cell = row[:evidence].to_s
+      refuting_source = evidence_cell.match?(%r{https?://\S+})
+      # 零损失指针：不止文件要在，**锚点必须解析得到**。只检文件存在非空时，
+      # `README.md#不存在的锚` 就能廉价满足——独立挑战实测出的绕过。
+      zero_loss_ptr = evidence_cell[/`([^`]+#[^`]+)`/, 1]
+      zero_loss_ok = begin
+        rel, anchor = zero_loss_ptr.to_s.split("#", 2)
+        rel = rel.to_s.strip; anchor = anchor.to_s.strip
+        # 路径必须是**仓内、被 git 跟踪的常规 blob**，且在本行所属轮次的 head 上存在。
+        # 先前用 File.join(root, rel) + File.file? 判定，`../../仓外文件` 与逃出检出的
+        # 符号链接都能过，File.read 还没有上限——独立评审实测出的绕过。改为只信 git：
+        # 路径不得绝对、不得含 `..`，且必须能在 head 上取到 100644 的 blob。
+        safe_rel = !rel.empty? && !rel.start_with?("/") &&
+                   !rel.split("/").include?("..") && !anchor.empty?
+        if safe_rel
+          meta = IO.popen(["git", "-C", root, "ls-tree", "-z", row_scope.head, "--", rel],
+                          err: File::NULL, &:read)
+          entry = $?.success? ? meta.split("\0").reject(&:empty?).first : nil
+          mode, type, = entry.to_s.split(/\s+/, 3)
+          if mode == "100644" && type == "blob" && rel.end_with?(".md")
+            body = IO.popen(["git", "-C", root, "cat-file", "blob", "#{row_scope.head}:#{rel}"],
+                            err: File::NULL) { |io| io.read(512 * 1024) }   # 有界读
+            if $?.success? && body
+              body.force_encoding("UTF-8")
+              # 锚点必须落在**标题**上。先前允许任意子串命中，于是 `README.md#a`
+              # 只要文件里有字母 a 就过——独立挑战实测出的绕过。子串回退整条删除。
+              slug = lambda { |t| t.downcase.gsub(/[^\p{Word}\- ]/, "").strip.gsub(/\s+/, "-") }
+              want = slug.call(anchor)
+              body.each_line.any? do |ln|
+                next false unless ln.start_with?("#")
+                head_text = ln.sub(/\A#+\s*/, "").strip
+                head_text == anchor || slug.call(head_text) == want
+              end
+            else
+              false
+            end
+          else
+            false
+          end
+        else
+          false
+        end
+      end
+      # 撤回必须是**纯删除**，而"纯删除"有精确的机械定义——先前那版用「不得新增
+      # 规范规则行」去近似它，是**代理不是不变量**：脚本改动、非列表格式的行为指令、
+      # 以 `Always` 开头的规则（该谓词故意排除 always）全都不匹配，照过。两轮独立
+      # 评审各自实测出这条绕过。改为直接分类整个 owner diff：
+      #   · 每个变更路径都是 skills/<owner>/ 下的常规 .md（脚本、模板、二进制一律不合格）
+      #   · 每个路径的状态都是 M（新增/删除/改名/复制/改权限一律不合格）
+      #   · 全 diff 新增行数 == 0，删除行数 > 0
+      pure_deletion_owner_diff = lambda do
+        # `--raw` 而不是 `--name-status`：后者把 chmod 也显示为 M、且 numstat 记 0/0，
+        # 于是「改权限 + 一次真删除」能整体通过——独立评审实测出的绕过。raw 带出
+        # 新旧两侧的 mode，可以直接要求两侧都是常规 blob 且 mode 一致。
+        raw = IO.popen(["git", "-C", root, "diff", "--no-renames", "--raw", "-z",
+                        row_scope.base, row_scope.head, "--", "skills/#{owner}/"],
+                       err: File::NULL, &:read)
+        return false unless $?.success?
+        fields = raw.split("\0").reject(&:empty?)
+        return false if fields.empty?
+        i = 0
+        while i < fields.length
+          meta = fields[i]
+          return false unless meta.start_with?(":")
+          parts = meta[1..].split(/\s+/)
+          old_mode, new_mode, _old_sha, _new_sha, status = parts
+          path = fields[i + 1]
+          return false if path.nil? || status.nil?
+          return false unless status == "M"
+          return false unless old_mode == "100644" && new_mode == "100644"
+          return false unless path.end_with?(".md")
+          i += 2
+        end
+        stat = IO.popen(["git", "-C", root, "diff", "--no-renames", "--numstat",
+                         row_scope.base, row_scope.head, "--", "skills/#{owner}/"],
+                        err: File::NULL, &:read)
+        return false unless $?.success?
+        added = deleted = 0
+        stat.each_line do |ln|
+          a, d, _ = ln.split("\t", 3)
+          return false unless a =~ /\A\d+\z/ && d =~ /\A\d+\z/
+          added += a.to_i; deleted += d.to_i
+        end
+        added.zero? && deleted.positive?
+      end
+      # 把指针**绑到撤回本身**，而不是只验它形式合规：本轮删掉的每一行有实质内容的
+      # 文本，都必须逐字出现在零损失对照文件里。前六版门槛全部被独立评审击穿，共同点
+      # 是它们只验「这个指针看起来合规」，从不验「它交代的正是被删掉的东西」。删了什么
+      # 就必须抄出来——攻击者要删一条真实义务，就得把它原样写进对照表，藏不住。
+      deleted_lines_accounted = lambda do
+        rel = zero_loss_ptr.to_s.split("#", 2).first.to_s.strip
+        map_body = IO.popen(["git", "-C", root, "cat-file", "blob", "#{row_scope.head}:#{rel}"],
+                            err: File::NULL) { |io| io.read(512 * 1024) }
+        return false unless $?.success? && map_body
+        map_body.force_encoding("UTF-8")
+        diff = IO.popen(["git", "-C", root, "diff", "--no-renames", "-U0",
+                         row_scope.base, row_scope.head, "--", "skills/#{owner}/"],
+                        err: File::NULL, &:read)
+        return false unless $?.success?
+        removed = diff.each_line.select { |ln| ln.start_with?("-") && !ln.start_with?("---") }
+                      .map { |ln| ln[1..].to_s.strip }
+                      .reject { |ln| ln.empty? || ln.length < 12 }
+        return false if removed.empty?
+        removed.all? { |ln| map_body.include?(ln) }
+      end
+      source_refuted = normalized_status == "source-refuted" && observed == "no" &&
+        refuting_source && zero_loss_ok && pure_deletion_owner_diff.call && deleted_lines_accounted.call
+      status_allowed = no_behavior_class || normalized_status == "red-baseline" || semantic_control || source_refuted
       firing_path = declarations["firing-path"]&.[](/\A((?:command|file):.+)\z/i, 1)&.strip
       firing_parts = locator_parts.call(firing_path)
       firing_path_valid = firing_locator_valid.call(row_scope, firing_parts, owner)
@@ -897,7 +1254,10 @@ if upstream.any?
       # regeneration cost (full-suite reruns on every owner-script byte change)
       # far outweighed the staleness detection it added under the
       # unsigned-repository-local trust model.
-      row_valid = if no_behavior_class
+      row_valid = if source_refuted
+        # 纯删除没有新增的规范行可供锚定，与两个 no-behavior 类同理免 firing-path。
+        true
+      elsif no_behavior_class
         # Neither `not-required` class is an author-controlled waiver: each is
         # accepted only when the owner diff itself passes the matching
         # deterministic classifier — letters/digits-free for wording-only,
@@ -912,6 +1272,7 @@ if upstream.any?
       end
       {
         red_declared: normalized_status == "red-baseline",
+        source_refuted: source_refuted,
         row_valid: row_valid,
         firing_path_valid: firing_path_valid
       }
@@ -931,6 +1292,22 @@ if upstream.any?
     # that happened to be punctuation-only. Cumulative is the strictly stricter
     # reading of the two, so the round scoping cannot loosen this floor.
     valid = evaluated.all? { |entry| entry[:row_valid] }
+    # `source-refuted` 与两个 no-behavior 类一样可以顶起这道底线，理由同构：底线存在
+    # 是因为 semantic-control 标签只能为某一个具名行为背书、包里其余部分无人担保。
+    # 而一次经四道门槛核过的撤回**没有未担保的余量**——它净删除、义务对照可查、
+    # 一手源可查。对它坚持「必须有一条观察到的行为差异」只会逼人去发明一个。
+    # 撤回类顶起底线时必须是**整包**的性质，不能是包里某一行的性质：一条合规撤回
+    # 与一条搭便车的 semantic-control 行并存时，`any?` 会把整个 owner 放行——独立
+    # 评审实测出的洞。bar 4（本轮不得新增规范规则行）已挡住带规范动词的搭车，这里
+    # 再要求该 owner 的**全部**非 no-behavior 行都是撤回类，连非规范措辞的搭车一并挡掉。
+    # `source-refuted` **不顶起这道底线**。七轮独立评审逐一击穿了保护它的每一版门槛
+    # （净字节、规范行启发式、name-status、文件存在、子串锚、形式合规），两条通道两次
+    # 给出同一条建议：在指针能被绑到被撤回的那条义务之前，不要让它清掉 RED 底线。
+    # 剩下的缺口本质不可机械验证——指针可以指向真实标题、逐字抄录被删文本，而
+    # 「这个一手源确实否证了那条陈述」仍然只有人能判。按本仓「同类跨轮复现是设计
+    # 信号不是补丁信号」，这里删掉的是那个能力本身，不是再补一道门槛。
+    # 该类保留的作用：让标签诚实、强制产出零损失义务对照、并把诊断指向正确的补法。
+    # 撤回仍需一条 RED 行，或由**具名风险 owner** 经既有通道人工放行。
     valid &&= evaluated.any? { |entry| entry[:red_declared] } ||
               wording_only_diff_for.call(cumulative, path) ||
               identifier_rename_diff_for.call(cumulative, path)
@@ -957,7 +1334,7 @@ if upstream.any?
   end
   unless behavior_failures.empty?
     warn "impact_chain_behavior_evidence_missing: at least one added upstream-owner row lacks a complete behavioral-evidence declaration"
-    warn "  fix: every added row for a changed upstream owner needs `behavioral-evidence: RED-baseline` (observed deltas; observed-failure: yes requires it) or `semantic-control` (only with observed-failure: no), plus `observed-failure: yes/no` and an owner-scoped `firing-path:`; a non-wording owner package needs at least one RED-baseline row; only deterministically wording-only diffs (no letters or digits changed) may use `not-required wording-only`, and only diffs whose base bytes are reproduced exactly by applying git-derived skill-rename pairs may use `not-required identifier-rename` (both drop the firing-path requirement and require observed-failure: no); an owner whose ENTIRE change is the SKILL.md frontmatter description entry keeps the RED-baseline bar and may anchor its firing path on that changed description line"
+    warn "  fix: every added row for a changed upstream owner needs `behavioral-evidence: RED-baseline` (observed deltas; observed-failure: yes requires it) `semantic-control` (only with observed-failure: no), or `source-refuted` (a pure-deletion withdrawal of a claim a primary source refutes: observed-failure no, a refuting source URL, a resolvable zero-loss pointer, the owner's round diff touches only modified regular Markdown files whose file mode is unchanged, adds zero lines and deletes at least one, and every row for that owner is in the same class) — note that `source-refuted` records an honest label and forces a zero-loss map, but does NOT by itself lift the per-owner RED floor: a withdrawal still needs a RED-baseline row or a named risk owner's waiver, plus `observed-failure: yes/no` and an owner-scoped `firing-path:`; a non-wording owner package needs at least one RED-baseline row; only deterministically wording-only diffs (no letters or digits changed) may use `not-required wording-only`, and only diffs whose base bytes are reproduced exactly by applying git-derived skill-rename pairs may use `not-required identifier-rename` (both drop the firing-path requirement and require observed-failure: no); an owner whose ENTIRE change is the SKILL.md frontmatter description entry keeps the RED-baseline bar and may anchor its firing path on that changed description line"
     behavior_failures.each { |path| warn "  incomplete: #{path}" }
     exit 1
   end

@@ -1,0 +1,48 @@
+{
+  "model": "claude-haiku-4-5",
+  "runs": 10,
+  "replicate": 2,
+  "candidate_line": 106,
+  "control_line": 107,
+  "per_replicate": [
+    {
+      "full": {
+        "cand": 10,
+        "ctrl": 8,
+        "err": 0
+      },
+      "minus_candidate": {
+        "cand": 0,
+        "ctrl": 10,
+        "err": 0
+      },
+      "minus_control": {
+        "cand": 10,
+        "ctrl": 0,
+        "err": 0
+      }
+    },
+    {
+      "full": {
+        "cand": 10,
+        "ctrl": 9,
+        "err": 0
+      },
+      "minus_candidate": {
+        "cand": 0,
+        "ctrl": 9,
+        "err": 0
+      },
+      "minus_control": {
+        "cand": 10,
+        "ctrl": 0,
+        "err": 0
+      }
+    }
+  ],
+  "verdicts": [
+    "LOAD_BEARING (候选臂掉 10/10 >= 3，不可删)",
+    "LOAD_BEARING (候选臂掉 10/10 >= 3，不可删)"
+  ],
+  "final": "LOAD_BEARING"
+}

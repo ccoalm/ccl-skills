@@ -1,0 +1,1 @@
+eval-routing-bank (claude-haiku-4-5): 1/1 pass, 0 fail, 0 grader-error

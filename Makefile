@@ -1,34 +1,27 @@
 # ccl-skills 安装与更新（薄封装，逻辑在 scripts/install*.sh）
-.PHONY: help test test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
+.PHONY: help test test-repo-gates test-regressions-fast test-code-review test-code-review-1 test-code-review-2 test-code-review-abort-leak test-code-review-abort-leak-1 test-code-review-abort-leak-2 test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
 .DEFAULT_GOAL := help
 
 help: ## 显示可用目标
-	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-20s %s\n", $$1, $$2}'
+	@grep -E '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-20s %s\n", $$1, $$2}'
 
-test: ## 运行本仓确定性 gate、脚本测试和 Python 回归
+# `test` 是纯 prerequisites 聚合、无自有 recipe：往本地全量测试加套件必须落进某个
+# 子目标，而每个叶子子目标都被 CI 消费（repository-gates / code-review-regressions-1/-2
+# / code-review-abort-leak-1/-2 直跑，fast lane 由 regression-fast job 直跑），杜绝"进了 make test 却不进
+# 任何 CI job"的 false-green（specs/035-ci-critical-path-split/plan.md、
+# specs/036-ci-parallel-shards/plan.md）。
+test: test-repo-gates test-regressions-fast test-code-review ## 运行本仓确定性 gate、脚本测试和 Python 回归
+
+test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository-gates job；不含 code-review 族与 fast 回归 lane）
 	bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
-	bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --fast
 	bash skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh --repo . --enforce
 	python3 scripts/test_check_markdown_links.py
 	python3 scripts/check-markdown-links.py .
 	python3 scripts/test_check_spec_references.py
 	python3 scripts/check-spec-references.py .
-	bash skills/code-review/scripts/test_classify_envelope.sh
-	bash skills/code-review/scripts/test_concern_excerpt.sh
-	bash skills/code-review/scripts/test_claude_review_probe.sh
-	bash skills/code-review/scripts/test_parse_opencode_review.sh
-	bash skills/code-review/scripts/test_egress_schema.sh
-	bash skills/code-review/scripts/test_parse_probe_result.sh
-	bash skills/code-review/scripts/test_init_policy_matrix.sh
-	bash skills/code-review/scripts/test_parse_review_json.sh
-	bash skills/code-review/scripts/test_opencode_review_retry.sh
-	bash skills/code-review/scripts/test_opencode_review_concurrency.sh
-	bash skills/code-review/scripts/test_review_gate.sh
-	bash skills/code-review/scripts/test_review_client_order.sh
-	bash skills/code-review/scripts/test_cli_review_wrappers.sh
-	python3 skills/code-review/scripts/test_review_client_compat.py
-	bash skills/code-review/scripts/test_code_review_identity.sh
 	bash scripts/test_install_opencode_skill_migration.sh
+	bash scripts/test_run_parallel_suites.sh
+	python3 scripts/test_lane_isolation.py
 	bash hooks/test_guard_delegation_owner.sh
 	bash hooks/test_guard_edit_isolation.sh
 	bash hooks/test_guard_merge_authorization.sh
@@ -44,6 +37,55 @@ test: ## 运行本仓确定性 gate、脚本测试和 Python 回归
 	bash scripts/control-plane/test.sh
 	python3 -m pytest -q skills/test-artifact-management/references/test_gen_report.py
 	python3 -m unittest eval.test_subagent_owner_audit eval.test_skill_effectiveness_bridge eval.test_skill_effectiveness_trial eval.test_reviewer_calibration_protocol
+
+test-regressions-fast: ## fast 回归 lane（CI regression-fast 并行 job；本地 make test 直跑）
+	bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --fast
+
+# 两个分片按 CI 实测耗时均分（run 32593624728 量级：分片 1 ≈ init_policy_matrix
+# 251s + opencode_review_retry 86s + 小件；分片 2 ≈ review_gate 165s +
+# cli_review_wrappers 141s + claude_review_probe 35s + 小件；各 ≈ 350s）。
+# 新增套件时按该基准挑分片，别都堆一边。
+# review_gate_abort_leak 独占一个 job，不进任何并行分片：它两条腿各要跑一整轮
+# test_review_gate.sh 并等到某个 hang 用例在飞，与别的套件抢同一台 runner 时
+# 那一轮会拖到远超预算——实测放进分片 1 后烧掉 408s 仍未到达目标用例而红。
+# CI 实测：两条腿合跑 213s/214s，是最长分支（次长 code-review-regressions-2 188s/190s）。
+# 上界 45s→25s 只动了 1s——成本大头是每条腿各一整轮 test_review_gate.sh，不是那段等待。
+# 故 CI 把两条腿拆成两个并行 job：终态实测 177s / 114s，最长分支 188s，关键路径零增长。
+# 本地 make test 仍全跑。
+test-code-review: test-code-review-1 test-code-review-2 test-code-review-abort-leak ## code-review 技能回归族（CI 两个并行分片 job + abort-leak job）
+
+test-code-review-1: ## code-review 分片 1（CI code-review-regressions-1 job）
+	bash scripts/run-parallel-suites.sh --label code_review_shard_1 \
+	  skills/code-review/scripts/test_classify_envelope.sh \
+	  skills/code-review/scripts/test_concern_excerpt.sh \
+	  skills/code-review/scripts/test_parse_opencode_review.sh \
+	  skills/code-review/scripts/test_egress_schema.sh \
+	  skills/code-review/scripts/test_parse_probe_result.sh \
+	  skills/code-review/scripts/test_init_policy_matrix.sh \
+	  skills/code-review/scripts/test_parse_review_json.sh \
+	  skills/code-review/scripts/test_opencode_review_retry.sh
+
+test-code-review-2: ## code-review 分片 2（CI code-review-regressions-2 job）
+	bash scripts/run-parallel-suites.sh --label code_review_shard_2 \
+	  skills/code-review/scripts/test_claude_review_probe.sh \
+	  skills/code-review/scripts/test_opencode_review_concurrency.sh \
+	  skills/code-review/scripts/test_review_gate.sh \
+	  skills/code-review/scripts/test_review_client_order.sh \
+	  skills/code-review/scripts/test_cli_review_wrappers.sh \
+	  skills/code-review/scripts/test_review_client_compat.py \
+	  skills/code-review/scripts/test_code_review_identity.sh
+
+# 覆盖结构：回收器是**一份共享代码**，leg 1 证一次即够；上界是**每个 stub 各一份**
+# （claude stub 与 fallback 共用的 candidate stub），故 leg 2 要对两个 stub 各跑一次
+# ——实测：只把 candidate stub 的上界改回无界，leg2/fallback 红而 leg2/claude 仍绿。
+test-code-review-abort-leak: test-code-review-abort-leak-1 test-code-review-abort-leak-2 ## 中断后不留 reviewer wrapper 的探针（本地全跑；CI 两个并行 job）
+
+test-code-review-abort-leak-1: ## 探针 leg 1（claude stub）+ leg 2（fallback stub）（CI code-review-abort-leak-1 job）
+	ABORT_LEAK_PROBE_LEG=1 ABORT_LEAK_PROBE_CLIENT=claude bash skills/code-review/scripts/test_review_gate_abort_leak.sh
+	ABORT_LEAK_PROBE_LEG=2 ABORT_LEAK_PROBE_CLIENT=fallback bash skills/code-review/scripts/test_review_gate_abort_leak.sh
+
+test-code-review-abort-leak-2: ## 探针 leg 2（claude stub）：不可 trap 的中断由 fixture 自身上界兜住（CI code-review-abort-leak-2 job）
+	ABORT_LEAK_PROBE_LEG=2 ABORT_LEAK_PROBE_CLIENT=claude bash skills/code-review/scripts/test_review_gate_abort_leak.sh
 
 test-check-ccl-regressions: ## 运行 check-ccl-skills shell wrapper 全量回归（CI changes-gated 同入口）
 	bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --full

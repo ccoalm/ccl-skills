@@ -1,0 +1,30 @@
+[
+ {
+  "rep": 1,
+  "arm": "original_order",
+  "discard": 4,
+  "other": 1,
+  "merge": 5
+ },
+ {
+  "rep": 1,
+  "arm": "swapped_order",
+  "merge": 7,
+  "discard": 2,
+  "keep": 1
+ },
+ {
+  "rep": 2,
+  "arm": "original_order",
+  "merge": 8,
+  "discard": 1,
+  "keep": 1
+ },
+ {
+  "rep": 2,
+  "arm": "swapped_order",
+  "merge": 8,
+  "discard": 1,
+  "keep": 1
+ }
+]

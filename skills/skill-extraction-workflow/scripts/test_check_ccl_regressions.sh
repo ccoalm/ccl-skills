@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Aggregate deterministic shell regressions for check-ccl-skills wrappers.
 #
-# Default / local layer: --fast. CI has a changes-gated job that runs --full so
-# Makefile and CI both call this single entrypoint instead of copying test lists.
+# Default / local layer: --fast. CI runs the two layers as parallel jobs
+# (regression-fast --fast, regression-heavy --heavy-only); --full remains the
+# local aggregate (`make test-check-ccl-regressions`). Makefile and CI both call
+# this single entrypoint instead of copying test lists.
 #
 # Usage:
-#   bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh [--fast|--full]
+#   bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh [--fast|--full|--heavy-only]
 #
 # --fast runs the quick/mid wrapper regressions:
 #   - test_ai_coding_implementation_gates.sh
@@ -31,19 +33,24 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || { cd "$SCRIPT_DIR/../../.." && pwd -P; })"
-SCRIPTS_DIR="$REPO_ROOT/skills/skill-extraction-workflow/scripts"
+# REGRESSION_SCRIPTS_DIR redirects the whole runner (execution and audit) at a
+# fixture tree, so the lane-semantics regression can prove mode dispatch with
+# stub suites instead of the real multi-minute ones.
+SCRIPTS_DIR="${REGRESSION_SCRIPTS_DIR:-$REPO_ROOT/skills/skill-extraction-workflow/scripts}"
 
 usage() {
   cat <<'EOF'
-Usage: test_check_ccl_regressions.sh [--fast|--full]
+Usage: test_check_ccl_regressions.sh [--fast|--full|--heavy-only]
 
 Runs deterministic shell regressions for check-ccl-skills wrapper behavior.
-Default is --fast to keep local `make test` light. GitLab CI runs --full from a
-changes-gated job for public deterministic regressions.
+Default is --fast to keep local `make test` light. CI runs --fast and
+--heavy-only as parallel jobs; --full is the local aggregate.
 
 Modes:
   --fast  the quick/mid wrapper regressions (exact set = the fast_tests array below / the list above)
   --full  fast layer plus R0 status and source-register lifecycle regressions
+  --heavy-only  only the heavy full-checker regressions (the heavy_tests array);
+          gives CI a heavy execution surface that does not repeat the fast layer
   --list-unregistered  print sibling test_*.sh NOT in fast_tests/heavy_tests (one per
           line) and exit 0; used by the registration guard test so a new test cannot
           silently skip CI. REGRESSION_SCRIPTS_DIR overrides the scanned directory.
@@ -54,6 +61,7 @@ mode="fast"
 case "${1:-}" in
   ""|--fast) mode="fast" ;;
   --full) mode="full" ;;
+  --heavy-only) mode="heavy-only" ;;
   --list-unregistered) mode="list-unregistered" ;;
   -h|--help) usage; exit 0 ;;
   *) usage >&2; exit 2 ;;
@@ -64,20 +72,25 @@ if [ "$#" -gt 1 ]; then
   exit 2
 fi
 
-run_test() {
-  local test_name="$1"
-  local test_path="$SCRIPTS_DIR/$test_name"
-  local started_at ended_at rc
-  [ -f "$test_path" ] || { echo "FAIL: missing regression test: $test_path" >&2; exit 1; }
-  started_at="$(date +%s)"
-  if bash "$test_path"; then
-    rc=0
-  else
-    rc=$?
-  fi
-  ended_at="$(date +%s)"
-  echo "regression_test_timing: test=$test_name seconds=$((ended_at - started_at)) status=$rc"
-  return "$rc"
+# Lanes execute through the shared bounded-concurrency runner: these suites are
+# dominated by waiting (process timeouts, stub sleeps) and by independent
+# subprocesses, so serial execution burned wall-clock the runner host was not
+# using. The runner owns the missing-file precondition, the per-suite timing
+# line, in-order output replay, and failure propagation; assertions inside the
+# suites are untouched. `SUITE_JOBS=1` restores serial execution for debugging a
+# suspected concurrency interaction. See specs/037-ci-intra-job-parallel/plan.md
+# for the per-lane shared-state audit that makes this safe.
+PARALLEL_RUNNER="$REPO_ROOT/scripts/run-parallel-suites.sh"
+
+run_lane() {
+  local label="$1"; shift
+  local paths=() entry
+  for entry in "$@"; do paths+=("$SCRIPTS_DIR/$entry"); done
+  [ -f "$PARALLEL_RUNNER" ] || {
+    echo "FAIL: missing parallel suite runner: $PARALLEL_RUNNER" >&2
+    exit 1
+  }
+  bash "$PARALLEL_RUNNER" --label "$label" "${paths[@]}"
 }
 
 fast_tests=(
@@ -98,6 +111,13 @@ fast_tests=(
   # differential stays in the heavy suite, but a require-date regression must
   # go RED in every `make test`, not only under --full.
   test_impact_chain_gate_dateless_host.sh
+  # Row-ownership attribution probes: a control leg plus the refusals the gate
+  # owes on a surviving row that vouches for an unchanged owner, a row citing a
+  # package path other than SKILL.md, a row resolving to two selected owners,
+  # and the two shapes that must keep their prior silent skip (an unrelated
+  # five-column register table, a non-curated owner). Synthetic repos only, no
+  # clone, so it belongs in the lane every run exercises.
+  test_impact_chain_round_attribution.sh
   test_eval_routing_bank_grader_diagnostics.sh
   test_eval_routing_bank_surface_binding.sh
   test_eval_routing_prose_target.sh
@@ -106,6 +126,10 @@ fast_tests=(
   test_validate_skill_cross_refs.sh
   test_git_identity_predicate_gate.sh
   test_regression_runner_registration.sh
+  # Lane-semantics guard for this runner itself (036 challenge P2): proves
+  # --heavy-only / --fast / --full each run exactly their lane against a stub
+  # fixture via REGRESSION_SCRIPTS_DIR, and that a red heavy stub propagates.
+  test_regression_runner_lanes.sh
   test_routing_pointer_integrity.sh
   test_routing_bank_integrity.sh
   test_governing_chain_diff.sh
@@ -129,6 +153,17 @@ heavy_tests=(
   # here costs no enforcement — it only stops charging every pre-commit run for a
   # repo clone, and stops a slow entry competing for the runner host.
   test_register_firing_path_wiring.sh
+  # No-verdict-regression differential: materializes twelve pinned integration
+  # points as detached worktrees and runs both the baseline and candidate gate
+  # against each. Proves the other half of a gate change — that it did not start
+  # refusing what it used to accept — which is the half that blocks every author
+  # when it goes wrong. Worktree-per-point makes it far too slow for pre-commit.
+  # source-refuted 证据类的滥用面：16 条合成用例，每条一条分支，且整仓 clone 一次
+  # 作 fixture 底座。它测的正是「这个类会不会变成通用豁免」——七轮独立评审各击穿过
+  # 一版门槛，所以负向用例（真行为变更披标签、抵消式新增、路径穿越、子串锚、改权限、
+  # 对照表不交代被删内容）必须每轮都跑。clone + 16 分支对 pre-commit 太慢，进 heavy。
+  test_impact_chain_source_refuted.sh
+  test_impact_chain_gate_verdict_differential.sh
 )
 
 # Registration self-audit: every sibling test_*.sh must appear in fast_tests or
@@ -155,19 +190,25 @@ if [ "$mode" = "list-unregistered" ]; then
   exit 0
 fi
 
-for test_name in "${fast_tests[@]}"; do
-  run_test "$test_name"
-done
-
-if [ "$mode" = "full" ]; then
-  for test_name in "${heavy_tests[@]}"; do
-    run_test "$test_name"
-  done
-  echo "test_check_ccl_regressions_full_ok"
-else
-  echo "test_check_ccl_regressions_fast_ok"
-fi
-
+# Unregistered siblings hard-fail every execution mode (036 challenge P1): the
+# old advisory-only tail made enforcement depend on the registration guard test
+# itself staying registered — removing it from fast_tests silenced the only red
+# path. Failing here keeps enforcement independent of any one array entry.
 if [ -n "$unregistered" ]; then
-  echo "regression_runner_unregistered_tests_advisory: not in fast_tests/heavy_tests, CI will NOT run them:$unregistered" >&2
+  echo "FAIL: test_*.sh not registered in fast_tests/heavy_tests (CI would silently skip them):$unregistered" >&2
+  exit 1
 fi
+
+if [ "$mode" != "heavy-only" ]; then
+  run_lane regression_fast_lane "${fast_tests[@]}"
+fi
+
+if [ "$mode" = "full" ] || [ "$mode" = "heavy-only" ]; then
+  run_lane regression_heavy_lane "${heavy_tests[@]}"
+fi
+
+case "$mode" in
+  full) echo "test_check_ccl_regressions_full_ok" ;;
+  heavy-only) echo "test_check_ccl_regressions_heavy_only_ok" ;;
+  *) echo "test_check_ccl_regressions_fast_ok" ;;
+esac

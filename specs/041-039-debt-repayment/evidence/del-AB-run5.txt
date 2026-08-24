@@ -1,0 +1,3 @@
+eval-routing-bank (claude-haiku-4-5): 0/1 pass, 1 fail, 0 grader-error
+  FAIL:
+    - route-opencode-global-snapshot-audit: expected skill-extraction-workflow got "agents-file-coverage-gate" (conf 0.08)

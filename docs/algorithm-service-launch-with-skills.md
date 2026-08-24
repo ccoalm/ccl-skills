@@ -64,7 +64,7 @@
 
 ```text
 使用 skill-extraction-workflow 总结这次算法上线过程的经验。
-判断哪些规则需要 keep / merge / discard / route，并更新到合适的 CCL Skill 或使用手册。
+同时检查失败、返工和稳定成功：先解释形成结果的机制，再判断现有内容应保持、合并、删除、移位还是新增，并更新到真正会在下次任务中起作用的 CCL Skill、手册或检查机制。
 ```
 
 ## 执行门禁

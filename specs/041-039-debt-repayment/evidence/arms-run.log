@@ -1,0 +1,20 @@
+bank line:      490 bytes
+=== ARM del-AB ===
+applied 2 span(s)
+  run1: 0/1 pass  selected=agents-file-coverage-gate
+  run2: 0/1 pass  selected=agents-file-coverage-gate
+  run3: 0/1 pass  selected=agents-file-coverage-gate
+  run4: 0/1 pass  selected=requirement-baseline
+  run5: 0/1 pass  selected=agents-file-coverage-gate
+ARM del-AB pass_count=0/5
+restore clean: OK
+=== ARM del-B ===
+applied 1 span(s)
+  run1: 1/1 pass  selected=skill-extraction-workflow
+  run2: 1/1 pass  selected=skill-extraction-workflow
+  run3: 1/1 pass  selected=skill-extraction-workflow
+  run4: 1/1 pass  selected=skill-extraction-workflow
+  run5: 1/1 pass  selected=skill-extraction-workflow
+ARM del-B pass_count=5/5
+restore clean: OK
+=== DONE ===

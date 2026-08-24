@@ -1,0 +1,49 @@
+# 039 抽样结果（落盘即冻结）
+#
+# seed 源      : HEAD = 44c11cb706ceeaa9703da4d5cd16d80cf91b82bc（本文件的父 commit）
+# seed         : int('44c11cb7',16) = 1153506487
+# 抽样框       : git object 1fc647e2113db1a827611f2152d5de5a25847f33
+# 框 sha256    : b654f5ab81aa2bbae47c1b4264867ab87d74fa5172464e8a6e531ab0aed09618
+# 抽样器 sha256: a3b882a2e9dc18f50bb0eda6351a848cf4389170d3da91f06eee0b82fc0a6219
+# 规模         : 30 / 池 126 / 框全表 183
+#
+# 复算：git show 1fc647e2113db1a827611f2152d5de5a25847f33 > frame.md
+#       python3 draw_sample.py 44c11cb7 frame.md
+#
+# 【性质降级，如实标注】原设计要求 seed 不可重试，故拟由用户提供一次性 nonce。
+# 实际上：任何我能触发的值我都能再触发一次，「不可重试」我一个人达不到；而向用户
+# 索取 nonce 是把我设计出来的约束转成别人的活儿。故降级为**重抽可见**——本文件即
+# 抽样落盘，任何第二次抽样都会在 git 历史里表现为另一个 commit。保证的是可检出，
+# 不是不可能。
+#
+# ordinal:file_line:owner
+15:41:skill-extraction-workflow
+32:58:skill-extraction-workflow
+37:112:skill-extraction-workflow
+45:126:skill-extraction-workflow
+47:128:code-review
+50:131:code-review
+52:133:code-review
+53:134:code-review
+66:157:skill-extraction-workflow
+92:183:skill-extraction-workflow
+93:184:code-review
+98:189:code-review
+100:191:skill-extraction-workflow
+105:196:skill-extraction-workflow
+109:200:code-review
+113:204:skill-extraction-workflow
+116:207:skill-extraction-workflow
+127:218:skill-extraction-workflow
+132:223:skill-extraction-workflow
+134:225:skill-extraction-workflow
+136:227:skill-extraction-workflow
+138:229:code-review
+142:233:skill-extraction-workflow
+145:236:skill-extraction-workflow
+147:238:skill-extraction-workflow
+157:248:skill-extraction-workflow
+161:252:skill-extraction-workflow
+164:255:skill-extraction-workflow
+165:256:skill-extraction-workflow
+180:271:skill-extraction-workflow

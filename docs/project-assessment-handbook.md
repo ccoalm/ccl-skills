@@ -66,7 +66,7 @@ flowchart TD
 1. 项目 findings（分级、引证据）。
 2. 按层的验证证据（哪些跑了、哪些 not-applicable/blocked）。
 3. 问题/风险登记。
-4. 可复用流程处置：要么挂提炼技能落地教训，要么显式记 `unchanged`/`routed`/`discarded`。
+4. 可复用流程处置：失败与稳定成功都要判断是否存在可复用机制；已有内容可保持、合并、删除或移位，确有缺口再新增。
 
 报告默认形态见 `product-rd-workflow/references/existing-project-assessment-report.md`。
 

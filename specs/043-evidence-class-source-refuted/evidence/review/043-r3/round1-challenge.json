@@ -1,0 +1,1 @@
+{"schema_version":3,"mode":"challenge","status":"inconclusive","reason":"tracked challenge index must be one less than the Agent review index","reason_code":"review_chain_invalid","fallback_eligible":false,"selected_attempt_index":null,"findings":[],"completion_gated":true,"next_action":"stop_reviewer_lane"}

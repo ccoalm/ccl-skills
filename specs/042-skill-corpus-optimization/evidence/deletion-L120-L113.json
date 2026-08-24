@@ -1,0 +1,69 @@
+{
+  "model": "claude-haiku-4-5",
+  "runs": 10,
+  "replicate": 2,
+  "candidates": [
+    120,
+    113
+  ],
+  "control_line": 107,
+  "per_replicate": [
+    {
+      "full": {
+        "113": 8,
+        "ctrl": 7,
+        "120": 2
+      },
+      "minus_control": {
+        "120": 6,
+        "113": 7
+      },
+      "minus_L120": {
+        "113": 10,
+        "ctrl": 9,
+        "120": 2
+      },
+      "minus_L113": {
+        "120": 8,
+        "113": 2,
+        "ctrl": 10
+      }
+    },
+    {
+      "full": {
+        "120": 4,
+        "113": 5,
+        "ctrl": 8
+      },
+      "minus_control": {
+        "113": 8,
+        "120": 5
+      },
+      "minus_L120": {
+        "ctrl": 10,
+        "113": 9,
+        "120": 1
+      },
+      "minus_L113": {
+        "120": 7,
+        "ctrl": 10
+      }
+    }
+  ],
+  "verdicts": [
+    {
+      "_apparatus": "ok (对照掉 7/10)",
+      "120": "REMOVABLE_ON_PROBED_POINTS (掉 0/10)",
+      "113": "LOAD_BEARING (掉 6/10)"
+    },
+    {
+      "_apparatus": "ok (对照掉 8/10)",
+      "120": "LOAD_BEARING (掉 3/10)",
+      "113": "LOAD_BEARING (掉 5/10)"
+    }
+  ],
+  "final": {
+    "120": "NOT_REPLICATED (REMOVABLE_ON_PROBED_POINTS,LOAD_BEARING)",
+    "113": "LOAD_BEARING"
+  }
+}

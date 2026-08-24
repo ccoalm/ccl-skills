@@ -72,4 +72,4 @@ flowchart TD
 
 - [`multi-agent-delegation` 技能](../skills/multi-agent-delegation/SKILL.md)
 - [隔离开发与协作纪律手册](worktree-isolation-handbook.md) · [做需求/加功能/重构手册](feature-delivery-handbook.md)
-- 若装了 `superpowers:dispatching-parallel-agents` / `subagent-driven-development`，可 route 给它们出配方
+- 若装了 `superpowers:dispatching-parallel-agents` / `subagent-driven-development`，可交给这些技能生成执行配方

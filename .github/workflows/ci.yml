@@ -66,21 +66,230 @@ jobs:
         run: python3 scripts/check-markdown-links.py .
       - name: Spec reference gate
         run: python3 scripts/check-spec-references.py .
-      - name: Repository test suite
+      # test-repo-gates, not `make test`: the code-review family runs in the
+      # parallel code-review-regressions job, and the fast regression lane runs
+      # exactly once per pipeline inside regression-heavy's --full superset —
+      # this job's `make test` used to be the 18-minute critical path
+      # (specs/035-ci-critical-path-split/plan.md).
+      - name: Repository gate suite
         env:
           CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           if [[ -n "$CANDIDATE_BASE_REF" ]] && git merge-base "$CANDIDATE_BASE_REF" HEAD >/dev/null 2>&1; then
             export CCL_SKILL_BASE_REF="$CANDIDATE_BASE_REF"
           fi
-          make test
+          make test-repo-gates
 
-  # The heavy regression lane (--full = fast + the whole-repo-clone suites:
-  # r0 status, source-register lifecycle, impact-chain refscripts, firing-path
-  # wiring). `make test` deliberately runs --fast, so without this job the
-  # heavy suites never execute anywhere and can rot silently — observed once
-  # as a wiring fixture that stayed broken undetected. Runs in parallel with
-  # repository-gates, so it does not extend the critical path.
+  # The code-review skill's regression family, sharded into two parallel jobs
+  # balanced by measured suite time (specs/036-ci-parallel-shards/plan.md; the
+  # single job was the 12-minute critical path). Setup steps and the base-ref
+  # guard mirror repository-gates verbatim (the 022 round's first CI run went
+  # red exactly because a new job dropped the env guard). Both shards must be
+  # required checks: a missing shard means a red code-review suite could merge
+  # while every required check stays green.
+  code-review-regressions-1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install validation tools
+        run: |
+          set -euo pipefail
+          archive="ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          extract_dir="${archive%.tar.gz}"
+          download_url="https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/${archive}"
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+          if ! curl --fail --location --silent --show-error \
+            --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 900 \
+            --connect-timeout 15 --max-time 300 \
+            --output "$temp_dir/$archive" \
+            "$download_url"; then
+            echo "failed to download pinned ripgrep ${RIPGREP_VERSION} asset: $download_url" >&2
+            exit 1
+          fi
+          printf '%s  %s\n' "$RIPGREP_SHA256" "$temp_dir/$archive" | sha256sum --check -
+          tar --extract --gzip --file "$temp_dir/$archive" --directory "$temp_dir"
+          sudo install --mode 0755 "$temp_dir/$extract_dir/rg" /usr/local/bin/rg
+          resolved_rg="$(command -v rg)"
+          if [[ "$resolved_rg" != /usr/local/bin/rg ]]; then
+            echo "unexpected ripgrep on PATH: $resolved_rg" >&2
+            exit 1
+          fi
+          installed_version="$(rg --version | head -n 1)"
+          case "$installed_version" in
+            "ripgrep $RIPGREP_VERSION"*) ;;
+            *) echo "unexpected ripgrep version: $installed_version" >&2; exit 1 ;;
+          esac
+          printf '%s\n' "$installed_version"
+          # ubuntu-latest includes Ruby; fail fast if that runner contract changes
+          # instead of reintroducing the apt mirror dependency on this required job.
+          ruby --version
+      - name: Install Python test dependencies
+        run: python3 -m pip install -r requirements-test.txt
+      - name: Code-review regression shard 1
+        env:
+          CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -n "$CANDIDATE_BASE_REF" ]] && git merge-base "$CANDIDATE_BASE_REF" HEAD >/dev/null 2>&1; then
+            export CCL_SKILL_BASE_REF="$CANDIDATE_BASE_REF"
+          fi
+          make test-code-review-1
+
+  code-review-regressions-2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install validation tools
+        run: |
+          set -euo pipefail
+          archive="ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          extract_dir="${archive%.tar.gz}"
+          download_url="https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/${archive}"
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+          if ! curl --fail --location --silent --show-error \
+            --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 900 \
+            --connect-timeout 15 --max-time 300 \
+            --output "$temp_dir/$archive" \
+            "$download_url"; then
+            echo "failed to download pinned ripgrep ${RIPGREP_VERSION} asset: $download_url" >&2
+            exit 1
+          fi
+          printf '%s  %s\n' "$RIPGREP_SHA256" "$temp_dir/$archive" | sha256sum --check -
+          tar --extract --gzip --file "$temp_dir/$archive" --directory "$temp_dir"
+          sudo install --mode 0755 "$temp_dir/$extract_dir/rg" /usr/local/bin/rg
+          resolved_rg="$(command -v rg)"
+          if [[ "$resolved_rg" != /usr/local/bin/rg ]]; then
+            echo "unexpected ripgrep on PATH: $resolved_rg" >&2
+            exit 1
+          fi
+          installed_version="$(rg --version | head -n 1)"
+          case "$installed_version" in
+            "ripgrep $RIPGREP_VERSION"*) ;;
+            *) echo "unexpected ripgrep version: $installed_version" >&2; exit 1 ;;
+          esac
+          printf '%s\n' "$installed_version"
+          # ubuntu-latest includes Ruby; fail fast if that runner contract changes
+          # instead of reintroducing the apt mirror dependency on this required job.
+          ruby --version
+      - name: Install Python test dependencies
+        run: python3 -m pip install -r requirements-test.txt
+      - name: Code-review regression shard 2
+        env:
+          CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -n "$CANDIDATE_BASE_REF" ]] && git merge-base "$CANDIDATE_BASE_REF" HEAD >/dev/null 2>&1; then
+            export CCL_SKILL_BASE_REF="$CANDIDATE_BASE_REF"
+          fi
+          make test-code-review-2
+
+  # Own job on purpose, never a member of a parallel shard: each of this probe's two
+  # legs runs a whole round of test_review_gate.sh and waits for one of its hang cases
+  # to be in flight, so sharing a runner stretches that round past any sane budget —
+  # measured in shard 1, where it burned 408s without ever reaching the target case.
+  # One job per leg, never a member of a parallel shard. Each leg runs a whole round of
+  # test_review_gate.sh and waits for a hang case to be in flight, so sharing a runner
+  # stretches that round past any budget — measured in shard 1, where it burned 408s
+  # without reaching its target. Running BOTH legs in one job made it the longest branch
+  # (213s/214s against 190s for the next longest), and shortening the leg-2 wait moved
+  # that by 1s: the cost is the two suite runs, not the wait. Split, these jobs measure
+  # 177s and 114s against 188s for the longest branch — this gate costs no critical path. The split also follows the coverage structure: the reaper
+  # is ONE shared code path (leg 1 proves it once) while the lifetime bound is duplicated
+  # per fixture stub, so leg 2 runs against both the claude stub and the candidate stub the
+  # fallback clients share — measured: reverting only the candidate stub's bound reds
+  # leg2/fallback while leg2/claude stays green. Needs no ripgrep/node: the suite it drives
+  # uses only python3 and shasum.
+  code-review-abort-leak-1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Abort-leak probe, leg 1 (claude stub) + leg 2 (fallback stub)
+        run: make test-code-review-abort-leak-1
+
+  code-review-abort-leak-2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Abort-leak probe, leg 2 (claude stub, untrappable abort falls back to the bound)
+        run: make test-code-review-abort-leak-2
+
+  # The fast regression lane as its own parallel job: it used to run inside
+  # regression-heavy's --full superset, serial in front of the heavy suites
+  # (specs/036-ci-parallel-shards/plan.md). Same base-ref guard as the other
+  # jobs — the fast lane's catalog suite drives clones that need
+  # CCL_SKILL_BASE_REF (the 022 round's observed failure class).
+  regression-fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install validation tools
+        run: |
+          set -euo pipefail
+          archive="ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          extract_dir="${archive%.tar.gz}"
+          download_url="https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/${archive}"
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+          if ! curl --fail --location --silent --show-error \
+            --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 900 \
+            --connect-timeout 15 --max-time 300 \
+            --output "$temp_dir/$archive" \
+            "$download_url"; then
+            echo "failed to download pinned ripgrep ${RIPGREP_VERSION} asset: $download_url" >&2
+            exit 1
+          fi
+          printf '%s  %s\n' "$RIPGREP_SHA256" "$temp_dir/$archive" | sha256sum --check -
+          tar --extract --gzip --file "$temp_dir/$archive" --directory "$temp_dir"
+          sudo install --mode 0755 "$temp_dir/$extract_dir/rg" /usr/local/bin/rg
+          resolved_rg="$(command -v rg)"
+          if [[ "$resolved_rg" != /usr/local/bin/rg ]]; then
+            echo "unexpected ripgrep on PATH: $resolved_rg" >&2
+            exit 1
+          fi
+          installed_version="$(rg --version | head -n 1)"
+          case "$installed_version" in
+            "ripgrep $RIPGREP_VERSION"*) ;;
+            *) echo "unexpected ripgrep version: $installed_version" >&2; exit 1 ;;
+          esac
+          printf '%s\n' "$installed_version"
+          # ubuntu-latest includes Ruby; fail fast if that runner contract changes
+          # instead of reintroducing the apt mirror dependency on this required job.
+          ruby --version
+      - name: Install Python test dependencies
+        run: python3 -m pip install -r requirements-test.txt
+      - name: Fast regression lane
+        env:
+          CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -n "$CANDIDATE_BASE_REF" ]] && git merge-base "$CANDIDATE_BASE_REF" HEAD >/dev/null 2>&1; then
+            export CCL_SKILL_BASE_REF="$CANDIDATE_BASE_REF"
+          fi
+          bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --fast
+
+  # The heavy regression lane (the whole-repo-clone suites: r0 status,
+  # source-register lifecycle, impact-chain refscripts, firing-path wiring),
+  # now --heavy-only: the fast layer runs in the parallel regression-fast job
+  # instead of serially in front of these suites. Without this job the heavy
+  # suites never execute anywhere and can rot silently — observed once as a
+  # wiring fixture that stayed broken undetected. Local `--full` remains the
+  # aggregate (`make test-check-ccl-regressions`).
   regression-heavy:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -134,7 +343,7 @@ jobs:
           if [[ -n "$CANDIDATE_BASE_REF" ]] && git merge-base "$CANDIDATE_BASE_REF" HEAD >/dev/null 2>&1; then
             export CCL_SKILL_BASE_REF="$CANDIDATE_BASE_REF"
           fi
-          bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --full
+          bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only
 
   npm-packages:
     runs-on: ubuntu-latest

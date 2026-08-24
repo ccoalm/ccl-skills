@@ -1,0 +1,6 @@
+  PASS  baseline（无新增 runner）             exit=0
+  PASS  对照腿：字面基名（应被抓到） exit=1
+  PASS  实腿 A：pathlib.rglob（应逃掉）    exit=0
+  PASS  实腿 B：运行时分段拼路径（应逃掉） exit=0
+  PASS  复原核验（回到 baseline）          exit=0
+d1_escape_reproduced: 缺陷 #4 未闭合

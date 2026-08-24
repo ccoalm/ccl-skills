@@ -121,6 +121,19 @@ PY
   printf '  sensitive to %s: %s\n' "$name" "${out%%$'\n'*}"
 }
 
+# The walk below REGISTERS its mutants instead of running them inline, so they can
+# be dispatched concurrently further down. Registration changes nothing about what
+# is asserted: every registered triple is handed to the same
+# mutate_and_expect_mismatch above, unmodified.
+mutation_names=()
+mutation_finds=()
+mutation_replaces=()
+register_mutation() {
+  mutation_names+=("$1")
+  mutation_finds+=("$2")
+  mutation_replaces+=("$3")
+}
+
 # Prove the guard above can actually fail before trusting any verdict it gives.
 # The first version of this walk accepted ANY nonzero exit as sensitivity, so a
 # mutant that merely broke the parser would have banked as proof — an
@@ -147,21 +160,21 @@ if ! grep -q 'produced unparseable verdicts' "$self_check_stderr"; then
 fi
 printf '  guard self-check: a broken mutant is rejected, and for the right reason\n'
 
-mutate_and_expect_mismatch tolerate-all-unknown-containers \
+register_mutation tolerate-all-unknown-containers \
   '                if isinstance(value, (list, dict)) and value:
                     unknown_fields.add(field)' \
   '                if False:
                     unknown_fields.add(field)'
 
-mutate_and_expect_mismatch drop-authority-name-guard \
+register_mutation drop-authority-name-guard \
   '    segments = re.split(r"[_.\-]+|(?<=[a-z0-9])(?=[A-Z])", name)' \
   '    return False'
 
-mutate_and_expect_mismatch drop-authority-presence-requirement \
+register_mutation drop-authority-presence-requirement \
   'REQUIRED_PRESENT_INIT_FIELDS = ("permissionMode",)' \
   'REQUIRED_PRESENT_INIT_FIELDS = ()'
 
-mutate_and_expect_mismatch drop-field-name-sanitizer \
+register_mutation drop-field-name-sanitizer \
   '    text = name if isinstance(name, str) else repr(name)' \
   '    return name if isinstance(name, str) else repr(name)'
 
@@ -169,11 +182,11 @@ mutate_and_expect_mismatch drop-field-name-sanitizer \
 # they fail for opposite reasons: widening it launders a proven customization
 # into the cascadable class, while removing it restores the total-outage
 # behaviour this class exists to prevent.
-mutate_and_expect_mismatch widen-host-vocabulary-to-any-entry \
+register_mutation widen-host-vocabulary-to-any-entry \
   '    return bool(BARE_HOST_IDENTIFIER.fullmatch(identifier))' \
   '    return True'
 
-mutate_and_expect_mismatch terminalize-host-vocabulary \
+register_mutation terminalize-host-vocabulary \
   '    return bool(BARE_HOST_IDENTIFIER.fullmatch(identifier))' \
   '    return False'
 
@@ -181,7 +194,7 @@ mutate_and_expect_mismatch terminalize-host-vocabulary \
 # the baseline must affect the allow decision, and its CLI version must bind the
 # formal init. Baseline skills are deliberately not authority because a leaked
 # user skill would otherwise become callable in the formal run.
-mutate_and_expect_mismatch drop-host-baseline-vocabulary \
+register_mutation drop-host-baseline-vocabulary \
   '                        if customization_entry_allowed(
                             field,
                             entry,
@@ -197,18 +210,18 @@ mutate_and_expect_mismatch drop-host-baseline-vocabulary \
                             set(),
                         ):'
 
-mutate_and_expect_mismatch authorize-host-baseline-skill \
+register_mutation authorize-host-baseline-skill \
   '            identifier in KNOWN_SAFE_BUILTIN_SKILLS
             or identifier in selected_names' \
   '            identifier in KNOWN_SAFE_BUILTIN_SKILLS
             or identifier in baseline_skills
             or identifier in selected_names'
 
-mutate_and_expect_mismatch drop-host-baseline-required-empty-check \
+register_mutation drop-host-baseline-required-empty-check \
   '        if field not in HOST_VOCABULARY_FIELDS and init_event.get(field) != []:' \
   '        if field not in HOST_VOCABULARY_FIELDS and False:'
 
-mutate_and_expect_mismatch widen-host-baseline-to-namespaced-entries \
+register_mutation widen-host-baseline-to-namespaced-entries \
   '            or any(
                 identifier not in known_host_identifiers
                 and not is_bare_host_identifier(identifier)
@@ -216,7 +229,7 @@ mutate_and_expect_mismatch widen-host-baseline-to-namespaced-entries \
             )' \
   '            or any(identifier == "<unidentified>" for identifier in identifiers)'
 
-mutate_and_expect_mismatch drop-host-baseline-version-binding \
+register_mutation drop-host-baseline-version-binding \
   '        if baseline_version is not None and ev.get("claude_code_version") != baseline_version:
             # The two invocations no longer prove one same-version host
             # vocabulary snapshot. Refuse this lane, but treat the mismatch as
@@ -230,7 +243,7 @@ mutate_and_expect_mismatch drop-host-baseline-version-binding \
 # alone, which reaches TOLERATED when that name is an allowed built-in -- the
 # most severe class in this file, so it needs its own mutant rather than riding
 # on the bare-identifier one.
-mutate_and_expect_mismatch drop-whole-value-gate \
+register_mutation drop-whole-value-gate \
   '                        if field in HOST_VOCABULARY_FIELDS and (
                             not host_entry_is_whole(entry, identifier)
                         ):' \
@@ -239,7 +252,7 @@ mutate_and_expect_mismatch drop-whole-value-gate \
 # ...and the weaker version of the same gate: checking only the SHAPE (a plain
 # string) while still judging a truncated token. This is what the gate looked
 # like before the third finding, so it must be detectable on its own.
-mutate_and_expect_mismatch weaken-whole-value-gate-to-shape-only \
+register_mutation weaken-whole-value-gate-to-shape-only \
   '    normalized = entry.lower()
     if normalized.startswith("/"):
         normalized = normalized[1:]
@@ -249,20 +262,84 @@ mutate_and_expect_mismatch weaken-whole-value-gate-to-shape-only \
 # The regression a round-9 review found in the gate itself: stripping before the
 # comparison re-introduces the lossiness the gate exists to reject, and wrapping
 # an ALLOWLISTED name in whitespace then reaches TOLERATED.
-mutate_and_expect_mismatch strip-before-the-whole-value-comparison \
+register_mutation strip-before-the-whole-value-comparison \
   '    normalized = entry.lower()' \
   '    normalized = entry.strip().lower()'
 
-mutate_and_expect_mismatch drop-host-vocabulary-breach-guard \
+register_mutation drop-host-vocabulary-breach-guard \
   '        if unclassifiable_vocabulary and not surface_breached:' \
   '        if unclassifiable_vocabulary:'
 
 # The two parse paths implement the class separately, so each needs its own
 # mutant: dropping it from the main-invocation predicate leaves the probe path
 # correct, which is exactly the shape of divergence this oracle exists to catch.
-mutate_and_expect_mismatch drop-host-vocabulary-from-main-path \
+register_mutation drop-host-vocabulary-from-main-path \
   'runtime_drift_only = bool(unknown or unverifiable or vocabulary) and not (' \
   'runtime_drift_only = bool(unknown or unverifiable) and not ('
+
+# Dispatch the registered walk with bounded concurrency. The mutants are
+# independent by construction: each writes its own `mutant_<name>.py` copy under
+# $tmp_dir and runs the oracle against that copy, sharing nothing writable. Only
+# the SCHEDULE changes -- every assertion in mutate_and_expect_mismatch still runs
+# once per mutant. This suite was CI's slowest single entry (pure subprocess time,
+# zero sleeps), so serial dispatch left the runner's other cores idle.
+# Output is replayed in REGISTRATION order so a parallel run reads like the serial
+# one, and any failure's stderr is replayed before the run is failed.
+mutation_jobs="${INIT_POLICY_MATRIX_JOBS:-${SUITE_JOBS:-4}}"
+case "$mutation_jobs" in ''|*[!0-9]*) mutation_jobs=4 ;; esac
+[ "$mutation_jobs" -ge 1 ] || mutation_jobs=1
+
+walk_total=${#mutation_names[@]}
+if [ "$walk_total" -lt 1 ]; then
+  printf 'the mutation walk registered nothing; the sensitivity check is disarmed\n' >&2
+  exit 1
+fi
+
+walk_i=0
+while [ "$walk_i" -lt "$walk_total" ]; do
+  # `-p` is load-bearing: plain `jobs -r` prints multi-line command text, so a
+  # line count would read one running job as several and degrade to serial.
+  while [ "$(jobs -rp 2>/dev/null | wc -l)" -ge "$mutation_jobs" ]; do sleep 0.1; done
+  (
+    # The status is recorded by an EXIT trap, and the helper is a SIMPLE command.
+    # Putting the call in an `if` condition would disable errexit for the whole
+    # function body, so an unguarded failure partway through could still be
+    # followed by the helper's final successful command and bank as `ok`. As a
+    # simple command under `set -e`, any such failure aborts the subshell and the
+    # trap records the real status.
+    trap 'printf "%s\n" "$?" >"$tmp_dir/walk_status_$walk_i"' EXIT
+    mutate_and_expect_mismatch \
+      "${mutation_names[$walk_i]}" "${mutation_finds[$walk_i]}" "${mutation_replaces[$walk_i]}" \
+      >"$tmp_dir/walk_out_$walk_i" 2>"$tmp_dir/walk_err_$walk_i"
+  ) &
+  walk_i=$((walk_i + 1))
+done
+wait
+
+# Every registered index must have written an EXPLICIT terminal status. A worker
+# killed before it could report (fatal shell error, OOM, cancellation) leaves no
+# file, and treating that absence as success would bank a mutant that never ran
+# as proof of sensitivity — the same absence-means-pass defect this walk's own
+# guard exists to prevent one level down.
+walk_failed=0
+walk_i=0
+while [ "$walk_i" -lt "$walk_total" ]; do
+  cat "$tmp_dir/walk_out_$walk_i" 2>/dev/null
+  if [ ! -f "$tmp_dir/walk_status_$walk_i" ]; then
+    printf 'mutation %s never reported a terminal status; its worker died without completing\n' \
+      "${mutation_names[$walk_i]}" >&2
+    cat "$tmp_dir/walk_err_$walk_i" 2>/dev/null >&2
+    walk_failed=1
+  elif [ "$(cat "$tmp_dir/walk_status_$walk_i")" != 0 ]; then
+    cat "$tmp_dir/walk_err_$walk_i" >&2
+    walk_failed=1
+  fi
+  walk_i=$((walk_i + 1))
+done
+if [ "$walk_failed" -ne 0 ]; then
+  printf 'the mutation walk reported at least one non-sensitive or broken mutant (see above)\n' >&2
+  exit 1
+fi
 
 if [ "$(shasum -a 256 "$parser" | awk '{print $1}')" != "$pristine_digest" ]; then
   printf 'the mutation walk modified the real parser; every mutation must stay in a copy\n' >&2

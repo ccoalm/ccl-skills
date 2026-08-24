@@ -1,0 +1,23 @@
+# run_arms_reproduce.sh 的安全性验证（不调用模型；每条实跑，退出码如实取）
+revision=2623d85
+
+## 1) 脏目标必须被拒 —— 这是 as-executed 版会吞掉无关改动的那个口子
+FATAL: skills/skill-extraction-workflow/SKILL.md 有未提交改动；先提交或 stash 再跑（本脚本拒绝在脏目标上做突变）
+exit_code=2  （期望 2 = 前置拒绝）
+无关改动是否被保住: YES
+
+## 2) 干净目标下前置检查（到调模型之前为止）
+target_clean=yes
+bank_rows_for_task=1
+syntax_check=ok
+
+## 未做的事（如实标注）
+本文件只验安全性与前置，不重跑两臂——评审发现指向的是脚本的数据安全，不是那批数本身；
+那批数的有效性由 verify_arm_reports.py 对 10 份报告的事后校验承担。
+
+## 3) 复原窗口竞态分支（评审 r3 第 12 条）—— 提取 restore() 逻辑实跑
+突变后由第三方追加编辑，再调 restore：
+REFUSED_OVERWRITE
+restore returned nonzero (expected)
+并发编辑保住了: YES
+测试后目标文件干净: OK

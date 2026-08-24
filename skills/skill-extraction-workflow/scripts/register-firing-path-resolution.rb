@@ -419,6 +419,37 @@ end
 unresolved = []
 malformed = []
 locator_count = 0
+# Advisory only. A `file:` locator whose target is an EXECUTABLE artifact asserts
+# firing evidence that some runner reaches; when no entry point outside specs/ names
+# that file, the anchor still resolves (the text is there) while nothing can run it.
+# Observed 2026-08: ten locators across nine ledger rows anchored into an executable
+# nothing runs, green
+# for the whole life of the retirement. Prose anchors (.md) are a different class --
+# they are read, not run -- and are deliberately NOT flagged.
+unrunnable = []
+skipped_runners = []
+# Built once, lazily: a repo with no executable locators never pays for it, and a
+# repo with many does not re-walk the tree per locator (O(locators x files)).
+runner_corpus = nil
+build_runner_corpus = lambda do |root|
+  (Dir.glob(File.join(root, "**", "*.{sh,py,rb,yml,yaml}"), File::FNM_DOTMATCH) +
+   Dir.glob(File.join(root, "**", "{Makefile,makefile}"), File::FNM_DOTMATCH)).reject do |cand|
+    cand.start_with?(File.join(root, "specs") + File::SEPARATOR) ||
+      cand.start_with?(File.join(root, ".git") + File::SEPARATOR) ||
+      !File.file?(cand)
+  end.filter_map do |cand|
+    # An advisory must never change the exit status, so an unreadable candidate is
+    # skipped rather than raised: one chmod-000 file in the tree previously took
+    # the whole gate red with Errno::EACCES. Skipping biases toward silence on
+    # that candidate, which is the safe direction for a non-blocking report.
+    begin
+      [cand, File.read(cand, encoding: "UTF-8", invalid: :replace)]
+    rescue SystemCallError, IOError
+      skipped_runners << cand
+      nil
+    end
+  end
+end
 # Where each EXEMPT locator was actually cited. A waiver is written for ONE
 # historical row that can no longer be repaired; a second row quoting the same
 # retired locator is a new claim, not that row, and must not inherit the waiver.
@@ -512,6 +543,28 @@ File.foreach(register_path).with_index(1) do |line, lineno|
         if !File.file?(target)
           unresolved << [lineno, locator, "file not found"]
           next
+        end
+        if %w[.rb .sh .py].include?(File.extname(rel)) && !anchor_waived
+          # Match the basename WITH its extension at a non-word boundary. The
+          # stripped stem matched anywhere was trivially satisfiable: `run.sh`
+          # became `run`, which any `run_tests` identifier or prose mention
+          # cleared, so a decayed anchor read as reachable and this stayed quiet.
+          # Reachability is either a literal mention of the file, or a runner
+          # that sweeps its directory with a wildcard -- `for t in dir/*.sh` names
+          # no basename yet fires every file there. Missing the second shape is a
+          # FALSE ALARM on a live locator, which the acceptance bars, so both count.
+          needle = /(?<![\w.-])#{Regexp.escape(File.basename(rel))}(?![\w-])/
+          dirn = File.dirname(rel)
+          sweep = /#{Regexp.escape(dirn)}\/[^\s"']*[*?]/
+          # FNM_DOTMATCH is required, not cosmetic: the yml/yaml shapes this glob
+          # seeks live in .github/workflows, and without it the glob never
+          # descends there -- a target fired only by CI read as unrunnable.
+          runner_corpus ||= build_runner_corpus.call(root)
+          reachable = runner_corpus.any? do |cand, body|
+            next false if File.identical?(cand, target)
+            body.match?(needle) || body.match?(sweep)
+          end
+          unrunnable << [lineno, locator, rel] unless reachable
         end
         if !resolves_inside?(root, rel)
           unresolved << [lineno, locator, "path escapes the repository"]
@@ -689,6 +742,27 @@ unless unresolved.empty?
   unresolved.each do |lineno, locator, why|
     warn "  #{REGISTER}:#{lineno}: #{why}: #{locator}"
   end
+end
+
+unless unrunnable.empty?
+  warn "register_firing_path_unrunnable_target: ADVISORY -- an anchored executable has no runner"
+  warn "  cause: the anchor resolves (its text is present) but no entry point outside specs/"
+  warn "         names that file, so nothing can execute what the row claims fires."
+  warn "  fix: point the row at a live command, or supersede it if the mechanism retired."
+  unrunnable.each do |lineno, locator, rel|
+    warn "  #{REGISTER}:#{lineno}: #{rel}"
+    anchor = locator.split("#", 2)[1]
+    warn "      anchor: #{anchor}" if anchor && !anchor.empty?
+  end
+  warn "  covered runner shapes: *.{sh,py,rb,yml,yaml} and **/{Makefile,makefile} outside specs/ and .git/,"
+  warn "    matched by literal basename or by a wildcard sweep over the target's directory. NOT covered:"
+  warn "    Rakefiles, extensionless bin scripts, and `find <dir> -name` style invocation — a target fired"
+  warn "    only through those reads as unrunnable here."
+  unless skipped_runners.empty?
+    warn "  #{skipped_runners.size} candidate(s) were unreadable and skipped; if a named row is fired only by"
+    warn "    one of those, this report is a false alarm rather than a decayed anchor."
+  end
+  warn "  advisory only: this never changes the exit status."
 end
 
 exit 1 unless malformed.empty? && unresolved.empty?

@@ -21,8 +21,8 @@ flowchart TD
   S["要评审技术方案"] --> E["① 枚举方案触达的关切"]
   E --> L["② 确认本方案触达的最小完整 owner 集，按需加载（设计期就加，不只评审期）"]
   L --> R["③ 逐 owner 技能评审"]
-  R --> X["④ 第二评审模型补充对抗：route code-review"]
-  X --> F["⑤ findings 落地；改技能走 dual-track + R0"]
+  R --> X["④ 第二评审模型补充对抗：交给 code-review"]
+  X --> F["⑤ 逐条处置结论；技能行为改动补独立核验、对抗检查和泄漏审计"]
   F --> T["⑥ tighten 收口，按现有风格同步"]
 ```
 
@@ -53,12 +53,13 @@ flowchart TD
 
 > 这三条的权威定义在 [`product-rd-workflow`](../skills/product-rd-workflow/SKILL.md) 的技术设计门 + [`multi-agent-delegation`](../skills/multi-agent-delegation/SKILL.md) 的派活规则。
 
-## 评审 → 复盘：RCA 别停在"人没做好"
+## 评审后的复盘同时解释失效和稳定成功
 
-- **何时进 RCA**：逃逸缺陷 / 重复 P1 / 评审漏 owner / 用户重复纠正同类 / 上线事故——任一即触发，不只失败后。
+- 逃逸缺陷、重复高优先级问题、漏评关键关切、用户重复纠正或上线事故，都要追到可控的预防点。
+- 若一类方案连续多次评审顺利，也要说明哪些检查、边界或证据使它稳定成功，并判断是否值得固化为默认做法。
 - 根因停在"没应用规则 / 应用纪律问题 / 会注意 / 记个人记忆" = "粗心"的变装，不是根因。
 - 当根因是"**规则在、但没触发**"，续问"**为何没机制让它触发**"，把触发机制（trigger / 门 / validator）落到**共享技能**——个人记忆换 agent/项目无效。
-- 复盘/沉淀走 [`skill-extraction-workflow`](../skills/skill-extraction-workflow/SKILL.md)，改技能走 dual-track（独立 review + 对抗 challenge）+ R0 泄漏审计。
+- 复盘/沉淀走 [`skill-extraction-workflow`](../skills/skill-extraction-workflow/SKILL.md)；修改技能行为时，分别完成独立事实核验、对抗检查和敏感信息检查。
 
 ## 关键门禁
 

@@ -36,7 +36,7 @@ flowchart TD
 | 6 实现 | 路由到对应栈技能（见下）| 在独立 worktree 上，不在 main |
 | 7 验证 | 按层报告：unit/集成/E2E/手动/build；独立评审走 `code-review` | 无证据不声称完成；改了行为必须有测试 |
 | 8 发布 | 灰度/回滚/可观测策略见平台基建手册；发版执行走 `release-coordination`；发布文档正文走 `release-doc-writer` | 回滚预案没定不放量；发版按 `release-coordination` 走，不手工绕 |
-| 9 收尾 | 可复用教训路由到提炼技能 | — |
+| 9 收尾 | 从失败与稳定成功中判断可复用机制，交给提炼技能 | — |
 
 技能内部按 7 个阶段管边界（需求成形 · 设计就绪 · 架构 · 实现 · 评审 · 发布 · 学习），每跨一次边界要走一遍**边界检查**——阻断式的，不是参考清单：
 
@@ -141,7 +141,7 @@ flowchart TD
   Q -->|"单一连续切片"| ONE["单 agent 串行执行"]
   Q -->|"2+ 切片"| D{"切片间有共享状态 / 顺序依赖?"}
   D -->|"有"| ONE
-  D -->|"无，真正独立"| MUL["多 agent 并行：route multi-agent-delegation"]
+  D -->|"无，真正独立"| MUL["交给 multi-agent-delegation 并行执行"]
   MUL --> EA["每个 agent 各自隔离 + 各自带门（实现 / 评审 / 测试）"]
   EA --> MG["汇合后统一验证"]
   ONE --> V["进 7 验证"]
@@ -163,7 +163,7 @@ flowchart TD
 5. 计划：worktree 隔离、test-case-first（导出成功/超量拒绝/失败重试三个用例）、验证命令。
 6. 实现：前端 `web-react-dev` + 后端导出接口 `python-service-dev`。
 7. 验证：unit（导出逻辑）+ 集成（接口契约）+ 浏览器走查三个状态。
-8. 收尾：若发现"批量操作无上限"是通用坑 → route 给 `feature-risk-router` / 提炼技能。
+8. 收尾：若发现“批量操作无上限”是可复用的风险模式，交给 `feature-risk-router` 和提炼技能判断应落到哪里。
 
 ## 延伸阅读
 

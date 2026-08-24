@@ -1,0 +1,745 @@
+# 039 承重事实原始取证
+# 单一钉点 base = 5146b3b315c487f93ba352584a0b27af9414676b（开轮时的 dev；不随 dev 前进追平）
+# captured-at-commit = e284ab2fe0156ee52b4bddf9c1f7257a243e21b1
+# 每块：命令 → 未编辑输出 → 退出码（pipefail 开）。全部读 base 的 git 对象，不读工作树。
+
+$ git show --numstat --format='' 206facb3cea895621ce052d62bf2b3e281de976b -- 'skills/**' | awk 'NF==3 && $1!="-"{a+=$1} END{print "init_snapshot_added=" a}'
+init_snapshot_added=79990
+[exit=0]  # set -o pipefail
+
+$ git log --numstat --format='' 206facb3cea895621ce052d62bf2b3e281de976b..5146b3b315c487f93ba352584a0b27af9414676b -- 'skills/**' | awk 'NF==3 && $1!="-"{a+=$1;d+=$2} END{printf "added=%d deleted=%d ratio=%.1f\n", a, d, a/d}'
+added=9157 deleted=708 ratio=12.9
+[exit=0]  # set -o pipefail
+
+# 体量分层：每一行比率都由下面这条命令算出，无手工汇总
+
+$ git ls-tree -r -l 5146b3b315c487f93ba352584a0b27af9414676b skills/ | awk '{split($5,p,"/"); s[p[2]]+=$4} END{
+  meta="skill-extraction-workflow code-review product-rd-workflow worktree-isolation multi-agent-delegation feature-risk-router release-coordination agents-file-coverage-gate";
+  bord="testing-strategy defect-diagnosis grill-me multi-perspective-research";
+  n=split(meta,M," "); m=split(bord,B," "); t=0; for(k in s) t+=s[k];
+  two=s["skill-extraction-workflow"]+s["code-review"];
+  mm=0; for(i=1;i<=n;i++) mm+=s[M[i]]; bb=0; for(i=1;i<=m;i++) bb+=s[B[i]];
+  printf "total=%d\n两包=%.1f%%\nmeta窄=%.1f%%\nmeta+边界=%.1f%%\ndomain=%.1f%%\ntesting-strategy单包=%.1f%%\n",
+    t, 100*two/t, 100*mm/t, 100*(mm+bb)/t, 100*(t-mm-bb)/t, 100*s["testing-strategy"]/t }'
+total=7736475
+两包=40.5%
+meta窄=47.8%
+meta+边界=55.6%
+domain=44.4%
+testing-strategy单包=5.7%
+[exit=0]  # set -o pipefail
+
+# entrypoint 与台账（base 对象）
+
+$ git ls-tree -r -l 5146b3b315c487f93ba352584a0b27af9414676b skills/ | awk '$5 ~ /SKILL.md$/ {print $4, $5}' | sort -rn | head -3
+122101 skills/skill-extraction-workflow/SKILL.md
+77340 skills/product-rd-workflow/SKILL.md
+52077 skills/testing-strategy/SKILL.md
+[exit=0]  # set -o pipefail
+
+$ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md | awk -F'|' '/behavioral-evidence/ { if (match($3, /`[a-z0-9-]+`/)) { k=substr($3,RSTART+1,RLENGTH-2); c[k]++; t++ } } END { print "total=" t; for (k in c) print c[k], k }' | sort -rn | head -3
+86 skill-extraction-workflow
+40 code-review
+11 product-rd-workflow
+[exit=0]  # set -o pipefail
+
+$ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md | grep -c 'observed-failure: *yes'
+101
+[exit=0]  # set -o pipefail
+
+$ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md | grep -c 'observed-failure: *no'
+83
+[exit=0]  # set -o pipefail
+
+# specs 分类：两侧都滤掉注释与表头后做精确集合比对
+
+$ diff <(git ls-tree --name-only 5146b3b315c487f93ba352584a0b27af9414676b specs/ | sed 's#specs/##;s#/$##' | sort) <(grep -v '^#' specs/039-design-first-shrink/specs-classification.tsv | cut -f1 | sort) && echo manifest_matches_base_exactly
+manifest_matches_base_exactly
+[exit=0]  # set -o pipefail
+
+$ grep -v '^#' specs/039-design-first-shrink/specs-classification.tsv | awk -F'\t' '{c[$2]++} END{for(k in c) print k, c[k]}'
+C 7
+P 22
+[exit=0]  # set -o pipefail
+
+$ shasum -a 256 specs/039-design-first-shrink/specs-classification.tsv
+b9c60d319cc294ad4e5b8a9c04d9458b9db071ec578a81d9163aa22d87d9f92d  specs/039-design-first-shrink/specs-classification.tsv
+[exit=0]  # set -o pipefail
+
+# 抽样框：钉死的不可变 blob；本取证只验框，不抽样（抽样需用户提供的一次性 seed）
+
+$ git rev-parse 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md
+1fc647e2113db1a827611f2152d5de5a25847f33
+[exit=0]  # set -o pipefail
+
+$ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md | shasum -a 256
+b654f5ab81aa2bbae47c1b4264867ab87d74fa5172464e8a6e531ab0aed09618  -
+[exit=0]  # set -o pipefail
+
+$ git show 5146b3b315c487f93ba352584a0b27af9414676b:skills/skill-extraction-workflow/references/source-register.md > /tmp/frame.$$ && python3 -c "
+import importlib.util,pathlib,sys
+spec=importlib.util.spec_from_file_location('d','/tmp/039extracted.py'); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+f=m.build_frame(pathlib.Path('/tmp/frame.$$'))
+print('frame_all=',len(f),'pool=',len([r for r in f if r['owner'] in m.POOL_OWNERS]))
+" && rm -f /tmp/frame.$$
+frame_all= 183 pool= 126
+[exit=0]  # set -o pipefail
+
+$ shasum -a 256 /tmp/039extracted.py
+a3b882a2e9dc18f50bb0eda6351a848cf4389170d3da91f06eee0b82fc0a6219  /tmp/039extracted.py
+[exit=0]  # set -o pipefail
+# 完整复放链（拿到 nonce 后可跑通，本取证不含 nonce 故只到框为止）：
+#   1) 从本文件抽出内联源码 → 校验 sha256 与记录一致
+#   2) git show 1fc647e2113db1a827611f2152d5de5a25847f33 > frame.md → 校验 sha256 与记录一致
+#   3) python3 draw_sample.py <nonce> frame.md
+#   4) 与落盘 commit 中的名单逐字节比对
+# 名单不在本文件，也不在 plan —— 含即意味着作者已算过。拿到 seed 后按 plan 的命令复算。
+
+# 入口尺寸闸 applied-mutation：唯一临时备份 + trap 复原 + 复原校验
+
+$ CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-size-budget.sh .   # 控制组
+entrypoint_size_blocking_ok
+entrypoint_word_budget_blocking_ok
+[gate_exit=0]  # 闸自身退出码，未经管道
+
+$ python3 -c "open('skills/skill-extraction-workflow/SKILL.md','a').write(chr(10)+'x'*3000+chr(10))" && wc -c skills/skill-extraction-workflow/SKILL.md
+  125103 skills/skill-extraction-workflow/SKILL.md
+[exit=0]  # set -o pipefail
+
+$ CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-size-budget.sh .   # 突变组
+entrypoint_size_block: skills/skill-extraction-workflow/SKILL.md: severe entrypoint grew base_bytes=122101 head_bytes=125103 — consolidate an existing rule or move detail into references/ (there is no exempt marker or waiver flag); a rule set must not grow monotonically
+entrypoint_word_budget_block: skills/skill-extraction-workflow/SKILL.md: base_body_words=16957 head_body_words=16958 allowed_body_words=16957 — historical over-limit entrypoint grew; keep it level, shrink it, or move detail into references/
+entrypoint_word_budget_blocking_failed
+entrypoint_size_blocking_failed
+[gate_exit=1]  # 闸自身退出码，未经管道
+
+$ cp '/var/folders/pf/rc8nt71164nd78qh1_l1xp7h0000gn/T//039mut.MLDlYe' skills/skill-extraction-workflow/SKILL.md && git diff --quiet -- skills/skill-extraction-workflow/SKILL.md && echo restored_verified_clean
+restored_verified_clean
+[exit=0]  # set -o pipefail
+
+$ CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-size-budget.sh .   # 复原后
+entrypoint_size_blocking_ok
+entrypoint_word_budget_blocking_ok
+[gate_exit=0]  # 闸自身退出码，未经管道
+
+# 生成器源码内联（去行首 "# " 即为可运行脚本；同一 base 重跑应逐块相同）
+# 可信边界：本文件的 stdout 与 [exit=] 由生成器写入，对读者是作者断言而非受控执行证据；
+# 提供的保证是可重放，不一致以重跑为准。
+# ---8<--- capture_generator.sh ---8<---
+# set -u -o pipefail
+# BASE=5146b3b315c487f93ba352584a0b27af9414676b
+# RP=skills/skill-extraction-workflow/references/source-register.md
+# S=skills/skill-extraction-workflow/SKILL.md
+# G=skills/skill-extraction-workflow/scripts/check-size-budget.sh
+# CLS=specs/039-design-first-shrink/specs-classification.tsv
+# FIRST=$(git rev-list --max-parents=0 "$BASE" | tail -1)
+# run(){ printf '\n$ %s\n' "$1"; out=$(eval "$1" 2>&1); rc=$?; printf '%s\n' "$out"; printf '[exit=%d]  # set -o pipefail\n' "$rc"; }
+# gate(){ printf '\n$ %s\n' "$1"; CCL_SKILL_BASE_REF=origin/dev bash "$G" . > /tmp/039g.$$ 2>&1; rc=$?
+#         grep -E 'entrypoint_(size|word_budget)_block|blocking_(ok|failed)' /tmp/039g.$$ || true
+#         rm -f /tmp/039g.$$; printf '[gate_exit=%d]  # 闸自身退出码，未经管道\n' "$rc"; }
+# printf '# 039 承重事实原始取证\n# 单一钉点 base = %s（开轮时的 dev；不随 dev 前进追平）\n' "$BASE"
+# printf '# captured-at-commit = %s\n' "$(git rev-parse HEAD)"
+# printf '# 每块：命令 → 未编辑输出 → 退出码（pipefail 开）。全部读 base 的 git 对象，不读工作树。\n'
+# run "git show --numstat --format='' $FIRST -- 'skills/**' | awk 'NF==3 && \$1!=\"-\"{a+=\$1} END{print \"init_snapshot_added=\" a}'"
+# run "git log --numstat --format='' $FIRST..$BASE -- 'skills/**' | awk 'NF==3 && \$1!=\"-\"{a+=\$1;d+=\$2} END{printf \"added=%d deleted=%d ratio=%.1f\\n\", a, d, a/d}'"
+# printf '\n# 体量分层：每一行比率都由下面这条命令算出，无手工汇总\n'
+# run "git ls-tree -r -l $BASE skills/ | awk '{split(\$5,p,\"/\"); s[p[2]]+=\$4} END{
+#   meta=\"skill-extraction-workflow code-review product-rd-workflow worktree-isolation multi-agent-delegation feature-risk-router release-coordination agents-file-coverage-gate\";
+#   bord=\"testing-strategy defect-diagnosis grill-me multi-perspective-research\";
+#   n=split(meta,M,\" \"); m=split(bord,B,\" \"); t=0; for(k in s) t+=s[k];
+#   two=s[\"skill-extraction-workflow\"]+s[\"code-review\"];
+#   mm=0; for(i=1;i<=n;i++) mm+=s[M[i]]; bb=0; for(i=1;i<=m;i++) bb+=s[B[i]];
+#   printf \"total=%d\\n两包=%.1f%%\\nmeta窄=%.1f%%\\nmeta+边界=%.1f%%\\ndomain=%.1f%%\\ntesting-strategy单包=%.1f%%\\n\",
+#     t, 100*two/t, 100*mm/t, 100*(mm+bb)/t, 100*(t-mm-bb)/t, 100*s[\"testing-strategy\"]/t }'"
+# printf '\n# entrypoint 与台账（base 对象）\n'
+# run "git ls-tree -r -l $BASE skills/ | awk '\$5 ~ /SKILL.md\$/ {print \$4, \$5}' | sort -rn | head -3"
+# run "git show $BASE:$RP | awk -F'|' '/behavioral-evidence/ { if (match(\$3, /\`[a-z0-9-]+\`/)) { k=substr(\$3,RSTART+1,RLENGTH-2); c[k]++; t++ } } END { print \"total=\" t; for (k in c) print c[k], k }' | sort -rn | head -3"
+# run "git show $BASE:$RP | grep -c 'observed-failure: *yes'"
+# run "git show $BASE:$RP | grep -c 'observed-failure: *no'"
+# printf '\n# specs 分类：两侧都滤掉注释与表头后做精确集合比对\n'
+# run "diff <(git ls-tree --name-only $BASE specs/ | sed 's#specs/##;s#/\$##' | sort) <(grep -v '^#' $CLS | cut -f1 | sort) && echo manifest_matches_base_exactly"
+# run "grep -v '^#' $CLS | awk -F'\t' '{c[\$2]++} END{for(k in c) print k, c[k]}'"
+# run "shasum -a 256 $CLS"
+# printf '\n# 抽样框：钉死的不可变 blob；本取证只验框，不抽样（抽样需用户提供的一次性 seed）\n'
+# run "git rev-parse $BASE:$RP"
+# run "git show $BASE:$RP | shasum -a 256"
+# run "git show $BASE:$RP > /tmp/frame.\$\$ && python3 -c \"
+# import importlib.util,pathlib,sys
+# spec=importlib.util.spec_from_file_location('d','/tmp/039extracted.py'); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+# f=m.build_frame(pathlib.Path('/tmp/frame.\$\$'))
+# print('frame_all=',len(f),'pool=',len([r for r in f if r['owner'] in m.POOL_OWNERS]))
+# \" && rm -f /tmp/frame.\$\$"
+# run "shasum -a 256 /tmp/039extracted.py"
+# printf '# 完整复放链（拿到 nonce 后可跑通，本取证不含 nonce 故只到框为止）：\n'
+# printf '#   1) 从本文件抽出内联源码 → 校验 sha256 与记录一致\n'
+# printf '#   2) git show 1fc647e2113db1a827611f2152d5de5a25847f33 > frame.md → 校验 sha256 与记录一致\n'
+# printf '#   3) python3 draw_sample.py <nonce> frame.md\n'
+# printf '#   4) 与落盘 commit 中的名单逐字节比对\n'
+# printf '# 名单不在本文件，也不在 plan —— 含即意味着作者已算过。拿到 seed 后按 plan 的命令复算。\n'
+# printf '\n# 入口尺寸闸 applied-mutation：唯一临时备份 + trap 复原 + 复原校验\n'
+# BK=$(mktemp "${TMPDIR:-/tmp}/039mut.XXXXXX") || exit 1
+# cleanup(){ [ -s "$BK" ] && cp "$BK" "$S"; rm -f "$BK"; }
+# trap cleanup EXIT; trap 'exit 130' INT; trap 'exit 143' TERM
+# cp "$S" "$BK"
+# gate "CCL_SKILL_BASE_REF=origin/dev bash $G .   # 控制组"
+# run "python3 -c \"open('$S','a').write(chr(10)+'x'*3000+chr(10))\" && wc -c $S"
+# gate "CCL_SKILL_BASE_REF=origin/dev bash $G .   # 突变组"
+# run "cp '$BK' $S && git diff --quiet -- $S && echo restored_verified_clean"
+# gate "CCL_SKILL_BASE_REF=origin/dev bash $G .   # 复原后"
+# printf '\n# 生成器源码内联（去行首 "# " 即为可运行脚本；同一 base 重跑应逐块相同）\n'
+# printf '# 可信边界：本文件的 stdout 与 [exit=] 由生成器写入，对读者是作者断言而非受控执行证据；\n'
+# printf '# 提供的保证是可重放，不一致以重跑为准。\n# ---8<--- capture_generator.sh ---8<---\n'
+# sed 's/^/# /' "$0"
+# printf '# ---8<--- end ---8<---\n'
+# printf '\n# ---8<--- draw_sample.py ---8<---\n'
+# sed 's/^/# /' /tmp/039extracted.py
+# printf '# ---8<--- end ---8<---\n'
+# ---8<--- end ---8<---
+
+# ---8<--- draw_sample.py ---8<---
+# #!/usr/bin/env python3
+# """039 抽样器：名单是「不可变抽样框 + 一次性 seed」的确定性函数。
+# 
+# 抽样框只读一个钉死的 git blob，不读分支、merge tree 或工作树 —— dev 前进、
+# 分支编辑、行增删重排都影响不到成员与序号。
+# seed 来自用户在处置开始时提供的一次性随机串，作者不生成、不预览、不重试。
+# 
+# 用法: draw_sample.py <seed-hex> <frame-blob-path>
+#       frame-blob-path 由 `git show <blob-object-id> > frame.md` 取得
+# 退出: 0 成功；2 参数或输入错误
+# """
+# from __future__ import annotations
+# 
+# import random
+# import re
+# import sys
+# from pathlib import Path
+# 
+# POOL_OWNERS = ("skill-extraction-workflow", "code-review")
+# SAMPLE_SIZE = 30
+# OWNER_RE = re.compile(r"`([a-z0-9-]+)`")
+# 
+# 
+# def build_frame(frame: Path) -> list[dict]:
+#     """抽样框：blob 中带 behavioral-evidence 且第二列能解出 owner 的行。"""
+#     rows: list[dict] = []
+#     for file_line, line in enumerate(frame.read_text(encoding="utf-8").splitlines(), start=1):
+#         stripped = line.strip()
+#         if not stripped.startswith("|") or "behavioral-evidence" not in stripped:
+#             continue
+#         cells = [c.strip() for c in stripped.strip("|").split("|")]
+#         if len(cells) < 2:
+#             continue
+#         owner = OWNER_RE.search(cells[1])
+#         if owner is None:
+#             continue
+#         rows.append({"ordinal": len(rows) + 1, "file_line": file_line, "owner": owner.group(1)})
+#     return rows
+# 
+# 
+# def main(argv: list[str]) -> int:
+#     if len(argv) != 3:
+#         print(f"usage: {Path(argv[0]).name} <seed-hex> <frame-blob-path>", file=sys.stderr)
+#         return 2
+#     seed_hex, frame_path = argv[1], Path(argv[2])
+#     if not re.fullmatch(r"[0-9a-f]{8,}", seed_hex):
+#         print(f"seed must be >=8 lowercase hex chars, got {seed_hex!r}", file=sys.stderr)
+#         return 2
+#     if not frame_path.is_file():
+#         print(f"frame blob not found: {frame_path}", file=sys.stderr)
+#         return 2
+# 
+#     frame = build_frame(frame_path)
+#     pool = [r for r in frame if r["owner"] in POOL_OWNERS]
+#     if len(pool) < SAMPLE_SIZE:
+#         print(f"pool has {len(pool)} rows, need {SAMPLE_SIZE}", file=sys.stderr)
+#         return 2
+# 
+#     seed = int(seed_hex[:8], 16)
+#     print(f"frame_all={len(frame)} pool={len(pool)} seed_hex={seed_hex[:8]} seed={seed}")
+#     print("ordinal:file_line:owner")
+#     for row in sorted(random.Random(seed).sample(pool, SAMPLE_SIZE), key=lambda r: r["ordinal"]):
+#         print(f"{row['ordinal']}:{row['file_line']}:{row['owner']}")
+#     return 0
+# 
+# 
+# if __name__ == "__main__":
+#     sys.exit(main(sys.argv))
+# ---8<--- end ---8<---
+
+# === 复放链自检（对本文件成品执行）===
+# 内联源码位于本文件第 200–267 行（用显式行号，因标记串在生成器源码中也出现，按标记匹配会抽错区段）
+$ sed -n '200,267p' evidence-capture.txt | sed 's/^# \{0,1\}//' | shasum -a 256
+a3b882a2e9dc18f50bb0eda6351a848cf4389170d3da91f06eee0b82fc0a6219  (从本文件抽出)
+a3b882a2e9dc18f50bb0eda6351a848cf4389170d3da91f06eee0b82fc0a6219  (前文记录的抽样器哈希)
+extracted_matches_recorded_hash
+
+# 完整复放链（拿到 nonce 后可跑通；本取证不含 nonce，故只到框为止）：
+#   1) 按上面行号抽出内联源码 → sha256 应等于上面两行
+#   2) git show 1fc647e2113db1a827611f2152d5de5a25847f33 > frame.md → sha256 应等于前文记录
+#   3) python3 draw_sample.py <nonce> frame.md
+#   4) 与落盘 commit 中的名单逐字节比对
+
+# === check-ccl-skills.sh 完整 transcript（对本候选执行）===
+# candidate-tree: 648510bc22a01ae29f203cd35373575e8e0818af
+$ CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
+validating 32 skill root(s)
+yaml_ok
+markdown_references_ok
+credential_path_scan_ok
+source_dump_heuristics_warn:
+  SKILL.md:113: long_fenced_block_lines=103
+  references/agent-approval-auto-reviewer.md:43:https://trusted.example`: placeholder_or_generic_url
+  references/public-data-acquisition.md:30: long_fenced_block_lines=87
+  references/public-data-acquisition.md:193:https://web.archive.org/cdx/search/cdx": placeholder_or_generic_url
+  references/public-data-acquisition.md:279:https://dev.socrata.com/: placeholder_or_generic_url
+  references/python-package-registry-release.md:91: long_fenced_block_lines=368
+  references/python-package-registry-release.md:33:https://<gitlab-host: placeholder_or_generic_url
+  references/python-package-registry-release.md:42:https://<gitlab-host: placeholder_or_generic_url
+  references/python-package-registry-release.md:53:https://<gitlab-host: placeholder_or_generic_url
+  references/python-package-registry-release.md:61:https://<gitlab-host: placeholder_or_generic_url
+  references/python-package-registry-release.md:62:https://<gitlab-host: placeholder_or_generic_url
+  references/streaming-rich-output.md:35:https://…`: placeholder_or_generic_url
+install_visibility_skipped: set CHECK_INSTALL_VISIBILITY=1 to verify host skill symlinks
+git_checks_ok
+skill_validation_ok
+  WARN agents-file-coverage-gate: entrypoint_long_lines L18:1176,L23:964
+  WARN app-cross-platform-dev: description_long_for_opencode 688/800
+  WARN app-cross-platform-dev: entrypoint_long_lines L59:3006,L146:1555,L24:1173,L144:1122,L37:882
+  WARN code-review: entrypoint_long_lines L215:4435,L86:2855,L301:2539,L281:2026,L271:1627
+  WARN defect-diagnosis: entrypoint_long_lines L39:2018,L58:1661,L121:1326,L125:1182,L21:903
+  WARN feature-risk-router: entrypoint_long_lines L6:1545,L25:853,L41:841,L43:615
+  WARN go-microservice-architecture: description_long_for_opencode 798/800
+  WARN go-microservice-architecture: entrypoint_long_lines L74:1763,L94:1159,L153:1070,L152:1002,L111:743
+  WARN go-microservice-dev: description_long_for_opencode 619/800
+  WARN go-microservice-dev: entrypoint_long_lines L124:2870,L48:1234,L17:824,L69:783,L46:673
+  WARN llm-inference-integration: entrypoint_long_lines L91:2355,L15:826,L60:778
+  WARN miniapp-product-dev: entrypoint_long_lines L73:1147,L83:1112,L139:1105,L154:918,L49:889
+  WARN multi-agent-delegation: entrypoint_long_lines L41:4164,L20:2069,L19:2024,L55:1780,L38:1733
+  WARN multi-perspective-research: entrypoint_long_lines L20:926,L63:920,L44:745,L54:730,L43:724
+  WARN platform-observability: description_long_for_opencode 799/800
+  WARN platform-observability: entrypoint_long_lines L153:3150,L140:849,L70:814,L43:793,L82:728
+  WARN platform-release-engineering: entrypoint_long_lines L60:1692,L246:1344,L262:799,L165:759,L247:740
+  WARN platform-service-connectivity: entrypoint_long_lines L148:952,L182:601
+  WARN product-rd-workflow: entrypoint_body_large 76187/50000
+  WARN product-rd-workflow: entrypoint_long_lines L167:1610,L37:1290,L141:1107,L197:1090,L128:1081
+  WARN product-ui-ux-design: entrypoint_long_lines L68:2181,L48:2052,L55:1985,L45:1970,L96:1507
+  WARN python-service-architecture: entrypoint_long_lines L83:1785,L104:1160,L146:1142,L145:1108,L80:748
+  WARN python-service-dev: description_long_for_opencode 615/800
+  WARN python-service-dev: entrypoint_long_lines L46:1238,L18:824,L67:814,L76:715,L44:692
+  WARN release-coordination: entrypoint_long_lines L15:710,L58:645
+  WARN requirement-baseline: entrypoint_long_lines L18:653
+  WARN requirement-doc-writer: entrypoint_long_lines L16:635
+  WARN requirement-intent: entrypoint_long_lines L17:649
+  WARN requirement-scope: entrypoint_long_lines L17:663
+  WARN skill-extraction-workflow: entrypoint_body_large 120174/50000
+  WARN skill-extraction-workflow: entrypoint_long_lines L102:1932,L60:1854,L99:1852,L155:1803,L188:1552
+  WARN terminal-cli-dev: description_long_for_opencode 744/800
+  WARN terminal-cli-dev: entrypoint_long_lines L20:1520,L62:941,L75:875,L63:835,L32:828
+  WARN test-artifact-management: entrypoint_long_lines L322:641
+  WARN testing-strategy: entrypoint_body_large 50928/50000
+  WARN testing-strategy: entrypoint_long_lines L171:1762,L60:1100,L68:1079,L178:1044,L55:1028
+  WARN tighten-doc: entrypoint_long_lines L131:1328,L16:1122,L22:1119,L165:1083,L12:1059
+  WARN web-react-dev: description_long_for_opencode 714/800
+  WARN web-react-dev: entrypoint_long_lines L13:1218,L36:980,L51:897,L95:894,L87:816
+  WARN worktree-isolation: description_long_for_opencode 629/800
+  WARN worktree-isolation: entrypoint_long_lines L155:1675,L139:1513,L8:1064,L12:944,L147:704
+skill_catalog_map_ok
+skill_catalog_contract_ok entries=32 entry=13 leaf=19
+frontmatter_name_description_ok
+codex_overlay_ok
+entrypoint_and_reference_domain_scan_ok
+recurring_antipattern_scan_ok
+fullwidth_var_scan_ok (104 files)
+git_identity_predicate_scan_ok
+evidence_card_leak_self_test_ok
+evidence_card_leak_scan_ok
+label_inventory_discovered (verify each exists in private alias YAML):
+  <abs-dst-worktree>
+  <abs-worktree-path>
+  <abs>
+  <absolute-git-dir>
+  <adversarial-prompt>
+  <all-service-repos>
+  <allowed>
+  <answer>
+  <api-base-url>
+  <app-bundle-id>
+  <app-type>
+  <app>
+  <approver-records>
+  <arch>
+  <args>
+  <artifact>
+  <attacker>
+  <author-family>
+  <author>
+  <authority>
+  <axis>
+  <bad-sha>
+  <base-json-name>
+  <base-sha-or-branch>
+  <base>
+  <batch>
+  <bold-anti-pattern>
+  <bool>
+  <br>
+  <branch>
+  <brand-color>
+  <brand>
+  <bucket>
+  <bullets-or-none>
+  <business-flow>
+  <callee-service>
+  <callee>
+  <caller-json-name>
+  <candidate-module>
+  <cause>
+  <ccl-skills-root>
+  <changed-bullets-or-shared-concepts>
+  <child>
+  <chunked-endpoint>
+  <class>
+  <cloud-provider-hostname>
+  <cmd>
+  <commit-sha>
+  <commit>
+  <common>
+  <component-image>
+  <component-restore-command>
+  <component>
+  <config-center-psm>
+  <config>
+  <consumer-count>
+  <count>
+  <critical-module>
+  <custom-tag>
+  <date>
+  <date1>
+  <date2>
+  <deadline>
+  <decision-ref>
+  <decision>
+  <default-host>
+  <default-options-file>
+  <deployment-id>
+  <description>
+  <design-system-web>
+  <dev-namespace>
+  <dir>
+  <distribution>
+  <domain>
+  <domains>
+  <dst>
+  <dur>
+  <duration>
+  <embed>
+  <entity>
+  <enum>
+  <env-branch-1>
+  <env-branch-2>
+  <env>
+  <env8>
+  <event>
+  <exact-discovered-skill>
+  <expected>
+  <fallback-lane>
+  <family>
+  <feature>
+  <field>
+  <file>
+  <filename>
+  <files>
+  <first-8-chars>
+  <fixed-ip-1>
+  <fixed-ip-2>
+  <fixed-ip-3>
+  <float>
+  <font-family>
+  <form>
+  <framework-default-options-file>
+  <framework>
+  <gate>
+  <git-commit-sha>
+  <gitlab-host>
+  <good-sha>
+  <haiku>
+  <hash16>
+  <head>
+  <host-issued-jwt>
+  <host>
+  <id-or-class>
+  <id>
+  <identity>
+  <ids>
+  <iframe>
+  <iid>
+  <image-version>
+  <image>
+  <img>
+  <infra-namespace>
+  <infra>
+  <int>
+  <integration-ref>
+  <internal-index-or-proxy-serving-private-and-approved-public-deps>
+  <iter-or-feature-name>
+  <iter>
+  <json>
+  <key>
+  <landing-ref>
+  <lane-header>
+  <lane-key>
+  <lane-name>
+  <lane-type>
+  <lane>
+  <legacy-section>
+  <letter-spacing>
+  <level>
+  <line-branch>
+  <line-height>
+  <link>
+  <list>
+  <locator>
+  <log-dir>
+  <log-id-header>
+  <log-id-json-name>
+  <log-id-key>
+  <log-id>
+  <main-component>
+  <marketplace-clone>
+  <mesh-sidecar>
+  <meta>
+  <metadata-aware-probe>
+  <method>
+  <mod>
+  <module-name>
+  <module>
+  <monorepo>
+  <ms>
+  <msg>
+  <my-lane>
+  <mysql-or-equivalent>
+  <name>
+  <namespace>
+  <nas-class>
+  <near-miss>
+  <non-allowlisted-base-identity-header>
+  <non-allowlisted-base-identity-key>
+  <noun>
+  <ns>
+  <object>
+  <oid>
+  <one-paragraph>
+  <opaque-name>
+  <opt-in-header>
+  <org>
+  <organization>
+  <origin-list>
+  <other-skill>
+  <other-stack>
+  <override>
+  <owner-approved-tag>
+  <owner-pinned-base-tag>
+  <owner>
+  <owning-path>
+  <package-path>
+  <path>
+  <payload>
+  <permission-name>
+  <phrase>
+  <pid>
+  <pinned-base>
+  <pkg-path>
+  <pkg-shared>
+  <pkg>
+  <platform-layer>
+  <platform-sidecar>
+  <plugin>
+  <pod>
+  <port>
+  <postmortem-track-id>
+  <primitive-type>
+  <private-ip>
+  <private-simple>
+  <prod-namespace>
+  <product-line>
+  <product-name>
+  <product>
+  <project-dev-vendor-bucket-url>
+  <project-id>
+  <project>
+  <prompt-key>
+  <prompt>
+  <psm-1>
+  <psm-2>
+  <psm>
+  <public-host-pattern>
+  <purpose8>
+  <reason>
+  <ref>
+  <region>
+  <registry-host>
+  <registry-sdk-import>
+  <registry>
+  <release-tag>
+  <repo-evidence-path>
+  <repo-root>
+  <repo>
+  <resolved-skill-extraction-workflow-dir>
+  <resolved-value>
+  <resource>
+  <result-file>
+  <review-module>
+  <reviewed-sha>
+  <role-or-user>
+  <role>
+  <route>
+  <runtime-user>
+  <runtime>
+  <scan-module>
+  <scenario>
+  <scope>
+  <script-path>
+  <script>
+  <section>
+  <seg>
+  <senior-engineer-or-on-call>
+  <serial>
+  <series>
+  <service-code>
+  <service-dir>
+  <service-grpc-target>
+  <service-handler-dir>
+  <service-health-url>
+  <service-names>
+  <service-ping-url>
+  <service-psm>
+  <service-root>
+  <service-target>
+  <service>
+  <severity-high>
+  <severity-medium>
+  <sha>
+  <shared-rwx-pvc>
+  <short-descriptor>
+  <size>
+  <skill-root-or-repo-root>
+  <skill>
+  <skills-repo>
+  <skipped>
+  <slug>
+  <small-image-with-find-and-rm>
+  <snapshot>
+  <some-capability>
+  <source-location>
+  <span>
+  <src>
+  <stable-tag>
+  <stack-1>
+  <stack-2>
+  <stack-specific-test-command>
+  <stage>
+  <state>
+  <statefulset-name>
+  <style>
+  <subcmd>
+  <subset>
+  <substr>
+  <summary>
+  <surface>
+  <svc>
+  <svc8>
+  <svg>
+  <tags-json-name>
+  <target>
+  <task-ref>
+  <task-slug>
+  <team-name>
+  <team-or-individual>
+  <test-id>
+  <test-pkg>
+  <test>
+  <testcase>
+  <text>
+  <theme-key-or-resolved-value>
+  <think>
+  <threshold>
+  <tier>
+  <timestamp>
+  <title>
+  <tls-secret>
+  <tok>
+  <token>
+  <topic>
+  <type>
+  <ui-kit-package>
+  <unique-name>
+  <unit>
+  <unrelated>
+  <url>
+  <user-id>
+  <user-or-system>
+  <user>
+  <uuid>
+  <value>
+  <vendor-package>
+  <vendor-service-class>
+  <vendor>
+  <verb>
+  <version-id>
+  <version>
+  <weight>
+  <window>
+  <workspace-scope>
+  <wrapper-pkg>
+  <wxs-file>
+  <your-module>
+  <yyyymmdd>
+alias_audit_cmd_running: bash /Users/asen/.claude/.private-aliases/run-r0-audit.sh
+r0_private_audit_ok (no added lines in range)
+alias_audit_ok
+r0_status=private-ok
+route_existence_check_done
+bootstrap_route_scan: covered
+md_reference_check_done
+bootstrap_scan: covered refs=1
+sync_pointer_check_done
+sync_subset_check_done
+sync_semantic_check_ok
+project_assessment_template_gate_ok
+task_retro_memory_escape_gate_ok
+product_rd_entrypoint_anchor_gate_ok
+test_case_first_gate_ok
+post_cleanup_register_pattern_ok
+register_firing_path_resolution_ok (176 locators resolved)
+diff_check_ok
+source_register_lifecycle_advisory: supersedes=0 revalidate_when=0 revalidate_by=0 overdue=0
+revalidate_check_ok
+eval-routing: scanned 32 skills
+  blocking: none
+  advisory (0):
+eval_routing_ok
+size_budget_advisory: agent-context/session-start.md is 18039B (> 13000B advisory tripwire band) — it injects into EVERY session; the band is visibility only, the blocking rule is NET GROWTH vs base (delta verdict below): before adding, consolidate an existing rule or move detail into an owner skill
+size_budget_info: SKILL.md over 50KB (advisory — obligation-bound gate registries; collapse ONLY verified reference-duplication, never inline-only gates):
+  entrypoint_size_severe_debt: skills/product-rd-workflow/SKILL.md bytes=77340 hard_advisory_max=50000
+  entrypoint_size_severe_debt: skills/skill-extraction-workflow/SKILL.md bytes=122101 hard_advisory_max=50000
+  entrypoint_size_severe_debt: skills/testing-strategy/SKILL.md bytes=52077 hard_advisory_max=50000
+entrypoint_size_debt_count=27
+entrypoint_size_severe_debt_count=3
+entrypoint_size_debt_count_base=27
+entrypoint_size_debt_count_head=27
+entrypoint_size_debt_count_delta=+0
+entrypoint_size_severe_debt_count_base=3
+entrypoint_size_severe_debt_count_head=3
+entrypoint_size_severe_debt_count_delta=+0
+entrypoint_word_budget_over_limit_count_base=11
+entrypoint_word_budget_over_limit_count_head=11
+entrypoint_word_budget_over_limit_count_delta=+0
+size_budget_visibility_note: counts above are visibility/debt-management only — NOT a clean-landing waiver and NOT authorization to keep growing entrypoints; a new or expanded large entrypoint must record its rationale and split plan.
+size_budget_advisory_ok
+entrypoint_size_budget_advisory_ok
+entrypoint_size_blocking_ok
+entrypoint_word_budget_blocking_ok
+ccl_skill_check_ok
+ccl_skill_check_clean_ok
+[gate_exit=0]  # 闸自身退出码，未经管道、未过滤
