@@ -7,7 +7,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | 候选 | `worktree-042-criteria-terminal-set`，base `origin/dev` @ `9c11837`。范围 = `origin/dev..HEAD` |
-| 变更文件集 | 仅 `specs/042-criteria-terminal-set/`（`plan.md`、`evidence/*`、本文件）。**无技能变更、无槽位被触碰**——与 charter 约束 A 一致 |
+| 变更文件集 | 仅 `specs/042-skill-corpus-optimization/`（`plan.md`、`evidence/*`、本文件）。**无技能变更、无槽位被触碰**——与 charter 约束 A 一致 |
 | 验收判据复核 | charter 第 2 节 Completion standard 的冻结阶段三项：决策表每格有 planned 输入行（7.2，空格 0）✓；dual-track 两轮**未跑**（本文件即其前置）；静态闸 `ccl_skill_check_clean_ok` ✓ |
 | 边界/失败路径 | 两个判定装置均验过失败路径：`run_control_legs.sh`（计数不符 `exit 1`、突变前置条件不成立 `exit 3`）、`d1_escape_repro.sh`（对照腿字面基名 `exit 1`）、`anchor_zero_hit_probe.py`（合成锚返回 0）。三者只读仓库，突变全部在仓外副本 |
 | 本轮自查修掉的 | ① 承重引用措辞错——把 `dual-track-review-gate.md` 的转述「re-base 或退役」当成了被引文件原文，实际该处要求的是重跑四条腿，已改；② 同页 122 与 113 两个数不同口径未说明，已就地注明；③ 序 0 是非终态却排在「第一条匹配者胜」表内，语义冲突，已显式例外；④ `m1` 对照腿未按预期下降，查因后定位到 D2-宽的谓词实为「目标 ∈ Evidence 集合」（见 5.1） |

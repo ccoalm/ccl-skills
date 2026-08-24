@@ -158,6 +158,11 @@ heavy_tests=(
   # against each. Proves the other half of a gate change — that it did not start
   # refusing what it used to accept — which is the half that blocks every author
   # when it goes wrong. Worktree-per-point makes it far too slow for pre-commit.
+  # source-refuted 证据类的滥用面：16 条合成用例，每条一条分支，且整仓 clone 一次
+  # 作 fixture 底座。它测的正是「这个类会不会变成通用豁免」——七轮独立评审各击穿过
+  # 一版门槛，所以负向用例（真行为变更披标签、抵消式新增、路径穿越、子串锚、改权限、
+  # 对照表不交代被删内容）必须每轮都跑。clone + 16 分支对 pre-commit 太慢，进 heavy。
+  test_impact_chain_source_refuted.sh
   test_impact_chain_gate_verdict_differential.sh
 )
 
