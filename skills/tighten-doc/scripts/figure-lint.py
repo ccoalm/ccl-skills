@@ -301,6 +301,53 @@ def path_mid(d):
         run += L
     return pts[-1]
 
+
+# ---------- 边交叉与交叉角（Purchase 1997 / Huang-Eades-Hong 2014） ----------
+# 只报数，不设阈：实证给出的是**排序**（交叉 > 弯折 > 对称），不是可量化门槛。
+# 由它推出具体数字就变成了 references/figure-and-table-craft.md §9 删掉那四条的同类。
+
+def _segments(d):
+    pts = path_points(d)
+    return list(zip(pts, pts[1:]))
+
+def _seg_cross(a, b):
+    (x1, y1), (x2, y2) = a
+    (x3, y3), (x4, y4) = b
+    den = (x2 - x1) * (y4 - y3) - (y2 - y1) * (x4 - x3)
+    if abs(den) < 1e-9:
+        return None                      # 平行或共线，不计为交叉
+    t = ((x3 - x1) * (y4 - y3) - (y3 - y1) * (x4 - x3)) / den
+    u = ((x3 - x1) * (y2 - y1) - (y3 - y1) * (x2 - x1)) / den
+    if not (0.0 < t < 1.0 and 0.0 < u < 1.0):
+        return None                      # 端点相接不算交叉
+    v1 = (x2 - x1, y2 - y1)
+    v2 = (x4 - x3, y4 - y3)
+    dot = v1[0] * v2[0] + v1[1] * v2[1]
+    n1 = math.hypot(*v1); n2 = math.hypot(*v2)
+    if n1 == 0 or n2 == 0:
+        return None
+    ang = math.degrees(math.acos(max(-1.0, min(1.0, dot / (n1 * n2)))))
+    return min(ang, 180.0 - ang)         # 取锐角
+
+def crossing_stats(flows):
+    """返回 (交叉数, 最小交叉角) —— 只描述事实。"""
+    segs = []
+    for fl in flows:
+        segs.append(_segments(fl['d']))
+    count = 0
+    min_ang = None
+    for i in range(len(segs)):
+        for j in range(i + 1, len(segs)):
+            for sa in segs[i]:
+                for sb in segs[j]:
+                    ang = _seg_cross(sa, sb)
+                    if ang is None:
+                        continue
+                    count += 1
+                    if min_ang is None or ang < min_ang:
+                        min_ang = ang
+    return count, min_ang
+
 # ---------- 版式契约 ----------
 
 CONTRACT_NAME = 'figure-contract.json'
@@ -540,6 +587,19 @@ def lint(path, contract_hint=None):
             add('ERROR', 'C4-EDGE-DIRECTION',
                 '连线无方向箭头：C4 要求每条线单向且方向可读')
 
+    # Purchase 1997：削边交叉的收益远大于弯折与对称；正交对齐与出边夹角统计不显著。
+    # Huang/Eades/Hong 2014：不可避免的交叉，角度越大越好、不必直角。
+    # 两者给的都是排序不是阈值，所以这里只报数，交给人判断。
+    if len(flows) > 1 and not geometry_unsafe:
+        xn, xang = crossing_stats(flows)
+        if xn:
+            ang_txt = f'，最小交叉角 {xang:.0f}°' if xang is not None else ''
+            add('WARN', 'GRAPH-CROSSINGS',
+                f'连线两两交叉 {xn} 处{ang_txt}。'
+                f'[外] 实证（Purchase 1997）：削减边交叉的收益远大于减少弯折与提高对称，'
+                f'且不值得为对齐正交网格或加大出边夹角而牺牲它；'
+                f'交叉角越大越好但不必直角（Huang/Eades/Hong 2014）。'
+                f'**只报数不设阈**——实证给的是排序不是门槛，是否可接受由人判断')
     unlabeled = 0
     RADIUS = 90.0
     for fl in flows:

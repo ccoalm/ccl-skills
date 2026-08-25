@@ -77,6 +77,7 @@ run_expect figure-lint.py "${here}/tests/svg" svg \
   'edge-no-arrow.svg=C4-EDGE-DIRECTION' \
   'edge-vague.svg=C4-EDGE-VAGUE' \
   'transformed.svg=CONTRAST-UNSUPPORTED' \
+  'crossings.svg=GRAPH-CROSSINGS' \
   'decorative-line.svg=' \
   'blackmarker.svg=CONTRACT-COLOR-TOKEN'
 

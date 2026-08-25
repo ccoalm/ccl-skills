@@ -79,6 +79,7 @@ owner 把实质定了之后，**每次交付文本/结构落定就挂**——不
 
 ## 延伸阅读
 
+- [图与表手册](figure-and-table-handbook.md)（图种选择、记法硬约束、版式契约、可跑的检查器——本文只管文字层）
 - [`tighten-doc` 技能](../skills/tighten-doc/SKILL.md)
 - [复盘与沉淀/迭代技能手册](skill-extraction-handbook.md)（复盘成文的实质归它）
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) docs 改动段
