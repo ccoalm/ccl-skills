@@ -31,6 +31,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	bash skills/testing-strategy/scripts/client-terminal-ansi-check.test.sh
 	bash skills/testing-strategy/scripts/lang-basics-ast-check.test.sh
 	bash skills/testing-strategy/scripts/lang-basics-go-check.test.sh
+	bash skills/tighten-doc/scripts/test_figure_and_doc_lint.sh
 	bash skills/worktree-isolation/scripts/test_worktree_status.sh
 	bash skills/worktree-isolation/scripts/test_worktree_sweep.sh
 	bash scripts/owner-dispatch/test.sh

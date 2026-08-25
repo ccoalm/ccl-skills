@@ -1,0 +1,19 @@
+{
+ "_note": "fixture 契约。#7C3AED 刻意不列（offcontract-shape 负例）。三项必填字段不得为空——空契约会绕过整个契约闸。",
+ "canvas_ratios": [
+  2.0
+ ],
+ "font_scale": [
+  13.0,
+  14.0
+ ],
+ "color_tokens": {
+  "c0": "#111827",
+  "c1": "#12805C",
+  "c2": "#356A8A",
+  "c3": "#98A2B3",
+  "c4": "#B42318",
+  "c5": "#F7F8FA",
+  "c6": "#FFFFFF"
+ }
+}
