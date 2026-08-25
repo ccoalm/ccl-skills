@@ -21,15 +21,17 @@ echo "baseline: GREEN"
 # 而漏掉的那条就没有任何覆盖。独立评审实测抓到过——手写的 24 条里
 # 漏了 PARSE / C4-VIEWBOX / C4-EDGE-VAGUE 三条。
 extract_codes() {  # <linter-file>
-  # 必须覆盖**所有发射路径**。早先只认 add(...) 与错误元组，
-  # 漏掉了走 findings.append({'code': ...}) 的 CONTRACT-MISSING / CONTRACT-INVALID——
-  # 分母因此偏小，"全部谓词均有覆盖"是未经验证的声明。
+  # 必须覆盖**所有发射路径与所有档位**。踩过两次分母偏小：
+  #   ① 早先只认 add(...) 与错误元组，漏掉走 findings.append({'code': ...}) 的
+  #      CONTRACT-MISSING / CONTRACT-INVALID；
+  #   ② 档位只写了 ERROR|WARN，于是把一条谓词改成 INFO 就让它**静默退出分母**，
+  #      总数看起来不变、覆盖却少了一条。档位一律用 [A-Z]+ 匹配，不枚举。
   python3 - "$1" <<'PYEOF'
 import re, sys
 src = open(sys.argv[1], encoding="utf8").read()
 pats = [
-    r"""add\(\s*['"](?:ERROR|WARN)['"]\s*,\s*['"]([A-Z0-9][A-Z0-9-]*)['"]""",   # add('ERROR', 'CODE'
-    r"""\(\s*['"](?:ERROR|WARN)['"]\s*,\s*['"]([A-Z0-9][A-Z0-9-]*)['"]""",      # ('ERROR', 'CODE'
+    r"""add\(\s*['"][A-Z]+['"]\s*,\s*['"]([A-Z0-9][A-Z0-9-]*)['"]""",   # add('<档位>', 'CODE'
+    r"""\(\s*['"][A-Z]+['"]\s*,\s*['"]([A-Z0-9][A-Z0-9-]*)['"]""",      # ('<档位>', 'CODE'
     r"""['"]code['"]\s*:\s*['"]([A-Z0-9][A-Z0-9-]*)['"]""",                    # {'code': 'CODE'
 ]
 codes = set()

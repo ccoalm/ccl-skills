@@ -204,6 +204,29 @@ def group_path_map(root):
     walk(root, [])
     return m
 
+def local_card_under(x, y, rects, canvas_area):
+    """点 (x,y) 是否压在一块**局部**底板（卡片）上。
+
+    整幅底板（覆盖 ≥95% 画布）算的是页面底色、不是卡片：它随主题一起换，
+    压在它上面的文字就是「主题底色上的文字」。只有明显小于画布的矩形才是卡片，
+    卡片底色不随主题换，拿全局主题底色去判它上面的文字会误报。
+    """
+    best = None; best_area = None
+    for (rx, ry, rw, rh, fill) in rects:
+        # fill="none"/transparent 的矩形只是描边框，不构成底色。
+        # 把它当卡片会让包住低对比文字的边框直接豁免掉 THEME-CONTRAST。
+        if not (isinstance(fill, str) and fill.startswith('#')):
+            continue
+        if rx <= x <= rx + rw and ry <= y <= ry + rh:
+            area = rw * rh
+            if best is None or area <= best_area:
+                best, best_area = fill, area
+    if best is None or best_area is None:
+        return None
+    if canvas_area and best_area >= canvas_area * 0.95:
+        return None
+    return best
+
 def bg_under(x, y, rects, page_bg='#FFFFFF'):
     """返回包含点 (x,y) 的最内层（最后绘制的最小）矩形填充色。
 
@@ -348,6 +371,72 @@ def crossing_stats(flows):
                         min_ang = ang
     return count, min_ang
 
+
+# ---------- 色觉障碍：二色视模拟（Viénot 1999） ----------
+# [外] 链路来自 Brettel/Viénot/Mollon 1997 与 Viénot/Brettel/Mollon 1999：
+#   sRGB → 去伽马 → linearRGB → LMS(Smith&Pokorny/Judd-Vos) → 沿缺陷轴投影到不变平面 → 回 sRGB。
+# 投影的代表色取在**单侧二色视者双眼一致**的不变轴上（protan/deutan: 475nm 与 575nm；
+# tritan: 485nm 与 660nm），所以模拟输出的亮度变化是算法的正确行为，
+# **不是** "红色应该变暗" —— 那句说的是「红与黑难以区分」，是另一个量。
+# 本目录曾用错误锚点（期望红色变暗）去验这个实现，差点判一个正确算法有 bug。
+#
+# [工] 判据本身：语义 token 两两在三类二色视下的最小距离。**只报数不设阈**——
+# 参照点用实测给出（Okabe-Ito 八色 38，随机八色 10），是否可接受由人判断。
+
+_LMS_FROM_RGB = ((0.17886, 0.43997, 0.03597),
+                 (0.03380, 0.27515, 0.03621),
+                 (0.00031, 0.00195, 0.01528))
+
+def _inv3(m):
+    a, b, c = m[0]; d, e, f = m[1]; g, h, i = m[2]
+    det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+    return ((( e * i - f * h) / det, (c * h - b * i) / det, (b * f - c * e) / det),
+            (( f * g - d * i) / det, (a * i - c * g) / det, (c * d - a * f) / det),
+            (( d * h - e * g) / det, (b * g - a * h) / det, (a * e - b * d) / det))
+
+_RGB_FROM_LMS = _inv3(_LMS_FROM_RGB)
+
+def _srgb_to_lin(c):
+    c /= 255.0
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+def _lin_to_srgb(c):
+    c = max(0.0, min(1.0, c))
+    return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1 / 2.4)) - 0.055
+
+def _mat3(m, v):
+    return [sum(m[r][k] * v[k] for k in range(3)) for r in range(3)]
+
+def simulate_cvd(hexcol, kind):
+    """把一个 sRGB 十六进制色投影到指定二色视的可见色。"""
+    h = hexcol.lstrip('#')
+    if len(h) == 3:
+        h = ''.join(ch * 2 for ch in h)
+    lin = [_srgb_to_lin(int(h[i:i + 2], 16)) for i in (0, 2, 4)]
+    l, m_, s = _mat3(_LMS_FROM_RGB, lin)
+    if kind == 'protan':
+        l = 2.02344 * m_ - 2.52581 * s
+    elif kind == 'deutan':
+        m_ = 0.49421 * l + 1.24827 * s
+    elif kind == 'tritan':
+        s = -0.012491 * l + 0.072154 * m_
+    out = _mat3(_RGB_FROM_LMS, [l, m_, s])
+    return tuple(round(_lin_to_srgb(c) * 255) for c in out)
+
+def cvd_min_distance(colors):
+    """返回 (最小距离, 色对, 缺陷类型)；colors 为十六进制串序列。"""
+    cols = [c for c in colors if isinstance(c, str) and c.startswith('#') and len(c) in (4, 7)]
+    worst = None
+    for i in range(len(cols)):
+        for j in range(i + 1, len(cols)):
+            for kind in ('protan', 'deutan', 'tritan'):
+                a = simulate_cvd(cols[i], kind)
+                b = simulate_cvd(cols[j], kind)
+                dist = math.dist(a, b)
+                if worst is None or dist < worst[0]:
+                    worst = (dist, (cols[i], cols[j]), kind)
+    return worst
+
 # ---------- 版式契约 ----------
 
 CONTRACT_NAME = 'figure-contract.json'
@@ -407,9 +496,43 @@ def validate_contract(c):
         vals = t.values() if isinstance(t, dict) else (t if isinstance(t, list) else None)
         if vals is None or not all(isinstance(x, str) for x in vals):
             errs.append('color_tokens must be an object or list of colour strings')
+    sc = c.get('semantic_colors')
+    if sc is not None:
+        # 不校验类型时，数组/字符串会在下游 .values() 处直接崩；非法颜色会被静默丢弃成空集，
+        # 于是「没报 CVD」既可能是「距离没问题」也可能是「压根没测」——两者必须可区分。
+        if not isinstance(sc, dict) or not sc:
+            errs.append('semantic_colors must be a non-empty object mapping semantic name to colour')
+        else:
+            bad = [f'{k}={v!r}' for k, v in sc.items()
+                   if not (isinstance(v, str) and re.fullmatch(r'#[0-9A-Fa-f]{6}', v))]
+            if bad:
+                errs.append('semantic_colors values must be #RRGGBB: ' + ', '.join(sorted(bad)))
+            else:
+                known = set()
+                if isinstance(t, dict):
+                    known = {str(v).upper() for v in t.values() if isinstance(v, str)}
+                elif isinstance(t, list):
+                    known = {str(v).upper() for v in t if isinstance(v, str)}
+                stray = sorted({v.upper() for v in sc.values()} - known)
+                if known and stray:
+                    errs.append('semantic_colors must be a subset of color_tokens; not a token: '
+                                + ', '.join(stray))
     tol = c.get('ratio_tolerance')
     if tol is not None and not isinstance(tol, (int, float)):
         errs.append('ratio_tolerance must be a number')
+    th = c.get('themes')
+    if th is not None:
+        if not isinstance(th, dict) or not th:
+            errs.append('themes must be a non-empty object keyed by theme name')
+        else:
+            for name, vals in th.items():
+                if not isinstance(vals, dict):
+                    errs.append(f'themes.{name} must be an object carrying a surface colour')
+                    continue
+                sv = vals.get('surface')
+                # 只判真值会让 {"surface":"black"} 通过校验、随后因不是 # 开头被静默跳过——假绿。
+                if not (isinstance(sv, str) and re.fullmatch(r'#[0-9A-Fa-f]{6}', sv)):
+                    errs.append(f'themes.{name}.surface must be a #RRGGBB colour, got {sv!r}')
     if errs:
         return {'__error__': '; '.join(errs)}
     return c
@@ -493,6 +616,7 @@ def lint(path, contract_hint=None):
     rects = rects_of(root, css)
     # 含 transform 等无法解析的呈现时，所有依赖几何的判据都不可信——
     # 必须在第一个几何判据之前就算出来。
+    stats_tokens_for_cvd = sorted(all_paint_colors(root, css) | referenced_defs_colors(root, css))
     paint_gaps = unresolvable_paint(root, css)
     # 任何不可解析的呈现都让几何/底色判据不可信，不只 transform：
     # 渐变、圆/多边形底、rgb()/CSS 变量同样会让「按白底算」得出假红或假绿。
@@ -738,6 +862,123 @@ def lint(path, contract_hint=None):
     elif card_total == 0 and len(list(root.iter(f'{SVG}g'))) == 0:
         add('ERROR', 'GROUPING', '全图零 <g> 分组：目标端重排 z 序时矩形可能盖住文字')
 
+    # --- 主题：语义色需在每个声明的底色上都达标 ---
+    # [工] 由 [外] WCAG 1.4.3 推出：契约声明了多个主题底色时，同一语义色要在每个底上算。
+    # 一张写死十六进制、没有主题维度的 token 表，在深色主题下整体失效——
+    # 设计系统实践称之为「token 系统坏了」：深色应当 swap token 值，而不是另写一套硬编码色。
+    themes = (contract_hint or {}).get('themes') or {}
+    if themes and geometry_unsafe:
+        # 底色解析不可信时（渐变、非矩形底板、transform、CSS 变量），
+        # local_card_under 对圆形/路径卡片一律返回 None，会把卡片上的文字
+        # 误按全局主题底色判——报出来的是假红。明说跳过，不静默。
+        add('WARN', 'THEME-UNASSESSED',
+            f'本图含无法解析的底色/坐标呈现，{len(themes)} 个声明主题的对比度全部未判定——'
+            f'不是「判过没问题」。需人工核对或把底板改成可解析的矩形')
+    elif themes:
+        for tname, tvals in themes.items():
+            bg = tvals.get('surface')
+            if not (isinstance(bg, str) and bg.startswith('#')):
+                continue
+            if bg.upper() == '#000000':
+                add('WARN', 'THEME-PURE-BLACK',
+                    f'主题 {tname} 的底色是纯黑 #000000：建议 #0F0F0F–#1E1E1E 区间，纯黑缺少层次')
+            for t in texts:
+                if not t['text'] or not t['fill'].startswith('#'):
+                    continue
+                # 只判直接压在主题底色上的文本。压在局部卡片上的文本，其实际底色
+                # 由卡片决定、随主题另行 swap，拿全局底色去判会误报
+                # （深底上的白卡片 + 深字，实际可读）。
+                card = local_card_under(t['x'], t['y'] - t['size'] * 0.35, rects,
+                                        (page_w * page_h) if (page_w and page_h) else 0)
+                if card is not None:
+                    continue
+                large = t['size'] >= 24 or (t['size'] >= 18.66 and t['bold'])
+                need = 3.0 if large else 4.5
+                try:
+                    c_ = contrast(t['fill'], bg)
+                except Exception:
+                    continue
+                if c_ < need:
+                    add('WARN', 'THEME-CONTRAST',
+                        f'主题 {tname}：{t["size"]:g}px {t["fill"]} 压在 {bg} 上仅 {c_:.2f} < {need}'
+                        f'——同一套写死的色在另一主题下失效，应按主题 swap token 值')
+                    break
+
+    # --- 色觉障碍：语义色对是否仍可分（[外] Viénot 1999 链路；[工] 只报数不设阈）---
+    # 只比**契约显式声明为语义状态**的色。早先比全部渲染色（含装饰、边框、底色），
+    # 等于假定任意两色都编码不同语义——那不成立。契约未声明语义色时不报。
+    sem_map = (contract_hint or {}).get('semantic_colors') or {}
+    sem = sorted({v.upper() for v in sem_map.values()
+                  if isinstance(v, str) and re.fullmatch(r'#[0-9A-Fa-f]{6}', v)})
+    if len(sem) >= 2:
+        worst = cvd_min_distance(sem)
+        # 报的是**测量值与参照点**，不下「不可分」的判定——本检查器没有阈值依据。
+        if worst:
+            add('INFO', 'CVD-DISTANCE',
+                f'契约声明的语义色中，最接近的一对是 {worst[1][0]}/{worst[1][1]}，'
+                f'在 {worst[2]} 下距离 {worst[0]:.0f}。**这是测量值不是判定**——'
+                f'参照点：Okabe-Ito 八色最小 38、随机八色 10。'
+                f'[外] 模拟链路来自 Brettel/Viénot/Mollon；本检查器无阈值依据，是否可接受由人判断'
+                f'（语义不应只靠颜色编码，可加形状/图标/文字冗余）')
+
+    # --- 重复出现的值应成为 token（[工]，来自设计系统实践：出现 >2 次的值就该是 token）---
+    # 这条比「偏离契约」更早一步：它能发现契约**该有而没有**的 token，
+    # 不必等人先把契约写全。
+    if not contract_hint.get('color_tokens'):
+        import collections as _c2
+        freq = _c2.Counter()
+        for m_ in re.finditer(r'(?:fill|stroke)\s*[:=]\s*"?(#[0-9A-Fa-f]{6})', src):
+            freq[m_.group(1).upper()] += 1
+        untokened = [c for c, n in freq.items() if n > 2]
+        if untokened:
+            add('WARN', 'VALUE-SHOULD-BE-TOKEN',
+                f'{len(untokened)} 个颜色各出现 >2 次却无契约 token 表：'
+                f'重复出现的值应当成为具名 token，否则每张图都要重新决定配色')
+
+    # --- 图注结构：figure/figcaption 与无障碍标签承载同一主张 ---
+    has_aria = bool(root.get('aria-label') or root.get('aria-labelledby'))
+    has_role = (root.get('role') == 'img')
+    if title and not (has_aria or has_role):
+        add('WARN', 'FIGURE-A11Y-STRUCTURE',
+            '有 <title> 但缺 role="img" 与 aria-label/aria-labelledby：'
+            '看不见图的读者拿不到图的主张。二者应承载同一句话')
+
+    # --- 图退化成并列框：有框无线 = 列表的图形版 ---
+    if card_total >= 3 and not flows:
+        add('WARN', 'FIGURE-IS-A-LIST',
+            f'{card_total} 个卡片、0 条连线：一组互不相连的标注框是**列表的图形版**，不是图。'
+            f'图的价值在于让读者看见机制——若没有关系要画，用列表或表更快')
+
+    # --- 流向一致：主方向混用会增加阅读成本 ---
+    if len(flows) >= 3 and not geometry_unsafe:
+        import collections as _c
+        dirs = _c.Counter()
+        for fl in flows:
+            ms, me = fl['markers']
+            if ms and me:
+                continue          # 双向边没有单一方向，不计入分布
+            if not ms and not me:
+                continue          # 两端都没箭头 = 无向连接；按 d 的书写顺序定向是凭空造方向
+            pts = path_points(fl['d'])
+            if len(pts) < 2:
+                continue
+            if ms and not me:
+                pts = pts[::-1]   # marker-start 表示方向相反
+            dx = pts[-1][0] - pts[0][0]
+            dy = pts[-1][1] - pts[0][1]
+            if abs(dx) >= abs(dy):
+                dirs['L2R' if dx >= 0 else 'R2L'] += 1
+            else:
+                dirs['T2B' if dy >= 0 else 'B2T'] += 1
+        if dirs:
+            main, n = dirs.most_common(1)[0]
+            total = sum(dirs.values())
+            if n / total < 0.7:
+                add('WARN', 'FLOW-DIRECTION-MIXED',
+                    f'连线主方向分布 {dict(dirs)}：主方向仅占 {n}/{total}。'
+                    f'混用流向增加阅读成本；[工] 0.7 为本检查器的提示线，无外部阈值依据')
+
+
     stats = {
         'ratio': ratio,
         'sizes': sorted({t['size'] for t in texts}),
@@ -818,17 +1059,21 @@ def main(argv):
     n_warn_all = sum(1 for r in report.values() for x in r['findings'] if x['level'] == 'WARN')
     if as_json:
         print(json.dumps({'files': report, 'cross': cross}, ensure_ascii=False, indent=1))
-        return 1 if n_err_all else (2 if n_warn_all else 0)
+        return 1 if n_err_all else (2 if n_warn_all else 0)   # INFO 不参与：它是测量不是判定
     else:
         n_err = n_warn = 0
         for f, r in report.items():
             errs = [x for x in r['findings'] if x['level'] == 'ERROR']
             warns = [x for x in r['findings'] if x['level'] == 'WARN']
+            infos = [x for x in r['findings'] if x['level'] == 'INFO']
+            # INFO 是「量出来的数」，没有阈值依据就不该让 CLI 变成非干净——
+            # 否则「只报数不设阈」这句声明会被退出码当场推翻。
             n_err += len(errs); n_warn += len(warns)
-            if not errs and not warns:
+            if not errs and not warns and not any(x['level'] == 'INFO' for x in r['findings']):
                 print(f'✓ {os.path.basename(f)}')
                 continue
-            print(f'\n{os.path.basename(f)}  [{len(errs)} ERROR / {len(warns)} WARN]')
+            print(f'\n{os.path.basename(f)}  [{len(errs)} ERROR / {len(warns)} WARN'
+                  + (f' / {len(infos)} INFO' if infos else '') + ']')
             seen = collections.Counter()
             for x in r['findings']:
                 seen[x['code']] += 1

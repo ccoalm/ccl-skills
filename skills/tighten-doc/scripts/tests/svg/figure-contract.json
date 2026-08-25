@@ -1,5 +1,5 @@
 {
- "_note": "fixture 契约。#7C3AED 刻意不列（offcontract-shape 负例）。三项必填字段不得为空——空契约会绕过整个契约闸。",
+ "_note": "fixture 契约。配色改用 Okabe-Ito（色盲安全，实测二色视最小距离 38）——原先那组语义色在 tritan 下仅 19，会让每个 fixture 都连带触发 CVD-CONFUSABLE，谓词就隔离不开了。#7C3AED 刻意不列（offcontract-shape 负例）。",
  "canvas_ratios": [
   2.0
  ],
@@ -9,11 +9,13 @@
  ],
  "color_tokens": {
   "c0": "#111827",
-  "c1": "#12805C",
-  "c2": "#356A8A",
+  "c1": "#009E73",
+  "c2": "#0072B2",
   "c3": "#98A2B3",
-  "c4": "#B42318",
+  "c4": "#D55E00",
   "c5": "#F7F8FA",
-  "c6": "#FFFFFF"
+  "c6": "#FFFFFF",
+  "warnX": "#B54708",
+  "critX": "#B42318"
  }
 }

@@ -113,3 +113,15 @@ Referenced from `SKILL.md`'s "The mechanism underneath" rule. This section holds
 **Why recency is a hazard, not a rule.** Vendor guidance reports that models *tend to follow* whichever instruction sits later — an observation about behaviour, not a licence to resolve conflicts by position. Two ways position becomes dangerous if read as a rule: a later permissive line beats an earlier stricter one (directly contradicting `Conflict Resolution`, which keeps the stricter data-loss/security/contract guard); and text embedded in **untrusted data** — a diff under review, a retrieved document, tool output — sits later within the same authority level and would win by placement alone, which is prompt injection with extra steps. Treat recency as a bias to design against: put the load-bearing rule where the decision happens, and never let placement confer authority.
 
 **How to use them.** Vendor guidance and benchmarks are **hypotheses with good provenance** — they tell you what to test on your own corpus, they do not substitute for testing it. Citing them as settled is the same error as landing an unverified claim; so is overruling one with an underpowered probe.
+
+## 继承的约定读法：失败形态
+
+一道建立在**继承来的错误读法**之上的闸——把 `AGENTS.md` 读成存在「根索引」要求（实际并不存在）——在多轮 dual-track 里以不断打补丁的方式存活，直到用户问「参考网上优秀实践了么」，一手源（nearest-file-wins）才证伪了整个前提。
+
+教训：前一个 agent 或前一次提交对某个具名约定的读法是 **hypothesis-grade**；在其之上 fix-forward 会把原始错误一并传播。
+
+## 只据内部语料的「深度提炼」：失败形态
+
+一次仅以内部 launch-SOP 为源的「深度提炼」会落出**看起来完整**的规则集，却从未核过这套技能声称代表的**公开实践**；下一个用户于是问「参考网上优秀实践了么 / did you check industry practice」。
+
+判据：凡规则带 state-of-the-art 主张，charter 的 evidence plan 必须含权威外部源类；只编码内部运行约束、且明标内部范围不作行业主张的规则，不受此限。

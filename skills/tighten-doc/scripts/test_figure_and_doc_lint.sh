@@ -78,6 +78,10 @@ run_expect figure-lint.py "${here}/tests/svg" svg \
   'edge-vague.svg=C4-EDGE-VAGUE' \
   'transformed.svg=CONTRAST-UNSUPPORTED' \
   'crossings.svg=GRAPH-CROSSINGS' \
+  'figure-is-a-list.svg=FIGURE-IS-A-LIST,GROUPING' \
+  'flow-mixed.svg=FLOW-DIRECTION-MIXED' \
+  'no-aria.svg=FIGURE-A11Y-STRUCTURE' \
+  'cvd-confusable.svg=' \
   'decorative-line.svg=' \
   'blackmarker.svg=CONTRACT-COLOR-TOKEN'
 
@@ -97,6 +101,157 @@ run_expect doc-lint.py "${here}/tests/doc" md \
   'unfilled.md=TABLE-UNFILLED' \
   'fenced-noise.md='
 
+# 无契约时应提示「重复出现的值该成为 token」——独立目录，避免污染契约测试
+t3="$(mktemp -d)"
+# 需要一张「多种颜色各重复多次」的图才触发；就地合成，不入仓
+python3 - "${t3}/multi.svg" <<'SVGEOF'
+import sys
+cols = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00"]
+parts = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" role="img" aria-label="many repeated colours"><title>many repeated colours</title><g>']
+y = 5
+for c in cols:
+    for _ in range(3):
+        parts.append(f'<rect x="10" y="{y}" width="12" height="8" fill="{c}"/>')
+        y += 10
+parts.append("</g></svg>")
+open(sys.argv[1], "w").write("".join(parts))
+SVGEOF
+out2="$(python3 "${here}/figure-lint.py" "${t3}"/*.svg 2>/dev/null)"; rc2=$?
+case "${out2}" in *VALUE-SHOULD-BE-TOKEN*) ;; *) bad "无契约且多色重复时未报 VALUE-SHOULD-BE-TOKEN";; esac
+[ "${rc2}" = 1 ] || bad "多色重复用例退出码应为 1(CONTRACT-MISSING 是 ERROR)，实得 ${rc2}"
+# 规则写的是「>2 次即应成 token」——单一颜色重复 3 次同样要报，否则规则与实现不一致
+python3 - "${t3}/one.svg" <<'SVGEOF2'
+import sys
+parts = ['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" role="img" aria-label="one repeated colour"><title>one repeated colour</title><g>']
+y = 5
+for _ in range(3):
+    parts.append(f'<rect x="10" y="{y}" width="12" height="8" fill="#0072B2"/>')
+    y += 10
+parts.append("</g></svg>")
+open(sys.argv[1], "w").write("".join(parts))
+SVGEOF2
+out2b="$(python3 "${here}/figure-lint.py" "${t3}/one.svg" 2>/dev/null)"; rc2b=$?
+case "${out2b}" in *VALUE-SHOULD-BE-TOKEN*) ;; *) bad "单色重复 3 次未报 VALUE-SHOULD-BE-TOKEN（规则与实现不一致）";; esac
+[ "${rc2b}" = 1 ] || bad "单色重复用例退出码应为 1(CONTRACT-MISSING 是 ERROR)，实得 ${rc2b}"
+rm -rf "${t3}"
+
+# CVD 距离只在契约**显式声明语义色**时测量，且只报数不下判定
+t3b="$(mktemp -d)"
+cp "${here}/tests/svg/cvd-confusable.svg" "${t3b}/"
+cat >"${t3b}/figure-contract.json" <<'JSON'
+{ "canvas_ratios": [2.0], "font_scale": [14],
+  "color_tokens": {"ink":"#111827","warn":"#B54708","crit":"#B42318","ok":"#009E73","surface":"#FFFFFF"},
+  "semantic_colors": {"warning":"#B54708","critical":"#B42318","ok":"#009E73"} }
+JSON
+out3b="$(python3 "${here}/figure-lint.py" "${t3b}/cvd-confusable.svg" 2>/dev/null)"; rc3b=$?
+case "${out3b}" in *CVD-DISTANCE*) ;; *) bad "契约声明语义色后未测量 CVD-DISTANCE";; esac
+case "${out3b}" in *"测量值不是判定"*) ;; *) bad "CVD-DISTANCE 文案未声明这是测量值";; esac
+# 「只报数不设阈」若让退出码变成非零，这句声明就被退出码当场推翻——必须是 INFO 档、退出码 0
+[ "${rc3b}" = 0 ] || bad "只有 CVD-DISTANCE 测量时退出码应为 0(INFO 不阻断)，实得 ${rc3b}"
+case "${out3b}" in *INFO*) ;; *) bad "CVD-DISTANCE 未标为 INFO 档";; esac
+# semantic_colors 非法必须报 CONTRACT-INVALID，不得崩溃、也不得静默丢成空集
+for bad_sc in '["#B54708","#B42318"]' '"#B54708"' '{"a":"red","b":"#B42318"}' '{"a":"#123456","b":"#B42318"}'; do
+  cat >"${t3b}/figure-contract.json" <<JSON
+{ "canvas_ratios": [2.0], "font_scale": [14],
+  "color_tokens": {"ink":"#111827","warn":"#B54708","crit":"#B42318","ok":"#009E73","surface":"#FFFFFF"},
+  "semantic_colors": ${bad_sc} }
+JSON
+  o="$(python3 "${here}/figure-lint.py" "${t3b}/cvd-confusable.svg" 2>&1)"; r=$?
+  case "${o}" in *CONTRACT-INVALID*) ;; *) bad "非法 semantic_colors ${bad_sc} 未报 CONTRACT-INVALID";; esac
+  case "${o}" in *Traceback*) bad "非法 semantic_colors ${bad_sc} 让检查器崩溃";; esac
+  [ "${r}" = 1 ] || bad "非法 semantic_colors ${bad_sc} 应为 ERROR(退出码 1)，实得 ${r}"
+done
+# 未声明语义色时不得凭渲染色臆断语义
+out3c="$(python3 "${here}/figure-lint.py" "${here}/tests/svg/cvd-confusable.svg" 2>/dev/null || true)"
+case "${out3c}" in *CVD-*) bad "契约未声明语义色却报了 CVD-*（把装饰色当语义色）";; esac
+rm -rf "${t3b}"
+
+# 主题维度：同一套写死的色在另一主题底上会失效；纯黑底另有提示。
+t4="$(mktemp -d)"
+cp "${here}/tests/svg/control.svg" "${t4}/"
+cat >"${t4}/figure-contract.json" <<'JSON'
+{ "canvas_ratios": [2.0], "font_scale": [13,14],
+  "color_tokens": {"ink":"#111827","primary":"#0072B2","critical":"#D55E00","ok":"#009E73","surface":"#FFFFFF"},
+  "themes": { "light": {"surface":"#FFFFFF"}, "dark": {"surface":"#000000"} } }
+JSON
+out4="$(python3 "${here}/figure-lint.py" "${t4}"/control.svg 2>/dev/null)"; rc4=$?
+[ "${rc4}" = 2 ] || bad "主题用例退出码应为 2(仅 WARN)，实得 ${rc4}"
+case "${out4}" in *THEME-CONTRAST*) ;; *) bad "深色主题下未报 THEME-CONTRAST";; esac
+case "${out4}" in *THEME-PURE-BLACK*) ;; *) bad "纯黑主题底未报 THEME-PURE-BLACK";; esac
+# 主题底色不是合法 #RRGGBB 时必须报契约非法——否则该主题被静默跳过 = 假绿
+cat >"${t4}/figure-contract.json" <<'JSON'
+{ "canvas_ratios": [2.0], "font_scale": [13,14],
+  "color_tokens": {"ink":"#111827","primary":"#0072B2","critical":"#D55E00","ok":"#009E73","surface":"#FFFFFF"},
+  "themes": { "light": {"surface":"#FFFFFF"}, "dark": {"surface":"black"} } }
+JSON
+out4b="$(python3 "${here}/figure-lint.py" "${t4}"/control.svg 2>/dev/null)"; rc4b=$?
+case "${out4b}" in *CONTRACT-INVALID*) ;; *) bad "themes.dark.surface 非十六进制未报 CONTRACT-INVALID（静默跳过=假绿）";; esac
+[ "${rc4b}" = 1 ] || bad "契约非法应为 ERROR(退出码 1)，实得 ${rc4b}"
+cat >"${t4}/figure-contract.json" <<'JSON'
+{ "canvas_ratios": [2.0], "font_scale": [13,14],
+  "color_tokens": {"ink":"#111827","primary":"#0072B2","critical":"#D55E00","ok":"#009E73","surface":"#FFFFFF"},
+  "themes": { "light": {"surface":"#FFFFFF"}, "dark": {"surface":[255]} } }
+JSON
+out4c="$(python3 "${here}/figure-lint.py" "${t4}"/control.svg 2>/dev/null || true)"
+case "${out4c}" in *CONTRACT-INVALID*) ;; *) bad "themes.dark.surface 非字符串未报 CONTRACT-INVALID";; esac
+
+# 底色解析不可信时，主题对比度不得凭全局底色判——必须显式报未判定
+t4u="$(mktemp -d)"
+cp "${here}/tests/svg/transformed.svg" "${t4u}/"
+cat >"${t4u}/figure-contract.json" <<'JSON'
+{ "canvas_ratios": [2.0], "font_scale": [13,14],
+  "color_tokens": {"ink":"#111827","primary":"#0072B2","surface":"#FFFFFF"},
+  "themes": { "light": {"surface":"#FFFFFF"}, "dark": {"surface":"#0B0F19"} } }
+JSON
+out4u="$(python3 "${here}/figure-lint.py" "${t4u}/transformed.svg" 2>/dev/null || true)"
+case "${out4u}" in *THEME-UNASSESSED*) ;; *) bad "几何不可信时未报 THEME-UNASSESSED";; esac
+case "${out4u}" in *THEME-CONTRAST*) bad "几何不可信时仍判 THEME-CONTRAST（拿不可信底色判出的假红）";; esac
+rm -rf "${t4u}"
+
+# fill="none" 的描边框不是底板：包住低对比文字的边框不得豁免 THEME-CONTRAST
+t4s="$(mktemp -d)"
+cat >"${t4s}/stroked.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" role="img" aria-label="stroked box"><title>stroked box</title><g>
+<rect x="0" y="0" width="400" height="200" fill="#FFFFFF"/>
+<rect x="20" y="20" width="200" height="60" fill="none" stroke="#0072B2"/>
+<text x="30" y="55" font-size="14" fill="#111827">深色小字</text>
+</g></svg>
+SVG
+cat >"${t4s}/figure-contract.json" <<'JSON'
+{ "canvas_ratios": [2.0], "font_scale": [14],
+  "color_tokens": {"ink":"#111827","primary":"#0072B2","surface":"#FFFFFF"},
+  "themes": { "light": {"surface":"#FFFFFF"}, "dark": {"surface":"#0B0F19"} } }
+JSON
+out4s="$(python3 "${here}/figure-lint.py" "${t4s}/stroked.svg" 2>/dev/null || true)"
+case "${out4s}" in *THEME-CONTRAST*) ;; *) bad "fill=none 的描边框被当成底板，豁免了 THEME-CONTRAST";; esac
+rm -rf "${t4s}"
+
+# 两端都没箭头的无向连接不得按 d 的书写顺序造出方向
+t5="$(mktemp -d)"
+cat >"${t5}/undirected.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" role="img" aria-label="undirected"><title>undirected</title>
+<defs><marker id="a" refX="10" refY="6"><path d="M1 1L11 6L1 11Z" fill="#0072B2"/></marker></defs><g>
+<rect x="0" y="0" width="400" height="200" fill="#FFFFFF"/>
+<path d="M10 20L200 20" fill="none" stroke="#0072B2"/>
+<path d="M200 60L10 60" fill="none" stroke="#0072B2"/>
+<path d="M10 100L200 100" fill="none" stroke="#0072B2"/>
+<path d="M200 140L10 140" fill="none" stroke="#0072B2"/>
+</g></svg>
+SVG
+out5="$(python3 "${here}/figure-lint.py" "${t5}/undirected.svg" 2>/dev/null || true)"
+case "${out5}" in *FLOW-DIRECTION-MIXED*) bad "无箭头的连接被按 d 书写顺序判成混合流向";; esac
+rm -rf "${t5}"
+
+# 主题相符时不得误报
+cat >"${t4}/figure-contract.json" <<'JSON'
+{ "canvas_ratios": [2.0], "font_scale": [13,14],
+  "color_tokens": {"ink":"#111827","primary":"#0072B2","critical":"#D55E00","ok":"#009E73","surface":"#FFFFFF"},
+  "themes": { "light": {"surface":"#FFFFFF"} } }
+JSON
+out5="$(python3 "${here}/figure-lint.py" "${t4}"/control.svg 2>/dev/null || true)"
+case "${out5}" in *THEME-CONTRAST*) bad "单一浅色主题下误报 THEME-CONTRAST";; esac
+rm -rf "${t4}"
+
 # ---- 契约符合性：缺失 / 相符 / 不符 / 损坏 / 多目录 ----
 note "== figure-lint 契约符合性 =="
 tmp="$(mktemp -d)"; t2="$(mktemp -d)"
@@ -106,12 +261,13 @@ cp "${here}/tests/svg/control.svg" "${tmp}/"
 out="$(python3 "${here}/figure-lint.py" "${tmp}" 2>/dev/null || true)"
 case "${out}" in *CONTRACT-MISSING*) ;; *) bad "契约缺失时未报 CONTRACT-MISSING";; esac
 
+
 # 相符：取 control.svg 的真实取值，必须干净（写负例前先核对 fixture 真值，
 # 否则会写出一份"其实相符"的契约让断言永远绿——本轮实际踩过）。
 cat >"${tmp}/figure-contract.json" <<'JSON'
 { "canvas_ratios": [2.0], "font_scale": [13, 14],
-  "color_tokens": { "ink": "#111827", "primary": "#356A8A", "critical": "#B42318",
-                    "ok": "#12805C", "surface": "#FFFFFF" } }
+  "color_tokens": { "ink": "#111827", "primary": "#0072B2", "critical": "#D55E00",
+                    "ok": "#009E73", "surface": "#FFFFFF" } }
 JSON
 out="$(python3 "${here}/figure-lint.py" "${tmp}" 2>/dev/null || true)"
 case "${out}" in *CONTRACT-MISSING*) bad "契约存在时仍报 CONTRACT-MISSING";; esac
@@ -150,13 +306,13 @@ cp "${here}/tests/svg/control.svg" "${t2}/a/"
 cp "${here}/tests/svg/control.svg" "${t2}/b/"
 cat >"${t2}/a/figure-contract.json" <<'JSON'
 { "canvas_ratios": [2.0], "font_scale": [13, 14],
-  "color_tokens": { "ink": "#111827", "primary": "#356A8A", "critical": "#B42318",
-                    "ok": "#12805C", "surface": "#FFFFFF" } }
+  "color_tokens": { "ink": "#111827", "primary": "#0072B2", "critical": "#D55E00",
+                    "ok": "#009E73", "surface": "#FFFFFF" } }
 JSON
 cat >"${t2}/b/figure-contract.json" <<'JSON'
 { "canvas_ratios": [1.5], "font_scale": [13, 14],
-  "color_tokens": { "ink": "#111827", "primary": "#356A8A", "critical": "#B42318",
-                    "ok": "#12805C", "surface": "#FFFFFF" } }
+  "color_tokens": { "ink": "#111827", "primary": "#0072B2", "critical": "#D55E00",
+                    "ok": "#009E73", "surface": "#FFFFFF" } }
 JSON
 out="$(python3 "${here}/figure-lint.py" "${t2}/a/control.svg" "${t2}/b/control.svg" --json 2>/dev/null || true)"
 printf '%s' "${out}" | python3 -c '

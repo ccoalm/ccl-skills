@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">
+<svg role="img" aria-label="Self test" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">
  <title>Self test</title>
- <defs><style>.ok{font-size:14px;fill:#111827}.low{font-size:13px;fill:#98A2B3}.flow{fill:none;stroke:#356A8A;marker-end:url(#a)}</style>
- <marker id="a" refX="10" refY="6"><path d="M1 1L11 6L1 11Z" fill="#356A8A"/></marker></defs>
+ <defs><style>.ok{font-size:14px;fill:#111827}.low{font-size:13px;fill:#98A2B3}.flow{fill:none;stroke:#0072B2;marker-end:url(#a)}</style>
+ <marker id="a" refX="10" refY="6"><path d="M1 1L11 6L1 11Z" fill="#0072B2"/></marker></defs>
  <rect x="0" y="0" width="400" height="200" fill="#FFFFFF"/>
   <text x="15" y="40" class="ok">短文本</text>
- <rect x="10" y="120" width="14" height="14" fill="#356A8A"/><text x="32" y="132" class="ok">图例一</text>
- <rect x="10" y="145" width="14" height="14" fill="#B42318"/><text x="32" y="157" class="ok">图例二</text>
- <rect x="10" y="170" width="14" height="14" fill="#12805C"/><text x="32" y="182" class="ok">图例三</text>
+ <rect x="10" y="120" width="14" height="14" fill="#0072B2"/><text x="32" y="132" class="ok">图例一</text>
+ <rect x="10" y="145" width="14" height="14" fill="#D55E00"/><text x="32" y="157" class="ok">图例二</text>
+ <rect x="10" y="170" width="14" height="14" fill="#009E73"/><text x="32" y="182" class="ok">图例三</text>
 </svg>
