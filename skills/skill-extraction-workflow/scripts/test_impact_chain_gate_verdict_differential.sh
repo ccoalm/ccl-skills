@@ -335,7 +335,7 @@ run_case() { # <name> <expected-baseline-rc> <expected-token-or-empty> <declare:
   local repo="$TMP/case-$name"
   seed_case "$repo"
   if [ "$declare_row" = yes ]; then
-    printf '| Fixture differential row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#DIFFERENTIAL-CASE | `updated` | `product-rd-workflow/SKILL.md` fixture change |\n' \
+    printf '| Fixture differential row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#DIFFERENTIAL-CASE | `updated` | `product-rd-workflow/SKILL.md` fixture change |\n' \
       >> "$repo/$LEDGER_REL"
   fi
   git -C "$repo" add -A

@@ -53,7 +53,7 @@ FIRING_F="firing-path: file:skills/product-rd-workflow/SKILL.md#must record a RE
 
 # ---- A：合规撤回 —— 有类时必须绿，无类时必须红 ----
 new_case case-a; withdraw_fixture
-add_row "| A fixture claim is refuted by its primary source and is withdrawn wholesale | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+add_row "| A fixture claim is refuted by its primary source and is withdrawn wholesale | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no; result-class: failure | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case A: compliant source-refuted withdrawal"; run_gate
 # A 的期望值在裁决后由绿改红：该类不再顶起 RED 底线（见 frozen-acceptance.md 的裁决记录）。
 # 合规撤回现在仍然被拦——它要么配一条 RED 行，要么由具名风险 owner 人工放行。
@@ -62,32 +62,32 @@ commit_case "case A: compliant source-refuted withdrawal"; run_gate
 # ---- B：真行为变更披该标签 —— 任何时候都必须红 ----
 new_case case-b
 printf '\n- Every fixture change must obtain approval before it lands.\n' >> "$REPO/$OWNER_REF"
-add_row "| A newly added normative rule wearing the withdrawal label | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+add_row "| A newly added normative rule wearing the withdrawal label | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no; result-class: failure | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case B: real behaviour change wearing the label"; run_gate
 [ "$RC" != "0" ] && ok "B 真行为变更披标签 -> 仍红" || fail "B 不得通过（净增却用撤回类）"
 
 # ---- C：缺一手源 URL —— 必须红 ----
 new_case case-c; withdraw_fixture
-add_row "| A withdrawal whose row cites no refuting source | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; \`product-rd-workflow/SKILL.md\` |"
+add_row "| A withdrawal whose row cites no refuting source | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no; result-class: failure | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case C: missing refuting source"; run_gate
 [ "$RC" != "0" ] && ok "C 缺一手源 -> 仍红" || fail "C 不得通过（无源即无据）"
 
 # ---- D：缺零损失指针 —— 必须红 ----
 new_case case-d; withdraw_fixture
-add_row "| A withdrawal whose row carries no zero-loss map | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+add_row "| A withdrawal whose row carries no zero-loss map | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no; result-class: failure | \`updated\` | refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case D: missing zero-loss pointer"; run_gate
 [ "$RC" != "0" ] && ok "D 缺零损失指针 -> 仍红" || fail "D 不得通过（义务保全无对照）"
 
-# ---- E：observed-failure: yes —— 必须红 ----
+# ---- E：observed-failure: yes; result-class: failure —— 必须红 ----
 new_case case-e; withdraw_fixture
-add_row "| A withdrawal self-declaring an observed failure | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: yes | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+add_row "| A withdrawal self-declaring an observed failure | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: yes; result-class: failure | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case E: observed-failure yes"; run_gate
-[ "$RC" != "0" ] && ok "E observed-failure: yes -> 仍红" || fail "E 不得通过（分类语义不得自选）"
+[ "$RC" != "0" ] && ok "E observed-failure: yes; result-class: failure -> 仍红" || fail "E 不得通过（分类语义不得自选）"
 
 # ---- F：既有类不得回归 ----
 new_case case-f
 printf '\n- Every fixture delivery must record a RED-baseline row before it lands.\n' >> "$REPO/$OWNER_REF"
-add_row "| An ordinary behaviour-changing rule with a RED-baseline row | \`downstream-executor\` | behavioral-evidence: RED-baseline; observed-failure: yes; $FIRING_F | \`updated\` | \`product-rd-workflow/SKILL.md\` |"
+add_row "| An ordinary behaviour-changing rule with a RED-baseline row | \`downstream-executor\` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; $FIRING_F | \`updated\` | \`product-rd-workflow/SKILL.md\` |"
 commit_case "case F: existing RED-baseline path"; run_gate
 if [ "$RC" = "0" ]; then ok "F 既有 RED-baseline 路径 -> 绿（无回归）"; else echo "--- F 完整输出 ---"; printf '%s\n' "$OUT"; fail "F 回归"; fi
 
@@ -95,8 +95,8 @@ if [ "$RC" = "0" ]; then ok "F 既有 RED-baseline 路径 -> 绿（无回归）"
 #      独立评审 REVIEW-1：any? 顶起底线时，真行为变更会搭便车。
 new_case case-g; withdraw_fixture
 printf '\n- Every unrelated fixture delivery must obtain approval before it lands. zzmixedrule\n' >> "$REPO/$OWNER_REF"
-add_row "| A compliant withdrawal alongside an unrelated change | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
-add_row "| An unrelated behaviour change riding along on a stable-control label | \`downstream-executor\` | behavioral-evidence: semantic-control; observed-failure: no; firing-path: file:skills/product-rd-workflow/SKILL.md#must obtain approval before it lands | \`updated\` | \`product-rd-workflow/SKILL.md\` |"
+add_row "| A compliant withdrawal alongside an unrelated change | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no; result-class: failure | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+add_row "| An unrelated behaviour change riding along on a stable-control label | \`downstream-executor\` | behavioral-evidence: semantic-control; observed-failure: no; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#must obtain approval before it lands | \`updated\` | \`product-rd-workflow/SKILL.md\` |"
 commit_case "case G: mixed rows"; run_gate
 [ "$RC" != "0" ] && ok "G 混合行 -> 仍红" || fail "G 不得通过（真行为变更搭撤回的便车）"
 
@@ -104,21 +104,21 @@ commit_case "case G: mixed rows"; run_gate
 #      独立挑战 CHALLENGE-1：删无关文字凑净负、加一条新规则、指针写不存在的锚。
 new_case case-h; withdraw_fixture
 printf '\n- Every smuggled fixture rule must be rejected by the withdrawal class. zzsmuggled\n' >> "$REPO/$OWNER_REF"
-add_row "| A smuggled rule hidden behind an offsetting deletion | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`README.md#no-such-anchor-exists-here\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+add_row "| A smuggled rule hidden behind an offsetting deletion | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no; result-class: failure | \`updated\` | zero-loss: \`README.md#no-such-anchor-exists-here\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case H: offset addition with bogus anchor"; run_gate
 [ "$RC" != "0" ] && ok "H 抵消式新增 + 假锚点 -> 仍红" || fail "H 不得通过（新增规范行 / 锚点不解析）"
 
 # ---- I：脚本改动、零删除 —— 必须红（旧代理谓词看不见脚本）----
 new_case case-i
 printf '\n# fixture: an added shell line that changes behaviour without matching any prose predicate\n' >> "$REPO/skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh"
-add_row "| A script change wearing the withdrawal label with nothing deleted | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+add_row "| A script change wearing the withdrawal label with nothing deleted | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no; result-class: failure | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case I: script change, no deletion"; run_gate
 [ "$RC" != "0" ] && ok "I 脚本改动零删除 -> 仍红" || fail "I 不得通过（非 .md、且无删除）"
 
 # ---- J：`Always` 规则、零删除 —— 必须红（旧谓词故意排除 always）----
 new_case case-j
 printf '\n- Always authenticate fixture requests before dispatch.\n' >> "$REPO/$OWNER_REF"
-add_row "| An Always-phrased rule wearing the withdrawal label with nothing deleted | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+add_row "| An Always-phrased rule wearing the withdrawal label with nothing deleted | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no; result-class: failure | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case J: Always rule, no deletion"; run_gate
 [ "$RC" != "0" ] && ok "J Always 规则零删除 -> 仍红" || fail "J 不得通过（有新增行）"
 
@@ -126,33 +126,33 @@ commit_case "case J: Always rule, no deletion"; run_gate
 #      独立评审：chmod 在 --name-status 里显示为 M、在 --numstat 里记 0/0。
 new_case case-k; withdraw_fixture
 chmod 755 "$REPO/skills/product-rd-workflow/references/adr-convention.md"
-add_row "| A mode change riding along with a genuine deletion | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+add_row "| A mode change riding along with a genuine deletion | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no; result-class: failure | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case K: chmod plus deletion"; run_gate
 [ "$RC" != "0" ] && ok "K 改权限 + 删除 -> 仍红" || fail "K 不得通过（mode 变更未被 numstat 反映）"
 
 # ---- L：指针路径穿越出仓 —— 必须红 ----
 new_case case-l; withdraw_fixture
-add_row "| A withdrawal whose zero-loss pointer escapes the repository | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`../../../etc/hosts#localhost\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+add_row "| A withdrawal whose zero-loss pointer escapes the repository | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no; result-class: failure | \`updated\` | zero-loss: \`../../../etc/hosts#localhost\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case L: traversal pointer"; run_gate
 [ "$RC" != "0" ] && ok "L 指针穿越出仓 -> 仍红" || fail "L 不得通过（路径逃出仓库）"
 
 # ---- M：锚点是存在但无意义的单字符子串 —— 必须红 ----
 new_case case-m; withdraw_fixture
-add_row "| A withdrawal whose anchor is a bare existing substring | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#a\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+add_row "| A withdrawal whose anchor is a bare existing substring | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no; result-class: failure | \`updated\` | zero-loss: \`$ZLOSS#a\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case M: one-character substring anchor"; run_gate
 [ "$RC" != "0" ] && ok "M 单字符子串锚 -> 仍红" || fail "M 不得通过（锚点未落在标题上）"
 
 # ---- N：锚点是存在但不相干的整词 —— 必须红 ----
 new_case case-n; withdraw_fixture
-add_row "| A withdrawal whose anchor is an unrelated existing word | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#survives-verbatim\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+add_row "| A withdrawal whose anchor is an unrelated existing word | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no; result-class: failure | \`updated\` | zero-loss: \`$ZLOSS#survives-verbatim\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case N: unrelated existing substring anchor"; run_gate
 [ "$RC" != "0" ] && ok "N 不相干整词锚 -> 仍红" || fail "N 不得通过（锚点未落在标题上）"
 
 # ---- O：既有 semantic-control 路径不得回归（配对 RED 行）----
 new_case case-o
 printf '\n- Every fixture control rule must be recorded before it lands. zzsemctl\n' >> "$REPO/$OWNER_REF"
-add_row "| An unchanged control alongside a RED-baseline row | \`downstream-executor\` | behavioral-evidence: semantic-control; observed-failure: no; firing-path: file:skills/product-rd-workflow/SKILL.md#must be recorded before it lands | \`updated\` | \`product-rd-workflow/SKILL.md\` |"
-add_row "| The behaviour change the control accompanies | \`downstream-executor\` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#must be recorded before it lands | \`updated\` | \`product-rd-workflow/SKILL.md\` |"
+add_row "| An unchanged control alongside a RED-baseline row | \`downstream-executor\` | behavioral-evidence: semantic-control; observed-failure: no; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#must be recorded before it lands | \`updated\` | \`product-rd-workflow/SKILL.md\` |"
+add_row "| The behaviour change the control accompanies | \`downstream-executor\` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#must be recorded before it lands | \`updated\` | \`product-rd-workflow/SKILL.md\` |"
 commit_case "case O: semantic-control beside RED-baseline"; run_gate
 [ "$RC" = "0" ] && ok "O semantic-control + RED-baseline -> 绿（无回归）" || { echo "--- O ---"; printf '%s\n' "$OUT" | tail -3; fail "O 既有路径回归"; }
 
@@ -163,7 +163,7 @@ import io,sys
 p=sys.argv[1]
 io.open(p,'w',encoding='utf-8').write("# 零损失义务对照\n\n| before 义务 | 去向 |\n| --- | --- |\n| 某条义务 | survives-verbatim: 别处 |\n")
 PYP
-add_row "| A withdrawal whose map does not quote what was removed | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
+add_row "| A withdrawal whose map does not quote what was removed | \`downstream-executor\` | behavioral-evidence: source-refuted; observed-failure: no; result-class: failure | \`updated\` | zero-loss: \`$ZLOSS#零损失义务对照\`; refuting source: $SRC; \`product-rd-workflow/SKILL.md\` |"
 commit_case "case P: map does not account for deleted text"; run_gate
 [ "$RC" != "0" ] && ok "P 对照表未逐字交代被删内容 -> 仍红" || fail "P 不得通过（删了什么没抄出来）"
 

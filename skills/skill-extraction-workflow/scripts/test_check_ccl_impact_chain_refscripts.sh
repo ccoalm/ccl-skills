@@ -66,6 +66,22 @@ new_case() {
   git -C "$REPO" switch -q -C "$1" fixture-base
   git -C "$REPO" branch --set-upstream-to=fixture-base "$1" >/dev/null 2>&1
 }
+# 045: a round that edits a frontmatter description owes bank evidence. These
+# fixtures exercise the OTHER impact-chain predicates and deliberately do not
+# measure routing, so each routing-surface case records that downscope where a
+# reader reaches it — verbatim, because a bare token would be discharged by any
+# line that happens to contain the word.
+RS_DOWNSCOPE_N=0
+routing_surface_downscope() {
+  # APPENDS a uniquely numbered line, one per call. The record has to be an ADDED
+  # line in the round being judged: a multi-round case whose first commit wrote
+  # the file leaves the second round with no added line, and an identical rewrite
+  # produces no diff at all. Each round records its own downscope.
+  RS_DOWNSCOPE_N=$((RS_DOWNSCOPE_N + 1))
+  mkdir -p "$REPO/specs/fixture-refscripts"
+  printf -- '- Round %s downscope downscoped:REFSCRIPTS-FIXTURE-NO-BANK: these cases pin gate predicates, not routing measurement.\n' \
+    "$RS_DOWNSCOPE_N" >> "$REPO/specs/fixture-refscripts/plan.md"
+}
 commit_case() { git -C "$REPO" add -A; git -C "$REPO" commit -qm "$1"; }
 full_check_runs=0
 gate_runs=0
@@ -96,6 +112,7 @@ run_gate() {
 # Case 1: an upstream owner's REFERENCE changed with NO impact-chain row -> block.
 new_case case-ref-no-row
 printf '\nFixture reference edit for the impact-chain refscripts gate.\n' >> "$REPO/$UPSTREAM_REF"
+routing_surface_downscope
 commit_case "ref edit, no impact-chain row"
 run_full_check
 assert_rc "$rc" 1 "reference edit without a row must fail the gate"
@@ -110,6 +127,7 @@ assert_contains "references/ and scripts/" "$out" "diagnostic should explain ref
 new_case case-ref-row-without-behavior-evidence
 printf '\nFixture reference edit for the impact-chain behavior-evidence gate.\n' >> "$REPO/$UPSTREAM_REF"
 printf '| Fixture row without behavior evidence | `downstream-executor` | Executor applies the reference behavior | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "ref edit with row but no behavior evidence"
 run_gate
 assert_rc "$rc" 1 "an impact-chain row without behavioral evidence must fail"
@@ -120,7 +138,8 @@ assert_contains "impact_chain_behavior_evidence_missing" "$out" "checker should 
 # must be accepted as an enforcing firing-path line.
 new_case case-ref-never-verb-firing-path
 printf '\n- Never bypass the fixture upstream rule for this gate.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture never-verb rule | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Never bypass the fixture upstream rule | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture never-verb rule | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Never bypass the fixture upstream rule | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "never-verb normative firing path"
 run_gate
 assert_not_contains "impact_chain_firing_path_missing" "$out" "a never-phrased normative rule should satisfy the firing-path gate"
@@ -130,7 +149,8 @@ assert_rc "$rc" 0 "a never-phrased normative list rule must be accepted"
 # verb) is not an enforcing rule; the widened verb list must not admit it.
 new_case case-ref-descriptive-always-firing-path
 printf '\n- The host always exposes this delegation capability surface.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture descriptive always line | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#always exposes this delegation capability | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture descriptive always line | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#always exposes this delegation capability | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "descriptive always line as firing path"
 run_gate
 assert_rc "$rc" 1 "a descriptive list line must not satisfy the firing-path gate"
@@ -140,7 +160,8 @@ assert_contains "impact_chain_firing_path_missing" "$out" "checker should reject
 # comment-carrying anchor line is never an enforcing rule surface.
 new_case case-ref-html-comment-firing-path
 printf '\n- <!-- must enforce this hidden fixture directive --> bookkeeping note.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture html-comment firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#must enforce this hidden fixture directive | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture html-comment firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#must enforce this hidden fixture directive | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "html-comment line as firing path"
 run_gate
 assert_rc "$rc" 1 "an HTML-comment anchor line must not satisfy the firing-path gate"
@@ -152,7 +173,8 @@ new_case case-ref-noshebang-command-firing-path
 printf '\nFixture reference edit for the shebang command gate.\n' >> "$REPO/$UPSTREAM_REF"
 printf '# fixture executable-bit markdown\n' > "$REPO/skills/product-rd-workflow/scripts/zz-fixture-noshebang.md"
 chmod +x "$REPO/skills/product-rd-workflow/scripts/zz-fixture-noshebang.md"
-printf '| Fixture no-shebang command | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: command:skills/product-rd-workflow/scripts/zz-fixture-noshebang.md | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture no-shebang command | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: command:skills/product-rd-workflow/scripts/zz-fixture-noshebang.md | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "executable-bit file without shebang as firing path"
 run_gate
 assert_rc "$rc" 1 "a shebang-less executable-bit file must not satisfy a command firing path"
@@ -165,7 +187,8 @@ new_case case-ref-command-firing-path-accepted
 printf '\nFixture reference edit for the accepted command firing path.\n' >> "$REPO/$UPSTREAM_REF"
 printf '#!/usr/bin/env bash\nprintf "fixture owner enforcement script\\n"\n' > "$REPO/skills/product-rd-workflow/scripts/zz-fixture-owner-command.sh"
 chmod +x "$REPO/skills/product-rd-workflow/scripts/zz-fixture-owner-command.sh"
-printf '| Fixture accepted command firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: command:skills/product-rd-workflow/scripts/zz-fixture-owner-command.sh | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture accepted command firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: command:skills/product-rd-workflow/scripts/zz-fixture-owner-command.sh | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "changed shebang owner executable as firing path"
 run_gate
 assert_not_contains "impact_chain_firing_path_missing" "$out" "a changed shebang owner executable should satisfy the firing-path gate"
@@ -177,8 +200,9 @@ assert_rc "$rc" 0 "a complete RED row with a changed owner executable must pass"
 # (review owns that residual). The complete sibling row satisfies the gate.
 new_case case-ref-malformed-row-advisory
 printf '\n- MUST enforce Fixture reference edit for the malformed-row gate.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture complete sibling row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture complete sibling row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
 printf '| Fixture malformed row | `downstream-executor` | prose with an unescaped | pipe inside a cell | `updated` | `product-rd-workflow/SKILL.md` second disposition |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "complete row plus malformed sibling row"
 run_gate
 assert_contains "impact_chain_row_malformed" "$out" "checker should warn about the malformed row"
@@ -189,7 +213,8 @@ assert_rc "$rc" 0 "a malformed row stays advisory when a complete sibling row sa
 # label every change "stable" and self-clear the package.
 new_case case-ref-semantic-control-alone
 printf '\n- MUST enforce Fixture reference edit for semantic-control firing-path coverage.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture semantic control self-adjudication | `downstream-executor` | behavioral-evidence: semantic-control; observed-failure: no; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture semantic control self-adjudication | `downstream-executor` | behavioral-evidence: semantic-control; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "semantic control label alone"
 run_gate
 assert_rc "$rc" 1 "a semantic-control-only owner package must fail"
@@ -199,8 +224,9 @@ assert_contains "impact_chain_behavior_evidence_missing" "$out" "checker should 
 # non-wording owner; the RED row satisfies the owner-level floor.
 new_case case-ref-semantic-control-with-owner-red
 printf '\n- MUST enforce Fixture reference edit for semantic-control plus owner RED validation.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture stable semantic control | `downstream-executor` | behavioral-evidence: semantic-control; observed-failure: no; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` stable control |\n' >> "$REGISTER"
-printf '| Fixture owner behavior delta | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` changed behavior |\n' >> "$REGISTER"
+printf '| Fixture stable semantic control | `downstream-executor` | behavioral-evidence: semantic-control; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` stable control |\n' >> "$REGISTER"
+printf '| Fixture owner behavior delta | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` changed behavior |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "semantic control supplemented by owner RED"
 run_gate
 assert_not_contains "impact_chain_behavior_evidence_missing" "$out" "valid owner RED should permit a supplementary stable semantic-control row"
@@ -210,7 +236,8 @@ assert_rc "$rc" 0 "semantic-control plus a valid owner RED row should pass"
 # closed. This is the exact "rule existed but did not execute" regression.
 new_case case-ref-observed-without-firing-path
 printf '\nFixture reference edit for the impact-chain firing-path gate.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture observed failure without firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture observed failure without firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "ref edit with observed failure but no firing path"
 run_gate
 assert_rc "$rc" 1 "an observed failure without a firing path must fail"
@@ -219,7 +246,8 @@ assert_contains "impact_chain_firing_path_missing" "$out" "checker should name t
 # Whitespace is not a firing path either.
 new_case case-ref-observed-with-empty-firing-path
 printf '\nFixture reference edit for the empty firing-path gate.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture observed failure with empty firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: ; | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture observed failure with empty firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: ; | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "ref edit with empty firing path"
 run_gate
 assert_rc "$rc" 1 "an empty firing path must fail"
@@ -228,7 +256,8 @@ assert_contains "impact_chain_firing_path_missing" "$out" "checker should reject
 # Non-placeholder prose is still not a resolvable firing mechanism.
 new_case case-ref-observed-with-unresolvable-firing-path
 printf '\nFixture reference edit for the resolvable firing-path gate.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture observed failure with prose firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: the existing rule | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture observed failure with prose firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: the existing rule | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "ref edit with unresolvable firing path"
 run_gate
 assert_rc "$rc" 1 "an arbitrary prose firing path must fail"
@@ -241,7 +270,8 @@ printf '\nFixture reference edit for owner-scoped firing paths.\n' >> "$REPO/$UP
 mkdir -p "$REPO/skills/grill-me/scripts"
 printf '#!/usr/bin/env bash\nprintf "fixture cross-owner executable\\n"\n' > "$REPO/skills/grill-me/scripts/zz-fixture-crossowner.sh"
 chmod +x "$REPO/skills/grill-me/scripts/zz-fixture-crossowner.sh"
-printf '| Fixture cross-owner firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: command:skills/grill-me/scripts/zz-fixture-crossowner.sh | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture cross-owner firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: command:skills/grill-me/scripts/zz-fixture-crossowner.sh | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "ref edit with cross-owner firing path"
 run_gate
 assert_rc "$rc" 1 "a cross-owner firing mechanism must fail"
@@ -253,7 +283,8 @@ assert_contains "impact_chain_firing_path_missing" "$out" "checker should bind f
 new_case case-ref-decorative-owner-prose-firing-path
 printf '\nFixture reference edit for enforcing firing-path coverage.\n' >> "$REPO/$UPSTREAM_REF"
 printf '\n- This row is recorded for ledger bookkeeping only.\n' >> "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture decorative firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#This row is recorded for ledger bookkeeping only | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture decorative firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#This row is recorded for ledger bookkeeping only | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "ref edit with decorative owner prose firing path"
 run_gate
 assert_rc "$rc" 1 "decorative owner prose must not satisfy a firing path"
@@ -262,7 +293,8 @@ assert_contains "impact_chain_firing_path_missing" "$out" "checker should requir
 # A token that exists only in old content is not a newly landed firing point.
 new_case case-ref-stale-anchor-firing-path
 printf '\nFixture reference edit for changed-anchor coverage.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture stale-anchor firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Stale anchor fixture sentence must stay unchanged | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture stale-anchor firing path | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Stale anchor fixture sentence must stay unchanged | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "ref edit with stale anchor firing path"
 run_gate
 assert_rc "$rc" 1 "an unchanged anchor must fail"
@@ -272,7 +304,8 @@ assert_contains "impact_chain_firing_path_missing" "$out" "checker should requir
 # gate satisfied.
 new_case case-ref-with-row
 printf '\n- MUST enforce Fixture reference edit for the impact-chain refscripts gate.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture reference-path rule | `downstream-executor` | Executor applies the reference behavior; behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture reference-path rule | `downstream-executor` | Executor applies the reference behavior; behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "ref edit with matching impact-chain row"
 run_gate
 assert_not_contains "impact_chain_gate_missing" "$out" "a matching row must satisfy the gate for a reference edit"
@@ -284,8 +317,9 @@ assert_rc "$rc" 0 "reference edit with a valid row should pass"
 # second bare disposition for the same owner.
 new_case case-ref-complete-row-masks-incomplete-row
 printf '\n- MUST enforce Fixture reference edit for per-row behavior evidence.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture complete row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture complete row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
 printf '| Fixture incomplete sibling row | `downstream-executor` | Bare owner citation only | `updated` | `product-rd-workflow/SKILL.md` second disposition |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "one complete row cannot mask one incomplete row"
 run_gate
 assert_rc "$rc" 1 "every added row for an owner must carry complete behavior evidence"
@@ -294,6 +328,7 @@ assert_contains "impact_chain_behavior_evidence_missing" "$out" "checker should 
 # Case 3: an upstream owner's SCRIPT changed with NO impact-chain row -> block.
 new_case case-script-no-row
 printf '\n# fixture script edit for the impact-chain refscripts gate\n' >> "$REPO/$UPSTREAM_SCRIPT"
+routing_surface_downscope
 commit_case "script edit, no impact-chain row"
 run_gate
 assert_rc "$rc" 1 "script edit without a row must fail the gate"
@@ -307,7 +342,8 @@ new_case case-ref-indented-row
 UPSTREAM_REF2="skills/test-artifact-management/references/gen_report.py"    # a NON-.md upstream reference
 [ -f "$REPO/$UPSTREAM_REF2" ] || fail "fixture non-md reference missing: $UPSTREAM_REF2"
 printf '\n- MUST enforce Fixture reference edit for the impact-chain refscripts gate.\n' >> "$REPO/$UPSTREAM_REF"
-printf ' | Fixture indented row | `downstream-executor` | Executor applies the reference behavior; behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf ' | Fixture indented row | `downstream-executor` | Executor applies the reference behavior; behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "ref edit with an indented (valid) impact-chain row"
 run_gate
 assert_not_contains "impact_chain_gate_missing" "$out" "an indented but valid evidence row must count"
@@ -316,7 +352,8 @@ assert_rc "$rc" 0 "indented valid row should pass"
 # Deterministically wording-only rows are the sole no-firing-path exception.
 new_case case-ref-wording-only-row
 printf '\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture formatting-only row | `downstream-executor` | behavioral-evidence: not-required wording-only; artifact: diff:product-rd-workflow/SKILL.md; observed-failure: no | `updated` | `product-rd-workflow/SKILL.md` formatting-only edit |\n' >> "$REGISTER"
+printf '| Fixture formatting-only row | `downstream-executor` | behavioral-evidence: not-required wording-only; artifact: diff:product-rd-workflow/SKILL.md; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `product-rd-workflow/SKILL.md` formatting-only edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "formatting-only edit with explicit evidence"
 run_gate
 assert_not_contains "impact_chain_behavior_evidence_missing" "$out" "wording-only row with artifact should satisfy behavior record"
@@ -326,7 +363,8 @@ assert_rc "$rc" 0 "deterministically wording-only row should pass"
 # A substantive change cannot self-label as wording-only to skip the firing path.
 new_case case-ref-substantive-mislabeled-wording-only
 printf '\nSubstantive fixture behavior change.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture mislabeled wording-only row | `downstream-executor` | behavioral-evidence: not-required wording-only; artifact: diff:product-rd-workflow/SKILL.md; observed-failure: no | `updated` | `product-rd-workflow/SKILL.md` substantive edit |\n' >> "$REGISTER"
+printf '| Fixture mislabeled wording-only row | `downstream-executor` | behavioral-evidence: not-required wording-only; artifact: diff:product-rd-workflow/SKILL.md; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `product-rd-workflow/SKILL.md` substantive edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "substantive edit mislabeled wording-only"
 run_gate
 assert_rc "$rc" 1 "a substantive edit mislabeled wording-only must fail"
@@ -336,7 +374,8 @@ assert_contains "impact_chain_behavior_evidence_missing" "$out" "checker should 
 # non-wording change must use RED-baseline or semantic-control.
 new_case case-ref-substantive-mislabeled-wording-only-with-path
 printf '\nAnother substantive fixture behavior change.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture mislabeled wording-only row with path | `downstream-executor` | behavioral-evidence: not-required wording-only; artifact: diff:product-rd-workflow/SKILL.md; observed-failure: no; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` substantive edit |\n' >> "$REGISTER"
+printf '| Fixture mislabeled wording-only row with path | `downstream-executor` | behavioral-evidence: not-required wording-only; artifact: diff:product-rd-workflow/SKILL.md; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` substantive edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "substantive edit mislabeled wording-only with path"
 run_gate
 assert_rc "$rc" 1 "a firing path must not rescue a false wording-only label"
@@ -347,7 +386,8 @@ assert_contains "impact_chain_behavior_evidence_missing" "$out" "checker should 
 new_case case-owner-multifile-substantive-mislabeled-wording-only
 printf '\n' >> "$REPO/$UPSTREAM_REF"
 printf '\nSubstantive multi-file owner behavior change.\n' >> "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture multi-file mislabeled wording-only row | `downstream-executor` | behavioral-evidence: not-required wording-only; artifact: diff:product-rd-workflow/SKILL.md; observed-failure: no | `updated` | `product-rd-workflow/SKILL.md` multi-file substantive edit |\n' >> "$REGISTER"
+printf '| Fixture multi-file mislabeled wording-only row | `downstream-executor` | behavioral-evidence: not-required wording-only; artifact: diff:product-rd-workflow/SKILL.md; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `product-rd-workflow/SKILL.md` multi-file substantive edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "multi-file substantive owner edit mislabeled wording-only"
 run_gate
 assert_rc "$rc" 1 "wording-only must be false when any owner file has letter or digit deltas"
@@ -358,7 +398,8 @@ assert_contains "impact_chain_behavior_evidence_missing" "$out" "checker should 
 # so it must not be classifiable as wording-only.
 new_case case-ref-nonmd-punctuation-mislabeled-wording-only
 printf '\n#\n' >> "$REPO/$UPSTREAM_REF2"
-printf '| Fixture non-md punctuation wording-only row | `downstream-executor` | behavioral-evidence: not-required wording-only; observed-failure: no | `updated` | `test-artifact-management/SKILL.md` runnable reference edit |\n' >> "$REGISTER"
+printf '| Fixture non-md punctuation wording-only row | `downstream-executor` | behavioral-evidence: not-required wording-only; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `test-artifact-management/SKILL.md` runnable reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "punctuation-only edit to a runnable reference mislabeled wording-only"
 run_gate
 assert_rc "$rc" 1 "a non-md owner file change must never classify as wording-only"
@@ -368,7 +409,8 @@ assert_contains "impact_chain_behavior_evidence_missing" "$out" "checker should 
 # start its own semicolon-delimited fragment.
 new_case case-ref-embedded-declaration-key
 printf '\n- MUST enforce Fixture reference edit for the embedded-key gate.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture embedded key row | `downstream-executor` | there is no behavioral-evidence: RED-baseline here; observed-failure: yes; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture embedded key row | `downstream-executor` | there is no behavioral-evidence: RED-baseline here; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Fixture reference edit | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "declaration key embedded in prose"
 run_gate
 assert_rc "$rc" 1 "an embedded declaration key must not parse as a declaration"
@@ -378,6 +420,7 @@ assert_contains "impact_chain_behavior_evidence_missing" "$out" "checker should 
 # must never read as "no changed owners".
 new_case case-git-diff-failure-fails-closed
 printf '\nFixture reference edit for the git fail-closed gate.\n' >> "$REPO/$UPSTREAM_REF"
+routing_surface_downscope
 commit_case "ref edit behind a failing git diff"
 GIT_SHIM_DIR="$TMP/git-shim"
 mkdir -p "$GIT_SHIM_DIR"
@@ -396,6 +439,7 @@ assert_contains "impact_chain_git_failed" "$out" "checker should name the failed
 # Editing it without an impact-chain row must not bypass the gate.
 new_case case-research-owner-no-row
 printf '\nFixture research-owner edit for impact-chain coverage.\n' >> "$REPO/skills/multi-perspective-research/SKILL.md"
+routing_surface_downscope
 commit_case "research owner edit, no impact-chain row"
 run_gate
 assert_rc "$rc" 1 "a research-owner edit without an impact-chain row must fail"
@@ -406,6 +450,7 @@ assert_contains "multi-perspective-research/SKILL.md" "$out" "diagnostic should 
 # escape the same impact-chain row requirement that they impose on other owners.
 new_case case-extraction-owner-no-row
 printf '\n- MUST enforce fixture extraction-owner behavior.\n' >> "$REPO/skills/skill-extraction-workflow/SKILL.md"
+routing_surface_downscope
 commit_case "skill-extraction owner edit, no impact-chain row"
 run_gate
 assert_rc "$rc" 1 "the extraction owner must require its own impact-chain row"
@@ -416,6 +461,7 @@ assert_contains "skill-extraction-workflow/SKILL.md" "$out" "diagnostic should n
 # helper) also ships behavior and must require a row. Guards the references/.+ fix.
 new_case case-nonmd-ref-no-row
 printf '\n# fixture edit to a non-md upstream reference helper\n' >> "$REPO/$UPSTREAM_REF2"
+routing_surface_downscope
 commit_case "non-md reference edit, no impact-chain row"
 run_gate
 assert_rc "$rc" 1 "a non-.md reference edit without a row must fail the gate"
@@ -427,6 +473,7 @@ assert_contains "test-artifact-management/SKILL.md" "$out" "diagnostic should na
 # path. Guards the --no-renames fix.
 new_case case-ref-moveout
 git -C "$REPO" mv "$MOVEOUT_REL" "docs/zz-fixture-moveout.md"
+routing_surface_downscope
 commit_case "move an upstream reference out of skills/ with no row"
 run_gate
 assert_rc "$rc" 1 "moving an upstream reference out of skills/ without a row must fail"
@@ -439,7 +486,8 @@ assert_contains "product-rd-workflow/SKILL.md" "$out" "diagnostic should name th
 new_case case-ref-moveout-with-replacement-row
 git -C "$REPO" mv "$MOVEOUT_REL" "docs/zz-fixture-moveout.md"
 printf '\n- MUST enforce Fixture replacement rule after deleting an owner reference.\n' >> "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture move-out replacement row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#Fixture replacement rule after deleting an owner reference | `updated` | `product-rd-workflow/SKILL.md` replacement rule |\n' >> "$REGISTER"
+printf '| Fixture move-out replacement row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#Fixture replacement rule after deleting an owner reference | `updated` | `product-rd-workflow/SKILL.md` replacement rule |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "move an upstream reference out with replacement evidence"
 run_gate
 assert_not_contains "impact_chain_behavior_evidence_missing" "$out" "a deletion covered by a surviving changed firing path should validate"
@@ -450,6 +498,7 @@ assert_rc "$rc" 0 "move-out with complete deleted-subject evidence should pass"
 # row to it (with no other upstream change) must NOT demand a self-referential row.
 new_case case-register-only
 printf '\n<!-- fixture: benign ledger note, no upstream change -->\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "register-only edit is excluded"
 run_gate
 assert_not_contains "impact_chain_gate_missing" "$out" "editing only the ledger must not trigger the gate"
@@ -459,7 +508,7 @@ assert_rc "$rc" 0 "register-only edit should pass"
 # skill-extraction-workflow itself; the surviving owner SKILL remains bound.
 new_case case-extraction-owner-ledger-exclusion
 printf '\n- MUST enforce Fixture extraction owner ledger exclusion.\n' >> "$REPO/skills/skill-extraction-workflow/SKILL.md"
-printf '| Fixture extraction ledger exclusion | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/skill-extraction-workflow/SKILL.md#Fixture extraction owner ledger exclusion | `updated` | `skill-extraction-workflow/SKILL.md` fixture rule |\n' >> "$REGISTER"
+printf '| Fixture extraction ledger exclusion | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/skill-extraction-workflow/SKILL.md#Fixture extraction owner ledger exclusion | `updated` | `skill-extraction-workflow/SKILL.md` fixture rule |\n' >> "$REGISTER"
 git -C "$REPO" add -A
 git -C "$REPO" commit -qm "extraction owner ledger exclusion"
 run_gate
@@ -474,7 +523,8 @@ assert_rc "$rc" 0 "extraction owner change plus ledger row should pass"
 new_case case-owner-package-renamed
 git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 printf '\n- MUST enforce Fixture renamed owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "rename an upstream owner package with a row on the surviving name"
 run_gate
 assert_not_contains "platform-observability/SKILL.md" "$out" "the renamed-away path must not be demanded as a row subject"
@@ -486,6 +536,7 @@ assert_rc "$rc" 0 "renaming an owner package with a row on the new name should p
 new_case case-owner-package-renamed-live-owner-still-bound
 git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 printf '\nFixture reference edit alongside an unrelated owner rename.\n' >> "$REPO/$UPSTREAM_REF"
+routing_surface_downscope
 commit_case "rename one owner while editing another owner's reference, no row"
 run_gate
 assert_rc "$rc" 1 "a live owner's reference edit must still demand a row"
@@ -501,8 +552,9 @@ assert_not_contains "platform-observability/SKILL.md" "$out" "the renamed-away p
 new_case case-identifier-rename-retarget
 git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 retarget_all "$REPO/skills/platform-signal-evidence" "$REPO/skills/defect-diagnosis"
-printf '| Fixture retarget row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no | `updated` | `defect-diagnosis/SKILL.md` pointer retarget |\n' >> "$REGISTER"
-printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture retarget row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `defect-diagnosis/SKILL.md` pointer retarget |\n' >> "$REGISTER"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "retarget a pointer at a renamed skill"
 run_gate
 assert_rc "$rc" 1 "the renamed owner itself must not take the no-behaviour class"
@@ -516,8 +568,9 @@ new_case case-identifier-rename-smuggled-content
 git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 retarget_all "$REPO/skills/platform-signal-evidence" "$REPO/skills/defect-diagnosis"
 printf '\n- Smuggled fixture rule that must never ride in on a rename.\n' >> "$REPO/skills/defect-diagnosis/SKILL.md"
-printf '| Fixture smuggled row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no | `updated` | `defect-diagnosis/SKILL.md` pointer retarget |\n' >> "$REGISTER"
-printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture smuggled row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `defect-diagnosis/SKILL.md` pointer retarget |\n' >> "$REGISTER"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "smuggle content alongside a retarget"
 run_gate
 assert_rc "$rc" 1 "content smuggled alongside a retarget must lose the class"
@@ -527,7 +580,8 @@ assert_contains "defect-diagnosis/SKILL.md" "$out" "the smuggling owner must be 
 # no rename pairs there is no transform that could reproduce the bytes.
 new_case case-identifier-rename-declared-without-any-rename
 printf '\n- Fixture rule added with no rename anywhere in the diff.\n' >> "$REPO/skills/defect-diagnosis/SKILL.md"
-printf '| Fixture bogus rename row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no | `updated` | `defect-diagnosis/SKILL.md` no rename happened |\n' >> "$REGISTER"
+printf '| Fixture bogus rename row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `defect-diagnosis/SKILL.md` no rename happened |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "declare identifier-rename with no rename in the diff"
 run_gate
 assert_rc "$rc" 1 "the class must be refused when the diff contains no rename"
@@ -538,6 +592,7 @@ assert_rc "$rc" 1 "the class must be refused when the diff contains no rename"
 # self-contradicting gate did not have, because that one failed closed.
 new_case case-owner-package-deleted-still-bound
 git -C "$REPO" rm -rq skills/platform-observability
+routing_surface_downscope
 commit_case "delete an upstream owner package outright with no row"
 run_gate
 assert_rc "$rc" 1 "deleting an upstream owner without a row must still block"
@@ -554,8 +609,9 @@ rm -f "$REPO/skills/defect-diagnosis/agents/openai.yaml"
 # The destination owes real evidence now, so give it a valid owner-scoped anchor;
 # otherwise the gate stops on that row and never reaches the dependent owner.
 printf '\n- Never skip the fixture renamed-owner rule for this gate.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture dependent row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no | `updated` | `defect-diagnosis/SKILL.md` pointer retarget |\n' >> "$REGISTER"
-printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture dependent row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `defect-diagnosis/SKILL.md` pointer retarget |\n' >> "$REGISTER"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "a dependent owner drops a file while retargeting"
 run_gate
 assert_rc "$rc" 1 "a dependent owner that drops a package file must lose the class"
@@ -567,6 +623,7 @@ assert_contains "defect-diagnosis/SKILL.md" "$out" "the dependent owner must be 
 new_case case-rename-to-unselected-slug-still-bound
 git -C "$REPO" mv skills/tighten-doc skills/zz-fixture-unselected
 find "$REPO/skills/zz-fixture-unselected" -type f -exec perl -pi -e 's/tighten-doc/zz-fixture-unselected/g' {} +
+routing_surface_downscope
 commit_case "rename a curated owner to a slug nobody added to the curated list"
 run_gate
 assert_rc "$rc" 1 "a curated owner renamed out of the curated list must not escape the gate"
@@ -581,8 +638,9 @@ git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 retarget_all "$REPO/skills/platform-signal-evidence" "$REPO/skills/product-rd-workflow"
 chmod -x "$REPO/$UPSTREAM_SCRIPT"
 printf '\n- Never skip the fixture renamed-owner rule for this gate.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture exec-bit row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no | `updated` | `product-rd-workflow/SKILL.md` pointer retarget |\n' >> "$REGISTER"
-printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture exec-bit row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `product-rd-workflow/SKILL.md` pointer retarget |\n' >> "$REGISTER"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "a dependent owner loses a script's executable bit while retargeting"
 run_gate
 assert_rc "$rc" 1 "dropping an executable bit must lose the class"
@@ -595,8 +653,9 @@ git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 retarget_all "$REPO/skills/platform-signal-evidence" "$REPO/skills/defect-diagnosis"
 printf '\377\376 not utf-8 \377' > "$REPO/skills/defect-diagnosis/zz-fixture-binary.bin"
 printf '\n- Never skip the fixture renamed-owner rule for this gate.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture binary row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no | `updated` | `defect-diagnosis/SKILL.md` pointer retarget |\n' >> "$REGISTER"
-printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture binary row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `defect-diagnosis/SKILL.md` pointer retarget |\n' >> "$REGISTER"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "a dependent owner package tracks a non-UTF-8 blob"
 run_gate
 assert_not_contains "invalid byte sequence" "$out" "a non-UTF-8 blob must not crash the comparison"
@@ -612,8 +671,9 @@ git -C "$REPO" mv skills/platform-signal-evidence/references/platform-observabil
                   skills/platform-signal-evidence/references/platform-signal-evidence-playbook.md
 retarget_all "$REPO/skills/platform-signal-evidence" "$REPO/skills/defect-diagnosis"
 printf '\n- Never skip the fixture renamed-owner rule for this gate.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture inner-rename dependent row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no | `updated` | `defect-diagnosis/SKILL.md` pointer retarget |\n' >> "$REGISTER"
-printf '| Fixture inner-rename owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture inner-rename dependent row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `defect-diagnosis/SKILL.md` pointer retarget |\n' >> "$REGISTER"
+printf '| Fixture inner-rename owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "rename an owner whose inner filename carries the slug"
 run_gate
 assert_not_contains "platform-observability/SKILL.md" "$out" "an inner filename carrying the slug must not break the move proof"
@@ -626,9 +686,11 @@ assert_rc "$rc" 0 "a rename that also renames a slug-named inner file should sti
 # description entry instead. Exempting it would drop the evidence requirement from
 # the class carrying the most behaviour.
 new_case case-routing-surface-description-anchor
+routing_surface_downscope
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' \
   "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture routing-surface row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description-only |\n' >> "$REGISTER"
+printf '| Fixture routing-surface row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description-only |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: anchor bound to the changed description"
 run_gate
 assert_not_contains "impact_chain_firing_path_missing" "$out" "a changed description must be an anchorable firing path when it is the owner's whole change"
@@ -640,29 +702,35 @@ assert_rc "$rc" 0 "a description-only owner may anchor its firing path on the ch
 # description line cannot meet. Each case varies exactly one of the three arms;
 # without the third, the non-description frontmatter comparison stays unmeasured.
 new_case case-routing-surface-anchor-refused-with-body-edit
+routing_surface_downscope
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' \
   "$REPO/skills/product-rd-workflow/SKILL.md"
 printf '\n- Never skip the smuggled fixture body rule for this gate.\n' >> "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture routing-surface body row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description plus body |\n' >> "$REGISTER"
+printf '| Fixture routing-surface body row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description plus body |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: body content beside the description"
 run_gate
 assert_rc "$rc" 1 "a body edit riding along must take back the ordinary anchor bar"
 
 new_case case-routing-surface-anchor-refused-with-reference-edit
+routing_surface_downscope
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' \
   "$REPO/skills/product-rd-workflow/SKILL.md"
 printf '\n- Never skip the smuggled fixture reference rule for this gate.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture routing-surface reference row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description plus reference |\n' >> "$REGISTER"
+printf '| Fixture routing-surface reference row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description plus reference |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: sibling reference beside the description"
 run_gate
 assert_rc "$rc" 1 "a sibling reference edit must take back the ordinary anchor bar"
 
 new_case case-routing-surface-anchor-refused-with-frontmatter-key
+routing_surface_downscope
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' \
   "$REPO/skills/product-rd-workflow/SKILL.md"
 perl -0pi -e 's/^(name: product-rd-workflow)$/$1\nfixture_extra_key: smuggled/m' \
   "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture routing-surface frontmatter row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description plus another frontmatter key |\n' >> "$REGISTER"
+printf '| Fixture routing-surface frontmatter row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description plus another frontmatter key |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: second frontmatter key beside the description"
 run_gate
 assert_rc "$rc" 1 "a second frontmatter key must take back the ordinary anchor bar"
@@ -673,9 +741,11 @@ assert_rc "$rc" 1 "a second frontmatter key must take back the ordinary anchor b
 # prefix would leave exactly these owners unanchorable, which is the problem this
 # widening exists to solve.
 new_case case-routing-surface-anchor-on-continuation-line
+routing_surface_downscope
 perl -0pi -e 's/^description: (.+)$/description: >-\n  $1\n  Fixture routing-surface trigger clause./m' \
   "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture routing-surface folded row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` folded description |\n' >> "$REGISTER"
+printf '| Fixture routing-surface folded row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` folded description |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: anchor on a folded-scalar continuation line"
 run_gate
 assert_rc "$rc" 0 "an anchor inside a folded description entry must bind"
@@ -689,10 +759,12 @@ perl -0pi -e 's/^description: (.+)$/description: >-\n  $1\n  Fixture routing-sur
 git -C "$REPO" add -A; git -C "$REPO" commit -qm "seed folded description base"
 git -C "$REPO" switch -q -C case-routing-surface-anchor-after-deletion fixture-folded
 git -C "$REPO" branch --set-upstream-to=fixture-folded case-routing-surface-anchor-after-deletion >/dev/null 2>&1
+routing_surface_downscope
 perl -0pi -e 's/\n  Fixture routing-surface second clause\.//' "$REPO/skills/product-rd-workflow/SKILL.md"
 [ -z "$(git -C "$REPO" diff fixture-folded -- skills/product-rd-workflow/SKILL.md | grep -E '^\+[^+]')" ] \
   || fail "deletion fixture must add no line to the owner entrypoint"
-printf '| Fixture routing-surface deletion row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` deleted continuation line |\n' >> "$REGISTER"
+printf '| Fixture routing-surface deletion row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` deleted continuation line |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: continuation line deleted, nothing added"
 run_gate
 assert_rc "$rc" 0 "a description change that only deletes a continuation line must still qualify"
@@ -701,9 +773,11 @@ assert_rc "$rc" 0 "a description change that only deletes a continuation line mu
 # ride inside the entry — and even carry the anchor — if the entry boundary were
 # the only check. The value must still be a string.
 new_case case-routing-surface-nested-mapping-refused
+routing_surface_downscope
 perl -0pi -e 's/^description: .+$/description:\n  hidden_key: Fixture routing-surface trigger clause/m' \
   "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture routing-surface nested row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` nested description |\n' >> "$REGISTER"
+printf '| Fixture routing-surface nested row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` nested description |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: description turned into a nested mapping"
 run_gate
 assert_rc "$rc" 1 "a description that is not a string must lose the anchor widening"
@@ -712,9 +786,11 @@ assert_rc "$rc" 1 "a description that is not a string must lose the anchor widen
 # at the blank line would push the later paragraph into the "other keys" set and
 # refuse an ordinary description edit.
 new_case case-routing-surface-blank-line-in-folded-description
+routing_surface_downscope
 perl -0pi -e 's/^description: (.+)$/description: >-\n  $1\n\n  Fixture routing-surface trigger clause./m' \
   "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture routing-surface blank-line row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` folded description with blank line |\n' >> "$REGISTER"
+printf '| Fixture routing-surface blank-line row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` folded description with blank line |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: folded description containing a blank line"
 run_gate
 assert_rc "$rc" 0 "a blank line inside a folded description must not break the entry boundary"
@@ -722,9 +798,11 @@ assert_rc "$rc" 0 "a blank line inside a folded description must not break the e
 # The locator for this class is the canonical field name. A free-text substring
 # that merely SURVIVED the edit identifies nothing, so it must not be accepted.
 new_case case-routing-surface-surviving-substring-locator-refused
+routing_surface_downscope
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' \
   "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture routing-surface substring row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#Fixture routing-surface trigger clause | `updated` | `product-rd-workflow/SKILL.md` substring locator |\n' >> "$REGISTER"
+printf '| Fixture routing-surface substring row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#Fixture routing-surface trigger clause | `updated` | `product-rd-workflow/SKILL.md` substring locator |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: free-text substring locator"
 run_gate
 assert_rc "$rc" 1 "a free-text substring must not serve as the locator for this class"
@@ -732,9 +810,11 @@ assert_rc "$rc" 1 "a free-text substring must not serve as the locator for this 
 # A quoted top-level key is valid YAML; refusing it would block a legitimate
 # description-only change with no satisfiable anchor.
 new_case case-routing-surface-quoted-key
+routing_surface_downscope
 perl -0pi -e 's/^description: (.+)$/"description": $1 Fixture routing-surface trigger clause./m' \
   "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture routing-surface quoted row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` quoted description key |\n' >> "$REGISTER"
+printf '| Fixture routing-surface quoted row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` quoted description key |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: quoted description key"
 run_gate
 assert_rc "$rc" 0 "a quoted description key must still qualify"
@@ -742,13 +822,15 @@ assert_rc "$rc" 0 "a quoted description key must still qualify"
 # A sibling frontmatter key that deserializes to a Date (or uses an alias) must
 # not refuse the class: this check cares only about the description value.
 new_case case-routing-surface-date-sibling-key
+routing_surface_downscope
 perl -0pi -e 's/^(name: product-rd-workflow)$/$1\nreleased: 2026-08-11/m' "$REPO/skills/product-rd-workflow/SKILL.md"
 git -C "$REPO" add -A; git -C "$REPO" commit -qm "seed date sibling key"
 git -C "$REPO" branch -f fixture-dated HEAD
 git -C "$REPO" switch -q -C case-routing-surface-date-sibling-key fixture-dated
 git -C "$REPO" branch --set-upstream-to=fixture-dated case-routing-surface-date-sibling-key >/dev/null 2>&1
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture routing-surface dated row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description beside a date key |\n' >> "$REGISTER"
+printf '| Fixture routing-surface dated row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description beside a date key |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: date-valued sibling frontmatter key"
 run_gate
 assert_rc "$rc" 0 "a date-valued sibling key must not refuse the class"
@@ -781,8 +863,10 @@ run_gate_dateless() {
   set -e
 }
 new_case case-routing-surface-dateless-host
+routing_surface_downscope
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture routing-surface dateless row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description judged on a date-less host |\n' >> "$REGISTER"
+printf '| Fixture routing-surface dateless row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description judged on a date-less host |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: description-only change judged on a date-less host"
 run_gate_dateless
 assert_rc "$rc" 0 "a date-less host must not refuse the routing-surface class"
@@ -813,7 +897,8 @@ assert_contains "product-rd-workflow/SKILL.md" "$out" "the mutant must name the 
 git -C "$REPO" switch -q -C case-routing-surface-dateless-dated-sibling fixture-dated
 git -C "$REPO" branch --set-upstream-to=fixture-dated case-routing-surface-dateless-dated-sibling >/dev/null 2>&1
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture routing-surface dateless dated row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` dated sibling on a date-less host |\n' >> "$REGISTER"
+printf '| Fixture routing-surface dateless dated row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` dated sibling on a date-less host |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: date-valued sibling judged on a date-less host"
 run_gate_dateless
 assert_rc "$rc" 0 "parsing a date-valued sibling on a date-less host must still qualify"
@@ -821,10 +906,12 @@ assert_rc "$rc" 0 "parsing a date-valued sibling on a date-less host must still 
 # A file MOVED OUT of the owner package must take back the ordinary bar: the diff
 # is read with --no-renames, so the vacated path still counts as an owner change.
 new_case case-routing-surface-file-moved-out
+routing_surface_downscope
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
 mkdir -p "$REPO/docs"
 git -C "$REPO" mv "$MOVEOUT_REL" docs/zz-fixture-moveout.md
-printf '| Fixture routing-surface moveout row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description plus a file moved out |\n' >> "$REGISTER"
+printf '| Fixture routing-surface moveout row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description plus a file moved out |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: owner file moved out of the package"
 run_gate
 assert_rc "$rc" 1 "a file moved out of the package must take back the ordinary bar"
@@ -832,9 +919,11 @@ assert_rc "$rc" 1 "a file moved out of the package must take back the ordinary b
 # The entrypoint's MODE is part of its identity: bytes alone would let a chmod
 # ride along with a description edit and still read as description-only.
 new_case case-routing-surface-mode-change-refused
+routing_surface_downscope
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
 chmod +x "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture routing-surface mode row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description plus mode change |\n' >> "$REGISTER"
+printf '| Fixture routing-surface mode row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description plus mode change |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: entrypoint mode changed alongside the description"
 run_gate
 assert_rc "$rc" 1 "a mode change riding along must take back the ordinary bar"
@@ -845,19 +934,21 @@ assert_rc "$rc" 1 "a mode change riding along must take back the ordinary bar"
 # refusing the locator here would refuse an owner with nothing else to evidence —
 # and on an integration branch that accumulates rounds, that is the normal shape.
 new_case case-routing-surface-with-retargeted-sibling
+routing_surface_downscope
 git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 git -C "$REPO" mv skills/platform-signal-evidence/references/platform-observability-playbook.md \
                   skills/platform-signal-evidence/references/platform-signal-evidence-playbook.md
 retarget_all "$REPO/skills/platform-signal-evidence" "$REPO/skills/defect-diagnosis" "$REPO/skills/product-rd-workflow"
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
 printf '\n- Never skip the fixture renamed-owner rule for this gate.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture retargeted-sibling row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description beside retargeted references |\n' >> "$REGISTER"
-printf '| Fixture retargeted-sibling dependent row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no | `updated` | `defect-diagnosis/SKILL.md` pointer retarget only |\n' >> "$REGISTER"
-printf '| Fixture retargeted-sibling owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture retargeted-sibling row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description beside retargeted references |\n' >> "$REGISTER"
+printf '| Fixture retargeted-sibling dependent row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `defect-diagnosis/SKILL.md` pointer retarget only |\n' >> "$REGISTER"
+printf '| Fixture retargeted-sibling owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
 # Keep this case's only script untouched so it varies exactly one thing.
 git -C "$REPO" checkout fixture-base -- skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh
 [ -n "$(git -C "$REPO" diff --name-only fixture-base -- 'skills/product-rd-workflow/references/*.md')" ] \
   || fail "positive case must actually retarget an eligible .md sibling"
+routing_surface_downscope
 commit_case "routing-surface: description beside a pure rename retarget in the same package"
 run_gate
 assert_rc "$rc" 0 "a package whose non-entrypoint changes are a proven retarget must not lose the locator"
@@ -865,6 +956,7 @@ assert_rc "$rc" 0 "a package whose non-entrypoint changes are a proven retarget 
 # The composition is bounded by the SAME byte-exact reproduction: a sibling file
 # carrying real content beside the retarget still takes the locator away.
 new_case case-routing-surface-retarget-plus-real-edit
+routing_surface_downscope
 git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 git -C "$REPO" mv skills/platform-signal-evidence/references/platform-observability-playbook.md \
                   skills/platform-signal-evidence/references/platform-signal-evidence-playbook.md
@@ -872,11 +964,12 @@ retarget_all "$REPO/skills/platform-signal-evidence" "$REPO/skills/defect-diagno
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
 printf '\n- Never skip the smuggled fixture rule beside the retarget.\n' >> "$REPO/$UPSTREAM_REF"
 printf '\n- Never skip the fixture renamed-owner rule for this gate.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture retarget-plus-edit row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description plus a real sibling edit |\n' >> "$REGISTER"
-printf '| Fixture retarget-plus-edit dependent row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no | `updated` | `defect-diagnosis/SKILL.md` pointer retarget only |\n' >> "$REGISTER"
-printf '| Fixture retarget-plus-edit owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture retarget-plus-edit row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description plus a real sibling edit |\n' >> "$REGISTER"
+printf '| Fixture retarget-plus-edit dependent row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `defect-diagnosis/SKILL.md` pointer retarget only |\n' >> "$REGISTER"
+printf '| Fixture retarget-plus-edit owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
 # Keep this case's only script untouched so it varies exactly one thing.
 git -C "$REPO" checkout fixture-base -- skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh
+routing_surface_downscope
 commit_case "routing-surface: real sibling edit beside the retarget"
 run_gate
 assert_rc "$rc" 1 "real content beside the retarget must still take the locator away"
@@ -885,15 +978,17 @@ assert_rc "$rc" 1 "real content beside the retarget must still take the locator 
 # rewriting that identifier was safe there — some occurrences of an old slug are
 # deliberately kept. Prose only.
 new_case case-routing-surface-retargeted-script-refused
+routing_surface_downscope
 git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 git -C "$REPO" mv skills/platform-signal-evidence/references/platform-observability-playbook.md \
                   skills/platform-signal-evidence/references/platform-signal-evidence-playbook.md
 retarget_all "$REPO/skills/platform-signal-evidence" "$REPO/skills/defect-diagnosis" "$REPO/skills/product-rd-workflow"
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
 printf '\n- Never skip the fixture renamed-owner rule for this gate.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture retargeted-script row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description beside a changed script |\n' >> "$REGISTER"
-printf '| Fixture retargeted-script dependent row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no | `updated` | `defect-diagnosis/SKILL.md` pointer retarget only |\n' >> "$REGISTER"
-printf '| Fixture retargeted-script owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture retargeted-script row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description beside a changed script |\n' >> "$REGISTER"
+printf '| Fixture retargeted-script dependent row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `defect-diagnosis/SKILL.md` pointer retarget only |\n' >> "$REGISTER"
+printf '| Fixture retargeted-script owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: a changed script in the package"
 run_gate
 assert_rc "$rc" 1 "a changed script must take the locator away even under a retarget"
@@ -914,9 +1009,10 @@ git -C "$REPO" checkout fixture-base -- skills/product-rd-workflow/scripts/check
 ln -s ../../platform-signal-evidence/SKILL.md "$REPO/skills/product-rd-workflow/references/zz-fixture-link.md"
 perl -0pi -e 's/^(description: .+)$/$1 Fixture routing-surface trigger clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
 printf '\n- Never skip the fixture renamed-owner rule for this gate.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture symlink row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description beside a retargeted symlink |\n' >> "$REGISTER"
-printf '| Fixture symlink dependent row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no | `updated` | `defect-diagnosis/SKILL.md` pointer retarget only |\n' >> "$REGISTER"
-printf '| Fixture symlink owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture symlink row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description beside a retargeted symlink |\n' >> "$REGISTER"
+printf '| Fixture symlink dependent row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `defect-diagnosis/SKILL.md` pointer retarget only |\n' >> "$REGISTER"
+printf '| Fixture symlink owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture renamed-owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "routing-surface: a retargeted .md symlink in the package"
 run_gate
 assert_rc "$rc" 1 "a retargeted .md symlink must take the locator away"
@@ -935,10 +1031,12 @@ assert_rc "$rc" 1 "a retargeted .md symlink must take the locator away"
 # superseded-row notes.
 new_case case-round-scope-verdict-stability
 printf '\n***\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture round-1 punctuation edit | `downstream-executor` | behavioral-evidence: not-required wording-only; observed-failure: no | `updated` | `product-rd-workflow/SKILL.md` punctuation-only round |\n' >> "$REGISTER"
+printf '| Fixture round-1 punctuation edit | `downstream-executor` | behavioral-evidence: not-required wording-only; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `product-rd-workflow/SKILL.md` punctuation-only round |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 1: punctuation-only edit declared wording-only"
 printf '\n- Never bypass the fixture round-scope rule for this gate.\n' >> "$REPO/$UPSTREAM_REF"
-printf '| Fixture round-2 substantive edit | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Never bypass the fixture round-scope rule | `updated` | `product-rd-workflow/SKILL.md` substantive round |\n' >> "$REGISTER"
+printf '| Fixture round-2 substantive edit | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#Never bypass the fixture round-scope rule | `updated` | `product-rd-workflow/SKILL.md` substantive round |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 2: substantive edit to the same owner"
 run_gate
 assert_rc "$rc" 0 "a landed wording-only row must not be re-judged against a later round"
@@ -950,10 +1048,12 @@ assert_not_contains "impact_chain_behavior_evidence_missing" "$out" "the round-1
 # a real round had to drop its product-rd-workflow row before landing.
 new_case case-round-scope-description-after-body
 printf '\n- Never skip the fixture body-round rule for this gate.\n' >> "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture body round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#Never skip the fixture body-round rule | `updated` | `product-rd-workflow/SKILL.md` body round |\n' >> "$REGISTER"
+printf '| Fixture body round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#Never skip the fixture body-round rule | `updated` | `product-rd-workflow/SKILL.md` body round |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 1: body rule added to the entrypoint"
 perl -0pi -e 's/^(description: .+)$/$1 Fixture round-scope routing clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture description round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description-only round |\n' >> "$REGISTER"
+printf '| Fixture description round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description-only round |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 2: description-only edit to the same owner"
 run_gate
 assert_rc "$rc" 0 "a description-only round keeps its locator after an earlier body round"
@@ -964,9 +1064,11 @@ assert_not_contains "impact_chain_firing_path_missing" "$out" "the description a
 # no rows — an earlier round's row must not cover it.
 new_case case-round-scope-trailing-work-uncovered
 printf '\n- Never skip the fixture trailing rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
-printf '| Fixture trailing round 1 | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture trailing rule | `updated` | `platform-observability/SKILL.md` declared round |\n' >> "$REGISTER"
+printf '| Fixture trailing round 1 | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture trailing rule | `updated` | `platform-observability/SKILL.md` declared round |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 1: declared owner change"
 printf '\nFixture undeclared trailing edit that no row covers.\n' >> "$REPO/skills/platform-observability/references/platform-observability-playbook.md"
+routing_surface_downscope
 commit_case "trailing round: owner edit with no ledger append"
 run_gate
 assert_rc "$rc" 1 "owner work in the trailing round must not ride on an earlier round's row"
@@ -978,9 +1080,11 @@ assert_rc "$rc" 1 "owner work in the trailing round must not ride on an earlier 
 # route, which is the shape a loosening change has to be checked hardest for.
 new_case case-round-scope-deleted-row-does-not-count
 printf '\n- Never skip the fixture survival rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
-printf '| Fixture survival row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture survival rule | `updated` | `platform-observability/SKILL.md` declared round |\n' >> "$REGISTER"
+printf '| Fixture survival row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture survival rule | `updated` | `platform-observability/SKILL.md` declared round |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 1: owner change with its row"
 perl -ni -e 'print unless /Fixture survival row/' "$REGISTER"
+routing_surface_downscope
 commit_case "round 2: delete the row that vouched for it"
 run_gate
 assert_rc "$rc" 1 "a row deleted in a later round must not still vouch for the owner"
@@ -993,15 +1097,18 @@ assert_contains "impact_chain_gate_missing" "$out" "a deleted row leaves the own
 # would read the transient duplicate as surviving, so the budget is HEAD's
 # occurrence count minus base's.
 new_case case-round-scope-duplicate-row-laundering
-printf '| Fixture duplicate row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture duplicate rule | `updated` | `platform-observability/SKILL.md` pre-existing row |\n' >> "$REGISTER"
+printf '| Fixture duplicate row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture duplicate rule | `updated` | `platform-observability/SKILL.md` pre-existing row |\n' >> "$REGISTER"
 printf '\n- Never skip the fixture duplicate rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
+routing_surface_downscope
 commit_case "base: an owner change and its row, both already landed"
 git -C "$REPO" branch -q -f dup-base HEAD
 git -C "$REPO" branch --set-upstream-to=dup-base case-round-scope-duplicate-row-laundering >/dev/null 2>&1
 printf '\nFixture second substantive edit that owes its own row.\n' >> "$REPO/skills/platform-observability/references/platform-observability-playbook.md"
-printf '| Fixture duplicate row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture duplicate rule | `updated` | `platform-observability/SKILL.md` pre-existing row |\n' >> "$REGISTER"
+printf '| Fixture duplicate row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture duplicate rule | `updated` | `platform-observability/SKILL.md` pre-existing row |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 1: new owner bytes plus a duplicate of the existing row"
 perl -ni -e 'BEGIN{$n=0} if (/Fixture duplicate row/) { $n++; next if $n == 1 } print' "$REGISTER"
+routing_surface_downscope
 commit_case "round 2: drop one copy so the ledger ends unchanged"
 run_gate
 assert_rc "$rc" 1 "a duplicated-then-dropped row must not vouch for new owner bytes"
@@ -1016,8 +1123,10 @@ assert_contains "impact_chain_gate_missing" "$out" "the net-zero ledger leaves t
 new_case case-round-scope-merged-worktree-round
 git -C "$REPO" switch -q -c feature-round-merged
 printf '\n- Never skip the fixture merged-round rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
+routing_surface_downscope
 commit_case "worktree round: owner work"
-printf '| Fixture merged round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture merged-round rule | `updated` | `platform-observability/SKILL.md` merged round |\n' >> "$REGISTER"
+printf '| Fixture merged round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture merged-round rule | `updated` | `platform-observability/SKILL.md` merged round |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "worktree round: its ledger append"
 git -C "$REPO" switch -q case-round-scope-merged-worktree-round
 git -C "$REPO" merge -q --no-ff -m "Merge branch 'feature-round-merged': one worktree round" feature-round-merged
@@ -1029,11 +1138,13 @@ assert_rc "$rc" 0 "a merged worktree round must resolve to one boundary covering
 new_case case-round-scope-after-merged-round
 git -C "$REPO" switch -q -c feature-round-merged-2
 printf '\n- Never skip the fixture merged-round rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
-printf '| Fixture merged round 2 | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture merged-round rule | `updated` | `platform-observability/SKILL.md` merged round |\n' >> "$REGISTER"
+printf '| Fixture merged round 2 | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture merged-round rule | `updated` | `platform-observability/SKILL.md` merged round |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "worktree round: owner work and its ledger append"
 git -C "$REPO" switch -q case-round-scope-after-merged-round
 git -C "$REPO" merge -q --no-ff -m "Merge branch 'feature-round-merged-2': one worktree round" feature-round-merged-2
 printf '\nFixture undeclared edit committed after the merged round.\n' >> "$REPO/skills/platform-observability/references/platform-observability-playbook.md"
+routing_surface_downscope
 commit_case "after the merge: undeclared owner edit"
 run_gate
 assert_rc "$rc" 1 "work committed after a merged round must not ride on that round's row"
@@ -1047,12 +1158,15 @@ assert_rc "$rc" 1 "work committed after a merged round must not ride on that rou
 # impossible to write.
 new_case case-round-scope-renamed-away-pre-rename-round
 printf '\n- Never skip the fixture pre-rename rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
+routing_surface_downscope
 commit_case "round 1: owner work with no row"
 printf 'Fixture ledger note closing round one without the owner row.\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 1 boundary: ledger append without the owner row"
 git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 printf '\n- MUST enforce Fixture renamed owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 2: rename the owner with a row on the surviving name"
 run_gate
 assert_rc "$rc" 1 "owner work in a pre-rename round must not escape with the later rename"
@@ -1064,11 +1178,13 @@ assert_contains "platform-observability/SKILL.md" "$out" "the missing row must n
 # invalidate it — rejecting it would demand a row no honest author could write.
 new_case case-round-scope-renamed-away-row-at-round-head
 printf '\n- Never skip the fixture pre-rename declared rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
-printf '| Fixture pre-rename declared row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture pre-rename declared rule | `updated` | `platform-observability/SKILL.md` pre-rename round |\n' >> "$REGISTER"
+printf '| Fixture pre-rename declared row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture pre-rename declared rule | `updated` | `platform-observability/SKILL.md` pre-rename round |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 1: owner work with its row"
 git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 printf '\n- MUST enforce Fixture renamed owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 2: rename the owner with a row on the surviving name"
 run_gate
 assert_rc "$rc" 0 "a pre-rename round declared against its own round head must pass"
@@ -1082,9 +1198,11 @@ assert_not_contains "impact_chain_evidence_missing_file" "$out" "a row citing th
 # which is what proves the flag load-bearing.
 new_case case-round-scope-merged-row-before-work
 git -C "$REPO" switch -q -c feature-round-row-first
-printf '| Fixture row-first merged round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture row-first rule | `updated` | `platform-observability/SKILL.md` merged round |\n' >> "$REGISTER"
+printf '| Fixture row-first merged round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture row-first rule | `updated` | `platform-observability/SKILL.md` merged round |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "worktree round: ledger append first"
 printf '\n- Never skip the fixture row-first rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
+routing_surface_downscope
 commit_case "worktree round: owner work after the append"
 git -C "$REPO" switch -q case-round-scope-merged-row-before-work
 git -C "$REPO" merge -q --no-ff -m "Merge branch 'feature-round-row-first': one worktree round" feature-round-row-first
@@ -1099,14 +1217,17 @@ assert_rc "$rc" 0 "a merged worktree round collapses to one boundary even when t
 new_case case-round-scope-transient-rename-hop-undeclared
 git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 printf '\n- MUST enforce Fixture renamed owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round A: rename X to Y with a row on the surviving name"
 printf '\n- Never skip the fixture transient-hop rule for this gate.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
 printf 'Fixture ledger note closing the transient round without the owner row.\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round B: substantive Y edit closed with no Y row"
 git -C "$REPO" mv skills/platform-signal-evidence skills/platform-telemetry-evidence
 printf '\n- MUST enforce Fixture final renamed owner rule.\n' >> "$REPO/skills/platform-telemetry-evidence/SKILL.md"
-printf '| Fixture final renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-telemetry-evidence/SKILL.md#Fixture final renamed owner rule | `updated` | `platform-telemetry-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture final renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-telemetry-evidence/SKILL.md#Fixture final renamed owner rule | `updated` | `platform-telemetry-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round C: rename Y to Z with a row on the surviving name"
 run_gate
 assert_rc "$rc" 1 "a substantive round on a transient rename hop must not escape undeclared"
@@ -1118,14 +1239,17 @@ assert_contains "platform-signal-evidence/SKILL.md" "$out" "the missing row must
 new_case case-round-scope-transient-rename-hop-declared
 git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 printf '\n- MUST enforce Fixture renamed owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round A: rename X to Y with a row on the surviving name"
 printf '\n- Never skip the fixture transient-hop rule for this gate.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture transient hop row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture transient-hop rule | `updated` | `platform-signal-evidence/SKILL.md` transient round |\n' >> "$REGISTER"
+printf '| Fixture transient hop row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Never skip the fixture transient-hop rule | `updated` | `platform-signal-evidence/SKILL.md` transient round |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round B: substantive Y edit with its own Y row"
 git -C "$REPO" mv skills/platform-signal-evidence skills/platform-telemetry-evidence
 printf '\n- MUST enforce Fixture final renamed owner rule.\n' >> "$REPO/skills/platform-telemetry-evidence/SKILL.md"
-printf '| Fixture final renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-telemetry-evidence/SKILL.md#Fixture final renamed owner rule | `updated` | `platform-telemetry-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture final renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-telemetry-evidence/SKILL.md#Fixture final renamed owner rule | `updated` | `platform-telemetry-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round C: rename Y to Z with a row on the surviving name"
 run_gate
 assert_rc "$rc" 0 "a declared transient-hop chain must pass end to end"
@@ -1140,11 +1264,13 @@ new_case case-round-scope-delete-then-recreate-lookalike
 cp -R "$REPO/skills/platform-observability" "$TMP/stash-lookalike"
 git -C "$REPO" rm -qr skills/platform-observability
 printf 'Fixture ledger note closing the deletion round without the owner row.\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round A: delete the owner with no row"
 cp -R "$TMP/stash-lookalike" "$REPO/skills/platform-signal-evidence"
 retarget_all "$REPO/skills/platform-signal-evidence"
 printf '\n- MUST enforce Fixture recreated owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture recreated owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture recreated owner rule | `updated` | `platform-signal-evidence/SKILL.md` recreated owner |\n' >> "$REGISTER"
+printf '| Fixture recreated owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture recreated owner rule | `updated` | `platform-signal-evidence/SKILL.md` recreated owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round B: recreate a lookalike under a new name with its own row"
 run_gate
 assert_rc "$rc" 1 "a cross-round delete-then-recreate must stay an undeclared deletion"
@@ -1157,11 +1283,13 @@ assert_contains "platform-observability/SKILL.md" "$out" "the deleted owner must
 new_case case-round-scope-declared-rename-cycle
 git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 printf '\n- MUST enforce Fixture renamed owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
-printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+printf '| Fixture renamed owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-signal-evidence/SKILL.md#Fixture renamed owner rule | `updated` | `platform-signal-evidence/SKILL.md` renamed owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 1: rename A to B with a row on the surviving name"
 git -C "$REPO" mv skills/platform-signal-evidence skills/platform-observability
 printf '\n- MUST enforce Fixture reverted owner rule.\n' >> "$REPO/skills/platform-observability/SKILL.md"
-printf '| Fixture reverted owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Fixture reverted owner rule | `updated` | `platform-observability/SKILL.md` reverted owner |\n' >> "$REGISTER"
+printf '| Fixture reverted owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Fixture reverted owner rule | `updated` | `platform-observability/SKILL.md` reverted owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 2: rename B back to A with a row on the surviving name"
 run_gate
 assert_rc "$rc" 0 "a fully-declared rename cycle must pass"
@@ -1172,10 +1300,12 @@ new_case case-round-scope-undeclared-rename-cycle
 git -C "$REPO" mv skills/platform-observability skills/platform-signal-evidence
 printf '\n- MUST enforce Fixture renamed owner rule.\n' >> "$REPO/skills/platform-signal-evidence/SKILL.md"
 printf 'Fixture ledger note closing the outbound rename round without a row.\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 1: rename A to B with no row"
 git -C "$REPO" mv skills/platform-signal-evidence skills/platform-observability
 printf '\n- MUST enforce Fixture reverted owner rule.\n' >> "$REPO/skills/platform-observability/SKILL.md"
-printf '| Fixture reverted owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md#Fixture reverted owner rule | `updated` | `platform-observability/SKILL.md` reverted owner |\n' >> "$REGISTER"
+printf '| Fixture reverted owner row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Fixture reverted owner rule | `updated` | `platform-observability/SKILL.md` reverted owner |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "round 2: rename B back to A with a row on the surviving name"
 run_gate
 assert_rc "$rc" 1 "the round that created the transient name still owes its row"
@@ -1191,7 +1321,8 @@ new_case case-round-scope-skillmd-directory-masquerade
 git -C "$REPO" rm -q skills/platform-observability/SKILL.md
 mkdir -p "$REPO/skills/platform-observability/SKILL.md"
 printf -- '- MUST enforce Fixture masquerade rule.\n' > "$REPO/skills/platform-observability/SKILL.md/rules.md"
-printf '| Fixture masquerade row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/platform-observability/SKILL.md/rules.md#Fixture masquerade rule | `updated` | `platform-observability/SKILL.md` masquerade |\n' >> "$REGISTER"
+printf '| Fixture masquerade row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md/rules.md#Fixture masquerade rule | `updated` | `platform-observability/SKILL.md` masquerade |\n' >> "$REGISTER"
+routing_surface_downscope
 commit_case "replace the entrypoint with a same-named directory and vouch via a nested anchor"
 run_gate
 assert_rc "$rc" 1 "a directory masquerading as SKILL.md must not read as a present entrypoint"
