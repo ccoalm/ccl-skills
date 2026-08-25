@@ -142,6 +142,7 @@ fast_tests=(
 
 heavy_tests=(
   test_check_ccl_r0_status.sh
+  test_entrypoint_domain_scan_terms.sh
   test_check_ccl_source_register_lifecycle.sh
   # Clones the whole repo once; impact-chain cases call the standalone gate and
   # retain one full-checker wiring case. Still kept out of the pre-commit lane.
