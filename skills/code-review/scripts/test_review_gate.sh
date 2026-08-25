@@ -658,7 +658,15 @@ case "$behavior" in
       # group — it is TERM-immune and lives in its own session — so an unbounded loop
       # is a wrapper that survives for days. Measured before this bound: 39 hours.
       hang_left="${REVIEW_GATE_TEST_HANG_SECONDS:-300}"
+      hang_bound="$hang_left"
       while [ "$hang_left" -gt 0 ]; do sleep 1; hang_left=$((hang_left-1)); done
+      # Record that the BOUND is what ended this process. Nothing else writes this file,
+      # and a signalled process never reaches the line, so its presence is a fact about
+      # which code path ran rather than an observation of when. The abort probe reads it
+      # to tell "the fixture's own bound expired" apart from "some reaper got here first"
+      # — a distinction it used to make by checking whether the process was still alive
+      # at one instant, which a corpse awaiting reaping answers wrongly.
+      printf '%s\n' "$hang_bound" >"$state/claude_hang_bound_reached"
     ) &
     wait "$!"
     ;;
@@ -816,7 +824,12 @@ case "$behavior" in
     # Bounded for the same reason as the claude stub's hang: an abort that removes
     # the controller leaves this TERM-immune process with no other reaper.
     hang_left="${REVIEW_GATE_TEST_HANG_SECONDS:-300}"
+    hang_bound="$hang_left"
     while [ "$hang_left" -gt 0 ]; do sleep 1; hang_left=$((hang_left-1)); done
+    # Same bound-reached record as the claude stub, per client: the abort probe points
+    # its two jobs at different stubs, so each stub must be able to say for itself that
+    # its own bound is what ended it.
+    printf '%s\n' "$hang_bound" >"$state/${client}_hang_bound_reached"
     ;;
   auth)
     if [ "$host_attempted" = 1 ]; then

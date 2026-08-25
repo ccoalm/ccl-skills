@@ -13,6 +13,14 @@
 #   leg 2  SIGKILL the suite: nothing can trap that, so no reaper runs at all and the
 #          wrapper must die on the fixture's own lifetime bound instead.
 #
+# Every verdict below is a fact the run leaves behind — the work dir the EXIT trap would
+# have deleted, the marker the fixture writes only past its countdown — never an
+# observation of what was true at the instant the probe looked. Liveness questions all go
+# through wrapper_state() so they cannot answer the same process differently, and a
+# scenario the probe fails to BUILD is retried rather than reported as a failed assertion.
+# All three of those rules are here because the earlier spellings red this gate on CI
+# while the suite was behaving correctly.
+#
 # Leg 2 exists because leg 1 alone stays green if the fixture's bound were restored to
 # an unbounded loop: the trap would still reap it. It was an unbounded loop that turned
 # this defect into a wrapper observed alive for 39 hours with ppid=1, ignoring SIGTERM.
@@ -59,10 +67,48 @@ esac
 # with the probe still green, so CI points its two jobs at different stubs.
 ABORT_LEAK_PROBE_CLIENT="${ABORT_LEAK_PROBE_CLIENT:-claude}"
 case "$ABORT_LEAK_PROBE_CLIENT" in
-  claude) PROBE_BEHAVIOR_FILE=claude_behavior; PROBE_WRAPPER=claude_review.sh ;;
-  fallback) PROBE_BEHAVIOR_FILE=kimi_behavior; PROBE_WRAPPER=kimi_review.sh ;;
+  claude) PROBE_BEHAVIOR_FILE=claude_behavior; PROBE_WRAPPER=claude_review.sh
+          PROBE_BOUND_MARKER=claude_hang_bound_reached ;;
+  fallback) PROBE_BEHAVIOR_FILE=kimi_behavior; PROBE_WRAPPER=kimi_review.sh
+            PROBE_BOUND_MARKER=kimi_hang_bound_reached ;;
   *) echo "ABORT_LEAK_PROBE_CLIENT must be claude or fallback" >&2; exit 2 ;;
 esac
+# How many times a leg may rebuild its scenario before giving up. Only the SETUP is
+# retried: constructing "an orphaned wrapper with no reaper left" depends on the probe
+# winning races against the controller and the host, and losing one says nothing about
+# the suite. An assertion ABOUT the suite is never retried, so a fixture whose bound was
+# reverted fails on every attempt and cannot be retried into green.
+SETUP_ATTEMPTS="${ABORT_LEAK_PROBE_SETUP_ATTEMPTS:-3}"
+
+# ONE process-state vocabulary for the whole probe. Three separate spellings of "is it
+# there?" used to disagree about the same pid: `kill -0` succeeds for a zombie, reading
+# ppid succeeds for a zombie, and the two verdict scans exclude zombies. An already-dead
+# wrapper awaiting reaping therefore satisfied "reparented to init", failed "still alive",
+# and satisfied "gone" — one process state, three answers, and a red that named the suite
+# for something the suite had not done. Every liveness question below goes through here.
+wrapper_state() {
+  local st rc
+  case "${1:-}" in ''|*[!0-9]*) printf 'absent\n'; return 0 ;; esac
+  st="$(ps -o stat= -p "$1" 2>/dev/null)"; rc=$?
+  # `ps` exits 1 for "no such process", which is a real answer. Anything above that is
+  # the TOOL failing, not the process being gone — and swallowing that into `absent`
+  # would report a suite exited because `ps` could not run. Unknown is reported as its
+  # own state and every consumer treats it as still present, because the expensive
+  # direction of this error is declaring something gone that is not.
+  if [ "$rc" -gt 1 ]; then printf 'unknown\n'; return 0; fi
+  case "$st" in
+    '') printf 'absent\n' ;;
+    *Z*) printf 'zombie\n' ;;
+    # A stopped process is neither running nor gone, and leg 2 deliberately puts the
+    # wrapper in this state while it arms. Folding it into `live` would let the arming
+    # step report success without SIGSTOP having actually landed.
+    # `T` (job-control stop) or `t` (tracing stop), anywhere in the field: neither letter
+    # appears among the flag characters either ps appends, so this cannot catch a
+    # running process by accident.
+    *[Tt]*) printf 'stopped\n' ;;
+    *) printf 'live\n' ;;
+  esac
+}
 
 fails=0
 check() {
@@ -178,6 +224,21 @@ suite_work_dir() {
   done
   return 1
 }
+# The fixture writes this file only after its bounded countdown runs to completion, so
+# its presence says the fixture's OWN lifetime bound ended the wrapper and its absence
+# says something else did. That is the fact leg 2 needs, and it is a fact about which
+# code path ran — not about what was true at the instant the probe happened to look.
+bound_marker_path() {
+  local work
+  work="$(suite_work_dir)" || return 1
+  printf '%s\n' "$work/state/$PROBE_BOUND_MARKER"
+}
+bound_marker_state() {
+  local path
+  path="$(bound_marker_path)" || { printf 'no-work-dir\n'; return 0; }
+  if [ -e "$path" ]; then printf 'present\n'; else printf 'absent\n'; fi
+}
+
 live_wrapper() {
   local work behavior pid parent_cmd
   work="$(suite_work_dir)" || return 0
@@ -203,7 +264,10 @@ orphan_target_wrapper() {
   local hang_bound="$1" candidate controller_pid controller_ok deadline suite_died
   PROBE_TMP="$(mktemp -d "${TMPDIR:-/tmp}/review-gate-abort-probe.XXXXXX")" || return 1
   PROBE_TMP_REAL="$(cd "$PROBE_TMP" && pwd -P)" || return 1
+  # Both, not just the pid: a retry that left the previous attempt's group id in place
+  # would have the verdict scan looking for members of a group this attempt never built.
   wrapper_pid=""
+  wrapper_pgid=""
 
   # Job control so the suite gets its own process group and the probe can signal that
   # group without signalling itself.
@@ -219,7 +283,11 @@ orphan_target_wrapper() {
   while [ "$(date +%s)" -lt "$deadline" ]; do
     candidate="$(live_wrapper)"
     if [ -n "$candidate" ]; then wrapper_pid="$candidate"; break; fi
-    kill -0 "$suite_pid" 2>/dev/null || { suite_died=1; break; }
+    # Third site of the same class: a suite that has exited but whose corpse this shell
+    # has not reaped still answers `kill -0`, so the bare existence test would keep this
+    # loop polling for a dead suite until the whole reach budget elapsed and then report
+    # the wrong one of the two failures below.
+    [ "$(wrapper_state "$suite_pid")" = live ] || { suite_died=1; break; }
     sleep 0.1
   done
   if [ -z "$wrapper_pid" ]; then
@@ -281,29 +349,53 @@ orphan_target_wrapper() {
     fi
     sleep 0.5
   done
+  # Its own deadline: this loop used to reuse the one the controller wait had already
+  # been counting down, so a controller that took nine of those ten seconds to die left
+  # the reparent check one second to succeed in.
+  deadline=$(( $(date +%s) + 10 ))
   while :; do
-    [ "$(ps -o ppid= -p "$wrapper_pid" 2>/dev/null | tr -d ' ')" = "1" ] && return 0
-    kill -0 "$wrapper_pid" 2>/dev/null || {
-      echo "abort leak setup: wrapper $wrapper_pid died with its controller" >&2
-      return 1
-    }
+    # A corpse is not an orphan. The old spelling of this check read ppid, which a zombie
+    # answers, so a wrapper some reaper had already killed passed for a live orphan and
+    # the leg went on to make assertions about a scenario it had never built.
+    if [ "$(ps -o ppid= -p "$wrapper_pid" 2>/dev/null | tr -d ' ')" = "1" ] &&
+       [ "$(wrapper_state "$wrapper_pid")" = live ]; then
+      return 0
+    fi
+    case "$(wrapper_state "$wrapper_pid")" in
+      live) : ;;
+      *)
+        printf 'abort_leak_setup_lost: wrapper %s was already %s before the abort — a reaper reached it first (bound marker: %s)\n' \
+          "$wrapper_pid" "$(wrapper_state "$wrapper_pid")" "$(bound_marker_state)" >&2
+        return 1
+        ;;
+    esac
     if [ "$(date +%s)" -ge "$deadline" ]; then
-      echo "abort leak setup: wrapper $wrapper_pid was never reparented" >&2
+      echo "abort_leak_setup_lost: wrapper $wrapper_pid was never reparented" >&2
       return 1
     fi
     sleep 0.5
   done
 }
 
+# Same one vocabulary as the wrapper: a killed suite whose corpse the probe's own shell
+# has not reaped yet still answers `kill -0`, so spelling this as `kill -0` made a bookkeeping
+# lag inside the probe look like a suite that refused to die.
 await_suite_exit() {
   local deadline
   deadline=$(( $(date +%s) + GRACE ))
-  while kill -0 "$suite_pid" 2>/dev/null; do
+  # GONE is `absent` or `zombie` — a corpse cannot run cleanup — and everything else,
+  # `stopped` included, is still present. Testing `!= live` instead would call a STOPPED
+  # suite exited: the work dir would still be there, the wrapper would still reach its
+  # bound, and every leg-2 assertion could pass while the suite was never killed at all.
+  # Introducing a third process state without revisiting the checks that had two is the
+  # same defect this round is about, one file over.
+  while :; do
+    case "$(wrapper_state "$suite_pid")" in absent|zombie) return 0 ;; esac
     [ "$(date +%s)" -ge "$deadline" ] && break
     sleep 0.5
   done
-  kill -0 "$suite_pid" 2>/dev/null && return 1
-  return 0
+  case "$(wrapper_state "$suite_pid")" in absent|zombie) return 0 ;; esac
+  return 1
 }
 
 # The verdict is about the GROUP, not the leader. The wrapper backgrounds a TERM-immune
@@ -335,15 +427,39 @@ wrapper_gone_within() {
 }
 
 diagnose_wrapper() {
-  printf 'abort leak diagnostic (%s): wrapper=%s %s\n' "$1" "$wrapper_pid" \
+  printf 'abort leak diagnostic (%s): wrapper=%s state=%s bound_marker=%s ps=[%s]\n' \
+    "$1" "$wrapper_pid" "$(wrapper_state "$wrapper_pid")" "$(bound_marker_state)" \
     "$(ps -o pid=,ppid=,etime=,stat= -p "$wrapper_pid" 2>/dev/null | tr -s ' ')" >&2
+}
+
+# Build the scenario, retrying only the CONSTRUCTION of it. Losing a race to some reaper
+# leaves the probe with nothing to assert about, and reporting that as a failed assertion
+# is what made this gate red at random on three separate assertions — each of them a
+# statement about the probe's environment wearing the wording of a statement about the
+# suite. A lost setup is retried from a fresh suite run; only running out of attempts is
+# a failure, and it says so in those words.
+# $3, when given, is a function run after a successful orphan that must also succeed for
+# the attempt to count — the place for any arming step whose failure means the scenario
+# was lost rather than the suite misbehaved.
+orphan_with_retry() {
+  local hang_bound="$1" leg="$2" arm="${3:-}" attempt=1
+  while [ "$attempt" -le "$SETUP_ATTEMPTS" ]; do
+    if orphan_target_wrapper "$hang_bound" && { [ -z "$arm" ] || "$arm"; }; then return 0; fi
+    printf '%s: setup attempt %s/%s did not build the scenario; rebuilding\n' \
+      "$leg" "$attempt" "$SETUP_ATTEMPTS" >&2
+    cleanup; PROBE_TMP=""; PROBE_TMP_REAL=""; suite_pgid=""; suite_pid=""; suite_start=""
+    attempt=$((attempt+1))
+  done
+  printf '%s: could not build the scenario in %s attempts\n' "$leg" "$SETUP_ATTEMPTS" >&2
+  return 1
 }
 
 # ---- leg 1: a trappable abort — the suite's own cleanup must reap the wrapper --------
 if [ "$ABORT_LEAK_PROBE_LEG" = 1 ] || [ "$ABORT_LEAK_PROBE_LEG" = all ]; then
 leg1_orphaned=0
-orphan_target_wrapper "" && leg1_orphaned=1
-check "leg1: the controller was removed and the wrapper reparented to init" '[ "$leg1_orphaned" = 1 ]'
+orphan_with_retry "" leg1 && leg1_orphaned=1
+check "leg1: the scenario was built — controller removed, live wrapper reparented to init" \
+  '[ "$leg1_orphaned" = 1 ]'
 if [ "$leg1_orphaned" = 1 ]; then
   signal_suite TERM
   leg1_suite_gone=0; await_suite_exit && leg1_suite_gone=1
@@ -357,31 +473,128 @@ fi
 
 # ---- leg 2: an untrappable abort — only the fixture's own bound can end the wrapper --
 if [ "$ABORT_LEAK_PROBE_LEG" = 2 ] || [ "$ABORT_LEAK_PROBE_LEG" = all ]; then
+leg2_work=""
+# Arm the leg, in this order: prove the wrapper is live, freeze its group, then read the
+# marker. Freezing first is what makes the read meaningful — while the group is stopped
+# nothing can write that file, so "absent" is a stable fact rather than a sample taken
+# between two racing events. Absent means the bound has not fired, which is exactly the
+# precondition leg 2 needs; present means it already fired and the scenario is rebuilt.
+# The ordering this establishes — controller gone, bound not yet fired, abort next — is
+# ENFORCED rather than observed, and needs no clock and no timestamp comparison, which
+# second-granularity stamps could not have given honestly anyway.
+leg2_arm() {
+  leg2_work="$(suite_work_dir || true)"
+  [ -n "$leg2_work" ] && [ -d "$leg2_work/state" ] || {
+    echo "abort_leak_setup_lost: leg2 found no suite work dir to arm against" >&2
+    return 1
+  }
+  [ "$(wrapper_state "$wrapper_pid")" = live ] || {
+    printf 'abort_leak_setup_lost: wrapper %s was %s before arming\n' \
+      "$wrapper_pid" "$(wrapper_state "$wrapper_pid")" >&2
+    return 1
+  }
+  # STOP the wrapper for the length of the abort. Checking "is it still live" and then
+  # killing the suite is a race no shell can close: between the two the countdown can
+  # finish, write the marker, and exit, after which every assertion passes while the
+  # untrappable-abort path never ran. A stopped process cannot reach the write at all,
+  # so the ordering stops being something to observe and becomes something enforced —
+  # which is the whole point of this round. The group, not the leader: the claude stub
+  # runs its countdown in a backgrounded child that shares the wrapper's group, and
+  # stopping only the leader would leave that child counting.
+  # Ownership before signalling, proved the way `probe_processes` proves it: re-match the
+  # pid against the live table by this run's private path, then require it to LEAD the
+  # group being signalled. Those two together mean the group is the validated wrapper's
+  # own, which is what makes a group signal safe here.
+  # (`probe_group_is_ours` is not used for this: measured on macOS it answers no for a
+  # group whose leader `probe_processes` matches by the same private path in the same
+  # instant. That is pre-existing and only makes `cleanup` fall back to per-pid kills —
+  # which still reap, since every member carries the path — so it is reported rather
+  # than changed under this round's scope.)
+  probe_processes | grep -qx "$wrapper_pid" || {
+    echo "abort_leak_setup_lost: wrapper $wrapper_pid no longer matches this run's private path" >&2
+    return 1
+  }
+  [ "$wrapper_pgid" = "$wrapper_pid" ] || {
+    printf 'abort_leak_setup_lost: wrapper %s does not lead group %s; refusing to stop the group\n' \
+      "$wrapper_pid" "$wrapper_pgid" >&2
+    return 1
+  }
+  kill -STOP -"$wrapper_pgid" 2>/dev/null || true
+  [ "$(wrapper_state "$wrapper_pid")" = stopped ] || {
+    printf 'abort_leak_setup_lost: wrapper %s did not stop (state %s)\n' \
+      "$wrapper_pid" "$(wrapper_state "$wrapper_pid")" >&2
+    kill -CONT -"$wrapper_pgid" 2>/dev/null || true
+    return 1
+  }
+  # Observe the barrier; never manufacture it. Deleting the marker here destroyed the one
+  # piece of evidence that distinguishes the two cases: for the claude stub the countdown
+  # runs in a child, so the child can finish and write the marker while the wrapper is
+  # still unwinding and therefore still reads live. Removing it then made a scenario that
+  # was already lost — the bound fired BEFORE the abort — look like a clean run whose
+  # marker never came back, i.e. a false RED against a suite that behaved correctly.
+  # Read after the freeze, when nothing can be writing that file: absent means the bound
+  # has not fired yet, which is the precondition. Present means it already has, so the
+  # scenario is lost and gets rebuilt. The suite wipes state files at each case start, so
+  # a marker here belongs to this case, and every retry gets a fresh private tmp anyway.
+  [ "$(bound_marker_state)" = absent ] || {
+    printf 'abort_leak_setup_lost: %s already present — the bound fired before the abort\n' \
+      "$PROBE_BOUND_MARKER" >&2
+    kill -CONT -"$wrapper_pgid" 2>/dev/null || true
+    return 1
+  }
+  return 0
+}
+# Resume the wrapper once the suite is gone. From here its countdown runs with no
+# controller, no suite, and no trap anywhere — exactly the state leg 2 is about.
+leg2_resume_wrapper() {
+  [ -n "${wrapper_pgid:-}" ] && [ "$wrapper_pgid" = "${wrapper_pid:-}" ] &&
+    { kill -CONT -"$wrapper_pgid" 2>/dev/null || true; }
+  return 0
+}
 leg2_orphaned=0
-orphan_target_wrapper "$LEG2_HANG_BOUND" && leg2_orphaned=1
-check "leg2: the controller was removed and the wrapper reparented to init" '[ "$leg2_orphaned" = 1 ]'
+orphan_with_retry "$LEG2_HANG_BOUND" leg2 leg2_arm && leg2_orphaned=1
+check "leg2: the scenario was built — controller removed, live wrapper reparented to init" \
+  '[ "$leg2_orphaned" = 1 ]'
 if [ "$leg2_orphaned" = 1 ]; then
   signal_suite KILL
+  # The suite must really be gone, and this stays an ASSERTION rather than a warning:
+  # the work-dir check below passes vacuously against a suite that is still running,
+  # because a live suite has not reached its EXIT trap either. Demoting this to a
+  # diagnostic would leave that check reading "no cleanup ran" whenever the kill missed.
+  # What made the old version of this flaky was the zombie ambiguity inside
+  # await_suite_exit, not the assertion itself — that is fixed at the helper, so the
+  # obligation can be kept instead of traded away.
   leg2_suite_gone=0; await_suite_exit && leg2_suite_gone=1
-  check "leg2: the killed suite exits without running any cleanup" '[ "$leg2_suite_gone" = 1 ]'
-  # Precondition: with no trap able to run, the wrapper must still be here. If it is
-  # already gone, something else reaped it and the bound was never exercised.
-  # `kill -0` succeeds for a zombie, and the verdict below excludes zombies — so a wrapper
-  # that had already died would satisfy "still alive" here and "gone" there, passing the
-  # leg without the bound ever being exercised. Require a live, non-zombie process.
-  leg2_survived_abort=0
-  if kill -0 "$wrapper_pid" 2>/dev/null; then
-    case "$(ps -o stat= -p "$wrapper_pid" 2>/dev/null || true)" in
-      ''|*Z*) : ;;
-      *) leg2_survived_abort=1 ;;
-    esac
-  fi
-  check "leg2: no reaper ran, so the wrapper is still alive right after the kill" \
-    '[ "$leg2_survived_abort" = 1 ]'
+  # Resume only now: the wrapper was held stopped across the abort so its countdown
+  # could not have completed before it, and everything observed from here happens with
+  # no reaper of any kind left alive.
+  leg2_resume_wrapper
+  check "leg2: the killed suite is gone" '[ "$leg2_suite_gone" = 1 ]'
+
+  # No trap ran — structurally, not by the clock. The suite's EXIT trap ends in
+  # `rm -rf "$WORK"`, so the work dir outliving a SIGKILLed suite is the trap's absence
+  # made visible. The old spelling asked whether the suite exited inside a 30s window,
+  # which is a fact about the host's scheduler rather than about whether cleanup ran.
+  # Read together with the assertion above, the pair says: the suite is gone AND it left
+  # its work dir behind — which only an untrapped death produces.
+  leg2_no_cleanup=0
+  [ "$leg2_suite_gone" = 1 ] && [ -n "$leg2_work" ] && [ -d "$leg2_work" ] && leg2_no_cleanup=1
+  check "leg2: no cleanup ran — the killed suite's work dir survives it" \
+    '[ "$leg2_no_cleanup" = 1 ]'
+
   leg2_self_exit=0; wrapper_gone_within "$(( LEG2_HANG_BOUND + GRACE ))" && leg2_self_exit=1
   [ "$leg2_self_exit" = 1 ] || diagnose_wrapper leg2
-  check "leg2: an unreaped wrapper still exits on the fixture's own lifetime bound" \
-    '[ "$leg2_self_exit" = 1 ]'
+  check "leg2: an unreaped wrapper leaves nothing behind" '[ "$leg2_self_exit" = 1 ]'
+
+  # WHY it ended, not WHEN it was last seen. The fixture writes this only on the far side
+  # of its bounded countdown, so present means the bound ended it and absent means a
+  # reaper did — the distinction the deleted "still alive right after the kill" check was
+  # trying to draw by looking at the process at one instant, which a corpse answers wrong.
+  # An unbounded fixture never reaches the write, so this still reds the reverted bound.
+  leg2_bound_marker="$(bound_marker_state)"
+  [ "$leg2_bound_marker" = present ] || diagnose_wrapper leg2-bound
+  check "leg2: the fixture's own lifetime bound is what ended the wrapper" \
+    '[ "$leg2_bound_marker" = present ]'
 fi
 
 fi

@@ -63,7 +63,8 @@ test-code-review-1: ## code-review 分片 1（CI code-review-regressions-1 job�
 	  skills/code-review/scripts/test_parse_probe_result.sh \
 	  skills/code-review/scripts/test_init_policy_matrix.sh \
 	  skills/code-review/scripts/test_parse_review_json.sh \
-	  skills/code-review/scripts/test_opencode_review_retry.sh
+	  skills/code-review/scripts/test_opencode_review_retry.sh \
+	  skills/code-review/scripts/test_abort_leak_state_helpers.sh
 
 test-code-review-2: ## code-review 分片 2（CI code-review-regressions-2 job）
 	bash scripts/run-parallel-suites.sh --label code_review_shard_2 \

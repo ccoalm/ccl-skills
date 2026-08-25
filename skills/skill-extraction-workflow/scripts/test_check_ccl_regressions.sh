@@ -125,6 +125,7 @@ fast_tests=(
   test_validate_skill_root_depth.sh
   test_validate_skill_cross_refs.sh
   test_git_identity_predicate_gate.sh
+  test_liveness_predicate_gate.sh
   test_regression_runner_registration.sh
   # Lane-semantics guard for this runner itself (036 challenge P2): proves
   # --heavy-only / --fast / --full each run exactly their lane against a stub
