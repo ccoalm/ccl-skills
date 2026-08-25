@@ -1,6 +1,6 @@
 ---
 name: tighten-doc
-description: "润色文档 / 精简文档 / 改下文档 / AI 味太重 / 废话太多 / polish / make shorter / remove AI tone → finalize wording after substance is settled: clarify, shorten, restructure lightly, preserve decisions, and keep comments safe. Proactively draft a no-owner deliverable doc（「写一份分享/给同事的文档」）. Skip while a sibling owns the substance（定稿仍回本技能）: spec/PRD/标准 → product-rd-workflow; 技术方案/架构文档 → architecture 技能; 发布文档 → release-doc-writer; 测试用例文档 → test-artifact-management."
+description: "润色文档 / 精简文档 / 改下文档 / AI 味太重 / 废话太多 / polish / make shorter / remove AI tone；**该画时序图还是状态机 / 这里要不要配图 / 图画完了总觉得不对劲说不上哪不对 / 缺图例 / 连线没标签 / 全是表格要不要补图 / 图里字看不清** → finalize wording after substance is settled: clarify, shorten, restructure lightly, preserve decisions, and keep comments safe. Proactively draft a no-owner deliverable doc（「写一份分享/给同事的文档」）. 图与表的**表示形式**（图种由主张形态推出、记法硬约束、版式契约、对比度、可跑的检查器）归本技能，**系统边界与架构决策本身仍归架构技能**。Skip while a sibling owns the substance（定稿仍回本技能）: spec/PRD/标准 → product-rd-workflow; 技术方案/架构文档 → architecture 技能; 发布文档 → release-doc-writer; 测试用例文档 → test-artifact-management."
 ---
 
 # tighten-doc — 文档写作与优化
