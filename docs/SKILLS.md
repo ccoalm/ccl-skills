@@ -15,10 +15,10 @@
 
 ## 需求
 
-- `product-rd-workflow` `entry` — 用：加功能、新需求、多阶段重构、推倒重来、技术方案、方案评估、可行性与工作量评估、技术选型、项目分析。端到端交付路由器，再分派设计/架构/实现/测试/发布，并持有生命周期 gate。
+- `product-rd-workflow` `entry` — 用：加功能、新需求、多阶段重构、推倒重来、技术方案、方案评估、可行性与工作量评估、技术选型、项目分析，以及 spec/PRD/需求文档实质内容写错要改对。端到端交付路由器，再分派设计/架构/实现/测试/发布，并持有生命周期 gate。
   - 不用：单个 bug、窄 stack 修复 → `defect-diagnosis`；只要风险定级和 gate 清单 → `feature-risk-router`；只要一份需求材料 → 本层其余四个窄 owner。
 - `requirement-intent` `entry` — 用：交付物是「这需求到底要什么」——意图、目标用户、成功标准、用户路径、**意图级**非目标、功能点验收点、拷问问题池、决策关闭 backlog。
-  - 不用：要现状清单 → `requirement-baseline`；要变更边界（含**变更级**「本轮不改哪些」）→ `requirement-scope`；要成文 PRD → `requirement-doc-writer`；要一问一答的压力拷问 → `grill-me`；进入多阶段交付或实现计划 → `product-rd-workflow`。
+  - 不用：要现状清单 → `requirement-baseline`；要变更边界（含**变更级**「本轮不改哪些」）→ `requirement-scope`；要成文 PRD → `requirement-doc-writer`；要一问一答的压力拷问 → `grill-me`；已有 spec/PRD 实质写错要改对（不是澄清），或进入多阶段交付与实现计划 → `product-rd-workflow`。
 - `requirement-baseline` `entry` — 用：交付物是**现状清单本身**——现在怎么运作、已有哪些能力与例外、事实来源与 freshness、缺口和冲突，含按 commit 固定的代码现状取证。
   - 不用：要的是「到底要什么」→ `requirement-intent`；要的是本轮改哪些 → `requirement-scope`；问线上是否已启用 → `platform-observability`；判断代码/项目质量 → `product-rd-workflow` 加对应 stack 技能；查 bug 根因 → `defect-diagnosis`。
 - `requirement-scope` `entry` — 用：交付物是**变更边界**——in/out scope、受影响对象、依赖、MVP 与后续切片、appetite 与砍项、每个切片的验收范围。前提是方向已定。
@@ -86,14 +86,14 @@
 
 ## 运维
 
-- `platform-observability` `leaf` — 用：服务日志、指标、分布式追踪、日志与 trace 关联、看板、告警与 on-call 路由、SLI/SLO 与错误预算。
-  - 不用：mesh、路由与 mTLS → `platform-service-connectivity`；发布闸与回滚证据 → `platform-release-engineering`；服务内部分层 → 对应 `*-architecture`。
+- `platform-observability` `leaf` — 用：服务日志、指标、分布式追踪、日志与 trace 关联、看板、告警与 on-call 路由，含值班排班 SOP 与 P0/P1 打断；SLI/SLO 与错误预算。
+  - 不用：mesh、路由与 mTLS → `platform-service-connectivity`；发布值班、发布闸与回滚证据 → `platform-release-engineering`；服务内部分层 → 对应 `*-architecture`。
 - `platform-service-connectivity` `leaf` — 用：服务互通、服务发现、service mesh、mTLS、重试、超时、熔断、泳道路由——一个请求如何跨环境安全到达另一个服务。
   - 不用：请求到达后要看什么信号 → `platform-observability`；发布与灰度机制 → `platform-release-engineering`。
 
 ## 跨阶段
 
-- `skill-extraction-workflow` `entry` — 用：复盘、沉淀、总结经验、把教训固化进技能、技能缺陷与流程优化、深度 review 或审计技能仓库、对标外部技能包找 gap。
+- `skill-extraction-workflow` `entry` — 用：复盘、沉淀、总结经验、把教训固化进技能、技能缺陷与流程优化、深度 review 或审计技能仓库、对标外部技能包找 gap、核查全局安装点旧快照是否遮蔽本仓技能、共享技能仓的 OpenCode 项目配置与命令治理。
   - 不用：普通 bug/QA/评审纠正——留在当前 owner 里处理；只是把文档写顺 → `tighten-doc`。
 - `worktree-isolation` `leaf` — 用：动手改任何代码前先建分支和 worktree（**绝不在 main 上开发**），以及集成回目标分支后清理 worktree、本地分支和远端分支；合并授权协议也归它。
   - 不用：交付级的推倒重来、清除代码重新开发 → 先回 `product-rd-workflow` 重新分类，再按本技能建 worktree。
@@ -101,5 +101,5 @@
   - 不用：产品里要发布的 agent 运行时（工具调用契约、注入防御、会话持久化）→ `llm-inference-integration`；单条线性本地编辑——直接做。
 - `agents-file-coverage-gate` `leaf` — 用：在一个仓跑 AGENTS.md 契约覆盖 gate——扫哪些源码目录缺 AGENTS.md，可一键补 stub 并接 CI 卡关。
   - 不用：问契约本身何时该更新、分层策略怎么定 → `product-rd-workflow` 的 spec/repo-contract sync gate；定义 agent 工具调用的输入输出 schema → `llm-inference-integration`。
-- `tighten-doc` `entry` — 用：实质定稿之后收口表达——润色、精简、轻度重构、去 AI 味、保住已定决策与注释安全。
-  - 不用：实质内容还没定 → 先回对应 owner（spec → `product-rd-workflow`，用例 → `test-artifact-management`，复盘 → `skill-extraction-workflow`）。
+- `tighten-doc` `entry` — 用：实质定稿之后收口表达——润色、精简、轻度重构、去 AI 味、保住已定决策与注释安全；无 owner 的交付文档（「写一份分享/给同事的文档」）也由它主动起草。
+  - 不用：实质内容还没定 → 先回对应 owner（spec/PRD/标准 → `product-rd-workflow`，技术方案与架构文档 → 对应 `*-architecture`，发布文档 → `release-doc-writer`，测试用例 → `test-artifact-management`，复盘 → `skill-extraction-workflow`）；定稿收口仍回本技能。

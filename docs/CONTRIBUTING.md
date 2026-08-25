@@ -58,15 +58,24 @@ environment:
 python3 -m pip install -r requirements-test.txt
 ```
 
-Run the minimum repository gates from the root:
+Run the full local lane from the root. `make test` is the entry point; it chains three lanes that CI splits across separate jobs:
 
 ```bash
-bash skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh --repo . --enforce
-bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
-python3 scripts/check-public-sanitization.py .
-python3 scripts/check-markdown-links.py .
-git diff --check
+make test
 ```
+
+| Lane | What it runs | CI job |
+| --- | --- | --- |
+| `make test-repo-gates` | `check-ccl-skills.sh`, agent-contract coverage, markdown-link and spec-reference checks, hook tests, owner-dispatch and control-plane suites, worktree and testing-strategy script tests, the Python and eval test modules | `repository-gates` |
+| `make test-regressions-fast` | the fast regression lane | `regression-fast` |
+| `make test-code-review` | the `code-review` regression family and the abort-leak probes | `code-review-regressions-1/2`, `code-review-abort-leak-1/2` |
+
+Two CI jobs are outside `make test`, so a green local run is not a green CI run:
+
+- `regression-heavy` runs `test_check_ccl_regressions.sh --heavy-only`.
+- `repository-gates` also runs `python3 scripts/check-public-sanitization.py .`; run it locally when your change touches shared skill text.
+
+For a fast signal on a small change, `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` plus `git diff --check` covers structure, routing, leakage, and whitespace — but it is a prefilter, not the lane.
 
 Run the focused tests for every changed script or package. For the unified npm package:
 

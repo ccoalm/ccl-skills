@@ -38,7 +38,10 @@ Start with the guide that matches the work you are doing. Agent-executable rules
 - [Documentation writing](doc-writing-handbook.md)
 - [Feishu integration](feishu-binding-handbook.md)
 - [Skill effectiveness harness](f4-skill-effectiveness-harness.md)
+- [npm release runbook](npm-release.md)
 
 ## Maintenance rule
 
 Keep executable checks, templates, and stable rules with their owning skill. Keep this directory focused on navigation, explanation, and task-oriented guidance.
+
+Two files here are neither: `skill-taxonomy-optimization-plan.md` is a closed round record and `reviewer-lane-bootstrap-hijack.md` is a closed defect record whose root cause was disproven. They stay at these paths and stay out of the index above. Moving them is not available: 23 citations across the append-only source register, landed `specs/` round records, and `eval/evidence/*/AGENTS.md` name them by path, almost all as prose paths no link check resolves, and `specs/025-spec-reference-correction/plan.md` rules out rewriting a frozen citation. Reach them from the citation that needs them, not from this page.

@@ -48,15 +48,15 @@
 
 ## 验证与完成
 
-修改 `AGENTS.md`、README、docs、skills、references、脚本或插件行为，或新增/删除源码目录与源码类型后，至少运行：
+修改 `AGENTS.md`、README、docs、skills、references、脚本或插件行为，或新增/删除源码目录与源码类型后，运行本地全量 lane：
 
 ```bash
-bash skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh --repo . --enforce
-bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
-python3 scripts/check-public-sanitization.py .
-python3 scripts/check-markdown-links.py .
-git diff --check
+make test
 ```
+
+它串起 `test-repo-gates`、`test-regressions-fast`、`test-code-review` 三条 lane，对应 CI 的 `repository-gates`、`regression-fast`、`code-review-regressions-1/2` 与 `code-review-abort-leak-1/2`。两项在 `make test` 之外，本地绿不等于 CI 绿：`regression-heavy`（`test_check_ccl_regressions.sh --heavy-only`），以及 `repository-gates` 里的 `python3 scripts/check-public-sanitization.py .`——改动触及共享技能文本时本地补跑。
+
+小改动要快速信号时，`bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` 加 `git diff --check` 覆盖结构、路由、泄漏与空白，但它是前置筛查、不是那条 lane。
 
 同时运行所有受影响脚本或包的聚焦测试。完成报告必须绑定当前候选，列出实际运行的命令、结果、跳过项和剩余风险；超时、配额、鉴权失败、无效输出或未知终态都不得冒充通过。
 
