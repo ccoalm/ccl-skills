@@ -50,13 +50,13 @@
 - **防作弊**:runner 校验每 task 的 `frozen_at_sha` 是 HEAD 祖先(非祖先 = drift,排除出回归判定);同一改动若同时动 task-bank 和 SKILL.md description 会显式告警(防"改 skill 顺手改测试让它过")。
 - `--baseline <json>` 给 diff 式报告(newly_failed / newly_passed)。
 
-### Bank 用例修复的测量纪律(normative)
+### Bank 用例修复的测量协议（测量必做；落地裁决归本轮实际门禁）
 
-对 bank 失败用例做路由面修复时,以下每条都是修复轮的过闸条件,不是建议:
+以下是生成可比较证据的默认协议。**降级的是「F4 自己充当统一合并门禁」这个声称，不是「必须测、且必须有人裁决」这个义务**——这两件事分开：落地判断交给本轮实际的 owner／风险／评审门禁，但**测量本身不可选**。任何动 routing 面（SKILL.md description、task-bank 判定面）的改动都必须按下列协议产出证据；没跑就是没收敛，不得进入独立评审、也不得声称本轮无回归。采用不同样本量时，须随工件记录理由，且该理由与本轮证据一同进入独立评审——「记了理由」本身不是豁免，自审通过的理由不构成已裁决：
 
 1. 动任何 description 之前必须先跑 **≥10 轮有效观测**的稳定性基线,把稳定失败与抖动分开;抖动不得作为修改依据(grader 超时/不可解析轮不算有效观测,须补跑)。
 2. 改后通过数必须在**最终措辞**上重测:中间稿的通过数在措辞再变的那一刻作废,不得挪用到最终候选的证据里。
-3. 受影响邻居用例集必须改前/改后各 **≥3 轮**,集合须含期望 owner 自己的兄弟用例与高词面重叠的他 owner 用例;任何邻居回归都阻断本轮。
+3. 受影响邻居用例集默认改前/改后各 **≥3 轮**,集合须含期望 owner 自己的兄弟用例与高词面重叠的他 owner 用例;邻居回归作为独立 finding 交由本轮实际门禁处置——**该 finding 须以 blocking 记入本轮 dual-track 评审记录,且只能由独立评审方豁免,不能由实现者自行判定「本轮没有门禁采用这组证据」而放行**。降级的是「F4 自己充当合并门禁」这一声称,不是「回归必须被人裁决」这一义务;后者若也随之消失,这一条就只剩被裁决方自审。
 4. 每轮判决必须连同 **runner 调用、grader 模型身份、候选身份**(commit 或描述内容指纹)与**原始逐轮工件的持久定位符**一并记入轮记录;没有定位符的通过数只能标注为 operator-reported,不得据以宣称修复轮已 concluded。
 
 ## Tier-3:hub golden trace 真 agent 回放(已落地,advisory,人工判定)
@@ -71,16 +71,15 @@
 - **随机性**:agent 非确定;判定先人工、nightly 起步,有稳定史前不自动 gate。防作弊同 T2(`frozen_at_sha` 祖先校验)。
 - **双用途**:除回归外,Tier-3 还可当**改技能前的 RED-baseline**(改前手动跑触发场景看真 agent 是否真路由错,改后看 compliance)——可选;只有真观察到 miss 才算 RED(PASS/INCONCLUSIVE 不算),小 N + 非确定有噪声,手动跑两次自己留两份报告。落地 + 防作弊注意见 [validation-and-landing.md](validation-and-landing.md) "Optional real-agent RED-baseline"。
 
-## Health roll-up:综合分 + 趋势(已落地,advisory)
+## Health roll-up:描述性仪表盘(已落地,advisory)
 
-把上面各信号卷成**一个加权 0–10 分 + 趋势**,答"仓库在变好还是变差"。这是 OpenSSF Scorecard 给代码仓用的形态(每 check 0–10 → 按风险加权聚合 0–10 → 跨时间追);我们把它套到 **F4 技能 eval 信号**上,不是去打分代码工具。映射依据见 [harness-patterns-and-eval.md](harness-patterns-and-eval.md) §3.4。
+把上面各信号卷成**一个加权 0–10 显示值 + 同尺子变化**,用于定位值得继续检查的维度。它借用 OpenSSF Scorecard 的呈现形态,但不把不同性质的 F4 信号变成“仓库整体变好/变差”的总判决。映射与限制见 [harness-patterns-and-eval.md](harness-patterns-and-eval.md) §3.4。
 
 `scripts/eval-health.rb <repo-root> [--trace-json p] [--bank-json p] [--history p] [--no-write] [--json p] [--quiet]`。`make eval-health`。
 
 - **维度(各 0–10,按风险加权,OpenSSF 风格)**:`structural` 权重 10(Critical,`validate-skill.sh` pass/fail)· `routing_static` 权重 10(Critical,T1 blocking=0 满分、有 blocking 砸到 3、advisory 轻罚)· `trace` 权重 7.5(High,T3 pass/considered)· `bank` 权重 5(Medium,T2 pass/tasks)。
 - **只跑确定性两维**(structural + routing_static,无 LLM、快);`trace`/`bank` 需 `claude` 且随机,**不自动跑** —— 用 `--trace-json` / `--bank-json` 把 T3/T2 报告喂进来,否则该维 **skip,权重按比例重分**给在场维(诚实标注 `dims=…`)。
-- `composite = Σ(score_i·w_i) / Σ(w_i)`,只对在场维求和;skip 维自动从分母剔除。band:≥9 CLEAN / ≥7 WARNING / ≥4 NEEDS WORK / <4 CRITICAL。
-- **advisory,永不因分数阻断**:退出码 `0` = 跑完 **或** 没有可算的维(都不是失败);`2` = 用法/setup 错(`<repo-root>` 不对或无 `skills/` 目录)。低分、坏报告、空历史都不会非 0。畸形的 T2/T3 报告(非对象 / 非整数 / `pass>total`)直接 **skip,不静默打分**。**绝不接进 `check-ccl-skills.sh`**。二元门禁(结构校验 + T1 blocking)仍是真值、独立挡 merge,与这个分无关。理由是 Goodhart 律(measure 变成 target 就不再是好 measure):一旦这个综合分成了 merge gate,人会去调分而不是修仓。
+- `composite = Σ(score_i·w_i) / Σ(w_i)`,只对在场维求和;skip 维自动从分母剔除。band 只是浏览提示,不得当作验收等级。
+- **advisory,永不因显示值阻断**:退出码 `0` = 跑完 **或** 没有可算的维(都不是失败);`2` = 用法/setup 错(`<repo-root>` 不对或无 `skills/` 目录)。低值、坏报告、空历史都不会非 0。畸形的 T2/T3 报告(非对象 / 非整数 / `pass>total`)直接 **skip,不静默打分**。**绝不接进 `check-ccl-skills.sh`**。结构校验、T1 blocking、任务验收和行为证据分别独立判定；质量失败不能被其它维度的高值平均掉。
 - **corpus/version 守卫(防跨变更 task-bank 当稳定指标比)**:每条历史记 `corpus`(= task-bank + golden-traces 输入内容的指纹)+ `repo_sha` + 在场 `dims`。**趋势 delta(IMPROVING/DECLINING)只跟最近一条 `(corpus, dims)` 都相同的历史比**;否则打印"baseline reset, not compared",不偷偷比。这样"加了 10 条简单 task → 分涨了"不会被读成真进步(尺子换了)。
 - **历史文件**:默认 `eval/health-history.jsonl`,**git-ignore**(同 Goodhart 理由:committed 的数会招"调数不修仓";也免 append 把树搞脏)。`--history` 可改路径,`--no-write` 不落盘。
-- **基线**(本机、本 corpus):确定性两维 = `9.5/10`(structural 10 + routing_static 9,advisory=1)。

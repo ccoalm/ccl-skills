@@ -1,118 +1,82 @@
-# F4 技能有效性 Harness — 方案与落地计划
+# F4 技能有效性 Harness
 
-> **这是写定时点的方案稿,不是当前状态说明。** 三层已全部落地,另加了本稿没有的 `make eval-health`(综合分与趋势,建议层)。当前判定口径见 [架构总览](ARCHITECTURE.md) 治理段。
->
-> - `make eval-routing` — Tier-1,**阻断**
-> - `make eval-routing-bank` — Tier-2,建议
-> - `make eval-golden-trace` — Tier-3,建议
-> 日期:2026-05-31 · Owner 技能:`skill-extraction-workflow`
-> 来源:技能仓库深度 review 的 F4 roadmap 项;把 [harness-patterns-and-eval.md](../skills/skill-extraction-workflow/references/harness-patterns-and-eval.md) §3 那套**只有文字、不可执行**的 eval 方法论做成可执行。
+> 当前正式口径。Owner：`skill-extraction-workflow`。可执行契约见 [eval-routing.md](../skills/skill-extraction-workflow/references/eval-routing.md)。
 
-## 1. 问题
+结构校验只能证明技能可加载、引用可解析、路由关系满足确定性约束；它不能单独证明 Agent 在真实任务中选对技能、执行正确或交付更好。F4 把这些问题拆开测量，不用一个分数代替不同性质的证据。
 
-`check-ccl-skills.sh` 管"结构合规",但没有东西管"技能是否真有效"。§3 自己承认"我们的 skill 没有这样的 benchmark"。怎么知道一次 skill 改动是变好还是变坏,目前无可执行答案。
+## 三层分别回答什么
 
-技能有效性分两面:
-
-- **路由正确性** — 对的 utterance 选对 skill。**已观察到的主失效面**(coordinator-vs-executor "重构" 平局、restart/redo 触发缺口,均记在 [source-register.md](../skills/skill-extraction-workflow/references/source-register.md))。大部分**不跑 agent 就能测**。
-- **应用质量** — 选对 skill 后行为对不对。必须真跑 agent,贵且随机。
-
-## 2. 设计原则
-
-真正的风险不是"自动化太少",而是造出一个 **flaky / 可作弊、于是被人无视的门禁** —— 即刚修掉的 impact-chain "治理空转" 的重演。**阻断策略比实现野心更重要**:确定性的才阻断,随机/低置信的只报告。
-
-## 3. 三层 + CI 策略
-
-| 层 | 范围 | CI 策略 | 性质 |
+| 层 | 回答的问题 | 运行与判定 | 合并语义 |
 |---|---|---|---|
-| **T1 静态路由分析器** | 全仓 | 阻断,但只对客观失败 | 确定、无 LLM、便宜 |
-| **T2 冻结路由 task-bank** | 全仓,种子取自历史 miss | 先 advisory,再选择性阻断 | Haiku grader 是"路由兼容性 eval",不是真值预言机 |
-| **T3 golden 行为回放** | 仅 hub skill | 自动跑、判定先人工,nightly 起步 | 随机 + 环境敏感 |
+| **T1 静态路由分析** | 路由图是否存在可确定判定的结构错误 | `make eval-routing`；无 LLM，结果可重复 | 悬空显式 redirect、未消歧的精确触发词冲突等客观失败阻断 |
+| **T2 冻结路由 task-bank** | 当前 description 能否让廉价 grader 把固定 utterance 路由到预期 owner | `make eval-routing-bank`；模型输出是兼容性信号，不是真值 | runner 始终 advisory；结果是否成为某次改动的落地条件，由该改动已有的 owner、风险或评审门禁决定 |
+| **T3 golden trace** | 真 Agent 在完整技能与 hook 环境中是否走到预期路由结构 | `make eval-golden-trace`；真实回放、非确定、人工判定 | runner 始终 advisory；破坏性或安全问题由各自确定性门禁独立阻断 |
 
-**范围纠正:** "hub 聚焦" 只指 **T3** 从 `product-rd-workflow` / `defect-diagnosis` / `testing-strategy` 起步。**T1 必须全仓** —— 路由是图属性,枢纽的有效性依赖邻居不偷/不混触发词;窄化就测不到。
+“runner 是否以非零退出”与“这次改动是否允许落地”是两件事。T2/T3 不把 grader 或单次 Agent 输出当真值，因此 F4 不因 miss 生成统一阻断；若改动的 owner、风险或评审门禁预先把某项 T2/T3 证据纳入本轮接受标准，则由那道门禁作落地判断并记录理由。
 
-## 4. 阻断粒度
+## 各层的判定边界
 
-每层把"客观可判"与"模糊/随机"分开,只让前者挡 merge。
+### T1：只阻断客观失败
 
-**T1**
-
-| 发现 | 阻断 |
+| 发现 | 判定 |
 |---|---|
-| 悬空重定向(`Skip → X` 而 X 未安装) | 是 |
-| 精确归一触发词被 2+ skill 认领且无互斥 skip | 是 |
-| `Skip → X` 但 X 完全不认领该路由族 | 是 |
-| 模糊/语义近似碰撞 | 仅 advisory |
-| 措辞证据弱的非对称 skip | 仅 advisory |
+| 显式 `Skip → X`，但 X 未安装 | blocking |
+| 同一归一触发词被多个技能认领，且没有互相 redirect 消歧 | blocking |
+| 模糊词面碰撞、疑似散文死链、已消歧的精确碰撞 | advisory |
 
-**T2**
+判定以 `skills/skill-extraction-workflow/scripts/eval-routing.rb` 为准（`blocking` 只在 dangling redirect 与未消歧的 exact collision 两处产生，已消歧的碰撞进 advisory）。此前这张表还列过第三条 blocking「`Skip → X` 但 X 完全不认领该路由族」——runner 从未实现它，只查 target 是否已安装；那是文档单方面的声称，已删。改这张表前先读 runner，别反过来。
 
-- grader 输出 `{selected_skill, confidence, rationale_short}`,模型/版本钉死、temp 0。
-- 报告 diff 式:新挂 / 新过 / 仍挂。
-- **只在 grader 输出非法时 fail-closed**,不因低置信 miss 阻断。
-- 阻断推进:首个 MR 纯 advisory → 2-3 次真实改动后,只对"高置信冻结 task 的回归"阻断 → 永不因单个新低置信 miss 阻断(需人工提升或重复失败)。
-- v1 不上多 grader(成本高、不解决治理作弊);改用 **task provenance** 控制(见 §5)。
+T1 必须覆盖全仓。路由是图属性，枢纽技能是否有效取决于相邻技能是否抢占或遗漏同一触发族。
 
-**T3**
+### T2：提供稳定性与邻居对照证据
 
-- 只做**结构化断言**:必调 skill 出现 / 禁用 skill 不出现 / 产物路径或段落存在 / 命令族出现 / 无破坏性命令类 / 该有的覆盖边界或验证状态在。
-- **不**断言精确措辞、精确顺序(硬 gate 除外)、精确 tool 数。
-- 跑法:per-MR 可选/advisory 子集跑 1 次;nightly 全 hub 回放,flaky prompt 才 3 次取多数;release 分支全回放但仍人工判定,直到有稳定史。
-- 失败 → 开回归报告,不自动挡 merge;只有破坏性/安全违规在 CI 阻断。
+- grader 固定模型与参数，输出结构化选择、置信度和短理由。
+- task 带 `frozen_at_sha` 与来源；同一改动同时修改 description 和 task-bank 时，新增或改动 task 不作为本轮回归依据。
+- 对路由失败做改前/改后比较时，默认取得至少 10 轮有效基线；超时或不可解析轮不计数。采用不同样本量时，随工件记录理由。
+- 最终措辞重新测量；中间稿结果不得挪用。
+- 受影响邻居默认在改前、改后各至少 3 轮；邻居回归作为独立 finding 交给本轮实际的 owner、风险或评审门禁处置。
+- 每轮绑定 runner、grader 身份、候选指纹和原始工件位置。
 
-## 5. 防作弊(要执行,不是写进文档就算)
+这里没有通用的“先 warn，积累几次后自动升级为阻断”，也没有 F4 自己生成的统一合并门禁。是否阻断由负责该改动的既有门禁依据确定性、误报风险、预注册标准和后果决定。
 
-挡住"改 skill + 顺手改测试让它过"。
+### T3：看结构，不追求 transcript 一致
 
-- 每个 task 带 `frozen_at_sha`;runner **校验它是当前 HEAD 的祖先**。
-- 一个 PR 同时改了 description 和 task-bank → 显式报告,且**新增/改动的 task 本次改动不计入阻断**。
-- 删除 task 或改 `expected_skill` 需 `reason` 字段,并作为治理 warning 显示。
-- task provenance 必含:`source` · `frozen_at_sha` · `why_expected` · `added_by_change_sha`。
+- 断言应加载或禁止加载的 skill、允许的命令类别和破坏性行为边界。
+- 不断言精确措辞、普通步骤的精确顺序或固定 tool 次数。
+- `PASS`、`FAIL`、`INCONCLUSIVE` 都保留原始回放；单次结果不等于稳定结论。
+- T3 可作为路由行为的改前/改后证据，但只有真实观察到旧候选 miss 才能称为 RED baseline。
 
-## 6. 治理挂钩(scoped Core Rule)
+## 最小度量记录
 
-`skill-extraction-workflow` 加一条 Core Rule:**改了路由面就要跑 routing eval**。仅当改动触及以下才触发,避免每个小改都跑(重演 impact-chain 的过度/失灵):
+每次声称某项技能改动“更好”之前，至少记录：
 
-- 任一 `SKILL.md` 的 `description`
-- 路由 prose:`Use when` / `Proactively invoke` / `Skip when` / redirect
-- `source-register.md`
-- eval task-bank
-- eval runner / checker 脚本
+| 字段 | 必须回答 |
+|---|---|
+| 比较单元 | 同一任务、同一输入、同一候选边界是什么 |
+| baseline / candidate | 两个候选的版本、配置、模型与运行条件 |
+| 质量结果 | 正确性、验收结果、缺陷或回归；质量门先判 |
+| 效率与自主性 | 时间、轮次、工具调用、人工介入；只比较同一口径 |
+| 混杂因素 | corpus、模型、权限、环境、工具版本是否变化 |
+| 决策 | 保留、回退、继续观察，以及由谁决定 |
 
-body-only、typo、非路由 docs、非路由 reference 改动 → 只跑现有结构校验。
+质量、效率、自主性和人工介入不是可随意互换的量。质量未过线时，不能用更少 token、更快或更高综合分抵消。
 
-## 7. 落地计划(3 个独立 MR)
+## Health roll-up 的正确用途
 
-> 状态:三个 MR 均已落地。T1 = 门禁(阻断客观失败);T2/T3 = advisory dashboard(`make eval-routing-bank` / `make eval-golden-trace`)。基线:T1 0 blocking、T2 16/16、T3 3/3 hub。运行契约见 [eval-routing.md](../skills/skill-extraction-workflow/references/eval-routing.md)。
+`make eval-health` 汇总 structural、T1、T2、T3 的在场信号，保留一个 0–10 加权值和同 corpus、同维度下的历史变化，便于快速发现“哪里值得看”。它是**描述性仪表盘**，不是仓库优劣的总判决：
 
-**MR-1 · T1 静态路由分析器**(先做,真价值且可独立验证)
+- skipped 维度不会被当成已通过；报告必须显示本次实际包含的维度。
+- task-bank、golden traces 或在场维度改变时重置比较基线，不能跨尺子读趋势。
+- 综合值不进入 `check-ccl-skills.sh`，不替代 T1、结构校验、行为证据、验收或人工判断。
+- 不得据此单独声称“仓库整体变好/变差”；结论回到对应维度、任务结果和最小度量记录。
 
-1. `skills/skill-extraction-workflow/scripts/eval-routing.rb` — 解析全部 SKILL.md,抽路由行,查 悬空重定向 / 精确碰撞 / 明显非对称 skip,输出人读 + JSON。
-2. `make eval-routing`。
-3. 接进 `check-ccl-skills.sh`,只对 §4 客观失败阻断,沿用现有 marker 风格。
-4. `skills/skill-extraction-workflow/references/eval-routing.md` — 定义 T1/T2/T3 契约,明说"可执行 benchmark 从 T1 起步,T2/3 分阶段"。
-5. scoped Core Rule(§6)。
+## 运行入口
 
-**MR-2 · T2 路由 task-bank + grader**
+```bash
+make eval-routing
+make eval-routing-bank
+make eval-golden-trace
+make eval-health
+```
 
-- `eval/routing-tasks.jsonl`,种子取自 source-register 历史 miss。
-- `skills/skill-extraction-workflow/scripts/eval-routing-bank.rb`,advisory dashboard。
-
-**MR-3 · T3 hub golden trace**
-
-- 每个 hub skill 1 条 golden trace + 一个 runner,advisory / nightly / 手动判定起步。
-
-每个 MR:worktree 隔离 + dual-track codex 评审后落地,自身走门禁。
-
-## 8. 边界(刻意不做)
-
-- SWE-bench 规模的全任务集(§3.3 自己标"待用";维护成本 > 收益)。
-- v1 的多 grader 投票(用 task provenance 替代)。
-- T3 的精确 transcript / 措辞 / tool 数断言(随机,必 flaky)。
-- 自动判定 T3 通过与否(无稳定史前由人定)。
-
-## 9. Health roll-up(综合分 + 趋势,advisory)
-
-三层各自答"这次/这面好不好",但没有"仓库整体在变好还是变差"的一个数。`eval-health.rb`(`make eval-health`)把 structural + T1 + T2 + T3 卷成**加权 0–10 综合分 + 趋势**,沿用 OpenSSF Scorecard 的形态(每信号 0–10 → 按风险加权聚合,跨时间追)。
-
-两条护栏:**advisory 永不阻断**(不接 `check-ccl-skills.sh`、历史 git-ignore;Goodhart:分变成 gate 就被博弈,二元门禁仍是真值);**corpus/version 守卫**(趋势只跟尺子相同的历史比,换了 task-bank/golden-traces 就 reset)。契约见 [eval-routing.md](../skills/skill-extraction-workflow/references/eval-routing.md) Health roll-up 节,业内映射见 [harness-patterns-and-eval.md](../skills/skill-extraction-workflow/references/harness-patterns-and-eval.md) §3.4。
+具体输入、退出码、防作弊字段和报告 schema 以 [Routing Eval 契约](../skills/skill-extraction-workflow/references/eval-routing.md) 为准。

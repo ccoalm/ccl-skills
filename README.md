@@ -90,7 +90,7 @@ The repository checks are also distributable. This adds the agent-contract, owne
 make install-gates TARGET=/path/to/repo
 ```
 
-The install is additive and **warn-only** — it writes the mechanics plus a GitLab CI fragment at `ci/agent-gates.gitlab-ci.yml` that tolerates failure. Turning a gate from warn to blocking is always a deliberate manual step: set `enabled: true`, pass `--enforce` in CI, and remove `allow_failure`.
+The install is additive and starts **warn-only** because the installer cannot infer a target repository's owner mappings, baseline cleanliness, false-positive history, or risk tolerance. Enforcement is a deliberate repository decision: verify the specific gate is deterministic and ready, then set `enabled: true`, pass `--enforce` in CI, and remove `allow_failure`. This is an installation default, not a universal warn-to-block maturity sequence for every signal.
 
 ## Use a skill
 

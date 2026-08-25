@@ -1,6 +1,6 @@
 # 技术方案评审手册
 
-> 评审一份技术方案的核心不是"找一个聪明模型挑刺"，而是**按方案触达的关切，路由到对应 owner 技能**评审；外部/第二评审模型（Codex/Claude 等）只作补充。权威门禁以各 owner 技能源仓为准，本手册是操作视图。
+> 评审一份技术方案的核心不是"找一个聪明模型挑刺"，而是**按方案触达的关切，路由到对应 owner 技能**。实现者先按这些 owner 判据自审到收敛，外部/第二评审模型（Codex/Claude 等）再做独立对抗。权威门禁以各 owner 技能源仓为准，本手册是操作视图。
 
 ## 什么时候用
 
@@ -20,10 +20,11 @@
 flowchart TD
   S["要评审技术方案"] --> E["① 枚举方案触达的关切"]
   E --> L["② 确认本方案触达的最小完整 owner 集，按需加载（设计期就加，不只评审期）"]
-  L --> R["③ 逐 owner 技能评审"]
-  R --> X["④ 第二评审模型补充对抗：交给 code-review"]
-  X --> F["⑤ 逐条处置结论；技能行为改动补独立核验、对抗检查和泄漏审计"]
-  F --> T["⑥ tighten 收口，按现有风格同步"]
+  L --> R["③ 实现者按 owner / 风险轴自审到收敛"]
+  R --> X["④ 冻结候选，交给 code-review 做独立评审 / 挑战"]
+  X --> F["⑤ findings 追一手证据；修复后形成新候选并重新自审"]
+  F --> C["⑥ 外部终审后绑定 exact candidate；人工权限仍在外部"]
+  C --> T["⑦ tighten 收口，按现有风格同步"]
 ```
 
 ## ① 按关切路由到 owner 技能
@@ -44,14 +45,15 @@ flowchart TD
 
 > 安全是横切关切、不是单 owner：定级/门禁归 `feature-risk-router`，实质分散在各 owner（架构的 fail-closed/鉴权、连通的 mTLS/zero-trust、观测的审计/脱敏）——别只挂定级就当已评安全。
 
-## 三条铁律
+## 四条铁律
 
 1. **先枚举关切、确认本方案触达的最小完整 owner 集**（不是加载全部技能），按需加载相关 SKILL.md/章节；别中途逐个发现、别逐域打补丁。漏一个关切（如 mesh 没加载连通性技能）= 评审不完整。
-2. **owner 技能是评审门，第二评审模型只补充**：第二评审模型在 owner 评审之下/之后跑，绝不充当门本身（模型作执行宿主时仍按 owner 技能跑——"只补充"仅指其第二评审模型角色）。
+2. **先自审到收敛，再交独立评审**：实现者先按实际改动路径和 owner 判据走查影响分支、状态与失败路径；按风险补 security、privacy、authority、数据丢失轴，并把验证跑到预期通过。自审不是“我觉得没问题”，也不能替代、缩短或软化后面的独立评审。
+3. **owner 技能是评审门，第二评审模型只补充**：第二评审模型在 owner 自审之下/之后跑，绝不充当门本身（模型作执行宿主时仍按 owner 技能跑——"只补充"仅指其第二评审模型角色）。
    - 选哪个客户端、怎么保证跨模型家族独立性，归 [`code-review`](../skills/code-review/SKILL.md)，别手工拼 CLI 命令。
-3. **owner 既管设计实质也管评审**：调了入口路由器（`product-rd-workflow`）≠ 已派发 owner——设计期就要真加载 owner 技能产出实质，不是只在评审时。
+4. **owner 既管设计实质也管评审**：调了入口路由器（`product-rd-workflow`）≠ 已派发 owner——设计期就要真加载 owner 技能产出实质，不是只在评审时。
 
-> 这三条的权威定义在 [`product-rd-workflow`](../skills/product-rd-workflow/SKILL.md) 的技术设计门 + [`multi-agent-delegation`](../skills/multi-agent-delegation/SKILL.md) 的派活规则。
+> 这四条的权威定义在 [`product-rd-workflow`](../skills/product-rd-workflow/SKILL.md) 的技术设计门、[`code-review`](../skills/code-review/SKILL.md) 的候选绑定与评审链，以及 [`multi-agent-delegation`](../skills/multi-agent-delegation/SKILL.md) 的派活规则。
 
 ## 评审后的复盘同时解释失效和稳定成功
 
@@ -70,6 +72,7 @@ flowchart TD
   - 按 owner 的验收项（发布计划/观测指标/测试策略/回滚演练）。
 - **默认先定级，不是"不清楚才定"**：技术方案默认先过 [`feature-risk-router`](../skills/feature-risk-router/SKILL.md) 出 risk tags + 需要哪些 gate；money/权限/数据隔离/外部消费者契约 = 高风险。
 - **评审产出 = 记录件**：每条 finding 附 severity + owner + 证据锚点 + 处置 + 未解决项 + 评审者/工具身份；高风险附签核状态/签核人。存成 artifact，不是口头。
+- **自审产出也要可核对**：记录候选范围、owner / 风险轴、走查过的关键路径、实际验证命令和结果。发现问题先在实现者侧修到收敛，再冻结候选交独立评审；不要把未收敛候选交给外部模型代替实现者找完主要问题。
 - **高风险人工签核**：money/权限/数据隔离 + 对外部消费者的契约/API 变更，覆盖设计/实现/上线三阶段，合并/上线前由 owner 签核；独立对抗性评审先行。
 - **文档收口**：每次整文重建/再同步过 [`tighten-doc`](../skills/tighten-doc/SKILL.md) closeout；明确 source of truth + 同步后验证一致；评审 provenance、版本自述不进交付物。
 - **无证据不声称通过**：评审结论附 owner、findings、处置。
@@ -77,7 +80,7 @@ flowchart TD
 ## 走查示例：评审一份"配置与密钥统一平台"方案
 
 1. 枚举关切：架构 + 连通(Istio/泳道) + 发布(多环境/晋升) + 可观测(审计/告警) + 安全。
-2. 逐 owner 加载评审 + `code-review` 换模型家族对抗补充。
+2. 实现者逐 owner 自审到收敛并跑完证据，再冻结候选交给 `code-review` 换模型家族对抗补充。
 3. 挖出并修复：审计写失败**按风险分级** fail-open/fail-closed（一刀切 fail-closed 会可用性自杀）、撤权传播延迟**指标口径**、安全告警**分层**（page vs 通知）、env 反伪造。
 
 ## 延伸阅读
