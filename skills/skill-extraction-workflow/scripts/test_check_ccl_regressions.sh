@@ -127,6 +127,11 @@ fast_tests=(
   test_git_identity_predicate_gate.sh
   test_liveness_predicate_gate.sh
   test_regression_runner_registration.sh
+  # Harness binding for the gate lanes themselves: the impact-chain gate's
+  # round walk needs the branch's own first-parent chain, which the default
+  # refs/pull/N/merge checkout does not provide. Cheap, no clone, and a
+  # regression here is otherwise invisible until it refuses an unrelated PR.
+  test_ci_checkout_ref_binding.sh
   # Lane-semantics guard for this runner itself (036 challenge P2): proves
   # --heavy-only / --fast / --full each run exactly their lane against a stub
   # fixture via REGRESSION_SCRIPTS_DIR, and that a red heavy stub propagates.

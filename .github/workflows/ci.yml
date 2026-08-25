@@ -20,6 +20,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Judge the BRANCH, not the synthetic merge ref. The impact-chain gate
+          # partitions history into rounds by walking the branch's own
+          # first-parent chain — a flag its own fixtures pin as load-bearing,
+          # because it is what collapses a merged worktree round to one
+          # boundary. On the default `refs/pull/N/merge` checkout that chain
+          # runs through the TARGET, so every round on the branch collapses
+          # into one and rows whose validity depends on their round being
+          # narrow flip red with nothing about them changed (observed on PR #53:
+          # `impact_chain_firing_path_missing` for a description-only round that
+          # a sibling round's body edit swallowed). `main` requires branches to
+          # be up to date, so the head commit already contains the base and the
+          # merge commit adds no content — the branch tip is what actually lands.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -94,6 +107,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Judge the BRANCH, not the synthetic merge ref. The impact-chain gate
+          # partitions history into rounds by walking the branch's own
+          # first-parent chain — a flag its own fixtures pin as load-bearing,
+          # because it is what collapses a merged worktree round to one
+          # boundary. On the default `refs/pull/N/merge` checkout that chain
+          # runs through the TARGET, so every round on the branch collapses
+          # into one and rows whose validity depends on their round being
+          # narrow flip red with nothing about them changed (observed on PR #53:
+          # `impact_chain_firing_path_missing` for a description-only round that
+          # a sibling round's body edit swallowed). `main` requires branches to
+          # be up to date, so the head commit already contains the base and the
+          # merge commit adds no content — the branch tip is what actually lands.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -148,6 +174,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Judge the BRANCH, not the synthetic merge ref. The impact-chain gate
+          # partitions history into rounds by walking the branch's own
+          # first-parent chain — a flag its own fixtures pin as load-bearing,
+          # because it is what collapses a merged worktree round to one
+          # boundary. On the default `refs/pull/N/merge` checkout that chain
+          # runs through the TARGET, so every round on the branch collapses
+          # into one and rows whose validity depends on their round being
+          # narrow flip red with nothing about them changed (observed on PR #53:
+          # `impact_chain_firing_path_missing` for a description-only round that
+          # a sibling round's body edit swallowed). `main` requires branches to
+          # be up to date, so the head commit already contains the base and the
+          # merge commit adds no content — the branch tip is what actually lands.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -239,6 +278,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Judge the BRANCH, not the merge ref — see
+          # test_ci_checkout_ref_binding.sh for why the impact-chain gate
+          # needs the branch's own first-parent chain.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Install validation tools
         run: |
           set -euo pipefail
@@ -297,6 +340,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Judge the BRANCH, not the merge ref — see
+          # test_ci_checkout_ref_binding.sh for why the impact-chain gate
+          # needs the branch's own first-parent chain.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Install validation tools
         run: |
           set -euo pipefail
