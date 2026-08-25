@@ -408,6 +408,15 @@ wrapper_group_members_alive() {
   ps -eo pid=,pgid=,stat= 2>/dev/null |
     awk -v want="$wrapper_pgid" '$2 == want && $3 !~ /Z/ { print $1 }'
 }
+# Group members still RUNNING after a group stop. A group signal is not an atomic
+# transition: the leader can report stopped while a sibling has not been scheduled to
+# handle it yet, and for the claude stub that sibling is the countdown itself. Zombies
+# and stopped members are excluded; anything left is still able to reach the marker write.
+wrapper_group_unstopped() {
+  [ -n "${wrapper_pgid:-}" ] || return 0
+  ps -eo pid=,pgid=,stat= 2>/dev/null |
+    awk -v want="$wrapper_pgid" '$2 == want && $3 !~ /Z/ && $3 !~ /[Tt]/ { print $1 }'
+}
 wrapper_gone_within() {
   local deadline members residue
   deadline=$(( $(date +%s) + $1 ))
@@ -520,6 +529,21 @@ leg2_arm() {
     return 1
   }
   kill -STOP -"$wrapper_pgid" 2>/dev/null || true
+  # Wait for the WHOLE group, not just the leader. Reading only the leader is the same
+  # proxy-for-the-condition mistake this round exists to remove: the leader can be stopped
+  # while the countdown sibling is still running and still able to write the marker.
+  leg2_stop_deadline=$(( $(date +%s) + 5 ))
+  while :; do
+    leg2_unstopped="$(wrapper_group_unstopped | tr '\n' ' ')"
+    case "$leg2_unstopped" in *[0-9]*) : ;; *) break ;; esac
+    if [ "$(date +%s)" -ge "$leg2_stop_deadline" ]; then
+      printf 'abort_leak_setup_lost: group %s still running after SIGSTOP: %s\n' \
+        "$wrapper_pgid" "$leg2_unstopped" >&2
+      kill -CONT -"$wrapper_pgid" 2>/dev/null || true
+      return 1
+    fi
+    sleep 0.2
+  done
   [ "$(wrapper_state "$wrapper_pid")" = stopped ] || {
     printf 'abort_leak_setup_lost: wrapper %s did not stop (state %s)\n' \
       "$wrapper_pid" "$(wrapper_state "$wrapper_pid")" >&2
