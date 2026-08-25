@@ -120,7 +120,7 @@ mutate_owner_rule() { # <repo-dir> <owner-slug> <marker>
 # matching mutate_owner_rule added, and the owner key in the evidence cell.
 append_valid_row() { # <repo-dir> <owner-slug> <marker> <lesson>
   local repo="$1" owner="$2" marker="$3" lesson="$4"
-  printf '| %s | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/%s/SKILL.md#%s | `updated` | `%s/SKILL.md` fixture change |\n' \
+  printf '| %s | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/%s/SKILL.md#%s | `updated` | `%s/SKILL.md` fixture change |\n' \
     "$lesson" "$owner" "$(rule_anchor "$marker")" "$owner" >> "$repo/$LEDGER_REL"
 }
 
@@ -276,7 +276,7 @@ mutate_owner_rule "$L" testing-strategy L2
 # that still merely warns — which is exactly what it must detect.
 append_valid_row "$L" product-rd-workflow L "Fixture first owner row"
 append_valid_row "$L" testing-strategy L2 "Fixture second owner row"
-printf '| Fixture ambiguous row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#%s | `updated` | `product-rd-workflow/SKILL.md` and `testing-strategy/SKILL.md` both changed and are cited in one row |\n' \
+printf '| Fixture ambiguous row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#%s | `updated` | `product-rd-workflow/SKILL.md` and `testing-strategy/SKILL.md` both changed and are cited in one row |\n' \
   "$(rule_anchor L)" >> "$L/$LEDGER_REL"
 git -C "$L" add -A
 git -C "$L" commit -qm "round 1: one row citing two changed selected owners"
@@ -310,7 +310,7 @@ git -C "$M" branch fixture-base HEAD
 git -C "$M" switch -q -c case-noncurated
 printf -- '- Rule %s must be recorded before the round lands.\n' "$(rule_anchor M)" \
   >> "$M/skills/worktree-isolation/SKILL.md"
-printf '| Fixture non-curated row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/worktree-isolation/SKILL.md#%s | `updated` | `worktree-isolation/SKILL.md` changed; this skill is not a curated upstream owner |\n' \
+printf '| Fixture non-curated row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/worktree-isolation/SKILL.md#%s | `updated` | `worktree-isolation/SKILL.md` changed; this skill is not a curated upstream owner |\n' \
   "$(rule_anchor M)" >> "$M/$LEDGER_REL"
 git -C "$M" add -A
 git -C "$M" commit -qm "round 1: change a non-curated owner and record it"
@@ -357,7 +357,7 @@ seed_repo "$O"
 git -C "$O" branch fixture-base HEAD
 git -C "$O" switch -q -c case-dotslash
 mutate_owner_rule "$O" product-rd-workflow O
-printf '| Fixture dot-slash row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#%s | `updated` | see ./skills/product-rd-workflow/references/design-note.md for the rationale |\n' \
+printf '| Fixture dot-slash row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#%s | `updated` | see ./skills/product-rd-workflow/references/design-note.md for the rationale |\n' \
   "$(rule_anchor O)" >> "$O/$LEDGER_REL"
 git -C "$O" add -A
 git -C "$O" commit -qm "round 1: change the owner, cite it with a ./ prefixed path"
@@ -377,7 +377,7 @@ seed_repo "$O2"
 git -C "$O2" branch fixture-base HEAD
 git -C "$O2" switch -q -c case-rooted
 mutate_owner_rule "$O2" product-rd-workflow O2
-printf '| Fixture rooted-path row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#%s | `updated` | see /skills/product-rd-workflow/references/design-note.md for the rationale |\n' \
+printf '| Fixture rooted-path row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#%s | `updated` | see /skills/product-rd-workflow/references/design-note.md for the rationale |\n' \
   "$(rule_anchor O2)" >> "$O2/$LEDGER_REL"
 git -C "$O2" add -A
 git -C "$O2" commit -qm "round 1: change the owner, cite it with a rooted path"
@@ -399,7 +399,7 @@ seed_repo "$O3"
 git -C "$O3" branch fixture-base HEAD
 git -C "$O3" switch -q -c case-remainder
 mutate_owner_rule "$O3" product-rd-workflow O3
-printf '| Fixture remainder row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#%s | `updated` | rationale in skills/product-rd-workflow/@design.md and skills/product-rd-workflow/设计说明.md |\n' \
+printf '| Fixture remainder row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#%s | `updated` | rationale in skills/product-rd-workflow/@design.md and skills/product-rd-workflow/设计说明.md |\n' \
   "$(rule_anchor O3)" >> "$O3/$LEDGER_REL"
 git -C "$O3" add -A
 git -C "$O3" commit -qm "round 1: cite the owner with unusual but valid path remainders"
@@ -421,7 +421,7 @@ seed_repo "$O4"
 git -C "$O4" branch fixture-base HEAD
 git -C "$O4" switch -q -c case-relative
 mutate_owner_rule "$O4" product-rd-workflow O4
-printf '| Fixture relative-link row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#%s | `updated` | rationale in [the design note](../../product-rd-workflow/references/design-note.md) |\n' \
+printf '| Fixture relative-link row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#%s | `updated` | rationale in [the design note](../../product-rd-workflow/references/design-note.md) |\n' \
   "$(rule_anchor O4)" >> "$O4/$LEDGER_REL"
 git -C "$O4" add -A
 git -C "$O4" commit -qm "round 1: cite the owner through a Markdown-relative link"
@@ -471,7 +471,7 @@ S1="$TMP/leg-s"
 seed_repo "$S1"
 git -C "$S1" branch fixture-base HEAD
 git -C "$S1" switch -q -c case-malformed
-printf '| Fixture smuggled row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#nope | `updated` | rationale in skills/product-rd-workflow/references/note.md, see a|b for the table |\n' \
+printf '| Fixture smuggled row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#nope | `updated` | rationale in skills/product-rd-workflow/references/note.md, see a|b for the table |\n' \
   >> "$S1/$LEDGER_REL"
 git -C "$S1" add -A
 git -C "$S1" commit -qm "round 1: a declaring row for a selected owner with an unescaped pipe"
@@ -504,7 +504,7 @@ S3="$TMP/leg-s3"
 seed_repo "$S3"
 git -C "$S3" branch fixture-base HEAD
 git -C "$S3" switch -q -c case-emptycell
-printf '| Fixture empty-cell row |  | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#nope | `updated` | rationale in skills/product-rd-workflow/references/note.md |\n' \
+printf '| Fixture empty-cell row |  | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#nope | `updated` | rationale in skills/product-rd-workflow/references/note.md |\n' \
   >> "$S3/$LEDGER_REL"
 git -C "$S3" add -A
 git -C "$S3" commit -qm "round 1: a declaring row for a selected owner with an empty cell"
@@ -527,7 +527,7 @@ git -C "$S4" branch fixture-base HEAD
 git -C "$S4" switch -q -c case-corrected
 mutate_owner_rule "$S4" product-rd-workflow S4
 append_valid_row "$S4" product-rd-workflow S4 "Fixture sound row"
-printf '| Fixture to-be-corrected row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#%s | `updated` | rationale in skills/product-rd-workflow/references/note.md, see a|b |\n' \
+printf '| Fixture to-be-corrected row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#%s | `updated` | rationale in skills/product-rd-workflow/references/note.md, see a|b |\n' \
   "$(rule_anchor S4b)" >> "$S4/$LEDGER_REL"
 git -C "$S4" add -A
 git -C "$S4" commit -qm "round 1: a sound row plus a malformed declaring row"
@@ -550,7 +550,7 @@ S5="$TMP/leg-s5"
 seed_repo "$S5"
 git -C "$S5" branch fixture-base HEAD
 git -C "$S5" switch -q -c case-noleading
-printf 'Fixture no-leading-pipe row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#nope | `updated` | rationale in skills/product-rd-workflow/references/note.md |\n' \
+printf 'Fixture no-leading-pipe row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#nope | `updated` | rationale in skills/product-rd-workflow/references/note.md |\n' \
   >> "$S5/$LEDGER_REL"
 git -C "$S5" add -A
 git -C "$S5" commit -qm "round 1: a declaring row without its leading pipe"
@@ -561,7 +561,7 @@ S6="$TMP/leg-s6"
 seed_repo "$S6"
 git -C "$S6" branch fixture-base HEAD
 git -C "$S6" switch -q -c case-notrailing
-printf '| Fixture no-trailing-pipe row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#nope | `updated` | rationale in skills/product-rd-workflow/references/note.md\n' \
+printf '| Fixture no-trailing-pipe row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/product-rd-workflow/SKILL.md#nope | `updated` | rationale in skills/product-rd-workflow/references/note.md\n' \
   >> "$S6/$LEDGER_REL"
 git -C "$S6" add -A
 git -C "$S6" commit -qm "round 1: a declaring row without its trailing pipe"

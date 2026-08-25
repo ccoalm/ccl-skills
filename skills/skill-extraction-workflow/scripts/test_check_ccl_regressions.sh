@@ -165,6 +165,11 @@ heavy_tests=(
   # 对照表不交代被删内容）必须每轮都跑。clone + 16 分支对 pre-commit 太慢，进 heavy。
   test_impact_chain_source_refuted.sh
   test_impact_chain_gate_verdict_differential.sh
+  # 045：两个触发器（routing 面改动欠 bank 证据、台账行欠 result-class）的十条决策表
+  # 用例。同样是整仓 clone + 一 case 一分支的形态，故与上面两套同进 heavy。它钉的是
+  # 「跳过义务会不会留下可检出的缺席」——044 连续五轮 challenge 都停在这一点上，负向
+  # 用例（缺证据、非枚举值、降范围无留痕）必须每轮都跑，否则触发器会悄悄退化成声称。
+  test_impact_chain_self_adjudication.sh
 )
 
 # Registration self-audit: every sibling test_*.sh must appear in fast_tests or
