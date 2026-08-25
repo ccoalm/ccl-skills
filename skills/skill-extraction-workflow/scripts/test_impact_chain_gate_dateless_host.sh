@@ -76,8 +76,13 @@ git -C "$REPO" branch fixture-base HEAD
 git -C "$REPO" switch -q -C case-dateless fixture-base
 git -C "$REPO" branch --set-upstream-to=fixture-base case-dateless >/dev/null 2>&1
 perl -0pi -e 's/^(description: .+)$/$1 Fixture dateless trigger clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
-printf '| Fixture dateless row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description-only fixture change |\n' \
+printf '| Fixture dateless row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:DATELESS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description-only fixture change |\n' \
   >> "$REPO/skills/skill-extraction-workflow/references/source-register.md"
+mkdir -p "$REPO/specs/fixture-dateless"
+# 045: a description change owes bank evidence. This fixture exercises host date
+# handling, not routing measurement, so it downscopes the run ON THE RECORD — the
+# token has to exist somewhere a reader reaches, which is the point of the rule.
+printf -- '- Downscope downscoped:DATELESS-FIXTURE-NO-BANK is recorded here; this round must not be read as having measured routing.\n' > "$REPO/specs/fixture-dateless/plan.md"
 git -C "$REPO" add -A
 git -C "$REPO" commit -qm "description-only change with #description row"
 

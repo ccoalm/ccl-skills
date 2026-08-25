@@ -299,7 +299,11 @@ end
 # changed owner at all, so the entire row evaluation was skipped and the
 # surviving row was never even looked at. With no ledger change there are no
 # added rows, so the skip stays exactly as cheap as before for unrelated diffs.
-if upstream.any? || changed_paths.include?(LEDGER_PATH)
+# The routing task bank joins the entry condition (045): a commit that moves only
+# `eval/routing-tasks.jsonl` changes no owner package and need not touch the
+# ledger, so without this the whole block — including the bank-evidence
+# obligation written for exactly that change — was never entered.
+if upstream.any? || changed_paths.include?(LEDGER_PATH) || changed_paths.include?("eval/routing-tasks.jsonl")
   # Rows are collected PER ROUND and carry the scope they were authored against,
   # so the classifiers below judge a row against its own round's diff. Reading the
   # cumulative register diff instead would re-judge every earlier round's rows
@@ -1336,6 +1340,304 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH)
     warn "impact_chain_behavior_evidence_missing: at least one added upstream-owner row lacks a complete behavioral-evidence declaration"
     warn "  fix: every added row for a changed upstream owner needs `behavioral-evidence: RED-baseline` (observed deltas; observed-failure: yes requires it) `semantic-control` (only with observed-failure: no), or `source-refuted` (a pure-deletion withdrawal of a claim a primary source refutes: observed-failure no, a refuting source URL, a resolvable zero-loss pointer, the owner's round diff touches only modified regular Markdown files whose file mode is unchanged, adds zero lines and deletes at least one, and every row for that owner is in the same class) — note that `source-refuted` records an honest label and forces a zero-loss map, but does NOT by itself lift the per-owner RED floor: a withdrawal still needs a RED-baseline row or a named risk owner's waiver, plus `observed-failure: yes/no` and an owner-scoped `firing-path:`; a non-wording owner package needs at least one RED-baseline row; only deterministically wording-only diffs (no letters or digits changed) may use `not-required wording-only`, and only diffs whose base bytes are reproduced exactly by applying git-derived skill-rename pairs may use `not-required identifier-rename` (both drop the firing-path requirement and require observed-failure: no); an owner whose ENTIRE change is the SKILL.md frontmatter description entry keeps the RED-baseline bar and may anchor its firing path on that changed description line"
     behavior_failures.each { |path| warn "  incomplete: #{path}" }
+    exit 1
+  end
+
+  # ---- 045: an obligation whose skip leaves no artifact is not enforced ------
+  # Round 044 withdrew several overclaims and, in the same move, demoted the
+  # obligations riding on them into advisories. Five consecutive challenge rounds
+  # returned one shape: the entry condition is stated by the party the obligation
+  # constrains, and SKIPPING IT PRODUCES NOTHING for a reviewer to notice missing.
+  # A reviewer cannot refuse an absent claim.
+  #
+  # Both checks below key on facts of the DIFF — which file changed, which key a
+  # row carries — never on prose semantics. That is deliberate and is the whole
+  # difference from the proxy predicates this repository has repeatedly watched
+  # get walked through: a proxy asks "does this text look like it did the thing",
+  # an invariant asks "is the artifact there". Skipping either obligation now
+  # leaves a detectable absence, which is the half the demotion removed.
+  #
+  # Scope limit, stated here so a later round does not read more into it: these
+  # close OMISSION, not MISCLASSIFICATION. `result-class` is still chosen by the
+  # author, and a bank-evidence locator is not proof the bank actually ran. What
+  # changes is that a silent skip becomes a visible claim the review can accept
+  # or refuse — which is exactly what round 044's reviewer said was missing.
+  fragment_value = lambda do |text, key|
+    text.to_s.split(";").each do |fragment|
+      m = fragment.match(/\A\s*#{Regexp.escape(key)}:\s*(.+?)\s*\z/i)
+      return m[1] if m
+    end
+    nil
+  end
+  declaring_row = lambda do |row|
+    row[:behavior].to_s.split(";").any? { |f| f.match?(/\A\s*behavioral-evidence:/i) }
+  end
+
+  result_classes = %w[failure stable-success insufficient-evidence]
+  # A round is held only to the grammar ITS OWN HEAD declares. Adding a required
+  # field would otherwise refuse every historical round the moment anyone replays
+  # it — which the verdict-differential suite correctly reports as a regression,
+  # and which would make the row grammar permanently unextendable. This is not a
+  # date or commit-id grandfather clause (those are proxies that drift): the
+  # predicate is whether the ledger at that round's head defines the field, so a
+  # round that was never told cannot be refused for not knowing.
+  grammar_marker = "result-class: failure|stable-success|insufficient-evidence"
+  grammar_declared_cache = {}
+  grammar_declared_at = lambda do |ref|
+    grammar_declared_cache[ref] ||= begin
+      bytes = raw_blob_at.call(ref, LEDGER_PATH)
+      next false unless bytes
+      # The DECLARATION is prose, and only prose declares. Scanning the whole blob
+      # let a round delete the declaring paragraph while dropping the same literal
+      # into an ordinary ledger ROW: both sides then read as declared, the
+      # withdrawal check stays empty, and every later round keeps being judged by
+      # a grammar the authority no longer states. Rows quote and describe; they do
+      # not legislate, so a marker sitting inside one is not a declaration.
+      bytes.dup.force_encoding(Encoding::UTF_8).each_line.any? do |line|
+        !line.lstrip.start_with?("|") && line.include?(grammar_marker)
+      end
+    end
+  end
+  # Scoped to rows that resolve to an owner THIS round changed — the same subject
+  # set every other per-row check uses. Walking `rows` instead swept in every
+  # historical ledger line whenever the round's base did not already contain it
+  # (a shallow fixture base, a branch cut far back), turning an append-only ledger
+  # into something that fails on its own past. The obligation is on the round
+  # being judged, not on the file it appends to.
+  # Declared -> undeclared is not a legitimate history, it is the off switch.
+  # Without this, deleting or rewording the paragraph makes both checks skip and
+  # the round is indistinguishable from one that predates them — a silent
+  # disarm wearing the shape of the very non-retroactivity rule that permits it.
+  # Withdrawing the grammar deliberately is still possible; it just cannot be
+  # done quietly, which is the whole subject of this round.
+  grammar_withdrawn = round_bounds.select do |span_base, span_head|
+    grammar_declared_at.call(span_base) && !grammar_declared_at.call(span_head)
+  end
+  unless grammar_withdrawn.empty?
+    warn "impact_chain_grammar_withdrawn: a round removed the ledger's declaration-fragment paragraph, which would disable `result-class` and `bank-evidence` for every later round"
+    warn "  note: the checks are gated on the head-declared grammar so history is not judged by rules it was never told. That gate reads an ABSENT declaration as `before the rule`; a declaration that was present and is now gone is a withdrawal, and it has to be argued rather than committed"
+    # Name only a remediation this gate actually implements. An earlier version of
+    # this line offered "land the withdrawal with a named risk owner", and no code
+    # here parses any such artifact — the refusal was unconditional, so the
+    # message promised a way through that did not exist and the round had none.
+    # The escape is deliberately NOT built: a data-side waiver token for a
+    # mechanical obligation is the self-adjudication surface this round removes.
+    # Withdrawing the obligation means removing the triggers, which is a reviewable
+    # code diff rather than a line someone writes about themselves.
+    warn "  fix: restore the `result-class: failure|stable-success|insufficient-evidence` definition in #{LEDGER_PATH}. There is no data-side waiver: to retire the obligation, remove the checks in this file in their own reviewed change"
+    grammar_withdrawn.each { |base, head| warn "  round: #{base}..#{head}" }
+    exit 1
+  end
+
+  # EVERY declaring row of a round whose head declares the grammar, not only rows
+  # that resolve to a changed owner. Scoping by owner was the first attempt at
+  # non-retroactivity, and it left its own hole: a round that changes only the
+  # routing bank has no changed owner, so a declaring row with no `result-class`
+  # was never examined at all. Non-retroactivity is the grammar gate's job and it
+  # does that job alone; making the owner set do it too bought nothing and cost a
+  # false green. A row that declares an impact chain owes its class, whatever the
+  # round happened to touch.
+  result_class_failures = rows.select do |row|
+    next false unless declaring_row.call(row)
+    next false unless grammar_declared_at.call(row[:scope].head)
+    value = fragment_value.call(row[:behavior], "result-class")
+    !(value && result_classes.include?(value.downcase))
+  end.uniq { |row| row[:line] }
+  unless result_class_failures.empty?
+    warn "impact_chain_result_class_missing: an added row declaring behavioral-evidence carries no usable `result-class`"
+    warn "  note: omitting the cell was the cheapest of the three bypasses review found — static checks pass, nothing emits `interim`, and the reviewer has no field to accept or refuse. The value stays the author's call; its ABSENCE no longer does"
+    warn "  fix: add `result-class: #{result_classes.join('|')}` to the row's declaration fragments"
+    result_class_failures.each { |row| warn "  row: #{row[:line].to_s.sub(/^\+/, '').strip}" }
+    exit 1
+  end
+
+  # Trigger A: a change to the routing surface owes bank evidence.
+  bank_relative = "eval/routing-tasks.jsonl"
+  description_entry_at = lambda do |ref, relative|
+    bytes = raw_blob_at.call(ref, relative)
+    next nil if bytes.nil?
+    parts = split_frontmatter.call(bytes.dup.force_encoding(Encoding::UTF_8))
+    next nil unless parts
+    entry = split_description_entry.call(parts[0])
+    entry && entry[1]
+  end
+  # `upstream` keys are owner-relative (`<owner>/SKILL.md`) while changed_paths and
+  # blob lookups are repo-relative; the same `skills/` prefix the evidence-file
+  # check applies. Without it the description branch silently never fired and the
+  # two cases that DO carry evidence passed for the wrong reason — a false green
+  # that only the paired no-evidence cases could expose.
+  # Owner-scoped ONLY. An earlier version also returned true here whenever the bank
+  # had changed, on the reasoning that the bank is everyone's routing surface. In a
+  # multi-round range that conflated two different subjects: the round that moved
+  # the bank then demanded an owner-specific row from every owner the RANGE had
+  # touched, including owners changed in some other round for unrelated reasons —
+  # so adding a later, unrelated commit changed the verdict on an earlier one. The
+  # bank is its own subject and is checked as one; this predicate answers only
+  # "did THIS owner move ITS OWN description in THIS round".
+  description_touched = lambda do |scope, path|
+    relative = "skills/#{path}"
+    next false unless scope.changed_paths.include?(relative)
+    base_entry = description_entry_at.call(scope.base, relative)
+    head_entry = description_entry_at.call(scope.head, relative)
+    # "No head entry" is two different things and only one of them is exempt.
+    # The FILE being gone (deleted, renamed away) is exempt: its description did
+    # not move, the file did, and the rename machinery owns that case. The file
+    # still being there with its description entry REMOVED is the opposite — the
+    # skill stops advertising what reaches it, which is a routing-surface change
+    # as much as rewording one. Collapsing both into `head_entry.nil?` let a
+    # description be deleted in place with no evidence and no refusal.
+    if head_entry.nil?
+      next false if raw_blob_at.call(scope.head, relative).nil?
+      next !base_entry.nil?
+    end
+    # A path with a head entry and NO base entry is a routing surface being
+    # CREATED — a first description decides which requests reach a new skill, so
+    # it is the largest routing-surface change there is, not an exemption. An
+    # earlier version skipped it as "conservative"; review named that as the hole
+    # it is. The one creation that is not a new routing surface is a rename's
+    # target, where the same description arrives under a new path — git proves
+    # that pairing, so it is excluded on evidence rather than on shape.
+    if base_entry.nil?
+      pair = scope.rename_pairs.find { |_from, to| "#{to}/SKILL.md" == path }
+      if pair
+        # A rename is excluded because the SAME description arrived under a new
+        # path. Excluding the target without checking that made rename+reword in
+        # one commit a free routing change: the target is exempt as "just a
+        # rename" and the source is exempt for having no head entry, so the edit
+        # rides in between them. Compare across the pair — the exemption is for
+        # a description that did not change, not for a path that moved.
+        from_entry = description_entry_at.call(scope.base, "skills/#{pair[0]}/SKILL.md")
+        next true if from_entry.nil?
+        next from_entry != head_entry
+      end
+      next true
+    end
+    base_entry != head_entry
+  end
+  # A downscope is allowed — skipping the measurement is sometimes right — but it
+  # must land somewhere a reader reaches. Requiring the token in a changed spec
+  # keeps `downscoped:` from becoming the next self-adjudicated exit: the author
+  # still decides, and still has to write the decision down where review sees it.
+  downscope_recorded = lambda do |scope, token|
+    # The token has to be a TOKEN. `\S+` accepted `-`, and a substring search then
+    # found it in the bullet punctuation of any changed spec line — so
+    # `downscoped:-` discharged the obligation against a record that says nothing.
+    # A downscope is a decision someone has to be able to look up; a character
+    # that occurs incidentally in prose cannot be that. Eight or more, starting
+    # alphanumeric, and no whitespace: long enough not to collide by accident,
+    # loose enough not to dictate a naming scheme.
+    next false unless token.match?(/\A[A-Za-z0-9][A-Za-z0-9._-]{7,}\z/)
+    # The spec must record the DECLARATION, verbatim — `downscoped:<token>` — not
+    # merely contain the token somewhere. Searching for the bare token let a
+    # common word discharge the obligation against a line that happens to use it
+    # ("Bank evidence anchor …" satisfied `downscoped:evidence`), which is the
+    # silent self-adjudication this gate exists to close, rebuilt out of substring
+    # matching. Requiring the full spelling makes the recorded line say what it is.
+    # Bounded, not substring. `include?("downscoped:TOK")` also matched a spec that
+    # records `downscoped:TOKLONGER` — a strict prefix of somebody else's token
+    # discharging this row — and matched `not-downscoped:TOK` too, which records
+    # the opposite. The declaration has to end where the row's token ends and to
+    # start at the keyword.
+    needle = /(?<![A-Za-z0-9._-])downscoped:#{Regexp.escape(token)}(?![A-Za-z0-9._-])/
+    scope.changed_paths.any? do |relative|
+      next false unless relative.start_with?("specs/") && relative.end_with?(".md")
+      added_lines_for.call(scope, relative).any? { |line| line.match?(needle) }
+    end
+  end
+
+  # Evaluated PER ROUND, not per owner. Two defects independent review found in
+  # the per-owner shape, both of which let the obligation evaporate:
+  #   - a diff that changes ONLY `eval/routing-tasks.jsonl` has no changed owner,
+  #     so the per-owner loop was never entered and the routing bank could move
+  #     with no evidence at all. The first fixture missed it by also touching an
+  #     owner, which is how a hole hides behind a green case.
+  #   - `triggered` and `satisfied` each scanned every row of the owner across ALL
+  #     rounds, so one round's valid locator satisfied a different round's naked
+  #     routing-surface change. The obligation belongs to the round that incurred
+  #     it; the row that discharges it has to sit in the same round.
+  bank_evidence_failures = []
+  # Iterating the ROUNDS, not the rows: grouping by row scope meant a round that
+  # moved the bank and appended no ledger row had no scope to inspect, so the one
+  # change that needs no owner and no row escaped entirely. The first fixture for
+  # this hid it by also appending a row — twice now a green case has stood in
+  # front of the hole it was written to cover.
+  round_bounds.each do |span_base, span_head|
+    scope = scope_at.call(span_base, span_head)
+    scope_rows = rows.select { |row| row[:scope].head == span_head }
+    # Same head-declared-grammar rule as `result-class` above, and for the same
+    # reason: the paragraph that defines `bank-evidence` also dates it.
+    next unless grammar_declared_at.call(scope.head)
+    bank_changed = scope.changed_paths.include?(bank_relative)
+    triggered_owners = (upstream + lineage_extra.keys).uniq.select do |path|
+      description_touched.call(scope, path)
+    end
+    # A package that did not exist at the round's base is not in the owner set —
+    # the set is built from CHANGED owners, and a brand-new skill has nothing to
+    # have changed. Its first description is still a routing surface being
+    # created, so it is picked up from the changed paths directly rather than
+    # being silently outside the trigger because of how the owner set is built.
+    created_surfaces = scope.changed_paths.filter_map do |relative|
+      next unless relative.start_with?("skills/") && relative.end_with?("/SKILL.md")
+      path = relative.sub(%r{\Askills/}, "")
+      next if triggered_owners.include?(path)
+      next unless description_touched.call(scope, path)
+      path
+    end
+    triggered_owners |= created_surfaces
+    next if !bank_changed && triggered_owners.empty?
+    # Discharged PER SUBJECT, not per round. Scanning the whole round meant that
+    # when two owners changed their descriptions, one owner's valid locator
+    # marked the round satisfied and the other could omit its evidence entirely —
+    # the obligation is incurred by each owner that moved its routing surface, so
+    # each has to carry its own.
+    row_satisfies = lambda do |row, self_owner|
+      value = fragment_value.call(row[:behavior], "bank-evidence")
+      next false unless value
+      if (m = value.match(/\Adownscoped:(\S+)\z/i))
+        downscope_recorded.call(scope, m[1])
+      else
+        # A locator pointing back into the owner's own package is the change, not
+        # evidence about it. Without this a description edit satisfies its own
+        # bank obligation by citing the very line it just wrote — an artifact that
+        # exists and proves nothing, which is the shape this whole round removes.
+        # Checked on the PATH after stripping the kind prefix, not on the `file:`
+        # spelling: the first version matched `file:skills/<owner>/` only, so an
+        # owner that also touched a script in its own package could cite it as
+        # `command:skills/<owner>/scripts/…` and validate the change as evidence
+        # about itself. Both locator forms name a path; the ban is about the path.
+        if self_owner
+          located = value.sub(/\A(?:command|file):/i, "").sub(/#.*\z/m, "")
+          # Normalize before the prefix test. A raw `start_with?` compares one
+          # spelling of a path, and `./skills/<owner>/…` or a `a/../` detour names
+          # the same file while missing the check — the ban is on the LOCATION, so
+          # it has to be decided on a canonical form of it.
+          segments = []
+          located.split("/").each do |seg|
+            next if seg.empty? || seg == "."
+            seg == ".." ? segments.pop : segments << seg
+          end
+          next false if segments.take(2) == ["skills", self_owner]
+        end
+        locator_valid.call(scope, value)
+      end
+    end
+    triggered_owners.each do |path|
+      owner = path.sub(%r{/SKILL\.md\z}, "")
+      owner_scope_rows = rows_by_upstream_path[path].select { |row| row[:scope].head == scope.head }
+      bank_evidence_failures << path unless owner_scope_rows.any? { |row| row_satisfies.call(row, owner) }
+    end
+    if bank_changed
+      # The bank is nobody's package, so any row of this round may discharge it;
+      # what it may not be is absent.
+      bank_evidence_failures << bank_relative unless scope_rows.any? { |row| row_satisfies.call(row, nil) }
+    end
+  end
+  bank_evidence_failures.uniq!
+  unless bank_evidence_failures.empty?
+    warn "impact_chain_bank_evidence_missing: a round that changed the routing surface carries no bank evidence for that owner"
+    warn "  note: the routing surface is the SKILL.md frontmatter `description` entry and `#{bank_relative}`. The measurement protocol says it is mandatory, but nothing produced or consumed it, so not running it left no absence to detect — the reviewer saw a candidate, not a gap"
+    warn "  fix: add `bank-evidence: command:<changed executable>` or `bank-evidence: file:<changed markdown>#<unique anchor>` to that owner's row; to skip the run deliberately use `bank-evidence: downscoped:<token>` and record the same token in this round's spec, so the downscope is itself an artifact"
+    bank_evidence_failures.each { |path| warn "  owes bank evidence: #{path}" }
     exit 1
   end
 end

@@ -171,9 +171,10 @@ LEDGER_CITATION_WAIVERS: dict[tuple[str, str], tuple[str, tuple[tuple[int, str],
         "ledger's notes block, from 168 to 171 when the round-033 tier-1 "
         "rows landed above it in the mid-ledger table, and from 171 to 174 when "
         "the round-044 review-auth-fallback rows landed above it in that same "
-        "table; the waived row itself is "
+        "table, and from 174 to 191 when the round-045 declaration-fragment "
+        "paragraph landed above the table; the waived row itself is "
         "byte-identical across all moves, which is why its digest is unchanged.",
-        ((174, "73d3e6f2801cefdb9807293d0b2cda8275921272197498671fa19722eaf29f5d"),),
+        ((191, "73d3e6f2801cefdb9807293d0b2cda8275921272197498671fa19722eaf29f5d"),),
     ),
 }
 
