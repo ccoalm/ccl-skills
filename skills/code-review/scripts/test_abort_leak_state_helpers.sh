@@ -28,6 +28,22 @@ cleanup_all() {
   rm -rf "$TMP"
 }
 KIDS=""
+# Own it only while it is outstanding. A pid that has been reaped is a number the OS is
+# free to hand to somebody else, so leaving it in KIDS turns the EXIT trap into a signal
+# aimed at a stranger — and this repo runs suites eight-way parallel, so the stranger is
+# plausibly another lane. Same rule the probe under test applies before it signals
+# anything: prove current ownership, never trust a cached pid.
+drop_kid() {
+  local keep="" k
+  for k in ${KIDS:-}; do [ "$k" = "$1" ] || keep="$keep $k"; done
+  KIDS="$keep"
+}
+reap_kid() { # reap_kid <pid> — stop owning it the moment it is reaped
+  kill -CONT "$1" 2>/dev/null
+  kill -KILL "$1" 2>/dev/null
+  wait "$1" 2>/dev/null
+  drop_kid "$1"
+}
 trap cleanup_all EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM HUP
@@ -68,9 +84,7 @@ else
   ok
 fi
 
-kill -CONT "$live_pid" 2>/dev/null
-kill -KILL "$live_pid" 2>/dev/null
-wait "$live_pid" 2>/dev/null
+reap_kid "$live_pid"
 suite_pid="$live_pid"
 if await_suite_exit; then ok; else note "await_suite_exit must report a reaped child as gone"; fi
 
@@ -110,6 +124,7 @@ if [ -n "$zpid" ]; then
 else
   note "could not construct a zombie to test against"
 fi
+reap_kid "$zparent"
 
 # A `ps` that cannot run is not a process that is gone. Shadow ps with a stub that
 # exits 127 and prove the state reads unknown, and that await_suite_exit does NOT then
@@ -126,7 +141,7 @@ if PATH="$psdir:$PATH" await_suite_exit; then
 else
   ok
 fi
-kill -KILL "$unknown_pid" 2>/dev/null; wait "$unknown_pid" 2>/dev/null
+reap_kid "$unknown_pid"
 
 printf 'abort_leak_state_helpers: pass=%s fail=%s\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1

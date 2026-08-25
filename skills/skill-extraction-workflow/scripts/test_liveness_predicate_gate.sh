@@ -257,6 +257,32 @@ run_gate "$r"
 if [ "$RC" -eq 0 ]; then ok
 else note "p12b a real one-line state helper must clear the line (rc=$RC): $OUT"; fi
 
+# --- P13/P14: the DOCUMENTED limit, pinned rather than left in prose -----------
+# These two assert the gate does NOT fire, which is a hole, not a feature: a state read
+# of a different pid, or one whose result is discarded, still clears the window. Proving
+# a read GOVERNS the verdict needs dataflow over a parsed shell, so the mechanical gate
+# stops here by design (recurring-anti-patterns-checklist.md, Anti-pattern 28).
+# They are here so the limit is exercised, not merely described: if a future change makes
+# the gate stricter these go red, and whoever tightened it must update the checklist
+# rather than discover the prose had silently gone stale.
+r=$(mk_root limit_other_pid)
+{ printf '#!/usr/bin/env bash\n'
+  printf 'ps -o stat= -p "$other_pid" >/dev/null\n'
+  printf '%s\n' "$VIOLATION"
+} > "$r/scripts/test_probe.sh"
+run_gate "$r"
+if [ "$RC" -eq 0 ]; then ok
+else note "p13 KNOWN LIMIT CHANGED: a different-pid state read now fires — update the checklist (rc=$RC)"; fi
+
+r=$(mk_root limit_discarded)
+{ printf '#!/usr/bin/env bash\n'
+  printf 'ps -o stat= -p "$pid" >/dev/null\n'
+  printf '%s\n' "$VIOLATION"
+} > "$r/scripts/test_probe.sh"
+run_gate "$r"
+if [ "$RC" -eq 0 ]; then ok
+else note "p14 KNOWN LIMIT CHANGED: a discarded same-pid state read now fires — update the checklist (rc=$RC)"; fi
+
 printf 'liveness_predicate_gate: pass=%s fail=%s\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1
 echo "liveness_predicate_gate_ok"
