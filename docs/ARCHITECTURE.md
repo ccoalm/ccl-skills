@@ -9,8 +9,6 @@
 | superpowers | 仅少数能力被条件 route(worktree / 写计划 / writing-skills):装了就 route,没装按本仓技能内联原则执行,不留悬空引用 |
 | gstack | 对标参考源:benchmark 找 gap 时比对,不是运行时依赖 |
 
-> 历史备注:本仓最初按「三层分工」(superpowers 通用方法 / gstack 工具运行时 / 本仓业务规则)设计,实践后收敛为上述「唯一入口 + 条件性外部包」;本文的三层旧表述长期未随之更新,2026-08 修正。教训照旧:给人读的文档没有门禁守护,权威始终在可执行面(技能文本、注入、hook)。
-
 ## 目录结构
 
 | 路径 | 作用 |
@@ -81,7 +79,7 @@ owner 之间的关系边按作用分四组：路由与边界（入口分派、Sk
 
   看末行:`ccl_skill_check_clean_ok` 才是干净落地;`ccl_skill_check_interim_ok` 表示私有泄漏审计没跑过——可 push、可开 MR,但不可标 clean。
 - **阻断项**:R0 泄漏、结构与元数据、路由存在性与跨包引用、入口体积增量(单入口 50KB / `agent-context/session-start.md` 净增长)、语义同步、影响链登记。以门禁输出和对应 validator/reference 为准。
-- **建议层(不挡合并)**:`make eval-routing-bank`(廉价模型路由回归)、`make eval-golden-trace`(真 agent hub 回放)、`make eval-health`(综合分与趋势);方案见 [F4 技能有效性 Harness](f4-skill-effectiveness-harness.md)。
+- **建议层(不挡合并)**:`make eval-routing-bank`(廉价模型路由回归)、`make eval-golden-trace`(真 agent hub 回放)、`make eval-health`(描述性信号仪表盘);判定边界见 [F4 技能有效性 Harness](f4-skill-effectiveness-harness.md)。
 - **不在这条命令里的门**:dual-track 评审(独立 review + adversarial challenge,评审员由 `code-review` 挑)、契约同步(`check-agent-contract-coverage.sh`)。
 
 贡献流程见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。

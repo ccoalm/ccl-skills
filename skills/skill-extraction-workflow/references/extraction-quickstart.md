@@ -6,7 +6,7 @@ For maintainers running a fresh codebase / Figma / doc extraction. Read this fir
 
 ```
 0. Charter        → ~/.<host>/skills/.extraction-work/<project>-charter.md
-                    Purpose / Scope / Depth / RCA baseline / Open questions
+                    Purpose / Scope / Depth / Result baseline / Open questions
                           │
 1. Source register → ~/.<host>/skills/.extraction-work/<project>-source-register.md
                     Each row: source id / class / status / target skill / extracted mechanisms
@@ -43,7 +43,8 @@ For maintainers running a fresh codebase / Figma / doc extraction. Read this fir
 
 - Owner: maintainer
 - Location: `~/.<host>/skills/.extraction-work/<project>-charter.md`
-- Required fields: Purpose, Scope, Depth, Root cause (Deep RCA: widen → counterfactual-test → control), Failure modes, Lifecycle impact, Evidence plan, Completion standard.
+- Required fields: Purpose, Scope, Depth, Result classification, matching analysis, Failure modes or success-reuse conditions, Lifecycle impact, Evidence plan, Completion standard.
+- Result classification: failure/correction → Deep RCA (widen → counterfactual-test → control); stable success → mechanism + non-luck evidence + reuse conditions + firing point + owner; unstable/insufficient evidence → observation only.
 - Full structure: `SKILL.md` Core Workflow Step 0.
 - Output: a file the maintainer can re-read in 3 months and understand what they were trying to do.
 

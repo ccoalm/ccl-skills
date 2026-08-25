@@ -514,6 +514,159 @@ if [[ -n "${gid_hits//[$'\n']/}" ]]; then
 fi
 echo "git_identity_predicate_scan_ok"
 
+# Anti-pattern 28 — process liveness decided by an EXISTENCE test that a corpse answers
+# (see references/recurring-anti-patterns-checklist.md). A pid whose process has exited
+# but has not been reaped is still in the process table: it answers `kill -0`, and its
+# ppid still reads — as 1 once it is reparented. A check that concludes "alive" or
+# "orphaned and alive" from existence alone therefore says yes about a corpse, while the
+# verdict scans in the same suite exclude zombies and say gone — one process state, two
+# answers, and a probe that reds while the code under test is behaving.
+# Promoted from checklist to gate because the class recurred three times in CI on the
+# abort-leak probe, each time on a different assertion, each time asserting the probe's
+# environment rather than the suite.
+# Scope: `test_*.sh` / `test.sh` under the repo — the surface where such a predicate is a
+# TEST VERDICT rather than a signalling guard. Excluded on purpose: non-test shell (a
+# `kill -0` before signalling asks about existence, which is the right question there),
+# and WHOLE-LINE comments (this comment block names the banned spelling).
+# The predicate is the orphan-oracle shape specifically: a `ps -o ppid=` read compared
+# against init's pid on the same line. That shape has exactly one meaning — "has this
+# been reparented, i.e. is it a live orphan" — so precision is high; a ppid read used to
+# IDENTIFY a parent (the common use) is untouched. A process-state consult (`stat=` or a
+# helper whose name ends in `_state`) within the window clears the line, which is the fix.
+# Recall limits — stated so the contract is not overclaimed, per the checklist's
+# promotion guidance (high precision plus a documented recall limit beats broad matching
+# for a BLOCKING gate):
+#   1. `while kill -0 "$pid"` watchdog loops are NOT flagged. Two exist here; both wait on
+#      a direct child and `wait` for it immediately after, so the shell reaps it and the
+#      loop ends — a narrower risk than the shape above, and forcing churn on them would
+#      trade a real false-positive cost for an unproven gain.
+#   2. a liveness branch spelled with a bare `kill -0` inside a loop BODY.
+#   3. any dynamic or indirect spelling.
+# Those stay checklist plus adversarial-challenge checks.
+liveness_hits=""
+liveness_list=$(mktemp "${TMPDIR:-/tmp}/ccl-skills-liveness.XXXXXX") || {
+  echo "liveness_predicate_scan_error: mktemp failed" >&2; exit 1; }
+# Guarded rather than the `${var:-/dev/null}` idiom: this trap is installed
+# unconditionally, so an unset var would make the cleanup `rm -f /dev/null` — a no-op for
+# an unprivileged user and a deleted device node for a root container. Never name a path
+# in a removal that a fallback can turn into someone else's file.
+liveness_scan_cleanup() {
+  [ -n "${liveness_list:-}" ] && [ -e "${liveness_list:-}" ] && rm -f "$liveness_list"
+  [ -n "${gid_list:-}" ] && [ -e "${gid_list:-}" ] && rm -f "$gid_list"
+  return 0
+}
+trap liveness_scan_cleanup EXIT
+# Same traversal hardening as Anti-pattern 27, and for the same reason: every leg here
+# exists because its absence makes the gate print "ok" for a scan that did not happen.
+if find -L "$root" -name '*.sh' -type f -print0 > "$liveness_list" 2>/dev/null; then
+  liveness_find_rc=0
+else
+  liveness_find_rc=$?
+fi
+if [[ "$liveness_find_rc" -ne 0 ]]; then
+  rm -f "$liveness_list"
+  echo "liveness_predicate_scan_error: find exited $liveness_find_rc — the walk is INCOMPLETE, which is not the same as clean" >&2
+  exit 1
+fi
+while IFS= read -r -d '' liveness_file; do
+  [[ -n "$liveness_file" ]] || continue
+  case "${liveness_file##*/}" in test_*.sh|test.sh) : ;; *) continue ;; esac
+  # `[^=]*[^!=]=` rather than `.*=`: an unrestricted `.*` swallows the `!` of a `!=`, so
+  # the negated assertion `[ "$(ps -o ppid= -p "$pid")" != "1" ]` — which checks a process
+  # is NOT reparented, the opposite of the banned oracle — was reported as a violation.
+  # A false positive on a blocking gate is the failure this checklist's promotion
+  # guidance weighs heaviest, because it is what gets a gate loosened until it catches
+  # nothing.
+  if liveness_out="$(grep -nE 'ps[[:space:]]+-o[[:space:]]+ppid=[^=]*[^!=]=[[:space:]]*"?1"?[[:space:]]*\]' "$liveness_file" 2>/dev/null)"; then
+    liveness_rc=0
+  else
+    liveness_rc=$?
+  fi
+  if [[ "$liveness_rc" -gt 1 ]]; then
+    rm -f "$liveness_list"
+    echo "liveness_predicate_scan_error: grep exited $liveness_rc while scanning ${liveness_file#"$root"/} — unreadable or I/O failure means the result is UNKNOWN, not clean" >&2
+    exit 1
+  fi
+  [[ "$liveness_rc" -eq 0 ]] || continue
+  while IFS= read -r liveness_line; do
+    [[ -n "$liveness_line" ]] || continue
+    liveness_no="${liveness_line%%:*}"
+    liveness_text="${liveness_line#*:}"
+    [[ "$liveness_text" =~ ^[[:space:]]*# ]] && continue
+    # Window clear: a process-state consult within two lines either side is the fix, so
+    # a corrected site stops being reported without needing a waiver marker.
+    liveness_lo=$(( liveness_no > 2 ? liveness_no - 2 : 1 ))
+    liveness_hi=$(( liveness_no + 2 ))
+    # Whole-line comments are dropped before the window is inspected: a prose mention
+    # such as a TODO naming the helper would otherwise clear a real violation beside it,
+    # and the gate would print ok for a line it had actually found. The waiver must be
+    # CODE that consults process state, not a note saying someone should.
+    # Only WHOLE-LINE comments are dropped, matching how the hit line itself is filtered.
+    # Stripping trailing comments would need to decide whether a `#` opens a comment or
+    # belongs to `${var#prefix}`, which needs a shell parser — the same call Anti-pattern
+    # 27 makes above. Recall limit: a mention in a TRAILING comment can still clear the
+    # window; the checklist row records it.
+    liveness_win="$(sed -n "${liveness_lo},${liveness_hi}p" "$liveness_file" 2>/dev/null |
+                      grep -vE '^[[:space:]]*#' || true)"
+    # A direct `ps -o stat=` in the window is the consult itself. Anchored on `-o stat=`
+    # rather than bare `stat=`: an unrelated assignment such as `stat=unknown` is not a
+    # process-state read, and accepting it was the fourth way this waiver was found to
+    # clear a real hit.
+    if printf '%s' "$liveness_win" | grep -qE '\-o[[:space:]]*stat='; then
+      continue
+    fi
+    # Otherwise the window may CALL a state helper — but only one this file actually
+    # defines and which itself consults process state. Accepting any `*_state` token
+    # made an unrelated `record_state "$pid"` read as remediation and skipped a real
+    # hit, which is a hole rather than a stated recall limit.
+    # The file must also actually consult process state somewhere, so a file with no
+    # `stat=` at all cannot be cleared by a bookkeeping helper that merely ends in
+    # `_state`. Recall limit: a file that separately defines such a helper AND reads
+    # process state elsewhere clears the window without proving the two are connected —
+    # tying a call to its definition needs a shell parser, the same call made above.
+    # Deliberately POSIX-portable: `\b` and BSD-sed `\?` are not, and a silently failing
+    # match here would loosen the gate on exactly the host that runs it most.
+    # The named helper's OWN BODY must reach a process-state read. Checking "the file
+    # defines it" and "the file reads state somewhere" as two independent facts let a
+    # hollow helper plus an unrelated `ps -o stat=` elsewhere clear a real hit — the two
+    # conditions were never tied to each other. awk rather than sed: BSD sed lacks `\?`
+    # and a silently failing match here loosens the gate on the host that runs it most.
+    liveness_helper_ok=0
+    while IFS= read -r liveness_helper; do
+      [[ -n "$liveness_helper" ]] || continue
+      if awk -v fn="$liveness_helper" '
+           $0 ~ "^[[:space:]]*(function[[:space:]]+)?" fn "[[:space:]]*\\(\\)" {
+             # The declaration line is part of the body: a one-line definition both opens
+             # and closes here. Skipping it with a bare `next` left `inbody` set through
+             # `fn() { echo live; }` and credited the NEXT function\047s state read to this
+             # hollow one.
+             if ($0 ~ /-o[[:space:]]*stat=/) { found = 1; exit }
+             if ($0 ~ /}/) { exit }
+             inbody = 1
+             next
+           }
+           inbody && /-o[[:space:]]*stat=/ { found = 1; exit }
+           inbody && /^[[:space:]]*}/ { exit }
+           END { exit !found }
+         ' "$liveness_file" 2>/dev/null; then
+        liveness_helper_ok=1
+        break
+      fi
+    done < <(printf '%s\n' "$liveness_win" | grep -oE '[A-Za-z_][A-Za-z0-9_]*_state' | sort -u)
+    [[ "$liveness_helper_ok" -eq 1 ]] && continue
+    liveness_hits+="${liveness_file#"$root"/}:$liveness_line"$'\n'
+  done <<< "$liveness_out"
+done < "$liveness_list"
+rm -f "$liveness_list"
+if [[ -n "${liveness_hits//[$'\n']/}" ]]; then
+  # Trailing newline restored explicitly: command substitution strips it, which ran the
+  # last hit and the diagnosis together on one line.
+  printf '%s\n' "$(printf '%s' "$liveness_hits" | sort)"
+  echo "liveness_predicate_scan_failed: the lines above decide that a process is a LIVE orphan from a ppid read alone, which an unreaped corpse answers the same way — the check says alive while the suite's own verdict scans exclude zombies and say gone. Consult process STATE (\`ps -o stat=\`, or a helper that returns live/zombie/absent) before concluding liveness. See skill-extraction-workflow/references/recurring-anti-patterns-checklist.md (Anti-pattern 28)." >&2
+  exit 1
+fi
+echo "liveness_predicate_scan_ok"
+
 # Evidence-card leak PREFLIGHT (best-effort, NOT the gate of record): catches obvious
 # card-shaped markdown accidentally committed under skills/** (L0 storage rule, see
 # l0-l1-l2-routing.md). Delegated to a dedicated, self-tested detector. The gate runs the

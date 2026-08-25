@@ -1,13 +1,13 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# F4 health roll-up — advisory composite score (0-10) + trend over time.
+# F4 signal dashboard — advisory display roll-up (0-10) + same-stick change.
 #
-# Rolls the F4 signals up into ONE weighted 0-10 number plus a trend, so the
-# question "is the skill repo trending healthier or worse?" has an answer. This
-# is the pattern OpenSSF Scorecard uses for repos (per-check 0-10 -> risk-weighted
-# aggregate 0-10, tracked over time); gstack-health uses the same shape for code
-# repos. We adapt it to F4 skill-eval signals — we do NOT score code tools.
+# Shows the F4 dimensions together and retains a weighted 0-10 display value plus
+# a same-corpus/dimensions delta for compatibility with existing reports. The
+# shape resembles OpenSSF Scorecard, but the value is not a verdict that the
+# skill repository is globally better or worse: these dimensions have different
+# semantics, and a quality or safety failure is never averaged away.
 #
 # Dimensions (each scored 0-10, risk-weighted OpenSSF-style):
 #   structural      weight 10 (Critical)  — validate-skill.sh: skills load / no leakage
@@ -29,7 +29,8 @@
 # (structural validation + Tier-1 blocking findings) remain the source of truth
 # and block independently of this score. Per Goodhart's law ("when a measure
 # becomes a target, it ceases to be a good measure"), a composite that became a
-# merge gate would just get gamed; it stays a lens, not a gate. The history file
+# merge gate would just get gamed; it stays a navigation lens, not a gate or an
+# acceptance grade. The history file
 # is git-ignored for the same reason — a committed number invites tuning the
 # number instead of the repo.
 #
@@ -289,7 +290,14 @@ unless no_write
 end
 
 report = entry.merge(
+  # `band` keeps its name and values for existing report consumers, but the
+  # machine surface must not be the one place the withdrawal does not reach: a
+  # consumer reads this JSON, not the header line, and CLEAN / WARNING / NEEDS
+  # WORK / CRITICAL is grade vocabulary that gets quoted as an acceptance verdict.
+  # The qualifier therefore travels as its own field rather than only in `puts`.
   "band" => band(composite),
+  "band_semantics" => "navigation-only display label; not an acceptance grade or an overall-quality verdict",
+  "score_semantics" => "weighted display roll-up over the dims present in this run; comparable only against the same corpus and dims",
   "weights_present" => present.to_h { |k, _| [k.to_s, RISK[k]] },
   "details" => dims.to_h { |k, d| [k.to_s, d[:detail]] },
   "trend" => trend,
@@ -306,13 +314,18 @@ if out_json
 end
 
 unless quiet
-  puts "F4 HEALTH ROLL-UP (advisory — not a gate)"
+  puts "F4 SIGNAL DASHBOARD (advisory — not a gate or overall-quality verdict)"
   puts "  repo=#{repo_sha} corpus=#{corpus} dims=#{present_dims.join(',')}"
   dims.each do |k, d|
     s = d[:score].nil? ? "  -  " : format("%2d/10", d[:score])
     puts "  #{k.to_s.ljust(15)} #{s}  #{d[:detail]}"
   end
-  puts "  COMPOSITE  #{format('%.1f', composite)}/10  #{band(composite)}"
+  # The band label carries grade vocabulary (CLEAN / WARNING / NEEDS WORK /
+  # CRITICAL) that reads as an acceptance verdict and gets quoted downstream as
+  # one. The header withdrew that claim; printing the bare label next to the
+  # number would have left the executable surface contradicting the withdrawal,
+  # so the qualifier travels with the label rather than only with the header.
+  puts "  DISPLAY ROLL-UP  #{format('%.1f', composite)}/10  #{band(composite)} (navigation only, not an acceptance grade)"
   if prior_comparable
     arrow = trend.positive? ? "IMPROVING +#{trend}" : (trend.negative? ? "DECLINING #{trend}" : "FLAT")
     puts "  trend vs #{prior_comparable['repo_sha']} (same corpus+dims): #{arrow}"
@@ -321,7 +334,7 @@ unless quiet
   else
     puts "  trend: first run — no history yet"
   end
-  puts "  (binary gates still block independently of this number; history=#{history}, git-ignored)"
+  puts "  (inspect dimensions and task evidence; gates block independently; history=#{history}, git-ignored)"
 end
 
 exit 0
