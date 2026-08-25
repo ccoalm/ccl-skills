@@ -147,13 +147,13 @@ skill 改动后，让 agent 重跑这条 trace，**结构性偏离 = 回归信�
 
 **用时机**：操作层月级别稳定 + 要做一次 system-wide 换层/瘦身时;把它当"换层前的对抗性回归证据",不是频繁迭代期的日常闸。
 
-### 3.4 Composite health score + trend（综合分,advisory roll-up）
+### 3.4 Health signal dashboard（描述性 roll-up）
 
-3.1–3.3 都是**单次**判定(这次改动好不好、这条 trace 偏没偏、这次换层纪律掉没掉);即便 3.3 横跨一整个夹具集,判的仍是**某一次改动**的即时行为。缺的是**跨时间的一个数**:仓库整体在变好还是变差。
+3.1–3.3 都保留各自的判定对象；跨时间还需要一个快速入口，显示本次有哪些信号在场、哪些维度变化，方便继续下钻。
 
-**外部锚**:OpenSSF Scorecard 给代码仓的做法是 —— 每个 check 0–10,再**按风险加权**聚合成一个 0–10 总分(Critical=10 / High=7.5 / Medium=5 / Low=2.5),并跨时间追。gstack-health 给代码仓同形态(加权 composite + 历史趋势 + dashboard)。**这是成熟业内形态,不是某一家发明的**。
+**外部锚**:OpenSSF Scorecard 用每个 check 0–10、风险加权聚合和历史变化展示代码仓信号。这里仅借它的**展示形态**，不继承“一个总分代表整体健康”的解释。
 
-**我们的映射(route-not-copy:不打分代码工具,套到 F4 信号上)**:`eval-health.rb` 把四个信号卷成一个加权 0–10 + 趋势 ——
+**我们的映射(route-not-copy)**:`eval-health.rb` 展示四个信号，并保留一个兼容既有实现的加权 0–10 值与同尺子变化 ——
 
 | 维度 | 风险/权重 | 0–10 来源 |
 |---|---|---|
@@ -164,12 +164,13 @@ skill 改动后，让 agent 重跑这条 trace，**结构性偏离 = 回归信�
 
 `composite = Σ(score·weight) / Σ(weight)`,只算在场维(skip 维权重重分,同 OpenSSF/gstack)。确定性两维自动跑,T2/T3 喂报告进来(否则 skip)。契约见 [eval-routing.md](eval-routing.md) 的 Health roll-up 节。
 
-**两条不可省的护栏**(否则这个数会骗人):
+**三条不可省的护栏**:
 
 1. **advisory,不当 gate**(Goodhart):度量变成 target 就被博弈。综合分**永不接门禁**,二元门禁(结构 + T1 blocking)仍独立挡 merge;历史文件 git-ignore,免得"committed 的数"招人调数不修仓。
 2. **corpus/version 守卫**:T2/T3 的 task-bank、golden-traces **本身会变**。加 10 条简单 task,pass-rate 涨了但仓没变好 —— **尺子换了**。每条历史记 `corpus` 指纹(输入内容 hash)+ 在场 `dims`;**趋势只跟 `(corpus, dims)` 全同的历史比**,否则 baseline reset 不偷偷比。等价于 gstack-health "尺子变了就从新基线重新追"。
+3. **不平均掉质量失败**:结构、路由、真实回放和任务结果的语义不同；任何质量或安全阻断仍由自己的门禁决定，不能被其它维度的高值抵消。
 
-**用**:周期性(nightly / 改动后)看一眼仓库 health 趋势,**辅助判断**,不替代任何门禁。**不用**:别把它当通过标准、别committed、别跨 corpus 硬比。
+**用**:周期性看一眼信号变化并下钻。**不用**:别据此单独声称仓库整体变好/变差，别把它当通过标准、别 committed、别跨 corpus 硬比。
 
 ---
 

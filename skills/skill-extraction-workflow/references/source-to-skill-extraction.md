@@ -46,12 +46,12 @@ Use this before reading deeply or editing any skill. The charter is the guardrai
 
 | Field | Required answer |
 | --- | --- |
-| Purpose | What future failure, repeated correction, workflow drift, or quality bar should this extraction prevent? |
+| Purpose | What future failure or drift should this extraction prevent, or what evidenced success mechanism should it preserve and reuse? |
 | Scope | Which skill(s), source classes, users/tasks, and sibling boundaries are in scope? What is out of scope? For an iterative-program source (multi-round research/writing/delivery), also answer: does a project-local `covered-through` watermark exist, and what does this round cover above it? (see the watermark rule under Task Retrospective Extraction) |
 | Depth | Is this wording cleanup/no new source read, targeted check, file-level refresh, node/artifact inventory, full workflow extraction, or generator/tooling change? |
-| Root cause | Why does the current skill, workflow, source practice, or prior extraction fail? |
-| RCA analysis | The scaled move from observed issue to controllable prevention point(s): wording-only gets one concise ambiguity/typo sentence; small non-wording gets a widen-check plus control; non-trivial failures use Deep RCA. |
-| Failure mode analysis | What future bad output, workflow drift, domain leakage, shallow guidance, or missing verification would happen if the extraction is weak? |
+| Result classification | Is the observed result a failure/correction, stable success, or unstable/insufficient evidence? What observation supports that classification? |
+| Matching analysis | Failure/correction: scaled RCA from observed issue to controllable prevention. Stable success: reusable mechanism, non-luck evidence, reuse conditions, firing point, and owner. Unstable/insufficient evidence: what remains unknown and why no executable rule lands yet. |
+| Failure mode or success boundary | What bad output would weak extraction permit, or under which conditions would the success mechanism stop transferring? |
 | Lifecycle impact | Which stages are affected: product intent, design/UX, implementation, debugging, testing, launch acceptance, iteration feedback, team onboarding, and use without source access? |
 | Evidence plan | Which source categories must be inspected, routed, discarded, or marked unavailable? For a task/session retrospective over a session that produced artifacts, the FIRST source class listed MUST be those produced artifacts (deliverables, reports, scripts, datasets — the a0 enumeration, owed at charter time, not only before an exhaustion claim); a session with genuinely no produced artifacts records an explicit `produced artifacts: not-applicable` entry carrying the reason, the minimum checked surfaces (deliverable directories, script/output locations, dataset paths), and a resolvable inventory-check locator — the command or listing that establishes absence — instead of the class. Either way, correction turns and the agent's own summaries are friction-biased digests — they record only what rubbed, so what went RIGHT is structurally invisible in them — and cannot substitute for the artifact class or excuse skipping the check. |
 | Completion standard | What pressure scenario, independent review, command, install check, or source-map evidence proves done? |
@@ -82,30 +82,30 @@ If the user asks for complete, deep, full, or repeat extraction, or challenges s
 
 Before a source portfolio can confirm or contradict a reusable rule, classify it as `stable` (in production, not slated for replacement), `evolving` (actively iterating, design not frozen), `legacy-deprecating` (scheduled for retirement), or `mixed`. Only `stable` portfolios can be used as confirmation/contradiction baseline. `Evolving`, `legacy-deprecating`, and `mixed` portfolios are audit/anti-pattern signals unless the extraction is explicitly downscoped to that status; state the long-lived caveat reason instead of implying future verification will upgrade it automatically.
 
-## Baseline RCA For Every Extraction
+## Result-Learning Baseline For Every Extraction
 
-Use correction RCA after a known failure, but do not wait for a failure to reason about root cause. Every extraction starts with baseline RCA; scale the detail to the task size:
+Classify the result before choosing an analysis method:
 
-| Question | Required answer |
-| --- | --- |
-| Future failure | What concrete bad work would a future agent produce without this extraction? |
-| Enabling cause | What gap in the current skill/process/source understanding allows that bad work? |
-| Prevention mechanism | What rule, recipe, matrix, validation, source register, or routing change would prevent it? |
-| Owning layer | Which skill owns the prevention: extraction workflow, product workflow, design, web, app, backend, testing, LLM, or a project artifact? |
-| Proof | What source evidence and pressure scenario will show the prevention works? |
+| Result class | Required analysis | Landing condition |
+| --- | --- | --- |
+| Failure or correction | Future bad outcome, contributing factors, counterfactual ranking, controllable prevention, firing path, and owner | Evidence shows the control addresses the failure class; known failures use correction RCA |
+| Stable success | Mechanism that produced the result, evidence it recurs and is not luck, reuse conditions and transfer boundary, firing point, and owner | The mechanism is observable and reusable; praise or a single good run is insufficient |
+| Unstable or insufficient evidence | What was observed, competing explanations, and missing evidence | Observation only; no executable rule until the classification becomes supportable |
 
-Minimum RCA depth:
+**The classification is not self-elective.** Two of the three classes skip RCA, and the agent choosing the class is the same agent whose work the RCA would examine — so left to the author the cheap classes are always available. Therefore:
 
-- Wording cleanup: one sentence future failure and owner.
-- Targeted check: future failure, source boundary, and proof.
-- File-level or broader extraction: full table above, plus lifecycle impact, run through the Deep RCA five moves below (the table's single "enabling cause" row becomes the *set* of contributing factors).
-- Broad or multi-skill extraction: full table above, source register, target-output map, independent review, and the Deep RCA five moves below.
+- An extraction triggered by a correction, a review finding, a failed run, a regression, or a user pointing out a miss is **`Failure or correction` by default**, whatever the author's own reading of it.
+- Relabelling such an extraction into `Stable success` or `Unstable or insufficient evidence` is a claim the **independent review must accept**; the author recording the relabel is not the adjudication, and neither is a reason written into the round artifact.
+- Every classification carries the observation that would **disconfirm** it — for `Stable success`, what would show the result was luck; for `Unstable`, what evidence would settle it. A class with no disconfirming observation named is unrecorded, not recorded-and-passed.
+- Missing classification, an unaccepted relabel, or missing matching analysis leaves the extraction `interim`, and `interim` is a state the closeout reports rather than a label the author clears.
 
-If the RCA reveals the requested work is really a product decision, architecture decision, test strategy, design readiness issue, source-access problem, or sibling-skill update, route it before editing the target skill.
+Scale depth to the task. Wording cleanup records one concise classification and owner. A small non-wording failure gets a widen-check plus control; a non-trivial failure uses Deep RCA. A stable-success extraction increases evidence depth with the breadth of the reuse claim. Broad or multi-skill extraction also requires the source register, target-output map, and independent review.
+
+If the analysis reveals a product decision, architecture decision, test strategy, design readiness issue, source-access problem, or sibling-skill update, route it before editing the target skill.
 
 ### Deep RCA For Extraction
 
-RCA is the required outcome; 5 Why is only the **entry technique** to get past a visible symptom. Used alone it has a documented failure mode: it traces ONE linear chain to ONE "root cause", is bounded by the investigator's current knowledge, is non-reproducible (different agents reach different ends), and the word "why" drifts toward "who" (blame) and toward hindsight. Most process/agent failures are not single-cause — overt failure requires several contributing causes to coincide — so for any non-trivial extraction run the fuller method below, not just a why-chain. (For pure wording cleanup — the strict wording-only test, no trigger/scope/routing/validation/owner-meaning change — a one-line why is enough.)
+For a failure or correction, a causal account is required; 5 Why is only the **entry technique** to get past a visible symptom. Used alone it has a documented failure mode: it traces ONE linear chain to ONE "root cause", is bounded by the investigator's current knowledge, is non-reproducible (different agents reach different ends), and the word "why" drifts toward "who" (blame) and toward hindsight. Most process/agent failures are not single-cause — overt failure requires several contributing causes to coincide — so for any non-trivial failure extraction run the fuller method below, not just a why-chain. Stable success uses the Result-Learning baseline above instead of inventing a failure. (For pure wording cleanup — the strict wording-only test, no trigger/scope/routing/validation/owner-meaning change — one concise classification is enough.)
 
 Do not force exactly five questions, and do not accept a single straight chain. Ask enough "why" to leave the symptom; ask "how/what conditions" to widen; stop a branch once its next action is concrete and owned.
 
@@ -170,18 +170,17 @@ Source-specific prompts (where each branch's RCA should resolve):
 
 ## Task Retrospective Extraction
 
-Use this when the user asks to summarize this task, summarize lessons learned, review what went wrong, or turn the current session into reusable team practice.
+Use this when the user asks to summarize this task, summarize lessons learned, review what went wrong or right, or turn the current session into reusable team practice.
 
-The current task is a source, but it is not automatically a skill rule. Treat task history as evidence and run RCA before writing any durable lesson.
+The current task is a source, but it is not automatically a skill rule. Treat task history as evidence and classify each result before choosing RCA, success-mechanism attribution, or observation-only treatment.
 
 Required flow:
 
 1. Define the task boundary: which user request, implementation slice, review, bug, correction, or validation result is being summarized.
-2. Run baseline RCA or correction RCA:
-   - What future bad outcome would repeat without a rule?
-   - What enabled the issue in this task?
-   - Which gate would have caught it earlier?
-   - Which skill, validator, shared project doc, memory note, repo doc, or final-response rule owns the prevention?
+2. Classify the result and run the matching analysis:
+   - Failure/correction: what bad outcome would repeat, which factors enabled it, which control should have caught it, and which owner must carry the prevention?
+   - Stable success: what mechanism produced the result, what proves it was not luck, under which conditions it transfers, where it should fire again, and who owns it?
+   - Unstable/insufficient evidence: which explanations remain open and what evidence is missing? Keep it as an observation.
    - For delivery-chain failures, ask why the requirement/contract was not defined correctly, why implementation could proceed by inference, why unit/contract/integration/E2E tests or review/MR readiness did not block it, and why any earlier retrospective missed the deeper cause; land prevention at every failed owning layer, not only one target skill.
 3. Classify each lesson:
    - `skill`: reusable agent behavior that belongs in an existing or new skill.
@@ -195,9 +194,9 @@ Required flow:
 
 Minimum retrospective table:
 
-| Task event or correction | RCA summary | Lesson classification | Durable owner | Verification |
+| Task result | Result analysis | Lesson classification | Durable owner | Verification |
 | --- | --- | --- | --- | --- |
-| What happened | Future failure, enabling cause, prevention mechanism | skill / validator / project artifact / memory / final response only | File, skill, script, shared artifact, memory note for local preference only, or no-skill reason | Diff, command, review, or explicit non-skill reason |
+| What happened; failure, stable success, or insufficient evidence | RCA; or success mechanism + non-luck evidence + reuse boundary; or observation-only reason | skill / validator / project artifact / memory / final response only | File, skill, script, shared artifact, memory note for local preference only, or no-skill reason | Diff, command, review, or explicit non-skill reason |
 
 ### LARGE-Session Lesson Axes And The Delivery-State Axis
 

@@ -105,6 +105,13 @@ run_fail challenge '{"subtype":"success","is_error":false,"structured_output":{"
 run_fail challenge '{"type":"result","structured_output":{"mode":"challenge","findings":[]}}'
 run_fail challenge '{"structured_output":{"mode":"challenge","findings":[]}}'
 run_fail challenge '{"type":"result","subtype":"success","is_error":false,"api_error_status":429,"terminal_reason":"completed","structured_output":{"mode":"challenge","findings":[]}}'
+# Twin of the 429 row for the status the envelope classifier now maps to `auth`.
+# The ordering between this parser and that classifier is what decides whether a
+# transport-flagged envelope can still be read as a completed verdict, and until
+# now only 429 pinned it. Pinned here rather than left to prose: an envelope
+# carrying ANY api_error_status is not a clean verdict, so adding an auth arm
+# downstream cannot turn one into a verdict-dropping regression unnoticed.
+run_fail challenge '{"type":"result","subtype":"success","is_error":false,"api_error_status":401,"terminal_reason":"completed","structured_output":{"mode":"challenge","findings":[]}}'
 run_fail challenge '{"type":"result","subtype":"success","is_error":false,"terminal_reason":"max_turns","structured_output":{"mode":"challenge","findings":[]}}'
 run_fail challenge '{"type":"result","subtype":"success","is_error":false,"permission_denials":["Read"],"structured_output":{"mode":"challenge","findings":[]}}'
 run_fail challenge '{"type":"assistant","is_error":true,"structured_output":{"mode":"challenge","findings":[]}}'

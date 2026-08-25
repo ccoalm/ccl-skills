@@ -94,9 +94,10 @@ flowchart LR
 | 技能 | 思想内核 | 变成了哪条规则 | 想深入读 |
 |---|---|---|---|
 | `testing-strategy` | **测试金字塔**：在能证明该风险的最便宜那一层去证 | 每个关键场景至少一条最低层自动断言；mock 证明不了运行时集成 | [Martin Fowler 的实践版测试金字塔](https://martinfowler.com/articles/practical-test-pyramid.html) 🔗 |
+| `testing-strategy` | 测试可信度不只看“在哪层跑”，还要看 **oracle 是否独立、套件是否对错误敏感** | 迁移 / 重写用差分或等价测试；开放输入用属性测试 / fuzz；闭合边界用独立允许面；关键断言用有效 mutant 验证会因正确原因转红。mutation score 不设统一阈值 | [差分与变异的核心规则](../skills/testing-strategy/SKILL.md#core-rules)、[变异归因](../skills/testing-strategy/references/run-killing-mutation-walk.md)、[闭合契约 oracle](../skills/testing-strategy/references/design-closed-contract-oracles.md)、[架构适应度函数](../skills/testing-strategy/references/fitness-functions.md) |
 | `test-artifact-management` | 用例是结构化资产，要能和测试代码挂钩、能被追踪状态 | 用例挂 `tc(...)`；废弃走级联而不是标跳过 | 安全用例基线用 [OWASP ASVS L1](https://owasp.org/www-project-application-security-verification-standard/) |
 | `defect-diagnosis` | **人为失误是症状不是原因**，根因要追到可控的预防点 | 5 Why 不接受"不小心"当根因；事故级走无责复盘 + 多层补洞 | [Google SRE 的无责复盘](https://sre.google/sre-book/postmortem-culture/) 🔗；5 Whys（丰田生产体系） |
-| `code-review` | 评审要**独立**才有价值——同一个脑子审自己，发现不了自己的盲区 | 评审员排除与作者同模型家族；候选、范围和 owner 绑定冻结；finding 仍须追一手证据，评审结果不能授予合并权限 | [Google 的现代轻量评审实践](https://google.github.io/eng-practices/review/reviewer/looking-for.html)（上溯到 Fagan 式检查）；跨模型独立是团队取舍 |
+| `code-review` | 自审负责让实现者先收敛，独立评审负责发现剩余盲区；两者不能互相替代 | 实现者先按 owner / 风险轴自审并跑证据，再冻结候选、排除同模型家族评审员；finding 仍须追一手证据，任何评审结果都不能授予合并权限 | [Google 的现代轻量评审实践](https://google.github.io/eng-practices/review/reviewer/looking-for.html)（上溯到 Fagan 式检查）；跨模型独立与 exact-candidate 绑定是团队取舍 |
 
 ### AI 与算法
 
@@ -119,6 +120,18 @@ flowchart LR
 | `skill-extraction-workflow` | 入口只暴露路由所需信息，正文、资源和工具按需进入上下文 | `SKILL.md` 只放触发 / 路由 / 硬规则，深度进 `references/`；大工具集先检索再加载相关子集 | [Anthropic Agent Skills 的渐进披露](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)、[OpenAI Model guidance 的 tool search](https://developers.openai.com/api/docs/guides/latest-model) |
 | `skill-extraction-workflow` | 指令优化先处理**冲突与重复**，再比较体量和加载时机；供应商指南只提供候选假设 | 一次只删改一组指令、示例或工具，用同一批代表性原任务重跑；质量过线后才比较 token、延迟、成本、调用和轮次 | [Anthropic 的上下文工程](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)、[OpenAI Model guidance](https://developers.openai.com/api/docs/guides/latest-model) |
 | `agents-file-coverage-gate` | 每个目录都该有一份 agent 开工契约 | 扫描 `AGENTS.md` 覆盖率，可补 stub、可接 CI | 文件格式对齐 [AGENTS.md 开放约定](https://agents.md/)；覆盖率要不要卡是团队取舍 |
+
+### 业界对照：Anthropic 与 OpenAI
+
+两家的能力不宜压成“都支持 Skills”一句话。**Skill 是能力封装与按需加载层；tool、handoff、多 agent、trace、guardrail 与长会话状态属于运行时编排层。** 本仓的 `SKILL.md + references + scripts` 主要对应前者，owner 路由、委托、评审、权限与度量门禁同时覆盖后者。
+
+| 观察面 | Anthropic | OpenAI | 对本仓的含义 |
+|---|---|---|---|
+| 技能封装 | [Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) 用 `SKILL.md` 元数据、正文和资源形成渐进披露；Claude Code 从文件系统发现自定义 Skill | [Skills API](https://developers.openai.com/api/reference/python/resources/skills/methods/create) 提供上传、版本与项目级资源；具体宿主仍决定何时展示和加载 | 入口保留触发与硬规则，深材料按需进入；不要把“存在一个 Skill”写成“运行时必然采用” |
+| 工具与上下文预算 | Skill 自身分层加载，执行能力仍受宿主工具与容器边界约束 | 大工具集可用 [tool search](https://developers.openai.com/api/docs/guides/latest-model) 延迟加载相关定义；长流程可用 [Responses compaction](https://developers.openai.com/api/reference/java/resources/responses/methods/compact) 延续状态 | 预算是观察和路由输入，不是跳过 owner、验证或权限门的理由 |
+| 多 agent 编排 | Skill 包不等于多 agent 控制面；委托边界仍由实际宿主和任务契约决定 | Agents SDK 明确区分 [manager-as-tools 与 handoffs](https://openai.github.io/openai-agents-python/multi_agent/)，并提供 [tracing](https://openai.github.io/openai-agents-python/tracing/) 与 [guardrails](https://openai.github.io/openai-agents-python/guardrails/) | 用 owner/生命周期/横切门禁描述协同；不要把固定链、Skill 目录或单次 handoff 当完整治理 |
+
+供应商能力以**截至 2026 年 8 月可访问的官方材料**为准；涉及产品可用性、API 字段或宿主行为时，按上面的官方链接重新核对，不把本文快照当长期既成事实。
 
 ## 规则是怎么来的
 
@@ -158,8 +171,8 @@ flowchart LR
 
 ## 规则与理论如何继续演进
 
-- **踩坑或自审改出来的新规则**：**不要为了填表去找一个理论套上去。**
-  - 先把规则本身写对——它防住的是哪个具体失败。
+- **真实结果或自审带来的规则变化**：**不要为了填表去找一个理论套上去。**
+  - 先把规则本身写对——它改善什么真实任务结果：失败类写清预防点，成功类写清要保持的机制。
   - 填表是之后的动作：想得起对应的就写，想不起来就空着或标团队取舍。**空着是准确的信息，硬填是噪音。**
 - **对标别人的做法改出来的**：记下**判据**而不只是形式——那条规则在对方那里为什么成立、什么条件下才成立。抄形式不抄判据，是这条路径最常见的失败。
 - **读理论改出来的**：把理论落到**可执行的判据**上再写进技能，否则就是空对空。同时在技能包里留下引用（留了才能标 🔗），并写清边界——哪部分借了、哪部分没声称符合。

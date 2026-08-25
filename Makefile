@@ -105,7 +105,7 @@ install-opencode-no-agent: ## 同 install-opencode，但跳过 ~/.agents/skills 
 install-opencode-commands: ## 给目标项目安装 OpenCode command（用 TARGET=/path/to/project）
 	bash scripts/install-opencode-commands.sh "$${TARGET:-.}"
 
-install-gates: ## 给产品仓一键安装 gate backstop（agent-contract + owner-dispatch + control-plane，warn-only；用 TARGET=/path/to/repo）。改阻断是后续手动一步（见 README）
+install-gates: ## 给产品仓安装 gate backstop（默认 warn-only；各 gate 按确定性与仓库就绪度单独决定是否阻断，见 README）
 	@[ -n "$(TARGET)" ] || { echo "用法: make install-gates TARGET=/path/to/repo"; exit 2; }
 	bash scripts/install-gates.sh "$(TARGET)"
 
@@ -121,7 +121,7 @@ eval-body-compliance: ## 技能正文硬规则是否真被执行（advisory；�
 eval-golden-trace: ## F4 Tier-3 hub golden trace 真 agent 回放（advisory，人工判定；需本机 claude CLI）
 	ruby skills/skill-extraction-workflow/scripts/eval-golden-trace.rb .
 
-eval-health: ## F4 health 综合分 roll-up（advisory 0-10 + 趋势；跑确定性 T1+结构，T2/T3 用 --bank-json/--trace-json 喂入）
+eval-health: ## F4 描述性信号仪表盘（advisory 0-10 显示值 + 同尺子变化；T2/T3 报告按需喂入）
 	ruby skills/skill-extraction-workflow/scripts/eval-health.rb .
 
 install-codex-cron: ## 同 install，并给 Codex 装每日 cron 伪自动更新（改 crontab）

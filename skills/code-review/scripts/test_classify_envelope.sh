@@ -49,6 +49,34 @@ expect_no_envelope() {
 }
 
 expect_token '{"type":"result","subtype":"error","is_error":true,"result":"Not logged in. Please run /login"}' auth
+expect_token '{"type":"result","subtype":"success","is_error":true,"result":"Failed to authenticate. API Error: 401 OAuth access token has expired. Re-authenticate to continue."}' auth
+expect_token '{"type":"result","subtype":"success","is_error":true,"result":"  \r\nFailed to authenticate. API Error: 401 OAuth access token has expired."}' auth
+expect_token '{"type":"result","subtype":"success","is_error":false,"api_error_status":401,"result":"authentication rejected"}' auth
+# String-serialized transport status. A bare `== 401` matches only an int, so this
+# shape used to fall through BOTH arms and land on the generic `error:success`
+# token — the exact false negative this change removes. Pinned per status so the
+# normalization cannot be dropped for one arm while the other keeps its fixture.
+expect_token '{"type":"result","subtype":"success","is_error":false,"api_error_status":"401","result":"authentication rejected"}' auth
+expect_token '{"type":"result","subtype":"success","is_error":false,"api_error_status":"429","result":"slow down"}' quota:
+# A non-numeric status is not a status: it must not be coerced into either arm.
+expect_token '{"type":"result","subtype":"error","is_error":true,"api_error_status":"unauthorized","result":"boom"}' error:
+# Nor is a bool or a float. `int(True)` is 1 and `int(401.9)` truncates to 401,
+# so a permissive coercion would let a value that is not a status code select the
+# auth arm — pinned in both directions rather than left to the reader.
+expect_token '{"type":"result","subtype":"error","is_error":true,"api_error_status":true,"result":"boom"}' error:
+expect_token '{"type":"result","subtype":"error","is_error":true,"api_error_status":401.9,"result":"boom"}' error:
+# The TEXT arm deliberately still requires an errored envelope, while the
+# STRUCTURED arm does not. The asymmetry is the trust boundary: `api_error_status`
+# is a transport field, `result` is model-controlled, so payload prose needs a
+# second signal before it can select an auth decision. A challenge argued this
+# shape reproduces the observed `error:success` defect; it does not — it exits 3
+# ("envelope present, nothing classifiable"), a different path the caller is
+# already told not to raw-text grep. Pinned so the boundary is a decision on
+# record rather than an accident, in both directions.
+expect_clean '{"type":"result","subtype":"success","is_error":false,"result":"Failed to authenticate. API Error: 401 OAuth access token has expired."}'
+expect_token '{"type":"result","subtype":"error","is_error":true,"result":"P1: authentication failed when the reviewed session expires"}' error:
+expect_token '{"type":"result","subtype":"error","is_error":true,"result":"Failed to authenticate after a dependency timeout. API Error: 500"}' error:
+expect_token '{"type":"result","subtype":"error","is_error":true,"result":"review preamble\nFailed to authenticate. API Error: 401 OAuth access token has expired."}' error:
 expect_token '{"type":"result","subtype":"error","is_error":true,"result":"API Error: rate limit exceeded"}' quota:
 expect_token '{"type":"result","subtype":"success","is_error":false,"api_error_status":429,"result":"slow down"}' quota:
 expect_token '{"type":"result","subtype":"success","is_error":false,"permission_denials":["Read"],"result":""}' permission_denied
