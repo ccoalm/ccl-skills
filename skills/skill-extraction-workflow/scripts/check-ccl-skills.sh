@@ -270,7 +270,18 @@ else
 end
 ' "$root"
 
-if leak_output="$(rg -n 'code\.[[:alnum:].-]+|figma\.com/files|[0-9]{8,}|\x{6559}\x{5e08}|\x{5b66}\x{751f}|\x{8003}\x{8bd5}|\x{5b66}\x{6821}|\x{9605}\x{5377}|\x{51fa}\x{5377}|\x{626b}\x{63cf}|\x{5b66}\x{60c5}' "$root"/skills/*/SKILL.md "$root"/skills/*/references/*.md 2>/dev/null)"; then
+# Public DOMAIN word list: a weak-proxy FALLBACK, not the authoritative R0 gate.
+# The real invariant — "this public text identifies one specific organization or
+# project" — is not decidable by a public regex, which is why the private alias
+# audit (ALIAS_AUDIT_CMD -> r0_status=private-ok) is authoritative and this list
+# only covers environments without it. Consequence, stated rather than fought:
+# these terms are ANOTHER domain's ordinary vocabulary, so they decay — a term
+# outlives the project it proxied for and then only produces false positives.
+# Maintain by RETIREMENT, not by growth: when a term no longer proxies anything
+# live, delete it (quantify current hits first, and keep a retained-term control
+# so the scan is proven still able to fail). Do not add generic technical words.
+# Both directions are pinned by test_entrypoint_domain_scan_terms.sh.
+if leak_output="$(rg -n 'code\.[[:alnum:].-]+|figma\.com/files|[0-9]{8,}|\x{6559}\x{5e08}|\x{5b66}\x{751f}|\x{8003}\x{8bd5}|\x{5b66}\x{6821}|\x{9605}\x{5377}|\x{51fa}\x{5377}|\x{5b66}\x{60c5}' "$root"/skills/*/SKILL.md "$root"/skills/*/references/*.md 2>/dev/null)"; then
   echo "$leak_output"
   echo "entrypoint_or_reference_domain_scan_failed" >&2
   exit 1
