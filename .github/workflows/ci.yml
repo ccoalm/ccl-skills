@@ -79,6 +79,10 @@ jobs:
         run: python3 scripts/check-markdown-links.py .
       - name: Spec reference gate
         run: python3 scripts/check-spec-references.py .
+      - name: Skill count regression
+        run: python3 scripts/test_check_skill_count.py
+      - name: Skill count gate
+        run: python3 scripts/check-skill-count.py .
       # test-repo-gates, not `make test`: the code-review family runs in the
       # parallel code-review-regressions job, and the fast regression lane runs
       # exactly once per pipeline inside regression-heavy's --full superset —
