@@ -314,5 +314,22 @@ python3 skills/tighten-doc/scripts/figure-lint.py <svg 目录或文件>
 python3 skills/tighten-doc/scripts/doc-lint.py   <文档.md>
 ```
 
+**本仓自身的文档也进闸**（`scripts/check-doc-structure.py`，接在 `make test-repo-gates` 里，
+枚举全部 tracked Markdown 交给 `doc-lint`，实测 481 篇 / 0.15s）。三条规则：
+
+- **DOC-STRUCTURE-GATE-TIER：只有 ERROR 一档得阻断，WARN 不得设成阻断。** 这不是保守，
+  是 §9b 那条自己的规矩——判不开缺陷与判断题的代理不得设闸。落地时实测 0 ERROR / 75 WARN，
+  把 WARN 也设成阻断等于当天就用一堆判断题把仓库判红。ERROR 是客观的那一半：
+  表格没有真表头、图引用指向不存在的图、文件读不出来。
+- **DOC-STRUCTURE-GATE-SCOPE：检查器自己的 fixture 目录必须排除，且排除只能是一条字面前缀。**
+  `skills/tighten-doc/scripts/tests/` 那批文档按构造就带 2 个 ERROR，扫它等于让这道闸对
+  "证明检查器有效"的输入永久红。排除写成模式就会悄悄长大——它是整个扫描器里唯一能让它
+  一边打印通过、一边覆盖得比声称的少的部件。
+- **DOC-STRUCTURE-GATE-BIDIRECTIONAL：排除必须双向断言，且缺陷必须落在会被吞掉的那条路径上。**
+  fixture 要被丢掉，长得像 fixture 的真文档要留下。后一条最初写错了：带缺陷的文档放在了不含
+  `tests/` 的路径上，于是把前缀放宽成子串匹配时掉的只是一篇干净文档、判定不变、那条腿照样绿，
+  而它的注释里明写着"双向"。**是突变探针发现的，不是我读出来的**——
+  单向的排除测试在排除已经长到覆盖半个仓库时，一样绿。
+
 **不可机械判定的仍归人**：图种选得对不对、图注写的是不是主张、独立性验收、
 调研族图上实体能否回指证据。检查器只挡机械项，不替代 §5 的验收。
