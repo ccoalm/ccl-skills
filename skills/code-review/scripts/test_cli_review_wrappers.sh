@@ -1521,11 +1521,9 @@ check "Kimi chunks an MCP packet line that cannot fit one bounded tool result" \
   '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ -e "$WORK/state/kimi_invoked" ]'
 
 rm -f "$WORK/state/kimi_invoked"
-same_family_before_count="$(find "$WORK/tmp" -mindepth 1 -maxdepth 1 -type d -name 'kimi-review.*' | wc -l | tr -d ' ')"
-out="$(run_kimi pass moonshot "$WORK/kimi-uninitialized")"; rc=$?
-same_family_after_count="$(find "$WORK/tmp" -mindepth 1 -maxdepth 1 -type d -name 'kimi-review.*' | wc -l | tr -d ' ')"
-check "Kimi Moonshot family is excluded before inference" \
-  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/kimi_invoked" ] && [ "$(field reason_code "$out")" = same_family_as_implementer ] && [ "$(field candidate_ineligible "$out")" = True ] && json_lacks_key "$out" packet_sha256 && [ "$same_family_after_count" = "$same_family_before_count" ]'
+out="$(run_kimi pass moonshot "$WORK/kimi-credentials-only")"; rc=$?
+check "Kimi Moonshot family may review a Moonshot implementation" \
+  '[ "$rc" = 0 ] && [ -e "$WORK/state/kimi_invoked" ] && [ "$(field status "$out")" = passed ] && [ "$(field reviewer_family "$out")" = moonshot ]'
 
 rm -f "$WORK/state/kimi_invoked"
 out="$(run_kimi pass claude "$WORK/kimi-credentials-only")"; rc=$?
@@ -1720,9 +1718,9 @@ check "Codex accepts the maximum candidate plus maximum rendered profile" \
   '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ]'
 
 rm -f "$WORK/state/codex_invoked"
-out="$(run_codex pass openai)"; rc=$?
-check "Codex OpenAI family is excluded before inference" \
-  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/codex_invoked" ] && [ "$(field reason_code "$out")" = same_family_as_implementer ]'
+out="$(run_codex pass openai "$WORK/codex-missing")"; rc=$?
+check "Codex OpenAI family may review an OpenAI implementation" \
+  '[ "$rc" = 0 ] && [ -e "$WORK/state/codex_invoked" ] && [ "$(field status "$out")" = passed ] && [ "$(field reviewer_family "$out")" = openai ]'
 
 rm -f "$WORK/state/codex_invoked"
 out="$(run_codex pass claude "$WORK/codex-missing")"; rc=$?

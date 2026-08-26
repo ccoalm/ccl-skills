@@ -1,4 +1,4 @@
 interface:
-  display_name: "Independent CLI Review"
+  display_name: "CLI Review"
   short_description: "Route review across Claude, Kimi, OpenCode, or Codex"
-  default_prompt: "Run review_gate.sh for an independent review or challenge using the user's local client order and model defaults. Use claude_review.sh directly only for Claude consultation. Preserve packet binding, family exclusion, egress approval, tool boundaries, structured findings, and fail-closed handling."
+  default_prompt: "Run review_gate.sh for an attributable review or challenge using the user's local client order and model defaults. Same-family reviewers are allowed. Use claude_review.sh directly only for Claude consultation. Preserve packet binding, family attribution, egress approval, tool boundaries, structured findings, and fail-closed handling."

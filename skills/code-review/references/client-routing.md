@@ -4,7 +4,7 @@ Load this file when a gate-eligible `review` or `challenge` uses
 `scripts/review_gate.sh`, or when diagnosing its result. `consult` remains
 Claude-only.
 
-## Order And Exclusion
+## Order And Attribution
 
 The gate freezes one bounded packet and verifies its SHA-256 before and after
 every attempted client. A mutation stops with `binding_mismatch` before another
@@ -27,21 +27,17 @@ Empty entries, duplicates, and unknown clients fail before inference. There is
 no per-invocation client-order flag, provider list, model list, or shared
 Kimi/DeepSeek chain.
 
-Before inference, the gate or client wrapper excludes a known same-family
-candidate and records it in `skipped_clients`. Claude maps to the Claude family,
-Kimi maps to the Moonshot family, and Codex maps to the OpenAI family. These
-client identities are not subdivided by local provider/model aliases. OpenCode's
-family is bound from the provider/model that actually ran. If a reviewer family
-matches the implementer, that result is also ineligible and routing continues.
+Claude maps to the Claude family, Kimi maps to the Moonshot family, and Codex
+maps to the OpenAI family. These client identities are not subdivided by local
+provider/model aliases. OpenCode's family is bound from the provider/model that
+actually ran. Reviewer and implementer families remain attributed in the result,
+but a match is allowed and never causes a preflight skip or postflight rejection.
 The implementer family must describe the model that produced the candidate, not
-merely the host agent. This value is a caller assertion: there is no portable
-cross-CLI host attestation that can prove it without adding host-specific
-configuration. A false assertion can defeat same-family exclusion, so this gate
-is a collaboration control for trusted local agents, not a boundary against a
-hostile invoker.
+merely the host agent; it remains audit metadata and a compatibility input for
+existing callers, not an eligibility gate.
 
-Kimi performs this family exclusion before it creates or seeds a private runtime
-home. A runtime copy or permission failure is client-local `client_unavailable`
+Kimi validates its runtime before it creates or seeds a private runtime home. A
+runtime copy or permission failure is client-local `client_unavailable`
 and may continue to the next configured reviewer after cleanup.
 Binary discovery and configuration-home selection are intentionally independent:
 a standard binary may use a custom `KIMI_CODE_HOME`; set an absolute `KIMI_BIN`

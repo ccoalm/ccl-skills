@@ -79,11 +79,7 @@ case "$behavior" in
     printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"quota","reason_code":"quota","cascade_eligible":true}\n' "$client" "$mode"
     exit 2
     ;;
-  same_family)
-    printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"same family","reason_code":"same_family_as_implementer","candidate_ineligible":true,"cascade_eligible":true,"reviewer_family":"openai"}\n' "$client" "$mode"
-    exit 2
-    ;;
-  passed_same_family)
+  passed_openai)
     printf '{"reviewer":"%s","mode":"%s","status":"passed","reviewer_family":"openai","provider":"openai","model":"local-default","concern_results":%s,"findings":[]}\n' "$client" "$mode" "$concern_results"
     exit 0
     ;;
@@ -107,8 +103,8 @@ printf 'diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n' >"$WORK/dif
 printf 'diff --git a/c b/c\n--- a/c\n+++ b/c\n@@ -1 +1 @@\n-x\n+aws_key = "AKIAIOSFODNN7EXAMPLE"\n' >"$WORK/secret-diff.patch"
 cat >"$WORK/review-plan.json" <<'JSON'
 {
-  "intent": "Preserve independent reviewer routing while adding staged review.",
-  "acceptance": ["Client ordering and model-family exclusion remain deterministic."],
+  "intent": "Preserve attributable reviewer routing while adding staged review.",
+  "acceptance": ["Client ordering and model-family attribution remain deterministic, and same-family reviewers are eligible."],
   "self_review": [
     {"concern": "correctness", "conclusion": "Routing preserves the first eligible independent result.", "evidence_refs": ["e1"]},
     {"concern": "safety", "conclusion": "Terminal boundaries remain fail closed across clients.", "evidence_refs": ["e1"]},
@@ -170,7 +166,7 @@ PY
 reset_case quota passed unavailable unavailable
 out="$(run_gate openai)"; rc=$?
 check "default order selects Kimi CLI before OpenCode" \
-  '[ "$rc" = 0 ] && [ "$(tr "\n" " " < "$WORK/state/client_sequence")" = "claude kimi " ] && json_fields "$out" selected_client=kimi client_order.0=claude client_order.1=codex client_order.2=kimi client_order.3=opencode'
+  '[ "$rc" = 0 ] && [ "$(tr "\n" " " < "$WORK/state/client_sequence")" = "claude codex kimi " ] && json_fields "$out" selected_client=kimi client_order.0=claude client_order.1=codex client_order.2=kimi client_order.3=opencode'
 
 reset_case unavailable unavailable passed unavailable
 out="$(CODE_REVIEW_CLIENT_ORDER=opencode,claude,kimi,codex run_gate moonshot)"; rc=$?
@@ -187,20 +183,20 @@ out="$(CODE_REVIEW_CLIENT_ORDER=kimi,claude run_gate_no_egress deepseek --diff-f
 check "a secret-bearing egress-denied client is skipped without blocking a later Claude review" \
   '[ "$rc" = 0 ] && [ "$(cat "$WORK/state/client_sequence")" = claude ] && json_fields "$out" skipped_clients.0.client=kimi skipped_clients.0.reason_code=egress_denied skipped_clients.0.stage=preflight selected_client=claude'
 
-reset_case unavailable passed unavailable same_family
+reset_case unavailable passed unavailable passed_openai
 out="$(CODE_REVIEW_CLIENT_ORDER=codex,kimi run_gate openai)"; rc=$?
-check "Codex OpenAI family is excluded before inference" \
-  '[ "$rc" = 0 ] && [ ! -e "$WORK/state/codex_runs" ] && [ "$(cat "$WORK/state/client_sequence")" = kimi ] && json_fields "$out" skipped_clients.0.client=codex skipped_clients.0.reason_code=same_family_as_implementer'
+check "Codex OpenAI family is eligible for an OpenAI implementer" \
+  '[ "$rc" = 0 ] && [ -e "$WORK/state/codex_runs" ] && [ "$(cat "$WORK/state/client_sequence")" = codex ] && json_fields "$out" selected_client=codex attempts.0.reviewer_family=openai'
 
 reset_case passed unavailable passed passed
 out="$(run_gate claude)"; rc=$?
-check "Claude implementer defaults to Codex review" \
-  '[ "$rc" = 0 ] && [ ! -e "$WORK/state/claude_runs" ] && [ "$(cat "$WORK/state/client_sequence")" = codex ] && json_fields "$out" skipped_clients.0.client=claude selected_client=codex'
+check "Claude implementer may use Claude as the first available reviewer" \
+  '[ "$rc" = 0 ] && [ -e "$WORK/state/claude_runs" ] && [ "$(cat "$WORK/state/client_sequence")" = claude ] && json_fields "$out" selected_client=claude'
 
-reset_case unavailable same_family passed unavailable
+reset_case unavailable passed passed unavailable
 out="$(CODE_REVIEW_CLIENT_ORDER=kimi,opencode run_gate moonshot)"; rc=$?
-check "Kimi Moonshot family is excluded before inference" \
-  '[ "$rc" = 0 ] && [ ! -e "$WORK/state/kimi_runs" ] && [ "$(cat "$WORK/state/client_sequence")" = opencode ] && json_fields "$out" skipped_clients.0.client=kimi skipped_clients.0.stage=preflight'
+check "Kimi Moonshot family is eligible for a Moonshot implementer" \
+  '[ "$rc" = 0 ] && [ -e "$WORK/state/kimi_runs" ] && [ "$(cat "$WORK/state/client_sequence")" = kimi ] && json_fields "$out" selected_client=kimi attempts.0.reviewer_family=moonshot'
 
 reset_case unavailable unavailable passed unavailable
 out="$(CODE_REVIEW_CLIENT_ORDER=kimi,opencode run_gate claude)"; rc=$?
@@ -222,15 +218,15 @@ out="$(CODE_REVIEW_CLIENT_ORDER=codex run_gate claude)"; rc=$?
 check "Codex auth-path code cannot request a host retry" \
   '[ "$rc" = 2 ] && json_fields "$out" reason_code=auth_path_unavailable next_action=stop_reviewer_lane'
 
-reset_case unavailable unavailable same_family passed
-out="$(CODE_REVIEW_CLIENT_ORDER=opencode,codex run_gate claude)"; rc=$?
-check "same-family OpenCode result is rejected after attribution" \
-  '[ "$rc" = 0 ] && [ "$(tr "\n" " " < "$WORK/state/client_sequence")" = "opencode codex " ] && json_fields "$out" skipped_clients.0.client=opencode skipped_clients.0.stage=postflight selected_client=codex'
+reset_case unavailable unavailable passed passed
+out="$(CODE_REVIEW_CLIENT_ORDER=opencode,codex run_gate deepseek)"; rc=$?
+check "same-family OpenCode result is accepted after attribution" \
+  '[ "$rc" = 0 ] && [ "$(cat "$WORK/state/client_sequence")" = opencode ] && json_fields "$out" selected_client=opencode attempts.0.reviewer_family=deepseek'
 
-reset_case unavailable unavailable passed_same_family passed
+reset_case unavailable unavailable passed_openai passed
 out="$(CODE_REVIEW_CLIENT_ORDER=opencode,codex run_gate openai)"; rc=$?
-check "successful same-family result is rejected by the gate postflight" \
-  '[ "$rc" = 2 ] && [ "$(cat "$WORK/state/client_sequence")" = opencode ] && json_fields "$out" skipped_clients.0.client=opencode skipped_clients.0.stage=postflight reason_code=same_family_as_implementer attempts.0.status=inconclusive attempts.0.reason_code=same_family_as_implementer'
+check "successful same-family result remains gate-eligible" \
+  '[ "$rc" = 0 ] && [ "$(cat "$WORK/state/client_sequence")" = opencode ] && json_fields "$out" selected_client=opencode attempts.0.status=passed attempts.0.reviewer_family=openai'
 
 for bad_order in 'claude,,kimi' 'claude,claude' 'claude,unknown'; do
   reset_case passed passed passed passed

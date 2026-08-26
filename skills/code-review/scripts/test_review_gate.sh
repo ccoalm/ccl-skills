@@ -1024,7 +1024,8 @@ reset_case() {
 run_gate_from() {
   entrypoint="$1"
   shift
-  REVIEW_GATE_TEST_STATE="$WORK/state" "$entrypoint" \
+  CODE_REVIEW_CLIENT_ORDER="${CODE_REVIEW_CLIENT_ORDER:-claude,kimi,opencode}" \
+    REVIEW_GATE_TEST_STATE="$WORK/state" "$entrypoint" \
     --mode review --cwd "$WORK/repo" --diff-file "$WORK/diff.patch" \
     --implementer-family openai --review-plan-file "$WORK/review-plan.json" "$@"
 }
@@ -1034,7 +1035,8 @@ run_gate() {
 }
 
 run_challenge_gate() {
-  REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  CODE_REVIEW_CLIENT_ORDER="${CODE_REVIEW_CLIENT_ORDER:-claude,kimi,opencode}" \
+    REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
     --mode challenge --cwd "$WORK/repo" --diff-file "$WORK/diff.patch" \
     --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
     --challenge-budget 1 --challenge-index 1 "$@"
@@ -1509,28 +1511,16 @@ out="$(CODE_REVIEW_CLIENT_ORDER=codex run_gate --implementer-family anthropic --
 check "Codex repeated host-path failure becomes fallback-eligible only after retry" \
   '[ "$rc" = 2 ] && json_fields "$out" reason_code=host_path_unavailable_after_host_retry'
 
-# The gate's own fail-closed floor: when the configured order contains no
-# cross-family client, every candidate is skipped in preflight and the loop
-# exhausts without ever setting a per-client reason. The initial
-# `no_independent_reviewer_available` must survive to the terminal envelope --
-# an independent review that never ran must not read as a clean lane.
-reset_case unavailable unavailable unavailable
+# Same-family clients remain eligible and run normally.
+reset_case passed unavailable unavailable
 out="$(CODE_REVIEW_CLIENT_ORDER=claude run_gate --implementer-family anthropic)"; rc=$?
-# client_sequence is appended only after the fake wrapper's argument loop, so on
-# its own it cannot tell "never spawned" from "spawned and died early". The
-# wrapper records ${client}_timeout inside that loop, strictly earlier, so
-# asserting both is what pins the skip to preflight rather than to a short-lived
-# provider process.
-check "an order without any cross-family reviewer fails closed instead of reporting a clean lane" \
-  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && [ ! -e "$WORK/state/claude_timeout" ] && json_fields "$out" status=inconclusive reason_code=no_independent_reviewer_available next_action=stop_reviewer_lane skipped_clients.0.client=claude skipped_clients.0.stage=preflight skipped_clients.0.reason_code=same_family_as_implementer'
+check "a same-family Claude reviewer is eligible" \
+  '[ "$rc" = 0 ] && [ "$(cat "$WORK/state/client_sequence")" = claude ] && json_fields "$out" status=passed selected_client=claude'
 
-# Precision row for the guard above: skipping a same-family client must cost
-# that client only, not the lane. A tightening that turned the skip into a
-# terminal outcome would pass the case above and fail here.
-reset_case unavailable passed unavailable
+reset_case passed passed unavailable
 out="$(CODE_REVIEW_CLIENT_ORDER=claude,kimi run_gate --implementer-family anthropic)"; rc=$?
-check "a same-family skip still leaves a cross-family reviewer usable" \
-  '[ "$rc" = 0 ] && [ "$(cat "$WORK/state/client_sequence")" = kimi ] && json_fields "$out" selected_client=kimi skipped_clients.0.reason_code=same_family_as_implementer'
+check "client order, not family difference, selects the reviewer" \
+  '[ "$rc" = 0 ] && [ "$(cat "$WORK/state/client_sequence")" = claude ] && json_fields "$out" selected_client=claude'
 
 printf '' >"$WORK/empty-diff.patch"
 reset_case passed unavailable unavailable

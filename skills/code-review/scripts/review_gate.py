@@ -2463,19 +2463,8 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             )
             return emit(result, 0)
-        last_reason_code = "no_independent_reviewer_available"
+        last_reason_code = "no_reviewer_available"
         for client in order:
-            client_family = STATIC_CLIENT_FAMILIES.get(client)
-            if client_family == implementer_family:
-                record_skip(
-                    result,
-                    client,
-                    "same_family_as_implementer",
-                    f"{client} belongs to the implementer model family",
-                    "preflight",
-                )
-                continue
-
             wrapper = script_dir / f"{client}_review.sh"
             if not wrapper.is_file() or not os.access(wrapper, os.X_OK):
                 record_skip(
@@ -2584,8 +2573,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
             candidate_ineligible = (
-                reason_code
-                in {"same_family_as_implementer", "missing_or_unmapped_reviewer_family"}
+                reason_code == "missing_or_unmapped_reviewer_family"
                 and payload.get("candidate_ineligible") is True
             )
             bound_success = (
@@ -2597,9 +2585,6 @@ def main(argv: list[str] | None = None) -> int:
                 if reported_family is None:
                     reason_code = "missing_or_unmapped_reviewer_family"
                     candidate_ineligible = True
-                elif reported_family == implementer_family:
-                    reason_code = "same_family_as_implementer"
-                    candidate_ineligible = True
             if candidate_ineligible:
                 payload.update(status="inconclusive", reason_code=reason_code)
                 recorded_attempt.update(status="inconclusive", reason_code=reason_code)
@@ -2609,7 +2594,7 @@ def main(argv: list[str] | None = None) -> int:
                     str(reason_code),
                     str(
                         payload.get("reason")
-                        or "reviewer is not an independent model family"
+                        or "reviewer family attribution is unavailable"
                     ),
                     "postflight",
                 )

@@ -211,12 +211,12 @@ check_reason "debug-agent sparse known-tool map -> blocked" inconclusive agent_d
 check_reason "assistant history model switch -> blocked" inconclusive session_model_history_mismatch \
   "$(P --events "$WORK/ev_model_switch.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_model_switch.json")"
 check_reason "multi-text-part sentinel forgery -> blocked" inconclusive unparseable_findings "$(P "${OKARGS[@]}" --export "$WORK/exp_multitext.json")"
-check_reason "same family -> blocked" inconclusive same_family_as_implementer \
+check "same family is allowed" passed \
   "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_claude.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_claude.json")"
 check_reason "unmapped family -> inconclusive" inconclusive missing_or_unmapped_reviewer_family \
   "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_unmapped.json" --implementer-family claude --require-skill-tool --export "$WORK/exp_unmapped.json")"
 check "kimi provider -> moonshot family, independent vs claude implementer" passed "$(KP claude)"
-check_reason "kimi provider (moonshot) vs moonshot implementer -> same family" inconclusive same_family_as_implementer "$(KP moonshot)"
+check "kimi provider (moonshot) may review a moonshot implementation" passed "$(KP moonshot)"
 check_reason "unfinished run -> inconclusive" inconclusive missing_final_text "$(P "${OKARGS[@]}" --export "$WORK/exp_unfinished.json")"
 out="$(P "${OKARGS[@]}" --export "$WORK/exp_unfinished_concern.json")"
 check_reason "unfinished run preserves concern text" inconclusive missing_final_text "$out"
@@ -234,10 +234,10 @@ check_reason "corrupt event stream -> blocked" inconclusive event_stream_unparse
 check_reason "missing export -> inconclusive" inconclusive missing_export "$(P "${OKARGS[@]}")"
 check_reason "refusal quoting file:line -> unparseable" inconclusive unparseable_findings "$(P "${OKARGS[@]}" --export "$WORK/exp_refusal.json")"
 check_reason "export without session id -> mismatch" inconclusive session_id_mismatch "$(P "${OKARGS[@]}" --export "$WORK/exp_noid.json")"
-check_reason "implementer providerID anthropic vs reviewer anthropic -> same family" inconclusive same_family_as_implementer \
+check "provider alias normalization does not reject a same-family review" passed \
   "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_claude.json" --implementer-family anthropic --require-skill-tool --export "$WORK/exp_claude.json")"
 check_reason "unmapped implementer family -> blocked" inconclusive unmapped_implementer_family "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family bogusvendor --require-skill-tool --export "$WORK/exp_pass.json")"
-check_reason "implementer family deepseek vs reviewer deepseek -> blocked" inconclusive same_family_as_implementer \
+check "deepseek may review a deepseek implementation" passed \
   "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_deepseek.json" --implementer-family deepseek --require-skill-tool --export "$WORK/exp_pass.json")"
 missing_boundary_rc=0
 if missing_boundary_out="$(P --events "$WORK/ev_ok.json" --export "$WORK/exp_pass.json" --implementer-family claude 2>/dev/null)"; then
@@ -251,7 +251,7 @@ else
   echo "FAIL - missing boundary arg: want exit 2 with empty stdout, got exit $missing_boundary_rc :: $missing_boundary_out"
   fails=$((fails+1))
 fi
-check_reason "native OpenCode default still enforces exported family independence" inconclusive same_family_as_implementer \
+check "native OpenCode default accepts its attributed same-family result" passed \
   "$(P --events "$WORK/ev_ok.json" --agent-boundary "$WORK/agent_default.json" --implementer-family deepseek --require-skill-tool --export "$WORK/exp_pass.json")"
 
 echo "----"

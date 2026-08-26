@@ -891,16 +891,6 @@ def judge(args: argparse.Namespace) -> dict[str, Any]:
         return inconclusive(
             args, "implementer family is unmapped", "unmapped_implementer_family", False
         )
-    if reviewer_family == implementer_family:
-        payload = inconclusive(
-            args,
-            "reviewer belongs to the implementer model family",
-            "same_family_as_implementer",
-            True,
-        )
-        payload["candidate_ineligible"] = True
-        return payload
-
     events, event_error, raw_events = load_json_lines(Path(args.events))
     if event_error is not None or events is None:
         return invalid_model_output(

@@ -3,7 +3,7 @@
 #
 # opencode is only the transport; parse_opencode_review.py is the single judge.
 # The lane is closed only by a `passed`/`findings` verdict that survives:
-#   - a model-family independence check (reviewer family != --implementer-family),
+#   - attributed reviewer and implementer families (same-family is allowed),
 #   - an exported, stop-finished, schema-shaped final text,
 #   - a public debug-agent proof that only the audited read-only tool surface is
 #     enabled. Model choice remains in the user's OpenCode configuration; the
@@ -104,7 +104,7 @@ if payload.get("status") == "inconclusive" and "reason_code" not in payload:
         "missing_model_attribution",
     }:
         code = "binding_mismatch"
-    elif reason in {"missing_or_unmapped_reviewer_family", "same_family_as_implementer"}:
+    elif reason == "missing_or_unmapped_reviewer_family":
         code, cascade = reason, True
         payload["candidate_ineligible"] = True
     elif reason == "unmapped_implementer_family":

@@ -1,11 +1,11 @@
 ---
 name: code-review
-description: Use when an implementation needs an independent CLI reviewer or adversarial challenger, routing across Claude Code, Kimi, OpenCode, or Codex according to local availability, model-family independence, and the user's client order; also covers Claude-only bounded consultation and requests such as code review, Claude review, Kimi review, OpenCode review, second opinion, 找茬, 唱反调, or 第二意见. Skip 某个改动/提交还有没有价值、值不值得修这类交付裁决 → product-rd-workflow：本技能执行评审、找缺陷与风险，不裁决交付价值。
+description: Use when an implementation needs an attributable CLI reviewer or adversarial challenger, routing across Claude Code, Kimi, OpenCode, or Codex according to local availability and the user's client order; same-family reviewers are allowed. Also covers Claude-only bounded consultation and requests such as code review, Claude review, Kimi review, OpenCode review, second opinion, 找茬, 唱反调, or 第二意见. Skip 某个改动/提交还有没有价值、值不值得修这类交付裁决 → product-rd-workflow：本技能执行评审、找缺陷与风险，不裁决交付价值。
 ---
 
 # Code Review
 
-Use this skill from Claude, Codex, OpenCode, or another compatible agent to obtain an independent, attributable review or adversarial challenge. The job is not to delegate implementation. The caller supplies the model family that produced the candidate so the router can exclude same-family reviewers.
+Use this skill from Claude, Codex, OpenCode, or another compatible agent to obtain an attributable review or adversarial challenge. The job is not to delegate implementation. Prefer a different reviewer client when available, but allow the same model family: reviewer identity and packet binding provide auditability without turning family diversity into an availability gate.
 
 ## Modes
 
@@ -54,7 +54,7 @@ that native explicit invocation from `observed_skill_usage`; the latter stays em
 unless a public client event/export proves activation. Reviewer prose and private
 client databases are not accepted as proof. A client that cannot provide the native
 binding is ineligible and may fall through under the existing egress rules. The
-gate excludes same-family reviewers and stops on boundary failures. Default order is
+gate allows same-family reviewers and stops on boundary failures. Default order is
 `claude,codex,kimi,opencode`; local
 `CODE_REVIEW_CLIENT_ORDER` may narrow/reorder it. Non-Claude egress is gated by a
 secret-scan tripwire, not a blanket approval: the frozen packet is scanned for
@@ -83,7 +83,7 @@ repository file, CLI flag, environment variable, or model output. Load the stage
 contract before invoking the gate. Terminal wrapper/controller failures emit
 `stop_reviewer_lane`; they never instruct the host to stop the whole task.
 
-The shared skill never pins a provider or model. Kimi inherits the user's local default model and is uniformly classified as the Moonshot family; Codex likewise inherits its local default model and is uniformly classified as the OpenAI family. Neither client reads or configures provider/model subdivisions. OpenCode invokes `ccl-review` without `--model`: if the user configured `agent.ccl-review.model`, that one model is used; otherwise OpenCode resolves its normal default. The exported OpenCode session must attribute the actual provider/model, and an unmapped or same-family result is rejected before another client is considered. There is no built-in Kimi/DeepSeek provider chain and no one-shot model override to type.
+The shared skill never pins a provider or model. Kimi inherits the user's local default model and is uniformly classified as the Moonshot family; Codex likewise inherits its local default model and is uniformly classified as the OpenAI family. Neither client reads or configures provider/model subdivisions. OpenCode invokes `ccl-review` without `--model`: if the user configured `agent.ccl-review.model`, that one model is used; otherwise OpenCode resolves its normal default. The exported OpenCode session must attribute the actual provider/model; attribution is required, while matching the implementer family is allowed. There is no built-in Kimi/DeepSeek provider chain and no one-shot model override to type.
 
 Client discovery is separate from model ownership. For Kimi, the wrapper accepts an absolute executable `KIMI_BIN`; otherwise it checks `PATH`, then `$KIMI_CODE_HOME/bin/kimi` when configured, then the standard `~/.kimi-code/bin/kimi` location. The resolved executable must be absolute and executable before the wrapper changes directory. This avoids treating a non-interactive shell's narrower `PATH` as proof that Kimi is not installed, honors a custom Kimi home, and avoids relative-PATH drift in the temporary workspace; it does not change the user's model/provider settings. An executable PATH selection keeps normal shell precedence; use `KIMI_BIN` to bypass a broken executable shim explicitly.
 
@@ -318,7 +318,7 @@ activation was observed; only a public event/export may populate
 - `references/staged-review-contract.md` — required review-plan schema, stage concerns, high-risk depth, prompt layers, and challenge budget. Load before review/challenge.
 - `references/manual-invocation-and-prompts.md` — manual command shape, filesystem-boundary text, and the review/challenge prompt templates. Load only when debugging or patching the wrapper or its prompt construction.
 - `references/timeout-auth-and-capabilities.md` — wait-policy timing tables, the numbered auth-recovery procedure, per-mode tool-flag matrix, and CLI capability adoption notes. Load on timeout/auth failures or when maintaining wrapper flag adoption.
-- `references/client-routing.md` — `review_gate.sh` client order, family exclusion, egress, Kimi/Codex boundaries, OpenCode user-model binding, and concurrency rollback. Load when running or diagnosing review/challenge routing.
+- `references/client-routing.md` — `review_gate.sh` client order, family attribution, egress, Kimi/Codex boundaries, OpenCode user-model binding, and concurrency rollback. Load when running or diagnosing review/challenge routing.
 
 ## Output Validity
 

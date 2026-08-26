@@ -6,7 +6,7 @@ bounded `opencode run` + `opencode export` into a gate-valid result. It is pure
 (files in, one JSON line out) so it can be unit-tested with captured fixtures
 without invoking opencode.
 
-The lane is a security/governance gate: it decides whether an INDEPENDENT review
+The lane is a security/governance gate: it decides whether an attributable review
 or challenge has actually run in a real sandbox. Every ambiguity therefore fails
 closed to `inconclusive`. A required lane is closed ONLY by `passed` (reviewer
 ran clean, emitted the exact sentinel) or `findings` (reviewer ran clean and
@@ -37,15 +37,14 @@ from egress_schema import apply as apply_egress_schema  # noqa: E402
 
 
 # providerID segment (before "/" in an opencode model id) -> canonical reviewer
-# family. Same-family reviewer cannot satisfy an independence gate, so the
-# Moonshot/Kimi providers collapse to one family.
+# family. The mapping provides attribution; same-family reviewers are allowed.
 #
 # Heuristic basis (known limitation): the export providerID is the user's own
 # opencode provider NAME, so this table assumes a provider name conventionally
 # matches its backend (e.g. `kimi` -> Moonshot). A deliberately mis-named custom
 # provider (e.g. an OpenAI endpoint labelled `kimi`) would defeat ANY name-based
 # entry here -- a limitation shared by every row, not `kimi`-specific. The gate
-# guards accidental same-family review, not adversarial self-mislabelling.
+# guards attribution consistency, not adversarial self-mislabelling.
 PROVIDER_FAMILY = {
     "anthropic": "claude",
     "claude": "claude",
@@ -79,7 +78,7 @@ def family_for_provider(provider_id):
 def normalize_family(value):
     """Accept either a providerID (anthropic) or a family name (claude) and return
     the canonical family, or None if it maps to nothing. Used for the implementer
-    family so `--implementer-family anthropic` cannot bypass `claude` independence."""
+    family for stable attribution."""
     if not value:
         return None
     v = value.strip().lower()
@@ -408,9 +407,8 @@ def judge(args):
         ):
             return _result("inconclusive", "agent_model_mismatch", **base)
 
-    # 6. model attribution + family independence. Both sides go through the same
-    #    table so `--implementer-family anthropic` cannot bypass `claude`, and an
-    #    unmapped implementer family fails closed (independence unverifiable).
+    # 6. Model attribution. Both sides go through the same table for stable
+    #    audit metadata; matching reviewer and implementer families are allowed.
     reviewer_family = family_for_provider(meta["provider"])
     if not reviewer_family:
         return _result("inconclusive", "missing_or_unmapped_reviewer_family", **base)
@@ -418,9 +416,6 @@ def judge(args):
     implementer_family = normalize_family(args.implementer_family)
     if not implementer_family:
         return _result("inconclusive", "unmapped_implementer_family", **base)
-    if reviewer_family == implementer_family:
-        return _result("inconclusive", "same_family_as_implementer", **base)
-
     # 7. the run must have finished (stop) with non-empty final text.
     if meta["final_reason"] != "stop" or not meta["final_text"]:
         if transport_timed_out:
