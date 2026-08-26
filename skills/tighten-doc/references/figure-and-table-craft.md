@@ -314,16 +314,26 @@ python3 skills/tighten-doc/scripts/figure-lint.py <svg 目录或文件>
 python3 skills/tighten-doc/scripts/doc-lint.py   <文档.md>
 ```
 
-**本仓自身的文档也进闸**（`scripts/check-doc-structure.py`，接在 `make test-repo-gates` 里，
-枚举全部 tracked Markdown 交给 `doc-lint`，实测 481 篇 / 0.15s）。三条规则：
+**整仓文档也能一次扫完**，且**对任何仓库都能跑**——脚本取的 linter 是自己的同级文件，
+排除项也由此派生，不假定被扫仓库里有这个技能：
+
+```
+python3 <技能安装路径>/skills/tighten-doc/scripts/doc-lint-repo.py <要扫的仓库路径>
+# 在本仓内即：
+python3 skills/tighten-doc/scripts/doc-lint-repo.py .
+```
+
+（实测 483 篇 / 0.15s。本仓把它接在 `make test-repo-gates` 里。）三条规则：
 
 - **DOC-STRUCTURE-GATE-TIER：只有 ERROR 一档得阻断，WARN 不得设成阻断。** 这不是保守，
   是 §9b 那条自己的规矩——判不开缺陷与判断题的代理不得设闸。落地时实测 0 ERROR / 75 WARN，
   把 WARN 也设成阻断等于当天就用一堆判断题把仓库判红。ERROR 是客观的那一半：
   表格没有真表头、图引用指向不存在的图、文件读不出来。
-- **DOC-STRUCTURE-GATE-SCOPE：检查器自己的 fixture 目录必须排除，且排除只能是一条字面前缀。**
-  `skills/tighten-doc/scripts/tests/` 那批文档按构造就带 2 个 ERROR，扫它等于让这道闸对
-  "证明检查器有效"的输入永久红。排除写成模式就会悄悄长大——它是整个扫描器里唯一能让它
+- **DOC-STRUCTURE-GATE-SCOPE：检查器自己的 fixture 目录必须排除，排除只能是一条前缀，
+  且必须从 linter 自身位置派生、不得写死。** 那批文档按构造就带 2 个 ERROR，扫它等于让这道闸对
+  "证明检查器有效"的输入永久红。但写死成某个仓库里的路径就换了个方向错——消费仓里这个技能
+  装在别处，写死的前缀反而会去吞掉人家碰巧同名的真文档。派生的前缀在本仓命中、在消费仓解析为
+  空（什么都不排除），两边都对。排除写成模式同样会悄悄长大——它是整个扫描器里唯一能让它
   一边打印通过、一边覆盖得比声称的少的部件。
 - **DOC-STRUCTURE-GATE-BIDIRECTIONAL：排除必须双向断言，且缺陷必须落在会被吞掉的那条路径上。**
   fixture 要被丢掉，长得像 fixture 的真文档要留下。后一条最初写错了：带缺陷的文档放在了不含

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assertions for `check-doc-structure.py`.
+"""Assertions for `doc-lint-repo.py`.
 
 Every leg states what it pins. The two that matter most are the exclusion pair:
 an exclusion is the only part of a scanner that can make it print a pass while
@@ -21,10 +21,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-REPO = HERE.parent
-SCRIPT = HERE / "check-doc-structure.py"
+HERE = Path(__file__).resolve().parent          # skills/tighten-doc/scripts
+REPO = HERE.parents[2]                          # repo root
+SCRIPT = HERE / "doc-lint-repo.py"
 LINTER_REL = "skills/tighten-doc/scripts/doc-lint.py"
+# The scanner derives its fixture exclusion from the linter's own location, so a
+# synthetic repo needs the skill laid out at the same relative depth for the
+# exclusion legs to exercise the real code path.
 FIXTURE_PREFIX = "skills/tighten-doc/scripts/tests/"
 
 CLEAN_DOC = """# Title
@@ -48,17 +51,66 @@ HEADERLESS_DOC = """# Title
 """
 
 
-def run(args, cwd=None):
+def run(args, cwd=None, scanner=None):
+    """Invoke the scanner. `scanner` overrides which copy of it runs.
+
+    The scanner resolves its linter as its OWN sibling, not as a path inside the
+    scanned repo — that is what lets it run against a repo which has never heard
+    of this skill. So a leg that needs a broken or absent linter installs a COPY
+    of the scanner into a temp directory and controls the sibling there, rather
+    than editing a file inside the fixture repo (which the scanner never reads).
+    """
     return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
+        [sys.executable, str(scanner or SCRIPT), *args],
         capture_output=True,
         text=True,
         cwd=cwd,
     )
 
 
+def install_scanner(tmp: Path, linter_body: str | None) -> Path:
+    """A temp 'installed skill' dir: the scanner plus the linter beside it.
+
+    `linter_body=None` installs no linter at all, which is the missing-linter
+    case. Anything else is written verbatim as the sibling `doc-lint.py`.
+    """
+    inst = tmp / "installed" / "scripts"
+    inst.mkdir(parents=True)
+    dest = inst / SCRIPT.name
+    dest.write_text(SCRIPT.read_text(encoding="utf8"), encoding="utf8")
+    if linter_body is not None:
+        (inst / "doc-lint.py").write_text(linter_body, encoding="utf8")
+    return dest
+
+
+REAL_LINTER = (HERE / "doc-lint.py").read_text(encoding="utf8")
+
+
+def install_scanner_inside(root: Path) -> Path:
+    """Install the scanner INSIDE the scanned repo, at the shipping layout.
+
+    The exclusion only fires when the linter's `tests/` directory actually sits
+    inside the repo being scanned — which is true for the repo that ships this
+    skill and false for every consuming repo. So the exclusion legs must
+    reproduce the shipping layout; pointing the real scanner at a synthetic repo
+    would exercise the consumer path instead and silently test nothing.
+    """
+    inst = root / "skills" / "tighten-doc" / "scripts"
+    inst.mkdir(parents=True, exist_ok=True)
+    dest = inst / SCRIPT.name
+    dest.write_text(SCRIPT.read_text(encoding="utf8"), encoding="utf8")
+    (inst / "doc-lint.py").write_text(REAL_LINTER, encoding="utf8")
+    return dest
+
+
 def make_repo(tmp: Path, docs: dict[str, str], *, with_linter=True) -> Path:
-    """A git repo carrying the real linter plus the given docs."""
+    """A git repo carrying just the given docs.
+
+    `with_linter` also drops a copy of the linter at the conventional in-repo
+    path. That copy is NOT what the scanner runs — it resolves its own sibling —
+    but the exclusion legs need the fixture directory to exist under the scanned
+    root at the real relative depth, and this is what puts it there.
+    """
     root = tmp / "repo"
     root.mkdir()
     subprocess.run(["git", "init", "-q", "-b", "trunk", str(root)], check=True)
@@ -103,8 +155,15 @@ class Exclusion(unittest.TestCase):
                     FIXTURE_PREFIX + "doc/broken.md": HEADERLESS_DOC,
                 },
             )
-            proc = run([str(root)], cwd=str(root))
+            scanner = install_scanner_inside(root)
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+            subprocess.run(
+                ["git", "-C", str(root), "commit", "-qm", "install"], check=True
+            )
+            proc = run([str(root)], cwd=str(root), scanner=scanner)
             self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
+            # docs/real.md plus the installed skill's own two .md-free scripts:
+            # only the real doc and nothing from tests/ may be counted.
             self.assertIn("1 tracked doc(s)", proc.stdout)
 
     def test_exclusion_does_not_swallow_a_real_doc(self):
@@ -133,7 +192,12 @@ class Exclusion(unittest.TestCase):
                     "skills/tighten-doc/scripts/testing-notes.md": CLEAN_DOC,
                 },
             )
-            proc = run([str(root)], cwd=str(root))
+            scanner = install_scanner_inside(root)
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+            subprocess.run(
+                ["git", "-C", str(root), "commit", "-qm", "install"], check=True
+            )
+            proc = run([str(root)], cwd=str(root), scanner=scanner)
             self.assertEqual(
                 proc.returncode,
                 1,
@@ -141,6 +205,35 @@ class Exclusion(unittest.TestCase):
             )
             self.assertIn("doc_structure_check_failed:", proc.stderr)
             self.assertIn("WCAG-131-TABLE", proc.stderr)
+
+
+    def test_consuming_repo_excludes_nothing_and_still_works(self):
+        """A repo that has never heard of this skill: nothing is excluded.
+
+        This is what moving the scanner into the skill package is FOR. The
+        exclusion is derived from the linter's own location; in a consuming repo
+        that location is outside the scanned tree, so the prefix resolves to None
+        and every tracked document is in scope. A repo-local hardcoded prefix
+        would have silently dropped any consumer path that happened to match.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = make_repo(
+                Path(tmp),
+                {
+                    "README.md": CLEAN_DOC,
+                    # A consumer path that a hardcoded prefix would have eaten.
+                    "skills/tighten-doc/scripts/tests/their-own-doc.md": HEADERLESS_DOC,
+                },
+                with_linter=False,
+            )
+            proc = run([str(root)], cwd=str(root))
+            self.assertEqual(
+                proc.returncode,
+                1,
+                "a consuming repo's document was dropped by an exclusion that "
+                "should not apply outside the skill's own checkout",
+            )
+            self.assertIn("2 tracked doc(s)", proc.stderr + proc.stdout)
 
 
 class Blocking(unittest.TestCase):
@@ -182,7 +275,7 @@ class Blocking(unittest.TestCase):
             # Precondition: the fixture is WARN-only per the linter itself. If
             # this ever stops holding, the leg below is testing nothing.
             direct = subprocess.run(
-                [sys.executable, str(root / LINTER_REL), str(root / "docs/warny.md")],
+                [sys.executable, str(HERE / "doc-lint.py"), str(root / "docs/warny.md")],
                 capture_output=True,
                 text=True,
             )
@@ -235,11 +328,10 @@ class ContradictoryLinter(unittest.TestCase):
     def _stub(self, code: str, rc: int):
         with tempfile.TemporaryDirectory() as tmp:
             root = make_repo(Path(tmp), {"docs/real.md": CLEAN_DOC})
-            (root / LINTER_REL).write_text(
-                f"import sys\nprint({code!r})\nsys.exit({rc})\n", encoding="utf8"
+            scanner = install_scanner(
+                Path(tmp), f"import sys\nprint({code!r})\nsys.exit({rc})\n"
             )
-            proc = run([str(root)], cwd=str(root))
-            return proc
+            return run([str(root)], cwd=str(root), scanner=scanner)
 
     def test_exit_1_with_zero_errors_is_not_read_as_clean(self):
         proc = self._stub("合计: 0 ERROR, 0 WARN", 1)
@@ -269,8 +361,9 @@ class ContradictoryLinter(unittest.TestCase):
 class FailsClosed(unittest.TestCase):
     def test_missing_linter_blocks(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = make_repo(Path(tmp), {"docs/real.md": CLEAN_DOC}, with_linter=False)
-            proc = run([str(root)], cwd=str(root))
+            root = make_repo(Path(tmp), {"docs/real.md": CLEAN_DOC})
+            scanner = install_scanner(Path(tmp), None)
+            proc = run([str(root)], cwd=str(root), scanner=scanner)
             self.assertEqual(proc.returncode, 1)
             self.assertIn("linter not found", proc.stderr)
 
@@ -280,10 +373,6 @@ class FailsClosed(unittest.TestCase):
             root = Path(tmp) / "empty"
             root.mkdir()
             subprocess.run(["git", "init", "-q", "-b", "trunk", str(root)], check=True)
-            (root / LINTER_REL).parent.mkdir(parents=True, exist_ok=True)
-            (root / LINTER_REL).write_text(
-                (REPO / LINTER_REL).read_text(encoding="utf8"), encoding="utf8"
-            )
             proc = run([str(root)], cwd=str(root))
             self.assertEqual(proc.returncode, 1)
             self.assertIn("enumeration is broken", proc.stderr)
@@ -291,10 +380,7 @@ class FailsClosed(unittest.TestCase):
     def test_non_git_directory_blocks(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "plain"
-            (root / LINTER_REL).parent.mkdir(parents=True, exist_ok=True)
-            (root / LINTER_REL).write_text(
-                (REPO / LINTER_REL).read_text(encoding="utf8"), encoding="utf8"
-            )
+            root.mkdir()
             proc = run([str(root)], cwd=str(root))
             self.assertEqual(proc.returncode, 1)
             # Name WHICH refusal. Asserting only the generic token cannot tell a
@@ -311,10 +397,8 @@ class FailsClosed(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp:
             root = make_repo(Path(tmp), {"docs/real.md": CLEAN_DOC})
-            (root / LINTER_REL).write_text(
-                "import sys\nsys.exit(3)\n", encoding="utf8"
-            )
-            proc = run([str(root)], cwd=str(root))
+            scanner = install_scanner(Path(tmp), "import sys\nsys.exit(3)\n")
+            proc = run([str(root)], cwd=str(root), scanner=scanner)
             self.assertEqual(proc.returncode, 1)
             self.assertIn("expected 0/1/2", proc.stderr)
 
@@ -326,10 +410,8 @@ class FailsClosed(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as tmp:
             root = make_repo(Path(tmp), {"docs/real.md": CLEAN_DOC})
-            (root / LINTER_REL).write_text(
-                "print('nothing parseable here')\n", encoding="utf8"
-            )
-            proc = run([str(root)], cwd=str(root))
+            scanner = install_scanner(Path(tmp), "print('nothing parseable here')\n")
+            proc = run([str(root)], cwd=str(root), scanner=scanner)
             self.assertEqual(proc.returncode, 1)
             self.assertIn("treat as unscanned", proc.stderr)
 
