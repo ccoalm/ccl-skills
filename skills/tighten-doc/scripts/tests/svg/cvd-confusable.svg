@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" role="img" aria-label="Semantic colours confusable under CVD">
+ <title>Semantic colours confusable under CVD</title>
+ <defs><style>.ok{font-size:14px;fill:#111827}</style></defs>
+ <g>
+  <rect x="10" y="120" width="14" height="14" fill="#B54708"/><text x="32" y="132" class="ok">警告</text>
+  <rect x="10" y="145" width="14" height="14" fill="#B42318"/><text x="32" y="157" class="ok">危险</text>
+  <rect x="10" y="170" width="14" height="14" fill="#009E73"/><text x="32" y="182" class="ok">正常</text>
+ </g>
+</svg>

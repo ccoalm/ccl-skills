@@ -73,3 +73,11 @@ Honest scope, from the eval that landed this (2 arms x 5 fixtures x 6 samples in
 Observed shape: a session produces a reader-facing deliverable end-to-end through a platform/tool skill pack (a collaborative-doc platform, spreadsheet, or browser pack), and the loaded tool skill supplies enough "already being guided" feeling that nobody ever asks which skill owns the DELIVERABLE's quality bar — so the finalization owner's gates (doc charter, completeness audit, closeout sweep, structural-reference re-resolution) stay dormant for the whole effort, surfacing only when the user asks "did you run the doc-optimization skill". This is the behavioral twin of the digest-masks-corpus trap: the tool layer's presence masks the owner layer's absence.
 
 Firing point: **producing or first-publishing a reader-facing deliverable is an owner-check transition** — before the first publish to a collaborative or reader-visible surface, answer "which skill owns this deliverable's quality bar" as a separate question from "which tool writes it"; a tool-skill invocation never discharges that check, and a deliverable with no matching owner routes to the finalization skill's Draft mode rather than proceeding ownerless. Mechanical anchors: the no-owner-deliverable triggers on the finalization skill's routing surface (`tighten-doc` description), and this workflow's closeout gate when the session later lands skill changes. Honesty bound as elsewhere in this section: between those anchors the check is recognition-dependent — do not overclaim it as a mechanical gate.
+
+## gap-list 形态为什么最易滑过
+
+自检触发点列举的是「沉淀 / 提炼 / 复盘 / distil」这类**自述措辞**。但一轮提炼最常见的第一个产出不是这些词，而是**一张缺口清单**——「外部源有 X、Y、Z，我们没有」。它读起来像在**答一个覆盖问题**，不像在提炼，所以 charter-before-findings 那条规则从不觉得被触发。
+
+但按该规则自己的定义，**针对外部源的缺口清单就是它所说的 findings 回合**：一旦产出，charter 就只能事后补写。
+
+观测实例：一轮里先产出四条「外部有我们没有」的缺口，之后才 invoke 提炼工作流；改前的触发词表逐字检索该轮实际措辞得零命中。

@@ -505,3 +505,11 @@ The challenge pass is **structurally different** from review — it must be invo
 ## Cost note
 
 Challenge pass at high reasoning typically costs 2-5× review pass in tokens. For a ~3 kLOC reference diff, expect ~250-500k tokens on challenge vs ~50-100k on review. The value of one P0 finding caught before landing dwarfs the cost difference; do not skip on cost.
+
+## 错误锚点：用错的尺子量对的实现
+
+验证 oracle 用的**锚点本身可能是错的**，而这比 oracle 出错更难发现——因为**其余锚点会继续通过**。
+
+当锚点的预期方向来自**你对一手源的解读**时，该解读是 hypothesis-grade。锚点不过，第一步应是质疑锚点、回到源的机制陈述重新推导预期，而不是判实现有 bug。否则两种后果：要么去「修」一个正确的实现，要么——更危险——因为其余锚点通过而接受一个错的。
+
+观测实例：验证色觉障碍模拟时，用「红色模拟后应变暗」作锚点，实测亮度上升。回到一手后确认：模拟把颜色投影到**单侧二色视者双眼一致的不变轴**（protan/deutan 取 475nm 与 575nm），红投到黄轴、亮度上升是算法的**正确行为**；而「红色看起来暗」说的是**红与黑难以区分**，是另一个量。另外两个锚点（灰阶不变、已知色对靠拢）当时都通过。

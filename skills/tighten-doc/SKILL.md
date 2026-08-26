@@ -1,6 +1,6 @@
 ---
 name: tighten-doc
-description: "润色文档 / 精简文档 / 改下文档 / AI 味太重 / 废话太多 / polish / make shorter / remove AI tone → finalize wording after substance is settled: clarify, shorten, restructure lightly, preserve decisions, and keep comments safe. Proactively draft a no-owner deliverable doc（「写一份分享/给同事的文档」）. Skip while a sibling owns the substance（定稿仍回本技能）: spec/PRD/标准 → product-rd-workflow; 技术方案/架构文档 → architecture 技能; 发布文档 → release-doc-writer; 测试用例文档 → test-artifact-management."
+description: "润色文档 / 精简文档 / 改下文档 / AI 味太重 / 废话太多 / polish / make shorter / remove AI tone；**该画时序图还是状态机 / 这里要不要配图 / 图画完了总觉得不对劲说不上哪不对 / 缺图例 / 连线没标签 / 全是表格要不要补图 / 图里字看不清** → finalize wording after substance is settled: clarify, shorten, restructure lightly, preserve decisions, and keep comments safe. Proactively draft a no-owner deliverable doc（「写一份分享/给同事的文档」）. 图与表的**表示形式**（图种由主张形态推出、记法硬约束、版式契约、对比度、可跑的检查器）归本技能，**系统边界与架构决策本身仍归架构技能**。Skip while a sibling owns the substance（定稿仍回本技能）: spec/PRD/标准 → product-rd-workflow; 技术方案/架构文档 → architecture 技能; 发布文档 → release-doc-writer; 测试用例文档 → test-artifact-management."
 ---
 
 # tighten-doc — 文档写作与优化
@@ -59,7 +59,7 @@ owner · 硬规则 · 完成标准/DoD · 里程碑 · 数值阈值 · the real 
 - **外部基线 / 标准值入文档 = 独立标注 + 命名来源 + 内部门（若有）仍权威。** 引用外部 benchmark、行业阈值、标准默认值（评测目标、性能预算、参考 SLO 等）时，放成独立的列 / 行 / 标注并配命名来源超链，别和本系统自己的验收门 / 阈值混写成同一个数。**当本系统有自己的验收门时**显式声明本系统门为准、外部值只作对标参考（反模式：把外部基线直接当验收标准，读者误以为外部数就是上线门）；**若文档本身即标准 / 评测报告 / 无内部门**，则标清来源 / 范围 / 权威，别杜撰一个内部门。**评自己的稿是这条的另一半**：对自己产出的文档评可实测呈现属性（加粗密度、句长、结构层级）前，先建同体裁实测基准——长文或系列交付物在**初稿前**建（写完被纠正后再补测，是实测过的返工形态）——按**预先声明的抽样框与纳排规则**（在实测待评稿自身指标**之前**冻结，防止看完自己的数再挑参照系）取同体裁公开样本（记录样本量、口径与局限；不得挑对自己有利的样本充数，"若干份"本身不构成充分门槛），中英文样本分开统计，把待评稿放进分布里定位；找不到可靠公开样本或体裁不可比时如实记「未对标 + 原因」；流行排版阈值逐条核到一手出处再用，核不到不用。**分布定位的合法输出是描述**（"高于/低于所选样本分布"），**不是裁决**："合适"要再结合读者任务与可用性判断；"优于同类"不得由密度类粗指标推出；无基准时该属性只能报「未对标」——自己的审美不是分布。密度居中更推不出「稿子写得好」：整体质量仍按文档目的、读者任务、事实核验与本 rubric 分轴判断，呈现分布不背书内容正确性。
 - No inline `｜` / pipe-delimited lists (RACI / 分工) — break into bullets or a table.
 - Short sentences, one point per line, enumerations as tables.
-- **表达形式匹配内容**：分支关系 / 状态迁移复杂到文字难扫时优先**图**（mermaid 等）；字段对比、分桶属性、owner/gate/证据矩阵优先**表**；线性步骤用编号列表；一两点判断一句话或 bullet。别为单个判断加**装饰性**多桶图，但桶间有不同 owner / 阈值 / 例外 / 后果时**必须结构化**（该结构别压成一句）。**目标环境不稳定渲染图时**（邮件 / 终端 / 部分 Markdown），文字版流程为准、图只作辅助。**callout / 图内文字 = 概览形态，只承一个要点**：callout 塞成多点密块（"一坨"）就拆开或降到正文 / 表；图内边标签、节点名要短到不折行（长串在渲染端会断行错位）；承载性名称留全称、必要时短别名 + 图例，详情进正文别堆进图。
+- **表达形式匹配内容**：分支关系 / 状态迁移复杂到文字难扫时优先**图**（mermaid 等）；字段对比、分桶属性、owner/gate/证据矩阵优先**表**；线性步骤用编号列表；一两点判断一句话或 bullet。别为单个判断加**装饰性**多桶图，但桶间有不同 owner / 阈值 / 例外 / 后果时**必须结构化**（该结构别压成一句）。**目标环境不稳定渲染图时**，文字版流程为准、图只作辅助。**callout / 图内文字 = 概览形态，只承一个要点**：callout 塞成多点密块（"一坨"）就拆开或降到正文 / 表。**图种由主张形态定**（有事件触发→状态机 / 消息序→时序 / 随完成流转→流程）；**画了必须有标题与图例、连线单向且标签具体**；**量级对比别全压进表**。余下见 `references/figure-and-table-craft.md`。
 - **代码进代码块，不进段落**：**多行 / 独立执行步骤 / 长 flag 串命令 / 多命令序列**放代码块（带 lang），不写成段落里的纯文本或一长串内联 `code`。**短的随文 one-liner / 表达式、对照表单元格、「用 `func()`」式符号引用可留 inline**，只要不长到影响扫读（与上面的表格单元格 / 内联引用规则一致，别硬塞进代码块）。多语言对照两端形态对齐——一端给了代码块，另一端别写成「Go：`call(...)`」式内联段落。
 - **Enumeration sections (依赖/兜底/分工/里程碑 子项) = multi-line sub-bullets, NOT a `；`-collapsed single line.** Readability beats compactness here; a `- 依赖：A；B；C；D` run is hard to scan — split to `- 依赖：` + one `- A` sub-bullet per item. Do not collapse to one `；` line just for parity with another card; parity is not a reason to reduce scanability. Single-line `；` is only for a true 2-item short pointer where sub-bullets would be heavier than the content.
 - Table cells that list multiple skills, owners, checks, environments, or evidence items should be split into multiple lines or shorter rows. A readable table beats a compressed cell when the cell is used as an execution checklist.
@@ -147,7 +147,7 @@ Never destroy collaborative comments. Before editing a collaborative doc, fetch 
 
 **交付前 closeout checklist（阻断项索引，不是通过证书）。** 报「已优化」仍需跑完 Workflow 1-4 + KEEP / decided-point 保全 + 下方 closeout-sweep 全量；本清单只把高频阻断项收敛成可判定的最后一道闸，逐项标 ✓ / N-A、任一未过即不得报已优化（每项指向下方 / FORM 的 canonical 规则，不在此复述全部语义）。发布、同步、commit 前离开生成态，把改过的块当"刚被粘进来"逐行读一遍再判：
 
-1. **callout / 图内文字 = 一个要点**：无多点密块（一坨）就拆或降正文 / 表；图内标签短到不折行、承载性名称按「表达形式匹配内容」条处理。
+1. **callout / 图内文字 = 一个要点**：无多点密块（一坨）就拆或降正文 / 表；图的形态项过 `figure-and-table-craft.md`。
 2. **管理 / 业务 jargon 对目标读者已 plain-name / gloss**（协议 / API / 字段 / 契约名 + 用户认可的紧凑 `/` `+` 枚举保留；保留项里读者不熟的首次解释）。
 3. **编号连续、父子号同步**；族内同义术语 / label 漂移**全族扫 = 0**。
 4. **图 ↔ 文字无双写**（图承流程、文字留 KEEP 项）；外部基线 / 标准值独立列 + 命名来源，门权威按「外部基线」条（有内部门则其为准，无则标清来源不杜撰）。

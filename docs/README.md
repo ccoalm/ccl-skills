@@ -36,6 +36,7 @@ Start with the guide that matches the work you are doing. Agent-executable rules
 - [Automated testing design](auto-test-scheme.md)
 - [Empty repository initialization](empty-repo-init-handbook.md)
 - [Documentation writing](doc-writing-handbook.md)
+- [Figures and tables](figure-and-table-handbook.md)
 - [Feishu integration](feishu-binding-handbook.md)
 - [Skill effectiveness harness](f4-skill-effectiveness-harness.md)
 - [npm release runbook](npm-release.md)
