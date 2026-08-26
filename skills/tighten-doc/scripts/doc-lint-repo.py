@@ -1,35 +1,44 @@
 #!/usr/bin/env python3
-"""Fail when a tracked Markdown doc carries an ERROR-class structure defect.
+"""Fail when a tracked Markdown doc in a repository carries an ERROR-class defect.
 
-`check-markdown-links.py` resolves link destinations and `check-spec-references.py`
-resolves backticked `specs/` citations. Neither looks at document STRUCTURE, so a
-table with no header row, or a figure reference naming a figure the document does
-not contain, lands unnoticed. `skills/tighten-doc/scripts/doc-lint.py` already
-decides those; this script is only the repo-wide enumerator that runs it over the
-tracked corpus and turns its ERROR tier into a landing gate.
+`doc-lint.py` (this script's sibling) decides every predicate for ONE document.
+This is the repository-wide enumerator: it lists the tracked Markdown of a repo
+you point it at, runs the linter over all of it in one pass, and turns the ERROR
+tier into a landing gate. Nothing here judges a document; it decides only WHICH
+files are in scope and WHICH tier blocks.
 
-WHY ERROR ONLY. Measured over this repo's 481 tracked non-fixture Markdown files:
-0 ERROR, 75 WARN. Blocking on the WARN tier would fail the repo on its own docs
-today, and that is the correct outcome rather than an argument for waivers — the
-WARN predicates are labelled `[工]` engineering proxies in
-`skills/tighten-doc/references/figure-and-table-craft.md` (§9b), and that file's
-own rule is that a proxy which cannot separate a defect from a judgement call
-must not gate. So the WARN count is printed for visibility and does not block.
-The ERROR tier is the objective half: an empty or absent table header, a dangling
-figure reference, an unreadable file.
+    python3 doc-lint-repo.py /path/to/your/repo
 
-WHY THE FIXTURE DIRECTORY IS EXCLUDED, and why that is not convenience. The
-linter's own corpus under `skills/tighten-doc/scripts/tests/` contains documents
-built to violate each predicate; measured, it reports 2 ERROR by construction.
-Scanning it would make this gate permanently red for the exact inputs that prove
-the linter works. The exclusion is one literal prefix, asserted by
-`test_check_doc_structure.py` in both directions: a real doc must not be dropped
-by it, and a fixture must not be scanned. A wider exclusion is the failure mode
-to guard against — it hides real documents while still printing a pass.
+It is written to run against ANY repository, not only the one that ships it. That
+is the point: a repo-local scanner would have made this skill's own documents the
+only ones ever checked. Both paths it depends on are derived, not assumed — the
+linter is the sibling file next to this script, and the fixture exclusion is that
+linter's own `tests/` directory, resolved against whatever repo you scanned.
 
-Scope is TRACKED files only, matching the sibling gates: an untracked scratch
-file is not part of the delivered repo, and including it would make the verdict
-depend on the working tree rather than on what lands.
+WHY ERROR ONLY. Measured over the shipping repository's 481 tracked non-fixture
+Markdown files: 0 ERROR, 75 WARN. Blocking on the WARN tier would fail that repo
+on its own docs the day the gate lands, and the right conclusion is not a waiver
+list — the WARN predicates are labelled `[工]` engineering proxies in
+`../references/figure-and-table-craft.md` (§9b), and that file's own rule is that
+a proxy which cannot separate a defect from a judgement call must not gate. So
+the WARN count is printed for visibility and does not block. The ERROR tier is
+the objective half: an empty or absent table header, a dangling figure reference,
+an unreadable file.
+
+WHY A FIXTURE DIRECTORY IS EXCLUDED, and why that is not convenience. The
+linter's own corpus under its `tests/` directory contains documents built to
+violate each predicate; measured, it reports 2 ERROR by construction. Scanning it
+would make this gate permanently red for the exact inputs that prove the linter
+works. The exclusion is ONE derived prefix and applies only when that directory
+actually sits inside the scanned repo — in a consuming repo the skill is
+installed elsewhere, so nothing is excluded and nothing needs to be. It is
+asserted in both directions: a real doc must not be dropped by it, and a fixture
+must not be scanned. A wider exclusion is the failure mode to guard against — it
+hides real documents while still printing a pass.
+
+Scope is TRACKED files only: an untracked scratch file is not part of the
+delivered repo, and including it would make the verdict depend on the working
+tree rather than on what lands.
 """
 
 from __future__ import annotations
@@ -40,17 +49,27 @@ import subprocess
 import sys
 from pathlib import Path
 
-# The linter that owns every predicate. This script contributes no judgement of
-# its own; it decides only WHICH files are in scope and WHICH tier blocks.
-LINTER_REL = "skills/tighten-doc/scripts/doc-lint.py"
-
-# Documents built to violate the predicates, so the linter can prove it detects
-# them. One literal prefix, deliberately not a pattern: a pattern is how an
-# exclusion silently grows to cover real docs.
-FIXTURE_PREFIX = "skills/tighten-doc/scripts/tests/"
+HERE = Path(__file__).resolve().parent
+# The linter that owns every predicate — the sibling file, NOT a path guessed
+# inside the scanned repo. Deriving it is what lets this run against a repo that
+# has never heard of this skill.
+LINTER = HERE / "doc-lint.py"
+# Documents built to violate the predicates so the linter can prove it detects
+# them. Derived from the linter's own location, and applied only if that location
+# is inside the repo being scanned.
+FIXTURE_DIR = HERE / "tests"
 
 TOTAL_RE = re.compile(r"^合计: (\d+) ERROR, (\d+) WARN", re.M)
 ERROR_ROW_RE = re.compile(r"^  ERROR +([A-Z][A-Z0-9-]+)", re.M)
+
+
+def fixture_prefix(root: Path) -> str | None:
+    """The fixture directory as a repo-relative prefix, or None if outside it."""
+    try:
+        rel = FIXTURE_DIR.resolve().relative_to(root)
+    except ValueError:
+        return None
+    return f"{rel.as_posix()}/"
 
 
 def tracked_markdown(root: Path) -> list[str]:
@@ -71,16 +90,19 @@ def tracked_markdown(root: Path) -> list[str]:
         raise RuntimeError(f"git ls-files exited {proc.returncode}: {proc.stderr.strip()}")
     paths = [p for p in proc.stdout.split("\0") if p]
     md = [p for p in paths if Path(p).suffix.casefold() == ".md"]
-    return [p for p in md if not p.startswith(FIXTURE_PREFIX)]
+    prefix = fixture_prefix(root)
+    if prefix is None:
+        return md
+    return [p for p in md if not p.startswith(prefix)]
 
 
 def main(argv: list[str]) -> int:
     root = Path(argv[0] if argv else ".").resolve()
-    linter = root / LINTER_REL
+    linter = LINTER
     if not linter.is_file():
         # Fail closed: a missing linter must not read as "nothing to report".
         print(
-            f"doc_structure_check_failed: linter not found at {LINTER_REL}; "
+            f"doc_structure_check_failed: linter not found at {linter}; "
             "the gate cannot certify a corpus it never scanned",
             file=sys.stderr,
         )
@@ -93,8 +115,9 @@ def main(argv: list[str]) -> int:
         return 1
 
     if not files:
-        # An empty scope is a scoping bug, not a clean repo. Every historical
-        # version of this repo has tracked Markdown.
+        # An empty scope is a scoping bug, not a clean corpus. A repository worth
+        # gating has tracked Markdown; zero means the enumeration broke or the
+        # path is not the repo you meant.
         print(
             "doc_structure_check_failed: no tracked Markdown in scope — the "
             "enumeration is broken, not the corpus clean",
@@ -163,7 +186,7 @@ def main(argv: list[str]) -> int:
             f"Fix the document; these are objective defects (a table with no real "
             f"header, a figure reference with no such figure, an unreadable file), "
             f"not style preferences. Run "
-            f"`python3 {LINTER_REL} <file>` for the per-file detail.",
+            f"`python3 {linter} <file>` for the per-file detail.",
             file=sys.stderr,
         )
         return 1
