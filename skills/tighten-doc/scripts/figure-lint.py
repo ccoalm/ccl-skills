@@ -13,7 +13,35 @@
 import sys, re, os, glob, json, math, collections
 import xml.etree.ElementTree as ET
 
-SVG = "{http://www.w3.org/2000/svg}"
+SVG_NS = "http://www.w3.org/2000/svg"
+SVG = "{" + SVG_NS + "}"
+
+
+def lname(tag):
+    """SVG 或无命名空间元素的 local-name；外来命名空间返回 None。
+
+    没有默认 xmlns 的内联 SVG 在 HTML 里完全合法——HTML 解析器会补命名空间，
+    ElementTree 不会，于是它产出**裸标签**。只按 `{ns}tag` 比较，这一整类图就
+    持续误判。但反过来无条件丢掉命名空间同样错，而且两个方向都错：
+    Inkscape/Illustrator 导出里极常见的 `<dc:title>`（RDF 元数据）会被当成 SVG
+    `<title>` 让缺标题的图假绿，而 `<ext:script>` 会被误判成可执行脚本错误阻断。
+    支持无 xmlns **不要求**接受任意外来命名空间——两条 lane 各从一个方向指出了这点。
+    """
+    if not isinstance(tag, str):
+        return None
+    if tag.startswith('{'):
+        ns, _, local = tag[1:].partition('}')
+        return local if ns == SVG_NS else None
+    return tag
+
+
+def iter_local(root, *names):
+    """按 local-name 遍历，替代 root.iter(f'{SVG}tag')。"""
+    want = set(names)
+    for el in root.iter():
+        if lname(el.tag) in want:
+            yield el
+
 
 # ---------- 颜色与对比度（WCAG 2.2 SC 1.4.3） ----------
 
@@ -51,6 +79,11 @@ def parse_css(svg_text):
     """返回 {class_name: {prop: value}}"""
     out = {}
     for block in re.findall(r'<style[^>]*>(.*?)</style>', svg_text, re.S):
+        # at-rule 先剥掉：`@import "…";` 会被下面的选择器正则当成选择器的一部分，
+        # 把它后面那条真规则的 class 名污染掉，于是文字取不到样式、退回默认值，
+        # 冒出一串与本缺陷无关的契约报错。`@media{…}` 同理（只剥外层，保留内部规则）。
+        block = re.sub(r'@[a-zA-Z-]+[^;{]*;', ' ', block)
+        block = re.sub(r'@[a-zA-Z-]+[^{]*\{', ' ', block)
         for m in re.finditer(r'([^{}]+)\{([^}]*)\}', block):
             sels, body = m.group(1), m.group(2)
             props = {}
@@ -144,12 +177,12 @@ def referenced_defs_colors(root, css):
             m = re.match(r'url\(#([^)]+)\)', v)
             if m:
                 used.add(m.group(1))
-        if el.tag == f'{SVG}use':
+        if lname(el.tag) == 'use':
             href = el.get('href') or el.get('{http://www.w3.org/1999/xlink}href') or ''
             if href.startswith('#'):
                 used.add(href[1:])
     seen = set()
-    for defs in root.iter(f'{SVG}defs'):
+    for defs in iter_local(root, 'defs'):
         for node in defs:
             if node.get('id') not in used:
                 continue
@@ -198,7 +231,7 @@ def group_path_map(root):
     m = {}
     def walk(node, chain):
         for el in node:
-            c = chain + [id(el)] if el.tag == f'{SVG}g' else chain
+            c = chain + [id(el)] if lname(el.tag) == 'g' else chain
             m[id(el)] = c
             walk(el, c)
     walk(root, [])
@@ -622,8 +655,76 @@ def lint(path, contract_hint=None):
     # 渐变、圆/多边形底、rgb()/CSS 变量同样会让「按白底算」得出假红或假绿。
     geometry_unsafe = bool(paint_gaps)
 
+    # --- 自包含：图不得带脚本、外部资源或 HTML 逃逸口 ---
+    # 内联 SVG 与图片文件不同：它进入宿主文档的 DOM，所以 <script> 是**注入面**，
+    # 不只是整洁问题。<foreignObject> 把任意 HTML 带进来，同样逃出 SVG 的语义。
+    # 外部资源引用（image/use/feImage 指向 http(s) 或相对文件）让图在别处渲染时
+    # 变成断链——图随文档走，被引的东西不会。
+    #
+    # 刻意**不禁** <style>：邻近的 artifact-diagramming 技能禁它，但那是它那条
+    # lane 的自包含约束（页面已有 CSS 层），不是普遍判据；本仓自己的图正当地用
+    # 内联 <style> 定义字号与语义色。按仓规，外部包借理论不借实现。
+    # 同样不禁 <a>：超链接不在渲染时拉取任何东西，与"自包含"无关。
+    # 标签一律按 local-name 判：没有默认 xmlns 的 SVG 会让 ElementTree 产出裸标签，
+    # 只匹配带命名空间的 QName 就对那一类**持续假绿**。（评审实测：新增 fixture 全带
+    # xmlns，所以这个洞在自己的测试下看不见。）
+    RESOURCE_TAGS = ('image', 'use', 'feImage', 'pattern')
+    # 外部资源不只从 href 进来：`fill="url(https://…)"`、`filter=`、以及 <style> 里的
+    # @font-face src / background 同样在渲染时拉取。只查四个标签的 href 会漏掉这一整面。
+    EXTERNAL_URL_RE = re.compile(r'url\(\s*[\'"]?\s*(?!#|data:)([^)\'"\s]+)', re.I)
+    # `@import "https://…"` 是合法 CSS 且**不走 url() 语法**，只认 url() 就是一个绕过口。
+    CSS_IMPORT_RE = re.compile(r'@import\s+(?:url\(\s*)?[\'"]?\s*(?!#|data:)([^;)\'"\s]+)', re.I)
+
+    def _flag_external(where, value, css=False):
+        pats = (EXTERNAL_URL_RE, CSS_IMPORT_RE) if css else (EXTERNAL_URL_RE,)
+        for m in [m for pat in pats for m in pat.finditer(value or '')]:
+            add('ERROR', 'SVG-NOT-SELF-CONTAINED',
+                f'{where} 通过 url() 引用了外部资源 {m.group(1)[:60]}：'
+                f'渲染时会去拉取，图换个位置就是断链。只允许同文档 fragment（url(#id)）或 data:')
+
+    for el in root.iter():
+        name = lname(el.tag)
+        if name == 'script':
+            add('ERROR', 'SVG-NOT-SELF-CONTAINED',
+                '<script> 出现在内联 SVG 里：它进入宿主文档的 DOM，是注入面而非整洁问题。'
+                '图应当是纯标记，交互归页面')
+            continue
+        if name == 'foreignObject':
+            add('ERROR', 'SVG-NOT-SELF-CONTAINED',
+                '<foreignObject> 把任意 HTML 带进图里：逃出 SVG 语义，且在多数导出/'
+                '打印路径下不渲染。要文本就用 <text>')
+            continue
+        if name == 'style':
+            _flag_external('<style>', el.text or '', css=True)
+            continue
+        if name in RESOURCE_TAGS:
+            href = (el.get('href') or el.get('{http://www.w3.org/1999/xlink}href') or '').strip()
+            if href and not href.startswith('#') and not href.startswith('data:'):
+                add('ERROR', 'SVG-NOT-SELF-CONTAINED',
+                    f'{name} 引用了外部资源 {href[:60]}：'
+                    f'图随文档走、被引的东西不会，换个位置渲染就是断链。'
+                    f'用 fragment 引用（href="#id"）或 data: 内嵌')
+        # 任何元素的任何属性里的 url()——fill/stroke/filter/mask/clip-path/style 都算
+        for attr, val in el.attrib.items():
+            a = attr.split('}')[-1]
+            # 事件处理器与 javascript: URL 与 <script> 是同一注入面。谓词声称管注入面，
+            # 只查 <script> 就是**声明与实现相反**——评审从这个方向打进来过。
+            if a.lower().startswith('on'):
+                add('ERROR', 'SVG-NOT-SELF-CONTAINED',
+                    f'{name} 带事件处理器 {a}：内联 SVG 进入宿主文档的 DOM，'
+                    f'它和 <script> 是同一个注入面。交互归页面，图是纯标记')
+                continue
+            v = (val or '').strip()
+            if a in ('href', 'xlink:href') and v.lower().replace(' ', '').startswith('javascript:'):
+                add('ERROR', 'SVG-NOT-SELF-CONTAINED',
+                    f'{name} 的 {a} 是 javascript: URL：同上，属注入面')
+                continue
+            if 'url(' in (val or ''):
+                _flag_external(f'{name} 的 {a}', val)
+
     # --- C4: 标题 ---
-    title_el = root.find(f'{SVG}title')
+    # 直接子元素才是整图标题；嵌套在 <g> 里的 <title> 是那个子元素的提示。
+    title_el = next((c for c in root if lname(c.tag) == 'title'), None)
     title = (title_el.text or '').strip() if title_el is not None else ''
     if not title:
         add('ERROR', 'C4-TITLE', '缺 <title>：C4 要求每张图有标题，说清图的类型与范围')
@@ -633,10 +734,10 @@ def lint(path, contract_hint=None):
     def walk_text(node, inh):
         for el in node:
             p = resolve(el, css, inh)
-            if el.tag == f'{SVG}text':
+            if lname(el.tag) == 'text':
                 content = ''.join(el.itertext()).strip()
                 content = ' '.join(content.split())
-                tspans = el.findall(f'{SVG}tspan')
+                tspans = [c for c in el if lname(c.tag) == 'tspan']
                 try:
                     tx = float(el.get('x', 0)); ty = float(el.get('y', 0))
                 except ValueError:
@@ -818,8 +919,8 @@ def lint(path, contract_hint=None):
         if w <= 0 or h <= 0 or w >= page_w * 0.95:
             return False
         return any(x <= t['x'] <= x + w and y <= t['y'] <= y + h for t in texts)
-    card_rects = [e for e in root.iter(f'{SVG}rect') if _is_card_rect(e)]
-    for el in root.iter(f'{SVG}rect'):
+    card_rects = [e for e in iter_local(root, 'rect') if _is_card_rect(e)]
+    for el in iter_local(root, 'rect'):
         try:
             rx = float(el.get('x', 0)); ry = float(el.get('y', 0))
             rw = float(el.get('width', 0)); rh = float(el.get('height', 0))
@@ -859,7 +960,7 @@ def lint(path, contract_hint=None):
         add('ERROR', 'GROUPING',
             f'{ungrouped_cards}/{card_total} 张卡片的形状与其文字不在同一个 <g> 内：'
             f'推送到会重排 z 序的目标端时，矩形可能盖住文字')
-    elif card_total == 0 and len(list(root.iter(f'{SVG}g'))) == 0:
+    elif card_total == 0 and len(list(iter_local(root, 'g'))) == 0:
         add('ERROR', 'GROUPING', '全图零 <g> 分组：目标端重排 z 序时矩形可能盖住文字')
 
     # --- 主题：语义色需在每个声明的底色上都达标 ---

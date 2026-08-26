@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 400 200" role="img" aria-label="every allowed self-contained form">
+ <title>Every allowed self-contained form</title>
+ <defs>
+  <style>.ok{font-size:14px;fill:#111827}.flow{fill:none;stroke:#0072B2;marker-end:url(#a)}</style>
+  <marker id="a" refX="10" refY="6"><path d="M1 1L11 6L1 11Z" fill="#0072B2"/></marker>
+  <rect id="chip" width="14" height="14" fill="#009E73"/>
+ </defs>
+ <g>
+ <rect x="0" y="0" width="400" height="200" fill="#FFFFFF"/>
+  <a href="https://example.invalid/docs"><text x="200" y="30" class="ok">超链接不拉取资源</text></a>
+  <image x="300" y="20" width="8" height="8" href="data:image/gif;base64,R0lGODlhAQABAAAAACw="/>
+  <use xlink:href="#chip" x="10" y="95"/>
+  <rect x="10" y="120" width="14" height="14" fill="#0072B2"/><text x="32" y="132" class="ok">图例一</text>
+  <rect x="10" y="145" width="14" height="14" fill="#D55E00"/><text x="32" y="157" class="ok">图例二</text>
+  <rect x="10" y="170" width="14" height="14" fill="#009E73"/><text x="32" y="182" class="ok">图例三</text>
+ </g>
+</svg>

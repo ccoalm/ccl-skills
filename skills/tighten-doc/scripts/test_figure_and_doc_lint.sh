@@ -83,7 +83,15 @@ run_expect figure-lint.py "${here}/tests/svg" svg \
   'no-aria.svg=FIGURE-A11Y-STRUCTURE' \
   'cvd-confusable.svg=' \
   'decorative-line.svg=' \
-  'blackmarker.svg=CONTRACT-COLOR-TOKEN'
+  'blackmarker.svg=CONTRACT-COLOR-TOKEN' \
+  'unsafe-script.svg=SVG-NOT-SELF-CONTAINED' \
+  'unsafe-external-ref.svg=SVG-NOT-SELF-CONTAINED' \
+  'unsafe-noxmlns.svg=SVG-NOT-SELF-CONTAINED' \
+  'unsafe-css-url.svg=SVG-NOT-SELF-CONTAINED' \
+  'unsafe-css-import.svg=SVG-NOT-SELF-CONTAINED' \
+  'unsafe-event-handler.svg=SVG-NOT-SELF-CONTAINED' \
+  'foreign-ns-title.svg=C4-TITLE' \
+  'self-contained-ok.svg='
 
 note "== doc-lint 逐谓词差分 =="
 run_expect doc-lint.py "${here}/tests/doc" md \
