@@ -54,6 +54,7 @@ export const OPENCODE_HOOK_BINDINGS = Object.freeze({
   "guard-edit-isolation.sh": "tool.execute.before:edit/write/apply_patch",
   "owner-dispatch-guard.sh": "tool.execute.before:edit/write/apply_patch/bash",
   "guard-merge-authorization.sh": "tool.execute.before:bash",
+  "remind-unverified-cli-flag.sh": "tool.execute.before:bash",
   "guard-delegation-owner.sh": "tool.execute.before:task/agent",
   "remind-post-merge-cleanup.sh": "tool.execute.after:bash",
   "merge-authorization-prompt.sh": "chat.message",
@@ -482,6 +483,10 @@ export const CclSkills = async (context: {
           throw new Error(`ccl-skills merge authorization blocked this operation.\n${merge.message ?? "OpenCode hook runtime unavailable."}`)
         }
         enforce(merge, "ccl-skills merge authorization")
+        // Advisory only: it never blocks, so its context is appended rather than
+        // enforced. Mirrors hooks/remind-unverified-cli-flag.sh under Claude Code.
+        const flagNote = additionalContext(runHook(hooksRoot, "remind-unverified-cli-flag.sh", hookPayload, directory, 10_000))
+        if (flagNote) prependTaskContext(args, [flagNote])
       }
 
       if (tool === "task" || tool === "agent") {
