@@ -146,6 +146,40 @@ instance in the same session shows the same shape at reporting altitude: an empt
 output file plus a stale status snapshot were reported as "the commit did not land" instead
 of being re-read.
 
+### The claim/evidence pair table — the single most-recorded failure class
+
+**Invariant: the proof you hold establishes a DIFFERENT proposition than the one you are about to assert.** Not a weaker proof of the same claim — a sound proof of an adjacent claim. That is why it survives an honest self-check: the agent did verify something, and it was real.
+
+This is the largest class in the round-059 corpus by a wide margin. The counts below are the instances that could be attributed to a specific pair on a re-read — **71 of the 400 failure records read in that pass**, across 14 pairs. (The denominator is the size of that one READ, which is fixed and re-countable from the extraction artifact; it is not the store's current size, which grows.) A coarser class-level pass over the same corpus put the shape higher still, but that figure is not reproducible from this table and is deliberately not quoted here: a table about asserting propositions your evidence does not establish must not open with one. Read 71 as a floor. Every pair is the same sentence with different nouns, which is why patching them one at a time never converged: each fix taught the next agent about `merge` versus `release` and nothing about the shape.
+
+| You are about to claim | What your evidence actually establishes | corpus |
+| --- | --- | --- |
+| the reviewer approved it | the review lane returned no verdict (timeout, quota, auth failure, invalid output, exhausted budget) | 16 |
+| the product or the code is defective | YOUR INVOCATION of it failed — missing runner or binary, container runtime down, sandbox denial, unwritable cache, expired credential, toolchain drift | 22 |
+| released / deployed | merged | 8 |
+| runtime behavior is correct | static, contract, compile, or lint evidence passed | 5 |
+| the content is correct | the command exited 0 | 4 |
+| this produced a product effect | CI is green / the package published | 4 |
+| deletion is authorized | merging was authorized | 3 |
+| the data is physically erased | refs are clean and a fresh clone looks right | 2 |
+| there is a live incident | the code path is reachable | 2 |
+| the item is resolved | a reply was posted | 1 |
+| the capability executes | it is registered or configured | 1 |
+| the caller can read it | the caller is a member | 1 |
+| it is implemented | the plan validated | 1 |
+| the application is authenticated | the user identity is authenticated | 1 |
+
+**How to use it.** Not as a checklist — as a recognition aid at ONE moment: when you are about to write `done` / `complete` / `verified` / `ready` / `passed` / `covered`. Say out loud the proposition your evidence establishes, then say the proposition you are about to assert. If they are not the same sentence, report the one you have and name the one you do not. `merged; the release pipeline has not run` costs one clause and is true.
+
+**What a reader here can and cannot check.** The rows sum to the stated total and that is verifiable in this file. The corpus behind them is NOT in this repository and cannot be: it is per-host agent session history carrying business identifiers, and it stays in private scratch under the extraction lifecycle rules. So the counts are **provenance-bound** — reproducible by whoever holds that corpus, opaque to everyone else. Treat them as what motivated the table, never as a measurement you can audit from here, and do not build a further claim on the exact number. The table earns its keep by whether the shape is recognizable when you next write `done`, which every reader can judge without the corpus.
+
+**Why the table is a table and not a rule per row.** The rows are evidence that the invariant is real and recurrent; they are not the specification. A pair absent from this table is still the same defect — the table earns its place by making the shape recognizable, not by enumerating it. Do not extend it every time a new pair appears in the wild; extend it only when a pair recurs and the invariant alone did not catch it.
+
+**Two families collapse into this one.** The environment row above was first classified as its own class ("an environment-layer failure reported as a product finding") and the whole-document-overwrite family as another ("the write succeeded" from "the command returned success"). Both are this invariant with different nouns, and `defect-diagnosis` already owns the substantive half of the first — its red-CI cause classification and its prove-it-from-the-tool-that-owns-the-state rule. Recording them as rows rather than as new rules is the point: the count is evidence of the shape, and three parallel rules would have taught three vocabularies instead of one invariant.
+
+**Boundary.** This is about the PROPOSITION, orthogonal to `testing-strategy`'s strong/medium/weak evidence *quality* axis: a strong test can perfectly establish the wrong proposition, and that is the failure recorded here. Where a pair has an owner, the substantive rule lives there — release-versus-merge semantics with `release-coordination`, review verdicts in this gate, runtime-versus-static with `testing-strategy` — and this table only makes the class visible at the moment of claiming.
+
+
 ## When dual-track is mandatory
 
 | Extraction type | Review | Challenge |

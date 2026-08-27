@@ -29,6 +29,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	bash hooks/test_guard_merge_authorization.sh
 	bash hooks/test_merge_authorization_prompt.sh
 	bash hooks/test_remind_post_merge_cleanup.sh
+	bash hooks/test_remind_unverified_cli_flag.sh
 	bash hooks/test_session_start.sh
 	bash skills/testing-strategy/scripts/client-terminal-ansi-check.test.sh
 	bash skills/testing-strategy/scripts/lang-basics-ast-check.test.sh

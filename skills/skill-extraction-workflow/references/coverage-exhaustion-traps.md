@@ -34,6 +34,51 @@ Its fix is therefore not "read the real artifact" but **walk a seed list of chan
 
 **Failure shape:** an agent researching one organization from public sources declares "the public channels are mined out" five separate times; each time the user pushes back, a **previously unconsidered channel class** lands major evidence (an archive route around a bot-block, a regulator's bulk dataset, a mandatory-disclosure regime, another jurisdiction's statutory filings, a filing the organization voluntarily publishes on its own site). No artifact was hiding these — they were never on a list. The domain-side channel taxonomy lives with the research owner (`skills/multi-perspective-research/references/public-disclosure-channels.md`, repo-root relative); what belongs here is the recurrence memory that an exhaustion claim over a *channel set* needs a walked class list, not more effort inside the known classes.
 
+## Variant (d) — the OTHER agent line's store (the corpus you cannot see from where you stand)
+
+More than one agent runs against the same repository, and each keeps its lessons in its own host's store. Those stores do not see each other. An extraction that enumerates "the lesson corpus" from the host it happens to be running on has enumerated **one line's half of it** and will report exhaustion over a corpus it never touched — the core trap, with host boundary as the thing doing the masking.
+
+Measured in round 059: one line held hundreds of `symptom -> cause -> fix` records while another held a few dozen distilled entries, in different trees under different roots with no reference between them. The figures are deliberately not pinned here — these stores are LIVE and grow while you work, so a count written into a durable document is a timestamped measurement that starts rotting the moment it lands; a re-count during this round's own self-check already disagreed with every figure it had recorded hours earlier. State DEPTH, which is stable, not SIZE, which is not. Neither line's store contained a pointer to the other. The consequence is not abstract: one class recurred **eight times across independent sessions** on the line that lacked the abstraction, while the line that had already generalized it — same repository, same weeks — carried the remedy the whole time.
+
+The gate: before any complete / exhausted / no-gap claim over a *lesson or failure* corpus, the landing that makes the claim carries, **for each agent line, a verdict** — `covered` / `digest-only` / `unavailable` / `excluded` — and under it one row per store backing that verdict. A per-store list without a per-line verdict is the failure this gate exists to stop: a reader cannot tell from four mixed rows whether the line was actually covered. A line whose store you cannot read is `unavailable` with the remediation attempted, never an omission; a line you deliberately leave out is `excluded` with the reason. Locate the stores by enumerating the hosts that actually work the repository, not by assuming the layout your own host uses — the other line's may be one large per-session file where yours is a directory of entries, and a path-shaped guess finds nothing and reads as absence (the same "keyed by something other than what you are asking about" failure the blocked-source ladder names).
+
+**Where these rows live — the split that makes the gate checkable.** Two different things get confused here. The *provenance* — the corpus itself, and the project, repository, branch, ticket and contributor identifiers inside it — is what the extraction lifecycle keeps in per-host scratch, and it stays there. An agent product name and its own config path (`~/.codex/memories/`) are neither: they identify a tool this repository already names throughout, carry nothing about any project, and a leakage audit over them comes back clean. The *coverage rows* are store location, status, depth and exclusion reason; they carry no corpus content, so nothing requires them to be private, and holding them in scratch makes the gate unverifiable by the only people who will ever read the claim. So: coverage rows go **where the claim is made**, alongside it and in the same artifact; provenance stays in scratch and the coverage rows point at it by role, never by real path. If a line's store cannot be described without naming something private, that is a sanitization problem to solve in the row, not a reason to move the row. The round that introduced this variant records its own, so the rule is demonstrated rather than asserted:
+
+**Codex line — verdict: `covered`.** One store was read to the bottom, and what was left out is left out for a stated reason, not by omission.
+
+| store | status | depth actually read |
+| --- | --- | --- |
+| `~/.codex/memories/MEMORY.md` | `deep-read` | every session block expanded; every failure bullet read individually, not sampled |
+| `~/.codex/skills/.extraction-work/` | `read` | all artifacts present at the time, charter/closeout fields |
+| `~/.codex/sessions/` | `excluded` | not read — the distilled memory file above is already their `symptom -> cause -> fix` reduction |
+| `~/.codex/memories/raw_memories.md` | `excluded` | not read — same source as the distilled file, which is structured |
+
+**Claude Code line — verdict: `digest-only`.** Deliberately weaker, and the weakness is the point: nothing in this round may rest on this line alone.
+
+| store | status | depth actually read |
+| --- | --- | --- |
+| `~/.claude/projects/<proj>/memory/` | `digest-only` | index lines only; entry bodies not expanded |
+| `~/.claude/skills/.extraction-work/` | `read` | all artifacts present at the time, charter/closeout fields |
+
+**Enumerate the line set before you fill the rows, and record how.** A table of two lines cannot reveal a third that was never listed — the gate false-greens on omission exactly the way the parent trap does on an unenumerated corpus. So the line set is *derived from something observable*, never recalled: list the agent home directories present on the machine (`ls -d ~/.*/ ` and pick the ones carrying agent state), then add any host named in this repository's own tooling and routing that has no directory yet. Record the enumeration you ran next to the verdicts, so a reader checks the SET first and the rows second. This is the channel-taxonomy failure of variant (c) applied to agent lines: nothing masks the missing line, it was simply never in the list.
+
+The worked example below was enumerated that way, and the enumeration immediately paid for itself: run against the machine that produced this round it returned **five** agent directories, not the two the round had been working with. Three had been invisible to an author who was recalling rather than listing. Two of them (`~/.gemini`, `~/.copilot`) hold configuration and installed skills only — no session or lesson state — and drop out on evidence. The third (`~/.cursor`) is a real line carrying substantial chat state, and it earns an `excluded` row with a reason rather than silence. That is the whole point of the gate: without the enumeration the round would have claimed cross-line coverage over a set it had never established.
+
+**Name the lines and their stores.** An anonymised table (`line A`, `line B`, "a memory file") cannot be audited: a reader cannot tell which agents were enumerated, cannot spot a third line that was never listed, and cannot check a store themselves — the gate false-greens on its own example. The private part is the corpus and the project identifiers in it, not the name of the agent that produced it. Name them, and let the sanitization rules do their job on the corpus rows instead of blanking the index.
+
+**Cursor line — verdict: `excluded`, with a reason.**
+
+| store | status | depth actually read |
+| --- | --- | --- |
+| `~/.cursor/chats/` | `excluded` | not read — raw conversation state with no distilled lesson artifact anywhere under the tree, the same class as the raw transcripts excluded on the Codex line |
+| `~/.cursor/agents/` | `excluded` | empty |
+
+**`~/.gemini`, `~/.copilot` — not lines for this purpose.** Configuration and installed skills only; no session or lesson state. Recorded here because "it turned out to hold nothing" is a finding, and leaving them off the list is how the next round re-discovers them.
+
+Two things that table makes visible and prose did not. The lines are **asymmetric by store, not by sampling**: one keeps its lessons in the memory file and the other in the extraction-work directory, and the directory named the same on both holds nine times more on one line than the other. And a same-named path means different things per line, so a lookup shaped by your own layout returns nothing and reads as absence.
+
+Do NOT resolve this by building a sync or mirror between the stores. Two independently-owned stores with a one-time cross-distillation is the shape that has held here; a mirror adds a mechanism to maintain and drifts silently the first time it is not run. The obligation is coverage at extraction time, not continuous replication.
+
 ## Variant (a0) — produced-artifact + next-run-delta (relocated gate detail)
 
 **Firing point: for a task/session retrospective, this variant fires at CHARTER time — the produced-artifact row (i) enters the charter's evidence plan as its FIRST source class (see the Evidence plan field in `source-to-skill-extraction.md`), while the next-run-delta row (ii) is a separate required charter/closeout record, not a source class — not only when an exhausted/complete claim is about to be made** (the original anchor, kept as backstop). Observed failure shape of the late anchor: a 7-session program retro that never claimed "exhausted" walked past this gate entirely, took only correction turns as evidence, and landed zero method/craft lessons while r-series reports and a benchmark corpus sat unread in the project.
