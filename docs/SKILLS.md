@@ -33,9 +33,9 @@
 
 ## 架构
 
-- `go-microservice-architecture` `leaf` — 用：Go 后端/微服务的边界划分、RPC 与 IDL 契约、数据归属、可靠性与安全不变式、平台选型。
+- `go-microservice-architecture` `leaf` — 用：Go 后端/微服务的边界划分、RPC 与 IDL 契约、数据归属、可靠性与安全不变式、多租户隔离、事件驱动/Kafka 与数据平台架构、平台选型。
   - 不用：写实现码 → `go-microservice-dev`；跨仓多阶段架构改造交付 → `product-rd-workflow`。
-- `python-service-architecture` `leaf` — 用：Python 后端的服务与包边界、API 契约、数据归属、异步/任务边界、运行时分层。
+- `python-service-architecture` `leaf` — 用：Python 后端的服务与包边界、API 契约、数据归属、异步/任务边界、多租户隔离、事件驱动/消息队列与数据平台架构、运行时分层。
   - 不用：写实现码或局部重构 → `python-service-dev`；跨模块多阶段重构交付 → `product-rd-workflow`。
 
 ## 实现

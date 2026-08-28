@@ -69,7 +69,7 @@ flowchart LR
 
 | 技能 | 思想内核 | 变成了哪条规则 | 想深入读 |
 |---|---|---|---|
-| `go-microservice-architecture`<br>`python-service-architecture` | **[限界上下文](https://martinfowler.com/bliki/BoundedContext.html)**：服务边界按语言和职责切，不按技术分层切；**[康威定律](https://martinfowler.com/bliki/ConwaysLaw.html)**——系统结构会长成沟通结构的样子 | 定边界、契约、数据所有权之后才写代码；跨语言契约归被改边界那一侧 | 限界上下文与康威定律 🔗（两包 `references/architecture-playbook.md` 已写明借鉴边界：只借**边界输入判据**，不声称完整 DDD 战略设计或逆康威方法；契约与数据所有权的操作性判据是技能自有规则）；数据清除另据 [NIST SP 800-88](https://csrc.nist.gov/pubs/sp/800/88/r1/final)（加密擦除作为清除手段的条件） |
+| `go-microservice-architecture`<br>`python-service-architecture` | **[限界上下文](https://martinfowler.com/bliki/BoundedContext.html)**：服务边界按语言和职责切，不按技术分层切；**[康威定律](https://martinfowler.com/bliki/ConwaysLaw.html)**——系统结构会长成沟通结构的样子 | 定边界、契约、数据所有权之后才写代码；跨语言契约归被改边界那一侧 | 限界上下文与康威定律 🔗（两包 `references/architecture-playbook.md` 已写明借鉴边界：只借**边界输入判据**，不声称完整 DDD 战略设计或逆康威方法；契约与数据所有权的操作性判据是技能自有规则）；数据清除另据 [NIST SP 800-88](https://csrc.nist.gov/pubs/sp/800/88/r1/final)（加密擦除作为清除手段的条件）；事件驱动镜像参考的 exactly-once 五条款配方借鉴 [End-to-End Arguments in System Design（Saltzer/Reed/Clark，ACM TOCS 1984）](https://web.mit.edu/Saltzer/www/publications/endtoend/endtoend.pdf) 🔗——正确性只能由通信端点的应用建立，broker 事务特性是原文所谓"不完整版本可作性能增强"；两包 `references/event-driven-architecture.md` 已写明借鉴边界。架构 playbook 的分层节另引 [Ports-and-Adapters / Hexagonal（Cockburn）](https://alistair.cockburn.us/hexagonal-architecture/) 🔗，只借 ports/adapters 放置思想 |
 | `go-microservice-dev`<br>`python-service-dev` | 依赖指向内层，数据访问隔离在边界；契约由代码生成保证单一真值 | 实现时保留架构决策不偷改边界；DAL / DI / codegen 按既定分层 | [整洁架构](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)、[六边形架构](https://alistair.cockburn.us/hexagonal-architecture/) 的依赖方向与端口隔离 |
 
 ### 平台基建

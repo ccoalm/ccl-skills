@@ -1,0 +1,22 @@
+$ ./skills/skill-extraction-workflow/scripts/check-parallel-stack-parity.sh .   # gate v4 (file-level byte compare)
+parallel_stack_parity_ok
+exit=0
+
+$ bash skills/skill-extraction-workflow/scripts/test_check_ccl_parallel_stack_parity.sh
+test_check_ccl_parallel_stack_parity_ok
+exit=0
+
+$ ruby skills/skill-extraction-workflow/scripts/eval-routing.rb .
+eval-routing: scanned 32 skills
+  blocking: none
+  advisory (0):
+exit=0
+
+$ CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .   (tail)
+entrypoint_size_budget_advisory_ok
+entrypoint_size_blocking_ok
+entrypoint_word_budget_blocking_ok
+parallel_stack_parity_ok
+ccl_skill_check_ok
+ccl_skill_check_clean_ok
+exit=0 (note: run pre-ledger-append reports the pending owner rows; the landed tree's clean run is reproducible with the same command)

@@ -14,6 +14,7 @@
 #   - test_controlled_escalation_pins.sh
 #   - test_check_ccl_size_budget.sh
 #   - test_check_ccl_skill_catalog.sh
+#   - test_check_ccl_parallel_stack_parity.sh
 #   - test_generic_r0_leak_scan.sh
 #   - test_check_ccl_route_drift.sh
 #   - test_check_sync_pointers.sh
@@ -101,6 +102,7 @@ fast_tests=(
   test_controlled_escalation_pins.sh
   test_check_ccl_size_budget.sh
   test_check_ccl_skill_catalog.sh
+  test_check_ccl_parallel_stack_parity.sh
   test_check_mr_target_freshness.sh
   test_generic_r0_leak_scan.sh
   test_check_ccl_route_drift.sh

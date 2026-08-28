@@ -1,0 +1,20 @@
+# Binding (captured pre-ledger-append; the append-only ledger row is the only later change in this round)
+# Self-inclusion limit, stated: a transcript cannot hash the commit that will contain it;
+# binding is therefore by content hash of every INPUT the recorded runs read, and every
+# command line is included so the runs are reproducible on the landed tree.
+captured_on_rebased_base: 9990db5350bd3a4925e8f58785398e50f61e986a (origin/dev)
+captured_on_top_of_commit: 79bdbd298fbc488684e0989e35e927698b573628
+gate_script_sha256: 05f12250b5388efd67700016332d72a66c6c2e98eaa7e996bd39103e2546969f
+input_sha256: 74fcd274322e9f6c14d6b44121652cdbc8127e6407580bd3bdbd45448073432e  skills/skill-extraction-workflow/scripts/check-ccl-skills.sh
+input_sha256: 3c977f41b13f39b4b56010a9b500c1ab08e3e4b342d6f1ce74831a0c97277dbb  skills/skill-extraction-workflow/scripts/test_check_ccl_parallel_stack_parity.sh
+input_sha256: 1500e1bc00fc732f6b6c48c460dd086eb2d6a773e7a5897012481d788099b0ed  skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh
+input_sha256: 55545b60a6e739559c112dbc32a7a01c0e5d9d28da2b13d769604b065a24f22a  skills/skill-extraction-workflow/scripts/eval-routing.rb
+input_sha256: 0d9417df8f1991e35e369916fb2509cfb39e1119d8fe4d64a841d364e3a066e5  eval/routing-tasks.jsonl
+input_sha256: c4bf4b3a18c7a9eb8ca5c73c889c192222dd1a659df12b7952ec313d15969d61  skills/python-service-architecture/SKILL.md
+input_sha256: e2e5e713ca2e45463271102633b3d21d1802e63dcce2333a8b2e117749080c1b  skills/go-microservice-architecture/SKILL.md
+input_sha256: 26a8605d290261cd33d7c9eed2852b15eac82b37f4295a33383cb3b185bfeeb6  skills/python-service-architecture/references/event-driven-architecture.md
+input_sha256: 273eac458486f8bfd4d4066d46daeffacd48d6bf9d8200e5296719ce71cfeea2  skills/go-microservice-architecture/references/event-driven-architecture.md
+input_sha256: 2860ef59351fe8bf37c0ec6013697fe03b9e6fec76401c6145963b27cb0b9dc7  skills/python-service-architecture/references/multi-tenant-isolation.md
+input_sha256: d16df5bf977e47976b4918bbc4848161893a28ffbabcd151a8000270a88e2c0b  skills/go-microservice-architecture/references/multi-tenant-isolation.md
+input_sha256: 19560cc82147d05c05356e9332d31f0e34da0fe24bac30936b7b403b4691e19a  skills/python-service-architecture/references/data-platform-architecture.md
+input_sha256: 593b352a4f088a69d12b344d109c17d1ab26a95e61544a67b7670c2eaffe59d2  skills/go-microservice-architecture/references/data-platform-architecture.md
