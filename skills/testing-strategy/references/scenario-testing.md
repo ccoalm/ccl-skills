@@ -130,7 +130,7 @@ When extracting or reviewing an existing project's scenario coverage:
 
 ## Source Notes
 
-- Fowler-style test pyramid guidance supports many fast low-level tests, some service/integration tests, and few high-level E2E tests: https://martinfowler.com/articles/practical-test-pyramid.html
+- The test pyramid (Mike Cohn, *Succeeding with Agile*) supports many fast low-level tests, some service/integration tests, and few high-level E2E tests; practical elaboration by Ham Vocke: https://martinfowler.com/articles/practical-test-pyramid.html
 - Playwright guidance supports user-visible locators and assertions against rendered outcomes rather than brittle implementation details: https://playwright.dev/docs/best-practices
 - Testing Library guidance supports tests that resemble how users interact with the UI: https://testing-library.com/docs/guiding-principles/
 - Pytest guidance supports explicit test discovery, package layout, markers, and reusable fixtures for deterministic tests: https://docs.pytest.org/en/stable/explanation/goodpractices.html
