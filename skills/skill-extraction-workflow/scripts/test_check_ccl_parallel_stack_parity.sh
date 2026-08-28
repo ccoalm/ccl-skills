@@ -9,7 +9,9 @@
 #   c. routing-reference divergence (one `x.md` vs `y.md` or `z.md`) => exit 0 (allowed class)
 #   d. sibling skill-name mentions inside the mirrored region   => exit 0 (allowed class)
 #   e. missing sibling file                                     => exit 1, parity_missing_file
-#   f. missing marker headings (mirrored region not extractable) => exit 1, parity_empty_mirrored_region
+#   f. missing marker headings                                   => exit 1, parity_malformed_markers
+#   g. stop heading duplicated                                   => exit 1, parity_malformed_markers
+#   h. canonical (non-routing-mapped) reference swapped one side => exit 1, parity_drift
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
@@ -116,11 +118,29 @@ run_gate
 assert_rc "$RC" 1 "case e"
 assert_contains "parity_missing_file: event-driven-architecture.md" "$OUT" "case e"
 
-# --- case f: marker headings missing => FAIL with empty-region token
+# --- case f: start marker missing => FAIL with malformed-markers token
 seed_all_identical
 printf '# t\n\nno markers here\n\n## Go-specific implementation patterns\n\nx\n' > "$GO_REFS/multi-tenant-isolation.md"
 run_gate
 assert_rc "$RC" 1 "case f"
-assert_contains "parity_empty_mirrored_region: multi-tenant-isolation.md" "$OUT" "case f"
+assert_contains "parity_malformed_markers: multi-tenant-isolation.md" "$OUT" "case f"
+
+# --- case g: stop heading duplicated => FAIL with malformed-markers token (a missing or
+# doubled stop must not silently fall through to a drift/ok verdict)
+seed_all_identical
+printf '\n## Go-specific implementation patterns\n\n- dup glue\n' >> "$GO_REFS/event-driven-architecture.md"
+run_gate
+assert_rc "$RC" 1 "case g"
+assert_contains "parity_malformed_markers: event-driven-architecture.md" "$OUT" "case g"
+
+# --- case h: canonical-pointer swap — a backticked reference NOT in the routing map is
+# changed on one side only; normalization must NOT mask it
+seed_all_identical
+PY_CANON="${MIRROR_BASE/Delivery semantics declared explicitly./Delivery semantics declared explicitly per \`data-modeling-and-migrations.md\`.}"
+GO_CANON="${MIRROR_BASE/Delivery semantics declared explicitly./Delivery semantics declared explicitly per \`background-jobs-and-scheduling.md\`.}"
+write_pair "event-driven-architecture" "$PY_CANON" "$GO_CANON"
+run_gate
+assert_rc "$RC" 1 "case h"
+assert_contains "parity_drift: event-driven-architecture.md" "$OUT" "case h"
 
 echo "test_check_ccl_parallel_stack_parity_ok"

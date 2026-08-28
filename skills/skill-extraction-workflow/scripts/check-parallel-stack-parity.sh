@@ -8,16 +8,21 @@
 # see cross-file drift. This gate diffs the mirrored regions after normalizing the two divergence
 # classes the pattern explicitly allows:
 #   1. sibling skill names (each file names the OTHER tree's skill in headers/pointers);
-#   2. routing-reference text: backticked `*.md` file references may point at different sibling
-#      files per tree, so every backticked .md reference is normalized to <REF> before diffing.
+#   2. routing references that legitimately differ per tree — normalized via the EXPLICIT
+#      per-pair mapping table below (Go-side reference -> Python-side counterpart), plus a
+#      generic collapse of "`a.md` or `b.md`" reference lists to their first element on both
+#      sides. A backticked reference NOT in the mapping must be byte-identical on both sides,
+#      so swapping a canonical pointer to an unrelated file on one sibling is drift, not an
+#      allowed divergence. Extending the mapping is a reviewable edit to this script.
 # Everything else in the mirrored region must be byte-identical, or the pair has drifted.
 # The optional "## Topic-extension backlog" H2 after the stack-glue H2 is mirrored by
 # convention but excluded from this strict gate (its section rule allows near-identical
 # wording so it can name vendors/engines); keep it in sync by review.
 #
+# Exit codes: 0 = parity ok; 1 = drift / missing file / malformed markers (content verdict);
+# 2 = infrastructure failure (this script could not run its own checks).
+#
 # Usage: check-parallel-stack-parity.sh [repo-root]   (default: .)
-# Output: parallel_stack_parity_ok on success; parity_drift + a bounded diff per drifted pair
-# and parallel_stack_parity_FAIL (exit 1) on failure.
 set -euo pipefail
 
 ROOT="${1:-.}"
@@ -30,24 +35,63 @@ PAIRS=(
   "data-platform-architecture.md"
 )
 
-extract_mirrored() { # $1=file $2=stack-specific H2 literal prefix
-  awk -v stop="$2" '
-    index($0, "## When this applies") == 1 { on = 1 }
-    on && index($0, stop) == 1 { exit }
-    on { print }
-  ' "$1"
+# Go-side routing reference -> Python-side counterpart. Order-independent pairs where the
+# two trees legitimately route the same concern to differently-named sibling files.
+REF_MAP_GO=(
+  "protobuf-contract-architecture.md"
+  "notification-architecture.md"
+  "bulk-workflow-architecture.md"
+  "api-security-boundaries.md"
+)
+REF_MAP_PY=(
+  "api-contract-and-schema.md"
+  "background-jobs-and-scheduling.md"
+  "batch-and-pipeline-architecture.md"
+  "web-framework-boundaries.md"
+)
+
+# extract_mirrored <file> <stop-H2-literal>
+# Prints the mirrored region; fails (return 1) unless the start marker and the stop marker
+# each occur EXACTLY once and in that order. A missing stop marker must not silently yield
+# a nonempty body (review finding: that path previously reported drift-or-ok, never
+# malformed-markers).
+extract_mirrored() {
+  # Markers are matched at LINE START: the heading string also appears in prose and in the
+  # embedded grep-gate's awk command, so a substring match would over-count and false-fail.
+  local file="$1" stop="$2" starts stops start_line stop_line
+  starts=$(grep -c '^## When this applies' "$file") || starts=0
+  stops=$(grep -c "^$stop" "$file") || stops=0
+  if [ "$starts" -ne 1 ] || [ "$stops" -ne 1 ]; then
+    return 1
+  fi
+  start_line=$(grep -n '^## When this applies' "$file" | head -1 | cut -d: -f1)
+  stop_line=$(grep -n "^$stop" "$file" | head -1 | cut -d: -f1)
+  if [ "$start_line" -ge "$stop_line" ]; then
+    return 1
+  fi
+  sed -n "${start_line},$((stop_line - 1))p" "$file"
 }
 
-normalize() {
-  # A routing-reference LIST may differ in length per tree ("route to `a.md` or `b.md`" vs
-  # "route to `c.md`"), so collapse "<REF> or <REF>[ or <REF>...]" to one <REF> after mapping.
+normalize_common() {
+  # Collapse "`a.md` or `b.md`[ or ...]" reference lists to their first element, then map
+  # sibling skill names. Applied to BOTH sides.
   sed -E \
-    -e 's/`[A-Za-z0-9_./-]+\.md`/<REF>/g' \
-    -e 's/<REF>( or <REF>)+/<REF>/g' \
+    -e ':x' -e 's/(`[A-Za-z0-9_./-]+\.md`) or `[A-Za-z0-9_./-]+\.md`/\1/' -e 'tx' \
     -e 's/go-microservice-architecture/<SIBLING-ARCH>/g' \
     -e 's/python-service-architecture/<SIBLING-ARCH>/g' \
     -e 's/go-microservice-dev/<SIBLING-DEV>/g' \
     -e 's/python-service-dev/<SIBLING-DEV>/g'
+}
+
+map_go_refs() {
+  # Rewrite mapped Go-side references to their Python counterparts. Unmapped references
+  # pass through untouched and must match the Python side byte-for-byte.
+  local sed_args=()
+  local i
+  for i in "${!REF_MAP_GO[@]}"; do
+    sed_args+=(-e "s|\`${REF_MAP_GO[$i]}\`|\`${REF_MAP_PY[$i]}\`|g")
+  done
+  sed "${sed_args[@]}"
 }
 
 fail=0
@@ -59,13 +103,23 @@ for f in "${PAIRS[@]}"; do
     fail=1
     continue
   fi
-  py_body=$(extract_mirrored "$py" "## Python-specific implementation patterns" | normalize)
-  go_body=$(extract_mirrored "$go" "## Go-specific implementation patterns" | normalize)
-  if [ -z "$py_body" ] || [ -z "$go_body" ]; then
-    echo "parity_empty_mirrored_region: $f (marker headings missing or renamed)"
+  if ! py_raw=$(extract_mirrored "$py" "## Python-specific implementation patterns"); then
+    echo "parity_malformed_markers: $f (python side: start/stop heading missing, duplicated, or out of order)"
     fail=1
     continue
   fi
+  if ! go_raw=$(extract_mirrored "$go" "## Go-specific implementation patterns"); then
+    echo "parity_malformed_markers: $f (go side: start/stop heading missing, duplicated, or out of order)"
+    fail=1
+    continue
+  fi
+  if [ -z "$py_raw" ] || [ -z "$go_raw" ]; then
+    echo "parity_empty_mirrored_region: $f"
+    fail=1
+    continue
+  fi
+  py_body=$(printf '%s\n' "$py_raw" | normalize_common)
+  go_body=$(printf '%s\n' "$go_raw" | map_go_refs | normalize_common)
   if [ "$py_body" != "$go_body" ]; then
     echo "parity_drift: $f"
     diff <(printf '%s\n' "$py_body") <(printf '%s\n' "$go_body") | head -40 || true

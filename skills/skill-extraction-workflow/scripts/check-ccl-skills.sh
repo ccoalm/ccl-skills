@@ -1599,9 +1599,14 @@ fi
 parity_rc=0
 parity_out="$(bash "$parity_script" "$root" 2>&1)" || parity_rc=$?
 printf '%s\n' "$parity_out"
-if [ "$parity_rc" -ne 0 ]; then
-  echo "parallel_stack_parity_blocking_failed rc=$parity_rc (mirrored sections drifted — fix both siblings in the same change)" >&2
+if [ "$parity_rc" -eq 1 ]; then
+  echo "parallel_stack_parity_blocking_failed rc=1 (mirrored sections drifted or markers malformed — fix both siblings in the same change)" >&2
   exit 1
+elif [ "$parity_rc" -ne 0 ]; then
+  # Any other nonzero result is the script itself failing (awk/sed/read/runtime), not a
+  # content verdict; keep the infra distinction so maintainers repair CI, not content.
+  echo "parallel_stack_parity_infra_failed rc=$parity_rc (parity gate could not run — fail-closed)" >&2
+  exit 2
 fi
 
 # Final status token. The legacy `ccl_skill_check_ok` is still printed for

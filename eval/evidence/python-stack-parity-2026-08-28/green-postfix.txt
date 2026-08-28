@@ -1,0 +1,3 @@
+$ ./skills/skill-extraction-workflow/scripts/check-parallel-stack-parity.sh .  (candidate 6589a76174b673c019b26a8af9d29018037fcac8 + review-fix worktree)
+parallel_stack_parity_ok
+exit=0

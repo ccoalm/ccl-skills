@@ -17,6 +17,7 @@ Sibling note: `go-microservice-architecture/references/notification-architecture
 - Critical notifications need a durable outbox, retry, idempotency key, and terminal delivery state.
 - Best-effort alerts may use async delivery, but failures must be observable.
 - Delivery clients need timeout, status-code validation, response body size limit, and rate limit.
+- Configurable delivery endpoints are an SSRF trust boundary: architecture names the scheme/port policy, private/link-local/metadata blocking, redirect policy, and whether deliveries route through a constrained egress proxy.
 - Retries use bounded backoff and stop on permanent errors.
 - Duplicate delivery must be acceptable to receivers or prevented with stable dedupe keys.
 
