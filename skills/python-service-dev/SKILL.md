@@ -75,6 +75,7 @@ Repo-local agent contracts (`AGENTS.md` at the repo root and in source directori
 
 5. Verify at the right scope.
    - Run focused pytest tests for changed packages.
+   - When writing the test code itself (structure, naming, smells, fixtures, behavior-vs-state, coverage, isolation, parameterization), pick the matching § from the decision table in `testing-strategy/references/test-code-authoring-patterns.md`; enable the per-stack lint executors for its machine-decidable smells (conditional logic / sleep / assertion-free tests) per `testing-strategy/references/fitness-functions.md` §4.1.4 (e.g. Ruff `TID251` banning `time.sleep`).
    - Run async tests with the repo's configured `pytest-asyncio` mode.
    - Run integration tests only when required services and credentials are available.
    - **TC traceability and the deprecation cascade** are mandatory when the repo tracks test cases in Bitable: before adding a test, check existing TC coverage; before deleting one, run the caller-liveness sequence. Mechanics (marker registration, coverage grep, the four-step 废弃级联, dynamic-import boundaries) live in `references/testing-and-quality-patterns.md` (TC Traceability And Deprecation Cascade).

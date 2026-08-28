@@ -98,6 +98,7 @@ def test_export_request_returns_signed_url_when_user_has_quota():
 - 测试矩阵 / CI 报告里发现 flaky → 先按 Sensitive Test 排查（时间/顺序/外部依赖）
 - 一次 review 抓到 ≥ 3 处同类异味 → 列入技术债跟进，不只口头指出
 - 自动检查工具：pytest `-x --tb=short` + flake-detector / pytest-randomly；Jest `--bail`；Go `-race -count=10`
+- 可机判子集（条件逻辑 / sleep / 无断言）必须走每栈 lint 执行器登记面处置：`fitness-functions.md` §4.1.4（生态规则优先；无规则格按本节清单人审，不得自写半成品检查器）
 
 **例**：
 ```

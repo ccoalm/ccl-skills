@@ -182,6 +182,22 @@ Layering/dependency-direction (**全栈 custom 旗舰，无 out-of-box 规则**)
 
 **D. backlog（named owner + 触发条件，不半 ship）**：每栈 dispose 生命周期 / 取消协作（Swift Task `isCancelled`、RN useEffect abort）/ 语义吞异常 / JS-TS finite-value 集中 / 分层自定义规则——需 AST/类型分析或各栈 toolchain，触发=该栈消费仓启用 dep-conformance CI 时拾取。
 
+### 4.1.4 测试 smell conformance — 可判定谓词的生态执行器
+
+承载 `test-code-authoring-patterns.md` §3 中三个可机判 test smell 的 lint 下沉：**测试内条件逻辑**（Conditional Test Logic）、**测试内 sleep**（Slow/Erratic 常见成因）、**无断言测试**。原则同 §4.1.3：生态 linter 是默认执行器，**本节不 ship 自写检查器**；无生态规则的格子如实记 agent-review（按 §3 清单人审兜底），不做半成品 parser。均为**消费仓 config**（opt-in，采纳语义同 §4.1.2），由对应 stack `*-dev` owner 提供/维护；六个 stack `*-dev` 技能从各自 verify 步指到本节，`terminal-cli-dev` 按实现语言复用 Go/Python/JS 行（Rust：实扫 rust-lang.github.io/rust-clippy/master/index.html 的 lint 索引——三列均无专用规则，`assert*` 类 lint 均为断言写法类 → agent-review；sleep 可经 `clippy::disallowed_methods`（clippy.toml 配置型，未配置不触发）列禁 `std::thread::sleep`）。
+
+| 栈 | 条件逻辑 in test | sleep in test | 无断言测试 |
+|---|---|---|---|
+| JS/TS unit — Jest（web/RN/Taro 单测） | `jest/no-conditional-in-test`；辅 `jest/no-conditional-expect` | 无专用规则（实扫 github.com/jest-community/eslint-plugin-jest README rules 表）→ agent-review（可选 repo 级 core ESLint `no-restricted-syntax`——eslint.org/docs/latest/rules——禁测试内裸 `setTimeout` 等待） | `jest/expect-expect` |
+| JS/TS unit — Vitest（`@vitest/eslint-plugin`） | `vitest/no-conditional-in-test` | 无专用规则（实扫 github.com/vitest-dev/eslint-plugin-vitest README rules 表）→ agent-review（可选 core ESLint `no-restricted-syntax`——eslint.org/docs/latest/rules——禁测试内裸 `setTimeout` 等待） | `vitest/expect-expect` |
+| web E2E — `eslint-plugin-playwright` | `playwright/no-conditional-in-test`（recommended） | `playwright/no-wait-for-timeout`（recommended） | `playwright/expect-expect`（recommended） |
+| Python — pytest | 无生态规则（实扫 docs.astral.sh/ruff/rules 的 PT 集：PT009/PT015/PT017/PT018 均为断言写法类，无「条件逻辑 in test」规则）→ agent-review | Ruff `TID251` banned-api 列禁 `time.sleep`（`[tool.ruff.lint.flake8-tidy-imports.banned-api]`；确需处 `# noqa: TID251`） | 无生态规则（实扫 docs.astral.sh/ruff/rules 的 PT 集：无「测试无断言」规则）→ agent-review |
+| Go | 无生态规则（`golangci-lint help linters` v2.12.2 本机实扫：相邻仅 `forbidigo`/`testifylint`/`thelper`，均不判此类）→ agent-review | `forbidigo` pattern `^time\.Sleep$`（其 `-tests` 默认含测试文件；经 golangci-lint file-based 配置圈定/豁免非测试路径） | 无生态规则（`golangci-lint help linters` v2.12.2 本机实扫）→ agent-review |
+| Android/Kotlin | 无生态规则（实扫 detekt.dev/docs/rules/ 下 comments·complexity·coroutines·empty-blocks·exceptions·libraries·naming·performance·potential-bugs·ruleauthors·style 11 页，最近仅 `CoroutineLaunchedInTestWithoutRunTest`（检测 @Test 内 runTest 外启协程），不判此类；formatting 页 404 未扫——ktlint 格式包装，无测试语义规则）→ agent-review | detekt `coroutines/SleepInsteadOfDelay`（默认启用、需 type resolution；**仅报 suspend 函数/协程块内的 `Thread.sleep`**——非 suspend 测试代码不触发 → agent-review） | 无生态规则（实扫 detekt.dev/docs/rules/ 下 comments·complexity·coroutines·empty-blocks·exceptions·libraries·naming·performance·potential-bugs·ruleauthors·style 11 页；formatting 页 404 未扫——ktlint 格式包装）→ agent-review |
+| iOS/Swift 与 Flutter/Dart | 无生态规则（实扫 realm.github.io/SwiftLint/rule-directory.html 与 dart.dev/tools/linter-rules）→ agent-review | 无生态规则（实扫 realm.github.io/SwiftLint/rule-directory.html 与 dart.dev/tools/linter-rules）→ agent-review | 无生态规则（实扫 realm.github.io/SwiftLint/rule-directory.html 与 dart.dev/tools/linter-rules；SwiftLint `empty_xctest_method` 只判空测试方法、不判「有动作无断言」，不算数）→ agent-review |
+
+jest/vitest 各规则的 recommended 覆盖面随插件版本变化——消费仓 config 里**显式启用**上列规则，以所用版本 README 为准。空格子的检索边界（诚实）：各空格子均**实扫具名官方规则清单**（清单 URL 或本机命令已写进对应格；2026-08 核验；深度=规则存在+语义匹配，未逐规则跑样例）；「无生态规则」= 该清单内未见，非全生态穷尽——新规则出现时按 A 表同款方式登记，不自写。权威源（核验 2026-08，以所用版本为准）：github.com/jest-community/eslint-plugin-jest（README rules 表）、github.com/vitest-dev/eslint-plugin-vitest（`@vitest/eslint-plugin` README）、github.com/mskelton/eslint-plugin-playwright（README rules 表 + `src/plugin.ts` recommended 配置）、docs.astral.sh/ruff/rules/banned-api 与 /settings（`[lint.flake8-tidy-imports.banned-api]`）、github.com/ashanbrown/forbidigo（README；`-tests` 默认 true）、detekt.dev/docs/rules/coroutines（SleepInsteadOfDelay 默认启用 since v1.21.0、需 type resolution）、eslint.org/docs/latest/rules（core `no-restricted-syntax`）、rust-lang.github.io/rust-clippy（master lint 索引；`disallowed_methods`）。
+
 ### 4.2 起步 sequencing
 新项目从最便宜的开始上：
 1. **Linter rules**（语法 / 命名 / 简单依赖）— 零启动成本，本地 IDE 即时反馈

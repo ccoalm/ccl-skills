@@ -73,6 +73,7 @@ When checking a terminal/CLI project against team standards, split conformance i
 
 8. Verify on the real terminal surface.
    - Unit-test width, wrapping, truncation, ANSI parsing, key parsing, state transitions, and capability fallback.
+   - When writing the test code itself (structure, naming, smells, fixtures, behavior-vs-state, coverage, isolation, parameterization), pick the matching § from the decision table in `testing-strategy/references/test-code-authoring-patterns.md`; enable the per-stack lint executors for its machine-decidable smells (conditional logic / sleep / assertion-free tests) per `testing-strategy/references/fitness-functions.md` §4.1.4, reusing the row for the implementation language (Go/Python/JS; Rust: sleep bans via `clippy::disallowed_methods`, conditional-logic and assertion-free checks stay agent-review).
    - Snapshot at the cell/screen-buffer layer when possible; raw string snapshots alone are insufficient for interactive terminal behavior.
    - Use a PTY or equivalent integration test for raw mode, resize, key/mouse/paste sequences, terminal responses, and process lifecycle.
    - Run at least one real terminal smoke for visible interactive changes when lower layers cannot prove color, cursor, scrollback, focus, selection, or resize behavior.
