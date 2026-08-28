@@ -281,7 +281,7 @@ Reused industry patterns (canary, blue-green, GitOps, control plane, lane, dcc, 
 - `references/env-and-lane-matrix.md` — Lane as first-class entity; long-lived envs, ephemeral lanes, canary slices, shadow traffic; cluster/region topology.
 - `references/deploy-pipeline.md` — Build → image → manifest → apply; three control-plane patterns; CLI / UI / API surface.
 - `references/canary-and-rollout-strategy.md` — Canary check task shape; bake window; abort thresholds; blue-green and mirror alternatives.
-- `references/promotion-gate-and-review.md` — Evidence-driven gate; SLI query wiring; approval workflow; audit log shape.
+- `references/promotion-gate-and-review.md` — Evidence-driven gate; SLI wiring; approval workflow; audit-log; DORA release-process metrics.
 - `references/rollback-playbook.md` — Rollback by strategy; data-migration rollback discipline; forward-compatible migration patterns; drill schedule.
 - `references/secret-and-config-management.md` — Static / dynamic / secret tier; rotation; injection paths; scanning.
 - `references/multi-region-and-cluster.md` — Cluster pairing; failover trigger; cross-cluster discovery/federation; DR drill.

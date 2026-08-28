@@ -61,19 +61,35 @@ Operational rule: if error budget is exhausted, the service stops shipping non-c
 
 ## Burn-rate alerts
 
-Multi-window, multi-burn-rate per Google SRE Workbook:
+Multi-window, multi-burn-rate per Google SRE Workbook ch. 5, Table 5-6 (2% of a 30d budget in 1h, 5% in 6h, 10% in 3d):
 
-| Severity | Window | Burn rate | Meaning |
-|---|---|---|---|
-| Page (P0) | 1h | 14x | Will exhaust 30d budget in ~2 days at this rate |
-| Page (P0) | 5min | 14x | Same, but fast detection |
-| Notify (P1) | 6h | 6x | Will exhaust in 5 days |
-| Digest (P2) | 24h | 1x | Sustained at SLO threshold |
+| Severity | Long window | Short window (~1/12 of long) | Burn rate | Meaning |
+|---|---|---|---|---|
+| Page (P0) | 1h | 5m | 14.4 | Exhausts the 30d budget in ~2 days at this rate |
+| Page (P0) | 6h | 30m | 6 | Exhausts in 5 days |
+| Ticket (P2) | 3d | 6h | 1 | Sustained exactly at the SLO threshold |
 
-Alert query template:
+A tier fires only when **both** its long AND short window burn above the threshold. The long window gives detection over meaningful budget consumption; the short window confirms the burn is *still happening now*, so the alert resets quickly once the incident ends — with a long window alone, a resolved 1h page keeps firing for up to an hour, and a 3d ticket for days.
+
+The Workbook's notification types are page and ticket; P0/P2 above are this platform's local severity mapping. The Workbook maps both the 1h and the 6h tier to **page** — that stays the default (at 6×, 5% of the monthly budget is already gone and the 30m window says it is still burning). Downgrading the 6h tier to a non-paging channel is allowed only under a documented, staffed response-time policy showing that tier is acted on before material further budget loss — record it as a deliberate local deviation, never as the Workbook default.
+
+Alert query template (per tier — the recorded metric is the raw error *ratio* per window, as in the Workbook's `slo_errors_per_request:ratio_rate1h`; the burn rate is the multiplier on `(1 - SLO)`, not a pre-divided metric):
 
 ```
-slo_burn_rate{...} > <threshold>
+slo_error_ratio_1h{...}  > 14.4 * (1 - <slo_target>)
+and
+slo_error_ratio_5m{...}  > 14.4 * (1 - <slo_target>)
+# <slo_target> is a literal scalar strictly between 0 and 1, e.g.
+# 14.4 * (1 - 0.999) — at 1.0 there is no budget to burn and at 0 the alert
+# can never fire (see the 100%-SLO anti-pattern below) —
+# a bare `SLO` token would parse as a metric selector and silently match nothing.
+# PromQL `and` intersects on the full label set. Invariant: record BOTH window
+# rules aggregated to the SAME alert-identity label set — every label that
+# distinguishes one alert instance from another (service, route, and region/
+# lane if they exist), the window living in the metric NAME, never as a label.
+# Identity labels differing between the rules → empty intersection, the page
+# silently never fires; an `on(...)` that omits an identity label → cross-match
+# (1h burn in one region and-ed with a 5m burn in another) → false page.
 ```
 
 Each burn rate alert MUST link to a runbook entry.
