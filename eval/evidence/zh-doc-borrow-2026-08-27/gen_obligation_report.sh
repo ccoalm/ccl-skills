@@ -35,13 +35,13 @@ check() { # scope(SK|REF|PKG) expected phrase label
 }
 
 echo "== base 交付面 bullet（${BASE}） =="
-BASE_CONTENT="$(git show "$BASE:$SK" 2>/dev/null)" || { echo "FAIL: git show ${BASE}:$SK 失败——base 不可读，未做任何 base→head 核对"; echo 'obligation_check_failed'; exit 1; }
+BASE_SHA="$(git rev-parse --verify "${BASE}^{commit}" 2>/dev/null)" || { echo "FAIL: 无法把 ${BASE} 解析为提交——base 不可用"; echo 'obligation_check_failed'; exit 1; }
+BASE_CONTENT="$(git show "$BASE_SHA:$SK" 2>/dev/null)" || { echo "FAIL: git show ${BASE_SHA}:$SK 失败——base 不可读，未做任何 base→head 核对"; echo 'obligation_check_failed'; exit 1; }
 BASE_BULLET="$(printf '%s\n' "$BASE_CONTENT" | grep -n '交付面：改完' || true)"
 BASE_BULLET_N="$(printf '%s' "$BASE_BULLET" | grep -c . || true)"
 if [ "$BASE_BULLET_N" != 1 ]; then echo "FAIL: base 交付面 bullet 行数=${BASE_BULLET_N}（期望 1）——base 形态不符，拒绝继续"; echo 'obligation_check_failed'; exit 1; fi
 printf '%s\n' "$BASE_BULLET"
-BASE_SHA="$(git rev-parse "$BASE")" || { echo 'obligation_check_failed'; exit 1; }
-echo "base 解析为不可变提交：${BASE_SHA}"
+echo "base 解析为不可变提交：${BASE_SHA}（全部 base 读取均经此 SHA，无 TOCTOU 窗口）"
 BASE_BULLET_TEXT="${BASE_BULLET#*:}"
 count_base_bullet() { printf '%s' "$BASE_BULLET_TEXT" | grep -oF -- "$1" | wc -l | tr -d ' '; }
 echo
