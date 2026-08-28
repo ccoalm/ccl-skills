@@ -106,6 +106,7 @@ PASS [SK expect=1 got=1] ③导出清点（入口保留）
 PASS [SK expect=1 got=1] 尾指针句点名被移内容
 PASS [SK expect=1 got=1] ②稳定入口（入口保留）
 PASS [SK expect=1 got=1] ②待安全处置分开列+结案前禁报同步（入口保留）
+PASS [SK expect=1 got=1] ①blocked/待安全处置面在即禁报同步（入口保留，c19-challenge 补）
 PASS [SK expect=1 got=1] 机器校验不豁免人读（入口保留）
 PASS [REF expect=1 got=1] 载体无关（reference）
 PASS [SK expect=1 got=1] head 交付面 bullet 存在且唯一
