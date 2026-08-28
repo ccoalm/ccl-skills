@@ -51,9 +51,21 @@ def main() -> int:
         clean = run(root)
         assert clean.returncode == 0, clean.stderr
 
+        # A literal `\n@decorator` escape sequence in stored JSON evidence is not
+        # an email address and must pass (observed false positive on probe
+        # evidence files carrying model-written pytest code).
+        write_and_track(
+            root,
+            "evidence.json",
+            '{"ans": "code\\n@pytest.fixture\\ndef entry(): ...\\n@pytest.mark.parametrize"}\n',
+        )
+        clean = run(root)
+        assert clean.returncode == 0, f"escaped decorator flagged: {clean.stdout}{clean.stderr}"
+
         cases = {
             "private-ip": "10." + "1.2.3",
             "private-email": "person@" + "corp.local",
+            "escaped-newline-then-real-email": '"\\nfoo@' + 'corp.com"',
             "private-hostname": "https://service." + "internal/api",
             "feishu-tenant-hostname": "https://team-workspace." + "feishu.cn/base/BASxxx",
             "mixed-case-feishu-tenant-hostname": "https://Team-Workspace." + "FEISHU.CN/base/BASxxx",

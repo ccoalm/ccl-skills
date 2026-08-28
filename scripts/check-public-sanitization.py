@@ -102,6 +102,19 @@ def scan(root: Path) -> list[tuple[str, str]]:
                 findings.append((relative, "content:malformed-private-ipv4"))
 
         for match in EMAIL_RE.finditer(content):
+            # A literal JSON escape butting against a Python decorator — the byte
+            # sequence `\n@pytest.fixture` inside stored model output — parses as
+            # local part "n" with "domain" pytest.fixture. Exempt ONLY a
+            # single escape letter immediately preceded by a backslash; a real
+            # address right after an escape (local part longer than one
+            # character) still reports.
+            local = match.group(0)[: -len(match.group(1)) - 1]
+            if (
+                local in {"n", "t", "r"}
+                and match.start() > 0
+                and content[match.start() - 1] == "\\"
+            ):
+                continue
             if match.group(1).casefold() not in ALLOWED_EMAIL_DOMAINS:
                 findings.append((relative, "content:non-example-email"))
 
