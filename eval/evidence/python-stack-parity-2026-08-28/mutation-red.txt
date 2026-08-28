@@ -1,20 +1,4 @@
-sed: 2: "s/python-service-dev/<S ...": unused label 'a; s/<REF> or <REF>/<REF>/; ta'
-sed: 2: "s/python-service-dev/<S ...": unused label 'a; s/<REF> or <REF>/<REF>/; ta'
-sed: 2: "s/python-service-dev/<S ...": unused label 'a; s/<REF> or <REF>/<REF>/; ta'
-sed: 2: "s/python-service-dev/<S ...": unused label 'a; s/<REF> or <REF>/<REF>/; ta'
-parity_drift: multi-tenant-isolation.md
-11c11
-< - the service is internal-only with a single owning team (employees of one org are not "tenants" for this purpose); identity/permission boundaries still apply but route to <REF> or <REF>,
----
-> - the service is internal-only with a single owning team (employees of one org are not "tenants" for this purpose); identity/permission boundaries still apply but route to <REF>,
-16c16
-< Treat isolation as **three orthogonal placement decisions**: data placement (where the tenant's bytes live) and compute placement (where the tenant's CPU/memory runs). Real systems combine the two — Azure's elastic-pool SaaS pattern, for example, gives each tenant a single-tenant database (high data isolation) while pooling compute (high density). Picking a "tier" globally without naming both placements leads to over- or under-isolating one of them.
----
-> Treat isolation as **two orthogonal placement decisions**: data placement (where the tenant's bytes live) and compute placement (where the tenant's CPU/memory runs). Real systems combine the two — Azure's elastic-pool SaaS pattern, for example, gives each tenant a single-tenant database (high data isolation) while pooling compute (high density). Picking a "tier" globally without naming both placements leads to over- or under-isolating one of them.
-sed: 2: "s/python-service-dev/<S ...": unused label 'a; s/<REF> or <REF>/<REF>/; ta'
-sed: 2: "s/python-service-dev/<S ...": unused label 'a; s/<REF> or <REF>/<REF>/; ta'
-parallel_stack_parity_FAIL
-$ applied mutation (multi-tenant 'two'->'three') then gate:
+$ applied mutation (multi-tenant mirrored region, 'two orthogonal'->'three orthogonal') then gate v3:
 parity_drift: multi-tenant-isolation.md
 16c16
 < Treat isolation as **three orthogonal placement decisions**: data placement (where the tenant's bytes live) and compute placement (where the tenant's CPU/memory runs). Real systems combine the two — Azure's elastic-pool SaaS pattern, for example, gives each tenant a single-tenant database (high data isolation) while pooling compute (high density). Picking a "tier" globally without naming both placements leads to over- or under-isolating one of them.
@@ -22,3 +6,7 @@ parity_drift: multi-tenant-isolation.md
 > Treat isolation as **two orthogonal placement decisions**: data placement (where the tenant's bytes live) and compute placement (where the tenant's CPU/memory runs). Real systems combine the two — Azure's elastic-pool SaaS pattern, for example, gives each tenant a single-tenant database (high data isolation) while pooling compute (high density). Picking a "tier" globally without naming both placements leads to over- or under-isolating one of them.
 parallel_stack_parity_FAIL
 exit=1 (expected)
+
+restore (byte-copy of the pre-mutation file):
+parallel_stack_parity_ok
+exit=0

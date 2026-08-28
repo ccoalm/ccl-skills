@@ -1,0 +1,9 @@
+# Binding (captured pre-ledger-append; the ledger row is the only later change in this round)
+captured_on_top_of_commit: 44633e705473befe3308bea5a0a970f8d40bb35b (plus the review-round-2 fix worktree committed as the next commit containing this file)
+gate_script_sha256: 48847d55a825d4af1b77dcf91bf64be23ef0f8ca36e382e431f1f0cb924d97ed
+pair_file_sha256: 26a8605d290261cd33d7c9eed2852b15eac82b37f4295a33383cb3b185bfeeb6  skills/python-service-architecture/references/event-driven-architecture.md
+pair_file_sha256: 273eac458486f8bfd4d4066d46daeffacd48d6bf9d8200e5296719ce71cfeea2  skills/go-microservice-architecture/references/event-driven-architecture.md
+pair_file_sha256: 55ab7bf14b754ebdf78225b5fd62fdf48bde63936113a4937f3cc220db0bf2a2  skills/python-service-architecture/references/multi-tenant-isolation.md
+pair_file_sha256: d16df5bf977e47976b4918bbc4848161893a28ffbabcd151a8000270a88e2c0b  skills/go-microservice-architecture/references/multi-tenant-isolation.md
+pair_file_sha256: 19560cc82147d05c05356e9332d31f0e34da0fe24bac30936b7b403b4691e19a  skills/python-service-architecture/references/data-platform-architecture.md
+pair_file_sha256: 593b352a4f088a69d12b344d109c17d1ab26a95e61544a67b7670c2eaffe59d2  skills/go-microservice-architecture/references/data-platform-architecture.md

@@ -1,3 +1,13 @@
-$ ./skills/skill-extraction-workflow/scripts/check-parallel-stack-parity.sh .  (candidate 6589a76174b673c019b26a8af9d29018037fcac8 + review-fix worktree)
+$ ./skills/skill-extraction-workflow/scripts/check-parallel-stack-parity.sh .   # gate v3 (byte-diff), tree bound per BINDING.txt
 parallel_stack_parity_ok
+exit=0
+
+$ bash skills/skill-extraction-workflow/scripts/test_check_ccl_parallel_stack_parity.sh
+test_check_ccl_parallel_stack_parity_ok
+exit=0
+
+$ ruby skills/skill-extraction-workflow/scripts/eval-routing.rb .
+eval-routing: scanned 32 skills
+  blocking: none
+  advisory (0):
 exit=0

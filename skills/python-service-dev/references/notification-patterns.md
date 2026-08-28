@@ -10,7 +10,7 @@ Sibling note: `go-microservice-dev/references/notification-patterns.md` carries 
 - Build requests with deadlines, content type, status-code validation, and response body size limits.
 - Treat empty message batches as no-op.
 - Parse provider responses into canonical success, retryable error, and permanent error.
-- **Outbound URLs are an SSRF surface** when endpoints are tenant- or operator-configurable: enforce approved schemes/ports, validate the DNS-resolved IP against private/link-local/loopback/cloud-metadata ranges (re-validate on every redirect hop, or disable redirects), and prefer routing deliveries through a constrained egress proxy; a hostname allowlist alone is bypassed by DNS rebinding and open redirects.
+- **Outbound URLs are an SSRF surface** when endpoints are tenant- or operator-configurable: enforce approved schemes/ports; resolve the hostname once, validate the resolved IP against private/link-local/loopback/cloud-metadata ranges, and **connect to that same validated IP** (connect-by-IP with Host/SNI set from the hostname, or a resolver-pinning client hook) — validate-then-let-the-client-re-resolve is bypassed by DNS rebinding returning a public IP to the validator and a private one to the connection; re-run the resolve-validate-pin cycle on every redirect hop, or disable redirects; prefer routing deliveries through a constrained egress proxy.
 
 ## Message Shape
 
@@ -36,5 +36,5 @@ Sibling note: `go-microservice-dev/references/notification-patterns.md` carries 
 ## Tests
 
 - Test empty batch, timeout, non-2xx response, malformed response, retryable vs permanent classification, redaction, template rendering, dedupe key, throttling, and shutdown drain.
-- Test the SSRF boundary: loopback/private/link-local/metadata-range targets rejected, disallowed scheme/port rejected, redirect to a blocked range rejected, and the resolved-IP check exercised with a hostname that resolves privately.
+- Test the SSRF boundary: loopback/private/link-local/metadata-range targets rejected, disallowed scheme/port rejected, redirect to a blocked range rejected, and the pin exercised — assert the connection is made to the validated IP (fake resolver returning different answers on first and second resolution must not reach the second answer).
 - Test realtime connect, duplicate connection, disconnect cleanup, cache-miss bootstrap, disconnected-delivery no-op, and write failure on a closed socket.

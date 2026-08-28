@@ -2,19 +2,23 @@
 # check-parallel-stack-parity.sh — cross-file parity gate for parallel-stack mirrored references.
 #
 # The parallel-stack pattern (references/parallel-stack-references-pattern.md) requires the
-# mirrored region of each sibling pair — everything from "## When this applies" up to the
-# stack-specific "## <Stack>-specific implementation patterns" H2 — to stay in sync across the
-# Python and Go trees. The per-file grep gates check token hygiene INSIDE one file; they cannot
-# see cross-file drift. This gate diffs the mirrored regions after normalizing the two divergence
-# classes the pattern explicitly allows:
-#   1. sibling skill names (each file names the OTHER tree's skill in headers/pointers);
-#   2. routing references that legitimately differ per tree — normalized via the EXPLICIT
-#      per-pair mapping table below (Go-side reference -> Python-side counterpart), plus a
-#      generic collapse of "`a.md` or `b.md`" reference lists to their first element on both
-#      sides. A backticked reference NOT in the mapping must be byte-identical on both sides,
-#      so swapping a canonical pointer to an unrelated file on one sibling is drift, not an
-#      allowed divergence. Extending the mapping is a reviewable edit to this script.
-# Everything else in the mirrored region must be byte-identical, or the pair has drifted.
+# mirrored region of each sibling pair — everything from the exact heading line
+# "## When this applies / does not apply" up to the stack-specific
+# "## <Stack>-specific implementation patterns" H2 — to be BYTE-IDENTICAL across the Python
+# and Go trees. There is deliberately NO normalization: earlier versions rewrote routing
+# references and sibling skill names before diffing, and two adversarial rounds each found a
+# fresh way that lossy rewriting could mask real drift (second element of an or-list swapped,
+# canonical pointer replaced by a mapped name, self-reference via name mapping). The
+# capability was removed rather than patched again: routing text that legitimately differs
+# per tree is written INTO the mirrored region naming both trees inline —
+#   `x.md` (Python) / `y.md` (Go)
+# — so both files carry the same bytes and a one-sided change is always drift.
+#
+# Marker integrity: each marker must match as an EXACT whole line, exactly once, in order.
+# A missing, duplicated, or prefix-gamed heading is a malformed-markers verdict, never a
+# silent ok. Residual accepted and documented: moving BOTH stop markers earlier in the same
+# change shrinks the compared region symmetrically; that is a visible, reviewable contract
+# edit in the diff, not something this gate can distinguish from a legitimate region change.
 # The optional "## Topic-extension backlog" H2 after the stack-glue H2 is mirrored by
 # convention but excluded from this strict gate (its section rule allows near-identical
 # wording so it can name vendors/engines); keep it in sync by review.
@@ -29,69 +33,30 @@ ROOT="${1:-.}"
 PY_DIR="$ROOT/skills/python-service-architecture/references"
 GO_DIR="$ROOT/skills/go-microservice-architecture/references"
 
+START_MARKER="## When this applies / does not apply"
+
 PAIRS=(
   "event-driven-architecture.md"
   "multi-tenant-isolation.md"
   "data-platform-architecture.md"
 )
 
-# Go-side routing reference -> Python-side counterpart. Order-independent pairs where the
-# two trees legitimately route the same concern to differently-named sibling files.
-REF_MAP_GO=(
-  "protobuf-contract-architecture.md"
-  "notification-architecture.md"
-  "bulk-workflow-architecture.md"
-  "api-security-boundaries.md"
-)
-REF_MAP_PY=(
-  "api-contract-and-schema.md"
-  "background-jobs-and-scheduling.md"
-  "batch-and-pipeline-architecture.md"
-  "web-framework-boundaries.md"
-)
-
-# extract_mirrored <file> <stop-H2-literal>
+# extract_mirrored <file> <stop-H2 exact line>
 # Prints the mirrored region; fails (return 1) unless the start marker and the stop marker
-# each occur EXACTLY once and in that order. A missing stop marker must not silently yield
-# a nonempty body (review finding: that path previously reported drift-or-ok, never
-# malformed-markers).
+# each match as an exact whole line EXACTLY once and in that order.
 extract_mirrored() {
-  # Markers are matched at LINE START: the heading string also appears in prose and in the
-  # embedded grep-gate's awk command, so a substring match would over-count and false-fail.
   local file="$1" stop="$2" starts stops start_line stop_line
-  starts=$(grep -c '^## When this applies' "$file") || starts=0
-  stops=$(grep -c "^$stop" "$file") || stops=0
+  starts=$(grep -cxF "$START_MARKER" "$file") || starts=0
+  stops=$(grep -cxF "$stop" "$file") || stops=0
   if [ "$starts" -ne 1 ] || [ "$stops" -ne 1 ]; then
     return 1
   fi
-  start_line=$(grep -n '^## When this applies' "$file" | head -1 | cut -d: -f1)
-  stop_line=$(grep -n "^$stop" "$file" | head -1 | cut -d: -f1)
+  start_line=$(grep -nxF "$START_MARKER" "$file" | head -1 | cut -d: -f1)
+  stop_line=$(grep -nxF "$stop" "$file" | head -1 | cut -d: -f1)
   if [ "$start_line" -ge "$stop_line" ]; then
     return 1
   fi
   sed -n "${start_line},$((stop_line - 1))p" "$file"
-}
-
-normalize_common() {
-  # Collapse "`a.md` or `b.md`[ or ...]" reference lists to their first element, then map
-  # sibling skill names. Applied to BOTH sides.
-  sed -E \
-    -e ':x' -e 's/(`[A-Za-z0-9_./-]+\.md`) or `[A-Za-z0-9_./-]+\.md`/\1/' -e 'tx' \
-    -e 's/go-microservice-architecture/<SIBLING-ARCH>/g' \
-    -e 's/python-service-architecture/<SIBLING-ARCH>/g' \
-    -e 's/go-microservice-dev/<SIBLING-DEV>/g' \
-    -e 's/python-service-dev/<SIBLING-DEV>/g'
-}
-
-map_go_refs() {
-  # Rewrite mapped Go-side references to their Python counterparts. Unmapped references
-  # pass through untouched and must match the Python side byte-for-byte.
-  local sed_args=()
-  local i
-  for i in "${!REF_MAP_GO[@]}"; do
-    sed_args+=(-e "s|\`${REF_MAP_GO[$i]}\`|\`${REF_MAP_PY[$i]}\`|g")
-  done
-  sed "${sed_args[@]}"
 }
 
 fail=0
@@ -103,23 +68,21 @@ for f in "${PAIRS[@]}"; do
     fail=1
     continue
   fi
-  if ! py_raw=$(extract_mirrored "$py" "## Python-specific implementation patterns"); then
-    echo "parity_malformed_markers: $f (python side: start/stop heading missing, duplicated, or out of order)"
+  if ! py_body=$(extract_mirrored "$py" "## Python-specific implementation patterns"); then
+    echo "parity_malformed_markers: $f (python side: start/stop heading missing, duplicated, not an exact heading line, or out of order)"
     fail=1
     continue
   fi
-  if ! go_raw=$(extract_mirrored "$go" "## Go-specific implementation patterns"); then
-    echo "parity_malformed_markers: $f (go side: start/stop heading missing, duplicated, or out of order)"
+  if ! go_body=$(extract_mirrored "$go" "## Go-specific implementation patterns"); then
+    echo "parity_malformed_markers: $f (go side: start/stop heading missing, duplicated, not an exact heading line, or out of order)"
     fail=1
     continue
   fi
-  if [ -z "$py_raw" ] || [ -z "$go_raw" ]; then
+  if [ -z "$py_body" ] || [ -z "$go_body" ]; then
     echo "parity_empty_mirrored_region: $f"
     fail=1
     continue
   fi
-  py_body=$(printf '%s\n' "$py_raw" | normalize_common)
-  go_body=$(printf '%s\n' "$go_raw" | map_go_refs | normalize_common)
   if [ "$py_body" != "$go_body" ]; then
     echo "parity_drift: $f"
     diff <(printf '%s\n' "$py_body") <(printf '%s\n' "$go_body") | head -40 || true

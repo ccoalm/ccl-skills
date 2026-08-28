@@ -6,8 +6,8 @@
 # Cases:
 #   a. identical mirrored regions + differing stack-glue        => exit 0, ok marker
 #   b. one-word drift inside the mirrored region                => exit 1, parity_drift + FAIL marker
-#   c. routing-reference divergence (one `x.md` vs `y.md` or `z.md`) => exit 0 (allowed class)
-#   d. sibling skill-name mentions inside the mirrored region   => exit 0 (allowed class)
+#   c. dual-tree routing text identical on both sides           => exit 0 (the supported shape)
+#   d. one-sided sibling-name / routing-reference divergence    => exit 1, parity_drift (no normalization)
 #   e. missing sibling file                                     => exit 1, parity_missing_file
 #   f. missing marker headings                                   => exit 1, parity_malformed_markers
 #   g. stop heading duplicated                                   => exit 1, parity_malformed_markers
@@ -96,21 +96,27 @@ assert_rc "$RC" 1 "case b"
 assert_contains "parity_drift: event-driven-architecture.md" "$OUT" "case b"
 assert_contains "parallel_stack_parity_FAIL" "$OUT" "case b"
 
-# --- case c: routing-reference divergence (different refs, different list length) => ok
-PY_REFS_BODY="${MIRROR_BASE/\`local-a.md\`/\`api-contract-and-schema.md\` or \`web-framework-boundaries.md\`}"
-GO_REFS_BODY="${MIRROR_BASE/\`local-a.md\`/\`protobuf-contract-architecture.md\`}"
-write_pair "event-driven-architecture" "$PY_REFS_BODY" "$GO_REFS_BODY"
+# --- case c: the supported dual-tree routing shape — identical bytes on both sides => ok
+DUAL="${MIRROR_BASE/\`local-a.md\`/\`api-contract-and-schema.md\` on the Python tree \/ \`protobuf-contract-architecture.md\` on the Go tree}"
+write_pair "event-driven-architecture" "$DUAL" "$DUAL"
 run_gate
 assert_rc "$RC" 0 "case c"
 assert_contains "parallel_stack_parity_ok" "$OUT" "case c"
 
-# --- case d: sibling skill-name mentions normalize => ok (already exercised by
-# MIRROR_BASE naming both skills; pin it explicitly with asymmetric ordering)
+# --- case d: one-sided divergence is drift — there is NO normalization to hide behind
+# (d1: a routing reference differing per side; d2: an asymmetric sibling-name mention)
+PY_REFS_BODY="${MIRROR_BASE/\`local-a.md\`/\`api-contract-and-schema.md\`}"
+GO_REFS_BODY="${MIRROR_BASE/\`local-a.md\`/\`protobuf-contract-architecture.md\`}"
+write_pair "event-driven-architecture" "$PY_REFS_BODY" "$GO_REFS_BODY"
+run_gate
+assert_rc "$RC" 1 "case d1"
+assert_contains "parity_drift: event-driven-architecture.md" "$OUT" "case d1"
 PY_NAME_BODY="${MIRROR_BASE/python-service-architecture and go-microservice-architecture/python-service-architecture}"
 GO_NAME_BODY="${MIRROR_BASE/python-service-architecture and go-microservice-architecture/go-microservice-architecture}"
 write_pair "event-driven-architecture" "$PY_NAME_BODY" "$GO_NAME_BODY"
 run_gate
-assert_rc "$RC" 0 "case d"
+assert_rc "$RC" 1 "case d2"
+assert_contains "parity_drift: event-driven-architecture.md" "$OUT" "case d2"
 
 # --- case e: missing sibling file => FAIL with missing token
 rm "$GO_REFS/event-driven-architecture.md"
@@ -133,8 +139,7 @@ run_gate
 assert_rc "$RC" 1 "case g"
 assert_contains "parity_malformed_markers: event-driven-architecture.md" "$OUT" "case g"
 
-# --- case h: canonical-pointer swap — a backticked reference NOT in the routing map is
-# changed on one side only; normalization must NOT mask it
+# --- case h: canonical-pointer swap on one side only stays drift
 seed_all_identical
 PY_CANON="${MIRROR_BASE/Delivery semantics declared explicitly./Delivery semantics declared explicitly per \`data-modeling-and-migrations.md\`.}"
 GO_CANON="${MIRROR_BASE/Delivery semantics declared explicitly./Delivery semantics declared explicitly per \`background-jobs-and-scheduling.md\`.}"
@@ -142,5 +147,14 @@ write_pair "event-driven-architecture" "$PY_CANON" "$GO_CANON"
 run_gate
 assert_rc "$RC" 1 "case h"
 assert_contains "parity_drift: event-driven-architecture.md" "$OUT" "case h"
+
+# --- case i: prefix/suffix-gamed stop heading => malformed, not silent region shrink
+seed_all_identical
+python_side="$PY_REFS/event-driven-architecture.md"
+sed_inplace() { local expr="$1" file="$2"; sed "$expr" "$file" > "$file.tmp" && mv "$file.tmp" "$file"; }
+sed_inplace 's/^## Python-specific implementation patterns$/## Python-specific implementation patterns (v2)/' "$python_side"
+run_gate
+assert_rc "$RC" 1 "case i"
+assert_contains "parity_malformed_markers: event-driven-architecture.md" "$OUT" "case i"
 
 echo "test_check_ccl_parallel_stack_parity_ok"

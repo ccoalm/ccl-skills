@@ -16,7 +16,7 @@ Apply when:
 
 Skip when:
 - the service is single-tenant by deployment (per-customer dedicated stack with no shared layer); route to `platform-release-engineering/SKILL.md` and to this file's *Compliance, residency, sovereignty* section for residency commitments,
-- the service is internal-only with a single owning team (employees of one org are not "tenants" for this purpose); identity/permission boundaries still apply but route to `web-framework-boundaries.md` or `api-contract-and-schema.md`,
+- the service is internal-only with a single owning team (employees of one org are not "tenants" for this purpose); identity/permission boundaries still apply but route to `web-framework-boundaries.md` or `api-contract-and-schema.md` on the Python tree / `api-security-boundaries.md` on the Go tree,
 - tenant-equivalent isolation is owned entirely by a platform layer above the service (e.g., per-tenant namespace owned by the platform); route to `platform-service-connectivity/SKILL.md` for the platform contract.
 
 ## Tenant isolation tiers (decision tree)

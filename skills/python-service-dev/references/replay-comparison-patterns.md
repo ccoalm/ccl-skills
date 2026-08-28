@@ -10,7 +10,7 @@ Sibling note: `go-microservice-dev/references/replay-comparison-patterns.md` car
 - Use bounded workers with deadlines (`async-and-worker-patterns.md`) for replay execution.
 - Preserve only allowlisted headers and metadata; never replay credentials blindly.
 - Redact captured requests and responses before storage; bound captured payload size.
-- Replay targets must not commit side effects unless isolated by environment, lane, transaction rollback, or explicit dry-run mode.
+- Replay targets must not commit side effects unless isolated by environment, lane, or explicit dry-run mode. Transaction rollback isolates only the local database write — a replayed handler can still send webhooks, publish messages, call payment providers, or write other datastores while its DB transaction rolls back; those adapters need environment/lane isolation or dry-run stubs of their own before rollback counts as isolation.
 
 ## Comparator Design
 
