@@ -75,6 +75,7 @@ Repo-local agent contracts (`AGENTS.md` at the repo root and in source directori
 
 5. Verify at the right scope.
    - Run focused unit tests for changed packages.
+   - When writing the test code itself (structure, naming, smells, fixtures, behavior-vs-state, coverage, isolation, table-driven parameterization), pick the matching § from the decision table in `testing-strategy/references/test-code-authoring-patterns.md`; enable the per-stack lint executors for its machine-decidable smells (conditional logic / sleep / assertion-free tests) per `testing-strategy/references/fitness-functions.md` §4.1.4 (e.g. `forbidigo` for `time.Sleep` in tests).
    - Run integration-ish tests for DB/Redis/MQ wrappers only when environment is available.
    - **TC traceability**: link tests via `tc.Mark(t, "TC-XX-NNN")` (helper from `test-artifact-management/references/tc_helpers/tc.go`, installed under `internal/testkit/tc/`).
      - **`tc.Mark` MUST be the first non-comment line in the test body, BEFORE any `t.Skip` / `t.Skipf` / setup that may call `t.Fatal`** — otherwise the sidecar entry won't be written for skipped tests.
