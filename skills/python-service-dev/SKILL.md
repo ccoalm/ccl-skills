@@ -77,12 +77,7 @@ Repo-local agent contracts (`AGENTS.md` at the repo root and in source directori
    - Run focused pytest tests for changed packages.
    - Run async tests with the repo's configured `pytest-asyncio` mode.
    - Run integration tests only when required services and credentials are available.
-   - **TC traceability**: link tests via `@pytest.mark.tc("TC-XX-NNN")` marker. Registers at collection time so `@skip` / `@skipif` / fixture failures still map to Bitable status. Needs the `tc` plugin from `test-artifact-management/references/tc_helpers/tc.py` loaded via `addopts = -p tc`. See `test-artifact-management/references/tc-marker-conventions.md`. Before adding tests, `grep -rn 'pytest\.mark\.tc' tests/` plus the sidecar `test/results/tc-map.jsonl` to check for existing coverage — extend rather than duplicate. When a TC is marked 废弃, grep both source and sidecar; follow deprecation cascade in `testing-strategy`. Tests without any TC link: prompt user only when the underlying code is also removed.
-   - **废弃级联：业务代码是否仍在用** — grep 只找出"测试函数引用了什么 import"是第一步；判断"该 import 是否还有其他 caller"才能定生死。Python 顺序：
-     1. 看测试体导入的模块：`grep -E "^(from |import )" tests/test_<x>.py`
-     2. 对每个产品模块（非 stdlib / 非测试 helper），找全仓库 caller：`grep -rEn "from <pkg>\.<mod>|import <pkg>\.<mod>" --include='*.py' --exclude-dir=tests`
-     3. 零产品 caller → 同 commit 删该模块 + 测试；有产品 caller → 测试目标仍在用，不删测试（若 TC 已废弃但代码活，先确认产品决策）
-     4. 边界：动态 import（`importlib.import_module("...")`）grep 抓不到；含 reflection 的代码人工确认；DI/插件注册（`@register` 装饰器）的产品代码需查注册表而非 import
+   - **TC traceability and the deprecation cascade** are mandatory when the repo tracks test cases in Bitable: before adding a test, check existing TC coverage; before deleting one, run the caller-liveness sequence. Mechanics (marker registration, coverage grep, the four-step 废弃级联, dynamic-import boundaries) live in `references/testing-and-quality-patterns.md` (TC Traceability And Deprecation Cascade).
    - Run ruff, mypy/pyright, formatting, and codegen/migration checks when the repo uses them.
    - Keep fast tests deterministic; isolate live infrastructure, long sleeps, generated files, and external credentials behind markers.
 
@@ -135,6 +130,10 @@ Repo-local agent contracts (`AGENTS.md` at the repo root and in source directori
 - For asyncio, blocking work isolation, concurrency limits, and cancellation, read `references/async-and-worker-patterns.md`.
 - For Redis, cache, locks, idempotency, counters, and rate limits, read `references/redis-cache-lock-patterns.md`.
 - For Celery/RQ/arq, queues, scheduled tasks, and job execution, read `references/background-job-patterns.md`.
+- For durable task state machines, status transitions, leases, terminal states, and scheduled repair jobs, read `references/state-machine-task-patterns.md`.
+- For audit logs, operation records, resource history, and change tracking, read `references/audit-history-patterns.md`.
+- For notification delivery, operator alerts, outbound webhooks, and realtime client channels, read `references/notification-patterns.md`.
+- For replay jobs, shadow execution, response comparison, and migration verification, read `references/replay-comparison-patterns.md`.
 - For external HTTP clients, SDKs, generated clients, service discovery, and dependency adapters, read `references/dependency-client-patterns.md`.
 - For errors, exception mapping, response envelopes, and validation errors, read `references/error-handling-patterns.md`.
 - For logs, metrics, traces, health checks, and instrumentation, read `references/observability-implementation-patterns.md`.

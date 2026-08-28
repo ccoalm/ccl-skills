@@ -1,0 +1,45 @@
+# State Machine And Task Patterns
+
+Use this when implementing durable tasks, async workflows, scheduled jobs, imports, exports, and retryable processors. This is the canonical guide for durable state transitions and terminal-state behavior; generic worker/async mechanics stay in `async-and-worker-patterns.md` and `background-job-patterns.md`.
+
+Sibling note: `go-microservice-dev/references/state-machine-task-patterns.md` carries the Go rendering of the same discipline; content is adapted per stack and kept in sync by review (not under the parallel-stack parity gate).
+
+## State Model
+
+- Define states as a domain-owned `Enum` (per the skill entrypoint's finite-value rule) with documented terminal states.
+- Define allowed transitions in one table or policy function; do not scatter status checks across handlers.
+- Terminal states reject ordinary processing and failure transitions.
+- Include retry count, last error, start time, finish time, progress, result pointer, and idempotency key when tasks are inspectable.
+- Store progress separately from state; progress is best-effort while state transitions are durable.
+- Create the durable task row before launching background work, queueing expensive processing, or generating external artifacts — a crash must leave an inspectable, repairable record.
+
+## Transition Implementation
+
+- Guard transitions with compare-and-update (`UPDATE … SET status=:new WHERE id=:id AND status=:expected` and check rowcount), `SELECT … FOR UPDATE`, or a Redis lock (`redis-cache-lock-patterns.md`) before processing.
+- Lease or lock owners must be unique at the runtime-instance level, not only the service level: include pod/host identity plus process id or a random instance id so replicas cannot claim or complete each other's work.
+- Re-read task state under the lock before side effects.
+- Make duplicate delivery normal: already-successful is success or no-op; already-terminal is no-op or a typed conflict depending on the caller's contract.
+- Start transitions move pending work to processing before expensive work begins.
+- Failure transitions capture canonical error code, safe message, retryable flag, retry count, and last trace/log id.
+- Success transitions persist the result pointer or summary before publishing completion events; completion events are idempotent.
+
+## Async Processing
+
+- Prefer queue/worker execution (Celery/RQ/arq per `background-job-patterns.md`) for work that must survive process restart.
+- Delayed events and queue messages re-check current task state when consumed.
+- Retry thresholds and backoff live in config or state policy, not inline literals.
+- A broad `except Exception` at the task boundary converts the task to failed or retryable-failed per the retry policy (never swallow `asyncio.CancelledError` — re-raise it after cleanup, per `async-and-worker-patterns.md`).
+- Work that produces a file, report, or media artifact persists the object key or result pointer before the success transition and exposes a retryable failure state when upload/finalization fails.
+
+## Scheduled Repair Jobs
+
+- Scheduled checkers that repair stuck tasks need a job name, interval, distributed lock key, lock lease, per-run max batch size, and max execution time.
+- A job-level lock prevents duplicate scans; a task-level lock or compare-and-update prevents duplicate repair of one record.
+- Time-window selection is explicit, bounded, and based on durable timestamps (`updated_at`), not process memory.
+- Repair actions re-read current task state before changing status or emitting side effects.
+- Emit metrics for scan count, claimed count, repaired count, skipped count, lock conflict, failure, and duration.
+
+## Tests
+
+- Test illegal transition, duplicate event, concurrent processing (two claimers, one winner), already-terminal, retry threshold, cancellation, exception-to-failed conversion, and completion-event idempotency.
+- Test scheduled repair lock conflict, stale-window selection, per-task duplicate prevention, and repeated-run idempotency.

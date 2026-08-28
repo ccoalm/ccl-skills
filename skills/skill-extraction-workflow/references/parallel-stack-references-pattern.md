@@ -49,11 +49,12 @@ Each file has the same H2 structure. The **stack-specific implementation pattern
 
 ## The sibling-sync invariant — what mirrors, what diverges
 
-Mirrored sections must match in **meaning**, not necessarily in punctuation. The acceptable divergences, enumerated:
+Mirrored sections must be **byte-identical after normalization**. The machine gate `../scripts/check-parallel-stack-parity.sh` (wired into `check-ccl-skills.sh`, regression-pinned by `test_check_ccl_parallel_stack_parity.sh`) diffs each pair's mirrored region — `## When this applies` through the last mirrored H2 before the stack-glue H2 — with exactly two normalizations applied, which are therefore the only acceptable divergences:
 
-- **Routing references** — Go's "route to `api-security-boundaries.md`" vs Python's "route to `web-framework-boundaries.md`" is fine; each stack's reference tree differs. This is the **one allowed mirrored-section divergence** and is explicitly stated in the sibling-sync header.
-- **Examples that name the stack** — when a mirrored section names a generic example, it can use a stack-neutral placeholder ("the session-level tenant variable") and let the stack-glue section name the specific syntax.
-- **Length differences from stack-neutral phrasing** — Go-rendered and Python-rendered phrasings of the same concept can differ in length by a few words.
+- **Routing references** — Go's "route to `api-security-boundaries.md`" vs Python's "route to `web-framework-boundaries.md`" is fine; each stack's reference tree differs, and a routing-reference *list* may differ in length per tree. The gate normalizes every backticked `*.md` reference (and collapses "`a.md` or `b.md`" lists) before diffing.
+- **Sibling skill names** — each file names the *other* tree's skill in pointers; the gate maps both stacks' skill names to one placeholder.
+
+Everything else in the mirrored region must be textually identical: when a mirrored section needs a generic example, use one stack-neutral placeholder rendering ("the session-level tenant variable", "the stack-glue section names the specific primitive") **and use the same rendering in both files**, letting the stack-glue section name the specific syntax. The earlier looseness ("match in meaning, phrasing may differ by a few words") is retired: meaning-equivalent-but-textually-different renderings are exactly where real drift hid — a rule on one side was silently replaced by a pointer on the other and survived several review rounds under the "same meaning" reading — so the contract is now byte-parity after normalization. The optional `## Topic-extension backlog` H2 after stack-glue is mirrored by convention but sits outside the strict gate (its section rule allows near-identical wording so it can name vendors/engines); keep it in sync by review.
 
 Hard constraints that must NOT diverge:
 - **Concept set** — every rule, every gate, every carve-out present in one mirrored section is present in the other.

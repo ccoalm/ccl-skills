@@ -1585,6 +1585,25 @@ else
   exit 1
 fi
 
+# Parallel-stack mirrored-section parity: the sibling reference pairs listed in
+# check-parallel-stack-parity.sh declare a mirrored region that must stay in sync
+# across the Python and Go trees. The per-file grep gates check token hygiene
+# INSIDE one file and cannot see cross-file drift; this gate diffs the normalized
+# mirrored regions and blocks on any divergence beyond the two allowed classes
+# (sibling skill names, backticked routing references).
+parity_script="$root/skills/skill-extraction-workflow/scripts/check-parallel-stack-parity.sh"
+if [[ -L "$parity_script" || ! -f "$parity_script" ]]; then
+  echo "parallel_stack_parity_infra_failed: check-parallel-stack-parity.sh missing beside the validator" >&2
+  exit 2
+fi
+parity_rc=0
+parity_out="$(bash "$parity_script" "$root" 2>&1)" || parity_rc=$?
+printf '%s\n' "$parity_out"
+if [ "$parity_rc" -ne 0 ]; then
+  echo "parallel_stack_parity_blocking_failed rc=$parity_rc (mirrored sections drifted — fix both siblings in the same change)" >&2
+  exit 1
+fi
+
 # Final status token. The legacy `ccl_skill_check_ok` is still printed for
 # backward-compatible consumers, but it is NO LONGER the last line and NO LONGER
 # the sole success signal: a machine (or human) MUST read the final
