@@ -41,23 +41,40 @@ PAIRS=(
   "data-platform-architecture.md"
 )
 
-# extract_mirrored <file> <stop-H2 exact line>
-# Prints the mirrored region; fails (return 1) unless the start marker and the stop marker
-# each match as an exact whole line EXACTLY once and in that order.
+# count_exact <file> <exact line> — prints the match count. Distinguishes grep's "no
+# match" (rc 1, a legitimate count of 0) from a hard failure such as an unreadable file
+# (rc >1), which must surface as infrastructure failure, never as a content verdict.
+count_exact() {
+  local c rc
+  set +e; c=$(grep -cxF "$2" "$1"); rc=$?; set -e
+  case "$rc" in
+    0|1) printf '%s\n' "${c:-0}"; return 0 ;;
+    *) return 2 ;;
+  esac
+}
+
+# extract_mirrored <file> <stop-H2 exact line> <out-file>
+# Writes the mirrored region to <out-file> BYTE-EXACTLY (a file, not a command
+# substitution: $(...) strips trailing newlines, which let a trailing blank line before
+# the stack-glue H2 diverge invisibly). Returns 1 on malformed markers (missing,
+# duplicated, or out of order), 2 on infrastructure failure.
 extract_mirrored() {
-  local file="$1" stop="$2" starts stops start_line stop_line
-  starts=$(grep -cxF "$START_MARKER" "$file") || starts=0
-  stops=$(grep -cxF "$stop" "$file") || stops=0
+  local file="$1" stop="$2" out="$3" starts stops start_line stop_line
+  starts=$(count_exact "$file" "$START_MARKER") || return 2
+  stops=$(count_exact "$file" "$stop") || return 2
   if [ "$starts" -ne 1 ] || [ "$stops" -ne 1 ]; then
     return 1
   fi
-  start_line=$(grep -nxF "$START_MARKER" "$file" | head -1 | cut -d: -f1)
-  stop_line=$(grep -nxF "$stop" "$file" | head -1 | cut -d: -f1)
+  start_line=$(grep -nxF "$START_MARKER" "$file" | head -1 | cut -d: -f1) || return 2
+  stop_line=$(grep -nxF "$stop" "$file" | head -1 | cut -d: -f1) || return 2
   if [ "$start_line" -ge "$stop_line" ]; then
     return 1
   fi
-  sed -n "${start_line},$((stop_line - 1))p" "$file"
+  sed -n "${start_line},$((stop_line - 1))p" "$file" > "$out" || return 2
 }
+
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/stack-parity.XXXXXX")" || { echo "parity_infra: mktemp failed" >&2; exit 2; }
+trap 'rm -rf "$WORK"' EXIT
 
 fail=0
 for f in "${PAIRS[@]}"; do
@@ -68,24 +85,29 @@ for f in "${PAIRS[@]}"; do
     fail=1
     continue
   fi
-  if ! py_body=$(extract_mirrored "$py" "## Python-specific implementation patterns"); then
+  py_out="$WORK/py-$f.txt"; go_out="$WORK/go-$f.txt"
+  rc=0; extract_mirrored "$py" "## Python-specific implementation patterns" "$py_out" || rc=$?
+  if [ "$rc" -eq 2 ]; then echo "parity_infra: $f (python side: grep/sed could not run)" >&2; exit 2; fi
+  if [ "$rc" -ne 0 ]; then
     echo "parity_malformed_markers: $f (python side: start/stop heading missing, duplicated, not an exact heading line, or out of order)"
     fail=1
     continue
   fi
-  if ! go_body=$(extract_mirrored "$go" "## Go-specific implementation patterns"); then
+  rc=0; extract_mirrored "$go" "## Go-specific implementation patterns" "$go_out" || rc=$?
+  if [ "$rc" -eq 2 ]; then echo "parity_infra: $f (go side: grep/sed could not run)" >&2; exit 2; fi
+  if [ "$rc" -ne 0 ]; then
     echo "parity_malformed_markers: $f (go side: start/stop heading missing, duplicated, not an exact heading line, or out of order)"
     fail=1
     continue
   fi
-  if [ -z "$py_body" ] || [ -z "$go_body" ]; then
+  if [ ! -s "$py_out" ] || [ ! -s "$go_out" ]; then
     echo "parity_empty_mirrored_region: $f"
     fail=1
     continue
   fi
-  if [ "$py_body" != "$go_body" ]; then
+  if ! cmp -s "$py_out" "$go_out"; then
     echo "parity_drift: $f"
-    diff <(printf '%s\n' "$py_body") <(printf '%s\n' "$go_body") | head -40 || true
+    diff "$py_out" "$go_out" | head -40 || true
     fail=1
   fi
 done

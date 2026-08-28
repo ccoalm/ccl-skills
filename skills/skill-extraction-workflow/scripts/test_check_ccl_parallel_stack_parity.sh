@@ -12,6 +12,8 @@
 #   f. missing marker headings                                   => exit 1, parity_malformed_markers
 #   g. stop heading duplicated                                   => exit 1, parity_malformed_markers
 #   h. canonical (non-routing-mapped) reference swapped one side => exit 1, parity_drift
+#   j. extra trailing blank line before one side's stack-glue H2  => exit 1, parity_drift
+#   k. unreadable pair file                                       => exit 2, parity_infra
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
@@ -156,5 +158,26 @@ sed_inplace 's/^## Python-specific implementation patterns$/## Python-specific i
 run_gate
 assert_rc "$RC" 1 "case i"
 assert_contains "parity_malformed_markers: event-driven-architecture.md" "$OUT" "case i"
+
+# --- case j: extra blank line immediately before one side's stack-specific H2 — command
+# substitution strips trailing newlines, so the gate must compare region FILES, not strings
+seed_all_identical
+python_side="$PY_REFS/event-driven-architecture.md"
+awk '/^## Python-specific implementation patterns$/{print ""} {print}' "$python_side" > "$python_side.tmp" && mv "$python_side.tmp" "$python_side"
+run_gate
+assert_rc "$RC" 1 "case j"
+assert_contains "parity_drift: event-driven-architecture.md" "$OUT" "case j"
+
+# --- case k: unreadable pair file => infrastructure failure (exit 2), never a content verdict
+seed_all_identical
+chmod 000 "$GO_REFS/event-driven-architecture.md"
+if [ -r "$GO_REFS/event-driven-architecture.md" ]; then
+  echo "SKIP case k: file still readable (running as root?)"
+else
+  run_gate
+  assert_rc "$RC" 2 "case k"
+  assert_contains "parity_infra" "$OUT" "case k"
+fi
+chmod 644 "$GO_REFS/event-driven-architecture.md"
 
 echo "test_check_ccl_parallel_stack_parity_ok"
