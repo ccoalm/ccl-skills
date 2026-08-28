@@ -1,0 +1,25 @@
+# governing-chain-diff 终态派生（base=origin/dev 631ebb7，候选=工作树；命令可包外复算）
+## SKILL.md
+governing-chain-diff: skills/tighten-doc/SKILL.md
+derived row set: 5
+  [left-a-rewritten-line] 交付物还有一组**文外的面**——远端副本（飞书 / wiki 页）、附件（pdf / 大图）、导出件（png / jpg），以及历史上生成过的多代同名产物。
+  [left-a-rewritten-line] **①投放要回读远端、不认本地动作**——上传 / 推送命令返回成功不等于那一份已经变；
+  [left-a-rewritten-line] 核到本轮的可识别标志才算已投放。
+  [left-a-rewritten-line] **被要求删除**的面（凭据 / 个人信息 / 有害错误说明）单标 `待安全处置` 转出给安全 / 法务 / 内容 owner，与投放类 blocked 分开列，其结案前不得报已同步。
+  [left-a-rewritten-line] 三态定义、投放失败形态与绕过路径、退役的两种可逆做法、转出规则与静态导出的 oracle 见 `references/delivery-face-closeout.md`。
+## delivery-face-closeout.md (工作树 vs origin/dev)
+base-extracted
+governing-chain-diff: skills/tighten-doc/references/delivery-face-closeout.md
+derived row set: 8
+  [left-a-rewritten-line] **授权不投放**——+ 理由。
+  [left-a-rewritten-line] **blocked**——+ 已试补救 + 下一步（投放侧受阻：
+  [left-a-rewritten-line] 权限、网络、工具）。
+  [left-a-rewritten-line] **待安全处置**——该面命中删除要求（触发见第 4 条）。
+  [governing-chain-changed] 它**替代**前三态而不是叠加：
+      before chain: 交付面收尾：投放 / 退役 / 导出保真 > closeout 第 7 项的走法 > 再逐面标**四态之一——互斥且完备，不叠加**： > **待安全处置**——该面命中删除要求（触发见第 4 条）。
+      after  chain: 交付面收尾：投放 / 退役 / 导出保真 > closeout 第 7 项的走法 > 再逐面标**四态之一——互斥且完备，不叠加**： > **待安全处置**——该面命中删除要求，**或定位核验发现生效可见范围比预期更宽、无法排
+  [governing-chain-changed] 命中的面不再标已投放 / 授权不投放 / blocked，单独列，不并进 blocked 或待投放汇总。
+      before chain: 交付面收尾：投放 / 退役 / 导出保真 > closeout 第 7 项的走法 > 再逐面标**四态之一——互斥且完备，不叠加**： > **待安全处置**——该面命中删除要求（触发见第 4 条）。
+      after  chain: 交付面收尾：投放 / 退役 / 导出保真 > closeout 第 7 项的走法 > 再逐面标**四态之一——互斥且完备，不叠加**： > **待安全处置**——该面命中删除要求，**或定位核验发现生效可见范围比预期更宽、无法排
+  [left-a-rewritten-line] 或内容 / 安全 / 法务 owner 已作出删除决定。
+  [left-a-rewritten-line] 命中即按上面「当删除是被要求的」转出——判定范围与执行都不在本技能。
