@@ -1,0 +1,80 @@
+## Workflow
+
+Before editing tests, CI gates, mocks/fakes, fixtures, test scripts, verification docs, or implementation tied to a testing request, complete enough analysis and planning for the testing change to be reviewable. Scale the plan to risk: a simple low-risk single-test addition can use a short inline plan; multi-layer, user-visible, contract-visible, flaky, release-blocking, bug-regression, branch/MR, unclear-risk, or high-risk work needs explicit scenario/risk matrix, test-case register, task split, expected failing test or evidence gap, verification commands, and stop conditions before edits.
+
+1. Discover the repository's test topology.
+   - Read local guidance first: `AGENTS.md`, `CLAUDE.md`, `README`, `CONTRIBUTING`, local agent skill/instruction directories, `Makefile`, `package.json`, `pyproject.toml`, `go.mod`, `pytest.ini`, `vitest`/`playwright` config, CI jobs, `scripts/run_tests.*`, and `scripts/dev.*`.
+   - Identify default fast tests, opt-in integration markers, contract/architecture checks, browser/E2E suites, local container stacks, and release smoke commands.
+   - Exclude dependency and generated-test noise from the topology: `node_modules`, virtualenvs, vendored/third-party trees, generated SDK snapshots, build outputs, and archived worktrees unless the task is explicitly about those artifacts.
+   - Prefer documented wrappers over raw runners unless the task is to debug the runner itself.
+   - If a frontend or app repository has only build/dev/format scripts and no assertion-based UI tests, do not treat that as adequate coverage for interaction changes. Use build/typecheck as a structural gate, then add focused state/API tests or record the missing test layer and require rendered browser/device evidence.
+   - If CI mainly builds images or deploys by branch/environment, classify it as release plumbing. It does not prove product behavior unless assertion-based test jobs run and block delivery.
+   - When adding a new client platform scaffold, inspect whether the generator added default sample tests. Keep a sample only if it asserts real product behavior; otherwise replace it with the smallest deterministic smoke that would fail if the current shell, navigation, entrypoint, or visible state were missing.
+
+2. Identify the behavior to prove.
+   - User/caller outcome.
+   - Contract, state, side effect, emitted event, rendered UI, permission behavior, or operational signal.
+   - Risk if wrong.
+   - Scenario dimensions when relevant: persona/role, entry path, data state, permission, dependency health, device/browser/platform, locale/timezone, network quality, and recovery path.
+   - For API contract changes, first record the contract definition being tested: request shape, response envelope, success/error semantics, compatibility mode, consumers, and rollout assumption. If this is missing, stop and route back to product/architecture before writing broad tests.
+   - For protobuf-backed HTTP, JSON/OpenAPI vs protobuf wire-format, and internal RPC/base/generated DTO paths, use the canonical policy/proof references from `platform-service-connectivity`: `protobuf-http-contract-signals.md`, `http-response-envelope-contract.md`, and `rpc-framework-recipe.md`. This skill owns assertion coverage, verdict shape, and CI placement; platform-service-connectivity owns the platform contract semantics and proof mechanics.
+   - For external/gateway/CORS/log-id/caller-identity exposure triggers, missing, stale, inaccessible, mismatched, or inconclusive contract owner evidence, descriptor proof, owner-suite evidence, boundary-exposure proof, or required sub-check evidence is an explicit `open coverage gap`, not pass. Detailed platform contract / protobuf / RPC test obligations live in `references/integration-contract-testing.md`.
+
+3. Choose the lowest sufficient test layer.
+   - Unit: pure logic, validation, mapping, config, retry decision, state transition, key builder, error translation.
+   - Component/API/contract: handler, generated client/server contract, serialization, auth envelope, route mapping, public API compatibility.
+   - Architecture/static: dependency direction, module boundary, generated code cleanliness, forbidden import, schema drift, or migration shape.
+   - Integration: DB, Redis, MQ, filesystem/object storage, service client, transaction, migration, real parser/generator, dependency adapter.
+   - E2E/real flow: critical user journey, cross-service workflow, browser-visible behavior, release smoke, or runtime integration that lower layers cannot prove.
+   - Scenario matrix: select a small set of representative happy, negative, edge, recovery, permission, and regression scenarios; map each scenario to the cheapest layer that proves it, then add one real-flow check for the highest-risk cross-boundary journey.
+   - **A property about what is NOT emitted can only be proven where the emission happens.** When the contract says a field/section/header must be *absent* — not merely empty — under some condition, put absence assertions at the layer that produces the actual wire/rendered artifact — the serialized payload, the response body, the rendered output — and assert **key/element absence**, not `get(key, default) == default`, which cannot distinguish the two (the in-process unset-vs-explicit-zero mechanism: `references/integration-contract-testing.md`). State the split explicitly when the lower layer structurally cannot carry the property, so the reviewer does not read the missing unit test as a coverage gap.
+   - High-risk resilience matrix: for each triggered class, choose the lowest layer that can prove the invariant, then add one release drill or real-flow smoke for the most expensive failure. Examples: idempotency unit/contract plus duplicate callback integration; auth timeout unit plus cross-tenant API integration; AI fallback eval/replay plus visible refusal E2E; client double-submit component test plus server idempotency integration.
+   - High-risk backend tests should include missing tenant/actor/subject/resource-scope rejection, durable idempotency beyond cache TTL, mutation-plus-audit/outbox atomicity or repair visibility, stale/pending worker status, and operator/request/trace evidence for admin repair paths when those risks exist.
+
+   For client API-backed surfaces, mini-program/mobile/device runtime smoke, runtime-client mechanisms (route guards, permission trees, request interceptors, generated clients, upload wrappers, long-task polling, safe-area/keyboard/orientation handling, foreground/background restore, native bridges, app-hosted H5), terminal/CLI/TUI runtime tests, and streaming/async-finality changes (model streams, queued jobs, MQ consumers, scheduled prompt tasks, cron tasks, persisted tool-output artifacts, long-running exports, long-lived connections), load `references/client-runtime-test-matrices.md` before assigning layers — and again before declaring any runtime/device/browser evidence unavailable, not only at layer assignment. Non-negotiable anchors kept in view here: the default three-boundary client split (unit/component + API client/contract + browser/device smoke) applies unless the repository has a stronger convention; runtime-dependent smoke is **blocking** when lower layers cannot prove the changed behavior, and a missing runner after normal remediation stops at `pre-runtime-test ready` or `blocked` with owner, commands attempted, residual risk, and next unblock action — never converts into a code correctness claim; developer-tool compile/preview is structural evidence only; dangerous or irreversible operations require operator/confirmation/audit/duplicate-submit/final-status assertions before the UI or API is called ready. Build scenario matrices from the reference's reusable dimensions (host/container, identity/permission, data/state, async/finality, visual/interaction, high-consequence); do not paste product-specific matrices into this skill — product-specific lists belong in the project checklist or the owning product/domain skill.
+
+4. Define data and dependency strategy.
+   - Use small fixtures named by scenario. For repeated/complex fixture construction, pick §4 (factory/builder) from the decision table in `references/test-code-authoring-patterns.md`.
+   - Use fakes for domain behavior and integration tests for external contracts.
+   - Keep real credentials, live services, long sleeps, and network-only dependencies out of default fast tests.
+   - Tests that hit live DB, Redis, MQ, RPC, model service, object storage, or real external APIs must be marked or commanded as integration/e2e/drill tests. They are release evidence, not the default fast gate, and they must not replace lower-layer assertions.
+   - Use temp directories and cleanup hooks for file output. A temporary smoke/instrumentation test file created only as delivery evidence is removed (or promoted to a maintained test) before the MR/PR (or equivalent review gate) is review-ready — the recorded run output/transcript is the evidence, not the lingering file. Prefer a temp dir or a dry-run/`--no-write` flag over mutating a real tracked repo file in place. If a test or verification MUST seed or mutate a tracked file, undo only the exact thing you added (delete that line/file) and re-check `git status` before continuing. In a non-disposable working tree (one with other uncommitted work or that you are not about to delete wholesale), never clean up with a blanket `git checkout .` / `git checkout -- <file>` / `git reset --hard` / `rm` unless `git status` first proves your seeded mutation is the only change present — otherwise it also discards unrelated uncommitted edits or deletes committed files. (A throwaway worktree or fresh clone you will remove entirely is exempt.)
+
+5. Define assertions and evidence.
+   - Assert final user/caller-visible result. Author code per that table — §8: parameterize same-logic inputs instead of copy-pasting — and walk its closeout checklist before review.
+   - Assert persisted state, emitted event, dependency call, trace/log id, or browser-visible state where relevant.
+   - For E2E, collect console errors, failed network requests, screenshots/video/traces when useful, but do not rely on artifacts without assertions. Give smoke/e2e harnesses prod-grade rigor: tolerate benign address/format variation (normalize or match structurally instead of pinning a brittle literal) while still asserting the real outcome, and validate the proof artifact itself — reject malformed, empty, duplicate, or stale evidence — so a green cannot be a false positive resting on non-fresh or corrupt evidence.
+
+6. Place in CI intentionally.
+   - Fast gate: format, compile/typecheck, lint/static checks, focused unit tests, deterministic codegen clean check.
+   - Integration gate: runs only when stable infra or containers exist.
+   - Scenario gate: small acceptance/risk matrix mapped to unit, contract, integration, component, or E2E commands with clear owners for failures.
+   - E2E/release gate: critical smoke and regression flows, isolated environment, explicit owners for failures.
+
+
+=====REFERENCE: test-code-authoring-patterns.md（决策表与自查表）=====
+## 快速选用决策表
+
+| 写代码时遇到 | 用 |
+|---|---|
+| 单个测试结构混乱 | §1 AAA / GWT |
+| 测试名表达不清 | §2 命名约定 |
+| 测试 flaky 或重构成本高 | §3 排查 test smells |
+| 复杂对象构造重复 | §4 Object Mother / Test Data Builder |
+| 决定用 mock 还是查状态 | §5 行为 vs 状态验证 |
+| Coverage 数字焦虑 | §6 floor 非 goal |
+| 跑顺序变化结果不同 | §7 隔离 |
+| 相同 logic N 个输入 | §8 表驱动 |
+| 把测试搬到另一个语言/stack | §9 移植对抗输入本身 |
+| 行为修复后旧断言变红 | §10 行为纠正时的断言清扫 |
+
+## 写完测试走查（closeout checklist，逐行走完再提交）
+
+写完一批测试代码后逐行走一遍；任一行答"否"就回对应 § 改，不靠印象：
+
+1. 每个测试断言的是**结果**（返回值/状态/事件），不是"调用没抛错"？（§1/§5）
+2. 测试名读出来是**行为与预期**，不是方法名或编号？（§2）
+3. 测试体内没有 if/else/loop 决定断言是否执行？（§3 Conditional Test Logic）
+4. 重复出现的复杂对象构造已收进按场景命名的工厂/builder？（§4）
+5. 同一逻辑的多组输入已参数化/表驱动，而不是复制粘贴多个测试函数？（§8）
+
