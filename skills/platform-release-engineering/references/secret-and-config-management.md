@@ -31,6 +31,13 @@ Examples:
 - `experiment_split = { control: 50, variant_a: 25, variant_b: 25 }`.
 - Kill switch for a degraded-mode path.
 
+Feature-flag lifecycle (flags are release levers, not just config values — they decouple *deploy* from *release*: code ships dark, the flag turns it on; per Fowler/Hodgson "Feature Toggles", flags are inventory with a carrying cost):
+
+- Classify at creation: **release toggle** (transient, days–weeks), **experiment toggle** (weeks), **ops toggle** (usually short-lived — retire once operational confidence is gained; only a small, deliberate subset become long-lived **kill switches**, each with an owner and periodic review), **permission toggle** (long-lived). The categories age differently; manage them differently.
+- Transient toggles get an owner and an expiry/cleanup task when created (an expiration date on the flag itself is a workable enforcement). A flag past its expiry is debt: surface it (report, lint, or CI warning) — every stale flag is an untested code path and a config surface someone can flip by accident.
+- A production flag flip that exposes new behavior IS a release event, not "just config": deploy-decoupled does not mean gate-decoupled. Risk-class it like a deploy (high-blast-radius flips take the same approval path as R8), keep it in the same audit trail, stage the exposure where blast radius warrants (cohort/percentage ramp with SLI checks, per the promotion gate), and have the kill-switch/rollback path tested before the flip.
+- Test both sides of every mutable flag deployed to production — "we never plan to flip it" is not a waiver, because the untested branch stays one operator click / stale automation run away from live traffic. The full flag combination space is untestable, so test the combinations that will actually run (current production config, the config about to go live, and the fallback/off state — per Fowler), and for cohort/percentage ramps also the *mixed* state the ramp itself creates — old and new behavior running concurrently against shared state (reader/writer compatibility, caches, queues) — before enabling the ramp. Declare dependencies between flags where one implies another, keep the concurrently-active flag count low, and retire release toggles as part of the feature's definition of done.
+
 ### Secrets
 
 What it is: credentials, tokens, certs. Any value that, if leaked, causes a security incident.

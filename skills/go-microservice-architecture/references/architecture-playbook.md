@@ -101,6 +101,8 @@ Not appropriate for:
 
 ## Dependency Direction
 
+This layering is the **[Ports-and-Adapters / Hexagonal](https://alistair.cockburn.us/hexagonal-architecture/)** idea in moderation (Alistair Cockburn; borrowed scope: the ports/adapters placement idea only, not the full pattern vocabulary) — infrastructure adapters sit behind interfaces the inner layers own.
+
 Recommended:
 
 ```text

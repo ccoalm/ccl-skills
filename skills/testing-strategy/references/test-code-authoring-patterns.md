@@ -13,7 +13,7 @@
 - **Daniel Terhorst-North** — "Introducing BDD" (dannorth.net, 2006) — Given-When-Then 来源
 - **Nat Pryce** — "Test Data Builders: an alternative to the Object Mother pattern" (natpryce.com, 2007) — Test Data Builder
 - **Go 官方 wiki** — Table Driven Tests (go.dev/wiki/TableDrivenTests) — Go 社区主流模式
-- **Brian Marick** — "How to misuse code coverage" (testing.com, 1999) — coverage 不是目标
+- **Brian Marick** — "How to misuse code coverage" (exampler.com/testing-com/，版权页 1997；部分索引作 1999) — coverage 不是目标
 
 ---
 
@@ -84,11 +84,11 @@ def test_export_request_returns_signed_url_when_user_has_quota():
 |---|---|---|
 | **Fragile Test**（Meszaros） | 实现细节变动就挂 | 重构成本高 |
 | **Change-Detector Test**（Fragile 的高频子类；名为团队启发） | 断言"预期会变的数据"的快照（目录/注册表项、版本号字面量、枚举计数、硬编码清单）而非行为 | 例行数据更新即挂 CI、零行为覆盖、浪费工时"修测试" |
-| **Erratic Test** 含 Mystery Guest（Meszaros） | 隐含外部依赖 / 顺序敏感 / 时间敏感 | flaky |
-| **Assertion Roulette / Eager Test**（Meszaros） | 一个测试塞多场景或多个独立断言 | 失败定位难、报错无意义 |
+| **Erratic Test**（Meszaros；原书 causes 含 Interacting Tests / Unrepeatable Test / Resource Optimism / Test Run Wars） | 共享 fixture 交互 / 顺序敏感 / 时间敏感 / 乐观依赖外部资源 | flaky |
+| **Assertion Roulette**（behavior smell）+ 常见成因 **Eager Test**（原书归 Obscure Test 的 cause） | 一个测试塞多场景或多个独立断言 | 失败定位难、报错无意义 |
 | **Slow Test**（Meszaros 项；阈值是**团队启发**：单 unit 测 > 100ms / 整 unit 套 > 30s 触警） | 反馈慢 → 开发者跳过 | 见下方"用"段中的层级豁免 |
-| **Conditional Test Logic**（Meszaros） | 测试体内有 if/else/loop | 实际测的是什么不明 |
-| **Mystery Guest**（Meszaros 子项） | 依赖外部文件/数据但未声明 | 不可复现 |
+| **Conditional Test Logic**（Meszaros） | 测试体内有 if/else/loop（表驱动 case 迭代除外，见 §8） | 实际测的是什么不明 |
+| **Mystery Guest**（Meszaros，Obscure Test 的 cause） | 依赖外部文件/数据但未声明 | 不可读、不可复现；资源被改时连带 flaky（Resource Optimism） |
 
 **用**：code review / 重构 / 排查 flaky test 时按这清单查。Slow Test 阈值只对**默认快速单测目标**（unit 层）严卡；integration / E2E / host-smoke / benchmark 测必有独立的更宽 budget，按 marker 分离（如 `@pytest.mark.integration` / Go `-short` 区分）或按 runner 配置级 include 清单隔成独立套（perf/stress 类车道优先用清单——清单可审计，运行时 skip 标记会静默腐烂，见 `ci-fixtures-and-flake-control.md` Coverage As Signal），不混入 unit 套时间预算。
 
@@ -98,6 +98,7 @@ def test_export_request_returns_signed_url_when_user_has_quota():
 - 测试矩阵 / CI 报告里发现 flaky → 先按 Sensitive Test 排查（时间/顺序/外部依赖）
 - 一次 review 抓到 ≥ 3 处同类异味 → 列入技术债跟进，不只口头指出
 - 自动检查工具：pytest `-x --tb=short` + flake-detector / pytest-randomly；Jest `--bail`；Go `-race -count=10`
+- 可机判子集（条件逻辑 / sleep / 无断言）必须走每栈 lint 执行器登记面处置：`fitness-functions.md` §4.1.4（生态规则优先；无规则格按本节清单人审，不得自写半成品检查器）
 
 **例**：
 ```
@@ -374,6 +375,16 @@ func TestExportTokenTTL(t *testing.T) {
 | 相同 logic N 个输入 | §8 表驱动 |
 | 把测试搬到另一个语言/stack | §9 移植对抗输入本身 |
 | 行为修复后旧断言变红 | §10 行为纠正时的断言清扫 |
+
+## 写完测试走查（closeout checklist，逐行走完再提交）
+
+写完一批测试代码后逐行走一遍；任一行答"否"就回对应 § 改，不靠印象：
+
+1. 每个测试断言的是**结果**（返回值/状态/事件），不是"调用没抛错"？（§1/§5）
+2. 测试名读出来是**行为与预期**，不是方法名或编号？（§2）
+3. 测试体内没有决定断言是否执行或变化的条件分支？（§3 Conditional Test Logic；表驱动/参数化的 case 迭代循环不算——那是 §8 的正面形态）
+4. 重复出现的复杂对象构造已收进按场景命名的工厂/builder？（§4）
+5. 同一逻辑的多组输入已参数化/表驱动，而不是复制粘贴多个测试函数？（§8）
 
 ---
 

@@ -44,6 +44,17 @@ Double retry = real bad. If mesh retries 2x and framework retries 2x, you get 4x
 
 **Rule**: when enabling framework-level retry, disable mesh retry for that callee (DestinationRule `retries.attempts: 0`).
 
+Mesh retries back off automatically (Istio/Envoy: jittered exponential backoff with a default 25ms *base* interval — fully jittered, so an actual delay can be shorter than the base; it is not a guaranteed minimum gap); framework-level retry gets no such freebie — it must implement its own jittered backoff that fits inside the caller's remaining deadline.
+
+## Retry budget (load-proportional guard, per proxy)
+
+Per-call retry counts bound retries *per request*; they do not bound a caller's total retry share during a partial outage — at high QPS, "2 retries each" is up to a 3× load multiplier at the exact moment the upstream is sickest. Envoy's cluster circuit breakers cap this per proxy:
+
+- `max_retries` — max **concurrent** retries to the cluster, per priority. Retries beyond it overflow (fail fast, counted in `upstream_rq_retry_overflow`). The raw Envoy default is 3, but the control plane above Envoy may override it: Istio's `connectionPool.http.maxRetries` defaults to **2^32-1 — effectively unlimited** — so in an Istio mesh "leave it unset and rely on the default cap" is a trap. Set the limit explicitly and verify the *generated* Envoy cluster config, not the assumption.
+- `retry_budget` — replaces the fixed cap with a load-proportional one: concurrent retries ≤ `budget_percent` (default 20%) of active + pending requests, with a `min_retry_concurrency` floor so low-traffic clusters can still retry. When set, it overrides `max_retries`. Reachability caveat: Istio's DestinationRule API exposes only `connectionPool.http.maxRetries`, NOT `retry_budget` — on plain Istio, set a finite `maxRetries` first; adopting `retry_budget` there means an EnvoyFilter, acceptable only with the *generated* cluster config verified.
+- Know exactly what the budget bounds — and what it doesn't. It bounds **Envoy-originated, concurrent** retries, per proxy. It does NOT bound: retry attempt *rate*; **framework-level retries** (each framework attempt arrives at Envoy as a fresh request and bypasses `max_retries`/`retry_budget` entirely — a platform running framework retries needs a framework-side budget or strict per-call caps); or the **fleet aggregate** (circuit breaking is distributed, not coordinated — each sidecar enforces its own budget and floor, so aggregate retry load still scales with caller replica count). A true service-wide load bound requires callee-side protection (admission control / load shedding, owned by the service-architecture skills) on top.
+- When tuning for a flaky dependency, set a retry budget rather than raising per-call retry counts — but pick `budget_percent` AND `min_retry_concurrency` deliberately against the callee's capacity: on a very high-QPS caller, an unexamined 20% of active requests is far looser than `max_retries: 3`, and with many low-traffic sidecars the aggregate floor (≈ replicas × `min_retry_concurrency`) dominates instead. Alert on the overflow counter: a growing overflow stat means callers are shedding retries, which is the budget doing its job; do not "fix" it by raising the cap.
+
 ## Idempotency awareness
 
 Framework client retries MUST consider idempotency:

@@ -1,0 +1,41 @@
+parity_drift: event-driven-architecture.md
+11c11
+< - uses synchronous HTTP/RPC with no durable async boundary (use <REF> instead),
+---
+> - uses synchronous RPC with no durable async boundary (use <REF> instead),
+30c30
+< - **Query** — a request for state. Synchronous HTTP/RPC or query API, not a durable message. If you find yourself sending a query as a message, you probably want a query API plus an event subscription for change notifications.
+---
+> - **Query** — a request for state. Synchronous RPC or query API, not a durable message. If you find yourself sending a query as a message, you probably want a query API plus an event subscription for change notifications.
+68c68
+< Inbox (the dual) is rarer: when a consumer must read a message and produce a side effect in a different system atomically, the consumer writes the inbox record + side effect in one DB tx, then acks the broker. On crash before ack, redelivery hits the inbox row and skips the side effect.
+---
+> Inbox (the dual) is rarer in Go services: when a consumer must read a message and produce a side effect in a different system atomically, the consumer writes the inbox record + side effect in one DB tx, then acks the broker. On crash before ack, redelivery hits the inbox row and skips the side effect.
+91c91
+<   - *Single-team, single-broker boundary*: in-payload schema or a model-derived schema (from the service's typed model layer) in the envelope header is acceptable.
+---
+>   - *Single-team, single-broker boundary*: in-payload schema or schema embedded in the protobuf/Avro descriptor is acceptable.
+97c97
+< For event payloads modelled with the service's typed-model layer, freeze the model at publish time and version the envelope; the producer's evolving model must not reach the wire without a registered new version. The stack-glue section names the specific model library and freezing pattern.
+---
+> For Go services using protobuf for events, see also <REF> for `message`/`enum`/`oneof` evolution rules.
+126,127c126,127
+<   - *Unordered consumer*: a bounded work-queue sized to the worker pool, N workers reading from the queue. A shared shutdown signal stops the workers (the stack-glue section names the specific primitive). Order of completion is undefined.
+<   - *Ordered partitioned log* (Kafka, Pulsar key-shared, NATS JetStream ordered consumer): **one serial work lane per assigned partition/key**. Feed each partition into its own bounded work-queue + single worker, or process messages serially within the partition's poll loop. Feeding multiple ordered partitions into a single shared work-queue + worker pool loses per-partition ordering, and a slow message on one partition can starve cold partitions or let later offsets overtake earlier ones. The bounded-queue-plus-pool shape is correct for unordered work queues; not for ordered partitioned logs.
+---
+>   - *Unordered consumer*: a bounded work-queue sized to the worker pool, N workers reading from the queue; shutdown via the request/service cancellation signal (the stack-glue section names the specific primitive). Order of completion is undefined.
+>   - *Ordered partitioned log* (Kafka, Pulsar key-shared, NATS JetStream ordered consumer): **one serial work lane per assigned partition/key**. Feed each partition into its own bounded channel + single worker, or process messages serially within the partition's poll loop. Feeding multiple ordered partitions into a single shared bounded channel + worker pool loses per-partition ordering, and a slow message on one partition can starve cold partitions or let later offsets overtake earlier ones. The bounded-queue-plus-pool shape is correct for unordered work queues; not for ordered partitioned logs.
+130c130
+< - **Producer-side** — when the broker buffer fills (Kafka producer queue, RabbitMQ unconfirmed-publishes limit, NATS slow-consumer warning), block the producer's caller with a bounded wait or shed load at the producer entry point. Never block forever; surface a typed exception after a bounded wait so upstream can backpressure further.
+---
+> - **Producer-side** — when the broker buffer fills (Kafka producer queue, NATS slow-consumer warning), block the producer's caller with a bounded wait or shed load at the producer entry point. Never block forever; surface a typed error after a bounded wait so upstream can backpressure further.
+189c189
+< - **Sync HTTP/RPC as command** — a "command" sent via blocking HTTP/RPC with retry and no replay path. If the call needs the durability of a queue, use a queue; if it needs the latency of HTTP/RPC, accept best-effort.
+---
+> - **Sync RPC as command** — a "command" sent via blocking RPC with retry and no replay path. If the call needs the durability of a queue, use a queue; if it needs the latency of RPC, accept best-effort.
+parity_drift: multi-tenant-isolation.md
+11c11
+< - the service is internal-only with a single owning team (employees of one org are not "tenants" for this purpose); identity/permission boundaries still apply but route to <REF> or <REF>,
+---
+> - the service is internal-only with a single owning team (employees of one org are not "tenants" for this purpose); identity/permission boundaries still apply but route to <REF>,
+parallel_stack_parity_FAIL
