@@ -1,0 +1,13 @@
+# gate 运行证据（两层）
+
+## 终候选绑定的权威证据（外部不可变，controller 侧持有）
+本仓 CI 在每个推送 head 上运行与本地同构的全量闸（repository-gates job 即 `make test-repo-gates`，按 commit SHA 键控、不可变）。**终评审候选的权威结果 = PR #68 该 head SHA 的 repository-gates 运行；其精确 SHA / run URL / conclusion 由评审 controller 在树外（review plan evidence）持有并随包呈给评审方**——树内文件按定义无法包含"包含它自己的提交"的运行结果，故本文件不再内嵌任何自指的 run 钉入。
+
+## 作者本地实测（辅助证据）
+- 实质候选树上本地 `PATH=<venv>/bin:$PATH CCL_SKILL_BASE_REF=origin/dev make test-repo-gates` rc=0；关键行（逐字）：
+  - entrypoint_word_budget_legacy_ok: skills/tighten-doc/SKILL.md base_body_words=9828 head_body_words=9826 allowed_body_words=9828
+  - entrypoint_size_blocking_ok
+  - ccl_skill_check_clean_ok
+- 本地运行的**关键判定行摘要**随包：`lane-output.txt`（已入 SHA256SUMS；自带头注声明其为摘要——完整输出不入树，包体积治理下裁至判定行；唯一脱敏=维护者私有 alias 审计脚本绝对路径替换为占位符，已在文件头注与此处显式记录；权威判定以上层 CI run 为准，本地全量可按下行复算重现）。
+- controller 侧认证（review plan evidence，随包呈评审方）：终候选精确 SHA、repository-gates run URL、pass conclusion。
+- 复算：任意 head 检出后重跑同命令（venv 装 requirements-test.txt）。
