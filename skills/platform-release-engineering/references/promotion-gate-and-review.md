@@ -117,6 +117,22 @@ audit_event:
 
 Retention: ≥ 1 year for high/critical changes, ≥ 90 days otherwise. Audit log is queryable.
 
+## Release-process metrics (DORA)
+
+The audit log above is also the source for measuring the release process itself. DORA's current five-factor model (`dora.dev`):
+
+- Throughput: **change lead time** (commit → running in prod), **deployment frequency**, **failed deployment recovery time** (successor to "MTTR"; the clock stops when user impact ends — the *current* SLI healthy again over a short confirmation window, NOT the cumulative error budget replenished — rather than when the rollback or hotfix command completed, so the audit log needs a recovery-confirmed event, not only the remediation event).
+- Instability: **change fail rate** (deploys requiring immediate intervention — typically a rollback or hotfix, but any remediation form counts), **deployment rework rate** (unplanned deploys resulting from a production incident — "incident" meaning the production problem itself, not the existence of a formal ticket; missing paperwork doesn't exempt the deploy). Count remediation by what it *is*, not what it is named — a "roll-forward" that exists only to fix a failed deploy is a failed deploy's remediation.
+
+Rules:
+
+- Compute them from the control plane's own audit log (deploy / rollback / abort events with incident links) — never from a hand-maintained spreadsheet.
+- Define the counting unit before computing, and keep that definition stable over time (changing artifact topology changes the counts, not the process — trends are only meaningful against a constant unit): for the DORA-comparable metrics, the unit is one *logical artifact deployment* to production — dedupe canary steps, per-region waves, and mechanical retries belonging to the same deployment attempt, but never collapse a *failed* attempt into its later successful retry (an attempt that reached production traffic and needed intervention stays a failed deployment even if the same release ID succeeded afterwards; otherwise change-fail rate is gameable by release-ID reuse). A purely mechanical pre-traffic failure — a control-plane error before any exposure — is pipeline noise, tracked separately, not a change failure.
+- Behavior-exposing flag flips, config releases, and traffic shifts stay in the same audit log as release events: they count as the *remediation* (or the cause) of a deployment's failure where causally linked, but they are not deployments — folding them into the deployment-frequency denominator produces a broader custom release metric, which is fine to track but must be labeled as such, not reported as DORA.
+- Use them as feedback on the release *process* — gate friction, batch size, rollback health — never as individual or team performance scores; scoring people on them corrupts the signal (deploys get relabeled, rollbacks get renamed "roll-forwards").
+- If a metric cannot be computed from the audit log, that is an audit-log gap: fix the event capture, don't estimate the metric.
+- Before publishing any of the five, verify the audit-log schema actually carries the correlation keys that metric joins on — at minimum: commit timestamp and production-exposure (traffic-reached) timestamp per deployment (lead time); a stable logical-deployment ID plus a distinct per-attempt ID (deployment frequency, and the failed-attempt/retry separation above); a causal link from each remediation event to the deployment it remediates (change fail rate); an incident link and a recovery-confirmed event (rework rate, recovery time). A metric whose keys are absent is unavailable — an audit-log gap per the rule above — not a license to join on wall-clock proximity or event-name heuristics; proximity joins are exactly how a failed attempt gets deduped into its later retry or a recovery gets inferred from an unrelated healthy reading.
+
 ## Emergency override
 
 For incidents where the gate must be bypassed (e.g. roll out an emergency fix faster than canary allows):

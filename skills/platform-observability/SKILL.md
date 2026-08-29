@@ -120,7 +120,7 @@ Add domain fields with a prefix (e.g. `app_*`, `biz_*`) to avoid colliding with 
 - Prefer expressing an SLI as **good events / valid events** (or good windows / valid windows), per Google SRE — define valid events/windows first, then the good ratio. A latency SLI is the **proportion of requests faster than a threshold** (`count(latency ≤ T) / total`, from histogram buckets), NOT a percentile value — P95/P99 are dashboard aids, not the SLI. An error-log counter is a diagnostic signal, not an availability-SLI input (it is skewed by log sampling, dedup, and async/non-request errors).
 - Signals you cannot compute are blind spots, not near-coverage: record each one explicitly ("can't measure X because Y" — e.g. a failure counter with no attempt total yields no error *rate*; content not collected means input-semantic drift is unmeasurable) in a blind-spot register instead of pretending coverage, so on-call never leans on a signal that does not exist.
 - Each user-visible journey gets at least one availability SLI + one latency SLI.
-- Set SLO targets, error budgets, and burn-rate alerts. Default burn-rate windows: 1h fast, 6h medium, 24h slow.
+- Set SLO targets, error budgets, and burn-rate alerts (SRE Workbook multiwindow tiers, derived for a 30d budget window — recompute for other periods: page 14.4× 1h/5m, page 6× 6h/30m, ticket 1× 3d/6h). Each tier MUST evaluate its long AND short window together, firing only when both burn above threshold; the short (~1/12) window makes paging stop soon after the burn stops.
 - An SLO without an error-budget-driven release decision is decoration. See `references/sli-slo-design.md`.
 
 ### R9 — Local dev parity
