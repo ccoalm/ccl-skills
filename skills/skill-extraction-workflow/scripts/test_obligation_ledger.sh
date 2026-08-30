@@ -1221,4 +1221,134 @@ run_mutant schema4_qualifier BUNDLE_QUALIFIER_CLASS_MISMATCH 'skills/source/SKIL
 run_mutant schema4_duplicate_carrier PART_CARRIER_DUPLICATE 'skills/source/SKILL.md#13/part-1/member-2' "$DELTA_MAPPING" mutation_schema4_duplicate_carrier
 run_mutant schema4_wrong_disposition PARTITION_DISPOSITION_MISMATCH 'skills/source/SKILL.md#13' "$DELTA_MAPPING" mutation_schema4_wrong_disposition
 
+# --- Parser-boundary regressions: every case below reproduces a defect that
+#     shipped (or was found in review) in the CommonMark-facing parsers, so a
+#     revert of any one fix turns this leg red without needing a fixture repo.
+python3 - "$TOOL" <<'PY'
+import importlib.util
+import sys
+from pathlib import Path
+
+tool = Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location("obligation_ledger_parser_test", tool)
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+failures = []
+
+def check(name, condition, detail=""):
+    if not condition:
+        failures.append(f"{name}: {detail}")
+
+# table_cells: a backtick run of a different length inside an open code span
+# stays literal (CommonMark pairing), so the row still parses into cells.
+cells = module.table_cells("| verify ``see `x` marker`` in each build | applies |")
+check("table-unequal-backtick-runs", cells is not None and len(cells) == 2,
+      f"cells={cells}")
+
+# table_cells: a cell ending in a backslash must not swallow the synthetic
+# boundary pipe; the final cell is still emitted.
+cells = module.table_cells("| c | a\\|")
+check("table-trailing-backslash", cells is not None and len(cells) == 2,
+      f"cells={cells}")
+
+# table_cells: an unmatched opener is literal, not an open span to line end.
+cells = module.table_cells("| lone `tick | second |")
+check("table-unmatched-opener", cells is not None and len(cells) == 2,
+      f"cells={cells}")
+
+# mask_inert_markdown: a 4-space-indented paragraph continuation stays visible
+# (indented code cannot interrupt a paragraph).
+masked = module.mask_inert_markdown(
+    "verify the complete regression\n    suite before any merge.\n")
+check("mask-paragraph-continuation", "suite before any merge" in masked, masked)
+
+# mask_inert_markdown: indented code after a heading, a closed fence, or a
+# blank line IS code and must be blanked.
+for name, source in (
+    ("mask-code-after-heading", "# heading\n    hidden-indent-code\n"),
+    ("mask-code-after-fence", "```\nfenced\n```\n    hidden-indent-code\n"),
+    ("mask-code-after-blank", "prose\n\n    hidden-indent-code\n"),
+    # A comment-only line is blanked to whitespace and therefore behaves as a
+    # blank line, so the following indented chunk is code.
+    ("mask-code-after-comment-line", "<!-- note -->\n    hidden-indent-code\n"),
+    # A Setext underline closes the open paragraph as a heading, so the
+    # indented chunk after it is code (both underline forms).
+    ("mask-code-after-setext-eq", "Title\n===\n    hidden-indent-code\n"),
+    ("mask-code-after-setext-dash", "Title\n--\n    hidden-indent-code\n"),
+    # Inside a list item the same rules apply relative to the content column:
+    # a Setext underline closes the item's paragraph, and content-column + 4
+    # indentation after it (or after a blank) is code.
+    ("mask-list-code-after-setext", "- Title\n  ===\n      hidden-indent-code\n"),
+    ("mask-list-code-after-blank", "- item\n\n      hidden-indent-code\n"),
+    # The container's own first content line classifies paragraph state: a
+    # heading or thematic break in a list item or block quote does not open
+    # a paragraph, so the indented chunk after it is code.
+    ("mask-list-code-after-item-heading", "- # Heading\n      hidden-indent-code\n"),
+    ("mask-list-code-after-item-break", "- ***\n      hidden-indent-code\n"),
+    ("mask-code-after-quote-heading", "> # Heading\n    hidden-indent-code\n"),
+    # Quote-internal indented code measures from the quote marker.
+    ("mask-quote-internal-code", "> # Heading\n>     hidden-indent-code\n"),
+):
+    check(name, "hidden-indent-code" not in module.mask_inert_markdown(source),
+          module.mask_inert_markdown(source))
+
+# mask_inert_markdown: indented list continuations remain visible.
+masked = module.mask_inert_markdown("- item\n    list-continuation\n")
+check("mask-list-continuation", "list-continuation" in masked, masked)
+
+# mask_inert_markdown: a trailing comment on a prose line does not close the
+# paragraph, so the indented next line is a lazy continuation, not code.
+masked = module.mask_inert_markdown(
+    "prose text <!-- note -->\n    lazy-continuation\n")
+check("mask-comment-inline-continuation", "lazy-continuation" in masked, masked)
+
+# mask_inert_markdown: quoted prose opens a paragraph, so the indented next
+# line is a lazy continuation of the quote, not code.
+masked = module.mask_inert_markdown("> quoted prose\n    lazy-continuation\n")
+check("mask-quote-lazy-continuation", "lazy-continuation" in masked, masked)
+
+# section_body_ranges: HTML comments and fenced code are not visible section
+# body text, so they can never carry an obligation.
+sections = module.section_body_ranges(
+    "## Rules\nvisible rule text.\n<!-- hidden-comment -->\n"
+    "```\nhidden-fence\n```\nmore visible text.\n")
+check("section-visible-only",
+      len(sections) == 1
+      and "visible rule text" in sections[0][0].text
+      and "hidden-comment" not in sections[0][0].text
+      and "hidden-fence" not in sections[0][0].text,
+      f"sections={[s[0].text for s in sections]}")
+
+# compound_clauses: delimiters inside inline code are literal content.
+check("compound-code-semicolon",
+      module.compound_clauses("Run `make check; make lint` and record the result.") == [],
+      "semicolon inside a code span was treated as clause structure")
+
+# compound_clauses: an action word that exists only inside inline code must not
+# qualify the colon prefix as actionable.
+check("compound-code-action-prefix",
+      module.compound_clauses(
+          "Requirement `must`: validate input, record output, and test rollback paths."
+      ) == [],
+      "code-span action word qualified the colon prefix")
+
+# compound_clauses controls: real compounds still split.
+clauses = module.compound_clauses(
+    "The release record MUST preserve these clauses: owner context must remain "
+    "visible, every client must expose recovery, and final approval must block "
+    "unsafe retry.")
+check("compound-colon-control", len(clauses) == 3, f"clauses={clauses}")
+clauses = module.compound_clauses(
+    "Keep the audit record immutable; keep the release token retained.")
+check("compound-semicolon-control", len(clauses) == 2, f"clauses={clauses}")
+
+if failures:
+    for failure in failures:
+        print(f"FAIL parser-boundary {failure}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+echo "PASS parser-boundary regressions"
+
 echo "test_obligation_ledger_ok"

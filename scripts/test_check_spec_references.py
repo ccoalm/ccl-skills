@@ -1039,6 +1039,9 @@ class WaivedPathPresenceTest(unittest.TestCase):
             target.symlink_to(os.readlink(source_target))
         elif source_target.is_file():
             target.write_bytes(source_target.read_bytes())
+        # Tracked files only: the checker under test scans tracked state, so
+        # copying a developer's untracked WIP specs would make this suite red
+        # locally on content CI (clean checkout) never sees.
         candidate_specs = subprocess.run(
             [
                 "git",
@@ -1047,8 +1050,6 @@ class WaivedPathPresenceTest(unittest.TestCase):
                 "ls-files",
                 "-z",
                 "--cached",
-                "--others",
-                "--exclude-standard",
                 "--",
                 "specs",
             ],

@@ -353,6 +353,10 @@ def _blank(chars: list[str], start: int, end: int) -> None:
 
 
 _FENCE_OPEN = re.compile(r"^[ ]{0,3}(`{3,}|~{3,})([^\r\n]*)$")
+_ATX_HEADING = re.compile(r"^[ ]{0,3}#{1,6}(?:[ \t]|$)")
+_THEMATIC_BREAK = re.compile(r"^[ ]{0,3}([-_*])[ \t]*(?:\1[ \t]*){2,}$")
+_SETEXT_UNDERLINE = re.compile(r"^[ ]{0,3}(?:=+|-+)[ \t]*$")
+_BLOCK_QUOTE_PREFIX = re.compile(r"^[ ]{0,3}(?:>[ ]?)+")
 
 
 def mask_inert_markdown(source: str) -> str:
@@ -360,7 +364,9 @@ def mask_inert_markdown(source: str) -> str:
 
     Fence closing follows the relevant CommonMark invariant: same marker,
     closing run at least as long as the opener, and whitespace-only suffix.
-    Top-level indented code is also inert; indented list continuations remain
+    Indented code is also inert — at top level from column 4, inside a list
+    item from the content column + 4 — but never where the indented line
+    lazily continues an open paragraph; those list continuations remain
     visible to the prose parser.
     """
     chars = list(source)
@@ -380,6 +386,7 @@ def mask_inert_markdown(source: str) -> str:
     fence_marker: str | None = None
     fence_length = 0
     list_content_column: int | None = None
+    paragraph_open = False
     for raw_with_end in lines:
         raw = raw_with_end.rstrip("\r\n")
         line_start = offset
@@ -394,6 +401,7 @@ def mask_inert_markdown(source: str) -> str:
             if closer:
                 fence_marker = None
                 fence_length = 0
+            paragraph_open = False
             continue
 
         opener = _FENCE_OPEN.match(raw)
@@ -403,22 +411,76 @@ def mask_inert_markdown(source: str) -> str:
             fence_marker = opener.group(1)[0]
             fence_length = len(opener.group(1))
             _blank(chars, line_start, offset)
+            paragraph_open = False
             continue
 
         if not raw.strip():
+            paragraph_open = False
             continue
         item = GCD._LIST_ITEM.match(raw)
         if item:
             list_content_column = len(raw[: item.start(2)].expandtabs(4))
+            # The item's FIRST content line decides the paragraph state: a
+            # heading or thematic break there does not open a paragraph, so
+            # content-column + 4 indentation after it is code.
+            item_text = raw[item.start(2) :]
+            paragraph_open = bool(item_text.strip()) and not (
+                _ATX_HEADING.match(item_text) or _THEMATIC_BREAK.match(item_text)
+            )
             continue
         leading = len(raw) - len(raw.lstrip(" \t"))
         expanded_leading = len(raw[:leading].expandtabs(4))
         if list_content_column is not None and expanded_leading >= list_content_column:
+            if expanded_leading - list_content_column >= 4 and not paragraph_open:
+                # Indented code inside a list item starts at the content
+                # column + 4 and, as at top level, cannot interrupt the
+                # item's open paragraph.
+                _blank(chars, line_start, offset)
+                continue
+            content = raw.lstrip(" \t")
+            if paragraph_open and _SETEXT_UNDERLINE.match(content):
+                paragraph_open = False
+            else:
+                paragraph_open = not (
+                    _ATX_HEADING.match(content) or _THEMATIC_BREAK.match(content)
+                )
             continue
         if expanded_leading == 0:
             list_content_column = None
-        if expanded_leading >= 4:
+        if expanded_leading >= 4 and not paragraph_open:
+            # Indented code cannot interrupt a paragraph per CommonMark, but
+            # it can start after any other block: blank line, heading, or a
+            # closed fence. Continuation lines keep the block open because a
+            # masked code line never opens a paragraph.
             _blank(chars, line_start, offset)
+            continue
+        # Classify the line's block-level content, not its raw prefix: inside
+        # a block quote the paragraph state follows the quoted content, so a
+        # quoted heading closes paragraph state instead of opening it (while
+        # quoted prose still opens it — indented lines after quoted prose are
+        # lazy continuations and stay visible).
+        content = raw
+        quote = _BLOCK_QUOTE_PREFIX.match(content)
+        if quote:
+            content = content[quote.end() :]
+            content_leading = len(content) - len(content.lstrip(" \t"))
+            if (
+                len(content[:content_leading].expandtabs(4)) >= 4
+                and not paragraph_open
+            ):
+                # Indented code inside a block quote is measured from the
+                # quote marker, not the raw line start; the same
+                # cannot-interrupt-a-paragraph rule applies.
+                _blank(chars, line_start, offset)
+                continue
+        if paragraph_open and _SETEXT_UNDERLINE.match(content):
+            # The line closes an open paragraph as a Setext heading underline,
+            # so what follows may open an indented code block.
+            paragraph_open = False
+        else:
+            paragraph_open = bool(content.strip()) and not (
+                _ATX_HEADING.match(content) or _THEMATIC_BREAK.match(content)
+            )
     return "".join(chars)
 
 
@@ -466,6 +528,49 @@ def prose_obligation_ranges(source: str) -> list[tuple[LedgerObligation, int, in
 _TABLE_SEPARATOR_CELL = re.compile(r"^:?-{3,}:?$")
 
 
+def code_span_mask(text: str) -> list[bool]:
+    """Mark characters inside matched inline code spans (CommonMark pairing).
+
+    A run of N backticks opens a span that closes only at the next run of
+    exactly N backticks; runs of a different length inside an open span are
+    literal, and an unmatched opener is literal text, not an open-forever
+    span.  Backslash-escaped backticks outside spans are literal.
+    """
+    mask = [False] * len(text)
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char == "\\" and index + 1 < len(text):
+            index += 2
+            continue
+        if char != "`":
+            index += 1
+            continue
+        run = 1
+        while index + run < len(text) and text[index + run] == "`":
+            run += 1
+        search = index + run
+        closer = -1
+        while search < len(text):
+            if text[search] != "`":
+                search += 1
+                continue
+            closer_run = 1
+            while search + closer_run < len(text) and text[search + closer_run] == "`":
+                closer_run += 1
+            if closer_run == run:
+                closer = search
+                break
+            search += closer_run
+        if closer < 0:
+            index += run
+            continue
+        for position in range(index, closer + run):
+            mask[position] = True
+        index = closer + run
+    return mask
+
+
 def table_cells(line: str) -> list[tuple[str, int, int]] | None:
     """Split a pipe table without splitting escaped pipes or inline code."""
     stripped = line.strip()
@@ -473,36 +578,32 @@ def table_cells(line: str) -> list[tuple[str, int, int]] | None:
         return None
     leading = len(line) - len(line.lstrip())
     content = stripped[1:-1]
+    in_code = code_span_mask(content)
     cells: list[tuple[str, int, int]] = []
+
+    def emit(start: int, end: int) -> None:
+        raw_cell = content[start:end]
+        left_trim = len(raw_cell) - len(raw_cell.lstrip())
+        right_trimmed = raw_cell.rstrip()
+        cell_start = leading + 1 + start + left_trim
+        cell_end = leading + 1 + start + len(right_trimmed)
+        cells.append((GCD.normalize(raw_cell), cell_start, cell_end))
+
     start = 0
     escaped = False
-    code_ticks = 0
-    index = 0
-    while index <= len(content):
-        boundary = index == len(content)
-        char = content[index] if not boundary else "|"
-        if not boundary and char == "\\" and not escaped:
-            escaped = True
-            index += 1
-            continue
-        if not boundary and char == "`" and not escaped:
-            run = 1
-            while index + run < len(content) and content[index + run] == "`":
-                run += 1
-            code_ticks = 0 if code_ticks == run else run
-            index += run
+    for index, char in enumerate(content):
+        if escaped:
             escaped = False
             continue
-        if char == "|" and not escaped and code_ticks == 0:
-            raw_cell = content[start:index]
-            left_trim = len(raw_cell) - len(raw_cell.lstrip())
-            right_trimmed = raw_cell.rstrip()
-            cell_start = leading + 1 + start + left_trim
-            cell_end = leading + 1 + start + len(right_trimmed)
-            cells.append((GCD.normalize(raw_cell), cell_start, cell_end))
+        if in_code[index]:
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if char == "|":
+            emit(start, index)
             start = index + 1
-        escaped = False
-        index += 1
+    emit(start, len(content))
     return cells
 
 
@@ -712,12 +813,12 @@ def section_body_ranges(source: str) -> list[tuple[LedgerObligation, int, int]]:
                 next_index = candidate_index
                 break
         start = offsets[line_index] + len(lines[line_index])
-        end = offsets[next_index] if next_index < len(lines) else len(source)
-        while start < end and source[start].isspace():
+        end = offsets[next_index] if next_index < len(lines) else len(visible)
+        while start < end and visible[start].isspace():
             start += 1
-        while end > start and source[end - 1].isspace():
+        while end > start and visible[end - 1].isspace():
             end -= 1
-        text = GCD.normalize(source[start:end])
+        text = GCD.normalize(visible[start:end])
         if text:
             out.append((LedgerObligation(text, chain), start, end))
     return out
@@ -1250,10 +1351,37 @@ _CLAUSE_LOCAL_ACTION = re.compile(
 )
 
 
+def _mask_code_spans_text(text: str) -> str:
+    """Same-length copy with inline code-span characters replaced by NUL.
+
+    Clause delimiters (semicolons, colons, commas, join words) inside inline
+    code are literal content, not clause structure, so structural scans run
+    on this masked copy while clause text is sliced from the original.
+    """
+    mask = code_span_mask(text)
+    return "".join(
+        "\x00" if in_code else char for char, in_code in zip(text, mask)
+    )
+
+
 def compound_clauses(text: str) -> list[dict[str, str]]:
     """Conservatively and reproducibly split a baseline compound obligation."""
     normalized = GCD.normalize(text)
-    semicolon_parts = [GCD.normalize(part) for part in re.split(r"[;；]", normalized)]
+    structural = _mask_code_spans_text(normalized)
+
+    def split_outside_code(value: str, value_structural: str, pattern: str) -> list[str]:
+        parts: list[str] = []
+        start = 0
+        for match in re.finditer(pattern, value_structural):
+            parts.append(value[start : match.start()])
+            start = match.end()
+        parts.append(value[start:])
+        return parts
+
+    semicolon_parts = [
+        GCD.normalize(part)
+        for part in split_outside_code(normalized, structural, r"[;；]")
+    ]
     semicolon_parts = [part for part in semicolon_parts if part]
     if len(semicolon_parts) >= 2:
         return [
@@ -1261,29 +1389,41 @@ def compound_clauses(text: str) -> list[dict[str, str]]:
             for index, part in enumerate(semicolon_parts, 1)
         ]
 
-    colon = re.match(r"^(.*?[:：])\s*(.+)$", normalized)
-    if not colon or not _CLAUSE_ACTION.search(colon.group(1)):
+    colon = re.match(r"^(.*?[:：])\s*(.+)$", structural)
+    if not colon or not _CLAUSE_ACTION.search(structural[: colon.end(1)]):
         return []
-    tail = colon.group(2)
-    final_join = re.search(r"(?:,|，)\s*(?:and|or|以及|与|或)\s+", tail, re.I)
+    tail = normalized[colon.start(2) :]
+    tail_structural = structural[colon.start(2) :]
+    final_join = re.search(
+        r"(?:,|，)\s*(?:and|or|以及|与|或)\s+", tail_structural, re.I
+    )
     if not final_join:
         return []
-    expanded = (
-        tail[: final_join.start()]
+    expanded = tail[: final_join.start()] + ", " + tail[final_join.end() :]
+    expanded_structural = (
+        tail_structural[: final_join.start()]
         + ", "
-        + tail[final_join.end() :]
+        + tail_structural[final_join.end() :]
     )
-    items = [GCD.normalize(item) for item in re.split(r"[,，]", expanded)]
-    items = [item for item in items if item]
+    item_pairs = [
+        (GCD.normalize(item), item_structural)
+        for item, item_structural in zip(
+            split_outside_code(expanded, expanded_structural, r"[,，]"),
+            split_outside_code(expanded_structural, expanded_structural, r"[,，]"),
+        )
+    ]
+    item_pairs = [pair for pair in item_pairs if pair[0]]
+    items = [item for item, _ in item_pairs]
     if len(items) < 3:
         return []
     clause_like = sum(
-        bool(_CLAUSE_ACTION.search(item)) or GCD.effective_len(item) >= 24
-        for item in items
+        bool(_CLAUSE_ACTION.search(item_structural))
+        or GCD.effective_len(item) >= 24
+        for item, item_structural in item_pairs
     )
     if clause_like < 2:
         return []
-    parts = [colon.group(1) + " " + items[0], *items[1:]]
+    parts = [normalized[: colon.end(1)] + " " + items[0], *items[1:]]
     return [
         {"id": f"c{index}", "text": part}
         for index, part in enumerate(parts, 1)
@@ -2487,8 +2627,16 @@ def main(argv: list[str]) -> int:
 
     repo = Path(args.repo).resolve()
     try:
-        comparison = changed_preexisting_paths(repo, args.base)
-        expected = derive_rows(repo, args.base, comparison)
+        # A movable ref (origin/dev) is not a reproducible baseline: resolve it
+        # to a commit ONCE and derive everything — header included — from that
+        # commit, so the rendered header, the comparison domain, and the rows
+        # cannot disagree even if the ref moves mid-run. The header records
+        # ONLY the resolved SHA, so a render invoked via any ref spelling is
+        # byte-identical and audit's byte comparison turns silent baseline
+        # drift into an explicit STALE_LEDGER failure.
+        resolved_base = git(repo, "rev-parse", f"{args.base}^{{commit}}").stdout.strip()
+        comparison = changed_preexisting_paths(repo, resolved_base)
+        expected = derive_rows(repo, resolved_base, comparison)
         if args.command == "inventory":
             content = skeleton(repo, expected, auto_bind_exact=not args.no_auto_bind_exact)
             if args.output:
@@ -2517,7 +2665,7 @@ def main(argv: list[str]) -> int:
         )
         modes = proof_mode_counts(expected, mapping_rows, resolved)
         rendered = render_ledger(
-            args.base,
+            resolved_base,
             comparison,
             sorted(set(relocations) - set(comparison)),
             expected,

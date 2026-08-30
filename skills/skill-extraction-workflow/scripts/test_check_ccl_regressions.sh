@@ -156,6 +156,11 @@ fast_tests=(
 heavy_tests=(
   test_check_ccl_r0_status.sh
   test_entrypoint_domain_scan_terms.sh
+  # Audits the REAL specs/065 mapping/ledger against the base SHA pinned in
+  # the ledger header. Catches carrier drift the synthetic obligation-ledger
+  # fixtures cannot see. Needs full history and walks a 1240-row real corpus,
+  # so it stays out of the pre-commit lane; CI --full enforces it.
+  test_obligation_ledger_repo_audit.sh
   test_check_ccl_source_register_lifecycle.sh
   # Clones the whole repo once; impact-chain cases call the standalone gate and
   # retain one full-checker wiring case. Still kept out of the pre-commit lane.

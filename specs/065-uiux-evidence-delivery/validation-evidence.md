@@ -113,6 +113,8 @@ bash skills/skill-extraction-workflow/scripts/test_register_firing_path_wiring.s
 | 重型回归 | `bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only` | 最终候选退出 `0`，8 个 suite 全部通过；早期候选曾在并行负载下两次只点名 differential，而该 suite 单跑通过，最终串行独占资源后未复现 |
 | 公开内容 | `python3 scripts/check-public-sanitization.py .` | 退出 `0`，`public_sanitization_ok` |
 
+> 复核补记：上表义务闭合行在生成后曾失真——分支上两条 carrier 因后续语义修订（`skills/llm-inference-integration/SKILL.md` 插入 `you must`）漂移，`audit` 以 `CARRIER_COMPOSITE_NOT_UNIQUE … count=0` 退出 1。评审修复轮更新 mapping 两行并重渲 ledger 后重跑：`audit_ok domain=50 rows=1240 unresolved=0`。该失真类已接入 CI：`test_obligation_ledger_repo_audit.sh`（heavy lane，CI `--full` 强制）按 ledger header 钉住的 base SHA 复跑真仓 audit，后续 carrier 语义漂移会在 CI 转红而非静默过闸。
+
 ## 证据边界
 
 - 最新客户端参考只提供静态源码、测试文件和 CI wiring 的存在证据；未取得本轮真实渲染、设备运行、测试执行或线上指标。

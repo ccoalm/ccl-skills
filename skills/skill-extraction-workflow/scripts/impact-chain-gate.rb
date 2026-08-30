@@ -1680,6 +1680,7 @@ if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_
     warn "impact_chain_bank_evidence_missing: a round that changed the routing surface carries no bank evidence for that owner"
     warn "  note: the routing surface is the SKILL.md frontmatter `description` entry and `#{bank_relative}`. The measurement protocol says it is mandatory, but nothing produced or consumed it, so not running it left no absence to detect — the reviewer saw a candidate, not a gap"
     warn "  fix: add `bank-evidence: command:<changed executable>` or `bank-evidence: file:<changed markdown>#<unique anchor>` to that owner's row; to skip the run deliberately use `bank-evidence: downscoped:<token>` and record the same token in this round's spec, so the downscope is itself an artifact"
+    warn "  note: a row without a `behavioral-evidence:` fragment attributes to its owner only via a bare `<owner>/SKILL.md` citation in the evidence cell — the full `skills/<owner>/SKILL.md` spelling is reserved for locators and does NOT attribute, so a row that looks like valid evidence but cites only the full path never reaches the owner"
     bank_evidence_failures.each { |path| warn "  owes bank evidence: #{path}" }
     exit 1
   end

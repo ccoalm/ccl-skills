@@ -99,6 +99,7 @@ public_probe="$probe_dir/_public_identifier_probe.md"
 printf '%s\n' \
   '# public identifiers' \
   'https://doi.org/10.1207/s15516709cog1202_4' \
+  'https://doi.org/10.1038/35057062' \
   'https://www.w3.org/community/reports/design-tokens/CG-FINAL-format-20251028/' \
   > "$public_probe"
 set +e
@@ -120,6 +121,14 @@ printf '%s\n' \
   'fragment-id https://doi.org/10.1207/s15516709cog1202_4#123456789' \
   'noncanonical-host https://doi.example.org/10.1207/123456789' \
   'attached-report-id https://www.w3.org/community/reports/design-tokens/CG-FINAL-format-20251028/123456789' \
+  'laundered-suffix-id https://doi.org/10.1234/20260830123456' \
+  'split-run-id https://doi.org/10.1234/123456789-123456789' \
+  'split-timestamp-id https://doi.org/10.1234/20260830-123456' \
+  'double-separator-id https://doi.org/10.1234/20260830--123456' \
+  'plus-split-id https://doi.org/10.1234/123456789+123456789' \
+  'colon-split-id https://doi.org/10.1234/123456789:123456789' \
+  'report-name-id https://www.w3.org/community/reports/design-tokens/CG-FINAL-123456789-format-20251028/' \
+  'registrant-id https://doi.org/10.123456789/abc' \
   > "$public_probe"
 set +e
 numeric_out="$(bash "$CHECK_SCRIPT" "$TMP/repo" 2>&1)"
@@ -141,7 +150,15 @@ for marker in \
   query-id \
   fragment-id \
   noncanonical-host \
-  attached-report-id; do
+  attached-report-id \
+  laundered-suffix-id \
+  split-run-id \
+  split-timestamp-id \
+  double-separator-id \
+  plus-split-id \
+  colon-split-id \
+  report-name-id \
+  registrant-id; do
   case "$numeric_out" in
     *"$marker"*) : ;;
     *) fail "invalid identifier class escaped the scan: $marker\n$numeric_out" ;;

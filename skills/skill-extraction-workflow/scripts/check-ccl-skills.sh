@@ -298,9 +298,9 @@ fi
 
 if ! long_digit_output="$(ruby -e '
   allowed_url = %r{https://(?:
-    doi\.org/10\.[0-9]{4,9}/[A-Za-z0-9._;()/:+\-]+
+    doi\.org/10\.[0-9]{4,9}/(?<doipayload>[A-Za-z0-9._;()/:+\-]+)
     |
-    www\.w3\.org/community/reports/[a-z0-9-]+/CG-FINAL-[A-Za-z0-9._-]*[0-9]{8}/?
+    www\.w3\.org/community/reports/[a-z0-9-]+/CG-FINAL-[A-Za-z0-9._-]*(?<w3cdate>[0-9]{8})/?
   )}ix
   ARGV.each do |path|
     next unless File.file?(path)
@@ -310,14 +310,41 @@ if ! long_digit_output="$(ruby -e '
         match = Regexp.last_match
         url = match[0]
         next if url.include?("?") || url.include?("#")
-        allowed_spans << (match.begin(0)...match.end(0))
+        # The allowlist is shape-only (no registrant validation), so a
+        # fabricated DOI-shaped wrapper could otherwise launder any private
+        # numeric ID. A span grants exemption only when its identifier
+        # payload (the DOI suffix after the registrant slash, or the W3C
+        # report date) carries no merged digit run above 9 digits, where a
+        # merged run joins digit groups across one or MORE consecutive
+        # punctuation separators — every punctuation char the DOI payload
+        # charset accepts, so no accepted punctuation can split an ID into
+        # exempt halves. Letters stay run boundaries because real DOI
+        # suffixes legitimately interleave them (s15516709cog1202_4). This
+        # keeps real citations green (10.1038/35057062 has an 8-digit
+        # payload; the registrant prefix is bounded to 9 digits by shape)
+        # while a split or padded identifier such as 123456789-123456789,
+        # 20260830--123456, or 123456789+123456789 voids its span entirely.
+        payload_name = match[:doipayload] ? :doipayload : :w3cdate
+        payload = line[match.begin(payload_name)...match.end(payload_name)]
+        payload_ok = payload.scan(/[0-9]+(?:[-._\/;():+]+[0-9]+)*/).all? do |run|
+          run.delete("^0-9").length <= 9
+        end
+        next unless payload_ok
+        # The exempt span is the identifier payload, not the whole URL: a
+        # W3C report NAME has no business carrying a long digit run, so only
+        # the trailing date is exempt there; a DOI suffix is the identifier
+        # itself, so its whole payload is exempt once it passes the cap.
+        allowed_spans << (match.begin(payload_name)...match.end(payload_name))
       end
 
       leaked = line.to_enum(:scan, /[0-9]{8,}/).any? do
         match = Regexp.last_match
-        !allowed_spans.any? do |span|
+        # Per-match cap: even inside a payload-clean span, a single raw run
+        # above 9 digits (timestamp/snowflake scale) is never exempt.
+        exempt = match[0].length <= 9 && allowed_spans.any? do |span|
           span.begin <= match.begin(0) && match.end(0) <= span.end
         end
+        !exempt
       end
       puts "#{path}:#{line_number}:#{line.chomp}" if leaked
     end
