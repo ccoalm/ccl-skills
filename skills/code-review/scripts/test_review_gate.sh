@@ -2080,7 +2080,8 @@ for target in \
   after-closed-list-fence.md \
   ordinary-list-punctuation.md \
   numeric-merge.md \
-  fenced-token.md; do
+  fenced-token.md \
+  question-mark.md; do
   printf '%s\n' '# Existing Markdown fixture' \
     >"$WORK/wording-reviewed-repo/skills/code-review/references/$target"
 done
@@ -2384,6 +2385,15 @@ index 1111111..2222222 100644
 -Retries wait 5.5 seconds in total.
 +Retries wait 55 seconds in total.
 DIFF
+cat >"$WORK/question-mark-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/question-mark.md b/skills/code-review/references/question-mark.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/question-mark.md
++++ b/skills/code-review/references/question-mark.md
+@@ -1 +1 @@
+-Agents must reject unsafe input.
++Agents must reject unsafe input?
+DIFF
 cat >"$WORK/fenced-token-wording.patch" <<'DIFF'
 diff --git a/skills/code-review/references/fenced-token.md b/skills/code-review/references/fenced-token.md
 index 1111111..2222222 100644
@@ -2632,7 +2642,8 @@ for rejected_punctuation_scope in \
   list-structure \
   table-structure \
   ordinary-list-punctuation \
-  numeric-merge; do
+  numeric-merge \
+  question-mark; do
   write_wording_proof "$WORK/$rejected_punctuation_scope-wording.patch" \
     "$WORK/$rejected_punctuation_scope-wording-proof.json" \
     markdown-punctuation-only
@@ -2784,7 +2795,8 @@ for rejected_punctuation_scope in \
   list-structure \
   table-structure \
   ordinary-list-punctuation \
-  numeric-merge; do
+  numeric-merge \
+  question-mark; do
   reset_case passed unavailable unavailable
   out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
     --mode review --stage release --challenge-budget 0 \
@@ -2805,6 +2817,26 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
   --wording-only-proof-file "$WORK/fenced-token-wording-proof.json")"; rc=$?
 check "token replacement inside a code container cannot use the wording-only scope" \
   '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+
+# An in-tree .gitattributes `-diff` entry must not collapse a changed file to a
+# binary marker: the frozen packet has to carry the exact changed lines.
+mkdir -p "$WORK/attr-diff-repo"
+git -C "$WORK/attr-diff-repo" init -q
+git -C "$WORK/attr-diff-repo" config user.name 'Review Gate Test'
+git -C "$WORK/attr-diff-repo" config user.email 'review-gate@example.invalid'
+printf 'notes.md -diff\n' >"$WORK/attr-diff-repo/.gitattributes"
+printf 'stable baseline line\n' >"$WORK/attr-diff-repo/notes.md"
+git -C "$WORK/attr-diff-repo" add .gitattributes notes.md
+git -C "$WORK/attr-diff-repo" commit -q -m 'baseline'
+printf 'stable baseline line\nhidden shared-gate rule change\n' >"$WORK/attr-diff-repo/notes.md"
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage build --challenge-budget 0 \
+  --cwd "$WORK/attr-diff-repo" --base HEAD \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json")"; rc=$?
+check "a -diff attribute cannot hide changed lines from the frozen packet" \
+  '[ "$rc" = 0 ] && grep -q "hidden shared-gate rule change" "$WORK/state/claude_packet" && ! grep -q "Binary files" "$WORK/state/claude_packet"'
+
 
 for eligible_scope in \
   after-closed-fence \

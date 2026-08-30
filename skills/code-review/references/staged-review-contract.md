@@ -191,11 +191,16 @@ deletes, renames, multi-skill changes, frontmatter or `description` edits,
 non-regular Git modes, custom/compact packets, extra context outside the diff,
 and files without a final newline fail closed. `markdown-punctuation-only`
 accepts only one-for-one plain-prose line replacements whose non-punctuation
-characters remain identical. Lines must start at column zero and contain prose;
-line adds/deletes, Markdown headings, lists, block quotes, links, tables, inline
-code, fenced or indented code, and raw HTML `pre`/`code` containers fail closed.
-`markdown-token-replacement` requires every changed line pair to differ only by
-the named whole-token replacement, with the exact total count.
+characters remain identical; numeric tokens must additionally survive
+byte-for-byte (deleting the dot in `5.5` is a threshold change, not
+punctuation), and a question mark may not be added or removed (a statement
+turned into a question is a meaning change). Lines must start at column zero
+and contain prose; line adds/deletes, Markdown headings, lists, block quotes,
+links, tables, inline code, fenced or indented code, and raw HTML `pre`/`code`
+containers fail closed. `markdown-token-replacement` requires every changed
+line pair to differ only by the named whole-token replacement, with the exact
+total count, and rejects packets whose changed lines touch a Markdown or HTML
+code container.
 
 This recipe produces the exact packet and proof without a second parser or a
 pretend verifier command. Set `WORDING_KIND=markdown-punctuation-only`, or set

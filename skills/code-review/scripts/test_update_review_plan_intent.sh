@@ -747,4 +747,41 @@ updated = json.loads(plan_path.read_text(encoding="utf-8"))
 assert updated["intent"] == "initial intent next"
 PY
 
+# A stdout pipe closed before the flushed success receipt must exit nonzero
+# with plan_committed_receipt_lost while the plan file keeps the committed
+# update; rc 0 with a lost receipt reads as "no update happened".
+python3 - "$UPDATER" "$TMP/closed-pipe-plan.json" "$TMP/closed-pipe-append.txt" <<'PY'
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+updater_path, plan_path, append_path = map(Path, sys.argv[1:])
+plan = {
+    "intent": "initial intent",
+    "acceptance": ["The candidate behavior is verified."],
+    "self_review": [],
+    "evidence": [
+        {"id": "focused-test", "result": "A sufficiently detailed result for closed-pipe coverage."}
+    ],
+}
+plan_path.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
+append_path.write_text(" next", encoding="utf-8")
+read_fd, write_fd = os.pipe()
+os.close(read_fd)
+result = subprocess.run(
+    [sys.executable, str(updater_path), "--plan", str(plan_path), "--append-intent-file", str(append_path)],
+    stdout=write_fd,
+    stderr=subprocess.PIPE,
+    text=True,
+)
+os.close(write_fd)
+assert result.returncode == 2, result.returncode
+assert "plan_committed_receipt_lost" in result.stderr, result.stderr
+assert "re-read the plan" in result.stderr, result.stderr
+committed = json.loads(plan_path.read_text(encoding="utf-8"))
+assert committed["intent"] == "initial intent next", committed["intent"]
+PY
+
 echo "test_update_review_plan_intent: ok"

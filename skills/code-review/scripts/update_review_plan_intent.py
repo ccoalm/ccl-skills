@@ -460,10 +460,14 @@ def run(argv: list[str]) -> int:
     plan["intent"] = candidate
     updated = render_plan(plan)
     atomic_replace(args.plan, updated, plan_mode)
+    # flush inside the guarded path: without it the receipt sits in the stdout
+    # buffer and a closed pipe only surfaces BrokenPipeError at interpreter
+    # shutdown, after main() returned rc 0 and past its handler.
     print(
         "review_plan_intent_updated "
         f"mode={'append' if append_mode else 'compact'} "
-        f"chars={len(candidate)} old_sha256={current_digest} new_sha256={digest(updated)}"
+        f"chars={len(candidate)} old_sha256={current_digest} new_sha256={digest(updated)}",
+        flush=True,
     )
     return 0
 
@@ -477,9 +481,11 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
-    except BrokenPipeError:
-        # The success receipt is printed only after atomic_replace committed, so
-        # a broken stdout pipe loses the receipt, not the update. rc 0 with no
+    except (BrokenPipeError, OSError):
+        # The success receipt is printed (flushing) only after atomic_replace
+        # committed, and every other file operation converts its OSError to
+        # UpdateError, so an OS-level error here means the receipt was lost on
+        # a closed/broken stdout — not that the update failed. rc 0 with no
         # receipt would read as "no update happened"; report the committed-but-
         # unreported state the same way a failed durability sync does.
         try:
@@ -491,6 +497,14 @@ def main() -> int:
             )
             sys.stderr.flush()
         except (BrokenPipeError, OSError):
+            pass
+        # Point stdout at devnull so the interpreter's shutdown flush of the
+        # broken pipe cannot override this exit status with 120.
+        try:
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, sys.stdout.fileno())
+            os.close(devnull)
+        except (OSError, ValueError):
             pass
         return 2
 

@@ -1192,7 +1192,19 @@ def render_untracked_file(
     new_name = json.dumps(f"b/{relative}", ensure_ascii=False)
     digest = hashlib.sha256(encoded).hexdigest()
     git_mode = "100755" if metadata.st_mode & 0o111 else "100644"
-    lines = encoded.splitlines(keepends=True)
+    # bytes.splitlines also breaks on lone CR/VT/FF, which would misrender the
+    # frozen bytes as extra additions; a unified diff line ends on LF only.
+    if encoded:
+        segments = encoded.split(b"\n")
+        if encoded.endswith(b"\n"):
+            segments.pop()
+            lines = [segment + b"\n" for segment in segments]
+        else:
+            tail = segments.pop()
+            lines = [segment + b"\n" for segment in segments]
+            lines.append(tail)
+    else:
+        lines = []
     rendered = bytearray(
         (
             f"diff --git {old_name} {new_name}\n"
@@ -1290,6 +1302,18 @@ def freeze_packet(
         if root_result.returncode != 0:
             raise GateError("--cwd is not inside a git repository")
         repo = Path(root_result.stdout.decode().strip()).resolve()
+        # Repository-local config attacks (core.worktree decoys, executable
+        # helpers) follow the pinned neutralization posture: git_command
+        # disables the executable vectors per invocation and the fixtures
+        # assert the true packet survives a hostile include. The containment
+        # check below stays as the cheap invariant: whatever discovery
+        # resolved must actually contain --cwd.
+        cwd_real = Path(cwd).resolve()
+        if repo != cwd_real and repo not in cwd_real.parents:
+            raise GateError(
+                "resolved repository root does not contain --cwd; refusing "
+                "to freeze a packet from a redirected worktree"
+            )
         verify = run(
             git_command(
                 repo,
@@ -1306,6 +1330,11 @@ def freeze_packet(
             "--no-color",
             "--no-ext-diff",
             "--no-textconv",
+            # In-tree .gitattributes can mark a changed file `-diff`, which
+            # would collapse its hunks to a binary marker and hide the change
+            # from the packet. --text forces content; a genuinely binary file
+            # then fails the packet's NUL check instead of passing unseen.
+            "--text",
         ]
         # A wording-only proof must establish where frontmatter ends from the
         # frozen packet itself.  Full context starts each changed file at line
@@ -1831,7 +1860,7 @@ def _advance_fenced_code_state(
 
 
 _HTML_CODE_CONTAINER = re.compile(
-    r"<\s*(/?)\s*(pre|code)\b[^>]*>", re.IGNORECASE
+    r"<\s*(/?)\s*(pre|code|script|style|textarea)\b[^>]*>", re.IGNORECASE
 )
 _PLAIN_PROSE_BLOCK_PREFIX = re.compile(
     r"(?:#{1,6}(?:[ \t]|$)|>(?:[ \t]|$)|(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$))"
@@ -1858,6 +1887,31 @@ def _advance_html_code_state(
         elif not match.group(0).rstrip().endswith("/>"):
             containers.append(name)
     return tuple(containers), touches_code
+
+
+# Question marks flip a statement's assertive polarity ("must reject." ->
+# "must reject?") and quote marks delimit literals ("passed", not "findings"
+# vs "passed, not findings"), so neither may be added, removed, or MOVED by a
+# punctuation proof. Exclamation marks keep the assertion and stay in the
+# certifiable set (pinned by fixtures). Marks are compared with their anchor —
+# the count of non-punctuation characters before them — so a mark sliding
+# along an otherwise identical skeleton is rejected too.
+_MEANING_PUNCTUATION = frozenset(
+    "?？¿؟՞⸮⁇⁈⁉‽﹖\u037e"  # trailing escape: Greek erotimatiko, not ";"
+    "\"'“”‘’«»‹›„‚「」『』"
+)
+
+
+def _anchored_meaning_marks(line: str) -> tuple[tuple[str, int], ...]:
+    marks: list[tuple[str, int]] = []
+    anchor = 0
+    for character in line:
+        if unicodedata.category(character).startswith("P"):
+            if character in _MEANING_PUNCTUATION:
+                marks.append((character, anchor))
+        else:
+            anchor += 1
+    return tuple(marks)
 
 
 def _numeric_token_signature(line: str) -> tuple[str, ...]:
@@ -1933,6 +1987,13 @@ def _plain_prose_punctuation_change(
             if old_skeleton != new_skeleton:
                 return False
             if _numeric_token_signature(old_line) != _numeric_token_signature(
+                new_line
+            ):
+                return False
+            # "must reject." -> "must reject?" strips to identical skeletons,
+            # but question and quote marks carry meaning: adding, removing,
+            # or moving one is not certifiable as punctuation-only.
+            if _anchored_meaning_marks(old_line) != _anchored_meaning_marks(
                 new_line
             ):
                 return False

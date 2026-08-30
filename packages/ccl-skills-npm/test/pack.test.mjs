@@ -56,6 +56,26 @@ test("packed verifier requires the shared review timeout helper", () => {
 	assert.notEqual(p.status, 0);
 	assert.match(p.stderr, new RegExp(`missing runtime closure: ${helperPath}`));
 });
+test("packed verifier requires the review plan intent updater", () => {
+	const t = mkdtempSync(join(tmpdir(), "packed-required-updater-"));
+	const copiedDist = join(t, "dist"),
+		assets = join(copiedDist, "assets");
+	cpSync("dist", copiedDist, { recursive: true });
+	const updaterPath = "marketplace/plugins/ccl-skills/skills/code-review/scripts/update_review_plan_intent.py";
+	rmSync(join(assets, updaterPath));
+	const releasePath = join(assets, "release.json"),
+		release = JSON.parse(readFileSync(releasePath, "utf8"));
+	release.files = release.files.filter((entry) => entry.path !== updaterPath);
+	release.snapshotHash = createHash("sha256")
+		.update(JSON.stringify({ version: release.version, files: release.files }))
+		.digest("hex");
+	writeFileSync(releasePath, JSON.stringify(release));
+	const p = spawnSync(process.execPath, ["scripts/verify-packed.mjs", assets], {
+		encoding: "utf8",
+	});
+	assert.notEqual(p.status, 0);
+	assert.match(p.stderr, new RegExp(`missing runtime closure: ${updaterPath}`));
+});
 test("packed verifier binds the executable JavaScript runtime", () => {
 	const t = mkdtempSync(join(tmpdir(), "packed-runtime-mutation-"));
 	cpSync("dist", t, { recursive: true });

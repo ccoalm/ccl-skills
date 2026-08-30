@@ -471,6 +471,19 @@ run_gate
 assert_rc "$rc" 1 "Kimi session identifier must block"
 assert_contains "category=ai_session_id" "$out" "expanded session-id provider category"
 
+codex_task_url="https://chatgpt"'.'"com/codex/tasks/"'task_e_synthetic123456'
+printf 'change summary\n\nTracked in %s\n' "$codex_task_url" >"$TMP/codex-task-url-message.txt"
+candidate_case case/codex-task-url "$TMP/codex-task-url-message.txt"
+run_gate
+assert_rc "$rc" 1 "a Codex task URL on a session origin must block"
+assert_contains "category=ai_session_url" "$out" "Codex task URL category"
+
+codex_task_near_miss="https://chatgpt"'.'"com/help/codex-tasks-overview"
+printf 'change summary\n\nDocs at %s\n' "$codex_task_near_miss" >"$TMP/codex-task-near-miss-message.txt"
+candidate_case case/codex-task-near-miss "$TMP/codex-task-near-miss-message.txt"
+run_gate
+assert_rc "$rc" 0 "a product page near a Codex task path must remain valid"
+
 printf 'change summary\n\nPrivate review: %s\n' "$kimi_url" >"$TMP/kimi-url-message.txt"
 candidate_case case/kimi-url "$TMP/kimi-url-message.txt"
 run_gate
@@ -525,7 +538,8 @@ assert_contains "category=ai_coauthor_trailer" "$out" \
 for qualified_identity in \
   "Claude Sonnet" "Claude 3.5 Sonnet" "Claude v3.5 Sonnet" \
   "Claude Fable 5" "Claude Mythos 5" "Claude 5 Fable" \
-  "OpenAI Codex" "ChatGPT-5" "Qwen2.5-Coder" "Gemini 2.5 Pro"; do
+  "OpenAI Codex" "ChatGPT-5" "Qwen2.5-Coder" "Gemini 2.5 Pro" \
+  "GPT-5.6" "OpenAI GPT-5.6" "Gemini 2.5 Flash"; do
   printf 'change summary\n\nCo-Authored-By: %s <helper@example.invalid>\n' \
     "$qualified_identity" >"$TMP/model-qualified-coauthor-message.txt"
   candidate_case "case/model-qualified-coauthor-${qualified_identity//[^A-Za-z0-9]/-}" \
@@ -654,6 +668,23 @@ run_gate --head-ref refs/tags/synthetic-ai-tagger
 assert_rc "$rc" 1 "an AI tagger identity must block"
 assert_contains "surface=tag_tagger" "$out" "tag tagger surface"
 assert_contains "category=ai_commit_identity" "$out" "tag tagger category"
+
+# A literal tag object can duplicate the object header to point a lenient
+# parser at a clean decoy while Git peels the first target; fail closed.
+dup_target="$(git -C "$REPO" rev-parse HEAD)"
+{
+  printf 'object %s\n' "$dup_target"
+  printf 'type commit\n'
+  printf 'tag synthetic-dup-header\n'
+  printf 'object %s\n' "$dup_target"
+  printf 'tagger Synthetic Tester <tester@example.invalid> 1700000000 +0000\n'
+  printf '\nneutral message\n'
+} >"$TMP/dup-tag-payload.txt"
+dup_tag_oid="$(git -C "$REPO" hash-object -t tag -w --literally "$TMP/dup-tag-payload.txt")"
+git -C "$REPO" update-ref refs/tags/synthetic-dup-header "$dup_tag_oid"
+run_gate --head-ref refs/tags/synthetic-dup-header
+assert_rc "$rc" 2 "a duplicated tag object header must fail closed"
+assert_contains "duplicate headers" "$out" "duplicate tag header reason"
 
 candidate_identity_case case/version-infix-ai-author "Claude 3.5 Sonnet" \
   helper@example.invalid "Synthetic Tester" tester@example.invalid

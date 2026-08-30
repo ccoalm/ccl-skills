@@ -10,6 +10,7 @@ import os
 import re
 import stat
 import sys
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Any, NoReturn
@@ -57,9 +58,18 @@ def bounded_text(value: object, field: str, maximum: int = 1000) -> str:
     if not isinstance(value, str) or value != value.strip() or not value:
         fail(f"{field} must be a non-empty normalized string")
     # Interior control characters would otherwise be echoed into stderr
-    # diagnostics (terminal-escape injection on the error path).
-    if any(ord(char) < 0x20 or ord(char) == 0x7F for char in value):
+    # diagnostics (terminal-escape injection on the error path). C1 controls
+    # (NEL, CSI) and Unicode line/paragraph separators forge line breaks too.
+    if any(
+        ord(char) < 0x20 or 0x7F <= ord(char) <= 0x9F or char in "\u2028\u2029"
+        for char in value
+    ):
         fail(f"{field} must not contain control characters")
+    # Default-ignorable format characters (ZWSP, word joiner, bidi controls)
+    # let visually identical class keys or predicates register as distinct,
+    # splitting one recurrence class below its sweep threshold.
+    if any(unicodedata.category(char) == "Cf" for char in value):
+        fail(f"{field} must not contain format characters")
     try:
         value.encode("utf-8")
     except UnicodeEncodeError:
@@ -299,6 +309,9 @@ def validate_controller_receipts(
     finding_hashes: dict[str, list[str]] = {}
     chain_id: str | None = None
     scope_hash: str | None = None
+    ledger_candidate = sha256(
+        payload["candidate_sha256"], "ledger.candidate_sha256"
+    )
     for expected_index, value in enumerate(refs, start=1):
         ref = exact_object(
             value, {"sequence", "file", "sha256"}, f"controller_receipts[{expected_index - 1}]"
@@ -363,6 +376,13 @@ def validate_controller_receipts(
         )
         if packet != candidate:
             fail(f"controller receipt {expected_index} packet_sha256 must equal candidate_sha256")
+        # Every counted round must have inspected the exact final candidate;
+        # a chain whose review round saw an earlier candidate is not a review
+        # of the candidate this ledger closes out.
+        if candidate != ledger_candidate:
+            fail(
+                f"controller receipt {expected_index} does not bind the ledger candidate"
+            )
         current_scope_hash = validate_scope(receipt, f"controller receipt {expected_index}")
         if scope_hash is None:
             scope_hash = current_scope_hash
@@ -436,6 +456,7 @@ def validate_completion_receipt(
     final = receipts[-1]
     if (
         receipt.get("schema_version") != 3
+        or type(receipt.get("schema_version")) is not int
         or receipt.get("mode") != "complete"
         or receipt.get("status") != "passed"
         or receipt.get("review_state") != "self_reviewed"

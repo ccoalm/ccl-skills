@@ -427,6 +427,37 @@ control_chain = make_fixture(
 )
 run("control-chain", control_chain["ledger"], 1, "must not contain control characters")
 
+# C1 controls and Unicode line/paragraph separators forge diagnostic line
+# breaks just like C0 escapes; each must be rejected, not echoed.
+for label, hostile in (
+    ("c1-csi", "chain\x9bred"),
+    ("c1-nel", "chain\x85red"),
+    ("line-sep", "chain\u2028red"),
+    ("para-sep", "chain\u2029red"),
+):
+    hostile_chain = make_fixture(
+        f"hostile-{label}",
+        receipt_mutators={2: lambda row, value=hostile: row.update(review_chain_id=value)},
+    )
+    run(
+        f"hostile-{label}",
+        hostile_chain["ledger"],
+        1,
+        "must not contain control characters",
+    )
+
+# A float completion schema_version must not satisfy the completion guard.
+float_completion = make_fixture(
+    "float-completion",
+    completion_mutator=lambda row: row.update(schema_version=3.0),
+)
+run(
+    "float-completion",
+    float_completion["ledger"],
+    1,
+    "completion receipt must be a passed self_reviewed complete result",
+)
+
 wrong_chain = make_fixture(
     "wrong-chain",
     receipt_mutators={2: lambda row: row.update(review_chain_id="other-chain")},
@@ -542,7 +573,24 @@ run(
     "continuation-candidate",
     continuation_candidate["ledger"],
     1,
-    "candidate_sha256 must equal the final controller receipt candidate",
+    "controller receipt 1 does not bind the ledger candidate",
+)
+
+# A chain whose FIRST round reviewed a different candidate must not close out
+# a ledger for the final candidate, even when the final round binds it.
+drifted_round = make_fixture(
+    "drifted-round-candidate",
+    receipt_mutators={
+        1: lambda row: row.update(
+            candidate_sha256=OTHER_CANDIDATE, packet_sha256=OTHER_CANDIDATE
+        )
+    },
+)
+run(
+    "drifted-round-candidate",
+    drifted_round["ledger"],
+    1,
+    "controller receipt 1 does not bind the ledger candidate",
 )
 
 unknown_state = make_fixture(
@@ -984,7 +1032,7 @@ run(
     "race-candidate",
     race_candidate["ledger"],
     1,
-    "candidate_sha256 must equal the final controller receipt candidate",
+    "controller receipt 1 does not bind the ledger candidate",
 )
 
 false_race = make_fixture(

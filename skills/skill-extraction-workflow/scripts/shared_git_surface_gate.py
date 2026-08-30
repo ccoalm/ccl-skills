@@ -63,6 +63,7 @@ AI_PROVIDER_ALIASES = (
     r"claude(?:\s+code)?",
     r"codex",
     r"chatgpt",
+    r"gpt",
     r"openai",
     r"kimi",
     r"opencode",
@@ -89,7 +90,7 @@ AI_PROVIDER_ACCOUNT = rf"(?:{'|'.join(AI_PROVIDER_ACCOUNT_ALIASES)})"
 # below; author/committer fields do not, because humans commonly use GitHub
 # noreply privacy addresses.
 AI_IDENTITY_QUALIFIER_TOKEN = (
-    r"(?:v?[0-9][A-Za-z0-9.+-]*|code|codex|chatgpt|swe|agent|assistant|bot|cli|"
+    r"(?:v?[0-9][A-Za-z0-9.+-]*|code|codex|chatgpt|gpt|swe|agent|assistant|bot|cli|"
     r"reviewer|sonnet|opus|haiku|fable|mythos)"
 )
 AI_IDENTITY_QUALIFIER = rf"(?:[-_\s]+{AI_IDENTITY_QUALIFIER_TOKEN}){{0,3}}"
@@ -99,13 +100,14 @@ QWEN_MODEL_IDENTITY = (
     rf"{AI_IDENTITY_QUALIFIER}"
 )
 GEMINI_MODEL_IDENTITY = (
-    rf"gemini{AI_IDENTITY_VERSION_INFIX}[-_\s]+pro{AI_IDENTITY_QUALIFIER}"
+    rf"gemini{AI_IDENTITY_VERSION_INFIX}[-_\s]+(?:pro|flash|ultra)"
+    rf"{AI_IDENTITY_QUALIFIER}"
 )
 UNAMBIGUOUS_AI_IDENTITY = (
     rf"(?:claude{AI_IDENTITY_VERSION_INFIX}[-_\s]+"
     rf"(?:code|sonnet|opus|haiku|fable|mythos){AI_IDENTITY_QUALIFIER}"
     rf"|{QWEN_MODEL_IDENTITY}|{GEMINI_MODEL_IDENTITY}"
-    rf"|(?:codex|chatgpt|openai|opencode|(?:github\s+)?copilot|qwen|"
+    rf"|(?:codex|chatgpt|gpt|openai|opencode|(?:github\s+)?copilot|qwen|"
     rf"doubao|windsurf|perplexity){AI_IDENTITY_QUALIFIER})"
 )
 BRACKETED_AI_BOT_IDENTITY = rf"(?:{AI_PROVIDER_ACCOUNT})\[bot\]"
@@ -201,7 +203,8 @@ PATTERNS = (
             rf"(?:(?:https://{AI_SESSION_HTTPS_ORIGIN})"
             rf"|(?:http://{AI_SESSION_HTTP_ORIGIN}))(?:"
             rf"(?:c|chat)/{CANONICAL_UUID}"
-            rf"|{AI_SESSION_PATH_CHAR}*(?:(?:session|shares?)[_/-]|code/)"
+            rf"|{AI_SESSION_PATH_CHAR}*(?:(?:session|shares?)[_/-]|code/"
+            r"|codex/tasks?[_/-])"
             r"[A-Za-z0-9][A-Za-z0-9_-]{5,})",
             re.IGNORECASE,
         ),
@@ -905,9 +908,24 @@ def annotated_tag_records(
         header_text, separator, message = text.partition("\n\n")
         if not separator:
             header_text, message = text, ""
+        # Git peels the FIRST object header; a crafted literal tag could add a
+        # second one to redirect this scan onto a clean decoy chain. Require
+        # the canonical layout and reject duplicated core headers outright.
+        header_lines = header_text.split("\n")
+        if not header_lines or not header_lines[0].startswith("object "):
+            fail(f"candidate tag object header is malformed locator={locator}")
+        header_counts: dict[str, int] = {}
         target = ""
         tagger = ""
-        for line in header_text.split("\n"):
+        for line in header_lines:
+            key = line.split(" ", 1)[0]
+            if key in {"object", "type", "tag", "tagger"}:
+                header_counts[key] = header_counts.get(key, 0) + 1
+                if header_counts[key] > 1:
+                    fail(
+                        "candidate tag object has duplicate headers "
+                        f"locator={locator}"
+                    )
             if line.startswith("object "):
                 target = line.removeprefix("object ").strip().lower()
             elif line.startswith("tagger "):
