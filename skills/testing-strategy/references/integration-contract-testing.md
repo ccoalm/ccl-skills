@@ -117,7 +117,7 @@ the implementation.
 
 Adding, renaming, or retyping a field that crosses a repo/service boundary is one end-to-end contract change, not N independent edits. Before calling it covered, walk all five steps (each is a distinct failure site with its own evidence):
 
-1. **Producer fallback** — the producer emits a safe default/absent form for consumers that have not upgraded; asserted, not assumed.
+1. **Producer fallback / bridge** — for an additive field the producer emits a safe default/absent form for consumers that have not upgraded; for a rename/retype a default is NOT enough — keep a compatibility bridge (dual-write old+new representation, or a versioned mapping) until every active consumer is confirmed reading the new form, then remove it in the cleanup stage. Asserted, not assumed.
 2. **Every transport mapper preserves the field explicitly** — do not assume an object spread/copy crosses a mapper or DTO boundary; each mapper in the chain gets an assertion that the field survives it.
 3. **Consumer coverage spans all active consumer variants** — enumerate them from the delivery record's consumer inventory (`../../product-ui-ux-design/references/delivery-contract.md` consumer_inventory for UI variants); testing one variant of a multi-variant consumer is the classic escape.
 4. **One real inbound frame through the mapper, plus one unchanged generic path as control** — the real-frame test proves the new field flows; the untouched-path test proves the change did not perturb everything else (the control catches over-broad mapping edits).
