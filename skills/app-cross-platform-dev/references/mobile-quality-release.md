@@ -78,5 +78,5 @@ When the mobile app must talk to internal-CA / enterprise-CA / self-signed hosts
 
 ## Component-Library Version Discipline
 
-- Write third-party UI/component-library APIs against the exact installed version (pubspec.lock / Gradle version catalog / Podfile.lock / package.json), never from memory of "current" APIs — prop names and defaults shift across majors.
+- Write third-party UI/component-library APIs against the exact **resolved installed version** — the package-manager lockfile (pubspec.lock / Podfile.lock / package-lock.json / yarn.lock / pnpm-lock.yaml / Gradle dependency-locking or `dependencies` report) or the package manager's installed-package query — never a manifest's semver range (package.json / a catalog alias with dynamic constraints declares a range, not what is installed) and never memory of "current" APIs — prop names and defaults shift across majors.
 - When the library ships its own lint/codemod or migration checklist, close changes and major-version migrations with it on the changed files (deprecated-usage and a11y rules a generic lint config does not know).

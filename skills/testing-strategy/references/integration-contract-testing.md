@@ -121,7 +121,7 @@ Adding, renaming, or retyping a field that crosses a repo/service boundary is on
 2. **Every transport mapper preserves the field explicitly** — do not assume an object spread/copy crosses a mapper or DTO boundary; each mapper in the chain gets an assertion that the field survives it.
 3. **Consumer coverage spans all active consumer variants** — enumerate them from the delivery record's consumer inventory (`../../product-ui-ux-design/references/delivery-contract.md` consumer_inventory for UI variants); testing one variant of a multi-variant consumer is the classic escape.
 4. **One real inbound frame through the mapper, plus one unchanged generic path as control** — the real-frame test proves the new field flows; the untouched-path test proves the change did not perturb everything else (the control catches over-broad mapping edits).
-5. **Paired changes are cross-linked** — producer and consumer MRs reference each other per `../../product-rd-workflow/references/cross-repo-coordination.md`, so neither merges "green" while its pair is unmerged.
+5. **Paired changes are cross-linked and land in a compatibility-safe order** — not by mutually blocking merges (that deadlocks): consumer tolerance for the field's absence/new form lands first, then the producer emission (its fallback from step 1 keeps not-yet-upgraded consumers safe), then cleanup removes the fallback once all consumers are confirmed upgraded. Each stage gates on the previous stage's **deployed** compatibility state, and the MRs cross-reference per `../../product-rd-workflow/references/cross-repo-coordination.md` for visibility.
 
 ## Platform Contract / Protobuf / RPC Test Obligations
 
