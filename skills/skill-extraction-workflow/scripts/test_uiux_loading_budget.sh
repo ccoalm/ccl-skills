@@ -208,12 +208,34 @@ candidate_specialized_runtime_bytes=$((candidate_entry_bytes + candidate_router_
 # If a cap is hit by ordinary document growth, re-derive the budget from a
 # fresh measurement with recorded rationale — or retire this test once the
 # migration claim is historical — instead of nudging one percentage.
-(( candidate_routing_proxy_bytes * 100 <= base_mandatory_bytes * 50 )) ||
-  fail "routing/source-audit proxy exceeds 50% of origin/dev mandatory bytes ($candidate_routing_proxy_bytes > 50% of $base_mandatory_bytes)"
-(( candidate_direct_runtime_bytes * 100 <= base_mandatory_bytes * 95 )) ||
-  fail "direct-runtime proxy exceeds 95% of origin/dev mandatory bytes ($candidate_direct_runtime_bytes > 95% of $base_mandatory_bytes)"
-(( candidate_specialized_runtime_bytes * 100 <= base_mandatory_bytes * 110 )) ||
-  fail "specialized-runtime proxy exceeds 110% of origin/dev mandatory bytes ($candidate_specialized_runtime_bytes > 110% of $base_mandatory_bytes)"
+ROUTING_CAP_PCT=50
+DIRECT_CAP_PCT=95
+SPECIALIZED_CAP_PCT=110
+
+budget_holds() { # <candidate_bytes> <cap_pct>
+  (( $1 * 100 <= base_mandatory_bytes * $2 ))
+}
+
+# Threshold self-probe: pin the contract cap values against silent weakening
+# (they are the documented budget, so a change must edit this pin with a fresh
+# recorded rationale) and prove each predicate rejects one byte over its cap
+# while accepting the exact cap, independent of current document sizes.
+[ "$ROUTING_CAP_PCT/$DIRECT_CAP_PCT/$SPECIALIZED_CAP_PCT" = "50/95/110" ] ||
+  fail "threshold probe: budget caps drifted from the recorded 50/95/110 contract; re-derive with rationale and update this pin"
+for pct in "$ROUTING_CAP_PCT" "$DIRECT_CAP_PCT" "$SPECIALIZED_CAP_PCT"; do
+  cap=$((base_mandatory_bytes * pct / 100))
+  budget_holds "$cap" "$pct" || fail "threshold probe: exact ${pct}% cap must pass"
+  if budget_holds $((cap + 1)) "$pct"; then
+    fail "threshold probe: ${pct}% predicate failed to reject cap+1 bytes"
+  fi
+done
+
+budget_holds "$candidate_routing_proxy_bytes" "$ROUTING_CAP_PCT" ||
+  fail "routing/source-audit proxy exceeds ${ROUTING_CAP_PCT}% of origin/dev mandatory bytes ($candidate_routing_proxy_bytes > ${ROUTING_CAP_PCT}% of $base_mandatory_bytes)"
+budget_holds "$candidate_direct_runtime_bytes" "$DIRECT_CAP_PCT" ||
+  fail "direct-runtime proxy exceeds ${DIRECT_CAP_PCT}% of origin/dev mandatory bytes ($candidate_direct_runtime_bytes > ${DIRECT_CAP_PCT}% of $base_mandatory_bytes)"
+budget_holds "$candidate_specialized_runtime_bytes" "$SPECIALIZED_CAP_PCT" ||
+  fail "specialized-runtime proxy exceeds ${SPECIALIZED_CAP_PCT}% of origin/dev mandatory bytes ($candidate_specialized_runtime_bytes > ${SPECIALIZED_CAP_PCT}% of $base_mandatory_bytes)"
 
 tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/uiux-loading-budget.XXXXXX")
 trap 'rm -rf "$tmp_dir"' EXIT
