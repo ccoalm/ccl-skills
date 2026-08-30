@@ -133,6 +133,15 @@ Rules:
 - If a metric cannot be computed from the audit log, that is an audit-log gap: fix the event capture, don't estimate the metric.
 - Before publishing any of the five, verify the audit-log schema actually carries the correlation keys that metric joins on — at minimum: commit timestamp and production-exposure (traffic-reached) timestamp per deployment (lead time); a stable logical-deployment ID plus a distinct per-attempt ID (deployment frequency, and the failed-attempt/retry separation above); a causal link from each remediation event to the deployment it remediates (change fail rate); an incident link and a recovery-confirmed event (rework rate, recovery time). A metric whose keys are absent is unavailable — an audit-log gap per the rule above — not a license to join on wall-clock proximity or event-name heuristics; proximity joins are exactly how a failed attempt gets deduped into its later retry or a recovery gets inferred from an unrelated healthy reading.
 
+## Merge Topology For Gitflow-Style Release Trains
+
+Applies when a project runs Gitflow-style release branches (the default preference stays short-lived branches / trunk-based per `product-rd-workflow/references/delivery-lifecycle.md`; adopt this section only where release trains are genuinely required). Grounded in AWS Prescriptive Guidance's Gitflow pattern:
+
+- **Squash is direction-sensitive.** feature/bugfix → develop merges use squash (clean linear history). release → main and every back-merge **must not squash** — prefer fast-forward/plain merge. Why (git topology): squashing on higher branches rewrites commit identity, so the back-merge can no longer recognize already-merged changes and produces repeated conflicts or silently dropped work (AWS: "Only use a squash merge when you are merging from a feature branch to a develop branch").
+- **Back-merge promptly, both targets.** At release close, merge the release into main AND back into develop as soon as possible ("as soon as possible to consolidate work back into the primary branches") — a skipped back-merge means the next release train overwrites what only main has (the classic lost-hotfix incident).
+- **Tag only after the human confirms the main merge.** The production tag is a deploy trigger, not bookkeeping — never tag ahead of the confirmed merge, and stop after MR creation unless asked to proceed (composes with `release-coordination`'s authorization matrix, which owns who may confirm).
+- **Hotfix keeps the full environment ladder.** A hotfix branches from main and walks every promotion environment — it compresses cycle time and priority, never skips a gate; and it back-merges like any release, or the next train reverts it.
+
 ## Emergency override
 
 For incidents where the gate must be bypassed (e.g. roll out an emergency fix faster than canary allows):

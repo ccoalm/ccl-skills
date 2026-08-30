@@ -40,10 +40,14 @@ canary_check_task:
       # Filter by baseline label `lane` (canonical per metrics-conventions
       # Baseline labels), not raw mesh subset name.
       query: 'sum(rate(http_server_request_error_total{service="<svc>", lane="prod-canary-<v>"}[5m])) / sum(rate(http_server_request_total{service="<svc>", lane="prod-canary-<v>"}[5m]))'
-      threshold: < 0.01              # 1% error budget
+      threshold: < 0.01              # 1% error budget — Flagger's builtin-check example value
     - name: latency_p99
       query: 'histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket{service="<svc>", lane="prod-canary-<v>"}[5m])) by (le))'
-      threshold: < 0.5               # seconds (500 ms)
+      threshold: < 0.5               # seconds (500 ms) — Flagger's builtin-check example value
+      # Threshold provenance: <1% error rate / p99<500ms match Flagger's official
+      # builtin metric checks (request-success-rate min 99, request-duration max 500ms).
+      # They are NOT a cross-tool default (Argo Rollouts' official example uses 95%
+      # success); tune per service SLO — the SLO, not the template, is the authority.
   abort_thresholds:                  # immediate abort if these hit
     - name: error_spike
       query: 'sum(rate(http_server_request_error_total{service="<svc>", lane="prod-canary-<v>"}[1m]))'
@@ -154,6 +158,16 @@ Rollback path post-promotion:
 1. Re-deploy the previous known-good digest as the new "canary".
 2. Walk the same rollout flow.
 3. Or, in extreme cases, immediately set the new bad version's weight to 0 and old version's to 100.
+
+## Ramp/Rollback Data Literacy (user-level experiments and flags)
+
+When the rollout is user-bucketed (A/B, percentage flag, allowlist) rather than pod-weighted, the decision data has its own failure modes; a ramp/rollback/graduate decision that ignores them reads a lying funnel:
+
+- **Exposure without a bake point lies.** Count a user as "on treatment" only from an exposure event emitted at the moment the treatment actually took effect for them — an assignment record without exposure means the funnel includes users who never saw the change.
+- **Funnel invariant:** for any feature, outcome unique-users ≤ exposure unique-users. A dashboard that violates this has a data-pipeline defect, not a product effect.
+- **Analytics profile attributes are current state, not post-assignment behavior.** A profile-filtered dashboard cannot express `event.time > assigned_at`; ramp/rollback/graduate decisions must not rely on profile-filtered boards alone — use exposure/outcome event joins, and pair them with failure logs and cost data.
+- **Control-plane query ≠ execution fact.** Reading the flag service proves only what policy is *stored* at query time. Policy, assignment, exposure, actual execution path, and outcome are five separate evidence layers — never infer a user's actual arm from the configured weights.
+- **Bucketing salt is immutable mid-flight.** Changing the salt re-buckets every user (treatment users silently swap arms), destroying the experiment; weight and target changes have defined semantics for existing vs new users — write down which one the platform gives before ramping.
 
 ## Verification
 

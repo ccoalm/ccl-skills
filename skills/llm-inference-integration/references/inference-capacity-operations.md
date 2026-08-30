@@ -43,6 +43,26 @@ Before rollout, run a bounded capacity check for:
 
 Use dry-run or report-only modes for migration/backfill/batch jobs whenever possible.
 
+## Provider Evaluation Evidence Ladder
+
+When the decision is "adopt / switch to / gray-ramp provider X or model Y for a real workload" (procurement or migration, not routine regression), the two questions are: is it cheaper on the real workload, and is it stable at the required load — and neither is answerable from a model list, a public price page, or one successful request.
+
+**Contract before the first paid call.** Write down: exact environment/model IDs/protocol/credential scope; the production request-shape distribution being simulated; the capability-parity checklist; **spend cap, request cap, wall-time cap, automatic stop conditions, and who approved the budget**; and the acceptance thresholds plus which decision this run feeds. Thresholds precede data (measurement-design discipline); a run whose stop conditions were invented after the spend is not an evaluation. Before any run that costs money or creates external resources, show the (redacted) config plus the exact commands and estimated cost/duration and get explicit confirmation — never proceed on inferred consent.
+
+**Seven evidence layers — a stronger layer may use lower layers as context, never substitute for them:**
+1. published claim (price page / model card) →
+2. authenticated control-plane fact (the model is actually on this account/region) →
+3. single-call data-plane success →
+4. capability parity on the checklist (structured output, tool use, streaming, context length — against the exact model string; aliases/version suffixes/casing variants are non-equivalent until proven) →
+5. capacity/stability under sustained load →
+6. billing reconciliation (billed vs calculated within tolerance, e.g. ≤2%; failure/cancel/refund behavior checked against the contract) →
+7. end-to-end on the real workload path.
+A PASS verdict binds to the **exact** account/model/region/protocol combination that produced layers 3-7; anything less is CONDITIONAL/FAIL/BLOCKED naming the missing layer.
+
+**Load-methodology minima:** drive load open-loop at a fixed arrival rate — closed-loop concurrency hides throughput loss when requests slow down (coordinated-omission family: Schroeder et al., "Open Versus Closed", NSDI'06; Gil Tene's coordinated-omission analysis for the latency-distortion half). Report first-attempt results separately from retry-assisted results. Make warmup semantics explicit — including cold start measures the real user experience, excluding it measures steady-state capability; they are two different experiments, name which one you ran. Step the load (fractional → 1× → burst) with pre-set stop thresholds per stage, include a recovery segment (idle then back to 1×), and never continue to a higher stage merely to fill a report. A sample count below ~3 runs per cell is reported as unreliable, not averaged into a verdict.
+
+**Cost accounting:** separate the five cost frames — internal charge-back price, incumbent's actually-paid price, candidate's nominal price, candidate's measured price on the real workload, and cash cost (tax/discount/FX) — and state which frames are assumptions rather than quotes. Task submission ≠ success: success requires the expected terminal state, a usable artifact, normalized usage, and billing evidence; an HTTP 200 carrying an error envelope is a failure. The attempt ledger is append-only — a retry never overwrites a failed attempt's record.
+
 ## Fine-Tuning And Local Models
 
 - Treat fine-tuned models as registry versions with parent base model, training data lineage, training job id, parameter recipe, eval gate, and rollback path.

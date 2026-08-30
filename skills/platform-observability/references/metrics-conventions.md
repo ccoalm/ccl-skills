@@ -50,7 +50,7 @@ Async observable gauges via OTel SDK reduce noise vs synchronous sets. Pattern: 
 | 外部框架 | 关注什么 | 适用对象 | 映射到本 ref instrument |
 |---|---|---|---|
 | **Google 4 Golden Signals**（SRE Book）| Latency / Traffic / Errors / Saturation | service-level（user-facing service）| Latency → Histogram；Traffic → Counter (request rate)；Errors → Counter (error count)；Saturation → Gauge (queue / pool / cpu / mem) |
-| **RED**（Tom Wilkie / Weaveworks）| Rate / Errors / Duration | request-driven service / RPC endpoint | Rate → Counter；Errors → Counter；Duration → Histogram（近似等于 request-side Golden Signals 去 Saturation；非正式 derivation）|
+| **RED**（Tom Wilkie；原始 Weaveworks 博客已随公司关停下线，现存最佳出处为 Grafana 官方博文 "The RED Method"）| Rate / Errors / Duration | request-driven service / RPC endpoint | Rate → Counter；Errors → Counter；Duration → Histogram（近似等于 request-side Golden Signals 去 Saturation；非正式 derivation）|
 | **USE**（Brendan Gregg）| Utilization / Saturation / Errors | resource（CPU / memory / disk / NIC / connection pool）| Utilization → Gauge (%) ；Saturation → Gauge (queue depth)；Errors → Counter（资源驱动而非请求驱动）|
 
 何时用哪个：
