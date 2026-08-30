@@ -293,8 +293,10 @@ upstream = upstream.reject do |path|
   rename_excused[path] = true if excused
   excused
 end
-# The block runs when a selected owner changed (there is something to demand) OR
-# when the ledger itself changed (there is something to validate). It used to
+# The block runs when a selected owner changed (there is something to demand),
+# when any skill entrypoint changed (its description may owe routing-bank
+# evidence), OR when the ledger itself changed (there is something to validate).
+# It used to
 # gate on `upstream.any?` alone, which is the demand side only — and that is the
 # other half of the restored-owner hole: revert the owner and the range has no
 # changed owner at all, so the entire row evaluation was skipped and the
@@ -304,7 +306,10 @@ end
 # `eval/routing-tasks.jsonl` changes no owner package and need not touch the
 # ledger, so without this the whole block — including the bank-evidence
 # obligation written for exactly that change — was never entered.
-if upstream.any? || changed_paths.include?(LEDGER_PATH) || changed_paths.include?("eval/routing-tasks.jsonl")
+routing_entrypoint_changed = changed_paths.any? do |path|
+  path.match?(%r{\Askills/[^/]+/SKILL\.md\z})
+end
+if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_PATH) || changed_paths.include?("eval/routing-tasks.jsonl")
   # Rows are collected PER ROUND and carry the scope they were authored against,
   # so the classifiers below judge a row against its own round's diff. Reading the
   # cumulative register diff instead would re-judge every earlier round's rows
@@ -1565,6 +1570,13 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH) || changed_paths.include
   round_bounds.each do |span_base, span_head|
     scope = scope_at.call(span_base, span_head)
     scope_rows = rows.select { |row| row[:scope].head == span_head }
+    # Routing-bank evidence applies to every skill description, not only to the
+    # curated impact-chain owners. Keep a separate vocabulary for this one
+    # obligation so broadening bank coverage cannot broaden the impact-chain
+    # subject set or its row refusals.
+    bank_owner_names = (
+      owner_names_at.call(scope.base) + owner_names_at.call(scope.head)
+    ).uniq
     # Same head-declared-grammar rule as `result-class` above, and for the same
     # reason: the paragraph that defines `bank-evidence` also dates it.
     next unless grammar_declared_at.call(scope.head)
@@ -1579,12 +1591,13 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH) || changed_paths.include
     # being silently outside the trigger because of how the owner set is built.
     created_surfaces = scope.changed_paths.filter_map do |relative|
       next unless relative.start_with?("skills/") && relative.end_with?("/SKILL.md")
-      # Creation means the entrypoint was absent at this round's base. Without
-      # this bound, an EXISTING non-curated skill editing its description also
-      # lands here — and its obligation is undischargeable, because the row
-      # resolution above only spans curated names, so the gate demands evidence
-      # no ledger row can bind.
-      next if regular_blob_at.call(scope.base, relative)
+      # This pickup covers both a brand-new entrypoint and an EXISTING
+      # non-curated skill editing its description — both move the routing
+      # surface. An earlier round bounded it to base-absent entrypoints
+      # because non-curated obligations were undischargeable then; the
+      # bank-only resolver below now binds rows over base+head skill names,
+      # so the obligation is dischargeable and the bound would only reopen
+      # the evidence-free description-edit hole.
       path = relative.sub(%r{\Askills/}, "")
       next if triggered_owners.include?(path)
       next unless description_touched.call(scope, path)
@@ -1630,7 +1643,31 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH) || changed_paths.include
     end
     triggered_owners.each do |path|
       owner = path.sub(%r{/SKILL\.md\z}, "")
-      owner_scope_rows = rows_by_upstream_path[path].select { |row| row[:scope].head == scope.head }
+      owner_scope_rows =
+        if upstream_set[path] || lineage_extra[path]
+          # Preserve the existing selected-owner resolver byte-for-byte: bank
+          # coverage must not weaken or widen impact-chain attribution.
+          rows_by_upstream_path[path].select { |row| row[:scope].head == scope.head }
+        else
+          # Mirror that resolver for bank-only owners. Declaring rows use the
+          # owner-package prefix convention; non-declaring rows keep the prior
+          # exact `<owner>/SKILL.md` convention. A row naming more than one owner
+          # satisfies none of them, so one locator cannot discharge two routing
+          # surfaces.
+          scope_rows.select do |row|
+            declares_impact_chain = row[:behavior].split(";").any? do |fragment|
+              fragment.match?(/\A\s*behavioral-evidence:/i)
+            end
+            candidate_names =
+              if declares_impact_chain
+                bank_owner_names.select { |name| owner_mentioned.call(row[:evidence], name) }
+              else
+                row[:evidence].scan(owner_skill_md_path).flatten.uniq
+                   .select { |name| bank_owner_names.include?(name) }
+              end
+            candidate_names == [owner]
+          end
+        end
       bank_evidence_failures << path unless owner_scope_rows.any? { |row| row_satisfies.call(row, owner) }
     end
     if bank_changed
@@ -1644,6 +1681,7 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH) || changed_paths.include
     warn "impact_chain_bank_evidence_missing: a round that changed the routing surface carries no bank evidence for that owner"
     warn "  note: the routing surface is the SKILL.md frontmatter `description` entry and `#{bank_relative}`. The measurement protocol says it is mandatory, but nothing produced or consumed it, so not running it left no absence to detect — the reviewer saw a candidate, not a gap"
     warn "  fix: add `bank-evidence: command:<changed executable>` or `bank-evidence: file:<changed markdown>#<unique anchor>` to that owner's row; to skip the run deliberately use `bank-evidence: downscoped:<token>` and record the same token in this round's spec, so the downscope is itself an artifact"
+    warn "  note: a row without a `behavioral-evidence:` fragment attributes to its owner only via a bare `<owner>/SKILL.md` citation in the evidence cell — the full `skills/<owner>/SKILL.md` spelling is reserved for locators and does NOT attribute, so a row that looks like valid evidence but cites only the full path never reaches the owner"
     bank_evidence_failures.each { |path| warn "  owes bank evidence: #{path}" }
     exit 1
   end

@@ -24,7 +24,9 @@ Code evidence:
 
 ## Lifecycle Workflow
 
-Use this lifecycle for design, frontend implementation, and release readiness:
+For every runtime-visible slice, the canonical prerequisite and acceptance path is `delivery-contract.md`: Design brief → Test Phase 0 → producer/client execution → Test Phase 1/sufficiency → design verdict. The lifecycle below annotates that contract with launch and post-launch work; it is not a parallel readiness path. Every runtime-ready or launch-ready claim cites the complete immutable design/test/producer/client binding set and an allowed verdict. A pending, blocked, rejected, stale, or incomplete contract cannot become ready by passing a later checklist.
+
+Use this lifecycle for design, client implementation, release readiness, and iteration:
 
 1. **Intent lock**: state the target product loop, user segment, surface, and success behavior.
 2. **Design coverage**: map the screen to component primitives, responsive variants, and required states.
@@ -40,7 +42,7 @@ When a shipped feature, review, or user correction changes the design rule, upda
 
 ## Design Acceptance
 
-Before coding or handoff, verify:
+Record the following as criteria in the applicable full or lightweight Design record before coding or handoff, then let Test Phase 0 choose their oracles:
 
 - The primary loop is visible: discover, inspect, act, confirm, return.
 - Every visible action has success, failed, disabled, loading, and cancel/undo behavior where relevant.
@@ -53,7 +55,7 @@ Before coding or handoff, verify:
 
 ## Frontend Readiness
 
-Before implementation is considered ready:
+Record these client implementation-readiness criteria inside the canonical Design/Test records; the list is not a completion decision:
 
 - There is a clear component boundary for shell, navigation, content, action area, feedback, overlay, and terminal result.
 - Existing primitives are used before custom UI: async wrapper, error block, toast/message provider, modal/dialog, upload/progress, result, skeleton, empty state, responsive container, route-driven navigation.
@@ -69,7 +71,7 @@ Before implementation is considered ready:
 
 ## Product Launch Acceptance
 
-For product launch review, check these gates:
+Start these launch gates only after the exact candidate is `accepted + complete` under `delivery-contract.md`, with every required design/test/producer/client record, exercised-version link, and binding member present. These gates can block launch or add release evidence; they cannot replace Phase 1, repair a stale binding, or issue the design verdict.
 
 - **Build gate**: project build or type/lint/format commands pass where available; generated API code is up to date.
 - **Cold-start gate**: new communities have seed content, onboarding prompts, recommended topics/users, creator prompts, or first-action defaults; do not launch an empty loop.
@@ -77,7 +79,7 @@ For product launch review, check these gates:
 - **State gate**: manually exercise the canonical state taxonomy plus retry, disabled, cancel/undo, permission, long-content, and responsive states.
 - **Interaction gate**: verify hover/focus/active/selected on web; safe-area, keyboard, scroll, swipe/back, and bottom-sheet behavior on mobile.
 - **Feedback gate**: feedback strength follows the ladder in `interaction-design-patterns.md`.
-- **Performance gate**: infinite lists, media, AI generation, uploads, and long tasks do not block the main action or hide progress.
+- **Performance gate**: for affected infinite-list, media, streaming, AI-generation, upload, PDF/document-rendering, long-table, chart, and other long-task paths, user input should remain responsive, background work must not block the main action, and progress remains visible in runtime evidence.
 - **Localization gate**: long strings, mixed languages, numeric/date formats, and translated action labels fit without breaking hierarchy or controls.
 - **Trust gate**: moderation, report/block/mute, public publishing, AI source/citation, privacy/consent, and destructive flows are explicit.
 - **Fallback gate**: version/update notices, service migration notices, unavailable features, permissions, stale data, and partial results have understandable UI.
@@ -103,7 +105,8 @@ Use product evidence to decide what to change:
 When reviewing a shipped or almost-shipped feature, report:
 
 - What evidence was checked: Figma frame/page, code path, screenshot, metrics, or QA scenario.
-- Launch readiness: pass, conditional pass, or block.
+- Canonical `delivery-contract.md` verdict/next state plus the complete design/test/producer/client binding-set IDs; do not invent a second design-readiness status.
+- Separate release/iteration disposition: proceed, conditional, or blocked, with the release-specific reason. This disposition can add a launch block but cannot override the canonical design verdict.
 - Top risks by severity and user impact.
 - State coverage gaps.
 - Component/token drift.

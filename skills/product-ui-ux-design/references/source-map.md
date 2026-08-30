@@ -18,8 +18,31 @@ When two sources disagree or overlap, decide explicitly:
 - **Merge** compatible variants into a generalized rule.
 - **Discard** stale, duplicated, lower-quality, or overly domain-specific details.
 - Never let one source file define the product domain. Source identity is provenance, not the product model.
+- Do not infer any product domain from source identity.
 
 Apply the same rule to code, external benchmarks, and review feedback: use them for reusable UI/UX behavior, implementation quality, launch gates, and iteration signals only; never to infer the product's business domain.
+
+For a conflict-heavy task, the decision artifact is a row-per-property-and-state
+matrix, not a blank record schema or a prose precedence list. Include the exact
+artifact revision and observed value for every source, its status and owned
+scope, the governing source or replacement decision, the conflict class, the
+chosen result, and an explicit unknown plus verifier where evidence is missing.
+Cover every applicable interaction and visual state; do not hide disagreement
+inside a combined `loading/error` row or a generic `other states` entry.
+
+Resolve the matrix in execution order:
+
+1. Freeze the relevant source revisions or content digests and
+   inventory the complete state/property rows before choosing a winner.
+2. Classify authority and scope per row; a source may govern one state and be
+   partial or silent for another.
+3. Keep current specified decisions, merge only compatible freedom, and create
+   an explicitly reviewable replacement decision for an intentional change.
+4. List the exact design, component/API, token, example/story, and test updates
+   in dependency order. Stories and tests expose intent or drift; existence and
+   unexecuted assertions do not settle authority or runtime behavior.
+5. Bind and run the resulting static, component, rendered, interaction, and
+   accessibility checks. A passing test closes only its declared row/oracle.
 
 Backend service code evidence is out of scope for this skill except where it affects product-visible lifecycle: generated API freshness, async task status, artifact readiness, permission/empty/error states, and launch observability. Detailed backend service rules belong in the relevant backend skill.
 
@@ -31,7 +54,7 @@ For each design source available to the maintainer, classify before extraction a
 | --- | --- | --- |
 | `label` | sanitized capability label (e.g. `<design-system-web>`, `<review-module>`, `<scan-module>`) | Reusable identifier in skill text; never use a real file name |
 | `class` | `A1` rules-as-source (design system / UI kit / icon / annotation spec) / `A2` business-module / `B` reference-or-deprecated | Determines extraction weight: A1 anchors tokens/components, A2 anchors flows/states, B is provenance-only |
-| `stack` | `desktop-web` / `mobile-h5` / `mobile-native` / `mini-app` / `mixed-host` | Determines which implementation skill cross-checks the source |
+| `stack` | `react-web` / `other-web` / `mobile-h5` / `mobile-native` / `mini-app` / `terminal-tui` / `desktop-tv-shell` / `mixed-host` / `other-client` | Determines which installed implementation owner or fail-closed project convention cross-checks the source; a composite host records every layer |
 | `surface` | `shell` / `auth-and-account` / `workbench` / `creation-and-import` / `review-and-evaluation` / `analytics-and-report` / `asset-management` / `roster-and-entity-management` / `device-and-capture` / `notification-and-recovery` | Determines which pattern reference owns the rules |
 | `freshness` | `current` / `candidate-needs-inspection` / `deprecated` / `archived` | Determines whether the source can drive hard rules |
 | `coverage` | `published-system` / `targeted-workflow` / `representative-cross-check` / `metadata-only` / `screenshot-fallback` / `unavailable` | Determines how strong the evidence is |
@@ -50,9 +73,11 @@ Collection strategy default: **local-plus-external**.
 - If a Figma file's name carries a team-specific deprecation prefix or suffix (the team's known deprecation markers are kept in the private archive; common categories include a brand-bracketed prefix used to flag legacy snapshots, an automatic `(Copy)` suffix from Figma duplication, or an explicit "deprecated" page name in the team's working language), classify the file `freshness: deprecated` before any read. Such files cannot drive hard rules.
 - If a Figma frame carries inline version or date stamps (e.g. a version suffix `_verN`, a "current/latest" marker in the team's language, an `MMDDnew` date stamp, or a designer-added disambiguation parenthetical), treat the source as in-flight and prefer the latest stamp. Older sibling frames remain as discardable provenance.
 
+For a formal source re-extraction or full portfolio audit, first enumerate every formal design file in the portfolio, apply the exclusion rules, and fully extract every non-excluded file. A targeted frame pass cannot substitute for that all-file obligation. Ordinary product design may inspect only the sources relevant to its decision, but must not describe that targeted pass as full extraction.
+
 Coverage discipline:
 
-- "Full coverage" means every relevant source class has been used, routed, discarded, or marked unavailable with a reason — not "everything inspected".
+- "Full coverage" means every non-excluded formal source has been inspected/extracted and every relevant source class has been used, routed, discarded, or marked unavailable with a reason. It is stronger than a targeted pass, not a synonym for "some representative files inspected".
 - "Targeted" passes are explicit about which surfaces and which frames were read. Do not promote a targeted pass to a full audit in language alone.
 - For large Figma files, use page-level inventory first, then targeted frame/node reads, then screenshot fallback. Failed reads are recorded with the smaller read attempted; "unavailable" requires a remediation attempt first.
 
@@ -62,7 +87,8 @@ A product UI/UX skill must be product-agnostic. If the skill name or default sco
 
 Routing boundary:
 
-- Implementation rules belong to `web-react-dev`, `app-cross-platform-dev`, and `miniapp-product-dev` for mini-program implementation.
+- Runtime delivery follows `delivery-contract.md`; it is the single shared contract for design, testing, producer execution, client execution, evidence, and verdict. Each owner writes its own record; the design verdict cites the complete bound set rather than copying evidence.
+- Implementation rules follow the complete affected client-owner set in `delivery-contract.md`: React web → `web-react-dev`; Vue/Svelte/static/vendor/other web → its installed web-content owner or fail-closed project-convention lookup; native mobile/host → `app-cross-platform-dev`; mini-app → `miniapp-product-dev`; terminal/CLI/TUI → `terminal-cli-dev`; Electron/desktop/TV shell → its installed owner or the same lookup. Composite hosts keep separate content and shell members; a missing owner is never silently treated as Web or React.
 - Test-layer rules belong to `testing-strategy`.
 - This skill owns UI/UX judgment, state completeness, visual acceptance, design readiness, and scenario-specific design lenses.
 
@@ -90,15 +116,16 @@ Each row must be fillable as "inspected / not inspected / not applicable" with o
 
 ## External Quality Sources
 
-Use these as named quality benchmarks only, not as visual or product-domain sources:
+Use named external sources at their actual evidence strength, never as visual or product-domain donors:
 
-- Nielsen Norman Group usability heuristics: heuristic review layer for status visibility, user control, consistency, error prevention, and recovery.
-- W3C WCAG 2.2: accessibility baseline for labels, keyboard, focus, contrast, target size, error identification, and consistent behavior.
-- web.dev Core Web Vitals: launch/performance benchmark for LCP, CLS, INP, and field/lab measurement.
-- Google HEART framework: iteration metric lens for happiness, engagement, adoption, retention, and task success.
-- Material Design / Atlassian Design System guidance: platform/design-system support for touch targets, progressive disclosure, empty states, errors, and feedback clarity.
+- ISO 9241-210 and ISO 9241-11: human-centred lifecycle and context-dependent usability framing; neither supplies a page recipe or proves a particular design.
+- W3C WCAG 2.2 and ARIA Authoring Practices: normative accessibility criteria plus informative implementation patterns. APG examples are not a complete design system or production-ready code.
+- Primary empirical papers: contextual evidence for a bounded mechanism. Record participants/task/materials and contradictory or limiting findings before turning a result into a rule.
+- Current platform guidance: host convention for the named platform and input mode, not a cross-platform constant.
+- Design Tokens Community Group format: interchange vocabulary, not proof of visual quality, token governance, rendered themes, or standards status.
+- Expert heuristics: risk-discovery prompts only. Heuristic review is not acceptance proof.
 
-Extracted patterns live in `external-ui-ux-quality-benchmarks.md`.
+The claim ledger, primary links, and boundaries live in `external-ui-ux-quality-benchmarks.md`.
 
 ## Candidate Formal Sources Policy
 

@@ -1,6 +1,6 @@
 # Design Intake And Acceptance
 
-Use this reference before designing, implementing, or reviewing a concrete product screen. It adapts product-intent and UX-acceptance practices while staying source-agnostic and excluding source-specific visual themes.
+Use this reference before designing, implementing, or reviewing a concrete product surface. It supplies design-owned intake and criteria to the five top-level stages in `delivery-contract.md`; it does not replace Test Phase 0, producer/client execution, Test Phase 1, immutable binding, or the design verdict. It adapts product-intent and UX-acceptance practices while staying source-agnostic and excluding source-specific visual themes.
 
 ## Intake Triage
 
@@ -10,7 +10,7 @@ Clarify these points quickly before making design decisions. Do not over-ask whe
 | --- | --- |
 | Product goal | What user behavior should this screen increase: discovery, first participation, creation, retention, trust, or AI-assisted contribution? |
 | User segment | Is the user new, returning, creator, moderator, power user, or casual browser? |
-| Platform | Is this mobile app, mobile web, consumer web, creator web, moderation/admin-like web, or cross-platform? |
+| Platform | Which rendered layers are affected: React or other web, H5, native mobile/host, mini-app, ordinary CLI or terminal/TUI, Electron/desktop/TV shell, composite host, or another client? Which installed owner or fail-closed project convention applies to each? |
 | Surface | Is it feed, post detail, creation, onboarding, profile, topic/community, notification, AI workspace, trust/safety, analytics, or settings? |
 | Primary loop | What is the screen's loop: discover -> interact, create -> publish, AI -> refine -> share, report -> review, or notify -> return? |
 | Constraints | Are there known brand, component-library, accessibility, localization, privacy, moderation, or performance constraints? |
@@ -36,7 +36,7 @@ When applying or refreshing this skill:
 
 ## Deliverable Types
 
-Choose the smallest deliverable that satisfies the task.
+Choose the smallest design-owned deliverable that satisfies the task. Runtime implementation or acceptance still follows the applicable full or lightweight record and complete design/test/producer/client owner set in `delivery-contract.md`.
 
 ### UI Concept + Layout
 
@@ -62,7 +62,7 @@ Include:
 - Tokens for color, typography, spacing, radius, shadow, and mode where relevant.
 - Component selection and variants.
 - Component states: default, hover, active, disabled, selected, loading, error, success, empty, and destructive.
-- Web/mobile differences.
+- Per-affected-client differences and shared semantics across React/other web, H5, native, mini-app, terminal/CLI/TUI, Electron/desktop/TV, and composite-host layers.
 
 ### Implementation Plan
 
@@ -72,6 +72,7 @@ Include:
 - Reusable components and local primitives to use first.
 - Data/state requirements for the UI.
 - Acceptance checks and visual QA steps.
+- The changed producer owners, affected client owners, Test Phase 0 handoff, and complete design/test/producer/client binding/return plan required by `delivery-contract.md`.
 
 ### Design Review
 
@@ -85,7 +86,7 @@ Lead with issues, then recommended fixes:
 
 ## Acceptance Standards
 
-A design or implementation is not complete until it passes these checks.
+These checks become design criteria in the applicable full or lightweight record. Passing them locally is not completion: only the complete five-stage contract, immutable design/test/producer/client binding set, and allowed verdict/next-state pair can close a runtime-visible slice.
 
 ### Product Fit
 
@@ -106,8 +107,9 @@ A design or implementation is not complete until it passes these checks.
 - Uses existing design-system tokens and components before inventing new styling.
 - Has a coherent visual direction and avoids generic AI-template aesthetics; see `visual-craft.md`.
 - Maintains clear hierarchy between content, metadata, actions, and system feedback.
-- Mobile surfaces respect thumb reach, keyboard, safe area, and bottom-sheet behavior.
-- Web surfaces collapse secondary panels before harming core content readability.
+- Mobile/native surfaces respect thumb reach, keyboard, safe area, orientation, text scaling, and bottom-sheet behavior.
+- React/other Web surfaces collapse secondary panels before harming core content readability.
+- Mini-app, terminal/CLI/TUI, Electron/desktop/TV, composite-host, and other clients apply their owner-specific host, input, geometry, fallback, bridge, and rendered-evidence criteria; absence from the Web/mobile examples is not `not-applicable` proof.
 - Text fits in buttons, tabs, cards, sidebars, and compact controls.
 
 ### Trust, Safety, And AI
@@ -121,7 +123,7 @@ A design or implementation is not complete until it passes these checks.
 
 - Interactive controls have labels, keyboard/focus states where applicable, and enough hit area.
 - Color contrast, disabled state, error state, and loading state remain readable.
-- The design works at the expected mobile and desktop widths.
+- The design works across the supported sizes, host modes, input/capability modes, and adaptation matrix of every affected rendered layer.
 - Motion or animation does not block task completion and can degrade gracefully.
 
 ## Anti-Patterns

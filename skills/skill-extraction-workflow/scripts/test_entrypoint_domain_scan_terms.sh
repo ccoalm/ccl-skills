@@ -13,8 +13,12 @@
 #   Leg 1 (wiring)   : the real checker runs the scan and reports it clean here.
 #   Leg 2 (predicate): the retained terms still MATCH — the scan can still fail.
 #   Leg 3 (predicate): the retired term does NOT match — the retirement holds.
-# Legs 2-3 read the pattern out of the real script, so they cannot drift away
-# from what ships; extraction failure is a hard error, never a silent pass.
+#   Leg 4 (public IDs): canonical DOI/W3C identifiers pass; arbitrary paths,
+#                      attached IDs, query/fragment IDs, noncanonical hosts, and
+#                      another long ID on the same line all still fail.
+#   Leg 5 (failure): a planted retained-domain term prevents certification.
+# Legs 2-3 read the lexical pattern out of the real script, so they cannot drift
+# away from what ships; extraction failure is a hard error, never a silent pass.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
@@ -60,20 +64,16 @@ retained=(
 for term in "${retained[@]}"; do
   matches "x ${term} y" || fail "retained domain term no longer matches — the scan was widened/broken, not narrowed"
 done
-# Non-vocabulary alternatives in the same pattern must also still bite.
+# Non-vocabulary host alternatives in the same pattern must also still bite.
 matches 'see code.example-host.internal for details' \
   || fail "host-style leak alternative no longer matches"
-matches 'ref 123456789' || fail "long-digit alternative no longer matches"
 
 # --- Leg 3: the retired term must NOT match, in ordinary prose.
 retired=$'扫描'
 ! matches "先跑一遍${retired}再判" \
   || fail "retired term still blocks ordinary prose; the retirement did not land"
 
-# --- Leg 4: the checker must still FAIL end-to-end on a planted leak.
-#     Legs 1-3 alone cannot see a broken conditional: leg 1 only proves the clean
-#     sentinel prints, legs 2-3 exercise the regex in isolation. Without this leg
-#     an inverted or bypassed failure branch would keep the whole suite green.
+# --- Leg 4: public identifier allowlist is precise, not line-wide.
 #     Runs against a throwaway --shared clone so the real tree is never written.
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/domscan.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
@@ -95,6 +95,80 @@ case "$ctl" in
 esac
 probe_dir="$TMP/repo/skills/tighten-doc/references"
 [ -d "$probe_dir" ] || fail "clone has no reference dir to plant the probe in: $probe_dir"
+public_probe="$probe_dir/_public_identifier_probe.md"
+printf '%s\n' \
+  '# public identifiers' \
+  'https://doi.org/10.1207/s15516709cog1202_4' \
+  'https://doi.org/10.1038/35057062' \
+  'https://www.w3.org/community/reports/design-tokens/CG-FINAL-format-20251028/' \
+  > "$public_probe"
+set +e
+public_out="$(bash "$CHECK_SCRIPT" "$TMP/repo" 2>&1)"
+public_rc=$?
+set -e
+[ "$public_rc" -eq 0 ] || fail "canonical public DOI/W3C identifiers were rejected\n$public_out"
+case "$public_out" in
+  *entrypoint_and_reference_domain_scan_ok*) : ;;
+  *) fail "public-identifier fixture did not reach the clean domain sentinel\n$public_out" ;;
+esac
+
+printf '%s\n' \
+  '# invalid public-identifier shapes' \
+  'same-line-id 123456789 https://doi.org/10.1207/s15516709cog1202_4' \
+  'arbitrary-doi-path https://doi.org/not-a-doi/123456789' \
+  'arbitrary-report-path https://www.w3.org/community/reports/not-a-report/123456789' \
+  'query-id https://doi.org/10.1207/s15516709cog1202_4?object=123456789' \
+  'fragment-id https://doi.org/10.1207/s15516709cog1202_4#123456789' \
+  'noncanonical-host https://doi.example.org/10.1207/123456789' \
+  'attached-report-id https://www.w3.org/community/reports/design-tokens/CG-FINAL-format-20251028/123456789' \
+  'laundered-suffix-id https://doi.org/10.1234/20260830123456' \
+  'split-run-id https://doi.org/10.1234/123456789-123456789' \
+  'split-timestamp-id https://doi.org/10.1234/20260830-123456' \
+  'double-separator-id https://doi.org/10.1234/20260830--123456' \
+  'plus-split-id https://doi.org/10.1234/123456789+123456789' \
+  'colon-split-id https://doi.org/10.1234/123456789:123456789' \
+  'report-name-id https://www.w3.org/community/reports/design-tokens/CG-FINAL-123456789-format-20251028/' \
+  'registrant-id https://doi.org/10.123456789/abc' \
+  > "$public_probe"
+set +e
+numeric_out="$(bash "$CHECK_SCRIPT" "$TMP/repo" 2>&1)"
+numeric_rc=$?
+set -e
+[ "$numeric_rc" -ne 0 ] || fail "an invalid public-identifier shape escaped the scan"
+case "$numeric_out" in
+  *entrypoint_or_reference_domain_scan_failed*) : ;;
+  *) fail "long-ID fixture did not raise the domain-scan failure token\n$numeric_out" ;;
+esac
+case "$numeric_out" in
+  *_public_identifier_probe.md*) : ;;
+  *) fail "long-ID failure did not name the public-identifier fixture\n$numeric_out" ;;
+esac
+for marker in \
+  same-line-id \
+  arbitrary-doi-path \
+  arbitrary-report-path \
+  query-id \
+  fragment-id \
+  noncanonical-host \
+  attached-report-id \
+  laundered-suffix-id \
+  split-run-id \
+  split-timestamp-id \
+  double-separator-id \
+  plus-split-id \
+  colon-split-id \
+  report-name-id \
+  registrant-id; do
+  case "$numeric_out" in
+    *"$marker"*) : ;;
+    *) fail "invalid identifier class escaped the scan: $marker\n$numeric_out" ;;
+  esac
+done
+rm "$public_probe"
+
+# --- Leg 5: the checker must still FAIL end-to-end on a planted lexical leak.
+#     Legs 1-4 cannot see a broken lexical failure branch. Without this leg an
+#     inverted or bypassed conditional would keep the whole suite green.
 printf '# probe\n\nx %s y\n' "${retained[0]}" > "$probe_dir/_domain_scan_probe.md"
 set +e
 e2e="$(bash "$CHECK_SCRIPT" "$TMP/repo" 2>&1)"

@@ -4,25 +4,28 @@ Use this reference when a design task risks becoming "rule-compliant but plain".
 
 This file is distilled from current Figma rules and frontend implementation evidence. Source product terms are provenance only; do not copy them into new-product UI.
 
-## Non-Negotiable Adaptation Defaults
+## Adaptation Test Setup
 
 Do this before drawing or coding any nontrivial page:
 
-1. Pick the screen family: desktop workbench, consumer web, mobile app/H5, dense table/list, structured editor, scan/upload/review, analytics/tracking, or resource/library.
-2. Pick the primary viewport and two stress viewports:
-   - Desktop workbench: 1440x810 first, then wider desktop and a narrow desktop/tablet width.
+1. Pick the rendered family and task shape: React or other Web, mobile app/H5, mini-app host/page, ordinary CLI or full-screen terminal/TUI, Electron/desktop/TV shell, dense table/list, structured editor, scan/upload/review, analytics/tracking, or resource/library. For an unlisted client, name its installed owner or fail-closed project convention before choosing adaptation evidence.
+2. Derive the primary viewport and stress viewports from the product's supported-device matrix, analytics, host constraints, or existing repository configuration. If no stronger source exists, use these only as provisional test seeds and record that evidence gap:
+   - Desktop workbench: one representative desktop frame, then a wider frame and a narrow desktop/tablet width; 1440x810 is a useful seed, not a universal target.
    - Consumer web: content column and optional rail at desktop, then one tablet/narrow width and one mobile width.
-   - Mobile app/H5: 393x852 first, then 375x812 and 428x926; if the task supports landscape or review, also check about 874x402.
+   - Mobile app/H5: one representative shipped device, a narrower/shorter stress device, and a larger device; 393x852, 375x812, and 428x926 are useful seeds. If the task supports landscape or review, add a representative landscape frame such as 874x402.
+   - Mini-app: use the shipped host/tool and at least one real supported device class; include host chrome, safe area, permission/capability, package/platform, and any embedded web-view constraints.
+   - Ordinary CLI or terminal/TUI: cover TTY and non-TTY/plain modes as applicable, representative narrow/default/wide dimensions, color/capability fallback, long/localized output, keyboard/focus/resize/scrollback only where the contract uses them, and the actual command/help/exit/recovery path.
+   - Electron/desktop/TV shell or other Web renderer: use the actual content owner plus shell owner/project convention; exercise supported window/display sizes, scaling, focus/input, host bridge, and content-shell integration rather than borrowing the generic browser matrix.
 3. Assign fixed or bounded regions before spacing polish: shell/header, context/filter row, primary region, secondary panel, feedback region, and action area.
 4. Decide the collapse rule: secondary panel, side rail, preview, filters, and metadata collapse before the primary content becomes unreadable. Do not just shrink everything.
 5. Decide the density mode and spacing scale. Productive compact and consumer relaxed use different page padding, control height, row height, and card breathing room.
 6. Map long text, no data, partial data, permission blocked, loading, error, and keyboard/safe-area states into the same geometry as the happy path.
 
-If a design or implementation skips these decisions, it is not ready for UI review even if the component choices are correct.
+If a design or implementation skips these decisions, it is not ready for UI review even if the component choices are correct. Numeric ranges in the recipes below are source-derived starting heuristics; they become acceptance criteria only when the current product source or a recorded decision adopts them and rendered evidence exercises the relevant stress case.
 
-## Four-Layer Quality Pass
+## Quality Lenses For Layout Proof
 
-Use the canonical four-layer order from `design-execution-checklist.md` after choosing a recipe and before coding, screenshot review, or acceptance. In this reference, translate that order into layout proof:
+After choosing the delivery profile in `design-execution-checklist.md`, apply the relevant structure, interaction, behavior, and aesthetic lenses before coding, screenshot review, or acceptance. Translate them into layout proof:
 
 - Aesthetic proof: visible layer model, rhythm, density, alignment, color weight, and one primary focus.
 - Interaction proof: visible entry point, current task, next action, progressive disclosure, and return path.
@@ -31,9 +34,9 @@ Use the canonical four-layer order from `design-execution-checklist.md` after ch
 
 If one layer is missing, the screen is incomplete even when it passes component and token checks.
 
-## Universal Layout Recipe
+## Shared Composition Pass
 
-Every nontrivial screen needs a visible composition before component styling:
+Before component styling, name the applicable composition roles for a nontrivial screen; mark a role non-applicable with the surface/task reason instead of forcing every product into one shell:
 
 1. Shell: global nav, account/context, route title, and persistent feedback providers.
 2. Context row: current scope, mode, filters, selected object, permission or trust state.
@@ -43,7 +46,7 @@ Every nontrivial screen needs a visible composition before component styling:
 6. Return loop: back/close, save draft, retry, undo, next item, or route-preserved selection.
 7. Annotation and flow support: for complex tasks, expose the user's current step, decision point, hot zone, affected object, and measurement/status cue through concise labels, markers, progress steps, or tooltips rather than forcing users to infer the workflow from raw layout.
 
-If a screen cannot be described by this recipe, it is probably a marketing page, a raw component dump, or an unfinished placeholder. Data-driven empty workbenches are valid when they still expose module structure and next action.
+When these roles do not fit, choose a surface-specific structure and record why it supports the representative task. A marketing page can legitimately use a different composition; a raw component dump or unfinished placeholder cannot pass merely by resembling this list. Data-driven empty workbenches are valid when they still expose module structure and next action.
 
 ## Productive Web Workbench
 
@@ -56,7 +59,7 @@ Use for creator tools, moderation, analytics, AI review, asset management, and o
 - Header: compact title/context/action row, usually 48-64px high. Avoid a second oversized title inside the page.
 - Control bar: filters, segmented mode, search, upload/generate action, and selected scope in one compact band. Prefer 32-40px controls.
 - Status strip: small facts such as scope, source, permission, job state, model/cost, data freshness, or selected count. Keep it one line when possible.
-- Desktop baseline: many source workspaces use 1440x810 frames with 64px navigation/header bars. Use this as a practical first screenshot target, then check wider desktop and narrow responsive behavior.
+- Desktop seed: many source workspaces use 1440x810 frames with 64px navigation/header bars. Use this only when it represents the current product or as a provisional first screenshot, then check wider desktop and narrow responsive behavior.
 - Workbench body: use one of these structures:
   - Library/resource workspace: left tree/source rail around 240px, top filter/search band, sticky filter state, content cards/table in the main region, preview/download/share/edit actions near the object.
   - Split review: left list/source/input 280-360px, center preview/result flexible, right settings/metadata 320-420px.
@@ -71,7 +74,7 @@ Use for creator tools, moderation, analytics, AI review, asset management, and o
 - Data-driven workbenches are valid: modules may appear, disappear, reorder, or change status based on permissions, jobs, saved drafts, metrics, or configured workflows. The requirement is that the empty/loading/no-permission shape still exposes the intended module grid, next action, and future data slots instead of collapsing into an unstructured placeholder.
 - Table, modal, empty, alert, progress, metric, and chart components must be selected by task role. A table needs stable row/header/action behavior; a modal needs decision and return context; an empty state needs next action; a chart needs drill-down or explanation; an alert needs scope and consequence.
 
-Good workbench screens make the next operator action obvious within five seconds.
+In representative tasks, operators should be able to identify the current object, current state, and next relevant action without guessing or opening unrelated regions. Verify that outcome with task-based review, not an arbitrary time threshold.
 
 ## Consumer Web Recipe
 
@@ -88,7 +91,7 @@ Use for feed, detail, profile, community/topic, notification, and creator-facing
 
 Use for app/H5 consumer surfaces and focused mobile task flows.
 
-- Mobile baseline: check 393x852 portrait as a primary app/H5 target. For media/review tasks that support landscape, also check a landscape frame around 874x402.
+- Mobile seed: when no stronger device matrix exists, start with a 393x852 portrait frame and a narrower/shorter stress frame. For media/review tasks that support landscape, also check a representative landscape frame such as 874x402.
 - Aesthetic logic: mobile screens should have one clear focus per viewport. Use compact rhythm for repeated tasks and warmer spacing for discovery or creation, but keep tap targets reliable.
 - Interaction logic: design around thumb reach, back/close clarity, bottom-sheet focus, keyboard appearance, and foreground/background recovery. Landscape modes need a new toolbar and preview arrangement, not a rotated portrait layout.
 - Behavioral psychology: mobile users are interruption-prone. Preserve draft/input/progress when the app backgrounds, explain disabled actions, and keep the active input/action visible when the keyboard or safe area changes the viewport.
@@ -108,7 +111,7 @@ Use for app/H5 consumer surfaces and focused mobile task flows.
 Use for analytics, moderation queues, asset libraries, admin settings, and review backlogs.
 
 - Top row: search/filter/segmented mode left, primary action right, selected count/status visible.
-- Management baseline: use a 1440x810 working frame with a 64px-class page header when designing table/list management pages; long configuration pages may extend vertically to 1254px-wide content sections.
+- Management seed: when it matches the current product, use a 1440x810 working frame with a compact page header for table/list management pages; derive long-page content width from the product grid and content rather than treating a source frame as a standard.
 - Filter stack: cascade selector, tabs, keyword search, status/date/source filters, and bulk action entry should be grouped before the table/list. Avoid scattering filters across unrelated cards.
 - Table/list: zebra or subtle row separation is acceptable; hover should preserve row identity and may highlight the hovered column for comparison-heavy data.
 - Table header/cell system: define header label, sortable/selected state, row lead action, row secondary actions, cell truncation, status badges, and responsive hidden/wrapped columns before implementation.
@@ -161,7 +164,7 @@ Use for media ingestion, file parsing, AI extraction, moderation/review queues, 
 - Adaptation: support one item vs multiple items, single focus vs side-by-side comparison, and portrait/landscape review where relevant.
 - Unsupported input: explain what is unsupported and what the user can still upload, retry, replace, or skip.
 - High-throughput evaluation screenshot set: capture at least single-item, multi-item, long-content, empty/delayed artifact, completed item, unsupported automation, and active automation-config states.
-- Evaluation header acceptance: queue/progress, display-count controls, view/reference tools, and session actions should read as grouped regions in the 64px-class header. The progress count must stay visible at 1440x810 and the narrow desktop stress width.
+- Evaluation header acceptance: queue/progress, display-count controls, view/reference tools, and session actions should read as grouped regions in the product's compact header. The progress count must stay visible at the recorded primary desktop width and its narrow stress width.
 - Evaluation canvas acceptance: selected item or sub-unit boundary, current metadata strip, retry/loading shell, and bottom/session tool state must remain visible when switching between one-item, multi-item, and long-artifact layouts.
 - Automation-config acceptance: left item list keeps item hierarchy and enable switch state; middle panel shows either an enablement prerequisite or strategy/config controls; right panel keeps required context/reference/rationale fields stable; result-use mode remains visible near final save.
 - Long reference/output acceptance: short content still has a readable minimum block, long content caps at a declared height and scrolls inside the panel, and the dialog or workbench does not grow beyond the viewport.
@@ -238,7 +241,7 @@ When implementing from a design or creating a new screen in code, verify these a
 Before calling a UI done, inspect desktop and mobile/narrow screenshots where relevant:
 
 - First viewport: primary workflow is visible; the screen is not mostly banner, blank illustration, or unrelated dashboard content.
-- Hierarchy: the eye lands on the right object/action within five seconds.
+- Hierarchy: the intended object/action leads for the representative task; verify it through task-based review rather than an arbitrary time threshold.
 - Geometry: shell, control bar, primary region, secondary panel, and feedback state align to a clear grid.
 - Density: no large dead zones; no nested-card clutter; no card-in-card framing unless the inner card is a repeated item or modal content.
 - States: happy, empty, loading, error, disabled/permission, long-content, and narrow-width states keep the same layout logic.

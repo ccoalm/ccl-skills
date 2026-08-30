@@ -1,128 +1,145 @@
-# External UI/UX Quality Benchmarks
+# UI/UX Evidence And Theory Ledger
 
-Use this reference when internal Figma/code evidence is not enough to judge UI/UX quality, launch readiness, accessibility, performance, or iteration metrics.
+Use this ledger when a design judgment cites theory, a standard, a benchmark, or a platform convention. It prevents a useful source from being promoted beyond what its original text supports.
 
-These are external quality benchmarks, not visual style sources. Do not copy another product's brand, layout, or component appearance.
+Last verified: 2026-08-29. Recheck sources whose version, status, platform behavior, or recommendation can change before relying on them for a new release or compliance claim.
 
-## Source Anchors
+## Evidence classes
 
-- Nielsen Norman Group: usability heuristics such as system status visibility, user control, consistency, error prevention, recognition over recall, and recovery.
-- W3C WCAG 2.2: accessibility criteria for keyboard, focus, contrast, labels, target size, error identification, and consistent navigation.
-- web.dev Core Web Vitals: Largest Contentful Paint, Cumulative Layout Shift, Interaction to Next Paint, and field/lab measurement.
-- Google HEART framework: product-experience metrics across happiness, engagement, adoption, retention, and task success.
-- Apple Human Interface Guidelines (developer.apple.com/design/human-interface-guidelines) and Material Design 3 (m3.material.io): first-party platform specifications for feedback, loading, interaction states, accessibility, and platform conventions — distilled into the Platform Convention Walkthrough section below. Each criterion there is labeled (HIG) or (Material); a single-source criterion is that platform's convention, not a cross-platform standard.
-- Other design-system guidance such as Atlassian Design System: secondary confirmation for touch targets, empty/error states, progressive disclosure, feedback, and content clarity.
+| Class | Meaning | How it may be used |
+| --- | --- | --- |
+| Standard | Normative standard or success criterion for its stated scope | May block a scoped conformance claim when applicable and tested correctly |
+| Specification or draft | Technical mechanism defined by a standards body, with its published maturity retained | May justify mechanism-level implementation checks; recheck status/support and never infer design quality from feature existence |
+| Community Group report | Final report published by a W3C Community Group; not a W3C Standard or Standards Track deliverable | May support mechanism-level interoperability checks at its published status; never use it as a conformance standard or infer design quality from feature existence |
+| Stable mechanism | Repeatedly useful explanatory mechanism with a bounded domain | Generates a design hypothesis; does not set a universal UI recipe or numeric threshold |
+| Contextual empirical | Study result tied to its method, sample, task, and environment | Informs risk and test design; must retain the study boundary |
+| Conceptual framing | Named distinction or expert argument that sharpens observation | Generates a hypothesis and vocabulary; is not empirical proof or a numeric acceptance rule |
+| Informative guidance | Non-normative method or practice from an authoritative body | Starting method or checklist; verify against the target context |
+| Vendor convention | First-party platform guidance | Acceptance input for that platform only; preserve the source's requirement/recommendation strength |
+| Local heuristic | Team or product pattern supported by local evidence | Starting hypothesis until target evidence verifies it; never present as external theory |
 
-## Heuristic Review Layer
+Write a claim as:
 
-For every important screen, check:
+`observation → mechanism/risk → design hypothesis → observable check → boundary`
 
-- **Status visibility**: users can see whether the product is loading, generating, saving, uploading, reviewing, failed, complete, or stale.
-- **User control**: users can cancel, undo, retry, close, go back, clear, edit, regenerate, or recover when the action has consequence.
-- **Consistency**: repeated surfaces use the same action hierarchy, navigation, selected states, empty states, and feedback strength.
-- **Error prevention**: destructive, public, irreversible, expensive, or trust-sensitive actions require clear consequence copy and confirmation.
-- **Recognition over recall**: current object, active mode, applied filters, selected source/context, and next action stay visible.
-- **Recovery**: every recoverable error gives a path forward; unrecoverable errors explain what still works.
+Do not write “Hick says,” “Fitts says,” “Miller says,” or “Doherty says” as the complete rationale. Name the actual decision variable: option search, target acquisition, hidden-context recall, feedback/state uncertainty, or another observable burden.
 
-## Accessibility Baseline
+## Claim ledger
 
-Before launch or review, verify:
+### Human-centred design and usability
 
-- Every interactive element has an accessible name or visible label.
-- Keyboard/focus behavior works on web for controls, dialogs, menus, popovers, tabs, and drawers.
-- Mobile tap targets are large enough for common platform expectations and not crowded near screen edges.
-- Text and essential icon states have sufficient contrast in normal, disabled, selected, hover, focus, error, and loading states.
-- Error messages identify the field or action and explain the correction.
-- Motion, streaming, progress, and loading indicators do not block comprehension or task completion.
-- Layout works with longer localized strings, larger text settings, and long generated content.
-- **WCAG 2.2 (W3C Recommendation 5 October 2023) added 9 new success criteria; the 6 most product UI surfaces will hit are**: pointer-target ≥24×24 CSS px (AA, SC 2.5.8 — five exceptions per W3C: Spacing where a 24px circle centered on each undersized target does not intersect siblings, Equivalent control elsewhere on the page, Inline-in-text targets, User-agent default controls, Essential when the *presentation* of the target is essential to the information being conveyed and cannot be programmatically determined — narrow scope, e.g. map pins on geographic-density maps or fine-grained selection in a data-viz cluster; this exception is NOT a blanket pass for dense data-table row actions, inline icon buttons in toolbars, or close buttons on cards, which still need 24px geometry or the Spacing/Equivalent exception); focus ring not obscured by sticky bars / cookie banners (AA, SC 2.4.11 Focus Not Obscured Minimum); single-pointer alternative for any *authored* dragging interaction (AA, SC 2.5.7 Dragging Movements — drag-to-reorder, drag-to-resize, draggable map markers, custom-canvas pan; does NOT apply to native browser scroll, OS-level pinch-to-zoom, or assistive-tech gestures, and multipoint gestures like pinch fall under SC 2.5.1 Pointer Gestures, not 2.5.7); accessible authentication without a cognitive-function test like solving puzzles or remembering generated codes (AA, SC 3.3.8 — supporting `autocomplete="username"` and `autocomplete="current-password"` plus allowing paste counts; SMS OTP, email magic link, OAuth, passkeys all satisfy; image-CAPTCHA and "type the code we just showed you" do not); consistent help placement across pages (A, SC 3.2.6); redundant entry — re-using previously entered data unless re-entry is essential (A, SC 3.3.7). The remaining 3 SC (2.4.12 Focus Not Obscured Enhanced AAA, 2.4.13 Focus Appearance AAA, 3.3.9 Accessible Authentication Enhanced AAA) are AAA-only and rarely a launch gate. Treat WCAG 2.2 (not 2.1) as the current acceptance line; 2.1-only audit checklists silently miss the above.
-- **Reduced-motion / color-scheme / contrast / transparency design intent must be declared, not auto-derived from `@media` query alone**. For each non-decorative animation, name whether it is *essential* (progress indicator, drag preview, view transition that conveys a state change) or *decorative* (parallax, autoplay carousel, hover bounce); `prefers-reduced-motion: reduce` should remove or replace decorative motion by default and may shorten essential motion but cannot omit feedback. An explicit in-product opt-in (e.g. user setting "Show celebration animation even when system asks for reduced motion") MAY override the default for brand-splash / completion-celebration moments when policy permits, but the override must be opt-in not opt-out and the default behavior must respect the system preference. `prefers-color-scheme` requires the design system to ship Light + Dark token pairs (no missing pair = no dark-mode claim). `prefers-contrast: more` and `prefers-reduced-transparency` are useful supplements where browser support permits but are NOT Baseline yet — do not gate accessibility compliance on them; route them through a separate "increased contrast" theme variant when product needs require it.
-- **APCA (Accessible Perceptual Contrast Algorithm) is the WCAG 3 / Silver candidate contrast method, not a WCAG 2.2 replacement**. WCAG 2.2 SC 1.4.3 / 1.4.11 (4.5:1 body / 3:1 large text + UI components) remains the legal/audit baseline. APCA can be used as a *supplementary* perceptual check (per APCA Bronze Simple Mode, Lc 75 minimum / Lc 90 preferred for body text) when WCAG 2.x mathematical contrast passes but the result looks washed-out, or when designing dark mode where WCAG 2.x ratios systematically over-permit low-readability combinations. Decision matrix: WCAG 2.x fail blocks accessibility/legal compliance claims regardless of APCA result; WCAG 2.x pass + APCA fail is NOT a WCAG failure but should be treated as a readability / product-quality defect — either adjust the color tokens to also pass APCA Bronze, or document the acceptance with a rationale (brand constraint, dark-mode literal preserved). Do not ship a design that passes only APCA but fails WCAG 2.2.
+| ID | Class and source | Supported use | Boundary | Observable check |
+| --- | --- | --- | --- | --- |
+| HCD-01 | Standard — [ISO 9241-210:2019, Human-centred design for interactive systems](https://www.iso.org/standard/77520.html) | Consider users, tasks and use context throughout the interactive-system lifecycle; iterate design and evaluation | The ISO abstract says it gives requirements/recommendations and an activity overview, not detailed coverage of methods and techniques | Context brief names target users, representative task, use environment, constraints, and iteration evidence |
+| HCD-02 | Standard — [ISO 9241-11:2018, Usability: Definitions and concepts](https://www.iso.org/standard/63500.html) | Treat usability as an outcome of use in a specified context rather than an intrinsic visual property | The standard does not prescribe a specific design/evaluation process | Acceptance names user, goal/task, environment, effectiveness/efficiency/satisfaction outcome, and limits |
+| HCD-03 | Informative guidance — [GOV.UK, Learning about users and their needs](https://www.gov.uk/service-manual/user-research/start-by-learning-user-needs) | Base user needs on evidence from actual/likely users and keep validating across delivery stages | Government-service practice, not a universal regulatory standard; stakeholder opinions remain assumptions until researched | Source of each user need is named; solution wording is not substituted for the underlying need |
 
-## Platform Convention Walkthrough (HIG / Material)
+Design implication: start with a context brief and phrase the first design as a testable hypothesis. “Best design” without users, task, environment, and evidence is overclaimed.
 
-Use this section when reviewing or accepting a mobile-platform surface (iOS/iPadOS or Android/Material-based, including Flutter/React Native apps that adopt a platform design language). Each criterion is a pass/fail walkthrough check distilled from the first-party spec named in its label; verify against the rendered surface, not the design file alone. These complement — never replace — the WCAG 2.2 acceptance line above: where a platform minimum is stricter than WCAG (e.g. target size), the platform minimum is the walkthrough bar for that platform. Criteria mirror each source's own normative strength: where the source states a recommendation ("ideally", "consider", "in general", "in most cases"), a recorded, justified exception passes as an exception — only a silent shortfall fails; where the source states a requirement, the failure is unconditional.
+### Heuristic review
 
-### State completeness against the platform spec
+| ID | Class and source | Supported use | Boundary | Observable check |
+| --- | --- | --- | --- | --- |
+| HEU-01 | Contextual empirical — [Nielsen & Molich 1990, Heuristic evaluation of user interfaces](https://doi.org/10.1145/97243.97281) | Broad heuristics can identify candidate usability problems early and multiple evaluators improve coverage | An evaluator's findings are not a complete problem inventory or user-task acceptance evidence | Findings state observed surface, violated heuristic, user consequence, severity basis, and evidence needed to confirm |
+| HEU-02 | Informative guidance — [Nielsen Norman Group, 10 Usability Heuristics](https://www.nngroup.com/articles/ten-usability-heuristics/) | Review status visibility, real-world match, control, consistency, prevention, recognition, flexibility, restraint, recovery and help | The source calls them broad rules of thumb; they are not detailed interface standards | Use them to create risk hypotheses, then close important findings with runtime/task evidence |
 
-- **Interaction-state matrix is complete for the component class and input modalities (Material).** Every interactive component accounts for each state its Material component class inherits — enabled, plus disabled/hover/focused/pressed/dragged only where the class takes them (action/selection/input components inherit most; app bars, dialogs, menus, navigation components inherit few) — across the input modalities the surface ships on (hover needs a pointer; focused needs a focus-capable input such as keyboard or voice). States the class does not inherit are marked inapplicable, never styled in. Fail: an action component on a keyboard-capable surface styles only enabled and pressed.
-- **Disabled semantics are real, not painted (Material).** A disabled component cannot be focused, dragged, or pressed, and does not change state when tapped or hovered — unrelated explanatory feedback (a tooltip saying why it is disabled) is not prohibited. Components whose class does not take a disabled state in Material — app bars, badges, dialogs, FABs, menus, navigation bar/drawer/rail, sheets, tabs, tooltips — never render a "disabled" look: when a FAB's action is unavailable, remove the FAB rather than disabling it. Fail: a grayed-out FAB or tab sits on screen, or a "disabled" card still accepts a drag.
-- **Each state change is signaled by more than one visual cue (Material).** Material's baseline is two visual indicators per state so state remains perceivable under color-vision or contrast loss; opacity-only or color-only state styling fails.
-- **Transient input states are singletons (Material).** At most one hover, one focus, one pressed, and one dragged state visible at a time in a layout; persistent states (selected, activated) may combine with them on the same element (e.g. a selected chip showing hover).
-- **Feedback reaches people through more than one channel (HIG).** Significant feedback pairs color with text/icon, and sound with haptic where sound is used, so it survives a silenced device, a glance away, or a screen reader. Fail: success/failure conveyed by hue change alone or by sound alone.
-- **Interruption level matches significance (HIG).** Passive status renders in-context near the item it describes (badge, inline line); modal alerts are reserved for critical, ideally actionable information. Fail: routine status delivered as a modal, or a data-loss warning delivered as a passive toast.
-- **Data-loss warnings fire on the unexpected-and-irreversible boundary, both directions (HIG).** Warn before an action whose data loss is unexpected and irreversible; do NOT interpose confirmation when loss is the expected result of the user's own action (e.g. moving a file to trash). Fail in either direction: silent irreversible loss, or confirmation nagging on expected outcomes.
-- **Completion feedback is reserved for significant outcomes; failure feedback is never omitted (HIG).** People expect success, so confirm only payment-grade/significant completions — but every command that cannot be carried out must say so and say why, with the next step. Fail: a no-op button press with no explanation.
-- **Content loading shows something immediately and frees the user (HIG).** HIG scopes this to content/asset loading: placeholder/skeleton content appears at once instead of a blank wait, loading continues in the background so unrelated safe actions stay available, a determinate indicator is used when duration is known and indeterminate only when it is not, and an unavoidably long load gets meaningful interim content. This does not apply to in-flight mutations (payment, deletion, submission): while one is pending, its duplicate or conflicting mutation controls are blocked per the high-risk resilience states in `SKILL.md`, not left available.
+Heuristic review is risk discovery, not acceptance proof. One Agent review cannot prove usability, accessibility, or launch readiness.
 
-### Accessibility against the platform spec
+### Cognition, signifiers, and choice
 
-- **Text scales to 200% without breaking the layout (HIG, stated as "ideally").** Support the platform text-size setting (Dynamic Type on Apple platforms) up to 200% enlargement — HIG's recommended target, so a smaller ceiling passes only as a recorded exception; the walkthrough re-renders key screens at enlarged sizes and checks truncation, overlap, and control reachability. Adoption mechanics (Dynamic Type APIs, per-platform text-scaling behavior) belong to the stack implementation owner, not this walkthrough.
-- **iOS hit regions measure at least 44×44pt (HIG, stated as "a general rule").** Every control's hit region is at least 44×44pt (60×60pt on visionOS), and the padded hit area is what must measure up, not the visual glyph; a smaller region passes only as a recorded exception. The ~12pt padding around bezeled elements and ~24pt around bezel-less ones is HIG's "generally works well" guidance, checked the same way. Stricter than WCAG 2.2's 24px floor — the platform benchmark is the walkthrough bar.
-- **Android touch targets measure at least 48×48dp with 8dp spacing (Material, stated as "consider" / "in most cases").** Touch targets at least 48×48dp with at least 8dp between targets, pointer targets at least 44×44dp, the padded target extending beyond the visual bounds; a shortfall passes only as a recorded exception. Stricter than WCAG 2.2's 24px floor — the platform benchmark is the walkthrough bar.
-- **Contrast meets the W3C-derived platform bar (Material, citing W3C).** Small text at least 4.5:1 against background; large text (14pt bold / 18pt regular and up) and meaningful graphics at least 3:1. Clustered non-text containers (e.g. a button group) need 3:1 container-vs-background. The standalone-prominence exemption (a FAB) applies only to that container-vs-background ratio — the element's own text, icons, focus indicators, and meaningful graphics still need their 3:1/4.5:1 bars; disabled states are the only class exempt from contrast requirements.
-- **Reading and focus order follows content hierarchy (Material).** Screen-reader order follows the top-down source/DOM structure, headings do not skip levels, one H1 per web page, repeated landmarks get unique labels. Fail: visual order diverges from traversal order with no remediation.
-- **Focus is managed across context changes (Material).** Initial focus is defined per screen; opening a dialog moves focus into it; closing returns focus to the element that opened it; a visible focus ring appears on keyboard traversal. Fail: focus lost to page top after a dialog closes.
-- **Labels describe purpose, not appearance, and omit the role (Material).** Icon-only controls, meaningful images, and progress/error cues carry labels naming the action or meaning ("Voice search", not "Microphone"); decorative images are hidden from assistive tech; the role word ("button") never appears inside the label.
-- **Core functionality is never gesture-only (HIG).** Any action in the UI's core functionality or supported task flows that a gesture performs (swipe-to-dismiss, swipe-row actions, custom gestures) is also reachable through a visible onscreen control; an optional convenience gesture duplicating an already-visible control needs no second alternative. Frequent actions use the simplest gesture available, no custom multi-finger requirements.
-- **Keyboard access is complete and system shortcuts stay untouched (HIG).** Core flows complete with the keyboard alone (Full Keyboard Access on Apple platforms), and system-defined keyboard shortcuts are not overridden.
-- **Custom shortcuts default to two-key combinations and are discoverable (Material).** Custom keyboard shortcuts use two or more keys by default — a single-key shortcut needs a remap option, component-focus scoping, or an off switch — and a help surface lists them.
-- **Timed UI does not self-dismiss content people must act on (HIG).** Views and controls that auto-dismiss on a timer are minimized; anything carrying a decision or unfinished reading dismisses by explicit action. Fail: an error toast that disappears before its recovery action can be reached.
-- **Reduce Motion is honored with concrete substitutions (HIG).** When the OS reduce-motion setting is on, decorative/repetitive animation stops by default — the Accessibility Baseline's narrowly scoped, explicitly opt-in in-product override for brand-splash/celebration moments remains valid and is the only exception. For animations that use these effects: springs tighten (no bounce), x/y/z transitions become fades, z-depth and blur animations are avoided, and gesture-driven animation tracks the gesture. Essential status motion (progress) remains. Declare essential-vs-decorative intent per the reduced-motion rule in the Accessibility Baseline above; native OS setting detection routes to `platform-mobile-patterns.md` Mobile Motion Discipline.
+| ID | Class and source | Supported use | Boundary | Observable check |
+| --- | --- | --- | --- | --- |
+| COG-01 | Contextual empirical — [Sweller 1988, Cognitive Load During Problem Solving](https://doi.org/10.1207/s15516709cog1202_4) | Means–ends search can consume processing capacity that would otherwise support learning/schema acquisition | The study concerns learning and problem solving. It does not prove a universal “chunk every UI” rule or a fixed item count | Identify the exact hidden-context recall, cross-step search, task switching, or means–ends burden; compare task errors/time/hesitation after the change |
+| COG-02 | Conceptual framing — [Norman 2008, Signifiers, not affordances](https://jnd.org/signifiers-not-affordances/) | Provide perceivable cues for what an element/state means, what action is possible, and what is happening | This is a conceptual distinction, not a controlled UI-effect estimate. A signifier can be conventional or unreliable; recognition does not justify displaying every option | Check signifier → action → feedback mapping with new and experienced users; remove ambiguous or misleading cues |
 
-### Platform conventions walkthrough
+Design implication: reduce a named burden. Examples include keeping current object/state visible, preserving return context, narrowing active choices for the current decision, and exposing advanced controls when relevant. Do not use “lower cognitive load” as an acceptance criterion without an observable task effect.
 
-- **One-handed reachability shapes iPhone layouts (HIG).** Primary and frequent controls live in the middle or bottom of the screen; back-swipe from the edge and list-row swipe actions are preserved, not hijacked by custom edge gestures (Android's equivalent predictive-back geometry routes to `platform-mobile-patterns.md`).
-- **The surface adapts to user-chosen appearance settings (HIG).** A screen passes walkthrough only after being checked under orientation change, Dark Mode, and enlarged Dynamic Type — the platform treats these as user choices the app must follow, not edge cases.
-- **Standard platform components are the default for standard tasks (Material).** Standard platform controls and semantic elements inherit assistive-technology support for free; a custom replacement for a standard task (e.g. a non-standard dialog) carries the burden of extra AT verification before it passes walkthrough.
-- **Contrast and appearance adaptation is verified on the rendered surface (HIG).** Beyond the orientation/Dark Mode/Dynamic Type checks above, the walkthrough gate is observable: the surface renders correctly with the Increase Contrast setting on — text, icons, and state indicators keep sufficient contrast and their meaning. Preferring system-defined colors (whose accessible variants adapt automatically) and familiar system behaviors is non-blocking implementation guidance verified in code review, because two token implementations can render identically.
+### Accessibility and inclusive evaluation
 
-### Deliberately not absorbed from the platform specs
+| ID | Class and source | Supported use | Boundary | Observable check |
+| --- | --- | --- | --- | --- |
+| A11Y-01 | Standard — [WCAG 2.2](https://www.w3.org/TR/WCAG22/) | Apply testable web-content success criteria for perceivable, operable, understandable and robust content | WCAG does not address every disability need; a conformance claim must follow its scope and complete-process rules | Map applicable criteria to automated and manual checks, target pages/processes, technologies, versions and known gaps |
+| A11Y-02 | Informative guidance — [W3C, Involving Users in Evaluating Web Accessibility](https://www.w3.org/WAI/test-evaluate/involving-users/) | Combine standards evaluation with disabled-user evaluation to find issues either method can miss | One participant does not represent all users; user evaluation alone cannot determine accessibility conformance | Record participant characteristics, task/protocol, assistive technology, scope, findings, limits and standards checks |
+| A11Y-03 | Informative guidance — [ARIA Authoring Practices Guide introduction](https://www.w3.org/WAI/ARIA/apg/about/introduction/) | Use common role/state/keyboard patterns as implementation references for rich web widgets | APG explicitly is not a complete design system or production-ready code; examples may omit localization and platform robustness | Verify normative ARIA/HTML requirements, browser/AT behavior, keyboard/focus, localization and production constraints |
+| A11Y-04 | Standard — [WCAG 2.2 SC 2.5.8, Target Size Minimum](https://www.w3.org/TR/WCAG22/#target-size-minimum); informative explanation — [Understanding SC 2.5.8](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum) | For Web Level AA, pointer targets are at least 24×24 CSS px or meet a named exception such as spacing/equivalent/inline/user-agent/essential | The Understanding document is informative; the criterion is Web-scoped and allows explicit exceptions. It is not the Apple/Android platform target | Measure target geometry/spacing at relevant zoom and pointer modes; record the exception when used |
+| A11Y-05 | Vendor convention — [Android, Make apps more accessible](https://developer.android.com/guide/topics/ui/accessibility/apps) | Android recommends at least 48×48dp focusable/touch targets for touch interfaces and tests semantics with manual/automated tools | Precise mouse/trackpad input may use smaller targets; this is Android guidance, not a cross-platform constant | Measure the actual touch/focusable region, not only the icon; test touch, accessibility service output and custom components |
+| A11Y-06 | Vendor convention — [Apple Human Interface Guidelines, Buttons](https://developer.apple.com/design/human-interface-guidelines/buttons) | Apple states as a general rule that a button needs a hit region of at least 44×44pt; visionOS uses 60×60pt | This is first-party Apple-platform guidance for button hit regions, not a universal touch-target constant or evidence that every control is usable | Measure the actual hit region separately from the glyph on each target Apple platform; retain the platform/input context and verify selection with the intended input modes |
+| A11Y-07 | Standard — [WCAG 2.2 SC 4.1.2, Name, Role, Value](https://www.w3.org/TR/WCAG22/#name-role-value) and [SC 2.5.3, Label in Name](https://www.w3.org/TR/WCAG22/#label-in-name) | For Web, every user-interface component covered by SC 4.1.2 exposes a programmatically determinable name and role; when a visible text label exists, SC 2.5.3 requires the accessible name to contain that text | A visible label is not sufficient unless the target technology exposes it through the accessible-name computation. These criteria do not require a visible label for every control or define native-platform semantics | Inspect the accessibility tree/name computation and role/state/value; test visible-label speech input and browser/assistive-technology output |
+| A11Y-08 | Standard — [WCAG 2.2 SC 1.4.3, Contrast Minimum](https://www.w3.org/TR/WCAG22/#contrast-minimum) and [SC 1.4.11, Non-text Contrast](https://www.w3.org/TR/WCAG22/#non-text-contrast) | For scoped Web Level AA, text and images of text meet 4.5:1; large-scale text (at least 18pt regular or 14pt bold, or an equivalent relative size) meets 3:1, while visual information required to identify UI components/states and graphical objects meets 3:1 | SC 1.4.3 retains incidental-text and logotype exceptions. SC 1.4.11 retains inactive/user-agent component and essential-graphic exceptions; neither criterion makes every pixel or decorative graphic subject to 3:1 | Measure rendered foreground/background or adjacent colors in the applicable states and retain the criterion, large-text basis and any named exception in the result |
+| A11Y-09 | Vendor convention — [Apple Human Interface Guidelines, Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility) | Apple says that, in general, about 12pt of padding around elements with a bezel and about 24pt around the visible edges of bezel-less elements works well to reduce accidental selection | This is approximate Apple-platform spacing guidance, not a minimum target size, a universal inter-control distance, or an unconditional acceptance threshold | Measure the rendered target and surrounding spacing separately on each target Apple platform, then exercise adjacent controls with the intended input modes and record exceptions or mis-selections |
 
-Recorded so future rounds do not re-import them; each was read and rejected for walkthrough use:
+Do not collapse accessibility into color contrast. Include semantics/name-role-value, keyboard/focus, pointer/touch, reflow/text scale, error identification and suggestion, status messages, motion, authentication, and complete task processes as applicable.
 
-- HIG media-accessibility taxonomy (captions vs subtitles vs audio descriptions vs transcripts) — media-content-type guidance, not a screen-walkthrough criterion; consult the HIG Hearing section directly when shipping media surfaces.
-- HIG platform-capability integrations (Siri/Shortcuts, Switch Control, Voice Control setup, Assistive Access optimization) and watchOS/visionOS-specific rules — implementation- or platform-mode-specific; route to the stack implementation skill if those surfaces enter scope. One exception is retained: the visionOS 60×60pt hit-region figure stays inside the iOS hit-region criterion as informational context only — this walkthrough's scope remains iOS/Android mobile surfaces and does not govern visionOS.
-- Material state-layer token mechanics (fixed opacity percentages, on-color derivation) — design-kit implementation detail owned by token/component references, not an acceptance criterion.
-- Material web-landmark role enumeration (the eight ARIA roles) — imported only as the "landmarks get unique labels" criterion; the full role catalog is reference material, not a checklist.
-- Visual-style content from either spec (Liquid Glass materials, M3 Expressive shapes/motion values) — style adoption is a product decision covered by `platform-mobile-patterns.md` Platform OS Updates; copying platform visual language is already ruled out by "What Not To Absorb" below.
+### Responsive and adaptive layout
 
-## Performance And Perceived Speed
+| ID | Class and source | Supported use | Boundary | Observable check |
+| --- | --- | --- | --- | --- |
+| RESP-01 | Specification or draft — [Media Queries Level 5](https://www.w3.org/TR/mediaqueries-5/) | Adapt to observable environment features such as viewport, input, display and user preferences; re-evaluate when environment changes | Retain the source's publication status and check target-browser support. Media queries test environment/device aspects, not component content; device categories alone are insufficient | Resize/orient/change preferences at runtime; test intermediate values, input changes and text zoom, not only named devices |
+| RESP-02 | Specification or draft — [CSS Containment Level 3, Container Queries](https://www.w3.org/TR/css-contain-3/#container-queries) | Adapt a component to its query container when local available space differs from viewport space | Retain the source's publication status and check target-browser support. The spec defines mechanisms, not which breakpoints or visual composition are good | Test component instances in narrow/wide containers, nested contexts, long content and dynamic resize |
+| RESP-03 | Vendor convention — [Android, Window size classes](https://developer.android.com/develop/adaptive-apps/guides/use-window-size-classes) | Use actual app-window space to select adaptive layouts | Android describes its thresholds as opinionated platform guidance; a window class is not a physical-device identity | Test resizable windows, split screen, orientation and posture transitions; choose layout changes from content/task constraints |
 
-Use these checks for AI, feed, media, upload, and document-heavy surfaces:
+Breakpoints are implementation decisions derived from content, available space, input and state transitions. “Desktop/tablet/mobile” screenshots alone do not prove adaptation.
 
-- LCP-critical content should appear quickly or use a meaningful skeleton that matches final layout.
-- Avoid layout shifts when cards, media, citations, ads/promotions, AI output, or toolbars load.
-- User input should remain responsive during streaming, upload, PDF/document rendering, long tables, and chart rendering.
-- Heavy panels should lazy-load without hiding the primary task.
-- Progress should be visible for long-running operations; if duration is uncertain, show staged progress and recovery options.
-- Repeated rerenders, oversized bundles, unbounded lists, and hidden but mounted expensive viewers should be treated as launch risks.
+### Motion and feedback
 
-## Product Metrics For Iteration
+| ID | Class and source | Supported use | Boundary | Observable check |
+| --- | --- | --- | --- | --- |
+| MOT-01 | Contextual empirical — [Tversky, Morrison & Bétrancourt 2002, Animation: can it facilitate?](https://doi.org/10.1006/ijhc.2002.1017) | Match graphic form to the concept and use interaction to help users apprehend change over time | Comparable animations were not generally superior to static graphics; complexity and speed can make them harder to perceive | State the animation's information job, compare an equivalent static/reduced-motion form, and test comprehension/control |
+| MOT-02 | Specification or draft — [Media Queries Level 5, `prefers-reduced-motion`](https://www.w3.org/TR/mediaqueries-5/#prefers-reduced-motion) | Detect a user's request to minimize non-essential motion | Retain the source's publication status and check target-browser support. The preference does not mean remove state feedback or all animation | For each motion, name purpose and essential/decorative status; verify reduced-motion output retains state/causal information |
+| MOT-03 | Standard — [WCAG 2.2 SC 2.3.3, Animation from Interactions](https://www.w3.org/TR/WCAG22/#animation-from-interactions); informative explanation — [Understanding SC 2.3.3](https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions) | For Web Level AAA, provide a way to disable non-essential motion animation triggered by interaction | The Understanding page is informative. This Web Level AAA criterion is not a universal duration/SLO or cross-platform rule | Exercise triggering interactions with the preference/setting and verify equivalent non-motion feedback |
 
-Use HEART-style metrics as a product-iteration lens:
+Model feedback as `event → acknowledged/pending → success/failure/partial/unknown → recovery`. A remembered “0.1/1/10 second” heuristic is not a service SLO or universal acceptance threshold.
 
-- **Happiness**: satisfaction feedback, qualitative complaints, rating/reaction reasons, AI answer helpfulness.
-- **Engagement**: feed depth, comments/replies, reactions, follows, topic joins, creation attempts, AI draft usage.
-- **Adoption**: first successful action, first follow, first post/comment, first AI-assisted contribution, onboarding completion.
-- **Retention**: return from notification, repeat visits, recurring creation, saved topics, creator return.
-- **Task success**: completion rate, time to complete, error rate, retry rate, abandon step, moderation appeal success.
+### Error prevention and recovery
 
-Do not optimize a visual change without a corresponding behavior or quality hypothesis.
+| ID | Class and source | Supported use | Boundary | Observable check |
+| --- | --- | --- | --- | --- |
+| ERR-01 | Standard — [WCAG 2.2 SC 3.3.4](https://www.w3.org/TR/WCAG22/#error-prevention-legal-financial-data); informative explanation — [Understanding SC 3.3.4](https://www.w3.org/WAI/WCAG22/Understanding/error-prevention-legal-financial-data) | For covered high-consequence submissions, make changes reversible, checked/correctable, or reviewable/confirmable | The Understanding page is informative. The criterion does not require confirmation for every save or routine edit | Classify consequence; verify the selected reversible/check/review mechanism and recovery path |
+| ERR-02 | Standard — [WCAG 2.2 SC 3.3.3](https://www.w3.org/TR/WCAG22/#error-suggestion) and [SC 4.1.3](https://www.w3.org/TR/WCAG22/#status-messages); informative explanations — [Error Suggestion](https://www.w3.org/WAI/WCAG22/Understanding/error-suggestion.html) and [Status Messages](https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html) | Identify errors and suggestions when known; expose status without unnecessary focus movement | The Understanding pages are informative. Suggestions can be inappropriate when they would compromise purpose/security; status semantics do not prescribe one visual carrier | Test local error association, repair guidance, retained input, assistive announcement, focus and retry/restore outcome |
 
-## Launch Review Additions
+Select constraint, inline validation, preview, undo, confirmation, retry or restore from consequence and reversibility. Confirmation everywhere creates friction and habituation; transient toasts are insufficient for errors users must act on.
 
-Add these to product launch acceptance:
+### Design systems and executable claims
 
-- Accessibility smoke test: keyboard, focus, contrast, labels, target size, long text.
-- Web performance smoke test: key page load, no major layout shift, responsive input during interaction.
-- Error-prevention smoke test: destructive/public/trust-sensitive actions have confirmation and recovery.
-- Metrics smoke test: primary action, failure, retry, drop-off, and satisfaction events are observable.
-- Content clarity smoke test: empty/error/success states say what happened and what to do next.
+| ID | Class and source | Supported use | Boundary | Observable check |
+| --- | --- | --- | --- | --- |
+| DS-01 | Community Group report — [Design Tokens Format Module 2025.10](https://www.w3.org/community/reports/design-tokens/CG-FINAL-format-20251028/) | Exchange typed token values, groups, aliases, deprecation metadata and extensions across tools | The report explicitly is not a W3C Standard or Standards Track deliverable and does not define visual quality, semantic naming, governance or runtime correctness | Validate format/alias resolution, then render representative components across themes/platforms and inspect contrast/state drift |
+| DS-02 | Informative guidance — [GOV.UK Design System contribution criteria](https://design-system.service.gov.uk/community/contribution-criteria/) | Reusable patterns need an evidenced user need, broad usefulness, quality, documentation and maintenance | A mature component still needs target-service validation; contribution rules are not universal regulation | Record purpose, states, accessibility/research evidence, implementation mapping, version/owner and current-context test |
 
-## What Not To Absorb
+A token file is not a design system. A story is not an executed test. A component-library dependency is not accessibility proof. Encode stable invariants in semantic APIs/types/tests and verify representative rendered states.
 
-- Do not turn external benchmark articles into a generic checklist dump.
-- Do not force enterprise dashboard density onto consumer discovery surfaces.
-- Do not import another design system's exact visual language when local tokens/components exist.
-- Do not cite performance or accessibility as "done" without running a product-specific check when implementation exists.
+### Usability and acceptance evidence
+
+| ID | Class and source | Supported use | Boundary | Observable check |
+| --- | --- | --- | --- | --- |
+| EVAL-01 | Informative guidance — [GOV.UK, Moderated usability testing](https://www.gov.uk/service-manual/user-research/using-moderated-usability-testing) | Observe actual/likely users attempting credible, goal-based tasks; agree questions, users and target areas first | Think-aloud and moderated protocols can affect behavior; findings depend on participants/tasks/prototype fidelity | Record research question, participant criteria, neutral task, expected outcome, observations, errors, help, completion and limits |
+| EVAL-02 | Contextual empirical — [Faulkner 2003, Beyond the five-user assumption](https://doi.org/10.3758/BF03195514) | Choose sample size from study risk and problem variability instead of a fixed folklore number | In this 60-person study, random groups of five found 55%–99% of known issues; the exact range does not transfer to every product | Predeclare purpose and stopping rule; report sample, task coverage, issue yield/severity and what the study cannot generalize |
+| EVAL-03 | Informative guidance — [WCAG-EM](https://www.w3.org/WAI/test-evaluate/conformance/wcag-em/) | Structure a scoped website accessibility conformance evaluation | Sampling/method execution must match the claim; it does not establish general usability | Identify scope, complete processes, representative pages/states, technologies, evaluation methods and result limitations |
+
+Evidence types answer different claims: source/intent, static implementation, automated acceptance, rendered/device runtime, representative task/user, and production outcome. Select every dimension required by the claim; there is no globally highest rung. Later field evidence may strengthen its own outcome claim, but it cannot discharge independent standards-conformance, automated-oracle, runtime-state, or user-task obligations. Do not let a heuristic review, linter, screenshot, or single user opinion stand in for a claim it does not establish.
+
+## Platform convention use
+
+Platform guidance is an adapter, not shared theory:
+
+- Web uses WCAG and web-platform specifications for conformance claims, plus target browser/assistive-technology evidence.
+- Apple-platform work uses the current Apple Human Interface Guidelines and platform APIs; preserve whether a statement is a requirement, general rule, or recommendation.
+- Android work uses current Android/Material guidance and runtime APIs.
+- Mini-programs use the target host's current conventions and capability/permission model.
+- Terminal/TUI work uses terminal geometry, input, color/fallback, selection/copy, scrollback and real-PTY evidence.
+- Windows/Linux native desktop, Electron, TV, and any other rendered client use their current first-party platform guidance plus the installed client owner; when no owner is installed, use the fail-closed project-convention lookup in `delivery-contract.md`. An embedded renderer and its shell remain separate owner/evidence members.
+
+When two platforms give different numbers or behavior, keep both platform-scoped. Do not average them into a “universal” rule.
+
+For cross-platform criteria, use one row per target for native units and target
+geometry/spacing, text scale, size/orientation extremes, input and
+assistive-technology traversal, motion, and contrast/state cues. Mark `not
+applicable` with a reason; one platform never proves another.
+
+## Maintenance rules
+
+1. Add or change a blocking claim only with an exact named source, direct URL, scope, authority class, observable check, and verification date.
+2. Preserve normative strength. Recommendation/“consider” language cannot become an unconditional failure without an independently owned product rule.
+3. If a source is unreachable, follow blocked-source remediation; do not reconstruct precise wording or numbers from memory.
+4. Mark local observations and aesthetic preferences as local heuristics. Promote them only after target evidence and independent review.
+5. Recheck version-sensitive platform and performance claims at use time. Stable theory still retains its original population/task boundary.

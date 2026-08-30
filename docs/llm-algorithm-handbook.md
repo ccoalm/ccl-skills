@@ -36,6 +36,14 @@
 - **优化器/自动改 prompt 的产物是不可信输入**：要过 heldout / 安全 review / trace PII 审计 / 契约保持 / 人审 PR，再采纳。
 - **token 成本和延迟**是工程基线的一部分，不是上线后才看。
 
+### 模型输出进入客户端时的五阶段交付
+
+Prompt、model/tool output、citation/provenance、拒绝/降级文案、streaming 状态、权限/能力、默认值或结果形状若可能改变客户端呈现、动作或决策路径，先用 manifest、契约、发布目标和仓库清单建立完整 consumer universe；只搜推理仓零命中不算证明。
+
+- 已知受影响消费者：先按 [`delivery-contract.md`](../skills/product-ui-ux-design/references/delivery-contract.md) 建完整或低风险纯文案设计记录，由 `testing-strategy` 给 Phase 0；`llm-inference-integration` 回传 prompt/model/tool 等 `producer_record` 与不可变 binding，每个受影响客户端回传自己的 member 和实际执行的 producer member/version；Phase 1 聚合 design/test/producer/client 集合判充分性，设计 owner 再给 verdict。
+- universe 或成员不完整/不可访问：记 `unknown-consumers`、缺口 owner/动作，保持 `pending + blocked`；不能用离线 eval、模型服务 ready 或生产者日志关闭客户端缺口。
+- 只有全集证明输出不会被任何客户端渲染或用于状态/动作/决策时，才走 inference/backend-only；产品含义仍交 product owner，API/log/output 验证和全集证明交 `testing-strategy`。inventory 不是行为验证。
+
 ## 算法上线（串联已有手册）
 
 算法能力上线是一条有门禁的链，权威在 [算法服务上线手册](algorithm-service-launch-handbook.md)：

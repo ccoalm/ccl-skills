@@ -84,10 +84,12 @@ flowchart LR
 
 | 技能 | 思想内核 | 变成了哪条规则 | 想深入读 |
 |---|---|---|---|
-| `product-ui-ux-design` | 界面的完整性是**状态的完整性**，不是把 happy-path 画好看 | 空 / 加载 / 错误 / 成功 / 最终态都要设计；高风险流程加韧性状态 | 包内两个透镜均有引用 🔗：社区实践材料，加 HIG / Material 平台规范蒸馏成的走查判据（`external-ui-ux-quality-benchmarks.md` 平台走查节，逐条标单源出处、显式弃项另列） |
+| `product-ui-ux-design` | 人本设计从**使用情境与任务**出发；可用性是情境中的结果，不是套启发式或把 happy-path 画好看 | 把设计假设写成可观察 criterion，经测试选层、端侧实跑和候选绑定 verdict 闭环；空/载/错/恢复与适配矩阵只是必要输入，启发式只用于发现风险 | [ISO 9241-210](https://www.iso.org/standard/77520.html)、[ISO 9241-11](https://www.iso.org/standard/63500.html)、[WCAG 2.2](https://www.w3.org/TR/WCAG22/)；证据分类与边界见 [`external-ui-ux-quality-benchmarks.md`](../skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md)，交付闭环见 [`delivery-contract.md`](../skills/product-ui-ux-design/references/delivery-contract.md) |
 | `web-react-dev` | 框架默认转义，风险集中在**裸 HTML / URL 汇点** | `dangerouslySetInnerHTML` 等原始汇点要显式治理 | [OWASP Top 10 2021 A03](https://owasp.org/Top10/) |
 | `app-cross-platform-dev`<br>`miniapp-product-dev` | 宿主平台的能力与审核约束是硬边界，不能靠猜 | 各端渲染证据形态不同：设备 / 模拟器 / 开发者工具 | [Apple Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines)、[Material Design 3](https://m3.material.io/)、[微信小程序运营规范](https://developers.weixin.qq.com/miniprogram/product/) |
 | `terminal-cli-dev` | 终端是**有状态的渲染目标**，字符串快照证明不了交互态 | 交互 / 控制态要 PTY 生命周期断言 + 清理断言 + 真实终端 smoke | [ECMA-48 控制序列](https://ecma-international.org/publications-and-standards/standards/ecma-48/)、[POSIX `termios`](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/termios.h.html)；命令契约另见 [clig.dev](https://clig.dev/) |
+
+> UI/UX 证据不能混级：WCAG 成功标准是规范要求；[ARIA APG](https://www.w3.org/WAI/ARIA/apg/about/introduction/) 是信息性实现参考，不是完整设计系统或 production-ready 代码；[Design Tokens Format Module 2025.10](https://www.w3.org/community/reports/design-tokens/CG-FINAL-format-20251028/) 是 Community Group Final Report，不是 W3C Standard 或 Standards Track 文档。Sweller、Faulkner、Tversky 等研究只能在其参与者、任务和材料边界内支持机制假设，Norman 的 signifier 是概念框架；因此不再用“五个人”“五秒”或人名定律当跨产品验收线。[Apple 按钮 44×44pt hit region](https://developer.apple.com/design/human-interface-guidelines/buttons) 的措辞是 vendor general rule，Android 48×48dp 也是平台建议；两者都不能平均或升格为跨平台理论常数。
 
 ### 质量与测试
 
@@ -118,7 +120,7 @@ flowchart LR
 | `skill-extraction-workflow` | **清单要有暂停点**：在关键节点停一次、逐项确认，而不是边做边勾 | 报告完成前设置明确暂停点，逐项复核收尾条件 | Gawande《Checklist Manifesto》的 DO-CONFIRM / pause point / killer items；效果实证见 [Haynes 等 NEJM 2009 手术安全清单试验](https://pubmed.ncbi.nlm.nih.gov/19144931/) |
 | `skill-extraction-workflow` | **识别到 ≠ 学到**：教训写下来不等于组织学会了，得有可达的触发点 | 教训必须接到会实际触发它的决策点；只写进文件但不会被用到，不算学会了 | PMI / NASA 的 lessons-identified ≠ lessons-learned，参见 [NASA Lessons Learned 系统](https://llis.nasa.gov/) |
 | `skill-extraction-workflow` | 入口只暴露路由所需信息，正文、资源和工具按需进入上下文 | `SKILL.md` 只放触发 / 路由 / 硬规则，深度进 `references/`；大工具集先检索再加载相关子集 | [Anthropic Agent Skills 的渐进披露](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)、[OpenAI Model guidance 的 tool search](https://developers.openai.com/api/docs/guides/latest-model) |
-| `skill-extraction-workflow` | 指令优化先处理**冲突与重复**，再比较体量和加载时机；供应商指南只提供候选假设 | 一次只删改一组指令、示例或工具，用同一批代表性原任务重跑；质量过线后才比较 token、延迟、成本、调用和轮次 | [Anthropic 的上下文工程](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)、[OpenAI Model guidance](https://developers.openai.com/api/docs/guides/latest-model) |
+| `skill-extraction-workflow` | 指令优化先处理**冲突与重复**，再比较体量和加载时机；供应商指南只提供候选假设 | 一次只删改一组指令、示例或工具，用同一批代表性原任务重跑；每个任务、每个版本分别按自己的真实触发链加载，禁止用一份全局 bundle 或强行等长上下文代替；质量过线后才比较 token、延迟、成本、调用和轮次 | [Anthropic 的上下文工程](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)、[OpenAI Model guidance](https://developers.openai.com/api/docs/guides/latest-model) |
 | `agents-file-coverage-gate` | 每个目录都该有一份 agent 开工契约 | 扫描 `AGENTS.md` 覆盖率，可补 stub、可接 CI | 文件格式对齐 [AGENTS.md 开放约定](https://agents.md/)；覆盖率要不要卡是团队取舍 |
 
 ### 业界对照：Anthropic 与 OpenAI

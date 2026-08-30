@@ -54,8 +54,10 @@ flowchart TD
 - **test-case-first**：行为改动先写用例、跑 RED，再写实现。
 - **代码改动必须测**：build/grep/typecheck/lint/review 都只是支持证据，不替代测试；至少跑一个相关层、当轮执行新加的测试。
 - **mock 不证明运行时集成**：UI 接 API/生成内容要有真实渲染状态 + 契约/错误处理证据。
-- **按层报告验证**：缺的层标 `not-applicable` 或 `blocked after remediation`，不collapse 成"build 过了"。
-- **blocking 层失败 = 不能完成**：只有 `complete` / `pre-runtime-test ready` / `blocked` 三种收尾标签，不许把缺的 blocking 层重述成"残余风险/ready"。
+- **可见 UI 用同一交付记录**：按 [`delivery-contract.md`](../skills/product-ui-ux-design/references/delivery-contract.md) 的 Phase 0 先把完整 brief 或低风险纯文案轻量记录的 criterion 映射到断言层、渲染层、case 和 oracle；每个受影响端/宿主层在首笔实现前写 canonical `client_entry`，实跑后回传完整 client member，每个 changed/claim-bearing producer 只写一次自己的 record/binding member。Phase 1 引用完整集合、补测试自有命令/artifact，再给 criterion 结果、聚合充分性、覆盖边界和缺口；缺 `client_entry`、client member 不完整、绑定不一致/过期或 producer 未被该客户端实跑都要阻断，测试 owner 不代替设计 verdict。
+- **按层报告验证**：真不适用的 criterion 标 `not-applicable` 并写理由；应测但缺环境/数据/owner 的标 `blocked` 并写 remediation/owner，不 collapse 成“build 过了”。
+- **blocking 层失败 = 不能完成**：`accepted + complete`、`rejected + design-rejected`、`pending + pre-runtime-test-ready|blocked`、`candidate + blocked` 是契约允许的终态组合；其余组合无效。`accepted + complete` 还要求绑定的 Phase 1 为 `sufficient` 且没有 required evidence gap；`insufficient` / `blocked` 不会因设计 owner 写了 accepted 而变绿。不许把缺的 blocking 层重述成“残余风险/ready”。
+- **planned/unavailable 不是空标签**：`planned` 要带具体命令并在 final verdict、MR-ready 或普通 MR 前解决；`unavailable-*` 要有实际尝试、观察到的失败、残余风险和解阻动作。用户只可在当前线程、针对这个具体改动、看过风险后接受 handoff 缺口；它仍不是测试通过或设计接受。
 - **证据分三档**：强=确定性+断言；中=有断言但依赖固定 DB/缓存/网络态；弱=只 log/sleep/随机/调真实模型/非阻断 CI。**弱证据只能提示风险，不能证明正确**。
 - **冻结回归集、每次发布都跑**：每个修过的 bug / 事故 / 确认的坏 case 都进一个冻结集，**每次发布跑**（"测过一次"不算回归覆盖）。分层养得起：确定性 case 进阻断发布门；要 live 基建/模型/真索引的进发布前门，带 marker + owner + 超时，别塞进快门变 flaky。
 - **覆盖看怎么跑，不看有几个文件**：按跑它的命令、marker、依赖、CI 里的位置来分类，别数测试文件个数或看文件名推断覆盖。
@@ -147,7 +149,7 @@ e2e 策略归 `testing-strategy`，执行归客户端技能（浏览器/真机/�
   - App → 设备/模拟器。
   - 小程序 → 开发者工具编译/预览或真机，验 route/scene 参数、状态、host 能力（分享/支付/订阅/扫码/webview bridge）。
 - **运行时依赖的 host smoke 是 blocking**：碰平台请求/分块、流式终态、前后台恢复、host 导航、权限/能力弹窗、bridge 回调、存储/会话恢复、host 渲染错误态——lower 层证明不了就必须跑。
-- **标 unavailable 前先补救**：起 emulator/browser/server、等就绪、重启 client daemon、跑仓库 setup 脚本、重跑发现命令；设备类先确认 `adb devices -l` + 就绪。仍不可用才记 `pre-runtime-test ready`（有 owner 交接，非 merge-ready）或 `blocked`。
+- **标 unavailable 前先补救**：起 emulator/browser/server、等就绪、重启 client daemon、跑仓库 setup 脚本、重跑发现命令；设备类先确认 `adb devices -l` + 就绪。仍不可用才记 `pre-runtime-test-ready`（有 owner 交接，非 merge-ready）或 `blocked`。
 - **组合链路三层验收**：module-level（改动模块自身）+ chain-level（上下游契约、端到端恢复回滚）+ product-level（用户可见结果不退）。一个子模块只看局部指标不够。
 - e2e 测试同样挂 `tc()`，进同一套报告。
 
