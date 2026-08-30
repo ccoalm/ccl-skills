@@ -256,7 +256,7 @@ def partition_row(row, spans):
         "before_text": row["before_text"],
         "before_chain": row["before_chain"],
         "disposition": "partial-retirement",
-        "effect": "strengthened",
+        "effect": "retired",
         "parts": parts,
         "manual_reviewed": True,
         "semantic_review": "reviewed",
@@ -704,6 +704,19 @@ mutation_retired_preserved() {
     'rows[0]["disposition"] = "retired-dead"; rows[0]["effect"] = "preserved"; rows[0]["carrier_path"] = None; rows[0]["carrier_text"] = None; rows[0]["carrier_chain"] = None; rows[0]["qualifiers"] = []; rows[0]["review_note"] = "authority: fixture authority; scope: this obsolete row"'
 }
 
+mutation_retired_dead_strengthened() {
+  mutate_jsonl "$1/specs/mapping.jsonl" \
+    'rows[0]["disposition"] = "retired-dead"; rows[0]["effect"] = "strengthened"; rows[0]["carrier_path"] = None; rows[0]["carrier_text"] = None; rows[0]["carrier_chain"] = None; rows[0]["qualifiers"] = []; rows[0]["manual_reviewed"] = True; rows[0]["semantic_review"] = "reviewed"; rows[0]["semantic_rationale"] = "Fixture retirement rationale."; rows[0]["review_note"] = "authority: fixture authority; scope: this obsolete row"'
+}
+
+mutation_partition_retired_mislabel() {
+  mutate_jsonl "$1/specs/mapping.jsonl" 'rows[12]["effect"] = "strengthened"'
+}
+
+mutation_retired_effect_on_live_row() {
+  mutate_jsonl "$1/specs/mapping.jsonl" 'rows[3]["effect"] = "retired"'
+}
+
 mutation_unreviewed_strengthening() {
   mutate_jsonl "$1/specs/mapping.jsonl" 'rows[3]["effect"] = "strengthened"; rows[3]["manual_reviewed"] = False'
 }
@@ -1149,6 +1162,9 @@ run_mutant recency_direction_reversal QUALIFIER_REVERSED 'skills/source/SKILL.md
 run_mutant stale_locator STALE_LEDGER 'specs/ledger.md' 'specs/ledger.md' mutation_stale_locator
 run_mutant invalid_status INVALID_DISPOSITION 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_invalid_status
 run_mutant retired_dead_preserved RETIRED_EFFECT_INVALID 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_retired_preserved
+run_mutant retired_dead_strengthened RETIRED_EFFECT_INVALID 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_retired_dead_strengthened
+run_mutant partition_retired_mislabel PARTITION_EFFECT_MISMATCH 'skills/source/SKILL.md#13' "$DELTA_MAPPING" mutation_partition_retired_mislabel
+run_mutant retired_effect_on_live_row RETIRED_EFFECT_INVALID 'skills/source/SKILL.md#4' "$DELTA_MAPPING" mutation_retired_effect_on_live_row
 run_mutant unreviewed_verbatim_strengthening STRENGTHENED_REVIEW_REQUIRED 'skills/source/SKILL.md#4' "$DELTA_MAPPING" mutation_unreviewed_strengthening
 run_mutant provenance_only PROVENANCE_ONLY_CARRIER 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_provenance_only
 run_mutant comparison_domain_new_file ROW_SET_MISMATCH 'skills/extra/SKILL.md#1' 'skills/extra/SKILL.md' mutation_new_domain_file

@@ -34,7 +34,7 @@ DISPOSITIONS = {
     "partitioned",
     "partial-retirement",
 }
-EFFECTS = {"preserved", "strengthened", "unresolved"}
+EFFECTS = {"preserved", "strengthened", "retired", "unresolved"}
 QUALIFIER_KINDS = {
     "modality",
     "recency",
@@ -2073,8 +2073,10 @@ def validate_partitioned(
     else:
         raise AuditError("PARTITION_DISPOSITION_MISMATCH", label)
     expected_effect = (
-        "strengthened"
-        if "retired" in statuses or "strengthened" in part_effects
+        "retired"
+        if "retired" in statuses
+        else "strengthened"
+        if "strengthened" in part_effects
         else "preserved"
     )
     if mapping.get("effect") != expected_effect:
@@ -2257,9 +2259,11 @@ def validate_mapping(
         if relations and row["effect"] != "strengthened":
             raise AuditError("QUALIFIER_RELATION_REQUIRES_STRENGTHENED", label)
         if row["disposition"] == "retired-dead" and row["effect"] not in {
-            "strengthened",
+            "retired",
             "unresolved",
         }:
+            raise AuditError("RETIRED_EFFECT_INVALID", label)
+        if row["effect"] == "retired" and row["disposition"] != "retired-dead":
             raise AuditError("RETIRED_EFFECT_INVALID", label)
         if row["effect"] == "strengthened" and row.get("manual_reviewed") is not True:
             raise AuditError("STRENGTHENED_REVIEW_REQUIRED", label)
@@ -2422,7 +2426,7 @@ def render_ledger(
         f"- Changed pre-existing `skills/**/*.md`: {len(comparison_paths)}",
         f"- Explicit relocation destinations: {len(relocation_paths)}",
         f"- Governing-chain-diff rows: {len(expected)}",
-        f"- Effects: preserved={effects['preserved']}, strengthened={effects['strengthened']}, unresolved={len(unresolved)}",
+        f"- Effects: preserved={effects['preserved']}, strengthened={effects['strengthened']}, retired={effects['retired']}, unresolved={len(unresolved)}",
         "- Proof modes: "
         f"exact-mechanical={modes['exact-mechanical']}, "
         f"reviewed-semantic={modes['reviewed-semantic']}, "
@@ -2435,12 +2439,12 @@ def render_ledger(
         "",
         "## Source summary",
         "",
-        "| Source | Rows | Preserved | Strengthened | Retired dead |",
+        "| Source | Rows | Preserved | Strengthened | Retired |",
         "| --- | ---: | ---: | ---: | ---: |",
     ]
     for source_path, counts in sorted(source_counts.items()):
         lines.append(
-            f"| `{source_path}` | {counts['rows']} | {counts['preserved']} | {counts['strengthened']} | {counts['retired-dead']} |"
+            f"| `{source_path}` | {counts['rows']} | {counts['preserved']} | {counts['strengthened']} | {counts['retired']} |"
         )
     lines.extend(
         [
