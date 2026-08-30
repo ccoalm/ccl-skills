@@ -1,16 +1,16 @@
 ---
 name: nodejs-service-dev
-description: Use when implementing, modifying, scaffolding, or testing Node.js backend and service code, including HTTP/RPC handlers, workers, jobs, runtime configuration, TypeScript/JavaScript module setup, async cancellation, streams, graceful shutdown, and Node-specific test mechanics. Triggers include "用 Node.js 写接口", "Node 后端实现", "Fastify/Express/NestJS 服务", "node:test 怎么写", and "event loop / worker_threads 怎么改". Route active failures to defect-diagnosis, test-layer choices to testing-strategy, terminal contracts to terminal-cli-dev, and cross-module architecture or multi-stage delivery to product-rd-workflow.
+description: Use when implementing, modifying, scaffolding, or testing Node.js backend and service code, including HTTP/RPC handlers, workers, jobs, standalone Node.js CLI/tooling, runtime configuration, TypeScript/JavaScript module setup, async cancellation, streams, graceful shutdown, and Node-specific test mechanics. Triggers include "用 Node.js 写接口", "Node 后端实现", "用 Node.js 写个命令行工具", "重构 Node 服务里的某文件/某类(局部)", "refactor a file/class within a Node.js service", "Fastify/Express/NestJS 服务", "node:test 怎么写", and "event loop / worker_threads 怎么改". Route active failures to defect-diagnosis, test-layer choices to testing-strategy, terminal contracts to terminal-cli-dev, and cross-module architecture or multi-stage delivery to product-rd-workflow.
 ---
 
 # Node.js Service Development
 
 ## Skill Routing
 
-- Use this skill for concrete Node.js service implementation: handlers, middleware, adapters, workers, jobs, clients, runtime/toolchain mechanics, and focused tests.
-- New capabilities, cross-module architecture, whole-service redesigns, and multi-stage refactors enter `product-rd-workflow`; verified repairs return here after `defect-diagnosis`.
+- Use this skill for Node.js service implementation: handlers, middleware, adapters, workers, jobs, clients, runtime/toolchain mechanics, and focused tests.
+- New capabilities, cross-module architecture, service redesigns, and multi-stage refactors enter `product-rd-workflow`; verified repairs return here after `defect-diagnosis`.
 - `testing-strategy` chooses test layers, coverage policy, contract/E2E scope, and CI gates. This skill owns Node runner, mock, fixture, and command mechanics after that choice.
-- CLI flags/help/exit/TTY contracts go to `terminal-cli-dev`; logs/metrics/traces to `platform-observability`; cross-service timeout/retry/mTLS to `platform-service-connectivity`; rollout/rollback to `platform-release-engineering`.
+- Standalone CLI/tooling stays here; language-stack CLI implementation must not be routed back to `terminal-cli-dev`, owner of the interface contract; logs/metrics/traces to `platform-observability`; cross-service timeout/retry/mTLS to `platform-service-connectivity`; rollout/rollback to `platform-release-engineering`.
 - Browser UI goes to `web-react-dev`; LLM/RAG/agent-runtime behavior to `llm-inference-integration`. Keep language-neutral rules in their existing owner.
 
 ## Workflow
