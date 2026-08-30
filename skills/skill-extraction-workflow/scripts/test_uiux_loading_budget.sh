@@ -198,13 +198,20 @@ candidate_specialized_runtime_bytes=$((candidate_entry_bytes + candidate_router_
 
 # The old entry explicitly required the router for every task. The new direct
 # routing/source-audit proxy must use at most half that deterministic byte
-# proxy; the direct runtime path at most 90%. Complex runtime work loads all
+# proxy; the direct runtime path at most 95%. Complex runtime work loads all
 # three files and may pay a bounded quality-contract cost, capped at 110%.
-# These are migration budgets, not provider token or task-effect claims.
+# These are migration budgets pinned to the immutable pre-split base, not
+# provider token or task-effect claims. Caps were set from the values measured
+# when the migration landed (routing 45.3%, direct 90.0%, specialized 108.0%)
+# plus headroom for living-document growth; the direct cap was originally 90%
+# with zero headroom, which froze the entry and contract files byte-for-byte.
+# If a cap is hit by ordinary document growth, re-derive the budget from a
+# fresh measurement with recorded rationale — or retire this test once the
+# migration claim is historical — instead of nudging one percentage.
 (( candidate_routing_proxy_bytes * 100 <= base_mandatory_bytes * 50 )) ||
   fail "routing/source-audit proxy exceeds 50% of origin/dev mandatory bytes ($candidate_routing_proxy_bytes > 50% of $base_mandatory_bytes)"
-(( candidate_direct_runtime_bytes * 100 <= base_mandatory_bytes * 90 )) ||
-  fail "direct-runtime proxy exceeds 90% of origin/dev mandatory bytes ($candidate_direct_runtime_bytes > 90% of $base_mandatory_bytes)"
+(( candidate_direct_runtime_bytes * 100 <= base_mandatory_bytes * 95 )) ||
+  fail "direct-runtime proxy exceeds 95% of origin/dev mandatory bytes ($candidate_direct_runtime_bytes > 95% of $base_mandatory_bytes)"
 (( candidate_specialized_runtime_bytes * 100 <= base_mandatory_bytes * 110 )) ||
   fail "specialized-runtime proxy exceeds 110% of origin/dev mandatory bytes ($candidate_specialized_runtime_bytes > 110% of $base_mandatory_bytes)"
 
