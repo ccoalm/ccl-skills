@@ -136,7 +136,7 @@ check_absent() { # <file> <token> <label> — file must exist AND token absent;
 # Self-pin: an emptied or truncated suite must fail, not pass. Update EXPECTED
 # when adding/removing checks deliberately (same diff). Runs FIRST: a truncated
 # tail removes real checks and the count goes red.
-EXPECTED_CHECKS=19
+EXPECTED_CHECKS=21
 actual_checks=$(grep -cE '^check([_a-z]+)? ' "$0")
 if [ "$actual_checks" -ne "$EXPECTED_CHECKS" ]; then
   echo "FAIL: suite self-pin: expected $EXPECTED_CHECKS checks, found $actual_checks" >&2
@@ -168,6 +168,7 @@ check_frontmatter_present "$ROOT/skills/terminal-cli-dev/SKILL.md" "用 Python �
 # Both legs of that skip clause must be reciprocated by the named stack owner,
 # or the pointer sends the request to a skill that never advertises the work.
 check_frontmatter_present "$ROOT/skills/go-microservice-dev/SKILL.md" "用 Go 写个命令行工具" "go-microservice-dev CLI trigger (reciprocal of terminal-cli-dev skip)"
+check_frontmatter_present "$ROOT/skills/nodejs-service-dev/SKILL.md" "用 Node.js 写个命令行工具" "nodejs-service-dev CLI trigger (reciprocal of terminal-cli-dev skip)"
 # The coordinator surface must carry the same carve-out, or product-rd keeps
 # advertising terminal-cli-dev for language-stack CLI implementation.
 check "$ROOT/skills/product-rd-workflow/SKILL.md" "must go to that language's dev skill when one owns it" "product-rd coordinator CLI carve-out (owner branch)"
@@ -179,6 +180,7 @@ check "$ROOT/skills/product-rd-workflow/SKILL.md" "no such dev owner stays with 
 # the reciprocal trigger anchor above stays green, and the eval fixtures assert
 # terminal-cli-dev must NOT receive either request.
 check_frontmatter_present "$ROOT/skills/terminal-cli-dev/SKILL.md" "Go CLI → go-microservice-dev" "terminal-cli-dev Go skip leg"
+check_frontmatter_present "$ROOT/skills/terminal-cli-dev/SKILL.md" "Node.js CLI → nodejs-service-dev" "terminal-cli-dev Node.js skip leg"
 # CLI interface design ownership: both surfaces must say terminal-cli-dev owns the
 # command/flag/help contract even with nothing rendered, or non-rendered CLI design
 # goes back to having no owner (terminal skipped it, the stack skills scope to

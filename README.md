@@ -6,7 +6,7 @@
 
 Reusable workflows that help coding agents plan, build, test, review, and release software.
 
-Not a prompt pack — a routed delivery system. 32 skills cover the whole lifecycle, and a routing layer reads what you asked for and hands it to the skill that owns that deliverable, so you never look one up. Ask it to fix a bug and `defect-diagnosis` takes over; ask for a feature and `product-rd-workflow` routes it through requirement shaping, risk gates, implementation, and release.
+Not a prompt pack — a routed delivery system. 33 skills cover the whole lifecycle, and a routing layer reads what you asked for and hands it to the skill that owns that deliverable, so you never look one up. Ask it to fix a bug and `defect-diagnosis` takes over; ask for a feature and `product-rd-workflow` routes it through requirement shaping, risk gates, implementation, and release.
 
 Each skill is a method, not a suggestion, and it ships with the gate that protects it. The methods are what worked, written down. The gates are what went wrong, turned into a stop. A routing eval bank and CI gates check that both still fire.
 
