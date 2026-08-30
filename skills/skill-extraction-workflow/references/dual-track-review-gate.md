@@ -273,9 +273,11 @@ when a round consumed it, and a same-directory hash-bound file containing the
 canonical raw `ls-remote` line. A second ordered SHA change (A→B→C or A→B→A) is
 the second drift and must terminate the lane as `baseline_race`, with the
 unreviewed delta; the drift row and every later row must not map another
-controller receipt. For `ready_for_human_decision`, the final controller receipt
+controller receipt. For every non-race closeout — `ready_for_human_decision`
+and `continuation_authorization_required` alike — the final controller receipt
 must consume the latest attested SHA; later same-SHA live rechecks are allowed,
-but an unconsumed newer SHA is not reviewed evidence. Do not open another
+but an unconsumed newer SHA is not reviewed evidence (a post-final-round drift
+belongs in the next round's ledger, not appended unconsumed to this one). Do not open another
 automatic rebuild after the second drift. The state validator counts these
 transitions and receipt/base associations inside the complete referenced row
 set. Keep independent work moving while a human chooses a landing window.

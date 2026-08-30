@@ -515,8 +515,16 @@ run_gate
 assert_rc "$rc" 1 "an unambiguous AI display name must block with an ordinary email"
 assert_contains "category=ai_coauthor_trailer" "$out" "unambiguous AI display-name co-author category"
 
+printf 'change summary\n\nCo-Authored-By: **Claude Code** <helper@example.invalid>\n' >"$TMP/emphasized-identity-coauthor-message.txt"
+candidate_case case/emphasized-identity-coauthor "$TMP/emphasized-identity-coauthor-message.txt"
+run_gate
+assert_rc "$rc" 1 "emphasis around only the identity must still block"
+assert_contains "category=ai_coauthor_trailer" "$out" \
+  "emphasized-identity co-author category"
+
 for qualified_identity in \
   "Claude Sonnet" "Claude 3.5 Sonnet" "Claude v3.5 Sonnet" \
+  "Claude Fable 5" "Claude Mythos 5" "Claude 5 Fable" \
   "OpenAI Codex" "ChatGPT-5" "Qwen2.5-Coder" "Gemini 2.5 Pro"; do
   printf 'change summary\n\nCo-Authored-By: %s <helper@example.invalid>\n' \
     "$qualified_identity" >"$TMP/model-qualified-coauthor-message.txt"
@@ -592,6 +600,60 @@ run_gate
 assert_rc "$rc" 1 "a model-qualified AI committer identity must block"
 assert_contains "surface=commit_committer" "$out" "model-qualified AI committer surface"
 assert_contains "category=ai_commit_identity" "$out" "model-qualified AI committer category"
+
+candidate_identity_case case/fable-ai-author "Claude Fable 5" \
+  helper@example.invalid "Synthetic Tester" tester@example.invalid
+run_gate
+assert_rc "$rc" 1 "a Fable-model AI author identity must block"
+assert_contains "surface=commit_author" "$out" "Fable AI author surface"
+assert_contains "category=ai_commit_identity" "$out" "Fable AI author category"
+
+candidate_identity_case case/mythos-ai-committer "Synthetic Tester" \
+  tester@example.invalid "Claude Mythos 5" helper@example.invalid
+run_gate
+assert_rc "$rc" 1 "a Mythos-model AI committer identity must block"
+assert_contains "surface=commit_committer" "$out" "Mythos AI committer surface"
+assert_contains "category=ai_commit_identity" "$out" "Mythos AI committer category"
+
+# Annotated tag messages are a pushed surface resolve_head peels past; the
+# gate must scan every tag-object layer of the candidate ref.
+printf 'neutral tag base change\n' >"$TMP/tag-base-message.txt"
+candidate_case case/tag-surface "$TMP/tag-base-message.txt"
+git -C "$REPO" tag -a synthetic-annotated-bad -F - HEAD <<EOF_TAG
+release notes
+
+Co-Authored-By: Claude Code <helper@example.invalid>
+EOF_TAG
+run_gate --head-ref refs/tags/synthetic-annotated-bad
+assert_rc "$rc" 1 "an annotated tag message with an AI trailer must block"
+assert_contains "surface=tag_message" "$out" "tag-message surface"
+assert_contains "category=ai_coauthor_trailer" "$out" "tag-message co-author category"
+
+git -C "$REPO" tag -a synthetic-annotated-clean -m "neutral release notes" HEAD
+run_gate --head-ref refs/tags/synthetic-annotated-clean
+assert_rc "$rc" 0 "a clean annotated tag must pass"
+assert_contains "tag_objects=1" "$out" "annotated tag surface count"
+
+git -C "$REPO" tag synthetic-lightweight HEAD
+run_gate --head-ref refs/tags/synthetic-lightweight
+assert_rc "$rc" 0 "a lightweight tag must pass without tag objects"
+assert_contains "tag_objects=0" "$out" "lightweight tag surface count"
+
+git -C "$REPO" -c advice.nestedTag=false tag -a synthetic-nested -F - refs/tags/synthetic-annotated-clean <<EOF_TAG
+wrapper notes
+
+Claude-Session: $session_url
+EOF_TAG
+run_gate --head-ref refs/tags/synthetic-nested
+assert_rc "$rc" 1 "a nested annotated tag layer must be scanned"
+assert_contains "surface=tag_message" "$out" "nested tag-message surface"
+
+GIT_COMMITTER_NAME="Claude Fable 5" GIT_COMMITTER_EMAIL=helper@example.invalid \
+  git -C "$REPO" tag -a synthetic-ai-tagger -m "neutral notes" HEAD
+run_gate --head-ref refs/tags/synthetic-ai-tagger
+assert_rc "$rc" 1 "an AI tagger identity must block"
+assert_contains "surface=tag_tagger" "$out" "tag tagger surface"
+assert_contains "category=ai_commit_identity" "$out" "tag tagger category"
 
 candidate_identity_case case/version-infix-ai-author "Claude 3.5 Sonnet" \
   helper@example.invalid "Synthetic Tester" tester@example.invalid

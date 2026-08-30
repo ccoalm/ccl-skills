@@ -90,7 +90,7 @@ AI_PROVIDER_ACCOUNT = rf"(?:{'|'.join(AI_PROVIDER_ACCOUNT_ALIASES)})"
 # noreply privacy addresses.
 AI_IDENTITY_QUALIFIER_TOKEN = (
     r"(?:v?[0-9][A-Za-z0-9.+-]*|code|codex|chatgpt|swe|agent|assistant|bot|cli|"
-    r"reviewer|sonnet|opus|haiku)"
+    r"reviewer|sonnet|opus|haiku|fable|mythos)"
 )
 AI_IDENTITY_QUALIFIER = rf"(?:[-_\s]+{AI_IDENTITY_QUALIFIER_TOKEN}){{0,3}}"
 AI_IDENTITY_VERSION_INFIX = r"(?:[-_\s]+v?[0-9][A-Za-z0-9.+-]*){0,2}"
@@ -103,7 +103,7 @@ GEMINI_MODEL_IDENTITY = (
 )
 UNAMBIGUOUS_AI_IDENTITY = (
     rf"(?:claude{AI_IDENTITY_VERSION_INFIX}[-_\s]+"
-    rf"(?:code|sonnet|opus|haiku){AI_IDENTITY_QUALIFIER}"
+    rf"(?:code|sonnet|opus|haiku|fable|mythos){AI_IDENTITY_QUALIFIER}"
     rf"|{QWEN_MODEL_IDENTITY}|{GEMINI_MODEL_IDENTITY}"
     rf"|(?:codex|chatgpt|openai|opencode|(?:github\s+)?copilot|qwen|"
     rf"doubao|windsurf|perplexity){AI_IDENTITY_QUALIFIER})"
@@ -116,9 +116,13 @@ AI_BRACKETED_BOT_EMAIL_IDENTITY = (
     rf"[^<>\r\n]+[ \t]*<(?:[0-9]+\+)?"
     rf"{BRACKETED_AI_BOT_IDENTITY}@[^>\r\n]*>"
 )
+# Emphasis wrapped around just the identity ("**Claude Code**") must not
+# defeat the anchored trailer rule; whole-line wrappers are unwrapped later.
+INLINE_EMPHASIS_WRAP = r"[*_~`]*"
 AI_ATTRIBUTION_IDENTITY = (
-    rf"(?:{UNAMBIGUOUS_AI_DISPLAY_NAME}[ \t]*<[^>\r\n]*>"
-    rf"|{AI_PROVIDER}[ \t]*<[^>\r\n]*"
+    rf"(?:{INLINE_EMPHASIS_WRAP}{UNAMBIGUOUS_AI_DISPLAY_NAME}"
+    rf"{INLINE_EMPHASIS_WRAP}[ \t]*<[^>\r\n]*>"
+    rf"|{INLINE_EMPHASIS_WRAP}{AI_PROVIDER}{INLINE_EMPHASIS_WRAP}[ \t]*<[^>\r\n]*"
     r"(?<![A-Za-z0-9])(?:no-?reply|bot)(?![A-Za-z0-9])"
     rf"[^>\r\n]*>|{AI_BRACKETED_BOT_EMAIL_IDENTITY})"
 )
@@ -851,6 +855,72 @@ def commit_messages(
     return records
 
 
+MAX_TAG_PEEL_DEPTH = 10
+
+
+def annotated_tag_records(
+    repo: Path, requested: str | None
+) -> list[tuple[str, str, str]]:
+    """Collect (locator, message, tagger) for each annotated-tag layer of the
+    candidate ref. resolve_head peels straight to the commit, so tag messages
+    and tagger identities — prohibited surfaces of a `refs/tags/*` push — are
+    invisible to the commit walk and must be scanned from the tag objects."""
+    ref = requested or "HEAD"
+    oid = git_text(
+        repo,
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        "--end-of-options",
+        ref,
+        operation="candidate object resolution",
+    ).lower()
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", oid):
+        fail("candidate object resolved to an invalid object id")
+    records: list[tuple[str, str, str]] = []
+    for _ in range(MAX_TAG_PEEL_DEPTH):
+        object_type = git_text(
+            repo, "cat-file", "-t", oid, operation="candidate tag type scan"
+        )
+        if object_type != "tag":
+            return records
+        locator = oid[:12]
+        payload = git(
+            repo, "cat-file", "tag", oid, operation="candidate tag object scan"
+        )
+        if b"\x00" in payload:
+            fail("candidate tag object contains NUL")
+        try:
+            text = payload.decode("utf-8", errors="strict")
+        except UnicodeDecodeError:
+            fail(
+                "candidate tag metadata is not valid UTF-8 "
+                f"locator={locator}"
+            )
+        if "�" in text:
+            fail(
+                "candidate tag metadata is not valid UTF-8 "
+                f"locator={locator}"
+            )
+        header_text, separator, message = text.partition("\n\n")
+        if not separator:
+            header_text, message = text, ""
+        target = ""
+        tagger = ""
+        for line in header_text.split("\n"):
+            if line.startswith("object "):
+                target = line.removeprefix("object ").strip().lower()
+            elif line.startswith("tagger "):
+                tagger = re.sub(
+                    r"\s+\d+\s+[+-]\d{4}$", "", line.removeprefix("tagger ")
+                ).strip()
+        records.append((locator, message, tagger))
+        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", target):
+            fail("candidate tag object names an invalid target id")
+        oid = target
+    fail("candidate tag peel depth exceeded")
+
+
 def unwrap_inline_markdown_body(body: str) -> str:
     start = 0
     end = len(body)
@@ -983,10 +1053,17 @@ def run(argv: list[str]) -> int:
             "pre-push base before the candidate head"
         )
     commits = commit_messages(repo, base, head)
+    tag_records = annotated_tag_records(repo, args.head_ref)
     reject_git_grafts(repo)
 
     findings: list[str] = []
     findings.extend(violations("branch", "current", branch))
+    for locator, message, tagger in tag_records:
+        findings.extend(violations("tag_message", locator, message))
+        if tagger:
+            findings.extend(
+                commit_identity_violations("tag_tagger", locator, tagger)
+            )
     for sha, message, author, committer in commits:
         findings.extend(violations("commit", sha, message))
         findings.extend(commit_identity_violations("commit_author", sha, author))
@@ -1018,7 +1095,8 @@ def run(argv: list[str]) -> int:
     print(
         "shared_git_surface_gate_ok: "
         f"commits={len(commits)} branch=1 pr_fields={len(pr_fields)} "
-        f"proposed_pr_files={1 if args.pr_text_file is not None else 0}"
+        f"proposed_pr_files={1 if args.pr_text_file is not None else 0} "
+        f"tag_objects={len(tag_records)}"
     )
     return 0
 

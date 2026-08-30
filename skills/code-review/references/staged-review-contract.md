@@ -67,7 +67,10 @@ interval. Plans are caller-owned, singly linked regular files; ACLs, extended
 attributes, ownership, and special mode bits are outside this replacement
 contract. A post-rename directory-sync failure reports
 `plan_committed_durability_unknown` with the new digest: re-read before deciding
-whether to retry, because the target has already changed.
+whether to retry, because the target has already changed. A stdout pipe that
+closes before the success receipt is delivered likewise reports
+`plan_committed_receipt_lost` on stderr with a nonzero exit: the update is
+committed, only the receipt was lost, so re-read the plan instead of retrying.
 
 Each self-review row may name a direct sibling skill. Omission selects the
 `code-review` baseline. The controller also derives owners deterministically

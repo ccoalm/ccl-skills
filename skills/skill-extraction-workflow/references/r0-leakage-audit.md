@@ -138,10 +138,11 @@ The current deterministic event surface does not fetch historical PR comments,
 labels, or a platform-generated custom merge message. Those remain prohibited
 by the root contract, but are an explicit coverage gap requiring forge-side
 readback/enforcement; they are not reclassified as `known_debt` merely because
-this local scanner cannot observe them. A pushed tag's destination name and
-pointed-to commit are scanned, but an annotated tag object's own message is not;
-that separately named surface is also an explicit coverage gap rather than an
-implicit clean result.
+this local scanner cannot observe them. A pushed tag is scanned on every
+surface the object graph carries: destination name, pointed-to commit range,
+and each annotated tag-object layer's own message and tagger identity (nested
+tags are peeled with a bounded depth, and an unresolvable or over-deep tag
+chain fails closed).
 
 ## Fail-Closed Clause — Maintainer Discipline
 

@@ -56,6 +56,10 @@ def fail(message: str) -> NoReturn:
 def bounded_text(value: object, field: str, maximum: int = 1000) -> str:
     if not isinstance(value, str) or value != value.strip() or not value:
         fail(f"{field} must be a non-empty normalized string")
+    # Interior control characters would otherwise be echoed into stderr
+    # diagnostics (terminal-escape injection on the error path).
+    if any(ord(char) < 0x20 or ord(char) == 0x7F for char in value):
+        fail(f"{field} must not contain control characters")
     try:
         value.encode("utf-8")
     except UnicodeEncodeError:
@@ -138,8 +142,15 @@ def decode_json(raw: bytes, *, label: str) -> dict[str, Any]:
             value[key] = item
         return value
 
+    def reject_constant(constant: str) -> NoReturn:
+        fail(f"{label} contains a non-standard JSON constant: {constant}")
+
     try:
-        value = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_object)
+        value = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=unique_object,
+            parse_constant=reject_constant,
+        )
     except StateError:
         raise
     except (UnicodeError, json.JSONDecodeError) as exc:
@@ -237,7 +248,7 @@ def validate_scope(receipt: dict[str, Any], label: str) -> str:
         },
         f"{label}.review_scope",
     )
-    if scope["schema_version"] != 3 or isinstance(scope["schema_version"], bool):
+    if scope["schema_version"] != 3 or type(scope["schema_version"]) is not int:
         fail(f"{label}.review_scope.schema_version must be 3")
     sha256(scope["intent_sha256"], f"{label}.review_scope.intent_sha256")
     sha256(scope["acceptance_sha256"], f"{label}.review_scope.acceptance_sha256")
@@ -251,7 +262,7 @@ def validate_scope(receipt: dict[str, Any], label: str) -> str:
     ]
     if len(normalized_risks) != len(set(normalized_risks)):
         fail(f"{label}.review_scope.risk_tags contains duplicates")
-    if scope["challenge_budget"] != 2 or isinstance(scope["challenge_budget"], bool):
+    if scope["challenge_budget"] != 2 or type(scope["challenge_budget"]) is not int:
         fail(f"{label}.review_scope.challenge_budget must be 2")
     if (
         scope["wording_only_proof_sha256"] is not None
@@ -280,7 +291,7 @@ def validate_controller_receipts(
     refs = payload["controller_receipts"]
     if not isinstance(refs, list) or not 1 <= len(refs) <= 3:
         fail("controller_receipts must contain one to three ordered Agent rounds")
-    if payload["autonomous_round"] != len(refs) or isinstance(payload["autonomous_round"], bool):
+    if payload["autonomous_round"] != len(refs) or type(payload["autonomous_round"]) is not int:
         fail("autonomous_round must equal the ordered controller receipt count")
 
     receipts: list[dict[str, Any]] = []
@@ -292,7 +303,7 @@ def validate_controller_receipts(
         ref = exact_object(
             value, {"sequence", "file", "sha256"}, f"controller_receipts[{expected_index - 1}]"
         )
-        if ref["sequence"] != expected_index or isinstance(ref["sequence"], bool):
+        if ref["sequence"] != expected_index or type(ref["sequence"]) is not int:
             fail("controller receipt sequence must be contiguous from 1")
         receipt_hash = sha256(ref["sha256"], f"controller_receipts[{expected_index - 1}].sha256")
         raw = load_sibling(
@@ -303,7 +314,7 @@ def validate_controller_receipts(
             maximum=MAX_RESULT_BYTES,
         )
         receipt = decode_json(raw, label=f"controller receipt {expected_index}")
-        if receipt.get("schema_version") != 3 or isinstance(receipt.get("schema_version"), bool):
+        if receipt.get("schema_version") != 3 or type(receipt.get("schema_version")) is not int:
             fail(f"controller receipt {expected_index} schema_version must be 3")
         expected_mode = "review" if expected_index == 1 else "challenge"
         if receipt.get("mode") != expected_mode:
@@ -319,25 +330,25 @@ def validate_controller_receipts(
             chain_id = current_chain
         elif current_chain != chain_id:
             fail(f"controller receipt {expected_index} review_chain_id changed")
-        if receipt.get("autonomous_review_index") != expected_index or isinstance(
-            receipt.get("autonomous_review_index"), bool
-        ):
+        if receipt.get("autonomous_review_index") != expected_index or type(
+            receipt.get("autonomous_review_index")
+        ) is not int:
             fail(f"controller receipt {expected_index} autonomous_review_index is not contiguous")
         expected_challenge_index = 0 if expected_index == 1 else expected_index - 1
-        if receipt.get("challenge_index") != expected_challenge_index or isinstance(
-            receipt.get("challenge_index"), bool
-        ):
+        if receipt.get("challenge_index") != expected_challenge_index or type(
+            receipt.get("challenge_index")
+        ) is not int:
             fail(f"controller receipt {expected_index} challenge_index is invalid")
-        if receipt.get("challenge_budget") != 2 or isinstance(receipt.get("challenge_budget"), bool):
+        if receipt.get("challenge_budget") != 2 or type(receipt.get("challenge_budget")) is not int:
             fail(f"controller receipt {expected_index} challenge_budget must be 2")
-        if receipt.get("autonomous_review_budget") != 3 or isinstance(
-            receipt.get("autonomous_review_budget"), bool
-        ):
+        if receipt.get("autonomous_review_budget") != 3 or type(
+            receipt.get("autonomous_review_budget")
+        ) is not int:
             fail(f"controller receipt {expected_index} autonomous_review_budget must be 3")
         expected_remaining = 3 - expected_index
-        if receipt.get("autonomous_reviews_remaining") != expected_remaining or isinstance(
-            receipt.get("autonomous_reviews_remaining"), bool
-        ):
+        if receipt.get("autonomous_reviews_remaining") != expected_remaining or type(
+            receipt.get("autonomous_reviews_remaining")
+        ) is not int:
             fail(f"controller receipt {expected_index} autonomous_reviews_remaining is invalid")
         if receipt.get("autonomous_review_allowed") is not (expected_remaining > 0):
             fail(f"controller receipt {expected_index} autonomous_review_allowed is invalid")
@@ -437,20 +448,20 @@ def validate_completion_receipt(
         fail("completion receipt cannot close a final external receipt with findings")
     if receipt.get("review_chain_tracked") is not True or receipt.get("review_chain_id") != chain_id:
         fail("completion receipt review_chain_id does not match the controller chain")
-    if receipt.get("challenge_budget") != 2 or isinstance(receipt.get("challenge_budget"), bool):
+    if receipt.get("challenge_budget") != 2 or type(receipt.get("challenge_budget")) is not int:
         fail("completion receipt challenge_budget must be 2")
-    if receipt.get("autonomous_review_budget") != 3 or isinstance(
-        receipt.get("autonomous_review_budget"), bool
-    ):
+    if receipt.get("autonomous_review_budget") != 3 or type(
+        receipt.get("autonomous_review_budget")
+    ) is not int:
         fail("completion receipt autonomous_review_budget must be 3")
-    if receipt.get("autonomous_review_index") != len(receipts) or isinstance(
-        receipt.get("autonomous_review_index"), bool
-    ):
+    if receipt.get("autonomous_review_index") != len(receipts) or type(
+        receipt.get("autonomous_review_index")
+    ) is not int:
         fail("completion receipt autonomous_review_index does not match the final round")
     expected_remaining = 3 - len(receipts)
-    if receipt.get("autonomous_reviews_remaining") != expected_remaining or isinstance(
-        receipt.get("autonomous_reviews_remaining"), bool
-    ):
+    if receipt.get("autonomous_reviews_remaining") != expected_remaining or type(
+        receipt.get("autonomous_reviews_remaining")
+    ) is not int:
         fail("completion receipt autonomous_reviews_remaining does not match the final round")
     if receipt.get("autonomous_review_allowed") is not False:
         fail("completion receipt must disable further autonomous review")
@@ -499,7 +510,7 @@ def validate_base_attestations(
             },
             f"base_attestations[{index - 1}]",
         )
-        if row["sequence"] != index or isinstance(row["sequence"], bool):
+        if row["sequence"] != index or type(row["sequence"]) is not int:
             fail("base attestation sequence must be contiguous from 1")
         remote = bounded_text(row["remote"], f"base_attestations[{index - 1}].remote", 200)
         ref = bounded_text(row["ref"], f"base_attestations[{index - 1}].ref", 300)
@@ -592,7 +603,7 @@ def validate_disposition_evidence(
         },
         label,
     )
-    if evidence["schema_version"] != 1 or isinstance(evidence["schema_version"], bool):
+    if evidence["schema_version"] != 1 or type(evidence["schema_version"]) is not int:
         fail(f"{label}.schema_version must be 1")
     if sha256(evidence["candidate_sha256"], f"{label}.candidate_sha256") != candidate:
         fail(f"{label} is stale for the current candidate")
@@ -807,7 +818,7 @@ def validate_finding_classes(
             if len(normalized) != len(set(normalized)):
                 fail(f"finding class {key} searched_set contains duplicates")
             unmatched = sweep_row["unmatched_instances"]
-            if not isinstance(unmatched, int) or isinstance(unmatched, bool) or unmatched < 0:
+            if type(unmatched) is not int or unmatched < 0:
                 fail(f"finding class {key} unmatched_instances must be a non-negative integer")
             manifest_raw = load_sibling(
                 ledger_dir,
@@ -821,7 +832,7 @@ def validate_finding_classes(
                 {"schema_version", "candidate_sha256", "searched_set", "unmatched_instances"},
                 f"finding class {key} sweep manifest",
             )
-            if manifest["schema_version"] != 1 or isinstance(manifest["schema_version"], bool):
+            if manifest["schema_version"] != 1 or type(manifest["schema_version"]) is not int:
                 fail(f"finding class {key} sweep manifest schema_version must be 1")
             if sha256(manifest["candidate_sha256"], f"finding class {key} sweep manifest candidate") != candidate:
                 fail(f"finding class {key} sweep manifest is stale")
@@ -848,7 +859,7 @@ def validate_finding_classes(
 
 
 def validate(payload: dict[str, Any], ledger_dir: Path) -> tuple[str, int, int]:
-    if payload["schema_version"] != 3 or isinstance(payload["schema_version"], bool):
+    if payload["schema_version"] != 3 or type(payload["schema_version"]) is not int:
         fail("schema_version must be 3")
     candidate = sha256(payload["candidate_sha256"], "candidate_sha256")
     closeout = bounded_text(payload["closeout_state"], "closeout_state", 80)

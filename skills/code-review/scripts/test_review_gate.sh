@@ -2078,7 +2078,9 @@ for target in \
   table-structure.md \
   after-closed-fence.md \
   after-closed-list-fence.md \
-  ordinary-list-punctuation.md; do
+  ordinary-list-punctuation.md \
+  numeric-merge.md \
+  fenced-token.md; do
   printf '%s\n' '# Existing Markdown fixture' \
     >"$WORK/wording-reviewed-repo/skills/code-review/references/$target"
 done
@@ -2373,6 +2375,26 @@ index 1111111..2222222 100644
 -- Review remains exact.
 +- Review remains exact!
 DIFF
+cat >"$WORK/numeric-merge-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/numeric-merge.md b/skills/code-review/references/numeric-merge.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/numeric-merge.md
++++ b/skills/code-review/references/numeric-merge.md
+@@ -1 +1 @@
+-Retries wait 5.5 seconds in total.
++Retries wait 55 seconds in total.
+DIFF
+cat >"$WORK/fenced-token-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/fenced-token.md b/skills/code-review/references/fenced-token.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/fenced-token.md
++++ b/skills/code-review/references/fenced-token.md
+@@ -1,3 +1,3 @@
+ ```shell
+-This teh command stays quoted.
++This the command stays quoted.
+ ```
+DIFF
 cat >"$WORK/wording-token.patch" <<'DIFF'
 diff --git a/skills/code-review/references/typo.md b/skills/code-review/references/typo.md
 index 1111111..2222222 100644
@@ -2609,11 +2631,14 @@ for rejected_punctuation_scope in \
   heading-structure \
   list-structure \
   table-structure \
-  ordinary-list-punctuation; do
+  ordinary-list-punctuation \
+  numeric-merge; do
   write_wording_proof "$WORK/$rejected_punctuation_scope-wording.patch" \
     "$WORK/$rejected_punctuation_scope-wording-proof.json" \
     markdown-punctuation-only
 done
+write_wording_proof "$WORK/fenced-token-wording.patch" \
+  "$WORK/fenced-token-wording-proof.json" markdown-token-replacement teh the 1
 for eligible_scope in \
   after-closed-fence \
   after-closed-list-fence; do
@@ -2758,7 +2783,8 @@ for rejected_punctuation_scope in \
   heading-structure \
   list-structure \
   table-structure \
-  ordinary-list-punctuation; do
+  ordinary-list-punctuation \
+  numeric-merge; do
   reset_case passed unavailable unavailable
   out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
     --mode review --stage release --challenge-budget 0 \
@@ -2769,6 +2795,16 @@ for rejected_punctuation_scope in \
   check "$rejected_punctuation_scope cannot use the punctuation-only release waiver" \
     '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
 done
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage release --challenge-budget 0 \
+  --cwd "$WORK/wording-reviewed-repo" \
+  --diff-file "$WORK/fenced-token-wording.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/fenced-token-wording-proof.json")"; rc=$?
+check "token replacement inside a code container cannot use the wording-only scope" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
 
 for eligible_scope in \
   after-closed-fence \

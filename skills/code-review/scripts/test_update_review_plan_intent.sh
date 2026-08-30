@@ -349,6 +349,76 @@ assert_rc "$rc" 2 "stale expected digest must fail closed"
 assert_contains "plan_digest_mismatch" "$out" "stale-input mismatch reason"
 [ "$(digest "$PLAN")" = "$valid_4000" ] || fail "stale-input mismatch changed the plan"
 
+# An intent hand-rewritten outside the helper still starts with the supplied
+# core, but its first core_chars characters no longer hash to the persisted
+# identity; compaction must refuse rather than adopt the rewritten boundary.
+cp "$PLAN" "$TMP/identity-drift-plan.json"
+python3 - "$TMP/identity-drift-plan.json" "$TMP/identity-drift-core.txt" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+plan_path, core_path = map(Path, sys.argv[1:])
+plan = json.loads(plan_path.read_text(encoding="utf-8"))
+identity = next(
+    row["result"]
+    for row in plan["evidence"]
+    if row.get("id") == "review-plan-intent-stable-core-v1"
+)
+chars = int(re.search(r"chars=([0-9]+)", identity).group(1))
+rewritten = "x" * chars + " freshly rewritten tail"
+assert len(rewritten) <= 4000
+plan["intent"] = rewritten
+core_path.write_text(rewritten[:chars], encoding="utf-8")
+plan_path.write_text(
+    json.dumps(plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+)
+PY
+printf 'a novel transition for identity drift' >"$TMP/identity-drift-latest.txt"
+drift_before="$(digest "$TMP/identity-drift-plan.json")"
+set +e
+out="$(python3 "$UPDATER" --plan "$TMP/identity-drift-plan.json" --compact-core-intent-file "$TMP/identity-drift-core.txt" --latest-intent-file "$TMP/identity-drift-latest.txt" --expected-sha256 "$drift_before" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 2 "a rewritten intent must not satisfy the persisted identity"
+assert_contains "plan_core_identity_mismatch" "$out" "persisted-identity drift reason"
+[ "$(digest "$TMP/identity-drift-plan.json")" = "$drift_before" ] || fail "identity drift refusal changed the plan"
+
+# Zero-loss compaction refuses to overflow the evidence-row cap and leaves the
+# plan byte-identical.
+cp "$PLAN" "$TMP/overflow-rows-plan.json"
+python3 - "$TMP/overflow-rows-plan.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+plan_path = Path(sys.argv[1])
+plan = json.loads(plan_path.read_text(encoding="utf-8"))
+rows = plan["evidence"]
+index = 0
+while len(rows) < 49:
+    rows.append(
+        {
+            "id": f"synthetic-filler-{index:04d}",
+            "result": "synthetic filler evidence row exercising the overflow cap",
+        }
+    )
+    index += 1
+plan_path.write_text(
+    json.dumps(plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+)
+PY
+printf 'a novel transition for row overflow' >"$TMP/overflow-rows-latest.txt"
+overflow_rows_before="$(digest "$TMP/overflow-rows-plan.json")"
+set +e
+out="$(python3 "$UPDATER" --plan "$TMP/overflow-rows-plan.json" --compact-core-intent-file "$CORE" --latest-intent-file "$TMP/overflow-rows-latest.txt" --expected-sha256 "$overflow_rows_before" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 2 "history rows beyond the evidence cap must fail closed"
+assert_contains "intent_history_evidence_overflow" "$out" "history-row overflow reason"
+[ "$(digest "$TMP/overflow-rows-plan.json")" = "$overflow_rows_before" ] || fail "row overflow refusal changed the plan"
+
 # File transport may contribute one final newline, but arbitrary outer
 # whitespace or repeated blank lines must not be silently stripped into shape.
 python3 - "$PLAN" "$CORE" <<'PY'

@@ -1860,6 +1860,39 @@ def _advance_html_code_state(
     return tuple(containers), touches_code
 
 
+def _numeric_token_signature(line: str) -> tuple[str, ...]:
+    """Digit runs with their interior punctuation ("5.5", "2,000").
+
+    Stripping punctuation alone would certify "5.5" -> "55" or "5.5" -> "5,5"
+    as punctuation-only; numeric tokens must survive the edit byte-for-byte."""
+
+    tokens: list[str] = []
+    current: list[str] = []
+
+    def flush() -> None:
+        run = "".join(current)
+        current.clear()
+        trimmed = run.strip("".join(
+            character
+            for character in run
+            if unicodedata.category(character).startswith("P")
+        ))
+        if any(
+            unicodedata.category(character).startswith("N")
+            for character in trimmed
+        ):
+            tokens.append(trimmed)
+
+    for character in line:
+        if unicodedata.category(character)[0] in {"N", "P"}:
+            current.append(character)
+        elif current:
+            flush()
+    if current:
+        flush()
+    return tuple(tokens)
+
+
 def _plain_prose_punctuation_change(
     change_blocks: list[tuple[list[str], list[str]]],
 ) -> bool:
@@ -1898,6 +1931,10 @@ def _plain_prose_punctuation_change(
                 if not unicodedata.category(character).startswith("P")
             )
             if old_skeleton != new_skeleton:
+                return False
+            if _numeric_token_signature(old_line) != _numeric_token_signature(
+                new_line
+            ):
                 return False
     return True
 
@@ -2333,6 +2370,10 @@ def _load_wording_only_proof(
                 "punctuation-only scope must change only punctuation on plain prose lines"
             )
     else:
+        if parsed["punctuation_touches_code_container"]:
+            _wording_only_error(
+                "token-replacement scope cannot change a Markdown code container"
+            )
         token_pattern = re.compile(re.escape(check["old_token"]))
 
         def token_continues(character: str) -> bool:
@@ -2989,7 +3030,7 @@ def freeze_review_profile(
         reviewer_concern_pairs.append(
             (
                 "wording_only_boundary",
-                "Independently confirm this exact candidate is only the controller-proved punctuation/whitespace edit or named typo-token replacement, and changes no trigger, scope, routing, validation, acceptance, rule, threshold, boundary, frontmatter, description, or other meaning.",
+                "Independently confirm this exact candidate is only the controller-proved punctuation-only edit or named typo-token replacement, and changes no trigger, scope, routing, validation, acceptance, rule, threshold, boundary, frontmatter, description, or other meaning.",
             )
         )
 

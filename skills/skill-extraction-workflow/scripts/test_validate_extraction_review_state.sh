@@ -404,6 +404,29 @@ bad_digest = make_fixture("bad-digest")
 bad_digest["ledger"]["controller_receipts"][0]["sha256"] = "f" * 64
 run("bad-digest", bad_digest["ledger"], 1, "digest does not match")
 
+# JSON floats equal to the expected integers must not satisfy integer guards.
+float_schema = make_fixture("float-schema")
+float_schema["ledger"]["schema_version"] = 3.0
+run("float-schema", float_schema["ledger"], 1, "schema_version must be 3")
+
+float_budget = make_fixture(
+    "float-budget",
+    receipt_mutators={2: lambda row: row.update(challenge_budget=2.0)},
+)
+run("float-budget", float_budget["ledger"], 1, "challenge_budget must be 2")
+
+nan_schema = make_fixture("nan-schema")
+nan_schema["ledger"]["schema_version"] = float("nan")
+run("nan-schema", nan_schema["ledger"], 1, "non-standard JSON constant")
+
+control_chain = make_fixture(
+    "control-chain",
+    receipt_mutators={
+        2: lambda row: row.update(review_chain_id="chain\x1b[31mred")
+    },
+)
+run("control-chain", control_chain["ledger"], 1, "must not contain control characters")
+
 wrong_chain = make_fixture(
     "wrong-chain",
     receipt_mutators={2: lambda row: row.update(review_chain_id="other-chain")},

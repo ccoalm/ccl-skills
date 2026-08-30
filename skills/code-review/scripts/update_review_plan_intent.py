@@ -478,7 +478,21 @@ def main() -> int:
         )
         return 2
     except BrokenPipeError:
-        return 0
+        # The success receipt is printed only after atomic_replace committed, so
+        # a broken stdout pipe loses the receipt, not the update. rc 0 with no
+        # receipt would read as "no update happened"; report the committed-but-
+        # unreported state the same way a failed durability sync does.
+        try:
+            print(
+                "review_plan_intent_error: reason=plan_committed_receipt_lost "
+                "detail=stdout closed before the success receipt was delivered; "
+                "re-read the plan for the committed state and do not retry blindly",
+                file=sys.stderr,
+            )
+            sys.stderr.flush()
+        except (BrokenPipeError, OSError):
+            pass
+        return 2
 
 
 if __name__ == "__main__":
