@@ -462,6 +462,17 @@ commit_case "A20"; run_gate
 report_leg A20 0 "Node implementation owner 的 bank 证据可被 owner-scoped gate 消费"
 OWNER="$SAVED_OWNER"
 
+# A21 存量非 curated 技能只改 description，不产生 created-surface 义务 -> 必须绿
+# （created-surface 仅指 round base 时 entrypoint 不存在的新技能；否则义务落在
+#  owner 解析永远够不到的名字上，行无法绑定，红无法清偿。）
+new_case case-a21; add_owner_rule A21; write_plan
+append_row A21 'A curated owner row rides along while an existing non-curated sibling edits its description' \
+  '; result-class: failure'
+SAVED_OWNER="$OWNER"
+OWNER="web-react-dev"; edit_owner_description A21; OWNER="$SAVED_OWNER"
+commit_case "A21"; run_gate
+report_leg A21 0 '存量非 curated owner 的 description 编辑不欠 bank 证据（created-surface 仅限 base 不存在的技能）'
+
 echo "impact_chain_self_adjudication: legs_failed=$legs_failed"
 if [ "$legs_failed" -ne 0 ]; then
   echo "impact_chain_self_adjudication_failed=$legs_failed" >&2
