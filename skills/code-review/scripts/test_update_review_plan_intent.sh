@@ -133,7 +133,9 @@ set -e
 assert_rc "$rc" 0 "compact core+latest update should succeed"
 assert_contains "review_plan_intent_updated" "$out" "success token"
 [ "$(digest "$PLAN")" != "$before" ] || fail "replacement did not change the plan digest"
-[ "$(stat -f '%Lp' "$PLAN" 2>/dev/null || stat -c '%a' "$PLAN")" = 600 ] || fail "plan mode was not preserved"
+# GNU-first probe (mirrors opencode_review.sh): GNU stat echoes unknown BSD
+# directives verbatim with exit 0, so a BSD-first fallback never fires on CI.
+[ "$(stat -c '%a' "$PLAN" 2>/dev/null || stat -f '%Lp' "$PLAN")" = 600 ] || fail "plan mode was not preserved"
 python3 - "$PLAN" "$OLD_INTENT" <<'PY'
 import base64
 import hashlib
