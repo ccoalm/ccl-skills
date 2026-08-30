@@ -30,11 +30,22 @@ case "$base" in
   *$'\n'*) fail "multiple base-revision lines in the ledger header" ;;
 esac
 
+# The head must be pinned too: an unbounded head makes this frozen ledger
+# demand preservation rows from every later, unrelated skills/**/*.md change
+# (observed: the first post-landing PR went red on rows it never owed).
+head="$(sed -n 's/^- Head revision: `\([0-9a-f]\{40\}\)`$/\1/p' "$LEDGER")"
+[ -n "$head" ] || fail "no pinned 40-hex head SHA in the ledger header; regenerate the ledger with --head at its landing commit"
+case "$head" in
+  *$'\n'*) fail "multiple head-revision lines in the ledger header" ;;
+esac
+
 git -C "$ROOT" cat-file -e "$base^{commit}" 2>/dev/null \
   || fail "pinned base commit $base is absent; this audit needs full history (fetch-depth: 0)"
+git -C "$ROOT" cat-file -e "$head^{commit}" 2>/dev/null \
+  || fail "pinned head commit $head is absent; this audit needs full history (fetch-depth: 0)"
 
 audit_output="$(python3 "$TOOL" audit \
-  --repo "$ROOT" --base "$base" \
+  --repo "$ROOT" --base "$base" --head "$head" \
   --mapping "$MAPPING" --ledger "$LEDGER" 2>&1)" \
   || fail "real-repository obligation audit failed:\n$audit_output"
 case "$audit_output" in

@@ -7,6 +7,7 @@
 ## Reproducible comparison domain
 
 - Base revision: `9e3ede5ee379e99e74507873a80382f2185346a5`
+- Head revision: `5d2b192d2d4ff4787fbf3ef8fa8e090e14dd9226`
 - Changed pre-existing `skills/**/*.md`: 37
 - Explicit relocation destinations: 13
 - Governing-chain-diff rows: 1240

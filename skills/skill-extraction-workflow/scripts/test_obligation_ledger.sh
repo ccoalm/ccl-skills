@@ -566,6 +566,40 @@ printf '%s\n' "$audit_output" | grep -Fq 'reviewed_semantic='
 git -C "$FIXTURE" add .
 git -C "$FIXTURE" commit -qm candidate
 
+# A pinned --head freezes the comparison domain at the landing commit: a
+# later, unrelated obligation rewrite must not add rows to a frozen ledger
+# (unpinned it does — that asymmetry is what this case pins).
+CANDIDATE_HEAD="$(git -C "$FIXTURE" rev-parse HEAD)"
+python3 "$TOOL" render --repo "$FIXTURE" --base "$BASE" --head "$CANDIDATE_HEAD" \
+  --mapping "$FIXTURE/specs/mapping.jsonl" --output "$FIXTURE/specs/ledger-pinned.md" 2>/dev/null
+python3 - "$FIXTURE/skills/destination/SKILL.md" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+updated = text.replace(
+    "- Existing stable contract remains unchanged for the fixture.",
+    "- Existing stable contract now waits for the fixture owner.",
+)
+assert updated != text
+path.write_text(updated, encoding="utf-8")
+PY
+pinned_audit="$(python3 "$TOOL" audit --repo "$FIXTURE" --base "$BASE" --head "$CANDIDATE_HEAD" \
+  --mapping "$FIXTURE/specs/mapping.jsonl" --ledger "$FIXTURE/specs/ledger-pinned.md" 2>&1)" \
+  || { printf 'FAIL pinned-head audit went red on a post-head rewrite:\n%s\n' "$pinned_audit" >&2; exit 1; }
+printf '%s\n' "$pinned_audit" | grep -Fq 'audit_ok' \
+  || { printf 'FAIL pinned-head audit missing audit_ok:\n%s\n' "$pinned_audit" >&2; exit 1; }
+if unpinned_audit="$(python3 "$TOOL" audit --repo "$FIXTURE" --base "$BASE" \
+  --mapping "$FIXTURE/specs/mapping.jsonl" --ledger "$FIXTURE/specs/ledger.md" 2>&1)"; then
+  printf 'FAIL unpinned audit must demand a row for the post-head rewrite:\n%s\n' "$unpinned_audit" >&2
+  exit 1
+fi
+printf '%s\n' "$unpinned_audit" | grep -Fq 'ROW_SET_MISMATCH' \
+  || { printf 'FAIL unpinned audit failed for the wrong reason:\n%s\n' "$unpinned_audit" >&2; exit 1; }
+git -C "$FIXTURE" checkout -q -- skills/destination/SKILL.md
+echo "PASS pinned-head domain freeze"
+
 mutate_jsonl() {
   local file="$1" expression="$2"
   python3 - "$file" "$expression" <<'PY'
