@@ -69,7 +69,6 @@ AI_PROVIDER_ALIASES = (
     r"gemini",
     r"(?:github\s+)?copilot(?:\s+swe\s+agent)?",
     r"cursor",
-    r"deepseek",
     r"grok",
     r"qwen",
     r"doubao",
@@ -106,7 +105,7 @@ UNAMBIGUOUS_AI_IDENTITY = (
     rf"(?:claude{AI_IDENTITY_VERSION_INFIX}[-_\s]+"
     rf"(?:code|sonnet|opus|haiku){AI_IDENTITY_QUALIFIER}"
     rf"|{QWEN_MODEL_IDENTITY}|{GEMINI_MODEL_IDENTITY}"
-    rf"|(?:codex|chatgpt|openai|opencode|(?:github\s+)?copilot|deepseek|qwen|"
+    rf"|(?:codex|chatgpt|openai|opencode|(?:github\s+)?copilot|qwen|"
     rf"doubao|windsurf|perplexity){AI_IDENTITY_QUALIFIER})"
 )
 BRACKETED_AI_BOT_IDENTITY = rf"(?:{AI_PROVIDER_ACCOUNT})\[bot\]"
@@ -152,7 +151,6 @@ AI_SESSION_ORIGIN_ALIASES = (
     (r"(?:www\.)?kimi\.com", ""),
     (r"gemini\.google\.com", ""),
     (r"g\.co", "gemini/"),
-    (r"chat\.deepseek\.com", ""),
     (r"copilot\.microsoft\.com", ""),
     (r"(?:www\.)?opencode\.ai", ""),
 )

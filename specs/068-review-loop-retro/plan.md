@@ -6,8 +6,9 @@
   retrospective candidate. This plan scopes only the final timeout correction;
   it does not replace or narrow the earlier 068 review-loop and Git-metadata
   work already present in the worktree.
-- Status: local implementation on `worktree-068-review-loop-retro`; no commit,
-  push, merge, release, or cleanup is authorized.
+- Status: implemented on `worktree-068-review-loop-retro` and opened as PR
+  #79 after explicit commit, push, and PR authorization. Merge, release, and
+  cleanup remain unauthorized.
 - Change: raise the existing generic `--timeout` ceiling from 600 to 1200
   seconds in the review controller and every direct client wrapper.
 - Preserve: the 600-second default, client order, fallback rules,
@@ -40,6 +41,7 @@
 ## Review gate
 
 Risk tag: `shared-gate`. Before completion, walk the asserted properties and
-their killing mutations, then run one independent review and one adversarial
-challenge against the exact final candidate. A timeout or malformed reviewer
-result remains inconclusive, not approval.
+their killing mutations, then run one independent review and up to two
+adversarial challenges through the extraction-owned wrapper against the exact
+final candidate. A timeout or malformed reviewer result remains inconclusive,
+not approval.

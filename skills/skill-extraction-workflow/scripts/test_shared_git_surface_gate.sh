@@ -694,9 +694,9 @@ for human_case in claude:Claude kimi:Kimi poe:Poe; do
   human_slug="${human_case%%:*}"
   human_name="${human_case#*:}"
   candidate_identity_case "case/noreply-human-$human_slug" "$human_name" \
-    "12345+human@users.noreply.github.com" "Synthetic Tester" tester@example.invalid
+    "12345+human.noreply@example.invalid" "Synthetic Tester" tester@example.invalid
   run_gate
-  assert_rc "$rc" 0 "a human $human_name author using a GitHub privacy address must remain valid"
+  assert_rc "$rc" 0 "a human $human_name author using a privacy-style address must remain valid"
 done
 
 printf 'change summary\n\n🤖 Claude Code\n' >"$TMP/footer-message.txt"
@@ -1097,7 +1097,7 @@ assert_proposed_block \
   '[Generated with Claude Code](https://example.invalid)' \
   generated_by_footer "outer Markdown-link generated attribution"
 assert_proposed_block \
-  '[Co-Authored-By: Claude Code <bot@invalid.example>](https://example.invalid)' \
+  '[Co-Authored-By: Claude Code <bot@example.invalid>](https://example.invalid)' \
   ai_coauthor_trailer "outer Markdown-link co-author trailer"
 assert_proposed_block \
   '[会话过程：摘要](https://example.invalid)' \
