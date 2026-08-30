@@ -1,7 +1,7 @@
 # @ccoalm/ccl-skills
 
 [![npm version](https://img.shields.io/npm/v/@ccoalm/ccl-skills)](https://www.npmjs.com/package/@ccoalm/ccl-skills)
-[![downloads](https://img.shields.io/npm/dm/@ccoalm/ccl-skills)](https://www.npmjs.com/package/@ccoalm/ccl-skills)
+[![downloads](https://img.shields.io/npm/dt/@ccoalm/ccl-skills)](https://www.npmjs.com/package/@ccoalm/ccl-skills)
 [![license](https://img.shields.io/npm/l/@ccoalm/ccl-skills)](https://github.com/ccoalm/ccl-skills/blob/main/LICENSE)
 
 **Reusable workflows that help coding agents plan, build, test, review, and release software.**
