@@ -74,13 +74,18 @@ roots.each do |root|
         next
       end
       next unless ref.start_with?("references/") || ref.start_with?("../")
-      candidate =
+      candidates =
         if ref.start_with?("../")
-          File.expand_path(ref, root)
+          # Relative Markdown references navigate from the document that
+          # contains them. SKILL.md still resolves from root because it lives
+          # there; references/*.md resolves from references/. Preserve the
+          # Preserve the legacy skill-root lookup as a compatibility fallback
+          # for older prose locators until those documents are migrated.
+          [File.expand_path(ref, File.dirname(path)), File.expand_path(ref, root)].uniq
         else
-          File.join(root, ref)
+          [File.join(root, ref)]
         end
-      missing << [File.basename(root), path.sub(root + "/", ""), ref] unless File.exist?(candidate)
+      missing << [File.basename(root), path.sub(root + "/", ""), ref] unless candidates.any? { |candidate| File.exist?(candidate) }
     end
   end
 end

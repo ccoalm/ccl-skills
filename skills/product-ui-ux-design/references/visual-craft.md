@@ -102,10 +102,12 @@ If a pattern appears in a Figma source, preserve it only when it has a clear pro
 
 ## Acceptance Questions
 
-Before calling frontend visual work polished, ask:
+These questions contribute visual-craft criteria; they cannot mark a runtime slice ready or complete. Evaluate them on every affected rendered layer and bind the resulting evidence through the complete design/test/producer/client set and design verdict in `delivery-contract.md`.
+
+Before calling client visual work polished, ask:
 
 - Does the screen have a clear product-level visual point of view?
 - Does it avoid generic AI frontend patterns?
 - Does the visual direction support the target product loop instead of distracting from it?
 - Are typography, color, spacing, radius, motion, and background choices tied to existing tokens or an explicit product reason?
-- Does the screen remain readable, accessible, and performant on mobile and desktop?
+- Does the surface remain readable, accessible, and performant across the supported sizes, host modes, input/capability modes, and adaptation matrix of every affected client—not only Mobile and desktop Web?

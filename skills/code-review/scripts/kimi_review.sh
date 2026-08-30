@@ -60,10 +60,17 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$MODE" in review|challenge) ;; *) die_inconclusive bad_mode ;; esac
-[[ "$TIMEOUT" =~ ^[1-9][0-9]*$ ]] && [ "$TIMEOUT" -ge 5 ] || die_inconclusive invalid_timeout invalid_input false
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+[ -f "$SCRIPT_DIR/normalize_review_timeout.sh" ] \
+  && [ -r "$SCRIPT_DIR/normalize_review_timeout.sh" ] \
+  && [ ! -L "$SCRIPT_DIR/normalize_review_timeout.sh" ] \
+  || die_inconclusive timeout_normalizer_missing local_tool_failure false
+# shellcheck source=normalize_review_timeout.sh
+. "$SCRIPT_DIR/normalize_review_timeout.sh"
 # Keep every invocation, including inline argv exposure, inside the controller's
 # documented direct-client ceiling.
-[ "$TIMEOUT" -le 600 ] || TIMEOUT=600
+TIMEOUT="$(normalize_review_timeout "$TIMEOUT")" \
+  || die_inconclusive invalid_timeout invalid_input false
 lane_budget_started=$SECONDS
 [ "$REVIEW_SKILL_COUNT" -eq 0 ] || for review_skill in "${REVIEW_SKILLS[@]}"; do
   # The controller and binding verifier use the same package-name grammar.
@@ -86,7 +93,6 @@ if [ -n "$REVIEW_PROFILE_FILE" ]; then
     || die_inconclusive invalid_review_profile_file
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PARSER="$SCRIPT_DIR/parse_cli_review.py"
 PACKET_MCP_SERVER="$SCRIPT_DIR/kimi_packet_mcp.py"
 TIMEOUT_CLASSIFIER="$SCRIPT_DIR/classify_timeout_exit.sh"

@@ -7,7 +7,8 @@ The controller has three modes:
 - `complete`: a local deep-self-review checkpoint that calls no reviewer.
 
 Explore/build may configure `challenge_budget=0..4`; release/high-risk requires
-at least one challenge. The initial review consumes Agent round 1, so total
+at least one challenge unless the exact candidate qualifies for the
+proof-bound wording-only single-review exception below. The initial review consumes Agent round 1, so total
 Agent-autonomous external review is at most five rounds. Human-requested review
 is outside this budget and must be attributed by the consuming trusted platform.
 The budget is a ceiling, not a quota: after a clean tracked challenge, local
@@ -28,6 +29,48 @@ Self-review accumulates stage concerns: explore covers correctness and
 safety; build adds failure paths, tests, and compatibility; release adds rollout
 and operations. High-risk input raises depth to release and adds
 `high_risk_boundary`.
+
+The serialized plan is at most 32,000 bytes and `intent` is 8..4,000
+characters. Those are validation limits, not permission for a caller to slice a
+longer value into shape: the gate can validate only the final value it receives
+and cannot detect that a caller discarded the newest scope transition first.
+Call `scripts/update_review_plan_intent.py` to mutate an existing plan. It checks
+an optional expected SHA-256, opens bounded inputs without following links,
+writes atomically, preserves ordinary POSIX permission bits, rejects duplicate
+JSON object keys before mutation, and leaves the plan byte-identical on
+validation or overflow failure. When the plan producer first
+chooses the stable core, it persists one reserved evidence row with
+`id=review-plan-intent-stable-core-v1` and result
+`chars=<character-count>;sha256=<UTF-8-SHA-256>`. On overflow, pass that exact
+core and the latest transition as separate files: the helper requires both the
+character count and digest to match the persisted identity, requires latest to
+be absent from the current intent, and joins them with one fixed blank line.
+Before replacing the visible intent, it archives the exact removed suffix in a
+reserved, ordered base64 evidence group. That group's manifest binds the prior
+intent character count and SHA-256, core length, suffix byte count and SHA-256,
+encoding, and part count; if the plan or evidence-row cap cannot hold the group,
+compaction fails without changing the file. These rows preserve bytes but do not
+classify their meaning. A matching arbitrary prefix is therefore insufficient. Existing plans without
+the reserved row remain appendable but cannot compact until their producer has
+explicitly established the identity; the helper returns
+`intent_core_identity_missing` instead of guessing. The identity proves the
+recorded text boundary, not semantic correctness or protection from a caller
+that rewrites the whole plan outside the helper. Keep semantic dispositions in
+ordinary evidence rows and ordered prior-review results; the byte archive is a
+loss-prevention carrier, not a substitute. Never use prefix/tail truncation as
+compaction. One final line ending is treated as a file delimiter; other outer
+whitespace is rejected.
+
+The expected digest is a stale-at-open guard, not a lock: callers serialize
+writers and provide a trusted, stable parent directory for the read-check-replace
+interval. Plans are caller-owned, singly linked regular files; ACLs, extended
+attributes, ownership, and special mode bits are outside this replacement
+contract. A post-rename directory-sync failure reports
+`plan_committed_durability_unknown` with the new digest: re-read before deciding
+whether to retry, because the target has already changed. A stdout pipe that
+closes before the success receipt is delivered likewise reports
+`plan_committed_receipt_lost` on stderr with a nonzero exit: the update is
+committed, only the receipt was lost, so re-read the plan instead of retrying.
 
 Each self-review row may name a direct sibling skill. Omission selects the
 `code-review` baseline. The controller also derives owners deterministically
@@ -97,6 +140,145 @@ or MCP servers make the plugin ineligible for this bounded review lane.
 Wrappers keep an explicit selected-owner count instead of testing empty Bash
 arrays under `set -u`, preserving the no-owner lane on Bash 3.2.
 
+## Base-derived packet input boundary
+
+`--base` freezes the tracked diff plus every non-ignored untracked path in
+scope. Exact-candidate binding means the controller never skips an untracked
+path or replaces its contents with a placeholder. An untracked path containing
+a Unicode control or line-separator character, symlink, hardlink, other
+non-regular file, NUL-bearing file, non-UTF-8 file, or file over 200,000 bytes
+makes the whole lane fail before provider execution with
+`reason_code=invalid_input`. The same result applies when rendered untracked
+content or the combined tracked-plus-untracked packet exceeds 200,000 bytes.
+
+Move an out-of-scope path outside the candidate or add a correct ignore rule;
+commit an in-scope path when Git should represent it; or compose complete
+`--diff-file` partitions when the candidate must be split. Never omit a path
+and report the remaining packet as the whole candidate.
+
+## Proof-bound wording-only single review
+
+The wording-only exception is one untracked `review` with
+`challenge_budget=0`; it is not a chain, challenge, or `complete` checkpoint.
+Supply `--wording-only-proof-file` to bind the exception to the exact packet.
+Without that proof, an explore/build budget-zero review remains an ordinary
+single review and cannot be recorded as the wording-only exception;
+release/high-risk budget zero fails before inference.
+
+At release depth, including depth raised by a high-risk tag, only a
+controller-proved `markdown-punctuation-only` check may use this exception.
+`markdown-token-replacement` remains available for explore/build budget-zero
+review, but it cannot waive the release/high-risk challenge: byte-exact token
+replacement does not prove that the old and new tokens have the same meaning.
+
+The proof is a single-link regular UTF-8 JSON file of at most 16,000 bytes:
+
+```json
+{"schema_version":1,"candidate_sha256":"<packet-sha256>","check":{"kind":"markdown-punctuation-only"}}
+```
+
+The other fixed check is
+`markdown-token-replacement`, whose `check` also contains `old_token`,
+`new_token`, and integer `expected_count` (1..100). The controller never trusts
+a caller-supplied pass result. It reparses the frozen packet and derives the
+status, files, changed-line count, replacement count, and scope SHA-256.
+
+The accepted packet is deliberately narrow: a canonical full-context unified
+Git diff, LF-terminated, at most 200,000 bytes, changing existing regular
+Markdown files inside exactly one existing non-linked skill package. Every
+file's first hunk starts at line 1 so frontmatter is inspectable. Adds,
+deletes, renames, multi-skill changes, frontmatter or `description` edits,
+non-regular Git modes, custom/compact packets, extra context outside the diff,
+and files without a final newline fail closed. `markdown-punctuation-only`
+accepts only one-for-one plain-prose line replacements whose non-punctuation
+characters remain identical; numeric tokens must additionally survive
+byte-for-byte (deleting the dot in `5.5` is a threshold change, not
+punctuation), and a question mark may not be added or removed (a statement
+turned into a question is a meaning change). Lines must start at column zero
+and contain prose; line adds/deletes, Markdown headings, lists, block quotes,
+links, tables, inline code, fenced or indented code, and raw HTML `pre`/`code`
+containers fail closed. `markdown-token-replacement` requires every changed
+line pair to differ only by the named whole-token replacement, with the exact
+total count, and rejects packets whose changed lines touch a Markdown or HTML
+code container.
+
+This recipe produces the exact packet and proof without a second parser or a
+pretend verifier command. Set `WORDING_KIND=markdown-punctuation-only`, or set
+`WORDING_KIND=markdown-token-replacement` plus `WORDING_OLD`, `WORDING_NEW`, and
+`WORDING_COUNT`:
+
+```bash
+: "${CODE_REVIEW_SKILL_DIR:?set the installed code-review skill directory}"
+: "${REPO_ROOT:?set the absolute repository root}"
+: "${REVIEW_BASE:?set the exact base ref}"
+: "${SKILL_NAME:?set the one existing skill package name}"
+: "${REVIEW_STAGE:?set explore, build, or release}"
+: "${IMPLEMENTER_FAMILY:?set the implementer model family}"
+: "${REVIEW_PLAN_FILE:?set the absolute review-plan JSON path}"
+: "${REVIEW_EVIDENCE_DIR:?set an existing durable private evidence directory}"
+: "${WORDING_KIND:?set one supported wording-only check kind}"
+
+umask 077
+WORDING_RUN_DIR="$(mktemp -d "$REVIEW_EVIDENCE_DIR/wording-review.XXXXXX")" || exit 1
+WORDING_DIFF="$WORDING_RUN_DIR/candidate.diff"
+WORDING_PROOF="$WORDING_RUN_DIR/proof.json"
+WORDING_RESULT="$WORDING_RUN_DIR/review.json"
+
+git -C "$REPO_ROOT" diff --no-color --no-ext-diff --no-textconv --full-index \
+  --src-prefix=a/ --dst-prefix=b/ --unified=1000000 \
+  "$REVIEW_BASE" -- "skills/$SKILL_NAME" >"$WORDING_DIFF" || exit 1
+
+python3 - "$WORDING_DIFF" "$WORDING_PROOF" "$WORDING_KIND" \
+  "${WORDING_OLD:-}" "${WORDING_NEW:-}" "${WORDING_COUNT:-0}" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+diff_path, proof_path = map(Path, sys.argv[1:3])
+kind, old, new, count = sys.argv[3:]
+check = {"kind": kind}
+if kind == "markdown-token-replacement":
+    check.update(old_token=old, new_token=new, expected_count=int(count))
+elif kind != "markdown-punctuation-only":
+    raise SystemExit("unsupported WORDING_KIND")
+payload = {
+    "schema_version": 1,
+    "candidate_sha256": hashlib.sha256(diff_path.read_bytes()).hexdigest(),
+    "check": check,
+}
+proof_path.write_text(
+    json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n",
+    encoding="utf-8",
+)
+PY
+
+WORDING_RISK_ARGS=()
+for tag in ${REVIEW_RISK_TAGS:-}; do WORDING_RISK_ARGS+=(--risk-tag "$tag"); done
+if ! bash "$CODE_REVIEW_SKILL_DIR/scripts/review_gate.sh" \
+  --mode review --stage "$REVIEW_STAGE" --challenge-budget 0 \
+  --cwd "$REPO_ROOT" --diff-file "$WORDING_DIFF" \
+  --review-plan-file "$REVIEW_PLAN_FILE" \
+  --wording-only-proof-file "$WORDING_PROOF" \
+  ${WORDING_RISK_ARGS[@]+"${WORDING_RISK_ARGS[@]}"} \
+  --implementer-family "$IMPLEMENTER_FAMILY" >"$WORDING_RESULT"; then
+  cat "$WORDING_RESULT" >&2
+  exit 1
+fi
+cat "$WORDING_RESULT"
+```
+
+A valid result carries `wording_only_proof_sha256`, controller-derived
+`wording_only_scope.status=passed`, and a reviewed
+`wording_only_boundary` concern. That concern independently confirms the edit
+changes no trigger, scope, routing, validation, acceptance, rule, threshold,
+boundary, frontmatter, description, or other meaning. If it is missing,
+inconclusive, or reports a possible semantic change, the wording-only exception
+does not apply: use the normal challenge and behavioral-evidence path. Any
+candidate edit regenerates the packet and proof and requires a new review.
+Keep the diff, proof, and result together; a digest whose source artifact was
+deleted is not independently auditable evidence.
+
 ## Agent review chain
 
 Multi-round Agent automation supplies `review_chain_id`, a contiguous
@@ -110,11 +292,13 @@ index 1; an untracked initial review is single-round and therefore uses budget 0
 The chain binds task scope, candidate identity per round, result hashes, mode,
 status, challenge focus, controller, and selected owners. The opaque
 `review_scope_sha256` always hashes normalized intent, acceptance, stage/depth,
-risk tags, and challenge budget; chain identity is validated separately. Every
-result also carries the canonical `review_scope` object that digest is taken
-over — intent and acceptance appear only as `intent_sha256` /
-`acceptance_sha256`, never as raw plan text, because results are logged and
-archived independently of the plan. A prior result is accepted only when its
+risk tags, challenge budget, and the wording-only proof/scope digests (both
+`null` outside that exception); chain identity is validated separately. This
+prevents deleting or nulling the top-level wording-only fields from reclassifying
+that receipt as a normal completion input. Every result also carries the
+canonical `review_scope` object that digest is taken over — intent and
+acceptance appear only as `intent_sha256` / `acceptance_sha256`, never as raw
+plan text, because results are logged and archived independently of the plan. A prior result is accepted only when its
 recorded `review_scope` reproduces its own `review_scope_sha256` and that digest
 matches the current scope, so copying a digest onto a differently-scoped result
 no longer passes. This binding proves internal consistency, not authority: prior
@@ -180,7 +364,11 @@ Budget exhaustion likewise stops only automatic reviewer calls. Continue local
 fixes, self-review, tests, and independent work; park only decision-dependent
 work. Enter `awaiting_human` only when no independent runnable work remains.
 
-The current result envelope is schema 3. The controller bounds cumulative reviewer-lane execution with `--total-timeout`
+The current result envelope is schema 3. The generic per-invocation `--timeout`
+keeps its 600-second default and accepts 5..1200 seconds; direct wrappers clamp
+higher decimal values, including values beyond shell integer range, to 1200.
+Wrapper-internal sub-mode limits such as Kimi inline mode's 120-second cap stay
+separate. The controller bounds cumulative reviewer-lane execution with `--total-timeout`
 (default 2400 seconds, accepted range 5..3600). Setup time reduces the budget,
 and git preflight subprocesses share its deadline; direct filesystem reads
 remain subject to the host's outer timeout. Each client receives the smaller of the requested per-invocation

@@ -38,13 +38,13 @@ cannot observe or authenticate it. Hosts that need mechanical enforcement must
 provide their own trusted execution adapter; this repository preserves the
 contract and evidence shape without claiming that enforcement.
 
-The wrapper default timeout is 600 seconds per formal invocation, matching the
-accepted maximum. Measured single-lane costs on this repository's own review
+The wrapper default timeout remains 600 seconds per formal invocation; the
+generic accepted maximum is 1200 seconds. Measured single-lane costs on this repository's own review
 diffs were roughly 89, 247, and 419 seconds, so a smaller default silently
 converts a working reviewer into an inconclusive timeout; because a timeout is
 cascade-eligible, spending wall-clock is recoverable while a premature timeout
 quietly loses that lane's verdict. Lower it explicitly with `--timeout` when a
-fast bound matters more than lane coverage. It makes no separate model behavior-probe request. Challenge makes one invocation; review and consult may make up to two only through their existing bounded result-recovery paths. The wrapper rejects timeout values below 5 seconds and clamps values above 600 seconds to 600 seconds. The bound is per invocation, not per wrapper run: an outer timeout must cover `timeout` for challenge and up to `2 * timeout` for review or consult, and must never kill the wrapper and then treat the killed output as success. With defaults, allow about ten minutes for challenge and up to twenty minutes for review or consult. If the command is still running but silent, poll the same execution handle again.
+fast bound matters more than lane coverage. It makes no separate model behavior-probe request. Challenge makes one invocation; review and consult may make up to two only through their existing bounded result-recovery paths. The wrapper rejects timeout values below 5 seconds and normalizes every larger decimal, including values beyond shell integer range, to at most 1200 seconds. Wrapper-internal sub-mode limits remain separate; Kimi inline review still caps argv-exposed work at 120 seconds. The bound is per invocation, not per wrapper run: an outer timeout must cover `timeout` for challenge and up to `2 * timeout` for review or consult, and must never kill the wrapper and then treat the killed output as success. With defaults, allow about ten minutes for challenge and up to twenty minutes for review or consult. If the command is still running but silent, poll the same execution handle again.
 
 The controller separately enforces a cumulative reviewer-lane budget.
 `--total-timeout` defaults to 2400 seconds and accepts 5 to 3600. Its clock

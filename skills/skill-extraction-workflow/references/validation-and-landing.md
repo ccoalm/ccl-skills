@@ -128,14 +128,14 @@ Before commit, for any rule that appears in more than one authored file (`SKILL.
 
 ## Bounded Independent Review Packet
 
-Use this when an independent review is required but a broad reviewer prompt hangs, returns no output, or starts expanding beyond the intended review scope. The gate-valid path is the provider-neutral `code-review` gate (`review_gate.sh`) with its frozen packet, family exclusion, structured validation, and client-specific recovery; raw provider CLI packets are debugging/advisory only and must not be recorded as passing review evidence.
+Use this when an independent review is required but a broad reviewer prompt hangs, returns no output, or starts expanding beyond the intended review scope. For non-wording extraction work, the gate-valid path is `scripts/extraction_review_gate.sh`, which owns the fixed autonomous budget while delegating transport to the provider-neutral `code-review` controller. A strictly proven wording-only change uses the proof-bound generic single-review recipe in `code-review/references/staged-review-contract.md`; its controller-derived wording scope and independent `wording_only_boundary` result replace neither one another nor a failed semantic check. Both paths preserve the frozen packet, family exclusion, structured validation and client-specific recovery; raw provider CLI packets are debugging/advisory only and must not be recorded as passing review evidence.
 
 Required flow:
 
-1. Prove the reviewer gate is available. Run `skills/code-review/scripts/review_gate.sh --help` or the repo-local equivalent and confirm it prints usage. This local availability check does not invoke a model and is not review evidence. Do not use a raw provider "ping" as gate evidence. If the gate cannot run after documented remediation, record the lane as unavailable/inconclusive with command evidence.
+1. Prove the applicable owner gate is available. For non-wording work, run `skills/skill-extraction-workflow/scripts/extraction_review_gate.sh --help`; for a strictly proven wording-only change, use the generic `code-review` help recipe. This local availability check does not invoke a model and is not review evidence. Do not use a raw provider "ping" as gate evidence. If the gate cannot run after documented remediation, record the lane as unavailable/inconclusive with command evidence.
 2. Stop the stuck review process before retrying. Do not leave background reviewer sessions running and do not count a no-output process as a completed review.
 3. Build a bounded packet from the exact changed files or excerpts being claimed. Prefer `git diff -- <files>` for local changes.
-4. Feed the packet through `review_gate.sh` with the actual implementer family, required `--review-plan-file`, stage, exact base/paths or frozen diff file, and explicit non-Claude egress approval when applicable. The plan binds the target, acceptance criteria, self-review, and evidence before the independent run. The gate preserves tool posture, timeout, attribution, and output parsing while following the user's local client order. A raw Claude packet may be used only to debug a wrapper failure and remains advisory:
+4. Feed a non-wording packet through `scripts/extraction_review_gate.sh`; feed a strictly proven wording-only packet through the proof-bound generic single-review recipe. The wording-only path uses its exact canonical full-context diff and proof file, stays untracked, and does not run `complete`; a custom/context-augmented packet or missing `wording_only_boundary` result re-arms challenge. In either case supply the actual implementer family, required `--review-plan-file`, stage, exact candidate, and explicit non-Claude egress approval when applicable. The plan binds the target, acceptance criteria, self-review and evidence before the independent run. The gate preserves tool posture, timeout, attribution and output parsing while following the user's local client order. A raw Claude packet may be used only to debug a wrapper failure and remains advisory:
 
 ```sh
 git -C <repo> diff -- <files...> \
@@ -151,6 +151,7 @@ Review only stdin. Do not use tools. Do not request more context. Return finding
 5. Apply or explicitly reject actionable findings.
 6. Rerun the owning skill validators and `git diff --check`.
 7. Record the result as `findings applied`, `no blocking findings`, or `review unavailable after remediation` only when the wrapper or approved alternate produced valid structured evidence. Raw packet output is recorded separately as debugging/advisory and cannot close the gate.
+8. At a non-wording terminal checkpoint, build the receipt-bound ledger and run `scripts/validate_extraction_review_state.py <closeout.json>`. A wording-only review records its single independent-review row and does not invent a multi-round ledger.
 
 Do not count as completed review:
 

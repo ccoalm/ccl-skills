@@ -44,4 +44,4 @@ Use this reference after `web-react-dev/SKILL.md` identifies a React surface as 
 
 - State owner map exists for every selected pattern family.
 - Long content, empty/no-data, error/retry, slow/weak network, permission/disabled, narrow/responsive, accessibility text scaling, interruption/return recovery, and repeated-use/cache-hit behavior are either tested or explicitly out of scope.
-- Browser or host-container evidence captures the declared stress widths and the primary pending/final/error states. If rendered evidence cannot run after normal remediation, status is `pre-runtime-test ready` or `blocked`, not complete.
+- Browser or host-container evidence captures the declared stress widths and the primary pending/final/error states. If rendered evidence cannot run after normal remediation, status is `pre-runtime-test-ready` or `blocked`, not complete.

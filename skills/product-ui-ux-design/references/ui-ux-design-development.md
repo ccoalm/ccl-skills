@@ -1,6 +1,6 @@
 # UI/UX Design And Development
 
-Use this reference when the task is to design a UI/UX surface and implement it in frontend code. It bridges Figma-derived design rules with reusable implementation patterns observed in mobile and web frontend sources.
+Use this reference when the task is to design a UI/UX surface and implement it in client code. It is a primitive catalog and translation guide; `delivery-contract.md` is authoritative for the design brief, testing selection, producer/client returns, evidence semantics, and design verdict.
 
 This reference is for new-product UI/UX execution. Do not copy education-domain workflows, wording, assets, product assumptions, or information architecture from source artifacts.
 
@@ -13,6 +13,8 @@ Before coding, define:
 - **Density**: consumer relaxed, productive compact, or hybrid.
 - **Source pattern**: which Figma/code pattern is being reused and what domain details are discarded.
 - **State set**: use the canonical taxonomy in `product-surface-patterns.md`, then add implementation-specific loading, retry, cancellation, permission, long-content, and responsive behavior.
+- **Client owner set**: follow every affected rendered layer in `delivery-contract.md`. React web → `web-react-dev`; Vue/Svelte/static/vendor/other web → its installed web-content owner or fail-closed project-convention lookup; native mobile/host → `app-cross-platform-dev`; mini-app → `miniapp-product-dev`; terminal/CLI/TUI → `terminal-cli-dev`; Electron/desktop/TV shell → its installed owner or the same project-convention lookup. Composite hosts keep separate content and shell members.
+- **Producer owner**: every changed or claim-bearing backend, config, content, or inference source that supplies a rendered value or behavior; record its exact artifact/version identity before client execution.
 
 Do not start from a decorative layout. Start from the user job, interaction loop, and required states.
 
@@ -25,8 +27,8 @@ Do not start from a decorative layout. Start from the user job, interaction loop
 5. **Implement state model**: represent loading/error/empty/partial/success/permission explicitly in data and UI.
 6. **Implement responsive behavior**: mobile safe area and keyboard behavior; web secondary panel collapse and min/max widths.
 7. **Implement feedback**: inline validation, toast/message, alert/notice, drawer/sheet, modal/dialog, result page.
-8. **Verify by screenshot**: check realistic happy, empty, loading, error, long-content, and narrow-width screenshots before claiming done.
-9. **Verify against UI/UX audit**: run the checks in `ui-ux-audit.md` before claiming done.
+8. **Return execution evidence**: have every changed or claim-bearing producer and every affected client return its own immutable record, then have the test owner bind its definition and execution records to the exact producer/client versions exercised. Keep commands, artifacts, criterion results, dimensions, coverage boundary, and gaps in their owning records as required by `delivery-contract.md`; a screenshot proves only its captured state.
+9. **Record the design verdict**: run the relevant checks in `ui-ux-audit.md`, evaluate every criterion, and bind the design record plus `candidate`, `accepted`, `rejected`, or `pending` to the complete design/test/producer/client candidate-binding set.
 
 ## Mobile Frontend Patterns
 
@@ -134,6 +136,8 @@ Avoid silent catches and console-only errors for user-triggered actions.
 
 ## Responsive Acceptance
 
+Treat the Mobile and Web checks below as stack-specific examples. Build the complete affected client-owner set from `delivery-contract.md`; add mini-app host/device, ordinary CLI or terminal/TUI, Electron/desktop/TV shell, other-Web, and composite-host evidence whenever those layers are affected.
+
 Mobile:
 
 - Safe top/bottom areas are respected.
@@ -150,6 +154,12 @@ Web:
 - Sidebar collapsed mode remains discoverable.
 - Tables/lists preserve row identity and selected/filter state.
 
+Other affected clients:
+
+- Mini-app evidence covers the shipped host/tool, supported device class, safe area, permissions/capabilities, package/platform constraints, and embedded web-view bridge when present.
+- Ordinary CLI or terminal/TUI evidence covers command/help/default/exit/recovery semantics, TTY and non-TTY/plain modes as applicable, width/capability/color fallback, and interactive lifecycle only where used.
+- Electron/desktop/TV and other-Web evidence comes from the actual content owner plus shell owner or fail-closed project convention, including supported sizes/scaling, input/focus, bridge, and content-shell integration.
+
 Screenshot acceptance:
 
 - First viewport shows the primary workflow, not a decorative banner or empty dead area.
@@ -159,13 +169,13 @@ Screenshot acceptance:
 
 ## Development Review Checklist
 
-Before finishing UI/UX implementation, verify:
+Use this list as client-side criteria before returning the client record. It cannot by itself finish the slice; completion requires bound design and test records, every changed producer and affected client return, Test Phase 1 sufficiency, and an allowed design verdict under `delivery-contract.md`.
 
 - The code uses local primitives and tokens before custom markup/styles.
 - The flow maps to `discover -> inspect -> act -> confirm -> return`.
 - Canonical states from `product-surface-patterns.md` are implemented, not just documented.
 - Feedback strength follows `interaction-design-patterns.md`.
-- Mobile safe-area/keyboard and web responsive behavior are covered.
+- Every affected client's adaptation contract is covered; Mobile safe-area/keyboard and Web responsive behavior are examples, not the closed set.
 - Global feedback providers, async wrappers, and route/workspace state are mounted at the shell level when multiple feature pages rely on them.
 - Long-running uploads, imports, downloads, generation, or review jobs remain visible after route changes and have retry/fail/complete states.
 - Designed states have a code owner: shell/provider state, route state, feature state, server task state, or local draft state. Do not leave a designed state as static markup with no data transition.
@@ -174,3 +184,4 @@ Before finishing UI/UX implementation, verify:
 - Visual polish passes `visual-craft.md`.
 - Screenshot acceptance passes `layout-recipes-and-screenshot-acceptance.md`.
 - UI/UX review passes `ui-ux-audit.md`.
+- The client return names the exact producer member/version exercised and contributes its immutable member to the complete design/test/producer/client binding set.

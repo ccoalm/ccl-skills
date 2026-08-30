@@ -44,6 +44,8 @@
   - 不用：先定架构边界 → `go-microservice-architecture`；先复现和定位失败 → `defect-diagnosis`。
 - `python-service-dev` `leaf` — 用：写或改 Python 接口、模型、任务、迁移、队列、配置、客户端与聚焦测试，以及 Python 命令行工具。
   - 不用：先定分层与边界 → `python-service-architecture`；先复现和定位失败 → `defect-diagnosis`。
+- `nodejs-service-dev` `leaf` — 用：写或改 Node.js 服务、HTTP/RPC handler、worker/job、运行时配置、JS/TS 模块与异步生命周期、Node 命令行工具，以及 Node 专属测试机制。
+  - 不用：跨模块架构或多阶段交付 → `product-rd-workflow`；先复现和定位失败 → `defect-diagnosis`；先选测试层与覆盖策略 → `testing-strategy`。
 - `web-react-dev` `leaf` — 用：React Web 的组件结构、路由、状态归属、数据获取、表单、浏览器行为、构建部署与渲染态验证。
   - 不用：界面该长什么样还没定 → `product-ui-ux-design`；小程序 → `miniapp-product-dev`；App → `app-cross-platform-dev`。
 - `app-cross-platform-dev` `leaf` — 用：Flutter、React Native、原生 Android/iOS 的页面、导航、状态、离线缓存、平台能力、打包发版与真机验证。
@@ -51,7 +53,7 @@
 - `miniapp-product-dev` `leaf` — 用：微信/支付宝/抖音等小程序的页面、状态、登录、分享、平台能力、审核与真机验证。
   - 不用：React Web → `web-react-dev`；原生或跨端 App → `app-cross-platform-dev`。
 - `terminal-cli-dev` `leaf` — 用：命令行/TUI 的渲染面（布局、输入、ANSI、回滚、选区）与命令/子命令/flag/help 契约——**契约归它，哪怕什么都不渲染**。
-  - 不用：无终端 UI 关切、且该语言有 dev owner 的命令行工具 → `go-microservice-dev` / `python-service-dev`。
+  - 不用：无终端 UI 关切、且该语言有 dev owner 的命令行工具 → `go-microservice-dev` / `python-service-dev` / `nodejs-service-dev`。
 - `llm-inference-integration` `leaf` — 用：接大模型、提示词、RAG、智能体与工具调用、模型路由、流式、评测、回放、影子流量、token 成本、批量推理，以及运行时 agent 的沙箱与工具授权。
   - 不用：把交付工作分派给多个 coding agent → `multi-agent-delegation`；推理服务的可观测信号定义 → `platform-observability`。
 

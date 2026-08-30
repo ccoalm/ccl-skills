@@ -43,7 +43,7 @@ Use the canonical state taxonomy in `product-surface-patterns.md`. This file add
 - Progress states should distinguish short loading, streaming, upload/parse, long-running background task, and pagination/loading-more.
 - Result states should distinguish success, partial success, no result, stale result, and generated-but-unreviewed result.
 - Error states should distinguish retryable, non-retryable, permission denied, unsupported input, offline/network, and backend rejection.
-- Control states should include selected, active, hover, pressed, focused, disabled, expanded/collapsed, and long-content behavior. **每态视觉必明显可辨**（不只是 5% opacity 差）：hover / focus / active 用**不同维度**的视觉变化（如 hover 改 bg、focus 加 outline、active 加 inner shadow）；disabled 视觉去活力 + 必含可见原因（参 [[design-execution-checklist.md]] §7 B）。默认 framework state（如未样式化的 `:focus`）不可见 = 等于无 state。
+- Control states should include selected, active, hover, pressed, focused, disabled, expanded/collapsed, and long-content behavior when applicable. Make consequentially different states perceivable with more than a barely visible opacity change; preserve a visible focus indicator for keyboard-focusable controls. Disabled controls expose a safe reason and enablement condition, or are hidden when disclosure would be unsafe. Do not require every platform/state to use a different decorative effect; verify distinguishability and meaning in the target runtime.
 - Reversal states should include undo, cancel, remove, retake, replace, exit, clear, reset, and return.
 - Trust states should include source visible, AI caveat, moderation/review label, reported/blocked/muted state, and risk-sensitive confirmation.
 
@@ -118,14 +118,30 @@ When this skill is used for finance, health, legal, enterprise admin, or other t
 
 This adaptation does not turn the skill into a finance compliance skill. It only prevents generic consumer interaction patterns from becoming unsafe in serious domains.
 
+Dangerous operations expose accountability in the interaction itself: the reason, acting operator, consequence-aware confirmation, and a support/audit identifier or context. Backend logs alone do not satisfy this user-facing contract.
+
+## Configurable Shortcuts And Command Palettes
+
+Treat configurable shortcuts, command palettes, and keyboard-first tools as a user-facing interaction contract, not invisible implementation glue. The design brief and runtime evidence cover this complete set:
+
+- discoverability in context and in the configuration surface;
+- reserved or non-rebindable key combinations and actions;
+- conflict and invalid-binding messages with a repair path;
+- mode/context priority when the same key can mean different things;
+- text-input, IME/composition, and editable-content safety;
+- keyboard-only access to the same primary actions; and
+- a visible reset-to-defaults recovery path.
+
+Do not claim the shortcut system accepted when any applicable item is unspecified or verified only as a source mapping.
+
 ## Form & Defensive UI Patterns
 
-- **"Labels are a last resort" — 仅适用于展示型数据，不是表单输入**：(a) **展示数据**（profile 字段、商品规格、详情页 attribute 列表）能用 layout / 值文本本身 / icon / 分组让意思自明，就**不重复贴 label**（"$42" 不必 "Price: $42"；"alice@example.com" 不必前缀 "Email:"）。(b) **表单输入则相反 — accessible label 是默认必须**（screen reader、autofill、低视力都依赖；WCAG 1.3.1 / 2.4.6 / 3.3.2 要求 — 见 [[external-ui-ux-quality-benchmarks.md]]）。可视觉隐藏（visually-hidden）label 仅当 placeholder/icon 等已提供持久可见 name；浮动 label、icon 内嵌等都是 label 仍存在的形式，不是"省略 label"。
+- **Display-data label economy is not permission to remove form semantics**: (a) **display data** may omit a repeated visible prefix when layout, grouping, value format, and programmatic relationship keep the meaning unambiguous for sighted and assistive-technology users; an icon or familiar-looking value alone is not proof. (b) **Form inputs** need an accessible name and any necessary visible label/instructions; placeholder text cannot be the only label. A visually hidden label is valid only when programmatic association, persistent context, and speech-input naming remain correct. Standard sources and boundaries live in `external-ui-ux-quality-benchmarks.md`.
 - **User-supplied / 外部资源必有 fallback，按内容类型分对应模式**：avatar → initials / 默认头像；通用 media (cover/banner) → placeholder / blurhash；语义关键媒体（chart / map / PDF preview / 法律凭据）→ **不可用"看起来正常"的默认替代**（会误导用户认为渲染成功），必给明确"unavailable"或"无法渲染"状态；远程加载 → skeleton + retry control；生成型 preview → 明确"生成失败"状态 + retry。设计时显式给 fallback 视觉，不让 dev "实现时再说"。
 
 ## UI Copy Patterns（quick reference）
 
-Operational microcopy patterns; 完整规则见 `design-execution-checklist.md` §7 B 段。
+Operational microcopy patterns. The bullets below are the operative criteria; bind their applicable results through `delivery-contract.md` rather than a separate checklist section.
 
 - **Button label**：verb + 具体对象（`Save changes` / `Send message`），avoid generic when action 不明（`Submit` 弱、`OK` 遮蔽结果）；platform dialog 标准位 `Cancel`/`OK` 仍可用。Destructive 更显式（`Delete forever`）
 - **Error**：happened / why（安全可披露时给）/ what to do；不出 stack trace 或纯 error code 作主文案
@@ -136,11 +152,14 @@ Operational microcopy patterns; 完整规则见 `design-execution-checklist.md` 
 
 ## Review Checklist
 
+This checklist contributes interaction criteria to the applicable design record; it cannot issue ready/complete. Apply it to every affected client owner in `delivery-contract.md` and close only through the complete design/test/producer/client binding set, Test Phase 1, and design verdict.
+
 - The primary loop is visible without reading documentation.
 - The next action is clear in happy, empty, loading, error, and partial states.
 - Feedback strength matches the canonical ladder in this file.
 - Mobile screens handle keyboard, safe area, return navigation, long labels, and one-handed action placement.
 - Web screens handle collapsed navigation, selected state, filters, task/process entries, detail drawers, and responsive secondary panels.
+- Mini-app, ordinary CLI or terminal/TUI, other-Web, Electron/desktop/TV, and composite-host surfaces add their actual owner-specific input, host, geometry, fallback, bridge, and recovery checks; the Mobile/Web bullets are examples, not a closed platform set.
 - AI flows include generating, failed, reviewed, editable, source/citation, and regenerate paths.
 - Trust-sensitive actions include source, timestamp, confirmation, retry, and audit-friendly state labels.
 - Domain terms from source Figma/code have been translated or discarded.

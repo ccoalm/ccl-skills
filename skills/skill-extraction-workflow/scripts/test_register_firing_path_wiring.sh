@@ -29,8 +29,8 @@ pass() { passed=$((passed + 1)); echo "PASS: $*"; }
 # guard silently stale again (the observed drift shape: a 16 guarding 13
 # executed cases, accumulated while this suite could not run).
 static_pass_calls="$(grep -c '^pass "' "$0")"
-[ "$static_pass_calls" = "14" ] \
-  || fail "pass-call inventory drifted: counted $static_pass_calls, guard expects 14"
+[ "$static_pass_calls" = "18" ] \
+  || fail "pass-call inventory drifted: counted $static_pass_calls, guard expects 18"
 pass "executed-count guard matches the script's own pass-call inventory"
 
 REPO="$TMP/repo"
@@ -142,7 +142,8 @@ printf '%s\n' '#!/usr/bin/env ruby' 'exit 0' > "$STUB_GATE"
 
 run_stub_check() {
   set +e
-  out="$(env -u CCL_SKILL_BASE_REF ALIAS_AUDIT_CMD='true' bash "$STUB_CHECK" "$REPO" 2>&1)"
+  out="$(env -u CCL_SKILL_BASE_REF -u REGISTER_FIRING_PATH_EXEMPT_DIGESTS \
+    ALIAS_AUDIT_CMD='true' bash "$STUB_CHECK" "$REPO" 2>&1)"
   rc=$?
   set -e
 }
@@ -378,6 +379,142 @@ case "$out" in
 esac
 pass "injected EXEMPT digest table downgrades to interim instead of silently bypassing"
 
+# RED: deleting a real waived row must fail on the missing-row binding.
+# Synthetic ledgers deliberately inject an empty digest table, so they cannot
+# exercise the built-in bindings. Mutate one of the real historical rows in the
+# throwaway clone instead: the repository ledger stays untouched, while the
+# production checker and built-in table run exactly as they do for landing.
+WAIVED_LOCATOR="file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#Disabled semantics are real, not painted"
+git -C "$REPO" checkout -- . >/dev/null 2>&1 \
+  || fail "could not restore the clone before the missing waived-row case"
+python3 - "$REGISTER" "$WAIVED_LOCATOR" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+locator = sys.argv[2]
+lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+matches = [index for index, line in enumerate(lines) if locator in line]
+assert len(matches) == 1, f"expected one real waived row, found {len(matches)}"
+del lines[matches[0]]
+path.write_text("".join(lines), encoding="utf-8")
+assert locator not in path.read_text(encoding="utf-8"), "waived-row deletion was a no-op"
+PY
+run_check
+[ "$rc" = "1" ] || { dump; fail "deleting a real waived row must be an adjudicated rc=1 violation, got rc=$rc"; }
+case "$out" in
+  *"EXEMPT entry has no citing row in the ledger"*) : ;;
+  *) dump; fail "deleted waived row failed, but not via the exact missing-row diagnostic" ;;
+esac
+case "$out" in
+  *ccl_skill_check_clean_ok*) dump; fail "a missing real waived row must never yield a clean-landing token" ;;
+  *) : ;;
+esac
+pass "deleting a real waived citing row fails closed with the missing-row diagnostic"
+
+# RED: retaining the locator on a rewritten row must fail its digest.
+# Use the same real row, but change only its claim text. The locator count stays
+# at one, so a RED here proves row identity comes from the digest rather than the
+# use-count layer or the missing-row branch.
+git -C "$REPO" checkout -- . >/dev/null 2>&1 \
+  || fail "could not restore the clone before the waived-row digest case"
+python3 - "$REGISTER" "$WAIVED_LOCATOR" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+locator = sys.argv[2]
+lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+matches = [index for index, line in enumerate(lines) if locator in line]
+assert len(matches) == 1, f"expected one real waived row, found {len(matches)}"
+index = matches[0]
+assert lines[index].startswith("| "), "waived row is not a markdown table row"
+lines[index] = lines[index].replace("| ", "| Fixture-rewritten claim: ", 1)
+path.write_text("".join(lines), encoding="utf-8")
+rewritten = path.read_text(encoding="utf-8")
+assert rewritten.count(locator) == 1, "fixture must retain exactly one waived locator"
+PY
+run_check
+[ "$rc" = "1" ] || { dump; fail "rewriting a real waived row must be an adjudicated rc=1 violation, got rc=$rc"; }
+case "$out" in
+  *"EXEMPT citing row does not match the waived row"*) : ;;
+  *) dump; fail "rewritten waived row failed, but not via the exact digest-mismatch diagnostic" ;;
+esac
+case "$out" in
+  *"EXEMPT entry has no citing row in the ledger"*) dump; fail "digest fixture lost its locator and hit the missing-row branch" ;;
+  *ccl_skill_check_clean_ok*) dump; fail "a digest-mismatched waived row must never yield a clean-landing token" ;;
+  *) : ;;
+esac
+pass "rewriting a real waived citing row fails closed with the digest-mismatch diagnostic"
+
+# RED: a second row quoting the same retired locator is a new claim and cannot
+# inherit the one-row historical waiver, even when the duplicated bytes have the
+# same digest as the original row.
+git -C "$REPO" checkout -- . >/dev/null 2>&1 \
+  || fail "could not restore the clone before the waived-row reuse case"
+python3 - "$REGISTER" "$WAIVED_LOCATOR" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+locator = sys.argv[2]
+lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+matches = [index for index, line in enumerate(lines) if locator in line]
+assert len(matches) == 1, f"expected one real waived row, found {len(matches)}"
+index = matches[0]
+lines.insert(index + 1, lines[index])
+path.write_text("".join(lines), encoding="utf-8")
+assert path.read_text(encoding="utf-8").count(locator) == 2
+PY
+run_check
+[ "$rc" = "1" ] || { dump; fail "reusing a waived locator in a second row must be rc=1, got rc=$rc"; }
+case "$out" in
+  *"EXEMPT locator cited by 2 rows (allowance 1)"*) : ;;
+  *) dump; fail "second waived-row citation failed, but not via the over-use diagnostic" ;;
+esac
+case "$out" in
+  *ccl_skill_check_clean_ok*) dump; fail "waiver reuse must never yield a clean-landing token" ;;
+  *) : ;;
+esac
+pass "a second row cannot inherit a one-row historical locator waiver"
+
+# RED: adding an EXEMPT key without a row digest silently downgrades identity
+# binding unless the production gate rejects the incomplete waiver definition.
+# The checker resolves the gate beside itself, so mutate STUB_GATE — never the
+# stale gate inside the origin/dev fixture clone, which this execution path does
+# not read. Restore the current candidate first so this case exercises the real
+# built-in table and missing-digest branch.
+FIXTURE_LOCATOR="file:$FIXTURE_NOTE_REL#$FIXTURE_ANCHOR"
+cp "$SCRIPT_DIR/register-firing-path-resolution.rb" "$STUB_GATE"
+python3 - "$STUB_GATE" "$FIXTURE_LOCATOR" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+locator = sys.argv[2]
+text = path.read_text(encoding="utf-8")
+assert locator not in text, "fixture locator unexpectedly exists before mutation"
+needle = "EXEMPT = {\n"
+assert text.count(needle) == 1, "EXEMPT table declaration shape changed"
+text = text.replace(needle, needle + f'  {locator!r} => "fixture missing digest",\n', 1)
+path.write_text(text, encoding="utf-8")
+mutated = path.read_text(encoding="utf-8")
+assert mutated.count(locator) == 1, "fixture must add exactly one unbound EXEMPT key"
+PY
+ruby -c "$STUB_GATE" >/dev/null \
+  || fail "missing-digest mutation produced invalid Ruby instead of a valid incomplete waiver"
+run_stub_check
+[ "$rc" = "1" ] || { dump; fail "an EXEMPT key without a digest must be rc=1, got rc=$rc"; }
+case "$out" in
+  *"EXEMPT entry has no recorded citing-row digest"*) : ;;
+  *) dump; fail "missing EXEMPT digest failed, but not via the exact diagnostic" ;;
+esac
+case "$out" in
+  *ccl_skill_check_clean_ok*) dump; fail "an unbound EXEMPT entry must never yield a clean-landing token" ;;
+  *) : ;;
+esac
+pass "a new EXEMPT entry without a citing-row digest fails closed"
+
 # ── RED: a failure while the cleanup trap is armed must keep its status ─────
 # The narrow window between arming the temp-dir cleanup trap and disarming it.
 # `rm -rf` succeeds inside the trap and overwrites the pending exit status, so a
@@ -410,5 +547,5 @@ case "$out" in
 esac
 pass "a failure inside the cleanup-trap window keeps its exit status"
 
-[ "$passed" -eq 14 ] || fail "expected 14 assertions, saw $passed"
+[ "$passed" -eq 18 ] || fail "expected 18 assertions, saw $passed"
 echo "register_firing_path_wiring_tests_ok ($passed assertions)"

@@ -14,6 +14,8 @@ Treat operational processing flows as recoverable production work, not as simple
 - Generated or processed output is not final by default. Mark unreviewed, reviewed, edited, failed, and returned states distinctly.
 - Long sessions need stable controls, persistent progress, keyboard-friendly repeated actions, and recovery after interruption.
 
+For operational, admin, moderation, and AI-review workspaces, do not use a marketing-style hero banner, decorative gradient as the design, oversized empty illustration, heavy visual drama, or a large unused first-screen area that pushes the real task below unrelated dashboard content. The default is a focused work surface. If the representative task is actually presentation or marketing, classify it as that different surface instead of weakening this operational rule.
+
 ## Focused Review Workspace
 
 Use for moderation review, AI output validation, creator task approval, content QA, dispute handling, incident processing, or trust/safety operations:

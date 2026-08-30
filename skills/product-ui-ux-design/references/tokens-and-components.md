@@ -10,6 +10,10 @@ The team's current desktop design system is a `class: A1` published source. It m
 
 The team's current mobile design system is a `class: A1` published source for the mobile end. It may be team-authored, abstracted out of a mobile product framework file, or aligned to a third-party mobile component library. Read `platform-mobile-patterns.md` for mobile tokens, component groups, theming, and mobile state coverage. Use `design-system-source-of-truth.md` to identify the actual source when multiple candidates exist.
 
+## Complete Consumer Set
+
+Desktop and mobile catalogs below are illustrative component vocabularies, not a closed platform list. Before applying a shared token/component decision, enumerate every affected rendered consumer under `delivery-contract.md`: React web → `web-react-dev`; other web → its installed owner or fail-closed project convention; native mobile → `app-cross-platform-dev`; mini-app → `miniapp-product-dev`; terminal/CLI/TUI → `terminal-cli-dev`; Electron/desktop/TV → its installed owner or the same lookup. Each owner maps the semantic token and state contract to its own component, host, input, accessibility, and evidence model; absence from the desktop/mobile examples is never `not-applicable` proof.
+
 ## Usage Rules
 
 - Use published design-system files for tokens, component names, variants, and theme behavior.
@@ -20,7 +24,7 @@ The team's current mobile design system is a `class: A1` published source for th
 
 ## Token Sync Pipeline (Figma → Front End)
 
-Design tokens have a **design-tool source of truth**, typically a Figma file with a curated token set (color, spacing, radii, typography, shadow, motion). Tokens reach the front end through a project-specific sync mechanism, not through manual front-end authoring.
+Design tokens have a **design-tool source of truth**, typically a Figma file with a curated token set (color, spacing, radii, typography, shadow, motion). Tokens reach every affected rendered client through its project-specific sync or mapping mechanism, not through manual client-local authoring.
 
 - The Figma token set is the canonical source. Front-end token files (CSS variables, framework theme entry, `tokens.ts`, generated SCSS / LESS variables, etc.) are downstream artifacts of the sync.
 - The sync mechanism varies by project: Style Dictionary build pipeline, Tokens Studio plugin export, a Figma-API-driven script, the component suite's theme entry that mirrors the Figma token set, or a Feishu/Lark-hosted spec doc that a script consumes. Architecture records which mechanism this project uses and where the sync script / config lives so future agents do not invent a parallel path.
@@ -35,6 +39,8 @@ Design tokens have a **design-tool source of truth**, typically a Figma file wit
 - For community UI, make interaction states complete: liked/followed/joined, commenting/replying, creating/submitting, loading, empty, error, muted/blocked/reported, AI-generating, and permission-gated states. For finance/data or operational UI, make scope, permission, evidence, pending/final, export, support, and recovery states complete.
 
 ## Cross-Platform Component Capability Map
+
+The desktop/mobile names in this map are examples. For other web, native, mini-app, terminal/TUI, Electron/desktop/TV, or another client, use the affected owner to map the same semantic roles and full state/interaction contract; do not force these example component names onto another stack or omit that stack from evidence.
 
 - Shell and navigation: desktop `Layout`, `Menu`, `Breadcrumb`, `Dropdown`, `Pagination`, `Steps`, `Splitter`; mobile `NavBar`, `TabBar`, `Tabs`, `CapsuleTabs`, `SideBar`, `IndexBar`. Use them to preserve route context, selected state, overflow, long labels, and return paths.
 - Input and creation: desktop `Form`, `Input`, `Select`, `Upload`, `DatePicker`, `Transfer`, `TreeSelect`; mobile `Form`, `Input`, `TextArea`, `Picker`, `Selector`, `ImageUploader`, `NumberKeyboard`, `PasscodeInput`. Cover focus, validation, disabled reason, keyboard/safe-area, upload progress, and preview-before-commit.

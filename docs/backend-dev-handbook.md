@@ -30,6 +30,14 @@ flowchart TD
 - 默认序：架构不清先 `*-architecture` 再 `*-dev`；新 Python 服务默认按微服务边界思考，单体/脚本/包是例外。
 - 跨语言契约：路由到拥有被改边界那侧的架构技能。
 
+## 会改变客户端呈现或决策流的后端值
+
+后端改用户可见字符串、API/event/schema 字段、enum、状态/进度、权限/能力、默认值或结果形状时，先用 manifest、契约、构建/发布目标或仓库清单建立完整 consumer universe；只搜当前服务仓零命中不算证明。
+
+- 任一消费者会渲染该值或据此改变状态、动作、反馈或决策路径：先按 [`delivery-contract.md`](../skills/product-ui-ux-design/references/delivery-contract.md) 建完整或低风险纯文案设计记录，让 `testing-strategy` 给 Phase 0，再实现。Go/Python owner 回传自己的 `producer_record` 和不可变 binding；每个受影响客户端 owner 回传 client member 并注明实际执行的 producer member/version；Phase 1 聚合集合判充分性，最后由设计 owner 给 verdict。
+- universe 或任一成员不完整/不可访问：记 `unknown-consumers`、缺口 owner/动作，只能 `pending + blocked`；不能在客户端执行前写完成。
+- 只有全集证明没有客户端渲染或响应该值，才走 backend-only；仍把产品含义交 product owner，把 API/log/output 验证和 consumer-universe 证明交 `testing-strategy`。inventory 本身不是行为验证。
+
 ## 关键纪律
 
 - **架构决策显式化**：实现时保留架构决策，不偷偷改边界。

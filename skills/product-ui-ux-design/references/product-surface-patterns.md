@@ -43,6 +43,9 @@ Use this default loop unless the product has a stronger one:
 - Finance/data/trust-sensitive: use `trust-sensitive-ai-and-data-patterns.md`, `analytics-visualization-interactions.md`, and `operational-processing-workflows.md` for evidence, provenance, dense analysis, permission, and review-before-action patterns.
 - Mobile/app: use `platform-mobile-patterns.md` and app implementation skills for safe area, keyboard, orientation, native shell, and device acceptance.
 - Web/workbench: use `platform-web-desktop-patterns.md` and `layout-recipes-and-screenshot-acceptance.md` for shell, density, responsiveness, and screenshot acceptance.
+- Mini-app: keep design criteria here and route host/page, permission/capability, package/platform, device, and web-view bridge evidence to `miniapp-product-dev`.
+- Ordinary CLI or terminal/TUI: keep product hierarchy, command semantics, states, and acceptance here; route command/help/default/exit/recovery, terminal geometry, fallback, input, and real-terminal evidence to `terminal-cli-dev`.
+- Other Web and Electron/desktop/TV: React content routes to `web-react-dev`; Vue/Svelte/static/vendor/other content and shell layers route to their installed owner or the fail-closed project-convention lookup in `delivery-contract.md`. Composite hosts keep separate content and shell members.
 
 ## Workflow Surface Extensions
 
