@@ -1591,12 +1591,13 @@ if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_
     # being silently outside the trigger because of how the owner set is built.
     created_surfaces = scope.changed_paths.filter_map do |relative|
       next unless relative.start_with?("skills/") && relative.end_with?("/SKILL.md")
-      # Creation means the entrypoint was absent at this round's base. Without
-      # this bound, an EXISTING non-curated skill editing its description also
-      # lands here — and its obligation is undischargeable, because the row
-      # resolution above only spans curated names, so the gate demands evidence
-      # no ledger row can bind.
-      next if regular_blob_at.call(scope.base, relative)
+      # This pickup covers both a brand-new entrypoint and an EXISTING
+      # non-curated skill editing its description — both move the routing
+      # surface. An earlier round bounded it to base-absent entrypoints
+      # because non-curated obligations were undischargeable then; the
+      # bank-only resolver below now binds rows over base+head skill names,
+      # so the obligation is dischargeable and the bound would only reopen
+      # the evidence-free description-edit hole.
       path = relative.sub(%r{\Askills/}, "")
       next if triggered_owners.include?(path)
       next unless description_touched.call(scope, path)

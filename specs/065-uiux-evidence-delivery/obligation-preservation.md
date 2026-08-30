@@ -6,7 +6,7 @@
 
 ## Reproducible comparison domain
 
-- Base revision: `e322db47abe5736e6e1fdf0e73e2ed3eb32c006b`
+- Base revision: `9e3ede5ee379e99e74507873a80382f2185346a5`
 - Changed pre-existing `skills/**/*.md`: 37
 - Explicit relocation destinations: 13
 - Governing-chain-diff rows: 1240
@@ -181,7 +181,7 @@ The row set is the bidirectional equality of the mechanical governing-chain diff
 | O0120 | `skills/product-ui-ux-design/SKILL.md#7` | left-a-rewritten-line | rehosted / preserved | `skills/product-ui-ux-design/references/source-map.md:5-5` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=none |
 | O0121 | `skills/product-ui-ux-design/SKILL.md#8` | left-a-rewritten-line | rehosted / preserved | `skills/product-ui-ux-design/references/source-map.md:5-5` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=none |
 | O0122 | `skills/product-ui-ux-design/SKILL.md#9` | left-a-rewritten-line | partitioned / preserved | p1.1. `skills/product-ui-ux-design/references/source-map.md:9-9`<br>p1.2. `skills/product-ui-ux-design/references/source-map.md:155-155` | proof_mode=reviewed-semantic; schema4 exact-span partition; survives=1; retired=0; carriers=2; hash+bridge+qualifier checked |
-| O0123 | `skills/product-ui-ux-design/SKILL.md#10` | left-a-rewritten-line | rehosted / preserved | `skills/skill-extraction-workflow/references/source-to-skill-extraction.md:595-595` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=modality,consequence |
+| O0123 | `skills/product-ui-ux-design/SKILL.md#10` | left-a-rewritten-line | rehosted / preserved | `skills/skill-extraction-workflow/references/source-to-skill-extraction.md:603-603` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=modality,consequence |
 | O0124 | `skills/product-ui-ux-design/SKILL.md#11` | left-a-rewritten-line | rehosted / strengthened | `skills/product-ui-ux-design/SKILL.md:26-26` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=recency |
 | O0125 | `skills/product-ui-ux-design/SKILL.md#12` | left-a-rewritten-line | rehosted / preserved | `skills/product-ui-ux-design/SKILL.md:35-35` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=recency |
 | O0126 | `skills/product-ui-ux-design/SKILL.md#13` | left-a-rewritten-line | rehosted / preserved | `skills/product-ui-ux-design/SKILL.md:28-28` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=recency |
@@ -467,7 +467,7 @@ The row set is the bidirectional equality of the mechanical governing-chain diff
 | O0406 | `skills/product-ui-ux-design/SKILL.md#293` | left-a-rewritten-line | rehosted / preserved | `skills/product-ui-ux-design/references/tokens-and-components.md:19-19` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=none |
 | O0407 | `skills/product-ui-ux-design/SKILL.md#294` | left-a-rewritten-line | rehosted / preserved | `skills/product-ui-ux-design/references/tokens-and-components.md:20-20` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=none |
 | O0408 | `skills/product-ui-ux-design/SKILL.md#295` | left-a-rewritten-line | rehosted / strengthened | `skills/product-ui-ux-design/references/source-map.md:21-21` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=modality,scope |
-| O0409 | `skills/product-ui-ux-design/SKILL.md#296` | left-a-rewritten-line | rehosted / preserved | `skills/skill-extraction-workflow/references/source-to-skill-extraction.md:596-596` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=actor |
+| O0409 | `skills/product-ui-ux-design/SKILL.md#296` | left-a-rewritten-line | rehosted / preserved | `skills/skill-extraction-workflow/references/source-to-skill-extraction.md:604-604` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=actor |
 | O0410 | `skills/product-ui-ux-design/SKILL.md#297` | left-a-rewritten-line | rehosted / preserved | `skills/product-ui-ux-design/references/source-map.md:23-23` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=scope |
 | O0411 | `skills/product-ui-ux-design/SKILL.md#298` | left-a-rewritten-line | rehosted / preserved | `skills/product-ui-ux-design/references/frontend-code-evidence-map.md:12-12` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=scope |
 | O0412 | `skills/product-ui-ux-design/SKILL.md#299` | left-a-rewritten-line | rehosted / preserved | `skills/product-ui-ux-design/references/trust-sensitive-ai-and-data-patterns.md:7-7` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=modality |

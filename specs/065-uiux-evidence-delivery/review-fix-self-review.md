@@ -116,6 +116,10 @@
 
 本记录即两条发现的 disposition 工件；第八轮评审绑定的候选（packet `a309008f…`）与落地 diff 一致。
 
+## 整合轮 downscope 声明
+
+- downscoped:PR76-INTEGRATION-TRIM-NO-BANK-RERUN — 整合轮对 `terminal-cli-dev` 的唯一路由面改动是把 description 里冗余的短契约枚举并入完整枚举（预算修复，831→785 字符）；四条 mapping carrier 句逐字保留，audit 全绿。`Node.js CLI → nodejs-service-dev` 分流腿随其原轮（bank task `route-nodejs-cli-not-terminal`）落地并由该轮行清偿。纯措辞收缩不改变任何路由判定输入的语义类，故本轮不重跑 routing bank；如后续路由测评显示该 trim 影响选择，按常规回归处理。
+
 ## 已知残余风险 / 有意不修（待作者裁决）
 
 - 065 语义层：WCAG 2.2 SC 摘要与 APCA 指引的删除在 ledger 里记为 `retired-dead`+`strengthened`（schema 规定的词表），以及 row 175 的 rehost 主张是否应改为显式 retirement——是 065 实质裁决，不属本修复轮。
