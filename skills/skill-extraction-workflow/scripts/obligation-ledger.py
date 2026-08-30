@@ -2405,6 +2405,13 @@ def render_ledger(
     indexed = index_mapping(mapping_rows)
     effects = Counter(str(indexed[row.key]["effect"]) for row in expected)
     dispositions = Counter(str(indexed[row.key]["disposition"]) for row in expected)
+    part_counts: Counter[str] = Counter()
+    for row in expected:
+        for part in indexed[row.key].get("parts") or []:
+            if part.get("status") == "retired":
+                part_counts["retired"] += 1
+            else:
+                part_counts[f"survived-{part.get('effect')}"] += 1
     modes = proof_mode_counts(expected, mapping_rows, resolved)
     source_counts: dict[str, Counter[str]] = {}
     for source in expected:
@@ -2427,6 +2434,10 @@ def render_ledger(
         f"- Explicit relocation destinations: {len(relocation_paths)}",
         f"- Governing-chain-diff rows: {len(expected)}",
         f"- Effects: preserved={effects['preserved']}, strengthened={effects['strengthened']}, retired={effects['retired']}, unresolved={len(unresolved)}",
+        "- Partition parts (partitioned/partial-retirement rows close row-level as their dominant effect; part-level outcomes are counted here so neither the deleted nor the strengthened dimension of a mixed row disappears): "
+        f"survived-preserved={part_counts['survived-preserved']}, "
+        f"survived-strengthened={part_counts['survived-strengthened']}, "
+        f"retired={part_counts['retired']}",
         "- Proof modes: "
         f"exact-mechanical={modes['exact-mechanical']}, "
         f"reviewed-semantic={modes['reviewed-semantic']}, "

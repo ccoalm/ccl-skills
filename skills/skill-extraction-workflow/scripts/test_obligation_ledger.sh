@@ -238,10 +238,11 @@ def partition_row(row, spans):
             })
         else:
             carrier_text, bridges, qualifiers = spec[2], spec[3], spec[4]
+            part_effect = spec[5] if len(spec) > 5 else "preserved"
             parts.append({
                 "id": f"p{index}", "status": "survives",
                 "source_start": start, "source_end": end, "source_text": text,
-                "effect": "preserved", "carriers": [member(carrier_text, bridges)],
+                "effect": part_effect, "carriers": [member(carrier_text, bridges)],
                 "qualifiers": qualifiers,
                 "qualifier_resolutions": [],
                 "semantic_review": "reviewed",
@@ -274,6 +275,7 @@ rows[13] = partition_row(rows[13], [
         "survives", "Do not use ", "Do not use raw server status as primary copy.",
         ["Do not", "use"],
         [{"kind":"modality","before":["Do not"],"after":["Do not"],"same_immediate_host":True}],
+        "strengthened",
     ),
     ("retired", "Error 500"),
     (
@@ -544,6 +546,11 @@ grep -Fq 'The sibling `obligation-mapping.jsonl` is the canonical proof source' 
 grep -Fq '[c1]' "$FIXTURE/specs/ledger.md"
 grep -Fq 'relations=1' "$FIXTURE/specs/ledger.md"
 grep -Fq 'proof_mode=exact-mechanical' "$FIXTURE/specs/ledger.md"
+# Mixed partial-retirement rows close row-level as retired; part-level counts
+# must keep both dimensions visible (rows 13/14: 3 preserved + 1 strengthened
+# surviving parts, 2 retired parts).
+grep -Fq 'survived-preserved=3, survived-strengthened=1, retired=2' \
+  "$FIXTURE/specs/ledger.md"
 grep -Fq 'proof_mode=reviewed-semantic' "$FIXTURE/specs/ledger.md"
 grep -Fq 'validates review evidence presence and shape, not the truth' \
   "$FIXTURE/specs/ledger.md"
@@ -715,6 +722,10 @@ mutation_partition_retired_mislabel() {
 
 mutation_retired_effect_on_live_row() {
   mutate_jsonl "$1/specs/mapping.jsonl" 'rows[3]["effect"] = "retired"'
+}
+
+mutation_partition_unreviewed() {
+  mutate_jsonl "$1/specs/mapping.jsonl" 'rows[12]["manual_reviewed"] = False'
 }
 
 mutation_unreviewed_strengthening() {
@@ -1165,6 +1176,7 @@ run_mutant retired_dead_preserved RETIRED_EFFECT_INVALID 'skills/source/SKILL.md
 run_mutant retired_dead_strengthened RETIRED_EFFECT_INVALID 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_retired_dead_strengthened
 run_mutant partition_retired_mislabel PARTITION_EFFECT_MISMATCH 'skills/source/SKILL.md#13' "$DELTA_MAPPING" mutation_partition_retired_mislabel
 run_mutant retired_effect_on_live_row RETIRED_EFFECT_INVALID 'skills/source/SKILL.md#4' "$DELTA_MAPPING" mutation_retired_effect_on_live_row
+run_mutant partition_unreviewed MANUAL_REVIEW_REQUIRED 'skills/source/SKILL.md#13' "$DELTA_MAPPING" mutation_partition_unreviewed
 run_mutant unreviewed_verbatim_strengthening STRENGTHENED_REVIEW_REQUIRED 'skills/source/SKILL.md#4' "$DELTA_MAPPING" mutation_unreviewed_strengthening
 run_mutant provenance_only PROVENANCE_ONLY_CARRIER 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_provenance_only
 run_mutant comparison_domain_new_file ROW_SET_MISMATCH 'skills/extra/SKILL.md#1' 'skills/extra/SKILL.md' mutation_new_domain_file

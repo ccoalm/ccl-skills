@@ -11,6 +11,7 @@
 - Explicit relocation destinations: 13
 - Governing-chain-diff rows: 1240
 - Effects: preserved=657, strengthened=460, retired=123, unresolved=0
+- Partition parts (partitioned/partial-retirement rows close row-level as their dominant effect; part-level outcomes are counted here so neither the deleted nor the strengthened dimension of a mixed row disappears): survived-preserved=35, survived-strengthened=175, retired=37
 - Proof modes: exact-mechanical=91, reviewed-semantic=1149, unresolved=0
 - Dispositions: merged=59, partial-retirement=25, partitioned=167, rehosted=846, retired-dead=98, subsumed=45
 
