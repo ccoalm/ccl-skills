@@ -74,7 +74,7 @@ specialized (110%) caps (both have non-zero margins: 3055 and 1285 bytes), any
 | A3 | `retired-dead`, `effect: retired`, `manual_reviewed: false` | fail `MANUAL_REVIEW_REQUIRED` |
 | A4 | `partial-retirement` (schema 4), `effect: retired` | `audit_ok` |
 | A5 | `partial-retirement`, `effect: strengthened` | fail `PARTITION_EFFECT_MISMATCH` |
-| A6 | `partitioned` (no retired part), `effect: strengthened` w/ strengthened part | `audit_ok` (unchanged) |
+| A6 | `partitioned` (no retired part) with a strengthened surviving part, `effect: strengthened` | `audit_ok` (unchanged) |
 | A7 | `rehosted`, `effect: retired` | fail (carrier rules unchanged; `retired` valid only on deletion shapes) |
 | A8 | real 065 mapping after relabel + re-render | `audit_ok`, summary shows `retired=123`, `strengthened=460`, `preserved=657` |
 
@@ -83,7 +83,7 @@ specialized (110%) caps (both have non-zero margins: 3055 and 1285 bytes), any
 | # | Input | Verdict |
 |---|-------|---------|
 | B1 | current dev docs (58860 bytes direct) | pass, margin ≈ 3270 bytes |
-| B2 | direct profile grown past 95% of 65400 (mutation: pad contract file) | FAIL |
+| B2 | direct profile grown past 95% of 65400 (mutation: router-shrink + contract-pad, so only the direct cap trips) | FAIL |
 | B3 | existing mutation cases (always-load rewrites etc.) | unchanged FAIL |
 
 ## Test/register coverage
@@ -92,9 +92,11 @@ specialized (110%) caps (both have non-zero margins: 3055 and 1285 bytes), any
   the unmodified tool first, then GREEN after the change.
 - Integration (real repo): `test_obligation_ledger_repo_audit.sh` — covers A8 via the
   pinned-base byte-identical audit.
-- Gate self-test: `test_uiux_loading_budget.sh` run; B2 verified by a one-off local
-  mutation (pad + expect fail), not committed as a permanent case since the cap arithmetic
-  is already mutation-covered by the existing budget assertions.
+- Gate self-test: `test_uiux_loading_budget.sh` run; B2 first verified by a one-off local
+  mutation (router-shrink + contract-pad, killing the 95% predicate specifically), then —
+  after a review finding that a one-off kill cannot catch later silent weakening — encoded
+  in-suite: the caps move into pinned variables, the 50/95/110 contract is asserted, and a
+  threshold probe walks each predicate at cap and cap+1.
 - Full lane: `test_check_ccl_regressions.sh` with `CCL_SKILL_BASE_REF=origin/dev` before
   push; CI green on the PR is the merge gate.
 - E2E/runtime/manual: not applicable — no runtime or rendered surface.
@@ -104,6 +106,24 @@ specialized (110%) caps (both have non-zero margins: 3055 and 1285 bytes), any
 No external tracker or status doc owns these gates; this plan file plus the PR description
 are the status surface. The dev→main promotion round consumes this plan as the record that
 the two pre-promotion debts are repaid.
+
+## Review-round addendum
+
+Dual-track ran with a fixed 1+1 budget (chain 069-gate-vocab-r4; evidence in
+`.work/review-evidence/069-gate-vocab/`). Dispositions:
+
+- Review P1 "retired rows escape the manual-review guard": **refuted** empirically —
+  flipping one real partial-retirement row's `manual_reviewed` to false fails the
+  pinned-base audit (`MANUAL_REVIEW_REQUIRED`, schema4 partition entry check); hardened
+  into the suite as the `partition_unreviewed` mutant.
+- Review P2 "the 95% predicate's kill was off-suite": **applied** — cap variables, contract
+  pin, and the in-suite threshold probe above.
+- Challenge P1 "mixed partial retirements lose the strengthened surviving dimension":
+  **applied** — 24 of the 25 real rows are mixed; the renderer now emits part-level
+  outcome counters, and the fixture pins a mixed row's counts.
+- An earlier review lane flagged the packet (checker-summary in place of raw mapping
+  edits) as an input defect; the packet was widened with a lossless field-projection diff
+  and the generated ledger's word-diff, then rerun.
 
 ## Review gate
 
