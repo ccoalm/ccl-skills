@@ -99,7 +99,7 @@ For a 域卡/执行卡 (a card that sets WHAT a domain must achieve + who owns i
   - Required flow: STOP line edits → confirm the corrected core with the user (one short question, don't guess again — this failure class recurs precisely from re-guessing) → re-derive 负责人/红线/里程碑/验收/依赖兜底 from the corrected core as a **draft for review** (not a blind blast-write) → publish on approval.
   - Repeat signal: repeated user "这是什么/什么玩意儿" on the same card = the premise is wrong; escalate to re-derive, do not keep tightening.
 
-## 句子层（吸收 Strunk《风格的要素》与 Google Technical Writing 课程，仅取适合中文交付文档的；英文语法/标点规则不适用，已剔除）
+## 句子层（吸收 Strunk 与 Google Tech Writing，仅取中文交付文档适用项）
 
 > 英文文档：用完整 Strunk 规则（含被本节剔除的语法/标点条），本节只是中文交付子集。
 
@@ -140,7 +140,7 @@ Never destroy collaborative comments. Before editing a collaborative doc, fetch 
 
 ## WORKFLOW
 
-0. 有读者批注/评审意见时，按「批注驱动修订」处理：把每条批注当**阅读断裂的证据**而非孤立改句请求——先判根因类（背景缺失 / 概念未定义 / 逻辑跳跃 / 措辞），再按该类**全文扫同类位置**一起修（只改被标记的那一句是点修复，同类断裂会在下一位读者处复发）；改完以首次读者身份通读被改段落。批注本体的保全仍走 COMMENT-SAFE。
+0. 读者批注：判根因类、全文修同类（`references/annotation-driven-revision.md`）。
 1. Extract the decided-points checklist from the current text.
 2. Apply the DELETE list; keep everything in KEEP.
 3. Rewrite to FORM; confirm every decided point still present.

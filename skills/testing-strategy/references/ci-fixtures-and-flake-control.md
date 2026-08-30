@@ -24,6 +24,8 @@ The proactive complement — the adversarial pass over code already considered "
 
 Use `test-data-and-determinism.md` as the canonical source for fixture shape, anonymization, data builders, golden-file normalization, and deterministic clocks/randomness/ordering.
 
+- `infra-error` verdict semantics (the entrypoint's status family): when the evidence pipeline itself breaks — collector down, fixture cache missing, state-preparation or controlled-fault infrastructure absent — the case reports `infra-error`: never a pass, never a business fail, and never a silent skip; page text, a success toast, or another weaker surface must not substitute for the missing evidence. Before coding a case, each acceptance criterion names its collector and assertion; a criterion whose collector does not exist yet is `infra-error`/blocked, not "assert what the page says".
+
 External-asset fixtures (media files, documents, large binaries fetched from an external system) form a supply chain that gets pinned end to end: test execution reads only a local read-only cache — never downloads from the external system at run time; a committed manifest pins each asset's identity/hash and CI verifies the manifest plus every blob before the suite runs; a missing or changed cached asset is an `infra-error`/preflight failure (see the entrypoint's status family), never a skip and never a fallback download; seeding/refreshing the cache is a separate offline step on a trusted host, not part of the test run. This composes the network-isolation default and manifest regenerate-and-diff rules in `test-data-and-determinism.md` with the missing-dependency-is-failure rule below into one chain.
 
 ### Fault-Injection Layers For External-Provider Recovery Paths
