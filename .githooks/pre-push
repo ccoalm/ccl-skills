@@ -5,8 +5,9 @@
 #   - it runs only if a clone opts in with `git config core.hooksPath .githooks`
 #     (a fresh clone that never ran that silently skips it);
 #   - it can be skipped with `git push --no-verify`;
-#   - it validates the CURRENT checkout (HEAD / working tree), not arbitrary
-#     pushed refs.
+#   - the repository-wide structural gate still validates the current checkout,
+#     while the shared Git-surface gate below validates every pushed ref by OID
+#     without checking it out or changing the working tree.
 # It exists to catch gate failures before you push so they don't reach review.
 # The authoritative, non-bypassable gate must be SERVER-SIDE (GitHub Actions /
 # protected-branch required checks). See README "启用提交闸".
@@ -15,50 +16,136 @@
 # history (HEAD vs its merge-base with upstream/main) — sees real commits.
 set -euo pipefail
 
-root="$(git rev-parse --show-toplevel)"
+if ! root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  echo "[pre-push] repository root is unavailable; push blocked." >&2
+  exit 1
+fi
+remote_name="${1:-}"
 gate="$root/skills/skill-extraction-workflow/scripts/check-ccl-skills.sh"
-zero="0000000000000000000000000000000000000000"
-head_sha="$(git rev-parse HEAD 2>/dev/null || echo)"
+metadata_gate="$root/skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py"
+head_sha=""
+if resolved_head="$(git rev-parse HEAD 2>/dev/null)"; then
+  head_sha="$resolved_head"
+fi
+
+is_oid() {
+  [[ "$1" =~ ^[0-9a-fA-F]{40}$ || "$1" =~ ^[0-9a-fA-F]{64}$ ]]
+}
+
+is_zero_oid() {
+  [[ "$1" =~ ^0{40}$ || "$1" =~ ^0{64}$ ]]
+}
 
 # git feeds pre-push one line per ref: "<local_ref> <local_sha> <remote_ref> <remote_sha>".
 any_update=0
 head_pushed=0
-mismatch=0
-while read -r local_ref local_sha remote_ref remote_sha; do
-  [[ -z "${local_ref:-}" ]] && continue
-  [[ "$local_sha" == "$zero" ]] && continue          # branch/tag deletion — nothing to validate
+local_shas=()
+remote_refs=()
+remote_shas=()
+while IFS=' ' read -r local_ref local_sha remote_ref remote_sha extra; do
+  if [[ -z "${local_ref:-}" && -z "${local_sha:-}" && -z "${remote_ref:-}" && -z "${remote_sha:-}" && -z "${extra:-}" ]]; then
+    continue
+  fi
+  if [[ -z "${local_ref:-}" || -z "${local_sha:-}" || -z "${remote_ref:-}" || -z "${remote_sha:-}" || -n "${extra:-}" ]]; then
+    echo "[pre-push] malformed ref update; push blocked." >&2
+    exit 1
+  fi
+  if ! is_oid "$local_sha" || ! is_oid "$remote_sha"; then
+    echo "[pre-push] invalid ref object id; push blocked." >&2
+    exit 1
+  fi
+  is_zero_oid "$local_sha" && continue                # deletion — nothing new to publish
   any_update=1
   if [[ -n "$head_sha" && "$local_sha" == "$head_sha" ]]; then
     head_pushed=1
-  else
-    mismatch=1
   fi
+  local_shas+=("$local_sha")
+  remote_refs+=("$remote_ref")
+  remote_shas+=("$remote_sha")
 done
 
 [[ "$any_update" -eq 0 ]] && exit 0                   # delete-only / empty push — skip
 
-if [[ "$mismatch" -eq 1 ]]; then
-  echo "[pre-push] NOTE: a pushed ref differs from the checked-out HEAD; this hook validates HEAD/working-tree only, so that ref was NOT gated here — run the gate manually for it (or rely on server-side enforcement)." >&2
-fi
-
-# Only run/block when the checkout we can actually validate (HEAD) is among the
-# pushed commits. If nothing being pushed matches HEAD, do NOT block on unrelated
-# ambient working-tree state — this is advisory, not enforcement.
-if [[ "$head_pushed" -eq 0 ]]; then
-  echo "[pre-push] no pushed ref matches the checked-out HEAD; gate not run here (advisory) — run it manually if needed." >&2
-  exit 0
-fi
-
-if [[ ! -x "$gate" ]]; then
-  echo "[pre-push] gate script missing or not executable: $gate" >&2
-  echo "[pre-push] run the gate manually before merge (verify your checkout)." >&2
+if [[ ! -f "$metadata_gate" ]]; then
+  echo "[pre-push] shared Git/PR metadata gate missing; push blocked." >&2
   exit 1
 fi
 
-echo "[pre-push] running ccl-skills gate on the current checkout..."
-if bash "$gate" "$root"; then
-  echo "[pre-push] gate passed."
+if [[ "$head_pushed" -eq 1 ]]; then
+  if [[ ! -x "$gate" ]]; then
+    echo "[pre-push] gate script missing or not executable; push blocked." >&2
+    echo "[pre-push] run the gate manually before merge (verify your checkout)." >&2
+    exit 1
+  fi
+  echo "[pre-push] running ccl-skills gate on the current checkout..."
+  if ! bash "$gate" "$root"; then
+    echo "[pre-push] gate FAILED — push blocked. Fix the findings above, or 'git push --no-verify' to override (then re-run the gate before merging)." >&2
+    exit 1
+  fi
 else
-  echo "[pre-push] gate FAILED — push blocked. Fix the findings above, or 'git push --no-verify' to override (then re-run the gate before merging)." >&2
-  exit 1
+  echo "[pre-push] no pushed ref matches HEAD; skipping the checkout-only structural gate while retaining per-ref metadata checks." >&2
 fi
+
+# An existing remote feature tip is still part of the feature candidate and
+# must never become known_debt. Only dev/main destination refs are landing
+# targets whose existing remote OID can delimit the promotion range. Other refs
+# use the explicitly bound landing target or the repository's feature→dev base.
+echo "[pre-push] scanning every pushed Git metadata surface..."
+configured_base="${CCL_SKILL_BASE_REF:-}"
+for index in "${!local_shas[@]}"; do
+  local_sha="${local_shas[$index]}"
+  remote_ref="${remote_refs[$index]}"
+  remote_sha="${remote_shas[$index]}"
+
+  case "$remote_ref" in
+    refs/heads/*)
+      destination_name="${remote_ref#refs/heads/}"
+      ;;
+    refs/tags/*)
+      destination_name="${remote_ref#refs/tags/}"
+      ;;
+    *)
+      echo "[pre-push] unsupported destination ref kind; push blocked." >&2
+      exit 1
+      ;;
+  esac
+
+  case "$remote_ref" in
+    refs/heads/dev|refs/heads/main)
+      if ! is_zero_oid "$remote_sha"; then
+        metadata_base="$remote_sha"
+      elif [[ -n "$configured_base" ]]; then
+        metadata_base="$configured_base"
+      else
+        echo "[pre-push] candidate base is unresolved for a new landing target; set CCL_SKILL_BASE_REF." >&2
+        exit 1
+      fi
+      ;;
+    *)
+      if [[ -n "$configured_base" ]]; then
+        metadata_base="$configured_base"
+      elif [[ -n "$remote_name" && "$remote_name" != "." ]] &&
+        git check-ref-format "refs/remotes/$remote_name/dev" >/dev/null 2>&1; then
+        metadata_base="refs/remotes/$remote_name/dev"
+        if ! git rev-parse --verify --quiet "${metadata_base}^{commit}" >/dev/null; then
+          echo "[pre-push] pushed remote has no resolvable dev tracking ref; fetch it or set CCL_SKILL_BASE_REF." >&2
+          exit 1
+        fi
+      else
+        echo "[pre-push] pushed remote cannot supply a feature base; set CCL_SKILL_BASE_REF." >&2
+        exit 1
+      fi
+      ;;
+  esac
+
+  if ! python3 "$metadata_gate" \
+    --repo "$root" \
+    --base-ref "$metadata_base" \
+    --head-ref "$local_sha" \
+    --branch-name "$destination_name"; then
+    echo "[pre-push] shared Git metadata gate FAILED for a pushed ref — push blocked." >&2
+    exit 1
+  fi
+done
+
+echo "[pre-push] gates passed."

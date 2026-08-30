@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -420,7 +423,8 @@ class ReviewClientCompatibilityTest(unittest.TestCase):
     def test_kimi_bounds_inline_argv_exposure_and_file_backs_large_packets(self) -> None:
         wrapper = (SCRIPT_DIR / "kimi_review.sh").read_text(encoding="utf-8")
 
-        self.assertIn('[ "$TIMEOUT" -le 600 ] || TIMEOUT=600', wrapper)
+        self.assertIn('. "$SCRIPT_DIR/normalize_review_timeout.sh"', wrapper)
+        self.assertIn('TIMEOUT="$(normalize_review_timeout "$TIMEOUT")"', wrapper)
         self.assertIn("visible in process argv", wrapper)
         self.assertIn("MAX_INLINE_PROMPT_BYTES=16000", wrapper)
         self.assertIn('[ "$FORMAL_TIMEOUT" -le 120 ] || FORMAL_TIMEOUT=120', wrapper)
@@ -428,6 +432,77 @@ class ReviewClientCompatibilityTest(unittest.TestCase):
         self.assertNotIn("PACKET_DELIVERY=agent-file", wrapper)
         self.assertIn('--agent-file "$AGENT_FILE"', wrapper)
         self.assertIn("mcp__code_review_packet__read_packet", wrapper)
+
+    def test_every_wrapper_guards_the_shared_timeout_normalizer(self) -> None:
+        for wrapper_name in (
+            "claude_review.sh",
+            "codex_review.sh",
+            "kimi_review.sh",
+            "opencode_review.sh",
+        ):
+            with self.subTest(wrapper=wrapper_name):
+                wrapper = (SCRIPT_DIR / wrapper_name).read_text(encoding="utf-8")
+                if wrapper_name == "claude_review.sh":
+                    guard = '[ -f "$script_dir/normalize_review_timeout.sh" ]'
+                    source = '. "$script_dir/normalize_review_timeout.sh"'
+                    missing_contract = (
+                        'emit_inconclusive_payload "Claude review helper missing: '
+                        'normalize_review_timeout.sh" local_tool_failure false '
+                        "stop_reviewer_lane"
+                    )
+                    missing_contracts = (missing_contract,)
+                else:
+                    guard = '[ -f "$SCRIPT_DIR/normalize_review_timeout.sh" ]'
+                    source = '. "$SCRIPT_DIR/normalize_review_timeout.sh"'
+                    missing_contracts = (
+                        "timeout_normalizer_missing",
+                        "local_tool_failure false",
+                    )
+                self.assertIn(guard, wrapper)
+                for missing_contract in missing_contracts:
+                    self.assertIn(missing_contract, wrapper)
+                self.assertLess(wrapper.index(guard), wrapper.index(source))
+
+    def test_every_wrapper_rejects_below_minimum_timeout_at_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            opencode = Path(temp_dir) / "opencode"
+            opencode.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
+            opencode.chmod(0o755)
+            environment = {**os.environ, "PATH": f"{temp_dir}:{os.environ['PATH']}"}
+            for wrapper_name in (
+                "claude_review.sh",
+                "codex_review.sh",
+                "kimi_review.sh",
+                "opencode_review.sh",
+            ):
+                with self.subTest(wrapper=wrapper_name):
+                    command = ["bash", str(SCRIPT_DIR / wrapper_name)]
+                    if wrapper_name == "claude_review.sh":
+                        command.append("review")
+                    elif wrapper_name == "opencode_review.sh":
+                        command.extend(("--implementer-family", "openai"))
+                    command.extend(("--timeout", "4"))
+                    completed = subprocess.run(
+                        command,
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                        env=environment,
+                    )
+                    self.assertEqual(completed.returncode, 2, completed.stderr)
+                    payload = json.loads(completed.stdout)
+                    self.assertEqual(payload["status"], "inconclusive")
+                    self.assertEqual(payload["reason_code"], "invalid_input")
+                    expected_reason = (
+                        "--timeout must be an integer of at least 5 seconds"
+                        if wrapper_name == "claude_review.sh"
+                        else "invalid_timeout"
+                    )
+                    self.assertEqual(payload["reason"], expected_reason)
+                    eligibility = payload.get(
+                        "fallback_eligible", payload.get("cascade_eligible")
+                    )
+                    self.assertFalse(eligibility)
 
 
 if __name__ == "__main__":

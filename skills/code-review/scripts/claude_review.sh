@@ -230,13 +230,22 @@ PY_DIFF
   diff_stat="Frozen review packet: $(printf '%s' "$diff_body" | wc -c | tr -d '[:space:]') bytes"
 fi
 
-if ! [[ "$timeout_s" =~ ^[1-9][0-9]*$ ]] || [ "$timeout_s" -lt 5 ]; then
+script_dir="$(cd "$(dirname "$0")" && pwd -P)"
+[ -f "$script_dir/normalize_review_timeout.sh" ] \
+  && [ -r "$script_dir/normalize_review_timeout.sh" ] \
+  && [ ! -L "$script_dir/normalize_review_timeout.sh" ] || {
+    emit_inconclusive_payload "Claude review helper missing: normalize_review_timeout.sh" local_tool_failure false stop_reviewer_lane
+    exit 2
+  }
+# shellcheck source=normalize_review_timeout.sh
+. "$script_dir/normalize_review_timeout.sh"
+requested_timeout_s="$timeout_s"
+if ! timeout_s="$(normalize_review_timeout "$timeout_s")"; then
   emit_inconclusive_payload "--timeout must be an integer of at least 5 seconds" invalid_input false stop_reviewer_lane
   exit 2
 fi
-if [ "$timeout_s" -gt 600 ]; then
-  printf 'claude_review.sh: clamping --timeout %s to 600 seconds\n' "$timeout_s" >&2
-  timeout_s=600
+if [ "$timeout_s" != "$requested_timeout_s" ]; then
+  printf 'claude_review.sh: clamping --timeout %s to 1200 seconds\n' "$requested_timeout_s" >&2
 fi
 wrapper_started=$SECONDS
 if [ "$mode" = "consult" ] && [ -z "${extra//[[:space:]]/}" ]; then
@@ -266,7 +275,6 @@ if [ -z "$repo_root" ]; then
   exit 2
 fi
 
-script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 harness_root="$(cd "$script_dir/.." && pwd -P)"
 repo_root_real="$(cd "$repo_root" && pwd -P)"
 harness_root_real="$harness_root"

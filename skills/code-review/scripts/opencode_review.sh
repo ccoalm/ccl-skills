@@ -168,8 +168,15 @@ command -v jq >/dev/null 2>&1 || die_inconclusive "jq_not_installed" local_tool_
 command -v timeout >/dev/null 2>&1 || die_inconclusive "timeout_not_installed" local_tool_failure false
 [ -n "$IMPL_FAMILY" ] || die_inconclusive "implementer_family_required"
 case "$MODE" in review|challenge) ;; *) die_inconclusive "bad_mode";; esac
-[[ "$TIMEOUT" =~ ^[1-9][0-9]*$ ]] && [ "$TIMEOUT" -ge 5 ] || die_inconclusive "invalid_timeout" invalid_input false
-if [ "$TIMEOUT" -gt 600 ]; then TIMEOUT=600; fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+[ -f "$SCRIPT_DIR/normalize_review_timeout.sh" ] \
+  && [ -r "$SCRIPT_DIR/normalize_review_timeout.sh" ] \
+  && [ ! -L "$SCRIPT_DIR/normalize_review_timeout.sh" ] \
+  || die_inconclusive "timeout_normalizer_missing" local_tool_failure false
+# shellcheck source=normalize_review_timeout.sh
+. "$SCRIPT_DIR/normalize_review_timeout.sh"
+TIMEOUT="$(normalize_review_timeout "$TIMEOUT")" \
+  || die_inconclusive "invalid_timeout" invalid_input false
 if [ "$REVIEW_SKILL_COUNT" -gt 0 ]; then
   for review_skill in "${REVIEW_SKILLS[@]}"; do
     # The controller and skill-package verifier already require this exact name
@@ -213,7 +220,6 @@ if [ -n "$DIFF_FILE" ]; then
   [ "$diff_link_count" -le 1 ] || die_inconclusive "diff_file_hardlink_rejected" invalid_input false
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PARSER="$SCRIPT_DIR/parse_opencode_review.py"
 SKILL_VERIFIER="$SCRIPT_DIR/verify_native_skill_binding.py"
 [ -f "$PARSER" ] || die_inconclusive "parser_missing"

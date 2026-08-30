@@ -1885,6 +1885,7 @@ PY
 # the skill tree. The runtime-surface classifier must be present there too.
 mkdir -p "$tmp_dir/harness/scripts"
 cp "$script_dir/claude_review.sh" "$tmp_dir/harness/scripts/"
+cp "$script_dir/normalize_review_timeout.sh" "$tmp_dir/harness/scripts/"
 cp "$script_dir/run_claude_capture.py" "$tmp_dir/harness/scripts/"
 cp "$script_dir/parse_review_json.py" "$tmp_dir/harness/scripts/"
 cp "$script_dir/parse_probe_result.py" "$tmp_dir/harness/scripts/"
@@ -1901,6 +1902,7 @@ PY
 # When the runtime classifier is absent, both review and challenge fail closed.
 mkdir -p "$tmp_dir/harness-no-runtime-parser/scripts"
 cp "$script_dir/claude_review.sh" "$tmp_dir/harness-no-runtime-parser/scripts/"
+cp "$script_dir/normalize_review_timeout.sh" "$tmp_dir/harness-no-runtime-parser/scripts/"
 cp "$script_dir/run_claude_capture.py" "$tmp_dir/harness-no-runtime-parser/scripts/"
 cp "$script_dir/parse_review_json.py" "$tmp_dir/harness-no-runtime-parser/scripts/"
 cp "$script_dir/classify_envelope.py" "$tmp_dir/harness-no-runtime-parser/scripts/"
@@ -1927,11 +1929,11 @@ done
 
 # Other local harness helpers are integrity inputs too; their absence must stop
 # instead of being laundered into an eligible provider fallback.
-for missing_helper in run_claude_capture.py classify_envelope.py parse_review_json.py; do
+for missing_helper in normalize_review_timeout.sh run_claude_capture.py classify_envelope.py parse_review_json.py; do
   helper_slug="${missing_helper%.py}"
   helper_dir="$tmp_dir/harness-no-$helper_slug/scripts"
   mkdir -p "$helper_dir"
-  for helper in claude_review.sh run_claude_capture.py parse_review_json.py parse_probe_result.py classify_envelope.py; do
+  for helper in claude_review.sh normalize_review_timeout.sh run_claude_capture.py parse_review_json.py parse_probe_result.py classify_envelope.py; do
     [ "$helper" = "$missing_helper" ] || cp "$script_dir/$helper" "$helper_dir/"
   done
   set +e
@@ -1951,7 +1953,10 @@ payload = json.load(open(sys.argv[2], encoding="utf-8"))
 assert payload["mode"] == "review", payload
 assert payload["status"] == "inconclusive", payload
 assert helper in payload["reason"], payload
-assert payload["reason_code"] == "policy_denied", payload
+expected_reason_code = (
+    "local_tool_failure" if helper == "normalize_review_timeout.sh" else "policy_denied"
+)
+assert payload["reason_code"] == expected_reason_code, payload
 assert payload["fallback_eligible"] is False, payload
 assert payload["next_action"] == "stop_reviewer_lane", payload
 PY

@@ -162,13 +162,15 @@ def normalize_path(value: str) -> str:
     return path.as_posix()
 
 
-def changed_preexisting_paths(repo: Path, base: str) -> list[str]:
+def changed_preexisting_paths(
+    repo: Path, base: str, head: str | None = None
+) -> list[str]:
+    diff_args = ["diff", "--name-only", "--diff-filter=ACDMRTUXB", base]
+    if head is not None:
+        diff_args.append(head)
     changed = git(
         repo,
-        "diff",
-        "--name-only",
-        "--diff-filter=ACDMRTUXB",
-        base,
+        *diff_args,
         "--",
         "skills",
     ).stdout.splitlines()
@@ -192,11 +194,18 @@ def read_current(repo: Path, path: str) -> str:
     return file_path.read_text(encoding="utf-8") if file_path.is_file() else ""
 
 
-def derive_rows(repo: Path, base: str, paths: Iterable[str]) -> list[ExpectedRow]:
+def read_at(repo: Path, rev: str, path: str) -> str:
+    result = git(repo, "show", f"{rev}:{path}", check=False)
+    return result.stdout if result.returncode == 0 else ""
+
+
+def derive_rows(
+    repo: Path, base: str, paths: Iterable[str], head: str | None = None
+) -> list[ExpectedRow]:
     rows: list[ExpectedRow] = []
     for path in sorted(paths):
         before = read_base(repo, base, path)
-        after = read_current(repo, path)
+        after = read_current(repo, path) if head is None else read_at(repo, head, path)
         after_by_key: dict[str, list[Any]] = {}
         for obligation, _, _ in parse_obligation_ranges(after):
             after_by_key.setdefault(obligation.key, []).append(obligation)
@@ -2393,6 +2402,7 @@ def proof_mode_counts(
 
 def render_ledger(
     base: str,
+    head: str | None,
     comparison_paths: list[str],
     relocation_paths: list[str],
     expected: list[ExpectedRow],
@@ -2430,6 +2440,7 @@ def render_ledger(
         "## Reproducible comparison domain",
         "",
         f"- Base revision: `{base}`",
+        *([f"- Head revision: `{head}`"] if head else []),
         f"- Changed pre-existing `skills/**/*.md`: {len(comparison_paths)}",
         f"- Explicit relocation destinations: {len(relocation_paths)}",
         f"- Governing-chain-diff rows: {len(expected)}",
@@ -2630,6 +2641,14 @@ def main(argv: list[str]) -> int:
     parser.add_argument("command", choices=("inventory", "render", "audit"))
     parser.add_argument("--repo", default=".")
     parser.add_argument("--base", required=True)
+    parser.add_argument(
+        "--head",
+        help=(
+            "pin the comparison-domain head to this commit; without it the "
+            "domain runs to the working tree, so a repository-frozen ledger "
+            "would demand rows from every later, unrelated change"
+        ),
+    )
     parser.add_argument("--mapping")
     parser.add_argument("--ledger")
     parser.add_argument("--output")
@@ -2650,8 +2669,13 @@ def main(argv: list[str]) -> int:
         # byte-identical and audit's byte comparison turns silent baseline
         # drift into an explicit STALE_LEDGER failure.
         resolved_base = git(repo, "rev-parse", f"{args.base}^{{commit}}").stdout.strip()
-        comparison = changed_preexisting_paths(repo, resolved_base)
-        expected = derive_rows(repo, resolved_base, comparison)
+        resolved_head = (
+            git(repo, "rev-parse", f"{args.head}^{{commit}}").stdout.strip()
+            if args.head
+            else None
+        )
+        comparison = changed_preexisting_paths(repo, resolved_base, resolved_head)
+        expected = derive_rows(repo, resolved_base, comparison, resolved_head)
         if args.command == "inventory":
             content = skeleton(repo, expected, auto_bind_exact=not args.no_auto_bind_exact)
             if args.output:
@@ -2681,6 +2705,7 @@ def main(argv: list[str]) -> int:
         modes = proof_mode_counts(expected, mapping_rows, resolved)
         rendered = render_ledger(
             resolved_base,
+            resolved_head,
             comparison,
             sorted(set(relocations) - set(comparison)),
             expected,
