@@ -42,6 +42,107 @@ The closeout row must name which private profile was used: `project-alias`, `pro
 
 Pre-existing leakage from earlier extractions may be tracked as `known_debt` in the alias YAML and explicitly excluded from blocking the current change. New or modified content MUST remain zero-hit — `known_debt` cannot waive a newly introduced label.
 
+### Shared Git and PR text
+
+Git history and forge metadata are shared publication surfaces even when the
+repository files are clean. The repository-owned
+`skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py` therefore
+scans the exact candidate commit range, current branch name, and available PR
+title/body text for AI session links or identifiers, model session/co-author
+trailers, AI author/committer identities, generated footers,
+conversation-process labels, and external-source provenance wording. Common
+Markdown list (including GFM task lists), quote, heading, and nested wrappers
+are presentation only and do not bypass any line-oriented class. The gate
+reports only surface, locator, and category so neither a finding nor an error
+diagnostic repeats the identifier, ref, path, or raw tool error it is blocking.
+Candidate commit metadata is requested from Git as UTF-8 regardless of the
+repository's ambient log-output encoding. Invalid UTF-8 or a Unicode
+replacement character fails closed with only the commit locator and field
+name, rather than silently erasing a CJK-only match. Each candidate's bounded
+raw commit object is also checked before pretty formatting; an embedded NUL is
+rejected because Git would otherwise truncate the visible message at that byte.
+The batch response is length-parsed and bound one-for-one to the separately
+enumerated full object IDs; abbreviated diagnostic locators are never used for
+identity or ordering decisions.
+`--repo` is the single repository identity. Every Git subprocess drops ambient
+repository-routing variables that could replace its worktree, refs, object
+store, ancestry, index, or namespace; a caller cannot point the gate at a clean
+decoy with `GIT_DIR` while the prohibited candidate lives elsewhere. This gate
+is a worktree pre-push/CI lane, not a receive-pack quarantine, so quarantine
+object-store overrides are not accepted.
+All object reads disable local replacement refs, which alter only the local
+view and are not the bytes a push publishes. A non-empty legacy
+`info/grafts` file likewise fails closed because it can rewrite the visible
+parent chain without changing the commit objects sent by a push.
+
+The base priority is explicit `--base-ref`, then the trusted PR event, then
+`CCL_SKILL_BASE_REF`, then a repository-declared default; an unresolved selected
+base is an error. The trusted event outranks ambient environment configuration
+so a CI process variable cannot silently move the base forward and narrow the
+event-defined candidate range. Only
+history outside the selected `<merge-base>..<candidate-head>` range may be
+`known_debt`; the merge-base itself is target-side history and is not a candidate
+commit. Candidate commits, the current destination branch, and current PR text
+have zero exceptions, including a violation hidden in an earlier candidate
+commit behind a clean HEAD. CI runs the gate on direct pushes to `dev`/`main`
+and on PR `edited` events because title/body changes do not require a new
+commit. Before a PR is created or edited, pass its exact proposed title and
+body through `--pr-text-file`; a local run with neither an event nor that file
+has checked no PR text. The optional pre-push hook is early feedback; the
+protected CI check is the merge boundary.
+
+The repository command fallback `origin/dev` applies only to the normal
+feature→dev lane. Promotion or any other target passes that target explicitly
+(for example, `--base-ref origin/main` for dev→main); a default is not evidence
+of the intended landing target. The pre-push hook uses an existing destination ref's remote SHA
+as its base only when that destination is an actual landing target (`dev` or
+`main`); ambient `CCL_SKILL_BASE_REF` cannot replace that SHA. The environment
+base may delimit a new zero-OID landing target. Every non-delete pushed ref is
+scanned at its own local object ID and destination name without checking it
+out. An ordinary feature ref always uses an explicitly bound landing target or
+the pushed remote's `dev` tracking ref; if that ref is absent, fetch it or set
+`CCL_SKILL_BASE_REF`. Its existing remote feature tip is still candidate history
+and must never become the base/`known_debt`. A new
+`dev`/`main` destination without an explicit base fails closed. Provider aliases
+are shared across the provider-shaped
+surface patterns, but unknown future AI providers remain an enumerated-pattern
+coverage risk; the shared prose prohibition is broader than the currently
+recognized provider names.
+
+Co-author detection also has an intentional precision boundary. An
+unambiguous product display name such as `Claude Code` or `Codex`, a bounded
+model/product-qualified form such as `Claude Sonnet`, `OpenAI Codex`, or
+`ChatGPT-5`, or a known
+provider GitHub App account carrying the `[bot]` suffix, is blocked with any
+email. Account matching accepts GitHub slug separators, so `claude-code[bot]`
+and `copilot-swe-agent[bot]` remain the same known-provider class. A known
+provider `[bot]` account in the email local part is also sufficient when the
+display name is neutral, with only the standard optional numeric GitHub ID
+prefix accepted before that exact account. A provider token embedded as a
+suffix inside another bot account is not treated as the provider. An exact
+single-name alias that can also be a person's name needs an independent
+`noreply`/`no-reply`/`bot` email signal. This keeps a human whose
+real name matches an alias from being mechanically rejected, but it also means
+an AI trailer that deliberately uses such an ambiguous name plus an ordinary
+email is not detectable from the trailer alone. The root prohibition still
+applies; proposed text with that ambiguity needs human readback rather than a
+claim that the local gate proved every model co-author absent. Candidate author
+and committer fields use a narrower rule: only unambiguous product names,
+known-provider `[bot]` display names, or known-provider `[bot]` email accounts
+with only an optional numeric GitHub ID prefix are blocked. A generic `noreply`
+address is a normal human privacy setting there, so an ambiguous single-name
+identity remains an explicit human-readback coverage gap; unrelated automation
+bots and accounts that only end in a provider token are not reclassified as AI.
+
+The current deterministic event surface does not fetch historical PR comments,
+labels, or a platform-generated custom merge message. Those remain prohibited
+by the root contract, but are an explicit coverage gap requiring forge-side
+readback/enforcement; they are not reclassified as `known_debt` merely because
+this local scanner cannot observe them. A pushed tag's destination name and
+pointed-to commit are scanned, but an annotated tag object's own message is not;
+that separately named surface is also an explicit coverage gap rather than an
+implicit clean result.
+
 ## Fail-Closed Clause — Maintainer Discipline
 
 Every new sanitized label introduced in this commit (e.g. an angle-bracket capability token like `<some-capability>`, a class tier like `<class-A1>`, or any other invented short name that stands for a real source artifact) MUST exist in the maintainer's alias YAML before the commit lands.

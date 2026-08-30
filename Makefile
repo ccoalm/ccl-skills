@@ -1,6 +1,7 @@
 # ccl-skills 安装与更新（薄封装，逻辑在 scripts/install*.sh）
 .PHONY: help test test-repo-gates test-regressions-fast test-code-review test-code-review-1 test-code-review-2 test-code-review-abort-leak test-code-review-abort-leak-1 test-code-review-abort-leak-2 test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
 .DEFAULT_GOAL := help
+CCL_SKILL_DEFAULT_BASE_REF ?= origin/dev
 
 help: ## 显示可用目标
 	@grep -E '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-20s %s\n", $$1, $$2}'
@@ -14,6 +15,7 @@ test: test-repo-gates test-regressions-fast test-code-review ## 运行本仓确�
 
 test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository-gates job；不含 code-review 族与 fast 回归 lane）
 	bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
+	python3 skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py --repo . --default-base-ref "$(CCL_SKILL_DEFAULT_BASE_REF)"
 	bash skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh --repo . --enforce
 	python3 scripts/test_check_markdown_links.py
 	python3 scripts/check-markdown-links.py .
@@ -75,6 +77,7 @@ test-code-review-2: ## code-review 分片 2（CI code-review-regressions-2 job�
 	  skills/code-review/scripts/test_claude_review_probe.sh \
 	  skills/code-review/scripts/test_opencode_review_concurrency.sh \
 	  skills/code-review/scripts/test_review_gate.sh \
+	  skills/code-review/scripts/test_update_review_plan_intent.sh \
 	  skills/code-review/scripts/test_review_client_order.sh \
 	  skills/code-review/scripts/test_cli_review_wrappers.sh \
 	  skills/code-review/scripts/test_review_client_compat.py \

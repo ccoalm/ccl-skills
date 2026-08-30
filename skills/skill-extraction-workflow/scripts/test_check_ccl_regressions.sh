@@ -16,6 +16,9 @@
 #   - test_check_ccl_skill_catalog.sh
 #   - test_check_ccl_parallel_stack_parity.sh
 #   - test_generic_r0_leak_scan.sh
+#   - test_shared_git_surface_gate.sh
+#   - test_extraction_review_gate.sh
+#   - test_validate_extraction_review_state.sh
 #   - test_check_ccl_route_drift.sh
 #   - test_check_sync_pointers.sh
 #   - test_check_ccl_register_pending_exclusion.sh
@@ -108,6 +111,9 @@ fast_tests=(
   test_check_ccl_parallel_stack_parity.sh
   test_check_mr_target_freshness.sh
   test_generic_r0_leak_scan.sh
+  test_shared_git_surface_gate.sh
+  test_extraction_review_gate.sh
+  test_validate_extraction_review_state.sh
   test_check_ccl_route_drift.sh
   test_check_sync_pointers.sh
   test_check_ccl_register_pending_exclusion.sh

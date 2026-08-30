@@ -345,7 +345,7 @@ line echoes the packet-specific receipt and the remaining text matches the
 review contract. Pre-inference setup and the capability probe are charged
 against the controller-granted lane budget, and the probe itself is capped at
 60 seconds. MCP review receives
-the remaining budget up to the wrapper's existing 600-second ceiling; inline
+the remaining budget up to the wrapper's 1200-second ceiling; inline
 review is additionally capped at 120 seconds because its bounded prompt remains
 visible in process argv. Both
 use a one-second forced-kill grace; a deadline timeout may cascade, while an

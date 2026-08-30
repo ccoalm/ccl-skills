@@ -205,7 +205,7 @@ PYTHONPATH="$WORK/harness/scripts" python3 - "$WORK" <<'PY'
 from pathlib import Path
 import sys
 
-from review_gate import candidate_paths_from_packet, derive_owner_selection
+from review_gate import candidate_paths_from_packet, decode_git_c_path, derive_owner_selection
 
 registry = Path(sys.argv[1])
 packet = (
@@ -216,10 +216,23 @@ packet = (
     b'--- a/skills/fake-owner/SKILL.md\n'
     b'+++ b/skills/fake-owner/SKILL.md\n'
     b'diff --git "a/services/caf\\303\\251.py" "b/services/caf\\303\\251.py"\n'
+    + (
+        'diff --git "a/services/caf\N{LATIN SMALL LETTER E WITH ACUTE} file.py" '
+        '"b/services/caf\N{LATIN SMALL LETTER E WITH ACUTE} file.py"\n'
+    ).encode()
 )
 paths = candidate_paths_from_packet(packet)
 assert "services/my file.py" in paths, paths
 assert "services/caf\N{LATIN SMALL LETTER E WITH ACUTE}.py" in paths, paths
+assert "services/caf\N{LATIN SMALL LETTER E WITH ACUTE} file.py" in paths, paths
+assert decode_git_c_path(
+    '"caf\N{LATIN SMALL LETTER E WITH ACUTE} file\\\\name.md"', strict_utf8=True
+) == "caf\N{LATIN SMALL LETTER E WITH ACUTE} file\\name.md"
+assert decode_git_c_path('"caf\\303\\251.md"', strict_utf8=True) == "caf\N{LATIN SMALL LETTER E WITH ACUTE}.md"
+assert decode_git_c_path('"python\\x2descape.md"', strict_utf8=True) is None
+assert decode_git_c_path('"bad\\377.md"', strict_utf8=True) is None
+assert decode_git_c_path('"bad\\400.md"', strict_utf8=True) is None
+assert decode_git_c_path('"bad\\777.md"', strict_utf8=True) is None
 assert "skills/fake-owner/SKILL.md" not in paths, paths
 assert not any(
     row["skill"] == "README.md"
@@ -556,6 +569,71 @@ if [ "$?" -ne 0 ]; then
   exit 1
 fi
 
+PYTHONPATH="$WORK/harness/scripts" python3 - "$WORK" <<'PY'
+from pathlib import Path
+import sys
+import unicodedata
+
+from review_gate import (
+    _validate_untracked_path_text,
+    GateError,
+    candidate_paths_from_packet,
+    derive_owner_selection,
+    render_untracked_file,
+)
+
+registry = Path(sys.argv[1])
+probe = registry / "untracked-path-probe"
+probe.write_text("probe\n", encoding="utf-8")
+metadata = probe.stat()
+probe.unlink()
+
+relative_paths = (
+    "skills/testing-strategy/references/café.py",
+    "skills/testing-strategy/references/emoji-🚀.py",
+    "skills/testing-strategy/references/space name.py",
+    'skills/testing-strategy/references/quote"name.py',
+    "skills/testing-strategy/references/back\\slash.py",
+)
+for relative in relative_paths:
+    packet = render_untracked_file(relative, b"print('ok')\n", metadata)
+    paths = candidate_paths_from_packet(packet)
+    assert paths == [relative], (relative, paths, packet)
+
+for codepoint in range(sys.maxunicode + 1):
+    character = chr(codepoint)
+    if unicodedata.category(character) not in {"Cc", "Zl", "Zp"}:
+        continue
+    try:
+        _validate_untracked_path_text(f"before{character}after.py")
+    except GateError as exc:
+        assert "control-character" in exc.reason, (codepoint, exc.reason)
+    else:
+        raise AssertionError(f"transport control U+{codepoint:04X} was accepted")
+
+owners = {
+    row["skill"]
+    for row in derive_owner_selection([relative_paths[0]], registry)
+}
+assert {"python-service-dev", "testing-strategy"}.issubset(owners), owners
+
+try:
+    render_untracked_file(
+        "skills/testing-strategy/references/non-utf8-\udcff.py",
+        b"print('ok')\n",
+        metadata,
+    )
+except GateError as exc:
+    assert exc.reason_code == "invalid_input", exc.reason_code
+    assert "non-UTF-8 untracked path" in exc.reason, exc.reason
+else:
+    raise AssertionError("surrogate-bearing untracked path did not fail closed")
+PY
+if [ "$?" -ne 0 ]; then
+  printf 'FAIL - untracked path rendering round-trips Unicode, quoting, and owner routing\n' >&2
+  exit 1
+fi
+
 cat >"$WORK/harness/scripts/claude_review.sh" <<'CLAUDE_STUB'
 #!/usr/bin/env bash
 set -u
@@ -614,6 +692,10 @@ print(json.dumps([
         ),
     }
     for item in profile["required_concerns"]
+    if not (
+        sys.argv[2] == "missing_wording_boundary"
+        and item["id"] == "wording_only_boundary"
+    )
 ], separators=(",", ":")))
 PY
 )"
@@ -621,6 +703,7 @@ native_skill_binding="not_requested"
 [ -z "$review_skills" ] || native_skill_binding="established"
 case "$behavior" in
   passed) printf '{"mode":"%s","native_skill_binding":"%s","concern_results":%s,"findings":[]}\n' "$mode" "$native_skill_binding" "$concern_results"; exit 0 ;;
+  missing_wording_boundary) printf '{"mode":"%s","native_skill_binding":"%s","concern_results":%s,"findings":[]}\n' "$mode" "$native_skill_binding" "$concern_results"; exit 0 ;;
   missing_binding) printf '{"mode":"%s","concern_results":%s,"findings":[]}\n' "$mode" "$concern_results"; exit 0 ;;
   passed_slow)
     sleep 5
@@ -1300,6 +1383,38 @@ check "a non-regular entrypoint in an explicit owner package is terminal" \
 rmdir "$WORK/testing-strategy/SKILL.md"
 mv "$WORK/testing-strategy/SKILL.md.real" "$WORK/testing-strategy/SKILL.md"
 
+python3 - "$WORK/harness/scripts/oversized-runtime.py" <<'PY'
+import os
+import sys
+
+path = sys.argv[1]
+open(path, "wb").close()
+os.truncate(path, 1_048_577)
+PY
+reset_case passed unavailable unavailable
+out="$(run_gate)"; rc=$?
+check "an oversized controller-runtime file fails before provider execution" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=local_tool_failure'
+rm -f "$WORK/harness/scripts/oversized-runtime.py"
+
+mkdir -p "$WORK/harness/scripts/runtime-aggregate"
+python3 - "$WORK/harness/scripts/runtime-aggregate" <<'PY'
+import os
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+for index in range(9):
+    path = root / f"part-{index}.py"
+    path.touch()
+    os.truncate(path, 1_000_000)
+PY
+reset_case passed unavailable unavailable
+out="$(run_gate)"; rc=$?
+check "an oversized controller-runtime aggregate fails before provider execution" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=local_tool_failure'
+rm -rf "$WORK/harness/scripts/runtime-aggregate"
+
 reset_case passed unavailable unavailable
 out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
   --mode review --cwd "$WORK/repo" --diff-file "$WORK/large-diff.patch" \
@@ -1320,6 +1435,279 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
   --implementer-family openai --review-plan-file "$WORK/near-limit-plan.json")"; rc=$?
 check "a valid plan near the documented 32 KB input limit can render its profile" \
   '[ "$(wc -c <"$WORK/near-limit-plan.json")" -le 32000 ] && [ "$rc" = 0 ] && [ "$(cat "$WORK/state/client_sequence")" = claude ]'
+
+ln -s "$WORK/review-plan.json" "$WORK/symlink-review-plan.json"
+reset_case passed unavailable unavailable
+out="$(run_gate --review-plan-file "$WORK/symlink-review-plan.json")"; rc=$?
+check "a symlinked review plan fails before provider execution" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input'
+unlink "$WORK/symlink-review-plan.json"
+
+cp "$WORK/review-plan.json" "$WORK/hardlink-review-plan.json"
+ln "$WORK/hardlink-review-plan.json" "$WORK/hardlink-review-plan-alias.json"
+reset_case passed unavailable unavailable
+out="$(run_gate --review-plan-file "$WORK/hardlink-review-plan.json")"; rc=$?
+check "a hardlinked review plan fails before provider execution" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input'
+unlink "$WORK/hardlink-review-plan-alias.json"
+unlink "$WORK/hardlink-review-plan.json"
+
+mkfifo "$WORK/fifo-review-plan.json"
+reset_case passed unavailable unavailable
+fifo_probe="$(python3 - \
+  "$WORK/harness/scripts/review_gate.py" \
+  "$WORK/repo" \
+  "$WORK/diff.patch" \
+  "$WORK/fifo-review-plan.json" \
+  "$WORK/state" <<'PY'
+import json
+import os
+import subprocess
+import sys
+
+gate, cwd, diff, plan, state = sys.argv[1:]
+environment = os.environ.copy()
+environment["REVIEW_GATE_TEST_STATE"] = state
+try:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            gate,
+            "--mode", "review",
+            "--cwd", cwd,
+            "--diff-file", diff,
+            "--implementer-family", "openai",
+            "--review-plan-file", plan,
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=1,
+        env=environment,
+        check=False,
+    )
+except subprocess.TimeoutExpired as exc:
+    raise AssertionError("FIFO review-plan open blocked") from exc
+assert completed.returncode == 2, (completed.returncode, completed.stdout, completed.stderr)
+payload = json.loads(completed.stdout)
+assert payload["reason_code"] == "invalid_input", payload
+assert "Traceback" not in completed.stderr, completed.stderr
+print("ok")
+PY
+)"
+fifo_probe_rc=$?
+check "a FIFO review plan fails quickly before provider execution" \
+  '[ "$fifo_probe_rc" = 0 ] && [ "$fifo_probe" = ok ] && [ ! -e "$WORK/state/client_sequence" ]'
+
+python3 - "$WORK/review-plan.json" "$WORK/surrogate-review-plan.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+source, target = map(Path, sys.argv[1:])
+plan = json.loads(source.read_text(encoding="utf-8"))
+plan["intent"] = "Reject this escaped lone surrogate: \ud800"
+target.write_text(json.dumps(plan, ensure_ascii=True), encoding="utf-8")
+PY
+reset_case passed unavailable unavailable
+out="$(run_gate --review-plan-file "$WORK/surrogate-review-plan.json" 2>&1)"; rc=$?
+check "an escaped lone surrogate is a stable rc2 before provider execution" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input completion_gated=true'
+
+python3 - "$WORK/oversized-review-plan.json" <<'PY'
+import sys
+from pathlib import Path
+
+Path(sys.argv[1]).write_bytes(b"x" * 32001)
+PY
+reset_case passed unavailable unavailable
+out="$(run_gate --review-plan-file "$WORK/oversized-review-plan.json")"; rc=$?
+check "an oversized review plan fails before provider execution" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input'
+
+# The path checks for diff/prior/completion inputs must bind the bytes to one
+# already-open descriptor.  Simulate the old check-then-open race by replacing a
+# regular path with a symlink immediately after Path.is_symlink() reports clean.
+# A secure open-once implementation never calls that pathname predicate, so it
+# either reads the original inode or rejects the input; it can never consume the
+# alternate bytes behind the replacement link.
+file_input_race_probe="$(PYTHONPATH="$WORK/harness/scripts" python3 - "$WORK" <<'PY' 2>&1
+import contextlib
+import ast
+import hashlib
+import json
+import os
+from pathlib import Path
+from types import SimpleNamespace
+import sys
+import time
+
+import review_gate
+
+
+@contextlib.contextmanager
+def replace_after_symlink_check(source: Path, alternate: Path):
+    original_is_symlink = Path.is_symlink
+    backup = source.with_name(source.name + ".before-link-swap")
+    swapped = False
+
+    def injecting_is_symlink(path: Path) -> bool:
+        nonlocal swapped
+        result = original_is_symlink(path)
+        if path == source and not swapped:
+            source.rename(backup)
+            source.symlink_to(alternate)
+            swapped = True
+        return result
+
+    Path.is_symlink = injecting_is_symlink
+    try:
+        yield
+    finally:
+        Path.is_symlink = original_is_symlink
+        if swapped:
+            source.unlink()
+            backup.rename(source)
+
+
+@contextlib.contextmanager
+def replace_after_first_fstat(source: Path, alternate: Path):
+    """Replace the pathname after the reader has already opened its inode."""
+
+    original_fstat = os.fstat
+    original_inode = source.stat().st_ino
+    backup = source.with_name(source.name + ".after-open-link-swap")
+    swapped = False
+
+    def injecting_fstat(fd: int):
+        nonlocal swapped
+        metadata = original_fstat(fd)
+        if metadata.st_ino == original_inode and not swapped:
+            source.rename(backup)
+            source.symlink_to(alternate)
+            swapped = True
+        return metadata
+
+    os.fstat = injecting_fstat
+    try:
+        yield
+    finally:
+        os.fstat = original_fstat
+        if swapped:
+            source.unlink()
+            backup.rename(source)
+
+
+root = Path(sys.argv[1]) / "file-input-race"
+root.mkdir()
+
+original_diff = (
+    b"diff --git a/safe b/safe\n--- a/safe\n+++ b/safe\n"
+    b"@@ -1 +1 @@\n-old\n+safe\n"
+)
+alternate_diff = (
+    b"diff --git a/other b/other\n--- a/other\n+++ b/other\n"
+    b"@@ -1 +1 @@\n-old\n+alternate\n"
+)
+diff_source = root / "candidate.patch"
+diff_alternate = root / "alternate.patch"
+diff_source.write_bytes(original_diff)
+diff_alternate.write_bytes(alternate_diff)
+with replace_after_symlink_check(diff_source, diff_alternate):
+    packet_path, digest, _, _ = review_gate.freeze_packet(
+        SimpleNamespace(
+            cwd=str(root), diff_file=str(diff_source), base=None, paths=[]
+        ),
+        time.monotonic() + 5,
+    )
+try:
+    assert packet_path.read_bytes() == original_diff
+    assert digest == hashlib.sha256(original_diff).hexdigest()
+finally:
+    packet_path.unlink()
+
+# Both --prior-review-result-file and --completion-review-result-file consume
+# this loader.  Exercise two independent path replacements so neither call site
+# can regress to check-then-open behavior under a later refactor.
+for label in ("prior", "completion"):
+    source = root / f"{label}.json"
+    alternate = root / f"{label}-alternate.json"
+    original_bytes = json.dumps({"source": label}).encode()
+    alternate.write_text(json.dumps({"source": "alternate"}), encoding="utf-8")
+    source.write_bytes(original_bytes)
+    with replace_after_symlink_check(source, alternate):
+        payload, digest = review_gate._load_prior_review_result(str(source), 1)
+    assert payload == {"source": label}
+    assert digest == hashlib.sha256(original_bytes).hexdigest()
+
+# Opening once prevents following an attacker-selected replacement, but the
+# gate also needs to reject that the pathname stopped naming the opened inode.
+# Otherwise a successful result can be attributed to bytes that are no longer
+# the candidate at the point the freeze returns.
+swap_source = root / "opened-then-swapped.patch"
+swap_alternate = root / "opened-then-swapped-alternate.patch"
+swap_source.write_bytes(original_diff)
+swap_alternate.write_bytes(alternate_diff)
+with replace_after_first_fstat(swap_source, swap_alternate):
+    try:
+        review_gate.freeze_packet(
+            SimpleNamespace(
+                cwd=str(root), diff_file=str(swap_source), base=None, paths=[]
+            ),
+            time.monotonic() + 5,
+        )
+    except review_gate.GateError as exc:
+        assert "changed" in exc.reason, exc.reason
+    else:
+        raise AssertionError("a pathname replaced after open was accepted")
+
+# Frozen packet/profile verification and owner/controller hashing used to
+# reopen by pathname as well. Keep a structural assertion beside the live race
+# probes so a new Path.read_bytes() call cannot silently recreate that class.
+tree = ast.parse(Path(review_gate.__file__).read_text(encoding="utf-8"))
+path_reads = [
+    node
+    for node in ast.walk(tree)
+    if isinstance(node, ast.Call)
+    and isinstance(node.func, ast.Attribute)
+    and node.func.attr in {"read_bytes", "read_text"}
+]
+assert not path_reads, [(node.func.attr, node.lineno) for node in path_reads]
+
+# Resource bounds are checked from fstat before reading. A sparse oversized
+# owner file must fail closed instead of allocating its declared size, and an
+# individually valid set must still respect the package aggregate ceiling.
+oversized_skill = root / "oversized-skill"
+oversized_skill.mkdir()
+(oversized_skill / "SKILL.md").touch()
+os.truncate(oversized_skill / "SKILL.md", 1_048_577)
+try:
+    review_gate._hash_skill_package(oversized_skill, "oversized-skill")
+except review_gate.GateError as exc:
+    assert exc.reason_code == "local_tool_failure", exc.reason_code
+else:
+    raise AssertionError("an oversized selected-skill file was hashed")
+
+aggregate_skill = root / "aggregate-skill"
+(aggregate_skill / "references").mkdir(parents=True)
+(aggregate_skill / "SKILL.md").write_text("# aggregate\n", encoding="utf-8")
+for index in range(9):
+    part = aggregate_skill / "references" / f"part-{index}.md"
+    part.touch()
+    os.truncate(part, 1_000_000)
+try:
+    review_gate._hash_skill_package(aggregate_skill, "aggregate-skill")
+except review_gate.GateError as exc:
+    assert exc.reason_code == "local_tool_failure", exc.reason_code
+else:
+    raise AssertionError("an oversized selected-skill package was hashed")
+
+print("open_once_file_inputs_ok")
+PY
+)"
+file_input_race_rc=$?
+check "diff, prior, and completion inputs are read once from a bounded opened descriptor" \
+  '[ "$file_input_race_rc" = 0 ] && [ "$file_input_race_probe" = open_once_file_inputs_ok ]'
 
 reset_case missing_coverage passed unavailable
 out="$(run_gate --diff-file "$WORK/secret-diff.patch")"; rc=$?
@@ -1665,14 +2053,997 @@ out="$(run_gate --stage explore --risk-tag shared-gate --review-plan-file "$WORK
 check "high-risk tags raise explore to release depth and default one challenge" \
   '[ "$rc" = 0 ] && json_fields "$out" stage=explore stage_source=caller-declared review_depth=release risk_tags_source=caller-declared challenge_budget=1 challenge_rounds_remaining=1 review_chain_tracked=true review_chain_id=high-risk-task autonomous_review_budget=2 autonomous_review_index=1 autonomous_reviews_remaining=1 autonomous_review_allowed=true next_action=run_challenge completion_gated=true risk_tags.0=shared-gate reviewed_concerns.7=high_risk_boundary self_review_gate.required=false self_review_gate.satisfied_triggers.0=before_external_review self_review_gate.satisfied_triggers.1=risk_or_scope_escalation'
 
+# Release/high-risk normally requires a challenge. The only single-review
+# exception is a candidate-bound deterministic wording-only proof whose result
+# the controller can reproduce from the frozen canonical unified packet.
+mkdir -p "$WORK/wording-reviewed-repo/skills/code-review/references"
+printf '%s\n' '# Code Review' \
+  >"$WORK/wording-reviewed-repo/skills/code-review/SKILL.md"
+for target in \
+  fenced-backtick.md \
+  fenced-tilde.md \
+  fenced-unclosed.md \
+  fenced-list-bullet.md \
+  fenced-list-ordered.md \
+  fenced-list-indented.md \
+  indented-space.md \
+  indented-tab.md \
+  indented-list.md \
+  html-pre.md \
+  html-code.md \
+  inline-code.md \
+  link-destination.md \
+  heading-structure.md \
+  list-structure.md \
+  table-structure.md \
+  after-closed-fence.md \
+  after-closed-list-fence.md \
+  ordinary-list-punctuation.md; do
+  printf '%s\n' '# Existing Markdown fixture' \
+    >"$WORK/wording-reviewed-repo/skills/code-review/references/$target"
+done
+mkdir -p "$WORK/repo/skills/code-review/references"
+printf '%s\n' '# Reviewed Code Review' >"$WORK/repo/skills/code-review/SKILL.md"
+for target in \
+  punctuation.md \
+  'café file.md' \
+  typo.md \
+  normative.md \
+  zero-width.md \
+  bidi-control.md \
+  emoji-symbol.md \
+  currency-symbol.md \
+  decomposed-boundary.md \
+  zwj-boundary.md; do
+  printf '%s\n' '# Existing Markdown fixture' \
+    >"$WORK/repo/skills/code-review/references/$target"
+done
+mkdir -p "$WORK/wording-missing-package-repo"
+mkdir -p "$WORK/wording-repo-only/skills/repo-only/references"
+printf '%s\n' '# Repo Only' \
+  >"$WORK/wording-repo-only/skills/repo-only/SKILL.md"
+printf '%s\n' '# Existing Markdown fixture' \
+  >"$WORK/wording-repo-only/skills/repo-only/references/punctuation.md"
+mkdir -p "$WORK/wording-linked-package-repo/skills"
+ln -s "$WORK/wording-reviewed-repo/skills/code-review" \
+  "$WORK/wording-linked-package-repo/skills/code-review"
+mkdir -p "$WORK/wording-hardlinked-package-repo/skills/code-review"
+printf '%s\n' '# Hardlinked Code Review' \
+  >"$WORK/wording-hardlinked-package-repo/skills/code-review/SKILL.md"
+ln "$WORK/wording-hardlinked-package-repo/skills/code-review/SKILL.md" \
+  "$WORK/wording-hardlinked-package-repo/skills/code-review/SKILL.alias"
+mkdir -p "$WORK/wording-nonregular-package-repo/skills/code-review/SKILL.md"
+mkdir -p "$WORK/wording-oversized-package-repo/skills/code-review"
+python3 - "$WORK/wording-oversized-package-repo/skills/code-review/SKILL.md" <<'PY'
+import os
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+path.touch()
+os.truncate(path, 1_048_577)
+PY
+for unsafe_target in missing linked hardlinked nonregular oversized; do
+  mkdir -p \
+    "$WORK/wording-$unsafe_target-target-repo/skills/code-review/references"
+  printf '%s\n' '# Code Review' \
+    >"$WORK/wording-$unsafe_target-target-repo/skills/code-review/SKILL.md"
+done
+ln -s "$WORK/repo/skills/code-review/references/punctuation.md" \
+  "$WORK/wording-linked-target-repo/skills/code-review/references/punctuation.md"
+printf '%s\n' '# Hardlinked Markdown fixture' \
+  >"$WORK/wording-hardlinked-target-repo/skills/code-review/references/punctuation.md"
+ln "$WORK/wording-hardlinked-target-repo/skills/code-review/references/punctuation.md" \
+  "$WORK/wording-hardlinked-target-repo/skills/code-review/references/punctuation.alias"
+mkdir \
+  "$WORK/wording-nonregular-target-repo/skills/code-review/references/punctuation.md"
+python3 - "$WORK/wording-oversized-target-repo/skills/code-review/references/punctuation.md" <<'PY'
+import os
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+path.touch()
+os.truncate(path, 1_048_577)
+PY
+cat >"$WORK/wording-punctuation.patch" <<'DIFF'
+diff --git a/skills/code-review/references/punctuation.md b/skills/code-review/references/punctuation.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/punctuation.md
++++ b/skills/code-review/references/punctuation.md
+@@ -1 +1 @@
+-Review remains exact.
++Review remains exact!
+DIFF
+cat >"$WORK/repo-only-wording.patch" <<'DIFF'
+diff --git a/skills/repo-only/references/punctuation.md b/skills/repo-only/references/punctuation.md
+index 1111111..2222222 100644
+--- a/skills/repo-only/references/punctuation.md
++++ b/skills/repo-only/references/punctuation.md
+@@ -1 +1 @@
+-Review remains exact.
++Review remains exact!
+DIFF
+cat >"$WORK/fenced-backtick-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/fenced-backtick.md b/skills/code-review/references/fenced-backtick.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/fenced-backtick.md
++++ b/skills/code-review/references/fenced-backtick.md
+@@ -1,3 +1,3 @@
+ ```bash
+-command;;
++command;
+ ```
+DIFF
+cat >"$WORK/fenced-tilde-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/fenced-tilde.md b/skills/code-review/references/fenced-tilde.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/fenced-tilde.md
++++ b/skills/code-review/references/fenced-tilde.md
+@@ -1,3 +1,3 @@
+ ~~~sh
+-command;;
++command;
+ ~~~
+DIFF
+cat >"$WORK/after-closed-fence-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/after-closed-fence.md b/skills/code-review/references/after-closed-fence.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/after-closed-fence.md
++++ b/skills/code-review/references/after-closed-fence.md
+@@ -1,4 +1,4 @@
+ ```shell
+ command stays unchanged
+ ```
+-Review remains exact.
++Review remains exact!
+DIFF
+cat >"$WORK/fenced-unclosed-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/fenced-unclosed.md b/skills/code-review/references/fenced-unclosed.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/fenced-unclosed.md
++++ b/skills/code-review/references/fenced-unclosed.md
+@@ -1,2 +1,2 @@
+ ```bash
+-command;;
++command;
+DIFF
+cat >"$WORK/fenced-list-bullet-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/fenced-list-bullet.md b/skills/code-review/references/fenced-list-bullet.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/fenced-list-bullet.md
++++ b/skills/code-review/references/fenced-list-bullet.md
+@@ -1,3 +1,3 @@
+ - ```bash
+-  command;;
++  command;
+   ```
+DIFF
+cat >"$WORK/fenced-list-ordered-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/fenced-list-ordered.md b/skills/code-review/references/fenced-list-ordered.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/fenced-list-ordered.md
++++ b/skills/code-review/references/fenced-list-ordered.md
+@@ -1,3 +1,3 @@
+ 10. ~~~sh
+-    command;;
++    command;
+     ~~~
+DIFF
+python3 - "$WORK/fenced-list-indented-wording.patch" <<'PY'
+from pathlib import Path
+import sys
+
+Path(sys.argv[1]).write_text(
+    "diff --git a/skills/code-review/references/fenced-list-indented.md "
+    "b/skills/code-review/references/fenced-list-indented.md\n"
+    "index 1111111..2222222 100644\n"
+    "--- a/skills/code-review/references/fenced-list-indented.md\n"
+    "+++ b/skills/code-review/references/fenced-list-indented.md\n"
+    "@@ -1,5 +1,5 @@\n"
+    " - shell example\n"
+    " \n"
+    "     ```sh\n"
+    "-    command;;\n"
+    "+    command;\n"
+    "     ```\n",
+    encoding="utf-8",
+)
+PY
+cat >"$WORK/indented-space-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/indented-space.md b/skills/code-review/references/indented-space.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/indented-space.md
++++ b/skills/code-review/references/indented-space.md
+@@ -1 +1 @@
+-    command;;
++    command;
+DIFF
+python3 - "$WORK/indented-tab-wording.patch" <<'PY'
+from pathlib import Path
+import sys
+
+Path(sys.argv[1]).write_text(
+    "diff --git a/skills/code-review/references/indented-tab.md "
+    "b/skills/code-review/references/indented-tab.md\n"
+    "index 1111111..2222222 100644\n"
+    "--- a/skills/code-review/references/indented-tab.md\n"
+    "+++ b/skills/code-review/references/indented-tab.md\n"
+    "@@ -1 +1 @@\n"
+    "-\tcommand;;\n"
+    "+\tcommand;\n",
+    encoding="utf-8",
+)
+PY
+cat >"$WORK/indented-list-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/indented-list.md b/skills/code-review/references/indented-list.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/indented-list.md
++++ b/skills/code-review/references/indented-list.md
+@@ -1,2 +1,2 @@
+ - item
+-      command;;
++      command;
+DIFF
+cat >"$WORK/html-pre-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/html-pre.md b/skills/code-review/references/html-pre.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/html-pre.md
++++ b/skills/code-review/references/html-pre.md
+@@ -1,3 +1,3 @@
+ <pre>
+-command;;
++command;
+ </pre>
+DIFF
+cat >"$WORK/html-code-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/html-code.md b/skills/code-review/references/html-code.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/html-code.md
++++ b/skills/code-review/references/html-code.md
+@@ -1,3 +1,3 @@
+ <code>
+-command;;
++command;
+ </code>
+DIFF
+cat >"$WORK/inline-code-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/inline-code.md b/skills/code-review/references/inline-code.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/inline-code.md
++++ b/skills/code-review/references/inline-code.md
+@@ -1 +1 @@
+-`command;;`
++`command;`
+DIFF
+cat >"$WORK/link-destination-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/link-destination.md b/skills/code-review/references/link-destination.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/link-destination.md
++++ b/skills/code-review/references/link-destination.md
+@@ -1 +1 @@
+-[docs](#)
++[docs](/)
+DIFF
+cat >"$WORK/heading-structure-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/heading-structure.md b/skills/code-review/references/heading-structure.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/heading-structure.md
++++ b/skills/code-review/references/heading-structure.md
+@@ -1 +1 @@
+-# Review remains exact.
++## Review remains exact.
+DIFF
+cat >"$WORK/list-structure-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/list-structure.md b/skills/code-review/references/list-structure.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/list-structure.md
++++ b/skills/code-review/references/list-structure.md
+@@ -1 +1 @@
+-- Review remains exact.
++* Review remains exact.
+DIFF
+cat >"$WORK/table-structure-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/table-structure.md b/skills/code-review/references/table-structure.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/table-structure.md
++++ b/skills/code-review/references/table-structure.md
+@@ -1 +1 @@
+-| Review remains exact |
++| Review remains exact: |
+DIFF
+cat >"$WORK/after-closed-list-fence-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/after-closed-list-fence.md b/skills/code-review/references/after-closed-list-fence.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/after-closed-list-fence.md
++++ b/skills/code-review/references/after-closed-list-fence.md
+@@ -1,4 +1,4 @@
+ - ```shell
+   command stays unchanged
+   ```
+-Review remains exact.
++Review remains exact!
+DIFF
+cat >"$WORK/ordinary-list-punctuation-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/ordinary-list-punctuation.md b/skills/code-review/references/ordinary-list-punctuation.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/ordinary-list-punctuation.md
++++ b/skills/code-review/references/ordinary-list-punctuation.md
+@@ -1 +1 @@
+-- Review remains exact.
++- Review remains exact!
+DIFF
+cat >"$WORK/wording-token.patch" <<'DIFF'
+diff --git a/skills/code-review/references/typo.md b/skills/code-review/references/typo.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/typo.md
++++ b/skills/code-review/references/typo.md
+@@ -1 +1 @@
+-This teh rule stays otherwise byte-identical.
++This the rule stays otherwise byte-identical.
+DIFF
+cat >"$WORK/wording-normative-token.patch" <<'DIFF'
+diff --git a/skills/code-review/references/normative.md b/skills/code-review/references/normative.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/normative.md
++++ b/skills/code-review/references/normative.md
+@@ -1 +1 @@
+-Agents must reject unsafe input.
++Agents may reject unsafe input.
+DIFF
+cat >"$WORK/quoted-unicode-wording.patch" <<'DIFF'
+diff --git "a/skills/code-review/references/café file.md" "b/skills/code-review/references/café file.md"
+index 1111111..2222222 100644
+--- "a/skills/code-review/references/café file.md"
++++ "b/skills/code-review/references/café file.md"
+@@ -1 +1 @@
+-Review remains exact.
++Review remains exact!
+DIFF
+cat >"$WORK/non-wording-punctuation.patch" <<'DIFF'
+diff --git a/skills/demo/scripts/runtime.py b/skills/demo/scripts/runtime.py
+index 1111111..2222222 100644
+--- a/skills/demo/scripts/runtime.py
++++ b/skills/demo/scripts/runtime.py
+@@ -1 +1 @@
+-.
++!
+DIFF
+cat >"$WORK/multi-skill-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/one.md b/skills/code-review/references/one.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/one.md
++++ b/skills/code-review/references/one.md
+@@ -1 +1,2 @@
+ First package.
++***
+diff --git a/skills/testing-strategy/references/two.md b/skills/testing-strategy/references/two.md
+index 1111111..2222222 100644
+--- a/skills/testing-strategy/references/two.md
++++ b/skills/testing-strategy/references/two.md
+@@ -1 +1,2 @@
+ Second package.
++***
+DIFF
+cat >"$WORK/truncated-context-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/deep.md b/skills/code-review/references/deep.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/deep.md
++++ b/skills/code-review/references/deep.md
+@@ -8 +8 @@
+-This teh rule is below omitted context.
++This the rule is below omitted context.
+DIFF
+cat >"$WORK/symlink-mode-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/link.md b/skills/code-review/references/link.md
+index 1111111..2222222 120000
+--- a/skills/code-review/references/link.md
++++ b/skills/code-review/references/link.md
+@@ -1 +1 @@
+-targets/teh
++targets/the
+DIFF
+cat >"$WORK/frontmatter-shift-insert-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/SKILL.md b/skills/code-review/SKILL.md
+index 1111111..2222222 100644
+--- a/skills/code-review/SKILL.md
++++ b/skills/code-review/SKILL.md
+@@ -1,3 +1,4 @@
++#
+ ---
+ description: Canonical routing metadata.
+ ---
+DIFF
+cat >"$WORK/frontmatter-shift-delete-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/SKILL.md b/skills/code-review/SKILL.md
+index 1111111..2222222 100644
+--- a/skills/code-review/SKILL.md
++++ b/skills/code-review/SKILL.md
+@@ -1,4 +1,3 @@
+-#
+ ---
+ description: Canonical routing metadata.
+ ---
+DIFF
+cat >"$WORK/no-final-newline-wording.patch" <<'DIFF'
+diff --git a/skills/code-review/references/no-newline.md b/skills/code-review/references/no-newline.md
+index 1111111..2222222 100644
+--- a/skills/code-review/references/no-newline.md
++++ b/skills/code-review/references/no-newline.md
+@@ -1 +1 @@
+-This teh token has no final newline.
+\ No newline at end of file
++This the token has no final newline.
+\ No newline at end of file
+DIFF
+cat >"$WORK/invalid-octal-wording.patch" <<'DIFF'
+diff --git "a/skills/code-review/references/bad\777.md" "b/skills/code-review/references/bad\777.md"
+index 1111111..2222222 100644
+--- "a/skills/code-review/references/bad\777.md"
++++ "b/skills/code-review/references/bad\777.md"
+@@ -1 +1,2 @@
+ Plain context.
++***
+DIFF
+python3 - "$WORK/huge-hunk-number-wording.patch" <<'PY'
+from pathlib import Path
+import sys
+
+Path(sys.argv[1]).write_text(
+    "diff --git a/skills/code-review/references/huge.md b/skills/code-review/references/huge.md\n"
+    "index 1111111..2222222 100644\n"
+    "--- a/skills/code-review/references/huge.md\n"
+    "+++ b/skills/code-review/references/huge.md\n"
+    f"@@ -{'9' * 5001} +1 @@\n"
+    "-*\n"
+    "+!\n",
+    encoding="utf-8",
+)
+PY
+python3 - "$WORK" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+for slug, value in (
+    ("zero-width", "\u200b"),
+    ("bidi-control", "\u202e"),
+    ("emoji-symbol", "\U0001f6a8"),
+    ("currency-symbol", "$$"),
+):
+    (root / f"{slug}-wording.patch").write_text(
+        f"diff --git a/skills/code-review/references/{slug}.md b/skills/code-review/references/{slug}.md\n"
+        "index 1111111..2222222 100644\n"
+        f"--- a/skills/code-review/references/{slug}.md\n"
+        f"+++ b/skills/code-review/references/{slug}.md\n"
+        "@@ -1 +1,2 @@\n"
+        " Plain context.\n"
+        f"+{value}\n",
+        encoding="utf-8",
+    )
+PY
+python3 - "$WORK" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+for slug, old_line, new_line in (
+    (
+        "decomposed-boundary",
+        "Context cafe\u0301 token.",
+        "Context coffee\u0301 token.",
+    ),
+    (
+        "zwj-boundary",
+        "Context admin\u200distrator token.",
+        "Context root\u200distrator token.",
+    ),
+):
+    (root / f"{slug}-wording.patch").write_text(
+        f"diff --git a/skills/code-review/references/{slug}.md b/skills/code-review/references/{slug}.md\n"
+        "index 1111111..2222222 100644\n"
+        f"--- a/skills/code-review/references/{slug}.md\n"
+        f"+++ b/skills/code-review/references/{slug}.md\n"
+        "@@ -1 +1 @@\n"
+        f"-{old_line}\n"
+        f"+{new_line}\n",
+        encoding="utf-8",
+    )
+PY
+
+write_wording_proof() { # <packet> <proof> <kind> [old new count]
+  python3 - "$@" <<'PY'
+import hashlib
+import json
+from pathlib import Path
+import sys
+
+packet_path, proof_path, kind, *replacement = sys.argv[1:]
+packet = Path(packet_path).read_bytes()
+candidate_sha = hashlib.sha256(packet).hexdigest()
+if kind == "markdown-punctuation-only":
+    check = {"kind": kind}
+elif kind == "markdown-token-replacement":
+    old, new, count_text = replacement
+    check = {
+        "kind": kind,
+        "old_token": old,
+        "new_token": new,
+        "expected_count": int(count_text),
+    }
+else:
+    raise AssertionError(kind)
+proof = {
+    "schema_version": 1,
+    "candidate_sha256": candidate_sha,
+    "check": check,
+}
+Path(proof_path).write_text(
+    json.dumps(proof, sort_keys=True, separators=(",", ":")), encoding="utf-8"
+)
+PY
+}
+
+write_wording_proof "$WORK/wording-punctuation.patch" \
+  "$WORK/wording-punctuation-proof.json" markdown-punctuation-only
+write_wording_proof "$WORK/repo-only-wording.patch" \
+  "$WORK/repo-only-wording-proof.json" markdown-punctuation-only
+for fenced_scope in \
+  fenced-backtick \
+  fenced-tilde \
+  fenced-unclosed \
+  fenced-list-bullet \
+  fenced-list-ordered \
+  fenced-list-indented; do
+  write_wording_proof "$WORK/$fenced_scope-wording.patch" \
+    "$WORK/$fenced_scope-wording-proof.json" markdown-punctuation-only
+done
+for rejected_punctuation_scope in \
+  indented-space \
+  indented-tab \
+  indented-list \
+  html-pre \
+  html-code \
+  inline-code \
+  link-destination \
+  heading-structure \
+  list-structure \
+  table-structure \
+  ordinary-list-punctuation; do
+  write_wording_proof "$WORK/$rejected_punctuation_scope-wording.patch" \
+    "$WORK/$rejected_punctuation_scope-wording-proof.json" \
+    markdown-punctuation-only
+done
+for eligible_scope in \
+  after-closed-fence \
+  after-closed-list-fence; do
+  write_wording_proof "$WORK/$eligible_scope-wording.patch" \
+    "$WORK/$eligible_scope-wording-proof.json" markdown-punctuation-only
+done
+write_wording_proof "$WORK/wording-token.patch" \
+  "$WORK/wording-token-proof.json" markdown-token-replacement teh the 1
+write_wording_proof "$WORK/wording-normative-token.patch" \
+  "$WORK/wording-normative-token-proof.json" markdown-token-replacement must may 1
+write_wording_proof "$WORK/quoted-unicode-wording.patch" \
+  "$WORK/quoted-unicode-wording-proof.json" markdown-punctuation-only
+write_wording_proof "$WORK/non-wording-punctuation.patch" \
+  "$WORK/non-wording-proof.json" markdown-punctuation-only
+write_wording_proof "$WORK/multi-skill-wording.patch" \
+  "$WORK/multi-skill-wording-proof.json" markdown-punctuation-only
+write_wording_proof "$WORK/truncated-context-wording.patch" \
+  "$WORK/truncated-context-wording-proof.json" markdown-token-replacement teh the 1
+write_wording_proof "$WORK/symlink-mode-wording.patch" \
+  "$WORK/symlink-mode-wording-proof.json" markdown-token-replacement teh the 1
+write_wording_proof "$WORK/frontmatter-shift-insert-wording.patch" \
+  "$WORK/frontmatter-shift-insert-wording-proof.json" markdown-punctuation-only
+write_wording_proof "$WORK/frontmatter-shift-delete-wording.patch" \
+  "$WORK/frontmatter-shift-delete-wording-proof.json" markdown-punctuation-only
+write_wording_proof "$WORK/no-final-newline-wording.patch" \
+  "$WORK/no-final-newline-wording-proof.json" markdown-token-replacement teh the 1
+write_wording_proof "$WORK/invalid-octal-wording.patch" \
+  "$WORK/invalid-octal-wording-proof.json" markdown-punctuation-only
+write_wording_proof "$WORK/huge-hunk-number-wording.patch" \
+  "$WORK/huge-hunk-number-wording-proof.json" markdown-punctuation-only
+for rejected_character in zero-width bidi-control emoji-symbol currency-symbol; do
+  write_wording_proof "$WORK/$rejected_character-wording.patch" \
+    "$WORK/$rejected_character-wording-proof.json" markdown-punctuation-only
+done
+write_wording_proof "$WORK/decomposed-boundary-wording.patch" \
+  "$WORK/decomposed-boundary-wording-proof.json" markdown-token-replacement cafe coffee 1
+write_wording_proof "$WORK/zwj-boundary-wording.patch" \
+  "$WORK/zwj-boundary-wording-proof.json" markdown-token-replacement admin root 1
+
+mkdir -p "$WORK/wording-base-repo/skills/code-review/references"
+git -C "$WORK/wording-base-repo" init -q
+git -C "$WORK/wording-base-repo" config user.name 'Review Gate Test'
+git -C "$WORK/wording-base-repo" config user.email 'review-gate@example.invalid'
+printf '%s\n' '# Code Review' \
+  >"$WORK/wording-base-repo/skills/code-review/SKILL.md"
+cat >"$WORK/wording-base-repo/skills/code-review/references/long.md" <<'MARKDOWN'
+---
+title: Bounded example
+---
+# Review contract
+
+Context line one.
+Context line two.
+Context line three.
+This teh token is below frontmatter and ordinary context.
+Context line four.
+MARKDOWN
+git -C "$WORK/wording-base-repo" add skills/code-review
+git -C "$WORK/wording-base-repo" commit -q -m base
+python3 - "$WORK/wording-base-repo/skills/code-review/references/long.md" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+path.write_text(path.read_text().replace("This teh token", "This the token"))
+PY
+git -C "$WORK/wording-base-repo" diff --no-color --no-ext-diff --no-textconv \
+  --unified=1000000 HEAD >"$WORK/wording-base.patch"
+write_wording_proof "$WORK/wording-base.patch" \
+  "$WORK/wording-base-proof.json" markdown-token-replacement teh the 1
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage release --challenge-budget 0 \
+  --cwd "$WORK/wording-missing-package-repo" \
+  --diff-file "$WORK/wording-punctuation.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/wording-punctuation-proof.json")"; rc=$?
+check "wording proof cannot borrow a missing candidate package from the controller tree" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage release --challenge-budget 0 \
+  --cwd "$WORK/wording-repo-only" \
+  --diff-file "$WORK/repo-only-wording.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/repo-only-wording-proof.json")"; rc=$?
+check "wording proof accepts a candidate-only package absent from the controller tree" \
+  '[ "$rc" = 0 ] && json_fields "$out" wording_only_scope.status=passed wording_only_scope.changed_files.0=skills/repo-only/references/punctuation.md'
+
+for unsafe_package in linked hardlinked nonregular oversized; do
+  reset_case passed unavailable unavailable
+  out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+    --mode review --stage release --challenge-budget 0 \
+    --cwd "$WORK/wording-$unsafe_package-package-repo" \
+    --diff-file "$WORK/wording-punctuation.patch" \
+    --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+    --wording-only-proof-file "$WORK/wording-punctuation-proof.json")"; rc=$?
+  check "wording proof rejects a $unsafe_package candidate package entrypoint" \
+    '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+done
+
+for unsafe_target in missing linked hardlinked nonregular oversized; do
+  reset_case passed unavailable unavailable
+  out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+    --mode review --stage release --challenge-budget 0 \
+    --cwd "$WORK/wording-$unsafe_target-target-repo" \
+    --diff-file "$WORK/wording-punctuation.patch" \
+    --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+    --wording-only-proof-file "$WORK/wording-punctuation-proof.json")"; rc=$?
+  check "wording proof rejects a $unsafe_target changed Markdown target" \
+    '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+done
+
+for fenced_scope in \
+  fenced-backtick \
+  fenced-tilde \
+  fenced-unclosed \
+  fenced-list-bullet \
+  fenced-list-ordered \
+  fenced-list-indented; do
+  reset_case passed unavailable unavailable
+  out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+    --mode review --stage release --challenge-budget 0 \
+    --cwd "$WORK/wording-reviewed-repo" \
+    --diff-file "$WORK/$fenced_scope-wording.patch" \
+    --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+    --wording-only-proof-file "$WORK/$fenced_scope-wording-proof.json")"; rc=$?
+  check "$fenced_scope cannot use the punctuation-only release waiver" \
+    '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+done
+
+for rejected_punctuation_scope in \
+  indented-space \
+  indented-tab \
+  indented-list \
+  html-pre \
+  html-code \
+  inline-code \
+  link-destination \
+  heading-structure \
+  list-structure \
+  table-structure \
+  ordinary-list-punctuation; do
+  reset_case passed unavailable unavailable
+  out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+    --mode review --stage release --challenge-budget 0 \
+    --cwd "$WORK/wording-reviewed-repo" \
+    --diff-file "$WORK/$rejected_punctuation_scope-wording.patch" \
+    --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+    --wording-only-proof-file "$WORK/$rejected_punctuation_scope-wording-proof.json")"; rc=$?
+  check "$rejected_punctuation_scope cannot use the punctuation-only release waiver" \
+    '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+done
+
+for eligible_scope in \
+  after-closed-fence \
+  after-closed-list-fence; do
+  reset_case passed unavailable unavailable
+  out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+    --mode review --stage release --challenge-budget 0 \
+    --cwd "$WORK/wording-reviewed-repo" \
+    --diff-file "$WORK/$eligible_scope-wording.patch" \
+    --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+    --wording-only-proof-file "$WORK/$eligible_scope-wording-proof.json")"; rc=$?
+  check "$eligible_scope remains eligible for punctuation-only proof" \
+    '[ "$rc" = 0 ] && json_fields "$out" wording_only_scope.status=passed wording_only_scope.check_kind=markdown-punctuation-only'
+done
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage release --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-punctuation.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/wording-punctuation-proof.json")"; rc=$?
+punctuation_proof_hash="$(shasum -a 256 "$WORK/wording-punctuation-proof.json" | awk '{print $1}')"
+check "release wording-only punctuation scope can take one proof-bound review" \
+  '[ "$rc" = 0 ] && json_fields "$out" challenge_budget=0 review_chain_tracked=false wording_only_scope.status=passed wording_only_scope.check_kind=markdown-punctuation-only wording_only_proof_sha256="$punctuation_proof_hash" reviewed_concerns.7=wording_only_boundary'
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage build --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-punctuation.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/wording-punctuation-proof.json")"; rc=$?
+check "build wording-only review records the same controller-bound proof" \
+  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build challenge_budget=0 wording_only_scope.check_kind=markdown-punctuation-only reviewed_concerns.5=wording_only_boundary'
+printf '%s\n' "$out" >"$WORK/wording-punctuation-review.json"
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode complete --stage build --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-punctuation.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --completion-review-result-file "$WORK/wording-punctuation-review.json")"; rc=$?
+check "a wording-only single review cannot become a complete checkpoint" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=completion_checkpoint_invalid'
+
+python3 - "$WORK/wording-punctuation-review.json" "$WORK/wording-punctuation-review-without-proof-keys.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+source, target = map(Path, sys.argv[1:])
+payload = json.loads(source.read_text(encoding="utf-8"))
+payload.pop("wording_only_proof_sha256")
+payload.pop("wording_only_scope")
+target.write_text(json.dumps(payload), encoding="utf-8")
+PY
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode complete --stage build --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-punctuation.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --completion-review-result-file "$WORK/wording-punctuation-review-without-proof-keys.json")"; rc=$?
+check "a receipt cannot hide wording-only proof by dropping controller-owned keys" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=completion_checkpoint_invalid'
+
+python3 - "$WORK/wording-punctuation-review.json" "$WORK/wording-punctuation-review-with-null-proof.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+source, target = map(Path, sys.argv[1:])
+payload = json.loads(source.read_text(encoding="utf-8"))
+payload["wording_only_proof_sha256"] = None
+payload["wording_only_scope"] = None
+target.write_text(json.dumps(payload), encoding="utf-8")
+PY
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode complete --stage build --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-punctuation.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --completion-review-result-file "$WORK/wording-punctuation-review-with-null-proof.json")"; rc=$?
+check "a receipt cannot hide wording-only proof by replacing it with null" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=completion_checkpoint_invalid'
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage build --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/quoted-unicode-wording.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/quoted-unicode-wording-proof.json")"; rc=$?
+check "wording proof binds Git-quoted literal Unicode and space paths" \
+  '[ "$rc" = 0 ] && json_fields "$out" wording_only_scope.changed_files.0="skills/code-review/references/café file.md"'
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage build --challenge-budget 1 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-punctuation.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/wording-punctuation-proof.json")"; rc=$?
+check "wording-only proof cannot open positive autonomous review capacity" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage build --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-token.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/wording-token-proof.json")"; rc=$?
+check "build exact typo replacement can take one proof-bound review" \
+  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build challenge_budget=0 wording_only_scope.check_kind=markdown-token-replacement wording_only_scope.old_token=teh wording_only_scope.new_token=the wording_only_scope.expected_count=1 wording_only_scope.replacement_count=1 reviewed_concerns.5=wording_only_boundary'
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage release --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-normative-token.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/wording-normative-token-proof.json")"; rc=$?
+check "release token replacement cannot waive its required challenge" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage explore --risk-tag shared-gate --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-normative-token.patch" \
+  --implementer-family openai --review-plan-file "$WORK/high-risk-plan.json" \
+  --wording-only-proof-file "$WORK/wording-normative-token-proof.json")"; rc=$?
+check "high-risk token replacement cannot waive its required challenge" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage build --challenge-budget 0 \
+  --cwd "$WORK/wording-base-repo" --base HEAD \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/wording-base-proof.json")"; rc=$?
+check "base-mode build wording proof freezes full context from line one" \
+  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build wording_only_scope.check_kind=markdown-token-replacement wording_only_scope.replacement_count=1 reviewed_concerns.5=wording_only_boundary'
+
+for rejected_scope in multi-skill-wording truncated-context-wording symlink-mode-wording frontmatter-shift-insert-wording frontmatter-shift-delete-wording no-final-newline-wording invalid-octal-wording huge-hunk-number-wording zero-width-wording bidi-control-wording emoji-symbol-wording currency-symbol-wording decomposed-boundary-wording zwj-boundary-wording; do
+  reset_case passed unavailable unavailable
+  packet="$WORK/$rejected_scope.patch"
+  proof="$WORK/$rejected_scope-proof.json"
+  out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+    --mode review --stage release --challenge-budget 0 \
+    --cwd "$WORK/repo" --diff-file "$packet" \
+    --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+    --wording-only-proof-file "$proof")"; rc=$?
+  check "$rejected_scope cannot waive the release challenge" \
+    '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+done
+
+reset_case missing_wording_boundary unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage release --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-punctuation.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/wording-punctuation-proof.json")"; rc=$?
+check "wording-only proof still requires independent semantic-boundary review" \
+  '[ "$rc" = 2 ] && json_fields "$out" status=inconclusive reason_code=invalid_model_output'
+
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage release --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-punctuation.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --review-chain-id wording-chain --autonomous-review-index 1 \
+  --wording-only-proof-file "$WORK/wording-punctuation-proof.json")"; rc=$?
+check "wording-only single review cannot open a tracked review chain" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+
+python3 - "$WORK/wording-punctuation-proof.json" \
+  "$WORK/stale-wording-proof.json" "$WORK/extra-result-wording-proof.json" \
+  "$WORK/noninteger-schema-wording-proof.json" \
+  "$WORK/extra-check-wording-proof.json" \
+  "$WORK/duplicate-top-wording-proof.json" \
+  "$WORK/duplicate-check-wording-proof.json" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+source = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+stale = json.loads(json.dumps(source))
+stale["candidate_sha256"] = "0" * 64
+Path(sys.argv[2]).write_text(json.dumps(stale), encoding="utf-8")
+extra_result = json.loads(json.dumps(source))
+extra_result["scope_result"] = {"status": "passed"}
+Path(sys.argv[3]).write_text(json.dumps(extra_result), encoding="utf-8")
+noninteger = json.loads(json.dumps(source))
+noninteger["schema_version"] = 1.0
+Path(sys.argv[4]).write_text(json.dumps(noninteger), encoding="utf-8")
+extra_check = json.loads(json.dumps(source))
+extra_check["check"]["result"] = "passed"
+Path(sys.argv[5]).write_text(json.dumps(extra_check), encoding="utf-8")
+source_text = json.dumps(source, sort_keys=True, separators=(",", ":"))
+candidate_field = (
+    '"candidate_sha256":' + json.dumps(source["candidate_sha256"])
+)
+Path(sys.argv[6]).write_text(
+    source_text.replace(candidate_field, candidate_field + "," + candidate_field, 1),
+    encoding="utf-8",
+)
+kind_field = '"kind":"markdown-punctuation-only"'
+Path(sys.argv[7]).write_text(
+    source_text.replace(kind_field, kind_field + "," + kind_field, 1),
+    encoding="utf-8",
+)
+PY
+
+for invalid_proof in stale-wording-proof extra-result-wording-proof noninteger-schema-wording-proof extra-check-wording-proof duplicate-top-wording-proof duplicate-check-wording-proof non-wording-proof; do
+  reset_case passed unavailable unavailable
+  packet="$WORK/wording-punctuation.patch"
+  [ "$invalid_proof" != non-wording-proof ] || packet="$WORK/non-wording-punctuation.patch"
+  out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+    --mode review --stage release --challenge-budget 0 \
+    --cwd "$WORK/repo" --diff-file "$packet" \
+    --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+    --wording-only-proof-file "$WORK/$invalid_proof.json")"; rc=$?
+  check "$invalid_proof cannot waive release challenge" \
+    '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+done
+
+python3 - "$WORK/wording-token-proof.json" "$WORK/surrogate-token-wording-proof.json" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+proof = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+proof["check"]["old_token"] = "\ud800"
+Path(sys.argv[2]).write_text(json.dumps(proof), encoding="utf-8")
+PY
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage release --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-token.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/surrogate-token-wording-proof.json" 2>/dev/null)"; rc=$?
+check "a non-UTF-8 token proof fails as a structured gate result" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+
+ln -s "$WORK/wording-punctuation-proof.json" "$WORK/linked-wording-proof.json"
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage release --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-punctuation.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/linked-wording-proof.json")"; rc=$?
+check "a linked wording-only proof cannot waive release challenge" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+unlink "$WORK/linked-wording-proof.json"
+
+python3 - "$WORK/oversized-wording-proof.json" <<'PY'
+import os
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+path.touch()
+os.truncate(path, 16_001)
+PY
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --stage release --challenge-budget 0 \
+  --cwd "$WORK/repo" --diff-file "$WORK/wording-punctuation.patch" \
+  --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
+  --wording-only-proof-file "$WORK/oversized-wording-proof.json")"; rc=$?
+check "an oversized wording-only proof cannot waive release challenge" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=wording_only_proof_invalid'
+
 reset_case passed unavailable unavailable
 out="$(run_gate --stage release --challenge-budget 0)"; rc=$?
-check "release review cannot explicitly waive its first challenge" \
+check "release review without wording-only proof cannot waive its first challenge" \
   '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input next_action=stop_reviewer_lane'
 
 reset_case passed unavailable unavailable
 out="$(run_gate --stage explore --risk-tag shared-gate --review-plan-file "$WORK/high-risk-plan.json" --challenge-budget 0)"; rc=$?
-check "high-risk depth cannot explicitly waive its first challenge" \
+check "high-risk depth without wording-only proof cannot waive its first challenge" \
   '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input next_action=stop_reviewer_lane'
 
 reset_case findings unavailable unavailable
@@ -1926,6 +3297,16 @@ out="$(run_gate --timeout 90)"; rc=$?
 check "an explicit budget still overrides the default" \
   '[ "$rc" = 0 ] && [ "$(cat "$WORK/state/claude_timeout")" = 90 ]'
 
+reset_case passed unavailable unavailable
+out="$(run_gate --timeout 1200 --total-timeout 3600)"; rc=$?
+check "the generic timeout accepts and forwards the documented 1200-second ceiling" \
+  '[ "$rc" = 0 ] && [ "$(cat "$WORK/state/claude_timeout")" = 1200 ] && json_fields "$out" status=passed selected_client=claude'
+
+reset_case passed unavailable unavailable
+out="$(run_gate --timeout 1201 --total-timeout 3600)"; rc=$?
+check "the generic timeout rejects a value above the documented ceiling before client execution" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input'
+
 # The gate always passes --timeout, which overrides each wrapper's own default,
 # so the assertions above cannot see the direct-invocation defaults at all. Pin
 # each declared default separately or three of the four silently regress.
@@ -1947,6 +3328,41 @@ for wrapper_default in \
 done
 check "every wrapper declares the same direct-invocation budget as the gate default" \
   '[ "$wrapper_defaults_ok" = 1 ] && [ "$wrapper_defaults_seen" = 4 ]'
+
+# Direct wrapper invocations share one decimal-string normalizer. Exercise the
+# boundary itself rather than grepping arithmetic fragments: shell integer
+# overflow used to make a 50-digit timeout bypass Claude's clamp and fail the
+# other three clients as invalid input.
+# shellcheck source=normalize_review_timeout.sh
+. "$DIR/normalize_review_timeout.sh"
+wrapper_timeout_inputs_match=1
+while IFS='|' read -r input expected; do
+  actual="$(normalize_review_timeout "$input")" || actual="invalid"
+  if [ "$actual" != "$expected" ]; then
+    wrapper_timeout_inputs_match=0
+    printf 'wrapper timeout normalization drift: %s -> %s, want %s\n' \
+      "$input" "$actual" "$expected" >&2
+  fi
+done <<'EOF'
+4|invalid
+5|5
+1200|1200
+1201|1200
+99999999999999999999999999999999999999999999999999|1200
+EOF
+wrapper_timeout_bindings_match=1
+wrapper_timeout_bindings_seen=0
+for wrapper_file in claude_review.sh codex_review.sh kimi_review.sh opencode_review.sh; do
+  if grep -qF 'normalize_review_timeout "$' "$DIR/$wrapper_file"; then
+    wrapper_timeout_bindings_seen=$((wrapper_timeout_bindings_seen + 1))
+  else
+    wrapper_timeout_bindings_match=0
+    printf 'wrapper timeout binding drift: %s does not call the shared normalizer\n' \
+      "$wrapper_file" >&2
+  fi
+done
+check "every wrapper accepts and clamps the full decimal-string timeout domain" \
+  '[ "$wrapper_timeout_inputs_match" = 1 ] && [ "$wrapper_timeout_bindings_match" = 1 ] && [ "$wrapper_timeout_bindings_seen" = 4 ]'
 
 parser_total_timeout="$(python3 - "$DIR/review_gate.py" "$WORK" <<'PY'
 import importlib.util
@@ -2612,6 +4028,7 @@ out="$(run_gate --allow-fallback-egress)"; rc=$?
 check "reviewer cannot self-report controller-owned stage or coverage fields" \
   '[ "$rc" = 0 ] && json_fields "$out" stage=build review_depth=build owner_selection_source=implementer-declared selected_skills.0=code-review self_review_gate.required=true self_review_gate.required_triggers.0=before_completion_claim && [ "$(printf "%s" "$out" | python3 -c "import json,sys; print(len(json.load(sys.stdin).get(\"reviewed_skills\", [])))")" = 0 ] && ! grep -q spoofed <<<"$out"'
 
+rm -rf "$WORK/repo/skills"
 (
   cd "$WORK/repo"
   git init -q
@@ -2627,6 +4044,376 @@ reset_case passed unavailable unavailable
 out="$(run_base_gate --allow-fallback-egress)"; rc=$?
 check "base packet freezes tracked and untracked changes once" \
   '[ "$rc" = 0 ] && grep -q tracked.txt "$WORK/state/claude_packet" && grep -q untracked.txt "$WORK/state/claude_packet" && grep -q "Untracked files" "$WORK/state/claude_packet"'
+
+# The explicit cwd is the only repository identity. Ambient Git variables must
+# not redirect discovery, objects, refs, index, or worktree to a clean decoy.
+git clone -q "$WORK/repo" "$WORK/git-env-decoy"
+git -C "$WORK/git-env-decoy" config core.worktree "$WORK/git-env-decoy"
+: >"$WORK/empty-grafts"
+: >"$WORK/empty-shallow"
+
+reset_case passed unavailable unavailable
+out="$(GIT_DIR="$WORK/git-env-decoy/.git" run_base_gate --allow-fallback-egress)"; rc=$?
+check "ambient GIT_DIR cannot redirect the base-mode packet to a clean decoy" \
+  '[ "$rc" = 0 ] && grep -q tracked.txt "$WORK/state/claude_packet" && grep -q -- "+after" "$WORK/state/claude_packet"'
+
+reset_case passed unavailable unavailable
+out="$( \
+  GIT_DIR="$WORK/git-env-decoy/.git" \
+  GIT_WORK_TREE="$WORK/git-env-decoy" \
+  GIT_IMPLICIT_WORK_TREE=1 \
+  GIT_INDEX_FILE="$WORK/git-env-decoy/.git/index" \
+  GIT_COMMON_DIR="$WORK/git-env-decoy/.git" \
+  GIT_NAMESPACE=synthetic-clean \
+  GIT_OBJECT_DIRECTORY="$WORK/git-env-decoy/.git/objects" \
+  GIT_ALTERNATE_OBJECT_DIRECTORIES="$WORK/git-env-decoy/.git/objects" \
+  GIT_CEILING_DIRECTORIES="$WORK/git-env-decoy" \
+  GIT_DISCOVERY_ACROSS_FILESYSTEM=0 \
+  GIT_GRAFT_FILE="$WORK/empty-grafts" \
+  GIT_SHALLOW_FILE="$WORK/empty-shallow" \
+  GIT_REPLACE_REF_BASE=refs/synthetic-replace \
+  GIT_PREFIX=synthetic-prefix \
+  GIT_QUARANTINE_PATH="$WORK/git-env-decoy/.git/objects" \
+  run_base_gate --allow-fallback-egress
+)"; rc=$?
+check "ambient Git routing matrix cannot replace the requested repository" \
+  '[ "$rc" = 0 ] && grep -q tracked.txt "$WORK/state/claude_packet" && grep -q -- "+after" "$WORK/state/claude_packet" && ! grep -q "$WORK/git-env-decoy" "$WORK/state/claude_packet"'
+
+git_config_env_probe="$(
+  GIT_CONFIG="$WORK/attacker.cfg" \
+  GIT_CONFIG_GLOBAL="$WORK/attacker-global.cfg" \
+  GIT_CONFIG_SYSTEM="$WORK/attacker-system.cfg" \
+  GIT_CONFIG_NOSYSTEM=1 \
+  GIT_CONFIG_COUNT=2 \
+  GIT_CONFIG_PARAMETERS="'core.fsmonitor=$WORK/fake-fsmonitor.sh'" \
+  GIT_CONFIG_KEY_0=core.worktree \
+  GIT_CONFIG_VALUE_0="$WORK/git-env-decoy" \
+  GIT_CONFIG_KEY_custom=include.path \
+  GIT_CONFIG_VALUE_custom="$WORK/attacker-include.cfg" \
+  PYTHONPATH="$WORK/harness/scripts" python3 - <<'PY' 2>&1
+import os
+
+import review_gate
+
+environment = review_gate.git_environment()
+for key in (
+    "GIT_CONFIG",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_KEY_0",
+    "GIT_CONFIG_VALUE_0",
+    "GIT_CONFIG_KEY_custom",
+    "GIT_CONFIG_VALUE_custom",
+):
+    assert key not in environment, (key, environment[key])
+assert environment["GIT_CONFIG_GLOBAL"] == os.devnull
+assert environment["GIT_CONFIG_SYSTEM"] == os.devnull
+assert environment["GIT_CONFIG_NOSYSTEM"] == "1"
+print("git_config_environment_clean")
+PY
+)"; git_config_env_rc=$?
+check "base-mode Git environment removes fixed and indexed config injection variables" \
+  '[ "$git_config_env_rc" = 0 ] && [ "$git_config_env_probe" = git_config_environment_clean ]'
+
+cat >"$WORK/fake-fsmonitor.sh" <<'SH'
+#!/bin/sh
+: >"$REVIEW_FSMONITOR_MARKER"
+printf '\n'
+SH
+chmod +x "$WORK/fake-fsmonitor.sh"
+printf '[core]\n\tworktree = %s\n\tfsmonitor = %s\n' \
+  "$WORK/git-env-decoy" "$WORK/fake-fsmonitor.sh" \
+  >"$WORK/attacker-include.cfg"
+printf '[include]\n\tpath = %s\n' "$WORK/attacker-include.cfg" \
+  >"$WORK/attacker-root.cfg"
+
+for config_env in GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM; do
+  rm -f "$WORK/fsmonitor-marker"
+  reset_case passed unavailable unavailable
+  out="$(
+    export "$config_env=$WORK/attacker-root.cfg"
+    REVIEW_FSMONITOR_MARKER="$WORK/fsmonitor-marker" \
+      run_base_gate --allow-fallback-egress
+  )"; rc=$?
+  check "ambient $config_env include cannot route the worktree or execute fsmonitor" \
+    '[ "$rc" = 0 ] && [ ! -e "$WORK/fsmonitor-marker" ] && grep -q -- "+after" "$WORK/state/claude_packet"'
+done
+
+for config_route in indexed parameters; do
+  rm -f "$WORK/fsmonitor-marker"
+  reset_case passed unavailable unavailable
+  if [ "$config_route" = indexed ]; then
+    out="$( \
+      REVIEW_FSMONITOR_MARKER="$WORK/fsmonitor-marker" \
+      GIT_CONFIG_COUNT=1 \
+      GIT_CONFIG_KEY_0=include.path \
+      GIT_CONFIG_VALUE_0="$WORK/attacker-include.cfg" \
+      run_base_gate --allow-fallback-egress
+    )"; rc=$?
+  else
+    out="$( \
+      REVIEW_FSMONITOR_MARKER="$WORK/fsmonitor-marker" \
+      GIT_CONFIG_PARAMETERS="'include.path=$WORK/attacker-include.cfg'" \
+      run_base_gate --allow-fallback-egress
+    )"; rc=$?
+  fi
+  check "ambient $config_route config cannot load executable Git configuration" \
+    '[ "$rc" = 0 ] && [ ! -e "$WORK/fsmonitor-marker" ] && grep -q -- "+after" "$WORK/state/claude_packet"'
+done
+
+git -C "$WORK/repo" config include.path "$WORK/attacker-include.cfg"
+rm -f "$WORK/fsmonitor-marker"
+reset_case passed unavailable unavailable
+out="$(REVIEW_FSMONITOR_MARKER="$WORK/fsmonitor-marker" \
+  run_base_gate --allow-fallback-egress)"; rc=$?
+check "repository-local include cannot execute fsmonitor during packet construction" \
+  '[ "$rc" = 0 ] && [ ! -e "$WORK/fsmonitor-marker" ] && grep -q -- "+after" "$WORK/state/claude_packet"'
+git -C "$WORK/repo" config --unset-all include.path
+
+# Neither an ambient external-diff helper nor a repository-configured textconv
+# may execute or replace the bytes in the tracked packet.
+cat >"$WORK/fake-external-diff.sh" <<'SH'
+#!/bin/sh
+: >"$REVIEW_EXTERNAL_DIFF_MARKER"
+exit 0
+SH
+chmod +x "$WORK/fake-external-diff.sh"
+rm -f "$WORK/external-diff-marker"
+reset_case passed unavailable unavailable
+out="$( \
+  REVIEW_EXTERNAL_DIFF_MARKER="$WORK/external-diff-marker" \
+  GIT_EXTERNAL_DIFF="$WORK/fake-external-diff.sh" \
+  GIT_DIFF_OPTS=--unified=0 \
+  run_base_gate --allow-fallback-egress
+)"; rc=$?
+check "tracked packet disables ambient external diff execution and spoofing" \
+  '[ "$rc" = 0 ] && [ ! -e "$WORK/external-diff-marker" ] && grep -q -- "-before" "$WORK/state/claude_packet" && grep -q -- "+after" "$WORK/state/claude_packet"'
+
+printf '%s\n' 'tracked.txt diff=review-spoof' >"$WORK/repo/.gitattributes"
+git -C "$WORK/repo" add .gitattributes
+git -C "$WORK/repo" commit -q -m 'add synthetic diff driver fixture' -- .gitattributes
+cat >"$WORK/fake-textconv.sh" <<'SH'
+#!/bin/sh
+: >"$REVIEW_TEXTCONV_MARKER"
+printf '%s\n' normalized
+SH
+chmod +x "$WORK/fake-textconv.sh"
+git -C "$WORK/repo" config diff.review-spoof.textconv "$WORK/fake-textconv.sh"
+rm -f "$WORK/textconv-marker"
+reset_case passed unavailable unavailable
+out="$(REVIEW_TEXTCONV_MARKER="$WORK/textconv-marker" run_base_gate --allow-fallback-egress)"; rc=$?
+check "tracked packet disables configured textconv execution and clean spoofing" \
+  '[ "$rc" = 0 ] && [ ! -e "$WORK/textconv-marker" ] && grep -q -- "-before" "$WORK/state/claude_packet" && grep -q -- "+after" "$WORK/state/claude_packet"'
+git -C "$WORK/repo" config --unset diff.review-spoof.textconv
+
+ln -s tracked.txt "$WORK/repo/untracked-link.txt"
+reset_case passed unavailable unavailable
+out="$(run_base_gate --allow-fallback-egress)"; rc=$?
+check "base mode rejects an untracked symlink instead of reviewing a non-exact placeholder" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input'
+unlink "$WORK/repo/untracked-link.txt"
+
+ln "$WORK/repo/tracked.txt" "$WORK/repo/untracked-hardlink.txt"
+reset_case passed unavailable unavailable
+out="$(run_base_gate --allow-fallback-egress)"; rc=$?
+check "base mode rejects an untracked hardlink instead of omitting it" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input'
+unlink "$WORK/repo/untracked-hardlink.txt"
+
+: >"$WORK/repo/empty-untracked.txt"
+reset_case passed unavailable unavailable
+out="$(run_base_gate --allow-fallback-egress)"; rc=$?
+check "base mode binds an empty untracked file without a skipped placeholder" \
+  '[ "$rc" = 0 ] && grep -q empty-untracked.txt "$WORK/state/claude_packet" && ! grep -qE "skipped|not shown as text diff" "$WORK/state/claude_packet"'
+unlink "$WORK/repo/empty-untracked.txt"
+
+untracked_exact_probe="$(PYTHONPATH="$WORK/harness/scripts" python3 - "$WORK" <<'PY' 2>&1
+import os
+import time
+from pathlib import Path
+import sys
+
+import review_gate
+
+
+root = Path(sys.argv[1]) / "untracked-exact-probe"
+repo = root / "repo"
+outside = root / "outside"
+repo.mkdir(parents=True)
+outside.mkdir()
+
+
+def expect_rejected(fake_git_output, label):
+    original = review_gate.git_output
+    review_gate.git_output = fake_git_output
+    try:
+        try:
+            review_gate.untracked_packet(repo, [], time.monotonic() + 5)
+        except review_gate.GateError as exc:
+            assert exc.reason_code == "invalid_input", (label, exc.reason_code)
+            return exc
+        raise AssertionError(f"{label} produced a placeholder instead of failing closed")
+    finally:
+        review_gate.git_output = original
+
+
+gone = repo / "gone.txt"
+gone.write_text("gone\n", encoding="utf-8")
+
+
+def disappear_after_listing(repo_path, args, *unused, **kwargs):
+    assert args[0] == "ls-files", args
+    gone.unlink()
+    return b"gone.txt\0"
+
+
+expect_rejected(disappear_after_listing, "disappeared untracked path")
+
+(outside / "escaped.txt").write_text("outside\n", encoding="utf-8")
+(repo / "linked-parent").symlink_to(outside, target_is_directory=True)
+
+
+def parent_symlink_listing(repo_path, args, *unused, **kwargs):
+    assert args[0] == "ls-files", args
+    return b"linked-parent/escaped.txt\0"
+
+
+expect_rejected(parent_symlink_listing, "symlinked untracked parent")
+
+fifo = repo / "fifo"
+os.mkfifo(fifo)
+
+
+def fifo_listing(repo_path, args, *unused, **kwargs):
+    assert args[0] == "ls-files", args
+    return b"fifo\0"
+
+
+expect_rejected(fifo_listing, "untracked FIFO")
+fifo.unlink()
+
+nul = repo / "nul.bin"
+nul.write_bytes(b"safe\0unsafe")
+
+
+def nul_listing(repo_path, args, *unused, **kwargs):
+    assert args[0] == "ls-files", args
+    return b"nul.bin\0"
+
+
+error = expect_rejected(nul_listing, "NUL-bearing untracked file")
+assert "NUL-bearing" in error.reason, error.reason
+nul.unlink()
+
+non_utf8 = repo / "non-utf8.bin"
+non_utf8.write_bytes(b"\xff")
+
+
+def non_utf8_listing(repo_path, args, *unused, **kwargs):
+    assert args[0] == "ls-files", args
+    return b"non-utf8.bin\0"
+
+
+error = expect_rejected(non_utf8_listing, "non-UTF-8 untracked file")
+assert "non-UTF-8" in error.reason, error.reason
+non_utf8.unlink()
+
+accepted_control_paths = []
+for label, relative in (
+    ("tab", "tab\tname.txt"),
+    ("newline", "line\nname.txt"),
+    ("carriage-return", "carriage\rname.txt"),
+    ("C0", "unit\x01name.txt"),
+    ("DEL", "delete\x7fname.txt"),
+    ("C1-NEL", "next\u0085line.txt"),
+    ("line-separator", "line\u2028separator.txt"),
+    ("paragraph-separator", "paragraph\u2029separator.txt"),
+):
+    control_path = repo / relative
+    control_path.write_text("control path\n", encoding="utf-8")
+    encoded_path = relative.encode("utf-8")
+
+    def control_listing(repo_path, args, *unused, **kwargs):
+        assert args[0] == "ls-files", args
+        return encoded_path + b"\0"
+
+    try:
+        error = expect_rejected(control_listing, f"{label} untracked path")
+    except AssertionError:
+        accepted_control_paths.append(label)
+    else:
+        assert "control-character" in error.reason, error.reason
+    finally:
+        control_path.unlink()
+assert not accepted_control_paths, accepted_control_paths
+
+oversized = repo / "oversized.txt"
+with oversized.open("wb") as handle:
+    handle.truncate(review_gate.MAX_PACKET_BYTES + 1)
+
+
+def oversized_listing(repo_path, args, *unused, **kwargs):
+    assert args[0] == "ls-files", args
+    return b"oversized.txt\0"
+
+
+error = expect_rejected(oversized_listing, "oversized untracked file")
+assert "exceeds" in error.reason, error.reason
+oversized.unlink()
+
+aggregate_a = repo / "aggregate-a.txt"
+aggregate_b = repo / "aggregate-b.txt"
+aggregate_a.write_bytes(b"a" * (review_gate.MAX_PACKET_BYTES // 2))
+aggregate_b.write_bytes(b"b" * (review_gate.MAX_PACKET_BYTES // 2))
+
+
+def aggregate_listing(repo_path, args, *unused, **kwargs):
+    assert args[0] == "ls-files", args
+    return b"aggregate-a.txt\0aggregate-b.txt\0"
+
+
+error = expect_rejected(aggregate_listing, "aggregate untracked packet overflow")
+assert "untracked review packet exceeds" in error.reason, error.reason
+aggregate_a.unlink()
+aggregate_b.unlink()
+
+raced = repo / "raced.txt"
+alternate = root / "alternate.txt"
+backup = repo / "raced.before-swap"
+raced.write_text("original-safe-bytes\n", encoding="utf-8")
+alternate.write_text("alternate-link-bytes\n", encoding="utf-8")
+calls = 0
+
+
+def replace_before_old_diff(repo_path, args, *unused, **kwargs):
+    global calls
+    calls += 1
+    if args[0] == "ls-files":
+        return b"raced.txt\0"
+    raced.rename(backup)
+    raced.symlink_to(alternate)
+    return b"diff --git a/raced.txt b/raced.txt\n+alternate-link-bytes\n"
+
+
+original = review_gate.git_output
+review_gate.git_output = replace_before_old_diff
+try:
+    packet = review_gate.untracked_packet(repo, [], time.monotonic() + 5)
+finally:
+    review_gate.git_output = original
+    if raced.is_symlink():
+        raced.unlink()
+        backup.rename(raced)
+assert b"original-safe-bytes" in packet, packet
+assert b"alternate-link-bytes" not in packet, packet
+assert calls == 1, "untracked bytes were reopened by git diff"
+
+print("untracked_exact_inputs_ok")
+PY
+)"
+untracked_exact_rc=$?
+check "untracked unsafe types, bytes, sizes, races, and parent links fail closed" \
+  '[ "$untracked_exact_rc" = 0 ] && [ "$untracked_exact_probe" = untracked_exact_inputs_ok ]'
 
 check "owner selection source has one controller-owned definition" \
   '[ "$(grep -c '\''"implementer-declared"'\'' "$DIR/review_gate.py")" = 1 ]'

@@ -1,11 +1,13 @@
 import test, { before } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
 	cpSync,
 	existsSync,
 	mkdtempSync,
 	mkdirSync,
 	readFileSync,
+	rmSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -33,6 +35,26 @@ test("packed verifier passes and rejects mutation", () => {
 	});
 	assert.notEqual(p.status, 0);
 	assert.match(p.stderr, /mismatch/);
+});
+test("packed verifier requires the shared review timeout helper", () => {
+	const t = mkdtempSync(join(tmpdir(), "packed-required-helper-"));
+	const copiedDist = join(t, "dist"),
+		assets = join(copiedDist, "assets");
+	cpSync("dist", copiedDist, { recursive: true });
+	const helperPath = "marketplace/plugins/ccl-skills/skills/code-review/scripts/normalize_review_timeout.sh";
+	rmSync(join(assets, helperPath));
+	const releasePath = join(assets, "release.json"),
+		release = JSON.parse(readFileSync(releasePath, "utf8"));
+	release.files = release.files.filter((entry) => entry.path !== helperPath);
+	release.snapshotHash = createHash("sha256")
+		.update(JSON.stringify({ version: release.version, files: release.files }))
+		.digest("hex");
+	writeFileSync(releasePath, JSON.stringify(release));
+	const p = spawnSync(process.execPath, ["scripts/verify-packed.mjs", assets], {
+		encoding: "utf8",
+	});
+	assert.notEqual(p.status, 0);
+	assert.match(p.stderr, new RegExp(`missing runtime closure: ${helperPath}`));
 });
 test("packed verifier binds the executable JavaScript runtime", () => {
 	const t = mkdtempSync(join(tmpdir(), "packed-runtime-mutation-"));

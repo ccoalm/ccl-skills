@@ -59,6 +59,7 @@ The recurring failure: the agent declares done/covered/converged, and the *user*
 - **Independent oracle.** Where the property has no executable test — rule text, a register row, a doc — the enumeration is discharged only by an **independent oracle**: name the concrete observation that would contradict the property, say where that observation lives (the owner file and line, the primary source, the command whose output would differ), and go look. **Validate the oracle before trusting its verdict**: a check that returns "clean" because it looked in the wrong place, matched case-sensitively, used too narrow a pattern, or swallowed an error is indistinguishable from a passing property, and it fails in the dangerous direction. Before accepting a clean result you must PROVE THE CHECK CAN FAIL — point it at something you know is broken and watch it report that. Confirming it enumerated the inputs you meant is a necessary extra step, never a substitute: correct inputs say nothing about whether the predicate detects a mismatch or whether a non-zero exit was swallowed, so a check that can only ever say clean passes that weaker test. An unvalidated oracle is not weaker evidence than an imagined mutation; it is the same thing wearing a command prompt.
 - **Dimension walk.** Adding cases inside an axis you already had buys nothing against one you did not: the enumeration walks dimensions (shape / provenance-and-trust / cardinality / semantics / ordering) before values — `testing-strategy` owns that list and the precision-row obligation that goes with it. A walk whose rows are all imagined mutations is exhortation wearing a checklist's clothes.
 - **Re-owe after fixes.** Whatever you produced while fixing a previous round's findings is part of the current candidate and re-owes the whole enumeration — that newly-added mechanism is the most dangerous line in the diff, because it has no test yet and you wrote it with your attention on the defect it repairs. "The whole enumeration" includes the **pre-cover axes sweep** (concurrency & lifecycle above all): remediation text written mid-round re-owes the draft-time axes BEFORE the candidate goes back to the reviewer, because a fix written with attention on one defect systematically re-opens the same blind-spot axes the original draft missed. And the loop has an escalation point: when the same blind-spot axis or finding class supplies findings in a **third** round, stop the per-finding loop and run one full-matrix implementer self-enumeration (the artifact's own states × failure points × orderings × residues × cross-references) on the current candidate before any further external round — letting the reviewer surface one hole per round is the reviewer-as-defect-finder failure at its most expensive (observed shape: a multi-round program burned twenty-plus single-finding rounds on one axis family; the one full-lifecycle enumeration, run at the maintainer's correction, found the remaining holes in a single batch).
+- **Classify before fixing.** Persist one transition row per finding class: a stable semantic class key, its root-cause predicate, affected surface, and one disposition per occurrence. Each occurrence names the SHA-256 of its controller receipt plus the canonical JSON SHA-256 of a finding that actually appears in that receipt; the closeout must classify every controller finding exactly once. New wording or a new file is not a new class when the predicate is the same. Root-cause predicates must be unique across classes after case-folding and whitespace collapse; **only that exact normalization is mechanical**. It catches cosmetic case/whitespace key splits but does not decide whether differently worded predicates are semantically equivalent, which remains reviewer-contestable. Resolution is per occurrence, not "the last disposition wins": every `fixed`, `accepted_tradeoff`, `pre_existing_out_of_scope`, or `source_refuted` occurrence names one same-directory structured disposition-evidence file plus its SHA-256. That file binds schema version, exact current candidate, its controller receipt and finding, the disposition, a non-empty evidence list, and the ordered current/prior class occurrences it resolves. It must resolve its own occurrence; a later closing disposition that lists only itself leaves an earlier `open` occurrence unresolved until later evidence explicitly includes that exact receipt/finding pair. A `needs_human_decision` occurrence cannot be resolved by any candidate-local disposition evidence and stays unresolved until an authenticated external human/platform decision takes the separately authorized path. A controller finding disproved by first-hand source or failure-path evidence records `source_refuted`; this is a classification of an invalid finding, not a fourth disposition for a valid P0/P1. The validator binds every JSON input using duplicate-key rejection, plus the evidence file, digest, candidate, occurrence, disposition, and transition links; it does not judge the evidence text or authenticate tradeoff/scope acceptance. The reviewer or human decision-maker still owns those semantic and authority verdicts, and `ready_for_human_decision` is not approval or merge authority. On the class's third appearance, stop patching individual instances and enumerate the complete authoritative surface against that predicate. The sweep names a same-directory manifest plus its SHA-256; its candidate and exact ordered `searched_set` must match the row, and its unmatched list supplies the recorded count. `ready_for_human_decision` requires zero unresolved occurrences and zero unmatched instances; `continuation_authorization_required` and `baseline_race` retain non-zero unmatched evidence instead of lying about closure. Classification is reviewer-contestable evidence, not an author-controlled escape hatch; splitting one predicate into cosmetic sub-classes does not reset the count. `scripts/validate_extraction_review_state.py` enforces these bindings within the referenced receipt/evidence set.
 - **Graded verdict shape.** When the assessed reality is multi-dimensional or partial (capability, coverage, feasibility, quality, completion), collapsing it into one binary verdict — "done/not-done", "possible/impossible", "all correct/all wrong" — is the over-broad-absolute axis applied to your own claim layer: the swing to whichever pole feels safest to assert misrepresents a distribution, and the opposite-pole absolute ("structurally impossible", "nothing works") is the SAME defect as an unearned "done", not a humbler one. Report per-dimension status — what's strong, what's weak, what wasn't checked — with the confidence each part actually earned; and where a binary gate genuinely applies (a pass/fail check, a blocked/allowed decision), still give the clear top-line verdict after the per-dimension basis — calibration is not hedged mush. A user correcting your answers as too absolute ("每次都很绝对") is this defect's recurrence signal, same escalation as the `SKILL.md` rule states.
 - **Honesty (descriptive, not permissive).** This is recognition-dependent salience, not a mechanical gate — an agent that doesn't notice it is done-claiming cannot self-fire it; the mechanical backstops remain the closeout `interim` gates + user-signal escalation. "I didn't notice I was claiming done" does NOT waive the rule — any non-trivial completion/coverage/convergence wording must carry clean-pass evidence or an explicit interim/downscope disposition *before* you emit it. The rule targets completion/coverage/convergence assertions on work whose failure a check could catch, and never narrows the mandatory dual-track challenge (it is the always-on generalization of *self-audit to convergence*, not a replacement for the gate).
 
@@ -204,6 +205,16 @@ Only the challenge pass may be skipped, and only when this table marks challenge
 - **(a) Bounded change class.** The edit changes ONLY typo, grammar, formatting, or a meaning-preserving synonym, and changes NO trigger, scope, routing, validation, acceptance, rule/threshold/boundary text, or any other meaning. Reference/body prose that states a rule, threshold, boundary, rubric, or applies/does-not-apply line IS a semantic surface — editing it is NOT wording-only unless the change is purely typo/grammar/formatting with no meaning change. A synonym substitution usually cannot satisfy (b)'s deterministic evidence bar unless the proof avoids intent/meaning judgment. Description / frontmatter is never wording-only (see below).
 - **(b) Deterministic scope check + independent review.** Dropping challenge for the edit requires a **deterministic scope check** — recorded controller-side or diff-based scope evidence that is decidable without judging intent or meaning, such as: touched files are formatting-only by formatter output; hunks are only meaning-inert whitespace / punctuation / markdown table alignment; or token-level changes are limited to a named typo correction while the surrounding rule sentence is byte-identical. If the proof depends on a human or LLM deciding whether revised prose changes a rule, threshold, boundary, applicability, or acceptance meaning, it is NOT deterministic and challenge stays required. The deterministic evidence **AND** an independent review row confirming the same must both be present. Either piece missing, or any reviewer-flagged / unconfirmed meaning / scope / trigger / routing / validation / acceptance change, **re-arms challenge + the behavioral-evidence row** (never demoted to "recommended").
 
+The executable controller proof is intentionally narrower than every edit a
+human might call wording-only. It accepts only a canonical full-context
+Markdown diff inside one existing skill and recomputes either punctuation-only
+changed lines or one named whole-token replacement with an exact count. Use the
+schema and command in `code-review/references/staged-review-contract.md`; the
+result must carry both `wording_only_scope.status=passed` and the independently
+reviewed `wording_only_boundary` concern. Other grammar/synonym edits, custom or
+context-augmented packets, multiple skills, and any unconfirmed meaning change
+take the normal challenge path.
+
 **If no such deterministic scope check can be formed for the change, challenge stays required.** This is a hard gate, not a default the author may waive: an LLM independent review is hypothesis-grade, so review alone never downgrades a non-wording change. Every shared-skill change still requires the independent review row regardless of class.
 
 If either required pass times out, returns empty output, is rate-limited, cannot access auth, exits nonzero, emits malformed or truncated output, fails JSON/shape parsing when structured output was requested, lacks evidence that the pass inspected the target diff/files, shows a prompt/tool-scope mismatch, or returns any `inconclusive` status, the dual-track gate has not passed **for that lane via that reviewer**. A *recoverable-lane* failure — auth, quota, rate limit, timeout, local cache/db failure, or missing capability — is NOT a terminal stop and is NOT "the gate is unrunnable on this host": before you record `blocked`, you MUST walk the **Primary reviewer failure** remediation ladder below and route to an approved independent third-party reviewer (preferably a different model family) — either your runtime's native multi-model subagent (e.g. an OpenCode `Task`/council subagent on a separate model) or a shell wrapper such as `opencode_review.sh --model <provider/model> --implementer-family <author-family> --mode review|challenge`. A primary CLI lacking auth is a routing trigger to that fallback lane, never a license to declare the gate unrunnable. Only after that ladder is exhausted — every approved independent reviewer probed and unavailable — do you record the row as `pending` or `blocked`, include the remediation attempted (which ladder steps were tried) and the next unblock action, and do not describe the skill change as solved, complete, landed, or fully closed. (A large reviewer INPUT can also be silently middle-truncated, not just the reviewer's OUTPUT — see **Read-coverage of large inputs** under *Sanity checks the gate must enforce*.)
@@ -248,7 +259,28 @@ A stale base puts the upstream's newer fixes into the packet **reversed**, so th
 
 Walking all five is a **point-in-time attestation, not a lock**: the target can advance after you confirm and pin, while the packet is being built or reviewed. That is what item 2's recorded confirmation moment is for — the verdict covers that base only. So **re-query the authority at landing time, immediately before acting on the verdict**: if its tip is no longer the pinned SHA, the review is not landing evidence until the base is re-pinned and the round re-run. Stating the consequence is not enough without that second query — nothing else would ever detect the movement. A force-push or branch deletion is the sharp case: the new tip need not contain the old one, so "it can only have moved forward" is not an assumption available to you. Do not paper over the window by re-checking harder; bound it, and say when it closed.
 
-**Until a wrapper enforces these, the caller owns them — and an unenforced obligation must at least be a recorded one.** No wrapper checks any of the five (observed 2026-08: `review_gate.sh` freezes whatever base it is handed, and neither wrapper fetches), so an agent that never loads this section passes a stale base and gets a verdict that looks exactly like a good one. Make that difference visible rather than silent: **the review/challenge row carries the base attestation — remote, ref, SHA, confirmation moment — and a row without one is recorded `base-unattested`, which is not landing evidence.** A missing attestation is then a detectable state instead of an indistinguishable one; that is the containment available to prose, and it is weaker than a gate. Mechanising the list into the wrapper is the durable form and is registered as follow-up work. This is the review-lane instance of the baseline rule in `external-practice-controls.md#designing-a-behavioral-evidence-measurement`: the packet is a measurement, and its base must be one the candidate has not moved.
+When that check detects drift, rebuild instead of improvising: stop the reviewer
+lane; preserve the named candidate manifest/patch and the caller-owned ordered evidence rows;
+integrate the newly attested target in an isolated worktree; reapply only the
+named candidate paths/rows; regenerate derived artifacts; compare the resulting
+path set with the manifest; rerun the selected tests; then re-pin and rebuild the
+packet. Never use a broad reset plus `add -A`, which can silently absorb ambient
+work. Keep every base attestation in one ledger scoped from the first packet
+until landing or a human scheduling decision; repinning, retrying, or rebuilding
+does not reset it. Each row uses one remote/ref, a contiguous sequence, a strictly
+increasing RFC3339 confirmation time, the corresponding controller-receipt hash
+when a round consumed it, and a same-directory hash-bound file containing the
+canonical raw `ls-remote` line. A second ordered SHA change (A→B→C or A→B→A) is
+the second drift and must terminate the lane as `baseline_race`, with the
+unreviewed delta; the drift row and every later row must not map another
+controller receipt. For `ready_for_human_decision`, the final controller receipt
+must consume the latest attested SHA; later same-SHA live rechecks are allowed,
+but an unconsumed newer SHA is not reviewed evidence. Do not open another
+automatic rebuild after the second drift. The state validator counts these
+transitions and receipt/base associations inside the complete referenced row
+set. Keep independent work moving while a human chooses a landing window.
+
+**Until a wrapper enforces these, the caller owns them — and an unenforced obligation must at least be a recorded one.** No wrapper checks the five live-Git properties (observed 2026-08: `review_gate.sh` freezes whatever base it is handed, and neither wrapper fetches), so an agent that never loads this section can still pass a stale base. The v3 closeout validator makes referenced evidence tampering and broken round association detectable, but it cannot prove that a caller supplied every historical attestation or that the recorded `ls-remote` output is still current; candidate-local receipts are consistency evidence, not remote authority or an append-only log. Therefore **each review/challenge row carries the base attestation — remote, ref, SHA, confirmation moment — and a row without one is `base-unattested`, not landing evidence**, the caller retains the complete history across rebuilds, and item 2's live authority query is still repeated immediately before landing. Mechanising the live checks and history retention into a trusted wrapper/platform is follow-up work. This is the review-lane instance of the baseline rule in `external-practice-controls.md#designing-a-behavioral-evidence-measurement`: the packet is a measurement, and its base must be one the candidate has not moved.
 
 > **Pick the reviewer — route through the owning wrapper before hand-rolling.** The gate needs an independent reviewer; it is **tool-agnostic**. Invariants regardless of tool: prefer a model from a **different family than the author** (cross-model catches shared blind spots — it is symmetric: Claude-authored → OpenAI-family reviews, OpenAI-authored → Claude/Moonshot reviews), and treat any sign-off as **hypothesis-grade** (verify load-bearing claims against primary sources). The agent running the gate, before reviewing:
 >
@@ -262,7 +294,7 @@ Walking all five is a **point-in-time attestation, not a lock**: the target can 
 
 Primary reviewer failure is a remediation branch only when the owning gate classifies it as candidate-local. Use this ladder separately for the review lane and challenge lane:
 
-1. Persist the owner-guided self-review, pass it through the required `--review-plan-file`, and run `review_gate.sh` once for the lane. A host-returned live `session_id`/execution handle is still that same run: poll it to terminal exit and do not start a replacement or fallback from its empty current output. Record the handle type, opaque host transcript/tool-call reference and terminal exit. If the handle is lost, the lane is infrastructure-inconclusive/manual-review-required and no replacement or fallback may be started or credited; process-tree and wrapper artifacts are diagnostic only. This is a procedural host obligation because the inner gate cannot observe the outer handle; machine enforcement requires a trusted host adapter. Never persist a credential-like raw handle in shared evidence. If Claude then returns `auth_path_unavailable`, perform the one documented host rerun with the same frozen candidate, plan, stage, and `--host-remediation-attempted`.
+1. Persist the owner-guided self-review and pass it through the required `--review-plan-file`. For non-wording extraction work, run `scripts/extraction_review_gate.sh` from round 1; a strictly proven wording-only lane uses the proof-bound generic `code-review` single-review recipe in `code-review/references/staged-review-contract.md`, without chain or completion flags. A host-returned live `session_id`/execution handle is still that same run: poll it to terminal exit and do not start a replacement or fallback from its empty current output. Record the handle type, opaque host transcript/tool-call reference and terminal exit. If the handle is lost, the lane is infrastructure-inconclusive/manual-review-required and no replacement or fallback may be started or credited; process-tree and wrapper artifacts are diagnostic only. This is a procedural host obligation because the inner gate cannot observe the outer handle; machine enforcement requires a trusted host adapter. Never persist a credential-like raw handle in shared evidence. If Claude then returns `auth_path_unavailable`, perform the one documented host rerun with the same frozen candidate, plan, stage, and `--host-remediation-attempted`.
 2. Let the gate continue only for its allowlisted candidate-local classes: missing client/provider, bounded auth failure, quota/rate limit, timeout, missing capability, or malformed model output. It records every skipped/attempted client.
 3. Packet/input/binding/tool-boundary, egress, same-family, mode, and unknown failures are not manually bypassed. A terminal result stops that lane.
 4. If the organization gate could not start at all, an approved alternate wrapper or runtime-native lane may be used only with the same bounded packet, independent family, no-write/no-exec boundary, attribution, and parseable verdict. Do not invent a one-off provider/model chain.
@@ -270,11 +302,16 @@ Primary reviewer failure is a remediation branch only when the owning gate class
 
 Do not call a manual ad-hoc run "fallback review" unless it meets the same evidence bar. Correcting a CLI argument mistake and rerunning is remediation; waiting forever, killing the process, or accepting partial stdout is not evidence.
 
-- **Open the Agent chain on the FIRST review — it cannot be retrofitted.** An extraction's required review and challenge are one tracked multi-round run, so the round budget is decided before round 1, not after reading the review; a run that starts untracked is thrown away and restarted. Every trigger, default, flag, index, prior-result, and advisory rule behind that obligation is owned by `code-review/references/staged-review-contract.md` (Agent review chain), with the runnable pair in `code-review/SKILL.md` — take the command from there and never reconstruct it from this bullet.
+- **Open the non-wording Agent chain on the FIRST review — it cannot be retrofitted.** A non-wording extraction's required review and challenge are one tracked multi-round run through `scripts/extraction_review_gate.sh`, so the round budget is decided before round 1, not after reading the review; a run that starts untracked or through the generic controller is thrown away and restarted. A strictly proven wording-only change instead uses the proof-bound single-review exception and opens no challenge chain or `complete` checkpoint. Every trigger, proof, index, prior-result and advisory rule behind those invocation shapes is owned by `code-review/references/staged-review-contract.md`, with controller options in `code-review/SKILL.md`; do not reconstruct them from this bullet.
 
 - **Compose the packet — it is the mechanism that decides which finding classes are reachable at all.** The lever and its constraints are owned by `code-review`'s `SKILL.md` (packet-bounded reviewer; `--paths` only narrows; `--diff-file` supplies a packet you assembled), including the rule that an "input insufficient to judge" finding is an input defect rather than a candidate defect. What this workflow adds is the shared-skill inclusion list: alongside the diff, carry (a) the canonical rule or contract text the changed clause must not contradict, (b) the sibling clauses in the same section or file, (c) the derived carriers that restate the change — commit message, MR body, register row, `description` surface, (d) the actual output of any gate or script the change touches. Measured over one 11-round gate on a prose-rule change, a diff-only packet surfaced only defects in the tail of the just-edited sentence; the composed packet is what surfaced cross-clause contradiction, cross-carrier drift, and silent weakening of the canonical wording. Reach for packet composition before inventing another prose rule or a wording-level grep for the same defect class, and pick between candidate mechanisms by their hit rate over the round's actual findings, not by whether they feel in scope.
 
-Standard `codex review` against the target diff:
+The following raw CLI shapes are **debugging diagnostics only**. They may help
+isolate an owner-wrapper failure, but neither output is review/challenge evidence
+and neither may replace `scripts/extraction_review_gate.sh` for a non-wording
+lane.
+
+Debug a wrapper with raw `codex review` against the target diff:
 
 ```bash
 cd <skills-repo>
@@ -310,7 +347,7 @@ Output: one finding per line with severity (P0/P1/P2), file:line, scenario, fix.
 
 ## Running the challenge pass
 
-`codex exec` with adversarial prompt (read-only):
+Debug a wrapper with raw `codex exec` and an adversarial prompt (read-only):
 
 ```bash
 timeout 540 codex exec "<adversarial-prompt>" </dev/null \
@@ -484,6 +521,31 @@ Do NOT iterate to zero *findings* — some are intentional design tradeoffs the 
 
 The initial independent review plus Agent-initiated challenges share one **Agent-autonomous external-review budget of at most five rounds**. The initial review consumes round 1, so `challenge_budget` is `0..4`. Candidate edits, commits, rebases, amended plans, renamed slices, or a fresh controller invocation do not create more Agent authority. A stateless local controller cannot prove omitted history against a caller that controls its files, so the consuming workflow must preserve the complete review ledger and treat an Agent-created reset as a contract violation.
 
+Five is the generic `code-review` transport ceiling, not this extraction lane's
+spend. Non-wording Agent-autonomous extraction calls go through
+`scripts/extraction_review_gate.sh`, which fixes `challenge_budget=2`: the
+initial review plus at most two challenges. At round 3 the autonomous lane ends.
+An authenticated human may request later review, but that is separately
+attributed human-requested evidence outside this chain/budget, not an Agent
+round 4 or 5. Unused generic capacity never authorizes automatic continuation.
+The v3 closeout validator rejects referenced receipts whose recorded budget is
+not 2 and checks budget and ordering consistency within the caller-supplied
+set. It cannot authenticate that the wrapper produced those receipts or that
+the caller retained every earlier chain or receipt. The wrapper does not mint or
+persist
+`review_chain_id` or `autonomous_review_index`: the caller still supplies both,
+and could start a fresh-looking chain after round 3. The validator detects bad
+order inside the referenced set but cannot detect a prior chain the caller
+omitted, so complete caller-owned ledger retention—and treating an Agent reset
+as a contract violation—remains part of the boundary rather than a property the
+local scripts prove.
+
+A strictly proven wording-only change has no convergence loop: it uses one
+generic `code-review` pass, records the independent-review row and the
+challenge-not-required proof, and does not create a schema-v3 multi-round
+terminal ledger. This exception does not apply to frontmatter, routing,
+validation, acceptance, example, owner or behavior changes.
+
 This budget limits only automatic reviewer invocation. It does **not** stop implementation, tests, debugging, or deep self-review, and it does not limit an authenticated human:
 
 - A human may request another review or self-review, stop a live review or the overall iteration, commit, or merge. Record human-requested review separately from Agent-autonomous rounds.
@@ -504,6 +566,32 @@ At the third Agent-autonomous round, do not start a fourth automatically. If fin
 - record the last externally reviewed candidate and every later candidate delta; stale review evidence never certifies changed content;
 - mark findings that need product/design/risk authority as `needs_human_decision`, freeze only dependent work, and continue independent runnable slices;
 - enter `awaiting_human` only when no independent runnable work remains. This is a scheduling state, not task failure and not a human merge prohibition.
+
+The terminal checkpoint is an extraction closeout record, not a state emitted by
+`review_gate.py`, and its schema-v3 state is derived from evidence rather than
+trusted as an author assertion. Schema-v2 closeout ledgers are rejected rather
+than silently reinterpreted under the breaking occurrence/evidence shape. The
+ledger and every referenced controller, completion, base, and sweep file live
+in one directory and carry SHA-256s. The validator walks the ordered schema-v3
+controller chain (same chain and scope,
+review then contiguous challenges, packet=candidate, complete prior-result hash
+prefix, fixed `challenge_budget=2`) and binds every closeout candidate to its
+last receipt. Ready requires at least review + challenge; a second base drift may
+stop as race immediately after round 1 rather than spending an illegal challenge
+after the terminal predicate already fired.
+It ends in exactly one state:
+
+- `ready_for_human_decision`: a real `complete` receipt is `passed / self_reviewed`, binds the final external receipt and exact current candidate, and there is no unresolved finding occurrence, unreviewed delta, or unmatched sweep instance.
+- `continuation_authorization_required`: round 3 itself returned `findings / post_review_budget`; a passed/unknown/inconclusive state cannot be relabelled continuation.
+- `baseline_race`: the referenced ordered base rows contain a second SHA change, including A→B→A; there is no completion receipt and the unreviewed delta is non-empty. Open findings and unmatched sweep instances remain visible and do not prevent this stop state.
+
+Run `scripts/validate_extraction_review_state.py <closeout.json>` before reporting
+the state. This proves internal consistency and coverage of the files the ledger
+references. It does **not** authenticate that no earlier receipt/attestation was
+omitted and does not replace the live remote recheck above; the caller still owns
+complete-history retention until a trusted platform owns it. An exhausted budget,
+stale review, omitted evidence, or unknown lane state is never represented as
+convergence.
 
 ### Concrete cadence
 

@@ -52,15 +52,21 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$MODE" in review|challenge) ;; *) die_inconclusive bad_mode ;; esac
-[[ "$TIMEOUT" =~ ^[1-9][0-9]*$ ]] && [ "$TIMEOUT" -ge 5 ] || die_inconclusive invalid_timeout invalid_input false
-[ "$TIMEOUT" -le 600 ] || TIMEOUT=600
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+[ -f "$SCRIPT_DIR/normalize_review_timeout.sh" ] \
+  && [ -r "$SCRIPT_DIR/normalize_review_timeout.sh" ] \
+  && [ ! -L "$SCRIPT_DIR/normalize_review_timeout.sh" ] \
+  || die_inconclusive timeout_normalizer_missing local_tool_failure false
+# shellcheck source=normalize_review_timeout.sh
+. "$SCRIPT_DIR/normalize_review_timeout.sh"
+TIMEOUT="$(normalize_review_timeout "$TIMEOUT")" \
+  || die_inconclusive invalid_timeout invalid_input false
 [ -n "$IMPL_FAMILY" ] || die_inconclusive implementer_family_required
 [ -f "$DIFF_FILE" ] && [ -r "$DIFF_FILE" ] && [ ! -L "$DIFF_FILE" ] || die_inconclusive invalid_diff_file
 if [ -n "$REVIEW_PROFILE_FILE" ]; then
   [ -f "$REVIEW_PROFILE_FILE" ] && [ -r "$REVIEW_PROFILE_FILE" ] && [ ! -L "$REVIEW_PROFILE_FILE" ] \
     || die_inconclusive invalid_review_profile_file
 fi
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PARSER="$SCRIPT_DIR/parse_cli_review.py"
 TIMEOUT_CLASSIFIER="$SCRIPT_DIR/classify_timeout_exit.sh"
 SKILL_VERIFIER="$SCRIPT_DIR/verify_native_skill_binding.py"

@@ -22,6 +22,9 @@
 - **先读再改**：修改前读本文件、目标路径上更近的 `AGENTS.md`、`README.md` 和 `docs/CONTRIBUTING.md`，再进入对应技能流程。
 - **必须隔离**：根目录有 `.worktree-only`。任何修改都必须在非 `main` 的独立功能 worktree 中完成；主检出只作干净基线和集成点。
 - **先判 owner**：技能规则、触发词、流程和复盘沉淀归 `skill-extraction-workflow`；产品研发流程归 `product-rd-workflow`；bug 和失败证据先走 `defect-diagnosis`；读者文档在实质 owner 定稿后走 `tighten-doc`。
+- **共享 Git 面去会话化**：commit/merge/squash message、分支名及 PR/MR 的标题、正文、评论和标签不得包含 AI 会话链接或 ID、模型 co-author/session 尾注、生成式落款、会话过程内容或「吸收/借鉴外部实践」类出处措辞。只写中性的能力与变更说明，来源证据留在私有复盘存档；宿主默认尾注不得覆盖本条。
+  - 提交或推送前，以实际落地目标运行 `python3 skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py --repo . --base-ref <target>`（feature→dev 用 `origin/dev`，dev→main 用 `origin/main`）。
+  - 新建或编辑 PR/MR 前，把准确拟用的标题和正文写入 UTF-8 临时文件，再运行 `python3 skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py --repo . --base-ref <target> --pr-text-file <proposed-pr.md>`。本地命令不读取评论、标签或平台生成的 merge message；这些面另做平台侧回读。
 - **控制范围**：只改完成当前目标所需的文件。不要顺带重构、发布、改保护设置或清理无关内容。
 
 ## 契约与技能层级

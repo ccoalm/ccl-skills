@@ -42,6 +42,34 @@ import re, sys
 path, jobs = sys.argv[1], sys.argv[2:]
 src = open(path, encoding="utf8").read()
 
+# PR text is mutable without a new commit. The metadata gate must rerun when a
+# title or body edit is the only event, not only when the branch SHA changes.
+trigger = re.search(r"^  pull_request:\s*\n((?: {4}.*\n)*)", src, re.M)
+if trigger is None or not re.search(r"\bedited\b", trigger.group(1)):
+    print(
+        "FAIL: pull_request trigger does not include `edited`; PR text changes "
+        "would bypass the shared Git/PR metadata gate",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+# The shared metadata gate is also the backstop for authorized direct landing
+# pushes. Both landing branches must trigger CI; the local hook is opt-in.
+push_trigger = re.search(r"^  push:\s*\n((?: {4}.*\n)*)", src, re.M)
+branches = set()
+if push_trigger is not None:
+    branch_row = re.search(r"branches:\s*\[([^]]*)\]", push_trigger.group(1))
+    if branch_row is not None:
+        branches = {item.strip() for item in branch_row.group(1).split(",") if item.strip()}
+missing_push_branches = {"dev", "main"} - branches
+if missing_push_branches:
+    print(
+        "FAIL: push trigger does not cover landing branch(es): "
+        + ", ".join(sorted(missing_push_branches)),
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
 # Split the jobs: mapping stanza at exactly two spaces of indent.
 job_starts = [(m.start(), m.group(1)) for m in re.finditer(r"^  ([A-Za-z0-9_-]+):$", src, re.M)]
 if not job_starts:
@@ -76,10 +104,102 @@ for job in jobs:
     if "fetch-depth: 0" not in body:
         failures.append(f"{job}: no full history, so the gate cannot resolve its base")
 
+repository_body = bounds.get("repository-gates", "")
+step_start = re.search(
+    r"^      - name:\s*Repository gate suite\s*$", repository_body, re.M
+)
+repository_step = ""
+if step_start is None:
+    failures.append(
+        "repository-gates: `Repository gate suite` step is missing"
+    )
+else:
+    next_step = re.search(r"^      - ", repository_body[step_start.end() :], re.M)
+    step_end = (
+        step_start.end() + next_step.start()
+        if next_step is not None
+        else len(repository_body)
+    )
+    repository_step = repository_body[step_start.start() : step_end]
+
+if repository_step:
+    if not re.search(
+        r"^\s+CANDIDATE_BASE_REF:\s*\$\{\{\s*"
+        r"github\.event\.pull_request\.base\.sha\s*\|\|\s*"
+        r"github\.event\.before\s*\}\}\s*$",
+        repository_step,
+        re.M,
+    ):
+        failures.append(
+            "repository-gates: `Repository gate suite` does not bind the PR "
+            "base SHA with the pre-push event fallback; the commit range could "
+            "collapse to HEAD and silently scan zero candidate commits"
+        )
+    if not re.search(
+        r'^\s+if\s+\[\[\s+-n\s+"\$CANDIDATE_BASE_REF"\s+\]\]\s+&&\s+'
+        r'git\s+merge-base\s+"\$CANDIDATE_BASE_REF"\s+HEAD\s+'
+        r'>/dev/null\s+2>&1;\s+then\s*$\n'
+        r'^\s+export\s+CCL_SKILL_BASE_REF="\$CANDIDATE_BASE_REF"\s*$\n'
+        r'^\s+fi\s*$\n'
+        r"^\s+make test-repo-gates\s*$",
+        repository_step,
+        re.M,
+    ):
+        failures.append(
+            "repository-gates: `Repository gate suite` must validate the "
+            "candidate base, export it, then invoke `make test-repo-gates` in "
+            "that order; otherwise the metadata gate can scan the wrong range"
+        )
+
 if failures:
     for f in failures:
         print(f"FAIL: {f}", file=sys.stderr)
     sys.exit(1)
+PY
+
+default_make_dry_run="$(make --no-print-directory -n -C "$ROOT" test-repo-gates)"
+override_make_dry_run="$(
+  make --no-print-directory -n -C "$ROOT" \
+    CCL_SKILL_DEFAULT_BASE_REF=refs/remotes/upstream/dev test-repo-gates
+)"
+python3 - "$default_make_dry_run" "$override_make_dry_run" <<'PY'
+import shlex
+import sys
+
+
+def default_base(dry_run: str) -> str:
+    commands = [
+        line
+        for line in dry_run.splitlines()
+        if "shared_git_surface_gate.py" in line
+    ]
+    if len(commands) != 1:
+        raise SystemExit(
+            "FAIL: test-repo-gates must invoke the shared Git/PR metadata gate once"
+        )
+    tokens = shlex.split(commands[0])
+    if tokens.count("--default-base-ref") != 1:
+        raise SystemExit(
+            "FAIL: test-repo-gates must pass exactly one --default-base-ref"
+        )
+    index = tokens.index("--default-base-ref")
+    if index + 1 >= len(tokens):
+        raise SystemExit("FAIL: --default-base-ref has no value")
+    return tokens[index + 1]
+
+
+default_value = default_base(sys.argv[1])
+override_value = default_base(sys.argv[2])
+if default_value != "origin/dev":
+    raise SystemExit(
+        f"FAIL: test-repo-gates compatibility default is {default_value!r}, "
+        "expected 'origin/dev'"
+    )
+if override_value != "refs/remotes/upstream/dev":
+    raise SystemExit(
+        f"FAIL: caller default-base override resolved to {override_value!r}, "
+        "expected 'refs/remotes/upstream/dev'"
+    )
 PY
 
 echo "test_ci_checkout_ref_binding: ok (gate lanes judge the branch head, not the merge ref)"

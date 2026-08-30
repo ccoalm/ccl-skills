@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import ast
 import errno
 import hashlib
 import json
@@ -25,9 +24,48 @@ MAX_PACKET_BYTES = 200_000
 MAX_PLAN_BYTES = 32_000
 MAX_PROFILE_BYTES = 40_000
 MAX_RESULT_BYTES = 1_000_000
+MAX_WORDING_ONLY_PROOF_BYTES = 16_000
+MAX_BOUND_SOURCE_FILE_BYTES = 1_048_576
+MAX_SELECTED_SKILL_PACKAGE_BYTES = 8_388_608
+MAX_CONTROLLER_RUNTIME_BYTES = 8_388_608
 CONTROLLER_HEADROOM_SECONDS = 10
 MAX_CHALLENGE_BUDGET = 4
 SUPPORTED_CLIENTS = ("claude", "codex", "kimi", "opencode")
+
+# ``--cwd`` is the one repository identity for base-mode review. Git otherwise
+# lets ambient variables replace its refs, objects, index, or worktree despite
+# every command also supplying ``-C``. Diff-specific hooks are excluded too:
+# review packet construction must never execute an ambient helper.
+GIT_REPOSITORY_ROUTING_ENV = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_NAMESPACE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+    "GIT_GRAFT_FILE",
+    "GIT_SHALLOW_FILE",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_PREFIX",
+    "GIT_INTERNAL_SUPER_PREFIX",
+    "GIT_QUARANTINE_PATH",
+    "GIT_EXTERNAL_DIFF",
+    "GIT_DIFF_OPTS",
+    "GIT_CONFIG",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_CONFIG_NOSYSTEM",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_PARAMETERS",
+)
+GIT_REPOSITORY_ROUTING_ENV_PREFIXES = (
+    "GIT_CONFIG_KEY_",
+    "GIT_CONFIG_VALUE_",
+)
 STATIC_CLIENT_FAMILIES = {
     "claude": "claude",
     "kimi": "moonshot",
@@ -270,9 +308,27 @@ def _hash_skill_package(skill_root: Path, skill_name: str) -> str:
 
     digest = hashlib.sha256()
     digest.update(b"selected-skill-v1\0")
+    package_bytes = 0
     for selected_path in selected_paths:
         relative_name = selected_path.relative_to(skill_root).as_posix()
-        selected_bytes = selected_path.read_bytes()
+        selected_bytes = read_bounded_regular_file(
+            selected_path,
+            label=f"selected skill file {skill_name}/{relative_name}",
+            maximum=MAX_BOUND_SOURCE_FILE_BYTES,
+            regular_error=(
+                f"selected skill file is not a single-link regular file: {skill_name}/{relative_name}"
+            ),
+            oversized_error=(
+                f"selected skill file exceeds {MAX_BOUND_SOURCE_FILE_BYTES} bytes: {skill_name}/{relative_name}"
+            ),
+            reason_code="local_tool_failure",
+        )
+        package_bytes += len(selected_bytes)
+        if package_bytes > MAX_SELECTED_SKILL_PACKAGE_BYTES:
+            raise GateError(
+                f"selected skill package exceeds {MAX_SELECTED_SKILL_PACKAGE_BYTES} bytes: {skill_name}",
+                "local_tool_failure",
+            )
         digest.update(relative_name.encode())
         digest.update(b"\0")
         digest.update(len(selected_bytes).to_bytes(8, "big"))
@@ -386,6 +442,8 @@ CONTROLLER_OWNED_FIELDS = {
     "review_context_sha256",
     "review_controller_sha256",
     "review_profile_sha256",
+    "wording_only_proof_sha256",
+    "wording_only_scope",
     "reviewed_concerns",
     "reviewed_skills",
     "risk_tags",
@@ -540,11 +598,13 @@ def run(
     *,
     timeout_seconds: int,
     timeout_reason_code: str = "gate_timeout",
+    environment: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     try:
         process = subprocess.Popen(
             command,
             cwd=cwd,
+            env=environment,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True,
@@ -597,6 +657,35 @@ def run(
             "local_process_io_failure",
         ) from exc
     return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+
+
+def git_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    for key in GIT_REPOSITORY_ROUTING_ENV:
+        environment.pop(key, None)
+    for key in tuple(environment):
+        if key.startswith(GIT_REPOSITORY_ROUTING_ENV_PREFIXES):
+            environment.pop(key, None)
+    environment["GIT_CONFIG_GLOBAL"] = os.devnull
+    environment["GIT_CONFIG_SYSTEM"] = os.devnull
+    environment["GIT_CONFIG_NOSYSTEM"] = "1"
+    return environment
+
+
+def git_command(repo: Path, args: list[str]) -> list[str]:
+    """Build a Git command with deterministic non-executable config."""
+
+    return [
+        "git",
+        "--no-pager",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        f"core.attributesFile={os.devnull}",
+        "-C",
+        str(repo),
+        *args,
+    ]
 
 
 def remaining_gate_seconds(deadline: float) -> int:
@@ -679,8 +768,9 @@ def git_output(
     deadline: float,
 ) -> bytes:
     result = run(
-        ["git", "-C", str(repo), *args],
+        git_command(repo, args),
         timeout_seconds=remaining_preflight_seconds(deadline),
+        environment=git_environment(),
     )
     accepted = ok_codes or {0}
     if result.returncode not in accepted:
@@ -698,6 +788,239 @@ def validate_paths(paths: list[str]) -> list[str]:
             raise GateError(f"invalid review path: {value}")
         validated.append(value)
     return validated
+
+
+def read_bounded_regular_file(
+    path_value: str | Path,
+    *,
+    label: str,
+    maximum: int,
+    regular_error: str,
+    oversized_error: str,
+    reason_code: str = "invalid_input",
+    root: Path | None = None,
+    metadata_out: list[os.stat_result] | None = None,
+) -> bytes:
+    """Read one pathname once, without following links or trusting its size.
+
+    Path predicates followed by ``Path.read_bytes()`` leave a check/use window in
+    which the pathname can be replaced with a symlink.  Open first with
+    ``O_NOFOLLOW`` and make every type/link/size decision from that descriptor.
+    The read itself is capped at ``maximum + 1`` so a file that grows after
+    ``fstat`` cannot turn the gate into an unbounded reader.
+    """
+
+    if (
+        not hasattr(os, "O_NOFOLLOW")
+        or not hasattr(os, "O_NONBLOCK")
+        or (root is not None and not hasattr(os, "O_DIRECTORY"))
+    ):
+        raise GateError(
+            f"this platform cannot safely open {label} without following links or blocking on special files",
+            reason_code,
+        )
+    file_flags = (
+        os.O_RDONLY
+        | os.O_NOFOLLOW
+        | os.O_NONBLOCK
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    directory_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | os.O_NOFOLLOW
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    source = Path(path_value)
+    relative_parts: tuple[str, ...] | None = None
+    directory_fds: list[int] = []
+    fd = -1
+    try:
+        if root is None:
+            fd = os.open(source, file_flags)
+        else:
+            relative = PurePosixPath(str(path_value))
+            if (
+                relative.is_absolute()
+                or not relative.parts
+                or ".." in relative.parts
+                or "." in relative.parts
+            ):
+                raise GateError(regular_error, reason_code)
+            relative_parts = relative.parts
+            directory_fds.append(os.open(root, directory_flags))
+            for component in relative_parts[:-1]:
+                directory_fds.append(
+                    os.open(component, directory_flags, dir_fd=directory_fds[-1])
+                )
+            fd = os.open(relative_parts[-1], file_flags, dir_fd=directory_fds[-1])
+    except GateError:
+        raise
+    except OSError as exc:
+        raise GateError(f"cannot read {label}: {exc}", reason_code) from exc
+
+    try:
+        metadata = os.fstat(fd)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise GateError(regular_error, reason_code)
+        if metadata.st_size > maximum:
+            raise GateError(oversized_error, reason_code)
+
+        chunks: list[bytes] = []
+        remaining = maximum + 1
+        while remaining > 0:
+            chunk = os.read(fd, min(65_536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+
+        final_metadata = os.fstat(fd)
+        if (
+            not stat.S_ISREG(final_metadata.st_mode)
+            or final_metadata.st_nlink != 1
+            or final_metadata.st_size != metadata.st_size
+            or final_metadata.st_mtime_ns != metadata.st_mtime_ns
+            or final_metadata.st_ctime_ns != metadata.st_ctime_ns
+        ):
+            raise GateError(
+                f"{label} changed while it was being read",
+                reason_code,
+            )
+
+        try:
+            if root is None:
+                current_metadata = source.lstat()
+            else:
+                assert relative_parts is not None
+                verification_fds = [os.open(root, directory_flags)]
+                try:
+                    for component in relative_parts[:-1]:
+                        verification_fds.append(
+                            os.open(
+                                component,
+                                directory_flags,
+                                dir_fd=verification_fds[-1],
+                            )
+                        )
+                    current_metadata = os.stat(
+                        relative_parts[-1],
+                        dir_fd=verification_fds[-1],
+                        follow_symlinks=False,
+                    )
+                finally:
+                    for verification_fd in reversed(verification_fds):
+                        try:
+                            os.close(verification_fd)
+                        except OSError:
+                            pass
+        except OSError as exc:
+            raise GateError(
+                f"{label} changed while it was being read", reason_code
+            ) from exc
+        if (
+            not stat.S_ISREG(current_metadata.st_mode)
+            or current_metadata.st_nlink != 1
+            or current_metadata.st_dev != metadata.st_dev
+            or current_metadata.st_ino != metadata.st_ino
+            or current_metadata.st_mode != final_metadata.st_mode
+            or current_metadata.st_size != final_metadata.st_size
+            or current_metadata.st_mtime_ns != final_metadata.st_mtime_ns
+            or current_metadata.st_ctime_ns != final_metadata.st_ctime_ns
+        ):
+            raise GateError(
+                f"{label} changed while it was being read",
+                reason_code,
+            )
+        if metadata_out is not None:
+            metadata_out.append(metadata)
+    except OSError as exc:
+        raise GateError(f"cannot read {label}: {exc}", reason_code) from exc
+    finally:
+        if fd >= 0:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        for directory_fd in reversed(directory_fds):
+            try:
+                os.close(directory_fd)
+            except OSError:
+                pass
+
+    encoded = b"".join(chunks)
+    if len(encoded) > maximum:
+        raise GateError(oversized_error, reason_code)
+    return encoded
+
+
+def decode_git_c_path(token: str, *, strict_utf8: bool = False) -> str | None:
+    """Decode one Git C-style path token without Python-only escape syntax."""
+
+    if not token.startswith('"'):
+        return token
+    if len(token) < 2 or not token.endswith('"'):
+        return None
+    body = token[1:-1]
+    decoded_parts: list[str] = []
+    octets = bytearray()
+    escapes = {
+        "a": "\a",
+        "b": "\b",
+        "t": "\t",
+        "n": "\n",
+        "v": "\v",
+        "f": "\f",
+        "r": "\r",
+        "\\": "\\",
+        '"': '"',
+    }
+
+    def flush_octets() -> bool:
+        if not octets:
+            return True
+        try:
+            decoded_parts.append(
+                bytes(octets).decode(
+                    "utf-8", "strict" if strict_utf8 else "surrogateescape"
+                )
+            )
+        except UnicodeError:
+            return False
+        octets.clear()
+        return True
+
+    index = 0
+    while index < len(body):
+        character = body[index]
+        if character != "\\":
+            if not flush_octets() or 0xD800 <= ord(character) <= 0xDFFF:
+                return None
+            decoded_parts.append(character)
+            index += 1
+            continue
+        if index + 1 >= len(body):
+            return None
+        escaped = body[index + 1]
+        if escaped in "01234567":
+            if (
+                index + 4 > len(body)
+                or any(value not in "01234567" for value in body[index + 1 : index + 4])
+            ):
+                return None
+            octet = int(body[index + 1 : index + 4], 8)
+            if octet > 0xFF:
+                return None
+            octets.append(octet)
+            index += 4
+            continue
+        if not flush_octets() or escaped not in escapes:
+            return None
+        decoded_parts.append(escapes[escaped])
+        index += 2
+    if not flush_octets():
+        return None
+    return "".join(decoded_parts)
 
 
 FILE_TYPE_OWNERS = {
@@ -719,17 +1042,7 @@ def candidate_paths_from_packet(packet: bytes) -> list[str]:
     """Extract bounded repository-relative paths from one frozen text diff."""
 
     def decode_git_path(token: str) -> str | None:
-        if not token.startswith('"'):
-            return token
-        try:
-            decoded = ast.literal_eval(token)
-        except (SyntaxError, ValueError):
-            return None
-        if not isinstance(decoded, str):
-            return None
-        if all(ord(char) <= 0xFF for char in decoded):
-            return decoded.encode("latin-1").decode("utf-8", "surrogateescape")
-        return decoded
+        return decode_git_c_path(token)
 
     def diff_header_paths(line: str) -> list[str]:
         payload = line.removeprefix("diff --git ")
@@ -841,57 +1154,107 @@ def derive_owner_selection(
     ]
 
 
+def _validate_untracked_path_text(value: str) -> None:
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise GateError(
+            "base-mode review cannot bind a non-UTF-8 untracked path"
+        ) from exc
+    if any(
+        unicodedata.category(character) in {"Cc", "Zl", "Zp"}
+        for character in value
+    ):
+        raise GateError(
+            "base-mode review cannot bind a control-character or Unicode "
+            "line-separator untracked path"
+        )
+
+
+def render_untracked_file(
+    relative: str, encoded: bytes, metadata: os.stat_result
+) -> bytes:
+    """Render exact frozen text bytes as a deterministic new-file review diff."""
+
+    _validate_untracked_path_text(relative)
+    if b"\0" in encoded:
+        raise GateError(
+            "base-mode review cannot bind a NUL-bearing untracked file as text"
+        )
+    try:
+        encoded.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise GateError(
+            "base-mode review cannot bind a non-UTF-8 untracked file as text"
+        ) from exc
+
+    old_name = json.dumps(f"a/{relative}", ensure_ascii=False)
+    new_name = json.dumps(f"b/{relative}", ensure_ascii=False)
+    digest = hashlib.sha256(encoded).hexdigest()
+    git_mode = "100755" if metadata.st_mode & 0o111 else "100644"
+    lines = encoded.splitlines(keepends=True)
+    rendered = bytearray(
+        (
+            f"diff --git {old_name} {new_name}\n"
+            f"new file mode {git_mode}\n"
+            "--- /dev/null\n"
+            f"+++ {new_name}\n"
+            f"@@ -0,0 +1,{len(lines)} @@ exact-untracked-file "
+            f"bytes={len(encoded)} sha256={digest}\n"
+        ).encode("utf-8")
+    )
+    for line in lines:
+        rendered.extend(b"+" + line)
+        if not line.endswith(b"\n"):
+            rendered.extend(b"\n\\ No newline at end of file\n")
+    return bytes(rendered)
+
+
 def untracked_packet(repo: Path, paths: list[str], deadline: float) -> bytes:
     command = ["ls-files", "--others", "--exclude-standard", "-z"]
     if paths:
         command.extend(["--", *paths])
     raw = git_output(repo, command, deadline=deadline)
     chunks: list[bytes] = []
+    rendered_bytes = 0
     for encoded in raw.split(b"\0"):
         if not encoded:
             continue
         relative = encoded.decode("utf-8", "surrogateescape")
-        candidate = repo / relative
-        try:
-            metadata = candidate.lstat()
-            resolved = candidate.resolve(strict=True)
-        except OSError:
-            chunks.append(
-                f"Untracked path skipped; cannot resolve: {relative}\n".encode()
-            )
-            continue
-        try:
-            resolved.relative_to(repo)
-        except ValueError:
-            chunks.append(
-                f"Untracked path skipped; resolves outside repository: {relative}\n".encode()
-            )
-            continue
-        if stat.S_ISLNK(metadata.st_mode):
-            chunks.append(
-                f"Untracked symlink skipped for review safety: {relative}\n".encode()
-            )
-            continue
-        if not stat.S_ISREG(metadata.st_mode):
-            chunks.append(f"Untracked non-file path skipped: {relative}\n".encode())
-            continue
-        if metadata.st_nlink > 1:
-            chunks.append(
-                f"Untracked hardlink skipped for review safety: {relative}\n".encode()
-            )
-            continue
-        diff = git_output(
-            repo,
-            ["diff", "--no-color", "--no-index", "--", "/dev/null", relative],
-            {0, 1},
-            deadline=deadline,
+        _validate_untracked_path_text(relative)
+        candidate_path = PurePosixPath(relative)
+        if (
+            not relative
+            or candidate_path.is_absolute()
+            or ".." in candidate_path.parts
+            or "." in candidate_path.parts
+        ):
+            raise GateError("git returned an invalid untracked candidate path")
+        candidate_metadata: list[os.stat_result] = []
+        candidate_bytes = read_bounded_regular_file(
+            relative,
+            root=repo,
+            label="untracked candidate",
+            maximum=MAX_PACKET_BYTES,
+            regular_error=(
+                "base-mode review requires every untracked candidate to be a single-link regular file"
+            ),
+            oversized_error=(
+                f"untracked candidate exceeds {MAX_PACKET_BYTES} bytes"
+            ),
+            metadata_out=candidate_metadata,
         )
-        if diff:
-            chunks.append(diff.rstrip(b"\n") + b"\n")
-        else:
-            chunks.append(
-                f"Untracked file not shown as text diff: {relative}\n".encode()
+        if len(candidate_metadata) != 1:
+            raise GateError("untracked candidate metadata binding failed")
+        rendered = render_untracked_file(
+            relative, candidate_bytes, candidate_metadata[0]
+        )
+        rendered_bytes += len(rendered)
+        if rendered_bytes > MAX_PACKET_BYTES:
+            raise GateError(
+                f"untracked review packet exceeds {MAX_PACKET_BYTES} bytes"
             )
+        chunks.append(rendered)
     return b"".join(chunks)
 
 
@@ -907,42 +1270,49 @@ def freeze_packet(
     if args.diff_file:
         if args.base or args.paths:
             raise GateError("--diff-file cannot be combined with --base or --paths")
-        source = Path(args.diff_file)
-        if not source.is_file() or source.is_symlink():
-            raise GateError(
-                "--diff-file must name a readable regular file, not a symlink"
-            )
-        if source.stat().st_nlink > 1:
-            raise GateError("--diff-file hardlinks are rejected for review safety")
-        try:
-            packet = source.read_bytes()
-        except OSError as exc:
-            raise GateError(f"cannot read --diff-file: {exc}") from exc
+        packet = read_bounded_regular_file(
+            args.diff_file,
+            label="--diff-file",
+            maximum=MAX_PACKET_BYTES,
+            regular_error=(
+                "--diff-file must name a readable regular non-linked file"
+            ),
+            oversized_error=f"review packet exceeds {MAX_PACKET_BYTES} bytes",
+        )
     else:
         if not args.base:
             raise GateError("one of --base or --diff-file is required")
         root_result = run(
-            ["git", "-C", str(cwd), "rev-parse", "--show-toplevel"],
+            git_command(cwd, ["rev-parse", "--show-toplevel"]),
             timeout_seconds=remaining_preflight_seconds(deadline),
+            environment=git_environment(),
         )
         if root_result.returncode != 0:
             raise GateError("--cwd is not inside a git repository")
         repo = Path(root_result.stdout.decode().strip()).resolve()
         verify = run(
-            [
-                "git",
-                "-C",
-                str(repo),
-                "rev-parse",
-                "--verify",
-                f"{args.base}^{{commit}}",
-            ],
+            git_command(
+                repo,
+                ["rev-parse", "--verify", f"{args.base}^{{commit}}"],
+            ),
             timeout_seconds=remaining_preflight_seconds(deadline),
+            environment=git_environment(),
         )
         if verify.returncode != 0:
             raise GateError(f"invalid base ref: {args.base}")
         paths = validate_paths(args.paths)
-        diff_args = ["diff", "--no-color", args.base]
+        diff_args = [
+            "diff",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-textconv",
+        ]
+        # A wording-only proof must establish where frontmatter ends from the
+        # frozen packet itself.  Full context starts each changed file at line
+        # one; the ordinary packet-size ceiling remains the resource bound.
+        if args.wording_only_proof_file:
+            diff_args.append("--unified=1000000")
+        diff_args.append(args.base)
         if paths:
             diff_args.extend(["--", *paths])
         tracked = git_output(repo, diff_args, deadline=deadline)
@@ -978,16 +1348,21 @@ def freeze_packet(
     )
 
 
-def verify_packet(path: Path, expected_hash: str) -> None:
-    try:
-        actual_hash = hashlib.sha256(path.read_bytes()).hexdigest()
-    except OSError as exc:
-        raise GateError(
-            f"cannot re-read frozen review packet: {exc}", "binding_mismatch"
-        ) from exc
+def verify_packet(
+    path: Path, expected_hash: str, *, label: str, maximum: int
+) -> None:
+    encoded = read_bounded_regular_file(
+        path,
+        label=label,
+        maximum=maximum,
+        regular_error=f"{label} is not a single-link regular file",
+        oversized_error=f"{label} exceeds {maximum} bytes",
+        reason_code="binding_mismatch",
+    )
+    actual_hash = hashlib.sha256(encoded).hexdigest()
     if actual_hash != expected_hash:
         raise GateError(
-            "frozen review packet changed during provider execution", "binding_mismatch"
+            f"{label} changed during provider execution", "binding_mismatch"
         )
 
 
@@ -1001,26 +1376,26 @@ def _bounded_text(
         raise GateError(
             f"{field} must contain between {minimum} and {maximum} characters"
         )
+    try:
+        normalized.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise GateError(
+            f"{field} contains a lone surrogate at character {exc.start}"
+        ) from exc
     return normalized
 
 
 def _load_review_plan(path_value: str) -> dict[str, Any]:
-    source = Path(path_value)
+    encoded = read_bounded_regular_file(
+        path_value,
+        label="--review-plan-file",
+        maximum=MAX_PLAN_BYTES,
+        regular_error="--review-plan-file must be a regular non-linked file",
+        oversized_error="--review-plan-file exceeds 32000 bytes",
+    )
     try:
-        metadata = source.lstat()
-    except OSError as exc:
-        raise GateError(f"cannot read --review-plan-file: {exc}") from exc
-    if (
-        not stat.S_ISREG(metadata.st_mode)
-        or source.is_symlink()
-        or metadata.st_nlink > 1
-    ):
-        raise GateError("--review-plan-file must be a regular non-linked file")
-    if metadata.st_size > MAX_PLAN_BYTES:
-        raise GateError("--review-plan-file exceeds 32000 bytes")
-    try:
-        payload = json.loads(source.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        payload = json.loads(encoded.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
         raise GateError(f"--review-plan-file is not valid UTF-8 JSON: {exc}") from exc
     required = {"intent", "acceptance", "self_review", "evidence"}
     if not isinstance(payload, dict) or set(payload) != required:
@@ -1127,6 +1502,12 @@ def _canonical_review_scope(profile: dict[str, Any]) -> dict[str, Any]:
         "review_depth": profile["review_depth"],
         "risk_tags": profile["risk_tags"],
         "challenge_budget": profile["challenge_budget"],
+        "wording_only_proof_sha256": profile["wording_only_proof_sha256"],
+        "wording_only_scope_sha256": (
+            _canonical_digest(profile["wording_only_scope"])
+            if profile["wording_only_scope"] is not None
+            else None
+        ),
     }
     if _review_scope_digest(scope) != profile["review_scope_sha256"]:
         raise GateError(
@@ -1145,26 +1526,22 @@ def _load_prior_review_result(
             "--prior-review-result-file must be absolute", "review_chain_invalid"
         )
     try:
-        metadata = source.lstat()
-    except OSError as exc:
-        raise GateError(
-            f"cannot read prior review result {expected_index}: {exc}",
-            "review_chain_invalid",
-        ) from exc
-    if (
-        not stat.S_ISREG(metadata.st_mode)
-        or source.is_symlink()
-        or metadata.st_nlink > 1
-        or metadata.st_size > MAX_RESULT_BYTES
-    ):
-        raise GateError(
-            f"prior review result {expected_index} is not a bounded regular JSON file",
-            "review_chain_invalid",
+        encoded = read_bounded_regular_file(
+            source,
+            label=f"prior review result {expected_index}",
+            maximum=MAX_RESULT_BYTES,
+            regular_error=(
+                f"prior review result {expected_index} is not a bounded regular JSON file"
+            ),
+            oversized_error=(
+                f"prior review result {expected_index} is not bounded JSON"
+            ),
+            reason_code="review_chain_invalid",
         )
-    try:
-        encoded = source.read_bytes()
         payload = json.loads(encoded.decode("utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    except GateError:
+        raise
+    except (UnicodeError, json.JSONDecodeError) as exc:
         raise GateError(
             f"cannot read prior review result {expected_index}: {exc}",
             "review_chain_invalid",
@@ -1192,9 +1569,851 @@ def _stable_binding_matches(
     )
 
 
+def _wording_only_error(reason: str) -> None:
+    raise GateError(reason, "wording_only_proof_invalid")
+
+
+def _decode_canonical_git_path(token: str) -> str:
+    if not token:
+        _wording_only_error("wording-only packet carries an empty path")
+    if not token.startswith('"'):
+        if any(character.isspace() for character in token):
+            _wording_only_error("wording-only packet carries an unquoted path")
+        return token
+    decoded = decode_git_c_path(token, strict_utf8=True)
+    if decoded is None:
+        _wording_only_error("wording-only packet carries an invalid Git-quoted path")
+    return decoded
+
+
+def _split_canonical_git_paths(payload: str, expected: int) -> list[str]:
+    tokens: list[str] = []
+    index = 0
+    while index < len(payload):
+        while index < len(payload) and payload[index].isspace():
+            index += 1
+        if index >= len(payload):
+            break
+        start = index
+        if payload[index] == '"':
+            index += 1
+            escaped = False
+            while index < len(payload):
+                character = payload[index]
+                index += 1
+                if escaped:
+                    escaped = False
+                elif character == "\\":
+                    escaped = True
+                elif character == '"':
+                    break
+            else:
+                _wording_only_error(
+                    "wording-only packet carries an unterminated quoted path"
+                )
+        else:
+            while index < len(payload) and not payload[index].isspace():
+                index += 1
+        tokens.append(_decode_canonical_git_path(payload[start:index]))
+        if len(tokens) > expected:
+            break
+    if len(tokens) != expected or payload[index:].strip():
+        _wording_only_error("wording-only packet carries a non-canonical path header")
+    return tokens
+
+
+def _validate_wording_markdown_path(value: str) -> None:
+    path = PurePosixPath(value)
+    if (
+        not value
+        or len(value.encode("utf-8")) > 1000
+        or any(unicodedata.category(character)[0] == "C" for character in value)
+        or path.is_absolute()
+        or str(path) != value
+        or ".." in path.parts
+        or len(path.parts) < 3
+        or path.parts[0] != "skills"
+        or path.suffix != ".md"
+        or "scripts" in {part.casefold() for part in path.parts}
+    ):
+        _wording_only_error(
+            "wording-only scope must contain only Markdown prose inside exactly one shared skill package"
+        )
+
+
+def _advance_frontmatter_state(
+    state: str | None, line_number: int, content: str
+) -> tuple[str | None, bool]:
+    marker = content.strip() == "---"
+    if state == "unseen" and line_number == 1:
+        return ("inside", False) if marker else ("outside", True)
+    if state == "inside":
+        return ("outside", False) if marker else ("inside", False)
+    if state == "outside":
+        return "outside", True
+    return None, False
+
+
+def _validate_changed_markdown_line(
+    state: str | None, line_number: int, content: str
+) -> str | None:
+    next_state, outside_frontmatter = _advance_frontmatter_state(
+        state, line_number, content
+    )
+    if (
+        not outside_frontmatter
+        or content.strip() == "---"
+        or content.lstrip().casefold().startswith("description:")
+    ):
+        _wording_only_error(
+            "wording-only scope cannot change Markdown frontmatter or description metadata"
+        )
+    return next_state
+
+
+def _leading_markdown_indent(content: str) -> tuple[int, int]:
+    columns = 0
+    index = 0
+    while index < len(content) and content[index] in {" ", "\t"}:
+        columns += 1 if content[index] == " " else 4 - (columns % 4)
+        index += 1
+    return columns, index
+
+
+def _strip_markdown_indent(
+    content: str, required: int, *, initial_columns: int = 0
+) -> str | None:
+    """Remove at least ``required`` Markdown columns, retaining tab overshoot."""
+
+    columns = initial_columns
+    target = initial_columns + required
+    index = 0
+    while (
+        columns < target
+        and index < len(content)
+        and content[index] in {" ", "\t"}
+    ):
+        columns += 1 if content[index] == " " else 4 - (columns % 4)
+        index += 1
+    if columns < target:
+        return None
+    return (" " * (columns - target)) + content[index:]
+
+
+def _split_markdown_list_item(content: str) -> tuple[int, str] | None:
+    """Return a list item's content indent and first-line content when evident."""
+
+    leading_columns, marker_start = _leading_markdown_indent(content)
+    if leading_columns > 3 or marker_start >= len(content):
+        return None
+    marker_end = marker_start
+    if content[marker_start] in {"-", "+", "*"}:
+        marker_end += 1
+    else:
+        while marker_end < len(content) and content[marker_end].isdigit():
+            marker_end += 1
+        digit_count = marker_end - marker_start
+        if (
+            not 1 <= digit_count <= 9
+            or marker_end >= len(content)
+            or content[marker_end] not in {".", ")"}
+        ):
+            return None
+        marker_end += 1
+
+    marker_end_column = leading_columns + marker_end - marker_start
+    if marker_end == len(content):
+        return marker_end_column + 1, ""
+    if content[marker_end] not in {" ", "\t"}:
+        return None
+
+    content_start = marker_end
+    content_column = marker_end_column
+    while content_start < len(content) and content[content_start] in {" ", "\t"}:
+        content_column += (
+            1
+            if content[content_start] == " "
+            else 4 - (content_column % 4)
+        )
+        content_start += 1
+    padding = content_column - marker_end_column
+    if content_start == len(content):
+        return marker_end_column + 1, ""
+    if padding <= 4:
+        return content_column, content[content_start:]
+
+    # CommonMark uses one column of list padding when five or more were given;
+    # the remainder stays indentation in the item's content.
+    remainder = _strip_markdown_indent(
+        content[marker_end:], 1, initial_columns=marker_end_column
+    )
+    assert remainder is not None
+    return marker_end_column + 1, remainder
+
+
+def _fence_marker(content: str) -> tuple[str, int] | None:
+    leading_columns, marker_start = _leading_markdown_indent(content)
+    if leading_columns > 3 or marker_start >= len(content):
+        return None
+    stripped = content[marker_start:]
+    marker = stripped[0]
+    if marker not in {"`", "~"}:
+        return None
+    marker_count = len(stripped) - len(stripped.lstrip(marker))
+    if marker_count < 3:
+        return None
+    info = stripped[marker_count:]
+    if marker == "`" and "`" in info:
+        return None
+    return marker, marker_count
+
+
+def _advance_fenced_code_state(
+    state: tuple[str | None, int, int] | None, content: str
+) -> tuple[tuple[str | None, int, int] | None, bool]:
+    """Track fenced and indented code plus their narrow list context."""
+
+    marker = state[0] if state is not None else None
+    minimum = state[1] if state is not None else 0
+    container_indent = state[2] if state is not None else 0
+    relative = content
+    if container_indent:
+        if not content.strip(" \t"):
+            return state, marker is not None
+        relative = _strip_markdown_indent(content, container_indent)
+        if relative is None:
+            # A non-indented line leaves the list container. An unclosed fence
+            # ends with that container; the current line is ordinary top-level
+            # Markdown and must be classified again from scratch.
+            state = None
+            marker = None
+            minimum = 0
+            container_indent = 0
+            relative = content
+
+    if marker is not None:
+        closing = _fence_marker(relative)
+        if (
+            closing is not None
+            and closing[0] == marker
+            and closing[1] >= minimum
+        ):
+            _, marker_start = _leading_markdown_indent(relative)
+            stripped = relative[marker_start:]
+            if not stripped[closing[1] :].strip(" \t"):
+                return (
+                    (None, 0, container_indent) if container_indent else None,
+                    True,
+                )
+        return state, True
+
+    leading_columns, _ = _leading_markdown_indent(relative)
+    if relative.strip(" \t") and leading_columns >= 4:
+        return state, True
+
+    opening = _fence_marker(relative)
+    if opening is not None:
+        return (opening[0], opening[1], container_indent), True
+
+    list_item = _split_markdown_list_item(relative)
+    if list_item is not None:
+        item_indent, item_content = list_item
+        nested_indent = container_indent + item_indent
+        opening = _fence_marker(item_content)
+        if opening is not None:
+            return (opening[0], opening[1], nested_indent), True
+        item_columns, _ = _leading_markdown_indent(item_content)
+        if item_content.strip(" \t") and item_columns >= 4:
+            return (None, 0, nested_indent), True
+        return (None, 0, nested_indent), False
+
+    return state, False
+
+
+_HTML_CODE_CONTAINER = re.compile(
+    r"<\s*(/?)\s*(pre|code)\b[^>]*>", re.IGNORECASE
+)
+_PLAIN_PROSE_BLOCK_PREFIX = re.compile(
+    r"(?:#{1,6}(?:[ \t]|$)|>(?:[ \t]|$)|(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$))"
+)
+_PLAIN_PROSE_FORBIDDEN = frozenset("\\`*_{}[]<>()|~")
+
+
+def _advance_html_code_state(
+    state: tuple[str, ...], content: str
+) -> tuple[tuple[str, ...], bool]:
+    """Conservatively track raw HTML pre/code containers."""
+
+    containers = list(state)
+    touches_code = bool(containers)
+    for match in _HTML_CODE_CONTAINER.finditer(content):
+        touches_code = True
+        closing, raw_name = match.groups()
+        name = raw_name.casefold()
+        if closing:
+            for index in range(len(containers) - 1, -1, -1):
+                if containers[index] == name:
+                    del containers[index:]
+                    break
+        elif not match.group(0).rstrip().endswith("/>"):
+            containers.append(name)
+    return tuple(containers), touches_code
+
+
+def _plain_prose_punctuation_change(
+    change_blocks: list[tuple[list[str], list[str]]],
+) -> bool:
+    """Return whether every edit is punctuation-only on plain prose lines."""
+
+    for removed, added in change_blocks:
+        if not removed or len(removed) != len(added):
+            return False
+        for old_line, new_line in zip(removed, added, strict=True):
+            if old_line == new_line:
+                return False
+            for line in (old_line, new_line):
+                if (
+                    not line
+                    or line[0] in {" ", "\t"}
+                    or _PLAIN_PROSE_BLOCK_PREFIX.match(line)
+                    or any(character in _PLAIN_PROSE_FORBIDDEN for character in line)
+                    or any(
+                        unicodedata.category(character).startswith("C")
+                        for character in line
+                    )
+                    or not any(
+                        unicodedata.category(character)[0] in {"L", "M", "N"}
+                        for character in line
+                    )
+                ):
+                    return False
+            old_skeleton = "".join(
+                character
+                for character in old_line
+                if not unicodedata.category(character).startswith("P")
+            )
+            new_skeleton = "".join(
+                character
+                for character in new_line
+                if not unicodedata.category(character).startswith("P")
+            )
+            if old_skeleton != new_skeleton:
+                return False
+    return True
+
+
+def _parse_canonical_wording_packet(packet: bytes) -> dict[str, Any]:
+    try:
+        text = packet.decode("utf-8")
+    except UnicodeError as exc:
+        raise GateError(
+            "wording-only packet must be canonical UTF-8 text",
+            "wording_only_proof_invalid",
+        ) from exc
+    if not text.endswith("\n") or "\r" in text or "\0" in text:
+        _wording_only_error(
+            "wording-only packet must be a canonical LF-terminated unified diff"
+        )
+    lines = text.splitlines(keepends=True)
+    index = 0
+    changed_files: list[str] = []
+    changed_lines: list[str] = []
+    change_blocks: list[tuple[list[str], list[str]]] = []
+    punctuation_touches_code_container = False
+    seen_paths: set[str] = set()
+    index_pattern = re.compile(
+        r"index [0-9a-f]{4,64}\.\.[0-9a-f]{4,64} (?:100644|100755)\n\Z"
+    )
+    hunk_pattern = re.compile(
+        r"@@ -(\d{1,6})(?:,(\d{1,6}))? \+(\d{1,6})(?:,(\d{1,6}))? @@(?:[^\r\n]*)\n\Z"
+    )
+
+    while index < len(lines):
+        header = lines[index]
+        if not header.startswith("diff --git "):
+            _wording_only_error(
+                "wording-only proof requires a canonical git unified diff"
+            )
+        left_header, right_header = _split_canonical_git_paths(
+            header[len("diff --git ") : -1], 2
+        )
+        if (
+            not left_header.startswith("a/")
+            or not right_header.startswith("b/")
+            or left_header[2:] != right_header[2:]
+        ):
+            _wording_only_error(
+                "wording-only proof does not permit add, delete, rename, or cross-path diffs"
+            )
+        path = left_header[2:]
+        _validate_wording_markdown_path(path)
+        if path in seen_paths:
+            _wording_only_error(
+                "wording-only packet repeats a changed path in multiple diff sections"
+            )
+        seen_paths.add(path)
+        changed_files.append(path)
+        index += 1
+
+        if index >= len(lines) or not index_pattern.fullmatch(lines[index]):
+            _wording_only_error(
+                "wording-only proof requires the canonical git index header"
+            )
+        index += 1
+        if index >= len(lines) or not lines[index].startswith("--- "):
+            _wording_only_error(
+                "wording-only proof requires a canonical old-file header"
+            )
+        old_path = _split_canonical_git_paths(lines[index][4:-1], 1)[0]
+        index += 1
+        if index >= len(lines) or not lines[index].startswith("+++ "):
+            _wording_only_error(
+                "wording-only proof requires a canonical new-file header"
+            )
+        new_path = _split_canonical_git_paths(lines[index][4:-1], 1)[0]
+        index += 1
+        if old_path != f"a/{path}" or new_path != f"b/{path}":
+            _wording_only_error(
+                "wording-only file headers do not bind the diff header path"
+            )
+
+        old_frontmatter: str | None = None
+        new_frontmatter: str | None = None
+        old_fence: tuple[str | None, int, int] | None = None
+        new_fence: tuple[str | None, int, int] | None = None
+        old_html_code: tuple[str, ...] = ()
+        new_html_code: tuple[str, ...] = ()
+        old_fence_known = True
+        new_fence_known = True
+        old_next_line: int | None = None
+        new_next_line: int | None = None
+        section_changed = False
+        section_hunks = 0
+        while index < len(lines) and lines[index].startswith("@@ "):
+            match = hunk_pattern.fullmatch(lines[index])
+            if match is None:
+                _wording_only_error(
+                    "wording-only proof requires canonical unified hunk headers"
+                )
+            old_start = int(match.group(1))
+            old_count = int(match.group(2)) if match.group(2) is not None else 1
+            new_start = int(match.group(3))
+            new_count = int(match.group(4)) if match.group(4) is not None else 1
+            if old_count < 0 or new_count < 0:
+                _wording_only_error("wording-only hunk carries an invalid line count")
+            if old_next_line is None:
+                old_frontmatter = "unseen" if old_start == 1 else None
+                old_fence_known = old_start == 1
+            elif old_start < old_next_line:
+                _wording_only_error("wording-only hunks overlap or run backwards")
+            elif old_start > old_next_line:
+                if old_frontmatter == "inside":
+                    old_frontmatter = None
+                old_fence_known = False
+            if new_next_line is None:
+                new_frontmatter = "unseen" if new_start == 1 else None
+                new_fence_known = new_start == 1
+            elif new_start < new_next_line:
+                _wording_only_error("wording-only hunks overlap or run backwards")
+            elif new_start > new_next_line:
+                if new_frontmatter == "inside":
+                    new_frontmatter = None
+                new_fence_known = False
+            index += 1
+            section_hunks += 1
+            old_line = old_start
+            new_line = new_start
+            old_seen = 0
+            new_seen = 0
+            block_old: list[str] = []
+            block_new: list[str] = []
+
+            def flush_block() -> None:
+                nonlocal block_old, block_new
+                if block_old or block_new:
+                    change_blocks.append((block_old, block_new))
+                    block_old = []
+                    block_new = []
+
+            while old_seen < old_count or new_seen < new_count:
+                if index >= len(lines):
+                    _wording_only_error("wording-only hunk is truncated")
+                raw_line = lines[index]
+                if not raw_line.endswith("\n") or not raw_line:
+                    _wording_only_error(
+                        "wording-only hunk contains a non-canonical body line"
+                    )
+                prefix = raw_line[0]
+                content = raw_line[1:-1]
+                if prefix == " ":
+                    flush_block()
+                    if old_seen >= old_count or new_seen >= new_count:
+                        _wording_only_error("wording-only hunk exceeds its line counts")
+                    old_frontmatter, _ = _advance_frontmatter_state(
+                        old_frontmatter, old_line, content
+                    )
+                    new_frontmatter, _ = _advance_frontmatter_state(
+                        new_frontmatter, new_line, content
+                    )
+                    if old_fence_known:
+                        old_fence, _ = _advance_fenced_code_state(old_fence, content)
+                        old_html_code, _ = _advance_html_code_state(
+                            old_html_code, content
+                        )
+                    if new_fence_known:
+                        new_fence, _ = _advance_fenced_code_state(new_fence, content)
+                        new_html_code, _ = _advance_html_code_state(
+                            new_html_code, content
+                        )
+                    if old_frontmatter != new_frontmatter:
+                        _wording_only_error(
+                            "wording-only scope cannot shift or activate Markdown frontmatter"
+                        )
+                    old_line += 1
+                    new_line += 1
+                    old_seen += 1
+                    new_seen += 1
+                elif prefix == "-":
+                    if block_new:
+                        _wording_only_error(
+                            "wording-only hunk interleaves additions and removals"
+                        )
+                    if old_seen >= old_count:
+                        _wording_only_error("wording-only hunk exceeds its old-line count")
+                    old_frontmatter = _validate_changed_markdown_line(
+                        old_frontmatter, old_line, content
+                    )
+                    if not old_fence_known:
+                        punctuation_touches_code_container = True
+                    else:
+                        next_fence, touches_fenced_code = _advance_fenced_code_state(
+                            old_fence, content
+                        )
+                        next_html_code, touches_html_code = _advance_html_code_state(
+                            old_html_code, content
+                        )
+                        if touches_fenced_code or touches_html_code:
+                            punctuation_touches_code_container = True
+                        old_fence = next_fence
+                        old_html_code = next_html_code
+                    block_old.append(content)
+                    changed_lines.append(content)
+                    old_line += 1
+                    old_seen += 1
+                    section_changed = True
+                elif prefix == "+":
+                    if new_seen >= new_count:
+                        _wording_only_error("wording-only hunk exceeds its new-line count")
+                    new_frontmatter = _validate_changed_markdown_line(
+                        new_frontmatter, new_line, content
+                    )
+                    if not new_fence_known:
+                        punctuation_touches_code_container = True
+                    else:
+                        next_fence, touches_fenced_code = _advance_fenced_code_state(
+                            new_fence, content
+                        )
+                        next_html_code, touches_html_code = _advance_html_code_state(
+                            new_html_code, content
+                        )
+                        if touches_fenced_code or touches_html_code:
+                            punctuation_touches_code_container = True
+                        new_fence = next_fence
+                        new_html_code = next_html_code
+                    block_new.append(content)
+                    changed_lines.append(content)
+                    new_line += 1
+                    new_seen += 1
+                    section_changed = True
+                else:
+                    _wording_only_error(
+                        "wording-only hunk contains compact, binary, or custom diff data"
+                    )
+                index += 1
+            flush_block()
+            old_next_line = old_start + old_count
+            new_next_line = new_start + new_count
+
+        if section_hunks == 0 or not section_changed:
+            _wording_only_error(
+                "wording-only diff section must contain at least one canonical changed hunk"
+            )
+        if old_frontmatter != "outside" or new_frontmatter != "outside":
+            _wording_only_error(
+                "wording-only packet must prove unchanged frontmatter boundaries from line one"
+            )
+        if index < len(lines) and not lines[index].startswith("diff --git "):
+            _wording_only_error(
+                "wording-only packet contains non-canonical diff metadata"
+            )
+
+    if not changed_files or not changed_lines:
+        _wording_only_error("wording-only packet contains no changed prose")
+    return {
+        "changed_files": sorted(changed_files),
+        "changed_lines": changed_lines,
+        "change_blocks": change_blocks,
+        "punctuation_touches_code_container": punctuation_touches_code_container,
+    }
+
+
+def _load_wording_only_proof(
+    path_value: str,
+    packet_path: Path,
+    packet_hash: str,
+    candidate_paths: list[str],
+    review_root: Path,
+) -> tuple[str, dict[str, Any]]:
+    source = Path(path_value)
+    if not source.is_absolute():
+        _wording_only_error("--wording-only-proof-file must be absolute")
+    try:
+        encoded = read_bounded_regular_file(
+            source,
+            label="wording-only proof",
+            maximum=MAX_WORDING_ONLY_PROOF_BYTES,
+            regular_error="wording-only proof must be a single-link regular JSON file",
+            oversized_error=(
+                f"wording-only proof exceeds {MAX_WORDING_ONLY_PROOF_BYTES} bytes"
+            ),
+            reason_code="wording_only_proof_invalid",
+        )
+        packet = read_bounded_regular_file(
+            packet_path,
+            label="frozen wording-only review packet",
+            maximum=MAX_PACKET_BYTES,
+            regular_error="frozen wording-only review packet is not a regular file",
+            oversized_error=f"review packet exceeds {MAX_PACKET_BYTES} bytes",
+            reason_code="wording_only_proof_invalid",
+        )
+
+        def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError(f"duplicate key: {key}")
+                result[key] = value
+            return result
+
+        def reject_constant(value: str) -> None:
+            raise ValueError(f"non-finite JSON value: {value}")
+
+        proof = json.loads(
+            encoded.decode("utf-8"),
+            object_pairs_hook=reject_duplicate_keys,
+            parse_constant=reject_constant,
+        )
+    except GateError:
+        raise
+    except (UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        raise GateError(
+            f"cannot read wording-only proof: {exc}",
+            "wording_only_proof_invalid",
+        ) from exc
+    if hashlib.sha256(packet).hexdigest() != packet_hash:
+        _wording_only_error("frozen wording-only packet binding changed")
+    if not isinstance(proof, dict) or set(proof) != {
+        "schema_version",
+        "candidate_sha256",
+        "check",
+    }:
+        _wording_only_error("wording-only proof has an invalid top-level schema")
+    if (
+        type(proof["schema_version"]) is not int
+        or proof["schema_version"] != 1
+        or proof["candidate_sha256"] != packet_hash
+    ):
+        _wording_only_error("wording-only proof does not bind the exact candidate")
+
+    check = proof["check"]
+    if not isinstance(check, dict):
+        _wording_only_error("wording-only proof check has an invalid schema")
+    kind = check.get("kind")
+    if kind == "markdown-punctuation-only":
+        if check != {"kind": kind}:
+            _wording_only_error(
+                "wording-only punctuation proof carries an invalid check schema"
+            )
+    elif kind == "markdown-token-replacement":
+        if set(check) != {
+            "kind",
+            "old_token",
+            "new_token",
+            "expected_count",
+        }:
+            _wording_only_error(
+                "wording-only token proof carries an invalid check schema"
+            )
+        old_token = check["old_token"]
+        new_token = check["new_token"]
+        expected_count = check["expected_count"]
+
+        def valid_token(value: Any) -> bool:
+            if not isinstance(value, str) or not 1 <= len(value) <= 80:
+                return False
+            try:
+                encoded_value = value.encode("utf-8")
+            except UnicodeError:
+                return False
+            return (
+                len(encoded_value) <= 240
+                and unicodedata.category(value[0])[0] in {"L", "N"}
+                and unicodedata.category(value[-1])[0] in {"L", "N"}
+                and all(
+                    unicodedata.category(character)[0] in {"L", "N"}
+                    or character in "._'-"
+                    for character in value
+                )
+            )
+
+        if (
+            not valid_token(old_token)
+            or not valid_token(new_token)
+            or old_token == new_token
+            or not isinstance(expected_count, int)
+            or isinstance(expected_count, bool)
+            or not 1 <= expected_count <= 100
+        ):
+            _wording_only_error(
+                "wording-only token proof must name two bounded distinct tokens and an exact count"
+            )
+    else:
+        _wording_only_error("wording-only proof names an unsupported fixed check")
+
+    parsed = _parse_canonical_wording_packet(packet)
+    if parsed["changed_files"] != sorted(candidate_paths):
+        _wording_only_error(
+            "wording-only parser paths do not reproduce the frozen candidate paths"
+        )
+    skill_names = {
+        PurePosixPath(path).parts[1] for path in parsed["changed_files"]
+    }
+    if len(skill_names) != 1:
+        _wording_only_error(
+            "wording-only proof cannot waive the required challenge for a multi-skill candidate"
+        )
+    skill_name = next(iter(skill_names))
+    read_bounded_regular_file(
+        (PurePosixPath("skills") / skill_name / "SKILL.md").as_posix(),
+        root=review_root,
+        label="wording-only target skill entrypoint",
+        maximum=MAX_BOUND_SOURCE_FILE_BYTES,
+        regular_error=(
+            "wording-only proof must target one existing non-linked skill package"
+        ),
+        oversized_error=(
+            "wording-only target skill entrypoint exceeds "
+            f"{MAX_BOUND_SOURCE_FILE_BYTES} bytes"
+        ),
+        reason_code="wording_only_proof_invalid",
+    )
+    for changed_file in parsed["changed_files"]:
+        read_bounded_regular_file(
+            changed_file,
+            root=review_root,
+            label="wording-only changed Markdown file",
+            maximum=MAX_BOUND_SOURCE_FILE_BYTES,
+            regular_error=(
+                "wording-only proof must change existing single-link regular Markdown files"
+            ),
+            oversized_error=(
+                "wording-only changed Markdown file exceeds "
+                f"{MAX_BOUND_SOURCE_FILE_BYTES} bytes"
+            ),
+            reason_code="wording_only_proof_invalid",
+        )
+    replacement_count = 0
+    if kind == "markdown-punctuation-only":
+        if parsed["punctuation_touches_code_container"]:
+            _wording_only_error(
+                "punctuation-only scope cannot change a Markdown code container"
+            )
+        if not _plain_prose_punctuation_change(parsed["change_blocks"]):
+            _wording_only_error(
+                "punctuation-only scope must change only punctuation on plain prose lines"
+            )
+    else:
+        token_pattern = re.compile(re.escape(check["old_token"]))
+
+        def token_continues(character: str) -> bool:
+            category = unicodedata.category(character)
+            return (
+                category[0] in {"L", "M", "N"}
+                or category == "Pc"
+                or character in {"\u200c", "\u200d"}
+            )
+
+        for removed, added in parsed["change_blocks"]:
+            if not removed or len(removed) != len(added):
+                _wording_only_error(
+                    "token-replacement scope contains an add, delete, or unequal change block"
+            )
+            for old_line, new_line in zip(removed, added, strict=True):
+                matches = [
+                    match
+                    for match in token_pattern.finditer(old_line)
+                    if (
+                        match.start() == 0
+                        or not token_continues(old_line[match.start() - 1])
+                    )
+                    and (
+                        match.end() == len(old_line)
+                        or not token_continues(old_line[match.end()])
+                    )
+                ]
+                cursor = 0
+                rebuilt_parts: list[str] = []
+                for match in matches:
+                    rebuilt_parts.extend(
+                        (old_line[cursor : match.start()], check["new_token"])
+                    )
+                    cursor = match.end()
+                rebuilt_parts.append(old_line[cursor:])
+                replaced_line = "".join(rebuilt_parts)
+                if not matches or replaced_line != new_line:
+                    _wording_only_error(
+                        "token-replacement scope changes bytes outside the named token"
+                    )
+                replacement_count += len(matches)
+        if replacement_count != check["expected_count"]:
+            _wording_only_error(
+                "token-replacement scope does not reproduce its exact replacement count"
+            )
+
+    result_core = {
+        "status": "passed",
+        "changed_files": parsed["changed_files"],
+        "changed_line_count": len(parsed["changed_lines"]),
+        "replacement_count": replacement_count,
+    }
+    scope_sha256 = _canonical_digest(
+        {
+            "candidate_sha256": packet_hash,
+            "check": check,
+            **result_core,
+        }
+    )
+    normalized_scope = {
+        "status": "passed",
+        "check_kind": kind,
+        "changed_files": parsed["changed_files"],
+        "changed_line_count": len(parsed["changed_lines"]),
+        "replacement_count": replacement_count,
+        "scope_sha256": scope_sha256,
+    }
+    if kind == "markdown-token-replacement":
+        normalized_scope.update(
+            old_token=check["old_token"],
+            new_token=check["new_token"],
+            expected_count=check["expected_count"],
+        )
+    return hashlib.sha256(encoded).hexdigest(), normalized_scope
+
+
 def freeze_review_profile(
     args: argparse.Namespace,
     script_dir: Path,
+    packet_path: Path,
     packet_hash: str,
     candidate_paths: list[str],
 ) -> tuple[Path, str, dict[str, Any], bool]:
@@ -1373,8 +2592,33 @@ def freeze_review_profile(
         raise GateError(
             "--challenge-budget must be between 0 and 4 so the initial review plus challenges never exceeds five Agent-autonomous external rounds"
         )
+    wording_only_proof_sha256: str | None = None
+    wording_only_scope: dict[str, Any] | None = None
+    if args.wording_only_proof_file:
+        if (
+            args.mode != "review"
+            or challenge_budget != 0
+            or args.review_chain_id is not None
+            or args.autonomous_review_index is not None
+            or args.prior_review_result_file
+        ):
+            _wording_only_error(
+                "--wording-only-proof-file is valid only for one untracked review with challenge budget 0"
+            )
+        wording_only_proof_sha256, wording_only_scope = _load_wording_only_proof(
+            args.wording_only_proof_file,
+            packet_path,
+            packet_hash,
+            candidate_paths,
+            Path(args.cwd),
+        )
     if review_depth == "release" and challenge_budget == 0:
-        raise GateError("release and high-risk review require at least one challenge")
+        if wording_only_scope is None:
+            raise GateError("release and high-risk review require at least one challenge")
+        if wording_only_scope["check_kind"] != "markdown-punctuation-only":
+            _wording_only_error(
+                "release and high-risk challenge waiver requires a markdown-punctuation-only proof"
+            )
     challenge_focus = (
         _bounded_text(args.focus, "challenge focus", maximum=1000)
         if args.focus
@@ -1460,14 +2704,27 @@ def freeze_review_profile(
             )
         controller_digest = hashlib.sha256()
         controller_digest.update(b"code-review-runtime-v1\0")
+        controller_runtime_bytes = 0
         for controller_path in controller_paths:
             controller_name = controller_path.relative_to(script_dir).as_posix()
-            if controller_path.is_symlink():
+            controller_bytes = read_bounded_regular_file(
+                controller_path,
+                label=f"review controller runtime {controller_name}",
+                maximum=MAX_BOUND_SOURCE_FILE_BYTES,
+                regular_error=(
+                    f"review controller runtime is not a single-link regular file: {controller_name}"
+                ),
+                oversized_error=(
+                    f"review controller runtime exceeds {MAX_BOUND_SOURCE_FILE_BYTES} bytes: {controller_name}"
+                ),
+                reason_code="local_tool_failure",
+            )
+            controller_runtime_bytes += len(controller_bytes)
+            if controller_runtime_bytes > MAX_CONTROLLER_RUNTIME_BYTES:
                 raise GateError(
-                    f"review controller runtime is a symlink: {controller_name}",
+                    f"review controller runtime exceeds {MAX_CONTROLLER_RUNTIME_BYTES} aggregate bytes",
                     "local_tool_failure",
                 )
-            controller_bytes = controller_path.read_bytes()
             controller_digest.update(controller_name.encode())
             controller_digest.update(b"\0")
             controller_digest.update(len(controller_bytes).to_bytes(8, "big"))
@@ -1526,6 +2783,12 @@ def freeze_review_profile(
         "review_depth": review_depth,
         "risk_tags": risk_tags,
         "challenge_budget": challenge_budget,
+        "wording_only_proof_sha256": wording_only_proof_sha256,
+        "wording_only_scope_sha256": (
+            _canonical_digest(wording_only_scope)
+            if wording_only_scope is not None
+            else None
+        ),
     }
     review_scope_sha256 = _review_scope_digest(review_scope)
     if review_scope_sha256 is None:
@@ -1554,6 +2817,8 @@ def freeze_review_profile(
         "selected_skills": selected_skills,
         "selected_skills_sha256": selected_skills_sha256,
         "review_controller_sha256": review_controller_sha256,
+        "wording_only_proof_sha256": wording_only_proof_sha256,
+        "wording_only_scope": wording_only_scope,
         "self_review": self_review,
         "evidence": evidence,
     }
@@ -1702,7 +2967,7 @@ def freeze_review_profile(
     if args.mode == "complete":
         self_review_satisfied_triggers.append("before_completion_claim")
 
-    reviewer_concern_pairs = concern_pairs
+    reviewer_concern_pairs = list(concern_pairs)
     # Stated here, beside the construction, so the normalizer is told rather than
     # reconstructing it from the frozen profile.
     synthetic_slot = builds_synthetic_slot(args.mode, high_risk)
@@ -1720,6 +2985,13 @@ def freeze_review_profile(
                     "Test high-risk bypasses and containment evidence.",
                 )
             )
+    if wording_only_scope is not None:
+        reviewer_concern_pairs.append(
+            (
+                "wording_only_boundary",
+                "Independently confirm this exact candidate is only the controller-proved punctuation/whitespace edit or named typo-token replacement, and changes no trigger, scope, routing, validation, acceptance, rule, threshold, boundary, frontmatter, description, or other meaning.",
+            )
+        )
 
     profile = {
         "schema_version": 1,
@@ -1755,6 +3027,8 @@ def freeze_review_profile(
         "selected_skills_sha256": selected_skills_sha256,
         "review_context_sha256": review_context_sha256,
         "review_controller_sha256": review_controller_sha256,
+        "wording_only_proof_sha256": wording_only_proof_sha256,
+        "wording_only_scope": wording_only_scope,
         "self_review": self_review,
         "evidence": evidence,
     }
@@ -1993,6 +3267,8 @@ def composite_base(
         "review_context_sha256": profile["review_context_sha256"],
         "review_controller_sha256": profile["review_controller_sha256"],
         "review_profile_sha256": profile_hash,
+        "wording_only_proof_sha256": profile["wording_only_proof_sha256"],
+        "wording_only_scope": profile["wording_only_scope"],
         "owner_selection_source": profile["owner_selection_source"],
         "owner_selection_evidence": profile["owner_selection_evidence"],
         "review_plan_source": profile["review_plan_source"],
@@ -2164,6 +3440,10 @@ def validate_completion_checkpoint(
             profile["selected_skills_sha256"],
         )
         or prior.get("completion_gated") is not True
+        or "wording_only_proof_sha256" not in prior
+        or prior["wording_only_proof_sha256"] is not None
+        or "wording_only_scope" not in prior
+        or prior["wording_only_scope"] is not None
         or not (final_round_checkpoint or early_challenge_checkpoint)
     ):
         raise GateError(
@@ -2298,6 +3578,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--paths", nargs="*", default=[])
     parser.add_argument("--implementer-family", required=True)
     parser.add_argument("--review-plan-file")
+    parser.add_argument("--wording-only-proof-file")
     parser.add_argument("--stage", choices=tuple(STAGE_CONCERNS), default="build")
     parser.add_argument("--risk-tag", action="append", default=[])
     parser.add_argument("--challenge-budget", type=int)
@@ -2327,8 +3608,8 @@ def main(argv: list[str] | None = None) -> int:
     gate_deadline: float | None = None
     try:
         args = build_parser().parse_args(argv)
-        if args.timeout < 5 or args.timeout > 600:
-            raise GateError("--timeout must be between 5 and 600 seconds")
+        if args.timeout < 5 or args.timeout > 1200:
+            raise GateError("--timeout must be between 5 and 1200 seconds")
         if args.total_timeout < 5 or args.total_timeout > 3600:
             raise GateError("--total-timeout must be between 5 and 3600 seconds")
         gate_deadline = gate_started_at + args.total_timeout
@@ -2343,15 +3624,23 @@ def main(argv: list[str] | None = None) -> int:
             freeze_packet(args, gate_deadline)
         )
         profile_path, profile_hash, profile, synthetic_slot = freeze_review_profile(
-            args, script_dir, packet_hash, candidate_paths
+            args, script_dir, packet_path, packet_hash, candidate_paths
         )
         # The rendered review profile (intent/acceptance/evidence/self-review
         # text) egresses to the non-Claude reviewer alongside the diff packet, so
         # a secret pasted into an explicit plan must gate egress too. Union the
         # profile's scan with the packet's before any egress decision.
+        frozen_profile_bytes = read_bounded_regular_file(
+            profile_path,
+            label="frozen review profile",
+            maximum=MAX_PROFILE_BYTES,
+            regular_error="frozen review profile is not a single-link regular file",
+            oversized_error=f"frozen review profile exceeds {MAX_PROFILE_BYTES} bytes",
+            reason_code="binding_mismatch",
+        )
         egress_secret_categories = sorted(
             set(egress_secret_categories)
-            | set(scan_egress_secrets(profile_path.read_bytes()))
+            | set(scan_egress_secrets(frozen_profile_bytes))
         )
     except GateError as exc:
         for temporary_path in (profile_path, packet_path):
@@ -2505,8 +3794,18 @@ def main(argv: list[str] | None = None) -> int:
                 continue
 
             try:
-                verify_packet(packet_path, packet_hash)
-                verify_packet(profile_path, profile_hash)
+                verify_packet(
+                    packet_path,
+                    packet_hash,
+                    label="frozen review packet",
+                    maximum=MAX_PACKET_BYTES,
+                )
+                verify_packet(
+                    profile_path,
+                    profile_hash,
+                    label="frozen review profile",
+                    maximum=MAX_PROFILE_BYTES,
+                )
                 assert gate_deadline is not None
                 remaining_seconds = remaining_gate_seconds(gate_deadline)
                 wrapper_timeout = invocation_timeout_seconds(
@@ -2535,8 +3834,18 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                     timeout_reason_code="timeout",
                 )
-                verify_packet(packet_path, packet_hash)
-                verify_packet(profile_path, profile_hash)
+                verify_packet(
+                    packet_path,
+                    packet_hash,
+                    label="frozen review packet",
+                    maximum=MAX_PACKET_BYTES,
+                )
+                verify_packet(
+                    profile_path,
+                    profile_hash,
+                    label="frozen review profile",
+                    maximum=MAX_PROFILE_BYTES,
+                )
             except GateError as exc:
                 record_attempt(
                     result,
