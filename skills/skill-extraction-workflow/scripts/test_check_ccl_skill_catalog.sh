@@ -27,6 +27,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
 #   c10 a row whose only clause is a redirect        => skill_catalog_missing_use_line
 #   c11 a leaf routed in the always-on layer         => skill_bootstrap_leaf_in_region
 #   c12 unset base override covers upstream/fallback x empty/changed diff
+#   c13 candidate-only skills and task banks are snapshotted, not read from HEAD
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
@@ -37,6 +38,8 @@ CASE_INDEX=0
 
 # Each case gets its own clone so a mutation cannot leak into the next one.
 new_case() {
+  local candidate_skill_root="${1:-$REPO_ROOT}"
+  local candidate_eval_root="${2:-$REPO_ROOT}"
   CASE_INDEX=$((CASE_INDEX + 1))
   CASE_DIR="$TEST_ROOT/case$CASE_INDEX"
   git clone --quiet --no-local "$REPO_ROOT" "$CASE_DIR"
@@ -50,12 +53,17 @@ new_case() {
     exit 1
   }
   git -C "$CASE_DIR" update-ref refs/heads/ccl-test-base FETCH_HEAD
-  # The clone carries the default branch; copy the working-tree versions of the
-  # three files under test so the gate runs against what is about to land.
+  # The clone carries committed HEAD, while a newly added or removed skill or
+  # eval row can still exist only in the candidate working tree. Snapshot both
+  # owner roots and task banks so the pristine arm tests the tree that is about
+  # to land, not candidate contracts paired with old evaluation surfaces.
+  rm -rf "$CASE_DIR/skills"
+  mkdir -p "$CASE_DIR/skills"
+  cp -R "$candidate_skill_root/skills/." "$CASE_DIR/skills/"
   cp "$REPO_ROOT/docs/SKILLS.md" "$CASE_DIR/docs/SKILLS.md"
   cp "$REPO_ROOT/agent-context/session-start.md" "$CASE_DIR/agent-context/session-start.md"
-  cp "$REPO_ROOT/skills/skill-extraction-workflow/scripts/check-ccl-skills.sh" \
-    "$CASE_DIR/skills/skill-extraction-workflow/scripts/check-ccl-skills.sh"
+  cp "$candidate_eval_root/eval/routing-tasks.jsonl" "$CASE_DIR/eval/routing-tasks.jsonl"
+  cp "$candidate_eval_root/eval/behavior-fixtures.jsonl" "$CASE_DIR/eval/behavior-fixtures.jsonl"
 }
 
 run_case() {
@@ -494,5 +502,34 @@ expect_base_alias_tags_removed c12-fallback-changed
 }
 run_with_hostile_git_context run_case_with_default_base || :
 expect_changed_entrypoint_warning c12-fallback-changed "$DEFAULT_CHANGED_SKILL"
+
+# c13 — a pristine candidate may contain skill roots and task-bank rows that do
+# not exist at committed HEAD yet. Prove new_case copies all three candidate
+# surfaces. The markers stay only in TEST_ROOT and never enter a checker run.
+CANDIDATE_ROOT="$TEST_ROOT/candidate-root"
+mkdir -p "$CANDIDATE_ROOT/eval" \
+  "$CANDIDATE_ROOT/skills/catalog-candidate-snapshot"
+printf '%s\n' 'catalog-candidate-skill-snapshot' \
+  >"$CANDIDATE_ROOT/skills/catalog-candidate-snapshot/marker.txt"
+cp "$REPO_ROOT/eval/routing-tasks.jsonl" "$CANDIDATE_ROOT/eval/routing-tasks.jsonl"
+cp "$REPO_ROOT/eval/behavior-fixtures.jsonl" "$CANDIDATE_ROOT/eval/behavior-fixtures.jsonl"
+printf '%s\n' '{"id":"route-catalog-candidate-snapshot"}' \
+  >>"$CANDIDATE_ROOT/eval/routing-tasks.jsonl"
+printf '%s\n' '{"id":"F-catalog-candidate-snapshot"}' \
+  >>"$CANDIDATE_ROOT/eval/behavior-fixtures.jsonl"
+new_case "$CANDIDATE_ROOT" "$CANDIDATE_ROOT"
+grep -Fq 'catalog-candidate-skill-snapshot' \
+  "$CASE_DIR/skills/catalog-candidate-snapshot/marker.txt" || {
+  echo 'FAIL[c13]: candidate skill roots were not snapshotted' >&2
+  exit 1
+}
+grep -Fq 'route-catalog-candidate-snapshot' "$CASE_DIR/eval/routing-tasks.jsonl" || {
+  echo 'FAIL[c13]: candidate routing bank was not snapshotted' >&2
+  exit 1
+}
+grep -Fq 'F-catalog-candidate-snapshot' "$CASE_DIR/eval/behavior-fixtures.jsonl" || {
+  echo 'FAIL[c13]: candidate behavior bank was not snapshotted' >&2
+  exit 1
+}
 
 echo "test_check_ccl_skill_catalog: ok"

@@ -132,6 +132,7 @@ upstream_owner_skills = %w[
   llm-inference-integration
   multi-agent-delegation
   multi-perspective-research
+  nodejs-service-dev
   platform-observability
   platform-release-engineering
   platform-service-connectivity

@@ -6,7 +6,7 @@
 
 **Reusable workflows that help coding agents plan, build, test, review, and release software.**
 
-Not a prompt pack — a routed delivery system. 32 skills cover the whole lifecycle, and a routing layer reads what you asked for and hands it to the skill that owns that deliverable, so you never look one up.
+Not a prompt pack — a routed delivery system. 33 skills cover the whole lifecycle, and a routing layer reads what you asked for and hands it to the skill that owns that deliverable, so you never look one up.
 
 Ask it to fix a bug and `defect-diagnosis` takes over: reproduce from first-hand failure evidence, isolate the cause, verify the fix, leave a regression test behind. Ask for a feature and `product-rd-workflow` routes it through requirement shaping, risk gates, implementation, and release. Ask it to touch code at all and `worktree-isolation` puts the work on its own branch first. Every skill also states when *not* to use it and which one to use instead — that is what keeps the routing sharp.
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Node.js Service Dev"
+  short_description: "Build reliable Node.js backend and service features"
+  default_prompt: "Use $nodejs-service-dev to implement a Node.js backend or service change from the repository's runtime, module, lifecycle, and verification contracts."

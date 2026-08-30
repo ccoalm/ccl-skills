@@ -128,6 +128,11 @@ run_gate() {
 legs_failed=0
 report_leg() { # <leg-name> <expected-rc> <form-summary> [expected-token]
   local name="$1" want="$2" summary="$3" token="${4:-}"
+  if [ "$name" = "A13" ] && ! printf '%s' "$summary" | grep -qF '`-`'; then
+    echo '  A13: RED (summary lost literal `-`)'
+    legs_failed=$((legs_failed + 1))
+    return
+  fi
   if [ "$rc" != "$want" ]; then
     echo "  $name: RED (rc=$rc, want $want) — $summary"
     printf '%s\n' "$out" | sed 's/^/    | /'
@@ -321,7 +326,7 @@ new_case case-a13; add_owner_rule A13; edit_owner_description A13; write_plan
 append_row A13 'A fixture lesson downscoping with a degenerate token' \
   '; result-class: failure; bank-evidence: downscoped:-'
 commit_case "A13"; run_gate
-report_leg A13 1 "退化 token 不算留痕（`-` 会命中任意 bullet 的连字符）" "$RC_MISSING"
+report_leg A13 1 '退化 token 不算留痕（`-` 会命中任意 bullet 的连字符）' "$RC_MISSING"
 
 # B5 只动 bank 的轮里，声明行同样欠 result-class -> 必须红
 # B 曾按变更 owner 收敛，而 bank-only 的轮没有变更 owner：那行声明行压根不被检查，
@@ -446,6 +451,16 @@ PY4
 append_row A19 'A fixture lesson deleting the description entry in place' '; result-class: failure'
 commit_case "A19"; run_gate
 report_leg A19 1 "就地删掉 description 也是路由面变更（文件还在，不是删除）" "$RC_MISSING"
+
+# A20 Node implementation owner 的 description + 外部 bank 证据 -> 必须绿
+SAVED_OWNER="$OWNER"
+OWNER="nodejs-service-dev"
+new_case case-a20; add_owner_rule A20; edit_owner_description A20; write_plan
+append_row A20 'The Node implementation owner carries external bank evidence' \
+  "; result-class: failure; bank-evidence: file:$PLAN_REL#$(anchor BANKEV)"
+commit_case "A20"; run_gate
+report_leg A20 0 "Node implementation owner 的 bank 证据可被 owner-scoped gate 消费"
+OWNER="$SAVED_OWNER"
 
 echo "impact_chain_self_adjudication: legs_failed=$legs_failed"
 if [ "$legs_failed" -ne 0 ]; then
