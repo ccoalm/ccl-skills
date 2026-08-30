@@ -140,6 +140,7 @@ Never destroy collaborative comments. Before editing a collaborative doc, fetch 
 
 ## WORKFLOW
 
+0. 有读者批注/评审意见时，按「批注驱动修订」处理：把每条批注当**阅读断裂的证据**而非孤立改句请求——先判根因类（背景缺失 / 概念未定义 / 逻辑跳跃 / 措辞），再按该类**全文扫同类位置**一起修（只改被标记的那一句是点修复，同类断裂会在下一位读者处复发）；改完以首次读者身份通读被改段落。批注本体的保全仍走 COMMENT-SAFE。
 1. Extract the decided-points checklist from the current text.
 2. Apply the DELETE list; keep everything in KEEP.
 3. Rewrite to FORM; confirm every decided point still present.

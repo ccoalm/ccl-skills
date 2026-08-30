@@ -40,6 +40,7 @@ Node.js uses a small number of threads to serve many clients. A long callback re
 ## Errors and process lifecycle
 
 - Catch errors at boundaries that can make a valid decision: translate, retry under policy, compensate, or fail the operation. Otherwise preserve `cause` and propagate.
+- For durable/task state written by one operation, capture the clock once per transition (all timestamps from a single `now`), and validate external-response structure (schema parse with a typed error path) before mapping — a malformed upstream payload becomes a policy-handled failure, not a crash or silently-defaulted field.
 - Treat unknown `uncaughtException` and default-throw unhandled rejection paths as fatal. A handler is for synchronous cleanup/diagnostics before termination, not resuming normal operation from an undefined state.
 - On `SIGTERM`/the platform's shutdown signal:
   1. mark readiness false or otherwise stop new routing;

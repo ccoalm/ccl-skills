@@ -24,6 +24,8 @@ Sibling note: `go-microservice-dev/references/state-machine-task-patterns.md` ca
 - Start transitions move pending work to processing before expensive work begins.
 - Failure transitions capture canonical error code, safe message, retryable flag, retry count, and last trace/log id.
 - Success transitions persist the result pointer or summary before publishing completion events; completion events are idempotent.
+- All timestamps written by one transition come from a single captured `now` — capturing the clock twice inside one transition produces records where `finished_at < started_at` or audit rows that disagree with the state row under load.
+- Validate external/dependency response structure before mapping it (pydantic/schema parse with a typed error path, never a blind attribute access) — a malformed upstream payload must become a failure transition with the canonical error, not an exception mid-transition or a silently-defaulted field.
 
 ## Async Processing
 

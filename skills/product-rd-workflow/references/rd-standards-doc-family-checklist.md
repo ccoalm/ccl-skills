@@ -13,6 +13,7 @@ Use this checklist for R&D standards, specs, guidelines, or Feishu/wiki doc fami
 7. If the family will drive project health checks, add a conformance appendix or sibling checklist that maps each rule to `deterministic`, `agent_review`, `manual`, or `not_automatable_yet`, with severity, evidence, command/prompt owner, and CI behavior. Route architecture fitness functions to `testing-strategy`; route directory-contract coverage to `agents-file-coverage-gate`; route stack mechanics to the owning stack skills.
 8. Before invoking `tighten-doc`, record `owner-ready` with the authority statement, doc-family layer, enumeration evidence, and conformance mapping evidence when applicable, or `blocked: family enumeration unverified`.
 9. Re-confirm the doc-set enumeration at completion/sign-off, or add the sync gate if the family has grown.
+10. Layer authority and write-back: when an execution-layer doc (runbook, repo-local execution Spec, checklist) conflicts with its governing Spec/guideline, the Spec wins the ruling AND the execution doc is corrected in the same change — a ruling without write-back re-creates the drift on the next read. Superseded rules inside a living doc are marked deprecated **with a date** and a replacement pointer, not silently deleted, so a reader can tell "current" from "was once true" (append-only ledgers keep their own stricter rules).
 
 ## Architecture / System-Overview Honesty Pass
 

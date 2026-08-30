@@ -172,7 +172,7 @@ Before release, confirm:
 
 ## Delivery Health Metrics（DORA software delivery metrics）
 
-评估 engineering delivery health 时用 DORA 系列 metrics（起源于 Forsgren / Humble / Kim *Accelerate* 2018，**模型随年度 State of DevOps Report 演进**）作可量化共同词汇。当前 DORA 模型为 5 metric：
+评估 engineering delivery health 时用 DORA 系列 metrics（起源于 2014 年 State of DevOps 研究；Forsgren / Humble / Kim *Accelerate* 2018 成书普及，**模型随年度 State of DevOps Report 演进**——演进史见 dora.dev/insights/dora-metrics-history）作可量化共同词汇。当前 DORA 模型为 5 metric：
 
 | Metric | 定义 | 备注 |
 |---|---|---|
