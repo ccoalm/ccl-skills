@@ -7,7 +7,7 @@ Use this reference when a delivery touches developer-facing surfaces — CLI, SD
 For a new or public developer surface, or a change touching onboarding, install/setup, first-success, defaults, error surfaces, or a breaking migration, prove DX by the measured onboarding journey: run the real discover→install→first-success path as a new user and capture steps, time-to-first-success, friction, and the actual error messages. Do not infer DX from README / feature-list quality.
 
 - A smaller change proves only its affected segment, or cites recent unchanged-journey evidence.
-- An unavailable real environment after remediation uses `testing-strategy`'s proportional / lowest-sufficient-layer model and `blocked` / `pre-runtime-test ready` handling — never a faked pass.
+- An unavailable real environment after remediation uses `testing-strategy`'s proportional / lowest-sufficient-layer model and `blocked` / `pre-runtime-test-ready` handling — never a faked pass.
 
 ## Error messages are a first-class acceptance item
 

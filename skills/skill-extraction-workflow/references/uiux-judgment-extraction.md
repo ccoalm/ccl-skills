@@ -86,7 +86,7 @@ Use source-specific judgment, but verify with concrete proxies:
 - One primary visual focus per task state; secondary controls should not compete with the main artifact or decision.
 - Use stable spacing rhythm such as 4/8px increments unless the source system clearly uses another rhythm.
 - Record token provenance before extracting visual rules: the source of typography, primary color, neutral/background scale, radius, shadow/elevation, and component density. If the source has multiple plausible visual directions or the implementation code hardcodes page-level colors, treat that as extraction evidence and decide whether the reusable rule should require a visual direction comparison, token cleanup, or both.
-- Touch targets should meet platform norms: at least 44pt on iOS and 48dp on Android where touch is required.
+- Touch targets should follow current first-party platform guidance. For buttons, preserve Apple HIG's general-rule hit region of at least 44×44pt (60×60pt on visionOS) and Android's at-least-48×48dp touch/focusable guidance as platform-scoped inputs, not universal constants; measure the actual hit region separately from the glyph.
 - Text contrast should meet WCAG expectations for normal and small text; do not rely on brand color alone for state.
 - Dense work surfaces should keep stable row/card height, fixed context when identity would be lost, and local overflow affordance instead of decorative whitespace.
 - Modal, drawer, overlay, and floating tool visual weight should match consequence: lightweight details should not look as severe as destructive confirmation.
@@ -106,12 +106,12 @@ For each flow, inspect and record:
 
 ## Behavioral And Psychology Anchors
 
-Each behavioral or psychology rule needs at least one falsifiable anchor:
+Each behavioral or psychology rule needs an observable risk, a falsifiable hypothesis, and a named evidence boundary. A theory name is retrieval shorthand, not a universal design instruction; classify and source theory claims through `product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md`.
 
-- Hick: reduce active choices while the user is deciding; reveal controls when inspecting or correcting.
-- Fitts: repeated or high-risk controls need stable placement and adequate hit area.
-- Miller/cognitive load: chunk dense information; do not force users to hold hidden context across modal or route changes.
-- Doherty/feedback timing: show feedback quickly for user actions; use visible pending/final states for long work.
+- Choice search: when competing options slow or confuse the representative task, reduce simultaneous choices or progressively disclose secondary controls; verify the task outcome instead of invoking a named law as proof.
+- Target acquisition: repeated controls need stable placement, and interactive targets need a hit area appropriate to the current platform, input mode, task frequency, and consequence. Do not derive high-risk confirmation or an exact size from Fitts's law.
+- Hidden-context burden: chunk dense information and preserve task context across modal or route changes; verify recall, comparison, and recovery in representative tasks rather than asserting a fixed working-memory limit.
+- State uncertainty: acknowledge actions and expose pending, success, failure, and recovery states at a pace appropriate to the operation. An arbitrary response-time threshold is not acceptance evidence.
 - Error prevention: prevent invalid input before submit when possible; when not possible, show local repair guidance.
 - User control: provide cancel, undo, retry, edit, restore, or explicit irreversible confirmation depending on consequence.
 - Trust: show source, scope, permission, timestamp, automation caveat, and consequence near the affected decision.

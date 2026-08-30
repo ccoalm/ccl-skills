@@ -1,108 +1,94 @@
-# Behavioral And Aesthetic Logic
+# Behavioral And Aesthetic Judgment
 
-Use this reference when a screen needs to feel intuitive, motivating, trustworthy, emotionally appropriate, or visually compelling beyond basic UI correctness.
+Use this lens when a design decision depends on attention, perceived control, uncertainty, trust, motivation, fatigue, or visual character. It turns those abstractions into observable hypotheses; it does not replace requirements, interaction mechanics, accessibility, or runtime evidence.
 
-This file does not replace layout recipes, component rules, accessibility, or product requirements. It adds the why/judgment layer: attention, motivation, perceived effort, confidence, habit loops, visual taste, and emotional fit.
+For theory and evidence boundaries, use `external-ui-ux-quality-benchmarks.md`. For concrete state transitions, error/recovery and feedback, use `interaction-design-patterns.md`. For visual craft, use `visual-craft.md`. Use `tokens-and-components.md` for token, component, theme and platform-component mechanics; use this reference for behavioral and aesthetic judgment.
 
-Ownership boundaries:
+## Judgment method
 
-- Interaction mechanics, the canonical feedback-strength ladder, mobile/web interaction rules, and state-transition detail live in `interaction-design-patterns.md`.
-- Concrete visual direction, anti-slop checks, typography, color, motion, and polish rules live in `visual-craft.md`.
-- Token, component, theme, and platform component decisions live in `tokens-and-components.md`.
-- This file decides why a behavior or aesthetic choice should exist and whether it matches user intent, risk, trust, and product emotion.
+Write each important judgment in five parts:
 
-## Core Question
+1. **Observation**: what the current source, render, task trace, metric, or user behavior shows.
+2. **Risk**: the concrete search, recall, switching, error, uncertainty, trust, fatigue, or consequence burden.
+3. **Hypothesis**: the layout, state, copy, interaction, or visual change expected to reduce that burden.
+4. **Evidence**: the task, state, render, accessibility check, comparison, or metric that can falsify the hypothesis.
+5. **Boundary**: target users/tasks/platforms covered, unknowns, and when to retest.
 
-Before drawing or coding, answer:
+Example:
 
-- What does the user want to accomplish or feel in the next 10 seconds?
-- What is the user's likely anxiety, doubt, or friction at this moment?
-- What should attract attention first, second, and last?
-- What action should feel obvious without explanation?
-- What should the product make users want to return to?
+> Observation: returning operators open three panels to recover the active item after an error. Risk: they lose task context and repeat work. Hypothesis: keep the active item and progress visible while the error is repaired locally. Evidence: in the failed-and-retry task, draft, selection and progress survive without reopening panels. Boundary: verified for keyboard and pointer flows at the tested sizes; mobile remains pending.
 
-If these questions cannot be answered, the UI may be well structured but weak.
+Avoid “intuitive,” “clean,” “delightful,” “lower cognitive load,” or “obvious” as standalone criteria. Name what users can find, understand, do, recover, or distinguish.
 
-## Interaction Logic
+## Interaction judgment
 
-Use `interaction-design-patterns.md` as the canonical interaction model: Discover -> Inspect -> Act -> Confirm -> Return. This section does not define a second flow. It asks why each stage should exist and whether the chosen mechanics match user intent, risk, trust, and motivation.
+Use the canonical loop in `interaction-design-patterns.md`: Discover → Inspect → Act → Confirm → Return.
 
-Judgment questions for the canonical loop:
-
-- **Discover**: why would the user enter now, and what should catch attention first?
-- **Inspect**: what doubt, risk, or curiosity must be resolved before action?
-- **Act**: which action should feel primary for this intent and consequence level?
-- **Confirm**: does the confirmation or feedback strength match risk? Use the feedback ladder in `interaction-design-patterns.md` for the mechanism.
-- **Return**: what context, progress, or motivation helps the user continue or come back?
+| Stage | Judgment question | Typical evidence |
+| --- | --- | --- |
+| Discover | Can target users locate the relevant entry from their starting context without irrelevant competition? | Entry task, attention order, navigation/focus path |
+| Inspect | Is the context needed for a safe decision visible at the decision point? | State/source/scope/consequence checks, hidden-context errors |
+| Act | Does prominence match the user's current intent and consequence rather than business preference alone? | Primary-action selection, misclicks, task completion |
+| Confirm | Does feedback/interruption strength match finality, recovery and retry safety? | Event→state→feedback trace, duplicate/retry scenarios |
+| Return | Are prior context, progress, draft, selection and next action preserved? | Modal/route/error/reload recovery tasks |
 
 Rules:
 
-- Do not make all actions equally visible. The primary action should match the user's current intent and risk level.
-- Reduce choice when the user is deciding; increase control when the user is reviewing, editing, or correcting.
-- For destructive, public, paid, or trust-sensitive actions, judge whether the risk deserves added friction; use `interaction-design-patterns.md` for the concrete confirmation, undo, and feedback mechanism.
-- Preserve context after drawers, modals, uploads, generation, and detail views. Losing the user's place creates unnecessary cognitive cost.
-- For feedback details and state-transition mechanics, use `interaction-design-patterns.md`; this file only judges whether the chosen feedback matches intent, risk, and trust.
+- Do not give equal visual weight to actions with different relevance or consequence.
+- Reduce active option search for the current decision, while keeping review/edit/recovery controls reachable when needed.
+- Preserve current object, mode, filters, progress and return context across drawers, dialogs, routes, uploads and generation when the task depends on them.
+- Choose constraint, inline repair, preview, undo, confirmation, retry or restore from consequence and reversibility. Added friction requires a named protective job.
+- Give every asynchronous action acknowledged, pending, final and recovery semantics. The exact timing bar comes from the product/runtime need, not a remembered universal number.
 
-## Behavioral Logic
+## Behavioral variables
 
-Design for human behavior, not only information display.
+Do not assume one universal user behavior. Select variables from current evidence and test the target segment.
 
-- **Attention**: use hierarchy, grouping, contrast, motion, and whitespace to guide scanning. Do not compete for attention with equal-weight cards.
-- **Cognitive load**: show the next meaningful step; progressively reveal advanced controls; avoid dumping all fields before intent is clear.
-- **Motivation**: make progress visible. Use draft status, completion, recent activity, reactions, streak-like return cues, or creator feedback only when they match the product's ethics and purpose.
-- **Agency**: users should feel they can edit, undo, retry, filter, mute, leave, or correct important outcomes.
-- **Trust**: show source, status, timestamp, permission, review state, AI caveat, and consequence where doubt is likely.
-- **Habit loop**: entry points, notifications, feed updates, creation prompts, and return states should reinforce a useful loop, not just maximize clicks.
-- **Social proof**: counts, badges, replies, followers, and popularity cues should clarify relevance. Do not use them to fake importance or bury new/quiet content.
-- **Friction**: remove friction for low-risk repeated actions; add deliberate friction for irreversible, public, sensitive, or costly actions.
+| Variable | Risk to inspect | Design response to test |
+| --- | --- | --- |
+| Scan/search | Users may stop at the first plausible option or miss a low-salience control | Stronger grouping/signifier, reduced competing actions, task-based findability check |
+| Recall | Users must remember hidden state, values or prior steps | Keep context visible, provide history/summary, preserve return state |
+| Repetition/fatigue | Repeated review or entry increases slips and abandonment | Stable placement/order, compact density, progress, shortcuts, safe batch/recovery behavior |
+| Uncertainty | Users cannot tell whether work started, finished, failed or is safe to retry | Explicit state, timestamp/progress, idempotency/retry copy and support path |
+| Agency | Users cannot edit, cancel, undo, retry, leave or correct an outcome | Add the consequence-appropriate control and verify it works |
+| Trust | Source, permission, automation, review status or consequence is unclear | Put the relevant provenance/status/scope near the decision; avoid unverifiable assurance |
+| Motivation | The surface has no meaningful progress, result or return value | Show real progress/outcome and a useful next step; do not manufacture engagement cues |
+| Social influence | Counts/badges may distort relevance or create false authority | Explain meaning, prevent fake precision, compare task decisions with/without the cue |
 
-## How Users Actually Behave
+Instructions and help can be necessary. The defect is requiring users to read hidden or lengthy prose to discover a primary operation, not the mere presence of guidance. Prefer concise, contextual instructions and test whether users can complete the task; redesign a control when explanation is compensating for ambiguous semantics.
 
-Design against observed behavior, not the idealized user who reads carefully. These hold across products:
+Consistency is a strong default because it supports transfer and stable expectations. Deviate only when a concrete task/accessibility gain outweighs that transfer cost, and record the reason. A claimed clarity gain never overrides semantic correctness, accessibility, trust/safety, or specified design-system states.
 
-- **Users scan, satisfice, and muddle through.** They skim for the first option that looks reasonable and pick it — not the best one — then keep whatever worked, however badly. Make the *right* choice the most visually prominent one; do not rely on the user comparing options or discovering the "correct" path.
-- **Users do not read instructions or prose.** Guidance that must be read to operate the screen has already failed. Make guidance brief, in-context, and unavoidable, and prefer self-evident affordances over explanatory text — if a control needs a sentence to explain it, redesign the control.
-- **Goodwill is a depleting reservoir.** Users arrive willing to forgive; every friction point spends that goodwill. It depletes faster when you hide what they came for (price, status, contact), force their input into your format, ask for more than you need, or interrupt with splash/forced-tour/interstitial. It replenishes when you surface what they want up front, save steps, make errors easy to recover from, and own failures plainly. This targets *nuisance* friction only: never strip confirmation, consent, review, recovery, or provenance friction to "save steps" — that protective friction is required by the Friction rule above.
-- **Clarity outranks consistency.** Consistency is a default, not a law: when a small inconsistency makes a screen materially clearer, choose clarity, and record the clarity gain. This never overrides the correctness gates — design-system tokens, accessibility, semantic status, trust/safety, high-risk-flow conventions, component semantics, and rendered-evidence — which are correctness, not stylistic consistency.
+## Aesthetic judgment
 
-## Aesthetic Logic
+Aesthetic choices should reinforce task, hierarchy and product character.
 
-Good visual design is not decoration. It expresses the product's personality and helps the user decide.
+- **Attention order**: name first, second and background elements. Verify the rendered hierarchy with realistic content and relevant states.
+- **Density**: choose from task frequency, content volume, error cost and input mode. Consumer breathing room and operational compactness are starting hypotheses, not product-category laws.
+- **Rhythm**: repeated spacing, alignment, type roles, state treatment and motion should create a learnable visual grammar.
+- **Contrast and material**: color, border, shadow, texture, blur and elevation need a hierarchy, grouping, state or brand job. Decoration cannot repair weak structure.
+- **Mood**: describe the intended quality in task terms such as calm review, focused creation, safe consent or lively discovery, then map it to observable visual decisions.
+- **Content dignity**: give primary content enough space and legibility for its task; avoid both cramped consumer content and oversized empty operational shells.
+- **Delight**: use it for meaningful completion, onboarding or recovery only when it does not obscure status, consequence, accessibility or reduced-motion needs.
 
-- **Mood fit**: choose a tone that supports the surface: lively for discovery, focused for creation, calm for AI assistance, restrained for moderation/settings, serious for trust-sensitive decisions.
-- **Rhythm**: repeat spacing, type scale, card treatment, and interaction details so the product feels intentional.
-- **Contrast**: create clear focal points. If everything is colorful, raised, bordered, or animated, nothing leads.
-- **Material feel**: shadows, borders, glass, texture, blur, and gradients need a role: depth, grouping, brand warmth, or state. Do not add them to compensate for weak structure.
-- **Content dignity**: posts, comments, creator identity, media, and AI output should feel cared for. Avoid tiny cramped content in consumer surfaces or oversized empty shells in work surfaces.
-- **Delight**: reserve delight for moments that matter: publish success, first useful AI result, meaningful reply, achievement, upload completion, or helpful recovery. Avoid decorative delight during errors, moderation, payment, or permission denial.
+If no current product source exists, compare two or three compact visual directions. Hold structure and content constant where possible, state the decision variables, and select against the task/brand criteria rather than personal taste.
 
-## Consumer Community Heuristics
+## Trust and ethical boundaries
 
-- Discovery surfaces should create curiosity quickly: strong content preview, clear author/topic identity, visible social affordances, and low-friction entry into detail.
-- Creation surfaces should reduce blank-page anxiety: prompts, examples, draft recovery, preview, audience visibility, and clear publish consequence.
-- Comment/reply surfaces should make conversation feel alive: quoted context, reply target, composer persistence, reactions, and respectful empty states.
-- AI surfaces should feel helpful but accountable: visible generation state, editability, source/citation when relevant, retry/regenerate, and clear separation between AI suggestion and user decision.
-- Trust/safety surfaces should feel fair and controllable: explain why content is hidden, reported, limited, or under review; provide recovery or appeal where product policy allows.
-- Notification surfaces should balance urgency and respect: group related updates, show why the user received it, and make mute/setting controls reachable.
+- Do not use urgency, social proof, streaks, notifications, defaults or visual weight to hide cost, permission, risk, alternatives or exit.
+- High-impact actions show consequence before execution and actual outcome afterward.
+- AI/automation output distinguishes draft/candidate, reviewed, accepted and applied states when users may otherwise over-trust it.
+- Popularity, verification, quality and authority are different claims; labels and metrics must not imply one from another.
+- Protective friction remains when it prevents irreversible, public, financial, privacy or safety harm. Nuisance friction is removed only after that distinction is made.
 
-## Design, Development, Test, Acceptance
+## Acceptance
 
-Use this layer across the whole UI delivery cycle:
+Use realistic content and the representative task from `delivery-contract.md`.
 
-- **Design**: state the user's intent, doubt, motivation, trust concern, attention order, and desired mood before choosing layout or components.
-- **Frontend development**: preserve the intended judgment in code. Route state, focus, progress, recovery, permission, empty/error, and return-context behavior should match the design checkpoint, not only the component library.
-- **Testing**: derive cases from human risk, not just code branches. Test first-use, returning-use, long-content, no-data, partial-data, permission denied, generated/unreviewed, failed/retry, destructive action, and return-from-modal/drawer/upload/generation paths where relevant.
-- **Acceptance**: inspect a rendered browser/app surface with realistic content. Verify attention order, obvious next action, risk-matched friction, recovery path, trust cues, mood fit, and whether the screen feels like a product rather than a component demo.
-
-## Acceptance Checks
-
-Before calling a UI good, verify:
-
-- A first-time user can identify the screen's purpose and next action within five seconds.
-- A returning user can resume or repeat the main action without re-learning the screen.
-- The most visually prominent element matches the user's likely intent and the business priority.
-- The screen has one coherent mood; colors, spacing, motion, and copy do not fight each other.
-- The interaction adds friction only where risk, trust, or consequence justifies it.
-- Empty, loading, error, and success states preserve motivation instead of feeling like dead ends.
-- Social, AI, or trust cues are honest and useful, not manipulative decoration.
-- The result feels product-specific rather than like a generic component demo.
+- Target users can state the screen's purpose, current state and relevant next action without guessing from hidden context.
+- New and returning users can complete or resume the primary task under the tested conditions.
+- Visual prominence matches task relevance and consequence; secondary and exception actions remain findable without competing equally.
+- The state-action-feedback mapping remains understandable in loading, failure, permission, offline/degraded, partial and recovery states that apply.
+- Layout, copy, motion and feedback preserve agency and trust rather than merely looking polished.
+- The chosen visual direction is coherent across representative content, themes, sizes and states, and follows the product/design-system source where specified.
+- Findings name verifier, candidate, evidence layer and boundary. A reviewer feeling, single render or heuristic pass remains hypothesis-grade until the required evidence closes it.

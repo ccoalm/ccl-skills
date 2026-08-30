@@ -1039,12 +1039,23 @@ class WaivedPathPresenceTest(unittest.TestCase):
             target.symlink_to(os.readlink(source_target))
         elif source_target.is_file():
             target.write_bytes(source_target.read_bytes())
-        tracked_specs = subprocess.run(
-            ["git", "-C", str(source_root), "ls-files", "-z", "--", "specs"],
+        candidate_specs = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(source_root),
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "--",
+                "specs",
+            ],
             check=True,
             stdout=subprocess.PIPE,
         ).stdout.split(b"\0")
-        for raw_name in tracked_specs:
+        for raw_name in candidate_specs:
             if not raw_name:
                 continue
             relative = Path(os.fsdecode(raw_name))

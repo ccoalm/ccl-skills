@@ -293,8 +293,10 @@ upstream = upstream.reject do |path|
   rename_excused[path] = true if excused
   excused
 end
-# The block runs when a selected owner changed (there is something to demand) OR
-# when the ledger itself changed (there is something to validate). It used to
+# The block runs when a selected owner changed (there is something to demand),
+# when any skill entrypoint changed (its description may owe routing-bank
+# evidence), OR when the ledger itself changed (there is something to validate).
+# It used to
 # gate on `upstream.any?` alone, which is the demand side only — and that is the
 # other half of the restored-owner hole: revert the owner and the range has no
 # changed owner at all, so the entire row evaluation was skipped and the
@@ -304,7 +306,10 @@ end
 # `eval/routing-tasks.jsonl` changes no owner package and need not touch the
 # ledger, so without this the whole block — including the bank-evidence
 # obligation written for exactly that change — was never entered.
-if upstream.any? || changed_paths.include?(LEDGER_PATH) || changed_paths.include?("eval/routing-tasks.jsonl")
+routing_entrypoint_changed = changed_paths.any? do |path|
+  path.match?(%r{\Askills/[^/]+/SKILL\.md\z})
+end
+if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_PATH) || changed_paths.include?("eval/routing-tasks.jsonl")
   # Rows are collected PER ROUND and carry the scope they were authored against,
   # so the classifiers below judge a row against its own round's diff. Reading the
   # cumulative register diff instead would re-judge every earlier round's rows
@@ -1565,6 +1570,13 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH) || changed_paths.include
   round_bounds.each do |span_base, span_head|
     scope = scope_at.call(span_base, span_head)
     scope_rows = rows.select { |row| row[:scope].head == span_head }
+    # Routing-bank evidence applies to every skill description, not only to the
+    # curated impact-chain owners. Keep a separate vocabulary for this one
+    # obligation so broadening bank coverage cannot broaden the impact-chain
+    # subject set or its row refusals.
+    bank_owner_names = (
+      owner_names_at.call(scope.base) + owner_names_at.call(scope.head)
+    ).uniq
     # Same head-declared-grammar rule as `result-class` above, and for the same
     # reason: the paragraph that defines `bank-evidence` also dates it.
     next unless grammar_declared_at.call(scope.head)
@@ -1630,7 +1642,31 @@ if upstream.any? || changed_paths.include?(LEDGER_PATH) || changed_paths.include
     end
     triggered_owners.each do |path|
       owner = path.sub(%r{/SKILL\.md\z}, "")
-      owner_scope_rows = rows_by_upstream_path[path].select { |row| row[:scope].head == scope.head }
+      owner_scope_rows =
+        if upstream_set[path] || lineage_extra[path]
+          # Preserve the existing selected-owner resolver byte-for-byte: bank
+          # coverage must not weaken or widen impact-chain attribution.
+          rows_by_upstream_path[path].select { |row| row[:scope].head == scope.head }
+        else
+          # Mirror that resolver for bank-only owners. Declaring rows use the
+          # owner-package prefix convention; non-declaring rows keep the prior
+          # exact `<owner>/SKILL.md` convention. A row naming more than one owner
+          # satisfies none of them, so one locator cannot discharge two routing
+          # surfaces.
+          scope_rows.select do |row|
+            declares_impact_chain = row[:behavior].split(";").any? do |fragment|
+              fragment.match?(/\A\s*behavioral-evidence:/i)
+            end
+            candidate_names =
+              if declares_impact_chain
+                bank_owner_names.select { |name| owner_mentioned.call(row[:evidence], name) }
+              else
+                row[:evidence].scan(owner_skill_md_path).flatten.uniq
+                   .select { |name| bank_owner_names.include?(name) }
+              end
+            candidate_names == [owner]
+          end
+        end
       bank_evidence_failures << path unless owner_scope_rows.any? { |row| row_satisfies.call(row, owner) }
     end
     if bank_changed

@@ -60,6 +60,8 @@ git -C "$REPO" commit -qm "seed grammar declaration for the 045 triggers"
 git -C "$REPO" branch -f fixture-base HEAD >/dev/null
 
 OWNER="product-rd-workflow"
+NON_CURATED_OWNER="terminal-cli-dev"
+NON_CURATED_OWNER2="web-react-dev"
 
 new_case() { git -C "$REPO" switch -q -C "$1" fixture-base; }
 commit_case() { git -C "$REPO" add -A >/dev/null; git -C "$REPO" commit -qm "$1"; }
@@ -81,8 +83,8 @@ add_owner_rule() { # <marker>
 # behaviour under test — a rc=1 that looked like the gate working. A SUFFIX is not
 # enough either: the locator counts substring hits, so `…-A1-DESC` still contains
 # `…-A1`. The distinguishing part has to come before the shared stem.
-edit_owner_description() { # <marker>
-  python3 - "$REPO/skills/$OWNER/SKILL.md" "$(anchor "DESC-$1")" <<'PY'
+edit_description_for_owner() { # <owner> <marker>
+  python3 - "$REPO/skills/$1/SKILL.md" "$(anchor "DESC-$2")" <<'PY'
 import io, re, sys
 path, marker = sys.argv[1], sys.argv[2]
 s = io.open(path, encoding="utf-8").read()
@@ -92,6 +94,8 @@ new_front = re.sub(r"(?m)^(description:.*)$", r"\1 " + marker, front, count=1)
 io.open(path, "w", encoding="utf-8").write(s[:m.start(1)] + new_front + s[m.end(1):])
 PY
 }
+
+edit_owner_description() { edit_description_for_owner "$OWNER" "$1"; }
 
 touch_bank() { printf '{"utterance":"fixture %s","expected_owner":"%s"}\n' "$1" "$OWNER" >> "$REPO/$BANK_REL"; }
 
@@ -126,8 +130,9 @@ run_gate() {
 }
 
 legs_failed=0
-report_leg() { # <leg-name> <expected-rc> <form-summary> [expected-token]
-  local name="$1" want="$2" summary="$3" token="${4:-}"
+report_leg() { # <leg-name> <expected-rc> <form-summary> [expected-token ...]
+  local name="$1" want="$2" summary="$3" token
+  shift 3
   if [ "$name" = "A13" ] && ! printf '%s' "$summary" | grep -qF '`-`'; then
     echo '  A13: RED (summary lost literal `-`)'
     legs_failed=$((legs_failed + 1))
@@ -139,12 +144,14 @@ report_leg() { # <leg-name> <expected-rc> <form-summary> [expected-token]
     legs_failed=$((legs_failed + 1))
     return
   fi
-  if [ -n "$token" ] && ! printf '%s' "$out" | grep -qF "$token"; then
-    echo "  $name: RED (rc matched but refusal is not '$token') — $summary"
-    printf '%s\n' "$out" | sed 's/^/    | /'
-    legs_failed=$((legs_failed + 1))
-    return
-  fi
+  for token in "$@"; do
+    if [ -n "$token" ] && ! printf '%s' "$out" | grep -qF "$token"; then
+      echo "  $name: RED (rc matched but output is missing '$token') — $summary"
+      printf '%s\n' "$out" | sed 's/^/    | /'
+      legs_failed=$((legs_failed + 1))
+      return
+    fi
+  done
   echo "  ok   $name — $summary"
 }
 
@@ -452,26 +459,63 @@ append_row A19 'A fixture lesson deleting the description entry in place' '; res
 commit_case "A19"; run_gate
 report_leg A19 1 "就地删掉 description 也是路由面变更（文件还在，不是删除）" "$RC_MISSING"
 
-# A20 Node implementation owner 的 description + 外部 bank 证据 -> 必须绿
+# A20 非 curated owner 的 description 改动 + 唯一有效证据 -> 必须通过
+# routing bank 约束所有技能的 description，但这不等于把该技能提升为 impact-chain owner。
+# 行不声明 behavioral-evidence，专门证明 bank owner 解析与 impact-chain owner 解析彼此独立。
+new_case case-a20; edit_description_for_owner "$NON_CURATED_OWNER" A20; write_plan
+printf '| A fixture non-curated routing surface with bank evidence | `downstream-executor` | bank-evidence: file:%s#%s | `updated` | `%s/SKILL.md` fixture change |\n' "$PLAN_REL" "$(anchor BANKEV)" "$NON_CURATED_OWNER" >> "$REPO/$LEDGER_REL"
+commit_case "A20"; run_gate
+report_leg A20 0 "非 curated owner 的唯一 bank 证据可被解析，但不进入 impact-chain"
+
+# A21 非 curated owner 的 description 改动 + 零台账行 -> 必须红
+# 外层入口若只看 curated owner / ledger / bank，这一轮会完全不执行而静默通过。
+new_case case-a21; edit_description_for_owner "$NON_CURATED_OWNER" A21
+commit_case "A21"; run_gate
+report_leg A21 1 "非 curated owner 改 description 且零台账行仍欠 bank 证据" \
+  "$RC_MISSING" "owes bank evidence: $NON_CURATED_OWNER/SKILL.md"
+
+# A22 一行同时绑定两个非 curated owner -> 不能替任一 owner 清偿
+# owner 解析必须保持一行一 owner；否则一个 locator 会把同轮另一个 description 改动也标绿。
+new_case case-a22
+edit_description_for_owner "$NON_CURATED_OWNER" A22A
+edit_description_for_owner "$NON_CURATED_OWNER2" A22B
+write_plan
+printf '| A fixture ambiguous non-curated routing row | `downstream-executor` | bank-evidence: file:%s#%s | `updated` | `%s/SKILL.md` and `%s/SKILL.md` fixture changes |\n' "$PLAN_REL" "$(anchor BANKEV)" "$NON_CURATED_OWNER" "$NON_CURATED_OWNER2" >> "$REPO/$LEDGER_REL"
+commit_case "A22"; run_gate
+report_leg A22 1 "一行不能替两个非 curated owner 清偿 bank 证据" \
+  "$RC_MISSING" \
+  "owes bank evidence: $NON_CURATED_OWNER/SKILL.md" \
+  "owes bank evidence: $NON_CURATED_OWNER2/SKILL.md"
+
+# A23 未知或已删除的 owner 路径在 bank resolver 前就必须被 missing-file 闸拒绝
+# 独立 review 怀疑过滤会把双路径压成唯一 owner；实际调用路径先检查每个精确
+# `<owner>/SKILL.md` 在该轮 head 是否存在，因此拼错/过期路径不能抵达 bank 清偿。
+new_case case-a23; edit_description_for_owner "$NON_CURATED_OWNER" A23; write_plan
+printf '| A fixture routing row with a stale owner alias | `downstream-executor` | bank-evidence: file:%s#%s | `updated` | `%s/SKILL.md` and `fixture-stale-owner/SKILL.md` fixture claims |\n' "$PLAN_REL" "$(anchor BANKEV)" "$NON_CURATED_OWNER" >> "$REPO/$LEDGER_REL"
+commit_case "A23"; run_gate
+report_leg A23 1 "未知 owner 路径在 bank 解析前被 evidence missing-file 闸拒绝" \
+  "impact_chain_evidence_missing_file" "missing: fixture-stale-owner/SKILL.md"
+
+# A24 Node implementation owner 的 description + 外部 bank 证据 -> 必须绿
 SAVED_OWNER="$OWNER"
 OWNER="nodejs-service-dev"
-new_case case-a20; add_owner_rule A20; edit_owner_description A20; write_plan
-append_row A20 'The Node implementation owner carries external bank evidence' \
+new_case case-a20; add_owner_rule A24; edit_owner_description A24; write_plan
+append_row A24 'The Node implementation owner carries external bank evidence' \
   "; result-class: failure; bank-evidence: file:$PLAN_REL#$(anchor BANKEV)"
-commit_case "A20"; run_gate
-report_leg A20 0 "Node implementation owner 的 bank 证据可被 owner-scoped gate 消费"
+commit_case "A24"; run_gate
+report_leg A24 0 "Node implementation owner 的 bank 证据可被 owner-scoped gate 消费"
 OWNER="$SAVED_OWNER"
 
-# A21 存量非 curated 技能只改 description，不产生 created-surface 义务 -> 必须绿
+# A25 存量非 curated 技能只改 description，不产生 created-surface 义务 -> 必须绿
 # （created-surface 仅指 round base 时 entrypoint 不存在的新技能；否则义务落在
 #  owner 解析永远够不到的名字上，行无法绑定，红无法清偿。）
-new_case case-a21; add_owner_rule A21; write_plan
-append_row A21 'A curated owner row rides along while an existing non-curated sibling edits its description' \
+new_case case-a21; add_owner_rule A25; write_plan
+append_row A25 'A curated owner row rides along while an existing non-curated sibling edits its description' \
   '; result-class: failure'
 SAVED_OWNER="$OWNER"
-OWNER="web-react-dev"; edit_owner_description A21; OWNER="$SAVED_OWNER"
-commit_case "A21"; run_gate
-report_leg A21 0 '存量非 curated owner 的 description 编辑不欠 bank 证据（created-surface 仅限 base 不存在的技能）'
+OWNER="web-react-dev"; edit_owner_description A25; OWNER="$SAVED_OWNER"
+commit_case "A25"; run_gate
+report_leg A25 0 '存量非 curated owner 的 description 编辑不欠 bank 证据（created-surface 仅限 base 不存在的技能）'
 
 echo "impact_chain_self_adjudication: legs_failed=$legs_failed"
 if [ "$legs_failed" -ne 0 ]; then

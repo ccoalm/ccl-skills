@@ -25,6 +25,9 @@
 #   - test_validate_skill_credential_cwd.sh
 #   - test_validate_skill_root_depth.sh
 #   - test_regression_runner_registration.sh
+#   - test_uiux_delivery_contract.sh
+#   - test_uiux_loading_budget.sh
+#   - test_obligation_ledger.sh
 # --full runs --fast plus the heavy full-checker regressions:
 #   - test_check_ccl_r0_status.sh
 #   - test_check_ccl_source_register_lifecycle.sh
@@ -140,7 +143,10 @@ fast_tests=(
   test_regression_runner_lanes.sh
   test_routing_pointer_integrity.sh
   test_routing_bank_integrity.sh
+  test_uiux_delivery_contract.sh
+  test_uiux_loading_budget.sh
   test_governing_chain_diff.sh
+  test_obligation_ledger.sh
   # Owned by another skill package; run_test resolves it relative to SCRIPTS_DIR.
   # Registered here because this runner is the repo's only regression lane —
   # a skill-local test left unregistered is the false-green this file guards.

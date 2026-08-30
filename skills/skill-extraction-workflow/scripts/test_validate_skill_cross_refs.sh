@@ -94,7 +94,37 @@ out="$(bash "$VALIDATE" "$TMP/skills/skill-a" 2>&1)"; rc=$?
 set -e
 [ "$rc" -eq 0 ] || fail "brace-glob cross-package reference must be skipped; rc=$rc\n$out"
 
-# (5) Self-check: the harness can fail (re-run case 1 shape).
+# (5) A relative reference inside references/*.md resolves from that Markdown
+# file's directory, matching normal Markdown navigation rather than SKILL root.
+mkdir -p "$TMP/skills/skill-a/references"
+cat > "$TMP/skills/skill-a/references/nested.md" <<'EOF'
+# Nested reference
+
+The sibling canonical is `../../skill-b/references/ok.md`.
+EOF
+set +e
+out="$(bash "$VALIDATE" "$TMP/skills/skill-a" 2>&1)"; rc=$?
+set -e
+[ "$rc" -eq 0 ] || fail "existing nested relative reference should pass; rc=$rc\n$out"
+
+# (6) The same source-relative rule still rejects a missing target.
+cat > "$TMP/skills/skill-a/references/nested.md" <<'EOF'
+# Nested reference
+
+The missing sibling file is `../../skill-b/references/missing.md`.
+EOF
+set +e
+out="$(bash "$VALIDATE" "$TMP/skills/skill-a" 2>&1)"; rc=$?
+set -e
+[ "$rc" -ne 0 ] || fail "dangling nested relative reference must fail validation"
+case "$out" in
+  *missing_markdown_references*../../skill-b/references/missing.md*) ;;
+  *) fail "dangling nested relative reference not reported as missing:\n$out" ;;
+esac
+
+rm "$TMP/skills/skill-a/references/nested.md"
+
+# (7) Self-check: the harness can fail (re-run case 1 shape).
 cat > "$TMP/skills/skill-a/SKILL.md" <<'EOF'
 ---
 name: skill-a

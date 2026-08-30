@@ -4,6 +4,8 @@ Use this reference when the task is to review, QA, compare, or improve UI/UX in 
 
 This is not a domain-compliance audit. For finance, healthcare, legal, or regulated products, use this as the UI/UX layer and add the appropriate domain rules separately.
 
+Audit findings are criteria/evidence inputs to `delivery-contract.md`, not an independent acceptance path. A runtime-visible audit names every affected React/other-Web, H5, native, mini-app, terminal/CLI/TUI, Electron/desktop/TV, other-client, and composite-host layer; ready/complete still requires the complete design/test/producer/client binding set, Test Phase 1, and an allowed design verdict.
+
 ## Evidence Sources
 
 Use these sources in this order:
@@ -12,10 +14,10 @@ Use these sources in this order:
 2. Relevant source Figma file or design-system file.
 3. `interaction-design-patterns.md` for flow, feedback, state, gesture, and trust-sensitive behavior.
 4. `visual-craft.md` for brand feel, hierarchy, anti-slop, motion, and polish.
-5. `tokens-and-components.md`, `platform-mobile-patterns.md`, and `platform-web-desktop-patterns.md` for tokens and component semantics.
+5. `tokens-and-components.md`, the applicable platform lens, and every affected client owner's convention for tokens, component/command semantics, host behavior, and adaptation.
 6. `frontend-code-evidence-map.md` for local code evidence classification and reusable behavior patterns, never as product-domain requirements.
 
-Reusable capability observations already extracted:
+Reusable Mobile/desktop capability observations already extracted (illustrative, not a closed platform set):
 
 - Mobile design system: Button, List, Card, Image, ImageViewer, NoticeBar, FloatingPanel, Dialog, Empty, ErrorBlock, Modal, Progress, Result, Skeleton, SwipeAction, Toast, NavBar, Popup, TabBar, SafeArea, ImageUploader, PasscodeInput, and Example Pages.
 - Desktop design system: Button, Layout, Splitter, Menu, Dropdown, Steps, Form, Input, Select, Upload, Card, Empty, List, Tag, Tooltip, Alert, Drawer, Message, Modal, Notification, Progress, Result, Skeleton, and Table/Tabs marked `【todo】` as weak guidance only.
@@ -36,16 +38,16 @@ Always include concrete file/line references for code reviews and Figma file/pag
 
 ## Audit Procedure
 
-1. **Classify the surface**: mobile consumer, web consumer, web operational, AI workspace, shared component, onboarding, settings, trust/safety, or analytics.
+1. **Classify every rendered layer**: React/other Web, H5, native mobile/host, mini-app, ordinary CLI or terminal/TUI, Electron/desktop/TV, other client, or composite host; then name the consumer/operational/AI/shared/onboarding/settings/trust/analytics task shape.
 2. **Name the primary task**: what the user must be able to do in one sentence.
 3. **Trace the flow**: entry, context, action, feedback, recovery, return.
 4. **Map required states**: happy, first-use, empty, loading, partial, error, retry, permission, disabled, success, undo/cancel, long-content, and responsive states.
 5. **Compare UI primitives**: check whether the implementation uses the closest existing component and token semantics instead of one-off UI.
 6. **Check UX clarity**: hierarchy, action priority, copy, affordance, consequence, source/provenance, and next action.
-7. **Check accessibility basics**: readable contrast, keyboard/focus where relevant, touch target size, visible labels, reduced-motion risk, safe-area/keyboard behavior on mobile.
+7. **Check accessibility basics**: readable contrast, labels, keyboard/focus or touch/input semantics where relevant, reduced-motion/capability fallback, and the affected owner's host-specific accessibility/adaptation behavior.
 8. **Check visual craft**: anti-slop, product-level identity, spacing rhythm, typography scale, consistent iconography, appropriate density.
 9. **Check serious-domain adaptation** when relevant: source, timestamp, partial data, confirmation, audit labels, and no unsafe optimistic UI.
-10. **Check platform-convention conformance** for iOS/Android app surfaces: run the pass/fail criteria in `external-ui-ux-quality-benchmarks.md` Platform Convention Walkthrough (HIG/Material state completeness, platform accessibility minima, and platform conventions) against the rendered surface.
+10. **Check platform-convention conformance** on the named target: use `external-ui-ux-quality-benchmarks.md` to classify authority and boundary, recheck the current first-party platform source, and map applicable criteria into `delivery-contract.md`. Preserve requirement versus recommendation strength and verify on that platform's rendered runtime; do not reuse a combined HIG/Material checklist as a cross-platform standard.
 
 ## UI Checks
 
@@ -58,6 +60,7 @@ Always include concrete file/line references for code reviews and Figma file/pag
 - Data-heavy screens keep scan lines stable: sticky headers, aligned controls, consistent row/card heights, and visible active filters.
 - Mobile screens respect safe area, bottom actions, keyboard visibility, and one-handed reach.
 - Web screens collapse secondary panels before damaging primary content readability.
+- Mini-app, ordinary CLI or terminal/TUI, other-Web, Electron/desktop/TV, and composite-host screens apply the actual owner-specific host, input, geometry, fallback, bridge, and recovery checks.
 
 ## UX Checks
 

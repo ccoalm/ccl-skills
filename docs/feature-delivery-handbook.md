@@ -31,7 +31,7 @@ flowchart TD
 | 1 分类 | 这是新需求 / 重构 / 项目分析 / 高风险改动？ | 重启/推倒重来要先恢复或显式取代旧 spec，不许凭记忆裸跑 |
 | 2 需求成形 | 用户工作流、成功标准、非目标、约束、验收检查（窄产品产物见下表）| 验收口径不清不进实现 |
 | 3 风险定级 | 走 `feature-risk-router`：风险标签 + 必跑/可跳门禁 | 碰钱/权限/数据隔离/写终态/AI 高影响 → 必须先定级 |
-| 4 设计 | 可见界面：UI/UX 设计检查点；跨仓/多端/契约：技术设计评审 | 高风险或跨外部消费者契约缺技术设计 = 流程缺陷 |
+| 4 设计 | 可见界面：[`delivery-contract.md`](../skills/product-ui-ux-design/references/delivery-contract.md) 适用的完整/纯文案轻量记录 + Phase 0；跨仓/多端/契约：技术设计评审 | 可见 UI 缺可测试记录/owner/证据计划，或高风险/跨外部消费者契约缺技术设计 = 流程缺陷 |
 | 5 计划 | 任务拆分、test-case-first、验证命令、停止条件 | 多步改动没计划不许动代码 |
 | 6 实现 | 路由到对应栈技能（见下）| 在独立 worktree 上，不在 main |
 | 7 验证 | 实现者先按 owner / 风险轴自审到收敛并报告 unit/集成/E2E/手动/build 证据；再由 `code-review` 做独立评审 | 自审不替代、缩短或软化独立评审；无证据不声称完成，改了行为必须有测试 |
@@ -152,18 +152,20 @@ flowchart TD
 
 - **test-case-first**：行为改动默认先写用例、跑 RED，再写实现。已经先改了代码才发现 → 停下补用例，如实报告，不许声称走了 TDD。
 - **推送前跑绿**：非 UI 改动也要在最终推送态跑绿对应测试层，才推共享分支 / 开 MR（"完成/修好/通过"怎么才算数，见上面的完成证据门）。
-- **可见 UI 验收**：可见 UI 改动 commit/MR 前要在真实浏览器/预览/截图里对着设计检查点走查过。
+- **可见 UI 验收**：可先形成明确标注 `pre-runtime-test-ready` 的 handoff commit/草稿 MR；但在 `complete`、MR-ready、merge-ready 或合并前，每个变更或支撑结论的生产者与受影响客户端必须分别回传不可变 binding member，客户端注明实际执行的 producer member/version；`testing-strategy` Phase 1 引用完整 design/test/producer/client record set，映射 criterion 并判充分性，再由所需设计 owner 给 verdict。单张截图、build、接口测试或作者自评都不能单独等于接受。
 
 ## 走查示例：给一个列表加"批量导出"
 
 1. 入口 `product-rd-workflow` → 这是加功能，走完整生命周期。
 2. 需求成形：谁用、导出什么格式、数据量上限、失败怎么提示。
 3. 定级 `feature-risk-router`：批量 + 可能碰用户数据 → 中风险，需测试矩阵；不碰钱/权限。
-4. 设计：列表加入口按钮 + 导出中/成功/失败状态 → `product-ui-ux-design` 出状态检查点。
+4. 设计：列表加入口按钮 + 导出中/成功/失败状态 → `product-ui-ux-design` 写 Design brief，`testing-strategy` 回填 Phase 0。
 5. 计划：worktree 隔离、test-case-first（导出成功/超量拒绝/失败重试三个用例）、验证命令。
-6. 实现：前端 `web-react-dev` + 后端导出接口 `python-service-dev`。
-7. 验证：unit（导出逻辑）+ 集成（接口契约）+ 浏览器走查三个状态。
-8. 收尾：若发现“批量操作无上限”是可复用的风险模式，交给 `feature-risk-router` 和提炼技能判断应落到哪里。
+6. 实现与回传：后端 `python-service-dev` 记录导出 API 的 `producer_record`、不可变 binding、环境/命令和输出事实；前端 `web-react-dev` 记录自己的 client member、浏览器目标、三个状态与它实际执行的 producer member/version。
+7. 验证执行：unit（导出逻辑）+ 集成（接口契约）+ 绑定候选上的浏览器走查三个状态；测试只引用各 owner 的运行事实，不复制成第二份。
+8. 测试 Phase 1：`testing-strategy` 引用完整 design/test/producer/client record 与 binding set，把结果映射到 criterion，并给 `sufficient` / `insufficient` / `blocked`；缺任一所需成员或版本对应关系就不能进入完成态。
+9. 设计收口：设计 owner 对同一绑定集合逐条给结果和 verdict；只有满足 canonical contract 的 `accepted + complete` 才能写完成，其它组合按契约保持 rejected/pending/blocked。
+10. 收尾：若发现“批量操作无上限”是可复用的风险模式，交给 `feature-risk-router` 和提炼技能判断应落到哪里。
 
 ## 延伸阅读
 
