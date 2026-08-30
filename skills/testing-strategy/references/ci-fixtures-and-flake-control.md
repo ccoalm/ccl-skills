@@ -16,13 +16,15 @@ Duplication and dead-code gates run with explicit configuration, not defaults: t
 
 ## Frozen Regression Set And Adversarial Passes
 
-Tier the frozen regression set so the gate stays affordable: deterministic frozen cases run in the blocking release gate; cases needing live infra / model calls / real indexes run in the release or pre-ramp gate with an explicit marker, owner, and timeout (do not stuff flaky live cases into the fast gate); human-review-only cases are release evidence, not mislabeled automated tests.
+Tier the frozen regression set so the gate stays affordable: deterministic frozen cases run in the blocking release gate; cases needing live infra / model calls / real indexes run in the release or pre-ramp gate with an explicit marker, owner, and timeout (do not stuff flaky live cases into the fast gate); human-review-only cases are release evidence, not mislabeled automated tests. The tiering criterion is cost and side effects, not speed: a case that consumes paid resources (model/API spend, sandbox creation, render jobs) or mutates external state never belongs in the default always-on lane even when it happens to be fast — the default lane is reserved for cases that are free and side-effect-free to run on every change.
 
 The proactive complement — the adversarial pass over code already considered "done": run it as an active defect-discovery step, deliberately hunting coverage blind spots — error-mapping boundaries, concurrency-protection bypass, double-release/double-close paths — instead of waiting for review or production to surface them. Each confirmed gap lands as a failing test first. Candidate blind-spot classes: the risk-matrix failure classes in `scenario-testing.md`, plus the dependency fault-injection and concurrency/cache cases in `integration-contract-testing.md`.
 
 ## Fixtures
 
 Use `test-data-and-determinism.md` as the canonical source for fixture shape, anonymization, data builders, golden-file normalization, and deterministic clocks/randomness/ordering.
+
+External-asset fixtures (media files, documents, large binaries fetched from an external system) form a supply chain that gets pinned end to end: test execution reads only a local read-only cache — never downloads from the external system at run time; a committed manifest pins each asset's identity/hash and CI verifies the manifest plus every blob before the suite runs; a missing or changed cached asset is an `infra-error`/preflight failure (see the entrypoint's status family), never a skip and never a fallback download; seeding/refreshing the cache is a separate offline step on a trusted host, not part of the test run. This composes the network-isolation default and manifest regenerate-and-diff rules in `test-data-and-determinism.md` with the missing-dependency-is-failure rule below into one chain.
 
 ### Fault-Injection Layers For External-Provider Recovery Paths
 

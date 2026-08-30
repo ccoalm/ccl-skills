@@ -49,6 +49,8 @@ python test/scripts/gen_report.py \
 - md 同步匹配必须以 用例ID 为唯一键；模块名或功能点相同不代表是同一条记录
 - 若 md 先于 Bitable 被修改（如直接编辑文件），需将 md 变更反向同步到 Bitable，再按 update 工作流补信息流转
 - **漂移检查**：定期运行 `python gen_report.py --config test/.report-config.json --diff-md test/cases/all.md` 显示 md 与 Bitable 的 added/removed/changed；废弃记录自动排除（不在 md 里属正常）；多人编辑后必跑一次再 commit
+- **版本钉扎**：当仓内测试代码/脚本按某条 TC 实现时，在实现侧记录该 TC 的修订标识（信息流转最新条目的 `[姓名 日期]` 或字段快照哈希）；实现前先比对——Bitable 记录比钉扎版本新时，先更新钉扎侧并使差异可评审，再动实现；发现源记录 stale/自相矛盾时**停下先修源记录**，不得按旧版实现后事后补
+- **认领防冲突**：多人/多 agent 并发按 TC 实现时，先在跟进人（或等价认领字段）写入自己再开工；字段已有他人活跃认领时不得覆盖，改为联系认领人或换条目——避免两侧同时实现同一 TC 产生冲突提交
 - `+record-upsert --record-id` 中的 record_id 是 Bitable 内部 ID，必须先用 `get_record_index()` 从 用例ID 查出，不能直接用 用例ID 代替
 
 ## update 工作流

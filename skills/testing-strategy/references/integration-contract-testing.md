@@ -113,6 +113,16 @@ the implementation.
 - For cross-RPC typed error envelopes, test a roundtrip: server raises a typed error, the wire-format payload is captured, the client reconstructs a typed error of the same class with the same code/message. Include the unknown-shape path: a wire payload that does not match the canonical envelope returns a transport/unknown error without silent loss of the original cause.
 - For Code-range allocation, test that a service trying to register a code outside its allocated range fails at build/test time, not at runtime.
 
+### Cross-Repo Field Change — End-to-End Checklist
+
+Adding, renaming, or retyping a field that crosses a repo/service boundary is one end-to-end contract change, not N independent edits. Before calling it covered, walk all five steps (each is a distinct failure site with its own evidence):
+
+1. **Producer fallback** — the producer emits a safe default/absent form for consumers that have not upgraded; asserted, not assumed.
+2. **Every transport mapper preserves the field explicitly** — do not assume an object spread/copy crosses a mapper or DTO boundary; each mapper in the chain gets an assertion that the field survives it.
+3. **Consumer coverage spans all active consumer variants** — enumerate them from the delivery record's consumer inventory (`../../product-ui-ux-design/references/delivery-contract.md` consumer_inventory for UI variants); testing one variant of a multi-variant consumer is the classic escape.
+4. **One real inbound frame through the mapper, plus one unchanged generic path as control** — the real-frame test proves the new field flows; the untouched-path test proves the change did not perturb everything else (the control catches over-broad mapping edits).
+5. **Paired changes are cross-linked** — producer and consumer MRs reference each other per `../../product-rd-workflow/references/cross-repo-coordination.md`, so neither merges "green" while its pair is unmerged.
+
 ## Platform Contract / Protobuf / RPC Test Obligations
 
 Platform-service-connectivity owns policy and proof mechanics for protobuf-backed HTTP, response envelopes, RPC/base fields, and boundary exposure. `testing-strategy` owns assertion coverage, verdict shape, and CI placement.

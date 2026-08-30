@@ -78,7 +78,7 @@ def test_export_request_returns_signed_url_when_user_has_quota():
 
 ## 3. Test smells（测试异味）
 
-**定义**（精选自 Meszaros 2007 及其衍生分类）：测试代码的反模式。Meszaros 原书列约 18 项分 code/behavior/project 三类；下面是日常 review 最常碰到的子集（部分名字 / 阈值是团队启发，非原书字面）：
+**定义**（精选自 Meszaros 2007 及其衍生分类）：测试代码的反模式。Meszaros 原书顶层列 15 项 smell，分 code/behavior/project 三类（5/6/4；xunitpatterns.com "All Test Smells" 目录，另有类下变体/别名未计入）；下面是日常 review 最常碰到的子集（部分名字 / 阈值是团队启发，非原书字面）：
 
 | 异味 | 含义 | 后果 |
 |---|---|---|
@@ -229,7 +229,7 @@ internal_helper_mock.parse.assert_called_once()  # 重构改 parse 就挂
 - **MC/DC**（Modified Condition/Decision Coverage）：每个 boolean 子条件独立影响过决策。**DO-178C 航空 / 医疗 / 汽车 functional safety 才用**；普通业务代码无监管要求时不必上。
 - **Mutation coverage**（见 source-to-case-workflows §C.1）：才是真"测得好"的 proxy
 
-**用**：CI 设 floor（如 line 60% / branch 50%）防覆盖崩塌；critical-path 模块定专项目标（line 90%）。
+**用**：CI 设 floor（如 line 60% / branch 50%）防覆盖崩塌；critical-path 模块定专项目标（line 90%）。数值出处：60%/90% 对齐 Google Testing Blog "Code Coverage Best Practices"（2020）的 60% acceptable / 75% commendable / 90% exemplary 分档——注意该文同时反对自上而下的强制统一阈值，floor 应按仓现状起步再棘轮；branch 50% 为团队启发值，无外部权威出处。
 
 **不用**：
 - **不用 100% 作 KPI** — 强行凑 100% 会产生 lazy assertions（`assert result is not None` 这种）
