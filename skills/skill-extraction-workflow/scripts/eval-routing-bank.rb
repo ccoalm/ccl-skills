@@ -16,13 +16,23 @@
 # Usage:
 #   eval-routing-bank.rb <repo-root> [--bank <path>] [--model <name>] [--limit N]
 #                        [--dry-run] [--json <path>] [--baseline <path>] [--timeout S]
-#                        [--desc-budget-chars N] [--with-bootstrap]
+#                        [--desc-budget-chars N] [--with-bootstrap] [--replicas N]
 #
 # --desc-budget-chars N simulates a consumer that truncates each skill description
 # to its first N characters before routing (e.g. Codex compresses the skill listing
 # under a ~2%-of-context budget, 8000 chars when the window is unknown, shortening
 # descriptions first). Run the bank once plain and once with a budget to see which
 # routes only survive on the description tail — those triggers need front-loading.
+#
+# expected_skill "none" marks negative controls (out-of-library utterances) and
+# coverage-gap probes (in-domain utterances no skill owns): the correct outcome
+# is rejection, and a catalog skill claiming them is labeled "absorbed".
+# --replicas N grades each task N times: task status is the conservative
+# consensus (every observed replica must PASS), replica top1 agreement is
+# reported, and disagreeing replicas label the task "ownership_split". clarify
+# and low-confidence counts are first-class report fields either way.
+# Reports from different (bank, replicas) configurations are different rulers —
+# do not diff them as a regression signal.
 # Exit: 0 = ran (advisory); 2 = usage error; 3 = grader entirely unavailable.
 
 require "yaml"
@@ -39,7 +49,7 @@ end
 
 root = ARGV[0]
 if root.nil? || root.start_with?("-")
-  warn "usage: eval-routing-bank.rb <repo-root> [--bank p] [--model m] [--limit N] [--dry-run] [--json p] [--baseline p] [--timeout S] [--desc-budget-chars N]"
+  warn "usage: eval-routing-bank.rb <repo-root> [--bank p] [--model m] [--limit N] [--dry-run] [--json p] [--baseline p] [--timeout S] [--desc-budget-chars N] [--replicas N]"
   exit 2
 end
 bank_path = arg("--bank", File.join(root, "eval", "routing-tasks.jsonl"))
@@ -65,6 +75,17 @@ if ARGV.include?("--desc-budget-chars")
   desc_budget = b.to_i
 end
 timeout_s = (t = arg("--timeout")) ? t.to_i : 60
+replicas = 1
+if ARGV.include?("--replicas")
+  r = arg("--replicas")
+  # Same strictness as --desc-budget-chars: a silent to_i coercion would turn a
+  # typo into "1 replica" and the agreement metric would quietly measure nothing.
+  unless r && r =~ /\A[1-9]\d*\z/
+    warn "--replicas requires a positive integer value, got #{r.inspect}"
+    exit 2
+  end
+  replicas = r.to_i
+end
 
 unless File.file?(bank_path)
   warn "eval_bank_missing: #{bank_path}"
@@ -89,14 +110,55 @@ end
 tasks = tasks.first(limit) if limit
 
 # Schema validation: a task must be answerable, and must not be self-contradictory.
+# expected_skill "none" is the negative-control / coverage-gap sentinel: the
+# correct routing outcome is that NO catalog skill claims the utterance.
+all_outcomes = Dir[File.join(root, "skills", "*", "SKILL.md")]
+               .map { |p| File.basename(File.dirname(p)) } + ["none"]
 tasks.each do |t|
   id = t["id"] || "(no id)"
   if t["utterance"].to_s.strip.empty? || t["expected_skill"].to_s.strip.empty?
     warn "eval_bank_invalid_task: #{id}: utterance and expected_skill are required"
     exit 2
   end
+  # Type-check the ORIGINAL values FIRST: a present-but-non-list field (e.g. ""
+  # or a bare string or a number) must fail as a usage error before any
+  # membership check touches it — Ruby strings are truthy and respond to
+  # include? (substring semantics), and non-strings would raise a bare
+  # NoMethodError instead of the documented invalid-bank diagnostic.
+  %w[must_not_route_to acceptable].each do |f|
+    next unless t.key?(f)
+    unless t[f].is_a?(Array)
+      warn "eval_bank_invalid_task: #{id}: #{f} must be a list, got #{t[f].inspect}"
+      exit 2
+    end
+  end
   if (t["must_not_route_to"] || []).include?(t["expected_skill"])
     warn "eval_bank_invalid_task: #{id}: expected_skill is also in must_not_route_to (impossible)"
+    exit 2
+  end
+  if (t["must_not_route_to"] || []).include?("none")
+    warn "eval_bank_invalid_task: #{id}: \"none\" is a sentinel outcome, not a routable target for must_not_route_to"
+    exit 2
+  end
+  # Optional acceptable[] names defensible alternate outcomes (a skill name or
+  # "none") for utterances with more than one correct route — e.g. a coverage-gap
+  # ask where both coordinator intake and rejection are right. It must not
+  # restate expected_skill or contradict must_not_route_to.
+  acc = t["acceptable"] || []
+  if acc.include?(t["expected_skill"])
+    warn "eval_bank_invalid_task: #{id}: acceptable restates expected_skill"
+    exit 2
+  end
+  unless (acc & (t["must_not_route_to"] || [])).empty?
+    warn "eval_bank_invalid_task: #{id}: acceptable and must_not_route_to overlap (contradictory)"
+    exit 2
+  end
+  # Anti-gaming: expected + acceptable must leave at least one outcome that
+  # would FAIL the row. A row covering the complete catalog-and-none outcome
+  # space passes on every valid grader selection — a vacuous fixture that fakes
+  # green regardless of description behavior.
+  if (all_outcomes - ([t["expected_skill"]] + acc)).empty?
+    warn "eval_bank_invalid_task: #{id}: expected_skill plus acceptable cover every possible outcome (vacuous row)"
     exit 2
   end
 end
@@ -188,9 +250,12 @@ def build_prompt(catalog, utterance, bootstrap_layer = nil)
     user utterance and the catalog of skills (name + description), pick the SINGLE
     best skill that should handle it. Use only the catalog; route by the
     descriptions' Use-when / Proactively / Skip rules.
+    If NO skill's description covers the utterance, answer "none" — do not
+    force-fit the nearest neighbor. Set "clarify" to true only when you would
+    need to ask the user a clarifying question before committing to a route.
 
     Output ONLY a JSON object on one line, no other text:
-    {"selected_skill": "<exact skill name from the catalog>", "confidence": <0.0-1.0>, "rationale_short": "<one short clause>"}
+    {"selected_skill": "<exact skill name from the catalog, or none>", "clarify": <true|false>, "confidence": <0.0-1.0>, "rationale_short": "<one short clause>"}
 
     #{bootstrap_layer ? "== ALWAYS-ON ENTRY ROUTING LAYER (injected into every session; takes precedence for entry routing) ==\n#{bootstrap_layer}\n" : ""}
     == SKILL CATALOG ==
@@ -309,39 +374,77 @@ grader_available = true
 tasks.each do |t|
   exp = t["expected_skill"]
   must_not = t["must_not_route_to"] || []
+  acceptable = t["acceptable"] || []
   frozen_ref = t["frozen_at_sha"] == "root" ? `git -C #{Shellwords.escape(root)} rev-list --max-parents=0 HEAD`.lines.first.to_s.strip : t["frozen_at_sha"]
   frozen_ok = ancestor?(root, frozen_ref)
   prompt = build_prompt(catalog, t["utterance"], bootstrap_layer)
-  parsed, error = grade(model, timeout_s, prompt)
-  # A task that produced no observation contributes nothing to the totals, and an
-  # unmeasured task is indistinguishable from a routing failure in the numbers
-  # this bank reports. Both recoverable causes are sampling accidents rather than
-  # verdicts — a hard timeout is usually machine load, and unparseable output is
-  # usually one stray quote in a generated rationale — so each gets one retry.
-  # Repairing malformed output instead of re-asking for it was tried and removed:
-  # interpreting text that is by definition malformed has no natural boundary,
-  # and three review rounds each found a different shape that a repair would read
-  # as a verdict. Re-asking needs no such interpretation. Nothing else is retried:
-  # an auth failure and a missing CLI do reproduce on a second call.
-  if error&.start_with?("grader_timeout_") || error&.start_with?("no_json_in_output")
-    parsed, retry_error = grade(model, timeout_s, prompt)
-    error = parsed ? nil : retry_error
+  verdicts = []
+  replicas.times do |ri|
+    parsed, error = grade(model, timeout_s, prompt)
+    # A verdict that produced no observation contributes nothing to the totals,
+    # and an unmeasured task is indistinguishable from a routing failure in the
+    # numbers this bank reports. Both recoverable causes are sampling accidents
+    # rather than verdicts — a hard timeout is usually machine load, and
+    # unparseable output is usually one stray quote in a generated rationale —
+    # so each gets one retry.
+    # Repairing malformed output instead of re-asking for it was tried and removed:
+    # interpreting text that is by definition malformed has no natural boundary,
+    # and three review rounds each found a different shape that a repair would read
+    # as a verdict. Re-asking needs no such interpretation. Nothing else is retried:
+    # an auth failure and a missing CLI do reproduce on a second call.
+    if error&.start_with?("grader_timeout_") || error&.start_with?("no_json_in_output")
+      parsed, retry_error = grade(model, timeout_s, prompt)
+      error = parsed ? nil : retry_error
+    end
+    if error == "claude_not_found"
+      grader_available = false
+      break
+    end
+    selected = parsed && parsed["selected_skill"]
+    clarify = parsed && parsed["clarify"] == true
+    confidence = parsed && parsed["confidence"]
+    v_status =
+      if error then "ERROR"
+      elsif (selected == exp || acceptable.include?(selected)) && !must_not.include?(selected) then "PASS"
+      else "FAIL"
+      end
+    verdicts << { replica: ri + 1, selected: selected, clarify: clarify,
+                  confidence: confidence, status: v_status, error: error }
   end
-  if error == "claude_not_found"
-    grader_available = false
-    break
-  end
-  selected = parsed && parsed["selected_skill"]
-  confidence = parsed && parsed["confidence"]
+  break unless grader_available
+  # Task-level consensus over replicas (replicas=1 reproduces the old per-task
+  # semantics exactly). Conservative: one failing replica fails the task —
+  # a route that only sometimes lands is not a stable route.
+  observed = verdicts.reject { |v| v[:status] == "ERROR" }
   status =
-    if error then "ERROR"
-    elsif selected == exp && !must_not.include?(selected) then "PASS"
+    if observed.empty? then "ERROR"
+    elsif observed.all? { |v| v[:status] == "PASS" } then "PASS"
     else "FAIL"
     end
+  selections = observed.map { |v| v[:selected] }.uniq
+  # Failure-mode labels (vocabulary in references/eval-routing.md):
+  #   absorbed        — an utterance that should be rejected (expected "none")
+  #                     or kept away from named bait neighbors (must_not_route_to)
+  #                     was claimed by such a skill anyway
+  #   ownership_split — replicas disagreed on the top pick (unstable ownership)
+  labels = []
+  absorbed = (exp == "none" && observed.any? { |v| v[:selected] && v[:selected] != "none" }) ||
+             observed.any? { |v| must_not.include?(v[:selected]) }
+  labels << "absorbed" if absorbed
+  labels << "ownership_split" if selections.size > 1
+  # A task where some replicas erred but others graded is PARTIALLY measured:
+  # the consensus above sees only the observed verdicts, so without this label
+  # a PASS+ERROR pair would read as a clean PASS and the run as fully sampled.
+  labels << "partial_error" if verdicts.any? { |v| v[:status] == "ERROR" } && !observed.empty?
   results << {
-    id: t["id"], utterance: t["utterance"], expected: exp, selected: selected,
-    confidence: confidence, must_not_route_to: must_not, status: status,
-    error: error, frozen_at_sha_is_ancestor: frozen_ok
+    id: t["id"], utterance: t["utterance"], expected: exp, acceptable: acceptable,
+    selected: observed.first && observed.first[:selected],
+    confidence: observed.first && observed.first[:confidence],
+    clarify: observed.any? { |v| v[:clarify] },
+    acceptable_hit: observed.any? { |v| acceptable.include?(v[:selected]) },
+    must_not_route_to: must_not, status: status, labels: labels,
+    verdicts: verdicts, error: (verdicts.find { |v| v[:error] } || {})[:error],
+    frozen_at_sha_is_ancestor: frozen_ok
   }
 end
 
@@ -355,42 +458,113 @@ fails = results.select { |r| r[:status] == "FAIL" }
 errors = results.select { |r| r[:status] == "ERROR" }
 drift = results.reject { |r| r[:frozen_at_sha_is_ancestor] }
 
+# First-class routing-quality metrics beyond pass/fail (counted over observed,
+# non-ERROR verdicts): clarify rate, low-confidence rate, and — when replicas
+# >= 2 — how often all replicas of one task picked the same top skill.
+all_observed = results.flat_map { |r| r[:verdicts].reject { |v| v[:status] == "ERROR" } }
+clarify_count = all_observed.count { |v| v[:clarify] }
+low_conf_count = all_observed.count { |v| v[:confidence].is_a?(Numeric) && v[:confidence] < 0.5 }
+# Replica-level error accounting: task-level `error` counts only fully
+# unmeasured tasks, so a PASS+ERROR pair would otherwise report zero
+# grader-errors while a replica silently went missing.
+error_verdicts = results.sum { |r| r[:verdicts].count { |v| v[:status] == "ERROR" } }
+partial_error_ids = results.select { |r| r[:labels].include?("partial_error") }.map { |r| r[:id] }
+agreement_measured = 0
+agreement_agree = 0
+if replicas >= 2
+  results.each do |r|
+    obs = r[:verdicts].reject { |v| v[:status] == "ERROR" }
+    next if obs.size < 2
+    agreement_measured += 1
+    agreement_agree += 1 if obs.map { |v| v[:selected] }.uniq.size == 1
+  end
+end
+
 # baseline diff (newly failed / newly passed). The baseline is a prior report
-# (a hash with a "results" array) or a bare results array.
+# (a hash with a "results" array) or a bare results array. Reports from a
+# different bank content or replica count are DIFFERENT RULERS (documented
+# above): comparing them emits false regressions/improvements, so a
+# demonstrated mismatch suppresses the diff instead of computing it. A bare
+# results array carries no fingerprint — its comparability is unverifiable and
+# is flagged as such rather than silently trusted.
 newly_failed = []
 newly_passed = []
+baseline_comparable = nil
+baseline_incomparable_reason = nil
 if baseline_path && File.file?(baseline_path)
   base_json = JSON.parse(File.read(baseline_path))
-  base_results = base_json.is_a?(Hash) ? (base_json["results"] || []) : base_json
-  base_status = base_results.to_h { |r| [r["id"], r["status"]] }
-  results.each do |r|
-    was = base_status[r[:id]]
-    newly_failed << r[:id] if was == "PASS" && r[:status] == "FAIL"
-    newly_passed << r[:id] if was == "FAIL" && r[:status] == "PASS"
+  if base_json.is_a?(Hash)
+    base_bank_sha = base_json.dig("routing_surface", "bank_sha256")
+    base_replicas = base_json["replicas"] || 1 # legacy reports predate --replicas
+    if base_bank_sha && base_bank_sha != routing_surface[:bank_sha256]
+      baseline_comparable = false
+      baseline_incomparable_reason = "bank content differs (baseline #{base_bank_sha[0, 12]}… vs current #{routing_surface[:bank_sha256][0, 12]}…)"
+    elsif base_replicas != replicas
+      baseline_comparable = false
+      baseline_incomparable_reason = "replica count differs (baseline #{base_replicas} vs current #{replicas})"
+    else
+      baseline_comparable = base_bank_sha ? true : "unverified (baseline carries no bank fingerprint)"
+    end
+  else
+    baseline_comparable = "unverified (bare results array carries no fingerprint)"
+  end
+  unless baseline_comparable == false
+    base_results = base_json.is_a?(Hash) ? (base_json["results"] || []) : base_json
+    base_status = base_results.to_h { |r| [r["id"], r["status"]] }
+    results.each do |r|
+      was = base_status[r[:id]]
+      newly_failed << r[:id] if was == "PASS" && r[:status] == "FAIL"
+      newly_passed << r[:id] if was == "FAIL" && r[:status] == "PASS"
+    end
   end
 end
 
 report = {
   model: model, tasks: results.size, pass: passes, fail: fails.size, error: errors.size,
+  replicas: replicas, verdicts: all_observed.size,
+  error_verdicts: error_verdicts, partial_error_tasks: partial_error_ids,
+  clarify_count: clarify_count, low_confidence_count: low_conf_count,
+  replica_agreement: (replicas >= 2 ? { agree: agreement_agree, measured: agreement_measured } : nil),
   desc_budget_chars: desc_budget, routing_surface: routing_surface,
   co_change_bank_and_descriptions: co_change, co_change_check_available: co_change_check_ok,
   frozen_drift: drift.map { |r| r[:id] },
+  baseline_comparable: baseline_comparable,
+  baseline_incomparable_reason: baseline_incomparable_reason,
   newly_failed: newly_failed, newly_passed: newly_passed, results: results
 }
 File.write(json_path, JSON.pretty_generate(report)) if json_path
 
 puts "eval-routing-bank (#{model}): #{passes}/#{results.size} pass, #{fails.size} fail, #{errors.size} grader-error"
 puts "  arm: desc-budget-chars=#{desc_budget}" if desc_budget
+unless all_observed.empty?
+  line = "  clarify: #{clarify_count}/#{all_observed.size} verdicts, low-confidence(<0.5): #{low_conf_count}/#{all_observed.size}"
+  line += ", replica top1 agreement: #{agreement_agree}/#{agreement_measured}" if replicas >= 2
+  puts line
+end
+if error_verdicts.positive?
+  puts "  ⚠ grader-error verdicts: #{error_verdicts}#{partial_error_ids.empty? ? '' : " (partially measured tasks: #{partial_error_ids.join(', ')})"}"
+end
 puts "  ⚠ co-change check unavailable: base ref #{base.inspect} not resolvable — could not verify bank/description co-change" unless co_change_check_ok
 puts "  ⚠ co-change: this change touches BOTH the bank and a SKILL.md description (verify the bank was not edited to pass)" if co_change
 puts "  ⚠ frozen-drift (not ancestor of HEAD, excluded from regression judgment): #{drift.map { |r| r[:id] }.join(', ')}" unless drift.empty?
 unless fails.empty?
   puts "  FAIL:"
-  fails.each { |r| puts "    - #{r[:id]}: expected #{r[:expected]} got #{r[:selected].inspect} (conf #{r[:confidence]})" }
+  fails.each do |r|
+    tag = r[:labels].empty? ? "" : " [#{r[:labels].join(',')}]"
+    obs = r[:verdicts].reject { |v| v[:status] == "ERROR" }
+    got = obs.map { |v| v[:selected].inspect }.uniq.join(" | ")
+    conf = obs.map { |v| v[:confidence] }.join(",")
+    puts "    - #{r[:id]}: expected #{r[:expected]} got #{got} (conf #{conf})#{tag}"
+  end
 end
 unless errors.empty?
   puts "  GRADER-ERROR:"
   errors.each { |r| puts "    - #{r[:id]}: #{r[:error]}" }
+end
+if baseline_comparable == false
+  puts "  ⚠ baseline not compared — different ruler: #{baseline_incomparable_reason}"
+elsif baseline_comparable.is_a?(String)
+  puts "  ⚠ baseline comparability #{baseline_comparable}"
 end
 unless newly_failed.empty? && newly_passed.empty?
   puts "  vs baseline: newly_failed=#{newly_failed.join(',')} newly_passed=#{newly_passed.join(',')}"

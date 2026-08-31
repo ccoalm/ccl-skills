@@ -1,0 +1,11 @@
+== RED leg (mutated bank, four applied mutants) ==
+FAIL: line 157 (bad-mustnot-none): must_not_route_to names the sentinel 'none' (an outcome, not a routable target)
+FAIL: line 158 (bad-acc-restate): 'testing-strategy' is both expected_skill and acceptable (redundant)
+FAIL: line 159 (bad-acc-unknown): acceptable names 'not-a-skill', not a skill in skills/ (nor the 'none' sentinel)
+FAIL: line 160 (bad-acc-contradict): 'tighten-doc' is both acceptable and must_not_route_to (contradictory)
+red_exit=1
+
+== GREEN leg (unmutated control) ==
+routing_bank_provenance_info: source present on 86/156 rows (docs/f4-skill-effectiveness-harness.md lists it as required; not enforced here)
+routing_bank_integrity_ok rows=156 (structure only — routing NOT evaluated)
+green_exit=0
