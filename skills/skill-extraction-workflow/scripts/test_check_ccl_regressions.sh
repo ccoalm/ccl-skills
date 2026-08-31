@@ -159,6 +159,14 @@ fast_tests=(
   test_regression_runner_lanes.sh
   test_routing_pointer_integrity.sh
   test_routing_bank_integrity.sh
+  # 077: frozen-case sanctity (regressions-are-sacred) — base-relative guard
+  # that a deleted/re-scoped bank case or golden trace names its adjudication
+  # row; degrades to an explicit skip token without CCL_SKILL_BASE_REF. The
+  # selfproof lane proves the oracle fails for the right reason (synthetic
+  # repo: deletion/re-scope/nested-trace mutants red, forged-credit legs red,
+  # adjudicated and control legs green).
+  test_frozen_case_sanctity.sh
+  test_frozen_case_sanctity_selfproof.sh
   test_uiux_delivery_contract.sh
   test_uiux_loading_budget.sh
   test_governing_chain_diff.sh
