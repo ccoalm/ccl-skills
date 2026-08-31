@@ -140,7 +140,7 @@ def make_fixture(
     receipt_mutators=None,
     completion=True,
     completion_mutator=None,
-    budget=2,
+    budget=1,
     base_shas=None,
     closeout=None,
     unmatched=0,
@@ -168,9 +168,9 @@ def make_fixture(
     for index, findings in enumerate(receipt_findings, start=1):
         mode = "review" if index == 1 else "challenge"
         status = "findings" if findings else "passed"
-        remaining = 3 - index
+        remaining = 2 - index
         if status == "findings":
-            state = "post_review_budget" if index == 3 else "findings_pending"
+            state = "post_review_budget" if index == 2 else "findings_pending"
         else:
             state = "reviewed"
         receipt = {
@@ -181,7 +181,7 @@ def make_fixture(
             "review_chain_tracked": True,
             "review_chain_id": "extraction-chain",
             "autonomous_review_index": index,
-            "autonomous_review_budget": 3,
+            "autonomous_review_budget": 2,
             "autonomous_reviews_remaining": remaining,
             "autonomous_review_allowed": remaining > 0,
             "challenge_index": 0 if index == 1 else index - 1,
@@ -221,7 +221,7 @@ def make_fixture(
             "review_chain_tracked": True,
             "review_chain_id": final["review_chain_id"],
             "autonomous_review_index": final["autonomous_review_index"],
-            "autonomous_review_budget": 3,
+            "autonomous_review_budget": 2,
             "autonomous_reviews_remaining": final["autonomous_reviews_remaining"],
             "autonomous_review_allowed": False,
             "challenge_budget": budget,
@@ -411,9 +411,9 @@ run("float-schema", float_schema["ledger"], 1, "schema_version must be 3")
 
 float_budget = make_fixture(
     "float-budget",
-    receipt_mutators={2: lambda row: row.update(challenge_budget=2.0)},
+    receipt_mutators={2: lambda row: row.update(challenge_budget=1.0)},
 )
-run("float-budget", float_budget["ledger"], 1, "challenge_budget must be 2")
+run("float-budget", float_budget["ledger"], 1, "challenge_budget must be 1")
 
 nan_schema = make_fixture("nan-schema")
 nan_schema["ledger"]["schema_version"] = float("nan")
@@ -493,7 +493,7 @@ scope_mismatch = make_fixture("scope-mismatch", receipt_mutators={2: drift_scope
 run("scope-mismatch", scope_mismatch["ledger"], 1, "review scope changed")
 
 budget_four = make_fixture("budget-four", budget=4)
-run("budget-four", budget_four["ledger"], 1, "challenge_budget must be 2")
+run("budget-four", budget_four["ledger"], 1, "challenge_budget must be 1")
 
 review_only = make_fixture("review-only", receipt_findings=[[]])
 run("review-only", review_only["ledger"], 1, "ready requires at least one tracked challenge")
@@ -537,7 +537,7 @@ run(
 
 continuation = make_fixture(
     "continuation",
-    receipt_findings=[[finding(1)], [], [finding(2)]],
+    receipt_findings=[[finding(1)], [finding(2)]],
     completion=False,
     open_last=True,
 )
@@ -550,10 +550,10 @@ run(
 
 continuation_unconsumed_first_drift = make_fixture(
     "continuation-unconsumed-first-drift",
-    receipt_findings=[[finding(1)], [], [finding(2)]],
+    receipt_findings=[[finding(1)], [finding(2)]],
     completion=False,
     open_last=True,
-    base_shas=[A, A, A, B],
+    base_shas=[A, A, B],
 )
 run(
     "continuation-unconsumed-first-drift",
@@ -564,7 +564,7 @@ run(
 
 continuation_candidate = make_fixture(
     "continuation-candidate",
-    receipt_findings=[[finding(1)], [], [finding(2)]],
+    receipt_findings=[[finding(1)], [finding(2)]],
     completion=False,
     open_last=True,
 )
@@ -595,8 +595,8 @@ run(
 
 unknown_state = make_fixture(
     "unknown-state",
-    receipt_findings=[[finding(1)], [], [finding(2)]],
-    receipt_mutators={3: lambda row: row.update(review_state="potato")},
+    receipt_findings=[[finding(1)], [finding(2)]],
+    receipt_mutators={2: lambda row: row.update(review_state="potato")},
     completion=False,
     open_last=True,
 )
@@ -605,10 +605,10 @@ run("unknown-state", unknown_state["ledger"], 1, "unknown controller review_stat
 
 passed_continuation = make_fixture(
     "passed-continuation",
-    receipt_findings=[[finding(1)], [], []],
+    receipt_findings=[[finding(1)], []],
     completion=False,
 )
-run("passed-continuation", passed_continuation["ledger"], 1, "round 3 findings in post_review_budget")
+run("passed-continuation", passed_continuation["ledger"], 1, "findings in post_review_budget")
 
 bad_finding_hash = make_fixture("bad-finding-hash")
 bad_finding_hash["ledger"]["finding_classes"][0]["occurrences"][0][
@@ -744,7 +744,7 @@ run(
 
 historical_open = make_fixture(
     "historical-open",
-    receipt_findings=[[finding(1)], [finding(2)], []],
+    receipt_findings=[[finding(1), finding(2)], []],
 )
 historical_open["ledger"]["finding_classes"][0]["occurrences"][0][
     "disposition"
@@ -756,7 +756,7 @@ run("historical-open", historical_open["ledger"], 1, "unresolved finding occurre
 
 historical_open_linked = make_fixture(
     "historical-open-linked",
-    receipt_findings=[[finding(1)], [finding(2)], []],
+    receipt_findings=[[finding(1), finding(2)], []],
 )
 historical_open_linked_occurrences = historical_open_linked["ledger"][
     "finding_classes"
@@ -825,7 +825,7 @@ run("needs-human", needs_human["ledger"], 1, "unresolved finding occurrence")
 
 third_occurrence = make_fixture(
     "third-occurrence",
-    receipt_findings=[[finding(1)], [finding(2)], [finding(3)]],
+    receipt_findings=[[finding(1), finding(2)], [finding(3)]],
     completion=False,
     unmatched=1,
     open_last=True,
@@ -1045,7 +1045,7 @@ for closing_disposition in sorted(CLOSED_DISPOSITIONS):
     case_name = f"historical-needs-human-{closing_disposition.replace('_', '-')}"
     historical_needs_human_linked = make_fixture(
         case_name,
-        receipt_findings=[[finding(1)], [finding(2)], []],
+        receipt_findings=[[finding(1), finding(2)], []],
     )
     historical_needs_human_occurrences = historical_needs_human_linked["ledger"][
         "finding_classes"
@@ -1128,7 +1128,7 @@ duplicate_completion_result = invoke(
 
 duplicate_sweep = make_fixture(
     "duplicate-sweep",
-    receipt_findings=[[finding(1)], [finding(2)], [finding(3)]],
+    receipt_findings=[[finding(1), finding(2)], [finding(3)]],
     completion=False,
     open_last=True,
 )

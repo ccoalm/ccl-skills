@@ -1,6 +1,6 @@
 {
   "name": "@ccoalm/ccl-skills",
-	"version": "0.9.0",
+	"version": "0.8.0",
   "description": "Reusable workflows that help coding agents plan, build, test, review, and release software — for Claude Code, Codex, and OpenCode",
 	"keywords": ["skills", "agent-skills", "claude", "claude-code", "codex", "opencode", "agent", "ai", "ai-agents", "cli", "anthropic", "developer-tools"],
   "type": "module",

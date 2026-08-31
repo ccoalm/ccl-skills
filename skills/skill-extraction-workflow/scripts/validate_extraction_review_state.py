@@ -30,6 +30,11 @@ TERMINAL_STATES = {
 }
 EXTERNAL_REVIEW_STATES = {"reviewed", "findings_pending", "post_review_budget"}
 KNOWN_REVIEW_STATES = EXTERNAL_REVIEW_STATES | {"self_reviewed"}
+# The extraction wrapper fixes the autonomous lane at one review plus one
+# challenge; every numeric bound below derives from these two constants so a
+# future budget change lands in exactly one place.
+WRAPPER_CHALLENGE_BUDGET = 1
+WRAPPER_AUTONOMOUS_ROUNDS = WRAPPER_CHALLENGE_BUDGET + 1
 DISPOSITIONS = {
     "fixed",
     "source_refuted",
@@ -272,8 +277,8 @@ def validate_scope(receipt: dict[str, Any], label: str) -> str:
     ]
     if len(normalized_risks) != len(set(normalized_risks)):
         fail(f"{label}.review_scope.risk_tags contains duplicates")
-    if scope["challenge_budget"] != 2 or type(scope["challenge_budget"]) is not int:
-        fail(f"{label}.review_scope.challenge_budget must be 2")
+    if scope["challenge_budget"] != WRAPPER_CHALLENGE_BUDGET or type(scope["challenge_budget"]) is not int:
+        fail(f"{label}.review_scope.challenge_budget must be {WRAPPER_CHALLENGE_BUDGET}")
     if (
         scope["wording_only_proof_sha256"] is not None
         or scope["wording_only_scope_sha256"] is not None
@@ -352,13 +357,13 @@ def validate_controller_receipts(
             receipt.get("challenge_index")
         ) is not int:
             fail(f"controller receipt {expected_index} challenge_index is invalid")
-        if receipt.get("challenge_budget") != 2 or type(receipt.get("challenge_budget")) is not int:
-            fail(f"controller receipt {expected_index} challenge_budget must be 2")
-        if receipt.get("autonomous_review_budget") != 3 or type(
+        if receipt.get("challenge_budget") != WRAPPER_CHALLENGE_BUDGET or type(receipt.get("challenge_budget")) is not int:
+            fail(f"controller receipt {expected_index} challenge_budget must be {WRAPPER_CHALLENGE_BUDGET}")
+        if receipt.get("autonomous_review_budget") != WRAPPER_AUTONOMOUS_ROUNDS or type(
             receipt.get("autonomous_review_budget")
         ) is not int:
-            fail(f"controller receipt {expected_index} autonomous_review_budget must be 3")
-        expected_remaining = 3 - expected_index
+            fail(f"controller receipt {expected_index} autonomous_review_budget must be {WRAPPER_AUTONOMOUS_ROUNDS}")
+        expected_remaining = WRAPPER_AUTONOMOUS_ROUNDS - expected_index
         if receipt.get("autonomous_reviews_remaining") != expected_remaining or type(
             receipt.get("autonomous_reviews_remaining")
         ) is not int:
@@ -415,7 +420,7 @@ def validate_controller_receipts(
             fail(f"controller receipt {expected_index} has unknown controller review_state {state}")
         expected_state = (
             "post_review_budget"
-            if receipt["status"] == "findings" and expected_index == 3
+            if receipt["status"] == "findings" and expected_index == WRAPPER_AUTONOMOUS_ROUNDS
             else "findings_pending"
             if receipt["status"] == "findings"
             else "reviewed"
@@ -469,17 +474,17 @@ def validate_completion_receipt(
         fail("completion receipt cannot close a final external receipt with findings")
     if receipt.get("review_chain_tracked") is not True or receipt.get("review_chain_id") != chain_id:
         fail("completion receipt review_chain_id does not match the controller chain")
-    if receipt.get("challenge_budget") != 2 or type(receipt.get("challenge_budget")) is not int:
-        fail("completion receipt challenge_budget must be 2")
-    if receipt.get("autonomous_review_budget") != 3 or type(
+    if receipt.get("challenge_budget") != WRAPPER_CHALLENGE_BUDGET or type(receipt.get("challenge_budget")) is not int:
+        fail(f"completion receipt challenge_budget must be {WRAPPER_CHALLENGE_BUDGET}")
+    if receipt.get("autonomous_review_budget") != WRAPPER_AUTONOMOUS_ROUNDS or type(
         receipt.get("autonomous_review_budget")
     ) is not int:
-        fail("completion receipt autonomous_review_budget must be 3")
+        fail(f"completion receipt autonomous_review_budget must be {WRAPPER_AUTONOMOUS_ROUNDS}")
     if receipt.get("autonomous_review_index") != len(receipts) or type(
         receipt.get("autonomous_review_index")
     ) is not int:
         fail("completion receipt autonomous_review_index does not match the final round")
-    expected_remaining = 3 - len(receipts)
+    expected_remaining = WRAPPER_AUTONOMOUS_ROUNDS - len(receipts)
     if receipt.get("autonomous_reviews_remaining") != expected_remaining or type(
         receipt.get("autonomous_reviews_remaining")
     ) is not int:
@@ -941,12 +946,12 @@ def validate(payload: dict[str, Any], ledger_dir: Path) -> tuple[str, int, int]:
     elif closeout == "continuation_authorization_required":
         final = receipts[-1]
         if (
-            len(receipts) != 3
+            len(receipts) != WRAPPER_AUTONOMOUS_ROUNDS
             or final.get("status") != "findings"
             or final.get("review_state") != "post_review_budget"
             or final.get("human_decision_required") is not True
         ):
-            fail("continuation_authorization_required requires round 3 findings in post_review_budget")
+            fail(f"continuation_authorization_required requires final-round (round {WRAPPER_AUTONOMOUS_ROUNDS}) findings in post_review_budget")
     elif closeout == "baseline_race" and not delta:
         fail("baseline_race requires a non-empty unreviewed_delta")
 
