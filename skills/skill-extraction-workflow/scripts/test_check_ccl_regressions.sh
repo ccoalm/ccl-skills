@@ -144,6 +144,9 @@ fast_tests=(
   # seconds) and the anti-patterns panel structural check (awk over one file).
   test_check_contract_anchors.sh
   test_antipattern_grep_panel.sh
+  # 075: body-compliance grading contract (grade() walk, fail-closed --ids legs,
+  # stub-model denominator/forbidden_hit legs; deterministic, seconds).
+  test_body_compliance_grading.sh
   test_regression_runner_registration.sh
   # Harness binding for the gate lanes themselves: the impact-chain gate's
   # round walk needs the branch's own first-parent chain, which the default
