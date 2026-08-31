@@ -10,9 +10,13 @@
 # rule, and grading is a per-probe marker contract.
 #
 # Coverage is a NAMED SUBSET, not every rule: 12 probes over the four requirement-*
-# skills. Unprobed today include the closure-table field permissions, freshness /
+# skills plus 4 paired stop-predicate classification probes over product-rd-workflow's
+# Pre-Final Continuation Gate (each pair varies one predicate feature and grades the
+# literal `continuing:`/`blocked:` marker — the deterministic anchors pin that
+# wording's PRESENCE; only these probes exercise how a case is CLASSIFIED under it).
+# Unprobed today include the closure-table field permissions, freshness /
 # authority conflict handling, the writer's back-projection and stranger-retelling
-# gates, and every rule in the other 28 skills. A green run means these twelve fired,
+# gates, and every rule in the other 27 skills. A green run means these sixteen fired,
 # nothing more.
 #
 # Advisory dashboard: never blocks a merge, not wired into check-ccl-skills.sh.
@@ -20,12 +24,19 @@
 # Known validity limits, measured rather than assumed:
 #   * user-level config loads regardless of cwd, so ambient context leaks into
 #     every arm; comparisons BETWEEN arms hold, absolute values do not.
-#   * grading is a keyword contract, so a compliant paraphrase can read as a miss.
+#   * grading is a keyword contract, so a compliant paraphrase can read as a miss —
+#     and the converse: an explanatory MENTION at line head (a line beginning
+#     "blocked: is the stop marker …") grades as a verdict. The mention-vs-verdict
+#     grammar only rejects a marker immediately closed by a quote or backtick;
+#     accepted residual, recorded at the 075 challenge round.
 #   * the oracle counts only because an arm failed 14 of 36 — a probe set that
 #     cannot fail is not evidence.
 #
 # Usage: body-compliance-eval.rb <repo-root> [--arm LABEL] [--json PATH]
-#                                [--model M] [--timeout S]
+#                                [--model M] [--timeout S] [--ids a,b,c]
+# --ids runs the named probe subset (per-change layering: run the probes whose
+# skill/rule the change touches); an unknown id is a usage error, not a silent
+# empty run.
 # Exit: 0 = ran (advisory); 2 = usage error.
 
 require "json"
@@ -38,15 +49,15 @@ def arg(flag, default = nil)
   i ? ARGV[i + 1] : default
 end
 
-root = ARGV[0]
-if root.nil? || root.start_with?("-")
-  warn "usage: body-compliance-eval.rb <repo-root> [--arm L] [--json p] [--model m] [--timeout s]"
-  exit 2
+# Pure grading contract (unit-testable without a live model):
+# required: every pattern must appear; forbidden: none may appear.
+def grade(probe, out)
+  missing = probe[:required].reject { |re| out.match?(re) }.map(&:source)
+  hit = (probe[:forbidden] || []).select { |re| out.match?(re) }.map(&:source)
+  { id: probe[:id], skill: probe[:skill],
+    status: (missing.empty? && hit.empty?) ? "PASS" : "FAIL",
+    missing: missing, forbidden_hit: hit, why: probe[:why] }
 end
-arm = arg("--arm", "body-compliance")
-json_path = arg("--json")
-model = arg("--model", "claude-haiku-4-5")
-timeout_s = (arg("--timeout") || "120").to_i
 
 # required: every pattern must appear. forbidden: none may appear.
 PROBES = [
@@ -98,6 +109,32 @@ PROBES = [
     task: "出 PRD 的时候顺便把页面原型和交互细节也设计了。",
     required: [/product-ui-ux-design/],
     why: "不得冒充设计 owner" },
+  # Stop-predicate classification pairs (companions to the stop-predicate rows in
+  # contract-anchors.tsv): the deterministic lane pins these predicates' WORDING
+  # (contract anchors, entrypoint anchors, register firing-path anchors) but
+  # certifies a word-compensated semantic neutralization as clean — an applied
+  # mutation appending an advisory-continue sentence passed the full gate. These
+  # probes grade the APPLICATION: each pair shares its scaffolding verbatim and
+  # varies only the predicate fact under test, judged on the gate's own literal
+  # `continuing:`/`blocked:` output markers. Marker grammar: optional leading
+  # markdown decoration, and a marker immediately closed by a quote or backtick
+  # (a mention, not a verdict) does not count.
+  { id: "prd-stop-materially", skill: "product-rd-workflow",
+    task: "上一个切片刚合并进目标分支，用户明确指示『继续，把用量统计持久化这个切片做了』（设定：闸的第 1、2 步——着陆状态证明与状态源对账——均已完成且无冲突；切片在已接受范围内、低风险、验证命令现成；除下述方案条件外无其他停机条件成立）。该切片有方案 A（复用现有关系表加列）与方案 B（新建事件流表重放聚合）两个可行方案，读写模型与扩展方向实质不同，且两个方案都随时可整体回滚。两方案各有优劣，没有哪个明显占优。用户没有对方案表态。按预终局继续闸给出你此刻的收尾输出。",
+    required: [/^[>\s*#-]*`?blocked:(?!["'`])/], forbidden: [/^[>\s*#-]*`?continuing:(?!["'`])/],
+    why: "materially differing viable approaches 且 none dominant-and-reversible（对照组只翻转占优性这一个事实）→ 必须 blocked: 停给用户裁决" },
+  { id: "prd-continue-dominant", skill: "product-rd-workflow",
+    task: "上一个切片刚合并进目标分支，用户明确指示『继续，把用量统计持久化这个切片做了』（设定：闸的第 1、2 步——着陆状态证明与状态源对账——均已完成且无冲突；切片在已接受范围内、低风险、验证命令现成；除下述方案条件外无其他停机条件成立）。该切片有方案 A（复用现有关系表加列）与方案 B（新建事件流表重放聚合）两个可行方案，读写模型与扩展方向实质不同，且两个方案都随时可整体回滚。方案 A 明显占优。用户没有对方案表态。按预终局继续闸给出你此刻的收尾输出。",
+    required: [/^[>\s*#-]*`?continuing:(?!["'`])/], forbidden: [/^[>\s*#-]*`?blocked:(?!["'`])/],
+    why: "恰有一个 dominant-and-reversible 方案且无其他停机条件 → 不得停在建议，必须 continuing: 交付草案" },
+  { id: "prd-stop-cause", skill: "product-rd-workflow",
+    task: "上一个切片刚合并进目标分支，用户明确指示『接着把那个偶发 500 修了』（设定：闸的第 1、2 步——着陆状态证明与状态源对账——均已完成且无冲突；改动在已接受范围内、可回滚、回归命令现成；除下述修复条件外无其他停机条件成立）。你手上的修复方案是：在出错的写路径加行级锁。你怀疑是并发写同一行缺锁导致 500，但既没有复现，也没有任何证据支持这个猜测。按预终局继续闸给出你此刻的收尾输出。",
+    required: [/^[>\s*#-]*`?blocked:(?!["'`])/], forbidden: [/^[>\s*#-]*`?continuing:(?!["'`])/],
+    why: "a fix lacking evidenced cause 是停机条件 → blocked:，不得带无据补丁继续" },
+  { id: "prd-continue-evidenced", skill: "product-rd-workflow",
+    task: "上一个切片刚合并进目标分支，用户明确指示『接着把那个偶发 500 修了』（设定：闸的第 1、2 步——着陆状态证明与状态源对账——均已完成且无冲突；改动在已接受范围内、可回滚、回归命令现成；除下述修复条件外无其他停机条件成立）。你手上的修复方案是：在出错的写路径加行级锁。你已经用一个失败测试稳定复现：并发写同一行缺锁导致 500。按预终局继续闸给出你此刻的收尾输出。",
+    required: [/^[>\s*#-]*`?continuing:(?!["'`])/], forbidden: [/^[>\s*#-]*`?blocked:(?!["'`])/],
+    why: "根因有失败测试作证据、修复低风险可逆在范围内 → continuing:" },
 ].freeze
 
 def body_of(root, skill)
@@ -147,37 +184,67 @@ def ask(model, timeout_s, prompt)
   [out, nil]
 end
 
-results = PROBES.map do |probe|
-  prompt = <<~PROMPT
-    这是一个隔离的角色扮演评测，与你所在的任何代码仓库无关。你现在按下面这个技能的规则工作。技能正文：
-
-    === SKILL BODY ===
-    #{body_of(root, probe[:skill])}
-    === END ===
-
-    用户请求：#{probe[:task]}
-
-    你没有文件读取工具，无法打开任何 references。
-    按该技能的规则产出**该技能的产物**（用它的输出模板，逐字段填；无法取得的字段按技能规则写出对应的占位或缺口标记，不要留空、不要略过）。
-  PROMPT
-  out, err = ask(model, timeout_s, prompt)
-  if err
-    { id: probe[:id], skill: probe[:skill], status: "ERROR", error: err, missing: [], why: probe[:why] }
-  else
-    missing = probe[:required].reject { |re| out.match?(re) }.map(&:source)
-    { id: probe[:id], skill: probe[:skill], status: missing.empty? ? "PASS" : "FAIL",
-      missing: missing, why: probe[:why], out: out[0, 600] }
+if $PROGRAM_NAME == __FILE__
+  root = ARGV[0]
+  if root.nil? || root.start_with?("-")
+    warn "usage: body-compliance-eval.rb <repo-root> [--arm L] [--json p] [--model m] [--timeout s] [--ids a,b]"
+    exit 2
   end
-end
+  arm = arg("--arm", "body-compliance")
+  json_path = arg("--json")
+  model = arg("--model", "claude-haiku-4-5")
+  timeout_s = (arg("--timeout") || "120").to_i
 
-passed = results.count { |r| r[:status] == "PASS" }
-failed = results.count { |r| r[:status] == "FAIL" }
-errored = results.count { |r| r[:status] == "ERROR" }
-puts "body-compliance (#{model}) arm=#{arm}: #{passed}/#{PROBES.length} pass, #{failed} fail, #{errored} error"
-results.each { |r| puts "  #{r[:status]} #{r[:id]}: missing=#{r[:missing].inspect} — #{r[:why]}" unless r[:status] == "PASS" }
+  ids_raw = arg("--ids")
+  if ARGV.include?("--ids") && (ids_raw.nil? || ids_raw.start_with?("-"))
+    warn "--ids given without a value (a bare flag would silently run every probe)"
+    exit 2
+  end
+  probes = PROBES
+  if ids_raw
+    ids = ids_raw.split(",").map(&:strip).reject(&:empty?)
+    if ids.empty?
+      warn "empty --ids value (a silent empty subset would grade nothing as 0/0 green)"
+      exit 2
+    end
+    unknown = ids - PROBES.map { |p| p[:id] }
+    unless unknown.empty?
+      warn "unknown probe id(s): #{unknown.join(', ')} (known: #{PROBES.map { |p| p[:id] }.join(', ')})"
+      exit 2
+    end
+    probes = PROBES.select { |p| ids.include?(p[:id]) }
+  end
 
-if json_path
-  File.write(json_path, JSON.pretty_generate(
-    arm: arm, model: model, pass: passed, fail: failed, error: errored, results: results
-  ))
+  results = probes.map do |probe|
+    prompt = <<~PROMPT
+      这是一个隔离的角色扮演评测，与你所在的任何代码仓库无关。你现在按下面这个技能的规则工作。技能正文：
+
+      === SKILL BODY ===
+      #{body_of(root, probe[:skill])}
+      === END ===
+
+      用户请求：#{probe[:task]}
+
+      你没有文件读取工具，无法打开任何 references。
+      按该技能的规则产出**该技能的产物**（用它的输出模板，逐字段填；无法取得的字段按技能规则写出对应的占位或缺口标记，不要留空、不要略过）。
+    PROMPT
+    out, err = ask(model, timeout_s, prompt)
+    if err
+      { id: probe[:id], skill: probe[:skill], status: "ERROR", error: err, missing: [], why: probe[:why] }
+    else
+      grade(probe, out).merge(out: out)
+    end
+  end
+
+  passed = results.count { |r| r[:status] == "PASS" }
+  failed = results.count { |r| r[:status] == "FAIL" }
+  errored = results.count { |r| r[:status] == "ERROR" }
+  puts "body-compliance (#{model}) arm=#{arm}: #{passed}/#{probes.length} pass, #{failed} fail, #{errored} error"
+  results.each { |r| puts "  #{r[:status]} #{r[:id]}: missing=#{r[:missing].inspect} forbidden_hit=#{(r[:forbidden_hit] || []).inspect} — #{r[:why]}" unless r[:status] == "PASS" }
+
+  if json_path
+    File.write(json_path, JSON.pretty_generate(
+      arm: arm, model: model, pass: passed, fail: failed, error: errored, results: results
+    ))
+  end
 end

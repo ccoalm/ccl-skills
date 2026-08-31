@@ -240,7 +240,7 @@ Use this skill to turn observed experience into durable agent skills without cop
    - For any extraction beyond wording-only cleanup, include the provenance-to-target diff shape before editing: source mechanism, provenance row, target file, executable landing, test or acceptance owner, and status.
    - Trigger situations and users/tasks it should serve.
    - What future failure or drift it should prevent, or which evidenced success mechanism it should preserve and reuse.
-   - For subjective or high-impact skills such as design, UX, frontend/client, product workflow, architecture, or review, define pressure scenarios and acceptance criteria before editing the skill.
+   - For NEW skills and subjective/high-impact skills (design, UX, client, product workflow, architecture, review), must define eval/pressure scenarios, baselines, acceptance criteria pre-draft.
    - For UI/UX or client-facing skills, the pressure scenario must ask whether a person without source access can produce a good-looking and behaviorally sound screen: clear visual hierarchy, fitting density, risk-matched feedback, recoverable state transitions, responsive/device adaptation, and rendered acceptance evidence.
 
 3. Inventory evidence.

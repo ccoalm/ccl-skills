@@ -71,6 +71,14 @@
 - **随机性**:agent 非确定;判定先人工、nightly 起步,有稳定史前不自动 gate。防作弊同 T2(`frozen_at_sha` 祖先校验)。
 - **双用途**:除回归外,Tier-3 还可当**改技能前的 RED-baseline**(改前手动跑触发场景看真 agent 是否真路由错,改后看 compliance)——可选;只有真观察到 miss 才算 RED(PASS/INCONCLUSIVE 不算),小 N + 非确定有噪声,手动跑两次自己留两份报告。落地 + 防作弊注意见 [validation-and-landing.md](validation-and-landing.md) "Optional real-agent RED-baseline"。
 
+## B 面:正文合规探针 body-compliance(已落地,advisory)
+
+`eval/body-compliance-eval.rb <repo-root> [--arm L] [--json p] [--model m] [--timeout s] [--ids a,b]`。`make eval-body-compliance`。路由三层测「选没选对技能」;B 面测**已激活技能的正文硬规则是否真被应用**——正文即 prompt,逐探针 required/forbidden marker 契约判分,覆盖是 NAMED SUBSET(见 runner 头部声明)。
+
+- 含 product-rd-workflow 停机谓词的**成对分类探针**(prd-stop-*/prd-continue-*):每对场景恒定、只变谓词判别特征,按闸自身的字面 `continuing:`/`blocked:` marker 判分——确定性锚钉的是这些谓词的**措辞存在性**,只有这些探针检验**案例被分到哪边**。
+- 触发纪律:改动触及某技能正文硬规则或停机谓词时,must run the affected `--ids` probe subset on this machine before landing,结果按该改动既有门禁处置;advisory 契约与升级路径(提炼确定性不变量,永不阻断 LLM 判定)见 `eval/AGENTS.md` 与 [f4 手册](../../../docs/f4-skill-effectiveness-harness.md)「双轨承载面与运行分层」。
+- 实测的双轨互补边界(锚管措辞、探针管行为漂移、不是埋句绊线)与小样本告诫,单一落点在 f4 手册「双轨承载面与运行分层」,此处不复述。
+
 ## Health roll-up:描述性仪表盘(已落地,advisory)
 
 把上面各信号卷成**一个加权 0–10 显示值 + 同尺子变化**,用于定位值得继续检查的维度。它借用 OpenSSF Scorecard 的呈现形态,但不把不同性质的 F4 信号变成“仓库整体变好/变差”的总判决。映射与限制见 [harness-patterns-and-eval.md](harness-patterns-and-eval.md) §3.4。
