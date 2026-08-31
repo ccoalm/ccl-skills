@@ -534,22 +534,29 @@ The initial independent review plus Agent-initiated challenges share one **Agent
 
 Five is the generic `code-review` transport ceiling, not this extraction lane's
 spend. Non-wording Agent-autonomous extraction calls go through
-`scripts/extraction_review_gate.sh`, which fixes `challenge_budget=2`: the
-initial review plus at most two challenges. At round 3 the autonomous lane ends.
+`scripts/extraction_review_gate.sh`, which fixes `challenge_budget=1`: the
+initial review plus at most one challenge. At round 2 the autonomous lane ends.
 An authenticated human may request later review, but that is separately
-attributed human-requested evidence outside this chain/budget, not an Agent
-round 4 or 5. Unused generic capacity never authorizes automatic continuation.
+attributed human-requested evidence outside this chain/budget, never an
+additional Agent round. Unused generic capacity never authorizes automatic continuation.
 The v3 closeout validator rejects referenced receipts whose recorded budget is
-not 2 and checks budget and ordering consistency within the caller-supplied
+not the wrapper-fixed value and checks budget and ordering consistency within the caller-supplied
 set. It cannot authenticate that the wrapper produced those receipts or that
 the caller retained every earlier chain or receipt. The wrapper does not mint or
 persist
 `review_chain_id` or `autonomous_review_index`: the caller still supplies both,
-and could start a fresh-looking chain after round 3. The validator detects bad
+and could start a fresh-looking chain after the final round. The validator detects bad
 order inside the referenced set but cannot detect a prior chain the caller
 omitted, so complete caller-owned ledger retention—and treating an Agent reset
 as a contract violation—remains part of the boundary rather than a property the
 local scripts prove.
+
+**Self-hosted chains break on every fix; the budget is summed across chains, never per chain.** In a skill repository the candidate edits its own owner package by construction, so the chain's stable bindings make the dead-end the norm, not an edge case: the selected-owner digest hashes each owner package's current working tree and owners derive from the candidate's own paths, so a fix that touches any selected-owner tree ends the tracked chain (`review_chain_invalid`) — in an extraction round that is nearly every fix, while a fix confined to files outside every selected owner drifts only the candidate hash and continues in-chain — and a plan edit that changes the normalized review scope (intent, acceptance, stage/depth, risk tags, budget) ends it as `review_scope_changed` — a self-review- or evidence-only plan refresh keeps the scope digest and the chain (binding mechanics are owned by the staged review contract in `code-review`). A chain restarted at index 1 after such a break spends the SAME Agent-autonomous budget. Treating each restarted chain as a procedurally required fresh review loop is the observed way the budget hollows out: two consecutive extraction rounds ran 20+ reviewer rounds and then 12 restarted chains — 21 reviewer invocations to land a three-line diff — each restart looking locally mandatory. When a round returns findings, walk this enumeration before any further external call:
+
+1. **Batch dispositions; never re-chain per finding.** Triage every finding through the disposition bar and deep-self-review once; apply the whole fix set now only when the ledger can still fund a restarted chain's ready floor — when it cannot, hold application, finish the current chain's remaining round(s) on the unchanged candidate, and land the fixes as the MR/PR-listed post-review batch.
+2. **Sum spent rounds across all chains before opening one more.** Count every prior external round in the caller-retained ledger — every chain, finished or broken — against the lane's wrapper-fixed budget; at the cap a restarted chain must not be opened autonomously, and below it budget the restart so the final chain can still hold review plus one challenge (the closeout ready floor) — a restarted chain opens with a fresh review by contract, so every restart trades a challenge round for a review round. Effective exhaustion is reached when the remaining rounds cannot fund that floor for any continuation; treat it exactly like the cap.
+3. **Front-load packet quality in chain 1.** The first chain's packet must already be the full-context diff (`--unified` wide enough to carry whole files, e.g. `-U200`) with the plan frozen alongside the candidate; narrow packets breed packet-boundary pseudo-findings whose fixes break chains and burn rounds on artifacts of the packet itself.
+4. **At the cap — or at effective exhaustion — the designed terminal is disposition, never another chain.** Apply or disposition the final batch, name every post-review fix in the MR/PR description, record the honest terminal state (`continuation_authorization_required` when the lane's final round ran and itself returned findings; otherwise — including a chain broken before its challenge could run — an interim record naming the last externally reviewed candidate and every later delta), and hand continuation or merge to the human. The post-review batch sits only on the pending MR/PR branch beside that record — the human's authenticated continuation, waiver, or merge decision is what certifies it, and it is never reported as reviewed. This is the bounded outcome working as designed, so do not report it as convergence and do not launder it through a fresh-looking chain.
 
 A strictly proven wording-only change has no convergence loop: it uses one
 generic `code-review` pass, records the independent-review row and the
@@ -563,7 +570,7 @@ This budget limits only automatic reviewer invocation. It does **not** stop impl
 - A human merge/risk decision must come from platform-authenticated authority outside the candidate diff, such as a protected maintainer approval. A repository file, branch flag, CLI argument, environment variable, model statement, or Agent-written note is not human authentication.
 - A narrow authenticated `review_waiver` clears only the review-process gate for the exact candidate and records decision-maker, time, reason, residual findings, and accepted risk.
 - A distinct authenticated `merge_authorization` is the human's final decision for the exact candidate. CI still runs and reports review/build/test/security/compliance failures, but none remains merge-blocking after that decision. Report `merge_authorized_by_human` / `failed_but_human_overridden`; never rewrite any underlying result as `passed` or discard residual findings.
-- A distinct authenticated **`continuation_authorization`** is the third human state, for a budget that is exhausted or has dead-ended: it waives nothing and decides no merge — both lanes stay intact and blocking — the human only authorizes further external rounds toward convergence, each recorded as human-authorized (never counted as Agent-autonomous) and run as a fresh chain bound to the current candidate — a fresh chain restarts the candidate binding, never the history: it carries forward the complete review ledger and every prior round's focuses and dispositions, per the Agent-review-chain fields of `code-review`'s staged review contract. The grant itself is scope-bound, not reusable: it names the granting session and either one exact candidate or, explicitly, this program's rounds to convergence in that session — a candidate or session outside the named scope requires a fresh authorization, so recording rounds as human-authorized can never launder an expired or broader-than-granted continuation. One dead-end is **by design, not an error**: a finding's fix that edits the owner package's own files breaks the review chain's content binding, so the tracker rightly refuses both another autonomous round and a challenge bound to the stale prior result. The recovery is always the same shape — an `interim` checkpoint that names each lane's terminal state and the exact un-run remainder ("challenge not yet run against any candidate", "the final fix is pinned but not re-challenged"), then the human's continuation authorization or their explicit risk acceptance with the record as the disposition trail. Never Agent self-authorization, and never a lane waiver inferred from the human's silence or from the authorization to continue.
+- A distinct authenticated **`continuation_authorization`** is the third human state, for a budget that is exhausted or has dead-ended: it waives nothing and decides no merge — both lanes stay intact and blocking — the human only authorizes further external rounds toward convergence, each recorded as human-authorized (never counted as Agent-autonomous) and run as a fresh chain bound to the current candidate — a fresh chain restarts the candidate binding, never the history: it carries forward the complete review ledger and every prior round's focuses and dispositions, per the Agent-review-chain fields of `code-review`'s staged review contract. The grant itself is scope-bound, not reusable: it names the granting session and either one exact candidate or, explicitly, this program's rounds to convergence in that session — a candidate or session outside the named scope requires a fresh authorization, so recording rounds as human-authorized can never launder an expired or broader-than-granted continuation. The dead-end is **by design, not an error**: a finding's fix that edits the owner package's own files breaks the review chain's content binding, so the tracker rightly refuses both another autonomous round and a challenge bound to the stale prior result. While cross-chain budget remains, that break is handled autonomously by the self-hosted-chain rule's ledger-counted restart; it becomes this bullet's human-decision dead-end when the remaining budget cannot fund the re-review. The recovery at that point is always the same shape — an `interim` checkpoint that names each lane's terminal state and the exact un-run remainder ("challenge not yet run against any candidate", "the final fix is pinned but not re-challenged"), then the human's continuation authorization or their explicit risk acceptance with the record as the disposition trail. Never Agent self-authorization, and never a lane waiver inferred from the human's silence or from the authorization to continue.
 
 When a round returns findings, hand them to the implementer before another autonomous review. The implementer verifies each failure path, classifies it as a local fix, false positive, deferred risk, or human decision, and records targeted self-review plus tests. Do not blindly apply every suggestion and do not use the reviewer as the primary defect finder.
 
@@ -571,7 +578,7 @@ The mechanical reminder is `self_review_gate`, not prose alone. It records outst
 
 In this gate, `stop`, `terminal`, `abort`, or `revert` applies to the current reviewer lane, readiness claim, or defective dependent slice unless an authenticated human explicitly stops the overall iteration. Repeated root cause, two no-progress attempts, or recurring findings trigger a method change, narrower reproduction, redesign, validation switch, or parked decision item; they never auto-stop unrelated runnable work.
 
-At the third Agent-autonomous round, do not start a fourth automatically. If findings remain:
+At the final Agent-autonomous round, do not start another automatically. If findings remain:
 
 - keep fixing local bugs, testing, and self-reviewing under `post_review_budget / human_decision_required`;
 - record the last externally reviewed candidate and every later candidate delta; stale review evidence never certifies changed content;
@@ -586,14 +593,14 @@ ledger and every referenced controller, completion, base, and sweep file live
 in one directory and carry SHA-256s. The validator walks the ordered schema-v3
 controller chain (same chain and scope,
 review then contiguous challenges, packet=candidate, complete prior-result hash
-prefix, fixed `challenge_budget=2`) and binds every closeout candidate to its
+prefix, the wrapper-fixed `challenge_budget`) and binds every closeout candidate to its
 last receipt. Ready requires at least review + challenge; a second base drift may
 stop as race immediately after round 1 rather than spending an illegal challenge
 after the terminal predicate already fired.
 It ends in exactly one state:
 
 - `ready_for_human_decision`: a real `complete` receipt is `passed / self_reviewed`, binds the final external receipt and exact current candidate, and there is no unresolved finding occurrence, unreviewed delta, or unmatched sweep instance.
-- `continuation_authorization_required`: round 3 itself returned `findings / post_review_budget`; a passed/unknown/inconclusive state cannot be relabelled continuation.
+- `continuation_authorization_required`: the final round itself returned `findings / post_review_budget`; a passed/unknown/inconclusive state cannot be relabelled continuation.
 - `baseline_race`: the referenced ordered base rows contain a second SHA change, including A→B→A; there is no completion receipt and the unreviewed delta is non-empty. Open findings and unmatched sweep instances remain visible and do not prevent this stop state.
 
 Run `scripts/validate_extraction_review_state.py <closeout.json>` before reporting
@@ -608,17 +615,16 @@ convergence.
 
 For a focused single-skill change:
 - **Round 1 — independent review**: inspect the self-reviewed candidate broadly.
-- **Round 2 — challenge 1**: after implementer triage, attack the highest-risk unresolved surface with an unprimed prompt.
-- **Round 3 — challenge 2**: verify remaining/new attack paths. This is the final Agent-initiated external round; findings feed the post-budget checkpoint rather than an automatic round 4.
+- **Round 2 — challenge**: after implementer triage — holding fix application when applying it would break the chain (self-hosted-chain rule) — attack the highest-risk unresolved surface with an unprimed prompt. This is the final Agent-initiated external round; findings feed the post-budget checkpoint rather than an automatic further round, and the post-review fix batch lands MR/PR-listed.
 
-Broad extractions use the same three-round Agent budget. Continue their implementation in smaller independent slices after budget exhaustion; a human may explicitly request further review when useful.
+Broad extractions use the same fixed two-round Agent budget. Continue their implementation in smaller independent slices after budget exhaustion; a human may explicitly request further review when useful.
 
 ### Anti-patterns
 
 - **Single-round challenge → done**. The round-1 fix-up itself may introduce bugs. Always do at least one re-challenge after a non-trivial fix-up.
 - **Iterating external review until zero findings**. Stop Agent reviewer calls at the configured budget. Stabilized or repeated findings are recorded, triaged, and may cause a method/design change or a parked dependent slice; implementation and independent work continue.
 - **Treating "no new high-severity findings" as "ready to ship" without recording the deferred items**. Deferred findings still need a written reason in the validation log.
-- **Treating every tiny edit as an automatic new external round**. Re-run deep self-review at the required checkpoint; consume another Agent review round only when the retained chain and risk call for it, or when a human explicitly requests one.
+- **Treating every tiny edit as an automatic new external round**. Re-run deep self-review at the required checkpoint; consume another Agent review round only when the retained chain and risk call for it, or when a human explicitly requests one. The observed extreme is chain multiplication: a chain broken by your own fix and restarted at index 1 is the same budget, not a new loop — sum rounds across chains per the self-hosted-chain rule above.
 - **Re-running with a softer prompt after fixes**. Use the same adversarial framing every round; weakening the prompt to make later rounds "pass" defeats the purpose.
 
 ### Recording the loop
