@@ -114,6 +114,9 @@ fast_tests=(
   test_shared_git_surface_gate.sh
   test_extraction_review_gate.sh
   test_validate_extraction_review_state.sh
+  # Candidate-SHA-bound gate receipts (mint/verify): own throwaway git repo,
+  # no clone, seconds — belongs in the lane every run exercises.
+  test_gate_receipt.sh
   test_check_ccl_route_drift.sh
   test_check_sync_pointers.sh
   test_check_ccl_register_pending_exclusion.sh
