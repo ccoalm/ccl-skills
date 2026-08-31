@@ -45,11 +45,11 @@ If you cannot write the query against existing metrics, the metric set is incomp
 
 ## SLO target
 
-Pick a number that reflects user expectation and product maturity, not aspiration:
+Pick a number that reflects user expectation and product maturity, not aspiration. The ladder below is a **team-heuristic starting point, not an industry standard** — Google SRE literature deliberately gives no numeric ladder; its direction is that each extra nine costs sharply more for marginal utility approaching zero (SRE Workbook Ch.2), and that targets should come from user expectation, not current performance:
 - New service: 99.0% — generous.
 - Mature service: 99.9% — three nines.
 - Critical path (payment, login): 99.95% — push.
-- Never start with 99.99% without 24/7 staffing.
+- Never start with 99.99% without 24/7 staffing (team heuristic: at four nines the monthly budget is minutes, which no unstaffed rotation can defend).
 
 Lower the target if every release burns the budget. Raise it only after sustained achievement.
 

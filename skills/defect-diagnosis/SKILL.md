@@ -65,6 +65,7 @@ Use this skill for the full defect discipline: diagnose the immediate failure, f
 
 5. Verify cause.
    - Prove the cause with evidence.
+   - Report query/lookup evidence by cardinality: a data query, log search, or identity resolution that returns 0, 1, or N matches reports each of those outcomes distinctly — never silently take the first row of N, and never treat 0 rows as "no evidence collected" (an empty result over a named scope IS evidence: record which scopes matched and which were empty).
    - When the cause is environment/toolchain state, prove it from the tool that owns that state, not only from the high-level wrapper. A wrapper failure is a symptom until the underlying compiler, generator, runtime registry, dependency resolver, or platform destination evidence explains it.
    - If disproven, return to hypotheses instead of guessing.
    - Separate symptom, immediate cause, contributing factors, and prevention.

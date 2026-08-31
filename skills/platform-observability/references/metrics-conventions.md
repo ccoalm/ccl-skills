@@ -50,7 +50,7 @@ Async observable gauges via OTel SDK reduce noise vs synchronous sets. Pattern: 
 | 外部框架 | 关注什么 | 适用对象 | 映射到本 ref instrument |
 |---|---|---|---|
 | **Google 4 Golden Signals**（SRE Book）| Latency / Traffic / Errors / Saturation | service-level（user-facing service）| Latency → Histogram；Traffic → Counter (request rate)；Errors → Counter (error count)；Saturation → Gauge (queue / pool / cpu / mem) |
-| **RED**（Tom Wilkie / Weaveworks）| Rate / Errors / Duration | request-driven service / RPC endpoint | Rate → Counter；Errors → Counter；Duration → Histogram（近似等于 request-side Golden Signals 去 Saturation；非正式 derivation）|
+| **RED**（Tom Wilkie；原始 Weaveworks 博客已随公司关停下线，现存最佳出处为 Grafana 官方博文 "The RED Method"）| Rate / Errors / Duration | request-driven service / RPC endpoint | Rate → Counter；Errors → Counter；Duration → Histogram（近似等于 request-side Golden Signals 去 Saturation；非正式 derivation）|
 | **USE**（Brendan Gregg）| Utilization / Saturation / Errors | resource（CPU / memory / disk / NIC / connection pool）| Utilization → Gauge (%) ；Saturation → Gauge (queue depth)；Errors → Counter（资源驱动而非请求驱动）|
 
 何时用哪个：
@@ -103,3 +103,10 @@ The 15s reader interval matches Prometheus scrape conventions and keeps OTLP pus
 - Using gauge for monotonic counters (loses rate semantics on restart).
 - Histogram with too few buckets (loses percentile precision) or too many (storage cost).
 - Recording metrics inside a tight loop without rate-limiting (collector receives bursts).
+
+## Observation Discipline（查询/看板/新增信号的通用纪律）
+
+- Cross-layer evidence boundary: a client-side event does not prove backend success, and a backend metric does not prove the user saw success — any conclusion crossing the client/backend (or service/service) boundary requires identifiers or time windows aligned across the layers, never a same-shape count on each side.
+- Observation code never intrudes on the observed path: **diagnostic telemetry** (metrics, traces, debug logs) is best-effort and must not add retries, blocking waits, or business-logic branches to the monitored path — observability that changes the behavior it measures is its own defect class. This best-effort license covers diagnostics only: mandatory records — security audit, billing/ledger, deletion/erasure evidence, release-gate records — are business writes with their own durable-delivery and failure semantics (their loss is a failure, never shrugged off as telemetry).
+- Discover before creating: before proposing a new event, metric, label, panel, or query, enumerate what already exists for that surface and extend/reuse it — parallel near-duplicate signals fragment dashboards and split history.
+- Environment-name resolution: a user's explicit component/branch/URL/datasource always wins; never silently substitute a different physical environment for a colloquial environment word — resolve an unqualified name to the recorded default and say which one was used.

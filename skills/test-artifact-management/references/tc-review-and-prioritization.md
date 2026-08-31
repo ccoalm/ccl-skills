@@ -61,7 +61,7 @@ SKILL.md 现状 P0 / P1 / P2 是经验判断（"blocking / important / nice"）�
 
 ### 2.1 风险公式（最通用）
 
-**Risk = Probability × Impact**（业内 30 年共识，ISTQB / ISO 29119 同源）
+**Risk = Probability × Impact**（出处：ISTQB CTFL v4.0.1 §5.2——风险级别由 likelihood 与 impact 决定，**定量法**为二者相乘，**定性法**用风险矩阵，二者皆合规；ISO/IEC/IEEE 29119-1 采用类似 likelihood/impact 框架，原文付费墙未逐字核）
 
 **Probability**（发生概率，1-5 分）：
 - 1 = 罕见（新代码 + 简单逻辑 + 测试覆盖好）

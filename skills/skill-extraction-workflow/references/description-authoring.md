@@ -81,6 +81,10 @@ For teammates using the shared skill on description-based routing hosts, this is
 
 A quoted trigger phrase should belong to its skill in at least 80% of real-use contexts. If a phrase would commonly mean something else, it must be DROPPED or ANCHORED.
 
+**Activation is closer to keyword match than semantic match** — a public sandbox measurement (2025-2026; sources/locators in the specs ledger) found prompts containing a skill's name or a distinctive description token activate near-100% while conceptual paraphrases activate near-0%; a second independent eval corroborates the keyword-dependence and adds that routing accuracy degrades as the installed-skill count nears ~20 similar skills, recovering when consolidated to ~12.
+
+- Both findings are host/model/catalog-conditional: treat them as directional and do not rely on the numbers without reproducing against your own catalog. Two consequences for authoring: (a) the description must contain the distinctive tokens users actually type (measure real utterances, don't invent vocabulary — the discovery-vocabulary rule); (b) when routing degrades across the catalog, merging/pruning similar skills beats adding more trigger words to each.
+
 ### Drop (too generic, no rescue possible)
 
 - `"改下样式"` — almost always means "change CSS now", which is implementation, not design ownership. Drop.
