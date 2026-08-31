@@ -24,7 +24,7 @@ The at-add-time check above decides *where* a rule lands (merge vs new bullet); 
 
 | Baseline failure | Right form | Wrong form |
 |---|---|---|
-| Agent knows the gate and walks past it under pressure (discipline slip — our merge-authorization / R0 / done-claim class) | Prohibition + rationalization-vs-reality pairs + red-flag self-check | Soft guidance ("prefer…", "consider…") |
+| Agent knows the gate and walks past it under pressure (discipline slip — our merge-authorization / R0 / done-claim class) | Prohibition + rationalization-vs-reality pairs + red-flag self-check — pairs quote excuses actually captured verbatim from baseline/pressure runs (`validation-and-landing.md` eval-first step 2), never invented ones | Soft guidance ("prefer…", "consider…") |
 | Agent complies but the artifact's SHAPE is wrong (bloated review packet, buried verdict, register row restating the source) | Positive recipe/contract: state what the artifact IS — its parts, in order | A "don't"-list about the shape — the measured backfire above |
 | Agent omits a required element from an artifact it already produces (missing status/evidence cell, absent map row) | A REQUIRED slot in the template/validator it must fill (our closeout rows and register gate are this form) | Prose reminders near the template |
 | Behavior should differ by situation | Conditional keyed to an observable predicate ("fan-out → name the tier") | Unconditional rule + exemption clauses |
