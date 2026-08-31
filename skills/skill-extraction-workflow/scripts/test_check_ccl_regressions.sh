@@ -140,6 +140,10 @@ fast_tests=(
   test_validate_skill_cross_refs.sh
   test_git_identity_predicate_gate.sh
   test_liveness_predicate_gate.sh
+  # 074: contract-anchor gate self-proof (tmp fixtures + one real-repo leg,
+  # seconds) and the anti-patterns panel structural check (awk over one file).
+  test_check_contract_anchors.sh
+  test_antipattern_grep_panel.sh
   test_regression_runner_registration.sh
   # Harness binding for the gate lanes themselves: the impact-chain gate's
   # round walk needs the branch's own first-parent chain, which the default
@@ -198,6 +202,13 @@ heavy_tests=(
   # 「跳过义务会不会留下可检出的缺席」——044 连续五轮 challenge 都停在这一点上，负向
   # 用例（缺证据、非枚举值、降范围无留痕）必须每轮都跑，否则触发器会悄悄退化成声称。
   test_impact_chain_self_adjudication.sh
+  # 074: one applied deletion mutation per pinned-phrase gate family, each leg
+  # running the FULL shipped checker against a committed fixture copy of the
+  # working tree (6 full-gate runs — far too slow for pre-commit). Proves the
+  # ~40 required_phrase pins and the contract-anchor delegation can actually
+  # go red for the right reason; the fast lane keeps the checker-level
+  # self-proof in test_check_contract_anchors.sh.
+  test_pinned_phrase_mutation_walk.sh
 )
 
 # Registration self-audit: every sibling test_*.sh must appear in fast_tests or

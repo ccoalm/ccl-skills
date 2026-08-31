@@ -1359,6 +1359,36 @@ for required_phrase in \
 done
 echo "test_case_first_gate_ok"
 
+# Contract-anchor gate: declarative wording-existence pins for load-bearing
+# prose contracts that structural checks cannot see (verdict-taxonomy
+# discriminators, stop-condition predicates, externally verified numeric
+# tiers). Checker and its contract-anchors.tsv table resolve NEXT TO THIS
+# VALIDATOR (one-versioned-unit rule, same as the sync-pointer gate — an
+# in-tree copy could be doctored to exit 0). Red = a pinned contract sentence
+# drifted, was deleted, or became ambiguous; the remedy is printed by the
+# checker (restore the wording, or update the anchor row in the same MR for an
+# intentional contract change). Self-proof: test_check_contract_anchors.sh
+# (fast) and test_pinned_phrase_mutation_walk.sh (heavy).
+contract_anchor_script="$checker_scripts_dir/check-contract-anchors.sh"
+if [[ -L "$contract_anchor_script" || ! -f "$contract_anchor_script" ]]; then
+  echo "contract_anchor_infra_failed: check-contract-anchors.sh missing or not a regular file beside the validator: $contract_anchor_script" >&2
+  exit 2
+fi
+contract_anchor_rc=0
+contract_anchor_out="$(bash "$contract_anchor_script" "$root")" || contract_anchor_rc=$?
+[ -n "$contract_anchor_out" ] && printf '%s\n' "$contract_anchor_out"
+if [ "$contract_anchor_rc" -eq 1 ]; then
+  echo "contract_anchor_gate_blocking_failed: pinned contract wording drifted (diagnostics above)" >&2
+  exit 1
+elif [ "$contract_anchor_rc" -ne 0 ]; then
+  echo "contract_anchor_infra_failed: rc=$contract_anchor_rc (contract-anchor gate could not run — fail-closed)" >&2
+  exit 2
+fi
+if ! printf '%s\n' "$contract_anchor_out" | grep -qE '^contract_anchor_gate_ok \([0-9]+ anchors\)$'; then
+  echo "contract_anchor_infra_failed: green output grammar missing (expected: contract_anchor_gate_ok (N anchors))" >&2
+  exit 2
+fi
+
 # Post-cleanup register check: after a project-specific extraction batch is
 # migrated out of the shared skill tree, the source-register.md template must
 # not silently grow new project-specific dated entries. The rule in
