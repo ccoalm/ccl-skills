@@ -21,6 +21,18 @@
 #     advisory = no signal). A agent-context/session-start.md absent from base is treated as a NEW
 #     every-session injection and blocks like a new severe entrypoint.
 #
+# Blocking (delta-scoped, skills/*/references/**/*.md — the reference-file line
+#   ratchet; design invariants in references/attention-budget-ratchet.md):
+#   - a changed reference that is NEW or CROSSES over 500 physical lines (base
+#     was not over)               => block ("new reference over line budget")
+#   - a changed reference already over 500 lines in base that GREW
+#     (head_lines > base_lines)   => block ("over-limit reference grew")
+#   references/source-register.md is structurally excluded (append-only ledger;
+#   its growth is governed by the append-only contract, not a line cap) — the
+#   exclusion lives in this gate, never in the candidate. A NEW reference over
+#   100 lines with no "##" section headings draws an advisory token (never
+#   blocks). Rename credit is path-paired and non-growing, same as entrypoints.
+#
 # Advisory (never blocks on its own): the recommended-band body-char debt
 # counters, severe-debt counters, per-file deltas, and the agent-context/session-start.md 13000B
 # byte tripwire BAND remain VISIBILITY / DEBT-MANAGEMENT only (the band flags the
@@ -113,6 +125,11 @@ end
 WORD_BUDGET_MAX = 5000
 WORD_TOKEN_PATTERN = /\p{Han}|\uFFFD|(?:(?!\p{Han})[\p{L}\p{N}])+(?:[\u0027\u2019_-](?:(?!\p{Han})[\p{L}\p{N}])+)*/u
 
+REF_LINE_MAX = 500
+REF_NAV_MIN_LINES = 100
+REF_PATH_RE = %r{\Askills/[^/]+/references/.+\.md\z}
+REF_LEDGER_RE = %r{\Askills/[^/]+/references/source-register\.md\z}
+
 Metric = Struct.new(:body_chars, :body_words, :bytes, keyword_init: true)
 
 def metric_for_text(text)
@@ -193,6 +210,42 @@ def head_metric_for_path(root, rel)
   full = File.join(root, rel)
   return :missing unless File.file?(full)
   metric_for_file(full)
+end
+
+def ref_info_for_text(raw)
+  text = raw.b.dup.force_encoding(Encoding::UTF_8).scrub { |invalid| "�" * invalid.bytesize }
+  # Line-ending normalization comes first: a CR-only or CRLF file must measure the
+  # same as the LF file a reader sees, otherwise a 501-line CR-delimited file reads
+  # as one line and earns a clean verdict. Headings count EXACT H2 only, because an
+  # H3-only file gives a chunked read no section structure to navigate by.
+  text = text.gsub(/\r\n?/, "\n")
+  lines = text.lines
+  { lines: lines.length, headings: lines.count { |l| l.match?(/\A##[ \t]/) } }
+end
+
+def base_ref_info_for_path(root, base, rel)
+  return :unknown if base.nil?
+  return :missing unless git_success?("cat-file", "-e", "#{base}:#{rel}", root: root)
+  ref_info_for_text(git_text("show", "#{base}:#{rel}", root: root))
+end
+
+def head_ref_info_for_path(root, rel)
+  full = File.join(root, rel)
+  return :missing unless File.file?(full)
+  ref_info_for_text(File.binread(full))
+end
+
+def fmt_ref_value(info)
+  case info
+  when :unknown then "unknown"
+  when :missing then "missing"
+  else info[:lines].to_s
+  end
+end
+
+def fmt_ref_delta(base_info, head_info)
+  return "unknown" unless base_info.is_a?(Hash) && head_info.is_a?(Hash)
+  format("%+d", head_info[:lines] - base_info[:lines])
 end
 
 def fmt_metric_value(metric, field)
@@ -437,6 +490,144 @@ if bootstrap_changed
   # :missing (deleted) => nothing left to size-gate, same as a deleted entrypoint
 end
 
+# --- reference-file line-budget ratchet (delta-scoped) ------------------------
+# Design invariants: references/attention-budget-ratchet.md. Physical lines are
+# the stable proxy metric; the append-only ledger references/source-register.md
+# is excluded by gate design (its growth is governed by the append-only
+# contract) and the exclusion lives HERE so a candidate cannot nominate its own
+# exemption.
+ref_blocks = []
+ref_partials = []
+ref_changed = []
+ref_scan_error = nil
+begin
+  if system("git", "-C", root, "rev-parse", "--is-inside-work-tree", out: File::NULL, err: File::NULL)
+    rpaths = []
+    rpaths.concat(git_lines("diff", "--name-only", base, "HEAD", "--", "skills", root: root)) if base
+    rpaths.concat(git_lines("diff", "--name-only", "--", "skills", root: root))
+    rpaths.concat(git_lines("diff", "--cached", "--name-only", "--", "skills", root: root))
+    rpaths.concat(git_lines("ls-files", "--others", "--exclude-standard", "--", "skills", root: root))
+    ref_changed = rpaths.select { |p| p.match?(REF_PATH_RE) }.reject { |p| p.match?(REF_LEDGER_RE) }.uniq
+  end
+rescue StandardError => e
+  ref_scan_error = "#{e.class.name} #{e.message.lines.first.to_s.strip}"
+  warn "changed_reference_line_scan_skipped: #{ref_scan_error}"
+end
+# A scan failure must not silently read as "no references changed" — that would
+# false-green a real growth, so it fails closed as a partial.
+ref_partials << "skills/*/references: changed-detection failed (#{ref_scan_error}) — line-budget check unavailable (fail-closed)" if ref_scan_error
+
+ref_move_map = {}
+begin
+  if system("git", "-C", root, "rev-parse", "--is-inside-work-tree", out: File::NULL, err: File::NULL)
+    status_args = []
+    status_args << ["diff", "--name-status", base, "HEAD"] if base
+    status_args << ["diff", "--name-status", "--cached"]
+    status_args << ["diff", "--name-status"]
+    status_args.each do |cmd|
+      git_lines(*cmd, "--", "skills", root: root).each do |line|
+        status, *paths = line.split("\t")
+        next unless status.start_with?("R") && paths.length >= 2
+        next unless status[1..].to_i >= 90
+        old_rel = paths[0].match?(REF_PATH_RE) ? paths[0] : nil
+        new_rel = paths[1].match?(REF_PATH_RE) ? paths[1] : nil
+        ref_move_map[new_rel] = old_rel if old_rel && new_rel
+      end
+    end
+  end
+rescue StandardError => e
+  warn "reference_move_pair_scan_skipped: #{e.class.name}"
+end
+
+# The census is visibility only, so an unreadable or vanished file must degrade the
+# COUNTER to unknown rather than abort the program: aborting here would skip the
+# per-file fail-closed partials below and emit no verdict token at all.
+head_ref_over_count = 0
+head_ref_census_error = nil
+begin
+  Dir[File.join(root, "skills", "*", "references", "**", "*.md")].each do |path|
+    rel = path.start_with?(root + "/") ? path[(root.length + 1)..] : path.sub(%r{\A\./}, "")
+    next unless rel.match?(REF_PATH_RE)
+    next if rel.match?(REF_LEDGER_RE)
+    info = begin
+      head_ref_info_for_path(root, rel)
+    rescue StandardError => e
+      head_ref_census_error ||= "#{rel}: #{e.class.name}"
+      next
+    end
+    head_ref_over_count += 1 if info.is_a?(Hash) && info[:lines] > REF_LINE_MAX
+  end
+rescue StandardError => e
+  head_ref_census_error ||= e.class.name
+end
+if head_ref_census_error
+  warn "reference_line_census_partial: head over-limit census incomplete (#{head_ref_census_error}) — counter reported unknown; per-file verdicts below are unaffected"
+  head_ref_over_count = nil
+end
+base_ref_over_count = nil
+if base
+  begin
+    base_ref_over_count = 0
+    git_lines("grep", "-c", "-e", "", base, "--", "skills", root: root).each do |line|
+      rest, _, cnt = line.rpartition(":")
+      _, _, rel = rest.partition(":")
+      next unless rel.match?(REF_PATH_RE)
+      next if rel.match?(REF_LEDGER_RE)
+      base_ref_over_count += 1 if cnt.to_i > REF_LINE_MAX
+    end
+  rescue StandardError => e
+    base_ref_over_count = nil
+    warn "reference_line_trend_partial: base=unknown reason=#{e.class.name}"
+  end
+end
+puts "reference_line_over_limit_count_base=#{base_ref_over_count.nil? ? "unknown" : base_ref_over_count}"
+puts "reference_line_over_limit_count_head=#{head_ref_over_count.nil? ? "unknown" : head_ref_over_count}"
+puts "reference_line_over_limit_count_delta=#{(base_ref_over_count.nil? || head_ref_over_count.nil?) ? "unknown" : format("%+d", head_ref_over_count - base_ref_over_count)}"
+
+# Ledger visibility: excluded from the ratchet, still reported when over.
+Dir[File.join(root, "skills", "*", "references", "source-register.md")].sort.each do |path|
+  rel = path.start_with?(root + "/") ? path[(root.length + 1)..] : path.sub(%r{\A\./}, "")
+  info = begin
+    head_ref_info_for_path(root, rel)
+  rescue StandardError
+    :missing
+  end
+  if info.is_a?(Hash) && info[:lines] > REF_LINE_MAX
+    puts "reference_line_budget_ledger_excluded: #{rel} lines=#{info[:lines]} — append-only ledger, excluded by gate design (growth governed by the append-only contract)"
+  end
+end
+
+ref_changed.sort.each do |rel|
+  begin
+    head_info = head_ref_info_for_path(root, rel)
+  rescue StandardError => e
+    ref_partials << "#{rel}: head lines unreadable (#{e.class.name}) — line-budget check unavailable (fail-closed)"
+    next
+  end
+  next if head_info == :missing # deleted reference: nothing left to gate
+  base_info = base_ref_info_for_path(root, base, rel)
+  puts "changed_reference_line_delta: #{rel} base_lines=#{fmt_ref_value(base_info)} head_lines=#{head_info[:lines]} delta_lines=#{fmt_ref_delta(base_info, head_info)}"
+  if base_info == :missing && head_info[:lines] > REF_NAV_MIN_LINES && head_info[:headings].zero?
+    warn "reference_nav_advisory: #{rel} lines=#{head_info[:lines]} headings=0 — a new reference over #{REF_NAV_MIN_LINES} lines needs ## section structure so chunked reads and greps can navigate (advisory, never blocks)"
+  end
+  next unless head_info[:lines] > REF_LINE_MAX
+  if base_info == :unknown
+    ref_partials << "#{rel}: base unknown — reference line-budget check unavailable (fail-closed)"
+  elsif base_info == :missing || base_info[:lines] <= REF_LINE_MAX
+    source_rel = ref_move_map[rel]
+    source_info = source_rel ? base_ref_info_for_path(root, base, source_rel) : nil
+    if source_info.is_a?(Hash) && source_info[:lines] > REF_LINE_MAX && head_info[:lines] <= source_info[:lines]
+      puts "reference_line_budget_move_ok: #{rel} head_lines=#{head_info[:lines]} allowed_lines=#{source_info[:lines]} moved_from=#{source_rel}"
+    else
+      ref_blocks << "#{rel}: new reference over line budget head_lines=#{head_info[:lines]} (> #{REF_LINE_MAX}) — split it by subtopic before landing (see references/attention-budget-ratchet.md; there is no exempt marker or waiver flag)"
+    end
+  elsif head_info[:lines] > base_info[:lines]
+    ref_blocks << "#{rel}: over-limit reference grew base_lines=#{base_info[:lines]} head_lines=#{head_info[:lines]} — shrink or stay level; fund additions by consolidating text in the same file"
+  else
+    puts "reference_line_budget_legacy_ok: #{rel} base_lines=#{base_info[:lines]} head_lines=#{head_info[:lines]} allowed_lines=#{base_info[:lines]}"
+  end
+end
+
 # Advisory markers only when the blocking verdict is clean — a consumer reading
 # the preserved legacy token must never see ok next to a block.
 #
@@ -451,18 +642,20 @@ end
 # — but the token says un-evaluated, not ok.
 # NOTE: this comment lives inside the single-quoted `ruby -e` program; an
 # apostrophe here terminates the shell quote and breaks the script.
-if blocks.empty? && partials.empty? && word_blocks.empty? && word_partials.empty?
+if blocks.empty? && partials.empty? && word_blocks.empty? && word_partials.empty? && ref_blocks.empty? && ref_partials.empty?
   puts "size_budget_advisory_#{size_state}"
   puts "entrypoint_size_budget_advisory_ok"
   if base.nil?
     puts "entrypoint_size_blocking_unevaluated: base=unknown — committed changes were NOT delta-checked; this is not a pass"
     puts "entrypoint_word_budget_blocking_unevaluated: base=unknown — committed changes were NOT delta-checked; this is not a pass"
+    puts "reference_line_budget_blocking_unevaluated: base=unknown — committed changes were NOT delta-checked; this is not a pass"
     if File.file?(File.join(root, "agent-context/session-start.md"))
       puts "bootstrap_size_delta_unevaluated: base=unknown — agent-context/session-start.md committed changes were NOT delta-checked; this is not a pass"
     end
   else
     puts "entrypoint_size_blocking_ok"
     puts "entrypoint_word_budget_blocking_ok"
+    puts "reference_line_budget_blocking_ok"
   end
   exit 0
 end
@@ -470,7 +663,10 @@ blocks.each { |b| warn "entrypoint_size_block: #{b}" }
 partials.each { |b| warn "entrypoint_size_block_partial: #{b}" }
 word_blocks.each { |b| warn "entrypoint_word_budget_block: #{b}" }
 word_partials.each { |b| warn "entrypoint_word_budget_block_partial: #{b}" }
+ref_blocks.each { |b| warn "reference_line_block: #{b}" }
+ref_partials.each { |b| warn "reference_line_block_partial: #{b}" }
 puts "entrypoint_word_budget_blocking_failed" unless word_blocks.empty? && word_partials.empty?
+puts "reference_line_budget_blocking_failed" unless ref_blocks.empty? && ref_partials.empty?
 # Legacy aggregate token for every blocking verdict owned by this size-budget
 # script, including the body-word rule. Keep it unconditional so existing
 # consumers cannot miss a new word-only failure.

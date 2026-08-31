@@ -123,7 +123,7 @@ Use this skill to turn observed experience into durable agent skills without cop
 ### What to extract, content placement & domain (UI/UX) judgment（抽什么 / 内容放置 / 领域判断）
 
 - Extract behavior, decision rules, quality gates, evidence patterns, and routing boundaries; do not extract business nouns, repo names, IDs, one-off incidents, or stale implementation details.
-- Keep the skill entrypoint as the trigger and routing surface; move detailed variants, source-derived patterns, and examples into reference files.
+- Keep the skill entrypoint as the trigger and routing surface; move detailed variants, source-derived patterns, and examples into reference files. Each reference links one level from the entrypoint and stays inside the reference line budget; `references/attention-budget-ratchet.md` owns that budget, the write-side authoring norms, and the design invariants any size/budget gate must satisfy.
 - A skill must be executable, not only directional. For design, client, testing, debugging, or review skills, include concrete workflow steps, decision points, state/checklist coverage, and verification evidence so future agents do not produce work that is compliant but weak.
 - Design/client extraction must cover the judgment layer, not only the engineering layer. For UI/UX, extract aesthetic logic, interaction logic, behavioral logic, and user psychology from source evidence before landing rules about layout, components, breakpoints, or tests.
 - UI/UX judgment extraction must use observable proxies, not adjectives. Read state families, navigation/entry/return paths, disabled reasons, recovery controls, timing/feedback, accessibility, responsive/device variants, and code state machines before claiming behavioral or psychology rules. Use `references/uiux-judgment-extraction.md` for the required method.
@@ -262,17 +262,15 @@ Use this skill to turn observed experience into durable agent skills without cop
 4. Extract candidate rules.
    - Convert observations into reusable rules: "when X, do Y, verify Z".
    - Separate invariant rules from stack-specific examples.
-   - Before editing any stack-specific skill, build the sibling-generalization mini-map: source stack, sibling stacks, shared workflow owner, per-sibling decision, and reason. If a candidate is language-agnostic, route it to the shared workflow/testing/architecture skill first, then add stack-specific implementation notes only where needed.
+   - Before editing any stack-specific skill, build the sibling-generalization mini-map the Core Rules owner-generalization group defines; route a language-agnostic candidate to the shared owner first, then add stack-specific implementation notes only where needed.
    - Mark each candidate as keep, merge, discard, or route to another skill.
    - Map each kept or routed candidate to its owning target in the target-output map before editing. Do not finish a design/client extraction until implementation, testing, product workflow, and sibling-client implications have been checked and either updated or explicitly marked unchanged. For mini-program surfaces, include `miniapp-product-dev` in that owner check.
    - Keep an extraction ledger during analysis: rule origin (`observed` or `hypothesis`), source IDs inspected before the rule was drafted, evidence grade, candidate rule, conflict, decision, target skill/reference, and reason.
 
 5. Generalize and place content.
-   - Put trigger, routing, core workflow, and non-negotiable rules in the skill entrypoint.
-   - Put detailed reference material in direct reference files.
+   - Place content by the Core Rules content-placement rule (entrypoint owns trigger, routing, core workflow, and non-negotiables; direct reference files own the detail, within their budget).
    - Generalize from the evidence ledger, not from a polished rule draft. Do not search for examples to justify a rule that has already been written.
-   - Choose capability names that describe what future users can do with the skill, such as complex workspace patterns, service architecture, test strategy, or document tightening. Do not name durable outputs after the source file, source project, old feature, or temporary extraction task.
-   - Keep source identity in provenance fields only. If a source name is useful for audit, label it as source evidence; do not make normal users route through that source name to understand or trigger the skill.
+   - Name durable outputs per the Core Rules naming rule (complex workspace patterns, service architecture, test strategy, document tightening are capability names; the source file, source project, old feature, and this extraction task are not), and do not make normal users route through a source name to understand or trigger the skill.
    - Turn source lessons into execution recipes: analyze first, implement with ownership boundaries, debug by layer, test at the right level, and verify on the real rendered/runtime surface.
    - For design and client skills, place the four judgment layers explicitly (aesthetics / interaction logic / behavioral logic / psychology — per-layer semantics and decision fields: `references/uiux-judgment-extraction.md`); do not hide them inside generic "UI polish" wording.
    - Write each judgment layer's delta per the Core Rules judgment-delta rule (new / confirmed / narrowed / routed / no new evidence — a restatement of existing principles is not newly extracted knowledge). For visual direction/tokens, use the token provenance fields in `references/uiux-judgment-extraction.md` and state what they mean for design, implementation, and testing; otherwise it is only a static source note.
@@ -290,8 +288,7 @@ Use this skill to turn observed experience into durable agent skills without cop
    - **Cross-section facet-ownership check** (Core Rules ↔ Step 0–6): for any edit touching `## Core Rules` or a Workflow step, record whether the changed facet is rule/invariant-owned (→ Core Rules) or procedure/checklist-owned (→ the step), and confirm the opposite surface only *points* to it, not restates it. Same-facet text living in both surfaces is a drift defect — converge toward the canonical surface per the Start-here boundary contract before landing.
    - All referenced files exist and are one level from the skill entrypoint.
    - No business or source-repo leakage remains in executable guidance.
-   - Capability naming is source-neutral: old source artifact names, old page names, and old scenario labels are absent from executable guidance or clearly marked as provenance.
-   - For any rename or generalization, residual searches for the old file name, old source label, old English shorthand, and old capability phrase are clean or justified as provenance.
+   - Capability naming is source-neutral, and after any rename or generalization residual searches for the old source artifact name, file name, source label, page name, scenario label, English shorthand, and capability phrase are clean, absent from executable guidance, or clearly marked as provenance.
    - Trigger boundaries do not collide with sibling skills.
    - Coverage matrix has no unexplained gaps: each relevant source category is used, routed, discarded, or marked unavailable with a reason.
    - For broad or multi-skill extraction, validation must include the durable source register and a target-output map showing which target skills or outputs were updated, which sources informed them, which sources were excluded, and which source classes remain pending. If any required row is pending, the work can be landed only as an interim checkpoint, not as complete.
