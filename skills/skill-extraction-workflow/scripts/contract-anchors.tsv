@@ -1,0 +1,15 @@
+# Contract-anchor table for check-contract-anchors.sh (same directory).
+# One row per pinned load-bearing contract literal:
+#   id <TAB> repo-relative path <TAB> pinned literal (exactly-once, >=16 chars) <TAB> note
+# The note names the sanitized provenance label and why the wording is load-bearing.
+# To change pinned wording intentionally: edit the contract sentence AND this row
+# in the same MR. Keep this set small — load-bearing contracts only, never style.
+verdict-taxonomy-discriminator	skills/testing-strategy/references/ci-fixtures-and-flake-control.md	One discriminating predicate decides the verdict	071-chainA-r1f1: fault-origin discriminator sentence; deleting it reverts verdicts to case-by-case judgment
+verdict-taxonomy-false-green	skills/testing-strategy/references/ci-fixtures-and-flake-control.md	excludes `infra-error` cases to present a clean total is a false-green report	071-chainA-r1f1: report-completeness clause; deleting it legalizes infra-error-excluding clean totals
+stop-predicate-materially-differing	skills/product-rd-workflow/SKILL.md	materially differing viable approaches (none dominant-and-reversible)	071-chainB-r1f1: stop-condition predicate wording; inverting it flips blocked/continue classification
+stop-predicate-evidenced-cause	skills/product-rd-workflow/SKILL.md	a fix lacking evidenced cause	071-chainB-r1f1: stop-condition predicate wording; weakening it admits plausible-but-unevidenced fixes
+burn-rate-tiers-entry	skills/platform-observability/SKILL.md	page 14.4× 1h/5m, page 6× 6h/30m, ticket 1× 3d/6h	071-chainC-r1f4: SRE Workbook multiwindow tiers, externally verified value (specs/071 source-verification); silent renumbering must not pass
+burn-rate-page-row-reference	skills/platform-observability/references/sli-slo-design.md	| Page (P0) | 1h | 5m | 14.4 |	071-chainC-r1f4: reference-side copy of the page tier; pinning both sides makes entry/reference drift visible
+coverage-tier-provenance	skills/testing-strategy/references/test-code-authoring-patterns.md	60% acceptable / 75% commendable / 90% exemplary 分档	071-chainC-r1f4: externally verified coverage tiers (specs/071 source-verification)
+pairwise-trigger-range	skills/test-artifact-management/references/classical-test-design-techniques.md	2-way 累计触发 53–97%	071-chainC-r1f4: NIST SP 800-142 empirical range, externally verified (specs/071 source-verification)
+bva-two-vs-three-value	skills/test-artifact-management/references/classical-test-design-techniques.md	2-value（边界 + 下一格）和 3-value（边界 + 两侧）	071-chainC-r1f4: ISTQB v4 BVA variant definitions, externally verified (specs/071 source-verification)
