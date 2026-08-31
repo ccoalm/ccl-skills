@@ -22,7 +22,7 @@ For generic async, consumer, scheduled-job, panic recovery, context timeout, and
 - Start transitions should move pending work to processing before expensive work.
 - Failure transitions should capture canonical error code, safe message, retryable flag, retry count, and last trace or log id.
 - Success transitions should persist result pointer or summary before publishing completion events.
-- All timestamps written by one transition come from a single captured `now` — capturing the clock twice inside one transition produces records where `finished_at < started_at` or audit rows that disagree with the state row under load.
+- All timestamps the transition itself stamps come from a single captured `now` (capturing the clock twice inside one transition produces `finished_at < started_at` records or audit rows disagreeing with the state row under load); domain-provided times — an upstream completion time, an event time — are recorded as received, never re-stamped with the local `now`.
 - Validate external/dependency response structure before casting or mapping it: an assertion/parse step with a typed error path, never a blind cast — a malformed upstream payload must become a failure transition with the canonical error, not a panic or silently-zeroed field.
 
 ## Async Processing
