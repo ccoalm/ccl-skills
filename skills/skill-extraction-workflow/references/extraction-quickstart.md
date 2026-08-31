@@ -149,7 +149,7 @@ Skip this step when nothing transferable surfaced.
 | Anti-pattern grep panel | `references/recurring-anti-patterns-checklist.md` | Every commit; ~30s |
 | `check-ccl-skills.sh` | `scripts/check-ccl-skills.sh` | Every commit; ~10s |
 | Generic `code-review` gate | repository-owned skill | Strict wording-only independent review; ~5-10 min |
-| `scripts/extraction_review_gate.sh` | this skill package | Non-wording review plus at most two challenges; ~5-15 min each |
+| `scripts/extraction_review_gate.sh` | this skill package | Non-wording review plus the wrapper-fixed challenge budget; ~5-15 min each |
 | `scripts/validate_extraction_review_state.py <closeout.json>` | this skill package | Every non-wording terminal checkpoint |
 | Source-read fallback ladder | `SKILL.md` Source-read remediation | When a source read fails or times out |
 | Sibling mini-map | `SKILL.md` Step 4 stack-specific updates | Every stack-specific change |

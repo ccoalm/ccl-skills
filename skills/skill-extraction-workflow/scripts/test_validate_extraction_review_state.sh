@@ -498,6 +498,12 @@ run("budget-four", budget_four["ledger"], 1, "challenge_budget must be 1")
 review_only = make_fixture("review-only", receipt_findings=[[]])
 run("review-only", review_only["ledger"], 1, "ready requires at least one tracked challenge")
 
+# A caller must not out-run the wrapper budget by supplying extra receipts: a
+# third receipt under budget 1 claims a negative remaining count and would
+# otherwise reach completion validation as a ready-state budget bypass.
+over_budget = make_fixture("over-budget", receipt_findings=[[], [], []])
+run("over-budget", over_budget["ledger"], 1, "exceeds the wrapper budget")
+
 missing_complete = make_fixture("missing-complete")
 missing_complete["ledger"]["completion_receipt"] = None
 run("missing-complete", missing_complete["ledger"], 1, "requires a completion receipt")

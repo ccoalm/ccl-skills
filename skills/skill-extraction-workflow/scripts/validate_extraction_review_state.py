@@ -318,6 +318,11 @@ def validate_controller_receipts(
         payload["candidate_sha256"], "ledger.candidate_sha256"
     )
     for expected_index, value in enumerate(refs, start=1):
+        # A caller supplying more receipts than the wrapper can mint would
+        # otherwise claim a negative remaining count and reach completion
+        # validation as a ready-state budget bypass.
+        if expected_index > WRAPPER_AUTONOMOUS_ROUNDS:
+            fail("controller chain exceeds the wrapper budget")
         ref = exact_object(
             value, {"sequence", "file", "sha256"}, f"controller_receipts[{expected_index - 1}]"
         )

@@ -331,6 +331,12 @@ assert re.search(
     re.DOTALL,
 ), "quickstart does not validate the exhausted-budget terminal checkpoint"
 assert "baseline_race" in quickstart
+assert "at most two challenges" not in quickstart, (
+    "quickstart still advertises the retired two-challenge budget"
+)
+assert "At the third Agent-autonomous round" not in dual, (
+    "dual-track still gates the lane at the retired third round"
+)
 PY
 
 echo "test_extraction_review_gate: ok"
