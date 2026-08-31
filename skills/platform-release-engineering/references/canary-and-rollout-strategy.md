@@ -40,7 +40,7 @@ canary_check_task:
       # Filter by baseline label `lane` (canonical per metrics-conventions
       # Baseline labels), not raw mesh subset name.
       query: 'sum(rate(http_server_request_error_total{service="<svc>", lane="prod-canary-<v>"}[5m])) / sum(rate(http_server_request_total{service="<svc>", lane="prod-canary-<v>"}[5m]))'
-      threshold: < 0.01              # 1% error budget — Flagger's builtin-check example value
+      threshold: < 0.01              # 1% rolling error-rate threshold (5m window; not an SLO error budget) — Flagger's builtin-check example value
     - name: latency_p99
       query: 'histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket{service="<svc>", lane="prod-canary-<v>"}[5m])) by (le))'
       threshold: < 0.5               # seconds (500 ms) — Flagger's builtin-check example value
