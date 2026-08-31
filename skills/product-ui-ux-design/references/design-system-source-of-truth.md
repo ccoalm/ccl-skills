@@ -69,6 +69,8 @@ When starting work on tokens/theme/design-system:
 5. For each `A2` business file, confirm `styles_count == 0` and `components_count == 0` via Figma API. Non-zero = file-local forked tokens; route to the design-system maintainer to merge.
 6. Cross-check deprecation: every file the team treats as deprecated must appear in the private deprecation list. Files-only-marked-by-prefix get a follow-up to add them explicitly.
 
+7. Check the canonical source's completeness against a definition matrix before treating it as the acceptance baseline: for each module — color, background, typography, spacing, stroke/divider, shadow/elevation, gradient, opacity, radius, size/layout, motion (aligned with the governed-category list in `ui-ux-audit.md` §Diff-Scoped Review) — the source defines both the token **values** and each token's **role/usage semantics** (a value list without roles cannot answer "which token do I use here", which is what implementation and review actually ask). Record missing modules or missing role columns as design-system gaps routed to the maintainer; do not fill them ad hoc per feature.
+
 ## Anti-Patterns
 
 - **Mistaking a third-party mirror for a team design system**: leads to "we already have a complete design system" claims that ignore the missing brand customisation layer.

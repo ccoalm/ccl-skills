@@ -60,3 +60,8 @@ Use this checklist for payment, quota, order, publishing, generated content, acc
 - Callback/reconciliation path for payment or async work, with order/request id matched on both sides.
 - Support-visible order/request id surfaced to the user; without it, support cannot disambiguate "I paid but app says canceled".
 - Safe retry and user explanation for uncertain final state — never present "succeeded" or "failed" when reconciliation has not run.
+
+## 组件库版本纪律
+
+- 组件库 API（taroify / NutUI-Taro / tdesign 等）按 lockfile 实装版本写，勿凭训练记忆——prop 名与默认值跨大版本会变。
+- 库自带 lint/codemod 或迁移清单时，变更与大版本迁移以它对 changed files 收口（deprecated 用法与 a11y 规则通用 lint 不认识）。

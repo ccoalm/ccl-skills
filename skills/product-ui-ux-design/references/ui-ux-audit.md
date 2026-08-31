@@ -49,6 +49,14 @@ Always include concrete file/line references for code reviews and Figma file/pag
 9. **Check serious-domain adaptation** when relevant: source, timestamp, partial data, confirmation, audit labels, and no unsafe optimistic UI.
 10. **Check platform-convention conformance** on the named target: use `external-ui-ux-quality-benchmarks.md` to classify authority and boundary, recheck the current first-party platform source, and map applicable criteria into `delivery-contract.md`. Preserve requirement versus recommendation strength and verify on that platform's rendered runtime; do not reuse a combined HIG/Material checklist as a cross-platform standard.
 
+## Diff-Scoped Review
+
+When the audit target is a change (a PR/MR diff), scope the verdict to the change while still scanning mechanically:
+
+- Run a hard-coded visual-value scan over the changed paths covering **every governed visual category** — color, background, border/stroke, shadow/elevation, gradient, spacing/padding/margin, radius, size/layout (width/height/gap), typography (font-size/weight/family/line-height), opacity, and motion (transition/animation/duration/easing/transform) (starter regex: `rg -n '#[0-9a-fA-F]{3}|rgb\(|rgba\(|hsl\(|color:|background:|border:|box-shadow|gradient|padding:|margin:|border-radius|font-size|font-weight|line-height|opacity:|width:|height:|gap:|transition|animation|transform:' <changed-paths>`; extend per stack: inline style props, CSS-in-JS literals, imperative theme config). The regex is a recall aid, not the boundary: any unmatched style declaration in a changed hunk still gets read and classified — prefer a stack-aware style/token lint where one exists. Full-audit sweep obligations stay in `multi-project-token-consistency.md`.
+- Classify every hit into exactly one of three buckets: **approved design-system usage** (a token/semantic reference, or an exception carrying the design-system owner's recorded approval — approver, scope, and unexpired validity, covering THIS usage; age is not approval: reusing or extending an old undocumented/expired exception in a changed hunk is a new violation), **pre-existing code outside the requested change**, or **new violation**. Only new violations block the change; pre-existing hits are recorded as debt for the token-consistency audit, never reported as caused by this change.
+- Match the fix duty to the bucket: fix new violations in this change; do not silently expand the change to migrate pre-existing debt (route it), and do not let pre-existing debt normalize new violations ("the file already does this" is not approval — the old code is debt, not a license to copy).
+
 ## UI Checks
 
 - Typography hierarchy matches the surface: display for brand/product moments, compact headings for dashboards, readable body text for feed/detail/comment/AI output.

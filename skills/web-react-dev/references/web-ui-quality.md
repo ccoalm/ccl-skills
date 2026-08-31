@@ -12,11 +12,19 @@
   - Behavioral: pending, disabled, retry, cancel, duplicate-submit, offline/stale, partial, and interrupted states are visible where relevant.
   - Psychology: the screen reduces uncertainty, waiting anxiety, fear of mistakes, and loss of control.
 
+## Design-Token Diff Review
+
+Before declaring a visible UI change complete, review the diff itself against the design-token source (design-system tokens, theme variables, documented semantic values — token/`DESIGN`-doc ownership per `product-ui-ux-design`):
+
+- Scan the changed paths for likely hard-coded visual values, e.g. `rg -n '#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|box-shadow:|linear-gradient|font-family:' -- <changed-paths>` — keep the `--` option terminator and collect the path list without shell word-splitting against an explicit review range — `git diff --name-only -z <base>...HEAD` for committed changes, `git diff --cached --name-only -z` for staged ones (a bare `git diff --name-only` sees only unstaged edits and silently yields an empty list on a committed candidate — treat an empty path list as a failed scan, not a pass) — so a repository-controlled filename starting with `-` cannot be parsed as an `rg` option (`--pre` would execute content instead of scanning it). Tune the pattern to the styling system (Tailwind arbitrary values `[...]`, styled-components literals, inline `style=`).
+- Classify every hit three ways: (1) approved token/primitive usage or a documented exception (e.g. chart-adapter series colors); (2) pre-existing code outside the requested change — do not report it as caused by this change, and do not copy it either: an old component carrying a non-compliant value is not permission to repeat that value; (3) a new violation — fix it by referencing the theme/token primitive instead of restating its literal value.
+- If the requested visual result cannot be achieved with the defined tokens/patterns, stop and route the gap to the design-system owner (`product-ui-ux-design`'s design-system source-of-truth path) instead of silently inventing a new color, radius, shadow, or type style; record the escalation in the change.
+
 ## Accessibility
 
 - Prefer semantic HTML before ARIA. Use buttons for actions and links for navigation.
 - Every interactive control needs an accessible name, keyboard reachability, visible focus, and a clear disabled/loading state.
-- Forms need labels, validation messages associated with fields, error summary when useful, and keyboard-friendly submit/retry behavior.
+- Forms need labels, validation messages associated with fields, error summary when useful, and keyboard-friendly submit/retry behavior. Form micro-contract worth enforcing in review: never block paste; keep submit enabled while the user is still editing, but latch an accepted submission synchronously — before the first await of validation/serialization/token acquisition — so a second click or Enter cannot dispatch twice, releasing the latch on the submission's terminal state (failure, and success too for reusable same-page forms like chat/comment/search); Enter submits the focused input and ⌘/Ctrl+Enter submits from a textarea; validate after input instead of blocking free typing; on failed submit, focus the first invalid field; warn before route-leave with unsaved changes; stay password-manager/2FA compatible (real inputs with `autocomplete` attributes).
 - Modals, popovers, menus, and drawers need focus management, escape/outside-click behavior where appropriate, and return focus on close.
 - Check contrast, text wrapping, zoom/text scaling, and screen reader names for icon-only controls.
 
@@ -25,6 +33,7 @@
 - Define stable dimensions for fixed-format UI such as grids, toolbars, tables, boards, and controls.
 - Define the primary viewport, stress viewport, and collapse rule before coding. Secondary panels, filters, metadata, and previews should collapse or dock before the primary reading/editing region becomes unusable.
 - Use virtualization or pagination for large lists/tables when rendering cost becomes visible.
+- Numeric floors worth enforcing in code review: interactive hit targets ≥ 24×24 CSS px (WCAG 2.2 SC 2.5.8 AA — spacing/inline/UA-default exceptions exist; platform HIGs recommend ~44-48 px on touch), mobile input font-size ≥ 16px (prevents iOS focus zoom), never disable user zoom (`user-scalable=no` / `maximum-scale=1` in the viewport meta is an accessibility finding), and flex/grid text truncation needs `min-width: 0` on the shrinking child or `overflow` clipping never engages.
 - Preserve useful URL state for shareable/filterable pages.
 - Handle back/forward, reload, auth expiry, offline/stale data, and browser storage expiry deliberately.
 - Long task and upload/review pages should model route-leave, reload, polling timeout, stale task, and terminal failure as component states when the user could lose work or confidence.

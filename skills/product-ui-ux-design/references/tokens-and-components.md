@@ -20,6 +20,7 @@ Desktop and mobile catalogs below are illustrative component vocabularies, not a
 - Use product UI files for page composition, state coverage, and interaction-pattern evidence; do not inherit their old domain requirements.
 - Use third-party UI kits and icon libraries only as reference-only coverage checks for component categories, state variants, icon discipline, and documentation quality. Do not copy their brand, marketing IA, or visual identity into the product skill.
 - Do not hardcode colors, spacing, radii, or typography when a design-system token exists.
+- Existing non-compliant code is not permission: an old component's hard-coded color or ad-hoc style is recorded debt, never a precedent to copy into new work. When the requested result cannot be achieved within the design system's current rules, stop and route the gap to the design-system owner instead of silently inventing a new visual rule.
 - **Color tokens 优先 HSL 而非 Hex / RGB**（hand-tuning same-hue 变体）：HSL 让"同色不同亮度"（hover、disabled、bg tint、border-on-bg shade）通过只改 L 直接派生；Hex / RGB 改 1 个亮度需要算 3 通道易调不准。toolchain 支持时**优先 OKLCH / LCH** 做感知一致的 color ramp（HSL 在跨 hue 时亮度不感知统一）。Token 源用 HSL/OKLCH 表达 intent；输出层（CSS / iOS / Android）按需 convert；设计工具如 Figma 可能存 RGB，token spec 保留 HSL/OKLCH 语义即可。
 
 ## Token Sync Pipeline (Figma → Front End)

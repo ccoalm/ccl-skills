@@ -416,6 +416,15 @@ item 9 signs off on it.
 
 Use `--json` to capture reasoning traces and tool calls cleanly. Parse the JSONL stream with a small Python or jq script as documented in `gstack-codex` skill.
 
+## Reviewer verification scope (packet-verifiability boundary)
+
+The external reviewer judges what the bounded packet can show; the packet structurally cannot carry every deterministic oracle its acceptance claims depend on (frozen preservation-mapping rows, the checker's complete pinned-literal sets, whole-file postimages, immutable pre-fix revisions). The division of labor is fixed and documented here so it is ruled on once, not re-litigated per round:
+
+- The reviewer owns CONTENT SEMANTICS: wording coherence, dropped qualifiers/obligations, source-accuracy, sanitization, scope drift — everything decidable from the packet plus the reviewer's own reasoning.
+- Deterministic-gate claims (pinned literals present, size ratchet net-zero, obligation audit green, R0 clean, parity) are verified by the repository's CI re-running those gates on the actual branch — never by the reviewer, and never accepted from the implementer's prose alone; a finding that only restates this boundary is dispositioned against this rule, never re-litigated per round.
+- Historical-process claims (a pre-fix RED, a measurement taken before landing) are session-record-grade unless bound to an immutable revision or a candidate-bound receipt; treat them as the implementer's testimony, and say so in the disposition instead of demanding evidence the packet cannot hold.
+- Standing backlog: teaching the gate to embed candidate-SHA-bound receipts of deterministic-gate output into the packet removes the third bullet's limitation mechanically; until that lands, this boundary is the accepted state.
+
 ## Recording findings + fixes
 
 For each pass, record in the extraction's working file (e.g. `<project>-extraction-summary.md`):

@@ -13,7 +13,7 @@
 - **James Bach & Michael Bolton**, *Rapid Software Testing* — HTSM / SFDPOT
 - **Elisabeth Hendrickson**, *Explore It!* — test heuristics cheatsheet
 - **James Whittaker**, *Exploratory Software Testing* — tours
-- **Pairwise / Combinatorial**: **Kuhn / Wallace / Gallo 2004 NIST 实证**（多被测系统 2-way 捕到 50–90% 的缺陷，差异大）；工具：Microsoft PICT、NIST ACTS、Hexawise
+- **Pairwise / Combinatorial**: **Kuhn / Wallace / Gallo 2004 NIST 实证**（NIST SP 800-142 Table 1 复现其数据：各被测域 2-way 累计触发 53–97%，多数域 70–97%；NIST 同文提醒 pairwise 仍可能漏掉 10–40% 或更多缺陷，mission-critical 不足恃）；工具：Microsoft PICT、NIST ACTS、Hexawise
 - **Hans Buwalda 2004** — soap opera testing
 - **Lisa Crispin & Janet Gregory**, *Agile Testing*
 - **Glenford Myers**, *The Art of Software Testing* (1979) — error guessing 起源
