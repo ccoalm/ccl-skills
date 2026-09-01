@@ -186,8 +186,12 @@ rm "$REPO/specs/round/evidence/uncommitted.json"
 # the real checkout it ships in, or a break in that path passes every test here.
 REAL_ROOT="$(cd "$DIR/../../.." && pwd -P)"
 real_out="$(env -u CCL_SKILL_BASE_REF python3 "$GATE" --repo-root "$REAL_ROOT" --base HEAD~1 --print-candidate 2>&1)"; real_rc=$?
-check "the gate freezes a candidate against the real checkout it ships in" \
-  '[ "$real_rc" = 0 ] && case "$real_out" in [0-9a-f]*) [ ${#real_out} = 64 ];; *) false;; esac'
+# Both outputs are legitimate and which one appears depends on what the parent
+# commit happened to touch: a candidate hash when a reviewed path moved, the
+# no-change signal when it did not. Accepting only the first makes this assertion
+# a function of repository state rather than of the gate.
+check "the gate answers for the real checkout it ships in, whichever legitimate answer applies" \
+  '[ "$real_rc" = 0 ] && { case "$real_out" in [0-9a-f]*) [ ${#real_out} = 64 ];; *) false;; esac || case "$real_out" in *review_ledger_binding_no_change*) true;; *) false;; esac; }'
 
 if [ "$fails" -gt 0 ]; then
   echo "test_review_ledger_binding: $fails failing case(s)" >&2
