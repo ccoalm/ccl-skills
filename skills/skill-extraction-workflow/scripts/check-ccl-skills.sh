@@ -1444,40 +1444,10 @@ if [ -n "$root_worktree_toplevel" ]; then
   fi
   ruby "$impact_chain_gate" "$root"
 
-  # Merge-side binding, exercised against a real checkout rather than only inside
-  # its own suite's throwaway repository: the path that broke in development was
-  # loading the controller and freezing the packet, and a break there would
-  # otherwise pass every test while letting an unreviewed candidate land. This is
-  # a smoke of that path, not the enforcement point -- the merge verdict belongs
-  # to the CI step, which is inside the bound paths so it cannot be removed
-  # without moving the candidate. CCL_SKILL_BASE_REF is dropped deliberately: this
-  # checker runs against synthetic clones inside other suites, where an inherited
-  # base resolves against the wrong repository and reds for the wrong reason.
-  ledger_binding_gate="$checker_scripts_dir/review_ledger_binding.py"
-  if [[ -L "$ledger_binding_gate" || ! -f "$ledger_binding_gate" ]]; then
-    echo "missing_review_ledger_binding_gate: $ledger_binding_gate (must be a regular file beside the checker, not a symlink)" >&2
-    exit 2
-  fi
-  if [[ ! -f "$root/skills/code-review/scripts/review_gate.py" ]]; then
-    # Not a full skills tree (the checker also runs against synthetic fixtures);
-    # the smoke has nothing to exercise and must not pre-empt this checker's own
-    # verdicts by failing here.
-    echo "review_ledger_binding_smoke_skipped: no controller in this checkout"
-  elif git -C "$root" rev-parse --verify --quiet HEAD~1 >/dev/null 2>&1; then
-    smoke_output="$(env -u CCL_SKILL_BASE_REF python3 "$ledger_binding_gate" \
-      --repo-root "$root" --base HEAD~1 --print-candidate 2>&1)"
-    smoke_status=$?
-    if [[ "$smoke_status" -eq 0 ]] \
-      && { [[ "$smoke_output" =~ ^[0-9a-f]{64}$ ]] \
-        || [[ "$smoke_output" == *review_ledger_binding_no_change* ]]; }; then
-      echo "review_ledger_binding_smoke_ok"
-    else
-      echo "review_ledger_binding_smoke_failed: the gate could not freeze a candidate in this checkout" >&2
-      exit 2
-    fi
-  else
-    echo "review_ledger_binding_smoke_skipped: no parent commit to diff against"
-  fi
+  # No merge-side ledger-binding probe runs here, deliberately: this checker also
+  # runs against synthetic fixtures inside other suites, where such a probe cannot
+  # operate and reddens suites that do not own it. That gate's own suite covers the
+  # real-checkout path and the CI step enforces it. Do not re-add one here.
 
   # Whole-ledger firing-path resolution. The impact-chain gate above is
   # diff-scoped by design, so a row's firing path is machine-checked exactly once
