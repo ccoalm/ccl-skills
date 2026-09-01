@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "candidate_sha256": "ea50be1db10ddd695fc244fe4e1bbc2db33a3da693089ca8267392e85cf9c2b7",
+  "candidate_sha256": "348ac98f7635a14efa7bab6ea145bf5f1776945a8ba2c48d1485b27cb5a850c0",
   "controller_receipts": [
     {
       "sequence": 1,
@@ -15,7 +15,7 @@
     {
       "sequence": 3,
       "file": "round3-succession.json",
-      "sha256": "309f89105305008d85ae68629c7b87704ef447bde7549e260abb43f2b2a7f697"
+      "sha256": "17a1ce508d157a656d9a1a0512e77769a97f30d7d9ce14c4c7b3ece91865f95b"
     }
   ],
   "completion_receipt": null,
@@ -46,7 +46,7 @@
       "ref": "refs/heads/dev",
       "sha": "6373a18b3343824a964992d918eeeb9cc98e23f9",
       "confirmed_at": "2026-09-01T03:00:00Z",
-      "controller_receipt_sha256": "309f89105305008d85ae68629c7b87704ef447bde7549e260abb43f2b2a7f697",
+      "controller_receipt_sha256": "17a1ce508d157a656d9a1a0512e77769a97f30d7d9ce14c4c7b3ece91865f95b",
       "evidence_file": "base-attestation-3.txt",
       "evidence_sha256": "f50bd677197ee19b8eb7bf4ad65840009e21537caee1e9345e87b8041d727bcc"
     }
@@ -64,7 +64,7 @@
           "finding_sha256": "4fd84e2a6cdc8ef7276bcb88af197cc9c6b3133c68145028abbaec975fc7efa4",
           "disposition": "fixed",
           "disposition_evidence_file": "disposition-evidence-is-caller-controlled-1.json",
-          "disposition_evidence_sha256": "be6ff0fa5754ba597075bcad66ebd96e7438868fe8c6c43c89b7b4d94890eb2c"
+          "disposition_evidence_sha256": "16b1a929db895cade023dffd3302d40ed29e7b74935de462e8affd49df537e84"
         },
         {
           "receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
@@ -88,9 +88,22 @@
           "receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
           "finding_sha256": "fb683a009f775d708a3aa2c28c676e1f80579291ed04397e921bebf86081c729",
           "disposition": "open"
+        },
+        {
+          "receipt_sha256": "17a1ce508d157a656d9a1a0512e77769a97f30d7d9ce14c4c7b3ece91865f95b",
+          "finding_sha256": "e672aa2d32d620675eed54140cf8e9d6fd279c33ca59d20c366c84b80356bc26",
+          "disposition": "open"
         }
       ],
-      "authoritative_sweep": null
+      "authoritative_sweep": {
+        "candidate_sha256": "348ac98f7635a14efa7bab6ea145bf5f1776945a8ba2c48d1485b27cb5a850c0",
+        "manifest_file": "sweep-enforcement-step-is-inside-the-candidate.json",
+        "manifest_sha256": "9b5cdbdfece24bf0747382eb1dd239e943cfd544a41bbdd49c18eead3e45d624",
+        "searched_set": [
+          ".github/workflows/ci.yml"
+        ],
+        "unmatched_instances": 1
+      }
     },
     {
       "key": "succession-chain-id-unchecked-at-mint",
@@ -111,8 +124,8 @@
       "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
       "occurrences": [
         {
-          "receipt_sha256": "309f89105305008d85ae68629c7b87704ef447bde7549e260abb43f2b2a7f697",
-          "finding_sha256": "9fba632a6a0c140774323d4b670c85e8573831eba98e5f1983d124373fd9917a",
+          "receipt_sha256": "17a1ce508d157a656d9a1a0512e77769a97f30d7d9ce14c4c7b3ece91865f95b",
+          "finding_sha256": "971939d2e4c0349da03eefd4b0903def161d31e1d5d4114539d0629f0baca141",
           "disposition": "open"
         }
       ],
