@@ -137,6 +137,7 @@ The **widen + multi-layer (Swiss Cheese) lens fires on complexity above, not onl
 - Go backend implementation, testing, codegen, DB, Redis, MQ, or protobuf issue -> `go-microservice-dev` references.
 - Python backend, AI-service host, worker, SDK/package, or batch-job architecture issue -> `python-service-architecture`.
 - Python implementation, pytest, packaging, schema, ORM/migration, Redis, queue, async, or service-wiring issue -> `python-service-dev` references.
+- Node.js implementation, runtime/module/type path, package-manager or lockfile, async lifecycle, stream, worker, outbound-client, or `node:test`/runner issue -> `nodejs-service-dev` references. A Node.js architecture or service-boundary issue has no architecture sibling by decision and must not be filed under a sibling stack's architecture skill -> `product-rd-workflow`'s architecture gate plus the relevant `platform-*` owner.
 - LLM, inference, RAG, prompt, model-routing, streaming, fallback, evaluation, replay, shadow, token-cost, or agent-runtime/tool-call issue -> `llm-inference-integration`.
 - Mobile app issue involving Flutter, Android, iOS, navigation, state, platform bridge, device capability, build/release, crash, accessibility, or performance -> `app-cross-platform-dev`.
 - Mini-program issue involving WeChat/Alipay/Douyin/Baidu page routing, host-platform APIs, developer tools, review submission, release, real-device preview, or platform capability -> `miniapp-product-dev`.

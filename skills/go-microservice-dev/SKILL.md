@@ -30,7 +30,7 @@ Use this for implementation of new backend products and services. It should adap
 - If an observed pattern only works for one product domain, discard it instead of turning it into a rule.
 - Resolve conflicts by choosing the safer generic default: explicit contracts over hidden conventions, DB constraints over cache-only correctness, typed config over ad hoc strings, idempotent consumers over retry-only consumers, focused unit tests over live-infra tests by default, and fail-closed for auth/permission/data-integrity paths.
 - Fuse patterns only when both are product-agnostic and reduce implementation ambiguity; otherwise keep the simpler rule.
-- When adding or revising durable Go implementation guidance, check whether the lesson is generic backend service practice that should also update `python-service-dev`, or belongs in a shared workflow skill instead. If the rule depends on Go tooling, protobuf/Kitex/Hertz, Go concurrency, or Go package layout, keep it here and do not force a Python mirror.
+- When adding or revising durable Go implementation guidance, check whether the lesson is generic backend service practice that should also update the sibling stack owners `python-service-dev` and `nodejs-service-dev`, or belongs in a shared workflow skill instead. Record each sibling as `update`, `unchanged`, or `route-to-shared` rather than leaving it unexamined. If the rule depends on Go tooling, protobuf/Kitex/Hertz, Go concurrency, or Go package layout, keep it here and do not force a Python or Node mirror.
 - Example: if an existing project uses inline Redis keys but another wraps keys in typed builders, implement typed builders and discard inline string formatting as a reusable pattern.
 
 ## Development Workflow
