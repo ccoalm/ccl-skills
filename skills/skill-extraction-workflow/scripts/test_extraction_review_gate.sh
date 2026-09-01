@@ -33,7 +33,7 @@ import sys
 from pathlib import Path
 
 args = [item.decode() for item in Path(sys.argv[1]).read_bytes().split(b"\0") if item]
-assert args[:2] == ["--challenge-budget", "2"], args
+assert args[:2] == ["--challenge-budget", "1"], args
 assert args.count("--challenge-budget") == 1, args
 PY
 
@@ -47,14 +47,14 @@ import sys
 from pathlib import Path
 
 args = [item.decode() for item in Path(sys.argv[1]).read_bytes().split(b"\0") if item]
-assert args[:2] == ["--challenge-budget", "2"], args
+assert args[:2] == ["--challenge-budget", "1"], args
 assert args[-1] == "--base", args
 assert args.count("--challenge-budget") == 1, args
 PY
 
 # Exercise the installed wrapper/controller pair without invoking a model. The
 # same real controller defaults to budget 0 when called directly, while the
-# extraction wrapper must make the emitted receipt report budget 2.
+# extraction wrapper must make the emitted receipt report budget 1.
 python3 - "$TMP/real-controller.diff" "$TMP/real-controller-plan.json" <<'PY'
 import json
 import sys
@@ -74,7 +74,7 @@ conclusions = {
     "safety": "The probe selects only the implementer family and invokes no external reviewer.",
     "failure_paths": "The no-independent-reviewer boundary remains structured and fail closed.",
     "tests_evidence": "Direct and wrapped calls provide a differential budget assertion.",
-    "compatibility": "The generic controller default remains zero while extraction fixes two.",
+    "compatibility": "The generic controller default remains zero while extraction fixes one.",
 }
 skills = {
     "correctness": "skill-extraction-workflow",
@@ -84,8 +84,8 @@ skills = {
     "compatibility": "terminal-cli-dev",
 }
 plan = {
-    "intent": "Prove the extraction wrapper and real review controller agree on budget two.",
-    "acceptance": ["The wrapped real-controller receipt reports challenge_budget two."],
+    "intent": "Prove the extraction wrapper and real review controller agree on budget one.",
+    "acceptance": ["The wrapped real-controller receipt reports challenge_budget one."],
     "self_review": [
         {
             "concern": concern,
@@ -134,7 +134,7 @@ assert_rc "$wrapped_rc" 2 "wrapped real controller must stop before model infere
 assert_contains '"reason_code":"no_independent_reviewer_available"' "$direct_out" "direct real-controller boundary"
 assert_contains '"reason_code":"no_independent_reviewer_available"' "$wrapped_out" "wrapped real-controller boundary"
 assert_contains '"challenge_budget":0' "$direct_out" "generic controller default budget"
-assert_contains '"challenge_budget":2' "$wrapped_out" "wrapper-enforced real-controller budget"
+assert_contains '"challenge_budget":1' "$wrapped_out" "wrapper-enforced real-controller budget"
 [ ! -e "$TMP/codex-invoked" ] || fail "same-family Codex executable was invoked"
 
 # Join the producer and consumer contracts. First feed the exact real receipt
@@ -231,7 +231,7 @@ for spelling in --challenge-budget --challenge-budget=4 --challenge-b=4; do
   rc=$?
   set -e
   assert_rc "$rc" 2 "caller budget override must be rejected"
-  assert_contains "challenge budget is fixed at 2" "$out" "override reason"
+  assert_contains "challenge budget is fixed at 1" "$out" "override reason"
   [ ! -s "$TMP/args" ] || fail "controller ran after budget override"
 done
 
@@ -321,16 +321,22 @@ assert "--challenge-budget" not in quickstart, (
     "quickstart must not let callers override the extraction review budget"
 )
 assert re.search(
-    r"[Rr]ound 2.{0,500}ready_for_human_decision",
+    r"[Rr]ound 2 challenge.{0,500}ready_for_human_decision",
     quickstart,
     re.DOTALL,
 ), "quickstart does not validate an early-clean round-2 terminal checkpoint"
 assert re.search(
-    r"[Rr]ound 3.{0,500}continuation_authorization_required",
+    r"[Rr]ound 2 findings.{0,200}continuation_authorization_required",
     quickstart,
     re.DOTALL,
 ), "quickstart does not validate the exhausted-budget terminal checkpoint"
 assert "baseline_race" in quickstart
+assert "at most two challenges" not in quickstart, (
+    "quickstart still advertises the retired two-challenge budget"
+)
+assert "At the third Agent-autonomous round" not in dual, (
+    "dual-track still gates the lane at the retired third round"
+)
 PY
 
 echo "test_extraction_review_gate: ok"

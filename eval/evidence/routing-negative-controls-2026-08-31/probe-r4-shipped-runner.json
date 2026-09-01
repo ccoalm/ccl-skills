@@ -1,0 +1,248 @@
+{
+  "model": "claude-haiku-4-5",
+  "tasks": 5,
+  "pass": 5,
+  "fail": 0,
+  "error": 0,
+  "replicas": 2,
+  "verdicts": 10,
+  "error_verdicts": 0,
+  "partial_error_tasks": [],
+  "clarify_count": 1,
+  "low_confidence_count": 0,
+  "replica_agreement": {
+    "agree": 4,
+    "measured": 5
+  },
+  "desc_budget_chars": null,
+  "routing_surface": {
+    "descriptions_sha256": "d7af871d86eb3d928394d3bfe5d423485ac6d8fb2e3f5055af576433d0714283",
+    "per_skill_description_line_sha256": {
+      "agents-file-coverage-gate": "663ce7e5a22c6551792cd1dca29d2a472a38e591c989156dbff8225b2ce84870",
+      "app-cross-platform-dev": "c60f12feb2d924b884cc7f1a33a4fd4d9fb69842482d2fe1b7b5669a64ef6696",
+      "code-review": "b73dfb25bb779b8429a12a2f53636bc44b97649290384c503574c0ddb248e045",
+      "defect-diagnosis": "ef3664baab79c7c6c59de6900e71510a1d96ba0565cbfb91316c8c6e3e8cdc72",
+      "feature-risk-router": "53438b25822673c852717471aab374a9e505ce54e294c577463f6344ccf04ddf",
+      "go-microservice-architecture": "4340933458f877a8aabe6b770b484eeb4a0a39302872a985b3f02cb575c6ce79",
+      "go-microservice-dev": "7437a83839fdb0ddd5eebc2c566d6d680e529fb0b8a8abc49eeb95056afaff9a",
+      "grill-me": "21de34fae39e375cbc496e7cabd6e167cf178cc9cbb3ae438c5412577c7e4a2c",
+      "llm-inference-integration": "de73da80dafa8d3335e6c545c7d84ab3cbbf4130ea6558c40c9c3dd4b73628df",
+      "miniapp-product-dev": "1b48b240e496ab221ce0f5de09a342b3b1b3021739ba8a41c340a2b4365e9642",
+      "multi-agent-delegation": "d33161502ceb4ac6b4592f9d9f543310c37b0f3095a00e4fbb298a6b85ee9298",
+      "multi-perspective-research": "9507077c59c8687db839e39e3d8526aa5540ba1147490f5f5fbafd20e80203ff",
+      "nodejs-service-dev": "f31dc5f99325aeae7e7e7601bdf168c570627cf3f2d5dd44db2278b2d9ff818e",
+      "platform-observability": "02abf437bd601733d71bb09cff921047f7e0f52bce399e7cf4b968b25f85810e",
+      "platform-release-engineering": "1d5d13bc695c855187f00314c96656fb413a139cc72df746df5f8e0513a0afbf",
+      "platform-service-connectivity": "9639078bae01e666d392d31db2d8d946b316ea18140a2a2597708b9d710b3ec1",
+      "product-rd-workflow": "cfaafc2faa6e46b9cf92ce99b7821457b5b8e014c75daf1ed703f0a02b64dda7",
+      "product-ui-ux-design": "5b393b29e02f5be9f5de58cb9fa68f1e295ec2322454a8ae043bb062c732f67b",
+      "python-service-architecture": "ddbff33484721a081a0fc12a1496569e25bd9dc8f04aa0bd2a9924387191669e",
+      "python-service-dev": "28a21817c5202052c6abfe709b9eba3e64f84d7507c38b622b04fa785dc68dd0",
+      "release-coordination": "f88133c5ac8d4ee9188029a45753c51e994ecca68bcc3fbe70c643f44c390f0b",
+      "release-doc-writer": "2a0a565b502b8599f891642d13c4c6c3fdcafdbf2f473a63ffc8fa3324e073d3",
+      "requirement-baseline": "89660426e6bc23a01f8a13aa7080f09ad97f452c80d1a178a6a07ed25273ce57",
+      "requirement-doc-writer": "7ae74bd2d707a40ab7535f16d901f0fc3a7525ea7348934be0e73a5fbe7170d3",
+      "requirement-intent": "ae198d015f0b971b554c23288cbadfc397b230890ced517456ef17384e6606c4",
+      "requirement-scope": "0bb177c1d8c0b3d6491732c1bc525755983fa007aabcfa1e26481af6c31fca90",
+      "skill-extraction-workflow": "beedf2d25568df4601b5fd58ea6cbb5ef940cd635902f8ff074b6477c8645a5c",
+      "terminal-cli-dev": "6db157ab419d0d011a868e6938856a40a58f223e88f082c0d89c6f2812cd6b91",
+      "test-artifact-management": "85e93275be87f627f3cc06d0d165c6ae636a56a68b112a3f1aec7f177a430a22",
+      "testing-strategy": "f608c18fe027cfe70b9026bc12782ee14b21cea65536df1a859077f08d447e76",
+      "tighten-doc": "43366b1dd08dd49cc206b769cbd10a1e1d233c62178b4ba521d9979f26ffd79b",
+      "web-react-dev": "9523899f148a70c62cf15c4ffa0a8b26c654b3016a8e63a89a0128fbfc6946ce",
+      "worktree-isolation": "fc9715e52670f7ab4aad68d28fab2fc635c1c91a2eba7a8c33440e3f15931b5c"
+    },
+    "catalog_sha256": "7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408",
+    "bank_sha256": "1ad3c21e482b1ead53a5943a3e5fedee450f75f0f31d9192e08e6543ca84fee2",
+    "bootstrap_layer_sha256": null
+  },
+  "co_change_bank_and_descriptions": false,
+  "co_change_check_available": true,
+  "frozen_drift": [],
+  "baseline_comparable": null,
+  "baseline_incomparable_reason": null,
+  "newly_failed": [],
+  "newly_passed": [],
+  "results": [
+    {
+      "id": "neg-apology-email",
+      "utterance": "帮我写一封给客户的道歉邮件",
+      "expected": "none",
+      "acceptable": [],
+      "selected": "none",
+      "confidence": 0.95,
+      "clarify": false,
+      "acceptable_hit": false,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "labels": [],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "none",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "none",
+          "clarify": false,
+          "confidence": 1.0,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "neg-translate-passage",
+      "utterance": "把这段中文翻译成英文",
+      "expected": "none",
+      "acceptable": [],
+      "selected": "none",
+      "confidence": 0.95,
+      "clarify": false,
+      "acceptable_hit": false,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "labels": [],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "none",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "none",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "neg-okr-planning",
+      "utterance": "帮我制定下个季度团队的 OKR",
+      "expected": "none",
+      "acceptable": [],
+      "selected": "none",
+      "confidence": 0.95,
+      "clarify": false,
+      "acceptable_hit": false,
+      "must_not_route_to": [],
+      "status": "PASS",
+      "labels": [],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "none",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "none",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "gap-rust-service",
+      "utterance": "用 Rust 写一个高性能网关服务",
+      "expected": "product-rd-workflow",
+      "acceptable": [
+        "none"
+      ],
+      "selected": "none",
+      "confidence": 0.95,
+      "clarify": false,
+      "acceptable_hit": true,
+      "must_not_route_to": [
+        "go-microservice-dev",
+        "python-service-dev",
+        "nodejs-service-dev",
+        "go-microservice-architecture"
+      ],
+      "status": "PASS",
+      "labels": [
+        "ownership_split"
+      ],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "none",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "product-rd-workflow",
+          "clarify": false,
+          "confidence": 0.7,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    },
+    {
+      "id": "gap-windows-desktop",
+      "utterance": "开发一个 Windows 桌面客户端程序",
+      "expected": "product-rd-workflow",
+      "acceptable": [
+        "none"
+      ],
+      "selected": "product-rd-workflow",
+      "confidence": 0.65,
+      "clarify": true,
+      "acceptable_hit": false,
+      "must_not_route_to": [
+        "app-cross-platform-dev",
+        "miniapp-product-dev",
+        "web-react-dev"
+      ],
+      "status": "PASS",
+      "labels": [],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "product-rd-workflow",
+          "clarify": true,
+          "confidence": 0.65,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "product-rd-workflow",
+          "clarify": false,
+          "confidence": 0.65,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true
+    }
+  ]
+}

@@ -71,19 +71,51 @@ with open(bank, encoding="utf-8") as fh:
         elif rid:
             seen[rid] = lineno
 
+        # "none" is the runner's negative-control / coverage-gap sentinel
+        # (eval-routing-bank.rb): the expected outcome is that no catalog skill
+        # claims the utterance. It is an outcome, never a routable target.
         expected = row.get("expected_skill")
-        if expected and expected not in installed:
+        if expected and expected != "none" and expected not in installed:
             bad(f"line {lineno} ({rid}): expected_skill '{expected}' is not a skill in skills/")
 
-        must_not = row.get("must_not_route_to") or []
-        if not isinstance(must_not, list):
-            bad(f"line {lineno} ({rid}): must_not_route_to must be a list")
+        # Type-check the ORIGINAL value: `x or []` would first convert an
+        # explicitly invalid "" (or 0/false) into a clean empty list, so the
+        # deterministic lane would pass a row the Ruby runner rejects.
+        must_not = row.get("must_not_route_to")
+        if must_not is None:
+            must_not = []
+        elif not isinstance(must_not, list):
+            bad(f"line {lineno} ({rid}): must_not_route_to must be a list, got {must_not!r}")
             must_not = []
         for target in must_not:
-            if target not in installed:
+            if target == "none":
+                bad(f"line {lineno} ({rid}): must_not_route_to names the sentinel 'none' (an outcome, not a routable target)")
+            elif target not in installed:
                 bad(f"line {lineno} ({rid}): must_not_route_to names '{target}', not a skill in skills/")
             if target == expected:
                 bad(f"line {lineno} ({rid}): '{target}' is both expected_skill and must_not_route_to")
+
+        acceptable = row.get("acceptable")
+        if acceptable is None:
+            acceptable = []
+        elif not isinstance(acceptable, list):
+            bad(f"line {lineno} ({rid}): acceptable must be a list, got {acceptable!r}")
+            acceptable = []
+        for target in acceptable:
+            if target != "none" and target not in installed:
+                bad(f"line {lineno} ({rid}): acceptable names '{target}', not a skill in skills/ (nor the 'none' sentinel)")
+            if target == expected:
+                bad(f"line {lineno} ({rid}): '{target}' is both expected_skill and acceptable (redundant)")
+            if target in must_not:
+                bad(f"line {lineno} ({rid}): '{target}' is both acceptable and must_not_route_to (contradictory)")
+
+        # Anti-gaming mirror of the runner's vacuous-row rule: expected +
+        # acceptable must leave at least one outcome that would fail the row,
+        # or every valid grader selection passes and the fixture fakes green.
+        if isinstance(acceptable, list) and expected:
+            outcome_space = set(installed) | {"none"}
+            if not outcome_space - ({expected} | set(acceptable)):
+                bad(f"line {lineno} ({rid}): expected_skill plus acceptable cover every possible outcome (vacuous row)")
 
 # A truncated or emptied bank must fail rather than vacuously pass.
 MIN_ROWS = 100
@@ -203,3 +235,52 @@ print(f"routing_bank_provenance_info: source present on {with_source}/{rows} row
       f"(docs/f4-skill-effectiveness-harness.md lists it as required; not enforced here)")
 print(f"routing_bank_integrity_ok rows={rows} (structure only — routing NOT evaluated)")
 PY
+main_rc=$?
+[ "$main_rc" -eq 0 ] || exit "$main_rc"
+
+# --- validator self-proof (oracle-can-fail) ----------------------------------
+# A green main run proves nothing about the new field predicates unless the
+# validator is also seen to RED on applied mutants. Run this same script once
+# against a synthetic root carrying one mutant per predicate, and require both
+# the non-zero exit and each predicate's own FAIL message. Guarded against
+# recursion: the inner invocation skips this section.
+if [ -z "${BANK_INTEGRITY_SELFPROOF:-}" ]; then
+  SP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/bank-integrity-selfproof.XXXXXX")"
+  trap 'rm -rf "$SP_ROOT"' EXIT
+  mkdir -p "$SP_ROOT/skills/testing-strategy" "$SP_ROOT/skills/tighten-doc" "$SP_ROOT/eval"
+  printf -- '---\ndescription: stub\n---\n' > "$SP_ROOT/skills/testing-strategy/SKILL.md"
+  printf -- '---\ndescription: stub\n---\n' > "$SP_ROOT/skills/tighten-doc/SKILL.md"
+  cat > "$SP_ROOT/eval/routing-tasks.jsonl" <<'MUTANTS'
+{"id": "bad-mustnot-none", "utterance": "x", "expected_skill": "testing-strategy", "why_expected": "y", "frozen_at_sha": "root", "must_not_route_to": ["none"]}
+{"id": "bad-acc-restate", "utterance": "x", "expected_skill": "testing-strategy", "why_expected": "y", "frozen_at_sha": "root", "acceptable": ["testing-strategy"]}
+{"id": "bad-acc-unknown", "utterance": "x", "expected_skill": "testing-strategy", "why_expected": "y", "frozen_at_sha": "root", "acceptable": ["not-a-skill"]}
+{"id": "bad-acc-contradict", "utterance": "x", "expected_skill": "testing-strategy", "why_expected": "y", "frozen_at_sha": "root", "acceptable": ["tighten-doc"], "must_not_route_to": ["tighten-doc"]}
+{"id": "bad-acc-empty-string", "utterance": "x", "expected_skill": "testing-strategy", "why_expected": "y", "frozen_at_sha": "root", "acceptable": ""}
+{"id": "bad-mustnot-empty-string", "utterance": "x", "expected_skill": "testing-strategy", "why_expected": "y", "frozen_at_sha": "root", "must_not_route_to": ""}
+{"id": "bad-none-typo", "utterance": "x", "expected_skill": "not-a-skill", "why_expected": "y", "frozen_at_sha": "root"}
+{"id": "bad-universal-pass", "utterance": "x", "expected_skill": "testing-strategy", "why_expected": "y", "frozen_at_sha": "root", "acceptable": ["tighten-doc", "none"]}
+MUTANTS
+  sp_out="$(BANK_INTEGRITY_SELFPROOF=1 BANK_ROOT="$SP_ROOT" bash "$0" 2>&1)"
+  sp_rc=$?
+  if [ "$sp_rc" -eq 0 ]; then
+    echo "FAIL: validator self-proof — the mutant bank exited 0 (the oracle cannot fail)" >&2
+    exit 1
+  fi
+  for expect in \
+    "bad-mustnot-none): must_not_route_to names the sentinel 'none'" \
+    "bad-acc-restate): 'testing-strategy' is both expected_skill and acceptable" \
+    "bad-acc-unknown): acceptable names 'not-a-skill'" \
+    "bad-acc-contradict): 'tighten-doc' is both acceptable and must_not_route_to" \
+    "bad-acc-empty-string): acceptable must be a list, got ''" \
+    "bad-mustnot-empty-string): must_not_route_to must be a list, got ''" \
+    "bad-none-typo): expected_skill 'not-a-skill' is not a skill in skills/" \
+    "bad-universal-pass): expected_skill plus acceptable cover every possible outcome (vacuous row)"; do
+    case "$sp_out" in
+      *"$expect"*) : ;;
+      *) echo "FAIL: validator self-proof — expected mutant message not found: $expect" >&2
+         echo "$sp_out" >&2
+         exit 1 ;;
+    esac
+  done
+  echo "routing_bank_validator_selfproof_ok: 8 applied mutants red on their own assertions"
+fi

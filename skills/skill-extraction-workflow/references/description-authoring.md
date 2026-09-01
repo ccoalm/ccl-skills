@@ -68,6 +68,15 @@ Bad: `Proactively invoke when the user shares a draft doc / spec / plan and asks
 
 Good: `Skip when the ask is already scoped to one stack (e.g. "fix this React render bug" → web-react-dev; "add a GORM index" → go-microservice-dev; "调下这个按钮间距" → product-ui-ux-design), or when the user is reporting a defect / failure / regression → defect-diagnosis owns reproduction and root cause first.`
 
+## Body routing pointers: the quadruple
+
+The description is not the only routing surface an author writes: skill/reference BODY text routes too, through cross-skill and cross-reference pointers ("route to X", "read Y before Z"). Tier-1 static analysis parses only the description, so body pointers are held to an authoring contract instead:
+
+- **Every cross-skill or cross-reference routing pointer in body text must carry the routing quadruple**: trigger (when to go read the other surface), scope (which file or small subset), output (what decision/artifact to extract), and return point (where to resume in the owning workflow). A pointer whose parts are obvious from sentence position may state them compactly ("at step 3, read X's §Y for the Z decision, then continue step 4").
+- A bare "refer to X if useful" / "参见 X" with no trigger and no extraction target is never a landing shape: such pointers rarely fire, and when they do fire they read too much (source-observed: unbounded pointers were the dominant dead-routing shape in an adopting skill pack; the pack that enforced the quadruple had two verified adopters and no dead pointers).
+- The description-side Skip-when `→ skill` idiom already satisfies the quadruple (trigger = the skip condition, scope = the target skill's entry, output = ownership transfer, return = none) — no extra wording needed there.
+- Detector pairing: a pointer that routes but is never read shows up as the **silent skip** failure mode in `eval-routing.md`'s failure-mode vocabulary (B-side probes / Tier-3 traces), not in Tier-1/2 — fix the pointer's trigger and scope, not the description.
+
 ## Precedence against session-injected process skills
 
 A routing / workflow skill competes not only with sibling skills but also with process-discipline skills that some hosts INJECT at session start with very forceful language (e.g. a brainstorming skill whose description says "MUST use before creating features / adding functionality"). At initial routing time the router primarily sees skill names, descriptions, and host/session rules — the workflow body has not loaded yet, so an "Entry precedence" paragraph in the body does NOT win the routing decision. If your routing skill should own the entry point for a request class that an injected process skill also claims, the description must:

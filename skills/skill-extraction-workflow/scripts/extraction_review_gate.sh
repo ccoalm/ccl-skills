@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Extraction-owned autonomous review wrapper: one review plus two challenges.
+# Extraction-owned autonomous review wrapper: one review plus one challenge.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
@@ -8,7 +8,7 @@ CONTROLLER="$SCRIPT_DIR/../../code-review/scripts/review_gate.sh"
 for arg in "$@"; do
   case "$arg" in
     --challenge-b*)
-      echo "extraction_review_gate_error: challenge budget is fixed at 2" >&2
+      echo "extraction_review_gate_error: challenge budget is fixed at 1" >&2
       exit 2
       ;;
   esac
@@ -19,4 +19,4 @@ if [[ ! -x "$CONTROLLER" ]]; then
   exit 2
 fi
 
-exec bash "$CONTROLLER" --challenge-budget 2 "$@"
+exec bash "$CONTROLLER" --challenge-budget 1 "$@"

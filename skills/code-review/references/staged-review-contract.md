@@ -314,6 +314,11 @@ self-review plus explicit task reframing; it does not silently create a new
 Agent budget. An untracked challenge is one-off advisory evidence; it cannot
 enter a later Agent round or satisfy the local completion checkpoint.
 
+Two consequences follow from those stable bindings and must be planned for before round 1:
+
+- The selected-owner digest hashes each selected owner package's current working tree, and owners derive from the candidate's own paths — so a candidate edit inside any selected owner package invalidates every prior receipt and the next tracked round fails `review_chain_invalid`. For a self-hosted candidate (a skill-repo diff editing the package that owns it) that is nearly every applied fix — one confined to files outside every selected owner drifts only the candidate hash and may continue in-chain: "do not reset Agent authority" promises no continuation, and the in-chain tolerance for older candidate hashes is reachable only while the fix stays outside its selected owners.
+- A chain restarted after such a break re-enters the same cumulative Agent budget and must never be counted as fresh authority; the bounded restart recipe for the extraction lane (batched dispositions, cross-chain round accounting, full-context first packet, terminal disposition at the cap) is owned by the extraction workflow's dual-track gate reference.
+
 The controller is stateless and prevents accidental/cooperative resets only. A
 trusted host or platform must retain the ledger when hostile local callers are in
 scope; a repository-local counter cannot authenticate human authority.

@@ -41,10 +41,11 @@
 
 ## Tier-2:路由 task-bank + 廉价 grader(已落地,advisory)
 
-`scripts/eval-routing-bank.rb <repo-root> [--bank p] [--model m] [--limit N] [--dry-run] [--json p] [--baseline p] [--desc-budget-chars N]`。`--desc-budget-chars N` 把每条 description 截到前 N 字符再评（消费端截断臂——如 Codex 在 ~2% 上下文预算/未知窗口 8,000 字符下压缩技能清单）；plain 与 budgeted 各跑一遍即可定位"只活在描述尾部"的路由触发词。`make eval-routing-bank`。
+`scripts/eval-routing-bank.rb <repo-root> [--bank p] [--model m] [--limit N] [--dry-run] [--json p] [--baseline p] [--desc-budget-chars N] [--replicas N]`。`--desc-budget-chars N` 把每条 description 截到前 N 字符再评（消费端截断臂——如 Codex 在 ~2% 上下文预算/未知窗口 8,000 字符下压缩技能清单）；plain 与 budgeted 各跑一遍即可定位"只活在描述尾部"的路由触发词。`--replicas N` 每 task 评 N 次:task 判定取保守共识(任一有效副本 FAIL 即 FAIL),并报告副本 top1 一致率——不同 (bank, replicas) 配置是不同尺子,不得互相 diff 当回归。`make eval-routing-bank`。
 
-- 冻结 task-bank `eval/routing-tasks.jsonl`:每行 `{id, utterance, expected_skill, must_not_route_to?, source, why_expected, frozen_at_sha}`,种子取自 source-register 历史 miss + bootstrap 路由规则。
-- grader = 每 task 一次本机 `claude --print --tools "" --model <haiku>`,喂 utterance + 全部 skill description(agent 真正路由的那份面),要 `{selected_skill, confidence, rationale_short}`。
+- 冻结 task-bank `eval/routing-tasks.jsonl`:每行 `{id, utterance, expected_skill, acceptable?, must_not_route_to?, source, why_expected, frozen_at_sha}`,种子取自 source-register 历史 miss + bootstrap 路由规则。**已修复的路由 miss 必须把其 utterance 冻结成 bank task 落在同一交付里**(修复不冻结=下次同类漂移无回归面)。`expected_skill: "none"` 是否定对照/覆盖空洞哨兵:正确结果是没有技能认领;`acceptable` 列出可辩护替代结果(如空洞探针上 coordinator 接管与拒绝都对);`must_not_route_to` 点名吸入诱饵邻居。结构由 `test_routing_bank_integrity.sh` 确定性把关(sentinel 只准出现在 expected/acceptable,不准进 must_not)。
+- **冻结案例神圣(regressions-are-sacred)**:已冻结案例的删除或判定面改写(bank task 的 expected/acceptable/must_not,golden trace 的 assert 块)是一次回归裁决事项,与邻居回归同权——平均改善不得抵消单条冻结案例的失守,且「曾 yes 现非 yes」**含降级为 unsure/INCONCLUSIVE** 都算回归。删除/改判的每条案例必须在同一轮的 register 追加行里写 `case-retired: <id>` 或 `case-rescoped: <id>` 并给理由,交独立评审裁决;确定性半边由 `test_frozen_case_sanctity.sh` 按 `CCL_SKILL_BASE_REF` 把关——无裁决行即红,无 base ref 时打印显式 skip token(skipped ≠ passed),它只保证交易可见,不裁决交易正当性。
+- grader = 每 task(×replicas)一次本机 `claude --print --tools "" --model <haiku>`,喂 utterance + 全部 skill description(agent 真正路由的那份面),要 `{selected_skill|none, clarify, confidence, rationale_short}`。**clarify 率、低置信率(<0.5)、副本一致率是一等报告字段**,不是旁注——路由质量的残余风险常在"高置信直选却选错、无自纠路径"这类 pass/fail 看不见的分布里。
 - **路由兼容性信号,不是真值预言机** —— grader 自己可能错;只衡量"当前 description 能否让廉价模型把固定 utterance 路由到 expected"。
 - **advisory**:不接 `check-ccl-skills.sh`,不挡 merge。退出码:`0` = 跑完;`2` = 用法;`3` = grader 整体不可用(claude CLI 缺失则打印 skipped 后 `0`)。路由 miss 永不非 0。
 - **防作弊**:runner 校验每 task 的 `frozen_at_sha` 是 HEAD 祖先(非祖先 = drift,排除出回归判定);同一改动若同时动 task-bank 和 SKILL.md description 会显式告警(防"改 skill 顺手改测试让它过")。
@@ -58,6 +59,18 @@
 2. 改后通过数必须在**最终措辞**上重测:中间稿的通过数在措辞再变的那一刻作废,不得挪用到最终候选的证据里。
 3. 受影响邻居用例集默认改前/改后各 **≥3 轮**,集合须含期望 owner 自己的兄弟用例与高词面重叠的他 owner 用例;邻居回归作为独立 finding 交由本轮实际门禁处置——**该 finding 须以 blocking 记入本轮 dual-track 评审记录,且只能由独立评审方豁免,不能由实现者自行判定「本轮没有门禁采用这组证据」而放行**。降级的是「F4 自己充当合并门禁」这一声称,不是「回归必须被人裁决」这一义务;后者若也随之消失,这一条就只剩被裁决方自审。
 4. 每轮判决必须连同 **runner 调用、grader 模型身份、候选身份**(commit 或描述内容指纹)与**原始逐轮工件的持久定位符**一并记入轮记录;没有定位符的通过数只能标注为 operator-reported,不得据以宣称修复轮已 concluded。
+5. **单变量归因**:一次改前/改后对照只准动**一个路由变量**(一条 description,或同一 skill 不可分割的一组路由面)。同时动多条 description 的批量改动,其对照差值不可归因到任何一条,只能按整包回归读——要归因就拆成逐条 A/B。(源侧实测形态:仅替换一条 description 的成对子集对照,把命中从约 2/3 提到 95%,且提升可归因到那一条改动——多条同动时这句话说不出口。)
+
+## 路由失效形态词表(跨层;报告与修复讨论用这套名字)
+
+pass/fail 之外,路由失败有可命名的形态;每个形态有不同的检测器与不同的修法,混称"路由不准"会修错面:
+
+| 形态 | 判据 | 检测器 | 典型修法 |
+|---|---|---|---|
+| **吸入 (absorbed)** | 应被拒绝(expected none)或应远离诱饵邻居(must_not)的 utterance 被某技能认领——覆盖空洞不被承认而被最近邻低置信/clarify 拉走 | bank 否定对照+空洞探针,runner `absorbed` 标签 | 认领空洞(补 owner)或在诱饵邻居 description 加排除句;不要靠 grader 自觉 |
+| **归属分裂 (ownership_split)** | 同一 utterance 多副本给出不同 top1——所有权不稳定,谁都像 owner | `--replicas ≥2` 一致率 + `ownership_split` 标签 | Skip-when 互相消歧或触发词改具体(description-authoring 的 80% 阈值) |
+| **静默跳过 (silent skip)** | 路由"成功"但被选技能的正文从未被读/其硬规则从未被应用——选择层过了,质量层空转。判据阶梯:mounted → invoked → 文件真被读 → 下游行为改变;mounted-only 不证明任何生效 | 非 Tier-1/2 可见;B 面 body-compliance 探针 + Tier-3 真 agent 事件流 | 修正文 firing point/read routing(body 指针补齐四元组,见 description-authoring.md「Body routing pointers」),不是修 description |
+| **高置信错选** | 错选但 confidence 高、无 clarify——事后无自纠路径,比低置信错选更危险 | 报告里 FAIL ∩ 高置信 ∩ clarify=false 的行 | 触发词消歧;必要时在正文加入口自检;残余风险如实记录 |
 
 ## Tier-3:hub golden trace 真 agent 回放(已落地,advisory,人工判定)
 
@@ -70,6 +83,14 @@
 - **advisory + 人工判定**:不接门禁、不挡 merge。状态 PASS / FAIL / INCONCLUSIVE(agent 未在 max-turns 内路由)。退出码:`0` = 跑完;`2` = 用法;`3` = agent 整体不可用(claude 缺失则 skipped 后 `0`)。路由漂移永不非 0。
 - **随机性**:agent 非确定;判定先人工、nightly 起步,有稳定史前不自动 gate。防作弊同 T2(`frozen_at_sha` 祖先校验)。
 - **双用途**:除回归外,Tier-3 还可当**改技能前的 RED-baseline**(改前手动跑触发场景看真 agent 是否真路由错,改后看 compliance)——可选;只有真观察到 miss 才算 RED(PASS/INCONCLUSIVE 不算),小 N + 非确定有噪声,手动跑两次自己留两份报告。落地 + 防作弊注意见 [validation-and-landing.md](validation-and-landing.md) "Optional real-agent RED-baseline"。
+
+## B 面:正文合规探针 body-compliance(已落地,advisory)
+
+`eval/body-compliance-eval.rb <repo-root> [--arm L] [--json p] [--model m] [--timeout s] [--ids a,b]`。`make eval-body-compliance`。路由三层测「选没选对技能」;B 面测**已激活技能的正文硬规则是否真被应用**——正文即 prompt,逐探针 required/forbidden marker 契约判分,覆盖是 NAMED SUBSET(见 runner 头部声明)。
+
+- 含 product-rd-workflow 停机谓词的**成对分类探针**(prd-stop-*/prd-continue-*):每对场景恒定、只变谓词判别特征,按闸自身的字面 `continuing:`/`blocked:` marker 判分——确定性锚钉的是这些谓词的**措辞存在性**,只有这些探针检验**案例被分到哪边**。
+- 触发纪律:改动触及某技能正文硬规则或停机谓词时,must run the affected `--ids` probe subset on this machine before landing,结果按该改动既有门禁处置;advisory 契约与升级路径(提炼确定性不变量,永不阻断 LLM 判定)见 `eval/AGENTS.md` 与 [f4 手册](../../../docs/f4-skill-effectiveness-harness.md)「双轨承载面与运行分层」。
+- 实测的双轨互补边界(锚管措辞、探针管行为漂移、不是埋句绊线)与小样本告诫,单一落点在 f4 手册「双轨承载面与运行分层」,此处不复述。
 
 ## Health roll-up:描述性仪表盘(已落地,advisory)
 
