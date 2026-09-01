@@ -1464,9 +1464,12 @@ if [ -n "$root_worktree_toplevel" ]; then
     # verdicts by failing here.
     echo "review_ledger_binding_smoke_skipped: no controller in this checkout"
   elif git -C "$root" rev-parse --verify --quiet HEAD~1 >/dev/null 2>&1; then
-    if smoke_candidate="$(env -u CCL_SKILL_BASE_REF python3 "$ledger_binding_gate" \
-      --repo-root "$root" --base HEAD~1 --print-candidate 2>/dev/null)" \
-      && [[ "$smoke_candidate" =~ ^[0-9a-f]{64}$ ]]; then
+    smoke_output="$(env -u CCL_SKILL_BASE_REF python3 "$ledger_binding_gate" \
+      --repo-root "$root" --base HEAD~1 --print-candidate 2>&1)"
+    smoke_status=$?
+    if [[ "$smoke_status" -eq 0 ]] \
+      && { [[ "$smoke_output" =~ ^[0-9a-f]{64}$ ]] \
+        || [[ "$smoke_output" == *review_ledger_binding_no_change* ]]; }; then
       echo "review_ledger_binding_smoke_ok"
     else
       echo "review_ledger_binding_smoke_failed: the gate could not freeze a candidate in this checkout" >&2

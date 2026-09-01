@@ -232,8 +232,14 @@ def main() -> int:
     paths = tuple(args.paths)
     base = resolve_base(repo_root, base)
     changed = changed_skill_paths(repo_root, base, paths)
-    if not changed and not args.print_candidate:
-        print(f"review_ledger_binding_ok: no reviewed-path change against {base}")
+    if not changed:
+        # No reviewed path moved, so there is no candidate to freeze and nothing to
+        # bind. Say which it is rather than letting an empty packet surface as a
+        # freeze error, which reads like a broken gate.
+        if args.print_candidate:
+            emit(f"review_ledger_binding_no_change: no reviewed-path change against {base}")
+        else:
+            print(f"review_ledger_binding_ok: no reviewed-path change against {base}")
         return 0
 
     module = load_controller(repo_root)
