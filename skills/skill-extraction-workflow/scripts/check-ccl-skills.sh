@@ -1444,6 +1444,33 @@ if [ -n "$root_worktree_toplevel" ]; then
   fi
   ruby "$impact_chain_gate" "$root"
 
+  # Merge-side binding, exercised against a real checkout rather than only inside
+  # its own suite's throwaway repository: the path that broke in development was
+  # loading the controller and freezing the packet, and a break there would
+  # otherwise pass every test while letting an unreviewed candidate land. This is
+  # a smoke of that path, not the enforcement point -- the merge verdict belongs
+  # to the CI step, which is inside the bound paths so it cannot be removed
+  # without moving the candidate. CCL_SKILL_BASE_REF is dropped deliberately: this
+  # checker runs against synthetic clones inside other suites, where an inherited
+  # base resolves against the wrong repository and reds for the wrong reason.
+  ledger_binding_gate="$checker_scripts_dir/review_ledger_binding.py"
+  if [[ -L "$ledger_binding_gate" || ! -f "$ledger_binding_gate" ]]; then
+    echo "missing_review_ledger_binding_gate: $ledger_binding_gate (must be a regular file beside the checker, not a symlink)" >&2
+    exit 2
+  fi
+  if git -C "$root" rev-parse --verify --quiet HEAD~1 >/dev/null 2>&1; then
+    if smoke_candidate="$(env -u CCL_SKILL_BASE_REF python3 "$ledger_binding_gate" \
+      --repo-root "$root" --base HEAD~1 --print-candidate 2>/dev/null)" \
+      && [[ "$smoke_candidate" =~ ^[0-9a-f]{64}$ ]]; then
+      echo "review_ledger_binding_smoke_ok"
+    else
+      echo "review_ledger_binding_smoke_failed: the gate could not freeze a candidate in this checkout" >&2
+      exit 2
+    fi
+  else
+    echo "review_ledger_binding_smoke_skipped: no parent commit to diff against"
+  fi
+
   # Whole-ledger firing-path resolution. The impact-chain gate above is
   # diff-scoped by design, so a row's firing path is machine-checked exactly once
   # — at the commit that added it. Nothing re-checks it afterwards, while the

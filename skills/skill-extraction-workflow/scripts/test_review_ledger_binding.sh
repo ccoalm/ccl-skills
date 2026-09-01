@@ -46,9 +46,17 @@ out="$(run_gate --base "$BASE")"; rc=$?
 check "an unchanged reviewed path needs no review evidence" \
   '[ "$rc" = 0 ] && case "$out" in *"no reviewed-path change"*) true;; *) false;; esac'
 
-out="$(run_gate)"; rc=$?
-check "a missing base ref reports an unevaluated gate rather than a pass verdict" \
-  '[ "$rc" = 0 ] && case "$out" in *"gate not evaluated"*) true;; *) false;; esac'
+out="$(CCL_SKILL_BASE_REF= run_gate)"; rc=$?
+check "a missing base ref fails closed instead of recording a passing check" \
+  '[ "$rc" = 2 ] && case "$out" in *"nothing was checked"*) true;; *) false;; esac'
+
+out="$(CCL_SKILL_BASE_REF= run_gate --allow-unevaluated)"; rc=$?
+check "an event with genuinely no base must say so out loud to exit clean" \
+  '[ "$rc" = 0 ] && case "$out" in *"nothing was checked"*) true;; *) false;; esac'
+
+out="$(CCL_SKILL_BASE_REF="$BASE" run_gate)"; rc=$?
+check "the gate reads the base from the environment variable its diagnostic names" \
+  '[ "$rc" = 0 ] && case "$out" in *"no reviewed-path change"*) true;; *) false;; esac'
 
 # The fix batch lands under the reviewed paths.
 printf 'baseline\nlanded change\n' >"$REPO/skills/skill-extraction-workflow/SKILL.md"
@@ -124,8 +132,8 @@ Path(sys.argv[1]).write_text(json.dumps({"schema_version": 3, "mode": "review", 
 JSONGEN
 git -C "$REPO" add -A && git -C "$REPO" commit -qm "wording-only proof"
 out="$(run_gate --base "$BASE")"; rc=$?
-check "a wording-only proof bound to the landing candidate satisfies the gate" \
-  '[ "$rc" = 0 ] && case "$out" in *"wording-only proof binds"*) true;; *) false;; esac'
+check "a hand-writable receipt-shaped file never satisfies the gate" \
+  '[ "$rc" = 1 ] && case "$out" in *"no accepted review evidence"*) true;; *) false;; esac'
 
 # Precision: a wording-only receipt for a different candidate must not pass.
 python3 - "$REPO/specs/round/evidence/wording-review.json" <<'PY'
@@ -140,8 +148,15 @@ Path(sys.argv[1]).write_text(json.dumps({
 PY
 git -C "$REPO" add -A && git -C "$REPO" commit -qm "stale wording-only proof"
 out="$(run_gate --base "$BASE")"; rc=$?
-check "a wording-only proof for another candidate does not satisfy the gate" \
+check "a receipt-shaped file for another candidate does not satisfy the gate" \
   '[ "$rc" = 1 ] && case "$out" in *"no accepted review evidence"*) true;; *) false;; esac'
+
+# The suite above exercises a synthetic repository. The gate must also run against
+# the real checkout it ships in, or a break in that path passes every test here.
+REAL_ROOT="$(cd "$DIR/../../.." && pwd -P)"
+real_out="$(env -u CCL_SKILL_BASE_REF python3 "$GATE" --repo-root "$REAL_ROOT" --base HEAD~1 --print-candidate 2>&1)"; real_rc=$?
+check "the gate freezes a candidate against the real checkout it ships in" \
+  '[ "$real_rc" = 0 ] && case "$real_out" in [0-9a-f]*) [ ${#real_out} = 64 ];; *) false;; esac'
 
 if [ "$fails" -gt 0 ]; then
   echo "test_review_ledger_binding: $fails failing case(s)" >&2

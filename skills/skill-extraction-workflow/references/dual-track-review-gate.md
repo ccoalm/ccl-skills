@@ -593,7 +593,7 @@ For a focused single-skill change:
 - **Round 2 — challenge**: after implementer triage — fixes stay HELD: applying any fix before this round breaks the chain, so the challenge runs on the frozen round-1 candidate (self-hosted-chain rule; enumeration item 1 above) — attack the highest-risk unresolved surface with an unprimed prompt.
 - **Round 3 — succession challenge, owed only when the fix batch moved the candidate**: apply the held batch, commit it, then ask `scripts/review_ledger_binding.py --print-candidate` what the landing candidate now hashes to. Unchanged (every finding accepted, pre-existing, or source-refuted) ⇒ the lane ends at round 2 and owes nothing. Changed ⇒ open ONE succeeding chain with `--predecessor-chain-result-file <round-2 receipt>` and challenge the landing candidate on a focus distinct from round 2's. This is the final Agent-initiated external round; its findings feed the post-budget checkpoint rather than an automatic further round, and the batch lands MR/PR-listed.
 
-Broad extractions use the same fixed two-round Agent budget. Continue their implementation in smaller independent slices after budget exhaustion; a human may explicitly request further review when useful.
+Broad extractions use the same lane budget, round 3 included on the same condition. Continue their implementation in smaller independent slices after budget exhaustion; a human may explicitly request further review when useful.
 
 ### Anti-patterns
 

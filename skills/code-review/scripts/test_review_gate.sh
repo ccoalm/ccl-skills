@@ -3284,6 +3284,20 @@ for succession_case in forged-controller foreign-scope; do
   check "a succession rejects a ${succession_case} predecessor" \
     '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession"*) true;; *) false;; esac'
 done
+# Succession is one-shot. If a succession receipt could be continued in-chain, or
+# could itself be the next succession's predecessor, the relaxation would daisy-chain
+# into unbounded autonomous rounds -- the exact bypass it must not become.
+printf '%s\n' "$succ_phase_two" >"$WORK/succ-phase-two.json"
+reset_case passed unavailable unavailable
+out="$(run_challenge_gate --focus chained-succession --review-chain-id succ-phase-three --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-phase-two.json")"; rc=$?
+check "a succession round cannot be the predecessor of another succession" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"succession does not compose"*) true;; *) false;; esac'
+
+reset_case passed unavailable unavailable
+out="$(run_challenge_gate --focus continued-succession --review-chain-id succ-phase-two --autonomous-review-index 2 --prior-review-result-file "$WORK/succ-phase-two.json")"; rc=$?
+check "a succession round cannot be continued in its own chain" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"succession round, which is one-shot"*) true;; *) false;; esac'
+
 printf '%s\n' "$succession_saved_diff" >"$WORK/diff.patch"
 
 python3 - "$WORK/passed-round-one.json" "$WORK/chain-round-two.json" \

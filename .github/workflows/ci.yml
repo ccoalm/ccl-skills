@@ -107,8 +107,12 @@ jobs:
           CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           if [[ -z "$CANDIDATE_BASE_REF" ]] || ! git merge-base "$CANDIDATE_BASE_REF" HEAD >/dev/null 2>&1; then
-            echo "review_ledger_binding_skipped: no resolvable base ref for this event"
-            exit 0
+            # An event with genuinely no base (a first branch push) has nothing to
+            # diff against. Say so through the gate's own explicit flag rather than
+            # exiting 0 around it, so a base-wiring mistake cannot look like a pass.
+            python3 skills/skill-extraction-workflow/scripts/review_ledger_binding.py \
+              --repo-root . --allow-unevaluated
+            exit $?
           fi
           python3 skills/skill-extraction-workflow/scripts/review_ledger_binding.py \
             --repo-root . --base "$CANDIDATE_BASE_REF"

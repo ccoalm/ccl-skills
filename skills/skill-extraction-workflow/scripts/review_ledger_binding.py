@@ -10,8 +10,10 @@ The reviewed identity is the packet the controller froze, so this recomputes tha
 packet with the controller's own `freeze_packet` rather than a second
 implementation of the same bytes -- two implementations of one hash drift, and the
 drift would read as a forged ledger. Evidence lives outside the reviewed paths
-(`--paths skills` by default), so committing the ledger cannot change the hash the
-ledger records.
+(`--paths skills .github` by default), so committing the ledger cannot change the
+hash the ledger records. The workflow directory is inside those paths on purpose:
+with only `skills/` bound, deleting the CI step that runs this gate would not move
+the candidate the evidence has to match.
 
 Boundaries this gate does NOT close: it cannot prove the caller retained every
 earlier chain, and a caller who never ran the wrapper has no receipt to bind here
@@ -31,6 +33,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import time
 import types
@@ -38,7 +41,7 @@ from pathlib import Path
 
 VALIDATOR = "validate_extraction_review_state.py"
 CONTROLLER = Path("skills") / "code-review" / "scripts" / "review_gate.py"
-DEFAULT_PATHS = ("skills",)
+DEFAULT_PATHS = ("skills", ".github")
 
 
 def emit(message: str) -> None:
@@ -125,6 +128,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", default=".")
     parser.add_argument("--base", default=None)
+    parser.add_argument(
+        "--allow-unevaluated",
+        action="store_true",
+        help="permit a run with no resolvable base to exit 0, for events that have none",
+    )
     parser.add_argument("--evidence-root", default="specs")
     parser.add_argument("--paths", nargs="*", default=list(DEFAULT_PATHS))
     parser.add_argument(
@@ -135,16 +143,18 @@ def main() -> int:
     args = parser.parse_args()
 
     repo_root = Path(args.repo_root).resolve()
-    base = args.base or ""
+    base = args.base or os.environ.get("CCL_SKILL_BASE_REF", "")
     if not base:
-        # The gate is base-relative by construction. A bare run with no base is
-        # not a pass: it is an unevaluated gate, and reporting it as ok is how a
-        # base-relative check becomes decorative.
+        # The gate is base-relative by construction, so a run with no base has
+        # checked nothing. Exiting 0 there is how a base-relative gate becomes
+        # decorative: a base-wiring mistake would read as a passing required
+        # check. Fail closed; a caller whose event genuinely has no base must
+        # say so out loud with --allow-unevaluated.
         emit(
-            "review_ledger_binding_skipped: no base ref supplied "
-            "(set --base or CCL_SKILL_BASE_REF); gate not evaluated"
+            "review_ledger_binding_unevaluated: no base ref supplied "
+            "(pass --base or set CCL_SKILL_BASE_REF); nothing was checked"
         )
-        return 0
+        return 0 if args.allow_unevaluated else 2
 
     paths = tuple(args.paths)
     changed = changed_skill_paths(repo_root, base, paths)
@@ -165,11 +175,14 @@ def main() -> int:
 
     validator = repo_root / "skills" / "skill-extraction-workflow" / "scripts" / VALIDATOR
     ledgers: list[str] = []
-    wording_only: list[str] = []
     for path, payload in scan(repo_root, args.evidence_root):
         if payload.get("candidate_sha256") != expected:
             continue
         relative = str(path.relative_to(repo_root))
+        # Only a validator-accepted ledger counts. A receipt-shaped file proves
+        # nothing on its own: this gate cannot authenticate that a controller
+        # minted it, so any branch keyed on a self-declared field is a bypass a
+        # contributor can hand-write.
         if "closeout_state" in payload and "controller_receipts" in payload:
             accepted, output = validator_accepts(validator, path)
             if accepted:
@@ -179,15 +192,6 @@ def main() -> int:
                 )
                 return 0
             ledgers.append(f"{relative}: {output}")
-        elif payload.get("wording_only_proof_sha256"):
-            wording_only.append(relative)
-
-    if wording_only:
-        print(
-            "review_ledger_binding_ok: wording-only proof binds the landing candidate "
-            f"({expected[:12]}...) -- {wording_only[0]}"
-        )
-        return 0
 
     emit(
         "review_ledger_binding_failed: no accepted review evidence binds the landing "
@@ -199,8 +203,8 @@ def main() -> int:
         emit(f"  rejected ledger -> {row}")
     if not ledgers:
         emit(
-            "  no committed ledger or wording-only proof records this candidate; run the "
-            "extraction review lane against the final, committed tree"
+            "  no committed ledger records this candidate; run the extraction review "
+            "lane against the final, committed tree"
         )
     return 1
 

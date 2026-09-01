@@ -1628,6 +1628,8 @@ def _validate_chain_succession(
         raise GateError(f"chain succession {reason}", "review_chain_invalid")
 
     prior, result_hash = _load_prior_review_result(path_value, 1)
+    if prior.get("predecessor_chain_id") is not None:
+        reject("predecessor is itself a succession round; succession does not compose")
     prior_budget = prior.get("challenge_budget")
     if (
         prior.get("schema_version") != 3
@@ -3090,6 +3092,11 @@ def freeze_review_profile(
             args.prior_review_result_file, start=1
         ):
             prior, result_hash = _load_prior_review_result(path_value, expected_index)
+            if prior.get("predecessor_chain_id") is not None:
+                raise GateError(
+                    f"prior review result {expected_index} is a succession round, which is one-shot",
+                    "review_chain_invalid",
+                )
             expected_mode = "review" if expected_index == 1 else "challenge"
             focus = prior.get("challenge_focus")
             candidate_hash = prior.get("candidate_sha256")
