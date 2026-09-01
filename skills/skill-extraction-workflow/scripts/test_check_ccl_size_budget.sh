@@ -817,6 +817,257 @@ assert_contains "entrypoint_word_budget_block_partial: skills/demo-skill/SKILL.m
 assert_contains "entrypoint_word_budget_blocking_failed" "$out" "word-budget partial emits failed marker"
 assert_not_contains "entrypoint_word_budget_blocking_ok" "$out" "unknown baseline never earns a word-budget pass"
 
+# ---------------------------------------------------------------------------
+# Reference-file line ratchet (fresh repo): a NEW or crossing reference over 500
+# physical lines blocks; a historical over-limit reference may stay level or
+# shrink but not grow; the append-only ledger is excluded by gate design; an
+# unresolvable base fails closed; a long new reference without ## structure
+# draws an advisory, never a block.
+REF_REPO="$TMP/repo-reference-lines"
+mkdir -p "$REF_REPO/skills/demo-skill/references" "$REF_REPO/skills/legacy-skill/references"
+git init -q -b main "$REF_REPO"
+git -C "$REF_REPO" config user.email test@example.invalid
+git -C "$REF_REPO" config user.name "Test User"
+
+write_skill_stub() { # <skill-dir>
+  {
+    printf -- '---\nname: %s\ndescription: reference line-ratchet fixture.\n---\n\n' "$(basename "$1")"
+    printf -- 'Body pointer to references.\n'
+  } > "$1/SKILL.md"
+}
+write_reference_lines() { # <path> <line-count> [--no-headings]
+  local n="$2" i
+  : > "$1"
+  if [ "${3:-}" != "--no-headings" ]; then
+    printf -- '# Fixture reference\n\n## Section one\n' >> "$1"
+    i=3
+  else
+    i=0
+  fi
+  while [ "$i" -lt "$n" ]; do
+    printf -- 'line %s\n' "$i" >> "$1"
+    i=$((i + 1))
+  done
+}
+
+write_skill_stub "$REF_REPO/skills/demo-skill"
+write_skill_stub "$REF_REPO/skills/legacy-skill"
+write_reference_lines "$REF_REPO/skills/demo-skill/references/small.md" 40
+write_reference_lines "$REF_REPO/skills/legacy-skill/references/legacy.md" 620
+git -C "$REF_REPO" add -A
+git -C "$REF_REPO" commit -qm "reference baseline: one small, one historical over-limit"
+git -C "$REF_REPO" checkout -qb feature
+
+run_ref() { # runs with a guaranteed-unset base ref
+  set +e
+  out="$(env -u CCL_SKILL_BASE_REF bash "$SIZE_SCRIPT" "$REF_REPO" 2>&1)"
+  rc=$?
+  set -e
+}
+
+# Case g0: nothing changed => clean counts and the reference verdict token. The
+# historical over-limit file is visible in the counter but reddens nothing.
+run_ref
+assert_rc "$rc" 0 "untouched reference corpus must pass"
+assert_contains "reference_line_over_limit_count_base=1" "$out" "base over-limit count available"
+assert_contains "reference_line_over_limit_count_head=1" "$out" "head over-limit count available"
+assert_contains "reference_line_over_limit_count_delta=+0" "$out" "over-limit delta is signed"
+assert_contains "reference_line_budget_blocking_ok" "$out" "clean reference verdict token"
+assert_not_contains "reference_line_block" "$out" "an untouched over-limit reference must not red an unrelated change"
+
+# Case g1: a NEW reference over the line budget blocks with path, actual, and
+# allowed counts.
+write_reference_lines "$REF_REPO/skills/demo-skill/references/oversized.md" 501
+run_ref
+assert_rc "$rc" 1 "new over-budget reference must block"
+assert_contains "reference_line_block: skills/demo-skill/references/oversized.md: new reference over line budget" "$out" "block names the file"
+assert_contains "head_lines=501" "$out" "block cites the actual line count"
+assert_contains "(> 500)" "$out" "block cites the allowed line count"
+assert_contains "reference_line_budget_blocking_failed" "$out" "reference failure marker present"
+assert_not_contains "reference_line_budget_blocking_ok" "$out" "no false ok next to a reference block"
+assert_not_contains "entrypoint_size_budget_advisory_ok" "$out" "no legacy ok next to a reference failure"
+
+# Case g1b: exactly at the budget is legal (the boundary is > 500, not >= 500).
+write_reference_lines "$REF_REPO/skills/demo-skill/references/oversized.md" 500
+run_ref
+assert_rc "$rc" 0 "a reference exactly at the budget must land"
+assert_contains "reference_line_budget_blocking_ok" "$out" "boundary case keeps the clean verdict"
+rm -f "$REF_REPO/skills/demo-skill/references/oversized.md"
+
+# Case g2: an existing within-limit reference that CROSSES the budget blocks on
+# the same new-or-crossing branch.
+write_reference_lines "$REF_REPO/skills/demo-skill/references/small.md" 640
+run_ref
+assert_rc "$rc" 1 "a reference crossing the budget must block"
+assert_contains "reference_line_block: skills/demo-skill/references/small.md: new reference over line budget" "$out" "crossing block names the file"
+git -C "$REF_REPO" checkout -- skills/demo-skill/references/small.md
+
+# Case g3: a historical over-limit reference may SHRINK and may stay LEVEL.
+write_reference_lines "$REF_REPO/skills/legacy-skill/references/legacy.md" 600
+run_ref
+assert_rc "$rc" 0 "shrinking a historical over-limit reference must land"
+assert_contains "reference_line_budget_legacy_ok: skills/legacy-skill/references/legacy.md" "$out" "legacy allowance token emitted"
+assert_contains "allowed_lines=620" "$out" "legacy allowance is frozen at the base measure"
+assert_contains "delta_lines=-" "$out" "per-file reference delta is negative"
+
+# Case g3b: a same-line-count content edit of a historical over-limit reference
+# lands. A shrink leg alone cannot see a `>` turning into `>=`, which would block
+# an author who only rewrites text inside an already-over-limit file. The shrink
+# from the previous leg is restored first so this one measures a true level edit.
+git -C "$REF_REPO" checkout -- skills/legacy-skill/references/legacy.md
+python3 - "$REF_REPO/skills/legacy-skill/references/legacy.md" <<'PY'
+import sys
+p = sys.argv[1]
+lines = open(p, encoding="utf-8").read().splitlines(True)
+lines[5] = "rewritten content at the same line count\n"
+open(p, "w", encoding="utf-8").writelines(lines)
+PY
+run_ref
+assert_rc "$rc" 0 "a same-size content edit of a historical over-limit reference must land"
+assert_contains "reference_line_budget_legacy_ok: skills/legacy-skill/references/legacy.md" "$out" "level edit keeps the legacy allowance"
+assert_contains "delta_lines=+0" "$out" "the level edit really is level"
+git -C "$REF_REPO" checkout -- skills/legacy-skill/references/legacy.md
+
+# Case g4: the same historical reference may NOT grow.
+write_reference_lines "$REF_REPO/skills/legacy-skill/references/legacy.md" 621
+run_ref
+assert_rc "$rc" 1 "growing a historical over-limit reference must block"
+assert_contains "reference_line_block: skills/legacy-skill/references/legacy.md: over-limit reference grew" "$out" "growth block names the file"
+assert_contains "base_lines=620" "$out" "growth block cites the frozen baseline"
+assert_contains "head_lines=621" "$out" "growth block cites the head count"
+git -C "$REF_REPO" checkout -- skills/legacy-skill/references/legacy.md
+
+# Case g5: the append-only ledger is excluded by gate design — it may exceed the
+# budget and may GROW (append-only rows) without blocking, and says so.
+write_reference_lines "$REF_REPO/skills/demo-skill/references/source-register.md" 900
+run_ref
+assert_rc "$rc" 0 "the append-only ledger must not be line-capped"
+assert_contains "reference_line_budget_ledger_excluded: skills/demo-skill/references/source-register.md" "$out" "ledger exclusion is reported, not silent"
+assert_not_contains "reference_line_block: skills/demo-skill/references/source-register.md" "$out" "ledger growth never blocks"
+git -C "$REF_REPO" add -A
+git -C "$REF_REPO" commit -qm "land the ledger fixture"
+write_reference_lines "$REF_REPO/skills/demo-skill/references/source-register.md" 1200
+run_ref
+assert_rc "$rc" 0 "appending rows to the ledger must stay landable"
+assert_not_contains "reference_line_block" "$out" "ledger append is not a growth block"
+git -C "$REF_REPO" checkout -- skills/demo-skill/references/source-register.md
+
+# Case g6: a rename of a historical over-limit reference carries ONLY its own
+# allowance, and move-plus-growth blocks.
+git -C "$REF_REPO" mv skills/legacy-skill/references/legacy.md skills/legacy-skill/references/legacy-renamed.md
+run_ref
+assert_rc "$rc" 0 "renaming a historical over-limit reference without growth must pass"
+assert_contains "reference_line_budget_move_ok: skills/legacy-skill/references/legacy-renamed.md" "$out" "rename carries its own historical allowance"
+assert_contains "moved_from=skills/legacy-skill/references/legacy.md" "$out" "move diagnostic proves the rename branch ran"
+write_reference_lines "$REF_REPO/skills/legacy-skill/references/legacy-renamed.md" 621
+run_ref
+assert_rc "$rc" 1 "rename plus growth must block"
+assert_not_contains "reference_line_budget_move_ok" "$out" "move credit must not survive growth"
+git -C "$REF_REPO" reset --hard -q HEAD
+
+# Case g7: a changed over-budget reference with an unresolvable base fails
+# closed — losing the baseline must never become a waiver.
+write_reference_lines "$REF_REPO/skills/demo-skill/references/oversized.md" 700
+set +e
+out="$(env CCL_SKILL_BASE_REF=definitely-not-a-ref bash "$SIZE_SCRIPT" "$REF_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 1 "over-budget reference with unknown base must fail closed"
+assert_contains "reference_line_block_partial: skills/demo-skill/references/oversized.md: base unknown" "$out" "reference partial names the file"
+assert_contains "reference_line_budget_blocking_failed" "$out" "reference partial emits the failed marker"
+assert_not_contains "reference_line_budget_blocking_ok" "$out" "unknown baseline never earns a reference pass"
+rm -f "$REF_REPO/skills/demo-skill/references/oversized.md"
+
+# Case g8: committed-only reference growth with an unresolvable base and a clean
+# tree evaluates nothing, so it must say un-evaluated rather than ok.
+write_reference_lines "$REF_REPO/skills/demo-skill/references/oversized.md" 700
+git -C "$REF_REPO" add -A
+git -C "$REF_REPO" commit -qm "commit the reference growth so the tree is clean"
+[ -z "$(git -C "$REF_REPO" status --porcelain)" ] || fail "g8 fixture: tree must be clean"
+set +e
+out="$(env CCL_SKILL_BASE_REF=definitely-not-a-ref bash "$SIZE_SCRIPT" "$REF_REPO" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 0 "base-less clean tree keeps the advisory exit contract"
+assert_contains "reference_line_budget_blocking_unevaluated" "$out" "un-evaluated reference gate says so"
+assert_not_contains "reference_line_budget_blocking_ok" "$out" "a base-less run must never claim a reference pass"
+
+# Case g9: a NEW reference over 100 lines with no ## structure draws the
+# navigation advisory and does NOT block; a structured one stays quiet. The g8
+# over-budget fixture is retired first so this leg measures only its own files.
+git -C "$REF_REPO" rm -q skills/demo-skill/references/oversized.md
+git -C "$REF_REPO" commit -qm "retire the over-budget reference fixture"
+write_reference_lines "$REF_REPO/skills/demo-skill/references/flat.md" 140 --no-headings
+run_ref
+assert_rc "$rc" 0 "the navigation advisory must never block"
+assert_contains "reference_nav_advisory: skills/demo-skill/references/flat.md" "$out" "unstructured long reference draws the advisory"
+assert_contains "reference_line_budget_blocking_ok" "$out" "advisory leaves the blocking verdict clean"
+write_reference_lines "$REF_REPO/skills/demo-skill/references/structured.md" 140
+run_ref
+assert_rc "$rc" 0 "a structured long reference stays clean"
+assert_not_contains "reference_nav_advisory: skills/demo-skill/references/structured.md" "$out" "sectioned reference draws no advisory"
+rm -f "$REF_REPO/skills/demo-skill/references/flat.md" "$REF_REPO/skills/demo-skill/references/structured.md"
+
+# Case g9b: H3 headings are not section structure for this purpose — a long new
+# reference whose only headings are `###` still draws the navigation advisory.
+{ printf -- '# Fixture\n\n### Detail only\n'; i=0; while [ "$i" -lt 140 ]; do printf -- 'line %s\n' "$i"; i=$((i + 1)); done; } > "$REF_REPO/skills/demo-skill/references/h3only.md"
+run_ref
+assert_rc "$rc" 0 "the H3-only advisory must never block"
+assert_contains "reference_nav_advisory: skills/demo-skill/references/h3only.md" "$out" "an H3-only long reference still needs ## sections"
+rm -f "$REF_REPO/skills/demo-skill/references/h3only.md"
+
+# Case g10: line endings must not change the measure. A CR-only or CRLF file
+# measures like the LF file a reader sees, so a 501-line CR-delimited reference
+# cannot slip through as a single line, and its 500-line sibling still lands.
+python3 - "$REF_REPO/skills/demo-skill/references/cr-only.md" <<'PY'
+import sys
+open(sys.argv[1], "wb").write(b"\r".join(b"line %d" % i for i in range(501)) + b"\r")
+PY
+run_ref
+assert_rc "$rc" 1 "a CR-delimited over-budget reference must block"
+assert_contains "reference_line_block: skills/demo-skill/references/cr-only.md: new reference over line budget" "$out" "CR-only block names the file"
+assert_contains "head_lines=501" "$out" "CR-only lines are counted like LF lines"
+python3 - "$REF_REPO/skills/demo-skill/references/cr-only.md" <<'PY'
+import sys
+open(sys.argv[1], "wb").write(b"\r\n".join(b"line %d" % i for i in range(501)) + b"\r\n")
+PY
+run_ref
+assert_rc "$rc" 1 "a CRLF over-budget reference must block"
+assert_contains "head_lines=501" "$out" "CRLF lines are counted once, not twice"
+python3 - "$REF_REPO/skills/demo-skill/references/cr-only.md" <<'PY'
+import sys
+open(sys.argv[1], "wb").write(b"\r".join(b"line %d" % i for i in range(500)) + b"\r")
+PY
+run_ref
+assert_rc "$rc" 0 "a CR-delimited reference at the budget still lands"
+assert_contains "reference_line_budget_blocking_ok" "$out" "boundary holds under CR line endings"
+rm -f "$REF_REPO/skills/demo-skill/references/cr-only.md"
+
+# Case g11: an unreadable reference degrades the CENSUS COUNTER to unknown and
+# says so, instead of silently counting it as within budget or aborting the whole
+# program before the per-file verdicts run. Running as root defeats chmod, so the
+# leg checks that the fixture is actually unreadable and prints an explicit skip
+# token otherwise — skipped is not passed.
+UNREADABLE="$REF_REPO/skills/demo-skill/references/unreadable.md"
+write_reference_lines "$UNREADABLE" 40
+git -C "$REF_REPO" add -A
+git -C "$REF_REPO" commit -qm "land a readable reference to make unreadable"
+chmod 000 "$UNREADABLE"
+if head -c 1 "$UNREADABLE" >/dev/null 2>&1; then
+  echo "reference_census_unreadable_leg_skipped: this process can still read a chmod-000 file (likely root) — skipped is not passed"
+else
+  run_ref
+  assert_rc "$rc" 1 "an unreadable CHANGED reference fails closed"
+  assert_contains "reference_line_census_partial" "$out" "the census says it is incomplete"
+  assert_contains "reference_line_over_limit_count_head=unknown" "$out" "an incomplete census reports unknown, never a count"
+  assert_contains "reference_line_over_limit_count_delta=unknown" "$out" "an unknown head count cannot produce a signed delta"
+  assert_contains "reference_line_block_partial: skills/demo-skill/references/unreadable.md" "$out" "the per-file verdict still runs and names the file"
+  assert_not_contains "reference_line_budget_blocking_ok" "$out" "an unreadable changed reference never earns a pass"
+fi
+chmod 644 "$UNREADABLE"
+git -C "$REF_REPO" rm -q "skills/demo-skill/references/unreadable.md"
+git -C "$REF_REPO" commit -qm "retire the unreadable fixture"
+
 # Case e8: gate wiring anchors — the validator must fail the gate on non-zero
 # and must not demote the size gate back to advisory.
 validator="$SCRIPT_DIR/check-ccl-skills.sh"
