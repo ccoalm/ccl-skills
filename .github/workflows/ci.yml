@@ -102,15 +102,16 @@ jobs:
       # unchecked. This binds the landing candidate to the evidence that
       # inspected it. It is base-relative, so a run without a resolvable base
       # reports itself unevaluated rather than passing.
-      # Pull requests only, on purpose: every other event can present a base that
-      # does not resolve, and the only way to pass such a run is to let the gate
-      # exit clean having checked nothing -- a required job that passes without
-      # checking is worse than no job. A merge always arrives through a pull
-      # request, where the base is always present.
+      # The events that carry a base, on purpose: any other event would have to
+      # pass by letting the gate exit clean having checked nothing, and a required
+      # job that passes without checking is worse than no job. Merges arrive
+      # through a pull request or a merge queue, both of which name their base;
+      # direct pushes to a protected branch are refused by the platform, which is
+      # the residual this scoping leaves and does not close.
       - name: Review ledger binds the landing candidate
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         env:
-          CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha }}
+          CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: |
           python3 skills/skill-extraction-workflow/scripts/review_ledger_binding.py \
             --repo-root . --base "$CANDIDATE_BASE_REF"

@@ -174,6 +174,14 @@ after_state="$(git -C "$REPO" status --porcelain --ignored)"
 check "running the gate leaves the hashed tree byte-identical" \
   '[ "$before_state" = "$after_state" ]'
 
+# What merges is the committed tree, so uncommitted evidence is not evidence about
+# the landing candidate: reading it would accept a ledger nobody can find later.
+printf '{"unfinished": true}\n' >"$REPO/specs/round/evidence/uncommitted.json"
+out="$(run_gate --base "$BASE")"; rc=$?
+check "an uncommitted evidence tree is refused rather than read from disk" \
+  '[ "$rc" = 1 ] && case "$out" in *"uncommitted changes"*) true;; *) false;; esac'
+rm "$REPO/specs/round/evidence/uncommitted.json"
+
 # The suite above exercises a synthetic repository. The gate must also run against
 # the real checkout it ships in, or a break in that path passes every test here.
 REAL_ROOT="$(cd "$DIR/../../.." && pwd -P)"

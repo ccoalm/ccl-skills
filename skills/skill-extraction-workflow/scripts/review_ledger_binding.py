@@ -156,11 +156,38 @@ def validator_accepts(validator: Path, ledger_path: Path) -> tuple[bool, str]:
 
 
 def scan(repo_root: Path, evidence_root: str) -> list[tuple[Path, dict]]:
+    """Enumerate committed evidence only.
+
+    What merges is the committed tree, so evidence that is untracked or modified
+    in the working tree is not evidence about the landing candidate -- and a gate
+    that reads it would accept a ledger nobody can find after the merge. The
+    enumeration comes from HEAD, and a dirty evidence tree is refused outright
+    rather than silently read from disk.
+    """
+    listing = subprocess.run(
+        ["git", "-C", str(repo_root), "ls-tree", "-r", "--name-only", "HEAD", "--", evidence_root],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if listing.returncode != 0:
+        return []
+    dirty = subprocess.run(
+        ["git", "-C", str(repo_root), "status", "--porcelain", "--", evidence_root],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if dirty.returncode != 0 or dirty.stdout.strip():
+        raise SystemExit(
+            "review_ledger_binding_error: the evidence tree has uncommitted changes; "
+            "commit the ledger and its receipts before this gate can read them"
+        )
     found: list[tuple[Path, dict]] = []
-    root = repo_root / evidence_root
-    if not root.is_dir():
-        return found
-    for path in sorted(root.rglob("*.json")):
+    for relative in sorted(line for line in listing.stdout.splitlines() if line.endswith(".json")):
+        path = repo_root / relative
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError):
