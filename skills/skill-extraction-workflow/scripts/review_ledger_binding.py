@@ -15,9 +15,21 @@ hash the ledger records. The workflow directory is inside those paths on purpose
 with only `skills/` bound, deleting the CI step that runs this gate would not move
 the candidate the evidence has to match.
 
-Boundaries this gate does NOT close: it cannot prove the caller retained every
-earlier chain, and a caller who never ran the wrapper has no receipt to bind here
--- it proves that what merges was reviewed, not that the review was honest.
+Boundaries this gate does NOT close, stated because a gate that lives inside the
+candidate cannot authenticate itself: it cannot prove the caller retained every
+earlier chain; it runs the candidate's own validator, so a candidate that also
+rewrites that validator is outside what any in-repo check can settle; and a pull
+request may edit the workflow step that runs it. The fail-closed branch is pinned
+as a contract anchor so hollowing it also edits a registry another required check
+verifies; the workflow step itself is NOT pinned, because that registry addresses
+skill files and a cross-tree row breaks the checker against its own fixtures. The terminal authority is the platform's
+required-check configuration plus human review of changes to this gate itself,
+both of which live outside the candidate. What this proves is narrow and worth
+stating plainly: that what merges is the candidate an external round inspected --
+not that the round was honest, and not that it found nothing. Any terminal state
+the validator accepts satisfies this gate, including one that carries unresolved
+findings forward for a human: this binds identity, and the verdict on the findings
+stays with the human who merges.
 """
 
 from __future__ import annotations
@@ -62,6 +74,40 @@ def load_controller(repo_root: Path) -> types.ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def resolve_base(repo_root: Path, base: str) -> str:
+    """Resolve the caller's base to a commit id before it reaches any git command.
+
+    An option-shaped base (``--quiet``) is read by git as an option rather than a
+    revision, and ``git diff`` with no revision compares the index to the working
+    tree: in a clean checkout that reports no paths at all, so the gate would pass
+    having compared nothing.
+    """
+    result = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            "--end-of-options",
+            f"{base}^{{commit}}",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    resolved = result.stdout.strip()
+    if result.returncode != 0 or len(resolved) != 40 or not all(
+        character in "0123456789abcdef" for character in resolved
+    ):
+        raise SystemExit(
+            f"review_ledger_binding_error: base does not resolve to a commit: {base}"
+        )
+    return resolved
 
 
 def changed_skill_paths(repo_root: Path, base: str, paths: tuple[str, ...]) -> list[str]:
@@ -157,6 +203,7 @@ def main() -> int:
         return 0 if args.allow_unevaluated else 2
 
     paths = tuple(args.paths)
+    base = resolve_base(repo_root, base)
     changed = changed_skill_paths(repo_root, base, paths)
     if not changed and not args.print_candidate:
         print(f"review_ledger_binding_ok: no reviewed-path change against {base}")

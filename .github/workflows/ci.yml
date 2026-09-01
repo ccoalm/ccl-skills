@@ -102,18 +102,16 @@ jobs:
       # unchecked. This binds the landing candidate to the evidence that
       # inspected it. It is base-relative, so a run without a resolvable base
       # reports itself unevaluated rather than passing.
+      # Pull requests only, on purpose: every other event can present a base that
+      # does not resolve, and the only way to pass such a run is to let the gate
+      # exit clean having checked nothing -- a required job that passes without
+      # checking is worse than no job. A merge always arrives through a pull
+      # request, where the base is always present.
       - name: Review ledger binds the landing candidate
+        if: github.event_name == 'pull_request'
         env:
-          CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+          CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha }}
         run: |
-          if [[ -z "$CANDIDATE_BASE_REF" ]] || ! git merge-base "$CANDIDATE_BASE_REF" HEAD >/dev/null 2>&1; then
-            # An event with genuinely no base (a first branch push) has nothing to
-            # diff against. Say so through the gate's own explicit flag rather than
-            # exiting 0 around it, so a base-wiring mistake cannot look like a pass.
-            python3 skills/skill-extraction-workflow/scripts/review_ledger_binding.py \
-              --repo-root . --allow-unevaluated
-            exit $?
-          fi
           python3 skills/skill-extraction-workflow/scripts/review_ledger_binding.py \
             --repo-root . --base "$CANDIDATE_BASE_REF"
 

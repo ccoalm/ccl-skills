@@ -431,6 +431,7 @@ CONTROLLER_OWNED_FIELDS = {
     "observed_skill_usage",
     "predecessor_candidate_sha256",
     "predecessor_chain_id",
+    "predecessor_challenge_focuses",
     "predecessor_result_sha256",
     "prior_challenge_focuses",
     "prior_review_result_sha256",
@@ -1641,7 +1642,15 @@ def _validate_chain_succession(
         or prior_budget < 1
     ):
         reject("predecessor is not a tracked challenge receipt")
-    if prior.get("autonomous_review_index") != prior_budget + 1:
+    if (
+        prior.get("autonomous_review_index") != prior_budget + 1
+        or prior.get("challenge_index") != prior_budget
+        or prior.get("autonomous_reviews_remaining") != 0
+        or prior.get("autonomous_review_allowed") is not False
+    ):
+        # Terminality is the receipt's own arithmetic, not just its index: a
+        # forged receipt can carry a terminal index while every other field still
+        # says the chain has rounds left.
         reject("predecessor is not its chain's terminal round")
     predecessor_chain_id = prior.get("review_chain_id")
     if not isinstance(predecessor_chain_id, str) or not predecessor_chain_id.strip():
@@ -3032,6 +3041,7 @@ def freeze_review_profile(
     prior_review_result_hashes: list[str] = []
     prior_review_candidate_hashes: list[str] = []
     succession: dict[str, Any] | None = None
+    inherited_challenge_focuses: list[str] = []
     if review_chain_tracked:
         if args.predecessor_chain_result_file:
             if args.mode != "challenge":
@@ -3065,7 +3075,12 @@ def freeze_review_profile(
                 owner_selection_source=owner_selection_source,
                 selected_skill_names=[item["name"] for item in selected_skills],
             )
-            previous_challenge_focuses.extend(succession["focuses"])
+            # Inherited focuses get their own field. prior_challenge_focuses carries
+            # in-chain arithmetic that consumers derive from the round index, and a
+            # succession round would otherwise arrive at index 1 carrying focuses the
+            # index cannot explain -- which is exactly how the completion checkpoint
+            # rejected it.
+            inherited_challenge_focuses = list(succession["focuses"])
         if args.mode == "review" and autonomous_review_index != 1:
             raise GateError(
                 "tracked review mode is Agent round 1; later Agent rounds use challenge mode",
@@ -3174,7 +3189,9 @@ def freeze_review_profile(
                 previous_challenge_focuses.append(focus)
             prior_review_result_hashes.append(result_hash)
             prior_review_candidate_hashes.append(candidate_hash)
-        if challenge_focus and challenge_focus in previous_challenge_focuses:
+        if challenge_focus and challenge_focus in (
+            previous_challenge_focuses + inherited_challenge_focuses
+        ):
             raise GateError(
                 "challenge focus must differ from earlier challenges",
                 "review_chain_invalid",
@@ -3256,6 +3273,7 @@ def freeze_review_profile(
         "skill_delivery": "native-installed",
         "prior_challenge_focuses": previous_challenge_focuses,
         "prior_review_result_sha256": prior_review_result_hashes,
+        "predecessor_challenge_focuses": inherited_challenge_focuses,
         "predecessor_chain_id": succession["chain_id"] if succession else None,
         "predecessor_result_sha256": succession["result_sha256"] if succession else None,
         "predecessor_candidate_sha256": (
@@ -3535,6 +3553,7 @@ def composite_base(
         "review_scope": _canonical_review_scope(profile),
         "review_scope_sha256": profile["review_scope_sha256"],
         "prior_review_result_sha256": profile["prior_review_result_sha256"],
+        "predecessor_challenge_focuses": profile["predecessor_challenge_focuses"],
         "predecessor_chain_id": profile["predecessor_chain_id"],
         "predecessor_result_sha256": profile["predecessor_result_sha256"],
         "predecessor_candidate_sha256": profile["predecessor_candidate_sha256"],

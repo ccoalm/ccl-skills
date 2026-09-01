@@ -3221,7 +3221,8 @@ printf 'diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-pre\n+fix-applied\n'
 python3 - "$WORK/succ-round-two.json" \
   "$WORK/succ-predecessor-owner-moved.json" \
   "$WORK/succ-predecessor-forged-controller.json" \
-  "$WORK/succ-predecessor-foreign-scope.json" <<'PY'
+  "$WORK/succ-predecessor-foreign-scope.json" \
+  "$WORK/succ-predecessor-forged-terminal.json" <<'PY'
 import json
 from pathlib import Path
 import sys
@@ -3240,6 +3241,13 @@ foreign = json.loads(json.dumps(source))
 foreign["review_scope"] = dict(foreign["review_scope"], stage="explore")
 foreign["stage"] = "explore"
 Path(sys.argv[4]).write_text(json.dumps(foreign, separators=(",", ":")))
+# A terminal index with non-terminal arithmetic: the index alone cannot establish
+# that the succeeded chain actually ended.
+forged_terminal = json.loads(json.dumps(source))
+forged_terminal["challenge_index"] = 0
+forged_terminal["autonomous_reviews_remaining"] = 1
+forged_terminal["autonomous_review_allowed"] = True
+Path(sys.argv[5]).write_text(json.dumps(forged_terminal, separators=(",", ":")))
 PY
 
 reset_case passed unavailable unavailable
@@ -3278,7 +3286,7 @@ check "a succession whose candidate did not move is a repeat round, not a succes
   '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession candidate has not moved"*) true;; *) false;; esac'
 printf 'diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-pre\n+fix-applied\n' >"$WORK/diff.patch"
 
-for succession_case in forged-controller foreign-scope; do
+for succession_case in forged-controller foreign-scope forged-terminal; do
   reset_case passed unavailable unavailable
   out="$(run_challenge_gate --focus "succ-${succession_case}" --review-chain-id "succ-${succession_case}" --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-predecessor-${succession_case}.json")"; rc=$?
   check "a succession rejects a ${succession_case} predecessor" \
@@ -3297,6 +3305,14 @@ reset_case passed unavailable unavailable
 out="$(run_challenge_gate --focus continued-succession --review-chain-id succ-phase-two --autonomous-review-index 2 --prior-review-result-file "$WORK/succ-phase-two.json")"; rc=$?
 check "a succession round cannot be continued in its own chain" \
   '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"succession round, which is one-shot"*) true;; *) false;; esac'
+
+# The completion checkpoint has to accept the succession round it will actually be
+# handed: a chain-index-1 challenge. Without this the ledger's terminal step is
+# unproven for exactly the chain shape the third round produces.
+reset_case passed unavailable unavailable
+out="$(run_completion_gate --challenge-budget 1 --completion-review-result-file "$WORK/succ-phase-two.json")"; rc=$?
+check "the completion checkpoint closes on a succession round" \
+  '[ "$rc" = 0 ] && json_fields "$out" mode=complete status=passed review_chain_tracked=true review_chain_id=succ-phase-two autonomous_review_index=1 autonomous_review_allowed=false completion_gated=false'
 
 printf '%s\n' "$succession_saved_diff" >"$WORK/diff.patch"
 

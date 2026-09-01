@@ -151,6 +151,29 @@ out="$(run_gate --base "$BASE")"; rc=$?
 check "a receipt-shaped file for another candidate does not satisfy the gate" \
   '[ "$rc" = 1 ] && case "$out" in *"no accepted review evidence"*) true;; *) false;; esac'
 
+# An option-shaped base must not reach git as an option: git diff with no revision
+# compares the index to the working tree, which in a clean checkout reports no
+# paths and would let the gate pass having compared nothing.
+# The environment path is the one that reaches git without an argument parser in
+# front of it, which is exactly how such a base arrives in CI.
+for bad_base in --quiet --name-only refs/heads/does-not-exist; do
+  out="$(CCL_SKILL_BASE_REF="$bad_base" run_gate)"; rc=$?
+  check "an unresolvable base ($bad_base) is refused, not silently treated as no change" \
+    '[ "$rc" = 1 ] && case "$out" in *"does not resolve to a commit"*) true;; *) false;; esac'
+done
+
+out="$(run_gate --base "$BASE^{commit}")"; rc=$?
+check "a revision expression that does resolve is still accepted" \
+  '[ "$rc" = 1 ] && case "$out" in *"no accepted review evidence"*) true;; *) false;; esac'
+
+# The gate must not perturb the tree it hashes; asserting only that a hash comes
+# back would stay green if bytecode writes or packet cleanup regressed.
+before_state="$(git -C "$REPO" status --porcelain --ignored)"
+run_gate --base "$BASE" --print-candidate >/dev/null 2>&1
+after_state="$(git -C "$REPO" status --porcelain --ignored)"
+check "running the gate leaves the hashed tree byte-identical" \
+  '[ "$before_state" = "$after_state" ]'
+
 # The suite above exercises a synthetic repository. The gate must also run against
 # the real checkout it ships in, or a break in that path passes every test here.
 REAL_ROOT="$(cd "$DIR/../../.." && pwd -P)"

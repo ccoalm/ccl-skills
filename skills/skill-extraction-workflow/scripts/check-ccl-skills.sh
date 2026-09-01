@@ -1458,7 +1458,12 @@ if [ -n "$root_worktree_toplevel" ]; then
     echo "missing_review_ledger_binding_gate: $ledger_binding_gate (must be a regular file beside the checker, not a symlink)" >&2
     exit 2
   fi
-  if git -C "$root" rev-parse --verify --quiet HEAD~1 >/dev/null 2>&1; then
+  if [[ ! -f "$root/skills/code-review/scripts/review_gate.py" ]]; then
+    # Not a full skills tree (the checker also runs against synthetic fixtures);
+    # the smoke has nothing to exercise and must not pre-empt this checker's own
+    # verdicts by failing here.
+    echo "review_ledger_binding_smoke_skipped: no controller in this checkout"
+  elif git -C "$root" rev-parse --verify --quiet HEAD~1 >/dev/null 2>&1; then
     if smoke_candidate="$(env -u CCL_SKILL_BASE_REF python3 "$ledger_binding_gate" \
       --repo-root "$root" --base HEAD~1 --print-candidate 2>/dev/null)" \
       && [[ "$smoke_candidate" =~ ^[0-9a-f]{64}$ ]]; then
