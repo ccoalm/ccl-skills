@@ -110,6 +110,30 @@ def resolve_base(repo_root: Path, base: str) -> str:
     return resolved
 
 
+def fork_point(repo_root: Path, base: str) -> str:
+    """Compare against where this branch left the base, not the base's tip.
+
+    A candidate measured against the tip absorbs every unrelated change the base
+    branch gained meanwhile, so an advance on the target branch silently restates
+    what this branch is and voids evidence that is still correct. The fork point
+    is what the branch actually adds, and it does not move when someone else
+    merges.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "merge-base", base, "HEAD"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    resolved = result.stdout.strip()
+    if result.returncode != 0 or len(resolved) != 40:
+        raise SystemExit(
+            f"review_ledger_binding_error: no fork point between HEAD and {base}"
+        )
+    return resolved
+
+
 def changed_skill_paths(repo_root: Path, base: str, paths: tuple[str, ...]) -> list[str]:
     result = subprocess.run(
         ["git", "-C", str(repo_root), "diff", "--name-only", base, "--", *paths],
@@ -230,7 +254,7 @@ def main() -> int:
         return 0 if args.allow_unevaluated else 2
 
     paths = tuple(args.paths)
-    base = resolve_base(repo_root, base)
+    base = fork_point(repo_root, resolve_base(repo_root, base))
     changed = changed_skill_paths(repo_root, base, paths)
     if not changed:
         # No reviewed path moved, so there is no candidate to freeze and nothing to

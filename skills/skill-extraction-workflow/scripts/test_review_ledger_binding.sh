@@ -182,6 +182,19 @@ check "an uncommitted evidence tree is refused rather than read from disk" \
   '[ "$rc" = 1 ] && case "$out" in *"uncommitted changes"*) true;; *) false;; esac'
 rm "$REPO/specs/round/evidence/uncommitted.json"
 
+# An unrelated advance on the base branch must not restate what this branch is:
+# measured against the tip it would, and evidence that is still correct would go
+# stale every time somebody else merged.
+BEFORE_ADVANCE="$(run_gate --base "$BASE" --print-candidate)"
+git -C "$REPO" checkout -q -b other-work "$BASE"
+printf 'unrelated\n' >"$REPO/skills/code-review/UNRELATED.md"
+git -C "$REPO" add -A && git -C "$REPO" commit -qm "unrelated work on the base branch"
+ADVANCED="$(git -C "$REPO" rev-parse HEAD)"
+git -C "$REPO" checkout -q -
+AFTER_ADVANCE="$(run_gate --base "$ADVANCED" --print-candidate)"
+check "an unrelated advance on the base branch leaves the candidate unchanged" \
+  '[ -n "$BEFORE_ADVANCE" ] && [ "$AFTER_ADVANCE" = "$BEFORE_ADVANCE" ]'
+
 # The suite above exercises a synthetic repository. The gate must also run against
 # the real checkout it ships in, or a break in that path passes every test here.
 REAL_ROOT="$(cd "$DIR/../../.." && pwd -P)"
