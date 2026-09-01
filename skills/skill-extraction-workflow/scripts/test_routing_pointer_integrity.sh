@@ -133,10 +133,30 @@ check_absent() { # <file> <token> <label> — file must exist AND token absent;
   fi
 }
 
+check_line_all() { # <file> <selector> <label> <req...> — EVERY <req> must sit on
+  # ONE line that matches <selector>. Filtering the matched lines through each req in
+  # turn is what binds them to the same line: asserting each req against the whole set
+  # of matched lines lets two reqs pass on two different lines, so a contract that says
+  # "both owners on that line" would be satisfied while no line carries both.
+  # -e is required: a selector starting with "-" is otherwise parsed as an option.
+  local file="$1" sel="$2" label="$3"; shift 3
+  local out req
+  out=$(grep -F -e "$sel" "$file" 2>/dev/null)
+  if [ -z "$out" ]; then
+    echo "FAIL: $label missing ($file :: no line matches '$sel')" >&2; fail=1; return
+  fi
+  for req in "$@"; do
+    out=$(printf '%s\n' "$out" | grep -F -e "$req")
+    if [ -z "$out" ]; then
+      echo "FAIL: $label missing ($file :: one line matching '$sel' must also contain '$req')" >&2; fail=1; return
+    fi
+  done
+}
+
 # Self-pin: an emptied or truncated suite must fail, not pass. Update EXPECTED
 # when adding/removing checks deliberately (same diff). Runs FIRST: a truncated
 # tail removes real checks and the count goes red.
-EXPECTED_CHECKS=21
+EXPECTED_CHECKS=24
 actual_checks=$(grep -cE '^check([_a-z]+)? ' "$0")
 if [ "$actual_checks" -ne "$EXPECTED_CHECKS" ]; then
   echo "FAIL: suite self-pin: expected $EXPECTED_CHECKS checks, found $actual_checks" >&2
@@ -176,6 +196,22 @@ check "$ROOT/skills/product-rd-workflow/SKILL.md" "must go to that language's de
 # no-owner fallback be deleted while the suite stays green, which is exactly the
 # routing hole (a CLI in a language with no dev owner) this rule closes.
 check "$ROOT/skills/product-rd-workflow/SKILL.md" "no such dev owner stays with \`terminal-cli-dev\` as the default CLI owner" "product-rd coordinator CLI carve-out (no-owner fallback branch, incl. destination)"
+# A routing-bank case cannot guard this: a multi-stage Node request selects
+# product-rd-workflow from its own wording and stays green even when the
+# coordinator omits the Node owner from its dispatch map. Pin the map itself —
+# both the stack enumeration and the CLI carve-out list — or the omission that
+# sent Node deliveries to a coordinator with no owner to dispatch to recurs
+# invisibly, with the no-owner fallback above silently reclaiming Node CLIs.
+check_line_all "$ROOT/skills/product-rd-workflow/SKILL.md" "- Development routing:" "product-rd Development-routing line carries the Node owner in BOTH the stack enumeration and the CLI carve-out" "\`nodejs-service-dev\` for Node.js services" "\`python-service-dev\`, \`nodejs-service-dev\`)"
+# Node has no *-architecture sibling by decision, so the technical-design gate
+# must name where its architecture decisions go; without this the gate lists
+# only the Go and Python architecture owners and Node design work has no owner.
+# Naming the vacuum is not naming a destination: both owners must sit on that
+# line, or the gate can declare Node has no architecture sibling and stop there.
+# The positive ownership clause is pinned too: keeping only the two owner tokens
+# while deleting "run this gate here" would leave the architecture decision ownerless,
+# since nodejs-service-dev is named there as the IMPLEMENTATION owner, not the gate.
+check_line_all "$ROOT/skills/product-rd-workflow/references/delivery-lifecycle.md" "For Node.js backend, worker, or CLI/tooling architecture" "product-rd design gate owns the Node architecture decision and names both downstream owners on that line" "run this gate here" "\`platform-*\` owners" "\`nodejs-service-dev\` for the Node-side implementation contract"
 # Both legs of the skip clause are pinned: an unanchored leg can be deleted while
 # the reciprocal trigger anchor above stays green, and the eval fixtures assert
 # terminal-cli-dev must NOT receive either request.
@@ -187,6 +223,10 @@ check_frontmatter_present "$ROOT/skills/terminal-cli-dev/SKILL.md" "Node.js CLI 
 # implementation) — the gap two independent reviewer lanes hit.
 check_frontmatter_present "$ROOT/skills/terminal-cli-dev/SKILL.md" "command/subcommand/flag/help contract (owned here even when nothing is rendered)" "terminal-cli-dev owns the non-rendered CLI contract"
 check "$ROOT/skills/product-rd-workflow/SKILL.md" "command/subcommand/flag/help contract, which it owns even when nothing is rendered" "product-rd mirrors CLI-contract ownership"
+# testing-strategy must not re-claim language-stack CLI test IMPLEMENTATION: that
+# claim collided with the CLI carve-out every stack dev owner and the coordinator
+# carry, so the line is scoped to the interface contract it actually owns.
+check_line_all "$ROOT/skills/testing-strategy/SKILL.md" "- Use \`terminal-cli-dev\` for" "testing-strategy scopes terminal-cli-dev to the interface contract, not language-stack CLI implementation" "terminal interface contract"
 check_frontmatter_present "$ROOT/skills/platform-release-engineering/SKILL.md" "上线范围确认 / 合并 main / 打 tag" "rollout description prod-release skip"
 check "$ROOT/skills/app-cross-platform-dev/agents/openai.yaml" "React Native" "app-cross-platform-dev openai overlay RN parity"
 

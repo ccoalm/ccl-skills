@@ -15,7 +15,7 @@ Bitable ownership:
 
 - Ambiguous "写测试用例" / "write test cases" requests mean `testing-strategy` first when the user wants test code, E2E/browser/device tests, CI coverage, mocks, or verification evidence. Use this skill only when the deliverable is a structured TC artifact, Feishu/Bitable sync, or source-to-TC generation workflow.
 - Use `testing-strategy` to decide which test layers (unit / integration / E2E / scenario) are needed *after* the use cases are written.
-- Use `go-microservice-dev` / `python-service-dev` / `web-react-dev` / `miniapp-product-dev` / `app-cross-platform-dev` for implementing the test code once test cases are approved.
+- Test-code implementation, once test cases are approved, must go to the owning stack skill: `go-microservice-dev` / `python-service-dev` / `nodejs-service-dev` / `web-react-dev` / `miniapp-product-dev` / `app-cross-platform-dev`.
 - Use `product-rd-workflow` when the test case work is part of a broader feature delivery plan.
 - Use `llm-inference-integration` when test cases cover LLM / agent / RAG / inference behavior.
 - Use `skill-extraction-workflow` to feed lessons from test case generation or Feishu Bitable setup back into this skill after each delivery cycle.
