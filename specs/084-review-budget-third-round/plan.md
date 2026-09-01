@@ -15,7 +15,7 @@ Owner 集合：`skill-extraction-workflow`（闸文本、wrapper、closeout vali
 | Matching analysis | 见下节 RCA。 |
 | Failure mode | 弱提炼会走两条歧路：① 直接删掉 `:616` ——矛盾消失、洞永久化且不再可见；② 直接把 `WRAPPER_CHALLENGE_BUDGET` 抬到 2 ——仓内 14 份历史收据（记 `challenge_budget=1`）集体失效，且对没有任何 fix 的轮也强收一轮最贵的 challenge。 |
 | Lifecycle impact | 实现（wrapper/controller/validator）、测试（三套回归 + 历史语料复验）、评审闸（本闸自身）、团队 onboarding（读 cadence 的下一个 agent）、无源访问使用（消费收据的 CI 校验）。产品意图/设计 UX：not-applicable（无人机可见面）。 |
-| Evidence plan | **第一源类＝既产工件**：`specs/*/evidence/review/**` 下 14 份历史收据（枚举命令 `find specs -path "*/review/*" -name "*.json"`），已按链读取 `challenge_budget` / `autonomous_review_index` / findings 数。第二：代码语料——`review_gate.py` 链校验段（2930–3075）、`validate_extraction_review_state.py` 预算与候选绑定段、`extraction_review_gate.sh` 全文（22 行）。第三：闸文本 `dual-track-review-gate.md`（:509–:660）。第四：`source-register.md` 行 464/465（本预算的既有裁决与其后加固）。外部权威源：not-applicable —— 本轮不作任何 state-of-the-art 主张，编码的是仓内运行约束。 |
+| Evidence plan | **第一源类＝既产工件**：各轮 spec 目录下 `*/evidence/review/**` 的 14 份历史收据（枚举命令 `find specs -path "*/review/*" -name "*.json"`），已按链读取 `challenge_budget` / `autonomous_review_index` / findings 数。第二：代码语料——`review_gate.py` 链校验段（2930–3075）、`validate_extraction_review_state.py` 预算与候选绑定段、`extraction_review_gate.sh` 全文（22 行）。第三：闸文本 `dual-track-review-gate.md`（:509–:660）。第四：`source-register.md` 行 464/465（本预算的既有裁决与其后加固）。外部权威源：not-applicable —— 本轮不作任何 state-of-the-art 主张，编码的是仓内运行约束。 |
 | Completion standard | 每层 RED-first 证据（含对保护性谓词的**已施加** mutation 及右因归因）；14 份历史收据在新 validator 下仍全部合法；本轮自身过 dual-track（按**旧的** 1+1 规则，新规则尚未落地）；impact-chain 闸带 `CCL_SKILL_BASE_REF` 通过；回归注册自审通过；CI 全 lane 绿。 |
 
 ## RCA（加宽后再排因果权重）
@@ -99,7 +99,7 @@ Owner 集合：`skill-extraction-workflow`（闸文本、wrapper、closeout vali
 自指问题及其解：账本若被计入候选，则"含账本的树"的哈希永远无法被账本自己记录。解法是把候选钉在 `skills/` 上——
 
 - controller 侧：终轮以 `--base <merge-base> --paths skills` 冻结 packet（`freeze_packet` 的 `--base` 分支即 `git diff <base> -- skills`）；
-- 账本与证据写在 `specs/<round>/evidence/` 下，**不在候选内**，提交它不扰动 packet hash；
+- 账本与证据写在各轮 spec 目录的 `<round>/evidence/` 下，**不在候选内**，提交它不扰动 packet hash；
 - CI 侧：在干净检出上复算 `git diff <base> -- skills` 的 SHA-256，要求等于账本 `candidate_sha256`，并调用 validator 校验账本本身。
 
 推论（可执行纪律，不是建议）：终轮必须在**已提交的干净树**上跑——工作区脏则 packet 含未提交状态，CI 复算必不相等。这正好是"被评审的对象＝落地的对象"的机械形态。
