@@ -139,6 +139,22 @@ Referenced from `SKILL.md`'s "The mechanism underneath" rule. This section holds
 - 给列表内的外部 CLI 传长 flag 之前，**必须先在本机读过该 CLI 的 help 输出**；未读过就用，属于把记忆当一手源。
 - 一条命令因无法识别的 flag 失败时，**不得**先改用法之外的东西——先怀疑该 flag 在本机这个版本不受支持。语料里多次出现「以为是用法错、其实是这版没这个 flag」。
 
+### 记录半边：把外部契约钉进控制时，同时钉住它的时效
+
+上两节讲**读法**（读一手源、把谓词挂在自己拥有的东西上）；这一节讲**记录**。一旦本仓的某个控制**编码了**对外部契约的一次读取——闸强制它、脚本依赖它、recipe 假设它——控制自身必须带三样东西，且写在控制旁边，不是写在 commit message 或某轮私档里：
+
+- **出处到条款级**：读的是哪一份一手源的哪一节，不是「按官方文档」。
+- **核验时点与被核对象的版本**：哪天核的、对着工具/宿主的哪个版本或哪个 pin 核的。
+- **失效条件**：必须写明什么变化会使这条结论不再成立（pin 的大版本被抬、宿主换了解析链、上游把该字段改成会读的）。
+
+缺这三样，下一个读到该控制的 agent 分不清它是**经过判断的决定**还是**没人敢动的化石**，唯一的复核方式是把整轮外部调研重做一遍——这正是「继承来的读法」能一路存活的原因：不是没人想核，是核一次的代价被隐藏了。三样都在时，复核退化成一次针对性的对照。
+
+- A control whose annotation lacks any of the three must be treated as carrying an unverified reading: the next change to it re-reads the primary source instead of inheriting the claim, and a reviewer must not accept the inherited reading as established merely because the control has shipped for a long time.
+
+判据窄，别泛用：只对**控制依赖的外部契约**成立（宿主/工具/格式/协议的行为）。纯内部不变量不适用；「谁提出的」那一档归 `attribution-verification.md` 的源质量与 pending 语义，与本条不同 facet。
+
+本轮两个活体实例（都是读代码时先撞上「这为什么在这」才发现的）：`verify-packed.mjs` 用机械闸禁止 `plugin.json` 带 `version`——这是一条关于宿主版本解析链的主张，落地时正确、但当时没留出处与时点；以及 `check-release-version.py` 依赖 `actions/checkout` 的 `fetch-depth: 0` 会取到 tag。两处已按上述三样补齐。
+
 ## 只据内部语料的「深度提炼」：失败形态
 
 一次仅以内部 launch-SOP 为源的「深度提炼」会落出**看起来完整**的规则集，却从未核过这套技能声称代表的**公开实践**；下一个用户于是问「参考网上优秀实践了么 / did you check industry practice」。
