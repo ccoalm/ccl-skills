@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "candidate_sha256": "48a5ab7a0b1beaff0e7a01b653ffc4a2225f28a236101616f65be0baba8fe926",
+  "candidate_sha256": "57e7b76655c21ef0426e7802f574cb6b03c38feef6b7784f3742d0d4d91c8baf",
   "controller_receipts": [
     {
       "sequence": 1,
@@ -15,7 +15,7 @@
     {
       "sequence": 3,
       "file": "round3-succession.json",
-      "sha256": "921b01f7e3216d371d998e3cf55aed2acb257a1e3800cc6166a45a71dfacd6b3"
+      "sha256": "2aab2dd21f552f9c41966de8242b1b4e0a06fe8e2ac172e2d17cfc03ca69a187"
     }
   ],
   "completion_receipt": null,
@@ -46,7 +46,7 @@
       "ref": "refs/heads/dev",
       "sha": "192fdccc0c8a8797d4a29f3d331df429f355e890",
       "confirmed_at": "2026-09-01T03:00:00Z",
-      "controller_receipt_sha256": "921b01f7e3216d371d998e3cf55aed2acb257a1e3800cc6166a45a71dfacd6b3",
+      "controller_receipt_sha256": "2aab2dd21f552f9c41966de8242b1b4e0a06fe8e2ac172e2d17cfc03ca69a187",
       "evidence_file": "base-attestation-3.txt",
       "evidence_sha256": "a89c06711ae533f5f237e34147d55c234689754a596f58e23bdf4ef3ae95e51b"
     }
@@ -64,7 +64,7 @@
           "finding_sha256": "4fd84e2a6cdc8ef7276bcb88af197cc9c6b3133c68145028abbaec975fc7efa4",
           "disposition": "fixed",
           "disposition_evidence_file": "disposition-evidence-is-caller-controlled-1.json",
-          "disposition_evidence_sha256": "24c256d56c4b460250b587e73e204f8e6354996193a6df1bbd61291199d9edd9"
+          "disposition_evidence_sha256": "b35efc8f11011fee1ef955d6b3d3771264f698293815b45a5a99717faf5fa4bc"
         },
         {
           "receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
@@ -88,22 +88,9 @@
           "receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
           "finding_sha256": "fb683a009f775d708a3aa2c28c676e1f80579291ed04397e921bebf86081c729",
           "disposition": "open"
-        },
-        {
-          "receipt_sha256": "921b01f7e3216d371d998e3cf55aed2acb257a1e3800cc6166a45a71dfacd6b3",
-          "finding_sha256": "4e855892d21f69902dddd829ead374fd47e0dc04cd0acfda337bb3277b47ce7b",
-          "disposition": "open"
         }
       ],
-      "authoritative_sweep": {
-        "candidate_sha256": "48a5ab7a0b1beaff0e7a01b653ffc4a2225f28a236101616f65be0baba8fe926",
-        "manifest_file": "sweep-enforcement-step-is-inside-the-candidate.json",
-        "manifest_sha256": "99f588b054d10a7036012a1e27c3d8f7b0f9fee1c5995aa9eab48e95a3d65638",
-        "searched_set": [
-          ".github/workflows/ci.yml"
-        ],
-        "unmatched_instances": 1
-      }
+      "authoritative_sweep": null
     },
     {
       "key": "succession-chain-id-unchecked-at-mint",
@@ -119,13 +106,13 @@
       "authoritative_sweep": null
     },
     {
-      "key": "assertion-accepts-one-of-two-valid-outputs",
-      "root_cause_predicate": "A real-checkout assertion accepts only one of the two outputs its subject legitimately produces, so a benign state reds it.",
-      "affected_surface": "skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh",
+      "key": "bound-paths-narrower-than-the-enforcement-surface",
+      "root_cause_predicate": "The bound path set omits a surface that controls whether the gate runs at all, so a later change there is unreviewed while the gate still reports a bound candidate.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
       "occurrences": [
         {
-          "receipt_sha256": "921b01f7e3216d371d998e3cf55aed2acb257a1e3800cc6166a45a71dfacd6b3",
-          "finding_sha256": "b3c530b36eef7b7e927ee6a42ec4fb3c046d1b2c3cd2bea9124bc768d2f055ec",
+          "receipt_sha256": "2aab2dd21f552f9c41966de8242b1b4e0a06fe8e2ac172e2d17cfc03ca69a187",
+          "finding_sha256": "643fb4e873a3292ef32747b0cadfc5150d39d7e7b3af48eee13a54122593c9ad",
           "disposition": "open"
         }
       ],
