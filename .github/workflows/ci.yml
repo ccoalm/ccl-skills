@@ -97,6 +97,21 @@ jobs:
             export CCL_SKILL_BASE_REF="$CANDIDATE_BASE_REF"
           fi
           make test-repo-gates
+      # The review ledger was caller-built and caller-run, and nothing at merge
+      # time read it: which candidate the rounds actually inspected went
+      # unchecked. This binds the landing candidate to the evidence that
+      # inspected it. It is base-relative, so a run without a resolvable base
+      # reports itself unevaluated rather than passing.
+      - name: Review ledger binds the landing candidate
+        env:
+          CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$CANDIDATE_BASE_REF" ]] || ! git merge-base "$CANDIDATE_BASE_REF" HEAD >/dev/null 2>&1; then
+            echo "review_ledger_binding_skipped: no resolvable base ref for this event"
+            exit 0
+          fi
+          python3 skills/skill-extraction-workflow/scripts/review_ledger_binding.py \
+            --repo-root . --base "$CANDIDATE_BASE_REF"
 
   # The code-review skill's regression family, sharded into two parallel jobs
   # balanced by measured suite time (specs/036-ci-parallel-shards/plan.md; the

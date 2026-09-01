@@ -3199,6 +3199,93 @@ printf '%s\n' "$passed_round_one" >"$WORK/passed-round-one.json"
 check "a passed first tracked round still owes its challenge before completion" \
   '[ "$passed_round_one_rc" = 0 ] && json_fields "$passed_round_one" status=passed autonomous_review_index=1 autonomous_reviews_remaining=2 autonomous_review_allowed=true next_action=run_challenge completion_gated=true'
 
+# Chain succession. A fix that touches the owner package moves selected_skills_sha256
+# and ends the chain by design, so the post-fix candidate can never be challenged
+# inside it. Succession opens ONE new chain whose first Agent round is a challenge,
+# inheriting the ended chain's terminal receipt. The owner-binding move is the
+# expected difference; every other binding must still hold, and a succession whose
+# candidate did not actually move is a repeat round, not a succession.
+succession_saved_diff="$(cat "$WORK/diff.patch")"
+printf 'diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-pre\n+fix-pending\n' >"$WORK/diff.patch"
+reset_case findings unavailable unavailable
+succ_one="$(run_gate --challenge-budget 1 --review-chain-id succ-phase-one --autonomous-review-index 1)"; succ_one_rc=$?
+printf '%s\n' "$succ_one" >"$WORK/succ-round-one.json"
+reset_case findings unavailable unavailable
+succ_two="$(run_challenge_gate --focus phase-one-surface --review-chain-id succ-phase-one --autonomous-review-index 2 --prior-review-result-file "$WORK/succ-round-one.json")"; succ_two_rc=$?
+printf '%s\n' "$succ_two" >"$WORK/succ-round-two.json"
+check "the succession fixture builds a terminal budget-one phase-one chain" \
+  '[ "$succ_one_rc" = 0 ] && [ "$succ_two_rc" = 0 ] && json_fields "$succ_two" autonomous_review_index=2 autonomous_reviews_remaining=0'
+
+# The fix batch lands: the candidate moves and the owner package hash moves with it.
+printf 'diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-pre\n+fix-applied\n' >"$WORK/diff.patch"
+python3 - "$WORK/succ-round-two.json" \
+  "$WORK/succ-predecessor-owner-moved.json" \
+  "$WORK/succ-predecessor-forged-controller.json" \
+  "$WORK/succ-predecessor-foreign-scope.json" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+source = json.loads(Path(sys.argv[1]).read_text())
+# The owner package legitimately moved: the fix edited the reviewed skill itself.
+owner_moved = json.loads(json.dumps(source))
+owner_moved["selected_skills_sha256"] = "a" * 64
+Path(sys.argv[2]).write_text(json.dumps(owner_moved, separators=(",", ":")))
+# The controller itself must not move under a succession.
+forged = json.loads(json.dumps(source))
+forged["review_controller_sha256"] = "0" * 64
+Path(sys.argv[3]).write_text(json.dumps(forged, separators=(",", ":")))
+# A predecessor from a differently-scoped chain is not this candidate's history.
+foreign = json.loads(json.dumps(source))
+foreign["review_scope"] = dict(foreign["review_scope"], stage="explore")
+foreign["stage"] = "explore"
+Path(sys.argv[4]).write_text(json.dumps(foreign, separators=(",", ":")))
+PY
+
+reset_case passed unavailable unavailable
+succ_phase_two="$(run_challenge_gate --focus post-fix-batch --review-chain-id succ-phase-two --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-round-two.json")"; succ_phase_two_rc=$?
+check "a succession chain opens its first Agent round as a challenge on the moved candidate" \
+  '[ "$succ_phase_two_rc" = 0 ] && json_fields "$succ_phase_two" mode=challenge review_chain_tracked=true review_chain_id=succ-phase-two autonomous_review_index=1 predecessor_chain_id=succ-phase-one predecessor_result_sha256='"$(shasum -a 256 "$WORK/succ-round-two.json" | awk '{print $1}')"''
+
+reset_case passed unavailable unavailable
+out="$(run_challenge_gate --focus owner-moved --review-chain-id succ-owner-moved --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-predecessor-owner-moved.json")"; rc=$?
+check "a succession accepts the owner-package hash move that ended the prior chain" \
+  '[ "$rc" = 0 ] && json_fields "$out" mode=challenge predecessor_chain_id=succ-phase-one'
+
+reset_case passed unavailable unavailable
+out="$(run_challenge_gate --focus no-predecessor --review-chain-id succ-orphan --autonomous-review-index 1)"; rc=$?
+check "a tracked challenge cannot open a chain without a predecessor receipt" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession"*) false;; *) true;; esac'
+
+reset_case passed unavailable unavailable
+out="$(run_challenge_gate --focus review-predecessor --review-chain-id succ-review-predecessor --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-round-one.json")"; rc=$?
+check "a succession rejects a predecessor that is not a challenge receipt" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession predecessor is not a tracked challenge receipt"*) true;; *) false;; esac'
+
+# A mid-chain challenge is a live chain, not an ended one: succeeding it would
+# silently retire rounds the wrapper still owes. chain-round-two above is round 2
+# of a three-round budget, so it is a challenge that is NOT its chain's terminal.
+reset_case passed unavailable unavailable
+out="$(run_challenge_gate --challenge-budget 2 --focus non-terminal --review-chain-id succ-non-terminal --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/chain-round-two.json")"; rc=$?
+check "a succession rejects a predecessor that is not its chain's terminal round" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession predecessor is not its chain"*) true;; *) false;; esac'
+
+reset_case passed unavailable unavailable
+printf '%s\n' "$(cat "$WORK/succ-round-two.json")" >/dev/null
+printf 'diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-pre\n+fix-pending\n' >"$WORK/diff.patch"
+out="$(run_challenge_gate --focus unmoved-candidate --review-chain-id succ-unmoved --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-round-two.json")"; rc=$?
+check "a succession whose candidate did not move is a repeat round, not a succession" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession candidate has not moved"*) true;; *) false;; esac'
+printf 'diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-pre\n+fix-applied\n' >"$WORK/diff.patch"
+
+for succession_case in forged-controller foreign-scope; do
+  reset_case passed unavailable unavailable
+  out="$(run_challenge_gate --focus "succ-${succession_case}" --review-chain-id "succ-${succession_case}" --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-predecessor-${succession_case}.json")"; rc=$?
+  check "a succession rejects a ${succession_case} predecessor" \
+    '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession"*) true;; *) false;; esac'
+done
+printf '%s\n' "$succession_saved_diff" >"$WORK/diff.patch"
+
 python3 - "$WORK/passed-round-one.json" "$WORK/chain-round-two.json" \
   "$WORK/round-one-forged-final-shape.json" \
   "$WORK/round-two-forged-final-shape.json" <<'PY'

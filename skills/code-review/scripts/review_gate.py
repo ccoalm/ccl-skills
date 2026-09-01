@@ -429,6 +429,9 @@ CONTROLLER_OWNED_FIELDS = {
     "owner_selection_source",
     "owner_gaps",
     "observed_skill_usage",
+    "predecessor_candidate_sha256",
+    "predecessor_chain_id",
+    "predecessor_result_sha256",
     "prior_challenge_focuses",
     "prior_review_result_sha256",
     "residual_risks",
@@ -1598,6 +1601,92 @@ def _stable_binding_matches(
     )
 
 
+def _validate_chain_succession(
+    path_value: str,
+    *,
+    challenge_budget: int,
+    review_scope_sha256: str,
+    stage: str,
+    review_depth: str,
+    risk_tags: list[str],
+    packet_hash: str,
+    review_controller_sha256: str,
+    owner_selection_source: str,
+    selected_skill_names: list[str],
+) -> dict[str, Any]:
+    """Validate the terminal receipt of the chain this one succeeds.
+
+    A fix that edits the reviewed owner package moves ``selected_skills_sha256``
+    and ends its chain by construction, so the post-fix candidate can never be
+    challenged inside that chain. Succession carries the ended chain forward:
+    every binding must still hold EXCEPT the owner-package digest whose move is
+    the reason the chain ended, and the candidate MUST have moved — a succession
+    whose candidate is unchanged is a repeat round wearing a new chain id.
+    """
+
+    def reject(reason: str) -> None:
+        raise GateError(f"chain succession {reason}", "review_chain_invalid")
+
+    prior, result_hash = _load_prior_review_result(path_value, 1)
+    prior_budget = prior.get("challenge_budget")
+    if (
+        prior.get("schema_version") != 3
+        or prior.get("mode") != "challenge"
+        or prior.get("status") not in ("passed", "findings")
+        or prior.get("review_chain_tracked") is not True
+        or not isinstance(prior_budget, int)
+        or isinstance(prior_budget, bool)
+        or prior_budget < 1
+    ):
+        reject("predecessor is not a tracked challenge receipt")
+    if prior.get("autonomous_review_index") != prior_budget + 1:
+        reject("predecessor is not its chain's terminal round")
+    predecessor_chain_id = prior.get("review_chain_id")
+    if not isinstance(predecessor_chain_id, str) or not predecessor_chain_id.strip():
+        reject("predecessor carries no chain id")
+    if _review_scope_digest(prior.get("review_scope")) != prior.get(
+        "review_scope_sha256"
+    ):
+        reject("predecessor carries a scope digest its own recorded scope does not produce")
+    if prior.get("review_scope_sha256") != review_scope_sha256:
+        reject("predecessor was reviewed under a different scope")
+    if (
+        prior.get("stage") != stage
+        or prior.get("review_depth") != review_depth
+        or prior.get("risk_tags") != risk_tags
+        or prior_budget != challenge_budget
+    ):
+        reject("predecessor carries the current scope digest with contradicting scope fields")
+    if (
+        prior.get("review_controller_sha256") != review_controller_sha256
+        or prior.get("owner_selection_source") != owner_selection_source
+        or prior.get("selected_skills") != selected_skill_names
+    ):
+        reject("predecessor does not preserve the controller and owner selection")
+    candidate_hash = prior.get("candidate_sha256")
+    if (
+        not isinstance(candidate_hash, str)
+        or len(candidate_hash) != 64
+        or prior.get("packet_sha256") != candidate_hash
+    ):
+        reject("predecessor does not bind one frozen candidate")
+    if candidate_hash == packet_hash:
+        reject("candidate has not moved, so this is a repeat round rather than a succession")
+    focuses: list[str] = []
+    for value in [
+        *(prior.get("prior_challenge_focuses") or []),
+        prior.get("challenge_focus"),
+    ]:
+        if isinstance(value, str) and value.strip():
+            focuses.append(value)
+    return {
+        "chain_id": predecessor_chain_id,
+        "result_sha256": result_hash,
+        "candidate_sha256": candidate_hash,
+        "focuses": focuses,
+    }
+
+
 def _wording_only_error(reason: str) -> None:
     raise GateError(reason, "wording_only_proof_invalid")
 
@@ -2540,6 +2629,7 @@ def freeze_review_profile(
             or args.review_chain_id
             or args.autonomous_review_index is not None
             or args.prior_review_result_file
+            or args.predecessor_chain_result_file
         ):
             raise GateError(
                 "complete mode accepts only a completion review result, candidate, and self-review plan",
@@ -2703,6 +2793,7 @@ def freeze_review_profile(
             or args.review_chain_id is not None
             or args.autonomous_review_index is not None
             or args.prior_review_result_file
+            or args.predecessor_chain_result_file
         ):
             _wording_only_error(
                 "--wording-only-proof-file is valid only for one untracked review with challenge budget 0"
@@ -2863,7 +2954,11 @@ def freeze_review_profile(
                 "review_chain_invalid",
             )
     else:
-        if args.autonomous_review_index is not None or args.prior_review_result_file:
+        if (
+            args.autonomous_review_index is not None
+            or args.prior_review_result_file
+            or args.predecessor_chain_result_file
+        ):
             raise GateError(
                 "Agent review-chain inputs require --review-chain-id",
                 "review_chain_invalid",
@@ -2934,13 +3029,47 @@ def freeze_review_profile(
     previous_challenge_focuses: list[str] = []
     prior_review_result_hashes: list[str] = []
     prior_review_candidate_hashes: list[str] = []
+    succession: dict[str, Any] | None = None
     if review_chain_tracked:
+        if args.predecessor_chain_result_file:
+            if args.mode != "challenge":
+                raise GateError(
+                    "chain succession applies only to a challenge round",
+                    "review_chain_invalid",
+                )
+            if not challenge_focus:
+                raise GateError("challenge mode requires a non-empty --focus")
+            if challenge_budget == 0:
+                raise GateError("challenge mode requires a positive challenge budget")
+            if autonomous_review_index != 1 or args.challenge_index != 1:
+                raise GateError(
+                    "a succession chain opens at Agent round 1 with challenge index 1",
+                    "review_chain_invalid",
+                )
+            if args.prior_review_result_file:
+                raise GateError(
+                    "a succession chain opens with no in-chain prior review result",
+                    "review_chain_invalid",
+                )
+            succession = _validate_chain_succession(
+                args.predecessor_chain_result_file,
+                challenge_budget=challenge_budget,
+                review_scope_sha256=review_scope_sha256,
+                stage=args.stage,
+                review_depth=review_depth,
+                risk_tags=risk_tags,
+                packet_hash=packet_hash,
+                review_controller_sha256=review_controller_sha256,
+                owner_selection_source=owner_selection_source,
+                selected_skill_names=[item["name"] for item in selected_skills],
+            )
+            previous_challenge_focuses.extend(succession["focuses"])
         if args.mode == "review" and autonomous_review_index != 1:
             raise GateError(
                 "tracked review mode is Agent round 1; later Agent rounds use challenge mode",
                 "review_chain_invalid",
             )
-        if args.mode == "challenge":
+        if args.mode == "challenge" and succession is None:
             if not challenge_focus:
                 raise GateError("challenge mode requires a non-empty --focus")
             if challenge_budget == 0:
@@ -3062,7 +3191,7 @@ def freeze_review_profile(
     if (
         prior_review_candidate_hashes
         and prior_review_candidate_hashes[-1] != packet_hash
-    ):
+    ) or succession is not None:
         self_review_satisfied_triggers.append("material_candidate_change")
     if high_risk:
         self_review_satisfied_triggers.append("risk_or_scope_escalation")
@@ -3120,6 +3249,11 @@ def freeze_review_profile(
         "skill_delivery": "native-installed",
         "prior_challenge_focuses": previous_challenge_focuses,
         "prior_review_result_sha256": prior_review_result_hashes,
+        "predecessor_chain_id": succession["chain_id"] if succession else None,
+        "predecessor_result_sha256": succession["result_sha256"] if succession else None,
+        "predecessor_candidate_sha256": (
+            succession["candidate_sha256"] if succession else None
+        ),
         "self_review_satisfied_triggers": self_review_satisfied_triggers,
         "required_concerns": [
             {"id": concern_id, "description": description}
@@ -3394,6 +3528,9 @@ def composite_base(
         "review_scope": _canonical_review_scope(profile),
         "review_scope_sha256": profile["review_scope_sha256"],
         "prior_review_result_sha256": profile["prior_review_result_sha256"],
+        "predecessor_chain_id": profile["predecessor_chain_id"],
+        "predecessor_result_sha256": profile["predecessor_result_sha256"],
+        "predecessor_candidate_sha256": profile["predecessor_candidate_sha256"],
         "challenge_rounds_remaining": challenge_rounds_remaining,
         "autonomous_review_budget": autonomous_review_budget,
         "autonomous_review_index": autonomous_review_index,
@@ -3691,6 +3828,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--review-chain-id")
     parser.add_argument("--autonomous-review-index", type=int)
     parser.add_argument("--prior-review-result-file", action="append", default=[])
+    parser.add_argument("--predecessor-chain-result-file", default=None)
     parser.add_argument("--completion-review-result-file")
     parser.add_argument("--allow-fallback-egress", action="store_true")
     parser.add_argument("--host-remediation-attempted", action="store_true")

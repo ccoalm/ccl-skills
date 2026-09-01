@@ -13,7 +13,7 @@ Choose the smallest useful mode:
 
 - **Review mode**: normal pre-merge or plan review. Find blocking or materially misleading issues.
 - **Challenge mode**: adversarial pass modeled after `codex challenge`. Try to break the diff or decision by finding production failure paths.
-- **Complete mode**: local exact-candidate deep-self-review checkpoint after a passed final external round. It invokes no reviewer and grants no human or merge authority.
+- **Complete mode**: local exact-candidate deep-self-review checkpoint after a passed final round. It invokes no reviewer and grants no human or merge authority.
 - **Consult mode**: ask Claude a bounded question when no diff or plan review is needed.
 
 Use challenge mode when the user asks for "challenge", "poke holes", "try to break it", "adversarial", or when the change touches money, permissions, privacy, compliance, tenant/user data, production rollout, high-impact AI, architecture, economics, or IA.
@@ -68,8 +68,9 @@ staged-contract and client-routing references below for details.
 
 Current contract: review/challenge may use a stamped
 `review_plan_source=derived-default`; `complete` requires a plan and output uses
-schema 3. Automation retains one chain: one review plus at most four challenges.
-Positive challenge capacity opens it at Agent index 1; budget zero is untracked.
+schema 3. Automation retains one chain (one review, at most four challenges) plus one
+succession.
+Positive challenge capacity opens it at index 1; budget zero is untracked.
 The sole release/high-risk budget-zero exception is a controller-proved
 `markdown-punctuation-only` review: it requires `wording_only_boundary`, permits
 no `complete`, and rejects an author assertion alone (recipe:
