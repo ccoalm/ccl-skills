@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "candidate_sha256": "490c72205b2d15b8c67d354b1bb1627c1806af311444760d3f9e6dc7e44c25dc",
+  "candidate_sha256": "48a5ab7a0b1beaff0e7a01b653ffc4a2225f28a236101616f65be0baba8fe926",
   "controller_receipts": [
     {
       "sequence": 1,
@@ -15,7 +15,7 @@
     {
       "sequence": 3,
       "file": "round3-succession.json",
-      "sha256": "e4404bd31c0ea0c634511e4c9acf4f18f2b6f52d505034cee7606926579ce31b"
+      "sha256": "921b01f7e3216d371d998e3cf55aed2acb257a1e3800cc6166a45a71dfacd6b3"
     }
   ],
   "completion_receipt": null,
@@ -46,7 +46,7 @@
       "ref": "refs/heads/dev",
       "sha": "192fdccc0c8a8797d4a29f3d331df429f355e890",
       "confirmed_at": "2026-09-01T03:00:00Z",
-      "controller_receipt_sha256": "e4404bd31c0ea0c634511e4c9acf4f18f2b6f52d505034cee7606926579ce31b",
+      "controller_receipt_sha256": "921b01f7e3216d371d998e3cf55aed2acb257a1e3800cc6166a45a71dfacd6b3",
       "evidence_file": "base-attestation-3.txt",
       "evidence_sha256": "a89c06711ae533f5f237e34147d55c234689754a596f58e23bdf4ef3ae95e51b"
     }
@@ -64,30 +64,15 @@
           "finding_sha256": "4fd84e2a6cdc8ef7276bcb88af197cc9c6b3133c68145028abbaec975fc7efa4",
           "disposition": "fixed",
           "disposition_evidence_file": "disposition-evidence-is-caller-controlled-1.json",
-          "disposition_evidence_sha256": "06434fb30474ef458f1a8ef94ffddb1679519b9f0a7747315fce8d8b3c025e9b"
+          "disposition_evidence_sha256": "24c256d56c4b460250b587e73e204f8e6354996193a6df1bbd61291199d9edd9"
         },
         {
           "receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
           "finding_sha256": "4a46e9bb4922b2b68b2dec0b7d4f30014ec850cbb98ce24375754326a101556e",
-          "disposition": "fixed",
-          "disposition_evidence_file": "disposition-evidence-is-caller-controlled-2.json",
-          "disposition_evidence_sha256": "c1aaf6dcdd5c6c166386e4fd8dba87521bd5c2aa04d826d274a4a1d8c5980ffe"
-        },
-        {
-          "receipt_sha256": "e4404bd31c0ea0c634511e4c9acf4f18f2b6f52d505034cee7606926579ce31b",
-          "finding_sha256": "89d30ec87e02a349a420a026002f4822e13c8c9fba321f1becaea170d606a75c",
           "disposition": "open"
         }
       ],
-      "authoritative_sweep": {
-        "candidate_sha256": "490c72205b2d15b8c67d354b1bb1627c1806af311444760d3f9e6dc7e44c25dc",
-        "manifest_file": "sweep-evidence-is-caller-controlled.json",
-        "manifest_sha256": "a355ffee2c49b49185bd988797520a2beac726daf6134688cef3dc2272272c94",
-        "searched_set": [
-          "skills/skill-extraction-workflow/scripts/review_ledger_binding.py"
-        ],
-        "unmatched_instances": 1
-      }
+      "authoritative_sweep": null
     },
     {
       "key": "enforcement-step-is-inside-the-candidate",
@@ -97,27 +82,23 @@
         {
           "receipt_sha256": "ee43c6c14e1bec8592ab8b8231251a1c5ac7676bf485a27dfd816dcaddb94d53",
           "finding_sha256": "1961911c6879236815e98a75a8a2b78d5d2884de318e9918c6078db2e98dab1a",
-          "disposition": "fixed",
-          "disposition_evidence_file": "disposition-enforcement-step-is-inside-the-candidate-1.json",
-          "disposition_evidence_sha256": "ed2aa7a74decbb841750fd36228a8cf11ddc77991d97302adaec33392d3def88"
+          "disposition": "open"
         },
         {
           "receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
           "finding_sha256": "fb683a009f775d708a3aa2c28c676e1f80579291ed04397e921bebf86081c729",
-          "disposition": "fixed",
-          "disposition_evidence_file": "disposition-enforcement-step-is-inside-the-candidate-2.json",
-          "disposition_evidence_sha256": "ec566f7df24f917b20563f71242cff8f55b6d0afba2813956cc0db4a28d071f7"
+          "disposition": "open"
         },
         {
-          "receipt_sha256": "e4404bd31c0ea0c634511e4c9acf4f18f2b6f52d505034cee7606926579ce31b",
-          "finding_sha256": "6b200190c93085d2a81ad93794f89247c73af1ae91f0d8809f38cb9b7a5a69be",
+          "receipt_sha256": "921b01f7e3216d371d998e3cf55aed2acb257a1e3800cc6166a45a71dfacd6b3",
+          "finding_sha256": "4e855892d21f69902dddd829ead374fd47e0dc04cd0acfda337bb3277b47ce7b",
           "disposition": "open"
         }
       ],
       "authoritative_sweep": {
-        "candidate_sha256": "490c72205b2d15b8c67d354b1bb1627c1806af311444760d3f9e6dc7e44c25dc",
+        "candidate_sha256": "48a5ab7a0b1beaff0e7a01b653ffc4a2225f28a236101616f65be0baba8fe926",
         "manifest_file": "sweep-enforcement-step-is-inside-the-candidate.json",
-        "manifest_sha256": "caaf0beae5222d4ed4d153648e497923694eece411eba64305065ea920077aa1",
+        "manifest_sha256": "99f588b054d10a7036012a1e27c3d8f7b0f9fee1c5995aa9eab48e95a3d65638",
         "searched_set": [
           ".github/workflows/ci.yml"
         ],
@@ -132,6 +113,19 @@
         {
           "receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
           "finding_sha256": "ddc7d95011f057556f3d787c462181722c93c2fbd1cbf08a484513504210659e",
+          "disposition": "open"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "assertion-accepts-one-of-two-valid-outputs",
+      "root_cause_predicate": "A real-checkout assertion accepts only one of the two outputs its subject legitimately produces, so a benign state reds it.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh",
+      "occurrences": [
+        {
+          "receipt_sha256": "921b01f7e3216d371d998e3cf55aed2acb257a1e3800cc6166a45a71dfacd6b3",
+          "finding_sha256": "b3c530b36eef7b7e927ee6a42ec4fb3c046d1b2c3cd2bea9124bc768d2f055ec",
           "disposition": "open"
         }
       ],

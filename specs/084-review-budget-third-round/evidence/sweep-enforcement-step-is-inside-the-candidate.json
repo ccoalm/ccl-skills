@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "candidate_sha256": "490c72205b2d15b8c67d354b1bb1627c1806af311444760d3f9e6dc7e44c25dc",
+  "candidate_sha256": "48a5ab7a0b1beaff0e7a01b653ffc4a2225f28a236101616f65be0baba8fe926",
   "searched_set": [
     ".github/workflows/ci.yml"
   ],
