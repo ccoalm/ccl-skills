@@ -192,3 +192,22 @@ Mutation 证据要求（保护性谓词，须**已施加**且右因归因，差�
 - **TDD 顺序**：controller 半程是严格 RED-first；**validator 半程是实现在先、用例在后**，事后用"回退到 HEAD 再跑"取得真实 RED 基线。这是顺序上的偏差，如实记录，不按 TDD 报告。
 - **register 行**：初稿在 `code-review` 行里引了 `skill-extraction-workflow` 的包路径，被影响链闸判 `impact_chain_row_ambiguous`（memory 已有此坑）；已收窄为一行一 owner 包。
 - **firing-path 锚**：改写 enumeration item 1 时打断了 register 行 487 的锚，闸报 `register_firing_path_unresolved`；原短语所载义务在 round 1–2 仍然成立，故原样保留该短语而非豁免。
+
+## 终态（本轮实际结果，取代上文"执行记录"中的中途数字）
+
+- 落地候选 `57e7b766`；账本 `evidence/closeout.json` 三份收据（review + frozen-candidate challenge + succession），validator 通过，终态 `continuation_authorization_required`。
+- 合并面闸对本分支自证：账本存在前拒绝、存在后绑定通过。
+- 套件：controller 261、fast lane 41 套、仓库闸 `ccl_skill_check_clean_ok`（带 `CCL_SKILL_BASE_REF`）。
+- PR #104（base=dev），合并授权仍在用户手上。
+
+### 四条链、21 条发现——以及为什么没有"修到零"
+
+外部链跑了四轮（084-r1 / 084-r4 / 084-close / 084-succession，另有两次因基线漂移与控制器自改而作废的尝试）。每一链都返回真实缺陷，因为被评审的是本轮刚写的新代码。修完一批候选就移动，于是下一链又有新面可打——这正是闸文档禁止的"迭代到零发现"。停在这里的依据是它自己的条款：预算尽头的终态是**处置**，不是再开一链；终轮自身带发现即 `continuation_authorization_required`，发现随变更走给人。
+
+### 这轮暴露的、值得记住的机制事实
+
+1. **改评审器自身的轮次不能对自己用继承**——前驱无法保留一个本轮刚移动的控制器摘要。实测两次，是规则在工作。
+2. **修复必须在账本之前全部落定**：账本绑定的是字节，任何后续修复都让它失效；本轮为此重跑了继承轮。
+3. **测量不能扰动被测对象**：闸导入 controller 时写 `__pycache__` 进被哈希的树，当场把 packet 冻结打挂。
+4. **断言要接受被测对象所有合法输出**：只认哈希、不认 `no_change` 的断言，在证据提交后当场变红——继承轮把它作为 P2 预言，几分钟后应验。
+5. **跨界契约锚点会打挂合成夹具**：把 `.github/workflows/ci.yml` 钉进锚点表，锚点闸在别的套件的合成仓里先红并连累两条无关套件。
