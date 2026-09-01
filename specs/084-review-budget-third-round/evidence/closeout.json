@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "candidate_sha256": "38f0f0f53a872bdeded7d43d6c075154a9bb6c5ad7f55a35e484a7f62492a5c7",
+  "candidate_sha256": "ea50be1db10ddd695fc244fe4e1bbc2db33a3da693089ca8267392e85cf9c2b7",
   "controller_receipts": [
     {
       "sequence": 1,
@@ -15,7 +15,7 @@
     {
       "sequence": 3,
       "file": "round3-succession.json",
-      "sha256": "2c6b9b030e3ecfa906795b7a1d3de8530cb9cb2f513928417bee441bb9b5cc61"
+      "sha256": "309f89105305008d85ae68629c7b87704ef447bde7549e260abb43f2b2a7f697"
     }
   ],
   "completion_receipt": null,
@@ -24,31 +24,31 @@
       "sequence": 1,
       "remote": "origin",
       "ref": "refs/heads/dev",
-      "sha": "192fdccc0c8a8797d4a29f3d331df429f355e890",
+      "sha": "6373a18b3343824a964992d918eeeb9cc98e23f9",
       "confirmed_at": "2026-09-01T01:00:00Z",
       "controller_receipt_sha256": "ee43c6c14e1bec8592ab8b8231251a1c5ac7676bf485a27dfd816dcaddb94d53",
       "evidence_file": "base-attestation-1.txt",
-      "evidence_sha256": "a89c06711ae533f5f237e34147d55c234689754a596f58e23bdf4ef3ae95e51b"
+      "evidence_sha256": "f50bd677197ee19b8eb7bf4ad65840009e21537caee1e9345e87b8041d727bcc"
     },
     {
       "sequence": 2,
       "remote": "origin",
       "ref": "refs/heads/dev",
-      "sha": "192fdccc0c8a8797d4a29f3d331df429f355e890",
+      "sha": "6373a18b3343824a964992d918eeeb9cc98e23f9",
       "confirmed_at": "2026-09-01T02:00:00Z",
       "controller_receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
       "evidence_file": "base-attestation-2.txt",
-      "evidence_sha256": "a89c06711ae533f5f237e34147d55c234689754a596f58e23bdf4ef3ae95e51b"
+      "evidence_sha256": "f50bd677197ee19b8eb7bf4ad65840009e21537caee1e9345e87b8041d727bcc"
     },
     {
       "sequence": 3,
       "remote": "origin",
       "ref": "refs/heads/dev",
-      "sha": "192fdccc0c8a8797d4a29f3d331df429f355e890",
+      "sha": "6373a18b3343824a964992d918eeeb9cc98e23f9",
       "confirmed_at": "2026-09-01T03:00:00Z",
-      "controller_receipt_sha256": "2c6b9b030e3ecfa906795b7a1d3de8530cb9cb2f513928417bee441bb9b5cc61",
+      "controller_receipt_sha256": "309f89105305008d85ae68629c7b87704ef447bde7549e260abb43f2b2a7f697",
       "evidence_file": "base-attestation-3.txt",
-      "evidence_sha256": "a89c06711ae533f5f237e34147d55c234689754a596f58e23bdf4ef3ae95e51b"
+      "evidence_sha256": "f50bd677197ee19b8eb7bf4ad65840009e21537caee1e9345e87b8041d727bcc"
     }
   ],
   "autonomous_round": 3,
@@ -64,7 +64,7 @@
           "finding_sha256": "4fd84e2a6cdc8ef7276bcb88af197cc9c6b3133c68145028abbaec975fc7efa4",
           "disposition": "fixed",
           "disposition_evidence_file": "disposition-evidence-is-caller-controlled-1.json",
-          "disposition_evidence_sha256": "bedbec06ddebd3927314d1b3b1d821aa55d1138254079b02192be139fca6b1d0"
+          "disposition_evidence_sha256": "be6ff0fa5754ba597075bcad66ebd96e7438868fe8c6c43c89b7b4d94890eb2c"
         },
         {
           "receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
@@ -88,22 +88,9 @@
           "receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
           "finding_sha256": "fb683a009f775d708a3aa2c28c676e1f80579291ed04397e921bebf86081c729",
           "disposition": "open"
-        },
-        {
-          "receipt_sha256": "2c6b9b030e3ecfa906795b7a1d3de8530cb9cb2f513928417bee441bb9b5cc61",
-          "finding_sha256": "678ff62dd1d5731479bf9fece2da24ac2fecebe8f0af62fc0cee807a11e04905",
-          "disposition": "open"
         }
       ],
-      "authoritative_sweep": {
-        "candidate_sha256": "38f0f0f53a872bdeded7d43d6c075154a9bb6c5ad7f55a35e484a7f62492a5c7",
-        "manifest_file": "sweep-enforcement-step-is-inside-the-candidate.json",
-        "manifest_sha256": "a433127959e7fc651f1318543c66cba52d3a7d845c2387b7a3e01f6f4804f02e",
-        "searched_set": [
-          ".github/workflows/ci.yml"
-        ],
-        "unmatched_instances": 1
-      }
+      "authoritative_sweep": null
     },
     {
       "key": "succession-chain-id-unchecked-at-mint",
@@ -124,8 +111,8 @@
       "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
       "occurrences": [
         {
-          "receipt_sha256": "2c6b9b030e3ecfa906795b7a1d3de8530cb9cb2f513928417bee441bb9b5cc61",
-          "finding_sha256": "346de541771b968a28969f4e58ec316d8a9962a237850c103dbf35660c6afce8",
+          "receipt_sha256": "309f89105305008d85ae68629c7b87704ef447bde7549e260abb43f2b2a7f697",
+          "finding_sha256": "9fba632a6a0c140774323d4b670c85e8573831eba98e5f1983d124373fd9917a",
           "disposition": "open"
         }
       ],
