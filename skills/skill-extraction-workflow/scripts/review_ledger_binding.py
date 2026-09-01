@@ -9,11 +9,40 @@ that gap from the merge side.
 The reviewed identity is the packet the controller froze, so this recomputes that
 packet with the controller's own `freeze_packet` rather than a second
 implementation of the same bytes -- two implementations of one hash drift, and the
-drift would read as a forged ledger. Evidence lives outside the reviewed paths
-(`--paths skills .github` by default), so committing the ledger cannot change the
-hash the ledger records. The workflow directory is inside those paths on purpose:
-with only `skills/` bound, deleting the CI step that runs this gate would not move
-the candidate the evidence has to match.
+drift would read as a forged ledger. The bound set is every tracked path, minus
+exactly what this round adds under a round's evidence directory. It is a default
+of everything rather than a whitelist because a whitelist binds only the paths
+some round happened to review: a pull request could carry a ledger valid for its
+skill changes while also landing a root build script, a release script, or any
+other executable path, and because that content does not move the candidate the
+existing ledger still passed and the unreviewed content merged. Binding
+everything makes the default fail-closed -- a new top-level path is bound the day
+it appears rather than the day somebody remembers to add it. The cost is stated
+rather than hidden: a change confined to documentation now needs a ledger too,
+which is the direction this repository has already chosen for shared gates, where
+a false positive is cheaper than a false negative.
+
+The exclusion is computed per run (`added_evidence_paths`) rather than written
+down as a subtree, and the difference is load-bearing. Something must be outside
+the candidate or no ledger could ever be committed: a receipt inside the bound set
+would move the very hash it records. But excluding all of `specs/` would exclude
+far more than that -- a pull request could delete or rewrite an earlier round's
+plan and receipts, the committed review history itself, and none of it would reach
+the candidate, so the gate would pass while that history was corrupted. Only the
+paths this round ADDS under a round's own `<round>/evidence/` directory are excluded. Every
+modification and deletion under `specs/`, and every added path outside an evidence
+directory, is bound like any other file. What remains outside is narrow and worth
+naming: a file added under an EARLIER round's evidence directory is excluded too,
+because the rule is structural rather than round-aware.
+
+The candidate must also be committed (`require_committed_tree`). The frozen packet
+is built from the working tree and includes untracked files, so a scratch file or
+an unstaged edit inside the bound paths would silently produce a hash no clean
+checkout recomputes -- the author records it in the ledger, and the merge-side run
+then reports that nothing binds the landing candidate. Refusing out loud costs a
+commit; the alternative costs a review round nobody can reproduce. The workflow
+directory stays bound, as it was before: with only `skills/` bound, deleting the CI
+step that runs this gate would not move the candidate the evidence has to match.
 
 Boundaries this gate does NOT close, stated because a gate that lives inside the
 candidate cannot authenticate itself: it cannot prove the caller retained every
@@ -46,6 +75,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import time
 import types
@@ -53,7 +83,15 @@ from pathlib import Path
 
 VALIDATOR = "validate_extraction_review_state.py"
 CONTROLLER = Path("skills") / "code-review" / "scripts" / "review_gate.py"
-DEFAULT_PATHS = ("skills", ".github")
+# Every tracked path. See the module docstring: the inversion is what stops an
+# unreviewed path from riding along on a valid ledger. The only exclusion is
+# computed per run by `added_evidence_paths` -- the receipts this round adds --
+# because a written-down subtree would also hide edits to committed history.
+EVIDENCE_ROOT = "specs"
+EVIDENCE_MEMBER = re.compile(r"^specs/[^/]+/evidence/")
+# A receipt is small; anything larger is not one, and reading it is not free.
+MAX_RECEIPT_BYTES = 4_000_000
+DEFAULT_PATHS = (".",)
 
 
 def emit(message: str) -> None:
@@ -132,6 +170,113 @@ def fork_point(repo_root: Path, base: str) -> str:
             f"review_ledger_binding_error: no fork point between HEAD and {base}"
         )
     return resolved
+
+
+def added_evidence_paths(repo_root: Path, base: str) -> list[str]:
+    """Paths this round ADDS under a round's evidence directory.
+
+    These are the only paths the candidate may exclude, and the predicate is what
+    the file IS, not where it sits. Two earlier shapes of this exclusion were
+    each broken by an adversarial round, and both failures were the same one: the
+    rule named a location and the location stood in for "this is a receipt".
+    Excluding all of `specs/` let a pull request delete or rewrite an earlier
+    round's plan and receipts -- the committed review history itself -- with no
+    evidence required. Narrowing that to added paths under an evidence directory
+    then let an arbitrary added file there, a script included, ride through
+    unreviewed for exactly the same reason.
+
+    So the third shape stops using the path as a proxy. A file is excluded only
+    when it is what the exclusion exists for: a committed JSON object carrying
+    the 64-hex `candidate_sha256` that makes it a receipt about some candidate.
+    Its directory still has to be a round's evidence directory, because that is
+    where receipts belong, but the directory alone no longer buys exclusion.
+    Anything else added there -- a script, a fixture, a data file, a JSON file
+    with no candidate binding -- is bound like any other path, as is every
+    modification and deletion under `specs/`.
+    """
+    result = subprocess.run(
+        [
+            "git", "-C", str(repo_root), "diff", "--name-only",
+            "--diff-filter=A", base, "HEAD", "--", EVIDENCE_ROOT,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise SystemExit(
+            "review_ledger_binding_error: cannot enumerate added evidence: "
+            f"{result.stderr.strip()}"
+        )
+    excluded: list[str] = []
+    for line in result.stdout.splitlines():
+        if not EVIDENCE_MEMBER.match(line):
+            continue
+        if is_candidate_receipt(repo_root, line):
+            excluded.append(line)
+    return excluded
+
+
+def is_candidate_receipt(repo_root: Path, path_value: str) -> bool:
+    """Whether the committed blob at this path is a receipt about a candidate.
+
+    Read from the object store rather than the working tree: the exclusion has to
+    describe what merges. A blob that is not JSON, is not an object, or carries no
+    64-hex `candidate_sha256` is not a receipt, whatever it is named or wherever
+    it sits, and it stays inside the candidate.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "cat-file", "blob", f"HEAD:{path_value}"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode != 0 or len(result.stdout) > MAX_RECEIPT_BYTES:
+        return False
+    try:
+        payload = json.loads(result.stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    binding = payload.get("candidate_sha256")
+    return (
+        isinstance(binding, str)
+        and len(binding) == 64
+        and all(character in "0123456789abcdef" for character in binding)
+    )
+
+
+def require_committed_tree(repo_root: Path, paths: tuple[str, ...]) -> None:
+    """Refuse a candidate the merge cannot reproduce.
+
+    The frozen packet is built from the working tree and includes untracked
+    files, so a scratch file or an unstaged edit inside the bound paths silently
+    produces a hash no clean checkout will ever recompute: the author records it
+    in the ledger and the merge-side run then reports that no evidence binds the
+    landing candidate. Refusing out loud costs a commit; the alternative costs a
+    review round nobody can reproduce. This is the same stance the evidence tree
+    already takes -- what merges is the committed tree.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "status", "--porcelain", "--", *paths],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise SystemExit(
+            f"review_ledger_binding_error: cannot read tree state: {result.stderr.strip()}"
+        )
+    dirty = [line for line in result.stdout.splitlines() if line]
+    if dirty:
+        raise SystemExit(
+            "review_ledger_binding_error: the candidate tree carries uncommitted "
+            "changes, so its hash is not the one a clean checkout recomputes; "
+            "commit them first: " + ", ".join(entry[3:] for entry in dirty[:5])
+        )
 
 
 def changed_skill_paths(repo_root: Path, base: str, paths: tuple[str, ...]) -> list[str]:
@@ -253,8 +398,22 @@ def main() -> int:
         )
         return 0 if args.allow_unevaluated else 2
 
-    paths = tuple(args.paths)
     base = fork_point(repo_root, resolve_base(repo_root, base))
+    # The exclusion is derived from this round's own diff, not written down as a
+    # subtree, so edits to committed history stay inside the candidate.
+    # These names come from the candidate's own tree and are handed back to git as
+    # pathspecs, so `literal` stops git reading a filename as a pattern. A review
+    # round called this a total bypass -- a receipt named `*` excluding everything
+    # -- and that did not reproduce: the exclusion carries the full path, so a glob
+    # in the filename expands only within that one evidence directory, whose other
+    # members are receipts anyway. The claim is recorded as narrowed rather than
+    # confirmed, and no test asserts a bypass this gate does not have. `literal`
+    # stays because interpreting these names as patterns is a capability the gate
+    # never needed, and removing it costs nothing.
+    paths = tuple(args.paths) + tuple(
+        f":(exclude,literal){path}" for path in added_evidence_paths(repo_root, base)
+    )
+    require_committed_tree(repo_root, paths)
     changed = changed_skill_paths(repo_root, base, paths)
     if not changed:
         # No reviewed path moved, so there is no candidate to freeze and nothing to
