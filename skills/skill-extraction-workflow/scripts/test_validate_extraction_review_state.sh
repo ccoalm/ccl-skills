@@ -145,6 +145,7 @@ def make_fixture(
     closeout=None,
     unmatched=0,
     open_last=False,
+    succession=False,
 ):
     if receipt_findings is None:
         receipt_findings = [[finding(1)], []]
@@ -166,11 +167,15 @@ def make_fixture(
     receipt_hashes = []
     receipt_refs = []
     for index, findings in enumerate(receipt_findings, start=1):
-        mode = "review" if index == 1 else "challenge"
+        # With a succession the LAST round opens a second chain: its own chain
+        # arithmetic restarts at one while its lane position keeps counting.
+        is_succession = succession and index == rounds
+        chain_position = 1 if is_succession else index
+        mode = "challenge" if is_succession else "review" if index == 1 else "challenge"
         status = "findings" if findings else "passed"
-        remaining = 2 - index
+        remaining = 2 - chain_position
         if status == "findings":
-            state = "post_review_budget" if index == 2 else "findings_pending"
+            state = "post_review_budget" if chain_position == 2 else "findings_pending"
         else:
             state = "reviewed"
         receipt = {
@@ -179,16 +184,27 @@ def make_fixture(
             "status": status,
             "findings": copy.deepcopy(findings),
             "review_chain_tracked": True,
-            "review_chain_id": "extraction-chain",
-            "autonomous_review_index": index,
+            "review_chain_id": (
+                "extraction-succession" if is_succession else "extraction-chain"
+            ),
+            "autonomous_review_index": chain_position,
             "autonomous_review_budget": 2,
             "autonomous_reviews_remaining": remaining,
             "autonomous_review_allowed": remaining > 0,
-            "challenge_index": 0 if index == 1 else index - 1,
+            "challenge_index": 1 if is_succession else 0 if index == 1 else index - 1,
             "challenge_budget": budget,
-            "prior_review_result_sha256": list(receipt_hashes),
-            "candidate_sha256": CANDIDATE,
-            "packet_sha256": CANDIDATE,
+            "prior_review_result_sha256": [] if is_succession else list(receipt_hashes),
+            "predecessor_chain_id": "extraction-chain" if is_succession else None,
+            "predecessor_result_sha256": (
+                receipt_hashes[-1] if is_succession and receipt_hashes else None
+            ),
+            "predecessor_candidate_sha256": OTHER_CANDIDATE if is_succession else None,
+            "candidate_sha256": (
+                OTHER_CANDIDATE if succession and not is_succession else CANDIDATE
+            ),
+            "packet_sha256": (
+                OTHER_CANDIDATE if succession and not is_succession else CANDIDATE
+            ),
             "review_scope": copy.deepcopy(scope),
             "review_scope_sha256": scope_sha,
             "wording_only_proof_sha256": None,
@@ -503,6 +519,97 @@ run("review-only", review_only["ledger"], 1, "ready requires at least one tracke
 # otherwise reach completion validation as a ready-state budget bypass.
 over_budget = make_fixture("over-budget", receipt_findings=[[], [], []])
 run("over-budget", over_budget["ledger"], 1, "exceeds the wrapper budget")
+
+# Chain succession. A fix that edits the reviewed owner package ends its chain, so
+# the landing candidate can only be challenged in a succeeding chain. The lane then
+# spans two chains and three rounds, and the succession round is the only one that
+# binds what actually lands.
+succession_ready = make_fixture(
+    "succession-ready", receipt_findings=[[finding(1)], [], []], succession=True
+)
+run("succession-ready", succession_ready["ledger"], 0, "closeout_state=ready_for_human_decision")
+
+# The failure this whole mechanism exists to make visible: the fix batch moved the
+# candidate and no round ever inspected what lands.
+succession_absent = make_fixture(
+    "succession-absent",
+    receipt_findings=[[finding(1)], []],
+    receipt_mutators={
+        1: lambda row: row.update(
+            candidate_sha256=OTHER_CANDIDATE, packet_sha256=OTHER_CANDIDATE
+        ),
+        2: lambda row: row.update(
+            candidate_sha256=OTHER_CANDIDATE, packet_sha256=OTHER_CANDIDATE
+        ),
+    },
+)
+run("succession-absent", succession_absent["ledger"], 1, "does not bind the ledger candidate")
+
+# A succession whose predecessor saw the same candidate reviewed nothing new.
+succession_unmoved = make_fixture(
+    "succession-unmoved",
+    receipt_findings=[[finding(1)], [], []],
+    succession=True,
+    receipt_mutators={
+        1: lambda row: row.update(candidate_sha256=CANDIDATE, packet_sha256=CANDIDATE),
+        2: lambda row: row.update(candidate_sha256=CANDIDATE, packet_sha256=CANDIDATE),
+        3: lambda row: row.update(predecessor_candidate_sha256=CANDIDATE),
+    },
+)
+run(
+    "succession-unmoved",
+    succession_unmoved["ledger"],
+    1,
+    "must bind a candidate the wrapper chain never saw",
+)
+
+succession_foreign_terminal = make_fixture(
+    "succession-foreign-terminal",
+    receipt_findings=[[finding(1)], [], []],
+    succession=True,
+    receipt_mutators={3: lambda row: row.update(predecessor_result_sha256="f" * 64)},
+)
+run(
+    "succession-foreign-terminal",
+    succession_foreign_terminal["ledger"],
+    1,
+    "does not bind the succeeded chain's terminal receipt",
+)
+
+succession_self = make_fixture(
+    "succession-self",
+    receipt_findings=[[finding(1)], [], []],
+    succession=True,
+    receipt_mutators={3: lambda row: row.update(review_chain_id="extraction-chain")},
+)
+run("succession-self", succession_self["ledger"], 1, "succeeds its own chain")
+
+succession_misplaced = make_fixture(
+    "succession-misplaced",
+    receipt_findings=[[finding(1)], [], []],
+    succession=True,
+    receipt_mutators={
+        2: lambda row: row.update(predecessor_chain_id="extraction-chain"),
+    },
+)
+run(
+    "succession-misplaced",
+    succession_misplaced["ledger"],
+    1,
+    "must be the lane's final round",
+)
+
+succession_over_lane = make_fixture(
+    "succession-over-lane",
+    receipt_findings=[[finding(1)], [], [], []],
+    succession=True,
+)
+run(
+    "succession-over-lane",
+    succession_over_lane["ledger"],
+    1,
+    "controller_receipts must contain one to 3 ordered Agent rounds",
+)
 
 missing_complete = make_fixture("missing-complete")
 missing_complete["ledger"]["completion_receipt"] = None
