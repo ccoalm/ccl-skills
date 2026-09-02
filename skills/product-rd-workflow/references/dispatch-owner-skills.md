@@ -4,7 +4,7 @@ Use this reference for the owner-dispatch discipline behind the technical design
 
 ## Why the complete owner set loads at design time
 
-When the technical design gate is triggered and the deliverable's substance spans more than one owning skill — backend/platform/architecture (`go-microservice-architecture` / `python-service-architecture` + the relevant `platform-*` skills), LLM/inference/RAG/eval (`llm-inference-integration`), the storage/data-contract owner, the client stack owner (`web-react-dev` / `app-cross-platform-dev` / `miniapp-product-dev`), `testing-strategy`, `product-ui-ux-design` — those owning skills own BOTH (a) producing the design substance and (b) the review. Invoking the router does not discharge them.
+When the technical design gate is triggered and the deliverable's substance spans more than one owning skill — backend/platform/architecture (`go-microservice-architecture` / `python-service-architecture` for those stacks; for a stack with no `*-architecture` owner, this workflow's architecture gate plus the relevant `platform-*` skills — see the stack owner map below), LLM/inference/RAG/eval (`llm-inference-integration`), the storage/data-contract owner, the client stack owner (`web-react-dev` / `app-cross-platform-dev` / `miniapp-product-dev`), `testing-strategy`, `product-ui-ux-design` — those owning skills own BOTH (a) producing the design substance and (b) the review. Invoking the router does not discharge them.
 
 - Before producing or reviewing, enumerate the concerns the deliverable touches and load the COMPLETE owner set for those concerns during design, not only at review. Do not load owners for untouched concerns, and do not discover required owners one at a time mid-review — if a new touched concern appears, add it to the inventory and load its owner before continuing.
 - A cold dispatched worker is the worst case (see `multi-agent-delegation`).
@@ -33,3 +33,11 @@ This gate is enforceable in code, not only prose:
 - ccl-skills itself ships no config (its own edits are shared-skill/process edits, exempt from owner-load).
 
 The closeout-acquire rule (`status` must read `opted-in: yes`, or install, or record why exempt) stays in the entrypoint because it is a closeout item, not a map mechanic.
+
+## Stack dev owners and the CLI implementation carve-out
+
+The per-stack implementation owners are `go-microservice-dev` (Go), `python-service-dev` (Python), and `nodejs-service-dev` (Node.js). A newly added stack dev owner joins this map in the same landing that adds the owner, and the entrypoint's Development routing line carries the same list — the two must not drift.
+
+- **CLI/tooling implementation without terminal-UI concerns goes to that language's dev owner** and must not fall back to `terminal-cli-dev` merely because the deliverable is a command. `terminal-cli-dev` keeps the interface contract — the rendered surface plus the command/subcommand/flag/help/exit contract it owns even when nothing is rendered — and each stack dev owner carries the reciprocal skip leg. A CLI in a language with no dev owner stays with `terminal-cli-dev` as the default CLI owner.
+- **Node.js has no `*-architecture` sibling by decision, not by oversight.** Its architecture, service-boundary, data-ownership, and reliability decisions run through this workflow's architecture gate plus the relevant `platform-*` owners, with `nodejs-service-dev` owning the Node-side implementation mechanics. Do not borrow `go-microservice-architecture` or `python-service-architecture` for a Node.js service: their stack-specific RPC, storage, and codegen contracts do not transfer, and treating a missing sibling as "route to the nearest architecture skill" is the failure this rule prevents.
+- A stack whose dev owner exists but whose architecture decisions have no owner is a **routing vacuum, not a valid `not-applicable`**. Name the owner that absorbs them, as Node.js does here; recording the absence itself as the reason restates the symptom and leaves the stack unreachable from this gate.

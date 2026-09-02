@@ -22,12 +22,28 @@ Node.js uses a small number of threads to serve many clients. A long callback re
 - Remove listeners and timers during cleanup. Use `unref()` only when it matches lifecycle ownership; it is not a substitute for cancelling work.
 - Retries must fit inside one overall deadline, use the connectivity owner's policy, and remain bounded. Never retry non-idempotent effects without an idempotency contract.
 
+## Request context propagation
+
+- Carry per-request context — correlation/trace ids, tenant, deadline, auth subject — in `AsyncLocalStorage` rather than threading it through every signature or parking it on a process-wide mutable. Prefer the built-in store over hand-rolled `async_hooks` context machinery: the custom form has to re-implement propagation across every async boundary and is where context silently vanishes.
+- Establish the store once at the owning boundary (request/job/consumer entry) and read it inward. Outside an established context the read returns `undefined` — or the instance's configured default value, where the deployed runtime supports declaring one, which is a version-gated option to verify rather than assume. Either way, code that must also run without a request (startup, a shutdown drain, a background loop) needs an explicit branch or fallback, never a bare dereference of an absent context. Choose which by what the value authorizes: a correlation id may safely default, but a tenant, subject, or permission scope must make the operation fail closed when the context is missing. Declaring a default for those turns an absent context into work silently executed under the wrong identity — the store is a propagation mechanism, never the authorization decision.
+- Propagation is not automatic across every boundary. The store stays coherent through asynchronous operations started inside the context, which is not the same as crossing an isolate or process edge: before relying on context inside a `worker_threads` worker or a child process, verify propagation there rather than assuming it, and pass the needed values explicitly across any edge you have not verified.
+- What goes in the store is an implementation mechanic; which fields must exist and propagate is owned by `platform-observability`. Do not invent a field set here.
+
 ## Bounded concurrency
 
 - Replace unbounded `Promise.all(items.map(...))` on variable-size input with a repository-standard limiter, queue, or batch window.
 - Bound queue length as well as worker count. Define overload behavior: reject, shed, defer durably, or backpressure the producer.
 - Track in-flight ownership so shutdown can await or abort it. A detached promise must have an explicit supervisor and error sink.
 - Avoid per-request child processes or workers. If CPU offload is justified, measure task duration and transfer cost, then reuse a bounded pool.
+
+## Outbound HTTP clients
+
+- The process-wide dispatcher is a real contract, not a default to ignore. The built-in `fetch` routes through the globally configured dispatcher, so pooling, keep-alive, and timeout behavior for every outbound call are decided by that one object; set it deliberately at startup and treat replacing it as a service-wide change rather than a local one.
+- **The defaults are unbounded where it matters.** The per-origin pool defaults to unlimited connections, and the number of distinct origins is unbounded unless capped, so an outbound burst is bounded only by whatever bounds the calling code carries. This is the bounded-concurrency rule above applied at the socket layer: bound connections per origin, and bound origins too when destinations are influenced by input.
+- **Timeouts are layered, and none of them is an overall deadline.** Connect, response-headers, and response-body timeouts are separate settings; a request can stay within every one of them and still blow the caller's budget. The overall deadline comes from the caller's `AbortSignal` — per the cancellation rule above, a deadline not attached to the request is not a deadline.
+- **An unconsumed response body holds its connection.** Consume or explicitly cancel the body even when only the status or headers were wanted; leaving it unread stalls the request and leaks the pooled connection. A happy-path test that never reads a body cannot see this, so exercise the discard path directly.
+- Defaults and option names drift across runtime and client versions. Read the deployed version's own documentation and the repository's actual dispatcher wiring instead of assuming a number, and verify the pool/timeout settings a change depends on rather than restating them from memory.
+- Retry, backoff, circuit breaking, mTLS, and cross-service timeout *policy* stay with `platform-service-connectivity`. This section owns only the Node-side client shape that implements whatever policy that owner sets.
 
 ## Streams and backpressure
 

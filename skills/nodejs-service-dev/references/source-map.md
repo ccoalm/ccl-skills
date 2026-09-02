@@ -17,6 +17,7 @@ Inspected 2026-08-30. This file records provenance and extraction limits; it is 
 | diagnostics | [Heap snapshots](https://nodejs.org/en/learn/diagnostics/memory/using-heap-snapshot), [flame graphs](https://nodejs.org/en/learn/diagnostics/flame-graphs) | performance claims need profiles/measurements; heap snapshots can stop the main thread and exhaust memory |
 | security | [Node.js security best practices](https://nodejs.org/en/learn/getting-started/security-best-practices) | bound input work, harden dependencies, and use runtime permissions only as defense in depth |
 | reproducible install / provenance | [npm ci](https://docs.npmjs.com/cli/v11/commands/npm-ci/), [npm provenance](https://docs.npmjs.com/generating-provenance-statements) | frozen lockfile install is the verification contract; provenance proves origin/build linkage, not code safety |
+| outbound HTTP clients | [undici getting started](https://github.com/nodejs/undici/blob/main/docs/docs/getting-started.md), [undici Agent API](https://github.com/nodejs/undici/blob/main/docs/docs/api/Agent.md), [undici README](https://github.com/nodejs/undici/blob/main/README.md) | the global dispatcher backs the built-in `fetch`; per-origin pools default to unlimited connections and origins are unbounded unless capped; connect/headers/body timeouts are layered and none is an overall deadline; an unconsumed response body stalls the request and holds its pooled connection |
 
 ## Independent industry controls
 
