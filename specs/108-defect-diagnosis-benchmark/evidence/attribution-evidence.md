@@ -32,6 +32,11 @@ Bounded evidence for the claims the review plan makes. Every excerpt below was r
 - Microsoft Research, debug-gym — `https://www.microsoft.com/en-us/research/blog/debug-gym-an-environment-for-ai-coding-tools-to-learn-how-to-debug-code-like-programmers/` (2025)
   - "In most existing approaches … an agent rewrites its code conditioned on" the error; tools "enabling setting breakpoints, navigating code, printing variable values"; "Even with debugging tools, our simple prompt-based agent rarely solves more than half of the SWE-bench Lite issues. We believe this is due to the scarcity of data representing sequential decision-making behavior".
 - Not attributed: Agans, *Debugging* — the author's site is a landing page and the book text was not read; no landed rule names it.
+- Installed process pack cited in three register rows as the second, independent source — `superpowers` plugin v6.3.0, skill `systematic-debugging` (installed at the Claude plugin cache path `claude-plugins-official/superpowers/6.3.0/skills/systematic-debugging/`, read 2026-09-02):
+  - Boundary walk: `SKILL.md` Phase 1 step 4 "Gather Evidence in Multi-Component Systems … For EACH component boundary: Log what data enters component / Log what data exits component / Verify environment/config propagation … Run once to gather evidence showing WHERE it breaks".
+  - Suite polluter search: the package ships `find-polluter.sh` (listed under Supporting Techniques in the same directory).
+  - Backward trace: `root-cause-tracing.md` ("Trace bugs backward through call stack to find original trigger"); `SKILL.md` Phase 1 step 5 "Where does bad value originate? … Keep tracing up until you find the source. Fix at source, not at symptom".
+  - This pack is reference-only for the shared tree: nothing was copied from it; it corroborates the primary sources above.
 
 ## Deterministic gate results on the candidate tree
 
