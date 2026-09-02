@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "fa27baf90379eea74f8f15d85955723959326b1bc2f3a8aa927afc7fe5926600",
+  "receipt_sha256": "9a15bc5f2727425ddd03b8568389839d11e77f5bf1be9e5ffa643ad743bc4ced",
+  "finding_sha256": "e62a00c5ec90d203990e96ce70195dab4cda633f0c9bab85299da5964c020701",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "9a15bc5f2727425ddd03b8568389839d11e77f5bf1be9e5ffa643ad743bc4ced",
+      "finding_sha256": "e62a00c5ec90d203990e96ce70195dab4cda633f0c9bab85299da5964c020701"
+    }
+  ],
+  "evidence": [
+    "The stale 4943 figure lived only in the private review plan (acceptance line and evidence e3), outside the candidate; both now record the captured landing-candidate count 4992 (base 4416, delta +576, limit 5000, verdict entrypoint_word_budget_blocking_ok), matching attribution-evidence.md line 50.",
+    "The candidate is byte-identical (fa27baf9…): check-size-budget.sh via check-ccl-skills.sh reported changed_entrypoint_word_delta ... head_body_words=4992 on commit 206a4ef, the tree this ledger binds."
+  ]
+}

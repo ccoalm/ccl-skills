@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "2317757dc55a852095da99f5afa600eb14af855c6eec7caeaa384a84cec06758",
+  "receipt_sha256": "0bdc149f5327ca440476680264541b9597d3a34756eb096ba78b09e3e6a8ad5c",
+  "finding_sha256": "764039c4a358679d52d1d3d9503b8b09ac398733a41002c96d9c42616a43b992",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "0bdc149f5327ca440476680264541b9597d3a34756eb096ba78b09e3e6a8ad5c",
+      "finding_sha256": "764039c4a358679d52d1d3d9503b8b09ac398733a41002c96d9c42616a43b992"
+    }
+  ],
+  "evidence": [
+    "Boundary-walk bullet now applies the single instrumented run only when the chain can be re-run safely and every boundary is reachable; historical, partially observable, or unsafe chains route to the telemetry path (Phase A step 4), partial boundary evidence, or layer narrowing with the visibility gap recorded.",
+    "Resolves the conflict with the Reproduce-step telemetry route added in the same diff."
+  ]
+}

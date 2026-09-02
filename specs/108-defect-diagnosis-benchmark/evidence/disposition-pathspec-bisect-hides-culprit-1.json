@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "2317757dc55a852095da99f5afa600eb14af855c6eec7caeaa384a84cec06758",
+  "receipt_sha256": "0bdc149f5327ca440476680264541b9597d3a34756eb096ba78b09e3e6a8ad5c",
+  "finding_sha256": "fc25535785b43147de3adb87493bf8f3ff05d38a2b1b970867f0d19fb45aed7a",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "0bdc149f5327ca440476680264541b9597d3a34756eb096ba78b09e3e6a8ad5c",
+      "finding_sha256": "fc25535785b43147de3adb87493bf8f3ff05d38a2b1b970867f0d19fb45aed7a"
+    }
+  ],
+  "evidence": [
+    "Bisect sub-bullet now conditions the pathspec restriction on evidence that the cause is confined to those paths and requires a full-range rerun when the restricted search yields no commit that reproduces the cause, naming dependency/generator/build-config/schema changes as the out-of-path class.",
+    "Anchor `Do not bisect the whole history` preserved as a substring for the register row."
+  ]
+}

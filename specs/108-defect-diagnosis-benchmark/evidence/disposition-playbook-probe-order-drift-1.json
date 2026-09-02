@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "fa27baf90379eea74f8f15d85955723959326b1bc2f3a8aa927afc7fe5926600",
+  "receipt_sha256": "3df05abaf517a3aaff1366408a0410d88821c984d374b9e8a0156779a174ba2f",
+  "finding_sha256": "c8a009813e59ea849cff64e0af7b457de1490e2ed12050e0483a6e93e8d91f01",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "3df05abaf517a3aaff1366408a0410d88821c984d374b9e8a0156779a174ba2f",
+      "finding_sha256": "c8a009813e59ea849cff64e0af7b457de1490e2ed12050e0483a6e93e8d91f01"
+    }
+  ],
+  "evidence": [
+    "The playbook probe-ordering paragraph now reproduces the entrypoint rule verbatim in substance: safety is a filter (reject probes outside the safety boundary first), rank the rest by alternatives ruled out per unit of cost, break ties by likelihood then residual risk; the 'cheapest and safest' and 'likely-and-cheap before exotic' sentences are gone."
+  ]
+}
