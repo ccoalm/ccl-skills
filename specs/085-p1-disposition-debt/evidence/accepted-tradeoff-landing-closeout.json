@@ -1,0 +1,112 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "b3d8125a22f72c32def551329a1f3ec46835f29ce13840932aa0afc216b1ac8d",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "accepted-tradeoff-round1-review.json",
+      "sha256": "d793130f322f6b4b379eb5b96936a77d0b1010622a2b0983edadb788b28e1706"
+    },
+    {
+      "sequence": 2,
+      "file": "accepted-tradeoff-round2-challenge.json",
+      "sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8"
+    }
+  ],
+  "completion_receipt": null,
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "2699a18796e807e054bfbc227a43b615477b5b90",
+      "confirmed_at": "2026-09-02T05:20:41Z",
+      "controller_receipt_sha256": "d793130f322f6b4b379eb5b96936a77d0b1010622a2b0983edadb788b28e1706",
+      "evidence_file": "accepted-tradeoff-base-attestation-1.txt",
+      "evidence_sha256": "d088bab94c014ac448a54f8743d9615df22235561997e50187dd056d1e15056a"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "2699a18796e807e054bfbc227a43b615477b5b90",
+      "confirmed_at": "2026-09-02T05:20:48Z",
+      "controller_receipt_sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8",
+      "evidence_file": "accepted-tradeoff-base-attestation-2.txt",
+      "evidence_sha256": "d088bab94c014ac448a54f8743d9615df22235561997e50187dd056d1e15056a"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "post_review_budget",
+  "finding_classes": [
+    {
+      "key": "excluded-disposition-artifact-validation",
+      "root_cause_predicate": "The bounded model packet omits a newly added candidate-bound disposition JSON to avoid self-reference, while the unchanged closeout validator independently reads, hashes, parses, and binds that artifact before merge evidence is accepted.",
+      "affected_surface": "specs/085-p1-disposition-debt/evidence/closeout.json and validate_extraction_review_state.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "d793130f322f6b4b379eb5b96936a77d0b1010622a2b0983edadb788b28e1706",
+          "finding_sha256": "ea7ea2d0e6677f4ea15979cd0c3a76f392ffdb3bc52a7ca08f6e57f3f7b7235e",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "accepted-tradeoff-disposition-round1-artifact-validation.json",
+          "disposition_evidence_sha256": "649d8ca42cddefa60411575f69de41382c94d751404e61e9cf6cc147d3f62252"
+        },
+        {
+          "receipt_sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8",
+          "finding_sha256": "f7c5aaa3200ac3d212aaf3adfb2ee767cf0ae19648b9c3bc3115c469e9ead1e8",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "accepted-tradeoff-disposition-round2-artifact-validation.json",
+          "disposition_evidence_sha256": "aab6caef8401cd9b0ae203c1c611e5de89669d01a3cafce758a8c235c5148d6d"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "accepted-tradeoff-current-candidate-freshness",
+      "root_cause_predicate": "The historical disposition artifact correctly binds the candidate where its occurrence arose, so a later landing candidate needs a separate exact-hash reachability and severity recheck rather than rewriting historical identity.",
+      "affected_surface": "evidence-is-caller-controlled accepted-tradeoff disposition",
+      "occurrences": [
+        {
+          "receipt_sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8",
+          "finding_sha256": "e858c6a9abe42ae9598454f702481e2b9dcdcc3b9138a05f3d824aac0c9f5703",
+          "disposition": "fixed",
+          "disposition_evidence_file": "accepted-tradeoff-disposition-current-candidate-freshness.json",
+          "disposition_evidence_sha256": "ca9ba70e7ed222dfc3850c4134e2fbfd5e0659c01029df3ff7aa4b9746b2b141"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "unchanged-base-canonical-captures",
+      "root_cause_predicate": "Canonical git ls-remote output remains byte-identical across independent observations when the remote ref does not move; observation ordering and receipt mapping live in the closeout rows rather than the raw value.",
+      "affected_surface": "accepted-tradeoff-base-attestation-1.txt and accepted-tradeoff-base-attestation-2.txt",
+      "occurrences": [
+        {
+          "receipt_sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8",
+          "finding_sha256": "f30e492ce2fed88f83417423947b62acf58b477dcc19f3a7bdb11b77aae9bec2",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "accepted-tradeoff-disposition-identical-base-attestations.json",
+          "disposition_evidence_sha256": "e025734fff5695190b81ee792d75de4d03885f2a1730b0d35e4907cdb3555a06"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "owner-authority-outside-candidate",
+      "root_cause_predicate": "The candidate records an externally authenticated repository-owner decision but cannot authenticate that authority from its own bytes; the platform action is the authority surface and the repository artifact is only its disposition trail.",
+      "affected_surface": "accepted-tradeoff owner decision record",
+      "occurrences": [
+        {
+          "receipt_sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8",
+          "finding_sha256": "650ac7f5c974af9850a12becd0b56c812476f6f71da0f2f768ea7c38f426f96a",
+          "disposition": "accepted_tradeoff",
+          "disposition_evidence_file": "accepted-tradeoff-disposition-owner-authority.json",
+          "disposition_evidence_sha256": "c2255b4e7506e3fe83087a10015620857eb1aa038b92490d34f172cd5b8b3752"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "continuation_authorization_required"
+}
