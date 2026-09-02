@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "efe2ce32c700a842c4da2eac89c46b302d2ce5360a0eb47fa4f688197c91b65a",
+  "receipt_sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5",
+  "finding_sha256": "dcb994942e4a15a9ebade30733aec0bf22ff4f35d1f7a210de3e12372e96206e",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5",
+      "finding_sha256": "dcb994942e4a15a9ebade30733aec0bf22ff4f35d1f7a210de3e12372e96206e"
+    }
+  ],
+  "evidence": [
+    "validate_extraction_review_state.py requires each evidence file to equal the canonical raw '<sha>\\t<ref>\\n' ls-remote line; when the remote tip does not move, two captures are intentionally byte-identical.",
+    "The validator distinguishes captures through contiguous receipt mappings and strictly increasing RFC3339 confirmed_at values in closeout.json, not by altering the remote's canonical output.",
+    "Requiring different blob hashes for an unchanged remote would force non-canonical evidence and would be rejected by the repository validator."
+  ]
+}

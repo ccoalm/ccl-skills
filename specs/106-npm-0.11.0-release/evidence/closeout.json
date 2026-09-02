@@ -1,0 +1,105 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "efe2ce32c700a842c4da2eac89c46b302d2ce5360a0eb47fa4f688197c91b65a",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "final-round1-review.json",
+      "sha256": "8c454d3575cdb1d0ff57396462dde1072cba4d14a6e8832ee3d586967e86e76c"
+    },
+    {
+      "sequence": 2,
+      "file": "final-round2-challenge.json",
+      "sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5"
+    }
+  ],
+  "completion_receipt": null,
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "bcdd82a682710a562cbd9cdba5e248d0dfa2e222",
+      "confirmed_at": "2026-09-02T03:52:21Z",
+      "controller_receipt_sha256": "8c454d3575cdb1d0ff57396462dde1072cba4d14a6e8832ee3d586967e86e76c",
+      "evidence_file": "base-attestation-1.txt",
+      "evidence_sha256": "837c7e2840a31cf9d9952a03543a8a9b1cd0685f50e5adeb08ad0d722b712acc"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "bcdd82a682710a562cbd9cdba5e248d0dfa2e222",
+      "confirmed_at": "2026-09-02T03:53:10Z",
+      "controller_receipt_sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5",
+      "evidence_file": "base-attestation-2.txt",
+      "evidence_sha256": "837c7e2840a31cf9d9952a03543a8a9b1cd0685f50e5adeb08ad0d722b712acc"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "post_review_budget",
+  "finding_classes": [
+    {
+      "key": "unchanged-base-canonical-captures",
+      "root_cause_predicate": "Canonical ls-remote output remains byte-identical across captures when the remote ref does not move, while capture ordering belongs to the closeout rows.",
+      "affected_surface": "specs/106-npm-0.11.0-release/evidence/base-attestation-1.txt and base-attestation-2.txt",
+      "occurrences": [
+        {
+          "receipt_sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5",
+          "finding_sha256": "dcb994942e4a15a9ebade30733aec0bf22ff4f35d1f7a210de3e12372e96206e",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "final-disposition-identical-attestations.json",
+          "disposition_evidence_sha256": "d08a9913acba6e5d3a81a58393fc9d573d043bd8c53271d41f402268d232dc2c"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "external-live-base-authority",
+      "root_cause_predicate": "The existing protocol intentionally keeps remote currency and HEAD containment as caller-owned live checks because candidate-controlled code cannot authenticate its own observation.",
+      "affected_surface": "dual-track base attestation protocol",
+      "occurrences": [
+        {
+          "receipt_sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5",
+          "finding_sha256": "90cdcef1c8fdc1a35c079a0ef798a93b996a5ee856455ef84bcdc16795244257",
+          "disposition": "pre_existing_out_of_scope",
+          "disposition_evidence_file": "final-disposition-live-base-control.json",
+          "disposition_evidence_sha256": "377fbda02a97c05b4ba620ad0d4bef20360bda74427860f9d8abd640c63e75ba"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "existing-version-consistency-gate",
+      "root_cause_predicate": "The repository already has a deterministic release-version gate and regression suite that compare all three package metadata version sites.",
+      "affected_surface": "scripts/check-release-version.py and scripts/test_check_release_version.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5",
+          "finding_sha256": "df0d36d743965c6a2c9d125156cd05ac9202a6fcc4c35b13000a9d9e6d38e237",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "final-disposition-version-test.json",
+          "disposition_evidence_sha256": "3b02d4ecef4d9f874f10bddb27d9ee7a99c0fc960b9dc64184e416b6545f00d5"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "final-head-package-verification",
+      "root_cause_predicate": "The package and packed-artifact suites needed a fresh run after the base-attestation commit to bind their results to the exact reviewed HEAD.",
+      "affected_surface": "packages/ccl-skills-npm",
+      "occurrences": [
+        {
+          "receipt_sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5",
+          "finding_sha256": "990dc7e9718a9f3d8a88b17f0dbec2683daac581949464a772d9460033af48ca",
+          "disposition": "fixed",
+          "disposition_evidence_file": "final-disposition-final-head-tests.json",
+          "disposition_evidence_sha256": "b432252020d43119896175eb9d604ead67a244ee0335d74afc63f31827b4d4ea"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "continuation_authorization_required"
+}

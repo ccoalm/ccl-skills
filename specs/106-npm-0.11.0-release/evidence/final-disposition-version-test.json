@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "efe2ce32c700a842c4da2eac89c46b302d2ce5360a0eb47fa4f688197c91b65a",
+  "receipt_sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5",
+  "finding_sha256": "df0d36d743965c6a2c9d125156cd05ac9202a6fcc4c35b13000a9d9e6d38e237",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5",
+      "finding_sha256": "df0d36d743965c6a2c9d125156cd05ac9202a6fcc4c35b13000a9d9e6d38e237"
+    }
+  ],
+  "evidence": [
+    "scripts/check-release-version.py reads package.json version, package-lock.json version, and package-lock.json packages[''].version and fails when the three distinct values disagree.",
+    "The repository Makefile runs both scripts/test_check_release_version.py and scripts/check-release-version.py . in its test lane.",
+    "At committed HEAD de0dc28126784c4f224ac2d5091a5f0f44e078bd, the 18 checker regression tests passed and the live checker reported release_version_ok: 0.11.0 at or above released 0.10.0."
+  ]
+}
