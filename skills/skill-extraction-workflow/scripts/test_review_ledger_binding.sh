@@ -307,6 +307,191 @@ out="$(run_scope --base "$SCOPE_BASE" --print-candidate)"; rc=$?
 check "the same clean checkout still reaches its normal verdict" \
   '[ "$rc" = 0 ] && case "$out" in *"no reviewed-path change"*) true;; *) false;; esac'
 
+# Partition: the candidate's Git identity is base..HEAD, but the packet a reviewer
+# can read is capped at the controller's byte ceiling. A landing candidate larger
+# than one packet used to be unlandable as one pull request -- the whole-candidate
+# freeze failed and no ledger could ever bind it -- so authors split the pull
+# request instead of the review. A committed landing partition manifest names
+# path partitions that together cover every changed file exactly once, each bound
+# by its own validated ledger; the gate recomputes every partition and refuses any
+# manifest whose parts do not add up to the whole.
+PART="$WORK/partition-repo"
+mkdir -p "$PART/skills/code-review/scripts" "$PART/skills/skill-extraction-workflow/scripts" "$PART/specs/round/evidence" "$PART/lane-a" "$PART/lane-b"
+cp "$CONTROLLER" "$PART/skills/code-review/scripts/review_gate.py"
+cat >"$PART/skills/skill-extraction-workflow/scripts/validate_extraction_review_state.py" <<'PY'
+import sys
+print("extraction_review_state_ok: stub accepted")
+sys.exit(0)
+PY
+git -C "$PART" init -q .
+git -C "$PART" config user.email t@example.invalid
+git -C "$PART" config user.name tester
+printf 'baseline\n' >"$PART/skills/skill-extraction-workflow/SKILL.md"
+printf 'baseline\n' >"$PART/lane-a/big.txt"
+printf 'baseline\n' >"$PART/lane-b/big.txt"
+git -C "$PART" add -A && git -C "$PART" commit -qm baseline
+PART_BASE="$(git -C "$PART" rev-parse HEAD)"
+
+run_part() { python3 "$GATE" --repo-root "$PART" "$@" 2>&1; }
+
+# The manifest oracle mirrors the documented canonical form (sorted keys, compact
+# separators, UTF-8) independently of the gate, so a drift in either side reds.
+cat >"$WORK/write-manifest.py" <<'PY'
+import hashlib, json, sys
+out, base, aggregate = sys.argv[1], sys.argv[2], sys.argv[3]
+partitions = []
+for spec in sys.argv[4:]:
+    paths, digest = spec.rsplit("=", 1)
+    partitions.append({"paths": paths.split(), "candidate_sha256": digest})
+body = {"schema_version": 1, "kind": "landing_partition_manifest", "base": base, "partitions": partitions}
+if aggregate == "AUTO":
+    canonical = json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    aggregate = hashlib.sha256(canonical).hexdigest()
+body["candidate_sha256"] = aggregate
+with open(out, "w", encoding="utf-8") as handle:
+    json.dump(body, handle, indent=2)
+    handle.write("\n")
+PY
+write_closeout() { python3 - "$1" "$2" <<'PY'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({"schema_version": 3, "closeout_state": "ready_for_human_decision", "controller_receipts": [], "candidate_sha256": sys.argv[2]}))
+PY
+}
+
+# Two lanes each change ~130 KB: either fits one packet, the pair does not.
+python3 - "$PART" <<'PY'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+for lane in ("lane-a", "lane-b"):
+    lines = [f"{lane} line {index:06d} " + "x" * 40 for index in range(2200)]
+    (root / lane / "big.txt").write_text("\n".join(lines) + "\n")
+PY
+git -C "$PART" add -A && git -C "$PART" commit -qm "oversized landing"
+
+out="$(run_part --base "$PART_BASE")"; rc=$?
+check "a candidate too large for one packet is refused with the partition recipe, not a bare freeze error" \
+  '[ "$rc" = 1 ] && case "$out" in *"exceeds 200000 bytes"*"landing partition manifest"*) true;; *) false;; esac'
+
+MANIFEST_JSON="$(run_part --base "$PART_BASE" --print-manifest --partition lane-a --partition lane-b)"; rc=$?
+check "the gate renders a manifest for a partition that covers the whole candidate" \
+  '[ "$rc" = 0 ] && python3 -c "import json,sys; m=json.loads(sys.argv[1]); assert m[\"kind\"]==\"landing_partition_manifest\" and len(m[\"partitions\"])==2 and m[\"base\"]==sys.argv[2]" "$MANIFEST_JSON" "$PART_BASE"'
+
+out="$(run_part --base "$PART_BASE" --print-manifest --partition lane-a)"; rc=$?
+check "rendering refuses a partition that leaves a changed path uncovered" \
+  '[ "$rc" != 0 ] && case "$out" in *"uncovered"*"lane-b/big.txt"*) true;; *) false;; esac'
+
+out="$(run_part --base "$PART_BASE" --print-manifest --partition lane-a --partition lane-a/big.txt lane-b)"; rc=$?
+check "rendering refuses partitions that overlap on a changed path" \
+  '[ "$rc" != 0 ] && case "$out" in *"overlap"*"lane-a/big.txt"*) true;; *) false;; esac'
+
+out="$(run_part --base "$PART_BASE" --print-manifest --partition lane-a --partition lane-a lane-b)"; rc=$?
+check "rendering refuses the same path listed in two partitions before touching git" \
+  '[ "$rc" != 0 ] && case "$out" in *"listed twice"*"lane-a"*) true;; *) false;; esac'
+
+HASH_A="$(run_part --base "$PART_BASE" --print-candidate --paths lane-a)"
+HASH_B="$(run_part --base "$PART_BASE" --print-candidate --paths lane-b)"
+check "a partition's hash is exactly what --print-candidate --paths already answers" \
+  '[ ${#HASH_A} = 64 ] && python3 -c "import json,sys; m=json.loads(sys.argv[1]); assert [p[\"candidate_sha256\"] for p in m[\"partitions\"]]==[sys.argv[2], sys.argv[3]]" "$MANIFEST_JSON" "$HASH_A" "$HASH_B"'
+
+printf '%s\n' "$MANIFEST_JSON" >"$PART/specs/round/evidence/landing-partitions.json"
+git -C "$PART" add -A && git -C "$PART" commit -qm "partition manifest"
+out="$(run_part --base "$PART_BASE")"; rc=$?
+check "a manifest whose partitions carry no validated ledger is refused, naming the partition" \
+  '[ "$rc" = 1 ] && case "$out" in *"no accepted ledger"*"lane-a"*) true;; *) false;; esac'
+HASH_A_AFTER="$(run_part --base "$PART_BASE" --print-candidate --paths lane-a)"
+check "committing the manifest does not move the partition it describes" \
+  '[ "$HASH_A_AFTER" = "$HASH_A" ]'
+
+write_closeout "$PART/specs/round/evidence/closeout-a.json" "$HASH_A"
+write_closeout "$PART/specs/round/evidence/closeout-b.json" "$HASH_B"
+git -C "$PART" add -A && git -C "$PART" commit -qm "partition ledgers"
+out="$(run_part --base "$PART_BASE")"; rc=$?
+check "a complete manifest with a validated ledger per partition binds a candidate no single packet could" \
+  '[ "$rc" = 0 ] && case "$out" in *"binds the landing candidate"*"2 partitions"*) true;; *) false;; esac'
+PART_GOOD="$(git -C "$PART" rev-parse HEAD)"
+
+# Every way the parts can fail to add up to the whole is refused for its own
+# reason. Each probe branches from the passing state so the cases stay independent.
+MANIFEST="$PART/specs/round/evidence/landing-partitions.json"
+probe_part() {
+  git -C "$PART" checkout -q -B "probe" "$PART_GOOD"
+}
+
+probe_part
+python3 "$WORK/write-manifest.py" "$MANIFEST" "$PART_BASE" AUTO "lane-a=$HASH_A"
+git -C "$PART" add -A && git -C "$PART" commit -qm "manifest drops a lane"
+out="$(run_part --base "$PART_BASE")"; rc=$?
+check "a manifest that leaves a changed path in no partition is refused" \
+  '[ "$rc" = 1 ] && case "$out" in *"uncovered"*"lane-b/big.txt"*) true;; *) false;; esac'
+
+probe_part
+python3 "$WORK/write-manifest.py" "$MANIFEST" "$PART_BASE" AUTO "lane-a=$HASH_A" "lane-a/big.txt lane-b=$HASH_B"
+git -C "$PART" add -A && git -C "$PART" commit -qm "manifest overlaps"
+out="$(run_part --base "$PART_BASE")"; rc=$?
+check "a manifest whose partitions overlap is refused before any packet is frozen" \
+  '[ "$rc" = 1 ] && case "$out" in *"overlap"*"lane-a/big.txt"*) true;; *) false;; esac'
+
+probe_part
+printf 'moved after the manifest was written\n' >>"$PART/lane-a/big.txt"
+git -C "$PART" add -A && git -C "$PART" commit -qm "candidate moves after manifest"
+out="$(run_part --base "$PART_BASE")"; rc=$?
+check "a partition whose recorded hash no longer reproduces is refused" \
+  '[ "$rc" = 1 ] && case "$out" in *"lane-a"*"does not reproduce"*) true;; *) false;; esac'
+
+probe_part
+python3 "$WORK/write-manifest.py" "$MANIFEST" "0000000000000000000000000000000000000000" AUTO "lane-a=$HASH_A" "lane-b=$HASH_B"
+git -C "$PART" add -A && git -C "$PART" commit -qm "manifest names another base"
+out="$(run_part --base "$PART_BASE")"; rc=$?
+check "a manifest written against another base is refused" \
+  '[ "$rc" = 1 ] && case "$out" in *"base"*"fork point"*) true;; *) false;; esac'
+
+probe_part
+python3 "$WORK/write-manifest.py" "$MANIFEST" "$PART_BASE" "$(printf 'f%.0s' $(seq 64))" "lane-a=$HASH_A" "lane-b=$HASH_B"
+git -C "$PART" add -A && git -C "$PART" commit -qm "manifest aggregate forged"
+out="$(run_part --base "$PART_BASE")"; rc=$?
+check "a manifest whose aggregate hash does not reproduce its partitions is refused" \
+  '[ "$rc" = 1 ] && case "$out" in *"aggregate"*) true;; *) false;; esac'
+
+for bad_path in ":(exclude)lane-b" "-lane-b" "../lane-b" "/lane-b" "lane-*" "lane-?" "lane-[ab]" "lane-\\b"; do
+  probe_part
+  python3 "$WORK/write-manifest.py" "$MANIFEST" "$PART_BASE" AUTO "lane-a=$HASH_A" "$bad_path=$HASH_B"
+  git -C "$PART" add -A && git -C "$PART" commit -qm "manifest smuggles a pathspec"
+  out="$(run_part --base "$PART_BASE")"; rc=$?
+  check "a manifest partition path shaped like $bad_path is refused as a path, not handed to git" \
+    '[ "$rc" = 1 ] && case "$out" in *"partition path"*) true;; *) false;; esac'
+done
+
+out="$(run_part --base "$PART_BASE" --print-manifest --partition 'lane-*')"; rc=$?
+check "rendering refuses a wildcard partition instead of letting git expand it" \
+  '[ "$rc" != 0 ] && case "$out" in *"partition path"*"wildcard"*) true;; *) false;; esac'
+
+# Under a narrowed --paths scope the partition union must equal the reviewed
+# changed set, not merely contain it: a partition naming `.` reaches lane-b even
+# though only lane-a is under review, and that surplus is refused before any
+# packet is frozen. The ledgers are removed so the single-ledger path cannot
+# satisfy the narrowed scope first.
+probe_part
+git -C "$PART" rm -q "$PART/specs/round/evidence/closeout-a.json" "$PART/specs/round/evidence/closeout-b.json"
+python3 "$WORK/write-manifest.py" "$MANIFEST" "$PART_BASE" AUTO ".=$(printf '0%.0s' $(seq 64))"
+git -C "$PART" add -A && git -C "$PART" commit -qm "manifest reaches outside the reviewed scope"
+out="$(run_part --base "$PART_BASE" --paths lane-a)"; rc=$?
+check "a partition reaching changed paths outside a narrowed --paths scope is refused, not accepted as covering" \
+  '[ "$rc" = 1 ] && case "$out" in *"outside the reviewed scope"*"lane-b/big.txt"*) true;; *) false;; esac'
+
+probe_part
+git -C "$PART" rm -q "$PART/specs/round/evidence/closeout-b.json"
+git -C "$PART" commit -qm "one ledger missing"
+out="$(run_part --base "$PART_BASE")"; rc=$?
+check "a manifest with one partition unbound is refused, naming that partition" \
+  '[ "$rc" = 1 ] && case "$out" in *"no accepted ledger"*"lane-b"*) true;; *) false;; esac'
+
+git -C "$PART" checkout -q -B "landing" "$PART_GOOD"
+out="$(run_part --base "$PART_BASE")"; rc=$?
+check "the passing partition state still passes after the probes" \
+  '[ "$rc" = 0 ]'
+
 # The suite above exercises a synthetic repository. The gate must also run against
 # the real checkout it ships in, or a break in that path passes every test here.
 REAL_ROOT="$(cd "$DIR/../../.." && pwd -P)"
