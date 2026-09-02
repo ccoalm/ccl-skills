@@ -140,6 +140,10 @@ RED 基线：新用例落在旧代码上，18 条红、既有 35 条绿（`test_
 - visible surface：no。
 - test-case-first：分区用例先写先红，再实现。
 
+## CLI 契约记录（terminal-cli-dev 轻量记录）
+
+新增两个 flag：`--print-manifest`（渲染清单到 stdout，JSON，缩进 2）与 `--partition PATH [PATH…]`（可重复，仅随 `--print-manifest`）。约束：两者缺一即 argparse 报错退出 2；诊断一律 stderr，既有 `review_ledger_binding_ok / failed / error / no_change` token 不变；通过行报「as N partitions」并逐分区一行列出绑定它的 ledger。无交互、无颜色、无 TTY 依赖；`visible surface: no`（CI/作者侧工具，不面向产品用户）。
+
 ## Status-sync target
 
 `skills/skill-extraction-workflow/references/source-register.md` 追加本轮行（append-only，作为最后一个 commit，firing-path 指向 `command:skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh`）。
