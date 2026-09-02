@@ -40,7 +40,7 @@ Keep preprocessing and postprocessing deterministic and cheap. Expensive transfo
 | Paged KV-cache allocation | memory waste ↓ → larger batches fit | engine support; no quality change |
 | Automatic prefix caching | TTFT ↓ and cost ↓ for shared prefixes | needs the stable-prefix prompt design in `llm-client-gateway.md`; hit rate is the metric to watch |
 | Speculative decoding (draft model / n-gram) | TPOT ↓ when draft acceptance is high | slower than plain decode when acceptance is low — measure acceptance rate per workload |
-| Prefill/decode disaggregation | TTFT and ITL tunable independently; tail ITL ↓ (no prefill interference) | does not raise throughput; needs KV transfer; chunked prefill is the co-located alternative |
+| Prefill/decode disaggregation | TTFT and ITL tunable independently; tail ITL ↓ (no prefill interference) | throughput and goodput may rise or fall with the engine, the resource split, KV-transfer overhead, and the workload (one engine's documentation states it does not raise throughput) — measure on the target engine; chunked prefill is the co-located alternative |
 | Quantization (weights / KV) | memory ↓, often throughput ↑ | re-run the quality eval — not a capacity-only change |
 | Prefix- / KV-aware routing across replicas | cache hit rate ↑ under multi-replica serving | needs replica cache-state signals from the scheduler or gateway; adapter-affinity routing is the same shape |
 
