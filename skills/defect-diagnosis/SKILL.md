@@ -45,7 +45,7 @@ Use this skill for the full defect discipline: diagnose the immediate failure, f
 
 3. Hypothesize.
    - Write concrete causes that can be proven or rejected.
-   - For each hypothesis, define the expected observation if it is true.
+   - For each hypothesis, define the expected observation if it is true **and the observation that would falsify it** — then go get the falsifying one first. A search hit, a log line, or a plausible implementation detail proves the text EXISTS, not that it RAN on the path that failed: run it on the failing path for an observation only THAT cause predicts — reachability rules out non-execution and nothing else, so watching the suspected code execute clears no cause — or build a paired control differing in exactly ONE variable (every precondition of the predicate under test enumerated, both arms equal on all the others). Until an operation that could have falsified the cause has been run and did not, it stays a `hypothesis` — it must not become the basis of a fix, and it must not enter a commit/MR body, a durable note, or a report as the cause. Withdrawing a landed wrong cause costs far more than testing it. The probe itself stays inside the same boundaries the extraction workflow's falsification rule names — existing sandbox and permission limits, non-destructive, synthetic targets, no production or live credentials, no permission-boundary bypass; where no safe probe exists the cause simply stays a `hypothesis` and must never be upgraded by running an unsafe one.
 
 4. Instrument.
    - Add targeted logs, assertions, traces, metrics, local probes, or debugger breakpoints.
