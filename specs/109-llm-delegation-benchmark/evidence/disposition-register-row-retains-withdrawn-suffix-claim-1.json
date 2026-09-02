@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "75f8430986cb3d7e32355b447a51541356ebee934436aa27d5a1de942699564b",
+ "receipt_sha256": "d2a7f979b2d0a102a444ebed2fba773e6bfe0ba6d53c209464fca5f1212432a2",
+ "finding_sha256": "c68f5f028910b71192b4b0f94bacde4540b88216f89372dcbe8078387e6712de",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "d2a7f979b2d0a102a444ebed2fba773e6bfe0ba6d53c209464fca5f1212432a2",
+   "finding_sha256": "c68f5f028910b71192b4b0f94bacde4540b88216f89372dcbe8078387e6712de"
+  }
+ ],
+ "evidence": [
+  "Ledger rows are append-only (never edited or deleted; corrections supersede by pointer), so the withdrawal is recorded in a new row appended in commit f4ad9df: it names the superseded sentence verbatim, states that tool definitions head the cached prefix so the change is a new cache generation at the next invocation, and points to the succession-round tightening row that already states the reconciled boundary."
+ ]
+}

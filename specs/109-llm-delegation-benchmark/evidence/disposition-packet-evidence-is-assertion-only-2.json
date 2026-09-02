@@ -1,16 +1,16 @@
 {
  "schema_version": 1,
- "candidate_sha256": "8fa5320ff3b44e2cb89c746e1f836f5d6db17230380fde3eb0e5ee42fad30969",
- "receipt_sha256": "dcab3e7cd77b8a7e2abde7cad97ef05376e1fdb2a1fba23459a1b450bcb88601",
- "finding_sha256": "a42c97796d54b582ffd18a5c61a8335d3f2abeb513422602de68a1a4cea6c420",
+ "candidate_sha256": "75f8430986cb3d7e32355b447a51541356ebee934436aa27d5a1de942699564b",
+ "receipt_sha256": "cf781140c20a9cd2d7325fce8967343bb41ee4e6d2fcf4be2899fe11664f8a20",
+ "finding_sha256": "4bd7709f559e531a24eb842969bd9a913845c783625d446f44082175c9df1dad",
  "disposition": "accepted_tradeoff",
  "resolves_occurrences": [
   {
-   "receipt_sha256": "dcab3e7cd77b8a7e2abde7cad97ef05376e1fdb2a1fba23459a1b450bcb88601",
-   "finding_sha256": "a42c97796d54b582ffd18a5c61a8335d3f2abeb513422602de68a1a4cea6c420"
+   "receipt_sha256": "cf781140c20a9cd2d7325fce8967343bb41ee4e6d2fcf4be2899fe11664f8a20",
+   "finding_sha256": "4bd7709f559e531a24eb842969bd9a913845c783625d446f44082175c9df1dad"
   }
  ],
  "evidence": [
-  "Same class as the round-1 occurrence: a gate-output record committed inside the candidate cannot bind the tree that contains it; the authoritative pre-landing check is CI on the pushed commit (check-ccl-skills, public sanitization, size and routing gates, review-ledger binder), and the exact verdict lines from the final tree are reported in the pull request body and the private closeout."
+  "Same class as the round-4 occurrence: a gate-output record committed inside the candidate cannot bind the tree that contains it; CI on the pushed commit is the authoritative pre-landing check, the verdict lines are in the pull request comment and private closeout, and the binder candidate was compared to every lane-2 receipt candidate (all equal)."
  ]
 }

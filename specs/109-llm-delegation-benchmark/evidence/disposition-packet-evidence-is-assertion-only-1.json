@@ -1,17 +1,17 @@
 {
  "schema_version": 1,
- "candidate_sha256": "8fa5320ff3b44e2cb89c746e1f836f5d6db17230380fde3eb0e5ee42fad30969",
- "receipt_sha256": "3568250ac6326dcff34ab2ee02c9344e2ecb1ea2e6bcae2920b0be24872fb226",
- "finding_sha256": "ddb4fe6b02b17ab732619bc7a19d84df54902ca08df8a59957a9587666fa795a",
+ "candidate_sha256": "75f8430986cb3d7e32355b447a51541356ebee934436aa27d5a1de942699564b",
+ "receipt_sha256": "d2a7f979b2d0a102a444ebed2fba773e6bfe0ba6d53c209464fca5f1212432a2",
+ "finding_sha256": "e8959fa0941d819c7cfb5c1b49e2910347c80374deea43e58cfae3d5ddf8dfb8",
  "disposition": "accepted_tradeoff",
  "resolves_occurrences": [
   {
-   "receipt_sha256": "3568250ac6326dcff34ab2ee02c9344e2ecb1ea2e6bcae2920b0be24872fb226",
-   "finding_sha256": "ddb4fe6b02b17ab732619bc7a19d84df54902ca08df8a59957a9587666fa795a"
+   "receipt_sha256": "d2a7f979b2d0a102a444ebed2fba773e6bfe0ba6d53c209464fca5f1212432a2",
+   "finding_sha256": "e8959fa0941d819c7cfb5c1b49e2910347c80374deea43e58cfae3d5ddf8dfb8"
   }
  ],
  "evidence": [
-  "A gate-output record committed inside the candidate cannot bind the tree that contains it (the repository's recorded enforcement-step-is-inside-the-candidate and evidence-is-caller-controlled boundaries, same disposition as the prior benchmark round); the authoritative pre-landing check is the CI run on the pushed commit, which repeats check-ccl-skills, public sanitization, size and routing gates, and the review-ledger binder.",
-  "The exact verdict lines from the final tree (check-ccl-skills clean with CCL_SKILL_BASE_REF=origin/dev, size budget 4988/5000, make test result) are reported in the pull request body and the private closeout, and the merge-side binder is run locally against the final commit before the pull request is opened."
+  "A gate-output record committed inside the candidate cannot bind the tree that contains it (the repository's recorded enforcement-step-is-inside-the-candidate and evidence-is-caller-controlled boundaries; same disposition as lane 1 and the prior benchmark round); the authoritative pre-landing check is the CI run on the pushed commit, which repeats check-ccl-skills, public sanitization, size and routing gates, and the review-ledger binder.",
+  "The exact verdict lines from the candidate tree (ccl_skill_check_clean_ok with CCL_SKILL_BASE_REF=origin/dev, make test exit 0, heavy regression lane ok, size budget 4988/5000) are reported in the pull request comment and the private closeout, and the merge-side binder candidate was compared to every lane-2 receipt candidate before commit."
  ]
 }

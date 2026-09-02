@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "75f8430986cb3d7e32355b447a51541356ebee934436aa27d5a1de942699564b",
+ "receipt_sha256": "83aeebcf94484cb19684de83f2cd2862cc4b86ec001d98c0b154b4bc123e2ff1",
+ "finding_sha256": "9aa7c77afa3666bc154b1d0be8be99757d4704bc975ffa014437f4e2ef14923d",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "83aeebcf94484cb19684de83f2cd2862cc4b86ec001d98c0b154b4bc123e2ff1",
+   "finding_sha256": "9aa7c77afa3666bc154b1d0be8be99757d4704bc975ffa014437f4e2ef14923d"
+  }
+ ],
+ "evidence": [
+  "The rule now requires the trusted plan, fixed before any untrusted content is read, to bind the external operation, its destination, the allowed argument fields, and the permitted data flow, with the eventual arguments validated against that plan, and the negative test to inject changes to destination and payload as well as tool choice (commit f4ad9df)."
+ ]
+}

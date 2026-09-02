@@ -1,0 +1,153 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "75f8430986cb3d7e32355b447a51541356ebee934436aa27d5a1de942699564b",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "ledger-round4-review.json",
+   "sha256": "d2a7f979b2d0a102a444ebed2fba773e6bfe0ba6d53c209464fca5f1212432a2"
+  },
+  {
+   "sequence": 2,
+   "file": "ledger-round5-challenge.json",
+   "sha256": "83aeebcf94484cb19684de83f2cd2862cc4b86ec001d98c0b154b4bc123e2ff1"
+  },
+  {
+   "sequence": 3,
+   "file": "ledger-round6-succession-challenge.json",
+   "sha256": "cf781140c20a9cd2d7325fce8967343bb41ee4e6d2fcf4be2899fe11664f8a20"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "f156079cc85cca6188df1bab75fcfb797a82a333",
+   "confirmed_at": "2026-09-02T18:44:35Z",
+   "controller_receipt_sha256": "d2a7f979b2d0a102a444ebed2fba773e6bfe0ba6d53c209464fca5f1212432a2",
+   "evidence_file": "ledger-base-attestation-3.txt",
+   "evidence_sha256": "b71743ff76efd22d1ea7465577678d7fdafc80f8fa83510519aec666465a1bc5"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "f156079cc85cca6188df1bab75fcfb797a82a333",
+   "confirmed_at": "2026-09-02T18:49:08Z",
+   "controller_receipt_sha256": "83aeebcf94484cb19684de83f2cd2862cc4b86ec001d98c0b154b4bc123e2ff1",
+   "evidence_file": "ledger-base-attestation-4.txt",
+   "evidence_sha256": "b71743ff76efd22d1ea7465577678d7fdafc80f8fa83510519aec666465a1bc5"
+  },
+  {
+   "sequence": 3,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "f156079cc85cca6188df1bab75fcfb797a82a333",
+   "confirmed_at": "2026-09-02T18:49:13Z",
+   "controller_receipt_sha256": "cf781140c20a9cd2d7325fce8967343bb41ee4e6d2fcf4be2899fe11664f8a20",
+   "evidence_file": "ledger-base-attestation-5.txt",
+   "evidence_sha256": "b71743ff76efd22d1ea7465577678d7fdafc80f8fa83510519aec666465a1bc5"
+  }
+ ],
+ "autonomous_round": 3,
+ "controller_review_state": "findings_pending",
+ "finding_classes": [
+  {
+   "key": "register-row-retains-withdrawn-suffix-claim",
+   "root_cause_predicate": "The lane-1 tightening row still carried the sentence that a discovered tool's schema is appended after the last cache breakpoint, which a maintainer could implement as suffix-only prefix reuse.",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "d2a7f979b2d0a102a444ebed2fba773e6bfe0ba6d53c209464fca5f1212432a2",
+     "finding_sha256": "c68f5f028910b71192b4b0f94bacde4540b88216f89372dcbe8078387e6712de",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-register-row-retains-withdrawn-suffix-claim-1.json",
+     "disposition_evidence_sha256": "bbd7d68be5ac1bbfb7003e3695d1fb49abc5f6fe4ece05a9cfc931b00cbb9bf0"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "packet-evidence-is-assertion-only",
+   "root_cause_predicate": "The bounded review packet carries the implementer's gate results only as plan evidence statements and base attestations, which the reviewer cannot independently verify from the packet.",
+   "affected_surface": "specs/109-llm-delegation-benchmark/evidence/ledger-base-attestation-2.txt",
+   "occurrences": [
+    {
+     "receipt_sha256": "d2a7f979b2d0a102a444ebed2fba773e6bfe0ba6d53c209464fca5f1212432a2",
+     "finding_sha256": "e8959fa0941d819c7cfb5c1b49e2910347c80374deea43e58cfae3d5ddf8dfb8",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-packet-evidence-is-assertion-only-1.json",
+     "disposition_evidence_sha256": "69f51a469de318e56315d621ebc92760f4a48842988c6505c2eb49ba34a63099"
+    },
+    {
+     "receipt_sha256": "cf781140c20a9cd2d7325fce8967343bb41ee4e6d2fcf4be2899fe11664f8a20",
+     "finding_sha256": "4bd7709f559e531a24eb842969bd9a913845c783625d446f44082175c9df1dad",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-packet-evidence-is-assertion-only-2.json",
+     "disposition_evidence_sha256": "b29f8bdcaeb8a07fe52ff468178644619b3e7eaae40a7eacc71e19b3edb43691"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "batch-endpoint-contract-presented-as-universal",
+   "root_cause_predicate": "The capacity bullet listed one provider's batch-endpoint semantics (expiry, ordering, cancel, billing, rate limits, spend overshoot) as if they were a generic contract.",
+   "affected_surface": "skills/llm-inference-integration/references/inference-capacity-operations.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "d2a7f979b2d0a102a444ebed2fba773e6bfe0ba6d53c209464fca5f1212432a2",
+     "finding_sha256": "eb368b46735ee57762fb370e25056f6337060e03451a83a3826790bd9c704cde",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-batch-endpoint-contract-presented-as-universal-1.json",
+     "disposition_evidence_sha256": "47a4ed228525b673d3ba48c6e891e3f8be891bb25e3ee6181c7263ac137d5998"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "plan-then-execute-binds-only-tool-choice",
+   "root_cause_predicate": "The trifecta rule's plan-then-execute condition fixed only the tool choice, leaving the recipient, URL, or payload of a pre-selected external tool injectable, and the negative test checked only tool choice.",
+   "affected_surface": "skills/llm-inference-integration/references/retrieval-agent-safety.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "83aeebcf94484cb19684de83f2cd2862cc4b86ec001d98c0b154b4bc123e2ff1",
+     "finding_sha256": "9aa7c77afa3666bc154b1d0be8be99757d4704bc975ffa014437f4e2ef14923d",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-plan-then-execute-binds-only-tool-choice-1.json",
+     "disposition_evidence_sha256": "1254738207ab4c5cb926496117857bc70c9c16ff45e8f6a1051dce316dfff557"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "entrypoint-pointer-says-tool-set-fixed-within-loop",
+   "root_cause_predicate": "The SKILL.md step-3 pointer and the prompt-cache register row say the tool set is fixed within a loop, while both references define the in-flight/next-invocation/new-generation boundary.",
+   "affected_surface": "skills/llm-inference-integration/SKILL.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "cf781140c20a9cd2d7325fce8967343bb41ee4e6d2fcf4be2899fe11664f8a20",
+     "finding_sha256": "e4766a03668dd47313a6e29dbc3932800bf2c6eff359e2ccfdddc44a83e25115",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "batch-checklist-lacks-create-idempotency",
+   "root_cause_predicate": "The per-provider batch checklist does not require determining create idempotency, client request keys, or reconciliation after an ambiguous submission, so a lost response can bill a duplicate batch or orphan accepted work.",
+   "affected_surface": "skills/llm-inference-integration/references/inference-capacity-operations.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "cf781140c20a9cd2d7325fce8967343bb41ee4e6d2fcf4be2899fe11664f8a20",
+     "finding_sha256": "8dbcefa9b933bb41d5dd49b9656a87a54ec3a34000f8b3ec5735e9f794701be8",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}
