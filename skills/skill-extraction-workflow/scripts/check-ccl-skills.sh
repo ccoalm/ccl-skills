@@ -1444,6 +1444,11 @@ if [ -n "$root_worktree_toplevel" ]; then
   fi
   ruby "$impact_chain_gate" "$root"
 
+  # No merge-side ledger-binding probe runs here, deliberately: this checker also
+  # runs against synthetic fixtures inside other suites, where such a probe cannot
+  # operate and reddens suites that do not own it. That gate's own suite covers the
+  # real-checkout path and the CI step enforces it. Do not re-add one here.
+
   # Whole-ledger firing-path resolution. The impact-chain gate above is
   # diff-scoped by design, so a row's firing path is machine-checked exactly once
   # — at the commit that added it. Nothing re-checks it afterwards, while the

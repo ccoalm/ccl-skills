@@ -35,6 +35,12 @@ KNOWN_REVIEW_STATES = EXTERNAL_REVIEW_STATES | {"self_reviewed"}
 # future budget change lands in exactly one place.
 WRAPPER_CHALLENGE_BUDGET = 1
 WRAPPER_AUTONOMOUS_ROUNDS = WRAPPER_CHALLENGE_BUDGET + 1
+# A fix that edits the reviewed owner package ends its chain by construction, so
+# the post-fix candidate is challenged in ONE succeeding chain rather than inside
+# the ended one. The lane therefore spans at most two chains: the wrapper-budget
+# chain plus a single succession challenge bound to the landing candidate.
+LANE_MAX_CHAINS = 2
+LANE_MAX_ROUNDS = WRAPPER_AUTONOMOUS_ROUNDS + 1
 DISPOSITIONS = {
     "fixed",
     "source_refuted",
@@ -304,8 +310,10 @@ def validate_controller_receipts(
     payload: dict[str, Any], ledger_dir: Path
 ) -> tuple[list[dict[str, Any]], list[str], dict[str, list[str]], str, str]:
     refs = payload["controller_receipts"]
-    if not isinstance(refs, list) or not 1 <= len(refs) <= 3:
-        fail("controller_receipts must contain one to three ordered Agent rounds")
+    if not isinstance(refs, list) or not 1 <= len(refs) <= LANE_MAX_ROUNDS:
+        fail(
+            f"controller_receipts must contain one to {LANE_MAX_ROUNDS} ordered Agent rounds"
+        )
     if payload["autonomous_round"] != len(refs) or type(payload["autonomous_round"]) is not int:
         fail("autonomous_round must equal the ordered controller receipt count")
 
@@ -313,16 +321,20 @@ def validate_controller_receipts(
     receipt_hashes: list[str] = []
     finding_hashes: dict[str, list[str]] = {}
     chain_id: str | None = None
+    final_chain_id: str | None = None
     scope_hash: str | None = None
+    candidates: list[str] = []
+    succession_index: int | None = None
     ledger_candidate = sha256(
         payload["candidate_sha256"], "ledger.candidate_sha256"
     )
     for expected_index, value in enumerate(refs, start=1):
-        # A caller supplying more receipts than the wrapper can mint would
+        # A caller supplying more receipts than the lane can mint would
         # otherwise claim a negative remaining count and reach completion
-        # validation as a ready-state budget bypass.
-        if expected_index > WRAPPER_AUTONOMOUS_ROUNDS:
-            fail("controller chain exceeds the wrapper budget")
+        # validation as a ready-state budget bypass. The wrapper bound still
+        # governs each chain; the lane bound governs their sum.
+        if expected_index > LANE_MAX_ROUNDS:
+            fail("controller chain exceeds the lane budget")
         ref = exact_object(
             value, {"sequence", "file", "sha256"}, f"controller_receipts[{expected_index - 1}]"
         )
@@ -339,7 +351,28 @@ def validate_controller_receipts(
         receipt = decode_json(raw, label=f"controller receipt {expected_index}")
         if receipt.get("schema_version") != 3 or type(receipt.get("schema_version")) is not int:
             fail(f"controller receipt {expected_index} schema_version must be 3")
-        expected_mode = "review" if expected_index == 1 else "challenge"
+        # A succession round opens a second chain, so its own chain arithmetic
+        # restarts at one while its lane position keeps counting. Classify first;
+        # every expectation below reads the chain position, not the lane index.
+        predecessor_chain = receipt.get("predecessor_chain_id")
+        is_succession = predecessor_chain is not None
+        if is_succession:
+            if expected_index != len(refs):
+                fail("a succession round must be the lane's final round")
+            if expected_index != WRAPPER_AUTONOMOUS_ROUNDS + 1:
+                fail("a succession round may only follow a spent wrapper chain")
+            succession_index = expected_index
+            chain_position = 1
+        else:
+            # Only a succession round may sit past the wrapper chain. Without this
+            # the caller claims a negative remaining count and reaches completion
+            # validation as a ready-state budget bypass.
+            if expected_index > WRAPPER_AUTONOMOUS_ROUNDS:
+                fail("controller chain exceeds the wrapper budget")
+            chain_position = expected_index
+        expected_mode = (
+            "challenge" if is_succession else "review" if expected_index == 1 else "challenge"
+        )
         if receipt.get("mode") != expected_mode:
             fail(f"controller receipt {expected_index} must have mode {expected_mode}")
         if receipt.get("status") not in {"passed", "findings"}:
@@ -349,15 +382,24 @@ def validate_controller_receipts(
         current_chain = bounded_text(
             receipt.get("review_chain_id"), f"controller receipt {expected_index}.review_chain_id", 120
         )
-        if chain_id is None:
+        if is_succession:
+            if current_chain == chain_id:
+                fail(
+                    f"controller receipt {expected_index} succeeds its own chain"
+                )
+            final_chain_id = current_chain
+        elif chain_id is None:
             chain_id = current_chain
+            final_chain_id = current_chain
         elif current_chain != chain_id:
             fail(f"controller receipt {expected_index} review_chain_id changed")
-        if receipt.get("autonomous_review_index") != expected_index or type(
+        if receipt.get("autonomous_review_index") != chain_position or type(
             receipt.get("autonomous_review_index")
         ) is not int:
             fail(f"controller receipt {expected_index} autonomous_review_index is not contiguous")
-        expected_challenge_index = 0 if expected_index == 1 else expected_index - 1
+        expected_challenge_index = (
+            1 if is_succession else 0 if expected_index == 1 else expected_index - 1
+        )
         if receipt.get("challenge_index") != expected_challenge_index or type(
             receipt.get("challenge_index")
         ) is not int:
@@ -368,7 +410,7 @@ def validate_controller_receipts(
             receipt.get("autonomous_review_budget")
         ) is not int:
             fail(f"controller receipt {expected_index} autonomous_review_budget must be {WRAPPER_AUTONOMOUS_ROUNDS}")
-        expected_remaining = WRAPPER_AUTONOMOUS_ROUNDS - expected_index
+        expected_remaining = WRAPPER_AUTONOMOUS_ROUNDS - chain_position
         if receipt.get("autonomous_reviews_remaining") != expected_remaining or type(
             receipt.get("autonomous_reviews_remaining")
         ) is not int:
@@ -376,7 +418,8 @@ def validate_controller_receipts(
         if receipt.get("autonomous_review_allowed") is not (expected_remaining > 0):
             fail(f"controller receipt {expected_index} autonomous_review_allowed is invalid")
         prior = receipt.get("prior_review_result_sha256")
-        if prior != receipt_hashes:
+        expected_prior = [] if is_succession else receipt_hashes
+        if prior != expected_prior:
             fail(f"controller receipt {expected_index} prior_review_result_sha256 is not the complete ordered prefix")
         candidate = sha256(
             receipt.get("candidate_sha256"), f"controller receipt {expected_index}.candidate_sha256"
@@ -386,13 +429,10 @@ def validate_controller_receipts(
         )
         if packet != candidate:
             fail(f"controller receipt {expected_index} packet_sha256 must equal candidate_sha256")
-        # Every counted round must have inspected the exact final candidate;
-        # a chain whose review round saw an earlier candidate is not a review
-        # of the candidate this ledger closes out.
-        if candidate != ledger_candidate:
-            fail(
-                f"controller receipt {expected_index} does not bind the ledger candidate"
-            )
+        # Which candidate a round must bind depends on its phase, and the phase
+        # split is only known once every round is loaded, so this is settled
+        # after the loop rather than here.
+        candidates.append(candidate)
         current_scope_hash = validate_scope(receipt, f"controller receipt {expected_index}")
         if scope_hash is None:
             scope_hash = current_scope_hash
@@ -425,7 +465,7 @@ def validate_controller_receipts(
             fail(f"controller receipt {expected_index} has unknown controller review_state {state}")
         expected_state = (
             "post_review_budget"
-            if receipt["status"] == "findings" and expected_index == WRAPPER_AUTONOMOUS_ROUNDS
+            if receipt["status"] == "findings" and chain_position == WRAPPER_AUTONOMOUS_ROUNDS
             else "findings_pending"
             if receipt["status"] == "findings"
             else "reviewed"
@@ -439,9 +479,38 @@ def validate_controller_receipts(
         receipt_hashes.append(receipt_hash)
         finding_hashes[receipt_hash] = current_findings
 
-    if chain_id is None or scope_hash is None:
+    if chain_id is None or scope_hash is None or final_chain_id is None:
         fail("controller receipt chain is empty")
-    return receipts, receipt_hashes, finding_hashes, chain_id, scope_hash
+
+    # Phase binding. Without a succession every counted round must have inspected
+    # the exact final candidate. With one, the wrapper chain reviewed the candidate
+    # the fix batch then moved, and the succession round is the only round that can
+    # bind what actually lands — which is the whole point of running it.
+    if succession_index is None:
+        for position, value in enumerate(candidates, start=1):
+            if value != ledger_candidate:
+                fail(f"controller receipt {position} does not bind the ledger candidate")
+    else:
+        succession = receipts[-1]
+        succeeded_candidate = sha256(
+            succession.get("predecessor_candidate_sha256"),
+            "succession receipt.predecessor_candidate_sha256",
+        )
+        if candidates[-1] != ledger_candidate:
+            fail("the succession round does not bind the ledger candidate")
+        if succeeded_candidate == ledger_candidate:
+            fail("a succession round must bind a candidate the wrapper chain never saw")
+        for position, value in enumerate(candidates[:-1], start=1):
+            if value != succeeded_candidate:
+                fail(f"controller receipt {position} does not bind the succeeded candidate")
+        if succession.get("predecessor_chain_id") != chain_id:
+            fail("the succession round does not name the chain it succeeds")
+        if sha256(
+            succession.get("predecessor_result_sha256"),
+            "succession receipt.predecessor_result_sha256",
+        ) != receipt_hashes[-2]:
+            fail("the succession round does not bind the succeeded chain's terminal receipt")
+    return receipts, receipt_hashes, finding_hashes, final_chain_id, scope_hash
 
 
 def validate_completion_receipt(
@@ -485,18 +554,24 @@ def validate_completion_receipt(
         receipt.get("autonomous_review_budget")
     ) is not int:
         fail(f"completion receipt autonomous_review_budget must be {WRAPPER_AUTONOMOUS_ROUNDS}")
-    if receipt.get("autonomous_review_index") != len(receipts) or type(
+    # The completion checkpoint binds the final external round, so its chain
+    # arithmetic is that round's — which is the succeeding chain's when a fix
+    # batch ended the wrapper chain, not the lane's round count.
+    final_index = final.get("autonomous_review_index")
+    if receipt.get("autonomous_review_index") != final_index or type(
         receipt.get("autonomous_review_index")
     ) is not int:
         fail("completion receipt autonomous_review_index does not match the final round")
-    expected_remaining = WRAPPER_AUTONOMOUS_ROUNDS - len(receipts)
+    expected_remaining = WRAPPER_AUTONOMOUS_ROUNDS - final_index
     if receipt.get("autonomous_reviews_remaining") != expected_remaining or type(
         receipt.get("autonomous_reviews_remaining")
     ) is not int:
         fail("completion receipt autonomous_reviews_remaining does not match the final round")
     if receipt.get("autonomous_review_allowed") is not False:
         fail("completion receipt must disable further autonomous review")
-    if receipt.get("prior_review_result_sha256") != receipt_hashes[:-1]:
+    if receipt.get("prior_review_result_sha256") != final.get(
+        "prior_review_result_sha256"
+    ):
         fail("completion receipt prior_review_result_sha256 does not match the final external receipt")
     if receipt.get("completion_review_result_sha256") != receipt_hashes[-1]:
         fail("completion receipt completion_review_result_sha256 does not identify the final external receipt")
@@ -950,13 +1025,29 @@ def validate(payload: dict[str, Any], ledger_dir: Path) -> tuple[str, int, int]:
             fail("ready_for_human_decision requires no unresolved finding occurrence and no unreviewed delta")
     elif closeout == "continuation_authorization_required":
         final = receipts[-1]
-        if (
-            len(receipts) != WRAPPER_AUTONOMOUS_ROUNDS
-            or final.get("status") != "findings"
-            or final.get("review_state") != "post_review_budget"
-            or final.get("human_decision_required") is not True
-        ):
-            fail(f"continuation_authorization_required requires final-round (round {WRAPPER_AUTONOMOUS_ROUNDS}) findings in post_review_budget")
+        # The lane is spent either at the wrapper chain's last round, or — when a
+        # fix batch moved the candidate — at the succession round that reviewed it.
+        # Only the closeout knows the lane is spent: the controller sizes
+        # human_decision_required from its own chain, where the succession round
+        # is round one of two.
+        succeeded = final.get("predecessor_chain_id") is not None
+        if succeeded:
+            spent = (
+                len(receipts) == LANE_MAX_ROUNDS and final.get("status") == "findings"
+            )
+        else:
+            spent = (
+                len(receipts) == WRAPPER_AUTONOMOUS_ROUNDS
+                and final.get("status") == "findings"
+                and final.get("review_state") == "post_review_budget"
+                and final.get("human_decision_required") is True
+            )
+        if not spent:
+            fail(
+                "continuation_authorization_required requires final-round "
+                f"(round {WRAPPER_AUTONOMOUS_ROUNDS}) findings in post_review_budget, "
+                f"or a succession round (round {LANE_MAX_ROUNDS}) carrying findings"
+            )
     elif closeout == "baseline_race" and not delta:
         fail("baseline_race requires a non-empty unreviewed_delta")
 
