@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "753ad96dcd0e8b5e5ee39c1643524cefdbb274cb553fd7379aa5de89b1b41b61",
+  "receipt_sha256": "d08e10dc110654036e3c81bc5bc6df55ef25d901766e1f026ecd5412714c4b13",
+  "finding_sha256": "2eddc769a812c4509b45b43c59d877ebb2534af24de58bf034f6d7a0eed8959b",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "d08e10dc110654036e3c81bc5bc6df55ef25d901766e1f026ecd5412714c4b13",
+      "finding_sha256": "2eddc769a812c4509b45b43c59d877ebb2534af24de58bf034f6d7a0eed8959b"
+    }
+  ],
+  "evidence": [
+    "The playbook Localization table now mirrors the entrypoint: the boundary-walk row runs only when the chain can be re-run safely with every boundary reachable, logs only allowlisted redacted metadata (never raw bodies, headers, secrets, PII, or env/config values), and falls back to the telemetry walk, partial boundary evidence, or layer narrowing; the commit-bisection row narrows by pathspec only when evidence confines the cause to those paths and reruns the full range when no reproducing commit is found.",
+    "A drift guard was added above the table: a recipe there must never loosen a condition SKILL.md states, and SKILL.md wins on disagreement."
+  ]
+}
