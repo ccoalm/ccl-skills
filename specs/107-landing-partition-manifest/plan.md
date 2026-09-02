@@ -144,6 +144,33 @@ RED 基线：新用例落在旧代码上，18 条红、既有 35 条绿（`test_
 
 新增两个 flag：`--print-manifest`（渲染清单到 stdout，JSON，缩进 2）与 `--partition PATH [PATH…]`（可重复，仅随 `--print-manifest`）。约束：两者缺一即 argparse 报错退出 2；诊断一律 stderr，既有 `review_ledger_binding_ok / failed / error / no_change` token 不变；通过行报「as N partitions」并逐分区一行列出绑定它的 ledger。无交互、无颜色、无 TTY 依赖；`visible surface: no`（CI/作者侧工具，不面向产品用户）。
 
+## 提炼 charter 与 owner map（skill-extraction-workflow 本轮记录）
+
+| 字段 | 内容 |
+|---|---|
+| Task | 落地闸接受分区清单（capability 命名，无源项目名词） |
+| Purpose | 防止「reviewer 输入上限变成 PR 上限」再迫使作者拆 PR；保留「落地的每一字节都被某轮外部评审冻结过」的不变量 |
+| Scope | In：`skill-extraction-workflow`（binder 脚本、其套件、dual-track 与 quickstart 两份 reference、台账行）；`.github/workflows/ci.yml` 注释。Out：`code-review` 收据 schema 与 `MAX_PACKET_BYTES`；merge_group 多 PR 聚合 |
+| Depth | tooling change + targeted reference refresh（重读了 binder、controller `freeze_packet`、validator 候选校验段、ci.yml、SKILL.md:221-224） |
+| 结果分类 | failure/correction（可观测失败：0.11.0 晋升被迫拆 8 个 PR） |
+| Evidence plan | 一手源＝仓内代码与 CI 注释 + 对触发候选的实测字节数；外部实践不适用（本仓自有闸的实现缺口，无 state-of-art 主张） |
+| 完成标准 | 54 例绿 + 5 突变差分 + 真候选渲染 + 各 lane 绿 + dual-track 1+1 + closeout ledger 绑定本候选 |
+
+RCA（widen 后再深入）：
+1. 触发/设计：落地闸把候选身份定义为 packet 哈希——一个尺寸有界的对象——而 Git 候选无界；两个身份合一是主因（反事实：若身份是 base/tree 或分区聚合，8 次拆分不会发生）。
+2. 缺失的机械控制：评审层 `code-review/SKILL.md:224` 早已允许分区，但落地层没有消费者；规则存在而无 firing path，是「规则存在但不触发」形态。
+3. 检测缺口：binder 在 wave 5 才引入，首次遇到晋升级 diff 就是 0.11.0；之前 #99 晋升（51 文件）无闸故未暴露。
+4. 潜在条件：`ci.yml` 注释把「聚合未解」写成一类，掩盖了「单候选过大」与「多 PR 合并队列」是两个不同聚合。
+预防＝机械控制：binder 消费 manifest（本轮落地）+ 渲染器统一规范化 + 注释区分两类聚合。人为纪律（「下次别拆 PR」）不作为原因或预防。
+
+Owner map（`owner | direction | status | reason`）：
+- `skill-extraction-workflow` | 本体 | updated | 脚本、套件、两份 reference、台账行
+- `code-review` | upstream（packet 分区规则的定义者） | unchanged | SKILL.md:223-224 已定义评审侧分区且措辞正确；落地侧配方放在 ledger 的 owner 文档，避免双 owner 行
+- `product-rd-workflow` | upstream（shared-gate 分类） | unchanged | 本轮按其 shared-gate 分类走，规则无缺口
+- `testing-strategy` | sibling（评审/测试层） | unchanged | 突变走查与精度行按其既有规则执行，无新规则
+- `platform-release-engineering` | downstream（晋升/发布） | unchanged | 晋升配方不变，只是不再需要拆 wave；无技能文本需改
+- `.github/workflows/ci.yml` | 非技能 | updated | 注释区分两类聚合
+
 ## Status-sync target
 
 `skills/skill-extraction-workflow/references/source-register.md` 追加本轮行（append-only，作为最后一个 commit，firing-path 指向 `command:skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh`）。
