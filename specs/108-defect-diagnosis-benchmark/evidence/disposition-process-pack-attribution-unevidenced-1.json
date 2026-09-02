@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "candidate_sha256": "f9da56b1f6a3192cdf2fbe1fd3bf2b52667d9b370d151d072a056a34cdc9c345",
+  "candidate_sha256": "cdd133da15e47208fc46ab0963558de0dd087ce51edae7e7f08ab36eb5d4b2a7",
   "receipt_sha256": "cb87425e1c5428056d90acbbc2aa69352f9654c567ac3e3a6ad02f0b1ae694c7",
   "finding_sha256": "923402cb12b564d5653c05314921b9366ce5a7e3f15a1605bc47cc077e14a204",
   "disposition": "fixed",
