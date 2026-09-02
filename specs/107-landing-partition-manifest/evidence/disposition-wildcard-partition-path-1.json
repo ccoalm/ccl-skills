@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "8c67681aea5fd496f241d8d6cd4fea67524e1374ebd844e73684c8c7aa61d462",
+  "receipt_sha256": "91206540ea594d044f0c054d13f4ceefc771d899fa6bb2c04978d7955c66bf3b",
+  "finding_sha256": "30e234b7755a764778cd82de2bae4bb3aa4d8c37e0d5266412f59f1d1a8f44b6",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "91206540ea594d044f0c054d13f4ceefc771d899fa6bb2c04978d7955c66bf3b",
+      "finding_sha256": "30e234b7755a764778cd82de2bae4bb3aa4d8c37e0d5266412f59f1d1a8f44b6"
+    }
+  ],
+  "evidence": [
+    "validate_partition_path now refuses `*`, `?`, `[`, `]` and `\\` in a partition path with `partition path contains a pathspec wildcard`, so a wildcard is never handed to git as a pathspec.",
+    "Command: bash skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh (four wildcard manifest shapes plus the --print-manifest wildcard case red against the pre-fix gate; disabling the check reds exactly those five cases).",
+    "Landing candidate 8c67681a... was challenged by the succession round with zero findings after the fix."
+  ]
+}

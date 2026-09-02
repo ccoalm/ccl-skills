@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "8c67681aea5fd496f241d8d6cd4fea67524e1374ebd844e73684c8c7aa61d462",
+  "receipt_sha256": "91206540ea594d044f0c054d13f4ceefc771d899fa6bb2c04978d7955c66bf3b",
+  "finding_sha256": "e7e20c7df949663e7b96550b4c4a310ce85f20901766ce5f6ba1786ca6dc49b7",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "91206540ea594d044f0c054d13f4ceefc771d899fa6bb2c04978d7955c66bf3b",
+      "finding_sha256": "e7e20c7df949663e7b96550b4c4a310ce85f20901766ce5f6ba1786ca6dc49b7"
+    }
+  ],
+  "evidence": [
+    "partition_coverage now refuses `set(owner) - set(changed_all)` with `partitions cover changed paths outside the reviewed scope`, so the partition union must equal the reviewed changed set under a narrowed --paths scope.",
+    "Command: bash skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh (the out-of-scope `.` partition under --paths lane-a reds against the pre-fix gate with a freeze error and is refused before freezing after; disabling the check reds exactly that case)."
+  ]
+}
