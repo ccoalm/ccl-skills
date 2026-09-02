@@ -1,0 +1,218 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "release",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "passed",
+  "selected_client": "claude",
+  "selected_reviewer": "claude",
+  "selected_attempt_index": 0,
+  "findings": [],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [],
+  "attempts": [
+    {
+      "client": "claude",
+      "mode": "review",
+      "findings": [],
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "All three version fields (package.json, lockfile root, lockfile packages[\"\"]) move 0.10.0 -> 0.11.0 consistently; no other package fields touched. Matches stated intent."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "No scripts, dependencies, permissions, workflows, or credentials changed. The two new evidence files contain only a public commit SHA and ref name; no publish or tag action is present."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "Version skew is the only realistic failure path and it is closed by the coordinated three-field edit. No runtime, concurrency, or recovery surface is touched."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "Test pass claims are not verifiable from the bounded packet, but the diff contains no executable change that any test could regress, so the gap is not material."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "Pure metadata bump; no API, CLI, asset, or dependency-range change. No added abstraction or complexity."
+        },
+        {
+          "concern": "rollout_rollback",
+          "conclusion": "Non-publishing change; rollback is a plain revert of these commits. No irreversible action included."
+        },
+        {
+          "concern": "observability_operations",
+          "conclusion": "Version is the observable release identifier and is coherent across metadata. The two byte-identical attestation files add no diagnostic value but pose no operational risk."
+        }
+      ],
+      "lens_id": "code-review:review:no-tools",
+      "tool_identity": "code-review:no-tools",
+      "native_skill_binding": "not_requested",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "packet_sha256": "efe2ce32c700a842c4da2eac89c46b302d2ce5360a0eb47fa4f688197c91b65a"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "efe2ce32c700a842c4da2eac89c46b302d2ce5360a0eb47fa4f688197c91b65a",
+  "candidate_sha256": "efe2ce32c700a842c4da2eac89c46b302d2ce5360a0eb47fa4f688197c91b65a",
+  "review_context_sha256": "336e452b8b3d3f85a80b98301e3191314ca6238ed32bfd2c47f4bcd43a034e9c",
+  "review_controller_sha256": "f70ed0a8ce78658156b2f073580529ce01cc741fa1891abb0c469b5da386ffc3",
+  "review_profile_sha256": "2d047f08b73943fd099b0c9f636bc20ec9fbb0ba77d6a0631d1be07aac921750",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "implementer-declared",
+  "owner_selection_evidence": [],
+  "review_plan_source": "implementer-supplied",
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "controller-profile",
+    "observed": false,
+    "source": "claude-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review"
+  ],
+  "selected_skills_sha256": "fc30cbf3dce97f3f574b7306d87440f417c9247607ff76a5ac29e6af154661db",
+  "risk_tags": [],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 1,
+  "challenge_index": 0,
+  "challenge_focus": null,
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": true,
+  "review_chain_id": "npm-0.11.0-pr106-final-r1",
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "9e2bc4d8a73b1f656580f2cbdad4c3694ba1553cfd6a1d85792e92c228f1f621",
+    "acceptance_sha256": "8736d4a73b1b9fba75930c0e66ac81b26a15ab34b8b7cd15b54e10927cf4e044",
+    "stage": "release",
+    "review_depth": "release",
+    "risk_tags": [],
+    "challenge_budget": 1,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null
+  },
+  "review_scope_sha256": "fd0a9450a8a85cf4e0138366094ec2b2d5a47e45259e6699b3f0c867e014e2ab",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 1,
+  "autonomous_review_budget": 2,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 1,
+  "autonomous_review_allowed": true,
+  "findings_require_implementer_self_review": false,
+  "human_decision_required": false,
+  "review_state": "reviewed",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": false,
+    "required_triggers": [],
+    "satisfied_triggers": [
+      "before_external_review"
+    ],
+    "blocks": [],
+    "allowed_next_actions": []
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "All three version fields (package.json, lockfile root, lockfile packages[\"\"]) move 0.10.0 -> 0.11.0 consistently; no other package fields touched. Matches stated intent."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "No scripts, dependencies, permissions, workflows, or credentials changed. The two new evidence files contain only a public commit SHA and ref name; no publish or tag action is present."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "Version skew is the only realistic failure path and it is closed by the coordinated three-field edit. No runtime, concurrency, or recovery surface is touched."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "Test pass claims are not verifiable from the bounded packet, but the diff contains no executable change that any test could regress, so the gap is not material."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "Pure metadata bump; no API, CLI, asset, or dependency-range change. No added abstraction or complexity."
+    },
+    {
+      "concern": "rollout_rollback",
+      "conclusion": "Non-publishing change; rollback is a plain revert of these commits. No irreversible action included."
+    },
+    {
+      "concern": "observability_operations",
+      "conclusion": "Version is the observable release identifier and is coherent across metadata. The two byte-identical attestation files add no diagnostic value but pose no operational risk."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "rollout_rollback",
+    "observability_operations"
+  ],
+  "reviewed_skills": [],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "claude",
+    "mode": "review",
+    "findings": [],
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "All three version fields (package.json, lockfile root, lockfile packages[\"\"]) move 0.10.0 -> 0.11.0 consistently; no other package fields touched. Matches stated intent."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "No scripts, dependencies, permissions, workflows, or credentials changed. The two new evidence files contain only a public commit SHA and ref name; no publish or tag action is present."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "Version skew is the only realistic failure path and it is closed by the coordinated three-field edit. No runtime, concurrency, or recovery surface is touched."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "Test pass claims are not verifiable from the bounded packet, but the diff contains no executable change that any test could regress, so the gap is not material."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "Pure metadata bump; no API, CLI, asset, or dependency-range change. No added abstraction or complexity."
+      },
+      {
+        "concern": "rollout_rollback",
+        "conclusion": "Non-publishing change; rollback is a plain revert of these commits. No irreversible action included."
+      },
+      {
+        "concern": "observability_operations",
+        "conclusion": "Version is the observable release identifier and is coherent across metadata. The two byte-identical attestation files add no diagnostic value but pose no operational risk."
+      }
+    ],
+    "lens_id": "code-review:review:no-tools",
+    "tool_identity": "code-review:no-tools",
+    "native_skill_binding": "not_requested",
+    "wrapper_exit_code": 0,
+    "status": "passed",
+    "packet_sha256": "efe2ce32c700a842c4da2eac89c46b302d2ce5360a0eb47fa4f688197c91b65a"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "not_requested",
+  "next_action": "run_challenge"
+}

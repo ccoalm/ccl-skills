@@ -1,0 +1,239 @@
+{
+  "schema_version": 3,
+  "mode": "challenge",
+  "stage": "release",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "findings",
+  "selected_client": "claude",
+  "selected_reviewer": "claude",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P1",
+      "file": "specs/106-npm-0.11.0-release/evidence/base-attestation-2.txt",
+      "line": 1,
+      "failure_path": "base-attestation-1.txt and -2.txt are byte-identical (identical blob 6f65efc). A gate requiring two attestations is satisfied by copying one file, so a single stale or wrong observation of origin/dev passes as two independent confirmations; the attesting party is also the gated party, with no signature, observer id, or timestamp distinguishing them.",
+      "smallest_fix": "Require each attestation to embed a distinct capture timestamp/observer and reject identical blob hashes between attestation files."
+    },
+    {
+      "severity": "P1",
+      "file": "specs/106-npm-0.11.0-release/evidence/base-attestation-1.txt",
+      "line": 1,
+      "failure_path": "The attestation is unverifiable plain text pasted by the implementer: nothing in the diff cross-checks that bcdd82a is an ancestor of HEAD or the current origin/dev tip at merge time. If dev advances after the file is written the recorded base is stale yet the gated 'base bound' outcome is still reached; a hand-typed SHA that never existed on dev also passes.",
+      "smallest_fix": "Add an executable check running git ls-remote origin refs/heads/dev, comparing to the attestation file, and asserting git merge-base --is-ancestor <sha> HEAD."
+    },
+    {
+      "severity": "P2",
+      "file": "packages/ccl-skills-npm/package.json",
+      "line": 3,
+      "failure_path": "No added or modified test asserts version equality across package.json, lockfile root, and lockfile packages['']; the consistency claim comes only from an ad-hoc Node snippet in evidence. A future bump that updates package.json but misses a lockfile field reproduces the version skew with all 166 tests green.",
+      "smallest_fix": "Add a test asserting package.json version === lockfile version === lockfile packages[''].version."
+    },
+    {
+      "severity": "P2",
+      "file": "packages/ccl-skills-npm/package.json",
+      "line": 3,
+      "failure_path": "Acceptance requires both suites to pass on the exact committed candidate, but the cited runs predate commit de0dc28 (the evidence commit). The 0.11.0 pack artifact metadata was produced from a different tree than the reviewed HEAD, so anything slipped into that later commit is untested.",
+      "smallest_fix": "Re-run npm test and npm run test:pack at HEAD de0dc28 and record the SHA with the results."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [],
+  "attempts": [
+    {
+      "client": "claude",
+      "mode": "challenge",
+      "findings": [
+        {
+          "severity": "P1",
+          "file": "specs/106-npm-0.11.0-release/evidence/base-attestation-2.txt",
+          "line": 1,
+          "failure_path": "base-attestation-1.txt and -2.txt are byte-identical (identical blob 6f65efc). A gate requiring two attestations is satisfied by copying one file, so a single stale or wrong observation of origin/dev passes as two independent confirmations; the attesting party is also the gated party, with no signature, observer id, or timestamp distinguishing them.",
+          "smallest_fix": "Require each attestation to embed a distinct capture timestamp/observer and reject identical blob hashes between attestation files."
+        },
+        {
+          "severity": "P1",
+          "file": "specs/106-npm-0.11.0-release/evidence/base-attestation-1.txt",
+          "line": 1,
+          "failure_path": "The attestation is unverifiable plain text pasted by the implementer: nothing in the diff cross-checks that bcdd82a is an ancestor of HEAD or the current origin/dev tip at merge time. If dev advances after the file is written the recorded base is stale yet the gated 'base bound' outcome is still reached; a hand-typed SHA that never existed on dev also passes.",
+          "smallest_fix": "Add an executable check running git ls-remote origin refs/heads/dev, comparing to the attestation file, and asserting git merge-base --is-ancestor <sha> HEAD."
+        },
+        {
+          "severity": "P2",
+          "file": "packages/ccl-skills-npm/package.json",
+          "line": 3,
+          "failure_path": "No added or modified test asserts version equality across package.json, lockfile root, and lockfile packages['']; the consistency claim comes only from an ad-hoc Node snippet in evidence. A future bump that updates package.json but misses a lockfile field reproduces the version skew with all 166 tests green.",
+          "smallest_fix": "Add a test asserting package.json version === lockfile version === lockfile packages[''].version."
+        },
+        {
+          "severity": "P2",
+          "file": "packages/ccl-skills-npm/package.json",
+          "line": 3,
+          "failure_path": "Acceptance requires both suites to pass on the exact committed candidate, but the cited runs predate commit de0dc28 (the evidence commit). The 0.11.0 pack artifact metadata was produced from a different tree than the reviewed HEAD, so anything slipped into that later commit is untested.",
+          "smallest_fix": "Re-run npm test and npm run test:pack at HEAD de0dc28 and record the SHA with the results."
+        }
+      ],
+      "concern_results": [
+        {
+          "concern": "challenge_focus",
+          "conclusion": "Bypasses found: the two 'independent' base attestations are byte-identical blobs (both 6f65efc), so the duplicate-attestation gate fires on a single copy-paste and is self-adjudicated by the implementer; the ls-remote lines carry no timestamp, signature, or observer identity, so a stale or fabricated line reaches the gated 'base bound' outcome without any upstream fetch. Version metadata itself is consistent (three 0.11.0 values), but nothing in the diff enforces it — no test or check is added, so the gate rests on out-of-band claims. Test evidence (166 + 11 pass) was collected on the package-bearing commit, not the committed HEAD de0dc28, contradicting acceptance item 3."
+        }
+      ],
+      "lens_id": "code-review:challenge:no-tools-adversarial",
+      "tool_identity": "code-review:no-tools",
+      "native_skill_binding": "not_requested",
+      "wrapper_exit_code": 0,
+      "status": "findings",
+      "packet_sha256": "efe2ce32c700a842c4da2eac89c46b302d2ce5360a0eb47fa4f688197c91b65a"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "efe2ce32c700a842c4da2eac89c46b302d2ce5360a0eb47fa4f688197c91b65a",
+  "candidate_sha256": "efe2ce32c700a842c4da2eac89c46b302d2ce5360a0eb47fa4f688197c91b65a",
+  "review_context_sha256": "336e452b8b3d3f85a80b98301e3191314ca6238ed32bfd2c47f4bcd43a034e9c",
+  "review_controller_sha256": "f70ed0a8ce78658156b2f073580529ce01cc741fa1891abb0c469b5da386ffc3",
+  "review_profile_sha256": "ff0d27eb91202fafdcf8951f06d89c0989ec00ef36d69e58f84dc41dfee098a8",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "implementer-declared",
+  "owner_selection_evidence": [],
+  "review_plan_source": "implementer-supplied",
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "controller-profile",
+    "observed": false,
+    "source": "claude-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review"
+  ],
+  "selected_skills_sha256": "fc30cbf3dce97f3f574b7306d87440f417c9247607ff76a5ac29e6af154661db",
+  "risk_tags": [],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 1,
+  "challenge_index": 1,
+  "challenge_focus": "version-metadata-package-artifact-delta-and-base-attestation-binding",
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": true,
+  "review_chain_id": "npm-0.11.0-pr106-final-r1",
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "9e2bc4d8a73b1f656580f2cbdad4c3694ba1553cfd6a1d85792e92c228f1f621",
+    "acceptance_sha256": "8736d4a73b1b9fba75930c0e66ac81b26a15ab34b8b7cd15b54e10927cf4e044",
+    "stage": "release",
+    "review_depth": "release",
+    "risk_tags": [],
+    "challenge_budget": 1,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null
+  },
+  "review_scope_sha256": "fd0a9450a8a85cf4e0138366094ec2b2d5a47e45259e6699b3f0c867e014e2ab",
+  "prior_review_result_sha256": [
+    "8c454d3575cdb1d0ff57396462dde1072cba4d14a6e8832ee3d586967e86e76c"
+  ],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 2,
+  "autonomous_review_index": 2,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "challenge_focus",
+      "conclusion": "Bypasses found: the two 'independent' base attestations are byte-identical blobs (both 6f65efc), so the duplicate-attestation gate fires on a single copy-paste and is self-adjudicated by the implementer; the ls-remote lines carry no timestamp, signature, or observer identity, so a stale or fabricated line reaches the gated 'base bound' outcome without any upstream fetch. Version metadata itself is consistent (three 0.11.0 values), but nothing in the diff enforces it — no test or check is added, so the gate rests on out-of-band claims. Test evidence (166 + 11 pass) was collected on the package-bearing commit, not the committed HEAD de0dc28, contradicting acceptance item 3."
+    }
+  ],
+  "reviewed_concerns": [
+    "challenge_focus"
+  ],
+  "reviewed_skills": [],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "claude",
+    "mode": "challenge",
+    "findings": [
+      {
+        "severity": "P1",
+        "file": "specs/106-npm-0.11.0-release/evidence/base-attestation-2.txt",
+        "line": 1,
+        "failure_path": "base-attestation-1.txt and -2.txt are byte-identical (identical blob 6f65efc). A gate requiring two attestations is satisfied by copying one file, so a single stale or wrong observation of origin/dev passes as two independent confirmations; the attesting party is also the gated party, with no signature, observer id, or timestamp distinguishing them.",
+        "smallest_fix": "Require each attestation to embed a distinct capture timestamp/observer and reject identical blob hashes between attestation files."
+      },
+      {
+        "severity": "P1",
+        "file": "specs/106-npm-0.11.0-release/evidence/base-attestation-1.txt",
+        "line": 1,
+        "failure_path": "The attestation is unverifiable plain text pasted by the implementer: nothing in the diff cross-checks that bcdd82a is an ancestor of HEAD or the current origin/dev tip at merge time. If dev advances after the file is written the recorded base is stale yet the gated 'base bound' outcome is still reached; a hand-typed SHA that never existed on dev also passes.",
+        "smallest_fix": "Add an executable check running git ls-remote origin refs/heads/dev, comparing to the attestation file, and asserting git merge-base --is-ancestor <sha> HEAD."
+      },
+      {
+        "severity": "P2",
+        "file": "packages/ccl-skills-npm/package.json",
+        "line": 3,
+        "failure_path": "No added or modified test asserts version equality across package.json, lockfile root, and lockfile packages['']; the consistency claim comes only from an ad-hoc Node snippet in evidence. A future bump that updates package.json but misses a lockfile field reproduces the version skew with all 166 tests green.",
+        "smallest_fix": "Add a test asserting package.json version === lockfile version === lockfile packages[''].version."
+      },
+      {
+        "severity": "P2",
+        "file": "packages/ccl-skills-npm/package.json",
+        "line": 3,
+        "failure_path": "Acceptance requires both suites to pass on the exact committed candidate, but the cited runs predate commit de0dc28 (the evidence commit). The 0.11.0 pack artifact metadata was produced from a different tree than the reviewed HEAD, so anything slipped into that later commit is untested.",
+        "smallest_fix": "Re-run npm test and npm run test:pack at HEAD de0dc28 and record the SHA with the results."
+      }
+    ],
+    "concern_results": [
+      {
+        "concern": "challenge_focus",
+        "conclusion": "Bypasses found: the two 'independent' base attestations are byte-identical blobs (both 6f65efc), so the duplicate-attestation gate fires on a single copy-paste and is self-adjudicated by the implementer; the ls-remote lines carry no timestamp, signature, or observer identity, so a stale or fabricated line reaches the gated 'base bound' outcome without any upstream fetch. Version metadata itself is consistent (three 0.11.0 values), but nothing in the diff enforces it — no test or check is added, so the gate rests on out-of-band claims. Test evidence (166 + 11 pass) was collected on the package-bearing commit, not the committed HEAD de0dc28, contradicting acceptance item 3."
+      }
+    ],
+    "lens_id": "code-review:challenge:no-tools-adversarial",
+    "tool_identity": "code-review:no-tools",
+    "native_skill_binding": "not_requested",
+    "wrapper_exit_code": 0,
+    "status": "findings",
+    "packet_sha256": "efe2ce32c700a842c4da2eac89c46b302d2ce5360a0eb47fa4f688197c91b65a"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "not_requested",
+  "next_action": "triage_findings_and_continue_independent_work"
+}
