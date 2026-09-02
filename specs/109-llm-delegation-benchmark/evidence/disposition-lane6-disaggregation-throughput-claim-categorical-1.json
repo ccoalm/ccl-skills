@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "76d95836625b36dd7ae41964c6bbad95e336f32f778201708b81a17d68180c3b",
+ "receipt_sha256": "13ed3cbef61b71b8983ded907261ff8dbd3fa9f34505d724b45610445ad12b21",
+ "finding_sha256": "21b48e61e62e56a039cd5a32f84854bfdf285cc96f5062fb2051653d35b6ab16",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "13ed3cbef61b71b8983ded907261ff8dbd3fa9f34505d724b45610445ad12b21",
+   "finding_sha256": "21b48e61e62e56a039cd5a32f84854bfdf285cc96f5062fb2051653d35b6ab16"
+  }
+ ],
+ "evidence": [
+  "The caveat now states that throughput and goodput may rise or fall with the engine, resource split, KV-transfer overhead, and workload (one engine's documentation states it does not raise throughput) and requires measurement on the target engine (lane-7 fix commit)."
+ ]
+}

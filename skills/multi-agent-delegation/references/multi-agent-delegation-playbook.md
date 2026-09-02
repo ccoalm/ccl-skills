@@ -8,6 +8,8 @@ Use this when deciding how to split and supervise agent work.
 - One bounded subsystem, file set, or investigation question.
 - Explicit constraints: what not to touch, what must be preserved. Slices of any delegated execution input (plan, spec, task list, requirement, implementation direction, or resumed task/status artifact) additionally carry that input's binding global constraints verbatim plus neighbor interface contracts (consumes/produces) — see SKILL.md Core Rules (dispatch payload).
 - Model tier field: `model_tier: <tier>` or `model_tier: host-default (<reason>)` in every substantive brief — see SKILL.md Core Rules (model tier per dispatch).
+- Effort budget field: `effort_budget: <max tool calls / turns / wall-clock>` in every substantive brief, scaled to the slice — agents misjudge effort on their own (see SKILL.md Core Rules — fan-out gate).
+- Artifact handoff: large or load-bearing outputs (diffs, logs, reports, datasets) are written to a durable artifact the worker names; the return carries the locator plus a compact summary, and the controller verifies from the artifact, not the relayed summary (the handoff "telephone game" loses exactly the detail that matters).
 - Clear expected output: changed file paths, root cause, test result, risk, or recommendation.
 - Verification command or evidence requirement.
 - Capability scope: grant only the tools the bounded task needs; deny by default further delegation, user interaction, shared/persistent-memory writes, cross-system side effects, local-machine mutation beyond the task's grant — filesystem/git writes outside the owned scope, and package installs / process-service control / env-config changes (these need explicit separate grants, not an in-scope default) — and secret-bearing reads (see SKILL.md Core Rules — capability-scoping).
@@ -21,19 +23,28 @@ Parallelize only when all are true:
 - Write scopes are disjoint, or tasks are read-only.
 - Shared setup is stable.
 - One task's result is not needed by another.
+- Slices are cut by context boundary, not by role or work type (the boundaries that work and those that do not are listed under "Is multi-agent worth the cost?").
+- Shared implicit decisions (naming, result/error shapes, config keys, dependency and style choices) are pre-made and carried in every brief.
 - Verification can be integrated afterward.
 
 Do not parallelize when failures likely share one root cause, migrations/contracts overlap, or agents would edit the same files.
 
 ### Is multi-agent worth the cost?
 
-Parallel multi-agent dispatch carries a real token premium — on the order of 15× a single chat (a single agent ~4×), as rough order-of-magnitude heuristics rather than a fixed cutoff (actual cost depends on model, context size, retries, and tool-output volume) — plus coordination and result-integration overhead. Add a value/shape check on top of the independence gate above:
+Parallel multi-agent dispatch carries a real token premium — on the order of 3–10× the tokens of a single-agent approach for an equivalent task (≈15× a plain chat; a single agent alone ≈4× a chat), as rough order-of-magnitude heuristics rather than fixed cutoffs (actual cost depends on model, context size, retries, and tool-output volume) — plus coordination and result-integration overhead. Add a value/shape check on top of the independence gate above:
 
 - **Value**: the task is high-value enough to pay for the extra tokens and orchestration. Low-value or quick tasks do not justify the premium — run them locally or with one agent.
 - **Breadth, not depth**: the win comes from genuinely breadth-first work — many independent subtasks, source/information volume that exceeds one context window, or many complex tools/surfaces to cover at once. Subagents pay off largely by exploring in their own context windows and condensing results back, keeping the orchestrator's context clean.
 - **Execution-vs-research caveat**: software-execution tasks usually have fewer truly parallelizable subtasks than open-ended research. If the "parallel" tasks actually share state, contracts, or sequencing, the apparent breadth is false and sequential delegation (or local work) is cheaper and safer.
 
 If independence, value, or breadth is unclear, start with one focused agent or sequential delegation; use parallel dispatch when those checks are explicitly satisfied.
+
+**What the public evidence adds to the gate** (sources named so a later round can re-verify; every number is a regime indicator, not a threshold):
+
+- *Single agent first.* Anthropic's 2026 guidance ("Building multi-agent systems: when and how to use them"): confirm a genuine constraint (context limits, parallelization, specialization) and clear verification points exist before adding agents; multi-agent implementations typically used 3–10× the tokens of single-agent ones in their testing. Google's agent-scaling study (arXiv 2512.08296, 2025-12) found coordination yields diminishing or negative returns once a single-agent baseline is already strong, and every multi-agent variant degraded strict sequential-reasoning tasks by tens of percent.
+- *Decompose by context, not by role.* The same Anthropic guidance: role splits over one feature (planner / implementer / tester / reviewer) spend more tokens coordinating than working; boundaries that work are independent research paths, components with a clean interface contract, and blackbox verification.
+- *Actions carry implicit decisions.* Cognition's argument ("Don't Build Multi-Agents", 2025-06): two workers that cannot see each other's decisions produce inconsistent artifacts even with disjoint files — hence the pre-made shared decisions item.
+- *Scale effort to complexity, and keep the hub.* Anthropic's research system embeds effort rules in the brief (a simple lookup is one agent and a handful of tool calls; only genuinely broad work gets many subagents) after early versions spawned dozens of subagents for simple queries; Claude Code's agent-teams guidance starts at 3–5 teammates with several tasks each. The scaling study measured independent, non-communicating parallel agents amplifying one agent's errors several times more than a hub whose orchestrator validates returns — which is why the controller reviews every return.
 
 ## Review Sequence
 

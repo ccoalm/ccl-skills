@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "76d95836625b36dd7ae41964c6bbad95e336f32f778201708b81a17d68180c3b",
+ "receipt_sha256": "13ed3cbef61b71b8983ded907261ff8dbd3fa9f34505d724b45610445ad12b21",
+ "finding_sha256": "0ae9da25377b25b687f1ccf30ed551c966b0f4a3dd4500c7f55a18bb56ad17cb",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "13ed3cbef61b71b8983ded907261ff8dbd3fa9f34505d724b45610445ad12b21",
+   "finding_sha256": "0ae9da25377b25b687f1ccf30ed551c966b0f4a3dd4500c7f55a18bb56ad17cb"
+  }
+ ],
+ "evidence": [
+  "The option now requires the privileged code, its allowed sinks, and its permitted data flows to be generated and frozen before any untrusted content is read, untrusted input entering afterwards only as non-instruction typed data, with the negative test restoring that ordering (lane-7 fix commit)."
+ ]
+}

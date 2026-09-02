@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "7a10733f887cd3a57ac43675cafd1fb177ab0d54c8520d5338f07580b777916f",
+ "receipt_sha256": "bd13af6d4e75686c80291ee119ae92891778d09e27430686ca35e61e3997284e",
+ "finding_sha256": "e9f9b3aabda458fd52a6010f10ade1c2ee28312053f416ee66c87c7a39b27fe1",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "bd13af6d4e75686c80291ee119ae92891778d09e27430686ca35e61e3997284e",
+   "finding_sha256": "e9f9b3aabda458fd52a6010f10ade1c2ee28312053f416ee66c87c7a39b27fe1"
+  }
+ ],
+ "evidence": [
+  "A gate-output record committed inside the candidate cannot bind the tree that contains it (the repository's recorded enforcement-step-is-inside-the-candidate and evidence-is-caller-controlled boundaries; same disposition as lanes 1 and 2 and the prior benchmark round); CI on the pushed commit is the authoritative pre-landing check, the verdict lines are in the pull request comment and the private closeout, and every lane-3 receipt candidate equals the merge-side binder candidate."
+ ]
+}

@@ -1,0 +1,17 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "75f8430986cb3d7e32355b447a51541356ebee934436aa27d5a1de942699564b",
+ "receipt_sha256": "d2a7f979b2d0a102a444ebed2fba773e6bfe0ba6d53c209464fca5f1212432a2",
+ "finding_sha256": "e8959fa0941d819c7cfb5c1b49e2910347c80374deea43e58cfae3d5ddf8dfb8",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "d2a7f979b2d0a102a444ebed2fba773e6bfe0ba6d53c209464fca5f1212432a2",
+   "finding_sha256": "e8959fa0941d819c7cfb5c1b49e2910347c80374deea43e58cfae3d5ddf8dfb8"
+  }
+ ],
+ "evidence": [
+  "A gate-output record committed inside the candidate cannot bind the tree that contains it (the repository's recorded enforcement-step-is-inside-the-candidate and evidence-is-caller-controlled boundaries; same disposition as lane 1 and the prior benchmark round); the authoritative pre-landing check is the CI run on the pushed commit, which repeats check-ccl-skills, public sanitization, size and routing gates, and the review-ledger binder.",
+  "The exact verdict lines from the candidate tree (ccl_skill_check_clean_ok with CCL_SKILL_BASE_REF=origin/dev, make test exit 0, heavy regression lane ok, size budget 4988/5000) are reported in the pull request comment and the private closeout, and the merge-side binder candidate was compared to every lane-2 receipt candidate before commit."
+ ]
+}

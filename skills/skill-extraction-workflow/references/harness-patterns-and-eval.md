@@ -12,6 +12,10 @@
 - **Anthropic, "Effective context engineering for AI agents"** (2025, anthropic.com/engineering/effective-context-engineering-for-ai-agents) — context 即稀缺资源 / compaction / 结构化笔记 / JIT 检索 / context rot（提炼入 §5）
 - **Anthropic, "Demystifying evals for AI agents"** (Jan 09 2026) — agent eval 方法（realistic tasks / robust criteria / multiple graders / transcripts）
 - **Anthropic Claude Code sub-agent docs**（Claude Code 官方文档 sub-agents 段）— sub-agent 隔离 / 独立 context window / 独立 permission
+- **Anthropic, "Building multi-agent systems: When and how to use them"** (claude.com/blog, Jan 23 2026) — single-agent-first 三问（真实约束 / 按 context 而非按角色拆 / 有清晰验证点）、3–10× token 溢价、verification-subagent 模式（提炼入 `multi-agent-delegation` 的 fan-out gate）
+- **Google Research, "Towards a science of scaling agent systems"** (arXiv 2512.08296, Dec 2025) — 并行可分解任务下集中式协调收益大；严格顺序推理任务所有多 agent 变体退化；独立并行 agent 的错误放大远高于带 orchestrator 的 hub；单 agent 基线已强时协调收益递减或为负
+- **Cemri et al., "Why Do Multi-Agent LLM Systems Fail?"** (arXiv 2503.13657, NeurIPS 2025) — MAST：3 类 14 种失败模式（§2 映射表）；多数失败源于系统设计而非模型
+- **Cognition, "Don't Build Multi-Agents"** (Jun 2025) — 两原则：共享完整 trace 而非摘要；动作携带隐式决策、冲突决策产坏结果（提炼入 fan-out gate 的 shared-decisions 项）
 - **SWE-bench** (Jimenez et al., arXiv 2023, ICLR 2024, Princeton + UChicago) — agent 在真 GitHub issues 上的 task replay eval
 - **Aider benchmarks / leaderboard** (aider.chat/docs/leaderboards/) — code editing/refactoring 固定 task set + pass rate
 - **AutoGen** (Microsoft Research, 2023) — multi-agent conversation framework
@@ -74,6 +78,16 @@ Workflow 更适合可预测 / 可调试 / 可控成本的任务；agent 更适�
 **在本 scheme 怎么落**：
 - `multi-agent-delegation` skill 主体覆盖 isolation 决策；本 ref 补充失败模式 checklist
 - 用 sub-agent 后**必须独立核对结果**（reading diff / grep specific changes），不依赖 sub-agent self-report
+
+- **与文献标准命名（MAST）的对应**——上表是自用名；评审一次失败的 worker 返回时必须先按 MAST 类别定位该修哪一层（MAST 的结论：多数失败源于系统设计而非模型，先改 brief / 拓扑 / 验证，别先换模型）：
+
+| MAST 类 | 失败模式 | 对应上表 / 我们的规则 | 修哪层 |
+|---|---|---|---|
+| FC1 系统设计 / 规格 | 1.1 违背任务规格；1.2 违背角色规格；1.3 步骤重复；1.4 丢失对话历史；1.5 不知终止条件 | Context starvation；`multi-agent-delegation` 的 spec-compliance review、同错 ~3 次升级、wall-clock deadline、stop line | brief（目标 / 边界 / 输出形状 / effort budget）或拓扑 |
+| FC2 agent 间失配 | 2.1 对话重置；2.2 该问不问；2.3 任务跑偏；2.4 扣留信息；2.5 忽略他方输入；2.6 推理-动作不一致 | Hidden dependency；brief 逐字携带全局约束与邻接契约、5 字段 escalation、owned-path manifest 核对、integrate 步查隐式决策分歧 | brief 契约 / escalation / 集成检查 |
+| FC3 任务验证 | 3.1 过早终止；3.2 无 / 不完整验证；3.3 错误验证 | Trust drift；不信 success report、blocked 声明先补救、reviewer 的 verdict_scope / cannot_verify 槽位 | 控制器侧验证 |
+
+Result inflation 没有 MAST 对应——它是 context / 成本问题，不是任务失败。
 
 ---
 
