@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "dfc722cc780976ad2bd96a5c1c2f1e3117fa3c0c6a8fc7df658245803af75309",
+  "receipt_sha256": "074d66048cbd32d4e8b23c8cc8f5d02a5f6a2ea8a7f25e9ae0cd0fe225945c15",
+  "finding_sha256": "c3b69a42a6336eb083c42d6cf9456eb6ee6bbabbe1d544bb8d8ab70c0946a63e",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "074d66048cbd32d4e8b23c8cc8f5d02a5f6a2ea8a7f25e9ae0cd0fe225945c15",
+      "finding_sha256": "c3b69a42a6336eb083c42d6cf9456eb6ee6bbabbe1d544bb8d8ab70c0946a63e"
+    }
+  ],
+  "evidence": [
+    "rg --files -g package.json -g package-lock.json returns exactly packages/ccl-skills-npm/package.json and packages/ccl-skills-npm/package-lock.json; there is no second manifest or lockfile in the repository.",
+    "A repository-wide search for a version field equal to 0.12.0 across package.json and package-lock.json returns no match.",
+    "jq reads both lockfile version sites, the top-level version and packages empty-string version, as 0.13.0; the finding's second-lockfile and hidden-self-entry failure paths are therefore absent."
+  ]
+}
