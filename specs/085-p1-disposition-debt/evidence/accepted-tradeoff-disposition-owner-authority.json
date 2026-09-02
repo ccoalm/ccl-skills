@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b3d8125a22f72c32def551329a1f3ec46835f29ce13840932aa0afc216b1ac8d",
+  "receipt_sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8",
+  "finding_sha256": "650ac7f5c974af9850a12becd0b56c812476f6f71da0f2f768ea7c38f426f96a",
+  "disposition": "accepted_tradeoff",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8",
+      "finding_sha256": "650ac7f5c974af9850a12becd0b56c812476f6f71da0f2f768ea7c38f426f96a"
+    }
+  ],
+  "evidence": [
+    "The repository owner supplied the accepted-tradeoff decision through the authenticated task platform and stated that this project does not require a second person for that decision.",
+    "The candidate-local plan and disposition JSON record the external decision; they do not claim to authenticate the owner. This is the documented boundary that human authority must originate outside the candidate diff.",
+    "Reopen if the platform authority is absent or disputed, or if either substantive reopen signal in disposition-evidence-is-caller-controlled.json fires."
+  ]
+}

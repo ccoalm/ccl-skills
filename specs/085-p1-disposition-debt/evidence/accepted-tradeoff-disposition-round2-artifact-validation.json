@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b3d8125a22f72c32def551329a1f3ec46835f29ce13840932aa0afc216b1ac8d",
+  "receipt_sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8",
+  "finding_sha256": "f7c5aaa3200ac3d212aaf3adfb2ee767cf0ae19648b9c3bc3115c469e9ead1e8",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8",
+      "finding_sha256": "f7c5aaa3200ac3d212aaf3adfb2ee767cf0ae19648b9c3bc3115c469e9ead1e8"
+    }
+  ],
+  "evidence": [
+    "The challenge correctly observed that the model packet cannot contain a self-referential evidence JSON, but repository acceptance does not rely on model visibility alone.",
+    "The unchanged closeout validator independently reads the artifact bytes, requires the recorded SHA-256, rejects extra or missing schema fields, and binds the historical candidate, controller receipt, finding, disposition, and resolved occurrence.",
+    "The exact current artifact digest is 1df2148dd7922b60dd39022c826d0a597b116a1e93e8e68cbde03938056a9cf5 and the edited historical closeout validates successfully, so the stated stale-or-misbound failure path is rejected by the deterministic landing check."
+  ]
+}

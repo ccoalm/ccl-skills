@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b3d8125a22f72c32def551329a1f3ec46835f29ce13840932aa0afc216b1ac8d",
+  "receipt_sha256": "d793130f322f6b4b379eb5b96936a77d0b1010622a2b0983edadb788b28e1706",
+  "finding_sha256": "ea7ea2d0e6677f4ea15979cd0c3a76f392ffdb3bc52a7ca08f6e57f3f7b7235e",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "d793130f322f6b4b379eb5b96936a77d0b1010622a2b0983edadb788b28e1706",
+      "finding_sha256": "ea7ea2d0e6677f4ea15979cd0c3a76f392ffdb3bc52a7ca08f6e57f3f7b7235e"
+    }
+  ],
+  "evidence": [
+    "The packet omission is intentional self-reference control, not an unchecked merge path: review_ledger_binding.py excludes newly added evidence JSON carrying candidate_sha256 so the review ledger can bind a stable candidate.",
+    "validate_extraction_review_state.py load_sibling reads disposition-evidence-is-caller-controlled.json, recomputes and compares its SHA-256 before parsing, then exact-schema validates and binds candidate, receipt, finding, disposition, and resolves_occurrences.",
+    "A fresh validator run exited 0, and a direct digest readback produced 1df2148dd7922b60dd39022c826d0a597b116a1e93e8e68cbde03938056a9cf5, exactly the digest recorded in the historical closeout. A dangling or mismatched artifact therefore does not pass the repository gate."
+  ]
+}

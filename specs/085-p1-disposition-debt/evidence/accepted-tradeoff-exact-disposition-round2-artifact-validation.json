@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "686b96b23f6197ea416362b945145131e8274bd597e51b1bc2a8cba912027b8d",
+  "receipt_sha256": "8ee807bf737d84bcef213ee43c367fbc1341136714cebe0fc88db18ae3af8db4",
+  "finding_sha256": "c1d093e9b61097483ebf1ba53310bb63736799bd8964695570d3f33b5d9c6f55",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "8ee807bf737d84bcef213ee43c367fbc1341136714cebe0fc88db18ae3af8db4",
+      "finding_sha256": "c1d093e9b61097483ebf1ba53310bb63736799bd8964695570d3f33b5d9c6f55"
+    }
+  ],
+  "evidence": [
+    "The exact challenge legitimately repeats the model-visibility boundary on the same committed packet; it does not identify a new artifact, digest, schema, pair-binding, reachability, severity, authority, or reopen-condition defect.",
+    "Commit 5d471de4036089eb61727a28fd699504ec85ebca contains the referenced artifact blob at SHA-256 1df2148dd7922b60dd39022c826d0a597b116a1e93e8e68cbde03938056a9cf5 and a closeout that pins the same digest.",
+    "The unchanged deterministic validator reads those committed bytes outside the model packet and rejects missing, stale, wrongly hashed, extra-field, or wrongly bound disposition evidence. The repeated finding is therefore source-refuted for repository landing while the known candidate-controlled-evidence trust boundary remains explicitly accepted."
+  ]
+}

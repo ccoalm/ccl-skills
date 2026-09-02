@@ -79,6 +79,19 @@
 - **pathspec 被当模式解释**：排除项由候选自己的文件名构成并交回 git。评审定性为「一个名为 `*` 的收据可排除一切、候选变空、闸静默通过」。**实测未复现**——排除项带完整路径，glob 只在该 evidence 目录内展开，而同目录成员本就是收据。故按证据把主张收窄，不按夸大版落地；同时**删掉了我为它写的那条用例**，因为它在未修的代码上也不会红，一个永远不会红的断言在本仓是明令禁止的。改动仍然保留（`:(exclude,literal)`）：把「按模式解释这些名字」这个本就不需要的能力去掉，成本为零。
 - **shell 命令替换**：已证否。本文件所有 subprocess 调用都传 argv 列表、无 `shell=True`，没有任何 shell 解析这些文件名。
 
+### R6 — 所有者处置：接受 `evidence-is-caller-controlled` 残余
+
+2026-09-02，仓库所有者把 R4 留下的同一 occurrence 裁为 `accepted_tradeoff`。处置精确绑定 round 1 receipt `0d4ec074…` 与 finding `be4f285d…`；完整哈希和依据见 `evidence/disposition-evidence-is-caller-controlled.json`。
+
+这里不新增规则。`dual-track-review-gate.md` 已规定：已接受发现被后续候选合法重报不算升级，但每个候选都须重新证明 reachability / severity 没有变化。重复写一条同义规则只会造成单调增长和漂移。
+
+`needs_human_decision` 不能由后续候选内证据消解；本次是所有者对原 occurrence 的外部裁决，而不是用新的候选收据覆盖历史人工决策。另一个 finding class `residual-stated-in-the-candidate` 不在本次处置范围，继续保持原状态。
+
+重开只有两个信号：
+
+1. 账本因独立于本残余的原因需要移出候选工作树，此时重新评估能否替换或删除排除机制。
+2. 真实交付中首次出现非评审构造的走私；纯合成对抗用例只重验已接受边界，除非当前候选扩大了 reachability 或 severity，否则不单独触发重开。
+
 ### D2 — 继承铸造拒绝 `predecessor_chain_id == review_chain_id`
 
 定级更正（开轮时说高了）：这**不是**堵住敞口。`validate_extraction_review_state.py:386` 已有 `if current_chain == chain_id: fail("succeeds its own chain")`，084 台账第 516 行也明写"a self-succession is refused one layer up by the closeout validator rather than at mint time"，实测属实。
