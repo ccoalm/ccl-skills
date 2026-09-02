@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "7a10733f887cd3a57ac43675cafd1fb177ab0d54c8520d5338f07580b777916f",
+ "receipt_sha256": "bd13af6d4e75686c80291ee119ae92891778d09e27430686ca35e61e3997284e",
+ "finding_sha256": "496a4961e2212e71d8c745701f824cb5597df4be35b630514e80d639c1401052",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "bd13af6d4e75686c80291ee119ae92891778d09e27430686ca35e61e3997284e",
+   "finding_sha256": "496a4961e2212e71d8c745701f824cb5597df4be35b630514e80d639c1401052"
+  }
+ ],
+ "evidence": [
+  "The checklist now requires an explicit capability decision when neither idempotent creation nor an authoritative lookup key exists — forbid automatic retry of an ambiguous submission with a persisted submission_unknown state for manual or provider-side reconciliation, or decline the endpoint — and requires stable item and submission identifiers to be persisted before sending, with terminal usage reconciled by item and batch id, never from the submission count (lane-3 fix commit)."
+ ]
+}

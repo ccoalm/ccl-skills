@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "7a10733f887cd3a57ac43675cafd1fb177ab0d54c8520d5338f07580b777916f",
+ "receipt_sha256": "4dc85737ec8d353c582f180e4cb859cc7a455b9f18e356a2e6653ea20c04e77c",
+ "finding_sha256": "83e01ff06d643e4af28fcfc8cd3eddbe398f5f1988b47f34961d8866f227c66b",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "4dc85737ec8d353c582f180e4cb859cc7a455b9f18e356a2e6653ea20c04e77c",
+   "finding_sha256": "83e01ff06d643e4af28fcfc8cd3eddbe398f5f1988b47f34961d8866f227c66b"
+  }
+ ],
+ "evidence": [
+  "Same class as the round-7 occurrence with the absent-field branch added: a provider that omits a cache field is recorded as unknown, never as zero or as not cached, and its cache share is not computed; a route is called uncached only when it reports both cache fields as zero (lane-3 fix commit)."
+ ]
+}

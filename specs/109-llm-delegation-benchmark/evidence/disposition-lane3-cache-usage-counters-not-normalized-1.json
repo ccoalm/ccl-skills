@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "7a10733f887cd3a57ac43675cafd1fb177ab0d54c8520d5338f07580b777916f",
+ "receipt_sha256": "bd13af6d4e75686c80291ee119ae92891778d09e27430686ca35e61e3997284e",
+ "finding_sha256": "f8634306f2bd8c80033efd9081d55572bb2a8978eb46704d8d28c9c7e34e1e5f",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "bd13af6d4e75686c80291ee119ae92891778d09e27430686ca35e61e3997284e",
+   "finding_sha256": "f8634306f2bd8c80033efd9081d55572bb2a8978eb46704d8d28c9c7e34e1e5f"
+  }
+ ],
+ "evidence": [
+  "The bullet now requires the adapter to record each provider's counter shape and normalize to disjoint fields (cache-read, cache-creation, uncached remainder derived by subtraction where the total is inclusive) before the equation applies, and only normalized fields feed cache share, cost, quota, and incident accounting (lane-3 fix commit)."
+ ]
+}
