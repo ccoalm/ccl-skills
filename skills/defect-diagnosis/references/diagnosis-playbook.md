@@ -23,7 +23,7 @@ Use this when choosing how to isolate a defect.
 - Environment/config:
 - Narrowed layer:
 - Localization move used (commit bisection | input reduction | suite bisection | boundary walk | difference diff | upstream trace | telemetry walk):
-- Hypothesis log (hypothesis | falsifier | probe cost/risk | result):
+- Hypothesis log (hypothesis | prediction | falsifier | probe cost/risk | result):
 - Active-test changes made and reverted:
 - Proven cause:
 - Complexity verdict (simple | complex; `simple` must name the complexity triggers checked and found absent; `complex` must name which trigger fired + contributing factors by playbook lens):
@@ -65,13 +65,13 @@ Locating the defect is usually the most expensive phase — harder than reproduc
 
 ## Probe Ordering And The Hypothesis Log
 
-Order probes; do not merely list hypotheses. For each candidate cause record what would falsify it, what the probe costs, and what it risks, then run the probe that is cheapest and safest AND whose outcome eliminates the most alternatives. Test likely-and-cheap before exotic. Watch for confounders (a probe run from the wrong host, credential, or network position fails for its own reasons), side effects of active probes (more CPU changes race timing; verbose logging worsens latency — revert before the next probe), and probes that are only suggestive (races, deadlocks): record the evidence grade next to the result.
+Order probes; do not merely list hypotheses. For each candidate cause record the observation only it produces, the observation that cannot occur if it is true (the falsifier — collect this one first), what the probe costs, and what it risks, then run the probe that is cheapest and safest AND whose outcome eliminates the most alternatives. Test likely-and-cheap before exotic. Watch for confounders (a probe run from the wrong host, credential, or network position fails for its own reasons), side effects of active probes (more CPU changes race timing; verbose logging worsens latency — revert before the next probe), and probes that are only suggestive (races, deadlocks): record the evidence grade next to the result.
 
 Running log, kept while diagnosing and pasted into the evidence template at closeout:
 
-| # | Hypothesis | Falsifier (observation only THIS cause predicts) | Probe (cost / risk / side effects) | Result | Conclusion |
-|---|---|---|---|---|---|
-| 1 | ... | ... | ... | rejected / confirmed / suggestive | ... |
+| # | Hypothesis | Prediction (observation only THIS cause produces) | Falsifier (observation that cannot occur if it is true) | Probe (cost / risk / side effects) | Result | Conclusion |
+|---|---|---|---|---|---|---|
+| 1 | ... | ... | ... | ... | rejected / confirmed / suggestive | ... |
 
 Check each new hypothesis against the rows above before spending a probe; a rejected class re-entered under a new name counts toward the three-strike reassessment in SKILL.md.
 
