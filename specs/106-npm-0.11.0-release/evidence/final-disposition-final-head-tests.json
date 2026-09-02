@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "efe2ce32c700a842c4da2eac89c46b302d2ce5360a0eb47fa4f688197c91b65a",
+  "receipt_sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5",
+  "finding_sha256": "990dc7e9718a9f3d8a88b17f0dbec2683daac581949464a772d9460033af48ca",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5",
+      "finding_sha256": "990dc7e9718a9f3d8a88b17f0dbec2683daac581949464a772d9460033af48ca"
+    }
+  ],
+  "evidence": [
+    "At exact committed HEAD de0dc28126784c4f224ac2d5091a5f0f44e078bd, npm test exited 0 with 166 passed and 0 failed.",
+    "At the same HEAD, npm run test:pack exited 0 with 11 passed and 0 failed.",
+    "The packed 0.11.0 artifact had shasum 30d293e11f598596bfee204a67cdf2d2de8cd49b and integrity sha512-l82kyGETA1HC7h50IOgYB4S8+MJ9BsDHZ40E6YKW9ELK4DN1BwyMULDHptFELx5RBq+oAl6nQ6RgA8csMH1fyg==."
+  ]
+}
