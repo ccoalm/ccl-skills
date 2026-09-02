@@ -3286,6 +3286,16 @@ check "a succession whose candidate did not move is a repeat round, not a succes
   '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession candidate has not moved"*) true;; *) false;; esac'
 printf 'diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-pre\n+fix-applied\n' >"$WORK/diff.patch"
 
+# A succession opens a second chain, so the chain it opens cannot be the chain it
+# succeeds. The closeout validator already refuses this shape, but only for a lane
+# it reads whole: the controller mints receipts one at a time, and a caller that
+# never closes a ledger never reaches that check. Refusing at mint keeps the rule
+# where the receipt is made rather than where it is later audited.
+reset_case passed unavailable unavailable
+out="$(run_challenge_gate --focus self-succession --review-chain-id succ-phase-one --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-round-two.json")"; rc=$?
+check "a succession may not carry the chain id of the chain it succeeds" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession may not succeed its own chain"*) true;; *) false;; esac'
+
 for succession_case in forged-controller foreign-scope forged-terminal; do
   reset_case passed unavailable unavailable
   out="$(run_challenge_gate --focus "succ-${succession_case}" --review-chain-id "succ-${succession_case}" --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-predecessor-${succession_case}.json")"; rc=$?
