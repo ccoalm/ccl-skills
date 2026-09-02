@@ -1,0 +1,150 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "fa27baf90379eea74f8f15d85955723959326b1bc2f3a8aa927afc7fe5926600",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "ledger-round7-review.json",
+      "sha256": "3df05abaf517a3aaff1366408a0410d88821c984d374b9e8a0156779a174ba2f"
+    },
+    {
+      "sequence": 2,
+      "file": "ledger-round8-challenge.json",
+      "sha256": "edabff857ac9c6f251f504aff34b40c8648e8b3cdffec0cd381feb81ba511a86"
+    },
+    {
+      "sequence": 3,
+      "file": "ledger-round9-succession-challenge.json",
+      "sha256": "9a15bc5f2727425ddd03b8568389839d11e77f5bf1be9e5ffa643ad743bc4ced"
+    }
+  ],
+  "completion_receipt": null,
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "54e0f361078f0046539cdea14cbac8cdb9e031e0",
+      "confirmed_at": "2026-09-02T16:22:14Z",
+      "controller_receipt_sha256": "3df05abaf517a3aaff1366408a0410d88821c984d374b9e8a0156779a174ba2f",
+      "evidence_file": "ledger-base-attestation-2.txt",
+      "evidence_sha256": "bce1295df86d830ac8f60710fbc667f5f9bb4c09eb102ba52b5d4d6cd7e7be16"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "54e0f361078f0046539cdea14cbac8cdb9e031e0",
+      "confirmed_at": "2026-09-02T16:30:23Z",
+      "controller_receipt_sha256": "edabff857ac9c6f251f504aff34b40c8648e8b3cdffec0cd381feb81ba511a86",
+      "evidence_file": "ledger-base-attestation-2.txt",
+      "evidence_sha256": "bce1295df86d830ac8f60710fbc667f5f9bb4c09eb102ba52b5d4d6cd7e7be16"
+    },
+    {
+      "sequence": 3,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "54e0f361078f0046539cdea14cbac8cdb9e031e0",
+      "confirmed_at": "2026-09-02T17:24:10Z",
+      "controller_receipt_sha256": "9a15bc5f2727425ddd03b8568389839d11e77f5bf1be9e5ffa643ad743bc4ced",
+      "evidence_file": "ledger-base-attestation-2.txt",
+      "evidence_sha256": "bce1295df86d830ac8f60710fbc667f5f9bb4c09eb102ba52b5d4d6cd7e7be16"
+    }
+  ],
+  "autonomous_round": 3,
+  "controller_review_state": "findings_pending",
+  "finding_classes": [
+    {
+      "key": "playbook-probe-order-drift",
+      "root_cause_predicate": "The playbook probe-ordering paragraph kept the cheapest-and-safest and likely-first orderings after the entrypoint was unified to one rule.",
+      "affected_surface": "skills/defect-diagnosis/references/diagnosis-playbook.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "3df05abaf517a3aaff1366408a0410d88821c984d374b9e8a0156779a174ba2f",
+          "finding_sha256": "c8a009813e59ea849cff64e0af7b457de1490e2ed12050e0483a6e93e8d91f01",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-playbook-probe-order-drift-1.json",
+          "disposition_evidence_sha256": "bd3472af6dfcf747ad367feb89495e3582bf794ce2e24da1aeefaa5dff71a915"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "sanitization-pointer-narrows-credentials",
+      "root_cause_predicate": "The Phase B pointer consolidation dropped the exact 'credential-bearing values' category because Phase A (d) says 'credential-bearing variable values'.",
+      "affected_surface": "skills/defect-diagnosis/SKILL.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "3df05abaf517a3aaff1366408a0410d88821c984d374b9e8a0156779a174ba2f",
+          "finding_sha256": "c6ae7418bff4244bfe0c3216904de936b41ae68299ce4ad0c93b21ed2a50d61e",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-sanitization-pointer-narrows-credentials-1.json",
+          "disposition_evidence_sha256": "7c665240b4d9aae72f062cab6eba03c044fae1f6e527353a2b68d6378817cd81"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "unsourced-empirical-claim",
+      "root_cause_predicate": "A Phase C sentence asserted an empirical effect of punitive incident review with no primary source in the packet.",
+      "affected_surface": "skills/defect-diagnosis/SKILL.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "3df05abaf517a3aaff1366408a0410d88821c984d374b9e8a0156779a174ba2f",
+          "finding_sha256": "40ea8808a554660b693ec2b39b4ed5be57d30246ca2fb2662a019ee1155c720b",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-unsourced-empirical-claim-1.json",
+          "disposition_evidence_sha256": "31049fe5c8b9f1067a536a1efc13c16e2e737b16d0c21ec2121b1cba6a70db39"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "size-evidence-missing-head-count",
+      "root_cause_predicate": "The evidence file referred to an unavailable check output instead of recording the head word count and the token rule.",
+      "affected_surface": "specs/108-defect-diagnosis-benchmark/evidence/attribution-evidence.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "3df05abaf517a3aaff1366408a0410d88821c984d374b9e8a0156779a174ba2f",
+          "finding_sha256": "9e49806e3caadf8f8fbb0d552cba8a70f0d83aa919899d98287a9375cdb34136",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-size-evidence-missing-head-count-1.json",
+          "disposition_evidence_sha256": "a04d1474dcdc3eb1398610d9f7000f8d56f797a35c701f22c614922bfc6d6c3c"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "suite-reduction-assumes-serial-determinism",
+      "root_cause_predicate": "The suite-reduction recipe assumed a deterministic serial suite, so a parallel or intermittent failure could mark an arbitrary half as failing and yield a spurious polluter.",
+      "affected_surface": "skills/defect-diagnosis/SKILL.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "edabff857ac9c6f251f504aff34b40c8648e8b3cdffec0cd381feb81ba511a86",
+          "finding_sha256": "854adf1966b9c1f223b68f7760b17da228a70eff03ec492b9fe1c02dda131fdb",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-suite-reduction-assumes-serial-determinism-1.json",
+          "disposition_evidence_sha256": "cdf65a238bd9eea6c63cf1ddc7b5ed45e6695dad986221f418d913df7fe0e1f2"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "size-evidence-plan-stale-count",
+      "root_cause_predicate": "The private review plan kept the pre-fix head word count (4943) after the entrypoint changed, disagreeing with the captured count in the evidence file.",
+      "affected_surface": "specs/108-defect-diagnosis-benchmark/evidence/attribution-evidence.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "9a15bc5f2727425ddd03b8568389839d11e77f5bf1be9e5ffa643ad743bc4ced",
+          "finding_sha256": "e62a00c5ec90d203990e96ce70195dab4cda633f0c9bab85299da5964c020701",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-size-evidence-plan-stale-count-1.json",
+          "disposition_evidence_sha256": "56914c3fc60c01875b94e3446c10debce42754eff0ed1d99c4c736cb044b6eb6"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "continuation_authorization_required"
+}

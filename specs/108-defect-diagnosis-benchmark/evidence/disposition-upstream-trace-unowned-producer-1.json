@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "cdd133da15e47208fc46ab0963558de0dd087ce51edae7e7f08ab36eb5d4b2a7",
+  "receipt_sha256": "7a2bc7fd26b3664aae383725b99ec9daacaa35fed1766be63d88e4f790a402e2",
+  "finding_sha256": "dcc8d32842eafb9d4b5f6d90a3fdfea312498095986c59e696eb97ecb69dd0b8",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "7a2bc7fd26b3664aae383725b99ec9daacaa35fed1766be63d88e4f790a402e2",
+      "finding_sha256": "dcc8d32842eafb9d4b5f6d90a3fdfea312498095986c59e696eb97ecb69dd0b8"
+    }
+  ],
+  "evidence": [
+    "SKILL.md upstream-trace bullet and the playbook row now fix the correct→faulty transition only when it is owned and changeable; when it sits in an external or unchangeable producer the rule records the upstream cause and enforces the contract at the nearest owned boundary, which is then the fix."
+  ]
+}

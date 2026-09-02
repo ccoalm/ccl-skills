@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "2317757dc55a852095da99f5afa600eb14af855c6eec7caeaa384a84cec06758",
+  "receipt_sha256": "0bdc149f5327ca440476680264541b9597d3a34756eb096ba78b09e3e6a8ad5c",
+  "finding_sha256": "fb32b9579ab8687b122ac8982dc7a4cd9fa2acd7b956df288311ca7152a9acd7",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "0bdc149f5327ca440476680264541b9597d3a34756eb096ba78b09e3e6a8ad5c",
+      "finding_sha256": "fb32b9579ab8687b122ac8982dc7a4cd9fa2acd7b956df288311ca7152a9acd7"
+    }
+  ],
+  "evidence": [
+    "Playbook hypothesis-log table now carries separate Prediction (observation only this cause produces) and Falsifier (observation that cannot occur if it is true) columns; the probe-ordering paragraph and the evidence-template field name both fields; SKILL.md log bullet records prediction and falsifier.",
+    "Consistent with the existing Hypothesize rule that collects the falsifying observation first."
+  ]
+}

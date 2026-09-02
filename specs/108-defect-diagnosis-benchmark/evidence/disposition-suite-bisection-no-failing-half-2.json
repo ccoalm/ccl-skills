@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "cdd133da15e47208fc46ab0963558de0dd087ce51edae7e7f08ab36eb5d4b2a7",
+  "receipt_sha256": "64b1c830de6805399dd904d61802dd094506a13ece4947565bf32119d15c273f",
+  "finding_sha256": "c3c916d689656d3dc8074a19dbc25fb17b5bafb5d4099ddb7ee316f0c62dc4cd",
+  "disposition": "needs_human_decision",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "64b1c830de6805399dd904d61802dd094506a13ece4947565bf32119d15c273f",
+      "finding_sha256": "c3c916d689656d3dc8074a19dbc25fb17b5bafb5d4099ddb7ee316f0c62dc4cd"
+    }
+  ],
+  "evidence": [
+    "Finding accepted as correct: the suite-reduction recipe in SKILL.md Phase A.2 and the playbook row describe halving and finer chunks but not the complement/removal step of delta debugging, so an ordered two-polluter case ([A,D] jointly) is not guaranteed to reduce.",
+    "Not applied in this candidate: the lane's single succession round is spent, and any edit to the owner package moves the candidate off the receipt-bound hash, so the fix waits for a human continuation authorization (a new review lane) rather than being applied unreviewed.",
+    "Proposed wording for the continuation (entrypoint, budget-funded by an equal trim): 'halve the preceding set in order and keep a failing half; when neither half fails alone, remove one chunk at a time and keep the reduced set whenever the failure persists without that chunk, then halve the chunk size and repeat until every remaining chunk is needed (a 1-minimal ordered polluting subsequence, e.g. [A,D] out of [A,B,C,D]) or the shared fixture/state is found'. Mirror in the playbook row; supersede the register row that summarised the halving-only recipe.",
+    "Blast radius if left as is: an agent may stall on a jointly-caused suite pollution without a rule to test chunk removal; no data-loss or security path."
+  ]
+}

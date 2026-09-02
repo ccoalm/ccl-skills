@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "fa27baf90379eea74f8f15d85955723959326b1bc2f3a8aa927afc7fe5926600",
+  "receipt_sha256": "3df05abaf517a3aaff1366408a0410d88821c984d374b9e8a0156779a174ba2f",
+  "finding_sha256": "9e49806e3caadf8f8fbb0d552cba8a70f0d83aa919899d98287a9375cdb34136",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "3df05abaf517a3aaff1366408a0410d88821c984d374b9e8a0156779a174ba2f",
+      "finding_sha256": "9e49806e3caadf8f8fbb0d552cba8a70f0d83aa919899d98287a9375cdb34136"
+    }
+  ],
+  "evidence": [
+    "attribution-evidence.md now records the token rule, the 5000 limit, base 4416, the exact head body-word count of the landing entrypoint, the delta, the verdict line, and exit 0; the count is reproducible from the entrypoint text alone with the stated rule."
+  ]
+}

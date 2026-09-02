@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "2317757dc55a852095da99f5afa600eb14af855c6eec7caeaa384a84cec06758",
+  "receipt_sha256": "0bdc149f5327ca440476680264541b9597d3a34756eb096ba78b09e3e6a8ad5c",
+  "finding_sha256": "78edbf8b5e0aef330fbcfe8cdf9bb0e4a171141eb6cda9213dfa894454c6c2ed",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "0bdc149f5327ca440476680264541b9597d3a34756eb096ba78b09e3e6a8ad5c",
+      "finding_sha256": "78edbf8b5e0aef330fbcfe8cdf9bb0e4a171141eb6cda9213dfa894454c6c2ed"
+    }
+  ],
+  "evidence": [
+    "SKILL.md Isolate boundary-walk bullet now instructs allowlisted, redacted boundary metadata (ids, sizes, status codes, field presence, config keys received) and forbids raw bodies, headers, secrets, PII, and env/config values at instrumentation time, with ephemeral local inspection as the fallback.",
+    "Verified by re-reading the bullet at head; no other rule in the package licenses raw boundary logging."
+  ]
+}

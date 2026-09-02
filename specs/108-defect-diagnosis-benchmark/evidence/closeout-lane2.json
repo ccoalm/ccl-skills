@@ -1,0 +1,157 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "cdd133da15e47208fc46ab0963558de0dd087ce51edae7e7f08ab36eb5d4b2a7",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "ledger-round4-review.json",
+      "sha256": "cb87425e1c5428056d90acbbc2aa69352f9654c567ac3e3a6ad02f0b1ae694c7"
+    },
+    {
+      "sequence": 2,
+      "file": "ledger-round5-challenge.json",
+      "sha256": "7a2bc7fd26b3664aae383725b99ec9daacaa35fed1766be63d88e4f790a402e2"
+    },
+    {
+      "sequence": 3,
+      "file": "ledger-round6-succession-challenge.json",
+      "sha256": "64b1c830de6805399dd904d61802dd094506a13ece4947565bf32119d15c273f"
+    }
+  ],
+  "completion_receipt": null,
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "54e0f361078f0046539cdea14cbac8cdb9e031e0",
+      "confirmed_at": "2026-09-02T15:30:18Z",
+      "controller_receipt_sha256": "cb87425e1c5428056d90acbbc2aa69352f9654c567ac3e3a6ad02f0b1ae694c7",
+      "evidence_file": "ledger-base-attestation-2.txt",
+      "evidence_sha256": "bce1295df86d830ac8f60710fbc667f5f9bb4c09eb102ba52b5d4d6cd7e7be16"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "54e0f361078f0046539cdea14cbac8cdb9e031e0",
+      "confirmed_at": "2026-09-02T15:34:33Z",
+      "controller_receipt_sha256": "7a2bc7fd26b3664aae383725b99ec9daacaa35fed1766be63d88e4f790a402e2",
+      "evidence_file": "ledger-base-attestation-2.txt",
+      "evidence_sha256": "bce1295df86d830ac8f60710fbc667f5f9bb4c09eb102ba52b5d4d6cd7e7be16"
+    },
+    {
+      "sequence": 3,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "54e0f361078f0046539cdea14cbac8cdb9e031e0",
+      "confirmed_at": "2026-09-02T15:41:04Z",
+      "controller_receipt_sha256": "64b1c830de6805399dd904d61802dd094506a13ece4947565bf32119d15c273f",
+      "evidence_file": "ledger-base-attestation-2.txt",
+      "evidence_sha256": "bce1295df86d830ac8f60710fbc667f5f9bb4c09eb102ba52b5d4d6cd7e7be16"
+    }
+  ],
+  "autonomous_round": 3,
+  "controller_review_state": "findings_pending",
+  "finding_classes": [
+    {
+      "key": "probe-order-competing-rules",
+      "root_cause_predicate": "One bullet carried three orderings (discrimination-first, cheapest-and-safest, likely-first) that select different probes when a risky expensive probe discriminates more than a safe cheap one.",
+      "affected_surface": "skills/defect-diagnosis/SKILL.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "cb87425e1c5428056d90acbbc2aa69352f9654c567ac3e3a6ad02f0b1ae694c7",
+          "finding_sha256": "fe6b0e07bc1e506311ab622a78b1d82b4d4d1e5beabf74dad1806f3ddfe6c455",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-probe-order-competing-rules-1.json",
+          "disposition_evidence_sha256": "b2ffb5c08ddd003206db5d75c047a22cf43ac6d77cc94ae63d7541db208cd55f"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "suite-bisection-no-failing-half",
+      "root_cause_predicate": "The keep-the-failing-half loop had no failing half when pollution needs two tests jointly, so it could discard a required interaction or falsely clear the suite.",
+      "affected_surface": "skills/defect-diagnosis/SKILL.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "cb87425e1c5428056d90acbbc2aa69352f9654c567ac3e3a6ad02f0b1ae694c7",
+          "finding_sha256": "0c05f37b0c480e37416501efba88413536170595645cca5c81b13bd1448051d0",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-suite-bisection-no-failing-half-1.json",
+          "disposition_evidence_sha256": "20a52e0235ef036653f7775dddb2679224797afb2b0d65074ddbd99795d1098b"
+        },
+        {
+          "receipt_sha256": "64b1c830de6805399dd904d61802dd094506a13ece4947565bf32119d15c273f",
+          "finding_sha256": "c3c916d689656d3dc8074a19dbc25fb17b5bafb5d4099ddb7ee316f0c62dc4cd",
+          "disposition": "needs_human_decision"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "register-row-anchors-in-reference",
+      "root_cause_predicate": "The plan's acceptance line said every row anchors in SKILL.md while the repository gate accepts any owner-package markdown list line; the drift-guard row anchors in the playbook.",
+      "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "cb87425e1c5428056d90acbbc2aa69352f9654c567ac3e3a6ad02f0b1ae694c7",
+          "finding_sha256": "8daef60737213e8c04c5adf4cf88210c198ffa0302facb3aea37ffe2552d1cb5",
+          "disposition": "accepted_tradeoff",
+          "disposition_evidence_file": "disposition-register-row-anchors-in-reference-1.json",
+          "disposition_evidence_sha256": "1423ec56f9dd66fcef16ec4b974abfc8f5db0245e9d073e089004282dbce6d6d"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "gate-outputs-not-bound-to-final-tree",
+      "root_cause_predicate": "The evidence file recorded gate outputs from the tree minus itself, so the packet could not show the gates passing on the exact final candidate.",
+      "affected_surface": "specs/108-defect-diagnosis-benchmark/evidence/attribution-evidence.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "cb87425e1c5428056d90acbbc2aa69352f9654c567ac3e3a6ad02f0b1ae694c7",
+          "finding_sha256": "8535f18e23da5e703af71e4f76b4e2cc6145cc871e183fd2629e0312b6b10451",
+          "disposition": "accepted_tradeoff",
+          "disposition_evidence_file": "disposition-gate-outputs-not-bound-to-final-tree-1.json",
+          "disposition_evidence_sha256": "8304098aaba0d6d1f84b5ff97ddd6c09e0a8f62e9fdd01a884ec5cf265cd00dd"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "process-pack-attribution-unevidenced",
+      "root_cause_predicate": "Three register rows cited an unnamed installed process pack as a second source with no locator or passage in the bounded evidence.",
+      "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "cb87425e1c5428056d90acbbc2aa69352f9654c567ac3e3a6ad02f0b1ae694c7",
+          "finding_sha256": "923402cb12b564d5653c05314921b9366ce5a7e3f15a1605bc47cc077e14a204",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-process-pack-attribution-unevidenced-1.json",
+          "disposition_evidence_sha256": "db6de4df8ee6c8e0c8fe0f3287f1bff94a530d70b9c8f4dba0d96e746d650c38"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "upstream-trace-unowned-producer",
+      "root_cause_predicate": "The upstream-trace rule required fixing at the first wrong transition even when that point is an external or unchangeable producer, rejecting contract enforcement at the owned ingestion boundary.",
+      "affected_surface": "skills/defect-diagnosis/SKILL.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "7a2bc7fd26b3664aae383725b99ec9daacaa35fed1766be63d88e4f790a402e2",
+          "finding_sha256": "dcc8d32842eafb9d4b5f6d90a3fdfea312498095986c59e696eb97ecb69dd0b8",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-upstream-trace-unowned-producer-1.json",
+          "disposition_evidence_sha256": "12aa2e0d1243580fab38baca5e95a4e5fb078221433475582d3356a7f20a6e70"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [
+    "specs/065-uiux-evidence-delivery/obligation-preservation.md regenerated with obligation-ledger.py render (same base/head/mapping): one derived line range updated, row O0384 carrier skills/defect-diagnosis/SKILL.md 145-145 -> 154-154, because the reviewed entrypoint insertions shifted the carrier; no obligation text, mapping, or rule content changed. Post-review batch, not reviewed; required to keep the heavy regression lane's repository obligation audit green."
+  ],
+  "closeout_state": "continuation_authorization_required"
+}

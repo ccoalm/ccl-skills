@@ -22,7 +22,9 @@ Use this when choosing how to isolate a defect.
 - Failing command/test:
 - Environment/config:
 - Narrowed layer:
-- Hypotheses tried:
+- Localization move used (commit bisection | input reduction | suite bisection | boundary walk | difference diff | upstream trace | telemetry walk):
+- Hypothesis log (hypothesis | prediction | falsifier | probe cost/risk | result):
+- Active-test changes made and reverted:
 - Proven cause:
 - Complexity verdict (simple | complex; `simple` must name the complexity triggers checked and found absent; `complex` must name which trigger fired + contributing factors by playbook lens):
 - Fix:
@@ -46,6 +48,45 @@ When the failure is a performance / resource / runtime-behavior symptom rather t
 | Distributed-system request-path mystery | OTel trace + exemplar walk per the SKILL.md Phase A observability-driven rule; do NOT default to single-service profiler when the symptom crosses service boundaries | platform-observability owns the trace UI; this skill owns the trace-first workflow |
 
 The recurring failure shape: reach for the team's most-familiar profiler regardless of symptom (a Java-shop reaches for `jstack` on a Python service; a web team reaches for Chrome DevTools on a server-side latency issue). Pick the tool whose data model matches what's broken; pull in the stack dev skill for "how to enable it" once the tool is chosen.
+
+## Localization Playbook
+
+Locating the defect is usually the most expensive phase — harder than reproducing or fixing it (arXiv 2103.12447, a 2021 survey of 102 programmers' recently fixed bugs) — so choose the localization move by the failure's shape before forming hypotheses:
+
+- The table condenses SKILL.md Phase A.2; a recipe here must never loosen a condition SKILL.md states (safe re-run, redacted metadata, evidence-confined pathspec), and SKILL.md wins when the two disagree.
+
+| Failure shape | Move | Recipe |
+|---|---|---|
+| Regression with a known-good and a known-bad commit | commit bisection | `git bisect` per SKILL.md Phase A.2; narrow with every known-good commit, and with `-- <paths>` only when evidence confines the cause to those paths — if the restricted search finds no commit that reproduces the cause, rerun over the full range; `--first-parent` for merge-introduced regressions; `git bisect log` / `replay` to hand off a half-finished search; alternate terms (`--term-old fast --term-new slow`) when the "bad" state is a slowdown or a fix rather than a bug |
+| Failing input / config / dataset, no commit axis | input reduction (delta debugging) | halve the failing input; if neither half fails, keep cutting smaller chunks (quarters, eighths) until every remaining piece is needed; the minimal failing input is both the reproduction and a localization clue |
+| Passes alone, fails in the suite — only when the failure reproduces on every run under a fixed serial order (parallel or intermittent: keep the failing schedule, validate each kept or dropped subset over repeated runs per the flaky rule, or route to concurrency diagnosis) | suite bisection (order-preserving delta debugging) | halve the set of tests that run before the failing one (original order kept) and keep a failing half; when neither half fails on its own, remove one chunk at a time and keep the reduced set whenever the failure persists without that chunk, then halve the chunk size and repeat until every remaining chunk is needed — a minimal ordered polluting subsequence (e.g. A and D out of A–D) — or the shared fixture/state it leaves behind is found; fix the isolation, not the victim test |
+| Multi-component chain | boundary walk | only when the chain can be re-run safely and every boundary is reachable: in ONE run log allowlisted, redacted metadata at each boundary (ids, sizes, status codes, field presence, config keys received — never raw bodies, headers, secrets, PII, or env/config values); the first boundary whose output is wrong owns the search; otherwise use the telemetry walk, partial boundary evidence, or layer narrowing and record the visibility gap |
+| A passing analog exists (sibling test, other endpoint, last-good build) | difference diff | enumerate every difference between working and broken; include executed-path differences — coverage, trace spans, or request attributes that only the failing population carries — not only inputs and config |
+| Wrong value observed downstream | upstream trace | follow the value backward to the first point where a correct input produced a wrong output; that transition is the defect and the observation point is only where it surfaced — fix there when it is owned and changeable, otherwise record the upstream cause and enforce the contract at the nearest owned boundary |
+| Production symptom that cannot be re-triggered | telemetry walk | alert → exemplar trace → span tree → logs by trace-id (SKILL.md Phase A.4); group the failing population by attribute and compare it against the baseline to find what is different about failing requests |
+
+## Probe Ordering And The Hypothesis Log
+
+Order probes; do not merely list hypotheses. For each candidate cause record the observation only it produces, the observation that cannot occur if it is true (the falsifier — collect this one first), what the probe costs, and what it risks. Then apply the entrypoint's one ordering rule: safety is a filter, not a rank — reject any probe outside the safety boundary first; rank the rest by alternatives ruled out per unit of cost; break ties by likelihood, then residual risk. Watch for confounders (a probe run from the wrong host, credential, or network position fails for its own reasons), side effects of active probes (more CPU changes race timing; verbose logging worsens latency — revert before the next probe), and probes that are only suggestive (races, deadlocks): record the evidence grade next to the result.
+
+Running log, kept while diagnosing and pasted into the evidence template at closeout:
+
+| # | Hypothesis | Prediction (observation only THIS cause produces) | Falsifier (observation that cannot occur if it is true) | Probe (cost / risk / side effects) | Result | Conclusion |
+|---|---|---|---|---|---|---|
+| 1 | ... | ... | ... | ... | rejected / confirmed / suggestive | ... |
+
+Check each new hypothesis against the rows above before spending a probe; a rejected class re-entered under a new name counts toward the three-strike reassessment in SKILL.md.
+
+## Sources
+
+Verified against the primary page when this playbook was written; for audit, not required reading.
+
+- Google SRE Book, ch. 12 *Effective Troubleshooting* (`sre.google/sre-book/effective-troubleshooting/`): the hypothetico-deductive model; common pitfalls (irrelevant symptoms, unsafe tests, latching on to past causes, spurious correlation); simplify and reduce, bisection over components; "what touched it last"; test design — mutually exclusive alternatives, decreasing likelihood weighed against risk, confounders, side effects of active tests, suggestive tests; take clear notes; negative results.
+- The Debugging Book (`debuggingbook.org`): *Introduction to Debugging* — the scientific-method loop, a fix requires a diagnosis showing both causality and incorrectness, keep a log; *Reducing Failure-Inducing Inputs* — delta debugging; *Statistical Debugging* — suspiciousness ranking of executed lines.
+- `git-scm.com/docs/git-bisect`: run exit codes, skip, pathspec and multiple good commits, log/replay, alternate terms, `--first-parent`.
+- *What we can learn from how programmers debug their code* (2021, arXiv 2103.12447): locating a bug is harder than reproducing or fixing it; memory and concurrency bugs consume disproportionate time.
+- Agentless (Xia et al., 2024, arXiv 2407.01489): localization → repair → validation with reproduction and regression tests as a strong, simple baseline.
+- Microsoft Research, *debug-gym* (2025): coding agents typically rewrite code conditioned on the error message; access to interactive debugging tools (breakpoints, value printing) improves repair, and current agents still under-use them.
 
 ## When Stack-Specific Skills Take Over
 

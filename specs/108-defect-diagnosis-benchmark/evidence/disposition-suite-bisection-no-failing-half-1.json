@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "cdd133da15e47208fc46ab0963558de0dd087ce51edae7e7f08ab36eb5d4b2a7",
+  "receipt_sha256": "cb87425e1c5428056d90acbbc2aa69352f9654c567ac3e3a6ad02f0b1ae694c7",
+  "finding_sha256": "0c05f37b0c480e37416501efba88413536170595645cca5c81b13bd1448051d0",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "cb87425e1c5428056d90acbbc2aa69352f9654c567ac3e3a6ad02f0b1ae694c7",
+      "finding_sha256": "0c05f37b0c480e37416501efba88413536170595645cca5c81b13bd1448051d0"
+    }
+  ],
+  "evidence": [
+    "SKILL.md and the playbook suite-bisection recipe now keep the original test order, keep the failing half, and when neither half fails alone keep both and cut smaller chunks (quarters, eighths) until a minimal polluting sequence or the shared fixture/state remains — the order-preserving reduction the finding asked for."
+  ]
+}

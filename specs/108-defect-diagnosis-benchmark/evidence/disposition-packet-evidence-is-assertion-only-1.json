@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "2317757dc55a852095da99f5afa600eb14af855c6eec7caeaa384a84cec06758",
+  "receipt_sha256": "0bdc149f5327ca440476680264541b9597d3a34756eb096ba78b09e3e6a8ad5c",
+  "finding_sha256": "0d8f12bab5c551d6e0c73deb152f486fe7f3abb1efea75584b879de17baae405",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "0bdc149f5327ca440476680264541b9597d3a34756eb096ba78b09e3e6a8ad5c",
+      "finding_sha256": "0d8f12bab5c551d6e0c73deb152f486fe7f3abb1efea75584b879de17baae405"
+    }
+  ],
+  "evidence": [
+    "Added specs/108-defect-diagnosis-benchmark/evidence/attribution-evidence.md: per-source URL, read date, and the sentence-level excerpts that support each landed rule, plus the terminal verdict tokens of every deterministic gate run on the candidate tree and the immovable-anchor grep counts.",
+    "Residual: evidence files are caller-controlled (the repository's recorded evidence-is-caller-controlled boundary); the authoritative gate results are CI's re-run on the pushed commit. The candidate is re-frozen for the challenge round with this file included."
+  ]
+}

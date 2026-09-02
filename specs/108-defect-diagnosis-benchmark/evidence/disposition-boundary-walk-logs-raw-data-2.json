@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "2317757dc55a852095da99f5afa600eb14af855c6eec7caeaa384a84cec06758",
+  "receipt_sha256": "b3df84c527cb07b135d33ae8f059f8492ece0bd4dc5c0d07a94aaa17da2246fa",
+  "finding_sha256": "ca156060f6e82ba3557ee689e0fb124e8c911c9bd778068642f33d81458124b0",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "b3df84c527cb07b135d33ae8f059f8492ece0bd4dc5c0d07a94aaa17da2246fa",
+      "finding_sha256": "ca156060f6e82ba3557ee689e0fb124e8c911c9bd778068642f33d81458124b0"
+    }
+  ],
+  "evidence": [
+    "Same class as the round-1 review finding: the boundary-walk bullet at head logs only allowlisted, redacted metadata (ids, sizes, status codes, field presence, config keys received), forbids raw bodies, headers, secrets, PII, and env/config values, allows only ephemeral local inspection, and routes historical, partially observable, or unsafe chains to the telemetry path, partial boundary evidence, or layer narrowing.",
+    "The challenge ran against the round-1 candidate (2317757d…) by chain construction; the fix is in the succeeding candidate that the succession challenge reviews."
+  ]
+}
