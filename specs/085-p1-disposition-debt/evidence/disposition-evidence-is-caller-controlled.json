@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "48b2ab052855006ef09c85fdeda795c238b423eeabbaff9fe56b1a20b9243d7d",
+  "receipt_sha256": "0d4ec074b4500d73ffdc007128a76934a6f6c71eb7fb451a7551cf10d096efc5",
+  "finding_sha256": "be4f285d29a7abdc941c23a72e8f5aa19a3def102cae1823a0ea43040ea764b3",
+  "disposition": "accepted_tradeoff",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "0d4ec074b4500d73ffdc007128a76934a6f6c71eb7fb451a7551cf10d096efc5",
+      "finding_sha256": "be4f285d29a7abdc941c23a72e8f5aa19a3def102cae1823a0ea43040ea764b3"
+    }
+  ],
+  "evidence": [
+    "Accepted by the repository owner on 2026-09-02: the residual is the documented trust boundary of classifying candidate-controlled evidence with a candidate-controlled predicate, and replacing the exclusion mechanism is not required for this release.",
+    "Current-candidate recheck: this disposition-only change does not modify review_ledger_binding.py or expand the receipt exclusion predicate; the residual remains limited to an added JSON evidence file carrying a valid-looking candidate_sha256 and visible in the candidate diff.",
+    "A legitimate re-report on a later candidate is non-escalating only after fresh evidence shows that the candidate has not increased the finding's reachability or severity.",
+    "Reopen if the review ledger must move outside the candidate working tree for an independent reason; re-evaluate whether the exclusion mechanism can then be replaced or removed.",
+    "Reopen on the first genuine, non-review-constructed smuggling event in a real delivery; synthetic adversarial fixtures revalidate the accepted boundary but do not by themselves reopen it unless the candidate changes reachability or severity."
+  ]
+}

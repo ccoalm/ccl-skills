@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b3d8125a22f72c32def551329a1f3ec46835f29ce13840932aa0afc216b1ac8d",
+  "receipt_sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8",
+  "finding_sha256": "f30e492ce2fed88f83417423947b62acf58b477dcc19f3a7bdb11b77aae9bec2",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8",
+      "finding_sha256": "f30e492ce2fed88f83417423947b62acf58b477dcc19f3a7bdb11b77aae9bec2"
+    }
+  ],
+  "evidence": [
+    "The base evidence contract records ordered observations of one remote ref, not identity-independent attesters. Two raw outputs are expected to be byte-identical when the ref is stable; inventing distinct content would stop them being canonical git ls-remote output.",
+    "Two separate live observations at 2026-09-02T05:20:41Z and 2026-09-02T05:20:48Z both returned 2699a18796e807e054bfbc227a43b615477b5b90 for refs/heads/dev.",
+    "The landing closeout maps the observations in order to different controller receipt hashes and strictly increasing confirmed_at values. The validator consumes that mapping and its stable-trailing-recheck regression explicitly accepts repeated unchanged base values."
+  ]
+}

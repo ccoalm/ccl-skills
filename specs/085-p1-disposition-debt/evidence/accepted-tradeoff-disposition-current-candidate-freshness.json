@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b3d8125a22f72c32def551329a1f3ec46835f29ce13840932aa0afc216b1ac8d",
+  "receipt_sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8",
+  "finding_sha256": "e858c6a9abe42ae9598454f702481e2b9dcdcc3b9138a05f3d824aac0c9f5703",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "68bbe657da2b5698db9ffca1dc3ba1021a1e3bbeca900838f59c444fb805c1d8",
+      "finding_sha256": "e858c6a9abe42ae9598454f702481e2b9dcdcc3b9138a05f3d824aac0c9f5703"
+    }
+  ],
+  "evidence": [
+    "Fresh current-candidate recheck for b3d8125a22f72c32def551329a1f3ec46835f29ce13840932aa0afc216b1ac8d: the landing packet changes only the 085 plan, historical closeout, and two raw dev base observations after excluding the self-referential disposition artifact exactly as the merge-side gate does.",
+    "review_ledger_binding.py, validate_extraction_review_state.py, their tests, and dual-track-review-gate.md are byte-unchanged from base 2699a18796e807e054bfbc227a43b615477b5b90. The candidate neither expands the receipt-exclusion predicate nor changes the smuggling surface's reachability or severity.",
+    "The original artifact remains bound to candidate 48b2ab052855006ef09c85fdeda795c238b423eeabbaff9fe56b1a20b9243d7d because that is where the historical occurrence arose; this separate exact-landing-candidate evidence supplies the required freshness check without rewriting historical identity.",
+    "Reopen if the ledger moves outside the candidate worktree for an independent reason or a genuine non-review-constructed smuggling event occurs."
+  ]
+}

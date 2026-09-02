@@ -1,0 +1,67 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "686b96b23f6197ea416362b945145131e8274bd597e51b1bc2a8cba912027b8d",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "accepted-tradeoff-exact-round1-review.json",
+      "sha256": "62b0175eb1b1693921555039a0863d9ed62a25bdfebcbc189a1384b4dadc8483"
+    },
+    {
+      "sequence": 2,
+      "file": "accepted-tradeoff-exact-round2-challenge.json",
+      "sha256": "8ee807bf737d84bcef213ee43c367fbc1341136714cebe0fc88db18ae3af8db4"
+    }
+  ],
+  "completion_receipt": null,
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "2699a18796e807e054bfbc227a43b615477b5b90",
+      "confirmed_at": "2026-09-02T05:38:30Z",
+      "controller_receipt_sha256": "62b0175eb1b1693921555039a0863d9ed62a25bdfebcbc189a1384b4dadc8483",
+      "evidence_file": "accepted-tradeoff-base-attestation-1.txt",
+      "evidence_sha256": "d088bab94c014ac448a54f8743d9615df22235561997e50187dd056d1e15056a"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "2699a18796e807e054bfbc227a43b615477b5b90",
+      "confirmed_at": "2026-09-02T05:38:39Z",
+      "controller_receipt_sha256": "8ee807bf737d84bcef213ee43c367fbc1341136714cebe0fc88db18ae3af8db4",
+      "evidence_file": "accepted-tradeoff-base-attestation-2.txt",
+      "evidence_sha256": "d088bab94c014ac448a54f8743d9615df22235561997e50187dd056d1e15056a"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "post_review_budget",
+  "finding_classes": [
+    {
+      "key": "excluded-disposition-artifact-validation",
+      "root_cause_predicate": "The bounded model packet intentionally excludes newly added candidate-bound evidence JSON to avoid self-reference, while the unchanged closeout validator independently reads the committed artifact blob, recomputes its digest, exact-schema parses it, and binds every disposition field before merge evidence is accepted.",
+      "affected_surface": "specs/085-p1-disposition-debt/evidence/closeout.json and validate_extraction_review_state.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "62b0175eb1b1693921555039a0863d9ed62a25bdfebcbc189a1384b4dadc8483",
+          "finding_sha256": "15cfbd834df12265e6f34a72915e1402da1e2745d8794627d43f09b2401050d3",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "accepted-tradeoff-exact-disposition-round1-artifact-validation.json",
+          "disposition_evidence_sha256": "7d49f984a111c30c1fd65e973f033d12b590ad3f65131e6c32387dec20af537a"
+        },
+        {
+          "receipt_sha256": "8ee807bf737d84bcef213ee43c367fbc1341136714cebe0fc88db18ae3af8db4",
+          "finding_sha256": "c1d093e9b61097483ebf1ba53310bb63736799bd8964695570d3f33b5d9c6f55",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "accepted-tradeoff-exact-disposition-round2-artifact-validation.json",
+          "disposition_evidence_sha256": "b822ebdd667bb35cde4a76b54f2cde39d3e1eacbd963ca77ecd9ee33d1b5cf3d"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "continuation_authorization_required"
+}

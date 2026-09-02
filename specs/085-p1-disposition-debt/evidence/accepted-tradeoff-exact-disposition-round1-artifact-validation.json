@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "686b96b23f6197ea416362b945145131e8274bd597e51b1bc2a8cba912027b8d",
+  "receipt_sha256": "62b0175eb1b1693921555039a0863d9ed62a25bdfebcbc189a1384b4dadc8483",
+  "finding_sha256": "15cfbd834df12265e6f34a72915e1402da1e2745d8794627d43f09b2401050d3",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "62b0175eb1b1693921555039a0863d9ed62a25bdfebcbc189a1384b4dadc8483",
+      "finding_sha256": "15cfbd834df12265e6f34a72915e1402da1e2745d8794627d43f09b2401050d3"
+    }
+  ],
+  "evidence": [
+    "The exact clean-commit review and merge-side controller both bind candidate 686b96b23f6197ea416362b945145131e8274bd597e51b1bc2a8cba912027b8d; the artifact omission is the merge gate's intentional self-reference exclusion, not an absent committed file.",
+    "git show of commit 5d471de4036089eb61727a28fd699504ec85ebca for disposition-evidence-is-caller-controlled.json recomputed SHA-256 1df2148dd7922b60dd39022c826d0a597b116a1e93e8e68cbde03938056a9cf5, exactly the value pinned by the committed closeout.",
+    "A fresh validate_extraction_review_state.py run on the committed historical closeout exited 0 after load_sibling recomputed the artifact digest and exact-schema bound candidate, receipt, finding, disposition, and resolves_occurrences. A missing or divergent committed artifact therefore fails the deterministic landing validator even though the bounded model packet cannot carry self-referential bytes."
+  ]
+}
