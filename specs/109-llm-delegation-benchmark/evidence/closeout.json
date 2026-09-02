@@ -1,0 +1,148 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "76d95836625b36dd7ae41964c6bbad95e336f32f778201708b81a17d68180c3b",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "ledger-round16-review.json",
+   "sha256": "13ed3cbef61b71b8983ded907261ff8dbd3fa9f34505d724b45610445ad12b21"
+  },
+  {
+   "sequence": 2,
+   "file": "ledger-round17-challenge.json",
+   "sha256": "67f596970d1596c666094f3d2625e1acac14174ff6531979d8fc169f2753d1d2"
+  },
+  {
+   "sequence": 3,
+   "file": "ledger-round18-succession-challenge.json",
+   "sha256": "92ee8dac11858bd899a0ce5088bd594626fb39b1e4b5d4eaddf964539d62ae7a"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "f156079cc85cca6188df1bab75fcfb797a82a333",
+   "confirmed_at": "2026-09-02T19:22:27Z",
+   "controller_receipt_sha256": "13ed3cbef61b71b8983ded907261ff8dbd3fa9f34505d724b45610445ad12b21",
+   "evidence_file": "ledger-base-attestation-13.txt",
+   "evidence_sha256": "b71743ff76efd22d1ea7465577678d7fdafc80f8fa83510519aec666465a1bc5"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "f156079cc85cca6188df1bab75fcfb797a82a333",
+   "confirmed_at": "2026-09-02T19:17:54Z",
+   "controller_receipt_sha256": "67f596970d1596c666094f3d2625e1acac14174ff6531979d8fc169f2753d1d2",
+   "evidence_file": "ledger-base-attestation-13.txt",
+   "evidence_sha256": "b71743ff76efd22d1ea7465577678d7fdafc80f8fa83510519aec666465a1bc5"
+  },
+  {
+   "sequence": 3,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "f156079cc85cca6188df1bab75fcfb797a82a333",
+   "confirmed_at": "2026-09-02T19:17:58Z",
+   "controller_receipt_sha256": "92ee8dac11858bd899a0ce5088bd594626fb39b1e4b5d4eaddf964539d62ae7a",
+   "evidence_file": "ledger-base-attestation-13.txt",
+   "evidence_sha256": "b71743ff76efd22d1ea7465577678d7fdafc80f8fa83510519aec666465a1bc5"
+  }
+ ],
+ "autonomous_round": 3,
+ "controller_review_state": "findings_pending",
+ "finding_classes": [
+  {
+   "key": "code-then-execute-not-frozen-before-untrusted-content",
+   "root_cause_predicate": "The code-then-execute option required only typed data flow and not that the privileged code, its sinks, and its data flows be generated and frozen before untrusted content is read.",
+   "affected_surface": "skills/llm-inference-integration/references/retrieval-agent-safety.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "13ed3cbef61b71b8983ded907261ff8dbd3fa9f34505d724b45610445ad12b21",
+     "finding_sha256": "0ae9da25377b25b687f1ccf30ed551c966b0f4a3dd4500c7f55a18bb56ad17cb",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane6-code-then-execute-not-frozen-before-untrusted-content-1.json",
+     "disposition_evidence_sha256": "dede839a60c542e51c69c050ca840d5ea80c8f40fc00bcd8d3147809a00ffad7"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "packet-evidence-is-assertion-only",
+   "root_cause_predicate": "The bounded review packet carries gate results only as plan evidence statements and base attestations, which the reviewer cannot independently verify from the packet.",
+   "affected_surface": "specs/109-llm-delegation-benchmark/evidence/ledger-base-attestation-11.txt",
+   "occurrences": [
+    {
+     "receipt_sha256": "13ed3cbef61b71b8983ded907261ff8dbd3fa9f34505d724b45610445ad12b21",
+     "finding_sha256": "6c07adf0d751e2a054089de9d23d7cf961598cbbd8344b5c9e2d01e37a0668e3",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane6-packet-evidence-is-assertion-only-1.json",
+     "disposition_evidence_sha256": "e244215023b4a6012b0f681fbaaeaa7d504f1f4d6ff7586d17dd6de1d97d78ae"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "lane5-authorization-record-missing",
+   "root_cause_predicate": "The register cited continuation-authorization-4.md for the lane-5 work, but the controller command that should have written it aborted at a repository gate before that step, so the file did not exist in the candidate.",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "13ed3cbef61b71b8983ded907261ff8dbd3fa9f34505d724b45610445ad12b21",
+     "finding_sha256": "5e0bf7e49f42e679326c6a341339df19247594eb33ecd6dfe45daeecd36083dd",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane6-lane5-authorization-record-missing-1.json",
+     "disposition_evidence_sha256": "ae50cefd0a9eb74518ddd39c543042889924c9dcad7e409f96356df38be10433"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "disaggregation-throughput-claim-categorical",
+   "root_cause_predicate": "The serving-lever table stated categorically that prefill/decode disaggregation does not raise throughput, which is engine- and workload-dependent.",
+   "affected_surface": "skills/llm-inference-integration/references/inference-capacity-operations.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "13ed3cbef61b71b8983ded907261ff8dbd3fa9f34505d724b45610445ad12b21",
+     "finding_sha256": "21b48e61e62e56a039cd5a32f84854bfdf285cc96f5062fb2051653d35b6ab16",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane6-disaggregation-throughput-claim-categorical-1.json",
+     "disposition_evidence_sha256": "f17c38bbcfd1a1ee6f5abc8801641c4b81d2193e955ae7bcd5761715aec584e2"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "later-lanes-authorized-by-controller-reading",
+   "root_cause_predicate": "continuation-authorization-3.md and -5.md described the scope of later lanes as a controller reading of the maintainer's instruction, conflicting with the rule that no controller-side interpretation authorizes a lane.",
+   "affected_surface": "specs/109-llm-delegation-benchmark/evidence/continuation-authorization-5.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "67f596970d1596c666094f3d2625e1acac14174ff6531979d8fc169f2753d1d2",
+     "finding_sha256": "88cdb3130853ef5cd9e6d0470a706f5c2025bd4e50624c36fb4bd191d6962cfa",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane6-later-lanes-authorized-by-controller-reading-1.json",
+     "disposition_evidence_sha256": "d2ebc5048f4dfe146494ccf327049741e578578e6f8bbb57ccc57c2bb3d4a45f"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "lane3-not-authorized-at-execution-time",
+   "root_cause_predicate": "Lane 3 ran before an explicit second maintainer grant existed, and a later instruction cannot establish by controller reconstruction that the lane was authorized when executed; only an explicit maintainer ratification accepting its receipts and fixes can.",
+   "affected_surface": "specs/109-llm-delegation-benchmark/evidence/continuation-authorization-2.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "92ee8dac11858bd899a0ce5088bd594626fb39b1e4b5d4eaddf964539d62ae7a",
+     "finding_sha256": "a5c2ce04576f79dce336df31bf807970e5b81cdbaf65df6ae78717f82b66aa8c",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}

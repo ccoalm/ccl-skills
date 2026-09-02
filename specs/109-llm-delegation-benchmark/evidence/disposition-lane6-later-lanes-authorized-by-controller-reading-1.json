@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "76d95836625b36dd7ae41964c6bbad95e336f32f778201708b81a17d68180c3b",
+ "receipt_sha256": "67f596970d1596c666094f3d2625e1acac14174ff6531979d8fc169f2753d1d2",
+ "finding_sha256": "88cdb3130853ef5cd9e6d0470a706f5c2025bd4e50624c36fb4bd191d6962cfa",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "67f596970d1596c666094f3d2625e1acac14174ff6531979d8fc169f2753d1d2",
+   "finding_sha256": "88cdb3130853ef5cd9e6d0470a706f5c2025bd4e50624c36fb4bd191d6962cfa"
+  }
+ ],
+ "evidence": [
+  "Both records now state that the maintainer's explicit instruction (fix problems directly) is the grant for every fix-and-review lane after it, that a review lane is what fixing a shared-skill finding requires under this repository's gate, and that the maintainer may reject any lane by instruction; the controller-reading wording is removed and the maintainer is asked in the pull request to confirm or reject lanes 3 through 7 (lane-7 fix commit)."
+ ]
+}
