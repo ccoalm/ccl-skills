@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "dfc722cc780976ad2bd96a5c1c2f1e3117fa3c0c6a8fc7df658245803af75309",
+  "receipt_sha256": "074d66048cbd32d4e8b23c8cc8f5d02a5f6a2ea8a7f25e9ae0cd0fe225945c15",
+  "finding_sha256": "afcd8df34abec2fc9be7d4f95f2d094ed3ad83c3365a70da3e8ddecd5e5669c8",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "074d66048cbd32d4e8b23c8cc8f5d02a5f6a2ea8a7f25e9ae0cd0fe225945c15",
+      "finding_sha256": "afcd8df34abec2fc9be7d4f95f2d094ed3ad83c3365a70da3e8ddecd5e5669c8"
+    }
+  ],
+  "evidence": [
+    "git diff --name-status ccl-skills-v0.12.0..origin/dev reports no deleted or renamed path and no removed public skill, command, package entrypoint, or host manifest.",
+    "The shipped capability delta adds and refines defect-diagnosis guidance, including production telemetry diagnosis, bounded localization moves, probe ordering, and causality-plus-incorrectness proof; these are backward-compatible capabilities rather than a compatibility break.",
+    "The 0.13.0 minor increment therefore matches the observed delta from the last released tag; the package diff itself correctly carries only the resulting source-of-truth version update."
+  ]
+}

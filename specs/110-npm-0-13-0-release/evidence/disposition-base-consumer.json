@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "dfc722cc780976ad2bd96a5c1c2f1e3117fa3c0c6a8fc7df658245803af75309",
+  "receipt_sha256": "074d66048cbd32d4e8b23c8cc8f5d02a5f6a2ea8a7f25e9ae0cd0fe225945c15",
+  "finding_sha256": "6bf885e2b170898b11a0e96c5de6972ff11964823e617e99bd244880c29b4d50",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "074d66048cbd32d4e8b23c8cc8f5d02a5f6a2ea8a7f25e9ae0cd0fe225945c15",
+      "finding_sha256": "6bf885e2b170898b11a0e96c5de6972ff11964823e617e99bd244880c29b4d50"
+    }
+  ],
+  "evidence": [
+    "validate_extraction_review_state.py consumes each base attestation, binds its SHA-256, requires the exact canonical ls-remote line, maps each attestation to one controller receipt in order, and rejects base drift inconsistent with the declared closeout state.",
+    "git ls-remote --exit-code origin refs/heads/dev was run immediately before each authorized review round and returned f156079cc85cca6188df1bab75fcfb797a82a333; the committed canonical evidence line matches those observations.",
+    "The attestation is review-lane evidence rather than a publish precondition; npm-publish.yml separately fetches the default branch and rejects a tagged commit that is not its ancestor."
+  ]
+}

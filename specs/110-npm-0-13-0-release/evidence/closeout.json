@@ -1,0 +1,103 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "dfc722cc780976ad2bd96a5c1c2f1e3117fa3c0c6a8fc7df658245803af75309",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "round1-review.json",
+      "sha256": "ce5efcf7abfecbc36310e56c68a0884c2b99b3e554eeb6e28237a427975e1b92"
+    },
+    {
+      "sequence": 2,
+      "file": "round2-challenge.json",
+      "sha256": "074d66048cbd32d4e8b23c8cc8f5d02a5f6a2ea8a7f25e9ae0cd0fe225945c15"
+    }
+  ],
+  "completion_receipt": null,
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "f156079cc85cca6188df1bab75fcfb797a82a333",
+      "confirmed_at": "2026-09-02T14:53:05-04:00",
+      "controller_receipt_sha256": "ce5efcf7abfecbc36310e56c68a0884c2b99b3e554eeb6e28237a427975e1b92",
+      "evidence_file": "base-attestation.txt",
+      "evidence_sha256": "b71743ff76efd22d1ea7465577678d7fdafc80f8fa83510519aec666465a1bc5"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "f156079cc85cca6188df1bab75fcfb797a82a333",
+      "confirmed_at": "2026-09-02T14:53:57-04:00",
+      "controller_receipt_sha256": "074d66048cbd32d4e8b23c8cc8f5d02a5f6a2ea8a7f25e9ae0cd0fe225945c15",
+      "evidence_file": "base-attestation.txt",
+      "evidence_sha256": "b71743ff76efd22d1ea7465577678d7fdafc80f8fa83510519aec666465a1bc5"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "post_review_budget",
+  "finding_classes": [
+    {
+      "key": "lockfile-count-misread",
+      "root_cause_predicate": "The reviewer interpreted two version fields in one lockfile as evidence that a second lockfile or hidden self-entry might exist outside the packet.",
+      "affected_surface": "packages/ccl-skills-npm/package-lock.json",
+      "occurrences": [
+        {
+          "receipt_sha256": "074d66048cbd32d4e8b23c8cc8f5d02a5f6a2ea8a7f25e9ae0cd0fe225945c15",
+          "finding_sha256": "c3b69a42a6336eb083c42d6cf9456eb6ee6bbabbe1d544bb8d8ab70c0946a63e",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-lockfile-count.json",
+          "disposition_evidence_sha256": "ba6cef4ca4a7df624cb0141e8b2fb6b0e9c90a6d4246a3f48e1ed1e42524b4c4"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "base-attestation-consumer-misread",
+      "root_cause_predicate": "The reviewer treated the base attestation as an unconsumed publish gate instead of validator-bound review evidence with a separate publish ancestry gate.",
+      "affected_surface": "specs/110-npm-0-13-0-release/evidence/base-attestation.txt",
+      "occurrences": [
+        {
+          "receipt_sha256": "074d66048cbd32d4e8b23c8cc8f5d02a5f6a2ea8a7f25e9ae0cd0fe225945c15",
+          "finding_sha256": "6bf885e2b170898b11a0e96c5de6972ff11964823e617e99bd244880c29b4d50",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-base-consumer.json",
+          "disposition_evidence_sha256": "86a79095bbb348cc4eecef80e5aa8922907082f189b64e7e9576eaabb9e6805d"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "semver-classification-evidence-boundary",
+      "root_cause_predicate": "The diff-only packet does not itself contain the already-landed delta from the previous release tag that the release coordinator classified.",
+      "affected_surface": "packages/ccl-skills-npm/package.json",
+      "occurrences": [
+        {
+          "receipt_sha256": "074d66048cbd32d4e8b23c8cc8f5d02a5f6a2ea8a7f25e9ae0cd0fe225945c15",
+          "finding_sha256": "afcd8df34abec2fc9be7d4f95f2d094ed3ad83c3365a70da3e8ddecd5e5669c8",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-semver-classification.json",
+          "disposition_evidence_sha256": "cba9520b285f5efd45dc6dd6d97a4e51ad0f48f26131ec4b940d848be260cbf2"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "rollback-access-readiness",
+      "root_cause_predicate": "The source candidate cannot prove that a currently authorized npm maintainer can execute the documented deprecate-and-fix-forward recovery after publication.",
+      "affected_surface": "packages/ccl-skills-npm/package.json",
+      "occurrences": [
+        {
+          "receipt_sha256": "074d66048cbd32d4e8b23c8cc8f5d02a5f6a2ea8a7f25e9ae0cd0fe225945c15",
+          "finding_sha256": "77293bc28f345233f6ac9f283330c9149293705c461c4ee12346939416d5100e",
+          "disposition": "needs_human_decision"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "continuation_authorization_required"
+}
