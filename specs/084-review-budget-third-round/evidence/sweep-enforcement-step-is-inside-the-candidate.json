@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "348ac98f7635a14efa7bab6ea145bf5f1776945a8ba2c48d1485b27cb5a850c0",
+  "searched_set": [
+    ".github/workflows/ci.yml"
+  ],
+  "unmatched_instances": [
+    "the residual this round states rather than closes: the surface is inside the candidate"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "490c72205b2d15b8c67d354b1bb1627c1806af311444760d3f9e6dc7e44c25dc",
+  "receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
+  "finding_sha256": "fb683a009f775d708a3aa2c28c676e1f80579291ed04397e921bebf86081c729",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
+      "finding_sha256": "fb683a009f775d708a3aa2c28c676e1f80579291ed04397e921bebf86081c729"
+    }
+  ],
+  "evidence": [
+    "The step now runs for pull_request and merge_group, so a merge-queue run no longer passes with the step skipped.",
+    "Command: bash skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh (green on this candidate)."
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "490c72205b2d15b8c67d354b1bb1627c1806af311444760d3f9e6dc7e44c25dc",
+  "searched_set": [
+    "skills/skill-extraction-workflow/scripts/review_ledger_binding.py"
+  ],
+  "unmatched_instances": [
+    "the residual this round states rather than closes: the surface is inside the candidate"
+  ]
+}

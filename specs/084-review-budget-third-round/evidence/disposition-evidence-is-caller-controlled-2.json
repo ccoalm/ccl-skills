@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "490c72205b2d15b8c67d354b1bb1627c1806af311444760d3f9e6dc7e44c25dc",
+  "receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
+  "finding_sha256": "4a46e9bb4922b2b68b2dec0b7d4f30014ec850cbb98ce24375754326a101556e",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "b62cf03754ec5e00b4753a27ee37e5df20194476bef656813a95135e1d84bbb2",
+      "finding_sha256": "4a46e9bb4922b2b68b2dec0b7d4f30014ec850cbb98ce24375754326a101556e"
+    }
+  ],
+  "evidence": [
+    "Enumeration comes from git ls-tree HEAD and a dirty evidence tree is refused, so uncommitted evidence can no longer satisfy the gate.",
+    "Command: bash skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh (the uncommitted-evidence case reds before the fix)."
+  ]
+}

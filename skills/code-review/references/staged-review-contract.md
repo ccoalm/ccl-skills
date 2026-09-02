@@ -289,6 +289,24 @@ refreshes, mode changes, and renamed invocations do not reset Agent authority.
 An initial `review` with positive challenge capacity must start this chain at
 index 1; an untracked initial review is single-round and therefore uses budget 0.
 
+**Chain succession.** A fix that edits a selected owner's package moves
+`selected_skills_sha256` and ends its chain by construction, so the post-fix
+candidate can never be challenged inside it. One succeeding chain may open at
+index 1 in `challenge` mode by supplying `--predecessor-chain-result-file` — the
+ended chain's terminal receipt — instead of an in-chain prior result. The
+controller accepts it only when that receipt is a tracked challenge at its own
+chain's terminal index, carries this chain's `review_scope_sha256` and matching
+stage/depth/risk-tags/budget, preserves the controller digest, owner-selection
+source, and selected owner names, and binds a candidate that DIFFERS from this
+packet: the owner-package digest is the one binding allowed to move, because its
+move is why the chain ended, and an unmoved candidate is a repeat round wearing a
+new chain id. Earlier challenge focuses carry forward, so a succession focus must
+differ from every focus the ended chain spent. The result records
+`predecessor_chain_id`, `predecessor_result_sha256`, and
+`predecessor_candidate_sha256`, and counts `material_candidate_change` as a
+satisfied self-review trigger. Succession carries history rather than resetting
+it: consumers still sum rounds across both chains.
+
 The chain binds task scope, candidate identity per round, result hashes, mode,
 status, challenge focus, controller, and selected owners. The opaque
 `review_scope_sha256` always hashes normalized intent, acceptance, stage/depth,
