@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "75f8430986cb3d7e32355b447a51541356ebee934436aa27d5a1de942699564b",
+ "receipt_sha256": "d2a7f979b2d0a102a444ebed2fba773e6bfe0ba6d53c209464fca5f1212432a2",
+ "finding_sha256": "eb368b46735ee57762fb370e25056f6337060e03451a83a3826790bd9c704cde",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "d2a7f979b2d0a102a444ebed2fba773e6bfe0ba6d53c209464fca5f1212432a2",
+   "finding_sha256": "eb368b46735ee57762fb370e25056f6337060e03451a83a3826790bd9c704cde"
+  }
+ ],
+ "evidence": [
+  "The bullet now states the contract is provider-specific and must be read from that provider's current documentation before the adapter is written, never assumed from another provider, and turns the six semantics into checklist questions whose answers are recorded with citations beside the adapter (commit f4ad9df)."
+ ]
+}

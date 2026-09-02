@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "8fa5320ff3b44e2cb89c746e1f836f5d6db17230380fde3eb0e5ee42fad30969",
+ "receipt_sha256": "3568250ac6326dcff34ab2ee02c9344e2ecb1ea2e6bcae2920b0be24872fb226",
+ "finding_sha256": "f3d60c8727208e3a1bfa0f3087ab8be2ad295ce2a59d8ad2b218015d8508d549",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "3568250ac6326dcff34ab2ee02c9344e2ecb1ea2e6bcae2920b0be24872fb226",
+   "finding_sha256": "f3d60c8727208e3a1bfa0f3087ab8be2ad295ce2a59d8ad2b218015d8508d549"
+  }
+ ],
+ "evidence": [
+  "The judge-bias bullet now requires reporting the order-inconsistency rate and keeping inconsistent pairs in the denominator as ties or predeclared abstentions, never silently excluding them (commit b21e253)."
+ ]
+}

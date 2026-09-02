@@ -17,6 +17,8 @@
 - For batch inference, define max batch size, batch wait timeout, max ongoing requests, and backpressure behavior.
 - For async jobs, persist task state and include lease, retry count, timeout threshold, terminal failure, and repair path.
 - For hosted models, define warmup, health checks, model-load failure behavior, GPU/CPU resource requests, autoscaling target, and max replicas.
+- Route latency-insensitive volume — offline evals, backfills, replay/shadow scoring, bulk classification — to the provider's asynchronous batch endpoint when one exists: typically discounted and higher-throughput, but its contract is provider-specific and must be read from that provider's current documentation before the adapter is written, never assumed from another provider. Answer at least these questions and record the citation for each answer beside the adapter: how long a batch may take and what happens at expiry; whether results come back ordered (if not, match by your own request id); what a cancel returns (partial results, or none); which terminal states are billed; whether the endpoint has its own rate limits or shares the synchronous ones; whether processing can overshoot a configured spend limit; and whether batch creation is idempotent (a client request key or server-side deduplication) and how an ambiguous submission — request timed out, response lost — is reconciled by lookup before any retry, so a retry never bills a duplicate batch and a non-retry never orphans accepted work; when the provider offers neither idempotent creation nor an authoritative lookup key, record that capability decision explicitly and either forbid automatic retry of an ambiguous submission (persist a `submission_unknown` state for manual or provider-side reconciliation) or decline that batch endpoint. Persist stable item and submission identifiers before sending, and reconcile terminal usage by item and by batch id, never from the submission count. An adapter that encodes another provider's answers can lose work or misstate cost.
+- Ramp traffic gradually after a new tenant, backfill, or feature launch: providers enforce acceleration limits distinct from steady-state per-minute request/token limits, and a step increase trips them even under quota.
 
 ## Batch Serving
 
@@ -26,8 +28,23 @@ Batch serving should make latency/throughput tradeoffs explicit:
 - `batch_wait_timeout` controls how long requests wait for aggregation;
 - `max_ongoing_requests` protects the replica;
 - per-item output ordering and error mapping must be deterministic.
+- tune batch size on **goodput** (requests meeting all latency SLOs per second), not raw throughput: larger decode batches raise tokens/s while lengthening per-token latency, and queueing lengthens first-token latency.
 
 Keep preprocessing and postprocessing deterministic and cheap. Expensive transformations should be measured separately from model inference.
+
+### Serving levers for hosted inference (which metric each moves)
+
+| Lever | Moves | Caveat |
+|---|---|---|
+| Continuous (in-flight) batching | throughput ↑ | trades TPOT and TTFT; validate on a representative concurrency profile, not single-request benchmarks |
+| Paged KV-cache allocation | memory waste ↓ → larger batches fit | engine support; no quality change |
+| Automatic prefix caching | TTFT ↓ and cost ↓ for shared prefixes | needs the stable-prefix prompt design in `llm-client-gateway.md`; hit rate is the metric to watch |
+| Speculative decoding (draft model / n-gram) | TPOT ↓ when draft acceptance is high | slower than plain decode when acceptance is low — measure acceptance rate per workload |
+| Prefill/decode disaggregation | TTFT and ITL tunable independently; tail ITL ↓ (no prefill interference) | throughput and goodput may rise or fall with the engine, the resource split, KV-transfer overhead, and the workload (one engine's documentation states it does not raise throughput) — measure on the target engine; chunked prefill is the co-located alternative |
+| Quantization (weights / KV) | memory ↓, often throughput ↑ | re-run the quality eval — not a capacity-only change |
+| Prefix- / KV-aware routing across replicas | cache hit rate ↑ under multi-replica serving | needs replica cache-state signals from the scheduler or gateway; adapter-affinity routing is the same shape |
+
+Provider-hosted APIs apply these internally; the levers a consumer controls are prompt design (prefix stability), batching mode (synchronous vs asynchronous batch), and the per-phase SLOs below.
 
 ## Load And Regression Checks
 
@@ -39,7 +56,8 @@ Before rollout, run a bounded capacity check for:
 - queue depth or pending job age;
 - memory/GPU pressure;
 - token cost per successful output;
-- streaming first-token latency and final-token latency when applicable.
+- per-phase latency for generative workloads in the standard vocabulary so results are comparable: **TTFT** (time to first token — queueing plus prefill), **TPOT** (time per output token after the first; for one request the mean of its inter-token latencies) or **ITL** (inter-token latency), and **E2EL** (end-to-end). State how averages are formed — request-weighted TPOT and token-weighted ITL differ on a mixed workload — and report tails (p95/p99) per phase, never one blended latency;
+- **goodput** — the rate of requests meeting *all* declared SLOs (for example TTFT ≤ X and TPOT ≤ Y) — as the capacity number that gates rollout; raw throughput or tokens/s can rise while goodput falls.
 
 Use dry-run or report-only modes for migration/backfill/batch jobs whenever possible.
 
@@ -184,3 +202,4 @@ Recurring anti-patterns observed across production inference services:
 - **Disabled framework logging** (`llama-server --log-disable` or equivalent) makes triage impossible. Keep at least warn-level logging in production and redirect to a file or sink the platform aggregates.
 - **No `/health` / `/ready` endpoint**: readiness must reflect model-loaded state, not process-running state. Without an explicit endpoint, orchestrators and discovery layers cannot distinguish "process up" from "model ready to serve".
 - **Mismatched runtime declarations**: a service whose `config.properties` describes one runtime (e.g. TorchServe) but whose start script launches a different runtime (e.g. Ray Serve) is a maintenance trap. Keep one canonical declaration and delete or clearly mark legacy files.
+- **Deploying while agent runs are in flight**: a stateful agent run may be anywhere in its loop when a new prompt, tool, or loop version ships. Pin each run to the version it started with (or drain and resume from a checkpoint) instead of hot-swapping mid-run — parallel old/new versions with gradual traffic shift is the shape; a mid-run swap changes tool schemas and cache prefixes under the model.

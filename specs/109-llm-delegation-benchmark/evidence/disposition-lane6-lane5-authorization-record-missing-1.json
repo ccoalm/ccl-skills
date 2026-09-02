@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "76d95836625b36dd7ae41964c6bbad95e336f32f778201708b81a17d68180c3b",
+ "receipt_sha256": "13ed3cbef61b71b8983ded907261ff8dbd3fa9f34505d724b45610445ad12b21",
+ "finding_sha256": "5e0bf7e49f42e679326c6a341339df19247594eb33ecd6dfe45daeecd36083dd",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "13ed3cbef61b71b8983ded907261ff8dbd3fa9f34505d724b45610445ad12b21",
+   "finding_sha256": "5e0bf7e49f42e679326c6a341339df19247594eb33ecd6dfe45daeecd36083dd"
+  }
+ ],
+ "evidence": [
+  "continuation-authorization-4.md now exists and records what occurred: lane 5 ran under the maintainer's explicit instruction recorded in continuation-authorization-3.md, and the file states that it was cited before it was written because the writing command aborted at a gate, so it records the grant that occurred rather than reconstructing one (lane-7 fix commit)."
+ ]
+}

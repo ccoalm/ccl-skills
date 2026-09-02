@@ -1,0 +1,170 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "8fa5320ff3b44e2cb89c746e1f836f5d6db17230380fde3eb0e5ee42fad30969",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "ledger-round1-review.json",
+   "sha256": "3568250ac6326dcff34ab2ee02c9344e2ecb1ea2e6bcae2920b0be24872fb226"
+  },
+  {
+   "sequence": 2,
+   "file": "ledger-round2-challenge.json",
+   "sha256": "e19613a4dd42763d277d882204b37b5207447c0a66213298e9679db771501fed"
+  },
+  {
+   "sequence": 3,
+   "file": "ledger-round3-succession-challenge.json",
+   "sha256": "dcab3e7cd77b8a7e2abde7cad97ef05376e1fdb2a1fba23459a1b450bcb88601"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "f156079cc85cca6188df1bab75fcfb797a82a333",
+   "confirmed_at": "2026-09-02T18:20:13Z",
+   "controller_receipt_sha256": "3568250ac6326dcff34ab2ee02c9344e2ecb1ea2e6bcae2920b0be24872fb226",
+   "evidence_file": "ledger-base-attestation-1.txt",
+   "evidence_sha256": "b71743ff76efd22d1ea7465577678d7fdafc80f8fa83510519aec666465a1bc5"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "f156079cc85cca6188df1bab75fcfb797a82a333",
+   "confirmed_at": "2026-09-02T18:27:38Z",
+   "controller_receipt_sha256": "e19613a4dd42763d277d882204b37b5207447c0a66213298e9679db771501fed",
+   "evidence_file": "ledger-base-attestation-2.txt",
+   "evidence_sha256": "b71743ff76efd22d1ea7465577678d7fdafc80f8fa83510519aec666465a1bc5"
+  },
+  {
+   "sequence": 3,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "f156079cc85cca6188df1bab75fcfb797a82a333",
+   "confirmed_at": "2026-09-02T18:27:38Z",
+   "controller_receipt_sha256": "dcab3e7cd77b8a7e2abde7cad97ef05376e1fdb2a1fba23459a1b450bcb88601",
+   "evidence_file": "ledger-base-attestation-2.txt",
+   "evidence_sha256": "b71743ff76efd22d1ea7465577678d7fdafc80f8fa83510519aec666465a1bc5"
+  }
+ ],
+ "autonomous_round": 3,
+ "controller_review_state": "findings_pending",
+ "finding_classes": [
+  {
+   "key": "dynamic-tool-boundary-underspecified",
+   "root_cause_predicate": "The tool-dispatch clause said discovered tools are added at a turn boundary without defining the boundary, so a tool found mid-loop could not be called in the active loop.",
+   "affected_surface": "skills/llm-inference-integration/references/agent-tool-dispatch.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "3568250ac6326dcff34ab2ee02c9344e2ecb1ea2e6bcae2920b0be24872fb226",
+     "finding_sha256": "41e91cfc1ef4f5427f7f5940fd385a1ee34bf2f0d353306c574048214666bf85",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-dynamic-tool-boundary-underspecified-1.json",
+     "disposition_evidence_sha256": "3c08014d47fa8a239ca0082dad35f1271abe93e0270056598eb658b6cf22d5e4"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "append-only-conflicts-with-mandatory-invalidation",
+   "root_cause_predicate": "The prompt-cache design rule stated never rewrite earlier turns in place unconditionally, which would retain revoked, deleted, or newly unauthorized material to preserve cache hits and contradict the compaction rules.",
+   "affected_surface": "skills/llm-inference-integration/references/llm-client-gateway.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "3568250ac6326dcff34ab2ee02c9344e2ecb1ea2e6bcae2920b0be24872fb226",
+     "finding_sha256": "c4e41e885bfb92117cb5fd1ffa42cacfc02a77f59fcdbd96a507cea0a66ba0f7",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-append-only-conflicts-with-mandatory-invalidation-1.json",
+     "disposition_evidence_sha256": "120cfb68eea623f3cdaf255bad995652e91b977b3c0565503557e4379ed4dc26"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "trifecta-pattern-not-provably-effective",
+   "root_cause_predicate": "The lethal-trifecta rule accepted any named structural pattern, including context minimization, without requiring that the chosen pattern actually removes an edge of the triangle.",
+   "affected_surface": "skills/llm-inference-integration/references/retrieval-agent-safety.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "3568250ac6326dcff34ab2ee02c9344e2ecb1ea2e6bcae2920b0be24872fb226",
+     "finding_sha256": "7f7a2c1264f3997ed456930d114f1329f8bc08c07e1c787f7e6f97105c6234d4",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-trifecta-pattern-not-provably-effective-1.json",
+     "disposition_evidence_sha256": "89c3e62f3b0b08574c42ba30a872f625dea9ad7c3efbe841361a05248084ac8d"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "judge-order-inconsistent-pairs-excluded",
+   "root_cause_predicate": "Counting only order-consistent pairwise judgments silently drops the position-biased samples and inflates the score.",
+   "affected_surface": "skills/llm-inference-integration/references/model-prompt-evaluation.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "3568250ac6326dcff34ab2ee02c9344e2ecb1ea2e6bcae2920b0be24872fb226",
+     "finding_sha256": "f3d60c8727208e3a1bfa0f3087ab8be2ad295ce2a59d8ad2b218015d8508d549",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-judge-order-inconsistent-pairs-excluded-1.json",
+     "disposition_evidence_sha256": "95225c093b52e2ff8e94e6ed65d74a5fcbd189792233cfa4b4cf6cfd473cbb2d"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "packet-evidence-is-assertion-only",
+   "root_cause_predicate": "The bounded review packet carries the implementer's gate results only as plan evidence statements, which the reviewer cannot independently verify from the packet.",
+   "affected_surface": "specs/109-llm-delegation-benchmark/evidence/ledger-round1-review.json",
+   "occurrences": [
+    {
+     "receipt_sha256": "3568250ac6326dcff34ab2ee02c9344e2ecb1ea2e6bcae2920b0be24872fb226",
+     "finding_sha256": "ddb4fe6b02b17ab732619bc7a19d84df54902ca08df8a59957a9587666fa795a",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-packet-evidence-is-assertion-only-1.json",
+     "disposition_evidence_sha256": "060b33b726d1883cdd4c87769577caec3b7ca86177c5b90f25544bb3c6f64d36"
+    },
+    {
+     "receipt_sha256": "dcab3e7cd77b8a7e2abde7cad97ef05376e1fdb2a1fba23459a1b450bcb88601",
+     "finding_sha256": "a42c97796d54b582ffd18a5c61a8335d3f2abeb513422602de68a1a4cea6c420",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-packet-evidence-is-assertion-only-2.json",
+     "disposition_evidence_sha256": "0d04f32395029c75f85f1e7243e9c77d624bec242c7233ecb0ddc183db745665"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "owasp-mapping-not-enforceable",
+   "root_cause_predicate": "The OWASP walk mapped supply chain to model-artifact integrity and poisoning to ACL/provenance labels, neither of which requires integrity validation of an authorized-but-poisoned source or inventory and version verification of non-model dependencies.",
+   "affected_surface": "skills/llm-inference-integration/references/retrieval-agent-safety.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "e19613a4dd42763d277d882204b37b5207447c0a66213298e9679db771501fed",
+     "finding_sha256": "ff2efdb98be4d30f9e2e55a84a4e34568834e0bec6b07c4190e05fef8797735c",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-owasp-mapping-not-enforceable-1.json",
+     "disposition_evidence_sha256": "62517243f3fa368bfda0f1bd6195ed413561eb810c8032631def1fffba2d5316"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "tool-boundary-contradicts-gateway-cache-rule",
+   "root_cause_predicate": "The round-1 fix made a discovered tool take effect at the next model invocation with a suffix-only re-prefill claim, which contradicts the gateway rule that tool definitions sit at the head of the prefix and must not change mid-loop.",
+   "affected_surface": "skills/llm-inference-integration/references/agent-tool-dispatch.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "dcab3e7cd77b8a7e2abde7cad97ef05376e1fdb2a1fba23459a1b450bcb88601",
+     "finding_sha256": "8a601a2786b91ca7b42a40c816de7df7c47333eb4c0d2c3f2fe5ca3524ef07fc",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}

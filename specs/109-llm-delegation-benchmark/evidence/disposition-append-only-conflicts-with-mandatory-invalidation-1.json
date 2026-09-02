@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "8fa5320ff3b44e2cb89c746e1f836f5d6db17230380fde3eb0e5ee42fad30969",
+ "receipt_sha256": "3568250ac6326dcff34ab2ee02c9344e2ecb1ea2e6bcae2920b0be24872fb226",
+ "finding_sha256": "c4e41e885bfb92117cb5fd1ffa42cacfc02a77f59fcdbd96a507cea0a66ba0f7",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "3568250ac6326dcff34ab2ee02c9344e2ecb1ea2e6bcae2920b0be24872fb226",
+   "finding_sha256": "c4e41e885bfb92117cb5fd1ffa42cacfc02a77f59fcdbd96a507cea0a66ba0f7"
+  }
+ ],
+ "evidence": [
+  "The rule is scoped to ordinary turns (never rewrite earlier turns in place for cache's sake) and gains an explicit mandatory-invalidation clause: compaction, privacy deletion, revoked or narrowed authorization, and safety or policy updates rewrite the prefix as a new cache generation with a baseline reset and the miss is accepted (commit b21e253)."
+ ]
+}
