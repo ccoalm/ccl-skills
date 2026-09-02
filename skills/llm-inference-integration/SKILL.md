@@ -66,9 +66,10 @@ Use this for product backend work that calls, hosts, evaluates, or operates LLM 
    - Classify the OUTBOUND payload before it leaves for the provider. A handler must not place sensitive customer data / PII, secrets / tokens / credentials, or regulated content into a prompt or tool-argument sent to a third-party (or cross-residency) model without the operator's data-egress / provider-allowlist / data-residency policy permitting it — minimize or redact those values, or route to an approved-residency / self-hosted provider. This is the same policy the model-question auto-reviewer and any model call reference, applied as a gate on the PRIMARY inference call, not only on logs/fixtures (redacted in step 5) or the reviewer path. It is distinct from the inbound trust-boundary rule below (untrusted content coming IN): this governs sensitive data going OUT.
    - Implement error classification first — a closed failure taxonomy with explicit retryable semantics, locked per provider against real error responses — then build timeout, retry/backoff, fallback order, stream parsing, and usage extraction on top of it.
    - Deep gateway concerns — failure classification, conversation compaction, fallback/cooldown/degraded modes, usage/latency accounting, and prompt cache-miss attribution — gates, assertions, and routing -> `references/llm-client-gateway.md`.
+   - Design the rendered prompt for prefix-cache stability (static-first ordering, byte-stable append-only prefix, tool set fixed within a loop) and track cache-read share per route; agent loops are prefill-dominated, so cache hit rate is a first-class cost and latency metric — rules in `references/llm-client-gateway.md` (prompt cache design).
    - Context-window overflow must not retry the same payload unchanged. Compact or truncate only with approved floors for required context, and fail closed if the reduction would drop safety, entitlement, privacy, permission, policy, tool-schema, source ACL/provenance labels, or source-grounding material, or if summarization would merge differently scoped sources.
    - For high-impact routes, fallback requires explicit quality-equivalence evidence or product/compliance approval; otherwise return a clear refusal or degraded state.
-   - Enforce trust boundaries before using retrieved content, tool results, or model output in privileged actions.
+   - Enforce trust boundaries before using retrieved content, tool results, or model output in privileged actions; run the lethal-trifecta test (private data + untrusted content + an external channel) on every agent design and break it structurally when it holds — `references/retrieval-agent-safety.md` (Safety And Security, incl. the OWASP LLM Top 10 walk).
 
 4. For tool-using agent runtimes, separate the runtime layers as a design and implementation acceptance gate.
    - Identify the bootstrap/router layer, runtime assembly layer, session lifecycle, per-turn model loop, tool execution path, permission decision path, state/transcript persistence, and recovery/resume path.
@@ -98,6 +99,7 @@ Use this for product backend work that calls, hosts, evaluates, or operates LLM 
    - Record raw request/response metadata needed for reproducibility, with redaction.
    - Use replay and shadow comparison for model/prompt changes that can affect user-visible quality. Freeze the comparator, thresholds, sample scope, and stop rules before any replay/shadow/A-B/canary run — never define success criteria after seeing results.
    - Compare accuracy, latency, token cost, success rate, safety failures, and regression examples before rollout.
+   - LLM-as-judge scores enter a decision only with the judge's bias controls (position, verbosity, self-preference), human-agreement calibration, and a confidence interval recorded; agent reliability is declared as pass@k or pass^k before measuring — `references/model-prompt-evaluation.md` (Eval Reliability).
    - For multi-stage inference chains, verify the real stage graph from source before per-stage acceptance, enumerate a sub-stage change's impact surface, and report component metrics and end-to-end metrics separately. The launch decision follows the product acceptance baseline, not the best-looking component metric.
    - Deterministic replay fixtures for model or tool outputs are test control planes, not ordinary caches.
      - Normalize volatile paths, timestamps, ids, counts, durations, costs, and platform path separators before computing fixture keys or writing fixture bodies; redact sensitive values before hashing, committing, logging, or comparing; and gate CI so missing fixtures fail unless record mode is explicitly enabled.
@@ -105,6 +107,7 @@ Use this for product backend work that calls, hosts, evaluates, or operates LLM 
 
 6. Operate inference at capacity.
    - Bound concurrent calls and batch size.
+   - Declare per-phase latency SLOs for generative routes (TTFT, TPOT/ITL, end-to-end) and gate capacity on goodput (requests meeting every SLO), not raw throughput; route latency-insensitive volume to provider batch endpoints — vocabulary, serving levers, and the batch contract in `references/inference-capacity-operations.md`.
    - Use async queues or job state for long-running inference.
    - For hosted inference, define autoscaling, max ongoing requests, batch wait timeout, health checks, warmup, and model-load failure behavior.
    - Register or expose hosted inference only after readiness is proven for the actual serving mode. Preserve service metadata, request/log ids, version routing, heartbeat/unregister behavior, and bounded shutdown or polling semantics.
@@ -114,8 +117,8 @@ Use this for product backend work that calls, hosts, evaluates, or operates LLM 
 
 ## Reference Loading
 
-- For gateway/client, provider adapters, fallback, streaming, usage accounting, and call records, read `references/llm-client-gateway.md`.
+- For gateway/client, provider adapters, fallback, streaming, usage accounting, prompt cache design and miss attribution, and call records, read `references/llm-client-gateway.md`.
 - For RAG retrieval, grounding, agent loops, agent-SDK framework building blocks (agent/loop/sub-agent-handoff/guardrail/session/tracing, vendor-neutral, + the mechanism-not-policy boundary), tool execution, agent-skill systems (progressive-disclosure loading, skill routing, skill trust/sandbox), MCP integration (primitives, server trust, tool-poisoning/rug-pull/confused-deputy failure modes, auth), prompt-injection defenses, and output safety, read `references/retrieval-agent-safety.md`.
-- For prompt/model registry, versioning, activation, rollback, eval reports, replay, and shadow rollout, read `references/model-prompt-evaluation.md`.
-- For hosted inference, batch serving, concurrency limits, async jobs, capacity tests, and operational controls, read `references/inference-capacity-operations.md`.
+- For prompt/model registry, versioning, activation, rollback, eval reports (judge-bias controls, statistical reporting, pass@k vs pass^k), replay, and shadow rollout, read `references/model-prompt-evaluation.md`.
+- For hosted inference, batch serving, serving levers and the TTFT/TPOT/goodput vocabulary, provider batch endpoints, concurrency limits, async jobs, capacity tests, and operational controls, read `references/inference-capacity-operations.md`.
 - For product launch templates, business acceptance baselines, build-vs-buy ROI, and new-vs-iteration gates, route to `product-rd-workflow`; this skill should not duplicate the product launch template.
