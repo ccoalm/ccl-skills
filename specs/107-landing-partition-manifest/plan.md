@@ -21,6 +21,7 @@
 | 4 | `dual-track-review-gate.md` / `extraction-quickstart.md` 记录分区落地配方 | 文档 | 本轮做 |
 | 5 | `.github/workflows/ci.yml` 注释：单候选过大已解，多 PR merge_group 聚合仍未解 | 注释 | 本轮做 |
 | 6 | `source-register.md` 追加一行（append-only，最后一个 commit） | 台账 | 本轮做 |
+| 7 | `packages/ccl-skills-npm/package.json` + `package-lock.json` 三处 0.11.0 → 0.12.0（minor：闸新增 accept 路径与 CLI flag） | 发版版本指针 | 本轮做；`check-release-version.py` 已过（地板 0.11.0） |
 
 不在 scope：merge_group（多个 PR 合成一个 HEAD）的聚合绑定；`review_gate.py` 收据 schema（收据不新增字段）；`MAX_PACKET_BYTES` 数值。
 
