@@ -75,7 +75,7 @@ Run an architecture pass before implementation when any of these change:
 - async workflow, idempotency, retry, lock, queue, or scheduled job behavior.
 - release runtime, canary, rollback, observability, or operational ownership.
 
-For Go backend work, use `go-microservice-architecture` for this gate. For Python backend, AI-service host, worker, SDK/package, or batch-job architecture, use `python-service-architecture`.
+For Go backend work, use `go-microservice-architecture` for this gate. For Python backend, AI-service host, worker, SDK/package, or batch-job architecture, use `python-service-architecture`. For Node.js backend, worker, or CLI/tooling architecture there is no `*-architecture` sibling by decision: run this gate here, with the relevant `platform-*` owners for connectivity/observability/release surfaces and `nodejs-service-dev` for the Node-side implementation contract (runtime/module/type path, async lifecycle, outbound client shape). Do not substitute the Go or Python architecture skill — a stack without an `*-architecture` owner routes to a named owner, never to the nearest-looking one (`references/dispatch-owner-skills.md`).
 
 Architecture evidence should name the runtime surface that proves the design can operate after launch: generated-contract ownership, dependency timeout/secret/discovery contracts, health/readiness, trace/log context, durable state for long-running work, retry/idempotency policy, and rollback or repair path. Do not accept a plan that only names the happy-path API or screen while leaving async tasks, generated code, or runtime dependencies implicit.
 

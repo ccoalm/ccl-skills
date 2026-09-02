@@ -30,7 +30,7 @@ Use this for implementation of Python backend products, services, microservices,
 - Convert domain-specific source patterns into reusable mechanics: route shape, schema validation, repository/unit-of-work boundary, transaction scope, cache key strategy, idempotency, job lease, config object, trace context, fake client, or test style.
 - If an observed pattern only works for one product domain, discard it instead of turning it into a rule.
 - Resolve conflicts by choosing the safer generic default: explicit schemas over dicts, typed settings over ad hoc environment reads, reviewed migrations over blind autogeneration, bounded async concurrency over unbounded gather, dependency injection over import-time clients, focused pytest tests over live-infra tests by default, and fail-closed for auth/permission/data-integrity paths.
-- When adding or revising durable Python implementation guidance, check whether the lesson is generic backend service practice that should also update `go-microservice-dev`, or belongs in a shared workflow skill instead. If the rule depends on Python tooling, FastAPI/Flask/Django, Pydantic, asyncio, pytest, or Python package layout, keep it here and do not force a Go mirror.
+- When adding or revising durable Python implementation guidance, check whether the lesson is generic backend service practice that should also update the sibling stack owners `go-microservice-dev` and `nodejs-service-dev`, or belongs in a shared workflow skill instead. Record each sibling as `update`, `unchanged`, or `route-to-shared` rather than leaving it unexamined. If the rule depends on Python tooling, FastAPI/Flask/Django, Pydantic, asyncio, pytest, or Python package layout, keep it here and do not force a Go or Node mirror.
 
 ## Development Workflow
 

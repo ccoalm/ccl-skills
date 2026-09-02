@@ -54,6 +54,8 @@ Update the smallest correct durable place:
 - Go backend implementation, testing, codegen, DB, Redis, MQ, or protobuf issue: update `go-microservice-dev` references.
 - Python backend, AI-service host, worker, SDK/package, or batch-job architecture issue: update `python-service-architecture`.
 - Python implementation, pytest, packaging, schema, ORM/migration, Redis, queue, async, or service-wiring issue: update `python-service-dev` references.
+- Node.js implementation, runtime/module/type path, package-manager or lockfile, async lifecycle, stream, worker, outbound-client, or `node:test`/runner issue: update `nodejs-service-dev` references.
+- Node.js architecture or service-boundary issue: there is no Node architecture sibling skill by decision — update this workflow's architecture gate text or the relevant `platform-*` owner, and record which one absorbed it rather than filing it under a sibling stack's architecture skill.
 - UI/product interaction issue: update the relevant design or frontend skill.
 - One-off business/domain issue: do not turn it into a generic skill rule.
 
