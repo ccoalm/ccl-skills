@@ -388,6 +388,11 @@ def validate_partition_path(value: object) -> str:
         raise ManifestError("partition path must be a non-empty string")
     if value.startswith((":", "-", "/")) or any(ord(ch) < 32 for ch in value):
         raise ManifestError(f"partition path is not a plain relative path: {value!r}")
+    # Git reads `*`, `?`, `[` and `\` inside a pathspec as glob/escape syntax even
+    # without magic; a wildcard partition would let the manifest choose its own
+    # coverage, so it is refused as a path rather than handed to git.
+    if any(ch in value for ch in "*?[]\\"):
+        raise ManifestError(f"partition path contains a pathspec wildcard: {value!r}")
     if ".." in value.split("/"):
         raise ManifestError(f"partition path escapes the repository: {value!r}")
     return value
@@ -472,6 +477,14 @@ def partition_coverage(
     if uncovered:
         raise ManifestError(
             "changed paths uncovered by every partition: " + ", ".join(uncovered[:5])
+        )
+    # Equality, not containment: under a narrowed --paths scope a partition can
+    # reach changed files outside the reviewed set, and a union larger than the
+    # candidate is as wrong as one smaller than it.
+    outside = sorted(set(owner) - set(changed_all))
+    if outside:
+        raise ManifestError(
+            "partitions cover changed paths outside the reviewed scope: " + ", ".join(outside[:5])
         )
     return per_partition
 

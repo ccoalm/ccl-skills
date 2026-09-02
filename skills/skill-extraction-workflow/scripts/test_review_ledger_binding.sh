@@ -454,7 +454,7 @@ out="$(run_part --base "$PART_BASE")"; rc=$?
 check "a manifest whose aggregate hash does not reproduce its partitions is refused" \
   '[ "$rc" = 1 ] && case "$out" in *"aggregate"*) true;; *) false;; esac'
 
-for bad_path in ":(exclude)lane-b" "-lane-b" "../lane-b" "/lane-b"; do
+for bad_path in ":(exclude)lane-b" "-lane-b" "../lane-b" "/lane-b" "lane-*" "lane-?" "lane-[ab]" "lane-\\b"; do
   probe_part
   python3 "$WORK/write-manifest.py" "$MANIFEST" "$PART_BASE" AUTO "lane-a=$HASH_A" "$bad_path=$HASH_B"
   git -C "$PART" add -A && git -C "$PART" commit -qm "manifest smuggles a pathspec"
@@ -462,6 +462,23 @@ for bad_path in ":(exclude)lane-b" "-lane-b" "../lane-b" "/lane-b"; do
   check "a manifest partition path shaped like $bad_path is refused as a path, not handed to git" \
     '[ "$rc" = 1 ] && case "$out" in *"partition path"*) true;; *) false;; esac'
 done
+
+out="$(run_part --base "$PART_BASE" --print-manifest --partition 'lane-*')"; rc=$?
+check "rendering refuses a wildcard partition instead of letting git expand it" \
+  '[ "$rc" != 0 ] && case "$out" in *"partition path"*"wildcard"*) true;; *) false;; esac'
+
+# Under a narrowed --paths scope the partition union must equal the reviewed
+# changed set, not merely contain it: a partition naming `.` reaches lane-b even
+# though only lane-a is under review, and that surplus is refused before any
+# packet is frozen. The ledgers are removed so the single-ledger path cannot
+# satisfy the narrowed scope first.
+probe_part
+git -C "$PART" rm -q "$PART/specs/round/evidence/closeout-a.json" "$PART/specs/round/evidence/closeout-b.json"
+python3 "$WORK/write-manifest.py" "$MANIFEST" "$PART_BASE" AUTO ".=$(printf '0%.0s' $(seq 64))"
+git -C "$PART" add -A && git -C "$PART" commit -qm "manifest reaches outside the reviewed scope"
+out="$(run_part --base "$PART_BASE" --paths lane-a)"; rc=$?
+check "a partition reaching changed paths outside a narrowed --paths scope is refused, not accepted as covering" \
+  '[ "$rc" = 1 ] && case "$out" in *"outside the reviewed scope"*"lane-b/big.txt"*) true;; *) false;; esac'
 
 probe_part
 git -C "$PART" rm -q "$PART/specs/round/evidence/closeout-b.json"

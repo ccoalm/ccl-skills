@@ -57,6 +57,7 @@
 - 空 → 拒（分区没覆盖任何变更）。
 - 并集 ≠ 整条候选的变更文件集 → 拒，列出未覆盖文件。
 - 两分区相交 → 拒，列出重叠文件（一个文件同时受两份 verdict 覆盖，哪份算数不可判）。
+- 并集 ⊋ 变更集（`--paths` 收窄时分区伸到审阅范围之外）→ 拒，列出范围外文件（round 1 命中：只查缺不查多会让并集不等于候选却通过）。
 
 「每一部分都在某个 packet 里，一个不落」（`code-review/SKILL.md:224`）由并集等式机械化；不交把它收紧成真正的分区。
 
@@ -74,7 +75,7 @@
 
 ### D7 — 分区路径的卫生
 
-清单里的路径必须是相对、无 `..`、不以 `:` 或 `-` 开头（不允许 pathspec magic，排除项由闸自己追加）、无控制字符、跨分区不重复。最多 64 个分区。
+清单里的路径必须是相对、无 `..`、不以 `:` 或 `-` 开头（不允许 pathspec magic，排除项由闸自己追加）、不含 glob/转义元字符 `* ? [ ] \`（git 对非 magic 路径同样按通配解释，评审 round 1/2 各自命中）、无控制字符、跨分区不重复。最多 64 个分区。
 
 ## Acceptance matrix（决策表：具名输入 → 单一裁决）
 
@@ -171,6 +172,12 @@ Owner map（`owner | direction | status | reason`）：
 - `testing-strategy` | sibling（评审/测试层） | unchanged | 突变走查与精度行按其既有规则执行，无新规则
 - `platform-release-engineering` | downstream（晋升/发布） | unchanged | 晋升配方不变，只是不再需要拆 wave；无技能文本需改
 - `.github/workflows/ci.yml` | 非技能 | updated | 注释区分两类聚合
+
+## 评审轮记录（dual-track，extraction lane 1+1，fix hold 到 challenge 之后）
+
+- Round 1 review（codex，候选 `1fcd7cd4…`）：2 条 P2——分区路径未拒 glob 元字符；`--paths` 收窄时并集可超出变更集。
+- Round 2 challenge（codex，同一候选，focus＝通过清单路径绕过接受）：1 条 P2，与 round 1 第一条同类（独立命中）。
+- 处置：两类均 fixed（拒 `* ? [ ] \`；并集与变更集要求相等），各补用例并跑 RED 差分；修复批移动了候选，按规则欠一轮 succession challenge 绑定落地候选。
 
 ## Status-sync target
 
