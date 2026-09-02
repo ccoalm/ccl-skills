@@ -14,5 +14,28 @@ const required=["marketplace/.agents/plugins/marketplace.json","marketplace/.cla
 for(const p of required)if(!files.some(f=>f.path===p))fail(`missing runtime closure: ${p}`)
 const marketplace=JSON.parse(readFileSync(join(root,required[0]),"utf8"));if(marketplace.name!=="ccl-skills-npm"||marketplace.plugins?.[0]?.source?.path!=="./plugins/ccl-skills")fail("marketplace target mismatch")
 const claudeMarketplace=JSON.parse(readFileSync(join(root,required[1]),"utf8"));if(claudeMarketplace.name!=="ccl-skills-npm"||claudeMarketplace.plugins?.[0]?.source!=="./plugins/ccl-skills")fail("Claude marketplace target mismatch")
-const plugin=JSON.parse(readFileSync(join(root,required[3]),"utf8"));if(Object.hasOwn(plugin,"version"))fail("plugin.json must not contain version")
+// Version authority is package.json -> release.json, and nothing else. A `version` in
+// plugin.json would be a second authority AND would change host behaviour: Claude Code
+// resolves a plugin's version from plugin.json first and, once set, "the plugin is pinned
+// to this string and users only receive updates when it changes" - so a pointer that drifts
+// from package.json silently freezes updates for anyone installing through the marketplace,
+// while `ccl-skills update` kept working. Omitting it leaves this plugin on resolution step 5
+// ("unknown, for npm sources or local directories not inside a git repository"), which is
+// correct here: updates are owned by the CLI's own release.json/snapshotHash comparison.
+//   source:   docs.claude.com/en/docs/claude-code/plugins-reference, "Version management"
+//             (resolution order) + plugin-marketplaces, marketplace entry `version` field.
+//   verified: 2026-09-01, against those pages as published that day and against Claude
+//             Code 2.1.235 locally. Upstream does not version its docs, so the revision
+//             is pinned by date; the pages date their own behaviour changes inline
+//             ("Before v2.1.222 ...", "Before v2.1.239 ..."), which is how a later
+//             reader can tell whether the contract moved under this annotation.
+//   invalidated by: a Claude Code release whose notes touch plugin version resolution or
+//             marketplace entry fields (re-read both pages and re-date this block); this
+//             package distributing through a git-hosted marketplace or the `/plugin
+//             update` path instead of the CLI; or the resolution order changing. Each
+//             makes an absent version the wrong default, not merely a redundant one.
+// Both host manifests are checked. The ban previously read only required[3] (the Codex one),
+// leaving the Claude manifest - the one the resolution order above makes load-bearing -
+// unguarded; both happened to be clean, so nothing had surfaced it.
+for(const manifest of [required[2],required[3]]){const plugin=JSON.parse(readFileSync(join(root,manifest),"utf8"));if(Object.hasOwn(plugin,"version"))fail(`${manifest} must not contain version`)}
 console.log(JSON.stringify({status:"packed-verified",files:files.length,snapshotHash:release.snapshotHash,sourceState:release.sourceState}))
