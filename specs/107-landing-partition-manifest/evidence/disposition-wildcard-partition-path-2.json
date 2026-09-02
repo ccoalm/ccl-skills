@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "8c67681aea5fd496f241d8d6cd4fea67524e1374ebd844e73684c8c7aa61d462",
+  "receipt_sha256": "d2ab2332b91c35321e8ed81d5c3a047135b8453bac793379a74cbd886d593940",
+  "finding_sha256": "9519e3bde09787956729b290bef5cea4aff2a8dc65c30fb9f5bc00eef8074d69",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "d2ab2332b91c35321e8ed81d5c3a047135b8453bac793379a74cbd886d593940",
+      "finding_sha256": "9519e3bde09787956729b290bef5cea4aff2a8dc65c30fb9f5bc00eef8074d69"
+    }
+  ],
+  "evidence": [
+    "Same class as the round-1 finding, independently hit by the adversarial challenge on the same frozen candidate; resolved by the same metacharacter refusal in validate_partition_path.",
+    "Command: bash skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh (`lane-*`, `lane-?`, `lane-[ab]`, `lane-\\b` manifest shapes are refused as `partition path`)."
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "8c67681aea5fd496f241d8d6cd4fea67524e1374ebd844e73684c8c7aa61d462",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "ledger-round1-review.json",
+      "sha256": "91206540ea594d044f0c054d13f4ceefc771d899fa6bb2c04978d7955c66bf3b"
+    },
+    {
+      "sequence": 2,
+      "file": "ledger-round2-challenge.json",
+      "sha256": "d2ab2332b91c35321e8ed81d5c3a047135b8453bac793379a74cbd886d593940"
+    },
+    {
+      "sequence": 3,
+      "file": "ledger-round3-succession-challenge.json",
+      "sha256": "406b907e27520c3216b5ac7ca7ec4e0a4fba05bfcbdd5722580d8bc19d335727"
+    }
+  ],
+  "completion_receipt": {
+    "file": "ledger-completion.json",
+    "sha256": "d33f5e52827c1572f3d4ab6c78b8c05f1f37fa2d650a80c8d2b787e11e0ac9b7"
+  },
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "3813339eb41c679acb4bd3b1bd0f349e86533d07",
+      "confirmed_at": "2026-09-02T12:02:20Z",
+      "controller_receipt_sha256": "91206540ea594d044f0c054d13f4ceefc771d899fa6bb2c04978d7955c66bf3b",
+      "evidence_file": "ledger-base-attestation-1.txt",
+      "evidence_sha256": "4cb2f5d87d14d264c17840e80c570adb93cd828f1ea9da05c0fcf528054965b4"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "3813339eb41c679acb4bd3b1bd0f349e86533d07",
+      "confirmed_at": "2026-09-02T13:55:33Z",
+      "controller_receipt_sha256": "d2ab2332b91c35321e8ed81d5c3a047135b8453bac793379a74cbd886d593940",
+      "evidence_file": "ledger-base-attestation-2.txt",
+      "evidence_sha256": "4cb2f5d87d14d264c17840e80c570adb93cd828f1ea9da05c0fcf528054965b4"
+    },
+    {
+      "sequence": 3,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "3813339eb41c679acb4bd3b1bd0f349e86533d07",
+      "confirmed_at": "2026-09-02T13:56:36Z",
+      "controller_receipt_sha256": "406b907e27520c3216b5ac7ca7ec4e0a4fba05bfcbdd5722580d8bc19d335727",
+      "evidence_file": "ledger-base-attestation-2.txt",
+      "evidence_sha256": "4cb2f5d87d14d264c17840e80c570adb93cd828f1ea9da05c0fcf528054965b4"
+    }
+  ],
+  "autonomous_round": 3,
+  "controller_review_state": "self_reviewed",
+  "finding_classes": [
+    {
+      "key": "wildcard-partition-path",
+      "root_cause_predicate": "The manifest was allowed to influence what git enumerated on its behalf: validate_partition_path rejected only leading pathspec magic, so a glob metacharacter inside a partition path reached git as a wildcard and let the manifest choose its own coverage.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "91206540ea594d044f0c054d13f4ceefc771d899fa6bb2c04978d7955c66bf3b",
+          "finding_sha256": "30e234b7755a764778cd82de2bae4bb3aa4d8c37e0d5266412f59f1d1a8f44b6",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-wildcard-partition-path-1.json",
+          "disposition_evidence_sha256": "5100be951bc09d0140490e22dee020bad3b80f9097aeee9df535bdad6e12b384"
+        },
+        {
+          "receipt_sha256": "d2ab2332b91c35321e8ed81d5c3a047135b8453bac793379a74cbd886d593940",
+          "finding_sha256": "9519e3bde09787956729b290bef5cea4aff2a8dc65c30fb9f5bc00eef8074d69",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-wildcard-partition-path-2.json",
+          "disposition_evidence_sha256": "ad2c67f768918d2b68a48727f696239e261be24035ddfd8fcf1289827175b281"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "partition-union-exceeds-scope",
+      "root_cause_predicate": "partition_coverage checked only that no reviewed changed file was uncovered, so under a narrowed --paths scope a partition could reach changed files outside the reviewed set and the union was larger than the candidate with nothing to refuse it.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "91206540ea594d044f0c054d13f4ceefc771d899fa6bb2c04978d7955c66bf3b",
+          "finding_sha256": "e7e20c7df949663e7b96550b4c4a310ce85f20901766ce5f6ba1786ca6dc49b7",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-partition-union-exceeds-scope-1.json",
+          "disposition_evidence_sha256": "893b790d63eb76975ffce8c585b76b0f6fee2805f3943b8dd047f553e89519ce"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "ready_for_human_decision"
+}
