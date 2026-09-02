@@ -194,6 +194,86 @@ run_gate
 assert_not_contains "impact_chain_firing_path_missing" "$out" "a changed shebang owner executable should satisfy the firing-path gate"
 assert_rc "$rc" 0 "a complete RED row with a changed owner executable must pass"
 
+# Non-ASCII anchors must be accepted, and the proof must be DIFFERENTIAL rather
+# than one literal passing: a special-cased implementation, or one that handles
+# Han but not a combining mark, would satisfy a single-literal leg. Each row below
+# pairs a non-ASCII anchor with an ASCII anchor matched on everything the gate
+# actually predicates on - uniqueness, the 16-character bar, list-line shape, a
+# whitelisted normative verb - so the two verdicts must agree. This exists because
+# a round concluded from reading the wrong lambda (`raw_blob_at` forces binary;
+# `locator_valid` resolves through `blob_at`, which does not) that a non-ASCII
+# anchor could never validate, and recorded a defect that was not there.
+#
+# Representations covered: Han; a precomposed Latin letter (NFC, two bytes); the
+# same letter decomposed into base + combining mark (NFD, so the anchor carries a
+# codepoint that is not a character on its own).
+anchor_pair_case() {
+  # $1 = case label, $2 = non-ASCII anchor, $3 = ASCII anchor of the same shape
+  local label="$1" nonascii="$2" ascii="$3" verdict_nonascii verdict_ascii
+  new_case "case-ref-anchor-pair-$label-nonascii"
+  printf '\n- %s\n' "$nonascii" >> "$REPO/$UPSTREAM_REF"
+  printf '| Fixture anchor pair %s non-ASCII | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#%s | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' "$label" "$nonascii" >> "$REGISTER"
+  routing_surface_downscope
+  commit_case "anchor pair $label non-ASCII"
+  run_gate
+  verdict_nonascii="$rc"
+
+  new_case "case-ref-anchor-pair-$label-ascii"
+  printf '\n- %s\n' "$ascii" >> "$REPO/$UPSTREAM_REF"
+  printf '| Fixture anchor pair %s ASCII | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#%s | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' "$label" "$ascii" >> "$REGISTER"
+  routing_surface_downscope
+  commit_case "anchor pair $label ASCII"
+  run_gate
+  verdict_ascii="$rc"
+
+  assert_rc "$verdict_ascii" 0 "the ASCII control of pair $label must be accepted"
+  assert_rc "$verdict_nonascii" "$verdict_ascii" "pair $label: the non-ASCII anchor must get the same verdict as its ASCII control"
+}
+
+anchor_pair_case han \
+  '下游执行者必须在收到该契约变更时同步更新其验证面。' \
+  'The downstream executor must refresh its verification surface on this change.'
+# Same sentence and the same whitelisted verb in both arms; only the accented
+# codepoint differs, so a verdict difference can only come from byte composition.
+anchor_pair_case nfc \
+  'The owner must refresh its vérification surface on this change.' \
+  'The owner must refresh its verification surface on this change.'
+anchor_pair_case nfd \
+  'The owner must refresh its vérification surface on that change.' \
+  'The owner must refresh its verification surface on that change.'
+
+# When one owner carries several RED rows, the owner-level check reddens the whole
+# package for a single bad row — so the diagnostic must name WHICH row failed.
+# Without it the author inspects the row they just wrote (usually the correct one)
+# while an unrelated row is the offender; that cost one round three iterations.
+new_case case-ref-firing-path-names-offending-row
+printf '\n- 下游执行者必须在收到该契约变更时同步更新其验证面。\n' >> "$REPO/$UPSTREAM_REF"
+printf '| Fixture good row beside a bad one | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#下游执行者必须在收到该契约变更时同步更新其验证面 | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+printf '| Fixture offending row with an unresolvable anchor | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#this anchor text was never added by this round | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
+commit_case "one good row beside one unresolvable row"
+run_gate
+assert_rc "$rc" 1 "an unresolvable anchor on any bound RED row must fail the owner"
+assert_contains "impact_chain_firing_path_missing" "$out" "checker should report the firing-path verdict"
+assert_contains "Fixture offending row with an unresolvable anchor" "$out" "the diagnostic must name the offending row"
+assert_not_contains "offending row: Fixture good row beside a bad one" "$out" "the diagnostic must not name a row whose anchor resolves"
+
+# The offending-row line renders repository text a contributor controls onto a
+# terminal/CI channel. Control and invisible characters must be escaped, not merely
+# truncated: raw ANSI or carriage-return bytes can erase or restyle surrounding
+# output, and bidi overrides can reorder it, so a reader sees a diagnostic that does
+# not match what the gate decided. Both reviewer lanes raised this independently.
+new_case case-ref-offending-row-escapes-control-bytes
+printf '\n- 下游执行者必须在收到该契约变更时同步更新其验证面。\n' >> "$REPO/$UPSTREAM_REF"
+printf '| Fixture control-byte row \033[31m\rSPOOFED\u202E | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/references/adr-convention.md#this anchor text was never added by this round | `updated` | `product-rd-workflow/SKILL.md` reference edit |\n' >> "$REGISTER"
+routing_surface_downscope
+commit_case "offending row carrying control bytes"
+run_gate
+assert_rc "$rc" 1 "an unresolvable anchor must still fail with a control-byte row"
+assert_contains "\\u001B" "$out" "the diagnostic must escape an ANSI introducer rather than emit it"
+assert_contains "\\u000D" "$out" "the diagnostic must escape a carriage return rather than emit it"
+assert_contains "\\u202E" "$out" "the diagnostic must escape a bidi override rather than emit it"
+
 # A malformed impact-chain-looking row (wrong cell count) is warned but stays
 # advisory: hard-blocking would false-positive on the register's many other
 # legitimate table shapes, and deliberate mangling is outside the trust model
@@ -1329,6 +1409,6 @@ assert_rc "$rc" 1 "a directory masquerading as SKILL.md must not read as a prese
 assert_contains "platform-observability/SKILL.md" "$out" "the masqueraded owner must be named"
 
 assert_rc "$full_check_runs" 1 "fixture suite must retain exactly one full checker wiring case"
-assert_rc "$gate_runs" 80 "all remaining impact-chain fixtures must run the standalone gate"
+assert_rc "$gate_runs" 88 "all remaining impact-chain fixtures must run the standalone gate"
 
 echo "test_check_ccl_impact_chain_refscripts: ok"
