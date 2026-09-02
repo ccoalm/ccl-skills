@@ -1327,19 +1327,48 @@ if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_
     # path is broken gets the firing-path message; every other failure shape
     # gets the behavior-evidence message. (A declared wording-only row can
     # never be a RED row, so no exclusion is needed here.)
-    firing_path_incomplete = evaluated.any? do |entry|
-      entry[:red_declared] && !entry[:firing_path_valid]
-    end
-    if firing_path_incomplete
-      firing_path_failures << path
+    # Name the OFFENDING ROWS, not just the owner. The owner-level `all?` above
+    # means one bad row reddens the package, so an owner-only diagnostic sends the
+    # author to inspect whichever row they were just writing — which is usually the
+    # correct one. Observed: a round whose new row was fine failed because an
+    # unrelated ALREADY-COMMITTED ledger row had been edited by an unbounded string
+    # replace; the edit made that old row an added row of this round, so its own
+    # original anchor no longer resolved here. Three iterations went into rewriting
+    # the good anchor before the real offender was found by patching debug output
+    # into this script. The row identity is what closes that gap.
+    offending_rows = evaluated.each_index.select do |index|
+      evaluated[index][:red_declared] && !evaluated[index][:firing_path_valid]
+    end.map { |index| owner_rows[index] }
+    if offending_rows.any?
+      firing_path_failures << { path: path, rows: offending_rows }
     else
       behavior_failures << path
     end
   end
+  # First cell of a ledger row, bounded: enough to recognise which row is meant
+  # without dumping a multi-thousand-character evidence cell into the diagnostic.
+  # This renders REPOSITORY TEXT a contributor controls onto a terminal/CI channel,
+  # so it is scrubbed before it is printed, not merely bounded. C0/C1 controls,
+  # bidi overrides, and zero-width characters can erase earlier output, restyle it,
+  # or reorder the rendered row so the named offender is not the one a reader sees —
+  # a length cap does nothing about any of that. Invalid bytes are replaced first so
+  # the escape pass cannot raise on a malformed cell. Both reviewer lanes raised this
+  # independently.
+  CONTROL_OR_INVISIBLE = /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028-\u202E\u2060-\u2064\u206A-\u206F\uFEFF]/.freeze
+  row_label = lambda do |row|
+    cell = row[:line].to_s.sub(/\A\+/, "").split("|")[1].to_s.strip
+    cell = cell.empty? ? row[:line].to_s.strip : cell
+    visible = cell.scrub("?").gsub(CONTROL_OR_INVISIBLE) { |ch| format("\\u%04X", ch.ord) }
+    visible.length > 120 ? "#{visible[0, 117]}..." : visible
+  end
   unless firing_path_failures.empty?
     warn "impact_chain_firing_path_missing: RED-baseline row has no owner-scoped firing path in this committed diff"
     warn "  fix: point to this owner with `firing-path: command:<changed repo executable>` or `firing-path: file:<changed markdown>#<unique token on a changed numbered/list rule with a normative action>`"
-    firing_path_failures.each { |path| warn "  incomplete: #{path}" }
+    warn "  note: the rows named below are the ones that failed — every RED row bound to an owner must resolve, so a row you did not intend to touch can redden the owner. If a named row is one you only EDITED, it became an added row of this round and its original anchor no longer resolves against this round's diff: restore that row rather than rewriting an anchor that was already correct."
+    firing_path_failures.each do |entry|
+      warn "  incomplete: #{entry[:path]}"
+      entry[:rows].each { |row| warn "    offending row: #{row_label.call(row)}" }
+    end
     exit 1
   end
   unless behavior_failures.empty?
