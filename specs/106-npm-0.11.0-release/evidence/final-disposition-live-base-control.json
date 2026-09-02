@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "efe2ce32c700a842c4da2eac89c46b302d2ce5360a0eb47fa4f688197c91b65a",
+  "receipt_sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5",
+  "finding_sha256": "90cdcef1c8fdc1a35c079a0ef798a93b996a5ee856455ef84bcdc16795244257",
+  "disposition": "pre_existing_out_of_scope",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "e8b476a6e64f92785041b533f1f3c415a57972e05a51a266d9644a4b617588b5",
+      "finding_sha256": "90cdcef1c8fdc1a35c079a0ef798a93b996a5ee856455ef84bcdc16795244257"
+    }
+  ],
+  "evidence": [
+    "The existing dual-track protocol explicitly keeps live remote authority outside candidate-controlled code and assigns git ls-remote plus HEAD-containment checks to the caller until a trusted wrapper or platform enforces them.",
+    "Before review and challenge, live git ls-remote origin refs/heads/dev returned bcdd82a682710a562cbd9cdba5e248d0dfa2e222 and git rev-list --count HEAD..<sha> returned 0 at 2026-09-02T03:52:21Z and 2026-09-02T03:53:10Z.",
+    "Adding a new candidate-owned verifier would expand this npm version PR into review-governance design and still could not authenticate its own remote observation; the required live recheck remains an external landing action."
+  ]
+}
