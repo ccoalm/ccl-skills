@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "2317757dc55a852095da99f5afa600eb14af855c6eec7caeaa384a84cec06758",
+  "receipt_sha256": "b3df84c527cb07b135d33ae8f059f8492ece0bd4dc5c0d07a94aaa17da2246fa",
+  "finding_sha256": "afb4a6e823bd6f51f3512b118d80d3c41e84929cdc3180b5d10d867ba89259b0",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "b3df84c527cb07b135d33ae8f059f8492ece0bd4dc5c0d07a94aaa17da2246fa",
+      "finding_sha256": "afb4a6e823bd6f51f3512b118d80d3c41e84929cdc3180b5d10d867ba89259b0"
+    }
+  ],
+  "evidence": [
+    "Same class as the round-1 review finding: specs/108-defect-diagnosis-benchmark/evidence/attribution-evidence.md now carries, per changed attribution in the playbook Sources section, the page URL, read date, and the sentence-level excerpt that supports it (SRE ch.12, Debugging Book intro/delta/statistical, git-bisect, arXiv 2103.12447, arXiv 2407.01489, debug-gym), and states that Agans is unread and unattributed.",
+    "Residual: the evidence file is caller-controlled (recorded evidence-is-caller-controlled boundary); the succession challenge reviews it inside the packet."
+  ]
+}
