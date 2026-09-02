@@ -150,6 +150,8 @@
       "authoritative_sweep": null
     }
   ],
-  "unreviewed_delta": [],
+  "unreviewed_delta": [
+    "specs/065-uiux-evidence-delivery/obligation-preservation.md regenerated with obligation-ledger.py render (same base/head/mapping): one derived line range updated, row O0384 carrier skills/defect-diagnosis/SKILL.md 145-145 -> 154-154, because the reviewed entrypoint insertions shifted the carrier; no obligation text, mapping, or rule content changed. Post-review batch, not reviewed; required to keep the heavy regression lane's repository obligation audit green."
+  ],
   "closeout_state": "continuation_authorization_required"
 }
