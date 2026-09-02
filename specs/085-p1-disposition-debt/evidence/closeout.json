@@ -1,0 +1,71 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "48b2ab052855006ef09c85fdeda795c238b423eeabbaff9fe56b1a20b9243d7d",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "ledger-round1-review.json",
+   "sha256": "0d4ec074b4500d73ffdc007128a76934a6f6c71eb7fb451a7551cf10d096efc5"
+  },
+  {
+   "sequence": 2,
+   "file": "ledger-round2-challenge.json",
+   "sha256": "ede60d14c91513e8e029351c715d144c3bbb70fa3431985f063961053a801b81"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "ee8b22fd37da67baaba292cc2c50488eab8110b6",
+   "confirmed_at": "2026-09-01T12:00:00Z",
+   "controller_receipt_sha256": "0d4ec074b4500d73ffdc007128a76934a6f6c71eb7fb451a7551cf10d096efc5",
+   "evidence_file": "ledger-base-attestation-1.txt",
+   "evidence_sha256": "9360734d2a95e88562e6c3f8a2c457b038e767c4a3a289fd14f5df50e80dd5f2"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "ee8b22fd37da67baaba292cc2c50488eab8110b6",
+   "confirmed_at": "2026-09-01T12:01:00Z",
+   "controller_receipt_sha256": "ede60d14c91513e8e029351c715d144c3bbb70fa3431985f063961053a801b81",
+   "evidence_file": "ledger-base-attestation-2.txt",
+   "evidence_sha256": "9360734d2a95e88562e6c3f8a2c457b038e767c4a3a289fd14f5df50e80dd5f2"
+  }
+ ],
+ "autonomous_round": 2,
+ "controller_review_state": "post_review_budget",
+ "finding_classes": [
+  {
+   "key": "evidence-is-caller-controlled",
+   "root_cause_predicate": "Every predicate this gate can write for `this is a review receipt` is a proxy over a file the candidate itself supplies, so the exclusion can be satisfied by a file that is not one. Four shapes were broken across four rounds -- the whole subtree, the evidence directory, the JSON content field, and the filename read as a pattern -- which is the already-recorded boundary that a gate living inside the candidate cannot authenticate what it reads. Recorded for a person: accept the residual, or replace the exclusion mechanism outright.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
+   "occurrences": [
+    {
+     "receipt_sha256": "0d4ec074b4500d73ffdc007128a76934a6f6c71eb7fb451a7551cf10d096efc5",
+     "finding_sha256": "be4f285d29a7abdc941c23a72e8f5aa19a3def102cae1823a0ea43040ea764b3",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "residual-stated-in-the-candidate",
+   "root_cause_predicate": "The remaining findings restate boundaries this round records rather than closes: merge-queue and direct-push events are outside the step's condition, and a tampered excluded receipt was measured to leave the verdict byte-identical because the path is outside the candidate and evidence is read from `git ls-tree HEAD`. Both are carried to the human with their evidence rather than silently closed.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
+   "occurrences": [
+    {
+     "receipt_sha256": "ede60d14c91513e8e029351c715d144c3bbb70fa3431985f063961053a801b81",
+     "finding_sha256": "704377188054beaa49cd28cf2a24fa20e49b48bfc148886be69da45b75fe9944",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}

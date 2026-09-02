@@ -102,16 +102,27 @@ jobs:
       # unchecked. This binds the landing candidate to the evidence that
       # inspected it. It is base-relative, so a run without a resolvable base
       # reports itself unevaluated rather than passing.
-      # The events that carry a base, on purpose: any other event would have to
-      # pass by letting the gate exit clean having checked nothing, and a required
-      # job that passes without checking is worse than no job. Merges arrive
-      # through a pull request or a merge queue, both of which name their base;
-      # direct pushes to a protected branch are refused by the platform, which is
-      # the residual this scoping leaves and does not close.
+      # Scoped to the one event that carries a base, on purpose: any other event
+      # would have to pass by letting the gate exit clean having checked nothing,
+      # and a required job that passes without checking is worse than no job.
+      #
+      # Merge queues are NOT covered, and the coverage boundary is stated here
+      # rather than implied by a branch that cannot run. This step once also named
+      # `merge_group`, but `on:` above never subscribed to that event, so in a
+      # merge-queue run this workflow would not start at all -- the condition read
+      # as coverage while providing none. Enabling a queue therefore needs more
+      # than restoring the trigger: a merge_group HEAD combines several queued pull
+      # requests, and each committed ledger binds one individual candidate, so no
+      # ledger binds the aggregate and every otherwise-valid queued request would
+      # be refused. Binding an aggregate candidate is unsolved; until it is solved,
+      # do not enable a merge queue on a branch that requires this check.
+      #
+      # Direct pushes to a protected branch are refused by the platform, which is
+      # the other residual this scoping leaves and does not close.
       - name: Review ledger binds the landing candidate
-        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        if: github.event_name == 'pull_request'
         env:
-          CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha }}
         run: |
           python3 skills/skill-extraction-workflow/scripts/review_ledger_binding.py \
             --repo-root . --base "$CANDIDATE_BASE_REF"

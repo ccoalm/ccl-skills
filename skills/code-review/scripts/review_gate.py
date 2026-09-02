@@ -1605,6 +1605,7 @@ def _stable_binding_matches(
 def _validate_chain_succession(
     path_value: str,
     *,
+    review_chain_id: str,
     challenge_budget: int,
     review_scope_sha256: str,
     stage: str,
@@ -1655,6 +1656,14 @@ def _validate_chain_succession(
     predecessor_chain_id = prior.get("review_chain_id")
     if not isinstance(predecessor_chain_id, str) or not predecessor_chain_id.strip():
         reject("predecessor carries no chain id")
+    # A succession opens a second chain, so the chain it opens cannot be the chain
+    # it succeeds: reusing the id would let one chain keep succeeding itself, and
+    # every succession is a round the per-chain budget did not authorize. The
+    # closeout validator refuses this too, but only for a lane it reads whole --
+    # the controller mints one receipt at a time, and a caller that never closes a
+    # ledger never reaches that check. Refuse where the receipt is made.
+    if predecessor_chain_id == review_chain_id:
+        reject("may not succeed its own chain")
     if _review_scope_digest(prior.get("review_scope")) != prior.get(
         "review_scope_sha256"
     ):
@@ -3065,6 +3074,7 @@ def freeze_review_profile(
                 )
             succession = _validate_chain_succession(
                 args.predecessor_chain_result_file,
+                review_chain_id=review_chain_id,
                 challenge_budget=challenge_budget,
                 review_scope_sha256=review_scope_sha256,
                 stage=args.stage,
