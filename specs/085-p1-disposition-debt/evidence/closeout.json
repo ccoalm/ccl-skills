@@ -47,7 +47,9 @@
     {
      "receipt_sha256": "0d4ec074b4500d73ffdc007128a76934a6f6c71eb7fb451a7551cf10d096efc5",
      "finding_sha256": "be4f285d29a7abdc941c23a72e8f5aa19a3def102cae1823a0ea43040ea764b3",
-     "disposition": "needs_human_decision"
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-evidence-is-caller-controlled.json",
+     "disposition_evidence_sha256": "1df2148dd7922b60dd39022c826d0a597b116a1e93e8e68cbde03938056a9cf5"
     }
    ],
    "authoritative_sweep": null
