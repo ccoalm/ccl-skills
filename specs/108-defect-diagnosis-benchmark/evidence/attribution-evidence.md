@@ -12,6 +12,8 @@ Bounded evidence for the claims the review plan makes. Every excerpt below was r
   - Side effects: "Active tests may have side effects that change future test results."
   - Suggestive evidence: "Some tests may not be definitive, only suggestive. It can be very difficult to make race conditions or deadlocks happen in a timely and reproducible manner".
   - Notes: "Take clear notes of what ideas you had, which tests you ran, and the results you saw."
+- Google SRE Book, ch. 15 *Postmortem Culture* — `https://sre.google/sre-book/postmortem-culture/`
+  - Blame and reporting: "If a culture of finger pointing and shaming individuals or teams for doing the \"wrong\" thing prevails, people will not bring issues to light for fear of punishment." (supports the Phase C blameless-postmortem sentence; the earlier unsourced "demonstrably reduces report rate" claim was removed).
 - The Debugging Book, *Introduction to Debugging* — `https://www.debuggingbook.org/html/Intro_Debugging.html`
   - Scientific method: "formulate a prediction that can support or refute the hypothesis. Ideally, the prediction would distinguish the hypothesis from likely alternatives."
   - Fix gate: "you should start to fix your code if and only if you have a diagnosis that shows two things: Causality … Incorrectness".
@@ -45,5 +47,5 @@ Bounded evidence for the claims the review plan makes. Every excerpt below was r
 - `CCL_SKILL_BASE_REF=origin/dev bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` → `r0_status=private-ok`, `register_firing_path_resolution_ok`, `entrypoint_word_budget_blocking_ok`, `reference_line_budget_blocking_ok`, `ccl_skill_check_ok`, `ccl_skill_check_clean_ok` (exit 0).
 - Recurring anti-pattern grep panel over `skills/defect-diagnosis/SKILL.md` and `references/diagnosis-playbook.md` → 0 hits.
 - `python3 skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py --repo . --base-ref origin/dev` → `shared_git_surface_gate_ok`.
-- Word budget (gate token pattern, `check-size-budget.sh`): base body words 4416 → head see the size line in the same check output; blocking verdict `entrypoint_word_budget_blocking_ok`.
+- Word budget (`check-size-budget.sh`, `WORD_BUDGET_MAX = 5000`; token rule: one token per Han ideograph, otherwise maximal runs of Unicode letters/digits joined by `'`, `’`, `_`, or `-`; frontmatter stripped): base body words 4416 → head body words 4992 (limit 5000, delta +576); verdict line `changed_entrypoint_word_delta: skills/defect-diagnosis/SKILL.md base_body_words=4416 head_body_words=4992 delta_body_words=+576` followed by `entrypoint_word_budget_blocking_ok`, exit 0. The count is reproducible from the entrypoint alone with the token rule above.
 - Immovable anchors still resolve at head (`grep -c` in `skills/defect-diagnosis/SKILL.md`, each = 1): `never silently take the first row of N`; `the observation that would falsify it`; `must not be filed under a sibling stack's architecture skill`.

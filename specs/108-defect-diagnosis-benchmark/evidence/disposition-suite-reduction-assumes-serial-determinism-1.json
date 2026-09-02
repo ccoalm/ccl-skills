@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "fa27baf90379eea74f8f15d85955723959326b1bc2f3a8aa927afc7fe5926600",
+  "receipt_sha256": "edabff857ac9c6f251f504aff34b40c8648e8b3cdffec0cd381feb81ba511a86",
+  "finding_sha256": "854adf1966b9c1f223b68f7760b17da228a70eff03ec492b9fe1c02dda131fdb",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "edabff857ac9c6f251f504aff34b40c8648e8b3cdffec0cd381feb81ba511a86",
+      "finding_sha256": "854adf1966b9c1f223b68f7760b17da228a70eff03ec492b9fe1c02dda131fdb"
+    }
+  ],
+  "evidence": [
+    "SKILL.md and the playbook row now restrict suite reduction to a failure that reproduces on every run under a fixed serial order; parallel or intermittent failures keep the failing schedule and validate each kept or dropped subset over repeated runs per the existing flaky rule, or route to concurrency diagnosis.",
+    "Attribution: the Debugging Book chapter supports input reduction (delta debugging); its application to test-suite polluter search is corroborated by the installed process pack's polluter-finding script named in attribution-evidence.md, not by the chapter, and the Sources line keeps the chapter under input reduction."
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "fa27baf90379eea74f8f15d85955723959326b1bc2f3a8aa927afc7fe5926600",
+  "receipt_sha256": "3df05abaf517a3aaff1366408a0410d88821c984d374b9e8a0156779a174ba2f",
+  "finding_sha256": "40ea8808a554660b693ec2b39b4ed5be57d30246ca2fb2662a019ee1155c720b",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "3df05abaf517a3aaff1366408a0410d88821c984d374b9e8a0156779a174ba2f",
+      "finding_sha256": "40ea8808a554660b693ec2b39b4ed5be57d30246ca2fb2662a019ee1155c720b"
+    }
+  ],
+  "evidence": [
+    "The sentence now states the SRE Postmortem Culture chapter's own reason (where blame prevails, people stop bringing issues to light) and the chapter's exact sentence is quoted in attribution-evidence.md; the 'demonstrably reduces report rate' claim was removed."
+  ]
+}
