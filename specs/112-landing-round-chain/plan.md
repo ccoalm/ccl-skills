@@ -45,7 +45,7 @@
 
 ### D2 — 逐轮求值复用闸本身，深度为 1
 
-逐轮求值 = 同一段绑定逻辑（单 ledger 或分区清单）在 `(worktree(p2), base=p1)` 上执行，用**该轮检出里的** controller 与 validator（与 docstring「闸跑候选自己的 validator」同一立场；那轮进 dev 时 CI 判的就是这套）。逐轮求值**不再尝试链**——一条链的节点必须是单 ledger 或分区清单直接绑定的轮；嵌套链不在 scope，避免无界递归。
+逐轮求值 = 同一段绑定逻辑（单 ledger 或分区清单）在 `(worktree(p2), base=p1)` 上执行，用**落地树（HEAD）的** controller 与 validator，不用该轮自己检出里的那套。初稿用的是该轮自己的工具（理由：那轮进 dev 时 CI 判的就是它），challenge 命中了它的漏洞：一轮可以在自己的分支里换上掏空的 validator、伪造 ledger、再由后一轮把 validator 换回来——用历史的工具判历史，那份伪造永远成立。用落地树的工具后，这种伪造被真 validator 拒；代价是 controller/validator 在轮次与晋升之间变过时旧轮可能不再复现，那读作拒绝而不是通过。逐轮求值**不再尝试链**——一条链的节点必须是单 ledger 或分区清单直接绑定的轮；嵌套链不在 scope，避免无界递归。
 
 ### D3 — 每一步的树必须等于自动合并树
 
@@ -74,7 +74,8 @@
 ### D8 — 边界（明写，不掩盖）
 
 - 链绑定证明的仍是同一件窄事：落地的每一字节都被某轮外部评审冻结过——按轮取。不证明那轮诚实，不证明它没漏。
-- 用各轮自己的 controller/validator：一轮若在自己分支里掏空 validator 而自绑，那轮进 dev 时 CI 已经放过它（既有边界「候选改写 validator 不在仓内可判范围」），本轮不扩大也不收窄这条边界。
+- 各轮用落地树的 controller/validator 判（D2）：一轮若在自己分支里掏空 validator 而自绑，那轮进 dev 时 CI 已经放过它（既有边界「候选改写 validator 不在仓内可判范围」），但晋升时由 HEAD 的真 validator 重判、不再延续那次放行；掏空 HEAD 自身的 validator 仍在既有边界之外，由人审改闸的提交兜底。
+- 临时 worktree 的释放被验证：`git worktree remove` 的返回码被检查、`worktree list` 回读确认注销、目录确认不存在；释放失败是 `error` 不是通过。不跑 `git worktree prune`——它是仓库级的，会顺带清掉本次没创建的注册（review round 1 命中）。
 - merge_group 多 PR 聚合仍未解：队列里的 PR 还没有各自的 merge commit，链上没有节点。`ci.yml` 注释同步改写为这个准确边界。
 
 ## Acceptance matrix（决策表：具名输入 → 单一裁决）
@@ -183,7 +184,9 @@ Owner map（`owner | direction | status | reason`）：
 
 ## 评审轮记录（dual-track，extraction lane 1+1，fix hold 到 challenge 之后）
 
-（实施后填写）
+- Round 1 review（codex，候选 `c3aac761…`，`ledger-round1-review.json`）：2 条——P1 临时 worktree 释放时 `worktree remove` 返回码被丢弃、随后的仓库级 `worktree prune` 会顺带清掉本次没创建的注册、`rmtree` 可能留下悬空注册而闸仍报 ok；P2 链长恰为 64 步时循环退出前不再做祖先判定，把合法链误报为超限。
+- Round 2 challenge（codex，同一候选，focus＝绕过链 accept 路径，`ledger-round2-challenge.json`）：3 条——P1 一轮在自己分支里换上掏空的 validator、伪造 ledger、后一轮再把 validator 换回，用该轮自己的工具重判时伪造成立；P2 64 步 off-by-one（与 round 1 同一发现，独立命中）；P2 释放失败被吞（与 round 1 P1 同类）。
+- 处置（全部 hold 到 challenge 之后，一批修）：三类均 fixed——① 逐轮求值改用落地树的 controller/validator（`tools_root`），D2/D8 同步改写；② 释放改为检查返回码 + `worktree list` 回读 + 目录不存在，去掉 prune，失败即 `error`；③ 走链改成「先判祖先再判上限」。三条新用例先落在修复前的闸上（3 红），修复后 75 例全绿；真仓三轮复现在落地树工具下仍 `ok`。修复批移动了候选，按规则欠一轮 succession challenge 绑定落地候选。
 
 ## Status-sync target
 

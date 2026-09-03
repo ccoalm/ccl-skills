@@ -83,9 +83,17 @@ against its first parent; a non-merge commit is refused, because nothing
 reviewed binds what was pushed straight to the branch. Every step's tree must
 equal `git merge-tree --write-tree` of its parents, so a merge commit that
 carries a hand resolution or any other content beyond the automatic merge is
-refused as unreviewed. A round is rebound with the controller and validator of
-its own checkout, which is what judged it when it merged; a round is never
-itself a chain, so the walk is one level deep by construction. The chain is
+refused as unreviewed. A round is rebound with THIS checkout's controller and
+validator, never the round's own: a round could carry a hollowed validator in
+its own branch and a later round could restore the real one, so judging history
+with history's tools would let that round's forged ledger stand forever. Using
+the landing tree's tools means a controller or validator change between a round
+and the promotion can stop an old round reproducing, and that reads as a refusal
+rather than a pass. A round is never itself a chain, so the walk is one level
+deep by construction. The detached checkout is released with `git worktree
+remove` and its removal verified against the worktree list; a checkout that
+cannot be released is an error, never a pass, and nothing prunes registrations
+this run did not create. The chain is
 consulted only for the default path set: a narrowed `--paths` has no round-level
 ledger to bind. Merge-queue aggregation of several still-unmerged pull requests
 into one HEAD is yet another aggregate and remains unsolved: those requests have
@@ -753,9 +761,11 @@ def walk_first_parent_chain(repo_root: Path, base_tip: str) -> list[tuple[str, s
     """
     steps: list[tuple[str, str, str, str]] = []
     commit = git_read(repo_root, ["rev-parse", "--verify", "HEAD^{commit}"], "cannot resolve HEAD")
-    for _ in range(MAX_CHAIN_STEPS):
+    while True:
         if is_ancestor(repo_root, commit, base_tip):
             return steps
+        if len(steps) >= MAX_CHAIN_STEPS:
+            break
         parents = git_read(
             repo_root, ["rev-list", "--parents", "-n", "1", commit], f"cannot read parents of {commit[:12]}"
         ).split()[1:]
@@ -791,34 +801,68 @@ def detached_checkout(repo_root: Path, commit: str):
     the round binds or not.
     """
     path = Path(tempfile.mkdtemp(prefix="review-ledger-binding-round-"))
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(repo_root), "worktree", "add", "--detach", "--quiet", str(path), commit],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            raise SystemExit(
-                f"review_ledger_binding_error: cannot check out round head {commit[:12]}: "
-                f"{result.stderr.strip()}"
-            )
-        yield path.resolve()
-    finally:
-        subprocess.run(
-            ["git", "-C", str(repo_root), "worktree", "remove", "--force", str(path)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
-        subprocess.run(
-            ["git", "-C", str(repo_root), "worktree", "prune"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
+    added = subprocess.run(
+        ["git", "-C", str(repo_root), "worktree", "add", "--detach", "--quiet", str(path), commit],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if added.returncode != 0:
         shutil.rmtree(path, ignore_errors=True)
+        raise SystemExit(
+            f"review_ledger_binding_error: cannot check out round head {commit[:12]}: "
+            f"{added.stderr.strip()}"
+        )
+    resolved = path.resolve()
+    try:
+        yield resolved
+    finally:
+        problem = release_checkout(repo_root, path, resolved)
+        if problem:
+            emit(f"review_ledger_binding_error: cannot release the detached checkout {path}: {problem}")
+    # Reached only when the body did not raise: a verdict that would have been
+    # `ok` must not stand on a checkout this run failed to release. When the body
+    # raised, the outcome is already a refusal or an error and the problem was
+    # emitted above.
+    if problem:
+        raise SystemExit(
+            f"review_ledger_binding_error: cannot release the detached checkout {path}: {problem}"
+        )
+
+
+def release_checkout(repo_root: Path, path: Path, resolved: Path) -> str | None:
+    """Remove the detached checkout and verify git no longer registers it.
+
+    The removal's result is checked, not discarded, and the registry is read
+    back: a stale registration left behind would make the next run's worktree
+    state a lie. No `worktree prune` runs here, because prune is repository-wide
+    and would also drop registrations this run did not create.
+    """
+    removed = subprocess.run(
+        ["git", "-C", str(repo_root), "worktree", "remove", "--force", str(path)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if removed.returncode != 0:
+        return f"git worktree remove failed: {removed.stderr.strip()}"
+    listing = subprocess.run(
+        ["git", "-C", str(repo_root), "worktree", "list", "--porcelain"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if listing.returncode != 0:
+        return f"cannot read the worktree list: {listing.stderr.strip()}"
+    registered = set(listing.stdout.splitlines())
+    if f"worktree {path}" in registered or f"worktree {resolved}" in registered:
+        return "the checkout is still registered after removal"
+    if path.exists():
+        return "the checkout directory still exists after removal"
+    return None
 
 
 def bind_chain(
@@ -828,8 +872,9 @@ def bind_chain(
 
     Returns (round count, proof lines) or raises ChainError naming the first
     step that does not add up. Each round is rebound by this same gate in a
-    detached checkout of its head against its first parent, with the controller
-    and validator of that checkout, and never as a chain of its own.
+    detached checkout of its head against its first parent, with THIS tree's
+    controller and validator (never the round's own), and never as a chain of
+    its own.
     """
     steps = walk_first_parent_chain(repo_root, base_tip)
     proofs: list[str] = []
@@ -840,7 +885,9 @@ def bind_chain(
             proofs.append(f"  sync {merge[:12]} (already on the base)")
             continue
         with detached_checkout(repo_root, second) as round_root:
-            binding = bind_candidate(round_root, first, DEFAULT_PATHS, evidence_root, allow_chain=False)
+            binding = bind_candidate(
+                round_root, first, DEFAULT_PATHS, evidence_root, allow_chain=False, tools_root=repo_root
+            )
         subject = git_read(repo_root, ["log", "-1", "--format=%s", merge], f"cannot read {merge[:12]}")
         if not binding.ok:
             reason = binding.failure[0] if binding.failure else "no accepted review evidence"
@@ -891,9 +938,16 @@ def bind_candidate(
     user_paths: tuple[str, ...],
     evidence_root: str,
     allow_chain: bool,
+    tools_root: Path | None = None,
 ) -> Binding:
-    """Evaluate one checkout against one base: single ledger, then manifest, then chain."""
+    """Evaluate one checkout against one base: single ledger, then manifest, then chain.
+
+    `tools_root` names the tree whose controller and validator judge the
+    candidate; it defaults to the checkout itself and is the landing tree when a
+    historical round is rebound, so a round never judges itself with its own tools.
+    """
     binding = Binding()
+    tools = tools_root if tools_root is not None else repo_root
     fork, excludes, paths, changed = candidate_scope(repo_root, base_tip, user_paths)
     binding.fork = fork
     binding.changed = changed
@@ -905,7 +959,7 @@ def bind_candidate(
         binding.summary = f"no reviewed-path change against {fork}"
         return binding
 
-    module = load_controller(repo_root)
+    module = load_controller(tools)
     # The whole candidate may be larger than one packet. That is no longer a
     # terminal error: record why the single freeze failed and let a committed
     # partition manifest bind the candidate part by part.
@@ -916,7 +970,7 @@ def bind_candidate(
     except Exception as exc:  # noqa: BLE001 - surface the controller's own message
         whole_error = str(exc)
 
-    validator = repo_root / "skills" / "skill-extraction-workflow" / "scripts" / VALIDATOR
+    validator = tools / "skills" / "skill-extraction-workflow" / "scripts" / VALIDATOR
     evidence = scan(repo_root, evidence_root)
     ledgers: list[str] = []
     if expected is not None:

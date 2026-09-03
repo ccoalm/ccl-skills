@@ -504,11 +504,18 @@ check "the passing partition state still passes after the probes" \
 CHAIN="$WORK/chain-repo"
 mkdir -p "$CHAIN/skills/code-review/scripts" "$CHAIN/skills/skill-extraction-workflow/scripts" "$CHAIN/specs"
 cp "$CONTROLLER" "$CHAIN/skills/code-review/scripts/review_gate.py"
-cat >"$CHAIN/skills/skill-extraction-workflow/scripts/validate_extraction_review_state.py" <<'PY'
-import sys
-print("extraction_review_state_ok: stub accepted")
-sys.exit(0)
-PY
+# This stub has a rule, unlike the accept-all stubs above, so a round can forge a
+# ledger the real validator would reject and the suite can tell whose validator
+# judged it.
+STRICT_VALIDATOR='import json, sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+if payload.get("closeout_state") == "ready_for_human_decision":
+    print("extraction_review_state_ok: stub accepted")
+    sys.exit(0)
+print("extraction_review_state_invalid: stub rejected")
+sys.exit(1)
+'
+printf '%s' "$STRICT_VALIDATOR" >"$CHAIN/skills/skill-extraction-workflow/scripts/validate_extraction_review_state.py"
 git -C "$CHAIN" init -q -b main .
 git -C "$CHAIN" config user.email t@example.invalid
 git -C "$CHAIN" config user.name tester
@@ -667,6 +674,74 @@ STALE_MERGE="$(git -C "$CHAIN" rev-parse --short=12 HEAD)"
 out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
 check "a round whose ledger binds a candidate it later moved away from is refused" \
   '[ "$rc" = 1 ] && case "$out" in *"round $STALE_MERGE"*"does not bind at its own base"*) true;; *) false;; esac'
+
+# A round is judged with the landing tree's controller and validator, never its
+# own: a round that installs an accept-all validator in its own branch, forges a
+# ledger the real validator rejects, and is later followed by a round restoring
+# the real validator must not bind through history's tools.
+probe_chain
+git -C "$CHAIN" checkout -q -b round-forged dev
+printf 'round forged\n' >"$CHAIN/lane/forged.txt"
+printf 'import sys\nprint("extraction_review_state_ok: hollow validator accepts everything")\nsys.exit(0)\n' \
+  >"$CHAIN/skills/skill-extraction-workflow/scripts/validate_extraction_review_state.py"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round forged"
+FORGED_DIGEST="$(run_chain --base dev --print-candidate)"
+mkdir -p "$CHAIN/specs/forged/evidence"
+python3 - "$CHAIN/specs/forged/evidence/closeout.json" "$FORGED_DIGEST" <<'PY'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({"schema_version": 3, "closeout_state": "forged", "controller_receipts": [], "candidate_sha256": sys.argv[2]}))
+PY
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round forged ledger"
+git -C "$CHAIN" checkout -q dev
+git -C "$CHAIN" merge -q --no-ff -m "merge round forged" round-forged
+FORGED_MERGE="$(git -C "$CHAIN" rev-parse --short=12 HEAD)"
+edit_round_restore() { printf '%s' "$STRICT_VALIDATOR" >"$CHAIN/skills/skill-extraction-workflow/scripts/validate_extraction_review_state.py"; }
+land_round restore with-ledger edit_round_restore
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a round that forged a ledger under its own hollow validator is refused even after a later round restored the real one" \
+  '[ "$rc" = 1 ] && case "$out" in *"round $FORGED_MERGE"*"does not bind at its own base"*) true;; *) false;; esac'
+
+# The walk is bounded at exactly 64 steps: a chain of 64 passes, 65 is refused.
+# Receipt-only rounds keep the fixture fast, since a round whose only change is
+# an excluded receipt binds as "no reviewed-path change" without a freeze.
+probe_chain
+fill_round() {
+  git -C "$CHAIN" checkout -q -b "round-fill-$1" dev
+  mkdir -p "$CHAIN/specs/fill-$1/evidence"
+  printf '{"schema_version": 3, "candidate_sha256": "%s"}\n' "$(printf '0%.0s' $(seq 64))" >"$CHAIN/specs/fill-$1/evidence/note.json"
+  git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "fill $1"
+  git -C "$CHAIN" checkout -q dev
+  git -C "$CHAIN" merge -q --no-ff -m "merge fill $1" "round-fill-$1"
+}
+for index in $(seq 1 61); do fill_round "$index"; done
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a chain of exactly 64 steps is still walked and binds" \
+  '[ "$rc" = 0 ] && case "$out" in *"first-parent chain"*"63 rounds"*) true;; *) false;; esac'
+fill_round 62
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a chain of 65 steps is refused as longer than the bound" \
+  '[ "$rc" = 1 ] && case "$out" in *"more than 64 steps"*) true;; *) false;; esac'
+
+# A checkout this run cannot release is an error, never a pass: the removal's
+# result is checked and the registry read back, and nothing prunes registrations
+# the run did not create. A git shim refuses only `worktree remove`.
+git -C "$CHAIN" checkout -q -B dev "$CHAIN_GOOD"
+REAL_GIT="$(command -v git)"
+mkdir -p "$WORK/fakegit" "$WORK/shim-tmp"
+cat >"$WORK/fakegit/git" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = "-C" ] && [ "\$3" = "worktree" ] && [ "\$4" = "remove" ]; then
+  echo "shim: refusing to remove the worktree" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$WORK/fakegit/git"
+out="$(PATH="$WORK/fakegit:$PATH" TMPDIR="$WORK/shim-tmp" run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a detached checkout that cannot be released turns the verdict into an error, never a pass" \
+  '[ "$rc" != 0 ] && case "$out" in *"cannot release the detached checkout"*) case "$out" in *review_ledger_binding_ok*) false;; *) true;; esac;; *) false;; esac'
+git -C "$CHAIN" worktree prune
 
 git -C "$CHAIN" checkout -q -B dev "$CHAIN_ADVANCED"
 out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
