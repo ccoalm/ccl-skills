@@ -3,7 +3,9 @@
 # host logs are read. Proves (1) per-file session counts and the touching
 # denominator, (2) the unevaluated sentinel when no transcript exists (never a
 # zero table), (3) the privacy contract — output carries no transcript text,
-# no absolute log path, no session id, (4) usage errors exit 2, and (5) the
+# no absolute log path, no session id, (2b) input errors (an unreadable
+# transcript) withhold the table with exit 2 instead of printing zeros or the ok
+# token, (4) usage errors exit 2, and (5) the
 # ARG_MAX regression: a candidate set larger than one xargs batch still counts
 # (the first version silently reported 0 on a large window).
 set -euo pipefail
@@ -54,8 +56,29 @@ printf '%s\n' "$out" | grep -qF "/abs/checkout" && fail "absolute checkout path 
 # (2) unevaluated sentinel: no transcripts at all
 EMPTY="$TMP/empty-logs"; mkdir -p "$EMPTY"
 eout="$(bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$EMPTY")" || fail "empty-log run must exit 0"
-[ "$(printf '%s\n' "$eout" | tail -1)" = "reference_access_census_unevaluated: no transcripts under $EMPTY within 30 days" ] || fail "missing unevaluated sentinel:\n$eout"
+[ "$(printf '%s\n' "$eout" | tail -1)" = "reference_access_census_unevaluated: no transcripts within 30d under 1 log root(s); counts withheld" ] || fail "missing unevaluated sentinel:\n$eout"
 printf '%s\n' "$eout" | grep -qE '\| 0 \|' && fail "an unevaluated run must not print a zero table"
+printf '%s\n' "$eout" | grep -qF "$EMPTY" && fail "unevaluated sentinel leaked the log root path"
+printf '%s\n' "$eout" | grep -qF "$TMP" && fail "unevaluated sentinel leaked an absolute path"
+
+# (2b) input errors withhold the table: an unreadable transcript is exit 2 + unevaluated, never zeros or ok
+UNREAD="$TMP/logs-unreadable"; mkdir -p "$UNREAD"
+printf '{"cmd":"cat skills/demo-skill/references/alpha.md"}\n' > "$UNREAD/readable.jsonl"
+printf '{"cmd":"cat skills/demo-skill/references/beta.md"}\n' > "$UNREAD/locked.jsonl"
+chmod 000 "$UNREAD/locked.jsonl"
+if [ -r "$UNREAD/locked.jsonl" ]; then
+  echo "note: chmod 000 is readable here (root); skipping the unreadable-input leg"
+else
+  uout="$(bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$UNREAD" 2>"$TMP/unread.stderr")" && fail "unreadable transcript must exit non-zero"
+  urc=$?
+  uout="$(bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$UNREAD" 2>/dev/null || true)"
+  bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$UNREAD" >/dev/null 2>&1 || [ $? -eq 2 ] || fail "unreadable transcript must exit 2"
+  printf '%s\n' "$uout" | grep -qF 'reference_access_census_unevaluated: 1 input error(s)' || fail "unreadable transcript must withhold counts as unevaluated:\n$uout"
+  printf '%s\n' "$uout" | grep -qF 'reference_access_census_ok' && fail "ok token printed after an input error"
+  printf '%s\n' "$uout" | grep -qE '\| [0-9]+ \|' && fail "a table was printed after an input error"
+  printf '%s\n' "$uout" | grep -qF "$UNREAD" && fail "input-error sentinel leaked the log path"
+fi
+chmod 644 "$UNREAD/locked.jsonl"
 
 # (4) usage errors exit 2
 if bash "$CENSUS" --repo-root "$REPO" --skill no-such-skill --logs "$LOGS" >/dev/null 2>&1; then fail "unknown skill must exit 2"; fi
