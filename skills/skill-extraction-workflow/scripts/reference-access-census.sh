@@ -38,7 +38,7 @@ set -euo pipefail
 skill="skill-extraction-workflow"
 days=60
 repo_root=""
-logs="${HOME}/.claude/projects,${HOME}/.codex/sessions"
+logs="${HOME:+${HOME}/.claude/projects,${HOME}/.codex/sessions}"
 logs_explicit=0
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -59,7 +59,7 @@ if [ -z "$repo_root" ]; then
 fi
 skill_dir="$repo_root/skills/$skill"
 if [ ! -d "$skill_dir" ]; then
-  echo "reference_access_census_usage_error: no skill package named skills/$skill under the repo root" >&2; exit 2
+  echo "reference_access_census_usage_error: --skill names no tracked skill package under the repo root" >&2; exit 2
 fi
 case "$days" in ''|*[!0-9]*) echo "reference_access_census_usage_error: --days must be an integer" >&2; exit 2 ;; esac
 
@@ -67,13 +67,13 @@ case "$days" in ''|*[!0-9]*) echo "reference_access_census_usage_error: --days m
 files=()
 while IFS= read -r f; do files+=("$f"); done < <(cd "$repo_root" && git ls-files "skills/$skill/SKILL.md" "skills/$skill/references/*.md" 2>/dev/null | sort)
 if [ "${#files[@]}" -eq 0 ]; then
-  echo "reference_access_census_usage_error: no tracked SKILL.md/references under skills/$skill" >&2; exit 2
+  echo "reference_access_census_usage_error: --skill names a package with no tracked SKILL.md or references" >&2; exit 2
 fi
 
 # Candidate transcripts: any .jsonl under the log roots modified within the window.
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
-IFS=',' read -r -a roots <<<"$logs"
-: > "$tmp/candidates"; : > "$tmp/errors"
+roots=(); if [ -n "$logs" ]; then IFS=',' read -r -a roots <<<"$logs"; fi
+: > "$tmp/candidates0"; : > "$tmp/errors"
 # Input errors are never zeros: every scan phase collects stderr, and a non-empty
 # error log withholds the table (exit 2) instead of printing counts that would
 # read as evidence. grep's no-match status writes nothing to stderr, so it never
@@ -95,10 +95,15 @@ for r in "${roots[@]}"; do
     if [ "$logs_explicit" -eq 1 ]; then echo "missing explicit log root" >> "$tmp/errors"; fi
     continue
   fi
-  find "$r" -type f -name '*.jsonl' -mtime "-$days" >> "$tmp/candidates" 2>> "$tmp/errors" || true
+  find "$r" -type f -name '*.jsonl' -mtime "-$days" -print0 >> "$tmp/candidates0" 2>> "$tmp/errors" || true
 done
 withhold_if_errors
-total_sessions="$(wc -l < "$tmp/candidates" | tr -d ' ')"
+# The inventory is NUL-delimited (a pathname may contain a newline) and
+# deduplicated by pathname: overlapping roots (a root and its own subtree, or
+# the same root twice) list a transcript more than once, and a session must
+# count once. Two names for one file (symlinked roots) are not canonicalized.
+sort -zu "$tmp/candidates0" -o "$tmp/candidates0"
+total_sessions="$(tr -cd '\0' < "$tmp/candidates0" | wc -c | tr -d ' ')"
 if [ "$total_sessions" -eq 0 ]; then
   echo "reference_access_census_unevaluated: no transcripts within ${days}d under ${#roots[@]} log root(s); counts withheld"
   exit 0
@@ -106,25 +111,25 @@ fi
 
 # Sessions that mention the package at all (fixed-string prefilter keeps this fast).
 # xargs batches keep this under ARG_MAX; grep exit 1 (no match in a batch) is not an error.
-tr '\n' '\0' < "$tmp/candidates" | xargs -0 -n 200 grep -lF "skills/$skill/" > "$tmp/touching" 2>> "$tmp/errors" || true
+xargs -0 -n 200 grep -lF --null "skills/$skill/" < "$tmp/candidates0" > "$tmp/touching0" 2>> "$tmp/errors" || true
 withhold_if_errors
-touching="$(wc -l < "$tmp/touching" | tr -d ' ')"
+touching="$(tr -cd '\0' < "$tmp/touching0" | wc -c | tr -d ' ')"
 
 # Per-file session count + last-touched date (mtime of the newest touching transcript).
 : > "$tmp/rows"
 for f in "${files[@]}"; do
   rel="${f#skills/$skill/}"
   if [ "$touching" -eq 0 ]; then n=0; last="-"; else
-    tr '\n' '\0' < "$tmp/touching" | xargs -0 -n 200 grep -lF "$f" > "$tmp/hits" 2>> "$tmp/errors" || true
+    xargs -0 -n 200 grep -lF --null "$f" < "$tmp/touching0" > "$tmp/hits0" 2>> "$tmp/errors" || true
     withhold_if_errors
-    n="$(wc -l < "$tmp/hits" | tr -d ' ')"
+    n="$(tr -cd '\0' < "$tmp/hits0" | wc -c | tr -d ' ')"
     if [ "$n" -gt 0 ]; then
       # BSD stat first, GNU stat as the fallback; only the fallback's failure is an
       # error. Every substitution is guarded so a failing pipeline cannot abort the
       # script under set -e before withhold_if_errors runs.
-      last="$(tr '\n' '\0' < "$tmp/hits" | xargs -0 stat -f '%Sm' -t '%Y-%m-%d' 2>/dev/null | sort | tail -1)" || last=""
+      last="$(xargs -0 stat -f '%Sm' -t '%Y-%m-%d' < "$tmp/hits0" 2>/dev/null | sort | tail -1)" || last=""
       if [ -z "$last" ]; then
-        last="$(tr '\n' '\0' < "$tmp/hits" | xargs -0 stat -c '%y' 2>> "$tmp/errors" | cut -c1-10 | sort | tail -1)" || last=""
+        last="$(xargs -0 stat -c '%y' < "$tmp/hits0" 2>> "$tmp/errors" | cut -c1-10 | sort | tail -1)" || last=""
       fi
       if [ -z "$last" ]; then
         [ -s "$tmp/errors" ] || echo "stat produced no timestamp for a touching transcript" >> "$tmp/errors"

@@ -120,6 +120,34 @@ done
 dout="$(HOME="$TMP/empty-home" bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30)" || fail "absent default roots must not be an input error"
 [ "$(printf '%s\n' "$dout" | tail -1)" = "reference_access_census_unevaluated: no transcripts within 30d under 2 log root(s); counts withheld" ] || fail "absent default roots must yield the no-transcript sentinel:\n$dout"
 
+# (10) overlapping log roots (a root and its own subtree, or a root listed twice) count each transcript once
+oout="$(bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$TMP/logs-codex,$TMP/logs-codex/2026,$TMP/logs-codex")" || fail "overlapping roots run exited non-zero"
+printf '%s\n' "$oout" | grep -qF 'transcripts=2 sessions_touching_package=2' || fail "overlapping roots must not double-count transcripts:\n$oout"
+printf '%s\n' "$oout" | grep -qE '^references/alpha\.md \| 1 \|' || fail "alpha must count once under overlapping roots:\n$oout"
+
+# (11) an invalid --skill value is never echoed back (a mistyped private identifier stays private)
+kerr="$(bash "$CENSUS" --repo-root "$REPO" --skill "acme-internal-secret-project" --logs "$LOGS" 2>&1 >/dev/null || true)"
+printf '%s\n' "$kerr" | grep -qF "acme-internal-secret-project" && fail "unknown --skill error echoed the caller's value"
+printf '%s\n' "$kerr" | grep -qF "usage_error" || fail "unknown --skill must still be reported as a usage error"
+
+# (12) a transcript whose name contains a newline is one candidate, not two broken ones
+NL="$TMP/logs-newline"; mkdir -p "$NL"; printf '{"cmd":"cat skills/demo-skill/references/beta.md"}\n' > "$NL/odd
+name.jsonl"
+nout="$(bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$NL")" || fail "newline-named transcript run exited non-zero"
+printf '%s\n' "$nout" | grep -qF 'transcripts=1 sessions_touching_package=1' || fail "newline in a transcript name must not split the candidate:\n$nout"
+
+# (13) HOME unset and no --logs: no default roots, the no-transcript sentinel, exit 0 (never an unbound-variable abort)
+hout="$(env -u HOME bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30)" || fail "unset HOME must not abort the census"
+[ "$(printf '%s\n' "$hout" | tail -1)" = "reference_access_census_unevaluated: no transcripts within 30d under 0 log root(s); counts withheld" ] || fail "unset HOME must yield the no-transcript sentinel:\n$hout"
+
+# (14) a transcript-read error forced by a command shim (root-independent twin of the chmod leg)
+GSHIM="$TMP/gshim"; mkdir -p "$GSHIM"
+printf '#!/usr/bin/env bash\necho "grep: transcript: Input/output error" >&2\nexit 2\n' > "$GSHIM/grep"; chmod +x "$GSHIM/grep"
+gout="$(PATH="$GSHIM:$PATH" bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$LOGS" 2>/dev/null || true)"
+PATH="$GSHIM:$PATH" bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$LOGS" >/dev/null 2>&1 || [ $? -eq 2 ] || fail "a grep read error must exit 2"
+printf '%s\n' "$gout" | grep -qF 'reference_access_census_unevaluated:' || fail "a grep read error must withhold counts:\n$gout"
+printf '%s\n' "$gout" | grep -qF 'reference_access_census_ok' && fail "ok token printed after a grep read error"
+
 # (9) a failing stat (a transcript vanishing before the timestamp read) withholds the table with exit 2 —
 # deterministic via a PATH shim, independent of filesystem permissions or root
 SHIM="$TMP/shim"; mkdir -p "$SHIM"
