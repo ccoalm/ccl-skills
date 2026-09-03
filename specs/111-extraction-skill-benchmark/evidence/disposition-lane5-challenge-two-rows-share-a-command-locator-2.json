@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "2f1891f7e7a7437c81cffb4e08f06fa1439093caf36496c157e30da878027598",
+ "receipt_sha256": "b154f01c8eb716b145daafde5f075e6e35ce3bf65ab9ea68646feb52f0fd9507",
+ "finding_sha256": "8e6150aa897f73b468f54507ed54a50489fa1dab10629f5d464a0d6a5f896820",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "b154f01c8eb716b145daafde5f075e6e35ce3bf65ab9ea68646feb52f0fd9507",
+   "finding_sha256": "8e6150aa897f73b468f54507ed54a50489fa1dab10629f5d464a0d6a5f896820"
+  }
+ ],
+ "evidence": [
+  "Same class as the review finding and lanes 1–4; the flag-without-value contract is exercised by test leg 6 and the row's evidence names it, so the locator resolves to the executable that fires."
+ ]
+}
