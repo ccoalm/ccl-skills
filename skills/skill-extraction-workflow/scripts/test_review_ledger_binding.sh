@@ -743,6 +743,26 @@ check "a detached checkout that cannot be released turns the verdict into an err
   '[ "$rc" != 0 ] && case "$out" in *"cannot release the detached checkout"*) case "$out" in *review_ledger_binding_ok*) false;; *) true;; esac;; *) false;; esac'
 git -C "$CHAIN" worktree prune
 
+# `git worktree add` can register and populate the checkout and still return
+# nonzero. The failure is an error either way, but the registration it left
+# behind must be released and verified, not merely have its directory deleted.
+mkdir -p "$WORK/fakegit-add" "$WORK/shim-add-tmp"
+cat >"$WORK/fakegit-add/git" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = "-C" ] && [ "\$3" = "worktree" ] && [ "\$4" = "add" ]; then
+  "$REAL_GIT" "\$@"
+  echo "shim: worktree add failed after registering" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$WORK/fakegit-add/git"
+worktrees_before="$(git -C "$CHAIN" worktree list --porcelain)"
+out="$(PATH="$WORK/fakegit-add:$PATH" TMPDIR="$WORK/shim-add-tmp" run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a checkout creation that fails after registering is an error and leaves no registration or directory behind" \
+  '[ "$rc" != 0 ] && case "$out" in *"cannot check out round head"*) case "$out" in *review_ledger_binding_ok*) false;; *) true;; esac;; *) false;; esac && [ "$(git -C "$CHAIN" worktree list --porcelain)" = "$worktrees_before" ] && [ -z "$(ls -A "$WORK/shim-add-tmp")" ]'
+git -C "$CHAIN" worktree prune
+
 git -C "$CHAIN" checkout -q -B dev "$CHAIN_ADVANCED"
 out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
 check "the passing chain state still passes after the probes" \

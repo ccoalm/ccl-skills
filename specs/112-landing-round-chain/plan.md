@@ -187,6 +187,13 @@ Owner map（`owner | direction | status | reason`）：
 - Round 1 review（codex，候选 `c3aac761…`，`ledger-round1-review.json`）：2 条——P1 临时 worktree 释放时 `worktree remove` 返回码被丢弃、随后的仓库级 `worktree prune` 会顺带清掉本次没创建的注册、`rmtree` 可能留下悬空注册而闸仍报 ok；P2 链长恰为 64 步时循环退出前不再做祖先判定，把合法链误报为超限。
 - Round 2 challenge（codex，同一候选，focus＝绕过链 accept 路径，`ledger-round2-challenge.json`）：3 条——P1 一轮在自己分支里换上掏空的 validator、伪造 ledger、后一轮再把 validator 换回，用该轮自己的工具重判时伪造成立；P2 64 步 off-by-one（与 round 1 同一发现，独立命中）；P2 释放失败被吞（与 round 1 P1 同类）。
 - 处置（全部 hold 到 challenge 之后，一批修）：三类均 fixed——① 逐轮求值改用落地树的 controller/validator（`tools_root`），D2/D8 同步改写；② 释放改为检查返回码 + `worktree list` 回读 + 目录不存在，去掉 prune，失败即 `error`；③ 走链改成「先判祖先再判上限」。三条新用例先落在修复前的闸上（3 红），修复后 75 例全绿；真仓三轮复现在落地树工具下仍 `ok`。修复批移动了候选，按规则欠一轮 succession challenge 绑定落地候选。
+- Round 3 succession（codex，chain r2，候选 `e18fd73a…`，`ledger-round3-succession-challenge.json`）：2 条——P1 用落地树 controller 判旧轮时，freeze 算法在轮次与晋升之间变过会拒旧轮 → `accepted_tradeoff`（D2 在发现前已写明代价与恢复路径；这是关闭伪造 validator 绕行的 fail-closed 一侧）；P2 `git worktree add` 半失败（已注册后返回非 0）只 `rmtree` 不注销 → `open`。lane 1 终态 `continuation_authorization_required`（`closeout.json`），PR #125 用户令合入 dev（`0d30526`）。
+
+### Lane 2（用户授权续评，base `0d30526`）
+
+- 清偿 lane 1 的 open 项：`detached_checkout` 在 `worktree add` 返回非 0 时也走 `release_checkout`（remove + 注销回读 + 目录不存在），释放失败并入错误文案；不再裸 `rmtree`。
+- 用例先行：shim 让 `worktree add` 真的建好再返回非 0，断言错误退出、无 `review_ledger_binding_ok`、`worktree list` 与跑前一致、临时目录为空——在修复前的闸上红，修复后绿。
+- 证据文件按 lane 前缀落在同一 evidence 目录（`lane2-*`），lane 1 的 `closeout.json` 不改（append-only）；lane 2 自己的 closeout 绑定本 lane 的落地候选。
 
 ## Status-sync target
 

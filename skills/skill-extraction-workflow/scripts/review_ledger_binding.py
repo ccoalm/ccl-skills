@@ -132,7 +132,6 @@ import importlib.util
 import json
 import os
 import re
-import shutil
 import subprocess
 import tempfile
 import time
@@ -808,13 +807,18 @@ def detached_checkout(repo_root: Path, commit: str):
         text=True,
         check=False,
     )
+    resolved = path.resolve()
     if added.returncode != 0:
-        shutil.rmtree(path, ignore_errors=True)
+        # A failed add can still have registered the checkout or populated the
+        # directory; release it through the same verified path as a success, so
+        # a failed run leaves no repository worktree state behind either.
+        problem = release_checkout(repo_root, path, resolved)
+        if problem:
+            problem = f" (and the partial checkout could not be released: {problem})"
         raise SystemExit(
             f"review_ledger_binding_error: cannot check out round head {commit[:12]}: "
-            f"{added.stderr.strip()}"
+            f"{added.stderr.strip()}{problem or ''}"
         )
-    resolved = path.resolve()
     try:
         yield resolved
     finally:
