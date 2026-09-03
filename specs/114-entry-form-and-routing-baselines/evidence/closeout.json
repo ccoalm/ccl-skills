@@ -1,0 +1,112 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "c999b1eccc85e41f4512ccb2fb10f0331ecc483e5f6ac99ceae45174b6a6f06a",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "ledger-round1-review.json",
+   "sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420"
+  },
+  {
+   "sequence": 2,
+   "file": "ledger-round2-challenge.json",
+   "sha256": "61a72ddb3f403a904a49651c459a34e11a79a89c85b99b413a3c609e3ab7a423"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "1af3e888bbd125e50547835540bf55b78f64662d",
+   "confirmed_at": "2026-09-03T11:53:42Z",
+   "controller_receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+   "evidence_file": "ledger-base-attestation-1.txt",
+   "evidence_sha256": "f660ac647a2811c6c461b177d8cbea92e141d03217b97be315388f23440f247c"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "1af3e888bbd125e50547835540bf55b78f64662d",
+   "confirmed_at": "2026-09-03T11:53:48Z",
+   "controller_receipt_sha256": "61a72ddb3f403a904a49651c459a34e11a79a89c85b99b413a3c609e3ab7a423",
+   "evidence_file": "ledger-base-attestation-2.txt",
+   "evidence_sha256": "f660ac647a2811c6c461b177d8cbea92e141d03217b97be315388f23440f247c"
+  }
+ ],
+ "autonomous_round": 2,
+ "controller_review_state": "post_review_budget",
+ "finding_classes": [
+  {
+   "key": "packet-evidence-assertion-only",
+   "root_cause_predicate": "The bounded packet carried process claims (red/green ordering, mutation sensitivity, lane counts, gate cleanliness, binder acceptance) as narrative only, so a reviewer could not distinguish a verified candidate from an unverified one.",
+   "affected_surface": "specs/114-entry-form-and-routing-baselines/evidence",
+   "occurrences": [
+    {
+     "receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+     "finding_sha256": "d01511122495ef9b5e483cb26c7e5a2e7ad4661cc00163b30d8f182efb6ea61c",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-packet-evidence-assertion-only-1.json",
+     "disposition_evidence_sha256": "142317c9b59eeaa3b5c0e301799a8a39830f1df712ff9c0b3cf4b9ad69d0c2f3"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "classification-rows-lack-stable-identity",
+   "root_cause_predicate": "Each classification row identified its rule only by walk ordinal, word count and group, and neither the unchanged entrypoint nor the generated per-rule JSON is in the bounded diff, so a reviewer could not tell which rule a verdict belonged to nor confirm the flagged set was fully covered.",
+   "affected_surface": "specs/114-entry-form-and-routing-baselines/form-classification.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+     "finding_sha256": "cf935a1256944fff6820d4ba2c7f11869a7b3f11a1cee327d0facccd1d4aca1b",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-classification-rows-lack-stable-identity-1.json",
+     "disposition_evidence_sha256": "ba26dffc5205b22d13175000e98da553602202f93d5fef9200456f16b1507035"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "documented-counting-rule-differs-from-the-rule-that-ran",
+   "root_cause_predicate": "The census script's comment stated that a phrase and the words inside it are counted independently, but the alternation matches leftmost and non-overlapping, so a listed phrase absorbs its contained words; no fixture exercised the overlap, leaving the documented definition and the reported totals as different rulers while the suite stayed green.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/entrypoint_form_census.py",
+   "occurrences": [
+    {
+     "receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+     "finding_sha256": "842cab44f13535496acd3598f85277ad6e6e332a3af536d43833ef67b0567628",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-documented-counting-rule-differs-from-the-rule-that-ran-1.json",
+     "disposition_evidence_sha256": "133768ac7d4556108b8ece591a0296618c196652f69ac07ee1d29f633f790450"
+    },
+    {
+     "receipt_sha256": "61a72ddb3f403a904a49651c459a34e11a79a89c85b99b413a3c609e3ab7a423",
+     "finding_sha256": "6c12c8e6287f0be062ecd5b602a4adc1a9c38892ef1b02f15c5ada3ed20effff",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-documented-counting-rule-differs-from-the-rule-that-ran-2.json",
+     "disposition_evidence_sha256": "a4fa38b5874208efcdf409e00bd09b3f8c033c5614b686c8795c59ea6797dbd3"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "empty-core-rules-branch-unprotected",
+   "root_cause_predicate": "The suite covered an absent Core Rules heading but not an existing section containing no rules, so the guard that turns a zero-rule parse into an error rather than an empty census had no case protecting it.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/test_entrypoint_form_census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+     "finding_sha256": "1adda735d7ba16845d5fbf11b292043e26b1a911c1a4aca7e8602e1bdb1b6f41",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-empty-core-rules-branch-unprotected-1.json",
+     "disposition_evidence_sha256": "9c732aff9ccc7a59ade38af5b9203e7783c834a69a269924baae6dd6d66eacc9"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}
