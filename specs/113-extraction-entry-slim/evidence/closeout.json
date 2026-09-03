@@ -1,0 +1,193 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "43ad1084d07eb61a045830a7035045daeccddcbe793b261d2d9fddddc9b019c3",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "ledger-round1-review.json",
+   "sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06"
+  },
+  {
+   "sequence": 2,
+   "file": "ledger-round2-challenge.json",
+   "sha256": "1313967500cc8cde0dc52eb2d7100e6f83dd6aa1a28e90b44de4d2c164a8dc03"
+  },
+  {
+   "sequence": 3,
+   "file": "ledger-round3-succession-challenge.json",
+   "sha256": "c4309764c8640b28fc9afa3b61474b9133996ceb983653b0df65147aae89c56a"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "e71598540c96abc079abc67fb10985f39576c0bb",
+   "confirmed_at": "2026-09-03T06:45:47Z",
+   "controller_receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+   "evidence_file": "ledger-base-attestation-1.txt",
+   "evidence_sha256": "a75f5aabe116997498f55ba2214facd9b58e0c88d49d8a60e8c8d58f03bda5f6"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "e71598540c96abc079abc67fb10985f39576c0bb",
+   "confirmed_at": "2026-09-03T07:15:57Z",
+   "controller_receipt_sha256": "1313967500cc8cde0dc52eb2d7100e6f83dd6aa1a28e90b44de4d2c164a8dc03",
+   "evidence_file": "ledger-base-attestation-2.txt",
+   "evidence_sha256": "a75f5aabe116997498f55ba2214facd9b58e0c88d49d8a60e8c8d58f03bda5f6"
+  },
+  {
+   "sequence": 3,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "e71598540c96abc079abc67fb10985f39576c0bb",
+   "confirmed_at": "2026-09-03T07:18:47Z",
+   "controller_receipt_sha256": "c4309764c8640b28fc9afa3b61474b9133996ceb983653b0df65147aae89c56a",
+   "evidence_file": "ledger-base-attestation-2.txt",
+   "evidence_sha256": "a75f5aabe116997498f55ba2214facd9b58e0c88d49d8a60e8c8d58f03bda5f6"
+  }
+ ],
+ "autonomous_round": 3,
+ "controller_review_state": "findings_pending",
+ "finding_classes": [
+  {
+   "key": "2ab9ae35da69",
+   "root_cause_predicate": "2ab9ae35da69",
+   "affected_surface": "skills/skill-extraction-workflow/references/attention-budget-ratchet.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+     "finding_sha256": "2ab9ae35da69e677fa632a8a9070bf8137d1f1ead1fe41256d55e56b6fb1f9b7",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-r1-f0-attention-budget-ratchet-md-the-new-shared-rule-publishes-the-host-d-1.json",
+     "disposition_evidence_sha256": "4388e1cbb0ea2b3cd4cf22c57ec901366b2d7367b468980720f09250becefcea"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "6edfe56defc8",
+   "root_cause_predicate": "6edfe56defc8",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+     "finding_sha256": "6edfe56defc8354d34e1ab34183d3d759c85b2a495aaf4ef51ab5e8caf766839",
+     "disposition": "source_refuted",
+     "disposition_evidence_file": "disposition-r1-f1-source-register-md-the-stale-window-row-s-firing-path-is-c-1.json",
+     "disposition_evidence_sha256": "9fd929758db4e7607e9be842923144fa938efd637e44a80a04bc6248f71ab563"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "a90907ba6dee",
+   "root_cause_predicate": "a90907ba6dee",
+   "affected_surface": "specs/113-extraction-entry-slim/obligation-preservation.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+     "finding_sha256": "a90907ba6deeeafc9494fa4cfc83c27aaacc7efb0a216b1390a386ed4fccc000",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-r1-f2-obligation-preservation-md-row-74-explicitly-records-two-hits-for-t-1.json",
+     "disposition_evidence_sha256": "b2fea172d7f75ac2de9c5b9c8ef6591fcc5b55880795a60cc211940ce9568a71"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "ba9d9d2d0fd9",
+   "root_cause_predicate": "ba9d9d2d0fd9",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/test_reference_access_census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+     "finding_sha256": "ba9d9d2d0fd9d92b92d7a94011968a9143e628b20f1a47f15310f6cc6a1fb7dc",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-r1-f3-test-reference-access-census-sh-the-bounded-diff-adds-a-stale-fixture--1.json",
+     "disposition_evidence_sha256": "c570ad9cc6c43d0f1d658f0caacc98bde2aff6c9d69feb948acc509b17691c02"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "d42c866dcfd6",
+   "root_cause_predicate": "d42c866dcfd6",
+   "affected_surface": "specs/113-extraction-entry-slim/obligation-preservation.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+     "finding_sha256": "d42c866dcfd6368b46e7a6cc86c541433a1264f8183e3fc502f0b40c2f2e72b2",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-r1-f4-obligation-preservation-md-the-negative-word-delta-reference-line-1.json",
+     "disposition_evidence_sha256": "3df2514e61a4a9746db45ffaa413000def0c0abc413161648bb4bb46be14d883"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "69c07943d3c4",
+   "root_cause_predicate": "69c07943d3c4",
+   "affected_surface": "skills/skill-extraction-workflow/references/attention-budget-ratchet.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "1313967500cc8cde0dc52eb2d7100e6f83dd6aa1a28e90b44de4d2c164a8dc03",
+     "finding_sha256": "69c07943d3c4faf81ccbf0f29683121861a0b6f602febd22393d75de10aa9326",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-r2-f0-attention-budget-ratchet-md-the-new-normative-rule-embeds-about-one-1.json",
+     "disposition_evidence_sha256": "18620ba48aabd5844be0fea2267a3cc268885d65ee384ee368c52acb00b5bd2e"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "93f3d0b6b146",
+   "root_cause_predicate": "93f3d0b6b146",
+   "affected_surface": "specs/113-extraction-entry-slim/evidence/gate-outputs.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "c4309764c8640b28fc9afa3b61474b9133996ceb983653b0df65147aae89c56a",
+     "finding_sha256": "93f3d0b6b14649871996b4c5d26f74e80f4dd1497044edf332c286726360363a",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-r3-f0-gate-outputs-md-the-file-claims-its-blocks-permit-rerunn-1.json",
+     "disposition_evidence_sha256": "9e0279384d5815a76e2aa3fe3b9815f85d781f725401830ff7a81143171561ba"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "810fabcbba9f",
+   "root_cause_predicate": "810fabcbba9f",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "c4309764c8640b28fc9afa3b61474b9133996ceb983653b0df65147aae89c56a",
+     "finding_sha256": "810fabcbba9f0567c442f2eb4435f840ac9cdd2fc6747f2367558c6f32240440",
+     "disposition": "source_refuted",
+     "disposition_evidence_file": "disposition-r3-f1-source-register-md-the-stale-window-row-uses-a-command-firi-1.json",
+     "disposition_evidence_sha256": "fb631ee8abe4ff6e2698119adb6cc1786a46f423de0b17cfd97f2cc7b45e4077"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "8d2c0dacb09c",
+   "root_cause_predicate": "8d2c0dacb09c",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "c4309764c8640b28fc9afa3b61474b9133996ceb983653b0df65147aae89c56a",
+     "finding_sha256": "8d2c0dacb09c4b5bdf527705e67342a1296a79a14d00abc8126cad27f304f8f7",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}
