@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c949ad351aa3ebce291334902c9b9d77caebd38a959128fcb1af069755f2ce68",
+ "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+ "finding_sha256": "cb185fc238f1dca25b456db3527f291098ef5487ed6cdbe5776ed5198130d568",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+   "finding_sha256": "cb185fc238f1dca25b456db3527f291098ef5487ed6cdbe5776ed5198130d568"
+  }
+ ],
+ "evidence": [
+  "Premise refuted on the platform the finding names: stock macOS ships `/usr/bin/seq` (observed on this macOS host: `which seq` → /usr/bin/seq; the suite has passed on it throughout the round), and the CI runner is Linux. No change."
+ ]
+}

@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c949ad351aa3ebce291334902c9b9d77caebd38a959128fcb1af069755f2ce68",
+ "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+ "finding_sha256": "e96b49313b8ae24b64cebbaf02d5cf6978ff3377b1d271dab3f35ca0b3bff134",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+   "finding_sha256": "e96b49313b8ae24b64cebbaf02d5cf6978ff3377b1d271dab3f35ca0b3bff134"
+  }
+ ],
+ "evidence": [
+  "Same class and same evidence as the lane-1 disposition: attention-budget-ratchet.md §Reference-file write-side norms excludes the append-only source register from the line cap by rule and check-size-budget.sh implements the exclusion (reference_line_budget_blocking_ok on this candidate); the impact-chain and firing-path gates read rows from the single register path, so a linked shard would break them. Ledger attention cost is a recorded follow-up for a shared-gate round."
+ ]
+}

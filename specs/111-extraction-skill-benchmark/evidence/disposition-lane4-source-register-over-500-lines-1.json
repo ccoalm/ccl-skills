@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c3a2bedf580e62ce5af8e1143b5146cff9286a4cdf8fefed38b45a9f5b419206",
+ "receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+ "finding_sha256": "9c15d7b0ae4822146d430362eeeb205eeebb6699631ca53389aefaecd1273084",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+   "finding_sha256": "9c15d7b0ae4822146d430362eeeb205eeebb6699631ca53389aefaecd1273084"
+  }
+ ],
+ "evidence": [
+  "Same class and evidence as lanes 1–3: the append-only register is excluded from the reference line cap by rule and by check-size-budget.sh; a shard would break the register-reading gates."
+ ]
+}

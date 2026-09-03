@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c3a2bedf580e62ce5af8e1143b5146cff9286a4cdf8fefed38b45a9f5b419206",
+ "receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+ "finding_sha256": "bc497b2bc9acbbd42abe26e8cbf4ca37be93c3ddbda13797f23042d266918886",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+   "finding_sha256": "bc497b2bc9acbbd42abe26e8cbf4ca37be93c3ddbda13797f23042d266918886"
+  }
+ ],
+ "evidence": [
+  "find's non-zero status appends a path-free error marker so a silent listing failure withholds the table with exit 2; new leg 17 shims find to exit 2 silently and requires exit 2 plus the input-error sentinel (not the no-transcript sentinel); ignoring find's status fails the leg."
+ ]
+}

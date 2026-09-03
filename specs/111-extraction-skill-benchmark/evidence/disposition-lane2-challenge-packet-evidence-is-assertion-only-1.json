@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c949ad351aa3ebce291334902c9b9d77caebd38a959128fcb1af069755f2ce68",
+ "receipt_sha256": "dcdf85c8481f41514ecb8f2cd228f348359f24a661df5c1985964381db187c10",
+ "finding_sha256": "42347683d1cfba6a678bd7be05afbe1bcbb9b327d9315a3400b17518fe1b9beb",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "dcdf85c8481f41514ecb8f2cd228f348359f24a661df5c1985964381db187c10",
+   "finding_sha256": "42347683d1cfba6a678bd7be05afbe1bcbb9b327d9315a3400b17518fe1b9beb"
+  }
+ ],
+ "evidence": [
+  "Packet-evidence class (same disposition as both lane-1 occurrences): the bounded packet is the frozen candidate diff; runner and binder implementations are unchanged tracked files outside the diff, and primary-source passages cannot be vendored into the shared tree. The evidence directory carries primary-source-excerpts.md and the disposition files; the closeout validator, not the packet reviewer, reads them."
+ ]
+}

@@ -1,0 +1,196 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "c3a2bedf580e62ce5af8e1143b5146cff9286a4cdf8fefed38b45a9f5b419206",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "ledger-round9-review.json",
+   "sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c"
+  },
+  {
+   "sequence": 2,
+   "file": "ledger-round10-challenge.json",
+   "sha256": "083e61520d0f9ac5a1b4f2b827f75975daaca03664829257d0f04e029f7c9c20"
+  },
+  {
+   "sequence": 3,
+   "file": "ledger-round11-succession-challenge.json",
+   "sha256": "79a537ccffc9c717e8a9d513ce223656339285c8eff7b5470763e3e35ad101d2"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "0d30526ebc08ce4c058d709f800358be19cb7d61",
+   "confirmed_at": "2026-09-03T04:05:26Z",
+   "controller_receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+   "evidence_file": "ledger-base-attestation-5.txt",
+   "evidence_sha256": "02d0f1f8ad5b777f1a1682ddc68294b7355667df7620a496f3960cfb762e8939"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "0d30526ebc08ce4c058d709f800358be19cb7d61",
+   "confirmed_at": "2026-09-03T05:23:51Z",
+   "controller_receipt_sha256": "083e61520d0f9ac5a1b4f2b827f75975daaca03664829257d0f04e029f7c9c20",
+   "evidence_file": "ledger-base-attestation-5.txt",
+   "evidence_sha256": "02d0f1f8ad5b777f1a1682ddc68294b7355667df7620a496f3960cfb762e8939"
+  },
+  {
+   "sequence": 3,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "0d30526ebc08ce4c058d709f800358be19cb7d61",
+   "confirmed_at": "2026-09-03T05:23:55Z",
+   "controller_receipt_sha256": "79a537ccffc9c717e8a9d513ce223656339285c8eff7b5470763e3e35ad101d2",
+   "evidence_file": "ledger-base-attestation-5.txt",
+   "evidence_sha256": "02d0f1f8ad5b777f1a1682ddc68294b7355667df7620a496f3960cfb762e8939"
+  }
+ ],
+ "autonomous_round": 3,
+ "controller_review_state": "findings_pending",
+ "finding_classes": [
+  {
+   "key": "summary-bullets-drop-obligations",
+   "root_cause_predicate": "The entrypoint summary bullets condense relocated rules and drop load-bearing obligations (owner split, execution-only disclosure, pending disposition, DFE-CONT validation; then the observable-proxy checklist, breakpoint scope, and the bare-mention/reported-complete qualifiers).",
+   "affected_surface": "skills/skill-extraction-workflow/SKILL.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+     "finding_sha256": "8fde5a975859a91406f15ef296cbfe05bff7840e36b1f67f4d2768579b9a3460",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane4-summary-bullets-drop-obligations-1.json",
+     "disposition_evidence_sha256": "b9bd84f38cb8312642ae0dfcfb0996fc4a2eab394b5533caffc790de542de1cc"
+    },
+    {
+     "receipt_sha256": "79a537ccffc9c717e8a9d513ce223656339285c8eff7b5470763e3e35ad101d2",
+     "finding_sha256": "aa50f2eb269c1d6aae70dcd8b5f61538354994cbd1363a46fa5ad9ba712c46fb",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "two-rows-share-a-command-locator",
+   "root_cause_predicate": "Two ledger rows use the same command firing-path locator rather than distinct added normative list lines (repeat).",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+     "finding_sha256": "e6071dbdfb390f63eddb76b8233c1a9239d2d4998cab80f075022054455ab946",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane4-two-rows-share-a-command-locator-1.json",
+     "disposition_evidence_sha256": "07341189f07ba66dc618a1e0499dbb26d0923ff404047e2dba0e071f757784aa"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "source-register-over-500-lines",
+   "root_cause_predicate": "The append-only source register already exceeded the 500-line reference figure and this round's rows grow it further (repeat).",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+     "finding_sha256": "9c15d7b0ae4822146d430362eeeb205eeebb6699631ca53389aefaecd1273084",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane4-source-register-over-500-lines-1.json",
+     "disposition_evidence_sha256": "62c62fa5156e4228f025cebcc8933510c1f830559267957338680cbeb157891e"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "conversation-content-on-shared-surface",
+   "root_cause_predicate": "Shared-tree evidence and ledger rows carried the maintainer's verbatim replies, adjudication narrative, or host-local census figures instead of neutral reproducible technical facts.",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+     "finding_sha256": "42a57d783a0e75f38a7e1cdf7d521d36f8fa53586c489226bf3f421846af016a",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane4-conversation-content-on-shared-surface-1.json",
+     "disposition_evidence_sha256": "bdf5646f34d9c864b1873ec95cb25b44ebe201ef73ff8d4f7ea5ae0d4f914a40"
+    },
+    {
+     "receipt_sha256": "083e61520d0f9ac5a1b4f2b827f75975daaca03664829257d0f04e029f7c9c20",
+     "finding_sha256": "0dac8dd4f0f5891f1fdb85713c78ec0eccf7e10a79347cd52489397dd13d6c08",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane4-challenge-conversation-content-on-shared-surface-1.json",
+     "disposition_evidence_sha256": "348d38a4f0464820ee10e4d17d9461b068145a6b3e40621031d4b4540f0bf20e"
+    },
+    {
+     "receipt_sha256": "79a537ccffc9c717e8a9d513ce223656339285c8eff7b5470763e3e35ad101d2",
+     "finding_sha256": "4743825bd399c8b2a58bf3e7dddd092bf13198c5f8bd92cf43203cbef61db9a3",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": {
+    "candidate_sha256": "c3a2bedf580e62ce5af8e1143b5146cff9286a4cdf8fefed38b45a9f5b419206",
+    "manifest_file": "sweep-conversation-content-on-shared-surface.json",
+    "manifest_sha256": "dcad5f1deff9e1b6954b2afe6b63643b41af6414b3d6137bc0bbbc88de168b84",
+    "searched_set": [
+     "skills/skill-extraction-workflow/SKILL.md",
+     "skills/skill-extraction-workflow/references/attention-budget-ratchet.md",
+     "skills/skill-extraction-workflow/references/correction-routing-map.md",
+     "skills/skill-extraction-workflow/references/eval-routing.md",
+     "skills/skill-extraction-workflow/references/external-practice-controls.md",
+     "skills/skill-extraction-workflow/references/extraction-quickstart.md",
+     "skills/skill-extraction-workflow/references/harness-patterns-and-eval.md",
+     "skills/skill-extraction-workflow/references/incident-postmortem-extraction.md",
+     "skills/skill-extraction-workflow/references/source-register.md",
+     "skills/skill-extraction-workflow/references/uiux-judgment-extraction.md",
+     "skills/skill-extraction-workflow/references/validation-and-landing.md",
+     "skills/skill-extraction-workflow/scripts/reference-access-census.sh",
+     "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh",
+     "skills/skill-extraction-workflow/scripts/test_reference_access_census.sh",
+     "specs/065-uiux-evidence-delivery/obligation-preservation.md",
+     "specs/111-extraction-skill-benchmark/evidence/continuation-lanes.md",
+     "specs/111-extraction-skill-benchmark/evidence/ledger-base-attestation-1.txt",
+     "specs/111-extraction-skill-benchmark/evidence/ledger-base-attestation-2.txt",
+     "specs/111-extraction-skill-benchmark/evidence/ledger-base-attestation-3.txt",
+     "specs/111-extraction-skill-benchmark/evidence/ledger-base-attestation-4.txt",
+     "specs/111-extraction-skill-benchmark/evidence/ledger-base-attestation-5.txt",
+     "specs/111-extraction-skill-benchmark/evidence/primary-source-excerpts.md"
+    ],
+    "unmatched_instances": 9
+   }
+  },
+  {
+   "key": "silent-find-failure",
+   "root_cause_predicate": "find's non-zero status was discarded, so a listing that failed without stderr proceeded with an incomplete inventory.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/reference-access-census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+     "finding_sha256": "bc497b2bc9acbbd42abe26e8cbf4ca37be93c3ddbda13797f23042d266918886",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane4-silent-find-failure-1.json",
+     "disposition_evidence_sha256": "b1539257b278810233d2b7823af3d2c596db0b200a38d1fc213f0aea1b8f7c2c"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "word-delta-not-in-packet",
+   "root_cause_predicate": "The ledger row states an exact body-word delta whose predecessor-bound measurement is not inside the bounded packet.",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "79a537ccffc9c717e8a9d513ce223656339285c8eff7b5470763e3e35ad101d2",
+     "finding_sha256": "c491f4d4380299fec99529b663ae686c66594baad7d68bca5d8e4ff3ffc2323d",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane4-succession-word-delta-not-in-packet-1.json",
+     "disposition_evidence_sha256": "16adffd804ba6df221c408b7f9333700fb35213abce712eb169d83e17399bf7a"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}

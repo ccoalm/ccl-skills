@@ -1,0 +1,39 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c3a2bedf580e62ce5af8e1143b5146cff9286a4cdf8fefed38b45a9f5b419206",
+ "searched_set": [
+  "skills/skill-extraction-workflow/SKILL.md",
+  "skills/skill-extraction-workflow/references/attention-budget-ratchet.md",
+  "skills/skill-extraction-workflow/references/correction-routing-map.md",
+  "skills/skill-extraction-workflow/references/eval-routing.md",
+  "skills/skill-extraction-workflow/references/external-practice-controls.md",
+  "skills/skill-extraction-workflow/references/extraction-quickstart.md",
+  "skills/skill-extraction-workflow/references/harness-patterns-and-eval.md",
+  "skills/skill-extraction-workflow/references/incident-postmortem-extraction.md",
+  "skills/skill-extraction-workflow/references/source-register.md",
+  "skills/skill-extraction-workflow/references/uiux-judgment-extraction.md",
+  "skills/skill-extraction-workflow/references/validation-and-landing.md",
+  "skills/skill-extraction-workflow/scripts/reference-access-census.sh",
+  "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh",
+  "skills/skill-extraction-workflow/scripts/test_reference_access_census.sh",
+  "specs/065-uiux-evidence-delivery/obligation-preservation.md",
+  "specs/111-extraction-skill-benchmark/evidence/continuation-lanes.md",
+  "specs/111-extraction-skill-benchmark/evidence/ledger-base-attestation-1.txt",
+  "specs/111-extraction-skill-benchmark/evidence/ledger-base-attestation-2.txt",
+  "specs/111-extraction-skill-benchmark/evidence/ledger-base-attestation-3.txt",
+  "specs/111-extraction-skill-benchmark/evidence/ledger-base-attestation-4.txt",
+  "specs/111-extraction-skill-benchmark/evidence/ledger-base-attestation-5.txt",
+  "specs/111-extraction-skill-benchmark/evidence/primary-source-excerpts.md"
+ ],
+ "unmatched_instances": [
+  "skills/skill-extraction-workflow/references/source-register.md [adjudication-narrative] pe facts only, never a conversation transcript or adjudication narrative; and a transcript listing that fails",
+  "skills/skill-extraction-workflow/references/source-register.md [authorization-narrative] -extraction-workflow/SKILL.md`. Continuation lane authorized by the maintainer (record in the private round archi",
+  "skills/skill-extraction-workflow/references/source-register.md [authorization-narrative] ction-workflow/SKILL.md`. Third continuation lane authorized by the maintainer (record in the private round archi",
+  "skills/skill-extraction-workflow/references/source-register.md [authorization-narrative] tion-workflow/SKILL.md`. Second continuation lane authorized by the maintainer (record in the private round archi",
+  "skills/skill-extraction-workflow/references/source-register.md [host-census-figure] `sessions_touching_package=0` on a 60-day window (7,576 transcripts exceeded one exec batch and the batch",
+  "skills/skill-extraction-workflow/references/source-register.md [user-reply-or-ask] , which is a table row and carries no anchor. The user's mid-round correction that concept-adjacent coverage is not functional",
+  "skills/skill-extraction-workflow/references/source-register.md [user-reply-or-ask] L.md`. Source: external primaries read this round after the user asked whether learning-from-success theory had be",
+  "skills/skill-extraction-workflow/references/source-register.md [user-reply-or-ask] tional and no held-out discipline existed. Landed after the user asked why identified gaps were recorded rather th",
+  "specs/111-extraction-skill-benchmark/evidence/continuation-lanes.md [authorization-narrative] tinuation_authorization_required`). Each lane was authorized by the maintainer before it ran; the authorization r"
+ ]
+}

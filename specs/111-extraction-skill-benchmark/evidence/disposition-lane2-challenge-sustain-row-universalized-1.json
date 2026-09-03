@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c949ad351aa3ebce291334902c9b9d77caebd38a959128fcb1af069755f2ce68",
+ "receipt_sha256": "dcdf85c8481f41514ecb8f2cd228f348359f24a661df5c1985964381db187c10",
+ "finding_sha256": "8c0d46cc6a751011689a79b28269513a9f10da82ce3dd6493a7a060c5e6f6fca",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "dcdf85c8481f41514ecb8f2cd228f348359f24a661df5c1985964381db187c10",
+   "finding_sha256": "8c0d46cc6a751011689a79b28269513a9f10da82ce3dd6493a7a060c5e6f6fca"
+  }
+ ],
+ "evidence": [
+  "The pairing sentence now says a sustain row is written only when stable-success evidence meets the entry bar, otherwise an explicit `no-new-lesson` or `unstable/insufficient evidence` disposition, and the AAR/Ellis & Davidi evidence is scoped to its own settings (fix commit 4d768a4)."
+ ]
+}

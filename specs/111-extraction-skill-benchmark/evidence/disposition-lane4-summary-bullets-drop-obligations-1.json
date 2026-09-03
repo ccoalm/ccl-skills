@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c3a2bedf580e62ce5af8e1143b5146cff9286a4cdf8fefed38b45a9f5b419206",
+ "receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+ "finding_sha256": "8fde5a975859a91406f15ef296cbfe05bff7840e36b1f67f4d2768579b9a3460",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+   "finding_sha256": "8fde5a975859a91406f15ef296cbfe05bff7840e36b1f67f4d2768579b9a3460"
+  }
+ ],
+ "evidence": [
+  "Both summary bullets now carry the omitted obligations inline: the mini-program owner split, the execution-only disclosure, the pending/out-of-scope disposition for uninspected token fields, and the DFE-CONT validation and rename-sync clauses (fix commit in this lane); the verbatim text remains in the references."
+ ]
+}

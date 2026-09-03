@@ -1,0 +1,227 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "c949ad351aa3ebce291334902c9b9d77caebd38a959128fcb1af069755f2ce68",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "ledger-round4-review.json",
+   "sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1"
+  },
+  {
+   "sequence": 2,
+   "file": "ledger-round5-challenge.json",
+   "sha256": "dcdf85c8481f41514ecb8f2cd228f348359f24a661df5c1985964381db187c10"
+  },
+  {
+   "sequence": 3,
+   "file": "ledger-round6-succession-challenge.json",
+   "sha256": "2cc9df9e0a16c0cd10ed6898763fb3d75d5d1e707e159eb3b76c51057fecaf72"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "fa0a7decc8295b97a859ed4fd69c9f76166c4ed9",
+   "confirmed_at": "2026-09-03T01:38:51Z",
+   "controller_receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+   "evidence_file": "ledger-base-attestation-3.txt",
+   "evidence_sha256": "158c7edfa2539c38fcce6793785c82a1cf80b27cc7f7caaff467a272ec883c95"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "fa0a7decc8295b97a859ed4fd69c9f76166c4ed9",
+   "confirmed_at": "2026-09-03T01:49:27Z",
+   "controller_receipt_sha256": "dcdf85c8481f41514ecb8f2cd228f348359f24a661df5c1985964381db187c10",
+   "evidence_file": "ledger-base-attestation-3.txt",
+   "evidence_sha256": "158c7edfa2539c38fcce6793785c82a1cf80b27cc7f7caaff467a272ec883c95"
+  },
+  {
+   "sequence": 3,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "fa0a7decc8295b97a859ed4fd69c9f76166c4ed9",
+   "confirmed_at": "2026-09-03T03:35:33Z",
+   "controller_receipt_sha256": "2cc9df9e0a16c0cd10ed6898763fb3d75d5d1e707e159eb3b76c51057fecaf72",
+   "evidence_file": "ledger-base-attestation-3.txt",
+   "evidence_sha256": "158c7edfa2539c38fcce6793785c82a1cf80b27cc7f7caaff467a272ec883c95"
+  }
+ ],
+ "autonomous_round": 3,
+ "controller_review_state": "findings_pending",
+ "finding_classes": [
+  {
+   "key": "source-register-over-500-lines",
+   "root_cause_predicate": "The append-only source register already exceeded the 500-line reference figure and the lane's rows grow it further (repeat of the lane-1 class).",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+     "finding_sha256": "e96b49313b8ae24b64cebbaf02d5cf6978ff3377b1d271dab3f35ca0b3bff134",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane2-source-register-over-500-lines-1.json",
+     "disposition_evidence_sha256": "67a82010d6a7f5af3d1e40ed415432cb849b318f26f0ed1f049078504d29e983"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "two-rows-share-a-command-locator",
+   "root_cause_predicate": "Two ledger rows use the same command firing-path locator rather than a distinct added normative list line each (repeat of the lane-1 class).",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+     "finding_sha256": "98df96bfb0c49c47edbabc8925468fdf9de066dcacaa7e3c0c116ab0a4b1b9bc",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane2-two-rows-share-a-command-locator-1.json",
+     "disposition_evidence_sha256": "dc1ba22815a711f15132e4e510118949aed4448f3957b90b998b9d63a51592d4"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "overlapping-roots-double-count",
+   "root_cause_predicate": "The candidate transcript list was newline-delimited and never deduplicated, so overlapping or repeated log roots counted a session more than once and a newline in a file name split a candidate.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/reference-access-census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+     "finding_sha256": "b9c5ea6685015f81a75b54a440a7877c12fcb3aab8e3d064e151a1953c90d419",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane2-overlapping-roots-double-count-1.json",
+     "disposition_evidence_sha256": "51bb7871a1241ff8c52745701bc4f65c7059e0cceb8694a8974abc743fc320d8"
+    },
+    {
+     "receipt_sha256": "dcdf85c8481f41514ecb8f2cd228f348359f24a661df5c1985964381db187c10",
+     "finding_sha256": "95e20b843c72d48194ff33dbc7b0ec009e7a114e4a18e661e660bb2919d9b120",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane2-challenge-overlapping-roots-and-newline-names-1.json",
+     "disposition_evidence_sha256": "b187ff24a778ca1f3a995183fa517df6ee8870e0ae92cc1ee968974388ec0e09"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "unknown-skill-value-echoed",
+   "root_cause_predicate": "An invalid --skill value was interpolated into the usage error, echoing a caller-controlled identifier.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/reference-access-census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+     "finding_sha256": "ed6925b73961b880b95d0b55c073375874274a8091b48880057f064d79b1ee0c",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane2-unknown-skill-value-echoed-1.json",
+     "disposition_evidence_sha256": "9c2edc372aa78bfb159ae5683d7e72418130a153cf9304be3154ee9c877e8834"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "seq-portability-and-fixture-size",
+   "root_cause_predicate": "The ARG_MAX fixture builds its padding with seq and does not assert the inventory's byte size, so on a platform without seq the leg could silently stop killing the single-exec mutation.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/test_reference_access_census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+     "finding_sha256": "cb185fc238f1dca25b456db3527f291098ef5487ed6cdbe5776ed5198130d568",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane2-seq-portability-1.json",
+     "disposition_evidence_sha256": "489405dc578d768ff88ab730c0817f4ff1f7dcc1719042539ae2b2b6d6e2071b"
+    },
+    {
+     "receipt_sha256": "2cc9df9e0a16c0cd10ed6898763fb3d75d5d1e707e159eb3b76c51057fecaf72",
+     "finding_sha256": "d4e50ddf03283dae3086dd4ea6eab3c6a471d56e10b5ab5ea9ed85c060d19a9c",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "test-robustness-root-home-seq",
+   "root_cause_predicate": "The unreadable-input leg skips under root, the default-root leg set HOME instead of unsetting it, and the fixture used seq.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/test_reference_access_census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "dcdf85c8481f41514ecb8f2cd228f348359f24a661df5c1985964381db187c10",
+     "finding_sha256": "ef83d57743bfa7fbde917e85436db88264ccb0c7b3809b0f044fae6dc44f56be",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane2-challenge-test-robustness-1.json",
+     "disposition_evidence_sha256": "1a7403aaa7d9156e826be7c1630a39e1447706a5423319abadf48ad4eadf01b5"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "sustain-row-universalized",
+   "root_cause_predicate": "The success-review pairing sentence required a sustain side from every retro, beyond the classification rule's stable-success entry bar.",
+   "affected_surface": "skills/skill-extraction-workflow/references/incident-postmortem-extraction.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "dcdf85c8481f41514ecb8f2cd228f348359f24a661df5c1985964381db187c10",
+     "finding_sha256": "8c0d46cc6a751011689a79b28269513a9f10da82ce3dd6493a7a060c5e6f6fca",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane2-challenge-sustain-row-universalized-1.json",
+     "disposition_evidence_sha256": "6aeed02cf3f54036817487b23a706e4931fa807cd64444608fb918190d7b910e"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "packet-evidence-is-assertion-only",
+   "root_cause_predicate": "The bounded packet carries claims about unchanged implementations and external sources that the reviewer cannot independently verify from the diff.",
+   "affected_surface": "skills/skill-extraction-workflow/references/eval-routing.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "dcdf85c8481f41514ecb8f2cd228f348359f24a661df5c1985964381db187c10",
+     "finding_sha256": "42347683d1cfba6a678bd7be05afbe1bcbb9b327d9315a3400b17518fe1b9beb",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane2-challenge-packet-evidence-is-assertion-only-1.json",
+     "disposition_evidence_sha256": "7f4bbb7fb2ee2009004d5b93edfa836c84823af4473636c30d6682461472a48c"
+    },
+    {
+     "receipt_sha256": "2cc9df9e0a16c0cd10ed6898763fb3d75d5d1e707e159eb3b76c51057fecaf72",
+     "finding_sha256": "bf49f6fa34ca37c5af012a2f2af60b06fe2b326546115ab3f55ee2da881268dc",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane2-succession-packet-evidence-is-assertion-only-1.json",
+     "disposition_evidence_sha256": "4508f92592c4168db2139a72290ddd33aabef440a636968401b8200aed6ef865"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "sort-z-portability",
+   "root_cause_predicate": "The script invokes sort -zu unconditionally, which a BSD sort without -z would reject.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/reference-access-census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "2cc9df9e0a16c0cd10ed6898763fb3d75d5d1e707e159eb3b76c51057fecaf72",
+     "finding_sha256": "d41333e3c0687e9a8ef4039c48aefbf55341a13ed57ef8558703690644b9312c",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane2-succession-sort-z-portability-1.json",
+     "disposition_evidence_sha256": "2f4b85a5d81e7403229499ac2e009798bae643c33ac182e30f2c1d248aa1416f"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "silent-grep-exit-2",
+   "root_cause_predicate": "Error detection depends on stderr being non-empty, so a grep that exits 2 without writing stderr is discarded by the xargs fallback and the census prints zero touching sessions with the ok token.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/reference-access-census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "2cc9df9e0a16c0cd10ed6898763fb3d75d5d1e707e159eb3b76c51057fecaf72",
+     "finding_sha256": "35288bae177a3c21c4927383315c5b8b413e8d8be5f17c790042eaf2d183bcf2",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}

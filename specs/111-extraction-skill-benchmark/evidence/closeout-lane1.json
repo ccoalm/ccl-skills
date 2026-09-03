@@ -1,0 +1,175 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "282c6e14ed6545e796e9067362fcca626fac1fe4e2d62e17fa9e8cf1bca86eff",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "ledger-round1-review.json",
+   "sha256": "9e603392c242695c618734ccc788eb9f2e8f827a5f95af9a612a1f49ce34c9b5"
+  },
+  {
+   "sequence": 2,
+   "file": "ledger-round2-challenge.json",
+   "sha256": "54955fcc95e542ee712008b6b8700068f2184d881de221d0be1a36d688c48500"
+  },
+  {
+   "sequence": 3,
+   "file": "ledger-round3-succession-challenge.json",
+   "sha256": "e09f43545089f96e6a69ca07f6977f66b19fda8130865e5072cc4de63996876d"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "fa0a7decc8295b97a859ed4fd69c9f76166c4ed9",
+   "confirmed_at": "2026-09-03T01:02:18Z",
+   "controller_receipt_sha256": "9e603392c242695c618734ccc788eb9f2e8f827a5f95af9a612a1f49ce34c9b5",
+   "evidence_file": "ledger-base-attestation-1.txt",
+   "evidence_sha256": "158c7edfa2539c38fcce6793785c82a1cf80b27cc7f7caaff467a272ec883c95"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "fa0a7decc8295b97a859ed4fd69c9f76166c4ed9",
+   "confirmed_at": "2026-09-03T01:20:41Z",
+   "controller_receipt_sha256": "54955fcc95e542ee712008b6b8700068f2184d881de221d0be1a36d688c48500",
+   "evidence_file": "ledger-base-attestation-2.txt",
+   "evidence_sha256": "158c7edfa2539c38fcce6793785c82a1cf80b27cc7f7caaff467a272ec883c95"
+  },
+  {
+   "sequence": 3,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "fa0a7decc8295b97a859ed4fd69c9f76166c4ed9",
+   "confirmed_at": "2026-09-03T01:28:41Z",
+   "controller_receipt_sha256": "e09f43545089f96e6a69ca07f6977f66b19fda8130865e5072cc4de63996876d",
+   "evidence_file": "ledger-base-attestation-2.txt",
+   "evidence_sha256": "158c7edfa2539c38fcce6793785c82a1cf80b27cc7f7caaff467a272ec883c95"
+  }
+ ],
+ "autonomous_round": 3,
+ "controller_review_state": "findings_pending",
+ "finding_classes": [
+  {
+   "key": "unevaluated-sentinel-leaks-log-root-path",
+   "root_cause_predicate": "The no-transcript sentinel interpolated the configured log-root path, and the regression test asserted that leaked path, contradicting the counts-only privacy contract.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/reference-access-census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "9e603392c242695c618734ccc788eb9f2e8f827a5f95af9a612a1f49ce34c9b5",
+     "finding_sha256": "19f32ca93d42952c77605527a2826f3744727f753b8195b5352704fb762ab020",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane1-unevaluated-sentinel-leaks-log-root-path-2.json",
+     "disposition_evidence_sha256": "3294dfdefa42473acf1b713decfa7de47a803d8b7bdc4e2e6ce6aa3382e4204b"
+    },
+    {
+     "receipt_sha256": "54955fcc95e542ee712008b6b8700068f2184d881de221d0be1a36d688c48500",
+     "finding_sha256": "b20cde4ce8d43ef385105a553d4f0af816ae24e0f6cb72b7829b4632784d2fa1",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane1-challenge-unevaluated-sentinel-leaks-log-root-path-2.json",
+     "disposition_evidence_sha256": "4bec23c348d53d5e4b0e117379d95122cfc5550f1fb189185dc56028ddef7f35"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "input-errors-collapsed-into-zero-counts",
+   "root_cause_predicate": "find, grep, and xargs errors were redirected and collapsed with a silent success fallback, so unreadable or vanished transcripts produced zero or partial counts followed by the ok token.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/reference-access-census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "9e603392c242695c618734ccc788eb9f2e8f827a5f95af9a612a1f49ce34c9b5",
+     "finding_sha256": "1465bff716f4a2e96c90c9c58fe09069b264c2cbcff366113e7b9c2e66c6f2af",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane1-input-errors-collapsed-into-zero-counts-2.json",
+     "disposition_evidence_sha256": "73054fb9d1551256fd8c4715a1b5ec7d57ae30f61ec33fcc62f25dfe10cc9668"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "source-register-over-500-lines",
+   "root_cause_predicate": "The append-only source register already exceeded the 500-line reference figure and the round's rows grow it further.",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "9e603392c242695c618734ccc788eb9f2e8f827a5f95af9a612a1f49ce34c9b5",
+     "finding_sha256": "b95bea0343dcfbd595e279f50dd532f81ce0f41e999603ccbba33cc021c94ddf",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane1-source-register-over-500-lines-2.json",
+     "disposition_evidence_sha256": "f0bbbd9d5e564da536a51eaf0327c7c5f04e81d06d375dae453d6ef60e645657"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "two-rows-share-a-command-locator",
+   "root_cause_predicate": "Two added ledger rows use the same command firing-path locator, which does not identify a distinct normative list line per row.",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "9e603392c242695c618734ccc788eb9f2e8f827a5f95af9a612a1f49ce34c9b5",
+     "finding_sha256": "e0545e70442a35f8424dd25c322374e9bfe94cb68dcb5135bd05ec034b46e235",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane1-two-rows-share-a-command-locator-2.json",
+     "disposition_evidence_sha256": "2fd5646ad248efff055e407ea1e723804d6b9657704c7322138d34aafaf32940"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "packet-evidence-is-assertion-only",
+   "root_cause_predicate": "The bounded review packet carries self-review claims, self-authored excerpts, and references to dispositions rather than immutable primary-source material the reviewer can check independently.",
+   "affected_surface": "specs/111-extraction-skill-benchmark/evidence/primary-source-excerpts.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "9e603392c242695c618734ccc788eb9f2e8f827a5f95af9a612a1f49ce34c9b5",
+     "finding_sha256": "1ba3fa9d975776777a9396a882b4ebd66c1824cf0da384c922cd9a9ab9b5667e",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane1-packet-evidence-is-assertion-only-2.json",
+     "disposition_evidence_sha256": "c39ef4191646c41a99316560eba2b64d1cc6db16b67abe49921c3823537e7d01"
+    },
+    {
+     "receipt_sha256": "e09f43545089f96e6a69ca07f6977f66b19fda8130865e5072cc4de63996876d",
+     "finding_sha256": "bb0c5eaab1c9bee411a3d35c52f8222ad009eb832faa175ee893d5ad97c2d1d7",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane2-packet-evidence-is-assertion-only-1.json",
+     "disposition_evidence_sha256": "db6632bf430410138dcc5edd6ba22d7b15248fe9d02ac136a7dc51268c71192e"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "unknown-argument-echoes-caller-path",
+   "root_cause_predicate": "The unknown-argument usage error interpolates the raw argument, so an absolute path passed by mistake reaches stderr.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/reference-access-census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "e09f43545089f96e6a69ca07f6977f66b19fda8130865e5072cc4de63996876d",
+     "finding_sha256": "0498d09fcdad4d1b3d0bd6554a62b51b0130ebafec03bde416dd552d44c7532e",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "stat-fallback-exits-without-sentinel",
+   "root_cause_predicate": "A transcript that vanishes before the GNU stat fallback makes the command substitution fail under set -e before the withholding check runs, so the script exits with a pipeline status and no unevaluated sentinel.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/reference-access-census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "e09f43545089f96e6a69ca07f6977f66b19fda8130865e5072cc4de63996876d",
+     "finding_sha256": "0ed18a39d074bd2ff67409d21527332940af2b95d855f94d4565d0e5b4d00b52",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}

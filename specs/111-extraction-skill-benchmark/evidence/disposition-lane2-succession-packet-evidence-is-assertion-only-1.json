@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c949ad351aa3ebce291334902c9b9d77caebd38a959128fcb1af069755f2ce68",
+ "receipt_sha256": "2cc9df9e0a16c0cd10ed6898763fb3d75d5d1e707e159eb3b76c51057fecaf72",
+ "finding_sha256": "bf49f6fa34ca37c5af012a2f2af60b06fe2b326546115ab3f55ee2da881268dc",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "2cc9df9e0a16c0cd10ed6898763fb3d75d5d1e707e159eb3b76c51057fecaf72",
+   "finding_sha256": "bf49f6fa34ca37c5af012a2f2af60b06fe2b326546115ab3f55ee2da881268dc"
+  }
+ ],
+ "evidence": [
+  "Packet-evidence class, same disposition as every prior occurrence in this round: the DO-CONFIRM card is unchanged tracked text outside the frozen diff, and the bounded packet cannot carry unchanged files without becoming the whole tree; the closeout validator and the maintainer read the evidence directory."
+ ]
+}

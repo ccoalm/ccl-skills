@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c3a2bedf580e62ce5af8e1143b5146cff9286a4cdf8fefed38b45a9f5b419206",
+ "receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+ "finding_sha256": "42a57d783a0e75f38a7e1cdf7d521d36f8fa53586c489226bf3f421846af016a",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "57774abbfafcc2800238faa2529b6193d3e53d2a725f90080bb01ec9b942408c",
+   "finding_sha256": "42a57d783a0e75f38a7e1cdf7d521d36f8fa53586c489226bf3f421846af016a"
+  }
+ ],
+ "evidence": [
+  "The three continuation-authorization notes were removed from the evidence directory and replaced by continuation-lanes.md (neutral scope facts only); the three ledger rows that quoted a reply were reworded to 'authorized by the maintainer (record in the private round archive)'; the PR body was scrubbed likewise; the records stay in the maintainer's private round archive."
+ ]
+}
