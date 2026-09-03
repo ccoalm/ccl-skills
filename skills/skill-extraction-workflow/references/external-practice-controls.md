@@ -136,6 +136,10 @@ Referenced from `SKILL.md`'s "The mechanism underneath" rule. This section holds
 
 **谓词选择是这条里唯一承重的设计决定**：hook 认的是**工具身份**，不是「已知坏 flag」的清单。flag 清单是上游项目拥有的词表，上游每发一版就把控制打回原形——这正是本文件上一节所述「控制建立在自己不拥有的东西上」的形态，也是这个类跨多次落地反复回来的原因。工具名集合缓慢、有限、可由本仓拥有；flag 集合不是。代价是明写的：未列入的工具是**不触发**，这是刻意接受的残留，扩列表的判据是该工具已积累出记录在案的 flag 失败。
 
+### Cross-landing recurrence: the reviewer-isolation instance and the decision record (relocated from `SKILL.md`)
+
+The same predicate-ownership rule has an English-side worked instance and a required record. When a failure class returns in production after a previous landing already "fixed" it, and each prior fix registered the newly-seen value, name, or version on the same predicate rather than changing what the check is predicated on, the second occurrence is already the design signal: re-express the predicate over an **invariant the control owns** (shape, arity, type, or the verified property the check really needs), or accept the maintenance and say so. Either way the landing records a `keep / delete / narrow / replace` decision, **the invariant that took the vocabulary's place**, and **the residual risk accepted by the looser predicate**. Failure shape: a reviewer-isolation gate pinned to an upstream CLI's init field names and enum values took every reviewer lane down on three separate upstream releases; the first two landings each registered the new vocabulary — which guaranteed the third — until the predicate moved to shape.
+
 可执行形态：
 
 - 给列表内的外部 CLI 传长 flag 之前，**必须先在本机读过该 CLI 的 help 输出**；未读过就用，属于把记忆当一手源。

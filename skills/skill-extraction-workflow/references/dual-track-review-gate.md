@@ -100,7 +100,7 @@ The self-audit rule says to prove the oracle can fail before trusting its clean 
 - **A pipeline reports its LAST stage's status.** `make test | tail -20` exits with `tail`'s status, so a failing `make` reads as exit 0; the same holds for `| grep`, `| head`, and any `$?` read after a pipe. Redirect and read the command's own status (`cmd > log 2>&1; echo $?`) or set `pipefail`. Observed: a full-suite failure was reported as passing, and the mistake was caught only because the summary line the suite prints on success was missing from the captured tail.
 - **A check run against the wrong tree passes silently.** When the work lives in a git worktree, an ambient `cwd` the harness may reset between tool calls sends relative-path commands to the primary checkout, which is clean — so the gate evaluates a tree that does not contain the change. Resolve the target by absolute path (`git -C <abs>`, `bash <abs>/script.sh <abs>`); `worktree-isolation` owns that discipline. Observed: a catalog test's pristine-tree case passed against the primary checkout while the real candidate was blocked.
 
-Both are the same defect as a check that can only ever say clean: if you cannot produce the red path on demand, the green is not evidence.
+Both are the same defect as an oracle that cannot produce red: if you cannot produce the red path on demand, the green is not evidence.
 
 ### A new gate owes the negative half (relocated from `SKILL.md` §behavioral-evidence)
 

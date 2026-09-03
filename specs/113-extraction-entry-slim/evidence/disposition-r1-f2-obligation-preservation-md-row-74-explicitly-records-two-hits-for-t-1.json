@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "43ad1084d07eb61a045830a7035045daeccddcbe793b261d2d9fddddc9b019c3",
+  "receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+  "finding_sha256": "a90907ba6deeeafc9494fa4cfc83c27aaacc7efb0a216b1390a386ed4fccc000",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+      "finding_sha256": "a90907ba6deeeafc9494fa4cfc83c27aaacc7efb0a216b1390a386ed4fccc000"
+    }
+  ],
+  "evidence": [
+    "Commit 1a52305 reworded the cross-reference lead-in in dual-track-review-gate.md §Green verdicts so the clean-only-oracle clause has one carrier (grep count 1); the obligation table regenerated with the corrected row 74 note and its generator exited 0."
+  ]
+}

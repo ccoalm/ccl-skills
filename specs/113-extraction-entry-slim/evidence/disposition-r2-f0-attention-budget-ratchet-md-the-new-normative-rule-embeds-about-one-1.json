@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "43ad1084d07eb61a045830a7035045daeccddcbe793b261d2d9fddddc9b019c3",
+  "receipt_sha256": "1313967500cc8cde0dc52eb2d7100e6f83dd6aa1a28e90b44de4d2c164a8dc03",
+  "finding_sha256": "69c07943d3c4faf81ccbf0f29683121861a0b6f602febd22393d75de10aa9326",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "1313967500cc8cde0dc52eb2d7100e6f83dd6aa1a28e90b44de4d2c164a8dc03",
+      "finding_sha256": "69c07943d3c4faf81ccbf0f29683121861a0b6f602febd22393d75de10aa9326"
+    }
+  ],
+  "evidence": [
+    "Same class as review round 1 finding 0: commit 1a52305 removed the measured ratio from the shared tree; the private charter keeps the counts."
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "43ad1084d07eb61a045830a7035045daeccddcbe793b261d2d9fddddc9b019c3",
+  "receipt_sha256": "c4309764c8640b28fc9afa3b61474b9133996ceb983653b0df65147aae89c56a",
+  "finding_sha256": "8d2c0dacb09c4b5bdf527705e67342a1296a79a14d00abc8126cad27f304f8f7",
+  "disposition": "needs_human_decision",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "c4309764c8640b28fc9afa3b61474b9133996ceb983653b0df65147aae89c56a",
+      "finding_sha256": "8d2c0dacb09c4b5bdf527705e67342a1296a79a14d00abc8126cad27f304f8f7"
+    }
+  ],
+  "evidence": [
+    "The fix-batch ledger row names the review round and the same-candidate challenge as the observed failure. A committed ledger row cannot be edited under the append-only contract; the neutral form is a supersede-by-pointer row stating only the artifact-level facts (measured wording replaced by a qualitative conclusion; one carrier for the clean-only-oracle clause). Appending that row moves the landing candidate and needs a continuation lane; recorded here for the maintainer's decision."
+  ]
+}
