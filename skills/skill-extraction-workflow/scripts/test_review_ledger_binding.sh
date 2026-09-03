@@ -827,10 +827,10 @@ check "the passing chain state still passes after the probes" \
 # the real checkout it ships in, or a break in that path passes every test here.
 REAL_ROOT="$(cd "$DIR/../../.." && pwd -P)"
 real_out="$(env -u CCL_SKILL_BASE_REF python3 "$GATE" --repo-root "$REAL_ROOT" --base HEAD~1 --print-candidate 2>&1)"; real_rc=$?
-# Both outputs are legitimate and which one appears depends on what the parent
-# commit happened to touch: a candidate hash when a reviewed path moved, the
-# no-change signal when it did not. Accepting only the first makes this assertion
-# a function of repository state rather than of the gate.
+# Three outputs are legitimate and which one appears depends on what the parent
+# commit happened to touch: a candidate hash when a bounded reviewed path moved,
+# the no-change signal when it did not, or the packet-ceiling refusal when the
+# parent diff is too large for one reviewer packet.
 # Which answer is legitimate depends on the checkout, so decide that FIRST and then
 # assert the one matching branch. Accepting every output would make this assertion a
 # function of repository state; branching on the state keeps it an assertion about
@@ -842,7 +842,7 @@ if [ -n "$real_dirty" ]; then
     '[ "$real_rc" != 0 ] && case "$real_out" in *"uncommitted changes"*) true;; *) false;; esac'
 else
   check "the gate answers for the clean real checkout it ships in, whichever legitimate answer applies" \
-    '[ "$real_rc" = 0 ] && { case "$real_out" in [0-9a-f]*) [ ${#real_out} = 64 ];; *) false;; esac || case "$real_out" in *review_ledger_binding_no_change*) true;; *) false;; esac; }'
+    '{ [ "$real_rc" = 0 ] && { case "$real_out" in [0-9a-f]*) [ ${#real_out} = 64 ];; *) false;; esac || case "$real_out" in *review_ledger_binding_no_change*) true;; *) false;; esac; }; } || { [ "$real_rc" = 1 ] && case "$real_out" in *"cannot freeze the candidate packet"*"review packet exceeds 200000 bytes"*) true;; *) false;; esac; }'
 fi
 
 if [ "$fails" -gt 0 ]; then
