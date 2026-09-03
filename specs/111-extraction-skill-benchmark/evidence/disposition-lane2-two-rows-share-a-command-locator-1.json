@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c949ad351aa3ebce291334902c9b9d77caebd38a959128fcb1af069755f2ce68",
+ "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+ "finding_sha256": "98df96bfb0c49c47edbabc8925468fdf9de066dcacaa7e3c0c116ab0a4b1b9bc",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+   "finding_sha256": "98df96bfb0c49c47edbabc8925468fdf9de066dcacaa7e3c0c116ab0a4b1b9bc"
+  }
+ ],
+ "evidence": [
+  "Same class as the lane-1 disposition: `command:` locators are valid per register-firing-path-resolution.rb; the two rows record distinct observed failures of the same executable and pass check-ccl-skills. Every row added in the continuation lane anchors on a `file:` normative list line."
+ ]
+}

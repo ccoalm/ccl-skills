@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c949ad351aa3ebce291334902c9b9d77caebd38a959128fcb1af069755f2ce68",
+ "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+ "finding_sha256": "ed6925b73961b880b95d0b55c073375874274a8091b48880057f064d79b1ee0c",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+   "finding_sha256": "ed6925b73961b880b95d0b55c073375874274a8091b48880057f064d79b1ee0c"
+  }
+ ],
+ "evidence": [
+  "Both usage errors for `--skill` are generic (no value interpolated); leg 11 passes a sensitive-looking value and asserts it is absent from stderr; echo-restored mutant fails leg 11 (fix commit 4d768a4)."
+ ]
+}

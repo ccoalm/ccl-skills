@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c949ad351aa3ebce291334902c9b9d77caebd38a959128fcb1af069755f2ce68",
+ "receipt_sha256": "dcdf85c8481f41514ecb8f2cd228f348359f24a661df5c1985964381db187c10",
+ "finding_sha256": "ef83d57743bfa7fbde917e85436db88264ccb0c7b3809b0f044fae6dc44f56be",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "dcdf85c8481f41514ecb8f2cd228f348359f24a661df5c1985964381db187c10",
+   "finding_sha256": "ef83d57743bfa7fbde917e85436db88264ccb0c7b3809b0f044fae6dc44f56be"
+  }
+ ],
+ "evidence": [
+  "Added leg 14: a PATH-shimmed `grep` that fails with a read error forces the withholding path independent of permissions or root (the chmod leg stays as the natural case); added leg 13: `env -u HOME` with no --logs → no default roots, no-transcript sentinel, exit 0 (an unset HOME previously aborted under set -u; home-guard-removed mutant fails leg 13). The `seq` claim is refuted (see the seq-portability disposition)."
+ ]
+}
