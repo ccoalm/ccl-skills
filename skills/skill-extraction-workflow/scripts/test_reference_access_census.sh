@@ -36,13 +36,18 @@ printf '{"cmd":"cat skills/demo-skill/SKILL.md"}\n' > "$TMP/logs-codex/2026/09/r
 # session 4: unrelated transcript (must not count as touching)
 printf '{"cmd":"ls skills/other-skill/"}\n' > "$LOGS/proj-a/four.jsonl"
 
+# deterministic, differing mtimes so the last_touched column can be asserted exactly (newest wins)
+touch -t "$(date -v-3d +%Y%m%d%H%M 2>/dev/null || date -d '3 days ago' +%Y%m%d%H%M)" "$LOGS/proj-a/one.jsonl"
+touch -t "$(date -v-1d +%Y%m%d%H%M 2>/dev/null || date -d '1 day ago' +%Y%m%d%H%M)" "$TMP/logs-codex/2026/09/rollout-two.jsonl"
+NEWEST="$(date -v-1d +%Y-%m-%d 2>/dev/null || date -d '1 day ago' +%Y-%m-%d)"
+OLDER="$(date -v-3d +%Y-%m-%d 2>/dev/null || date -d '3 days ago' +%Y-%m-%d)"
 run() { bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$LOGS,$TMP/logs-codex"; }
 out="$(run)" || fail "census exited non-zero on a valid fixture"
 
 # (1) counts and denominator
 printf '%s\n' "$out" | grep -qF 'transcripts=4 sessions_touching_package=3' || fail "denominator wrong:\n$out"
-printf '%s\n' "$out" | grep -qE '^references/alpha\.md \| 2 \|' || fail "alpha should count 2 sessions (codex double-mention counts once):\n$out"
-printf '%s\n' "$out" | grep -qE '^references/beta\.md \| 1 \|' || fail "beta should count 1 session:\n$out"
+printf '%s\n' "$out" | grep -qF "references/alpha.md | 2 | $NEWEST | 66%" || fail "alpha should count 2 sessions with the newest touching date $NEWEST:\n$out"
+printf '%s\n' "$out" | grep -qF "references/beta.md | 1 | $OLDER | 33%" || fail "beta should count 1 session dated $OLDER:\n$out"
 printf '%s\n' "$out" | grep -qE '^references/gamma\.md \| 0 \| - \| 0%' || fail "gamma should count 0 with no date:\n$out"
 printf '%s\n' "$out" | grep -qE '^SKILL\.md \| 1 \|' || fail "SKILL.md should count 1 session:\n$out"
 [ "$(printf '%s\n' "$out" | tail -1)" = "reference_access_census_ok" ] || fail "last token must be the ok marker"
