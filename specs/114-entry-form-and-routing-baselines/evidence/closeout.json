@@ -131,7 +131,7 @@
      "finding_sha256": "dd43a9c62dd26e7b91d75f3e412c5c42ca64f3c533150ae7d4cdb32d46f06a20",
      "disposition": "fixed",
      "disposition_evidence_file": "disposition-binder-receipt-scope-1.json",
-     "disposition_evidence_sha256": "e17de712febf26519ff2ddf0ddb874ba59ec0a4a742af23eb02e7671baa3cefa"
+     "disposition_evidence_sha256": "323773e1f32dda11a69fdc94478a38699356734002dc2dcb6e7dd36fc9ae3b78"
     }
    ],
    "authoritative_sweep": null
