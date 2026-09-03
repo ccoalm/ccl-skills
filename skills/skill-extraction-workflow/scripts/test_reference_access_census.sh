@@ -85,25 +85,34 @@ if bash "$CENSUS" --repo-root "$REPO" --skill no-such-skill --logs "$LOGS" >/dev
 bash "$CENSUS" --repo-root "$REPO" --skill no-such-skill --logs "$LOGS" >/dev/null 2>&1 || [ $? -eq 2 ] || fail "unknown skill must exit 2 exactly"
 bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days abc --logs "$LOGS" >/dev/null 2>&1 || [ $? -eq 2 ] || fail "non-integer --days must exit 2"
 
-# (5) ARG_MAX regression: the candidate path list must exceed the largest common
-# ARG_MAX (Linux 2 MiB; macOS 1 MiB) so that a `$(cat candidates)` expansion —
-# the first version's shape, which silently reported 0 on a real 60-day window —
-# cannot fit in one exec. 11,000 transcripts with ~230-character paths is ~2.5 MiB.
-# Verified RED by applying that exact mutation to a disposable copy of the script.
+# (5) ARG_MAX regression: the candidate path list must exceed THIS host's exec limit
+# (getconf ARG_MAX) so that a `$(cat candidates)` expansion — the first version's shape,
+# which silently reported 0 on a real 60-day window — cannot fit in one exec. The fixture
+# size is derived from the limit, never a fixed byte figure; a host whose limit exceeds the
+# fixture bound runs only the counting leg and says so. Verified RED by applying that exact
+# mutation to a disposable copy of the script.
 DPAD=""; i=0; while [ $i -lt 150 ]; do DPAD="${DPAD}d"; i=$((i+1)); done
 BIG="$TMP/logs-big/$DPAD"; mkdir -p "$BIG"
 PAD=""; i=0; while [ $i -lt 40 ]; do PAD="${PAD}x"; i=$((i+1)); done
-( cd "$BIG" && i=1; while [ $i -le 11000 ]; do : > "s$i-$PAD.jsonl"; i=$((i+1)); done )
-# The fixture is mutation-sensitive only if THIS host's exec limit rejects the single-exec shape
-# the first version used: run that exact shape against the inventory and require E2BIG (bash exit 126,
-# "Argument list too long") rather than trusting a fixed byte figure.
+arg_max="$(getconf ARG_MAX 2>/dev/null || echo 2097152)"
+per_path=$(( ${#BIG} + 60 ))
+need=$(( (arg_max + 262144) / per_path + 1 ))
+[ "$need" -lt 11000 ] && need=11000
+probe=1
+if [ "$need" -gt 60000 ]; then
+  echo "note: ARG_MAX=$arg_max would need $need fixture files; the E2BIG probe is skipped on this host and only the counting leg runs"
+  need=11000; probe=0
+fi
+( cd "$BIG" && i=1; while [ $i -le $need ]; do : > "s$i-$PAD.jsonl"; i=$((i+1)); done )
 find "$BIG" -type f -name '*.jsonl' > "$TMP/big-list"
 inv_bytes=$(wc -c < "$TMP/big-list" | tr -d ' ')
-erc=0; bash -c 'grep -lF "skills/demo-skill/" $(cat "$1") >/dev/null 2>&1' _ "$TMP/big-list" 2>"$TMP/e2big.err" || erc=$?
-[ "$erc" -eq 126 ] || grep -qi "argument list too long" "$TMP/e2big.err" || fail "ARG_MAX fixture ($inv_bytes bytes) does not exceed this host's exec limit (rc=$erc), so the leg cannot kill the single-exec mutation"
+if [ "$probe" -eq 1 ]; then
+  erc=0; bash -c 'grep -lF "skills/demo-skill/" $(cat "$1") >/dev/null 2>&1' _ "$TMP/big-list" 2>"$TMP/e2big.err" || erc=$?
+  [ "$erc" -eq 126 ] || grep -qi "argument list too long" "$TMP/e2big.err" || fail "ARG_MAX fixture ($inv_bytes bytes, ARG_MAX=$arg_max) does not exceed this host's exec limit (rc=$erc), so the leg cannot kill the single-exec mutation"
+fi
 for i in 7 5208 10999; do printf '{"cmd":"cat skills/demo-skill/references/gamma.md"}\n' > "$BIG/s$i-$PAD.jsonl"; done
 bout="$(bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$BIG")" || fail "big run exited non-zero"
-printf '%s\n' "$bout" | grep -qF 'transcripts=11000 sessions_touching_package=3' || fail "large candidate set miscounted (ARG_MAX regression):\n$bout"
+printf '%s\n' "$bout" | grep -qF "transcripts=$need sessions_touching_package=3" || fail "large candidate set miscounted (ARG_MAX regression):\n$bout"
 printf '%s\n' "$bout" | grep -qE '^references/gamma\.md \| 3 \|' || fail "gamma should count 3 across xargs batches:\n$bout"
 
 # (6) a flag without its value is a usage error (exit 2), not an unbound-variable abort

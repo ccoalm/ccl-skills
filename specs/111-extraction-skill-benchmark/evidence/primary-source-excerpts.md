@@ -1,6 +1,6 @@
 # Primary-source excerpts and consolidation checks (round 111)
 
-Reviewable evidence for the borrowed rows (round-1 review finding: the packet carried claims, not checkable material). Each clause is quoted from the primary source as read on 2026-09-02/03; the consolidation check is the at-add-time grep the entrypoint's consolidate-and-retire rule requires, run at the round base and at head.
+Reviewable evidence for the borrowed rows: the exact clauses each row rests on, so a claim can be checked against its source rather than taken from the packet. Each clause is quoted from the primary source as read on 2026-09-02/03; the consolidation check is the at-add-time grep the entrypoint's consolidate-and-retire rule requires, run at the round base and at head.
 
 ## Quoted clauses
 
