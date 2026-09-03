@@ -39,6 +39,7 @@ skill="skill-extraction-workflow"
 days=60
 repo_root=""
 logs="${HOME}/.claude/projects,${HOME}/.codex/sessions"
+logs_explicit=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --skill|--days|--repo-root|--logs)
@@ -48,9 +49,9 @@ while [ $# -gt 0 ]; do
     --skill) skill="$2"; shift 2 ;;
     --days) days="$2"; shift 2 ;;
     --repo-root) repo_root="$2"; shift 2 ;;
-    --logs) logs="$2"; shift 2 ;;
+    --logs) logs="$2"; logs_explicit=1; shift 2 ;;
     -h|--help) sed -n '2,32p' "$0"; exit 0 ;;
-    *) echo "reference_access_census_usage_error: unknown argument $1" >&2; exit 2 ;;
+    *) echo "reference_access_census_usage_error: unknown argument (see --help)" >&2; exit 2 ;;
   esac
 done
 if [ -z "$repo_root" ]; then
@@ -85,9 +86,15 @@ withhold_if_errors() {
     exit 2
   fi
 }
+# A default root that is absent is normal (the host may run only one agent); an
+# explicitly supplied root that is absent is an input error — the caller asked
+# for a scan that cannot happen, and skipping it would read as a real count.
 for r in "${roots[@]}"; do
   [ -n "$r" ] || continue
-  [ -d "$r" ] || continue
+  if [ ! -d "$r" ]; then
+    if [ "$logs_explicit" -eq 1 ]; then echo "missing explicit log root" >> "$tmp/errors"; fi
+    continue
+  fi
   find "$r" -type f -name '*.jsonl' -mtime "-$days" >> "$tmp/candidates" 2>> "$tmp/errors" || true
 done
 withhold_if_errors
@@ -112,10 +119,17 @@ for f in "${files[@]}"; do
     withhold_if_errors
     n="$(wc -l < "$tmp/hits" | tr -d ' ')"
     if [ "$n" -gt 0 ]; then
-      # BSD stat first, GNU stat as the fallback; only the fallback's failure is an error.
-      last="$(tr '\n' '\0' < "$tmp/hits" | xargs -0 stat -f '%Sm' -t '%Y-%m-%d' 2>/dev/null | sort | tail -1 || true)"
-      [ -n "$last" ] || last="$(tr '\n' '\0' < "$tmp/hits" | xargs -0 stat -c '%y' 2>> "$tmp/errors" | cut -c1-10 | sort | tail -1)"
-      [ -n "$last" ] || withhold_if_errors
+      # BSD stat first, GNU stat as the fallback; only the fallback's failure is an
+      # error. Every substitution is guarded so a failing pipeline cannot abort the
+      # script under set -e before withhold_if_errors runs.
+      last="$(tr '\n' '\0' < "$tmp/hits" | xargs -0 stat -f '%Sm' -t '%Y-%m-%d' 2>/dev/null | sort | tail -1)" || last=""
+      if [ -z "$last" ]; then
+        last="$(tr '\n' '\0' < "$tmp/hits" | xargs -0 stat -c '%y' 2>> "$tmp/errors" | cut -c1-10 | sort | tail -1)" || last=""
+      fi
+      if [ -z "$last" ]; then
+        [ -s "$tmp/errors" ] || echo "stat produced no timestamp for a touching transcript" >> "$tmp/errors"
+        withhold_if_errors
+      fi
     else last="-"; fi
   fi
   if [ "$touching" -gt 0 ]; then share="$(( n * 100 / touching ))%"; else share="-"; fi

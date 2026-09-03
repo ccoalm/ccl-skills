@@ -101,4 +101,33 @@ printf '%s\n' "$bout" | grep -qE '^references/gamma\.md \| 3 \|' || fail "gamma 
 # (6) a flag without its value is a usage error (exit 2), not an unbound-variable abort
 bash "$CENSUS" --repo-root "$REPO" --skill >/dev/null 2>&1 || [ $? -eq 2 ] || fail "flag without value must exit 2"
 
+# (7) an unknown argument never echoes its value (an absolute path passed by mistake stays private)
+uerr="$(bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --logs "$LOGS" "/private/mistyped/path" 2>&1 >/dev/null || true)"
+bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --logs "$LOGS" "/private/mistyped/path" >/dev/null 2>&1 || [ $? -eq 2 ] || fail "unknown argument must exit 2"
+printf '%s\n' "$uerr" | grep -qF "/private/mistyped/path" && fail "unknown-argument error echoed the caller's value"
+printf '%s\n' "$uerr" | grep -qF "unknown argument" || fail "unknown-argument error must still say what went wrong"
+
+# (8) an explicitly supplied log root that does not exist is an input error — alone or mixed with a valid root
+for roots in "$TMP/no-such-root" "$TMP/no-such-root,$LOGS"; do
+  mout="$(bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$roots" 2>/dev/null || true)"
+  bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$roots" >/dev/null 2>&1 || [ $? -eq 2 ] || fail "missing explicit log root must exit 2 ($roots)"
+  printf '%s\n' "$mout" | grep -qF 'reference_access_census_unevaluated: 1 input error(s)' || fail "missing explicit log root must withhold counts:\n$mout"
+  printf '%s\n' "$mout" | grep -qF 'reference_access_census_ok' && fail "ok token printed with a missing explicit log root"
+  printf '%s\n' "$mout" | grep -qE '\| [0-9]+ \|' && fail "a table was printed with a missing explicit log root"
+  printf '%s\n' "$mout" | grep -qF "$TMP" && fail "missing-root sentinel leaked a path"
+done
+# a missing DEFAULT root stays normal: with no --logs and an empty HOME the result is the no-transcript sentinel, exit 0
+dout="$(HOME="$TMP/empty-home" bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30)" || fail "absent default roots must not be an input error"
+[ "$(printf '%s\n' "$dout" | tail -1)" = "reference_access_census_unevaluated: no transcripts within 30d under 2 log root(s); counts withheld" ] || fail "absent default roots must yield the no-transcript sentinel:\n$dout"
+
+# (9) a failing stat (a transcript vanishing before the timestamp read) withholds the table with exit 2 —
+# deterministic via a PATH shim, independent of filesystem permissions or root
+SHIM="$TMP/shim"; mkdir -p "$SHIM"
+printf '#!/usr/bin/env bash\necho "stat: cannot stat: No such file or directory" >&2\nexit 1\n' > "$SHIM/stat"; chmod +x "$SHIM/stat"
+sout="$(PATH="$SHIM:$PATH" bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$LOGS,$TMP/logs-codex" 2>/dev/null || true)"
+PATH="$SHIM:$PATH" bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$LOGS,$TMP/logs-codex" >/dev/null 2>&1 || [ $? -eq 2 ] || fail "failing stat must exit 2, not the pipeline status"
+printf '%s\n' "$sout" | grep -qF 'reference_access_census_unevaluated:' || fail "failing stat must print the unevaluated sentinel:\n$sout"
+printf '%s\n' "$sout" | grep -qF 'reference_access_census_ok' && fail "ok token printed after a failing stat"
+printf '%s\n' "$sout" | grep -qE '\| [0-9]+ \|' && fail "a table was printed after a failing stat"
+
 echo "test_reference_access_census_ok"

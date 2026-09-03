@@ -28,6 +28,7 @@
 - **Trace2Skill**（arXiv 2603.25158, 2026）— 根 SKILL.md 放广适用程序、auxiliary 放**低频**细节（§2.1）；并行分析 + 分层归并优于顺序依赖的逐条编辑（§2.4、App. B）；因果讲不通的失败不进 patch pool（§2.3）。`attention-budget-ratchet.md` 的"按触发频率放置"与普查工具的依据之一；059/060 轮已借其归并骨架
 - **ACE — Agentic Context Engineering**（arXiv 2510.04618, 2025-10）— context 以带 id 与 helpful/harmful 计数的条目化 bullet 表示、增量 delta 更新、grow-and-refine 去重；命名两种失效：brevity bias（优化把 context 压成短而泛的口号）与 context collapse（整体重写把细节压没）。前者是我们的"过压缩"警戒，后者是零损失义务表存在的理由；计数器对应本仓的引用访问普查
 - **IFScale**（arXiv 2507.11538, 2025-07）— 指令密度上升时遵循率下降、偏向靠前指令；证据档与用法见 `external-practice-controls.md` §Instruction-following mechanisms 表
+- **从成功中学习（人因/组织学习侧）**：Hollnagel & Leonhardt, *From Safety-I to Safety-II* (EUROCONTROL 白皮书, 2013) — 事情做对是因为人把工作调整到匹配条件，不是因为照规则做；Ellis & Davidi, *J. Applied Psychology* 90(5) 2005 — 成功+失败一起复盘比只复盘失败提升更大（准实地实验）；美军 TC 25-20 *A Leader's Guide to After-Action Reviews* (1993) — 四问 + sustain/improve 双清单；Levitt & March, *Organizational Learning* (Annual Review of Sociology 14, 1988) — 能力陷阱与迷信学习。落点：`incident-postmortem-extraction.md` §Success reviews
 - **GAO-01-1015R / GAO-02-195**（2001–2002，NASA lessons-learned 流程调查）— 教训库"收了不用"的经典证据：管理者不常识别/提交/使用教训、系统耗时、不熟悉他中心的教训、缺激励。这是"教训要推到触发点而不是存进库"（firing point 而非 ledger）这条本仓设计的外部反例锚
 
 ---
