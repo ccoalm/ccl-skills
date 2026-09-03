@@ -1,0 +1,17 @@
+{
+ "candidate_commit": "57dea3ab1d1b7914165469d6fe7b91162b5561b5",
+ "command": [
+  "bash",
+  "skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh"
+ ],
+ "cwd": ".",
+ "exit_code": 0,
+ "kind": "gate-receipt",
+ "minted_at": "2026-09-03T11:40:20+00:00",
+ "output_bytes": 6900,
+ "output_sha256": "19a99f8c99c3f4761611d9a36e845101c004167bde33ed8865e4f1a5b5f6c3cb",
+ "output_tail": "",
+ "schema_version": 1,
+ "tail_bytes": 0,
+ "tree_clean": true
+}

@@ -1,0 +1,17 @@
+{
+ "candidate_commit": "57dea3ab1d1b7914165469d6fe7b91162b5561b5",
+ "command": [
+  "bash",
+  "skills/skill-extraction-workflow/scripts/test_entrypoint_form_census.sh"
+ ],
+ "cwd": ".",
+ "exit_code": 0,
+ "kind": "gate-receipt",
+ "minted_at": "2026-09-03T11:39:35+00:00",
+ "output_bytes": 807,
+ "output_sha256": "4bdbc68c0765f69dd590a7e77ccbfcaf41eb074c2569eb87a4d6688af86bb137",
+ "output_tail": "",
+ "schema_version": 1,
+ "tail_bytes": 0,
+ "tree_clean": true
+}

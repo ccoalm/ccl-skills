@@ -1,0 +1,18 @@
+{
+ "candidate_commit": "57dea3ab1d1b7914165469d6fe7b91162b5561b5",
+ "command": [
+  "bash",
+  "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh",
+  "--fast"
+ ],
+ "cwd": ".",
+ "exit_code": 0,
+ "kind": "gate-receipt",
+ "minted_at": "2026-09-03T11:44:37+00:00",
+ "output_bytes": 48686,
+ "output_sha256": "fe023cbea5372318fe166a5e61a08976f578b46fa03286fa9d58bd9fefc5fa11",
+ "output_tail": "",
+ "schema_version": 1,
+ "tail_bytes": 0,
+ "tree_clean": true
+}
