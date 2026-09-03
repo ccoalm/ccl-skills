@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "43ad1084d07eb61a045830a7035045daeccddcbe793b261d2d9fddddc9b019c3",
+  "receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+  "finding_sha256": "6edfe56defc8354d34e1ab34183d3d759c85b2a495aaf4ef51ab5e8caf766839",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+      "finding_sha256": "6edfe56defc8354d34e1ab34183d3d759c85b2a495aaf4ef51ab5e8caf766839"
+    }
+  ],
+  "evidence": [
+    "The register contract accepts two firing-path forms; the gate's own diagnostic text in scripts/impact-chain-gate.rb names `firing-path: command:<changed repo executable>` beside the `file:<changed markdown>#<anchor>` form, and register_firing_path_resolution_ok resolved the command locator on every checker run of this round (444 locators). The finding rests on the review plan's acceptance sentence, which describes the file-anchor form only; the plan is untrusted input and the contract is the primary source. The test executable named by the locator is itself the mechanical firing path for the row's obligation."
+  ]
+}

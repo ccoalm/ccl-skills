@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "43ad1084d07eb61a045830a7035045daeccddcbe793b261d2d9fddddc9b019c3",
+  "receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+  "finding_sha256": "d42c866dcfd6368b46e7a6cc86c541433a1264f8183e3fc502f0b40c2f2e72b2",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+      "finding_sha256": "d42c866dcfd6368b46e7a6cc86c541433a1264f8183e3fc502f0b40c2f2e72b2"
+    }
+  ],
+  "evidence": [
+    "The same artifact records check-ccl-skills.sh output against origin/dev (word delta, line caps and per-reference deltas, firing-path resolution count, contract-anchor and sync-pointer gates), the pinned-phrase and ledger-anchor counts, and the governing-chain-diff row count plus the obligation-table generator's exit status, all on a named commit."
+  ]
+}
