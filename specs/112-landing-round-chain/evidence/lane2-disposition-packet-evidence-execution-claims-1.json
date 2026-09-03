@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "f3a77a4d499876b07e488d51d3cda294dde478b393b5b8ec185c258d243a8378",
+  "receipt_sha256": "4491e8f11374cfaf39115b4ecf47928b3d69aa8fdae72805e6f9928f58279521",
+  "finding_sha256": "7071fdcb6707672aed02106574f45a0bc799dc9e8245643403c502528884f030",
+  "disposition": "accepted_tradeoff",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "4491e8f11374cfaf39115b4ecf47928b3d69aa8fdae72805e6f9928f58279521",
+      "finding_sha256": "7071fdcb6707672aed02106574f45a0bc799dc9e8245643403c502528884f030"
+    }
+  ],
+  "evidence": [
+    "Execution results live outside the packet by the gate's design: the packet is the frozen diff a reviewer reads whole, and run logs, receipts, and the closeout ledger are the merge-side evidence the binding gate consumes. This class was dispositioned the same way in the round's earlier lanes and in prior rounds.",
+    "The count disagreement was a stale self-review sentence: the suite reported 77 ok lines after the two lane-2 cases and 78 after the newline-path case added in the fix batch; the plan's evidence entry was updated and the self-review sentence is superseded by this record.",
+    "Command: bash skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh on the landing candidate: test_review_ledger_binding: ok, 78 ok lines, 0 FAIL."
+  ]
+}
