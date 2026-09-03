@@ -781,6 +781,35 @@ out="$(PATH="$WORK/fakegit-noadd:$PATH" TMPDIR="$WORK/shim-noadd-tmp" run_chain 
 check "a checkout creation that fails before registering errors cleanly with no registration, no directory, and no release complaint" \
   '[ "$rc" != 0 ] && case "$out" in *"cannot check out round head"*) case "$out" in *"could not be released"*|*review_ledger_binding_ok*) false;; *) true;; esac;; *) false;; esac && [ "$(git -C "$CHAIN" worktree list --porcelain)" = "$worktrees_before" ] && [ -z "$(ls -A "$WORK/shim-noadd-tmp")" ]'
 
+# The registry is read NUL-terminated: line-oriented porcelain cannot carry a
+# path with a newline (the line splits; a tab is printed raw on the git in use,
+# and quoting depends on version and core.quotePath), so a registration under
+# such a temporary directory would match neither spelling and read as gone.
+# Here the add registers and fails, the remove is refused, and the surviving
+# registration must be reported.
+TAB_TMP="$WORK/shim nl
+dir"
+mkdir -p "$WORK/fakegit-tab" "$TAB_TMP"
+cat >"$WORK/fakegit-tab/git" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = "-C" ] && [ "\$3" = "worktree" ] && [ "\$4" = "add" ]; then
+  "$REAL_GIT" "\$@"
+  echo "shim: worktree add failed after registering" >&2
+  exit 1
+fi
+if [ "\$1" = "-C" ] && [ "\$3" = "worktree" ] && [ "\$4" = "remove" ]; then
+  echo "shim: refusing to remove the worktree" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$WORK/fakegit-tab/git"
+out="$(PATH="$WORK/fakegit-tab:$PATH" TMPDIR="$TAB_TMP" run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a surviving registration under a newline-bearing temporary path is still reported, not read as gone through line-oriented porcelain" \
+  '[ "$rc" != 0 ] && case "$out" in *"cannot check out round head"*"could not be released"*"still registered"*) true;; *) false;; esac'
+git -C "$CHAIN" worktree prune
+rm -rf "$TAB_TMP"
+
 git -C "$CHAIN" checkout -q -B dev "$CHAIN_ADVANCED"
 out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
 check "the passing chain state still passes after the probes" \

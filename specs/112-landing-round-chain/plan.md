@@ -194,6 +194,9 @@ Owner map（`owner | direction | status | reason`）：
 - 清偿 lane 1 的 open 项：`detached_checkout` 在 `worktree add` 返回非 0 时也走 `release_checkout`（remove + 注销回读 + 目录不存在），释放失败并入错误文案；不再裸 `rmtree`。
 - 用例先行：shim 让 `worktree add` 真的建好再返回非 0，断言错误退出、无 `review_ledger_binding_ok`、`worktree list` 与跑前一致、临时目录为空——在修复前的闸上红，修复后绿。
 - 证据文件按 lane 前缀落在同一 evidence 目录（`lane2-*`），lane 1 的 `closeout.json` 不改（append-only）；lane 2 自己的 closeout 绑定本 lane 的落地候选。
+- 预覆盖时发现：把失败的创建也走验证释放后，「add 未注册就失败」会误报释放问题并留下本次建的目录 → `release_checkout` 区分「仍注册」（错误）与「未注册目录」（本次自己建的，删掉，删不掉才报）；加良性兄弟用例作精度行。
+- Lane 2 round 1 review（codex，候选 `5b4ede7f…`）：1 条 P1 packet-evidence 类（执行结果不在 packet 内；自评里一句「76」与证据「77」不一致）→ `accepted_tradeoff`（同 107/109 的处置：收据与运行日志在 packet 外是闸的设计，评审看的是冻结 diff；数字不一致是自评过时一句，已在处置文件里更正）。
+- Lane 2 round 2 challenge（同候选）：1 条 P2——TMPDIR 含特殊字节时 `git worktree list --porcelain` 的行式输出与闸比较的两种拼写都对不上，remove 被拒后仍报「已释放」。证否先于诊断：在本机 git 2.50 上 tab 被原样打印、**不**复现，含换行的路径把行截断、复现；改读 `--porcelain -z` 按 NUL 分字段精确比较，用例用换行路径，先红后绿 → fixed。修复移动候选，欠一轮 succession。
 
 ## Status-sync target
 

@@ -851,16 +851,22 @@ def release_checkout(repo_root: Path, path: Path, resolved: Path) -> str | None:
         text=True,
         check=False,
     )
+    # NUL-terminated output: the line-oriented porcelain quotes a path that
+    # carries a tab, newline, or other unusual byte, and a quoted line would
+    # match neither spelling below, reading a surviving registration as gone.
     listing = subprocess.run(
-        ["git", "-C", str(repo_root), "worktree", "list", "--porcelain"],
+        ["git", "-C", str(repo_root), "worktree", "list", "--porcelain", "-z"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
         check=False,
     )
     if listing.returncode != 0:
-        return f"cannot read the worktree list: {listing.stderr.strip()}"
-    registered = set(listing.stdout.splitlines())
+        return f"cannot read the worktree list: {listing.stderr.decode('utf-8', 'replace').strip()}"
+    registered = {
+        field.decode("utf-8", "surrogateescape")
+        for field in listing.stdout.split(b"\0")
+        if field.startswith(b"worktree ")
+    }
     if f"worktree {path}" in registered or f"worktree {resolved}" in registered:
         detail = f": {removed.stderr.strip()}" if removed.returncode != 0 else ""
         return f"the checkout is still registered after removal{detail}"
