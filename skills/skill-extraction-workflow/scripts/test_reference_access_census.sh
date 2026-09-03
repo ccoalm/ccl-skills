@@ -41,6 +41,9 @@ touch -t "$(date -v-3d +%Y%m%d%H%M 2>/dev/null || date -d '3 days ago' +%Y%m%d%H
 touch -t "$(date -v-1d +%Y%m%d%H%M 2>/dev/null || date -d '1 day ago' +%Y%m%d%H%M)" "$TMP/logs-codex/2026/09/rollout-two.jsonl"
 NEWEST="$(date -v-1d +%Y-%m-%d 2>/dev/null || date -d '1 day ago' +%Y-%m-%d)"
 OLDER="$(date -v-3d +%Y-%m-%d 2>/dev/null || date -d '3 days ago' +%Y-%m-%d)"
+# a stale transcript (older than the window) that mentions tracked files must not move any count, share, or date
+printf '{"cmd":"cat skills/demo-skill/references/alpha.md skills/demo-skill/references/gamma.md"}\n' > "$LOGS/proj-a/stale.jsonl"
+touch -t "$(date -v-45d +%Y%m%d%H%M 2>/dev/null || date -d '45 days ago' +%Y%m%d%H%M)" "$LOGS/proj-a/stale.jsonl"
 run() { bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$LOGS,$TMP/logs-codex"; }
 out="$(run)" || fail "census exited non-zero on a valid fixture"
 
