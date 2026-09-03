@@ -47,7 +47,7 @@
    "sha": "1af3e888bbd125e50547835540bf55b78f64662d",
    "confirmed_at": "2026-09-03T11:59:06Z",
    "controller_receipt_sha256": "654f06a24d20017153b115df31a4e7bc9553501dfa649f048758f75c720d2476",
-   "evidence_file": "ledger-base-attestation-3.txt",
+   "evidence_file": "ledger-base-attestation-2.txt",
    "evidence_sha256": "f660ac647a2811c6c461b177d8cbea92e141d03217b97be315388f23440f247c"
   }
  ],
