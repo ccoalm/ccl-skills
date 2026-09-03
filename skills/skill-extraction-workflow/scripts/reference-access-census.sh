@@ -39,6 +39,10 @@ repo_root=""
 logs="${HOME}/.claude/projects,${HOME}/.codex/sessions"
 while [ $# -gt 0 ]; do
   case "$1" in
+    --skill|--days|--repo-root|--logs)
+      if [ $# -lt 2 ]; then echo "reference_access_census_usage_error: $1 needs a value" >&2; exit 2; fi ;;
+  esac
+  case "$1" in
     --skill) skill="$2"; shift 2 ;;
     --days) days="$2"; shift 2 ;;
     --repo-root) repo_root="$2"; shift 2 ;;

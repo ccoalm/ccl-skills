@@ -62,12 +62,20 @@ if bash "$CENSUS" --repo-root "$REPO" --skill no-such-skill --logs "$LOGS" >/dev
 bash "$CENSUS" --repo-root "$REPO" --skill no-such-skill --logs "$LOGS" >/dev/null 2>&1 || [ $? -eq 2 ] || fail "unknown skill must exit 2 exactly"
 bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days abc --logs "$LOGS" >/dev/null 2>&1 || [ $? -eq 2 ] || fail "non-integer --days must exit 2"
 
-# (5) ARG_MAX regression: 450 transcripts (> one xargs batch of 200), 3 of which touch gamma
-BIG="$TMP/logs-big"; mkdir -p "$BIG"
-for i in $(seq 1 450); do printf '{"cmd":"noise %s"}\n' "$i" > "$BIG/s$i.jsonl"; done
-for i in 7 208 449; do printf '{"cmd":"cat skills/demo-skill/references/gamma.md"}\n' > "$BIG/s$i.jsonl"; done
+# (5) ARG_MAX regression: the candidate path list must exceed the largest common
+# ARG_MAX (Linux 2 MiB; macOS 1 MiB) so that a `$(cat candidates)` expansion —
+# the first version's shape, which silently reported 0 on a real 60-day window —
+# cannot fit in one exec. 11,000 transcripts with ~230-character paths is ~2.5 MiB.
+# Verified RED by applying that exact mutation to a disposable copy of the script.
+BIG="$TMP/logs-big/$(printf 'd%.0s' $(seq 1 150))"; mkdir -p "$BIG"
+PAD="$(printf 'x%.0s' $(seq 1 40))"
+( cd "$BIG" && i=1; while [ $i -le 11000 ]; do : > "s$i-$PAD.jsonl"; i=$((i+1)); done )
+for i in 7 5208 10999; do printf '{"cmd":"cat skills/demo-skill/references/gamma.md"}\n' > "$BIG/s$i-$PAD.jsonl"; done
 bout="$(bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$BIG")" || fail "big run exited non-zero"
-printf '%s\n' "$bout" | grep -qF 'transcripts=450 sessions_touching_package=3' || fail "large candidate set miscounted (ARG_MAX regression):\n$bout"
+printf '%s\n' "$bout" | grep -qF 'transcripts=11000 sessions_touching_package=3' || fail "large candidate set miscounted (ARG_MAX regression):\n$bout"
 printf '%s\n' "$bout" | grep -qE '^references/gamma\.md \| 3 \|' || fail "gamma should count 3 across xargs batches:\n$bout"
+
+# (6) a flag without its value is a usage error (exit 2), not an unbound-variable abort
+bash "$CENSUS" --repo-root "$REPO" --skill >/dev/null 2>&1 || [ $? -eq 2 ] || fail "flag without value must exit 2"
 
 echo "test_reference_access_census_ok"
