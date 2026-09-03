@@ -94,9 +94,13 @@ DPAD=""; i=0; while [ $i -lt 150 ]; do DPAD="${DPAD}d"; i=$((i+1)); done
 BIG="$TMP/logs-big/$DPAD"; mkdir -p "$BIG"
 PAD=""; i=0; while [ $i -lt 40 ]; do PAD="${PAD}x"; i=$((i+1)); done
 ( cd "$BIG" && i=1; while [ $i -le 11000 ]; do : > "s$i-$PAD.jsonl"; i=$((i+1)); done )
-# the inventory must exceed the largest common ARG_MAX (2 MiB) or the leg cannot kill the single-exec mutation
-inv_bytes=$(find "$BIG" -type f -name '*.jsonl' | wc -c | tr -d ' ')
-[ "$inv_bytes" -gt 2097152 ] || fail "ARG_MAX fixture too small to be mutation-sensitive: $inv_bytes bytes"
+# The fixture is mutation-sensitive only if THIS host's exec limit rejects the single-exec shape
+# the first version used: run that exact shape against the inventory and require E2BIG (bash exit 126,
+# "Argument list too long") rather than trusting a fixed byte figure.
+find "$BIG" -type f -name '*.jsonl' > "$TMP/big-list"
+inv_bytes=$(wc -c < "$TMP/big-list" | tr -d ' ')
+erc=0; bash -c 'grep -lF "skills/demo-skill/" $(cat "$1") >/dev/null 2>&1' _ "$TMP/big-list" 2>"$TMP/e2big.err" || erc=$?
+[ "$erc" -eq 126 ] || grep -qi "argument list too long" "$TMP/e2big.err" || fail "ARG_MAX fixture ($inv_bytes bytes) does not exceed this host's exec limit (rc=$erc), so the leg cannot kill the single-exec mutation"
 for i in 7 5208 10999; do printf '{"cmd":"cat skills/demo-skill/references/gamma.md"}\n' > "$BIG/s$i-$PAD.jsonl"; done
 bout="$(bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$BIG")" || fail "big run exited non-zero"
 printf '%s\n' "$bout" | grep -qF 'transcripts=11000 sessions_touching_package=3' || fail "large candidate set miscounted (ARG_MAX regression):\n$bout"
@@ -159,6 +163,12 @@ qout="$(PATH="$QSHIM:$PATH" bash "$CENSUS" --repo-root "$REPO" --skill demo-skil
 PATH="$QSHIM:$PATH" bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$LOGS" >/dev/null 2>&1 || [ $? -eq 2 ] || fail "a silent grep failure must exit 2"
 printf '%s\n' "$qout" | grep -qF 'reference_access_census_unevaluated:' || fail "a silent grep failure must withhold counts:\n$qout"
 printf '%s\n' "$qout" | grep -qF 'reference_access_census_ok' && fail "ok token printed after a silent grep failure"
+
+# (16) an inherited errexit (caller exported SHELLOPTS=errexit) must not turn an all-no-match batch into an input error
+NM="$TMP/logs-nomatch"; mkdir -p "$NM"; printf '{"cmd":"ls skills/other-skill/"}\n' > "$NM/quiet.jsonl"
+mout2="$(env SHELLOPTS=errexit bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$NM")" || fail "inherited errexit must not abort a valid census"
+printf '%s\n' "$mout2" | grep -qF 'transcripts=1 sessions_touching_package=0' || fail "all-no-match batch under inherited errexit must be a valid zero census:\n$mout2"
+[ "$(printf '%s\n' "$mout2" | tail -1)" = "reference_access_census_ok" ] || fail "inherited errexit must not withhold a valid census"
 
 # (9) a failing stat (a transcript vanishing before the timestamp read) withholds the table with exit 2 —
 # deterministic via a PATH shim, independent of filesystem permissions or root

@@ -114,7 +114,9 @@ fi
 # grep exit 1 (no match in a batch) is success; any other non-zero status —
 # with or without a stderr line — is an input error, so each batch runs under a
 # small wrapper that normalizes 1 to 0 and lets xargs report anything else.
-grep_batch() { grep -lF --null "$@"; rc=$?; [ "$rc" -le 1 ] && return 0; return "$rc"; }
+# `|| rc=$?` keeps the batch alive when the caller exported SHELLOPTS=errexit:
+# a bare `grep; rc=$?` would exit the child at status 1 before normalizing it.
+grep_batch() { local rc=0; grep -lF --null "$@" || rc=$?; [ "$rc" -le 1 ] && return 0; return "$rc"; }
 export -f grep_batch 2>/dev/null || true
 if ! xargs -0 -n 200 bash -c 'grep_batch "$@"' _ "skills/$skill/" < "$tmp/candidates0" > "$tmp/touching0" 2>> "$tmp/errors"; then
   echo "transcript scan failed in at least one batch" >> "$tmp/errors"
