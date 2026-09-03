@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "85981f757bbf1e3a3fc41f0091a4dd95761c8bf6bb01859a9305b630e6cc00f1",
+ "receipt_sha256": "9e603392c242695c618734ccc788eb9f2e8f827a5f95af9a612a1f49ce34c9b5",
+ "finding_sha256": "e0545e70442a35f8424dd25c322374e9bfe94cb68dcb5135bd05ec034b46e235",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "9e603392c242695c618734ccc788eb9f2e8f827a5f95af9a612a1f49ce34c9b5",
+   "finding_sha256": "e0545e70442a35f8424dd25c322374e9bfe94cb68dcb5135bd05ec034b46e235"
+  }
+ ],
+ "evidence": [
+  "The locator vocabulary accepts `command:<repo-relative path>` (register-firing-path-resolution.rb header: must exist and be executable); uniqueness is required of a `file:` anchor's text within its file, not of locators across rows, and check-ccl-skills passes with both rows. The two rows record two distinct observed failures of the same executable (single-exec expansion; valueless flag) and their evidence cells name distinct test legs. The fix-round row added in deab821 anchors on a changed normative list line in attention-budget-ratchet.md instead, so the ledger's newest census row carries a `file:` anchor as the reviewer proposed."
+ ]
+}
