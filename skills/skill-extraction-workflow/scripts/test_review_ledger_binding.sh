@@ -743,6 +743,73 @@ check "a detached checkout that cannot be released turns the verdict into an err
   '[ "$rc" != 0 ] && case "$out" in *"cannot release the detached checkout"*) case "$out" in *review_ledger_binding_ok*) false;; *) true;; esac;; *) false;; esac'
 git -C "$CHAIN" worktree prune
 
+# `git worktree add` can register and populate the checkout and still return
+# nonzero. The failure is an error either way, but the registration it left
+# behind must be released and verified, not merely have its directory deleted.
+mkdir -p "$WORK/fakegit-add" "$WORK/shim-add-tmp"
+cat >"$WORK/fakegit-add/git" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = "-C" ] && [ "\$3" = "worktree" ] && [ "\$4" = "add" ]; then
+  "$REAL_GIT" "\$@"
+  echo "shim: worktree add failed after registering" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$WORK/fakegit-add/git"
+worktrees_before="$(git -C "$CHAIN" worktree list --porcelain)"
+out="$(PATH="$WORK/fakegit-add:$PATH" TMPDIR="$WORK/shim-add-tmp" run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a checkout creation that fails after registering is an error and leaves no registration or directory behind" \
+  '[ "$rc" != 0 ] && case "$out" in *"cannot check out round head"*) case "$out" in *review_ledger_binding_ok*) false;; *) true;; esac;; *) false;; esac && [ "$(git -C "$CHAIN" worktree list --porcelain)" = "$worktrees_before" ] && [ -z "$(ls -A "$WORK/shim-add-tmp")" ]'
+git -C "$CHAIN" worktree prune
+
+# The benign sibling: an add that fails before registering anything must error
+# the same way, leave the registry untouched, and remove the directory this run
+# created for it, without reporting a release problem it does not have.
+mkdir -p "$WORK/fakegit-noadd" "$WORK/shim-noadd-tmp"
+cat >"$WORK/fakegit-noadd/git" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = "-C" ] && [ "\$3" = "worktree" ] && [ "\$4" = "add" ]; then
+  echo "shim: worktree add refused before registering" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$WORK/fakegit-noadd/git"
+worktrees_before="$(git -C "$CHAIN" worktree list --porcelain)"
+out="$(PATH="$WORK/fakegit-noadd:$PATH" TMPDIR="$WORK/shim-noadd-tmp" run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a checkout creation that fails before registering errors cleanly with no registration, no directory, and no release complaint" \
+  '[ "$rc" != 0 ] && case "$out" in *"cannot check out round head"*) case "$out" in *"could not be released"*|*review_ledger_binding_ok*) false;; *) true;; esac;; *) false;; esac && [ "$(git -C "$CHAIN" worktree list --porcelain)" = "$worktrees_before" ] && [ -z "$(ls -A "$WORK/shim-noadd-tmp")" ]'
+
+# The registry is read NUL-terminated: line-oriented porcelain cannot carry a
+# path with a newline (the line splits; a tab is printed raw on the git in use,
+# and quoting depends on version and core.quotePath), so a registration under
+# such a temporary directory would match neither spelling and read as gone.
+# Here the add registers and fails, the remove is refused, and the surviving
+# registration must be reported.
+TAB_TMP="$WORK/shim nl
+dir"
+mkdir -p "$WORK/fakegit-tab" "$TAB_TMP"
+cat >"$WORK/fakegit-tab/git" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = "-C" ] && [ "\$3" = "worktree" ] && [ "\$4" = "add" ]; then
+  "$REAL_GIT" "\$@"
+  echo "shim: worktree add failed after registering" >&2
+  exit 1
+fi
+if [ "\$1" = "-C" ] && [ "\$3" = "worktree" ] && [ "\$4" = "remove" ]; then
+  echo "shim: refusing to remove the worktree" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$WORK/fakegit-tab/git"
+out="$(PATH="$WORK/fakegit-tab:$PATH" TMPDIR="$TAB_TMP" run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a surviving registration under a newline-bearing temporary path is still reported, not read as gone through line-oriented porcelain" \
+  '[ "$rc" != 0 ] && case "$out" in *"cannot check out round head"*"could not be released"*"still registered"*) true;; *) false;; esac'
+git -C "$CHAIN" worktree prune
+rm -rf "$TAB_TMP"
+
 git -C "$CHAIN" checkout -q -B dev "$CHAIN_ADVANCED"
 out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
 check "the passing chain state still passes after the probes" \

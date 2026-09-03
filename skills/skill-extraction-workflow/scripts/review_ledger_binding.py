@@ -808,13 +808,18 @@ def detached_checkout(repo_root: Path, commit: str):
         text=True,
         check=False,
     )
+    resolved = path.resolve()
     if added.returncode != 0:
-        shutil.rmtree(path, ignore_errors=True)
+        # A failed add can still have registered the checkout or populated the
+        # directory; release it through the same verified path as a success, so
+        # a failed run leaves no repository worktree state behind either.
+        problem = release_checkout(repo_root, path, resolved)
+        if problem:
+            problem = f" (and the partial checkout could not be released: {problem})"
         raise SystemExit(
             f"review_ledger_binding_error: cannot check out round head {commit[:12]}: "
-            f"{added.stderr.strip()}"
+            f"{added.stderr.strip()}{problem or ''}"
         )
-    resolved = path.resolve()
     try:
         yield resolved
     finally:
@@ -846,22 +851,33 @@ def release_checkout(repo_root: Path, path: Path, resolved: Path) -> str | None:
         text=True,
         check=False,
     )
-    if removed.returncode != 0:
-        return f"git worktree remove failed: {removed.stderr.strip()}"
+    # NUL-terminated output: the line-oriented porcelain quotes a path that
+    # carries a tab, newline, or other unusual byte, and a quoted line would
+    # match neither spelling below, reading a surviving registration as gone.
     listing = subprocess.run(
-        ["git", "-C", str(repo_root), "worktree", "list", "--porcelain"],
+        ["git", "-C", str(repo_root), "worktree", "list", "--porcelain", "-z"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
         check=False,
     )
     if listing.returncode != 0:
-        return f"cannot read the worktree list: {listing.stderr.strip()}"
-    registered = set(listing.stdout.splitlines())
+        return f"cannot read the worktree list: {listing.stderr.decode('utf-8', 'replace').strip()}"
+    registered = {
+        field.decode("utf-8", "surrogateescape")
+        for field in listing.stdout.split(b"\0")
+        if field.startswith(b"worktree ")
+    }
     if f"worktree {path}" in registered or f"worktree {resolved}" in registered:
-        return "the checkout is still registered after removal"
+        detail = f": {removed.stderr.strip()}" if removed.returncode != 0 else ""
+        return f"the checkout is still registered after removal{detail}"
     if path.exists():
-        return "the checkout directory still exists after removal"
+        # Unregistered but present: the directory this run created before git
+        # registered anything, or files git left without a registration. It is
+        # this run's own temporary directory, so deleting it touches no
+        # repository state; a directory that survives that is reported.
+        shutil.rmtree(path, ignore_errors=True)
+        if path.exists():
+            return "the checkout directory still exists after removal"
     return None
 
 

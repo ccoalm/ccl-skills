@@ -1,0 +1,103 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "f3a77a4d499876b07e488d51d3cda294dde478b393b5b8ec185c258d243a8378",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "lane2-ledger-round1-review.json",
+      "sha256": "4491e8f11374cfaf39115b4ecf47928b3d69aa8fdae72805e6f9928f58279521"
+    },
+    {
+      "sequence": 2,
+      "file": "lane2-ledger-round2-challenge.json",
+      "sha256": "1c5160414e88580270607ccd55fa4dedd64cee6c5233045bce09bb26c27aa62c"
+    },
+    {
+      "sequence": 3,
+      "file": "lane2-ledger-round3-succession-challenge.json",
+      "sha256": "82b0134f4e93d7c42da07b884423856605ff58d257aa71524df9e6d87ea47f46"
+    }
+  ],
+  "completion_receipt": null,
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "0d30526ebc08ce4c058d709f800358be19cb7d61",
+      "confirmed_at": "2026-09-03T03:46:36Z",
+      "controller_receipt_sha256": "4491e8f11374cfaf39115b4ecf47928b3d69aa8fdae72805e6f9928f58279521",
+      "evidence_file": "lane2-ledger-base-attestation-1.txt",
+      "evidence_sha256": "02d0f1f8ad5b777f1a1682ddc68294b7355667df7620a496f3960cfb762e8939"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "0d30526ebc08ce4c058d709f800358be19cb7d61",
+      "confirmed_at": "2026-09-03T04:16:39Z",
+      "controller_receipt_sha256": "1c5160414e88580270607ccd55fa4dedd64cee6c5233045bce09bb26c27aa62c",
+      "evidence_file": "lane2-ledger-base-attestation-1.txt",
+      "evidence_sha256": "02d0f1f8ad5b777f1a1682ddc68294b7355667df7620a496f3960cfb762e8939"
+    },
+    {
+      "sequence": 3,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "0d30526ebc08ce4c058d709f800358be19cb7d61",
+      "confirmed_at": "2026-09-03T04:16:42Z",
+      "controller_receipt_sha256": "82b0134f4e93d7c42da07b884423856605ff58d257aa71524df9e6d87ea47f46",
+      "evidence_file": "lane2-ledger-base-attestation-1.txt",
+      "evidence_sha256": "02d0f1f8ad5b777f1a1682ddc68294b7355667df7620a496f3960cfb762e8939"
+    }
+  ],
+  "autonomous_round": 3,
+  "controller_review_state": "findings_pending",
+  "finding_classes": [
+    {
+      "key": "packet-evidence-execution-claims",
+      "root_cause_predicate": "The frozen review packet carries the diff, not the execution results the plan cites, so a reviewer cannot verify test-run claims from the packet; a stale sentence in the self-review (76 versus the evidence's 77 ok lines) made the claims disagree.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh",
+      "occurrences": [
+        {
+          "receipt_sha256": "4491e8f11374cfaf39115b4ecf47928b3d69aa8fdae72805e6f9928f58279521",
+          "finding_sha256": "7071fdcb6707672aed02106574f45a0bc799dc9e8245643403c502528884f030",
+          "disposition": "accepted_tradeoff",
+          "disposition_evidence_file": "lane2-disposition-packet-evidence-execution-claims-1.json",
+          "disposition_evidence_sha256": "1f38920e29e12dcc41dfcc6ef7ee495cf9d5ca9014c0094c7e056a08065176af"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "registry-readback-line-oriented",
+      "root_cause_predicate": "release_checkout read git worktree list --porcelain line by line, and a temporary path line-oriented porcelain cannot carry (a newline splits the line; quoting of other bytes depends on git version and core.quotePath) matched neither compared spelling, so a surviving registration read as gone.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "1c5160414e88580270607ccd55fa4dedd64cee6c5233045bce09bb26c27aa62c",
+          "finding_sha256": "beb391377fb5ace9c9ddd7a3f851d87bb572d71f1ae13e1ac680ee87213e36a3",
+          "disposition": "fixed",
+          "disposition_evidence_file": "lane2-disposition-registry-readback-line-oriented-1.json",
+          "disposition_evidence_sha256": "bc2696a35c092669c3c5e25bf3b74db32c23c0c5446ac9d03d56a0d75c6a2c7b"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "newline-path-case-leaves-stale-registration",
+      "root_cause_predicate": "The newline-path suite case refuses worktree remove through its shim, then prunes before deleting the directory, so the registration survives prune and turns stale once the directory is removed; later cases run against a fixture repository whose worktree list was not restored and the case never verifies restoration.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh",
+      "occurrences": [
+        {
+          "receipt_sha256": "82b0134f4e93d7c42da07b884423856605ff58d257aa71524df9e6d87ea47f46",
+          "finding_sha256": "4e8128b0d52c1d9f5c37c40961d3fdba7dab09e33b09f325039cab2efeea35ce",
+          "disposition": "open"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "continuation_authorization_required"
+}
