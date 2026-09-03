@@ -111,7 +111,14 @@ fi
 
 # Sessions that mention the package at all (fixed-string prefilter keeps this fast).
 # xargs batches keep this under ARG_MAX; grep exit 1 (no match in a batch) is not an error.
-xargs -0 -n 200 grep -lF --null "skills/$skill/" < "$tmp/candidates0" > "$tmp/touching0" 2>> "$tmp/errors" || true
+# grep exit 1 (no match in a batch) is success; any other non-zero status —
+# with or without a stderr line — is an input error, so each batch runs under a
+# small wrapper that normalizes 1 to 0 and lets xargs report anything else.
+grep_batch() { grep -lF --null "$@"; rc=$?; [ "$rc" -le 1 ] && return 0; return "$rc"; }
+export -f grep_batch 2>/dev/null || true
+if ! xargs -0 -n 200 bash -c 'grep_batch "$@"' _ "skills/$skill/" < "$tmp/candidates0" > "$tmp/touching0" 2>> "$tmp/errors"; then
+  echo "transcript scan failed in at least one batch" >> "$tmp/errors"
+fi
 withhold_if_errors
 touching="$(tr -cd '\0' < "$tmp/touching0" | wc -c | tr -d ' ')"
 
@@ -120,7 +127,9 @@ touching="$(tr -cd '\0' < "$tmp/touching0" | wc -c | tr -d ' ')"
 for f in "${files[@]}"; do
   rel="${f#skills/$skill/}"
   if [ "$touching" -eq 0 ]; then n=0; last="-"; else
-    xargs -0 -n 200 grep -lF --null "$f" < "$tmp/touching0" > "$tmp/hits0" 2>> "$tmp/errors" || true
+    if ! xargs -0 -n 200 bash -c 'grep_batch "$@"' _ "$f" < "$tmp/touching0" > "$tmp/hits0" 2>> "$tmp/errors"; then
+      echo "transcript scan failed in at least one batch" >> "$tmp/errors"
+    fi
     withhold_if_errors
     n="$(tr -cd '\0' < "$tmp/hits0" | wc -c | tr -d ' ')"
     if [ "$n" -gt 0 ]; then

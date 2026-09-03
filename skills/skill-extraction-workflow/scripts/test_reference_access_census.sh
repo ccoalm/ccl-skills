@@ -73,7 +73,7 @@ else
   urc=$?
   uout="$(bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$UNREAD" 2>/dev/null || true)"
   bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$UNREAD" >/dev/null 2>&1 || [ $? -eq 2 ] || fail "unreadable transcript must exit 2"
-  printf '%s\n' "$uout" | grep -qF 'reference_access_census_unevaluated: 1 input error(s)' || fail "unreadable transcript must withhold counts as unevaluated:\n$uout"
+  printf '%s\n' "$uout" | grep -qE 'reference_access_census_unevaluated: [0-9]+ input error\(s\)' || fail "unreadable transcript must withhold counts as unevaluated:\n$uout"
   printf '%s\n' "$uout" | grep -qF 'reference_access_census_ok' && fail "ok token printed after an input error"
   printf '%s\n' "$uout" | grep -qE '\| [0-9]+ \|' && fail "a table was printed after an input error"
   printf '%s\n' "$uout" | grep -qF "$UNREAD" && fail "input-error sentinel leaked the log path"
@@ -90,9 +90,13 @@ bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days abc --logs "$LOGS" 
 # the first version's shape, which silently reported 0 on a real 60-day window —
 # cannot fit in one exec. 11,000 transcripts with ~230-character paths is ~2.5 MiB.
 # Verified RED by applying that exact mutation to a disposable copy of the script.
-BIG="$TMP/logs-big/$(printf 'd%.0s' $(seq 1 150))"; mkdir -p "$BIG"
-PAD="$(printf 'x%.0s' $(seq 1 40))"
+DPAD=""; i=0; while [ $i -lt 150 ]; do DPAD="${DPAD}d"; i=$((i+1)); done
+BIG="$TMP/logs-big/$DPAD"; mkdir -p "$BIG"
+PAD=""; i=0; while [ $i -lt 40 ]; do PAD="${PAD}x"; i=$((i+1)); done
 ( cd "$BIG" && i=1; while [ $i -le 11000 ]; do : > "s$i-$PAD.jsonl"; i=$((i+1)); done )
+# the inventory must exceed the largest common ARG_MAX (2 MiB) or the leg cannot kill the single-exec mutation
+inv_bytes=$(find "$BIG" -type f -name '*.jsonl' | wc -c | tr -d ' ')
+[ "$inv_bytes" -gt 2097152 ] || fail "ARG_MAX fixture too small to be mutation-sensitive: $inv_bytes bytes"
 for i in 7 5208 10999; do printf '{"cmd":"cat skills/demo-skill/references/gamma.md"}\n' > "$BIG/s$i-$PAD.jsonl"; done
 bout="$(bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$BIG")" || fail "big run exited non-zero"
 printf '%s\n' "$bout" | grep -qF 'transcripts=11000 sessions_touching_package=3' || fail "large candidate set miscounted (ARG_MAX regression):\n$bout"
@@ -147,6 +151,14 @@ gout="$(PATH="$GSHIM:$PATH" bash "$CENSUS" --repo-root "$REPO" --skill demo-skil
 PATH="$GSHIM:$PATH" bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$LOGS" >/dev/null 2>&1 || [ $? -eq 2 ] || fail "a grep read error must exit 2"
 printf '%s\n' "$gout" | grep -qF 'reference_access_census_unevaluated:' || fail "a grep read error must withhold counts:\n$gout"
 printf '%s\n' "$gout" | grep -qF 'reference_access_census_ok' && fail "ok token printed after a grep read error"
+
+# (15) a grep that fails silently (exit 2, no stderr) is still an input error: withhold, exit 2, no ok token
+QSHIM="$TMP/qshim"; mkdir -p "$QSHIM"
+printf '#!/usr/bin/env bash\nexit 2\n' > "$QSHIM/grep"; chmod +x "$QSHIM/grep"
+qout="$(PATH="$QSHIM:$PATH" bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$LOGS" 2>/dev/null || true)"
+PATH="$QSHIM:$PATH" bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$LOGS" >/dev/null 2>&1 || [ $? -eq 2 ] || fail "a silent grep failure must exit 2"
+printf '%s\n' "$qout" | grep -qF 'reference_access_census_unevaluated:' || fail "a silent grep failure must withhold counts:\n$qout"
+printf '%s\n' "$qout" | grep -qF 'reference_access_census_ok' && fail "ok token printed after a silent grep failure"
 
 # (9) a failing stat (a transcript vanishing before the timestamp read) withholds the table with exit 2 —
 # deterministic via a PATH shim, independent of filesystem permissions or root
