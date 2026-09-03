@@ -97,6 +97,27 @@
 | 临时 worktree 建不出 / merge-tree 不受支持 | `error`（非 0，不是通过） |
 | 跑完后 `git worktree list` 与跑前一致，被绑定树字节不变 | 不变量（用例断言） |
 
+## 差分证据（已执行，2026-09-02）
+
+RED 基线：链用例落在旧代码上，10 条红、既有用例全绿（`test_review_ledger_binding: 10 failing case(s)`）；实现后全绿（`test_review_ledger_binding: ok`）。
+
+突变走查（提交 `f2e1485` 后就地突变、跑套件、`git checkout --` 复原，每次复原后 `git diff --quiet` 确认）：
+
+| 突变 | 恰红的用例 |
+|---|---|
+| 自动合并树等式改恒真 | 2 条：evil merge 被拒、手工冲突解决被拒 |
+| 非 merge 提交静默跳过（`commit = parents[0]; continue`） | 1 条：直推集成分支的提交被拒 |
+| 每步都判同步合并、且去掉「零轮」守卫 | 6 条：两轮通过、同步合并通过、前进后合并通过、无 ledger 轮被拒、stale 轮被拒、探针后仍通过（全部与证据/轮数相关） |
+| 逐轮绑定失败被忽略 | 2 条：无 ledger 轮被拒、stale 轮被拒 |
+| `--paths` 默认集守卫去掉 | 1 条：收窄路径不求值链 |
+| 临时 worktree 不删除 | 1 条：跑后 `worktree list` 与被绑定树字节不变 |
+| 名字级第二道网单独去掉 | 0 条（在自动合并树不变量成立时它不可达——这是它被称为「第二道网」的原因） |
+| 自动合并树等式改恒真 **且** 去掉第二道网 | 同上 2 条（evil merge 从「拒」变「接受」，仍红） |
+
+第二道网单独探针：只关掉自动合并树等式、保留名字级核对，对一个 merge commit 里夹带 `smuggled.txt` 的合成仓跑闸，输出 `rejected chain -> changed paths outside every bound round: smuggled.txt`——即不变量失效时它仍能截住夹带文件。
+
+真仓复现：在干净的 dev 检出上对触发本轮的候选（`54e0f36..fa0a7de`，108/109/110 三轮叠加）跑改后的闸，4.3 秒内 `review_ledger_binding_ok: the first-parent chain binds the landing candidate as 3 rounds`，逐轮列出 110/109/108 三份 closeout；跑后 `git worktree list` 条目数不变。此前该候选只能分三波 PR。
+
 ## 测试层决策表
 
 | 层 | 处置 | 命令 | 理由 |
