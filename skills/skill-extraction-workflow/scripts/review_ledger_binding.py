@@ -132,6 +132,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import time
@@ -850,8 +851,6 @@ def release_checkout(repo_root: Path, path: Path, resolved: Path) -> str | None:
         text=True,
         check=False,
     )
-    if removed.returncode != 0:
-        return f"git worktree remove failed: {removed.stderr.strip()}"
     listing = subprocess.run(
         ["git", "-C", str(repo_root), "worktree", "list", "--porcelain"],
         stdout=subprocess.PIPE,
@@ -863,9 +862,16 @@ def release_checkout(repo_root: Path, path: Path, resolved: Path) -> str | None:
         return f"cannot read the worktree list: {listing.stderr.strip()}"
     registered = set(listing.stdout.splitlines())
     if f"worktree {path}" in registered or f"worktree {resolved}" in registered:
-        return "the checkout is still registered after removal"
+        detail = f": {removed.stderr.strip()}" if removed.returncode != 0 else ""
+        return f"the checkout is still registered after removal{detail}"
     if path.exists():
-        return "the checkout directory still exists after removal"
+        # Unregistered but present: the directory this run created before git
+        # registered anything, or files git left without a registration. It is
+        # this run's own temporary directory, so deleting it touches no
+        # repository state; a directory that survives that is reported.
+        shutil.rmtree(path, ignore_errors=True)
+        if path.exists():
+            return "the checkout directory still exists after removal"
     return None
 
 
