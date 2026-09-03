@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "ef0010e3d3c34b0c2ee8813c88ea665345b56e6a2536cc2b4dda20bb0137f2bc",
+ "receipt_sha256": "0bf8bfd338d84b834ea5c566495bbcc8299550b55b8e95edb9f0cbfec4598955",
+ "finding_sha256": "e36ea783e0b342d1fd8a19d668ab725b5e21cba1ed220f7dfd64699df66bf008",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "0bf8bfd338d84b834ea5c566495bbcc8299550b55b8e95edb9f0cbfec4598955",
+   "finding_sha256": "e36ea783e0b342d1fd8a19d668ab725b5e21cba1ed220f7dfd64699df66bf008"
+  }
+ ],
+ "evidence": [
+  "Same class as the lane-1 and lane-2 dispositions: command locators are valid per register-firing-path-resolution.rb; every row added after lane 1 anchors on a file: normative list line."
+ ]
+}
