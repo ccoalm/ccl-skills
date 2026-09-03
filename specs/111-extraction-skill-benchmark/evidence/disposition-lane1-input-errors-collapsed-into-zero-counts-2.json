@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "282c6e14ed6545e796e9067362fcca626fac1fe4e2d62e17fa9e8cf1bca86eff",
+ "receipt_sha256": "9e603392c242695c618734ccc788eb9f2e8f827a5f95af9a612a1f49ce34c9b5",
+ "finding_sha256": "1465bff716f4a2e96c90c9c58fe09069b264c2cbcff366113e7b9c2e66c6f2af",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "9e603392c242695c618734ccc788eb9f2e8f827a5f95af9a612a1f49ce34c9b5",
+   "finding_sha256": "1465bff716f4a2e96c90c9c58fe09069b264c2cbcff366113e7b9c2e66c6f2af"
+  }
+ ],
+ "evidence": [
+  "find/grep/xargs/stat stderr is collected into an error log; any non-empty log withholds the table with exit 2 and a count-only `unevaluated` message (grep no-match writes nothing to stderr, so it never trips this); the per-file loop no longer runs inside a `| sort` subshell so the exit propagates; new test leg (2b): a chmod-000 transcript yields exit 2, `1 input error(s)`, no table, no ok token, no path (fix commit deab821)."
+ ]
+}
