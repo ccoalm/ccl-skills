@@ -1,0 +1,116 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "ef0010e3d3c34b0c2ee8813c88ea665345b56e6a2536cc2b4dda20bb0137f2bc",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "ledger-round7-review.json",
+   "sha256": "0bf8bfd338d84b834ea5c566495bbcc8299550b55b8e95edb9f0cbfec4598955"
+  },
+  {
+   "sequence": 2,
+   "file": "ledger-round8-challenge.json",
+   "sha256": "c5c96c33b0a0f2f8c54fa6a89559370fa545e1d870072f6589784c2e33beb56d"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "0d30526ebc08ce4c058d709f800358be19cb7d61",
+   "confirmed_at": "2026-09-03T03:47:19Z",
+   "controller_receipt_sha256": "0bf8bfd338d84b834ea5c566495bbcc8299550b55b8e95edb9f0cbfec4598955",
+   "evidence_file": "ledger-base-attestation-4.txt",
+   "evidence_sha256": "02d0f1f8ad5b777f1a1682ddc68294b7355667df7620a496f3960cfb762e8939"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "0d30526ebc08ce4c058d709f800358be19cb7d61",
+   "confirmed_at": "2026-09-03T03:59:45Z",
+   "controller_receipt_sha256": "c5c96c33b0a0f2f8c54fa6a89559370fa545e1d870072f6589784c2e33beb56d",
+   "evidence_file": "ledger-base-attestation-4.txt",
+   "evidence_sha256": "02d0f1f8ad5b777f1a1682ddc68294b7355667df7620a496f3960cfb762e8939"
+  }
+ ],
+ "autonomous_round": 2,
+ "controller_review_state": "post_review_budget",
+ "finding_classes": [
+  {
+   "key": "source-register-over-500-lines",
+   "root_cause_predicate": "The append-only source register already exceeded the 500-line reference figure and this round's rows grow it further (repeat).",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "0bf8bfd338d84b834ea5c566495bbcc8299550b55b8e95edb9f0cbfec4598955",
+     "finding_sha256": "0c34dba094301f9bbeb781aa6502c97af40fe2e7318423c54e35cd04847a1755",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane3-source-register-over-500-lines-1.json",
+     "disposition_evidence_sha256": "d98776009350a44d106aad77cb9d2c6a3ac39d081a959e3f0042078d3837fe62"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "two-rows-share-a-command-locator",
+   "root_cause_predicate": "Two ledger rows use the same command firing-path locator rather than distinct added normative list lines (repeat).",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "0bf8bfd338d84b834ea5c566495bbcc8299550b55b8e95edb9f0cbfec4598955",
+     "finding_sha256": "e36ea783e0b342d1fd8a19d668ab725b5e21cba1ed220f7dfd64699df66bf008",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane3-two-rows-share-a-command-locator-1.json",
+     "disposition_evidence_sha256": "7e2b4cf0991782e8d45489e762f7811288d2f552d9572447922700a6b8b31fc9"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "packet-evidence-binding-claim",
+   "root_cause_predicate": "The packet cannot show the binder or checkout-release implementations or the exclusion manifest, so the post-rebase binding claim is not verifiable from the diff alone.",
+   "affected_surface": "skills/skill-extraction-workflow/references/extraction-quickstart.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "c5c96c33b0a0f2f8c54fa6a89559370fa545e1d870072f6589784c2e33beb56d",
+     "finding_sha256": "7b5cdc7f2de76ec2f188257eb9f6bf004520c0a69fdfacd00edade5cdc4ac279",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane3-challenge-packet-evidence-binding-claim-1.json",
+     "disposition_evidence_sha256": "2d7210a6a5d2b9b8462e2080ea9260699b58f5895d91e4eeeddcdc8b966dd4be"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "shellopts-errexit-inherited-by-batch-children",
+   "root_cause_predicate": "An exported SHELLOPTS with errexit makes each xargs bash -c child exit at grep status 1 before the wrapper normalizes it, so an all-no-match batch is misreported as an input error.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/reference-access-census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "c5c96c33b0a0f2f8c54fa6a89559370fa545e1d870072f6589784c2e33beb56d",
+     "finding_sha256": "905734607d8732ae3e397e4ca7fbe6c84e124761ec7c6664f5e1a35687266213",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "arg-max-threshold-not-host-derived",
+   "root_cause_predicate": "The fixture asserts a fixed 2 MiB listing size instead of deriving the threshold from the host ARG_MAX or executing the single-exec mutant, so on a host with a larger limit the leg can pass while the mutation survives.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/test_reference_access_census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "c5c96c33b0a0f2f8c54fa6a89559370fa545e1d870072f6589784c2e33beb56d",
+     "finding_sha256": "b147bf9af09ef4f15bb25d61e9c122fe7bdc2325f2f85a344015f69ffb675619",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}
