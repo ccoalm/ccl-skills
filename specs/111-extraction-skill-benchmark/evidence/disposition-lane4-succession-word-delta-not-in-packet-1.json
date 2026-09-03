@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c3a2bedf580e62ce5af8e1143b5146cff9286a4cdf8fefed38b45a9f5b419206",
+ "receipt_sha256": "79a537ccffc9c717e8a9d513ce223656339285c8eff7b5470763e3e35ad101d2",
+ "finding_sha256": "c491f4d4380299fec99529b663ae686c66594baad7d68bca5d8e4ff3ffc2323d",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "79a537ccffc9c717e8a9d513ce223656339285c8eff7b5470763e3e35ad101d2",
+   "finding_sha256": "c491f4d4380299fec99529b663ae686c66594baad7d68bca5d8e4ff3ffc2323d"
+  }
+ ],
+ "evidence": [
+  "Packet-evidence class: the predecessor candidate is not in the bounded diff by construction. The delta is reproducible from the branch: the size gate's body-word count is 16,239 at the commit before the summary expansion and 16,319 at the commit that expanded the summaries (git show <commit>:skills/skill-extraction-workflow/SKILL.md piped through the gate's word counter), i.e. +80; the round delta against the base stays negative (16,748 → 16,319)."
+ ]
+}
