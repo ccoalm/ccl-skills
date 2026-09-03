@@ -492,6 +492,262 @@ out="$(run_part --base "$PART_BASE")"; rc=$?
 check "the passing partition state still passes after the probes" \
   '[ "$rc" = 0 ]'
 
+# Chain: an integration branch accumulates several reviewed rounds, each merged
+# with its own ledger bound at its own base, and is then promoted as one pull
+# request. No single ledger binds the promotion candidate, and a path partition
+# cannot either when two rounds append to the same file: that file's promotion
+# diff is the sum of both appends and no round ever froze that sum. Every byte
+# of the promotion reached the branch through a first-parent merge whose second
+# parent is a reviewed head, so the gate walks that chain and rebinds each round
+# in a detached checkout at the round's own base, requiring every merge to be
+# exactly the automatic merge of its parents.
+CHAIN="$WORK/chain-repo"
+mkdir -p "$CHAIN/skills/code-review/scripts" "$CHAIN/skills/skill-extraction-workflow/scripts" "$CHAIN/specs"
+cp "$CONTROLLER" "$CHAIN/skills/code-review/scripts/review_gate.py"
+# This stub has a rule, unlike the accept-all stubs above, so a round can forge a
+# ledger the real validator would reject and the suite can tell whose validator
+# judged it.
+STRICT_VALIDATOR='import json, sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+if payload.get("closeout_state") == "ready_for_human_decision":
+    print("extraction_review_state_ok: stub accepted")
+    sys.exit(0)
+print("extraction_review_state_invalid: stub rejected")
+sys.exit(1)
+'
+printf '%s' "$STRICT_VALIDATOR" >"$CHAIN/skills/skill-extraction-workflow/scripts/validate_extraction_review_state.py"
+git -C "$CHAIN" init -q -b main .
+git -C "$CHAIN" config user.email t@example.invalid
+git -C "$CHAIN" config user.name tester
+printf 'baseline\n' >"$CHAIN/skills/skill-extraction-workflow/SKILL.md"
+printf '| row | owner |\n' >"$CHAIN/skills/skill-extraction-workflow/register.md"
+printf 'baseline\n' >"$CHAIN/README.md"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm baseline
+CHAIN_BASE="$(git -C "$CHAIN" rev-parse HEAD)"
+git -C "$CHAIN" checkout -q -b dev
+
+run_chain() { python3 "$GATE" --repo-root "$CHAIN" "$@" 2>&1; }
+
+# Land one reviewed round on the integration branch: branch, edit, ledger bound
+# to the round's own candidate (its base is the integration tip it forked from),
+# then a non-fast-forward merge so the round is one first-parent step.
+land_round() {
+  local name="$1" ledger="$2"; shift 2
+  git -C "$CHAIN" checkout -q -b "round-$name" dev
+  "$@"
+  git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round $name"
+  if [ "$ledger" = with-ledger ]; then
+    local digest
+    digest="$(run_chain --base dev --print-candidate)"
+    mkdir -p "$CHAIN/specs/$name/evidence"
+    write_closeout "$CHAIN/specs/$name/evidence/closeout.json" "$digest"
+    git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round $name ledger"
+  fi
+  git -C "$CHAIN" checkout -q dev
+  git -C "$CHAIN" merge -q --no-ff -m "merge round $name" "round-$name"
+}
+edit_round_a() {
+  printf 'baseline\nround a\n' >"$CHAIN/skills/skill-extraction-workflow/SKILL.md"
+  printf '| round a | owner |\n' >>"$CHAIN/skills/skill-extraction-workflow/register.md"
+}
+edit_round_b() {
+  mkdir -p "$CHAIN/lane"
+  printf 'round b\n' >"$CHAIN/lane/file.txt"
+  printf '| round b | owner |\n' >>"$CHAIN/skills/skill-extraction-workflow/register.md"
+}
+land_round a with-ledger edit_round_a
+land_round b with-ledger edit_round_b
+CHAIN_TWO="$(git -C "$CHAIN" rev-parse HEAD)"
+
+worktrees_before="$(git -C "$CHAIN" worktree list --porcelain)"
+tree_before="$(git -C "$CHAIN" status --porcelain --ignored)"
+out="$(run_chain --base "$CHAIN_BASE")"; rc=$?
+check "two rounds appending to one file bind through the first-parent chain where no single ledger or path partition can" \
+  '[ "$rc" = 0 ] && case "$out" in *"first-parent chain"*"2 rounds"*"specs/b/evidence/closeout.json"*"specs/a/evidence/closeout.json"*) true;; *) false;; esac'
+check "walking the chain leaves no detached checkout registered and the bound tree byte-identical" \
+  '[ "$(git -C "$CHAIN" worktree list --porcelain)" = "$worktrees_before" ] && [ "$(git -C "$CHAIN" status --porcelain --ignored)" = "$tree_before" ]'
+
+out="$(run_chain --base "$CHAIN_BASE" --paths skills)"; rc=$?
+check "a narrowed --paths scope does not evaluate the chain, because each round's ledger binds the whole round" \
+  '[ "$rc" = 1 ] && case "$out" in *"default path set"*) true;; *) false;; esac'
+
+# The promotion pull request is brought up to date with its target: the target
+# advanced, and the sync merge's second parent is already on the base. That step
+# owes no evidence, but it must still be exactly the automatic merge.
+git -C "$CHAIN" checkout -q main
+printf 'baseline\nfixed on the target\n' >"$CHAIN/README.md"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "target advances"
+CHAIN_MAIN="$(git -C "$CHAIN" rev-parse HEAD)"
+git -C "$CHAIN" checkout -q dev
+git -C "$CHAIN" merge -q --no-ff -m "sync target into dev" main
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a sync merge of the advanced target on top of the chain owes no evidence and still binds" \
+  '[ "$rc" = 0 ] && case "$out" in *"first-parent chain"*"2 rounds"*"sync"*) true;; *) false;; esac'
+CHAIN_GOOD="$(git -C "$CHAIN" rev-parse HEAD)"
+
+# A round the integration branch advanced past before it merged: its fork point
+# is not the merge's first parent, the merge is still the automatic one, and the
+# round's ledger was bound at its own fork point.
+git -C "$CHAIN" checkout -q -b round-late dev
+printf 'round late\n' >"$CHAIN/lane/late.txt"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round late"
+LATE_DIGEST="$(run_chain --base dev --print-candidate)"
+mkdir -p "$CHAIN/specs/late/evidence"
+write_closeout "$CHAIN/specs/late/evidence/closeout.json" "$LATE_DIGEST"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round late ledger"
+git -C "$CHAIN" checkout -q dev
+edit_round_c() { printf 'round c\n' >"$CHAIN/lane/c.txt"; }
+land_round c with-ledger edit_round_c
+git -C "$CHAIN" merge -q --no-ff -m "merge round late" round-late
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a round merged after the integration branch advanced still binds at its own fork point" \
+  '[ "$rc" = 0 ] && case "$out" in *"first-parent chain"*"4 rounds"*) true;; *) false;; esac'
+CHAIN_ADVANCED="$(git -C "$CHAIN" rev-parse HEAD)"
+
+# Every way a chain step can fail to be a reviewed round is refused for its own
+# reason. Each probe branches from the passing state so the cases stay independent.
+probe_chain() { git -C "$CHAIN" checkout -q -B dev "$CHAIN_GOOD"; }
+
+probe_chain
+edit_round_d() { printf 'round d\n' >"$CHAIN/lane/d.txt"; }
+land_round d no-ledger edit_round_d
+UNBOUND_MERGE="$(git -C "$CHAIN" rev-parse --short=12 HEAD)"
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a round with no accepted ledger at its own base refuses the whole chain, naming that round" \
+  '[ "$rc" = 1 ] && case "$out" in *"round $UNBOUND_MERGE"*"does not bind at its own base"*) true;; *) false;; esac'
+
+probe_chain
+printf 'pushed straight to the integration branch\n' >"$CHAIN/lane/direct.txt"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "direct commit on dev"
+DIRECT="$(git -C "$CHAIN" rev-parse --short=12 HEAD)"
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a non-merge commit on the integration branch is refused: nothing reviewed binds its content" \
+  '[ "$rc" = 1 ] && case "$out" in *"$DIRECT is not a merge commit"*) true;; *) false;; esac'
+
+probe_chain
+git -C "$CHAIN" checkout -q -b round-evil dev
+printf 'round evil\n' >"$CHAIN/lane/evil.txt"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round evil"
+EVIL_DIGEST="$(run_chain --base dev --print-candidate)"
+mkdir -p "$CHAIN/specs/evil/evidence"
+write_closeout "$CHAIN/specs/evil/evidence/closeout.json" "$EVIL_DIGEST"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round evil ledger"
+git -C "$CHAIN" checkout -q dev
+git -C "$CHAIN" merge -q --no-ff --no-commit round-evil
+printf 'slipped into the merge commit itself\n' >"$CHAIN/lane/smuggled.txt"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "merge round evil (with extra content)"
+EVIL_MERGE="$(git -C "$CHAIN" rev-parse --short=12 HEAD)"
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a merge whose tree is not the automatic merge of its parents is refused, naming the merge" \
+  '[ "$rc" = 1 ] && case "$out" in *"$EVIL_MERGE"*"automatic merge"*) true;; *) false;; esac'
+
+probe_chain
+git -C "$CHAIN" checkout -q -b round-conflict "$CHAIN_TWO"
+printf 'baseline\nconflicting fix\n' >"$CHAIN/README.md"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round conflict"
+CONFLICT_DIGEST="$(run_chain --base "$CHAIN_TWO" --print-candidate)"
+mkdir -p "$CHAIN/specs/conflict/evidence"
+write_closeout "$CHAIN/specs/conflict/evidence/closeout.json" "$CONFLICT_DIGEST"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round conflict ledger"
+git -C "$CHAIN" checkout -q dev
+git -C "$CHAIN" merge -q --no-ff --no-commit round-conflict >/dev/null 2>&1 || true
+printf 'baseline\nresolved by hand\n' >"$CHAIN/README.md"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "merge round conflict (resolved by hand)"
+CONFLICT_MERGE="$(git -C "$CHAIN" rev-parse --short=12 HEAD)"
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a merge that needed hand resolution is refused: the resolution is content no round reviewed" \
+  '[ "$rc" = 1 ] && case "$out" in *"$CONFLICT_MERGE"*"automatic merge"*) true;; *) false;; esac'
+
+probe_chain
+git -C "$CHAIN" checkout -q -b round-stale dev
+printf 'round stale\n' >"$CHAIN/lane/stale.txt"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round stale"
+STALE_DIGEST="$(run_chain --base dev --print-candidate)"
+mkdir -p "$CHAIN/specs/stale/evidence"
+write_closeout "$CHAIN/specs/stale/evidence/closeout.json" "$STALE_DIGEST"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round stale ledger"
+printf 'edited after the review\n' >>"$CHAIN/lane/stale.txt"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round stale moves after its ledger"
+git -C "$CHAIN" checkout -q dev
+git -C "$CHAIN" merge -q --no-ff -m "merge round stale" round-stale
+STALE_MERGE="$(git -C "$CHAIN" rev-parse --short=12 HEAD)"
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a round whose ledger binds a candidate it later moved away from is refused" \
+  '[ "$rc" = 1 ] && case "$out" in *"round $STALE_MERGE"*"does not bind at its own base"*) true;; *) false;; esac'
+
+# A round is judged with the landing tree's controller and validator, never its
+# own: a round that installs an accept-all validator in its own branch, forges a
+# ledger the real validator rejects, and is later followed by a round restoring
+# the real validator must not bind through history's tools.
+probe_chain
+git -C "$CHAIN" checkout -q -b round-forged dev
+printf 'round forged\n' >"$CHAIN/lane/forged.txt"
+printf 'import sys\nprint("extraction_review_state_ok: hollow validator accepts everything")\nsys.exit(0)\n' \
+  >"$CHAIN/skills/skill-extraction-workflow/scripts/validate_extraction_review_state.py"
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round forged"
+FORGED_DIGEST="$(run_chain --base dev --print-candidate)"
+mkdir -p "$CHAIN/specs/forged/evidence"
+python3 - "$CHAIN/specs/forged/evidence/closeout.json" "$FORGED_DIGEST" <<'PY'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({"schema_version": 3, "closeout_state": "forged", "controller_receipts": [], "candidate_sha256": sys.argv[2]}))
+PY
+git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "round forged ledger"
+git -C "$CHAIN" checkout -q dev
+git -C "$CHAIN" merge -q --no-ff -m "merge round forged" round-forged
+FORGED_MERGE="$(git -C "$CHAIN" rev-parse --short=12 HEAD)"
+edit_round_restore() { printf '%s' "$STRICT_VALIDATOR" >"$CHAIN/skills/skill-extraction-workflow/scripts/validate_extraction_review_state.py"; }
+land_round restore with-ledger edit_round_restore
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a round that forged a ledger under its own hollow validator is refused even after a later round restored the real one" \
+  '[ "$rc" = 1 ] && case "$out" in *"round $FORGED_MERGE"*"does not bind at its own base"*) true;; *) false;; esac'
+
+# The walk is bounded at exactly 64 steps: a chain of 64 passes, 65 is refused.
+# Receipt-only rounds keep the fixture fast, since a round whose only change is
+# an excluded receipt binds as "no reviewed-path change" without a freeze.
+probe_chain
+fill_round() {
+  git -C "$CHAIN" checkout -q -b "round-fill-$1" dev
+  mkdir -p "$CHAIN/specs/fill-$1/evidence"
+  printf '{"schema_version": 3, "candidate_sha256": "%s"}\n' "$(printf '0%.0s' $(seq 64))" >"$CHAIN/specs/fill-$1/evidence/note.json"
+  git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "fill $1"
+  git -C "$CHAIN" checkout -q dev
+  git -C "$CHAIN" merge -q --no-ff -m "merge fill $1" "round-fill-$1"
+}
+for index in $(seq 1 61); do fill_round "$index"; done
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a chain of exactly 64 steps is still walked and binds" \
+  '[ "$rc" = 0 ] && case "$out" in *"first-parent chain"*"63 rounds"*) true;; *) false;; esac'
+fill_round 62
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a chain of 65 steps is refused as longer than the bound" \
+  '[ "$rc" = 1 ] && case "$out" in *"more than 64 steps"*) true;; *) false;; esac'
+
+# A checkout this run cannot release is an error, never a pass: the removal's
+# result is checked and the registry read back, and nothing prunes registrations
+# the run did not create. A git shim refuses only `worktree remove`.
+git -C "$CHAIN" checkout -q -B dev "$CHAIN_GOOD"
+REAL_GIT="$(command -v git)"
+mkdir -p "$WORK/fakegit" "$WORK/shim-tmp"
+cat >"$WORK/fakegit/git" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = "-C" ] && [ "\$3" = "worktree" ] && [ "\$4" = "remove" ]; then
+  echo "shim: refusing to remove the worktree" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$WORK/fakegit/git"
+out="$(PATH="$WORK/fakegit:$PATH" TMPDIR="$WORK/shim-tmp" run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a detached checkout that cannot be released turns the verdict into an error, never a pass" \
+  '[ "$rc" != 0 ] && case "$out" in *"cannot release the detached checkout"*) case "$out" in *review_ledger_binding_ok*) false;; *) true;; esac;; *) false;; esac'
+git -C "$CHAIN" worktree prune
+
+git -C "$CHAIN" checkout -q -B dev "$CHAIN_ADVANCED"
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "the passing chain state still passes after the probes" \
+  '[ "$rc" = 0 ]'
+
 # The suite above exercises a synthetic repository. The gate must also run against
 # the real checkout it ships in, or a break in that path passes every test here.
 REAL_ROOT="$(cd "$DIR/../../.." && pwd -P)"

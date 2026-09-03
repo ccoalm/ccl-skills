@@ -1,0 +1,147 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "e18fd73a78eb718c2816fc626b93a581b423d67a757cb068cc45efc0d7c53844",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "ledger-round1-review.json",
+      "sha256": "62801502071ed5cc20f593b06ce7dcb759cf49633175c364bd18a83b3b221111"
+    },
+    {
+      "sequence": 2,
+      "file": "ledger-round2-challenge.json",
+      "sha256": "7f5ebb160fbcd9ca2df4e1824ce9241a5388b611b3aa1f08edfaca9aa1712184"
+    },
+    {
+      "sequence": 3,
+      "file": "ledger-round3-succession-challenge.json",
+      "sha256": "751c114cfe304cc015b54ebef271a2022de8f3c88b3c1f2c76027a0de59e3496"
+    }
+  ],
+  "completion_receipt": null,
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "fa0a7decc8295b97a859ed4fd69c9f76166c4ed9",
+      "confirmed_at": "2026-09-03T01:15:26Z",
+      "controller_receipt_sha256": "62801502071ed5cc20f593b06ce7dcb759cf49633175c364bd18a83b3b221111",
+      "evidence_file": "ledger-base-attestation-1.txt",
+      "evidence_sha256": "158c7edfa2539c38fcce6793785c82a1cf80b27cc7f7caaff467a272ec883c95"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "fa0a7decc8295b97a859ed4fd69c9f76166c4ed9",
+      "confirmed_at": "2026-09-03T01:33:23Z",
+      "controller_receipt_sha256": "7f5ebb160fbcd9ca2df4e1824ce9241a5388b611b3aa1f08edfaca9aa1712184",
+      "evidence_file": "ledger-base-attestation-2.txt",
+      "evidence_sha256": "158c7edfa2539c38fcce6793785c82a1cf80b27cc7f7caaff467a272ec883c95"
+    },
+    {
+      "sequence": 3,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "fa0a7decc8295b97a859ed4fd69c9f76166c4ed9",
+      "confirmed_at": "2026-09-03T01:34:14Z",
+      "controller_receipt_sha256": "751c114cfe304cc015b54ebef271a2022de8f3c88b3c1f2c76027a0de59e3496",
+      "evidence_file": "ledger-base-attestation-2.txt",
+      "evidence_sha256": "158c7edfa2539c38fcce6793785c82a1cf80b27cc7f7caaff467a272ec883c95"
+    }
+  ],
+  "autonomous_round": 3,
+  "controller_review_state": "findings_pending",
+  "finding_classes": [
+    {
+      "key": "checkout-release-unverified",
+      "root_cause_predicate": "The detached checkout's release discarded the result of git worktree remove, ran a repository-wide git worktree prune that also drops registrations the run did not create, and deleted the directory with rmtree, so a stale or locked registration could survive while the gate reported ok.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "62801502071ed5cc20f593b06ce7dcb759cf49633175c364bd18a83b3b221111",
+          "finding_sha256": "b706018ab9831c72c4eea707276140684a90d04abccc9d48759ebba381ed1be4",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-checkout-release-unverified-1.json",
+          "disposition_evidence_sha256": "10b95075fbbc513f88e7c8cf56368103fb839d83d2d3fc932d95d617e487ad11"
+        },
+        {
+          "receipt_sha256": "7f5ebb160fbcd9ca2df4e1824ce9241a5388b611b3aa1f08edfaca9aa1712184",
+          "finding_sha256": "6e08b1f383498b0ce3018b7ff29f7c8333ceffaaec0367c78471626cc4a0b84d",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-checkout-release-unverified-2.json",
+          "disposition_evidence_sha256": "7979c2a02be724831e45f0c5f6ad5e152a30f94464fe19ff46f374054b052607"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "chain-bound-off-by-one",
+      "root_cause_predicate": "walk_first_parent_chain ran a for loop of MAX_CHAIN_STEPS iterations and only tested ancestry at the top of each iteration, so a chain of exactly 64 steps assigned the base ancestor to commit and then fell out of the loop into the over-limit refusal.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "62801502071ed5cc20f593b06ce7dcb759cf49633175c364bd18a83b3b221111",
+          "finding_sha256": "15961b0f0d49a4944203c3390e3ebcbdbdd6eeaa933a690876b67d98780615e1",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-chain-bound-off-by-one-1.json",
+          "disposition_evidence_sha256": "4deb728fc1b621bfccd3042a26ebf1b8fb85540fe65e7244db6114cc25a6cf05"
+        },
+        {
+          "receipt_sha256": "7f5ebb160fbcd9ca2df4e1824ce9241a5388b611b3aa1f08edfaca9aa1712184",
+          "finding_sha256": "9b77b02ab334269aa2d6afdeb9f5669db84bfb393805be26b2b988a5ef315a93",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-chain-bound-off-by-one-2.json",
+          "disposition_evidence_sha256": "3e541d676ae928ecc5c10cb5171bb6f29753c9f986aff8a64825fe33cf228733"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "round-judged-with-own-tools",
+      "root_cause_predicate": "A historical round was rebound with the controller and validator of its own checkout, so a round that installed a hollow validator inside its branch and forged a ledger stayed bound even after a later round restored the real validator.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "7f5ebb160fbcd9ca2df4e1824ce9241a5388b611b3aa1f08edfaca9aa1712184",
+          "finding_sha256": "21eeecef5e4b7fcd33c97abadd1960c70cfc7c02a40519a8d0f3b787b0857d25",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-round-judged-with-own-tools-1.json",
+          "disposition_evidence_sha256": "8a078bbcb84222e120ee1e1b431affec4752701418ba5dd242169ff899c6a3ca"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "landing-tools-drift-refuses-old-round",
+      "root_cause_predicate": "Judging a historical round with the landing tree's controller means a change to the freeze algorithm between that round and the promotion recomputes a different hash for the round and refuses an otherwise bound chain.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "751c114cfe304cc015b54ebef271a2022de8f3c88b3c1f2c76027a0de59e3496",
+          "finding_sha256": "4bf01b0370d5125306c5e334884d5c4d542010cccaa9b0dc6e7ca6d46181a9bf",
+          "disposition": "accepted_tradeoff",
+          "disposition_evidence_file": "disposition-landing-tools-drift-refuses-old-round-1.json",
+          "disposition_evidence_sha256": "14055160c788537bd6595c0e9a4c956d9ffc53b3fc77b385973513a66353fb56"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "checkout-add-partial-failure",
+      "root_cause_predicate": "When git worktree add --detach returns nonzero after creating its registration or directory, detached_checkout only removes the directory with rmtree and never unregisters or verifies, so a failed run can leave repository worktree state behind.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "751c114cfe304cc015b54ebef271a2022de8f3c88b3c1f2c76027a0de59e3496",
+          "finding_sha256": "3b1248309cf56c03f3fd772d92be5d0f3d9e33fe0e678b1d2c70dcc830e4ae23",
+          "disposition": "open"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "continuation_authorization_required"
+}

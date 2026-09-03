@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "e18fd73a78eb718c2816fc626b93a581b423d67a757cb068cc45efc0d7c53844",
+  "receipt_sha256": "7f5ebb160fbcd9ca2df4e1824ce9241a5388b611b3aa1f08edfaca9aa1712184",
+  "finding_sha256": "21eeecef5e4b7fcd33c97abadd1960c70cfc7c02a40519a8d0f3b787b0857d25",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "7f5ebb160fbcd9ca2df4e1824ce9241a5388b611b3aa1f08edfaca9aa1712184",
+      "finding_sha256": "21eeecef5e4b7fcd33c97abadd1960c70cfc7c02a40519a8d0f3b787b0857d25"
+    }
+  ],
+  "evidence": [
+    "bind_candidate takes tools_root; bind_chain passes the landing tree so every historical round is judged with the landing tree's controller and validator, never its own. Plan D2 and D8 and the module docstring were rewritten to state this and its cost.",
+    "Command: bash skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh -- the case 'a round that forged a ledger under its own hollow validator is refused even after a later round restored the real one' (a strict stub validator at the landing tree, a hollow one inside the forged round's branch) was red on the pre-fix gate and is green after.",
+    "The real three-round promotion still binds as three rounds with the landing tree's tools."
+  ]
+}
