@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "e18fd73a78eb718c2816fc626b93a581b423d67a757cb068cc45efc0d7c53844",
+  "receipt_sha256": "7f5ebb160fbcd9ca2df4e1824ce9241a5388b611b3aa1f08edfaca9aa1712184",
+  "finding_sha256": "6e08b1f383498b0ce3018b7ff29f7c8333ceffaaec0367c78471626cc4a0b84d",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "7f5ebb160fbcd9ca2df4e1824ce9241a5388b611b3aa1f08edfaca9aa1712184",
+      "finding_sha256": "6e08b1f383498b0ce3018b7ff29f7c8333ceffaaec0367c78471626cc4a0b84d"
+    }
+  ],
+  "evidence": [
+    "Same class as the round-1 finding, independently hit by the challenge on the same candidate; resolved by the same release_checkout change and pinned by the same shim case.",
+    "Command: bash skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh (red on the pre-fix gate for this case, green after)."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "e18fd73a78eb718c2816fc626b93a581b423d67a757cb068cc45efc0d7c53844",
+  "receipt_sha256": "62801502071ed5cc20f593b06ce7dcb759cf49633175c364bd18a83b3b221111",
+  "finding_sha256": "15961b0f0d49a4944203c3390e3ebcbdbdd6eeaa933a690876b67d98780615e1",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "62801502071ed5cc20f593b06ce7dcb759cf49633175c364bd18a83b3b221111",
+      "finding_sha256": "15961b0f0d49a4944203c3390e3ebcbdbdd6eeaa933a690876b67d98780615e1"
+    }
+  ],
+  "evidence": [
+    "The walk is now a while loop that tests ancestry first and refuses only when 64 steps are already recorded and the current commit is still not on the base, so a 64-step chain binds and a 65-step chain is refused.",
+    "Command: bash skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh -- cases 'a chain of exactly 64 steps is still walked and binds' (red on the pre-fix gate, green after) and 'a chain of 65 steps is refused as longer than the bound'."
+  ]
+}

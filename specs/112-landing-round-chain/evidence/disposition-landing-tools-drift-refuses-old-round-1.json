@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "e18fd73a78eb718c2816fc626b93a581b423d67a757cb068cc45efc0d7c53844",
+  "receipt_sha256": "751c114cfe304cc015b54ebef271a2022de8f3c88b3c1f2c76027a0de59e3496",
+  "finding_sha256": "4bf01b0370d5125306c5e334884d5c4d542010cccaa9b0dc6e7ca6d46181a9bf",
+  "disposition": "accepted_tradeoff",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "751c114cfe304cc015b54ebef271a2022de8f3c88b3c1f2c76027a0de59e3496",
+      "finding_sha256": "4bf01b0370d5125306c5e334884d5c4d542010cccaa9b0dc6e7ca6d46181a9bf"
+    }
+  ],
+  "evidence": [
+    "This is the fail-closed side of the tools choice the round-2 challenge forced: judging history with history's tools let a forged ledger stand (round-judged-with-own-tools, fixed); judging it with the landing tree's tools can refuse an old round after the freeze algorithm changes. The gate's stated stance is that a false positive is cheaper than a false negative, and the refusal is loud, not silent.",
+    "The cost was recorded before this finding was raised: plan D2 ('a controller or validator change between a round and the promotion can stop an old round reproducing, and that reads as a refusal rather than a pass') and the module docstring say the same, and the fix commit 8b5e778 carries both.",
+    "Recovery when it fires: promote the accumulated rounds before landing a freeze change, or land the freeze change in its own promotion, or bind the promotion with a fresh single ledger over the whole candidate; none of these weakens the gate. Accepting this trade is recorded here for the human merging to overrule."
+  ]
+}

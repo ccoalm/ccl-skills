@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "e18fd73a78eb718c2816fc626b93a581b423d67a757cb068cc45efc0d7c53844",
+  "receipt_sha256": "7f5ebb160fbcd9ca2df4e1824ce9241a5388b611b3aa1f08edfaca9aa1712184",
+  "finding_sha256": "9b77b02ab334269aa2d6afdeb9f5669db84bfb393805be26b2b988a5ef315a93",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "7f5ebb160fbcd9ca2df4e1824ce9241a5388b611b3aa1f08edfaca9aa1712184",
+      "finding_sha256": "9b77b02ab334269aa2d6afdeb9f5669db84bfb393805be26b2b988a5ef315a93"
+    }
+  ],
+  "evidence": [
+    "Same off-by-one independently hit by the challenge; resolved by the same loop restructuring and pinned by the same two boundary cases.",
+    "Command: bash skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh (red on the pre-fix gate, green after)."
+  ]
+}
