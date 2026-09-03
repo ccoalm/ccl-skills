@@ -1,0 +1,9 @@
+Per-skill description-line hashes recomputed with the runner's own definition
+(eval-routing-bank.rb: first line starting 'description:' of each skills/*/SKILL.md,
+sorted glob order, raw bytes), against the tree the bank measured: dev @ 1af3e88.
+
+baseline skills=32  current skills=33
+CHANGED description (6): go-microservice-architecture, product-rd-workflow, python-service-architecture, requirement-intent, terminal-cli-dev, tighten-doc
+ADDED skill (1): nodejs-service-dev
+REMOVED skill (0): -
+UNCHANGED (26)
