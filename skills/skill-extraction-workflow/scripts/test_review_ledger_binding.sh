@@ -804,11 +804,19 @@ fi
 exec "$REAL_GIT" "\$@"
 EOF
 chmod +x "$WORK/fakegit-tab/git"
+worktrees_before="$(git -C "$CHAIN" worktree list --porcelain)"
 out="$(PATH="$WORK/fakegit-tab:$PATH" TMPDIR="$TAB_TMP" run_chain --base "$CHAIN_MAIN")"; rc=$?
 check "a surviving registration under a newline-bearing temporary path is still reported, not read as gone through line-oriented porcelain" \
   '[ "$rc" != 0 ] && case "$out" in *"cannot check out round head"*"could not be released"*"still registered"*) true;; *) false;; esac'
-git -C "$CHAIN" worktree prune
 rm -rf "$TAB_TMP"
+git -C "$CHAIN" worktree prune
+# This case deliberately leaves a registration behind, so its own cleanup is
+# what restores the fixture. Prune only drops registrations whose directory is
+# already gone, so the directory must go first; asserting the restoration keeps
+# a later reordering from silently handing every following case a mutated
+# registry.
+check "the newline-path case restores the fixture's worktree registry for the cases that follow" \
+  '[ "$(git -C "$CHAIN" worktree list --porcelain)" = "$worktrees_before" ]'
 
 git -C "$CHAIN" checkout -q -B dev "$CHAIN_ADVANCED"
 out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?

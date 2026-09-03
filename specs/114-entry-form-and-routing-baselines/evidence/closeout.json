@@ -1,0 +1,142 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "d4f37422d981da02a20954e2f591eec91e25963b367327fca20424d6b89ff52c",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "ledger-round1-review.json",
+   "sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420"
+  },
+  {
+   "sequence": 2,
+   "file": "ledger-round2-challenge.json",
+   "sha256": "61a72ddb3f403a904a49651c459a34e11a79a89c85b99b413a3c609e3ab7a423"
+  },
+  {
+   "sequence": 3,
+   "file": "ledger-round3-succession-challenge.json",
+   "sha256": "654f06a24d20017153b115df31a4e7bc9553501dfa649f048758f75c720d2476"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "1af3e888bbd125e50547835540bf55b78f64662d",
+   "confirmed_at": "2026-09-03T11:53:42Z",
+   "controller_receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+   "evidence_file": "ledger-base-attestation-1.txt",
+   "evidence_sha256": "f660ac647a2811c6c461b177d8cbea92e141d03217b97be315388f23440f247c"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "1af3e888bbd125e50547835540bf55b78f64662d",
+   "confirmed_at": "2026-09-03T11:53:48Z",
+   "controller_receipt_sha256": "61a72ddb3f403a904a49651c459a34e11a79a89c85b99b413a3c609e3ab7a423",
+   "evidence_file": "ledger-base-attestation-2.txt",
+   "evidence_sha256": "f660ac647a2811c6c461b177d8cbea92e141d03217b97be315388f23440f247c"
+  },
+  {
+   "sequence": 3,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "1af3e888bbd125e50547835540bf55b78f64662d",
+   "confirmed_at": "2026-09-03T11:59:06Z",
+   "controller_receipt_sha256": "654f06a24d20017153b115df31a4e7bc9553501dfa649f048758f75c720d2476",
+   "evidence_file": "ledger-base-attestation-2.txt",
+   "evidence_sha256": "f660ac647a2811c6c461b177d8cbea92e141d03217b97be315388f23440f247c"
+  }
+ ],
+ "autonomous_round": 3,
+ "controller_review_state": "findings_pending",
+ "finding_classes": [
+  {
+   "key": "packet-evidence-assertion-only",
+   "root_cause_predicate": "The bounded packet carried process claims (red/green ordering, mutation sensitivity, lane counts, gate cleanliness, binder acceptance) as narrative only, so a reviewer could not distinguish a verified candidate from an unverified one.",
+   "affected_surface": "specs/114-entry-form-and-routing-baselines/evidence",
+   "occurrences": [
+    {
+     "receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+     "finding_sha256": "d01511122495ef9b5e483cb26c7e5a2e7ad4661cc00163b30d8f182efb6ea61c",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-packet-evidence-assertion-only-1.json",
+     "disposition_evidence_sha256": "bff11113c26ab8985ae1b52c41b572199236ae8267a926f7f0e5fddf71b9b637"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "classification-rows-lack-stable-identity",
+   "root_cause_predicate": "Each classification row identified its rule only by walk ordinal, word count and group, and neither the unchanged entrypoint nor the generated per-rule JSON is in the bounded diff, so a reviewer could not tell which rule a verdict belonged to nor confirm the flagged set was fully covered.",
+   "affected_surface": "specs/114-entry-form-and-routing-baselines/form-classification.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+     "finding_sha256": "cf935a1256944fff6820d4ba2c7f11869a7b3f11a1cee327d0facccd1d4aca1b",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-classification-rows-lack-stable-identity-1.json",
+     "disposition_evidence_sha256": "08e2385078e03ba3ee14f20ad1cf5fd99fb6a61401db86a199fae14c3f90ed41"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "documented-counting-rule-differs-from-the-rule-that-ran",
+   "root_cause_predicate": "The census script's comment stated that a phrase and the words inside it are counted independently, but the alternation matches leftmost and non-overlapping, so a listed phrase absorbs its contained words; no fixture exercised the overlap, leaving the documented definition and the reported totals as different rulers while the suite stayed green.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/entrypoint_form_census.py",
+   "occurrences": [
+    {
+     "receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+     "finding_sha256": "842cab44f13535496acd3598f85277ad6e6e332a3af536d43833ef67b0567628",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-documented-counting-rule-differs-from-the-rule-that-ran-1.json",
+     "disposition_evidence_sha256": "367603d2e3c9f10ec8851961d5ed4a5b3de8e08653a2d5d8dd8eb4075c9418eb"
+    },
+    {
+     "receipt_sha256": "61a72ddb3f403a904a49651c459a34e11a79a89c85b99b413a3c609e3ab7a423",
+     "finding_sha256": "6c12c8e6287f0be062ecd5b602a4adc1a9c38892ef1b02f15c5ada3ed20effff",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-documented-counting-rule-differs-from-the-rule-that-ran-2.json",
+     "disposition_evidence_sha256": "b0bd08d6254c6962ceaa6c41ef664cee22874641cc6863a2f86e82398cd4c547"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "empty-core-rules-branch-unprotected",
+   "root_cause_predicate": "The suite covered an absent Core Rules heading but not an existing section containing no rules, so the guard that turns a zero-rule parse into an error rather than an empty census had no case protecting it.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/test_entrypoint_form_census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+     "finding_sha256": "1adda735d7ba16845d5fbf11b292043e26b1a911c1a4aca7e8602e1bdb1b6f41",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-empty-core-rules-branch-unprotected-1.json",
+     "disposition_evidence_sha256": "10ca4512f318a53c79a981bf56ad8aae940c8104924a12835eb41919b93015df"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "binder-receipt-scope-narrower-than-the-claim-it-supported",
+   "root_cause_predicate": "A gate receipt was minted for a one-commit binder window and then referenced as evidence that the merge-side binder accepts the landing tree, which spans seven commits; the receipt records its own argv, so the defect is in the referencing record rather than in the receipt.",
+   "affected_surface": "specs/114-entry-form-and-routing-baselines/evidence/gate-receipt-binder-candidate.json",
+   "occurrences": [
+    {
+     "receipt_sha256": "654f06a24d20017153b115df31a4e7bc9553501dfa649f048758f75c720d2476",
+     "finding_sha256": "dd43a9c62dd26e7b91d75f3e412c5c42ca64f3c533150ae7d4cdb32d46f06a20",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-binder-receipt-scope-1.json",
+     "disposition_evidence_sha256": "323773e1f32dda11a69fdc94478a38699356734002dc2dcb6e7dd36fc9ae3b78"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}

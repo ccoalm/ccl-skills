@@ -1,0 +1,19 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "d4f37422d981da02a20954e2f591eec91e25963b367327fca20424d6b89ff52c",
+ "receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+ "finding_sha256": "d01511122495ef9b5e483cb26c7e5a2e7ad4661cc00163b30d8f182efb6ea61c",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+   "finding_sha256": "d01511122495ef9b5e483cb26c7e5a2e7ad4661cc00163b30d8f182efb6ea61c"
+  }
+ ],
+ "evidence": [
+  "Six candidate-SHA-bound receipts minted with scripts/gate_receipt.py against the committed landing candidate and committed alongside this record: the census suite, the ledger-binding suite, the repository gate, the merge-side binder candidate print, the fast lane and the heavy lane. Each records argv, cwd, exit code, output byte count and output hash bound to the candidate commit, so any reviewer at that commit can re-execute and compare.",
+  "The receipt verifier was itself exercised in both directions rather than trusted: verify --rerun on a genuine receipt reports gate_receipt_rerun_ok, and the same command against a receipt whose output hash was altered reports gate_receipt_invalid: output_hash_mismatch. A verifier that can only report success would be no evidence.",
+  "Bounded residual, stated rather than papered over: the pre-fix RED for the suite fix (the new assertion against the old cleanup ordering) is a tree state that never existed as a commit, so it cannot be receipt-bound without fabricating one, which this round does not do. Its reproduction is one edit a reviewer can apply: move the prune before the directory removal in the newline-path case and re-run the suite.",
+  "Re-affirmed against the landing candidate: this disposition was recorded while the candidate was the pre-fix tree, and the succession round moved it. The fixes it describes are commits on the landing tree's own history, so the disposition holds there; the candidate binding is updated rather than the evidence rewritten."
+ ]
+}

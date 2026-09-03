@@ -1,0 +1,19 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "d4f37422d981da02a20954e2f591eec91e25963b367327fca20424d6b89ff52c",
+ "receipt_sha256": "654f06a24d20017153b115df31a4e7bc9553501dfa649f048758f75c720d2476",
+ "finding_sha256": "dd43a9c62dd26e7b91d75f3e412c5c42ca64f3c533150ae7d4cdb32d46f06a20",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "654f06a24d20017153b115df31a4e7bc9553501dfa649f048758f75c720d2476",
+   "finding_sha256": "dd43a9c62dd26e7b91d75f3e412c5c42ca64f3c533150ae7d4cdb32d46f06a20"
+  }
+ ],
+ "evidence": [
+  "The finding is upheld: the binder receipt records argv `--base HEAD~1 --print-candidate`, which computes a one-commit window, while the reviewed change spans seven commits from origin/dev. The receipt itself is not misleading -- its argv and cwd are part of the record, which is how the reviewer detected the scope -- but the disposition that referenced it presented it as evidence of binder acceptance of the landing tree, and it is not. That reference is what is corrected.",
+  "What that receipt actually attests, stated exactly: on a clean checkout at the recorded commit the gate answers rather than errors for a one-commit window, which is the shipped-checkout case its own suite covers. It is retained under that reading rather than deleted, because deleting it would move the very candidate this ledger binds.",
+  "Full-base binder result, recorded here rather than receipted, with the reason: `review_ledger_binding.py --repo-root . --base origin/dev` on the landing tree is the authoritative local check, and it cannot be receipt-bound at all. A gate receipt carries `candidate_commit`, not a top-level `candidate_sha256`, so the binder's own exclusion predicate treats it as bound content; committing a receipt of the full binder run would therefore change the candidate that receipt attests. That is a fixed point of the design, not an omission, and CI re-running the gate on the merge commit remains the deterministic authority.",
+  "Full-base binder verdict on the landing tree, run after this disposition was written and recorded here rather than receipted: `review_ledger_binding_ok: specs/114-entry-form-and-routing-baselines/evidence/closeout.json binds the landing candidate (d4f37422d981...) -- extraction_review_state_ok: closeout_state=continuation_authorization_required finding_classes=5 base_changes=0`. Reproduce with `python3 skills/skill-extraction-workflow/scripts/review_ledger_binding.py --repo-root . --base origin/dev` at the landing tree. Reaching that verdict required one correction the finding did not name: an added base attestation file is bound content, so committing a third one after the succession round moved the candidate that round had reviewed and the binder refused it; sequence 3 now reuses the existing attestation with its own confirmed_at, which is the shape a prior round already used."
+ ]
+}

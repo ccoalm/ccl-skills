@@ -108,6 +108,10 @@ fast_tests=(
   # applied deletion mutation in a throwaway copy (spec 031 review disposition).
   test_controlled_escalation_pins.sh
   test_check_ccl_size_budget.sh
+  # Entrypoint guidance-form census (what counts as one rule, a prohibition, a
+  # named baseline failure): synthetic fixtures plus the shipped entrypoint,
+  # seconds. Pins the definitions, never any round's figures.
+  test_entrypoint_form_census.sh
   # Usage census over synthetic transcripts (counts, privacy contract,
   # unevaluated sentinel, ARG_MAX batching): no host logs, seconds.
   test_reference_access_census.sh
