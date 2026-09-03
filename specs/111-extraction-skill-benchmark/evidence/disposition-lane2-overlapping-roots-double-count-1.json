@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c949ad351aa3ebce291334902c9b9d77caebd38a959128fcb1af069755f2ce68",
+ "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+ "finding_sha256": "b9c5ea6685015f81a75b54a440a7877c12fcb3aab8e3d064e151a1953c90d419",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "95b68b4bf2600f84fec488254ba33903a44478f9efc029e637657556b6b6c8a1",
+   "finding_sha256": "b9c5ea6685015f81a75b54a440a7877c12fcb3aab8e3d064e151a1953c90d419"
+  }
+ ],
+ "evidence": [
+  "Candidate inventory is now NUL-delimited (`find -print0`, `sort -zu`, `grep --null`) and deduplicated by pathname; leg 10 (root + its subtree + the root again → transcripts=2) and leg 12 (newline in a transcript name → one candidate) added; dedupe-removed mutant fails leg 10 (fix commit 4d768a4). Symlinked roots are not canonicalized (documented in the script)."
+ ]
+}

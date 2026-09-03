@@ -1,0 +1,18 @@
+{
+ "candidate_commit": "57dea3ab1d1b7914165469d6fe7b91162b5561b5",
+ "command": [
+  "bash",
+  "skills/skill-extraction-workflow/scripts/check-ccl-skills.sh",
+  "."
+ ],
+ "cwd": ".",
+ "exit_code": 0,
+ "kind": "gate-receipt",
+ "minted_at": "2026-09-03T11:40:35+00:00",
+ "output_bytes": 17019,
+ "output_sha256": "16384505214e96edc5b2bbf2ea391d272da04d4cf2eee91fce612b594d46c808",
+ "output_tail": "",
+ "schema_version": 1,
+ "tail_bytes": 0,
+ "tree_clean": true
+}

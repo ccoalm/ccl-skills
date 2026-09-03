@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "282c6e14ed6545e796e9067362fcca626fac1fe4e2d62e17fa9e8cf1bca86eff",
+ "receipt_sha256": "e09f43545089f96e6a69ca07f6977f66b19fda8130865e5072cc4de63996876d",
+ "finding_sha256": "bb0c5eaab1c9bee411a3d35c52f8222ad009eb832faa175ee893d5ad97c2d1d7",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "e09f43545089f96e6a69ca07f6977f66b19fda8130865e5072cc4de63996876d",
+   "finding_sha256": "bb0c5eaab1c9bee411a3d35c52f8222ad009eb832faa175ee893d5ad97c2d1d7"
+  }
+ ],
+ "evidence": [
+  "Packet-evidence class (same disposition as the prior rounds of this repository): the bounded review packet is by design the frozen candidate diff, and the merge-side binder excludes round-added disposition JSON from the candidate, so disposition files and immutable third-party source snapshots cannot be inside the packet without moving the candidate they describe or vendoring external text into the shared tree. The excerpts file records exact source locators (repository path + commit head, arXiv id + section, docs page + section) so any reviewer with network access can re-fetch and compare; the dispositions are committed in the same evidence directory and are read by the closeout validator, not by the packet reviewer."
+ ]
+}

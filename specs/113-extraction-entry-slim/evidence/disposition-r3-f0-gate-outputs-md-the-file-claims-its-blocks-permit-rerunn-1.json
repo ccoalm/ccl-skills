@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "43ad1084d07eb61a045830a7035045daeccddcbe793b261d2d9fddddc9b019c3",
+  "receipt_sha256": "c4309764c8640b28fc9afa3b61474b9133996ceb983653b0df65147aae89c56a",
+  "finding_sha256": "93f3d0b6b14649871996b4c5d26f74e80f4dd1497044edf332c286726360363a",
+  "disposition": "accepted_tradeoff",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "c4309764c8640b28fc9afa3b61474b9133996ceb983653b0df65147aae89c56a",
+      "finding_sha256": "93f3d0b6b14649871996b4c5d26f74e80f4dd1497044edf332c286726360363a"
+    }
+  ],
+  "evidence": [
+    "Packet-evidence class: the reviewer's packet is the diff plus the tree paths the binder binds, and the binder excludes every committed receipt and disposition JSON by construction, so no disposition record can be inside the packet that reviews the candidate those records bind; the gate contract text in scripts/impact-chain-gate.rb is unchanged this round and therefore outside the diff. Adding literal command lines to gate-outputs.md would move the landing candidate after the succession round, which the wrapper-fixed budget cannot fund; the artifact already names each command's script, base, and commit so the same run can be reproduced. Recorded for the next lane: gate-outputs.md should carry one literal repo-relative command per block."
+  ]
+}

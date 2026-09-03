@@ -24,6 +24,12 @@
 - **OpenSSF Scorecard** (github.com/ossf/scorecard) — 仓库安全/健康度评分:**每 check 0–10 → 按风险加权聚合 0–10**(Critical=10 / High=7.5 / Medium=5 / Low=2.5),weekly 扫 + 公开 BigQuery 数据集追历史。直接印证"加权 0–10 综合分 + 趋势"是业内做法(§3.4 的外部锚)
 - **Goodhart's law**(Goodhart 1975,英格兰货币政策;Strathern 1997 普及化:"When a measure becomes a target, it ceases to be a good measure")— 度量一旦成为目标就被博弈优化、失去原效。§3.4 综合分**只做 advisory 不当 gate**、历史文件 git-ignore 的依据
 - **Eval-driven development**(evaldriven.org + Braintrust 等多个独立 practitioner 源)— 改动前先写 eval/场景、每次改动跑同一套、**绝不为过测试而特判 eval**;把"改了才发现"提前成"改前就量"。§3.2 的 authoring-time RED-baseline + F4 防作弊(冻结 task、改 skill 顺手改测试告警)即此实践;映射的"watch it fail first"= TDD red-green(`superpowers` owns)
+- **Anthropic `skill-creator`**（github.com/anthropics/skills, `skills/skill-creator/SKILL.md` + `agents/analyzer.md`, head 2026-04-20）— 官方技能创建/改进/度量 recipe：with-skill 与 baseline 两臂同轮起跑、每臂记 token+耗时、逐断言 pattern 读数（两臂恒过/恒挂/单侧过/高方差）、description 触发 eval（20 条 should/should-not、近似负例、每条跑 3 次、60/40 held-out 选 best）。§3.1 的两臂定义、成本列与逐断言读数三条即借此
+- **Trace2Skill**（arXiv 2603.25158, 2026）— 根 SKILL.md 放广适用程序、auxiliary 放**低频**细节（§2.1）；并行分析 + 分层归并优于顺序依赖的逐条编辑（§2.4、App. B）；因果讲不通的失败不进 patch pool（§2.3）。`attention-budget-ratchet.md` 的"按触发频率放置"与普查工具的依据之一；059/060 轮已借其归并骨架
+- **ACE — Agentic Context Engineering**（arXiv 2510.04618, 2025-10）— context 以带 id 与 helpful/harmful 计数的条目化 bullet 表示、增量 delta 更新、grow-and-refine 去重；命名两种失效：brevity bias（优化把 context 压成短而泛的口号）与 context collapse（整体重写把细节压没）。前者是我们的"过压缩"警戒，后者是零损失义务表存在的理由；计数器对应本仓的引用访问普查
+- **IFScale**（arXiv 2507.11538, 2025-07）— 指令密度上升时遵循率下降、偏向靠前指令；证据档与用法见 `external-practice-controls.md` §Instruction-following mechanisms 表
+- **从成功中学习（人因/组织学习侧）**：Hollnagel & Leonhardt, *From Safety-I to Safety-II* (EUROCONTROL 白皮书, 2013) — 事情做对是因为人把工作调整到匹配条件，不是因为照规则做；Ellis & Davidi, *J. Applied Psychology* 90(5) 2005 — 成功+失败一起复盘比只复盘失败提升更大（准实地实验）；美军 TC 25-20 *A Leader's Guide to After-Action Reviews* (1993) — 四问 + sustain/improve 双清单；Levitt & March, *Organizational Learning* (Annual Review of Sociology 14, 1988) — 能力陷阱与迷信学习。落点：`incident-postmortem-extraction.md` §Success reviews
+- **GAO-01-1015R / GAO-02-195**（2001–2002，NASA lessons-learned 流程调查）— 教训库"收了不用"的经典证据：管理者不常识别/提交/使用教训、系统耗时、不熟悉他中心的教训、缺激励。这是"教训要推到触发点而不是存进库"（firing point 而非 ledger）这条本仓设计的外部反例锚
 
 ---
 
@@ -115,6 +121,8 @@ Result inflation 没有 MAST 对应——它是 context / 成本问题，不是�
 - reviewer 或 challenger 核准 task 抽样
 - 成功标准 改前定义 (specific assertions on output / behavior)
 - 比对 **transcript + outcome**，不只 final prose（per Anthropic 2026 evals）
+- **两臂的定义按改动类型定**：新技能 → 对照臂是 *无技能*；改既有技能 → 对照臂是改前快照（先 `cp -r` 冻结再改，别拿改后的树当基线）；两臂**同一轮并发起跑**（the with-skill and baseline arms must start in the same turn），别先跑实验臂再补对照臂。每臂记录 **token 用量 + 耗时**（宿主的子 agent 完成通知里有，过时不候），效果与成本同列——一条只提 pass rate 不提成本的对照没法判"值不值"（Anthropic skill-creator 2026 的 benchmark 形态）
+- **逐断言读数，不只看聚合通过率**：两臂都恒过 = 该断言不区分技能价值；两臂都恒挂 = 断言坏了或超出能力；有技能过、无技能挂 = 技能在此生效；有技能挂、无技能过 = 技能在此帮倒忙；高方差 = 断言 flaky 或行为非确定。任何一类都先记录再定性，聚合分会把这些抵消掉（同上源 analyzer 判据）
 - **两臂无差异时不得在这一步定性为该文本无用**：成因至少两种——既有规则已覆盖该 failure-class（那是合并决策，见上），或该行为在 host 基线上本就存在。要分清得另取证据，**本节不规定取法**：低 N、臂配置混杂、以及"只给对照臂换夹具或换权限就多一个变量"这三样让这类归因很容易做错，宿主自身系统层也始终在场。取不到可靠证据就把成因判为**未确定**，别猜一个填上——本节判"改动有没有效"的对照始终是 before/after 两臂
 
 实测踩过的那次里，零差分的成因是既有规则已覆盖，不是这句话本身无效。

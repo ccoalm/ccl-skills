@@ -173,3 +173,29 @@ Re-run the challenge after each fix-up. Multiple rounds are normal: in practice 
 ## Iteration after deployment
 
 Even a carefully written description will miss real-user phrasings. Plan to collect actual miss / over-trigger reports for 1–2 weeks after landing, then increment the trigger list and Skip-when based on data. Do not pre-emptively stuff in every imaginable phrase — that fails the 80% threshold and creates new collisions.
+
+## Routing-miss fix checklist — the three axes (relocated from `SKILL.md`)
+
+The Core Rule names the axes; this section carries the checks and the observed failure shapes. Walk all three before any `description`/trigger edit lands; a repeated miss of the same request type across two rounds means the previous fix skipped one.
+
+### (a) Coordinator-vs-executor
+
+- A fix that advertises the request type only on the executor's description is incomplete: *multi-stage deliveries* of that type (spec → plan → test-first → impl → verify) keep auto-routing to the executor and skip the coordinator's lifecycle gates.
+- Check 1 — does the coordinator's description advertise this request type with a scale qualifier — narrow/single-file work goes to the executor, multi-stage/cross-cutting work to the coordinator?
+- Check 2 — does the body claim ownership that the routing surface leaves out (a body↔description contradiction)?
+- Check 3 — when the description paraphrases a body trigger or skip-condition that has **multiple clauses with different scopes** (clause 1 fires on *any edit* of a surface, clause 2 only on a *semantics change*), preserve each clause's scope separately; collapsing a multi-scope trigger to its most salient clause silently over- or under-fires. The body trigger is the primary source, so re-read every clause (the first reading is hypothesis-grade) before asserting the description over/under-covers it or rewording it.
+- Resolve all three checks, or record for that owner why the coordinator stays `unchanged`.
+- Failure shape: a trigger word ("重构"/refactor) was added to stack `*-dev`/`*-architecture` descriptions while the coordinator workflow's description never advertised it, even though the coordinator's BODY already claimed ownership — a body↔routing-surface contradiction that kept multi-stage refactor deliveries on the executor.
+
+### (b) Utterance-variant
+
+- The same delivery type arrives under many utterances — the canonical name PLUS restart / redo / from-scratch / continue variants. A *refactor delivery* arrives as "重构 X" but also "重新开发", "完全重新开始", "推倒重来", "清除代码重新开发", "redo/rewrite from scratch"; advertising only the canonical phrase leaves the variants unmatched, so the workflow silently fails to auto-trigger on them.
+- Enumerate the restart/redo/continue variants of the request type and add the high-value ones within the 800-char cap; overflow goes to the body's entry-precedence text.
+- Failure shape: a repeated miss of the SAME delivery type arriving via a different utterance across rounds — the axis was skipped the first time.
+
+### (c) Listing budget (Claude Code)
+
+- Before fixing a routing miss with a trigger-word edit, check whether the skill's description was even IN the host listing; a name-only entry voids a keyword-based fix while the skill stays reachable by explicit `/skill-name`.
+- Evidence bar (do not over-apply as a catch-all): treat budget-dropped as established only on concrete evidence — this turn's listing shows that skill as name-only, `/doctor` output, or other host-listing proof. Absent that, treat it as a hypothesis and STILL do the (a)/(b) fix; a *visible* description misjudged as name-only is the reverse trap.
+- Corollaries: a routing/bootstrap doc that assumes "every description is always visible" is wrong under budget pressure and must not be a low-traffic gate skill's sole discovery path; on non-Claude-Code hosts check the host's own listing behavior against its primary docs — any LLM's "it's a host bug" guess is hypothesis-grade until so checked.
+- Mechanism, cold-start trap, and levers: `skill-listing-budget.md`.

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "e18fd73a78eb718c2816fc626b93a581b423d67a757cb068cc45efc0d7c53844",
+  "receipt_sha256": "62801502071ed5cc20f593b06ce7dcb759cf49633175c364bd18a83b3b221111",
+  "finding_sha256": "b706018ab9831c72c4eea707276140684a90d04abccc9d48759ebba381ed1be4",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "62801502071ed5cc20f593b06ce7dcb759cf49633175c364bd18a83b3b221111",
+      "finding_sha256": "b706018ab9831c72c4eea707276140684a90d04abccc9d48759ebba381ed1be4"
+    }
+  ],
+  "evidence": [
+    "release_checkout now checks the result of git worktree remove --force, reads git worktree list --porcelain back and requires the checkout to be unregistered and its directory gone; no git worktree prune runs anywhere in the gate.",
+    "A release problem after a successful body raises review_ledger_binding_error; after a refusing body it is emitted alongside the refusal, so ok can never stand on an unreleased checkout.",
+    "Command: bash skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh -- the case 'a detached checkout that cannot be released turns the verdict into an error, never a pass' (a git shim refusing only worktree remove) was red on the pre-fix gate and is green after the fix.",
+    "Fixed in the batch held until after the challenge; the succession round challenged the fixed candidate e18fd73a."
+  ]
+}

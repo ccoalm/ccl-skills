@@ -88,3 +88,10 @@ When the source is a task/session that PRODUCED runnable artifacts (scripts, com
 ## Gate (4) — the per-item verdict-disposition obligation (relocated gate detail)
 
 The verdict owes a **per-item disposition row EVEN WHEN THE ROUND LANDS NOTHING** (no commit fires to catch an advertising-level verdict): each row records the load-bearing surface actually read (section/line/rule — NOT headers/`When to invoke` blurb/feature-list), the owning organization artifact (`file:rule`) OR `route-to-tool` / `out-of-scope: <reason>`, and for `covered` the mechanical firing path. A `quick`/`light`/`sweep`/`triage` framing does **NOT** waive the load-bearing read. Record the row on a **concrete surface** — the triage turn's final response OR persistent scratch / `source-register`, never chat-ephemeral. (Honesty: absent a host/review hook checking that surface, this stays recognition-dependent — salience, not mechanical enforcement.) A repeated user "深度分析了么 / did you deep-read" across rounds is the recurrence signal that an advertising-level verdict shipped; treat it as a validation-gate defect.
+
+## Gates (1) and (2) — the unit lists (relocated gate detail)
+
+The Core Rule states the two gates; this is the detail the entrypoint no longer carries.
+
+- **Gate (1), the terminal-status row.** The code-corpus row's terminal status is one of `deep-read`, `inventory+owner-mapping`, or a downscope that cites an actual user instruction — a self-declared downscope is not terminal. The depth note under *Core* above governs what that sweep usually looks like and why its outcome is recorded rather than skipped.
+- **Gate (2), the enumeration unit.** "Top-level structure" means the artifact's own next unit, chosen so every part is either `read` or `skipped`: for a document its `##`/`###` sections, or TOC / pages / anchors / line-chunks when sections are absent; for a repository its top-level directories, or package / module / test / script / config units when the top level is flat. The trap recurs even within one artifact — a doc read to its third section with the remaining sections un-enumerated supports no exhausted claim over the doc.

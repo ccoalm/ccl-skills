@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "43ad1084d07eb61a045830a7035045daeccddcbe793b261d2d9fddddc9b019c3",
+  "receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+  "finding_sha256": "ba9d9d2d0fd9d92b92d7a94011968a9143e628b20f1a47f15310f6cc6a1fb7dc",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "1b47fce287e7be58de42c69933940fd38a3f336aeb03b7ebed358f039fa70c06",
+      "finding_sha256": "ba9d9d2d0fd9d92b92d7a94011968a9143e628b20f1a47f15310f6cc6a1fb7dc"
+    }
+  ],
+  "evidence": [
+    "specs/113-extraction-entry-slim/evidence/gate-outputs.md records the census test clean run, the applied mutant (window predicate removed) failing at `FAIL: denominator wrong` with rc=1, the restored green run, and the fast and heavy lane summary lines, each tied to the commit they ran on. Residual stated: the outputs are author-recorded rather than reviewer-run; the commands are named so they can be re-run against the same commit."
+  ]
+}

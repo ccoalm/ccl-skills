@@ -1,0 +1,19 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "d4f37422d981da02a20954e2f591eec91e25963b367327fca20424d6b89ff52c",
+ "receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+ "finding_sha256": "842cab44f13535496acd3598f85277ad6e6e332a3af536d43833ef67b0567628",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "166c5b0e27987818a6f32276c122cfc1baff2e54d18f00ba9e14457d3eb8a420",
+   "finding_sha256": "842cab44f13535496acd3598f85277ad6e6e332a3af536d43833ef67b0567628"
+  }
+ ],
+ "evidence": [
+  "Reproduced before changing anything: the alternation returns one match for 'must not' and one for 'MUST NOT', never two. The comment was wrong; the behaviour was not.",
+  "The comment now states leftmost, non-overlapping matching, that the longest listed spelling wins at a position, and that the phrase-before-word ordering is load-bearing rather than cosmetic. A case pins 'must not' at one token.",
+  "The reviewer's proposed remedy to regenerate every derived figure is deliberately not taken, and this is the reason: the figures were produced by the actual non-overlapping behaviour and are correct. Re-running the census after the change reports the identical summary (rules=66, prohibitive_tokens=158, rules_naming_baseline_failure=14, unanchored_prohibition_rules=36), which is the evidence that only the description moved.",
+  "Re-affirmed against the landing candidate: this disposition was recorded while the candidate was the pre-fix tree, and the succession round moved it. The fixes it describes are commits on the landing tree's own history, so the disposition holds there; the candidate binding is updated rather than the evidence rewritten."
+ ]
+}

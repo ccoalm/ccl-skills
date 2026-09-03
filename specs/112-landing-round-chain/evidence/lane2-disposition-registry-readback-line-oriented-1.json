@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "f3a77a4d499876b07e488d51d3cda294dde478b393b5b8ec185c258d243a8378",
+  "receipt_sha256": "1c5160414e88580270607ccd55fa4dedd64cee6c5233045bce09bb26c27aa62c",
+  "finding_sha256": "beb391377fb5ace9c9ddd7a3f851d87bb572d71f1ae13e1ac680ee87213e36a3",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "1c5160414e88580270607ccd55fa4dedd64cee6c5233045bce09bb26c27aa62c",
+      "finding_sha256": "beb391377fb5ace9c9ddd7a3f851d87bb572d71f1ae13e1ac680ee87213e36a3"
+    }
+  ],
+  "evidence": [
+    "release_checkout now reads git worktree list --porcelain -z and compares exact NUL-delimited fields.",
+    "Falsified before fixing: on the git in use a tab-bearing path is printed raw and did not reproduce; a newline-bearing path split the line and did, so the case uses a newline path with an add that registers and fails plus a refused remove, asserting the surviving registration is reported.",
+    "Command: bash skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh -- the newline-path case was red on the pre-fix gate (1 failing case) and green after; 78 ok lines.",
+    "Fixed in commit b6c0548; the succession round challenged the fixed candidate."
+  ]
+}

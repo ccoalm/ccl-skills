@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c949ad351aa3ebce291334902c9b9d77caebd38a959128fcb1af069755f2ce68",
+ "receipt_sha256": "2cc9df9e0a16c0cd10ed6898763fb3d75d5d1e707e159eb3b76c51057fecaf72",
+ "finding_sha256": "d41333e3c0687e9a8ef4039c48aefbf55341a13ed57ef8558703690644b9312c",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "2cc9df9e0a16c0cd10ed6898763fb3d75d5d1e707e159eb3b76c51057fecaf72",
+   "finding_sha256": "d41333e3c0687e9a8ef4039c48aefbf55341a13ed57ef8558703690644b9312c"
+  }
+ ],
+ "evidence": [
+  "Premise refuted on the named platform: macOS ships sort 2.3-Apple whose man page documents the -z option and `printf 'b\\0a\\0a\\0' | /usr/bin/sort -zu` returns the deduplicated NUL records (observed on macOS 26.4.1); the census test leg 12 runs that exact path on this host and passes; the CI runner is GNU userland. Non-macOS BSDs are outside the declared baseline (macOS bash 3.2 and GNU userland). No change."
+ ]
+}

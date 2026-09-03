@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "c3a2bedf580e62ce5af8e1143b5146cff9286a4cdf8fefed38b45a9f5b419206",
+ "receipt_sha256": "083e61520d0f9ac5a1b4f2b827f75975daaca03664829257d0f04e029f7c9c20",
+ "finding_sha256": "0dac8dd4f0f5891f1fdb85713c78ec0eccf7e10a79347cd52489397dd13d6c08",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "083e61520d0f9ac5a1b4f2b827f75975daaca03664829257d0f04e029f7c9c20",
+   "finding_sha256": "0dac8dd4f0f5891f1fdb85713c78ec0eccf7e10a79347cd52489397dd13d6c08"
+  }
+ ],
+ "evidence": [
+  "Same fix as the review's finding 3: authorization notes removed, ledger rows and PR body reworded to neutral scope facts."
+ ]
+}

@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "ef0010e3d3c34b0c2ee8813c88ea665345b56e6a2536cc2b4dda20bb0137f2bc",
+ "receipt_sha256": "c5c96c33b0a0f2f8c54fa6a89559370fa545e1d870072f6589784c2e33beb56d",
+ "finding_sha256": "7b5cdc7f2de76ec2f188257eb9f6bf004520c0a69fdfacd00edade5cdc4ac279",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "c5c96c33b0a0f2f8c54fa6a89559370fa545e1d870072f6589784c2e33beb56d",
+   "finding_sha256": "7b5cdc7f2de76ec2f188257eb9f6bf004520c0a69fdfacd00edade5cdc4ac279"
+  }
+ ],
+ "evidence": [
+  "Packet-evidence class: the binder and checkout-release implementations are tracked files outside the diff. The binding claim is not asserted from the packet but checked at closeout: review_ledger_binding.py against base 0d30526e prints the landing candidate ef0010e3…, which is the candidate every lane-3 receipt binds; the exclusion manifest is the list of round-added evidence JSON files enumerated by `ls evidence/*.json` (27 at review time, 28 at challenge time — the review receipt itself) and recorded through the closeout ledger's receipt and disposition file list."
+ ]
+}

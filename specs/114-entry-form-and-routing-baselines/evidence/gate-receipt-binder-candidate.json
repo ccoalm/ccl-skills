@@ -1,0 +1,22 @@
+{
+ "candidate_commit": "57dea3ab1d1b7914165469d6fe7b91162b5561b5",
+ "command": [
+  "python3",
+  "skills/skill-extraction-workflow/scripts/review_ledger_binding.py",
+  "--repo-root",
+  ".",
+  "--base",
+  "HEAD~1",
+  "--print-candidate"
+ ],
+ "cwd": ".",
+ "exit_code": 0,
+ "kind": "gate-receipt",
+ "minted_at": "2026-09-03T11:41:08+00:00",
+ "output_bytes": 65,
+ "output_sha256": "6d1ed9d09d0b58bfc8cbcfd17ce2759ebd3d257f12028a70f3fcd74361aaca72",
+ "output_tail": "",
+ "schema_version": 1,
+ "tail_bytes": 0,
+ "tree_clean": true
+}

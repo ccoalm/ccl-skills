@@ -31,6 +31,7 @@
 #   - test_uiux_delivery_contract.sh
 #   - test_uiux_loading_budget.sh
 #   - test_obligation_ledger.sh
+#   - test_reference_access_census.sh
 # --full runs --fast plus the heavy full-checker regressions:
 #   - test_check_ccl_r0_status.sh
 #   - test_check_ccl_source_register_lifecycle.sh
@@ -107,6 +108,13 @@ fast_tests=(
   # applied deletion mutation in a throwaway copy (spec 031 review disposition).
   test_controlled_escalation_pins.sh
   test_check_ccl_size_budget.sh
+  # Entrypoint guidance-form census (what counts as one rule, a prohibition, a
+  # named baseline failure): synthetic fixtures plus the shipped entrypoint,
+  # seconds. Pins the definitions, never any round's figures.
+  test_entrypoint_form_census.sh
+  # Usage census over synthetic transcripts (counts, privacy contract,
+  # unevaluated sentinel, ARG_MAX batching): no host logs, seconds.
+  test_reference_access_census.sh
   test_check_ccl_skill_catalog.sh
   test_check_ccl_parallel_stack_parity.sh
   test_check_mr_target_freshness.sh

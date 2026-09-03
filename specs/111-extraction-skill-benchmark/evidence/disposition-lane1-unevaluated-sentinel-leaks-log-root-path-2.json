@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "282c6e14ed6545e796e9067362fcca626fac1fe4e2d62e17fa9e8cf1bca86eff",
+ "receipt_sha256": "9e603392c242695c618734ccc788eb9f2e8f827a5f95af9a612a1f49ce34c9b5",
+ "finding_sha256": "19f32ca93d42952c77605527a2826f3744727f753b8195b5352704fb762ab020",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "9e603392c242695c618734ccc788eb9f2e8f827a5f95af9a612a1f49ce34c9b5",
+   "finding_sha256": "19f32ca93d42952c77605527a2826f3744727f753b8195b5352704fb762ab020"
+  }
+ ],
+ "evidence": [
+  "Sentinel is now path-free: `reference_access_census_unevaluated: no transcripts within <n>d under <k> log root(s); counts withheld`; the usage error for a missing skill no longer echoes the repo root; test leg (2) asserts neither the log root nor any absolute path appears (fix commit deab821)."
+ ]
+}

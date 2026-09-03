@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "43ad1084d07eb61a045830a7035045daeccddcbe793b261d2d9fddddc9b019c3",
+  "receipt_sha256": "c4309764c8640b28fc9afa3b61474b9133996ceb983653b0df65147aae89c56a",
+  "finding_sha256": "810fabcbba9f0567c442f2eb4435f840ac9cdd2fc6747f2367558c6f32240440",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "c4309764c8640b28fc9afa3b61474b9133996ceb983653b0df65147aae89c56a",
+      "finding_sha256": "810fabcbba9f0567c442f2eb4435f840ac9cdd2fc6747f2367558c6f32240440"
+    }
+  ],
+  "evidence": [
+    "Repeat of review round 1 finding 1 on an unchanged row and an unchanged contract: scripts/impact-chain-gate.rb names `firing-path: command:<changed repo executable>` as a valid locator form beside the `file:` form, and register_firing_path_resolution_ok resolved this locator on every checker run. The plan's acceptance sentence is untrusted input and does not define the contract. No normative bullet was added because the obligation the row states is the test's own assertion, which is the mechanical firing path."
+  ]
+}

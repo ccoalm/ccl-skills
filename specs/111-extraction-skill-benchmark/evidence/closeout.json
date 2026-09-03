@@ -1,0 +1,140 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "984c124c2489ba291168296295ee030970909df8d572280522a43df877158552",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "ledger-round12-review.json",
+   "sha256": "17525db46635acba82fbb307232866f8c7951967aef04e51a9594f6b0e2737a7"
+  },
+  {
+   "sequence": 2,
+   "file": "ledger-round13-challenge.json",
+   "sha256": "b154f01c8eb716b145daafde5f075e6e35ce3bf65ab9ea68646feb52f0fd9507"
+  },
+  {
+   "sequence": 3,
+   "file": "ledger-round14-succession-challenge.json",
+   "sha256": "fc223fda5e164b9dce8696d710db49d31294dbd9c7f06d8eed39deebc9e50302"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "1864eb9d2a846967d79e9e8c7fa081236af3746c",
+   "confirmed_at": "2026-09-03T05:40:52Z",
+   "controller_receipt_sha256": "17525db46635acba82fbb307232866f8c7951967aef04e51a9594f6b0e2737a7",
+   "evidence_file": "ledger-base-attestation-6.txt",
+   "evidence_sha256": "f8c90abc2e0c7b034b97158289a24630e73a9e341b014e7d50c287ba11d02082"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "1864eb9d2a846967d79e9e8c7fa081236af3746c",
+   "confirmed_at": "2026-09-03T05:56:42Z",
+   "controller_receipt_sha256": "b154f01c8eb716b145daafde5f075e6e35ce3bf65ab9ea68646feb52f0fd9507",
+   "evidence_file": "ledger-base-attestation-6.txt",
+   "evidence_sha256": "f8c90abc2e0c7b034b97158289a24630e73a9e341b014e7d50c287ba11d02082"
+  },
+  {
+   "sequence": 3,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "1864eb9d2a846967d79e9e8c7fa081236af3746c",
+   "confirmed_at": "2026-09-03T05:56:46Z",
+   "controller_receipt_sha256": "fc223fda5e164b9dce8696d710db49d31294dbd9c7f06d8eed39deebc9e50302",
+   "evidence_file": "ledger-base-attestation-6.txt",
+   "evidence_sha256": "f8c90abc2e0c7b034b97158289a24630e73a9e341b014e7d50c287ba11d02082"
+  }
+ ],
+ "autonomous_round": 3,
+ "controller_review_state": "findings_pending",
+ "finding_classes": [
+  {
+   "key": "source-register-over-500-lines",
+   "root_cause_predicate": "The append-only source register already exceeded the 500-line reference figure and this round's rows grow it further (repeat).",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "17525db46635acba82fbb307232866f8c7951967aef04e51a9594f6b0e2737a7",
+     "finding_sha256": "2cb9ef1a6d03d8de9506d60e06ec607dd7a76973a71ee246ad346d58b75db6a5",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane5-source-register-over-500-lines-4.json",
+     "disposition_evidence_sha256": "3cae540c184f51232561b2e9e02b3672a4a98e5fc29a45cc2b92eb0a6854f93b"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "two-rows-share-a-command-locator",
+   "root_cause_predicate": "Two ledger rows use the same command firing-path locator rather than distinct added normative list lines (repeat).",
+   "affected_surface": "skills/skill-extraction-workflow/references/source-register.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "17525db46635acba82fbb307232866f8c7951967aef04e51a9594f6b0e2737a7",
+     "finding_sha256": "f45a44e818beb6f7a0ca1718ede96a7b680790c0e6b58121501ab1a6a2accb08",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane5-two-rows-share-a-command-locator-4.json",
+     "disposition_evidence_sha256": "afca7798b54f2461841b6988ff2894984c3f549a5854b3ece015acfe9a45caef"
+    },
+    {
+     "receipt_sha256": "b154f01c8eb716b145daafde5f075e6e35ce3bf65ab9ea68646feb52f0fd9507",
+     "finding_sha256": "8e6150aa897f73b468f54507ed54a50489fa1dab10629f5d464a0d6a5f896820",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane5-challenge-two-rows-share-a-command-locator-4.json",
+     "disposition_evidence_sha256": "88cfc7d1cffc592f9c43781cbec5b208dab2ec0218e8f323a89051405c335e7e"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "last-touched-date-unasserted",
+   "root_cause_predicate": "The counting leg accepted any non-empty last-touched date, so selecting the oldest timestamp or emitting an unparsed value passed.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/test_reference_access_census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "17525db46635acba82fbb307232866f8c7951967aef04e51a9594f6b0e2737a7",
+     "finding_sha256": "62f69efda76aae8dfda8a388dfb53fdaacd42f16021906b660d7b32307ad78bc",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-lane5-last-touched-date-unasserted-4.json",
+     "disposition_evidence_sha256": "5757ade33d826b118bef6eb3f90aa1f3acd14913ab0330a4bec6bb0d7351f50d"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "packet-evidence-manifests",
+   "root_cause_predicate": "The bounded packet cannot show unchanged package contents or gate output, so package-wide invariants are not verifiable from the diff alone.",
+   "affected_surface": "specs/111-extraction-skill-benchmark/evidence/primary-source-excerpts.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "17525db46635acba82fbb307232866f8c7951967aef04e51a9594f6b0e2737a7",
+     "finding_sha256": "7eaadba0b1db4c73050bed051d3bfe8a66ebc0bfaf1c04aa17edcd719c340a3f",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-lane5-packet-evidence-manifests-4.json",
+     "disposition_evidence_sha256": "97aa31051a6ddc2e74fc554be529a5029590fe761d3c118c0eb438b0f90b7ff2"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "window-exclusion-untested",
+   "root_cause_predicate": "Every fixture transcript lies inside the --days window, so removing the mtime filter would leave the counting assertions green while stale transcripts inflate counts in real use.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/test_reference_access_census.sh",
+   "occurrences": [
+    {
+     "receipt_sha256": "fc223fda5e164b9dce8696d710db49d31294dbd9c7f06d8eed39deebc9e50302",
+     "finding_sha256": "ae79fcb7c0e42718ab58caf6c9257bd71061d0aa079945fe922cc80a5247bb1f",
+     "disposition": "needs_human_decision"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}
