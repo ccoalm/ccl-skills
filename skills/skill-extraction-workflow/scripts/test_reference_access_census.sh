@@ -170,6 +170,15 @@ mout2="$(env SHELLOPTS=errexit bash "$CENSUS" --repo-root "$REPO" --skill demo-s
 printf '%s\n' "$mout2" | grep -qF 'transcripts=1 sessions_touching_package=0' || fail "all-no-match batch under inherited errexit must be a valid zero census:\n$mout2"
 [ "$(printf '%s\n' "$mout2" | tail -1)" = "reference_access_census_ok" ] || fail "inherited errexit must not withhold a valid census"
 
+# (17) a find that fails silently (exit 2, no stderr) is an input error: withhold, exit 2, no ok token
+FSHIM="$TMP/fshim"; mkdir -p "$FSHIM"
+printf '#!/usr/bin/env bash\nexit 2\n' > "$FSHIM/find"; chmod +x "$FSHIM/find"
+fout="$(PATH="$FSHIM:$PATH" bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$LOGS" 2>/dev/null || true)"
+frc=0; PATH="$FSHIM:$PATH" bash "$CENSUS" --repo-root "$REPO" --skill demo-skill --days 30 --logs "$LOGS" >/dev/null 2>&1 || frc=$?
+[ "$frc" -eq 2 ] || fail "a silent find failure must exit 2 (got $frc)"
+printf '%s\n' "$fout" | grep -qE 'reference_access_census_unevaluated: [0-9]+ input error' || fail "a silent find failure must withhold counts as an input error, not the no-transcript sentinel:\n$fout"
+printf '%s\n' "$fout" | grep -qF 'reference_access_census_ok' && fail "ok token printed after a silent find failure"
+
 # (9) a failing stat (a transcript vanishing before the timestamp read) withholds the table with exit 2 —
 # deterministic via a PATH shim, independent of filesystem permissions or root
 SHIM="$TMP/shim"; mkdir -p "$SHIM"

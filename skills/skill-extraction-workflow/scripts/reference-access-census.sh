@@ -95,7 +95,7 @@ for r in "${roots[@]}"; do
     if [ "$logs_explicit" -eq 1 ]; then echo "missing explicit log root" >> "$tmp/errors"; fi
     continue
   fi
-  find "$r" -type f -name '*.jsonl' -mtime "-$days" -print0 >> "$tmp/candidates0" 2>> "$tmp/errors" || true
+  find "$r" -type f -name '*.jsonl' -mtime "-$days" -print0 >> "$tmp/candidates0" 2>> "$tmp/errors" || echo "transcript listing failed under one log root" >> "$tmp/errors"
 done
 withhold_if_errors
 # The inventory is NUL-delimited (a pathname may contain a newline) and
