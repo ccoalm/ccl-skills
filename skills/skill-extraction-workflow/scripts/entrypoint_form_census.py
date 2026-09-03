@@ -45,10 +45,12 @@ import statistics
 import sys
 from pathlib import Path
 
-# The imperative-negative vocabulary. Ordered longest-first only for readability;
-# matches are counted independently, so a phrase and a word inside it are both
-# counted when both appear (e.g. "must not" contributes to `must` as well) --
-# stated so the figure is read as token occurrences, never as distinct rules.
+# The imperative-negative vocabulary. Alternation is leftmost and matches do not
+# overlap, so the LONGEST listed spelling wins at a position and the words inside
+# it are not counted again: "must not" is one token, not "must not" plus "must".
+# The phrase alternatives are therefore listed before the words they contain, and
+# that ordering is load-bearing rather than cosmetic. The figure counts token
+# occurrences, never distinct rules.
 PROHIBITIVE_RE = re.compile(
     r"\bMUST NOT\b|\bMUST\b|\bNEVER\b|\bALWAYS\b"
     r"|\bmust not\b|\bmust\b|\bnever\b|\bcannot\b|\bcan not\b"

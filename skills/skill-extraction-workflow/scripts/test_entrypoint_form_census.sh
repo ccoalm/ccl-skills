@@ -112,6 +112,42 @@ out="$(python3 "$CENSUS" "$WORK/tokens.md")"
 check "capitalised emphasis counts as prohibitive and a word merely containing one does not" \
   '[ "$(field "$out" prohibitive_tokens)" = 2 ]'
 
+# The alternation is leftmost and non-overlapping, so a phrase absorbs the words
+# inside it. Two independent review lenses read the previous comment as promising
+# the opposite, which is exactly the failure this case now pins: the documented
+# counting rule and the reported figure have to be the same ruler.
+cat >"$WORK/overlap.md" <<'MD'
+# Entry
+
+## Core Rules
+
+### A group
+
+- This must not be counted twice, and this cannot be either.
+MD
+out="$(python3 "$CENSUS" "$WORK/overlap.md")"
+check "a phrase absorbs the word inside it: 'must not' is one token, not two" \
+  '[ "$(field "$out" prohibitive_tokens)" = 2 ]'
+
+# An existing but empty Core Rules section is an error, not a zero-rule census:
+# a section that lost its rules must not report as a clean sheet either.
+cat >"$WORK/empty-core.md" <<'MD'
+# Entry
+
+## Core Rules
+
+### A group
+
+Prose with no top-level bullet.
+
+## After
+
+- A bullet outside Core Rules.
+MD
+out="$(python3 "$CENSUS" "$WORK/empty-core.md" 2>&1)"; rc=$?
+check "an existing but empty Core Rules section is an error, never a zero-rule census" \
+  '[ "$rc" != 0 ] && case "$out" in *entrypoint_form_census_error*) true;; *) false;; esac'
+
 # An entrypoint with no Core Rules section is an error, not a zero: reporting
 # zero rules would let a renamed or moved section read as a clean sheet.
 cat >"$WORK/no-core.md" <<'MD'
