@@ -1,6 +1,6 @@
 {
  "schema_version": 3,
- "candidate_sha256": "c999b1eccc85e41f4512ccb2fb10f0331ecc483e5f6ac99ceae45174b6a6f06a",
+ "candidate_sha256": "d4f37422d981da02a20954e2f591eec91e25963b367327fca20424d6b89ff52c",
  "controller_receipts": [
   {
    "sequence": 1,
@@ -11,6 +11,11 @@
    "sequence": 2,
    "file": "ledger-round2-challenge.json",
    "sha256": "61a72ddb3f403a904a49651c459a34e11a79a89c85b99b413a3c609e3ab7a423"
+  },
+  {
+   "sequence": 3,
+   "file": "ledger-round3-succession-challenge.json",
+   "sha256": "654f06a24d20017153b115df31a4e7bc9553501dfa649f048758f75c720d2476"
   }
  ],
  "completion_receipt": null,
@@ -34,10 +39,20 @@
    "controller_receipt_sha256": "61a72ddb3f403a904a49651c459a34e11a79a89c85b99b413a3c609e3ab7a423",
    "evidence_file": "ledger-base-attestation-2.txt",
    "evidence_sha256": "f660ac647a2811c6c461b177d8cbea92e141d03217b97be315388f23440f247c"
+  },
+  {
+   "sequence": 3,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "1af3e888bbd125e50547835540bf55b78f64662d",
+   "confirmed_at": "2026-09-03T11:59:06Z",
+   "controller_receipt_sha256": "654f06a24d20017153b115df31a4e7bc9553501dfa649f048758f75c720d2476",
+   "evidence_file": "ledger-base-attestation-3.txt",
+   "evidence_sha256": "f660ac647a2811c6c461b177d8cbea92e141d03217b97be315388f23440f247c"
   }
  ],
- "autonomous_round": 2,
- "controller_review_state": "post_review_budget",
+ "autonomous_round": 3,
+ "controller_review_state": "findings_pending",
  "finding_classes": [
   {
    "key": "packet-evidence-assertion-only",
@@ -49,7 +64,7 @@
      "finding_sha256": "d01511122495ef9b5e483cb26c7e5a2e7ad4661cc00163b30d8f182efb6ea61c",
      "disposition": "fixed",
      "disposition_evidence_file": "disposition-packet-evidence-assertion-only-1.json",
-     "disposition_evidence_sha256": "142317c9b59eeaa3b5c0e301799a8a39830f1df712ff9c0b3cf4b9ad69d0c2f3"
+     "disposition_evidence_sha256": "bff11113c26ab8985ae1b52c41b572199236ae8267a926f7f0e5fddf71b9b637"
     }
    ],
    "authoritative_sweep": null
@@ -64,7 +79,7 @@
      "finding_sha256": "cf935a1256944fff6820d4ba2c7f11869a7b3f11a1cee327d0facccd1d4aca1b",
      "disposition": "fixed",
      "disposition_evidence_file": "disposition-classification-rows-lack-stable-identity-1.json",
-     "disposition_evidence_sha256": "ba26dffc5205b22d13175000e98da553602202f93d5fef9200456f16b1507035"
+     "disposition_evidence_sha256": "08e2385078e03ba3ee14f20ad1cf5fd99fb6a61401db86a199fae14c3f90ed41"
     }
    ],
    "authoritative_sweep": null
@@ -79,14 +94,14 @@
      "finding_sha256": "842cab44f13535496acd3598f85277ad6e6e332a3af536d43833ef67b0567628",
      "disposition": "fixed",
      "disposition_evidence_file": "disposition-documented-counting-rule-differs-from-the-rule-that-ran-1.json",
-     "disposition_evidence_sha256": "133768ac7d4556108b8ece591a0296618c196652f69ac07ee1d29f633f790450"
+     "disposition_evidence_sha256": "367603d2e3c9f10ec8851961d5ed4a5b3de8e08653a2d5d8dd8eb4075c9418eb"
     },
     {
      "receipt_sha256": "61a72ddb3f403a904a49651c459a34e11a79a89c85b99b413a3c609e3ab7a423",
      "finding_sha256": "6c12c8e6287f0be062ecd5b602a4adc1a9c38892ef1b02f15c5ada3ed20effff",
      "disposition": "fixed",
      "disposition_evidence_file": "disposition-documented-counting-rule-differs-from-the-rule-that-ran-2.json",
-     "disposition_evidence_sha256": "a4fa38b5874208efcdf409e00bd09b3f8c033c5614b686c8795c59ea6797dbd3"
+     "disposition_evidence_sha256": "b0bd08d6254c6962ceaa6c41ef664cee22874641cc6863a2f86e82398cd4c547"
     }
    ],
    "authoritative_sweep": null
@@ -101,7 +116,22 @@
      "finding_sha256": "1adda735d7ba16845d5fbf11b292043e26b1a911c1a4aca7e8602e1bdb1b6f41",
      "disposition": "fixed",
      "disposition_evidence_file": "disposition-empty-core-rules-branch-unprotected-1.json",
-     "disposition_evidence_sha256": "9c732aff9ccc7a59ade38af5b9203e7783c834a69a269924baae6dd6d66eacc9"
+     "disposition_evidence_sha256": "10ca4512f318a53c79a981bf56ad8aae940c8104924a12835eb41919b93015df"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "binder-receipt-scope-narrower-than-the-claim-it-supported",
+   "root_cause_predicate": "A gate receipt was minted for a one-commit binder window and then referenced as evidence that the merge-side binder accepts the landing tree, which spans seven commits; the receipt records its own argv, so the defect is in the referencing record rather than in the receipt.",
+   "affected_surface": "specs/114-entry-form-and-routing-baselines/evidence/gate-receipt-binder-candidate.json",
+   "occurrences": [
+    {
+     "receipt_sha256": "654f06a24d20017153b115df31a4e7bc9553501dfa649f048758f75c720d2476",
+     "finding_sha256": "dd43a9c62dd26e7b91d75f3e412c5c42ca64f3c533150ae7d4cdb32d46f06a20",
+     "disposition": "fixed",
+     "disposition_evidence_file": "disposition-binder-receipt-scope-1.json",
+     "disposition_evidence_sha256": "e17de712febf26519ff2ddf0ddb874ba59ec0a4a742af23eb02e7671baa3cefa"
     }
    ],
    "authoritative_sweep": null
