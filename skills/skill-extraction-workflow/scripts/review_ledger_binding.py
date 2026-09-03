@@ -67,8 +67,29 @@ receipt predicate and committing it moves no partition; that is the load-bearing
 reason for the field, and the exclusion predicate itself is unchanged. What the
 manifest proves is the same narrow thing the single ledger proves, taken per
 part: every byte that lands is a byte some external round froze and inspected.
-Merge-queue aggregation of several pull requests into one HEAD is a different
-aggregate and remains unsolved here.
+
+A third aggregate is an integration branch that accumulated several reviewed
+rounds and is then promoted as one pull request. No single ledger binds that
+candidate, and a path partition cannot either: two rounds that append to the
+same file (a register, a changelog) leave that file's promotion diff equal to
+the sum of both appends, which no round ever froze. What every such round DID
+leave behind is a first-parent merge whose second parent is the reviewed head
+and whose own pull request this gate already bound at the round's own base. So
+the gate walks HEAD's first-parent chain down to the first commit already on
+the target branch and classifies each step: a merge whose second parent is on
+the target is a sync merge and owes no evidence; any other merge is a round,
+rebound by running this same gate in a detached checkout of its second parent
+against its first parent; a non-merge commit is refused, because nothing
+reviewed binds what was pushed straight to the branch. Every step's tree must
+equal `git merge-tree --write-tree` of its parents, so a merge commit that
+carries a hand resolution or any other content beyond the automatic merge is
+refused as unreviewed. A round is rebound with the controller and validator of
+its own checkout, which is what judged it when it merged; a round is never
+itself a chain, so the walk is one level deep by construction. The chain is
+consulted only for the default path set: a narrowed `--paths` has no round-level
+ledger to bind. Merge-queue aggregation of several still-unmerged pull requests
+into one HEAD is yet another aggregate and remains unsolved: those requests have
+no first-parent merges of their own for a chain to bind.
 
 Boundaries this gate does NOT close, stated because a gate that lives inside the
 candidate cannot authenticate itself: it cannot prove the caller retained every
@@ -97,12 +118,15 @@ import sys
 sys.dont_write_bytecode = True
 
 import argparse
+import contextlib
 import hashlib
 import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 import time
 import types
 from pathlib import Path
@@ -129,10 +153,35 @@ PARTITION_KEYS = {"paths", "candidate_sha256"}
 MAX_PARTITIONS = 64
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
+# A first-parent chain longer than this is not an integration branch's round
+# history; refuse rather than walk an unbounded history.
+MAX_CHAIN_STEPS = 64
 
 
 class ManifestError(Exception):
     """A manifest that does not describe this candidate; the message is the reason."""
+
+
+class ChainError(Exception):
+    """A first-parent step that is not a bound round; the message names the step."""
+
+
+class Binding:
+    """What one evaluation of a checkout against a base concluded.
+
+    `ok` with `summary` is the accept line (without its token prefix) plus any
+    per-part proof lines; otherwise `failure` carries the diagnostics in the
+    order they are printed. `changed` is the candidate's changed-file set, which
+    the chain path uses to check that rounds cover the promotion.
+    """
+
+    def __init__(self) -> None:
+        self.ok = False
+        self.summary = ""
+        self.proofs: list[str] = []
+        self.failure: list[str] = []
+        self.changed: list[str] = []
+        self.fork = ""
 
 
 def emit(message: str) -> None:
@@ -634,6 +683,327 @@ def scan(repo_root: Path, evidence_root: str) -> list[tuple[Path, dict]]:
     return found
 
 
+def git_read(repo_root: Path, arguments: list[str], failure: str) -> str:
+    """Run a read-only git query whose failure is an environment error, not a verdict."""
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), *arguments],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise SystemExit(f"review_ledger_binding_error: {failure}: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def is_ancestor(repo_root: Path, commit: str, tip: str) -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "merge-base", "--is-ancestor", commit, tip],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    raise SystemExit(
+        f"review_ledger_binding_error: cannot test ancestry of {commit[:12]}: {result.stderr.strip()}"
+    )
+
+
+def automatic_merge_tree(repo_root: Path, first: str, second: str) -> str | None:
+    """The tree git itself produces merging `second` into `first`, or None on conflict.
+
+    A merge commit whose tree is anything else carries content beyond its two
+    parents -- a hand resolution, an extra file, a post-merge edit -- and that
+    content was reviewed by nobody. Conflicts are refused for the same reason:
+    whatever resolved them is unreviewed. An old git that lacks `--write-tree`
+    is an environment error rather than a verdict either way.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(repo_root), "merge-tree", "--write-tree", first, second],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        tree = result.stdout.splitlines()[0].strip() if result.stdout else ""
+        if not HEX40.match(tree):
+            raise SystemExit("review_ledger_binding_error: git merge-tree --write-tree printed no tree")
+        return tree
+    if result.returncode == 1:
+        return None
+    raise SystemExit(
+        "review_ledger_binding_error: git merge-tree --write-tree is unavailable "
+        f"(git 2.38 or newer is required): {result.stderr.strip()}"
+    )
+
+
+def walk_first_parent_chain(repo_root: Path, base_tip: str) -> list[tuple[str, str, str, str]]:
+    """Classify each first-parent step from HEAD down to the target branch.
+
+    Returns (kind, merge, first_parent, second_parent) per step, newest first,
+    where kind is `sync` (second parent already on the target) or `round`.
+    Raises ChainError at the first step that is not a merge, is not the
+    automatic merge of its parents, or when the walk does not reach the target.
+    """
+    steps: list[tuple[str, str, str, str]] = []
+    commit = git_read(repo_root, ["rev-parse", "--verify", "HEAD^{commit}"], "cannot resolve HEAD")
+    for _ in range(MAX_CHAIN_STEPS):
+        if is_ancestor(repo_root, commit, base_tip):
+            return steps
+        parents = git_read(
+            repo_root, ["rev-list", "--parents", "-n", "1", commit], f"cannot read parents of {commit[:12]}"
+        ).split()[1:]
+        if len(parents) != 2:
+            shape = "an octopus merge" if len(parents) > 2 else "not a merge commit"
+            raise ChainError(
+                f"{commit[:12]} is {shape}; nothing reviewed binds its content"
+                if len(parents) < 2
+                else f"{commit[:12]} is {shape}; only two-parent merges are bound"
+            )
+        first, second = parents
+        own_tree = git_read(repo_root, ["rev-parse", f"{commit}^{{tree}}"], f"cannot read tree of {commit[:12]}")
+        if automatic_merge_tree(repo_root, first, second) != own_tree:
+            raise ChainError(
+                f"{commit[:12]} tree differs from the automatic merge of its parents "
+                f"({first[:12]} + {second[:12]}); whatever else it carries was reviewed by nobody"
+            )
+        kind = "sync" if is_ancestor(repo_root, second, base_tip) else "round"
+        steps.append((kind, commit, first, second))
+        commit = first
+    raise ChainError(
+        f"the first-parent chain runs more than {MAX_CHAIN_STEPS} steps without reaching the base"
+    )
+
+
+@contextlib.contextmanager
+def detached_checkout(repo_root: Path, commit: str):
+    """A throwaway worktree at `commit`, outside the repository, removed on exit.
+
+    The controller freezes the working tree, so a round can only be rebound from
+    a checkout of its head. The checkout lives outside the repository root so it
+    is never an untracked path inside the bound set, and it is removed whether
+    the round binds or not.
+    """
+    path = Path(tempfile.mkdtemp(prefix="review-ledger-binding-round-"))
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "worktree", "add", "--detach", "--quiet", str(path), commit],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise SystemExit(
+                f"review_ledger_binding_error: cannot check out round head {commit[:12]}: "
+                f"{result.stderr.strip()}"
+            )
+        yield path.resolve()
+    finally:
+        subprocess.run(
+            ["git", "-C", str(repo_root), "worktree", "remove", "--force", str(path)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo_root), "worktree", "prune"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        shutil.rmtree(path, ignore_errors=True)
+
+
+def bind_chain(
+    repo_root: Path, base_tip: str, changed_all: list[str], evidence_root: str
+) -> tuple[int, list[str]]:
+    """Bind the candidate round by round along HEAD's first-parent chain.
+
+    Returns (round count, proof lines) or raises ChainError naming the first
+    step that does not add up. Each round is rebound by this same gate in a
+    detached checkout of its head against its first parent, with the controller
+    and validator of that checkout, and never as a chain of its own.
+    """
+    steps = walk_first_parent_chain(repo_root, base_tip)
+    proofs: list[str] = []
+    covered: set[str] = set()
+    rounds = 0
+    for kind, merge, first, second in steps:
+        if kind == "sync":
+            proofs.append(f"  sync {merge[:12]} (already on the base)")
+            continue
+        with detached_checkout(repo_root, second) as round_root:
+            binding = bind_candidate(round_root, first, DEFAULT_PATHS, evidence_root, allow_chain=False)
+        subject = git_read(repo_root, ["log", "-1", "--format=%s", merge], f"cannot read {merge[:12]}")
+        if not binding.ok:
+            reason = binding.failure[0] if binding.failure else "no accepted review evidence"
+            raise ChainError(
+                f"round {merge[:12]} ({subject}) does not bind at its own base {first[:12]}: {reason}"
+            )
+        rounds += 1
+        covered.update(binding.changed)
+        proofs.append(f"  round {merge[:12]} <- {binding.summary}")
+        proofs.extend("  " + line for line in binding.proofs)
+    if rounds == 0:
+        raise ChainError("no round merge on the chain binds the changed paths")
+    # Under the automatic-merge invariant every promoted change reached HEAD
+    # through some round; this name-level check is the second net under that
+    # invariant, not the invariant itself.
+    outside = sorted(set(changed_all) - covered)
+    if outside:
+        raise ChainError("changed paths outside every bound round: " + ", ".join(outside[:5]))
+    return rounds, proofs
+
+
+def candidate_scope(
+    repo_root: Path, base_tip: str, user_paths: tuple[str, ...]
+) -> tuple[str, tuple[str, ...], tuple[str, ...], list[str]]:
+    """Resolve (fork point, exclusions, bound paths, changed files) for one checkout."""
+    fork = fork_point(repo_root, base_tip)
+    # The exclusion is derived from this round's own diff, not written down as a
+    # subtree, so edits to committed history stay inside the candidate.
+    # These names come from the candidate's own tree and are handed back to git as
+    # pathspecs, so `literal` stops git reading a filename as a pattern. A review
+    # round called this a total bypass -- a receipt named `*` excluding everything
+    # -- and that did not reproduce: the exclusion carries the full path, so a glob
+    # in the filename expands only within that one evidence directory, whose other
+    # members are receipts anyway. The claim is recorded as narrowed rather than
+    # confirmed, and no test asserts a bypass this gate does not have. `literal`
+    # stays because interpreting these names as patterns is a capability the gate
+    # never needed, and removing it costs nothing.
+    excludes = tuple(f":(exclude,literal){path}" for path in added_evidence_paths(repo_root, fork))
+    paths = tuple(user_paths) + excludes
+    require_committed_tree(repo_root, paths)
+    changed = changed_skill_paths(repo_root, fork, paths)
+    return fork, excludes, paths, changed
+
+
+def bind_candidate(
+    repo_root: Path,
+    base_tip: str,
+    user_paths: tuple[str, ...],
+    evidence_root: str,
+    allow_chain: bool,
+) -> Binding:
+    """Evaluate one checkout against one base: single ledger, then manifest, then chain."""
+    binding = Binding()
+    fork, excludes, paths, changed = candidate_scope(repo_root, base_tip, user_paths)
+    binding.fork = fork
+    binding.changed = changed
+    if not changed:
+        # No reviewed path moved, so there is no candidate to freeze and nothing to
+        # bind. Say which it is rather than letting an empty packet surface as a
+        # freeze error, which reads like a broken gate.
+        binding.ok = True
+        binding.summary = f"no reviewed-path change against {fork}"
+        return binding
+
+    module = load_controller(repo_root)
+    # The whole candidate may be larger than one packet. That is no longer a
+    # terminal error: record why the single freeze failed and let a committed
+    # partition manifest bind the candidate part by part.
+    expected: str | None = None
+    whole_error: str | None = None
+    try:
+        expected = candidate_hash(module, repo_root, fork, paths)
+    except Exception as exc:  # noqa: BLE001 - surface the controller's own message
+        whole_error = str(exc)
+
+    validator = repo_root / "skills" / "skill-extraction-workflow" / "scripts" / VALIDATOR
+    evidence = scan(repo_root, evidence_root)
+    ledgers: list[str] = []
+    if expected is not None:
+        # Only a validator-accepted ledger counts. A receipt-shaped file proves
+        # nothing on its own: this gate cannot authenticate that a controller
+        # minted it, so any branch keyed on a self-declared field is a bypass a
+        # contributor can hand-write.
+        proof = accepted_ledger_for(evidence, repo_root, validator, expected, ledgers)
+        if proof is not None:
+            binding.ok = True
+            binding.summary = (
+                f"{proof.split(' -- ', 1)[0]} binds the landing candidate "
+                f"({expected[:12]}...) -- {proof.split(' -- ', 1)[1]}"
+            )
+            return binding
+
+    manifests: list[str] = []
+    for path, payload in evidence:
+        if payload.get("kind") != MANIFEST_KIND:
+            continue
+        relative = str(path.relative_to(repo_root))
+        try:
+            proofs = bind_manifest(
+                module, repo_root, fork, payload, excludes, changed, evidence, validator, ledgers
+            )
+        except ManifestError as exc:
+            manifests.append(f"{relative}: {exc}")
+            continue
+        except Exception as exc:  # noqa: BLE001 - surface the controller's own message
+            manifests.append(f"{relative}: cannot freeze a partition packet: {exc}")
+            continue
+        binding.ok = True
+        binding.summary = (
+            f"{relative} binds the landing candidate as {len(proofs)} partitions "
+            f"(aggregate {payload['candidate_sha256'][:12]}...)"
+        )
+        binding.proofs = proofs
+        return binding
+
+    chain_rows: list[str] = []
+    if allow_chain and tuple(user_paths) == DEFAULT_PATHS:
+        try:
+            rounds, proofs = bind_chain(repo_root, base_tip, changed, evidence_root)
+        except ChainError as exc:
+            chain_rows.append(str(exc))
+        else:
+            binding.ok = True
+            binding.summary = (
+                f"the first-parent chain binds the landing candidate as {rounds} rounds "
+                f"({fork[:12]}..HEAD)"
+            )
+            binding.proofs = proofs
+            return binding
+    elif allow_chain:
+        chain_rows.append(
+            "first-parent chain binding is evaluated only over the default path set "
+            "(--paths .); a narrowed scope has no round-level ledger to bind"
+        )
+
+    if expected is None:
+        binding.failure.append(
+            "review_ledger_binding_failed: the whole candidate cannot be frozen as one "
+            f"packet ({whole_error}) and no committed landing partition manifest binds it"
+        )
+        binding.failure.append(
+            "  split the candidate by path: --print-manifest --partition <paths> "
+            "[--partition <paths> ...] renders the manifest; commit it with one "
+            "validated ledger per partition"
+        )
+    else:
+        binding.failure.append(
+            "review_ledger_binding_failed: no accepted review evidence binds the landing "
+            f"candidate {expected}"
+        )
+    binding.failure.append(f"  reviewed paths: {' '.join(paths)} against {fork}")
+    binding.failure.append(f"  changed files: {len(changed)}")
+    binding.failure.extend(f"  rejected ledger -> {row}" for row in ledgers)
+    binding.failure.extend(f"  rejected manifest -> {row}" for row in manifests)
+    binding.failure.extend(f"  rejected chain -> {row}" for row in chain_rows)
+    if not ledgers and not manifests:
+        binding.failure.append(
+            "  no committed ledger records this candidate; run the extraction review "
+            "lane against the final, committed tree"
+        )
+    return binding
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", default=".")
@@ -686,130 +1056,41 @@ def main() -> int:
         )
         return 0 if args.allow_unevaluated else 2
 
-    base = fork_point(repo_root, resolve_base(repo_root, base))
-    # The exclusion is derived from this round's own diff, not written down as a
-    # subtree, so edits to committed history stay inside the candidate.
-    # These names come from the candidate's own tree and are handed back to git as
-    # pathspecs, so `literal` stops git reading a filename as a pattern. A review
-    # round called this a total bypass -- a receipt named `*` excluding everything
-    # -- and that did not reproduce: the exclusion carries the full path, so a glob
-    # in the filename expands only within that one evidence directory, whose other
-    # members are receipts anyway. The claim is recorded as narrowed rather than
-    # confirmed, and no test asserts a bypass this gate does not have. `literal`
-    # stays because interpreting these names as patterns is a capability the gate
-    # never needed, and removing it costs nothing.
-    excludes = tuple(
-        f":(exclude,literal){path}" for path in added_evidence_paths(repo_root, base)
-    )
-    paths = tuple(args.paths) + excludes
-    require_committed_tree(repo_root, paths)
-    changed = changed_skill_paths(repo_root, base, paths)
-    if not changed:
-        # No reviewed path moved, so there is no candidate to freeze and nothing to
-        # bind. Say which it is rather than letting an empty packet surface as a
-        # freeze error, which reads like a broken gate.
-        if args.print_candidate or args.print_manifest:
-            emit(f"review_ledger_binding_no_change: no reviewed-path change against {base}")
-        else:
-            print(f"review_ledger_binding_ok: no reviewed-path change against {base}")
-        return 0
+    base_tip = resolve_base(repo_root, base)
+    user_paths = tuple(args.paths)
 
-    module = load_controller(repo_root)
-
-    if args.print_manifest:
-        try:
-            manifest = render_manifest(module, repo_root, base, args.partition, excludes, changed)
-        except ManifestError as exc:
-            emit(f"review_ledger_binding_error: cannot render a landing partition manifest: {exc}")
-            return 1
-        except Exception as exc:  # noqa: BLE001 - surface the controller's own message
-            emit(f"review_ledger_binding_error: cannot freeze a partition packet: {exc}")
-            return 1
-        print(json.dumps(manifest, indent=2, ensure_ascii=False))
-        return 0
-
-    # The whole candidate may be larger than one packet. That is no longer a
-    # terminal error: record why the single freeze failed and let a committed
-    # partition manifest bind the candidate part by part.
-    expected: str | None = None
-    whole_error: str | None = None
-    try:
-        expected = candidate_hash(module, repo_root, base, paths)
-    except Exception as exc:  # noqa: BLE001 - surface the controller's own message
-        whole_error = str(exc)
-
-    if args.print_candidate:
-        if expected is None:
-            emit(f"review_ledger_binding_error: cannot freeze the candidate packet: {whole_error}")
-            return 1
-        print(expected)
-        return 0
-
-    validator = repo_root / "skills" / "skill-extraction-workflow" / "scripts" / VALIDATOR
-    evidence = scan(repo_root, args.evidence_root)
-    ledgers: list[str] = []
-    if expected is not None:
-        # Only a validator-accepted ledger counts. A receipt-shaped file proves
-        # nothing on its own: this gate cannot authenticate that a controller
-        # minted it, so any branch keyed on a self-declared field is a bypass a
-        # contributor can hand-write.
-        proof = accepted_ledger_for(evidence, repo_root, validator, expected, ledgers)
-        if proof is not None:
-            print(
-                f"review_ledger_binding_ok: {proof.split(' -- ', 1)[0]} binds the landing "
-                f"candidate ({expected[:12]}...) -- {proof.split(' -- ', 1)[1]}"
-            )
+    if args.print_candidate or args.print_manifest:
+        fork, excludes, paths, changed = candidate_scope(repo_root, base_tip, user_paths)
+        if not changed:
+            emit(f"review_ledger_binding_no_change: no reviewed-path change against {fork}")
             return 0
-
-    manifests: list[str] = []
-    for path, payload in evidence:
-        if payload.get("kind") != MANIFEST_KIND:
-            continue
-        relative = str(path.relative_to(repo_root))
+        module = load_controller(repo_root)
+        if args.print_manifest:
+            try:
+                manifest = render_manifest(module, repo_root, fork, args.partition, excludes, changed)
+            except ManifestError as exc:
+                emit(f"review_ledger_binding_error: cannot render a landing partition manifest: {exc}")
+                return 1
+            except Exception as exc:  # noqa: BLE001 - surface the controller's own message
+                emit(f"review_ledger_binding_error: cannot freeze a partition packet: {exc}")
+                return 1
+            print(json.dumps(manifest, indent=2, ensure_ascii=False))
+            return 0
         try:
-            proofs = bind_manifest(
-                module, repo_root, base, payload, excludes, changed, evidence, validator, ledgers
-            )
-        except ManifestError as exc:
-            manifests.append(f"{relative}: {exc}")
-            continue
+            print(candidate_hash(module, repo_root, fork, paths))
         except Exception as exc:  # noqa: BLE001 - surface the controller's own message
-            manifests.append(f"{relative}: cannot freeze a partition packet: {exc}")
-            continue
-        print(
-            f"review_ledger_binding_ok: {relative} binds the landing candidate as "
-            f"{len(proofs)} partitions (aggregate {payload['candidate_sha256'][:12]}...)"
-        )
-        for line in proofs:
+            emit(f"review_ledger_binding_error: cannot freeze the candidate packet: {exc}")
+            return 1
+        return 0
+
+    binding = bind_candidate(repo_root, base_tip, user_paths, args.evidence_root, allow_chain=True)
+    if binding.ok:
+        print(f"review_ledger_binding_ok: {binding.summary}")
+        for line in binding.proofs:
             print(line)
         return 0
-
-    if expected is None:
-        emit(
-            "review_ledger_binding_failed: the whole candidate cannot be frozen as one "
-            f"packet ({whole_error}) and no committed landing partition manifest binds it"
-        )
-        emit(
-            "  split the candidate by path: --print-manifest --partition <paths> "
-            "[--partition <paths> ...] renders the manifest; commit it with one "
-            "validated ledger per partition"
-        )
-    else:
-        emit(
-            "review_ledger_binding_failed: no accepted review evidence binds the landing "
-            f"candidate {expected}"
-        )
-    emit(f"  reviewed paths: {' '.join(paths)} against {base}")
-    emit(f"  changed files: {len(changed)}")
-    for row in ledgers:
-        emit(f"  rejected ledger -> {row}")
-    for row in manifests:
-        emit(f"  rejected manifest -> {row}")
-    if not ledgers and not manifests:
-        emit(
-            "  no committed ledger records this candidate; run the extraction review "
-            "lane against the final, committed tree"
-        )
+    for line in binding.failure:
+        emit(line)
     return 1
 
 

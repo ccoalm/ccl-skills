@@ -114,11 +114,14 @@ jobs:
       # than restoring the trigger: a merge_group HEAD combines several queued pull
       # requests, and each committed ledger binds one individual candidate, so no
       # ledger binds the aggregate and every otherwise-valid queued request would
-      # be refused. A single candidate too large for one packet is a different
-      # aggregate and IS covered: a committed landing partition manifest binds it
-      # part by part (see the gate's docstring). Binding several queued candidates
-      # as one is unsolved; until it is solved, do not enable a merge queue on a
-      # branch that requires this check.
+      # be refused. Two other aggregates ARE covered (see the gate's docstring):
+      # a single candidate too large for one packet, bound part by part through a
+      # committed landing partition manifest; and an integration branch that
+      # accumulated several already-bound rounds and is promoted as one pull
+      # request, bound round by round along its first-parent chain because each
+      # round's own merge was bound here when it landed. Queued requests have no
+      # such merges yet, which is why the queue case stays unsolved; until it is
+      # solved, do not enable a merge queue on a branch that requires this check.
       #
       # Direct pushes to a protected branch are refused by the platform, which is
       # the other residual this scoping leaves and does not close.
