@@ -205,14 +205,18 @@ carrying each report's replica count, totals, `catalog_sha256`, size, and **full
 control arm's catalog is the branch base and the treatment arm's is the landing candidate, so which
 tree produced a row is readable from the row itself.
 
-The raw reports stay outside the commit: they total roughly 700 KB and would take the candidate
-past the binder's 200,000-byte packet cap on their own. They live at
-`~/.claude/skills/.extraction-work/115-runs/<file>` on the maintainer's host, and the TSV's RUN rows
-carry each one's full sha256 so a retrieved file can be matched to the claim it supports. State the
-limit plainly: that path is retrievable by the maintainer and by nobody else, so for any other
-reader the TSV is a derivative whose counting cannot be re-checked against its source. Re-running
-the affected subset at ten or more replicas reproduces the measurement independently; that, not the
-digest, is what a third party can actually verify.
+`replica-verdicts.tsv` is the source those counts come from, and it is committed alongside them:
+one row per case per run, carrying the per-replica selected owner and a marker for each replica that
+produced no verdict. Every number in `paired-measurements.tsv` is a count over that column — hits is
+how many entries equal the expected owner, valid is how many entries there are — so the two files
+check each other with no external input. They were recounted against each other before landing, with
+zero mismatches, and any reader can repeat that.
+
+The full runner reports stay outside the commit at
+`~/.claude/skills/.extraction-work/115-runs/<file>` on the maintainer's host: they total roughly
+700 KB and would take the candidate past the binder's packet cap on their own. What they add beyond
+`replica-verdicts.tsv` is per-verdict confidence, clarify flags and prompts — none of which any
+claim here rests on. Their full sha256 are in the RUN rows.
 
 The three superseded full-bank runs are listed because they exist, not because they count: each
 measured a candidate that a later edit replaced, and the protocol voids an intermediate draft's pass
