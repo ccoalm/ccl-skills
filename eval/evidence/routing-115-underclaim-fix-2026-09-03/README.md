@@ -12,18 +12,20 @@ excluded by the instrument rather than by assertion.
 
 ## What was fixed
 
-Every case below was measured on its own, on two trees that differ only in the routing surface:
-a control worktree pinned to this branch's base `1506dcf`, and the **landing candidate**
-(`catalog_sha256 0e06c8a3e604…`). Each row's changed description is the only one bearing on that
-case — no other changed description appears anywhere in that case's observed verdict distribution.
+Both arms are trees that differ only in the routing surface — a control pinned to this branch's
+base `1506dcf`, and the landing candidate `0e06c8a3e604…`. **They do not differ by one description:
+the landing candidate carries all eleven.** Per-case attribution rests on three things instead, and
+is an argument, not an isolation: the case's expected owner has exactly one changed description; no
+other changed owner appears anywhere in that case's observed distribution on either arm; and the
+round edited in batches, so most cases also have arms at smaller package sizes (four, five and eight
+edits) whose values agree with the landing ones. True isolation would need eleven single-edit trees
+and was not run.
 
-The round edited in three batches, so several treatment arms were first measured on an intermediate
-candidate that a later batch replaced. Those numbers are void as evidence for what lands: the
-protocol says a draft's pass count dies the moment the wording changes again. Every claim was
-therefore re-measured on the landing candidate — seven cases at twenty replicas in a final pass, the
-rest already covered there — and `paired-measurements.tsv` carries a `candidate` column marking each
-row `base`, `intermediate`, or `landing` so the distinction is machine-checkable rather than
-promised. The independent review that caught this found it in that table, not in the prose.
+Arms taken on an intermediate candidate are void as evidence for what lands — a draft's pass count
+dies when the wording changes again — so every claim was re-measured on the landing candidate, seven
+cases at twenty replicas in a final pass. `paired-measurements.tsv` marks each row `base`,
+`intermediate` or `landing`; both this and the overclaim above were found by review reading that
+table, not the prose.
 
 | case | changed owner and its measured move | control | treatment |
 | --- | --- | --- | --- |
