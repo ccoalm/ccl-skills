@@ -139,15 +139,43 @@ regression verdict — each entry needs its own paired 20-replica probe before i
 
 ## Artifacts
 
-**The full-bank continuity run is owed, not present.** Every edit above is licensed by paired
-per-case measurement, which is what the protocol requires; the full-bank three-replica run against
-`routing-baseline-replicas3-2026-09-03/full-bank-replicas3.json` serves two other purposes — a
-comparability statement against the previous ruler, and a landed baseline the next round can pass as
-`--baseline`. Three such runs were taken during this round and all three are superseded: each
-measured a candidate that a later edit replaced, and the protocol voids an intermediate draft's pass
-count the moment the wording changes again. The run on the final candidate is recorded here when it
-completes; until then this directory deliberately holds no full-bank report rather than a
-superseded one, and the register row carries the debt.
+`full-bank-replicas3.json` in this directory is the continuity run on the final
+candidate: the same bank as `routing-baseline-replicas3-2026-09-03/`, `--replicas 3`, that
+baseline passed as `--baseline`.
+
+| | baseline 2026-09-03 | this round |
+| --- | --- | --- |
+| candidate | `catalog_sha256 7db3593170b8…` | `catalog_sha256 0e06c8a3e604…` |
+| bank | `1bf0633717c2…` | `1bf0633717c2…` (identical) |
+| result | 144/158 | **157/158** |
+| grader-error verdicts | 0 | 1 (`ab-n2`, partially measured) |
+| comparable | — | `baseline_comparable: true` |
+| co-change | — | `false` |
+
+`newly_passed` holds fourteen cases. `newly_failed` holds exactly one,
+`miss-refactor-python-unqualified`, and it is not a regression this round introduced: the paired
+20-replica probe on this same candidate (`catalog_sha256 0e06c8a3e604…`) and on the unedited tree
+returns **identical** distributions — 17/20 to the expected owner, two refusals, one near-miss to
+the coordinator, and zero `must_not_route_to` hits on either arm.
+
+The report carries `action_resolution: false` and prints the screening banner, because three
+replicas is below the floor this round landed. That is the intended reading: this run establishes
+comparability with the previous ruler and licensed none of the edits above — every edit is licensed
+by the paired per-case measurements, at ten or twenty valid observations per arm.
+
+It is the runner's report re-serialised without indentation (`JSON.generate(JSON.parse(original))`;
+parsed object graphs compare equal) because the pretty-printed original is 180,609 bytes and the
+round's candidate has to stay under the binder's 200,000-byte packet cap — the same transformation
+and reason are recorded in `routing-baseline-replicas3-2026-09-03/README.md`.
+
+- pretty-printed original: `7692924a35a8a013aecd34192078025f4ed97998bd494f4fd6a9fab77b7c68c0`
+- the file here: `d9aa4bcb51fe0d253679cb9060021116c1e07067561b5609089bd860fd221ece`
+
+One honest limit on this artifact: it was produced by the runner **before** the review fix that
+derives the resolution floor from valid observations, so it carries no `min_valid_observations`
+field. Its own verdict is unaffected — at three replicas both the old and the new computation
+report `action_resolution: false` — and its grading data is untouched by that fix, which changes
+only how the report field and banner are computed.
 
 The per-case reports and the subset rulers stay in the round's private archive rather than the
 commit. Every number they hold is transcribed above, and committing roughly 700 KB of verdict JSON
