@@ -13,9 +13,17 @@ excluded by the instrument rather than by assertion.
 ## What was fixed
 
 Every case below was measured on its own, on two trees that differ only in the routing surface:
-a control worktree pinned to this branch's base `1506dcf` and the edited tree. Each row's changed
-description is the only one bearing on that case — no other changed description appears anywhere in
-that case's observed verdict distribution.
+a control worktree pinned to this branch's base `1506dcf`, and the **landing candidate**
+(`catalog_sha256 0e06c8a3e604…`). Each row's changed description is the only one bearing on that
+case — no other changed description appears anywhere in that case's observed verdict distribution.
+
+The round edited in three batches, so several treatment arms were first measured on an intermediate
+candidate that a later batch replaced. Those numbers are void as evidence for what lands: the
+protocol says a draft's pass count dies the moment the wording changes again. Every claim was
+therefore re-measured on the landing candidate — seven cases at twenty replicas in a final pass, the
+rest already covered there — and `paired-measurements.tsv` carries a `candidate` column marking each
+row `base`, `intermediate`, or `landing` so the distinction is machine-checkable rather than
+promised. The independent review that caught this found it in that table, not in the prose.
 
 | case | changed owner and its measured move | control | treatment |
 | --- | --- | --- | --- |
