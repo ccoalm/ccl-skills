@@ -173,10 +173,14 @@ replicas is below the floor this round landed. That is the intended reading: thi
 comparability with the previous ruler and licensed none of the edits above — every edit is licensed
 by the paired per-case measurements, at ten or twenty valid observations per arm.
 
-It is the runner's report re-serialised without indentation (`JSON.generate(JSON.parse(original))`;
-parsed object graphs compare equal) because the pretty-printed original is 180,609 bytes and the
-round's candidate has to stay under the binder's 200,000-byte packet cap — the same transformation
-and reason are recorded in `routing-baseline-replicas3-2026-09-03/README.md`.
+It is **not** the runner's literal output, and says so in its own `_transformation` field. Two
+things were done to it: the remainder was re-serialised without indentation, and the per-replica
+verdict arrays were dropped. The runner's `--baseline` comparison consumes `bank_sha256`, `replicas`
+and per-task status, all of which remain; what went is the per-verdict detail of a *three-replica*
+run — screening-resolution data this round demonstrated does not reproduce — and it was costing
+82,724 bytes against a 200,000-byte candidate cap that left this round 31 bytes of room to answer a
+review finding. A later round that needs per-case distributions must measure them at ten or more
+replicas, which the rule this round lands requires regardless.
 
 - pretty-printed original: `7692924a35a8a013aecd34192078025f4ed97998bd494f4fd6a9fab77b7c68c0`
 - the file here: `d9aa4bcb51fe0d253679cb9060021116c1e07067561b5609089bd860fd221ece`
