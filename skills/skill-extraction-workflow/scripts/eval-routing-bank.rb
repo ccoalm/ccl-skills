@@ -527,6 +527,18 @@ if baseline_path && File.file?(baseline_path)
   end
 end
 
+# The floor is on VALID observations, not on the requested replica count: a run
+# asked for ten replicas can come back with seven usable verdicts once a grader
+# times out or returns unparsable output, and a report that called itself
+# actionable on the request alone would license an edit the evidence cannot
+# support. Observed in this repository: a fourteen-task run at --replicas 10
+# returned six grader errors and left two tasks at seven valid observations.
+# The weakest task governs, because a per-case edit is licensed per case.
+min_valid_observations = results.map { |r| r[:verdicts].count { |v| v[:status] != "ERROR" } }.min.to_i
+action_resolution = replicas >= ACTION_RESOLUTION_MIN_REPLICAS &&
+  !results.empty? &&
+  min_valid_observations >= ACTION_RESOLUTION_MIN_REPLICAS
+
 report = {
   model: model, tasks: results.size, pass: passes, fail: fails.size, error: errors.size,
   replicas: replicas, verdicts: all_observed.size,
@@ -534,8 +546,9 @@ report = {
   clarify_count: clarify_count, low_confidence_count: low_conf_count,
   replica_agreement: (replicas >= 2 ? { agree: agreement_agree, measured: agreement_measured } : nil),
   desc_budget_chars: desc_budget, routing_surface: routing_surface,
-  action_resolution: replicas >= ACTION_RESOLUTION_MIN_REPLICAS,
+  action_resolution: action_resolution,
   action_resolution_min_replicas: ACTION_RESOLUTION_MIN_REPLICAS,
+  min_valid_observations: min_valid_observations,
   co_change_bank_and_descriptions: co_change, co_change_check_available: co_change_check_ok,
   frozen_drift: drift.map { |r| r[:id] },
   baseline_comparable: baseline_comparable,
@@ -545,8 +558,8 @@ report = {
 File.write(json_path, JSON.pretty_generate(report)) if json_path
 
 puts "eval-routing-bank (#{model}): #{passes}/#{results.size} pass, #{fails.size} fail, #{errors.size} grader-error"
-unless replicas >= ACTION_RESOLUTION_MIN_REPLICAS
-  puts "  \u26a0 screening_resolution_only: replicas=#{replicas} < #{ACTION_RESOLUTION_MIN_REPLICAS} — this report locates candidates, it does not license a description edit; a per-case edit needs #{ACTION_RESOLUTION_MIN_REPLICAS} valid observations of that case (references/eval-routing.md)"
+unless action_resolution
+  puts "  \u26a0 screening_resolution_only: replicas=#{replicas}, weakest task has #{min_valid_observations} valid observations, floor #{ACTION_RESOLUTION_MIN_REPLICAS} — this report locates candidates, it does not license a description edit; a per-case edit needs #{ACTION_RESOLUTION_MIN_REPLICAS} valid observations of that case (references/eval-routing.md)"
 end
 puts "  arm: desc-budget-chars=#{desc_budget}" if desc_budget
 unless all_observed.empty?

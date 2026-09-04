@@ -66,7 +66,9 @@ export PATH="$FAKE_BIN:$PATH"
 out_lo="$(ruby "$EVAL_SCRIPT" "$REPO" --replicas 3 --json "$TMP/lo.json" 2>&1)" \
   || fail "runner exited non-zero below the floor:\n$out_lo"
 assert_contains "screening_resolution_only" "$out_lo" "sub-floor run must announce screening resolution"
-assert_contains "replicas=3 < 10" "$out_lo" "banner must name both the observed and the required replica count"
+assert_contains "replicas=3" "$out_lo" "banner must name the observed replica count"
+assert_contains "floor 10" "$out_lo" "banner must name the required floor"
+assert_contains "valid observations" "$out_lo" "banner must report the weakest task's valid-observation count, not the request alone"
 grep -q '"action_resolution": false' "$TMP/lo.json" \
   || fail "sub-floor report must carry action_resolution:false — a consumer cannot read a printed banner"
 
@@ -76,6 +78,33 @@ out_hi="$(ruby "$EVAL_SCRIPT" "$REPO" --replicas 10 --json "$TMP/hi.json" 2>&1)"
 assert_absent "screening_resolution_only" "$out_hi" "a run at the floor must not be labelled screening-only"
 grep -q '"action_resolution": true' "$TMP/hi.json" \
   || fail "at-floor report must carry action_resolution:true"
+
+# --- (2b) a nominal at-floor run with an invalid observation is NOT actionable -
+# The floor is on valid observations. A grader that fails one call leaves the
+# task below the floor while `--replicas` still reads 10, and a report that
+# trusted the request would license an edit its evidence cannot support.
+# The runner gives each unparsable verdict ONE retry, treating it as a sampling
+# accident, so a fixture that fails a single call is repaired and records no
+# error. The failure has to persist across the retry to leave the task short of
+# the floor -- which is exactly the real shape this guards: a grader that is
+# reliably unable to answer one utterance, not a stray quote.
+cat > "$FAKE_BIN/claude" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+echo x >> "$RESOLUTION_COUNT_FILE"
+n=$(wc -l < "$RESOLUTION_COUNT_FILE" | tr -d ' ')
+if [ "$n" = "3" ] || [ "$n" = "4" ]; then printf 'not json at all\n'; exit 0; fi
+printf '{"selected_skill":"testing-strategy","clarify":false,"confidence":0.9,"rationale_short":"fixture"}\n'
+EOF
+chmod +x "$FAKE_BIN/claude"
+: > "$TMP/count"
+out_deg="$(RESOLUTION_COUNT_FILE="$TMP/count" ruby "$EVAL_SCRIPT" "$REPO" --replicas 10 --json "$TMP/deg.json" 2>&1)" \
+  || fail "runner exited non-zero on the degraded run:\n$out_deg"
+assert_contains "screening_resolution_only" "$out_deg" "a nominal 10-replica run with an invalid observation must not be actionable"
+grep -q '"action_resolution": false' "$TMP/deg.json" \
+  || fail "a 10-replica run with only 9 valid observations must report action_resolution:false"
+grep -q '"min_valid_observations": 9' "$TMP/deg.json" \
+  || fail "the report must expose the weakest task's valid-observation count"
 
 # --- (3) the two sides of the number must agree -------------------------------
 # The rule is only as good as the agreement between the reference that states it
