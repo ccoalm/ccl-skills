@@ -42,6 +42,14 @@ require "shellwords"
 require "timeout"
 require "digest"
 
+# Resolution floor for ACTING on a measured case. A report taken below it
+# LOCATES candidates; it does not license a description edit, because at three
+# replicas a case that routes correctly 80-90% of the time reads as failing and
+# a one-off deviation reads as a finding. `references/eval-routing.md` owns the
+# rule and states the same number; test_eval_routing_bank_resolution.sh pins the
+# two sides together so they cannot drift apart.
+ACTION_RESOLUTION_MIN_REPLICAS = 10
+
 def arg(flag, default = nil)
   i = ARGV.index(flag)
   i ? ARGV[i + 1] : default
@@ -526,6 +534,8 @@ report = {
   clarify_count: clarify_count, low_confidence_count: low_conf_count,
   replica_agreement: (replicas >= 2 ? { agree: agreement_agree, measured: agreement_measured } : nil),
   desc_budget_chars: desc_budget, routing_surface: routing_surface,
+  action_resolution: replicas >= ACTION_RESOLUTION_MIN_REPLICAS,
+  action_resolution_min_replicas: ACTION_RESOLUTION_MIN_REPLICAS,
   co_change_bank_and_descriptions: co_change, co_change_check_available: co_change_check_ok,
   frozen_drift: drift.map { |r| r[:id] },
   baseline_comparable: baseline_comparable,
@@ -535,6 +545,9 @@ report = {
 File.write(json_path, JSON.pretty_generate(report)) if json_path
 
 puts "eval-routing-bank (#{model}): #{passes}/#{results.size} pass, #{fails.size} fail, #{errors.size} grader-error"
+unless replicas >= ACTION_RESOLUTION_MIN_REPLICAS
+  puts "  \u26a0 screening_resolution_only: replicas=#{replicas} < #{ACTION_RESOLUTION_MIN_REPLICAS} — this report locates candidates, it does not license a description edit; a per-case edit needs #{ACTION_RESOLUTION_MIN_REPLICAS} valid observations of that case (references/eval-routing.md)"
+end
 puts "  arm: desc-budget-chars=#{desc_budget}" if desc_budget
 unless all_observed.empty?
   line = "  clarify: #{clarify_count}/#{all_observed.size} verdicts, low-confidence(<0.5): #{low_conf_count}/#{all_observed.size}"
