@@ -12,14 +12,20 @@ excluded by the instrument rather than by assertion.
 
 ## What was fixed
 
-Both arms are trees that differ only in the routing surface — a control pinned to this branch's
-base `1506dcf`, and the landing candidate `0e06c8a3e604…`. **They do not differ by one description:
-the landing candidate carries all eleven.** Per-case attribution rests on three things instead, and
-is an argument, not an isolation: the case's expected owner has exactly one changed description; no
-other changed owner appears anywhere in that case's observed distribution on either arm; and the
-round edited in batches, so most cases also have arms at smaller package sizes (four, five and eight
-edits) whose values agree with the landing ones. True isolation would need eleven single-edit trees
-and was not run.
+**These deltas are the package's, not any single description's.** The control is this branch's base
+`1506dcf` and the treatment is the landing candidate `0e06c8a3e604…`, which carries all eleven
+edits; the rule this round itself lands says a comparison that moved several descriptions at once
+cannot be attributed to one of them. So the owner named in each row is *the owner whose description
+was edited for that case*, not a measured cause, and the table should be read as a package result
+with a per-case interpretation attached.
+
+Two things keep that interpretation from being arbitrary, and neither is attribution: the case's
+expected owner has exactly one changed description, and no other changed owner appears anywhere in
+that case's observed distribution on either arm. One case does have a genuine single-variable A/B —
+`ab-c5` was measured on a four-edit tree (6/9) and on the same tree plus only the grill-me edit
+(10/10), which is the isolation the protocol asks for. The other ten were not split that way; eleven
+single-edit trees would be needed and were not run. That residual is the round's, not the
+reviewer's, and it is recorded rather than argued away.
 
 Arms taken on an intermediate candidate are void as evidence for what lands — a draft's pass count
 dies when the wording changes again — so every claim was re-measured on the landing candidate, seven
@@ -32,10 +38,10 @@ table, not the prose.
 | `p3-resume-refactor` | product-rd-workflow: p3-resume-refactor moved 0/10 to 10/10 | 0/10 | 10/10 |
 | `p3-log-plus-test` | platform-observability: p3-log-plus-test moved 2/10 to 10/10 | 2/10 | 10/10 |
 | `route-nodejs-architecture-not-go-python` | product-rd-workflow second trigger: route-nodejs-arch moved 6/10 to 10/10 | 6/10 | 10/10 |
-| `p3-perf-plus-regression` | defect-diagnosis: p3-perf-plus-regression moved 5/10 to 10/10 | 5/10 | 10/10 |
-| `skip-miniapp-build` | miniapp-product-dev: skip-miniapp-build moved 6/10 to 10/10 | 6/10 | 10/10 |
-| `ab-c5` | grill-me: ab-c5 moved 8/10 to 10/10 | 8/10 | 10/10 |
-| `ab-n2` | platform-observability second trigger: ab-n2 moved 9/10 to 10/10 | 9/10 | 10/10 |
+| `p3-perf-plus-regression` | defect-diagnosis: p3-perf-plus-regression moved 5/10 to 10/10 on the batch tree, 20/20 on the landing candidate | 5/10 | 20/20 |
+| `skip-miniapp-build` | miniapp-product-dev: skip-miniapp-build moved 6/10 to 10/10 on the batch tree, 20/20 on the landing candidate | 6/10 | 20/20 |
+| `ab-c5` | grill-me: ab-c5 moved 8/10 to 10/10 on the batch tree, 20/20 on the landing candidate | 8/10 | 20/20 |
+| `ab-n2` | platform-observability second trigger: ab-n2 moved 9/10 to 10/10 on the batch tree, 20/20 on the landing candidate | 9/10 | 20/20 |
 | `ab-d6` | requirement-scope: ab-d6 moved 8/10 to 10/10 | 8/10 | 10/10 |
 | `ab-b5` | requirement-baseline: ab-b5 moved 14/20 to 20/20 | 14/20 | 20/20 |
 | `variant-neg-release-watch-sop` | platform-release-engineering: release-watch moved 18/20 to 20/20 | 18/20 | 20/20 |
@@ -199,10 +205,14 @@ carrying each report's replica count, totals, `catalog_sha256`, size, and **full
 control arm's catalog is the branch base and the treatment arm's is the landing candidate, so which
 tree produced a row is readable from the row itself.
 
-The raw reports stay in the round's private archive rather than the commit: they total roughly
-700 KB and would take the candidate past the binder's 200,000-byte packet cap on their own. Their
-full digests are in the TSV's RUN rows, which is the locator that lets an archived report be
-matched to the claim it supports.
+The raw reports stay outside the commit: they total roughly 700 KB and would take the candidate
+past the binder's 200,000-byte packet cap on their own. They live at
+`~/.claude/skills/.extraction-work/115-runs/<file>` on the maintainer's host, and the TSV's RUN rows
+carry each one's full sha256 so a retrieved file can be matched to the claim it supports. State the
+limit plainly: that path is retrievable by the maintainer and by nobody else, so for any other
+reader the TSV is a derivative whose counting cannot be re-checked against its source. Re-running
+the affected subset at ten or more replicas reproduces the measurement independently; that, not the
+digest, is what a third party can actually verify.
 
 The three superseded full-bank runs are listed because they exist, not because they count: each
 measured a candidate that a later edit replaced, and the protocol voids an intermediate draft's pass
