@@ -177,25 +177,18 @@ field. Its own verdict is unaffected — at three replicas both the old and the 
 report `action_resolution: false` — and its grading data is untouched by that fix, which changes
 only how the report field and banner are computed.
 
-The per-case reports and the subset rulers stay in the round's private archive rather than the
-commit. Every number they hold is transcribed above, and committing roughly 700 KB of verdict JSON
-would consume a reviewer's entire packet budget without adding a fact this file does not state. They
-are locatable by sha256:
+`paired-measurements.tsv` in this directory is the checkable half of this record. Prose is not
+evidence a reviewer can verify, so every number stated above also appears there as a row generated
+from the raw reports rather than transcribed: 136 MEASUREMENT rows carrying case, arm, source run,
+expected-owner hits, valid observations, status, and every rival selection; plus 27 RUN rows
+carrying each report's replica count, totals, `catalog_sha256`, size, and **full** sha256. The
+control arm's catalog is the branch base and the treatment arm's is the landing candidate, so which
+tree produced a row is readable from the row itself.
 
-| artifact | bytes | sha256 (first 16) |
-| --- | --- | --- |
-| `pre-A-r10` / `pre-A2-r10` — 14 targets pre, and the two partially measured re-run | 38748 / 9235 | `e950248e6f40d19f` / `4946c7ca4e799c3d` |
-| `post-A-r10` / `post2-A-r10` — 14 targets after batch 1, after batch 2 | 39118 / 38956 | `539fa5794f0fa677` / `465a9d667fd10a63` |
-| `pre-B-r3` / `post-B-r3` / `post2-B-r3` — 69 neighbours, three states | 80752 / 80907 / 80900 | `afdaf2d486b7dbcf` / `fd133dc94a793ae8` / `936e1e23c412adc0` |
-| `ctrl-C` / `post-C` — `ab-c5` + `miss-refactor-servicewide`, paired 10 | 9154 / 9204 | `ff0616ae12a6a713` / `9e4bf09a6c5a2da1` |
-| `ctrl-D` / `post-D` — `ab-c5` + `ab-n3`, paired 10 | 8969 / 8965 | `12d73fd4b42b5c66` / `a2815d9453a6e262` |
-| `ctrl-E` / `post-E` — `route-opencode-project-config`, paired 10 | 7006 / 7073 | `d745a4b01f130bd2` / `dedffb730176ccd1` |
-| `ctrl-F` / `post-F` — three `newly_failed`, paired 10 | 11714 / 11782 | `0ffe7d6f66862cf9` / `56b6a2b6ea59c509` |
-| `ctrl-G` / `post2-G` — `ab-b5`, paired 20 | 8622 / 8724 | `d00819d32fe016a5` / `0f7bba2c923013cf` |
-| `ctrl-H` / `post2-H` — `variant-neg-release-watch-sop`, paired 20 | 8961 / 8991 | `09072d6dc9144cd6` / `1e560dc0f9abd27b` |
-| `ctrl-I` / `post2-I` — `mem-api-log-redact`, paired 20 | 8834 / 8904 | `5fef4817a35e690a` / `6c7a5194ceed6d03` |
-| `ctrl-J` / `post3-J` — batch-3 targets plus six architecture/Node neighbours, paired 20 | 50159 / 50445 | `90498b3afad83354` / `c7b50f9170a7fc15` |
-| `post-full-r3` / `final-full-r3` / `final2-full-r3` — full-bank runs on superseded candidates | 180586 / 180756 / 180612 | `cb1d6a55fcbc2ec9` / `86e26e02da98fdf2` / `96597f7c910d44f2` |
+The raw reports stay in the round's private archive rather than the commit: they total roughly
+700 KB and would take the candidate past the binder's 200,000-byte packet cap on their own. Their
+full digests are in the TSV's RUN rows, which is the locator that lets an archived report be
+matched to the claim it supports.
 
 The three superseded full-bank runs are listed because they exist, not because they count: each
 measured a candidate that a later edit replaced, and the protocol voids an intermediate draft's pass
