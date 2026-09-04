@@ -12,6 +12,13 @@ excluded by the instrument rather than by assertion.
 
 ## What was fixed
 
+The two arms are whole trees, not isolated surfaces. Beyond the eleven descriptions they also
+differ in the runner, its reference, the test suite and the evidence files, because those landed in
+the same branch; the grader's input is the skill catalog plus the utterance, and the runner changes
+touched report fields, the printed banner and a test fixture, never prompt construction or verdict
+parsing. That is a claim a reader can check against the diff rather than take on trust, and it is
+the honest form of what an earlier draft called "trees that differ only in the routing surface".
+
 **These deltas are the package's, not any single description's.** The control is this branch's base
 `1506dcf` and the treatment is the landing candidate `0e06c8a3e604…`, which carries all eleven
 edits; the rule this round itself lands says a comparison that moved several descriptions at once
@@ -204,6 +211,23 @@ expected-owner hits, valid observations, status, and every rival selection; plus
 carrying each report's replica count, totals, `catalog_sha256`, size, and **full** sha256. The
 control arm's catalog is the branch base and the treatment arm's is the landing candidate, so which
 tree produced a row is readable from the row itself.
+
+One routing-surface change in this round carries no bank evidence, deliberately and by declaration:
+`downscoped:R115-TRIGGER-RESTORE-NO-FROZEN-CASE`. Restoring `进入实现阶段` to
+`product-rd-workflow` answers a counterexample adversarial review supplied — a request naming the
+transition without the approval wording — and no frozen case exercises that token, which is exactly
+why the round's earlier synonym argument for removing it could not be refuted by measurement. Adding
+a case to the bank would void every baseline comparison in this round, so the honest record is a
+declared downscope rather than a number the bank cannot produce. The restoration returns the
+description to a superset of its base state, so it can only widen what the owner claims.
+
+Adversarial review pushed on the obvious weakness of two files I generated: dropping a case from
+both, or from a RUN's task count as well, recounts cleanly. The binding that does not depend on me
+is the frozen bank itself, `eval/routing-tasks.jsonl`, which this round does not touch: every case
+id in either table exists there, and the eleven cases this round makes a claim about are named in
+the table above, so an omission is visible against an artifact the round could not have edited
+without the runner's co-change check saying so. What that does not catch is a case silently dropped
+from every surface at once, and no self-generated pair can.
 
 `replica-verdicts.tsv` is the source those counts come from, and it is committed alongside them:
 one row per case per run, carrying the per-replica selected owner and a marker for each replica that

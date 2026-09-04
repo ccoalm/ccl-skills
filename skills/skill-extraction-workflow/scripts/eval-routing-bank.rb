@@ -533,11 +533,23 @@ end
 # actionable on the request alone would license an edit the evidence cannot
 # support. Observed in this repository: a fourteen-task run at --replicas 10
 # returned six grader errors and left two tasks at seven valid observations.
-# The weakest task governs, because a per-case edit is licensed per case.
-min_valid_observations = results.map { |r| r[:verdicts].count { |v| v[:status] != "ERROR" } }.min.to_i
-action_resolution = replicas >= ACTION_RESOLUTION_MIN_REPLICAS &&
-  !results.empty? &&
-  min_valid_observations >= ACTION_RESOLUTION_MIN_REPLICAS
+#
+# The verdict is PER CASE, because an edit is licensed per case. A report-wide
+# flag alone is unsound in the other direction: a subset run over case A can be
+# actionable while saying nothing about case B, and a consumer reading only the
+# top-level boolean would take it as licence for an edit to B. Each result
+# therefore carries its own `actionable`, and the report-level field is the
+# conjunction over the cases the run actually measured -- true only when every
+# measured case clears the floor, and never a statement about a case absent from
+# `results`.
+results.each do |r|
+  valid = r[:verdicts].count { |v| v[:status] != "ERROR" }
+  r[:valid_observations] = valid
+  r[:actionable] = replicas >= ACTION_RESOLUTION_MIN_REPLICAS &&
+    valid >= ACTION_RESOLUTION_MIN_REPLICAS
+end
+min_valid_observations = results.map { |r| r[:valid_observations] }.min.to_i
+action_resolution = !results.empty? && results.all? { |r| r[:actionable] }
 
 report = {
   model: model, tasks: results.size, pass: passes, fail: fails.size, error: errors.size,
@@ -547,6 +559,7 @@ report = {
   replica_agreement: (replicas >= 2 ? { agree: agreement_agree, measured: agreement_measured } : nil),
   desc_budget_chars: desc_budget, routing_surface: routing_surface,
   action_resolution: action_resolution,
+  action_resolution_scope: "cases measured by this run only; see each result's actionable field",
   action_resolution_min_replicas: ACTION_RESOLUTION_MIN_REPLICAS,
   min_valid_observations: min_valid_observations,
   co_change_bank_and_descriptions: co_change, co_change_check_available: co_change_check_ok,

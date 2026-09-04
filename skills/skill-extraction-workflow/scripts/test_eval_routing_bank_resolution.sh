@@ -106,6 +106,19 @@ grep -q '"action_resolution": false' "$TMP/deg.json" \
 grep -q '"min_valid_observations": 9' "$TMP/deg.json" \
   || fail "the report must expose the weakest task's valid-observation count"
 
+# --- (2c) the verdict is per case, and says nothing about a case not measured --
+# A report-wide boolean alone is unsound in the licensing direction: a subset run
+# over one case would otherwise read as licence for an edit to a case the run
+# never graded. Each result carries its own actionable and valid_observations.
+grep -q '"actionable": true' "$TMP/hi.json" \
+  || fail "an at-floor case must carry its own actionable:true"
+grep -q '"valid_observations": 10' "$TMP/hi.json" \
+  || fail "each case must expose its own valid-observation count"
+grep -q '"action_resolution_scope"' "$TMP/hi.json" \
+  || fail "the report must say its top-level verdict covers only the cases it measured"
+grep -q '"actionable": false' "$TMP/deg.json" \
+  || fail "a case left short by an invalid observation must carry actionable:false"
+
 # --- (3) the two sides of the number must agree -------------------------------
 # The rule is only as good as the agreement between the reference that states it
 # and the executable that enforces it. Compare the numbers themselves rather
