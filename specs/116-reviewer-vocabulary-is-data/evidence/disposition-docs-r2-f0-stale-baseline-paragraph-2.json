@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "04e0c25851ec3baec359bf1fa0db5bc6e7527a4b9ec454d9e38e3a0d470df610",
+  "receipt_sha256": "488a379da170f10494a76622c9a339d161ca3a9496881e5013b9a1363472eee5",
+  "finding_sha256": "131c5aef097bb14651cbdb41445a34a4d78a632f2330de902adb11fbe8fc87f2",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "488a379da170f10494a76622c9a339d161ca3a9496881e5013b9a1363472eee5",
+      "finding_sha256": "131c5aef097bb14651cbdb41445a34a4d78a632f2330de902adb11fbe8fc87f2"
+    }
+  ],
+  "evidence": [
+    "The two paragraphs closing the Client Tool Boundaries section (the baseline containment paragraph and the owner-free probe paragraph) were replaced by one paragraph that states the current verdict classes without the retired mechanism: a tool, MCP server or permission mode outside default/plan is terminal, unknown-container drift and an unverifiable authority knob cascade, and routine built-in command or skill changes need no repository update.",
+    "The sweep was re-run with the bare token: the only remaining 'baseline' occurrences in the code-review references are the unrelated general code-review baseline (the selected-skill floor), RED-baseline evidence labels, and the Kimi credential-home loose-file baseline.",
+    "The succession challenge (chain 116-vocabulary-is-data-docs-r2, bound to landing candidate 04e0c258…) re-read the four targeted fixes and reported each landed; its single P2 concerned the retry wording and is dispositioned separately."
+  ]
+}

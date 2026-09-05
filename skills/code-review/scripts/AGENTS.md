@@ -16,6 +16,17 @@ Rules:
   or empty-container, and `agents`/`capabilities` are list-of-strings checks
   with no value vocabulary. Only `permissionMode` stays value-pinned (it widens
   what the runtime may do with no tool added).
+- **Skill, command and plugin lists are vocabulary, not a boundary.**
+  `slash_commands`, `terminal_slash_commands`, `skills` and `plugins` may hold
+  any value and are never judged by name, shape, or origin; only `mcp_servers`
+  must still be empty. A third attempt at a vocabulary boundary -- a snapshot
+  of the host's own built-in names, later backed by a baseline invocation --
+  turned every CLI release that shipped a new skill or command into a Claude
+  lane outage. Do not add a name list, a baseline, or an "unclassifiable entry"
+  class back; nothing in those lists is invocable past the pinned `tools` set.
+  The same holds for the installed CCL plugin: an absent or unverifiable
+  registry costs the owner-skill binding (`native_skill_binding=unavailable`),
+  never the review.
 - **Keep unsafe *values* out of the schema-drift class.** An unrecognized shape
   means this lane cannot verify isolation → fallback-eligible. A known field
   carrying an unsafe value (`permissionMode: "bypassPermissions"`) is a breached

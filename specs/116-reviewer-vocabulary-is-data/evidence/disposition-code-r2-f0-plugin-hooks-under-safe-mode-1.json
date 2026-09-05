@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ca0a13a84afdc94ba4af5c3d5708b9e7cadecfa195d66705e8558c93b96f4387",
+  "receipt_sha256": "395e1364ec83de303e88064e157efdc1a6f5938f93ff0e057e2f0abfcb70769f",
+  "finding_sha256": "df0a6d0af82b73b96bf6e254fe55f7df5e240d5623da9b261bb2a5ecd18f2bfa",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "395e1364ec83de303e88064e157efdc1a6f5938f93ff0e057e2f0abfcb70769f",
+      "finding_sha256": "df0a6d0af82b73b96bf6e254fe55f7df5e240d5623da9b261bb2a5ecd18f2bfa"
+    }
+  ],
+  "evidence": [
+    "Falsification run against the installed Claude Code 2.1.261 with a temporary plugin whose root carries only .claude-plugin/plugin.json ({\"skills\":\"./skills/\"}), one skill, and a conventional hooks/hooks.json registering SessionStart and Stop command hooks that create marker files: `claude -p --safe-mode --tools '' --strict-mcp-config --mcp-config '{\"mcpServers\":{}}' --setting-sources '' --plugin-dir <plugin> --output-format stream-json --verbose --no-session-persistence` exited 0, init listed the plugin, and neither marker was created. The identical invocation without --safe-mode created both markers, so the probe can detect hook execution and the negative result is attributable to safe mode.",
+    "claude_review.sh refuses with capability_missing when the CLI lacks --safe-mode and always passes the flag (the probe suite pins both: a CLI without --safe-mode is refused, and the recorded argv of every owner-aware run carries --safe-mode), so the loaded plugin's conventional hook surface is disabled on every path that reaches --plugin-dir; the CLI's own --safe-mode help text names hooks among the customizations it disables.",
+    "Residual, recorded rather than closed: the containment rests on the CLI's safe-mode contract, which the wrapper checks by flag presence only; a future CLI that ran an explicitly loaded plugin's hooks under safe mode would re-open this path, and the manifest-key check would not catch a conventional hooks/ directory. The installed ccl-skills plugin does ship hooks/hooks.json without a manifest hooks key, which is why the probe used the same layout."
+  ]
+}

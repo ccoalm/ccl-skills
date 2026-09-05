@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "kind": "landing_partition_manifest",
+  "base": "4d7f5c271f154a497f8c0ca34a1b1088068d4415",
+  "partitions": [
+    {
+      "paths": [
+        "skills/code-review/scripts/parse_probe_result.py",
+        "skills/code-review/scripts/claude_review.sh",
+        "skills/code-review/scripts/review_gate.py",
+        "skills/code-review/scripts/init_policy_matrix.py",
+        "skills/code-review/scripts/test_parse_probe_result.sh",
+        "skills/code-review/scripts/test_init_policy_matrix.sh",
+        "skills/code-review/scripts/test_claude_review_probe.sh"
+      ],
+      "candidate_sha256": "ca0a13a84afdc94ba4af5c3d5708b9e7cadecfa195d66705e8558c93b96f4387"
+    },
+    {
+      "paths": [
+        "skills/code-review/SKILL.md",
+        "skills/code-review/references/manual-invocation-and-prompts.md",
+        "skills/code-review/references/staged-review-contract.md",
+        "skills/code-review/references/client-routing.md",
+        "skills/code-review/scripts/AGENTS.md",
+        "skills/code-review/scripts/runtime-surface-verification-design.md",
+        "skills/skill-extraction-workflow/references/source-register.md",
+        "specs/116-reviewer-vocabulary-is-data/plan.md",
+        "specs/116-reviewer-vocabulary-is-data/evidence/ledger-base-attestation-1.txt",
+        "packages/ccl-skills-npm/package.json",
+        "packages/ccl-skills-npm/package-lock.json"
+      ],
+      "candidate_sha256": "04e0c25851ec3baec359bf1fa0db5bc6e7527a4b9ec454d9e38e3a0d470df610"
+    }
+  ],
+  "candidate_sha256": "5b071929b7965e68b6b197405a012068973d63add90673cc53d3b31bb0dfae95"
+}

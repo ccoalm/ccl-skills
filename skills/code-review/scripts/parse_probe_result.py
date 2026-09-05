@@ -334,11 +334,13 @@ def parse_json_object(text: str) -> object | None:
 # block may occur. Ground truth comes from the stream, not the model's reply
 # token, which can hallucinate TOOL_ENABLED even when no tool exists.
 PROBE_TOOL = "bash"
+# The only customization surface still required to be EMPTY. An inherited MCP
+# server is invocable capability, so it is a breach. Skill, command and plugin
+# lists are host/plugin VOCABULARY: nothing in them is invocable while `tools`
+# is pinned to the expected set and the tool_use scan is clean, so they are
+# recorded metadata and never judged -- see KNOWN_VOCABULARY_INIT_FIELDS.
 REQUIRED_EMPTY_INIT_FIELDS = (
     "mcp_servers",
-    "slash_commands",
-    "skills",
-    "plugins",
 )
 # Fields that must be PRESENT (not merely empty). `permissionMode` is the only
 # report of the reviewer's authority, and authority is scalar-shaped — which is
@@ -444,90 +446,21 @@ KNOWN_SAFE_INIT_METADATA_FIELDS = {
     "uuid",
     "fast_mode_state",
 }
-KNOWN_SAFE_INIT_LIST_METADATA_FIELDS = {
-    # Claude Code 2.1.233 added this classification-only subset of the already
-    # declared slash_commands surface. It is safe only when every entry is a
-    # whole plain string already present in slash_commands; otherwise the new
-    # schema remains unverifiable and the lane fails closed.
+# Host/plugin vocabulary the init event enumerates. Deliberately NOT a
+# boundary and never judged by name, shape, or origin: an entry here becomes
+# invocable only through a tool, and the exact `tools` allowlist plus the
+# tool_use scan already pin that. Judging these lists against a snapshot of the
+# host's own built-in names turned every CLI release that shipped a new skill or
+# command into a reviewer-lane outage while proving nothing about isolation, and
+# it made an uninstalled or older plugin a refusal instead of a review without
+# owner skills.
+KNOWN_VOCABULARY_INIT_FIELDS = (
+    "slash_commands",
     "terminal_slash_commands",
-}
+    "skills",
+    "plugins",
+)
 KNOWN_SAFE_PERMISSION_MODES = {"default", "plan"}
-KNOWN_SAFE_BUILTIN_SKILLS = {
-    "batch",
-    "claude-api",
-    "code-review",
-    "dataviz",
-    "debug",
-    "deep-research",
-    "design-sync",
-    "doctor",
-    "fewer-permission-prompts",
-    "loop",
-    "run",
-    "run-skill-generator",
-    "schedule",
-    "simplify",
-    "update-config",
-    "verify",
-}
-KNOWN_SAFE_BUILTIN_SLASH_COMMANDS = {
-    "__remote-workflow",
-    "agents",
-    "batch",
-    "claude-api",
-    "clear",
-    "code-review",
-    "color",
-    "compact",
-    "config",
-    "context",
-    "dataviz",
-    "debug",
-    "deep-research",
-    "design",
-    "design-consent",
-    "design-revoke",
-    "design-sync",
-    "doctor",
-    "effort",
-    "extra-usage",
-    "fast",
-    "fewer-permission-prompts",
-    "goal",
-    "heapdump",
-    # `/import` arrived in a CLI release after this snapshot was written, which
-    # is how the snapshot's cost was discovered: an unrecognised name used to be
-    # classified as a proven customization -- terminal and non-cascadable -- so
-    # one new built-in took out the whole reviewer lane. That is fixed at the
-    # CLASS level now (see is_bare_host_identifier): a bare name this list does
-    # not know is unverifiable and cascades. This list therefore no longer
-    # decides whether review is POSSIBLE, only whether the Claude lane is the
-    # one that serves it, so a missing name costs a client switch instead of the
-    # capability. Keep it accurate where it is cheap; do not treat adding a name
-    # as the fix for a lane outage.
-    "import",
-    "init",
-    "insights",
-    "loop",
-    "mcp",
-    "model",
-    "recap",
-    "reload-skills",
-    "rename",
-    "review",
-    "run",
-    "run-skill-generator",
-    "schedule",
-    "security-review",
-    "simplify",
-    "team-onboarding",
-    "ultrareview",
-    "update-config",
-    "usage",
-    "usage-credits",
-    "verify",
-    "workflow-launch-exec",
-}
 
 
 def stream_events(text: str) -> list[dict]:
@@ -644,22 +577,16 @@ def init_declared_tools(events: list[dict]) -> set[str] | None:
 
 def init_surface_state(
     events: list[dict],
-    expected_tools: set[str] | None = None,
-    expected_native_skills: set[str] | None = None,
-    required_native_skills: set[str] | None = None,
-    host_init_baseline: dict[str, object] | None = None,
-) -> tuple[
-    set[str], set[str], set[str], set[str], set[str], set[str], set[str]
-] | None:
+) -> tuple[set[str], set[str], set[str], set[str], set[str], set[str]] | None:
     """Return init isolation state across all init events.
 
-    Result fields: missing/invalid required fields, non-empty customization
+    Result fields: missing/invalid required fields, non-empty capability
     fields, declared tool names, unrecognized surface-shaped fields, fields
-    declaring an unsafe value, fields whose authority is unverifiable, and
-    unclassifiable host-vocabulary identifiers. A missing or wrongly typed
-    required field is not treated as empty, because that would turn a CLI schema
-    change into a silent gate bypass. Unknown *scalar* metadata is tolerated on
-    purpose — see the drift policy on KNOWN_SAFE_INIT_METADATA_FIELDS.
+    declaring an unsafe value, and fields whose authority is unverifiable. A
+    missing or wrongly typed required field is not treated as empty, because
+    that would turn a CLI schema change into a silent gate bypass. Unknown
+    *scalar* metadata is tolerated on purpose — see the drift policy on
+    KNOWN_SAFE_INIT_METADATA_FIELDS.
 
     Unsafe *values* are kept apart from unrecognized *shapes* on purpose: an
     unknown schema addition means this lane cannot verify isolation (report it,
@@ -668,31 +595,11 @@ def init_surface_state(
     must terminate the lane. Merging them would let a real privilege escalation
     inherit the drift class's softer next_action.
 
-    Unrecognized *identifiers* split the same way, and for the same reason: a
-    bare command/skill name outside the built-in snapshot cannot be shown to be
-    a customization, because the snapshot is of a vocabulary the host owns, so
-    it reports as unverifiable. A namespaced, path-shaped, duplicated or
-    unparseable entry IS a customization and stays in `nonempty`.
+    Skill, command and plugin lists are vocabulary, not capability: they are
+    read for nothing and may hold any value. Isolation is proven by the exact
+    `tools` allowlist, the tool_use scan, the empty MCP list and the pinned
+    `permissionMode` — none of which any vocabulary entry can affect.
     """
-    expected_native_skills = expected_native_skills or set()
-    required_native_skills = {
-        name.lower() for name in (required_native_skills or set())
-    }
-    baseline_commands = (
-        set(host_init_baseline.get("slash_commands", ()))
-        if host_init_baseline
-        else set()
-    )
-    baseline_skills = (
-        set(host_init_baseline.get("skills", ()))
-        if host_init_baseline
-        else set()
-    )
-    baseline_version = (
-        host_init_baseline.get("claude_code_version")
-        if host_init_baseline
-        else None
-    )
     saw_init = False
     missing_or_invalid: set[str] = set()
     nonempty: set[str] = set()
@@ -706,23 +613,12 @@ def init_surface_state(
     # change exists to remove. A KNOWN field carrying a KNOWN-unsafe value stays
     # terminal in `unsafe_values`, because that one is proven.
     unverifiable_authority: set[str] = set()
-    # Host vocabulary this snapshot does not recognise. Kept apart from
-    # `nonempty` for the same reason `unverifiable_authority` is: reporting an
-    # unverifiable thing in the proven-breach class is what turned a routine CLI
-    # release into a total review outage. Bare identifiers only — see
-    # is_bare_host_identifier for what stays terminal.
-    unclassifiable_vocabulary: set[str] = set()
-    declared_customizations: dict[str, set[str]] = {
-        "slash_commands": set(),
-        "skills": set(),
-        "plugins": set(),
-    }
     known_fields = {
         "tools",
         "capabilities",
         *REQUIRED_EMPTY_INIT_FIELDS,
+        *KNOWN_VOCABULARY_INIT_FIELDS,
         *KNOWN_SAFE_INIT_METADATA_FIELDS,
-        *KNOWN_SAFE_INIT_LIST_METADATA_FIELDS,
     }
     for ev in events:
         if ev.get("type") != "system" or ev.get("subtype") != "init":
@@ -744,49 +640,6 @@ def init_surface_state(
             value = ev.get(field)
             if not isinstance(value, list):
                 missing_or_invalid.add(field)
-            elif field in declared_customizations:
-                identifiers = [
-                    customization_entry_identifier(entry) for entry in value
-                ]
-                declared_customizations[field].update(identifiers)
-                if len(identifiers) != len(set(identifiers)):
-                    nonempty.add(field)
-                if value and expected_native_skills:
-                    for entry in value:
-                        identifier = customization_entry_identifier(entry)
-                        if field in HOST_VOCABULARY_FIELDS and (
-                            not host_entry_is_whole(entry, identifier)
-                        ):
-                            # Nothing may be discarded to reach a verdict on
-                            # these fields — see host_entry_is_whole. Runs BEFORE
-                            # the allowlist, because the allowlist consumes the
-                            # same lossy identifier and would clear the entry
-                            # outright on a truncated or dict-supplied name.
-                            # Legitimate namespaced entries are unaffected: their
-                            # whole value IS the identifier.
-                            nonempty.add(field)
-                            continue
-                        if customization_entry_allowed(
-                            field,
-                            entry,
-                            expected_native_skills,
-                            baseline_commands,
-                            baseline_skills,
-                        ):
-                            continue
-                        if field in HOST_VOCABULARY_FIELDS and (
-                            is_bare_host_identifier(identifier)
-                        ):
-                            # Cannot be shown to be a customization: the
-                            # allowlist it failed is a snapshot of a vocabulary
-                            # the host owns. Refuse, but stay cascadable.
-                            unclassifiable_vocabulary.add(
-                                f"{field}:{identifier}"
-                            )
-                        else:
-                            nonempty.add(field)
-                elif value:
-                    nonempty.add(field)
             elif value:
                 nonempty.add(field)
         # Per EVENT, not on the union across events: a later init that drops or
@@ -824,73 +677,17 @@ def init_surface_state(
             elif field == "permissionMode":
                 if value not in KNOWN_SAFE_PERMISSION_MODES:
                     unsafe_values.add(field)
-            elif field in KNOWN_SAFE_INIT_LIST_METADATA_FIELDS:
-                if not isinstance(value, list) or any(
-                    not isinstance(item, str) for item in value
-                ):
-                    unknown_fields.add(field)
-                else:
-                    identifiers = [
-                        customization_entry_identifier(item) for item in value
-                    ]
-                    if (
-                        len(identifiers) != len(set(identifiers))
-                        or any(
-                            not host_entry_is_whole(item, identifier)
-                            for item, identifier in zip(value, identifiers)
-                        )
-                        or not set(identifiers).issubset(
-                            declared_customizations["slash_commands"]
-                        )
-                    ):
-                        unknown_fields.add(field)
+            elif field in KNOWN_VOCABULARY_INIT_FIELDS:
+                # Vocabulary, not capability: any value, any shape. Whatever a
+                # CLI release or an installed plugin lists here cannot be
+                # invoked past the pinned `tools` set.
+                continue
             elif field in KNOWN_SAFE_INIT_METADATA_FIELDS and isinstance(
                 value, (list, dict)
             ):
                 unknown_fields.add(field)
-        if baseline_version is not None and ev.get("claude_code_version") != baseline_version:
-            # The two invocations no longer prove one same-version host
-            # vocabulary snapshot. Refuse this lane, but treat the mismatch as
-            # capability drift rather than a proven tool/authority breach so a
-            # different reviewer may continue.
-            unknown_fields.add("claude_code_version:host-baseline-mismatch")
     if not saw_init:
         return None
-    if expected_native_skills:
-        if "ccl-skills" not in declared_customizations["plugins"]:
-            missing_or_invalid.add("plugins:ccl-skills")
-        ambiguous_required_skills = (
-            required_native_skills & KNOWN_SAFE_BUILTIN_SKILLS
-        )
-        for skill_name in ambiguous_required_skills:
-            missing_or_invalid.add(f"skills:ambiguous-selected-owner:{skill_name}")
-        expected_ccl_skill_identifiers = {
-            identifier
-            for skill_name in expected_native_skills
-            for identifier in (skill_name, f"ccl-skills:{skill_name}")
-        }
-        declared_ccl_skills = (
-            declared_customizations["skills"]
-            & expected_ccl_skill_identifiers
-        ) - KNOWN_SAFE_BUILTIN_SKILLS
-        if declared_ccl_skills:
-            for skill_name in required_native_skills:
-                namespaced = f"ccl-skills:{skill_name}"
-                if not {
-                    skill_name,
-                    namespaced,
-                } & declared_customizations["skills"]:
-                    missing_or_invalid.add(f"skills:{skill_name}")
-        declared_ccl_commands = {
-            identifier
-            for identifier in declared_customizations["slash_commands"]
-            if identifier.startswith("ccl-skills:")
-        }
-        if declared_ccl_commands:
-            for skill_name in required_native_skills:
-                namespaced = f"ccl-skills:{skill_name}"
-                if namespaced not in declared_customizations["slash_commands"]:
-                    missing_or_invalid.add(f"slash_commands:{namespaced}")
     return (
         missing_or_invalid,
         nonempty,
@@ -898,286 +695,7 @@ def init_surface_state(
         unknown_fields,
         unsafe_values,
         unverifiable_authority,
-        unclassifiable_vocabulary,
     )
-
-
-def customization_entry_identifier(entry: object) -> str:
-    raw_identifier = ""
-    if isinstance(entry, str):
-        raw_identifier = entry.strip().split(maxsplit=1)[0]
-    elif isinstance(entry, dict):
-        for key in ("name", "command", "id"):
-            candidate = entry.get(key)
-            if isinstance(candidate, str) and candidate.strip():
-                raw_identifier = candidate.strip().split(maxsplit=1)[0]
-                break
-    if not re.fullmatch(r"[A-Za-z0-9_./:@+-]{1,120}", raw_identifier):
-        return "<unidentified>"
-    return raw_identifier.lower().lstrip("/")
-
-
-def customization_entry_allowed(
-    field: str,
-    entry: object,
-    expected_native_skills: set[str],
-    baseline_commands: set[str] | None = None,
-    baseline_skills: set[str] | None = None,
-) -> bool:
-    identifier = customization_entry_identifier(entry)
-    baseline_commands = baseline_commands or set()
-    # Baseline skills remain available to drift diagnostics, but never grant
-    # formal-run authority: a future safe-mode regression could otherwise turn
-    # one leaked user skill into an accepted callable capability.
-    baseline_skills = baseline_skills or set()
-    selected_names = {name.lower() for name in expected_native_skills}
-    selected_namespaced = {
-        f"ccl-skills:{name}" for name in selected_names
-    }
-    if field == "plugins":
-        return identifier == "ccl-skills"
-    if field == "skills":
-        return (
-            identifier in KNOWN_SAFE_BUILTIN_SKILLS
-            or identifier in selected_names
-            or identifier in selected_namespaced
-        )
-    if field == "slash_commands":
-        return (
-            identifier in KNOWN_SAFE_BUILTIN_SLASH_COMMANDS
-            or identifier in baseline_commands
-            or identifier in selected_namespaced
-        )
-    return False
-
-
-# Fields whose entries, in a real run, come from the HOST's built-in vocabulary
-# rather than from anything this repo installs: measured at CLI 2.1.220, the
-# review-skill invocation reports 46 built-in commands and 16 built-in skills and
-# nothing else. `plugins` is deliberately absent -- a plugin is user-installed by
-# definition, and the expected set there is exactly the one this repo owns.
-HOST_VOCABULARY_FIELDS = ("slash_commands", "skills")
-# A bare identifier: no namespace, no path. Deliberately NOT "anything the
-# allowlist missed" -- the discriminator has to be a property of the identifier
-# itself, because the allowlist is the thing that cannot be trusted to be
-# current.
-BARE_HOST_IDENTIFIER = re.compile(r"[a-z0-9][a-z0-9_.-]*\Z")
-
-
-def host_entry_is_whole(entry: object, identifier: str) -> bool:
-    """True when nothing about a host-vocabulary entry was discarded to read it.
-
-    `customization_entry_identifier` is deliberately lossy — it keeps the first
-    whitespace-delimited token and reads a dict's `name` — which is right for a
-    DIAGNOSTIC string and wrong for a trust decision. Three review findings in
-    this slice were one shape: evidence present in the entry but never read. A
-    dict hid a path in a sibling key; a dict hid it under an allowed built-in
-    name; and `"brand-new evil-plugin:pwn"` truncated to `brand-new` while the
-    discarded suffix was the very proof of a customization.
-
-    So the classification consumes the WHOLE value: the entry must be a plain
-    string whose normalization — case folding and at most one leading `/`, the
-    only normalization the identifier helper itself applies — reproduces the
-    identifier exactly. Any remainder, any other shape, and the entry is a
-    customization this parser cannot clear. Checked BEFORE the allowlist,
-    because the allowlist reads the same truncated token.
-    """
-    if not isinstance(entry, str):
-        return False
-    # Deliberately NO `.strip()`. The first version of this function called it,
-    # which reproduced inside the fix the exact lossiness the fix exists to
-    # reject: `"import "` stripped to `import`, compared equal to the identifier,
-    # was declared whole, and the allowlist then ACCEPTED it with isolation
-    # reported verified. Surrounding whitespace is part of the value, so an entry
-    # carrying any is not a plain host name.
-    normalized = entry.lower()
-    if normalized.startswith("/"):
-        normalized = normalized[1:]
-    return normalized == identifier
-
-
-def is_bare_host_identifier(identifier: str) -> bool:
-    """True when a disallowed entry cannot be PROVEN to be a customization.
-
-    Only ever consulted for a PLAIN STRING entry — see the caller. A dict entry
-    is a structured descriptor whose other keys this parser does not validate,
-    so `{"name": "brand-new", "command": "/x/y"}` would otherwise be classified
-    on its bare `name` while a sibling key carried path-shaped proof of a real
-    customization. That is not the unclassifiable case this class is for: the
-    evidence was present and merely unread. Measured against the real CLI, both
-    host-vocabulary fields arrive as plain strings (only `plugins`, already
-    excluded, uses dicts), so refusing dicts here costs nothing operationally.
-
-    `customization_entry_identifier` has already lowercased, stripped a leading
-    `/`, and replaced anything it could not parse with `<unidentified>`. What is
-    left is bare only if it carries no namespace separator and no path
-    separator, so each of these stays a proven breach:
-
-      * `evil-plugin:pwn` -- a namespace proves a surface beyond the one
-        expected plugin, which is a customization, not host vocabulary.
-      * `dir/cmd` -- no host built-in is spelled as a path.
-      * `<unidentified>` -- an entry that failed the charset or was not a
-        string/dict is not evidence of anything, least of all of host origin.
-
-    Note what this does NOT claim: a bare name may still be a user-authored
-    command. The point is that we cannot tell, and the unclassifiable case
-    belongs in the class that refuses and cascades rather than the class that
-    refuses and destroys the capability. Isolation itself is still proven only
-    by the exact `tools` allowlist, the tool_use scan, and the value-pinned
-    `permissionMode` -- none of which any identifier here can affect.
-    """
-    return bool(BARE_HOST_IDENTIFIER.fullmatch(identifier))
-
-
-def load_host_init_baseline(path: str) -> tuple[dict[str, object] | None, str | None]:
-    """Read one safe-mode, no-plugin init capture as version-owned vocabulary.
-
-    The baseline is not a verdict and its model result is ignored. It may name
-    host commands and skills only because the wrapper invocation disables
-    setting sources, CLAUDE.md, auto-memory, MCP, tools, and plugins. Any tool,
-    plugin, malformed identifier, authority drift, or unknown non-empty surface
-    keeps the baseline unusable rather than laundering it into the main run.
-    """
-    try:
-        text = Path(path).read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None, "Claude host-vocabulary baseline could not be read"
-    events = stream_events(normalize(text))
-    stream_like, stream_corrupt = stream_classification(text, events)
-    init_events = [
-        event
-        for event in events
-        if event.get("type") == "system" and event.get("subtype") == "init"
-    ]
-    if not stream_like or stream_corrupt or len(init_events) != 1:
-        return None, "Claude host-vocabulary baseline lacks one intact init event"
-    if invoked_tool_names(events):
-        return None, "Claude host-vocabulary baseline invoked a tool"
-    init_event = init_events[0]
-    if init_event.get("tools") != []:
-        return None, "Claude host-vocabulary baseline exposed a tool"
-    # Keep this set-derived rather than spelling today's MCP/plugin fields
-    # twice. If the formal init adds another required-empty customization
-    # surface, the baseline must prove it empty before its command vocabulary
-    # can carry authority. Known metadata such as `agents` is deliberately not
-    # in REQUIRED_EMPTY_INIT_FIELDS: with tools pinned empty it is descriptive,
-    # not model-invocable.
-    for field in REQUIRED_EMPTY_INIT_FIELDS:
-        if field not in HOST_VOCABULARY_FIELDS and init_event.get(field) != []:
-            return None, f"Claude host-vocabulary baseline exposed {field}"
-    if init_event.get("permissionMode") != "default":
-        return None, "Claude host-vocabulary baseline changed permission authority"
-    version = init_event.get("claude_code_version")
-    if not isinstance(version, str) or not version or len(version) > 120:
-        return None, "Claude host-vocabulary baseline lacks a bounded CLI version"
-
-    surfaces: dict[str, tuple[str, ...]] = {}
-    for field in HOST_VOCABULARY_FIELDS:
-        known_host_identifiers = (
-            KNOWN_SAFE_BUILTIN_SLASH_COMMANDS
-            if field == "slash_commands"
-            else KNOWN_SAFE_BUILTIN_SKILLS
-        )
-        value = init_event.get(field)
-        if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
-            return None, f"Claude host-vocabulary baseline has malformed {field}"
-        identifiers = [customization_entry_identifier(item) for item in value]
-        if (
-            len(identifiers) != len(set(identifiers))
-            or any(
-                not host_entry_is_whole(item, identifier)
-                for item, identifier in zip(value, identifiers)
-            )
-            or any(
-                identifier not in known_host_identifiers
-                and not is_bare_host_identifier(identifier)
-                for identifier in identifiers
-            )
-        ):
-            return None, f"Claude host-vocabulary baseline has unsafe {field}"
-        surfaces[field] = tuple(identifiers)
-
-    terminal_commands = init_event.get("terminal_slash_commands", [])
-    if not isinstance(terminal_commands, list) or any(
-        not isinstance(item, str) for item in terminal_commands
-    ):
-        return None, "Claude host-vocabulary baseline has malformed terminal commands"
-    terminal_identifiers = [
-        customization_entry_identifier(item) for item in terminal_commands
-    ]
-    if (
-        len(terminal_identifiers) != len(set(terminal_identifiers))
-        or any(
-            not host_entry_is_whole(item, identifier)
-            for item, identifier in zip(terminal_commands, terminal_identifiers)
-        )
-        or not set(terminal_identifiers).issubset(set(surfaces["slash_commands"]))
-    ):
-        return None, "Claude host-vocabulary baseline has unsafe terminal commands"
-
-    known_fields = {
-        "tools",
-        "capabilities",
-        *REQUIRED_EMPTY_INIT_FIELDS,
-        *KNOWN_SAFE_INIT_METADATA_FIELDS,
-        *KNOWN_SAFE_INIT_LIST_METADATA_FIELDS,
-    }
-    for field, value in init_event.items():
-        if field not in known_fields and is_authority_name(field):
-            return None, "Claude host-vocabulary baseline has unverifiable authority"
-        if field not in known_fields and isinstance(value, (list, dict)) and value:
-            return None, "Claude host-vocabulary baseline has an unknown non-empty surface"
-        if field in ("agents", "capabilities") and (
-            not isinstance(value, list)
-            or any(not isinstance(item, str) for item in value)
-        ):
-            return None, f"Claude host-vocabulary baseline has malformed {field}"
-
-    return {
-        "claude_code_version": version,
-        "slash_commands": surfaces["slash_commands"],
-        "skills": surfaces["skills"],
-    }, None
-
-
-def unexpected_customization_identifiers(
-    events: list[dict],
-    expected_native_skills: set[str] | None = None,
-    host_init_baseline: dict[str, object] | None = None,
-) -> set[str]:
-    """Return bounded identifiers without exposing customization bodies."""
-    expected_native_skills = expected_native_skills or set()
-    baseline_commands = (
-        set(host_init_baseline.get("slash_commands", ()))
-        if host_init_baseline
-        else set()
-    )
-    baseline_skills = (
-        set(host_init_baseline.get("skills", ()))
-        if host_init_baseline
-        else set()
-    )
-    unexpected: set[str] = set()
-    for ev in events:
-        if ev.get("type") != "system" or ev.get("subtype") != "init":
-            continue
-        for field in ("slash_commands", "skills", "plugins"):
-            value = ev.get(field)
-            if not isinstance(value, list):
-                continue
-            for entry in value:
-                if customization_entry_allowed(
-                    field,
-                    entry,
-                    expected_native_skills,
-                    baseline_commands,
-                    baseline_skills,
-                ):
-                    continue
-                unexpected.add(
-                    f"{field}:{customization_entry_identifier(entry)}"
-                )
-    return unexpected
 
 
 def invoked_tool_names(events: list[dict]) -> set[str]:
@@ -1263,20 +781,11 @@ def stream_probe_passed(
     expected_tools: set[str] | None = None,
     allow_expected_tool_use: bool = False,
     runtime_surface_only: bool = False,
-    expected_native_skills: set[str] | None = None,
-    required_native_skills: set[str] | None = None,
-    host_init_baseline: dict[str, object] | None = None,
 ) -> bool:
     """Ground-truth pass: all init capability surfaces are present and empty,
     no tool was invoked, and the result envelope is clean. Reply text is ignored."""
     expected_tools = expected_tools or set()
-    state = init_surface_state(
-        events,
-        expected_tools,
-        expected_native_skills,
-        required_native_skills,
-        host_init_baseline,
-    )
+    state = init_surface_state(events)
     if state is None:
         return False
     (
@@ -1286,21 +795,17 @@ def stream_probe_passed(
         unknown_fields,
         unsafe_values,
         unverifiable_authority,
-        unclassifiable_vocabulary,
     ) = state
     invoked = invoked_tool_names(events)
-    # Every state set refuses here, including the unclassifiable-vocabulary one.
-    # That is the whole safety argument for reclassifying it: the softer class
-    # changes which client serves the review, never whether an unverified
-    # isolation surface is ACCEPTED. There is no path from a bare unrecognised
-    # name to a passing probe.
+    # Every state set refuses here: the softer classes change which client
+    # serves the review, never whether an unverified isolation surface is
+    # ACCEPTED.
     if (
         missing_or_invalid
         or nonempty
         or unknown_fields
         or unsafe_values
         or unverifiable_authority
-        or unclassifiable_vocabulary
         or declared_tools != expected_tools
         or invoked - expected_tools
         or (invoked and not allow_expected_tool_use)
@@ -1333,9 +838,6 @@ def classify_failure(
     stderr: str,
     expected_tools: set[str] | None = None,
     allow_expected_tool_use: bool = False,
-    expected_native_skills: set[str] | None = None,
-    required_native_skills: set[str] | None = None,
-    host_init_baseline: dict[str, object] | None = None,
 ):
     expected_tools = expected_tools or set()
     check_label = "Claude runtime isolation check" if expected_tools else "Claude no-tool probe"
@@ -1440,13 +942,7 @@ def classify_failure(
                 "tool-availability ground-truth is unverifiable",
                 False,
             )
-        state = init_surface_state(
-            failure_events,
-            expected_tools,
-            expected_native_skills,
-            required_native_skills,
-            host_init_baseline,
-        )
+        state = init_surface_state(failure_events)
         if state is None:
             return (
                 f"{check_label} stream-json capture is missing the init event; "
@@ -1460,7 +956,6 @@ def classify_failure(
             unknown_fields,
             unsafe_values,
             unverifiable_authority,
-            unclassifiable_vocabulary,
         ) = state
         if missing_or_invalid:
             return (
@@ -1523,42 +1018,16 @@ def classify_failure(
                 "verify isolation",
                 False,
             )
-        if unclassifiable_vocabulary and not surface_breached:
-            # Same guard, same reason as the two branches above: reached only
-            # when nothing is actually breached, so a hostile CLI cannot use a
-            # bare name to launder a real breach into "try another client".
-            #
-            # A distinct phrase, not a reuse of the surface-shaped one: what is
-            # unrecognised here is an IDENTIFIER, not a field, and describing it
-            # as the wrong thing is a diagnostic this repo has already paid for.
-            # `claude_review.sh` carries a matching arm ahead of its terminal
-            # arm; relying on its late `*"init"*` catch-all would make routing
-            # depend on `case`-arm order alone.
-            return (
-                "Claude reviewer lane found an unclassifiable host-vocabulary "
-                "entry ("
-                + ", ".join(
-                    safe_identifier(v) for v in sorted(unclassifiable_vocabulary)
-                )
-                + "); the built-in allowlist cannot prove whether the host or a "
-                "user owns that name, so this lane cannot verify isolation",
-                False,
-            )
-        if (
-            surface_breached
-            or unknown_fields
-            or unverifiable_authority
-            or unclassifiable_vocabulary
-        ):
+        if surface_breached or unknown_fields or unverifiable_authority:
             if expected_tools:
                 surface_reason = (
                     f"{check_label} runtime capability surface does not match the expected boundary; "
-                    "a tool, MCP server, skill, command, or plugin is unexpected or unsafe"
+                    "a tool or MCP server is unexpected or unsafe"
                 )
             else:
                 surface_reason = (
                     "Claude no-tool probe runtime capability surface is not empty; "
-                    "a tool, MCP server, skill, command, or plugin remains declared or invoked"
+                    "a tool or MCP server remains declared or invoked"
                 )
             return (
                 surface_reason,
@@ -1573,21 +1042,14 @@ def main() -> int:
         print(
             "usage: parse_probe_result.py RC STDOUT_FILE STDERR_FILE "
             "[--require-empty-init] [--expected-tools CSV] "
-            "[--expected-native-skills CSV] "
-            "[--required-native-skills CSV] "
-            "[--host-init-baseline FILE] [--validate-host-init-baseline] "
             "[--allow-expected-tool-use] [--runtime-surface-only]",
             file=sys.stderr,
         )
         return 64
     require_empty_init = False
     expected_tools: set[str] = set()
-    expected_native_skills: set[str] = set()
-    required_native_skills: set[str] = set()
     allow_expected_tool_use = False
     runtime_surface_only = False
-    host_init_baseline_path = ""
-    validate_host_init_baseline = False
     option_index = 4
     while option_index < len(sys.argv):
         option = sys.argv[option_index]
@@ -1601,31 +1063,11 @@ def main() -> int:
                 if name.strip()
             }
             option_index += 2
-        elif option == "--expected-native-skills" and option_index + 1 < len(sys.argv):
-            expected_native_skills = {
-                name.strip().lower()
-                for name in sys.argv[option_index + 1].split(",")
-                if name.strip()
-            }
-            option_index += 2
-        elif option == "--required-native-skills" and option_index + 1 < len(sys.argv):
-            required_native_skills = {
-                name.strip().lower()
-                for name in sys.argv[option_index + 1].split(",")
-                if name.strip()
-            }
-            option_index += 2
         elif option == "--allow-expected-tool-use":
             allow_expected_tool_use = True
             option_index += 1
         elif option == "--runtime-surface-only":
             runtime_surface_only = True
-            option_index += 1
-        elif option == "--host-init-baseline" and option_index + 1 < len(sys.argv):
-            host_init_baseline_path = sys.argv[option_index + 1]
-            option_index += 2
-        elif option == "--validate-host-init-baseline":
-            validate_host_init_baseline = True
             option_index += 1
         else:
             print("unknown or incomplete probe parser option", file=sys.stderr)
@@ -1634,13 +1076,7 @@ def main() -> int:
     # Tool-boundary verdicts are meaningful only with stream-json init
     # evidence. Make the stronger requirement intrinsic so a direct caller
     # cannot accidentally re-enable the legacy text fallback.
-    if (
-        runtime_surface_only
-        or expected_tools
-        or allow_expected_tool_use
-        or expected_native_skills
-        or required_native_skills
-    ):
+    if runtime_surface_only or expected_tools or allow_expected_tool_use:
         require_empty_init = True
 
     try:
@@ -1651,20 +1087,6 @@ def main() -> int:
 
     stdout = Path(sys.argv[2]).read_text(encoding="utf-8", errors="replace")
     stderr = Path(sys.argv[3]).read_text(encoding="utf-8", errors="replace")
-    host_init_baseline = None
-    if validate_host_init_baseline:
-        host_init_baseline, baseline_error = load_host_init_baseline(sys.argv[2])
-        if baseline_error is not None:
-            print(json.dumps({"reason": baseline_error, "generic_failure": False}))
-            return 1
-        return 0
-    if host_init_baseline_path:
-        host_init_baseline, baseline_error = load_host_init_baseline(
-            host_init_baseline_path
-        )
-        if baseline_error is not None:
-            print(json.dumps({"reason": baseline_error, "generic_failure": False}))
-            return 1
     normalized_stdout = normalize(stdout)
     stderr_surface = classification_surface(None, "", stderr)
     env = parse_json_object(normalized_stdout)
@@ -1714,9 +1136,6 @@ def main() -> int:
                 expected_tools,
                 allow_expected_tool_use,
                 runtime_surface_only,
-                expected_native_skills,
-                required_native_skills,
-                host_init_baseline,
             ):
                 return 0
         elif not require_empty_init:
@@ -1767,13 +1186,7 @@ def main() -> int:
                 f"{snippet or 'rate limit or quota exceeded'}"
             )
         else:
-            runtime_state = init_surface_state(
-                events,
-                expected_tools,
-                expected_native_skills,
-                required_native_skills,
-                host_init_baseline,
-            )
+            runtime_state = init_surface_state(events)
             runtime_detail = ""
             runtime_drift_only = False
             if runtime_state is not None:
@@ -1784,23 +1197,12 @@ def main() -> int:
                     unknown,
                     unsafe,
                     unverifiable,
-                    vocabulary,
                 ) = runtime_state
                 # Schema drift routes the same way on the main-invocation path as
                 # on the probe path. Without this, an unrecognized init container
                 # would terminate the lane here while merely falling back there —
                 # the same condition, two verdicts, decided by which parse ran.
-                #
-                # `unexpected_identifiers` is deliberately absent from the guard,
-                # but NOT because it is redundant with `nonempty` — that was true
-                # only while every unrecognised entry was a breach. An entry it
-                # reports now lands in either `nonempty` (proven customization)
-                # or `vocabulary` (unclassifiable host name), both of which ARE
-                # in the guard; it stays out because it would double-count them
-                # while distinguishing neither. Fixtures pin the combined
-                # drift+breach and vocabulary+breach cases so this stays true
-                # rather than being taken on faith.
-                runtime_drift_only = bool(unknown or unverifiable or vocabulary) and not (
+                runtime_drift_only = bool(unknown or unverifiable) and not (
                     missing
                     or nonempty
                     or unsafe
@@ -1808,15 +1210,12 @@ def main() -> int:
                     or invoked_tools - expected_tools
                     or (invoked_tools and not allow_expected_tool_use)
                 )
-                unexpected_identifiers = unexpected_customization_identifiers(
-                    events, expected_native_skills, host_init_baseline
-                )
                 # EVERY interpolated identifier is CLI-supplied, not just the
-                # field names: tool names, skill/plugin/command identifiers and
-                # invoked-tool names come from the inspected stream too, and may
-                # contain spaces just as freely. Any one of them left raw lets
-                # the inspected CLI pick which routing arm matches — a breach
-                # laundered into "try another client".
+                # field names: tool names and invoked-tool names come from the
+                # inspected stream too, and may contain spaces just as freely.
+                # Any one of them left raw lets the inspected CLI pick which
+                # routing arm matches — a breach laundered into "try another
+                # client".
                 def joined(values):
                     return ",".join(safe_identifier(v) for v in sorted(values))
 
@@ -1825,8 +1224,6 @@ def main() -> int:
                     + joined(missing)
                     + "; unexpected_customizations="
                     + joined(nonempty)
-                    + "; unexpected_customization_identifiers="
-                    + joined(unexpected_identifiers)
                     + "; declared_tools="
                     + joined(declared)
                     + "; invoked_tools="
@@ -1837,22 +1234,8 @@ def main() -> int:
                     + joined(unsafe)
                     + "; unverifiable_authority="
                     + joined(unverifiable)
-                    + "; unclassifiable_host_vocabulary="
-                    + joined(vocabulary)
                 )
-            if runtime_drift_only and not (unknown or unverifiable):
-                # The new class gets its own phrase only when it is the SOLE
-                # unverifiable finding. Combined with schema drift or an
-                # unverifiable authority knob, the existing phrase still applies
-                # and still routes to the same fallback-eligible arm, so the
-                # wording of every pre-existing case is left exactly as it was.
-                runtime_reason = (
-                    "Claude main invocation found an unclassifiable "
-                    "host-vocabulary entry; the built-in allowlist cannot prove "
-                    "whether the host or a user owns that name, so this reviewer "
-                    "lane cannot verify isolation" + runtime_detail
-                )
-            elif runtime_drift_only:
+            if runtime_drift_only:
                 runtime_reason = (
                     "Claude main invocation found an unrecognized surface-shaped "
                     "init field; the stream-json schema must be reviewed before "
@@ -1879,9 +1262,6 @@ def main() -> int:
         stderr,
         expected_tools,
         allow_expected_tool_use,
-        expected_native_skills,
-        required_native_skills,
-        host_init_baseline,
     )
     print(
         json.dumps(

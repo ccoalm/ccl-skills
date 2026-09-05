@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "04e0c25851ec3baec359bf1fa0db5bc6e7527a4b9ec454d9e38e3a0d470df610",
+  "receipt_sha256": "55061189e733c2f7418afed6454f067574b616569a82418c567ad50085acd3b0",
+  "finding_sha256": "eea466591a801b1217694e416e07ac0d60e8a31793c9d2cb55444ed37ca7c9ec",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "55061189e733c2f7418afed6454f067574b616569a82418c567ad50085acd3b0",
+      "finding_sha256": "eea466591a801b1217694e416e07ac0d60e8a31793c9d2cb55444ed37ca7c9ec"
+    }
+  ],
+  "evidence": [
+    "claude_review.sh sets max_attempts=2 in review mode and 1 in challenge mode and loops the formal invocation while attempts < max_attempts, so a review whose first envelope is non-conforming is invoked a second time; SKILL.md's retained two-invocation cap describes the same bound.",
+    "The probe suite's argv assertions read 'expected exactly one formal invocation' for conforming runs (a fake CLI that returns a valid envelope first time), which is consistent with a bounded retry that those fixtures never trigger; the retry loop predates this round and is unchanged by it.",
+    "No text in the committed candidate claims exactly one invocation: plan.md and client-routing.md say no separate probe or baseline invocation; the 'exactly one' wording lived in the round's private review plan acceptance and is corrected in the round record rather than in the candidate, so the landing candidate is not moved by this disposition."
+  ]
+}
