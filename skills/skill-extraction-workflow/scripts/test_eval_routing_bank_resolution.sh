@@ -207,6 +207,30 @@ ok = d["action_resolution"] is False and d["min_valid_observations"] == 0 \
 sys.exit(0 if ok else 1)
 PYEOF
 
+# --- (2f) a skill the prompt never offered is not selectable ---------------------
+# A directory with a SKILL.md but no usable description is filtered out of the
+# prompt catalog. If the selectable-name list were built separately it could still
+# admit that name, and a verdict naming it would count. Both must come from one
+# filtered list, so selecting the unoffered skill is an ERROR like any other
+# non-catalog name.
+mkdir -p "$REPO/skills/ghost-skill"
+printf -- '---\ndescription: ""\n---\n# Ghost\n' > "$REPO/skills/ghost-skill/SKILL.md"
+git -C "$REPO" add -A && git -C "$REPO" commit -qm "ghost skill with empty description"
+cat > "$FAKE_BIN/claude" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+printf '{"selected_skill":"ghost-skill","clarify":false,"confidence":0.9,"rationale_short":"fixture"}\n'
+EOF
+chmod +x "$FAKE_BIN/claude"
+rc=0
+ruby "$EVAL_SCRIPT" "$REPO" --replicas 10 --json "$TMP/ghost.json" >/dev/null 2>&1 || rc=$?
+python3 - "$TMP/ghost.json" <<'PYEOF' || fail "a verdict naming a skill the prompt never offered must be an error, not a usable observation"
+import json,sys
+d=json.load(open(sys.argv[1]))
+ok = d["action_resolution"] is False and all(v["status"]=="ERROR" for r in d["results"] for v in r["verdicts"])
+sys.exit(0 if ok else 1)
+PYEOF
+
 # --- (3) the two sides of the number must agree -------------------------------
 # The rule is only as good as the agreement between the reference that states it
 # and the executable that enforces it. Compare the numbers themselves rather

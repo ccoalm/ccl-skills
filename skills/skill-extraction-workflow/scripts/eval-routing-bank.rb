@@ -191,17 +191,23 @@ desc_changed = changed_files.any? { |f| f.end_with?("/SKILL.md") }
 co_change = bank_changed && desc_changed
 
 # --- build skill routing surface (the same descriptions the agent routes on) -
-catalog = Dir[File.join(root, "skills", "*", "SKILL.md")].sort.map do |path|
+# One filtered list feeds BOTH the prompt and the set of selectable names, so a
+# skill the prompt never offered (no frontmatter, empty description) cannot be a
+# valid selection: review noted the two were built by separate transformations
+# whose filtering could drift apart, and a name allowed but never shown is exactly
+# the shape that drift would let a verdict claim.
+catalog_entries = Dir[File.join(root, "skills", "*", "SKILL.md")].sort.filter_map do |path|
   name = File.basename(File.dirname(path))
   m = File.read(path).match(/\A---\s*\n(.*?)\n---\s*\n/m)
   next unless m
   desc = (YAML.safe_load(m[1]) rescue {})["description"].to_s.strip
   next if desc.empty?
   desc = desc[0, desc_budget] if desc_budget && desc.length > desc_budget
-  "### #{name}\n#{desc}"
-end.compact.join("\n\n")
+  [name, "### #{name}\n#{desc}"]
+end
+catalog = catalog_entries.map(&:last).join("\n\n")
 # The set of names a verdict may legitimately select; "none" is accepted separately.
-catalog_names = Dir[File.join(root, "skills", "*", "SKILL.md")].map { |path| File.basename(File.dirname(path)) }
+catalog_names = catalog_entries.map(&:first)
 
 # --- optional always-on entry-routing layer -----------------------------------
 # The catalog above is the description-only surface. Hosts ALSO inject
