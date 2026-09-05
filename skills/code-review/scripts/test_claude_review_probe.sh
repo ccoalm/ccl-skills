@@ -25,9 +25,6 @@ Usage: claude [options] [prompt]
   --no-session-persistence
   --effort <level>
 HELP
-  if [ "${CLAUDE_FAKE_NO_MAX_BUDGET:-0}" != "1" ]; then
-    printf '%s\n' '  --max-budget-usd <amount>'
-  fi
   if [ "${CLAUDE_FAKE_NO_VERBOSE:-0}" != "1" ]; then
     printf '%s\n' '  --verbose'
   fi
@@ -88,9 +85,6 @@ fi
 
 prompt="$(cat)"
 is_host_baseline=0
-if [ "$prompt" = "Return a short acknowledgement." ]; then
-  is_host_baseline=1
-fi
 if [ -n "${CLAUDE_ENV_LOG:-}" ]; then
   printf '%s\t%s\t%s\n' \
     "$is_host_baseline" \
@@ -103,9 +97,6 @@ if [ -n "${CLAUDE_ARGV_LOG:-}" ]; then
   # with the invocation kind, then the argv one token per line. The wrapper must
   # make exactly one model call for a conforming review/challenge.
   argv_kind=main
-  if [ "$is_host_baseline" = "1" ]; then
-    argv_kind=host-baseline
-  fi
   printf '\037%s\n' "$argv_kind" >> "$CLAUDE_ARGV_LOG"
   for a in "$@"; do printf '%s\n' "$a"; done >> "$CLAUDE_ARGV_LOG"
 fi
@@ -150,35 +141,6 @@ for arg in "$@"; do
     expect_plugin_dir_value=1
   fi
 done
-if [ "$is_host_baseline" = "1" ]; then
-  if [ "${CLAUDE_FAKE_BASELINE_SLEEP_S:-0}" != "0" ]; then
-    sleep "$CLAUDE_FAKE_BASELINE_SLEEP_S"
-  fi
-  if [ "${CLAUDE_FAKE_BASELINE_WRITE:-0}" = "1" ]; then
-    mkdir -p baseline-leak/nested
-    printf '%s\n' leak > baseline-leak/nested/state
-  fi
-  if [ "${CLAUDE_FAKE_BASELINE_SIGNAL:-0}" = "1" ]; then
-    kill -TERM "$$"
-  fi
-  baseline_commands='["auto-mode-setup","doctor"]'
-  baseline_skills='[]'
-  if [ "${CLAUDE_FAKE_HOST_VOCABULARY:-0}" = "1" ] \
-    || [ "${CLAUDE_FAKE_HOST_VOCABULARY_PLUS_BREACH:-0}" = "1" ]; then
-    baseline_commands='["auto-mode-setup","doctor","brand-new-builtin"]'
-  fi
-  if [ "${CLAUDE_FAKE_BASELINE_NEW_SKILL:-0}" = "1" ]; then
-    baseline_skills='["brand-new-host-skill"]'
-  fi
-  baseline_tools='[]'
-  if [ "${CLAUDE_FAKE_BASELINE_TOOL:-0}" = "1" ]; then
-    baseline_tools='["Read"]'
-  fi
-  printf '{"type":"system","subtype":"init","claude_code_version":"%s","permissionMode":"default","tools":%s,"mcp_servers":[],"slash_commands":%s,"terminal_slash_commands":["doctor"],"skills":%s,"plugins":[]}\n' \
-    "${CLAUDE_FAKE_BASELINE_VERSION:-2.1.233}" "$baseline_tools" "$baseline_commands" "$baseline_skills"
-  printf '%s\n' '{"type":"result","subtype":"error_max_budget_usd","is_error":true,"result":"budget exhausted after init"}'
-  exit "${CLAUDE_FAKE_BASELINE_RC:-1}"
-fi
 if [ -n "$plugin_dir_value" ] && [ -n "${CLAUDE_NATIVE_PLUGIN_MARKER:-}" ]; then
   [ -f "$plugin_dir_value/.claude-plugin/plugin.json" ] \
     && [ -f "$plugin_dir_value/skills/testing-strategy/SKILL.md" ] \
@@ -255,15 +217,6 @@ if [ "$has_stream_json" = "1" ]; then
   fi
   if [ "${CLAUDE_FAKE_HOST_VOCABULARY:-0}" = "1" ]; then
     customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","brand-new-builtin"],"skills":["testing-strategy"],"plugins":["ccl-skills"]'
-  fi
-  if [ "${CLAUDE_FAKE_BASELINE_NEW_SKILL:-0}" = "1" ]; then
-    customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy"],"skills":["testing-strategy","brand-new-host-skill"],"plugins":["ccl-skills"]'
-  fi
-  if [ "${CLAUDE_FAKE_UNBASELINED_HOST_VOCABULARY:-0}" = "1" ]; then
-    customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","formal-only-command"],"skills":["testing-strategy"],"plugins":["ccl-skills"]'
-  fi
-  if [ "${CLAUDE_FAKE_HOST_VOCABULARY_PLUS_BREACH:-0}" = "1" ]; then
-    customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","brand-new-builtin","rogue:exfil"],"skills":["testing-strategy"],"plugins":["ccl-skills"]'
   fi
   if [ "${CLAUDE_FAKE_COLLIDING_CUSTOMIZATION:-0}" = "1" ]; then
     customization_fields='"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy"],"skills":["testing-strategy","debug","debug"],"plugins":["ccl-skills"]'
@@ -628,23 +581,50 @@ if grep -Fxq -- '--disable-slash-commands' "$tmp_dir/native-skill-argv.log"; the
   exit 1
 fi
 
+# A plugin manifest that declares an executable surface is not loaded. The
+# review still runs -- without owner skills, with host commands disabled, and
+# with the binding reported as unavailable so the controller can see it.
 printf '%s\n' '{"name":"ccl-skills","skills":"./skills/","hooks":"./hooks/hooks.json"}' >"$tmp_dir/ccl-plugin/.claude-plugin/plugin.json"
 rm -f "$tmp_dir/native-skill-plugin-ok"
-set +e
+: >"$tmp_dir/native-skill-unsafe-manifest-argv.log"
 PATH="$tmp_dir/bin:$PATH" CLAUDE_NATIVE_PLUGIN_MARKER="$tmp_dir/native-skill-plugin-ok" \
+  CLAUDE_ARGV_LOG="$tmp_dir/native-skill-unsafe-manifest-argv.log" \
   "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
   --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
   --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
   >"$tmp_dir/native-skill-unsafe-manifest.json"
-native_skill_unsafe_manifest_rc=$?
-set -e
-if [ "$native_skill_unsafe_manifest_rc" -ne 2 ]; then
-  printf 'expected unsafe Claude plugin manifest to fail inconclusively with rc=2, got %s\n' "$native_skill_unsafe_manifest_rc" >&2
+test ! -e "$tmp_dir/native-skill-plugin-ok"
+grep -q '"native_skill_binding": "unavailable"' "$tmp_dir/native-skill-unsafe-manifest.json"
+if grep -Fxq -- '--plugin-dir' "$tmp_dir/native-skill-unsafe-manifest-argv.log"; then
+  printf 'a plugin manifest with an executable surface must not be loaded\n' >&2
   exit 1
 fi
-test ! -e "$tmp_dir/native-skill-plugin-ok"
-grep -q '"reason_code": "capability_missing"' "$tmp_dir/native-skill-unsafe-manifest.json"
+grep -Fxq -- '--disable-slash-commands' "$tmp_dir/native-skill-unsafe-manifest-argv.log"
 printf '%s\n' '{"name":"ccl-skills","skills":"./skills/"}' >"$tmp_dir/ccl-plugin/.claude-plugin/plugin.json"
+
+# An installed registry the controller profile does not match -- an absent or
+# older CCL install -- costs the owner-skill binding, never the review.
+mkdir -p "$tmp_dir/stale-plugin/.claude-plugin" "$tmp_dir/stale-plugin/skills/testing-strategy"
+printf '%s\n' '{"name":"ccl-skills","skills":"./skills/"}' >"$tmp_dir/stale-plugin/.claude-plugin/plugin.json"
+printf '%s\n' '---' 'name: testing-strategy' 'description: an older release' '---' '' 'Review tests differently.' >"$tmp_dir/stale-plugin/skills/testing-strategy/SKILL.md"
+: >"$tmp_dir/native-skill-stale-registry-argv.log"
+PATH="$tmp_dir/bin:$PATH" CLAUDE_ARGV_LOG="$tmp_dir/native-skill-stale-registry-argv.log" \
+  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
+  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
+  --skill-registry-root "$tmp_dir/stale-plugin/skills" --review-skill testing-strategy \
+  >"$tmp_dir/native-skill-stale-registry.json"
+grep -q '"native_skill_binding": "unavailable"' "$tmp_dir/native-skill-stale-registry.json"
+grep -q '"mode": "challenge"' "$tmp_dir/native-skill-stale-registry.json"
+if grep -Fxq -- '--plugin-dir' "$tmp_dir/native-skill-stale-registry-argv.log"; then
+  printf 'an unverified registry must not be loaded as the owner plugin\n' >&2
+  exit 1
+fi
+PATH="$tmp_dir/bin:$PATH" \
+  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
+  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
+  --skill-registry-root "$tmp_dir/nowhere/skills" --review-skill testing-strategy \
+  >"$tmp_dir/native-skill-missing-registry.json"
+grep -q '"native_skill_binding": "unavailable"' "$tmp_dir/native-skill-missing-registry.json"
 
 set +e
 PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_NO_BARE=1 \
@@ -674,293 +654,33 @@ PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_BUILTIN_ONLY_WITH_PLUGIN=1 \
   >"$tmp_dir/native-skill-builtins-only.json"
 grep -q '"native_skill_binding": "established"' "$tmp_dir/native-skill-builtins-only.json"
 
-printf '%s\n' \
-  '{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":[],"skills":["code-review"],"plugins":["ccl-skills"]}' \
-  '{"type":"result","subtype":"success","is_error":false,"result":"ok"}' \
-  >"$tmp_dir/ambiguous-selected-owner-events.jsonl"
-: >"$tmp_dir/ambiguous-selected-owner-stderr.log"
-set +e
-python3 "$script_dir/parse_probe_result.py" 0 \
-  "$tmp_dir/ambiguous-selected-owner-events.jsonl" \
-  "$tmp_dir/ambiguous-selected-owner-stderr.log" \
-  --require-empty-init --expected-native-skills code-review \
-  --required-native-skills code-review --runtime-surface-only \
-  >"$tmp_dir/ambiguous-selected-owner-result.json"
-ambiguous_selected_owner_rc=$?
-set -e
-if [ "$ambiguous_selected_owner_rc" -ne 1 ]; then
-  printf 'expected built-in/selected owner collision to fail parser, got %s\n' "$ambiguous_selected_owner_rc" >&2
-  exit 1
-fi
-
-printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"result":"ok"}' \
-  >"$tmp_dir/native-skill-no-init-events.jsonl"
-set +e
-python3 "$script_dir/parse_probe_result.py" 0 \
-  "$tmp_dir/native-skill-no-init-events.jsonl" \
-  "$tmp_dir/ambiguous-selected-owner-stderr.log" \
-  --expected-native-skills testing-strategy \
-  --required-native-skills testing-strategy \
-  >"$tmp_dir/native-skill-no-init-result.json"
-native_skill_no_init_rc=$?
-set -e
-if [ "$native_skill_no_init_rc" -ne 1 ]; then
-  printf 'expected native skill binding without stream init to fail parser, got %s\n' "$native_skill_no_init_rc" >&2
-  exit 1
-fi
-
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_EMPTY_NATIVE_CUSTOMIZATIONS=1 \
-  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
+# What the loaded plugin's init enumerates -- nothing, other registry entries,
+# the host's own built-ins, names this repo never heard of, namespaced entries,
+# duplicates -- is vocabulary. The plugin was loaded through --plugin-dir and
+# the owners were named in the prompt, so every one of these is a bound run.
+for vocabulary_fixture in \
+  CLAUDE_FAKE_EMPTY_NATIVE_CUSTOMIZATIONS \
+  CLAUDE_FAKE_OMIT_SELECTED_CUSTOMIZATION \
+  CLAUDE_FAKE_BUILTIN_CUSTOMIZATIONS \
+  CLAUDE_FAKE_EXTRA_CUSTOMIZATION \
+  CLAUDE_FAKE_HOST_VOCABULARY \
+  CLAUDE_FAKE_COLLIDING_CUSTOMIZATION
+do
+  env "PATH=$tmp_dir/bin:$PATH" "$vocabulary_fixture=1" \
+    "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
   --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
   --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-  >"$tmp_dir/native-skill-missing-plugin.json"
-native_skill_missing_rc=$?
-set -e
-if [ "$native_skill_missing_rc" -ne 2 ]; then
-  printf 'expected missing CCL plugin registration to exit 2, got %s\n' "$native_skill_missing_rc" >&2
-  exit 1
-fi
-if grep -q '"native_skill_binding": "established"' "$tmp_dir/native-skill-missing-plugin.json"; then
-  printf 'missing CCL plugin registration claimed established binding\n' >&2
-  exit 1
-fi
-
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_OMIT_SELECTED_CUSTOMIZATION=1 \
-  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
-  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-  >"$tmp_dir/native-skill-plugin-only-public-surface.json"
-native_skill_omitted_rc=$?
-set -e
-if [ "$native_skill_omitted_rc" -ne 2 ]; then
-  printf 'expected an enumerated surface missing the selected owner to exit 2, got %s\n' "$native_skill_omitted_rc" >&2
-  exit 1
-fi
-
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_BUILTIN_CUSTOMIZATIONS=1 \
-  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
-  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-  >"$tmp_dir/native-skill-builtins.json"
-
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_EXTRA_CUSTOMIZATION=1 \
-  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
-  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-  >"$tmp_dir/native-skill-extra-customization.json"
-native_skill_extra_rc=$?
-set -e
-if [ "$native_skill_extra_rc" -ne 2 ]; then
-  printf 'expected unrelated native customization to exit 2, got %s\n' "$native_skill_extra_rc" >&2
-  exit 1
-fi
-python3 - "$tmp_dir/native-skill-extra-customization.json" <<'PY'
+    >"$tmp_dir/native-skill-vocabulary-$vocabulary_fixture.json"
+  python3 - "$tmp_dir/native-skill-vocabulary-$vocabulary_fixture.json" "$vocabulary_fixture" <<'PY'
 import json
 import sys
 
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
-reason = payload["reason"]
-assert "slash_commands:unrelated:danger" in reason, payload
-assert "skills:unrelated-skill" in reason, payload
-assert "description" not in reason, payload
+assert payload["mode"] == "challenge", (sys.argv[2], payload)
+assert payload["native_skill_binding"] == "established", (sys.argv[2], payload)
+assert "reason" not in payload, (sys.argv[2], payload)
 PY
-
-# Host-vocabulary routing, asserted through the real wrapper. A new built-in
-# reported by the same-version, no-plugin baseline is safe to accept; a command
-# absent from that baseline remains a proven customization and must not be
-# laundered by the presence of an accepted built-in.
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_HOST_VOCABULARY=1 \
-  CLAUDE_CWD_LOG="$tmp_dir/native-skill-cwds.log" \
-  CLAUDE_ENV_LOG="$tmp_dir/native-skill-env.log" \
-  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
-  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-  >"$tmp_dir/native-skill-host-vocabulary.json"
-python3 - "$tmp_dir/native-skill-host-vocabulary.json" <<'PY'
-import json
-import sys
-
-payload = json.load(open(sys.argv[1], encoding="utf-8"))
-assert payload["mode"] == "challenge", payload
-assert payload["native_skill_binding"] == "established", payload
-PY
-python3 - "$tmp_dir/native-skill-cwds.log" "$tmp_dir/repo" <<'PY'
-import os
-import sys
-
-rows = [line.rstrip("\n").split("\t", 1) for line in open(sys.argv[1], encoding="utf-8")]
-baseline_cwds = [cwd for baseline, cwd in rows if baseline == "1"]
-assert len(baseline_cwds) == 1, rows
-assert os.path.realpath(baseline_cwds[0]) != os.path.realpath(sys.argv[2]), rows
-PY
-python3 - "$tmp_dir/native-skill-env.log" <<'PY'
-import sys
-
-rows = [line.rstrip("\n").split("\t") for line in open(sys.argv[1], encoding="utf-8")]
-baseline_env = [row[1:] for row in rows if row[0] == "1"]
-assert baseline_env == [["1", "1"]], rows
-PY
-
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_BASELINE_NEW_SKILL=1 \
-  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
-  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-  >"$tmp_dir/native-skill-baseline-new-skill.json"
-baseline_new_skill_rc=$?
-set -e
-if [ "$baseline_new_skill_rc" -ne 2 ]; then
-  printf 'expected a baseline-only new skill to refuse (exit 2), got %s\n' \
-    "$baseline_new_skill_rc" >&2
-  exit 1
-fi
-python3 - "$tmp_dir/native-skill-baseline-new-skill.json" <<'PY'
-import json
-import sys
-
-payload = json.load(open(sys.argv[1], encoding="utf-8"))
-assert payload["reason_code"] == "capability_missing", payload
-assert payload["fallback_eligible"] is True, payload
-assert payload["next_action"] == "fallback", payload
-assert "skills:brand-new-host-skill" in payload["reason"], payload
-PY
-
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_UNBASELINED_HOST_VOCABULARY=1 \
-  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
-  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-  >"$tmp_dir/native-skill-unbaselined-host-vocabulary.json"
-unbaselined_host_vocabulary_rc=$?
-set -e
-if [ "$unbaselined_host_vocabulary_rc" -ne 2 ]; then
-  printf 'expected a formal-only host-vocabulary entry to refuse (exit 2), got %s\n' \
-    "$unbaselined_host_vocabulary_rc" >&2
-  exit 1
-fi
-python3 - "$tmp_dir/native-skill-unbaselined-host-vocabulary.json" <<'PY'
-import json
-import sys
-
-payload = json.load(open(sys.argv[1], encoding="utf-8"))
-assert payload["reason_code"] == "capability_missing", payload
-assert payload["fallback_eligible"] is True, payload
-assert payload["next_action"] == "fallback", payload
-assert "slash_commands:formal-only-command" in payload["reason"], payload
-PY
-
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_HOST_VOCABULARY_PLUS_BREACH=1 \
-  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
-  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-  >"$tmp_dir/native-skill-host-vocabulary-breach.json"
-host_vocabulary_breach_rc=$?
-set -e
-if [ "$host_vocabulary_breach_rc" -ne 2 ]; then
-  printf 'expected a breach alongside host vocabulary to refuse (exit 2), got %s\n' "$host_vocabulary_breach_rc" >&2
-  exit 1
-fi
-python3 - "$tmp_dir/native-skill-host-vocabulary-breach.json" <<'PY'
-import json
-import sys
-
-payload = json.load(open(sys.argv[1], encoding="utf-8"))
-# the namespaced entry is a PROVEN customization, so the run must stay terminal
-# no matter that an unclassifiable name sits beside it.
-assert payload["reason_code"] == "tool_boundary_violation", payload
-assert payload["fallback_eligible"] is False, payload
-assert payload["next_action"] == "stop_reviewer_lane", payload
-assert "unclassifiable host-vocabulary entry" not in payload["reason"], payload
-PY
-
-for baseline_failure in version-mismatch exposed-tool; do
-  expected_reason_code=capability_missing
-  set +e
-  if [ "$baseline_failure" = "version-mismatch" ]; then
-    expected_reason="host-baseline-mismatch"
-    PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_MAIN_VERSION=2.1.234 \
-      "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
-      --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-      --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-      >"$tmp_dir/native-skill-$baseline_failure.json"
-  else
-    expected_reason="Claude host-vocabulary baseline exposed a tool"
-    PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_BASELINE_TOOL=1 \
-      "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
-      --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-      --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-      >"$tmp_dir/native-skill-$baseline_failure.json"
-  fi
-  baseline_failure_rc=$?
-  set -e
-  if [ "$baseline_failure_rc" -ne 2 ]; then
-    printf 'expected Claude host-baseline %s to exit 2, got %s\n' \
-      "$baseline_failure" "$baseline_failure_rc" >&2
-    exit 1
-  fi
-  grep -q "\"reason_code\": \"$expected_reason_code\"" \
-    "$tmp_dir/native-skill-$baseline_failure.json"
-  grep -Fq "$expected_reason" "$tmp_dir/native-skill-$baseline_failure.json"
 done
-
-rm -f "$tmp_dir/native-skill-baseline-write-cwds.log"
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_BASELINE_WRITE=1 \
-  CLAUDE_CWD_LOG="$tmp_dir/native-skill-baseline-write-cwds.log" \
-  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
-  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-  >"$tmp_dir/native-skill-baseline-write.json"
-baseline_write_rc=$?
-set -e
-if [ "$baseline_write_rc" -ne 2 ]; then
-  printf 'expected a host-baseline cwd write to exit 2, got %s\n' "$baseline_write_rc" >&2
-  exit 1
-fi
-grep -Fq 'Claude host-vocabulary baseline wrote into its isolated working directory' \
-  "$tmp_dir/native-skill-baseline-write.json"
-baseline_write_cwd="$(awk -F '\t' '$1 == "1" { print $2 }' "$tmp_dir/native-skill-baseline-write-cwds.log")"
-[ -n "$baseline_write_cwd" ] && [ ! -e "$baseline_write_cwd" ]
-
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_BASELINE_WRITE=1 CLAUDE_FAKE_BASELINE_SIGNAL=1 \
-  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
-  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-  >"$tmp_dir/native-skill-baseline-signal-after-write.json"
-baseline_signal_after_write_rc=$?
-set -e
-if [ "$baseline_signal_after_write_rc" -ne 2 ]; then
-  printf 'expected a signaled host baseline to exit 2, got %s\n' \
-    "$baseline_signal_after_write_rc" >&2
-  exit 1
-fi
-python3 - "$tmp_dir/native-skill-baseline-signal-after-write.json" <<'PY'
-import json
-import sys
-
-payload = json.load(open(sys.argv[1], encoding="utf-8"))
-assert payload["reason_code"] == "operator_interrupt", payload
-assert payload["fallback_eligible"] is False, payload
-assert payload["next_action"] == "stop_reviewer_lane", payload
-PY
-
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_COLLIDING_CUSTOMIZATION=1 \
-  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
-  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-  >"$tmp_dir/native-skill-collision.json"
-native_skill_collision_rc=$?
-set -e
-if [ "$native_skill_collision_rc" -ne 2 ]; then
-  printf 'expected colliding native customization to exit 2, got %s\n' "$native_skill_collision_rc" >&2
-  exit 1
-fi
 
 awk 'BEGIN { printf "{\"x\":\""; for (i = 0; i < 39992; i++) printf "p"; printf "\"}" }' > "$tmp_dir/max-review-profile.json"
 PATH="$tmp_dir/bin:$PATH" CLAUDE_PROMPT_LOG="$tmp_dir/max-profile-prompt.log" \
@@ -1522,66 +1242,24 @@ import sys
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
 assert payload["mode"] == "review", payload
 assert payload["status"] == "inconclusive", payload
-assert "cannot prove that safe mode disables inherited Claude skills" in payload["reason"], payload
+assert "has no --safe-mode" in payload["reason"], payload
 PY
 
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_SAFE_MODE_NO_SKILL_CONTRACT=1 \
-  "$script_dir/claude_review.sh" review --cwd "$tmp_dir/repo" \
-  > "$tmp_dir/review-safe-mode-without-skill-contract.json"
-safe_mode_without_skill_contract_rc=$?
-set -e
-if [ "$safe_mode_without_skill_contract_rc" -ne 2 ]; then
-  printf 'expected review without a documented safe-mode skill boundary to exit 2, got %s\n' \
-    "$safe_mode_without_skill_contract_rc" >&2
-  exit 1
-fi
-grep -Fq 'cannot prove that safe mode disables inherited Claude skills' \
-  "$tmp_dir/review-safe-mode-without-skill-contract.json"
-
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_SAFE_MODE_NO_SKILL_CONTRACT=1 \
-  CLAUDE_FAKE_SHORT_OPTION_SKILL_TEXT=1 \
-  "$script_dir/claude_review.sh" review --cwd "$tmp_dir/repo" \
-  > "$tmp_dir/review-safe-mode-short-option-spill.json"
-safe_mode_short_option_spill_rc=$?
-set -e
-if [ "$safe_mode_short_option_spill_rc" -ne 2 ]; then
-  printf 'expected safe-mode capture to stop before a short-option entry, got %s\n' \
-    "$safe_mode_short_option_spill_rc" >&2
-  exit 1
-fi
-grep -Fq 'cannot prove that safe mode disables inherited Claude skills' \
-  "$tmp_dir/review-safe-mode-short-option-spill.json"
-
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_SAFE_MODE_NO_SKILL_CONTRACT=1 \
-  CLAUDE_FAKE_TRAILING_SKILL_TEXT=1 \
-  "$script_dir/claude_review.sh" review --cwd "$tmp_dir/repo" \
-  > "$tmp_dir/review-safe-mode-trailing-prose.json"
-safe_mode_trailing_prose_rc=$?
-set -e
-if [ "$safe_mode_trailing_prose_rc" -ne 2 ]; then
-  printf 'expected safe-mode capture to stop before trailing prose, got %s\n' \
-    "$safe_mode_trailing_prose_rc" >&2
-  exit 1
-fi
-grep -Fq 'cannot prove that safe mode disables inherited Claude skills' \
-  "$tmp_dir/review-safe-mode-trailing-prose.json"
-
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_SAFE_MODE_SKILLS_UNAFFECTED=1 \
-  "$script_dir/claude_review.sh" review --cwd "$tmp_dir/repo" \
-  > "$tmp_dir/review-safe-mode-skills-unaffected.json"
-safe_mode_skills_unaffected_rc=$?
-set -e
-if [ "$safe_mode_skills_unaffected_rc" -ne 2 ]; then
-  printf 'expected negated safe-mode skill boundary to exit 2, got %s\n' \
-    "$safe_mode_skills_unaffected_rc" >&2
-  exit 1
-fi
-grep -Fq 'cannot prove that safe mode disables inherited Claude skills' \
-  "$tmp_dir/review-safe-mode-skills-unaffected.json"
+# The safe-mode HELP PROSE is not parsed. A CLI release that rewords, trims,
+# or contradicts its description of what safe mode disables still runs: the
+# flag itself is the isolation, and the pinned tool set proves the rest.
+for safe_mode_prose in \
+  CLAUDE_FAKE_SAFE_MODE_NO_SKILL_CONTRACT \
+  CLAUDE_FAKE_SAFE_MODE_SKILLS_UNAFFECTED \
+  CLAUDE_FAKE_SHORT_OPTION_SKILL_TEXT \
+  CLAUDE_FAKE_TRAILING_SKILL_TEXT
+do
+  env "PATH=$tmp_dir/bin:$PATH" "$safe_mode_prose=1" \
+    "$script_dir/claude_review.sh" review --cwd "$tmp_dir/repo" \
+    >"$tmp_dir/review-safe-mode-prose-$safe_mode_prose.json"
+  grep -q '"native_skill_binding": "not_requested"' \
+    "$tmp_dir/review-safe-mode-prose-$safe_mode_prose.json"
+done
 
 PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_SAFE_MODE_DISABLE_STEM=1 \
   "$script_dir/claude_review.sh" review --cwd "$tmp_dir/repo" \
@@ -1600,37 +1278,16 @@ assert payload == {
 }, payload
 PY
 
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_NO_MAX_BUDGET=1 \
-  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" \
-  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-  >"$tmp_dir/native-skill-no-max-budget.json"
-no_max_budget_rc=$?
-set -e
-if [ "$no_max_budget_rc" -ne 2 ]; then
-  printf 'expected missing max-budget support to exit 2, got %s\n' \
-    "$no_max_budget_rc" >&2
-  exit 1
-fi
-python3 - "$tmp_dir/native-skill-no-max-budget.json" <<'PY'
-import json
-import sys
-
-payload = json.load(open(sys.argv[1], encoding="utf-8"))
-assert payload["reason_code"] == "capability_missing", payload
-assert payload["fallback_eligible"] is True, payload
-assert payload["next_action"] == "fallback", payload
-assert "bounded host-vocabulary baseline" in payload["reason"], payload
-PY
-
+# A CLI without --disable-slash-commands still runs: host commands are
+# vocabulary, and the consult's tool set is pinned separately. The repository
+# consult keeps its ordinary advisory exit.
 set +e
 PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_NO_DISABLE_SLASH_COMMANDS=1 \
   "$script_dir/claude_review.sh" consult --cwd "$tmp_dir/repo" --include-diff --extra "Inspect this repository." > "$tmp_dir/consult-no-disable-slash-commands.json"
 no_disable_slash_commands_rc=$?
 set -e
 if [ "$no_disable_slash_commands_rc" -ne 2 ]; then
-  printf 'expected repository consult without skill/command isolation to exit 2, got %s\n' "$no_disable_slash_commands_rc" >&2
+  printf 'expected the repository consult advisory exit 2 without --disable-slash-commands, got %s\n' "$no_disable_slash_commands_rc" >&2
   exit 1
 fi
 python3 - "$tmp_dir/consult-no-disable-slash-commands.json" <<'PY'
@@ -1639,8 +1296,8 @@ import sys
 
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
 assert payload["mode"] == "consult", payload
-assert payload["status"] == "inconclusive", payload
-assert "cannot disable Claude skills and commands" in payload["reason"], payload
+assert payload["status"] != "inconclusive", payload
+assert payload["consult_scope"] == "repository", payload
 PY
 
 set +e
@@ -2287,30 +1944,6 @@ assert match is not None and 3 <= int(match.group(1)) <= 5, payload
 assert payload["reason_code"] == "timeout", payload
 assert payload["fallback_eligible"] is True, payload
 assert payload["next_action"] == "fallback", payload
-PY
-
-set +e
-PATH="$tmp_dir/bin:$PATH" CLAUDE_FAKE_BASELINE_SLEEP_S=2 CLAUDE_FAKE_MAIN_SLEEP_S=30 \
-  "$script_dir/claude_review.sh" challenge --cwd "$tmp_dir/repo" --timeout 5 \
-  --diff-file "$tmp_dir/frozen.patch" --review-profile-file "$tmp_dir/native-review-profile.json" \
-  --skill-registry-root "$tmp_dir/ccl-plugin/skills" --review-skill testing-strategy \
-  > "$tmp_dir/baseline-budget-timeout.json"
-baseline_budget_timeout_rc=$?
-set -e
-if [ "$baseline_budget_timeout_rc" -ne 2 ]; then
-  printf 'expected baseline-budgeted main timeout exit 2, got %s\n' \
-    "$baseline_budget_timeout_rc" >&2
-  exit 1
-fi
-python3 - "$tmp_dir/baseline-budget-timeout.json" <<'PY'
-import json
-import re
-import sys
-
-payload = json.load(open(sys.argv[1], encoding="utf-8"))
-match = re.search(r"after ([0-9]+) seconds", payload["reason"])
-assert payload["reason_code"] == "timeout", payload
-assert match is not None and 1 <= int(match.group(1)) < 5, payload
 PY
 
 printf 'claude_review_runtime_tests_ok\n'

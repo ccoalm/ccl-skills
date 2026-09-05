@@ -193,38 +193,38 @@ operators bypass a broken executable shim with explicit `KIMI_BIN`.
 
 ## Client Tool Boundaries
 
-Claude owner-aware review takes a bounded host-vocabulary baseline before the
-formal invocation. The baseline uses the same resolved Claude executable with
-an independent empty working directory and no tools, plugins, MCP servers,
-settings, workspace instructions, custom commands, agents, or user skills. Its
-model result is ignored; only the init event is used. The wrapper also requires
-the installed CLI's own `--safe-mode` help contract to state that skills are
-disabled; if an upgrade removes that contract, this lane refuses and may
-cascade instead of treating user vocabulary as host vocabulary. The formal
-init may reuse unique whole-string baseline commands only when each name is
-either bare or an already pinned built-in with a non-bare spelling, and both
-events report the same CLI version. Baseline-reported skills never grant
-formal-run authority: a new skill remains fallback-eligible until it is pinned
-as a reviewed built-in or selected by the controller. `terminal_slash_commands`
-must be a unique plain-string subset of the declared slash commands.
+Claude makes no separate probe or baseline invocation: the formal invocation,
+retried at most once on a non-conforming envelope, is the only model call, and
+its stream init proves isolation: the exact expected `tools` set, no
+tool_use outside it, an empty `mcp_servers` list, and a pinned
+`permissionMode`. The `slash_commands`, `terminal_slash_commands`, `skills`,
+and `plugins` lists are host and plugin vocabulary, recorded and never judged:
+nothing listed there is invocable past the pinned tool set, so a new built-in
+shipped by a CLI release, an installed plugin's other entries, or an unfamiliar
+spelling changes nothing about the verdict. The wrapper requires the
+`--safe-mode` flag to exist and passes it; it does not parse the flag's help
+prose. `--disable-slash-commands` is passed when the CLI offers it and no
+plugin is loaded, as tidiness rather than a prerequisite.
 
-The baseline and formal invocation share one caller-granted timeout budget.
-Baseline elapsed time, including validation, is deducted before the formal
-call; if no whole second remains, the Claude lane reports a fallback-eligible
-timeout instead of extending the controller deadline.
+Owner-skill binding is best effort. When the controller selected owner skills,
+the wrapper verifies the installed CCL registry against the profile and loads
+the plugin through `--plugin-dir`; a run that did so reports
+`native_skill_binding=established`. When the registry is absent, older, or
+fails verification, or the CLI cannot load a skills-only plugin, the wrapper
+still reviews the packet without owner skills and reports
+`native_skill_binding=unavailable`, which the controller records as
+`controller-profile` skill evidence with no natively reviewed skills. A
+profile that names no owners yet fails its own consistency check, or owner
+arguments without a profile, remain caller errors.
 
-The baseline never weakens the executable boundary. Any baseline tool, plugin,
-MCP server, permission change, malformed entry, or unknown non-empty surface
-invalidates the lane. The formal invocation still rejects tools, authority
-drift, namespaced customizations, and host names absent from its baseline. A
-version mismatch or an unbaselined bare host identifier refuses this Claude
-lane but may cascade as unverified capability drift; a proven tool, authority,
-or customization breach remains terminal.
-Owner-free review disables slash commands and does not need this probe. Routine
-Claude built-in command changes therefore do not require a repository allowlist
-update. A new skill, tool, authority mode, or unreviewed schema may still make
-the Claude lane unavailable by design because those surfaces can carry
-capability rather than display-only vocabulary.
+A declared or invoked tool outside the expected set, an MCP server, or a
+permission mode outside `default`/`plan` invalidates the lane and stays
+terminal; schema drift in an unknown non-empty container or an unverifiable
+authority knob refuses this Claude lane but may cascade as capability drift.
+Routine built-in command or skill changes in a CLI release require no
+repository update. A new tool, authority mode, or unreviewed schema may still
+make the lane unavailable by design, because those surfaces can carry
+capability rather than vocabulary.
 
 Kimi retains the user's credentials and ordinary provider/model settings by
 seeding a private writable runtime home from the validated source home. Session,

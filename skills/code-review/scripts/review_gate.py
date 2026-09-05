@@ -3368,7 +3368,10 @@ def decode_wrapper(
     native_skill_binding = payload.get("native_skill_binding")
     for field in CONTROLLER_OWNED_FIELDS:
         payload.pop(field, None)
-    if native_skill_binding in {"established", "not_requested"}:
+    # `unavailable` is a wrapper that reviewed the packet without the selected
+    # owner skills because the installed registry or plugin could not be used:
+    # a valid review with weaker skill evidence, never a refusal.
+    if native_skill_binding in {"established", "not_requested", "unavailable"}:
         payload["native_skill_binding"] = native_skill_binding
     payload.setdefault("wrapper_exit_code", completed.returncode)
     return payload
@@ -4144,11 +4147,15 @@ def main(argv: list[str] | None = None) -> int:
                 payload["status"] = claude_status(
                     payload, args.mode, completed.returncode
                 )
+            # A wrapper must still SAY what happened to the owner-skill binding:
+            # `established` or `unavailable` are both attested outcomes, while
+            # a missing receipt means the wrapper never considered it.
             if (
                 completed.returncode == 0
                 and payload.get("status") in {"passed", "findings"}
                 and len(profile["selected_skills"]) > 1
-                and payload.get("native_skill_binding") != "established"
+                and payload.get("native_skill_binding")
+                not in {"established", "unavailable"}
             ):
                 payload.update(
                     status="inconclusive",
@@ -4322,6 +4329,7 @@ def main(argv: list[str] | None = None) -> int:
                         item["name"]
                         for item in profile["selected_skills"]
                         if item["name"] != "code-review"
+                        and payload.get("native_skill_binding") == "established"
                     ],
                     native_skill_binding=payload.get("native_skill_binding"),
                     skill_usage_evidence={
