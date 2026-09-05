@@ -18,15 +18,19 @@ branch; the grader's input is the skill catalog plus the utterance, and the runn
 report fields, the printed banner and test fixtures, never prompt construction or verdict parsing.
 That is checkable against the diff rather than taken on trust.
 
-**The treatment arms below were taken on catalog `0e06c8a3e604…`, and the tree these files sit
-beside is `dc06ac0502b0…`.** The two differ by exactly one thing: adversarial review found a trigger
-this round had removed on an unmeasured synonym argument, and restoring it changed the routing
-surface again — after the measurements. So the per-case numbers here are evidence about a candidate
-one restored trigger away from what lands, and `paired-measurements.tsv` marks them `intermediate`
-rather than `current`, which is how review found this. A final re-measurement on the landing tree is
-owed and is deliberately sequenced after review converges: this round has already voided three full
-measurement passes by editing after measuring, and the fix for that is to stop measuring until the
-wording stops moving, not to promise again that it has.
+**The tree these files sit beside is catalog `e889445588766213`, and every claim-bearing case has a
+treatment arm on exactly that tree** — ten cases at 10/10 or 20/20, one (`p3-spec-then-tc`) at 15/20
+against a control of 14/20, plus the grill-me protection case and the negative control. Earlier
+treatment arms were taken on candidates that later edits replaced; `paired-measurements.tsv` marks
+those `intermediate` and the settled ones `current`, so the distinction is a column, not a promise.
+
+The last two edits before settling were a trade this round measured rather than argued. Restoring a
+bare implementation-phase token (which review had shown was needed) pulled `p3-spec-then-tc` from
+10/10 to 13/20 — the two trees differed by that token alone, the single-variable A/B the protocol
+asks for. Merging it with its approval-wording neighbour recovered the case to 15/20 while the
+review counterexample still routes 20/20. Sharpening the rival's Skip leg then lifted the case to
+20/20 but moved `ab-c3` from 19/20 to 15/20, and was withdrawn: one frozen case may not be bought
+with another, and that edit rested on a rate rather than a surface asymmetry.
 
 **These deltas are the package's, not any single description's.** The control is this branch's base
 `1506dcf` and the treatment is candidate `0e06c8a3e604…`, which carries all eleven
@@ -59,7 +63,7 @@ marked `current` in the tables comes from that same run.
 | `ab-d6` | requirement-scope: ab-d6 moved 8/10 to 10/10 | 8/10 | 10/10 |
 | `ab-b5` | requirement-baseline: ab-b5 moved 14/20 to 20/20 | 14/20 | 20/20 |
 | `variant-neg-release-watch-sop` | platform-release-engineering: release-watch moved 18/20 to 20/20 | 18/20 | 20/20 |
-| `p3-spec-then-tc` | requirement-doc-writer: p3-spec-then-tc claim added, case unmoved at 7/10 | 7/10 | 7/10 |
+| `p3-spec-then-tc` | requirement-doc-writer: p3-spec-then-tc claim added, case unmoved at 7/10 — 15/20 on the settled tree | 7/10 | 15/20 |
 
 `p3-resume-refactor` is worth stating plainly: on the unedited tree, **ten gradings out of ten found
 no owner at all**. The three-replica baseline had labelled it the round's one consistent failure;

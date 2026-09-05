@@ -2,9 +2,11 @@
 # sha256 in the RUN rows). arm c = control (branch base 1506dcf), arm t = treatment. hits = the
 # expected owner's verdicts, valid = usable verdicts, rivals = every other selection. Only runs
 # at ten or more replicas carry a per-case claim and appear as MEASUREMENT rows.
-# candidate: base | intermediate | current. current is catalog dc06ac0502b02f33, the tree these files are
+# candidate: base | intermediate | current. current is catalog e889445588766213, the tree these files are
 # committed beside, as reported by the runner itself. A treatment row marked intermediate
 # measured a candidate a later edit replaced and is process data, not evidence for what lands.
+# Scratch probes (ids starting probe-) are utterances supplied by review, measured but never
+# added to the frozen bank.
 
 # RUN	file	arm	replicas	tasks	pass	fail	error_verdicts	catalog_sha256	candidate	bytes	sha256
 RUN	pre-A-r10.json	c	10	14	6	8	6	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	38748	e950248e6f40d19feb9eab688050079931a4546e06f212c96c266417018145dd
@@ -33,7 +35,11 @@ RUN	post3-J-r20.json	t	20	10	8	2	0	074332e1d7579d7feb26ac217de49bf5f37ab82cc7b0e
 RUN	post4-K-r10.json	t	10	24	22	2	0	0e06c8a3e6046c41858fa058dd54ab18cf3897e122bf4360f3376b0f23a648b8	intermediate	64713	9102aaeccb5ff21f8f2468f3dbd05f3b739b6ac732388683fec2921d1c552b72
 RUN	post4-L-r20.json	t	20	1	0	1	0	0e06c8a3e6046c41858fa058dd54ab18cf3897e122bf4360f3376b0f23a648b8	intermediate	8890	ffd3305f82e036d66dd10b3fe0cbf4e5c8e5a2de0b9052f2f1256642ed72fa1c
 RUN	post5-M-r20.json	t	20	7	7	0	0	0e06c8a3e6046c41858fa058dd54ab18cf3897e122bf4360f3376b0f23a648b8	intermediate	35724	d46d38ef08b1a357177b284a0fa948326f00299697761f877fd7539b0794e2e6
-RUN	post6-N-r20.json	t	20	1	1	0	0	dc06ac0502b02f3378f5844c1e389942b5a9eb6ea2e38c07faafea8556da0e8f	current	9068	9d1fc7db1a7661785689ebdd4cc42246c436597d3a8a4d29c6a4add42dfb93f6
+RUN	post6-N-r20.json	t	20	1	1	0	0	dc06ac0502b02f3378f5844c1e389942b5a9eb6ea2e38c07faafea8556da0e8f	intermediate	9068	9d1fc7db1a7661785689ebdd4cc42246c436597d3a8a4d29c6a4add42dfb93f6
+RUN	post7-Q-r20.json	t	20	13	10	3	1	dc06ac0502b02f3378f5844c1e389942b5a9eb6ea2e38c07faafea8556da0e8f	intermediate	63893	0f398b73d0413a3a40beb109d8dd9fcec4dc8c7dca34542719b8c7da02a45715
+RUN	post8-R-r20.json	t	20	6	4	2	0	e8894455887662130d1663d67e4e1f3c2d37d388a06564603a4997c1d8fd32ca	current	31747	1eeb8758d7bf0d71c1404ca41a1605f05ad7f54639dbbd61f0d870b204828159
+RUN	post9-S-r20.json	t	20	5	4	1	0	f2be61697823bb97b4068fdeef18a96cc06a6ea145b408c0dae81abdb98258ec	intermediate	27193	13debcaea985e875d83d53f336db5753cf4936f6ae4b8d2cf106a611abc88640
+RUN	post10-T-r10.json	t	10	10	10	0	0	e8894455887662130d1663d67e4e1f3c2d37d388a06564603a4997c1d8fd32ca	current	29939	c2b30ed44e9bc7179cee51f04616744d7c9059a17ff5614f0f3074bcea233c2c
 RUN	post-B-r3.json	t	3	69	67	2	1	31c9a686e0c54cafa33a6594fe7a9ea7e24e16ca481bc2fd2d8f16f89e938a7e	intermediate	80907	fd133dc94a793ae8a900dc8ff74fbfaf8a0c39f8dd6282140718f0b08f9bcc44
 RUN	post2-B-r3.json	t	3	69	67	2	0	c8bb194bc4e1d7e36cf8f394444bcdd7184b007269e7e41b32d34241f96240be	intermediate	80900	936e1e23c412adc0460e7ea053ec9ca3356386b4c3a1cc5f6985c240b9620cfe
 
@@ -181,4 +187,38 @@ MEASUREMENT	ab-b5	t	post5-M-r20.json	20	20	PASS	intermediate	-
 MEASUREMENT	ab-n2	t	post5-M-r20.json	20	20	PASS	intermediate	-
 MEASUREMENT	ab-n3	t	post5-M-r20.json	20	20	PASS	intermediate	-
 MEASUREMENT	variant-neg-release-watch-sop	t	post5-M-r20.json	20	20	PASS	intermediate	-
-MEASUREMENT	mem-api-log-redact	t	post6-N-r20.json	20	20	PASS	current	-
+MEASUREMENT	mem-api-log-redact	t	post6-N-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	skip-miniapp-build	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	p3-resume-refactor	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	p3-perf-plus-regression	t	post7-Q-r20.json	17	19	FAIL	intermediate	go-microservice-dev=1,none=1
+MEASUREMENT	p3-spec-then-tc	t	post7-Q-r20.json	13	20	FAIL	intermediate	none=1,requirement-doc-writer=4,requirement-intent=2
+MEASUREMENT	p3-log-plus-test	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	mem-api-log-redact	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-c5	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-b5	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-d6	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-n2	t	post7-Q-r20.json	19	20	FAIL	intermediate	none=1
+MEASUREMENT	ab-n3	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	variant-neg-release-watch-sop	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	route-nodejs-architecture-not-go-python	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	p3-transition-impl	t	post8-R-r20.json	20	20	PASS	current	-
+MEASUREMENT	p3-perf-plus-regression	t	post8-R-r20.json	20	20	PASS	current	-
+MEASUREMENT	p3-spec-then-tc	t	post8-R-r20.json	15	20	FAIL	current	none=1,requirement-doc-writer=4
+MEASUREMENT	ab-c3	t	post8-R-r20.json	19	20	FAIL	current	requirement-doc-writer=1
+MEASUREMENT	ab-n2	t	post8-R-r20.json	20	20	PASS	current	-
+MEASUREMENT	probe-implementation-transition-no-approval	t	post8-R-r20.json	20	20	PASS	current	-
+MEASUREMENT	p3-transition-impl	t	post9-S-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	p3-spec-then-tc	t	post9-S-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-c3	t	post9-S-r20.json	15	20	FAIL	intermediate	none=1,requirement-doc-writer=4
+MEASUREMENT	ab-n1	t	post9-S-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	probe-implementation-transition-no-approval	t	post9-S-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	skip-miniapp-build	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	p3-resume-refactor	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	p3-log-plus-test	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	mem-api-log-redact	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	ab-c5	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	ab-b5	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	ab-d6	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	ab-n3	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	variant-neg-release-watch-sop	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	route-nodejs-architecture-not-go-python	t	post10-T-r10.json	10	10	PASS	current	-
