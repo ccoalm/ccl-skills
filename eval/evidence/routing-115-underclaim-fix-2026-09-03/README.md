@@ -81,9 +81,12 @@ the paired ten-replica control shows it was worse than the label.
 **One check is not repeated on the settled tree and is recorded as a residual, not hidden in a
 sentence.** The affected-owner pass — the 21 cases expecting `product-rd-workflow` plus three cases where it appeared as a rival, 24 in all — was taken on catalog
 `0e06c8a3…`, which the tables mark intermediate; the settled tree differs from it by one merged
-trigger on that same owner. Of those 21 expecting the owner, the four that carry this round's claims were re-measured on
-the settled tree and hold; `miss-refactor-python-unqualified`, the one case where a must-not owner
-was ever selected, is re-measured there too and reported in full below. The other seventeen were not, nor were the two rival cases whose owners are unchanged. Repeating the full pass
+trigger on that same owner. Of those 21 expecting the owner, four were re-measured on the settled tree and hold: the three
+that carry this round's claims (`p3-resume-refactor`, `route-nodejs-architecture-not-go-python`,
+`p3-spec-then-tc`) and the approval-wording protection case `p3-transition-impl`. All three rival
+cases were re-measured there too — `p3-log-plus-test` and `ab-d6` at 10/10 under their own edited
+owners, and `miss-refactor-python-unqualified`, the one case where a must-not owner was selected on
+a treatment arm, reported in full below. The other seventeen expected-owner cases were not. Repeating the full pass
 costs about two hours of grader time and was not spent; the reader has the intermediate-tree
 numbers, the single-token delta, and the choice.
 
@@ -94,8 +97,8 @@ standards bullet whose obligations the owning checklist reference already carrie
 reformats the entire trigger list rather than one token, every frozen case expecting this owner was
 re-run on paired trees — 24 cases, ten replicas per arm. Sixteen cases that were 10/10 stayed 10/10,
 including the three the payment could plausibly have cost (`miss-restart`, `new-redo-variant`,
-`p3-transition-impl`). Four are the claim-bearing cases in the table above; `gap-windows-desktop`
-(8/10 → 9/10) and `p3-spec-then-tc` (7/10 → 7/10) sit inside jitter. Two cases moved and were probed
+`p3-transition-impl`). Four moved to 10/10 and are claim-bearing cases in the table above; `p3-spec-then-tc`
+(7/10 → 7/10, also in the table) and `gap-windows-desktop` (8/10 → 9/10) sit inside jitter. Two cases moved and were probed
 further:
 
 - `gap-rust-service` 1/10 → 6/10. This is a coverage-hole probe whose expected owner IS
