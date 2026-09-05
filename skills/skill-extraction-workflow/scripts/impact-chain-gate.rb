@@ -52,19 +52,123 @@ LEDGER_PATH = "skills/skill-extraction-workflow/references/source-register.md"
 # the routing-surface class below was one such patch) only re-instantiates it on
 # the next input. The predicate now reads the round.
 #
-# Rounds are cut at the commits that touch the ledger itself, walked first-parent
-# so one merged worktree round collapses to one boundary. The partition comes from
-# git alone: an author cannot widen, move, or nominate their own scope.
-round_heads = git_read.call("rev-list", "--first-parent", "--reverse", "#{base_ref}..HEAD", "--", LEDGER_PATH)
-                      .split("\n").map(&:strip).reject(&:empty?)
-# Each round spans (previous ledger boundary, this one] so the work commits that
+# Rounds are cut at the commits that touch the ledger itself, walked along a
+# first-parent line. The partition comes from git alone: an author cannot widen,
+# move, or nominate their own scope.
+#
+# THE SAME PARTITION BEFORE AND AFTER THE MERGE. A branch is judged on its own
+# first-parent line while it is a pull request (CI checks out the branch head),
+# and once merged that whole line sits behind ONE first-parent step of the
+# integration branch. Reading that step as one boundary gave the same history a
+# different partition after it landed — every round on the branch collapsed into
+# one, and a row whose validity depends on its round being narrow (a routing-
+# surface `#description` anchor in a commit that changed nothing else) turned red
+# without a byte of it changing. That is the "verdict moved after it landed"
+# defect in a new coat, and it surfaced on every post-merge evaluation: the push
+# build of the integration branch and the promotion pull request. So a merge that
+# git itself reproduces from its two parents is EXPANDED in place: its second
+# parent's line, from the fork point to the merged head, is walked with the same
+# rule, recursively, and contributes exactly the rounds it had as a branch.
+#
+# A merge is expanded only when git can rebuild it — two parents, a tree equal to
+# `git merge-tree --write-tree` of those parents, and a second parent that is
+# neither already on the base nor already on the line being walked (a sync merge
+# brings nothing that needs a round). Anything else — a hand-resolved merge, a
+# conflicted one, an octopus — keeps today's single boundary at the merge, so
+# content git did not derive from the parents is never left in no round.
+ROUND_WALK_MAX_DEPTH = 8
+ancestor_of = lambda do |commit, tip|
+  IO.popen(["git", "-C", root, "merge-base", "--is-ancestor", commit, tip], err: File::NULL, &:read)
+  status = $?.exitstatus
+  next true if status == 0
+  next false if status == 1
+  warn "impact_chain_git_failed: git merge-base --is-ancestor #{commit} #{tip} exited #{status}"
+  exit 1
+end
+# The tree git produces merging `second` into `first`; nil when that merge
+# conflicts (whoever resolved it was not git). Needs git 2.38+, the same floor
+# the review-ledger binder already requires for the identical invariant.
+automatic_merge_tree = lambda do |first, second|
+  out = IO.popen(["git", "-C", root, "merge-tree", "--write-tree", first, second], err: File::NULL, &:read)
+  status = $?.exitstatus
+  next out.to_s.lines.first.to_s.strip if status == 0
+  next nil if status == 1
+  warn "impact_chain_git_failed: git merge-tree --write-tree #{first} #{second} exited #{status} (git 2.38 or newer is required)"
+  exit 1
+end
+# [first parent, second parent, fork point] when `commit` is a merge git can
+# rebuild from its parents and whose second parent carries a line of its own;
+# nil when the merge keeps today's single-boundary treatment. `line_base` is the
+# base of the line being walked: a merge whose second parent is already below
+# that base is a sync of what the line was cut from (the target advancing under
+# a branch), and is a sync on the branch's own line exactly as it is on the
+# integration line — judging it against the outer base alone would expand it
+# during promotion and strand the branch's earlier work in a rowless span.
+expandable_merge = lambda do |commit, line_base|
+  parents = git_read.call("rev-list", "--parents", "-n", "1", commit).split[1..] || []
+  next nil unless parents.length == 2
+  first, second = parents
+  next nil if ancestor_of.call(second, base_ref) || ancestor_of.call(second, line_base) || ancestor_of.call(second, first)
+  own_tree = git_read.call("rev-parse", "#{commit}^{tree}").strip
+  next nil unless automatic_merge_tree.call(first, second) == own_tree
+  # The fork point read FAILS CLOSED like every other git read here: a lookup
+  # that errored would otherwise read as "no fork point", skip the expansion,
+  # and hand the merge the collapsed span — the lenient verdict — on a git
+  # failure nobody sees. Exit 1 is git's own "no common ancestor" and means
+  # there is genuinely no line to expand from.
+  fork_out = IO.popen(["git", "-C", root, "merge-base", first, second], err: File::NULL, &:read)
+  fork_status = $?.exitstatus
+  next nil if fork_status == 1
+  unless fork_status == 0
+    warn "impact_chain_git_failed: git merge-base #{first} #{second} exited #{fork_status}"
+    exit 1
+  end
+  fork = fork_out.to_s.split("\n").first.to_s.strip
+  next nil if fork.empty?
+  [first, second, fork]
+end
+# Each round spans (previous boundary, this one] so the work commits that
 # precede a ledger append are inside the round they belong to — landing the change
 # and appending the row in separate commits is the normal shape, not an evasion.
-round_bounds = ([base_ref] + round_heads).each_cons(2).to_a
-# The trailing span — owner changes committed after the last ledger append — is a
+# The trailing span — owner changes committed after the last boundary — is a
 # round too. It holds no rows, so its owners fall through to the presence check
-# and the gate still fails closed on undeclared work.
-round_bounds << [round_heads.last || base_ref, "HEAD"]
+# and the gate still fails closed on undeclared work. Both hold on every line the
+# walk visits, the integration branch and each expanded merge alike.
+round_bounds_for = lambda do |from, to, depth|
+  if depth > ROUND_WALK_MAX_DEPTH
+    warn "impact_chain_round_walk_too_deep: merges nested more than #{ROUND_WALK_MAX_DEPTH} levels between #{from} and #{to}"
+    exit 1
+  end
+  list = lambda do |*options, pathspec|
+    git_read.call("rev-list", "--first-parent", "--reverse", *options, "#{from}..#{to}", *pathspec)
+            .split("\n").map(&:strip).reject(&:empty?)
+  end
+  line = list.call([])
+  ledger_heads = list.call(["--", LEDGER_PATH])
+  merges = list.call("--merges", [])
+  spans = []
+  prev = from
+  line.each do |commit|
+    expansion = merges.include?(commit) ? expandable_merge.call(commit, from) : nil
+    if expansion
+      first, second, fork = expansion
+      spans << [prev, first] unless prev == first
+      spans.concat(round_bounds_for.call(fork, second, depth + 1))
+      prev = commit
+    elsif ledger_heads.include?(commit)
+      spans << [prev, commit]
+      prev = commit
+    end
+  end
+  spans << [prev, to]
+  spans
+end
+round_bounds = round_bounds_for.call(base_ref, "HEAD", 0)
+# Diagnostic only: print the partition so a verdict can be read against the
+# rounds it was judged in. Off by default so no suite's output assertions move.
+if ENV["CCL_IMPACT_CHAIN_TRACE_ROUNDS"] == "1"
+  round_bounds.each { |span_base, span_head| warn "impact_chain_round: #{span_base[0, 12]}..#{span_head[0, 12]}" }
+end
 # Everything a predicate needs to judge one span. Built lazily per span and
 # memoized: a round whose rows are all RED-baseline never pays for the rename
 # derivation.

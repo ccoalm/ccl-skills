@@ -89,8 +89,13 @@ its own branch and a later round could restore the real one, so judging history
 with history's tools would let that round's forged ledger stand forever. Using
 the landing tree's tools means a controller or validator change between a round
 and the promotion can stop an old round reproducing, and that reads as a refusal
-rather than a pass. A round is never itself a chain, so the walk is one level
-deep by construction. The detached checkout is released with `git worktree
+rather than a pass. A round's evidence is likewise read from the landing tree,
+not from the round's own checkout: a ledger is evidence because the validator
+accepts it and its candidate hash equals the round's packet, not because of
+where it was committed, so a round that merged without its ledger is bound by a
+later review of the same bytes committed on the integration branch -- and by
+nothing less, since a ledger for any other bytes does not match. A round is
+never itself a chain, so the walk is one level deep by construction. The detached checkout is released with `git worktree
 remove` and its removal verified against the worktree list; a checkout that
 cannot be released is an error, never a pass, and nothing prunes registrations
 this run did not create. The chain is
@@ -581,7 +586,7 @@ def render_manifest(
 
 def accepted_ledger_for(
     evidence: list[tuple[Path, dict]],
-    repo_root: Path,
+    evidence_home: Path,
     validator: Path,
     digest: str,
     rejected: list[str],
@@ -590,14 +595,15 @@ def accepted_ledger_for(
 
     The same criterion the single-candidate path uses: a receipt-shaped file is
     not evidence, only a ledger the validator accepts, because this gate cannot
-    authenticate that a controller minted what it reads.
+    authenticate that a controller minted what it reads. `evidence_home` is the
+    tree the evidence was enumerated from, used only to name the ledger.
     """
     for path, payload in evidence:
         if payload.get("candidate_sha256") != digest:
             continue
         if "closeout_state" not in payload or "controller_receipts" not in payload:
             continue
-        relative = str(path.relative_to(repo_root))
+        relative = str(path.relative_to(evidence_home))
         accepted, output = validator_accepts(validator, path)
         if accepted:
             return f"{relative} -- {output}"
@@ -613,6 +619,7 @@ def bind_manifest(
     excludes: tuple[str, ...],
     changed_all: list[str],
     evidence: list[tuple[Path, dict]],
+    evidence_home: Path,
     validator: Path,
     rejected_ledgers: list[str],
 ) -> list[str]:
@@ -630,7 +637,7 @@ def bind_manifest(
             raise ManifestError(
                 f"{label} recorded {recorded[:12]}... but does not reproduce: the candidate now hashes to {actual[:12]}..."
             )
-        proof = accepted_ledger_for(evidence, repo_root, validator, actual, rejected_ledgers)
+        proof = accepted_ledger_for(evidence, evidence_home, validator, actual, rejected_ledgers)
         if proof is None:
             raise ManifestError(f"no accepted ledger binds {label} {actual}")
         proofs.append(f"  {label} {actual[:12]}... <- {proof}")
@@ -889,8 +896,9 @@ def bind_chain(
     Returns (round count, proof lines) or raises ChainError naming the first
     step that does not add up. Each round is rebound by this same gate in a
     detached checkout of its head against its first parent, with THIS tree's
-    controller and validator (never the round's own), and never as a chain of
-    its own.
+    controller, validator and committed evidence (never the round's own tools;
+    the round's own evidence is part of this tree's history and is found there),
+    and never as a chain of its own.
     """
     steps = walk_first_parent_chain(repo_root, base_tip)
     proofs: list[str] = []
@@ -902,7 +910,13 @@ def bind_chain(
             continue
         with detached_checkout(repo_root, second) as round_root:
             binding = bind_candidate(
-                round_root, first, DEFAULT_PATHS, evidence_root, allow_chain=False, tools_root=repo_root
+                round_root,
+                first,
+                DEFAULT_PATHS,
+                evidence_root,
+                allow_chain=False,
+                tools_root=repo_root,
+                evidence_tree=repo_root,
             )
         subject = git_read(repo_root, ["log", "-1", "--format=%s", merge], f"cannot read {merge[:12]}")
         if not binding.ok:
@@ -955,15 +969,24 @@ def bind_candidate(
     evidence_root: str,
     allow_chain: bool,
     tools_root: Path | None = None,
+    evidence_tree: Path | None = None,
 ) -> Binding:
     """Evaluate one checkout against one base: single ledger, then manifest, then chain.
 
     `tools_root` names the tree whose controller and validator judge the
     candidate; it defaults to the checkout itself and is the landing tree when a
     historical round is rebound, so a round never judges itself with its own tools.
+    `evidence_tree` names the tree whose committed evidence is consulted; it too
+    defaults to the checkout and is the landing tree when a historical round is
+    rebound. Evidence is a validator-accepted closeout bound to the round's own
+    candidate hash wherever it was committed: a round that merged without its
+    ledger is bound by a later review of the same bytes, committed on the
+    integration branch, and by nothing less -- the candidate hash and the
+    validator, not the file's location, are what make a ledger evidence.
     """
     binding = Binding()
     tools = tools_root if tools_root is not None else repo_root
+    evidence_home = evidence_tree if evidence_tree is not None else repo_root
     fork, excludes, paths, changed = candidate_scope(repo_root, base_tip, user_paths)
     binding.fork = fork
     binding.changed = changed
@@ -987,14 +1010,14 @@ def bind_candidate(
         whole_error = str(exc)
 
     validator = tools / "skills" / "skill-extraction-workflow" / "scripts" / VALIDATOR
-    evidence = scan(repo_root, evidence_root)
+    evidence = scan(evidence_home, evidence_root)
     ledgers: list[str] = []
     if expected is not None:
         # Only a validator-accepted ledger counts. A receipt-shaped file proves
         # nothing on its own: this gate cannot authenticate that a controller
         # minted it, so any branch keyed on a self-declared field is a bypass a
         # contributor can hand-write.
-        proof = accepted_ledger_for(evidence, repo_root, validator, expected, ledgers)
+        proof = accepted_ledger_for(evidence, evidence_home, validator, expected, ledgers)
         if proof is not None:
             binding.ok = True
             binding.summary = (
@@ -1007,10 +1030,10 @@ def bind_candidate(
     for path, payload in evidence:
         if payload.get("kind") != MANIFEST_KIND:
             continue
-        relative = str(path.relative_to(repo_root))
+        relative = str(path.relative_to(evidence_home))
         try:
             proofs = bind_manifest(
-                module, repo_root, fork, payload, excludes, changed, evidence, validator, ledgers
+                module, repo_root, fork, payload, excludes, changed, evidence, evidence_home, validator, ledgers
             )
         except ManifestError as exc:
             manifests.append(f"{relative}: {exc}")
