@@ -44,3 +44,10 @@ the requirement family (13/20 against a control of 14/20) while the merged form 
 and still routes the review counterexample 20/20. The same declaration applies to the merged form
 for the same reason — no frozen case exercises the token — so `downscoped:R115-TRIGGER-RESTORE-NO-FROZEN-CASE`
 covers this round's wording as well.
+
+## Probe utterances used, verbatim
+
+- `probe-implementation-transition-no-approval` — 「方案已经定了，现在进入实现阶段」, expected `product-rd-workflow`.
+  Supplied by adversarial review as the request the removed token had matched; measured on the settled
+  tree at 20 replicas (20/20) and never added to `eval/routing-tasks.jsonl`. The old approval wording's
+  frozen case is `p3-transition-impl` 「方案评审通过」, 20/20 on the same tree.

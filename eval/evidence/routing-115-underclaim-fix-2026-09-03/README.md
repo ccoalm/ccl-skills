@@ -28,7 +28,10 @@ The last two edits before settling were a trade this round measured rather than 
 bare implementation-phase token (which review had shown was needed) pulled `p3-spec-then-tc` from
 10/10 to 13/20 — the two trees differed by that token alone, the single-variable A/B the protocol
 asks for. Merging it with its approval-wording neighbour recovered the case to 15/20 while the
-review counterexample still routes 20/20. Sharpening the rival's Skip leg then lifted the case to
+review counterexample 「方案已经定了，现在进入实现阶段」 routes 20/20 (a scratch probe, id
+`probe-implementation-transition-no-approval`, never added to the bank) and the frozen case for the
+old approval wording, `p3-transition-impl` 「方案评审通过」, stays 20/20 on the settled tree — both
+former entry paths measured, separately, on the tree that lands. Sharpening the rival's Skip leg then lifted the case to
 20/20 but moved `ab-c3` from 19/20 to 15/20, and was withdrawn: one frozen case may not be bought
 with another, and that edit rested on a rate rather than a surface asymmetry.
 
@@ -51,18 +54,18 @@ Arms taken on a superseded candidate are process data, not evidence for what lan
 `current` come from two runs on the settled tree: the ten-case final pass and the earlier probe that
 measured the merged trigger.
 
-| case | changed owner and its measured move | control | treatment |
+| case | changed owner and its measured move (the anchor text names the run it was first seen in) | control | settled tree `e8894455` |
 | --- | --- | --- | --- |
-| `p3-resume-refactor` | product-rd-workflow: p3-resume-refactor moved 0/10 to 10/10 | 0/10 | 10/10 |
-| `p3-log-plus-test` | platform-observability: p3-log-plus-test moved 2/10 to 10/10 | 2/10 | 10/10 |
-| `route-nodejs-architecture-not-go-python` | product-rd-workflow second trigger: route-nodejs-arch moved 6/10 to 10/10 | 6/10 | 10/10 |
-| `p3-perf-plus-regression` | defect-diagnosis: p3-perf-plus-regression moved 5/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 5/10 | 20/20 |
-| `skip-miniapp-build` | miniapp-product-dev: skip-miniapp-build moved 6/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 6/10 | 20/20 |
-| `ab-c5` | grill-me: ab-c5 moved 8/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 8/10 | 20/20 |
-| `ab-n2` | platform-observability second trigger: ab-n2 moved 9/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 9/10 | 20/20 |
-| `ab-d6` | requirement-scope: ab-d6 moved 8/10 to 10/10 | 8/10 | 10/10 |
-| `ab-b5` | requirement-baseline: ab-b5 moved 14/20 to 20/20 | 14/20 | 20/20 |
-| `variant-neg-release-watch-sop` | platform-release-engineering: release-watch moved 18/20 to 20/20 | 18/20 | 20/20 |
+| `p3-resume-refactor` | product-rd-workflow: p3-resume-refactor moved 0/10 to 10/10 | 0/10 | 10/10 (settled tree) |
+| `p3-log-plus-test` | platform-observability: p3-log-plus-test moved 2/10 to 10/10 | 2/10 | 20/20 (settled tree) |
+| `route-nodejs-architecture-not-go-python` | product-rd-workflow second trigger: route-nodejs-arch moved 6/10 to 10/10 | 6/10 | 10/10 (settled tree) |
+| `p3-perf-plus-regression` | defect-diagnosis: p3-perf-plus-regression moved 5/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 5/10 | 20/20 (settled tree) |
+| `skip-miniapp-build` | miniapp-product-dev: skip-miniapp-build moved 6/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 6/10 | 10/10 (settled tree) |
+| `ab-c5` | grill-me: ab-c5 moved 8/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 8/10 | 10/10 (settled tree) |
+| `ab-n2` | platform-observability second trigger: ab-n2 moved 9/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 9/10 | 20/20 (settled tree) |
+| `ab-d6` | requirement-scope: ab-d6 moved 8/10 to 10/10 | 8/10 | 10/10 (settled tree) |
+| `ab-b5` | requirement-baseline: ab-b5 moved 14/20 to 20/20 | 14/20 | 10/10 (settled tree) |
+| `variant-neg-release-watch-sop` | platform-release-engineering: release-watch moved 18/20 to 20/20 | 18/20 | 10/10 (settled tree) |
 | `p3-spec-then-tc` | requirement-doc-writer: p3-spec-then-tc claim added, case unmoved at 7/10 — 15/20 on the settled tree | 7/10 | 15/20 |
 
 `p3-resume-refactor` is worth stating plainly: on the unedited tree, **ten gradings out of ten found
@@ -97,10 +100,11 @@ including the three the payment could plausibly have cost (`miss-restart`, `new-
   including 20 on the settled one: 61 to the expected owner, **two** `python-service-dev` — one on an
   intermediate tree, one on the settled tree. Two in eighty against zero in sixty is not separable
   (p ≈ 0.5), neither Python owner was edited, and the coordinator rival fell from 10/60 to 2/20
-  after its architecture claim was scoped to stacks without an architecture sibling. This round
-  therefore claims no breach was caused, not that none occurred, and files the case as a
-  neighbour finding for the independent lane, which under the protocol is the only lane that may
-  waive a must-not observation.
+  after its architecture claim was scoped to stacks without an architecture sibling. This round draws
+  no causal conclusion either way: a coordinator description that competes for this case WAS edited,
+  and pooling across treatment catalogs cannot attribute or exclude the settled tree's single forbidden
+  verdict. It is an **unresolved neighbour finding** filed for the independent lane, which under the
+  protocol is the only lane that may dispose of a must-not observation.
 
 ### Why each edit is defensible without pointing at its number
 
