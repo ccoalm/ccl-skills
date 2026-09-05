@@ -1,6 +1,6 @@
 ---
 name: miniapp-product-dev
-description: "小程序 / Taro / 微信小程序 / 支付宝小程序 / 抖音小程序 / 小程序上线审核 → implement, debug, test, and ship mini-program client features: pages, state, API integration, auth, sharing, platform capabilities, review, and device verification. Triggers also include \"重构这个小程序页面/组件(局部)\", \"refactor a mini-program page/component\"."
+description: "小程序 / Taro / 微信小程序 / 支付宝小程序 / 抖音小程序 / 小程序上线审核 / 微信开发者工具编译·构建·真机调试 → implement, debug, test, and ship mini-program client features: pages, state, API integration, auth, sharing, platform capabilities, review, and device verification. Triggers also include \"重构这个小程序页面/组件(局部)\", \"refactor a mini-program page/component\"."
 ---
 
 # Miniapp Product Dev

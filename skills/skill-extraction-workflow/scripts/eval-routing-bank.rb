@@ -42,6 +42,14 @@ require "shellwords"
 require "timeout"
 require "digest"
 
+# Resolution floor for ACTING on a measured case. A report taken below it
+# LOCATES candidates; it does not license a description edit, because at three
+# replicas a case that routes correctly 80-90% of the time reads as failing and
+# a one-off deviation reads as a finding. `references/eval-routing.md` owns the
+# rule and states the same number; test_eval_routing_bank_resolution.sh pins the
+# two sides together so they cannot drift apart.
+ACTION_RESOLUTION_MIN_REPLICAS = 10
+
 def arg(flag, default = nil)
   i = ARGV.index(flag)
   i ? ARGV[i + 1] : default
@@ -183,15 +191,25 @@ desc_changed = changed_files.any? { |f| f.end_with?("/SKILL.md") }
 co_change = bank_changed && desc_changed
 
 # --- build skill routing surface (the same descriptions the agent routes on) -
-catalog = Dir[File.join(root, "skills", "*", "SKILL.md")].sort.map do |path|
+# One filtered list feeds BOTH the prompt and the set of selectable names, so a
+# skill the prompt never offered (no frontmatter, empty description) cannot be a
+# valid selection: review noted the two were built by separate transformations
+# whose filtering could drift apart, and a name allowed but never shown is exactly
+# the shape that drift would let a verdict claim.
+# map + compact rather than filter_map: the runner has to work on the oldest
+# Ruby a host ships (macOS system Ruby is 2.6), and filter_map is 2.7+.
+catalog_entries = Dir[File.join(root, "skills", "*", "SKILL.md")].sort.map do |path|
   name = File.basename(File.dirname(path))
   m = File.read(path).match(/\A---\s*\n(.*?)\n---\s*\n/m)
   next unless m
   desc = (YAML.safe_load(m[1]) rescue {})["description"].to_s.strip
   next if desc.empty?
   desc = desc[0, desc_budget] if desc_budget && desc.length > desc_budget
-  "### #{name}\n#{desc}"
-end.compact.join("\n\n")
+  [name, "### #{name}\n#{desc}"]
+end.compact
+catalog = catalog_entries.map(&:last).join("\n\n")
+# The set of names a verdict may legitimately select; "none" is accepted separately.
+catalog_names = catalog_entries.map(&:first)
 
 # --- optional always-on entry-routing layer -----------------------------------
 # The catalog above is the description-only surface. Hosts ALSO inject
@@ -401,6 +419,16 @@ tasks.each do |t|
       break
     end
     selected = parsed && parsed["selected_skill"]
+    # A parseable answer is not yet a usable observation. The prompt's contract is
+    # an exact catalog name or "none"; anything else -- a missing key, a name the
+    # catalog does not carry, a non-string -- is grader output that says nothing
+    # about routing, and counting it as a verdict would let it feed the per-case
+    # resolution floor exactly as a well-formed one does. It is an ERROR, not a
+    # FAIL: a FAIL is evidence against the route, this is absence of evidence.
+    if parsed && error.nil? && !(selected == "none" || catalog_names.include?(selected))
+      error = "invalid_selection: #{selected.inspect[0, 80]}"
+      parsed = nil
+    end
     clarify = parsed && parsed["clarify"] == true
     confidence = parsed && parsed["confidence"]
     v_status =
@@ -519,6 +547,30 @@ if baseline_path && File.file?(baseline_path)
   end
 end
 
+# The floor is on VALID observations, not on the requested replica count: a run
+# asked for ten replicas can come back with seven usable verdicts once a grader
+# times out or returns unparsable output, and a report that called itself
+# actionable on the request alone would license an edit the evidence cannot
+# support. Observed in this repository: a fourteen-task run at --replicas 10
+# returned six grader errors and left two tasks at seven valid observations.
+#
+# The verdict is PER CASE, because an edit is licensed per case. A report-wide
+# flag alone is unsound in the other direction: a subset run over case A can be
+# actionable while saying nothing about case B, and a consumer reading only the
+# top-level boolean would take it as licence for an edit to B. Each result
+# therefore carries its own `actionable`, and the report-level field is the
+# conjunction over the cases the run actually measured -- true only when every
+# measured case clears the floor, and never a statement about a case absent from
+# `results`.
+results.each do |r|
+  valid = r[:verdicts].count { |v| v[:status] != "ERROR" }
+  r[:valid_observations] = valid
+  r[:actionable] = replicas >= ACTION_RESOLUTION_MIN_REPLICAS &&
+    valid >= ACTION_RESOLUTION_MIN_REPLICAS
+end
+min_valid_observations = results.map { |r| r[:valid_observations] }.min.to_i
+action_resolution = !results.empty? && results.all? { |r| r[:actionable] }
+
 report = {
   model: model, tasks: results.size, pass: passes, fail: fails.size, error: errors.size,
   replicas: replicas, verdicts: all_observed.size,
@@ -526,6 +578,10 @@ report = {
   clarify_count: clarify_count, low_confidence_count: low_conf_count,
   replica_agreement: (replicas >= 2 ? { agree: agreement_agree, measured: agreement_measured } : nil),
   desc_budget_chars: desc_budget, routing_surface: routing_surface,
+  action_resolution: action_resolution,
+  action_resolution_scope: "cases measured by this run only; see each result's actionable field",
+  action_resolution_min_replicas: ACTION_RESOLUTION_MIN_REPLICAS,
+  min_valid_observations: min_valid_observations,
   co_change_bank_and_descriptions: co_change, co_change_check_available: co_change_check_ok,
   frozen_drift: drift.map { |r| r[:id] },
   baseline_comparable: baseline_comparable,
@@ -535,6 +591,9 @@ report = {
 File.write(json_path, JSON.pretty_generate(report)) if json_path
 
 puts "eval-routing-bank (#{model}): #{passes}/#{results.size} pass, #{fails.size} fail, #{errors.size} grader-error"
+unless action_resolution
+  puts "  \u26a0 screening_resolution_only: replicas=#{replicas}, weakest task has #{min_valid_observations} valid observations, floor #{ACTION_RESOLUTION_MIN_REPLICAS} — this report locates candidates, it does not license a description edit; a per-case edit needs #{ACTION_RESOLUTION_MIN_REPLICAS} valid observations of that case (references/eval-routing.md)"
+end
 puts "  arm: desc-budget-chars=#{desc_budget}" if desc_budget
 unless all_observed.empty?
   line = "  clarify: #{clarify_count}/#{all_observed.size} verdicts, low-confidence(<0.5): #{low_conf_count}/#{all_observed.size}"

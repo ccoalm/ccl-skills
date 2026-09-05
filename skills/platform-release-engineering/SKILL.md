@@ -1,6 +1,6 @@
 ---
 name: platform-release-engineering
-description: 发布 / 灰度 / canary / rollback / rollout / 环境泳道 / promotion gate → design or review how a change moves from build to traffic and back safely, including rollout strategy, approval, rollback, secrets, config, and deploy control planes. Skip when the ask is the production release lifecycle — 上线范围确认 / 合并 main / 打 tag / 生产构建 / 发布后 reset → release-coordination; release document substance → release-doc-writer.
+description: 发布 / 灰度 / canary / rollback / rollout / 环境泳道 / promotion gate / 发布值班 SOP（P0·P1 打断排班、是否回滚）→ design or review how a change moves from build to traffic and back safely, including rollout strategy, approval, rollback, secrets, config, and deploy control planes. Skip when the ask is the production release lifecycle — 上线范围确认 / 合并 main / 打 tag / 生产构建 / 发布后 reset → release-coordination; release document substance → release-doc-writer.
 ---
 
 # Platform Release Engineering

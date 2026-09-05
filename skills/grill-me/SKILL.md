@@ -1,6 +1,6 @@
 ---
 name: grill-me
-description: grill-me / 访谈 / 拷问 / 压力测试方案 / stress-test a plan — lightweight one-question-at-a-time interview to challenge a plan, design, API shape, data model, or feature direction before implementation. Skip code-level YAGNI/delete/adversarial review of written code → `product-rd-workflow`'s independent-review gate; full delivery/spec/plan authoring → product-rd-workflow; tests → testing-strategy; implementation → stack/dev skill; process lesson extraction → skill-extraction-workflow.
+description: grill-me / 访谈 / 一问一答拷问（一次问一个）/ 压力测试方案 / stress-test a plan — lightweight one-question-at-a-time interview to challenge a plan, design, API shape, data model, or feature direction before implementation. Skip 拷问用的问题池·推荐默认值等材料，以及拷问后的结论整理（不是逐问过程）→ requirement-intent；code-level YAGNI/delete/adversarial review of written code → `product-rd-workflow`'s independent-review gate; full delivery/spec/plan authoring → product-rd-workflow; tests → testing-strategy; implementation → stack/dev skill; process lesson extraction → skill-extraction-workflow.
 ---
 
 # grill-me — 轻量方案拷问
