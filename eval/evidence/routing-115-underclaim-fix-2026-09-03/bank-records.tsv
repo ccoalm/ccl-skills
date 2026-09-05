@@ -1,0 +1,33 @@
+# Frozen-bank records for every case this round measured at ten or more replicas, copied verbatim from
+# eval/routing-tasks.jsonl at the branch base (the bank is untouched by this round; diff it to check).
+# Fields: id, expected_skill, acceptable, must_not_route_to, utterance. Scratch probes are NOT here:
+# they are not bank records and live in specs/115-routing-underclaim-fix/downscope.md.
+
+id	expected_skill	acceptable	must_not_route_to	utterance
+p3-resume-refactor	product-rd-workflow			继续之前那个支付模块的重构开发
+p3-log-plus-test	platform-observability		testing-strategy	给登录接口加上结构化日志和 trace 透传，再写测试覆盖它
+p3-perf-plus-regression	defect-diagnosis		testing-strategy	把这个慢接口优化了，并补一条回归测试防止再退化
+skip-miniapp-build	miniapp-product-dev		testing-strategy	微信开发者工具怎么编译小程序
+ab-c5	requirement-intent			准备做需求拷问，先给我一份问题池和推荐默认值
+ab-n2	platform-observability			代码里有这个开关，线上已经启用了吗
+ab-d6	requirement-scope			列一下本轮的版本切片和兼容/回滚边界
+p3-spec-then-tc	product-rd-workflow		test-artifact-management	先把这个需求文档写出来，再根据它生成测试用例
+ab-b5	requirement-baseline			按当前代码说明订单状态是怎样产生和消费的
+variant-neg-release-watch-sop	platform-release-engineering		platform-observability	制定发布值班 SOP，P0/P1 时打断排班并决定是否回滚
+route-nodejs-architecture-not-go-python	product-rd-workflow			Node.js 微服务的服务边界怎么拆？数据归属怎么定？
+ab-n3	grill-me			帮我一问一答拷问这个方案，一次问一个
+mem-api-log-redact	app-cross-platform-dev		feature-risk-router	这个 Flutter App 的 ApiClient 调试日志把 token 和手机号都打出来了，帮我改成脱敏
+miss-refactor-python-unqualified	python-service-architecture		python-service-dev	重构这个 Python 用户服务
+p3-transition-impl	product-rd-workflow			技术方案评审通过了，现在开始写代码实现
+ab-c3	requirement-intent			把这个需求写成用户故事，再补一组验收标准
+ab-n1	requirement-doc-writer			需求都关闭了，把它组装成一份正式 PRD
+ab-b3	requirement-baseline			改需求前先弄清楚现在到底怎么工作的
+ctrl-unit-test	testing-strategy			帮我给这个函数写单元测试
+ctrl-feature	product-rd-workflow			我们要加一个新功能，这个需求怎么做
+new-deprecation	product-rd-workflow		test-artifact-management	这个功能要下线，废弃相关代码、测试用例和告警
+route-testcase-bare-colloquial	testing-strategy		test-artifact-management	补测试用例
+route-opencode-project-config	skill-extraction-workflow		llm-inference-integration;terminal-cli-dev;web-react-dev	这是 ccl-skills/shared-skill 仓库的 OpenCode 项目配置/命令治理：本仓 opencode.json 要加一个快捷命令，不是 App、终端 CLI 或 LLM runtime 实现；注意不要写模型、密钥、MCP 或本机绝对路径
+skip-pytest-cmd	python-service-dev		testing-strategy	pytest 这个命令具体怎么写
+ctrl-ai-risk	feature-risk-router			这个 AI 生成的答案直接发给用户，风险大不大
+miss-refactor-servicewide	product-rd-workflow			把整个 Python 用户服务重构一遍，涉及好几个模块，分阶段交付
+gap-rust-service	product-rd-workflow	none	go-microservice-dev;python-service-dev;nodejs-service-dev;go-microservice-architecture	用 Rust 写一个高性能网关服务

@@ -47,7 +47,11 @@ adversarial review is why. The draft asserted that no other edited owner appears
 case's distribution; the tables refute it — `p3-spec-then-tc` selects the edited
 `requirement-doc-writer` on both arms, `p3-log-plus-test` selects the edited `product-rd-workflow` on
 the control arm, and `ab-c5`'s rival `grill-me` is itself the edited owner. So the only universal that
-holds is the weaker one: each claimed case's expected owner has exactly one changed description.
+holds is weaker still: for each claimed case exactly one description was edited *for* it — the
+expected owner's in ten cases, and the **rival's** in one (`ab-c5` expects `requirement-intent`, which
+is untouched; the edit is on its rival `grill-me`). The table's owner column names the edited owner,
+not always the expected one; `bank-records.tsv` carries the expected owner, acceptable alternatives
+and must-not guards for every measured case, copied from the untouched bank.
 Exactly one case carries real isolation — `ab-c5`, 6/9 on a four-edit tree and 10/10 on that tree
 plus only the grill-me edit. Every other per-case reading is an interpretation of a package result,
 and the register's supersede note is corrected to say the same.
