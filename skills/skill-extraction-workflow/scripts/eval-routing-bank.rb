@@ -196,7 +196,9 @@ co_change = bank_changed && desc_changed
 # valid selection: review noted the two were built by separate transformations
 # whose filtering could drift apart, and a name allowed but never shown is exactly
 # the shape that drift would let a verdict claim.
-catalog_entries = Dir[File.join(root, "skills", "*", "SKILL.md")].sort.filter_map do |path|
+# map + compact rather than filter_map: the runner has to work on the oldest
+# Ruby a host ships (macOS system Ruby is 2.6), and filter_map is 2.7+.
+catalog_entries = Dir[File.join(root, "skills", "*", "SKILL.md")].sort.map do |path|
   name = File.basename(File.dirname(path))
   m = File.read(path).match(/\A---\s*\n(.*?)\n---\s*\n/m)
   next unless m
@@ -204,7 +206,7 @@ catalog_entries = Dir[File.join(root, "skills", "*", "SKILL.md")].sort.filter_ma
   next if desc.empty?
   desc = desc[0, desc_budget] if desc_budget && desc.length > desc_budget
   [name, "### #{name}\n#{desc}"]
-end
+end.compact
 catalog = catalog_entries.map(&:last).join("\n\n")
 # The set of names a verdict may legitimately select; "none" is accepted separately.
 catalog_names = catalog_entries.map(&:first)
