@@ -184,3 +184,5 @@ post10-T-r10.json	t	e889445588766213	ab-n3	5	PASS	..........	5;5;5;5;5;5;5;5;5;5
 post10-T-r10.json	t	e889445588766213	variant-neg-release-watch-sop	10	PASS	..........	10;10;10;10;10;10;10;10;10;10
 post10-T-r10.json	t	e889445588766213	route-nodejs-architecture-not-go-python	11	PASS	..........	11;11;11;11;11;11;11;11;11;11
 post11-U-r20.json	t	e889445588766213	miss-refactor-python-unqualified	12	FAIL	....................	12;12;12;12;12;12;12;8;13;8;8;12;12;12;12;12;11;12;8;11
+iso-X-settled-r20.json	t	e889445588766213	miss-refactor-python-unqualified	12	FAIL	....................	12;11;12;12;12;12;12;12;12;12;12;8;12;12;12;12;12;12;12;12
+iso-Y-prd-reverted-r20.json	i	4175fed1c13c81e9	miss-refactor-python-unqualified	12	FAIL	....................	11;12;12;8;13;12;11;11;12;11;12;12;12;12;12;12;12;12;12;12

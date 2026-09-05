@@ -97,16 +97,18 @@ including the three the payment could plausibly have cost (`miss-restart`, `new-
   executors. Those score zero on both arms, so the move is toward the stated intent — a
   new-capability ask for a stack with no skill enters the coordinator for intake — not absorption.
 - `miss-refactor-python-unqualified` is the one case where a `must_not_route_to` owner was ever
-  selected, and the record states it rather than rounding it away. Control arm, 60 gradings: 43 to
-  the expected owner, **zero** `python-service-dev`. Treatment arms, 80 gradings across every tree
-  including 20 on the settled one: 61 to the expected owner, **two** `python-service-dev` — one on an
-  intermediate tree, one on the settled tree. Two in eighty against zero in sixty is not separable
-  (p ≈ 0.5), neither Python owner was edited, and the coordinator rival fell from 10/60 to 2/20
-  after its architecture claim was scoped to stacks without an architecture sibling. This round draws
-  no causal conclusion either way: a coordinator description that competes for this case WAS edited,
-  and pooling across treatment catalogs cannot attribute or exclude the settled tree's single forbidden
-  verdict. It is an **unresolved neighbour finding** filed for the independent lane, which under the
-  protocol is the only lane that may dispose of a must-not observation.
+  selected, and adversarial review asked for the isolation that would say whether the edited
+  coordinator caused it. It was run: the settled tree against the settled tree with **only**
+  `product-rd-workflow`'s description reverted to base (catalog `4175fed1…`), 20 replicas each. With
+  the coordinator's edits present: 18/20 to the expected owner, **zero** forbidden verdicts. With them
+  removed: 14/20, **one** forbidden verdict, and the coordinator itself rises to 4/20. Removing the
+  suspected cause does not remove the effect — it appears without it — so the coordinator's edits are
+  not what produces the forbidden selection, and the case routes better with them than without.
+  Pooled on the settled tree it is now 31/40 with one forbidden verdict in forty; the base tree is
+  43/60 with none. One in forty against none in sixty is not separable, no Python owner was edited,
+  and the one edited competitor has been isolated and exonerated. It remains filed for the
+  independent lane, which under the protocol disposes of must-not observations; what that lane now
+  has is the targeted comparison it asked for rather than an argument.
 
 ### Why each edit is defensible without pointing at its number
 
