@@ -57,8 +57,9 @@ plus only the grill-me edit. Every other per-case reading is an interpretation o
 and the register's supersede note is corrected to say the same.
 
 Arms taken on a superseded candidate are process data, not evidence for what lands. Rows marked
-`current` come from two runs on the settled tree: the ten-case final pass and the earlier probe that
-measured the merged trigger.
+`current` come from four runs on the settled tree: the ten-case final pass (`post10-T`), the
+six-case probe pass (`post8-R`), and the two twenty-replica must-not runs (`post11-U` and
+`iso-X-settled`) that supply the forty settled-tree observations behind the isolation below.
 
 | case | changed owner and its measured move (the anchor text names the run it was first seen in) | control | settled tree `e8894455` |
 | --- | --- | --- | --- |
@@ -231,6 +232,6 @@ The full runner reports stay outside the commit at
 `replica-verdicts.tsv` is per-verdict confidence, clarify flags and prompts — none of which any
 claim here rests on. Their full sha256 are in the RUN rows.
 
-The three superseded full-bank runs are listed because they exist, not because they count: each
+The four superseded full-bank runs are listed because they exist, not because they count: each
 measured a candidate that a later edit replaced, and the protocol voids an intermediate draft's pass
 count the moment the wording changes again.
