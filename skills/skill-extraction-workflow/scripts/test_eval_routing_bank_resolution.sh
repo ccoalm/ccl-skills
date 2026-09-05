@@ -47,8 +47,13 @@ description: Use when polishing document wording.
 # Tighten Doc
 EOF
 
+# TWO cases, deliberately: with one case a per-case verdict and a report-wide
+# conjunction are indistinguishable, so every assertion below would also pass
+# against the defect they exist to catch. The degraded fixture fails only the
+# first utterance, which leaves one case short of the floor and one clear of it.
 cat > "$REPO/eval/routing-tasks.jsonl" <<'EOF'
 {"id":"resolution-fixture","utterance":"补一个回归测试","expected_skill":"testing-strategy","frozen_at_sha":""}
+{"id":"resolution-fixture-b","utterance":"帮我润色这段文档","expected_skill":"tighten-doc","frozen_at_sha":""}
 EOF
 
 git -C "$REPO" add -A
@@ -56,8 +61,11 @@ git -C "$REPO" commit -qm "fixture"
 
 cat > "$FAKE_BIN/claude" <<'EOF'
 #!/usr/bin/env bash
-cat >/dev/null
-printf '{"selected_skill":"testing-strategy","clarify":false,"confidence":0.9,"rationale_short":"fixture"}\n'
+prompt="$(cat)"
+case "$prompt" in
+  *润色*) printf '{"selected_skill":"tighten-doc","clarify":false,"confidence":0.9,"rationale_short":"fixture"}\n' ;;
+  *)      printf '{"selected_skill":"testing-strategy","clarify":false,"confidence":0.9,"rationale_short":"fixture"}\n' ;;
+esac
 EOF
 chmod +x "$FAKE_BIN/claude"
 export PATH="$FAKE_BIN:$PATH"
@@ -90,7 +98,10 @@ grep -q '"action_resolution": true' "$TMP/hi.json" \
 # reliably unable to answer one utterance, not a stray quote.
 cat > "$FAKE_BIN/claude" <<'EOF'
 #!/usr/bin/env bash
-cat >/dev/null
+prompt="$(cat)"
+case "$prompt" in
+  *润色*) printf '{"selected_skill":"tighten-doc","clarify":false,"confidence":0.9,"rationale_short":"fixture"}\n'; exit 0 ;;
+esac
 echo x >> "$RESOLUTION_COUNT_FILE"
 n=$(wc -l < "$RESOLUTION_COUNT_FILE" | tr -d ' ')
 if [ "$n" = "3" ] || [ "$n" = "4" ]; then printf 'not json at all\n'; exit 0; fi
@@ -118,6 +129,18 @@ grep -q '"action_resolution_scope"' "$TMP/hi.json" \
   || fail "the report must say its top-level verdict covers only the cases it measured"
 grep -q '"actionable": false' "$TMP/deg.json" \
   || fail "a case left short by an invalid observation must carry actionable:false"
+# The split is the point: the degraded case is short, the other one is not, and a
+# report-wide conjunction substituted for the per-case field would mark both false.
+python3 - "$TMP/deg.json" <<'PYEOF' || fail "the healthy case must stay actionable while the degraded one does not"
+import json,sys
+d=json.load(open(sys.argv[1]))
+by={r["id"]:r for r in d["results"]}
+ok = (by["resolution-fixture"]["actionable"] is False
+      and by["resolution-fixture-b"]["actionable"] is True
+      and by["resolution-fixture-b"]["valid_observations"] == 10
+      and d["action_resolution"] is False)
+sys.exit(0 if ok else 1)
+PYEOF
 
 # --- (3) the two sides of the number must agree -------------------------------
 # The rule is only as good as the agreement between the reference that states it

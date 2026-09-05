@@ -71,10 +71,13 @@ including the three the payment could plausibly have cost (`miss-restart`, `new-
   `product-rd-workflow` with `none` acceptable, and whose absorption guard names the stack
   executors. Those score zero on both arms, so the move is toward the stated intent — a
   new-capability ask for a stack with no skill enters the coordinator for intake — not absorption.
-- `miss-refactor-python-unqualified` showed one `python-service-dev` verdict on the treatment arm,
-  which is that case's `must_not_route_to` owner. A 20-replica paired probe returns **identical**
-  distributions on both arms (17/20 to the expected owner, two refusals, one near-miss to the
-  coordinator, and zero must-not hits), so the single verdict was noise and no boundary was breached.
+- `miss-refactor-python-unqualified` is the one case where a `must_not_route_to` owner was ever
+  selected. Pooled over every run on each side: the control arm is 43 to the expected owner with
+  **zero** `python-service-dev` verdicts in 60, and the treatment arm is 48 with **one** in 60.
+  An earlier draft of this file said both arms were clean, reading only the later 20-replica probe
+  and not the 10-replica run on the same tree that carries the single verdict; review caught it.
+  One in sixty against zero in sixty is not separable, and the expected owner is reached more
+  often on the treatment side, so the round claims no breach — it does not claim none occurred.
 
 ### Why each edit is defensible without pointing at its number
 
@@ -130,8 +133,8 @@ one-in-twenty leak to `defect-diagnosis` and is **not** edited. `product-rd-work
 secrets/PII/raw-log redaction to `platform-observability`; the bank assigns this case to the app
 stack because it is a concrete client-code fix. Claiming 日志脱敏 on the app skill would manufacture
 a real cross-owner conflict to answer a 1-in-20 deviation. It doubles as this round's negative
-control: across two independent 20-replica measurements per arm it is 39/40 (control) and 38/40
-(treatment) — one hit apart.
+control: 39/40 on the control arm across two independent 20-replica measurements, and 20/20 on the
+current tree, where its rival appears zero times.
 
 ## The instrument finding
 

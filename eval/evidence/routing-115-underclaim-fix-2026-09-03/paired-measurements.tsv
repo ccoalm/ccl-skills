@@ -1,10 +1,10 @@
-# Round 115 per-case paired measurements, derived by counting non-error verdicts in the raw
-# runner reports (archived outside this repo, identified below by full sha256). arm c =
-# control (base 1506dcf), arm t = treatment. hits = expected owner's verdicts, valid =
-# usable verdicts, rivals = every other selection. Only runs at ten or more replicas carry
-# a per-case claim; three-replica neighbour runs appear as RUN rows only. The candidate
-# column marks each row base / intermediate / landing; landing is catalog 0e06c8a3e6046c41,
-# and every claim this round makes has a landing row.
+# Round 115 per-case paired measurements, counted from the raw runner reports (archived; full
+# sha256 in the RUN rows). arm c = control (branch base 1506dcf), arm t = treatment. hits = the
+# expected owner's verdicts, valid = usable verdicts, rivals = every other selection. Only runs
+# at ten or more replicas carry a per-case claim and appear as MEASUREMENT rows.
+# candidate: base | intermediate | current. current is catalog dc06ac0502b02f33, the tree these files are
+# committed beside, as reported by the runner itself. A treatment row marked intermediate
+# measured a candidate a later edit replaced and is process data, not evidence for what lands.
 
 # RUN	file	arm	replicas	tasks	pass	fail	error_verdicts	catalog_sha256	candidate	bytes	sha256
 RUN	pre-A-r10.json	c	10	14	6	8	6	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	38748	e950248e6f40d19feb9eab688050079931a4546e06f212c96c266417018145dd
@@ -30,9 +30,10 @@ RUN	post2-G-r20.json	t	20	1	0	1	0	c8bb194bc4e1d7e36cf8f394444bcdd7184b007269e7e4
 RUN	post2-H-r20.json	t	20	1	0	1	0	c8bb194bc4e1d7e36cf8f394444bcdd7184b007269e7e41b32d34241f96240be	intermediate	8991	1e560dc0f9abd27b49718dc92a0cda3a60b69addc26b273ce217d207d60fc9be
 RUN	post2-I-r20.json	t	20	1	0	1	0	c8bb194bc4e1d7e36cf8f394444bcdd7184b007269e7e41b32d34241f96240be	intermediate	8904	6c7a5194ceed6d0329bcfdea20caa4fd3ff1214027a7f194c0ca9467529e3b94
 RUN	post3-J-r20.json	t	20	10	8	2	0	074332e1d7579d7feb26ac217de49bf5f37ab82cc7b0eca55244f145d16985ac	intermediate	50445	c7b50f9170a7fc15a1c672c497bd9aa7162205c4482acadf32d7240b4795a871
-RUN	post4-K-r10.json	t	10	24	22	2	0	0e06c8a3e6046c41858fa058dd54ab18cf3897e122bf4360f3376b0f23a648b8	landing	64713	9102aaeccb5ff21f8f2468f3dbd05f3b739b6ac732388683fec2921d1c552b72
-RUN	post4-L-r20.json	t	20	1	0	1	0	0e06c8a3e6046c41858fa058dd54ab18cf3897e122bf4360f3376b0f23a648b8	landing	8890	ffd3305f82e036d66dd10b3fe0cbf4e5c8e5a2de0b9052f2f1256642ed72fa1c
-RUN	post5-M-r20.json	t	20	7	7	0	0	0e06c8a3e6046c41858fa058dd54ab18cf3897e122bf4360f3376b0f23a648b8	landing	35724	d46d38ef08b1a357177b284a0fa948326f00299697761f877fd7539b0794e2e6
+RUN	post4-K-r10.json	t	10	24	22	2	0	0e06c8a3e6046c41858fa058dd54ab18cf3897e122bf4360f3376b0f23a648b8	intermediate	64713	9102aaeccb5ff21f8f2468f3dbd05f3b739b6ac732388683fec2921d1c552b72
+RUN	post4-L-r20.json	t	20	1	0	1	0	0e06c8a3e6046c41858fa058dd54ab18cf3897e122bf4360f3376b0f23a648b8	intermediate	8890	ffd3305f82e036d66dd10b3fe0cbf4e5c8e5a2de0b9052f2f1256642ed72fa1c
+RUN	post5-M-r20.json	t	20	7	7	0	0	0e06c8a3e6046c41858fa058dd54ab18cf3897e122bf4360f3376b0f23a648b8	intermediate	35724	d46d38ef08b1a357177b284a0fa948326f00299697761f877fd7539b0794e2e6
+RUN	post6-N-r20.json	t	20	1	1	0	0	dc06ac0502b02f3378f5844c1e389942b5a9eb6ea2e38c07faafea8556da0e8f	current	9068	9d1fc7db1a7661785689ebdd4cc42246c436597d3a8a4d29c6a4add42dfb93f6
 RUN	post-B-r3.json	t	3	69	67	2	1	31c9a686e0c54cafa33a6594fe7a9ea7e24e16ca481bc2fd2d8f16f89e938a7e	intermediate	80907	fd133dc94a793ae8a900dc8ff74fbfaf8a0c39f8dd6282140718f0b08f9bcc44
 RUN	post2-B-r3.json	t	3	69	67	2	0	c8bb194bc4e1d7e36cf8f394444bcdd7184b007269e7e41b32d34241f96240be	intermediate	80900	936e1e23c412adc0460e7ea053ec9ca3356386b4c3a1cc5f6985c240b9620cfe
 
@@ -148,35 +149,36 @@ MEASUREMENT	route-nodejs-service-impl	t	post3-J-r20.json	20	20	PASS	intermediate
 MEASUREMENT	route-nodejs-cli-not-terminal	t	post3-J-r20.json	20	20	PASS	intermediate	-
 MEASUREMENT	route-nodejs-multistage-to-product-rd	t	post3-J-r20.json	20	20	PASS	intermediate	-
 MEASUREMENT	route-nodejs-architecture-not-go-python	t	post3-J-r20.json	20	20	PASS	intermediate	-
-MEASUREMENT	ctrl-feature	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	miss-refactor-servicewide	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	miss-restart	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	new-tighten-vs-owner	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	new-redo-variant	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	new-deprecation	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	new-feasibility-capability	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	p3-feat-plus-perf	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	p3-transition-impl	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	p3-resume-refactor	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	p3-iteration-coordinate	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	p3-spec-then-tc	t	post4-K-r10.json	7	10	FAIL	landing	requirement-doc-writer=2,requirement-intent=1
-MEASUREMENT	p3-log-plus-test	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	mem-reuse-vs-greenfield	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	mem-plan-gate-miss	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	route-tech-plan-effort-doc	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	route-change-worth-fixing-verdict	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	miss-refactor-python-unqualified	t	post4-K-r10.json	4	10	FAIL	landing	none=3,product-rd-workflow=2,python-service-dev=1
-MEASUREMENT	ab-d6	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	var-neg-product-shortcut-feature	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	gap-rust-service	t	post4-K-r10.json	6	10	PASS	landing	none=4
-MEASUREMENT	gap-windows-desktop	t	post4-K-r10.json	9	10	PASS	landing	none=1
-MEASUREMENT	route-nodejs-multistage-to-product-rd	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	route-nodejs-architecture-not-go-python	t	post4-K-r10.json	10	10	PASS	landing	-
-MEASUREMENT	miss-refactor-python-unqualified	t	post4-L-r20.json	17	20	FAIL	landing	none=2,product-rd-workflow=1
-MEASUREMENT	skip-miniapp-build	t	post5-M-r20.json	20	20	PASS	landing	-
-MEASUREMENT	p3-perf-plus-regression	t	post5-M-r20.json	20	20	PASS	landing	-
-MEASUREMENT	ab-c5	t	post5-M-r20.json	20	20	PASS	landing	-
-MEASUREMENT	ab-b5	t	post5-M-r20.json	20	20	PASS	landing	-
-MEASUREMENT	ab-n2	t	post5-M-r20.json	20	20	PASS	landing	-
-MEASUREMENT	ab-n3	t	post5-M-r20.json	20	20	PASS	landing	-
-MEASUREMENT	variant-neg-release-watch-sop	t	post5-M-r20.json	20	20	PASS	landing	-
+MEASUREMENT	ctrl-feature	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	miss-refactor-servicewide	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	miss-restart	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	new-tighten-vs-owner	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	new-redo-variant	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	new-deprecation	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	new-feasibility-capability	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-feat-plus-perf	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-transition-impl	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-resume-refactor	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-iteration-coordinate	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-spec-then-tc	t	post4-K-r10.json	7	10	FAIL	intermediate	requirement-doc-writer=2,requirement-intent=1
+MEASUREMENT	p3-log-plus-test	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	mem-reuse-vs-greenfield	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	mem-plan-gate-miss	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	route-tech-plan-effort-doc	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	route-change-worth-fixing-verdict	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	miss-refactor-python-unqualified	t	post4-K-r10.json	4	10	FAIL	intermediate	none=3,product-rd-workflow=2,python-service-dev=1
+MEASUREMENT	ab-d6	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	var-neg-product-shortcut-feature	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	gap-rust-service	t	post4-K-r10.json	6	10	PASS	intermediate	none=4
+MEASUREMENT	gap-windows-desktop	t	post4-K-r10.json	9	10	PASS	intermediate	none=1
+MEASUREMENT	route-nodejs-multistage-to-product-rd	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	route-nodejs-architecture-not-go-python	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	miss-refactor-python-unqualified	t	post4-L-r20.json	17	20	FAIL	intermediate	none=2,product-rd-workflow=1
+MEASUREMENT	skip-miniapp-build	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	p3-perf-plus-regression	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-c5	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-b5	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-n2	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-n3	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	variant-neg-release-watch-sop	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	mem-api-log-redact	t	post6-N-r20.json	20	20	PASS	current	-
