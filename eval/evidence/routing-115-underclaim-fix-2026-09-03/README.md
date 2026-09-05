@@ -92,16 +92,20 @@ zero-growth byte budget, so its two new triggers had to be paid for: sixteen sep
 one duplicate implement-phase phrasing dropped, and two sentences deleted from an unrelated
 standards bullet whose obligations the owning checklist reference already carries. Because that
 reformats the entire trigger list rather than one token, every frozen case expecting this owner was
-re-run on paired trees — 24 cases, ten replicas per arm. Fifteen cases that were 10/10 stayed 10/10,
+re-run on paired trees — 24 cases, ten replicas per arm. Sixteen cases that were 10/10 stayed 10/10,
 including the three the payment could plausibly have cost (`miss-restart`, `new-redo-variant`,
-`p3-transition-impl`). Two cases moved and were probed further:
+`p3-transition-impl`). Four are the claim-bearing cases in the table above; `gap-windows-desktop`
+(8/10 → 9/10) and `p3-spec-then-tc` (7/10 → 7/10) sit inside jitter. Two cases moved and were probed
+further:
 
 - `gap-rust-service` 1/10 → 6/10. This is a coverage-hole probe whose expected owner IS
   `product-rd-workflow` with `none` acceptable, and whose absorption guard names the stack
   executors. Those score zero on both arms, so the move is toward the stated intent — a
   new-capability ask for a stack with no skill enters the coordinator for intake — not absorption.
-- `miss-refactor-python-unqualified` is the one case where a `must_not_route_to` owner was ever
-  selected, and adversarial review asked for the isolation that would say whether the edited
+- `miss-refactor-python-unqualified` is the one case where a `must_not_route_to` owner was selected
+  on a treatment arm (the base-tree control run `ctrl-H` of `variant-neg-release-watch-sop` also
+  selected its forbidden owner once, with no edit involved — see `replica-verdicts.tsv`), and
+  adversarial review asked for the isolation that would say whether the edited
   coordinator caused it. It was run: the settled tree against the settled tree with **only**
   `product-rd-workflow`'s description reverted to base (catalog `4175fed1…`), 20 replicas each. With
   the coordinator's edits present: 18/20 to the expected owner, **zero** forbidden verdicts. With them
@@ -125,8 +129,8 @@ owner, which the owner's own routing surface never claimed.**
   gradings answered `none`: a hole, not a collision.
 - `p3-log-plus-test` — the owner claimed its territory only in English (service logs, distributed
   tracing, log/trace correlation) while the utterance is Chinese, and activation is closer to
-  keyword match than to paraphrase. Eight of seventeen gradings refused; the rest scattered over
-  four rivals at one hit each, so the defect was the owner's, not a competitor's.
+  keyword match than to paraphrase. Eight of seventeen gradings refused, six reached the owner, and
+  three rivals took one hit each, so the defect was the owner's, not a competitor's.
 - `p3-perf-plus-regression` — the skill claimed bug / 报错 / test 挂了 / 线上问题 and nothing about a
   slow endpoint. Added the anchored 接口变慢·性能退化, not a bare 性能优化, which would have swallowed
   performance work that is a product-rd delivery.
