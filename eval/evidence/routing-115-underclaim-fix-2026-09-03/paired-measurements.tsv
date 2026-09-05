@@ -1,0 +1,231 @@
+# Round 115 per-case paired measurements, counted from the raw runner reports (archived; full
+# sha256 in the RUN rows). arm c = control (branch base 1506dcf), arm t = treatment, arm i = an
+# isolation tree (the settled tree with ONE owner's description reverted to base, named in the
+# README). hits = the expected owner's verdicts, valid = usable verdicts, rivals = every other
+# selection. Only runs at ten or more replicas carry a per-case claim and appear as MEASUREMENT rows.
+# candidate: base | intermediate | current | isolation. current is catalog e889445588766213, the tree these
+# files are committed beside, as reported by the runner itself. isolation is catalog 4175fed1c13c81e9.
+# Scratch probes (ids starting probe-) are review-supplied utterances, never added to the frozen bank.
+
+# Every run used one invocation form: `ruby skills/skill-extraction-workflow/scripts/eval-routing-bank.rb . --bank <subset> --replicas N --timeout 120 --json <out>`
+# (the full-bank runs omit --bank and pass --baseline); CCL_SKILL_BASE_REF=1506dcf; grader = the model column.
+# RUN	file	arm	replicas	tasks	pass	fail	error_verdicts	catalog_sha256	candidate	bytes	sha256	model	bank_sha256	desc_budget
+RUN	pre-A-r10.json	c	10	14	6	8	6	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	38748	e950248e6f40d19feb9eab688050079931a4546e06f212c96c266417018145dd	claude-haiku-4-5	658d106f218a3d9e	None
+RUN	pre-A2-r10.json	c	10	2	0	2	0	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	9235	4946c7ca4e799c3db8311c8d11faa690b2fd6bb5e6e631661e9260088b564037	claude-haiku-4-5	0430960e50fddf55	None
+RUN	ctrl-C-pre-r10.json	c	10	2	1	1	0	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	9154	ff0616ae12a6a7133371557c200aae743a87d52f964a4ba6ea883237849610ea	claude-haiku-4-5	16fe842dce1d702a	None
+RUN	ctrl-D-pre-r10.json	c	10	2	1	1	0	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	8969	12d73fd4b42b5c66677ccfe305255bae582a2a86a72fbe0fc9a4d1c8102500c4	claude-haiku-4-5	cfa2b12ddd2b9c72	None
+RUN	ctrl-E-pre-r10.json	c	10	1	1	0	0	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	7006	d745a4b01f130bd2607771c7eb26ea506891874a1d8dc962e0f93de8bad37232	claude-haiku-4-5	81ed1e70b3422a50	None
+RUN	ctrl-F-pre-r10.json	c	10	3	0	3	0	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	11714	0ffe7d6f66862cf9de21f5694652c4035a73e3bfa1090bb3591500722361efce	claude-haiku-4-5	6ed57ba5d29fea9f	None
+RUN	ctrl-G-r20.json	c	20	1	0	1	0	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	8622	d00819d32fe016a5baf3cf1b76f6248da6d7dd711fb0d149392843c92149dadb	claude-haiku-4-5	40b558d851668b4f	None
+RUN	ctrl-H-r20.json	c	20	1	0	1	0	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	8961	09072d6dc9144cd644f6f854e35cf04af1038d5d71db4c2d9f5859d364f23152	claude-haiku-4-5	7a52f4c525079de1	None
+RUN	ctrl-I-r20.json	c	20	1	0	1	0	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	8834	5fef4817a35e690a7ae53870eec10a4f64334929e7f2b37858c0c4c8835497d9	claude-haiku-4-5	ebb3c97261955a39	None
+RUN	ctrl-J-r20.json	c	20	10	6	4	0	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	50159	90498b3afad833542d21c41a323af8a472acfbb97ac0e03c42c93d5e2e93b917	claude-haiku-4-5	97345302b2a3e8bd	None
+RUN	ctrl-K-r10.json	c	10	24	18	6	0	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	64223	8871309f89281148b3cdc787ebf5198e2699c2c1c7d6ada4dded27a6f94e89ac	claude-haiku-4-5	3f6ba351f04f8e54	None
+RUN	ctrl-L-r20.json	c	20	1	0	1	0	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	8827	75310bac5b4ab337ca5f2f46936368ac5c8bceef40dae04524d896be96b03b37	claude-haiku-4-5	c2cd44e2f6048553	None
+RUN	pre-B-r3.json	c	3	69	68	1	0	7db3593170b84971b1ef23717c26a7dfdb38c1c245dfd21be00264f0c6ab0408	base	80752	afdaf2d486b7dbcf61b5b500879f2b96b090241964fcdb35d8eacef75137f4ef	claude-haiku-4-5	697a7a4101a70618	None
+RUN	post-A-r10.json	t	10	14	9	5	2	31c9a686e0c54cafa33a6594fe7a9ea7e24e16ca481bc2fd2d8f16f89e938a7e	intermediate	39118	539fa5794f0fa677cf99a5224c6931f47851b2bda2b694c3a7b0a267274dc465	claude-haiku-4-5	658d106f218a3d9e	None
+RUN	post2-A-r10.json	t	10	14	10	4	0	c8bb194bc4e1d7e36cf8f394444bcdd7184b007269e7e41b32d34241f96240be	intermediate	38956	465a9d667fd10a63513d4be4a68782ab95ca640336fe7049c9b09606b92b923a	claude-haiku-4-5	658d106f218a3d9e	None
+RUN	post-C-r10.json	t	10	2	1	1	1	31c9a686e0c54cafa33a6594fe7a9ea7e24e16ca481bc2fd2d8f16f89e938a7e	intermediate	9204	9e4bf09a6c5a2da1b7d1964b764ef87888acd19de64eb58487780962ebd6aa45	claude-haiku-4-5	16fe842dce1d702a	None
+RUN	post-D-r10.json	t	10	2	2	0	0	71a6793d78da28bec2d8f7ac18aa3bdeed99d902a983bd39845712881ba16d6a	intermediate	8965	a2815d9453a6e262f409dd7ac687f03f180744d7b87b135e19fec355ad39de8f	claude-haiku-4-5	cfa2b12ddd2b9c72	None
+RUN	post-E-r10.json	t	10	1	1	0	0	71a6793d78da28bec2d8f7ac18aa3bdeed99d902a983bd39845712881ba16d6a	intermediate	7073	dedffb730176ccd1858c737589cdeb3fa73238692854777c4f9bf9a3261b74d3	claude-haiku-4-5	81ed1e70b3422a50	None
+RUN	post-F-r10.json	t	10	3	2	1	0	71a6793d78da28bec2d8f7ac18aa3bdeed99d902a983bd39845712881ba16d6a	intermediate	11782	56b6a2b6ea59c50914b8244644c84975ac84469d5ae6478d032f50042d6db893	claude-haiku-4-5	6ed57ba5d29fea9f	None
+RUN	post2-G-r20.json	t	20	1	0	1	0	c8bb194bc4e1d7e36cf8f394444bcdd7184b007269e7e41b32d34241f96240be	intermediate	8724	0f7bba2c923013cfd4bfabd29afde20091d2659d2d08784b70feb14c0314fc94	claude-haiku-4-5	40b558d851668b4f	None
+RUN	post2-H-r20.json	t	20	1	0	1	0	c8bb194bc4e1d7e36cf8f394444bcdd7184b007269e7e41b32d34241f96240be	intermediate	8991	1e560dc0f9abd27b49718dc92a0cda3a60b69addc26b273ce217d207d60fc9be	claude-haiku-4-5	7a52f4c525079de1	None
+RUN	post2-I-r20.json	t	20	1	0	1	0	c8bb194bc4e1d7e36cf8f394444bcdd7184b007269e7e41b32d34241f96240be	intermediate	8904	6c7a5194ceed6d0329bcfdea20caa4fd3ff1214027a7f194c0ca9467529e3b94	claude-haiku-4-5	ebb3c97261955a39	None
+RUN	post3-J-r20.json	t	20	10	8	2	0	074332e1d7579d7feb26ac217de49bf5f37ab82cc7b0eca55244f145d16985ac	intermediate	50445	c7b50f9170a7fc15a1c672c497bd9aa7162205c4482acadf32d7240b4795a871	claude-haiku-4-5	97345302b2a3e8bd	None
+RUN	post4-K-r10.json	t	10	24	22	2	0	0e06c8a3e6046c41858fa058dd54ab18cf3897e122bf4360f3376b0f23a648b8	intermediate	64713	9102aaeccb5ff21f8f2468f3dbd05f3b739b6ac732388683fec2921d1c552b72	claude-haiku-4-5	3f6ba351f04f8e54	None
+RUN	post4-L-r20.json	t	20	1	0	1	0	0e06c8a3e6046c41858fa058dd54ab18cf3897e122bf4360f3376b0f23a648b8	intermediate	8890	ffd3305f82e036d66dd10b3fe0cbf4e5c8e5a2de0b9052f2f1256642ed72fa1c	claude-haiku-4-5	c2cd44e2f6048553	None
+RUN	post5-M-r20.json	t	20	7	7	0	0	0e06c8a3e6046c41858fa058dd54ab18cf3897e122bf4360f3376b0f23a648b8	intermediate	35724	d46d38ef08b1a357177b284a0fa948326f00299697761f877fd7539b0794e2e6	claude-haiku-4-5	17b42e14e8e07e84	None
+RUN	post6-N-r20.json	t	20	1	1	0	0	dc06ac0502b02f3378f5844c1e389942b5a9eb6ea2e38c07faafea8556da0e8f	intermediate	9068	9d1fc7db1a7661785689ebdd4cc42246c436597d3a8a4d29c6a4add42dfb93f6	claude-haiku-4-5	ebb3c97261955a39	None
+RUN	post7-Q-r20.json	t	20	13	10	3	1	dc06ac0502b02f3378f5844c1e389942b5a9eb6ea2e38c07faafea8556da0e8f	intermediate	63893	0f398b73d0413a3a40beb109d8dd9fcec4dc8c7dca34542719b8c7da02a45715	claude-haiku-4-5	a27bd94a937d2d0b	None
+RUN	post8-R-r20.json	t	20	6	4	2	0	e8894455887662130d1663d67e4e1f3c2d37d388a06564603a4997c1d8fd32ca	current	31747	1eeb8758d7bf0d71c1404ca41a1605f05ad7f54639dbbd61f0d870b204828159	claude-haiku-4-5	69662c15d14eb8ff	None
+RUN	post9-S-r20.json	t	20	5	4	1	0	f2be61697823bb97b4068fdeef18a96cc06a6ea145b408c0dae81abdb98258ec	intermediate	27193	13debcaea985e875d83d53f336db5753cf4936f6ae4b8d2cf106a611abc88640	claude-haiku-4-5	5342ec474d98e8db	None
+RUN	post10-T-r10.json	t	10	10	10	0	0	e8894455887662130d1663d67e4e1f3c2d37d388a06564603a4997c1d8fd32ca	current	29939	c2b30ed44e9bc7179cee51f04616744d7c9059a17ff5614f0f3074bcea233c2c	claude-haiku-4-5	67c2bb081c87660c	None
+RUN	post11-U-r20.json	t	20	1	0	1	0	e8894455887662130d1663d67e4e1f3c2d37d388a06564603a4997c1d8fd32ca	current	9043	276e2a079a04483c5f36ef7923da4e66ca78f3a285dc52dce8c80b5073f2c555	claude-haiku-4-5	c2cd44e2f6048553	None
+RUN	iso-X-settled-r20.json	t	20	1	0	1	0	e8894455887662130d1663d67e4e1f3c2d37d388a06564603a4997c1d8fd32ca	current	9112	a8fa0a73f22c766b18601f5937eb1c48e4d5c6f220a751fe558fac4ed9890811	claude-haiku-4-5	c2cd44e2f6048553	None
+RUN	post-B-r3.json	t	3	69	67	2	1	31c9a686e0c54cafa33a6594fe7a9ea7e24e16ca481bc2fd2d8f16f89e938a7e	intermediate	80907	fd133dc94a793ae8a900dc8ff74fbfaf8a0c39f8dd6282140718f0b08f9bcc44	claude-haiku-4-5	697a7a4101a70618	None
+RUN	post2-B-r3.json	t	3	69	67	2	0	c8bb194bc4e1d7e36cf8f394444bcdd7184b007269e7e41b32d34241f96240be	intermediate	80900	936e1e23c412adc0460e7ea053ec9ca3356386b4c3a1cc5f6985c240b9620cfe	claude-haiku-4-5	697a7a4101a70618	None
+RUN	iso-Y-prd-reverted-r20.json	i	20	1	0	1	0	4175fed1c13c81e9f762974f094a07bf17d597bca02cbc14e11a5158e5b51c58	isolation	9090	3bd454b95d2d1c3185b38835854af72cea62ac479f97d20c52eb8211e9b0c2c4	claude-haiku-4-5	c2cd44e2f6048553	None
+
+# MEASUREMENT	case	arm	run	hits	valid	status	candidate	rivals
+MEASUREMENT	ctrl-unit-test	c	pre-A-r10.json	10	10	PASS	base	-
+MEASUREMENT	ctrl-feature	c	pre-A-r10.json	10	10	PASS	base	-
+MEASUREMENT	skip-miniapp-build	c	pre-A-r10.json	6	10	FAIL	base	none=4
+MEASUREMENT	new-deprecation	c	pre-A-r10.json	10	10	PASS	base	-
+MEASUREMENT	route-testcase-bare-colloquial	c	pre-A-r10.json	8	10	FAIL	base	none=2
+MEASUREMENT	p3-resume-refactor	c	pre-A-r10.json	1	10	FAIL	base	none=9
+MEASUREMENT	p3-perf-plus-regression	c	pre-A-r10.json	5	10	FAIL	base	none=5
+MEASUREMENT	p3-spec-then-tc	c	pre-A-r10.json	7	7	PASS	base	-
+MEASUREMENT	p3-log-plus-test	c	pre-A-r10.json	1	7	FAIL	base	none=5,product-rd-workflow=1
+MEASUREMENT	ab-c3	c	pre-A-r10.json	10	10	PASS	base	-
+MEASUREMENT	ab-b3	c	pre-A-r10.json	10	10	PASS	base	-
+MEASUREMENT	ab-b5	c	pre-A-r10.json	8	10	FAIL	base	none=2
+MEASUREMENT	ab-d6	c	pre-A-r10.json	9	10	FAIL	base	product-rd-workflow=1
+MEASUREMENT	ab-n2	c	pre-A-r10.json	9	10	FAIL	base	none=1
+MEASUREMENT	p3-spec-then-tc	c	pre-A2-r10.json	7	10	FAIL	base	requirement-doc-writer=3
+MEASUREMENT	p3-log-plus-test	c	pre-A2-r10.json	5	10	FAIL	base	nodejs-service-dev=1,none=3,python-service-dev=1
+MEASUREMENT	miss-refactor-servicewide	c	ctrl-C-pre-r10.json	10	10	PASS	base	-
+MEASUREMENT	ab-c5	c	ctrl-C-pre-r10.json	8	10	FAIL	base	grill-me=2
+MEASUREMENT	ab-c5	c	ctrl-D-pre-r10.json	8	10	FAIL	base	grill-me=2
+MEASUREMENT	ab-n3	c	ctrl-D-pre-r10.json	10	10	PASS	base	-
+MEASUREMENT	route-opencode-project-config	c	ctrl-E-pre-r10.json	10	10	PASS	base	-
+MEASUREMENT	skip-pytest-cmd	c	ctrl-F-pre-r10.json	8	10	FAIL	base	none=2
+MEASUREMENT	ctrl-ai-risk	c	ctrl-F-pre-r10.json	8	10	FAIL	base	none=2
+MEASUREMENT	miss-refactor-python-unqualified	c	ctrl-F-pre-r10.json	7	10	FAIL	base	product-rd-workflow=3
+MEASUREMENT	ab-b5	c	ctrl-G-r20.json	16	20	FAIL	base	none=4
+MEASUREMENT	variant-neg-release-watch-sop	c	ctrl-H-r20.json	19	20	FAIL	base	platform-observability=1
+MEASUREMENT	mem-api-log-redact	c	ctrl-I-r20.json	19	20	FAIL	base	defect-diagnosis=1
+MEASUREMENT	mem-api-log-redact	c	ctrl-J-r20.json	20	20	PASS	base	-
+MEASUREMENT	miss-refactor-python-unqualified	c	ctrl-J-r20.json	13	20	FAIL	base	none=3,product-rd-workflow=4
+MEASUREMENT	ab-b5	c	ctrl-J-r20.json	14	20	FAIL	base	none=6
+MEASUREMENT	variant-neg-release-watch-sop	c	ctrl-J-r20.json	18	20	FAIL	base	release-coordination=2
+MEASUREMENT	route-python-eventdriven-arch	c	ctrl-J-r20.json	20	20	PASS	base	-
+MEASUREMENT	route-go-multitenant-arch	c	ctrl-J-r20.json	20	20	PASS	base	-
+MEASUREMENT	route-nodejs-service-impl	c	ctrl-J-r20.json	20	20	PASS	base	-
+MEASUREMENT	route-nodejs-cli-not-terminal	c	ctrl-J-r20.json	20	20	PASS	base	-
+MEASUREMENT	route-nodejs-multistage-to-product-rd	c	ctrl-J-r20.json	20	20	PASS	base	-
+MEASUREMENT	route-nodejs-architecture-not-go-python	c	ctrl-J-r20.json	13	20	FAIL	base	go-microservice-architecture=1,none=6
+MEASUREMENT	ctrl-feature	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	miss-refactor-servicewide	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	miss-restart	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	new-tighten-vs-owner	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	new-redo-variant	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	new-deprecation	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	new-feasibility-capability	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	p3-feat-plus-perf	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	p3-transition-impl	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	p3-resume-refactor	c	ctrl-K-r10.json	0	10	FAIL	base	none=10
+MEASUREMENT	p3-iteration-coordinate	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	p3-spec-then-tc	c	ctrl-K-r10.json	7	10	FAIL	base	requirement-doc-writer=2,requirement-intent=1
+MEASUREMENT	p3-log-plus-test	c	ctrl-K-r10.json	2	10	FAIL	base	nodejs-service-dev=1,none=7
+MEASUREMENT	mem-reuse-vs-greenfield	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	mem-plan-gate-miss	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	route-tech-plan-effort-doc	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	route-change-worth-fixing-verdict	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	miss-refactor-python-unqualified	c	ctrl-K-r10.json	6	10	FAIL	base	none=2,product-rd-workflow=2
+MEASUREMENT	ab-d6	c	ctrl-K-r10.json	8	10	FAIL	base	none=2
+MEASUREMENT	var-neg-product-shortcut-feature	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	gap-rust-service	c	ctrl-K-r10.json	1	10	PASS	base	none=9
+MEASUREMENT	gap-windows-desktop	c	ctrl-K-r10.json	8	10	PASS	base	none=2
+MEASUREMENT	route-nodejs-multistage-to-product-rd	c	ctrl-K-r10.json	10	10	PASS	base	-
+MEASUREMENT	route-nodejs-architecture-not-go-python	c	ctrl-K-r10.json	6	10	FAIL	base	none=4
+MEASUREMENT	miss-refactor-python-unqualified	c	ctrl-L-r20.json	17	20	FAIL	base	none=2,product-rd-workflow=1
+MEASUREMENT	ctrl-unit-test	t	post-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	ctrl-feature	t	post-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	skip-miniapp-build	t	post-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	new-deprecation	t	post-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	route-testcase-bare-colloquial	t	post-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-resume-refactor	t	post-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-perf-plus-regression	t	post-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-spec-then-tc	t	post-A-r10.json	7	10	FAIL	intermediate	requirement-doc-writer=3
+MEASUREMENT	p3-log-plus-test	t	post-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	ab-c3	t	post-A-r10.json	8	10	FAIL	intermediate	requirement-doc-writer=2
+MEASUREMENT	ab-b3	t	post-A-r10.json	9	10	FAIL	intermediate	none=1
+MEASUREMENT	ab-b5	t	post-A-r10.json	8	9	FAIL	intermediate	none=1
+MEASUREMENT	ab-d6	t	post-A-r10.json	9	9	PASS	intermediate	-
+MEASUREMENT	ab-n2	t	post-A-r10.json	9	10	FAIL	intermediate	none=1
+MEASUREMENT	ctrl-unit-test	t	post2-A-r10.json	9	10	FAIL	intermediate	none=1
+MEASUREMENT	ctrl-feature	t	post2-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	skip-miniapp-build	t	post2-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	new-deprecation	t	post2-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	route-testcase-bare-colloquial	t	post2-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-resume-refactor	t	post2-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-perf-plus-regression	t	post2-A-r10.json	9	10	FAIL	intermediate	none=1
+MEASUREMENT	p3-spec-then-tc	t	post2-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-log-plus-test	t	post2-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	ab-c3	t	post2-A-r10.json	8	10	FAIL	intermediate	requirement-doc-writer=2
+MEASUREMENT	ab-b3	t	post2-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	ab-b5	t	post2-A-r10.json	5	10	FAIL	intermediate	none=5
+MEASUREMENT	ab-d6	t	post2-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	ab-n2	t	post2-A-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	miss-refactor-servicewide	t	post-C-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	ab-c5	t	post-C-r10.json	6	9	FAIL	intermediate	grill-me=3
+MEASUREMENT	ab-c5	t	post-D-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	ab-n3	t	post-D-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	route-opencode-project-config	t	post-E-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	skip-pytest-cmd	t	post-F-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	ctrl-ai-risk	t	post-F-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	miss-refactor-python-unqualified	t	post-F-r10.json	9	10	FAIL	intermediate	none=1
+MEASUREMENT	ab-b5	t	post2-G-r20.json	17	20	FAIL	intermediate	none=3
+MEASUREMENT	variant-neg-release-watch-sop	t	post2-H-r20.json	17	20	FAIL	intermediate	release-coordination=3
+MEASUREMENT	mem-api-log-redact	t	post2-I-r20.json	19	20	FAIL	intermediate	defect-diagnosis=1
+MEASUREMENT	mem-api-log-redact	t	post3-J-r20.json	19	20	FAIL	intermediate	defect-diagnosis=1
+MEASUREMENT	miss-refactor-python-unqualified	t	post3-J-r20.json	18	20	FAIL	intermediate	none=1,product-rd-workflow=1
+MEASUREMENT	ab-b5	t	post3-J-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	variant-neg-release-watch-sop	t	post3-J-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	route-python-eventdriven-arch	t	post3-J-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	route-go-multitenant-arch	t	post3-J-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	route-nodejs-service-impl	t	post3-J-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	route-nodejs-cli-not-terminal	t	post3-J-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	route-nodejs-multistage-to-product-rd	t	post3-J-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	route-nodejs-architecture-not-go-python	t	post3-J-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ctrl-feature	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	miss-refactor-servicewide	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	miss-restart	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	new-tighten-vs-owner	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	new-redo-variant	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	new-deprecation	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	new-feasibility-capability	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-feat-plus-perf	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-transition-impl	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-resume-refactor	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-iteration-coordinate	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	p3-spec-then-tc	t	post4-K-r10.json	7	10	FAIL	intermediate	requirement-doc-writer=2,requirement-intent=1
+MEASUREMENT	p3-log-plus-test	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	mem-reuse-vs-greenfield	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	mem-plan-gate-miss	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	route-tech-plan-effort-doc	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	route-change-worth-fixing-verdict	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	miss-refactor-python-unqualified	t	post4-K-r10.json	4	10	FAIL	intermediate	none=3,product-rd-workflow=2,python-service-dev=1
+MEASUREMENT	ab-d6	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	var-neg-product-shortcut-feature	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	gap-rust-service	t	post4-K-r10.json	6	10	PASS	intermediate	none=4
+MEASUREMENT	gap-windows-desktop	t	post4-K-r10.json	9	10	PASS	intermediate	none=1
+MEASUREMENT	route-nodejs-multistage-to-product-rd	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	route-nodejs-architecture-not-go-python	t	post4-K-r10.json	10	10	PASS	intermediate	-
+MEASUREMENT	miss-refactor-python-unqualified	t	post4-L-r20.json	17	20	FAIL	intermediate	none=2,product-rd-workflow=1
+MEASUREMENT	skip-miniapp-build	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	p3-perf-plus-regression	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-c5	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-b5	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-n2	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-n3	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	variant-neg-release-watch-sop	t	post5-M-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	mem-api-log-redact	t	post6-N-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	skip-miniapp-build	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	p3-resume-refactor	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	p3-perf-plus-regression	t	post7-Q-r20.json	17	19	FAIL	intermediate	go-microservice-dev=1,none=1
+MEASUREMENT	p3-spec-then-tc	t	post7-Q-r20.json	13	20	FAIL	intermediate	none=1,requirement-doc-writer=4,requirement-intent=2
+MEASUREMENT	p3-log-plus-test	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	mem-api-log-redact	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-c5	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-b5	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-d6	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-n2	t	post7-Q-r20.json	19	20	FAIL	intermediate	none=1
+MEASUREMENT	ab-n3	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	variant-neg-release-watch-sop	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	route-nodejs-architecture-not-go-python	t	post7-Q-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	p3-transition-impl	t	post8-R-r20.json	20	20	PASS	current	-
+MEASUREMENT	p3-perf-plus-regression	t	post8-R-r20.json	20	20	PASS	current	-
+MEASUREMENT	p3-spec-then-tc	t	post8-R-r20.json	15	20	FAIL	current	none=1,requirement-doc-writer=4
+MEASUREMENT	ab-c3	t	post8-R-r20.json	19	20	FAIL	current	requirement-doc-writer=1
+MEASUREMENT	ab-n2	t	post8-R-r20.json	20	20	PASS	current	-
+MEASUREMENT	probe-implementation-transition-no-approval	t	post8-R-r20.json	20	20	PASS	current	-
+MEASUREMENT	p3-transition-impl	t	post9-S-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	p3-spec-then-tc	t	post9-S-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	ab-c3	t	post9-S-r20.json	15	20	FAIL	intermediate	none=1,requirement-doc-writer=4
+MEASUREMENT	ab-n1	t	post9-S-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	probe-implementation-transition-no-approval	t	post9-S-r20.json	20	20	PASS	intermediate	-
+MEASUREMENT	skip-miniapp-build	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	p3-resume-refactor	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	p3-log-plus-test	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	mem-api-log-redact	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	ab-c5	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	ab-b5	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	ab-d6	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	ab-n3	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	variant-neg-release-watch-sop	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	route-nodejs-architecture-not-go-python	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	miss-refactor-python-unqualified	t	post11-U-r20.json	13	20	FAIL	current	none=4,product-rd-workflow=2,python-service-dev=1
+MEASUREMENT	miss-refactor-python-unqualified	t	iso-X-settled-r20.json	18	20	FAIL	current	none=1,product-rd-workflow=1
+MEASUREMENT	miss-refactor-python-unqualified	i	iso-Y-prd-reverted-r20.json	14	20	FAIL	isolation	none=1,product-rd-workflow=4,python-service-dev=1

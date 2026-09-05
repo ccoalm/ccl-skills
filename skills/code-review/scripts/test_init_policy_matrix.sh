@@ -146,8 +146,8 @@ register_mutation() {
 # SPECIFIC rejection reason in its stderr.
 self_check_stderr="$tmp_dir/guard_self_check.err"
 if mutate_and_expect_mismatch guard-self-check-broken-mutant \
-  'def is_bare_host_identifier(identifier: str) -> bool:' \
-  'def is_bare_host_identifier(identifier: str) -> bool  # deliberately broken' \
+  'def is_authority_name(name: str) -> bool:' \
+  'def is_authority_name(name: str) -> bool  # deliberately broken' \
   >/dev/null 2>"$self_check_stderr"
 then
   printf 'the walk accepted a BROKEN mutant as sensitivity; its own guard does not work, so every result below is meaningless\n' >&2
@@ -178,104 +178,39 @@ register_mutation drop-field-name-sanitizer \
   '    text = name if isinstance(name, str) else repr(name)' \
   '    return name if isinstance(name, str) else repr(name)'
 
-# The two directions of the host-vocabulary class. Both must be detectable, and
-# they fail for opposite reasons: widening it launders a proven customization
-# into the cascadable class, while removing it restores the total-outage
-# behaviour this class exists to prevent.
-register_mutation widen-host-vocabulary-to-any-entry \
-  '    return bool(BARE_HOST_IDENTIFIER.fullmatch(identifier))' \
-  '    return True'
+# The MCP list is the one customization surface still required to be empty;
+# dropping that requirement must flip every declared-mcp row.
+register_mutation drop-mcp-empty-requirement \
+  'REQUIRED_EMPTY_INIT_FIELDS = (
+    "mcp_servers",
+)' \
+  'REQUIRED_EMPTY_INIT_FIELDS = ()'
 
-register_mutation terminalize-host-vocabulary \
-  '    return bool(BARE_HOST_IDENTIFIER.fullmatch(identifier))' \
-  '    return False'
+# Vocabulary must stay data. Reading a populated skill/command/plugin list as a
+# breach is exactly the outage class policy G removed -- a new host built-in or
+# an installed plugin took the reviewer lane down while proving nothing -- so
+# the oracle must see the class come back.
+register_mutation judge-vocabulary-as-capability \
+  '            elif field in KNOWN_VOCABULARY_INIT_FIELDS:
+                # Vocabulary, not capability: any value, any shape. Whatever a
+                # CLI release or an installed plugin lists here cannot be
+                # invoked past the pinned `tools` set.
+                continue' \
+  '            elif field in KNOWN_VOCABULARY_INIT_FIELDS:
+                if isinstance(value, (list, dict)) and value:
+                    nonempty.add(field)'
 
-# Dynamic host command vocabulary is useful only if both halves are enforced:
-# the baseline must affect the allow decision, and its CLI version must bind the
-# formal init. Baseline skills are deliberately not authority because a leaked
-# user skill would otherwise become callable in the formal run.
-register_mutation drop-host-baseline-vocabulary \
-  '                        if customization_entry_allowed(
-                            field,
-                            entry,
-                            expected_native_skills,
-                            baseline_commands,
-                            baseline_skills,
-                        ):' \
-  '                        if customization_entry_allowed(
-                            field,
-                            entry,
-                            expected_native_skills,
-                            set(),
-                            set(),
-                        ):'
-
-register_mutation authorize-host-baseline-skill \
-  '            identifier in KNOWN_SAFE_BUILTIN_SKILLS
-            or identifier in selected_names' \
-  '            identifier in KNOWN_SAFE_BUILTIN_SKILLS
-            or identifier in baseline_skills
-            or identifier in selected_names'
-
-register_mutation drop-host-baseline-required-empty-check \
-  '        if field not in HOST_VOCABULARY_FIELDS and init_event.get(field) != []:' \
-  '        if field not in HOST_VOCABULARY_FIELDS and False:'
-
-register_mutation widen-host-baseline-to-namespaced-entries \
-  '            or any(
-                identifier not in known_host_identifiers
-                and not is_bare_host_identifier(identifier)
-                for identifier in identifiers
-            )' \
-  '            or any(identifier == "<unidentified>" for identifier in identifiers)'
-
-register_mutation drop-host-baseline-version-binding \
-  '        if baseline_version is not None and ev.get("claude_code_version") != baseline_version:
-            # The two invocations no longer prove one same-version host
-            # vocabulary snapshot. Refuse this lane, but treat the mismatch as
-            # capability drift rather than a proven tool/authority breach so a
-            # different reviewer may continue.
-            unknown_fields.add("claude_code_version:host-baseline-mismatch")' \
-  '        if False:
-            unknown_fields.add("claude_code_version:host-baseline-mismatch")'
-
-# The shape gate. Dropping it lets a structured entry be judged on its `name`
-# alone, which reaches TOLERATED when that name is an allowed built-in -- the
-# most severe class in this file, so it needs its own mutant rather than riding
-# on the bare-identifier one.
-register_mutation drop-whole-value-gate \
-  '                        if field in HOST_VOCABULARY_FIELDS and (
-                            not host_entry_is_whole(entry, identifier)
-                        ):' \
-  '                        if False:'
-
-# ...and the weaker version of the same gate: checking only the SHAPE (a plain
-# string) while still judging a truncated token. This is what the gate looked
-# like before the third finding, so it must be detectable on its own.
-register_mutation weaken-whole-value-gate-to-shape-only \
-  '    normalized = entry.lower()
-    if normalized.startswith("/"):
-        normalized = normalized[1:]
-    return normalized == identifier' \
-  '    return True'
-
-# The regression a round-9 review found in the gate itself: stripping before the
-# comparison re-introduces the lossiness the gate exists to reject, and wrapping
-# an ALLOWLISTED name in whitespace then reaches TOLERATED.
-register_mutation strip-before-the-whole-value-comparison \
-  '    normalized = entry.lower()' \
-  '    normalized = entry.strip().lower()'
-
-register_mutation drop-host-vocabulary-breach-guard \
-  '        if unclassifiable_vocabulary and not surface_breached:' \
-  '        if unclassifiable_vocabulary:'
-
-# The two parse paths implement the class separately, so each needs its own
-# mutant: dropping it from the main-invocation predicate leaves the probe path
-# correct, which is exactly the shape of divergence this oracle exists to catch.
-register_mutation drop-host-vocabulary-from-main-path \
-  'runtime_drift_only = bool(unknown or unverifiable or vocabulary) and not (' \
-  'runtime_drift_only = bool(unknown or unverifiable) and not ('
+# ...and the softer misreading: vocabulary as schema drift. Same outage, one
+# client switch cheaper, still wrong.
+register_mutation drift-on-vocabulary \
+  '            elif field in KNOWN_VOCABULARY_INIT_FIELDS:
+                # Vocabulary, not capability: any value, any shape. Whatever a
+                # CLI release or an installed plugin lists here cannot be
+                # invoked past the pinned `tools` set.
+                continue' \
+  '            elif field in KNOWN_VOCABULARY_INIT_FIELDS:
+                if isinstance(value, (list, dict)) and value:
+                    unknown_fields.add(field)'
 
 # Dispatch the registered walk with bounded concurrency. The mutants are
 # independent by construction: each writes its own `mutant_<name>.py` copy under

@@ -1,6 +1,6 @@
 ---
 name: requirement-doc-writer
-description: 写 PRD / 需求文档 / 产品需求文档 / 需求说明 / user story 文档 / 验收标准文档 / 产品需求正文 —— 在 lifecycle 判定 PRD Ready 之后，把已关闭的需求组装成人读的 PRD。Skip 需求实质不清 → requirement-intent；缺现状事实 → requirement-baseline；范围/版本切片/开放决策未关闭 → requirement-scope；Agent/Machine 技术规格 → llm-inference-integration；其评测与测试层 → testing-strategy；只是润色措辞 → tighten-doc。
+description: 写 PRD / 需求文档 / 产品需求文档 / 需求说明 / user story 文档 / 验收标准文档 / 产品需求正文 —— 在 lifecycle 判定 PRD Ready 之后，把已关闭的需求组装成人读的 PRD。Skip 需求实质不清 → requirement-intent；缺现状事实 → requirement-baseline；范围/版本切片/开放决策未关闭 → requirement-scope；Agent/Machine 技术规格 → llm-inference-integration；其评测与测试层 → testing-strategy；只是润色措辞 → tighten-doc；写完 PRD 还要接着往下做的多阶段研发交付·实现/发布计划 → product-rd-workflow。
 ---
 
 # Requirement Doc Writer

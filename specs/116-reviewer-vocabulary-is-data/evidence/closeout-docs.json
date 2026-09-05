@@ -1,0 +1,177 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "04e0c25851ec3baec359bf1fa0db5bc6e7527a4b9ec454d9e38e3a0d470df610",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "ledger-docs-round1-review.json",
+      "sha256": "ba2de5903696e997171c151b39fb58160091803becdfacf8ad9ef4381d3fa523"
+    },
+    {
+      "sequence": 2,
+      "file": "ledger-docs-round2-challenge.json",
+      "sha256": "488a379da170f10494a76622c9a339d161ca3a9496881e5013b9a1363472eee5"
+    },
+    {
+      "sequence": 3,
+      "file": "ledger-docs-round3-succession-challenge.json",
+      "sha256": "55061189e733c2f7418afed6454f067574b616569a82418c567ad50085acd3b0"
+    }
+  ],
+  "completion_receipt": null,
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "4d7f5c271f154a497f8c0ca34a1b1088068d4415",
+      "confirmed_at": "2026-09-05T17:06:20Z",
+      "controller_receipt_sha256": "ba2de5903696e997171c151b39fb58160091803becdfacf8ad9ef4381d3fa523",
+      "evidence_file": "ledger-base-attestation-1.txt",
+      "evidence_sha256": "3edf8d23fa5dd8f092cc689ef857ea3dded989b9ba61ddb971d7a5b31c348b60"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "4d7f5c271f154a497f8c0ca34a1b1088068d4415",
+      "confirmed_at": "2026-09-05T17:06:23Z",
+      "controller_receipt_sha256": "488a379da170f10494a76622c9a339d161ca3a9496881e5013b9a1363472eee5",
+      "evidence_file": "ledger-base-attestation-1.txt",
+      "evidence_sha256": "3edf8d23fa5dd8f092cc689ef857ea3dded989b9ba61ddb971d7a5b31c348b60"
+    },
+    {
+      "sequence": 3,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "4d7f5c271f154a497f8c0ca34a1b1088068d4415",
+      "confirmed_at": "2026-09-05T17:06:30Z",
+      "controller_receipt_sha256": "55061189e733c2f7418afed6454f067574b616569a82418c567ad50085acd3b0",
+      "evidence_file": "ledger-base-attestation-1.txt",
+      "evidence_sha256": "3edf8d23fa5dd8f092cc689ef857ea3dded989b9ba61ddb971d7a5b31c348b60"
+    }
+  ],
+  "autonomous_round": 3,
+  "controller_review_state": "findings_pending",
+  "finding_classes": [
+    {
+      "key": "stale-baseline-paragraph",
+      "root_cause_predicate": "The docs sweep grepped for the mechanism's names (host-vocabulary, unclassifiable, KNOWN_SAFE_BUILTIN, host-init-baseline) but not for the bare word baseline, so a paragraph in client-routing.md that described the deleted baseline invocation by that word alone survived the rewrite.",
+      "affected_surface": "skills/code-review/references/client-routing.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "ba2de5903696e997171c151b39fb58160091803becdfacf8ad9ef4381d3fa523",
+          "finding_sha256": "b5e53fca90143de774e283f8d4ed68af6d3d15bd02de329a1157dd8f483778cc",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-docs-r1-f0-stale-baseline-paragraph-1.json",
+          "disposition_evidence_sha256": "aadd46b008ccca5dae4114ec60281a936b8a23b673e58a7d7351264b3ae9ec40"
+        },
+        {
+          "receipt_sha256": "488a379da170f10494a76622c9a339d161ca3a9496881e5013b9a1363472eee5",
+          "finding_sha256": "131c5aef097bb14651cbdb41445a34a4d78a632f2330de902adb11fbe8fc87f2",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-docs-r2-f0-stale-baseline-paragraph-2.json",
+          "disposition_evidence_sha256": "c00a5f6e0217f49bac52532c95b68b4f94ef3c9fbf9d754c3296f75982d930d2"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "mandatory-plugin-dir-sentences",
+      "root_cause_predicate": "Three contract surfaces (SKILL.md, manual-invocation-and-prompts.md, staged-review-contract.md) each carried an older sentence stating that owner-aware runs require the explicit --plugin-dir; the rewrite updated the surrounding paragraphs but left these sentences, so the references contradicted the degraded path the wrapper suite asserts.",
+      "affected_surface": "skills/code-review/SKILL.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "ba2de5903696e997171c151b39fb58160091803becdfacf8ad9ef4381d3fa523",
+          "finding_sha256": "72234345d023f92ccfd56cab0b32a4acd06aa8b8e1c68bef38368e1a2e6394fe",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-docs-r1-f1-mandatory-plugin-dir-sentences-1.json",
+          "disposition_evidence_sha256": "b77a9811284a6079071dbaff1f0920d3efaff9af777a7c09b6bee77278808c4b"
+        },
+        {
+          "receipt_sha256": "ba2de5903696e997171c151b39fb58160091803becdfacf8ad9ef4381d3fa523",
+          "finding_sha256": "c18c9dfd490db7d96f55714de386c63419fe6d7d665081e96b2af52de4f285bb",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-docs-r1-f2-mandatory-plugin-dir-sentences-2.json",
+          "disposition_evidence_sha256": "678a40c7064ab6323e1f847aedf4d2cc0a2f60030defe474b16ecd69a0ec47db"
+        },
+        {
+          "receipt_sha256": "488a379da170f10494a76622c9a339d161ca3a9496881e5013b9a1363472eee5",
+          "finding_sha256": "a201f6bf6fee002212b69c5b7dcc2da95d913c04c5ba5b69cb1ff42a271f3b20",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-docs-r2-f1-mandatory-plugin-dir-sentences-3.json",
+          "disposition_evidence_sha256": "96db43872ba3df9fe5ba5c19bd2f2ddd29d7b7d03487350441925107c5f542ec"
+        },
+        {
+          "receipt_sha256": "488a379da170f10494a76622c9a339d161ca3a9496881e5013b9a1363472eee5",
+          "finding_sha256": "d0c961e6b127e3ec56688a60c092cc5cc658750e3b0e931180e19da2dcd4fad3",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-docs-r2-f2-mandatory-plugin-dir-sentences-4.json",
+          "disposition_evidence_sha256": "52c5653946f00ef5bad39aad9aec9731504e96fef39121834dc1ee264623ef55"
+        }
+      ],
+      "authoritative_sweep": {
+        "candidate_sha256": "04e0c25851ec3baec359bf1fa0db5bc6e7527a4b9ec454d9e38e3a0d470df610",
+        "manifest_file": "sweep-docs-mandatory-plugin-dir-sentences.json",
+        "manifest_sha256": "51bce4288ad56db9625556d1ce74803961ba573ceddbaadb4837ef3ef51013df",
+        "searched_set": [
+          "skills/code-review/SKILL.md",
+          "skills/code-review/references/client-routing.md",
+          "skills/code-review/references/manual-invocation-and-prompts.md",
+          "skills/code-review/references/staged-review-contract.md",
+          "skills/code-review/references/timeout-auth-and-capabilities.md",
+          "skills/code-review/scripts/AGENTS.md",
+          "skills/code-review/scripts/runtime-surface-verification-design.md"
+        ],
+        "unmatched_instances": 1
+      }
+    },
+    {
+      "key": "invocation-count-contradiction",
+      "root_cause_predicate": "client-routing.md described the wrapper as making exactly one model invocation while SKILL.md kept the two-invocation cap; the cap is correct (the formal invocation is retried at most once on a non-conforming envelope) and the new client-routing.md sentence was the inaccurate side.",
+      "affected_surface": "skills/code-review/references/client-routing.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "ba2de5903696e997171c151b39fb58160091803becdfacf8ad9ef4381d3fa523",
+          "finding_sha256": "ccada25a888d25a3f15e84dcc0350d2817073053d2f964cf9590a41a992fb72d",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-docs-r1-f3-invocation-count-contradiction-1.json",
+          "disposition_evidence_sha256": "02ade2929f0b7c3e58d6fa520c3784a1b162a822d3284a5cbe815206a7ccb93b"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "command-isolation-in-fail-closed-list",
+      "root_cause_predicate": "The fail-closed isolation lists in manual-invocation-and-prompts.md and SKILL.md still named command isolation, which the wrapper no longer requires (--disable-slash-commands is passed only when the CLI offers it).",
+      "affected_surface": "skills/code-review/references/manual-invocation-and-prompts.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "488a379da170f10494a76622c9a339d161ca3a9496881e5013b9a1363472eee5",
+          "finding_sha256": "21e1e369731fcd661ca4f3b6c765fb2096a232ad32cdeb1c5e16712519c79db5",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-docs-r2-f3-command-isolation-in-fail-closed-list-1.json",
+          "disposition_evidence_sha256": "6832c20a7ba431f1aa7c6cef999b8040c0bf224395e5f54cba68c637f61eadad"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "retry-statement-versus-single-invocation-claims",
+      "root_cause_predicate": "The succession challenge read the retry sentence in client-routing.md against the review plan's acceptance wording (exactly one model invocation) and the probe suite's one-invocation assertion, neither of which is in the docs packet in a form that shows the retry path; the wrapper does retry once, so the sentence is accurate and the plan wording was the imprecise side.",
+      "affected_surface": "skills/code-review/references/client-routing.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "55061189e733c2f7418afed6454f067574b616569a82418c567ad50085acd3b0",
+          "finding_sha256": "eea466591a801b1217694e416e07ac0d60e8a31793c9d2cb55444ed37ca7c9ec",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-docs-r3-f0-retry-statement-versus-single-invocation-claims-1.json",
+          "disposition_evidence_sha256": "e22492a908943d611d83d8508cd58c95a4214b8ccbf1247e75b6e96a3981d309"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "continuation_authorization_required"
+}
