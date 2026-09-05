@@ -1,0 +1,60 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "ca0a13a84afdc94ba4af5c3d5708b9e7cadecfa195d66705e8558c93b96f4387",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "ledger-code-round1-review.json",
+      "sha256": "4f98c95880db6535c8ddf6f12028179f128cdce63346d72a43cb79e39e9894ce"
+    },
+    {
+      "sequence": 2,
+      "file": "ledger-code-round2-challenge.json",
+      "sha256": "395e1364ec83de303e88064e157efdc1a6f5938f93ff0e057e2f0abfcb70769f"
+    }
+  ],
+  "completion_receipt": null,
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "4d7f5c271f154a497f8c0ca34a1b1088068d4415",
+      "confirmed_at": "2026-09-05T16:11:09Z",
+      "controller_receipt_sha256": "4f98c95880db6535c8ddf6f12028179f128cdce63346d72a43cb79e39e9894ce",
+      "evidence_file": "ledger-base-attestation-1.txt",
+      "evidence_sha256": "3edf8d23fa5dd8f092cc689ef857ea3dded989b9ba61ddb971d7a5b31c348b60"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "4d7f5c271f154a497f8c0ca34a1b1088068d4415",
+      "confirmed_at": "2026-09-05T16:11:12Z",
+      "controller_receipt_sha256": "395e1364ec83de303e88064e157efdc1a6f5938f93ff0e057e2f0abfcb70769f",
+      "evidence_file": "ledger-base-attestation-1.txt",
+      "evidence_sha256": "3edf8d23fa5dd8f092cc689ef857ea3dded989b9ba61ddb971d7a5b31c348b60"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "post_review_budget",
+  "finding_classes": [
+    {
+      "key": "plugin-hooks-under-safe-mode",
+      "root_cause_predicate": "A plugin loaded through --plugin-dir may carry a conventional hooks/hooks.json that the manifest-key check does not see; whether those hooks run in the reviewer depends on the CLI disabling plugin hooks under --safe-mode.",
+      "affected_surface": "skills/code-review/scripts/claude_review.sh",
+      "occurrences": [
+        {
+          "receipt_sha256": "395e1364ec83de303e88064e157efdc1a6f5938f93ff0e057e2f0abfcb70769f",
+          "finding_sha256": "df0a6d0af82b73b96bf6e254fe55f7df5e240d5623da9b261bb2a5ecd18f2bfa",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-code-r2-f0-plugin-hooks-under-safe-mode-1.json",
+          "disposition_evidence_sha256": "a9c478b51d8e8a66eb87d9f71bd1a33c994480111787ed5f527b82322ec09338"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "continuation_authorization_required"
+}

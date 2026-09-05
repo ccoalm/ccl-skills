@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "04e0c25851ec3baec359bf1fa0db5bc6e7527a4b9ec454d9e38e3a0d470df610",
+  "receipt_sha256": "ba2de5903696e997171c151b39fb58160091803becdfacf8ad9ef4381d3fa523",
+  "finding_sha256": "72234345d023f92ccfd56cab0b32a4acd06aa8b8e1c68bef38368e1a2e6394fe",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "ba2de5903696e997171c151b39fb58160091803becdfacf8ad9ef4381d3fa523",
+      "finding_sha256": "72234345d023f92ccfd56cab0b32a4acd06aa8b8e1c68bef38368e1a2e6394fe"
+    }
+  ],
+  "evidence": [
+    "Each sentence now states that --safe-mode is required while --plugin-dir is added only on the established binding path (verified registry, skills-only manifest), and that otherwise the run attests native_skill_binding=unavailable without it; the SKILL.md manifest paragraph that said a broader manifest fails closed before Claude starts was folded into the same sentence as not loaded.",
+    "claude_review.sh behaviour is unchanged by the fix: the probe suite's hooks-declaring manifest, stale registry and missing registry cases record no --plugin-dir in argv and an unavailable receipt; the entrypoint stayed within its word budget (entrypoint_word_budget_blocking_ok).",
+    "The succession challenge (chain 116-vocabulary-is-data-docs-r2, bound to landing candidate 04e0c258…) re-read the four targeted fixes and reported each landed; its single P2 concerned the retry wording and is dispositioned separately."
+  ]
+}
