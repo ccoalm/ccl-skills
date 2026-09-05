@@ -200,6 +200,8 @@ catalog = Dir[File.join(root, "skills", "*", "SKILL.md")].sort.map do |path|
   desc = desc[0, desc_budget] if desc_budget && desc.length > desc_budget
   "### #{name}\n#{desc}"
 end.compact.join("\n\n")
+# The set of names a verdict may legitimately select; "none" is accepted separately.
+catalog_names = Dir[File.join(root, "skills", "*", "SKILL.md")].map { |path| File.basename(File.dirname(path)) }
 
 # --- optional always-on entry-routing layer -----------------------------------
 # The catalog above is the description-only surface. Hosts ALSO inject
@@ -409,6 +411,16 @@ tasks.each do |t|
       break
     end
     selected = parsed && parsed["selected_skill"]
+    # A parseable answer is not yet a usable observation. The prompt's contract is
+    # an exact catalog name or "none"; anything else -- a missing key, a name the
+    # catalog does not carry, a non-string -- is grader output that says nothing
+    # about routing, and counting it as a verdict would let it feed the per-case
+    # resolution floor exactly as a well-formed one does. It is an ERROR, not a
+    # FAIL: a FAIL is evidence against the route, this is absence of evidence.
+    if parsed && error.nil? && !(selected == "none" || catalog_names.include?(selected))
+      error = "invalid_selection: #{selected.inspect[0, 80]}"
+      parsed = nil
+    end
     clarify = parsed && parsed["clarify"] == true
     confidence = parsed && parsed["confidence"]
     v_status =

@@ -42,13 +42,15 @@ cannot be attributed to one of them. So the owner named in each row is *the owne
 was edited for that case*, not a measured cause, and the table should be read as a package result
 with a per-case interpretation attached.
 
-Two things keep that interpretation from being arbitrary, and neither is attribution: the case's
-expected owner has exactly one changed description, and no other changed owner appears anywhere in
-that case's observed distribution on either arm. One case does have a genuine single-variable A/B —
-`ab-c5` was measured on a four-edit tree (6/9) and on the same tree plus only the grill-me edit
-(10/10), which is the isolation the protocol asks for. The other ten were not split that way; eleven
-single-edit trees would be needed and were not run. That residual is the round's, not the
-reviewer's, and it is recorded rather than argued away.
+What keeps that interpretation from being arbitrary is narrower than an earlier draft claimed, and
+adversarial review is why. The draft asserted that no other edited owner appears in any claimed
+case's distribution; the tables refute it — `p3-spec-then-tc` selects the edited
+`requirement-doc-writer` on both arms, `p3-log-plus-test` selects the edited `product-rd-workflow` on
+the control arm, and `ab-c5`'s rival `grill-me` is itself the edited owner. So the only universal that
+holds is the weaker one: each claimed case's expected owner has exactly one changed description.
+Exactly one case carries real isolation — `ab-c5`, 6/9 on a four-edit tree and 10/10 on that tree
+plus only the grill-me edit. Every other per-case reading is an interpretation of a package result,
+and the register's supersede note is corrected to say the same.
 
 Arms taken on a superseded candidate are process data, not evidence for what lands. Rows marked
 `current` come from two runs on the settled tree: the ten-case final pass and the earlier probe that
@@ -73,11 +75,11 @@ no owner at all**. The three-replica baseline had labelled it the round's one co
 the paired ten-replica control shows it was worse than the label.
 
 **One check is not repeated on the settled tree and is recorded as a residual, not hidden in a
-sentence.** The whole-owner pass over all 24 `product-rd-workflow` cases was taken on catalog
+sentence.** The affected-owner pass — the 21 cases expecting `product-rd-workflow` plus three cases where it appeared as a rival, 24 in all — was taken on catalog
 `0e06c8a3…`, which the tables mark intermediate; the settled tree differs from it by one merged
-trigger on that same owner. Of those 24, the four that carry this round's claims were re-measured on
+trigger on that same owner. Of those 21 expecting the owner, the four that carry this round's claims were re-measured on
 the settled tree and hold; `miss-refactor-python-unqualified`, the one case where a must-not owner
-was ever selected, is re-measured there too and reported in full below. The other nineteen were not. Repeating the full pass
+was ever selected, is re-measured there too and reported in full below. The other seventeen were not, nor were the two rival cases whose owners are unchanged. Repeating the full pass
 costs about two hours of grader time and was not spent; the reader has the intermediate-tree
 numbers, the single-token delta, and the choice.
 

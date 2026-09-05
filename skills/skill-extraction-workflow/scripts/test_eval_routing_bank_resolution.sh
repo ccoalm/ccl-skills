@@ -185,6 +185,28 @@ ok = bool(d["results"]) and d["action_resolution"] is False and d["min_valid_obs
 sys.exit(0 if ok else 1)
 PYEOF
 
+# --- (2e) a parseable answer naming no catalog skill is not an observation ------
+# Review could not see from the packet whether a well-formed JSON verdict whose
+# selected_skill is not in the catalog counts toward the floor. It must not: it
+# is absence of evidence, not evidence against the route, so it is an ERROR
+# verdict and the case it belongs to stays short of the floor.
+cat > "$FAKE_BIN/claude" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+printf '{"selected_skill":"skill-that-does-not-exist","clarify":false,"confidence":0.9,"rationale_short":"fixture"}\n'
+EOF
+chmod +x "$FAKE_BIN/claude"
+rc=0
+ruby "$EVAL_SCRIPT" "$REPO" --replicas 10 --json "$TMP/badsel.json" >/dev/null 2>&1 || rc=$?
+python3 - "$TMP/badsel.json" <<'PYEOF' || fail "a parseable verdict naming a non-catalog skill must count as an error, not a usable observation"
+import json,sys
+d=json.load(open(sys.argv[1]))
+ok = d["action_resolution"] is False and d["min_valid_observations"] == 0 \
+     and all(r["valid_observations"] == 0 and r["actionable"] is False for r in d["results"]) \
+     and all(v["status"] == "ERROR" for r in d["results"] for v in r["verdicts"])
+sys.exit(0 if ok else 1)
+PYEOF
+
 # --- (3) the two sides of the number must agree -------------------------------
 # The rule is only as good as the agreement between the reference that states it
 # and the executable that enforces it. Compare the numbers themselves rather
