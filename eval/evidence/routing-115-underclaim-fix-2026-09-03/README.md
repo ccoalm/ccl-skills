@@ -12,15 +12,24 @@ excluded by the instrument rather than by assertion.
 
 ## What was fixed
 
-The two arms are whole trees, not isolated surfaces. Beyond the eleven descriptions they also
-differ in the runner, its reference, the test suite and the evidence files, because those landed in
-the same branch; the grader's input is the skill catalog plus the utterance, and the runner changes
-touched report fields, the printed banner and a test fixture, never prompt construction or verdict
-parsing. That is a claim a reader can check against the diff rather than take on trust, and it is
-the honest form of what an earlier draft called "trees that differ only in the routing surface".
+The two arms are whole trees, not isolated surfaces. Beyond the descriptions they also differ in the
+runner, its reference, the test suite and the evidence files, because those landed in the same
+branch; the grader's input is the skill catalog plus the utterance, and the runner changes touched
+report fields, the printed banner and test fixtures, never prompt construction or verdict parsing.
+That is checkable against the diff rather than taken on trust.
+
+**The treatment arms below were taken on catalog `0e06c8a3e604…`, and the tree these files sit
+beside is `dc06ac0502b0…`.** The two differ by exactly one thing: adversarial review found a trigger
+this round had removed on an unmeasured synonym argument, and restoring it changed the routing
+surface again — after the measurements. So the per-case numbers here are evidence about a candidate
+one restored trigger away from what lands, and `paired-measurements.tsv` marks them `intermediate`
+rather than `current`, which is how review found this. A final re-measurement on the landing tree is
+owed and is deliberately sequenced after review converges: this round has already voided three full
+measurement passes by editing after measuring, and the fix for that is to stop measuring until the
+wording stops moving, not to promise again that it has.
 
 **These deltas are the package's, not any single description's.** The control is this branch's base
-`1506dcf` and the treatment is the landing candidate `0e06c8a3e604…`, which carries all eleven
+`1506dcf` and the treatment is candidate `0e06c8a3e604…`, which carries all eleven
 edits; the rule this round itself lands says a comparison that moved several descriptions at once
 cannot be attributed to one of them. So the owner named in each row is *the owner whose description
 was edited for that case*, not a measured cause, and the table should be read as a package result
@@ -34,21 +43,19 @@ that case's observed distribution on either arm. One case does have a genuine si
 single-edit trees would be needed and were not run. That residual is the round's, not the
 reviewer's, and it is recorded rather than argued away.
 
-Arms taken on an intermediate candidate are void as evidence for what lands — a draft's pass count
-dies when the wording changes again — so every claim was re-measured on the landing candidate, seven
-cases at twenty replicas in a final pass. `paired-measurements.tsv` marks each row `base`,
-`intermediate` or `landing`; both this and the overclaim above were found by review reading that
-table, not the prose.
+Arms taken on a superseded candidate are process data, not evidence for what lands. The one case
+measured on the current tree is the negative control, which is 20/20 there; every other row
+marked `current` in the tables comes from that same run.
 
 | case | changed owner and its measured move | control | treatment |
 | --- | --- | --- | --- |
 | `p3-resume-refactor` | product-rd-workflow: p3-resume-refactor moved 0/10 to 10/10 | 0/10 | 10/10 |
 | `p3-log-plus-test` | platform-observability: p3-log-plus-test moved 2/10 to 10/10 | 2/10 | 10/10 |
 | `route-nodejs-architecture-not-go-python` | product-rd-workflow second trigger: route-nodejs-arch moved 6/10 to 10/10 | 6/10 | 10/10 |
-| `p3-perf-plus-regression` | defect-diagnosis: p3-perf-plus-regression moved 5/10 to 10/10 on the batch tree, 20/20 on the landing candidate | 5/10 | 20/20 |
-| `skip-miniapp-build` | miniapp-product-dev: skip-miniapp-build moved 6/10 to 10/10 on the batch tree, 20/20 on the landing candidate | 6/10 | 20/20 |
-| `ab-c5` | grill-me: ab-c5 moved 8/10 to 10/10 on the batch tree, 20/20 on the landing candidate | 8/10 | 20/20 |
-| `ab-n2` | platform-observability second trigger: ab-n2 moved 9/10 to 10/10 on the batch tree, 20/20 on the landing candidate | 9/10 | 20/20 |
+| `p3-perf-plus-regression` | defect-diagnosis: p3-perf-plus-regression moved 5/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 5/10 | 20/20 |
+| `skip-miniapp-build` | miniapp-product-dev: skip-miniapp-build moved 6/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 6/10 | 20/20 |
+| `ab-c5` | grill-me: ab-c5 moved 8/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 8/10 | 20/20 |
+| `ab-n2` | platform-observability second trigger: ab-n2 moved 9/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 9/10 | 20/20 |
 | `ab-d6` | requirement-scope: ab-d6 moved 8/10 to 10/10 | 8/10 | 10/10 |
 | `ab-b5` | requirement-baseline: ab-b5 moved 14/20 to 20/20 | 14/20 | 20/20 |
 | `variant-neg-release-watch-sop` | platform-release-engineering: release-watch moved 18/20 to 20/20 | 18/20 | 20/20 |
@@ -171,7 +178,7 @@ baseline passed as `--baseline`.
 
 | | baseline 2026-09-03 | this round |
 | --- | --- | --- |
-| candidate | `catalog_sha256 7db3593170b8…` | `catalog_sha256 0e06c8a3e604…` |
+| candidate | `catalog_sha256 7db3593170b8…` | `catalog_sha256 0e06c8a3e604…` (superseded by one restored trigger) |
 | bank | `1bf0633717c2…` | `1bf0633717c2…` (identical) |
 | result | 144/158 | **157/158** |
 | grader-error verdicts | 0 | 1 (`ab-n2`, partially measured) |
@@ -180,7 +187,7 @@ baseline passed as `--baseline`.
 
 `newly_passed` holds fourteen cases. `newly_failed` holds exactly one,
 `miss-refactor-python-unqualified`, and it is not a regression this round introduced: the paired
-20-replica probe on this same candidate (`catalog_sha256 0e06c8a3e604…`) and on the unedited tree
+20-replica probe on that same candidate (`catalog_sha256 0e06c8a3e604…`) and on the unedited tree
 returns **identical** distributions — 17/20 to the expected owner, two refusals, one near-miss to
 the coordinator, and zero `must_not_route_to` hits on either arm.
 
@@ -212,7 +219,7 @@ evidence a reviewer can verify, so every number stated above also appears there 
 from the raw reports rather than transcribed: 136 MEASUREMENT rows carrying case, arm, source run,
 expected-owner hits, valid observations, status, and every rival selection; plus 27 RUN rows
 carrying each report's replica count, totals, `catalog_sha256`, size, and **full** sha256. The
-control arm's catalog is the branch base and the treatment arm's is the landing candidate, so which
+control arm's catalog is the branch base and each treatment row names the candidate it measured, so which
 tree produced a row is readable from the row itself.
 
 One routing-surface change in this round carries no bank evidence, deliberately and by declaration:

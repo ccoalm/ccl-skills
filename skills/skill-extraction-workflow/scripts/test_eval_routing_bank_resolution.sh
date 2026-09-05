@@ -142,6 +142,49 @@ ok = (by["resolution-fixture"]["actionable"] is False
 sys.exit(0 if ok else 1)
 PYEOF
 
+# --- (2d) shapes where a result could carry no usable verdict at all ----------
+# The resolution loop reads every result's verdict list. Review could not check
+# from the bounded packet that a list is always present, so the shapes that would
+# expose an absent one are pinned here: a single-replica run, and a task whose
+# every replica fails. Neither may crash, and neither may report itself
+# actionable.
+: > "$TMP/count"
+out_one="$(RESOLUTION_COUNT_FILE="$TMP/count" ruby "$EVAL_SCRIPT" "$REPO" --replicas 1 --json "$TMP/one.json" 2>&1)" \
+  || fail "runner exited non-zero on a single-replica run:\n$out_one"
+grep -q '"action_resolution": false' "$TMP/one.json" \
+  || fail "a single-replica run is below the floor and must not be actionable"
+python3 - "$TMP/one.json" <<'PYEOF' || fail "every result of a single-replica run must carry its own verdict list and count"
+import json,sys
+d=json.load(open(sys.argv[1]))
+ok = bool(d["results"]) and all(
+    isinstance(r.get("verdicts"), list) and len(r["verdicts"]) == 1
+    and r["valid_observations"] <= 1 and r["actionable"] is False
+    for r in d["results"])
+sys.exit(0 if ok else 1)
+PYEOF
+
+cat > "$FAKE_BIN/claude" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+printf 'never json\n'
+EOF
+chmod +x "$FAKE_BIN/claude"
+# Every task fails every replica: the runner reports the wholly-unmeasured run and
+# exits 3 by its documented contract, and the report must still be well formed.
+# `set -e` would kill the suite on the non-zero exit before it could be read, so
+# the status is captured in the same command that produces it.
+rc=0
+ruby "$EVAL_SCRIPT" "$REPO" --replicas 2 --json "$TMP/allfail.json" >/dev/null 2>&1 || rc=$?
+[ "$rc" = "3" ] || fail "a wholly failed run must exit 3 by the runner's contract, got $rc"
+python3 - "$TMP/allfail.json" <<'PYEOF' || fail "a wholly failed run must still report zero valid observations and no actionable case"
+import json,sys
+d=json.load(open(sys.argv[1]))
+ok = bool(d["results"]) and d["action_resolution"] is False and d["min_valid_observations"] == 0 \
+     and all(r["valid_observations"] == 0 and r["actionable"] is False and isinstance(r["verdicts"], list)
+             for r in d["results"])
+sys.exit(0 if ok else 1)
+PYEOF
+
 # --- (3) the two sides of the number must agree -------------------------------
 # The rule is only as good as the agreement between the reference that states it
 # and the executable that enforces it. Compare the numbers themselves rather
