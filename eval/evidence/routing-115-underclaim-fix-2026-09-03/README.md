@@ -101,12 +101,13 @@ including the three the payment could plausibly have cost (`miss-restart`, `new-
   coordinator caused it. It was run: the settled tree against the settled tree with **only**
   `product-rd-workflow`'s description reverted to base (catalog `4175fed1…`), 20 replicas each. With
   the coordinator's edits present: 18/20 to the expected owner, **zero** forbidden verdicts. With them
-  removed: 14/20, **one** forbidden verdict, and the coordinator itself rises to 4/20. Removing the
-  suspected cause does not remove the effect — it appears without it — so the coordinator's edits are
-  not what produces the forbidden selection, and the case routes better with them than without.
+  removed: 14/20, **one** forbidden verdict, and the coordinator itself rises to 4/20. That is the
+  direction that does not implicate the coordinator's edits — the forbidden verdict appears in the arm
+  without them — but zero against one at twenty replicas cannot exclude them either, and an earlier
+  draft of this sentence said "exonerated", which the sample size does not support.
   Pooled on the settled tree it is now 31/40 with one forbidden verdict in forty; the base tree is
   43/60 with none. One in forty against none in sixty is not separable, no Python owner was edited,
-  and the one edited competitor has been isolated and exonerated. It remains filed for the
+  and the one edited competitor has been isolated without being implicated. It remains filed for the
   independent lane, which under the protocol disposes of must-not observations; what that lane now
   has is the targeted comparison it asked for rather than an argument.
 
