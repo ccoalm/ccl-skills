@@ -31,3 +31,20 @@ skip-pytest-cmd	python-service-dev		testing-strategy	pytest 这个命令具体�
 ctrl-ai-risk	feature-risk-router			这个 AI 生成的答案直接发给用户，风险大不大
 miss-refactor-servicewide	product-rd-workflow			把整个 Python 用户服务重构一遍，涉及好几个模块，分阶段交付
 gap-rust-service	product-rd-workflow	none	go-microservice-dev;python-service-dev;nodejs-service-dev;go-microservice-architecture	用 Rust 写一个高性能网关服务
+gap-windows-desktop	product-rd-workflow	none	app-cross-platform-dev;miniapp-product-dev;web-react-dev	开发一个 Windows 桌面客户端程序
+mem-plan-gate-miss	product-rd-workflow			这个 DB 适配器我打算直接开始写了，但好像动手前还没写 plan 和 specs，该怎么办
+mem-reuse-vs-greenfield	product-rd-workflow			这个新的舆情雷达产品，是在现有项目上改合适还是新开一个，工作量差多少
+miss-restart	product-rd-workflow			之前那版不要了，清除代码完全重新开发
+new-feasibility-capability	product-rd-workflow			评估下做一个新的实时通知能力的技术方案和工作量
+new-redo-variant	product-rd-workflow		worktree-isolation	这个支付模块推倒重来，重新设计和实现
+new-tighten-vs-owner	product-rd-workflow		tighten-doc	这个产品 spec 里写的流程是错的，帮我改对
+p3-feat-plus-perf	product-rd-workflow		defect-diagnosis	加个用户数据导出功能，顺便把导出接口的慢查询也优化一下
+p3-iteration-coordinate	product-rd-workflow		multi-agent-delegation	这个迭代涉及前端、后端、测试三块，帮我统筹排期
+route-change-worth-fixing-verdict	product-rd-workflow		multi-perspective-research	这个提交还有价值么，是做什么的，是否值得修
+route-go-multitenant-arch	go-microservice-architecture		feature-risk-router;go-microservice-dev	我们的 Go SaaS 服务要做多租户数据隔离，怎么设计
+route-nodejs-cli-not-terminal	nodejs-service-dev		terminal-cli-dev	用 Node.js 写个命令行工具怎么写
+route-nodejs-multistage-to-product-rd	product-rd-workflow			我们要给 Node.js 服务加一个新能力，从方案设计到实现分几个阶段做，先出技术方案
+route-nodejs-service-impl	nodejs-service-dev		product-rd-workflow;web-react-dev	用 Node.js 和 Fastify 写这个 HTTP 接口的具体实现
+route-python-eventdriven-arch	python-service-architecture		python-service-dev	Python 服务要消费 Kafka，消费顺序、重试和去重怎么设计
+route-tech-plan-effort-doc	product-rd-workflow		tighten-doc	写一份新能力的技术方案和工作量评估文档
+var-neg-product-shortcut-feature	product-rd-workflow		skill-extraction-workflow	给我们产品加个新功能：用户可以自定义快捷命令
