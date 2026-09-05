@@ -1,0 +1,73 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "faab4b93655b3e508bf63273303b08820cceba35fbd1535d503b1aef524ecb57",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "ledger-round1-review.json",
+   "sha256": "0c5a4467b5dd039f4286aa1ebd95bad09368f8fa6f03252faf10cccb34bb30ba"
+  },
+  {
+   "sequence": 2,
+   "file": "ledger-round2-challenge.json",
+   "sha256": "d98b69703b11fe94a058c9e71263eee9c8418fe1fd3c11488a13bfb456a62f6f"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "dfbba83a6a5907c0eb3a119ebbb6d97bdfc1b3be",
+   "confirmed_at": "2026-09-05T13:50:32Z",
+   "controller_receipt_sha256": "0c5a4467b5dd039f4286aa1ebd95bad09368f8fa6f03252faf10cccb34bb30ba",
+   "evidence_file": "ledger-base-attestation-1.txt",
+   "evidence_sha256": "0eb9f2b8096ab7458236e3b5e6540851843773c506000579797fb2b59e71c151"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "dfbba83a6a5907c0eb3a119ebbb6d97bdfc1b3be",
+   "confirmed_at": "2026-09-05T13:50:33Z",
+   "controller_receipt_sha256": "d98b69703b11fe94a058c9e71263eee9c8418fe1fd3c11488a13bfb456a62f6f",
+   "evidence_file": "ledger-base-attestation-1.txt",
+   "evidence_sha256": "0eb9f2b8096ab7458236e3b5e6540851843773c506000579797fb2b59e71c151"
+  }
+ ],
+ "autonomous_round": 2,
+ "controller_review_state": "post_review_budget",
+ "finding_classes": [
+  {
+   "key": "ed1ee44bf0f5",
+   "root_cause_predicate": "ed1ee44bf0f5",
+   "affected_surface": "skills/product-rd-workflow/SKILL.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "0c5a4467b5dd039f4286aa1ebd95bad09368f8fa6f03252faf10cccb34bb30ba",
+     "finding_sha256": "ed1ee44bf0f51666aaaa28eafccce3badcbff844f2dc0f58049714f213ff8d18",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-r1-f0-sibling-cases-measured-on-intermediate-catalog-1.json",
+     "disposition_evidence_sha256": "0318ca25921da6a6a645fb9f5c45ab02ff4c10b91d66baa9abf7daf6a8d90b53"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "25747d56cb48",
+   "root_cause_predicate": "25747d56cb48",
+   "affected_surface": "eval/evidence/routing-115-underclaim-fix-2026-09-03/README.md",
+   "occurrences": [
+    {
+     "receipt_sha256": "d98b69703b11fe94a058c9e71263eee9c8418fe1fd3c11488a13bfb456a62f6f",
+     "finding_sha256": "25747d56cb4832ffb1e0b91072ce4c96a58e774e916c285faa14aa4aaf3a9e1e",
+     "disposition": "open"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}

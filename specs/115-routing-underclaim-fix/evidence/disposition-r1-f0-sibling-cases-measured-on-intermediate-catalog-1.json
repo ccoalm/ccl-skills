@@ -1,0 +1,18 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "faab4b93655b3e508bf63273303b08820cceba35fbd1535d503b1aef524ecb57",
+ "receipt_sha256": "0c5a4467b5dd039f4286aa1ebd95bad09368f8fa6f03252faf10cccb34bb30ba",
+ "finding_sha256": "ed1ee44bf0f51666aaaa28eafccce3badcbff844f2dc0f58049714f213ff8d18",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "0c5a4467b5dd039f4286aa1ebd95bad09368f8fa6f03252faf10cccb34bb30ba",
+   "finding_sha256": "ed1ee44bf0f51666aaaa28eafccce3badcbff844f2dc0f58049714f213ff8d18"
+  }
+ ],
+ "evidence": [
+  "Residual R1 in eval/evidence/routing-115-underclaim-fix-2026-09-03/README.md: seventeen product-rd-workflow sibling cases and two rival cases were measured at ten or more replicas on the intermediate catalog 0e06c8a3 and not re-measured after the final merged trigger. The four claim-bearing product-rd cases and the two probe utterances were re-measured on the settled tree and hold.",
+  "Cost to close is nineteen cases at ten replicas, about ninety minutes of grader time, against a surface the next routing round re-measures in full with the same baseline; the record states the intermediate numbers as intermediate and draws no settled-tree claim from them.",
+  "Recorded in the round disposition as deferred with the stated cost; the reviewer's own packet demonstration that one trigger can move unrelated cases is why the claim is not made, not a reason the deferral is unsafe."
+ ]
+}
