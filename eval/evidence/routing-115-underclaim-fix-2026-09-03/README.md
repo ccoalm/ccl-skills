@@ -57,7 +57,7 @@ measured the merged trigger.
 | case | changed owner and its measured move (the anchor text names the run it was first seen in) | control | settled tree `e8894455` |
 | --- | --- | --- | --- |
 | `p3-resume-refactor` | product-rd-workflow: p3-resume-refactor moved 0/10 to 10/10 | 0/10 | 10/10 (settled tree) |
-| `p3-log-plus-test` | platform-observability: p3-log-plus-test moved 2/10 to 10/10 | 2/10 | 20/20 (settled tree) |
+| `p3-log-plus-test` | platform-observability: p3-log-plus-test moved 2/10 to 10/10 | 2/10 | 10/10 (settled tree) |
 | `route-nodejs-architecture-not-go-python` | product-rd-workflow second trigger: route-nodejs-arch moved 6/10 to 10/10 | 6/10 | 10/10 (settled tree) |
 | `p3-perf-plus-regression` | defect-diagnosis: p3-perf-plus-regression moved 5/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 5/10 | 20/20 (settled tree) |
 | `skip-miniapp-build` | miniapp-product-dev: skip-miniapp-build moved 6/10 to 10/10 on the batch tree, 20/20 on candidate 0e06c8a3 | 6/10 | 10/10 (settled tree) |
@@ -192,72 +192,15 @@ regression verdict — each entry needs its own paired 20-replica probe before i
 
 ## Artifacts
 
-`full-bank-replicas3.json` in this directory is the continuity run on the final
-candidate: the same bank as `routing-baseline-replicas3-2026-09-03/`, `--replicas 3`, that
-baseline passed as `--baseline`.
-
-| | baseline 2026-09-03 | this round |
-| --- | --- | --- |
-| candidate | `catalog_sha256 7db3593170b8…` | `catalog_sha256 0e06c8a3e604…` (superseded by one restored trigger) |
-| bank | `1bf0633717c2…` | `1bf0633717c2…` (identical) |
-| result | 144/158 | **157/158** |
-| grader-error verdicts | 0 | 1 (`ab-n2`, partially measured) |
-| comparable | — | `baseline_comparable: true` |
-| co-change | — | `false` |
-
-`newly_passed` holds fourteen cases. `newly_failed` holds exactly one,
-`miss-refactor-python-unqualified`, and it is not a regression this round introduced: the paired
-20-replica probe on that same candidate (`catalog_sha256 0e06c8a3e604…`) and on the unedited tree
-returns **identical** distributions — 17/20 to the expected owner, two refusals, one near-miss to
-the coordinator, and zero `must_not_route_to` hits on either arm.
-
-The report carries `action_resolution: false` and prints the screening banner, because three
-replicas is below the floor this round landed. That is the intended reading: this run establishes
-comparability with the previous ruler and licensed none of the edits above — every edit is licensed
-by the paired per-case measurements, at ten or twenty valid observations per arm.
-
-It is **not** the runner's literal output, and says so in its own `_transformation` field. Two
-things were done to it: the remainder was re-serialised without indentation, and the per-replica
-verdict arrays were dropped. The runner's `--baseline` comparison consumes `bank_sha256`, `replicas`
-and per-task status, all of which remain; what went is the per-verdict detail of a *three-replica*
-run — screening-resolution data this round demonstrated does not reproduce — and it was costing
-82,724 bytes against a 200,000-byte candidate cap that left this round 31 bytes of room to answer a
-review finding. A later round that needs per-case distributions must measure them at ten or more
-replicas, which the rule this round lands requires regardless.
-
-- pretty-printed original: `7692924a35a8a013aecd34192078025f4ed97998bd494f4fd6a9fab77b7c68c0`
-- the file here: `d9aa4bcb51fe0d253679cb9060021116c1e07067561b5609089bd860fd221ece`
-
-One honest limit on this artifact: it was produced by the runner **before** the review fix that
-derives the resolution floor from valid observations, so it carries no `min_valid_observations`
-field. Its own verdict is unaffected — at three replicas both the old and the new computation
-report `action_resolution: false` — and its grading data is untouched by that fix, which changes
-only how the report field and banner are computed.
-
-`paired-measurements.tsv` in this directory is the checkable half of this record. Prose is not
-evidence a reviewer can verify, so every number stated above also appears there as a row generated
-from the raw reports rather than transcribed: 136 MEASUREMENT rows carrying case, arm, source run,
-expected-owner hits, valid observations, status, and every rival selection; plus 27 RUN rows
-carrying each report's replica count, totals, `catalog_sha256`, size, and **full** sha256. The
-control arm's catalog is the branch base and each treatment row names the candidate it measured, so which
-tree produced a row is readable from the row itself.
-
-One routing-surface change in this round carries no bank evidence, deliberately and by declaration:
-`downscoped:R115-TRIGGER-RESTORE-NO-FROZEN-CASE`. Restoring `进入实现阶段` to
-`product-rd-workflow` answers a counterexample adversarial review supplied — a request naming the
-transition without the approval wording — and no frozen case exercises that token, which is exactly
-why the round's earlier synonym argument for removing it could not be refuted by measurement. Adding
-a case to the bank would void every baseline comparison in this round, so the honest record is a
-declared downscope rather than a number the bank cannot produce. The restoration returns the
-description to a superset of its base state, so it can only widen what the owner claims.
-
-Adversarial review pushed on the obvious weakness of two files I generated: dropping a case from
-both, or from a RUN's task count as well, recounts cleanly. The binding that does not depend on me
-is the frozen bank itself, `eval/routing-tasks.jsonl`, which this round does not touch: every case
-id in either table exists there, and the eleven cases this round makes a claim about are named in
-the table above, so an omission is visible against an artifact the round could not have edited
-without the runner's co-change check saying so. What that does not catch is a case silently dropped
-from every surface at once, and no self-generated pair can.
+**No full-bank continuity run exists for the settled tree, and this directory holds none.** Four
+such runs were taken during the round — 153, 152, 154 and 157 of 158 against the 144/158 baseline,
+each `baseline_comparable: true` on the untouched bank — and every one measured a candidate that a
+later edit replaced; the last was on `0e06c8a3…`, one merged trigger away from what lands. An
+earlier draft of this record shipped that report as if it were the settled tree's; it was not, and
+it is removed rather than relabelled. A fifth run costs about two hours of grader time and licenses
+nothing under the rule this round lands (three replicas is screening resolution), so it was not
+spent; the comparable number for the settled tree is a recorded debt, and the next routing round
+inherits the 2026-09-03 baseline as its comparison point exactly as this one did.
 
 `replica-verdicts.tsv` is the source those counts come from, and it is committed alongside them:
 one row per case per run, carrying the per-replica selected owner and a marker for each replica that
