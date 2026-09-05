@@ -1,0 +1,164 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "e1405d5815b8a14081b0a00bd408087759ce0177a1b08f7108bdfe61e2c5dfde",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "ledger-round1-review.json",
+      "sha256": "302f07d02bc72ee87ec939335599eb4970a7a6fbd7786cf31b5caace03b7c71d"
+    },
+    {
+      "sequence": 2,
+      "file": "ledger-round2-challenge.json",
+      "sha256": "0306213ed5a04f4c2e8321a28c6d725a3092bf7ffaa40ddd7a0b99b676cd5998"
+    },
+    {
+      "sequence": 3,
+      "file": "ledger-round3-succession-challenge.json",
+      "sha256": "168ca0f01225bd1719638ab7ed8c15e03334a7a6e7313e689fad19ffea34d7e7"
+    }
+  ],
+  "completion_receipt": null,
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "62ed1e2e2ddd4f3b21d004ef4c1e946df6be1e36",
+      "confirmed_at": "2026-09-05T19:43:16Z",
+      "controller_receipt_sha256": "302f07d02bc72ee87ec939335599eb4970a7a6fbd7786cf31b5caace03b7c71d",
+      "evidence_file": "ledger-base-attestation-1.txt",
+      "evidence_sha256": "563d2bbb18c6b9fc0edd3b660d5cee8d77821b6b21d1caa67c4336300047a25c"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "62ed1e2e2ddd4f3b21d004ef4c1e946df6be1e36",
+      "confirmed_at": "2026-09-05T19:46:16Z",
+      "controller_receipt_sha256": "0306213ed5a04f4c2e8321a28c6d725a3092bf7ffaa40ddd7a0b99b676cd5998",
+      "evidence_file": "ledger-base-attestation-1.txt",
+      "evidence_sha256": "563d2bbb18c6b9fc0edd3b660d5cee8d77821b6b21d1caa67c4336300047a25c"
+    },
+    {
+      "sequence": 3,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "62ed1e2e2ddd4f3b21d004ef4c1e946df6be1e36",
+      "confirmed_at": "2026-09-05T19:49:16Z",
+      "controller_receipt_sha256": "168ca0f01225bd1719638ab7ed8c15e03334a7a6e7313e689fad19ffea34d7e7",
+      "evidence_file": "ledger-base-attestation-1.txt",
+      "evidence_sha256": "563d2bbb18c6b9fc0edd3b660d5cee8d77821b6b21d1caa67c4336300047a25c"
+    }
+  ],
+  "autonomous_round": 3,
+  "controller_review_state": "findings_pending",
+  "finding_classes": [
+    {
+      "key": "fork-lookup-status-swallowed",
+      "root_cause_predicate": "expandable_merge read the fork point with a bare IO.popen and tested only for empty output, so an operational failure of git merge-base (nonzero exit, empty stdout) was indistinguishable from 'no common ancestor' and silently disabled the expansion, handing the merge the collapsed span.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/impact-chain-gate.rb",
+      "occurrences": [
+        {
+          "receipt_sha256": "302f07d02bc72ee87ec939335599eb4970a7a6fbd7786cf31b5caace03b7c71d",
+          "finding_sha256": "a2bc4a8cb66b1c6e2c5b82d1d534694920a3d6ba6f73a15c4b184dd4aaf31512",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-r1-f0-fork-lookup-status-swallowed-1.json",
+          "disposition_evidence_sha256": "cf89c9b7e51fd8c9edcfa6c47aaa1b6a10672ab17d4c850cccda83525aaa17fa"
+        },
+        {
+          "receipt_sha256": "0306213ed5a04f4c2e8321a28c6d725a3092bf7ffaa40ddd7a0b99b676cd5998",
+          "finding_sha256": "1a44ff86cc3507fc39cfd88dd1bd240b48fe2023410117ec4a5c92c5c50c8636",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-r2-f1-fork-lookup-status-swallowed-2.json",
+          "disposition_evidence_sha256": "2d04c9a88d60d7887c7608cce8e3859d6b1d3927f932006da91797d6b407778a"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "packet-excludes-receipts",
+      "root_cause_predicate": "The review packet is frozen with the binder's own rule, which excludes receipt-shaped JSON added under an evidence directory, so the retrospective closeout and receipts for the previously unbound round are not visible to the reviewer even though they are committed in the candidate; the reviewer therefore could not check the acceptance line about that round from the packet alone.",
+      "affected_surface": "specs/117-round-shape-chain-evidence/evidence/retro-round/closeout.json",
+      "occurrences": [
+        {
+          "receipt_sha256": "302f07d02bc72ee87ec939335599eb4970a7a6fbd7786cf31b5caace03b7c71d",
+          "finding_sha256": "5cab8e9a334fae4b2b84b4856198cfd4de2dd5f186ef091a0b1e6240accf817e",
+          "disposition": "accepted_tradeoff",
+          "disposition_evidence_file": "disposition-r1-f1-packet-excludes-receipts-1.json",
+          "disposition_evidence_sha256": "b90d2049da5268dfb52af5086ee8e26a8eef62e246236a3bc572803ceb595879"
+        },
+        {
+          "receipt_sha256": "168ca0f01225bd1719638ab7ed8c15e03334a7a6e7313e689fad19ffea34d7e7",
+          "finding_sha256": "9598f64b7db741c870cb52a5895783798f22593b4ec0e0538d6245247ba10d4f",
+          "disposition": "accepted_tradeoff",
+          "disposition_evidence_file": "disposition-r3-f1-packet-excludes-receipts-2.json",
+          "disposition_evidence_sha256": "a6853ae33ed607f938ebb494c79e93b3c637b8d387da3144e870c259202c823a"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "plan-artifacts-and-fail-closed-fixtures",
+      "root_cause_predicate": "The plan's executed-evidence section stated results without quoting the run artifacts, and the depth bound and the merge-tree-unavailable branch had no fixtures, so the reviewer could not establish the fail-closed behaviour or the green lanes from the packet.",
+      "affected_surface": "specs/117-round-shape-chain-evidence/plan.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "302f07d02bc72ee87ec939335599eb4970a7a6fbd7786cf31b5caace03b7c71d",
+          "finding_sha256": "2c42cd73d2aa8f7a9b368730f82b19a3c8a09708543fc00b62fd801f297e0d9c",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-r1-f2-plan-artifacts-and-fail-closed-fixtures-1.json",
+          "disposition_evidence_sha256": "d913e5dae48e977bca0b17e028ac9cb227ecf83b64629efb231583e6c15c8ff9"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "line-local-sync-merge",
+      "root_cause_predicate": "The sync test in expandable_merge compared the second parent against the outer base_ref and the merge's first parent only, so a sync of the target inside a branch (target commit newer than the promotion base) was expanded during promotion and the branch's earlier work landed in a span before the sync with no row.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/impact-chain-gate.rb",
+      "occurrences": [
+        {
+          "receipt_sha256": "0306213ed5a04f4c2e8321a28c6d725a3092bf7ffaa40ddd7a0b99b676cd5998",
+          "finding_sha256": "bbe7fad0416c31116c3ebf6cd43e27575e39a73f87ca46c617b1f64740a3b798",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-r2-f0-line-local-sync-merge-1.json",
+          "disposition_evidence_sha256": "414b2379e31af2736db6d56e3068315d3a79a99d86642a073f06a8ce21c4d72f"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "landing-tree-evidence-negatives",
+      "root_cause_predicate": "The binder suite's new chain cases covered matching versus different digests only, so the containment properties of reading evidence from the landing tree (validator rejection still refuses, uncommitted evidence is still refused, the round's packet is unchanged by later evidence) were asserted in prose rather than by fixtures; the enumeration, validation and scope implementations themselves sit outside the packet.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh",
+      "occurrences": [
+        {
+          "receipt_sha256": "0306213ed5a04f4c2e8321a28c6d725a3092bf7ffaa40ddd7a0b99b676cd5998",
+          "finding_sha256": "15b88241a24234fa0ce5725fcf366b05b8fa41d599e17bc6f22266b79998d7a9",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-r2-f2-landing-tree-evidence-negatives-1.json",
+          "disposition_evidence_sha256": "e37445c93bc58a815d0282794203fd38b9604cd0f82e5952e74264463a8291fc"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "plan-claim-overstates-assertion",
+      "root_cause_predicate": "The plan's executed-evidence record quoted the binder case name as first written ('... and is listed as rejected') after the assertion had been narrowed to the verdict the chain reports (rc=1 and the unbound round named), so one clause of the record claims a diagnostic the suite does not assert.",
+      "affected_surface": "specs/117-round-shape-chain-evidence/plan.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "168ca0f01225bd1719638ab7ed8c15e03334a7a6e7313e689fad19ffea34d7e7",
+          "finding_sha256": "e4a8ac0572a20d547f561ca57d0a4c29612c862b9ab1d43813ba86edb3c0833d",
+          "disposition": "accepted_tradeoff",
+          "disposition_evidence_file": "disposition-r3-f0-plan-claim-overstates-assertion-1.json",
+          "disposition_evidence_sha256": "0187d5fd79e49c6a04c20f2192faedda2ca64450d0a65cf036da9dd4b50a97e7"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "continuation_authorization_required"
+}
