@@ -40,6 +40,7 @@ RUN	post7-Q-r20.json	t	20	13	10	3	1	dc06ac0502b02f3378f5844c1e389942b5a9eb6ea2e3
 RUN	post8-R-r20.json	t	20	6	4	2	0	e8894455887662130d1663d67e4e1f3c2d37d388a06564603a4997c1d8fd32ca	current	31747	1eeb8758d7bf0d71c1404ca41a1605f05ad7f54639dbbd61f0d870b204828159
 RUN	post9-S-r20.json	t	20	5	4	1	0	f2be61697823bb97b4068fdeef18a96cc06a6ea145b408c0dae81abdb98258ec	intermediate	27193	13debcaea985e875d83d53f336db5753cf4936f6ae4b8d2cf106a611abc88640
 RUN	post10-T-r10.json	t	10	10	10	0	0	e8894455887662130d1663d67e4e1f3c2d37d388a06564603a4997c1d8fd32ca	current	29939	c2b30ed44e9bc7179cee51f04616744d7c9059a17ff5614f0f3074bcea233c2c
+RUN	post11-U-r20.json	t	20	1	0	1	0	e8894455887662130d1663d67e4e1f3c2d37d388a06564603a4997c1d8fd32ca	current	9043	276e2a079a04483c5f36ef7923da4e66ca78f3a285dc52dce8c80b5073f2c555
 RUN	post-B-r3.json	t	3	69	67	2	1	31c9a686e0c54cafa33a6594fe7a9ea7e24e16ca481bc2fd2d8f16f89e938a7e	intermediate	80907	fd133dc94a793ae8a900dc8ff74fbfaf8a0c39f8dd6282140718f0b08f9bcc44
 RUN	post2-B-r3.json	t	3	69	67	2	0	c8bb194bc4e1d7e36cf8f394444bcdd7184b007269e7e41b32d34241f96240be	intermediate	80900	936e1e23c412adc0460e7ea053ec9ca3356386b4c3a1cc5f6985c240b9620cfe
 
@@ -222,3 +223,4 @@ MEASUREMENT	ab-d6	t	post10-T-r10.json	10	10	PASS	current	-
 MEASUREMENT	ab-n3	t	post10-T-r10.json	10	10	PASS	current	-
 MEASUREMENT	variant-neg-release-watch-sop	t	post10-T-r10.json	10	10	PASS	current	-
 MEASUREMENT	route-nodejs-architecture-not-go-python	t	post10-T-r10.json	10	10	PASS	current	-
+MEASUREMENT	miss-refactor-python-unqualified	t	post11-U-r20.json	13	20	FAIL	current	none=4,product-rd-workflow=2,python-service-dev=1

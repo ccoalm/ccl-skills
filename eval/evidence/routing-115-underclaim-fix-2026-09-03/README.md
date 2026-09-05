@@ -47,9 +47,9 @@ that case's observed distribution on either arm. One case does have a genuine si
 single-edit trees would be needed and were not run. That residual is the round's, not the
 reviewer's, and it is recorded rather than argued away.
 
-Arms taken on a superseded candidate are process data, not evidence for what lands. The one case
-measured on the current tree is the negative control, which is 20/20 there; every other row
-marked `current` in the tables comes from that same run.
+Arms taken on a superseded candidate are process data, not evidence for what lands. Rows marked
+`current` come from two runs on the settled tree: the ten-case final pass and the earlier probe that
+measured the merged trigger.
 
 | case | changed owner and its measured move | control | treatment |
 | --- | --- | --- | --- |
@@ -69,6 +69,15 @@ marked `current` in the tables comes from that same run.
 no owner at all**. The three-replica baseline had labelled it the round's one consistent failure;
 the paired ten-replica control shows it was worse than the label.
 
+**One check is not repeated on the settled tree and is recorded as a residual, not hidden in a
+sentence.** The whole-owner pass over all 24 `product-rd-workflow` cases was taken on catalog
+`0e06c8a3…`, which the tables mark intermediate; the settled tree differs from it by one merged
+trigger on that same owner. Of those 24, the four that carry this round's claims were re-measured on
+the settled tree and hold; `miss-refactor-python-unqualified`, the one case where a must-not owner
+was ever selected, is re-measured there too and reported in full below. The other nineteen were not. Repeating the full pass
+costs about two hours of grader time and was not spent; the reader has the intermediate-tree
+numbers, the single-token delta, and the choice.
+
 Side effects, measured rather than assumed. `product-rd-workflow` sits at severe size debt with a
 zero-growth byte budget, so its two new triggers had to be paid for: sixteen separators compressed,
 one duplicate implement-phase phrasing dropped, and two sentences deleted from an unrelated
@@ -83,12 +92,15 @@ including the three the payment could plausibly have cost (`miss-restart`, `new-
   executors. Those score zero on both arms, so the move is toward the stated intent — a
   new-capability ask for a stack with no skill enters the coordinator for intake — not absorption.
 - `miss-refactor-python-unqualified` is the one case where a `must_not_route_to` owner was ever
-  selected. Pooled over every run on each side: the control arm is 43 to the expected owner with
-  **zero** `python-service-dev` verdicts in 60, and the treatment arm is 48 with **one** in 60.
-  An earlier draft of this file said both arms were clean, reading only the later 20-replica probe
-  and not the 10-replica run on the same tree that carries the single verdict; review caught it.
-  One in sixty against zero in sixty is not separable, and the expected owner is reached more
-  often on the treatment side, so the round claims no breach — it does not claim none occurred.
+  selected, and the record states it rather than rounding it away. Control arm, 60 gradings: 43 to
+  the expected owner, **zero** `python-service-dev`. Treatment arms, 80 gradings across every tree
+  including 20 on the settled one: 61 to the expected owner, **two** `python-service-dev` — one on an
+  intermediate tree, one on the settled tree. Two in eighty against zero in sixty is not separable
+  (p ≈ 0.5), neither Python owner was edited, and the coordinator rival fell from 10/60 to 2/20
+  after its architecture claim was scoped to stacks without an architecture sibling. This round
+  therefore claims no breach was caused, not that none occurred, and files the case as a
+  neighbour finding for the independent lane, which under the protocol is the only lane that may
+  waive a must-not observation.
 
 ### Why each edit is defensible without pointing at its number
 
@@ -144,8 +156,8 @@ one-in-twenty leak to `defect-diagnosis` and is **not** edited. `product-rd-work
 secrets/PII/raw-log redaction to `platform-observability`; the bank assigns this case to the app
 stack because it is a concrete client-code fix. Claiming 日志脱敏 on the app skill would manufacture
 a real cross-owner conflict to answer a 1-in-20 deviation. It doubles as this round's negative
-control: 39/40 on the control arm across two independent 20-replica measurements, and 20/20 on the
-current tree, where its rival appears zero times.
+control: 39/40 on the control arm across two independent 20-replica measurements, 20/20 on an
+intermediate tree, and 10/10 on the settled tree, where its rival appears zero times.
 
 ## The instrument finding
 
