@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "e1405d5815b8a14081b0a00bd408087759ce0177a1b08f7108bdfe61e2c5dfde",
+  "receipt_sha256": "302f07d02bc72ee87ec939335599eb4970a7a6fbd7786cf31b5caace03b7c71d",
+  "finding_sha256": "2c42cd73d2aa8f7a9b368730f82b19a3c8a09708543fc00b62fd801f297e0d9c",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "302f07d02bc72ee87ec939335599eb4970a7a6fbd7786cf31b5caace03b7c71d",
+      "finding_sha256": "2c42cd73d2aa8f7a9b368730f82b19a3c8a09708543fc00b62fd801f297e0d9c"
+    }
+  ],
+  "evidence": [
+    "The plan now quotes the output lines of every check on the committed candidate (suite ok markers with run counts, the differential summary, the repo-gate tokens, the lane summaries, the retrospective round's candidate hash, validator line and bind proof).",
+    "Round scoping 15 nests nine automatic merges and asserts impact_chain_round_walk_too_deep; round scoping 16 makes merge-tree unavailable through a git shim and asserts impact_chain_git_failed.",
+    "Fixed in the landing candidate; the succession challenge on that candidate is the final receipt of this closeout."
+  ]
+}

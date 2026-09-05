@@ -1,0 +1,47 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "95fc8543870e35c8f8adba3adc3c309ec84831337571f0a4bb5a0c7b9d159ea8",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "ledger-round1-review.json",
+      "sha256": "2db75bb0b25d837b6802483dfe194bab3cf3f2ec941a6ed392c546a3b65c3fe5"
+    },
+    {
+      "sequence": 2,
+      "file": "ledger-round2-challenge.json",
+      "sha256": "d24080f24e0f4565efe33aa857b3bd35317ab09249bfb089e986276069aaa9a3"
+    }
+  ],
+  "completion_receipt": {
+    "file": "ledger-completion.json",
+    "sha256": "779587dd19caf9614b844ea79f52285755c510879dde398b63ce9fce3e05ce90"
+  },
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "62ed1e2e2ddd4f3b21d004ef4c1e946df6be1e36",
+      "confirmed_at": "2026-09-05T18:46:42Z",
+      "controller_receipt_sha256": "2db75bb0b25d837b6802483dfe194bab3cf3f2ec941a6ed392c546a3b65c3fe5",
+      "evidence_file": "ledger-base-attestation-1.txt",
+      "evidence_sha256": "563d2bbb18c6b9fc0edd3b660d5cee8d77821b6b21d1caa67c4336300047a25c"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "62ed1e2e2ddd4f3b21d004ef4c1e946df6be1e36",
+      "confirmed_at": "2026-09-05T18:48:42Z",
+      "controller_receipt_sha256": "d24080f24e0f4565efe33aa857b3bd35317ab09249bfb089e986276069aaa9a3",
+      "evidence_file": "ledger-base-attestation-1.txt",
+      "evidence_sha256": "563d2bbb18c6b9fc0edd3b660d5cee8d77821b6b21d1caa67c4336300047a25c"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "self_reviewed",
+  "finding_classes": [],
+  "unreviewed_delta": [],
+  "closeout_state": "ready_for_human_decision"
+}

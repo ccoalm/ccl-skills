@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "e1405d5815b8a14081b0a00bd408087759ce0177a1b08f7108bdfe61e2c5dfde",
+  "receipt_sha256": "0306213ed5a04f4c2e8321a28c6d725a3092bf7ffaa40ddd7a0b99b676cd5998",
+  "finding_sha256": "bbe7fad0416c31116c3ebf6cd43e27575e39a73f87ca46c617b1f64740a3b798",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "0306213ed5a04f4c2e8321a28c6d725a3092bf7ffaa40ddd7a0b99b676cd5998",
+      "finding_sha256": "bbe7fad0416c31116c3ebf6cd43e27575e39a73f87ca46c617b1f64740a3b798"
+    }
+  ],
+  "evidence": [
+    "expandable_merge now receives the base of the line being walked and treats a second parent below that base as a sync, exactly as it does for the outer base; the recursive walk passes its own from.",
+    "Round scoping 18 builds the reported shape (target advances, feature with owner work syncs the target, then appends its row) and asserts the branch view rc=0, the promotion view against the older base equal to it, and no impact_chain_gate_missing.",
+    "Fixed in the landing candidate; the succession challenge on that candidate is the final receipt of this closeout."
+  ]
+}
