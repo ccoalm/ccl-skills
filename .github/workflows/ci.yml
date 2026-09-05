@@ -22,17 +22,17 @@ jobs:
         with:
           fetch-depth: 0
           # Judge the BRANCH, not the synthetic merge ref. The impact-chain gate
-          # partitions history into rounds by walking the branch's own
-          # first-parent chain — a flag its own fixtures pin as load-bearing,
-          # because it is what collapses a merged worktree round to one
-          # boundary. On the default `refs/pull/N/merge` checkout that chain
-          # runs through the TARGET, so every round on the branch collapses
-          # into one and rows whose validity depends on their round being
-          # narrow flip red with nothing about them changed (observed on PR #53:
-          # `impact_chain_firing_path_missing` for a description-only round that
-          # a sibling round's body edit swallowed). `main` requires branches to
-          # be up to date, so the head commit already contains the base and the
-          # merge commit adds no content — the branch tip is what actually lands.
+          # partitions history into rounds along the branch's own first-parent
+          # chain and expands any merge git rebuilds from its parents into that
+          # branch's rounds, so a merged round is judged exactly as its pull
+          # request was; the review-ledger binder freezes the branch head as the
+          # candidate. The default `refs/pull/N/merge` checkout would put a
+          # synthetic merge on top of both (observed on PR #53 before the
+          # expansion existed: `impact_chain_firing_path_missing` for a
+          # description-only round that a sibling round's body edit swallowed).
+          # `main` requires branches to be up to date, so the head commit already
+          # contains the base and the merge commit adds no content — the branch
+          # tip is what actually lands.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
@@ -148,17 +148,17 @@ jobs:
         with:
           fetch-depth: 0
           # Judge the BRANCH, not the synthetic merge ref. The impact-chain gate
-          # partitions history into rounds by walking the branch's own
-          # first-parent chain — a flag its own fixtures pin as load-bearing,
-          # because it is what collapses a merged worktree round to one
-          # boundary. On the default `refs/pull/N/merge` checkout that chain
-          # runs through the TARGET, so every round on the branch collapses
-          # into one and rows whose validity depends on their round being
-          # narrow flip red with nothing about them changed (observed on PR #53:
-          # `impact_chain_firing_path_missing` for a description-only round that
-          # a sibling round's body edit swallowed). `main` requires branches to
-          # be up to date, so the head commit already contains the base and the
-          # merge commit adds no content — the branch tip is what actually lands.
+          # partitions history into rounds along the branch's own first-parent
+          # chain and expands any merge git rebuilds from its parents into that
+          # branch's rounds, so a merged round is judged exactly as its pull
+          # request was; the review-ledger binder freezes the branch head as the
+          # candidate. The default `refs/pull/N/merge` checkout would put a
+          # synthetic merge on top of both (observed on PR #53 before the
+          # expansion existed: `impact_chain_firing_path_missing` for a
+          # description-only round that a sibling round's body edit swallowed).
+          # `main` requires branches to be up to date, so the head commit already
+          # contains the base and the merge commit adds no content — the branch
+          # tip is what actually lands.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
@@ -215,17 +215,17 @@ jobs:
         with:
           fetch-depth: 0
           # Judge the BRANCH, not the synthetic merge ref. The impact-chain gate
-          # partitions history into rounds by walking the branch's own
-          # first-parent chain — a flag its own fixtures pin as load-bearing,
-          # because it is what collapses a merged worktree round to one
-          # boundary. On the default `refs/pull/N/merge` checkout that chain
-          # runs through the TARGET, so every round on the branch collapses
-          # into one and rows whose validity depends on their round being
-          # narrow flip red with nothing about them changed (observed on PR #53:
-          # `impact_chain_firing_path_missing` for a description-only round that
-          # a sibling round's body edit swallowed). `main` requires branches to
-          # be up to date, so the head commit already contains the base and the
-          # merge commit adds no content — the branch tip is what actually lands.
+          # partitions history into rounds along the branch's own first-parent
+          # chain and expands any merge git rebuilds from its parents into that
+          # branch's rounds, so a merged round is judged exactly as its pull
+          # request was; the review-ledger binder freezes the branch head as the
+          # candidate. The default `refs/pull/N/merge` checkout would put a
+          # synthetic merge on top of both (observed on PR #53 before the
+          # expansion existed: `impact_chain_firing_path_missing` for a
+          # description-only round that a sibling round's body edit swallowed).
+          # `main` requires branches to be up to date, so the head commit already
+          # contains the base and the merge commit adds no content — the branch
+          # tip is what actually lands.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "e1405d5815b8a14081b0a00bd408087759ce0177a1b08f7108bdfe61e2c5dfde",
+  "receipt_sha256": "168ca0f01225bd1719638ab7ed8c15e03334a7a6e7313e689fad19ffea34d7e7",
+  "finding_sha256": "9598f64b7db741c870cb52a5895783798f22593b4ec0e0538d6245247ba10d4f",
+  "disposition": "accepted_tradeoff",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "168ca0f01225bd1719638ab7ed8c15e03334a7a6e7313e689fad19ffea34d7e7",
+      "finding_sha256": "9598f64b7db741c870cb52a5895783798f22593b4ec0e0538d6245247ba10d4f"
+    }
+  ],
+  "evidence": [
+    "Including receipts in the packet would make the review candidate hash differ from the binder's candidate hash for the same round (the binder derives the excludes from the round's added receipts), so the packet cannot carry them without breaking the binding this round exists to establish; this is the same shape every reviewed round in this repository has had since the binder landed.",
+    "The plan's executed-evidence section quotes the artifacts the packet cannot show: the round's candidate hash from --print-candidate, the receipts' status and candidate hash, the validator's acceptance line for the closeout, and the bind_candidate proof line naming the closeout as binding candidate 95fc8543870e...; the closeout itself is committed and is what the promotion binder reads."
+  ]
+}

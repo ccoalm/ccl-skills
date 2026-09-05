@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "e1405d5815b8a14081b0a00bd408087759ce0177a1b08f7108bdfe61e2c5dfde",
+  "receipt_sha256": "302f07d02bc72ee87ec939335599eb4970a7a6fbd7786cf31b5caace03b7c71d",
+  "finding_sha256": "a2bc4a8cb66b1c6e2c5b82d1d534694920a3d6ba6f73a15c4b184dd4aaf31512",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "302f07d02bc72ee87ec939335599eb4970a7a6fbd7786cf31b5caace03b7c71d",
+      "finding_sha256": "a2bc4a8cb66b1c6e2c5b82d1d534694920a3d6ba6f73a15c4b184dd4aaf31512"
+    }
+  ],
+  "evidence": [
+    "The fork lookup now captures the exit status: 1 (no common ancestor) means nothing to expand from; any other nonzero status aborts with impact_chain_git_failed, the same fail-closed contract every other git read in the gate has.",
+    "Round scoping 17 injects a failing merge-base for the two-parent lookup through a git shim on PATH (the gate's own base lookups with HEAD and --is-ancestor pass through) and asserts rc=1 with impact_chain_git_failed; round scoping 16 does the same for an unavailable merge-tree.",
+    "Fixed in the landing candidate; the succession challenge on that candidate is the final receipt of this closeout."
+  ]
+}

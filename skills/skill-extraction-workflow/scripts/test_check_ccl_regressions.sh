@@ -24,6 +24,7 @@
 #   - test_check_ccl_register_pending_exclusion.sh
 #   - test_eval_routing_bank_grader_diagnostics.sh
 #   - test_eval_routing_bank_surface_binding.sh
+#   - test_eval_routing_bank_resolution.sh
 #   - test_eval_routing_prose_target.sh
 #   - test_validate_skill_credential_cwd.sh
 #   - test_validate_skill_root_depth.sh
@@ -145,6 +146,7 @@ fast_tests=(
   test_impact_chain_round_attribution.sh
   test_eval_routing_bank_grader_diagnostics.sh
   test_eval_routing_bank_surface_binding.sh
+  test_eval_routing_bank_resolution.sh
   test_eval_routing_prose_target.sh
   test_validate_skill_credential_cwd.sh
   test_validate_skill_root_depth.sh

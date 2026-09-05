@@ -90,10 +90,12 @@ and their frozen hashes. They verify that binding, use the already-installed
 CCL skill registry through each client-native mechanism, and explicitly
 name the selected owners: Claude `--plugin-dir`, Kimi `--skills-dir`, OpenCode
 `skills.paths`, or Codex `$skill-name`. Skill bodies are never copied into the
-review profile or prompt. A client unable to establish this native binding is
-ineligible for the owner-aware lane. Each successful owner-aware wrapper adds a
-post-parse `native_skill_binding=established` receipt; absence fails closed
-before the controller claims usage. Receipt injection itself is part of the
+review profile or prompt. Each successful owner-aware wrapper adds a
+post-parse `native_skill_binding` receipt: `established` when the owners were
+natively bound, or `unavailable` when the wrapper reviewed the packet without
+owner skills because the installed registry or plugin could not be used (the
+Claude wrapper degrades this way rather than refusing). A receipt saying
+neither fails closed before the controller claims usage. Receipt injection itself is part of the
 trusted wrapper path: a local serialization or output failure is terminal
 `local_tool_failure`, never an empty or apparently successful result. After a
 valid verdict, `reviewed_skills` contains only the selected owners passed
@@ -104,19 +106,15 @@ Codex, an independently updated installed package must exist and pass the same
 safe-package validation, but its bytes need not equal an older candidate
 branch; `$skill-name` binds the selected identity. The frozen source hash still
 binds controller routing and review-chain reuse, not the host release version.
-For Claude, the public init surface must register the `ccl-skills` plugin while
-the wrapper separately verifies the selected package hashes and explicitly
-names the owners. Current init does not enumerate the selected plugin skills or
-commands; plugin registration is binding evidence, not proof that the model
-read a skill body. If init begins enumerating ccl-registry skills or
-`ccl-skills:` commands, every selected owner must appear in those lists or
-the wrapper fails closed; built-in entries alone do not imply plugin enumeration.
-An owner name that collides with an audited Claude built-in is not representable
-on this surface and is rejected before a binding receipt.
-`skill_usage_evidence` records
-native explicit invocation with `observed=false`; only a public client
-event/export may populate `observed_skill_usage`. Reviewer prose and private
-client databases do not count as observation evidence.
+For Claude, the wrapper verifies the selected package hashes against the
+installed registry, loads that plugin through `--plugin-dir`, and explicitly
+names the owners; what the public init surface enumerates is vocabulary and is
+not read. Loading the plugin is binding evidence, not proof that the model read
+a skill body. `skill_usage_evidence` records native explicit invocation with
+`observed=false` after an `established` receipt and `controller-profile` after
+an `unavailable` one; only a public client event/export may populate
+`observed_skill_usage`. Reviewer prose and private client databases do not
+count as observation evidence.
 
 For every client, `native_skill_binding=established` means the wrapper verified
 the frozen selected packages and emitted that client's native explicit-invocation
@@ -127,15 +125,15 @@ This binding check also applies to direct wrapper calls. If a native-installed
 profile selects owners but the matching registry root or owner arguments are
 omitted, every wrapper returns terminal `binding_mismatch` before inference.
 
-Owner-aware Claude requires `--safe-mode` with the explicit `--plugin-dir`, so
-ambient customizations stay disabled while the full installed plugin supplies
-skills and normal OAuth/keychain authentication remains available. The wrapper
-must not add `--bare`, because that flag disables the ordinary OAuth/keychain
-path and turns a logged-in CLI into an auth failure unless a separate API key is
-injected.
-The Claude wrapper also validates the installed plugin manifest before launch:
-its skills entrypoint must be `./skills`, and top-level agents, commands, hooks,
-or MCP servers make the plugin ineligible for this bounded review lane.
+Owner-aware Claude requires `--safe-mode`; `--plugin-dir` is added only when
+the installed registry verifies and the plugin manifest exposes only the
+`./skills` entrypoint, so ambient customizations stay disabled while the
+installed plugin supplies skills and normal OAuth/keychain authentication
+remains available; otherwise the run proceeds without owner skills and attests
+`native_skill_binding=unavailable`. The wrapper must not add `--bare`, because
+that flag disables the ordinary OAuth/keychain path and turns a logged-in CLI
+into an auth failure unless a separate API key is injected. A manifest declaring
+top-level agents, commands, hooks, or MCP servers is not loaded.
 
 Wrappers keep an explicit selected-owner count instead of testing empty Bash
 arrays under `set -u`, preserving the no-owner lane on Bash 3.2.

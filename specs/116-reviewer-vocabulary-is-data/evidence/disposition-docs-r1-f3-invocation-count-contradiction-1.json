@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "04e0c25851ec3baec359bf1fa0db5bc6e7527a4b9ec454d9e38e3a0d470df610",
+  "receipt_sha256": "ba2de5903696e997171c151b39fb58160091803becdfacf8ad9ef4381d3fa523",
+  "finding_sha256": "ccada25a888d25a3f15e84dcc0350d2817073053d2f964cf9590a41a992fb72d",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "ba2de5903696e997171c151b39fb58160091803becdfacf8ad9ef4381d3fa523",
+      "finding_sha256": "ccada25a888d25a3f15e84dcc0350d2817073053d2f964cf9590a41a992fb72d"
+    }
+  ],
+  "evidence": [
+    "client-routing.md now says Claude makes no separate probe or baseline invocation and that the formal invocation, retried at most once on a non-conforming envelope, is the only model call; SKILL.md's two-invocation cap phrase is retained because claude_review.sh still runs max_attempts=2 in review mode and 1 in challenge mode.",
+    "The succession challenge (chain 116-vocabulary-is-data-docs-r2, bound to landing candidate 04e0c258…) re-read the four targeted fixes and reported each landed; its single P2 concerned the retry wording and is dispositioned separately."
+  ]
+}

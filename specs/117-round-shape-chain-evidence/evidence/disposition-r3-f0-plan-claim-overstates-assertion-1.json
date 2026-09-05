@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "e1405d5815b8a14081b0a00bd408087759ce0177a1b08f7108bdfe61e2c5dfde",
+  "receipt_sha256": "168ca0f01225bd1719638ab7ed8c15e03334a7a6e7313e689fad19ffea34d7e7",
+  "finding_sha256": "e4a8ac0572a20d547f561ca57d0a4c29612c862b9ab1d43813ba86edb3c0833d",
+  "disposition": "accepted_tradeoff",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "168ca0f01225bd1719638ab7ed8c15e03334a7a6e7313e689fad19ffea34d7e7",
+      "finding_sha256": "e4a8ac0572a20d547f561ca57d0a4c29612c862b9ab1d43813ba86edb3c0833d"
+    }
+  ],
+  "evidence": [
+    "The suite is the source of truth: test_review_ledger_binding.sh names the case 'a later closeout for the right digest that the validator rejects does not bind the unbound round' and asserts rc=1 with 'round <sha> does not bind at its own base'; the chain error carries only the first failure reason, so the rejected-ledger line is not part of the chain verdict text, and the case pins the verdict, not the listing.",
+    "The landing candidate is bound by this closeout's final succession round and cannot move without a further round the lane cannot carry; this disposition file is the committed correction of that one clause, by pointer, in the same way the append-only register is corrected, and the sentence is rewritten in the next round that touches this plan."
+  ]
+}

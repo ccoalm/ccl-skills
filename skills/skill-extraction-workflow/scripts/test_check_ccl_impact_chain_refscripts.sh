@@ -108,6 +108,15 @@ run_gate() {
   rc=$?
   set -e
 }
+# Same gate, explicit base: for fixtures whose claim is about WHICH base the
+# verdict was taken against, pinning it beats inferring it from the upstream.
+run_gate_with_base() { # <base ref>
+  gate_runs=$((gate_runs + 1))
+  set +e
+  out="$(env -u ALIAS_AUDIT_CMD CCL_SKILL_BASE_REF="$1" ruby "$GATE_SCRIPT" "$REPO" 2>&1)"
+  rc=$?
+  set -e
+}
 
 # Case 1: an upstream owner's REFERENCE changed with NO impact-chain row -> block.
 new_case case-ref-no-row
@@ -1194,12 +1203,13 @@ run_gate
 assert_rc "$rc" 1 "a duplicated-then-dropped row must not vouch for new owner bytes"
 assert_contains "impact_chain_gate_missing" "$out" "the net-zero ledger leaves the owner undeclared"
 
-# Round scoping 6: the partition's central claim is that ONE MERGED worktree round
-# is ONE boundary — and this repo's integration branch is nothing but merge commits,
-# so a linear-only fixture set proves nothing about the shape the gate actually runs
-# on. `git rev-list --first-parent -- <path>` applies history simplification, so the
-# merge is a boundary only when it is not TREESAME to its first parent. These two
-# cases pin that behaviour instead of asserting it in a comment.
+# Round scoping 6: the partition's central claim is that a MERGED worktree round is
+# judged exactly as its branch was — and this repo's integration branch is nothing
+# but merge commits, so a linear-only fixture set proves nothing about the shape
+# the gate actually runs on. A merge git rebuilds from its parents is expanded
+# into the branch's own rounds; work committed on the integration line after it
+# is a round of its own. These two cases pin that behaviour instead of asserting
+# it in a comment.
 new_case case-round-scope-merged-worktree-round
 git -C "$REPO" switch -q -c feature-round-merged
 printf '\n- Never skip the fixture merged-round rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
@@ -1270,24 +1280,188 @@ run_gate
 assert_rc "$rc" 0 "a pre-rename round declared against its own round head must pass"
 assert_not_contains "impact_chain_evidence_missing_file" "$out" "a row citing the name that existed at its round head is valid evidence"
 
-# Round scoping 8: the --first-parent discriminator. On the branch the ledger
-# append lands BEFORE the owner work; first-parent collapses the merged branch
-# to one boundary (the merge), so row and work share a round. A full walk would
-# instead cut the round at the branch's ledger commit, stranding the work in a
-# rowless later round — so this fixture goes red if --first-parent is dropped,
-# which is what proves the flag load-bearing.
+# Round scoping 8: the merged view IS the branch view. On the branch the ledger
+# append lands BEFORE the owner work, so as a pull request the branch is refused:
+# the work sits in a rowless later round. Collapsing the merged branch to one
+# boundary used to accept the same bytes — what a pull request could not land,
+# its merge could, and the verdict moved after it landed. A merge git rebuilds
+# from its parents is now expanded into the branch's own rounds, so the two views
+# agree; both are run on the same fixture so the equality is a checked fact.
 new_case case-round-scope-merged-row-before-work
 git -C "$REPO" switch -q -c feature-round-row-first
+git -C "$REPO" branch --set-upstream-to=fixture-base feature-round-row-first >/dev/null 2>&1
 printf '| Fixture row-first merged round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture row-first rule | `updated` | `platform-observability/SKILL.md` merged round |\n' >> "$REGISTER"
 routing_surface_downscope
 commit_case "worktree round: ledger append first"
 printf '\n- Never skip the fixture row-first rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
 routing_surface_downscope
 commit_case "worktree round: owner work after the append"
+run_gate
+branch_rc="$rc"
+assert_rc "$rc" 1 "as a pull request, owner work after the ledger append sits in a rowless round"
+assert_contains "impact_chain_gate_missing" "$out" "the branch view names the undeclared work"
 git -C "$REPO" switch -q case-round-scope-merged-row-before-work
 git -C "$REPO" merge -q --no-ff -m "Merge branch 'feature-round-row-first': one worktree round" feature-round-row-first
 run_gate
-assert_rc "$rc" 0 "a merged worktree round collapses to one boundary even when the row precedes the work"
+assert_rc "$rc" "$branch_rc" "the merge of that branch is judged exactly as the branch was"
+assert_contains "impact_chain_gate_missing" "$out" "the merged view names the same undeclared work"
+
+# Round scoping 13: the observed failure. On the branch, round 1 adds a body rule
+# with its row and round 2 changes ONLY the description with a `#description`
+# row — as a pull request that is round scoping 2 and passes. Collapsed to one
+# boundary the owner's merged diff is body plus description, the routing-surface
+# class refuses the anchor, and a row that was valid when it landed reads
+# `impact_chain_firing_path_missing` on every post-merge evaluation (observed on
+# the integration branch's push build and on the promotion pull request, with
+# nothing about the row changed). Expanded, round 2 is judged on its own bytes.
+new_case case-round-scope-merged-description-round
+git -C "$REPO" switch -q -c feature-round-description
+git -C "$REPO" branch --set-upstream-to=fixture-base feature-round-description >/dev/null 2>&1
+printf '\n- Never skip the fixture merged-description body rule for this gate.\n' >> "$REPO/skills/product-rd-workflow/SKILL.md"
+printf '| Fixture merged body round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#Never skip the fixture merged-description body rule | `updated` | `product-rd-workflow/SKILL.md` body round |\n' >> "$REGISTER"
+routing_surface_downscope
+commit_case "worktree round 1: body rule added to the entrypoint"
+perl -0pi -e 's/^(description: .+)$/$1 Fixture merged round-scope routing clause./m' "$REPO/skills/product-rd-workflow/SKILL.md"
+printf '| Fixture merged description round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#description | `updated` | `product-rd-workflow/SKILL.md` description-only round |\n' >> "$REGISTER"
+routing_surface_downscope
+commit_case "worktree round 2: description-only edit to the same owner"
+run_gate
+branch_rc="$rc"
+assert_rc "$rc" 0 "as a pull request, the description-only round keeps its locator after the body round"
+git -C "$REPO" switch -q case-round-scope-merged-description-round
+git -C "$REPO" merge -q --no-ff -m "Merge branch 'feature-round-description': two worktree rounds" feature-round-description
+run_gate
+assert_rc "$rc" "$branch_rc" "the merge of that branch is judged exactly as the branch was"
+assert_not_contains "impact_chain_firing_path_missing" "$out" "the description anchor binds in its own round after the merge too"
+
+# Round scoping 14: expansion is bounded by what git can rebuild. A merge whose
+# tree is not the automatic merge of its parents carries content that came from
+# neither branch; expanding it would leave that content in no round, so such a
+# merge keeps the single boundary at the merge. The row-before-work branch from
+# round scoping 8, merged with an extra owner edit inside the merge commit, is
+# therefore judged as one span — which accepts it, as it always did, because that
+# span holds both the row and the work. The review-ledger binder refuses a
+# non-automatic merge on a promotion chain, so the hand-carried content is still
+# caught where promotion is decided; this fixture pins only that the expansion
+# does not silently widen past git's own reconstruction.
+new_case case-round-scope-hand-resolved-merge
+git -C "$REPO" switch -q -c feature-round-hand-resolved
+printf '| Fixture hand-resolved merged round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture hand-resolved rule | `updated` | `platform-observability/SKILL.md` merged round |\n' >> "$REGISTER"
+routing_surface_downscope
+commit_case "worktree round: ledger append first"
+printf '\n- Never skip the fixture hand-resolved rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
+routing_surface_downscope
+commit_case "worktree round: owner work after the append"
+git -C "$REPO" switch -q case-round-scope-hand-resolved-merge
+git -C "$REPO" merge -q --no-ff --no-commit feature-round-hand-resolved >/dev/null 2>&1
+printf '\nFixture line carried by the merge commit itself.\n' >> "$REPO/skills/platform-observability/references/platform-observability-playbook.md"
+commit_case "Merge branch 'feature-round-hand-resolved' with a hand-carried edit"
+run_gate
+assert_rc "$rc" 0 "a merge git cannot rebuild from its parents keeps one boundary and is not expanded"
+
+# Round scoping 15: the depth bound fails closed. Nine nested worktree rounds —
+# each branch cut from the previous one and merged back in turn, every merge the
+# automatic one — nest expansions past ROUND_WALK_MAX_DEPTH. The walk must stop
+# with its own diagnostic rather than fall back to a collapsed span, because a
+# fallback here would be the lenient verdict on exactly the history an author
+# could construct to reach it.
+new_case case-round-scope-nesting-depth
+prev=case-round-scope-nesting-depth
+for level in 1 2 3 4 5 6 7 8 9; do
+  git -C "$REPO" switch -q -c "feature-nest-$level" "$prev"
+  prev="feature-nest-$level"
+done
+printf '\n- Never skip the fixture nested rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
+printf '| Fixture nested round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture nested rule | `updated` | `platform-observability/SKILL.md` nested round |\n' >> "$REGISTER"
+routing_surface_downscope
+commit_case "deepest worktree round: owner work with its row"
+for level in 9 8 7 6 5 4 3 2 1; do
+  if [ "$level" -gt 1 ]; then outer="feature-nest-$((level - 1))"; else outer=case-round-scope-nesting-depth; fi
+  git -C "$REPO" switch -q "$outer"
+  git -C "$REPO" merge -q --no-ff -m "Merge branch 'feature-nest-$level'" "feature-nest-$level"
+done
+run_gate
+assert_rc "$rc" 1 "merges nested past the depth bound must fail closed, not fall back to a collapsed span"
+assert_contains "impact_chain_round_walk_too_deep" "$out" "the depth refusal names itself"
+
+# Round scoping 16 and 17: git failures inside the expansion decision fail closed.
+# A `git` shim on PATH delegates everything to the real git except the one
+# subcommand under test, which it makes fail with an operational status. If the
+# gate swallowed that status it would silently take the collapsed-span path — the
+# lenient verdict — so both lookups must abort with impact_chain_git_failed.
+GIT_REAL="$(command -v git)"
+SHIM_DIR="$(mktemp -d "${TMPDIR:-/tmp}/icshim.XXXXXX")"
+make_git_shim() { # <subcommand-to-break> <exit-status>
+  cat > "$SHIM_DIR/git" <<SHIM
+#!/usr/bin/env bash
+real="$GIT_REAL"
+args=("\$@")
+sub=""
+i=0
+while [ \$i -lt \${#args[@]} ]; do
+  case "\${args[\$i]}" in
+    -C) i=\$((i + 2)); continue ;;
+    -*) i=\$((i + 1)); continue ;;
+    *) sub="\${args[\$i]}"; break ;;
+  esac
+done
+if [ "\$sub" = "$1" ]; then
+  case "$1" in
+    merge-base) case " \${args[*]} " in *" --is-ancestor "*|*" HEAD "*) exec "\$real" "\$@" ;; esac ;;
+  esac
+  echo "shim: $1 unavailable" >&2
+  exit $2
+fi
+exec "\$real" "\$@"
+SHIM
+  chmod +x "$SHIM_DIR/git"
+}
+git -C "$REPO" switch -q case-round-scope-merged-description-round
+make_git_shim merge-tree 129
+PATH="$SHIM_DIR:$PATH" run_gate
+assert_rc "$rc" 1 "an unavailable merge-tree must abort the walk, not skip the expansion"
+assert_contains "impact_chain_git_failed: git merge-tree --write-tree" "$out" "the refusal names the merge-tree lookup"
+assert_contains "exited 129" "$out" "the refusal carries the shim status, so it is this lookup and not another git read"
+make_git_shim merge-base 128
+PATH="$SHIM_DIR:$PATH" run_gate
+assert_rc "$rc" 1 "a failing fork-point lookup must abort the walk, not skip the expansion"
+assert_contains "impact_chain_git_failed: git merge-base" "$out" "the refusal names the fork-point lookup"
+assert_contains "exited 128" "$out" "the refusal carries the shim status, so it is this lookup (the only two-commit merge-base in the gate) and not the base resolution, which passes HEAD"
+rm -rf "$SHIM_DIR"
+
+# Round scoping 18: a sync of the TARGET inside a branch is a sync on that
+# branch's own line. The target advances under a feature that already carries
+# owner work; the feature merges the target (automatically) and only then
+# appends its row. As a pull request the branch passes: the sync brings nothing
+# new and work plus row share a round. Promoted and judged against the older
+# base, that sync's second parent is not below the outer base — expanding it
+# would cut the branch at the sync and strand the work in a rowless span, so the
+# sync test is made against the line being walked, not the outer base alone.
+new_case case-round-scope-branch-synced-target
+git -C "$REPO" switch -q -c feature-synced-target
+git -C "$REPO" branch --set-upstream-to=case-round-scope-branch-synced-target feature-synced-target >/dev/null 2>&1
+git -C "$REPO" switch -q case-round-scope-branch-synced-target
+mkdir -p "$REPO/specs/fixture-refscripts"
+printf 'Fixture target note unrelated to any owner.\n' >> "$REPO/specs/fixture-refscripts/target-note.md"
+commit_case "target advances with an unrelated change"
+SYNC_TARGET_T="$(git -C "$REPO" rev-parse HEAD)"
+SYNC_TARGET_O="$(git -C "$REPO" rev-parse fixture-base)"
+git -C "$REPO" switch -q feature-synced-target
+printf '\n- Never skip the fixture synced-target rule for this gate.\n' >> "$REPO/skills/platform-observability/SKILL.md"
+routing_surface_downscope
+commit_case "worktree round: owner work before the sync"
+git -C "$REPO" merge -q --no-ff -m "Merge branch 'case-round-scope-branch-synced-target' into feature-synced-target" case-round-scope-branch-synced-target
+printf '| Fixture synced-target round | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/platform-observability/SKILL.md#Never skip the fixture synced-target rule | `updated` | `platform-observability/SKILL.md` synced round |\n' >> "$REGISTER"
+routing_surface_downscope
+commit_case "worktree round: its ledger append after the sync"
+run_gate_with_base "$SYNC_TARGET_T"
+branch_rc="$rc"
+assert_rc "$rc" 0 "as a pull request (base: the advanced target), a branch that synced the target keeps its work and row in one round"
+git -C "$REPO" switch -q case-round-scope-branch-synced-target
+git -C "$REPO" merge -q --no-ff -m "Merge branch 'feature-synced-target': one worktree round" feature-synced-target
+run_gate_with_base "$SYNC_TARGET_O"
+assert_rc "$rc" "$branch_rc" "promoted against the older base (pinned: the commit the target advanced from), the target sync inside the branch is still a sync and the verdict is the branch's"
+assert_not_contains "impact_chain_gate_missing" "$out" "the branch's pre-sync work is not stranded by expanding the target sync"
 
 # Round scoping 9: a TRANSIENT intermediate rename hop must not launder work.
 # X renames to Y (declared), a later round substantively changes Y with no row,
@@ -1409,6 +1583,6 @@ assert_rc "$rc" 1 "a directory masquerading as SKILL.md must not read as a prese
 assert_contains "platform-observability/SKILL.md" "$out" "the masqueraded owner must be named"
 
 assert_rc "$full_check_runs" 1 "fixture suite must retain exactly one full checker wiring case"
-assert_rc "$gate_runs" 88 "all remaining impact-chain fixtures must run the standalone gate"
+assert_rc "$gate_runs" 97 "all remaining impact-chain fixtures must run the standalone gate"
 
 echo "test_check_ccl_impact_chain_refscripts: ok"

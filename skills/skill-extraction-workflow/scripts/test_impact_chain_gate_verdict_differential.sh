@@ -139,28 +139,52 @@ git -C "$REPO_ROOT" show "$BASELINE_GATE_COMMIT:$GATE_PATH" > "$BASELINE_GATE" 2
   exit 1
 }
 
-# EXPECTED DIVERGENCES. Four landings back-filled a ledger row by corrective
-# rewrite — the repair for a round that merged with this gate red — so the owner
-# change sits below their base and the row cites an owner the range does not
-# touch. The candidate refuses that shape by design and deliberately offers no
-# author-declared escape, so these four historical ranges diverge. The gate is
-# diff-scoped and never re-judges landed history, so nothing operational depends
-# on them; this differential is the only thing that replays them.
+# EXPECTED DIVERGENCES, two named classes, both "newly refused".
 #
-# Each exemption is constrained to ONE direction and ONE diagnostic. A blanket
-# "any mismatch at this SHA is fine" would also swallow the opposite direction —
-# a loosening — which is the failure this whole suite exists to catch. Entries are
-# named individually, never matched by pattern, and an entry that stops diverging
-# is reported as stale rather than tolerated.
-EXPECTED_DIVERGENCE_SHAS="f03b1140f 93d09c563 9f233728a 046612652"
-EXPECTED_DIVERGENCE_DIRECTION="newly refused"
-EXPECTED_DIVERGENCE_TOKEN="impact_chain_row_vouches_for_unchanged_owner"
-expected_divergence() { # <full sha> <direction> <candidate output>
-  local short="${1:0:9}" direction="$2" out="$3" known
-  [ "$direction" = "$EXPECTED_DIVERGENCE_DIRECTION" ] || return 1
-  case "$out" in *"$EXPECTED_DIVERGENCE_TOKEN"*) : ;; *) return 1 ;; esac
-  for known in $EXPECTED_DIVERGENCE_SHAS; do
-    [ "$known" = "$short" ] && return 0
+# `impact_chain_row_vouches_for_unchanged_owner` (four points): landings that
+# back-filled a ledger row by corrective rewrite — the repair for a round that
+# merged with this gate red — so the owner change sits below their base and the
+# row cites an owner the range does not touch. The candidate refuses that shape by
+# design and deliberately offers no author-declared escape.
+#
+# `impact_chain_gate_missing` (six points): merges from before CI judged the
+# branch head (register row on the checkout ref binding, 2026-08-25). The gate now
+# expands a merge git rebuilds from its parents into the branch's own rounds, so a
+# merge is judged exactly as its branch was; these six branches carry owner work
+# outside the round that declares it (a row appended before the work, or work
+# after the last append) and the baseline accepted them only through the
+# collapsed merged view, which no longer exists as a distinct verdict. Three of
+# the six are refused on their own branch head by the baseline gate too; the other
+# three are promotions or syncs whose second parent is the integration branch,
+# where the same shapes sit one merge deeper.
+#
+# The gate is diff-scoped and never re-judges landed history, so nothing
+# operational depends on these points; this differential is the only thing that
+# replays them. Each entry is constrained to ONE direction and ONE diagnostic. A
+# blanket "any mismatch at this SHA is fine" would also swallow the opposite
+# direction — a loosening — which is the failure this whole suite exists to
+# catch. Entries are named individually, never matched by pattern, and an entry
+# that stops diverging is reported as stale rather than tolerated.
+EXPECTED_DIVERGENCES="
+f03b1140f:refused:impact_chain_row_vouches_for_unchanged_owner
+93d09c563:refused:impact_chain_row_vouches_for_unchanged_owner
+9f233728a:refused:impact_chain_row_vouches_for_unchanged_owner
+046612652:refused:impact_chain_row_vouches_for_unchanged_owner
+b9de13869:refused:impact_chain_gate_missing
+8cea35e6d:refused:impact_chain_gate_missing
+95f06b2e6:refused:impact_chain_gate_missing
+c0561c74e:refused:impact_chain_gate_missing
+fad480296:refused:impact_chain_gate_missing
+90ec533e1:refused:impact_chain_gate_missing
+"
+expected_divergence() { # <full sha> <direction> <candidate output>; prints the matched token
+  local short="${1:0:9}" direction="$2" out="$3" entry sha dir token
+  case "$direction" in "newly refused") direction=refused ;; "newly accepted") direction=accepted ;; esac
+  for entry in $EXPECTED_DIVERGENCES; do
+    sha="${entry%%:*}"; token="${entry##*:}"; dir="${entry#*:}"; dir="${dir%%:*}"
+    [ "$sha" = "$short" ] || continue
+    [ "$dir" = "$direction" ] || return 1
+    case "$out" in *"$token"*) printf '%s' "$token"; return 0 ;; *) return 1 ;; esac
   done
   return 1
 }
@@ -170,7 +194,7 @@ expected_divergence() { # <full sha> <direction> <candidate output>
 # them, so the exemptions are stale and the run would pass while silently failing
 # the staleness check it never reaches.
 if cmp -s "$BASELINE_GATE" "$CANDIDATE_GATE"; then
-  if [ -n "$(printf '%s' "$EXPECTED_DIVERGENCE_SHAS" | tr -d '[:space:]')" ]; then
+  if [ -n "$(printf '%s' "$EXPECTED_DIVERGENCES" | tr -d '[:space:]')" ]; then
     echo "FAIL: baseline and candidate are byte-identical, yet expected divergences are configured" >&2
     echo "      identical gates cannot diverge — the exemptions are stale and must be removed" >&2
     exit 1
@@ -261,8 +285,8 @@ for point in $INTEGRATION_POINTS; do
     direction="newly accepted"
   fi
   if [ -n "$direction" ]; then
-    if expected_divergence "$point" "$direction" "$candidate_out"; then
-      flag="  (expected divergence: corrective-rewrite back-fill, $direction)"
+    if matched_token="$(expected_divergence "$point" "$direction" "$candidate_out")"; then
+      flag="  (expected divergence: $matched_token, $direction)"
       expected_seen=$((expected_seen + 1))
     else
       flag="  <== VERDICT MISMATCH: $direction"
@@ -412,7 +436,7 @@ if [ "$total_failures" -gt 0 ]; then
 fi
 # An expected divergence that stops diverging means the exemption is stale and
 # should be removed, so it is reported rather than silently tolerated.
-expected_total="$(for e in $EXPECTED_DIVERGENCE_SHAS; do echo "$e"; done | wc -l | tr -d ' ')"
+expected_total="$(for e in $EXPECTED_DIVERGENCES; do echo "$e"; done | wc -l | tr -d ' ')"
 if [ "$expected_seen" != "$expected_total" ]; then
   echo "FAIL: $expected_seen of $expected_total expected divergences actually diverged" >&2
   echo "      an exemption that no longer fires is stale — remove it" >&2

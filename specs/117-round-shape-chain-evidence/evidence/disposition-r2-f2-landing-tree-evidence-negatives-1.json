@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "e1405d5815b8a14081b0a00bd408087759ce0177a1b08f7108bdfe61e2c5dfde",
+  "receipt_sha256": "0306213ed5a04f4c2e8321a28c6d725a3092bf7ffaa40ddd7a0b99b676cd5998",
+  "finding_sha256": "15b88241a24234fa0ce5725fcf366b05b8fa41d599e17bc6f22266b79998d7a9",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "0306213ed5a04f4c2e8321a28c6d725a3092bf7ffaa40ddd7a0b99b676cd5998",
+      "finding_sha256": "15b88241a24234fa0ce5725fcf366b05b8fa41d599e17bc6f22266b79998d7a9"
+    }
+  ],
+  "evidence": [
+    "Three chain cases added: a later closeout for the right digest that the validator rejects does not bind and is listed as rejected; an untracked closeout in the landing tree is refused with the uncommitted-changes error before any round is bound; the unbound round's candidate hash printed at its own base after the retro ledger landed equals the hash printed before it existed.",
+    "scan, validator_accepts and candidate_scope are unchanged by this round; bind_candidate only chooses which tree scan enumerates, and the single-ledger and manifest paths keep the checkout as that tree.",
+    "Fixed in the landing candidate; the succession challenge on that candidate is the final receipt of this closeout."
+  ]
+}

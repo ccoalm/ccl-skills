@@ -111,37 +111,9 @@ run_ok_runtime_surface() {
     --require-empty-init --expected-tools "$expected_tools" --allow-expected-tool-use --runtime-surface-only >/dev/null
 }
 
-run_ok_expected_native_skills() {
-  local expected_native_skills="$1" required_native_skills="$2" rc="$3" stdout="$4"
-  local stderr="${5:-}"
-  printf '%s' "$stdout" > "$tmp_dir/stdout"
-  printf '%s' "$stderr" > "$tmp_dir/stderr"
-  python3 "$parser" "$rc" "$tmp_dir/stdout" "$tmp_dir/stderr" \
-    --require-empty-init \
-    --expected-native-skills "$expected_native_skills" \
-    --required-native-skills "$required_native_skills" >/dev/null
-}
-
-run_reason_expected_native_skills() {
-  local expected_native_skills="$1" required_native_skills="$2" rc="$3" stdout="$4"
-  local expected="$5" stderr="${6:-}" out
-  printf '%s' "$stdout" > "$tmp_dir/stdout"
-  printf '%s' "$stderr" > "$tmp_dir/stderr"
-  if out="$(python3 "$parser" "$rc" "$tmp_dir/stdout" "$tmp_dir/stderr" \
-    --require-empty-init \
-    --expected-native-skills "$expected_native_skills" \
-    --required-native-skills "$required_native_skills")"; then
-    printf 'expected native-skill probe parser failure\n' >&2
-    return 1
-  fi
-  printf '%s' "$out" | grep -F "$expected" >/dev/null
-}
-
-# Runtime-surface variants used to pin the main-invocation drift guard. The
-# first omits --allow-expected-tool-use (the wrapper always passes it, so this
-# is the guard's defence-in-depth leg); the second exercises the owner-aware
-# path, where a permitted-looking customization list can still carry an
-# unexpected identifier.
+# Runtime-surface variant used to pin the main-invocation drift guard: it
+# omits --allow-expected-tool-use (the wrapper always passes it, so this is the
+# guard's defence-in-depth leg).
 run_reason_runtime_surface_no_tool_use_allowance() {
   local expected_tools="$1" rc="$2" stdout="$3" expected="$4" stderr="${5:-}" out
   printf '%s' "$stdout" > "$tmp_dir/stdout"
@@ -153,24 +125,6 @@ run_reason_runtime_surface_no_tool_use_allowance() {
   fi
   if printf '%s' "$out" | grep -F 'unrecognized surface-shaped init field' >/dev/null; then
     printf 'drift reason must not launder an unallowed tool_use: %s\n' "$out" >&2
-    return 1
-  fi
-  printf '%s' "$out" | grep -F "$expected" >/dev/null
-}
-
-run_reason_runtime_surface_native() {
-  local expected_native_skills="$1" rc="$2" stdout="$3" expected="$4" stderr="${5:-}" out
-  printf '%s' "$stdout" > "$tmp_dir/stdout"
-  printf '%s' "$stderr" > "$tmp_dir/stderr"
-  if out="$(python3 "$parser" "$rc" "$tmp_dir/stdout" "$tmp_dir/stderr" \
-    --require-empty-init --expected-tools "" --allow-expected-tool-use --runtime-surface-only \
-    --expected-native-skills "$expected_native_skills" \
-    --required-native-skills "$expected_native_skills")"; then
-    printf 'expected owner-aware runtime-surface parser failure\n' >&2
-    return 1
-  fi
-  if printf '%s' "$out" | grep -F 'unrecognized surface-shaped init field' >/dev/null; then
-    printf 'drift reason must not launder an unexpected identifier: %s\n' "$out" >&2
     return 1
   fi
   printf '%s' "$out" | grep -F "$expected" >/dev/null
@@ -292,33 +246,24 @@ run_ok_strict 0 "$empty_init"$'\n{"type":"result","subtype":"success","is_error"
 read_init='{"type":"system","subtype":"init","permissionMode":"default","tools":["Read","Grep","Glob"],"mcp_servers":[],"slash_commands":[],"skills":[],"plugins":[]}'
 run_ok_expected_tools 'Read,Grep,Glob' 0 "$read_init"$'\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
 run_ok_expected_tool_use 'Read,Grep,Glob' 0 "$read_init"$'\n{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{}}]}}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
-# Claude Code 2.1.218 exposes these exact host built-ins whenever an explicit
-# plugin enables the command registry. They are not plugin-owned commands or
-# model tools, so a selected native skill remains valid.
-run_ok_expected_native_skills 'testing-strategy' 'testing-strategy' 0 \
-  $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","workflow-launch-exec","ultrareview"],"skills":["testing-strategy"],"plugins":["ccl-skills"]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
-# The same owner-aware path remains value-exact: an arbitrary command cannot
-# hide beside the two registered host built-ins.
-run_reason_expected_native_skills 'testing-strategy' 'testing-strategy' 0 \
-  $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","workflow-launch-exec","ultrareview","unrelated:danger"],"skills":["testing-strategy"],"plugins":["ccl-skills"]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' \
-  'runtime capability surface is not empty'
-# A dict-shaped entry is never whole, however allowed its `name` reads. The
-# entry hides a sibling key the identifier helper discards, so clearing it on
-# the truncated name would accept a customization whose proof was in the part
-# that was thrown away. host_entry_is_whole must reject the shape BEFORE the
-# allowlist reads it; flipping its non-string branch to True makes this case
-# pass, which is exactly the regression this asserts.
-run_reason_expected_native_skills 'testing-strategy' 'testing-strategy' 0 \
-  $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","workflow-launch-exec",{"name":"ultrareview","path":"hidden-sibling-value"}],"skills":["testing-strategy"],"plugins":["ccl-skills"]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' \
-  'runtime capability surface is not empty'
-
-# A matching name in either executable surface is still terminal. Built-in UI
-# registration never authorizes a tool declaration or invocation.
-run_reason_expected_native_skills 'testing-strategy' 'testing-strategy' 0 \
+# Claude Code 2.1.261 lists its own built-in commands and skills, plus every
+# installed plugin entry, whenever an explicit plugin enables the command
+# registry. They are vocabulary, not model tools: any entry is tolerated on
+# both parse paths, including names the host adds tomorrow, namespaced or
+# structured entries, and the selected owner's own namespaced command.
+vocab_init='{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","workflow-launch-exec","ultrareview","workflow-authoring","unrelated:danger",{"name":"ultrareview","path":"hidden-sibling-value"}],"terminal_slash_commands":["doctor"],"skills":["testing-strategy","workflow-authoring","brand-new-skill"],"plugins":["ccl-skills",{"name":"other","path":"/p"}]}'
+run_ok_strict 0 "$vocab_init"$'\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
+run_ok_runtime_surface '' 0 "$vocab_init"$'\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
+# A matching name in either executable surface is still terminal. Vocabulary
+# never authorizes a tool declaration, a tool invocation, or an MCP server.
+run_reason_strict 0 \
   $'{"type":"system","subtype":"init","permissionMode":"default","tools":["workflow-launch-exec"],"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","workflow-launch-exec","ultrareview"],"skills":["testing-strategy"],"plugins":["ccl-skills"]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' \
   'runtime capability surface is not empty'
-run_reason_expected_native_skills 'testing-strategy' 'testing-strategy' 0 \
+run_reason_strict 0 \
   $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","workflow-launch-exec","ultrareview"],"skills":["testing-strategy"],"plugins":["ccl-skills"]}\n{"type":"assistant","message":{"content":[{"type":"tool_use","name":"workflow-launch-exec","input":{}}]}}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' \
+  'runtime capability surface is not empty'
+run_reason_strict 0 \
+  $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":["inherited"],"slash_commands":["ccl-skills:testing-strategy","workflow-launch-exec","ultrareview"],"skills":["testing-strategy"],"plugins":["ccl-skills"]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' \
   'runtime capability surface is not empty'
 run_reason_expected_tools_implicit_strict 'Read,Grep,Glob' 0 'ok' \
   'missing the required stream-json init evidence'
@@ -422,42 +367,31 @@ run_reason_strict 0 $'{"type":"system","subtype":"init","permissionMode":"defaul
 run_reason 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":["Bash"],"mcp_servers":[],"slash_commands":[],"skills":[],"plugins":[],"capabilities":["interrupt_cancel_queued_v1"],"fast_mode_disabled_reason":"sdk_opt_in_required"}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'the no-tool sandbox is not enforced'
 run_reason 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":["Write"],"mcp_servers":[],"slash_commands":[],"skills":[],"plugins":[],"capabilities":["interrupt_cancel_queued_v1"],"fast_mode_disabled_reason":"sdk_opt_in_required"}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'runtime capability surface is not empty'
 run_reason 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":[],"skills":[],"plugins":[],"fast_mode_disabled_reason":"sdk_opt_in_required"}\n{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{}}]}}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'runtime capability surface is not empty'
-# Drift + a real breach in the same init must report as the BREACH. Review round
-# 4 suspected `unexpected_customization_identifiers` was missing from the
-# main-path `runtime_drift_only` guard; it stays out because every identifier it
-# reports lands in a set that IS in the guard, and these fixtures pin that so the
-# soft drift reason can never launder a combined case. Note which set: an
-# identifier that is provably a customization marks its field non-empty, while a
-# bare host-vocabulary name lands in the unclassifiable set instead — so the
-# fixtures below use a NAMESPACED foreign identifier, which is the one that is
-# still a proven breach.
-run_reason_runtime_surface '' 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":[],"skills":["some-skill"],"plugins":[],"future_surface":["x"]}\n{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","structured_output":{"mode":"challenge","findings":[]}}' 'runtime isolation surface is invalid'
-run_reason_runtime_surface '' 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":[],"skills":["some-skill"],"plugins":[],"future_surface":["x"]}\n{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","structured_output":{"mode":"challenge","findings":[]}}' 'unexpected_customizations=skills'
-# ...and the main-path guard must match the probe path's breach set exactly.
-# A tool_use with no allowance, and an unexpected identifier under an owner-aware
-# run, are the two legs where the two guards could silently diverge again.
+# Drift + a real breach in the same init must report as the BREACH, and these
+# fixtures pin that so the soft drift reason can never launder a combined case.
+# The breach here is an inherited MCP server -- the one customization list that
+# is still a capability surface.
+run_reason_runtime_surface '' 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":["some-server"],"slash_commands":[],"skills":[],"plugins":[],"future_surface":["x"]}\n{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","structured_output":{"mode":"challenge","findings":[]}}' 'runtime isolation surface is invalid'
+run_reason_runtime_surface '' 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":["some-server"],"slash_commands":[],"skills":[],"plugins":[],"future_surface":["x"]}\n{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","structured_output":{"mode":"challenge","findings":[]}}' 'unexpected_customizations=mcp_servers'
+# ...and the main-path guard must match the probe path's breach set exactly:
+# a tool_use with no allowance is the leg where the two guards could silently
+# diverge again.
 run_reason_runtime_surface_no_tool_use_allowance 'Write' 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":["Write"],"mcp_servers":[],"slash_commands":[],"skills":[],"plugins":[],"future_surface":["x"]}\n{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{}}]}}\n{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","structured_output":{"mode":"challenge","findings":[]}}' 'runtime isolation surface is invalid'
-run_reason_runtime_surface_native 'testing-strategy' 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy"],"skills":["testing-strategy","other-plugin:unrelated-skill"],"plugins":["ccl-skills"],"future_surface":["x"]}\n{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","structured_output":{"mode":"challenge","findings":[]}}' 'unexpected_customization_identifiers=skills:other-plugin:unrelated-skill'
-# The same fixture with a BARE unknown skill is deliberately the other verdict:
-# it reports the soft class, because a bare name outside the built-in snapshot is
-# not proof of a customization. Pinned explicitly so the split above is asserted
-# rather than merely allowed by the fixture's choice of identifier. `future_surface`
-# is dropped here on purpose — with schema drift also present the reason is the
-# broader drift phrase, which this helper forbids by design; that combined case is
-# pinned in the policy matrix instead.
-run_reason_runtime_surface_native 'testing-strategy' 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy"],"skills":["testing-strategy","unrelated-skill"],"plugins":["ccl-skills"]}\n{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","structured_output":{"mode":"challenge","findings":[]}}' 'unclassifiable_host_vocabulary=skills:unrelated-skill'
+# Vocabulary beside schema drift is still only drift: the populated lists add
+# nothing to the verdict, so the reason stays the fallback-eligible drift phrase.
+run_reason_runtime_surface '' 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["ccl-skills:testing-strategy","brand-new-builtin"],"skills":["testing-strategy","other-plugin:unrelated-skill"],"plugins":["ccl-skills"],"future_surface":["x"]}\n{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","structured_output":{"mode":"challenge","findings":[]}}' 'unrecognized surface-shaped init field'
 # Same rule on the probe path: drift alongside a declared surface, an unexpected
 # tool, or a tool_use must report the BREACH. The drift phrase routes to
 # fallback, so reaching it first would launder a real breach.
-combo_drift_breach=$'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":[],"skills":["some-skill"],"plugins":[],"future_surface":["x"]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
+combo_drift_breach=$'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":["some-server"],"slash_commands":[],"skills":[],"plugins":[],"future_surface":["x"]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
 run_reason 0 "$combo_drift_breach" 'runtime capability surface is not empty'
 run_reason_excludes 0 "$combo_drift_breach" 'unrecognized surface-shaped init field'
 combo_drift_tool=$'{"type":"system","subtype":"init","permissionMode":"default","tools":["Write"],"mcp_servers":[],"slash_commands":[],"skills":[],"plugins":[],"future_surface":["x"]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
 run_reason_excludes 0 "$combo_drift_tool" 'unrecognized surface-shaped init field'
 combo_drift_use=$'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":[],"skills":[],"plugins":[],"future_surface":["x"]}\n{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{}}]}}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
 run_reason_excludes 0 "$combo_drift_use" 'unrecognized surface-shaped init field'
-# A declared CCL skill/plugin surface is still rejected under drift tolerance.
-run_reason 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":[],"skills":["some-skill"],"plugins":[],"fast_mode_disabled_reason":"sdk_opt_in_required"}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'runtime capability surface is not empty'
+# An inherited MCP server is still rejected under drift tolerance.
+run_reason 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":["some-server"],"slash_commands":[],"skills":[],"plugins":[],"fast_mode_disabled_reason":"sdk_opt_in_required"}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'runtime capability surface is not empty'
 # THE flakiness fix: model hallucinates TOOL_ENABLED but every runtime surface is empty -> pass.
 run_ok 0 "$empty_init"$'\n{"type":"result","subtype":"success","is_error":false,"num_turns":1,"permission_denials":[],"result":"TOOL_ENABLED"}'
 # clean ok via stream -> pass.
@@ -470,9 +404,10 @@ run_reason 0 $'{"type":"system","subtype":"init","permissionMode":"default","too
 # declared set; unknown/non-string elements make init ground truth invalid.
 run_reason 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[{"name":"Bash"}],"mcp_servers":[],"slash_commands":[],"skills":[],"plugins":[]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'missing required isolation fields'
 run_reason 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[{"name":"x"}],"slash_commands":[],"skills":[],"plugins":[]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'runtime capability surface is not empty'
-run_reason 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["review"],"skills":[],"plugins":[]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'runtime capability surface is not empty'
-run_reason 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":[],"skills":["review"],"plugins":[]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'runtime capability surface is not empty'
-run_reason 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":[],"skills":[],"plugins":["x"]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'runtime capability surface is not empty'
+# Skill, command and plugin lists are vocabulary: populated is not a breach.
+run_ok 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["review"],"skills":[],"plugins":[]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
+run_ok 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":[],"skills":["review"],"plugins":[]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
+run_ok 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":[],"skills":[],"plugins":["x"]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
 # closes the latent false-negative: Bash DECLARED in init.tools, reply says ok -> fail.
 run_reason 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":["Bash","Read"],"mcp_servers":[],"slash_commands":[],"skills":[],"plugins":[]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'Bash tool is available'
 # Bash actually INVOKED via tool_use block -> fail (sandbox not enforced).
@@ -509,76 +444,25 @@ run_reason 0 "$empty_init"$'\n{"type":"system","subtype":"init","permissionMode"
 # pretty-printed single envelope (bare-brace lines) must still pass via the text fallback.
 run_ok 0 $'{\n  "type": "result",\n  "subtype": "success",\n  "is_error": false,\n  "result": "ok"\n}'
 
-# --- host vocabulary is unverifiable, not a proven breach -------------------
-# The review-skill invocation is the only shape whose customization lists are
-# populated by the host's own built-ins, so a name this repo's snapshot does not
-# know cannot be shown to be a user customization. It must refuse WITHOUT
-# terminating the lane; anything that IS provably a customization must not
-# inherit that softer class. `product-rd-workflow` is used as the selected skill
-# because a name that is also a built-in skill trips the ambiguous-owner guard
-# and would mask the verdict under test.
-native_vocab_result=$'\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
-native_vocab_init() {
-  printf '{"type":"system","subtype":"init","permissionMode":"default","tools":%s,"mcp_servers":[],"slash_commands":%s,"skills":%s,"plugins":[{"name":"ccl-skills"}]}' \
-    "${1:-[]}" "${2:-[\"init\",\"agents\"]}" "${3:-[\"ccl-skills:product-rd-workflow\",\"dataviz\"]}"
-}
-run_reason_native_excludes() {
-  local stdout="$1" forbidden="$2" expected="$3" out
-  printf '%s' "$stdout" > "$tmp_dir/stdout"
-  : > "$tmp_dir/stderr"
-  if out="$(python3 "$parser" 0 "$tmp_dir/stdout" "$tmp_dir/stderr" \
-    --require-empty-init \
-    --expected-native-skills product-rd-workflow \
-    --required-native-skills product-rd-workflow)"; then
-    printf 'expected native-skill parser failure for stdout: %s\n' "$stdout" >&2
-    return 1
-  fi
-  if printf '%s' "$out" | grep -F "$forbidden" >/dev/null; then
-    printf 'a proven customization must not report as %q: %s\n' "$forbidden" "$out" >&2
-    return 1
-  fi
-  printf '%s' "$out" | grep -F "$expected" >/dev/null
-}
-# the base itself is accepted, or none of the rows below prove anything
-run_ok_expected_native_skills product-rd-workflow product-rd-workflow 0 \
-  "$(native_vocab_init)$native_vocab_result"
-# a built-in the snapshot has not caught up with, in either host-vocabulary field
-run_reason_expected_native_skills product-rd-workflow product-rd-workflow 0 \
-  "$(native_vocab_init '[]' '["init","agents","brand-new-builtin"]')$native_vocab_result" \
-  'unclassifiable host-vocabulary entry'
-run_reason_expected_native_skills product-rd-workflow product-rd-workflow 0 \
-  "$(native_vocab_init '[]' '["init"]' '["ccl-skills:product-rd-workflow","brand-new-skill"]')$native_vocab_result" \
-  'unclassifiable host-vocabulary entry'
-# ...and the identifier is named, so the follow-up is a one-liner
-run_reason_expected_native_skills product-rd-workflow product-rd-workflow 0 \
-  "$(native_vocab_init '[]' '["init","brand-new-builtin"]')$native_vocab_result" \
-  'slash_commands:brand-new-builtin'
-# A NAMESPACED entry proves a surface beyond the one expected plugin; a
-# path-shaped or unparseable identifier proves nothing about host origin; a
-# duplicate is a spoofing signal. All four stay terminal.
-run_reason_native_excludes \
-  "$(native_vocab_init '[]' '["init","evil-plugin:pwn"]')$native_vocab_result" \
-  'unclassifiable host-vocabulary' 'runtime capability surface is not empty'
-run_reason_native_excludes \
-  "$(native_vocab_init '[]' '["init","dir/cmd"]')$native_vocab_result" \
-  'unclassifiable host-vocabulary' 'runtime capability surface is not empty'
-run_reason_native_excludes \
-  "$(native_vocab_init '[]' '["init","ev!l"]')$native_vocab_result" \
-  'unclassifiable host-vocabulary' 'runtime capability surface is not empty'
-run_reason_native_excludes \
-  "$(native_vocab_init '[]' '["init","init"]')$native_vocab_result" \
-  'unclassifiable host-vocabulary' 'runtime capability surface is not empty'
-# The softer class must never absorb a real breach that happens alongside it.
-run_reason_native_excludes \
-  "$(native_vocab_init '["Write"]' '["init","brand-new-builtin"]')$native_vocab_result" \
-  'unclassifiable host-vocabulary' 'runtime capability surface is not empty'
-# Same policy on the main-invocation path, with the identifier in the detail
-# fields so an operator can see which name drifted.
-run_reason_runtime_surface_native product-rd-workflow 0 \
-  "$(native_vocab_init '[]' '["init","brand-new-builtin"]')$native_vocab_result" \
-  'unclassifiable host-vocabulary entry'
-run_reason_runtime_surface_native product-rd-workflow 0 \
-  "$(native_vocab_init '[]' '["init","brand-new-builtin"]')$native_vocab_result" \
-  'unclassifiable_host_vocabulary=slash_commands:brand-new-builtin'
+# --- vocabulary is data, not a verdict --------------------------------------
+# Any value in slash_commands / terminal_slash_commands / skills / plugins is
+# tolerated on both parse paths; only tools, tool_use, the MCP list and
+# permissionMode decide. Pinned so the class can never be tightened back into a
+# snapshot of the host's own names: that snapshot made every CLI release that
+# shipped a new built-in a reviewer-lane outage while proving nothing.
+vocab_any='{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["init","brand-new-builtin","evil-plugin:pwn","dir/cmd","ev!l","init"," import","brand-new runtime isolation"],"terminal_slash_commands":[{"name":"init"},"not-declared"],"skills":["brand-new-skill",{"name":"verify","command":"/x/y"},"evil-plugin:pwn"],"plugins":[{"name":"ccl-skills"},{"name":"other","path":"/p"},"x"]}'
+run_ok_strict 0 "$vocab_any"$'\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
+run_ok_runtime_surface '' 0 "$vocab_any"$'\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
+# absent or oddly typed vocabulary fields are not "missing isolation fields"
+run_ok_strict 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
+run_ok_strict 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":{"a":1},"skills":"none","plugins":null,"terminal_slash_commands":"doctor"}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}'
+# ...while the MCP list, the one customization list that is capability, must
+# still be present and empty.
+run_reason_strict 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"slash_commands":[],"skills":[],"plugins":[]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'missing required isolation fields'
+# ...and every breach class keeps its strength beside vocabulary.
+run_reason_runtime_surface '' 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":["Write"],"mcp_servers":[],"slash_commands":["init","brand-new-builtin"],"skills":["brand-new-skill"],"plugins":[{"name":"ccl-skills"}]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'runtime isolation surface is invalid'
+run_reason_runtime_surface '' 0 $'{"type":"system","subtype":"init","permissionMode":"bypassPermissions","tools":[],"mcp_servers":[],"slash_commands":["init","brand-new-builtin"],"skills":["brand-new-skill"],"plugins":[{"name":"ccl-skills"}]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'unsafe_values=permissionMode'
+run_reason_runtime_surface '' 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[{"name":"x"}],"slash_commands":["init","brand-new-builtin"],"skills":["brand-new-skill"],"plugins":[{"name":"ccl-skills"}]}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'unexpected_customizations=mcp_servers'
+run_reason 0 $'{"type":"system","subtype":"init","permissionMode":"default","tools":[],"mcp_servers":[],"slash_commands":["init","brand-new-builtin"],"skills":["brand-new-skill"],"plugins":[{"name":"ccl-skills"}]}\n{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{}}]}}\n{"type":"result","subtype":"success","is_error":false,"result":"ok"}' 'runtime capability surface is not empty'
 
 printf 'parse_probe_result_tests_ok\n'

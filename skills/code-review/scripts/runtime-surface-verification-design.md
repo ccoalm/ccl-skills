@@ -19,8 +19,10 @@ runtime judge requires:
 
 - the exact expected built-in tool set (`StructuredOutput` only for schema-based
   packet modes; `Read,Grep,Glob` plus `StructuredOutput` for repository consult);
-- empty `mcp_servers`, `slash_commands`, `skills`, and `plugins` lists;
-- only reviewed init metadata fields and values;
+- an empty `mcp_servers` list;
+- only reviewed init metadata fields and values, where `slash_commands`,
+  `terminal_slash_commands`, `skills`, and `plugins` are vocabulary that may
+  hold any value;
 - no tool invocation outside the expected set;
 - a structurally clean result envelope with no error, API status, permission
   denial, auth, or quota signal.

@@ -1,6 +1,6 @@
 ---
 name: defect-diagnosis
-description: bug / 报错 / test 挂了 / 线上问题 / 复现 / 找根因 / debug → diagnose first-hand failure evidence, isolate cause, verify before fixing, add regression proof, and route prevention. Also use for AI-proposed causes or fixes.
+description: bug / 报错 / test 挂了 / 线上问题 / 接口变慢·性能退化 / 复现 / 找根因 / debug → diagnose first-hand failure evidence, isolate cause, verify before fixing, add regression proof, and route prevention. Also use for AI-proposed causes or fixes.
 ---
 
 # Defect Diagnosis

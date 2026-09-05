@@ -616,6 +616,64 @@ out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
 check "a round with no accepted ledger at its own base refuses the whole chain, naming that round" \
   '[ "$rc" = 1 ] && case "$out" in *"round $UNBOUND_MERGE"*"does not bind at its own base"*) true;; *) false;; esac'
 
+# Evidence is read from the LANDING tree, not from the round's own checkout. A
+# round that merged without its ledger is still a set of bytes some later review
+# can freeze and inspect; a validator-accepted closeout for exactly that candidate,
+# committed on the integration branch afterwards, binds it. A closeout for any
+# other digest does not, wherever it sits — the candidate hash, not the file's
+# location, is what makes a ledger evidence. The retro ledger lands as a round of
+# its own (a merge whose only change is receipt-shaped evidence), because a
+# direct commit on the integration branch is refused for its own reason.
+D_BASE="$(git -C "$CHAIN" rev-parse HEAD^1)"
+git -C "$CHAIN" checkout -q round-d
+D_DIGEST="$(run_chain --base "$D_BASE" --print-candidate)"
+git -C "$CHAIN" checkout -q dev
+edit_retro_wrong() {
+  mkdir -p "$CHAIN/specs/d-retro-wrong/evidence"
+  write_closeout "$CHAIN/specs/d-retro-wrong/evidence/closeout.json" "$(printf '%064d' 7)"
+}
+land_round d-retro-wrong no-ledger edit_retro_wrong
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a later closeout for a different digest does not bind the unbound round" \
+  '[ "$rc" = 1 ] && case "$out" in *"round $UNBOUND_MERGE"*"does not bind at its own base"*) true;; *) false;; esac'
+# The right digest in a closeout the validator rejects is still not evidence.
+edit_retro_rejected() {
+  mkdir -p "$CHAIN/specs/d-retro-rejected/evidence"
+  python3 - "$CHAIN/specs/d-retro-rejected/evidence/closeout.json" "$D_DIGEST" <<'PY'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({"schema_version": 3, "closeout_state": "forged", "controller_receipts": [], "candidate_sha256": sys.argv[2]}))
+PY
+}
+land_round d-retro-rejected no-ledger edit_retro_rejected
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a later closeout for the right digest that the validator rejects does not bind the unbound round" \
+  '[ "$rc" = 1 ] && case "$out" in *"round $UNBOUND_MERGE"*"does not bind at its own base"*) true;; *) false;; esac'
+# Evidence in the landing tree must be COMMITTED there, exactly as before: an
+# untracked closeout for the right digest is refused outright, not read from disk.
+mkdir -p "$CHAIN/specs/d-retro/evidence"
+write_closeout "$CHAIN/specs/d-retro/evidence/closeout.json" "$D_DIGEST"
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "an uncommitted closeout in the landing tree is refused before any round is bound" \
+  '[ "$rc" != 0 ] && case "$out" in *"uncommitted changes"*) true;; *) false;; esac'
+rm -r "$CHAIN/specs/d-retro"
+edit_retro_right() {
+  mkdir -p "$CHAIN/specs/d-retro/evidence"
+  write_closeout "$CHAIN/specs/d-retro/evidence/closeout.json" "$D_DIGEST"
+}
+land_round d-retro no-ledger edit_retro_right
+out="$(run_chain --base "$CHAIN_MAIN")"; rc=$?
+check "a validator-accepted closeout for the round's own candidate, committed on the integration branch after the merge, binds it through the chain" \
+  '[ "$rc" = 0 ] && case "$out" in *"first-parent chain"*"specs/d-retro/evidence/closeout.json"*) true;; *) false;; esac'
+# Later evidence changes where a ledger may be found, never what the round is:
+# the unbound round's candidate at its own base hashes exactly as it did before
+# any retro ledger existed, so its packet, base and excludes are untouched.
+git -C "$CHAIN" checkout -q round-d
+D_DIGEST_AFTER="$(run_chain --base "$D_BASE" --print-candidate)"
+git -C "$CHAIN" checkout -q dev
+check "the round's candidate hash is unchanged by evidence committed later in the landing tree" \
+  '[ "$D_DIGEST_AFTER" = "$D_DIGEST" ]'
+
 probe_chain
 printf 'pushed straight to the integration branch\n' >"$CHAIN/lane/direct.txt"
 git -C "$CHAIN" add -A && git -C "$CHAIN" commit -qm "direct commit on dev"
@@ -827,10 +885,10 @@ check "the passing chain state still passes after the probes" \
 # the real checkout it ships in, or a break in that path passes every test here.
 REAL_ROOT="$(cd "$DIR/../../.." && pwd -P)"
 real_out="$(env -u CCL_SKILL_BASE_REF python3 "$GATE" --repo-root "$REAL_ROOT" --base HEAD~1 --print-candidate 2>&1)"; real_rc=$?
-# Both outputs are legitimate and which one appears depends on what the parent
-# commit happened to touch: a candidate hash when a reviewed path moved, the
-# no-change signal when it did not. Accepting only the first makes this assertion
-# a function of repository state rather than of the gate.
+# Three outputs are legitimate and which one appears depends on what the parent
+# commit happened to touch: a candidate hash when a bounded reviewed path moved,
+# the no-change signal when it did not, or the packet-ceiling refusal when the
+# parent diff is too large for one reviewer packet.
 # Which answer is legitimate depends on the checkout, so decide that FIRST and then
 # assert the one matching branch. Accepting every output would make this assertion a
 # function of repository state; branching on the state keeps it an assertion about
@@ -842,7 +900,7 @@ if [ -n "$real_dirty" ]; then
     '[ "$real_rc" != 0 ] && case "$real_out" in *"uncommitted changes"*) true;; *) false;; esac'
 else
   check "the gate answers for the clean real checkout it ships in, whichever legitimate answer applies" \
-    '[ "$real_rc" = 0 ] && { case "$real_out" in [0-9a-f]*) [ ${#real_out} = 64 ];; *) false;; esac || case "$real_out" in *review_ledger_binding_no_change*) true;; *) false;; esac; }'
+    '{ [ "$real_rc" = 0 ] && { case "$real_out" in [0-9a-f]*) [ ${#real_out} = 64 ];; *) false;; esac || case "$real_out" in *review_ledger_binding_no_change*) true;; *) false;; esac; }; } || { [ "$real_rc" = 1 ] && case "$real_out" in *"cannot freeze the candidate packet"*"review packet exceeds 200000 bytes"*) true;; *) false;; esac; }'
 fi
 
 if [ "$fails" -gt 0 ]; then

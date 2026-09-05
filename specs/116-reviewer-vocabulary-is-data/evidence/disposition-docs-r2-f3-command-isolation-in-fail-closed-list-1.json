@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "04e0c25851ec3baec359bf1fa0db5bc6e7527a4b9ec454d9e38e3a0d470df610",
+  "receipt_sha256": "488a379da170f10494a76622c9a339d161ca3a9496881e5013b9a1363472eee5",
+  "finding_sha256": "21e1e369731fcd661ca4f3b6c765fb2096a232ad32cdeb1c5e16712519c79db5",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "488a379da170f10494a76622c9a339d161ca3a9496881e5013b9a1363472eee5",
+      "finding_sha256": "21e1e369731fcd661ca4f3b6c765fb2096a232ad32cdeb1c5e16712519c79db5"
+    }
+  ],
+  "evidence": [
+    "Both lists now name built-in tool, MCP, settings, memory, safe-mode and runtime-init isolation as the fail-closed set, matching the wrapper's capability checks; the probe suite pins that a CLI without --disable-slash-commands still runs the repository consult.",
+    "The succession challenge (chain 116-vocabulary-is-data-docs-r2, bound to landing candidate 04e0c258…) re-read the four targeted fixes and reported each landed; its single P2 concerned the retry wording and is dispositioned separately."
+  ]
+}

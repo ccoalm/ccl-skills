@@ -1,6 +1,6 @@
 ---
 name: requirement-baseline
-description: 现状盘点 / 当前能力梳理 / 现有流程、页面、API、数据、运营规则盘点 / as-is audit / current state inventory —— 交付物是**现状清单本身**：现在怎么运作、已有哪些能力与例外、事实来源与 freshness、缺口和冲突，含按 commit 固定的代码现状取证。Skip 要的是意图、用户故事、验收标准、问题池（「到底要什么」）→ requirement-intent；要的是本轮改哪些、不改哪些、切几版（变更边界）→ requirement-scope；问线上是否已启用 → platform-observability；代码/项目质量评估 → product-rd-workflow；bug 根因 → defect-diagnosis。
+description: 现状盘点 / 当前能力梳理 / 按当前代码说明现状（某状态·数据怎么产生和消费）/ 现有流程、页面、API、数据、运营规则盘点 / as-is audit / current state inventory —— 交付物是**现状清单本身**：现在怎么运作、已有哪些能力与例外、事实来源与 freshness、缺口和冲突，含按 commit 固定的代码现状取证。Skip 要的是意图、用户故事、验收标准、问题池（「到底要什么」）→ requirement-intent；要的是本轮改哪些、不改哪些、切几版（变更边界）→ requirement-scope；问线上是否已启用 → platform-observability；代码/项目质量评估 → product-rd-workflow；bug 根因 → defect-diagnosis。
 ---
 
 # Requirement Baseline

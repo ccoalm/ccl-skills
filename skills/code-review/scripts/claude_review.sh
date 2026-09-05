@@ -20,7 +20,6 @@ direct_schema=0
 host_remediation_attempted=0
 prompt_only=0
 allow_prompt_only_advisory=0
-registry_native_skills=()
 capture_signal_rc=198
 capture_timeout_rc=199
 
@@ -87,13 +86,6 @@ emit_runtime_inconclusive() {
     # of a breached boundary, so it falls back to another reviewer client
     # instead of terminating the review.
     *"unrecognized surface-shaped init field"*) emit_inconclusive_payload "$reason" capability_missing true fallback ;;
-    # Must precede the tool-boundary branch for the same reason, and needs its
-    # own arm rather than the late catch-all below: a bare command/skill name
-    # outside the built-in snapshot is a vocabulary this repo does not own, so it
-    # is unverifiable rather than a proven customization. The lane still refuses;
-    # it just does not take the other reviewer clients down with it, which is
-    # what one upstream CLI release used to do.
-    *"unclassifiable host-vocabulary entry"*) emit_inconclusive_payload "$reason" capability_missing true fallback ;;
     *"permission"*|*"tool invocation"*|*"unexpected tool"*|*"runtime isolation"*|*"runtime capability"*|*"Bash tool"*) emit_inconclusive_payload "$reason" tool_boundary_violation false stop_reviewer_lane ;;
     *"auth-path false negative"*|*"not logged in"*|*"auth-path evidence"*)
       if [ "$host_remediation_attempted" -eq 1 ]; then
@@ -285,6 +277,14 @@ envelope_classifier="$script_dir/classify_envelope.py"
 result_parser="$script_dir/parse_review_json.py"
 skill_verifier="$script_dir/verify_native_skill_binding.py"
 
+# Owner-skill binding is best effort. The review itself never depends on the
+# installed CCL registry: when the controller selected owner skills but the
+# installed registry is absent, older, or otherwise fails verification, the
+# wrapper still reviews the packet and reports `native_skill_binding=unavailable`
+# so the controller knows the owner skills were not natively invoked. Only a
+# profile that names no owners yet fails its own consistency check, or owner
+# arguments without a profile, are caller errors and stay terminal.
+native_skill_binding="not_requested"
 if [ -n "$review_profile_file" ]; then
   if [ ! -f "$skill_verifier" ]; then
     emit_inconclusive_payload "native skill verifier is unavailable" local_tool_failure false stop_reviewer_lane
@@ -301,21 +301,16 @@ if [ -n "$review_profile_file" ]; then
       skill_verify_args+=(--review-skill "$review_skill")
     done
   fi
-  if ! python3 "$skill_verifier" "${skill_verify_args[@]}" >/dev/null 2>&1; then
+  if python3 "$skill_verifier" "${skill_verify_args[@]}" >/dev/null 2>&1; then
+    if [ "$review_skill_count" -gt 0 ]; then
+      native_skill_binding="established"
+    fi
+  elif [ "$review_skill_count" -gt 0 ]; then
+    native_skill_binding="unavailable"
+    printf '%s\n' 'claude_review: installed CCL skill registry could not be verified; reviewing without native owner skills' >&2
+  else
     emit_inconclusive_payload "native skill binding does not match the controller profile" binding_mismatch false stop_reviewer_lane
     exit 2
-  fi
-  if [ "$review_skill_count" -gt 0 ]; then
-    for skill_entrypoint in "$skill_registry_root"/*/SKILL.md; do
-      [ -f "$skill_entrypoint" ] && [ ! -L "$skill_entrypoint" ] || continue
-      registry_skill_name="$(basename "$(dirname "$skill_entrypoint")")"
-      case "$registry_skill_name" in
-        ''|*[!a-z0-9_-]*)
-          emit_inconclusive_payload "installed CCL skill name is invalid" binding_mismatch false stop_reviewer_lane
-          exit 2 ;;
-      esac
-      registry_native_skills+=("$registry_skill_name")
-    done
   fi
 elif [ "$review_skill_count" -gt 0 ] || [ -n "$skill_registry_root" ]; then
   emit_inconclusive_payload "native skill binding is incomplete" invalid_input false stop_reviewer_lane
@@ -368,29 +363,24 @@ has_help_flag() {
     END { exit found ? 0 : 1 }
   ' <<<"$help_text"
 }
-safe_mode_disables_skills() {
-  awk '
-    /^[[:space:]]*--safe-mode([[:space:]]|$)/ {
-      capture = 1
-    }
-    capture && seen && /^[[:space:]]*-{1,2}[[:alnum:]]/ {
-      capture = 0
-    }
-    capture && seen && /^[[:space:]]*$/ {
-      capture = 0
-    }
-    capture {
-      text = text " " tolower($0)
-      seen = 1
-    }
-    END {
-      if (text ~ /skills[^.;]*(unaffected|remain(s)?[[:space:]]+enabled|not[[:space:]]+disabl)/) {
-        exit 1
-      }
-      exit (text ~ /disabl[a-z]*[[:space:]]+(all[[:space:]]+)?(inherited[[:space:]]+)?skills/ ||
-            text ~ /skills[^.;]*disabl[a-z]*/) ? 0 : 1
-    }
-  ' <<<"$help_text"
+plugin_manifest_ok() {
+  # Load an installed CCL plugin only when its manifest declares nothing but
+  # skills. Hooks, commands, agents, or MCP servers would add an executable
+  # surface the pinned `tools` set does not describe; such a plugin is simply
+  # not loaded, and the review proceeds without owner skills.
+  python3 - "$1" <<'PY_PLUGIN_MANIFEST' >/dev/null 2>&1
+import json
+from pathlib import Path
+import sys
+
+manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if not isinstance(manifest, dict):
+    raise SystemExit(1)
+if {"agents", "commands", "hooks", "mcpServers"}.intersection(manifest):
+    raise SystemExit(1)
+if manifest.get("skills") not in {"./skills", "./skills/"}:
+    raise SystemExit(1)
+PY_PLUGIN_MANIFEST
 }
 run_claude_prompt_file() {
   local run_timeout_s="$1"
@@ -457,49 +447,35 @@ else
   emit_inconclusive_payload "Claude CLI cannot disable inherited user/project/local settings; setting-source isolation is required" capability_missing true fallback
   exit 2
 fi
-if has_help_flag "--safe-mode" && safe_mode_disables_skills; then
+if has_help_flag "--safe-mode"; then
   flags+=(--safe-mode)
 else
-  emit_inconclusive_payload "Claude CLI cannot prove that safe mode disables inherited Claude skills and customizations" capability_missing true fallback
+  emit_inconclusive_payload "Claude CLI has no --safe-mode; inherited customizations cannot be isolated" capability_missing true fallback
   exit 2
 fi
-if [ "$review_skill_count" -gt 0 ]; then
-  if ! has_help_flag "--max-budget-usd"; then
-    emit_inconclusive_payload "Claude CLI cannot produce a bounded host-vocabulary baseline" capability_missing true fallback
-    exit 2
-  fi
-  if has_help_flag "--plugin-dir"; then
-    ccl_plugin_root="$(cd "$skill_registry_root/.." && pwd -P)" \
-      || { emit_inconclusive_payload "cannot resolve installed CCL skill plugin" local_tool_failure false stop_reviewer_lane; exit 2; }
-    [ -f "$ccl_plugin_root/.claude-plugin/plugin.json" ] && [ ! -L "$ccl_plugin_root/.claude-plugin/plugin.json" ] \
-      || { emit_inconclusive_payload "installed CCL skill plugin is unavailable" capability_missing true fallback; exit 2; }
-    if ! python3 - "$ccl_plugin_root/.claude-plugin/plugin.json" <<'PY_PLUGIN_MANIFEST' >/dev/null 2>&1
-import json
-from pathlib import Path
-import sys
-
-manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-if not isinstance(manifest, dict):
-    raise SystemExit(1)
-if {"agents", "commands", "hooks", "mcpServers"}.intersection(manifest):
-    raise SystemExit(1)
-if manifest.get("skills") not in {"./skills", "./skills/"}:
-    raise SystemExit(1)
-PY_PLUGIN_MANIFEST
-    then
-      emit_inconclusive_payload "installed CCL skill plugin declares an unsupported executable surface" capability_missing true fallback
-      exit 2
-    fi
+# Owner skills ride on the installed CCL plugin. Anything that stops the plugin
+# from loading -- no --plugin-dir on this CLI, no manifest, a manifest that
+# declares executable surfaces -- costs the owner-skill binding, not the review.
+plugin_loaded=0
+if [ "$native_skill_binding" = "established" ]; then
+  ccl_plugin_root="$(cd "$skill_registry_root/.." 2>/dev/null && pwd -P || true)"
+  if has_help_flag "--plugin-dir" \
+    && [ -n "$ccl_plugin_root" ] \
+    && [ -f "$ccl_plugin_root/.claude-plugin/plugin.json" ] \
+    && [ ! -L "$ccl_plugin_root/.claude-plugin/plugin.json" ] \
+    && plugin_manifest_ok "$ccl_plugin_root/.claude-plugin/plugin.json"; then
     flags+=(--plugin-dir "$ccl_plugin_root")
+    plugin_loaded=1
   else
-    emit_inconclusive_payload "Claude CLI cannot load the selected CCL skills natively" capability_missing true fallback
-    exit 2
+    native_skill_binding="unavailable"
+    printf '%s\n' 'claude_review: installed CCL skill plugin cannot be loaded by this Claude CLI; reviewing without native owner skills' >&2
   fi
-elif has_help_flag "--disable-slash-commands"; then
+fi
+# Skills and commands the host lists are vocabulary, not capability: they are
+# invocable only through a tool, and the exact tool set is pinned separately.
+# Disabling them is tidiness when the CLI offers it, never a prerequisite.
+if [ "$plugin_loaded" -eq 0 ] && has_help_flag "--disable-slash-commands"; then
   flags+=(--disable-slash-commands)
-else
-  emit_inconclusive_payload "Claude CLI cannot disable Claude skills and commands; command isolation is required" capability_missing true fallback
-  exit 2
 fi
 export CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
 export CLAUDE_CODE_DISABLE_CLAUDE_MDS=1
@@ -554,7 +530,7 @@ if ! has_help_flag "--output-format" || ! has_help_flag "--verbose"; then
 fi
 export CLAUDE_REVIEW_WRAPPER_MODE="$mode"
 
-# Validate every helper before the owner-aware host-vocabulary probe. A missing
+# Validate every helper before the formal invocation. A missing
 # parser must stop locally rather than spending a provider request and only then
 # discovering that the resulting boundary evidence cannot be checked.
 if [ ! -r "$runtime_parser" ]; then
@@ -579,22 +555,10 @@ output_file="$(make_temp_file claude-review-output)"
 err_file="$(make_temp_file claude-review-error)"
 parsed_file="$(make_temp_file claude-review-parsed)"
 reply_text_file="$(make_temp_file claude-review-reply-text)"
-host_baseline_prompt_file="$(make_temp_file claude-review-host-baseline-prompt)"
-host_baseline_output_file="$(make_temp_file claude-review-host-baseline-output)"
-host_baseline_err_file="$(make_temp_file claude-review-host-baseline-error)"
-host_baseline_cwd=""
 formal_timeout_s="$timeout_s"
-chmod 600 "$prompt_file" "$output_file" "$err_file" "$parsed_file" "$reply_text_file" \
-  "$host_baseline_prompt_file" "$host_baseline_output_file" "$host_baseline_err_file"
+chmod 600 "$prompt_file" "$output_file" "$err_file" "$parsed_file" "$reply_text_file"
 cleanup() {
-  rm -f "$prompt_file" "$output_file" "$err_file" "$parsed_file" "$reply_text_file" \
-    "$host_baseline_prompt_file" "$host_baseline_output_file" "$host_baseline_err_file"
-  if [ -n "$host_baseline_cwd" ]; then
-    case "${host_baseline_cwd##*/}" in
-      claude-review-host-baseline-cwd.*) rm -rf -- "$host_baseline_cwd" ;;
-      *) rmdir "$host_baseline_cwd" 2>/dev/null || true ;;
-    esac
-  fi
+  rm -f "$prompt_file" "$output_file" "$err_file" "$parsed_file" "$reply_text_file"
 }
 trap cleanup EXIT
 signal_inconclusive() {
@@ -603,105 +567,6 @@ signal_inconclusive() {
   exit 2
 }
 trap signal_inconclusive TERM INT HUP
-
-if [ "$review_skill_count" -gt 0 ]; then
-  # Keep the baseline's own prerequisites explicit at the call site. The main
-  # invocation already requires these flags above; repeating the check here
-  # prevents a future refactor from making host vocabulary less strict.
-  for required_baseline_flag in \
-    --tools --strict-mcp-config --mcp-config --setting-sources --safe-mode
-  do
-    if ! has_help_flag "$required_baseline_flag"; then
-      emit_inconclusive_payload "Claude CLI cannot isolate the host-vocabulary baseline; required flag unavailable: $required_baseline_flag" capability_missing true fallback
-      exit 2
-    fi
-  done
-  host_baseline_cwd="$(mktemp -d "${TMPDIR:-/tmp}/claude-review-host-baseline-cwd.XXXXXX")" \
-    || { emit_inconclusive_payload "cannot create isolated Claude host-vocabulary baseline directory" local_tool_failure false stop_reviewer_lane; exit 2; }
-  chmod 700 "$host_baseline_cwd" \
-    || { emit_inconclusive_payload "cannot secure isolated Claude host-vocabulary baseline directory" local_tool_failure false stop_reviewer_lane; exit 2; }
-  printf '%s\n' 'Return a short acknowledgement.' > "$host_baseline_prompt_file"
-  host_baseline_flags=(
-    --print
-    --tools ""
-    --strict-mcp-config
-    --mcp-config '{"mcpServers":{}}'
-    --setting-sources ""
-    --safe-mode
-    --output-format stream-json
-    --verbose
-    --max-budget-usd 0.000001
-  )
-  if has_help_flag "--no-session-persistence"; then
-    host_baseline_flags+=(--no-session-persistence)
-  fi
-  if has_help_flag "--effort"; then
-    host_baseline_flags+=(--effort low)
-  fi
-  host_baseline_timeout_s="$timeout_s"
-  if [ "$host_baseline_timeout_s" -gt 30 ]; then
-    host_baseline_timeout_s=30
-  fi
-  host_baseline_started=$SECONDS
-  set +e
-  (
-    cd "$host_baseline_cwd" \
-      && run_claude_prompt_file \
-        "$host_baseline_timeout_s" \
-        "$host_baseline_output_file" \
-        "$host_baseline_err_file" \
-        "$host_baseline_prompt_file" \
-        "$claude_bin_path" "${host_baseline_flags[@]}"
-  )
-  host_baseline_rc=$?
-  set -e
-  if [ "$host_baseline_rc" -eq "$capture_signal_rc" ]; then
-    emit_inconclusive_payload "Claude host-vocabulary baseline was terminated by a signal" operator_interrupt false stop_reviewer_lane
-    exit 2
-  fi
-  if [ "$host_baseline_rc" -eq "$capture_timeout_rc" ]; then
-    emit_inconclusive_payload "Claude host-vocabulary baseline timed out" timeout true fallback
-    exit 2
-  fi
-  # This detects writes only inside the isolated cwd; it is not proof that the
-  # CLI made no writes elsewhere. External authority is constrained separately
-  # by the required isolation flags and the validated zero-tool init surface.
-  if [ -n "$(find "$host_baseline_cwd" -mindepth 1 -print -quit 2>/dev/null)" ]; then
-    # This acknowledgement-only baseline never sees candidate bytes or concern
-    # evidence. Refuse its vocabulary, but let an independent reviewer continue.
-    emit_inconclusive_payload "Claude host-vocabulary baseline wrote into its isolated working directory" capability_missing true fallback
-    exit 2
-  fi
-  set +e
-  host_baseline_validation="$(
-    python3 "$runtime_parser" \
-      "$host_baseline_rc" \
-      "$host_baseline_output_file" \
-      "$host_baseline_err_file" \
-      --validate-host-init-baseline
-  )"
-  host_baseline_validation_rc=$?
-  set -e
-  if [ "$host_baseline_validation_rc" -ne 0 ]; then
-    host_baseline_reason="$(python3 - "$host_baseline_validation" <<'PY_HOST_BASELINE_REASON'
-import json
-import sys
-
-try:
-    print(json.loads(sys.argv[1]).get("reason") or "Claude host-vocabulary baseline is invalid")
-except json.JSONDecodeError:
-    print("Claude host-vocabulary baseline is invalid")
-PY_HOST_BASELINE_REASON
-)"
-    emit_inconclusive_payload "$host_baseline_reason" capability_missing true fallback
-    exit 2
-  fi
-  formal_timeout_s=$((timeout_s - (SECONDS - wrapper_started)))
-  if [ "$formal_timeout_s" -lt 1 ]; then
-    emit_inconclusive_payload "Claude host-vocabulary baseline exhausted the review timeout" timeout true fallback
-    exit 2
-  fi
-fi
 
 if [ "$no_tools_mode" -eq 1 ]; then
   no_tool_scope_verb="review"
@@ -1017,17 +882,6 @@ last_reason=""
 last_reason_code="unknown"
 last_fallback_eligible=false
 last_next_action=stop_reviewer_lane
-runtime_skill_args=()
-native_skill_binding="not_requested"
-if [ "$review_skill_count" -gt 0 ]; then
-  native_skill_binding="established"
-  native_skill_csv="$(IFS=,; printf '%s' "${registry_native_skills[*]}")"
-  required_native_skill_csv="$(IFS=,; printf '%s' "${review_skills[*]}")"
-  runtime_skill_args=(
-    --expected-native-skills "$native_skill_csv"
-    --required-native-skills "$required_native_skill_csv"
-  )
-fi
 while [ "$attempts" -lt "$max_attempts" ]; do
   attempts=$((attempts + 1))
   formal_timeout_s=$((timeout_s - (SECONDS - wrapper_started)))
@@ -1063,12 +917,9 @@ while [ "$attempts" -lt "$max_attempts" ]; do
     main_runtime_args=(
       --require-empty-init
       --expected-tools "$main_expected_tools"
-      ${runtime_skill_args[@]+"${runtime_skill_args[@]}"}
+      --allow-expected-tool-use
+      --runtime-surface-only
     )
-    if [ "$review_skill_count" -gt 0 ]; then
-      main_runtime_args+=(--host-init-baseline "$host_baseline_output_file")
-    fi
-    main_runtime_args+=(--allow-expected-tool-use --runtime-surface-only)
     if ! main_runtime_result="$(python3 "$runtime_parser" "$rc" "$output_file" "$err_file" "${main_runtime_args[@]}")"; then
       main_runtime_reason="$(python3 - "$main_runtime_result" <<'PY_REASON'
 import json
