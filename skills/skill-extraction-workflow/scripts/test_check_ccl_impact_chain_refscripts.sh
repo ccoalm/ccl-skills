@@ -48,6 +48,10 @@ printf '# fixture slug-named reference\n\nNeutral placeholder for the inner-rena
 # and isolate the prose-only guard from the reproduction check.
 printf '# fixture slug mention: platform-observability\n' >> "$REPO/skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh"
 printf '\nFixture eligible sibling mention: platform-observability.\n' >> "$REPO/skills/product-rd-workflow/references/adr-convention.md"
+# A real table baseline distinguishes a changed definition from an old anchor
+# surviving an unrelated source-link edit on the same line.
+TABLE_REL="skills/product-rd-workflow/references/zz-fixture-definition.md"
+printf '# Definitions\n\n| Metric | Definition | Source |\n| --- | --- | --- |\n| Incident deployment ratio | Deployments needing later work | old-source |\n' > "$REPO/$TABLE_REL"
 git -C "$REPO" add -A
 git -C "$REPO" commit -qm "seed throwaway upstream reference"
 git -C "$REPO" branch fixture-base HEAD
@@ -153,6 +157,58 @@ commit_case "never-verb normative firing path"
 run_gate
 assert_not_contains "impact_chain_firing_path_missing" "$out" "a never-phrased normative rule should satisfy the firing-path gate"
 assert_rc "$rc" 0 "a never-phrased normative list rule must be accepted"
+
+# Definitions are executable guidance even when their Markdown surface is a
+# table instead of a normative list. Negative controls keep anchors bound to
+# new, rendered data cells in the correct owner and round.
+definition_table_case() {
+  local label="$1" expected="$2" anchor='Unplanned deployments caused by production incidents'
+  local firing_path="$TABLE_REL"
+  new_case "case-ref-definition-table-$label"
+  case "$label" in
+    surviving-anchor)
+      anchor='Deployments needing later work'
+      perl -pi -e 's/old-source/new-source/' "$REPO/$TABLE_REL" ;;
+    unchanged-table)
+      anchor='Deployments needing later work'
+      printf '\nChanged neighboring prose.\n' >> "$REPO/$TABLE_REL" ;;
+    *)
+      perl -pi -e 's/Deployments needing later work/Unplanned deployments caused by production incidents/' "$REPO/$TABLE_REL" ;;
+  esac
+  case "$label" in
+    foreign-owner)
+      firing_path='skills/terminal-cli-dev/references/zz-fixture-definition.md'
+      cp "$REPO/$TABLE_REL" "$REPO/$firing_path" ;;
+    duplicate) printf '\n%s\n' "$anchor" >> "$REPO/$TABLE_REL" ;;
+    inline-comment) perl -pi -e 's/Unplanned deployments caused by production incidents/<!-- Unplanned deployments caused by production incidents -->/' "$REPO/$TABLE_REL" ;;
+    multiline-comment) perl -0777 -pi -e 's/\n\| Metric/\n<!--\n| Metric/; $_ .= "-->\n"' "$REPO/$TABLE_REL" ;;
+    backtick-fence) perl -0777 -pi -e 's/\n\| Metric/\n```markdown\n| Metric/; $_ .= "```\n"' "$REPO/$TABLE_REL" ;;
+    tilde-fence) perl -0777 -pi -e 's/\n\| Metric/\n~~~markdown\n| Metric/; $_ .= "~~~\n"' "$REPO/$TABLE_REL" ;;
+    raw-html) perl -0777 -pi -e 's/\n\| Metric/\n<script>\n\n| Metric/; $_ .= "<\/script>\n"' "$REPO/$TABLE_REL" ;;
+    html-block) perl -0777 -pi -e 's/\n\| Metric/\n<div>\n| Metric/; $_ .= "<\/div>\n"' "$REPO/$TABLE_REL" ;;
+    indented-code) perl -pi -e 's/^\|/    |/' "$REPO/$TABLE_REL" ;;
+    no-header) perl -ni -e 'print unless /^\| (Metric|---)/' "$REPO/$TABLE_REL" ;;
+    header-anchor) perl -0777 -pi -e 's/\| Metric \| Definition \| Source \|/| Unplanned deployments caused by production incidents | Definition | Source |/; s/\n\| Incident deployment ratio[^\n]*\n/\n/' "$REPO/$TABLE_REL" ;;
+    no-red) : ;;
+  esac
+  local status='RED-baseline' observed='yes'
+  if [ "$label" = no-red ]; then status='semantic-control'; observed='no'; fi
+  printf '| Fixture definition table %s | `downstream-executor` | behavioral-evidence: %s; observed-failure: %s; result-class: failure; firing-path: file:%s#%s | `updated` | `product-rd-workflow/SKILL.md` definition correction |\n' "$label" "$status" "$observed" "$firing_path" "$anchor" >> "$REGISTER"
+  commit_case "definition table $label"
+  run_gate
+  assert_rc "$rc" "$expected" "definition table $label"
+  if [ "$expected" = 1 ]; then
+    if [ "$label" = no-red ]; then
+      assert_contains 'impact_chain_behavior_evidence_missing' "$out" "definition table $label: $out"
+    else
+      assert_contains 'impact_chain_firing_path_missing' "$out" "definition table $label: $out"
+    fi
+  fi
+}
+definition_table_case accepted 0
+for definition_control in surviving-anchor unchanged-table foreign-owner duplicate inline-comment multiline-comment backtick-fence tilde-fence raw-html html-block indented-code no-header header-anchor no-red; do
+  definition_table_case "$definition_control" 1
+done
 
 # A purely DESCRIPTIVE list line ("always exposes" — no imperative/prohibitive
 # verb) is not an enforcing rule; the widened verb list must not admit it.
@@ -1583,6 +1639,6 @@ assert_rc "$rc" 1 "a directory masquerading as SKILL.md must not read as a prese
 assert_contains "platform-observability/SKILL.md" "$out" "the masqueraded owner must be named"
 
 assert_rc "$full_check_runs" 1 "fixture suite must retain exactly one full checker wiring case"
-assert_rc "$gate_runs" 97 "all remaining impact-chain fixtures must run the standalone gate"
+assert_rc "$gate_runs" 112 "all remaining impact-chain fixtures must run the standalone gate"
 
 echo "test_check_ccl_impact_chain_refscripts: ok"
