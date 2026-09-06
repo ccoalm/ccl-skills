@@ -1,0 +1,67 @@
+{
+    "schema_version": 3,
+    "candidate_sha256": "5c7d32ccabdb0f0603bdf9e58cfe21129f2cfc70e2b752f2e2d8a518b081f039",
+    "controller_receipts": [
+        {
+            "sequence": 1,
+            "file": "ledger-round1-review.json",
+            "sha256": "9c3ae8c82736f3d105d90434145ff7861a20cf69d5982d3ff426d52cecc8c00f"
+        },
+        {
+            "sequence": 2,
+            "file": "ledger-round2-challenge.json",
+            "sha256": "2b7fc61eea9ddee37a52144c1fb02874797d14f69d99feb9d2ea15713724c94e"
+        }
+    ],
+    "completion_receipt": null,
+    "base_attestations": [
+        {
+            "sequence": 1,
+            "remote": "origin",
+            "ref": "refs/heads/dev",
+            "sha": "88313dbe0cb3a89082f2d46e3e17b59118b5c17d",
+            "confirmed_at": "2026-09-06T08:32:40Z",
+            "controller_receipt_sha256": "9c3ae8c82736f3d105d90434145ff7861a20cf69d5982d3ff426d52cecc8c00f",
+            "evidence_file": "ledger-base-attestation-1.txt",
+            "evidence_sha256": "70a3a4cbc34201bfc367aac662fd7abc400f6b912e9ab59b5caf7d0fdca6f82a"
+        },
+        {
+            "sequence": 2,
+            "remote": "origin",
+            "ref": "refs/heads/dev",
+            "sha": "88313dbe0cb3a89082f2d46e3e17b59118b5c17d",
+            "confirmed_at": "2026-09-06T08:35:40Z",
+            "controller_receipt_sha256": "2b7fc61eea9ddee37a52144c1fb02874797d14f69d99feb9d2ea15713724c94e",
+            "evidence_file": "ledger-base-attestation-1.txt",
+            "evidence_sha256": "70a3a4cbc34201bfc367aac662fd7abc400f6b912e9ab59b5caf7d0fdca6f82a"
+        }
+    ],
+    "autonomous_round": 2,
+    "controller_review_state": "post_review_budget",
+    "finding_classes": [
+        {
+            "key": "bounded-packet-evidence-gap",
+            "root_cause_predicate": "Both lanes report that the bounded review packet does not carry the base validation or the path classifiers, so it cannot confirm from the packet alone that option-like base values are refused and that a path absent at HEAD still classifies; both state this as an unverified boundary rather than a reproduced defect.",
+            "affected_surface": "scripts/owner-dispatch/owner-dispatch.sh",
+            "occurrences": [
+                {
+                    "receipt_sha256": "9c3ae8c82736f3d105d90434145ff7861a20cf69d5982d3ff426d52cecc8c00f",
+                    "finding_sha256": "599893fcfe5ee24cf6863d0c0eef531ab07c26a90f15be8613f2da0a4503bf17",
+                    "disposition": "source_refuted",
+                    "disposition_evidence_file": "disposition-r1-f0-bounded-packet-evidence-gap-1.json",
+                    "disposition_evidence_sha256": "fe53a623557da61596bb3bd4f2de6d1e45024a8a36c13e6f18f3453005d27395"
+                },
+                {
+                    "receipt_sha256": "2b7fc61eea9ddee37a52144c1fb02874797d14f69d99feb9d2ea15713724c94e",
+                    "finding_sha256": "09c16503f4bc9e65b14224bcc30e7c37148c0b75a63cfb6fbe17a390c4c6c0f1",
+                    "disposition": "source_refuted",
+                    "disposition_evidence_file": "disposition-r2-f0-bounded-packet-evidence-gap-1.json",
+                    "disposition_evidence_sha256": "09de0b8985aec4dc886b4166a541cc93f147adf46ad6fb41a1f20bc9dde3438d"
+                }
+            ],
+            "authoritative_sweep": null
+        }
+    ],
+    "unreviewed_delta": [],
+    "closeout_state": "continuation_authorization_required"
+}

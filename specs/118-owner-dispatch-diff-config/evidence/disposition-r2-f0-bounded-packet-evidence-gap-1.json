@@ -1,0 +1,19 @@
+{
+    "schema_version": 1,
+    "candidate_sha256": "5c7d32ccabdb0f0603bdf9e58cfe21129f2cfc70e2b752f2e2d8a518b081f039",
+    "receipt_sha256": "2b7fc61eea9ddee37a52144c1fb02874797d14f69d99feb9d2ea15713724c94e",
+    "finding_sha256": "09c16503f4bc9e65b14224bcc30e7c37148c0b75a63cfb6fbe17a390c4c6c0f1",
+    "disposition": "source_refuted",
+    "resolves_occurrences": [
+        {
+            "receipt_sha256": "2b7fc61eea9ddee37a52144c1fb02874797d14f69d99feb9d2ea15713724c94e",
+            "finding_sha256": "09c16503f4bc9e65b14224bcc30e7c37148c0b75a63cfb6fbe17a390c4c6c0f1"
+        }
+    ],
+    "evidence": [
+        "Option-like base values are rejected before any diff runs, on both lanes: each path validates with rev-parse --verify \"<base>^{commit}\" first. scripts/owner-dispatch/test.sh case 10j asserts '--output=$WORK/pwned' and '-z' each return fail-closed (2) on the jq lane and the python fallback, and that no file was created.",
+        "Classification never reads the filesystem for a changed path: both lanes match the path string against product_globs and exclude_globs, so a path absent at HEAD classifies the same as one present. The only filesystem read in the ci function is the ci_artifact existence check, which concerns the map.",
+        "Case 10j asserts the two lanes are genuinely distinct implementations: jq must be present on the ordinary PATH, and must not resolve under NOJQBIN, so neither lane can silently be a second run of the other.",
+        "The finding is a property of the bounded packet, not of the candidate. Base validation and the classifiers are unchanged context outside the diff, so no edit to this change can bring them into a diff-scoped packet; both lanes state it as an unverified boundary rather than a reproduced defect."
+    ]
+}
