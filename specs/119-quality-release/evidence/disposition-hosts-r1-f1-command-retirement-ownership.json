@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "07a470d1bb666df6714df5faeb072dbf071aa79fd55e6c38a493b84849c5947e",
+  "receipt_sha256": "8ac90bec93240d051d0229d6b68f14836f883c4c304528636fd2152528d9e910",
+  "finding_sha256": "2ba2314499cf1b0fecd2bc30195c3f984e620ed2fb0f35e0b5c08f347df38927",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "8ac90bec93240d051d0229d6b68f14836f883c4c304528636fd2152528d9e910",
+      "finding_sha256": "2ba2314499cf1b0fecd2bc30195c3f984e620ed2fb0f35e0b5c08f347df38927"
+    }
+  ],
+  "evidence": [
+    "scripts/install-opencode.sh:162-167 refreshes currently shipped command names without deleting unrelated names. The candidate command-asset diff contains only a modification to packages/opencode-plugin/commands/ccl-install-skills.md; it removes or renames no shipped command.",
+    "Executed scripts/test_install_status.py SourceInstallStatusTests.test_command_sync_preserves_unowned_commands_and_updates_package_command on the current candidate: passed. Both global and project layouts preserve ccl-personal.md and personal.md while replacing the shipped ccl-sample.md content.",
+    "Historical source-installer receipts contain no per-command ownership list. A ccl- prefix alone cannot establish deletion authority. Future retirement of a shipped command remains an explicit capability boundary; this candidate exercises no retirement, and introducing a new ownership manifest is not required to repair its actual change."
+  ]
+}

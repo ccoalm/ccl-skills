@@ -5,7 +5,7 @@
 # upstream-owner skill must declare a behavioral-evidence status and an
 # observed-failure state, and (for non-wording changes) name an owner-scoped
 # FIRING PATH that resolves to this diff — an anchor on a changed normative
-# rule line, or a changed owner executable. The statuses are required author
+# rule or table data line, or a changed owner executable. The statuses are required author
 # declarations; the firing path and the wording-only classification are the
 # machine-verified core. Extracted from the former inline `ruby -e` block in
 # check-ccl-skills.sh so the program gets normal Ruby tooling and no
@@ -1141,9 +1141,80 @@ if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_
         blob[:content].scan(Regexp.new(Regexp.escape(anchor))).length == 1
     end
   end
+  # Definition/decision tables are firing surfaces too. Recognize explicit
+  # Markdown tables with a header and delimiter; comments and code examples do
+  # not count. This proves location/shape, not the truth of the definition.
+  table_data_anchor_valid = lambda do |scope, parts|
+    prior = blob_at.call(scope.base, parts[:path])
+    next false if prior && prior[:content].include?(parts[:anchor])
+    previous_cells = nil
+    columns = nil
+    fence = nil
+    comment = false
+    raw_html = nil
+    html_block = false
+    head_blob.call(scope, parts[:path])[:content].each_line do |raw_line|
+      line = raw_line.chomp
+      if fence
+        fence = nil if line.match?(/\A {0,3}#{Regexp.escape(fence[0])}{#{fence.length},}\s*\z/)
+        next
+      end
+      if raw_html
+        raw_html = nil if line.match?(raw_html)
+        next
+      end
+      if html_block
+        html_block = false if line.strip.empty?
+        next
+      end
+      hidden = comment || line.include?("<!--") || line.include?("-->")
+      line.scan(/<!--|-->/).each { |marker| comment = marker == "<!--" }
+      if hidden
+        previous_cells = columns = nil
+        next
+      end
+      if (opening = line.match(/\A {0,3}(`{3,}|~{3,})/))
+        fence = opening[1]
+        previous_cells = columns = nil
+        next
+      end
+      terminator = case line
+                   when /\A {0,3}<\?/ then /\?>/
+                   when /\A {0,3}<!\[CDATA\[/ then /\]\]>/
+                   when /\A {0,3}<![A-Z]/ then />/
+                   end
+      if terminator
+        raw_html = terminator unless line.match?(terminator)
+        previous_cells = columns = nil
+        next
+      end
+      if line.match?(%r{\A {0,3}</?[A-Za-z][\w-]*(?:\s|>|/|\z)})
+        tag = line[/\A {0,3}<(script|pre|style|textarea)(?:\s|>|\z)/i, 1]
+        raw_html = %r{</#{tag}\s*>}i if tag && !line.match?(%r{</#{tag}\s*>}i)
+        html_block = !tag
+        previous_cells = columns = nil
+        next
+      end
+      unless line.match?(/\A {0,3}\|.*\|\s*\z/)
+        previous_cells = columns = nil
+        next
+      end
+      cells = line.strip[1...-1].split(/(?<!\\)\|/, -1).map(&:strip)
+      delimiter = cells.length >= 2 && cells.all? { |cell| cell.match?(/\A:?-{3,}:?\z/) }
+      if delimiter
+        columns = previous_cells && previous_cells.length == cells.length ? cells.length : nil
+      elsif columns && columns == cells.length
+        break true if cells.any? { |cell| cell.include?(parts[:anchor]) }
+      else
+        columns = nil
+      end
+      previous_cells = cells
+    end == true
+  end
   enforcing_file_locator_valid = lambda do |scope, parts|
     next false unless parts && parts[:kind] == "file"
     next false unless parts[:path].end_with?(".md")
+    next false if parts[:path] == LEDGER_PATH # Evidence cannot certify itself.
     next false unless locator_valid.call(scope, "file:#{parts[:path]}##{parts[:anchor]}")
     line = added_lines_for.call(scope, parts[:path]).find { |added| added.include?(parts[:anchor]) }
     next false unless line
@@ -1161,7 +1232,7 @@ if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_
     # "the adapter does not support"), and single characters with broad
     # compounds (应/只/别 — 应用/只是/区别).
     normative = line.match?(/(?:\b(?:must|shall|never|do\s+not|don'?t|required?|requires?|block(?:s|ed)?|reject(?:s|ed)?|deny|denied|invalidates?|forbid(?:s|den)?|cannot|enforcement)\b|必须|不得|禁止|拒绝|作废|仅限|只能|应当|应该|务必|不能|不允许|不可)/i)
-    list_rule && normative
+    (list_rule && normative) || table_data_anchor_valid.call(scope, parts)
   end
   # A routing-surface-only owner has no changed rule line to anchor on: its whole
   # change is one YAML scalar. The answer is NOT to exempt it — a description edit
@@ -1360,7 +1431,7 @@ if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_
       firing_parts = locator_parts.call(firing_path)
       firing_path_valid = firing_locator_valid.call(row_scope, firing_parts, owner)
       # The machine-checked core is the FIRING PATH (an owner-scoped anchor on a
-      # changed normative rule, or a changed owner executable) plus the
+      # changed normative rule/table data, or a changed owner executable) plus the
       # deterministic wording-only classification. The behavioral-evidence
       # status and observed-failure fields are required author declarations —
       # honest labels, not digest-verified artifacts: a digest-bound evidence

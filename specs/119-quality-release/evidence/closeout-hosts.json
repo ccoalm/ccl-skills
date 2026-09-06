@@ -1,0 +1,157 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "07a470d1bb666df6714df5faeb072dbf071aa79fd55e6c38a493b84849c5947e",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "ledger-hosts-round1-review.json",
+      "sha256": "8ac90bec93240d051d0229d6b68f14836f883c4c304528636fd2152528d9e910"
+    },
+    {
+      "sequence": 2,
+      "file": "ledger-hosts-round2-challenge.json",
+      "sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0"
+    }
+  ],
+  "completion_receipt": null,
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "185ed38083c0625d83cc22ceb51756ab20cba823",
+      "confirmed_at": "2026-09-06T12:46:21Z",
+      "controller_receipt_sha256": "8ac90bec93240d051d0229d6b68f14836f883c4c304528636fd2152528d9e910",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "26b519075a67bdc563f0ceb6ce7e7a09d1b37bbb365b1812d64cf182959be1f3"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "185ed38083c0625d83cc22ceb51756ab20cba823",
+      "confirmed_at": "2026-09-06T12:49:50Z",
+      "controller_receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "26b519075a67bdc563f0ceb6ce7e7a09d1b37bbb365b1812d64cf182959be1f3"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "post_review_budget",
+  "finding_classes": [
+    {
+      "key": "marketplace-repeat-registration",
+      "root_cause_predicate": "The source installer is claimed to fail on a repeated marketplace add solely because the same source is already registered.",
+      "affected_surface": "scripts/install.sh",
+      "occurrences": [
+        {
+          "receipt_sha256": "8ac90bec93240d051d0229d6b68f14836f883c4c304528636fd2152528d9e910",
+          "finding_sha256": "cf91e4ea1b55a238b2bdcfdcc15ae942dcf7593d190c09face9eb6ca4e1aae8d",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-hosts-r1-f0-marketplace-repeat-registration.json",
+          "disposition_evidence_sha256": "aa6bba4b5e451f290a79bce9d28999c039e7851a94f8258a2215497e8d43a559"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "command-retirement-ownership",
+      "root_cause_predicate": "Preserving unowned ccl-prefixed command files is claimed to leave a command retired by this candidate installed.",
+      "affected_surface": "scripts/install-opencode.sh",
+      "occurrences": [
+        {
+          "receipt_sha256": "8ac90bec93240d051d0229d6b68f14836f883c4c304528636fd2152528d9e910",
+          "finding_sha256": "2ba2314499cf1b0fecd2bc30195c3f984e620ed2fb0f35e0b5c08f347df38927",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-hosts-r1-f1-command-retirement-ownership.json",
+          "disposition_evidence_sha256": "d97e63cff347be84df22b00a054cdb87b611b46bab3d125e9c17099117199ef5"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "claude-absence-without-native-observation",
+      "root_cause_predicate": "Missing Claude executable plus missing or empty local npm ownership data is claimed to prove the native plugin and marketplace are absent.",
+      "affected_surface": "packages/ccl-skills-npm/src/claude-adapter.ts",
+      "occurrences": [
+        {
+          "receipt_sha256": "8ac90bec93240d051d0229d6b68f14836f883c4c304528636fd2152528d9e910",
+          "finding_sha256": "8d03f0786953a2fedcbd66ec6f54adba6a378979a4e6e78792a5eda82f03cbed",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-hosts-r1-f2-claude-absence-without-native-observation.json",
+          "disposition_evidence_sha256": "e2a7b46dd21476f0a1ad11055d1c4e8e8820e75143e6ef6f892c39f257d5bdac"
+        },
+        {
+          "receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+          "finding_sha256": "91f5dea6815ed6f67fcea55bdd2d17fbaa3a231e644dffe0c990a04cdcb2eaef",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-hosts-r2-f4-claude-absence-without-native-observation.json",
+          "disposition_evidence_sha256": "fc9b8fa2b45b5777cfe13303cb2e9bfb8cf95ef05d089f0e5659878eacac27ac"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "opencode-native-owner-shape",
+      "root_cause_predicate": "Rejecting unsupported or incomplete skill-load argument/result shapes is claimed to break a supported OpenCode ownership contract.",
+      "affected_surface": "packages/opencode-plugin/ccl-skills.ts",
+      "occurrences": [
+        {
+          "receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+          "finding_sha256": "572e26e3c501d7393cac38e4d74b8ae9cc95a50dbfc2284a2232526a73ec5c7e",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-hosts-r2-f0-opencode-native-owner-shape.json",
+          "disposition_evidence_sha256": "aac6114fc2f6aa2a8db61fc0e28a81a60123e7fedcb97ea7ab5bcd80cc9882b6"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "optional-opencode-path-detection",
+      "root_cause_predicate": "Skipping an OpenCode executable unavailable on PATH is claimed to require writing OpenCode configuration anyway or to report that host as installed.",
+      "affected_surface": "scripts/install.sh",
+      "occurrences": [
+        {
+          "receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+          "finding_sha256": "c25f0c599c1eed2ea65cb6c88bc9ec30b6543d0f88e85629bfbb8ab8247c1a84",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-hosts-r2-f1-optional-opencode-path-detection.json",
+          "disposition_evidence_sha256": "ee678913913d87071c016138f0c1e35717e75712b0ea4b335b8c116065be1618"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "host-probe-descendant-pipe-timeout",
+      "root_cause_predicate": "An inherited stdout/stderr pipe held by a surviving launcher grandchild is claimed to keep the current synchronous host version probe blocked beyond its timeout.",
+      "affected_surface": "packages/ccl-skills-npm/src/host-probe.ts",
+      "occurrences": [
+        {
+          "receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+          "finding_sha256": "350d44ee597d0893c6a7baefca21022cc30c8c8ced2c3aebd6eeff74fcb2a4f9",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-hosts-r2-f2-host-probe-descendant-pipe-timeout.json",
+          "disposition_evidence_sha256": "8e73284d751d48eb7c6eaa52997613f8a22e02f4c47365417ba8169ad3d825cb"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "opencode-drift-diagnostic-granularity",
+      "root_cause_predicate": "The candidate is claimed to newly make drifted owned OpenCode installations permanently unupdatable because it refuses unexpected content or mode changes.",
+      "affected_surface": "packages/ccl-skills-npm/src/opencode-adapter.ts",
+      "occurrences": [
+        {
+          "receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+          "finding_sha256": "9c425068f9e219a3ae05de81e32b5ee1e2d73928e1cf9eec954736889024a092",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-hosts-r2-f3-opencode-drift-diagnostic-granularity.json",
+          "disposition_evidence_sha256": "5ce1cd6970fdcadcfbe0895a101b99ed4f2633723075147851c8d8be5503cf3f"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "continuation_authorization_required"
+}

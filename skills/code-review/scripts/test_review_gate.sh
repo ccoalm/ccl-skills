@@ -1233,6 +1233,71 @@ out="$(run_gate --review-plan-file "$WORK/owner-review-plan.json" --allow-fallba
 check "owner-aware success without a wrapper binding receipt fails closed" \
   '[ "$rc" = 2 ] && json_fields "$out" reason_code=binding_mismatch next_action=stop_reviewer_lane && [ "$(printf "%s" "$out" | python3 -c "import json,sys; print(len(json.load(sys.stdin).get(\"reviewed_skills\", [])))")" = 0 ]'
 
+# Owner count is independent of concern count: a cross-skill candidate can have
+# more owners than the eight known concerns without changing the review scope.
+python3 - "$WORK" <<'PY'
+import copy
+import json
+from pathlib import Path
+import sys
+
+work = Path(sys.argv[1])
+owners = (
+    "requirement-scope", "product-rd-workflow", "platform-service-connectivity",
+    "platform-observability", "skill-extraction-workflow", "python-service-dev",
+    "web-react-dev", "testing-strategy", "terminal-cli-dev",
+)
+plan = json.loads((work / "review-plan.json").read_text())
+patches = []
+for owner in owners:
+    root = work / owner
+    root.mkdir(exist_ok=True)
+    entrypoint = root / "SKILL.md"
+    if not entrypoint.exists():
+        entrypoint.write_text(f"# Synthetic {owner} owner\n")
+    plan["self_review"].append({
+        "concern": "correctness", "skill": owner,
+        "conclusion": f"The {owner} boundary preserves its stated acceptance behavior.",
+        "evidence_refs": ["e1"],
+    })
+    path = f"skills/{owner}/SKILL.md"
+    patches.append(f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n@@ -1 +1 @@\n-old\n+new\n")
+(work / "many-owner-diff.patch").write_text("".join(patches))
+plans = {"many-owner": plan}
+missing_owner = copy.deepcopy(plan)
+missing_owner["self_review"].pop()
+plans["many-owner-missing-owner"] = missing_owner
+missing_concern = copy.deepcopy(plan)
+missing_concern["self_review"] = [row for row in missing_concern["self_review"] if row["concern"] != "safety"]
+plans["many-owner-missing-concern"] = missing_concern
+duplicate = copy.deepcopy(plan)
+duplicate["self_review"].append(copy.deepcopy(duplicate["self_review"][-1]))
+plans["many-owner-duplicate"] = duplicate
+default_duplicate = copy.deepcopy(plan)
+default_duplicate["self_review"].append({**default_duplicate["self_review"][0], "skill": "code-review"})
+plans["many-owner-default-duplicate"] = default_duplicate
+for name, value in plans.items():
+    (work / f"{name}-plan.json").write_text(json.dumps(value))
+PY
+
+reset_case passed unavailable unavailable
+out="$(run_gate --diff-file "$WORK/many-owner-diff.patch" --review-plan-file "$WORK/many-owner-plan.json")"; rc=$?
+check "nine derived owners can assess shared concerns in one explicit plan" \
+  '[ "$rc" = 0 ] && json_fields "$out" status=passed review_plan_source=implementer-supplied owner_selection_source=controller-derived+implementer-declared && [ "$(printf %s "$out" | python3 -c "import json,sys; p=json.load(sys.stdin); print(len(p[\"selected_skills\"]), len(p[\"reviewed_skills\"]))")" = "10 9" ]'
+printf '%s\n' "$out" >"$WORK/many-owner-review.json"
+
+reset_case passed unavailable unavailable
+out="$(run_completion_gate --diff-file "$WORK/many-owner-diff.patch" --review-plan-file "$WORK/many-owner-plan.json" --completion-review-result-file "$WORK/many-owner-review.json")"; rc=$?
+check "nine-owner explicit self-review closes the exact-candidate completion checkpoint" \
+  '[ "$rc" = 0 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" mode=complete status=passed completion_gated=false next_action=complete'
+
+for invalid_plan in missing-owner missing-concern duplicate default-duplicate; do
+  reset_case passed unavailable unavailable
+  out="$(run_gate --diff-file "$WORK/many-owner-diff.patch" --review-plan-file "$WORK/many-owner-$invalid_plan-plan.json")"; rc=$?
+  check "shared-concern owner plans reject $invalid_plan before provider execution" \
+    '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=self_review_incomplete next_action=deep_self_review'
+done
+
 printf 'diff --git a/skills/testing-strategy/SKILL.md b/skills/testing-strategy/SKILL.md\n--- a/skills/testing-strategy/SKILL.md\n+++ b/skills/testing-strategy/SKILL.md\n@@ -1 +1 @@\n-old\n+new\n' >"$WORK/diff.patch"
 reset_case passed unavailable unavailable
 out="$(run_gate --allow-fallback-egress)"; rc=$?

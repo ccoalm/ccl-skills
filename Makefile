@@ -26,8 +26,10 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	python3 skills/tighten-doc/scripts/test_doc_lint_repo.py
 	python3 skills/tighten-doc/scripts/doc-lint-repo.py .
 	bash scripts/test_install_opencode_skill_migration.sh
+	python3 scripts/test_install_status.py
 	bash scripts/test_run_parallel_suites.sh
 	python3 scripts/test_lane_isolation.py
+	python3 skills/skill-extraction-workflow/scripts/test_eval_runtime.py
 	bash hooks/test_guard_delegation_owner.sh
 	bash hooks/test_guard_edit_isolation.sh
 	bash hooks/test_guard_merge_authorization.sh

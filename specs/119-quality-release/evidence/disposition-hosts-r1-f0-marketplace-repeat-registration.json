@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "07a470d1bb666df6714df5faeb072dbf071aa79fd55e6c38a493b84849c5947e",
+  "receipt_sha256": "8ac90bec93240d051d0229d6b68f14836f883c4c304528636fd2152528d9e910",
+  "finding_sha256": "cf91e4ea1b55a238b2bdcfdcc15ae942dcf7593d190c09face9eb6ca4e1aae8d",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "8ac90bec93240d051d0229d6b68f14836f883c4c304528636fd2152528d9e910",
+      "finding_sha256": "cf91e4ea1b55a238b2bdcfdcc15ae942dcf7593d190c09face9eb6ca4e1aae8d"
+    }
+  ],
+  "evidence": [
+    "scripts/install.sh:48,79 preserve actual marketplace command failures. README.md:78,84-85 and Makefile:142-149 identify make update, marketplace update/upgrade and plugin update/add as the refresh path; rerunning marketplace add is not the documented update path.",
+    "Executed native Claude Code 2.1.261 and Codex CLI 0.153.4 marketplace add twice per client against the exact installer source https://github.com/ccoalm/ccl-skills.git, with separate disposable HOME/config/data/cache roots and no model invocation. All four commands exited 0. The second Claude invocation reported already on disk and declared in user settings; the second Codex invocation reported already added.",
+    "The same two-by-two control against a local marketplace also exited 0 in all four cells. Repeated registration of the same source does not reproduce the asserted failure on either installed native client. Restoring unconditional failure swallowing would hide genuine registration errors. This evidence does not promise identical behavior for every historical client version."
+  ]
+}

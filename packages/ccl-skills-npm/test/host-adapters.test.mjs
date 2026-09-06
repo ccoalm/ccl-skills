@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+	chmodSync,
 	cpSync,
 	copyFileSync,
 	existsSync,
+	lstatSync,
 	mkdtempSync,
 	mkdirSync,
 	readFileSync,
@@ -191,6 +193,77 @@ test("OpenCode refuses symlinked shared parents before writing outside its base"
 	assert.equal(existsSync(join(base, "plugins/ccl-skills.ts")), false);
 });
 
+test("OpenCode refuses a symlinked snapshots directory before writing outside its root", (t) => {
+	const f = fixture(), base = join(f.home, ".config/opencode"), managed = join(base, "ccl-skills-npm"), outside = join(f.root, "outside");
+	t.after(() => rmSync(f.root, { recursive: true, force: true }));
+	mkdirSync(managed, { recursive: true });
+	mkdirSync(outside);
+	symlinkSync(outside, join(managed, "snapshots"));
+	const context = { home: f.home, assets, env: f.env }, result = runOpenCode("install", {}, context);
+	assert.equal(result.code, 3, result.message);
+	assert.equal(result.status, "safety-refusal");
+	assert.deepEqual(readdirSync(outside), []);
+	assert.equal(existsSync(join(managed, "install-manifest.json")), false);
+	assert.equal(existsSync(join(base, "plugins/ccl-skills.ts")), false);
+	rmSync(join(managed, "snapshots"));
+	assert.equal(runOpenCode("install", {}, context).status, "installed");
+	assert.deepEqual(readdirSync(outside), []);
+});
+
+test("OpenCode doctor reports every changed content path without changing modes or entry sets", (t) => {
+	const f = fixture(), base = join(f.home, ".config/opencode"), context = { home: f.home, assets, env: f.env };
+	t.after(() => rmSync(f.root, { recursive: true, force: true }));
+	assert.equal(runOpenCode("install", {}, context).status, "installed");
+	assert.equal(runOpenCode("doctor", {}, context).status, "healthy");
+	const changed = ["ccl-skills/bootstrap.md", "plugins/ccl-skills.ts"];
+	const modes = changed.map((path) => lstatSync(join(base, path)).mode);
+	const files = listFiles(base), manifestPath = join(base, "ccl-skills-npm/install-manifest.json"), manifest = readFileSync(manifestPath, "utf8");
+	for (const path of changed) writeFileSync(join(base, path), `changed content for ${path}\n`);
+	assert.deepEqual(changed.map((path) => lstatSync(join(base, path)).mode), modes);
+	assert.deepEqual(listFiles(base), files);
+	for (const command of ["doctor", "install", "update"]) {
+		const result = runOpenCode(command, {}, context);
+		assert.equal(result.code, 3, result.message);
+		assert.equal(result.status, "shared-drift");
+		assert.deepEqual(result.details.drift, changed);
+	}
+	assert.equal(readFileSync(manifestPath, "utf8"), manifest);
+});
+
+for (const [drift, expectedPaths, hasReason] of [
+	["mode", ["skills/product-rd-workflow/SKILL.md"], false],
+	["extra-file", ["skills/product-rd-workflow"], false],
+	["symlink-parent", [], true],
+]) {
+	test(`OpenCode doctor and same-snapshot reentry reject ${drift} ownership drift`, (t) => {
+		const f = fixture(), base = join(f.home, ".config/opencode"), skill = join(base, "skills/product-rd-workflow");
+		t.after(() => rmSync(f.root, { recursive: true, force: true }));
+		const context = { home: f.home, assets, env: f.env };
+		assert.equal(runOpenCode("install", {}, context).status, "installed");
+		for (const command of ["doctor", "install", "update"]) assert.equal(runOpenCode(command, {}, context).status, "healthy");
+		const manifestPath = join(base, "ccl-skills-npm/install-manifest.json"), manifest = readFileSync(manifestPath, "utf8");
+		if (drift === "mode") chmodSync(join(skill, "SKILL.md"), 0o755);
+		else if (drift === "extra-file") writeFileSync(join(skill, "unowned.txt"), "user-owned extra file\n");
+		else {
+			const outside = join(f.root, "outside");
+			cpSync(skill, outside, { recursive: true });
+			rmSync(skill, { recursive: true });
+			symlinkSync(outside, skill);
+		}
+		for (const command of ["doctor", "install", "update"]) {
+			const result = runOpenCode(command, {}, context);
+			assert.equal(result.code, 3, result.message);
+			assert.equal(result.status, "shared-drift");
+			assert.deepEqual(result.details.drift, expectedPaths);
+			assert.equal("reason" in result.details, hasReason);
+		}
+		assert.equal(readFileSync(manifestPath, "utf8"), manifest);
+		if (drift === "mode") assert.equal(lstatSync(join(skill, "SKILL.md")).mode & 0o777, 0o755);
+		if (drift === "extra-file") assert.equal(readFileSync(join(skill, "unowned.txt"), "utf8"), "user-owned extra file\n");
+		if (drift === "symlink-parent") assert.equal(lstatSync(skill).isSymbolicLink(), true);
+	});
+}
+
 test("Claude and OpenCode fail closed when HOME is unavailable", () => {
 	const f = fixture(), env = { PATH: f.env.PATH, FAKE_STATE: f.state };
 	for (const result of [
@@ -286,6 +359,31 @@ test("OpenCode removes a failed per-file temp and permits an immediate retry", (
 	assert.equal(retry.status, "installed", retry.message);
 });
 
+test("OpenCode update refuses a retired skill with a symlinked parent before deleting external files", (t) => {
+	const f = fixture(), override = join(f.root, "checkout"), outside = join(f.root, "outside");
+	t.after(() => rmSync(f.root, { recursive: true, force: true }));
+	cpSync(join(assets, "marketplace/plugins/ccl-skills"), override, { recursive: true });
+	mkdirSync(join(override, "skills/synthetic"), { recursive: true });
+	writeFileSync(join(override, "skills/synthetic/SKILL.md"), "retain this external file\n");
+	const context = { home: f.home, assets, env: { ...f.env, CCL_SKILLS_REPO: override } };
+	assert.equal(runOpenCode("install", {}, context).status, "installed");
+	const base = join(f.home, ".config/opencode"), installed = join(base, "skills/synthetic"), manifestPath = join(base, "ccl-skills-npm/install-manifest.json");
+	const manifest = readFileSync(manifestPath, "utf8");
+	cpSync(installed, outside, { recursive: true });
+	rmSync(installed, { recursive: true });
+	symlinkSync(outside, installed);
+	rmSync(join(override, "skills/synthetic"), { recursive: true });
+	const results = [runOpenCode("update", {}, context), runOpenCode("update", { yes: true }, context)];
+	assert.equal(existsSync(join(outside, "SKILL.md")), true, "retired skill must not delete through an external parent");
+	assert.equal(readFileSync(join(outside, "SKILL.md"), "utf8"), "retain this external file\n");
+	assert.equal(readFileSync(manifestPath, "utf8"), manifest);
+	for (const result of results) {
+		assert.equal(result.code, 3, result.message);
+		assert.equal(result.status, "collision");
+	}
+	assert.equal(lstatSync(installed).isSymbolicLink(), true);
+});
+
 test("OpenCode update removes dropped owned files and superseded snapshots", () => {
 	const f = fixture(), override = join(f.root, "checkout"), synthetic = join(override, "skills/synthetic/SKILL.md");
 	cpSync(join(assets, "marketplace/plugins/ccl-skills"), override, { recursive: true });
@@ -343,6 +441,61 @@ test("Claude retains ownership evidence when its CLI is unavailable during unins
 	assert.equal(result.status, "host-missing");
 	assert.equal(existsSync(join(f.home, ".claude/ccl-skills-npm/install-manifest.json")), true);
 	assert.equal(existsSync(join(f.state, "plugin")), true);
+});
+
+function stallClaudeVersion(f, afterRemoval = false) {
+	const slow = join(f.root, "slow-version.cjs"), trigger = join(f.state, "stall-version");
+	writeFileSync(slow, `process.on('SIGTERM', () => {}); setTimeout(() => process.exit(0), 15000);\n`);
+	const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
+	const cli = join(f.root, "bin", "claude");
+	let script = readFileSync(cli, "utf8");
+	script = script.replace('if [ "$1" = --version ];', `if [ "$1" = --version ] && [ -f "$state/stall-version" ]; then exec ${quote(process.execPath)} ${quote(slow)}; fi\nif [ "$1" = --version ];`);
+	if (afterRemoval) script = script.replace('rm -f "$state/market"; exit 0;', 'rm -f "$state/market"; touch "$state/stall-version"; exit 0;');
+	else writeFileSync(trigger, "stall");
+	writeFileSync(cli, script, { mode: 0o755 });
+}
+
+test("Claude cannot claim absent when its version probe times out", (t) => {
+	const f = fixture();
+	t.after(() => rmSync(f.root, { recursive: true, force: true }));
+	stallClaudeVersion(f);
+	const result = runClaude("uninstall", { yes: true }, { home: f.home, assets, env: f.env });
+	assert.equal(result.code, 4);
+	assert.equal(result.status, "host-timeout");
+});
+
+test("Claude retains ownership when its post-uninstall version probe times out", (t) => {
+	const f = fixture(), context = { home: f.home, assets, env: f.env };
+	t.after(() => rmSync(f.root, { recursive: true, force: true }));
+	assert.equal(runClaude("install", {}, context).status, "installed");
+	const root = join(f.home, ".claude/ccl-skills-npm"), manifestPath = join(root, "install-manifest.json");
+	const receipt = readFileSync(manifestPath, "utf8");
+	stallClaudeVersion(f, true);
+	const result = runClaude("uninstall", { yes: true }, context);
+	assert.equal(result.code, 5);
+	assert.equal(result.status, "partial");
+	assert.match(result.message, /timed out/i);
+	assert.equal(readFileSync(manifestPath, "utf8"), receipt);
+	assert.equal(existsSync(join(root, JSON.parse(receipt).active.path)), true);
+	assert.equal(existsSync(join(f.state, "plugin")), false);
+	assert.equal(existsSync(join(f.state, "market")), false);
+});
+
+test("Claude preserves candidate when verification and rollback host observation fail", (t) => {
+	const f = fixture(), context = { home: f.home, assets, env: f.env };
+	t.after(() => rmSync(f.root, { recursive: true, force: true }));
+	const cli = join(f.root, "bin", "claude");
+	let script = readFileSync(cli, "utf8");
+	script = script.replace('if [ "$1" = --version ];', 'if [ "$1" = --version ] && [ -f "$state/stall-version" ]; then exit 9; fi\nif [ "$1" = --version ];');
+	script = script.replace(': > "$state/plugin"; exit 0;', ': > "$state/plugin"; touch "$state/stall-version"; exit 0;');
+	writeFileSync(cli, script, { mode: 0o755 });
+	const result = runClaude("install", {}, context);
+	assert.equal(result.code, 5);
+	assert.equal(result.status, "partial");
+	assert.match(result.message, /rollback failed/);
+	assert.equal(existsSync(join(f.state, "plugin")), true);
+	assert.equal(existsSync(join(f.state, "market")), true);
+	assert.ok(readdirSync(join(f.home, ".claude/ccl-skills-npm/snapshots")).length > 0);
 });
 
 test("OpenCode reports exclusive metadata cleanup failure as partial", () => {

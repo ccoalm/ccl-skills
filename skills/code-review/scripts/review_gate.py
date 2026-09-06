@@ -2736,6 +2736,7 @@ def freeze_review_profile(
     required_self_review_fields = {"concern", "conclusion", "evidence_refs"}
     self_review: list[dict[str, Any]] = []
     seen_concerns: set[str] = set()
+    seen_owner_concerns: set[tuple[str, str]] = set()
     for index, item in enumerate(self_review_raw):
         item_fields = set(item) if isinstance(item, dict) else set()
         if item_fields not in (
@@ -2761,7 +2762,6 @@ def freeze_review_profile(
             len(normalized_conclusion) < 20
             or placeholder_key in PLACEHOLDER_TEXT
             or concern not in known_concern_ids
-            or concern in seen_concerns
             or not isinstance(references, list)
             or not references
             or any(
@@ -2781,6 +2781,12 @@ def freeze_review_profile(
             )
         except GateError as exc:
             raise GateError(exc.reason, "self_review_incomplete") from exc
+        if (concern, skill) in seen_owner_concerns:
+            raise GateError(
+                "self_review repeats a concern for the same skill",
+                "self_review_incomplete",
+            )
+        seen_owner_concerns.add((concern, skill))
         seen_concerns.add(concern)
         self_review.append(
             {

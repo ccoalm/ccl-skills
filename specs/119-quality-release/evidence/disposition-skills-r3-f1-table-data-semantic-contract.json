@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ae5573f32a15e7c54a5256b1fd59f58df5a161fca4988afef3bc9a7c29584d51",
+  "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+  "finding_sha256": "e2f8eaf575b63c67f1e3a56ef0225bfe5d8791de0992cc87bfca61be0643cc06",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+      "finding_sha256": "e2f8eaf575b63c67f1e3a56ef0225bfe5d8791de0992cc87bfca61be0643cc06"
+    }
+  ],
+  "evidence": [
+    "The acceptance observation is retained: a changed bookkeeping cell satisfying the permitted explicit table shape can pass. impact-chain-gate.rb:1144-1146 explicitly states that this check proves location and shape, not definition truth. references/external-practice-controls.md:47-49 says RED and observed-failure remain author declarations, and the static check does not prove model execution or even that a shebang executable implements the declared enforcement.",
+    "The source therefore refutes a promised semantic or executed-behavior guarantee, not the finding's mechanical observation. The existing list branch has a comparable limit: current gate:1225-1235 labels vocabulary a recall heuristic rather than a semantic parser; origin/dev:1155-1164 already used that heuristic.",
+    "The actual DORA definition in product-rd-workflow/references/delivery-lifecycle.md:183 has no normative verb. Requiring one would reject that valid factual definition again. This disposition does not assert rejection of bookkeeping tables, factual accuracy, semantic integrity, or authenticity of a RED declaration."
+  ]
+}

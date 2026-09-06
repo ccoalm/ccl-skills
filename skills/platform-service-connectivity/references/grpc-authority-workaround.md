@@ -1,90 +1,47 @@
-# gRPC `:authority` and DNS-Label Hyphenation
+# gRPC Authority Compatibility
 
-## The quirk
+## Separate the names and constraints
 
-HTTP/2's `:authority` pseudo-header (which carries the host of a gRPC request) is parsed strictly. RFC 1035 says DNS labels can contain letters, digits, and hyphens — but NOT underscores.
+HTTP/2 `:authority` conveys the target URI's authority, as defined by [RFC 9113 §8.3.1](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1). [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2) permits a registered name containing unreserved characters, including `_`. This syntax does not guarantee DNS resolution, certificate identity matching, or acceptance by every SDK and proxy version.
 
-Many platforms use PSM-style service names like `<owner>.<class>.<env>`. When any segment contains underscores (e.g. an env segment named `prod_v2` or a feature-flagged variant `payments.ledger.prod_2024`), the SDK puts that name into `:authority`. Envoy / strict gRPC implementations reject the request:
+Keep these values distinct when diagnosing a request:
 
-```
-RST_STREAM with INTERNAL_ERROR
-```
+- Service-registry identifier and resolved network endpoint.
+- HTTP/2 authority used for virtual-host routing.
+- TLS server name and the certificate identity expected on each TLS hop.
+- Platform naming, routing, and authorization policies.
 
-You lose the connection on every call. Frustrating to debug because it looks like network failure.
+A platform can require DNS-compatible service names and enforce that choice at registration and CI. Existing identifiers do not require migration merely because they contain an underscore; first establish which constraint the actual path violates.
 
-## Two fixes
+## Locate the rejection before choosing a fix
 
-### Fix 1 (clean, long-term): forbid underscores in service names
+Record the runtime/SDK, proxy versions and relevant configuration, exact authority, and the failing run's error or trace. Use a synthetic payload and redact credentials from captured evidence.
 
-- Naming policy: service name = lowercase, dot-separated segments, hyphens within segments allowed, underscores forbidden.
-- Enforce at registry registration (reject the registration).
-- Enforce at CI / lint when defining new services.
-- Migrate existing names by renaming + parallel registration during a deprecation window.
-
-### Fix 2 (live-system workaround): mesh-level rewrite
-
-When you can't break existing names, an Envoy Lua filter rewrites `:authority` on the fly:
-
-```yaml
-apiVersion: networking.istio.io/v1alpha3
-kind: EnvoyFilter
-metadata:
-  name: modify-grpc-authority
-  namespace: istio-system
-spec:
-  configPatches:
-    - applyTo: HTTP_FILTER
-      match:
-        context: ANY
-        listener:
-          filterChain:
-            filter:
-              name: "envoy.filters.network.http_connection_manager"
-      patch:
-        operation: INSERT_BEFORE
-        value:
-          name: envoy.filters.http.lua
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
-            inlineCode: |
-              function envoy_on_request(request_handle)
-                local authority = request_handle:headers():get(":authority")
-                local content_type = request_handle:headers():get("content-type")
-                if authority and content_type and string.find(content_type, "application/grpc") then
-                  local modified_authority = string.gsub(authority, "_", "-")
-                  request_handle:headers():replace(":authority", modified_authority)
-                end
-              end
-```
-
-Effects:
-- Applies to gRPC traffic only (content-type check).
-- Rewrites `_` to `-` in `:authority`.
-- Callee's registry instance name must also use the `-` form so routing matches.
-
-## When to use which
-
-| Situation | Fix |
+| Observed boundary | Next action |
 |---|---|
-| Greenfield platform | Fix 1 — naming policy from day one |
-| Mature platform, many existing names | Fix 2 — buy time, then schedule Fix 1 migration |
-| Mixed HTTP + gRPC for same service | Fix 2 — HTTP tolerates `_`, gRPC doesn't; rewrite only at gRPC layer |
-| Service-mesh-less (direct gRPC) | Fix 1 only — no Envoy to rewrite |
+| Authority syntax is malformed | Validate URI authority syntax, including brackets around an IPv6 literal, before changing service registration or routing. |
+| Client rejects before transmitting HTTP/2 headers | Check that client's authority validation and supported configuration. Fix the client-side mapping or naming contract; a downstream proxy cannot rewrite a request it never receives. |
+| DNS resolution fails | Check the resolved hostname and resolver's naming rules. Changing a later HTTP header does not repair failed resolution. |
+| TLS handshake or certificate identity check fails | Check that hop's endpoint, server name, trust chain, and certificate identities. Retain verification; changing authority is not evidence that TLS is fixed. |
+| Proxy/parser rejects before the HTTP filter runs | Fix the supported parser/input contract or an earlier owned mapping. A Lua filter after the rejection cannot intervene. |
+| Request reaches HTTP filters, then the intended virtual-host route does not match | Compare the received authority with the generated route configuration. A supported authority mapping may be appropriate after proving the mismatch. |
+| Existing path accepts the name and reaches the intended service | Preserve it unless a separate platform naming-policy migration is required. |
+
+`RST_STREAM` or `INTERNAL_ERROR` alone does not identify an underscore problem. Confirm the first rejecting layer rather than treating every transport failure as the same naming defect.
+
+## Choose a bounded compatibility change
+
+**Naming policy or client mapping.** Where a DNS-compatible name is required, define the allowed form and the mapping from registry identity to endpoint/authority. Check uniqueness before migration: replacing `_` with `-` can collapse two distinct names. Migrate registrations, routes, and callers together with a compatibility window and rollback path. Use supported client options; do not bypass certificate or authorization checks to make a name work.
+
+**Proxy mapping.** Use only if the request reaches the chosen filter and the mapping addresses a reproduced failure. Prefer the platform's supported routing mechanism. If an EnvoyFilter is necessary, verify the installed Istio/Envoy API and generated configuration, and scope it to the affected workloads, listener/direction, route, and explicit old-to-new authority mapping. Do not install an all-workload, all-direction underscore replacement. The mapping must preserve the intended destination, tenant/lane routing, authorization, and TLS identity on each hop; rewriting a header does not itself update those contracts.
 
 ## Verification
 
-Fix 1:
-- Registry rejects registration with `_` in name.
-- Linter / CI rejects PR adding such a name.
+Retain the original failing case and expected rejecting layer. After the change, verify:
 
-Fix 2:
-- Synthetic gRPC call to `<svc>_<env>` → inspect Envoy access log `:authority` field → expect `<svc>-<env>`.
-- Callee's access log `host` shows the rewritten form.
+1. The same request succeeds through the intended path and reaches the intended service; observe authority before/after any mapping and the selected route.
+2. Unrelated authorities and non-target traffic retain their behavior. Include potentially colliding names and unknown authorities as negative controls.
+3. Certificate identity and authorization failures still reject requests; the compatibility change has not disabled those checks.
+4. Registration/client/route changes can be rolled back together without sending traffic to another service.
 
-## Common variants of the same bug
-
-- HTTP/2 SETTINGS frame rejection on cert SAN mismatch (separate issue, but presents similarly — RST_STREAM with INTERNAL_ERROR).
-- gRPC `:scheme` set to `http` while upstream expects `https` (mTLS mismatch).
-- IPv6 literal in `:authority` not bracketed.
-
-The Lua rewrite filter is the right tool for the underscore case; do not generalize it to all of the above. Each bug has its own fix.
+Static configuration validation proves only configuration properties. Claims about a deployed SDK/proxy path require execution evidence from that path.

@@ -1,0 +1,210 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "ae5573f32a15e7c54a5256b1fd59f58df5a161fca4988afef3bc9a7c29584d51",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "ledger-skills-round1-review.json",
+      "sha256": "805a299cb7476f23e164ec0a5e9675db3fa91264f5b01d6f27a610145cea2f47"
+    },
+    {
+      "sequence": 2,
+      "file": "ledger-skills-round2-challenge.json",
+      "sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff"
+    },
+    {
+      "sequence": 3,
+      "file": "ledger-skills-round3-succession.json",
+      "sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f"
+    }
+  ],
+  "completion_receipt": null,
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "185ed38083c0625d83cc22ceb51756ab20cba823",
+      "confirmed_at": "2026-09-06T12:46:21Z",
+      "controller_receipt_sha256": "805a299cb7476f23e164ec0a5e9675db3fa91264f5b01d6f27a610145cea2f47",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "26b519075a67bdc563f0ceb6ce7e7a09d1b37bbb365b1812d64cf182959be1f3"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "185ed38083c0625d83cc22ceb51756ab20cba823",
+      "confirmed_at": "2026-09-06T12:50:28Z",
+      "controller_receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "26b519075a67bdc563f0ceb6ce7e7a09d1b37bbb365b1812d64cf182959be1f3"
+    },
+    {
+      "sequence": 3,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "185ed38083c0625d83cc22ceb51756ab20cba823",
+      "confirmed_at": "2026-09-06T13:27:37Z",
+      "controller_receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "26b519075a67bdc563f0ceb6ce7e7a09d1b37bbb365b1812d64cf182959be1f3"
+    }
+  ],
+  "autonomous_round": 3,
+  "controller_review_state": "findings_pending",
+  "finding_classes": [
+    {
+      "key": "source-register-self-anchor",
+      "root_cause_predicate": "The source register itself can supply the sole new file firing-path anchor and thereby certify its own ledger row without a changed firing surface.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/impact-chain-gate.rb",
+      "occurrences": [
+        {
+          "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+          "finding_sha256": "fe8933df0e31802de20535a3625faccb124876597a360b9f6500ff2a64d5be08",
+          "disposition": "fixed",
+          "disposition_evidence_file": "disposition-skills-r2-f0-source-register-self-anchor.json",
+          "disposition_evidence_sha256": "8df565d999b6c796babd8f03287b7adf623613e8f40674977dd3bcaa458f401e"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "scope-appetite-applicability",
+      "root_cause_predicate": "Classifying appetite as inapplicable or omitting its display is claimed to waive an existing applicable investment constraint or close an unresolved core tradeoff.",
+      "affected_surface": "skills/requirement-scope/SKILL.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+          "finding_sha256": "09097bdd4875fa8b4318791fd0db180ea73574bccdb6eb9812d2fec53e2617fc",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-skills-r2-f1-scope-appetite-applicability.json",
+          "disposition_evidence_sha256": "0671d457ba9db32c781c793daeeedbfb17d455df882f3f866f002b0a1b6c36c5"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "evaluator-stdin-close-original-exception",
+      "root_cause_predicate": "Closing stdin after cancellation is claimed to flush buffered prompt bytes and replace the original exception on the current evaluator subprocess path.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/skill-behavior-eval.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+          "finding_sha256": "75d1507db35553f42fb14ed43ba0689116a54c626ec7540f6eafd292d19b551f",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-skills-r2-f2-evaluator-stdin-close-original-exception.json",
+          "disposition_evidence_sha256": "eee7f74bc0ec5087105dfa14284df49320df8b40191e186b4d69bd5ec3df2371"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "table-anchor-owner-wide-novelty",
+      "root_cause_predicate": "An anchor found in another owner file at base is claimed to violate a promised owner-wide semantic novelty condition when introduced at a new firing path.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/impact-chain-gate.rb",
+      "occurrences": [
+        {
+          "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+          "finding_sha256": "21cdbba9353bb625c9ab39a7543927e136b8d8b56e61c039dcb60110376df131",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-skills-r2-f3-table-anchor-owner-wide-novelty.json",
+          "disposition_evidence_sha256": "aef220a3d0834e286588c6a440f2941f24926dabf99ea44a8f36f674a505a280"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "actionable-non-sli-alerts",
+      "root_cause_predicate": "Permitting actionable capacity or impending-failure signals is claimed to permit paging on arbitrary internal metrics without forecast evidence, an action or an owner.",
+      "affected_surface": "skills/platform-observability/SKILL.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+          "finding_sha256": "2544e60b4addbad0e998afcecb7e8afc25f501ffc1cac7141d24df9b18249c4b",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-skills-r2-f4-actionable-non-sli-alerts.json",
+          "disposition_evidence_sha256": "65feb3294aeed8ca84f1e5b5fc0673022f7580976813abb7fcaad09722049084"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "meta-document-firing-surface",
+      "root_cause_predicate": "Allowing normative rules in a non-register owner reference document is claimed to violate the source-register self-certification exclusion.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/impact-chain-gate.rb",
+      "occurrences": [
+        {
+          "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+          "finding_sha256": "5ff2991c42d568542756080663d20539965a1bf27681780edfbff894fb163c3f",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-skills-r3-f0-meta-document-firing-surface.json",
+          "disposition_evidence_sha256": "980f26d0259cd513af371c52a2adb43d31e8984c074781362d270f1c939599c9"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "table-data-semantic-contract",
+      "root_cause_predicate": "Accepting any uniquely anchored explicit Markdown table data cell is claimed to violate a promised normative or definition-semantic classifier.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/impact-chain-gate.rb",
+      "occurrences": [
+        {
+          "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+          "finding_sha256": "e2f8eaf575b63c67f1e3a56ef0225bfe5d8791de0992cc87bfca61be0643cc06",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-skills-r3-f1-table-data-semantic-contract.json",
+          "disposition_evidence_sha256": "e69fde16e0eb717ea5c1f07337d4f88263521b5693c960bd22144b93d6f1fa03"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "table-semantic-fixture-contract",
+      "root_cause_predicate": "The table gate suite is claimed to lack required rejection cases for descriptive table cells and non-register owner reference documents.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/test_check_ccl_impact_chain_refscripts.sh",
+      "occurrences": [
+        {
+          "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+          "finding_sha256": "7e0e1f683f2605e89d345df21ac4f0dd1948879dc79006ff1151ef7f64e785b9",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-skills-r3-f2-table-semantic-fixture-contract.json",
+          "disposition_evidence_sha256": "583755d53ca7ce8465f5259c96842e68179d0d01473e8c83a4304aca464396da"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "build-report-return-contract",
+      "root_cause_predicate": "The caller's iteration over build_report's result is claimed to fail because build_report does not return its verdict list.",
+      "affected_surface": "skills/skill-extraction-workflow/scripts/skill-behavior-eval.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+          "finding_sha256": "700c29852a32f47f0e178df2d624d787818765cb8bef258fbc430588737f8f54",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-skills-r3-f3-build-report-return-contract.json",
+          "disposition_evidence_sha256": "77c2c105072bbcc740f90a1f488ac910490d91be550499f698f9017ebed0453d"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "plan-global-owner-risk-coverage",
+      "root_cause_predicate": "Allowing concern labels across different owner rows is claimed to permit an owner to evade a promised per-owner risk-concern coverage requirement.",
+      "affected_surface": "skills/code-review/scripts/review_gate.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+          "finding_sha256": "f25ca84c6b03e3e4300ded024d005ce9a5cc70b2fa3c5c6624f73d87d08bec38",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "disposition-skills-r3-f4-plan-global-owner-risk-coverage.json",
+          "disposition_evidence_sha256": "c9cfe3b43440c788d9832822c39da4e32a0a2000b7c9f0b36e0d4c8a74f4372e"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "continuation_authorization_required"
+}

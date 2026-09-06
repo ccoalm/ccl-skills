@@ -52,7 +52,7 @@ Usage:
 Run in a SCRATCH checkout: the current arm executes the installed hooks/plugins (not just the
 read-only model tools), so treat it as potentially side-effecting, not inert.
 """
-import argparse, hashlib, json, os, re, subprocess, sys, threading, time
+import argparse, hashlib, json, os, re, signal, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_FIXTURES = os.path.normpath(os.path.join(HERE, "..", "..", "..", "eval", "behavior-fixtures.jsonl"))
@@ -100,23 +100,62 @@ def _headless_claude(cmd, prompt, timeout_s):
         # stderr → DEVNULL: we never read it, and a full stderr pipe would deadlock the child
         # on a verbose run and time out an otherwise-valid answer.
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                             stderr=subprocess.DEVNULL, text=True)
+                             stderr=subprocess.DEVNULL, text=True,
+                             start_new_session=(os.name == "posix"))
     except FileNotFoundError:
         return None, "claude_not_found", None, []
-    out = {"s": ""}
-    t = threading.Thread(target=lambda: out.__setitem__("s", p.stdout.read()))
-    t.start()
     try:
-        p.stdin.write(prompt); p.stdin.close()
-    except (BrokenPipeError, OSError):
-        pass
-    t.join(timeout_s)
-    if t.is_alive():
-        p.kill(); t.join(2)
-        return None, f"timeout_{timeout_s}s", None, []
-    rc = p.wait()
+        # One deadline covers stdin backpressure, stdout collection and process
+        # completion. A reader-only timer leaves writes and p.wait() unbounded.
+        out, _ = p.communicate(input=prompt, timeout=timeout_s)
+    except BaseException as stopped:
+        # The group can outlive its leader while a descendant holds stdout open.
+        # Kill the recorded group even when the direct child has already exited.
+        cleanup_errors = []
+        try:
+            if os.name == "posix":
+                os.killpg(p.pid, signal.SIGKILL)
+            else:
+                cleanup_errors.append("descendant_cleanup_unsupported")
+                p.kill()
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            target = "group" if os.name == "posix" else "process"
+            cleanup_errors.append(f"{target}_kill_permission_denied")
+        try:
+            p.communicate(timeout=1)
+        except (subprocess.TimeoutExpired, OSError) as cleanup_error:
+            # An escaped descendant may still own a pipe; do not wait for EOF.
+            cleanup_errors.append("stdio_timeout" if isinstance(cleanup_error, subprocess.TimeoutExpired) else "stdio_error")
+            try:
+                p.kill()
+            except ProcessLookupError:
+                pass
+            except PermissionError:
+                cleanup_errors.append("process_kill_permission_denied")
+            try:
+                p.wait(timeout=1)
+            except (subprocess.TimeoutExpired, OSError) as cleanup_error:
+                cleanup_errors.append("wait_timeout" if isinstance(cleanup_error, subprocess.TimeoutExpired) else "wait_error")
+        # A denied kill or incomplete drain/reap is not evidence of cleanup.
+        # Return it so callers can save partial results and stop new processes.
+        interrupted = not isinstance(stopped, subprocess.TimeoutExpired)
+        error = "interrupted" if interrupted else f"timeout_{timeout_s}s"
+        if cleanup_errors:
+            error += ";cleanup_unconfirmed:" + ",".join(cleanup_errors)
+        if interrupted:
+            if cleanup_errors:
+                print(f"{error}; confirm process termination before resuming", file=sys.stderr)
+            raise
+        return None, error, None, []
+    finally:
+        p.stdin.close()
+        p.stdout.close()
+    rc = p.returncode
     parts, result_text, result_subtype, util, invoked = [], None, None, None, []
-    for ln in out["s"].splitlines():
+    terminal_results = []
+    for ln in out.splitlines():
         # The stream is external/untrusted: a line may be invalid JSON, deeply nested (RecursionError),
         # or a shape-drifted value. Wrap the WHOLE per-line parse+extract so any bad line skips itself
         # and never crashes the eval run (fail-closed-skip). We read only known fields of known event
@@ -127,6 +166,7 @@ def _headless_claude(cmd, prompt, timeout_s):
             if not isinstance(ev, dict):
                 continue
             if ev.get("type") == "result":
+                terminal_results.append(ev)
                 result_subtype = ev.get("subtype")
                 if result_subtype == "success":
                     result_text = ev.get("result")
@@ -159,8 +199,19 @@ def _headless_claude(cmd, prompt, timeout_s):
     # teardown failure — the answer is complete, accept. Without that event we do NOT bank the
     # text, even if some assistant chunks streamed and rc==0: a truncation or format drift before
     # the terminal event would otherwise be recorded as a valid sample.
-    if result_subtype == "success":
-        return ("\n\n".join(parts) if parts else result_text), None, util, invoked
+    if len(terminal_results) > 1:
+        return None, "invalid_terminal_result", util, invoked
+    if result_subtype == "success" and terminal_results:
+        terminal = terminal_results[0]
+        if (terminal.get("is_error") not in (None, False)
+                or terminal.get("permission_denials")
+                or terminal.get("api_error_status") not in (None, 0, "0")
+                or terminal.get("terminal_reason") not in (None, "completed")):
+            return None, "invalid_terminal_result", util, invoked
+        text = "\n\n".join(parts) if parts else result_text
+        if not isinstance(text, str) or not text.strip():
+            return None, "invalid_terminal_result", util, invoked
+        return text, None, util, invoked
     if rc != 0:
         return None, f"claude_exit_{rc}", util, invoked
     if result_subtype:
@@ -312,8 +363,12 @@ def build_report(rows, out_dir, do_judge, timeout_s, last_util, stop_util,
     in the summary (never silently dropped, or the report reads clean when it isn't). Raw responses
     stay on disk for audit; judgment-ASSIST, never a score. do_judge=False → fill-in scaffold."""
     verdicts = []
+    cleanup_error = None
     for fx in rows:
         base = {"id": fx["id"], "axis": fx.get("axis", "")}
+        if cleanup_error:
+            verdicts.append({**base, "status": "judge-skipped", "note": cleanup_error})
+            continue
         cur = read_saved_response(os.path.join(out_dir, f"{fx['id']}.current.s1.txt"))
         cand = read_saved_response(os.path.join(out_dir, f"{fx['id']}.candidate.s1.txt"))
         if not cur or not cand:
@@ -342,6 +397,8 @@ def build_report(rows, out_dir, do_judge, timeout_s, last_util, stop_util,
             last_util = util
         if err:
             verdicts.append({**base, "status": f"judge-error:{err}"})
+            if ";cleanup_unconfirmed:" in err:
+                cleanup_error = err
             continue
         v.update(base); v["status"] = "judged"
         if fixture_needs_human(fx):
@@ -467,8 +524,10 @@ def main():
         if not a.no_judge:
             print(f"--report-only will make up to {len(rows)} LLM-judge claude call(s) "
                   f"(one per fixture with both arms saved). Use --no-judge for a fill-in scaffold.")
-        build_report(rows, a.out, not a.no_judge, a.timeout, None, a.stop_util, ctext, a.current_tag)
+        verdicts = build_report(rows, a.out, not a.no_judge, a.timeout, None, a.stop_util, ctext, a.current_tag)
         print(f"\nReport: {os.path.join(a.out, 'capability-delta-report.md')}")
+        if any(";cleanup_unconfirmed:" in v["status"] for v in verdicts):
+            sys.exit(1)
         return
     # Fail fast: don't burn every current-arm run and only then discover the candidate
     # arm has no contract to inject.
@@ -501,6 +560,12 @@ def main():
                           f"{a.stop_util:.0%} — stopping before [{fx['id']}/{arm}/s{s}]. "
                           f"Partial results in {a.out}; rerun to continue, then --report-only.")
                     logf.close(); return
+                # A failed replacement must not leave its old response usable.
+                # Invalidate only after quota allows this sample to start.
+                try:
+                    os.unlink(rpath)
+                except FileNotFoundError:
+                    pass
                 t0 = time.time()
                 text, err, util, invoked = run_agent(fx["prompt"], a.timeout, arm, a.contract)
                 dt = time.time() - t0
@@ -509,7 +574,13 @@ def main():
                 if err:
                     print(f"[{fx['id']}/{arm}/s{s}] ERROR {err} ({dt:.0f}s)")
                     logf.write(json.dumps({"id": fx["id"], "arm": arm, "sample": s, "error": err}) + "\n")
-                    logf.flush(); continue
+                    logf.flush()
+                    if ";cleanup_unconfirmed:" in err:
+                        print(f"*** ABORT: process cleanup is unconfirmed; no further samples or judges started. "
+                              f"Partial results in {a.out}. Confirm process termination before resuming.")
+                        logf.close()
+                        sys.exit(1)
+                    continue
                 with open(rpath, "w", encoding="utf-8") as rf:
                     rf.write(f"# sig: {sig}\n")
                     rf.write(f"# {fx['id']} / arm={arm} / sample={s} / {dt:.0f}s / util={last_util}\n")
@@ -528,13 +599,24 @@ def main():
     if "current" in arms and "candidate" in arms:
         print("Building capability-delta report (candidate vs current)"
               + ("" if a.no_judge else " via LLM-judge — this makes more claude calls") + " ...")
-        build_report(rows, a.out, not a.no_judge, a.timeout, last_util, a.stop_util,
-                     contract_text, a.current_tag)
+        verdicts = build_report(rows, a.out, not a.no_judge, a.timeout, last_util, a.stop_util,
+                                contract_text, a.current_tag)
         print(f"Report: {os.path.join(a.out, 'capability-delta-report.md')} "
               f"(confirm every 🔴 HUMAN row by eye; it is judgment-assist, not a score).")
+        if any(";cleanup_unconfirmed:" in v["status"] for v in verdicts):
+            sys.exit(1)
     else:
         print("Single arm — no delta to report. Run --both-arms for the capability-delta report.")
 
 
 if __name__ == "__main__":
-    main()
+    previous_sigterm = signal.getsignal(signal.SIGTERM)
+    if previous_sigterm == signal.SIG_DFL:
+        def terminate(signum, _frame):
+            raise SystemExit(128 + signum)
+        signal.signal(signal.SIGTERM, terminate)
+    try:
+        main()
+    finally:
+        if previous_sigterm == signal.SIG_DFL:
+            signal.signal(signal.SIGTERM, previous_sigterm)

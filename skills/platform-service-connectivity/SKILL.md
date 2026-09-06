@@ -100,10 +100,11 @@ Confusing these is the source of most "why doesn't this work" connectivity bugs.
 
 ### R4 — Default retry/timeout/circuit-breaker live at mesh, app overrides for business reasons
 
-- Mesh DestinationRule provides default per-callee policy: retries (1-2 attempts on 5xx/connect-fail), connect timeout, request timeout ceiling, outlier detection (5xx-percent → eject).
-- Framework client SDK provides per-call override: business timeout (always ≤ mesh ceiling), retry policy for idempotent calls, hedging.
+- On Istio HTTP/gRPC paths, `VirtualService` HTTP routes own request `timeout` and `retries`; `DestinationRule` owns connection-pool settings and `outlierDetection`. Other transports use their platform-owned equivalents.
+- Before configuring retries or timers, read `references/retry-timeout-circuit-breaker.md` for field paths, single-owner retry selection, and idempotency checks. Both mesh and SDK follow them; a 5xx or missing response alone never proves replay safe.
+- Framework client SDK may provide method-specific retry/hedging; its total call budget must fit the caller's remaining duration and any platform cap. A longer mesh timeout is a backstop, not an extended caller deadline.
 - App code MAY override per-RPC. App code MUST NOT silently disable mesh-level outlier detection.
-- Budget rule: total upstream timeout = caller deadline minus a safety margin (e.g. 100ms). Cascading timeouts must shrink down the call chain.
+- Budget rule: downstream work, attempts, and backoff fit the remaining duration minus a safety margin (e.g. 100ms). Propagate deadline and cancellation; never reset the full budget at each hop.
 
 ### R5 — mTLS is mesh-default, app cannot disable
 
@@ -151,14 +152,13 @@ The client middleware fills this from ctx automatically; the server middleware e
 
 For non-protobuf or metadata-only transports, an equivalent header set is compliant only when it cites a resolvable platform owner record, such as a repo/path, document URL, registry id, gateway policy, or owner-suite id. The owner record must enumerate the concrete header names. In diff-only review without resolver tooling, the diff must cite a stable owner-record locator and list the concrete header names inline; with resolver tooling, the reviewer or owner-suite may resolve the locator to those names instead. The enumerated header names must then be checked against the actual propagated and exposed headers: caller-supplied identity headers are absent unless positive authenticated-caller evidence exists. An unresolvable, non-enumerating, uncited, service-local, or unchecked header set is an open gap, not a permitted alternative. For pure HTTP (no RPC base), the equivalent is a stable owner-recorded header set, also filled by middleware.
 
-### R8 — gRPC `:authority` and DNS-label hyphenation
+### R8 — gRPC `:authority` compatibility follows the actual request path
 
-If the platform allows service names with underscores (`<owner>.<class>.<env>` containing `_`), gRPC will reject them in the HTTP/2 `:authority` pseudo-header because it must be a valid DNS label (no `_`). Two acceptable fixes:
+HTTP/2 `:authority` carries URI authority, not a single DNS label. An underscore alone does not prove a gRPC protocol violation. DNS hostnames, certificate identity checks, SDK validation, and proxy routing can impose different constraints; preserve the constraints of the deployed path.
 
-1. **Disallow underscores in new service names**; enforce in registry registration and CI.
-2. **Mesh-level rewrite**: an EnvoyFilter Lua snippet replaces `_` with `-` in `:authority` for gRPC requests, before routing.
+Before renaming a service or adding a rewrite, capture the failing request's authority, the rejecting layer and version, and the relevant error or trace. A platform may require DNS-compatible service names and enforce that policy at registration and CI, but a registry name need not be the wire authority.
 
-Option 1 is cleaner long-term; option 2 is the live-system workaround. Document which the platform uses; new services should follow option 1.
+A proxy rewrite is an option only when the request reaches that filter before the rejecting layer. It cannot fix a client rejection before transmission or an inbound parser rejection before the filter runs. Scope any verified rewrite to the affected traffic and explicit authority mappings; retain route, TLS identity, and authorization checks. Diagnosis, migration, and verification: `references/grpc-authority-workaround.md`.
 
 ### R9 — Ingress and egress are explicit, not implicit
 
@@ -200,8 +200,8 @@ Option 1 is cleaner long-term; option 2 is the live-system workaround. Document 
 ### Phase B — Mesh policy
 
 1. PeerAuthentication = STRICT (mTLS namespace-wide).
-2. DestinationRule per critical callee: retry policy, timeouts, outlier detection.
-3. VirtualService rules express lane-based routing: lane header match → lane subset.
+2. DestinationRule per critical callee: connection-pool limits, connect timeout, outlier detection.
+3. VirtualService HTTP routes: lane header match → lane subset, request timeout, and the R4 retry policy.
 4. AuthorizationPolicy expresses which services may call which (zero-trust at network level).
 
 ### Phase C — Service discovery
@@ -216,7 +216,7 @@ Option 1 is cleaner long-term; option 2 is the live-system workaround. Document 
 
 1. Read the framework default client/server options module. Confirm middleware chain matches R6.
 2. Confirm dev cannot build a client/server without inheriting these.
-3. Test: kill a downstream pod → verify mesh outlier-detection ejects, framework retry kicks in for idempotent calls, error propagates up with stable error-code.
+3. Test: induce the configured outlier threshold on one callee → verify ejection and recovery, the configured retry layer retries only eligible calls within its budget, and exhausted calls propagate a stable error-code.
 
 ### Phase E — Failure modes
 
@@ -234,7 +234,7 @@ Before marking work done:
 
 ## Decision Points
 
-- **"Add a new retry policy for service X"** → start at mesh DestinationRule. Move to framework client only if the retry depends on business idempotency knowledge.
+- **"Add a new retry policy for service X"** → apply R4's replay-safety and single-owner checks. Use the matching VirtualService HTTP route for Istio retries; disable and verify route retries when the SDK owns them. DestinationRule limits concurrent retries, not per-request attempts.
 - **"Service A times out calling Service B"** → check three layers in order: app deadline (ctx timeout) → framework client timeout → mesh request timeout. Whichever is smaller wins; align them.
 - **"Switch service discovery mode"** → use `references/service-discovery-choice.md`; do not mandate registry unless the platform needs registry-specific capabilities such as per-instance drain, out-of-cluster lookup, or existing registry federation.
 - **"Need mTLS to a non-mesh external service"** → egress gateway with terminating TLS, not app-managed certs.
@@ -257,7 +257,7 @@ Reused industry patterns (PSM-style identity, `<owner>.<class>.<env>` shape, `tr
 - `references/framework-middleware.md` — Server and client middleware chain (HTTP + RPC); the canonical RPC base struct shape; verification commands.
 - `references/multi-env-routing.md` — Lane label end-to-end recipe; VirtualService patterns; queue-boundary propagation; stress/shadow tags.
 - `references/retry-timeout-circuit-breaker.md` — Mesh defaults vs SDK overrides; cascading timeout budgets; idempotency awareness; outlier detection tuning.
-- `references/grpc-authority-workaround.md` — The `_` → `-` rewrite quirk; when it's needed; the cleaner long-term fix.
+- `references/grpc-authority-workaround.md` — Locate authority rejection; distinguish naming policy from protocol syntax; verify scoped compatibility changes.
 - `references/dual-sidecar-and-traffic-config-center.md` — Pod-level dual sidecar (mesh + platform), per-protocol mesh injection policy, per-caller-callee traffic config via config center (separate from mesh routing).
 - `references/rpc-framework-recipe.md` — Concrete kitex/hertz default suite: shared RPC base field contract, RPC base.Request full schema (8 fields incl From/To), dual-channel ctx propagation (metainfo + grpc metadata), 9-code error enum + framework error mapping table, three resolver strategies (registry / FQDN fallback / proxy), platform latency histogram buckets, CORS defaults exposing log-id header, server boot sequence with graceful shutdown.
 - `references/service-discovery-choice.md` — Decision framework: registry-based vs k8s-native SD; both support lane routing + canary + multi-env; pick by per-instance drain need, laptop access pattern, federation preference, operational burden; mixed mode (k8s east-west + thin registry for laptop) is workable; migration paths in both directions.
@@ -269,7 +269,7 @@ Reused industry patterns (PSM-style identity, `<owner>.<class>.<env>` shape, `tr
 
 1. **Static**: framework default options module includes all R6 middleware; mesh PeerAuthentication is STRICT; DestinationRule and VirtualService exist for every callee that participates in lane routing.
 2. **Live, identity**: cross-service trace shows log-id + lane consistent across all hops; mesh access log lines include both.
-3. **Live, mesh policy**: kill a callee pod → outlier detection ejects within outlier-detection interval; metrics show client-side error count rise then fall.
+3. **Live, mesh policy**: trigger the configured outlier threshold with an eligible pool size; verify ejection and recovery against the effective policy and metrics. Consecutive-error checks are inline, not delayed until the periodic analysis interval.
 4. **Live, lane routing**: send request with non-default lane → confirm only matching-lane instances serve it.
 5. **Static, no leakage**: grep this skill's content — zero internal hostnames, repo names, or business terms.
 
