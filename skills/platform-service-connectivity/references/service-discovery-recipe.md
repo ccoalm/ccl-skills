@@ -79,7 +79,7 @@ The framework client resolver:
 ## Cross-language registration
 
 If services span Go, Python, Java, Node: every language SDK must agree on:
-- Service name shape (lowercase, dot-separated, no underscores if gRPC is in scope — see `grpc-authority-workaround.md`).
+- Service name shape and its mapping to endpoint, authority, and TLS identity. Apply the agreed platform naming policy and actual DNS/SDK/proxy constraints; gRPC alone does not require renaming an existing working identifier (see `grpc-authority-workaround.md`).
 - Tag key names (`lane`, not `env`; pick one).
 - Heartbeat interval and TTL.
 - Health state semantics.

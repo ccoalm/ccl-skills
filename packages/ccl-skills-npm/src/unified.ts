@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { probeHostVersion } from "./host-probe.js";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { runClaude } from "./claude-adapter.js";
@@ -6,12 +6,6 @@ import { run as runCodex } from "./operations.js";
 import { runOpenCode } from "./opencode-adapter.js";
 import type { PathContext } from "./paths.js";
 import type { Host, Options, Result } from "./types.js";
-
-function available(host: Host) {
-	const command = host === "opencode" ? "opencode" : host;
-	const result = spawnSync(command, ["--version"], { encoding: "utf8" });
-	return !result.error && result.status === 0;
-}
 
 function owned(host: Host) {
 	const home = process.env.HOME;
@@ -58,7 +52,13 @@ export function runHostSequence(hosts: Host[], invoke: (host: Host) => Result): 
 export function runUnified(command: string, options: Options = {}, codexContext: PathContext = {}): Result {
 	if (options.host) return dispatch(options.host, command, options, codexContext);
 	const includeOwned = command === "doctor" || command === "uninstall";
-	const hosts = (["claude", "codex", "opencode"] as Host[]).filter((host) => command === "update" ? available(host) && owned(host) : available(host) || (includeOwned && owned(host)));
-	if (!hosts.length) return { code: 4, status: "host-missing", message: "none of Claude Code, Codex, or OpenCode is installed" };
-	return runHostSequence(hosts, (host) => dispatch(host, command, { ...options, host }, codexContext));
+	const candidates = (["claude", "codex", "opencode"] as Host[]).filter((host) => command !== "update" || owned(host));
+	const probes = candidates.map((host) => ({ host, probe: probeHostVersion(host) }));
+	const hosts = probes.filter(({ host, probe }) => probe.ok || probe.kind !== "missing" || (includeOwned && owned(host))).map(({ host }) => host);
+	if (!hosts.length) return { code: 4, status: "host-missing", message: "no Claude Code, Codex, or OpenCode CLI is available" };
+	return runHostSequence(hosts, (host) => {
+		const probe = probes.find((entry) => entry.host === host)!.probe;
+		if (!probe.ok && probe.kind !== "missing") return { code: 4, status: `host-${probe.kind}`, message: probe.message };
+		return dispatch(host, command, { ...options, host }, codexContext);
+	});
 }

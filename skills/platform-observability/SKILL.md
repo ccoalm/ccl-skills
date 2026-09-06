@@ -30,7 +30,7 @@ Observability is the chain that turns one user action into searchable, joinable,
 2. **Instrumentation** — every service emits structured logs, metrics, and spans through the **framework default**, not ad-hoc code. A service whose middleware chain does not include `ctx_inject + metrics + recovery + tracing` is unobservable by design.
 3. **Transport** — logs go stdout → file collector (DaemonSet) → log pipeline → search index; metrics + traces go SDK → OTLP collector → metric store + trace store. Both transports must survive collector restarts and back-pressure.
 4. **Storage + display** — logs in a searchable index keyed by log-id and trace-id; metrics in a long-term store separate from scraper; traces queryable by trace-id; one dashboard tool joins all three.
-5. **Evidence consumption** — SLIs are queries against (3) + (4); alerts evaluate SLIs and route to on-call; runbooks live in a wiki that on-call can reach in under one minute.
+5. **Evidence consumption** — SLIs query (3) + (4); actionable alerts route to on-call; runbooks live in a wiki that on-call can reach in under one minute.
 
 A new service must satisfy all five before it is allowed in production. A release must produce evidence at all five before it is promoted.
 
@@ -106,9 +106,9 @@ Add domain fields with a prefix (e.g. `app_*`, `biz_*`) to avoid colliding with 
 
 **Retrofit / migration contract** (the rules above are otherwise greenfield-framed): when a schema is introduced over EXISTING services, field names, metric label names, and identity env-var names are a **migration contract** — a blind rename breaks every deployed dashboard, alert, and saved query that keys on the old name. Retrofitting MUST alias or dual-write old→new and migrate consumers before retiring the old name; never rename in place. The cheap time to fix a name is before services adopt it.
 
-### R7 — Alerts are SLI-driven and route to a human
+### R7 — Alerts are actionable and route to an owner
 
-- Alerts evaluate against SLIs (query the long-term metric store), not raw metrics.
+- Use SLIs for SLO paging; actionable capacity or impending-failure alerts may use internal measurements. See `references/alerting-and-on-call.md`.
 - Severity levels: P0 (page on-call now), P1 (notify channel, ack within work hours), P2 (digest).
 - Every alert MUST link to a runbook entry. If no runbook exists, the alert is not allowed to be P0.
 - An alert-backed metric is a coverage contract, and the trigger is mechanical, not prose: any new or changed alert rule, SLO, dashboard alert annotation, or metric referenced by an alert policy fires this check (a written "alert on any increase" note also counts, but its absence is not an exemption). Enumerate every site that should feed the metric and verify each is actually instrumented — derive the site list from a static registry or lint where possible; the easiest site to miss is often the riskiest (e.g. the panic counter in a stream reader parsing untrusted bytes). Ship the site checklist with the alert.
@@ -208,7 +208,7 @@ If any phase has missing evidence, the work is not done.
 - **"Sample everything vs head-sample 1%"** → head-sample low (1–10%) for cost; retaining errors/slow requests is **tail** sampling at the Collector and requires near-full SDK export to it (head-dropped spans never arrive) — pick one model per service, do not claim both. Sampling-by-route is acceptable for known noisy paths.
 - **"Metrics egress: scrape vs push"** → each platform picks ONE canonical egress and every process uses it. A Prometheus-native platform may default to **scrape** (pull, with `up`/target-health + service discovery); an OTel-first platform, or workers/jobs/runtimes that can't be scraped, may default to **OTLP push** to a collector. Neither is universally better — don't overturn a working pull setup just to push. One egress per process for a given metric; a migration window may dual-write only with isolated pipelines / distinct metric names / a dedup plan. Long-term store stays separate from the short-term scrape/collect layer (R5).
 - **"Add a new label to a metric"** → answer the cardinality question first. If max distinct values × series count > 1e6, refuse and use an exemplar trace instead.
-- **"Alert on this symptom or that cause"** → alert on user-visible symptom; cause-based alerts produce paging spam.
+- **"Alert on this symptom or that cause"** → prefer user-visible symptoms; capacity or impending-failure warnings follow R7.
 
 ## Sanitization and Provenance
 

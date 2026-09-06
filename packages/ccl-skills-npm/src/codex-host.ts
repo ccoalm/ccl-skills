@@ -4,6 +4,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { LEGACY_REF, MARKET, REF } from "./paths.js";
 import { canonicalAlias } from "./fs-safe.js";
 import { compare, parseVersion } from "./version.js";
+import { probeHostVersion } from "./host-probe.js";
 
 export interface HostState {
 	status: "known" | "unknown";
@@ -28,14 +29,9 @@ function call(args: string[], codexHome?: string) {
 }
 
 export function checkHost(codexHome?: string) {
-	const p = call(["--version"], codexHome);
-	if (p.error || p.status !== 0)
-		return {
-			ok: false as const,
-			kind: "missing",
-			message: "Codex CLI is missing",
-		};
-	const version = parseVersion(`${p.stdout}\n${p.stderr}`);
+	const p = probeHostVersion("codex", { ...process.env, ...(codexHome ? { CODEX_HOME: codexHome } : {}) });
+	if (!p.ok) return p;
+	const version = parseVersion(p.output);
 	if (!version || compare(version, "0.133.0") < 0)
 		return {
 			ok: false as const,
@@ -55,7 +51,7 @@ export function parsePluginList(
 		(lines.length === 1 && lines[0] === "No marketplace plugins found.")
 	)
 		return { ok: true, plugin: false, legacy: false };
-	const header = /^PLUGIN\s+STATUS\s+VERSION\s+PATH\s*$/;
+	const header = /^PLUGIN\s+STATUS\s+VERSION\s+(?:PATH|SOURCE)\s*$/;
 	const provenance = /^Marketplace `([^`]+)`$/;
 	const sensitiveRefs = new Set<string>();
 	let plugin = false;

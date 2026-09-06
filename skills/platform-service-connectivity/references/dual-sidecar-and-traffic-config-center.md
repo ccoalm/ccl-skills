@@ -36,7 +36,7 @@ Mesh injection is not all-or-nothing. Real platforms apply per-protocol policy:
 | App protocol | Inject Istio sidecar? | Reason |
 |---|---|---|
 | HTTP (REST) | YES | Envoy handles HTTP/1.1, HTTP/2; full feature support |
-| gRPC | YES | HTTP/2 + per-call routing; needs `:authority` quirk handling |
+| gRPC | YES | HTTP/2 + per-call routing; verify `:authority` routing against the actual SDK/proxy path |
 | TCP (raw) | NO (often) | Envoy TCP proxy is feature-poor; routing/auth less useful at L4 |
 | Thrift (TTHeader) | NO (often) | Same — L4-ish; tooling limited |
 

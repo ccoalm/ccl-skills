@@ -8,6 +8,8 @@ import {
 	readFileSync,
 	readdirSync,
 	renameSync,
+	rmSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -27,12 +29,19 @@ function copyRuntime(home) {
 	return runtime;
 }
 
-async function loadPlugin(home, directory, client = {}) {
+function copyOwnerSkill(home) {
+	const dir = join(home, ".config/opencode/skills/multi-agent-delegation");
+	cpSync(join(assets, "skills/multi-agent-delegation"), dir, { recursive: true });
+	return dir;
+}
+
+async function loadPlugin(home, directory, client = {}, installedModulePath) {
 	const source = readFileSync(join(assets, "packages/opencode-plugin/ccl-skills.ts"), "utf8");
 	const output = ts.transpileModule(source, {
 		compilerOptions: { module: ts.ModuleKind.ES2022, target: ts.ScriptTarget.ES2022 },
 	}).outputText;
-	const modulePath = join(mkdtempSync(join(tmpdir(), "ccl-opencode-plugin-")), "ccl-skills.mjs");
+	const modulePath = installedModulePath ?? join(mkdtempSync(join(tmpdir(), "ccl-opencode-plugin-")), "ccl-skills.mjs");
+	mkdirSync(dirname(modulePath), { recursive: true });
 	writeFileSync(modulePath, output);
 	const previousHome = process.env.HOME;
 	process.env.HOME = home;
@@ -126,6 +135,7 @@ test("OpenCode native events execute the installed CCL hook runtime", async () =
 	mkdirSync(project);
 	mkdirSync(runtimeTmp);
 	const runtime = copyRuntime(home);
+	const ownerDir = copyOwnerSkill(home);
 
 	// Make the Stop behavior deterministic without depending on a repository-specific
 	// owner-dispatch boundary; the adapter still executes the installed script path.
@@ -186,11 +196,11 @@ printf '{"decision":"block","reason":"stop-backstop-fired:file_path=%s:secret=%s
 		);
 		await hooks["tool.execute.before"](
 			{ tool: "skill", sessionID: "runtime-session", callID: "skill-1" },
-			{ args: { skill: "ccl-skills:multi-agent-delegation" } },
+			{ args: { name: "multi-agent-delegation" } },
 		);
 		await hooks["tool.execute.after"](
-			{ tool: "skill", sessionID: "runtime-session", callID: "skill-1", args: { skill: "ccl-skills:multi-agent-delegation" } },
-			{ output: "loaded" },
+			{ tool: "skill", sessionID: "runtime-session", callID: "skill-1", args: { name: "multi-agent-delegation" } },
+			{ output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } },
 		);
 		const task = { args: { description: "inspect", prompt: "Review the change" } };
 		await hooks["tool.execute.before"](
@@ -224,4 +234,142 @@ printf '{"decision":"block","reason":"stop-backstop-fired:file_path=%s:secret=%s
 		else process.env.CCL_HOOK_TRACE = previousTrace;
 	}
 	assert.deepEqual(readdirSync(runtimeTmp).filter((entry) => entry.startsWith("ccl-skills-opencode-")), []);
+});
+
+test("OpenCode delegation requires a completed native skill load from the CCL source", async (t) => {
+	for (const [label, args, resultName, source, completed, allowed] of [
+		["native", { name: "multi-agent-delegation" }, "multi-agent-delegation", "owned", true, true],
+		["pending", { name: "multi-agent-delegation" }, "multi-agent-delegation", "owned", false, false],
+		["old-shape", { skill: "ccl-skills:multi-agent-delegation" }, "multi-agent-delegation", "owned", true, false],
+		["missing-name", {}, "multi-agent-delegation", "owned", true, false],
+		["malformed-name", { name: ["multi-agent-delegation"] }, "multi-agent-delegation", "owned", true, false],
+		["scoped-caller", { name: "ccl-skills:multi-agent-delegation" }, "multi-agent-delegation", "owned", true, false],
+		["unowned-source", { name: "multi-agent-delegation" }, "multi-agent-delegation", "external", true, false],
+		["result-mismatch", { name: "multi-agent-delegation" }, "different-skill", "owned", true, false],
+		["missing-result", { name: "multi-agent-delegation" }, undefined, "owned", true, false],
+		["no-request", { name: "multi-agent-delegation" }, "multi-agent-delegation", "owned", true, false],
+		["different-call", { name: "multi-agent-delegation" }, "multi-agent-delegation", "owned", true, false],
+	]) await t.test(label, async () => {
+		const root = mkdtempSync(join(tmpdir(), "ccl-native-owner-"));
+		const home = join(root, "home"), project = join(root, "project");
+		mkdirSync(project, { recursive: true });
+		copyRuntime(home);
+		const ownerDir = copyOwnerSkill(home);
+		const externalDir = join(root, "external/multi-agent-delegation");
+		cpSync(ownerDir, externalDir, { recursive: true });
+		const { hooks } = await loadPlugin(home, project);
+		const sessionID = `native-${label}`;
+		try {
+			if (label !== "no-request") await hooks["tool.execute.before"]({ tool: "skill", sessionID, callID: "load" }, { args });
+			if (completed) await hooks["tool.execute.after"](
+				{ tool: "skill", sessionID, callID: label === "different-call" ? "unrelated" : "load", args },
+				{ output: "loaded", metadata: { name: resultName, dir: source === "owned" ? ownerDir : externalDir } },
+			);
+			const dispatch = () => hooks["tool.execute.before"](
+				{ tool: "task", sessionID, callID: "dispatch" },
+				{ args: { description: "inspect", prompt: "Inspect a file. required_skills: []" } },
+			);
+			if (allowed) await assert.doesNotReject(dispatch);
+			else await assert.rejects(dispatch, /delegation-owner guard/i);
+		} finally { await hooks.dispose(); }
+	});
+});
+
+test("OpenCode owner evidence binds inactive progressive-disclosure files to the active skill", async (t) => {
+	const cases = [
+		...['source', 'project', 'compatibility'].flatMap((layout) => ['matching', 'reference', 'script'].map((change) => [layout, change])),
+		['source', 'missing-reference'], ['source', 'extra-script'], ['source', 'symlink-reference'],
+		['source-active', 'edited'], ['project-active', 'edited'],
+	];
+	for (const [layout, change] of cases) await t.test(`${layout}-${change}`, async () => {
+		const root = mkdtempSync(join(tmpdir(), "ccl-owner-closure-"));
+		const home = join(root, 'home'), project = join(root, 'project');
+		mkdirSync(project, { recursive: true });
+		const runtime = copyRuntime(home), active = copyOwnerSkill(home);
+		const reference = 'references/owner-probe.md', script = 'scripts/owner-probe.sh';
+		mkdirSync(join(active, 'scripts'), { recursive: true });
+		writeFileSync(join(active, 'SKILL.md'), `${readFileSync(join(active, 'SKILL.md'), 'utf8')}\nRead [owner probe](${reference}) and run ${script}.\n`);
+		writeFileSync(join(active, reference), 'Require the delegated task owner.\n');
+		writeFileSync(join(active, script), '#!/bin/sh\nexit 0\n');
+		let dir, modulePath;
+		if (layout.startsWith('source')) {
+			dir = join(project, 'skills/multi-agent-delegation');
+			cpSync(active, dir, { recursive: true });
+			cpSync(join(assets, '.claude-plugin'), join(project, '.claude-plugin'), { recursive: true });
+			if (layout === 'source-active') {
+				for (const path of ['hooks', 'scripts/owner-dispatch', 'agent-context']) cpSync(join(assets, path), join(project, path), { recursive: true });
+				modulePath = join(project, 'packages/opencode-plugin/ccl-skills.mjs');
+				renameSync(runtime, `${runtime}-unused`);
+			}
+		} else if (layout.startsWith('project')) {
+			dir = join(project, '.opencode/skills/multi-agent-delegation');
+			cpSync(active, dir, { recursive: true });
+			cpSync(runtime, join(project, '.opencode/ccl-skills/runtime'), { recursive: true });
+			if (layout === 'project-active') modulePath = join(project, '.opencode/plugins/ccl-skills.mjs');
+		} else {
+			dir = join(home, '.agents/skills/multi-agent-delegation');
+			cpSync(active, dir, { recursive: true });
+			writeFileSync(join(home, '.config/opencode/ccl-skills/install-manifest.json'), JSON.stringify({ installer: 'scripts/install-opencode.sh', install_mode: 'global' }));
+		}
+		if (change === 'reference' || change === 'edited') writeFileSync(join(dir, reference), 'Different reference instructions.\n');
+		if (change === 'script' || change === 'edited') writeFileSync(join(dir, script), '#!/bin/sh\nexit 42\n');
+		if (change === 'missing-reference') rmSync(join(dir, reference));
+		if (change === 'extra-script') writeFileSync(join(dir, 'scripts/extra.sh'), 'exit 42\n');
+		if (change === 'symlink-reference') {
+			rmSync(join(dir, reference));
+			symlinkSync(join(active, reference), join(dir, reference));
+		}
+		assert.deepEqual(readFileSync(join(dir, 'SKILL.md')), readFileSync(join(active, 'SKILL.md')));
+		const { hooks } = await loadPlugin(home, project, {}, modulePath);
+		try {
+			const args = { name: 'multi-agent-delegation' }, sessionID = `${layout}-${change}`;
+			const dispatch = () => hooks['tool.execute.before']({ tool: 'task', sessionID, callID: 'dispatch' }, { args: { description: 'inspect', prompt: 'Inspect a file. required_skills: []' } });
+			await assert.rejects(dispatch, /delegation-owner guard/);
+			await hooks['tool.execute.before']({ tool: 'skill', sessionID, callID: 'load' }, { args });
+			await hooks['tool.execute.after']({ tool: 'skill', sessionID, callID: 'load', args }, { output: 'loaded', metadata: { name: args.name, dir } });
+			if (change === 'matching' || change === 'edited') await assert.doesNotReject(dispatch);
+			else await assert.rejects(dispatch, /delegation-owner guard/);
+		} finally { await hooks.dispose(); }
+	});
+});
+
+test("OpenCode owner evidence follows supported CCL skill layouts independently of the runtime location", async (t) => {
+	for (const layout of ["global-native", "project-native", "project-with-global-runtime", "project-drifted-global", "project-runtime-edited", "source-with-global-runtime", "source-drifted-global", "source-runtime", "source-runtime-edited", "source-wrong-manifest", "compatibility", "unreceipted-compatibility", "drifted-compatibility"]) await t.test(layout, async () => {
+		const root = mkdtempSync(join(tmpdir(), "ccl-skill-layout-"));
+		const home = join(root, "home"), project = join(root, "project");
+		mkdirSync(project, { recursive: true });
+		const runtime = copyRuntime(home);
+		let dir = copyOwnerSkill(home), modulePath;
+		if (layout.startsWith("source")) {
+			dir = join(project, "skills/multi-agent-delegation");
+			cpSync(join(assets, "skills/multi-agent-delegation"), dir, { recursive: true });
+			cpSync(join(assets, ".claude-plugin"), join(project, ".claude-plugin"), { recursive: true });
+			if (layout === "source-wrong-manifest") writeFileSync(join(project, ".claude-plugin/plugin.json"), JSON.stringify({ name: "other-plugin", skills: "./skills/" }));
+			if (layout.startsWith("source-runtime")) {
+				for (const path of ["hooks", "scripts/owner-dispatch", "agent-context"]) cpSync(join(assets, path), join(project, path), { recursive: true });
+				modulePath = join(project, "packages/opencode-plugin/ccl-skills.mjs");
+				renameSync(runtime, `${runtime}-unused`);
+			}
+		} else if (layout.startsWith("project")) {
+			cpSync(runtime, join(project, ".opencode/ccl-skills/runtime"), { recursive: true });
+			dir = join(project, ".opencode/skills/multi-agent-delegation");
+			cpSync(join(assets, "skills/multi-agent-delegation"), dir, { recursive: true });
+			if (layout === "project-native" || layout === "project-runtime-edited") modulePath = join(project, ".opencode/plugins/ccl-skills.mjs");
+		} else if (layout.includes("compatibility")) {
+			dir = join(home, ".agents/skills/multi-agent-delegation");
+			cpSync(join(assets, "skills/multi-agent-delegation"), dir, { recursive: true });
+			if (layout !== "unreceipted-compatibility") writeFileSync(join(home, ".config/opencode/ccl-skills/install-manifest.json"), JSON.stringify({ installer: "scripts/install-opencode.sh", install_mode: "global" }));
+			if (layout === "drifted-compatibility") writeFileSync(join(dir, "SKILL.md"), "---\nname: multi-agent-delegation\n---\nDifferent instructions\n");
+		}
+		if (layout.endsWith("-edited") || layout.endsWith("-drifted-global")) writeFileSync(join(dir, "SKILL.md"), "---\nname: multi-agent-delegation\n---\nDifferent instructions\n");
+		const { hooks } = await loadPlugin(home, project, {}, modulePath);
+		try {
+			const args = { name: "multi-agent-delegation" }, sessionID = `layout-${layout}`;
+			await hooks["tool.execute.before"]({ tool: "skill", sessionID, callID: "load" }, { args });
+			await hooks["tool.execute.after"]({ tool: "skill", sessionID, callID: "load", args }, { output: "loaded", metadata: { name: args.name, dir } });
+			const dispatch = () => hooks["tool.execute.before"]({ tool: "task", sessionID, callID: "dispatch" }, { args: { description: "inspect", prompt: "Inspect a file. required_skills: []" } });
+			if (["unreceipted-compatibility", "drifted-compatibility", "source-wrong-manifest", "source-drifted-global", "project-drifted-global"].includes(layout)) await assert.rejects(dispatch, /delegation-owner guard/);
+			else await assert.doesNotReject(dispatch);
+		} finally { await hooks.dispose(); }
+	});
 });

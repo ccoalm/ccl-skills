@@ -180,7 +180,7 @@ Before release, confirm:
 | **Change Lead Time** | commit 到 prod 的时长 | — |
 | **Change Failure Rate (CFR)** | release 中需要 hotfix / rollback / fail forward 的比例 | — |
 | **Failed Deployment Recovery Time** | failed deployment 恢复时长 | 2023 年 DORA 重命名（原 MTTR）|
-| **Deployment Rework Rate** | release 后需要 rework 的比例 | 2024 年新增 |
+| **Deployment Rework Rate** | 由生产事故引发的非计划部署占全部部署的比例 | 2024 年新增；[当前 DORA 口径](https://dora.dev/guides/dora-metrics/) |
 
 Elite / High / Medium / Low 具体阈值**按当年 DORA Annual State of DevOps Report 取**（不同年份数字略有变化，本 ref 不固定数字以免过时）。
 

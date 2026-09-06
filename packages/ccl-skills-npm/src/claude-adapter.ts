@@ -12,6 +12,7 @@ import { atomicJson, canonicalAlias, copyRegularTree, verifyTree } from "./fs-sa
 import { manifestFor, readManifest, readRelease } from "./manifest.js";
 import type { Manifest, Options, Result } from "./types.js";
 import { compare } from "./version.js";
+import { probeHostVersion } from "./host-probe.js";
 
 const MARKET = "ccl-skills-npm", REF = `ccl-skills@${MARKET}`;
 
@@ -61,10 +62,12 @@ function command(args: string[], context: ClaudeContext, allowFailure = false) {
 	return result;
 }
 
-type ClaudeState = { host: boolean; marketplace: string | null; plugin: boolean; legacy: boolean };
+type ClaudeState =
+	| { host: true; marketplace: string | null; plugin: boolean; legacy: boolean }
+	| { host: false; hostFailure: Result };
 function state(context: ClaudeContext): ClaudeState {
-	const version = command(["--version"], context, true);
-	if (version.status !== 0) return { host: false, marketplace: null, plugin: false, legacy: false };
+	const version = probeHostVersion("claude", context.env || process.env);
+	if (!version.ok) return { host: false, hostFailure: { code: 4, status: `host-${version.kind}`, message: version.message } };
 	const marketsRaw = command(["plugin", "marketplace", "list", "--json"], context),
 		pluginsRaw = command(["plugin", "list", "--json"], context);
 	let markets: unknown, plugins: unknown;
@@ -114,6 +117,7 @@ function prepare(context: ClaudeContext, old: Manifest | null) {
 
 function removeRegistration(context: ClaudeContext) {
 	const current = state(context);
+	if (!current.host) throw new Error(current.hostFailure.message);
 	if (current.plugin) command(["plugin", "uninstall", REF, "--scope", "user"], context);
 	if (current.marketplace) command(["plugin", "marketplace", "remove", MARKET, "--scope", "user"], context);
 }
@@ -122,6 +126,7 @@ function installRegistration(marketplace: string, context: ClaudeContext) {
 	command(["plugin", "marketplace", "add", marketplace, "--scope", "user"], context);
 	command(["plugin", "install", REF, "--scope", "user"], context);
 	const current = state(context);
+	if (!current.host) throw new Error(current.hostFailure.message);
 	if (!current.plugin || !samePath(current.marketplace || "", marketplace))
 		throw new Error("Claude did not expose the exact npm marketplace candidate");
 }
@@ -130,7 +135,7 @@ function doctor(context: ClaudeContext): Result {
 	const p = paths(context);
 	assertExclusiveRoot(p.claudeHome, p.root);
 	const current = state(context);
-	if (!current.host) return { code: 4, status: "host-missing", message: "Claude CLI is not installed" };
+	if (!current.host) return current.hostFailure;
 	if (current.legacy) return { code: 3, status: "double-install", message: "Git marketplace and npm marketplace are both present; keep exactly one" };
 	const manifest = readManifest(p.manifest);
 	if (!manifest) {
@@ -148,7 +153,7 @@ function installOrUpdate(commandName: "install" | "update", options: Options, co
 	const p = paths(context);
 	assertExclusiveRoot(p.claudeHome, p.root, true);
 	const current = state(context);
-	if (!current.host) return { code: 4, status: "host-missing", message: "Claude CLI is not installed" };
+	if (!current.host) return current.hostFailure;
 	if (current.legacy) return { code: 3, status: "double-install", message: "Remove the Git marketplace install or choose it instead of npm" };
 	const old = readManifest(p.manifest), release = readRelease(p.release);
 	if (!old && (current.plugin || current.marketplace))
@@ -195,13 +200,14 @@ function uninstall(options: Options, context: ClaudeContext): Result {
 	const p = paths(context);
 	assertExclusiveRoot(p.claudeHome, p.root);
 	const manifest = readManifest(p.manifest), current = state(context);
+	if (!current.host) return { ...current.hostFailure, message: `${current.hostFailure.message}; refusing to drop ownership evidence while registration cannot be verified` };
 	if (!manifest && !current.plugin && !current.marketplace) return { code: 0, status: "absent", message: "Claude npm install is already absent" };
 	if (!manifest) return { code: 3, status: "unowned-registration", message: "refusing to remove an unowned Claude registration" };
-	if (!current.host) return { code: 4, status: "host-missing", message: "Claude CLI is not installed; refusing to drop ownership evidence while registration cannot be verified" };
 	if (!options.yes) return { code: 0, status: "dry-run", message: "Claude uninstall preview", plan: ["remove npm plugin", "remove npm marketplace", "delete exclusive owned snapshots"] };
 	if (context.isInterrupted?.()) return { code: 130, status: "interrupted", message: "Claude uninstall interrupted before registration mutation", interrupted: true };
 	removeRegistration(context);
 	const after = state(context);
+	if (!after.host) return { code: 5, status: "partial", message: `${after.hostFailure.message}; uninstall state is unverified, retaining ownership evidence` };
 	if (after.plugin || after.marketplace) return { code: 5, status: "partial", message: "Claude registration remains after uninstall" };
 	try {
 		if (context.removeRoot) context.removeRoot(p.root);

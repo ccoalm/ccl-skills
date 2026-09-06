@@ -53,6 +53,30 @@ test("real Codex plugin list with exact provenance parses", () => {
 	});
 });
 
+test("SOURCE column parses with exact provenance and public state", () => {
+	const current = real.replace("VERSION  PATH", "VERSION  SOURCE");
+	assert.deepEqual(result(current), { ok: true, plugin: true, legacy: false });
+	const state = stateFrom(`MARKETPLACE     ROOT\nccl-skills-npm  ${source}\n`, current);
+	assert.equal(state.status, "known");
+	assert.equal(state.plugin, true);
+});
+
+test("SOURCE column retains source binding and strict row validation", () => {
+	const current = real.replace("VERSION  PATH", "VERSION  SOURCE");
+	assert.equal(result(current, "/tmp/different-market").ok, false);
+	assert.equal(result(current.replace("Marketplace `ccl-skills-npm`", "Marketplace `community`")).ok, false);
+	assert.equal(result(current.replace("/tmp/plugin", "relative/plugin")).ok, false);
+	assert.equal(result(current.replace("installed, enabled", "unknown")).ok, false);
+});
+
+test("unrecognized plugin-list columns remain unknown", () => {
+	const unknown = real.replace("VERSION  PATH", "VERSION  LOCATION");
+	assert.equal(result(unknown).ok, false);
+	const state = stateFrom(`MARKETPLACE     ROOT\nccl-skills-npm  ${source}\n`, unknown);
+	assert.equal(state.status, "unknown");
+	assert.equal(state.plugin, false);
+});
+
 test("empty plugin lists parse as known absent", () => {
 	assert.deepEqual(parsePluginList("", null), {
 		ok: true,
