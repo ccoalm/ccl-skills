@@ -1059,7 +1059,15 @@ def main(argv):
     head_enabled = enabled(head_cfg)
     base_enabled = enabled(base_cfg)
 
-    diff = run_git(["diff", "-z", "--name-only", base, "HEAD"], cwd=repo, text=False)
+    # --no-renames so a file moved OUT of a gated directory is still seen at its old
+    # (gated) path; rename detection would only report the exempt destination.
+    # --ignore-submodules=none so repository config (diff.ignoreSubmodules=all) cannot
+    # suppress a gitlink move out of the gated tree, which would leave only .gitmodules.
+    diff = run_git(
+        ["diff", "-z", "--name-only", "--no-renames", "--ignore-submodules=none", base, "HEAD"],
+        cwd=repo,
+        text=False,
+    )
     if diff.returncode != 0:
         return fail("owner-dispatch ci: diff failed — FAIL-CLOSED (2)")
     changed = [p.decode("utf-8", "surrogateescape") for p in diff.stdout.split(b"\0") if p]
@@ -1183,7 +1191,10 @@ cmd_ci() {
   # file (NUL can't survive a shell var) so paths with spaces/newlines classify exactly.
   local CHANGED=() difftmp rel
   difftmp=$(mktemp 2>/dev/null) || { echo "owner-dispatch ci: mktemp failed — FAIL-CLOSED (2)" >&2; return 2; }
-  git diff -z --name-only "$base" HEAD > "$difftmp" 2>/dev/null || { rm -f "$difftmp"; echo "owner-dispatch ci: diff failed — FAIL-CLOSED (2)" >&2; return 2; }
+  # -C "$repo" so diff.relative cannot truncate the set when ci runs from a subdirectory;
+  # --no-renames and --ignore-submodules=none: see the Python path above. Both paths must
+  # classify the same file set regardless of repository diff configuration or cwd.
+  git -C "$repo" diff -z --name-only --no-renames --ignore-submodules=none "$base" HEAD > "$difftmp" 2>/dev/null || { rm -f "$difftmp"; echo "owner-dispatch ci: diff failed — FAIL-CLOSED (2)" >&2; return 2; }
   while IFS= read -r -d '' rel; do CHANGED+=("$rel"); done < "$difftmp"
   rm -f "$difftmp"
 

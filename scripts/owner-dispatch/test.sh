@@ -523,6 +523,59 @@ echo "// z" >> "$REPO/src/foo.go"; gc more
 # 10i. CI fails CLOSED when it cannot determine a base (no --base, no upstream).
 if ( cd "$REPO" && bash "$ENGINE" ci >/dev/null 2>&1 ); then bad "ci no-base should fail-closed"; else ok "ci: no base => fail-closed (non-zero)"; fi
 
+# 10j. a gated file moved OUT of the gated tree is still a gated change. Two ways the diff
+#      can hide it: rename detection resolves a pure move to the exempt destination only,
+#      and diff.ignoreSubmodules=all drops a moved gitlink entirely. Both ci paths (jq and
+#      the python fallback) must classify the same set, so each case runs on both.
+command -v jq >/dev/null 2>&1 || bad "ci rename-out: jq absent" "the jq lane would silently be a second python run"
+[ -z "$(PATH="$NOJQBIN" command -v jq || true)" ] || bad "ci rename-out: NOJQBIN still resolves jq" "the python lane would silently be a second jq run"
+printf '%s\n' "$EN" | rawcfg
+mkdir -p "$REPO/design" "$REPO/exempt"; echo "owners: x" > "$REPO/design/map.md"
+echo "package x" > "$REPO/src/moved.go"; gc renamebase
+rnbase=$(git -C "$REPO" rev-parse HEAD)
+git -C "$REPO" config diff.renames true   # else the base engine reports the source anyway
+git -C "$REPO" mv src/moved.go exempt/moved.go; gc renameout
+jq_rc=0; jq_out=$( cd "$REPO" && bash "$ENGINE" ci --base "$rnbase" 2>&1 ) || jq_rc=$?
+py_rc=0; py_out=$( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$rnbase" 2>&1 ) || py_rc=$?
+[ "$jq_rc" = 1 ] && [ "$py_rc" = 1 ] && ok "ci: gated file renamed out of scope, stale map => fail on both lanes" || bad "ci rename-out rc" "jq=$jq_rc py=$py_rc"
+case "$jq_out$py_out" in *src/moved.go*src/moved.go*) ok "ci rename-out: both lanes name the gated source path" ;; *) bad "ci rename-out diagnostic" "$jq_out | $py_out" ;; esac
+# cwd must not change the verdict: with diff.relative=true a diff run from a subdirectory
+# would drop paths outside it, and the two lanes would disagree.
+git -C "$REPO" config diff.relative true
+rel_jq=0; ( cd "$REPO/exempt" && bash "$ENGINE" ci --base "$rnbase" >/dev/null 2>&1 ) || rel_jq=$?
+rel_py=0; ( cd "$REPO/exempt" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$rnbase" >/dev/null 2>&1 ) || rel_py=$?
+[ "$rel_jq" = 1 ] && [ "$rel_py" = 1 ] && ok "ci: run from a subdirectory under diff.relative=true => still fail on both lanes" || bad "ci rename-out relative rc" "jq=$rel_jq py=$rel_py"
+git -C "$REPO" config --unset diff.relative
+echo "owners: y" >> "$REPO/design/map.md"; gc renameoutmap
+ok_jq=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$rnbase" >/dev/null 2>&1 ) || ok_jq=$?
+ok_py=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$rnbase" >/dev/null 2>&1 ) || ok_py=$?
+[ "$ok_jq" = 0 ] && [ "$ok_py" = 0 ] && ok "ci: renamed-out gated file with updated map => ok on both lanes" || bad "ci rename-out with map" "jq=$ok_jq py=$ok_py"
+# an option-like base must be rejected before any diff runs, on both lanes
+for badbase in "--output=$WORK/pwned" "-z"; do
+  b_jq=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$badbase" >/dev/null 2>&1 ) || b_jq=$?
+  b_py=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$badbase" >/dev/null 2>&1 ) || b_py=$?
+  [ "$b_jq" = 2 ] && [ "$b_py" = 2 ] && ok "ci: option-like base '$badbase' => fail-closed(2) on both lanes" || bad "ci option-base rc" "jq=$b_jq py=$b_py"
+done
+[ ! -e "$WORK/pwned" ] && ok "ci: option-like base created no file" || bad "ci option-base wrote a file"
+
+# 10j2. the same bypass through a submodule, which repository config can hide outright.
+SUBSRC="$WORK/subsrc"; mkdir -p "$SUBSRC"
+git -C "$SUBSRC" init -q; git -C "$SUBSRC" config user.email t@t; git -C "$SUBSRC" config user.name t
+echo hi > "$SUBSRC/f.txt"; git -C "$SUBSRC" add -A; git -C "$SUBSRC" commit -qm sub
+sub_err=$(git -C "$REPO" -c protocol.file.allow=always submodule add -q "$SUBSRC" src/vendor 2>&1) || true
+if [ -e "$REPO/src/vendor/f.txt" ]; then
+  gc subbase
+  sub_base=$(git -C "$REPO" rev-parse HEAD)
+  git -C "$REPO" config diff.ignoreSubmodules all
+  git -C "$REPO" mv src/vendor exempt/vendor; gc submove
+  sm_jq=0; sm_jq_out=$( cd "$REPO" && bash "$ENGINE" ci --base "$sub_base" 2>&1 ) || sm_jq=$?
+  sm_py=0; sm_py_out=$( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$sub_base" 2>&1 ) || sm_py=$?
+  [ "$sm_jq" = 1 ] && [ "$sm_py" = 1 ] && ok "ci: submodule moved out of scope under diff.ignoreSubmodules=all => fail on both lanes" || bad "ci submodule-move rc" "jq=$sm_jq py=$sm_py"
+  git -C "$REPO" config --unset diff.ignoreSubmodules
+else
+  bad "ci submodule-move: could not create the submodule fixture" "$sub_err"
+fi
+
 # ---- 11. SubagentStop: agent_id-scoped enforcement (the same engine handles Stop +
 #         SubagentStop; agent_id is present only for the latter and scopes markers/cap). ----
 rm -rf "$BDIR"
