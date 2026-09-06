@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
   statSync,
@@ -337,6 +338,7 @@ export const CclSkills = async (context: {
   const hooksRoot = runtimeRoot()
   const parentSessions = new Map<string, string>()
   const idleInFlight = new Set<string>()
+  const pendingSkills = new Map<string, string>()
   let stateRoot: string | null = null
 
   function ensureStateRoot() {
@@ -390,9 +392,67 @@ export const CclSkills = async (context: {
     return typeof command === "string" && /\b(?:git\s+(?:push|merge)|gh\b[^\n;&|]*\bpr\s+merge|glab\b[^\n;&|]*\bmr\s+(?:merge|accept)|curl|wget)\b/i.test(command)
   }
 
-  function safeTranscriptInput(tool: string, args: Record<string, unknown>) {
-    if (tool === "skill") return typeof args.skill === "string" ? { skill: args.skill } : {}
-    return {}
+  function sameSkillDirectory(loaded: string, active: string) {
+    if (loaded === realpathSync(active)) return true
+    const pending = [[loaded, active]]
+    while (pending.length) {
+      const [copy, owner] = pending.pop()!
+      const copyStat = lstatSync(copy), ownerStat = lstatSync(owner)
+      if (copyStat.isSymbolicLink() || ownerStat.isSymbolicLink()) return false
+      if (copyStat.isDirectory() && ownerStat.isDirectory()) {
+        const copyNames = readdirSync(copy).sort(), ownerNames = readdirSync(owner).sort()
+        if (copyNames.length !== ownerNames.length || copyNames.some((name, index) => name !== ownerNames[index])) return false
+        for (const name of ownerNames) pending.push([join(copy, name), join(owner, name)])
+      } else if (!copyStat.isFile() || !ownerStat.isFile() || copyStat.size !== ownerStat.size || !readFileSync(copy).equals(readFileSync(owner))) return false
+    }
+    return true
+  }
+
+  function completedSkill(name: string | undefined, metadata: unknown) {
+    if (!name || !hooksRoot || !metadata || typeof metadata !== "object") return null
+    const result = metadata as { name?: unknown; dir?: unknown }
+    if (result.name !== name || typeof result.dir !== "string") return null
+    // The native tool reports the loaded source directory. A same-named skill
+    // elsewhere must never be promoted to a CCL owner by its caller's argument.
+    try {
+      const loaded = realpathSync(result.dir)
+      const entry = join(loaded, "SKILL.md")
+      if (!lstatSync(entry).isFile() || lstatSync(entry).isSymbolicLink()) return null
+      const content = readFileSync(entry, "utf8")
+      if (!content.startsWith(`---\nname: ${name}\n`)) return null
+      const activeRoot = existsSync(join(hooksRoot, "skills")) ? hooksRoot : resolve(hooksRoot, "../..")
+      // Bind the full skill to the running runtime: progressive disclosure loads
+      // references/scripts relative to this directory. Active source/project edits
+      // remain valid; inactive copies must match current files, without a stale cache.
+      const activeSkill = join(activeRoot, "skills", name)
+      const activeEntry = join(activeSkill, "SKILL.md")
+      if (!existsSync(activeEntry) || !lstatSync(activeEntry).isFile() || lstatSync(activeEntry).isSymbolicLink() || !sameSkillDirectory(loaded, activeSkill)) return null
+      const nativeRoots = [activeRoot, join(HOST_HOME, ".config/opencode"), join(directory, ".opencode"), join(context.worktree ?? directory, ".opencode")]
+      for (const root of nativeRoots) {
+        const expected = join(root, "skills", name)
+        if (existsSync(expected) && realpathSync(expected) === loaded && (root === activeRoot || existsSync(join(root, "ccl-skills/runtime/hooks/hooks.json")))) return `ccl-skills:${name}`
+      }
+      // Explicit skills.paths can select a CCL source checkout while a global
+      // adapter supplies the runtime. Require both its layout and the active bytes.
+      const sourceRoot = resolve(loaded, "../..")
+      const manifestPath = join(sourceRoot, ".claude-plugin/plugin.json")
+      if (loaded === join(sourceRoot, "skills", name) && existsSync(manifestPath)) {
+        const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
+        if (manifest?.name === "ccl-skills" && manifest?.skills === "./skills/") return `ccl-skills:${name}`
+      }
+      // The source installer also supports ~/.agents/skills. Require its existing
+      // receipt and the current native skill's bytes, not just a same-named file.
+      const compatibility = join(HOST_HOME, ".agents/skills", name)
+      const native = join(HOST_HOME, ".config/opencode/skills", name, "SKILL.md")
+      const receipt = join(HOST_HOME, ".config/opencode/ccl-skills/install-manifest.json")
+      if (existsSync(compatibility) && realpathSync(compatibility) === loaded && existsSync(receipt) && existsSync(native)) {
+        const manifest = JSON.parse(readFileSync(receipt, "utf8"))
+        if (manifest?.installer === "scripts/install-opencode.sh" && manifest?.install_mode === "global" && readFileSync(native, "utf8") === content) return `ccl-skills:${name}`
+      }
+      return null
+    } catch {
+      return null
+    }
   }
 
   async function resumeForStop(sessionID: string, reasons: string[]) {
@@ -446,6 +506,9 @@ export const CclSkills = async (context: {
       output.args = args
       const targets = editPaths(tool, args, directory)
       const toolName = claudeToolName(tool)
+      if (tool === "skill" && typeof args.name === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(args.name) && args.name.length <= 64) {
+        pendingSkills.set(`${sessionID}\0${callID}`, args.name)
+      }
       if (targets.length) {
         targets.forEach((filePath, index) => appendTranscript(sessionID, {
           type: "assistant",
@@ -454,7 +517,7 @@ export const CclSkills = async (context: {
       } else {
         appendTranscript(sessionID, {
           type: "assistant",
-          message: { content: [{ type: "tool_use", id: callID, name: toolName, input: safeTranscriptInput(tool, args) }] },
+          message: { content: [{ type: "tool_use", id: callID, name: toolName, input: {} }] },
         })
       }
 
@@ -507,6 +570,15 @@ export const CclSkills = async (context: {
       const tool = input.tool.toLowerCase()
       const sessionID = input.sessionID ?? `pid-${process.ppid}`
       const callID = input.callID ?? "unknown-call"
+      if (tool === "skill") {
+        const key = `${sessionID}\0${callID}`
+        const owner = completedSkill(pendingSkills.get(key), output.metadata)
+        pendingSkills.delete(key)
+        if (owner) appendTranscript(sessionID, {
+          type: "assistant",
+          message: { content: [{ type: "tool_use", id: callID, name: "Skill", input: { skill: owner } }] },
+        })
+      }
       appendTranscript(sessionID, {
         type: "user",
         message: { content: [{ type: "tool_result", tool_use_id: callID, content: "" }] },
@@ -536,6 +608,9 @@ export const CclSkills = async (context: {
           ? (properties.info as { id: string }).id
           : ""
       if (!sessionID) return
+      if (event.type === "session.deleted" || event.type === "session.idle" || (properties.status as { type?: string } | undefined)?.type === "idle") {
+        for (const key of pendingSkills.keys()) if (key.startsWith(`${sessionID}\0`)) pendingSkills.delete(key)
+      }
       if (event.type === "session.deleted") {
         const path = transcriptPath(sessionID)
         if (path) rmSync(path, { force: true })
@@ -562,6 +637,7 @@ export const CclSkills = async (context: {
     },
 
     dispose: async () => {
+      pendingSkills.clear()
       if (stateRoot) rmSync(stateRoot, { recursive: true, force: true })
       stateRoot = null
     },

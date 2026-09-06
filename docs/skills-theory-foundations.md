@@ -6,13 +6,13 @@
 
 ## 三条通用思想
 
-这三条几乎在每个技能里各出现一次。**理解了它们，多数具体规则你能自己推出来。**
+这三条是理解具体规则的共同线索。规则还取决于任务条件、宿主能力和团队约定，使用时需要一起核对。
 
 | 思想 | 它管什么 | 典型体现 | 对应理论 |
 |---|---|---|---|
 | **组织学习** | 失败要变成可复用的预防，稳定成功也要变成可保持的机制，否则换个人、换个项目仍会丢失 | 从真实结果进入提炼闭环；持续比较后续任务是否改善 | [双环学习（Argyris）](https://hbr.org/1991/05/teaching-smart-people-how-to-learn)——事后认出，不是照它设计的 |
 | **证据优先于断言** | 说"做完了 / 修好了 / 覆盖了"要有当轮跑出来的证据，不接受自证 | 改前可复现基线；改前冻结评价标准；渲染与行为证据；无证据不声称完成 | 团队自建，没有挂靠的外部理论 |
-| **隔离与可逆** | 先把爆炸半径限住再动手，动完能退回来 | worktree 隔离；回滚预案先于放量；破坏性删除前先扫产物 | [fail-safe defaults（Saltzer & Schroeder 1975）](https://web.mit.edu/Saltzer/www/publications/protection/) |
+| **隔离与可逆** | 先把爆炸半径限住再动手，动完能退回来 | worktree 隔离；回滚预案先于放量；破坏性删除前先扫产物 | 团队工程取舍：限制影响范围，保留恢复机会 |
 
 ## 按技能查
 
@@ -46,12 +46,12 @@ flowchart LR
 | 技能 | 思想内核 | 变成了哪条规则 | 想深入读 |
 |---|---|---|---|
 | `product-rd-workflow` | 架构决策的本质是**取舍**，没有共同词汇就只能口头争"好不好" | 技术设计要写清关键决策 + 被否的替代方案 | [ISO/IEC 25010:2023](https://www.iso.org/standard/78176.html)、Bass 等 SEI 质量属性分类 |
-| `product-rd-workflow` | 交付效能可度量，且四项指标要一起看 | 交付健康度按 [DORA 四项指标](https://dora.dev/)记录 | DORA / Accelerate |
+| `product-rd-workflow` | 交付效能要结合吞吐与变更不稳定性衡量 | 按当前 DORA 五项指标观察交付健康度；口径与适用边界见技能的交付流程参考 | [DORA 软件交付效能指标](https://dora.dev/guides/dora-metrics/)；[指标演进史](https://dora.dev/insights/dora-metrics-history/) |
 | `feature-risk-router` | 风险要先分类再决定跑哪些门，不是所有改动一视同仁 | 碰钱 / 权限 / 数据隔离 / 写终态 / AI 高影响 → 先定级再动手 | 风险标签是团队自定；威胁建模透镜用 [OWASP Top 10 / STRIDE](https://owasp.org/Top10/) |
 | `multi-agent-delegation` | **编排者-工作者**模式：拆分看真实独立性，不看任务数量 | 有共享状态或顺序依赖就退回串行；worker 只给它任务需要的能力 | [Anthropic《Building effective agents》](https://www.anthropic.com/engineering/building-effective-agents)（提示链 / 路由 / 并行 / 编排者-工作者 / 评估者-优化者五种模式的出处） |
 | `release-coordination` | **部署流水线**：一次构建、多处晋级，每个关口只放行有证据的制品 | 发版按范围确认 → 合主干 → 打 tag → 生产构建 → 证据 → 收尾 | [部署流水线（Humble & Farley）](https://martinfowler.com/bliki/DeploymentPipeline.html) |
 | `release-doc-writer` | 发布要留下可追溯的书面记录 | 上线文档写清发布范围、变更清单、验证证据 | 团队取舍 |
-| `worktree-isolation` | 主干始终可发布，开发在隔离工作区进行；破坏性操作默认 **fail-safe** | 绝不在 main 上开发；删 worktree 前先扫 gitignored 产物；`remove` 不带 `--force`、`branch -d` 不用 `-D` | [主干开发](https://trunkbaseddevelopment.com/)；[fail-safe defaults（Saltzer & Schroeder）](https://web.mit.edu/Saltzer/www/publications/protection/) |
+| `worktree-isolation` | 保持主干可发布，隔离并行写入，保留清理前的恢复机会 | 本仓开发必须使用独立功能 worktree；删 worktree 前先扫 gitignored 产物；`remove` 不带 `--force`、`branch -d` 不用 `-D` | worktree 隔离与清理限制是团队取舍；[主干开发](https://trunkbaseddevelopment.com/)强调频繁集成，也允许小团队直接向 trunk 提交 |
 
 ### 产品需求
 
@@ -59,7 +59,7 @@ flowchart LR
 |---|---|---|---|
 | `requirement-intent` | **需求是挖出来的，不是收上来的**——用户说的不等于用户要的 | 把含糊意图拆成已知 / 未知 / 用户路径 / 非目标 / 待决策 | [IEEE/ISO/IEC 29148-2018](https://standards.ieee.org/ieee/29148/6937/) 的需求获取（elicitation） |
 | `requirement-baseline` | 不先测绘现状就设计目标，等于对着想象改 | as-is 盘点先于 to-be 设计，事实缺口要显式记 | 业务流程建模的 as-is / to-be 两段式（通行实践，无单一权威出处） |
-| `requirement-scope` | **先定愿意花多少，再定做什么**（appetite 而不是估算） | 划出改动范围、非目标、MVP 边界、版本切片 | [Shape Up 的 appetite](https://basecamp.com/shapeup)；[MoSCoW 优先级（DSDM）](https://www.agilebusiness.org/dsdm-project-framework/moscow-prioritisation.html) |
+| `requirement-scope` | **按目标与约束界定范围**；采用固定投入时，用 appetite 约束可选范围 | 划出改动范围、非目标、MVP 边界、版本切片；投入规划按任务适用，不强加给单纯影响盘点 | [Shape Up 的 appetite](https://basecamp.com/shapeup/1.2-chapter-03) 是固定投入下的 shaping 方法，不是所有范围工作的前提；[MoSCoW 优先级（DSDM）](https://www.agilebusiness.org/dsdm-project-framework/moscow-prioritisation.html) |
 | `requirement-doc-writer` | 验收标准必须**可证伪** | "功能正常"不算验收；每个功能点要有 pass / fail 判据 | [可证伪性（Popper）](https://plato.stanford.edu/entries/popper/)；[Given-When-Then](https://martinfowler.com/bliki/GivenWhenThen.html) 的行为化表述 |
 | `grill-me` | **魔鬼代言人**：制造建设性异议，暴露没被检验的前提 | 一问一答逐条拷问方向，不替你写方案 | 苏格拉底诘问法；[CIA Tradecraft Primer](https://www.cia.gov/resources/csi/static/955180a45afe3f5013772c313b16face/Tradecraft-Primer-apr09.pdf) 的 Devil's Advocacy 一章 |
 | `multi-perspective-research` | 同一件事换个视角结论就变，**单视角必然有盲区**；检索前先定问题和来源类别，别让手上现有材料悄悄变成边界 | 覆盖预检矩阵：证据至少分**用户线索 / 一手官方 / 独立外部 / 反例负面**四类，每类给关闭条件 | 这套是**依理论完善**出来的，方法依据写在 `skill-extraction-workflow/references/external-practice-controls.md#research-coverage`（`SKILL.md` 里有指针）：系统性综述的问题-来源-检索-闭合纪律（[PRISMA 2020 清单](https://www.prisma-statement.org/s/PRISMA_2020_checklist-ab3g.pdf)、[Cochrane 手册第 4 章](https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-04)）、[英国政府机构分析指引](https://www.gov.uk/government/publications/understanding-institutional-analysis/understanding-institutional-analysis)的三角验证、[CIA Tradecraft Primer](https://www.cia.gov/resources/csi/static/955180a45afe3f5013772c313b16face/Tradecraft-Primer-apr09.pdf) 的对立假设与逆向检验、[OpenAI deep research 指南](https://developers.openai.com/api/docs/guides/deep-research)的来源优先级 🔗 |
@@ -69,15 +69,16 @@ flowchart LR
 
 | 技能 | 思想内核 | 变成了哪条规则 | 想深入读 |
 |---|---|---|---|
-| `go-microservice-architecture`<br>`python-service-architecture` | **[限界上下文](https://martinfowler.com/bliki/BoundedContext.html)**：服务边界按语言和职责切，不按技术分层切；**[康威定律](https://martinfowler.com/bliki/ConwaysLaw.html)**——系统结构会长成沟通结构的样子 | 定边界、契约、数据所有权之后才写代码；跨语言契约归被改边界那一侧 | 限界上下文与康威定律 🔗（两包 `references/architecture-playbook.md` 已写明借鉴边界：只借**边界输入判据**，不声称完整 DDD 战略设计或逆康威方法；契约与数据所有权的操作性判据是技能自有规则）；数据清除另据 [NIST SP 800-88](https://csrc.nist.gov/pubs/sp/800/88/r1/final)（加密擦除作为清除手段的条件）；事件驱动镜像参考的 exactly-once 五条款配方借鉴 [End-to-End Arguments in System Design（Saltzer/Reed/Clark，ACM TOCS 1984）](https://web.mit.edu/Saltzer/www/publications/endtoend/endtoend.pdf) 🔗——正确性只能由通信端点的应用建立，broker 事务特性是原文所谓"不完整版本可作性能增强"；两包 `references/event-driven-architecture.md` 已写明借鉴边界。架构 playbook 的分层节另引 [Ports-and-Adapters / Hexagonal（Cockburn）](https://alistair.cockburn.us/hexagonal-architecture/) 🔗，只借 ports/adapters 放置思想 |
+| `go-microservice-architecture`<br>`python-service-architecture` | **[限界上下文](https://martinfowler.com/bliki/BoundedContext.html)**：服务边界按语言和职责切，不按技术分层切；**[康威定律](https://martinfowler.com/bliki/ConwaysLaw.html)**——系统结构会长成沟通结构的样子 | 定边界、契约、数据所有权之后才写代码；跨语言契约归被改边界那一侧 | 限界上下文与康威定律 🔗（两包 `references/architecture-playbook.md` 已写明借鉴边界：只借**边界输入判据**，不声称完整 DDD 战略设计或逆康威方法；契约与数据所有权的操作性判据是技能自有规则）；数据清除另据 [NIST SP 800-88 Rev. 2](https://csrc.nist.gov/pubs/sp/800/88/r2/final)（加密擦除作为清除手段的条件）；事件驱动镜像参考的 exactly-once 五条款配方借鉴 [End-to-End Arguments in System Design（Saltzer/Reed/Clark，ACM TOCS 1984）](https://web.mit.edu/Saltzer/www/publications/endtoend/endtoend.pdf) 🔗——正确性只能由通信端点的应用建立，broker 事务特性是原文所谓"不完整版本可作性能增强"；两包 `references/event-driven-architecture.md` 已写明借鉴边界。架构 playbook 的分层节另引 [Ports-and-Adapters / Hexagonal（Cockburn）](https://alistair.cockburn.us/hexagonal-architecture/) 🔗，只借 ports/adapters 放置思想 |
 | `go-microservice-dev`<br>`python-service-dev` | 依赖指向内层，数据访问隔离在边界；契约由代码生成保证单一真值 | 实现时保留架构决策不偷改边界；DAL / DI / codegen 按既定分层 | [整洁架构](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)、[六边形架构](https://alistair.cockburn.us/hexagonal-architecture/) 的依赖方向与端口隔离 |
+| `nodejs-service-dev` | 少量线程服务并发请求；长回调、无界队列和未结束的异步工作会拖累其它请求 | 保留运行时与模块契约；按工作类型使用异步 I/O、背压和有界工作池；传播取消并验证资源清理 | [Node.js：不要阻塞事件循环或工作池](https://nodejs.org/en/learn/asynchronous-work/dont-block-the-event-loop)；具体运行时断言见技能的 `references/source-map.md`，分层与生命周期约束是工程取舍 |
 
 ### 平台基建
 
 | 技能 | 思想内核 | 变成了哪条规则 | 想深入读 |
 |---|---|---|---|
-| `platform-observability` | SLI 要从**用户视角**定义，且表达为"好事件 / 有效事件"的比例 | 告警对 SLI 求值而不是对原始指标；框架默认接观测，新服务写零行样板 | [Google SRE 的 SLI / SLO / 错误预算](https://sre.google/sre-book/service-level-objectives/) |
-| `platform-service-connectivity` | 服务间怎么到达是平台决定的，不是每个服务自选 | 网格默认开、mTLS 关不掉；不硬编码集群 URL 绕过 lane 路由 | [RFC 1035](https://www.rfc-editor.org/rfc/rfc1035) 的 DNS 标签约束——它决定了 gRPC `:authority` 不能带下划线 |
+| `platform-observability` | SLI 从**用户视角**定义；告警要支持明确处置 | SLO 分页使用 SLI；容量和即将失效的预警可使用内部测量，但要有依据、动作和负责人 | [Google SRE 的 SLI / SLO / 错误预算](https://sre.google/sre-book/service-level-objectives/)；[用户症状与容量预警](https://sre.google/sre-book/monitoring-distributed-systems/) |
+| `platform-service-connectivity` | 服务互通遵循平台契约；兼容性按实际请求路径验证 | 保留平台 mTLS 和 lane 路由；authority 问题先定位拒绝层，再选择命名或映射修复 | 平台默认项属于工程取舍；[RFC 9113](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1) 与 [RFC 3986](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2) 定义 URI authority；DNS、TLS、SDK 和代理的限制分别核对 |
 | `platform-release-engineering` | **渐进式交付**：放量是证据驱动的，不是等时间 | 晋级看 SLI 达标才放行；回滚预案先于灰度 | 渐进式交付；凭据条款另据 [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628) |
 
 ### 客户端与界面
@@ -121,7 +122,7 @@ flowchart LR
 | `skill-extraction-workflow` | **识别到 ≠ 学到**：教训写下来不等于组织学会了，得有可达的触发点 | 教训必须接到会实际触发它的决策点；只写进文件但不会被用到，不算学会了 | PMI / NASA 的 lessons-identified ≠ lessons-learned，参见 [NASA Lessons Learned 系统](https://llis.nasa.gov/) |
 | `skill-extraction-workflow` | 入口只暴露路由所需信息，正文、资源和工具按需进入上下文 | `SKILL.md` 只放触发 / 路由 / 硬规则，深度进 `references/`；大工具集先检索再加载相关子集 | [Anthropic Agent Skills 的渐进披露](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)、[OpenAI Model guidance 的 tool search](https://developers.openai.com/api/docs/guides/latest-model) |
 | `skill-extraction-workflow` | 指令优化先处理**冲突与重复**，再比较体量和加载时机；供应商指南只提供候选假设 | 一次只删改一组指令、示例或工具，用同一批代表性原任务重跑；每个任务、每个版本分别按自己的真实触发链加载，禁止用一份全局 bundle 或强行等长上下文代替；质量过线后才比较 token、延迟、成本、调用和轮次 | [Anthropic 的上下文工程](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)、[OpenAI Model guidance](https://developers.openai.com/api/docs/guides/latest-model) |
-| `agents-file-coverage-gate` | 每个目录都该有一份 agent 开工契约 | 扫描 `AGENTS.md` 覆盖率，可补 stub、可接 CI | 文件格式对齐 [AGENTS.md 开放约定](https://agents.md/)；覆盖率要不要卡是团队取舍 |
+| `agents-file-coverage-gate` | 让范围内源码目录有可达的开工契约 | 本仓检查根目录与范围内直接含源码的目录的 `AGENTS.md`；可补 stub、可接 CI | [AGENTS.md 开放约定](https://agents.md/)支持根文件与按需嵌套契约；覆盖范围和阻断门禁是团队取舍 |
 
 ### 业界对照：Anthropic 与 OpenAI
 

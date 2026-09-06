@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ae5573f32a15e7c54a5256b1fd59f58df5a161fca4988afef3bc9a7c29584d51",
+  "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+  "finding_sha256": "2544e60b4addbad0e998afcecb7e8afc25f501ffc1cac7141d24df9b18249c4b",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+      "finding_sha256": "2544e60b4addbad0e998afcecb7e8afc25f501ffc1cac7141d24df9b18249c4b"
+    }
+  ],
+  "evidence": [
+    "skills/platform-observability/references/alerting-and-on-call.md:5-11 already requires the expected failure, threshold or forecast evidence, concrete action and responsible owner for capacity and impending-failure alerts. A high internal metric alone is not a reason to page; healthy, failure and recovery cases are required.",
+    "skills/platform-observability/SKILL.md R7 retains the prohibition on P0 paging without a runbook. Google SRE's Monitoring Distributed Systems treats impending saturation and actionable imminent failure as valid alerting inputs alongside user symptoms; raw diagnostic values alone are insufficient.",
+    "Forecast quality and the truth of threshold evidence are not mechanically proved by either the prior SLI-only sentence or the current guidance. The source already imposes the proposed evidence and owner requirements, so duplicating them inline would not supply an additional mechanical guarantee."
+  ]
+}

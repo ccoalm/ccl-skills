@@ -1,5 +1,13 @@
 # Alerting and On-Call
 
+## Choose an actionable signal
+
+- **User symptoms and SLOs:** use service-level signals for user-symptom paging and the corresponding SLIs for SLO burn-rate alerts. Query the declared metric store; diagnostic counters do not become availability or latency SLIs merely because an alert uses them.
+- **Capacity and impending failures:** white-box measurements may warn before user SLIs degrade, such as a credible forecast of disk exhaustion. Record the expected failure, the evidence for the threshold or forecast, the action, and the responsible owner. Choose urgency from impact and time left to act; a high internal metric alone is not a reason to page.
+- **Diagnostic signals:** keep measurements with no actionable condition in dashboards or queries. Do not alert on every possible cause.
+
+Verify new or changed alert rules against relevant failure, healthy, and recovery cases. Preserve the severity, ownership, runbook, and delivery requirements below for both symptom and impending-failure alerts. [Google SRE's Monitoring Distributed Systems](https://sre.google/sre-book/monitoring-distributed-systems/) describes both user symptoms and imminent saturation as alerting inputs.
+
 ## Two patterns
 
 ### Pattern A — Prometheus AlertManager

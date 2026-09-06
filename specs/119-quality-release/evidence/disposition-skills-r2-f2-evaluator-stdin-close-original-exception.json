@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ae5573f32a15e7c54a5256b1fd59f58df5a161fca4988afef3bc9a7c29584d51",
+  "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+  "finding_sha256": "75d1507db35553f42fb14ed43ba0689116a54c626ec7540f6eafd292d19b551f",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+      "finding_sha256": "75d1507db35553f42fb14ed43ba0689116a54c626ec7540f6eafd292d19b551f"
+    }
+  ],
+  "evidence": [
+    "skills/skill-extraction-workflow/scripts/skill-behavior-eval.py:102-110 uses real subprocess.Popen with stdin/stdout PIPE, text=True and one communicate(input=prompt, timeout=timeout_s) call. Its caller does not manually buffer stdin writes. In the tested CPython POSIX path, communicate retains unsent input in _input and writes with os.write rather than the Python stdin buffer.",
+    "The preserved native-pipe-control ran five real Popen cases with 16 MiB input, actual kernel EPIPE 32 and closed streams. The timeout, child-exit and original signal-exception object outcomes matched expectations. test_eval_runtime.py also includes real Popen cases; StringIO is not its sole subprocess test mechanism.",
+    "The finding's buffered flush path was not reproduced on the actual caller. This refutation is limited to the tested POSIX/runtime path and does not certify arbitrary fake close failures, all Python builds or all platforms. The final full regression passed on f3 without changing these evaluator bytes."
+  ]
+}

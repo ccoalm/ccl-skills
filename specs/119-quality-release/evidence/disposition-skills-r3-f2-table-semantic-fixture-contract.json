@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ae5573f32a15e7c54a5256b1fd59f58df5a161fca4988afef3bc9a7c29584d51",
+  "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+  "finding_sha256": "7e0e1f683f2605e89d345df21ac4f0dd1948879dc79006ff1151ef7f64e785b9",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+      "finding_sha256": "7e0e1f683f2605e89d345df21ac4f0dd1948879dc79006ff1151ef7f64e785b9"
+    }
+  ],
+  "evidence": [
+    "test_check_ccl_impact_chain_refscripts.sh:213-217 runs two accepted table forms and eighteen structural/evidence rejection controls; line 221 adds rejection of a source-register self-anchor. Its line 1659 checks 118 standalone gate invocations. That count describes executed cases and is not a claim of semantic or behavioral coverage.",
+    "The proposed bookkeeping-table and non-register-reference negative expectations depend on restrictions the documented contract does not impose. The accepted non-register reference is directly consumed canonical guidance; the table gate explicitly promises location and shape rather than semantic truth.",
+    "The suite does not claim to reject every descriptive or bookkeeping table, and this disposition does not upgrade the case count into such a guarantee. Adding tests that impose those new restrictions would change the accepted contract rather than close a missing required control."
+  ]
+}

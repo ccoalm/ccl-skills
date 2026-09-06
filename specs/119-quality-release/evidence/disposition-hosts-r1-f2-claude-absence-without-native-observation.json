@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "07a470d1bb666df6714df5faeb072dbf071aa79fd55e6c38a493b84849c5947e",
+  "receipt_sha256": "8ac90bec93240d051d0229d6b68f14836f883c4c304528636fd2152528d9e910",
+  "finding_sha256": "8d03f0786953a2fedcbd66ec6f54adba6a378979a4e6e78792a5eda82f03cbed",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "8ac90bec93240d051d0229d6b68f14836f883c4c304528636fd2152528d9e910",
+      "finding_sha256": "8d03f0786953a2fedcbd66ec6f54adba6a378979a4e6e78792a5eda82f03cbed"
+    }
+  ],
+  "evidence": [
+    "claude-adapter.ts:68-93 returns host:false and hostFailure when version discovery fails. This union intentionally supplies no plugin or marketplace observations; those fields exist only after successful native marketplace list and plugin list parsing. Missing executable and missing local receipt therefore cannot establish native registration absence.",
+    "claude-adapter.ts:199-217 checks native observation before its genuine absent case and retains evidence on post-removal uncertainty. A leftover empty npm directory changes aggregate selection, not the unobserved native registration. Returning absent from that directory's emptiness would report a state the adapter has not observed.",
+    "Existing executed host-adapter controls passed: host-adapters.test.mjs:435-443 retains both manifest and native plugin when the CLI disappears; lines458-465 refuse an absent claim on a timed-out probe without an installation; lines467-485 return partial and retain manifest/snapshot after post-uninstall observation times out. The dedicated no-receipt plus ENOENT case is not claimed as a prior test."
+  ]
+}

@@ -17,7 +17,7 @@
 #   - Agent Skills（--with-agent-skills 时）：Tabnine/Pi 等读取 ~/.agents/skills；用
 #     `npx skills add <repo> --skill '*' -g -y` 安装/刷新，通常再重启对应工具或开新会话。
 
-set -u
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 
@@ -27,6 +27,7 @@ MP="ccl-skills"
 PLUGIN="ccl-skills@ccl-skills"
 CODEX_CRON=0
 WITH_AGENT_SKILLS=0
+INSTALL_STATUS=0
 for arg in "$@"; do
   case "$arg" in
     --codex-cron) CODEX_CRON=1 ;;
@@ -36,11 +37,15 @@ for arg in "$@"; do
 done
 
 note() { printf '\n\033[1m%s\033[0m\n' "$*"; }
+record_failure() {
+  # Continue independent host installs, retaining the first failed operation.
+  [ "$INSTALL_STATUS" -ne 0 ] || INSTALL_STATUS="$1"
+}
 
 # ── Claude Code ────────────────────────────────────────────────────────────
 if command -v claude >/dev/null 2>&1; then
   note "[Claude] 注册 marketplace + 安装 + 开自动更新"
-  claude plugin marketplace add "$HTTP_URL" 2>&1 | tail -1 || true
+  claude plugin marketplace add "$HTTP_URL" 2>&1 | tail -1 || record_failure "$?"
   settings="$HOME/.claude/settings.json"
   if command -v jq >/dev/null 2>&1 && [ -f "$settings" ]; then
     # 写完整 extraKnownMarketplaces 条目（source + autoUpdate），开 Claude 原生自动更新。
@@ -63,7 +68,7 @@ if command -v claude >/dev/null 2>&1; then
   else
     echo "  ⚠ 未自动写（缺 jq 或无 settings.json）；手动加完整条目：extraKnownMarketplaces.$MP = {\"source\":{\"source\":\"git\",\"url\":\"$HTTP_URL\"},\"autoUpdate\":true}。只填 autoUpdate 会让整个 settings.json 失效（见 README 的 \"Install and update\" 段）。"
   fi
-  claude plugin install "$PLUGIN" 2>&1 | tail -1 || true
+  claude plugin install "$PLUGIN" 2>&1 | tail -1 || record_failure "$?"
 else
   echo "[Claude] 未检测到 claude CLI，跳过"
 fi
@@ -71,15 +76,15 @@ fi
 # ── Codex ──────────────────────────────────────────────────────────────────
 if command -v codex >/dev/null 2>&1; then
   note "[Codex] 注册 marketplace + 安装"
-  codex plugin marketplace add "$SSH_URL" 2>&1 | tail -1 || true
-  codex plugin add "$PLUGIN" 2>&1 | tail -1 || true
+  codex plugin marketplace add "$SSH_URL" 2>&1 | tail -1 || record_failure "$?"
+  codex plugin add "$PLUGIN" 2>&1 | tail -1 || record_failure "$?"
   if [ "$CODEX_CRON" = 1 ]; then
     line="0 9 * * * codex plugin marketplace upgrade >/dev/null 2>&1; codex plugin add $PLUGIN >/dev/null 2>&1"
     if crontab -l 2>/dev/null | grep -Fq "codex plugin marketplace upgrade"; then
       echo "  ✔ Codex cron 已存在，跳过"
     else
       ( crontab -l 2>/dev/null; echo "$line" ) | crontab - \
-        && echo "  ✔ 已装每日 9:00 cron 刷新 Codex plugin"
+        && echo "  ✔ 已装每日 9:00 cron 刷新 Codex plugin" || record_failure "$?"
     fi
   else
     echo "  ⓘ Codex 无原生自动更新。手动刷新：codex plugin marketplace upgrade && codex plugin add $PLUGIN"
@@ -90,10 +95,17 @@ else
 fi
 
 # ── OpenCode 原生 skills/plugin（默认 --no-agent；--with-agent-skills 时才同步已停更的 ~/.agents/skills）
-if [ "$WITH_AGENT_SKILLS" = 1 ]; then
-  bash "$SCRIPT_DIR/install-opencode.sh"
+if command -v opencode >/dev/null 2>&1; then
+  if [ "$WITH_AGENT_SKILLS" = 1 ]; then
+    bash "$SCRIPT_DIR/install-opencode.sh" || record_failure "$?"
+  else
+    bash "$SCRIPT_DIR/install-opencode.sh" --no-agent || record_failure "$?"
+  fi
 else
-  bash "$SCRIPT_DIR/install-opencode.sh" --no-agent
+  echo "[OpenCode] 未检测到 opencode CLI，跳过"
+  if [ "$WITH_AGENT_SKILLS" = 1 ]; then
+    bash "$SCRIPT_DIR/install-opencode.sh" --only-agent || record_failure "$?"
+  fi
 fi
 
 # ── 旧 symlink 提醒（plugin 与 symlink 二选一，避免重复加载）────────────────
@@ -108,4 +120,8 @@ for base in "$HOME/.claude/skills" "${CODEX_HOME:-$HOME/.codex}/skills"; do
 done
 [ "$found" = 1 ] && echo "  → Claude/Codex plugin 已接管，建议删掉上述 symlink（plugin 与 symlink 同装会重复加载）；不要删 OpenCode 自动读取的 ~/.agents/skills，也不要删 ~/.tabnine/agent/skills、~/.pi/agent/skills 这类指向 ~/.agents/skills 的工具消费 symlink。" || echo "  ✔ 无指向本仓库的旧 Claude/Codex symlink"
 
+if [ "$INSTALL_STATUS" -ne 0 ]; then
+  echo "部分安装失败；已完成的安装未回滚。请查看上方错误后重试。" >&2
+  exit "$INSTALL_STATUS"
+fi
 note "完成。重启 Claude Code / Codex / OpenCode / Tabnine / Pi 等对应客户端使新技能生效。"

@@ -120,24 +120,47 @@ rescue Errno::ENOENT
   [nil, "claude_not_found"]
 end
 
-# Parse a stream-json transcript: invoked skills + executed shell commands.
+# Parse a stream-json transcript: observed tools plus a validated terminal result.
 def parse_transcript(stream)
   skills = []
   commands = []
+  results = []
   stream.each_line do |line|
-    ev = JSON.parse(line) rescue next
+    next if line.strip.empty?
+    ev = JSON.parse(line)
+    return [skills.uniq, commands, "invalid_stream_event"] unless ev.is_a?(Hash)
+    results << ev if ev["type"] == "result"
     next unless ev["type"] == "assistant"
-    (ev.dig("message", "content") || []).each do |c|
+    message = ev["message"]
+    return [skills.uniq, commands, "invalid_stream_event"] unless message.is_a?(Hash) && message["content"].is_a?(Array)
+    message["content"].each do |c|
+      return [skills.uniq, commands, "invalid_stream_event"] unless c.is_a?(Hash)
       next unless c["type"] == "tool_use"
+      input = c["input"]
+      return [skills.uniq, commands, "invalid_stream_event"] unless input.is_a?(Hash)
       if c["name"] == "Skill"
-        s = (c.dig("input", "skill") || c.dig("input", "command")).to_s
+        s = (input["skill"] || input["command"]).to_s
         skills << s.split(":").last unless s.empty?
       elsif c["name"] == "Bash"
-        commands << c.dig("input", "command").to_s
+        commands << input["command"].to_s
       end
     end
   end
-  [skills.uniq, commands]
+  return [skills.uniq, commands, "missing_success_result"] if results.empty?
+  return [skills.uniq, commands, "invalid_terminal_result"] unless results.size == 1
+  terminal = results.first
+  unless terminal["subtype"] == "success"
+    return [skills.uniq, commands, "result_#{terminal['subtype']}"]
+  end
+  unless [nil, false].include?(terminal["is_error"]) &&
+         [nil, [], {}].include?(terminal["permission_denials"]) &&
+         [nil, 0, "0"].include?(terminal["api_error_status"]) &&
+         [nil, "completed"].include?(terminal["terminal_reason"])
+    return [skills.uniq, commands, "invalid_terminal_result"]
+  end
+  [skills.uniq, commands, nil]
+rescue JSON::ParserError, JSON::NestingError
+  [skills.uniq, commands, "invalid_stream_event"]
 end
 
 if dry_run
@@ -154,7 +177,8 @@ results = traces.map do |t|
   frozen_ref = t["frozen_at_sha"] == "root" ? `git -C #{Shellwords.escape(root)} rev-list --max-parents=0 HEAD`.lines.first.to_s.strip : t["frozen_at_sha"]
   frozen_ok = ancestor?(root, frozen_ref)
   stream, error = run_agent(root, max_turns, timeout_s, t["trigger_prompt"])
-  invoked, commands = error ? [[], []] : parse_transcript(stream)
+  invoked, commands, stream_error = error ? [[], [], nil] : parse_transcript(stream)
+  error ||= stream_error
   a = t["assert"] || {}
   missing = (a["must_invoke_skill"] || []) - invoked
   forbidden_hit = (a["must_not_invoke_skill"] || []) & invoked

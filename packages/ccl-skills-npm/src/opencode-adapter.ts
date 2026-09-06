@@ -19,6 +19,7 @@ import { atomicJson, sha256 } from "./fs-safe.js";
 import { readRelease } from "./manifest.js";
 import type { Options, Result } from "./types.js";
 import { compare } from "./version.js";
+import { probeHostVersion } from "./host-probe.js";
 
 const PACKAGE = "@ccoalm/ccl-skills";
 type Entry = { source: string; destination: string; sha256: string; mode: number };
@@ -58,7 +59,7 @@ class InterruptedOperation extends Error {}
 function assertExclusiveRoot(base: string, root: string, createBase = false) {
 	if (resolve(root) !== join(resolve(base), "ccl-skills-npm")) throw new Error("managed root is not canonical");
 	if (createBase) mkdirSync(base, { recursive: true });
-	for (const component of [base, root]) {
+	for (const component of [base, root, join(root, "snapshots")]) {
 		if (!existsSync(component)) continue;
 		const stat = lstatSync(component);
 		if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error(`unsafe managed component: ${component}`);
@@ -151,11 +152,6 @@ function readManifest(path: string, root: string): OpenManifest | null {
 	return { schema: 1, npmPackage: PACKAGE, installedAt: raw.installedAt, version: raw.version, sourceCommit: raw.sourceCommit, sourceKind: raw.sourceKind as OpenManifest["sourceKind"], snapshot, snapshotHash: raw.snapshotHash, entries };
 }
 
-function hostAvailable(context: OpenCodeContext) {
-	const result = spawnSync("opencode", ["--version"], { encoding: "utf8", env: context.env || process.env });
-	return !result.error && result.status === 0;
-}
-
 function sharedPath(base: string, rel: string) {
 	const path = resolve(base, safeRel(rel, "OpenCode destination"));
 	if (!path.startsWith(`${resolve(base)}${sep}`)) throw new Error("OpenCode destination escaped its allowlist root");
@@ -210,21 +206,24 @@ function actualFiles(directory: string): string[] {
 function preflight(base: string, next: Entry[], old: OpenManifest | null) {
 	assertSafeSharedParents(base, next);
 	const previous = new Map((old?.entries || []).map((entry) => [entry.destination, entry]));
+	const drift: string[] = [];
 	if (old) {
+		assertSafeSharedParents(base, old.entries);
 		for (const entry of old.entries) {
 			const path = sharedPath(base, entry.destination);
 			if (!existsSync(path) || (regular(path).mode & 0o777) !== entry.mode || sha256(path) !== entry.sha256)
-				throw new Error(`owned OpenCode file drifted: ${entry.destination}`);
+				drift.push(entry.destination);
 		}
 		const skillNames = new Set(old.entries.filter((entry) => entry.destination.startsWith("skills/")).map((entry) => entry.destination.split("/")[1]));
 		for (const skill of skillNames) {
 			const expected = old.entries.filter((entry) => entry.destination.startsWith(`skills/${skill}/`)).map((entry) => entry.destination.slice(`skills/${skill}/`.length)).sort();
-			if (JSON.stringify(actualFiles(join(base, "skills", skill))) !== JSON.stringify(expected)) throw new Error(`owned OpenCode skill directory drifted: ${skill}`);
+			if (JSON.stringify(actualFiles(join(base, "skills", skill))) !== JSON.stringify(expected)) drift.push(`skills/${skill}`);
 		}
 	}
 	const nextSkills = new Set(next.filter((entry) => entry.destination.startsWith("skills/")).map((entry) => entry.destination.split("/")[1]));
 	if (!old) for (const skill of nextSkills) if (existsSync(join(base, "skills", skill))) throw new Error(`OpenCode skill collision: ${skill}`);
 	for (const entry of next) if (!previous.has(entry.destination) && existsSync(sharedPath(base, entry.destination))) throw new Error(`OpenCode path collision: ${entry.destination}`);
+	return drift;
 }
 
 function prepareSnapshot(p: ReturnType<typeof paths>, candidate: ReturnType<typeof source>) {
@@ -294,25 +293,25 @@ function writeShared(p: ReturnType<typeof paths>, snapshot: string, entries: Ent
 function doctor(context: OpenCodeContext): Result {
 	const p = paths(context);
 	assertExclusiveRoot(p.base, p.root);
-	if (!hostAvailable(context)) return { code: 4, status: "host-missing", message: "OpenCode CLI is not installed" };
+	const host = probeHostVersion("opencode", context.env || process.env);
+	if (!host.ok) return { code: 4, status: `host-${host.kind}`, message: host.message };
 	const legacy = existsSync(join(p.base, "ccl-skills/install-manifest.json")), manifest = readManifest(p.manifest, p.root);
 	if (legacy && manifest) return { code: 3, status: "double-install", message: "legacy checkout and npm OpenCode installs are both present; keep exactly one" };
 	if (!manifest) {
 		if (existsSync(join(p.base, "plugins/ccl-skills.ts")) || existsSync(join(p.base, "ccl-skills/bootstrap.md"))) return { code: 3, status: legacy ? "legacy-install" : "unowned-registration", message: "OpenCode ccl-skills files exist without an npm ownership receipt" };
 		return { code: 3, status: "absent", message: "ccl-skills is not installed for OpenCode" };
 	}
-	const drift: string[] = [];
-	for (const entry of manifest.entries) {
-		const path = sharedPath(p.base, entry.destination);
-		if (!existsSync(path) || sha256(path) !== entry.sha256) drift.push(entry.destination);
-	}
-	if (drift.length) return { code: 3, status: "shared-drift", message: "OpenCode shared files changed after npm install; they will never be auto-deleted", details: { drift } };
+	let drift: string[] = [], reason: string | undefined;
+	try { drift = preflight(p.base, manifest.entries, manifest); }
+	catch (error) { reason = String(error); }
+	if (drift.length || reason) return { code: 3, status: "shared-drift", message: "OpenCode shared files changed after npm install; they will never be auto-deleted", details: { drift, ...(reason ? { reason } : {}) } };
 	return { code: 0, status: "healthy", message: `OpenCode uses @ccoalm/ccl-skills ${manifest.version}` };
 }
 
 function installOrUpdate(commandName: "install" | "update", options: Options, context: OpenCodeContext): Result {
 	const p = paths(context);
-	if (!hostAvailable(context)) return { code: 4, status: "host-missing", message: "OpenCode CLI is not installed" };
+	const host = probeHostVersion("opencode", context.env || process.env);
+	if (!host.ok) return { code: 4, status: `host-${host.kind}`, message: host.message };
 	let candidate: ReturnType<typeof source>;
 	try { candidate = source(context); } catch (error) { return { code: 3, status: (context.env ?? process.env).CCL_SKILLS_REPO ? "invalid-source-override" : "safety-refusal", message: String(error) }; }
 	assertExclusiveRoot(p.base, p.root);
@@ -324,7 +323,10 @@ function installOrUpdate(commandName: "install" | "update", options: Options, co
 		if (commandName === "install") return { code: 3, status: "use-update", message: "an owned OpenCode version exists; use update" };
 		if (comparison < 0 && !options.allowDowngrade) return { code: 3, status: "downgrade-refused", message: "newer OpenCode assets are installed" };
 	}
-	try { preflight(p.base, candidate.entries, old); } catch (error) { return { code: 3, status: "collision", message: String(error) }; }
+	try {
+		const drift = preflight(p.base, candidate.entries, old);
+		if (drift.length) throw new Error(`owned OpenCode paths drifted: ${drift.join(", ")}`);
+	} catch (error) { return { code: 3, status: "collision", message: String(error) }; }
 	if (commandName === "update" && !options.yes) return { code: 0, status: "dry-run", message: "OpenCode update preview", plan: ["validate source", "verify shared paths", "refresh unchanged npm-managed files", "preserve all shared files on uninstall"] };
 	assertExclusiveRoot(p.base, p.root, true);
 	try {

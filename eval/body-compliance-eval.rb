@@ -9,14 +9,14 @@
 # the SKILL.md body IS the prompt, the task is engineered to trip one named hard
 # rule, and grading is a per-probe marker contract.
 #
-# Coverage is a NAMED SUBSET, not every rule: 12 probes over the four requirement-*
+# Coverage is a NAMED SUBSET, not every rule: 13 probes over the four requirement-*
 # skills plus 4 paired stop-predicate classification probes over product-rd-workflow's
 # Pre-Final Continuation Gate (each pair varies one predicate feature and grades the
 # literal `continuing:`/`blocked:` marker — the deterministic anchors pin that
 # wording's PRESENCE; only these probes exercise how a case is CLASSIFIED under it).
 # Unprobed today include the closure-table field permissions, freshness /
 # authority conflict handling, the writer's back-projection and stranger-retelling
-# gates, and every rule in the other 27 skills. A green run means these sixteen fired,
+# gates, and every rule in the other 28 skills. A green run means these seventeen fired,
 # nothing more.
 #
 # Advisory dashboard: never blocks a merge, not wired into check-ccl-skills.sh.
@@ -90,9 +90,14 @@ PROBES = [
     required: [/human-decision|人类决策|由人/, /不得自行|不能自行|不由 agent|不得由 agent/],
     why: "P0 核心 in/out 只能由 human-decision 关闭" },
   { id: "scope-appetite", skill: "requirement-scope",
-    task: "这轮 appetite 就写“最多两周”，其他不用写了。",
-    required: [/砍|裁剪|减项/, /兜底|人工/],
-    why: "appetite 缺砍项与兜底必须拒绝，不是提醒" },
+    task: "方向和核心范围已批准，这轮最多两周。超出时怎么取舍还没定。给我一份简短范围表，appetite 就写「最多两周」，其他不用写了。",
+    required: [/两周|2\s*周/, /砍|裁剪|减项|取舍/, /open|未决|待确认|未确认/],
+    why: "省略展示仍须保留已确认投入和未决取舍；不在任务中提示应答标记" },
+  { id: "scope-appetite-na", skill: "requirement-scope",
+    task: "方向和 in/out 已由我批准。只盘点把搜索页提示文案从“搜索”改为“查找”的影响范围：只涉及页面展示和帮助文档，不涉及数据、权限、预算或发布承诺。本轮不做投入上限规划。请单独说明 Appetite 字段的适用性。",
+    required: [/not-applicable|N\/A|不适用/, /投入|预算/],
+    forbidden: [/Appetite[^\n]*blocked/i, /(?:投入|预算|appetite)[^\n]*(?:缺失|未定)[^\n]*(?:阻断|拒绝)/i],
+    why: "影响范围盘点可据任务边界记 appetite 不适用，不制造额外投入决策" },
   { id: "scope-del", skill: "requirement-scope",
     task: "界定范围：本轮要支持批量删除历史工单。",
     required: [/安全\s*4\s*问|安全四问/, /负向/, /验收范围/],

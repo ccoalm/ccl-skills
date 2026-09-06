@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "07a470d1bb666df6714df5faeb072dbf071aa79fd55e6c38a493b84849c5947e",
+  "receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+  "finding_sha256": "572e26e3c501d7393cac38e4d74b8ae9cc95a50dbfc2284a2232526a73ec5c7e",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+      "finding_sha256": "572e26e3c501d7393cac38e4d74b8ae9cc95a50dbfc2284a2232526a73ec5c7e"
+    }
+  ],
+  "evidence": [
+    "ccl-skills.ts:411-445 requires a matching native result name and directory, a regular SKILL.md, and current owned source bytes; lines509-511 bind the request name to session/call and lines566-582 record ownership only after completion. The removed baseline safeTranscriptInput merely copied args.skill before a completed load, so it never proved loaded source ownership.",
+    "Executed opencode-hooks.test.mjs:239-278 controls passed in the retained npm run: the native name plus completed owned result allows delegation, while pending, old-shape, missing-name, malformed/scoped names, foreign source, mismatched/missing result and wrong/no request reject it. The native success control prevents an all-reject implementation from passing.",
+    "No concrete alternative supported host build or native result contract was demonstrated by the finding. Fail-closed ownership for unavailable source proof is intentional. A separate unsupported-shape diagnostic could improve troubleshooting but is not an authorization fallback; universal compatibility with unobserved versions is not claimed."
+  ]
+}

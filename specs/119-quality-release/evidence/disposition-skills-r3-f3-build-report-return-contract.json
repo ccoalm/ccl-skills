@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ae5573f32a15e7c54a5256b1fd59f58df5a161fca4988afef3bc9a7c29584d51",
+  "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+  "finding_sha256": "700c29852a32f47f0e178df2d624d787818765cb8bef258fbc430588737f8f54",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+      "finding_sha256": "700c29852a32f47f0e178df2d624d787818765cb8bef258fbc430588737f8f54"
+    }
+  ],
+  "evidence": [
+    "Current skills/skill-extraction-workflow/scripts/skill-behavior-eval.py:356-415 ends build_report with unconditional _write_report(verdicts, out_dir, do_judge) followed by return verdicts at line 415. The origin/dev baseline already returned verdicts at line 358, so the diff did not need to add that return.",
+    "An executed native import and TemporaryDirectory control called the real build_report with [{'id':'synthetic-return-probe','axis':'correctness'}] and do_judge=False. It returned a one-item list with status missing-arm. The same main consumer expression any(';cleanup_unconfirmed:' in row['status'] for row in v) iterated successfully; exit 0, without mocking build_report.",
+    "This control proves the actual return and consumer contract for a real no-arm report. It does not claim a complete model evaluation run or model evaluation quality. The finding's conditional premise that build_report still ends without an explicit return is false in both the baseline and the current source."
+  ]
+}

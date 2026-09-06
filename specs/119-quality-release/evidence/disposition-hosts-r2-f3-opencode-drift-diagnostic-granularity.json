@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "07a470d1bb666df6714df5faeb072dbf071aa79fd55e6c38a493b84849c5947e",
+  "receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+  "finding_sha256": "9c425068f9e219a3ae05de81e32b5ee1e2d73928e1cf9eec954736889024a092",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+      "finding_sha256": "9c425068f9e219a3ae05de81e32b5ee1e2d73928e1cf9eec954736889024a092"
+    }
+  ],
+  "evidence": [
+    "At baseline 185ed38083c0625d83cc22ceb51756ab20cba823, opencode-adapter.ts:210-225 already throws for owned-file mode/content changes and for a skill directory whose entry set differs from its manifest. The candidate retains this write-preservation boundary; current preflight at lines206-225 returns drift paths for doctor and same-snapshot reentry to report consistently.",
+    "Current preflight recalculates live paths against the manifest on every call and persists no permanent block. Existing executed host-adapter controls at lines233-263 passed for mode, extra-file and symlink-parent drift, retained ownership evidence and preserved the changed file/mode rather than overwriting or deleting it.",
+    "Diagnostic limitation retained: an extra file reports skills/<name>, not its individual filename; a known owned-file mode/content mismatch reports that file. The directory-level entry-set diagnostic already existed in the baseline. More detailed recovery output is a possible improvement, not evidence of a newly introduced permanent lock or authority to add force/re-adopt behavior."
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "07a470d1bb666df6714df5faeb072dbf071aa79fd55e6c38a493b84849c5947e",
+  "receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+  "finding_sha256": "350d44ee597d0893c6a7baefca21022cc30c8c8ced2c3aebd6eeff74fcb2a4f9",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+      "finding_sha256": "350d44ee597d0893c6a7baefca21022cc30c8c8ced2c3aebd6eeff74fcb2a4f9"
+    }
+  ],
+  "evidence": [
+    "host-probe.ts:7-14 already sets stdio to ignore/pipe/pipe, timeout to 10000 milliseconds and killSignal to SIGKILL. The suggested stdio setting is already present.",
+    "Executed the current built probeHostVersion under Node v26.7.0 using the existing disposable installer fixture. The fake host was a Bash launcher that spawned a non-exec Node grandchild with inherited stdout/stderr and a 15000-millisecond lifetime. The probe returned host-timeout after 10004 milliseconds while the grandchild was still alive; the fixture then killed that known descendant.",
+    "The inherited-pipe blocking assertion did not reproduce on the current runtime. Complete descendant reaping is a separate, unclaimed capability: the control explicitly observed a live grandchild after return. No assertion is made that arbitrary launchers leave no descendants or that all runtime builds implement identical cleanup."
+  ]
+}
