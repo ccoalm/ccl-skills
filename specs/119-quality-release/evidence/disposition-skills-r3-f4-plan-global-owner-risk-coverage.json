@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ae5573f32a15e7c54a5256b1fd59f58df5a161fca4988afef3bc9a7c29584d51",
+  "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+  "finding_sha256": "f25ca84c6b03e3e4300ded024d005ce9a5cc70b2fa3c5c6624f73d87d08bec38",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+      "finding_sha256": "f25ca84c6b03e3e4300ded024d005ce9a5cc70b2fa3c5c6624f73d87d08bec38"
+    }
+  ],
+  "evidence": [
+    "A real freeze_review_profile comparison ran four cases against both origin/dev 185ed38083c0625d83cc22ceb51756ab20cba823 and the current source. A=requirement-scope, B=tighten-doc: A correctness with B high_risk_boundary was accepted by both; missing high_risk_boundary was rejected by both; missing derived owner A was rejected by both; the same concern declared by A and B was rejected by base and accepted by current.",
+    "Only the plan loader and final profile persistence were replaced in memory. Actual validation, owner-registry derivation and package hashes remained active. Current review_gate.py:2668-2682 and :2799-2803 enforce global stage/risk concerns; :2784-2789 changes uniqueness to owner-concern pairs; :2865-2905 requires all derived owners.",
+    "references/staged-review-contract.md:28-31 and :75-86 require cumulative stage concerns plus at least one self-review row per derived owner, not every risk concern for every owner. The old global uniqueness check itself prevented multiple owners from declaring the same high_risk_boundary concern.",
+    "The H7 raw receipt records native_skill_binding=established, nine owner-native invocations, and reviewed_concerns including challenge_focus and high_risk_boundary. This does not prove every owner label or self-review assertion is semantically correct. Per-owner coverage of every risk concern would be a new policy; the compared supposedly bypassing plan already passed before this change."
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ae5573f32a15e7c54a5256b1fd59f58df5a161fca4988afef3bc9a7c29584d51",
+  "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+  "finding_sha256": "fe8933df0e31802de20535a3625faccb124876597a360b9f6500ff2a64d5be08",
+  "disposition": "fixed",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+      "finding_sha256": "fe8933df0e31802de20535a3625faccb124876597a360b9f6500ff2a64d5be08"
+    }
+  ],
+  "evidence": [
+    "An isolated self-register fixture was actually RED: the unique locator existed only in the newly added source-register data row; expected rejection exit 1, actual exit 0. Final source f3c17e73a2d835e3aadf3b305609b67e17f15440 adds `next false if parts[:path] == LEDGER_PATH` before any file locator shape check. The docs exclude the register as a firing surface; the new source-register row points to the changed executable.",
+    "Final focused checks passed: 1 full checker plus 118 gate cases, including 21 table cases. They include the self-register rejection and five raw-HTML controls added in the same held fix. Bare-script opening at end of line was separately RED (expected 1, actual 0); PI, CDATA and declaration controls formerly returned true. Final gates reject hidden tables and accept a real table after closed CDATA.",
+    "Final f3 validation passed: CCL_SKILL_BASE_REF=origin/dev make -j4 test SUITE_JOBS=4; SUITE_JOBS=4 heavy-only, 10/10; public sanitization; Ruby syntax and diff checks. Earlier intermediate focused 1 checker plus 113 gates remains historical evidence preceding the five HTML cases. These deterministic gates prove the tested location and shape predicates, not factual accuracy of a declared RED baseline."
+  ]
+}

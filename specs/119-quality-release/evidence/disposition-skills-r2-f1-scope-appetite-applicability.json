@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ae5573f32a15e7c54a5256b1fd59f58df5a161fca4988afef3bc9a7c29584d51",
+  "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+  "finding_sha256": "09097bdd4875fa8b4318791fd0db180ea73574bccdb6eb9812d2fec53e2617fc",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+      "finding_sha256": "09097bdd4875fa8b4318791fd0db180ea73574bccdb6eb9812d2fec53e2617fc"
+    }
+  ],
+  "evidence": [
+    "skills/requirement-scope/SKILL.md rules 1, 4 and 5 retain human authority over core in/out, existing applicable investment caps, open tradeoffs and open/blocked composite rows. Display omission explicitly does not revoke known constraints or close unresolved commitments. A task needing an investment decision must preserve known caps and mark unresolved subitems open.",
+    "eval/body-compliance-eval.rb's scope-appetite-na user input explicitly excludes investment planning. The retained scope-omission replay preserved two weeks and an open/whole-row BLOCKED result for the applicable-cap case, and used reasoned not-applicable only for the explicit no-investment case.",
+    "Task applicability is part of scope interpretation; it does not authorize self-waiving a missing real constraint. The textual replay and keyword grader are limited semantic controls, not a general security proof. No independent new investment-approval prerequisite is implied for an inventory task."
+  ]
+}

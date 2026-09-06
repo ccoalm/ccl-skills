@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ae5573f32a15e7c54a5256b1fd59f58df5a161fca4988afef3bc9a7c29584d51",
+  "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+  "finding_sha256": "5ff2991c42d568542756080663d20539965a1bf27681780edfbff894fb163c3f",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "8131692f32927eb7df1b1467be9c98c9ec2e4f6ac71a073254492921e2a1ee5f",
+      "finding_sha256": "5ff2991c42d568542756080663d20539965a1bf27681780edfbff894fb163c3f"
+    }
+  ],
+  "evidence": [
+    "skills/skill-extraction-workflow/SKILL.md:155 and :269 explicitly delegate machine semantics to references/external-practice-controls.md#behavioral-evidence-and-attestation. That reference at line 49 contains mandatory declarations and anchor rules relocated from SKILL.md; line 158 requires re-reading primary sources and prohibits accepting unsupported inherited readings.",
+    "The reference is therefore canonical owner guidance consumed by the skill, not merely a record of an attestation. Normative guidance is an intended firing surface, and the contract does not require an executable-script change for every guidance correction. impact-chain-gate.rb:1217 excludes the source register that records the attestations.",
+    "This source refutation addresses the proposed blanket ban on this consumed reference document. It does not claim that arbitrary evidence prose proves a behavioral change, or that the static locator establishes the truth of the author's evidence."
+  ]
+}

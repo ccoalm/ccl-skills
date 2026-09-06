@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ae5573f32a15e7c54a5256b1fd59f58df5a161fca4988afef3bc9a7c29584d51",
+  "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+  "finding_sha256": "21cdbba9353bb625c9ab39a7543927e136b8d8b56e61c039dcb60110376df131",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "435ecc3c7e6b8577956ceee958daefd5bf45e88b1d4eda4f2bd5a3498887dbff",
+      "finding_sha256": "21cdbba9353bb625c9ab39a7543927e136b8d8b56e61c039dcb60110376df131"
+    }
+  ],
+  "evidence": [
+    "impact-chain-gate.rb's table_data_anchor_valid checks whether the anchor survives in that same path at base, then validates its current explicit table data-cell location. The documented control proves a new locator at the changed firing path and location/shape, not owner-wide semantic novelty or truth of an author's RED declaration.",
+    "An actual earlier-candidate helper control, substituting only in-memory blob providers, returned true for a new definition, false for a same-file surviving anchor and true for text present in another owner file. This mechanical observation remains preserved; it is not recast as a rejection the gate performs.",
+    "The older normative-list locator also did not promise owner-wide novelty. Moving existing guidance into an actual firing surface can change behavior. Requiring an owner-wide semantic or text duplication classifier would add a new contract rather than repair the documented same-path predicate. Current self-register and HTML fixes retain this boundary."
+  ]
+}

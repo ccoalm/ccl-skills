@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "07a470d1bb666df6714df5faeb072dbf071aa79fd55e6c38a493b84849c5947e",
+  "receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+  "finding_sha256": "c25f0c599c1eed2ea65cb6c88bc9ec30b6543d0f88e85629bfbb8ab8247c1a84",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "b2e97397c9dbf02bdff733c9c67cac00e2e49b99e65200467d32336b8fd704e0",
+      "finding_sha256": "c25f0c599c1eed2ea65cb6c88bc9ec30b6543d0f88e85629bfbb8ab8247c1a84"
+    }
+  ],
+  "evidence": [
+    "scripts/install.sh:98-111 conditionally executes the OpenCode installer and prints an explicit OpenCode CLI-not-detected skip otherwise. The explicit compatibility-skills flag remains separately handled. No OpenCode installed result is emitted on the skipped branch.",
+    "Executed SourceInstallStatusTests.test_unified_skips_absent_opencode_without_creating_config on the current candidate: passed, with exit 0, an explicit OpenCode skip message, and no OpenCode or agents configuration directories created. This is the accepted optional-host behavior, not a successful OpenCode-install assertion.",
+    "An executable installed outside the invoking PATH is not evidence that this invocation selected an OpenCode configuration target. Explicit OpenCode installation remains available through the dedicated installer. The final generic completion banner follows per-host statuses and does not revoke the explicit skip; automatic configuration discovery or changing output streams is not required for this boundary."
+  ]
+}

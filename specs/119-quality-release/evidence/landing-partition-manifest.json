@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "kind": "landing_partition_manifest",
+  "base": "185ed38083c0625d83cc22ceb51756ab20cba823",
+  "partitions": [
+    {
+      "paths": [
+        "Makefile",
+        "scripts/install.sh",
+        "scripts/install-opencode.sh",
+        "scripts/test_install_status.py",
+        "packages"
+      ],
+      "candidate_sha256": "07a470d1bb666df6714df5faeb072dbf071aa79fd55e6c38a493b84849c5947e"
+    },
+    {
+      "paths": [
+        "docs/skills-theory-foundations.md",
+        "eval/body-compliance-eval.rb",
+        "skills",
+        "specs/119-quality-release/evidence/base.txt"
+      ],
+      "candidate_sha256": "ae5573f32a15e7c54a5256b1fd59f58df5a161fca4988afef3bc9a7c29584d51"
+    }
+  ],
+  "candidate_sha256": "d3761896c07810d921b61b5df5130455db3024235475a2284fec76369a5b85f7"
+}
