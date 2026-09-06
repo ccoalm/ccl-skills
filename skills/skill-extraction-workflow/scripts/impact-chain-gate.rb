@@ -1160,7 +1160,7 @@ if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_
         next
       end
       if raw_html
-        raw_html = nil if line.match?(%r{</#{raw_html}\s*>}i)
+        raw_html = nil if line.match?(raw_html)
         next
       end
       if html_block
@@ -1178,9 +1178,19 @@ if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_
         previous_cells = columns = nil
         next
       end
-      if line.match?(%r{\A {0,3}</?[A-Za-z][\w-]*(?:\s|>|/)})
-        tag = line[/\A {0,3}<(script|pre|style|textarea)(?:\s|>)/i, 1]
-        raw_html = tag if tag && !line.match?(%r{</#{tag}\s*>}i)
+      terminator = case line
+                   when /\A {0,3}<\?/ then /\?>/
+                   when /\A {0,3}<!\[CDATA\[/ then /\]\]>/
+                   when /\A {0,3}<![A-Z]/ then />/
+                   end
+      if terminator
+        raw_html = terminator unless line.match?(terminator)
+        previous_cells = columns = nil
+        next
+      end
+      if line.match?(%r{\A {0,3}</?[A-Za-z][\w-]*(?:\s|>|/|\z)})
+        tag = line[/\A {0,3}<(script|pre|style|textarea)(?:\s|>|\z)/i, 1]
+        raw_html = %r{</#{tag}\s*>}i if tag && !line.match?(%r{</#{tag}\s*>}i)
         html_block = !tag
         previous_cells = columns = nil
         next
@@ -1204,6 +1214,7 @@ if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_
   enforcing_file_locator_valid = lambda do |scope, parts|
     next false unless parts && parts[:kind] == "file"
     next false unless parts[:path].end_with?(".md")
+    next false if parts[:path] == LEDGER_PATH # Evidence cannot certify itself.
     next false unless locator_valid.call(scope, "file:#{parts[:path]}##{parts[:anchor]}")
     line = added_lines_for.call(scope, parts[:path]).find { |added| added.include?(parts[:anchor]) }
     next false unless line

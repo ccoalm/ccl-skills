@@ -185,6 +185,11 @@ definition_table_case() {
     backtick-fence) perl -0777 -pi -e 's/\n\| Metric/\n```markdown\n| Metric/; $_ .= "```\n"' "$REPO/$TABLE_REL" ;;
     tilde-fence) perl -0777 -pi -e 's/\n\| Metric/\n~~~markdown\n| Metric/; $_ .= "~~~\n"' "$REPO/$TABLE_REL" ;;
     raw-html) perl -0777 -pi -e 's/\n\| Metric/\n<script>\n\n| Metric/; $_ .= "<\/script>\n"' "$REPO/$TABLE_REL" ;;
+    raw-html-open-line) perl -0777 -pi -e 's/\n\| Metric/\n<script\n| Metric/; $_ .= "<\/script>\n"' "$REPO/$TABLE_REL" ;;
+    processing-instruction) perl -0777 -pi -e 's/\n\| Metric/\n<?xml\n| Metric/; $_ .= "?>\n"' "$REPO/$TABLE_REL" ;;
+    cdata) perl -0777 -pi -e 's/\n\| Metric/\n<![CDATA[\n| Metric/; $_ .= "]]>\n"' "$REPO/$TABLE_REL" ;;
+    declaration) perl -0777 -pi -e 's/\n\| Metric/\n<!DOCTYPE\n| Metric/; $_ .= ">\n"' "$REPO/$TABLE_REL" ;;
+    closed-cdata) perl -0777 -pi -e 's/\n\| Metric/\n<![CDATA[\nclosed example\n]]>\n\n| Metric/' "$REPO/$TABLE_REL" ;;
     html-block) perl -0777 -pi -e 's/\n\| Metric/\n<div>\n| Metric/; $_ .= "<\/div>\n"' "$REPO/$TABLE_REL" ;;
     indented-code) perl -pi -e 's/^\|/    |/' "$REPO/$TABLE_REL" ;;
     no-header) perl -ni -e 'print unless /^\| (Metric|---)/' "$REPO/$TABLE_REL" ;;
@@ -206,9 +211,21 @@ definition_table_case() {
   fi
 }
 definition_table_case accepted 0
-for definition_control in surviving-anchor unchanged-table foreign-owner duplicate inline-comment multiline-comment backtick-fence tilde-fence raw-html html-block indented-code no-header header-anchor no-red; do
+definition_table_case closed-cdata 0
+for definition_control in surviving-anchor unchanged-table foreign-owner duplicate inline-comment multiline-comment backtick-fence tilde-fence raw-html raw-html-open-line processing-instruction cdata declaration html-block indented-code no-header header-anchor no-red; do
   definition_table_case "$definition_control" 1
 done
+
+# Evidence is not its own firing surface. Keep the anchor only in the locator
+# itself so uniqueness cannot accidentally reject the self-certifying row.
+new_case case-ref-definition-table-self-register
+printf '\nFixture bookkeeping note, with no new enforcing rule.\n' >> "$REPO/skills/skill-extraction-workflow/references/validation-and-landing.md"
+printf '\n| Rule | Owner | Behavior | Status | Evidence |\n| --- | --- | --- | --- | --- |\n' >> "$REGISTER"
+printf '| Fixture self-citing table | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; firing-path: file:skills/skill-extraction-workflow/references/source-register.md#SELF-REGISTER-DEFINITION-ANCHOR | updated | `skill-extraction-workflow/SKILL.md` bookkeeping edit |\n' >> "$REGISTER"
+commit_case "source register cannot certify its own firing path"
+run_gate
+assert_rc "$rc" 1 "source register must not be its own firing surface"
+assert_contains 'impact_chain_firing_path_missing' "$out" "self-register refusal must name the firing-path boundary"
 
 # A purely DESCRIPTIVE list line ("always exposes" — no imperative/prohibitive
 # verb) is not an enforcing rule; the widened verb list must not admit it.
@@ -1639,6 +1656,6 @@ assert_rc "$rc" 1 "a directory masquerading as SKILL.md must not read as a prese
 assert_contains "platform-observability/SKILL.md" "$out" "the masqueraded owner must be named"
 
 assert_rc "$full_check_runs" 1 "fixture suite must retain exactly one full checker wiring case"
-assert_rc "$gate_runs" 112 "all remaining impact-chain fixtures must run the standalone gate"
+assert_rc "$gate_runs" 118 "all remaining impact-chain fixtures must run the standalone gate"
 
 echo "test_check_ccl_impact_chain_refscripts: ok"
