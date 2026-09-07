@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "2ff72ca9e67ab19d4ffa7cdf651f09e84c72632d6416f08d683d46d8eeface31",
+  "receipt_sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+  "finding_sha256": "bb7f7fed5dd86b546b4c7498f98886d489c723b9a71b06ea9cf1c1744787c822",
+  "disposition": "source_refuted",
+  "evidence": [
+    "skills/release-coordination/SKILL.md: the manual-job row says Covered only for the established requested release flow AND caller resource authority, and requires specific job/pipeline/status/intended-effect evidence. The intake and scope-confirmation gates apply before that row.",
+    "This is a generic production-release coordinator. An npm-only request bounds its actual release flow to the package target; a pipeline job affecting another production target is outside that goal. Pipeline presence alone does not satisfy requested scope or resource authority. Restricting the shared row itself to npm would contradict the skill's declared multi-product purpose."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+      "finding_sha256": "bb7f7fed5dd86b546b4c7498f98886d489c723b9a71b06ea9cf1c1744787c822"
+    }
+  ]
+}

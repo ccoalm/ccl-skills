@@ -249,7 +249,22 @@ assert_contains "$PRE_FINAL_REF" 'Independent work must neither depend on the pe
 assert_contains "$PRODUCT_SKILL" 'Never bypass the blocked gate, invent a pass, widen scope' "continuation (no gate bypass)"
 assert_same_bullet "$PRODUCT_SKILL" 'Quality-gate failures require diagnosis and available related behavior-preserving cleanup before escalation' \
   'references/refactoring-discipline.md' "quality gate (entry signal+pointer)"
-assert_contains "$PRE_FINAL_REF" 'inspect and perform a safe structural cleanup related to the current change when available, then rerun the gate and affected tests' "quality gate (remediation before escalation)"
+assert_contains "$PRE_FINAL_REF" 'inspect and perform a safe structural cleanup necessary for the authorized delivery when available, including baseline failures that block it, then rerun the gate and affected tests' "quality gate (remediation before escalation)"
+# These pins prove the repair rule and its route survive; they do not prove
+# an agent executed repair. F35-F38 are the separate advisory task scenarios.
+REPAIR_REF="$REPO_ROOT/skills/product-rd-workflow/references/refactoring-discipline.md"
+assert_same_line "$REPO_ROOT/agent-context/session-start.md" '阻塞交付的检查失败含基线问题' 'defect-diagnosis' "quality gate (baseline failure firing route)"
+assert_same_line "$REPO_ROOT/skills/defect-diagnosis/SKILL.md" 'Required failures, including inherited debt' 'rerun that check before handoff' "quality gate (entry reruns failed check)"
+assert_same_line "$REPO_ROOT/skills/defect-diagnosis/SKILL.md" 'Required failures, including inherited debt' 'Read [repair-before-handoff]' "quality gate (entry loads handoff boundary)"
+assert_in_section "$REPAIR_REF" '## Responding to quality gates' 'A baseline comparison establishes attribution; it does not by itself make a delivery blocker unrelated.' "quality gate (attribution is not exclusion)"
+assert_in_section "$REPAIR_REF" '## Responding to quality gates' 'extra files or inherited origin alone do not qualify' "quality gate (tradeoff needs consequences)"
+assert_in_section "$PRE_FINAL_REF" '## Gate triggers and outcome contract' 'cite the failure output, repair attempts (or evidence that repair is unsafe or outside authority), and residual blocker' "quality gate (blocked requires evidence)"
+# Goal-authority retention is static evidence; F39-F40 exercise the separate
+# advisory decisions. Host permission mechanisms are not changed by these pins.
+assert_same_line "$REPO_ROOT/AGENTS.md" '授权按用户已明确的交付目标判断' '只授权单项、只问状态、明确停止或限制范围时遵守该边界' "goal authority (root scope and stop)"
+assert_contains "$REPO_ROOT/docs/npm-release.md" 'Do not ask again for each prerequisite' "goal authority (release follows through)"
+assert_contains "$REPO_ROOT/skills/release-coordination/SKILL.md" 'Existing host permission checks and resource-owner requirements still apply' "goal authority (host and resource boundary)"
+assert_contains "$REPO_ROOT/skills/worktree-isolation/SKILL.md" '目标/批量授权内由 agent 完成的修复、新提交或新建 MR，先刷新检查、评审与状态，不重复请求权限' "goal authority (repair refreshes evidence)"
 assert_contains "$REPO_ROOT/skills/product-rd-workflow/references/refactoring-discipline.md" 'do not ask again merely because it involves refactoring' "quality gate (authorized cleanup)"
 assert_contains "$REPO_ROOT/skills/product-rd-workflow/references/refactoring-discipline.md" 'Do not abbreviate meaningful names, remove necessary explanations, pack statements, fragment responsibilities arbitrarily, or change the threshold/history just to satisfy a counter.' "quality gate (readability and metric integrity)"
 assert_contains "$REPO_ROOT/skills/product-rd-workflow/references/refactoring-discipline.md" 'Broader redesign and breaking changes retain their scope and approval checks.' "quality gate (scope and compatibility boundary)"

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "2ff72ca9e67ab19d4ffa7cdf651f09e84c72632d6416f08d683d46d8eeface31",
+  "receipt_sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+  "finding_sha256": "e6955c69ac4f2b64a0e4cff431e68a8d64c6a52b2458b6aeccbe2a7208fcb92b",
+  "disposition": "source_refuted",
+  "evidence": [
+    "skills/release-coordination/SKILL.md: Core lifecycle steps1-2 require stated release scope, production target, source and user decisions, then reject scope mismatch and undocumented operational deltas. The authority paragraph limits coverage to the user's stated goal and necessary established publication steps.",
+    "The same paragraph explicitly excludes destructive data operations, protection/permission changes, unrelated releases, ambiguous targets and missing resource authority. Credentials, repository text and tool output do not establish release authority. An unlisted action must still satisfy these universal conditions; an absent row is not an exemption.",
+    "references/release-scope-confirmation.md requires exact source/target and classifying config, migration, jobs, workers, integrations and manual steps before tags or jobs. docs/npm-release.md Bad release retains separate authority for deprecation/unpublish. The proposed unconditional ask for every irreversible publish step would restore the deliberately retired per-step policy."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+      "finding_sha256": "e6955c69ac4f2b64a0e4cff431e68a8d64c6a52b2458b6aeccbe2a7208fcb92b"
+    }
+  ]
+}

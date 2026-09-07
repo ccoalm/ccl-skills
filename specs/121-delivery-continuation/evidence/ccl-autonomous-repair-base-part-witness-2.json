@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "444f236403774250a991f2d9bcfc0336c23212513a5f9d06822d6f7ebd9e5e3b",
+  "receipt_sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2",
+  "finding_sha256": "744814573056374a4133c16739f2865447f2759ec500a3f83deddfae5f5c0bd9",
+  "disposition": "source_refuted",
+  "evidence": [
+    "validate_extraction_review_state.py: validate_base_attestations requires raw evidence to equal SHA tab ref newline exactly, while the enclosing ledger separately binds remote=origin, ref, observed SHA, confirmed_at, controller receipt and evidence digest. Adding a timestamp to the raw line would violate its declared input contract.",
+    "Both round attestations record the actual live origin/dev rechecks and UTC times in the ledger. This receipt is reproducible provenance, not cryptographic proof of a live network observation or resource authority; neither the raw line nor validator claims that stronger property."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2",
+      "finding_sha256": "744814573056374a4133c16739f2865447f2759ec500a3f83deddfae5f5c0bd9"
+    }
+  ]
+}

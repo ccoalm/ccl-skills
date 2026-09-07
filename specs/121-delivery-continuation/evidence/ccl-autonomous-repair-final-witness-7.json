@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "2ff72ca9e67ab19d4ffa7cdf651f09e84c72632d6416f08d683d46d8eeface31",
+  "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+  "finding_sha256": "ddeea4c3008cd880c214216221e05403f087c01dc7ba80d1463c2d42fc930015",
+  "disposition": "source_refuted",
+  "evidence": [
+    "eval/behavior-fixtures.jsonl F13 now checks an explicit pending-review restriction; F40 checks foreign content, protection changes and destructive shared-data operations. F35-F38 separately check repair and stop limits. These are negative scope cases, not an all-permissive corpus.",
+    "The absence of a dedicated vague-goal fixture is an advisory coverage limit, not evidence that vague completion now authorizes merge. Worktree canonical, root and release docs require an explicit merge/publication goal. No exhaustive ambiguity classification or runtime authorization guarantee is claimed; retaining the old advance-merge prohibition would contradict the intended policy."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+      "finding_sha256": "ddeea4c3008cd880c214216221e05403f087c01dc7ba80d1463c2d42fc930015"
+    }
+  ]
+}

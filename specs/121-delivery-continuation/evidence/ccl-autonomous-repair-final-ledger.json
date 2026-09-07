@@ -1,0 +1,165 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "2ff72ca9e67ab19d4ffa7cdf651f09e84c72632d6416f08d683d46d8eeface31",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "ccl-autonomous-repair-final-r1.json",
+      "sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7"
+    },
+    {
+      "sequence": 2,
+      "file": "ccl-autonomous-repair-final-r2.json",
+      "sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696"
+    }
+  ],
+  "completion_receipt": {
+    "file": "ccl-autonomous-repair-final-complete.json",
+    "sha256": "08ee9491aee753fe10120b4486c1ab992735320a56040f6676daf18d0b1598e9"
+  },
+  "finding_dispositions": {
+    "file": "ccl-autonomous-repair-final-dispositions.json",
+    "sha256": "303529fe83dd394c33ced04dd73ff9f755a5b4dd80f669959d8c2a4e3c31c92c"
+  },
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "c09081b6577e01a6b3acfa9e4862dfe100e8451e",
+      "confirmed_at": "2026-09-07T17:20:37Z",
+      "controller_receipt_sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+      "evidence_file": "ccl-autonomous-repair-final-base.txt",
+      "evidence_sha256": "3445e7e55d4961d4d59db1d5fc0a28a9838d716d6bc8d541091615f8b452a2c0"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "c09081b6577e01a6b3acfa9e4862dfe100e8451e",
+      "confirmed_at": "2026-09-07T17:22:49Z",
+      "controller_receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+      "evidence_file": "ccl-autonomous-repair-final-base.txt",
+      "evidence_sha256": "3445e7e55d4961d4d59db1d5fc0a28a9838d716d6bc8d541091615f8b452a2c0"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "self_reviewed",
+  "finding_classes": [
+    {
+      "key": "release-goal-action-boundary",
+      "root_cause_predicate": "Goal authorization permits release actions outside the requested target or without resource authority.",
+      "affected_surface": "release-coordination entry and release-scope confirmation",
+      "occurrences": [
+        {
+          "receipt_sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+          "finding_sha256": "e6955c69ac4f2b64a0e4cff431e68a8d64c6a52b2458b6aeccbe2a7208fcb92b",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-final-witness-1.json",
+          "disposition_evidence_sha256": "88ebc96c48f55114fb97d66623af371ed672724dc1e860f8d8dba738c2dd8198"
+        },
+        {
+          "receipt_sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+          "finding_sha256": "bb7f7fed5dd86b546b4c7498f98886d489c723b9a71b06ea9cf1c1744787c822",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-final-witness-2.json",
+          "disposition_evidence_sha256": "22f7223a2c73c3583089d3b9d076cbfefd60daedde085f26f86257528b181727"
+        },
+        {
+          "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+          "finding_sha256": "454e140a008caaaf2107c79a693e3d2612c8f14114d35c49d27c929adb78e856",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-final-witness-4.json",
+          "disposition_evidence_sha256": "001b51fb6216aa667a1ade597a8e6622d81ba1a7eabad919662d5e227022aecc"
+        }
+      ],
+      "authoritative_sweep": {
+        "candidate_sha256": "2ff72ca9e67ab19d4ffa7cdf651f09e84c72632d6416f08d683d46d8eeface31",
+        "manifest_file": "ccl-autonomous-repair-final-sweep.json",
+        "manifest_sha256": "4c2f19aae9cb0adbba49c634c9dd2b5dbf0c6bce4ecdc54200748f3418ef0204",
+        "searched_set": [
+          "AGENTS.md",
+          "agent-context/session-start.md",
+          "docs/CONTRIBUTING.md",
+          "docs/npm-release.md",
+          "skills/release-coordination/SKILL.md",
+          "skills/release-coordination/references/mr-merge-authorization.md",
+          "skills/release-coordination/references/release-scope-confirmation.md",
+          "skills/worktree-isolation/SKILL.md",
+          "hooks/guard-merge-authorization.sh",
+          "hooks/merge-authorization-prompt.sh"
+        ],
+        "unmatched_instances": 0
+      }
+    },
+    {
+      "key": "explicit-merge-trigger",
+      "root_cause_predicate": "A vague completion request supplies the required explicit merge or publication goal.",
+      "affected_surface": "worktree-isolation merge protocol and root goal authority",
+      "occurrences": [
+        {
+          "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+          "finding_sha256": "c07066fb4103538cd2b6f3aa3dfb05d7eea1217e63fe6255184339c8ff5333c7",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-final-witness-5.json",
+          "disposition_evidence_sha256": "a46b6c63b8fb01b0dee0e785e26da67d00102adf103c66f5610fb8e988a6165d"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "static-retention-claim",
+      "root_cause_predicate": "Literal retention assertions claim to enforce complete semantic authorization safety.",
+      "affected_surface": "test_ai_coding_implementation_gates.sh and runtime guard tests",
+      "occurrences": [
+        {
+          "receipt_sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+          "finding_sha256": "54b9dd5fa3ea0c72b68bee969594c8863261577322dc2072ce18d3d971756386",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-final-witness-3.json",
+          "disposition_evidence_sha256": "f41d57ed756742beee965566ad3cd013bdb938a07fde163099f4f9f89347e800"
+        },
+        {
+          "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+          "finding_sha256": "2ab035a1cafbcf26c67fe7c2f16676ba6d34e1da41a601e607c0872ddc6d6fd0",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-final-witness-6.json",
+          "disposition_evidence_sha256": "bfc2d2c1ab63ce1f0406f599253d5fb965ce076f7f93ef9f28e60857356ecb0f"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "advisory-fixture-scope",
+      "root_cause_predicate": "Advisory fixtures claim exhaustive ambiguous-goal classification or retain a retired advance-merge ban.",
+      "affected_surface": "eval/behavior-fixtures.jsonl and eval/AGENTS.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+          "finding_sha256": "ddeea4c3008cd880c214216221e05403f087c01dc7ba80d1463c2d42fc930015",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-final-witness-7.json",
+          "disposition_evidence_sha256": "2723df6330124ab160aa3ae3ad49000a548f745d2a8dd3b29a8868cdc47fc1bf"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "goal-head-evidence",
+      "root_cause_predicate": "Goal-scoped merges may omit current source-head display, read-back or race guards.",
+      "affected_surface": "mr-merge-authorization reference and worktree-isolation protocol",
+      "occurrences": [
+        {
+          "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+          "finding_sha256": "5725bcad184b1744b372669826514e44b676acb866f07a85b01ca8ccdcccfa84",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-final-witness-8.json",
+          "disposition_evidence_sha256": "0f984b4b04866cf165dfd9614d32af2d1e086f878553e7e6613cebcab4e1ebdb"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "ready_for_human_decision"
+}

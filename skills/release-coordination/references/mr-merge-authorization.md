@@ -1,17 +1,18 @@
 # MR/PR Merge Authorization Gate
 
-Merge authorization is plan-scoped, never blanket: a single directive
-("合并"/"merge") covers exactly the one MR/PR under discussion; a batch
-directive ("批量合并 N") covers at most N platform merges **within the
-release plan the agent has already presented** (wave order, per-repo MRs or
-how they will be created) — anything outside that plan needs fresh
-authorization. Batch is the right form for dependency-chain releases
-(core package → release → dependents bump → merge → tag) where dependent
-MRs do not exist yet at authorization time; semantics and the mechanical
-valve are canonical in `worktree-isolation` 「合并执行协议」.
+Authorization is scoped to the user's stated goal. "Complete and merge" or
+"publish this release" already covers the necessary in-scope platform merges,
+including PRs created later to deliver that goal. Present the concrete refs,
+scope and sequence as they become known; this is execution evidence, not a
+new permission request. It does not authorize unrelated releases, protection
+changes or destructive data operations. Preparation-only and stop instructions
+prevail. A single "merge" covers the one MR/PR under discussion; an explicit
+"批量合并 N" remains limited to N merges in the presented plan.
+Execution and host-grant limits are canonical in `worktree-isolation`
+「合并执行协议」.
 
 Before asking for or acting on authorization, read back the current MR/PR
-(single form), or present the release plan (batch form):
+(single form), or present the concrete delivery sequence (goal/batch form):
 
 - URL / number.
 - Source and target refs.
@@ -23,8 +24,8 @@ Before asking for or acting on authorization, read back the current MR/PR
 
 Rules:
 
-- If head SHA changed after the last user-facing confirmation, authorization is stale. (Batch form: commits/MRs the agent itself creates while executing the presented plan are inside the authorization; third-party or out-of-plan changes still require re-presenting.)
-- If CI, mergeability, target branch head, or auto-merge state changed materially, re-present the object before merging.
+- For goal/batch authorization, in-scope repairs or newly created PRs require renewed validation and review, not renewed permission. For single-object authorization, a changed head requires confirmation. Third-party or out-of-scope changes require a scope decision.
+- Re-read changed CI, mergeability, target head or auto-merge state and resolve failed gates before merging; ordinary checks finishing do not revoke goal authorization.
 - Do not enable auto-merge, merge queue, or merge-when-pipeline-succeeds unless the user explicitly authorizes that behavior for the current object.
 - Prefer platform/CLI/API options that guard the expected source head SHA. If unavailable, fetch and verify immediately before action, then report the residual race.
 

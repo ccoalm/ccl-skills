@@ -1,0 +1,97 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "444f236403774250a991f2d9bcfc0336c23212513a5f9d06822d6f7ebd9e5e3b",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "ccl-autonomous-repair-base-part-r1.json",
+      "sha256": "65bd6f580c45cced21829f5bb7af1428c5220644dd2148ae21ff1ae327d3a6e4"
+    },
+    {
+      "sequence": 2,
+      "file": "ccl-autonomous-repair-base-part-r2.json",
+      "sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2"
+    }
+  ],
+  "completion_receipt": {
+    "file": "ccl-autonomous-repair-base-part-complete.json",
+    "sha256": "2a044ec2b0541d16bd4015ed0d7e7a1fa4d1c1d601980e0f68d50e6ccf788bcb"
+  },
+  "finding_dispositions": {
+    "file": "ccl-autonomous-repair-base-part-dispositions.json",
+    "sha256": "5957b6e1fd5547db204974f9ce9d464aadebdc0f7f8d0571de38f93633d0d364"
+  },
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "c09081b6577e01a6b3acfa9e4862dfe100e8451e",
+      "confirmed_at": "2026-09-07T17:34:08Z",
+      "controller_receipt_sha256": "65bd6f580c45cced21829f5bb7af1428c5220644dd2148ae21ff1ae327d3a6e4",
+      "evidence_file": "ccl-autonomous-repair-final-base.txt",
+      "evidence_sha256": "3445e7e55d4961d4d59db1d5fc0a28a9838d716d6bc8d541091615f8b452a2c0"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "c09081b6577e01a6b3acfa9e4862dfe100e8451e",
+      "confirmed_at": "2026-09-07T17:35:31Z",
+      "controller_receipt_sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2",
+      "evidence_file": "ccl-autonomous-repair-final-base.txt",
+      "evidence_sha256": "3445e7e55d4961d4d59db1d5fc0a28a9838d716d6bc8d541091615f8b452a2c0"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "self_reviewed",
+  "finding_classes": [
+    {
+      "key": "baseline-text-binding",
+      "root_cause_predicate": "The raw baseline text is excluded from candidate binding as though it were a candidate-bound JSON receipt.",
+      "affected_surface": "review_ledger_binding.py added evidence predicate",
+      "occurrences": [
+        {
+          "receipt_sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2",
+          "finding_sha256": "c76aa01bae6e5950a89f2576831c8984a1ac8d5722b6df3efadffd3f14745bf8",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-base-part-witness-1.json",
+          "disposition_evidence_sha256": "510d42842bf6e03f40e5af064d465ed31c4abcbd67f9c99e18856f5f0f115e94"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "baseline-provenance-fields",
+      "root_cause_predicate": "The raw baseline line is the entire provenance record and no capture time or remote is bound elsewhere.",
+      "affected_surface": "validate_base_attestations and enclosing review ledgers",
+      "occurrences": [
+        {
+          "receipt_sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2",
+          "finding_sha256": "744814573056374a4133c16739f2865447f2759ec500a3f83deddfae5f5c0bd9",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-base-part-witness-2.json",
+          "disposition_evidence_sha256": "4ec5331157bfa79538d18f21a6d5d8ab6e03eb0bb3346a1d4c4aab8d15291807"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "partition-coverage-enforcement",
+      "root_cause_predicate": "The landing gate accepts the source partition while silently omitting the baseline partition.",
+      "affected_surface": "landing partition manifest and candidate coverage verifier",
+      "occurrences": [
+        {
+          "receipt_sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2",
+          "finding_sha256": "aeaca49d8dfe5eb6e73c50207886524763cb5c0b16ffeea53c7bceda201348de",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-base-part-witness-3.json",
+          "disposition_evidence_sha256": "8f34ac8fe1c2403309ef25801350b8eec914e56241a39b37678f1301f49af7db"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "ready_for_human_decision"
+}

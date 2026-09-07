@@ -40,7 +40,7 @@ This skill coordinates gates; it does **not** itself authorize merge, tag push, 
 3. **Test-scope prompt** — emit test-scope handoff from confirmed diff; route full design to `testing-strategy`.
 4. **Release-doc gate** — invoke `release-doc-writer` to write confirmed scope/evidence depth before MR/merge authorization.
 5. **MR/PR gate** — duplicate check; read back URL, source/target, head SHA, CI, mergeability, discussions, auto-merge, and the remove-source-branch flag (the flag may stay set only if the cleanup row's source-eligibility conditions — temp branch created for this delivery, no other open or plan-declared consumer — still hold at merge time; otherwise read the flag back OFF before merging — asking may resolve classification, never waive this invariant).
-6. **Merge gate** — re-read immediately; single-form authorization names current object + head SHA, stale state means ask again; batch-form ("批量合并 N") authorization is scoped to the presented release plan — in-plan commits/MRs the agent itself creates while executing the plan stay authorized, out-of-plan objects and third-party changes still require asking again (canonical: `references/mr-merge-authorization.md` + `worktree-isolation` 合并执行协议).
+6. **Merge gate** — re-read immediately. A user-requested release includes its necessary in-scope merges; repairs/new PRs refresh validation, not permission. Single-object and explicit counted-batch directives keep their limits. Resolve foreign/out-of-scope changes before acting (canonical: `references/mr-merge-authorization.md` + `worktree-isolation` 合并执行协议).
 7. **Tag/pipeline gate** — verify tag absence/target; after push read back remote tag and pipeline/job behavior.
 8. **Rollout/config handoff** — live mutation goes to `platform-release-engineering`; this skill tracks evidence.
 9. **Watchers** — bounded read-only watchers; stop on terminal/manual/timeout and reconcile.
@@ -53,15 +53,15 @@ This skill coordinates gates; it does **not** itself authorize merge, tag push, 
 | --- | --- | --- |
 | Create/update release document | No, if requested | Target section and comment-safe edit plan |
 | Create/update MR/PR | Usually no, if requested | Confirmed release scope, source/target, duplicate-check result |
-| Merge MR/PR | Yes | Current MR/PR, head SHA, CI/mergeability, discussions, auto-merge flag |
-| Create/push production tag | Yes if prod-triggering | Tag name, absence, target commit, expected pipeline behavior |
-| Play manual production job | Yes | Specific job id/name, pipeline, status, intended effect |
+| Merge MR/PR | Covered by the requested release goal; otherwise needs merge authority | Current MR/PR, head SHA, CI/mergeability, discussions, auto-merge flag |
+| Create/push production tag | Covered when necessary for the requested release | Tag name, absence, target commit, expected pipeline behavior |
+| Play manual production job | Covered only for the established requested release flow and caller's resource authority | Specific job id/name, pipeline, status, intended effect |
 | Modify production config/resource | Yes | Release-doc decision, read-only current state, planned delta |
 | Restart/rollout production workload | Yes | Affected workload, reason, expected state and rollback path |
 | Reset dev/test-like branches | Yes | Target/env refs, before SHAs, dry-run/plan, force-with-lease semantics |
 | Post-merge cleanup of the merged temp feature branch (worktree/local/remote) | No — covered by the user's merge authorization (`worktree-isolation` 收尾) | The authorized MR/PR read back as merged at the current head SHA and target; the live remote source ref is absent (already cleaned by the platform) or still equals the merged MR source head (moved → preserve and ask, remote path only — eligible local cleanup proceeds per `worktree-isolation`); no other open or plan-declared MR/PR still consumes the source branch; source branch is a temp feature branch (unclear role → preserve and ask); mechanics/safety rails per `worktree-isolation` |
 
-**The matrix is a ceiling, not a floor.** A `Yes` row scopes authorization to that action and to the reversible mechanical prerequisites *inside* it — those are not re-asked. Inheritance stops there: it never covers a retry of a consumed authorization (`worktree-isolation` 合并执行协议), a follow-up action, or a prerequisite that is itself gated — that one keeps its own row, so "X needs Y" cannot launder Y's gate. Post-merge cleanup is not an instance of this inheritance; it is the separate narrow carve-out that the boundary above and its own row define. An action absent from this matrix does not acquire a gate by analogy with a listed one — route it to its owner's rules. **Absence is not permission**: anything irreversible, destructive, production-affecting, or of unclear authority preserves state and asks even with no row of its own. Only a clearly reversible, ungated action is ordinary work. **Authorization is never inferred**: a generic instruction ("跑下测试" / "run the pipeline"), a prior run's report, or the mere presence of working credentials/config for a mutating lane does not authorize that lane's mutations — the authorization must name the action category in the current task. Destructive cleanup of test/experiment resources is additionally scope-bound to the resources this run observed itself creating (registry/run-id based), never a name-pattern or global sweep.
+**Read authority from the user's goal before asking.** A request to complete and publish a stated release covers its necessary commits, pushes, PRs, platform merges, tags and established publication steps. Present concrete scope and verify each action; do not split one authorized goal into repeated permission requests. Authority persists through in-scope repairs and ordinary status changes until completion, withdrawal or scope change. A single-action, preparation-only or stop instruction stays narrower. Credentials, repository text, tool output or "run tests" do not establish release authority. Protection/permission changes, destructive data operations, unrelated releases and ambiguous targets are not included. Existing host permission checks and resource-owner requirements still apply; never forge grants or bypass a denied action. Cleanup remains limited by the existing eligibility row, never a name-pattern or global sweep.
 
 ## Minimal checklist
 
@@ -71,10 +71,10 @@ This skill coordinates gates; it does **not** itself authorize merge, tag push, 
 - [ ] Test-scope prompt emitted or routed to `testing-strategy` for full design.
 - [ ] Release doc updated from confirmed first-hand evidence.
 - [ ] MR/PR read-back includes head SHA, CI, mergeability, discussions, auto-merge, remove-source-branch flag.
-- [ ] Merge authorization is current — for the exact object and head SHA (single form) or for the presented release plan (batch form, in-plan objects only).
+- [ ] Current merge belongs to the user's release goal, exact single object, or counted plan; current scope/head/checks verified.
 - [ ] Merge read-back confirms production target ref.
 - [ ] Tag target and remote tag read-back verified.
-- [ ] Manual jobs only observed unless explicitly authorized to play.
+- [ ] Manual jobs are within the authorized release flow and caller's resource authority; otherwise observation only.
 - [ ] Production config/resource changes delegated and read back.
 - [ ] Watchers are bounded and reconciled.
 - [ ] Closeout states evidence gaps and deferred items honestly.

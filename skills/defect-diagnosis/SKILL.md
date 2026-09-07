@@ -11,7 +11,7 @@ Diagnose and fix from evidence; route prevention to product, architecture, devel
 
 ## Non-Negotiable Rules
 
-- Do not skip the problem because another path appears to work.
+- Required failures, including inherited debt: diagnose, safely repair and rerun that check before handoff. Read [repair-before-handoff](../product-rd-workflow/references/refactoring-discipline.md#responding-to-quality-gates). Working alternatives never close defects.
 - Do not delete, comment out, or weaken a failing test just to make the suite pass.
 - Do not call a workaround the fix unless the owner explicitly accepts the tradeoff and residual risk is recorded.
 - Do not start broad refactoring while the cause is unknown. Isolate and fix first; refactor after the behavior is understood.

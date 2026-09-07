@@ -93,7 +93,7 @@ git config core.hooksPath .githooks
 
 GitHub Actions reruns the repository and package checks. Branch protection and required reviews remain repository-administration settings; the workflow file alone cannot enforce them.
 
-Release maintainers must follow the [npm release runbook](npm-release.md). An explicit user request to release, or an explicitly release-scoped item in a user-approved plan, includes preparing the patch version and synchronizing the package and lockfile in the required isolated worktree; no separate confirmation is needed. A general mention of a future release does not authorize a version bump. Tag creation, registry mutation and publication retain their own authorization.
+Release maintainers must follow the [npm release runbook](npm-release.md). An explicit request to publish this release, or a release-scoped item in a user-approved delivery plan, covers patch preparation and the necessary commit, push, PR, merge, tag and established publication workflow. Complete verification without requesting each permission again. A general mention of a future release does not authorize publication or a version bump; preparation-only, stop and scope constraints prevail. Permission/protection changes and destructive registry operations remain separately scoped.
 
 ## Submit a focused change
 
