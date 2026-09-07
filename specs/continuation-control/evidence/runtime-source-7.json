@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b4954bb5f8835bfd585a32f53a245852633cfa3bbe726de54650c6f8e8bd09a0",
+  "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+  "finding_sha256": "60e9c88486597b4049948aed6c36942654070d09b76696f20273c89bdbcdd540",
+  "disposition": "source_refuted",
+  "evidence": [
+    "codex_review.sh:134 already executes codex exec --disable hooks --help and requires success and nonempty output, proving generic --disable flag support on the exec subcommand itself. Lines138-150 separately verify governed hooks and shell_tool keys are effectively false, because help parsing alone cannot verify a feature. Actual read-only codex exec --disable hooks --disable shell_tool --help exited0 in this check. The finding's claim that only the features subcommand tests the exec flag is false; absence of the literal phrase --disable shell_tool in generic help does not imply lack of feature support."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+      "finding_sha256": "60e9c88486597b4049948aed6c36942654070d09b76696f20273c89bdbcdd540"
+    }
+  ]
+}

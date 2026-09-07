@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b4954bb5f8835bfd585a32f53a245852633cfa3bbe726de54650c6f8e8bd09a0",
+  "review_result_sha256": [
+    "a8dc924cb44079d05bfc8ec8e940e4d9954bc35c023b486aa081671f1562ca45",
+    "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914"
+  ],
+  "dispositions": [
+    {
+      "receipt_sha256": "a8dc924cb44079d05bfc8ec8e940e4d9954bc35c023b486aa081671f1562ca45",
+      "finding_sha256": "38495e6c661d8c9b0753c74e1d90817e566226b200b0615437d5e29e4a2fc919",
+      "disposition": "source_refuted",
+      "evidence": [
+        "review_gate.py:3785 explicitly states trusted local provenance/binding rather than truth validation. staged-review-contract.md:373-395 permits source-refutation for disproven findings while forbidding unresolved findings and risk acceptance. Each occurrence hashes the immutable raw finding, retaining its severity; validate_extraction_review_state.py:548-570 and615-675 consumes the raw receipts, aggregate and witnesses. Adding duplicate severity would not authenticate whether a finding is genuinely unresolved. The proposed mandatory authority for a disproven finding is a different trust model; no bypass of this declared trusted-local contract is demonstrated."
+      ]
+    },
+    {
+      "receipt_sha256": "a8dc924cb44079d05bfc8ec8e940e4d9954bc35c023b486aa081671f1562ca45",
+      "finding_sha256": "0ea2ba80ff6c2aae48f54290ed7f864a50919afa02b78e9be33fe9511a2c2e5c",
+      "disposition": "source_refuted",
+      "evidence": [
+        "staged-review-contract.md:337-339 explicitly states the controller is stateless, prevents cooperative/accidental resets only, and requires a trusted host ledger when hostile callers are in scope. dual-track-review-gate.md:527-529 expressly says local validation cannot detect omitted chains and cumulative retention is a caller obligation. This already states the limitation requested by the finding. The changed product contract intentionally inherits original task authority after a method checkpoint; it does not claim a fixed aggregate task cap or authenticated local history."
+      ]
+    },
+    {
+      "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+      "finding_sha256": "228bf2d7c2b0fdb126a43e70102510e1fca9fb27c788eafe7e160de829103106",
+      "disposition": "source_refuted",
+      "evidence": [
+        "The proposed predecessor link cannot detect a caller omitting the old history: the existing predecessor mechanism also accepts caller-owned unauthenticated files. staged-review-contract.md:337-339 and dual-track-review-gate.md:527-529 explicitly retain that trusted-local limitation. Default task authorization with method checkpoints and complete cumulative history is the intended changed behavior; explicit user cost/count/stop limits still govern. There is no claim that a stateless controller can authenticate total prior task spending, and a new fixed task cap would reverse the accepted contract."
+      ]
+    },
+    {
+      "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+      "finding_sha256": "a95e8cba4a7b01535afd24138a800baac3c259459eeb8e9c1cfae2815d76962d",
+      "disposition": "source_refuted",
+      "evidence": [
+        "The source-refutation branch is intentionally accountable local evidence judgment, not independent agreement or a risk waiver. staged-review-contract.md:373-395 excludes unresolved findings and risk acceptance, preserves raw findings, and explicitly says the validator proves binding and coverage rather than evidence truth. validate_extraction_review_state.py:548-570 and615-675 requires complete original occurrence coverage and witnesses. Packet line-offset existence also cannot prove a prose inference true. The finding assumes an adversarial trusted implementer and demands a different authority model; it demonstrates no inconsistent acceptance inside the documented model."
+      ]
+    },
+    {
+      "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+      "finding_sha256": "c713fb92faeaccc4c2b1ba8236f1f6fb7ca882fad393286aad626ac895701818",
+      "disposition": "source_refuted",
+      "evidence": [
+        "development-completion.md:3 already says to use the actual diff and that implementation diffs trigger review regardless of the task label. Its final reporting paragraph requires the change-inspection command and result including untracked implementation files. Step4 requires the original explicit user instruction and current scope, excludes superseded/unrelated instructions, and records skipped rather than passed. These are precisely the requested behavioral constraints. They are skill instructions, not claimed mechanical enforcement against an agent that omits all execution evidence."
+      ]
+    },
+    {
+      "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+      "finding_sha256": "2dba973057ab0c19f9c3638e64c98e8bc3d195fe74131a5105c39cc43a4f9013",
+      "disposition": "source_refuted",
+      "evidence": [
+        "kimi_packet_mcp.py:87-108 and141-154 distinguish malformed/out-of-schema argument shape, type and bounds from valid-schema requests whose offset exceeds the current packet. parse_cli_review.py:694-706 intentionally enforces the former tool contract; subsequent result/lifecycle validation accepts verified recoverable in-contract errors. development-completion.md:27 states argument and frozen-byte checks, not support for every malformed call. A retry policy for schema violations is an optional expansion, not a demonstrated rejection of an allowed request. Unknown tool names, wrong bytes and unverifiable lifecycle remain separately forbidden."
+      ]
+    },
+    {
+      "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+      "finding_sha256": "60e9c88486597b4049948aed6c36942654070d09b76696f20273c89bdbcdd540",
+      "disposition": "source_refuted",
+      "evidence": [
+        "codex_review.sh:134 already executes codex exec --disable hooks --help and requires success and nonempty output, proving generic --disable flag support on the exec subcommand itself. Lines138-150 separately verify governed hooks and shell_tool keys are effectively false, because help parsing alone cannot verify a feature. Actual read-only codex exec --disable hooks --disable shell_tool --help exited0 in this check. The finding's claim that only the features subcommand tests the exec flag is false; absence of the literal phrase --disable shell_tool in generic help does not imply lack of feature support."
+      ]
+    }
+  ]
+}

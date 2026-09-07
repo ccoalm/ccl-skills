@@ -1,0 +1,141 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "b4954bb5f8835bfd585a32f53a245852633cfa3bbe726de54650c6f8e8bd09a0",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "runtime-round1-review.json",
+      "sha256": "a8dc924cb44079d05bfc8ec8e940e4d9954bc35c023b486aa081671f1562ca45"
+    },
+    {
+      "sequence": 2,
+      "file": "runtime-round2-challenge.json",
+      "sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914"
+    }
+  ],
+  "completion_receipt": {
+    "file": "runtime-complete.json",
+    "sha256": "a09cc99aaf815eff03300bc577579765b219ceeb4586282ba323b607fe923081"
+  },
+  "finding_dispositions": {
+    "file": "runtime-finding-dispositions.json",
+    "sha256": "42e8d1e045755744ff428ab127c222bec7152a61c9f071df85247e7ddffd2692"
+  },
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "69bcc3e31556f40e9e10fc4b69837cfc56f6fffe",
+      "confirmed_at": "2026-09-07T08:12:38.446217Z",
+      "controller_receipt_sha256": "a8dc924cb44079d05bfc8ec8e940e4d9954bc35c023b486aa081671f1562ca45",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "a20b2f806c796e649c7e8d82522fea3b8a950492ffd29318a3b9baa84c903c99"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "69bcc3e31556f40e9e10fc4b69837cfc56f6fffe",
+      "confirmed_at": "2026-09-07T08:12:53.929347Z",
+      "controller_receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "a20b2f806c796e649c7e8d82522fea3b8a950492ffd29318a3b9baa84c903c99"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "self_reviewed",
+  "finding_classes": [
+    {
+      "key": "local-source-refutation",
+      "root_cause_predicate": "A trusted local disposition falsely claims authenticated external approval or waives an actually unresolved finding.",
+      "affected_surface": "review_gate.py and validate_extraction_review_state.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "a8dc924cb44079d05bfc8ec8e940e4d9954bc35c023b486aa081671f1562ca45",
+          "finding_sha256": "38495e6c661d8c9b0753c74e1d90817e566226b200b0615437d5e29e4a2fc919",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "runtime-source-1.json",
+          "disposition_evidence_sha256": "9587ca3ea40b4d0a210daceee199af5c6d3496b6389a6469641919d6231a57f1"
+        },
+        {
+          "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+          "finding_sha256": "a95e8cba4a7b01535afd24138a800baac3c259459eeb8e9c1cfae2815d76962d",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "runtime-source-4.json",
+          "disposition_evidence_sha256": "fe9d6d1ae590953002063aabcfd6f0d83b36cd99aff290774ea68db677bc4ad8"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "inherited-review-authority",
+      "root_cause_predicate": "The contract claims a controller-enforced cumulative task cap or hides the trusted-local history limitation.",
+      "affected_surface": "staged-review-contract.md and dual-track-review-gate.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "a8dc924cb44079d05bfc8ec8e940e4d9954bc35c023b486aa081671f1562ca45",
+          "finding_sha256": "0ea2ba80ff6c2aae48f54290ed7f864a50919afa02b78e9be33fe9511a2c2e5c",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "runtime-source-2.json",
+          "disposition_evidence_sha256": "6478661aef6a6f4b2c31e5a061c1197a7a762b2e2c1537d0a9a8b99418a8de66"
+        },
+        {
+          "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+          "finding_sha256": "228bf2d7c2b0fdb126a43e70102510e1fca9fb27c788eafe7e160de829103106",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "runtime-source-3.json",
+          "disposition_evidence_sha256": "1d1f38215cfd3954fd95e63cbe6353c4ffb787d1c6f6c8735385b5136ded9a0c"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "actual-diff-review-trigger",
+      "root_cause_predicate": "Narrative task labels or unsupported user-skip claims override the actual implementation diff under the review instruction.",
+      "affected_surface": "development-completion.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+          "finding_sha256": "c713fb92faeaccc4c2b1ba8236f1f6fb7ca882fad393286aad626ac895701818",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "runtime-source-5.json",
+          "disposition_evidence_sha256": "245c4e0d194199e7ac9f9b7894dc2cf6c065a7fd3506e43fae0e67f1cd675ce0"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "packet-argument-contract",
+      "root_cause_predicate": "The parser rejects a packet-tool request that satisfies its declared argument contract and verified lifecycle.",
+      "affected_surface": "parse_cli_review.py and kimi_packet_mcp.py",
+      "occurrences": [
+        {
+          "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+          "finding_sha256": "2dba973057ab0c19f9c3638e64c98e8bc3d195fe74131a5105c39cc43a4f9013",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "runtime-source-6.json",
+          "disposition_evidence_sha256": "257067fd4a41882325df4ea27949904dae27c0124b80cfed57986d2bda1253e1"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "exec-disable-capability",
+      "root_cause_predicate": "Only the features subcommand proves flag parsing while exec --disable support remains entirely unprobed.",
+      "affected_surface": "codex_review.sh",
+      "occurrences": [
+        {
+          "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+          "finding_sha256": "60e9c88486597b4049948aed6c36942654070d09b76696f20273c89bdbcdd540",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "runtime-source-7.json",
+          "disposition_evidence_sha256": "da56a3a660d4b55bfb5c0be240a8675e184b3ce299bc6507f5db193cd8f9ba10"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "ready_for_human_decision"
+}

@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "kind": "landing_partition_manifest",
+  "base": "69bcc3e31556f40e9e10fc4b69837cfc56f6fffe",
+  "partitions": [
+    {
+      "paths": [
+        "skills/code-review",
+        "eval/body-compliance-eval.rb"
+      ],
+      "candidate_sha256": "b4954bb5f8835bfd585a32f53a245852633cfa3bbe726de54650c6f8e8bd09a0"
+    },
+    {
+      "paths": [
+        "agent-context/session-start.md",
+        "docs/CONTRIBUTING.md",
+        "docs/npm-release.md",
+        "packages/ccl-skills-npm/README.md",
+        "packages/ccl-skills-npm/package-lock.json",
+        "packages/ccl-skills-npm/package.json",
+        "packages/ccl-skills-npm/scripts/host-smoke.sh",
+        "packages/ccl-skills-npm/src/codex-host.ts",
+        "packages/ccl-skills-npm/src/host-probe.ts",
+        "packages/ccl-skills-npm/src/operations.ts",
+        "packages/ccl-skills-npm/src/unified.ts",
+        "packages/ccl-skills-npm/test/basic.test.mjs",
+        "packages/ccl-skills-npm/test/codex-host.test.mjs",
+        "packages/ccl-skills-npm/test/host-probe-timeout.test.mjs",
+        "packages/ccl-skills-npm/test/interruption.test.mjs",
+        "packages/ccl-skills-npm/test/operations.test.mjs",
+        "packages/ccl-skills-npm/test/quarantine-faults.test.mjs",
+        "skills/app-cross-platform-dev/SKILL.md",
+        "skills/defect-diagnosis/SKILL.md",
+        "skills/go-microservice-dev/SKILL.md",
+        "skills/llm-inference-integration/SKILL.md",
+        "skills/miniapp-product-dev/SKILL.md",
+        "skills/multi-agent-delegation/SKILL.md",
+        "skills/nodejs-service-dev/SKILL.md",
+        "skills/platform-observability/SKILL.md",
+        "skills/platform-release-engineering/SKILL.md",
+        "skills/platform-service-connectivity/SKILL.md",
+        "skills/product-rd-workflow/SKILL.md",
+        "skills/product-rd-workflow/references/design-review-gate-mechanics.md",
+        "skills/product-rd-workflow/references/pre-final-continuation-gate.md",
+        "skills/product-rd-workflow/references/refactoring-discipline.md",
+        "skills/python-service-dev/SKILL.md",
+        "skills/skill-extraction-workflow/SKILL.md",
+        "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+        "skills/skill-extraction-workflow/references/harness-patterns-and-eval.md",
+        "skills/skill-extraction-workflow/references/resume-paused-delivery.md",
+        "skills/skill-extraction-workflow/scripts/test_ai_coding_implementation_gates.sh",
+        "skills/skill-extraction-workflow/scripts/test_body_compliance_grading.sh",
+        "skills/skill-extraction-workflow/scripts/test_controlled_escalation_pins.sh",
+        "skills/skill-extraction-workflow/scripts/test_validate_extraction_review_state.sh",
+        "skills/skill-extraction-workflow/scripts/validate_extraction_review_state.py",
+        "skills/terminal-cli-dev/SKILL.md",
+        "skills/testing-strategy/SKILL.md",
+        "skills/web-react-dev/SKILL.md",
+        "specs/continuation-control/evidence/base.txt"
+      ],
+      "candidate_sha256": "12711e50ac65625050da4d0ef45f11a0dbd96b96d0c4dc4a10408a2dc5250732"
+    }
+  ],
+  "candidate_sha256": "9f6b0edcc8ec01f77b0cbcdfa0ddb5b9d9178b3e991a9d98fdb083f2ed5355dd"
+}

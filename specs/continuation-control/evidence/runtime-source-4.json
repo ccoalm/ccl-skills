@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b4954bb5f8835bfd585a32f53a245852633cfa3bbe726de54650c6f8e8bd09a0",
+  "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+  "finding_sha256": "a95e8cba4a7b01535afd24138a800baac3c259459eeb8e9c1cfae2815d76962d",
+  "disposition": "source_refuted",
+  "evidence": [
+    "The source-refutation branch is intentionally accountable local evidence judgment, not independent agreement or a risk waiver. staged-review-contract.md:373-395 excludes unresolved findings and risk acceptance, preserves raw findings, and explicitly says the validator proves binding and coverage rather than evidence truth. validate_extraction_review_state.py:548-570 and615-675 requires complete original occurrence coverage and witnesses. Packet line-offset existence also cannot prove a prose inference true. The finding assumes an adversarial trusted implementer and demands a different authority model; it demonstrates no inconsistent acceptance inside the documented model."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+      "finding_sha256": "a95e8cba4a7b01535afd24138a800baac3c259459eeb8e9c1cfae2815d76962d"
+    }
+  ]
+}
