@@ -5,6 +5,8 @@ description: 服务互通 / service mesh / service discovery / mTLS / retry / ti
 
 # Platform Service Connectivity
 
+After code/test edits, self-check and invoke `code-review` automatically before completion.
+
 This skill owns **how requests move between services**: the transport layer (mesh), service discovery, multi-environment routing, retry/timeout/circuit-breaker policy, and the framework middleware that propagates app-level context across hops.
 
 You do not own:

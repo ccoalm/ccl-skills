@@ -5,7 +5,7 @@ description: "小程序 / Taro / 微信小程序 / 支付宝小程序 / 抖音�
 
 # Miniapp Product Dev
 
-Use this skill for mini-program client engineering and platform delivery. It covers product-facing miniapp work across WeChat, Alipay, Douyin/TikTok, Baidu, and similar host platforms. It does not own general product strategy, backend service architecture, or visual design rules.
+Mini-program client engineering and product-facing delivery across WeChat, Alipay, Douyin/TikTok, Baidu and similar hosts; excludes product strategy, backend architecture and visual design. After code/test edits, self-check and invoke `code-review` automatically before completion.
 
 ## Framework Scope
 

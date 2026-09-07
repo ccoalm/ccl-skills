@@ -247,7 +247,7 @@ def load(path: Path) -> tuple[dict[str, Any], Path]:
             "finding_classes",
             "unreviewed_delta",
             "closeout_state",
-        },
+        } | ({"finding_dispositions"} if "finding_dispositions" in value else set()),
         "ledger",
     )
     return payload, path.absolute().parent
@@ -451,7 +451,9 @@ def validate_controller_receipts(
                 finding, f"controller receipt {expected_index}.findings[{finding_index}]"
             )
             if finding_hash in current_finding_set:
-                fail(f"controller receipt {expected_index} repeats a canonical finding")
+                # Raw receipts stay intact; repeated canonical payloads share
+                # this receipt's existing finding identity and first-seen order.
+                continue
             current_finding_set.add(finding_hash)
             current_findings.append(finding_hash)
         if receipt["status"] == "passed" and findings:
@@ -544,8 +546,26 @@ def validate_completion_receipt(
         or receipt.get("findings") != []
     ):
         fail("completion receipt must be a passed self_reviewed complete result")
-    if final.get("status") != "passed" or final.get("findings") != []:
-        fail("completion receipt cannot close a final external receipt with findings")
+    basis = receipt.get("completion_basis", "external_pass")
+    if basis == "external_pass":
+        if final.get("status") != "passed" or final.get("findings") != []:
+            fail("completion receipt cannot close a final external receipt with findings")
+        if receipt.get("finding_dispositions_sha256") is not None or receipt.get(
+            "resolved_finding_occurrences", []
+        ) != []:
+            fail("external_pass completion cannot carry finding dispositions")
+    elif basis == "source_refuted_findings":
+        if (
+            len(receipts) < 2
+            or receipts[0].get("mode") != "review"
+            or final.get("mode") != "challenge"
+            or final.get("status") not in {"passed", "findings"}
+            or any(item.get("predecessor_chain_id") is not None for item in receipts)
+            or any(item.get("candidate_sha256") != final.get("candidate_sha256") for item in receipts)
+        ):
+            fail("source_refuted completion requires a same-candidate review and challenge without succession")
+    else:
+        fail("completion receipt has an unknown completion_basis")
     if receipt.get("review_chain_tracked") is not True or receipt.get("review_chain_id") != chain_id:
         fail("completion receipt review_chain_id does not match the controller chain")
     if receipt.get("challenge_budget") != WRAPPER_CHALLENGE_BUDGET or type(receipt.get("challenge_budget")) is not int:
@@ -582,6 +602,85 @@ def validate_completion_receipt(
     if validate_scope(receipt, "completion receipt") != scope_hash:
         fail("completion receipt review scope changed")
     return receipt
+
+
+def validate_completion_dispositions(
+    payload: dict[str, Any],
+    ledger_dir: Path,
+    completion: dict[str, Any] | None,
+    receipt_hashes: list[str],
+    receipt_findings: dict[str, list[str]],
+    candidate: str,
+) -> None:
+    if completion is None or completion.get("completion_basis") != "source_refuted_findings":
+        if "finding_dispositions" in payload:
+            fail("finding_dispositions requires a source_refuted_findings completion")
+        return
+    ref = exact_object(payload.get("finding_dispositions"), {"file", "sha256"}, "finding_dispositions")
+    raw = load_sibling(
+        ledger_dir,
+        file_value=ref["file"],
+        digest_value=ref["sha256"],
+        label="finding dispositions",
+        maximum=MAX_EVIDENCE_BYTES,
+    )
+    if completion.get("finding_dispositions_sha256") != ref["sha256"]:
+        fail("completion disposition digest does not match the bound finding_dispositions file")
+    document = exact_object(
+        decode_json(raw, label="finding dispositions"),
+        {"schema_version", "candidate_sha256", "review_result_sha256", "dispositions"},
+        "finding dispositions",
+    )
+    if type(document["schema_version"]) is not int or document["schema_version"] != 1:
+        fail("finding dispositions schema_version must be 1")
+    if sha256(document["candidate_sha256"], "finding dispositions.candidate_sha256") != candidate:
+        fail("finding dispositions are stale for the current candidate")
+    if document["review_result_sha256"] != receipt_hashes:
+        fail("finding dispositions must bind the full ordered controller receipts")
+    expected = [
+        {"receipt_sha256": receipt_hash, "finding_sha256": finding_hash}
+        for receipt_hash in receipt_hashes
+        for finding_hash in receipt_findings[receipt_hash]
+    ]
+    if not expected:
+        fail("source_refuted completion requires at least one controller finding")
+    if completion.get("resolved_finding_occurrences") != expected:
+        fail("completion resolved_finding_occurrences must match the ordered controller findings")
+    dispositions = document["dispositions"]
+    if not isinstance(dispositions, list) or len(dispositions) != len(expected):
+        fail("finding dispositions must cover the full ordered controller findings")
+    class_occurrences = {
+        (item["receipt_sha256"], item["finding_sha256"]): item
+        for row in payload["finding_classes"]
+        for item in row["occurrences"]
+    }
+    for index, (value, expected_pair) in enumerate(zip(dispositions, expected)):
+        label = f"finding dispositions.dispositions[{index}]"
+        row = exact_object(value, {"receipt_sha256", "finding_sha256", "disposition", "evidence"}, label)
+        if any(row[key] != value for key, value in expected_pair.items()):
+            fail("finding dispositions must cover the full ordered controller findings")
+        occurrence = class_occurrences[(row["receipt_sha256"], row["finding_sha256"])]
+        if row["disposition"] != "source_refuted" or occurrence["disposition"] != "source_refuted":
+            fail("adjudicated completion permits only source_refuted finding occurrences")
+        evidence = row["evidence"]
+        if not isinstance(evidence, list) or not evidence:
+            fail(f"{label} requires a non-empty evidence array")
+        for evidence_index, item in enumerate(evidence):
+            bounded_text(item, f"{label}.evidence[{evidence_index}]", 1000)
+        if len(evidence) != len(set(evidence)):
+            fail(f"{label}.evidence contains duplicates")
+        # Class validation already binds this witness to the candidate, raw
+        # finding, and disposition. Require the complete checkpoint to use the
+        # same evidence; neither record authenticates its semantic truth.
+        witness = decode_json(load_sibling(
+            ledger_dir,
+            file_value=occurrence["disposition_evidence_file"],
+            digest_value=occurrence["disposition_evidence_sha256"],
+            label=f"{label} class disposition evidence",
+            maximum=MAX_EVIDENCE_BYTES,
+        ), label=f"{label} class disposition evidence")
+        if evidence != witness["evidence"]:
+            fail(f"{label} does not match its class disposition evidence")
 
 
 def validate_base_attestations(
@@ -990,6 +1089,9 @@ def validate(payload: dict[str, Any], ledger_dir: Path) -> tuple[str, int, int]:
     )
     any_unresolved = validate_finding_classes(
         payload, ledger_dir, receipt_findings, candidate, closeout
+    )
+    validate_completion_dispositions(
+        payload, ledger_dir, completion, receipt_hashes, receipt_findings, candidate
     )
 
     delta = payload["unreviewed_delta"]

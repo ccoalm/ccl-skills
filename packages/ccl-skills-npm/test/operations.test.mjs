@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
 	existsSync,
 	readFileSync,
@@ -48,9 +49,15 @@ test("same version install is idempotent pending", () => {
 		/marketplace add|plugin add/,
 	);
 });
-test("missing and old hosts exit 4", () => {
+test("old Codex with working plugin commands can install", () => {
 	const old = fixture({ version: "0.132.9" });
-	assert.equal(cli(old, ["doctor"]).status, 4);
+	const result = cli(old, ["install", "--json"]);
+	assert.equal(result.status, 3, result.stdout || result.stderr);
+	assert.equal(JSON.parse(result.stdout).status, "installed-hooks-pending");
+	assert.ok(existsSync(join(old.codexHome, "ccl-skills-npm/install-manifest.json")));
+	assert.doesNotMatch(readFileSync(old.log, "utf8"), /--version/);
+});
+test("missing hosts exit 4", () => {
 	const f = fixture();
 	f.env.PATH = "/usr/bin:/bin";
 	assert.equal(cli(f, ["doctor"]).status, 4);
@@ -79,6 +86,31 @@ test("doctor reports partial journal", () => {
 		"partial-journal",
 	);
 });
+for (const selection of ["explicit", "default"])
+for (const command of ["doctor", "install", "update"])
+for (const state of ["unknown", "failed"])
+	test(`${selection} ${command} preserves journal finality when host state is ${state}`, () => {
+		const f = fixture();
+		f.env.PATH = `${join(f.root, "bin")}:/usr/bin:/bin`;
+		assert.equal(cli(f, ["install", "--json"]).status, 3);
+		const journal = join(f.codexHome, "ccl-skills-npm/operation-journal.json");
+		mkdirSync(join(f.codexHome, "ccl-skills-npm"), { recursive: true });
+		const journalBefore = JSON.stringify({ schema: 1, operation: "install", step: "committed", startedAt: "2026-01-01T00:00:00.000Z" });
+		writeFileSync(journal, journalBefore);
+		const fake = join(f.root, "bin", "codex"), original = readFileSync(fake, "utf8");
+		const broken = state === "unknown"
+			? original.replace('echo "MARKETPLACE         ROOT";', 'echo "MARKETPLACE ROOT"; echo "ccl-skills-npm relative/root";')
+			: original.replace('if [ "$1 $2 $3" = "plugin marketplace list" ]; then', 'if [ "$1 $2 $3" = "plugin marketplace list" ]; then exit 9;');
+		writeFileSync(fake, broken, { mode: 0o755 });
+		const beforeCalls = existsSync(f.log) ? readFileSync(f.log, "utf8") : "";
+		const result = selection === "explicit" ? cli(f, [command, "--json"])
+			: spawnSync(process.execPath, ["dist/cli.js", command, "--json"], { encoding: "utf8", env: f.env });
+		assert.equal(result.status, 5, result.stdout || result.stderr);
+		assert.equal(JSON.parse(result.stdout).status, "partial-journal");
+		assert.equal(JSON.parse(result.stdout).details.hostFailure.kind, state === "unknown" ? "state-unknown" : "probe-failed");
+		assert.equal(readFileSync(journal, "utf8"), journalBefore);
+		assert.doesNotMatch(readFileSync(f.log, "utf8").slice(beforeCalls.length), /marketplace (add|remove)|plugin (add|remove)/);
+	});
 test("update absent and downgrade flag usage fail closed", () => {
 	const f = fixture();
 	assert.equal(cli(f, ["update", "--yes"]).status, 3);

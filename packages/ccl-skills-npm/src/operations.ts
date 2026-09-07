@@ -300,14 +300,25 @@ function cleanupCandidate(
 	removeEmptyTree(path, files);
 	return [];
 }
-function resumeJournal(context: PathContext): Result | null {
+function resumeJournal(context: PathContext, host: ReturnType<typeof checkHost>): Result | null {
 	const p = paths(context),
 		j = journal(p.journal, p.root);
+	const hostFailure = host.ok ? undefined : { kind: host.kind, message: host.message };
 	if (!j)
 		return {
 			code: 5,
 			status: "partial-journal",
 			message: "operation journal is malformed",
+			...(hostFailure ? { details: { hostFailure } } : {}),
+		};
+	if (!host.ok)
+		return {
+			code: 5,
+			status: "partial-journal",
+			message: host.kind === "missing"
+				? "operation journal retained; restore or reinstall the Codex CLI, then rerun this command"
+				: "operation journal retained; restore readable Codex public plugin state, then rerun this command",
+			details: { hostFailure },
 		};
 	if (j.step === "committed" || j.step === "journal-unlink-failed") {
 		if (j.operation !== "install" && j.operation !== "update")
@@ -382,6 +393,12 @@ function resumeJournal(context: PathContext): Result | null {
 		}
 	}
 	if (j.trashPath && j.snapshot) {
+		if (j.operation === "uninstall" && !exactState(p.codexHome, null, false))
+			return {
+				code: 5,
+				status: "partial",
+				message: "uninstall resume requires absent public state",
+			};
 		const trash = contained(p.root, j.trashPath),
 			deleted = j.deletedFiles || [],
 			errors = remainingErrors(trash, j.snapshot, deleted);
@@ -550,12 +567,15 @@ function doctor(context: PathContext): Result {
 		return { code: 3, status: "safety-refusal", message: String(error) };
 	}
 	const host = checkHost(p.codexHome);
-	if (!host.ok)
-		return { code: 4, status: `host-${host.kind}`, message: host.message };
+	if (!host.ok && host.kind === "safety-refusal")
+		return { code: 3, status: host.kind, message: host.message };
+	// Diagnose pending journals first; unreadable public state cannot authorize cleanup.
 	if (existsSync(p.journal)) {
-		const repair = resumeJournal(context);
+		const repair = resumeJournal(context, host);
 		if (repair) return repair;
 	}
+	if (!host.ok)
+		return { code: host.kind === "state-unknown" ? 3 : 4, status: `host-${host.kind}`, message: host.message };
 	const unknownTrash = existsSync(p.root)
 		? readdirSync(p.root).filter((name) => name.startsWith(".trash-"))
 		: [];
@@ -611,12 +631,15 @@ function installOrUpdate(
 		return { code: 3, status: "safety-refusal", message: String(error) };
 	}
 	const host = checkHost(p.codexHome);
-	if (!host.ok)
-		return { code: 4, status: `host-${host.kind}`, message: host.message };
+	if (!host.ok && host.kind === "safety-refusal")
+		return { code: 3, status: host.kind, message: host.message };
+	// Diagnose pending journals first; unreadable public state cannot authorize cleanup.
 	if (existsSync(p.journal)) {
-		const repair = resumeJournal(context);
+		const repair = resumeJournal(context, host);
 		if (repair) return repair;
 	}
+	if (!host.ok)
+		return { code: host.kind === "state-unknown" ? 3 : 4, status: `host-${host.kind}`, message: host.message };
 	const problem = conflict(command, context);
 	if (problem) return problem;
 	const old = readManifest(p.manifest),
@@ -1036,7 +1059,10 @@ function uninstall(options: Options, context: PathContext): Result {
 		return { code: 3, status: "safety-refusal", message: String(error) };
 	}
 	if (existsSync(p.journal)) {
-		const repair = resumeJournal(context);
+		const host = checkHost(p.codexHome);
+		if (!host.ok && host.kind === "safety-refusal")
+			return { code: 3, status: host.kind, message: host.message };
+		const repair = resumeJournal(context, host);
 		if (repair) return repair;
 	}
 	const problem = conflict("uninstall", context);

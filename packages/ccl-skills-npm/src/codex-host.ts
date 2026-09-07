@@ -1,10 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { LEGACY_REF, MARKET, REF } from "./paths.js";
-import { canonicalAlias } from "./fs-safe.js";
-import { compare, parseVersion } from "./version.js";
-import { probeHostVersion } from "./host-probe.js";
+import { assertSafeRoot, canonicalAlias } from "./fs-safe.js";
+import { probeHostCommand } from "./host-probe.js";
 
 export interface HostState {
 	status: "known" | "unknown";
@@ -29,16 +29,33 @@ function call(args: string[], codexHome?: string) {
 }
 
 export function checkHost(codexHome?: string) {
-	const p = probeHostVersion("codex", { ...process.env, ...(codexHome ? { CODEX_HOME: codexHome } : {}) });
-	if (!p.ok) return p;
-	const version = parseVersion(p.output);
-	if (!version || compare(version, "0.133.0") < 0)
-		return {
-			ok: false as const,
-			kind: "old",
-			message: "Codex >=0.133.0 is required",
-		};
-	return { ok: true as const, version };
+	const targetHome = codexHome || process.env.CODEX_HOME || join(process.env.HOME || "", ".codex");
+	try {
+		assertSafeRoot(targetHome, join(targetHome, "ccl-skills-npm"));
+		try {
+			if (!statSync(targetHome).isDirectory()) throw new Error(`Codex home is not a directory: ${targetHome}`);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+		}
+	} catch (error) {
+		return { ok: false as const, kind: "safety-refusal", message: String(error) };
+	}
+	// Codex refuses a nonexistent CODEX_HOME. Probe the binary against a private
+	// empty home without creating the user's target just to discover capability.
+	const temporaryHome = existsSync(targetHome) ? null : mkdtempSync(join(tmpdir(), "ccl-codex-probe-"));
+	try {
+		const env = { ...process.env, CODEX_HOME: temporaryHome || targetHome };
+		const marketplace = probeHostCommand("codex", ["plugin", "marketplace", "list"], env);
+		if (!marketplace.ok) return marketplace;
+		const plugins = probeHostCommand("codex", ["plugin", "list"], env);
+		if (!plugins.ok) return plugins;
+		const parsed = parseMarketplace(marketplace.stdout);
+		if (!parsed.ok || !parsePluginList(plugins.stdout, parsed.source).ok)
+			return { ok: false as const, kind: "state-unknown", message: "Codex public state could not be verified" };
+		return { ok: true as const };
+	} finally {
+		if (temporaryHome) rmSync(temporaryHome, { recursive: true, force: true });
+	}
 }
 
 export function parsePluginList(

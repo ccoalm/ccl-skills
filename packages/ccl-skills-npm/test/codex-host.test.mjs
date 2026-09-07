@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import childProcess from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parsePluginList, publicState } from "../dist/codex-host.js";
+import { checkHost, parsePluginList, publicState } from "../dist/codex-host.js";
 
 const source = "/tmp/ccl-market";
 const real = `Marketplace \`ccl-skills-npm\`\n${source}/.agents/plugins/marketplace.json\n\nPLUGIN                             STATUS              VERSION  PATH\nccl-skills@ccl-skills-npm  installed, enabled  local    /tmp/plugin\n`;
@@ -12,6 +14,59 @@ const legacy = `Marketplace \`ccl-skills\`\n/tmp/legacy/.agents/plugins/marketpl
 
 const result = (text, marketplaceSource = source) =>
 	parsePluginList(text, marketplaceSource);
+
+test("Codex admission probes both plugin commands for a fresh home without consulting version", (t) => {
+	const root = mkdtempSync(join(tmpdir(), "codex-capability-")), home = join(root, "new-home"), calls = [];
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	t.mock.method(childProcess, "spawnSync", (command, args, options) => {
+		calls.push({ command, args, options });
+		assert.notEqual(options.env.CODEX_HOME, home);
+		assert.equal(existsSync(options.env.CODEX_HOME), true);
+		return { status: 0, stdout: args[0] === "--version" ? "unversioned build" : args[1] === "marketplace" ? "No plugin marketplaces in scope.\n" : "No marketplace plugins found.\n", stderr: "" };
+	});
+	syncBuiltinESMExports();
+	t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+	assert.equal(checkHost(home).ok, true);
+	assert.deepEqual(calls.map(({ command, args }) => [command, ...args]), [["codex", "plugin", "marketplace", "list"], ["codex", "plugin", "list"]]);
+	for (const { options } of calls) {
+		assert.equal(options.env.CODEX_HOME, calls[0].options.env.CODEX_HOME);
+		assert.equal(options.timeout, 10000);
+		assert.equal(options.killSignal, "SIGKILL");
+		assert.deepEqual(options.stdio, ["ignore", "pipe", "pipe"]);
+	}
+	assert.equal(existsSync(home), false);
+	assert.equal(existsSync(calls[0].options.env.CODEX_HOME), false);
+});
+
+test("Codex admission rejects malformed public state even when both commands succeed", (t) => {
+	const home = mkdtempSync(join(tmpdir(), "codex-capability-"));
+	t.after(() => rmSync(home, { recursive: true, force: true }));
+	t.mock.method(childProcess, "spawnSync", (_command, args) => ({ status: 0, stdout: args[0] === "--version" ? "codex-cli 99.0.0" : args[1] === "marketplace" ? "MARKETPLACE ROOT\nccl-skills-npm  relative/path\n" : "No marketplace plugins found.\n", stderr: "" }));
+	syncBuiltinESMExports();
+	t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+	const result = checkHost(home);
+	assert.equal(result.ok, false);
+	assert.equal(result.kind, "state-unknown");
+});
+
+for (const failedCommand of ["plugin marketplace list", "plugin list"]) {
+	test(`Codex admission rejects unsupported ${failedCommand} despite a new version`, (t) => {
+		const home = mkdtempSync(join(tmpdir(), "codex-capability-"));
+		t.after(() => rmSync(home, { recursive: true, force: true }));
+		const calls = [];
+		t.mock.method(childProcess, "spawnSync", (_command, args) => {
+			calls.push(args.join(" "));
+			return { status: args.join(" ") === failedCommand ? 2 : 0, stdout: args[0] === "--version" ? "codex-cli 99.0.0" : "", stderr: "" };
+		});
+		syncBuiltinESMExports();
+		t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+		const result = checkHost(home);
+		assert.equal(result.ok, false);
+		assert.equal(result.kind, "probe-failed");
+		assert.match(result.message, new RegExp(failedCommand));
+		assert.equal(calls.at(-1), failedCommand);
+	});
+}
 
 function stateFrom(marketplaceOutput, pluginOutput = "No marketplace plugins found.\n") {
 	const root = mkdtempSync(join(tmpdir(), "codex-host-state-"));

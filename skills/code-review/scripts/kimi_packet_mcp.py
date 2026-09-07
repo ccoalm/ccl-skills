@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Expose one SHA-256-bound review packet through a pathless stdio MCP tool."""
+"""Expose one SHA-256-bound review packet through pathless stdio MCP tools."""
 
 from __future__ import annotations
 
@@ -12,8 +12,11 @@ from typing import Any
 
 
 TOOL_NAME = "read_packet"
+SEARCH_TOOL_NAME = "search_packet"
 MAX_PAGE_BYTES = 48_000
 MAX_CHUNK_BYTES = 46_000
+MAX_QUERY_BYTES = 1_024
+MAX_SEARCH_RESULTS = 100
 
 
 def packet_bytes(path: Path, expected_sha256: str) -> bytes:
@@ -55,6 +58,84 @@ def tool_definition() -> dict[str, Any]:
 
 def tool_result(text: str, *, error: bool = False) -> dict[str, Any]:
     return {"content": [{"type": "text", "text": text}], "isError": error}
+
+
+def search_tool_definition() -> dict[str, Any]:
+    return {
+        "name": SEARCH_TOOL_NAME,
+        "description": (
+            "Find non-overlapping, case-sensitive literal substrings in the one "
+            "controller-frozen review packet. No regex or filesystem paths. "
+            "Query is at most 1024 UTF-8 bytes; byte_offset must be a UTF-8 "
+            "boundary. Returns byte offsets and 1-based line numbers, with "
+            "next_byte_offset for more matches or null when exhausted. "
+            "Use read_packet at a match offset to inspect its context."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "minLength": 1, "maxLength": MAX_QUERY_BYTES},
+                "byte_offset": {"type": "integer", "minimum": 0},
+                "limit": {"type": "integer", "minimum": 1, "maximum": MAX_SEARCH_RESULTS},
+            },
+            "required": ["query", "byte_offset", "limit"],
+            "additionalProperties": False,
+        },
+    }
+
+
+def search_packet(path: Path, expected_sha256: str, arguments: Any) -> dict[str, Any]:
+    if not isinstance(arguments, dict) or set(arguments) != {"query", "byte_offset", "limit"}:
+        return tool_result("invalid packet search arguments", error=True)
+    query = arguments.get("query")
+    byte_offset = arguments.get("byte_offset")
+    limit = arguments.get("limit")
+    if (
+        not isinstance(query, str)
+        or not isinstance(byte_offset, int)
+        or isinstance(byte_offset, bool)
+        or byte_offset < 0
+        or not isinstance(limit, int)
+        or isinstance(limit, bool)
+        or not 1 <= limit <= MAX_SEARCH_RESULTS
+    ):
+        return tool_result("invalid packet search arguments", error=True)
+    try:
+        needle = query.encode("utf-8")
+    except UnicodeEncodeError:
+        return tool_result("invalid packet search arguments", error=True)
+    if not 1 <= len(needle) <= MAX_QUERY_BYTES:
+        return tool_result("invalid packet search arguments", error=True)
+    try:
+        data = packet_bytes(path, expected_sha256)
+    except (OSError, ValueError):
+        return tool_result("packet binding changed", error=True)
+    if byte_offset > len(data):
+        return tool_result("packet search starts beyond end", error=True)
+    try:
+        data[:byte_offset].decode("utf-8")
+    except UnicodeDecodeError:
+        return tool_result("packet search starts inside a UTF-8 character", error=True)
+
+    matches = []
+    cursor = byte_offset
+    while len(matches) < limit:
+        found = data.find(needle, cursor)
+        if found < 0:
+            break
+        matches.append({"byte_offset": found, "line": data.count(b"\n", 0, found) + 1})
+        cursor = found + len(needle)
+    rendered = json.dumps(
+        {
+            "matches": matches,
+            "next_byte_offset": cursor if data.find(needle, cursor) >= 0 else None,
+            "total_bytes": len(data),
+        },
+        separators=(",", ":"),
+    )
+    if len(rendered.encode("utf-8")) > MAX_PAGE_BYTES:
+        return tool_result("packet search exceeds result bound", error=True)
+    return tool_result(rendered)
 
 
 def read_chunk(path: Path, expected_sha256: str, arguments: Any) -> dict[str, Any]:
@@ -119,7 +200,9 @@ def response(request_id: Any, *, result: Any = None, error: Any = None) -> dict[
     return payload
 
 
-def handle(message: Any, path: Path, expected_sha256: str) -> dict[str, Any] | None:
+def handle(
+    message: Any, path: Path, expected_sha256: str, *, allow_search: bool = False
+) -> dict[str, Any] | None:
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
         return response(None, error={"code": -32600, "message": "Invalid Request"})
     request_id = message.get("id")
@@ -140,9 +223,17 @@ def handle(message: Any, path: Path, expected_sha256: str) -> dict[str, Any] | N
     if method == "ping":
         return response(request_id, result={})
     if method == "tools/list":
-        return response(request_id, result={"tools": [tool_definition()]})
+        definitions = [tool_definition()]
+        if allow_search:
+            definitions.append(search_tool_definition())
+        return response(request_id, result={"tools": definitions})
     if method == "tools/call":
         params = message.get("params")
+        if isinstance(params, dict) and allow_search and params.get("name") == SEARCH_TOOL_NAME:
+            return response(
+                request_id,
+                result=search_packet(path, expected_sha256, params.get("arguments")),
+            )
         if not isinstance(params, dict) or params.get("name") != TOOL_NAME:
             return response(request_id, result=tool_result("unknown tool", error=True))
         return response(
@@ -156,6 +247,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--packet", required=True)
     parser.add_argument("--sha256", required=True)
+    parser.add_argument(
+        "--allow-search", action="store_true", help="also expose bounded literal packet search"
+    )
     args = parser.parse_args()
     if not len(args.sha256) == 64 or any(ch not in "0123456789abcdef" for ch in args.sha256):
         parser.error("--sha256 must be a lowercase SHA-256 digest")
@@ -169,7 +263,7 @@ def main() -> int:
     for raw_line in sys.stdin:
         try:
             message = json.loads(raw_line)
-            payload = handle(message, path, args.sha256)
+            payload = handle(message, path, args.sha256, allow_search=args.allow_search)
         except (json.JSONDecodeError, UnicodeError):
             payload = response(None, error={"code": -32700, "message": "Parse error"})
         if payload is not None:

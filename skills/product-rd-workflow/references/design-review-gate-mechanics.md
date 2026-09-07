@@ -10,7 +10,7 @@ a triggered diff, and whenever the candidate diff changes after a review.
 
 ## Recorded review artifact
 
-(a) a recorded independent adversarial review is the gate for all triggered work — prefer an available review/challenge skill discovered in the session when suitable, otherwise a ccl-owned independent review (the external skill supplements, it is not itself the required gate); save an artifact naming concrete objections, their disposition, and the reviewer or tool identity; same-agent inline prose review is acceptable only for explicitly low-risk, non-cross-boundary work.
+(a) a recorded independent adversarial review is the gate for all triggered work — prefer an available review/challenge skill discovered in the session when suitable, otherwise a ccl-owned independent review (the external skill supplements, it is not itself the required gate); save an artifact naming concrete objections, their disposition, and the reviewer or tool identity; same-agent inline prose review is acceptable only for explicitly low-risk, non-cross-boundary design-only work with no implementation diff. Once code or executable tests change, invoke `code-review` automatically under its development-completion rule; green tests or low risk do not replace that invocation.
 
 ## Binds to the implementation diff
 
