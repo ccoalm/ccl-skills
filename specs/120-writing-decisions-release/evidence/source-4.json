@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "580e34c0e921039eb419da2f0a01ac234d2adc1ae9b1cd4ae6a69482157f7514",
+  "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+  "finding_sha256": "adb85a239a31c9bae02a13d2f641a82a3670105d7d7199a6bd897d375886d508",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+      "finding_sha256": "adb85a239a31c9bae02a13d2f641a82a3670105d7d7199a6bd897d375886d508"
+    }
+  ],
+  "evidence": [
+    "SKILL.md:106 requires the actor when responsibility or action depends on who executes; line 113 retains responsibility conditions and forbids deleting or weakening KEEP, whose line 51 preserves owner. Reference lines 45-47 require who does what for allocation, execution or accountability and allow state-focused prose only when the actor does not affect understanding or the next action. An ownerless handoff is therefore outside the exception, not a valid declaration of irrelevance. The exception need not be limited to completed states: current object status can also be actor-irrelevant. Both arms of the later library holdout preserved the known two-role handoff and missing-record branch; this is bounded application evidence, not mechanical enforcement."
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "580e34c0e921039eb419da2f0a01ac234d2adc1ae9b1cd4ae6a69482157f7514",
+  "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+  "finding_sha256": "c29060c4942d576356fff620db6f6b45d99de0bc6b9bd9aff88b2b11b75b978b",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+      "finding_sha256": "c29060c4942d576356fff620db6f6b45d99de0bc6b9bd9aff88b2b11b75b978b"
+    }
+  ],
+  "evidence": [
+    "SKILL.md:146 requires the reference whenever the named writing categories occur. Line 150 explicitly requires Workflow 1-4 and states the closeout index is not a pass certificate. A list or abbreviation task therefore cannot satisfy the contract by omitting step 3, regardless of step 4. Trigger evaluation involves semantic judgment, as do KEEP and FORM; the change claims no mechanical proof of reading. Another self-reported record is optional observability, not evidence of a missing obligation."
+  ]
+}
