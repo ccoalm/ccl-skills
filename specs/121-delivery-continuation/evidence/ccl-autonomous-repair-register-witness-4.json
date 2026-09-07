@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ceb94c3ff7fa6d652f2e92e003347ab6a83ea72b1b52fd265648de5d1a93929c",
+  "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+  "finding_sha256": "2e412c1abcb41520481c60a71c77d2b79a1e16e1a7f355c9e5dec981706b87bb",
+  "disposition": "source_refuted",
+  "evidence": [
+    "The finding misidentifies all three locators as heading anchors: the third is command:test_controlled_escalation_pins.sh. The first two are unique token locators on changed normative list rules, supported by impact-chain-gate.rb, not Markdown heading URLs. Their exact source lines were read and match the recorded tokens.",
+    "The original check-ccl-skills.sh passes against the actual committed CI base c09081b6577e01a6b3acfa9e4862dfe100e8451e after this append. The referenced implementation files remain in the separately reviewed unchanged partition 2ff72ca9e67ab19d4ffa7cdf651f09e84c72632d6416f08d683d46d8eeface31. The new complete manifest recomputes all three partitions; a bounded register packet is not claimed to contain every file."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+      "finding_sha256": "2e412c1abcb41520481c60a71c77d2b79a1e16e1a7f355c9e5dec981706b87bb"
+    }
+  ]
+}
