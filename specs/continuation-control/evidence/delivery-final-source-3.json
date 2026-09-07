@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b6b0b82bfc9d7e21a61405cbbe918f350a9bcd07da8a9bc9c1b097d1b277fb6f",
+  "receipt_sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+  "finding_sha256": "d1110ec780e88ba55e00112ac4f1bb3ebd62c07f8e06f79a93a84c9d93e7da39",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+      "finding_sha256": "d1110ec780e88ba55e00112ac4f1bb3ebd62c07f8e06f79a93a84c9d93e7da39"
+    }
+  ],
+  "evidence": [
+    "Source trace: skills/skill-extraction-workflow/scripts/test_ai_coding_implementation_gates.sh:765-766 already calls assert_same_line for continuation_basis=existing-task-scope together with the continuation_authorization anchor. Lines 777-778 already call the same primitive for never relabel these calls as newly human-requested or erase earlier spending. These are the two replacement pins the finding proposes adding.",
+    "Source trace: the same test at 767-784 also pins the original authorization reference/scope, changed method or evidence and cumulative rounds, links to the old terminal, preserved prior receipts, unchanged per-sequence bounds, missing authority/user limits, and no review/test/evidence or landing waiver. The reference at dual-track-review-gate.md:548 retains those obligations together.",
+    "Boundary: these deterministic assertions prove the rule text and same-line anchor remain present; they do not authenticate a malicious local author or guarantee that a host obeys an unloaded skill. The task intentionally inherits existing scope for necessary review, preserves actual cumulative spending and forbids fabricated fresh human requests. No assertion of newly granted permission or external clean approval is made."
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b6b0b82bfc9d7e21a61405cbbe918f350a9bcd07da8a9bc9c1b097d1b277fb6f",
+  "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+  "finding_sha256": "07e40eff7790bf3f3f5743e77c2d8944ff6306bb2cfb32d7c40cd8ef4aa7f195",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+      "finding_sha256": "07e40eff7790bf3f3f5743e77c2d8944ff6306bb2cfb32d7c40cd8ef4aa7f195"
+    }
+  ],
+  "evidence": [
+    "Source trace: validate_extraction_review_state.py:546-567 distinguishes completion_basis external_pass from source_refuted_findings. The external_pass branch rejects a final raw finding receipt; the source-refuted branch requires a same-candidate conclusive tracked review and challenge without succession. Lines 619-681 bind all ordered original finding identities, aggregate disposition file, per-class witness and identical evidence arrays.",
+    "Source trace: staged-review-contract.md Mechanical self-review gate expressly says validation proves binding and coverage, not evidence truth, and requires first-hand source tracing. The completion receipt keeps completion_basis, finding_dispositions_sha256 and resolved_finding_occurrences while the raw external receipts retain status findings. These are distinguishable from a clean external pass in the required complete record.",
+    "The requested semantic authentication of arbitrary implementer-written claims is outside the explicit trusted-local contract. False source assertions remain contract violations, not machine-proven truth. This disposition supplies concrete source counter-evidence; no open finding, accepted risk or human decision is being transformed into an external pass or publication authority."
+  ]
+}

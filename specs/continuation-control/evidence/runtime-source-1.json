@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b4954bb5f8835bfd585a32f53a245852633cfa3bbe726de54650c6f8e8bd09a0",
+  "receipt_sha256": "a8dc924cb44079d05bfc8ec8e940e4d9954bc35c023b486aa081671f1562ca45",
+  "finding_sha256": "38495e6c661d8c9b0753c74e1d90817e566226b200b0615437d5e29e4a2fc919",
+  "disposition": "source_refuted",
+  "evidence": [
+    "review_gate.py:3785 explicitly states trusted local provenance/binding rather than truth validation. staged-review-contract.md:373-395 permits source-refutation for disproven findings while forbidding unresolved findings and risk acceptance. Each occurrence hashes the immutable raw finding, retaining its severity; validate_extraction_review_state.py:548-570 and615-675 consumes the raw receipts, aggregate and witnesses. Adding duplicate severity would not authenticate whether a finding is genuinely unresolved. The proposed mandatory authority for a disproven finding is a different trust model; no bypass of this declared trusted-local contract is demonstrated."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "a8dc924cb44079d05bfc8ec8e940e4d9954bc35c023b486aa081671f1562ca45",
+      "finding_sha256": "38495e6c661d8c9b0753c74e1d90817e566226b200b0615437d5e29e4a2fc919"
+    }
+  ]
+}

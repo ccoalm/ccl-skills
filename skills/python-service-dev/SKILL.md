@@ -5,7 +5,7 @@ description: 用 Python 写接口 / FastAPI / Django model / Celery 任务 / pyt
 
 # Python Service Dev
 
-Use this for implementation of Python backend products, services, microservices, AI-service hosts, workers, packages, and batch tools. For new backend products, implement the smallest deployable or package shape justified by ownership, data boundary, runtime isolation, scaling, release cadence, and rollback needs. It should adapt to the repository in front of you, but the workflow is independent of any prior codebase.
+Use this for implementation of Python backend products, services, microservices, AI-service hosts, workers, packages, and batch tools. For new backend products, implement the smallest deployable or package shape justified by ownership, data boundary, runtime isolation, scaling, release cadence, and rollback needs. It should adapt to the repository in front of you, but the workflow is independent of any prior codebase. After code/test edits, self-check and invoke `code-review` automatically before completion.
 
 ## Skill Routing
 

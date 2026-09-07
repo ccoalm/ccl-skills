@@ -5,7 +5,9 @@ description: 怎么测 / 测试方案 / 测试覆盖 / 先写测试用例（可�
 
 # Testing Strategy
 
-Use this skill when the task is about test scope, test design, verification evidence, CI gates, or deciding which layer should prove behavior. It is stack-agnostic: apply it across Go services, Python services, React web, mobile apps, mini-programs, terminal/CLI/TUI surfaces, APIs, workflows, data/inference features, and product releases.
+Owns test scope/design, verification evidence, CI gates and test-layer choices across Go, Python, React web, mobile, mini-program, terminal/CLI/TUI, API, workflow, data/inference and release tasks.
+
+- Code/test changes require self-checks; invoke `code-review` automatically before completion.
 
 ## Skill Routing
 

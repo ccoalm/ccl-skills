@@ -5,7 +5,7 @@ description: Use when designing, implementing, reviewing, debugging, testing, or
 
 # App Cross-Platform Dev
 
-Use this skill for mobile app and cross-platform client engineering. It covers Flutter, React Native, native Android, and native iOS. It does not own mini-programs, React web, backend service design, product requirements, or visual design rules.
+Use this skill for mobile app and cross-platform client engineering. It covers Flutter, React Native, native Android, and native iOS. It does not own mini-programs, React web, backend service design, product requirements, or visual design rules. After code/test edits, self-check and invoke `code-review` automatically before completion.
 
 ## Routing
 
@@ -15,7 +15,7 @@ Use this skill for mobile app and cross-platform client engineering. It covers F
 - Use `web-react-dev` for React web and browser-specific client work.
 - Use Go or Python backend skills for server contracts, persistence, queues, auth services, and API ownership.
 - Use `testing-strategy` to choose the test layer; return here for Flutter, React Native, Android, or iOS implementation details.
-- Use `test-artifact-management` when the ask is about generating structured test cases from a Feishu requirements doc or codebase and tracking them in Feishu Bitable before implementation begins.
+- Use `test-artifact-management` for structured Feishu Bitable cases derived from Feishu requirements or code before implementation.
 - Use `defect-diagnosis` first for bugs, failed tests, flaky behavior, crashes, rendering regressions, build failures, or store/release symptoms.
 - For money, quota, permission, tenant/user data, high-impact AI, repeated submit, async finality, or support-traceable incidents, apply `product-rd-workflow` high-risk resilience gates before treating the app flow as complete.
 

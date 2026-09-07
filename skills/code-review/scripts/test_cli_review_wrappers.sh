@@ -652,7 +652,7 @@ cat >"$WORK/bin/codex" <<'CODEX_STUB'
 #!/usr/bin/env bash
 set -u
 state="$REVIEW_WRAPPER_TEST_STATE"
-if [ "${1:-}" = exec ] && [ "${2:-}" = --disable ] && [ "${3:-}" = hooks ] && [ "${4:-}" = --help ]; then
+if [ "${1:-}" = exec ] && [[ " $* " = *" --help "* ]]; then
   if [ "${STUB_BEHAVIOR:-}" = help_hang ]; then
     trap '' TERM
     while :; do /bin/sleep 1; done
@@ -667,16 +667,72 @@ if [ "${1:-}" = exec ] && [ "${2:-}" = --disable ] && [ "${3:-}" = hooks ] && [ 
 fi
 if [ "${1:-}" = features ] && [ "${2:-}" = list ]; then
   touch "$state/codex_features_invoked"
-  if [ "${STUB_BEHAVIOR:-pass}" = missing_hooks_feature ]; then
-    printf '%s\n' 'apply_patch_freeform                 removed            false'
-    exit 0
-  fi
-  if [ "${STUB_BEHAVIOR:-pass}" = removed_hooks_feature ]; then
-    printf '%s\n' 'hooks                                removed            true'
-    exit 0
-  fi
-  printf '%s\n' 'hooks                                stable             true'
+  hooks_enabled=true
+  shell_enabled=true
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --disable)
+        case "${2:-}" in hooks) hooks_enabled=false ;; shell_tool) shell_enabled=false ;; esac
+        shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  case "${STUB_BEHAVIOR:-pass}" in
+    missing_hooks_feature) ;;
+    removed_hooks_feature) printf '%s\n' 'hooks                                removed            false' ;;
+    *) printf 'hooks                                stable             %s\n' "$hooks_enabled" ;;
+  esac
+  case "${STUB_BEHAVIOR:-pass}" in
+    missing_shell_feature) ;;
+    removed_shell_feature) printf '%s\n' 'shell_tool                           removed            false' ;;
+    ignored_shell_disable) printf '%s\n' 'shell_tool                           stable             true' ;;
+    *) printf 'shell_tool                           stable             %s\n' "$shell_enabled" ;;
+  esac
   exit 0
+fi
+if [ "${1:-}" = mcp ] && [ "${2:-}" = list ]; then
+  touch "$state/codex_mcp_probe_invoked"
+  if [ "${STUB_BEHAVIOR:-pass}" = mcp_capability_missing ]; then
+    printf '%s\n' '[]'
+    exit 0
+  fi
+  python3 - "$@" <<'PY_MCP_LIST'
+import json, os, sys, tomllib
+
+arguments = iter(sys.argv[1:])
+servers = {}
+inherited_names = {
+    "inherited_mcp": "unrelated",
+    "inherited_mcp_dot": "unrelated.name",
+    "inherited_mcp_space": "unrelated name",
+    "inherited_mcp_quote": 'unrelated"name',
+}
+inherited_name = inherited_names.get(os.environ.get("STUB_BEHAVIOR"))
+if inherited_name is not None:
+    servers[inherited_name] = {"command": "/bin/false", "args": [], "enabled": True}
+for argument in arguments:
+    if argument in {"-c", "--config"}:
+        # Codex splits the override path separately from its TOML value;
+        # quotes in a dotted left-hand key are not TOML key quoting.
+        key, value = next(arguments).split("=", 1)
+        decoded = tomllib.loads("value=" + value)["value"]
+        if key == "mcp_servers":
+            configured_servers = decoded
+        elif key.startswith("mcp_servers."):
+            _, name, field = key.split(".")
+            configured_servers = {name: {field: decoded}}
+        else:
+            continue
+        for name, settings in configured_servers.items():
+            servers.setdefault(name, {}).update(settings)
+print(json.dumps([
+    {"name": name, "enabled": server.get("enabled", True),
+     "transport": {"type": "stdio", "command": server["command"],
+                   "args": server.get("args", [])}}
+    for name, server in servers.items()
+]))
+PY_MCP_LIST
+  exit $?
 fi
 touch "$state/codex_invoked"
 printf '%s' "$0" >"$state/codex_argv0"
@@ -687,14 +743,19 @@ has_read_only=no
 has_ephemeral=no
 has_ignore_rules=no
 has_hooks_disabled=no
+has_shell_disabled=no
 workspace=""
+: >"$state/codex_configs"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --output-last-message) last_message="$2"; shift 2 ;;
     --model|-m) has_model=yes; shift 2 ;;
     --sandbox) [ "$2" = read-only ] && has_read_only=yes; shift 2 ;;
     --ephemeral) has_ephemeral=yes; shift ;;
-    --disable) [ "$2" = hooks ] && has_hooks_disabled=yes; shift 2 ;;
+    --disable)
+      case "$2" in hooks) has_hooks_disabled=yes ;; shell_tool) has_shell_disabled=yes ;; esac
+      shift 2 ;;
+    -c|--config) printf '%s\n' "$2" >>"$state/codex_configs"; shift 2 ;;
     --ignore-rules) has_ignore_rules=yes; shift ;;
     -C) workspace="$2"; shift 2 ;;
     *) shift ;;
@@ -705,6 +766,7 @@ printf '%s' "$has_read_only" >"$state/codex_read_only"
 printf '%s' "$has_ephemeral" >"$state/codex_ephemeral"
 printf '%s' "$has_ignore_rules" >"$state/codex_ignore_rules"
 printf '%s' "$has_hooks_disabled" >"$state/codex_hooks_disabled"
+printf '%s' "$has_shell_disabled" >"$state/codex_shell_disabled"
 [ -z "$workspace" ] || printf '%s' "$workspace" >"$state/codex_workspace"
 if [ -n "$workspace" ] && [ -L "$workspace/.agents/skills/testing-strategy" ]; then
   readlink "$workspace/.agents/skills/testing-strategy" >"$state/codex_skill_link"
@@ -741,7 +803,8 @@ fi
 printf '%s\n' '{"type":"thread.started","thread_id":"test-thread"}'
 printf '%s\n' '{"type":"turn.started"}'
 case "$behavior" in
-  pass|skills_budget_warning|skills_budget_warning_after_concern|hook_trust_warning|hook_trust_warning_started|hook_trust_warning_repeated_after_concern|unknown_error_valid_result) printf '%s\n' '{"status":"passed","concern_results":[{"concern":"correctness","conclusion":"Independently checked correctness against the frozen candidate."}],"findings":[]}' >"$last_message" ;;
+  packet_read|packet_search|packet_tampered) printf '%s\n' '{"status":"passed","concern_results":[{"concern":"correctness","conclusion":"Independently checked correctness against the frozen candidate."}],"findings":[]}' >"$last_message" ;;
+  pass|shell_disable_required|missing_shell_feature|removed_shell_feature|ignored_shell_disable|mcp_capability_missing|inherited_mcp|inherited_mcp_dot|inherited_mcp_space|inherited_mcp_quote|skills_budget_warning|skills_budget_warning_after_concern|hook_trust_warning|hook_trust_warning_started|hook_trust_warning_repeated_after_concern|unknown_error_valid_result) printf '%s\n' '{"status":"passed","concern_results":[{"concern":"correctness","conclusion":"Independently checked correctness against the frozen candidate."}],"findings":[]}' >"$last_message" ;;
   legacy_pass) printf '%s\n' '{"status":"passed","findings":[]}' >"$last_message" ;;
   stream_gap) printf '%s\n' '{"status":"passed","concern_results":[{"concern":"correctness","conclusion":"Independently checked correctness against the frozen candidate."}],"findings":[]}' >"$last_message" ;;
   tool) printf '%s\n' '{"status":"passed","concern_results":[{"concern":"correctness","conclusion":"Independently checked correctness against the frozen candidate."}],"findings":[]}' >"$last_message" ;;
@@ -750,8 +813,45 @@ case "$behavior" in
   invalid) printf '%s\n' 'not-json' >"$last_message" ;;
   invalid_concern) printf '%s\n' 'P1 src/example.py:7 concern without valid JSON' >"$last_message" ;;
 esac
+if [[ "$behavior" = packet_* ]]; then
+  python3 - "$state" "$behavior" <<'PY_PACKET_CALL'
+import json, subprocess, sys, tomllib
+from pathlib import Path
+
+state, behavior = Path(sys.argv[1]), sys.argv[2]
+servers = {}
+for override in (state / "codex_configs").read_text().splitlines():
+    key, value = override.split("=", 1)
+    if key == "mcp_servers":
+        servers = tomllib.loads("servers=" + value)["servers"]
+server = servers["code_review_packet"]
+tool = "search_packet" if behavior == "packet_search" else "read_packet"
+arguments = ({"query": "diff --git", "byte_offset": 0, "limit": 1}
+             if tool == "search_packet" else {"byte_offset": 0, "max_bytes": 46000})
+request = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+           "params": {"name": tool, "arguments": arguments}}
+response = subprocess.run([server["command"], *server["args"]],
+                          input=json.dumps(request) + "\n", text=True,
+                          capture_output=True, timeout=5, check=True)
+result = json.loads(response.stdout)["result"]
+assert not result.get("isError"), result
+if behavior == "packet_tampered":
+    result["content"][0]["text"] += "forged packet bytes"
+item = {"type": "mcp_tool_call", "id": "packet-call-1",
+        "server": "code_review_packet", "tool": tool, "arguments": arguments,
+        "status": "in_progress"}
+print(json.dumps({"type": "item.started", "item": item}))
+item.update(status="completed", result=result)
+print(json.dumps({"type": "item.completed", "item": item}))
+(state / "codex_packet_call").write_text(tool)
+PY_PACKET_CALL
+  [ "$?" = 0 ] || exit 42
+fi
 if [ "$behavior" = stream_gap ]; then
   printf '%s\n' '{"type":"item.completed","item":{"type":"error","message":"in-process app-server event stream lagged; dropped 2 events"}}'
+fi
+if [ "$behavior" = shell_disable_required ] && [ "$has_shell_disabled" != yes ]; then
+  printf '%s\n' '{"type":"item.completed","item":{"type":"command_execution","command":"pwd"}}'
 fi
 if [ "$behavior" = tool ]; then
   printf '%s\n' '{"type":"item.completed","item":{"type":"command_execution","command":"pwd"}}'
@@ -1675,6 +1775,60 @@ rm -f "$WORK/state/codex_invoked"
 out="$(run_codex removed_hooks_feature)"; rc=$?
 check "Codex with a removed hooks feature key falls back before inference" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = codex_hook_disable_unavailable ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ ! -e "$WORK/state/codex_invoked" ]'
+
+out="$(run_codex shell_disable_required)"; rc=$?
+check "Codex disables shell execution before the reviewer can request a command" \
+  '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ "$(cat "$WORK/state/codex_shell_disabled")" = yes ]'
+
+for shell_capability in missing_shell_feature removed_shell_feature ignored_shell_disable; do
+  rm -f "$WORK/state/codex_invoked"
+  out="$(run_codex "$shell_capability")"; rc=$?
+  check "Codex $shell_capability falls back before inference" \
+    '[ "$rc" = 2 ] && [ "$(field reason "$out")" = codex_shell_disable_unavailable ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ ! -e "$WORK/state/codex_invoked" ]'
+done
+
+rm -f "$WORK/state/codex_invoked"
+out="$(run_codex mcp_capability_missing)"; rc=$?
+check "Codex without the bounded packet MCP server falls back before inference" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = codex_packet_tools_unavailable ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ ! -e "$WORK/state/codex_invoked" ]'
+
+for packet_tool in read search; do
+  rm -f "$WORK/state/codex_packet_call"
+  out="$(run_codex "packet_$packet_tool")"; rc=$?
+  check "Codex accepts a real frozen packet $packet_tool through wrapper and parser" \
+    '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ "$(cat "$WORK/state/codex_packet_call")" = "${packet_tool}_packet" ]'
+done
+out="$(run_codex packet_tampered)"; rc=$?
+check "Codex rejects altered packet tool bytes through wrapper and parser" \
+  '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = binding_mismatch ] && [ "$(field cascade_eligible "$out")" = False ]'
+
+for inherited_mcp_case in inherited_mcp inherited_mcp_dot inherited_mcp_space inherited_mcp_quote; do
+  case "$inherited_mcp_case" in
+    inherited_mcp) inherited_mcp_name=unrelated ;;
+    inherited_mcp_dot) inherited_mcp_name=unrelated.name ;;
+    inherited_mcp_space) inherited_mcp_name='unrelated name' ;;
+    inherited_mcp_quote) inherited_mcp_name='unrelated"name' ;;
+  esac
+  rm -f "$WORK/state/codex_invoked" "$WORK/state/codex_configs"
+  out="$(run_codex "$inherited_mcp_case")"; rc=$?
+  inherited_mcp_disabled="$(python3 - "$inherited_mcp_name" "$WORK/state/codex_configs" <<'PY_MCP_DISABLED'
+import sys, tomllib
+from pathlib import Path
+
+path = Path(sys.argv[2])
+tables = []
+for override in path.read_text().splitlines() if path.exists() else []:
+    key, value = override.split("=", 1)
+    if key.strip() == "mcp_servers":
+        tables.append(tomllib.loads("servers=" + value)["servers"])
+print(len(tables) == 1
+      and tables[0].get(sys.argv[1], {}).get("enabled") is False
+      and "code_review_packet" in tables[0])
+PY_MCP_DISABLED
+)"
+  check "Codex encodes and disables the inherited MCP key ($inherited_mcp_case)" \
+    '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ -e "$WORK/state/codex_invoked" ] && [ "$inherited_mcp_disabled" = True ]'
+done
 
 rm -f "$WORK/state/codex_invoked" "$WORK/state/codex_help_invoked"
 probe_started=$SECONDS

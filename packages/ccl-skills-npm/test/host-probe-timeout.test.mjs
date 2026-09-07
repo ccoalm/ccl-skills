@@ -1,11 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import fs, { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import childProcess, { spawnSync } from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
 import { probeHostVersion } from "../dist/host-probe.js";
+import * as hostProbe from "../dist/host-probe.js";
 import { runHostSequence } from "../dist/unified.js";
 import { manifestFor, readManifest } from "../dist/manifest.js";
 
@@ -27,7 +29,8 @@ const cases = [
 ];
 
 for (const [name, host, args, owned] of cases) {
-	test(`${name} kills a stalled version probe without waiting for its late effect`, () => {
+	const probeCommand = host === "codex" ? "plugin marketplace list" : "--version";
+	test(`${name} kills a stalled host probe without waiting for its late effect`, () => {
 		const root = mkdtempSync(join(tmpdir(), "ccl-probe-timeout-"));
 		const bin = join(root, "bin"), home = join(root, "home");
 		mkdirSync(bin); mkdirSync(home);
@@ -35,7 +38,7 @@ for (const [name, host, args, owned] of cases) {
 		const pidPath = join(root, "pid"), late = join(root, "late"), mutation = join(root, "mutation");
 		writeFileSync(join(bin, host), `#!${process.execPath}
 const fs = require('node:fs');
-if (process.argv[2] !== '--version') {
+if (process.argv.slice(2).join(' ') !== ${JSON.stringify(probeCommand)}) {
   fs.writeFileSync(${JSON.stringify(mutation)}, process.argv.slice(2).join(' '));
   process.exit(2);
 }
@@ -89,7 +92,7 @@ cp.spawnSync = (command, args) => {
     fs.writeFileSync(${JSON.stringify(npmMarker)}, 'synthetic npm invocation');
     return {status: 42, stdout: '', stderr: 'synthetic npm failure'};
   }
-  if (args[0] === '--version') {
+  if (args[0] === '--version' || (command === 'codex' && args[0] === 'plugin')) {
     if (command === (process.env.FAILING_HOST || 'claude') && process.env.OPEN_CODE_MISSING !== '1') {
       if (process.env.PROBE_FAILURE === 'EXIT_2') return {status: 2, stdout: '', stderr: 'synthetic version failure'};
       const code = process.env.PROBE_FAILURE || 'ETIMEDOUT';
@@ -141,13 +144,13 @@ test("version observation distinguishes absent, timeout, and execution failure",
 });
 
 for (const host of ["claude", "codex", "opencode"]) {
-	test(`version observation failure stays explicit in selected ${host} adapter`, (t) => {
+	test(`host observation failure stays explicit in selected ${host} adapter`, (t) => {
 		const f = mixedFixture(t, { ownedClaude: true, probeFailure: "EACCES", failingHost: host });
 		const { code, result } = f.run(["doctor", "--host", host]);
 		assert.equal(code, 4);
 		assert.equal(result.status, "host-probe-failed");
 		assert.match(result.message, /EACCES/);
-		assert.match(readFileSync(f.calls, "utf8"), new RegExp(`^${host} --version\\n$`));
+		assert.equal(readFileSync(f.calls, "utf8"), `${host} ${host === "codex" ? "plugin marketplace list" : "--version"}\n`);
 	});
 }
 
@@ -159,6 +162,78 @@ for (const [command, ownedClaude, probeFailure] of [["install", false, "EACCES"]
 		assert.equal(result.status, "multi-host-partial");
 		assert.equal(result.details.hosts.claude.status, "host-probe-failed");
 		assert.equal(result.details.hosts.opencode.code, 0);
+	});
+}
+
+for (const unsafePath of ["symlink", "file"]) {
+	test(`missing Codex ignores an unowned ${unsafePath} home beside a healthy host`, (t) => {
+		const f = mixedFixture(t, { probeFailure: "ENOENT" });
+		const codexHome = join(f.home, ".codex"), outside = join(f.home, "outside");
+		mkdirSync(outside);
+		const sentinel = join(outside, "sentinel");
+		writeFileSync(sentinel, "unchanged");
+		if (unsafePath === "symlink") symlinkSync(outside, codexHome);
+		else writeFileSync(codexHome, "not a directory");
+		const { code, result } = f.run(["doctor"]);
+		assert.equal(code, 0, JSON.stringify(result));
+		assert.equal(result.status, "healthy");
+		assert.doesNotMatch(readFileSync(f.calls, "utf8"), /codex/);
+		assert.equal(readFileSync(sentinel, "utf8"), "unchanged");
+	});
+}
+
+test("command presence follows unset, empty, and relative PATH without executing it", (t) => {
+	const root = mkdtempSync(join(tmpdir(), "ccl-presence-"));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const command = "ccl-synthetic-presence-command", bin = join(root, "bin"), marker = join(root, "executed");
+	mkdirSync(bin);
+	for (const dir of [root, bin]) writeFileSync(join(dir, command), `#!/bin/sh\n: > '${marker}'\n`, { mode: 0o755 });
+	const script = `import { isHostCommandMissing } from ${JSON.stringify(pathToFileURL(resolve("dist/host-probe.js")).href)}; console.log(isHostCommandMissing(${JSON.stringify(command)}, process.env));`;
+	for (const [path, missing] of [[undefined, true], ["", false], [":", false], ["bin", false], [join(root, "absent"), true]]) {
+		const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], { cwd: root, env: path === undefined ? {} : { PATH: path }, encoding: "utf8" });
+		assert.equal(child.status, 0, child.stderr);
+		assert.equal(child.stdout.trim(), String(missing), `PATH=${path}`);
+	}
+	assert.equal(existsSync(marker), false);
+});
+
+test("command presence preserves nonexecutable files and follows dangling links", (t) => {
+	const root = mkdtempSync(join(tmpdir(), "ccl-presence-errors-"));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	writeFileSync(join(root, "not-executable"), "#!/bin/sh\nexit 0\n", { mode: 0o600 });
+	assert.equal(hostProbe.isHostCommandMissing("not-executable", { PATH: root }), false);
+	assert.equal(hostProbe.probeHostCommand("not-executable", [], { PATH: root }).kind, "probe-failed");
+	symlinkSync(join(root, "absent"), join(root, "dangling"));
+	assert.equal(hostProbe.isHostCommandMissing("dangling", { PATH: root }), true);
+});
+
+test("lookup errors other than absence cannot hide a host", (t) => {
+	let code;
+	const stub = t.mock.method(fs, "accessSync", () => { throw Object.assign(new Error(code), { code }); });
+	syncBuiltinESMExports();
+	try {
+		for (code of ["ENOENT", "ENOTDIR", "EACCES", "ELOOP", "EMFILE"]) {
+			assert.equal(hostProbe.isHostCommandMissing("synthetic", { PATH: "/synthetic" }), ["ENOENT", "ENOTDIR"].includes(code), code);
+		}
+	} finally {
+		stub.mock.restore();
+		syncBuiltinESMExports();
+	}
+});
+
+for (const command of ["doctor", "uninstall"]) {
+	test(`missing owned Codex keeps the explicit adapter outcome in unified ${command}`, (t) => {
+		const f = mixedFixture(t, { probeFailure: "ENOENT" });
+		const root = join(f.home, ".codex/ccl-skills-npm"), manifest = join(root, "install-manifest.json");
+		const release = JSON.parse(readFileSync("dist/assets/release.json", "utf8"));
+		mkdirSync(root, { recursive: true });
+		const content = JSON.stringify(manifestFor(release, `snapshots/${release.snapshotHash}`, null));
+		writeFileSync(manifest, content);
+		const explicit = f.run([command, "--host", "codex"]), unified = f.run([command]);
+		assert.equal(unified.result.details.hosts.codex.code, explicit.code);
+		assert.equal(unified.result.details.hosts.codex.status, explicit.result.status);
+		assert.equal(unified.result.details.hosts.opencode.code, 0);
+		assert.equal(readFileSync(manifest, "utf8"), content);
 	});
 }
 

@@ -8,10 +8,10 @@ The controller has three modes:
 
 Explore/build may configure `challenge_budget=0..4`; release/high-risk requires
 at least one challenge unless the exact candidate qualifies for the
-proof-bound wording-only single-review exception below. The initial review consumes Agent round 1, so total
-Agent-autonomous external review is at most five rounds. Human-requested review
-is outside this budget and must be attributed by the consuming trusted platform.
-The budget is a ceiling, not a quota: after a clean tracked challenge, local
+proof-bound wording-only single-review exception below. The initial review consumes chain round 1;
+each bounded chain uses at most five rounds. Necessary task-scoped review after a
+checkpoint inherits existing task authority; attribute explicit human round requests separately.
+The budget is a ceiling, not a quota: after a clean or fully source-refuted tracked challenge, local
 `complete` may close the chain early. It preserves unused-round count but sets
 `autonomous_review_allowed=false`; release/high-risk still requires at least one
 challenge before this early close is eligible.
@@ -283,7 +283,7 @@ Multi-round Agent automation supplies `review_chain_id`, a contiguous
 `autonomous_review_index` in `1..5`, and every earlier result through ordered
 `--prior-review-result-file` arguments. Prior rounds may contain findings and
 older candidate hashes; they remain consumed. Candidate edits, commits, plan
-refreshes, mode changes, and renamed invocations do not reset Agent authority.
+refreshes, mode changes, and renamed invocations never erase spending or broaden task authority.
 An initial `review` with positive challenge capacity must start this chain at
 index 1; an untracked initial review is single-round and therefore uses budget 0.
 
@@ -324,7 +324,7 @@ Envelope `schema_version` is `3`; a legacy `2` envelope predates the recorded
 scope and is rejected, which requires restarting an in-flight chain. Every
 prior round must retain the same controller digest, owner-selection source,
 selected owner names, and selected-owner digest. Missing, substituted,
-inconclusive, reordered, renamed-chain, or fourth-round input fails before any
+inconclusive, reordered, renamed-chain, or over-budget input fails before any
 provider runs. Scope drift returns `review_scope_changed` and requires deep
 self-review plus explicit task reframing; it does not silently create a new
 Agent budget. An untracked challenge is one-off advisory evidence; it cannot
@@ -332,8 +332,8 @@ enter a later Agent round or satisfy the local completion checkpoint.
 
 Two consequences follow from those stable bindings and must be planned for before round 1:
 
-- The selected-owner digest hashes each selected owner package's current working tree, and owners derive from the candidate's own paths — so a candidate edit inside any selected owner package invalidates every prior receipt and the next tracked round fails `review_chain_invalid`. For a self-hosted candidate (a skill-repo diff editing the package that owns it) that is nearly every applied fix — one confined to files outside every selected owner drifts only the candidate hash and may continue in-chain: "do not reset Agent authority" promises no continuation, and the in-chain tolerance for older candidate hashes is reachable only while the fix stays outside its selected owners.
-- A chain restarted after such a break re-enters the same cumulative Agent budget and must never be counted as fresh authority; the bounded restart recipe for the extraction lane (batched dispositions, cross-chain round accounting, full-context first packet, terminal disposition at the cap) is owned by the extraction workflow's dual-track gate reference.
+- The selected-owner digest hashes each selected owner package's current working tree, and owners derive from the candidate's own paths — so a candidate edit inside any selected owner package invalidates every prior receipt and the next tracked round fails `review_chain_invalid`. For a self-hosted candidate (a skill-repo diff editing the package that owns it) that is nearly every applied fix — one confined to files outside every selected owner drifts only the candidate hash and may continue in-chain: in-chain tolerance for older candidate hashes applies only while fixes stay outside selected owners. Necessary recovery uses fresh bindings after the task checkpoint below.
+- A chain restarted after such a break never erases cumulative spending or task history. An existing task includes necessary fixes, tests and review by default. At exhaustion, first disposition findings from source, run deep self-review and tests, and change the failed method or add missing evidence before another necessary bounded sequence. Record `continuation_basis=existing-task-scope`, the original authority reference and scope, the reason and changed method/evidence, cumulative rounds, and old/new sequence links in the caller-owned task artifact. Preserve every earlier receipt, focus and disposition; do not add this field to CLI arguments or runtime receipts. Existing per-chain and consuming-owner sequence bounds still apply; the extraction recipe remains in its dual-track gate reference. No repeated calls solely to obtain an empty verdict, invented human round requests, history reset or ignored user cost/round/stop limit is allowed.
 
 The controller is stateless and prevents accidental/cooperative resets only. A
 trusted host or platform must retain the ledger when hostile local callers are in
@@ -370,10 +370,34 @@ allowing refreshed self-review conclusions and evidence, and is the Agent path t
 round index, prior-result hashes, and prior challenge focuses. It is not a human
 waiver or merge authorization.
 
+For an unchanged candidate with a conclusive tracked review and challenge,
+`complete` also accepts `--finding-dispositions-file`. Supply every earlier raw
+receipt with ordered `--prior-review-result-file` arguments and the final one
+with `--completion-review-result-file`. The UTF-8 JSON has `schema_version: 1`,
+`candidate_sha256`, ordered `review_result_sha256` hashes including the final
+receipt, and `dispositions`. Each disposition contains `receipt_sha256`, the
+canonical-JSON `finding_sha256`, `disposition: "source_refuted"`, and a non-empty
+`evidence` array naming the first-hand source or failure-path counter-evidence.
+Every original finding occurrence must appear exactly once. Within one receipt,
+findings with identical canonical content share one hash-pair identity in
+first-seen order; retain every raw entry unchanged. Different content or a
+different receipt remains a separate occurrence. Missing history,
+changed candidates, inconclusive results, open findings and risk acceptance do
+not qualify. A code fix with changed bytes requires renewed review.
+
+This local checkpoint records `completion_basis=source_refuted_findings`, the
+dispositions digest and resolved occurrence bindings; original external
+findings remain unchanged. A clean external result uses `external_pass`.
+Validation proves binding and coverage, not the truth of an evidence statement:
+the implementer must trace the cited source, and the judgment remains open to
+challenge. No budget is refreshed and no model is called. At the review cap,
+finish this local work instead of requesting another round solely to obtain an
+empty verdict. Unresolved findings still block completion, not independent work.
+
 ## Human and failure boundary
 
-Only an external authenticated platform action may prove human request, stop,
-resume, waiver, commit, or merge authority. A `review_waiver` clears only the
+Existing task scope covers necessary continuation; exhaustion alone creates no new grant.
+Only an external authenticated platform action may prove new human request, stop, resume, waiver, commit, or merge authority. A `review_waiver` clears only the
 review-process gate. A distinct exact-candidate `merge_authorization` is the
 human's final decision: CI may keep running and reporting every failed/pending
 gate, but none may block that authorized merge. Report
@@ -381,9 +405,9 @@ gate, but none may block that authorized merge. Report
 
 Provider/input/integrity failures stop that reviewer lane, not the whole task.
 Their stable action is `stop_reviewer_lane`, never the ambiguous `stop`.
-Budget exhaustion likewise stops only automatic reviewer calls. Continue local
-fixes, self-review, tests, and independent work; park only decision-dependent
-work. Enter `awaiting_human` only when no independent runnable work remains.
+Budget exhaustion triggers the method/authority checkpoint, not an automatic user handoff. Check legacy
+`human_decision_required` / `continuation_authorization_required` against existing task scope first.
+Continue necessary bounded review; enter `awaiting_human` only for a genuine missing decision, explicit user limit or authority outside that scope.
 
 The current result envelope is schema 3. The generic per-invocation `--timeout`
 keeps its 600-second default and accepts 5..1200 seconds; direct wrappers clamp

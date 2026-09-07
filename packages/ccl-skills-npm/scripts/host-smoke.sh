@@ -7,7 +7,6 @@ pkg_dir=$(cd "$(dirname "$0")/.." && pwd)
 command -v codex >/dev/null || { echo "codex missing" >&2; exit 4; }
 command -v claude >/dev/null || { echo "claude missing" >&2; exit 4; }
 command -v opencode >/dev/null || { echo "opencode missing" >&2; exit 4; }
-version=$(codex --version); printf '%s\n' "$version" | grep -Eq '0\.(13[3-9]|1[4-9][0-9])\.|[1-9][0-9]*\.' || { echo "Codex >=0.133.0 required: $version" >&2; exit 4; }
 tmp=$(mktemp -d); cleanup(){ rm -rf "$tmp"; }; trap cleanup EXIT
 mkdir -p "$tmp/home/.codex" "$tmp/workspace" "$tmp/install-v1" "$tmp/install-v2"
 export HOME="$tmp/home"

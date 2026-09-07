@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "12711e50ac65625050da4d0ef45f11a0dbd96b96d0c4dc4a10408a2dc5250732",
+  "receipt_sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+  "finding_sha256": "b30c850f5a48a399debea45d66033b639d38fe53da58c36e46b0587f71822fbc",
+  "disposition": "source_refuted",
+  "evidence": [
+    "interruption.test.mjs:138-143 already passes detached:true when spawning this child, on both the current source and baseline. The negative child PID therefore selects the isolated child process group, not the test runner group. Lines155-159 await the child's close after bounded group termination. The finding's missing-detachment premise is contradicted by the actual spawn source; the passing interruption regression is consistent with that source."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+      "finding_sha256": "b30c850f5a48a399debea45d66033b639d38fe53da58c36e46b0587f71822fbc"
+    }
+  ]
+}

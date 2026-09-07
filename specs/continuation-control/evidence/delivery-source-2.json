@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "12711e50ac65625050da4d0ef45f11a0dbd96b96d0c4dc4a10408a2dc5250732",
+  "receipt_sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+  "finding_sha256": "1872855186d4590a0f7e17f25116664119e0f957f76e5653cbbeafd92064f89e",
+  "disposition": "source_refuted",
+  "evidence": [
+    "Package README:26 explicitly names plugin marketplace list and plugin list as the admission probes; codex-host.ts implements those exact requirements. A numeric version floor cannot prove mutation-command support or authority. Runtime add failures are separately handled by the existing rollback/journal transaction and covered by the plugin-failure rollback/retained-journal tests in operations.test.mjs:65-75. Admission is not claimed to guarantee all later operations succeed. Thus the requested residual-scope statement is already present and the hypothetical mid-operation failure is an explicitly handled outcome."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+      "finding_sha256": "1872855186d4590a0f7e17f25116664119e0f957f76e5653cbbeafd92064f89e"
+    }
+  ]
+}

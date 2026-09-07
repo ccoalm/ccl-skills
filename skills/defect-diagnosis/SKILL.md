@@ -5,7 +5,9 @@ description: bug / 报错 / test 挂了 / 线上问题 / 接口变慢·性能退
 
 # Defect Diagnosis
 
-Use this skill for the full defect discipline: diagnose the immediate failure, fix it with evidence, then decide whether root-cause prevention should update a product, architecture, development, testing, release, or tooling skill.
+Diagnose and fix from evidence; route prevention to product, architecture, development, testing, release or tooling.
+
+- Code/test changes require self-checks; invoke `code-review` automatically before completion.
 
 ## Non-Negotiable Rules
 

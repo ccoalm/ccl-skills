@@ -1,0 +1,709 @@
+{
+  "kind": "independent-direct-source-slice-check",
+  "renderer_imported_or_called": false,
+  "candidate_sha256": "f176f9ba3e49c7fb1a4ea346f6d1bf3ed1e1b9387e45bebe2fb28c7903317bf7",
+  "before_source_commit": "1defabb0760ad7d4b072790f61c0207de548803d",
+  "before_index_commit": "c1d379d251df8cf14cca07ffe476018306e71d72",
+  "old_index_sha256": "e356d5bbcaf977155b864e12f9ba86449e630fdf738956daf4b529a46be95074",
+  "new_index_sha256": "db41de211326d341aa1d009512f09ec74a9c1a104945a64284a4f98fc3282bad",
+  "non_locator_bytes_equal": true,
+  "owners": [
+    {
+      "path": "skills/llm-inference-integration/SKILL.md",
+      "total_locators": 4,
+      "shifted": 4,
+      "unchanged": 0,
+      "source_edits": [
+        [
+          "replace",
+          8,
+          8,
+          8,
+          10
+        ]
+      ],
+      "old_source_sha256": "b5d60dcd00a8694b7d3f3aa6123a2f8f248145127cf4933cce722c3a1c697b86",
+      "new_source_sha256": "f79872e12ba613d1943832acd3fbf762e5ed249e88215d6a6dad3598a5d4a642"
+    },
+    {
+      "path": "skills/defect-diagnosis/SKILL.md",
+      "total_locators": 1,
+      "shifted": 1,
+      "unchanged": 0,
+      "source_edits": [
+        [
+          "replace",
+          8,
+          8,
+          8,
+          10
+        ]
+      ],
+      "old_source_sha256": "de09c48e4d1bd3500c04cabc05e95d06ec3aacebefcca8cbd5b0c5f1939f572f",
+      "new_source_sha256": "a0a070d7b28278fc22765b001955bb7ee7bcddb233856c6a4414c161d401843a"
+    },
+    {
+      "path": "skills/testing-strategy/SKILL.md",
+      "total_locators": 25,
+      "shifted": 25,
+      "unchanged": 0,
+      "source_edits": [
+        [
+          "replace",
+          8,
+          8,
+          8,
+          10
+        ]
+      ],
+      "old_source_sha256": "3d35d56487aab161ae6c316a04965a0024ad06309be6c8a2b1eef28070d64abb",
+      "new_source_sha256": "eabb731f2a3d7f4782a3613ff067ae4a08ed379e620264b6a5cb35e3e2f3ec56"
+    }
+  ],
+  "occurrences": [
+    {
+      "owner": "skills/llm-inference-integration/SKILL.md",
+      "ordinal": 1,
+      "old_range": [
+        20,
+        20
+      ],
+      "new_range": [
+        22,
+        22
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- When a change can alter what a client renders or which state, action, or decision path it offers—including strings/templates/config/flags and API/event/schema fields, enums, status/progress, permission/capability signals, defaults, or result shapes—you must load `../product-ui-ux-design/references/delivery-contract.md`, create the applicable full or lightweight record in that contract, and follow its canonical consumer-universe classification, design/test/client handoffs, and terminal-status rules."
+      ]
+    },
+    {
+      "owner": "skills/llm-inference-integration/SKILL.md",
+      "ordinal": 2,
+      "old_range": [
+        20,
+        20
+      ],
+      "new_range": [
+        22,
+        22
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- When a change can alter what a client renders or which state, action, or decision path it offers—including strings/templates/config/flags and API/event/schema fields, enums, status/progress, permission/capability signals, defaults, or result shapes—you must load `../product-ui-ux-design/references/delivery-contract.md`, create the applicable full or lightweight record in that contract, and follow its canonical consumer-universe classification, design/test/client handoffs, and terminal-status rules."
+      ]
+    },
+    {
+      "owner": "skills/llm-inference-integration/SKILL.md",
+      "ordinal": 3,
+      "old_range": [
+        21,
+        21
+      ],
+      "new_range": [
+        23,
+        23
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- This inference owner returns only its `producer_record` delta: immutable binding, prompt/model/config/artifact identity, exact command/environment, and API/event/log/output observation."
+      ]
+    },
+    {
+      "owner": "skills/llm-inference-integration/SKILL.md",
+      "ordinal": 4,
+      "old_range": [
+        61,
+        61
+      ],
+      "new_range": [
+        63,
+        63
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "   - For user-impacting generated content, expose candidate, draft, or review-required state plus model, prompt/policy version, status, and cost/usage metadata where useful before final publication or action."
+      ]
+    },
+    {
+      "owner": "skills/defect-diagnosis/SKILL.md",
+      "ordinal": 1,
+      "old_range": [
+        154,
+        154
+      ],
+      "new_range": [
+        156,
+        156
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- Terminal, CLI, or TUI issue involving ANSI rendering, text layout, PTY behavior, keyboard/mouse/paste/focus input, selection/copy, scrollback, resize, color fallback, or terminal cleanup -> `terminal-cli-dev`."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 1,
+      "old_range": [
+        76,
+        76
+      ],
+      "new_range": [
+        78,
+        78
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- UI tests and screenshots must prove design quality layers, not only DOM existence. Assert or visually inspect aesthetic hierarchy/density, interaction path, behavioral recovery states, and psychology-critical cues such as disabled reasons, progress certainty, retry safety, confirmation consequences, and return context."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 2,
+      "old_range": [
+        79,
+        79
+      ],
+      "new_range": [
+        81,
+        81
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- Test cases come before implementation and broad execution for behavior-changing work. Write a compact test-case register first: scenario, layer, assertion, data/dependency, command, expected current result (`fail`, `pass-existing`, `blocked`, `infra-error`, or `gap`), and owner. For bug fixes and user-visible or contract-visible behavior, at least one relevant case must be added or updated and run RED before implementation unless no harness can support it after normal remediation; then record the evidence gap and strongest alternate check. The same RED-first discipline applies to defect records: a reported defect (issue, QA finding) carries the repro command plus the actual failing output, and the fix change references that failing test — a bug \"fixed\" from its description alone, without a RED reproduction, is unverified."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 3,
+      "old_range": [
+        77,
+        77
+      ],
+      "new_range": [
+        79,
+        79
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- For every runtime-visible UI/UX slice, load the canonical sequence in `../product-ui-ux-design/references/delivery-contract.md` and `references/client-runtime-test-matrices.md` §UI/UX Delivery Contract before Phase 0 and after producer/client execution. Testing owns layer selection and sufficiency, binds and cites the complete design/test/producer/client record and candidate-binding sets, confirms every affected client wrote its canonical pre-edit `client_entry` and complete client-record member naming the producer version it exercised, fails closed on a missing/incomplete/mismatched/stale/changed-after-run/unexercised member, and never issues the holistic design verdict."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 4,
+      "old_range": [
+        72,
+        72
+      ],
+      "new_range": [
+        74,
+        74
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- Conditional skips (missing-optional-dependency guards such as module-level `importorskip`, platform/env markers) combined with per-job test selection can leave an entire test file executed in NO CI job while every pipeline stays green: the job that selects the file lacks the optional dependency (the skip fires for the whole module), and the job that has the dependency does not select the file. When a suite mixes conditional skips with job-scoped test selection, the job that owns those tests must carry an executed-count guard — the per-file invariant and the floor fallback live in `references/ci-fixtures-and-flake-control.md`. Any change to job-level selection re-verifies which files each job actually executes (run with skip reporting and read the executed/skipped counts per file). \"The tests exist and CI is green\" is not evidence they ran anywhere."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 5,
+      "old_range": [
+        65,
+        65
+      ],
+      "new_range": [
+        67,
+        67
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- When a CI step or review claim compares a checked-in copy of a vendored external contract/conformance artifact (vendored API/schema/wire/envelope/validator/fixture content — ambiguous upstream artifacts default in-scope; lockfile/digest-pin checks that vendor no such content are out) against a manifest, digest list, or pinned source, run `references/vendored-contract-drift-checklist.md` as the authoritative gate: enumerate scope → fill the per-row applicability ledger → emit an explicit `pass`/`non-pass`/`inapplicable` verdict (never a bare scope label or a comprehensive green). The load-bearing invariants are the checklist's own rows — absent-sibling fail-closed, upstream authenticity as a separate gate, single-canonical-producer recipe/wrapper that stays network-/delete-/exec-free beyond the canonical script with fetch/install only via a human-authorized sync gate, clean+RED-or-N/A per applicable row, RED only in scratch — applied from the checklist, not from memory. This is the test mechanic for the vendor-sync gate that `product-rd-workflow` cross-repo coordination routes here."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 6,
+      "old_range": [
+        117,
+        117
+      ],
+      "new_range": [
+        119,
+        119
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "A current acceptance source or reviewable task artifact may already confirm scope. In particular, a UI/UX Design brief with a stable slice/surface, authoritative consumer inventory, affected owner(s), and criterion IDs is the confirmed bounded scope for its Phase 0/Phase 1 work; consume it instead of asking the user to restate global/file/function scope."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 7,
+      "old_range": [
+        77,
+        77
+      ],
+      "new_range": [
+        79,
+        79
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- For every runtime-visible UI/UX slice, load the canonical sequence in `../product-ui-ux-design/references/delivery-contract.md` and `references/client-runtime-test-matrices.md` §UI/UX Delivery Contract before Phase 0 and after producer/client execution. Testing owns layer selection and sufficiency, binds and cites the complete design/test/producer/client record and candidate-binding sets, confirms every affected client wrote its canonical pre-edit `client_entry` and complete client-record member naming the producer version it exercised, fails closed on a missing/incomplete/mismatched/stale/changed-after-run/unexercised member, and never issues the holistic design verdict."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 8,
+      "old_range": [
+        84,
+        84
+      ],
+      "new_range": [
+        86,
+        86
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "  - For disputed or high-stakes defects, prefer splitting verification and fix into two deliverables: a test-only verification slice first pins the confirm/deny verdict and root-cause attribution, and the fix is a separate change that references it — keeping the verification verdict uncontaminated by fix intent. Its failing regression test may land skip-marked as the trace only as a bounded state, not an escape: the skip carries the reason, an owner, and the linked fix item, and accepting the fix requires un-skipping it into the blocking regression set (or an explicitly owner-signed quarantine lane) — a RED test that stays skipped after its fix merges is the bypass this rule exists to prevent."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 9,
+      "old_range": [
+        93,
+        93
+      ],
+      "new_range": [
+        95,
+        95
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- If a browser/device/E2E or host-smoke layer is classified as blocking, unavailable means the delivery is not complete. Use `pre-runtime-test-ready` only when code, lower-layer tests, and build checks are done and a named human/device owner must finish the runtime gate; a handoff-only label, not merge-ready/release-ready. Otherwise use `blocked`. Do not describe such work as done, fixed, merge-ready, or release-ready."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 10,
+      "old_range": [
+        93,
+        93
+      ],
+      "new_range": [
+        95,
+        95
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- If a browser/device/E2E or host-smoke layer is classified as blocking, unavailable means the delivery is not complete. Use `pre-runtime-test-ready` only when code, lower-layer tests, and build checks are done and a named human/device owner must finish the runtime gate; a handoff-only label, not merge-ready/release-ready. Otherwise use `blocked`. Do not describe such work as done, fixed, merge-ready, or release-ready."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 11,
+      "old_range": [
+        121,
+        121
+      ],
+      "new_range": [
+        123,
+        123
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "> 请确认测试范围："
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 12,
+      "old_range": [
+        122,
+        123
+      ],
+      "new_range": [
+        124,
+        125
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "> 1. 全局 — 整个仓库 / 当前 feature 所有文件",
+        "> 2. 文件 — 指定文件（请提供路径）"
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 13,
+      "old_range": [
+        123,
+        124
+      ],
+      "new_range": [
+        125,
+        126
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "> 2. 文件 — 指定文件（请提供路径）",
+        "> 3. 函数 / 接口 — 指定函数或 API endpoint（请提供名称）"
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 14,
+      "old_range": [
+        124,
+        124
+      ],
+      "new_range": [
+        126,
+        126
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "> 3. 函数 / 接口 — 指定函数或 API endpoint（请提供名称）"
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 15,
+      "old_range": [
+        126,
+        126
+      ],
+      "new_range": [
+        128,
+        128
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "Do not infer scope from stale conversation or an unverified guess. A current, resolvable Design brief or accepted scope artifact is evidence, not inference. If the inspection leaves one material scope, proceed and record its source; if ambiguity remains, wait for the user's answer before layer assignment."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 16,
+      "old_range": [
+        126,
+        126
+      ],
+      "new_range": [
+        128,
+        128
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "Do not infer scope from stale conversation or an unverified guess. A current, resolvable Design brief or accepted scope artifact is evidence, not inference. If the inspection leaves one material scope, proceed and record its source; if ambiguity remains, wait for the user's answer before layer assignment."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 17,
+      "old_range": [
+        129,
+        129
+      ],
+      "new_range": [
+        131,
+        131
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- **全局**: run the full scenario matrix from `testing-strategy` workflow; consult TC list for all active TCs."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 18,
+      "old_range": [
+        129,
+        129
+      ],
+      "new_range": [
+        131,
+        131
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- **全局**: run the full scenario matrix from `testing-strategy` workflow; consult TC list for all active TCs."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 19,
+      "old_range": [
+        130,
+        130
+      ],
+      "new_range": [
+        132,
+        132
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- **文件**: narrow TC list to TCs whose `模块` or `功能点` maps to that file; run scenario matrix for that file's contracts and business rules."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 20,
+      "old_range": [
+        130,
+        130
+      ],
+      "new_range": [
+        132,
+        132
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- **文件**: narrow TC list to TCs whose `模块` or `功能点` maps to that file; run scenario matrix for that file's contracts and business rules."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 21,
+      "old_range": [
+        131,
+        131
+      ],
+      "new_range": [
+        133,
+        133
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- **函数 / 接口**: narrow to TCs directly covering that function or endpoint; add negative-path and boundary cases if not already in the TC list."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 22,
+      "old_range": [
+        131,
+        131
+      ],
+      "new_range": [
+        133,
+        133
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- **函数 / 接口**: narrow to TCs directly covering that function or endpoint; add negative-path and boundary cases if not already in the TC list."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 23,
+      "old_range": [
+        131,
+        131
+      ],
+      "new_range": [
+        133,
+        133
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "- **函数 / 接口**: narrow to TCs directly covering that function or endpoint; add negative-path and boundary cases if not already in the TC list."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 24,
+      "old_range": [
+        133,
+        133
+      ],
+      "new_range": [
+        135,
+        135
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "After resolving TC source and scope, proceed to **When Input Is a Structured TC List** and `references/structured-tc-input-translation.md` (if TCs available) or **Workflow Step 1** (if no TCs)."
+      ]
+    },
+    {
+      "owner": "skills/testing-strategy/SKILL.md",
+      "ordinal": 25,
+      "old_range": [
+        176,
+        176
+      ],
+      "new_range": [
+        178,
+        178
+      ],
+      "delta": [
+        2,
+        2
+      ],
+      "same_exact_source_lines": true,
+      "source_lines": [
+        "   For client API-backed surfaces, mini-program/mobile/device runtime smoke, runtime-client mechanisms (route guards, permission trees, request interceptors, generated clients, upload wrappers, long-task polling, safe-area/keyboard/orientation handling, foreground/background restore, native bridges, app-hosted H5), terminal/CLI/TUI runtime tests, and streaming/async-finality changes (model streams, queued jobs, MQ consumers, scheduled prompt tasks, cron tasks, persisted tool-output artifacts, long-running exports, long-lived connections), load `references/client-runtime-test-matrices.md` before assigning layers — and again before declaring any runtime/device/browser evidence unavailable, not only at layer assignment. Non-negotiable anchors kept in view here: the default three-boundary client split (unit/component + API client/contract + browser/device smoke) applies unless the repository has a stronger convention; runtime-dependent smoke is **blocking** when lower layers cannot prove the changed behavior, and a missing runner after normal remediation stops at `pre-runtime-test-ready` or `blocked` with owner, commands attempted, residual risk, and next unblock action — never converts into a code correctness claim; developer-tool compile/preview is structural evidence only; dangerous or irreversible operations require operator/confirmation/audit/duplicate-submit/final-status assertions before the UI or API is called ready. Build scenario matrices from the reference's reusable dimensions (host/container, identity/permission, data/state, async/finality, visual/interaction, high-consequence); do not paste product-specific matrices into this skill — product-specific lists belong in the project checklist or the owning product/domain skill."
+      ]
+    }
+  ],
+  "mapping_unchanged": true,
+  "mapping_sha256": "ba53fdc2ce5341e7d539100dc8f73f4dcb6e44136fcc29843ae09cfbb006c273",
+  "mapping_rows": 1240,
+  "mapping_all_keys": [
+    "after",
+    "authority",
+    "before",
+    "before_chain",
+    "before_text",
+    "bridge_terms",
+    "carrier_bundle",
+    "carrier_chain",
+    "carrier_path",
+    "carrier_sha256",
+    "carrier_text",
+    "carriers",
+    "compound_clauses",
+    "disposition",
+    "effect",
+    "id",
+    "kind",
+    "manual_reviewed",
+    "parts",
+    "qualifier_relations",
+    "qualifier_resolutions",
+    "qualifiers",
+    "reason",
+    "resolution",
+    "review_note",
+    "same_immediate_host",
+    "schema_version",
+    "scope",
+    "semantic_rationale",
+    "semantic_review",
+    "source_end",
+    "source_ordinal",
+    "source_path",
+    "source_start",
+    "source_text",
+    "status"
+  ],
+  "all_assertions_passed": true
+}

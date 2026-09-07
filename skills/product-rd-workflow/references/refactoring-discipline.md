@@ -4,12 +4,18 @@ Use this when improving code structure, splitting responsibilities, reducing dup
 
 ## Rules
 
-- Keep behavior-preserving refactors separate from feature changes and bug fixes unless the user explicitly accepts the combined risk.
+- Keep unrelated refactors separate from feature changes and bug fixes. A bounded, behavior-preserving cleanup needed to satisfy an existing quality gate belongs to the authorized task; do not ask again merely because it involves refactoring. Broader redesign and breaking changes retain their scope and approval checks.
 - Establish a green baseline first: run the smallest relevant tests or record why the current baseline is already failing.
 - Refactor in small steps. Each step should be reviewable and, when practical, independently testable.
 - Search all call sites before changing public functions, DTOs, generated contracts, config keys, storage fields, events, or exported helpers.
 - Preserve external behavior, response shape, errors, telemetry, permissions, and side effects unless the change is intentional and documented.
 - Do not broaden a refactor while debugging an unknown defect; use `defect-diagnosis` first.
+
+## Responding to quality gates
+
+- Read the failed check, its baseline and its intended quality property before choosing a repair. A file-size or complexity limit should prompt inspection of the changed responsibility, cohesion, callers and dependency direction. Extract a coherent responsibility or remove genuine duplication when that improves the code; keep public imports compatible where needed and verify affected behavior before and after. A smaller file alone does not prove a better design.
+- Do not abbreviate meaningful names, remove necessary explanations, pack statements, fragment responsibilities arbitrarily, or change the threshold/history just to satisfy a counter. A gate with an evidenced defect can be diagnosed and corrected under its owning contract; that is distinct from evading a valid failure.
+- Perform available, in-scope remediation and rerun the failed check before handing the problem back. Ask only for a remaining material tradeoff or missing authority after this work. Force-pushing, waiving the gate and accepting lower readability are not substitutes for inspecting a safe structural repair; a failed gate grants none of those permissions.
 
 ## Impact Analysis
 

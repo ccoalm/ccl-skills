@@ -1,0 +1,172 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "12711e50ac65625050da4d0ef45f11a0dbd96b96d0c4dc4a10408a2dc5250732",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "delivery-round1-review.json",
+      "sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8"
+    },
+    {
+      "sequence": 2,
+      "file": "delivery-round2-challenge.json",
+      "sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70"
+    }
+  ],
+  "completion_receipt": {
+    "file": "delivery-complete.json",
+    "sha256": "08932d66da1dda5ba1554fbdf7b0947e36afbc7b9941fd5d11bbdd43dd916b3c"
+  },
+  "finding_dispositions": {
+    "file": "delivery-finding-dispositions.json",
+    "sha256": "6897932a1fc4a162b87481c6be97c97b14ea7c8218abb3d56466d47f7974becc"
+  },
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "69bcc3e31556f40e9e10fc4b69837cfc56f6fffe",
+      "confirmed_at": "2026-09-07T08:46:39.098202Z",
+      "controller_receipt_sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "a20b2f806c796e649c7e8d82522fea3b8a950492ffd29318a3b9baa84c903c99"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "69bcc3e31556f40e9e10fc4b69837cfc56f6fffe",
+      "confirmed_at": "2026-09-07T08:46:56.613227Z",
+      "controller_receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "a20b2f806c796e649c7e8d82522fea3b8a950492ffd29318a3b9baa84c903c99"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "self_reviewed",
+  "finding_classes": [
+    {
+      "key": "valid-journal-oracle",
+      "root_cause_predicate": "The current finality fixture is malformed and cannot kill deletion of the host guard.",
+      "affected_surface": "operations.test.mjs and operations.ts",
+      "occurrences": [
+        {
+          "receipt_sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+          "finding_sha256": "77b52e40366eef65921f3bc6161ef619af58a2bcc4d8a6933a70acca2c2fc936",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-source-1.json",
+          "disposition_evidence_sha256": "25c40880067376ee9f878a7ed441ea9c0834d7be91ec96278db689b9567e76e9"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "capability-admission-scope",
+      "root_cause_predicate": "Admission incorrectly guarantees mutation-command availability based on only list probes.",
+      "affected_surface": "codex-host.ts and package README",
+      "occurrences": [
+        {
+          "receipt_sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+          "finding_sha256": "1872855186d4590a0f7e17f25116664119e0f957f76e5653cbbeafd92064f89e",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-source-2.json",
+          "disposition_evidence_sha256": "1e2a2ca034674d51f68b61487276c905367dcf04b261f6e4f060d46d5a851d03"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "detached-fixture-group",
+      "root_cause_predicate": "The interruption child lacks its own detached process group.",
+      "affected_surface": "interruption.test.mjs",
+      "occurrences": [
+        {
+          "receipt_sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+          "finding_sha256": "b30c850f5a48a399debea45d66033b639d38fe53da58c36e46b0587f71822fbc",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-source-3.json",
+          "disposition_evidence_sha256": "8b25df82689cf856f770280d9585c1b4dc11260c34bda33eb7d2a1218c4f54b1"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "uninstall-trash-order",
+      "root_cause_predicate": "A normal pre-removal interruption creates a post-removal-only trash journal.",
+      "affected_surface": "operations.ts uninstall and resumeJournal",
+      "occurrences": [
+        {
+          "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+          "finding_sha256": "fd6084c0d894abdf5a0c7caa09fcdba800cad115c355924734df5c7a334ce95d",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-source-4.json",
+          "disposition_evidence_sha256": "65b01b6d1927408bb9d7d69ea016c7fd78e0d3e80b1435070af163885c6e2e61"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "default-task-authority",
+      "root_cause_predicate": "The contract claims mechanical total-task authority enforcement by a stateless local controller.",
+      "affected_surface": "dual-track-review-gate.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+          "finding_sha256": "0168882e2724856a8b4cde12571ac1873c27fb2a76d42d9399af2c8c34614728",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-source-5.json",
+          "disposition_evidence_sha256": "c58c3eaac0bb5c1cb967c348db5befda2a7d3102d24ad7f3983d3d816b05bac6"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "uninstall-public-state-guard",
+      "root_cause_predicate": "A journal-free uninstall deletes managed data without requiring known matching public state.",
+      "affected_surface": "operations.ts uninstall and exactState",
+      "occurrences": [
+        {
+          "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+          "finding_sha256": "642e256514a45c3517f340f11ce81ae0805837f2fc25648d066841e56918560f",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-source-6.json",
+          "disposition_evidence_sha256": "55b78ff1880f3bbb2bdb2e6a661f1627a33fcf6089d2115428f7af8ae4de232c"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "combined-landing-coverage",
+      "root_cause_predicate": "The two reviewed packets are independently landed without exact whole-candidate coverage.",
+      "affected_surface": "landing-manifest.json and body grading/evaluator",
+      "occurrences": [
+        {
+          "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+          "finding_sha256": "1900427f855e74d3d1d01cde65d7f39c171ca2a68ceddd26129a8891a396ad5f",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-source-7.json",
+          "disposition_evidence_sha256": "1ad5793aef6cc117ef47ccf96b2b972440434e0b9d5a24e2543c086eac7d50a1"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "release-preparation-authority",
+      "root_cause_predicate": "The release-preparation rule permits fabrication of user approval or grants publication authority.",
+      "affected_surface": "CONTRIBUTING.md and npm-release.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+          "finding_sha256": "d85bdfb757335a57395628c5190967f52a37e58f955d27c2d26d7ea67d7140b3",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-source-8.json",
+          "disposition_evidence_sha256": "7f34d03297f0fa40351d78a8432ae2002b7fa4ec1a34d97c70824944e453786e"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "ready_for_human_decision"
+}

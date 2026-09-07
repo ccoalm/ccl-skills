@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "c7576d6e962263eb0b52c3908996168ef24276dbdf2b0a8b22667a48b492e3bc",
+  "receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+  "finding_sha256": "c53ea0248ca12a99e20f34cf15e9a0d0bc0aadc4c8e3bfc20ba463897f2df429",
+  "disposition": "source_refuted",
+  "evidence": [
+    "The report's Results table states the observed before/current status of each named case; it never claims the optional --baseline runner path executed and never derives its conclusion from newly_failed/newly_passed. Both raw baseline_comparable fields remain null and are retained unchanged. An actual post-run programmatic comparison checked identical case order, equal bank SHA256d13a7256b0f00c1c81882fc38386f3b8b322aa23c18bce6aac989b003b446fef, equal replicas10 and requested model, and exactly one changed per-skill description hash (code-review). Joining all five case IDs produced no consensus-status delta; every listed status is PASS in each raw report. Thus 'No case changed consensus status' is a directly computed fact over the committed reports. A missing optional runner comparison flag does not make those observations false or imply that flag was used."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+      "finding_sha256": "c53ea0248ca12a99e20f34cf15e9a0d0bc0aadc4c8e3bfc20ba463897f2df429"
+    }
+  ]
+}

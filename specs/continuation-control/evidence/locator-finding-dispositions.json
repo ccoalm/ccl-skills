@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "f176f9ba3e49c7fb1a4ea346f6d1bf3ed1e1b9387e45bebe2fb28c7903317bf7",
+  "review_result_sha256": [
+    "12e0cd7782791a15bc52adc3206698c2ec5ceef977190e266e072ea2ce265187",
+    "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9"
+  ],
+  "dispositions": [
+    {
+      "receipt_sha256": "12e0cd7782791a15bc52adc3206698c2ec5ceef977190e266e072ea2ce265187",
+      "finding_sha256": "bf4f0824b5161bba92fa5f69915323fe0195932b0120450676da811e6991a6b2",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Whole-file enumeration of both index revisions found exactly30carrier locators into the three shifted owner files: llm-inference-integration4, defect-diagnosis1, testing-strategy25. All30shifted by+2 at both ends; zero unchanged locators remain into those owners. This enumerates the entire1240row ledger, not only changed hunks.",
+        "For every occurrence, exact lines at the old carrier range from pre-insertion commit1defabb0760ad7d4b072790f61c0207de548803d equal the current lines at the refreshed range. Repeated references and multiline ranges are included. Removing only numeric carrier ranges leaves the full before/after index byte-identical; the canonical mapping is unchanged.",
+        "Source trace obligation-ledger.py:836-875 exact_carrier reads the current file and uniquely matches normalized exact text and governing chain before computing line_range. validate_mapping:2340-2360 uses that function for ordinary carriers; partition carriers call it at2040 and then verify their digest at2044-2045. Audit:2733 compares the complete rendered index. The claimed shape-only acceptance of stale neighboring text is therefore false; semantic-review truth remains a separately stated limit.",
+        "The owning test failed locally with STALE_LEDGER before regeneration and passes afterward: /private/tmp/impact-obligation-ci-repro.log exit1; /private/tmp/impact-obligation-ci-green.log exit0, domain50 rows1240 unresolved0 exact_mechanical91 reviewed_semantic1149. No gate predicate, expectation, mapping or source rule was changed."
+      ]
+    },
+    {
+      "receipt_sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9",
+      "finding_sha256": "b98666b3af9e8066a1a46c128b1fa3b266b2ff3eaee0ee7cfa8eb50bcf5725d8",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Independent proof /private/tmp/carrier-locator-independent-proof.json SHA256 eaed54d91db3c1346963f3da11dba2b2ea38159be617f8915a40fdcd1333088c; executable /private/tmp/carrier-locator-independent-proof.py SHA256 b2ea3bdb336a8670dda8d9d0a470ac76d10a16922700af3fe24da70a22aeac15 completed exit0. It uses direct Git reads, regex enumeration, difflib and source-line slices, without importing or calling the obligation renderer.",
+        "The full-file proof enumerates exactly30occurrences across all1240rows, with owner totals4/1/25, all30shifted and zero unchanged. Every occurrence includes owner, ordinal, old/new range, delta and exact current source lines; all old pre-insertion slices equal refreshed current slices. This directly excludes the hypothesized missing locators outside the diff hunks. The complete proof is retained beside the landing receipts as locator-independent-proof.json."
+      ]
+    },
+    {
+      "receipt_sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9",
+      "finding_sha256": "abb4c93309a0a60b0c154e823c67621fa0e860b09a31df76f0e61c411a75a080",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Independent proof /private/tmp/carrier-locator-independent-proof.json SHA256 eaed54d91db3c1346963f3da11dba2b2ea38159be617f8915a40fdcd1333088c; executable /private/tmp/carrier-locator-independent-proof.py SHA256 b2ea3bdb336a8670dda8d9d0a470ac76d10a16922700af3fe24da70a22aeac15 completed exit0. It uses direct Git reads, regex enumeration, difflib and source-line slices, without importing or calling the obligation renderer.",
+        "The independent proof does not reuse obligation-ledger.py or its mapping resolver. It reads prior source at1defabb0760ad7d4b072790f61c0207de548803d and current source, then compares exact line slices at every old/new range and verifies all non-locator index bytes and the canonical mapping unchanged. Therefore a shared renderer defect cannot make this check pass solely through self-comparison.",
+        "No release verdict was recorded while checks were pending. Full make and hosted CI remain independent prerequisites for merge/publication. Local controller completion only closes review findings for this immutable packet; it does not substitute for those required checks."
+      ]
+    },
+    {
+      "receipt_sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9",
+      "finding_sha256": "a07e6f3acdea60be75f9077ffe73d775987a2daa3d2c88c19366790f2cf05a5a",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Independent proof /private/tmp/carrier-locator-independent-proof.json SHA256 eaed54d91db3c1346963f3da11dba2b2ea38159be617f8915a40fdcd1333088c; executable /private/tmp/carrier-locator-independent-proof.py SHA256 b2ea3bdb336a8670dda8d9d0a470ac76d10a16922700af3fe24da70a22aeac15 completed exit0. It uses direct Git reads, regex enumeration, difflib and source-line slices, without importing or calling the obligation renderer.",
+        "difflib.SequenceMatcher on all three complete owner files identifies the sole source edit as old line8 replaced by new lines8-10. For each of all30ranges the executable asserts old_start>8 and new_start>10, both endpoints+2 and exact old/current source-slice equality. The multiline ranges122-123→124-125 and123-124→125-126 are covered. No insertion lies inside any carrier span."
+      ]
+    },
+    {
+      "receipt_sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9",
+      "finding_sha256": "1ab1a260f3c8217d5dea73147d6ae1c76498a61c980efa488bcd09c654c69314",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Independent proof /private/tmp/carrier-locator-independent-proof.json SHA256 eaed54d91db3c1346963f3da11dba2b2ea38159be617f8915a40fdcd1333088c; executable /private/tmp/carrier-locator-independent-proof.py SHA256 b2ea3bdb336a8670dda8d9d0a470ac76d10a16922700af3fe24da70a22aeac15 completed exit0. It uses direct Git reads, regex enumeration, difflib and source-line slices, without importing or calling the obligation renderer.",
+        "Recursive enumeration of every key in all1240mapping rows finds no current carrier line-position field. Carrier fields are carrier_path, carrier_text, carrier_chain and carrier_sha256, with bridge_terms for partition carriers. The positional-looking parts[].source_start/source_end refer to character offsets in the frozen expected.before_text, not current carrier-file lines.",
+        "Source trace obligation-ledger.py:1968-1991 reads these part offsets, bounds end by len(expected.before_text), and requires expected.before_text[start:end]==source_text. At2037-2045 current carrier text/chain/hash is independently resolved. The index-only update does not change the frozen before_text or source fragment offsets, and the entire canonical mapping is byte-identical. Regenerating those offsets would change historical evidence unnecessarily."
+      ]
+    }
+  ]
+}

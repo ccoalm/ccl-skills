@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "f176f9ba3e49c7fb1a4ea346f6d1bf3ed1e1b9387e45bebe2fb28c7903317bf7",
+  "receipt_sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9",
+  "finding_sha256": "abb4c93309a0a60b0c154e823c67621fa0e860b09a31df76f0e61c411a75a080",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9",
+      "finding_sha256": "abb4c93309a0a60b0c154e823c67621fa0e860b09a31df76f0e61c411a75a080"
+    }
+  ],
+  "evidence": [
+    "Independent proof /private/tmp/carrier-locator-independent-proof.json SHA256 eaed54d91db3c1346963f3da11dba2b2ea38159be617f8915a40fdcd1333088c; executable /private/tmp/carrier-locator-independent-proof.py SHA256 b2ea3bdb336a8670dda8d9d0a470ac76d10a16922700af3fe24da70a22aeac15 completed exit0. It uses direct Git reads, regex enumeration, difflib and source-line slices, without importing or calling the obligation renderer.",
+    "The independent proof does not reuse obligation-ledger.py or its mapping resolver. It reads prior source at1defabb0760ad7d4b072790f61c0207de548803d and current source, then compares exact line slices at every old/new range and verifies all non-locator index bytes and the canonical mapping unchanged. Therefore a shared renderer defect cannot make this check pass solely through self-comparison.",
+    "No release verdict was recorded while checks were pending. Full make and hosted CI remain independent prerequisites for merge/publication. Local controller completion only closes review findings for this immutable packet; it does not substitute for those required checks."
+  ]
+}

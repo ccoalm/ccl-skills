@@ -287,11 +287,11 @@ def make_fixture(
 
     occurrences = []
     for receipt, receipt_hash in zip(receipts, receipt_hashes):
-        for item in receipt["findings"]:
+        for finding_hash in dict.fromkeys(canonical_hash(item) for item in receipt["findings"]):
             occurrences.append(
                 {
                     "receipt_sha256": receipt_hash,
-                    "finding_sha256": canonical_hash(item),
+                    "finding_sha256": finding_hash,
                     "disposition": "fixed",
                 }
             )
@@ -1284,6 +1284,194 @@ assert [
 ] == [(name, 1, True, False) for name, _result, _token in new_regressions], [
     (name, result.returncode, result.stdout) for name, result, _token in new_regressions
 ]
+
+def make_refuted_completion(name, **kwargs):
+    kwargs.setdefault("receipt_findings", [[finding(1)], [finding(2)]])
+    case = make_fixture(name, **kwargs)
+    ledger = case["ledger"]
+    dispositions = []
+    for row in ledger["finding_classes"]:
+        for index, occurrence in enumerate(row["occurrences"]):
+            occurrence["disposition"] = "source_refuted"
+            witness = bind_disposition_evidence(
+                f"{name}-refuted-{index}.json", occurrence,
+                evidence=[f"synthetic source refutes occurrence {index}"],
+            )
+            dispositions.append({
+                **occurrence_ref(occurrence),
+                "disposition": "source_refuted",
+                "evidence": witness["evidence"],
+            })
+    document = {
+        "schema_version": 1,
+        "candidate_sha256": CANDIDATE,
+        "review_result_sha256": list(case["receipt_hashes"]),
+        "dispositions": dispositions,
+    }
+    name = f"{name}-finding-dispositions.json"
+    ledger["finding_dispositions"] = {"file": name, "sha256": write_json(name, document)}
+    completion_ref = ledger["completion_receipt"]
+    complete = json.loads((root / completion_ref["file"]).read_text())
+    complete.update(
+        completion_basis="source_refuted_findings",
+        finding_dispositions_sha256=ledger["finding_dispositions"]["sha256"],
+        resolved_finding_occurrences=[occurrence_ref(item) for item in dispositions],
+    )
+    completion_ref["sha256"] = write_json(completion_ref["file"], complete)
+    return case
+
+
+def mutate_refuted_completion(case, mutator):
+    ref = case["ledger"]["completion_receipt"]
+    document = json.loads((root / ref["file"]).read_text())
+    mutator(document)
+    ref["sha256"] = write_json(ref["file"], document)
+
+
+def mutate_refuted_document(case, mutator, *, duplicate_key=None):
+    ref = case["ledger"]["finding_dispositions"]
+    document = json.loads((root / ref["file"]).read_text())
+    mutator(document)
+    ref["sha256"] = (
+        write_duplicate_json(ref["file"], document, duplicate_key, "ignored")
+        if duplicate_key else write_json(ref["file"], document)
+    )
+    mutate_refuted_completion(case, lambda row: row.update(finding_dispositions_sha256=ref["sha256"]))
+
+
+adjudicated = make_refuted_completion("adjudicated")
+run("adjudicated", adjudicated["ledger"], 0, "ready_for_human_decision")
+for ref in adjudicated["ledger"]["controller_receipts"]:
+    raw = (root / ref["file"]).read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == ref["sha256"]
+    assert json.loads(raw)["status"] == "findings"
+
+historical_refuted = make_refuted_completion("historical-refuted", receipt_findings=[[finding(1)], []])
+run("historical-refuted", historical_refuted["ledger"], 0, "ready_for_human_decision")
+
+duplicate_finding_cases = [
+    ("duplicate-only", [[finding(1), dict(reversed(list(finding(1).items())))], []], 1),
+    ("duplicate-plus-distinct", [[finding(2), finding(1), finding(2)], []], 2),
+    ("duplicate-across-receipts", [[finding(1), finding(1)], [finding(1), finding(1)]], 2),
+]
+duplicate_cases = {}
+for name, receipt_findings, identity_count in duplicate_finding_cases:
+    case = make_refuted_completion(name, receipt_findings=receipt_findings)
+    duplicate_cases[name] = case
+    raw_receipts = [(root / ref["file"]).read_bytes() for ref in case["ledger"]["controller_receipts"]]
+    document = json.loads((root / case["ledger"]["finding_dispositions"]["file"]).read_text())
+    assert len(document["dispositions"]) == identity_count
+    run(name, case["ledger"], 0, "ready_for_human_decision")
+    for ref, raw, original in zip(case["ledger"]["controller_receipts"], raw_receipts, receipt_findings):
+        assert (root / ref["file"]).read_bytes() == raw
+        assert hashlib.sha256(raw).hexdigest() == ref["sha256"]
+        assert json.loads(raw)["findings"] == original
+
+for name in ("duplicate-plus-distinct", "duplicate-across-receipts"):
+    omitted = copy.deepcopy(duplicate_cases[name]["ledger"])
+    del omitted["finding_classes"][0]["occurrences"][-1]
+    run(f"{name}-missing-class", omitted, 1, "omits controller findings")
+
+missing_distinct_disposition = make_refuted_completion(
+    "duplicate-missing-disposition", receipt_findings=[[finding(2), finding(1), finding(2)], []]
+)
+mutate_refuted_document(missing_distinct_disposition, lambda row: row["dispositions"].pop())
+run("duplicate-missing-disposition", missing_distinct_disposition["ledger"], 1, "ordered controller findings")
+
+repeated_class = copy.deepcopy(duplicate_cases["duplicate-only"]["ledger"])
+repeated_occurrences = repeated_class["finding_classes"][0]["occurrences"]
+repeated_occurrences.append(copy.deepcopy(repeated_occurrences[0]))
+run("duplicate-finding-repeated-class", repeated_class, 1, "classified more than once")
+
+for name, kwargs, token in [
+    ("one-round", {"receipt_findings": [[finding(1)]]}, "review and challenge"),
+    ("empty", {"receipt_findings": [[], []]}, "at least one controller finding"),
+    ("succession", {"receipt_findings": [[finding(1)], [finding(2)], [finding(3)]], "succession": True}, "without succession"),
+]:
+    case = make_refuted_completion(f"adjudicated-{name}", **kwargs)
+    run(f"adjudicated-{name}", case["ledger"], 1, token)
+
+external_basis = make_fixture("external-basis", completion_mutator=lambda row: row.update(
+    completion_basis="external_pass", finding_dispositions_sha256=None,
+    resolved_finding_occurrences=[],
+))
+run("external-basis", external_basis["ledger"], 0, "ready_for_human_decision")
+
+orphan_dispositions = make_fixture("orphan-dispositions")
+orphan_dispositions["ledger"]["finding_dispositions"] = dict(adjudicated["ledger"]["finding_dispositions"])
+run("orphan-dispositions", orphan_dispositions["ledger"], 1, "requires a source_refuted_findings completion")
+
+missing_ref = make_refuted_completion("adjudicated-missing-ref")
+del missing_ref["ledger"]["finding_dispositions"]
+run("adjudicated-missing-ref", missing_ref["ledger"], 1, "finding_dispositions")
+
+bad_ref_hash = make_refuted_completion("adjudicated-bad-ref-hash")
+bad_ref_hash["ledger"]["finding_dispositions"]["sha256"] = "f" * 64
+run("adjudicated-bad-ref-hash", bad_ref_hash["ledger"], 1, "digest does not match")
+
+for name, mutate, token in [
+    ("stale-candidate", lambda row: row.update(candidate_sha256=OTHER_CANDIDATE), "current candidate"),
+    ("missing-prefix", lambda row: row["review_result_sha256"].pop(0), "ordered controller receipts"),
+    ("reordered-prefix", lambda row: row["review_result_sha256"].reverse(), "ordered controller receipts"),
+    ("missing-occurrence", lambda row: row["dispositions"].pop(0), "ordered controller findings"),
+    ("duplicate-occurrence", lambda row: row["dispositions"].append(copy.deepcopy(row["dispositions"][0])), "ordered controller findings"),
+    ("reordered-occurrences", lambda row: row["dispositions"].reverse(), "ordered controller findings"),
+    ("wrong-finding", lambda row: row["dispositions"][0].update(finding_sha256="f" * 64), "ordered controller findings"),
+    ("empty-evidence", lambda row: row["dispositions"][0].update(evidence=[]), "non-empty evidence"),
+    ("blank-evidence", lambda row: row["dispositions"][0].update(evidence=[" "]), "normalized string"),
+    ("long-evidence", lambda row: row["dispositions"][0].update(evidence=["x" * 1001]), "1000 characters"),
+    ("different-evidence", lambda row: row["dispositions"][0].update(evidence=["different source claim"]), "class disposition evidence"),
+]:
+    case = make_refuted_completion(f"adjudicated-{name}")
+    mutate_refuted_document(case, mutate)
+    run(f"adjudicated-{name}", case["ledger"], 1, token)
+
+for disposition in ("fixed", "accepted_tradeoff", "pre_existing_out_of_scope", "open", "needs_human_decision"):
+    case = make_refuted_completion(f"adjudicated-mixed-{disposition}")
+    mutate_refuted_document(case, lambda row: row["dispositions"][0].update(disposition=disposition))
+    run(f"adjudicated-mixed-{disposition}", case["ledger"], 1, "only source_refuted")
+    class_case = make_refuted_completion(f"adjudicated-class-{disposition}")
+    occurrence = class_case["ledger"]["finding_classes"][0]["occurrences"][0]
+    occurrence["disposition"] = disposition
+    clear_disposition_evidence(occurrence)
+    if disposition in CLOSED_DISPOSITIONS:
+        bind_disposition_evidence(f"adjudicated-class-{disposition}-witness.json", occurrence)
+    run(f"adjudicated-class-{disposition}", class_case["ledger"], 1, "only source_refuted")
+
+for name, mutate, token in [
+    ("wrong-complete-hash", lambda row: row.update(finding_dispositions_sha256="f" * 64), "completion disposition digest"),
+    ("missing-complete-pairs", lambda row: row.update(resolved_finding_occurrences=[]), "resolved_finding_occurrences"),
+    ("reordered-complete-pairs", lambda row: row["resolved_finding_occurrences"].reverse(), "resolved_finding_occurrences"),
+    ("unknown-basis", lambda row: row.update(completion_basis="author-approved"), "completion_basis"),
+    ("basis-downgrade", lambda row: row.update(completion_basis="external_pass"), "final external receipt with findings"),
+]:
+    case = make_refuted_completion(f"adjudicated-{name}")
+    mutate_refuted_completion(case, mutate)
+    run(f"adjudicated-{name}", case["ledger"], 1, token)
+
+missing_witness = make_refuted_completion("adjudicated-missing-witness")
+clear_disposition_evidence(missing_witness["ledger"]["finding_classes"][0]["occurrences"][0])
+run("adjudicated-missing-witness", missing_witness["ledger"], 1, "disposition_evidence_file")
+
+duplicate_document = make_refuted_completion("adjudicated-duplicate-key")
+mutate_refuted_document(duplicate_document, lambda row: None, duplicate_key="candidate_sha256")
+run("adjudicated-duplicate-key", duplicate_document["ledger"], 1, "duplicate object key")
+
+linked_document = make_refuted_completion("adjudicated-linked-document")
+ref = linked_document["ledger"]["finding_dispositions"]
+linked_path = root / ref["file"]
+original_path = linked_path.with_suffix(".original")
+linked_path.rename(original_path)
+linked_path.symlink_to(original_path)
+run("adjudicated-linked-document", linked_document["ledger"], 1, "unreadable")
+
+path_escape = make_refuted_completion("adjudicated-path-escape")
+path_escape["ledger"]["finding_dispositions"]["file"] = "../outside.json"
+run("adjudicated-path-escape", path_escape["ledger"], 1, "ledger directory")
+
+delta_case = make_refuted_completion("adjudicated-delta")
+delta_case["ledger"]["unreviewed_delta"] = ["post-review implementation edit"]
+run("adjudicated-delta", delta_case["ledger"], 1, "unreviewed delta")
 
 print("test_validate_extraction_review_state: ok")
 PY

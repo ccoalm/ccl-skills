@@ -209,15 +209,15 @@ skill 改动后，让 agent 重跑这条 trace，**结构性偏离 = 回归信�
 | **副作用边界触达** | 任何 destructive op（rm -rf / force-push / drop table / cross-team shared-doc overwrite）| stop + 等用户确认 |
 | **不可解决依赖** | 等外部服务 / 等人审批 / 等数据到 | stop + 报当前状态 + 等依赖解除 |
 
-**Warning（命中即报告 + 用户决策继续 / 切策略 / 停，不自动停）**：
+**Warning（命中即报告并自查 / 调整方法；原任务授权覆盖必要续行，显式用户限制仍优先）**：
 
 | Trigger | 启发阈值 | 决策 |
 |---|---|---|
-| **同一失败重复 N 次** | N = 3（同 error 第 4 次出现）| 报告 + 等人；**严格指"identical retry"**，不是 challenge 多轮发现新问题 |
-| **预算 warning** | tool call > 100 / token 紧张 / wallclock > 30 分钟 | 报中间状态 + 用户决定继续 / 切策略 / 停；不自动停（大 codebase + flaky 外部依赖 + 长跑但有进展的工作 都可能合理超阈值）|
+| **同一失败重复 N 次** | N = 3（同 error 第 4 次出现）| 报告 + 停止相同重试，核对失败证据后调整方法或补上下文；**严格指"identical retry"**，不是 challenge 多轮发现新问题 |
+| **预算 warning** | tool call > 100 / token 紧张 / wallclock > 30 分钟 | 报中间状态、累计用量和下一步依据，按原授权继续必要工作；仅缺权限、超出范围、真实取舍或用户显式限制阻断该行动时等人，不因启发阈值重新请批 |
 
 **与 convergence standard 的区别**（重要）：本节阈值针对 **same-error retry**（重复尝试同一失败方案），不替代 [convergence standard](../SKILL.md)（针对 challenge round — 只要每轮还有 P1 required 就继续，不按 round 计数停）。区分：
-- **Same-error retry**：每次尝试本质相同方案 → N=3 后升级
+- **Same-error retry**：每次尝试本质相同方案 → 命中上表阈值后停止相同重试并调整方法，不能只换名称继续重试
 - **Challenge convergence round**：每轮发现不同新层 / 新 P1 → 继续直到 0 P1 required（recursive self-validation 类 extraction 可能走 5-6 轮，每轮抓不同层的新 P1，不该按 round count 停）
 
 **Escalation 必含 5 字段**（避免"escalate"沦为"stop"）：

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b6b0b82bfc9d7e21a61405cbbe918f350a9bcd07da8a9bc9c1b097d1b277fb6f",
+  "receipt_sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+  "finding_sha256": "2bd237130960b527a1ae5064612c0b8683960e1606c44ac8be47c70069d53e52",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+      "finding_sha256": "2bd237130960b527a1ae5064612c0b8683960e1606c44ac8be47c70069d53e52"
+    }
+  ],
+  "evidence": [
+    "Source trace: packages/ccl-skills-npm/README.md:65 already documents exit 3 host-state-unknown, missing CLI or failed capability probe exit 4, pending-journal recovery deferred as exit 5 partial-journal with details.hostFailure, and restoration followed by rerunning the command. It also requires inspecting JSON status because exit codes are shared.",
+    "Immutable baseline trace: commit 32570b61c4ffb37f6e931ba7f2d16b6617136507 packages/ccl-skills-npm/src/operations.ts conflict() at 500-508 already returns code 3 for unknown public state, and doctor() at 545-550 already returns code 3 for path safety refusal. The finding premise that every unusable-host path previously returned 4 is therefore false.",
+    "Boundary: capability-based checkHost makes these state failures observable earlier, and pending-journal failures intentionally retain recovery data. The current published-package README supplies the explicit operator status/recovery documentation requested by the finding; no claim is made that all old caller scripts ignore exit-code distinctions."
+  ]
+}

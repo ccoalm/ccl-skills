@@ -1,11 +1,11 @@
 ---
 name: code-review
-description: Use when an implementation needs an independent CLI reviewer or adversarial challenger, routing across Claude Code, Kimi, OpenCode, or Codex according to local availability, model-family independence, and the user's client order; also covers Claude-only bounded consultation and requests such as code review, Claude review, Kimi review, OpenCode review, second opinion, 找茬, 唱反调, or 第二意见. Skip 某个改动/提交还有没有价值、值不值得修这类交付裁决 → product-rd-workflow：本技能执行评审、找缺陷与风险，不裁决交付价值。
+description: Use automatically after changing code or executable tests, before completion or landing handoff, even without a user review request. Obtain independent CLI review/challenge across Claude Code, Kimi, OpenCode, or Codex by capability, model-family independence, and the user's client order; also covers Claude-only consultation, code review, Claude review, Kimi review, OpenCode review, second opinion, 找茬, 唱反调, or 第二意见. Skip 改动/提交值不值得修这类交付裁决 → product-rd-workflow；本技能执行评审，不裁决交付价值。
 ---
 
 # Code Review
 
-Use this skill from Claude, Codex, OpenCode, or another compatible agent to obtain an independent, attributable review or adversarial challenge. The job is not to delegate implementation. The caller supplies the model family that produced the candidate so the router can exclude same-family reviewers.
+After changing code or executable tests, invoke this skill automatically before completion or landing handoff; follow `references/development-completion.md`. Compatible hosts obtain independent review/challenge here, never delegate implementation. The caller supplies the implementer's model family so the router excludes same-family reviewers.
 
 ## Modes
 
@@ -13,7 +13,7 @@ Choose the smallest useful mode:
 
 - **Review mode**: normal pre-merge or plan review. Find blocking or materially misleading issues.
 - **Challenge mode**: adversarial pass modeled after `codex challenge`. Try to break the diff or decision by finding production failure paths.
-- **Complete mode**: local exact-candidate deep-self-review checkpoint after a passed final round. It invokes no reviewer and grants no human or merge authority.
+- **Complete mode**: local exact-candidate checkpoint after passing review or bound source refutations under the staged contract. It invokes no reviewer and grants no merge authority.
 - **Consult mode**: ask Claude a bounded question when no diff or plan review is needed.
 
 Use challenge mode when the user asks for "challenge", "poke holes", "try to break it", "adversarial", or when the change touches money, permissions, privacy, compliance, tenant/user data, production rollout, high-impact AI, architecture, economics, or IA.
@@ -74,7 +74,7 @@ Positive challenge capacity opens it at index 1; budget zero is untracked.
 The sole release/high-risk budget-zero exception is a controller-proved
 `markdown-punctuation-only` review: it requires `wording_only_boundary`, permits
 no `complete`, and rejects an author assertion alone (recipe:
-`references/staged-review-contract.md`). After a clean tracked
+`references/staged-review-contract.md`). After a clean/source-refuted tracked
 challenge, `complete` may close early and preserve unused rounds. Every result
 exposes controller-owned `self_review_gate`; an outstanding checkpoint blocks
 only external review or completion, not implementation or tests. Even a passed
@@ -215,10 +215,11 @@ Run the script by path while keeping `--cwd` pointed at the product repository u
 
 **The packet is the reviewer's whole world — compose it deliberately.** Review and challenge are built packet-bounded — Claude runs `--tools ""` with no `--add-dir`, and the other wrappers run in an isolated run workspace or a packet-only read surface. Treat the packet as the reviewer's whole world when deciding coverage: it is the only content bound by the packet hash and scanned before egress, so anything outside it is neither reliably visible to the reviewer nor covered by the verdict; a diff-only packet surfaces defects visible inside the changed lines and little else, and `--paths` only narrows it further. Whatever is absent from the packet is unreachable, not merely missed: a contradiction with an unchanged sibling clause, drift against a carrier outside the diff, or a silent weakening of upstream wording cannot be found by a reviewer who never saw the other side — that is the packet's shape, not the reviewer's weakness.
 
+- Codex permits frozen-packet read/search; see [tool boundaries](references/development-completion.md#review-tools).
 - To widen the packet, assemble it yourself and pass `--diff-file`: it replaces base-derived generation, is mutually exclusive with `--base`/`--paths`, and must name a regular file (no symlink or hardlink) holding text without NUL bytes. Worth adding beyond the diff — the canonical rule or contract text the changed lines must not contradict, the sibling clauses in the same file, the derived carriers that restate the change (commit message, MR/PR body), and the actual output of a gate or script under review. The gate hard-caps a packet at 200,000 bytes; split a larger candidate as described in the next bullet.
 - A verdict covers exactly the packet it was taken on, because the recorded packet hash is the reviewed identity. Within a packet, added context sits on top of the candidate diff and never in place of part of it. A candidate too large for one packet is split by file group or risk class into a partition that still covers the whole candidate — every part in some packet, none dropped — each partition's verdict recorded against its own packet hash, and the candidate-wide claim withheld until every partition is conclusive; one partition's `no blocking findings` is never a verdict on the landing candidate. Cross-partition contradictions are unreachable by construction, so repeat the shared canonical context in every partition's packet and review anything that spans partitions as its own packet.
 - Added context egresses to the selected reviewer exactly like the diff does, through the same credential tripwire — which catches machine-detectable secrets only. Paste rule text, carriers, and tool output; never paste credentials or material you would not send to that provider.
-- A finding that the input is insufficient to judge the change is an input defect, not a candidate defect: widen the packet and rerun that lane rather than editing the candidate to satisfy it. A reviewer reporting that the input is insufficient to judge the change is reporting an input defect — add the missing context and rerun that lane, do not edit the candidate to satisfy it.
+- A finding that the input is insufficient to judge the change is an input defect, not a candidate defect: widen the packet and rerun that lane rather than editing the candidate to satisfy it.
 
 When intentionally reviewing `code-review` itself, override the resolver from the ccl-skills repo under review before invoking the gate:
 

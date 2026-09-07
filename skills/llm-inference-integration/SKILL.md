@@ -7,6 +7,8 @@ description: Use when designing, implementing, reviewing, debugging, or operatin
 
 Use this for product backend work that calls, hosts, evaluates, or operates LLM and inference systems. Keep the skill generic: extract reusable mechanics only, not business-specific prompts, datasets, provider names, repository paths, or domain nouns.
 
+- Code/test changes require self-checks; invoke `code-review` automatically before completion.
+
 ## Skill Routing
 
 - Use this skill for LLM gateway/client design, model registry, prompt versioning, agent/tool orchestration, streaming APIs, fallback, token/cost accounting, evals, replay, shadow comparison, batch inference, and inference observability.

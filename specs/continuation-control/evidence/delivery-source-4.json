@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "12711e50ac65625050da4d0ef45f11a0dbd96b96d0c4dc4a10408a2dc5250732",
+  "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+  "finding_sha256": "fd6084c0d894abdf5a0c7caa09fcdba800cad115c355924734df5c7a334ce95d",
+  "disposition": "source_refuted",
+  "evidence": [
+    "operations.ts:1139-1165 removes plugin/marketplace and verifies absent public state before writing public-absent-committed and calling quarantine at1210. The resume branch at347-368 likewise verifies absence before quarantine. Thus an ordinary interruption before public removal cannot create an uninstall trashPath+snapshot journal: that state only exists after verified removal. The new guard safely retains data if public state later changes. The finding combines a pre-removal interruption with a post-removal-only journal; it is not a reachable producer path."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+      "finding_sha256": "fd6084c0d894abdf5a0c7caa09fcdba800cad115c355924734df5c7a334ce95d"
+    }
+  ]
+}

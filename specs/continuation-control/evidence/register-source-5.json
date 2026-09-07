@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "c7576d6e962263eb0b52c3908996168ef24276dbdf2b0a8b22667a48b492e3bc",
+  "receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+  "finding_sha256": "a6f1ce1a56b8c47befd6c2df6336b11628afab165f783cee77b260e56582dfde",
+  "disposition": "source_refuted",
+  "evidence": [
+    "routing-evidence.md explicitly says requested model, gives the actual2026-09-07execution date, runner SHA256, timeout, replica count, full/subset bank hashes, both description hashes, catalog source commit and exact parameterized command. It does not claim a resolved provider/model identity or an authenticated execution timestamp. The unchanged existing runner's raw JSON schema records requested model and catalog/bank identities; no existing contract requires the proposed new fields. Both processes were observed to terminal exit0 and their raw bytes are retained. Regenerating different report bytes changes the committed digests and review candidate, so such a change is distinguishable. Additional unsigned metadata would not authenticate execution and was not falsely claimed."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+      "finding_sha256": "a6f1ce1a56b8c47befd6c2df6336b11628afab165f783cee77b260e56582dfde"
+    }
+  ]
+}
