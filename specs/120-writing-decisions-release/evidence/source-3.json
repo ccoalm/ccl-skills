@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "580e34c0e921039eb419da2f0a01ac234d2adc1ae9b1cd4ae6a69482157f7514",
+  "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+  "finding_sha256": "eedeee673b0bccb3fcce5a7153fa3f699f832f51194e1a2deb8d37203cf4ee79",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+      "finding_sha256": "eedeee673b0bccb3fcce5a7153fa3f699f832f51194e1a2deb8d37203cf4ee79"
+    }
+  ],
+  "evidence": [
+    "source-register.md:658 explicitly identifies conditional summaries and bounded application behavior, not general delivery gains. Required reference means required within the named WORKFLOW 3 trigger; the row contains no claim of unconditional or mechanical enforcement. It names the owner and firing path so a later reader can recheck them. The finding adds an enforcement claim absent from the text."
+  ]
+}

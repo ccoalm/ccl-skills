@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "580e34c0e921039eb419da2f0a01ac234d2adc1ae9b1cd4ae6a69482157f7514",
+  "receipt_sha256": "79593e3aed63f7c6926dda0de218715257e73fc4d5a51010c21b74a830b16e45",
+  "finding_sha256": "781497822337020946dcc82c385cc6bdb97a22569bc4f0d5ac3ca46f37bc4d6c",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "79593e3aed63f7c6926dda0de218715257e73fc4d5a51010c21b74a830b16e45",
+      "finding_sha256": "781497822337020946dcc82c385cc6bdb97a22569bc4f0d5ac3ca46f37bc4d6c"
+    }
+  ],
+  "evidence": [
+    "docs/doc-writing-handbook.md:67 uses the named Markdown hyperlink [写作判断方法](../skills/tighten-doc/references/writing-judgments.md), not a bare internal path. SKILL.md:68 prohibits unexplained or non-navigable references, and lines 55-56 require named links in Markdown-native delivery. Both files are tracked in the same public repository; relative resolution succeeds and check-markdown-links.py returns markdown_link_check_ok. docs/README.md:38 links the handbook, which already uses the same relative skill route at lines 3 and 85. npm build roots exclude docs; no detached docs-only export is promised. A hypothetical later export needs its own link rewrite, not removal of this valid repository link."
+  ]
+}
