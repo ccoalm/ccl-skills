@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "12711e50ac65625050da4d0ef45f11a0dbd96b96d0c4dc4a10408a2dc5250732",
+  "review_result_sha256": [
+    "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+    "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70"
+  ],
+  "dispositions": [
+    {
+      "receipt_sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+      "finding_sha256": "77b52e40366eef65921f3bc6161ef619af58a2bcc4d8a6933a70acca2c2fc936",
+      "disposition": "source_refuted",
+      "evidence": [
+        "operations.ts:73-109 accepts exactly the current schema1/install/committed/startedAt journal literal. The actual isolated paired replay passes all12 controls and fails all12 after deleting only the host guard; each CLI subprocess verifies the loader marker, all setups pass, and source/dist/test bytes are unchanged. This contradicts the conditional claim that the literal is malformed or the demonstrated deletion survives. The extra message assertion is optional redundancy; the current status plus hostFailure assertions already kill the named mutation."
+      ]
+    },
+    {
+      "receipt_sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+      "finding_sha256": "1872855186d4590a0f7e17f25116664119e0f957f76e5653cbbeafd92064f89e",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Package README:26 explicitly names plugin marketplace list and plugin list as the admission probes; codex-host.ts implements those exact requirements. A numeric version floor cannot prove mutation-command support or authority. Runtime add failures are separately handled by the existing rollback/journal transaction and covered by the plugin-failure rollback/retained-journal tests in operations.test.mjs:65-75. Admission is not claimed to guarantee all later operations succeed. Thus the requested residual-scope statement is already present and the hypothetical mid-operation failure is an explicitly handled outcome."
+      ]
+    },
+    {
+      "receipt_sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+      "finding_sha256": "b30c850f5a48a399debea45d66033b639d38fe53da58c36e46b0587f71822fbc",
+      "disposition": "source_refuted",
+      "evidence": [
+        "interruption.test.mjs:138-143 already passes detached:true when spawning this child, on both the current source and baseline. The negative child PID therefore selects the isolated child process group, not the test runner group. Lines155-159 await the child's close after bounded group termination. The finding's missing-detachment premise is contradicted by the actual spawn source; the passing interruption regression is consistent with that source."
+      ]
+    },
+    {
+      "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+      "finding_sha256": "fd6084c0d894abdf5a0c7caa09fcdba800cad115c355924734df5c7a334ce95d",
+      "disposition": "source_refuted",
+      "evidence": [
+        "operations.ts:1139-1165 removes plugin/marketplace and verifies absent public state before writing public-absent-committed and calling quarantine at1210. The resume branch at347-368 likewise verifies absence before quarantine. Thus an ordinary interruption before public removal cannot create an uninstall trashPath+snapshot journal: that state only exists after verified removal. The new guard safely retains data if public state later changes. The finding combines a pre-removal interruption with a post-removal-only journal; it is not a reachable producer path."
+      ]
+    },
+    {
+      "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+      "finding_sha256": "0168882e2724856a8b4cde12571ac1873c27fb2a76d42d9399af2c8c34614728",
+      "disposition": "source_refuted",
+      "evidence": [
+        "dual-track-review-gate.md:525-548 explicitly defines inherited authority for necessary task-scoped fixes/tests/review, a method checkpoint, preserved cumulative history, bounded per-sequence receipts and binding explicit user limits. The same section explicitly says a stateless local validator cannot detect omitted prior chains; a trusted host must govern hostile callers. It claims no mechanically authenticated total task cap. Adding a mandatory renewed human decision at an invented global cap would change that declared contract, not repair a demonstrated inconsistency. The trusted-local limitation is retained, not represented as enforcement."
+      ]
+    },
+    {
+      "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+      "finding_sha256": "642e256514a45c3517f340f11ce81ae0805837f2fc25648d066841e56918560f",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Without a journal, uninstall still checks exactState(codexHome, source, true) at operations.ts:1083 before acquiring the lock, writing a journal or deleting files. exactState at136-147 requires publicState.status===known. Missing CLI or unreadable output therefore returns public-state-mismatch/code3 and retains data. A second exactState(...null,false) check at1165 protects the removal-to-local-cleanup transition. Hoisting checkHost might change diagnostics but is not needed to prevent the alleged unguarded deletion, whose path is already blocked."
+      ]
+    },
+    {
+      "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+      "finding_sha256": "1900427f855e74d3d1d01cde65d7f39c171ca2a68ceddd26129a8891a396ad5f",
+      "disposition": "source_refuted",
+      "evidence": [
+        "The complete candidate is one57path batch, not two independent landings. Its committed landing-manifest.json (SHA558cda982af52d72f299c5f4300b8d44f55d3ab29d6872e865b844c275466729) covers runtime b4954bb5f8835bfd585a32f53a245852633cfa3bbe726de54650c6f8e8bd09a0 and delivery12711e50ac65625050da4d0ef45f11a0dbd96b96d0c4dc4a10408a2dc5250732 exactly once. The evaluator source is independently reviewed in runtime; the full grading suite already passed on the combined tree. The merge binder must accept both current ledgers before landing. No partial-partition CI/landing or test skip is proposed; the requested manifest is now committed without changing either source candidate."
+      ]
+    },
+    {
+      "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+      "finding_sha256": "d85bdfb757335a57395628c5190967f52a37e58f955d27c2d26d7ea67d7140b3",
+      "disposition": "source_refuted",
+      "evidence": [
+        "CONTRIBUTING.md and npm-release.md require an explicit release request or a genuinely user-approved release-scoped plan, honor explicit versions/freezes, check existing published versions/tags and reuse the unpublished batch. They authorize only preparatory patch metadata; commit/push/merge/tag/publication remain separate. General future-release mentions do not qualify. A caller fabricating plan approval violates that source requirement rather than exploiting a permitted branch. Requiring the task to literally request a version bump would remove the intended routine preparation included in release scope."
+      ]
+    }
+  ]
+}

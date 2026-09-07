@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b4954bb5f8835bfd585a32f53a245852633cfa3bbe726de54650c6f8e8bd09a0",
+  "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+  "finding_sha256": "228bf2d7c2b0fdb126a43e70102510e1fca9fb27c788eafe7e160de829103106",
+  "disposition": "source_refuted",
+  "evidence": [
+    "The proposed predecessor link cannot detect a caller omitting the old history: the existing predecessor mechanism also accepts caller-owned unauthenticated files. staged-review-contract.md:337-339 and dual-track-review-gate.md:527-529 explicitly retain that trusted-local limitation. Default task authorization with method checkpoints and complete cumulative history is the intended changed behavior; explicit user cost/count/stop limits still govern. There is no claim that a stateless controller can authenticate total prior task spending, and a new fixed task cap would reverse the accepted contract."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+      "finding_sha256": "228bf2d7c2b0fdb126a43e70102510e1fca9fb27c788eafe7e160de829103106"
+    }
+  ]
+}

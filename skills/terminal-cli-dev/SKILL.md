@@ -5,7 +5,7 @@ description: CLI/terminal/console/PTY/ANSI/keyboard/TUI design, implementation, 
 
 # Terminal CLI Dev
 
-Use this skill for terminal and command-line product surfaces. It owns the user-facing command/subcommand/flag/default/help/output/exit/action/confirmation/progress/recovery contract, plus implementation mechanics for text UIs, console workflows, ANSI-rendered output, PTY-backed interaction, keyboard input, terminal capability handling, and real terminal verification. A language skill may own parser or library mechanics, but those mechanics do not displace this user-visible contract. This skill does not own web browsers, mobile apps, mini-program hosts, backend services, or product design judgment.
+Use this skill for terminal and command-line product surfaces. It owns the user-facing command/subcommand/flag/default/help/output/exit/action/confirmation/progress/recovery contract, plus implementation mechanics for text UIs, console workflows, ANSI-rendered output, PTY-backed interaction, keyboard input, terminal capability handling, and real terminal verification. A language skill may own parser or library mechanics, but those mechanics do not displace this user-visible contract. This skill does not own web browsers, mobile apps, mini-program hosts, backend services, or product design judgment. After code/test edits, self-check and invoke `code-review` automatically before completion.
 
 ## Routing
 

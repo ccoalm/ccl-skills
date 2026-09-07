@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b4954bb5f8835bfd585a32f53a245852633cfa3bbe726de54650c6f8e8bd09a0",
+  "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+  "finding_sha256": "2dba973057ab0c19f9c3638e64c98e8bc3d195fe74131a5105c39cc43a4f9013",
+  "disposition": "source_refuted",
+  "evidence": [
+    "kimi_packet_mcp.py:87-108 and141-154 distinguish malformed/out-of-schema argument shape, type and bounds from valid-schema requests whose offset exceeds the current packet. parse_cli_review.py:694-706 intentionally enforces the former tool contract; subsequent result/lifecycle validation accepts verified recoverable in-contract errors. development-completion.md:27 states argument and frozen-byte checks, not support for every malformed call. A retry policy for schema violations is an optional expansion, not a demonstrated rejection of an allowed request. Unknown tool names, wrong bytes and unverifiable lifecycle remain separately forbidden."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+      "finding_sha256": "2dba973057ab0c19f9c3638e64c98e8bc3d195fe74131a5105c39cc43a4f9013"
+    }
+  ]
+}

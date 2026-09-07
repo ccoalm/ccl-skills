@@ -10,6 +10,7 @@ import re
 from typing import Any
 
 from concern_excerpt import bounded_reason_detail, concern_fields
+import kimi_packet_mcp as packet_tools
 from kimi_packet_mcp import MAX_CHUNK_BYTES
 
 
@@ -652,6 +653,18 @@ def audit_codex(
     def invalid(reason: str) -> dict[str, Any]:
         return invalid_model_output(args, reason, "\n".join(concern_fragments))
 
+    packet_path = getattr(args, "packet", None)
+    packet_sha256 = getattr(args, "packet_sha256", None)
+    if packet_path or packet_sha256:
+        try:
+            if not packet_path or not packet_sha256:
+                raise ValueError()
+            packet_tools.packet_bytes(Path(packet_path), packet_sha256)
+        except (OSError, ValueError):
+            return inconclusive(args, "Codex packet binding changed", "binding_mismatch", False)
+    pending_packet_calls: dict[str, tuple[str, Any]] = {}
+    completed_packet_calls: set[str] = set()
+
     for event in events:
         event_type = event.get("type")
         if event_type == "turn.completed":
@@ -678,6 +691,39 @@ def audit_codex(
                 attempted_tool=event_type,
             )
         item_type = item.get("type")
+        if item_type == "mcp_tool_call" and packet_path and packet_sha256:
+            tool = item.get("tool")
+            if item.get("server") != "code_review_packet" or tool not in {"read_packet", "search_packet"}:
+                return inconclusive(args, "Codex attempted a tool outside the frozen packet", "tool_boundary_violation", False)
+            reader = packet_tools.read_chunk if tool == "read_packet" else packet_tools.search_packet
+            expected = reader(Path(packet_path), packet_sha256, item.get("arguments"))
+            content = expected["content"]
+            if expected.get("isError") and content[0]["text"] == "packet binding changed":
+                return inconclusive(args, "Codex packet binding changed", "binding_mismatch", False)
+            if expected.get("isError") and content[0]["text"].startswith("invalid packet"):
+                return inconclusive(args, "Codex supplied arguments outside the packet tool schema", "tool_boundary_violation", False)
+            call_id = item.get("id")
+            signature = (tool, item.get("arguments"))
+            if (not isinstance(call_id, str) or not call_id or call_id in completed_packet_calls
+                or (call_id in pending_packet_calls and pending_packet_calls[call_id] != signature)):
+                return inconclusive(args, "Codex packet tool lifecycle is unverifiable", "transport_unverifiable", False)
+            if event_type != "item.completed":
+                if item.get("status") != "in_progress":
+                    return inconclusive(args, "Codex packet tool lifecycle is unverifiable", "transport_unverifiable", False)
+                pending_packet_calls[call_id] = signature
+                continue
+            result = item.get("result")
+            if not isinstance(result, dict):
+                return invalid("Codex packet tool returned no verifiable result")
+            if (result.get("content") != content or result.get("structured_content") not in (None, {})
+                or result.get("structuredContent") not in (None, {})):
+                return inconclusive(args, "Codex packet tool result did not match frozen bytes", "binding_mismatch", False)
+            allowed_statuses = {"completed", "failed"} if expected.get("isError") else {"completed"}
+            if item.get("status") not in allowed_statuses or (item.get("error") and not expected.get("isError")):
+                return invalid("Codex packet tool did not complete successfully")
+            pending_packet_calls.pop(call_id, None)
+            completed_packet_calls.add(call_id)
+            continue
         if item_type == "agent_message":
             item_text = item.get("text")
             if isinstance(item_text, str) and item_text.strip():
@@ -729,7 +775,7 @@ def audit_codex(
             )
         if event_type == "item.completed" and item_type == "agent_message":
             saw_completed_agent_message = True
-    if not saw_completed_agent_message or not saw_completed_turn:
+    if pending_packet_calls or not saw_completed_agent_message or not saw_completed_turn:
         return inconclusive(
             args,
             "Codex event stream lacked positive completion evidence",
@@ -926,6 +972,7 @@ def main() -> int:
     parser.add_argument("--model", default="")
     parser.add_argument("--events", required=True)
     parser.add_argument("--packet")
+    parser.add_argument("--packet-sha256")
     parser.add_argument("--packet-delivery", choices=("mcp", "inline"), default="mcp")
     parser.add_argument("--packet-receipt", default="")
     parser.add_argument("--result-file")

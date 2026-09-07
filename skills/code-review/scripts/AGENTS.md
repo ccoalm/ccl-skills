@@ -5,8 +5,11 @@ parsers for Claude, Kimi, OpenCode, and Codex.
 
 Rules:
 
-- Preserve no-tools posture and structured output validation. A malformed,
-  timeout, or inconclusive wrapper result is not a pass.
+- Preserve the packet boundary and structured output validation. A wrapper may
+  expose pathless read/search tools over its frozen, hash-bound packet; verify
+  their arguments, returned bytes and completed lifecycle. This does not permit
+  arbitrary commands or workspace access. A malformed, timeout, or inconclusive
+  wrapper result is not a pass.
 - **Never pin the parser to a CLI version's vocabulary.** `parse_probe_result.py`
   gates on *shape*, not on field/value names: the isolation proof is the exact
   `tools` allowlist plus the tool_use scan, which no init field can bypass.

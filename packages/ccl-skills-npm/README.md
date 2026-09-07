@@ -23,7 +23,7 @@ Restart your CLI so it reloads the skills.
 
 `install` configures every host it detects. The package carries an immutable snapshot of the skills, agent context, plugin manifests, and runtime hooks, so installation needs no Git checkout.
 
-Requirements: Node.js 20 or later, macOS or Linux, and at least one host CLI — Claude Code, Codex 0.133.0 or later, or OpenCode.
+Requirements: Node.js 20 or later, macOS or Linux, and at least one host CLI — Claude Code, Codex with working `plugin marketplace list` and `plugin list` commands, or OpenCode. Codex availability is checked through these commands rather than its version number.
 
 Run it without a global install:
 
@@ -61,6 +61,8 @@ ccl-skills uninstall --yes   # remove host assets
 ```
 
 Limit any operation to one host with `--host claude`, `--host codex`, or `--host opencode`. Add `--json` for machine-readable output.
+
+For `--host codex`, unreadable public plugin state returns exit `3` with `host-state-unknown`; a missing CLI or failed capability probe returns `4`. If that host failure occurs with a pending journal, recovery is deferred: exit `5` with `partial-journal` retains the journal and records `details.hostFailure`. Restore the CLI or readable public plugin state, then rerun the command. Other outcomes can share these exit codes, so inspect the JSON status as well.
 
 `update` and `uninstall` are previews unless `--yes` is supplied. `update --yes` first upgrades the global npm package to `@latest`, then asks the freshly installed CLI to refresh host assets. Set `CCL_SKILLS_SKIP_SELF_UPDATE=1` for an assets-only refresh; `--allow-downgrade` always uses the currently invoked package without installing `@latest` first.
 

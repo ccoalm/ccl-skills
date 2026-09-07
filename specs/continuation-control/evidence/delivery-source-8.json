@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "12711e50ac65625050da4d0ef45f11a0dbd96b96d0c4dc4a10408a2dc5250732",
+  "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+  "finding_sha256": "d85bdfb757335a57395628c5190967f52a37e58f955d27c2d26d7ea67d7140b3",
+  "disposition": "source_refuted",
+  "evidence": [
+    "CONTRIBUTING.md and npm-release.md require an explicit release request or a genuinely user-approved release-scoped plan, honor explicit versions/freezes, check existing published versions/tags and reuse the unpublished batch. They authorize only preparatory patch metadata; commit/push/merge/tag/publication remain separate. General future-release mentions do not qualify. A caller fabricating plan approval violates that source requirement rather than exploiting a permitted branch. Requiring the task to literally request a version bump would remove the intended routine preparation included in release scope."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+      "finding_sha256": "d85bdfb757335a57395628c5190967f52a37e58f955d27c2d26d7ea67d7140b3"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b4954bb5f8835bfd585a32f53a245852633cfa3bbe726de54650c6f8e8bd09a0",
+  "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+  "finding_sha256": "c713fb92faeaccc4c2b1ba8236f1f6fb7ca882fad393286aad626ac895701818",
+  "disposition": "source_refuted",
+  "evidence": [
+    "development-completion.md:3 already says to use the actual diff and that implementation diffs trigger review regardless of the task label. Its final reporting paragraph requires the change-inspection command and result including untracked implementation files. Step4 requires the original explicit user instruction and current scope, excludes superseded/unrelated instructions, and records skipped rather than passed. These are precisely the requested behavioral constraints. They are skill instructions, not claimed mechanical enforcement against an agent that omits all execution evidence."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "4e9251a178e6b902aaa54288bb131d699abd7a73f3962d533a744e29f9f13914",
+      "finding_sha256": "c713fb92faeaccc4c2b1ba8236f1f6fb7ca882fad393286aad626ac895701818"
+    }
+  ]
+}

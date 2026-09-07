@@ -1,10 +1,11 @@
-import { probeHostVersion } from "./host-probe.js";
+import { isHostCommandMissing, probeHostVersion } from "./host-probe.js";
+import { checkHost } from "./codex-host.js";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { runClaude } from "./claude-adapter.js";
 import { run as runCodex } from "./operations.js";
 import { runOpenCode } from "./opencode-adapter.js";
-import type { PathContext } from "./paths.js";
+import { paths, type PathContext } from "./paths.js";
 import type { Host, Options, Result } from "./types.js";
 
 function owned(host: Host) {
@@ -53,12 +54,17 @@ export function runUnified(command: string, options: Options = {}, codexContext:
 	if (options.host) return dispatch(options.host, command, options, codexContext);
 	const includeOwned = command === "doctor" || command === "uninstall";
 	const candidates = (["claude", "codex", "opencode"] as Host[]).filter((host) => command !== "update" || owned(host));
-	const probes = candidates.map((host) => ({ host, probe: probeHostVersion(host) }));
+	const probes = candidates.map((host) => {
+		const probe = host !== "codex" ? probeHostVersion(host)
+			: isHostCommandMissing(host) ? { ok: false as const, kind: "missing", message: "codex CLI was not found on PATH" }
+				: checkHost(paths(codexContext).codexHome);
+		return { host, probe };
+	});
 	const hosts = probes.filter(({ host, probe }) => probe.ok || probe.kind !== "missing" || (includeOwned && owned(host))).map(({ host }) => host);
 	if (!hosts.length) return { code: 4, status: "host-missing", message: "no Claude Code, Codex, or OpenCode CLI is available" };
 	return runHostSequence(hosts, (host) => {
 		const probe = probes.find((entry) => entry.host === host)!.probe;
-		if (!probe.ok && probe.kind !== "missing") return { code: 4, status: `host-${probe.kind}`, message: probe.message };
+		if (!probe.ok && probe.kind !== "missing" && !(host === "codex" && probe.kind !== "safety-refusal" && existsSync(paths(codexContext).journal))) return { code: probe.kind === "state-unknown" || probe.kind === "safety-refusal" ? 3 : 4, status: probe.kind === "safety-refusal" ? probe.kind : `host-${probe.kind}`, message: probe.message };
 		return dispatch(host, command, { ...options, host }, codexContext);
 	});
 }

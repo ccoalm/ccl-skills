@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
 	existsSync,
 	mkdirSync,
@@ -96,6 +97,83 @@ for (const occurrence of [1, 2])
 		assert.ok(existsSync(join(root(f), names[0])));
 		const resumed = invoke(f, "uninstall", { yes: true });
 		assert.equal(resumed.code, 0);
+		assert.equal(existsSync(root(f)), false);
+	});
+
+for (const selection of ["explicit", "default"])
+for (const command of ["doctor", "install", "update", "uninstall"])
+for (const state of ["known", "unknown", "failed", "changed-after-probe"])
+	test(`${selection} ${command} recovers verified trash only with readable host state (${state})`, () => {
+		const f = installed();
+		f.env.PATH = `${join(f.root, "bin")}:/usr/bin:/bin`;
+		const interrupted = invoke(f, "uninstall", { yes: true }, injected("trash-unlink"));
+		assert.equal(interrupted.status, "committed-stale-cleanup");
+		const saved = journal(f), trashPath = join(root(f), saved.trashPath);
+		const remaining = saved.snapshot.ownedFiles.filter(file => existsSync(join(trashPath, file.path)));
+		const journalPath = join(root(f), "operation-journal.json"), manifestPath = join(root(f), "install-manifest.json");
+		const journalBefore = readFileSync(journalPath, "utf8"), manifestBefore = readFileSync(manifestPath, "utf8");
+		const fake = join(f.root, "bin", "codex"), original = readFileSync(fake, "utf8");
+		if (state === "unknown") writeFileSync(fake, original.replace('echo "MARKETPLACE         ROOT";', 'echo "MARKETPLACE ROOT"; echo "ccl-skills-npm relative/root";'), { mode: 0o755 });
+		if (state === "failed") writeFileSync(fake, original.replace('if [ "$1 $2 $3" = "plugin marketplace list" ]; then', 'if [ "$1 $2 $3" = "plugin marketplace list" ]; then exit 9;'), { mode: 0o755 });
+		if (state === "changed-after-probe") {
+			const count = Number(readFileSync(`${f.state}.count.plugin_marketplace_list`, "utf8"));
+			f.env.FAKE_COMMAND_FAILURES = `plugin marketplace list#${count + (selection === "explicit" ? 2 : 3)}`;
+		}
+		const resume = () => {
+			if (selection === "explicit") return invoke(f, command, command === "uninstall" ? { yes: true } : {});
+			const result = spawnSync(process.execPath, ["dist/cli.js", command, ...(command === "uninstall" ? ["--yes"] : []), "--json"], { encoding: "utf8", env: f.env });
+			return { ...JSON.parse(result.stdout), code: result.status };
+		};
+		const before = calls(f);
+		let resumed = resume();
+		if (state !== "known") {
+			assert.equal(resumed.code, 5, JSON.stringify(resumed));
+			assert.equal(resumed.status, state === "changed-after-probe" ? "partial" : "partial-journal");
+			assert.equal(readFileSync(journalPath, "utf8"), journalBefore);
+			assert.equal(readFileSync(manifestPath, "utf8"), manifestBefore);
+			for (const file of remaining) assert.ok(existsSync(join(trashPath, file.path)), file.path);
+			writeFileSync(fake, original, { mode: 0o755 });
+			resumed = resume();
+		}
+		assert.equal(resumed.code, 0, JSON.stringify(resumed));
+		assert.equal(resumed.status, "uninstalled");
+		assert.equal(existsSync(root(f)), false);
+		assert.doesNotMatch(calls(f).slice(before.length), /marketplace (add|remove)|plugin (add|remove)/);
+	});
+
+for (const selection of ["explicit", "default"])
+for (const state of ["unknown", "failed"])
+	test(`${selection} uninstall retains pending update cleanup when host state is ${state}`, () => {
+		const f = installed();
+		f.env.PATH = `${join(f.root, "bin")}:/usr/bin:/bin`;
+		release(f, "2.0.0");
+		invoke(f, "update", { yes: true });
+		release(f, "3.0.0");
+		const interrupted = invoke(f, "update", { yes: true }, injected("trash-unlink"));
+		assert.equal(interrupted.code, 5);
+		const saved = journal(f), trashPath = join(root(f), saved.trashPath);
+		assert.equal(saved.operation, "prune");
+		const remaining = saved.snapshot.ownedFiles.filter(file => existsSync(join(trashPath, file.path)));
+		const journalPath = join(root(f), "operation-journal.json"), manifestPath = join(root(f), "install-manifest.json");
+		const journalBefore = readFileSync(journalPath, "utf8"), manifestBefore = readFileSync(manifestPath, "utf8");
+		const fake = join(f.root, "bin", "codex"), original = readFileSync(fake, "utf8");
+		writeFileSync(fake, state === "unknown"
+			? original.replace('echo "MARKETPLACE         ROOT";', 'echo "MARKETPLACE ROOT"; echo "ccl-skills-npm relative/root";')
+			: original.replace('if [ "$1 $2 $3" = "plugin marketplace list" ]; then', 'if [ "$1 $2 $3" = "plugin marketplace list" ]; then exit 9;'), { mode: 0o755 });
+		const resume = () => {
+			if (selection === "explicit") return invoke(f, "uninstall", { yes: true });
+			const result = spawnSync(process.execPath, ["dist/cli.js", "uninstall", "--yes", "--json"], { encoding: "utf8", env: f.env });
+			return { ...JSON.parse(result.stdout), code: result.status };
+		};
+		const before = calls(f), refused = resume();
+		assert.equal(refused.code, 5, JSON.stringify(refused));
+		assert.equal(readFileSync(journalPath, "utf8"), journalBefore);
+		assert.equal(readFileSync(manifestPath, "utf8"), manifestBefore);
+		for (const file of remaining) assert.ok(existsSync(join(trashPath, file.path)), file.path);
+		assert.doesNotMatch(calls(f).slice(before.length), /marketplace (add|remove)|plugin (add|remove)/);
+		assert.equal(refused.details.hostFailure.kind, state === "unknown" ? "state-unknown" : "probe-failed");
+		writeFileSync(fake, original, { mode: 0o755 });
+		assert.equal(resume().code, 0);
 		assert.equal(existsSync(root(f)), false);
 	});
 

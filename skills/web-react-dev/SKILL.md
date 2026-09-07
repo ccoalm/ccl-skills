@@ -5,7 +5,7 @@ description: Use when designing, implementing, reviewing, debugging, testing, or
 
 # Web React Dev
 
-Use this skill for React web client engineering. It covers browser-rendered React applications, React components, routing, data fetching, forms, frontend API integration, accessibility, performance, build, and deploy checks. It does not own mini-program host behavior, Flutter, native mobile, backend service design, or visual design system rules.
+Use this skill for React web client engineering. It covers browser-rendered React applications, React components, routing, data fetching, forms, frontend API integration, accessibility, performance, build, and deploy checks. It does not own mini-program host behavior, Flutter, native mobile, backend service design, or visual design system rules. After code/test edits, self-check and invoke `code-review` automatically before completion.
 
 ## Routing
 

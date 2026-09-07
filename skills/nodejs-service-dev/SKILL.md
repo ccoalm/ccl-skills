@@ -5,6 +5,8 @@ description: Use when implementing, modifying, scaffolding, or testing Node.js b
 
 # Node.js Service Development
 
+- Code/test changes require self-checks; invoke `code-review` automatically before completion.
+
 ## Skill Routing
 
 - Use this skill for Node.js service implementation: handlers, middleware, adapters, workers, jobs, clients, runtime/toolchain mechanics, and focused tests.

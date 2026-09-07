@@ -5,7 +5,9 @@ description: Use when designing, reviewing, debugging, or shipping observability
 
 # Platform Observability
 
-This skill owns the **evidence layer**: logs, metrics, traces, log/trace correlation, dashboards, alerts, on-call routing, SLI/SLO/error-budget design, and the framework-level wiring that guarantees a new service is observable on day one.
+Owns logs/metrics/traces, correlation, dashboards, alerts, on-call routing, SLI/SLO/error-budget design and framework wiring for new services.
+
+- Code/test changes require self-checks; invoke `code-review` automatically before completion.
 
 You do not own:
 - Traffic routing, retries, timeouts, mTLS, or service mesh policy — go to `platform-service-connectivity`.

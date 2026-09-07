@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b6b0b82bfc9d7e21a61405cbbe918f350a9bcd07da8a9bc9c1b097d1b277fb6f",
+  "review_result_sha256": [
+    "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+    "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286"
+  ],
+  "dispositions": [
+    {
+      "receipt_sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+      "finding_sha256": "00f9da593f695d512ce9872dc4b25a34a543293dd842e3e69e8357554ecc88c7",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Source trace: packages/ccl-skills-npm/src/codex-host.ts:45-55 runs both bounded read-only list commands and requires parseable public state. A zero command exit code alone is not a proof of owned-state safety; unreadable state intentionally returns state-unknown before mutation.",
+        "Source trace: codex-host.ts:142-165 parses all marketplace rows, but only the owned MARKET row has an absolute source/ownership requirement. parsePluginList:61-140 supports foreign marketplace blocks; owned REF/LEGACY_REF alone receive strict status and provenance checks at 81-96. Well-formed unrelated rows are accepted; malformed or duplicate marketplace rows remain ambiguous and are refused.",
+        "Verification: /private/tmp/impact-delivery-parser-focus.log is a fresh node --test name-filtered run over codex-host.test.mjs: six cases passed, exit 0. It covers foreign plugin rows, foreign not-installed plus installed target, target ordering/empty blocks, malformed segments and duplicate foreign marketplace refusal. It does not claim support for arbitrary future output formats.",
+        "Source trace: packages/ccl-skills-npm/README.md:65 explicitly documents unreadable public plugin state as exit 3 host-state-unknown. The line-26 requirements sentence describes the commands used instead of numeric version admission; it does not waive the separately documented readable-state condition."
+      ]
+    },
+    {
+      "receipt_sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+      "finding_sha256": "2bd237130960b527a1ae5064612c0b8683960e1606c44ac8be47c70069d53e52",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Source trace: packages/ccl-skills-npm/README.md:65 already documents exit 3 host-state-unknown, missing CLI or failed capability probe exit 4, pending-journal recovery deferred as exit 5 partial-journal with details.hostFailure, and restoration followed by rerunning the command. It also requires inspecting JSON status because exit codes are shared.",
+        "Immutable baseline trace: commit 32570b61c4ffb37f6e931ba7f2d16b6617136507 packages/ccl-skills-npm/src/operations.ts conflict() at 500-508 already returns code 3 for unknown public state, and doctor() at 545-550 already returns code 3 for path safety refusal. The finding premise that every unusable-host path previously returned 4 is therefore false.",
+        "Boundary: capability-based checkHost makes these state failures observable earlier, and pending-journal failures intentionally retain recovery data. The current published-package README supplies the explicit operator status/recovery documentation requested by the finding; no claim is made that all old caller scripts ignore exit-code distinctions."
+      ]
+    },
+    {
+      "receipt_sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+      "finding_sha256": "d1110ec780e88ba55e00112ac4f1bb3ebd62c07f8e06f79a93a84c9d93e7da39",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Source trace: skills/skill-extraction-workflow/scripts/test_ai_coding_implementation_gates.sh:765-766 already calls assert_same_line for continuation_basis=existing-task-scope together with the continuation_authorization anchor. Lines 777-778 already call the same primitive for never relabel these calls as newly human-requested or erase earlier spending. These are the two replacement pins the finding proposes adding.",
+        "Source trace: the same test at 767-784 also pins the original authorization reference/scope, changed method or evidence and cumulative rounds, links to the old terminal, preserved prior receipts, unchanged per-sequence bounds, missing authority/user limits, and no review/test/evidence or landing waiver. The reference at dual-track-review-gate.md:548 retains those obligations together.",
+        "Boundary: these deterministic assertions prove the rule text and same-line anchor remain present; they do not authenticate a malicious local author or guarantee that a host obeys an unloaded skill. The task intentionally inherits existing scope for necessary review, preserves actual cumulative spending and forbids fabricated fresh human requests. No assertion of newly granted permission or external clean approval is made."
+      ]
+    },
+    {
+      "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+      "finding_sha256": "2dcb2ec2f4cd3e9c1a17a5f69a3ce61af18596a5bb3b1a83a0bd16a5e441758c",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Source trace: dual-track-review-gate.md:527 explicitly states the local controller cannot authenticate the producer, detect caller-omitted prior chains, or enforce complete global history. Lines 532-548 require cumulative spending, prior-chain links, changed method or evidence, original scope, unchanged per-sequence format and validation bounds, and existing task authority; no runtime continuation field or external authentication mechanism is claimed.",
+        "Source trace: pre-final-continuation-gate.md:96 expressly calls this a prose contract rather than a host-enforced hook. Explicit user cost, round-count and stop limits, missing authority and actual product/design/risk decisions remain binding. dual-track-review-gate.md:545-548 separately retain authenticated human merge/risk/waiver authority and deny that task continuation grants any such authority.",
+        "The proposed requirement for a new external authorization for every sequence contradicts the accepted existing-task-scope continuation behavior. This sequence retained 46 earlier completed independent calls at dispatch and adds its two actual completed calls; concurrent partition calls remain separately counted. The local profile-size rejection is retained as a non-model preflight. These records do not claim prevention of forged or omitted history."
+      ]
+    },
+    {
+      "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+      "finding_sha256": "07e40eff7790bf3f3f5743e77c2d8944ff6306bb2cfb32d7c40cd8ef4aa7f195",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Source trace: validate_extraction_review_state.py:546-567 distinguishes completion_basis external_pass from source_refuted_findings. The external_pass branch rejects a final raw finding receipt; the source-refuted branch requires a same-candidate conclusive tracked review and challenge without succession. Lines 619-681 bind all ordered original finding identities, aggregate disposition file, per-class witness and identical evidence arrays.",
+        "Source trace: staged-review-contract.md Mechanical self-review gate expressly says validation proves binding and coverage, not evidence truth, and requires first-hand source tracing. The completion receipt keeps completion_basis, finding_dispositions_sha256 and resolved_finding_occurrences while the raw external receipts retain status findings. These are distinguishable from a clean external pass in the required complete record.",
+        "The requested semantic authentication of arbitrary implementer-written claims is outside the explicit trusted-local contract. False source assertions remain contract violations, not machine-proven truth. This disposition supplies concrete source counter-evidence; no open finding, accepted risk or human decision is being transformed into an external pass or publication authority."
+      ]
+    },
+    {
+      "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+      "finding_sha256": "a42a6a1052c68980ae32af8b0e62120ee4b531d07ccbf52c48c548f8fcef5579",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Source trace: operations.ts:1061-1066 calls checkHost before resumeJournal. resumeJournal:314-321 returns partial-journal with details.hostFailure and restore/reinstall or readable-state remediation before any trash branch when that probe is unusable. The later exactState guard intentionally also handles a state change after that successful probe.",
+        "Source trace: normal uninstall removes plugin at 1139 and marketplace at 1152, verifies absent at 1165, commits absence at 1187-1200, and only then calls quarantine at 1210. quarantine:249-278 creates trashPath plus snapshot only after the rename attempt. A normal interruption before public removal therefore cannot produce the trash-plus-snapshot state alleged by the finding.",
+        "Fresh synthetic counterexample: /private/tmp/impact-delivery-resume-probe.log SHA256 251ab6f31135f155faff193705528e80fdbbae2b12bbd0cb502e01136b596a88, exit 0. An injected trash unlink fault is followed by separately re-adding registration. Resume safely returns 5 partial, preserves journal and trash byte-for-byte, and performs no add/remove. Explicitly removing that conflicting synthetic registration and rerunning returns 0 uninstalled. It is not an unrecoverable normal-uninstall loop.",
+        "Boundary: a manual re-registration is new public state, which old uninstall cleanup must not overwrite. README:65 documents host-probe recovery and instructs inspecting JSON status; :91 describes retained collision/shared state for manual cleanup. It does not contain a command-by-command re-registration guide. The partial message states the required absent state; richer manual-conflict documentation is not proof of the alleged normal-path deadlock. No user installation was touched."
+      ]
+    },
+    {
+      "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+      "finding_sha256": "eea0ca3df08bd4a845dd9a583a80e089526b0753e0b808408591d70769e1dd5b",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Source trace: CONTRIBUTING.md:96 requires an explicit release request or an explicitly release-scoped item in a user-approved plan. It excludes a general future-release mention and retains distinct tag, registry mutation and publication authorization. npm-release.md:25 checks explicit version/freeze, declared and published versions and tags; it reuses an existing unpublished version for the same batch or selects the next available patch, with fresh review and tarball verification after byte changes.",
+        "Source trace: pre-final-continuation-gate.md:90-94 recovers the original active concrete proposal for short assent, requires quoting its original action/scope, checks withdrawal or supersession, and blocks added or broadened scope. Agent-authored text without approval cannot supply the user-approved condition. Approved plan assent need not repeat the release noun to approve the stated item.",
+        "The requested separate version confirmation would contradict the accepted release-preparation behavior. No claim is made that arbitrary unapproved agent text grants version or publication authority; explicit freezes and separate external actions remain binding."
+      ]
+    },
+    {
+      "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+      "finding_sha256": "0617eee221bc3747d3cd7338904e3d136a165d46f763aa7f1833dde8b9c21185",
+      "disposition": "source_refuted",
+      "evidence": [
+        "Source trace: resume-paused-delivery.md:9 confines verbatim proposal/scope/assent recovery to the visible conversation or trusted host-owned session state. Line 10 explicitly places the other binding path in the visible continuing line. Line 12 forbids copying real conversation text into a shared repository record. The supposed incompatible storage requirements are already assigned to different surfaces.",
+        "Source trace: dual-track-review-gate.md:548 asks for the original authorization reference and scope in a caller-owned task artifact, not the complete conversation text and not a committed spec/evidence file. A private artifact can preserve provenance while shared Git surfaces contain neutral capability/validation evidence. The repository root shared-surface contract also forbids conversation content on shared Git surfaces.",
+        "Boundary: no public session identifier or transcript quote is required by these clauses. This review artifact does not claim authentication from a committed note; visible assent and host-owned source verification retain their separate role."
+      ]
+    }
+  ]
+}

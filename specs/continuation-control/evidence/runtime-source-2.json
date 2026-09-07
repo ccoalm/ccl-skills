@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b4954bb5f8835bfd585a32f53a245852633cfa3bbe726de54650c6f8e8bd09a0",
+  "receipt_sha256": "a8dc924cb44079d05bfc8ec8e940e4d9954bc35c023b486aa081671f1562ca45",
+  "finding_sha256": "0ea2ba80ff6c2aae48f54290ed7f864a50919afa02b78e9be33fe9511a2c2e5c",
+  "disposition": "source_refuted",
+  "evidence": [
+    "staged-review-contract.md:337-339 explicitly states the controller is stateless, prevents cooperative/accidental resets only, and requires a trusted host ledger when hostile callers are in scope. dual-track-review-gate.md:527-529 expressly says local validation cannot detect omitted chains and cumulative retention is a caller obligation. This already states the limitation requested by the finding. The changed product contract intentionally inherits original task authority after a method checkpoint; it does not claim a fixed aggregate task cap or authenticated local history."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "a8dc924cb44079d05bfc8ec8e940e4d9954bc35c023b486aa081671f1562ca45",
+      "finding_sha256": "0ea2ba80ff6c2aae48f54290ed7f864a50919afa02b78e9be33fe9511a2c2e5c"
+    }
+  ]
+}

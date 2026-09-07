@@ -5,7 +5,7 @@ description: Use when implementing, modifying, scaffolding, generating, or testi
 
 # Go Microservice Dev
 
-Use this for implementation of new backend products and services. It should adapt to the repo in front of you, but the workflow is independent of any prior codebase.
+Use this for implementation of new backend products and services. It should adapt to the repo in front of you, but the workflow is independent of any prior codebase. After code/test edits, self-check and invoke `code-review` automatically before completion.
 
 ## Skill Routing
 

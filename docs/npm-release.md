@@ -22,6 +22,7 @@ Trusted Publisher settings live on the npm package settings page. If npm does no
 ## Release contract
 
 - The version in `packages/ccl-skills-npm/package.json` and `package-lock.json` is the source of truth. Releases currently accept only stable `MAJOR.MINOR.PATCH` versions; prerelease identifiers fail before build and publish.
+- Once the user or a user-approved release plan establishes npm release intent, preparing the patch version and synchronizing both files are part of implementation and need no separate confirmation. Before editing versions, check any explicit version or freeze, declared and published versions, and existing release tags. Honor the explicit constraint; otherwise reuse an already-prepared, untagged and unpublished version for the same release batch, or choose the next available patch version. Changed source bytes require fresh candidate review and a rebuilt, verified tarball; reusing a version never reuses stale evidence.
 - The release tag is exactly `ccl-skills-v<version>` and points to the reviewed commit on the protected default branch.
 - `.github/workflows/npm-publish.yml` checks the tag, runs the full package and tarball tests, verifies `release.json` against the tagged SHA, and publishes that exact tarball through OIDC.
 - No release job uses a long-lived npm token or dependency cache.

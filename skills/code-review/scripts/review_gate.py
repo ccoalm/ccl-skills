@@ -419,10 +419,12 @@ CONTROLLER_OWNED_FIELDS = {
     "challenge_index",
     "challenge_rounds_remaining",
     "completion_gated",
+    "completion_basis",
     "completion_review_result_sha256",
     "decision",
     "delivery",
     "findings_require_implementer_self_review",
+    "finding_dispositions_sha256",
     "human_decision_required",
     "native_skill_binding",
     "owner_selection_evidence",
@@ -436,6 +438,7 @@ CONTROLLER_OWNED_FIELDS = {
     "prior_challenge_focuses",
     "prior_review_result_sha256",
     "residual_risks",
+    "resolved_finding_occurrences",
     "review_chain_id",
     "review_chain_tracked",
     "review_depth",
@@ -522,6 +525,11 @@ class GateError(RuntimeError):
         super().__init__(reason)
         self.reason = reason
         self.reason_code = reason_code
+
+
+class CompletionFindingsError(GateError):
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason, "completion_checkpoint_invalid")
 
 
 class GateArgumentParser(argparse.ArgumentParser):
@@ -1550,8 +1558,17 @@ def _canonical_review_scope(profile: dict[str, Any]) -> dict[str, Any]:
     return scope
 
 
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
 def _load_prior_review_result(
-    path_value: str, expected_index: int
+    path_value: str, expected_index: int, *, strict_json: bool = False
 ) -> tuple[dict[str, Any], str]:
     source = Path(path_value)
     if not source.is_absolute():
@@ -1571,10 +1588,13 @@ def _load_prior_review_result(
             ),
             reason_code="review_chain_invalid",
         )
-        payload = json.loads(encoded.decode("utf-8"))
+        payload = json.loads(
+            encoded.decode("utf-8"),
+            object_pairs_hook=_unique_json_object if strict_json else None,
+        )
     except GateError:
         raise
-    except (UnicodeError, json.JSONDecodeError) as exc:
+    except (UnicodeError, ValueError) as exc:
         raise GateError(
             f"cannot read prior review result {expected_index}: {exc}",
             "review_chain_invalid",
@@ -2648,7 +2668,7 @@ def freeze_review_profile(
             or args.challenge_index
             or args.review_chain_id
             or args.autonomous_review_index is not None
-            or args.prior_review_result_file
+            or (args.prior_review_result_file and not args.finding_dispositions_file)
             or args.predecessor_chain_result_file
         ):
             raise GateError(
@@ -2658,6 +2678,11 @@ def freeze_review_profile(
     elif args.completion_review_result_file:
         raise GateError(
             "--completion-review-result-file is only valid in complete mode",
+            "completion_checkpoint_invalid",
+        )
+    if args.finding_dispositions_file and args.mode != "complete":
+        raise GateError(
+            "--finding-dispositions-file is only valid in complete mode",
             "completion_checkpoint_invalid",
         )
     risk_tags = sorted(set(args.risk_tag))
@@ -2982,7 +3007,9 @@ def freeze_review_profile(
     else:
         if (
             args.autonomous_review_index is not None
-            or args.prior_review_result_file
+            or (args.prior_review_result_file and not (
+                args.mode == "complete" and args.finding_dispositions_file
+            ))
             or args.predecessor_chain_result_file
         ):
             raise GateError(
@@ -3622,10 +3649,12 @@ def validate_completion_checkpoint(
     args: argparse.Namespace,
     packet_hash: str,
     profile: dict[str, Any],
+    *,
+    original_round: bool = False,
 ) -> tuple[str, dict[str, Any]]:
     try:
         prior, result_hash = _load_prior_review_result(
-            args.completion_review_result_file, 1
+            args.completion_review_result_file, 1, strict_json=original_round
         )
     except GateError as exc:
         raise GateError(exc.reason, "completion_checkpoint_invalid") from exc
@@ -3666,6 +3695,16 @@ def validate_completion_checkpoint(
         and isinstance(prior_gate, dict)
         and prior_gate.get("required") is False
     )
+    findings_checkpoint = (
+        prior.get("status") == "findings"
+        and prior.get("next_action") in (
+            "implementer_self_review", "triage_findings_and_continue_independent_work"
+        )
+        and isinstance(prior_gate, dict)
+        and prior_gate.get("required") is True
+        and isinstance(prior_gate.get("required_triggers"), list)
+        and "findings_returned" in prior_gate["required_triggers"]
+    )
     if (
         prior.get("schema_version") != 3
         or prior.get("mode") not in ("review", "challenge")
@@ -3673,8 +3712,11 @@ def validate_completion_checkpoint(
             prior.get("mode") == "challenge"
             and prior.get("review_chain_tracked") is not True
         )
-        or prior.get("status") != "passed"
-        or prior.get("findings") != []
+        or not (
+            (prior.get("status") == "passed" and prior.get("findings") == [])
+            or (prior.get("status") == "findings"
+                and isinstance(prior.get("findings"), list) and prior["findings"])
+        )
         or prior.get("candidate_sha256") != packet_hash
         or prior.get("packet_sha256") != packet_hash
         or prior.get("stage") != profile["stage"]
@@ -3728,13 +3770,176 @@ def validate_completion_checkpoint(
         or prior["wording_only_proof_sha256"] is not None
         or "wording_only_scope" not in prior
         or prior["wording_only_scope"] is not None
-        or not (final_round_checkpoint or early_challenge_checkpoint)
+        or not (original_round or final_round_checkpoint or early_challenge_checkpoint or findings_checkpoint)
     ):
         raise GateError(
             "completion review result does not bind a passed exact candidate awaiting deep self-review",
             "completion_checkpoint_invalid",
         )
+    if prior["status"] == "findings" and not original_round:
+        raise CompletionFindingsError(
+            "exact-candidate findings require complete source-refutation dispositions"
+        )
     return result_hash, prior
+
+
+def validate_finding_dispositions(
+    args: argparse.Namespace,
+    packet_hash: str,
+    profile: dict[str, Any],
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    # These checks bind accountable local source reasoning to immutable receipt
+    # occurrences. They validate structure and provenance, not that reasoning's truth.
+    paths = [*args.prior_review_result_file, args.completion_review_result_file]
+    if not 2 <= len(paths) <= profile["challenge_budget"] + 1:
+        raise CompletionFindingsError("source refutation requires the full review-then-challenge chain")
+    receipt_hashes: list[str] = []
+    focuses: list[str] = []
+    occurrences: list[dict[str, str]] = []
+    seen_occurrences: set[tuple[str, str]] = set()
+    chain_id = None
+    for index, path in enumerate(paths, 1):
+        round_args = argparse.Namespace(**vars(args))
+        round_args.completion_review_result_file = path
+        receipt_hash, receipt = validate_completion_checkpoint(
+            round_args, packet_hash, profile, original_round=True
+        )
+        if index == 1:
+            chain_id = receipt.get("review_chain_id")
+        challenge_index = receipt.get("challenge_index")
+        expected_review_state = (
+            "post_review_budget"
+            if receipt["status"] == "findings" and receipt["autonomous_reviews_remaining"] == 0
+            else "findings_pending"
+            if receipt["status"] == "findings"
+            else "reviewed"
+        )
+        receipt_gate = receipt.get("self_review_gate")
+        if (
+            receipt.get("mode") != ("review" if index == 1 else "challenge")
+            or receipt.get("review_chain_tracked") is not True
+            or receipt.get("review_chain_id") != chain_id
+            or receipt.get("autonomous_review_index") != index
+            or type(challenge_index) is not int
+            or challenge_index != index - 1
+            or receipt.get("challenge_rounds_remaining") != profile["challenge_budget"] - challenge_index
+            or receipt.get("prior_review_result_sha256") != receipt_hashes
+            or receipt.get("prior_challenge_focuses") != focuses
+            or receipt.get("review_state") != expected_review_state
+            or receipt.get("human_decision_required") is not (expected_review_state == "post_review_budget")
+            or (
+                receipt["status"] == "findings"
+                and (
+                    not isinstance(receipt_gate, dict)
+                    or receipt_gate.get("required") is not True
+                    or not isinstance(receipt_gate.get("required_triggers"), list)
+                    or "findings_returned" not in receipt_gate["required_triggers"]
+                )
+            )
+            or any(receipt.get(key) is not None for key in (
+                "predecessor_chain_id", "predecessor_result_sha256", "predecessor_candidate_sha256"
+            ))
+            or receipt.get("predecessor_challenge_focuses") not in (None, [])
+        ):
+            raise CompletionFindingsError("source refutation requires original contiguous normal-chain receipts")
+        focus = receipt.get("challenge_focus")
+        if index > 1:
+            if not isinstance(focus, str) or not focus.strip() or focus in focuses:
+                raise CompletionFindingsError("source refutation requires distinct recorded challenge focuses")
+            focuses.append(focus)
+        elif focus is not None:
+            raise CompletionFindingsError("initial review cannot carry a challenge focus")
+        for finding in receipt["findings"]:
+            if (
+                not isinstance(finding, dict)
+                or finding.get("severity") not in ("P0", "P1", "P2")
+                or type(finding.get("line")) is not int
+                or finding["line"] < 1
+                or any(not isinstance(finding.get(key), str) or not finding[key].strip()
+                       for key in ("file", "failure_path", "smallest_fix"))
+            ):
+                raise CompletionFindingsError("original receipt contains an invalid finding")
+            try:
+                finding_hash = _canonical_digest(finding)
+            except (UnicodeError, ValueError) as exc:
+                raise CompletionFindingsError("original finding must be canonical UTF-8 JSON") from exc
+            pair = (receipt_hash, finding_hash)
+            if pair in seen_occurrences:
+                # Identical canonical content shares one occurrence identity;
+                # preserve every entry in the original receipt unchanged.
+                continue
+            seen_occurrences.add(pair)
+            occurrences.append({"receipt_sha256": receipt_hash, "finding_sha256": finding_hash})
+        receipt_hashes.append(receipt_hash)
+    if not occurrences:
+        raise CompletionFindingsError("source refutation requires at least one original finding")
+    source = Path(args.finding_dispositions_file)
+    if not source.is_absolute():
+        raise CompletionFindingsError("finding dispositions path must be absolute")
+    try:
+        encoded = read_bounded_regular_file(
+            source,
+            label="finding dispositions",
+            maximum=MAX_RESULT_BYTES,
+            regular_error="finding dispositions must be a bounded regular JSON file",
+            oversized_error="finding dispositions exceed the size limit",
+            reason_code="completion_checkpoint_invalid",
+        )
+        manifest = json.loads(encoded.decode("utf-8"), object_pairs_hook=_unique_json_object)
+    except GateError:
+        raise
+    except (UnicodeError, ValueError) as exc:
+        raise CompletionFindingsError(f"cannot read finding dispositions: {exc}") from exc
+    if (
+        not isinstance(manifest, dict)
+        or set(manifest) != {"schema_version", "candidate_sha256", "review_result_sha256", "dispositions"}
+        or type(manifest.get("schema_version")) is not int
+        or manifest["schema_version"] != 1
+        or manifest.get("candidate_sha256") != packet_hash
+        or manifest.get("review_result_sha256") != receipt_hashes
+        or not isinstance(manifest.get("dispositions"), list)
+        or len(manifest["dispositions"]) != len(occurrences)
+    ):
+        raise CompletionFindingsError("finding dispositions do not bind the exact candidate and full original chain")
+    for disposition, occurrence in zip(manifest["dispositions"], occurrences):
+        if (
+            not isinstance(disposition, dict)
+            or set(disposition) != {"receipt_sha256", "finding_sha256", "disposition", "evidence"}
+            or disposition.get("receipt_sha256") != occurrence["receipt_sha256"]
+            or disposition.get("finding_sha256") != occurrence["finding_sha256"]
+            or disposition.get("disposition") != "source_refuted"
+        ):
+            raise CompletionFindingsError("finding dispositions must cover every original occurrence once in order")
+        evidence = disposition.get("evidence")
+        if (
+            not isinstance(evidence, list)
+            or not evidence
+            or any(
+                not isinstance(item, str) or item != item.strip() or not 1 <= len(item) <= 1000
+                for item in evidence
+            )
+            or len(set(evidence)) != len(evidence)
+        ):
+            raise CompletionFindingsError("each source refutation requires nonempty bounded distinct evidence")
+        if any(
+            ord(char) < 0x20
+            or 0x7F <= ord(char) <= 0x9F
+            or char in "\u2028\u2029"
+            or unicodedata.category(char) == "Cf"
+            for item in evidence
+            for char in item
+        ):
+            raise CompletionFindingsError("source-refutation evidence must not contain control or format characters")
+        try:
+            for item in evidence:
+                item.encode("utf-8")
+        except UnicodeError as exc:
+            raise CompletionFindingsError("source-refutation evidence must be valid UTF-8 text") from exc
+    return receipt_hashes[-1], receipt, {
+        "completion_basis": "source_refuted_findings",
+        "finding_dispositions_sha256": hashlib.sha256(encoded).hexdigest(),
+        "resolved_finding_occurrences": occurrences,
+    }
 
 
 def record_skip(
@@ -3875,6 +4080,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--prior-review-result-file", action="append", default=[])
     parser.add_argument("--predecessor-chain-result-file", default=None)
     parser.add_argument("--completion-review-result-file")
+    parser.add_argument("--finding-dispositions-file")
     parser.add_argument("--allow-fallback-egress", action="store_true")
     parser.add_argument("--host-remediation-attempted", action="store_true")
     parser.add_argument("--review-harness", action="store_true")
@@ -3991,24 +4197,30 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.mode == "complete":
             try:
-                (
-                    completion_result_hash,
-                    completed_review,
-                ) = validate_completion_checkpoint(args, packet_hash, profile)
+                if args.finding_dispositions_file:
+                    completion_result_hash, completed_review, completion_metadata = validate_finding_dispositions(
+                        args, packet_hash, profile
+                    )
+                else:
+                    completion_result_hash, completed_review = validate_completion_checkpoint(
+                        args, packet_hash, profile
+                    )
+                    completion_metadata = {"completion_basis": "external_pass"}
             except GateError as exc:
+                resolve_findings = isinstance(exc, CompletionFindingsError) or bool(args.finding_dispositions_file)
                 result.update(
                     reason=exc.reason,
                     reason_code=exc.reason_code,
-                    next_action="run_external_review_for_current_candidate",
+                    next_action=("resolve_review_findings" if resolve_findings else "run_external_review_for_current_candidate"),
                     review_state="self_reviewing",
                     self_review_gate=self_review_gate(
-                        required_triggers=["material_candidate_change"],
+                        required_triggers=(["findings_returned", "before_completion_claim"] if resolve_findings else ["material_candidate_change"]),
                         satisfied_triggers=profile["self_review_satisfied_triggers"],
                         blocks=["completion_claim"],
                         allowed_next_actions=[
                             "deep_self_review",
                             "continue_implementation",
-                            "run_external_review_after_self_review",
+                            "resolve_review_findings" if resolve_findings else "run_external_review_after_self_review",
                         ],
                     ),
                 )
@@ -4036,6 +4248,7 @@ def main(argv: list[str] | None = None) -> int:
                     satisfied_triggers=["before_completion_claim"]
                 ),
             )
+            result.update(completion_metadata)
             return emit(result, 0)
         last_reason_code = "no_independent_reviewer_available"
         for client in order:
@@ -4271,6 +4484,7 @@ def main(argv: list[str] | None = None) -> int:
                             "post_review_budget_checkpoint"
                         )
                         allowed_self_review_actions.append("continue_independent_work")
+                    allowed_self_review_actions.append("resolve_review_findings")
                     current_self_review_gate = self_review_gate(
                         required_triggers=required_self_review_triggers,
                         satisfied_triggers=profile["self_review_satisfied_triggers"],

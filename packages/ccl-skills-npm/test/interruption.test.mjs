@@ -146,10 +146,17 @@ test("real SIGINT during blocking Codex mutation exits 130 with one JSON", async
 	child.stdout.on("data", (x) => (stdout += x));
 	child.stderr.on("data", (x) => (stderr += x));
 	const closed = new Promise((resolve) => child.on("close", resolve)),
-		deadline = Date.now() + 5000;
+		// Public-state probes and durable writes share resources with the full suite.
+		// Wait for readiness; this test measures interruption behavior, not startup speed.
+		deadline = Date.now() + 30000;
 	while (!existsSync(`${f.state}.mutation-started`)) {
+		if (child.exitCode !== null || child.signalCode !== null) {
+			await closed;
+			throw Error(`CLI exited before mutation sentinel: ${stdout}${stderr}`);
+		}
 		if (Date.now() > deadline) {
-			child.kill("SIGKILL");
+			process.kill(-child.pid, "SIGKILL");
+			await closed;
 			throw Error("mutation sentinel timeout");
 		}
 		await new Promise((r) => setTimeout(r, 10));

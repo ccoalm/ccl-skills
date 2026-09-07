@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "f176f9ba3e49c7fb1a4ea346f6d1bf3ed1e1b9387e45bebe2fb28c7903317bf7",
+  "receipt_sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9",
+  "finding_sha256": "a07e6f3acdea60be75f9077ffe73d775987a2daa3d2c88c19366790f2cf05a5a",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9",
+      "finding_sha256": "a07e6f3acdea60be75f9077ffe73d775987a2daa3d2c88c19366790f2cf05a5a"
+    }
+  ],
+  "evidence": [
+    "Independent proof /private/tmp/carrier-locator-independent-proof.json SHA256 eaed54d91db3c1346963f3da11dba2b2ea38159be617f8915a40fdcd1333088c; executable /private/tmp/carrier-locator-independent-proof.py SHA256 b2ea3bdb336a8670dda8d9d0a470ac76d10a16922700af3fe24da70a22aeac15 completed exit0. It uses direct Git reads, regex enumeration, difflib and source-line slices, without importing or calling the obligation renderer.",
+    "difflib.SequenceMatcher on all three complete owner files identifies the sole source edit as old line8 replaced by new lines8-10. For each of all30ranges the executable asserts old_start>8 and new_start>10, both endpoints+2 and exact old/current source-slice equality. The multiline ranges122-123→124-125 and123-124→125-126 are covered. No insertion lies inside any carrier span."
+  ]
+}

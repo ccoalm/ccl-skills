@@ -1,0 +1,164 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "b6b0b82bfc9d7e21a61405cbbe918f350a9bcd07da8a9bc9c1b097d1b277fb6f",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "delivery-final-round1-review.json",
+      "sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9"
+    },
+    {
+      "sequence": 2,
+      "file": "delivery-final-round2-challenge.json",
+      "sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286"
+    }
+  ],
+  "completion_receipt": {
+    "file": "delivery-final-complete.json",
+    "sha256": "338a6c8202af957ab86582bb31b891bc19c7408be485f406e3aae773c8e13536"
+  },
+  "finding_dispositions": {
+    "file": "delivery-final-finding-dispositions.json",
+    "sha256": "61039a5ef1c29a02651000ca9066a0b6082d5dcd13e4cd096696842f83b3dafa"
+  },
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "69bcc3e31556f40e9e10fc4b69837cfc56f6fffe",
+      "confirmed_at": "2026-09-07T09:33:21Z",
+      "controller_receipt_sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "a20b2f806c796e649c7e8d82522fea3b8a950492ffd29318a3b9baa84c903c99"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "69bcc3e31556f40e9e10fc4b69837cfc56f6fffe",
+      "confirmed_at": "2026-09-07T09:43:31Z",
+      "controller_receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "a20b2f806c796e649c7e8d82522fea3b8a950492ffd29318a3b9baa84c903c99"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "self_reviewed",
+  "finding_classes": [
+    {
+      "key": "readable-marketplace-admission",
+      "root_cause_predicate": "Well-formed foreign marketplace rows are rejected or successful commands alone discharge owned-state verification.",
+      "affected_surface": "codex-host.ts and package README",
+      "occurrences": [
+        {
+          "receipt_sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+          "finding_sha256": "00f9da593f695d512ce9872dc4b25a34a543293dd842e3e69e8357554ecc88c7",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-final-source-1.json",
+          "disposition_evidence_sha256": "4fff693a972d2f93c800a2d94126f19b46ee034495608ac2bdb27331802d464a"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "operator-exit-mapping",
+      "root_cause_predicate": "Unusable-host exit distinctions are undocumented and all old host failures used exit 4.",
+      "affected_surface": "operations.ts and package README",
+      "occurrences": [
+        {
+          "receipt_sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+          "finding_sha256": "2bd237130960b527a1ae5064612c0b8683960e1606c44ac8be47c70069d53e52",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-final-source-2.json",
+          "disposition_evidence_sha256": "5cd61fc5b2eb8918b1ad066ad539f2ffd7c53c8011b9f08a5d313b332a3cfdea"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "existing-task-scope-boundary",
+      "root_cause_predicate": "Inherited continuation lacks the stated authority/history boundaries or claims mechanical external authorization enforcement.",
+      "affected_surface": "dual-track-review-gate.md and continuation pin tests",
+      "occurrences": [
+        {
+          "receipt_sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+          "finding_sha256": "d1110ec780e88ba55e00112ac4f1bb3ebd62c07f8e06f79a93a84c9d93e7da39",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-final-source-3.json",
+          "disposition_evidence_sha256": "167d245efef454a0162c8bff3e3cc28ec1f49126527de661189fa2c99bcd6b40"
+        },
+        {
+          "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+          "finding_sha256": "2dcb2ec2f4cd3e9c1a17a5f69a3ce61af18596a5bb3b1a83a0bd16a5e441758c",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-final-source-4.json",
+          "disposition_evidence_sha256": "32536796049bd2cbea142aef34a7b9bd94e321d55a6b1168148c384d758fbf29"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "source-refutation-trust-model",
+      "root_cause_predicate": "Local source-refutation is indistinguishable from external pass or promises semantic authentication.",
+      "affected_surface": "extraction validator and staged review contract",
+      "occurrences": [
+        {
+          "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+          "finding_sha256": "07e40eff7790bf3f3f5743e77c2d8944ff6306bb2cfb32d7c40cd8ef4aa7f195",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-final-source-5.json",
+          "disposition_evidence_sha256": "fd3b9cbe261381992cc782b14289835bd392902982e1bff2f087b35d50ee424e"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "uninstall-trash-recovery-order",
+      "root_cause_predicate": "A normal pre-removal interruption creates trash state that can never safely resume.",
+      "affected_surface": "operations.ts uninstall and resumeJournal",
+      "occurrences": [
+        {
+          "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+          "finding_sha256": "a42a6a1052c68980ae32af8b0e62120ee4b531d07ccbf52c48c548f8fcef5579",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-final-source-6.json",
+          "disposition_evidence_sha256": "b0b23168955731cce810ab94a39f4f5623421eeb8d26a4d5812146be980b7caa"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "release-preparation-authority",
+      "root_cause_predicate": "Unapproved plan text grants version mutation or release preparation requires a redundant confirmation.",
+      "affected_surface": "CONTRIBUTING.md and npm-release.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+          "finding_sha256": "eea0ca3df08bd4a845dd9a583a80e089526b0753e0b808408591d70769e1dd5b",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-final-source-7.json",
+          "disposition_evidence_sha256": "f9dfd226364a6ccb4e57a8a993115d4090b3aa276e10ffe19e68cc9c5adb1c7e"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "private-assent-surface",
+      "root_cause_predicate": "Verbatim session recovery must be copied into a shared repository artifact.",
+      "affected_surface": "resume-paused-delivery.md and dual-track-review-gate.md",
+      "occurrences": [
+        {
+          "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+          "finding_sha256": "0617eee221bc3747d3cd7338904e3d136a165d46f763aa7f1833dde8b9c21185",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "delivery-final-source-8.json",
+          "disposition_evidence_sha256": "e5143c9bbba5a38a1596241390d2af090406f964d5e6158710662a36a304d8fe"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "ready_for_human_decision"
+}

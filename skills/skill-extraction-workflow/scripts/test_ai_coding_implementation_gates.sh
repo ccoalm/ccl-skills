@@ -238,8 +238,21 @@ assert_same_paragraph "$REPO_ROOT/skills/skill-extraction-workflow/references/du
   "product-rd-workflow/references/design-review-gate-mechanics.md" \
   "claim liveness (shared-skill instantiation pointer)"
 
-# 2. Affirmative-assent binding
-assert_contains "$PRE_FINAL_REF" 'the required `proposed-next:` marker makes that binding observable' "assent binding (destination)"
+# 2. Text-consistency pins for intent recovery and retained boundaries.
+assert_contains "$PRE_FINAL_REF" 'even without a `proposed-next:` marker' "assent binding (unmarked recovery)"
+assert_contains "$PRODUCT_SKILL" 'A missing, repeated, or conflicting marker triggers intent recovery, not a stop.' "assent binding (format recovery)"
+assert_contains "$PRE_FINAL_REF" 'A marker alone never supplies missing authority' "assent binding (authority boundary)"
+assert_contains "$PRODUCT_SKILL" 'Scope each blocker to its dependent action or claim.' "continuation (dependent blocker scope)"
+assert_contains "$PRODUCT_SKILL" 'An unproven cause blocks the speculative patch, not available diagnosis' "continuation (diagnosis recovery)"
+assert_contains "$PRODUCT_SKILL" 'Every user reply immediately following an assistant message that states or implies a next action requires a visible `continuing:` or `blocked:` outcome before finalizing' "continuation (mandatory reply outcome)"
+assert_contains "$PRE_FINAL_REF" 'Independent work must neither depend on the pending verdict nor modify the candidate being evaluated.' "continuation (independence boundary)"
+assert_contains "$PRODUCT_SKILL" 'Never bypass the blocked gate, invent a pass, widen scope' "continuation (no gate bypass)"
+assert_same_bullet "$PRODUCT_SKILL" 'Quality-gate failures require diagnosis and available related behavior-preserving cleanup before escalation' \
+  'references/refactoring-discipline.md' "quality gate (entry signal+pointer)"
+assert_contains "$PRE_FINAL_REF" 'inspect and perform a safe structural cleanup related to the current change when available, then rerun the gate and affected tests' "quality gate (remediation before escalation)"
+assert_contains "$REPO_ROOT/skills/product-rd-workflow/references/refactoring-discipline.md" 'do not ask again merely because it involves refactoring' "quality gate (authorized cleanup)"
+assert_contains "$REPO_ROOT/skills/product-rd-workflow/references/refactoring-discipline.md" 'Do not abbreviate meaningful names, remove necessary explanations, pack statements, fragment responsibilities arbitrarily, or change the threshold/history just to satisfy a counter.' "quality gate (readability and metric integrity)"
+assert_contains "$REPO_ROOT/skills/product-rd-workflow/references/refactoring-discipline.md" 'Broader redesign and breaking changes retain their scope and approval checks.' "quality gate (scope and compatibility boundary)"
 assert_same_bullet "$PRODUCT_SKILL" 'Affirmative-assent binding rule' \
   "references/pre-final-continuation-gate.md" "assent binding (entry signal+pointer)"
 assert_contains "$PRODUCT_SKILL" 'self-classifying the reply or marker away is never an exit' "assent binding (entry no-exit clause)"
@@ -746,52 +759,35 @@ assert_same_line "$DUAL_TRACK_REF" 'cannot be checked false and is inconclusive'
 assert_same_line "$DUAL_TRACK_REF" 'any "full X" adjective is scoped to the named axes, never wider' \
   'must be written falsifiably' \
   "process controls (full-adjective scoped to named axes)"
-# Continuation authorization: third human state; binding dead-end is by design; checkpoint names the remainder.
-assert_same_line "$DUAL_TRACK_REF" 'it waives nothing and decides no merge' \
-  '`continuation_authorization`' \
-  "process controls (continuation authorization waives nothing)"
-assert_same_line "$DUAL_TRACK_REF" 'both lanes stay intact and blocking' \
-  '`continuation_authorization`' \
-  "process controls (both lanes stay intact and blocking)"
-assert_same_line "$DUAL_TRACK_REF" 'never counted as Agent-autonomous' \
-  '`continuation_authorization`' \
-  "process controls (human-authorized rounds not Agent-autonomous)"
-assert_same_line "$DUAL_TRACK_REF" 'run as a fresh chain bound to the current candidate' \
-  '`continuation_authorization`' \
-  "process controls (continuation rounds take a fresh current-candidate chain)"
-assert_same_line "$DUAL_TRACK_REF" "carries forward the complete review ledger and every prior round's focuses and dispositions" \
-  '`continuation_authorization`' \
-  "process controls (fresh chain restarts binding, never history)"
-assert_same_line "$DUAL_TRACK_REF" 'The grant itself is scope-bound, not reusable' \
-  '`continuation_authorization`' \
-  "process controls (continuation grant is scope-bound)"
-assert_same_line "$DUAL_TRACK_REF" "it names the granting session and either one exact candidate or, explicitly, this program's rounds to convergence in that session" \
-  '`continuation_authorization`' \
-  "process controls (the grant scope is defined: session plus exact candidate or explicit to-convergence)"
-assert_same_line "$DUAL_TRACK_REF" 'a candidate or session outside the named scope requires a fresh authorization' \
-  '`continuation_authorization`' \
-  "process controls (out-of-scope continuation needs a fresh grant)"
-assert_same_line "$DUAL_TRACK_REF" "a finding's fix that edits the owner package's own files breaks the review chain's content binding" \
-  '`continuation_authorization`' \
-  "process controls (binding dead-end is by design)"
-assert_same_line "$DUAL_TRACK_REF" 'refuses both another autonomous round and a challenge bound to the stale prior result' \
-  '`continuation_authorization`' \
-  "process controls (tracker refusal on stale binding)"
-assert_same_line "$DUAL_TRACK_REF" "names each lane's terminal state and the exact un-run remainder" \
-  '`continuation_authorization`' \
-  "process controls (interim checkpoint names the un-run remainder)"
-assert_same_line "$DUAL_TRACK_REF" 'explicit risk acceptance with the record as the disposition trail' \
-  '`continuation_authorization`' \
-  "process controls (risk-acceptance alternative recorded)"
-assert_same_line "$DUAL_TRACK_REF" 'Never Agent self-authorization' \
-  '`continuation_authorization`' \
-  "process controls (no agent self-authorization)"
-assert_same_line "$DUAL_TRACK_REF" "never a lane waiver inferred from the human's silence" \
-  '`continuation_authorization`' \
-  "process controls (no inferred lane waiver)"
-assert_same_line "$DUAL_TRACK_REF" 'or from the authorization to continue' \
-  '`continuation_authorization`' \
-  "process controls (continuing is not waiving)"
+# Default continuation retains original authority and accumulated evidence.
+assert_same_line "$DUAL_TRACK_REF" 'necessary in-scope fixes, tests and review are already authorized by default' \
+  '`continuation_authorization`' "process controls (necessary review inherits task authority)"
+assert_same_line "$DUAL_TRACK_REF" 'continuation_basis=existing-task-scope' \
+  '`continuation_authorization`' "process controls (inherited continuation has an explicit basis)"
+assert_same_line "$DUAL_TRACK_REF" 'the original authorization reference and scope' \
+  '`continuation_authorization`' "process controls (original authority remains traceable)"
+assert_same_line "$DUAL_TRACK_REF" 'changed method or added evidence, cumulative rounds' \
+  '`continuation_authorization`' "process controls (checkpoint requires method and spending evidence)"
+assert_same_line "$DUAL_TRACK_REF" "links between the old sequence's terminal evidence and the new sequence" \
+  '`continuation_authorization`' "process controls (successive sequences retain their links)"
+assert_same_line "$DUAL_TRACK_REF" 'fresh current-candidate bindings and preserves every prior receipt, focus, finding and disposition' \
+  '`continuation_authorization`' "process controls (fresh binding does not discard history)"
+assert_same_line "$DUAL_TRACK_REF" 'The existing per-sequence format, timeout and validation bounds remain unchanged' \
+  '`continuation_authorization`' "process controls (bounded invocation format remains enforced)"
+assert_same_line "$DUAL_TRACK_REF" 'never relabel these calls as newly human-requested or erase earlier spending' \
+  '`continuation_authorization`' "process controls (no fabricated human request or count reset)"
+assert_same_line "$DUAL_TRACK_REF" 'Ask only for scope or authority the original task lacks, an explicit user limit' \
+  '`continuation_authorization`' "process controls (real missing authority and user limits remain blocking)"
+assert_same_line "$DUAL_TRACK_REF" 'Continuation waives no review, test or evidence obligation and grants no merge, publication or risk-acceptance authority' \
+  '`continuation_authorization`' "process controls (continuation is not a waiver or landing authority)"
+assert_same_line "$DUAL_TRACK_REF" 'Never infer a lane waiver from silence or from authorization to continue' \
+  '`continuation_authorization`' "process controls (no inferred lane waiver)"
+assert_contains "$PRODUCT_SKILL" 'Necessary fixes, tests and review inherit task authorization' \
+  "process controls (implementation entry reaches inherited authority)"
+assert_contains "$PRE_FINAL_REF" 'continuation_basis=existing-task-scope' \
+  "process controls (continuation router preserves task authority)"
+assert_contains "$REPO_ROOT/skills/code-review/references/staged-review-contract.md" 'continuation_basis=existing-task-scope' \
+  "process controls (runtime contract explains inherited authority)"
 # Ledger append-once: rule sentences bound to the Round-consolidation paragraph.
 assert_same_paragraph "$LEDGER_REF" 'APPEND each row to this ledger exactly once' \
   "$LEDGER_RULE_PARAGRAPH" \
@@ -825,5 +821,44 @@ assert_in_section "$WALK_REF" "$WALK_PROBE_SECTION" 'the probe discovers its pin
   "process controls (parser completeness probe)"
 assert_in_section "$WALK_REF" "$WALK_PROBE_SECTION" 'every obligation sentence of the pinned artifact names its pin' \
   "process controls (walk cannot detect unpinned obligations)"
+
+# Completion routing pins prove text reachability, not actual model execution.
+# Tool-enabled completion replays are separate behavioral evidence.
+COMPLETION_REF="$REPO_ROOT/skills/code-review/references/development-completion.md"
+assert_contains "$REPO_ROOT/agent-context/session-start.md" '开发完成自动评审' "cross-host completion trigger"
+assert_same_line "$REPO_ROOT/skills/code-review/SKILL.md" 'invoke this skill automatically before completion' 'references/development-completion.md' "review completion route"
+assert_contains "$COMPLETION_REF" 'Do not wait for the user to request review.' "automatic invocation"
+assert_same_line "$COMPLETION_REF" 'A failed quality check calls for available in-scope diagnosis and cleanup' \
+  'refactoring-discipline.md#responding-to-quality-gates' "implementation owners reach quality-gate remediation"
+assert_contains "$COMPLETION_REF" 'an implementation diff triggers this transition regardless of the task label' "actual diff controls review applicability"
+assert_contains "$COMPLETION_REF" 'a superseded or unrelated instruction is not a skip for this task' "current skip instruction scope"
+assert_contains "$COMPLETION_REF" 'report the actual diff classification and a concrete reason if review is inapplicable' "completion classification is observable"
+assert_contains "$COMPLETION_REF" 'including untracked implementation files' "inapplicability includes inspected change evidence"
+assert_contains "$PRE_FINAL_REF" 'If recovery adds an action or broadens that quoted scope, select `blocked:` and ask.' "recovered proposal scope cannot expand"
+assert_contains "$COMPLETION_REF" 'An explicit user instruction to skip review controls this task' "explicit skip boundary"
+assert_contains "$COMPLETION_REF" 'Reuse a terminal independent review only when it covers the current candidate' "current candidate reuse"
+assert_contains "$COMPLETION_REF" 'A different or missing candidate identifier cannot discharge review.' "candidate identifier mismatch blocks reuse"
+assert_contains "$PRODUCT_SKILL" 'if the original proposal cannot be recovered verbatim, select `blocked:` and ask' "unrecoverable assent referent blocks execution"
+assert_contains "$COMPLETION_REF" 'Changing the implementation or scope reopens this check' "changed scope invalidates reuse"
+assert_contains "$COMPLETION_REF" 'invoke `scripts/review_gate.sh`' "actual review command"
+assert_contains "$COMPLETION_REF" 'changed named test properties' "mutation applicability"
+assert_contains "$COMPLETION_REF" 'same contract has two implementations or paths' "differential applicability"
+assert_contains "$MECHANISM_REF" 'design-only work with no implementation diff' "design-only inline review exception"
+for owner_entry in "$REPO_ROOT"/skills/*-dev/SKILL.md \
+  "$REPO_ROOT"/skills/{defect-diagnosis,testing-strategy,product-rd-workflow,llm-inference-integration,platform-observability,platform-service-connectivity,platform-release-engineering,skill-extraction-workflow}/SKILL.md; do
+  assert_contains "$owner_entry" 'invoke `code-review` automatically before completion.' \
+    "standalone implementation owner: $(basename "$(dirname "$owner_entry")")"
+done
+
+# Heuristic escalation thresholds retain authority and change the failed method.
+HARNESS_REF="$REPO_ROOT/skills/skill-extraction-workflow/references/harness-patterns-and-eval.md"
+DELEGATION_SKILL="$REPO_ROOT/skills/multi-agent-delegation/SKILL.md"
+assert_contains "$HARNESS_REF" '命中即报告并自查 / 调整方法' "warning keeps mandatory reporting"
+assert_contains "$HARNESS_REF" '停止相同重试，核对失败证据后调整方法或补上下文' "identical retry changes method"
+assert_contains "$HARNESS_REF" '报中间状态、累计用量和下一步依据，按原授权继续必要工作' "warning continues with accounted authority"
+assert_contains "$HARNESS_REF" '仅缺权限、超出范围、真实取舍或用户显式限制阻断该行动时等人' "warning preserves real action blockers"
+assert_contains "$DELEGATION_SKILL" 'method/evidence checkpoint, not renewed task permission' "delegation threshold inherits task authority"
+assert_contains "$DELEGATION_SKILL" 'unknown completion state or missing authority remains after bounded remediation' "delegation preserves unresolved blockers"
+assert_contains "$DELEGATION_SKILL" 'respecting explicit user limits' "delegation preserves user limits"
 
 echo "test_ai_coding_implementation_gates: ok"
