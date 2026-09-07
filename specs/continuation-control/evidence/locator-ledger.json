@@ -1,0 +1,119 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "f176f9ba3e49c7fb1a4ea346f6d1bf3ed1e1b9387e45bebe2fb28c7903317bf7",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "locator-round1-review.json",
+      "sha256": "12e0cd7782791a15bc52adc3206698c2ec5ceef977190e266e072ea2ce265187"
+    },
+    {
+      "sequence": 2,
+      "file": "locator-round2-challenge.json",
+      "sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9"
+    }
+  ],
+  "completion_receipt": {
+    "file": "locator-complete.json",
+    "sha256": "eae55cb5b590c68b4003d5c5a922d213682ccfd1d9c6fbb570a71e2b78815e62"
+  },
+  "finding_dispositions": {
+    "file": "locator-finding-dispositions.json",
+    "sha256": "455006635e369e54f1b2f0f59b8251ce7c03727c6d6863db68d3fcd8dc78e574"
+  },
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "69bcc3e31556f40e9e10fc4b69837cfc56f6fffe",
+      "confirmed_at": "2026-09-07T10:41:49Z",
+      "controller_receipt_sha256": "12e0cd7782791a15bc52adc3206698c2ec5ceef977190e266e072ea2ce265187",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "a20b2f806c796e649c7e8d82522fea3b8a950492ffd29318a3b9baa84c903c99"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "69bcc3e31556f40e9e10fc4b69837cfc56f6fffe",
+      "confirmed_at": "2026-09-07T10:45:37Z",
+      "controller_receipt_sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "a20b2f806c796e649c7e8d82522fea3b8a950492ffd29318a3b9baa84c903c99"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "self_reviewed",
+  "finding_classes": [
+    {
+      "key": "complete-owner-locator-inventory",
+      "root_cause_predicate": "Locators into shifted owners outside the diff remain unaccounted for or stale.",
+      "affected_surface": "specs/065-uiux-evidence-delivery/obligation-preservation.md and its unchanged canonical mapping",
+      "occurrences": [
+        {
+          "receipt_sha256": "12e0cd7782791a15bc52adc3206698c2ec5ceef977190e266e072ea2ce265187",
+          "finding_sha256": "bf4f0824b5161bba92fa5f69915323fe0195932b0120450676da811e6991a6b2",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "locator-source-1.json",
+          "disposition_evidence_sha256": "22e65dde0793e17caf9f8255b3275232c05ed1a931520522820a311ef2b809e0"
+        },
+        {
+          "receipt_sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9",
+          "finding_sha256": "b98666b3af9e8066a1a46c128b1fa3b266b2ff3eaee0ee7cfa8eb50bcf5725d8",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "locator-source-2.json",
+          "disposition_evidence_sha256": "90a1f9a0e3702da96990d5bd1500dbd38ca753078d72191019e738cdf79c173c"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "independent-source-location-check",
+      "root_cause_predicate": "Renderer/audit self-comparison is the only available evidence of current source identity.",
+      "affected_surface": "specs/065-uiux-evidence-delivery/obligation-preservation.md and its unchanged canonical mapping",
+      "occurrences": [
+        {
+          "receipt_sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9",
+          "finding_sha256": "abb4c93309a0a60b0c154e823c67621fa0e860b09a31df76f0e61c411a75a080",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "locator-source-3.json",
+          "disposition_evidence_sha256": "4efa423d8b717fc0c1d4853023bd48c4ab7c262a2e0cf5ef7d095ab99c36340d"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "multiline-span-insertion-position",
+      "root_cause_predicate": "An insertion inside a carrier span makes a uniform endpoint shift incorrect.",
+      "affected_surface": "specs/065-uiux-evidence-delivery/obligation-preservation.md and its unchanged canonical mapping",
+      "occurrences": [
+        {
+          "receipt_sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9",
+          "finding_sha256": "a07e6f3acdea60be75f9077ffe73d775987a2daa3d2c88c19366790f2cf05a5a",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "locator-source-4.json",
+          "disposition_evidence_sha256": "e3ccc79493ce39751ab71e5c6f56577f3d8a6130284cfe35cee6847595880b3b"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "canonical-mapping-position-domain",
+      "root_cause_predicate": "The canonical mapping retains stale current carrier-file line positions.",
+      "affected_surface": "specs/065-uiux-evidence-delivery/obligation-preservation.md and its unchanged canonical mapping",
+      "occurrences": [
+        {
+          "receipt_sha256": "4211c50c906cde2f03f4fd87ef947d6c5b8d32415647b4607d6a4e919565fca9",
+          "finding_sha256": "1ab1a260f3c8217d5dea73147d6ae1c76498a61c980efa488bcd09c654c69314",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "locator-source-5.json",
+          "disposition_evidence_sha256": "83b08852f9220b7df076ef2e7ddcf43a1b58c7ed9f39f1924a8fc041a5cb50dd"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "ready_for_human_decision"
+}

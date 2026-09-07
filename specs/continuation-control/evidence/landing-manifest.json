@@ -68,7 +68,13 @@
         "specs/continuation-control/evidence/routing-after.json"
       ],
       "candidate_sha256": "c7576d6e962263eb0b52c3908996168ef24276dbdf2b0a8b22667a48b492e3bc"
+    },
+    {
+      "paths": [
+        "specs/065-uiux-evidence-delivery/obligation-preservation.md"
+      ],
+      "candidate_sha256": "f176f9ba3e49c7fb1a4ea346f6d1bf3ed1e1b9387e45bebe2fb28c7903317bf7"
     }
   ],
-  "candidate_sha256": "843a7671271bbaab2c52306c4bcbe3d0cbcfea67f4b1e50ceff17a19834e2e58"
+  "candidate_sha256": "c11e76248d7bda741ec68e41c3a7c70c04bc7fbd14fb2dce27ed1f156ce960e7"
 }
