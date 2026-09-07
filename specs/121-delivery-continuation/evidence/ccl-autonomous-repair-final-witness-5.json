@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "2ff72ca9e67ab19d4ffa7cdf651f09e84c72632d6416f08d683d46d8eeface31",
+  "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+  "finding_sha256": "c07066fb4103538cd2b6f3aa3dfb05d7eea1217e63fe6255184339c8ff5333c7",
+  "disposition": "source_refuted",
+  "evidence": [
+    "skills/worktree-isolation/SKILL.md section1 requires the user to have requested an end-to-end result such as complete and merge or publish this version. Both examples explicitly name the consequential action; the rule does not say a vague completion request supplies it. Root AGENTS and release docs likewise require an already explicit goal.",
+    "The previous advance complete-and-merge rejection is intentionally replaced. A user action can establish authority before a PR exists; future object evidence still must be shown and verified. The host paragraph distinguishes real mechanical-grant capability from prose authority and forbids forged sentinels/disabled guards; it does not claim the host can infer a grant."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+      "finding_sha256": "c07066fb4103538cd2b6f3aa3dfb05d7eea1217e63fe6255184339c8ff5333c7"
+    }
+  ]
+}

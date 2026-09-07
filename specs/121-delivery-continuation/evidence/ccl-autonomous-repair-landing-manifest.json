@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "kind": "landing_partition_manifest",
+  "base": "c09081b6577e01a6b3acfa9e4862dfe100e8451e",
+  "partitions": [
+    {
+      "paths": [
+        "AGENTS.md",
+        "agent-context/session-start.md",
+        "docs/CONTRIBUTING.md",
+        "docs/npm-release.md",
+        "eval/behavior-fixtures.jsonl",
+        "packages/ccl-skills-npm/package-lock.json",
+        "packages/ccl-skills-npm/package.json",
+        "skills/defect-diagnosis/SKILL.md",
+        "skills/product-rd-workflow/references/pre-final-continuation-gate.md",
+        "skills/product-rd-workflow/references/refactoring-discipline.md",
+        "skills/release-coordination/SKILL.md",
+        "skills/release-coordination/references/mr-merge-authorization.md",
+        "skills/skill-extraction-workflow/scripts/test_ai_coding_implementation_gates.sh",
+        "skills/skill-extraction-workflow/scripts/test_controlled_escalation_pins.sh",
+        "skills/worktree-isolation/SKILL.md"
+      ],
+      "candidate_sha256": "2ff72ca9e67ab19d4ffa7cdf651f09e84c72632d6416f08d683d46d8eeface31"
+    },
+    {
+      "paths": [
+        "specs/121-delivery-continuation/evidence/ccl-autonomous-repair-final-base.txt"
+      ],
+      "candidate_sha256": "444f236403774250a991f2d9bcfc0336c23212513a5f9d06822d6f7ebd9e5e3b"
+    }
+  ],
+  "candidate_sha256": "89c0d22053615eecc270701951bad097fe214cc98e51bc1f8140aec8ed6afb39"
+}

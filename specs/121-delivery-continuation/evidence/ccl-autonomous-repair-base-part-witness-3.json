@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "444f236403774250a991f2d9bcfc0336c23212513a5f9d06822d6f7ebd9e5e3b",
+  "receipt_sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2",
+  "finding_sha256": "aeaca49d8dfe5eb6e73c50207886524763cb5c0b16ffeea53c7bceda201348de",
+  "disposition": "source_refuted",
+  "evidence": [
+    "The landing partition manifest names both current partitions and their identities. review_ledger_binding.py requires partition paths to cover every changed candidate file exactly once, recomputes both hashes and requires an accepted ledger for each.",
+    "A negative print-manifest run with only the fifteen implementation paths fails because the raw baseline file is uncovered. The final complete manifest and both ledgers will be committed and the normal binding command must pass before push. The .txt-only review partition is not claimed to be the entire landing configuration."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2",
+      "finding_sha256": "aeaca49d8dfe5eb6e73c50207886524763cb5c0b16ffeea53c7bceda201348de"
+    }
+  ]
+}
