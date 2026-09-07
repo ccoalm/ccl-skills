@@ -5,7 +5,9 @@ description: Use when designing, reviewing, debugging, or shipping observability
 
 # Platform Observability
 
-Owns logs/metrics/traces, correlation, dashboards, alerts, on-call routing, SLI/SLO/error-budget design and framework wiring for new services. After code/test edits, self-check and invoke `code-review` automatically before completion.
+Owns logs/metrics/traces, correlation, dashboards, alerts, on-call routing, SLI/SLO/error-budget design and framework wiring for new services.
+
+- Code/test changes require self-checks; invoke `code-review` automatically before completion.
 
 You do not own:
 - Traffic routing, retries, timeouts, mTLS, or service mesh policy — go to `platform-service-connectivity`.

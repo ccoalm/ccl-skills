@@ -5,7 +5,9 @@ description: Use when designing, implementing, reviewing, debugging, or operatin
 
 # LLM Inference Integration
 
-Use this for product backend work that calls, hosts, evaluates, or operates LLM and inference systems. Keep the skill generic: extract reusable mechanics only, not business-specific prompts, datasets, provider names, repository paths, or domain nouns. After code/test edits, self-check and invoke `code-review` automatically before completion.
+Use this for product backend work that calls, hosts, evaluates, or operates LLM and inference systems. Keep the skill generic: extract reusable mechanics only, not business-specific prompts, datasets, provider names, repository paths, or domain nouns.
+
+- Code/test changes require self-checks; invoke `code-review` automatically before completion.
 
 ## Skill Routing
 

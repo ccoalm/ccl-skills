@@ -5,7 +5,9 @@ description: 发布 / 灰度 / canary / rollback / rollout / 环境泳道 / prom
 
 # Platform Release Engineering
 
-Owns lane/environment topology, build/deploy pipelines, traffic shifting (canary, blue-green, mirror), promotion gates using observability evidence, secret/dynamic-config distribution and rollback contracts. After code/test edits, self-check and invoke `code-review` automatically before completion.
+Owns lane/environment topology, build/deploy pipelines, traffic shifting (canary, blue-green, mirror), promotion gates using observability evidence, secret/dynamic-config distribution and rollback contracts.
+
+- Code/test changes require self-checks; invoke `code-review` automatically before completion.
 
 You do not own:
 - What signals exist to judge a release — see `platform-observability`.

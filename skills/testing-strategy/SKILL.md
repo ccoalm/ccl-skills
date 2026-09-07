@@ -5,7 +5,9 @@ description: 怎么测 / 测试方案 / 测试覆盖 / 先写测试用例（可�
 
 # Testing Strategy
 
-Owns test scope/design, verification evidence, CI gates and test-layer choices across Go, Python, React web, mobile, mini-program, terminal/CLI/TUI, API, workflow, data/inference and release tasks. After code/test edits, self-check and invoke `code-review` automatically before completion.
+Owns test scope/design, verification evidence, CI gates and test-layer choices across Go, Python, React web, mobile, mini-program, terminal/CLI/TUI, API, workflow, data/inference and release tasks.
+
+- Code/test changes require self-checks; invoke `code-review` automatically before completion.
 
 ## Skill Routing
 

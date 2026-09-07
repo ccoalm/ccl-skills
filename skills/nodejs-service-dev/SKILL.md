@@ -5,7 +5,7 @@ description: Use when implementing, modifying, scaffolding, or testing Node.js b
 
 # Node.js Service Development
 
-After code/test edits, self-check and invoke `code-review` automatically before completion.
+- Code/test changes require self-checks; invoke `code-review` automatically before completion.
 
 ## Skill Routing
 
