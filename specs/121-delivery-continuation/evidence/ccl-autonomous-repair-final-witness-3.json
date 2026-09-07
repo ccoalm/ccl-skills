@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "2ff72ca9e67ab19d4ffa7cdf651f09e84c72632d6416f08d683d46d8eeface31",
+  "receipt_sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+  "finding_sha256": "54b9dd5fa3ea0c72b68bee969594c8863261577322dc2072ce18d3d971756386",
+  "disposition": "source_refuted",
+  "evidence": [
+    "skills/skill-extraction-workflow/scripts/test_ai_coding_implementation_gates.sh explicitly describes these as static retention evidence and says they do not prove executed repair or change host permission mechanisms. It includes root scope/stop and host/resource boundary pins.",
+    "The removed per-step authorization rule is an intentional policy replacement. A test requiring that retired rule would contradict the accepted goal-authority behavior. The unchanged hooks/test_guard_merge_authorization.sh still tests actual default-branch/auto-merge/admin/grant enforcement. No exhaustive semantic-safety claim is made by the new pins."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+      "finding_sha256": "54b9dd5fa3ea0c72b68bee969594c8863261577322dc2072ce18d3d971756386"
+    }
+  ]
+}

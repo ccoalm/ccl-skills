@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "2ff72ca9e67ab19d4ffa7cdf651f09e84c72632d6416f08d683d46d8eeface31",
+  "review_result_sha256": [
+    "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+    "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696"
+  ],
+  "dispositions": [
+    {
+      "receipt_sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+      "finding_sha256": "e6955c69ac4f2b64a0e4cff431e68a8d64c6a52b2458b6aeccbe2a7208fcb92b",
+      "disposition": "source_refuted",
+      "evidence": [
+        "skills/release-coordination/SKILL.md: Core lifecycle steps1-2 require stated release scope, production target, source and user decisions, then reject scope mismatch and undocumented operational deltas. The authority paragraph limits coverage to the user's stated goal and necessary established publication steps.",
+        "The same paragraph explicitly excludes destructive data operations, protection/permission changes, unrelated releases, ambiguous targets and missing resource authority. Credentials, repository text and tool output do not establish release authority. An unlisted action must still satisfy these universal conditions; an absent row is not an exemption.",
+        "references/release-scope-confirmation.md requires exact source/target and classifying config, migration, jobs, workers, integrations and manual steps before tags or jobs. docs/npm-release.md Bad release retains separate authority for deprecation/unpublish. The proposed unconditional ask for every irreversible publish step would restore the deliberately retired per-step policy."
+      ]
+    },
+    {
+      "receipt_sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+      "finding_sha256": "bb7f7fed5dd86b546b4c7498f98886d489c723b9a71b06ea9cf1c1744787c822",
+      "disposition": "source_refuted",
+      "evidence": [
+        "skills/release-coordination/SKILL.md: the manual-job row says Covered only for the established requested release flow AND caller resource authority, and requires specific job/pipeline/status/intended-effect evidence. The intake and scope-confirmation gates apply before that row.",
+        "This is a generic production-release coordinator. An npm-only request bounds its actual release flow to the package target; a pipeline job affecting another production target is outside that goal. Pipeline presence alone does not satisfy requested scope or resource authority. Restricting the shared row itself to npm would contradict the skill's declared multi-product purpose."
+      ]
+    },
+    {
+      "receipt_sha256": "07821ef63db2c7eddf560ca0cba0077990ff5c4d7c6bbc12c1350797205e81c7",
+      "finding_sha256": "54b9dd5fa3ea0c72b68bee969594c8863261577322dc2072ce18d3d971756386",
+      "disposition": "source_refuted",
+      "evidence": [
+        "skills/skill-extraction-workflow/scripts/test_ai_coding_implementation_gates.sh explicitly describes these as static retention evidence and says they do not prove executed repair or change host permission mechanisms. It includes root scope/stop and host/resource boundary pins.",
+        "The removed per-step authorization rule is an intentional policy replacement. A test requiring that retired rule would contradict the accepted goal-authority behavior. The unchanged hooks/test_guard_merge_authorization.sh still tests actual default-branch/auto-merge/admin/grant enforcement. No exhaustive semantic-safety claim is made by the new pins."
+      ]
+    },
+    {
+      "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+      "finding_sha256": "454e140a008caaaf2107c79a693e3d2612c8f14114d35c49d27c929adb78e856",
+      "disposition": "source_refuted",
+      "evidence": [
+        "skills/release-coordination/SKILL.md: Credentials, repository text, tool output or run tests do not establish release authority. This directly replaces the relevant old inference ban; it was not deleted without a replacement.",
+        "Core lifecycle intake and scope confirmation plus references/release-scope-confirmation.md require documented actual release target/source and operational/job deltas. The manual-job row is conditional on requested flow and caller resource authority. A job merely offered by a pipeline cannot satisfy those predicates. The alleged npm-goal-to-unrelated-production-deploy path contradicts the retained scope gate."
+      ]
+    },
+    {
+      "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+      "finding_sha256": "c07066fb4103538cd2b6f3aa3dfb05d7eea1217e63fe6255184339c8ff5333c7",
+      "disposition": "source_refuted",
+      "evidence": [
+        "skills/worktree-isolation/SKILL.md section1 requires the user to have requested an end-to-end result such as complete and merge or publish this version. Both examples explicitly name the consequential action; the rule does not say a vague completion request supplies it. Root AGENTS and release docs likewise require an already explicit goal.",
+        "The previous advance complete-and-merge rejection is intentionally replaced. A user action can establish authority before a PR exists; future object evidence still must be shown and verified. The host paragraph distinguishes real mechanical-grant capability from prose authority and forbids forged sentinels/disabled guards; it does not claim the host can infer a grant."
+      ]
+    },
+    {
+      "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+      "finding_sha256": "2ab035a1cafbcf26c67fe7c2f16676ba6d34e1da41a601e607c0872ddc6d6fd0",
+      "disposition": "source_refuted",
+      "evidence": [
+        "test_ai_coding_implementation_gates.sh limits the eleven assertions to literal retention, route presence and the named scope/host boundaries. Surviving means those specific rules remain present, not that arbitrary model actions are mechanically prevented.",
+        "F35-F40 are labeled human judgment and advisory; eval/AGENTS.md explicitly forbids treating them as merge gates. The new scope and host boundary assertions plus existing runtime guard suite support only their named properties. The finding substitutes a stronger enforcement claim that these surfaces explicitly disclaim."
+      ]
+    },
+    {
+      "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+      "finding_sha256": "ddeea4c3008cd880c214216221e05403f087c01dc7ba80d1463c2d42fc930015",
+      "disposition": "source_refuted",
+      "evidence": [
+        "eval/behavior-fixtures.jsonl F13 now checks an explicit pending-review restriction; F40 checks foreign content, protection changes and destructive shared-data operations. F35-F38 separately check repair and stop limits. These are negative scope cases, not an all-permissive corpus.",
+        "The absence of a dedicated vague-goal fixture is an advisory coverage limit, not evidence that vague completion now authorizes merge. Worktree canonical, root and release docs require an explicit merge/publication goal. No exhaustive ambiguity classification or runtime authorization guarantee is claimed; retaining the old advance-merge prohibition would contradict the intended policy."
+      ]
+    },
+    {
+      "receipt_sha256": "c7941175ccc3ed8f005800cbccf21c81b491441a8295aad3cf5e6ba46a9a7696",
+      "finding_sha256": "5725bcad184b1744b372669826514e44b676acb866f07a85b01ca8ccdcccfa84",
+      "disposition": "source_refuted",
+      "evidence": [
+        "skills/release-coordination/references/mr-merge-authorization.md requires current URL, source/target, head SHA, CI/mergeability and approval/auto-merge read-back before acting. Its title and opening retain the user goal boundary.",
+        "worktree-isolation/SKILL.md section1 explicitly requires displaying source-to-target, MR link, head SHA and CI/validation state; section3 retains expected-source-SHA command guards and reread after rejection. Thus goal authorization refreshes evidence without a second permission, while current head read-back/display and race guards remain in force."
+      ]
+    }
+  ]
+}

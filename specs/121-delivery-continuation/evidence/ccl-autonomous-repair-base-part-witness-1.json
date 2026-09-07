@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "444f236403774250a991f2d9bcfc0336c23212513a5f9d06822d6f7ebd9e5e3b",
+  "receipt_sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2",
+  "finding_sha256": "c76aa01bae6e5950a89f2576831c8984a1ac8d5722b6df3efadffd3f14745bf8",
+  "disposition": "source_refuted",
+  "evidence": [
+    "skills/skill-extraction-workflow/scripts/review_ledger_binding.py: added_evidence_paths and is_candidate_receipt inspect committed blobs and exclude only added JSON objects carrying a valid candidate_sha256; a raw .txt is bound. This source was inspected directly.",
+    "The current print-manifest output lists this exact base.txt as its own partition444f236403774250a991f2d9bcfc0336c23212513a5f9d06822d6f7ebd9e5e3b alongside the original fifteen-file partition2ff72ca9e67ab19d4ffa7cdf651f09e84c72632d6416f08d683d46d8eeface31. Omitting this path from a manifest is rejected by the same gate. This existing deterministic verifier is not modified by the candidate."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2",
+      "finding_sha256": "c76aa01bae6e5950a89f2576831c8984a1ac8d5722b6df3efadffd3f14745bf8"
+    }
+  ]
+}

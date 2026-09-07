@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ceb94c3ff7fa6d652f2e92e003347ab6a83ea72b1b52fd265648de5d1a93929c",
+  "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+  "finding_sha256": "17a29bda7ac7d3ef0f70302f96775910563d20fef772e8cfe460558492004950",
+  "disposition": "source_refuted",
+  "evidence": [
+    "The row title explicitly records isolated-fixture input completeness, and test_controlled_escalation_pins.sh changed its executable copy operations to include docs and root AGENTS.md before running the copied retention fixture. The observed clean-control failure and passing 52-mutation walk concern that harness defect; the row does not call it a production rule failure.",
+    "impact-chain-gate.rb:1263-1269 accepts a changed owner-scoped command independently of a Markdown normative-rule anchor. The command belongs to skill-extraction-workflow, and the original CI-base check passes on this committed append. The wider retention assertions are supporting context, not a claim that this command owns every authorization rule."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+      "finding_sha256": "17a29bda7ac7d3ef0f70302f96775910563d20fef772e8cfe460558492004950"
+    }
+  ]
+}

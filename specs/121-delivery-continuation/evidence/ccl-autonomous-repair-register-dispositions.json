@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ceb94c3ff7fa6d652f2e92e003347ab6a83ea72b1b52fd265648de5d1a93929c",
+  "review_result_sha256": [
+    "ba9901da0eec5130f2d1ded3213eb6ab55baff6d63617ca3440057e6f726c5b8",
+    "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db"
+  ],
+  "dispositions": [
+    {
+      "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+      "finding_sha256": "17a29bda7ac7d3ef0f70302f96775910563d20fef772e8cfe460558492004950",
+      "disposition": "source_refuted",
+      "evidence": [
+        "The row title explicitly records isolated-fixture input completeness, and test_controlled_escalation_pins.sh changed its executable copy operations to include docs and root AGENTS.md before running the copied retention fixture. The observed clean-control failure and passing 52-mutation walk concern that harness defect; the row does not call it a production rule failure.",
+        "impact-chain-gate.rb:1263-1269 accepts a changed owner-scoped command independently of a Markdown normative-rule anchor. The command belongs to skill-extraction-workflow, and the original CI-base check passes on this committed append. The wider retention assertions are supporting context, not a claim that this command owns every authorization rule."
+      ]
+    },
+    {
+      "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+      "finding_sha256": "01885b8c7baee29237345bacf94a6b8f30d699d91bdc090d164198f757054650",
+      "disposition": "source_refuted",
+      "evidence": [
+        "The row expressly defines its observed RED as each added retention predicate failing under individual deletion, with controls passing. The personally executed eleven-predicate walk ends repair_pin_walk_ok: 11 attributable deletion mutants; controls and live tree green. An observed static failure is distinct from the separately disclosed task replay.",
+        "The same row explicitly states that the old explicit-context replay already chose repair and claims no demonstrated task-level improvement. observed-failure and result-class declarations are scoped by the described evidence; impact-chain-gate.rb:1436-1440 documents that these are author declarations, not digest-verified task-outcome artifacts. No runtime failure claim is present to retract."
+      ]
+    },
+    {
+      "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+      "finding_sha256": "bb23b408f781a3060f12cf3f1085746e9215a92abc9e857b41e78a888c0e9f3d",
+      "disposition": "source_refuted",
+      "evidence": [
+        "The last sentence of the exact row already limits its evidence to text retention and reviewable scenarios, not measured autonomous delivery. The finding's requested executable handoff recorder is a new enforcement mechanism, absent from the accepted text/fixture change and not claimed by this row.",
+        "The actual normative diagnostic entry requires diagnosis, safe repair and rerun, and links the quality-gate response. The corresponding reference requires repair evidence or evidence that repair is unsafe or outside authority. Text retention cannot prove compliance by an agent that never loads these rules; that limitation is expressly stated rather than represented as a mechanical authorization gate."
+      ]
+    },
+    {
+      "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+      "finding_sha256": "2e412c1abcb41520481c60a71c77d2b79a1e16e1a7f355c9e5dec981706b87bb",
+      "disposition": "source_refuted",
+      "evidence": [
+        "The finding misidentifies all three locators as heading anchors: the third is command:test_controlled_escalation_pins.sh. The first two are unique token locators on changed normative list rules, supported by impact-chain-gate.rb, not Markdown heading URLs. Their exact source lines were read and match the recorded tokens.",
+        "The original check-ccl-skills.sh passes against the actual committed CI base c09081b6577e01a6b3acfa9e4862dfe100e8451e after this append. The referenced implementation files remain in the separately reviewed unchanged partition 2ff72ca9e67ab19d4ffa7cdf651f09e84c72632d6416f08d683d46d8eeface31. The new complete manifest recomputes all three partitions; a bounded register packet is not claimed to contain every file."
+      ]
+    }
+  ]
+}

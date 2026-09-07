@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "444f236403774250a991f2d9bcfc0336c23212513a5f9d06822d6f7ebd9e5e3b",
+  "review_result_sha256": [
+    "65bd6f580c45cced21829f5bb7af1428c5220644dd2148ae21ff1ae327d3a6e4",
+    "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2"
+  ],
+  "dispositions": [
+    {
+      "receipt_sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2",
+      "finding_sha256": "c76aa01bae6e5950a89f2576831c8984a1ac8d5722b6df3efadffd3f14745bf8",
+      "disposition": "source_refuted",
+      "evidence": [
+        "skills/skill-extraction-workflow/scripts/review_ledger_binding.py: added_evidence_paths and is_candidate_receipt inspect committed blobs and exclude only added JSON objects carrying a valid candidate_sha256; a raw .txt is bound. This source was inspected directly.",
+        "The current print-manifest output lists this exact base.txt as its own partition444f236403774250a991f2d9bcfc0336c23212513a5f9d06822d6f7ebd9e5e3b alongside the original fifteen-file partition2ff72ca9e67ab19d4ffa7cdf651f09e84c72632d6416f08d683d46d8eeface31. Omitting this path from a manifest is rejected by the same gate. This existing deterministic verifier is not modified by the candidate."
+      ]
+    },
+    {
+      "receipt_sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2",
+      "finding_sha256": "744814573056374a4133c16739f2865447f2759ec500a3f83deddfae5f5c0bd9",
+      "disposition": "source_refuted",
+      "evidence": [
+        "validate_extraction_review_state.py: validate_base_attestations requires raw evidence to equal SHA tab ref newline exactly, while the enclosing ledger separately binds remote=origin, ref, observed SHA, confirmed_at, controller receipt and evidence digest. Adding a timestamp to the raw line would violate its declared input contract.",
+        "Both round attestations record the actual live origin/dev rechecks and UTC times in the ledger. This receipt is reproducible provenance, not cryptographic proof of a live network observation or resource authority; neither the raw line nor validator claims that stronger property."
+      ]
+    },
+    {
+      "receipt_sha256": "c7b3cbfe77fe7cb73ad3f1c0ee7244af59ec93737a17578beeceee538850e1a2",
+      "finding_sha256": "aeaca49d8dfe5eb6e73c50207886524763cb5c0b16ffeea53c7bceda201348de",
+      "disposition": "source_refuted",
+      "evidence": [
+        "The landing partition manifest names both current partitions and their identities. review_ledger_binding.py requires partition paths to cover every changed candidate file exactly once, recomputes both hashes and requires an accepted ledger for each.",
+        "A negative print-manifest run with only the fifteen implementation paths fails because the raw baseline file is uncovered. The final complete manifest and both ledgers will be committed and the normal binding command must pass before push. The .txt-only review partition is not claimed to be the entire landing configuration."
+      ]
+    }
+  ]
+}

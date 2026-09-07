@@ -26,7 +26,7 @@ Trusted Publisher settings live on the npm package settings page. If npm does no
 - The release tag is exactly `ccl-skills-v<version>` and points to the reviewed commit on the protected default branch.
 - `.github/workflows/npm-publish.yml` checks the tag, runs the full package and tarball tests, verifies `release.json` against the tagged SHA, and publishes that exact tarball through OIDC.
 - No release job uses a long-lived npm token or dependency cache.
-- Commit, push, merge, tag creation, npm configuration, and publication remain separate authorizations.
+- An explicit request to publish this release covers its necessary commits, pushes, PR creation/update, platform merges, tag creation, and the established npm publication workflow, including its expected environment approval when the caller has that authority. Do not ask again for each prerequisite. Verify current scope, refs, CI, reviews and artifact identity before each action; a new in-scope repair refreshes verification, not permission. A preparation-only request or explicit stop remains binding. Changing npm permissions, Trusted Publisher settings or branch/environment protection, publishing unrelated changes, and destructive registry operations need their own authority.
 
 Local release rehearsal does not publish:
 

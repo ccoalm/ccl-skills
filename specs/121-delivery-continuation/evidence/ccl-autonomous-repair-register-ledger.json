@@ -1,0 +1,112 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "ceb94c3ff7fa6d652f2e92e003347ab6a83ea72b1b52fd265648de5d1a93929c",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "ccl-autonomous-repair-register-r1.json",
+      "sha256": "ba9901da0eec5130f2d1ded3213eb6ab55baff6d63617ca3440057e6f726c5b8"
+    },
+    {
+      "sequence": 2,
+      "file": "ccl-autonomous-repair-register-r2.json",
+      "sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db"
+    }
+  ],
+  "completion_receipt": {
+    "file": "ccl-autonomous-repair-register-complete.json",
+    "sha256": "e4b6333f752bb1fcb833c94403a1806e5a5e6d5f2c2024609b38f67b3b9b24cd"
+  },
+  "finding_dispositions": {
+    "file": "ccl-autonomous-repair-register-dispositions.json",
+    "sha256": "799635ecf0eeaa09823d1c7c6bce63579fe9694432da9b997c0f26d13e38505b"
+  },
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "c09081b6577e01a6b3acfa9e4862dfe100e8451e",
+      "confirmed_at": "2026-09-07T17:53:29Z",
+      "controller_receipt_sha256": "ba9901da0eec5130f2d1ded3213eb6ab55baff6d63617ca3440057e6f726c5b8",
+      "evidence_file": "ccl-autonomous-repair-final-base.txt",
+      "evidence_sha256": "3445e7e55d4961d4d59db1d5fc0a28a9838d716d6bc8d541091615f8b452a2c0"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "c09081b6577e01a6b3acfa9e4862dfe100e8451e",
+      "confirmed_at": "2026-09-07T17:54:27Z",
+      "controller_receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+      "evidence_file": "ccl-autonomous-repair-final-base.txt",
+      "evidence_sha256": "3445e7e55d4961d4d59db1d5fc0a28a9838d716d6bc8d541091615f8b452a2c0"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "self_reviewed",
+  "finding_classes": [
+    {
+      "key": "fixture-input-ownership",
+      "root_cause_predicate": "A changed fixture-copy command cannot be the firing path of an input-completeness record.",
+      "affected_surface": "test_controlled_escalation_pins.sh copy inputs",
+      "occurrences": [
+        {
+          "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+          "finding_sha256": "17a29bda7ac7d3ef0f70302f96775910563d20fef772e8cfe460558492004950",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-register-witness-1.json",
+          "disposition_evidence_sha256": "34ef642cf94953ae2561949608b3cc1294296ca17e417cfa48cdccfde2c26ce5"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "retention-versus-task-observation",
+      "root_cause_predicate": "A row that explicitly reports deletion-mutant failure and disclaims task gains asserts an unobserved runtime defect.",
+      "affected_surface": "source-register evidence classification",
+      "occurrences": [
+        {
+          "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+          "finding_sha256": "01885b8c7baee29237345bacf94a6b8f30d699d91bdc090d164198f757054650",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-register-witness-2.json",
+          "disposition_evidence_sha256": "1b30b6a2e5e17852f177c5ec131422c5dfd1522fad9fe6b05f5aa5ab894c1aba"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "unclaimed-runtime-enforcement",
+      "root_cause_predicate": "A text-retention row claims to mechanically enforce agent rerun and handoff behavior.",
+      "affected_surface": "defect diagnosis record and advisory scenarios",
+      "occurrences": [
+        {
+          "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+          "finding_sha256": "bb23b408f781a3060f12cf3f1085746e9215a92abc9e857b41e78a888c0e9f3d",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-register-witness-3.json",
+          "disposition_evidence_sha256": "cce659fe46ba7200fd16653d0c40e840166526b4ce90e0af630da5d2ca814783"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "locator-and-partition-resolution",
+      "root_cause_predicate": "The register locators are absent heading anchors and separate reviewed partitions cannot bind their source.",
+      "affected_surface": "impact-chain locator resolution and partition coverage",
+      "occurrences": [
+        {
+          "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+          "finding_sha256": "2e412c1abcb41520481c60a71c77d2b79a1e16e1a7f355c9e5dec981706b87bb",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "ccl-autonomous-repair-register-witness-4.json",
+          "disposition_evidence_sha256": "f949969a32a8a335d61c1ebd525e3210c62df3a057ba6b203d74d95c4038d731"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "ready_for_human_decision"
+}

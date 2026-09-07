@@ -21,10 +21,12 @@ fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 
 tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/controlled-escalation-pins.XXXXXX")"
 trap 'rm -rf "$tmp_root"' EXIT
-# The fixture reads skills/ and the cross-host bootstrap, deriving its repo
-# root from its own location three levels up. Preserve both input trees.
+# The fixture also reads the root contract and release docs. Preserve all
+# input surfaces while deriving its root from the copied script location.
 cp -R "$repo_root/skills" "$tmp_root/skills"
 cp -R "$repo_root/agent-context" "$tmp_root/agent-context"
+cp -R "$repo_root/docs" "$tmp_root/docs"
+cp "$repo_root/AGENTS.md" "$tmp_root/AGENTS.md"
 copy_fixture="$tmp_root/$fixture_rel"
 copy_ref="$tmp_root/$ref_rel"
 [[ -f "$copy_fixture" && -f "$copy_ref" ]] || fail "copy is missing the fixture or the reference"

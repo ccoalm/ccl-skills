@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "ceb94c3ff7fa6d652f2e92e003347ab6a83ea72b1b52fd265648de5d1a93929c",
+  "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+  "finding_sha256": "01885b8c7baee29237345bacf94a6b8f30d699d91bdc090d164198f757054650",
+  "disposition": "source_refuted",
+  "evidence": [
+    "The row expressly defines its observed RED as each added retention predicate failing under individual deletion, with controls passing. The personally executed eleven-predicate walk ends repair_pin_walk_ok: 11 attributable deletion mutants; controls and live tree green. An observed static failure is distinct from the separately disclosed task replay.",
+    "The same row explicitly states that the old explicit-context replay already chose repair and claims no demonstrated task-level improvement. observed-failure and result-class declarations are scoped by the described evidence; impact-chain-gate.rb:1436-1440 documents that these are author declarations, not digest-verified task-outcome artifacts. No runtime failure claim is present to retract."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "955ca37492d529ab8576dd21deaaf5a9ed5dcc93bde78f7af649e8e40ca0c2db",
+      "finding_sha256": "01885b8c7baee29237345bacf94a6b8f30d699d91bdc090d164198f757054650"
+    }
+  ]
+}
