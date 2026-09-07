@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "580e34c0e921039eb419da2f0a01ac234d2adc1ae9b1cd4ae6a69482157f7514",
+  "review_result_sha256": [
+    "79593e3aed63f7c6926dda0de218715257e73fc4d5a51010c21b74a830b16e45",
+    "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339"
+  ],
+  "dispositions": [
+    {
+      "receipt_sha256": "79593e3aed63f7c6926dda0de218715257e73fc4d5a51010c21b74a830b16e45",
+      "finding_sha256": "781497822337020946dcc82c385cc6bdb97a22569bc4f0d5ac3ca46f37bc4d6c",
+      "disposition": "source_refuted",
+      "evidence": [
+        "docs/doc-writing-handbook.md:67 uses the named Markdown hyperlink [写作判断方法](../skills/tighten-doc/references/writing-judgments.md), not a bare internal path. SKILL.md:68 prohibits unexplained or non-navigable references, and lines 55-56 require named links in Markdown-native delivery. Both files are tracked in the same public repository; relative resolution succeeds and check-markdown-links.py returns markdown_link_check_ok. docs/README.md:38 links the handbook, which already uses the same relative skill route at lines 3 and 85. npm build roots exclude docs; no detached docs-only export is promised. A hypothetical later export needs its own link rewrite, not removal of this valid repository link."
+      ]
+    },
+    {
+      "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+      "finding_sha256": "c29060c4942d576356fff620db6f6b45d99de0bc6b9bd9aff88b2b11b75b978b",
+      "disposition": "source_refuted",
+      "evidence": [
+        "SKILL.md:146 requires the reference whenever the named writing categories occur. Line 150 explicitly requires Workflow 1-4 and states the closeout index is not a pass certificate. A list or abbreviation task therefore cannot satisfy the contract by omitting step 3, regardless of step 4. Trigger evaluation involves semantic judgment, as do KEEP and FORM; the change claims no mechanical proof of reading. Another self-reported record is optional observability, not evidence of a missing obligation."
+      ]
+    },
+    {
+      "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+      "finding_sha256": "eedeee673b0bccb3fcce5a7153fa3f699f832f51194e1a2deb8d37203cf4ee79",
+      "disposition": "source_refuted",
+      "evidence": [
+        "source-register.md:658 explicitly identifies conditional summaries and bounded application behavior, not general delivery gains. Required reference means required within the named WORKFLOW 3 trigger; the row contains no claim of unconditional or mechanical enforcement. It names the owner and firing path so a later reader can recheck them. The finding adds an enforcement claim absent from the text."
+      ]
+    },
+    {
+      "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+      "finding_sha256": "adb85a239a31c9bae02a13d2f641a82a3670105d7d7199a6bd897d375886d508",
+      "disposition": "source_refuted",
+      "evidence": [
+        "SKILL.md:106 requires the actor when responsibility or action depends on who executes; line 113 retains responsibility conditions and forbids deleting or weakening KEEP, whose line 51 preserves owner. Reference lines 45-47 require who does what for allocation, execution or accountability and allow state-focused prose only when the actor does not affect understanding or the next action. An ownerless handoff is therefore outside the exception, not a valid declaration of irrelevance. The exception need not be limited to completed states: current object status can also be actor-irrelevant. Both arms of the later library holdout preserved the known two-role handoff and missing-record branch; this is bounded application evidence, not mechanical enforcement."
+      ]
+    },
+    {
+      "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+      "finding_sha256": "09e330be5f735d1de91fc2a677a8456ec2af2867f257cded896594cd5cd330c0",
+      "disposition": "source_refuted",
+      "evidence": [
+        "docs/doc-writing-handbook.md:67 uses the named Markdown hyperlink [写作判断方法](../skills/tighten-doc/references/writing-judgments.md), not a bare internal path. SKILL.md:68 prohibits unexplained or non-navigable references, and lines 55-56 require named links in Markdown-native delivery. Both files are tracked in the same public repository; relative resolution succeeds and check-markdown-links.py returns markdown_link_check_ok. docs/README.md:38 links the handbook, which already uses the same relative skill route at lines 3 and 85. npm build roots exclude docs; no detached docs-only export is promised. A hypothetical later export needs its own link rewrite, not removal of this valid repository link."
+      ]
+    }
+  ]
+}

@@ -59,11 +59,11 @@ owner · 硬规则 · 完成标准/DoD · 里程碑 · 数值阈值 · the real 
 - **外部基线 / 标准值入文档 = 独立标注 + 命名来源 + 内部门（若有）仍权威。** 引用外部 benchmark、行业阈值、标准默认值（评测目标、性能预算、参考 SLO 等）时，放成独立的列 / 行 / 标注并配命名来源超链，别和本系统自己的验收门 / 阈值混写成同一个数。**当本系统有自己的验收门时**显式声明本系统门为准、外部值只作对标参考（反模式：把外部基线直接当验收标准，读者误以为外部数就是上线门）；**若文档本身即标准 / 评测报告 / 无内部门**，则标清来源 / 范围 / 权威，别杜撰一个内部门。**评自己的稿是这条的另一半**：**评自己产出的文档的可实测呈现属性（加粗密度、句长、结构层级）时，或为可发现性词汇（包 / 仓库的 `description`、`keywords`、tags / topics、搜索面标题词、产品定位名词）选词时**，先按事先冻结的抽样框取同体裁公开样本建实测基准，再下判断 / 选词——**这两类只是已知实例：其他属性只要问的是「相对同类如何」且有同体裁公开样本，同样适用，不得因没被点名就放过；但内部验收门、硬限额与对错 / 安全的直接核验照门判、不记「未对标」；**门里若含「同类怎么做」的前提，它仍欠本条****；没测就在用它**之前**记「未对标 + 原因」，**成本 / 限流不是豁免，只是把结论降级**；**待发布 / 未公开的名字与定位词不拿去外部检索**（查询即送出，按 `product-rd-workflow` artifact-egress 门处理）。**分布定位只是描述、不是裁决**，自己的审美不是分布。**触发本条即先读 `references/self-benchmark-baseline.md` 并照它执行**——抽样框冻结与纳排、不得挑样、中英分开、阈值核源、词频读法、frontmatter 归属都在那。
 - No inline `｜` / pipe-delimited lists (RACI / 分工) — break into bullets or a table.
 - Short sentences, one point per line, enumerations as tables.
-- **表达形式匹配内容**：分支关系 / 状态迁移复杂到文字难扫时优先**图**（mermaid 等）；字段对比、分桶属性、owner/gate/证据矩阵优先**表**；线性步骤用编号列表；一两点判断一句话或 bullet。别为单个判断加**装饰性**多桶图，但桶间有不同 owner / 阈值 / 例外 / 后果时**必须结构化**（该结构别压成一句）。**目标环境不稳定渲染图时**，文字版流程为准、图只作辅助。**callout / 图内文字 = 概览形态，只承一个要点**：callout 塞成多点密块（"一坨"）就拆开或降到正文 / 表。**图种由主张形态定**（有事件触发→状态机 / 消息序→时序 / 随完成流转→流程）；**画了必须有标题与图例、连线单向且标签具体**；**量级对比别全压进表**。余下见 `references/figure-and-table-craft.md`。
-- **代码进代码块，不进段落**：**多行 / 独立执行步骤 / 长 flag 串命令 / 多命令序列**放代码块（带 lang），不写成段落里的纯文本或一长串内联 `code`。**短的随文 one-liner / 表达式、对照表单元格、「用 `func()`」式符号引用可留 inline**，只要不长到影响扫读（与上面的表格单元格 / 内联引用规则一致，别硬塞进代码块）。多语言对照两端形态对齐——一端给了代码块，另一端别写成「Go：`call(...)`」式内联段落。
+- **表达形式匹配内容**：分支关系 / 状态迁移复杂到文字难扫时优先**图**（mermaid 等）；字段对比、分桶属性、owner/gate/证据矩阵优先**表**；顺序有意义的列表用编号，否则用 bullet，逐项核对语法平行与逻辑同类；一两点判断可写一句话。别为单个判断加**装饰性**多桶图，但桶间有不同 owner / 阈值 / 例外 / 后果时**必须结构化**（该结构别压成一句）。**目标环境不稳定渲染图时**，文字版流程为准、图只作辅助。**callout / 图内文字 = 概览形态，只承一个要点**：callout 塞成多点密块（"一坨"）就拆开或降到正文 / 表。**图种由主张形态定**（有事件触发→状态机 / 消息序→时序 / 随完成流转→流程）；**画了必须有标题与图例、连线单向且标签具体**；**量级对比别全压进表**。余下见 `references/figure-and-table-craft.md`。
+- **代码进代码块，不进段落**：**多行 / 独立执行步骤 / 长 flag 串命令 / 多命令序列**放带 lang 的代码块。**随文的短 one-liner / 表达式、表格单元格、`func()` 式符号引用可留 inline**，以不妨碍扫读为限。多语言对照两端形态对齐；随复制必需的说明：支持注释则放块内，否则随附；长篇原理放正文。
 - **Enumeration sections (依赖/兜底/分工/里程碑 子项) = multi-line sub-bullets, NOT a `；`-collapsed single line.** Readability beats compactness here; a `- 依赖：A；B；C；D` run is hard to scan — split to `- 依赖：` + one `- A` sub-bullet per item. Do not collapse to one `；` line just for parity with another card; parity is not a reason to reduce scanability. Single-line `；` is only for a true 2-item short pointer where sub-bullets would be heavier than the content.
 - Table cells that list multiple skills, owners, checks, environments, or evidence items should be split into multiple lines or shorter rows. A readable table beats a compressed cell when the cell is used as an execution checklist.
-- Terms unified and glossed once in a 白话 section (e.g. 红灯 = 卡住/NO-GO 到点必升级; 排障手册 = 排障 SOP). Also catch **intra-doc term drift**: the same concept written two different ways in one doc → align to that doc's prevailing term. Drift includes **unit drift in a sequenced ladder** (a milestone list mixing 第N周 and N天 — align the lone odd unit to the ladder's prevailing one).
+- Terms unified and glossed once in a 白话 section (e.g. 红灯 = 卡住/NO-GO 到点必升级; 排障手册 = 排障 SOP). Also catch **intra-doc term drift**: the same concept written two different ways in one doc → align to that doc's prevailing term. Drift includes **unit drift in a sequenced ladder** (a milestone list mixing 第N周 and N天 — align the lone odd unit to the ladder's prevailing one). 陌生或自造缩写仅在明显缩短且反复使用时引入；正式名称按下条保留。
 - A column/section header must match what its cells actually hold (a "文档化进度" header over cells that hold 现状 is a defect — rename the header to the truth). An editorial paren in a header/heading that restates an intro rule is the same 编辑性括号 as DELETE #9 — cut it.
 - **Reader-facing published docs: the problem is unexplained or non-navigable internal references, not the names themselves**. Fix three recurring reader-blockers: ① internal repo paths used as navigation (`see README.md`) a non-author can't follow → name the human destination or link the published doc; ② opaque internal gate/code labels (`R0` / `F4`-style) → plain-name or drop the code; ③ unglossed in-house English / abbreviations (`mTLS` / `PTY` / `SLO`) → 中文化 or gloss at first use. **Keep** anything the reader actually operates on or that is a public convention / protocol / API / field / contract / standard name (`AGENTS.md`, `CODEOWNERS`, `package.json`, well-known abbrevs) — gloss if unfamiliar, don't delete.
 - **A cell must fit its column's semantic role.** A 负责人/owner column entry must be a who (person/role), a 事项/规则 column a what (a parseable clause). Over-terse text — including a value the user dictated in an earlier pass — that no longer parses as that column's type ("业务真值+ 误差" in a 负责人 column; "…必需的指标建立" as a 规则 clause) is a 病句 (DELETE #7). On re-review, read each dictated/compressed value back **in its column context**, not in isolation; flag it with the rule even if the user set it (don't silently override, but don't pass it as clean either).
@@ -103,14 +103,14 @@ For a 域卡/执行卡 (a card that sets WHAT a domain must achieve + who owns i
 
 > 英文文档：用完整 Strunk 规则（含被本节剔除的语法/标点条），本节只是中文交付子集。
 
-- 主动语态、点名施动者：写"谁做什么"，不写"被…/由…完成"（呼应 DELETE #4 无动作语气词）。
+- 主动语态优先；责任或动作取决于谁执行时点名施动者。对象或状态是重点、施动者无关时可用被动表达；不为改语态编造主体。
 - 肯定式陈述：直接说"必须 X"，不绕"不是不 X / 并非没有"。
 - 具体优于空泛：用 数字/对象/阈值，删"全面提升/大力推进/高度重视/至关重要"这类空话（呼应 KEEP 的数值阈值）。
 - 删冗词的定式：把"是否…的问题/在…的情况下/做出…的决定/关于…方面"压成 "是否…/…时/决定…/…"。
 - 歧义代词消歧：它 / 它们 / 其 必须先有名词、后有代词，指代名词离得远或中间插入另一名词就直接重复名词；指示词 这 / 那 / 该 / 此 要么换成名词，要么后接名词（「这会拖慢构建」→「这次全量扫描会拖慢构建」）。
 - 相关词靠拢、少套从句：修饰语紧挨被修饰对象，长定语拆短句，避免一句里多层"的…的…"。
 - 强调位放句首或句尾：最该被记住的词别埋在句子中间。
-- 结论前置（BLUF / 倒金字塔，业内通行做法）：bullet、段落开头先放**结论 / 动作 / 信息词**，例子和非结论性背景后置——读者扫读，埋在后面的结论会被跳过。**但会改变结论的条件不算"例子"**：凡是改变结论、适用范围、红线 / NO-GO / 阈值 / 例外 / 责任边界的条件，必须与结论同句同屏，不得降级到后面或塞进括号弱化（如「满足 A、B、C 时，做 X」，不要用括号把条件视觉降级）。作用范围：bullet/段落级，区别于上一条词级"强调位"；只重排各 bullet/段落内部，不得为前置结论删除或降级 KEEP 项，执行卡仍按固定骨架排序。
+- 结论前置（BLUF / 倒金字塔）：供扫读的 bullet、段落默认以**结论 / 动作 / 主题信息**开头，例子和非结论性背景后置；首句须准确预告本段内容，叙事或推导可按阅读目的组织。**改变结论、适用范围、红线 / NO-GO / 阈值 / 例外 / 责任边界的条件必须与结论同句同屏**，不得后置或塞括号弱化。只重排 bullet/段落内部，不得删除或降级 KEEP 项，执行卡仍按固定骨架排序。
 - 防分词歧义：中文动宾或多义连写串可能被切成另一个意思——「门禁止血」会读成「门 / 禁止 / 血」。加分隔、连接词或重排消歧（「门禁来止血」）。只改**真实会误读、误切后动作/对象/责任会变**的词组；通行术语、项目内已定义术语、读者熟悉的短词不为消歧而重写，避免 churn。
 
 ## 中文自然表达（吸收 humanizer-cn 的交付文档子集）
@@ -143,7 +143,7 @@ Never destroy collaborative comments. Before editing a collaborative doc, fetch 
 0. 读者批注：判根因类、全文修同类（`references/annotation-driven-revision.md`）。
 1. Extract the decided-points checklist from the current text.
 2. Apply the DELETE list; keep everything in KEEP.
-3. Rewrite to FORM; confirm every decided point still present.
+3. Rewrite to FORM; confirm every decided point still present. 遇缩写、列表、首句、示例说明或语态，读 `references/writing-judgments.md` 判条件。
 4. Dirty-scan = 0 (no internal codes / agent names / meta / Day-Week tokens, no bare-URL refs, no AI腔/广告腔/假深度, no `｜`). A keyword grep is a **fixed-token prefilter, not sufficient** — the 元语自证 / 修辞尾 / 废话-prefix / 跨节重复 classes aren't fixed tokens, so dirty-scan-0 needs the grep **plus** a human read against the DELETE/FORM rubric. "脏扫 0" claimed from grep alone is the false-clean failure.
 5. Push back, respecting the COMMENT-SAFE rule.
 

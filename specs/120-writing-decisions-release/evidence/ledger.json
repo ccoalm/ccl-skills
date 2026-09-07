@@ -1,0 +1,119 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "580e34c0e921039eb419da2f0a01ac234d2adc1ae9b1cd4ae6a69482157f7514",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "round1-review.json",
+      "sha256": "79593e3aed63f7c6926dda0de218715257e73fc4d5a51010c21b74a830b16e45"
+    },
+    {
+      "sequence": 2,
+      "file": "round2-challenge.json",
+      "sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339"
+    }
+  ],
+  "completion_receipt": {
+    "file": "complete.json",
+    "sha256": "8b6249342318484d7ef45b32a375b5cd5cc1b2ad2b0619e4eb137773eeac43b7"
+  },
+  "finding_dispositions": {
+    "file": "finding-dispositions.json",
+    "sha256": "ac4450d3d07a938dc0987f9e8661063e9c3927afca2bbdf4549f86e3dcaf46d1"
+  },
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "1fe53fab0f3d4f46ef668872958c3ac29d1a7444",
+      "confirmed_at": "2026-09-07T14:59:13Z",
+      "controller_receipt_sha256": "79593e3aed63f7c6926dda0de218715257e73fc4d5a51010c21b74a830b16e45",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "3c09447d06bf54bc897f4e895a61e87e0c7b9078ba1bff1926f77aab0227c239"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "1fe53fab0f3d4f46ef668872958c3ac29d1a7444",
+      "confirmed_at": "2026-09-07T15:00:13Z",
+      "controller_receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "3c09447d06bf54bc897f4e895a61e87e0c7b9078ba1bff1926f77aab0227c239"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "self_reviewed",
+  "finding_classes": [
+    {
+      "key": "navigable-document-reference",
+      "root_cause_predicate": "The handbook's named reference cannot resolve in its declared repository publication layout.",
+      "affected_surface": "docs/doc-writing-handbook.md:67",
+      "occurrences": [
+        {
+          "receipt_sha256": "79593e3aed63f7c6926dda0de218715257e73fc4d5a51010c21b74a830b16e45",
+          "finding_sha256": "781497822337020946dcc82c385cc6bdb97a22569bc4f0d5ac3ca46f37bc4d6c",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "source-1.json",
+          "disposition_evidence_sha256": "f1bc24ec09d09526fbdd2d29ca4279c1e25287aa1f9864685a50cbd4f6871b17"
+        },
+        {
+          "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+          "finding_sha256": "09e330be5f735d1de91fc2a677a8456ec2af2867f257cded896594cd5cd330c0",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "source-5.json",
+          "disposition_evidence_sha256": "7d4d1809bca4bd4df0088a10a2e32eee6bcb1a8dddc7c17c3ae85210d7bf250a"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "conditional-reference-obligation",
+      "root_cause_predicate": "A triggered reference read can be omitted while still satisfying the written closeout contract.",
+      "affected_surface": "skills/tighten-doc/SKILL.md:146-150",
+      "occurrences": [
+        {
+          "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+          "finding_sha256": "c29060c4942d576356fff620db6f6b45d99de0bc6b9bd9aff88b2b11b75b978b",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "source-2.json",
+          "disposition_evidence_sha256": "489385c60e47a33a7ac416d479abb673c253ac4e84b538cbfc6f592bbacfc7b8"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "register-enforcement-claim",
+      "root_cause_predicate": "The register falsely claims unconditional or mechanical enforcement of the conditional reference.",
+      "affected_surface": "skills/skill-extraction-workflow/references/source-register.md:658",
+      "occurrences": [
+        {
+          "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+          "finding_sha256": "eedeee673b0bccb3fcce5a7153fa3f699f832f51194e1a2deb8d37203cf4ee79",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "source-3.json",
+          "disposition_evidence_sha256": "a04a4a12d150775184bfa1642e305882e55c63bcb7a49b3844954194fb3322e8"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "responsibility-preservation",
+      "root_cause_predicate": "An action or handoff may omit a needed responsible actor under the state-focused voice exception.",
+      "affected_surface": "skills/tighten-doc/SKILL.md:106,113 and references/writing-judgments.md:45-47",
+      "occurrences": [
+        {
+          "receipt_sha256": "7915ae0c425720cc47d74cac45593fc335a867d2221d76d88bea77fce5615339",
+          "finding_sha256": "adb85a239a31c9bae02a13d2f641a82a3670105d7d7199a6bd897d375886d508",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "source-4.json",
+          "disposition_evidence_sha256": "17fe1c2755beb0575685eb6b3aabf60eec826f2493edeafc98a5d3a1e51609df"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "ready_for_human_decision"
+}
