@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "12711e50ac65625050da4d0ef45f11a0dbd96b96d0c4dc4a10408a2dc5250732",
+  "receipt_sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+  "finding_sha256": "77b52e40366eef65921f3bc6161ef619af58a2bcc4d8a6933a70acca2c2fc936",
+  "disposition": "source_refuted",
+  "evidence": [
+    "operations.ts:73-109 accepts exactly the current schema1/install/committed/startedAt journal literal. The actual isolated paired replay passes all12 controls and fails all12 after deleting only the host guard; each CLI subprocess verifies the loader marker, all setups pass, and source/dist/test bytes are unchanged. This contradicts the conditional claim that the literal is malformed or the demonstrated deletion survives. The extra message assertion is optional redundancy; the current status plus hostFailure assertions already kill the named mutation."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "79e23141f737d63cd01e427cf8bd26cbfadc45ff01abe4af782eafc90a69afe8",
+      "finding_sha256": "77b52e40366eef65921f3bc6161ef619af58a2bcc4d8a6933a70acca2c2fc936"
+    }
+  ]
+}

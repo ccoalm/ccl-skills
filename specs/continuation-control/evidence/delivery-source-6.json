@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "12711e50ac65625050da4d0ef45f11a0dbd96b96d0c4dc4a10408a2dc5250732",
+  "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+  "finding_sha256": "642e256514a45c3517f340f11ce81ae0805837f2fc25648d066841e56918560f",
+  "disposition": "source_refuted",
+  "evidence": [
+    "Without a journal, uninstall still checks exactState(codexHome, source, true) at operations.ts:1083 before acquiring the lock, writing a journal or deleting files. exactState at136-147 requires publicState.status===known. Missing CLI or unreadable output therefore returns public-state-mismatch/code3 and retains data. A second exactState(...null,false) check at1165 protects the removal-to-local-cleanup transition. Hoisting checkHost might change diagnostics but is not needed to prevent the alleged unguarded deletion, whose path is already blocked."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+      "finding_sha256": "642e256514a45c3517f340f11ce81ae0805837f2fc25648d066841e56918560f"
+    }
+  ]
+}

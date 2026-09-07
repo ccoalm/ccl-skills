@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "12711e50ac65625050da4d0ef45f11a0dbd96b96d0c4dc4a10408a2dc5250732",
+  "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+  "finding_sha256": "0168882e2724856a8b4cde12571ac1873c27fb2a76d42d9399af2c8c34614728",
+  "disposition": "source_refuted",
+  "evidence": [
+    "dual-track-review-gate.md:525-548 explicitly defines inherited authority for necessary task-scoped fixes/tests/review, a method checkpoint, preserved cumulative history, bounded per-sequence receipts and binding explicit user limits. The same section explicitly says a stateless local validator cannot detect omitted prior chains; a trusted host must govern hostile callers. It claims no mechanically authenticated total task cap. Adding a mandatory renewed human decision at an invented global cap would change that declared contract, not repair a demonstrated inconsistency. The trusted-local limitation is retained, not represented as enforcement."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "e990d6aaedc3f57f6118e27fd32f825c96984742e7e4ffb457b759f8605c6e70",
+      "finding_sha256": "0168882e2724856a8b4cde12571ac1873c27fb2a76d42d9399af2c8c34614728"
+    }
+  ]
+}
