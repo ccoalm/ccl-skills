@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "c7576d6e962263eb0b52c3908996168ef24276dbdf2b0a8b22667a48b492e3bc",
+  "receipt_sha256": "72df5443f9e15b354590bce52fbb3304047dd82f445823175d36991c0c718654",
+  "finding_sha256": "9dd79fa81010e5c4670e2c6c352d8e3bca81fbcf63a5c717aa561fcadac9447c",
+  "disposition": "source_refuted",
+  "evidence": [
+    "The plan explicitly requires all three source partitions to land as one exact-coverage manifest and identifies both companion hashes; the partial record packet never claims to contain every owner file. The owning lines were independently read from the identical clean source tree and the origin/dev impact gate returned0, bound to clean commit f451305007c277dcc62ef80a514a0f940ac8de29 and tree a2587fca9c07d0139b35fb9777d21eab8e33cacc (gate receipt SHA256fb8e3bfa85fc0928de960ce40f3bc962543277bccd7e67e945472daeda254d7b). Both raw JSON reports are fully present as newly added files in this packet. Reconstructing their bytes from the frozen Git diff exactly matches the committed files and reported SHA256cac82defd9a5f3b9978ffd6ca41bb28a7fdee6e8f8085614520cfd41dc67f757 andf67478913f8ffc7ebe2856cd26b39e89593b8f98289fd16f61b00fe30da5150c. The absence/irreproducibility predicates are false. Gate validation proves anchor structure; actual applied-mutation evidence is separately provided below.",
+    "Current seven-owner applied-mutation proof SHA2567c0937c938e8e1f1b310b477855c654c5311952dea495742aaf3404137670a74 records21existing-suite executions with0/1/0 controls and owning assertions for all7owners, with all1889files restored unchanged."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "72df5443f9e15b354590bce52fbb3304047dd82f445823175d36991c0c718654",
+      "finding_sha256": "9dd79fa81010e5c4670e2c6c352d8e3bca81fbcf63a5c717aa561fcadac9447c"
+    }
+  ]
+}

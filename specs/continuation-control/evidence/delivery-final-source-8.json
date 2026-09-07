@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b6b0b82bfc9d7e21a61405cbbe918f350a9bcd07da8a9bc9c1b097d1b277fb6f",
+  "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+  "finding_sha256": "0617eee221bc3747d3cd7338904e3d136a165d46f763aa7f1833dde8b9c21185",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+      "finding_sha256": "0617eee221bc3747d3cd7338904e3d136a165d46f763aa7f1833dde8b9c21185"
+    }
+  ],
+  "evidence": [
+    "Source trace: resume-paused-delivery.md:9 confines verbatim proposal/scope/assent recovery to the visible conversation or trusted host-owned session state. Line 10 explicitly places the other binding path in the visible continuing line. Line 12 forbids copying real conversation text into a shared repository record. The supposed incompatible storage requirements are already assigned to different surfaces.",
+    "Source trace: dual-track-review-gate.md:548 asks for the original authorization reference and scope in a caller-owned task artifact, not the complete conversation text and not a committed spec/evidence file. A private artifact can preserve provenance while shared Git surfaces contain neutral capability/validation evidence. The repository root shared-surface contract also forbids conversation content on shared Git surfaces.",
+    "Boundary: no public session identifier or transcript quote is required by these clauses. This review artifact does not claim authentication from a committed note; visible assent and host-owned source verification retain their separate role."
+  ]
+}

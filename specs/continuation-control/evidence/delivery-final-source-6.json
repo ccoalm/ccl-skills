@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b6b0b82bfc9d7e21a61405cbbe918f350a9bcd07da8a9bc9c1b097d1b277fb6f",
+  "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+  "finding_sha256": "a42a6a1052c68980ae32af8b0e62120ee4b531d07ccbf52c48c548f8fcef5579",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+      "finding_sha256": "a42a6a1052c68980ae32af8b0e62120ee4b531d07ccbf52c48c548f8fcef5579"
+    }
+  ],
+  "evidence": [
+    "Source trace: operations.ts:1061-1066 calls checkHost before resumeJournal. resumeJournal:314-321 returns partial-journal with details.hostFailure and restore/reinstall or readable-state remediation before any trash branch when that probe is unusable. The later exactState guard intentionally also handles a state change after that successful probe.",
+    "Source trace: normal uninstall removes plugin at 1139 and marketplace at 1152, verifies absent at 1165, commits absence at 1187-1200, and only then calls quarantine at 1210. quarantine:249-278 creates trashPath plus snapshot only after the rename attempt. A normal interruption before public removal therefore cannot produce the trash-plus-snapshot state alleged by the finding.",
+    "Fresh synthetic counterexample: /private/tmp/impact-delivery-resume-probe.log SHA256 251ab6f31135f155faff193705528e80fdbbae2b12bbd0cb502e01136b596a88, exit 0. An injected trash unlink fault is followed by separately re-adding registration. Resume safely returns 5 partial, preserves journal and trash byte-for-byte, and performs no add/remove. Explicitly removing that conflicting synthetic registration and rerunning returns 0 uninstalled. It is not an unrecoverable normal-uninstall loop.",
+    "Boundary: a manual re-registration is new public state, which old uninstall cleanup must not overwrite. README:65 documents host-probe recovery and instructs inspecting JSON status; :91 describes retained collision/shared state for manual cleanup. It does not contain a command-by-command re-registration guide. The partial message states the required absent state; richer manual-conflict documentation is not proof of the alleged normal-path deadlock. No user installation was touched."
+  ]
+}

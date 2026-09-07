@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b6b0b82bfc9d7e21a61405cbbe918f350a9bcd07da8a9bc9c1b097d1b277fb6f",
+  "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+  "finding_sha256": "2dcb2ec2f4cd3e9c1a17a5f69a3ce61af18596a5bb3b1a83a0bd16a5e441758c",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+      "finding_sha256": "2dcb2ec2f4cd3e9c1a17a5f69a3ce61af18596a5bb3b1a83a0bd16a5e441758c"
+    }
+  ],
+  "evidence": [
+    "Source trace: dual-track-review-gate.md:527 explicitly states the local controller cannot authenticate the producer, detect caller-omitted prior chains, or enforce complete global history. Lines 532-548 require cumulative spending, prior-chain links, changed method or evidence, original scope, unchanged per-sequence format and validation bounds, and existing task authority; no runtime continuation field or external authentication mechanism is claimed.",
+    "Source trace: pre-final-continuation-gate.md:96 expressly calls this a prose contract rather than a host-enforced hook. Explicit user cost, round-count and stop limits, missing authority and actual product/design/risk decisions remain binding. dual-track-review-gate.md:545-548 separately retain authenticated human merge/risk/waiver authority and deny that task continuation grants any such authority.",
+    "The proposed requirement for a new external authorization for every sequence contradicts the accepted existing-task-scope continuation behavior. This sequence retained 46 earlier completed independent calls at dispatch and adds its two actual completed calls; concurrent partition calls remain separately counted. The local profile-size rejection is retained as a non-model preflight. These records do not claim prevention of forged or omitted history."
+  ]
+}

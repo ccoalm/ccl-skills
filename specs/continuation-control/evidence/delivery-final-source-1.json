@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b6b0b82bfc9d7e21a61405cbbe918f350a9bcd07da8a9bc9c1b097d1b277fb6f",
+  "receipt_sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+  "finding_sha256": "00f9da593f695d512ce9872dc4b25a34a543293dd842e3e69e8357554ecc88c7",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "040fb1dbf4d2162b308cb10aba1397c10af4d5c7d86ee577116533a786b74fb9",
+      "finding_sha256": "00f9da593f695d512ce9872dc4b25a34a543293dd842e3e69e8357554ecc88c7"
+    }
+  ],
+  "evidence": [
+    "Source trace: packages/ccl-skills-npm/src/codex-host.ts:45-55 runs both bounded read-only list commands and requires parseable public state. A zero command exit code alone is not a proof of owned-state safety; unreadable state intentionally returns state-unknown before mutation.",
+    "Source trace: codex-host.ts:142-165 parses all marketplace rows, but only the owned MARKET row has an absolute source/ownership requirement. parsePluginList:61-140 supports foreign marketplace blocks; owned REF/LEGACY_REF alone receive strict status and provenance checks at 81-96. Well-formed unrelated rows are accepted; malformed or duplicate marketplace rows remain ambiguous and are refused.",
+    "Verification: /private/tmp/impact-delivery-parser-focus.log is a fresh node --test name-filtered run over codex-host.test.mjs: six cases passed, exit 0. It covers foreign plugin rows, foreign not-installed plus installed target, target ordering/empty blocks, malformed segments and duplicate foreign marketplace refusal. It does not claim support for arbitrary future output formats.",
+    "Source trace: packages/ccl-skills-npm/README.md:65 explicitly documents unreadable public plugin state as exit 3 host-state-unknown. The line-26 requirements sentence describes the commands used instead of numeric version admission; it does not waive the separately documented readable-state condition."
+  ]
+}

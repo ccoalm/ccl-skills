@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "c7576d6e962263eb0b52c3908996168ef24276dbdf2b0a8b22667a48b492e3bc",
+  "receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+  "finding_sha256": "b8cc77173551e9b62747952746c24d259e1a89ce0526d41c88832287f7578e2a",
+  "disposition": "source_refuted",
+  "evidence": [
+    "The cited bullet defines this measurement's preserved inputs; the report and committed raw results show those inputs and outputs. It does not claim a new executable comparability gate. Actual comparison verifies same bank, model, replicas and case order, with only code-review's description hash changed. A future round cannot silently reuse this unchanged anchor as new evidence: impact-chain-gate.rb:1126-1143 requires exactly one matching newly added line in that round and uniqueness in the current file. The bank evidence check also operates per changed-owner round. Semantic truth still requires review, as the existing contract states; the proposed new executable is an optional different contract, not a demonstrated failure of this one."
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+      "finding_sha256": "b8cc77173551e9b62747952746c24d259e1a89ce0526d41c88832287f7578e2a"
+    }
+  ]
+}

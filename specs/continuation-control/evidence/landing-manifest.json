@@ -58,8 +58,17 @@
         "skills/web-react-dev/SKILL.md",
         "specs/continuation-control/evidence/base.txt"
       ],
-      "candidate_sha256": "12711e50ac65625050da4d0ef45f11a0dbd96b96d0c4dc4a10408a2dc5250732"
+      "candidate_sha256": "b6b0b82bfc9d7e21a61405cbbe918f350a9bcd07da8a9bc9c1b097d1b277fb6f"
+    },
+    {
+      "paths": [
+        "skills/skill-extraction-workflow/references/source-register.md",
+        "specs/continuation-control/routing-evidence.md",
+        "specs/continuation-control/evidence/routing-before.json",
+        "specs/continuation-control/evidence/routing-after.json"
+      ],
+      "candidate_sha256": "c7576d6e962263eb0b52c3908996168ef24276dbdf2b0a8b22667a48b492e3bc"
     }
   ],
-  "candidate_sha256": "9f6b0edcc8ec01f77b0cbcdfa0ddb5b9d9178b3e991a9d98fdb083f2ed5355dd"
+  "candidate_sha256": "843a7671271bbaab2c52306c4bcbe3d0cbcfea67f4b1e50ceff17a19834e2e58"
 }

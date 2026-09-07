@@ -1,0 +1,134 @@
+{
+  "schema_version": 3,
+  "candidate_sha256": "c7576d6e962263eb0b52c3908996168ef24276dbdf2b0a8b22667a48b492e3bc",
+  "controller_receipts": [
+    {
+      "sequence": 1,
+      "file": "register-round1-review.json",
+      "sha256": "72df5443f9e15b354590bce52fbb3304047dd82f445823175d36991c0c718654"
+    },
+    {
+      "sequence": 2,
+      "file": "register-round2-challenge.json",
+      "sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b"
+    }
+  ],
+  "completion_receipt": {
+    "file": "register-complete.json",
+    "sha256": "a889eae9815ae9d641575ef5528366bd0078b0147f787056abb9250051724f54"
+  },
+  "finding_dispositions": {
+    "file": "register-finding-dispositions.json",
+    "sha256": "10250f45b9342289a7e84ae1424dbdaec170a6948049bf2ecae2302229f5e985"
+  },
+  "base_attestations": [
+    {
+      "sequence": 1,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "69bcc3e31556f40e9e10fc4b69837cfc56f6fffe",
+      "confirmed_at": "2026-09-07T09:34:39Z",
+      "controller_receipt_sha256": "72df5443f9e15b354590bce52fbb3304047dd82f445823175d36991c0c718654",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "a20b2f806c796e649c7e8d82522fea3b8a950492ffd29318a3b9baa84c903c99"
+    },
+    {
+      "sequence": 2,
+      "remote": "origin",
+      "ref": "refs/heads/dev",
+      "sha": "69bcc3e31556f40e9e10fc4b69837cfc56f6fffe",
+      "confirmed_at": "2026-09-07T09:42:21Z",
+      "controller_receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+      "evidence_file": "base.txt",
+      "evidence_sha256": "a20b2f806c796e649c7e8d82522fea3b8a950492ffd29318a3b9baa84c903c99"
+    }
+  ],
+  "autonomous_round": 2,
+  "controller_review_state": "self_reviewed",
+  "finding_classes": [
+    {
+      "key": "owner-evidence-context",
+      "root_cause_predicate": "Owner anchors and applied-mutation evidence are unavailable or unexecuted for the landing batch.",
+      "affected_surface": "source-register.md and companion owner/test partitions",
+      "occurrences": [
+        {
+          "receipt_sha256": "72df5443f9e15b354590bce52fbb3304047dd82f445823175d36991c0c718654",
+          "finding_sha256": "9dd79fa81010e5c4670e2c6c352d8e3bca81fbcf63a5c717aa561fcadac9447c",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "register-source-1.json",
+          "disposition_evidence_sha256": "2525ded7f3823c5af0e7ba317cf219549f105de5f04760c1809543e387574ee2"
+        },
+        {
+          "receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+          "finding_sha256": "f4ce7cb5a3572fe017204219a58d7018a7e5e7af463a6cb3731472cc22a47fda",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "register-source-4.json",
+          "disposition_evidence_sha256": "8fb04b9a009b5bbae273b6dc5ff3750f74ba018657793219067d5759a586ab24"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "paired-comparison",
+      "root_cause_predicate": "Absence of the optional baseline flag makes the observed paired consensus comparison false.",
+      "affected_surface": "routing-evidence.md and the two raw reports",
+      "occurrences": [
+        {
+          "receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+          "finding_sha256": "c53ea0248ca12a99e20f34cf15e9a0d0bc0aadc4c8e3bfc20ba463897f2df429",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "register-source-2.json",
+          "disposition_evidence_sha256": "be5c3b3d944b080a19c38cc8eaad61c87e9cdbb1a04635ad7e42775e1232f790"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "same-round-evidence",
+      "root_cause_predicate": "The existing bank gate forbids newly authored sibling evidence as self-certification.",
+      "affected_surface": "source-register.md and impact-chain-gate.rb",
+      "occurrences": [
+        {
+          "receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+          "finding_sha256": "e24feb68220bf316e158147b15d46dd1f43804d8ba1993ba5ec17a9ecdd5a05d",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "register-source-3.json",
+          "disposition_evidence_sha256": "e0015ceca4b5cdca8869a0d9161a36688cc3b1b65e83e28abb8e9f0de5531ac1"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "report-metadata",
+      "root_cause_predicate": "The report claims authenticated or resolved runtime metadata absent from the raw classifier schema.",
+      "affected_surface": "routing-evidence.md and raw JSON schema",
+      "occurrences": [
+        {
+          "receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+          "finding_sha256": "a6f1ce1a56b8c47befd6c2df6336b11628afab165f783cee77b260e56582dfde",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "register-source-5.json",
+          "disposition_evidence_sha256": "8d60e116d213eefd4f3a45f177e17eb84d59a11b5a94fa72e9bfe0f1abf56792"
+        }
+      ],
+      "authoritative_sweep": null
+    },
+    {
+      "key": "stale-bank-anchor",
+      "root_cause_predicate": "A later changed routing round may reuse this unchanged report anchor as current evidence.",
+      "affected_surface": "routing-evidence.md and locator_valid",
+      "occurrences": [
+        {
+          "receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+          "finding_sha256": "b8cc77173551e9b62747952746c24d259e1a89ce0526d41c88832287f7578e2a",
+          "disposition": "source_refuted",
+          "disposition_evidence_file": "register-source-6.json",
+          "disposition_evidence_sha256": "dcff035bc44eebcdde81ac323e3c9b0b86ccc3152ffdd1aecb91b54a8269b946"
+        }
+      ],
+      "authoritative_sweep": null
+    }
+  ],
+  "unreviewed_delta": [],
+  "closeout_state": "ready_for_human_decision"
+}

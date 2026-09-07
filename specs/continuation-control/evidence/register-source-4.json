@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "c7576d6e962263eb0b52c3908996168ef24276dbdf2b0a8b22667a48b492e3bc",
+  "receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+  "finding_sha256": "f4ce7cb5a3572fe017204219a58d7018a7e5e7af463a6cb3731472cc22a47fda",
+  "disposition": "source_refuted",
+  "evidence": [
+    "The alleged unexecuted mutation was retested on the exact current tree:21runs of the existing suite, across7isolated single-owner deletions, all with control0, mutant1, restored0 and the exact owning assertion. Test SHA256972785d9cb4ef21829c6b7a10ec12af103c448dbcc7f9d619bae552f54282cb4; actual command [\"bash\",\"skills/skill-extraction-workflow/scripts/test_ai_coding_implementation_gates.sh\"]. Each mutation deletes exactly one 'invoke `code-review` automatically before completion.' from its target entry. Initial source, final source and restored-copy manifests all equal caf59403cd6cc6c79a313b29c4b38495bda92245e209ab6a854732a1c8fb9c8c over1889files; each mutant differs only in its named owner. Full raw proof SHA2567c0937c938e8e1f1b310b477855c654c5311952dea495742aaf3404137670a74. These are source-contract assertions, explicitly not universal runtime invocation evidence.",
+    "{\"owner\":\"defect-diagnosis\",\"source_sha256\":\"a0a070d7b28278fc22765b001955bb7ee7bcddb233856c6a4414c161d401843a\",\"mutant_sha256\":\"6c1e5e3f9ed4107252e2a745a9d024a39dc32659604743cc8ddc1da86d6d3d77\",\"exits\":[0,1,0],\"failure\":\"FAIL: standalone implementation owner: defect-diagnosis: missing semantic anchor: invoke `code-review` automatically before completion.\"}",
+    "{\"owner\":\"llm-inference-integration\",\"source_sha256\":\"f79872e12ba613d1943832acd3fbf762e5ed249e88215d6a6dad3598a5d4a642\",\"mutant_sha256\":\"4941bf81f39284004317127082848411abbd01da6fc939649b948b128e708c0c\",\"exits\":[0,1,0],\"failure\":\"FAIL: standalone implementation owner: llm-inference-integration: missing semantic anchor: invoke `code-review` automatically before completion.\"}",
+    "{\"owner\":\"nodejs-service-dev\",\"source_sha256\":\"2114994ffe8d5ee3d152f17c9c3eca34d72b12d7b1fee6af6ea5131386bd95e2\",\"mutant_sha256\":\"0e7a0a64d139d6cc4c007f34564a2a34560f6aa5e888df2a165d59d473c7e30f\",\"exits\":[0,1,0],\"failure\":\"FAIL: standalone implementation owner: nodejs-service-dev: missing semantic anchor: invoke `code-review` automatically before completion.\"}",
+    "{\"owner\":\"platform-observability\",\"source_sha256\":\"133383e47751d715a6ae90084ef1375ba73f63b9f57349a0fa261fa597b04b43\",\"mutant_sha256\":\"16b9b57241f904873d5782046a48d7e74dbed55f6fd44be34ea7ae1db11e722c\",\"exits\":[0,1,0],\"failure\":\"FAIL: standalone implementation owner: platform-observability: missing semantic anchor: invoke `code-review` automatically before completion.\"}",
+    "{\"owner\":\"platform-release-engineering\",\"source_sha256\":\"207202ecaa0038d29b23ec23b75cf9a80650d1631f746e089120c0d5fbf869e4\",\"mutant_sha256\":\"76dff1a4c61cadf3bbc4e331868fbce4dad5c7f6b2163009d43f206135a671f3\",\"exits\":[0,1,0],\"failure\":\"FAIL: standalone implementation owner: platform-release-engineering: missing semantic anchor: invoke `code-review` automatically before completion.\"}",
+    "{\"owner\":\"platform-service-connectivity\",\"source_sha256\":\"2d161e91932695d0db762c0c7a19dca458952ad748bf6ea1f98ea6d44c872be9\",\"mutant_sha256\":\"79739c694f55141ba3201b1bde8f9d08ef19d7008536f59e0fc25b1d407538dd\",\"exits\":[0,1,0],\"failure\":\"FAIL: standalone implementation owner: platform-service-connectivity: missing semantic anchor: invoke `code-review` automatically before completion.\"}",
+    "{\"owner\":\"testing-strategy\",\"source_sha256\":\"eabb731f2a3d7f4782a3613ff067ae4a08ed379e620264b6a5cb35e3e2f3ec56\",\"mutant_sha256\":\"3a661f479bef457e98848e507cd16f6fa764c7056da4b8642a144baacf30a1e5\",\"exits\":[0,1,0],\"failure\":\"FAIL: standalone implementation owner: testing-strategy: missing semantic anchor: invoke `code-review` automatically before completion.\"}"
+  ],
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "5616b1466f830cab3fb6474fe6a46c312ddcbbb9b3b7171dc91d282d1fb7367b",
+      "finding_sha256": "f4ce7cb5a3572fe017204219a58d7018a7e5e7af463a6cb3731472cc22a47fda"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "candidate_sha256": "b6b0b82bfc9d7e21a61405cbbe918f350a9bcd07da8a9bc9c1b097d1b277fb6f",
+  "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+  "finding_sha256": "eea0ca3df08bd4a845dd9a583a80e089526b0753e0b808408591d70769e1dd5b",
+  "disposition": "source_refuted",
+  "resolves_occurrences": [
+    {
+      "receipt_sha256": "b1e83cdc65bfd6a040d275ea23172df64bc823facea50fd8292c5575e63fa286",
+      "finding_sha256": "eea0ca3df08bd4a845dd9a583a80e089526b0753e0b808408591d70769e1dd5b"
+    }
+  ],
+  "evidence": [
+    "Source trace: CONTRIBUTING.md:96 requires an explicit release request or an explicitly release-scoped item in a user-approved plan. It excludes a general future-release mention and retains distinct tag, registry mutation and publication authorization. npm-release.md:25 checks explicit version/freeze, declared and published versions and tags; it reuses an existing unpublished version for the same batch or selects the next available patch, with fresh review and tarball verification after byte changes.",
+    "Source trace: pre-final-continuation-gate.md:90-94 recovers the original active concrete proposal for short assent, requires quoting its original action/scope, checks withdrawal or supersession, and blocks added or broadened scope. Agent-authored text without approval cannot supply the user-approved condition. Approved plan assent need not repeat the release noun to approve the stated item.",
+    "The requested separate version confirmation would contradict the accepted release-preparation behavior. No claim is made that arbitrary unapproved agent text grants version or publication authority; explicit freezes and separate external actions remain binding."
+  ]
+}
