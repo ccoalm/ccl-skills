@@ -76,7 +76,7 @@ Use this matrix when a web or app surface contains many charts, grouped tables, 
 
 ## High-Risk Failure Classes
 
-The risk matrix for a high-risk workflow covers the triggered failure classes from this canonical list: duplicate submit/callback/message/job restart, permission service uncertainty, cross-tenant/user/resource mismatch, partial money/quota side effects, AI provider/model failure, unclear final status after refresh/offline, and missing trace/support identifier. Cover each triggered class at the lowest layer that can prove the invariant.
+The risk matrix for a high-risk workflow covers the triggered failure classes from this canonical list: duplicate submit/callback/message/job restart, permission service uncertainty, cross-tenant/user/resource mismatch, partial money/quota side effects, AI provider/model failure, unclear final status after refresh/offline, and missing trace/support identifier. When the deliverable is itself a measurement harness — an evaluation or benchmark runner, a conformance suite feeding a comparison, an A/B or regression rig — its own record layer is a class of the same standing: absence reading as a pass, a retry moving the denominator, and a later attempt overwriting an earlier failure (`ci-fixtures-and-flake-control.md`, Evidence-Record Integrity For Measurement Harnesses). Cover each triggered class at the lowest layer that can prove the invariant.
 
 Cross-reference: `non-functional-specialized-scenarios.md` (High-risk resilience boundaries) states the launch-gate counterpart — which classes require scenario tests or drills at release. That is a gate-criteria list; this is the test-matrix failure-class list. The two complement each other and neither replaces the other.
 
