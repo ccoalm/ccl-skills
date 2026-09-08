@@ -1,0 +1,112 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "678f1dd786cf5d21121f4b7a7c6e35baea2fe03a0c3461e4bba75ee3419056cc",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "landing-r1.json",
+   "sha256": "6820b2f5fdb94bbb33708acfb79d3de90b8f987820ddcb92477faf5cc918c952"
+  },
+  {
+   "sequence": 2,
+   "file": "landing-r2.json",
+   "sha256": "f80481f05d366e792dd78a9eeb7b2010ea83d1a3431d514c00ad99869db05a6e"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "78def9e4575caa056b3126fb03c06ac5fa54eb22",
+   "confirmed_at": "2026-09-08T21:53:08Z",
+   "controller_receipt_sha256": "6820b2f5fdb94bbb33708acfb79d3de90b8f987820ddcb92477faf5cc918c952",
+   "evidence_file": "landing-base.txt",
+   "evidence_sha256": "509ff8bd880cc80b782de78a79524d7058c6234a792125202b8209ca1421e8a6"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "78def9e4575caa056b3126fb03c06ac5fa54eb22",
+   "confirmed_at": "2026-09-08T21:53:09Z",
+   "controller_receipt_sha256": "f80481f05d366e792dd78a9eeb7b2010ea83d1a3431d514c00ad99869db05a6e",
+   "evidence_file": "landing-base.txt",
+   "evidence_sha256": "509ff8bd880cc80b782de78a79524d7058c6234a792125202b8209ca1421e8a6"
+  }
+ ],
+ "autonomous_round": 2,
+ "controller_review_state": "post_review_budget",
+ "finding_classes": [
+  {
+   "key": "binder-enumeration-text-mode",
+   "root_cause_predicate": "The evidence enumeration decodes git's NUL-separated output in text mode, so a pathname carrying a carriage return is rewritten before it can match the evidence pattern.",
+   "affected_surface": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py added-evidence enumeration",
+   "occurrences": [
+    {
+     "receipt_sha256": "6820b2f5fdb94bbb33708acfb79d3de90b8f987820ddcb92477faf5cc918c952",
+     "finding_sha256": "ff5023b04ef0beab2ce8bf4fd9317ab91539e72c5de61659f271ea85df6da767",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "landing-disposition-1-1.json",
+     "disposition_evidence_sha256": "d45dcab66e328e6926ec1089b5dc4fc4c6f9ff4c67423fd37fb1176e7920f443"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "packet-server-implementation-absent-from-landing-packet",
+   "root_cause_predicate": "A landing packet must equal the repository diff, so the implementation of a server this change auto-approves cannot travel with it and the reviewer cannot inspect what approval was granted to.",
+   "affected_surface": "skills/code-review/scripts/codex_review.sh packet-server approval mode as seen from a base-derived packet",
+   "occurrences": [
+    {
+     "receipt_sha256": "6820b2f5fdb94bbb33708acfb79d3de90b8f987820ddcb92477faf5cc918c952",
+     "finding_sha256": "d4574a786bfbca71f4031bcc66c581d632eabdc60a35cb655b00e261aa7ff3b7",
+     "disposition": "pre_existing_out_of_scope",
+     "disposition_evidence_file": "landing-disposition-2-1.json",
+     "disposition_evidence_sha256": "bae05c7d6202a725cb1ff940bc06819cce4af057b8ced7fcfbb8f7d6e9debed7"
+    },
+    {
+     "receipt_sha256": "f80481f05d366e792dd78a9eeb7b2010ea83d1a3431d514c00ad99869db05a6e",
+     "finding_sha256": "107f7d3105f085aa48333f87ccd6796aee40a805f835f3c3468ea88721803a7a",
+     "disposition": "pre_existing_out_of_scope",
+     "disposition_evidence_file": "landing-disposition-2-2.json",
+     "disposition_evidence_sha256": "fbe128f2e59a7c9a5d7629e5debdefc4d5a03ef88d7d4924a7a3b2e4e02011bf"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "mcp-list-inherits-caller-directory",
+   "root_cause_predicate": "The preflight list runs without the run-scoped working directory the inference step uses, so the two invocations do not share a directory context.",
+   "affected_surface": "skills/code-review/scripts/codex_review.sh preflight invocation",
+   "occurrences": [
+    {
+     "receipt_sha256": "f80481f05d366e792dd78a9eeb7b2010ea83d1a3431d514c00ad99869db05a6e",
+     "finding_sha256": "855c05b9961863cf41a1b36ec67586d1d8a323dead7b53aebbe20c0a94613ea9",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "landing-disposition-3-1.json",
+     "disposition_evidence_sha256": "7aaab56b26c7979b66972bba6640011b148244be61bc63def6417d83443439a2"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "continuation-clause-readiness-vs-still-running",
+   "root_cause_predicate": "A healthy long-lived process remains a self-initiated step that is still running after readiness, so the clause's finite and persistent branches describe the same observable state.",
+   "affected_surface": "skills/product-rd-workflow/references/pre-final-continuation-gate.md persistent-process exception",
+   "occurrences": [
+    {
+     "receipt_sha256": "f80481f05d366e792dd78a9eeb7b2010ea83d1a3431d514c00ad99869db05a6e",
+     "finding_sha256": "16a3f965d1301025c60dac29e46b3dc41472a6c6656c67e1809d0de558671231",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "landing-disposition-4-1.json",
+     "disposition_evidence_sha256": "c62c25f26a6bd8a5724af2576e183f80c47e3e9e1374b881d7e64b713bb9c39d"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}

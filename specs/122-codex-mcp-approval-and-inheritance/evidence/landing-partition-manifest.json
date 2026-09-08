@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "kind": "landing_partition_manifest",
+ "base": "78def9e4575caa056b3126fb03c06ac5fa54eb22",
+ "partitions": [
+  {
+   "paths": [
+    "skills",
+    "specs",
+    "packages"
+   ],
+   "candidate_sha256": "678f1dd786cf5d21121f4b7a7c6e35baea2fe03a0c3461e4bba75ee3419056cc"
+  }
+ ],
+ "candidate_sha256": "eddef23c479b4988bb08a205d70aa33ce82b0f04cc5ffe86da060451c4776f86"
+}

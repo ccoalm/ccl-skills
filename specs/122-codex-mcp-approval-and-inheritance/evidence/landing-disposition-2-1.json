@@ -1,0 +1,17 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "678f1dd786cf5d21121f4b7a7c6e35baea2fe03a0c3461e4bba75ee3419056cc",
+ "receipt_sha256": "6820b2f5fdb94bbb33708acfb79d3de90b8f987820ddcb92477faf5cc918c952",
+ "finding_sha256": "d4574a786bfbca71f4031bcc66c581d632eabdc60a35cb655b00e261aa7ff3b7",
+ "disposition": "pre_existing_out_of_scope",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "6820b2f5fdb94bbb33708acfb79d3de90b8f987820ddcb92477faf5cc918c952",
+   "finding_sha256": "d4574a786bfbca71f4031bcc66c581d632eabdc60a35cb655b00e261aa7ff3b7"
+  }
+ ],
+ "evidence": [
+  "The binding packet is computed by the merge-side binder from the repository diff; adding context would produce a packet that reviews one candidate and lands another.",
+  "The implementation was supplied to the quality-review rounds earlier in this delivery, whose packets were widened for exactly this reason; the two requirements are mutually exclusive and that conflict is recorded as the first item for the review-tooling round."
+ ]
+}

@@ -1,0 +1,18 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "678f1dd786cf5d21121f4b7a7c6e35baea2fe03a0c3461e4bba75ee3419056cc",
+ "receipt_sha256": "f80481f05d366e792dd78a9eeb7b2010ea83d1a3431d514c00ad99869db05a6e",
+ "finding_sha256": "16a3f965d1301025c60dac29e46b3dc41472a6c6656c67e1809d0de558671231",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "f80481f05d366e792dd78a9eeb7b2010ea83d1a3431d514c00ad99869db05a6e",
+   "finding_sha256": "16a3f965d1301025c60dac29e46b3dc41472a6c6656c67e1809d0de558671231"
+  }
+ ],
+ "evidence": [
+  "The clause already distinguishes them by what the step can produce rather than by observation: a finite step has a terminal result to wait for and a persistent one does not.",
+  "This is the third wording of this branch in one round; the first demanded indefinite polling and the second destroyed a delivered service. Sharpening it again inside the round that binds this candidate would repeat the pattern that produced both.",
+  "Recorded as a follow-up so the next wording is chosen with the three failures visible rather than under landing pressure."
+ ]
+}

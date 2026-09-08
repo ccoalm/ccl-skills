@@ -1,0 +1,18 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "678f1dd786cf5d21121f4b7a7c6e35baea2fe03a0c3461e4bba75ee3419056cc",
+ "receipt_sha256": "f80481f05d366e792dd78a9eeb7b2010ea83d1a3431d514c00ad99869db05a6e",
+ "finding_sha256": "855c05b9961863cf41a1b36ec67586d1d8a323dead7b53aebbe20c0a94613ea9",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "f80481f05d366e792dd78a9eeb7b2010ea83d1a3431d514c00ad99869db05a6e",
+   "finding_sha256": "855c05b9961863cf41a1b36ec67586d1d8a323dead7b53aebbe20c0a94613ea9"
+  }
+ ],
+ "evidence": [
+  "The preflight reads a server list from the private home this run built; its verdict is checked against the packet server's exact interpreter, script, packet path and digest, none of which depend on the working directory.",
+  "The inference step is the one that must not see a workspace, and it is the one that carries -C into a run-scoped empty directory.",
+  "Aligning both invocations is a small change that would invalidate the rounds binding this candidate; it is recorded as a follow-up."
+ ]
+}
