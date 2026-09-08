@@ -1,0 +1,18 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "678f1dd786cf5d21121f4b7a7c6e35baea2fe03a0c3461e4bba75ee3419056cc",
+ "receipt_sha256": "6820b2f5fdb94bbb33708acfb79d3de90b8f987820ddcb92477faf5cc918c952",
+ "finding_sha256": "ff5023b04ef0beab2ce8bf4fd9317ab91539e72c5de61659f271ea85df6da767",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "6820b2f5fdb94bbb33708acfb79d3de90b8f987820ddcb92477faf5cc918c952",
+   "finding_sha256": "ff5023b04ef0beab2ce8bf4fd9317ab91539e72c5de61659f271ea85df6da767"
+  }
+ ],
+ "evidence": [
+  "The consequence is fail-safe: a rewritten path does not match, so the file is not excluded, stays inside the candidate, and the binder refuses cleanly rather than accepting a wrong candidate.",
+  "The preceding fix in this round addressed the one variant that was not fail-safe -- strict decoding raised inside a gate whose job is to fail cleanly -- and this variant only under-reports the diagnostic.",
+  "No path in this repository carries a carriage return; the fix is recorded as a follow-up for the round that owns this tooling."
+ ]
+}

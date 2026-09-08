@@ -299,12 +299,17 @@ def added_evidence_paths(repo_root: Path, base: str) -> list[str]:
     """
     result = subprocess.run(
         [
-            "git", "-C", str(repo_root), "diff", "--name-only",
+            "git", "-C", str(repo_root), "diff", "--name-only", "-z",
             "--diff-filter=A", base, "HEAD", "--", EVIDENCE_ROOT,
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        # A pathname is bytes, and -z hands them over raw. Strict decoding would
+        # turn one undecodable filename into a crash inside a gate whose job is
+        # to fail cleanly, so undecodable bytes survive as surrogates and simply
+        # do not match the evidence pattern.
         text=True,
+        errors="surrogateescape",
         check=False,
     )
     if result.returncode != 0:
@@ -313,12 +318,45 @@ def added_evidence_paths(repo_root: Path, base: str) -> list[str]:
             f"{result.stderr.strip()}"
         )
     excluded: list[str] = []
-    for line in result.stdout.splitlines():
-        if not EVIDENCE_MEMBER.match(line):
+    # -z output is NUL-separated and never C-quoted, so a path carrying a
+    # non-ASCII byte is enumerated as itself rather than as an escaped literal
+    # that no pattern here would match.
+    for line in result.stdout.split("\0"):
+        if not line or not EVIDENCE_MEMBER.match(line):
             continue
         if is_candidate_receipt(repo_root, line):
             excluded.append(line)
     return excluded
+
+
+def bound_evidence_paths(repo_root: Path, base: str) -> list[str]:
+    """Evidence this round ADDS that stays inside the candidate.
+
+    The complement of the exclusion, reported when nothing binds. Committing one
+    of these after the review rounds moves the candidate out from under their
+    receipts, and the failure that surfaces -- nothing binds -- names neither the
+    file nor the ordering. This class has now been observed three times; the
+    diagnosis belongs where the failure appears, not in a document the round has
+    to know to open.
+    """
+    result = subprocess.run(
+        [
+            "git", "-C", str(repo_root), "diff", "--name-only", "-z",
+            "--diff-filter=A", base, "HEAD", "--", EVIDENCE_ROOT,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        errors="surrogateescape",
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    return [
+        line
+        for line in result.stdout.split("\0")
+        if line and EVIDENCE_MEMBER.match(line) and not is_candidate_receipt(repo_root, line)
+    ]
 
 
 def is_candidate_receipt(repo_root: Path, path_value: str) -> bool:
@@ -1093,6 +1131,19 @@ def bind_candidate(
         binding.failure.append(
             "  no committed ledger records this candidate; run the extraction review "
             "lane against the final, committed tree"
+        )
+    inside = bound_evidence_paths(repo_root, fork)
+    if inside:
+        binding.failure.append(
+            "  this round added evidence that stays inside the candidate: "
+            + ", ".join(inside[:5])
+            + ("" if len(inside) <= 5 else f", and {len(inside) - 5} more")
+        )
+        binding.failure.append(
+            "  only added JSON carrying a candidate_sha256 is excluded, so bound "
+            "evidence such as base attestations and excerpts must be committed "
+            "BEFORE the review rounds; committing it after moves the candidate out "
+            "from under their receipts"
         )
     return binding
 
