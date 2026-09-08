@@ -16,6 +16,36 @@ The budget is a ceiling, not a quota: after a clean or fully source-refuted trac
 `autonomous_review_allowed=false`; release/high-risk still requires at least one
 challenge before this early close is eligible.
 
+## What `complete` closes, and what it does not
+
+`--mode complete` is the checkpoint for a chain whose findings were **shown to
+be wrong**. Every original occurrence must carry a `source_refuted`
+disposition; `unresolved`, `accepted_risk`, `accepted_tradeoff`, and
+`needs_human_decision` are refused, and that refusal is deliberate. The gate
+binds structure and provenance, never authority: it cannot tell a human
+acceptance from an agent that labelled its own findings accepted, so it does
+not let an acceptance close a machine checkpoint.
+
+**A chain whose findings are accepted, out of scope, or input defects is not
+stalled — it is simply not closed by this mode.** Such a round ends at its
+`findings` result with a recorded disposition per occurrence, and the round's
+own ledger carries the wider vocabulary. Do not read a refused `complete` as an
+unfinished review; read it as "no refutation was claimed". Reporting the round
+requires the dispositions, not a completion receipt.
+
+Two mechanics that cost time when they are discovered by experiment:
+
+- **`--stage` and `--risk-tag` must be passed to `complete`, not omitted.** The
+  binding predicate compares the prior rounds against the profile derived from
+  the arguments given here, so a risk-tagged chain checked without its tags
+  fails as an unbound candidate rather than as a mismatch.
+- **A round that edits `skills/code-review/scripts/**` cannot bind its own
+  earlier rounds.** `review_controller_sha256` covers every `.py` and `.sh`
+  there, so any further edit to the harness mid-round changes the controller
+  identity and both chain succession and `complete` refuse the earlier
+  receipts. Land every harness edit first, then run review and challenge back
+  to back with nothing changed in between.
+
 ## Plan and owner binding
 
 The plan is optional for `review` and `challenge` and required for `complete`.

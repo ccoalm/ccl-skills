@@ -698,18 +698,31 @@ if [ "${1:-}" = mcp ] && [ "${2:-}" = list ]; then
   fi
   python3 - "$@" <<'PY_MCP_LIST'
 import json, os, sys, tomllib
+from pathlib import Path
 
 arguments = iter(sys.argv[1:])
 servers = {}
-inherited_names = {
-    "inherited_mcp": "unrelated",
-    "inherited_mcp_dot": "unrelated.name",
-    "inherited_mcp_space": "unrelated name",
-    "inherited_mcp_quote": 'unrelated"name',
-}
-inherited_name = inherited_names.get(os.environ.get("STUB_BEHAVIOR"))
-if inherited_name is not None:
-    servers[inherited_name] = {"command": "/bin/false", "args": [], "enabled": True}
+plugin_sourced = set()
+# Inherited servers come from the home the CLI was actually handed, never from
+# the test's own environment: whether the reviewer sees a user's server is
+# exactly the question, and a stub that injects one regardless of the home
+# could not tell a private home from the user's.
+home = Path(os.environ.get("CODEX_HOME", ""))
+home_config = home / "config.toml" if os.environ.get("CODEX_HOME") else None
+if home_config is not None and home_config.exists():
+    try:
+        home_data = tomllib.loads(home_config.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+        home_data = {}
+    for inherited_name, inherited in (home_data.get("mcp_servers") or {}).items():
+        if isinstance(inherited, dict):
+            servers[inherited_name] = dict(inherited)
+            servers[inherited_name].setdefault("enabled", True)
+# A plugin contributes its server outside `mcp_servers`, which is why an
+# override under that table cannot reach it.
+if os.environ.get("CODEX_HOME") and (home / "plugins" / "provided.json").exists():
+    servers["plugin_provided"] = {"command": "/bin/false", "args": [], "enabled": True}
+    plugin_sourced.add("plugin_provided")
 for argument in arguments:
     if argument in {"-c", "--config"}:
         # Codex splits the override path separately from its TOML value;
@@ -724,18 +737,76 @@ for argument in arguments:
         else:
             continue
         for name, settings in configured_servers.items():
+            if name in plugin_sourced:
+                # A plugin contributes its server outside `mcp_servers`, so an
+                # override under that table builds an entry with no transport
+                # and the CLI refuses to load the configuration at all.
+                sys.stderr.write(
+                    "Error: failed to load bootstrap configuration\n\n"
+                    "Caused by:\n    invalid transport\n"
+                    "    in `mcp_servers." + name + "`\n")
+                sys.exit(1)
             servers.setdefault(name, {}).update(settings)
-print(json.dumps([
+rows = [
     {"name": name, "enabled": server.get("enabled", True),
      "transport": {"type": "stdio", "command": server["command"],
                    "args": server.get("args", [])}}
     for name, server in servers.items()
-]))
+]
+if os.environ.get("STUB_MALFORMED_DISABLED_ROW"):
+    # The malformed row is disabled: a check that filters before validating
+    # would never look at it.
+    bad = {"missing": {}, "empty": {"name": ""}, "nonstring": {"name": 7}}[
+        os.environ["STUB_MALFORMED_DISABLED_ROW"]]
+    rows.append({**bad, "enabled": False,
+                 "transport": {"type": "stdio", "command": "/bin/false", "args": []}})
+if os.environ.get("STUB_DUPLICATE_PACKET_ROW") == "1":
+    # A JSON array can carry the same name twice; a dict of servers cannot.
+    rows.append({"name": "code_review_packet", "enabled": False,
+                 "transport": {"type": "stdio", "command": "/bin/false", "args": []}})
+print(json.dumps(rows))
 PY_MCP_LIST
   exit $?
 fi
 touch "$state/codex_invoked"
 printf '%s' "$0" >"$state/codex_argv0"
+printf '%s' "${CODEX_HOME:-}" >"$state/codex_home"
+if [ "${STUB_REPLACE_AUTH_LINK:-}" = 1 ] && [ -n "${CODEX_HOME:-}" ]; then
+  rm -f "$CODEX_HOME/auth.json"
+  printf '%s\n' '{"tokens":{"access":"rotated"}}' >"$CODEX_HOME/auth.json"
+fi
+python3 - "${CODEX_HOME:-}" "$state/codex_home_shape" <<'PY_HOME_SHAPE'
+import json, os, sys, tomllib
+from pathlib import Path
+
+# The wrapper deletes its run directory on exit, so the private home can only
+# be inspected from inside the run.
+home = Path(sys.argv[1]) if sys.argv[1] else None
+shape = {"home": sys.argv[1], "config_keys": [], "has_mcp_servers": None,
+         "has_plugins": None, "auth_link": None}
+if home is not None:
+    config = home / "config.toml"
+    if config.exists():
+        try:
+            data = tomllib.loads(config.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+            data = {"__unreadable__": True}
+        shape["config_keys"] = sorted(data)
+        shape["has_mcp_servers"] = "mcp_servers" in data
+        shape["model"] = data.get("model")
+        shape["model_reasoning_effort"] = data.get("model_reasoning_effort")
+        providers = data.get("model_providers")
+        shape["provider_keys"] = sorted(providers) if isinstance(providers, dict) else None
+    else:
+        shape["has_mcp_servers"] = False
+    shape["has_plugins"] = (home / "plugins").exists()
+    auth = home / "auth.json"
+    if auth.is_symlink():
+        shape["auth_link"] = os.readlink(auth)
+    elif auth.exists():
+        shape["auth_link"] = "__regular_file__"
+Path(sys.argv[2]).write_text(json.dumps(shape), encoding="utf-8")
+PY_HOME_SHAPE
 printf '%s' "${CMUX_CODEX_HOOKS_DISABLED:-}" >"$state/codex_cmux_hooks_disabled"
 last_message=""
 has_model=no
@@ -1802,16 +1873,29 @@ out="$(run_codex packet_tampered)"; rc=$?
 check "Codex rejects altered packet tool bytes through wrapper and parser" \
   '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = binding_mismatch ] && [ "$(field cascade_eligible "$out")" = False ]'
 
-for inherited_mcp_case in inherited_mcp inherited_mcp_dot inherited_mcp_space inherited_mcp_quote; do
-  case "$inherited_mcp_case" in
-    inherited_mcp) inherited_mcp_name=unrelated ;;
-    inherited_mcp_dot) inherited_mcp_name=unrelated.name ;;
-    inherited_mcp_space) inherited_mcp_name='unrelated name' ;;
-    inherited_mcp_quote) inherited_mcp_name='unrelated"name' ;;
-  esac
+# A user's own server, however its name is spelled, must not reach the reviewer
+# and must not be touched: the wrapper neither disables it nor names it.
+inherited_index=0
+for inherited_mcp_name in 'unrelated' 'unrelated.name' 'unrelated name' 'unrelated"name'; do
+  inherited_index=$((inherited_index + 1))
+  inherited_source="$WORK/codex-inherited-$inherited_index"
+  mkdir -p "$inherited_source"
+  python3 - "$inherited_source/config.toml" "$inherited_mcp_name" <<'PY_INHERITED_SOURCE'
+import json, sys
+from pathlib import Path
+
+Path(sys.argv[1]).write_text(
+    "[mcp_servers]\n"
+    + json.dumps(sys.argv[2])
+    + ' = { command = "/bin/false", args = [] }\n',
+    encoding="utf-8",
+)
+PY_INHERITED_SOURCE
+  printf '%s\n' '{"tokens":{"access":"seeded"}}' >"$inherited_source/auth.json"
+  chmod 0600 "$inherited_source/auth.json"
   rm -f "$WORK/state/codex_invoked" "$WORK/state/codex_configs"
-  out="$(run_codex "$inherited_mcp_case")"; rc=$?
-  inherited_mcp_disabled="$(python3 - "$inherited_mcp_name" "$WORK/state/codex_configs" <<'PY_MCP_DISABLED'
+  out="$(run_codex pass claude "$inherited_source")"; rc=$?
+  inherited_mcp_untouched="$(python3 - "$inherited_mcp_name" "$WORK/state/codex_configs" <<'PY_MCP_UNTOUCHED'
 import sys, tomllib
 from pathlib import Path
 
@@ -1821,14 +1905,139 @@ for override in path.read_text().splitlines() if path.exists() else []:
     key, value = override.split("=", 1)
     if key.strip() == "mcp_servers":
         tables.append(tomllib.loads("servers=" + value)["servers"])
+    elif key.strip().startswith("mcp_servers."):
+        tables.append({key.strip().split(".")[1]: {}})
 print(len(tables) == 1
-      and tables[0].get(sys.argv[1], {}).get("enabled") is False
-      and "code_review_packet" in tables[0])
-PY_MCP_DISABLED
+      and sys.argv[1] not in tables[0]
+      and list(tables[0]) == ["code_review_packet"])
+PY_MCP_UNTOUCHED
 )"
-  check "Codex encodes and disables the inherited MCP key ($inherited_mcp_case)" \
-    '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ -e "$WORK/state/codex_invoked" ] && [ "$inherited_mcp_disabled" = True ]'
+  check "Codex never reaches or names the user's own MCP server ($inherited_mcp_name)" \
+    '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ -e "$WORK/state/codex_invoked" ] && [ "$inherited_mcp_untouched" = True ]'
 done
+
+# The shape that used to dead-end the preflight: a server contributed outside
+# `mcp_servers`, which no override under that table can reach.
+plugin_source="$WORK/codex-plugin-source"
+mkdir -p "$plugin_source/plugins"
+printf '%s\n' '{"server":"plugin_provided"}' >"$plugin_source/plugins/provided.json"
+printf '%s\n' '{"tokens":{"access":"seeded"}}' >"$plugin_source/auth.json"
+chmod 0600 "$plugin_source/auth.json"
+rm -f "$WORK/state/codex_invoked" "$WORK/state/codex_configs"
+out="$(run_codex pass claude "$plugin_source")"; rc=$?
+check "Codex reviews on a host whose plugin contributes an MCP server" \
+  '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ -e "$WORK/state/codex_invoked" ]'
+
+# A canned verdict cannot prove the repair: a CLI that accepts the configuration
+# and still refuses read_packet would pass every assertion above. This one
+# replays the real packet server's bytes through the parser on that same host.
+rm -f "$WORK/state/codex_invoked" "$WORK/state/codex_packet_call"
+out="$(run_codex packet_read claude "$plugin_source")"; rc=$?
+check "Codex completes a real frozen packet read on a plugin-contributing host" \
+  '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ "$(cat "$WORK/state/codex_packet_call")" = read_packet ]'
+
+rm -f "$WORK/state/codex_invoked" "$WORK/state/codex_home"
+mkdir -p "$WORK/codex-foreign-source"
+printf '%s\n' 'profile = "review"' '' '[profiles.review]' 'model = "seeded-model"' 'model_reasoning_effort = "xhigh"' \
+  '' '[model_providers."proxy.v1"]' 'name = "line one\\nline two"' '' '[mcp_servers.foreign]' 'command = "/bin/false"' 'args = []' \
+  >"$WORK/codex-foreign-source/config.toml"
+printf '%s\n' '{"tokens":{"access":"seeded"}}' >"$WORK/codex-foreign-source/auth.json"
+chmod 0600 "$WORK/codex-foreign-source/auth.json"
+out="$(run_codex pass claude "$WORK/codex-foreign-source")"; rc=$?
+private_home_shape="$(python3 - "$WORK/state/codex_home_shape" "$WORK/codex-foreign-source" <<'PY_PRIVATE_HOME'
+import json, os, sys
+from pathlib import Path
+
+
+def normalized(value):
+    # TMPDIR here can carry a trailing separator, so the recorded and expected
+    # paths differ as strings while naming the same file.
+    return Path(os.path.normpath(str(value))) if value else None
+
+
+path = Path(sys.argv[1])
+if not path.exists():
+    print("no-run-observed"); raise SystemExit
+shape = json.loads(path.read_text(encoding="utf-8"))
+source = normalized(sys.argv[2])
+home = normalized(shape.get("home"))
+if home is None or home == source or source in home.parents:
+    print("shares-user-home"); raise SystemExit
+if shape.get("has_mcp_servers") is not False or shape.get("has_plugins") is not False:
+    print("inherited-servers-present"); raise SystemExit
+if shape.get("model") != "seeded-model" or shape.get("model_reasoning_effort") != "xhigh":
+    print("model-preference-lost"); raise SystemExit
+if shape.get("provider_keys") != ["proxy.v1"]:
+    print("provider-key-mangled"); raise SystemExit
+if normalized(shape.get("auth_link")) != source / "auth.json":
+    print("credential-not-linked"); raise SystemExit
+print("private")
+PY_PRIVATE_HOME
+)"
+check "Codex reviews from a private home that never carried the user's MCP servers" \
+  '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ "$private_home_shape" = private ]'
+
+# The link back to the user's credential is what keeps a rotated token in the
+# user's own file; a CLI that replaced it with a regular file would leave the
+# credential inside this run directory instead. Prove the post-run check fires.
+rm -f "$WORK/state/codex_invoked"
+# A host that names a profile it does not define must not quietly review on a
+# different model; the wrapper refuses instead of falling through.
+mkdir -p "$WORK/codex-broken-profile"
+printf '%s\n' 'profile = "missing"' 'model = "top-level-model"' >"$WORK/codex-broken-profile/config.toml"
+printf '%s\n' '{"tokens":{"access":"seeded"}}' >"$WORK/codex-broken-profile/auth.json"
+chmod 0600 "$WORK/codex-broken-profile/auth.json"
+rm -f "$WORK/state/codex_invoked"
+out="$(run_codex pass claude "$WORK/codex-broken-profile")"; rc=$?
+check "Codex refuses a selected profile it cannot resolve instead of substituting a model" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = codex_home_preferences_unreadable ] && [ ! -e "$WORK/state/codex_invoked" ]'
+
+# A malformed row that happens to be disabled must still fail the preflight;
+# filtering before validating would step over it.
+for malformed in missing empty nonstring; do
+  export STUB_MALFORMED_DISABLED_ROW="$malformed"
+  rm -f "$WORK/state/codex_invoked"
+  out="$(run_codex pass)"; rc=$?
+  unset STUB_MALFORMED_DISABLED_ROW
+  check "Codex refuses a malformed disabled MCP row ($malformed name)" \
+    '[ "$rc" = 2 ] && [ "$(field reason "$out")" = codex_packet_tools_unavailable ] && [ ! -e "$WORK/state/codex_invoked" ]'
+done
+
+# The enabled-set check alone would accept one correctly bound row beside a
+# disabled duplicate of the same name, so the uniqueness claim needs its own case.
+export STUB_DUPLICATE_PACKET_ROW=1
+rm -f "$WORK/state/codex_invoked"
+out="$(run_codex pass)"; rc=$?
+unset STUB_DUPLICATE_PACKET_ROW
+check "Codex refuses a duplicated packet-server row even when the duplicate is disabled" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = codex_packet_tools_unavailable ] && [ ! -e "$WORK/state/codex_invoked" ]'
+
+export STUB_REPLACE_AUTH_LINK=1
+out="$(run_codex pass claude "$WORK/codex-foreign-source")"; rc=$?
+unset STUB_REPLACE_AUTH_LINK
+check "Codex refuses when the run replaced the linked credential with a file" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = codex_runtime_home_credential_moved ] && [ "$(field reason_code "$out")" = binding_mismatch ] && [ "$(field cascade_eligible "$out")" = False ]'
+
+rm -f "$WORK/state/codex_invoked" "$WORK/state/codex_configs"
+out="$(run_codex pass)"; rc=$?
+packet_approval_mode="$(python3 - "$WORK/state/codex_configs" <<'PY_MCP_APPROVAL'
+import sys, tomllib
+from pathlib import Path
+
+path = Path(sys.argv[1])
+servers = {}
+for override in path.read_text().splitlines() if path.exists() else []:
+    key, value = override.split("=", 1)
+    if key.strip() == "mcp_servers":
+        servers = tomllib.loads("servers=" + value)["servers"]
+packet = servers.get("code_review_packet", {})
+print(packet.get("default_tools_approval_mode") == "approve"
+      and all(other.get("default_tools_approval_mode") is None
+              for name, other in servers.items() if name != "code_review_packet"))
+PY_MCP_APPROVAL
+)"
+check "Codex declares the packet server auto-approved without widening the sandbox" \
+  '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ "$packet_approval_mode" = True ] && [ "$(cat "$WORK/state/codex_read_only")" = yes ]'
 
 rm -f "$WORK/state/codex_invoked" "$WORK/state/codex_help_invoked"
 probe_started=$SECONDS
