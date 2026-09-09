@@ -134,17 +134,16 @@ echo "code_review_skill_dir=$CODE_REVIEW_SKILL_DIR" >&2
 : "${REVIEW_CHAIN_ID:?set REVIEW_CHAIN_ID to a task-scoped chain id: letters, digits, dot, underscore, hyphen only}"
 : "${REVIEW_STAGE:?set REVIEW_STAGE to the stage this candidate is actually at: explore, build, or release}"
 : "${REVIEW_EVIDENCE_DIR:?set REVIEW_EVIDENCE_DIR to a durable directory you control for the per-round result rows}"
-# Exactly one frozen packet source: a packet you composed (REVIEW_DIFF_FILE, see the
-# packet-composition rules below) or a base ref (REVIEW_BASE). The gate rejects both.
-if [ -n "${REVIEW_DIFF_FILE:-}" ] && [ -n "${REVIEW_BASE:-}" ]; then
-  echo "set exactly one of REVIEW_DIFF_FILE or REVIEW_BASE" >&2; exit 1
-elif [ -n "${REVIEW_DIFF_FILE:-}" ]; then
-  PACKET_ARGS=(--diff-file "$REVIEW_DIFF_FILE")
-elif [ -n "${REVIEW_BASE:-}" ]; then
-  PACKET_ARGS=(--base "$REVIEW_BASE")
-else
-  echo "set exactly one of REVIEW_DIFF_FILE or REVIEW_BASE" >&2; exit 1
+# REVIEW_BASE names the candidate, REVIEW_DIFF_FILE widens what the reviewer reads,
+# and BOTH is a widened packet that must BEGIN with the candidate (composition
+# rules: references/staged-review-contract.md). if-blocks, not `[ -n ... ] && ...`: a
+# trailing false test returns non-zero and `set -e` would kill the caller.
+if [ -z "${REVIEW_DIFF_FILE:-}" ] && [ -z "${REVIEW_BASE:-}" ]; then
+  echo "set REVIEW_BASE, REVIEW_DIFF_FILE, or both" >&2; exit 1
 fi
+PACKET_ARGS=()
+if [ -n "${REVIEW_BASE:-}" ]; then PACKET_ARGS+=(--base "$REVIEW_BASE"); fi
+if [ -n "${REVIEW_DIFF_FILE:-}" ]; then PACKET_ARGS+=(--diff-file "$REVIEW_DIFF_FILE"); fi
 # REVIEW_RUN_DIR holds the raw round-1 result only for the chain handoff; the durable
 # per-round evidence is persisted to REVIEW_EVIDENCE_DIR, whose confidentiality you own.
 REVIEW_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/review-run.XXXXXX")" || exit 1
@@ -199,10 +198,11 @@ bash "$CODE_REVIEW_SKILL_DIR/scripts/review_gate.sh" \
   >"$REVIEW_RUN_DIR/round2.json"
 require_tracked_result "$REVIEW_RUN_DIR/round2.json" challenge 2
 # Both rounds must bind the SAME candidate: the chain accepts older candidate hashes,
-# so a packet edited between rounds would otherwise be persisted as one coherent pair.
+# so a candidate edited between rounds would otherwise be persisted as one coherent
+# pair. Their packets may differ; each receipt records the packet it actually read.
 python3 -c 'import json,sys; a=json.load(open(sys.argv[1])); b=json.load(open(sys.argv[2])); h=a.get("candidate_sha256"); sys.exit(0 if h and h==b.get("candidate_sha256") else 1)' \
   "$ROUND1_RESULT_FILE" "$REVIEW_RUN_DIR/round2.json" \
-  || { echo "round 2 reviewed a different packet than round 1; rerun the pair on one frozen candidate" >&2; exit 1; }
+  || { echo "round 2 bound a different candidate than round 1; rerun the pair on one frozen candidate" >&2; exit 1; }
 cp "$REVIEW_RUN_DIR/round2.json" "$EVIDENCE_RUN_DIR/round2-challenge.json" || exit 1
 cat "$EVIDENCE_RUN_DIR/round2-challenge.json"
 # A secret-free diff egresses to non-Claude reviewers automatically; add
@@ -216,10 +216,10 @@ Run the script by path while keeping `--cwd` pointed at the product repository u
 **The packet is the reviewer's whole world — compose it deliberately.** Review and challenge are built packet-bounded — Claude runs `--tools ""` with no `--add-dir`, and the other wrappers run in an isolated run workspace or a packet-only read surface. Treat the packet as the reviewer's whole world when deciding coverage: it is the only content bound by the packet hash and scanned before egress, so anything outside it is neither reliably visible to the reviewer nor covered by the verdict; a diff-only packet surfaces defects visible inside the changed lines and little else, and `--paths` only narrows it further. Whatever is absent from the packet is unreachable, not merely missed: a contradiction with an unchanged sibling clause, drift against a carrier outside the diff, or a silent weakening of upstream wording cannot be found by a reviewer who never saw the other side — that is the packet's shape, not the reviewer's weakness.
 
 - Codex permits frozen-packet read/search; see [tool boundaries](references/development-completion.md#review-tools).
-- To widen the packet, assemble it yourself and pass `--diff-file`: it replaces base-derived generation, is mutually exclusive with `--base`/`--paths`, and must name a regular file (no symlink or hardlink) holding text without NUL bytes. Worth adding beyond the diff — the canonical rule or contract text the changed lines must not contradict, the sibling clauses in the same file, the derived carriers that restate the change (commit message, MR/PR body), and the actual output of a gate or script under review. The gate hard-caps a packet at 200,000 bytes; split a larger candidate as described in the next bullet.
-- A verdict covers exactly the packet it was taken on, because the recorded packet hash is the reviewed identity. Within a packet, added context sits on top of the candidate diff and never in place of part of it. A candidate too large for one packet is split by file group or risk class into a partition that still covers the whole candidate — every part in some packet, none dropped — each partition's verdict recorded against its own packet hash, and the candidate-wide claim withheld until every partition is conclusive; one partition's `no blocking findings` is never a verdict on the landing candidate. Cross-partition contradictions are unreachable by construction, so repeat the shared canonical context in every partition's packet and review anything that spans partitions as its own packet.
+- To widen the packet, assemble it yourself and pass `--diff-file`, plus `--base` whenever the round must bind a landing candidate ([composition rules](references/staged-review-contract.md#the-packet-and-the-candidate)). It must name a regular file (no symlink or hardlink) holding text without NUL bytes. The gate hard-caps a packet at 200,000 bytes; split a larger candidate as described in the next bullet.
+- A verdict covers exactly the packet it was taken on; the receipt records `packet_sha256` for those bytes and `candidate_sha256` for the base-derived candidate that will land, equal unless the packet was widened. A candidate too large for one packet is split by file group or risk class into a partition that still covers the whole candidate — every part in some packet, none dropped — each partition's verdict recorded against its own packet hash, and the candidate-wide claim withheld until every partition is conclusive; one partition's `no blocking findings` is never a verdict on the landing candidate. Cross-partition contradictions are unreachable by construction, so repeat the shared canonical context in every partition's packet and review anything that spans partitions as its own packet.
 - Added context egresses to the selected reviewer exactly like the diff does, through the same credential tripwire — which catches machine-detectable secrets only. Paste rule text, carriers, and tool output; never paste credentials or material you would not send to that provider.
-- A finding that the input is insufficient to judge the change is an input defect, not a candidate defect: widen the packet and rerun that lane rather than editing the candidate to satisfy it.
+- A finding that the input is insufficient to judge the change is an input defect, not a candidate defect: widen the packet and rerun that lane, keeping `--base` so it still binds the same candidate, rather than editing the candidate to satisfy it.
 
 When intentionally reviewing `code-review` itself, override the resolver from the ccl-skills repo under review before invoking the gate:
 

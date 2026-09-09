@@ -443,14 +443,14 @@ def candidate_hash(module: types.ModuleType, repo_root: Path, base: str, paths: 
         paths=list(paths),
         wording_only_proof_file=None,
     )
-    packet_path, packet_sha256, _paths, _secrets = module.freeze_packet(
+    packet_path, _packet_sha256, candidate_sha256, _bytes, _paths, _secrets = module.freeze_packet(
         args, time.monotonic() + 120
     )
     try:
         Path(packet_path).unlink(missing_ok=True)
     except OSError:
         pass
-    return packet_sha256
+    return candidate_sha256
 
 
 def canonical_digest(value: object) -> str:
