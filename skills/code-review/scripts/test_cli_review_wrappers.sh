@@ -2361,6 +2361,19 @@ out="$(STUB_BEHAVIOR=stderr_only REVIEW_WRAPPER_TEST_STATE="$WORK/state" \
     --diff-file "$WORK/diff.patch" --review-profile-file "$WORK/review-profile.json" \
     --mode review --timeout 30)"; rc=$?
 run_dir="$(field transport_run_dir "$out")"
+# HOME=/ is real in root and arbitrary-uid containers. Treated as a home
+# spelling it would rewrite every separator in the excerpt.
+out2="$(STUB_BEHAVIOR=sensitive_streams REVIEW_WRAPPER_TEST_STATE="$WORK/state" \
+  PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" HOME=/ \
+  CODEX_HOME="$WORK/codex-source" TEST_DIFF_PATH="$WORK/diff.patch" \
+  TEST_PROFILE_PATH="$WORK/review-profile.json" \
+  bash "$DIR/codex_review.sh" --implementer-family claude \
+    --diff-file "$WORK/diff.patch" --review-profile-file "$WORK/review-profile.json" \
+    --mode review --timeout 30)"
+diag2="$(field transport_diagnostic "$out2")"
+check "Codex does not treat a separator-only home as a path to elide" \
+  'case "$diag2" in *urlsecretvalue*|*supersecretvalue*|*"~private~thing"*) false ;; *) [ -n "$diag2" ] ;; esac'
+
 check "Codex elides a home path spelled with a trailing slash" \
   'case "$run_dir" in "~/"*) case "$run_dir" in *fakehome*) false ;; *) true ;; esac ;; *) false ;; esac'
 

@@ -628,6 +628,10 @@ if home:
         homes.add(os.path.realpath(home))
     except OSError:
         pass
+# A home that is only separators -- "/" in a root or arbitrary-uid container --
+# would replace every separator in the text, mangling the excerpt and defeating
+# the URL rules below before they run.
+homes = {h for h in homes if h.strip("/")}
 needles = [(sys.argv[2], "<run-root>")]
 needles += [(h, "~") for h in sorted(homes, key=len, reverse=True) if h]
 for needle, replacement in needles:
