@@ -16,7 +16,7 @@ MAX_PROMPT_BYTES=245000
 CHALLENGE_CLASSES="race conditions, data loss, security holes, auth bypass, lost or duplicated work, operational footguns"
 
 emit_inconclusive() {
-  python3 - "$MODE" "$1" "${2:-invalid_input}" "${3:-false}" "${4:-}" <<'PY'
+  python3 - "$MODE" "$1" "${2:-invalid_input}" "${3:-false}" "${4:-}" "${5:-}" <<'PY'
 import json, sys
 payload = {
     "reviewer": "codex",
@@ -31,6 +31,8 @@ payload = {
 }
 if sys.argv[5]:
     payload["transport_exit_code"] = int(sys.argv[5]) if sys.argv[5].isdigit() else sys.argv[5]
+if sys.argv[6]:
+    payload["transport_diagnostic"] = sys.argv[6]
 print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 PY
 }
@@ -515,26 +517,121 @@ if [ -n "$AUTH_LINK_TARGET" ]; then
     || die_inconclusive codex_runtime_home_credential_moved binding_mismatch false
 fi
 if [ "$run_rc" != 0 ]; then
+  # `codex exec --json` reports supply and credential failures as structured
+  # events on stdout, not on stderr, so a classifier reading only stderr sees a
+  # quota exhaustion as an unclassifiable failure and stops the reviewer lane
+  # instead of cascading.
+  #
+  # Only TOP-LEVEL error events are read. Model-authored content arrives nested
+  # under `item`, and the model quotes the packet, which is untrusted candidate
+  # data -- grepping the raw stream would let a reviewed diff pick the verdict
+  # for this lane by writing quota vocabulary into itself.
+  TRANSPORT_ERRORS="$RUN_ROOT/transport-errors.txt"
+  : >"$TRANSPORT_ERRORS"
+  python3 - "$EVENTS" >"$TRANSPORT_ERRORS" 2>/dev/null <<'PY_TRANSPORT_ERRORS'
+import json, sys
+from pathlib import Path
+
+try:
+    lines = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").splitlines()
+except OSError:
+    sys.exit(0)
+seen = set()
+for line in lines:
+    try:
+        event = json.loads(line)
+    except ValueError:
+        continue
+    if not isinstance(event, dict):
+        continue
+    kind = event.get("type")
+    if not isinstance(kind, str) or not (kind == "error" or kind.endswith(".failed")):
+        continue
+    message = event.get("message")
+    if not isinstance(message, str):
+        nested = event.get("error")
+        message = nested.get("message") if isinstance(nested, dict) else None
+    if not isinstance(message, str) or not message:
+        continue
+    # A failing turn repeats the error event verbatim, and the diagnostic is
+    # bounded: relaying both would spend half the budget on one sentence.
+    message = " ".join(message.split())
+    if message not in seen:
+        seen.add(message)
+        print(message)
+PY_TRANSPORT_ERRORS
+  # The receipt is the only durable record: `$RUN_ROOT` and both captured
+  # streams are removed by the EXIT trap, and rounds 122 and 123 left six
+  # receipts with no account of why this lane failed. The excerpt is bounded and
+  # redacted here, at the point it is built, because receipts are committed as
+  # round evidence.
+  # Written to a file rather than read through `$(... <<HEREDOC ...)`: Bash 3.2
+  # scans a heredoc body nested in a command substitution for shell quoting, so
+  # an apostrophe in a comment there ends the parse of the whole script.
+  TRANSPORT_DIAGNOSTIC_FILE="$RUN_ROOT/transport-diagnostic.txt"
+  : >"$TRANSPORT_DIAGNOSTIC_FILE"
+  python3 - "$TRANSPORT_ERRORS" "$STDERR_FILE" "$RUN_ROOT" \
+    >"$TRANSPORT_DIAGNOSTIC_FILE" 2>/dev/null <<'PY_TRANSPORT_DIAGNOSTIC'
+import os, re, sys
+from pathlib import Path
+
+LIMIT = 600
+
+
+def read(path):
+    try:
+        return Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+text = read(sys.argv[1]).strip() or read(sys.argv[2]).strip()
+if not text:
+    sys.exit(0)
+home = os.environ.get("HOME") or ""
+for needle, replacement in ((sys.argv[3], "<run-root>"), (home, "~")):
+    if needle:
+        text = text.replace(needle, replacement)
+# Query strings first: a credential carried as a URL parameter would otherwise
+# survive the word boundary in the key=value rule below.
+text = re.sub(r"(https?://[^\s?]*)\?\S*", r"\1", text)
+text = re.sub(r"\bsk-[A-Za-z0-9_-]{6,}", "<redacted>", text)
+text = re.sub(r"\bBearer\s+\S+", "Bearer <redacted>", text, flags=re.IGNORECASE)
+text = re.sub(r"\beyJ[A-Za-z0-9_.-]{10,}", "<redacted>", text)
+text = re.sub(
+    r"\b(api[_-]?key|key|token|secret|password)\s*[=:]\s*\S+",
+    r"\1=<redacted>",
+    text,
+    flags=re.IGNORECASE,
+)
+text = " ".join(text.split())
+if len(text) > LIMIT:
+    text = text[: LIMIT - 15] + " [truncated]"
+print(text)
+PY_TRANSPORT_DIAGNOSTIC
+  TRANSPORT_DIAGNOSTIC="$(cat "$TRANSPORT_DIAGNOSTIC_FILE")"
   if bash "$TIMEOUT_CLASSIFIER" "$run_rc" "$run_elapsed" "$TIMEOUT"; then
-    die_inconclusive codex_timeout timeout true "$run_rc"
+    die_inconclusive codex_timeout timeout true "$run_rc" "$TRANSPORT_DIAGNOSTIC"
   fi
   case "$run_rc" in
-    129|130|137|143) die_inconclusive codex_process_interrupted operator_interrupt false "$run_rc" ;;
+    129|130|137|143) die_inconclusive codex_process_interrupted operator_interrupt false "$run_rc" "$TRANSPORT_DIAGNOSTIC" ;;
   esac
-  if grep -qiE '429|rate.?limit|quota' "$STDERR_FILE"; then
-    die_inconclusive codex_quota quota true "$run_rc"
+  # `usage limit` is the wording the CLI actually uses for an exhausted account;
+  # none of the older patterns match it.
+  if grep -qiE '429|rate.?limit|quota|usage limit' "$STDERR_FILE" "$TRANSPORT_ERRORS"; then
+    die_inconclusive codex_quota quota true "$run_rc" "$TRANSPORT_DIAGNOSTIC"
   fi
-  if grep -qiE 'unauthori[sz]ed|authentication|login|api key' "$STDERR_FILE"; then
-    die_inconclusive codex_auth_unavailable provider_unavailable true "$run_rc"
+  if grep -qiE 'unauthori[sz]ed|authentication|login|api key' "$STDERR_FILE" "$TRANSPORT_ERRORS"; then
+    die_inconclusive codex_auth_unavailable provider_unavailable true "$run_rc" "$TRANSPORT_DIAGNOSTIC"
   fi
   if [ ! -s "$EVENTS" ] && [ ! -s "$RESULT_FILE" ] \
     && grep -qiE 'failed to initialize in-process app-server client: Operation not permitted' "$STDERR_FILE"; then
     if [ "$HOST_REMEDIATION_ATTEMPTED" -eq 1 ]; then
-      die_inconclusive codex_host_path_unavailable_after_host_retry host_path_unavailable_after_host_retry true "$run_rc"
+      die_inconclusive codex_host_path_unavailable_after_host_retry host_path_unavailable_after_host_retry true "$run_rc" "$TRANSPORT_DIAGNOSTIC"
     fi
-    die_inconclusive codex_host_path_unavailable host_path_unavailable false "$run_rc"
+    die_inconclusive codex_host_path_unavailable host_path_unavailable false "$run_rc" "$TRANSPORT_DIAGNOSTIC"
   fi
-  die_inconclusive codex_run_failed unknown_client_failure false "$run_rc"
+  die_inconclusive codex_run_failed unknown_client_failure false "$run_rc" "$TRANSPORT_DIAGNOSTIC"
 fi
 
 python3 "$PARSER" --client codex --mode "$MODE" --implementer-family "$IMPL_FAMILY" \

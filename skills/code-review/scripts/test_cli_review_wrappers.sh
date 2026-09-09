@@ -873,6 +873,42 @@ if [ "$behavior" = "no_events" ]; then
 fi
 printf '%s\n' '{"type":"thread.started","thread_id":"test-thread"}'
 printf '%s\n' '{"type":"turn.started"}'
+# Transport failures whose only account of themselves is the event stream. The
+# CLI reports these on stdout, so a wrapper that classifies from stderr alone
+# cannot see them.
+if [ "$behavior" = "usage_limit_event" ]; then
+  printf '%s\n' '{"type":"error","message":"You'"'"'ve hit your usage limit. Visit https://example.invalid/settings/usage?token=abc123 to purchase more credits."}'
+  printf '%s\n' '{"type":"turn.failed","error":{"message":"You'"'"'ve hit your usage limit."}}'
+  exit 1
+fi
+if [ "$behavior" = "usage_limit_turn_failed" ]; then
+  printf '%s\n' '{"type":"turn.failed","error":{"message":"request rejected: rate limit exceeded for this account"}}'
+  exit 1
+fi
+if [ "$behavior" = "auth_event" ]; then
+  printf '%s\n' '{"type":"error","message":"unauthorized: the stored credential was rejected"}'
+  exit 1
+fi
+# The packet is untrusted, and the model quotes it. Quota vocabulary reaching
+# the classifier from here would let a reviewed diff choose its own reviewer.
+if [ "$behavior" = "quota_in_model_output" ]; then
+  printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"the diff mentions 429 rate limit and quota handling CODEXLEAKMARKER7f3a"}}'
+  printf '%s\n' '{"type":"item.completed","item":{"type":"error","message":"429 quota rate limit CODEXLEAKMARKER7f3a"}}'
+  printf '%s\n' 'stub failed for an unrelated reason' >&2
+  exit 1
+fi
+if [ "$behavior" = "sensitive_streams" ]; then
+  # The credential-shaped value is assembled at runtime: writing it whole would
+  # put a real `sk-` token shape in the repository, which the credential scanner
+  # in validate-skill.sh refuses -- correctly.
+  printf 'failed while reading %s/private/thing sk-%s token=%s\n' \
+    "$HOME" 'livetoken00000000000000' 'supersecretvalue' >&2
+  exit 1
+fi
+if [ "$behavior" = "long_error_event" ]; then
+  python3 -c 'import json;print(json.dumps({"type":"error","message":"E"*4000}))'
+  exit 1
+fi
 case "$behavior" in
   packet_read|packet_search|packet_tampered) printf '%s\n' '{"status":"passed","concern_results":[{"concern":"correctness","conclusion":"Independently checked correctness against the frozen candidate."}],"findings":[]}' >"$last_message" ;;
   pass|shell_disable_required|missing_shell_feature|removed_shell_feature|ignored_shell_disable|mcp_capability_missing|inherited_mcp|inherited_mcp_dot|inherited_mcp_space|inherited_mcp_quote|skills_budget_warning|skills_budget_warning_after_concern|hook_trust_warning|hook_trust_warning_started|hook_trust_warning_repeated_after_concern|unknown_error_valid_result) printf '%s\n' '{"status":"passed","concern_results":[{"concern":"correctness","conclusion":"Independently checked correctness against the frozen candidate."}],"findings":[]}' >"$last_message" ;;
@@ -2185,6 +2221,55 @@ check "Codex keeps an early child SIGKILL terminal instead of calling it timeout
 out="$(run_codex signal_exit)"; rc=$?
 check "Codex process signals are terminal operator interrupts" \
   '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = operator_interrupt ] && [ "$(field cascade_eligible "$out")" = False ]'
+
+# The CLI reports supply and credential failures as structured events on stdout,
+# not on stderr. Classifying from stderr alone turns a cascade-eligible quota
+# into a terminal unknown failure and stops the whole reviewer lane.
+out="$(run_codex usage_limit_event)"; rc=$?
+check "Codex reads a usage limit reported only on the event stream" \
+  '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ]'
+
+out="$(run_codex usage_limit_turn_failed)"; rc=$?
+check "Codex reads a rate limit carried by a failed turn" \
+  '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ]'
+
+out="$(run_codex auth_event)"; rc=$?
+check "Codex reads a credential rejection reported only on the event stream" \
+  '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = provider_unavailable ] && [ "$(field cascade_eligible "$out")" = True ]'
+
+# Only the transport's own top-level errors classify. Model-authored content
+# arrives nested under `item`, and the packet it quotes is untrusted.
+out="$(run_codex quota_in_model_output)"; rc=$?
+check "Codex refuses to classify from packet-derived model output" \
+  '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = unknown_client_failure ] && [ "$(field cascade_eligible "$out")" = False ]'
+
+diag="$(field transport_diagnostic "$out")"
+check "Codex keeps model-authored text out of the receipt diagnostic" \
+  'case "$diag" in *CODEXLEAKMARKER7f3a*) false ;; *) [ -n "$diag" ] ;; esac'
+
+out="$(run_codex crash)"; rc=$?
+diag="$(field transport_diagnostic "$out")"
+check "Codex records a bounded single-line diagnostic for an unknown failure" \
+  '[ -n "$diag" ] && [ "${#diag}" -le 600 ] && [ "$(printf %s "$diag" | wc -l)" -eq 0 ]'
+
+out="$(run_codex long_error_event)"; rc=$?
+diag="$(field transport_diagnostic "$out")"
+check "Codex truncates an oversized transport error rather than relaying it" \
+  '[ -n "$diag" ] && [ "${#diag}" -le 600 ]'
+
+out="$(run_codex sensitive_streams)"; rc=$?
+diag="$(field transport_diagnostic "$out")"
+check "Codex redacts home paths and credential-shaped values from the diagnostic" \
+  'case "$diag" in *sk-livetoken*|*supersecretvalue*|*"$HOME"*) false ;; *) [ -n "$diag" ] ;; esac'
+
+out="$(run_codex usage_limit_event)"; rc=$?
+diag="$(field transport_diagnostic "$out")"
+check "Codex drops query strings from URLs it relays into the receipt" \
+  'case "$diag" in *token=abc123*) false ;; *) [ -n "$diag" ] ;; esac'
+
+out="$(run_codex pass)"; rc=$?
+check "Codex adds no diagnostic field to a successful review" \
+  '[ "$rc" = 0 ] && json_lacks_key "$out" transport_diagnostic'
 
 echo '----'
 if [ "$fails" -eq 0 ]; then
