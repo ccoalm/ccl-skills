@@ -117,18 +117,24 @@ receipt was too small. They were missing because the `EXIT` trap deletes
   path under `$HOME` is recorded with `$HOME` replaced, so a committed receipt
   carries no username. A successful run still deletes the directory and carries
   neither field.
-- `transport_diagnostic` carries **only** the transport's own top-level error
-  messages, deduplicated, one line, at most 600 bytes with a truncation marker.
-  Raw stderr has no path into it. When no error event was captured the field
-  says so and points at the directory, so key presence never has to be read as
-  a success signal.
+- `transport_diagnostic` is a **constant**. It says where the streams are and
+  nothing else. No text derived from the run reaches a committed receipt.
 
-Redaction remains over that narrow, CLI-authored input -- `$HOME` and run-root
-paths, URL userinfo and query strings, `sk-`, `Bearer`, JWT shapes, and the
-value of any `key=value` or quoted `"key": "value"` pair whatever the key is
-called. It is defence in depth, not the control the safety rests on: a provider
-error can still echo a bad key. What makes the receipt safe is that the
-unbounded input no longer reaches it.
+The constant is where this round finished, and it took eight review chains to
+get there. The excerpt design was replaced by a redacted excerpt over a narrowed
+input, and every chain after that found one more spelling the filter missed: an
+unlisted key name, an assignment form, URL userinfo, a password containing the
+separator, an escaped quote closing a quoted value early, an uppercase scheme.
+Each was real and none followed from the last, because "nothing secret-shaped
+survives" is not a decidable property of free text and an adversarial reviewer
+can always spell one more. What ends it is having no free text to filter. The
+invariant is now stated as equality with a constant rather than as the absence
+of a list of shapes, which is a property a test can hold.
+
+The recorded path keeps its home elision, because a path is structure rather
+than free text: it is compared physically on both sides so a trailing slash or a
+symlink elides the same way, and a home that is only separators is rejected as a
+needle rather than rewriting every separator in the value.
 
 Both fields are emitted on classified failures too, not only on the terminal
 branch. A classified failure that is classified *wrongly* is the shape this

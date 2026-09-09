@@ -581,94 +581,26 @@ PY_TRANSPORT_ERRORS
   if [ -n "${HOME:-}" ]; then
     transport_home_real="$(cd "$HOME" 2>/dev/null && pwd -P)" || transport_home_real=""
   fi
+  case "$transport_home_real" in
+    "" | */) transport_home_real="" ;;
+  esac
   if [ -n "$transport_home_real" ]; then
     case "$TRANSPORT_RUN_DIR" in
       "$transport_home_real"/*)
         TRANSPORT_RUN_DIR="~${TRANSPORT_RUN_DIR#"$transport_home_real"}" ;;
     esac
   fi
-  # Only the transport's own error messages reach the receipt. Raw stderr stays
-  # in the preserved directory and is never persisted here: it is arbitrary
-  # process output -- library logging, echoed configuration, proxy URLs -- and no
-  # filter over arbitrary text can be shown complete. Three review rounds each
-  # found a different shape escaping one, first a name the keyword list lacked,
-  # then an assignment form the shape rule lacked, then URL userinfo which is
-  # neither. The redaction below is defence in depth over a narrow, CLI-authored
-  # input, not the control that makes this safe; what makes it safe is that the
-  # unbounded input no longer has a path into a committed artifact.
-  # Written to a file rather than read through `$(... <<HEREDOC ...)`: Bash 3.2
-  # scans a heredoc body nested in a command substitution for shell quoting, so
-  # an apostrophe in a comment there ends the parse of the whole script.
-  TRANSPORT_DIAGNOSTIC_FILE="$RUN_ROOT/transport-diagnostic.txt"
-  : >"$TRANSPORT_DIAGNOSTIC_FILE"
-  python3 - "$TRANSPORT_ERRORS" "$RUN_ROOT" \
-    >"$TRANSPORT_DIAGNOSTIC_FILE" 2>/dev/null <<'PY_TRANSPORT_DIAGNOSTIC'
-import os, re, sys
-from pathlib import Path
+  # The receipt carries NO text derived from the run. Eight review chains each
+  # found a different escape from a filter over that text -- an unlisted key
+  # name, an assignment form, URL userinfo, a password containing the separator,
+  # an escaped quote, an uppercase scheme -- because "nothing secret-shaped
+  # survives" is not a decidable property of free text, and an adversarial
+  # reviewer can always spell one more. So the free text is gone: what the
+  # transport said stays in the preserved run directory, and the receipt says
+  # where that is. The classifier still reads the extracted error messages
+  # above; those are matched against fixed patterns and never persisted.
+  TRANSPORT_DIAGNOSTIC="the transport output for this failure is in transport_run_dir"
 
-LIMIT = 600
-
-
-def read(path):
-    try:
-        return Path(path).read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return ""
-
-
-text = read(sys.argv[1]).strip()
-if not text:
-    sys.exit(0)
-# Every spelling of the home directory the environment can hand us, longest
-# first so a prefix does not shadow the full path.
-home = os.environ.get("HOME") or ""
-homes = {home, home.rstrip("/")}
-if home:
-    try:
-        homes.add(os.path.realpath(home))
-    except OSError:
-        pass
-# A home that is only separators -- "/" in a root or arbitrary-uid container --
-# would replace every separator in the text, mangling the excerpt and defeating
-# the URL rules below before they run.
-homes = {h for h in homes if h.strip("/")}
-needles = [(sys.argv[2], "<run-root>")]
-needles += [(h, "~") for h in sorted(homes, key=len, reverse=True) if h]
-for needle, replacement in needles:
-    if needle:
-        text = text.replace(needle, replacement)
-# URL userinfo and query strings first: a credential carried in either is not an
-# assignment and would survive every rule below.
-# Greedy to the LAST "@" before the path: a password may contain a literal
-# "@", and stopping at the first one leaves its tail in the excerpt.
-text = re.sub(r"(https?://)[^\s/]*@", r"\1", text)
-text = re.sub(r"(https?://[^\s?]*)\?\S*", r"\1", text)
-text = re.sub(r"\bsk-[A-Za-z0-9_-]{6,}", "<redacted>", text)
-text = re.sub(r"\bBearer\s+\S+", "Bearer <redacted>", text, flags=re.IGNORECASE)
-text = re.sub(r"\beyJ[A-Za-z0-9_.-]{10,}", "<redacted>", text)
-# The rule is the assignment SHAPE, not a list of credential-sounding key
-# names. Two review rounds each found a different name missing from such a list
-# -- first `access_token` and `client_secret`, then `session`, `cookie`, `auth`,
-# `code` and `bearer` -- which is what a denylist of names does. The key is kept
-# so the excerpt still says what failed; only the value goes.
-text = re.sub(
-    r"([A-Za-z_][A-Za-z0-9_.-]*)\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s,;]+)",
-    r"\1=<redacted>",
-    text,
-)
-text = re.sub(r"\"([^\"]{1,64})\"\s*:\s*\"[^\"]*\"", r'"\1": "<redacted>"', text)
-text = " ".join(text.split())
-# An error message opens with what went wrong, so an over-long one is cut from
-# the end.
-if len(text) > LIMIT:
-    text = text[: LIMIT - 15] + " [truncated]"
-print(text)
-PY_TRANSPORT_DIAGNOSTIC
-  TRANSPORT_DIAGNOSTIC="$(cat "$TRANSPORT_DIAGNOSTIC_FILE")"
-  # Placed here rather than inside the builder so it also covers the builder
-  # failing: an absent key would be indistinguishable from a successful run.
-  [ -n "$TRANSPORT_DIAGNOSTIC" ] \
-    || TRANSPORT_DIAGNOSTIC="no transport error event captured; the captured streams are in transport_run_dir"
   if bash "$TIMEOUT_CLASSIFIER" "$run_rc" "$run_elapsed" "$TIMEOUT"; then
     die_inconclusive codex_timeout timeout true "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR"
   fi

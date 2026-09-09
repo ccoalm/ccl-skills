@@ -2277,62 +2277,29 @@ out="$(run_codex quota_in_model_output)"; rc=$?
 check "Codex refuses to classify from packet-derived model output" \
   '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = unknown_client_failure ] && [ "$(field cascade_eligible "$out")" = False ]'
 
-diag="$(field transport_diagnostic "$out")"
-check "Codex keeps model-authored text out of the receipt diagnostic" \
-  'case "$diag" in *CODEXLEAKMARKER7f3a*) false ;; *) [ -n "$diag" ] ;; esac'
 
-out="$(run_codex crash)"; rc=$?
-diag="$(field transport_diagnostic "$out")"
-check "Codex records a bounded single-line diagnostic for an unknown failure" \
-  '[ -n "$diag" ] && [ "${#diag}" -le 600 ] && [ "$(printf %s "$diag" | wc -l)" -eq 0 ]'
 
-out="$(run_codex long_error_event)"; rc=$?
-diag="$(field transport_diagnostic "$out")"
-check "Codex truncates an oversized transport error rather than relaying it" \
-  '[ -n "$diag" ] && [ "${#diag}" -le 600 ]'
 
+# The one invariant that replaces every redaction row: no input can influence
+# the receipt's text, because there is none derived from the run. The fixture
+# below carries home paths, several credential-assignment shapes, URL userinfo
+# with a separator in the password, and a stderr-only marker; none of it can
+# reach the receipt, and the check is equality with a constant rather than the
+# absence of a list of shapes.
+DIAG_CONSTANT="the transport output for this failure is in transport_run_dir"
 out="$(run_codex sensitive_streams)"; rc=$?
 diag="$(field transport_diagnostic "$out")"
-check "Codex redacts home paths and credential-shaped values from the diagnostic" \
-  'case "$diag" in *sk-livetoken*|*supersecretvalue*|*"$HOME"*) false ;; *) [ -n "$diag" ] ;; esac'
+check "Codex records a receipt text no input can influence" \
+  '[ "$rc" = 2 ] && [ "$diag" = "$DIAG_CONSTANT" ]'
 
-check "Codex redacts compound and quoted credential assignments too" \
-  'case "$diag" in *accesssecretvalue*|*clientsecretvalue*|*refreshsecretvalue*) false ;; *) [ -n "$diag" ] ;; esac'
-
-# A list of credential-sounding key names has no state in which it is finished,
-# so the rule keys on the assignment shape and never reads the key.
-check "Codex redacts assignment values regardless of the key name" \
-  'case "$diag" in *sessionsecretvalue*|*cookiesecretvalue*|*authsecretvalue*|*codesecretvalue*|*bearersecretvalue*|*sidsecretvalue*) false ;; *) [ -n "$diag" ] ;; esac'
-
-urlsec=urlsecretvalue
-check "Codex redacts URL userinfo and quoted values that contain spaces" \
-  'case "$diag" in *urlsecretvalue*|*quotedsecretvalue*|*"more of it"*|*ss"$urlsec"*|*proxyuser*) false ;; *) [ -n "$diag" ] ;; esac'
-
-# The redactor above is defence in depth over a narrow, CLI-authored input. What
-# keeps arbitrary process output out of a committed receipt is that raw stderr
-# has no path into it at all.
-check "Codex keeps raw stderr out of the receipt entirely" \
-  'case "$diag" in *STDERRONLYMARKER5z*) false ;; *) [ -n "$diag" ] ;; esac'
-
-out="$(run_codex usage_limit_event)"; rc=$?
-diag="$(field transport_diagnostic "$out")"
-# The fixture secret is deliberately NOT assignment-shaped: with an
-# assignment-shaped one the assignment redactor removes it too, and this row --
-# the only guard on the query strip -- could not fail when that rule is deleted.
-check "Codex drops query strings from URLs it relays into the receipt" \
-  'case "$diag" in *A1B2C3QUERYSECRET*) false ;; *) [ -n "$diag" ] ;; esac'
-
-# A transport failure that says nothing at all is the case that reopens the
-# no-evidence hole: the key must still be there, saying so.
 out="$(run_codex silent_failure)"; rc=$?
-diag="$(field transport_diagnostic "$out")"
-check "Codex records a diagnostic even when the transport says nothing" \
-  '[ "$rc" = 2 ] && [ -n "$diag" ] && [ "${#diag}" -le 600 ]'
+check "Codex records the same text when the transport says nothing" \
+  '[ "$rc" = 2 ] && [ "$(field transport_diagnostic "$out")" = "$DIAG_CONSTANT" ]'
 
 out="$(run_codex stderr_only)"; rc=$?
 diag="$(field transport_diagnostic "$out")"
-check "Codex says so rather than quoting stderr when no error event was captured" \
-  'case "$diag" in *STDERRTAILMARKER9x*|*"startup noise"*) false ;; *) [ -n "$diag" ] ;; esac'
+check "Codex does not quote stderr into the receipt" \
+  '[ "$diag" = "$DIAG_CONSTANT" ]'
 
 # The streams have to survive the failure. Deleting them with the run directory
 # is the defect this whole round started from.
@@ -2370,9 +2337,9 @@ out2="$(STUB_BEHAVIOR=sensitive_streams REVIEW_WRAPPER_TEST_STATE="$WORK/state" 
   bash "$DIR/codex_review.sh" --implementer-family claude \
     --diff-file "$WORK/diff.patch" --review-profile-file "$WORK/review-profile.json" \
     --mode review --timeout 30)"
-diag2="$(field transport_diagnostic "$out2")"
+dir2="$(field transport_run_dir "$out2")"
 check "Codex does not treat a separator-only home as a path to elide" \
-  'case "$diag2" in *urlsecretvalue*|*supersecretvalue*|*"~private~thing"*) false ;; *) [ -n "$diag2" ] ;; esac'
+  'case "$dir2" in "~"*) false ;; /*) [ -d "$dir2" ] ;; *) false ;; esac'
 
 check "Codex elides a home path spelled with a trailing slash" \
   'case "$run_dir" in "~/"*) case "$run_dir" in *fakehome*) false ;; *) true ;; esac ;; *) false ;; esac'
