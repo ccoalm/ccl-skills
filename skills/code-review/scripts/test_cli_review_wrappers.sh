@@ -2328,6 +2328,10 @@ check "Codex says so rather than quoting stderr when no error event was captured
 # The streams have to survive the failure. Deleting them with the run directory
 # is the defect this whole round started from.
 run_dir="$(field transport_run_dir "$out")"
+# The wrapper records a path under $HOME with $HOME replaced, so a committed
+# receipt carries no username. Expand it before testing the directory, or this
+# row false-REDs on any host whose TMPDIR sits under $HOME.
+case "$run_dir" in "~/"*) run_dir="$HOME/${run_dir#\~/}" ;; esac
 check "Codex preserves the run directory on a transport failure and names it" \
   '[ -n "$run_dir" ] && [ -d "$run_dir" ] && [ -s "$run_dir/stderr.log" ] && grep -q STDERRTAILMARKER9x "$run_dir/stderr.log"'
 
