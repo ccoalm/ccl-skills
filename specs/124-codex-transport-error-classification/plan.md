@@ -179,6 +179,18 @@ the single verdict it must produce.
 - `make test-code-review`
 - `make test` plus the heavy lane, since `make test` excludes it.
 
+### One receipt is deliberately not in the tree
+
+The superseded chain's challenge receipt is held outside the repository. Its
+finding text quotes a URL carrying credentials in its userinfo component, which
+is the shape that finding was about, and the review gate's egress tripwire
+refuses any packet containing it. Committing it would make every later review of
+this repository trip that tripwire and reach for the approval flag, which spends
+a real control on synthetic data. The finding's substance is recorded instead:
+the redaction reached only assignments, and a credential in URL userinfo is not
+an assignment, so the userinfo strip was added. Every other round's receipt is
+committed unchanged.
+
 ## Test and register coverage
 
 New behaviors extend the existing codex stub in
