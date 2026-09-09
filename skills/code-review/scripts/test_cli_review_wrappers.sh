@@ -911,7 +911,9 @@ import json, sys
 # `sk-` token is refused by validate-skill.sh, and a credentialed URL trips the
 # review gate's own egress tripwire on every later review of this repository --
 # both scanners behaving correctly on a fixture that only looks real.
-credentialed_url = "https://proxyuser:" + sys.argv[3] + "@" + "proxy.invalid:8080/path"
+# The password carries a literal "@": a userinfo rule that stops at the first
+# one leaves the tail of the password in the receipt.
+credentialed_url = "https://proxyuser:p" + "@" + "ss" + sys.argv[3] + "@" + "proxy.invalid:8080/path"
 print(json.dumps({"type": "error", "message": (
     "failed while reading " + sys.argv[1] + "/private/thing"
     " sk-" + sys.argv[2] + " token=supersecretvalue"
@@ -2299,8 +2301,9 @@ check "Codex redacts compound and quoted credential assignments too" \
 check "Codex redacts assignment values regardless of the key name" \
   'case "$diag" in *sessionsecretvalue*|*cookiesecretvalue*|*authsecretvalue*|*codesecretvalue*|*bearersecretvalue*|*sidsecretvalue*) false ;; *) [ -n "$diag" ] ;; esac'
 
+urlsec=urlsecretvalue
 check "Codex redacts URL userinfo and quoted values that contain spaces" \
-  'case "$diag" in *urlsecretvalue*|*quotedsecretvalue*|*"more of it"*) false ;; *) [ -n "$diag" ] ;; esac'
+  'case "$diag" in *urlsecretvalue*|*quotedsecretvalue*|*"more of it"*|*ss"$urlsec"*|*proxyuser*) false ;; *) [ -n "$diag" ] ;; esac'
 
 # The redactor above is defence in depth over a narrow, CLI-authored input. What
 # keeps arbitrary process output out of a committed receipt is that raw stderr

@@ -635,7 +635,9 @@ for needle, replacement in needles:
         text = text.replace(needle, replacement)
 # URL userinfo and query strings first: a credential carried in either is not an
 # assignment and would survive every rule below.
-text = re.sub(r"(https?://)[^\s/@]*@", r"\1", text)
+# Greedy to the LAST "@" before the path: a password may contain a literal
+# "@", and stopping at the first one leaves its tail in the excerpt.
+text = re.sub(r"(https?://)[^\s/]*@", r"\1", text)
 text = re.sub(r"(https?://[^\s?]*)\?\S*", r"\1", text)
 text = re.sub(r"\bsk-[A-Za-z0-9_-]{6,}", "<redacted>", text)
 text = re.sub(r"\bBearer\s+\S+", "Bearer <redacted>", text, flags=re.IGNORECASE)
