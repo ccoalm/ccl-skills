@@ -911,6 +911,17 @@ if [ "$behavior" = "sensitive_streams" ]; then
     'accesssecretvalue' 'clientsecretvalue' 'refreshsecretvalue' >&2
   exit 1
 fi
+if [ "$behavior" = "unnamed_credentials" ]; then
+  # None of these keys is on any credential keyword list, which is the point:
+  # a list of credential-sounding names cannot be completed, so the rule has to
+  # be about the assignment shape rather than about the key.
+  printf 'session=%s cookie=%s auth=%s code=%s bearer=%s sid=%s\n' \
+    'sessionsecretvalue' 'cookiesecretvalue' 'authsecretvalue' \
+    'codesecretvalue' 'bearersecretvalue' 'sidsecretvalue' >&2
+  printf '{"credential": "%s", "refresh_session": "%s"}\n' \
+    'credentialsecretvalue' 'refreshsessionsecretvalue' >&2
+  exit 1
+fi
 if [ "$behavior" = "silent_failure" ]; then
   exit 1
 fi
@@ -2285,6 +2296,14 @@ out="$(run_codex sensitive_streams)"; rc=$?
 diag="$(field transport_diagnostic "$out")"
 check "Codex redacts compound and quoted credential assignments too" \
   'case "$diag" in *accesssecretvalue*|*clientsecretvalue*|*refreshsecretvalue*) false ;; *) [ -n "$diag" ] ;; esac'
+
+# The redaction rule is about the shape of an assignment, not about a list of
+# credential-sounding key names: such a list cannot be completed, and two
+# review rounds each found a different name missing from it.
+out="$(run_codex unnamed_credentials)"; rc=$?
+diag="$(field transport_diagnostic "$out")"
+check "Codex redacts assignment values regardless of the key name" \
+  'case "$diag" in *sessionsecretvalue*|*cookiesecretvalue*|*authsecretvalue*|*codesecretvalue*|*bearersecretvalue*|*sidsecretvalue*|*credentialsecretvalue*|*refreshsessionsecretvalue*) false ;; *) [ -n "$diag" ] ;; esac'
 
 # A transport failure that says nothing at all is the case that reopens the
 # no-evidence hole: the key must still be there, saying so.

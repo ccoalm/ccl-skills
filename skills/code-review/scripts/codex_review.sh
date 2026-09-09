@@ -604,12 +604,13 @@ text = re.sub(r"(https?://[^\s?]*)\?\S*", r"\1", text)
 text = re.sub(r"\bsk-[A-Za-z0-9_-]{6,}", "<redacted>", text)
 text = re.sub(r"\bBearer\s+\S+", "Bearer <redacted>", text, flags=re.IGNORECASE)
 text = re.sub(r"\beyJ[A-Za-z0-9_.-]{10,}", "<redacted>", text)
-text = re.sub(
-    r"[\"']?[\w.-]*(api[_-]?key|key|token|secret|password)[\"']?\s*[=:]\s*[\"']?[^\s\"',]+",
-    r"\1=<redacted>",
-    text,
-    flags=re.IGNORECASE,
-)
+# The rule is the assignment SHAPE, not a list of credential-sounding key
+# names. Two review rounds each found a different name missing from such a list
+# -- first `access_token` and `client_secret`, then `session`, `cookie`, `auth`,
+# `code` and `bearer` -- which is what a denylist of names does. The key is kept
+# so the excerpt still says what failed; only the value goes.
+text = re.sub(r"([A-Za-z_][A-Za-z0-9_.-]*)\s*=\s*[^\s,;]+", r"\1=<redacted>", text)
+text = re.sub(r"\"([^\"]{1,64})\"\s*:\s*\"[^\"]*\"", r'"\1": "<redacted>"', text)
 text = " ".join(text.split())
 if len(text) > LIMIT:
     if keep_head:
