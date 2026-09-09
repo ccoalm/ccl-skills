@@ -903,6 +903,74 @@ else
     '{ [ "$real_rc" = 0 ] && { case "$real_out" in [0-9a-f]*) [ ${#real_out} = 64 ];; *) false;; esac || case "$real_out" in *review_ledger_binding_no_change*) true;; *) false;; esac; }; } || { [ "$real_rc" = 1 ] && case "$real_out" in *"cannot freeze the candidate packet"*"review packet exceeds 200000 bytes"*) true;; *) false;; esac; }'
 fi
 
+# The point of splitting the candidate from the packet is that a round which
+# widened its packet to answer an evidence-gap finding still produces a receipt
+# this gate can accept. That claim spans both sides, so it is asserted across
+# both: the identity the controller records for a widened packet must be the
+# identity this gate recomputes from the repository. Mutate the gate to return
+# the packet hash instead and this goes red while nothing else does.
+printf 'widened-candidate\n' >>"$REPO/skills/skill-extraction-workflow/SKILL.md"
+git -C "$REPO" add -A
+git -C "$REPO" commit -qm widened
+WIDENED_BASE="$BASE"
+GATE_CANDIDATE="$(run_gate --base "$WIDENED_BASE" --print-candidate)"
+controller_candidate="$(
+CONTROLLER_DIR="$(dirname "$CONTROLLER")" REPO="$REPO" BASE="$WIDENED_BASE" \
+  GATE="$GATE" WORK="$WORK" python3 - <<'PY' 2>&1
+import importlib.util
+import os
+import sys
+import time
+from pathlib import Path
+from types import SimpleNamespace
+
+sys.path.insert(0, os.environ["CONTROLLER_DIR"])
+import review_gate
+
+spec = importlib.util.spec_from_file_location("binder", os.environ["GATE"])
+binder = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(binder)
+
+repo = Path(os.environ["REPO"])
+# An author cannot hand-build these: the base is a fork point and the paths
+# carry the receipt exclusions this round already added. Both come from the gate
+# that will judge the receipt, which is what makes it one identity.
+base, _excludes, paths, _changed = binder.candidate_scope(
+    repo, os.environ["BASE"], (".",)
+)
+
+
+def freeze(**overrides):
+    args = SimpleNamespace(
+        cwd=str(repo),
+        diff_file=None,
+        base=base,
+        paths=list(paths),
+        wording_only_proof_file=None,
+    )
+    for key, value in overrides.items():
+        setattr(args, key, value)
+    return review_gate.freeze_packet(args, time.monotonic() + 60)
+
+
+narrow_path, _narrow_packet, narrow_candidate, _n, _p, _s = freeze()
+subject = narrow_path.read_bytes()
+narrow_path.unlink()
+
+# Outside the repository: the candidate includes untracked files.
+widened = Path(os.environ["WORK"]) / "widened-for-binder.patch"
+widened.write_bytes(subject + b"\n--- appended context for the reviewer ---\n")
+wide_path, wide_packet, wide_candidate, _wn, _p, _s = freeze(diff_file=str(widened))
+wide_path.unlink()
+
+assert wide_packet != wide_candidate, "the widened packet must not be its own candidate"
+assert wide_candidate == narrow_candidate, "widening moved the candidate"
+print(wide_candidate)
+PY
+)"
+check "a widened packet records the candidate identity this gate recomputes" \
+  '[ ${#GATE_CANDIDATE} = 64 ] && [ "$controller_candidate" = "$GATE_CANDIDATE" ]'
+
 if [ "$fails" -gt 0 ]; then
   echo "test_review_ledger_binding: $fails failing case(s)" >&2
   exit 1

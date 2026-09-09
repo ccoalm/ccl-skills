@@ -873,6 +873,76 @@ if [ "$behavior" = "no_events" ]; then
 fi
 printf '%s\n' '{"type":"thread.started","thread_id":"test-thread"}'
 printf '%s\n' '{"type":"turn.started"}'
+# Transport failures whose only account of themselves is the event stream. The
+# CLI reports these on stdout, so a wrapper that classifies from stderr alone
+# cannot see them.
+if [ "$behavior" = "usage_limit_event" ]; then
+  printf '%s\n' '{"type":"error","message":"You'"'"'ve hit your usage limit. Visit https://example.invalid/settings/usage?A1B2C3QUERYSECRET to purchase more credits."}'
+  printf '%s\n' '{"type":"turn.failed","error":{"message":"You'"'"'ve hit your usage limit."}}'
+  exit 1
+fi
+if [ "$behavior" = "usage_limit_turn_failed" ]; then
+  printf '%s\n' '{"type":"turn.failed","error":{"message":"request rejected: rate limit exceeded for this account"}}'
+  exit 1
+fi
+if [ "$behavior" = "auth_event" ]; then
+  printf '%s\n' '{"type":"error","message":"unauthorized: the stored credential was rejected"}'
+  exit 1
+fi
+# The packet is untrusted, and the model quotes it. Quota vocabulary reaching
+# the classifier from here would let a reviewed diff choose its own reviewer.
+if [ "$behavior" = "quota_in_model_output" ]; then
+  printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"the diff mentions 429 rate limit and quota handling CODEXLEAKMARKER7f3a"}}'
+  printf '%s\n' '{"type":"item.completed","item":{"type":"error","message":"429 quota rate limit CODEXLEAKMARKER7f3a"}}'
+  printf '%s\n' 'stub failed for an unrelated reason' >&2
+  exit 1
+fi
+if [ "$behavior" = "sensitive_streams" ]; then
+  # The credential-shaped values are assembled at runtime: written whole they
+  # would put a real `sk-` token shape in the repository, which the credential
+  # scanner in validate-skill.sh refuses -- correctly.
+  #
+  # They travel on the EVENT stream, because that is the stream the receipt
+  # reads. A fixture that put them on stderr would leave every redaction
+  # assertion below vacuously green.
+  python3 - "$HOME" 'livetoken00000000000000' 'urlsecretvalue' <<'PY_SENSITIVE'
+import json, sys
+# Both credential shapes are assembled here rather than written literally. A
+# `sk-` token is refused by validate-skill.sh, and a credentialed URL trips the
+# review gate's own egress tripwire on every later review of this repository --
+# both scanners behaving correctly on a fixture that only looks real.
+# The password carries a literal "@": a userinfo rule that stops at the first
+# one leaves the tail of the password in the receipt.
+# The host carries no dot: with one, the userinfo tail plus host reads as an
+# email address, and a reviewer quoting the finding puts that shape into a
+# receipt the public-sanitization gate then refuses.
+credentialed_url = "https://proxyuser:p" + "@" + "ss" + sys.argv[3] + "@" + "localhost/path"
+print(json.dumps({"type": "error", "message": (
+    "failed while reading " + sys.argv[1] + "/private/thing"
+    " sk-" + sys.argv[2] + " token=supersecretvalue"
+    " access_token=accesssecretvalue client_secret=clientsecretvalue"
+    ' {"refresh_token": "refreshsecretvalue"}'
+    " session=sessionsecretvalue cookie=cookiesecretvalue auth=authsecretvalue"
+    " code=codesecretvalue bearer=bearersecretvalue sid=sidsecretvalue"
+    " " + credentialed_url +
+    ' quoted="quotedsecretvalue more of it"'
+)}))
+PY_SENSITIVE
+  printf 'STDERRONLYMARKER5z should never reach the receipt\n' >&2
+  exit 1
+fi
+if [ "$behavior" = "silent_failure" ]; then
+  exit 1
+fi
+if [ "$behavior" = "stderr_only" ]; then
+  python3 -c 'print("startup noise line. " * 60)' >&2
+  printf 'the real failure is here STDERRTAILMARKER9x\n' >&2
+  exit 1
+fi
+if [ "$behavior" = "long_error_event" ]; then
+  python3 -c 'import json;print(json.dumps({"type":"error","message":"E"*4000}))'
+  exit 1
+fi
 case "$behavior" in
   packet_read|packet_search|packet_tampered) printf '%s\n' '{"status":"passed","concern_results":[{"concern":"correctness","conclusion":"Independently checked correctness against the frozen candidate."}],"findings":[]}' >"$last_message" ;;
   pass|shell_disable_required|missing_shell_feature|removed_shell_feature|ignored_shell_disable|mcp_capability_missing|inherited_mcp|inherited_mcp_dot|inherited_mcp_space|inherited_mcp_quote|skills_budget_warning|skills_budget_warning_after_concern|hook_trust_warning|hook_trust_warning_started|hook_trust_warning_repeated_after_concern|unknown_error_valid_result) printf '%s\n' '{"status":"passed","concern_results":[{"concern":"correctness","conclusion":"Independently checked correctness against the frozen candidate."}],"findings":[]}' >"$last_message" ;;
@@ -2185,6 +2255,98 @@ check "Codex keeps an early child SIGKILL terminal instead of calling it timeout
 out="$(run_codex signal_exit)"; rc=$?
 check "Codex process signals are terminal operator interrupts" \
   '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = operator_interrupt ] && [ "$(field cascade_eligible "$out")" = False ]'
+
+# The CLI reports supply and credential failures as structured events on stdout,
+# not on stderr. Classifying from stderr alone turns a cascade-eligible quota
+# into a terminal unknown failure and stops the whole reviewer lane.
+out="$(run_codex usage_limit_event)"; rc=$?
+check "Codex reads a usage limit reported only on the event stream" \
+  '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ]'
+
+out="$(run_codex usage_limit_turn_failed)"; rc=$?
+check "Codex reads a rate limit carried by a failed turn" \
+  '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ]'
+
+out="$(run_codex auth_event)"; rc=$?
+check "Codex reads a credential rejection reported only on the event stream" \
+  '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = provider_unavailable ] && [ "$(field cascade_eligible "$out")" = True ]'
+
+# Only the transport's own top-level errors classify. Model-authored content
+# arrives nested under `item`, and the packet it quotes is untrusted.
+out="$(run_codex quota_in_model_output)"; rc=$?
+check "Codex refuses to classify from packet-derived model output" \
+  '[ "$rc" = 2 ] && [ "$(field reason_code "$out")" = unknown_client_failure ] && [ "$(field cascade_eligible "$out")" = False ]'
+
+
+
+
+# The one invariant that replaces every redaction row: no input can influence
+# the receipt's text, because there is none derived from the run. The fixture
+# below carries home paths, several credential-assignment shapes, URL userinfo
+# with a separator in the password, and a stderr-only marker; none of it can
+# reach the receipt, and the check is equality with a constant rather than the
+# absence of a list of shapes.
+DIAG_CONSTANT="the transport output for this failure is in transport_run_dir"
+out="$(run_codex sensitive_streams)"; rc=$?
+diag="$(field transport_diagnostic "$out")"
+check "Codex records a receipt text no input can influence" \
+  '[ "$rc" = 2 ] && [ "$diag" = "$DIAG_CONSTANT" ]'
+
+out="$(run_codex silent_failure)"; rc=$?
+check "Codex records the same text when the transport says nothing" \
+  '[ "$rc" = 2 ] && [ "$(field transport_diagnostic "$out")" = "$DIAG_CONSTANT" ]'
+
+out="$(run_codex stderr_only)"; rc=$?
+diag="$(field transport_diagnostic "$out")"
+check "Codex does not quote stderr into the receipt" \
+  '[ "$diag" = "$DIAG_CONSTANT" ]'
+
+# The streams have to survive the failure. Deleting them with the run directory
+# is the defect this whole round started from.
+run_dir="$(field transport_run_dir "$out")"
+# The wrapper records a path under $HOME with $HOME replaced, so a committed
+# receipt carries no username. Expand it before testing the directory, or this
+# row false-REDs on any host whose TMPDIR sits under $HOME.
+case "$run_dir" in "~/"*) run_dir="$HOME/${run_dir#\~/}" ;; esac
+check "Codex preserves the run directory on a transport failure and names it" \
+  '[ -n "$run_dir" ] && [ -d "$run_dir" ] && [ -s "$run_dir/stderr.log" ] && grep -q STDERRTAILMARKER9x "$run_dir/stderr.log"'
+
+check "Codex keeps the preserved run directory private" \
+  '[ "$(dir_mode "$run_dir")" = 700 ]'
+
+# The eliding compares physical paths, so a home spelled with a trailing slash
+# -- or through a symlink -- still elides. Comparing the literal `$HOME` string
+# would put the username in a committed receipt on exactly those hosts.
+# Invoked directly rather than through run_codex: that helper pins TMPDIR, and
+# this row needs a TMPDIR that sits under the home it is testing.
+mkdir -p "$WORK/fakehome/tmp"
+out="$(STUB_BEHAVIOR=stderr_only REVIEW_WRAPPER_TEST_STATE="$WORK/state" \
+  PATH="$WORK/bin:$PATH" TMPDIR="$WORK/fakehome/tmp" HOME="$WORK/fakehome/" \
+  CODEX_HOME="$WORK/codex-source" TEST_DIFF_PATH="$WORK/diff.patch" \
+  TEST_PROFILE_PATH="$WORK/review-profile.json" \
+  bash "$DIR/codex_review.sh" --implementer-family claude \
+    --diff-file "$WORK/diff.patch" --review-profile-file "$WORK/review-profile.json" \
+    --mode review --timeout 30)"; rc=$?
+run_dir="$(field transport_run_dir "$out")"
+# HOME=/ is real in root and arbitrary-uid containers. Treated as a home
+# spelling it would rewrite every separator in the excerpt.
+out2="$(STUB_BEHAVIOR=sensitive_streams REVIEW_WRAPPER_TEST_STATE="$WORK/state" \
+  PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" HOME=/ \
+  CODEX_HOME="$WORK/codex-source" TEST_DIFF_PATH="$WORK/diff.patch" \
+  TEST_PROFILE_PATH="$WORK/review-profile.json" \
+  bash "$DIR/codex_review.sh" --implementer-family claude \
+    --diff-file "$WORK/diff.patch" --review-profile-file "$WORK/review-profile.json" \
+    --mode review --timeout 30)"
+dir2="$(field transport_run_dir "$out2")"
+check "Codex does not treat a separator-only home as a path to elide" \
+  'case "$dir2" in "~"*) false ;; /*) [ -d "$dir2" ] ;; *) false ;; esac'
+
+check "Codex elides a home path spelled with a trailing slash" \
+  'case "$run_dir" in "~/"*) case "$run_dir" in *fakehome*) false ;; *) true ;; esac ;; *) false ;; esac'
+
+out="$(run_codex pass)"; rc=$?
+check "Codex adds no diagnostic field to a successful review" \
+  '[ "$rc" = 0 ] && json_lacks_key "$out" transport_diagnostic && json_lacks_key "$out" transport_run_dir'
 
 echo '----'
 if [ "$fails" -eq 0 ]; then

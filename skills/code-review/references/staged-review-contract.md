@@ -184,6 +184,46 @@ commit an in-scope path when Git should represent it; or compose complete
 `--diff-file` partitions when the candidate must be split. Never omit a path
 and report the remaining packet as the whole candidate.
 
+## The packet and the candidate
+
+They are two objects. The **packet** is what the reviewer reads; the **candidate**
+is what will land and what `review_ledger_binding.py` recomputes at merge time.
+A receipt records both hashes.
+
+They hold the same value when the packet came from `--base` alone. Pass
+`--diff-file` **with** `--base`/`--paths` to widen what the reviewer reads while
+the round still binds the landing candidate — the shape an evidence-gap finding
+needs, since editing the candidate would answer an input defect with a candidate
+change. `--diff-file` alone binds no landing; only the combined form rejects a
+`--wording-only-proof-file`.
+
+What makes the widened form safe is a **prefix requirement**: the packet begins
+with the base-derived candidate, byte for byte, so nothing lands unread.
+
+- **Append context after the candidate diff.** Putting anything before the
+  candidate fails, and that is not cosmetic: a packet preceding it with a decoy
+  diff would read as the change while the real candidate read as context.
+  Interleaving context inside the candidate fails, as does dropping any part of
+  it. The reviewer is told where the candidate ends — the profile carries
+  `candidate_bytes` and states that exactly the first N packet bytes land — so
+  appended hunks that continue or seem to revert the diff cannot pass as it.
+- **Keep the packet file outside the repository, and put nothing else in the
+  tree while the rounds run.** The controller counts every untracked path into
+  the candidate; the binder counts only committed content minus the receipt JSON
+  a round adds. A packet file, a superseded round's receipt, or any scratch
+  artifact in the worktree therefore moves the candidate the rounds bind and the
+  binder never computes it — the mirror of committing a plain-text attestation
+  after the rounds. Bound evidence lands before the rounds, receipts after,
+  nothing else present.
+- **Read the candidate identity, do not reconstruct it.** `--print-candidate`
+  is the authority: its base is a fork point, its paths carry the round's
+  exclusions, and it refuses an uncommitted tree.
+- Worth adding beyond the diff — the canonical rule the changed lines must not
+  contradict, sibling clauses, the carriers restating the change, gate output.
+
+Rounds in one chain agree on the **candidate**, not the packet, which lets a
+later round read more than an earlier one.
+
 ## Proof-bound wording-only single review
 
 The wording-only exception is one untracked `review` with
