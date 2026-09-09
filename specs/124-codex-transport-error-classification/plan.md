@@ -21,12 +21,16 @@ Risk tags (`feature-risk-router`): `shared-gate`, `security-review`,
    reviewer it selected. The change reads only the transport's own top-level
    error events for this reason, and a fixture proves packet-derived text
    cannot reach the classifier.
-2. The new receipt field copies CLI output into a JSON receipt that rounds
-   commit as evidence, which is an egress surface. The field is bounded and
-   redacted at the point it is built, not at the point it is committed.
+2. The receipt is committed as round evidence, so anything the round puts in it
+   crosses an egress boundary. The design this round finally lands answers that
+   by bounding what may enter rather than by filtering what does: raw process
+   output stays in the preserved run directory and never reaches the receipt.
+   The redaction that remains covers a narrow, CLI-authored input and is defence
+   in depth. The superseded excerpt design, and why three review chains were
+   needed to reject it, are recorded under *The change*.
 
-`visible surface: no` — a wrapper's failure classification and one receipt
-field.
+`visible surface: no` — a wrapper's failure classification, two receipt fields,
+and the lifetime of a run directory.
 
 ## The defect
 
@@ -89,22 +93,47 @@ choose the reviewer lane's verdict.
 Classifier order and every existing reason code stay as they are. This change
 adds an input to two predicates; it does not reorder or redefine them.
 
-### Keep a bounded, redacted diagnostic on every transport failure
+### Keep the streams instead of an excerpt of them
 
-Every exit taken after the `codex exec` invocation returns non-zero carries a
-`transport_diagnostic` string built from the extracted transport error
-messages, falling back to the stderr tail when no such event exists.
+The first version of this section prescribed a redacted excerpt of both streams
+in the receipt. Three review chains refuted it and it is recorded here as
+superseded rather than quietly replaced, because the refutation is the reusable
+part: each chain found a different escape from the same filter -- a key name the
+list lacked, an assignment form the shape rule lacked, and URL userinfo, which
+is not an assignment at all. Replacing the name list with a shape rule was
+recorded at the time as an invariant change and was not one; names and shapes
+are both enumerations of how a secret might look. The input was arbitrary
+process output, and "nothing secret-shaped survives" is not a decidable property
+of arbitrary text.
 
-The field is bounded to 600 bytes with an explicit truncation marker, collapsed
-to one line, and redacted before it is emitted: `$HOME` and the run root become
-placeholders, URL query strings are dropped, and credential-shaped values
-(`sk-`, `Bearer`, JWT-shaped, and `key=`/`token=`/`secret=` assignments) are
-replaced. It is built only from the transport's own error events and stderr, so
-packet-derived and model-authored text has no path into it.
+The original defect was also misread. The streams were not missing because the
+receipt was too small. They were missing because the `EXIT` trap deletes
+`$RUN_ROOT`. So:
 
-It is emitted on classified failures too, not only on the terminal branch. A
-classified failure that is classified *wrongly* is the shape this round is
-repairing, and it is invisible unless the receipt keeps what the classifier saw.
+- On a transport failure the run directory **survives**, and the receipt carries
+  its path as `transport_run_dir`. It is mode 0700 under `TMPDIR` and holds
+  exactly what it held while the run was in flight, so nothing is exposed that
+  was not already; reclaiming it stays the platform's temp-directory lifetime. A
+  path under `$HOME` is recorded with `$HOME` replaced, so a committed receipt
+  carries no username. A successful run still deletes the directory and carries
+  neither field.
+- `transport_diagnostic` carries **only** the transport's own top-level error
+  messages, deduplicated, one line, at most 600 bytes with a truncation marker.
+  Raw stderr has no path into it. When no error event was captured the field
+  says so and points at the directory, so key presence never has to be read as
+  a success signal.
+
+Redaction remains over that narrow, CLI-authored input -- `$HOME` and run-root
+paths, URL userinfo and query strings, `sk-`, `Bearer`, JWT shapes, and the
+value of any `key=value` or quoted `"key": "value"` pair whatever the key is
+called. It is defence in depth, not the control the safety rests on: a provider
+error can still echo a bad key. What makes the receipt safe is that the
+unbounded input no longer reaches it.
+
+Both fields are emitted on classified failures too, not only on the terminal
+branch. A classified failure that is classified *wrongly* is the shape this
+round is repairing, and it is invisible unless the receipt keeps what the
+classifier saw.
 
 `review_gate.py` relays unknown wrapper keys unchanged, and `egress_schema.py`
 governs the opencode lane only, so no schema edit is required and none is made.
@@ -123,10 +152,12 @@ the single verdict it must produce.
 | A5 | quota text on stderr, exit 1 | `reason_code: quota` — today's behavior, unchanged |
 | A6 | a failure matching no pattern, exit 1 | `reason_code: unknown_client_failure`, `cascade_eligible: false` |
 | A7 | any exit-1 failure | receipt carries `transport_diagnostic`, at most 600 bytes, single line |
-| A8 | streams containing `$HOME`, the run root, and credential-shaped values | none of them appear in `transport_diagnostic` |
+| A8 | an error event carrying `$HOME`, the run root, and credential-shaped values, whatever the key is called | none of them appear in `transport_diagnostic` |
 | A9 | an agent message carrying a unique marker | the marker does not appear in `transport_diagnostic` |
+| A13 | a marker written only to stderr | it does not appear in `transport_diagnostic` at all |
+| A14 | any exit-1 failure | the run directory survives, is mode 0700, still holds `stderr.log`, and its path is in `transport_run_dir` |
 | A10 | exit 124 past the deadline | `reason_code: timeout` — today's behavior, unchanged |
-| A11 | a run that succeeds | receipt byte-identical to today's |
+| A11 | a run that succeeds | receipt carries neither field, and the run directory is deleted as before |
 | A12 | a wrapper receipt carrying A1's codes | `review_gate.py` emits a cascade, not `stop_reviewer_lane` |
 
 ## Verification plan
@@ -138,8 +169,11 @@ the single verdict it must produce.
   the ones that must be seen red for the *right* reason, not merely red.
 - **Mutation, per protected predicate.** Remove the top-level restriction and
   A4 plus A9 must turn red; remove the redaction and A8 must turn red; remove
-  the bound and A7 must turn red. A predicate whose removal breaks nothing is
-  not carrying the invariant it claims.
+  the bound and A7 must turn red; restore the raw-stderr fallback and A13 must
+  turn red; delete the run directory on failure again and A14 must turn red;
+  drop the URL-userinfo strip or the quoted-value alternation and the shape row
+  must turn red. A predicate whose removal breaks nothing is not carrying the
+  invariant it claims.
 - `bash skills/code-review/scripts/test_cli_review_wrappers.sh`
 - `bash skills/code-review/scripts/test_review_gate.sh`
 - `make test-code-review`
@@ -174,5 +208,9 @@ kimi, and the unavailability is recorded rather than reported as a passing gate.
   account. Recorded as a follow-up, not assumed to be the same defect.
 - Restoring codex availability. The quota window is an account condition, not a
   repository one.
+- Making the remaining redaction provably complete. It is not completable over
+  arbitrary text, which is why the arbitrary text was removed from its input
+  instead. A CLI-authored error message can still echo a credential, and that
+  residual is stated rather than closed.
 - Widening `CANDIDATE_LOCAL_CODES` or changing what any existing reason code
   means.
