@@ -1679,7 +1679,7 @@ diff_alternate = root / "alternate.patch"
 diff_source.write_bytes(original_diff)
 diff_alternate.write_bytes(alternate_diff)
 with replace_after_symlink_check(diff_source, diff_alternate):
-    packet_path, digest, _, _ = review_gate.freeze_packet(
+    packet_path, digest, _candidate, _n, _, _ = review_gate.freeze_packet(
         SimpleNamespace(
             cwd=str(root), diff_file=str(diff_source), base=None, paths=[]
         ),
@@ -1773,6 +1773,241 @@ PY
 file_input_race_rc=$?
 check "diff, prior, and completion inputs are read once from a bounded opened descriptor" \
   '[ "$file_input_race_rc" = 0 ] && [ "$file_input_race_probe" = open_once_file_inputs_ok ]'
+
+# The reviewer's packet and the landing candidate are two objects. A widened
+# packet exists so a reviewer can judge a claim against code outside the diff;
+# the candidate exists so the merge-side binder can recompute what actually
+# lands. Aliasing them made the two mutually exclusive: widening produced a
+# receipt the binder could never match. These assert the split and the one
+# invariant that replaces the equality -- the candidate appears in the packet
+# verbatim, so nothing lands that its reviewer did not read.
+subject_packet_probe="$(
+PYTHONPATH="$WORK/harness/scripts" python3 - "$WORK" <<'PY'
+import hashlib
+import subprocess
+import sys
+import time
+from pathlib import Path
+from types import SimpleNamespace
+
+import review_gate
+
+root = Path(sys.argv[1]) / "subject-vs-packet"
+root.mkdir()
+# Packet files live OUTSIDE the repository on purpose: the base-derived
+# candidate includes untracked files, so a packet written into the worktree
+# would become part of the very candidate it has to contain.
+outside = Path(sys.argv[1]) / "subject-vs-packet-packets"
+outside.mkdir()
+
+
+def git(*args):
+    subprocess.run(
+        ["git", "-C", str(root), *args],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+git("init", "-q")
+git("config", "user.email", "fixture@example.invalid")
+git("config", "user.name", "fixture")
+(root / "landing.txt").write_text("old\n", encoding="utf-8")
+(root / "context.txt").write_text("context-base\n", encoding="utf-8")
+git("add", "landing.txt", "context.txt")
+git("commit", "-qm", "base")
+base = subprocess.run(
+    ["git", "-C", str(root), "rev-parse", "HEAD"],
+    check=True,
+    capture_output=True,
+    text=True,
+).stdout.strip()
+(root / "landing.txt").write_text("new\n", encoding="utf-8")
+
+
+def freeze(*, diff_file=None, paths=(), base_ref=base, wording=None):
+    return review_gate.freeze_packet(
+        SimpleNamespace(
+            cwd=str(root),
+            diff_file=str(diff_file) if diff_file else None,
+            base=base_ref,
+            paths=list(paths),
+            wording_only_proof_file=wording,
+        ),
+        time.monotonic() + 30,
+    )
+
+
+def digest(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def expect_refused(label, **kwargs):
+    try:
+        result = freeze(**kwargs)
+    except review_gate.GateError as exc:
+        return exc
+    result[0].unlink()
+    raise AssertionError(label)
+
+
+# The base-derived subject: exactly what the landing binder recomputes.
+subject_path, subject_hash, subject_candidate_hash, subject_n, subject_paths, _ = freeze()
+subject_bytes = subject_path.read_bytes()
+subject_path.unlink()
+assert subject_hash == digest(subject_bytes)
+assert subject_candidate_hash == subject_hash
+assert subject_n == len(subject_bytes)
+assert subject_paths == ["landing.txt"], subject_paths
+
+# A7 -- with no --diff-file the two hashes are the same value, as they are today.
+plain_path, plain_packet_hash, plain_candidate_hash, _plain_n, plain_paths, _ = freeze()
+plain_path.unlink()
+assert plain_packet_hash == subject_hash
+assert plain_candidate_hash == subject_hash
+assert plain_paths == ["landing.txt"], plain_paths
+
+# A1/A2/A3 -- a widened packet carries the whole subject plus context the
+# reviewer needs. The packet hash is the widened bytes; the candidate hash is
+# still the base-derived subject the binder will recompute.
+context = (
+    b"\n--- context: skills/code-review/SKILL.md (unchanged, for judgment) ---\n"
+    b"the sibling clause the changed lines must not contradict\n"
+)
+widened = outside / "widened.patch"
+widened.write_bytes(subject_bytes + context)
+wide_path, wide_packet_hash, wide_candidate_hash, wide_n, wide_paths, _ = freeze(
+    diff_file=widened
+)
+try:
+    assert wide_packet_hash == digest(subject_bytes + context)
+    assert wide_candidate_hash == subject_hash
+    assert wide_packet_hash != wide_candidate_hash
+    # The reviewer is told where the candidate ends; without that, appended
+    # hunks that continue or appear to revert the diff are indistinguishable
+    # from candidate content in a packet-bounded read.
+    assert wide_n == len(subject_bytes), wide_n
+    # A10 -- candidate paths follow the subject, not the packet, so owner
+    # selection and the wording-only changed-file comparison stay bound to what
+    # lands rather than to whatever context was appended.
+    assert wide_paths == ["landing.txt"], wide_paths
+finally:
+    wide_path.unlink()
+
+# A5 -- a packet missing part of the candidate is refused. This is the property
+# the equality used to provide for free.
+truncated = outside / "truncated.patch"
+truncated.write_bytes(subject_bytes[: len(subject_bytes) // 2] + context)
+exc = expect_refused(
+    "a packet missing part of the candidate was accepted", diff_file=truncated
+)
+assert "BEGIN" in str(exc), str(exc)
+
+# A6 -- context appended passes; context spliced into the middle of the
+# candidate does not, because then the candidate is no longer in the packet
+# verbatim and no cheap check can tell a splice from a silent edit.
+split = len(subject_bytes) // 2
+interleaved = outside / "interleaved.patch"
+interleaved.write_bytes(subject_bytes[:split] + context + subject_bytes[split:])
+expect_refused(
+    "a packet interleaving context inside the candidate was accepted",
+    diff_file=interleaved,
+)
+
+# A11 -- context BEFORE the candidate is refused even though the candidate is
+# present verbatim. A bare containment test accepts this, and an adversarial
+# round showed what it buys: a sanitized decoy diff read as the change while the
+# real candidate reads as trailing context.
+prepended = outside / "prepended.patch"
+prepended.write_bytes(context + subject_bytes)
+exc = expect_refused(
+    "a packet preceding the candidate with other content was accepted",
+    diff_file=prepended,
+)
+assert "BEGIN" in str(exc), str(exc)
+
+# A4 -- a packet with no relation to the candidate is refused.
+unrelated = outside / "unrelated.patch"
+unrelated.write_bytes(b"diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n")
+expect_refused("an unrelated packet was accepted", diff_file=unrelated)
+
+# A8 -- --diff-file alone keeps today's meaning: no base, so no subject, and
+# the candidate hash stays the packet's own hash.
+alone_path, alone_packet_hash, alone_candidate_hash, _n, _, _ = freeze(
+    diff_file=widened, base_ref=None
+)
+alone_path.unlink()
+assert alone_packet_hash == digest(subject_bytes + context)
+assert alone_candidate_hash == alone_packet_hash
+
+# A9 -- the wording-only proof is a machine check over a full-context
+# base-derived diff and has no meaning over an author-assembled packet.
+proof = outside / "wording-only.json"
+proof.write_text("{}", encoding="utf-8")
+expect_refused(
+    "a wording-only proof was accepted over an author-assembled packet",
+    diff_file=widened,
+    wording=str(proof),
+)
+# ... in the COMBINED form. Bare --diff-file with a wording-only proof stays
+# accepted, which the cases above this block exercise throughout; the boundary
+# is where a base-derived candidate and author-assembled bytes would both be in
+# play with nothing saying which one the proof's scope describes.
+result = freeze(diff_file=widened, base_ref=None, wording=str(proof))
+result[0].unlink()
+
+# A12 -- an empty base-derived candidate is refused rather than trivially
+# satisfying the prefix check, which every packet does for empty bytes.
+empty_repo = Path(sys.argv[1]) / "empty-candidate"
+empty_repo.mkdir()
+subprocess.run(["git", "-C", str(empty_repo), "init", "-q"], check=True)
+subprocess.run(
+    ["git", "-C", str(empty_repo), "config", "user.email", "fixture@example.invalid"],
+    check=True,
+)
+subprocess.run(
+    ["git", "-C", str(empty_repo), "config", "user.name", "fixture"], check=True
+)
+(empty_repo / "kept.txt").write_text("unchanged\n", encoding="utf-8")
+subprocess.run(
+    ["git", "-C", str(empty_repo), "add", "kept.txt"],
+    check=True,
+    stdout=subprocess.DEVNULL,
+)
+subprocess.run(
+    ["git", "-C", str(empty_repo), "commit", "-qm", "base"],
+    check=True,
+    stdout=subprocess.DEVNULL,
+)
+empty_base = subprocess.run(
+    ["git", "-C", str(empty_repo), "rev-parse", "HEAD"],
+    check=True,
+    capture_output=True,
+    text=True,
+).stdout.strip()
+try:
+    review_gate.freeze_packet(
+        SimpleNamespace(
+            cwd=str(empty_repo),
+            diff_file=str(widened),
+            base=empty_base,
+            paths=[],
+            wording_only_proof_file=None,
+        ),
+        time.monotonic() + 30,
+    )
+except review_gate.GateError as exc:
+    assert exc.reason_code == "empty_diff", exc.reason_code
+else:
+    raise AssertionError("an empty base-derived candidate was accepted")
+
+print("subject_packet_split_ok")
+PY
+)"
+subject_packet_rc=$?
+check "a widened packet keeps the base-derived candidate and must contain it verbatim" \
+  '[ "$subject_packet_rc" = 0 ] && [ "$subject_packet_probe" = subject_packet_split_ok ]'
 
 reset_case missing_coverage passed unavailable
 out="$(run_gate --diff-file "$WORK/secret-diff.patch")"; rc=$?
