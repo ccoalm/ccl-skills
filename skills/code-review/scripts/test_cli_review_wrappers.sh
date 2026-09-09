@@ -2338,6 +2338,23 @@ check "Codex preserves the run directory on a transport failure and names it" \
 check "Codex keeps the preserved run directory private" \
   '[ "$(dir_mode "$run_dir")" = 700 ]'
 
+# The eliding compares physical paths, so a home spelled with a trailing slash
+# -- or through a symlink -- still elides. Comparing the literal `$HOME` string
+# would put the username in a committed receipt on exactly those hosts.
+# Invoked directly rather than through run_codex: that helper pins TMPDIR, and
+# this row needs a TMPDIR that sits under the home it is testing.
+mkdir -p "$WORK/fakehome/tmp"
+out="$(STUB_BEHAVIOR=stderr_only REVIEW_WRAPPER_TEST_STATE="$WORK/state" \
+  PATH="$WORK/bin:$PATH" TMPDIR="$WORK/fakehome/tmp" HOME="$WORK/fakehome/" \
+  CODEX_HOME="$WORK/codex-source" TEST_DIFF_PATH="$WORK/diff.patch" \
+  TEST_PROFILE_PATH="$WORK/review-profile.json" \
+  bash "$DIR/codex_review.sh" --implementer-family claude \
+    --diff-file "$WORK/diff.patch" --review-profile-file "$WORK/review-profile.json" \
+    --mode review --timeout 30)"; rc=$?
+run_dir="$(field transport_run_dir "$out")"
+check "Codex elides a home path spelled with a trailing slash" \
+  'case "$run_dir" in "~/"*) case "$run_dir" in *fakehome*) false ;; *) true ;; esac ;; *) false ;; esac'
+
 out="$(run_codex pass)"; rc=$?
 check "Codex adds no diagnostic field to a successful review" \
   '[ "$rc" = 0 ] && json_lacks_key "$out" transport_diagnostic && json_lacks_key "$out" transport_run_dir'

@@ -571,11 +571,22 @@ for line in lines:
         print(message)
 PY_TRANSPORT_ERRORS
   PRESERVE_RUN_ROOT=1
-  TRANSPORT_RUN_DIR="$RUN_ROOT"
-  case "${HOME:-}" in
-    "") ;;
-    *) case "$RUN_ROOT" in "$HOME"/*) TRANSPORT_RUN_DIR="~${RUN_ROOT#"$HOME"}" ;; esac ;;
-  esac
+  # Physical paths on both sides, not the literal `$HOME` string: a home spelled
+  # with a trailing slash, or reached through a symlink, is the same directory
+  # and must elide the same way. Comparing the raw variable would put the
+  # username into a committed receipt on exactly those hosts.
+  TRANSPORT_RUN_DIR="$(cd "$RUN_ROOT" 2>/dev/null && pwd -P)" || TRANSPORT_RUN_DIR="$RUN_ROOT"
+  [ -n "$TRANSPORT_RUN_DIR" ] || TRANSPORT_RUN_DIR="$RUN_ROOT"
+  transport_home_real=""
+  if [ -n "${HOME:-}" ]; then
+    transport_home_real="$(cd "$HOME" 2>/dev/null && pwd -P)" || transport_home_real=""
+  fi
+  if [ -n "$transport_home_real" ]; then
+    case "$TRANSPORT_RUN_DIR" in
+      "$transport_home_real"/*)
+        TRANSPORT_RUN_DIR="~${TRANSPORT_RUN_DIR#"$transport_home_real"}" ;;
+    esac
+  fi
   # Only the transport's own error messages reach the receipt. Raw stderr stays
   # in the preserved directory and is never persisted here: it is arbitrary
   # process output -- library logging, echoed configuration, proxy URLs -- and no
@@ -608,8 +619,18 @@ def read(path):
 text = read(sys.argv[1]).strip()
 if not text:
     sys.exit(0)
+# Every spelling of the home directory the environment can hand us, longest
+# first so a prefix does not shadow the full path.
 home = os.environ.get("HOME") or ""
-for needle, replacement in ((sys.argv[2], "<run-root>"), (home, "~")):
+homes = {home, home.rstrip("/")}
+if home:
+    try:
+        homes.add(os.path.realpath(home))
+    except OSError:
+        pass
+needles = [(sys.argv[2], "<run-root>")]
+needles += [(h, "~") for h in sorted(homes, key=len, reverse=True) if h]
+for needle, replacement in needles:
     if needle:
         text = text.replace(needle, replacement)
 # URL userinfo and query strings first: a credential carried in either is not an
