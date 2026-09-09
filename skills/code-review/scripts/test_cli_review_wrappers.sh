@@ -898,34 +898,33 @@ if [ "$behavior" = "quota_in_model_output" ]; then
   exit 1
 fi
 if [ "$behavior" = "sensitive_streams" ]; then
-  # The credential-shaped value is assembled at runtime: writing it whole would
-  # put a real `sk-` token shape in the repository, which the credential scanner
-  # in validate-skill.sh refuses -- correctly.
+  # The credential-shaped values are assembled at runtime: written whole they
+  # would put a real `sk-` token shape in the repository, which the credential
+  # scanner in validate-skill.sh refuses -- correctly.
   #
-  # The compound names carry the shapes a real OAuth or provider client emits:
-  # `access_token=` and `client_secret=` have no word boundary before the bare
-  # keyword, and a JSON body quotes both sides.
-  printf 'failed while reading %s/private/thing sk-%s token=%s\n' \
-    "$HOME" 'livetoken00000000000000' 'supersecretvalue' >&2
-  printf 'access_token=%s client_secret=%s {"refresh_token": "%s"}\n' \
-    'accesssecretvalue' 'clientsecretvalue' 'refreshsecretvalue' >&2
-  exit 1
-fi
-if [ "$behavior" = "unnamed_credentials" ]; then
-  # None of these keys is on any credential keyword list, which is the point:
-  # a list of credential-sounding names cannot be completed, so the rule has to
-  # be about the assignment shape rather than about the key.
-  printf 'session=%s cookie=%s auth=%s code=%s bearer=%s sid=%s\n' \
-    'sessionsecretvalue' 'cookiesecretvalue' 'authsecretvalue' \
-    'codesecretvalue' 'bearersecretvalue' 'sidsecretvalue' >&2
-  printf '{"credential": "%s", "refresh_session": "%s"}\n' \
-    'credentialsecretvalue' 'refreshsessionsecretvalue' >&2
+  # They travel on the EVENT stream, because that is the stream the receipt
+  # reads. A fixture that put them on stderr would leave every redaction
+  # assertion below vacuously green.
+  python3 - "$HOME" 'livetoken00000000000000' <<'PY_SENSITIVE'
+import json, sys
+print(json.dumps({"type": "error", "message": (
+    "failed while reading " + sys.argv[1] + "/private/thing"
+    " sk-" + sys.argv[2] + " token=supersecretvalue"
+    " access_token=accesssecretvalue client_secret=clientsecretvalue"
+    ' {"refresh_token": "refreshsecretvalue"}'
+    " session=sessionsecretvalue cookie=cookiesecretvalue auth=authsecretvalue"
+    " code=codesecretvalue bearer=bearersecretvalue sid=sidsecretvalue"
+    " https://proxyuser:urlsecretvalue@proxy.invalid:8080/path"
+    ' quoted="quotedsecretvalue more of it"'
+)}))
+PY_SENSITIVE
+  printf 'STDERRONLYMARKER5z should never reach the receipt\n' >&2
   exit 1
 fi
 if [ "$behavior" = "silent_failure" ]; then
   exit 1
 fi
-if [ "$behavior" = "long_stderr" ]; then
+if [ "$behavior" = "stderr_only" ]; then
   python3 -c 'print("startup noise line. " * 60)' >&2
   printf 'the real failure is here STDERRTAILMARKER9x\n' >&2
   exit 1
@@ -2287,23 +2286,27 @@ diag="$(field transport_diagnostic "$out")"
 check "Codex redacts home paths and credential-shaped values from the diagnostic" \
   'case "$diag" in *sk-livetoken*|*supersecretvalue*|*"$HOME"*) false ;; *) [ -n "$diag" ] ;; esac'
 
+check "Codex redacts compound and quoted credential assignments too" \
+  'case "$diag" in *accesssecretvalue*|*clientsecretvalue*|*refreshsecretvalue*) false ;; *) [ -n "$diag" ] ;; esac'
+
+# A list of credential-sounding key names has no state in which it is finished,
+# so the rule keys on the assignment shape and never reads the key.
+check "Codex redacts assignment values regardless of the key name" \
+  'case "$diag" in *sessionsecretvalue*|*cookiesecretvalue*|*authsecretvalue*|*codesecretvalue*|*bearersecretvalue*|*sidsecretvalue*) false ;; *) [ -n "$diag" ] ;; esac'
+
+check "Codex redacts URL userinfo and quoted values that contain spaces" \
+  'case "$diag" in *urlsecretvalue*|*quotedsecretvalue*|*"more of it"*) false ;; *) [ -n "$diag" ] ;; esac'
+
+# The redactor above is defence in depth over a narrow, CLI-authored input. What
+# keeps arbitrary process output out of a committed receipt is that raw stderr
+# has no path into it at all.
+check "Codex keeps raw stderr out of the receipt entirely" \
+  'case "$diag" in *STDERRONLYMARKER5z*) false ;; *) [ -n "$diag" ] ;; esac'
+
 out="$(run_codex usage_limit_event)"; rc=$?
 diag="$(field transport_diagnostic "$out")"
 check "Codex drops query strings from URLs it relays into the receipt" \
   'case "$diag" in *token=abc123*) false ;; *) [ -n "$diag" ] ;; esac'
-
-out="$(run_codex sensitive_streams)"; rc=$?
-diag="$(field transport_diagnostic "$out")"
-check "Codex redacts compound and quoted credential assignments too" \
-  'case "$diag" in *accesssecretvalue*|*clientsecretvalue*|*refreshsecretvalue*) false ;; *) [ -n "$diag" ] ;; esac'
-
-# The redaction rule is about the shape of an assignment, not about a list of
-# credential-sounding key names: such a list cannot be completed, and two
-# review rounds each found a different name missing from it.
-out="$(run_codex unnamed_credentials)"; rc=$?
-diag="$(field transport_diagnostic "$out")"
-check "Codex redacts assignment values regardless of the key name" \
-  'case "$diag" in *sessionsecretvalue*|*cookiesecretvalue*|*authsecretvalue*|*codesecretvalue*|*bearersecretvalue*|*sidsecretvalue*|*credentialsecretvalue*|*refreshsessionsecretvalue*) false ;; *) [ -n "$diag" ] ;; esac'
 
 # A transport failure that says nothing at all is the case that reopens the
 # no-evidence hole: the key must still be there, saying so.
@@ -2312,16 +2315,23 @@ diag="$(field transport_diagnostic "$out")"
 check "Codex records a diagnostic even when the transport says nothing" \
   '[ "$rc" = 2 ] && [ -n "$diag" ] && [ "${#diag}" -le 600 ]'
 
-# Noise precedes the failure on stderr, so a head-truncated excerpt would keep
-# the startup lines and drop the sentence that names the cause.
-out="$(run_codex long_stderr)"; rc=$?
+out="$(run_codex stderr_only)"; rc=$?
 diag="$(field transport_diagnostic "$out")"
-check "Codex keeps the end of an oversized stderr, where the cause is named" \
-  'case "$diag" in *STDERRTAILMARKER9x*) [ "${#diag}" -le 600 ] ;; *) false ;; esac'
+check "Codex says so rather than quoting stderr when no error event was captured" \
+  'case "$diag" in *STDERRTAILMARKER9x*|*"startup noise"*) false ;; *) [ -n "$diag" ] ;; esac'
+
+# The streams have to survive the failure. Deleting them with the run directory
+# is the defect this whole round started from.
+run_dir="$(field transport_run_dir "$out")"
+check "Codex preserves the run directory on a transport failure and names it" \
+  '[ -n "$run_dir" ] && [ -d "$run_dir" ] && [ -s "$run_dir/stderr.log" ] && grep -q STDERRTAILMARKER9x "$run_dir/stderr.log"'
+
+check "Codex keeps the preserved run directory private" \
+  '[ "$(dir_mode "$run_dir")" = 700 ]'
 
 out="$(run_codex pass)"; rc=$?
 check "Codex adds no diagnostic field to a successful review" \
-  '[ "$rc" = 0 ] && json_lacks_key "$out" transport_diagnostic'
+  '[ "$rc" = 0 ] && json_lacks_key "$out" transport_diagnostic && json_lacks_key "$out" transport_run_dir'
 
 echo '----'
 if [ "$fails" -eq 0 ]; then

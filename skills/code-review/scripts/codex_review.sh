@@ -16,7 +16,7 @@ MAX_PROMPT_BYTES=245000
 CHALLENGE_CLASSES="race conditions, data loss, security holes, auth bypass, lost or duplicated work, operational footguns"
 
 emit_inconclusive() {
-  python3 - "$MODE" "$1" "${2:-invalid_input}" "${3:-false}" "${4:-}" "${5:-}" <<'PY'
+  python3 - "$MODE" "$1" "${2:-invalid_input}" "${3:-false}" "${4:-}" "${5:-}" "${6:-}" <<'PY'
 import json, sys
 payload = {
     "reviewer": "codex",
@@ -33,6 +33,8 @@ if sys.argv[5]:
     payload["transport_exit_code"] = int(sys.argv[5]) if sys.argv[5].isdigit() else sys.argv[5]
 if sys.argv[6]:
     payload["transport_diagnostic"] = sys.argv[6]
+if sys.argv[7]:
+    payload["transport_run_dir"] = sys.argv[7]
 print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 PY
 }
@@ -181,7 +183,15 @@ if [ "$REVIEW_SKILL_COUNT" -gt 0 ]; then
     || die_inconclusive codex_installed_skill_binding_invalid binding_mismatch false
 fi
 RUN_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/codex-review.XXXXXX")"
-cleanup() { rm -rf "$RUN_ROOT"; }
+# A failure that deletes its own evidence is the defect this round started from:
+# rounds 122 and 123 left six receipts and no account of why the lane failed,
+# because both captured streams went out with the run directory. On a transport
+# failure the directory stays, and the receipt names it. It is mode 0700 under
+# TMPDIR and holds exactly what it held while the run was in flight, so nothing
+# is exposed that was not already; reclaiming it is the platform's temp-directory
+# lifetime, as it is for every other run directory here.
+PRESERVE_RUN_ROOT=0
+cleanup() { [ "$PRESERVE_RUN_ROOT" = 1 ] || rm -rf "$RUN_ROOT"; }
 trap cleanup EXIT
 signal_inconclusive() {
   emit_inconclusive codex_review_terminated operator_interrupt false
@@ -560,17 +570,27 @@ for line in lines:
         seen.add(message)
         print(message)
 PY_TRANSPORT_ERRORS
-  # The receipt is the only durable record: `$RUN_ROOT` and both captured
-  # streams are removed by the EXIT trap, and rounds 122 and 123 left six
-  # receipts with no account of why this lane failed. The excerpt is bounded and
-  # redacted here, at the point it is built, because receipts are committed as
-  # round evidence.
+  PRESERVE_RUN_ROOT=1
+  TRANSPORT_RUN_DIR="$RUN_ROOT"
+  case "${HOME:-}" in
+    "") ;;
+    *) case "$RUN_ROOT" in "$HOME"/*) TRANSPORT_RUN_DIR="~${RUN_ROOT#"$HOME"}" ;; esac ;;
+  esac
+  # Only the transport's own error messages reach the receipt. Raw stderr stays
+  # in the preserved directory and is never persisted here: it is arbitrary
+  # process output -- library logging, echoed configuration, proxy URLs -- and no
+  # filter over arbitrary text can be shown complete. Three review rounds each
+  # found a different shape escaping one, first a name the keyword list lacked,
+  # then an assignment form the shape rule lacked, then URL userinfo which is
+  # neither. The redaction below is defence in depth over a narrow, CLI-authored
+  # input, not the control that makes this safe; what makes it safe is that the
+  # unbounded input no longer has a path into a committed artifact.
   # Written to a file rather than read through `$(... <<HEREDOC ...)`: Bash 3.2
   # scans a heredoc body nested in a command substitution for shell quoting, so
   # an apostrophe in a comment there ends the parse of the whole script.
   TRANSPORT_DIAGNOSTIC_FILE="$RUN_ROOT/transport-diagnostic.txt"
   : >"$TRANSPORT_DIAGNOSTIC_FILE"
-  python3 - "$TRANSPORT_ERRORS" "$STDERR_FILE" "$RUN_ROOT" \
+  python3 - "$TRANSPORT_ERRORS" "$RUN_ROOT" \
     >"$TRANSPORT_DIAGNOSTIC_FILE" 2>/dev/null <<'PY_TRANSPORT_DIAGNOSTIC'
 import os, re, sys
 from pathlib import Path
@@ -586,20 +606,15 @@ def read(path):
 
 
 text = read(sys.argv[1]).strip()
-# A transport error event opens with what went wrong, so an over-long one is cut
-# from the end. Stderr is the opposite: startup noise comes first and the line
-# that names the failure comes last, so that fallback is cut from the front.
-keep_head = bool(text)
-if not text:
-    text = read(sys.argv[2]).strip()
 if not text:
     sys.exit(0)
 home = os.environ.get("HOME") or ""
-for needle, replacement in ((sys.argv[3], "<run-root>"), (home, "~")):
+for needle, replacement in ((sys.argv[2], "<run-root>"), (home, "~")):
     if needle:
         text = text.replace(needle, replacement)
-# Query strings first: a credential carried as a URL parameter would otherwise
-# survive the word boundary in the key=value rule below.
+# URL userinfo and query strings first: a credential carried in either is not an
+# assignment and would survive every rule below.
+text = re.sub(r"(https?://)[^\s/@]*@", r"\1", text)
 text = re.sub(r"(https?://[^\s?]*)\?\S*", r"\1", text)
 text = re.sub(r"\bsk-[A-Za-z0-9_-]{6,}", "<redacted>", text)
 text = re.sub(r"\bBearer\s+\S+", "Bearer <redacted>", text, flags=re.IGNORECASE)
@@ -609,42 +624,46 @@ text = re.sub(r"\beyJ[A-Za-z0-9_.-]{10,}", "<redacted>", text)
 # -- first `access_token` and `client_secret`, then `session`, `cookie`, `auth`,
 # `code` and `bearer` -- which is what a denylist of names does. The key is kept
 # so the excerpt still says what failed; only the value goes.
-text = re.sub(r"([A-Za-z_][A-Za-z0-9_.-]*)\s*=\s*[^\s,;]+", r"\1=<redacted>", text)
+text = re.sub(
+    r"([A-Za-z_][A-Za-z0-9_.-]*)\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s,;]+)",
+    r"\1=<redacted>",
+    text,
+)
 text = re.sub(r"\"([^\"]{1,64})\"\s*:\s*\"[^\"]*\"", r'"\1": "<redacted>"', text)
 text = " ".join(text.split())
+# An error message opens with what went wrong, so an over-long one is cut from
+# the end.
 if len(text) > LIMIT:
-    if keep_head:
-        text = text[: LIMIT - 15] + " [truncated]"
-    else:
-        text = "[truncated] " + text[-(LIMIT - 15) :]
+    text = text[: LIMIT - 15] + " [truncated]"
 print(text)
 PY_TRANSPORT_DIAGNOSTIC
   TRANSPORT_DIAGNOSTIC="$(cat "$TRANSPORT_DIAGNOSTIC_FILE")"
   # Placed here rather than inside the builder so it also covers the builder
   # failing: an absent key would be indistinguishable from a successful run.
-  [ -n "$TRANSPORT_DIAGNOSTIC" ] || TRANSPORT_DIAGNOSTIC="no transport output captured"
+  [ -n "$TRANSPORT_DIAGNOSTIC" ] \
+    || TRANSPORT_DIAGNOSTIC="no transport error event captured; the captured streams are in transport_run_dir"
   if bash "$TIMEOUT_CLASSIFIER" "$run_rc" "$run_elapsed" "$TIMEOUT"; then
-    die_inconclusive codex_timeout timeout true "$run_rc" "$TRANSPORT_DIAGNOSTIC"
+    die_inconclusive codex_timeout timeout true "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR"
   fi
   case "$run_rc" in
-    129|130|137|143) die_inconclusive codex_process_interrupted operator_interrupt false "$run_rc" "$TRANSPORT_DIAGNOSTIC" ;;
+    129|130|137|143) die_inconclusive codex_process_interrupted operator_interrupt false "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR" ;;
   esac
   # `usage limit` is the wording the CLI actually uses for an exhausted account;
   # none of the older patterns match it.
   if grep -qiE '429|rate.?limit|quota|usage limit' "$STDERR_FILE" "$TRANSPORT_ERRORS"; then
-    die_inconclusive codex_quota quota true "$run_rc" "$TRANSPORT_DIAGNOSTIC"
+    die_inconclusive codex_quota quota true "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR"
   fi
   if grep -qiE 'unauthori[sz]ed|authentication|login|api key' "$STDERR_FILE" "$TRANSPORT_ERRORS"; then
-    die_inconclusive codex_auth_unavailable provider_unavailable true "$run_rc" "$TRANSPORT_DIAGNOSTIC"
+    die_inconclusive codex_auth_unavailable provider_unavailable true "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR"
   fi
   if [ ! -s "$EVENTS" ] && [ ! -s "$RESULT_FILE" ] \
     && grep -qiE 'failed to initialize in-process app-server client: Operation not permitted' "$STDERR_FILE"; then
     if [ "$HOST_REMEDIATION_ATTEMPTED" -eq 1 ]; then
-      die_inconclusive codex_host_path_unavailable_after_host_retry host_path_unavailable_after_host_retry true "$run_rc" "$TRANSPORT_DIAGNOSTIC"
+      die_inconclusive codex_host_path_unavailable_after_host_retry host_path_unavailable_after_host_retry true "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR"
     fi
-    die_inconclusive codex_host_path_unavailable host_path_unavailable false "$run_rc" "$TRANSPORT_DIAGNOSTIC"
+    die_inconclusive codex_host_path_unavailable host_path_unavailable false "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR"
   fi
-  die_inconclusive codex_run_failed unknown_client_failure false "$run_rc" "$TRANSPORT_DIAGNOSTIC"
+  die_inconclusive codex_run_failed unknown_client_failure false "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR"
 fi
 
 python3 "$PARSER" --client codex --mode "$MODE" --implementer-family "$IMPL_FAMILY" \
