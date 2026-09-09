@@ -16,7 +16,7 @@ MAX_PROMPT_BYTES=245000
 CHALLENGE_CLASSES="race conditions, data loss, security holes, auth bypass, lost or duplicated work, operational footguns"
 
 emit_inconclusive() {
-  python3 - "$MODE" "$1" "${2:-invalid_input}" "${3:-false}" "${4:-}" <<'PY'
+  python3 - "$MODE" "$1" "${2:-invalid_input}" "${3:-false}" "${4:-}" "${5:-}" "${6:-}" <<'PY'
 import json, sys
 payload = {
     "reviewer": "codex",
@@ -31,6 +31,10 @@ payload = {
 }
 if sys.argv[5]:
     payload["transport_exit_code"] = int(sys.argv[5]) if sys.argv[5].isdigit() else sys.argv[5]
+if sys.argv[6]:
+    payload["transport_diagnostic"] = sys.argv[6]
+if sys.argv[7]:
+    payload["transport_run_dir"] = sys.argv[7]
 print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 PY
 }
@@ -179,7 +183,15 @@ if [ "$REVIEW_SKILL_COUNT" -gt 0 ]; then
     || die_inconclusive codex_installed_skill_binding_invalid binding_mismatch false
 fi
 RUN_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/codex-review.XXXXXX")"
-cleanup() { rm -rf "$RUN_ROOT"; }
+# A failure that deletes its own evidence is the defect this round started from:
+# rounds 122 and 123 left six receipts and no account of why the lane failed,
+# because both captured streams went out with the run directory. On a transport
+# failure the directory stays, and the receipt names it. It is mode 0700 under
+# TMPDIR and holds exactly what it held while the run was in flight, so nothing
+# is exposed that was not already; reclaiming it is the platform's temp-directory
+# lifetime, as it is for every other run directory here.
+PRESERVE_RUN_ROOT=0
+cleanup() { [ "$PRESERVE_RUN_ROOT" = 1 ] || rm -rf "$RUN_ROOT"; }
 trap cleanup EXIT
 signal_inconclusive() {
   emit_inconclusive codex_review_terminated operator_interrupt false
@@ -515,26 +527,102 @@ if [ -n "$AUTH_LINK_TARGET" ]; then
     || die_inconclusive codex_runtime_home_credential_moved binding_mismatch false
 fi
 if [ "$run_rc" != 0 ]; then
+  # `codex exec --json` reports supply and credential failures as structured
+  # events on stdout, not on stderr, so a classifier reading only stderr sees a
+  # quota exhaustion as an unclassifiable failure and stops the reviewer lane
+  # instead of cascading.
+  #
+  # Only TOP-LEVEL error events are read. Model-authored content arrives nested
+  # under `item`, and the model quotes the packet, which is untrusted candidate
+  # data -- grepping the raw stream would let a reviewed diff pick the verdict
+  # for this lane by writing quota vocabulary into itself.
+  TRANSPORT_ERRORS="$RUN_ROOT/transport-errors.txt"
+  : >"$TRANSPORT_ERRORS"
+  python3 - "$EVENTS" >"$TRANSPORT_ERRORS" 2>/dev/null <<'PY_TRANSPORT_ERRORS'
+import json, sys
+from pathlib import Path
+
+try:
+    lines = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").splitlines()
+except OSError:
+    sys.exit(0)
+seen = set()
+for line in lines:
+    try:
+        event = json.loads(line)
+    except ValueError:
+        continue
+    if not isinstance(event, dict):
+        continue
+    kind = event.get("type")
+    if not isinstance(kind, str) or not (kind == "error" or kind.endswith(".failed")):
+        continue
+    message = event.get("message")
+    if not isinstance(message, str):
+        nested = event.get("error")
+        message = nested.get("message") if isinstance(nested, dict) else None
+    if not isinstance(message, str) or not message:
+        continue
+    # A failing turn repeats the error event verbatim, and the diagnostic is
+    # bounded: relaying both would spend half the budget on one sentence.
+    message = " ".join(message.split())
+    if message not in seen:
+        seen.add(message)
+        print(message)
+PY_TRANSPORT_ERRORS
+  PRESERVE_RUN_ROOT=1
+  # Physical paths on both sides, not the literal `$HOME` string: a home spelled
+  # with a trailing slash, or reached through a symlink, is the same directory
+  # and must elide the same way. Comparing the raw variable would put the
+  # username into a committed receipt on exactly those hosts.
+  TRANSPORT_RUN_DIR="$(cd "$RUN_ROOT" 2>/dev/null && pwd -P)" || TRANSPORT_RUN_DIR="$RUN_ROOT"
+  [ -n "$TRANSPORT_RUN_DIR" ] || TRANSPORT_RUN_DIR="$RUN_ROOT"
+  transport_home_real=""
+  if [ -n "${HOME:-}" ]; then
+    transport_home_real="$(cd "$HOME" 2>/dev/null && pwd -P)" || transport_home_real=""
+  fi
+  case "$transport_home_real" in
+    "" | */) transport_home_real="" ;;
+  esac
+  if [ -n "$transport_home_real" ]; then
+    case "$TRANSPORT_RUN_DIR" in
+      "$transport_home_real"/*)
+        TRANSPORT_RUN_DIR="~${TRANSPORT_RUN_DIR#"$transport_home_real"}" ;;
+    esac
+  fi
+  # The receipt carries NO text derived from the run. Eight review chains each
+  # found a different escape from a filter over that text -- an unlisted key
+  # name, an assignment form, URL userinfo, a password containing the separator,
+  # an escaped quote, an uppercase scheme -- because "nothing secret-shaped
+  # survives" is not a decidable property of free text, and an adversarial
+  # reviewer can always spell one more. So the free text is gone: what the
+  # transport said stays in the preserved run directory, and the receipt says
+  # where that is. The classifier still reads the extracted error messages
+  # above; those are matched against fixed patterns and never persisted.
+  TRANSPORT_DIAGNOSTIC="the transport output for this failure is in transport_run_dir"
+
   if bash "$TIMEOUT_CLASSIFIER" "$run_rc" "$run_elapsed" "$TIMEOUT"; then
-    die_inconclusive codex_timeout timeout true "$run_rc"
+    die_inconclusive codex_timeout timeout true "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR"
   fi
   case "$run_rc" in
-    129|130|137|143) die_inconclusive codex_process_interrupted operator_interrupt false "$run_rc" ;;
+    129|130|137|143) die_inconclusive codex_process_interrupted operator_interrupt false "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR" ;;
   esac
-  if grep -qiE '429|rate.?limit|quota' "$STDERR_FILE"; then
-    die_inconclusive codex_quota quota true "$run_rc"
+  # `usage limit` is the wording the CLI actually uses for an exhausted account;
+  # none of the older patterns match it.
+  if grep -qiE '429|rate.?limit|quota|usage limit' "$STDERR_FILE" "$TRANSPORT_ERRORS"; then
+    die_inconclusive codex_quota quota true "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR"
   fi
-  if grep -qiE 'unauthori[sz]ed|authentication|login|api key' "$STDERR_FILE"; then
-    die_inconclusive codex_auth_unavailable provider_unavailable true "$run_rc"
+  if grep -qiE 'unauthori[sz]ed|authentication|login|api key' "$STDERR_FILE" "$TRANSPORT_ERRORS"; then
+    die_inconclusive codex_auth_unavailable provider_unavailable true "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR"
   fi
   if [ ! -s "$EVENTS" ] && [ ! -s "$RESULT_FILE" ] \
     && grep -qiE 'failed to initialize in-process app-server client: Operation not permitted' "$STDERR_FILE"; then
     if [ "$HOST_REMEDIATION_ATTEMPTED" -eq 1 ]; then
-      die_inconclusive codex_host_path_unavailable_after_host_retry host_path_unavailable_after_host_retry true "$run_rc"
+      die_inconclusive codex_host_path_unavailable_after_host_retry host_path_unavailable_after_host_retry true "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR"
     fi
-    die_inconclusive codex_host_path_unavailable host_path_unavailable false "$run_rc"
+    die_inconclusive codex_host_path_unavailable host_path_unavailable false "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR"
   fi
-  die_inconclusive codex_run_failed unknown_client_failure false "$run_rc"
+  die_inconclusive codex_run_failed unknown_client_failure false "$run_rc" "$TRANSPORT_DIAGNOSTIC" "$TRANSPORT_RUN_DIR"
 fi
 
 python3 "$PARSER" --client codex --mode "$MODE" --implementer-family "$IMPL_FAMILY" \
