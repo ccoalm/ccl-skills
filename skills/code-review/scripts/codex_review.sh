@@ -585,7 +585,13 @@ def read(path):
         return ""
 
 
-text = read(sys.argv[1]).strip() or read(sys.argv[2]).strip()
+text = read(sys.argv[1]).strip()
+# A transport error event opens with what went wrong, so an over-long one is cut
+# from the end. Stderr is the opposite: startup noise comes first and the line
+# that names the failure comes last, so that fallback is cut from the front.
+keep_head = bool(text)
+if not text:
+    text = read(sys.argv[2]).strip()
 if not text:
     sys.exit(0)
 home = os.environ.get("HOME") or ""
@@ -599,17 +605,23 @@ text = re.sub(r"\bsk-[A-Za-z0-9_-]{6,}", "<redacted>", text)
 text = re.sub(r"\bBearer\s+\S+", "Bearer <redacted>", text, flags=re.IGNORECASE)
 text = re.sub(r"\beyJ[A-Za-z0-9_.-]{10,}", "<redacted>", text)
 text = re.sub(
-    r"\b(api[_-]?key|key|token|secret|password)\s*[=:]\s*\S+",
+    r"[\"']?[\w.-]*(api[_-]?key|key|token|secret|password)[\"']?\s*[=:]\s*[\"']?[^\s\"',]+",
     r"\1=<redacted>",
     text,
     flags=re.IGNORECASE,
 )
 text = " ".join(text.split())
 if len(text) > LIMIT:
-    text = text[: LIMIT - 15] + " [truncated]"
+    if keep_head:
+        text = text[: LIMIT - 15] + " [truncated]"
+    else:
+        text = "[truncated] " + text[-(LIMIT - 15) :]
 print(text)
 PY_TRANSPORT_DIAGNOSTIC
   TRANSPORT_DIAGNOSTIC="$(cat "$TRANSPORT_DIAGNOSTIC_FILE")"
+  # Placed here rather than inside the builder so it also covers the builder
+  # failing: an absent key would be indistinguishable from a successful run.
+  [ -n "$TRANSPORT_DIAGNOSTIC" ] || TRANSPORT_DIAGNOSTIC="no transport output captured"
   if bash "$TIMEOUT_CLASSIFIER" "$run_rc" "$run_elapsed" "$TIMEOUT"; then
     die_inconclusive codex_timeout timeout true "$run_rc" "$TRANSPORT_DIAGNOSTIC"
   fi
