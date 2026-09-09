@@ -916,7 +916,7 @@ import json, sys
 # The host carries no dot: with one, the userinfo tail plus host reads as an
 # email address, and a reviewer quoting the finding puts that shape into a
 # receipt the public-sanitization gate then refuses.
-    credentialed_url = "https://proxyuser:p" + "@" + "ss" + sys.argv[3] + "@" + "localhost:8080/path"
+credentialed_url = "https://proxyuser:p" + "@" + "ss" + sys.argv[3] + "@" + "localhost:8080/path"
 print(json.dumps({"type": "error", "message": (
     "failed while reading " + sys.argv[1] + "/private/thing"
     " sk-" + sys.argv[2] + " token=supersecretvalue"
