@@ -877,7 +877,7 @@ printf '%s\n' '{"type":"turn.started"}'
 # CLI reports these on stdout, so a wrapper that classifies from stderr alone
 # cannot see them.
 if [ "$behavior" = "usage_limit_event" ]; then
-  printf '%s\n' '{"type":"error","message":"You'"'"'ve hit your usage limit. Visit https://example.invalid/settings/usage?token=abc123 to purchase more credits."}'
+  printf '%s\n' '{"type":"error","message":"You'"'"'ve hit your usage limit. Visit https://example.invalid/settings/usage?A1B2C3QUERYSECRET to purchase more credits."}'
   printf '%s\n' '{"type":"turn.failed","error":{"message":"You'"'"'ve hit your usage limit."}}'
   exit 1
 fi
@@ -2310,8 +2310,11 @@ check "Codex keeps raw stderr out of the receipt entirely" \
 
 out="$(run_codex usage_limit_event)"; rc=$?
 diag="$(field transport_diagnostic "$out")"
+# The fixture secret is deliberately NOT assignment-shaped: with an
+# assignment-shaped one the assignment redactor removes it too, and this row --
+# the only guard on the query strip -- could not fail when that rule is deleted.
 check "Codex drops query strings from URLs it relays into the receipt" \
-  'case "$diag" in *token=abc123*) false ;; *) [ -n "$diag" ] ;; esac'
+  'case "$diag" in *A1B2C3QUERYSECRET*) false ;; *) [ -n "$diag" ] ;; esac'
 
 # A transport failure that says nothing at all is the case that reopens the
 # no-evidence hole: the key must still be there, saying so.
