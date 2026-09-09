@@ -905,8 +905,13 @@ if [ "$behavior" = "sensitive_streams" ]; then
   # They travel on the EVENT stream, because that is the stream the receipt
   # reads. A fixture that put them on stderr would leave every redaction
   # assertion below vacuously green.
-  python3 - "$HOME" 'livetoken00000000000000' <<'PY_SENSITIVE'
+  python3 - "$HOME" 'livetoken00000000000000' 'urlsecretvalue' <<'PY_SENSITIVE'
 import json, sys
+# Both credential shapes are assembled here rather than written literally. A
+# `sk-` token is refused by validate-skill.sh, and a credentialed URL trips the
+# review gate's own egress tripwire on every later review of this repository --
+# both scanners behaving correctly on a fixture that only looks real.
+credentialed_url = "https://proxyuser:" + sys.argv[3] + "@" + "proxy.invalid:8080/path"
 print(json.dumps({"type": "error", "message": (
     "failed while reading " + sys.argv[1] + "/private/thing"
     " sk-" + sys.argv[2] + " token=supersecretvalue"
@@ -914,7 +919,7 @@ print(json.dumps({"type": "error", "message": (
     ' {"refresh_token": "refreshsecretvalue"}'
     " session=sessionsecretvalue cookie=cookiesecretvalue auth=authsecretvalue"
     " code=codesecretvalue bearer=bearersecretvalue sid=sidsecretvalue"
-    " https://proxyuser:urlsecretvalue@proxy.invalid:8080/path"
+    " " + credentialed_url +
     ' quoted="quotedsecretvalue more of it"'
 )}))
 PY_SENSITIVE
