@@ -951,7 +951,8 @@ cat >"$WORK/review-plan.json" <<'JSON'
     {"concern": "tests_evidence", "conclusion": "Focused deterministic contract tests cover the change.", "evidence_refs": ["e1"]},
     {"concern": "compatibility", "conclusion": "Existing provider routing remains backward compatible.", "evidence_refs": ["e1"]},
     {"concern": "rollout_rollback", "conclusion": "The local CLI change has a direct revert path.", "evidence_refs": ["e1"]},
-    {"concern": "observability_operations", "conclusion": "The JSON envelope exposes stage and depth for diagnosis.", "evidence_refs": ["e1"]}
+    {"concern": "observability_operations", "conclusion": "The JSON envelope exposes stage and depth for diagnosis.", "evidence_refs": ["e1"]},
+    {"concern": "claim_strength", "conclusion": "Each claim is scoped to the fixture it was observed on.", "evidence_refs": ["e1"]}
   ],
   "evidence": [
     {"id": "e1", "result": "Deterministic fake-wrapper contract fixture."}
@@ -1033,7 +1034,8 @@ cat >"$WORK/placeholder-plan.json" <<'JSON'
     {"concern": "safety", "conclusion": "Packet and tool boundaries remain fail closed.", "evidence_refs": ["e1"]},
     {"concern": "failure_paths", "conclusion": "Invalid and inconclusive paths remain terminal.", "evidence_refs": ["e1"]},
     {"concern": "tests_evidence", "conclusion": "A focused regression proves filler is rejected.", "evidence_refs": ["e1"]},
-    {"concern": "compatibility", "conclusion": "Existing provider routing remains compatible.", "evidence_refs": ["e1"]}
+    {"concern": "compatibility", "conclusion": "Existing provider routing remains compatible.", "evidence_refs": ["e1"]},
+    {"concern": "claim_strength", "conclusion": "No claim reaches past the filler-rejection fixture.", "evidence_refs": ["e1"]}
   ],
   "evidence": [{"id": "e1", "result": "Deterministic placeholder-validation fixture."}]
 }
@@ -1058,6 +1060,7 @@ cat >"$WORK/high-risk-plan.json" <<'JSON'
     {"concern": "compatibility", "conclusion": "Existing provider routing remains compatible.", "evidence_refs": ["e1"]},
     {"concern": "rollout_rollback", "conclusion": "The local contract change has a direct revert path.", "evidence_refs": ["e1"]},
     {"concern": "observability_operations", "conclusion": "The result exposes depth and risk tags for diagnosis.", "evidence_refs": ["e1"]},
+    {"concern": "claim_strength", "conclusion": "Each claim is scoped to the high-risk fixture it was observed on.", "evidence_refs": ["e1"]},
     {"concern": "high_risk_boundary", "conclusion": "Bypass attempts cannot remove controller-required concerns.", "evidence_refs": ["e1"]}
   ],
   "evidence": [{"id": "e1", "result": "Deterministic high-risk gate fixture."}]
@@ -1081,7 +1084,8 @@ cat >"$WORK/near-limit-plan.json" <<JSON
     {"concern": "safety", "conclusion": "$large_conclusion", "evidence_refs": ["e1"]},
     {"concern": "failure_paths", "conclusion": "$large_conclusion", "evidence_refs": ["e1"]},
     {"concern": "tests_evidence", "conclusion": "$large_conclusion", "evidence_refs": ["e1"]},
-    {"concern": "compatibility", "conclusion": "$large_conclusion", "evidence_refs": ["e1"]}
+    {"concern": "compatibility", "conclusion": "$large_conclusion", "evidence_refs": ["e1"]},
+    {"concern": "claim_strength", "conclusion": "Scoped to this size fixture.", "evidence_refs": ["e1"]}
   ],
   "evidence": [{"id": "e1", "result": "$large_evidence"}]
 }
@@ -1373,6 +1377,28 @@ for malformed_plan in non-string-owner-review-plan empty-owner-review-plan; do
   check "a malformed owner value is incomplete self-review and remains terminal ($malformed_plan)" \
     '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=self_review_incomplete fallback_eligible=false next_action=deep_self_review self_review_gate.required=true'
 done
+
+# The claim-strength walk is a required concern, so it is owed BEFORE round 1 --
+# the one point in a round where correcting an overstated claim costs nothing. The
+# class it covers (absolutes, universals, causal and exhaustiveness claims the cited
+# evidence does not carry) otherwise keeps arriving as a LATE correction, after the
+# receipts are bound, where any candidate edit voids them.
+python3 - "$WORK/review-plan.json" "$WORK/no-claim-strength-review-plan.json" <<'PLAN'
+import json, sys
+from pathlib import Path
+plan = json.loads(Path(sys.argv[1]).read_text())
+plan["self_review"] = [row for row in plan["self_review"] if row["concern"] != "claim_strength"]
+Path(sys.argv[2]).write_text(json.dumps(plan))
+PLAN
+reset_case passed unavailable unavailable
+out="$(run_gate --review-plan-file "$WORK/no-claim-strength-review-plan.json")"; rc=$?
+check "a plan that skips the claim-strength walk fails before any provider runs" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=self_review_incomplete fallback_eligible=false next_action=deep_self_review self_review_gate.required=true self_review_gate.required_triggers.0=before_external_review'
+
+reset_case passed unavailable unavailable
+out="$(run_gate --allow-fallback-egress)"; rc=$?
+check "the build reviewer is asked to check claim strength" \
+  '[ "$rc" = 0 ] && json_fields "$out" reviewed_concerns.5=claim_strength'
 
 owner_lstat_classification="$(python3 - "$DIR/review_gate.py" <<'PY'
 import errno
@@ -2073,7 +2099,7 @@ check "complete but placeholder concern conclusions cannot false-green" \
 reset_case findings unavailable unavailable
 out="$(run_gate --allow-fallback-egress)"; rc=$?
 check "Claude findings remain findings" \
-  '[ "$rc" = 0 ] && json_fields "$out" status=findings selected_client=claude next_action=triage_findings_and_continue_independent_work autonomous_review_budget=1 autonomous_review_index=1 autonomous_review_allowed=false human_decision_required=true review_state=post_review_budget findings_require_implementer_self_review=true self_review_gate.required=true self_review_gate.required_triggers.0=findings_returned self_review_gate.required_triggers.1=post_review_budget_checkpoint self_review_gate.satisfied_triggers.0=before_external_review self_review_gate.blocks.0=external_review self_review_gate.blocks.1=completion_claim self_review_gate.allowed_next_actions.0=deep_self_review self_review_gate.allowed_next_actions.1=continue_implementation self_review_gate.allowed_next_actions.2=continue_independent_work'
+  '[ "$rc" = 0 ] && json_fields "$out" status=findings selected_client=claude next_action=triage_findings_and_continue_independent_work autonomous_review_budget=1 autonomous_review_index=1 autonomous_review_allowed=false human_decision_required=true review_state=post_review_budget findings_require_implementer_self_review=true self_review_gate.required=true self_review_gate.required_triggers.0=findings_returned self_review_gate.required_triggers.1=post_review_budget_checkpoint self_review_gate.satisfied_triggers.0=before_external_review self_review_gate.blocks.0=external_review self_review_gate.blocks.1=completion_claim self_review_gate.allowed_next_actions.0=deep_self_review self_review_gate.allowed_next_actions.1=continue_implementation self_review_gate.allowed_next_actions.2=continue_independent_work && ! grep -q recurring_findings_design_check <<<"$out"'
 
 reset_case quota passed unavailable
 out="$(run_gate --allow-fallback-egress)"; rc=$?
@@ -2351,7 +2377,7 @@ check "an initial review with challenge capacity requires a tracked Agent chain"
 reset_case passed unavailable unavailable
 out="$(run_gate --stage explore --risk-tag shared-gate --review-plan-file "$WORK/high-risk-plan.json" --review-chain-id high-risk-task --autonomous-review-index 1)"; rc=$?
 check "high-risk tags raise explore to release depth and default one challenge" \
-  '[ "$rc" = 0 ] && json_fields "$out" stage=explore stage_source=caller-declared review_depth=release risk_tags_source=caller-declared challenge_budget=1 challenge_rounds_remaining=1 review_chain_tracked=true review_chain_id=high-risk-task autonomous_review_budget=2 autonomous_review_index=1 autonomous_reviews_remaining=1 autonomous_review_allowed=true next_action=run_challenge completion_gated=true risk_tags.0=shared-gate reviewed_concerns.7=high_risk_boundary self_review_gate.required=false self_review_gate.satisfied_triggers.0=before_external_review self_review_gate.satisfied_triggers.1=risk_or_scope_escalation'
+  '[ "$rc" = 0 ] && json_fields "$out" stage=explore stage_source=caller-declared review_depth=release risk_tags_source=caller-declared challenge_budget=1 challenge_rounds_remaining=1 review_chain_tracked=true review_chain_id=high-risk-task autonomous_review_budget=2 autonomous_review_index=1 autonomous_reviews_remaining=1 autonomous_review_allowed=true next_action=run_challenge completion_gated=true risk_tags.0=shared-gate reviewed_concerns.8=high_risk_boundary self_review_gate.required=false self_review_gate.satisfied_triggers.0=before_external_review self_review_gate.satisfied_triggers.1=risk_or_scope_escalation'
 
 # Release/high-risk normally requires a challenge. The only single-review
 # exception is a candidate-bound deterministic wording-only proof whose result
@@ -3160,7 +3186,7 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
   --wording-only-proof-file "$WORK/wording-punctuation-proof.json")"; rc=$?
 punctuation_proof_hash="$(shasum -a 256 "$WORK/wording-punctuation-proof.json" | awk '{print $1}')"
 check "release wording-only punctuation scope can take one proof-bound review" \
-  '[ "$rc" = 0 ] && json_fields "$out" challenge_budget=0 review_chain_tracked=false wording_only_scope.status=passed wording_only_scope.check_kind=markdown-punctuation-only wording_only_proof_sha256="$punctuation_proof_hash" reviewed_concerns.7=wording_only_boundary'
+  '[ "$rc" = 0 ] && json_fields "$out" challenge_budget=0 review_chain_tracked=false wording_only_scope.status=passed wording_only_scope.check_kind=markdown-punctuation-only wording_only_proof_sha256="$punctuation_proof_hash" reviewed_concerns.8=wording_only_boundary'
 
 reset_case passed unavailable unavailable
 out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
@@ -3169,7 +3195,7 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
   --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
   --wording-only-proof-file "$WORK/wording-punctuation-proof.json")"; rc=$?
 check "build wording-only review records the same controller-bound proof" \
-  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build challenge_budget=0 wording_only_scope.check_kind=markdown-punctuation-only reviewed_concerns.5=wording_only_boundary'
+  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build challenge_budget=0 wording_only_scope.check_kind=markdown-punctuation-only reviewed_concerns.6=wording_only_boundary'
 printf '%s\n' "$out" >"$WORK/wording-punctuation-review.json"
 reset_case passed unavailable unavailable
 out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
@@ -3245,7 +3271,7 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
   --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
   --wording-only-proof-file "$WORK/wording-token-proof.json")"; rc=$?
 check "build exact typo replacement can take one proof-bound review" \
-  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build challenge_budget=0 wording_only_scope.check_kind=markdown-token-replacement wording_only_scope.old_token=teh wording_only_scope.new_token=the wording_only_scope.expected_count=1 wording_only_scope.replacement_count=1 reviewed_concerns.5=wording_only_boundary'
+  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build challenge_budget=0 wording_only_scope.check_kind=markdown-token-replacement wording_only_scope.old_token=teh wording_only_scope.new_token=the wording_only_scope.expected_count=1 wording_only_scope.replacement_count=1 reviewed_concerns.6=wording_only_boundary'
 
 reset_case passed unavailable unavailable
 out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
@@ -3272,7 +3298,7 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
   --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
   --wording-only-proof-file "$WORK/wording-base-proof.json")"; rc=$?
 check "base-mode build wording proof freezes full context from line one" \
-  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build wording_only_scope.check_kind=markdown-token-replacement wording_only_scope.replacement_count=1 reviewed_concerns.5=wording_only_boundary'
+  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build wording_only_scope.check_kind=markdown-token-replacement wording_only_scope.replacement_count=1 reviewed_concerns.6=wording_only_boundary'
 
 for rejected_scope in multi-skill-wording truncated-context-wording symlink-mode-wording frontmatter-shift-insert-wording frontmatter-shift-delete-wording no-final-newline-wording invalid-octal-wording huge-hunk-number-wording zero-width-wording bidi-control-wording emoji-symbol-wording currency-symbol-wording decomposed-boundary-wording zwj-boundary-wording; do
   reset_case passed unavailable unavailable
@@ -3499,6 +3525,13 @@ printf '%s\n' "$passed_round_one" >"$WORK/passed-round-one.json"
 check "a passed first tracked round still owes its challenge before completion" \
   '[ "$passed_round_one_rc" = 0 ] && json_fields "$passed_round_one" status=passed autonomous_review_index=1 autonomous_reviews_remaining=2 autonomous_review_allowed=true next_action=run_challenge completion_gated=true'
 
+# Control leg for the recurrence trigger: same shape, first findings round. Without it a
+# probe that fires for an unrelated reason would read as the recurrence being detected.
+reset_case findings unavailable unavailable
+out="$(run_challenge_gate --challenge-budget 2 --challenge-index 1 --focus passed-prior-findings --review-chain-id passed-task --autonomous-review-index 2 --prior-review-result-file "$WORK/passed-round-one.json")"; rc=$?
+check "findings after a clean prior round stay a first findings round" \
+  '[ "$rc" = 0 ] && json_fields "$out" status=findings self_review_gate.required_triggers.0=findings_returned && ! grep -q recurring_findings_design_check <<<"$out"'
+
 # Chain succession. A fix that touches the owner package moves selected_skills_sha256
 # and ends the chain by design, so the post-fix candidate can never be challenged
 # inside it. Succession opens ONE new chain whose first Agent round is a challenge,
@@ -3559,6 +3592,14 @@ reset_case passed unavailable unavailable
 out="$(run_challenge_gate --focus owner-moved --review-chain-id succ-owner-moved --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-predecessor-owner-moved.json")"; rc=$?
 check "a succession accepts the owner-package hash move that ended the prior chain" \
   '[ "$rc" = 0 ] && json_fields "$out" mode=challenge predecessor_chain_id=succ-phase-one'
+
+# Budget is one review plus one challenge, so a fix ends the chain and the SECOND
+# findings round usually lands in the SUCCEEDING chain. Counting only in-chain rounds
+# would therefore never see the recurrence the trigger exists for.
+reset_case findings unavailable unavailable
+out="$(run_challenge_gate --focus recurring-findings --review-chain-id succ-recurrence --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-round-two.json")"; rc=$?
+check "findings after a predecessor chain that also returned findings raise the design check" \
+  '[ "$rc" = 0 ] && json_fields "$out" status=findings self_review_gate.required_triggers.0=findings_returned && grep -q recurring_findings_design_check <<<"$out"'
 
 reset_case passed unavailable unavailable
 out="$(run_challenge_gate --focus no-predecessor --review-chain-id succ-orphan --autonomous-review-index 1)"; rc=$?
@@ -4405,6 +4446,11 @@ reset_case findings unavailable unavailable
 out="$(run_challenge_gate --challenge-budget 2 --challenge-index 2 --focus final-findings --review-chain-id long-task --autonomous-review-index 3 --prior-review-result-file "$WORK/chain-round-one.json" --prior-review-result-file "$WORK/chain-round-two.json")"; rc=$?
 check "findings in the last tracked Agent round return to a post-budget checkpoint" \
   '[ "$rc" = 0 ] && json_fields "$out" status=findings review_chain_tracked=true autonomous_review_index=3 autonomous_reviews_remaining=0 autonomous_review_allowed=false human_decision_required=true review_state=post_review_budget findings_require_implementer_self_review=true next_action=triage_findings_and_continue_independent_work self_review_gate.required=true self_review_gate.required_triggers.0=findings_returned self_review_gate.required_triggers.1=post_review_budget_checkpoint self_review_gate.blocks.0=external_review self_review_gate.allowed_next_actions.2=continue_independent_work'
+# Round 1 of this chain also returned findings, so this is the second one: the rule the
+# trigger carries is about the RECURRENCE, and the agent reads it here rather than in a
+# skill it never loads while inside the chain.
+check "a second findings round in one chain raises the design check" \
+  '[ "$rc" = 0 ] && json_fields "$out" self_review_gate.required_triggers.2=recurring_findings_design_check && grep -q decide_keep_delete_narrow_replace <<<"$out"'
 
 reset_case passed unavailable unavailable
 out="$(run_challenge_gate --challenge-budget 2 --challenge-index 1 --focus missing-history --review-chain-id long-task --autonomous-review-index 2)"; rc=$?

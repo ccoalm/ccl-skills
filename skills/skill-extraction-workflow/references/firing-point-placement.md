@@ -89,3 +89,25 @@ Firing point: **producing or first-publishing a reader-facing deliverable is an 
 但按该规则自己的定义，**针对外部源的缺口清单就是它所说的 findings 回合**：一旦产出，charter 就只能事后补写。
 
 观测实例：一轮里先产出四条「外部有我们没有」的缺口，之后才 invoke 提炼工作流；改前的触发词表逐字检索该轮实际措辞得零命中。
+
+## The review-chain case — the owning skill is not loaded where the situation arises
+
+The same-class-recurrence rule is owned by this workflow, but the situation it governs —
+findings coming back round after round — arises inside a `code-review` chain, where this
+skill is typically never loaded. Naming the owner in prose therefore never made it fire.
+The trigger sits at the transition instead:
+
+- **The controller must raise it, not the reader:** when a round returns findings and the
+  history it carries already holds one, the gate adds `recurring_findings_design_check` to
+  that round's required self-review triggers and `decide_keep_delete_narrow_replace` to its
+  allowed actions, in the round's own envelope
+  (`../../code-review/references/staged-review-contract.md`). What discharges it is the
+  `keep` / `delete` / `narrow` / `replace` decision the owning rule defines, ratified by a
+  risk owner other than the one proposing it.
+- **What it counts is bounded by what a receipt carries:** the chain the controller is
+  handed, plus the predecessor a succession names. Succession does not compose, so a third
+  chain opened fresh carries no history and the controller claims none; from there the
+  recurrence is the round's own record to keep.
+- **It over-fires by design:** two findings rounds need not share a risk class, so the
+  question is sometimes inapplicable. Answering an inapplicable question costs a line; the
+  round a missed design question costs does not.
