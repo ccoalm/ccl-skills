@@ -55,12 +55,14 @@ PY
 # Exercise the installed wrapper/controller pair without invoking a model. The
 # same real controller defaults to budget 0 when called directly, while the
 # extraction wrapper must make the emitted receipt report budget 1.
-python3 - "$TMP/real-controller.diff" "$TMP/real-controller-plan.json" <<'PY'
+python3 - "$TMP/real-controller.diff" "$TMP/real-controller-plan.json" "$ROOT" <<'PY'
 import json
+import subprocess
 import sys
 from pathlib import Path
 
-diff_path, plan_path = map(Path, sys.argv[1:])
+diff_path, plan_path = map(Path, sys.argv[1:3])
+root = Path(sys.argv[3])
 diff_path.write_text(
     "diff --git a/skills/skill-extraction-workflow/scripts/extraction_review_gate.sh "
     "b/skills/skill-extraction-workflow/scripts/extraction_review_gate.sh\n"
@@ -69,22 +71,41 @@ diff_path.write_text(
     "@@ -1 +1 @@\n-old wrapper\n+new wrapper\n",
     encoding="utf-8",
 )
+# The required set has ONE owner. A fixture that keeps its own copy stops
+# satisfying the gate the moment that set changes, and the runner aborts at its
+# first failing target so the later shards never report it -- five suites drifted
+# that way in one round. Derive it instead.
+required = subprocess.run(
+    [
+        sys.executable,
+        str(root / "skills/code-review/scripts/review_gate.py"),
+        "--print-required-concerns",
+        "--stage",
+        "build",
+    ],
+    capture_output=True,
+    text=True,
+    check=True,
+).stdout.split()
+assert required, "the controller printed no required concerns"
 conclusions = {
-    "correctness": "The real controller receipt exposes the effective extraction budget.",
-    "safety": "The probe selects only the implementer family and invokes no external reviewer.",
-    "failure_paths": "The no-independent-reviewer boundary remains structured and fail closed.",
-    "tests_evidence": "Direct and wrapped calls provide a differential budget assertion.",
-    "compatibility": "The generic controller default remains zero while extraction fixes one.",
-    "claim_strength": "Every claim here is scoped to this differential budget probe.",
+    concern: f"The differential budget probe covers {concern} within the fixture it was observed on."
+    for concern in required
 }
-skills = {
-    "correctness": "skill-extraction-workflow",
-    "safety": "code-review",
-    "failure_paths": "python-service-dev",
-    "tests_evidence": "testing-strategy",
-    "compatibility": "terminal-cli-dev",
-    "claim_strength": "skill-extraction-workflow",
-}
+# Owners are a separate obligation: the controller derives them from the candidate's
+# own paths, so they do not drift when the concern set does. Spread the required
+# concerns over them, then give any owner the spread missed a row of its own.
+owners = [
+    "skill-extraction-workflow",
+    "code-review",
+    "python-service-dev",
+    "testing-strategy",
+    "terminal-cli-dev",
+]
+skills = {concern: owners[index % len(owners)] for index, concern in enumerate(required)}
+extra_rows = [
+    (required[0], owner) for owner in owners if owner not in set(skills.values())
+]
 plan = {
     "intent": "Prove the extraction wrapper and real review controller agree on budget one.",
     "acceptance": ["The wrapped real-controller receipt reports challenge_budget one."],
@@ -96,6 +117,15 @@ plan = {
             "evidence_refs": ["real-controller-differential"],
         }
         for concern, conclusion in conclusions.items()
+    ]
+    + [
+        {
+            "concern": concern,
+            "skill": owner,
+            "conclusion": f"{owner} is covered for {concern} by the same differential probe.",
+            "evidence_refs": ["real-controller-differential"],
+        }
+        for concern, owner in extra_rows
     ],
     "evidence": [
         {

@@ -58,7 +58,12 @@ hand-attested plan (`review_plan_source=implementer-supplied` otherwise).
 Self-review accumulates stage concerns: explore covers correctness and
 safety; build adds failure paths, tests, and compatibility; release adds rollout
 and operations. High-risk input raises depth to release and adds
-`high_risk_boundary`.
+`high_risk_boundary`. That set has one owner, and
+`review_gate.sh --print-required-concerns --stage <stage> [--risk-tag <tag>]`
+prints it, so a caller building a plan derives the list instead of keeping a copy
+that silently stops satisfying the gate when the set changes. It prints what the
+PLAN owes: the synthetic challenge slot and the wording-only boundary, which the
+controller adds for the reviewer and never for the plan, are absent.
 
 The serialized plan is at most 32,000 bytes and `intent` is 8..4,000
 characters. Those are validation limits, not permission for a caller to slice a
@@ -267,8 +272,10 @@ index 1; an untracked initial review is single-round and therefore uses budget 0
 candidate can never be challenged inside it. One succeeding chain may open at
 index 1 in `challenge` mode by supplying `--predecessor-chain-result-file` — the
 ended chain's terminal receipt — instead of an in-chain prior result. The
-controller accepts it only when that receipt is a tracked challenge at its own
-chain's terminal index, carries this chain's `review_scope_sha256` and matching
+controller accepts it only when that receipt is the tracked round its chain ended
+on — a terminal challenge, or a round-1 review whose own
+arithmetic still reports its challenge unspent — carrying this chain's
+`review_scope_sha256` and matching
 stage/depth/risk-tags/budget, preserves the controller digest, owner-selection
 source, and selected owner names, and binds a candidate that DIFFERS from this
 packet: the owner-package digest is the one binding allowed to move, because its
@@ -279,6 +286,24 @@ differ from every focus the ended chain spent. The result records
 `predecessor_candidate_sha256`, and counts `material_candidate_change` as a
 satisfied self-review trigger. Succession carries history rather than resetting
 it: consumers still sum rounds across both chains.
+
+A chain ends where the candidate moves, and a fix applied straight after the review
+moves the owner digest exactly as one applied after the challenge does. Requiring a
+challenge receipt here never protected the landing candidate — the succession
+challenge binds that either way — it only forced the challenge to be spent on a
+candidate the author had already decided to replace. The single class that stops
+being owed is a challenge on a candidate that will never land, which carries no
+evidence about the one that does; every other binding is unchanged, the candidate
+must still have moved, succession still does not compose, and this path spends
+fewer rounds than the old one, never more. What bounds it is the receipt's own arithmetic, and that is a
+forgery guard rather than a history check: a genuine round-1 review reads the same
+whether its chain later ran a challenge or not, so a caller who spent the challenge
+and presents only the review is accepted, and the successor inherits no challenge
+focuses — a focus that chain did spend can be spent again. This is the same
+omitted-history boundary the rest of this contract states rather than a new one, and
+the closeout validator's ordered receipt set is where a retained challenge receipt
+would show it; no check at the succession call site can close it, and none is
+claimed.
 
 The chain binds task scope, candidate identity per round, result hashes, mode,
 status, challenge focus, controller, and selected owners. The opaque

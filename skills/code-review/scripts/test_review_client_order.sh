@@ -105,21 +105,35 @@ done
 
 printf 'diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n' >"$WORK/diff.patch"
 printf 'diff --git a/c b/c\n--- a/c\n+++ b/c\n@@ -1 +1 @@\n-x\n+aws_key = "AKIAIOSFODNN7EXAMPLE"\n' >"$WORK/secret-diff.patch"
-cat >"$WORK/review-plan.json" <<'JSON'
-{
-  "intent": "Preserve independent reviewer routing while adding staged review.",
-  "acceptance": ["Client ordering and model-family exclusion remain deterministic."],
-  "self_review": [
-    {"concern": "correctness", "conclusion": "Routing preserves the first eligible independent result.", "evidence_refs": ["e1"]},
-    {"concern": "safety", "conclusion": "Terminal boundaries remain fail closed across clients.", "evidence_refs": ["e1"]},
-    {"concern": "failure_paths", "conclusion": "Candidate-local failures alone enter the fallback chain.", "evidence_refs": ["e1"]},
-    {"concern": "tests_evidence", "conclusion": "Deterministic stubs cover client order and attribution.", "evidence_refs": ["e1"]},
-    {"concern": "compatibility", "conclusion": "Existing client-order customization remains supported.", "evidence_refs": ["e1"]},
-    {"concern": "claim_strength", "conclusion": "Every claim is scoped to the deterministic client-order stubs.", "evidence_refs": ["e1"]}
-  ],
-  "evidence": [{"id": "e1", "result": "Deterministic client routing contract fixture."}]
-}
-JSON
+# The plan's required concern set has ONE owner. A fixture keeping its own copy
+# stops satisfying the gate the moment that set changes, and the suite runner
+# aborts at its first failing target, so the drift surfaces rounds later -- five
+# fixtures drifted that way at once. Ask the controller instead.
+python3 - "$WORK/review-plan.json" "$DIR" <<'PY'
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+plan_path, script_dir = Path(sys.argv[1]), Path(sys.argv[2])
+required = subprocess.run(
+    [sys.executable, str(script_dir / "review_gate.py"),
+     "--print-required-concerns", "--stage", "build"],
+    capture_output=True, text=True, check=True,
+).stdout.split()
+assert required, "the controller printed no required concerns"
+plan_path.write_text(json.dumps({
+    "intent": "Preserve independent reviewer routing while adding staged review.",
+    "acceptance": ["Client ordering and model-family exclusion remain deterministic."],
+    "self_review": [
+        {"concern": concern,
+         "conclusion": f"The deterministic client-routing stubs cover {concern}.",
+         "evidence_refs": ["e1"]}
+        for concern in required
+    ],
+    "evidence": [{"id": "e1", "result": "Deterministic client routing contract fixture."}],
+}, indent=2) + "\n", encoding="utf-8")
+PY
 
 reset_case() {
   rm -f "$WORK/state"/*

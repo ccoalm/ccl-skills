@@ -1,0 +1,93 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "5264e9f917c2a6cdb16ded6b6f2921889a1888a27293f3548c2c551ed50294ff",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "round1-review.json",
+   "sha256": "c00e7e81b4a93f4b437b386c56f1336ab81af2f9b1e2de61ec48b2bf03f6c24f"
+  },
+  {
+   "sequence": 2,
+   "file": "round2-challenge.json",
+   "sha256": "8d3cdd7ad9aefb7a5b1486e7036fc52402f088ce58e7e968eefb987c3a143ac7"
+  }
+ ],
+ "completion_receipt": {
+  "file": "complete.json",
+  "sha256": "b46577c840e56ff6dcfb12cd087a56a5b9bf292bca7677efc6f9bf1ab5ee6952"
+ },
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "f1e38929c200653cbe9036bde24bb4f3aa796d2c",
+   "confirmed_at": "2026-09-10T20:02:40Z",
+   "controller_receipt_sha256": "c00e7e81b4a93f4b437b386c56f1336ab81af2f9b1e2de61ec48b2bf03f6c24f",
+   "evidence_file": "base-attestation-1.txt",
+   "evidence_sha256": "31bb87955a5dd5ee0bf57bcc85d95345da126e2e6f987652208ab861759af995"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "f1e38929c200653cbe9036bde24bb4f3aa796d2c",
+   "confirmed_at": "2026-09-10T20:02:41Z",
+   "controller_receipt_sha256": "8d3cdd7ad9aefb7a5b1486e7036fc52402f088ce58e7e968eefb987c3a143ac7",
+   "evidence_file": "base-attestation-2.txt",
+   "evidence_sha256": "31bb87955a5dd5ee0bf57bcc85d95345da126e2e6f987652208ab861759af995"
+  }
+ ],
+ "autonomous_round": 2,
+ "controller_review_state": "self_reviewed",
+ "finding_classes": [
+  {
+   "key": "packet-cannot-carry-it",
+   "root_cause_predicate": "A finding that the reviewed packet cannot carry the artefact it asks for -- an execution log, an untouched suite's implementation, or receipts a round produces only after itself -- is an input defect rather than a candidate defect, and the contract answers it by widening the packet, never by editing the candidate.",
+   "affected_surface": "this round's evidence claims as seen from a diff packet",
+   "occurrences": [
+    {
+     "receipt_sha256": "c00e7e81b4a93f4b437b386c56f1336ab81af2f9b1e2de61ec48b2bf03f6c24f",
+     "finding_sha256": "c0abf9fb4d312f980107b962eaa79b48e08c32d6444f2c5144d0027474022214",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-r1-f1.json",
+     "disposition_evidence_sha256": "bfa5537d9df42cef102f0a2ad23603cfb6ea46675411671aee96a0a8666deff7"
+    },
+    {
+     "receipt_sha256": "c00e7e81b4a93f4b437b386c56f1336ab81af2f9b1e2de61ec48b2bf03f6c24f",
+     "finding_sha256": "4961a078af0f98cceca37670ecd9f80662b2e8fff7ea301c621825e74493a4d4",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-r1-f2.json",
+     "disposition_evidence_sha256": "a053e242979bf2b13dcd4125a122eca4af00d98edfb17722ade8d1a4c7fbe671"
+    },
+    {
+     "receipt_sha256": "c00e7e81b4a93f4b437b386c56f1336ab81af2f9b1e2de61ec48b2bf03f6c24f",
+     "finding_sha256": "e0fe44fb87a20678ef42feca22fd1af466bcb7259f8f50477d492f7953412f08",
+     "disposition": "accepted_tradeoff",
+     "disposition_evidence_file": "disposition-r1-f3.json",
+     "disposition_evidence_sha256": "f356a2fee07520a4b188c49af2f87e7b079bdbacf62bb3484ce019c91b417413"
+    }
+   ],
+   "authoritative_sweep": {
+    "candidate_sha256": "5264e9f917c2a6cdb16ded6b6f2921889a1888a27293f3548c2c551ed50294ff",
+    "manifest_file": "sweep-packet-cannot-carry-it.json",
+    "manifest_sha256": "3200040aecb7b93029644d92dd6ba44eddf4d60379ab1d5b9e07d611ee8389a0",
+    "searched_set": [
+     "source-register.md row (code-review): succession admission, exported concern set, mutation attributions -- INSTANCE, dispositioned",
+     "source-register.md row (skill-extraction-workflow): derived fixtures, withdrawn relocation, write-side norm -- INSTANCE, dispositioned",
+     "staged-review-contract.md: succession admission sentence -- not an instance; it states what the code checks and the code is in the packet",
+     "staged-review-contract.md: exported concern set paragraph -- not an instance; the printer and its use are both in the packet",
+     "attention-budget-ratchet.md: write-side norm and its two lookup commands -- not an instance; the commands are runnable from the packet itself",
+     "review_gate.py: succession precondition and printer -- not an instance; the code under review is the packet",
+     "test_review_gate.sh: succession, parity and exit-status probes -- INSTANCE where a probe's consumer lies outside the diff, dispositioned",
+     "specs/126 evidence: base attestations -- INSTANCE by construction, receipts postdate the round that produces them, dispositioned",
+     "plan-126 acceptance criteria: complete-lane green on the exact candidate -- not an instance; met on this candidate rather than argued"
+    ],
+    "unmatched_instances": 0
+   }
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "ready_for_human_decision"
+}
