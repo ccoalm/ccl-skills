@@ -951,7 +951,8 @@ cat >"$WORK/review-plan.json" <<'JSON'
     {"concern": "tests_evidence", "conclusion": "Focused deterministic contract tests cover the change.", "evidence_refs": ["e1"]},
     {"concern": "compatibility", "conclusion": "Existing provider routing remains backward compatible.", "evidence_refs": ["e1"]},
     {"concern": "rollout_rollback", "conclusion": "The local CLI change has a direct revert path.", "evidence_refs": ["e1"]},
-    {"concern": "observability_operations", "conclusion": "The JSON envelope exposes stage and depth for diagnosis.", "evidence_refs": ["e1"]}
+    {"concern": "observability_operations", "conclusion": "The JSON envelope exposes stage and depth for diagnosis.", "evidence_refs": ["e1"]},
+    {"concern": "claim_strength", "conclusion": "Each claim is scoped to the fixture it was observed on.", "evidence_refs": ["e1"]}
   ],
   "evidence": [
     {"id": "e1", "result": "Deterministic fake-wrapper contract fixture."}
@@ -1033,7 +1034,8 @@ cat >"$WORK/placeholder-plan.json" <<'JSON'
     {"concern": "safety", "conclusion": "Packet and tool boundaries remain fail closed.", "evidence_refs": ["e1"]},
     {"concern": "failure_paths", "conclusion": "Invalid and inconclusive paths remain terminal.", "evidence_refs": ["e1"]},
     {"concern": "tests_evidence", "conclusion": "A focused regression proves filler is rejected.", "evidence_refs": ["e1"]},
-    {"concern": "compatibility", "conclusion": "Existing provider routing remains compatible.", "evidence_refs": ["e1"]}
+    {"concern": "compatibility", "conclusion": "Existing provider routing remains compatible.", "evidence_refs": ["e1"]},
+    {"concern": "claim_strength", "conclusion": "No claim reaches past the filler-rejection fixture.", "evidence_refs": ["e1"]}
   ],
   "evidence": [{"id": "e1", "result": "Deterministic placeholder-validation fixture."}]
 }
@@ -1058,6 +1060,7 @@ cat >"$WORK/high-risk-plan.json" <<'JSON'
     {"concern": "compatibility", "conclusion": "Existing provider routing remains compatible.", "evidence_refs": ["e1"]},
     {"concern": "rollout_rollback", "conclusion": "The local contract change has a direct revert path.", "evidence_refs": ["e1"]},
     {"concern": "observability_operations", "conclusion": "The result exposes depth and risk tags for diagnosis.", "evidence_refs": ["e1"]},
+    {"concern": "claim_strength", "conclusion": "Each claim is scoped to the high-risk fixture it was observed on.", "evidence_refs": ["e1"]},
     {"concern": "high_risk_boundary", "conclusion": "Bypass attempts cannot remove controller-required concerns.", "evidence_refs": ["e1"]}
   ],
   "evidence": [{"id": "e1", "result": "Deterministic high-risk gate fixture."}]
@@ -1081,7 +1084,8 @@ cat >"$WORK/near-limit-plan.json" <<JSON
     {"concern": "safety", "conclusion": "$large_conclusion", "evidence_refs": ["e1"]},
     {"concern": "failure_paths", "conclusion": "$large_conclusion", "evidence_refs": ["e1"]},
     {"concern": "tests_evidence", "conclusion": "$large_conclusion", "evidence_refs": ["e1"]},
-    {"concern": "compatibility", "conclusion": "$large_conclusion", "evidence_refs": ["e1"]}
+    {"concern": "compatibility", "conclusion": "$large_conclusion", "evidence_refs": ["e1"]},
+    {"concern": "claim_strength", "conclusion": "Scoped to this size fixture.", "evidence_refs": ["e1"]}
   ],
   "evidence": [{"id": "e1", "result": "$large_evidence"}]
 }
@@ -1373,6 +1377,144 @@ for malformed_plan in non-string-owner-review-plan empty-owner-review-plan; do
   check "a malformed owner value is incomplete self-review and remains terminal ($malformed_plan)" \
     '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=self_review_incomplete fallback_eligible=false next_action=deep_self_review self_review_gate.required=true'
 done
+
+# The claim-strength walk is a required concern, so it is owed BEFORE round 1 --
+# the one point in a round where correcting an overstated claim costs nothing. The
+# class it covers (absolutes, universals, causal and exhaustiveness claims the cited
+# evidence does not carry) otherwise keeps arriving as a LATE correction, after the
+# receipts are bound, where any candidate edit voids them.
+python3 - "$WORK/review-plan.json" "$WORK/no-claim-strength-review-plan.json" <<'PLAN'
+import json, sys
+from pathlib import Path
+plan = json.loads(Path(sys.argv[1]).read_text())
+plan["self_review"] = [row for row in plan["self_review"] if row["concern"] != "claim_strength"]
+Path(sys.argv[2]).write_text(json.dumps(plan))
+PLAN
+reset_case passed unavailable unavailable
+out="$(run_gate --review-plan-file "$WORK/no-claim-strength-review-plan.json")"; rc=$?
+check "a plan that skips the claim-strength walk fails before any provider runs" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=self_review_incomplete fallback_eligible=false next_action=deep_self_review self_review_gate.required=true self_review_gate.required_triggers.0=before_external_review'
+
+reset_case passed unavailable unavailable
+out="$(run_gate --allow-fallback-egress)"; rc=$?
+check "the build reviewer is asked to check claim strength" \
+  '[ "$rc" = 0 ] && json_fields "$out" reviewed_concerns.5=claim_strength'
+
+# The exported list is only worth deriving from if it IS the enforced one. Build a
+# plan covering exactly what the controller prints, and then drop each printed
+# concern in turn: acceptance proves the print covers everything the gate demands,
+# and every single-drop rejection proves nothing printed is decorative. Without
+# both directions a caller could derive from a list that had quietly diverged --
+# which is the drift this export exists to remove.
+# The exit status is asserted too. This suite runs without errexit, so a command
+# substitution silently discards it: a printer that emits the right concerns and then
+# fails would satisfy a non-empty check and report agreement it never reached.
+printed_rc=0
+printed_concerns="$("$DIR/review_gate.sh" --print-required-concerns --stage build)" || printed_rc=$?
+check "the controller can print the concern set a plan owes, and succeeds doing it" \
+  '[ -n "$printed_concerns" ] && [ "$printed_rc" = 0 ]'
+# Proving agreement at ONE depth leaves the other branch free to diverge with every
+# test green -- and release/high-risk is the branch that carries the most concerns.
+# Assert the depth-raising branch answers what the gate itself derives for it.
+# Parity includes what each side REFUSES. A printer that answers for tags the enforcer
+# rejects reintroduces the divergence this export removes: a caller deriving from a
+# malformed tag would get a list where the real round fails closed.
+for bad_tag in "a b" "" "$(printf 'x%.0s' $(seq 81))"; do
+  # rc captured without touching shell options: this suite runs under `set -uo pipefail`
+  # and enabling errexit here would abort every later case at its first non-zero command.
+  bad_tag_rc=0
+  "$DIR/review_gate.sh" --print-required-concerns --stage build --risk-tag "$bad_tag" >/dev/null 2>&1 || bad_tag_rc=$?
+  # Parity is a claim about TWO sides, so both are exercised: asserting only the
+  # printer would keep these checks green if the enforcer's own rejection were
+  # removed, which is the half this pair exists to tie together.
+  enforcer_tag_rc=0
+  run_gate --risk-tag "$bad_tag" >/dev/null 2>&1 || enforcer_tag_rc=$?
+  check "printer and enforcer both refuse the same malformed risk tag (${#bad_tag} chars)" \
+    '[ "$bad_tag_rc" != 0 ] && [ "$enforcer_tag_rc" != 0 ]'
+done
+printed_release_rc=0
+printed_release="$("$DIR/review_gate.sh" --print-required-concerns --stage explore --risk-tag shared-gate)" || printed_release_rc=$?
+check "the raised-depth print succeeds" '[ "$printed_release_rc" = 0 ]'
+# Hoisted for the same reason as the calls above: nested inside the comparison, this
+# printer call's exit status was discarded, so a regression failing only for explicit
+# release depth would have compared equal and passed. Every printer invocation in this
+# suite now has its status asserted.
+printed_plain_release_rc=0
+printed_plain_release="$("$DIR/review_gate.sh" --print-required-concerns --stage release)" || printed_plain_release_rc=$?
+check "the plain release print succeeds" '[ "$printed_plain_release_rc" = 0 ]'
+check "a high-risk tag raises the printed set to release depth and adds the boundary concern" \
+  '[ "$(printf %s "$printed_release" | tr "\n" " ")" = "$(printf "%s\nhigh_risk_boundary" "$printed_plain_release" | tr "\n" " ")" ]'
+python3 - "$WORK/review-plan.json" "$WORK/printed-plan.json" $printed_concerns <<'PLAN'
+import json, sys
+from pathlib import Path
+source = json.loads(Path(sys.argv[1]).read_text())
+printed = sys.argv[3:]
+by_concern = {row["concern"]: row for row in source["self_review"]}
+source["self_review"] = [
+    by_concern.get(concern, {"concern": concern,
+                             "conclusion": f"The fixture covers {concern}.",
+                             "evidence_refs": ["e1"]})
+    for concern in printed
+]
+Path(sys.argv[2]).write_text(json.dumps(source))
+PLAN
+reset_case passed unavailable unavailable
+out="$(run_gate --review-plan-file "$WORK/printed-plan.json" --allow-fallback-egress)"; rc=$?
+check "a plan built from the printed set satisfies the gate" '[ "$rc" = 0 ]'
+printed_drop_failures=0
+for dropped in $printed_concerns; do
+  python3 - "$WORK/printed-plan.json" "$WORK/printed-plan-minus.json" "$dropped" <<'PLAN'
+import json, sys
+from pathlib import Path
+plan = json.loads(Path(sys.argv[1]).read_text())
+plan["self_review"] = [row for row in plan["self_review"] if row["concern"] != sys.argv[3]]
+Path(sys.argv[2]).write_text(json.dumps(plan))
+PLAN
+  reset_case passed unavailable unavailable
+  out="$(run_gate --review-plan-file "$WORK/printed-plan-minus.json")"; rc=$?
+  if [ "$rc" = 2 ] && json_fields "$out" reason_code=self_review_incomplete; then
+    printed_drop_failures=$((printed_drop_failures+1))
+  fi
+done
+check "every printed concern is one the gate actually demands" \
+  '[ "$printed_drop_failures" = "$(printf %s "$printed_concerns" | wc -w | tr -d " ")" ]'
+
+# The same two directions at the OTHER depth. A printer that agreed with the gate at
+# build and diverged at release/high-risk would keep every test above green, and
+# release is the branch carrying the most concerns.
+python3 - "$WORK/high-risk-plan.json" "$WORK/printed-release-plan.json" $printed_release <<'PLAN'
+import json, sys
+from pathlib import Path
+source = json.loads(Path(sys.argv[1]).read_text())
+by_concern = {row["concern"]: row for row in source["self_review"]}
+source["self_review"] = [
+    by_concern.get(concern, {"concern": concern,
+                             "conclusion": f"The high-risk fixture covers {concern}.",
+                             "evidence_refs": ["e1"]})
+    for concern in sys.argv[3:]
+]
+Path(sys.argv[2]).write_text(json.dumps(source))
+PLAN
+reset_case passed unavailable unavailable
+out="$(run_gate --stage explore --risk-tag shared-gate --review-plan-file "$WORK/printed-release-plan.json" --review-chain-id printed-release --autonomous-review-index 1 --allow-fallback-egress)"; rc=$?
+check "a plan built from the printed release set satisfies the raised-depth gate" '[ "$rc" = 0 ]'
+printed_release_drop_failures=0
+for dropped in $printed_release; do
+  python3 - "$WORK/printed-release-plan.json" "$WORK/printed-release-minus.json" "$dropped" <<'PLAN'
+import json, sys
+from pathlib import Path
+plan = json.loads(Path(sys.argv[1]).read_text())
+plan["self_review"] = [row for row in plan["self_review"] if row["concern"] != sys.argv[3]]
+Path(sys.argv[2]).write_text(json.dumps(plan))
+PLAN
+  reset_case passed unavailable unavailable
+  out="$(run_gate --stage explore --risk-tag shared-gate --review-plan-file "$WORK/printed-release-minus.json" --review-chain-id printed-release-minus --autonomous-review-index 1)"; rc=$?
+  if [ "$rc" = 2 ] && json_fields "$out" reason_code=self_review_incomplete; then
+    printed_release_drop_failures=$((printed_release_drop_failures+1))
+  fi
+done
+check "every printed release concern is one the raised-depth gate actually demands" \
+  '[ "$printed_release_drop_failures" = "$(printf %s "$printed_release" | wc -w | tr -d " ")" ]'
 
 owner_lstat_classification="$(python3 - "$DIR/review_gate.py" <<'PY'
 import errno
@@ -2073,7 +2215,7 @@ check "complete but placeholder concern conclusions cannot false-green" \
 reset_case findings unavailable unavailable
 out="$(run_gate --allow-fallback-egress)"; rc=$?
 check "Claude findings remain findings" \
-  '[ "$rc" = 0 ] && json_fields "$out" status=findings selected_client=claude next_action=triage_findings_and_continue_independent_work autonomous_review_budget=1 autonomous_review_index=1 autonomous_review_allowed=false human_decision_required=true review_state=post_review_budget findings_require_implementer_self_review=true self_review_gate.required=true self_review_gate.required_triggers.0=findings_returned self_review_gate.required_triggers.1=post_review_budget_checkpoint self_review_gate.satisfied_triggers.0=before_external_review self_review_gate.blocks.0=external_review self_review_gate.blocks.1=completion_claim self_review_gate.allowed_next_actions.0=deep_self_review self_review_gate.allowed_next_actions.1=continue_implementation self_review_gate.allowed_next_actions.2=continue_independent_work'
+  '[ "$rc" = 0 ] && json_fields "$out" status=findings selected_client=claude next_action=triage_findings_and_continue_independent_work autonomous_review_budget=1 autonomous_review_index=1 autonomous_review_allowed=false human_decision_required=true review_state=post_review_budget findings_require_implementer_self_review=true self_review_gate.required=true self_review_gate.required_triggers.0=findings_returned self_review_gate.required_triggers.1=post_review_budget_checkpoint self_review_gate.satisfied_triggers.0=before_external_review self_review_gate.blocks.0=external_review self_review_gate.blocks.1=completion_claim self_review_gate.allowed_next_actions.0=deep_self_review self_review_gate.allowed_next_actions.1=continue_implementation self_review_gate.allowed_next_actions.2=continue_independent_work && ! grep -q recurring_findings_design_check <<<"$out"'
 
 reset_case quota passed unavailable
 out="$(run_gate --allow-fallback-egress)"; rc=$?
@@ -2351,7 +2493,7 @@ check "an initial review with challenge capacity requires a tracked Agent chain"
 reset_case passed unavailable unavailable
 out="$(run_gate --stage explore --risk-tag shared-gate --review-plan-file "$WORK/high-risk-plan.json" --review-chain-id high-risk-task --autonomous-review-index 1)"; rc=$?
 check "high-risk tags raise explore to release depth and default one challenge" \
-  '[ "$rc" = 0 ] && json_fields "$out" stage=explore stage_source=caller-declared review_depth=release risk_tags_source=caller-declared challenge_budget=1 challenge_rounds_remaining=1 review_chain_tracked=true review_chain_id=high-risk-task autonomous_review_budget=2 autonomous_review_index=1 autonomous_reviews_remaining=1 autonomous_review_allowed=true next_action=run_challenge completion_gated=true risk_tags.0=shared-gate reviewed_concerns.7=high_risk_boundary self_review_gate.required=false self_review_gate.satisfied_triggers.0=before_external_review self_review_gate.satisfied_triggers.1=risk_or_scope_escalation'
+  '[ "$rc" = 0 ] && json_fields "$out" stage=explore stage_source=caller-declared review_depth=release risk_tags_source=caller-declared challenge_budget=1 challenge_rounds_remaining=1 review_chain_tracked=true review_chain_id=high-risk-task autonomous_review_budget=2 autonomous_review_index=1 autonomous_reviews_remaining=1 autonomous_review_allowed=true next_action=run_challenge completion_gated=true risk_tags.0=shared-gate reviewed_concerns.8=high_risk_boundary self_review_gate.required=false self_review_gate.satisfied_triggers.0=before_external_review self_review_gate.satisfied_triggers.1=risk_or_scope_escalation'
 
 # Release/high-risk normally requires a challenge. The only single-review
 # exception is a candidate-bound deterministic wording-only proof whose result
@@ -3160,7 +3302,7 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
   --wording-only-proof-file "$WORK/wording-punctuation-proof.json")"; rc=$?
 punctuation_proof_hash="$(shasum -a 256 "$WORK/wording-punctuation-proof.json" | awk '{print $1}')"
 check "release wording-only punctuation scope can take one proof-bound review" \
-  '[ "$rc" = 0 ] && json_fields "$out" challenge_budget=0 review_chain_tracked=false wording_only_scope.status=passed wording_only_scope.check_kind=markdown-punctuation-only wording_only_proof_sha256="$punctuation_proof_hash" reviewed_concerns.7=wording_only_boundary'
+  '[ "$rc" = 0 ] && json_fields "$out" challenge_budget=0 review_chain_tracked=false wording_only_scope.status=passed wording_only_scope.check_kind=markdown-punctuation-only wording_only_proof_sha256="$punctuation_proof_hash" reviewed_concerns.8=wording_only_boundary'
 
 reset_case passed unavailable unavailable
 out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
@@ -3169,7 +3311,7 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
   --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
   --wording-only-proof-file "$WORK/wording-punctuation-proof.json")"; rc=$?
 check "build wording-only review records the same controller-bound proof" \
-  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build challenge_budget=0 wording_only_scope.check_kind=markdown-punctuation-only reviewed_concerns.5=wording_only_boundary'
+  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build challenge_budget=0 wording_only_scope.check_kind=markdown-punctuation-only reviewed_concerns.6=wording_only_boundary'
 printf '%s\n' "$out" >"$WORK/wording-punctuation-review.json"
 reset_case passed unavailable unavailable
 out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
@@ -3245,7 +3387,7 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
   --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
   --wording-only-proof-file "$WORK/wording-token-proof.json")"; rc=$?
 check "build exact typo replacement can take one proof-bound review" \
-  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build challenge_budget=0 wording_only_scope.check_kind=markdown-token-replacement wording_only_scope.old_token=teh wording_only_scope.new_token=the wording_only_scope.expected_count=1 wording_only_scope.replacement_count=1 reviewed_concerns.5=wording_only_boundary'
+  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build challenge_budget=0 wording_only_scope.check_kind=markdown-token-replacement wording_only_scope.old_token=teh wording_only_scope.new_token=the wording_only_scope.expected_count=1 wording_only_scope.replacement_count=1 reviewed_concerns.6=wording_only_boundary'
 
 reset_case passed unavailable unavailable
 out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
@@ -3272,7 +3414,7 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
   --implementer-family openai --review-plan-file "$WORK/review-plan.json" \
   --wording-only-proof-file "$WORK/wording-base-proof.json")"; rc=$?
 check "base-mode build wording proof freezes full context from line one" \
-  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build wording_only_scope.check_kind=markdown-token-replacement wording_only_scope.replacement_count=1 reviewed_concerns.5=wording_only_boundary'
+  '[ "$rc" = 0 ] && json_fields "$out" review_depth=build wording_only_scope.check_kind=markdown-token-replacement wording_only_scope.replacement_count=1 reviewed_concerns.6=wording_only_boundary'
 
 for rejected_scope in multi-skill-wording truncated-context-wording symlink-mode-wording frontmatter-shift-insert-wording frontmatter-shift-delete-wording no-final-newline-wording invalid-octal-wording huge-hunk-number-wording zero-width-wording bidi-control-wording emoji-symbol-wording currency-symbol-wording decomposed-boundary-wording zwj-boundary-wording; do
   reset_case passed unavailable unavailable
@@ -3499,6 +3641,13 @@ printf '%s\n' "$passed_round_one" >"$WORK/passed-round-one.json"
 check "a passed first tracked round still owes its challenge before completion" \
   '[ "$passed_round_one_rc" = 0 ] && json_fields "$passed_round_one" status=passed autonomous_review_index=1 autonomous_reviews_remaining=2 autonomous_review_allowed=true next_action=run_challenge completion_gated=true'
 
+# Control leg for the recurrence trigger: same shape, first findings round. Without it a
+# probe that fires for an unrelated reason would read as the recurrence being detected.
+reset_case findings unavailable unavailable
+out="$(run_challenge_gate --challenge-budget 2 --challenge-index 1 --focus passed-prior-findings --review-chain-id passed-task --autonomous-review-index 2 --prior-review-result-file "$WORK/passed-round-one.json")"; rc=$?
+check "findings after a clean prior round stay a first findings round" \
+  '[ "$rc" = 0 ] && json_fields "$out" status=findings self_review_gate.required_triggers.0=findings_returned && ! grep -q recurring_findings_design_check <<<"$out"'
+
 # Chain succession. A fix that touches the owner package moves selected_skills_sha256
 # and ends the chain by design, so the post-fix candidate can never be challenged
 # inside it. Succession opens ONE new chain whose first Agent round is a challenge,
@@ -3522,7 +3671,8 @@ python3 - "$WORK/succ-round-two.json" \
   "$WORK/succ-predecessor-owner-moved.json" \
   "$WORK/succ-predecessor-forged-controller.json" \
   "$WORK/succ-predecessor-foreign-scope.json" \
-  "$WORK/succ-predecessor-forged-terminal.json" <<'PY'
+  "$WORK/succ-predecessor-forged-terminal.json" \
+  "$WORK/succ-predecessor-complete-mode.json" <<'PY'
 import json
 from pathlib import Path
 import sys
@@ -3548,6 +3698,10 @@ forged_terminal["challenge_index"] = 0
 forged_terminal["autonomous_reviews_remaining"] = 1
 forged_terminal["autonomous_review_allowed"] = True
 Path(sys.argv[5]).write_text(json.dumps(forged_terminal, separators=(",", ":")))
+# Neither lane: a completion checkpoint is not a round the succession may carry.
+complete_mode = json.loads(json.dumps(source))
+complete_mode["mode"] = "complete"
+Path(sys.argv[6]).write_text(json.dumps(complete_mode, separators=(",", ":")))
 PY
 
 reset_case passed unavailable unavailable
@@ -3560,15 +3714,53 @@ out="$(run_challenge_gate --focus owner-moved --review-chain-id succ-owner-moved
 check "a succession accepts the owner-package hash move that ended the prior chain" \
   '[ "$rc" = 0 ] && json_fields "$out" mode=challenge predecessor_chain_id=succ-phase-one'
 
+# Budget is one review plus one challenge, so a fix ends the chain and the SECOND
+# findings round usually lands in the SUCCEEDING chain. Counting only in-chain rounds
+# would therefore never see the recurrence the trigger exists for.
+reset_case findings unavailable unavailable
+out="$(run_challenge_gate --focus recurring-findings --review-chain-id succ-recurrence --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-round-two.json")"; rc=$?
+check "findings after a predecessor chain that also returned findings raise the design check" \
+  '[ "$rc" = 0 ] && json_fields "$out" status=findings self_review_gate.required_triggers.0=findings_returned && grep -q recurring_findings_design_check <<<"$out"'
+
 reset_case passed unavailable unavailable
 out="$(run_challenge_gate --focus no-predecessor --review-chain-id succ-orphan --autonomous-review-index 1)"; rc=$?
 check "a tracked challenge cannot open a chain without a predecessor receipt" \
   '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession"*) false;; *) true;; esac'
 
+# A fix applied straight after the REVIEW ends the chain exactly as a fix after the
+# challenge does -- the owner digest moves either way -- so the ended chain's terminal
+# receipt is its review. Requiring a challenge receipt here forced that challenge to be
+# spent on a candidate the author had already decided to change, and bought no evidence
+# about the candidate that lands: the succession challenge covers it either way. What is
+# exempted is exactly one class -- a challenge on a candidate that will never land.
 reset_case passed unavailable unavailable
 out="$(run_challenge_gate --focus review-predecessor --review-chain-id succ-review-predecessor --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-round-one.json")"; rc=$?
-check "a succession rejects a predecessor that is not a challenge receipt" \
-  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession predecessor is not a tracked challenge receipt"*) true;; *) false;; esac'
+check "a succession may carry a chain whose terminal receipt is its review" \
+  '[ "$rc" = 0 ] && json_fields "$out" mode=challenge review_chain_tracked=true review_chain_id=succ-review-predecessor autonomous_review_index=1 predecessor_chain_id=succ-phase-one'
+
+# The exemption is bounded by the receipt's own arithmetic. This is a FORGERY guard and
+# is asserted as one: the fixture below is a shape the controller never emits, because a
+# genuine round-1 review reads the same whether its chain later ran a challenge or not.
+# A caller who spent the challenge and presents only the review is accepted here -- the
+# stateless controller cannot see omitted history -- so no test claims otherwise.
+python3 - "$WORK/succ-round-one.json" "$WORK/succ-predecessor-spent-review.json" <<'PLAN'
+import json, sys
+from pathlib import Path
+source = json.loads(Path(sys.argv[1]).read_text())
+spent = json.loads(json.dumps(source))
+spent["autonomous_reviews_remaining"] = 0
+spent["autonomous_review_allowed"] = False
+Path(sys.argv[2]).write_text(json.dumps(spent, separators=(",", ":")))
+PLAN
+reset_case passed unavailable unavailable
+out="$(run_challenge_gate --focus spent-review --review-chain-id succ-spent-review --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-predecessor-spent-review.json")"; rc=$?
+check "a succession rejects a forged review receipt whose own arithmetic says its chain is spent" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession predecessor is not its chain'"'"'s terminal round"*) true;; *) false;; esac'
+
+reset_case passed unavailable unavailable
+out="$(run_challenge_gate --focus complete-predecessor --review-chain-id succ-complete-predecessor --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-predecessor-complete-mode.json")"; rc=$?
+check "a succession rejects a predecessor that is neither a review nor a challenge round" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession predecessor is not a tracked review or challenge receipt"*) true;; *) false;; esac'
 
 # A mid-chain challenge is a live chain, not an ended one: succeeding it would
 # silently retire rounds the wrapper still owes. chain-round-two above is round 2
@@ -4405,6 +4597,11 @@ reset_case findings unavailable unavailable
 out="$(run_challenge_gate --challenge-budget 2 --challenge-index 2 --focus final-findings --review-chain-id long-task --autonomous-review-index 3 --prior-review-result-file "$WORK/chain-round-one.json" --prior-review-result-file "$WORK/chain-round-two.json")"; rc=$?
 check "findings in the last tracked Agent round return to a post-budget checkpoint" \
   '[ "$rc" = 0 ] && json_fields "$out" status=findings review_chain_tracked=true autonomous_review_index=3 autonomous_reviews_remaining=0 autonomous_review_allowed=false human_decision_required=true review_state=post_review_budget findings_require_implementer_self_review=true next_action=triage_findings_and_continue_independent_work self_review_gate.required=true self_review_gate.required_triggers.0=findings_returned self_review_gate.required_triggers.1=post_review_budget_checkpoint self_review_gate.blocks.0=external_review self_review_gate.allowed_next_actions.2=continue_independent_work'
+# Round 1 of this chain also returned findings, so this is the second one: the rule the
+# trigger carries is about the RECURRENCE, and the agent reads it here rather than in a
+# skill it never loads while inside the chain.
+check "a second findings round in one chain raises the design check" \
+  '[ "$rc" = 0 ] && json_fields "$out" self_review_gate.required_triggers.2=recurring_findings_design_check && grep -q decide_keep_delete_narrow_replace <<<"$out"'
 
 reset_case passed unavailable unavailable
 out="$(run_challenge_gate --challenge-budget 2 --challenge-index 1 --focus missing-history --review-chain-id long-task --autonomous-review-index 2)"; rc=$?

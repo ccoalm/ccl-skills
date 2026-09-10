@@ -14,6 +14,7 @@ from pathlib import Path, PurePosixPath
 import signal
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 from typing import Any
@@ -370,6 +371,10 @@ STAGE_CONCERNS = {
             "compatibility",
             "Compatibility, maintainability, and unnecessary-complexity regressions.",
         ),
+        (
+            "claim_strength",
+            "Claims the cited evidence does not carry: absolutes, universals, causal statements, exhaustiveness.",
+        ),
     ),
     "release": (
         ("correctness", "Functional correctness and acceptance coverage."),
@@ -396,6 +401,10 @@ STAGE_CONCERNS = {
         (
             "observability_operations",
             "Operational visibility, diagnosis, support, and recovery evidence.",
+        ),
+        (
+            "claim_strength",
+            "Claims the cited evidence does not carry: absolutes, universals, causal statements, exhaustiveness.",
         ),
     ),
 }
@@ -1730,25 +1739,56 @@ def _validate_chain_succession(
     if prior.get("predecessor_chain_id") is not None:
         reject("predecessor is itself a succession round; succession does not compose")
     prior_budget = prior.get("challenge_budget")
+    prior_mode = prior.get("mode")
     if (
         prior.get("schema_version") != 3
-        or prior.get("mode") != "challenge"
+        or prior_mode not in ("review", "challenge")
         or prior.get("status") not in ("passed", "findings")
         or prior.get("review_chain_tracked") is not True
         or not isinstance(prior_budget, int)
         or isinstance(prior_budget, bool)
         or prior_budget < 1
     ):
-        reject("predecessor is not a tracked challenge receipt")
-    if (
-        prior.get("autonomous_review_index") != prior_budget + 1
-        or prior.get("challenge_index") != prior_budget
-        or prior.get("autonomous_reviews_remaining") != 0
-        or prior.get("autonomous_review_allowed") is not False
-    ):
-        # Terminality is the receipt's own arithmetic, not just its index: a
-        # forged receipt can carry a terminal index while every other field still
-        # says the chain has rounds left.
+        reject("predecessor is not a tracked review or challenge receipt")
+    # Terminality is the receipt's own arithmetic, not just its index: a forged
+    # receipt can carry a terminal index while every other field still says the
+    # chain has rounds left.
+    #
+    # A chain ends where the candidate moves, and a fix applied straight after the
+    # REVIEW moves the owner digest exactly as one applied after the challenge
+    # does, so a review can be the last round its chain ever had. Requiring a
+    # challenge receipt here did not protect the landing candidate -- the
+    # succession challenge binds that either way -- it only forced the challenge to
+    # be spent on a candidate the author had already decided to replace. The one
+    # class this stops owing is a challenge on a candidate that will never land,
+    # which carries no evidence about what does. Everything else is unchanged: the
+    # candidate must still have moved, succession still does not compose, and the
+    # per-chain budget is untouched (this path spends fewer rounds, never more).
+    if prior_mode == "challenge":
+        chain_ended = (
+            prior.get("autonomous_review_index") == prior_budget + 1
+            and prior.get("challenge_index") == prior_budget
+            and prior.get("autonomous_reviews_remaining") == 0
+            and prior.get("autonomous_review_allowed") is False
+        )
+    else:
+        # The review is round 1 with its chain's challenge still unspent -- as the
+        # receipt itself reports it. This is a FORGERY guard, not a history check:
+        # a genuine round-1 review reads the same whether its chain later ran a
+        # challenge or not, because a stateless controller sees only the receipt it
+        # is handed. A caller who spent the challenge and presents only the review
+        # is therefore accepted here, and the successor inherits no challenge
+        # focuses, so a focus that chain really did spend can be spent again. That
+        # is the same omitted-history boundary the rest of this contract states,
+        # and the closeout validator's ordered receipt set is where a retained
+        # challenge receipt would show it; nothing at this call site can close it.
+        chain_ended = (
+            prior.get("autonomous_review_index") == 1
+            and prior.get("challenge_index") == 0
+            and prior.get("autonomous_reviews_remaining") == prior_budget
+            and prior.get("autonomous_review_allowed") is True
+        )
+    if not chain_ended:
         reject("predecessor is not its chain's terminal round")
     predecessor_chain_id = prior.get("review_chain_id")
     if not isinstance(predecessor_chain_id, str) or not predecessor_chain_id.strip():
@@ -1800,6 +1840,10 @@ def _validate_chain_succession(
         "result_sha256": result_hash,
         "candidate_sha256": prior_candidate_hash,
         "focuses": focuses,
+        # The budget is one review plus one challenge, so a fix ends the chain and the
+        # second findings round lands HERE rather than in-chain. Carrying the ended
+        # chain's verdict is what lets the recurrence be counted at all.
+        "returned_findings": prior.get("status") == "findings",
     }
 
 
@@ -3161,6 +3205,7 @@ def freeze_review_profile(
     previous_challenge_focuses: list[str] = []
     prior_review_result_hashes: list[str] = []
     prior_review_candidate_hashes: list[str] = []
+    prior_findings_rounds = 0
     succession: dict[str, Any] | None = None
     inherited_challenge_focuses: list[str] = []
     if review_chain_tracked:
@@ -3309,6 +3354,8 @@ def freeze_review_profile(
                 previous_challenge_focuses.append(focus)
             prior_review_result_hashes.append(result_hash)
             prior_review_candidate_hashes.append(prior_candidate_hash)
+            if prior.get("status") == "findings":
+                prior_findings_rounds += 1
         if challenge_focus and challenge_focus in (
             previous_challenge_focuses + inherited_challenge_focuses
         ):
@@ -3328,6 +3375,9 @@ def freeze_review_profile(
                 "later challenges require --review-chain-id and the complete --prior-review-result-file chain",
                 "review_chain_required",
             )
+
+    if succession is not None and succession["returned_findings"]:
+        prior_findings_rounds += 1
 
     self_review_satisfied_triggers: list[str] = []
     if args.mode in ("review", "challenge"):
@@ -3401,6 +3451,7 @@ def freeze_review_profile(
             succession["candidate_sha256"] if succession else None
         ),
         "self_review_satisfied_triggers": self_review_satisfied_triggers,
+        "prior_findings_rounds": prior_findings_rounds,
         "required_concerns": [
             {"id": concern_id, "description": description}
             for concern_id, description in reviewer_concern_pairs
@@ -4168,7 +4219,52 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+PRINT_REQUIRED_CONCERNS_FLAG = "--print-required-concerns"
+
+
+def _print_required_concerns(argv: list[str]) -> int:
+    """Print the concern ids a review plan must cover, one per line.
+
+    The plan's required set is derived from the stage and the risk tags, and a
+    caller that hardcodes its own copy of that list drifts the moment the set
+    changes -- measured as five suites whose fixtures stopped satisfying the gate
+    when one concern was added, none of which the fast lane could report because
+    the runner aborts at its first failing target. The list has exactly one owner;
+    this prints it so callers derive instead of duplicating.
+
+    Deliberately narrower than the reviewer's concern set: this answers what the
+    PLAN owes, so the synthetic challenge slot and the wording-only boundary --
+    which the controller adds for the reviewer, never for the plan -- are absent.
+    """
+    parser = argparse.ArgumentParser(prog="review_gate.py", add_help=True)
+    parser.add_argument(PRINT_REQUIRED_CONCERNS_FLAG, action="store_true", required=True)
+    parser.add_argument("--stage", choices=("explore", "build", "release"), default="build")
+    parser.add_argument("--risk-tag", action="append", default=[])
+    args = parser.parse_args(argv)
+    # The same tag validation the run path applies. Without it the printer answers for
+    # inputs the enforcer refuses, which is the printer/enforcer divergence this export
+    # exists to remove -- a caller deriving from a malformed tag would get a list where
+    # the real round fails closed.
+    for index, tag in enumerate(args.risk_tag):
+        if not tag or len(tag) > 80 or any(ch.isspace() for ch in tag):
+            parser.error(f"invalid risk tag at index {index}")
+    stage_rank = {"explore": 0, "build": 1, "release": 2}
+    depth = "release" if HIGH_RISK_TAGS.intersection(args.risk_tag) else args.stage
+    if stage_rank[depth] < stage_rank[args.stage]:
+        depth = args.stage
+    ids = [concern_id for concern_id, _ in STAGE_CONCERNS[depth]]
+    if HIGH_RISK_TAGS.intersection(args.risk_tag):
+        ids.append("high_risk_boundary")
+    for concern_id in ids:
+        print(concern_id)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    if PRINT_REQUIRED_CONCERNS_FLAG in (sys.argv[1:] if argv is None else argv):
+        # Answered before the run parser, which requires --mode/--cwd/--implementer-family
+        # for an actual review; asking what a plan owes needs none of them.
+        return _print_required_concerns(sys.argv[1:] if argv is None else argv)
     script_dir = Path(__file__).resolve().parent
     packet_path: Path | None = None
     profile_path: Path | None = None
@@ -4560,6 +4656,7 @@ def main(argv: list[str] | None = None) -> int:
                         "deep_self_review",
                         "continue_implementation",
                     ]
+                    recurring_findings = profile["prior_findings_rounds"] > 0
                     if result["autonomous_review_allowed"]:
                         next_action = "implementer_self_review"
                         review_state = "findings_pending"
@@ -4573,6 +4670,18 @@ def main(argv: list[str] | None = None) -> int:
                         )
                         allowed_self_review_actions.append("continue_independent_work")
                     allowed_self_review_actions.append("resolve_review_findings")
+                    if recurring_findings:
+                        # Findings have now come back across rounds. The next patch is
+                        # not the default move: decide whether the reviewed surface
+                        # should exist in this shape at all. Two rounds of findings need
+                        # not share a class, so this over-fires by design -- answering an
+                        # inapplicable question is cheap, and the miss it prevents is not.
+                        required_self_review_triggers.append(
+                            "recurring_findings_design_check"
+                        )
+                        allowed_self_review_actions.append(
+                            "decide_keep_delete_narrow_replace"
+                        )
                     current_self_review_gate = self_review_gate(
                         required_triggers=required_self_review_triggers,
                         satisfied_triggers=profile["self_review_satisfied_triggers"],

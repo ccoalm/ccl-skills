@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "5264e9f917c2a6cdb16ded6b6f2921889a1888a27293f3548c2c551ed50294ff",
+ "searched_set": [
+  "source-register.md row (code-review): succession admission, exported concern set, mutation attributions -- INSTANCE, dispositioned",
+  "source-register.md row (skill-extraction-workflow): derived fixtures, withdrawn relocation, write-side norm -- INSTANCE, dispositioned",
+  "staged-review-contract.md: succession admission sentence -- not an instance; it states what the code checks and the code is in the packet",
+  "staged-review-contract.md: exported concern set paragraph -- not an instance; the printer and its use are both in the packet",
+  "attention-budget-ratchet.md: write-side norm and its two lookup commands -- not an instance; the commands are runnable from the packet itself",
+  "review_gate.py: succession precondition and printer -- not an instance; the code under review is the packet",
+  "test_review_gate.sh: succession, parity and exit-status probes -- INSTANCE where a probe's consumer lies outside the diff, dispositioned",
+  "specs/126 evidence: base attestations -- INSTANCE by construction, receipts postdate the round that produces them, dispositioned",
+  "plan-126 acceptance criteria: complete-lane green on the exact candidate -- not an instance; met on this candidate rather than argued"
+ ],
+ "unmatched_instances": []
+}

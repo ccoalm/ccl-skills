@@ -58,7 +58,12 @@ hand-attested plan (`review_plan_source=implementer-supplied` otherwise).
 Self-review accumulates stage concerns: explore covers correctness and
 safety; build adds failure paths, tests, and compatibility; release adds rollout
 and operations. High-risk input raises depth to release and adds
-`high_risk_boundary`.
+`high_risk_boundary`. That set has one owner, and
+`review_gate.sh --print-required-concerns --stage <stage> [--risk-tag <tag>]`
+prints it, so a caller building a plan derives the list instead of keeping a copy
+that silently stops satisfying the gate when the set changes. It prints what the
+PLAN owes: the synthetic challenge slot and the wording-only boundary, which the
+controller adds for the reviewer and never for the plan, are absent.
 
 The serialized plan is at most 32,000 bytes and `intent` is 8..4,000
 characters. Those are validation limits, not permission for a caller to slice a
@@ -168,6 +173,28 @@ top-level agents, commands, hooks, or MCP servers is not loaded.
 Wrappers keep an explicit selected-owner count instead of testing empty Bash
 arrays under `set -u`, preserving the no-owner lane on Bash 3.2.
 
+### The claim-strength walk, and why the late correction is not cheaper
+
+`claim_strength` is a required self-review concern at build and release depth. The
+plan walks the candidate's load-bearing claims — absolutes, universals, causal
+statements, exhaustiveness — and for each one either names evidence that would
+survive a challenge or weakens the claim on the spot. It is owed before round 1
+because that is the only point in a round where correcting a claim is free: once a
+round binds the candidate, an edit inside a selected owner package voids every
+receipt bound to it, so a sentence that claims too much costs exactly what a changed
+predicate costs. The concern also reaches the reviewer, so a claim that survives the
+walk comes back as a round-1 finding — inside the fix batch the round was going to
+pay for anyway — rather than at closeout, where the remaining moves are a fresh chain
+or leaving it standing.
+
+There is deliberately no cheap late path. The proof-bound single review
+(`wording-only-review.md`) refuses any changed non-punctuation character, which is
+exactly what weakening a claim is, and an exception keyed on the author's own "this
+edit only weakens a claim" is an assertion the controller cannot re-derive — a waiver
+of that shape was carried here once and removed, because a predicate that approximates
+meaning keeps admitting shapes it did not anticipate. The price stays uniform in both
+directions; the walk is what moves the correction to where the price is zero.
+
 ## Base-derived packet input boundary
 
 `--base` freezes the tracked diff plus every non-ignored untracked path in
@@ -226,126 +253,9 @@ later round read more than an earlier one.
 
 ## Proof-bound wording-only single review
 
-The wording-only exception is one untracked `review` with
-`challenge_budget=0`; it is not a chain, challenge, or `complete` checkpoint.
-Supply `--wording-only-proof-file` to bind the exception to the exact packet.
-Without that proof, an explore/build budget-zero review remains an ordinary
-single review and cannot be recorded as the wording-only exception;
-release/high-risk budget zero fails before inference.
-
-At release depth, including depth raised by a high-risk tag, only a
-controller-proved `markdown-punctuation-only` check may use this exception.
-`markdown-token-replacement` remains available for explore/build budget-zero
-review, but it cannot waive the release/high-risk challenge: byte-exact token
-replacement does not prove that the old and new tokens have the same meaning.
-
-The proof is a single-link regular UTF-8 JSON file of at most 16,000 bytes:
-
-```json
-{"schema_version":1,"candidate_sha256":"<packet-sha256>","check":{"kind":"markdown-punctuation-only"}}
-```
-
-The other fixed check is
-`markdown-token-replacement`, whose `check` also contains `old_token`,
-`new_token`, and integer `expected_count` (1..100). The controller never trusts
-a caller-supplied pass result. It reparses the frozen packet and derives the
-status, files, changed-line count, replacement count, and scope SHA-256.
-
-The accepted packet is deliberately narrow: a canonical full-context unified
-Git diff, LF-terminated, at most 200,000 bytes, changing existing regular
-Markdown files inside exactly one existing non-linked skill package. Every
-file's first hunk starts at line 1 so frontmatter is inspectable. Adds,
-deletes, renames, multi-skill changes, frontmatter or `description` edits,
-non-regular Git modes, custom/compact packets, extra context outside the diff,
-and files without a final newline fail closed. `markdown-punctuation-only`
-accepts only one-for-one plain-prose line replacements whose non-punctuation
-characters remain identical; numeric tokens must additionally survive
-byte-for-byte (deleting the dot in `5.5` is a threshold change, not
-punctuation), and a question mark may not be added or removed (a statement
-turned into a question is a meaning change). Lines must start at column zero
-and contain prose; line adds/deletes, Markdown headings, lists, block quotes,
-links, tables, inline code, fenced or indented code, and raw HTML `pre`/`code`
-containers fail closed. `markdown-token-replacement` requires every changed
-line pair to differ only by the named whole-token replacement, with the exact
-total count, and rejects packets whose changed lines touch a Markdown or HTML
-code container.
-
-This recipe produces the exact packet and proof without a second parser or a
-pretend verifier command. Set `WORDING_KIND=markdown-punctuation-only`, or set
-`WORDING_KIND=markdown-token-replacement` plus `WORDING_OLD`, `WORDING_NEW`, and
-`WORDING_COUNT`:
-
-```bash
-: "${CODE_REVIEW_SKILL_DIR:?set the installed code-review skill directory}"
-: "${REPO_ROOT:?set the absolute repository root}"
-: "${REVIEW_BASE:?set the exact base ref}"
-: "${SKILL_NAME:?set the one existing skill package name}"
-: "${REVIEW_STAGE:?set explore, build, or release}"
-: "${IMPLEMENTER_FAMILY:?set the implementer model family}"
-: "${REVIEW_PLAN_FILE:?set the absolute review-plan JSON path}"
-: "${REVIEW_EVIDENCE_DIR:?set an existing durable private evidence directory}"
-: "${WORDING_KIND:?set one supported wording-only check kind}"
-
-umask 077
-WORDING_RUN_DIR="$(mktemp -d "$REVIEW_EVIDENCE_DIR/wording-review.XXXXXX")" || exit 1
-WORDING_DIFF="$WORDING_RUN_DIR/candidate.diff"
-WORDING_PROOF="$WORDING_RUN_DIR/proof.json"
-WORDING_RESULT="$WORDING_RUN_DIR/review.json"
-
-git -C "$REPO_ROOT" diff --no-color --no-ext-diff --no-textconv --full-index \
-  --src-prefix=a/ --dst-prefix=b/ --unified=1000000 \
-  "$REVIEW_BASE" -- "skills/$SKILL_NAME" >"$WORDING_DIFF" || exit 1
-
-python3 - "$WORDING_DIFF" "$WORDING_PROOF" "$WORDING_KIND" \
-  "${WORDING_OLD:-}" "${WORDING_NEW:-}" "${WORDING_COUNT:-0}" <<'PY'
-import hashlib
-import json
-import sys
-from pathlib import Path
-
-diff_path, proof_path = map(Path, sys.argv[1:3])
-kind, old, new, count = sys.argv[3:]
-check = {"kind": kind}
-if kind == "markdown-token-replacement":
-    check.update(old_token=old, new_token=new, expected_count=int(count))
-elif kind != "markdown-punctuation-only":
-    raise SystemExit("unsupported WORDING_KIND")
-payload = {
-    "schema_version": 1,
-    "candidate_sha256": hashlib.sha256(diff_path.read_bytes()).hexdigest(),
-    "check": check,
-}
-proof_path.write_text(
-    json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n",
-    encoding="utf-8",
-)
-PY
-
-WORDING_RISK_ARGS=()
-for tag in ${REVIEW_RISK_TAGS:-}; do WORDING_RISK_ARGS+=(--risk-tag "$tag"); done
-if ! bash "$CODE_REVIEW_SKILL_DIR/scripts/review_gate.sh" \
-  --mode review --stage "$REVIEW_STAGE" --challenge-budget 0 \
-  --cwd "$REPO_ROOT" --diff-file "$WORDING_DIFF" \
-  --review-plan-file "$REVIEW_PLAN_FILE" \
-  --wording-only-proof-file "$WORDING_PROOF" \
-  ${WORDING_RISK_ARGS[@]+"${WORDING_RISK_ARGS[@]}"} \
-  --implementer-family "$IMPLEMENTER_FAMILY" >"$WORDING_RESULT"; then
-  cat "$WORDING_RESULT" >&2
-  exit 1
-fi
-cat "$WORDING_RESULT"
-```
-
-A valid result carries `wording_only_proof_sha256`, controller-derived
-`wording_only_scope.status=passed`, and a reviewed
-`wording_only_boundary` concern. That concern independently confirms the edit
-changes no trigger, scope, routing, validation, acceptance, rule, threshold,
-boundary, frontmatter, description, or other meaning. If it is missing,
-inconclusive, or reports a possible semantic change, the wording-only exception
-does not apply: use the normal challenge and behavioral-evidence path. Any
-candidate edit regenerates the packet and proof and requires a new review.
-Keep the diff, proof, and result together; a digest whose source artifact was
-deleted is not independently auditable evidence.
+The wording-only exception — its depth limits, the proof schema, the accepted
+packet, the recipe that produces both, and how a valid result is read — is
+specified in `wording-only-review.md`.
 
 ## Agent review chain
 
@@ -362,8 +272,10 @@ index 1; an untracked initial review is single-round and therefore uses budget 0
 candidate can never be challenged inside it. One succeeding chain may open at
 index 1 in `challenge` mode by supplying `--predecessor-chain-result-file` — the
 ended chain's terminal receipt — instead of an in-chain prior result. The
-controller accepts it only when that receipt is a tracked challenge at its own
-chain's terminal index, carries this chain's `review_scope_sha256` and matching
+controller accepts it only when that receipt is the tracked round its chain ended
+on — a terminal challenge, or a round-1 review whose own
+arithmetic still reports its challenge unspent — carrying this chain's
+`review_scope_sha256` and matching
 stage/depth/risk-tags/budget, preserves the controller digest, owner-selection
 source, and selected owner names, and binds a candidate that DIFFERS from this
 packet: the owner-package digest is the one binding allowed to move, because its
@@ -374,6 +286,24 @@ differ from every focus the ended chain spent. The result records
 `predecessor_candidate_sha256`, and counts `material_candidate_change` as a
 satisfied self-review trigger. Succession carries history rather than resetting
 it: consumers still sum rounds across both chains.
+
+A chain ends where the candidate moves, and a fix applied straight after the review
+moves the owner digest exactly as one applied after the challenge does. Requiring a
+challenge receipt here never protected the landing candidate — the succession
+challenge binds that either way — it only forced the challenge to be spent on a
+candidate the author had already decided to replace. The single class that stops
+being owed is a challenge on a candidate that will never land, which carries no
+evidence about the one that does; every other binding is unchanged, the candidate
+must still have moved, succession still does not compose, and this path spends
+fewer rounds than the old one, never more. What bounds it is the receipt's own arithmetic, and that is a
+forgery guard rather than a history check: a genuine round-1 review reads the same
+whether its chain later ran a challenge or not, so a caller who spent the challenge
+and presents only the review is accepted, and the successor inherits no challenge
+focuses — a focus that chain did spend can be spent again. This is the same
+omitted-history boundary the rest of this contract states rather than a new one, and
+the closeout validator's ordered receipt set is where a retained challenge receipt
+would show it; no check at the succession call site can close it, and none is
+claimed.
 
 The chain binds task scope, candidate identity per round, result hashes, mode,
 status, challenge focus, controller, and selected owners. The opaque
@@ -429,6 +359,26 @@ returned, candidate change in a tracked chain, risk/scope escalation, post-budge
 checkpoint, and before a completion claim. Findings never produce a blind
 review-fix-review loop: they block another reviewer call, return to implementer
 triage, and still allow implementation, tests, and independent runnable work.
+
+**Findings that come back are a design question.** When a round returns findings and
+the history it carries already holds one — an earlier round of this chain, or the
+predecessor chain a succession names — the gate adds
+`recurring_findings_design_check` to the required triggers and
+`decide_keep_delete_narrow_replace` to the allowed actions. It blocks nothing that
+`findings_returned` does not already block; what it adds is the question the next
+patch would walk past: whether the reviewed surface should exist in this shape at
+all, answered as `keep`, `delete`, `narrow`, or `replace`, resting on the rounds and
+findings it recurred across, and ratified by a risk owner other than the one
+proposing it. `../../skill-extraction-workflow/SKILL.md` owns that rule; this is where
+it fires, because the situation arises inside a chain and that skill is usually not
+loaded there. Two findings rounds need not share a class, so the trigger over-fires
+by design — answering an inapplicable question costs a line, and the round it saves
+does not.
+
+The count is what the controller can prove, and no more: the rounds of this chain plus
+the predecessor a succession names, which is why the trigger reaches across a chain
+break at all (Chain succession, below). Succession does not compose, so a third chain
+opened fresh carries no history and the recurrence becomes the round's own record.
 
 A passed final external round returns
 `next_action=deep_self_review_before_completion` and remains

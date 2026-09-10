@@ -20,6 +20,22 @@ from unittest import mock
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+
+
+def required_concerns(stage: str, *risk_tags: str) -> list[str]:
+    """The concern ids a plan owes, asked of the controller that enforces them.
+
+    A fixture holding its own copy of this list silently stops satisfying the gate
+    when the set changes, and the suite runner aborts at its first failing target,
+    so the drift surfaces rounds later. There is one owner; ask it.
+    """
+    argv = [sys.executable, str(SCRIPT_DIR / "review_gate.py"),
+            "--print-required-concerns", "--stage", stage]
+    for tag in risk_tags:
+        argv += ["--risk-tag", tag]
+    printed = subprocess.run(argv, capture_output=True, text=True, check=True).stdout.split()
+    assert printed, "the controller printed no required concerns"
+    return printed
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 import review_gate
@@ -736,7 +752,7 @@ class CompletionFindingDispositionTest(unittest.TestCase):
                 {"concern": concern,
                  "conclusion": f"The synthetic completion fixture preserves {concern} boundaries.",
                  "evidence_refs": ["fixture"]}
-                for concern in ("correctness", "safety", "failure_paths", "tests_evidence", "compatibility")
+                for concern in required_concerns("build")
             ],
             "evidence": [{"id": "fixture", "result": "Synthetic exact-candidate completion and history fixture."}],
         })
