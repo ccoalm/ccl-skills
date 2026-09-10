@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "014f79b58e5079a1502c0e781bbbd58535ace84a6ba1bf0acd1179b5ed4f08ef",
+ "searched_set": [
+  "rehearsal identity: make npm-publish-dry reports name @ccoalm/ccl-skills, version 0.17.0, ccoalm-ccl-skills-0.17.0.tgz, 691 total files (0.16.0 shipped 689)",
+  "registry state: npm view @ccoalm/ccl-skills reports version 0.16.0 and dist-tags.latest 0.16.0",
+  "version availability: npm view @ccoalm/ccl-skills@0.17.0 returns 404, so the version is unpublished",
+  "tag availability: git ls-remote --tags origin ccl-skills-v0.17.0 returns no ref",
+  "closure change: git diff --stat ccl-skills-v0.16.0..origin/main over the packaging roots is 16 files across code-review, skill-extraction-workflow and tighten-doc, which is what makes this minor rather than patch",
+  "packaging roots: the repository-root scripts/ directory is not a packaging root, so a change there would not ship; nothing this cycle depends on it",
+  "base attestation semantics: base-attestation-N.txt records the ls-remote line for refs/heads/dev at 28ea1692e884, which fixes WHICH commit the rounds reviewed"
+ ],
+ "unmatched_instances": [
+  "branch-protection and publication-permission safeguards: a dev-ref hash cannot show that the tag target sits on a protected branch, that ccl-skills-v* creation is restricted, or that the npm environment requires a reviewer. Those are repository and environment settings rather than repository content, so nothing inside this candidate can carry them; they are enforced by GitHub at push and publish time, and the release stays gated on a person approving the npm environment."
+ ]
+}
