@@ -61,6 +61,7 @@ plan = {
             ("failure_paths", "The focused checks cover overflow, stale input, and malformed text paths."),
             ("tests_evidence", "The focused regression fails when bounded update guarantees are removed."),
             ("compatibility", "The focused checks preserve the plan schema and original file permissions."),
+            ("claim_strength", "Each claim is scoped to the plan-mutation fixture it was observed on."),
         )
     ],
     "evidence": [

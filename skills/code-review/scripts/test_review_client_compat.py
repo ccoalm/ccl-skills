@@ -736,7 +736,7 @@ class CompletionFindingDispositionTest(unittest.TestCase):
                 {"concern": concern,
                  "conclusion": f"The synthetic completion fixture preserves {concern} boundaries.",
                  "evidence_refs": ["fixture"]}
-                for concern in ("correctness", "safety", "failure_paths", "tests_evidence", "compatibility")
+                for concern in ("correctness", "safety", "failure_paths", "tests_evidence", "compatibility", "claim_strength")
             ],
             "evidence": [{"id": "fixture", "result": "Synthetic exact-candidate completion and history fixture."}],
         })

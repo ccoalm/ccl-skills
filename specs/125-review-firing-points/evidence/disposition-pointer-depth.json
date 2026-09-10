@@ -1,0 +1,18 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "34fa9995b69c973cd064e6020112cead8f6ec4470dab32b5c188f46581949c97",
+ "receipt_sha256": "dd781ad6c0739fd8c317dbe81f722a0a746aeedcdfdb0c0323fe8ede0dc67306",
+ "finding_sha256": "09418501f414d65578ac3d8a3fd94aca29e8fa243fef18360de4e5f89882cc7b",
+ "disposition": "fixed",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "dd781ad6c0739fd8c317dbe81f722a0a746aeedcdfdb0c0323fe8ede0dc67306",
+   "finding_sha256": "09418501f414d65578ac3d8a3fd94aca29e8fa243fef18360de4e5f89882cc7b"
+  }
+ ],
+ "evidence": [
+  "skills/code-review/references/staged-review-contract.md now reads `../../skill-extraction-workflow/SKILL.md`; from skills/code-review/references/ that resolves to skills/skill-extraction-workflow/SKILL.md, confirmed by listing the resolved path.",
+  "skills/skill-extraction-workflow/scripts/contract-anchors.tsv pins that literal, so a depth regression turns the anchor gate red instead of passing silently; the gate reports contract_anchor_gate_ok over 14 anchors on this candidate.",
+  "The sibling pointer in skills/skill-extraction-workflow/references/firing-point-placement.md was checked at the same time and already used the correct depth."
+ ]
+}

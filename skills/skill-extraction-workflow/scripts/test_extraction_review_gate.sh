@@ -75,6 +75,7 @@ conclusions = {
     "failure_paths": "The no-independent-reviewer boundary remains structured and fail closed.",
     "tests_evidence": "Direct and wrapped calls provide a differential budget assertion.",
     "compatibility": "The generic controller default remains zero while extraction fixes one.",
+    "claim_strength": "Every claim here is scoped to this differential budget probe.",
 }
 skills = {
     "correctness": "skill-extraction-workflow",
@@ -82,6 +83,7 @@ skills = {
     "failure_paths": "python-service-dev",
     "tests_evidence": "testing-strategy",
     "compatibility": "terminal-cli-dev",
+    "claim_strength": "skill-extraction-workflow",
 }
 plan = {
     "intent": "Prove the extraction wrapper and real review controller agree on budget one.",
@@ -274,6 +276,11 @@ landing = (
 staged = (
     root / "skills/code-review/references/staged-review-contract.md"
 ).read_text(encoding="utf-8")
+# The wording-only exception is specified in its own reference; the contract must
+# still name it, so the pin proves both the specification and its reachability.
+wording_only = (
+    root / "skills/code-review/references/wording-only-review.md"
+).read_text(encoding="utf-8")
 code_review = (root / "skills/code-review/SKILL.md").read_text(encoding="utf-8")
 
 for label, text in {
@@ -310,10 +317,11 @@ for label, text in {
     assert "wording_only_boundary" in text, (
         f"{label} does not require independent wording-only semantic confirmation"
     )
-assert "--wording-only-proof-file" in staged
-assert "--challenge-budget 0" in staged
-assert "markdown-punctuation-only" in staged
-assert "markdown-token-replacement" in staged
+assert "wording-only-review.md" in staged
+assert "--wording-only-proof-file" in wording_only
+assert "--challenge-budget 0" in wording_only
+assert "markdown-punctuation-only" in wording_only
+assert "markdown-token-replacement" in wording_only
 assert "opens no challenge chain or `complete` checkpoint" in dual
 assert "codex review --base" not in quickstart
 assert "codex exec adversarial" not in quickstart

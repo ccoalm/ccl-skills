@@ -74,7 +74,7 @@ Positive challenge capacity opens it at index 1; budget zero is untracked.
 The sole release/high-risk budget-zero exception is a controller-proved
 `markdown-punctuation-only` review: it requires `wording_only_boundary`, permits
 no `complete`, and rejects an author assertion alone (recipe:
-`references/staged-review-contract.md`). After a clean/source-refuted tracked
+`references/wording-only-review.md`). After a clean/source-refuted tracked
 challenge, `complete` may close early and preserve unused rounds. Every result
 exposes controller-owned `self_review_gate`; an outstanding checkpoint blocks
 only external review or completion, not implementation or tests. Even a passed
@@ -280,7 +280,7 @@ For diffs over roughly 2,000 changed lines or 50 files, split review/challenge b
 
 Never treat a timeout, silence, or empty output as approval or "no findings": any timeout is inconclusive, and the final status must say `inconclusive` with the timeout reason so downstream review or merge state cannot treat the missing lane as approval. A live host execution handle such as `session_id` or `cell_id` means the same command is still running; poll that exact handle to terminal exit, and never start a replacement/fallback while its process is live. Do not use a 30 second silence as a review failure — narrow diff reviews legitimately take 2-3 minutes and broad reviews about 5. Challenge makes one formal Claude invocation; review and consult may make at most two only for their existing bounded result-recovery paths. After that, mark the Claude lane inconclusive and apply fallback only if the owning gate allows it. The wrapper traps TERM/INT/HUP and emits terminal `operator_interrupt`; the gate never starts another client after an operator interruption. SIGKILL and host crashes cannot be trapped, so non-zero exit without valid JSON remains inconclusive/manual-review-required, never as success. The timeout bound is per formal invocation, not per wrapper run; outer timeouts must cover the mode's worst case and must never kill the wrapper and then treat the killed output as success. For a yielded run, the caller's lane evidence records handle type, an opaque host transcript/tool-call reference rather than a raw credential-like handle, and terminal exit status. If that handle is lost, the lane is infrastructure-inconclusive/manual-review-required and no replacement or fallback may be started or credited; a `ps`/process-tree capture and wrapper artifacts are diagnostic only and cannot reconstruct the missing terminal result. The outer host assigns this handle after launch, so this is a host-workflow obligation rather than a controller-owned field; exact enforcement requires a trusted host adapter. Recovery detail and timing formulas live in `references/timeout-auth-and-capabilities.md`.
 
-`review_gate.sh` also enforces a cumulative reviewer-lane budget: `--total-timeout` defaults to 2400 seconds, accepts 5 to 3600, reserves ten controller seconds, and divides the remainder by the mode's maximum invocation count. Starting a lane requires at least 21 seconds for review or 16 for challenge, plus setup overhead; smaller accepted values fail closed. Git preflight subprocesses share this deadline; direct filesystem reads still need the host's outer timeout. A timed-out client process group gets bounded cleanup and may cascade only while enough total budget remains. Total exhaustion returns terminal inconclusive `gate_timeout`; killed output is never a verdict. Timing details live in `references/timeout-auth-and-capabilities.md`.
+`review_gate.sh` also enforces a cumulative reviewer-lane budget (`--total-timeout`), shared by git preflight but not by direct filesystem reads, which still need the host's outer timeout. Its default, range, reserved controller seconds, per-invocation division, and per-mode fail-closed minimums are in `references/timeout-auth-and-capabilities.md`. A timed-out client process group gets bounded cleanup and may cascade only while enough total budget remains. Total exhaustion returns terminal inconclusive `gate_timeout`; killed output is never a verdict.
 
 ## Auth And CLI Pitfalls
 
@@ -311,7 +311,8 @@ activation was observed; only a public event/export may populate
 
 ## Reference Loading
 
-- `references/staged-review-contract.md` — required review-plan schema, stage concerns, high-risk depth, prompt layers, and challenge budget. Load before review/challenge.
+- `references/staged-review-contract.md` — review-plan schema, stage concerns, high-risk depth, prompt layers, challenge budget. Load before review/challenge.
+- `references/wording-only-review.md` — the proof-bound wording-only single review. Load when claiming it.
 - `references/manual-invocation-and-prompts.md` — manual command shape, filesystem-boundary text, and the review/challenge prompt templates. Load only when debugging or patching the wrapper or its prompt construction.
 - `references/timeout-auth-and-capabilities.md` — wait-policy timing tables, the numbered auth-recovery procedure, per-mode tool-flag matrix, and CLI capability adoption notes. Load on timeout/auth failures or when maintaining wrapper flag adoption.
 - `references/client-routing.md` — `review_gate.sh` client order, family exclusion, egress, Kimi/Codex boundaries, OpenCode user-model binding, and concurrency rollback. Load when running or diagnosing review/challenge routing.
@@ -341,8 +342,9 @@ In the final work summary, include:
 - mode: review, challenge, complete, or consult
 - command scope, not the full prompt unless useful
 - result: blocking findings, no blocking findings, or inconclusive
-- the reviewed identity — a hash of the exact diff packet reviewed, **required** whenever the reviewed content includes staged, unstaged, untracked, or generated files (later worktree edits keep the same base/head SHA, so SHA alone cannot detect the change); the base/head commit SHA alone suffices only for a clean, fully-committed candidate tree. A review/challenge `no blocking findings` is valid **only** for that exact reviewed content: any later edit, rebase, amend, or new commit voids it and requires a fresh run (mirrors the agentic candidate-SHA binding). A caller — especially one invoking this skill standalone, outside a controller that already tracks the head SHA — must not reuse a prior pass as approval for changed content.
+- the reviewed identity — a hash of the exact diff packet reviewed, **required** whenever the reviewed content includes staged, unstaged, untracked, or generated files (later worktree edits keep the same base/head SHA, so SHA alone cannot detect the change); the base/head commit SHA alone suffices only for a clean, fully-committed candidate tree. A `no blocking findings` result is valid **only** for that exact content: any later edit, rebase, amend, or new commit voids it and requires a fresh run (mirrors the agentic candidate-SHA binding), and no caller — least of all one invoking this skill standalone, outside a controller tracking the head SHA — may reuse a prior pass as approval for changed content.
 - any follow-up fixes made because of the review
+- if `recurring_findings_design_check` fired, the `keep`/`delete`/`narrow`/`replace` decision, what it recurred across, and who ratified it
 - if skipped or inconclusive, the exact reason
 - for a host-yielded execution, the handle type, opaque host transcript/tool-call reference, and terminal exit status; if the handle was lost, record that infrastructure-inconclusive state, diagnostic artifacts, and that fallback was unavailable; never persist a credential-like raw handle in shared evidence
 

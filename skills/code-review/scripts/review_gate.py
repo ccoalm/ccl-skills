@@ -370,6 +370,10 @@ STAGE_CONCERNS = {
             "compatibility",
             "Compatibility, maintainability, and unnecessary-complexity regressions.",
         ),
+        (
+            "claim_strength",
+            "Claims the cited evidence does not carry: absolutes, universals, causal statements, exhaustiveness.",
+        ),
     ),
     "release": (
         ("correctness", "Functional correctness and acceptance coverage."),
@@ -396,6 +400,10 @@ STAGE_CONCERNS = {
         (
             "observability_operations",
             "Operational visibility, diagnosis, support, and recovery evidence.",
+        ),
+        (
+            "claim_strength",
+            "Claims the cited evidence does not carry: absolutes, universals, causal statements, exhaustiveness.",
         ),
     ),
 }
@@ -1800,6 +1808,10 @@ def _validate_chain_succession(
         "result_sha256": result_hash,
         "candidate_sha256": prior_candidate_hash,
         "focuses": focuses,
+        # The budget is one review plus one challenge, so a fix ends the chain and the
+        # second findings round lands HERE rather than in-chain. Carrying the ended
+        # chain's verdict is what lets the recurrence be counted at all.
+        "returned_findings": prior.get("status") == "findings",
     }
 
 
@@ -3161,6 +3173,7 @@ def freeze_review_profile(
     previous_challenge_focuses: list[str] = []
     prior_review_result_hashes: list[str] = []
     prior_review_candidate_hashes: list[str] = []
+    prior_findings_rounds = 0
     succession: dict[str, Any] | None = None
     inherited_challenge_focuses: list[str] = []
     if review_chain_tracked:
@@ -3309,6 +3322,8 @@ def freeze_review_profile(
                 previous_challenge_focuses.append(focus)
             prior_review_result_hashes.append(result_hash)
             prior_review_candidate_hashes.append(prior_candidate_hash)
+            if prior.get("status") == "findings":
+                prior_findings_rounds += 1
         if challenge_focus and challenge_focus in (
             previous_challenge_focuses + inherited_challenge_focuses
         ):
@@ -3328,6 +3343,9 @@ def freeze_review_profile(
                 "later challenges require --review-chain-id and the complete --prior-review-result-file chain",
                 "review_chain_required",
             )
+
+    if succession is not None and succession["returned_findings"]:
+        prior_findings_rounds += 1
 
     self_review_satisfied_triggers: list[str] = []
     if args.mode in ("review", "challenge"):
@@ -3401,6 +3419,7 @@ def freeze_review_profile(
             succession["candidate_sha256"] if succession else None
         ),
         "self_review_satisfied_triggers": self_review_satisfied_triggers,
+        "prior_findings_rounds": prior_findings_rounds,
         "required_concerns": [
             {"id": concern_id, "description": description}
             for concern_id, description in reviewer_concern_pairs
@@ -4560,6 +4579,7 @@ def main(argv: list[str] | None = None) -> int:
                         "deep_self_review",
                         "continue_implementation",
                     ]
+                    recurring_findings = profile["prior_findings_rounds"] > 0
                     if result["autonomous_review_allowed"]:
                         next_action = "implementer_self_review"
                         review_state = "findings_pending"
@@ -4573,6 +4593,18 @@ def main(argv: list[str] | None = None) -> int:
                         )
                         allowed_self_review_actions.append("continue_independent_work")
                     allowed_self_review_actions.append("resolve_review_findings")
+                    if recurring_findings:
+                        # Findings have now come back across rounds. The next patch is
+                        # not the default move: decide whether the reviewed surface
+                        # should exist in this shape at all. Two rounds of findings need
+                        # not share a class, so this over-fires by design -- answering an
+                        # inapplicable question is cheap, and the miss it prevents is not.
+                        required_self_review_triggers.append(
+                            "recurring_findings_design_check"
+                        )
+                        allowed_self_review_actions.append(
+                            "decide_keep_delete_narrow_replace"
+                        )
                     current_self_review_gate = self_review_gate(
                         required_triggers=required_self_review_triggers,
                         satisfied_triggers=profile["self_review_satisfied_triggers"],

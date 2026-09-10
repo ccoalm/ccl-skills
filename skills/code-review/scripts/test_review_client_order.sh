@@ -47,7 +47,7 @@ case "$client" in
   codex) family=openai; provider=openai; model=codex-local-default ;;
   *) exit 2 ;;
 esac
-concern_results='[{"concern":"correctness","conclusion":"Checked routing correctness."},{"concern":"safety","conclusion":"Checked fail-closed safety."},{"concern":"failure_paths","conclusion":"Checked fallback failure paths."},{"concern":"tests_evidence","conclusion":"Checked deterministic test evidence."},{"concern":"compatibility","conclusion":"Checked client-order compatibility."}]'
+concern_results='[{"concern":"correctness","conclusion":"Checked routing correctness."},{"concern":"safety","conclusion":"Checked fail-closed safety."},{"concern":"failure_paths","conclusion":"Checked fallback failure paths."},{"concern":"tests_evidence","conclusion":"Checked deterministic test evidence."},{"concern":"compatibility","conclusion":"Checked client-order compatibility."},{"concern":"claim_strength","conclusion":"Checked that no claim reaches past the client-order fixture."}]'
 
 if [ "$client" = "claude" ]; then
   case "$behavior" in
@@ -114,7 +114,8 @@ cat >"$WORK/review-plan.json" <<'JSON'
     {"concern": "safety", "conclusion": "Terminal boundaries remain fail closed across clients.", "evidence_refs": ["e1"]},
     {"concern": "failure_paths", "conclusion": "Candidate-local failures alone enter the fallback chain.", "evidence_refs": ["e1"]},
     {"concern": "tests_evidence", "conclusion": "Deterministic stubs cover client order and attribution.", "evidence_refs": ["e1"]},
-    {"concern": "compatibility", "conclusion": "Existing client-order customization remains supported.", "evidence_refs": ["e1"]}
+    {"concern": "compatibility", "conclusion": "Existing client-order customization remains supported.", "evidence_refs": ["e1"]},
+    {"concern": "claim_strength", "conclusion": "Every claim is scoped to the deterministic client-order stubs.", "evidence_refs": ["e1"]}
   ],
   "evidence": [{"id": "e1", "result": "Deterministic client routing contract fixture."}]
 }
