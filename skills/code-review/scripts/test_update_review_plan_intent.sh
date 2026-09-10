@@ -30,15 +30,22 @@ CORE="$TMP/core.txt"
 LATEST="$TMP/latest.txt"
 OLD_INTENT="$TMP/old-intent.txt"
 
-python3 - "$PLAN" "$APPEND" "$CORE" "$LATEST" "$OLD_INTENT" <<'PY'
+python3 - "$PLAN" "$APPEND" "$CORE" "$LATEST" "$OLD_INTENT" "$SCRIPT_DIR" <<'PY'
 import json
 import hashlib
+import subprocess
 import sys
 from pathlib import Path
 
 plan_path, append_path, core_path, latest_path, old_intent_path = map(
-    Path, sys.argv[1:]
+    Path, sys.argv[1:6]
 )
+required_concerns = subprocess.run(
+    [sys.executable, str(Path(sys.argv[6]) / "review_gate.py"),
+     "--print-required-concerns", "--stage", "build"],
+    capture_output=True, text=True, check=True,
+).stdout.split()
+assert required_concerns, "the controller printed no required concerns"
 old = "scope:" + ("x" * (3995 - len("scope:") - len("c27"))) + "c27"
 latest = "latest-round:c28"
 core = old[: 3892 - len("\n\n") - len(latest)]
@@ -55,13 +62,12 @@ plan = {
             "conclusion": conclusion,
             "evidence_refs": ["focused-test"],
         }
+        # Derived, not copied: a fixture holding its own copy of the required set
+        # stops satisfying the gate the moment that set changes, and the runner
+        # aborts at its first failing target so the drift surfaces rounds later.
         for concern, conclusion in (
-            ("correctness", "The focused checks cover the updater's accepted state transitions."),
-            ("safety", "The focused checks cover no-write failures and file integrity boundaries."),
-            ("failure_paths", "The focused checks cover overflow, stale input, and malformed text paths."),
-            ("tests_evidence", "The focused regression fails when bounded update guarantees are removed."),
-            ("compatibility", "The focused checks preserve the plan schema and original file permissions."),
-            ("claim_strength", "Each claim is scoped to the plan-mutation fixture it was observed on."),
+            (concern, f"The focused updater checks cover {concern} on this fixture.")
+            for concern in required_concerns
         )
     ],
     "evidence": [

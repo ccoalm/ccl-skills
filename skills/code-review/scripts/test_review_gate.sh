@@ -1400,6 +1400,122 @@ out="$(run_gate --allow-fallback-egress)"; rc=$?
 check "the build reviewer is asked to check claim strength" \
   '[ "$rc" = 0 ] && json_fields "$out" reviewed_concerns.5=claim_strength'
 
+# The exported list is only worth deriving from if it IS the enforced one. Build a
+# plan covering exactly what the controller prints, and then drop each printed
+# concern in turn: acceptance proves the print covers everything the gate demands,
+# and every single-drop rejection proves nothing printed is decorative. Without
+# both directions a caller could derive from a list that had quietly diverged --
+# which is the drift this export exists to remove.
+# The exit status is asserted too. This suite runs without errexit, so a command
+# substitution silently discards it: a printer that emits the right concerns and then
+# fails would satisfy a non-empty check and report agreement it never reached.
+printed_rc=0
+printed_concerns="$("$DIR/review_gate.sh" --print-required-concerns --stage build)" || printed_rc=$?
+check "the controller can print the concern set a plan owes, and succeeds doing it" \
+  '[ -n "$printed_concerns" ] && [ "$printed_rc" = 0 ]'
+# Proving agreement at ONE depth leaves the other branch free to diverge with every
+# test green -- and release/high-risk is the branch that carries the most concerns.
+# Assert the depth-raising branch answers what the gate itself derives for it.
+# Parity includes what each side REFUSES. A printer that answers for tags the enforcer
+# rejects reintroduces the divergence this export removes: a caller deriving from a
+# malformed tag would get a list where the real round fails closed.
+for bad_tag in "a b" "" "$(printf 'x%.0s' $(seq 81))"; do
+  # rc captured without touching shell options: this suite runs under `set -uo pipefail`
+  # and enabling errexit here would abort every later case at its first non-zero command.
+  bad_tag_rc=0
+  "$DIR/review_gate.sh" --print-required-concerns --stage build --risk-tag "$bad_tag" >/dev/null 2>&1 || bad_tag_rc=$?
+  # Parity is a claim about TWO sides, so both are exercised: asserting only the
+  # printer would keep these checks green if the enforcer's own rejection were
+  # removed, which is the half this pair exists to tie together.
+  enforcer_tag_rc=0
+  run_gate --risk-tag "$bad_tag" >/dev/null 2>&1 || enforcer_tag_rc=$?
+  check "printer and enforcer both refuse the same malformed risk tag (${#bad_tag} chars)" \
+    '[ "$bad_tag_rc" != 0 ] && [ "$enforcer_tag_rc" != 0 ]'
+done
+printed_release_rc=0
+printed_release="$("$DIR/review_gate.sh" --print-required-concerns --stage explore --risk-tag shared-gate)" || printed_release_rc=$?
+check "the raised-depth print succeeds" '[ "$printed_release_rc" = 0 ]'
+# Hoisted for the same reason as the calls above: nested inside the comparison, this
+# printer call's exit status was discarded, so a regression failing only for explicit
+# release depth would have compared equal and passed. Every printer invocation in this
+# suite now has its status asserted.
+printed_plain_release_rc=0
+printed_plain_release="$("$DIR/review_gate.sh" --print-required-concerns --stage release)" || printed_plain_release_rc=$?
+check "the plain release print succeeds" '[ "$printed_plain_release_rc" = 0 ]'
+check "a high-risk tag raises the printed set to release depth and adds the boundary concern" \
+  '[ "$(printf %s "$printed_release" | tr "\n" " ")" = "$(printf "%s\nhigh_risk_boundary" "$printed_plain_release" | tr "\n" " ")" ]'
+python3 - "$WORK/review-plan.json" "$WORK/printed-plan.json" $printed_concerns <<'PLAN'
+import json, sys
+from pathlib import Path
+source = json.loads(Path(sys.argv[1]).read_text())
+printed = sys.argv[3:]
+by_concern = {row["concern"]: row for row in source["self_review"]}
+source["self_review"] = [
+    by_concern.get(concern, {"concern": concern,
+                             "conclusion": f"The fixture covers {concern}.",
+                             "evidence_refs": ["e1"]})
+    for concern in printed
+]
+Path(sys.argv[2]).write_text(json.dumps(source))
+PLAN
+reset_case passed unavailable unavailable
+out="$(run_gate --review-plan-file "$WORK/printed-plan.json" --allow-fallback-egress)"; rc=$?
+check "a plan built from the printed set satisfies the gate" '[ "$rc" = 0 ]'
+printed_drop_failures=0
+for dropped in $printed_concerns; do
+  python3 - "$WORK/printed-plan.json" "$WORK/printed-plan-minus.json" "$dropped" <<'PLAN'
+import json, sys
+from pathlib import Path
+plan = json.loads(Path(sys.argv[1]).read_text())
+plan["self_review"] = [row for row in plan["self_review"] if row["concern"] != sys.argv[3]]
+Path(sys.argv[2]).write_text(json.dumps(plan))
+PLAN
+  reset_case passed unavailable unavailable
+  out="$(run_gate --review-plan-file "$WORK/printed-plan-minus.json")"; rc=$?
+  if [ "$rc" = 2 ] && json_fields "$out" reason_code=self_review_incomplete; then
+    printed_drop_failures=$((printed_drop_failures+1))
+  fi
+done
+check "every printed concern is one the gate actually demands" \
+  '[ "$printed_drop_failures" = "$(printf %s "$printed_concerns" | wc -w | tr -d " ")" ]'
+
+# The same two directions at the OTHER depth. A printer that agreed with the gate at
+# build and diverged at release/high-risk would keep every test above green, and
+# release is the branch carrying the most concerns.
+python3 - "$WORK/high-risk-plan.json" "$WORK/printed-release-plan.json" $printed_release <<'PLAN'
+import json, sys
+from pathlib import Path
+source = json.loads(Path(sys.argv[1]).read_text())
+by_concern = {row["concern"]: row for row in source["self_review"]}
+source["self_review"] = [
+    by_concern.get(concern, {"concern": concern,
+                             "conclusion": f"The high-risk fixture covers {concern}.",
+                             "evidence_refs": ["e1"]})
+    for concern in sys.argv[3:]
+]
+Path(sys.argv[2]).write_text(json.dumps(source))
+PLAN
+reset_case passed unavailable unavailable
+out="$(run_gate --stage explore --risk-tag shared-gate --review-plan-file "$WORK/printed-release-plan.json" --review-chain-id printed-release --autonomous-review-index 1 --allow-fallback-egress)"; rc=$?
+check "a plan built from the printed release set satisfies the raised-depth gate" '[ "$rc" = 0 ]'
+printed_release_drop_failures=0
+for dropped in $printed_release; do
+  python3 - "$WORK/printed-release-plan.json" "$WORK/printed-release-minus.json" "$dropped" <<'PLAN'
+import json, sys
+from pathlib import Path
+plan = json.loads(Path(sys.argv[1]).read_text())
+plan["self_review"] = [row for row in plan["self_review"] if row["concern"] != sys.argv[3]]
+Path(sys.argv[2]).write_text(json.dumps(plan))
+PLAN
+  reset_case passed unavailable unavailable
+  out="$(run_gate --stage explore --risk-tag shared-gate --review-plan-file "$WORK/printed-release-minus.json" --review-chain-id printed-release-minus --autonomous-review-index 1)"; rc=$?
+  if [ "$rc" = 2 ] && json_fields "$out" reason_code=self_review_incomplete; then
+    printed_release_drop_failures=$((printed_release_drop_failures+1))
+  fi
+done
+check "every printed release concern is one the raised-depth gate actually demands" \
+  '[ "$printed_release_drop_failures" = "$(printf %s "$printed_release" | wc -w | tr -d " ")" ]'
+
 owner_lstat_classification="$(python3 - "$DIR/review_gate.py" <<'PY'
 import errno
 import importlib.util
@@ -3555,7 +3671,8 @@ python3 - "$WORK/succ-round-two.json" \
   "$WORK/succ-predecessor-owner-moved.json" \
   "$WORK/succ-predecessor-forged-controller.json" \
   "$WORK/succ-predecessor-foreign-scope.json" \
-  "$WORK/succ-predecessor-forged-terminal.json" <<'PY'
+  "$WORK/succ-predecessor-forged-terminal.json" \
+  "$WORK/succ-predecessor-complete-mode.json" <<'PY'
 import json
 from pathlib import Path
 import sys
@@ -3581,6 +3698,10 @@ forged_terminal["challenge_index"] = 0
 forged_terminal["autonomous_reviews_remaining"] = 1
 forged_terminal["autonomous_review_allowed"] = True
 Path(sys.argv[5]).write_text(json.dumps(forged_terminal, separators=(",", ":")))
+# Neither lane: a completion checkpoint is not a round the succession may carry.
+complete_mode = json.loads(json.dumps(source))
+complete_mode["mode"] = "complete"
+Path(sys.argv[6]).write_text(json.dumps(complete_mode, separators=(",", ":")))
 PY
 
 reset_case passed unavailable unavailable
@@ -3606,10 +3727,40 @@ out="$(run_challenge_gate --focus no-predecessor --review-chain-id succ-orphan -
 check "a tracked challenge cannot open a chain without a predecessor receipt" \
   '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession"*) false;; *) true;; esac'
 
+# A fix applied straight after the REVIEW ends the chain exactly as a fix after the
+# challenge does -- the owner digest moves either way -- so the ended chain's terminal
+# receipt is its review. Requiring a challenge receipt here forced that challenge to be
+# spent on a candidate the author had already decided to change, and bought no evidence
+# about the candidate that lands: the succession challenge covers it either way. What is
+# exempted is exactly one class -- a challenge on a candidate that will never land.
 reset_case passed unavailable unavailable
 out="$(run_challenge_gate --focus review-predecessor --review-chain-id succ-review-predecessor --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-round-one.json")"; rc=$?
-check "a succession rejects a predecessor that is not a challenge receipt" \
-  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession predecessor is not a tracked challenge receipt"*) true;; *) false;; esac'
+check "a succession may carry a chain whose terminal receipt is its review" \
+  '[ "$rc" = 0 ] && json_fields "$out" mode=challenge review_chain_tracked=true review_chain_id=succ-review-predecessor autonomous_review_index=1 predecessor_chain_id=succ-phase-one'
+
+# The exemption is bounded by the receipt's own arithmetic. This is a FORGERY guard and
+# is asserted as one: the fixture below is a shape the controller never emits, because a
+# genuine round-1 review reads the same whether its chain later ran a challenge or not.
+# A caller who spent the challenge and presents only the review is accepted here -- the
+# stateless controller cannot see omitted history -- so no test claims otherwise.
+python3 - "$WORK/succ-round-one.json" "$WORK/succ-predecessor-spent-review.json" <<'PLAN'
+import json, sys
+from pathlib import Path
+source = json.loads(Path(sys.argv[1]).read_text())
+spent = json.loads(json.dumps(source))
+spent["autonomous_reviews_remaining"] = 0
+spent["autonomous_review_allowed"] = False
+Path(sys.argv[2]).write_text(json.dumps(spent, separators=(",", ":")))
+PLAN
+reset_case passed unavailable unavailable
+out="$(run_challenge_gate --focus spent-review --review-chain-id succ-spent-review --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-predecessor-spent-review.json")"; rc=$?
+check "a succession rejects a forged review receipt whose own arithmetic says its chain is spent" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession predecessor is not its chain'"'"'s terminal round"*) true;; *) false;; esac'
+
+reset_case passed unavailable unavailable
+out="$(run_challenge_gate --focus complete-predecessor --review-chain-id succ-complete-predecessor --autonomous-review-index 1 --predecessor-chain-result-file "$WORK/succ-predecessor-complete-mode.json")"; rc=$?
+check "a succession rejects a predecessor that is neither a review nor a challenge round" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=review_chain_invalid && case "$out" in *"chain succession predecessor is not a tracked review or challenge receipt"*) true;; *) false;; esac'
 
 # A mid-chain challenge is a live chain, not an ended one: succeeding it would
 # silently retire rounds the wrapper still owes. chain-round-two above is round 2
