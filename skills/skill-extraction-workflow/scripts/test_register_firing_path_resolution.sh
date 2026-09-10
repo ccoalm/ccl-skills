@@ -720,5 +720,45 @@ run_gate "$FIX"
 assert_rc "$rc" 0 "a fenced example row is an illustration, not a live declaration"
 pass "fenced declaration-looking example does not red a register with no live declarations"
 
-[ "$passed" -eq 57 ] || fail "expected 57 assertions, saw $passed (a case was skipped or misplaced)"
+# ── N. RED: the anchored list rule DELETED outright ──────────────────────────
+# A prose rule pinned for a documentation round is normally removed, not
+# reworded: the round that added this case pinned five rules whose only
+# mechanical protection is this gate, and its walk deleted each in turn.
+new_fixture deleted_rule "$LITERAL"
+# A mutation that does not apply proves nothing, so each edit below is checked
+# both before and after: the target must be present first, and the edit must
+# have changed the file. Without this a fixture drift turns these cases into
+# assertions about an unmutated fixture that still pass.
+grep -qF 'Never bypass the demo isolation boundary' "$FIX/skills/demo-skill/SKILL.md" \
+  || fail "fixture drift: the rule this case deletes is not in the fixture"
+grep -v 'Never bypass the demo isolation boundary' "$FIX/skills/demo-skill/SKILL.md" \
+  > "$FIX/skills/demo-skill/SKILL.md.tmp"
+mv "$FIX/skills/demo-skill/SKILL.md.tmp" "$FIX/skills/demo-skill/SKILL.md"
+grep -qF 'Never bypass the demo isolation boundary' "$FIX/skills/demo-skill/SKILL.md" \
+  && fail "mutation did not apply: the rule is still present"
+run_gate "$FIX"
+assert_rc "$rc" 1 "deleting the anchored rule outright must be caught"
+assert_contains "anchor text absent from target" "$out" "deleted anchored rule"
+assert_contains "Never bypass the demo isolation boundary" "$out" "names the dead locator"
+pass "deleting an anchored rule turns the gate RED"
+
+# ── N+1. GREEN by design: text OUTSIDE the anchor may be gutted ──────────────
+# The stated boundary, asserted rather than promised: a substring locator binds
+# the letters it names and nothing else. Here the anchored clause survives while
+# the rest of its line is replaced, and the gate is silent — which is why the
+# ledger rows that rely on it must not claim semantic protection.
+new_fixture unanchored_clause_gutted "$LITERAL"
+grep -qF ' when dispatching work.' "$FIX/skills/demo-skill/SKILL.md" \
+  || fail "fixture drift: the clause this case guts is not in the fixture"
+sed -i.bak 's/ when dispatching work\./ — every safeguard around it removed./' \
+  "$FIX/skills/demo-skill/SKILL.md"
+grep -qF ' — every safeguard around it removed.' "$FIX/skills/demo-skill/SKILL.md" \
+  || fail "mutation did not apply: the unanchored clause is unchanged"
+run_gate "$FIX"
+assert_rc "$rc" 0 "gutting text outside the anchor is invisible to this gate"
+assert_contains "register_firing_path_resolution_ok" "$out" "boundary control"
+assert_not_contains "anchor text absent" "$out" "no false RED on unanchored text"
+pass "text outside the anchor can be gutted while the gate stays green (declared boundary)"
+
+[ "$passed" -eq 59 ] || fail "expected 59 assertions, saw $passed (a case was skipped or misplaced)"
 echo "register_firing_path_resolution_tests_ok ($passed assertions)"
