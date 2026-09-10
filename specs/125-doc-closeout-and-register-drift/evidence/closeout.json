@@ -1,0 +1,81 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "aafe67e992c19d4160141a510113b65423a5459cc89d405dd4282c2c44a733cd",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "round1-review.json",
+   "sha256": "e4e6748876493a65a4fc289e23532e7ff3b624eeb9a0ea1a03b9c495072c8e9d"
+  },
+  {
+   "sequence": 2,
+   "file": "round2-challenge.json",
+   "sha256": "b6bded3eba83b9c389ff0f9ec2d5e33c9c71e338ec9a5129f3cd3d248dc04930"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "bc841ec81551527e87e3d190a850f3bd409b8d83",
+   "confirmed_at": "2026-09-10T16:55:00Z",
+   "controller_receipt_sha256": "e4e6748876493a65a4fc289e23532e7ff3b624eeb9a0ea1a03b9c495072c8e9d",
+   "evidence_file": "base-attestation-1.txt",
+   "evidence_sha256": "17080f8d40046d68510b01dae0954c00e216bb523314dd70887af3d5824a239b"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "bc841ec81551527e87e3d190a850f3bd409b8d83",
+   "confirmed_at": "2026-09-10T16:55:01Z",
+   "controller_receipt_sha256": "b6bded3eba83b9c389ff0f9ec2d5e33c9c71e338ec9a5129f3cd3d248dc04930",
+   "evidence_file": "base-attestation-2.txt",
+   "evidence_sha256": "17080f8d40046d68510b01dae0954c00e216bb523314dd70887af3d5824a239b"
+  }
+ ],
+ "autonomous_round": 2,
+ "controller_review_state": "post_review_budget",
+ "finding_classes": [
+  {
+   "key": "probe-reads-before-containment-assert",
+   "root_cause_predicate": "The probe copies the guard to its pristine backup before asserting containment, so a rigged commit whose guard resolves outside the disposable worktree is READ once before the assertion refuses the run. No WRITE escapes: the containment invariant was reproduced against two rigged commits -- a symlinked scripts directory and a symlinked guard file -- with nothing created in the escape directory and the outside guard's sha256 unchanged. What remains is that external content can be copied into the run's own temp directory before the refusal.",
+   "affected_surface": "specs/125-doc-closeout-and-register-drift/evidence/attribution-probe.sh, an evidence tool no repository gate ever runs",
+   "occurrences": [
+    {
+     "receipt_sha256": "e4e6748876493a65a4fc289e23532e7ff3b624eeb9a0ea1a03b9c495072c8e9d",
+     "finding_sha256": "f6bc526afcdadc8282400d76af49eb8169bc10a6a51a9078cf594333d9b93ef3",
+     "disposition": "open"
+    },
+    {
+     "receipt_sha256": "b6bded3eba83b9c389ff0f9ec2d5e33c9c71e338ec9a5129f3cd3d248dc04930",
+     "finding_sha256": "aacd0824d24f0765b22846386d3eb7e50d9a98eb18bc319c50f93144edbc5ddf",
+     "disposition": "open"
+    }
+   ],
+   "authoritative_sweep": null
+  },
+  {
+   "key": "landing-packet-cannot-carry-its-runner",
+   "root_cause_predicate": "A landing chain's packet must equal the candidate, so the unchanged guard, the suite's fixture and assertion helpers, and the repository-gate wiring can never be placed in front of a packet-bounded reviewer. Every round of this lane reported it; widening the packet moved the request one layer outward for four rounds and the ledger then refused the widened receipt outright, which is why it is recorded as an input defect rather than answered.",
+   "affected_surface": "the frozen review packet for this candidate, not the candidate's own files",
+   "occurrences": [
+    {
+     "receipt_sha256": "e4e6748876493a65a4fc289e23532e7ff3b624eeb9a0ea1a03b9c495072c8e9d",
+     "finding_sha256": "b4dd7bfbe143f099ac73eab660c3d5db7ce24814040129a94679184b80c6534d",
+     "disposition": "open"
+    },
+    {
+     "receipt_sha256": "b6bded3eba83b9c389ff0f9ec2d5e33c9c71e338ec9a5129f3cd3d248dc04930",
+     "finding_sha256": "597787c9bab2cf01cf045cc4ae7aca13fe97ad14955e6c39f6a40917d336f1b0",
+     "disposition": "open"
+    }
+   ],
+   "authoritative_sweep": null
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}

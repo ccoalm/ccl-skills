@@ -1,0 +1,151 @@
+# Locator mutation walk — 125
+# guard: ruby skills/skill-extraction-workflow/scripts/register-firing-path-resolution.rb <repo-root>
+# reproduce: apply the exact replacement below with a literal (non-regex) substitution, run the guard, restore.
+# every search and replacement string is recorded in full; nothing is abbreviated.
+# subject blobs at capture time:
+#   skills/tighten-doc/SKILL.md 6ce813648160e4b926d3279aab87a2ad235e11e9
+#   skills/tighten-doc/references/closeout-reread.md fb757b7b3488da53edf67c7465fed65023492172
+
+## control (unmutated)
+rc=0
+register_firing_path_resolution_ok (527 locators resolved)
+
+## A register-drift rule (entrypoint)
+file: skills/tighten-doc/SKILL.md
+search:  改写时新句用词不得高出原文水位、抬高读者门槛
+replace: 改写时注意用词
+rc=1
+skills/skill-extraction-workflow/references/source-register.md:686: anchor text absent from target: file:skills/tighten-doc/SKILL.md#改写时新句用词不得高出原文水位、抬高读者门槛
+
+## B live-document trigger
+file: skills/tighten-doc/references/closeout-reread.md
+search:  ：每一刀落地即发布，读者随时可能正在读。触发点顺延到**最后一次写操作之后**
+replace: ：
+rc=1
+skills/skill-extraction-workflow/references/source-register.md:687: anchor text absent from target: file:skills/tighten-doc/references/closeout-reread.md#没有「发布前」这一刻**：每一刀落地即发布，读者随时可能正在读。触发点顺延到**最后一次写操作之后**：收工前必须把整篇（或受影响那一面）整体回读一遍
+
+## C candidate must be resolved
+file: skills/tighten-doc/references/closeout-reread.md
+search:  - 每个候选必须二选一：换成原文已经在用的说法，或当场用一句白话把它解释掉；原样留着不算处理。
+replace: - 候选看着办。
+rc=1
+skills/skill-extraction-workflow/references/source-register.md:688: anchor text absent from target: file:skills/tighten-doc/references/closeout-reread.md#每个候选必须二选一：换成原文已经在用的说法，或当场用一句白话把它解释掉
+
+## D isolate this round's new sentences
+file: skills/tighten-doc/references/closeout-reread.md
+search:  - 必须把本轮**新写的句子**单独拎出来单独看，不混在整篇里读——混着读就看不出是谁的词。
+replace: - 读一读新句。
+rc=1
+skills/skill-extraction-workflow/references/source-register.md:689: anchor text absent from target: file:skills/tighten-doc/references/closeout-reread.md#必须把本轮**新写的句子**单独拎出来单独看
+
+## E1 narrow the traversal
+file: skills/tighten-doc/references/closeout-reread.md
+search:  逐个术语查它
+replace: 任选一个术语查它
+rc=1
+skills/skill-extraction-workflow/references/source-register.md:690: anchor text absent from target: file:skills/tighten-doc/references/closeout-reread.md#逐个术语查它**在改动之前的文本里**出现过没有；不得拿改完的文档做对照，否则新词自己就在里面，永远查不出候选。没出现过的就是候选
+
+## E2 swap the comparison target
+file: skills/tighten-doc/references/closeout-reread.md
+search:  在改动之前的文本里
+replace: 在术语表里
+rc=1
+skills/skill-extraction-workflow/references/source-register.md:690: anchor text absent from target: file:skills/tighten-doc/references/closeout-reread.md#逐个术语查它**在改动之前的文本里**出现过没有；不得拿改完的文档做对照，否则新词自己就在里面，永远查不出候选。没出现过的就是候选
+
+## E3 drop the prohibition
+file: skills/tighten-doc/references/closeout-reread.md
+search:  不得拿改完的文档做对照，否则新词自己就在里面，永远查不出候选。
+replace: 对照一下。
+rc=1
+skills/skill-extraction-workflow/references/source-register.md:690: anchor text absent from target: file:skills/tighten-doc/references/closeout-reread.md#逐个术语查它**在改动之前的文本里**出现过没有；不得拿改完的文档做对照，否则新词自己就在里面，永远查不出候选。没出现过的就是候选
+
+## restored
+rc=0
+register_firing_path_resolution_ok (527 locators resolved)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Second walk: attributing the two ADDED test cases
+#
+# The shipped suite is fail-fast, so a guard mutation reds the EARLIEST affected
+# case and later cases never run — per-case attribution is impossible there.
+# Four attempts were withdrawn and are kept, because the method matters more
+# than the verdict: renaming a guard diagnostic tripped the pre-existing
+# reworded-anchor case; a copy holding BOTH added cases could not show the
+# second under a mutant that reds the first; the copies were ephemeral, so their
+# construction could not be checked; and the first committed probe wrote into
+# the caller's own checkout, which this round's review raised as a P1.
+#
+# The probe is committed and runs entirely inside a disposable detached
+# worktree of the commit under test — the caller's checkout is read to resolve
+# the repository and never written:
+#   bash specs/125-doc-closeout-and-register-drift/evidence/attribution-probe.sh [commit-ish]
+# Verbatim output (the commit line is omitted here because it changes per run):
+#
+#   == control ==
+#   deletion  rc=0  isolated_case_ok (1)
+#   boundary  rc=0  isolated_case_ok (1)
+#   == mutant 1: substring match becomes whole-line equality ==
+#   deletion  rc=0  isolated_case_ok (1)
+#   boundary  rc=1  FAIL: expected rc=0 got rc=1 (gutting text outside the anchor is invisible to this gate)
+#   == mutant 2: a missing anchor is never reported ==
+#   deletion  rc=1  FAIL: expected rc=1 got rc=0 (deleting the anchored rule outright must be caught)
+#   boundary  rc=0  isolated_case_ok (1)
+#   == restored ==
+#   deletion  rc=0  isolated_case_ok (1)
+#   boundary  rc=0  isolated_case_ok (1)
+#   attribution_probe_ok (8 cells reproduced)
+#
+# The probe ASSERTS rather than prints: every cell declares BOTH the rc it must
+# produce AND the diagnostic its own assertion must emit, and a mismatch exits
+# non-zero. The second half matters because an exit code alone does not
+# attribute a cell — a fixture that fails to build, or a pre-check that trips,
+# also exits 1, and an earlier version counted that as a reproduced red (raised
+# by the landing review). Both halves are proven falsifiable: inverting one
+# expected rc reports `<-- MISMATCH: expected rc=0`, and pointing one red cell
+# at a diagnostic that never appears reports `<-- MISMATCH: rc=1 but the cell
+# never reached its own assertion`; each ends in
+# `attribution_probe_failed: 1 cell(s) did not reproduce`, rc=1. A third path
+# exists because the second half introduced it: a probe that emits NO
+# recognized marker (a syntax error in the tested commit) made grep exit 1, and
+# under `set -euo pipefail` that killed the matrix mid-run with no output at
+# all. Marker extraction now stays inside the relaxed region and an empty
+# result is reported as `<-- MISMATCH: the cell produced no recognized marker`,
+# proven by forcing every probe to emit nothing: all 8 cells report it and the
+# run ends `attribution_probe_failed: 8 cell(s) did not reproduce`. Two further
+# escapes were raised by the landing chain against that same hardening and are
+# closed here, each reproduced first:
+#   - The marker-free branch built its diagnostic with `printf | head -1`. With
+#     200,000 marker-free lines head closes early, printf takes SIGPIPE, and
+#     under `set -euo pipefail` the assignment aborted the matrix mid-run. The
+#     first line now comes from parameter expansion, no pipeline: the same
+#     200,000-line input runs all 8 cells and exits 1 reporting them.
+#   - A DANGLING symlink planted at a probe path passed the `-e` check and
+#     `open(...,'w')` then created the file at the link's target OUTSIDE the
+#     worktree, where cleanup never removed it. Reproduced directly: `-e` reports
+#     missing, `-L` reports the link, `open(...,'w')` creates the outside target.
+#     The probes are now created with `'x'` (O_CREAT|O_EXCL), which refuses the
+#     dangling link (FileExistsError, nothing created outside), the `-L` test is
+#     checked alongside `-e`, and a symlinked guard is refused before mutation.
+#   - A third shape then escaped both: a commit whose `skills/.../scripts` is a
+#     SYMLINKED DIRECTORY, which O_EXCL resolves straight through. Patching the
+#     named shape three times in a row is enumeration, so the per-shape checks
+#     were replaced by ONE invariant — every path the probe reads or writes must
+#     resolve beneath the disposable worktree. Verified against a real rigged
+#     commit built exactly that way: the probe refuses with
+#     `FAIL: the guard sits outside the disposable worktree` and names the
+#     resolved path, and the escape directory is left empty.
+#   - The first cut of that invariant was itself incomplete, and BOTH rounds of
+#     the next chain found it: resolving the PARENT and appending the basename
+#     lets a guard that is itself a symlink out of the tree produce a
+#     resolved-looking path that passes while `cp` and `open` follow the link.
+#     The invariant needs both halves — parent resolves inside the tree AND the
+#     final component is not a link — which together constrain the whole path.
+#     Verified against two rigged commits: a symlinked scripts DIRECTORY is
+#     refused with `the guard sits outside the disposable worktree` and nothing
+#     is written into the escape directory; a symlinked guard FILE is refused
+#     with `the guard is a symlink; refusing to follow it out of the worktree`
+#     and the outside guard's sha256 is unchanged. The unrigged run stays
+#     `attribution_probe_ok (8 cells reproduced)`.
+#
+# Each mutant flips exactly one case and leaves the other green, and both
+# no-flip cells are executed rather than assumed.
