@@ -1,0 +1,87 @@
+{
+ "schema_version": 3,
+ "candidate_sha256": "014f79b58e5079a1502c0e781bbbd58535ace84a6ba1bf0acd1179b5ed4f08ef",
+ "controller_receipts": [
+  {
+   "sequence": 1,
+   "file": "round1-review.json",
+   "sha256": "4a01a92b5f562bafdf55febb59b6add0e36a638df536838ababd9223da91e3a3"
+  },
+  {
+   "sequence": 2,
+   "file": "round2-challenge.json",
+   "sha256": "d01726dcae21d314f5108bc87c494662399bcb52f51e9ede81960c5bf131b617"
+  }
+ ],
+ "completion_receipt": null,
+ "base_attestations": [
+  {
+   "sequence": 1,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "28ea1692e8843f3050200e712384a97c7a387522",
+   "confirmed_at": "2026-09-10T22:00:00Z",
+   "controller_receipt_sha256": "4a01a92b5f562bafdf55febb59b6add0e36a638df536838ababd9223da91e3a3",
+   "evidence_file": "base-attestation-1.txt",
+   "evidence_sha256": "098768b1719b1a85ed38eb9d23a2dcd170acc53e0ade3b5e23206727c1ad9611"
+  },
+  {
+   "sequence": 2,
+   "remote": "origin",
+   "ref": "refs/heads/dev",
+   "sha": "28ea1692e8843f3050200e712384a97c7a387522",
+   "confirmed_at": "2026-09-10T22:00:01Z",
+   "controller_receipt_sha256": "d01726dcae21d314f5108bc87c494662399bcb52f51e9ede81960c5bf131b617",
+   "evidence_file": "base-attestation-2.txt",
+   "evidence_sha256": "098768b1719b1a85ed38eb9d23a2dcd170acc53e0ade3b5e23206727c1ad9611"
+  }
+ ],
+ "autonomous_round": 2,
+ "controller_review_state": "post_review_budget",
+ "finding_classes": [
+  {
+   "key": "release-facts-live-outside-the-packet",
+   "root_cause_predicate": "A landing packet must equal its candidate, so the facts a version bump actually rests on -- the rehearsal transcript, the registry's published versions, the remote tag list, and the packaged diff since the previous tag -- can never be inside it. Every finding in this chain is that one shape. The facts were established out of band and are recorded here rather than asserted inside the packet: the rehearsal reports 0.17.0 with 691 files against 689 for 0.16.0, the registry reports 0.16.0 as latest and returns 404 for 0.17.0, no ccl-skills-v0.17.0 tag exists on the remote, and the closure diff since ccl-skills-v0.16.0 over the packaging roots is 16 files across code-review, skill-extraction-workflow and tighten-doc.",
+   "affected_surface": "the frozen review packet for this release candidate, not the candidate's two files",
+   "occurrences": [
+    {
+     "receipt_sha256": "4a01a92b5f562bafdf55febb59b6add0e36a638df536838ababd9223da91e3a3",
+     "finding_sha256": "ebd0805783a8ec3e3247fc92263d2596cec97f95c660149f518cc5bbb918242d",
+     "disposition": "open"
+    },
+    {
+     "receipt_sha256": "4a01a92b5f562bafdf55febb59b6add0e36a638df536838ababd9223da91e3a3",
+     "finding_sha256": "73f959c9f7547e6730e840aa5755add39ec9587d52613419f460f02947bb274e",
+     "disposition": "open"
+    },
+    {
+     "receipt_sha256": "4a01a92b5f562bafdf55febb59b6add0e36a638df536838ababd9223da91e3a3",
+     "finding_sha256": "b87fecf2de3e6220da1420f6863d971fd86a4ecd04ba293cf90a97420e5da2e2",
+     "disposition": "open"
+    },
+    {
+     "receipt_sha256": "d01726dcae21d314f5108bc87c494662399bcb52f51e9ede81960c5bf131b617",
+     "finding_sha256": "caa5b6b5203e8e5bb65e192e4cb6e2397c6d4ae563e9301f38433d560e926951",
+     "disposition": "open"
+    }
+   ],
+   "authoritative_sweep": {
+    "candidate_sha256": "014f79b58e5079a1502c0e781bbbd58535ace84a6ba1bf0acd1179b5ed4f08ef",
+    "manifest_file": "release-facts-sweep.json",
+    "manifest_sha256": "395fe088a24e8c8b41f25eff9b645db8afa31754ea9ad57ddc02a999ec9e1448",
+    "searched_set": [
+     "rehearsal identity: make npm-publish-dry reports name @ccoalm/ccl-skills, version 0.17.0, ccoalm-ccl-skills-0.17.0.tgz, 691 total files (0.16.0 shipped 689)",
+     "registry state: npm view @ccoalm/ccl-skills reports version 0.16.0 and dist-tags.latest 0.16.0",
+     "version availability: npm view @ccoalm/ccl-skills@0.17.0 returns 404, so the version is unpublished",
+     "tag availability: git ls-remote --tags origin ccl-skills-v0.17.0 returns no ref",
+     "closure change: git diff --stat ccl-skills-v0.16.0..origin/main over the packaging roots is 16 files across code-review, skill-extraction-workflow and tighten-doc, which is what makes this minor rather than patch",
+     "packaging roots: the repository-root scripts/ directory is not a packaging root, so a change there would not ship; nothing this cycle depends on it",
+     "base attestation semantics: base-attestation-N.txt records the ls-remote line for refs/heads/dev at 28ea1692e884, which fixes WHICH commit the rounds reviewed"
+    ],
+    "unmatched_instances": 1
+   }
+  }
+ ],
+ "unreviewed_delta": [],
+ "closeout_state": "continuation_authorization_required"
+}
