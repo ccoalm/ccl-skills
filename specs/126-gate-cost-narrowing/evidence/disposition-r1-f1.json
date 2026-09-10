@@ -1,0 +1,16 @@
+{
+ "schema_version": 1,
+ "candidate_sha256": "5264e9f917c2a6cdb16ded6b6f2921889a1888a27293f3548c2c551ed50294ff",
+ "receipt_sha256": "c00e7e81b4a93f4b437b386c56f1336ab81af2f9b1e2de61ec48b2bf03f6c24f",
+ "finding_sha256": "c0abf9fb4d312f980107b962eaa79b48e08c32d6444f2c5144d0027474022214",
+ "disposition": "accepted_tradeoff",
+ "resolves_occurrences": [
+  {
+   "receipt_sha256": "c00e7e81b4a93f4b437b386c56f1336ab81af2f9b1e2de61ec48b2bf03f6c24f",
+   "finding_sha256": "c0abf9fb4d312f980107b962eaa79b48e08c32d6444f2c5144d0027474022214"
+  }
+ ],
+ "evidence": [
+  "Accepted by the maintainer as a risk owner distinct from the controller that proposed it. The finding asks the packet to carry what a packet structurally cannot: execution logs for lanes and mutations, the implementations and fixtures of suites this diff does not touch, or the round's own receipts, which exist only after the rounds that produce them. Two widened packets already supplied what widening can supply, and the certified sequence is deliberately unwidened because the closeout binds what merges rather than a packet assembled around it. Under this repo's declared trust model these fields are honest author labels rather than digest-verified artifacts. Residual risk recorded: they rest on declaration, not on packet self-proof."
+ ]
+}
