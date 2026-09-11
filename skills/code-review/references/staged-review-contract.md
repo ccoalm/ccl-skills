@@ -214,8 +214,8 @@ and report the remaining packet as the whole candidate.
 ## The packet and the candidate
 
 They are two objects. The **packet** is what the reviewer reads; the **candidate**
-is what will land and what `review_ledger_binding.py` recomputes at merge time.
-A receipt records both hashes.
+is what will land. A receipt records both hashes; a caller that needs the landing
+tree to equal a reviewed candidate compares against the recorded candidate hash.
 
 They hold the same value when the packet came from `--base` alone. Pass
 `--diff-file` **with** `--base`/`--paths` to widen what the reviewer reads while

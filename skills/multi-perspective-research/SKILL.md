@@ -1,6 +1,6 @@
 ---
 name: multi-perspective-research
-description: Skip 优先判定：一查便知的单点事实问题 → 直接回答不套流程；请求点名了候选让选、或用裁决措辞要结论（选哪个 / 要不要上 X / 该不该做 / 可不可行）→ 先 `product-rd-workflow`（它可回调本技能产调研底稿）；纯主题/领域/写作准备调研留在本技能；拷问已有方案 → `grill-me`；bug 根因 → `defect-diagnosis`；复盘沉淀 → `skill-extraction-workflow`。触发：调研一个主题 / 深度调研 / 多视角研究 / 帮我研究一下 X / 写作前调研 / 领域·组织研究（不喂决策）/ research a topic → run a structured research loop（视角枚举 → 矛盾图 → 合成简报 → 自评）with evidence-grounding discipline, instead of one-question surface answers.
+description: 调研一个主题 / 深度调研 / deep research / 调研某个产品·公司·赛道 / 多视角研究 / 帮我研究一下 X / 写作前调研 / 领域·组织研究（不喂决策）/ research a topic → run a structured research loop（视角枚举 → 矛盾图 → 合成简报 → 自评）with evidence-grounding discipline, instead of one-question surface answers; another installed deep-research skill may serve as a search tool inside this loop, not replace it. Skip：一查便知的单点事实问题 → 直接回答不套流程；请求点名了候选让选、或用裁决措辞要结论（选哪个 / 要不要上 X / 该不该做 / 可不可行）→ 先 `product-rd-workflow`（它可回调本技能产调研底稿）；纯主题/领域/产品/写作准备调研留在本技能；拷问已有方案 → `grill-me`；bug 根因 → `defect-diagnosis`；复盘沉淀 → `skill-extraction-workflow`。
 ---
 
 # Multi-Perspective Research（多视角主题调研）

@@ -1918,9 +1918,9 @@ check "diff, prior, and completion inputs are read once from a bounded opened de
 
 # The reviewer's packet and the landing candidate are two objects. A widened
 # packet exists so a reviewer can judge a claim against code outside the diff;
-# the candidate exists so the merge-side binder can recompute what actually
+# the candidate exists so a caller can compare a receipt with what actually
 # lands. Aliasing them made the two mutually exclusive: widening produced a
-# receipt the binder could never match. These assert the split and the one
+# receipt whose candidate no landing could match. These assert the split and the one
 # invariant that replaces the equality -- the candidate appears in the packet
 # verbatim, so nothing lands that its reviewer did not read.
 subject_packet_probe="$(

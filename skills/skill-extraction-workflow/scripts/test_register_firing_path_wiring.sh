@@ -29,8 +29,8 @@ pass() { passed=$((passed + 1)); echo "PASS: $*"; }
 # guard silently stale again (the observed drift shape: a 16 guarding 13
 # executed cases, accumulated while this suite could not run).
 static_pass_calls="$(grep -c '^pass "' "$0")"
-[ "$static_pass_calls" = "18" ] \
-  || fail "pass-call inventory drifted: counted $static_pass_calls, guard expects 18"
+[ "$static_pass_calls" = "21" ] \
+  || fail "pass-call inventory drifted: counted $static_pass_calls, guard expects 21"
 pass "executed-count guard matches the script's own pass-call inventory"
 
 REPO="$TMP/repo"
@@ -478,6 +478,52 @@ case "$out" in
 esac
 pass "a second row cannot inherit a one-row historical locator waiver"
 
+# A retired locator that several historical rows cited is waived as ONE entry
+# binding every one of those rows by digest. Each row stays individually pinned:
+# removing one, rewriting one, or adding one more citation must each red.
+MULTI_LOCATOR="command:skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh"
+multi_row_case() {
+  multi_case="$1"
+  git -C "$REPO" checkout -- . >/dev/null 2>&1 \
+    || fail "could not restore the clone before the multi-row waiver $multi_case case"
+  python3 - "$REGISTER" "$MULTI_LOCATOR" "$multi_case" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+locator, case = sys.argv[2], sys.argv[3]
+lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+matches = [i for i, line in enumerate(lines) if line.startswith("|") and locator in line]
+assert len(matches) > 1, f"expected several real waived rows, found {len(matches)}"
+index = matches[len(matches) // 2]
+if case == "delete":
+    del lines[index]
+elif case == "rewrite":
+    lines[index] = lines[index].replace("| ", "| Fixture-rewritten claim: ", 1)
+else:
+    lines.insert(index + 1, lines[index])
+path.write_text("".join(lines), encoding="utf-8")
+PY
+  run_check
+  [ "$rc" = "1" ] || { dump; fail "multi-row waiver $multi_case must be rc=1, got rc=$rc"; }
+  case "$multi_case:$out" in
+    delete:*"EXEMPT entry has no citing row in the ledger for 1 of"*) : ;;
+    rewrite:*"EXEMPT citing row does not match the waived row"*) : ;;
+    duplicate:*"EXEMPT locator cited by"*"rows (allowance"*) : ;;
+    *) dump; fail "multi-row waiver $multi_case failed, but not via its exact diagnostic" ;;
+  esac
+  case "$out" in
+    *ccl_skill_check_clean_ok*) dump; fail "a multi-row waiver $multi_case must never yield a clean-landing token" ;;
+    *) : ;;
+  esac
+}
+multi_row_case delete
+pass "multi-row waiver: deleting one citing row fails closed"
+multi_row_case rewrite
+pass "multi-row waiver: rewriting one citing row fails closed"
+multi_row_case duplicate
+pass "multi-row waiver: a further citing row fails closed"
+
 # RED: adding an EXEMPT key without a row digest silently downgrades identity
 # binding unless the production gate rejects the incomplete waiver definition.
 # The checker resolves the gate beside itself, so mutate STUB_GATE — never the
@@ -547,5 +593,5 @@ case "$out" in
 esac
 pass "a failure inside the cleanup-trap window keeps its exit status"
 
-[ "$passed" -eq 18 ] || fail "expected 18 assertions, saw $passed"
+[ "$passed" -eq 21 ] || fail "expected 21 assertions, saw $passed"
 echo "register_firing_path_wiring_tests_ok ($passed assertions)"
