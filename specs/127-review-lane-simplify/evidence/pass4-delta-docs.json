@@ -1,0 +1,303 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "build",
+  "stage_source": "caller-declared",
+  "review_depth": "build",
+  "status": "findings",
+  "selected_client": "codex",
+  "selected_reviewer": "codex",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P1",
+      "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+      "line": 511,
+      "failure_path": "Item 1 remains open. This reference restricts exemptions to non-executable records, but SKILL.md:162 and extraction-quickstart.md:97 still exempt the round's evidence files and register rows wholesale. An agent following those instructions can modify an executable evidence probe after challenge and omit the delta pass, leaving the changed behavior unreviewed.",
+      "smallest_fix": "Replace both stale exemptions with a pointer to this narrowed rule, or synchronize their restriction to non-executable record files."
+    },
+    {
+      "severity": "P1",
+      "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+      "line": 510,
+      "failure_path": "Item 4 remains unverified. The delta asserts that CI rejects missing review/challenge results, but supplies only documentation: neither the named checker nor its CI invocation or missing-result regression is available. A round recording no required pass therefore has no demonstrated mechanical rejection path in this packet.",
+      "smallest_fix": "Supply the checker, blocking CI wiring, and negative-test evidence showing that a round missing required results is rejected. Until verified, describe this protection as pending."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [
+    {
+      "client": "claude",
+      "stage": "preflight",
+      "reason": "claude belongs to the implementer model family",
+      "reason_code": "same_family_as_implementer"
+    }
+  ],
+  "attempts": [
+    {
+      "client": "codex",
+      "reviewer": "codex",
+      "mode": "review",
+      "status": "findings",
+      "reviewer_family": "openai",
+      "provider": "openai",
+      "model": null,
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "Item 2 is closed by the applied-fixes wording and isolated checkpoint exception. Item 1 remains open because the core rules and quickstart retain the broad evidence/register exemption."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "Conflicting exemption rules still permit executable probes to escape delta review. No additional data-loss, privacy, or permission regression is evident."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "Item 3 is closed for the reported same-file case: overlapping upstream edits require delta review even without textual conflicts."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "Item 4 remains an evidence gap: the packet contains no presence-check implementation, blocking CI wiring, or negative test demonstrating rejection when required results are absent."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "The documentation copies now disagree on delta-review scope. Node.js, Python, React runtime behavior and CLI flags are unchanged by this delta."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "The CI-refusal guarantee exceeds the supplied evidence. Reported suite successes and a still-running full lane do not establish that guarantee."
+        }
+      ],
+      "findings": [
+        {
+          "severity": "P1",
+          "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+          "line": 511,
+          "failure_path": "Item 1 remains open. This reference restricts exemptions to non-executable records, but SKILL.md:162 and extraction-quickstart.md:97 still exempt the round's evidence files and register rows wholesale. An agent following those instructions can modify an executable evidence probe after challenge and omit the delta pass, leaving the changed behavior unreviewed.",
+          "smallest_fix": "Replace both stale exemptions with a pointer to this narrowed rule, or synchronize their restriction to non-executable record files."
+        },
+        {
+          "severity": "P1",
+          "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+          "line": 510,
+          "failure_path": "Item 4 remains unverified. The delta asserts that CI rejects missing review/challenge results, but supplies only documentation: neither the named checker nor its CI invocation or missing-result regression is available. A round recording no required pass therefore has no demonstrated mechanical rejection path in this packet.",
+          "smallest_fix": "Supply the checker, blocking CI wiring, and negative-test evidence showing that a round missing required results is rejected. Until verified, describe this protection as pending."
+        }
+      ],
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "packet_sha256": "76fbef9544c0fb9a650330afd5d65dacee6a8baed50149e008cde616124fda2c"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "76fbef9544c0fb9a650330afd5d65dacee6a8baed50149e008cde616124fda2c",
+  "candidate_sha256": "76fbef9544c0fb9a650330afd5d65dacee6a8baed50149e008cde616124fda2c",
+  "review_context_sha256": "c8ffde61c53d44cdbf9863c3cb35b4a823fdef927db4e117a4bf63b7ff899361",
+  "review_controller_sha256": "4defb309b967f4a20087a445c4fab792b742d7e2d50e9666b9f29f4e86113fc0",
+  "review_profile_sha256": "74336bdd8410ffafd5d86ac5ef3b35d261c71fba09720deae4f03db9a02bde77",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/SKILL.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/dual-track-review-gate.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/extraction-quickstart.md"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "codex-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "multi-perspective-research",
+    "nodejs-service-dev",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "selected_skills_sha256": "fc813040f959ddb289089ca600d33b981e13fc48ad7525821d23cd35fbb8e894",
+  "risk_tags": [],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": null,
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "5d4d9440742453161fc5fb8bf91e2a9d6ddfcbffe4e20e668ec38c4aab527f6e",
+    "acceptance_sha256": "dc3e8bb4e169beb7422e702bde1cf8a32664fdf954e606a85fee079dff051c9e",
+    "stage": "build",
+    "review_depth": "build",
+    "risk_tags": [],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null
+  },
+  "review_scope_sha256": "1b9a5fedc10c8e0dea96c15038389bb4ac14d4c70255e558d5455e3312040ea8",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "Item 2 is closed by the applied-fixes wording and isolated checkpoint exception. Item 1 remains open because the core rules and quickstart retain the broad evidence/register exemption."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "Conflicting exemption rules still permit executable probes to escape delta review. No additional data-loss, privacy, or permission regression is evident."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "Item 3 is closed for the reported same-file case: overlapping upstream edits require delta review even without textual conflicts."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "Item 4 remains an evidence gap: the packet contains no presence-check implementation, blocking CI wiring, or negative test demonstrating rejection when required results are absent."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "The documentation copies now disagree on delta-review scope. Node.js, Python, React runtime behavior and CLI flags are unchanged by this delta."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "The CI-refusal guarantee exceeds the supplied evidence. Reported suite successes and a still-running full lane do not establish that guarantee."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "claim_strength"
+  ],
+  "reviewed_skills": [
+    "multi-perspective-research",
+    "nodejs-service-dev",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "codex",
+    "reviewer": "codex",
+    "mode": "review",
+    "status": "findings",
+    "reviewer_family": "openai",
+    "provider": "openai",
+    "model": null,
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "Item 2 is closed by the applied-fixes wording and isolated checkpoint exception. Item 1 remains open because the core rules and quickstart retain the broad evidence/register exemption."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "Conflicting exemption rules still permit executable probes to escape delta review. No additional data-loss, privacy, or permission regression is evident."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "Item 3 is closed for the reported same-file case: overlapping upstream edits require delta review even without textual conflicts."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "Item 4 remains an evidence gap: the packet contains no presence-check implementation, blocking CI wiring, or negative test demonstrating rejection when required results are absent."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "The documentation copies now disagree on delta-review scope. Node.js, Python, React runtime behavior and CLI flags are unchanged by this delta."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "The CI-refusal guarantee exceeds the supplied evidence. Reported suite successes and a still-running full lane do not establish that guarantee."
+      }
+    ],
+    "findings": [
+      {
+        "severity": "P1",
+        "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+        "line": 511,
+        "failure_path": "Item 1 remains open. This reference restricts exemptions to non-executable records, but SKILL.md:162 and extraction-quickstart.md:97 still exempt the round's evidence files and register rows wholesale. An agent following those instructions can modify an executable evidence probe after challenge and omit the delta pass, leaving the changed behavior unreviewed.",
+        "smallest_fix": "Replace both stale exemptions with a pointer to this narrowed rule, or synchronize their restriction to non-executable record files."
+      },
+      {
+        "severity": "P1",
+        "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+        "line": 510,
+        "failure_path": "Item 4 remains unverified. The delta asserts that CI rejects missing review/challenge results, but supplies only documentation: neither the named checker nor its CI invocation or missing-result regression is available. A round recording no required pass therefore has no demonstrated mechanical rejection path in this packet.",
+        "smallest_fix": "Supply the checker, blocking CI wiring, and negative-test evidence showing that a round missing required results is rejected. Until verified, describe this protection as pending."
+      }
+    ],
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "packet_sha256": "76fbef9544c0fb9a650330afd5d65dacee6a8baed50149e008cde616124fda2c"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}

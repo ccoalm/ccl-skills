@@ -18,7 +18,7 @@
 #   - test_generic_r0_leak_scan.sh
 #   - test_shared_git_surface_gate.sh
 #   - test_extraction_review_gate.sh
-#   - test_validate_extraction_review_state.sh
+#   - test_check_review_evidence_present.sh
 #   - test_check_ccl_route_drift.sh
 #   - test_check_sync_pointers.sh
 #   - test_check_ccl_register_pending_exclusion.sh
@@ -122,10 +122,8 @@ fast_tests=(
   test_generic_r0_leak_scan.sh
   test_shared_git_surface_gate.sh
   test_extraction_review_gate.sh
-  test_validate_extraction_review_state.sh
-  # Merge-side binding between the landing candidate and the review evidence that
-  # inspected it: own throwaway git repo, no clone, seconds.
-  test_review_ledger_binding.sh
+  # Review-evidence presence gate: own throwaway git repo, seconds.
+  test_check_review_evidence_present.sh
   # Candidate-SHA-bound gate receipts (mint/verify): own throwaway git repo,
   # no clone, seconds — belongs in the lane every run exercises.
   test_gate_receipt.sh

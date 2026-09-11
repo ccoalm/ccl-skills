@@ -74,7 +74,7 @@
   - 不用：评审已写成的代码 → `code-review`；完整交付或计划撰写 → `product-rd-workflow`；需求澄清的问题池 → `requirement-intent`。
 - `feature-risk-router` `entry` — 用：风险定级、要不要灰度、需要哪些 gate、双人 review、架构评审、安全评审与威胁建模的**闸位判定**。
   - 不用：要执行评审本身 → `code-review`；要决定测试层 → `testing-strategy`；交付物分类与阶段路由 → `product-rd-workflow`。
-- `multi-perspective-research` `leaf` — 用：调研一个主题、深度调研、多视角研究、写作前调研；视角枚举 → 矛盾图 → 合成简报 → 自评。
+- `multi-perspective-research` `entry` — 用：调研一个主题或产品、深度调研（deep research）、多视角研究、写作前调研；视角枚举 → 矛盾图 → 合成简报 → 自评。
   - 不用：一查便知的单点事实——直接回答；已点名候选让你选、或要"选哪个/可不可行"的裁决 → `product-rd-workflow`；拷问已有方案 → `grill-me`。
 
 ## 发布

@@ -1,0 +1,272 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "build",
+  "stage_source": "caller-declared",
+  "review_depth": "build",
+  "status": "findings",
+  "selected_client": "codex",
+  "selected_reviewer": "codex",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P1",
+      "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+      "line": 512,
+      "failure_path": "The safety exemption changes, but the packet provides no inspectable regression evidence distinguishing an allowed exact rollback from guard-only deletion or rollback retaining dependent changes. The cited wrapper, hook, and resolver summaries cannot establish that those unsafe cases remain blocked, leaving behavioral closure unverified.",
+      "smallest_fix": "Supply candidate-bound before/after regression or replay evidence covering guard-only deletion, incomplete dependent rollback, and an allowed exact rollback to an accepted state; demonstrate that the check detects the predecessor's unsafe exemption."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [
+    {
+      "client": "claude",
+      "stage": "preflight",
+      "reason": "claude belongs to the implementer model family",
+      "reason_code": "same_family_as_implementer"
+    }
+  ],
+  "attempts": [
+    {
+      "client": "codex",
+      "reviewer": "codex",
+      "mode": "review",
+      "status": "findings",
+      "reviewer_family": "openai",
+      "provider": "openai",
+      "model": null,
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "The wording addresses the open item: exemption requires exact rollback to a previously accepted state, including dependent changes; other deletions remain blocked."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "Deleting only a safety condition while retaining the constrained operation no longer qualifies. No new unsafe allowance is evident."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "Partial rollback and retained dependencies fall outside the exemption. The existing rebase review requirement remains unchanged."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "Evidence gap: no inspectable regression or replay establishes the revised exemption's behavior. The supplied suite summaries do not demonstrate these cases."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "The change narrows one shared rule without changing Node.js, Python, CLI, or React implementation contracts or adding machinery."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "The packet supports textual closure, not verified enforcement. Reported test successes and the unfinished full lane cannot establish behavioral closure."
+        }
+      ],
+      "findings": [
+        {
+          "severity": "P1",
+          "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+          "line": 512,
+          "failure_path": "The safety exemption changes, but the packet provides no inspectable regression evidence distinguishing an allowed exact rollback from guard-only deletion or rollback retaining dependent changes. The cited wrapper, hook, and resolver summaries cannot establish that those unsafe cases remain blocked, leaving behavioral closure unverified.",
+          "smallest_fix": "Supply candidate-bound before/after regression or replay evidence covering guard-only deletion, incomplete dependent rollback, and an allowed exact rollback to an accepted state; demonstrate that the check detects the predecessor's unsafe exemption."
+        }
+      ],
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "packet_sha256": "591ee26e877b045b5318b5a7c97d55fd5aef9cd79d3feb402ae077fffa9f1117"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "591ee26e877b045b5318b5a7c97d55fd5aef9cd79d3feb402ae077fffa9f1117",
+  "candidate_sha256": "591ee26e877b045b5318b5a7c97d55fd5aef9cd79d3feb402ae077fffa9f1117",
+  "review_context_sha256": "174e238c51a1bdcce0211bd707c5d06c6a0ae099a89900c0b9c5066fa5f2e688",
+  "review_controller_sha256": "4defb309b967f4a20087a445c4fab792b742d7e2d50e9666b9f29f4e86113fc0",
+  "review_profile_sha256": "65bb8b26627e94e1d78bef0a8a95ccdfc3ee427f016ac8f96dcdbc15e55fa34a",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/dual-track-review-gate.md"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "codex-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "multi-perspective-research",
+    "nodejs-service-dev",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "selected_skills_sha256": "cea1fb45f2d97048f0658be0894eccf786e97cf1f2d59107829f4a7a6a178df9",
+  "risk_tags": [],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": null,
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "72b5e8c06efe6301fc51c9cdde1865872ba90da2531da8064207a942590bdeb3",
+    "acceptance_sha256": "8d2ecbb7e9aeaf7039cd6e282ed7140a2f2f524a2c87e0e65e1c5539d540af84",
+    "stage": "build",
+    "review_depth": "build",
+    "risk_tags": [],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null
+  },
+  "review_scope_sha256": "898a180f83a10a22c5922d42db13761d1d640c8b358f738981215558023409f4",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "The wording addresses the open item: exemption requires exact rollback to a previously accepted state, including dependent changes; other deletions remain blocked."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "Deleting only a safety condition while retaining the constrained operation no longer qualifies. No new unsafe allowance is evident."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "Partial rollback and retained dependencies fall outside the exemption. The existing rebase review requirement remains unchanged."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "Evidence gap: no inspectable regression or replay establishes the revised exemption's behavior. The supplied suite summaries do not demonstrate these cases."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "The change narrows one shared rule without changing Node.js, Python, CLI, or React implementation contracts or adding machinery."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "The packet supports textual closure, not verified enforcement. Reported test successes and the unfinished full lane cannot establish behavioral closure."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "claim_strength"
+  ],
+  "reviewed_skills": [
+    "multi-perspective-research",
+    "nodejs-service-dev",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "codex",
+    "reviewer": "codex",
+    "mode": "review",
+    "status": "findings",
+    "reviewer_family": "openai",
+    "provider": "openai",
+    "model": null,
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "The wording addresses the open item: exemption requires exact rollback to a previously accepted state, including dependent changes; other deletions remain blocked."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "Deleting only a safety condition while retaining the constrained operation no longer qualifies. No new unsafe allowance is evident."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "Partial rollback and retained dependencies fall outside the exemption. The existing rebase review requirement remains unchanged."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "Evidence gap: no inspectable regression or replay establishes the revised exemption's behavior. The supplied suite summaries do not demonstrate these cases."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "The change narrows one shared rule without changing Node.js, Python, CLI, or React implementation contracts or adding machinery."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "The packet supports textual closure, not verified enforcement. Reported test successes and the unfinished full lane cannot establish behavioral closure."
+      }
+    ],
+    "findings": [
+      {
+        "severity": "P1",
+        "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+        "line": 512,
+        "failure_path": "The safety exemption changes, but the packet provides no inspectable regression evidence distinguishing an allowed exact rollback from guard-only deletion or rollback retaining dependent changes. The cited wrapper, hook, and resolver summaries cannot establish that those unsafe cases remain blocked, leaving behavioral closure unverified.",
+        "smallest_fix": "Supply candidate-bound before/after regression or replay evidence covering guard-only deletion, incomplete dependent rollback, and an allowed exact rollback to an accepted state; demonstrate that the check detects the predecessor's unsafe exemption."
+      }
+    ],
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "packet_sha256": "591ee26e877b045b5318b5a7c97d55fd5aef9cd79d3feb402ae077fffa9f1117"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}

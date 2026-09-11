@@ -1,0 +1,465 @@
+{
+  "schema_version": 3,
+  "mode": "challenge",
+  "stage": "build",
+  "stage_source": "caller-declared",
+  "review_depth": "build",
+  "status": "findings",
+  "selected_client": "codex",
+  "selected_reviewer": "codex",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P1",
+      "file": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py",
+      "line": 40,
+      "failure_path": "Replacing an existing skill or hook file with a symlink produces Git change type T, which ACMRD excludes. A PR containing only such changes reaches review_evidence_not_required and exits 0 without any review evidence.",
+      "smallest_fix": "Include type changes in path discovery and add a regular-file-to-symlink regression requiring review evidence."
+    },
+    {
+      "severity": "P1",
+      "file": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py",
+      "line": 105,
+      "failure_path": "A PR can record a genuine wording-only review, then add behavioral hook changes without running a challenge. Any passed wording_only_scope sets the global exemption, so the gate accepts the expanded non-wording PR with zero challenge results. No forged receipt is necessary.",
+      "smallest_fix": "Require the whole PR’s current scope to qualify as wording-only before waiving challenge presence; add a mixed wording/behavior regression. This does not require binding review receipts to candidate hashes."
+    },
+    {
+      "severity": "P1",
+      "file": ".github/workflows/ci.yml",
+      "line": 100,
+      "failure_path": "Evidence gap: the packet omits the citing ledger rows and resolver ingestion/table-selection code, controller argument and chain handlers, OpenCode prependTaskContext implementation, and deleted binder/validator bodies. The replacement delta-pass rule is also absent. These omissions prevent completing the required laundering, option-bypass, Bash-preservation, and lost-enforcement checks; supplied test claims cannot close them.",
+      "smallest_fix": "Append those exact implementations, ledger rows, and operative replacement rule as frozen review context."
+    },
+    {
+      "severity": "P2",
+      "file": "hooks/remind-untracked-background.sh",
+      "line": 43,
+      "failure_path": "Both '/usr/bin/nohup make test >log 2>&1 &' and 'nohup>log make test &' launch through nohup but remain silent: the regex rejects the preceding slash and adjacent redirection operator. These are direct commands, outside the documented quoted-launcher limitation.",
+      "smallest_fix": "Recognize path-qualified executable names and adjacent redirections while preserving quoted-mention suppression; add both command forms to the hook tests."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [
+    {
+      "client": "claude",
+      "stage": "preflight",
+      "reason": "claude belongs to the implementer model family",
+      "reason_code": "same_family_as_implementer"
+    }
+  ],
+  "attempts": [
+    {
+      "client": "codex",
+      "reviewer": "codex",
+      "mode": "challenge",
+      "status": "findings",
+      "reviewer_family": "openai",
+      "provider": "openai",
+      "model": null,
+      "concern_results": [
+        {
+          "concern": "challenge_focus",
+          "conclusion": "Static inspection found two evidence-gate bypasses and ordinary detach spellings that suppress the advisory. Waiver accounting covers basic row mutations, but missing ledger and parser context prevents establishing full resolution. Controller option handling, OpenCode command preservation, and the retired binder’s complete enforcement remain unverified because their implementations are omitted."
+        }
+      ],
+      "findings": [
+        {
+          "severity": "P1",
+          "file": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py",
+          "line": 40,
+          "failure_path": "Replacing an existing skill or hook file with a symlink produces Git change type T, which ACMRD excludes. A PR containing only such changes reaches review_evidence_not_required and exits 0 without any review evidence.",
+          "smallest_fix": "Include type changes in path discovery and add a regular-file-to-symlink regression requiring review evidence."
+        },
+        {
+          "severity": "P1",
+          "file": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py",
+          "line": 105,
+          "failure_path": "A PR can record a genuine wording-only review, then add behavioral hook changes without running a challenge. Any passed wording_only_scope sets the global exemption, so the gate accepts the expanded non-wording PR with zero challenge results. No forged receipt is necessary.",
+          "smallest_fix": "Require the whole PR’s current scope to qualify as wording-only before waiving challenge presence; add a mixed wording/behavior regression. This does not require binding review receipts to candidate hashes."
+        },
+        {
+          "severity": "P1",
+          "file": ".github/workflows/ci.yml",
+          "line": 100,
+          "failure_path": "Evidence gap: the packet omits the citing ledger rows and resolver ingestion/table-selection code, controller argument and chain handlers, OpenCode prependTaskContext implementation, and deleted binder/validator bodies. The replacement delta-pass rule is also absent. These omissions prevent completing the required laundering, option-bypass, Bash-preservation, and lost-enforcement checks; supplied test claims cannot close them.",
+          "smallest_fix": "Append those exact implementations, ledger rows, and operative replacement rule as frozen review context."
+        },
+        {
+          "severity": "P2",
+          "file": "hooks/remind-untracked-background.sh",
+          "line": 43,
+          "failure_path": "Both '/usr/bin/nohup make test >log 2>&1 &' and 'nohup>log make test &' launch through nohup but remain silent: the regex rejects the preceding slash and adjacent redirection operator. These are direct commands, outside the documented quoted-launcher limitation.",
+          "smallest_fix": "Recognize path-qualified executable names and adjacent redirections while preserving quoted-mention suppression; add both command forms to the hook tests."
+        }
+      ],
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "packet_sha256": "521101aeec56ed9a4e67558997beada890363f6ec85bf4b8802238d1a0d32a2c"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "521101aeec56ed9a4e67558997beada890363f6ec85bf4b8802238d1a0d32a2c",
+  "candidate_sha256": "521101aeec56ed9a4e67558997beada890363f6ec85bf4b8802238d1a0d32a2c",
+  "review_context_sha256": "459ca7803a00a956bfd45800d9e223ffa421e6cf03b973cedfab7322a8c3d7c9",
+  "review_controller_sha256": "4defb309b967f4a20087a445c4fab792b742d7e2d50e9666b9f29f4e86113fc0",
+  "review_profile_sha256": "879639b2a54d3b7340287f691d6d7ec81be0da9d5c58c1349484c5544b22fd86",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/review_gate.py"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/test_review_gate.sh"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/code-review/scripts/review_gate.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/skill-extraction-workflow/scripts/validate_extraction_review_state.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/contract-anchors.tsv"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/extraction_review_gate.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/register-firing-path-resolution.rb"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_ai_coding_implementation_gates.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_check_review_evidence_present.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_register_firing_path_wiring.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_validate_extraction_review_state.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/validate_extraction_review_state.py"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "hooks/remind-untracked-background.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "hooks/test_remind_untracked_background.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/code-review/scripts/test_review_gate.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/extraction_review_gate.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_ai_coding_implementation_gates.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_check_review_evidence_present.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_register_firing_path_wiring.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_validate_extraction_review_state.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "hooks/test_remind_untracked_background.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/code-review/scripts/test_review_gate.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_ai_coding_implementation_gates.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_check_review_evidence_present.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_register_firing_path_wiring.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_validate_extraction_review_state.sh"
+    },
+    {
+      "skill": "web-react-dev",
+      "source": "file-type:.ts",
+      "path": "packages/opencode-plugin/ccl-skills.ts"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "codex-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "multi-perspective-research",
+    "nodejs-service-dev",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "selected_skills_sha256": "f101f80937718c33e09a7ef79b2358f16d5dbf1703135e44eb26c38dc2cb082d",
+  "risk_tags": [],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 1,
+  "challenge_index": 1,
+  "challenge_focus": "Attack the code for P0/P1: the multi-row EXEMPT waiver in register-firing-path-resolution.rb (launder a new or rewritten ledger row or a missing executable through it), the extraction wrapper (an argument spelling that reopens a review chain or a mode that slips through), the detach hook (a command spelling that silently skips the advisory or breaks the Bash call), the new review-evidence presence gate (a PR changing skills/ or hooks/ that passes it with no real pass), and the removed CI binder step (what it enforced that nothing now enforces).",
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "7c57476d9f38eed31d4a48bf497ff45d670c11fc4fa3aca197d9188a65a8e66e",
+    "acceptance_sha256": "98a81151386cc01d8be67911a5b2694150efff2a41891d1c2d09b848fe6c4e1f",
+    "stage": "build",
+    "review_depth": "build",
+    "risk_tags": [],
+    "challenge_budget": 1,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null
+  },
+  "review_scope_sha256": "1d0cc2f9d70eec9a68a4475e3f125e87845d7aed336c973da0c0adf9de464ca2",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 2,
+  "autonomous_review_index": 2,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "challenge_focus",
+      "conclusion": "Static inspection found two evidence-gate bypasses and ordinary detach spellings that suppress the advisory. Waiver accounting covers basic row mutations, but missing ledger and parser context prevents establishing full resolution. Controller option handling, OpenCode command preservation, and the retired binder’s complete enforcement remain unverified because their implementations are omitted."
+    }
+  ],
+  "reviewed_concerns": [
+    "challenge_focus"
+  ],
+  "reviewed_skills": [
+    "multi-perspective-research",
+    "nodejs-service-dev",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "codex",
+    "reviewer": "codex",
+    "mode": "challenge",
+    "status": "findings",
+    "reviewer_family": "openai",
+    "provider": "openai",
+    "model": null,
+    "concern_results": [
+      {
+        "concern": "challenge_focus",
+        "conclusion": "Static inspection found two evidence-gate bypasses and ordinary detach spellings that suppress the advisory. Waiver accounting covers basic row mutations, but missing ledger and parser context prevents establishing full resolution. Controller option handling, OpenCode command preservation, and the retired binder’s complete enforcement remain unverified because their implementations are omitted."
+      }
+    ],
+    "findings": [
+      {
+        "severity": "P1",
+        "file": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py",
+        "line": 40,
+        "failure_path": "Replacing an existing skill or hook file with a symlink produces Git change type T, which ACMRD excludes. A PR containing only such changes reaches review_evidence_not_required and exits 0 without any review evidence.",
+        "smallest_fix": "Include type changes in path discovery and add a regular-file-to-symlink regression requiring review evidence."
+      },
+      {
+        "severity": "P1",
+        "file": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py",
+        "line": 105,
+        "failure_path": "A PR can record a genuine wording-only review, then add behavioral hook changes without running a challenge. Any passed wording_only_scope sets the global exemption, so the gate accepts the expanded non-wording PR with zero challenge results. No forged receipt is necessary.",
+        "smallest_fix": "Require the whole PR’s current scope to qualify as wording-only before waiving challenge presence; add a mixed wording/behavior regression. This does not require binding review receipts to candidate hashes."
+      },
+      {
+        "severity": "P1",
+        "file": ".github/workflows/ci.yml",
+        "line": 100,
+        "failure_path": "Evidence gap: the packet omits the citing ledger rows and resolver ingestion/table-selection code, controller argument and chain handlers, OpenCode prependTaskContext implementation, and deleted binder/validator bodies. The replacement delta-pass rule is also absent. These omissions prevent completing the required laundering, option-bypass, Bash-preservation, and lost-enforcement checks; supplied test claims cannot close them.",
+        "smallest_fix": "Append those exact implementations, ledger rows, and operative replacement rule as frozen review context."
+      },
+      {
+        "severity": "P2",
+        "file": "hooks/remind-untracked-background.sh",
+        "line": 43,
+        "failure_path": "Both '/usr/bin/nohup make test >log 2>&1 &' and 'nohup>log make test &' launch through nohup but remain silent: the regex rejects the preceding slash and adjacent redirection operator. These are direct commands, outside the documented quoted-launcher limitation.",
+        "smallest_fix": "Recognize path-qualified executable names and adjacent redirections while preserving quoted-mention suppression; add both command forms to the hook tests."
+      }
+    ],
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "packet_sha256": "521101aeec56ed9a4e67558997beada890363f6ec85bf4b8802238d1a0d32a2c"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}

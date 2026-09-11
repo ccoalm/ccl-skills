@@ -83,16 +83,31 @@ unless File.file?(register_path)
   exit 1
 end
 
-# Reviewed waivers cover one immutable historical row whose locator was retired
+# Reviewed waivers cover the immutable historical rows whose locator was retired
 # by an explicit superseding round. The digest table below binds each waiver to
-# that exact row; a new row cannot inherit it by reusing the locator.
+# those exact rows (one digest, or an array when several rows cited the retired
+# locator); a new row cannot inherit it by reusing the locator.
 EXEMPT = {
   "file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#Disabled semantics are real, not painted" =>
     "065 replaced the combined platform walkthrough with an authority-classed claim ledger and executable delivery contract",
   "file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#predictive-back geometry routes to" =>
     "065 moved platform mechanics to the canonical client-owner return while keeping platform guidance scoped",
   "file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#Interaction-state matrix is complete" =>
-    "065 replaced walkthrough-level proof with criterion IDs, test-layer selection, runtime evidence, and a candidate-bound verdict"
+    "065 replaced walkthrough-level proof with criterion IDs, test-layer selection, runtime evidence, and a candidate-bound verdict",
+  "command:skills/skill-extraction-workflow/scripts/test_validate_extraction_review_state.sh" =>
+    "127 retired the closeout ledger and its validator; the extraction lane records single-shot passes instead",
+  "command:skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh" =>
+    "127 retired the merge-side candidate binding; the post-review delta and the human merge replace it",
+  "command:skills/skill-extraction-workflow/scripts/review_ledger_binding.py" =>
+    "127 retired the merge-side candidate binding; the post-review delta and the human merge replace it",
+  "file:skills/skill-extraction-workflow/references/dual-track-review-gate.md#Sum spent rounds across all chains before opening one more" =>
+    "127 replaced the round budget with one review, one challenge and bounded delta passes",
+  "file:skills/skill-extraction-workflow/references/dual-track-review-gate.md#accumulate every fix unapplied, run the challenge on the frozen" =>
+    "127 lets the challenge run after the review's fixes; nothing is bound to one candidate",
+  "file:skills/skill-extraction-workflow/references/extraction-quickstart.md#still owes the two-round chain before it can land" =>
+    "127 retired the merge-side binding that imposed the chain on wording-only changes",
+  "file:skills/skill-extraction-workflow/references/extraction-quickstart.md#must exclude every evidence JSON the round has already added" =>
+    "127 retired the merge-side binding whose evidence exclusion this rule mirrored"
 }.freeze
 
 # `\p{Word}` rather than `[a-z0-9]`: GitHub keeps non-ASCII characters in a slug,
@@ -471,7 +486,45 @@ EXEMPT_ROW_DIGESTS = {
   "file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#predictive-back geometry routes to" =>
     "6847e68f062c2fe65a32f34bc743a6162a4e245a3a5d858c020faa841868f929",
   "file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#Interaction-state matrix is complete" =>
-    "9671789a4bac36787dc26965ca03c98c7ab1c10de3312c6792587cb34e7c548e"
+    "9671789a4bac36787dc26965ca03c98c7ab1c10de3312c6792587cb34e7c548e",
+  "command:skills/skill-extraction-workflow/scripts/test_validate_extraction_review_state.sh" => [
+    "da20ca2ada11f70a55bbfbffde84a80d0a8a8a46c9e4010a96a9614ca854fd34",
+    "b8eede70a62910f0a7f2d11cfd854537c3450889bc294cfc933b37f2a13c55b8",
+    "1c575fdad17f3fca00569832d487dcf0ac0f28fe5f8fb4bfa21e784d9111a243",
+    "b40a21a554cbc8bb3484c345160403a69f1cfb0b41702559fc2442572f52afce",
+    "0579ef1411fc866c0e612f9475634f073cfc0e0be429482ee9e8b4fd7abafe10"
+  ],
+  "command:skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh" => [
+    "0579ef1411fc866c0e612f9475634f073cfc0e0be429482ee9e8b4fd7abafe10",
+    "fdb08300002289dc5b3d0bcd279589ec8eca7dd5d3b14f0b7b079d34372b41f7",
+    "4a593029ba36b128519adeb8a3b9cbee32053caec7953c884ad587efaf88a3aa",
+    "f56d544525a45d0b26e8752eec4f2ff516239c3ca866df600506ea3ccb39f4b2",
+    "6f3b518a04ea8c20adc1ec3cf377a7eda2ef775903354cf54bed59268a8332b4",
+    "dfa47eac33add5ce0a7a73ce237b8bf4a1589bd325eb34b4531e25f9adbb574d",
+    "c6e6f74ca2407db2d98124e0517e6d70fae6f9df669f190bb7336ab76f13eb56",
+    "16f862e9df7fea0ea817e392e78e561690b0120f97125c2db5f7c7b987154385",
+    "c450336b8031f4ea9b3a614db3908b1f21c37559098b4e24672947172bb42de4",
+    "aaa569c4934575aae78c2a3901ef44696501ee56d0cb700bfa2559ac79677d6c",
+    "a9a2484c102a9392ffa00edc684b8feddea9ccc6a881d35433c72594e72959c5",
+    "f9cfc29b561d55da7838d371f1307bf015822bdea2961cfb6dd0b6da6232eede",
+    "1e769efadec0325d53de5d0c1023eea675499d9d67b086bcfc4c507ca0f25dac",
+    "749ef2d63c4dda83e3885b7c2dfaedc9f2970dc09ae310082ad5367bc322cebc",
+    "2402bf5b6b7a00aba5e6200c47277bdf6bb65e4d255f8126b8615eb9d1168545",
+    "7f68e4204587602d53d135152d9a0b4fa7e8da1cc0c43f02813debb8c3a99528",
+    "0d7e1a6de3ced156e54b9a50737835f49c424846e86adf28f1b19a1aa46f0f5a",
+    "2c894914dd47b1764c63bd525891246c8adcb14b0f00c446e84e28320451a213",
+    "0ab74921c2222979701499bc12d53c5a0942f51a7b1dd3a090ef58e83cea42f9"
+  ],
+  "command:skills/skill-extraction-workflow/scripts/review_ledger_binding.py" =>
+    "6216104a650a7c30f78d0163d0a7cde37c9d809eb5967f291a30ebd516b1e337",
+  "file:skills/skill-extraction-workflow/references/dual-track-review-gate.md#Sum spent rounds across all chains before opening one more" =>
+    "988cd8128ee6f93b4ea5a0cc8ada170401a1790831b2cd7b95a79642a76f1112",
+  "file:skills/skill-extraction-workflow/references/dual-track-review-gate.md#accumulate every fix unapplied, run the challenge on the frozen" =>
+    "d999fadd8e3778bfdb9d54d34d3cabf965547ed39448a6ffba5e8310ca151612",
+  "file:skills/skill-extraction-workflow/references/extraction-quickstart.md#still owes the two-round chain before it can land" =>
+    "bf1fa382021b079b200b6d8d367e407bd0adbbac1d862e22d78062d83906c05e",
+  "file:skills/skill-extraction-workflow/references/extraction-quickstart.md#must exclude every evidence JSON the round has already added" =>
+    "d762cbab094279d26461843dfe12c5dd28ae41a1e9a40b7ae9f7f806fee51c36"
 }.freeze
 # TRUST BOUNDARY. The count answers "one row"; it cannot answer "WHICH row", so
 # it is paired with the digest of the citing row in EXEMPT_ROW_DIGESTS above.
@@ -535,6 +588,11 @@ File.foreach(register_path).with_index(1) do |line, lineno|
         target = File.join(root, rel)
         if !syntactically_contained?(rel)
           unresolved << [lineno, locator, "path escapes the repository"]
+        elsif !File.file?(target) && anchor_waived
+          # A waived command locator names an executable a superseding round
+          # deliberately retired; its absence is the recorded retirement, and the
+          # digest check below still pins which historical rows may cite it.
+          next
         elsif !File.file?(target)
           unresolved << [lineno, locator, "executable not found"]
         elsif !resolves_inside?(root, rel)
@@ -701,20 +759,29 @@ end
 
 exempt_uses.each do |locator, linenos|
   rows = linenos.uniq.sort
-  if rows.length > EXEMPT_USE_ALLOWANCE
-    rows.drop(EXEMPT_USE_ALLOWANCE).each do |lineno|
+  # A waiver binds either one row (a digest string) or a fixed set of rows (an
+  # array of digests): a retired script or rule that several historical rows
+  # cited is still one retirement, and each of those rows is named by its digest.
+  expected = exempt_row_digests[locator]
+  expected_digests = expected.is_a?(Array) ? expected : [expected].compact
+  # How many rows a waiver covers is a property of the waiver, so it is read from
+  # the built-in table even when a test injects its own identity table.
+  builtin = EXEMPT_ROW_DIGESTS[locator]
+  builtin_rows = builtin.is_a?(Array) ? builtin.length : (builtin ? 1 : 0)
+  allowance = [expected_digests.length, builtin_rows, EXEMPT_USE_ALLOWANCE].max
+  if rows.length > allowance
+    rows.drop(allowance).each do |lineno|
       unresolved << [lineno, locator,
-                     "EXEMPT locator cited by #{rows.length} rows (allowance #{EXEMPT_USE_ALLOWANCE}); " \
-                     "a waiver covers the one unrepairable historical row at line #{rows.first}, " \
+                     "EXEMPT locator cited by #{rows.length} rows (allowance #{allowance}); " \
+                     "a waiver covers the recorded historical rows starting at line #{rows.first}, " \
                      "not a new row quoting the same retired locator"]
     end
     next
   end
-  # The count says "one row"; the digest says WHICH row. Without it, deleting the
-  # historical row and writing a different claim that cites the same locator keeps
-  # the count at 1 and silently inherits the waiver.
-  expected = exempt_row_digests[locator]
-  unless expected
+  # The count says how many rows; the digests say WHICH rows. Without them,
+  # deleting a historical row and writing a different claim that cites the same
+  # locator keeps the count and silently inherits the waiver.
+  if expected_digests.empty?
     # A waiver with no recorded row identity keeps only the use-count layer,
     # which cannot tell a rewritten or repurposed row from the one that was
     # waived. On the BUILT-IN table that is a silent downgrade, so a new EXEMPT
@@ -729,13 +796,28 @@ exempt_uses.each do |locator, linenos|
     end
     next
   end
-  lineno = rows.first
-  actual = Digest::SHA256.hexdigest(register_lines[lineno - 1].to_s.rstrip)
-  next if actual == expected
-  unresolved << [lineno, locator,
-                 "EXEMPT citing row does not match the waived row (digest #{actual[0, 12]} != #{expected[0, 12]}); " \
-                 "a waiver covers one specific unrepairable historical row, so a rewritten or replaced row " \
-                 "does not inherit it — restore the row, or land a new waiver entry with its own digest and reason"]
+  remaining = expected_digests.tally
+  mismatched = 0
+  rows.each do |lineno|
+    actual = Digest::SHA256.hexdigest(register_lines[lineno - 1].to_s.rstrip)
+    if remaining[actual].to_i.positive?
+      remaining[actual] -= 1
+      next
+    end
+    mismatched += 1
+    unresolved << [lineno, locator,
+                   "EXEMPT citing row does not match the waived row (digest #{actual[0, 12]} not recorded); " \
+                   "a waiver covers specific unrepairable historical rows, so a rewritten or replaced row " \
+                   "does not inherit it — restore the row, or land a new waiver entry with its own digest and reason"]
+  end
+  # A rewritten row is already reported above; only rows that are gone entirely
+  # are left to name here.
+  missing = remaining.values.sum - mismatched
+  next unless missing.positive?
+  unresolved << [rows.first, locator,
+                 "EXEMPT entry has no citing row in the ledger for #{missing} of its #{expected_digests.length} " \
+                 "recorded rows; a waived historical row was deleted or its locator was edited — restore the row, " \
+                 "or retire its digest in the same change"]
 end
 
 # Both groups print before exiting. Bailing out on `malformed` alone would hide

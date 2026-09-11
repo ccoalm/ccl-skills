@@ -1294,13 +1294,10 @@ def untracked_packet(repo: Path, paths: list[str], deadline: float) -> bytes:
 def base_derived_candidate(
     args: argparse.Namespace, cwd: Path, deadline: float
 ) -> bytes:
-    """The candidate: base..worktree over the bound paths, as the binder recomputes it.
+    """The candidate: base..worktree over the bound paths.
 
-    This is the identity a landing receipt has to carry, so it is computed here
-    from the base rather than read off whatever bytes the reviewer was handed.
-    `review_ledger_binding.py` calls this same function through
-    `--print-candidate`, which is why the merge side and the review side cannot
-    drift into two implementations of one hash.
+    This is the identity a receipt carries, so it is computed here from the base
+    rather than read off whatever bytes the reviewer was handed.
     """
     root_result = run(
         git_command(cwd, ["rev-parse", "--show-toplevel"]),
@@ -1369,10 +1366,10 @@ def freeze_packet(
 
     These are two objects with opposed requirements, and giving them one value
     made them mutually exclusive. A reviewer that refuses to judge a claim
-    without the code it depends on needs a packet WIDER than the diff; the
-    merge-side binder needs an identity equal to the landing diff and nothing
-    else. So the packet may now carry context on top of the candidate, while
-    `candidate_sha256` stays the base-derived candidate the binder recomputes.
+    without the code it depends on needs a packet WIDER than the diff; a caller
+    comparing a receipt with what lands needs an identity equal to the landing
+    diff and nothing else. So the packet may carry context on top of the
+    candidate, while `candidate_sha256` stays the base-derived candidate.
 
     Equality used to buy the property that matters -- nothing lands that its
     reviewer did not read -- for free. A prefix requirement replaces it: the

@@ -141,7 +141,7 @@ Before commit, for any rule that appears in more than one authored file (`SKILL.
 
 ## Bounded Independent Review Packet
 
-Use this when an independent review is required but a broad reviewer prompt hangs, returns no output, or starts expanding beyond the intended review scope. For non-wording extraction work, the gate-valid path is `scripts/extraction_review_gate.sh`, which owns the fixed autonomous budget while delegating transport to the provider-neutral `code-review` controller. A strictly proven wording-only change uses the proof-bound generic single-review recipe in `code-review/references/staged-review-contract.md`; its controller-derived wording scope and independent `wording_only_boundary` result replace neither one another nor a failed semantic check. Both paths preserve the frozen packet, family exclusion, structured validation and client-specific recovery; raw provider CLI packets are debugging/advisory only and must not be recorded as passing review evidence.
+Use this when an independent review is required but a broad reviewer prompt hangs, returns no output, or starts expanding beyond the intended review scope. For non-wording extraction work, the gate-valid path is `scripts/extraction_review_gate.sh`, which makes each pass single-shot while delegating transport to the provider-neutral `code-review` controller. A strictly proven wording-only change uses the proof-bound generic single-review recipe in `code-review/references/staged-review-contract.md`; its controller-derived wording scope and independent `wording_only_boundary` result replace neither one another nor a failed semantic check. Both paths preserve the frozen packet, family exclusion, structured validation and client-specific recovery; raw provider CLI packets are debugging/advisory only and must not be recorded as passing review evidence.
 
 Required flow:
 
@@ -164,7 +164,7 @@ Review only stdin. Do not use tools. Do not request more context. Return finding
 5. Apply or explicitly reject actionable findings.
 6. Rerun the owning skill validators and `git diff --check`.
 7. Record the result as `findings applied`, `no blocking findings`, or `review unavailable after remediation` only when the wrapper or approved alternate produced valid structured evidence. Raw packet output is recorded separately as debugging/advisory and cannot close the gate.
-8. At a non-wording terminal checkpoint, build the receipt-bound ledger and run `scripts/validate_extraction_review_state.py <closeout.json>`. A wording-only review records its single independent-review row and does not invent a multi-round ledger.
+8. Record each pass and the post-review delta per `references/dual-track-review-gate.md` (Recording the passes). A wording-only review records its single independent-review row.
 
 Do not count as completed review:
 
