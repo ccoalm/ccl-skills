@@ -1821,7 +1821,7 @@ diff_alternate = root / "alternate.patch"
 diff_source.write_bytes(original_diff)
 diff_alternate.write_bytes(alternate_diff)
 with replace_after_symlink_check(diff_source, diff_alternate):
-    packet_path, digest, _candidate, _n, _, _ = review_gate.freeze_packet(
+    packet_path, digest, _candidate, _n, _, _, _ = review_gate.freeze_packet(
         SimpleNamespace(
             cwd=str(root), diff_file=str(diff_source), base=None, paths=[]
         ),
@@ -1995,7 +1995,7 @@ def expect_refused(label, **kwargs):
 
 
 # The base-derived subject: exactly what the landing binder recomputes.
-subject_path, subject_hash, subject_candidate_hash, subject_n, subject_paths, _ = freeze()
+subject_path, subject_hash, subject_candidate_hash, subject_n, subject_paths, _, _ = freeze()
 subject_bytes = subject_path.read_bytes()
 subject_path.unlink()
 assert subject_hash == digest(subject_bytes)
@@ -2004,7 +2004,7 @@ assert subject_n == len(subject_bytes)
 assert subject_paths == ["landing.txt"], subject_paths
 
 # A7 -- with no --diff-file the two hashes are the same value, as they are today.
-plain_path, plain_packet_hash, plain_candidate_hash, _plain_n, plain_paths, _ = freeze()
+plain_path, plain_packet_hash, plain_candidate_hash, _plain_n, plain_paths, _, _ = freeze()
 plain_path.unlink()
 assert plain_packet_hash == subject_hash
 assert plain_candidate_hash == subject_hash
@@ -2019,7 +2019,7 @@ context = (
 )
 widened = outside / "widened.patch"
 widened.write_bytes(subject_bytes + context)
-wide_path, wide_packet_hash, wide_candidate_hash, wide_n, wide_paths, _ = freeze(
+wide_path, wide_packet_hash, wide_candidate_hash, wide_n, wide_paths, _, _ = freeze(
     diff_file=widened
 )
 try:
@@ -2076,7 +2076,7 @@ expect_refused("an unrelated packet was accepted", diff_file=unrelated)
 
 # A8 -- --diff-file alone keeps today's meaning: no base, so no subject, and
 # the candidate hash stays the packet's own hash.
-alone_path, alone_packet_hash, alone_candidate_hash, _n, _, _ = freeze(
+alone_path, alone_packet_hash, alone_candidate_hash, _n, _, _, _ = freeze(
     diff_file=widened, base_ref=None
 )
 alone_path.unlink()
@@ -4741,6 +4741,224 @@ reset_case passed unavailable unavailable
 out="$(run_base_gate --allow-fallback-egress)"; rc=$?
 check "base packet freezes tracked and untracked changes once" \
   '[ "$rc" = 0 ] && grep -q tracked.txt "$WORK/state/claude_packet" && grep -q untracked.txt "$WORK/state/claude_packet" && grep -q "Untracked files" "$WORK/state/claude_packet"'
+
+# A review quotes the repository's own contract files after the candidate: the
+# tracked AGENTS.override.md-or-AGENTS.md, CLAUDE.md and .claude/CLAUDE.md of
+# every directory from the root down to a changed path, root first. Untracked
+# and CLAUDE.local.md files are personal and never quoted; a file off every
+# changed path is not quoted; a linked file is omitted, not followed.
+contract_repo="$WORK/contract-repo"
+rm -rf "$contract_repo"
+mkdir -p "$contract_repo/sub/deep" "$contract_repo/other" "$contract_repo/.claude" \
+  "$contract_repo/linked" "$contract_repo/big"
+(
+  cd "$contract_repo"
+  git init -q
+  git config user.email test@example.invalid
+  git config user.name 'Test User'
+  printf 'root agents rule\n' >AGENTS.md
+  printf 'root claude rule\n' >.claude/CLAUDE.md
+  printf 'personal note must not egress\n' >CLAUDE.local.md
+  printf 'sub override rule\n' >sub/AGENTS.override.md
+  printf 'sub shadowed rule\n' >sub/AGENTS.md
+  printf 'sub claude rule\n' >sub/CLAUDE.md
+  printf 'other rule\n' >other/AGENTS.md
+  ln -s ../AGENTS.md linked/AGENTS.md
+  python3 -c 'print("x" * 40000)' >big/AGENTS.md
+  for dir in sub/deep other linked big; do printf 'before\n' >"$dir/code.txt"; done
+  printf 'before\n' >.claude/notes.txt
+  git add -A
+  git commit -q -m initial
+  printf 'untracked rule\n' >sub/deep/CLAUDE.md
+  printf 'after\n' >sub/deep/code.txt
+)
+run_contract_gate() {
+  REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+    --cwd "$contract_repo" --base HEAD --implementer-family openai \
+    --review-plan-file "$WORK/review-plan.json" --allow-fallback-egress "$@"
+}
+contract_packet_check() { # <result json> <expected quoted paths, comma-joined> <coverage>
+  JSON_PAYLOAD="$1" python3 - "$WORK/state/claude_packet" "$WORK/state/claude_profile" "$2" "$3" <<'PY' 2>&1
+import hashlib, json, os, re, sys
+result = json.loads(os.environ["JSON_PAYLOAD"])
+packet = open(sys.argv[1], "rb").read()
+profile = json.load(open(sys.argv[2], encoding="utf-8"))
+expected = [item for item in sys.argv[3].split(",") if item]
+quoted = re.findall(rb"^CCL_REPOSITORY_CONTRACT_[0-9a-f]{24}_BEGIN (.+)$", packet, re.M)
+assert [item.decode() for item in quoted] == expected, quoted
+assert b"personal note must not egress" not in packet
+assert hashlib.sha256(packet[: profile["candidate_bytes"]]).hexdigest() == result["candidate_sha256"]
+assert result["packet_sha256"] != result["candidate_sha256"]
+assert b"CCL_REPOSITORY_CONTRACT_" not in packet[: profile["candidate_bytes"]]
+concerns = [item["id"] for item in profile["required_concerns"]]
+assert "repository_contract" in concerns, concerns
+contract = result["repository_contract"]
+assert contract["coverage"] == sys.argv[4], contract
+assert [item["path"] for item in contract["files"]] == expected, contract
+print("contract_packet_ok")
+PY
+}
+reset_case passed unavailable unavailable
+out="$(run_contract_gate --mode review)"; rc=$?
+check "review quotes the tracked contract files governing the changed path, root first" \
+  '[ "$rc" = 0 ] && contract_packet_check "$out" "AGENTS.md,.claude/CLAUDE.md,sub/AGENTS.override.md,sub/CLAUDE.md" complete | grep -qx contract_packet_ok'
+
+printf 'after\n' >"$contract_repo/linked/code.txt"
+printf 'after\n' >"$contract_repo/big/code.txt"
+# A change under .claude/ reaches .claude/CLAUDE.md twice (root and .claude/);
+# the expected list below admits it once.
+printf 'after\n' >"$contract_repo/.claude/notes.txt"
+reset_case passed unavailable unavailable
+out="$(run_contract_gate --mode review)"; rc=$?
+check "a linked or oversized contract file is omitted and reported, never followed or failed on" \
+  '[ "$rc" = 0 ] && contract_packet_check "$out" "AGENTS.md,.claude/CLAUDE.md,sub/AGENTS.override.md,sub/CLAUDE.md" partial | grep -qx contract_packet_ok && json_fields "$out" repository_contract.omitted.0.path=big/AGENTS.md repository_contract.omitted.0.reason=size_budget repository_contract.omitted.1.path=linked/AGENTS.md repository_contract.omitted.1.reason=unreadable'
+
+reset_case passed unavailable unavailable
+out="$(run_contract_gate --mode challenge --challenge-budget 1 --challenge-index 1 --focus "contract rules")"; rc=$?
+check "a challenge keeps its focus: no contract section and no contract concern" \
+  '[ "$rc" = 0 ] && ! grep -q CCL_REPOSITORY_CONTRACT_ "$WORK/state/claude_packet" && python3 -c "import json,sys; p=json.load(open(sys.argv[1])); assert p[\"repository_contract\"] is None and all(c[\"id\"] != \"repository_contract\" for c in p[\"required_concerns\"])" "$WORK/state/claude_profile" && json_fields "$out" repository_contract=None'
+
+receipt_file="$contract_repo/.git/ccl-code-review/last-review.json"
+check "a conclusive run leaves a local receipt of the HEAD it reviewed, outside the tree" \
+  '[ "$rc" = 0 ] && [ -f "$receipt_file" ] && [ "$(jq -r .head "$receipt_file")" = "$(git -C "$contract_repo" rev-parse HEAD)" ] && [ "$(jq -r .worktree_clean "$receipt_file")" = false ] && [ "$(jq -r .mode "$receipt_file")" = challenge ]'
+
+cp "$receipt_file" "$WORK/receipt-before"
+reset_case passed unavailable unavailable
+out="$(run_contract_gate --mode challenge --challenge-budget 1 --challenge-index 1)"; rc=$?
+check "an inconclusive run leaves the last receipt untouched" \
+  '[ "$rc" = 2 ] && cmp -s "$receipt_file" "$WORK/receipt-before"'
+
+# The receipt directory swapped for a link: the write is refused, never followed.
+mkdir -p "$WORK/receipt-target"
+rm -rf "$contract_repo/.git/ccl-code-review"
+ln -s "$WORK/receipt-target" "$contract_repo/.git/ccl-code-review"
+reset_case passed unavailable unavailable
+out="$(run_contract_gate --mode challenge --challenge-budget 1 --challenge-index 1 --focus "contract rules")"; rc=$?
+check "a linked receipt directory is never written through" \
+  '[ "$rc" = 0 ] && [ -L "$contract_repo/.git/ccl-code-review" ] && [ -z "$(ls -A "$WORK/receipt-target")" ]'
+rm -f "$contract_repo/.git/ccl-code-review"
+
+anchor_out="$(PYTHONPATH="$WORK/harness/scripts" python3 - <<'PY' 2>&1
+import review_gate
+a = {"git_dir": "/g", "head": "a" * 40, "worktree_clean": True}
+b = dict(a, head="b" * 40)
+c = dict(a, worktree_clean=False)
+assert review_gate.stable_review_anchor(a, dict(a)) == a
+assert review_gate.stable_review_anchor(a, b) is None
+assert review_gate.stable_review_anchor(a, c) is None
+assert review_gate.stable_review_anchor(None, a) is None
+print("anchor_stability_ok")
+PY
+)"
+check "a freeze that straddles a HEAD or cleanliness change records nothing" \
+  '[ "$anchor_out" = anchor_stability_ok ]'
+
+# A bare --diff-file packet may cover less than HEAD, so it records no receipt.
+git -C "$contract_repo" diff HEAD >"$WORK/contract.patch"
+rm -rf "$contract_repo/.git/ccl-code-review"
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --cwd "$contract_repo" --diff-file "$WORK/contract.patch" --implementer-family openai \
+  --review-plan-file "$WORK/review-plan.json" --allow-fallback-egress)"; rc=$?
+check "a bare --diff-file review records no receipt" \
+  '[ "$rc" = 0 ] && json_fields "$out" status=passed && [ ! -e "$contract_repo/.git/ccl-code-review" ]'
+
+swap_out="$(PYTHONPATH="$WORK/harness/scripts" python3 - "$WORK" <<'PY' 2>&1
+import os, sys, review_gate
+root = os.path.realpath(os.path.join(sys.argv[1], "gitdir-swap"))
+os.makedirs(root)
+def anchor_for(path):
+    st = os.stat(path)
+    return {"git_dir": path, "git_dir_identity": [st.st_dev, st.st_ino], "head": "a" * 40, "worktree_clean": True}
+def receipt_under(path):
+    return os.path.exists(os.path.join(path, "ccl-code-review", "last-review.json"))
+result = {"mode": "review", "status": "passed"}
+# A different directory swapped in under the anchored path.
+git_dir, other = os.path.join(root, "gitdir"), os.path.join(root, "other")
+os.mkdir(git_dir)
+anchor = anchor_for(git_dir)
+os.rename(git_dir, os.path.join(root, "moved"))
+os.mkdir(other)
+os.symlink(other, git_dir)
+review_gate.record_local_review(anchor, result)
+assert not receipt_under(other), "wrote through a swapped git directory"
+# The same directory relocated into a tree, its old path now a link to it.
+original = os.path.join(root, "original")
+os.mkdir(original)
+anchor = anchor_for(original)
+tree = os.path.join(root, "worktree")
+os.mkdir(tree)
+os.rename(original, os.path.join(tree, "relocated"))
+os.symlink(os.path.join(tree, "relocated"), original)
+review_gate.record_local_review(anchor, result)
+assert not receipt_under(os.path.join(tree, "relocated")), "followed a link to the relocated git directory"
+# A parent component swapped for a link while the directory keeps its inode.
+parent = os.path.join(root, "parent")
+os.makedirs(os.path.join(parent, "gd"))
+anchor = anchor_for(os.path.join(parent, "gd"))
+os.rename(parent, os.path.join(root, "parent-moved"))
+os.symlink(os.path.join(root, "parent-moved"), parent)
+review_gate.record_local_review(anchor, result)
+assert not receipt_under(os.path.join(root, "parent-moved", "gd")), "followed a linked parent"
+# Control: an unchanged directory is written.
+control = os.path.join(root, "control")
+os.mkdir(control)
+review_gate.record_local_review(anchor_for(control), result)
+assert receipt_under(control), "control write missing"
+print("gitdir_swap_ok")
+PY
+)"
+check "a git directory swapped during the review is never written into" \
+  '[ "$swap_out" = gitdir_swap_ok ]'
+
+# Repeated failed rooted reads (a linked ancestor, a missing file) must not
+# leave directory descriptors behind: every omitted contract file is one.
+fd_out="$(PYTHONPATH="$WORK/harness/scripts" python3 - "$WORK" <<'PY' 2>&1
+import os, sys, review_gate
+root = os.path.realpath(os.path.join(sys.argv[1], "fd-leak"))
+os.makedirs(os.path.join(root, "a", "b"))
+os.makedirs(os.path.join(root, "target"))
+os.symlink(os.path.join(root, "target"), os.path.join(root, "a", "linked"))
+def attempt(relative):
+    try:
+        review_gate.read_bounded_regular_file(relative, root=root, label="probe", maximum=10,
+                                              regular_error="irregular", oversized_error="big")
+    except review_gate.GateError:
+        pass
+before = len(os.listdir("/dev/fd"))
+for _ in range(50):
+    attempt("a/b/missing.md")
+    attempt("a/linked/AGENTS.md")
+after = len(os.listdir("/dev/fd"))
+assert after == before, (before, after)
+print("fd_release_ok")
+PY
+)"
+check "failed rooted reads release every directory descriptor" \
+  '[ "$fd_out" = fd_release_ok ]'
+
+# A tracked contract file whose ancestor became a link is omitted, and the
+# linked target's text never reaches the packet.
+(
+  cd "$contract_repo"
+  git add -A && git commit -q -m "settle earlier cases"
+  mkdir anc hl && printf 'anc rule\n' >anc/AGENTS.md && printf 'before\n' >anc/code.txt
+  printf 'hl rule\n' >hl/AGENTS.md && printf 'before\n' >hl/code.txt
+  git add -A && git commit -q -m "add anc"
+  ln hl/AGENTS.md "$WORK/hl-second-name.md" && printf 'after\n' >hl/code.txt
+  mkdir -p "$WORK/outside-anc" && printf 'outside secret rule\n' >"$WORK/outside-anc/AGENTS.md"
+  printf 'after\n' >"$WORK/outside-anc/code.txt"
+  rm -rf anc && ln -s "$WORK/outside-anc" anc
+)
+# Base mode refuses an untracked link as a candidate outright, so the transient
+# state is reached through a --diff-file packet that names the anc/ paths.
+git -C "$contract_repo" diff HEAD -- anc hl >"$WORK/anc.patch"
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --cwd "$contract_repo" --diff-file "$WORK/anc.patch" --implementer-family openai \
+  --review-plan-file "$WORK/review-plan.json" --allow-fallback-egress)"; rc=$?
+check "a contract file behind a linked ancestor or with a second hard link is omitted and never quoted" \
+  '[ "$rc" = 0 ] && ! grep -q "outside secret rule" "$WORK/state/claude_packet" && printf "%s" "$out" | python3 -c "import json,sys; d=json.load(sys.stdin)[\"repository_contract\"]; assert {\"path\": \"anc/AGENTS.md\", \"reason\": \"unreadable\"} in d[\"omitted\"] and {\"path\": \"hl/AGENTS.md\", \"reason\": \"unreadable\"} in d[\"omitted\"], d" && ! grep -q "hl rule" "$WORK/state/claude_packet"'
 
 # The explicit cwd is the only repository identity. Ambient Git variables must
 # not redirect discovery, objects, refs, index, or worktree to a clean decoy.

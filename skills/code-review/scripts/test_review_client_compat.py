@@ -39,6 +39,9 @@ def required_concerns(stage: str, *risk_tags: str) -> list[str]:
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 import review_gate
+
+# The unpatched runner, for the controller's own git reads under the provider mock.
+REAL_RUN = review_gate.run
 import kimi_packet_mcp
 
 SPEC = importlib.util.spec_from_file_location(
@@ -797,7 +800,11 @@ class CompletionFindingDispositionTest(unittest.TestCase):
 
     def wrapper_result(self, command: list[str], **kwargs: object) -> subprocess.CompletedProcess:
         # Only the provider boundary is replaced. Packet, profile, chain and
-        # completion validation execute normally; no subprocess is launched.
+        # completion validation execute normally, and so do the controller's own
+        # git reads (contract discovery, the local review receipt); no provider
+        # subprocess is launched.
+        if command[0] == "git":
+            return REAL_RUN(command, **kwargs)
         self.assertTrue(command[0].endswith("kimi_review.sh"), command[0])
         self.provider_calls.append(list(command))
         profile_path = Path(command[command.index("--review-profile-file") + 1])

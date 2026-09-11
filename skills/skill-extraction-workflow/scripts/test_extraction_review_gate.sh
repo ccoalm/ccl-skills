@@ -190,7 +190,7 @@ assert re.search(r"[Ww]ording-only.{0,500}(?:single|one)[- ](?:round|review|pass
                  docs["quickstart"], re.DOTALL), "quickstart lost the wording-only single-review exception"
 assert "--challenge-budget" not in docs["quickstart"], "quickstart must not hand callers the budget flag"
 dual = docs["dual-track"]
-for pinned in ("post-review delta", "Every post-review delta gets a delta pass", "After two delta passes", "never left to a human reader"):
+for pinned in ("post-review delta", "Every post-review delta gets a delta pass", "After five delta passes", "never left to a human reader"):
     assert pinned in dual, f"dual-track lost '{pinned}'"
 wording_only = (root / "skills/code-review/references/wording-only-review.md").read_text(encoding="utf-8")
 assert "--wording-only-proof-file" in wording_only
