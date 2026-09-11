@@ -736,7 +736,8 @@ DUAL_TRACK_REF="$REPO_ROOT/skills/skill-extraction-workflow/references/dual-trac
 LEDGER_REF="$REPO_ROOT/skills/skill-extraction-workflow/references/source-register.md"
 WALK_REF="$REPO_ROOT/skills/testing-strategy/references/run-killing-mutation-walk.md"
 DT_SELF_AUDIT_SECTION='### The self-adversary enumeration — method detail (relocated from `SKILL.md`)'
-DT_AUTHORITY_SECTION='### Findings, autonomous budget, and human authority'
+DT_AUTHORITY_SECTION='### Findings and dispositions'
+DT_LANE_SECTION='### The extraction review lane: one review, one challenge'
 TS_CORE_RULES_SECTION='## Core Rules'
 WALK_PROBE_SECTION='## Encoded Probe For Destructive Artifacts'
 LEDGER_RULE_PARAGRAPH='Round-consolidation rule (append-once)'
@@ -749,8 +750,8 @@ assert_in_section "$DUAL_TRACK_REF" "$DT_SELF_AUDIT_SECTION" '**Re-owe after fix
   "process controls (re-owe rule anchored in the self-audit section)"
 assert_in_section "$DUAL_TRACK_REF" "$DT_AUTHORITY_SECTION" 'A convergence or closure declaration must be written falsifiably.' \
   "process controls (falsifiable closure declaration anchored in the authority section)"
-assert_in_section "$DUAL_TRACK_REF" "$DT_AUTHORITY_SECTION" '`continuation_authorization`' \
-  "process controls (continuation authorization anchored in the authority section)"
+assert_in_section "$DUAL_TRACK_REF" "$DT_LANE_SECTION" '**Task authority.**' \
+  "process controls (task authority anchored in the extraction review lane)"
 # Remediation re-owes the pre-cover axes; third same-class round escalates to one full-matrix self-enumeration.
 assert_same_line "$DUAL_TRACK_REF" 'remediation text written mid-round re-owes the draft-time axes BEFORE the candidate goes back to the reviewer' \
   '**Re-owe after fixes.**' \
@@ -768,7 +769,7 @@ assert_same_line "$DUAL_TRACK_REF" 'states × failure points × orderings × res
   '**Re-owe after fixes.**' \
   "process controls (full-matrix axes named)"
 # Convergence/closure declarations are falsifiable: named candidate/evidence/axes/open items, scoped adjectives.
-assert_same_line "$DUAL_TRACK_REF" 'Name the exact candidate identity it covers' \
+assert_same_line "$DUAL_TRACK_REF" 'Name the commit it covers' \
   'must be written falsifiably' \
   "process controls (declaration names the candidate identity)"
 assert_same_line "$DUAL_TRACK_REF" "each lane's terminal evidence, the axes/dimensions the closing self-audit actually crossed, and every standing open item by name" \
@@ -780,29 +781,17 @@ assert_same_line "$DUAL_TRACK_REF" 'cannot be checked false and is inconclusive'
 assert_same_line "$DUAL_TRACK_REF" 'any "full X" adjective is scoped to the named axes, never wider' \
   'must be written falsifiably' \
   "process controls (full-adjective scoped to named axes)"
-# Default continuation retains original authority and accumulated evidence.
-assert_same_line "$DUAL_TRACK_REF" 'necessary in-scope fixes, tests and review are already authorized by default' \
-  '`continuation_authorization`' "process controls (necessary review inherits task authority)"
-assert_same_line "$DUAL_TRACK_REF" 'continuation_basis=existing-task-scope' \
-  '`continuation_authorization`' "process controls (inherited continuation has an explicit basis)"
-assert_same_line "$DUAL_TRACK_REF" 'the original authorization reference and scope' \
-  '`continuation_authorization`' "process controls (original authority remains traceable)"
-assert_same_line "$DUAL_TRACK_REF" 'changed method or added evidence, cumulative rounds' \
-  '`continuation_authorization`' "process controls (checkpoint requires method and spending evidence)"
-assert_same_line "$DUAL_TRACK_REF" "links between the old sequence's terminal evidence and the new sequence" \
-  '`continuation_authorization`' "process controls (successive sequences retain their links)"
-assert_same_line "$DUAL_TRACK_REF" 'fresh current-candidate bindings and preserves every prior receipt, focus, finding and disposition' \
-  '`continuation_authorization`' "process controls (fresh binding does not discard history)"
-assert_same_line "$DUAL_TRACK_REF" 'The existing per-sequence format, timeout and validation bounds remain unchanged' \
-  '`continuation_authorization`' "process controls (bounded invocation format remains enforced)"
-assert_same_line "$DUAL_TRACK_REF" 'never relabel these calls as newly human-requested or erase earlier spending' \
-  '`continuation_authorization`' "process controls (no fabricated human request or count reset)"
-assert_same_line "$DUAL_TRACK_REF" 'Ask only for scope or authority the original task lacks, an explicit user limit' \
-  '`continuation_authorization`' "process controls (real missing authority and user limits remain blocking)"
-assert_same_line "$DUAL_TRACK_REF" 'Continuation waives no review, test or evidence obligation and grants no merge, publication or risk-acceptance authority' \
-  '`continuation_authorization`' "process controls (continuation is not a waiver or landing authority)"
-assert_same_line "$DUAL_TRACK_REF" 'Never infer a lane waiver from silence or from authorization to continue' \
-  '`continuation_authorization`' "process controls (no inferred lane waiver)"
+# Task authority: necessary passes are inherited, never relabelled, never a waiver or merge grant.
+assert_same_line "$DUAL_TRACK_REF" 'necessary in-scope fixes, tests and review passes by default' \
+  '**Task authority.**' "process controls (necessary review inherits task authority)"
+assert_same_line "$DUAL_TRACK_REF" 'never relabels an Agent-run pass as newly human-requested' \
+  '**Task authority.**' "process controls (no fabricated human request)"
+assert_same_line "$DUAL_TRACK_REF" 'never infers a lane waiver from silence or from authorization to continue' \
+  '**Task authority.**' "process controls (no inferred lane waiver)"
+assert_same_line "$DUAL_TRACK_REF" 'Ask only for scope or authority the original task lacks, or when an explicit user limit' \
+  '**Task authority.**' "process controls (real missing authority and user limits remain blocking)"
+assert_same_line "$DUAL_TRACK_REF" 'waives no review, test or evidence obligation and grants no merge, publication or risk-acceptance authority' \
+  '**Task authority.**' "process controls (passes are not a waiver or landing authority)"
 assert_contains "$PRODUCT_SKILL" 'Necessary fixes, tests and review inherit task authorization' \
   "process controls (implementation entry reaches inherited authority)"
 assert_contains "$PRE_FINAL_REF" 'continuation_basis=existing-task-scope' \

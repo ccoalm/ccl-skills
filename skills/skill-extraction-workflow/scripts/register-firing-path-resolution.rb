@@ -764,7 +764,11 @@ exempt_uses.each do |locator, linenos|
   # cited is still one retirement, and each of those rows is named by its digest.
   expected = exempt_row_digests[locator]
   expected_digests = expected.is_a?(Array) ? expected : [expected].compact
-  allowance = [expected_digests.length, EXEMPT_USE_ALLOWANCE].max
+  # How many rows a waiver covers is a property of the waiver, so it is read from
+  # the built-in table even when a test injects its own identity table.
+  builtin = EXEMPT_ROW_DIGESTS[locator]
+  builtin_rows = builtin.is_a?(Array) ? builtin.length : (builtin ? 1 : 0)
+  allowance = [expected_digests.length, builtin_rows, EXEMPT_USE_ALLOWANCE].max
   if rows.length > allowance
     rows.drop(allowance).each do |lineno|
       unresolved << [lineno, locator,

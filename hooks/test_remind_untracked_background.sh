@@ -39,6 +39,8 @@ expect remind "plain nohup" 'nohup bash run.sh >log 2>&1 &'
 expect remind "after a separator" 'cd /x && nohup make test &'
 expect remind "setsid" 'setsid make test >log 2>&1 < /dev/null &'
 expect remind "disown" 'make test >log 2>&1 & disown'
+expect remind "path-qualified launcher" '/usr/bin/nohup make test >log 2>&1 &'
+expect remind "adjacent redirection" 'nohup>log make test &'
 expect remind "multi-line script" $'S=/tmp/x\nnohup make test >"$S/log" 2>&1 &'
 
 # Mentions that are not a detach.
@@ -48,6 +50,10 @@ expect quiet "nohup output file" 'tail -5 nohup.out'
 expect quiet "word inside double quotes" 'git commit -m "stop using nohup for lanes"'
 expect quiet "word inside single quotes" "grep -n 'nohup' hooks/*.sh"
 expect quiet "longer word" 'echo nohupx setsidy'
+expect quiet "multi-line double-quoted message" $'git commit -m "notes\nnohup is discouraged for lanes\n"'
+expect quiet "multi-line single-quoted message" $'git commit -m \'notes\nnohup is discouraged\n\''
+expect quiet "escaped quote inside double quotes" 'echo "say \"hi\" then nohup stays text"'
+expect remind "detach after a quoted argument" 'nohup bash -c "make test" >log 2>&1 &'
 
 # Payloads that carry no command stay silent.
 for payload in '{}' '{"tool_input":{}}' 'not json'; do

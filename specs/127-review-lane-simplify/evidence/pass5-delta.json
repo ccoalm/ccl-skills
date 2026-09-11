@@ -1,0 +1,322 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "build",
+  "stage_source": "caller-declared",
+  "review_depth": "build",
+  "status": "findings",
+  "selected_client": "codex",
+  "selected_reviewer": "codex",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P1",
+      "file": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py",
+      "line": 117,
+      "failure_path": "Open item 2 remains: obtain a passed wording-only review for skills/demo/SKILL.md, then change that same file’s frontmatter description or safety rules while retaining the review result and adding no challenge. All subjects still end in .md and belong to one skill, so wording_only remains true and the gate accepts the behavioral change without a challenge. The added tests do not exercise this sequence.",
+      "smallest_fix": "Require proof that the current whole-PR diff is wording-only before granting the exception; otherwise require a challenge. Add a regression retaining an earlier wording-only result while changing the same SKILL.md’s frontmatter or behavioral rules."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [
+    {
+      "client": "claude",
+      "stage": "preflight",
+      "reason": "claude belongs to the implementer model family",
+      "reason_code": "same_family_as_implementer"
+    }
+  ],
+  "attempts": [
+    {
+      "client": "codex",
+      "reviewer": "codex",
+      "mode": "review",
+      "status": "findings",
+      "reviewer_family": "openai",
+      "provider": "openai",
+      "model": null,
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "Items 1, 3 and 4 are addressed in the shown delta. Item 2 remains open for later behavioral changes within the same skill’s Markdown."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "The remaining waiver bypass can exempt changed routing or safety rules from challenge. The hook introduces no payload-execution path."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "Git errors retain explicit failure handling. Both previously missed launcher forms now match; hook exits remain non-blocking."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "Added regressions cover type changes, hooks, a second skill and launcher spellings, but omit stale wording evidence followed by same-skill behavioral edits."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "Both documentation entry points narrow the blanket exemptions. No Node.js or React runtime changes appear in this delta."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "The comment claiming protection against behavior added later exceeds what the pathname-only predicate establishes."
+        }
+      ],
+      "findings": [
+        {
+          "severity": "P1",
+          "file": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py",
+          "line": 117,
+          "failure_path": "Open item 2 remains: obtain a passed wording-only review for skills/demo/SKILL.md, then change that same file’s frontmatter description or safety rules while retaining the review result and adding no challenge. All subjects still end in .md and belong to one skill, so wording_only remains true and the gate accepts the behavioral change without a challenge. The added tests do not exercise this sequence.",
+          "smallest_fix": "Require proof that the current whole-PR diff is wording-only before granting the exception; otherwise require a challenge. Add a regression retaining an earlier wording-only result while changing the same SKILL.md’s frontmatter or behavioral rules."
+        }
+      ],
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "packet_sha256": "30a5abcd406991165d07845767d965a364380aec51fa02036fd80d838cbc6cc9"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "30a5abcd406991165d07845767d965a364380aec51fa02036fd80d838cbc6cc9",
+  "candidate_sha256": "30a5abcd406991165d07845767d965a364380aec51fa02036fd80d838cbc6cc9",
+  "review_context_sha256": "b79a6b14cce1a498f298c9ea2ce9ea40f217353c393209cce977c5b4bdc39fc3",
+  "review_controller_sha256": "4defb309b967f4a20087a445c4fab792b742d7e2d50e9666b9f29f4e86113fc0",
+  "review_profile_sha256": "313796324ab66ccb4bb72980df0dd77d0237ac3a8b990215b605be8cbf0d0a87",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/SKILL.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/extraction-quickstart.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_check_review_evidence_present.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "hooks/remind-untracked-background.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "hooks/test_remind_untracked_background.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_check_review_evidence_present.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "hooks/test_remind_untracked_background.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_check_review_evidence_present.sh"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "codex-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "multi-perspective-research",
+    "nodejs-service-dev",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "selected_skills_sha256": "9a38533c8c0e2aa858a68e855015b7c0c8ee6e7e6a38bda68601c961198c3837",
+  "risk_tags": [],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": null,
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "2a65a2a32211489615e91926ab0a45c50a5b2ea0bcda139d053a74bd05280446",
+    "acceptance_sha256": "9aecc53eb92970ea0c82042e60f92c59446068dc36b728fba08234b9d5887d5b",
+    "stage": "build",
+    "review_depth": "build",
+    "risk_tags": [],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null
+  },
+  "review_scope_sha256": "9f8ec53fc82dff2be29e3fb50000a1ae2c26d83ff7c586b157aabb5b63fe52b5",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "Items 1, 3 and 4 are addressed in the shown delta. Item 2 remains open for later behavioral changes within the same skill’s Markdown."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "The remaining waiver bypass can exempt changed routing or safety rules from challenge. The hook introduces no payload-execution path."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "Git errors retain explicit failure handling. Both previously missed launcher forms now match; hook exits remain non-blocking."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "Added regressions cover type changes, hooks, a second skill and launcher spellings, but omit stale wording evidence followed by same-skill behavioral edits."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "Both documentation entry points narrow the blanket exemptions. No Node.js or React runtime changes appear in this delta."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "The comment claiming protection against behavior added later exceeds what the pathname-only predicate establishes."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "claim_strength"
+  ],
+  "reviewed_skills": [
+    "multi-perspective-research",
+    "nodejs-service-dev",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "codex",
+    "reviewer": "codex",
+    "mode": "review",
+    "status": "findings",
+    "reviewer_family": "openai",
+    "provider": "openai",
+    "model": null,
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "Items 1, 3 and 4 are addressed in the shown delta. Item 2 remains open for later behavioral changes within the same skill’s Markdown."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "The remaining waiver bypass can exempt changed routing or safety rules from challenge. The hook introduces no payload-execution path."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "Git errors retain explicit failure handling. Both previously missed launcher forms now match; hook exits remain non-blocking."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "Added regressions cover type changes, hooks, a second skill and launcher spellings, but omit stale wording evidence followed by same-skill behavioral edits."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "Both documentation entry points narrow the blanket exemptions. No Node.js or React runtime changes appear in this delta."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "The comment claiming protection against behavior added later exceeds what the pathname-only predicate establishes."
+      }
+    ],
+    "findings": [
+      {
+        "severity": "P1",
+        "file": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py",
+        "line": 117,
+        "failure_path": "Open item 2 remains: obtain a passed wording-only review for skills/demo/SKILL.md, then change that same file’s frontmatter description or safety rules while retaining the review result and adding no challenge. All subjects still end in .md and belong to one skill, so wording_only remains true and the gate accepts the behavioral change without a challenge. The added tests do not exercise this sequence.",
+        "smallest_fix": "Require proof that the current whole-PR diff is wording-only before granting the exception; otherwise require a challenge. Add a regression retaining an earlier wording-only result while changing the same SKILL.md’s frontmatter or behavioral rules."
+      }
+    ],
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "packet_sha256": "30a5abcd406991165d07845767d965a364380aec51fa02036fd80d838cbc6cc9"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}

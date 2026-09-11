@@ -1,0 +1,525 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "build",
+  "stage_source": "caller-declared",
+  "review_depth": "build",
+  "status": "findings",
+  "selected_client": "codex",
+  "selected_reviewer": "codex",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P2",
+      "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+      "line": 508,
+      "failure_path": "The new sequence requires a committed candidate before review, while the supplied, retained Core Rules require independent review and challenge before committing non-wording shared-skill changes. A fresh extraction cannot satisfy both: committing violates the gate, while withholding the commit prevents starting this sequence.",
+      "smallest_fix": "Explicitly permit isolated local review-checkpoint commits in the Core Rules while retaining review/challenge requirements before landing, and align the quickstart."
+    },
+    {
+      "severity": "P2",
+      "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+      "line": 261,
+      "failure_path": "For a target advance followed by a conflict-free rebase, this paragraph says not to reopen review. The immediately preceding retained paragraph says any changed target SHA invalidates landing evidence until the round is rerun. Following that obligation restores the review restarts this change intends to remove.",
+      "smallest_fix": "Update the preceding drift consequence to use the new test-and-delta procedure while preserving the live target query."
+    },
+    {
+      "severity": "P2",
+      "file": "hooks/remind-untracked-background.sh",
+      "line": 35,
+      "failure_path": "sed processes each line separately, so a command such as git commit -m 'notes\\nnohup is discouraged\\n' with actual embedded newlines leaves the quoted nohup line unmasked. grep then emits the advisory although nothing detaches. The existing quoted-negative tests contain only single-line strings.",
+      "smallest_fix": "Preserve quote state across lines and escaped quotes during masking; add multiline commit-message and escaped-quote negative cases."
+    },
+    {
+      "severity": "P2",
+      "file": "skills/skill-extraction-workflow/scripts/register-firing-path-resolution.rb",
+      "line": 490,
+      "failure_path": "Evidence gap: the packet adds historical-row digests without the corresponding rows or the resolver's digest-table selection context. It also omits controller argument/final-result handling and OpenCode advisory helpers. Consequently, whole-register resolution, exhaustive chain-option refusal and advisory delivery cannot be checked independently; the reported passing totals do not close these gaps.",
+      "smallest_fix": "Append the relevant historical rows, resolver/controller boundary code and OpenCode helpers as packet context, together with terminal test outputs and the outstanding host-routing evidence."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [
+    {
+      "client": "claude",
+      "stage": "preflight",
+      "reason": "claude belongs to the implementer model family",
+      "reason_code": "same_family_as_implementer"
+    }
+  ],
+  "attempts": [
+    {
+      "client": "codex",
+      "reviewer": "codex",
+      "mode": "review",
+      "status": "findings",
+      "reviewer_family": "openai",
+      "provider": "openai",
+      "model": null,
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "The visible wrapper maps the intended modes, but conflicting commit/rebase rules obstruct the new cadence, and multiline quoted mentions trigger the advisory."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "The binder removal is intentional. No new destructive or credential-handling path is visible; post-review coverage now depends on procedural compliance."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "Wrapper error exits are explicit. Quote masking mishandles multiline input, and target-drift recovery has contradictory instructions."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "Tests cover selected argument refusals and row mutations, but omit multiline quoted negatives. Reported runs and several production boundaries cannot be verified from the packet."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "Python runtime edits are comments or removals; no React surface changes. OpenCode advisory delivery and complete controller-option compatibility lack the necessary context."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "The 527-locator result, historical causal claims and host-wide routing remain unverified. The explicitly pending Codex probe does not establish every-host acceptance."
+        }
+      ],
+      "findings": [
+        {
+          "severity": "P2",
+          "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+          "line": 508,
+          "failure_path": "The new sequence requires a committed candidate before review, while the supplied, retained Core Rules require independent review and challenge before committing non-wording shared-skill changes. A fresh extraction cannot satisfy both: committing violates the gate, while withholding the commit prevents starting this sequence.",
+          "smallest_fix": "Explicitly permit isolated local review-checkpoint commits in the Core Rules while retaining review/challenge requirements before landing, and align the quickstart."
+        },
+        {
+          "severity": "P2",
+          "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+          "line": 261,
+          "failure_path": "For a target advance followed by a conflict-free rebase, this paragraph says not to reopen review. The immediately preceding retained paragraph says any changed target SHA invalidates landing evidence until the round is rerun. Following that obligation restores the review restarts this change intends to remove.",
+          "smallest_fix": "Update the preceding drift consequence to use the new test-and-delta procedure while preserving the live target query."
+        },
+        {
+          "severity": "P2",
+          "file": "hooks/remind-untracked-background.sh",
+          "line": 35,
+          "failure_path": "sed processes each line separately, so a command such as git commit -m 'notes\\nnohup is discouraged\\n' with actual embedded newlines leaves the quoted nohup line unmasked. grep then emits the advisory although nothing detaches. The existing quoted-negative tests contain only single-line strings.",
+          "smallest_fix": "Preserve quote state across lines and escaped quotes during masking; add multiline commit-message and escaped-quote negative cases."
+        },
+        {
+          "severity": "P2",
+          "file": "skills/skill-extraction-workflow/scripts/register-firing-path-resolution.rb",
+          "line": 490,
+          "failure_path": "Evidence gap: the packet adds historical-row digests without the corresponding rows or the resolver's digest-table selection context. It also omits controller argument/final-result handling and OpenCode advisory helpers. Consequently, whole-register resolution, exhaustive chain-option refusal and advisory delivery cannot be checked independently; the reported passing totals do not close these gaps.",
+          "smallest_fix": "Append the relevant historical rows, resolver/controller boundary code and OpenCode helpers as packet context, together with terminal test outputs and the outstanding host-routing evidence."
+        }
+      ],
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "packet_sha256": "1676c4a342cb27628a43c3ec5d10d15450a234bb37383b1695b6c03b5f0b76ae"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "1676c4a342cb27628a43c3ec5d10d15450a234bb37383b1695b6c03b5f0b76ae",
+  "candidate_sha256": "1676c4a342cb27628a43c3ec5d10d15450a234bb37383b1695b6c03b5f0b76ae",
+  "review_context_sha256": "1719c19a3ac1999cb87199198e0b2ad8e4f9ded58ac9cf34ed3029cfe9a92d3c",
+  "review_controller_sha256": "4defb309b967f4a20087a445c4fab792b742d7e2d50e9666b9f29f4e86113fc0",
+  "review_profile_sha256": "413b97eb62015dee141c35f77c94c66e8b2f8f7f7f89287e2f4acc4bb6cf6552",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/references/staged-review-contract.md"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/review_gate.py"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/test_review_gate.sh"
+    },
+    {
+      "skill": "multi-perspective-research",
+      "source": "changed-skill-path",
+      "path": "skills/multi-perspective-research/SKILL.md"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/code-review/scripts/review_gate.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/skill-extraction-workflow/scripts/validate_extraction_review_state.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/SKILL.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/dual-track-review-gate.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/extraction-quickstart.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/validation-and-landing.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/contract-anchors.tsv"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/extraction_review_gate.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/register-firing-path-resolution.rb"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/review_ledger_binding.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_register_firing_path_wiring.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_validate_extraction_review_state.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/validate_extraction_review_state.py"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "hooks/remind-untracked-background.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "hooks/test_remind_untracked_background.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/code-review/scripts/test_review_gate.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/extraction_review_gate.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_register_firing_path_wiring.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_validate_extraction_review_state.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "hooks/test_remind_untracked_background.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/code-review/scripts/test_review_gate.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_register_firing_path_wiring.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_validate_extraction_review_state.sh"
+    },
+    {
+      "skill": "web-react-dev",
+      "source": "file-type:.ts",
+      "path": "packages/opencode-plugin/ccl-skills.ts"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "codex-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "multi-perspective-research",
+    "nodejs-service-dev",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "selected_skills_sha256": "43d861087e7dfd18162fcfd04620aa8cf8f70f02f01582324ba8a5830950a00d",
+  "risk_tags": [],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": null,
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "7c57476d9f38eed31d4a48bf497ff45d670c11fc4fa3aca197d9188a65a8e66e",
+    "acceptance_sha256": "98a81151386cc01d8be67911a5b2694150efff2a41891d1c2d09b848fe6c4e1f",
+    "stage": "build",
+    "review_depth": "build",
+    "risk_tags": [],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null
+  },
+  "review_scope_sha256": "6b02f27b6d52c86aebb1e722a592da905201c6673ac22af07121917ce965a987",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "The visible wrapper maps the intended modes, but conflicting commit/rebase rules obstruct the new cadence, and multiline quoted mentions trigger the advisory."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "The binder removal is intentional. No new destructive or credential-handling path is visible; post-review coverage now depends on procedural compliance."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "Wrapper error exits are explicit. Quote masking mishandles multiline input, and target-drift recovery has contradictory instructions."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "Tests cover selected argument refusals and row mutations, but omit multiline quoted negatives. Reported runs and several production boundaries cannot be verified from the packet."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "Python runtime edits are comments or removals; no React surface changes. OpenCode advisory delivery and complete controller-option compatibility lack the necessary context."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "The 527-locator result, historical causal claims and host-wide routing remain unverified. The explicitly pending Codex probe does not establish every-host acceptance."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "claim_strength"
+  ],
+  "reviewed_skills": [
+    "multi-perspective-research",
+    "nodejs-service-dev",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "codex",
+    "reviewer": "codex",
+    "mode": "review",
+    "status": "findings",
+    "reviewer_family": "openai",
+    "provider": "openai",
+    "model": null,
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "The visible wrapper maps the intended modes, but conflicting commit/rebase rules obstruct the new cadence, and multiline quoted mentions trigger the advisory."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "The binder removal is intentional. No new destructive or credential-handling path is visible; post-review coverage now depends on procedural compliance."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "Wrapper error exits are explicit. Quote masking mishandles multiline input, and target-drift recovery has contradictory instructions."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "Tests cover selected argument refusals and row mutations, but omit multiline quoted negatives. Reported runs and several production boundaries cannot be verified from the packet."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "Python runtime edits are comments or removals; no React surface changes. OpenCode advisory delivery and complete controller-option compatibility lack the necessary context."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "The 527-locator result, historical causal claims and host-wide routing remain unverified. The explicitly pending Codex probe does not establish every-host acceptance."
+      }
+    ],
+    "findings": [
+      {
+        "severity": "P2",
+        "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+        "line": 508,
+        "failure_path": "The new sequence requires a committed candidate before review, while the supplied, retained Core Rules require independent review and challenge before committing non-wording shared-skill changes. A fresh extraction cannot satisfy both: committing violates the gate, while withholding the commit prevents starting this sequence.",
+        "smallest_fix": "Explicitly permit isolated local review-checkpoint commits in the Core Rules while retaining review/challenge requirements before landing, and align the quickstart."
+      },
+      {
+        "severity": "P2",
+        "file": "skills/skill-extraction-workflow/references/dual-track-review-gate.md",
+        "line": 261,
+        "failure_path": "For a target advance followed by a conflict-free rebase, this paragraph says not to reopen review. The immediately preceding retained paragraph says any changed target SHA invalidates landing evidence until the round is rerun. Following that obligation restores the review restarts this change intends to remove.",
+        "smallest_fix": "Update the preceding drift consequence to use the new test-and-delta procedure while preserving the live target query."
+      },
+      {
+        "severity": "P2",
+        "file": "hooks/remind-untracked-background.sh",
+        "line": 35,
+        "failure_path": "sed processes each line separately, so a command such as git commit -m 'notes\\nnohup is discouraged\\n' with actual embedded newlines leaves the quoted nohup line unmasked. grep then emits the advisory although nothing detaches. The existing quoted-negative tests contain only single-line strings.",
+        "smallest_fix": "Preserve quote state across lines and escaped quotes during masking; add multiline commit-message and escaped-quote negative cases."
+      },
+      {
+        "severity": "P2",
+        "file": "skills/skill-extraction-workflow/scripts/register-firing-path-resolution.rb",
+        "line": 490,
+        "failure_path": "Evidence gap: the packet adds historical-row digests without the corresponding rows or the resolver's digest-table selection context. It also omits controller argument/final-result handling and OpenCode advisory helpers. Consequently, whole-register resolution, exhaustive chain-option refusal and advisory delivery cannot be checked independently; the reported passing totals do not close these gaps.",
+        "smallest_fix": "Append the relevant historical rows, resolver/controller boundary code and OpenCode helpers as packet context, together with terminal test outputs and the outstanding host-routing evidence."
+      }
+    ],
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "packet_sha256": "1676c4a342cb27628a43c3ec5d10d15450a234bb37383b1695b6c03b5f0b76ae"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}

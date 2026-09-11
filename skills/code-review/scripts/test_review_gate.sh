@@ -4359,6 +4359,11 @@ post_deadline_ok" ]'
 check "the staged contract declares the current result schema" \
   'grep -q "current result envelope is schema 3" "$DIR/../references/staged-review-contract.md"'
 
+# The merge-side ledger binder was retired; a contract that still says a script
+# recomputes the candidate at merge time promises a check nothing performs.
+check "the staged contract promises no retired merge-side binder" \
+  '! grep -q "review_ledger_binding" "$DIR/../references/staged-review-contract.md"'
+
 reset_case passed unavailable unavailable
 out="$(run_gate --timeout 600 --total-timeout 90)"; rc=$?
 claude_timeout="$(cat "$WORK/state/claude_timeout" 2>/dev/null || true)"

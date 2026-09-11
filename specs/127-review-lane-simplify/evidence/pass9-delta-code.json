@@ -1,0 +1,249 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "build",
+  "stage_source": "caller-declared",
+  "review_depth": "build",
+  "status": "passed",
+  "selected_client": "codex",
+  "selected_reviewer": "codex",
+  "selected_attempt_index": 0,
+  "findings": [],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [
+    {
+      "client": "claude",
+      "stage": "preflight",
+      "reason": "claude belongs to the implementer model family",
+      "reason_code": "same_family_as_implementer"
+    }
+  ],
+  "attempts": [
+    {
+      "client": "codex",
+      "reviewer": "codex",
+      "mode": "review",
+      "status": "passed",
+      "reviewer_family": "openai",
+      "provider": "openai",
+      "model": null,
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "Only two docstring backticks are removed; the path template and stated review requirement retain their meaning."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "No executable validation, permission, privacy or mutation logic changes. No new P0/P1 safety failure is identified."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "The delta changes no error handling, recovery, concurrency or partial-failure behavior."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "Static comparison supports semantic preservation for this punctuation-only delta. Supplied suite results remain unverified claims and are not used as proof."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "No Python interface, CLI semantics, Node.js or React implementation changes; no dependencies or complexity are added."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "The edit introduces no stronger claim. This verdict concerns the delta’s regression risk and does not certify the claimed spec-citation fix or broader gate behavior."
+        }
+      ],
+      "findings": [],
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "packet_sha256": "e0b89cf1c019b506f7cf988bfcec2950b0ca74395efb3f269239b07c2539fa25"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "e0b89cf1c019b506f7cf988bfcec2950b0ca74395efb3f269239b07c2539fa25",
+  "candidate_sha256": "e0b89cf1c019b506f7cf988bfcec2950b0ca74395efb3f269239b07c2539fa25",
+  "review_context_sha256": "0e05eb181e2fd41de342e876ae0d1b914c6b34985648b30ca91ee9d9e4c83da6",
+  "review_controller_sha256": "4defb309b967f4a20087a445c4fab792b742d7e2d50e9666b9f29f4e86113fc0",
+  "review_profile_sha256": "c20ac4c591a198d259a3af699a829b93588951181770ba03f25885c2830dc391",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/check_review_evidence_present.py"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "codex-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "multi-perspective-research",
+    "nodejs-service-dev",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "selected_skills_sha256": "cea1fb45f2d97048f0658be0894eccf786e97cf1f2d59107829f4a7a6a178df9",
+  "risk_tags": [],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": null,
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "973b548ff981c6d94b58b45e7c0259df6d96c2213acad7956407ba589a4984cb",
+    "acceptance_sha256": "f1676fa78a1d6946e97d95f0e643f68abc735df8f50292bb0c71532664431a73",
+    "stage": "build",
+    "review_depth": "build",
+    "risk_tags": [],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null
+  },
+  "review_scope_sha256": "0389712628262faeeac661bf48b51b4d611aeb47726919c7476b0bce07e5a85e",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": false,
+  "human_decision_required": false,
+  "review_state": "reviewed",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "before_completion_claim"
+    ],
+    "satisfied_triggers": [
+      "before_external_review"
+    ],
+    "blocks": [
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "Only two docstring backticks are removed; the path template and stated review requirement retain their meaning."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "No executable validation, permission, privacy or mutation logic changes. No new P0/P1 safety failure is identified."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "The delta changes no error handling, recovery, concurrency or partial-failure behavior."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "Static comparison supports semantic preservation for this punctuation-only delta. Supplied suite results remain unverified claims and are not used as proof."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "No Python interface, CLI semantics, Node.js or React implementation changes; no dependencies or complexity are added."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "The edit introduces no stronger claim. This verdict concerns the delta’s regression risk and does not certify the claimed spec-citation fix or broader gate behavior."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "claim_strength"
+  ],
+  "reviewed_skills": [
+    "multi-perspective-research",
+    "nodejs-service-dev",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "codex",
+    "reviewer": "codex",
+    "mode": "review",
+    "status": "passed",
+    "reviewer_family": "openai",
+    "provider": "openai",
+    "model": null,
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "Only two docstring backticks are removed; the path template and stated review requirement retain their meaning."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "No executable validation, permission, privacy or mutation logic changes. No new P0/P1 safety failure is identified."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "The delta changes no error handling, recovery, concurrency or partial-failure behavior."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "Static comparison supports semantic preservation for this punctuation-only delta. Supplied suite results remain unverified claims and are not used as proof."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "No Python interface, CLI semantics, Node.js or React implementation changes; no dependencies or complexity are added."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "The edit introduces no stronger claim. This verdict concerns the delta’s regression risk and does not certify the claimed spec-citation fix or broader gate behavior."
+      }
+    ],
+    "findings": [],
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "packet_sha256": "e0b89cf1c019b506f7cf988bfcec2950b0ca74395efb3f269239b07c2539fa25"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "deep_self_review_before_completion"
+}
