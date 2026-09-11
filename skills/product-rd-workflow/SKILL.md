@@ -122,7 +122,7 @@ At each stage boundary, walk the per-stage entry-state enumeration in [Stage-Ent
      - **Bounded mechanical-move exception** — scoped review of a move-dominated diff only under the reference's infeasibility precondition and four conditions.
      - **Cross-cutting shared-runtime primitives** — explicit adversarial pass over edge paths plus a regression test per path found.
      - **Implementer self-review row** — persisted before the independent review in a record whose history proves ordering; a late row invalidates the review.
-     - **Changed candidate = refreshed row + fresh full-scope rerun** — any material post-review change mechanically triggers a full-scope rerun; the author cannot narrow the rerun's scope or self-classify the change as whitespace-only.
+     - **Changed candidate = refreshed row + fresh full-scope rerun** — any post-review change, tests/docs included, mechanically triggers a full-scope rerun; the author cannot narrow its scope or call the change immaterial.
      - **Independent gate surfacing basics = process defect** — repair the self-review/deterministic-gate loop before rerunning, and findings still require disposition, not waiver.
      - **Green-tests-alone merge is the same defect** as reaching implementation with only spec plus plan.
      - **Human/team sign-off** — for high-risk money/permission/data paths and any contract/API change with an external consumer, before implementation, merge, or launch.

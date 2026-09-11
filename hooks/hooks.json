@@ -70,6 +70,17 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/remind-review-covers-head.sh\"",
+            "timeout": 10,
+            "async": false
+          }
+        ]
+      },
+      {
         "matcher": "Task|Agent",
         "hooks": [
           {
