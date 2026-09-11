@@ -59,6 +59,17 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/remind-untracked-background.sh\"",
+            "timeout": 10,
+            "async": false
+          }
+        ]
+      },
+      {
         "matcher": "Task|Agent",
         "hooks": [
           {

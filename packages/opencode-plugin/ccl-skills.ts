@@ -56,6 +56,7 @@ export const OPENCODE_HOOK_BINDINGS = Object.freeze({
   "owner-dispatch-guard.sh": "tool.execute.before:edit/write/apply_patch/bash",
   "guard-merge-authorization.sh": "tool.execute.before:bash",
   "remind-unverified-cli-flag.sh": "tool.execute.before:bash",
+  "remind-untracked-background.sh": "tool.execute.before:bash",
   "guard-delegation-owner.sh": "tool.execute.before:task/agent",
   "remind-post-merge-cleanup.sh": "tool.execute.after:bash",
   "merge-authorization-prompt.sh": "chat.message",
@@ -550,6 +551,9 @@ export const CclSkills = async (context: {
         // enforced. Mirrors hooks/remind-unverified-cli-flag.sh under Claude Code.
         const flagNote = additionalContext(runHook(hooksRoot, "remind-unverified-cli-flag.sh", hookPayload, directory, 10_000))
         if (flagNote) prependTaskContext(args, [flagNote])
+        // Advisory only, like the flag note. Mirrors hooks/remind-untracked-background.sh.
+        const detachNote = additionalContext(runHook(hooksRoot, "remind-untracked-background.sh", hookPayload, directory, 10_000))
+        if (detachNote) prependTaskContext(args, [detachNote])
       }
 
       if (tool === "task" || tool === "agent") {
