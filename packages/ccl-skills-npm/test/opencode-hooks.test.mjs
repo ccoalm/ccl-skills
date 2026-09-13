@@ -47,6 +47,10 @@ async function loadPlugin(home, directory, client = {}, installedModulePath) {
 	process.env.HOME = home;
 	try {
 		const module = await import(`${pathToFileURL(modulePath).href}?v=${Date.now()}-${Math.random()}`);
+		// OpenCode treats every runtime export as a plugin entry point.
+		for (const [name, entry] of Object.entries(module)) {
+			assert.equal(typeof entry, "function", `OpenCode plugin export ${name} must be a function`);
+		}
 		return { module, hooks: await module.CclSkills({ directory, worktree: directory, client }) };
 	} finally {
 		if (previousHome === undefined) delete process.env.HOME;
@@ -82,8 +86,18 @@ test("OpenCode binding inventory covers every command hook", async () => {
 	const home = join(root, "home"), project = join(root, "project");
 	mkdirSync(home);
 	mkdirSync(project);
-	const { module } = await loadPlugin(home, project);
-	assert.deepEqual(Object.keys(module.OPENCODE_HOOK_BINDINGS).sort(), commandHooks());
+	await loadPlugin(home, project);
+	// Inspect the private inventory without exporting it to the host loader.
+	const source = ts.createSourceFile("ccl-skills.ts",
+		readFileSync(join(assets, "packages/opencode-plugin/ccl-skills.ts"), "utf8"),
+		ts.ScriptTarget.Latest, true);
+	const binding = source.statements.filter(ts.isVariableStatement)
+		.flatMap((statement) => [...statement.declarationList.declarations])
+		.find((declaration) => declaration.name.getText(source) === "OPENCODE_HOOK_BINDINGS");
+	assert.ok(binding && ts.isCallExpression(binding.initializer));
+	const inventory = binding.initializer.arguments[0];
+	assert.ok(ts.isObjectLiteralExpression(inventory));
+	assert.deepEqual(inventory.properties.map((property) => property.name.text).sort(), commandHooks());
 });
 
 test("OpenCode blocks apply_patch targets in a protected primary checkout", async () => {
