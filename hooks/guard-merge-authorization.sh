@@ -41,6 +41,8 @@
 #                             the duty to merge only the presented release
 #                             plan stays prose (worktree-isolation 合并执行
 #                             协议). Any new user prompt revokes the rest.
+#   JSON target-goal     — one use, ≤60 min, repository + PR/MR bound;
+#                          neutral prompts preserve, unknown prompts suspend.
 # Direct default-branch advancement (git push main, git merge on main, …)
 # is NEVER released by the valve — the sanctioned landing path is the MR.
 # The sentinel is legitimately written only by the prompt hook; an agent
@@ -156,7 +158,8 @@ deny() {
   exit 0
 }
 
-DENY_TEXT_MR="合并授权闸：该命令会合并 MR/PR。合并需要用户明确下达合并指令——用户在下一条消息中单独回复\"合并\"或\"merge\"即可一次性放行本类命令；链式/多仓发布可单独回复\"批量合并 <N>\"（如：批量合并 30）一次授权 N 个平台合并（武装后 4 小时内有效，用户发送任何新消息即取消剩余额度）。均由 UserPromptSubmit 哨兵机器核验，agent 不能代替用户回复；在此之前把 MR 链接、分支、head SHA、CI 状态（批量场景为发布计划）展示给用户并停在待审状态。"
+DENY_TEXT_MR="合并授权闸：该命令会合并 MR/PR，但本闸没有可核验的有效执行额度（可能缺失、过期、撤销或因未识别消息而暂停）。这不等于用户的目标授权不存在。先检查已有目标和宿主正常审批路径；没有可用路径时说明限制并请求最小放行，不得自行写哨兵或绕过。支持独立合并指令、批量合并 N，以及当前 origin 仓库的明确指令：完成并合并 PR #123 / 完成并合并 MR !123。任意发布目标及后续 PR 归属不由正则推断。"
+DENY_TEXT_GOAL="合并授权闸：目标授权仅适用于原仓库和指定 PR/MR。请使用单条直接 gh pr merge / glab mr merge 命令，显式编号；gh 使用 --repo host/owner/repo，glab 使用 --repo https://host/namespace/repo。gh 指定 --merge/--squash/--rebase，glab 指定 --auto-merge=false --yes，可附完整 head SHA。其他参数、API、shell 组合或不同目标未核验，额度未消费。"
 DENY_TEXT_GIT="合并授权闸：该命令会直接推进 main/默认分支（push/merge/pull 到默认分支）。该形态不适用用户回复\"合并\"的放行阀——落地必须走 MR 流程（push 功能分支 → MR → 用户授权后平台合并）；人工确需直推可经 /hooks 关闭本闸。"
 # Same deny, accurate reason. This闸 reads the command TEXT, so a `-C`/--git-dir/
 # --work-tree target written as a shell variable cannot be expanded here; the branch
@@ -170,6 +173,67 @@ DENY_TEXT_SPELL="合并授权闸：授权有效但命令拼写不满足一次性
 DENY_TEXT_TARGET="合并授权闸：用户授权指向了特定 MR/PR 编号，但该命令的合并对象与之不符或无法识别。授权未消费——请显式点名该编号（如 glab mr merge <授权编号> --auto-merge=false --yes）后重试；确需合并其他 MR 请让用户重新授权。"
 DENY_TEXT_MULTI="合并授权闸：同一条命令内检测到多个平台合并调用。每条命令只放行一个合并——把命令拆开逐条执行（单个授权下每个合并由用户分别授权；批量授权下每条命令消费 1 个额度，无需用户再次回复）。"
 DENY_TEXT_AMBIGUOUS="合并授权闸：检测到原始 HTTP 客户端、变更 method 的选项和 merge endpoint，但 method、transfer 边界、目标或动作数无法可靠关联。授权未消费——请改写成单个 curl/wget、单个明确 PUT method 和单个 merge URL 后重试。"
+
+# Missing legacy epoch files are compatible with pre-upgrade grants. Once
+# epoch bookkeeping exists, missing/unreadable/foreign state is not approval.
+epoch_is_current() {
+  local current
+  if [ -e "$sentinel.epoch" ] || [ -e "$sentinel.grant-epoch" ]; then
+    [ -f "$sentinel.epoch" ] && [ -O "$sentinel.epoch" ] \
+      && [ -f "$sentinel.grant-epoch" ] && [ -O "$sentinel.grant-epoch" ] \
+      && [ -n "$grant_epoch" ] || return 1
+    current=$(cat "$sentinel.epoch" 2>/dev/null) || return 1
+    [ "$current" = "$grant_epoch" ]
+  else
+    [ -z "$grant_epoch" ]
+  fi
+}
+
+# Target-goal grants use a closed command grammar, independent of the
+# best-effort legacy detector. Explicit --repo removes ambient CLI repository
+# selection; arbitrary shell composition, API calls and unknown flags cannot
+# claim that the goal's repository/PR pair has been verified.
+verify_goal_command() {
+  local family="$1" expected_id="$2" expected_repo="$3"
+  # glab treats slash-only names as namespaces on its default host. A full
+  # HTTPS URL is required so its actual host is explicit as well.
+  [ "$family" = glab ] && expected_repo="https://$expected_repo"
+  local repo_seen=0 strategy=0 immediate=0 yes=0 sha=0 token
+  printf '%s' "$cmd" | LC_ALL=C grep -Eq '^[A-Za-z0-9./:_= -]+$' || return 1
+  case "$cmd" in *$'\n'*|*$'\r'*) return 1 ;; esac
+  set -- $cmd
+  [ $# -ge 4 ] && [ "$1" = "$family" ] || return 1
+  if [ "$family" = gh ]; then [ "$2" = pr ] || return 1
+  else [ "$2" = mr ] || return 1; fi
+  [ "$3" = merge ] && [ "$4" = "$expected_id" ] || return 1
+  shift 4
+  while [ $# -gt 0 ]; do
+    token="$1"; shift
+    case "$token" in
+      --repo)
+        [ "$repo_seen" = 0 ] && [ $# -gt 0 ] && [ "$1" = "$expected_repo" ] || return 1
+        repo_seen=1; shift ;;
+      --merge|--squash|--rebase)
+        [ "$family" = gh ] && [ "$strategy" = 0 ] || return 1
+        strategy=1 ;;
+      --auto-merge=false)
+        [ "$family" = glab ] && [ "$immediate" = 0 ] || return 1
+        immediate=1 ;;
+      --yes)
+        [ "$family" = glab ] && [ "$yes" = 0 ] || return 1
+        yes=1 ;;
+      --sha|--match-head-commit)
+        [ "$sha" = 0 ] && [ $# -gt 0 ] || return 1
+        { [ "$family:$token" = 'gh:--match-head-commit' ] || [ "$family:$token" = 'glab:--sha' ]; } || return 1
+        printf '%s' "$1" | grep -Eq '^([0-9a-f]{40}|[0-9a-f]{64})$' || return 1
+        sha=1; shift ;;
+      *) return 1 ;;
+    esac
+  done
+  [ "$repo_seen" = 1 ] || return 1
+  if [ "$family" = gh ]; then [ "$strategy" = 1 ]
+  else [ "$immediate" = 1 ] && [ "$yes" = 1 ]; fi
+}
 
 # Does any single quoted span of the raw command look like a GraphQL merge
 # MUTATION? Per-span check (must contain `mutation` AND a merge-mutation
@@ -1045,10 +1109,26 @@ if printf '%s\n' "$verdicts" | grep -q '^DENY_MR'; then
     locked=1
     trap 'rmdir "$lock_dir" 2>/dev/null' EXIT
   fi
-  grant_kind=""; grant_num=""; batch_count=0; ttl_min=60
+  grant_kind=""; grant_num=""; batch_count=0; ttl_min=60; grant_epoch=""
   if [ "$locked" = 1 ] && [ -f "$sentinel" ] && [ -O "$sentinel" ]; then
     grant_line=$(sed -n '1p' "$sentinel" 2>/dev/null)
+    grant_epoch=$(cat "$sentinel.grant-epoch" 2>/dev/null)
+    epoch_is_current || deny "$DENY_TEXT_MR"
     case "$grant_line" in
+      '{'*)
+        [ -n "$grant_epoch" ] || deny "$DENY_TEXT_MR"
+        if printf '%s' "$grant_line" | jq -e '
+          type == "object" and .kind == "target-goal" and .state == "active"
+          and (.id | type == "string" and test("^[1-9][0-9]{0,5}$"))
+          and (.repo | type == "string" and test("^[A-Za-z0-9.-]+/[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)+$"))
+          and (.family == "gh" or .family == "glab")' >/dev/null 2>&1; then
+          goal_id=$(printf '%s' "$grant_line" | jq -r .id)
+          goal_repo=$(printf '%s' "$grant_line" | jq -r .repo)
+          goal_family=$(printf '%s' "$grant_line" | jq -r .family)
+          verify_goal_command "$goal_family" "$goal_id" "$goal_repo" || deny "$DENY_TEXT_GOAL"
+          grant_kind=goal; mr_spell=SPELLOK
+        fi
+        ;;
       "armed batch "*)
         batch_count="${grant_line#armed batch }"
         # Count must be a well-formed 1–999 integer (matches the prompt
@@ -1082,6 +1162,7 @@ if printf '%s\n' "$verdicts" | grep -q '^DENY_MR'; then
   # merge commands cannot both ride a single grant/unit.
   if [ -n "$grant_kind" ] \
      && [ -n "$(find "$sentinel" -mmin "-$ttl_min" 2>/dev/null)" ] \
+     && epoch_is_current \
      && mv "$sentinel" "$sentinel.used.$$" 2>/dev/null; then
     # Batch decrement: re-arm with count-1, PRESERVING the arming mtime so
     # the 4h TTL anchors to the user's directive, not the last merge (a
@@ -1091,6 +1172,12 @@ if printf '%s\n' "$verdicts" | grep -q '^DENY_MR'; then
     # visible already carrying the original arming mtime. ANY failure
     # (unwritable dir, touch -r failure) drops the remaining units —
     # fail-closed — and never publishes a fresh-mtime grant.
+    # Linearize release after the last epoch check. An invalidation before
+    # that point denies this command and destroys any rearmed remainder.
+    if ! epoch_is_current; then
+      rm -f "$sentinel.used.$$" "$sentinel"
+      deny "$DENY_TEXT_MR"
+    fi
     remaining=0
     if [ "$grant_kind" = batch ] && [ "$batch_count" -gt 1 ]; then
       remaining=$((batch_count-1))
@@ -1103,6 +1190,10 @@ if printf '%s\n' "$verdicts" | grep -q '^DENY_MR'; then
         rm -f "$rearm" 2>/dev/null
         remaining=0
       fi
+    fi
+    if ! epoch_is_current; then
+      rm -f "$sentinel.used.$$" "$sentinel"
+      deny "$DENY_TEXT_MR"
     fi
     rm -f "$sentinel.used.$$" 2>/dev/null
     # Host-aware emission: Claude Code supports permissionDecision "allow"
@@ -1130,6 +1221,8 @@ if printf '%s\n' "$verdicts" | grep -q '^DENY_MR'; then
       else
         used_msg="✅ 合并授权闸：批量合并授权已消费最后 1 个额度；再次合并需用户重新回复\"合并/merge\"或\"批量合并 <N>\"。"
       fi
+    elif [ "$grant_kind" = goal ]; then
+      used_msg="✅ 合并授权闸：已消费当前仓库和 PR/MR 的目标授权额度（原始有效期 60 分钟）；这不代表任意发布目标或后续 PR 已获机械核验。"
     else
       used_msg="✅ 合并授权闸：用户合并指令一次性放行已消费；再次合并需用户重新回复\"合并/merge\"。"
     fi

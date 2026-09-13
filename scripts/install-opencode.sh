@@ -17,6 +17,7 @@ OPENCODE_PLUGIN_DST="$OPENCODE_PLUGIN_DIR/ccl-skills.ts"
 # stays bootstrap.md (uninstall manifests and the plugin runtime key on it).
 OPENCODE_BOOTSTRAP_SRC="$REPO_ROOT/agent-context/session-start.md"
 OPENCODE_BOOTSTRAP_DST="$OPENCODE_DATA_DIR/bootstrap.md"
+OPENCODE_POLICY_SRC="$REPO_ROOT/agent-context/session-policy.md"
 OPENCODE_RUNTIME_DIR="$OPENCODE_DATA_DIR/runtime"
 OPENCODE_MANIFEST_NAME="install-manifest.json"
 PROJECT_MODE=0
@@ -177,13 +178,13 @@ sync_runtime() {
   stage=$(mktemp -d "$data_dir/.runtime-stage.XXXXXX") || return 1
   case "$stage" in "$data_dir"/.runtime-stage.*) ;; *) return 1 ;; esac
   mkdir -p "$stage/hooks" "$stage/scripts/owner-dispatch" "$stage/agent-context" || { rm -rf -- "$stage"; return 1; }
-  cp "$REPO_ROOT/hooks/hooks.json" "$stage/hooks/" || { rm -rf -- "$stage"; return 1; }
+  cp "$REPO_ROOT/hooks/hooks.json" "$REPO_ROOT/hooks/host-input.py" "$stage/hooks/" || { rm -rf -- "$stage"; return 1; }
   for src in "$REPO_ROOT"/hooks/*.sh; do
     case "$(basename "$src")" in test_*) continue ;; esac
     cp "$src" "$stage/hooks/" || { rm -rf -- "$stage"; return 1; }
   done
   cp "$REPO_ROOT/scripts/owner-dispatch/owner-dispatch.sh" "$stage/scripts/owner-dispatch/" || { rm -rf -- "$stage"; return 1; }
-  cp "$REPO_ROOT/agent-context/session-start.md" "$REPO_ROOT/agent-context/subagent-start.md" "$stage/agent-context/" || { rm -rf -- "$stage"; return 1; }
+  cp "$REPO_ROOT/agent-context/session-start.md" "$OPENCODE_POLICY_SRC" "$REPO_ROOT/agent-context/subagent-start.md" "$stage/agent-context/" || { rm -rf -- "$stage"; return 1; }
 
   mkdir -p "$runtime" || { rm -rf -- "$stage"; return 1; }
   copy_dir_replace "$stage/hooks" "$runtime/hooks" "$backup" || { rm -rf -- "$stage"; return 1; }
@@ -230,6 +231,7 @@ install_opencode_assets() {
   mkdir -p "$base/plugins" "$data_dir" || return "$?"
   cp "$OPENCODE_PLUGIN_SRC" "$base/plugins/ccl-skills.ts" || return "$?"
   cp "$OPENCODE_BOOTSTRAP_SRC" "$data_dir/bootstrap.md" || return "$?"
+  cp "$OPENCODE_POLICY_SRC" "$data_dir/session-policy.md" || return "$?"
   sync_runtime "$data_dir" || return 1
   write_manifest "$data_dir" "project"
 }
@@ -268,6 +270,7 @@ if [ "$PROJECT_MODE" = 0 ]; then
     sync_commands "$OPENCODE_COMMANDS_DIR" || exit "$?"
     cp "$OPENCODE_PLUGIN_SRC" "$OPENCODE_PLUGIN_DST" || exit "$?"
     cp "$OPENCODE_BOOTSTRAP_SRC" "$OPENCODE_BOOTSTRAP_DST" || exit "$?"
+    cp "$OPENCODE_POLICY_SRC" "$OPENCODE_DATA_DIR/session-policy.md" || exit "$?"
     sync_runtime "$OPENCODE_DATA_DIR" || exit 1
     write_manifest "$OPENCODE_DATA_DIR" "global" || exit "$?"
     echo "  ✔ OpenCode plugin 已安装：$OPENCODE_PLUGIN_DST"

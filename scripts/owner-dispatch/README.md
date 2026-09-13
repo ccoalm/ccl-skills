@@ -25,13 +25,21 @@ This subsystem is that gate. It mirrors the repo's existing `guard-edit-isolatio
 PreToolUse pattern and is built on the hook decision model in
 `skills/llm-inference-integration/references/agent-lifecycle-hooks.md`.
 
+The plugin also supplies a separate default skill-loading checkpoint. On the first
+precise source edit it returns one agent-facing denial so the agent can apply the
+canonical routing rule, load missing implementation skills and retry. It does not
+guess an owner from a file extension, request user approval, or verify a boundary
+record. Its cap is per actor and context; blind retries and parallel siblings can
+proceed. The configured engine's decisions take precedence. The opt-in and CI
+contracts below describe this subsystem, not that bounded recovery checkpoint.
+
 ## Surfaces (defense in depth)
 
 | Surface | When | Hard? | Bypassable? |
 |---|---|---|---|
-| `PreToolUse` (Edit/Write/MultiEdit/NotebookEdit + Bash) → `owner-dispatch-guard.sh` | at the first product-code edit (**fires in subagents too** — Claude Code runs PreToolUse inside dispatched workers, carrying `agent_id`) | Claude: precise file edits `ask` (or `deny` if `strict`); **Bash writes are record-only — silent allow, no prompt** (they only drop an activity marker for the Stop backstop). Codex: advisory (ignores the decision). | Yes — the Bash heuristic never blocks (it over-matches read-only commands, so prompting on it is pure noise); many Bash write forms also slip it. This surface is a fast nudge on precise edits, not the gate. |
-| `SubagentStart` → `subagent-start.sh` | when any subagent is spawned | injects a slim, **self-gating** ccl-skills routing pointer (impl/test/design/doc workers invoke their owning skill; read-only workers ignore it) — SessionStart's routing is NOT inherited by subagents, so this is their only see-it surface. Informational: SubagentStart **cannot block**. | n/a — additive context only; never overrides an owner-set the controller named in the dispatch prompt. |
-| `Stop` / `SubagentStop` → `owner-dispatch-stop.sh` | at session/subagent end, **only if that actor actually changed gated code** (current tree diffed against a baseline snapshot taken at the first touch) with no boundary or with required owners not actually invoked | Claude: blocks **once per actor per session** — `SubagentStop` verifies `agent_transcript_path` when present; a legacy controller-transcript fallback never uses strict empty-set proof. Zero Skill calls are a miss only when the worker tool-event shape is verifiable. `agent_id` scopes activity/cap/waiver so siblings do not contaminate each other. Codex: advisory. | one-block cap + fail-open for unreadable/malformed/shape-drifted evidence + evidence-gate (read-only / rejected / reverted / pre-existing-dirty actors never block) means it never traps the user. |
+| `PreToolUse` (Edit/Write/MultiEdit/NotebookEdit + Bash) → `owner-dispatch-guard.sh` | at the first product-code edit (**fires in subagents too** — Claude Code runs PreToolUse inside dispatched workers, carrying `agent_id`) | Claude precise edits use `ask`, or `deny` under `strict`. Codex `apply_patch` uses advisory context by default and `deny` under `strict`; its native hook parser rejects `ask`. **Bash writes are record-only — silent allow, no prompt** (they only drop an activity marker for the Stop backstop). | Yes — the Bash heuristic never blocks (it over-matches read-only commands, so prompting on it is pure noise); many Bash write forms also slip it. This surface is a fast nudge on precise edits, not the gate. |
+| `SubagentStart` → `subagent-start.sh` | when any subagent is spawned | injects a slim, **self-gating** ccl-skills routing pointer (impl/test/design/doc workers invoke their owning skill; read-only workers ignore it) for the new actor. Informational: SubagentStart **cannot block**. | n/a — additive context only; never overrides an owner-set the controller named in the dispatch prompt. |
+| `Stop` / `SubagentStop` → `owner-dispatch-stop.sh` | at session/subagent end, **only if that actor actually changed gated code** (current tree diffed against a baseline snapshot taken at the first touch) with no boundary or with required owners not actually invoked | Claude/Codex native hooks: block **once per actor per session** — `SubagentStop` verifies `agent_transcript_path` when present; a legacy controller-transcript fallback never uses strict empty-set proof. Zero Skill calls are a miss only when the worker tool-event shape is verifiable. `agent_id` scopes activity/cap/waiver so siblings do not contaminate each other. | one-block cap + fail-open for unreadable/malformed/shape-drifted evidence + evidence-gate (read-only / rejected / reverted / pre-existing-dirty actors never block) means it never traps the user. |
 | `ci` subcommand (pre-commit / CI) | at commit/merge | host-agnostic; rejects gated changes lacking an updated map, and rejects changes that remove/disable/malform the config or point the artifact off-tree | The durable backstop — **but only as un-bypassable as the CI job itself** (needs pipelines-must-succeed + protected branch + CODEOWNERS, per the repo deployment checklist). |
 
 ## Safety posture (every default is the safe one)
@@ -47,18 +55,18 @@ PreToolUse pattern and is built on the hook decision model in
   malformed config ⇒ silent allow (treated as not-opted-in). An unwritable/unsafe state dir ⇒
   allow (and `strict` downgrades to `ask`). The cheap opt-in walk runs before any git/jq, so a
   non-opted repo pays almost nothing.
-- **Default `ask`, not `deny`.** Hard `deny` is the explicit `strict:true` opt-in, is
-  Claude-only, and applies **only to the precise Edit/Write/MultiEdit/NotebookEdit file
-  paths** — a write-like **Bash** command is matched only heuristically (it over-matches
+- **Engine default `ask`, strict `deny`.** Codex converts the default `ask` to advisory
+  context because its native parser rejects that decision. The separate default source-edit
+  checkpoint adds one bounded agent-facing denial. Engine `strict:true` applies **only to
+  precise file paths** — a write-like **Bash** command is matched only heuristically (it over-matches
   read-only commands and can never be sure), so it is **record-only: silent allow, never a
   prompt and never a deny**, even under `strict`. The Stop hook + `ci` catch what the Bash
   heuristic can only hint at. `strict` also downgrades to `ask` when the state dir can't be
   written (so it can never brick a repo).
-- **Agent self-resolves the boundary; it is not a user-authorization prompt.** The deny/ask/Stop
-  message is addressed to the **agent**: invoke the owning skills, then `record --owners` to clear
-  the boundary — do not punt it to the user as an approval. It clears **only this gate**; separate
-  user-authorized actions (merge, push, destructive cleanup, scope/product decisions) still require
-  the user. `record` takes out a **per-worktree TTL lease**, not a per-slice token: it stays
+- **The agent can resolve the owner boundary.** Invoke the owning skills, then `record --owners`.
+  Claude `ask` requests host approval; explanatory text cannot suppress that prompt.
+  Resolving the boundary clears **only this gate**, and grants no authority for merge, push,
+  destructive cleanup or scope/product decisions. `record` takes out a **per-worktree TTL lease**, not a per-slice token: it stays
   valid until the TTL expires as long as work continues forward from the recorded commit
   (committing does NOT invalidate it; switching to a divergent line does). The gate cannot
   tell two deliveries apart inside one lease, so a second slice on the same line within the
@@ -69,10 +77,10 @@ PreToolUse pattern and is built on the hook decision model in
 - **`strict:true` is a maintainer/config decision, not an agent prompt-reduction knob, and not a
   safety guarantee.** Flipping `strict` is committed, team-wide repo config — make it a separate
   reviewed config-only change, never something an agent toggles inside a product edit to stop being
-  prompted. What it buys is narrow: it reduces **Claude** user prompts for *precise file-edit* hooks
-  by turning `ask` into an agent-facing `deny` the agent self-clears. It does **not** make the gate
-  safe on its own — it is fail-open, downgrades to `ask` when the state dir is unwritable, never
-  hard-denies heuristic Bash, is advisory on Codex, and does not replace CI / protected branches /
+  prompted. For precise edits, it turns Claude `ask` or Codex advisory context into an agent-facing
+  `deny` that the agent self-clears. It does **not** make the gate
+  safe on its own — it is fail-open, downgrades to `ask` (Codex advisory) when state is unwritable, never
+  hard-denies heuristic Bash, and does not replace CI / protected branches /
   CODEOWNERS / human map review (the durable backstop).
 - **Stop / SubagentStop never traps the user.** It requires a real `session_id` (fail-open
   without one), inspects only the current `PWD` repo, blocks **at most once per actor per

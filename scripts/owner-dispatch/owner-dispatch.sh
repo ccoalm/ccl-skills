@@ -20,8 +20,8 @@
 #   - FAIL-OPEN: any internal error (missing jq/git, parse failure, unwritable/unsafe
 #     state dir, missing session id) ALLOWS the action. A broken gate must never brick
 #     editing, and no error path may fail-CLOSED.
-#   - DEFAULT `ask`, NOT `deny`: hard `deny` is the explicit `strict:true` opt-in, is
-#     Claude-Code-only (Codex ignores the decision), applies ONLY to precise
+#   - DEFAULT `ask`, NOT `deny`: hard `deny` is the explicit `strict:true` opt-in
+#     on compatible native Claude/Codex hooks. It applies ONLY to precise
 #     Edit/Write/MultiEdit/NotebookEdit file paths (never the heuristic Bash match),
 #     and is downgraded to `ask` when the boundary state dir is not safely writable
 #     (so strict can never brick a repo whose state dir is unavailable).
@@ -54,10 +54,17 @@ AIDKEY=""         # filename-safe, INJECTIVE key for agent_id, computed by jq @b
                   # collide on the same marker). Empty iff no agent_id. Scopes the activity
                   # marker / block-cap / waiver to ONE subagent.
 
+HOST_INPUT="$(cd "$(dirname "$SELF")/../.." && pwd)/hooks/host-input.py"
+HOST_TOOL=""
+
 # ----- fail-open helpers ------------------------------------------------------
 allow_pretool() { exit 0; }   # no output => allow
 allow_stop()    { exit 0; }   # no output => allow stop
 emit_pretool_deny() { # $1 reason  $2 decision(deny|ask)
+  if [ "$2" = ask ] && [ "$HOST_TOOL" = apply_patch ]; then
+    jq -nc --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:("Advisory owner routing: " + $r)}}'
+    exit 0
+  fi
   jq -nc --arg r "$1" --arg d "$2" \
     '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:$d,permissionDecisionReason:$r}}'
   exit 0
@@ -393,6 +400,10 @@ boundary_state() { # $1 root  -> echo valid|expired|discontinuous|absent
 # Emit the base skill names invoked in a transcript, ONE PER LINE (strip any "prefix:").
 invoked_skills() { # $1 transcript-path
   [ -n "$1" ] && [ -r "$1" ] || return 0
+  if have python3 && [ -r "$HOST_INPUT" ]; then
+    python3 "$HOST_INPUT" transcript "$1" 2>/dev/null | jq -r '.requested_skills[] | if startswith("ccl-skills:") then ltrimstr("ccl-skills:") else . end' 2>/dev/null
+    return 0
+  fi
   # Per-line jq (JSONL); tolerate malformed lines. A line's message.content[] may
   # carry tool_use blocks. input.skill is "ccl-skills:foo" or bare "foo".
   jq -rR '
@@ -415,6 +426,10 @@ invoked_skills() { # $1 transcript-path
 # transcript or Skill-event shape drifted" without turning valid-JSON drift into a trap.
 transcript_has_verifiable_invocation_shape() { # $1 transcript-path
   [ -n "$1" ] && [ -r "$1" ] || return 1
+  if have python3 && [ -r "$HOST_INPUT" ]; then
+    python3 "$HOST_INPUT" transcript "$1" 2>/dev/null | jq -e '.verifiable' >/dev/null 2>&1
+    return $?
+  fi
   jq -seR '
     [ split("\n")[]
       | try fromjson catch empty
@@ -666,6 +681,30 @@ cmd_pretool() {
   AIDKEY=$(printf '%s' "$input" | aid_key_from)                          # injective key (jq, raw JSON)
   tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
 
+  HOST_TOOL="${1:-$tool}"
+  if [ "$tool" = apply_patch ]; then
+    # Inspect every target, including moves and deletions. A safe first path
+    # must not short-circuit checks of the remaining paths in the same patch.
+    have python3 && [ -r "$HOST_INPUT" ] || emit_pretool_deny "owner-dispatch cannot inspect apply_patch: Python input normalizer unavailable." deny
+    local normalized target converted response deny_response="" advisory_response=""
+    normalized=$(printf '%s' "$input" | python3 "$HOST_INPUT" paths 2>/dev/null) || emit_pretool_deny "owner-dispatch cannot inspect apply_patch input." deny
+    [ "$(printf '%s' "$normalized" | jq -r '.malformed_patch')" = false ] || emit_pretool_deny "owner-dispatch cannot inspect malformed apply_patch targets." deny
+    while IFS= read -r -d '' target; do
+      converted=$(printf '%s' "$input" | jq -c --arg p "$target" '.tool_name="Edit" | .tool_input={file_path:$p}')
+      response=$(printf '%s' "$converted" | cmd_pretool apply_patch)
+      [ -n "$response" ] || continue
+      if printf '%s' "$response" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/dev/null 2>&1; then
+        [ -n "$deny_response" ] || deny_response="$response"
+      else
+        [ -n "$advisory_response" ] || advisory_response="$response"
+      fi
+    done < <(printf '%s' "$normalized" | jq -j '.paths[] | . + "\u0000"')
+    # An advisory first target must not hide a later strict denial. Inspect all
+    # targets before emitting one response so activity evidence is complete too.
+    [ -n "$deny_response" ] && { printf '%s\n' "$deny_response"; exit 0; }
+    [ -n "$advisory_response" ] && { printf '%s\n' "$advisory_response"; exit 0; }
+    allow_pretool
+  fi
   case "$tool" in
     Edit|Write|MultiEdit|NotebookEdit)
       fp=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // empty' 2>/dev/null)

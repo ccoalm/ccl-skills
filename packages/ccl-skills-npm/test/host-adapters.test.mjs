@@ -159,11 +159,14 @@ test("OpenCode installs bundled skills and preserves shared files on uninstall",
 	const pluginAssets = join(assets, "marketplace/plugins/ccl-skills");
 	const expectedRuntimeFiles = [
 		"hooks/hooks.json",
+		"hooks/host-input.py",
+		"hooks/skill-loading.py",
 		...readdirSync(join(pluginAssets, "hooks"), { withFileTypes: true })
 			.filter((entry) => entry.isFile() && entry.name.endsWith(".sh") && !entry.name.startsWith("test_"))
 			.map((entry) => `hooks/${entry.name}`),
 		"scripts/owner-dispatch/owner-dispatch.sh",
 		"agent-context/session-start.md",
+		"agent-context/session-policy.md",
 		"agent-context/subagent-start.md",
 	].sort();
 	assert.deepEqual(listFiles(runtime), expectedRuntimeFiles, "OpenCode runtime closure must be exact");
@@ -174,10 +177,37 @@ test("OpenCode installs bundled skills and preserves shared files on uninstall",
 			`OpenCode runtime asset drifted: ${path}`,
 		);
 	}
+	const data = join(f.home, ".config/opencode/ccl-skills");
+	assert.equal(readFileSync(join(data, "bootstrap.md"), "utf8"), readFileSync(join(pluginAssets, "agent-context/session-start.md"), "utf8"));
+	assert.match(readFileSync(join(data, "bootstrap.md"), "utf8"), /\[session-policy\.md\]\(session-policy\.md\)/);
+	assert.equal(readFileSync(join(data, "session-policy.md"), "utf8"), readFileSync(join(pluginAssets, "agent-context/session-policy.md"), "utf8"));
+	const manifest = JSON.parse(readFileSync(join(f.home, ".config/opencode/ccl-skills-npm/install-manifest.json"), "utf8"));
+	for (const destination of ["ccl-skills/session-policy.md", "ccl-skills/runtime/hooks/host-input.py", "ccl-skills/runtime/hooks/skill-loading.py", "ccl-skills/runtime/hooks/skill-context-compact.sh", "ccl-skills/runtime/agent-context/session-policy.md"]) {
+		assert.equal(manifest.entries.filter((entry) => entry.destination === destination).length, 1, `Missing owned runtime asset: ${destination}`);
+	}
+	assert.equal(runOpenCode("doctor", {}, context).status, "healthy");
+	const project = join(f.root, "protected"), env = { ...f.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
+	assert.equal(spawnSync("git", ["init", "-q", project], { env }).status, 0);
+	writeFileSync(join(project, ".worktree-only"), "");
+	const denied = spawnSync("bash", [join(runtime, "hooks/guard-edit-isolation.sh")], {
+		env, encoding: "utf8", input: JSON.stringify({ tool_name: "apply_patch", cwd: project, tool_input: {
+			command: "*** Begin Patch\n*** Add File: blocked.py\n+x\n*** End Patch",
+		} }),
+	});
+	assert.equal(denied.status, 0, denied.stderr);
+	const verdict = JSON.parse(denied.stdout).hookSpecificOutput;
+	assert.equal(verdict.permissionDecision, "deny");
+	assert.match(verdict.permissionDecisionReason, /\.worktree-only/);
+	const startup = spawnSync("bash", [join(runtime, "hooks/session-start.sh")], { env, input: "{}", encoding: "utf8" });
+	assert.equal(startup.status, 0, startup.stderr);
+	assert.ok(JSON.parse(startup.stdout).hookSpecificOutput.additionalContext.includes(join(runtime, "agent-context/session-policy.md")), "Installed startup must expose its installed policy path");
 	result = runOpenCode("uninstall", { yes: true }, context);
 	assert.equal(result.status, "uninstalled-shared-retained", result.message);
 	assert.equal(existsSync(sample), true);
 	assert.equal(existsSync(join(runtime, "hooks/hooks.json")), true);
+	assert.equal(existsSync(join(runtime, "hooks/host-input.py")), true);
+	assert.equal(existsSync(join(runtime, "hooks/skill-loading.py")), true);
+	assert.equal(existsSync(join(data, "session-policy.md")), true);
 	assert.equal(existsSync(join(f.home, ".config/opencode/ccl-skills-npm")), false);
 });
 
@@ -215,7 +245,7 @@ test("OpenCode doctor reports every changed content path without changing modes 
 	t.after(() => rmSync(f.root, { recursive: true, force: true }));
 	assert.equal(runOpenCode("install", {}, context).status, "installed");
 	assert.equal(runOpenCode("doctor", {}, context).status, "healthy");
-	const changed = ["ccl-skills/bootstrap.md", "plugins/ccl-skills.ts"];
+	const changed = ["ccl-skills/bootstrap.md", "ccl-skills/session-policy.md", "plugins/ccl-skills.ts"];
 	const modes = changed.map((path) => lstatSync(join(base, path)).mode);
 	const files = listFiles(base), manifestPath = join(base, "ccl-skills-npm/install-manifest.json"), manifest = readFileSync(manifestPath, "utf8");
 	for (const path of changed) writeFileSync(join(base, path), `changed content for ${path}\n`);
@@ -536,6 +566,16 @@ test("OpenCode collision and invalid override fail before writes", () => {
 	result = runOpenCode("install", {}, { home: g.home, assets, env: { ...g.env, CCL_SKILLS_REPO: missing } });
 	assert.equal(result.status, "invalid-source-override");
 	assert.equal(existsSync(join(g.home, ".config/opencode")), false);
+	const source = join(g.root, "incomplete-source");
+	cpSync(join(assets, "marketplace/plugins/ccl-skills"), source, { recursive: true });
+	for (const omitted of ["hooks/host-input.py", "hooks/skill-loading.py", "agent-context/session-policy.md"]) {
+		const path = join(source, omitted);
+		rmSync(path);
+		result = runOpenCode("install", {}, { home: g.home, assets, env: { ...g.env, CCL_SKILLS_REPO: source } });
+		assert.equal(result.status, "invalid-source-override", omitted);
+		assert.equal(existsSync(join(g.home, ".config/opencode")), false);
+		copyFileSync(join(assets, "marketplace/plugins/ccl-skills", omitted), path);
+	}
 });
 
 test("production CLI honors an invalid CCL_SKILLS_REPO override before writes", () => {

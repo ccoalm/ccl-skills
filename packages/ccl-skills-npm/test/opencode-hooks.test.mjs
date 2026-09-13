@@ -223,6 +223,7 @@ printf '{"decision":"block","reason":"stop-backstop-fired:file_path=%s:secret=%s
 		);
 		assert.match(task.args.prompt, /ccl-skills-subagent-routing/);
 		assert.match(task.args.prompt, /ccl-skills/);
+		await hooks.event({ event: { type: "session.compacted", properties: { sessionID: "runtime-session" } } });
 
 		await hooks["tool.execute.before"](
 			{ tool: "write", sessionID: "runtime-session", callID: "write-1" },
@@ -250,7 +251,92 @@ printf '{"decision":"block","reason":"stop-backstop-fired:file_path=%s:secret=%s
 	assert.deepEqual(readdirSync(runtimeTmp).filter((entry) => entry.startsWith("ccl-skills-opencode-")), []);
 });
 
-test("OpenCode delegation requires a completed native skill load from the CCL source", async (t) => {
+test("OpenCode routes successful actor compaction to the shared reset", async () => {
+	const root = mkdtempSync(join(tmpdir(), "ccl-opencode-compact-"));
+	const home = join(root, "home"), project = join(root, "project");
+	mkdirSync(home);
+	mkdirSync(project);
+	const runtime = copyRuntime(home), ownerDir = copyOwnerSkill(home);
+	const receipt = join(root, "compact.json");
+	// A transport spy keeps this boundary test independent of checkpoint policy.
+	writeFileSync(join(runtime, "hooks/skill-context-compact.sh"), `#!/bin/sh
+input=$(cat)
+printf '%s\\n' "$input" >> '${receipt}'
+printf '%s\\n' '{}'
+`, { mode: 0o755 });
+	const { hooks } = await loadPlugin(home, project);
+	try {
+		await hooks.event({ event: { type: "session.created", properties: { info: { id: "child", parentID: "parent" } } } });
+		await hooks["tool.execute.before"]({ tool: "skill", sessionID: "child", callID: "old-read" }, { args: { name: "multi-agent-delegation" } });
+		await hooks.event({ event: { type: "session.compacting", properties: { sessionID: "child" } } });
+		assert.equal(existsSync(receipt), false, "a compaction request is not completion");
+		await hooks.event({ event: { type: "session.compacted", properties: {} } });
+		assert.equal(existsSync(receipt), false, "missing actor must not fall back to another session");
+		await hooks.event({ event: { type: "session.compacted", properties: { info: { id: "parent" } } } });
+		assert.equal(existsSync(receipt), false, "compaction requires the documented sessionID field");
+		await hooks.event({ event: { type: "session.compacted", properties: { sessionID: "child" } } });
+		assert.equal(existsSync(receipt), true, "successful compaction must execute the shared reset");
+		const calls = readFileSync(receipt, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+		assert.deepEqual(calls.map((call) => call.hook_event_name), ["PreCompact", "PostCompact"]);
+		const input = calls[1];
+		assert.equal(input.hook_event_name, "PostCompact");
+		assert.equal(input.session_id, "child");
+		assert.equal(input.agent_id, "child");
+		assert.notEqual(input.transcript_path, input.agent_transcript_path);
+		assert.equal(existsSync(input.agent_transcript_path), true);
+		assert.match(readFileSync(input.agent_transcript_path, "utf8"), /"subtype":"compact_boundary"/);
+		await hooks["tool.execute.after"]({ tool: "skill", sessionID: "child", callID: "old-read" }, { output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } });
+		assert.doesNotMatch(readFileSync(input.agent_transcript_path, "utf8"), /ccl-skills:multi-agent-delegation/, "completion of a pre-compaction request is stale");
+		await hooks["tool.execute.before"]({ tool: "skill", sessionID: "child", callID: "fresh-read" }, { args: { name: "multi-agent-delegation" } });
+		await hooks["tool.execute.after"]({ tool: "skill", sessionID: "child", callID: "fresh-read" }, { output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } });
+		assert.match(readFileSync(input.agent_transcript_path, "utf8"), /ccl-skills:multi-agent-delegation/);
+	} finally {
+		await hooks.dispose();
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("OpenCode completed compaction reopens source and delegation checkpoints only for that actor", async () => {
+	const root = mkdtempSync(join(tmpdir(), "ccl-opencode-checkpoint-"));
+	const home = join(root, "home"), project = join(root, "project"), state = join(root, "tmp");
+	mkdirSync(project, { recursive: true });
+	mkdirSync(state);
+	copyRuntime(home);
+	const ownerDir = copyOwnerSkill(home);
+	const { hooks } = await loadPlugin(home, project);
+	const previousTmp = process.env.TMPDIR;
+	process.env.TMPDIR = state;
+	const load = async (sessionID, callID) => {
+		const args = { name: "multi-agent-delegation" };
+		await hooks["tool.execute.before"]({ tool: "skill", sessionID, callID }, { args });
+		await hooks["tool.execute.after"]({ tool: "skill", sessionID, callID }, { output: "loaded", metadata: { name: args.name, dir: ownerDir } });
+	};
+	const dispatch = (sessionID) => hooks["tool.execute.before"]({ tool: "task", sessionID, callID: "dispatch" }, { args: { prompt: "Inspect synthetic input. required_skills: []" } });
+	const edit = (sessionID, file) => hooks["tool.execute.before"]({ tool: "write", sessionID, callID: "edit" }, { args: { filePath: join(project, file), content: "synthetic" } });
+	try {
+		await hooks.event({ event: { type: "session.created", properties: { info: { id: "child", parentID: "parent" } } } });
+		await load("parent", "parent-load");
+		await load("child", "child-load");
+		await assert.doesNotReject(() => dispatch("parent"));
+		await assert.doesNotReject(() => dispatch("child"));
+		await assert.doesNotReject(() => edit("child", "notes.txt"));
+		await assert.rejects(() => edit("child", "source.py"), /First source-edit skill checkpoint/);
+		await assert.doesNotReject(() => edit("child", "source.py"), "one delivery attempt is a bounded replan, not approval proof");
+		await hooks.event({ event: { type: "session.compacted", properties: { sessionID: "child" } } });
+		await assert.doesNotReject(() => dispatch("parent"));
+		await assert.rejects(() => dispatch("child"), /Delegation skill checkpoint/);
+		await assert.rejects(() => edit("child", "source.py"), /First source-edit skill checkpoint/);
+		await load("child", "fresh-child-load");
+		await assert.doesNotReject(() => dispatch("child"));
+	} finally {
+		await hooks.dispose();
+		if (previousTmp === undefined) delete process.env.TMPDIR;
+		else process.env.TMPDIR = previousTmp;
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("OpenCode first delegation checkpoint requires a completed native skill load from the CCL source", async (t) => {
 	for (const [label, args, resultName, source, completed, allowed] of [
 		["native", { name: "multi-agent-delegation" }, "multi-agent-delegation", "owned", true, true],
 		["pending", { name: "multi-agent-delegation" }, "multi-agent-delegation", "owned", false, false],
@@ -338,7 +424,8 @@ test("OpenCode owner evidence binds inactive progressive-disclosure files to the
 		try {
 			const args = { name: 'multi-agent-delegation' }, sessionID = `${layout}-${change}`;
 			const dispatch = () => hooks['tool.execute.before']({ tool: 'task', sessionID, callID: 'dispatch' }, { args: { description: 'inspect', prompt: 'Inspect a file. required_skills: []' } });
-			await assert.rejects(dispatch, /delegation-owner guard/);
+			// Test the first dispatch after the candidate read. The bounded cold
+			// checkpoint is covered separately and must not consume this attempt.
 			await hooks['tool.execute.before']({ tool: 'skill', sessionID, callID: 'load' }, { args });
 			await hooks['tool.execute.after']({ tool: 'skill', sessionID, callID: 'load', args }, { output: 'loaded', metadata: { name: args.name, dir } });
 			if (change === 'matching' || change === 'edited') await assert.doesNotReject(dispatch);

@@ -64,6 +64,8 @@ Limit any operation to one host with `--host claude`, `--host codex`, or `--host
 
 For `--host codex`, unreadable public plugin state returns exit `3` with `host-state-unknown`; a missing CLI or failed capability probe returns `4`. If that host failure occurs with a pending journal, recovery is deferred: exit `5` with `partial-journal` retains the journal and records `details.hostFailure`. Restore the CLI or readable public plugin state, then rerun the command. Other outcomes can share these exit codes, so inspect the JSON status as well.
 
+Codex `doctor` also reads the native hook inventory. When every expected package hook is enabled, trusted (or managed), and matches the installed content, it returns exit `0` with `installed-hooks-trusted`. `details.hooks` distinguishes untrusted, modified, disabled, missing and unknown states. Trust checks do not execute hooks: `details.hooks.runtime` remains `unverified`. Install/update never approve hook trust automatically.
+
 `update` and `uninstall` are previews unless `--yes` is supplied. `update --yes` first upgrades the global npm package to `@latest`, then asks the freshly installed CLI to refresh host assets. Set `CCL_SKILLS_SKIP_SELF_UPDATE=1` for an assets-only refresh; `--allow-downgrade` always uses the currently invoked package without installing `@latest` first.
 
 After `ccl-skills uninstall --yes`, remove the CLI package itself with `npm uninstall --global @ccoalm/ccl-skills` if it is no longer needed.
