@@ -50,7 +50,7 @@ const UPDATE_REMINDER_MARKER = "CCL Skills Update Reminder"
 // Keep this inventory in one-to-one correspondence with hooks/hooks.json.
 // The npm test compares the two so a newly shipped command hook cannot remain
 // silently inactive in OpenCode.
-export const OPENCODE_HOOK_BINDINGS = Object.freeze({
+const OPENCODE_HOOK_BINDINGS = Object.freeze({
   "session-start.sh": "experimental.chat.system.transform",
   "guard-edit-isolation.sh": "tool.execute.before:edit/write/apply_patch",
   "owner-dispatch-guard.sh": "tool.execute.before:edit/write/apply_patch/bash",
