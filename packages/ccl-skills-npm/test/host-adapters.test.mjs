@@ -160,6 +160,7 @@ test("OpenCode installs bundled skills and preserves shared files on uninstall",
 	const expectedRuntimeFiles = [
 		"hooks/hooks.json",
 		"hooks/host-input.py",
+		"hooks/skill-loading.py",
 		...readdirSync(join(pluginAssets, "hooks"), { withFileTypes: true })
 			.filter((entry) => entry.isFile() && entry.name.endsWith(".sh") && !entry.name.startsWith("test_"))
 			.map((entry) => `hooks/${entry.name}`),
@@ -181,7 +182,7 @@ test("OpenCode installs bundled skills and preserves shared files on uninstall",
 	assert.match(readFileSync(join(data, "bootstrap.md"), "utf8"), /\[session-policy\.md\]\(session-policy\.md\)/);
 	assert.equal(readFileSync(join(data, "session-policy.md"), "utf8"), readFileSync(join(pluginAssets, "agent-context/session-policy.md"), "utf8"));
 	const manifest = JSON.parse(readFileSync(join(f.home, ".config/opencode/ccl-skills-npm/install-manifest.json"), "utf8"));
-	for (const destination of ["ccl-skills/session-policy.md", "ccl-skills/runtime/hooks/host-input.py", "ccl-skills/runtime/agent-context/session-policy.md"]) {
+	for (const destination of ["ccl-skills/session-policy.md", "ccl-skills/runtime/hooks/host-input.py", "ccl-skills/runtime/hooks/skill-loading.py", "ccl-skills/runtime/hooks/skill-context-compact.sh", "ccl-skills/runtime/agent-context/session-policy.md"]) {
 		assert.equal(manifest.entries.filter((entry) => entry.destination === destination).length, 1, `Missing owned runtime asset: ${destination}`);
 	}
 	assert.equal(runOpenCode("doctor", {}, context).status, "healthy");
@@ -205,6 +206,7 @@ test("OpenCode installs bundled skills and preserves shared files on uninstall",
 	assert.equal(existsSync(sample), true);
 	assert.equal(existsSync(join(runtime, "hooks/hooks.json")), true);
 	assert.equal(existsSync(join(runtime, "hooks/host-input.py")), true);
+	assert.equal(existsSync(join(runtime, "hooks/skill-loading.py")), true);
 	assert.equal(existsSync(join(data, "session-policy.md")), true);
 	assert.equal(existsSync(join(f.home, ".config/opencode/ccl-skills-npm")), false);
 });
@@ -566,7 +568,7 @@ test("OpenCode collision and invalid override fail before writes", () => {
 	assert.equal(existsSync(join(g.home, ".config/opencode")), false);
 	const source = join(g.root, "incomplete-source");
 	cpSync(join(assets, "marketplace/plugins/ccl-skills"), source, { recursive: true });
-	for (const omitted of ["hooks/host-input.py", "agent-context/session-policy.md"]) {
+	for (const omitted of ["hooks/host-input.py", "hooks/skill-loading.py", "agent-context/session-policy.md"]) {
 		const path = join(source, omitted);
 		rmSync(path);
 		result = runOpenCode("install", {}, { home: g.home, assets, env: { ...g.env, CCL_SKILLS_REPO: source } });

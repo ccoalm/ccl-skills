@@ -52,6 +52,7 @@ const UPDATE_REMINDER_MARKER = "CCL Skills Update Reminder"
 // silently inactive in OpenCode.
 const OPENCODE_HOOK_BINDINGS = Object.freeze({
   "session-start.sh": "experimental.chat.system.transform",
+  "skill-context-compact.sh": "event:session.compacted:PreCompact/PostCompact bridge",
   "guard-edit-isolation.sh": "tool.execute.before:edit/write/apply_patch",
   "owner-dispatch-guard.sh": "tool.execute.before:edit/write/apply_patch/bash",
   "guard-merge-authorization.sh": "tool.execute.before:bash",
@@ -517,7 +518,10 @@ export const CclSkills = async (context: {
           type: "assistant",
           message: { content: [{ type: "tool_use", id: targets.length === 1 ? callID : `${callID}-${index}`, name: "Edit", input: { file_path: filePath } }] },
         }))
-      } else {
+      } else if (tool !== "skill") {
+        // A pending native Skill is held in pendingSkills, not represented as a
+        // malformed Claude Skill request. Emit its paired evidence only after
+        // the native completion proves the loaded source belongs to CCL.
         appendTranscript(sessionID, {
           type: "assistant",
           message: { content: [{ type: "tool_use", id: callID, name: toolName, input: {} }] },
@@ -536,13 +540,13 @@ export const CclSkills = async (context: {
             ].join("\n"),
           )
         }
-        const hookPayload = payload(sessionID, { tool_name: "Edit", tool_input: { ...args, file_path: filePath } })
+        const hookPayload = payload(sessionID, { hook_event_name: "PreToolUse", tool_name: "Edit", tool_input: { ...args, file_path: filePath } })
         enforce(runHook(hooksRoot, "guard-edit-isolation.sh", hookPayload, directory, 10_000), "ccl-skills edit-isolation guard")
         enforce(runHook(hooksRoot, "owner-dispatch-guard.sh", hookPayload, directory, 10_000), "ccl-skills owner-dispatch guard")
       }
 
       if (tool === "bash") {
-        const hookPayload = payload(sessionID, { tool_name: "Bash", tool_input: args })
+        const hookPayload = payload(sessionID, { hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: args })
         enforce(runHook(hooksRoot, "owner-dispatch-guard.sh", hookPayload, directory, 10_000), "ccl-skills owner-dispatch guard")
         const merge = runHook(hooksRoot, "guard-merge-authorization.sh", hookPayload, directory, 10_000)
         if (merge.status !== "ok" && potentialLandingCommand(args.command)) {
@@ -562,7 +566,7 @@ export const CclSkills = async (context: {
       }
 
       if (tool === "task" || tool === "agent") {
-        const hookPayload = payload(sessionID, { tool_name: toolName, tool_input: args })
+        const hookPayload = payload(sessionID, { hook_event_name: "PreToolUse", tool_name: toolName, tool_input: args })
         const delegation = runHook(hooksRoot, "guard-delegation-owner.sh", hookPayload, directory, 10_000)
         const delegationReason = permission(delegation).reason ?? ""
         enforce(delegation, "ccl-skills delegation-owner guard")
@@ -617,8 +621,20 @@ export const CclSkills = async (context: {
           ? (properties.info as { id: string }).id
           : ""
       if (!sessionID) return
-      if (event.type === "session.deleted" || event.type === "session.idle" || (properties.status as { type?: string } | undefined)?.type === "idle") {
+      if (event.type === "session.compacted" && (typeof properties.sessionID !== "string" || !properties.sessionID)) return
+      if (event.type === "session.deleted" || event.type === "session.compacted" || event.type === "session.idle" || (properties.status as { type?: string } | undefined)?.type === "idle") {
         for (const key of pendingSkills.keys()) if (key.startsWith(`${sessionID}\0`)) pendingSkills.delete(key)
+      }
+      if (event.type === "session.compacted") {
+        // OpenCode emits this only after successful compaction, with sessionID.
+        // Preserve actor identity: the shared hook selects agent_transcript_path
+        // for children, so a child's reset cannot invalidate its parent's reads.
+        // PreCompact here snapshots the bridge's completed-event boundary; it is
+        // not a claim that OpenCode emitted a native pre-compaction callback.
+        runHook(hooksRoot, "skill-context-compact.sh", payload(sessionID, { hook_event_name: "PreCompact" }), directory, 5_000)
+        appendTranscript(sessionID, { type: "system", subtype: "compact_boundary" })
+        runHook(hooksRoot, "skill-context-compact.sh", payload(sessionID, { hook_event_name: "PostCompact" }), directory, 5_000)
+        return
       }
       if (event.type === "session.deleted") {
         const path = transcriptPath(sessionID)

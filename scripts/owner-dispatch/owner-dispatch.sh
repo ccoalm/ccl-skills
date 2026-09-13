@@ -20,8 +20,8 @@
 #   - FAIL-OPEN: any internal error (missing jq/git, parse failure, unwritable/unsafe
 #     state dir, missing session id) ALLOWS the action. A broken gate must never brick
 #     editing, and no error path may fail-CLOSED.
-#   - DEFAULT `ask`, NOT `deny`: hard `deny` is the explicit `strict:true` opt-in, is
-#     Claude-Code-only (Codex ignores the decision), applies ONLY to precise
+#   - DEFAULT `ask`, NOT `deny`: hard `deny` is the explicit `strict:true` opt-in
+#     on compatible native Claude/Codex hooks. It applies ONLY to precise
 #     Edit/Write/MultiEdit/NotebookEdit file paths (never the heuristic Bash match),
 #     and is downgraded to `ask` when the boundary state dir is not safely writable
 #     (so strict can never brick a repo whose state dir is unavailable).

@@ -104,7 +104,8 @@ function source(context: OpenCodeContext) {
 	const skills = join(root, "skills"), plugin = join(root, "packages/opencode-plugin/ccl-skills.ts"), bootstrap = join(root, "agent-context/session-start.md"), commands = join(root, "packages/opencode-plugin/commands"), hooks = join(root, "hooks"), ownerDispatch = join(root, "scripts/owner-dispatch"), agentContext = join(root, "agent-context");
 	if (!existsSync(skills) || !lstatSync(skills).isDirectory() || !existsSync(commands) || !lstatSync(commands).isDirectory() || !existsSync(hooks) || !lstatSync(hooks).isDirectory() || !existsSync(ownerDispatch) || !lstatSync(ownerDispatch).isDirectory() || !existsSync(agentContext) || !lstatSync(agentContext).isDirectory())
 		throw new Error("invalid CCL_SKILLS_REPO: skills, OpenCode commands, or hook runtime are missing");
-	regular(plugin); regular(bootstrap); regular(join(hooks, "host-input.py"));
+	regular(plugin); regular(bootstrap);
+	for (const helper of ["host-input.py", "skill-loading.py"]) regular(join(hooks, helper));
 	const skillNames = readdirSync(skills, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync(join(skills, entry.name, "SKILL.md"))).map((entry) => entry.name).sort();
 	if (!skillNames.length) throw new Error("invalid CCL_SKILLS_REPO: no skills found");
 	let entries = walk(skills, "skills", "skills");
@@ -114,7 +115,7 @@ function source(context: OpenCodeContext) {
 	regular(policy);
 	entries.push({ source: "agent-context/session-policy.md", destination: "ccl-skills/session-policy.md", sha256: sha256(policy), mode: regular(policy).mode & 0o777 });
 	entries.push(...walk(commands, "packages/opencode-plugin/commands", "commands").filter((entry) => /^commands\/ccl-[^/]+\.md$/.test(entry.destination)));
-	entries.push(...walk(hooks, "hooks", "ccl-skills/runtime/hooks").filter((entry) => entry.source === "hooks/hooks.json" || entry.source === "hooks/host-input.py" || /^hooks\/(?!test_)[^/]+\.sh$/.test(entry.source)));
+	entries.push(...walk(hooks, "hooks", "ccl-skills/runtime/hooks").filter((entry) => ["hooks/hooks.json", "hooks/host-input.py", "hooks/skill-loading.py"].includes(entry.source) || /^hooks\/(?!test_)[^/]+\.sh$/.test(entry.source)));
 	entries.push(...walk(ownerDispatch, "scripts/owner-dispatch", "ccl-skills/runtime/scripts/owner-dispatch").filter((entry) => entry.source === "scripts/owner-dispatch/owner-dispatch.sh"));
 	entries.push(...walk(agentContext, "agent-context", "ccl-skills/runtime/agent-context").filter((entry) => /^agent-context\/(session-start|session-policy|subagent-start)\.md$/.test(entry.source)));
 	entries = entries.sort((a, b) => a.destination.localeCompare(b.destination));

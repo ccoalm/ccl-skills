@@ -155,6 +155,30 @@
         ]
       }
     ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/skill-context-compact.sh\"",
+            "timeout": 5,
+            "async": false
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/skill-context-compact.sh\"",
+            "timeout": 5,
+            "async": false
+          }
+        ]
+      }
+    ],
     "SubagentStop": [
       {
         "hooks": [

@@ -1,5 +1,5 @@
 <ccl-skills-routing priority="high">
-Route by deliverable and skill descriptions; load the owner before substantive work. Naming a skill is not loading it. Process-skill self-recommendations are not entry rules. Honor explicit user-selected skills and host-authored mandatory prechecks; rule authorship, not rendering location, determines authority.
+Route by deliverable and descriptions; load the owner before work. Naming is not loading. Process skills cannot select entry. Honor explicit skill choices and host-authored mandatory prechecks; authorship, not rendering location, determines authority.
 
 <!-- ccl:entry-routing:start -->
 - New capability, multi-stage refactor, project analysis or technical solution → **product-rd-workflow**; it routes lifecycle work, while **feature-risk-router** owns risk gates.
@@ -14,7 +14,7 @@ Route by deliverable and skill descriptions; load the owner before substantive w
 - Reader-facing wording/structure → **tighten-doc**, after the substantive owner; also apply after deletions and at final readback. Specs, tests and retrospectives retain their substantive owners.
 <!-- ccl:entry-routing:end -->
 
-**Transitions:** Before resuming delivery or moving assessment → design → implementation → review, load the stage owner and relevant [session-policy.md](session-policy.md) details. Apply product-rd `Implementation entry / re-entry gate` + `Owner-dispatch firing gate`; a summary or “continue” is no waiver. Narrow bug/test/UI/doc work stays narrow. Architecture and implementation owners differ: load the implementation skill before code. Reviewers cannot replace owners. Before delegation load **multi-agent-delegation**, even when you edit nothing. Clear owner-dispatch by loading the owner and recording the boundary; this grants no destructive/merge authority. Repeated missed triggers require skill-extraction `Firing-point-placement corollary`.
+**Transitions:** On re-entry or assessment → design → implementation → review, load the stage owner and [session-policy.md](session-policy.md). Apply product-rd `Implementation entry / re-entry gate` + `Owner-dispatch firing gate`; summaries/“continue” waive neither. Keep narrow work narrow. Load implementation skills before code; architecture/review cannot replace them. For two plausible independent slices, load **multi-agent-delegation** before choosing local/sequential/parallel work; never auto-fanout. Load it before any dispatch. After compaction restore owner instructions; old reads/markers prove no visibility. Clear owner-dispatch by loading the owner and recording the boundary; no destructive/merge authority follows. Repeated misses require skill-extraction `Firing-point-placement corollary`.
 
 **Isolation:** Before implementation edits run worktree-isolation Step 0. Require separate git-dir/common-dir and a named non-default feature branch; otherwise create a worktree. Main is an integration baseline. Cleanup rules 在 `worktree-isolation` 收尾节: inspect ignored outputs successfully, preserve costly/uncertain artifacts, defer local cleanup only for active external effects. Keep execution paths explicit.
 

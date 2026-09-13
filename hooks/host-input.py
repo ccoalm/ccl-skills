@@ -4,6 +4,7 @@
 Codex shapes: openai/codex rust-v0.154.0 protocol/models.rs and
 core/src/tools/context.rs. Unsupported evidence remains unverifiable.
 """
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -139,33 +140,90 @@ def paths(payload):
             'malformed_patch': malformed}
 
 
-def skill_reads(name, args, cwd):
-    # Deliberately small shell grammar: literal cat operands, no shell expansion,
-    # pipelines, redirection, compound commands, or environment substitution.
+def bounded_skill_source(path):
+    descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    with os.fdopen(descriptor, 'rb') as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise ValueError('skill source is not a regular file')
+        raw = stream.read(128 * 1024 + 1)
+    if len(raw) > 128 * 1024:
+        raise ValueError('skill source exceeds its bounded limit')
+    return raw
+
+
+def skill_reads(name, args, cwd, sources):
+    """Describe literal reads; compare output against bounded current file bytes.
+
+    None means a recognizable but unsupported/unavailable skill read. An empty
+    list is unrelated activity. No command is evaluated, including quoted text.
+    """
     if name not in ('exec_command', 'shell_command') or not isinstance(args, dict):
         return []
     command = args.get('cmd' if name == 'exec_command' else 'command')
-    if not isinstance(command, str) or re.search(r'[\n\r;$`|&<>*?{}]', command):
+    if not isinstance(command, str) or 'SKILL.md' not in command:
         return []
+    if re.search(r'[\n\r;$`|&<>*?{}]', command):
+        return None
     try:
         words = shlex.split(command)
     except ValueError:
-        return []
-    if len(words) < 2 or words[0] not in ('cat', '/bin/cat', '/usr/bin/cat'):
-        return []
-    operands = words[1:]
-    if operands and operands[0] == '--':
-        operands = operands[1:]
-    if any(p.startswith('-') for p in operands):
-        return []
+        return None
+    first, last = 1, None
+    if words and words[0] in ('cat', '/bin/cat', '/usr/bin/cat'):
+        operands = words[1:]
+        if operands and operands[0] == '--':
+            operands = operands[1:]
+    elif (len(words) == 4 and words[0] in ('sed', '/bin/sed', '/usr/bin/sed')
+          and words[1] == '-n' and re.fullmatch(r'[1-9][0-9]{0,6},[1-9][0-9]{0,6}p', words[2])):
+        first, last = map(int, words[2][:-1].split(','))
+        operands = words[3:]
+        if first > last:
+            return None
+    else:
+        return None
+    if not operands or len(operands) > 32 or any(p.startswith('-') for p in operands):
+        return None
     workdir = args.get('workdir', cwd)
     if not isinstance(workdir, str):
-        return []
+        return None
     result = []
     for operand in operands:
         path = Path(absolute(operand, absolute(workdir, cwd)))
-        if path.name == 'SKILL.md' and path.parent.parent.name == 'skills':
-            result.append(path.parent.name)
+        if path.name != 'SKILL.md' or path.parent.parent.name != 'skills':
+            return None
+        if path not in sources:
+            # At most 64 candidate sources; each candidate/canonical read is
+            # capped at 128 KiB and never blocks on a FIFO.
+            if len(sources) >= 64:
+                return None
+            try:
+                raw = bounded_skill_source(path)
+                # The helper's installed package is the authority, never cwd
+                # or an environment-selected root. A same-named project file
+                # proves this owner only if it is a byte-identical copy.
+                canonical = Path(__file__).resolve().parents[1] / 'skills' / path.parent.name / 'SKILL.md'
+                if path != canonical.resolve() and raw != bounded_skill_source(canonical):
+                    return None
+                source = raw.decode('utf-8')
+                frontmatter = re.match(r'\A---\r?\n(.*?)\r?\n---\r?\n(.+)', source, re.S)
+                if (not frontmatter or not frontmatter[2].strip() or not re.search(
+                        r'^name:\s*' + re.escape(path.parent.name) + r'\s*$', frontmatter[1], re.M)):
+                    return None
+                # sed addresses LF-delimited lines; Unicode separators remain
+                # literal body characters and must not shift chunk coverage.
+                parts = source.split('\n')
+                sources[path] = [part + '\n' for part in parts[:-1]]
+                if parts[-1]:
+                    sources[path].append(parts[-1])
+            except (OSError, UnicodeError, ValueError):
+                return None
+        lines = sources[path]
+        end = min(last or len(lines), len(lines))
+        if first > end:
+            return None
+        result.append({'path': path, 'skill': 'ccl-skills:' + path.parent.name,
+                       'first': first, 'last': end, 'total': len(lines),
+                       'lines': lines})
     return result
 
 
@@ -179,21 +237,40 @@ def successful_output(value):
                 and 'Warning: truncated output' not in value)
 
 
-def transcript(path, cwd):
+def compact_boundary(event):
+    """Only native top-level records identify a context reset."""
+    return (not event.get('isSidechain') and
+            ((event.get('type') == 'system' and event.get('subtype') == 'compact_boundary')
+             or (event.get('type') == 'compacted' and isinstance(event.get('payload'), dict))))
+
+
+def summarize(lines, cwd, current=False):
     requested, completed, edited = set(), set(), set()
     pending = {}
+    pending_reads, coverage, sources = {}, {}, {}
     pending_visibility = set()
     contract = continuation_contract()
     contract_visible = False
     prior_handoff = False
-    verifiable = False
+    verifiable = current
     invalid = False
-    for line in transcript_lines(path):
+    unverifiable_reads = False
+    for line in lines:
         try:
             event = json.loads(line)
         except (ValueError, TypeError):
             continue
         if not isinstance(event, dict):
+            continue
+        if compact_boundary(event):
+            # Completed audit evidence survives; pending requests and partial
+            # coverage must never be joined across a native context reset.
+            pending.clear()
+            pending_reads.clear()
+            pending_visibility.clear()
+            coverage.clear()
+            continue
+        if current and event.get('isSidechain'):
             continue
         if event.get('type') == 'turn_context':
             context = event.get('payload', {})
@@ -234,8 +311,9 @@ def transcript(path, cwd):
                         pending_visibility.remove(tool_id)
                         if not item.get('is_error'):
                             contract_visible = contract_visible or visible_contract(item.get('content'), contract)
+                    skills = pending.pop(tool_id, []) if isinstance(tool_id, str) else []
                     if not item.get('is_error'):
-                        completed.update(pending.pop(item.get('tool_use_id'), []))
+                        completed.update(skills)
         if event.get('type') != 'response_item' or not isinstance(event.get('payload'), dict):
             continue
         item = event['payload']
@@ -260,9 +338,11 @@ def transcript(path, cwd):
                 edited.update(paths({'tool_name': name, 'tool_input': args, 'cwd': cwd})['paths'])
             if name in ('exec_command', 'shell_command') and isinstance(item.get('call_id'), str):
                 pending_visibility.add(item['call_id'])
-            skills = skill_reads(name, args, cwd)
-            if skills and item.get('call_id'):
-                pending[item['call_id']] = ["ccl-skills:" + skill for skill in skills]
+            reads = skill_reads(name, args, cwd, sources)
+            if reads is None:
+                unverifiable_reads = True
+            elif reads and isinstance(item.get('call_id'), str):
+                pending_reads[item['call_id']] = reads
         elif kind == 'function_call_output':
             call_id = item.get('call_id')
             if isinstance(call_id, str) and call_id in pending_visibility:
@@ -270,18 +350,114 @@ def transcript(path, cwd):
                 if successful_output(item.get('output')):
                     body = item['output'].partition('\nOutput:\n')[2]
                     contract_visible = contract_visible or visible_contract(body, contract)
-            skills = pending.pop(item.get('call_id'), [])
-            if successful_output(item.get('output')):
-                # A successful command with unrelated output is not a skill load.
+            reads = pending_reads.pop(call_id, []) if isinstance(call_id, str) else []
+            if reads and successful_output(item.get('output')):
                 body = item['output'].partition('\nOutput:\n')[2]
-                skills = [skill for skill in skills if re.search(
-                    r'^name:\s*' + re.escape(skill.split(':')[-1]) + r'\s*$', body, re.M)]
-                completed.update(skills)
-                # Codex has no Skill request; only a completed read is invocation evidence.
-                requested.update(skills)
+                expected = ''.join(''.join(read['lines'][read['first'] - 1:read['last']])
+                                   for read in reads)
+                if body.rstrip('\n') != expected.rstrip('\n'):
+                    unverifiable_reads = True
+                    continue
+                for read in reads:
+                    if read['path'] not in coverage:
+                        coverage[read['path']] = [bytearray(read['total']), 0]
+                    covered = coverage[read['path']]
+                    first, last = read['first'] - 1, read['last']
+                    covered[1] += last - first - covered[0][first:last].count(1)
+                    covered[0][first:last] = b'\x01' * (last - first)
+                    if covered[1] == read['total']:
+                        completed.add(read['skill'])
+                        # Codex has no Skill request; only a completed full read
+                        # is invocation evidence, including proven line chunks.
+                        requested.add(read['skill'])
     return {'requested_skills': sorted(requested), 'completed_skills': sorted(completed),
-            'edit_paths': sorted(edited), 'verifiable': verifiable and not invalid,
+            'edit_paths': sorted(edited), 'verifiable': verifiable and not invalid and not unverifiable_reads,
+            'unverifiable_reads': unverifiable_reads,
             'prior_handoff': prior_handoff, 'continuation_contract_visible': contract_visible}
+
+
+def transcript(path, cwd):
+    """Whole-session audit; exceeding any leading scan limit is an error."""
+    return summarize(transcript_lines(path), cwd)
+
+
+def context_transcript(path, cwd, start_offset=0):
+    """Current-context evidence from a bounded snapshot of a regular JSONL file.
+
+    A supplied byte high-watermark excludes requests that started before actual
+    PostCompact delivery, even before its native boundary record is flushed.
+    An omitted prefix is safe only when a later native boundary is visible.
+    Unknown/incomplete context discards evidence; IDs contain no transcript text.
+    """
+    unknown = {'requested_skills': [], 'completed_skills': [], 'edit_paths': [],
+               'verifiable': False, 'context_complete': False, 'context_id': None,
+               'unverifiable_reads': False, 'prior_handoff': False,
+               'continuation_contract_visible': False}
+    if type(start_offset) is not int or start_offset < 0:
+        return unknown
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+        with os.fdopen(descriptor, 'rb') as stream:
+            metadata = os.fstat(stream.fileno())
+            if not stat.S_ISREG(metadata.st_mode) or start_offset > metadata.st_size:
+                return unknown
+            end = metadata.st_size
+            begin = max(start_offset, end - 16 * 1024 * 1024)
+            partial = False
+            if begin:
+                stream.seek(begin - 1)
+                partial = stream.read(1) != b'\n'
+            stream.seek(begin)
+            data = stream.read(end - begin)
+            if len(data) != end - begin:
+                return unknown
+        omitted = begin > start_offset
+        if partial:
+            newline = data.find(b'\n')
+            if newline < 0:
+                return unknown
+            begin += newline + 1
+            data = data[newline + 1:]
+        # rsplit bounds allocated records even for millions of tiny lines.
+        records = data.rsplit(b'\n', 20001)
+        if records and not records[-1]:
+            records.pop()
+        if len(records) > 20000:
+            dropped = len(records) - 20000
+            begin += sum(len(line) + 1 for line in records[:dropped])
+            records = records[dropped:]
+            omitted = True
+        context_id = None if omitted else (f'offset:{start_offset}' if start_offset else 'start:0')
+        selected = []
+        complete = not omitted
+        position = begin
+        for raw in records:
+            line_position = position
+            position += len(raw) + 1
+            if len(raw) > 1024 * 1024:
+                complete = False
+                continue
+            try:
+                line = raw.decode('utf-8')
+                event = json.loads(line)
+                if not isinstance(event, dict):
+                    raise ValueError('unsupported record')
+            except (ValueError, UnicodeError, RecursionError):
+                complete = False
+                continue
+            if compact_boundary(event):
+                context_id = f'native:{line_position}:' + hashlib.sha256(raw).hexdigest()[:16]
+                selected.clear()
+                complete = True
+            else:
+                selected.append(line)
+        if not complete:
+            return dict(unknown, context_id=context_id)
+        summary = summarize(selected, cwd, current=True)
+        summary.update(context_complete=True, context_id=context_id)
+        return summary
+    except (OSError, ValueError, TypeError, RecursionError):
+        return unknown
 
 
 def machine_artifact(text):

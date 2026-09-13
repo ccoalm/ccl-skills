@@ -37,6 +37,8 @@ ccl-skills install
 
 The npm tarball includes the skills, agent context, plugin manifests, and runtime hooks. Claude Code and Codex consume the plugin hooks directly. OpenCode installs a native plugin plus the same bundled hook runtime, including edit isolation for `edit`, `write`, and `apply_patch`. Installation does not need a Git checkout.
 
+Skill loading has a bounded recovery checkpoint: the first precise source edit, or a dispatch without current owner-load evidence, is returned to the agent once so it can load the applicable skills and retry. Compaction starts a new context window. This does not ask you to approve reading skills, and a retry or parallel sibling can proceed without proof of correct owner selection. Project-configured owner-dispatch and safety checks remain separate.
+
 If npm returns `E404` before the initial registry release, install from source:
 
 ```bash

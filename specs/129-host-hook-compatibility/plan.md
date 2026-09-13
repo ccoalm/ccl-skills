@@ -1,6 +1,6 @@
 # Host hook compatibility
 
-Status: release verification. Base: `40dc287d2a786256bf37242458b2ec57853171b7`.
+Status: skill-loading follow-up implementation. Base: `40dc287d2a786256bf37242458b2ec57853171b7`.
 
 Restore equivalent hook behavior on current Claude Code and Codex, keep startup instructions directly visible, and expose the actual hook trust state after installation. The release target is the next unpublished patch of the unified npm package.
 
@@ -9,7 +9,7 @@ Restore equivalent hook behavior on current Claude Code and Codex, keep startup 
 - Preserve protected-checkout denial and existing valid-worktree behavior.
 - Parse every patch target, including deletion and move destinations; never execute patch text while inspecting it.
 - Preserve explicit user authorization boundaries. Do not turn unknown authorization into approval or automate hook trust.
-- Keep optional routing reminders advisory and bounded. Do not turn an unsupported host response into a silent promise of enforcement.
+- Keep optional routing reminders bounded. The skill-loading follow-up adds one explicit model-replan checkpoint, with its retry and parallel-call limits documented below; it never requests user approval. Do not turn an unsupported host response into a silent promise of enforcement.
 - Use synthetic fixtures only. Do not commit local identity, machine paths, credentials, session metadata or private provenance.
 - Keep the canonical business rules shared. Host-specific input/output conversion belongs at the boundary.
 - Do not change plugin manifest version fields, protected settings, or unrelated behavior.
@@ -94,3 +94,13 @@ Independent review and challenge cover three partitions: authorization; shared r
 The CLI doctor surface uses the existing JSON and terminal result interface; no screen or interaction layout changes. Consumers are the CLI caller and the three existing host adapters. Unknown and untrusted statuses retain their explicit result codes; a trusted inventory never asserts hook execution.
 
 Security posture: authorization semantics and input parsing change, so dedicated security review remains pending. Independent code review/challenge and synthetic negative tests provide bounded engineering evidence, not a security audit. Shipment follows the explicit patch-release direction and retains these evidence limits; no protection or trust settings are changed by the product.
+
+## Skill-loading follow-up
+
+The reviewed compatibility candidate is `a7d231b432c8b26d2869bb5cfd291b40ccb97ece`. Its native Stop and installation checks did not establish reliable skill selection during development. Default owner-dispatch is deliberately inactive without a committed opt-in; delegation evidence and its cache currently survive context compaction. These are separate firing boundaries from plugin discovery or hook trust.
+
+Before a first precise source edit, return at most one agent-facing repair decision per actor and context. It creates a new model turn to apply the canonical owner-routing rule, load missing implementation skills, and consider the delegation owner when independent slices are plausible. It never asks the user to authorize ordinary skill loading or guesses a stack owner from a filename. A blind retry and concurrently issued sibling edits can proceed after the cap; this is a bounded first-attempt checkpoint, not proof of correct owner loading or an enforcement substitute for configured owner-dispatch. Existing permission and opt-in decisions take precedence. Documentation-only and read-only operations stay quiet; unavailable inputs or state fail soft with truthful evidence limits.
+
+Keep whole-session evidence for audit consumers, but add current-context evidence bounded by real Claude/Codex compaction records. PreCompact snapshots the previous boundary without changing active state; only PostCompact invalidates it. Require a confirmed new native boundary before accepting fresh reads, because old transcript rows may flush after the callback. A replaced or shrunken transcript remains unverified. These events do not inject model context; the next PreToolUse checkpoint delivers guidance. Delegation reminder suppression is scoped to actor and context; markers record attempted reminder delivery only. Unsupported, failed or truncated reads never become verified loads.
+
+Implementation remains local in isolated feature worktrees. Separate slices implement transcript evidence and package/OpenCode integration; a read-only challenge checks native lifecycle behavior. The controller owns checkpoints, test integration and exact-delta review. Test-first cases cover first attempts, retries, parallel/actor boundaries, compaction ordering, completed versus failed/partial reads, absent opt-in, safety decision precedence, malformed inputs and unreadable state. Native roundtrips prove effect ordering; any real-model probe reports observed loads and edits separately and cannot establish a general adherence rate. Re-run affected checks, the full repository lane, package closure and independent review before updating the release candidate.
