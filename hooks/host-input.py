@@ -13,6 +13,10 @@ import stat
 import sys
 
 
+class TranscriptTruncated(ValueError):
+    """The bounded scan could not establish complete transcript evidence."""
+
+
 def handoff(text):
     """Recognize an assistant handoff, never quoted examples or fenced output."""
     if not isinstance(text, str):
@@ -77,12 +81,18 @@ def transcript_lines(path):
         for _ in range(20000):
             limit = min(remaining, 1024 * 1024)
             if limit <= 0:
-                break
+                if stream.read(1):
+                    raise TranscriptTruncated()
+                return
             line = stream.readline(limit + 1)
-            if not line or len(line) > limit:
-                break
+            if not line:
+                return
+            if len(line) > limit:
+                raise TranscriptTruncated()
             remaining -= len(line)
             yield line.decode('utf-8', errors='replace')
+        if stream.read(1):
+            raise TranscriptTruncated()
 
 
 def absolute(path, cwd):
@@ -327,7 +337,15 @@ def main():
         path = sys.argv[2]
         if not os.path.isfile(path):
             return 1
-        print(json.dumps(transcript(path, sys.argv[3] if len(sys.argv) > 3 else os.getcwd())))
+        try:
+            print(json.dumps(transcript(path, sys.argv[3] if len(sys.argv) > 3 else os.getcwd())))
+        except TranscriptTruncated:
+            # Discard partial evidence even for callers that inspect stdout
+            # without propagating the subprocess failure status.
+            print(json.dumps({'requested_skills': [], 'completed_skills': [], 'edit_paths': [],
+                              'verifiable': False, 'truncated': True, 'prior_handoff': False,
+                              'continuation_contract_visible': False}))
+            return 1
     elif sys.argv[1] == 'proposed-next':
         try:
             raw = sys.stdin.read(2 * 1024 * 1024 + 1)
@@ -336,6 +354,8 @@ def main():
             result = proposed_next(json.loads(raw))
             if result:
                 print(json.dumps(result))
+        except TranscriptTruncated:
+            print(json.dumps({'systemMessage': 'Delivery handoff reminder unverified: transcript scan exceeded its bounded limit.'}))
         except (OSError, ValueError, TypeError, IndexError, AttributeError):
             print(json.dumps({'systemMessage': 'Delivery handoff reminder unavailable: input or transcript could not be verified.'}))
     return 0

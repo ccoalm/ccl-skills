@@ -201,5 +201,52 @@ c=$(ctx_of "$r")
   && ok "oversized recovery is replaced whole while mandatory rules stay intact" \
   || bad "oversized recovery spills or truncates the startup rules"
 
+# Mandatory content cannot be truncated to satisfy a host budget. Diagnose that
+# distinct limit without making it worse by adding an optional replacement frame.
+r=$(fake_root '#!/usr/bin/env bash
+exit 0')
+printf '%010000d' 0 > "$r/agent-context/session-start.md"
+c=$(ctx_of "$r")
+[ "$c" = "$(cat "$r/agent-context/session-start.md")" ] \
+  && grep -q 'mandatory bootstrap exceeds direct-context budget' "$r/err" \
+  && ! grep -q 'recovery context exceeds' "$r/err" \
+  && ok "oversized mandatory bootstrap stays whole with an accurate degradation diagnostic" \
+  || bad "oversized mandatory bootstrap is altered or misdiagnosed as recovery overflow"
+
+# A source file can fit while its installed policy link pushes the rendered
+# bootstrap over budget. Use a synthetic long plugin root, not a host path.
+long_root="$r/$(printf '%0180d' 0)"
+mkdir -p "$long_root"
+mv "$r/hooks" "$r/agent-context" "$long_root/"
+r="$long_root"
+printf '%09450d\n[Policy](session-policy.md)' 0 > "$r/agent-context/session-start.md"
+c=$(ctx_of "$r")
+expected=$(printf '%09450d\n[Policy](<%s/agent-context/session-policy.md>)' 0 "$r")
+[ "$(LC_ALL=C wc -c < "$r/agent-context/session-start.md" | tr -d ' ')" -le 9600 ] \
+  && [ "$(printf '%s' "$c" | LC_ALL=C wc -c | tr -d ' ')" -gt 9600 ] \
+  && [ "$c" = "$expected" ] \
+  && grep -q 'mandatory bootstrap exceeds direct-context budget' "$r/err" \
+  && ok "policy path expansion is included in mandatory bootstrap overflow detection" \
+  || bad "expanded mandatory policy path overflow is silent or truncated"
+
+r=$(fake_root '#!/usr/bin/env bash
+printf "<agent-context-recovery priority=\"high\">\n"
+printf "%020000d\n" 0
+printf "</agent-context-recovery>\n"')
+printf '%09500d' 0 > "$r/agent-context/session-start.md"
+c=$(ctx_of "$r")
+[ "$c" = "$(cat "$r/agent-context/session-start.md")" ] \
+  && grep -q 'recovery context omitted entirely' "$r/err" \
+  && ok "near-limit bootstrap omits a replacement capsule that would still exceed budget" \
+  || bad "replacement recovery capsule pushes a near-limit bootstrap over budget"
+
+r=$(fake_root '#!/usr/bin/env bash
+exit 0')
+printf '%09600d' 0 > "$r/agent-context/session-start.md"
+c=$(ctx_of "$r")
+[ "$c" = "$(cat "$r/agent-context/session-start.md")" ] && [ ! -s "$r/err" ] \
+  && ok "exact-budget bootstrap with no recovery does not add a phantom separator or frame" \
+  || bad "exact-budget bootstrap is incorrectly treated as overflow"
+
 printf '%s\n' "---" "PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ]

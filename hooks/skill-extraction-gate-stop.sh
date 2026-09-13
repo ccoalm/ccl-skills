@@ -44,7 +44,10 @@ command -v python3 >/dev/null 2>&1 && [ -r "$HELPER" ] || {
   exit 0
 }
 CWD=$(printf '%s' "$IN" | jq -r '.cwd // empty' 2>/dev/null)
-SUMMARY=$(python3 "$HELPER" transcript "$TRANSCRIPT" "${CWD:-$PWD}" 2>/dev/null) || exit 0
+SUMMARY=$(python3 "$HELPER" transcript "$TRANSCRIPT" "${CWD:-$PWD}" 2>/dev/null) || {
+  jq -nc '{systemMessage:"Extraction backstop unverified: transcript could not be fully inspected."}'
+  exit 0
+}
 CANDIDATES=$(printf '%s' "$SUMMARY" | jq -r '.edit_paths[:40][]' 2>/dev/null)
 [ -n "$CANDIDATES" ] || exit 0
 

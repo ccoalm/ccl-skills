@@ -1004,6 +1004,35 @@ else
   : >"$RACE_RESUME"; wait "$race_pid"
   fail=$((fail+1)); echo 'FAIL race harness never reached consume' >&2
 fi
+
+# Goal grants take the same post-consume invalidation path without batch rearm.
+# A revoke or unresolved scope change arriving in that window must deny even
+# though the prompt hook sees no sentinel to remove or mark suspended.
+for invalidation in '停止' '改成另一个功能'; do
+  goal_arm
+  epoch_before=$(cat "$RACE_SENT.epoch")
+  rm -f "$RACE_REACHED" "$RACE_RESUME"
+  jq -nc --arg s "$VSID" --arg w "$FEAT_CWD" --arg c "$goal_command" '{session_id:$s,cwd:$w,tool_input:{command:$c}}' \
+    | PATH="$tmp/race-bin:$PATH" TMPDIR="$tmp" bash "$GUARD" >"$tmp/goal-race-output" &
+  race_pid=$!
+  for ((i=0;i<200;i++)); do [ -f "$RACE_REACHED" ] && break; sleep 0.05; done
+  if [ -f "$RACE_REACHED" ]; then
+    goal_prompt "$invalidation"
+    : >"$RACE_RESUME"
+    wait "$race_pid"
+    if [ "$epoch_before" != "$(cat "$RACE_SENT.epoch")" ] \
+      && grep -q '"permissionDecision":"deny"' "$tmp/goal-race-output" \
+      && [ ! -f "$RACE_SENT" ] \
+      && ! compgen -G "$RACE_SENT.used.*" >/dev/null; then
+      pass=$((pass+1))
+    else
+      fail=$((fail+1)); printf 'FAIL goal invalidation during consume must deny without residual grant: %s\n' "$invalidation" >&2
+    fi
+  else
+    : >"$RACE_RESUME"; wait "$race_pid"
+    fail=$((fail+1)); echo 'FAIL goal race harness never reached consume' >&2
+  fi
+done
 unset RACE_SENT RACE_REACHED RACE_RESUME REAL_MV
 
 if [ "$fail" -ne 0 ]; then

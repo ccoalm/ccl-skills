@@ -686,14 +686,23 @@ cmd_pretool() {
     # Inspect every target, including moves and deletions. A safe first path
     # must not short-circuit checks of the remaining paths in the same patch.
     have python3 && [ -r "$HOST_INPUT" ] || emit_pretool_deny "owner-dispatch cannot inspect apply_patch: Python input normalizer unavailable." deny
-    local normalized target converted response
+    local normalized target converted response deny_response="" advisory_response=""
     normalized=$(printf '%s' "$input" | python3 "$HOST_INPUT" paths 2>/dev/null) || emit_pretool_deny "owner-dispatch cannot inspect apply_patch input." deny
     [ "$(printf '%s' "$normalized" | jq -r '.malformed_patch')" = false ] || emit_pretool_deny "owner-dispatch cannot inspect malformed apply_patch targets." deny
     while IFS= read -r -d '' target; do
       converted=$(printf '%s' "$input" | jq -c --arg p "$target" '.tool_name="Edit" | .tool_input={file_path:$p}')
       response=$(printf '%s' "$converted" | cmd_pretool apply_patch)
-      [ -n "$response" ] && { printf '%s\n' "$response"; exit 0; }
+      [ -n "$response" ] || continue
+      if printf '%s' "$response" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/dev/null 2>&1; then
+        [ -n "$deny_response" ] || deny_response="$response"
+      else
+        [ -n "$advisory_response" ] || advisory_response="$response"
+      fi
     done < <(printf '%s' "$normalized" | jq -j '.paths[] | . + "\u0000"')
+    # An advisory first target must not hide a later strict denial. Inspect all
+    # targets before emitting one response so activity evidence is complete too.
+    [ -n "$deny_response" ] && { printf '%s\n' "$deny_response"; exit 0; }
+    [ -n "$advisory_response" ] && { printf '%s\n' "$advisory_response"; exit 0; }
     allow_pretool
   fi
   case "$tool" in

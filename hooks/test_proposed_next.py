@@ -224,8 +224,10 @@ class ProposedNextTests(unittest.TestCase):
     def test_scan_is_bounded_and_no_filesystem_markers_are_written(self):
         self.events([{'type': 'ignored'}] * 20000 + self.claude_load())
         before = set(self.root.rglob('*'))
-        self.assertEqual(self.run_hook(), {})
+        self.assertIn('unverified', self.run_hook().get('systemMessage', '').lower())
         self.assertEqual(set(self.root.rglob('*')), before)
+        self.events([{'type': 'ignored'}] * 20000)
+        self.assertEqual(self.run_hook(), {})
         self.events(self.claude_load())
         self.assert_block(self.run_hook())
         self.assert_block(self.run_hook())  # A new host turn must not be suppressed by session id.
@@ -233,7 +235,7 @@ class ProposedNextTests(unittest.TestCase):
 
     def test_oversized_or_malformed_input_fails_soft_without_transcript_echo(self):
         self.path.write_text(json.dumps({'type': 'ignored', 'text': 'x' * (1024 * 1024)}) + '\n')
-        self.assertEqual(self.run_hook(), {})
+        self.assertIn('unverified', self.run_hook().get('systemMessage', '').lower())
         oversized = dict(self.payload, last_assistant_message='x' * (2 * 1024 * 1024))
         self.assertIn('unavailable', self.run_hook(oversized).get('systemMessage', ''))
         malformed = self.claude_load()

@@ -82,6 +82,18 @@ test("doctor distinguishes trusted hook configuration from unverified execution"
 	assert.equal(assertStopped(f), 1);
 });
 
+test("same-version install preserves the verified native trust message", (t) => {
+	const f = hookFixture(t);
+	const result = cli(f, ["install", "--json"]);
+	const report = JSON.parse(result.stdout);
+	assert.equal(result.status, 0, result.stdout || result.stderr);
+	assert.equal(report.status, "installed-hooks-trusted");
+	assert.match(report.message, /same version/);
+	assert.match(report.message, /configured and trusted/);
+	assert.doesNotMatch(report.message, /trust remains pending/);
+	assert.equal(assertStopped(f), 1);
+});
+
 for (const status of ['managed','untrusted','modified']) {
 	test(`doctor exposes native ${status} hook trust in its JSON result`, (t) => {
 		const f = hookFixture(t,status), result = cli(f,['doctor','--json']);

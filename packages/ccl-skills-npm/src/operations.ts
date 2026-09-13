@@ -674,14 +674,12 @@ function installOrUpdate(
 				message: "public state does not match the owned manifest",
 			};
 		const comparison = compare(release.version, old.active.version);
-		if (comparison === 0)
+		if (comparison === 0) {
+			const report = doctor(context);
 			return command === "install"
-				? {
-						...doctor(context),
-						message:
-							"same version is already installed; hooks trust remains pending/unverified",
-					}
-				: doctor(context);
+				? { ...report, message: `same version is already installed; ${report.message}` }
+				: report;
+		}
 		if (command === "install")
 			return {
 				code: 3,

@@ -1,6 +1,6 @@
 # Host hook compatibility
 
-Status: implementation. Base: `40dc287d2a786256bf37242458b2ec57853171b7`.
+Status: release verification. Base: `40dc287d2a786256bf37242458b2ec57853171b7`.
 
 Restore equivalent hook behavior on current Claude Code and Codex, keep startup instructions directly visible, and expose the actual hook trust state after installation. The release target is the next unpublished patch of the unified npm package.
 
@@ -48,7 +48,7 @@ The target is patch `0.18.2`; declared and published versions were `0.18.1`, wit
 
 Target-goal grants recognize a complete, direct instruction naming one PR/MR. They bind repository, numeric target, original expiry and one remaining use. Neutral status/continuation messages may preserve that grant; stop revokes it, unknown text suspends it. Execution requires an immediate explicit-target merge, with the repository named in the command. The legacy one-shot and batch grammar retains its message-clearing semantics. Arbitrary prose about a future release does not mechanically authorize unknown future PRs. Human goal authority and the host's executable grant remain distinct.
 
-The original session rules remain in `agent-context/session-policy.md`. The compact entry requires their relevant section before the corresponding action. Both native plugin packages include the policy; SessionStart emits a resolvable plugin path. The 9600-byte direct-context budget preserves the entire compact entry; an oversized optional recovery capsule is replaced whole with a visible live-refresh instruction.
+The original session rules remain in `agent-context/session-policy.md`. The compact entry requires their relevant section before the corresponding action. Both native plugin packages include the policy; SessionStart emits a resolvable plugin path. The 9600-byte direct-context budget preserves the entire compact entry and replaces an oversized optional recovery capsule whole, or omits it when its replacement cannot fit. An extreme policy path or oversized mandatory entry can exceed the budget alone; all rules remain intact and a diagnostic explicitly reports that direct visibility is not guaranteed.
 
 | Original obligation | Resident firing instruction | Retained detail |
 | --- | --- | --- |
@@ -85,7 +85,11 @@ The formatter uses the host's current `last_assistant_message`, never a stale fi
 
 Claude and Codex supply the direct final-message field. OpenCode's current idle adapter does not; it passes an explicit null and leaves the formatter unverified. All three hosts receive the startup cue. Tests must distinguish missing labels from quoted examples, successful from pending/error/truncated rule reads, and format repair from permission to continue.
 
-The formatter's absent-hook baseline fails 31 assertions. Its 18 cases pass, including direct-message precedence, final-answer phases, quoted examples, pure artifacts, matched successful rule reads, malformed inputs and nonregular transcript files. Three isolated mutations fail when loop prevention, successful-read checks or direct-message precedence are removed. Transcript scanning is bounded; later eligibility may be missed. Unsupported result envelopes remain unverifiable.
+The formatter's absent-hook baseline fails 31 assertions. Its 18 cases pass, including direct-message precedence, final-answer phases, quoted examples, pure artifacts, matched successful rule reads, malformed inputs and nonregular transcript files. Three isolated mutations fail when loop prevention, successful-read checks or direct-message precedence are removed. A bounded transcript scan discards partial evidence and reports unverified when its limit is exceeded. Unsupported result envelopes remain unverifiable.
+
+Native Claude and Codex checks use disposable plugins and an isolated loopback-only provider. Four cases per host prove actual Stop input, block/reason consumption, the subsequent model request and the loop flag. They establish the host roundtrip, not real-model adherence rates. Native trust inspection, packed asset checks and three-host installation lifecycle checks remain distinct evidence.
+
+Independent review and challenge cover three partitions: authorization; shared runtime and startup; package and host installation. Together they cover the initial candidate. Subsequent changes receive a delta pass from that reviewed commit. Partition scope gaps are checked against the union, not treated as a verdict on omitted files. Session-wide status-only formatting follows the canonical product workflow and preserves explicit stop; it never authorizes another task. Detailed receipts and finding dispositions are retained outside shared Git surfaces.
 
 The CLI doctor surface uses the existing JSON and terminal result interface; no screen or interaction layout changes. Consumers are the CLI caller and the three existing host adapters. Unknown and untrusted statuses retain their explicit result codes; a trusted inventory never asserts hook execution.
 

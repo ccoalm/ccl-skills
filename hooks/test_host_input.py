@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -164,6 +165,52 @@ class HostInputTests(unittest.TestCase):
         self.assertNotIn('permissionDecision', result['hookSpecificOutput'])
         self.assertIn('additionalContext', result['hookSpecificOutput'])
 
+    def test_owner_patch_deny_wins_over_an_earlier_advisory(self):
+        config = self.wt / '.owner-dispatch.json'
+        value = json.loads(config.read_text())
+        value['strict'] = False
+        config.write_text(json.dumps(value))
+        soft = f'*** Add File: {self.wt}/src/soft.py\n+new'
+        hard = f'*** Delete File: {self.repo}/src/file.py'
+        advisory = self.run_hook('scripts/owner-dispatch/owner-dispatch.sh', self.patch(
+            f'*** Begin Patch\n{soft}\n*** End Patch'), 'pretool')
+        self.assertIn('additionalContext', advisory['hookSpecificOutput'])
+        self.assertEqual(self.decision(self.run_hook('scripts/owner-dispatch/owner-dispatch.sh',
+                         self.patch(f'*** Begin Patch\n{hard}\n*** End Patch'), 'pretool')), 'deny')
+        for first, second in ((soft, hard), (hard, soft)):
+            with self.subTest(first=first):
+                result = self.run_hook('scripts/owner-dispatch/owner-dispatch.sh', self.patch(
+                    f'*** Begin Patch\n{first}\n{second}\n*** End Patch'), 'pretool')
+                self.assertEqual(self.decision(result), 'deny')
+
+    def test_claude_isolation_survives_missing_python_or_helper(self):
+        isolated = self.root / 'isolated'
+        isolated.mkdir()
+        copy = isolated / 'guard-edit-isolation.sh'
+        copy.write_text((ROOT / 'hooks/guard-edit-isolation.sh').read_text())
+        commands = self.root / 'no-python'
+        commands.mkdir()
+        for command in ('bash', 'cat', 'dirname', 'jq', 'git', 'awk', 'realpath'):
+            (commands / command).symlink_to(shutil.which(command))
+        original_path = self.env['PATH']
+        for mode in ('missing-helper', 'missing-python'):
+            hook = str(copy) if mode == 'missing-helper' else 'hooks/guard-edit-isolation.sh'
+            self.env['PATH'] = original_path if mode == 'missing-helper' else str(commands)
+            try:
+                for tool, field in (('Edit', 'file_path'), ('Write', 'file_path'),
+                                    ('MultiEdit', 'file_path'), ('NotebookEdit', 'notebook_path')):
+                    for cwd, expected in ((self.repo, 'deny'), (self.wt, None)):
+                        for path in (str(cwd / 'src/file.py'), 'src/file.py'):
+                            with self.subTest(mode=mode, tool=tool, cwd=cwd, path=path):
+                                payload = {'tool_name': tool, 'cwd': str(cwd),
+                                           'tool_input': {field: path}}
+                                value = self.run_hook(hook, payload)
+                                self.assertEqual(self.decision(value), expected)
+                                if expected is None:
+                                    self.assertEqual(value, {})
+            finally:
+                self.env['PATH'] = original_path
+
     def test_completed_extraction_read_allows_and_prose_does_not(self):
         skill = self.repo / 'skills/skill-extraction-workflow/SKILL.md'
         skill.parent.mkdir(parents=True)
@@ -211,6 +258,42 @@ class HostInputTests(unittest.TestCase):
             result = self.run_hook('hooks/skill-extraction-gate-stop.sh', {
                 'session_id': label, 'transcript_path': self.transcript(events)})
             self.assertEqual(result.get('decision'), expected)
+
+    def test_truncated_transcripts_never_supply_partial_verification(self):
+        marker = self.repo / 'skills/skill-extraction-workflow/SKILL.md'
+        marker.parent.mkdir(parents=True)
+        marker.write_text('# Synthetic extraction owner\n')
+        leading = [
+            {'type': 'assistant', 'message': {'content': [{'type': 'tool_use', 'id': 'owner',
+             'name': 'Skill', 'input': {'skill': 'ccl-skills:product-rd-workflow'}}]}},
+            {'type': 'user', 'message': {'content': [{'type': 'tool_result',
+             'tool_use_id': 'owner', 'content': 'Loaded'}]}}]
+        edit = {'type': 'assistant', 'message': {'content': [{'type': 'tool_use', 'name': 'Edit',
+                'input': {'file_path': str(self.repo / 'hooks/late.sh')}}]}}
+        for label, padding in (
+                ('events', [{'type': 'ignored'}] * 20000),
+                ('line', [{'type': 'ignored', 'text': 'x' * (1024 * 1024)}]),
+                ('bytes', [{'type': 'ignored', 'text': 'x' * 900000}] * 20)):
+            path = self.transcript(leading + padding + [edit])
+            with self.subTest(limit=label, consumer='helper'):
+                result = subprocess.run(['python3', str(ROOT / 'hooks/host-input.py'),
+                                         'transcript', path, str(self.repo)],
+                                        capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                summary = json.loads(result.stdout)
+                self.assertFalse(summary['verifiable'])
+                self.assertTrue(summary['truncated'])
+                self.assertEqual(summary['completed_skills'], [])
+                self.assertEqual(summary['edit_paths'], [])
+            for hook in ('skill-extraction-gate-stop.sh', 'proposed-next-stop.sh'):
+                with self.subTest(limit=label, consumer=hook):
+                    result = self.run_hook('hooks/' + hook, {
+                        'session_id': 'limit-' + label, 'cwd': str(self.repo),
+                        'transcript_path': path, 'hook_event_name': 'Stop',
+                        'stop_hook_active': False, 'last_assistant_message': 'Synthetic private status.'})
+                    self.assertIn('unverified', result.get('systemMessage', '').lower())
+                    self.assertNotIn('decision', result)
+                    self.assertNotIn('Synthetic private status', json.dumps(result))
 
 
 if __name__ == '__main__':

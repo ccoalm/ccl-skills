@@ -25,20 +25,32 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 
 HELPER="$(cd "$(dirname "$0")" && pwd)/host-input.py"
+legacy_paths() {
+  # Claude's single-path input remains enforceable with the original jq/git
+  # dependencies. Resolve relative input against the host cwd without Python.
+  printf '%s' "$input" | jq -c --arg cwd "$PWD" '
+    . as $event | {malformed_patch:false, paths:[
+      (.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // empty)
+      | select(type == "string" and length > 0 and (contains("\u0000") | not))
+      | if startswith("/") then . else
+          (($event.cwd | select(type == "string" and length > 0)) // $cwd) + "/" + .
+        end]}' 2>/dev/null
+}
 if ! command -v python3 >/dev/null 2>&1 || [ ! -r "$HELPER" ]; then
-  if [ "$(printf '%s' "$input" | jq -r '.tool_name // empty')" = apply_patch ]; then
+  if [ "$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)" = apply_patch ]; then
     jq -nc '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Edit-isolation guard cannot inspect apply_patch: Python input normalizer unavailable."}}'
     exit 0
   fi
-  printf '{"systemMessage":"⚠️ edit-isolation guard degraded: Python input normalizer unavailable; isolation NOT enforced"}\n'
-  exit 0
+  normalized=$(legacy_paths) || exit 0
+else
+  normalized=$(printf '%s' "$input" | python3 "$HELPER" paths 2>/dev/null) || {
+    if [ "$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)" = apply_patch ]; then
+      jq -nc '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Edit-isolation guard cannot inspect apply_patch input."}}'
+      exit 0
+    fi
+    normalized=$(legacy_paths) || exit 0
+  }
 fi
-normalized=$(printf '%s' "$input" | python3 "$HELPER" paths 2>/dev/null) || {
-  if [ "$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)" = apply_patch ]; then
-    jq -nc '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Edit-isolation guard cannot inspect apply_patch input."}}'
-  fi
-  exit 0
-}
 if [ "$(printf '%s' "$normalized" | jq -r '.malformed_patch')" = true ]; then
   jq -nc '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Edit-isolation guard cannot inspect malformed apply_patch targets. Supply a complete patch before editing."}}'
   exit 0
