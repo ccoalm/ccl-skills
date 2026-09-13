@@ -895,6 +895,117 @@ reason_has '字面绝对路径' "$MAIN_CWD" 'git -C "$WT" merge origin/main --no
 reason_has '!展开不了' "$MAIN_CWD" 'git merge origin/main'
 reason_has '直接推进'  "$MAIN_CWD" 'git merge origin/main'
 
+# Target-goal scope is checked through the public prompt-to-guard path.
+PROMPT_HOOK="${PROMPT_HOOK:-$SCRIPT_DIR/merge-authorization-prompt.sh}"
+git -C "$MAIN_CWD" remote add origin https://forge.example.invalid/team/project.git
+goal_prompt() {
+  jq -nc --arg p "$1" --arg s "$VSID" --arg w "$FEAT_CWD" '{prompt:$p,session_id:$s,cwd:$w}' | TMPDIR="$tmp" bash "$PROMPT_HOOK"
+}
+goal_arm() { goal_prompt '完成并合并 PR #123'; }
+goal_command='gh pr merge 123 --repo forge.example.invalid/team/project --merge --match-head-commit 0123456789012345678901234567890123456789'
+goal_arm
+probe_sid allow "$FEAT_CWD" "$VSID" "$goal_command"
+sentinel_state absent 'target-goal consumed once'
+probe_sid deny "$FEAT_CWD" "$VSID" "$goal_command"
+for bad in \
+  'gh pr merge 124 --repo forge.example.invalid/team/project --merge' \
+  'gh pr merge 123 --repo forge.example.invalid/team/other --merge' \
+  'gh pr merge 123 --merge' \
+  'gh pr merge 123 --repo forge.example.invalid/team/project --repo forge.example.invalid/team/other --merge' \
+  'gh pr merge 123 --repo forge.example.invalid/team/project --merge --squash' \
+  'gh pr merge 123 --repo forge.example.invalid/team/project --merge --match-head-commit abc' \
+  'gh pr merge 123 --repo forge.example.invalid/team/project --merge --unknown' \
+  'gh pr merge 123 --repo forge.example.invalid/team/project --auto' \
+  'gh pr merge 123 --repo forge.example.invalid/team/project --merge --admin' \
+  'gh api --method PUT repos/team/project/pulls/123/merge' \
+  'curl -X PUT https://forge.example.invalid/repos/team/project/pulls/123/merge' \
+  'gh pr merge 123 --repo forge.example.invalid/team/project --merge; echo done' \
+  'git push origin main'; do
+  goal_arm
+  probe_sid deny "$FEAT_CWD" "$VSID" "$bad"
+  sentinel_state present 'scope or command mismatch must preserve goal grant'
+done
+goal_arm
+goal_prompt '继续'
+probe_sid allow "$FEAT_CWD" "$VSID" "$goal_command"
+goal_arm
+goal_prompt '改成另一个功能'
+probe_sid deny "$FEAT_CWD" "$VSID" "$goal_command"
+goal_prompt '继续'
+probe_sid deny "$FEAT_CWD" "$VSID" "$goal_command"
+goal_arm
+old_ts=$(date -v-2H +%Y%m%d%H%M 2>/dev/null || date -d '-2 hours' +%Y%m%d%H%M)
+touch -t "$old_ts" "$VAUTH_DIR/$VSID"
+goal_prompt '状态'
+probe_sid deny "$FEAT_CWD" "$VSID" "$goal_command"
+goal_prompt '完成并合并 MR !123'
+probe_sid deny "$FEAT_CWD" "$VSID" 'glab mr merge 123 --repo forge.example.invalid/team/project --auto-merge=false --yes'
+probe_sid allow "$FEAT_CWD" "$VSID" 'glab mr merge 123 --repo https://forge.example.invalid/team/project --auto-merge=false --yes --sha 0123456789012345678901234567890123456789'
+
+# A corrupted or lost invalidation epoch cannot become a valid goal grant.
+goal_arm
+printf 'newer-prompt\n' >"$VAUTH_DIR/$VSID.epoch"
+probe_sid deny "$FEAT_CWD" "$VSID" "$goal_command"
+goal_arm
+rm -f "$VAUTH_DIR/$VSID.epoch"
+probe_sid deny "$FEAT_CWD" "$VSID" "$goal_command"
+
+# Two concurrent calls share one goal use, not two independent approvals.
+goal_arm
+for n in 1 2; do
+  jq -nc --arg s "$VSID" --arg w "$FEAT_CWD" --arg c "$goal_command" '{session_id:$s,cwd:$w,tool_input:{command:$c}}' \
+    | TMPDIR="$tmp" bash "$GUARD" >"$tmp/goal-contender-$n" &
+  if [ "$n" = 1 ]; then contender_one=$!; else contender_two=$!; fi
+done
+wait "$contender_one"; wait "$contender_two"
+allowed=0; denied=0
+for n in 1 2; do
+  if grep -q '"permissionDecision":"deny"' "$tmp/goal-contender-$n"; then denied=$((denied+1))
+  elif grep -q 'systemMessage' "$tmp/goal-contender-$n"; then allowed=$((allowed+1)); fi
+done
+if [ "$allowed" = 1 ] && [ "$denied" = 1 ] && [ ! -f "$VAUTH_DIR/$VSID" ]; then pass=$((pass+1)); else
+  fail=$((fail+1)); echo 'FAIL concurrent consumers must release exactly one goal use' >&2
+fi
+
+# Force revoke between consume and rearm. The wrapper only pauses the actual
+# filesystem rename of this disposable grant; no platform merge is executed.
+mkdir "$tmp/race-bin"
+REAL_MV=$(command -v mv)
+export REAL_MV
+cat >"$tmp/race-bin/mv" <<'RACE_MV'
+#!/usr/bin/env bash
+"$REAL_MV" "$@" || exit $?
+case "${2:-}" in
+  "$RACE_SENT".used.*)
+    : >"$RACE_REACHED"
+    for ((i=0;i<200;i++)); do
+      [ -f "$RACE_RESUME" ] && exit 0
+      sleep 0.05
+    done
+    exit 1
+    ;;
+esac
+RACE_MV
+chmod +x "$tmp/race-bin/mv"
+goal_prompt '批量合并 2'
+export RACE_SENT="$VAUTH_DIR/$VSID" RACE_REACHED="$tmp/race-reached" RACE_RESUME="$tmp/race-resume"
+jq -nc --arg s "$VSID" --arg w "$FEAT_CWD" '{session_id:$s,cwd:$w,tool_input:{command:"gh pr merge 123 --merge"}}' \
+  | PATH="$tmp/race-bin:$PATH" TMPDIR="$tmp" bash "$GUARD" >"$tmp/race-output" &
+race_pid=$!
+for ((i=0;i<200;i++)); do [ -f "$RACE_REACHED" ] && break; sleep 0.05; done
+if [ -f "$RACE_REACHED" ]; then
+  goal_prompt '停止'
+  : >"$RACE_RESUME"
+  wait "$race_pid"
+  if grep -q '"permissionDecision":"deny"' "$tmp/race-output" && [ ! -f "$RACE_SENT" ]; then
+    pass=$((pass+1))
+  else fail=$((fail+1)); echo 'FAIL revoke during consume must deny and prevent batch resurrection' >&2; fi
+else
+  : >"$RACE_RESUME"; wait "$race_pid"
+  fail=$((fail+1)); echo 'FAIL race harness never reached consume' >&2
+fi
+unset RACE_SENT RACE_REACHED RACE_RESUME REAL_MV
+
 if [ "$fail" -ne 0 ]; then
   echo "test_guard_merge_authorization: FAIL pass=$pass fail=$fail" >&2
   exit 1

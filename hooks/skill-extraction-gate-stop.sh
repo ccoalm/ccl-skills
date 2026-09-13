@@ -34,12 +34,18 @@ else
 fi
 
 TRANSCRIPT=$(printf '%s' "$IN" | jq -r '.transcript_path // empty' 2>/dev/null)
-[ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ] || exit 0
+[ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ] || exit 0
 
 # 1) Candidate shared-skill/plugin-behavior edits this session (Edit/Write/MultiEdit on
 #    skills/<slug>/... OR the plugin behavior surfaces hooks/ and repo-root scripts/).
-CANDIDATES=$(grep -oE '"name" *: *"(Edit|Write|MultiEdit)".*"file_path" *: *"[^"]*/(skills/[A-Za-z0-9_-]+/(SKILL\.md|references/|scripts/)|hooks/|scripts/)[^"]*"' -- "$TRANSCRIPT" 2>/dev/null \
-  | grep -oE '"file_path" *: *"[^"]*"' | sed -E 's/^"file_path" *: *"//; s/"$//' | sort -u | head -40)
+HELPER="$(cd "$(dirname "$0")" && pwd)/host-input.py"
+command -v python3 >/dev/null 2>&1 && [ -r "$HELPER" ] || {
+  jq -nc '{systemMessage:"Extraction backstop unavailable: Python input normalizer missing; transcript evidence could not be verified."}'
+  exit 0
+}
+CWD=$(printf '%s' "$IN" | jq -r '.cwd // empty' 2>/dev/null)
+SUMMARY=$(python3 "$HELPER" transcript "$TRANSCRIPT" "${CWD:-$PWD}" 2>/dev/null) || exit 0
+CANDIDATES=$(printf '%s' "$SUMMARY" | jq -r '.edit_paths[:40][]' 2>/dev/null)
 [ -n "$CANDIDATES" ] || exit 0
 
 # 2) Scope guard: at least one edited path must live under a ccl-skills checkout
@@ -57,7 +63,7 @@ EOF
 [ -n "$IN_SCOPE" ] || exit 0
 
 # 3) Was skill-extraction-workflow visibly invoked this session?
-if grep -qE '"skill" *: *"(ccl-skills:)?skill-extraction-workflow"|Launching skill: (ccl-skills:)?skill-extraction-workflow' -- "$TRANSCRIPT" 2>/dev/null; then
+if printf '%s' "$SUMMARY" | jq -e '.requested_skills | any(. == "ccl-skills:skill-extraction-workflow" or . == "skill-extraction-workflow")' >/dev/null 2>&1; then
   exit 0
 fi
 

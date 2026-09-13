@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse guard — enforce edit isolation by CONCURRENCY signal (Option 2).
-# Enforcement is Claude-Code-only: Codex DOES run this hook but ignores the
-# permissionDecision:"deny" (verified), so Codex edits are not hard-blocked —
-# on Codex, isolation is advisory via the worktree-isolation skill + bootstrap.
+# Host aliases retain raw tool names; normalize patch targets before policy.
 #
 # Allows edits from a linked worktree. Denies PRIMARY-checkout edits only when:
 #   (a) the repo declares itself shared via a committed `.worktree-only` marker; or
@@ -26,9 +24,28 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 
-fp=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // empty' 2>/dev/null)
-[ -z "$fp" ] && exit 0
+HELPER="$(cd "$(dirname "$0")" && pwd)/host-input.py"
+if ! command -v python3 >/dev/null 2>&1 || [ ! -r "$HELPER" ]; then
+  if [ "$(printf '%s' "$input" | jq -r '.tool_name // empty')" = apply_patch ]; then
+    jq -nc '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Edit-isolation guard cannot inspect apply_patch: Python input normalizer unavailable."}}'
+    exit 0
+  fi
+  printf '{"systemMessage":"⚠️ edit-isolation guard degraded: Python input normalizer unavailable; isolation NOT enforced"}\n'
+  exit 0
+fi
+normalized=$(printf '%s' "$input" | python3 "$HELPER" paths 2>/dev/null) || {
+  if [ "$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)" = apply_patch ]; then
+    jq -nc '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Edit-isolation guard cannot inspect apply_patch input."}}'
+  fi
+  exit 0
+}
+if [ "$(printf '%s' "$normalized" | jq -r '.malformed_patch')" = true ]; then
+  jq -nc '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Edit-isolation guard cannot inspect malformed apply_patch targets. Supply a complete patch before editing."}}'
+  exit 0
+fi
 
+check_target() {
+local fp="$1"
 # Resolve a symlinked target so a symlink pointing into a protected repo is caught.
 if [ -L "$fp" ]; then
   rp=$(realpath "$fp" 2>/dev/null) && [ -n "$rp" ] && fp="$rp"
@@ -38,10 +55,10 @@ dir=$(dirname -- "$fp")
 while [ ! -d "$dir" ] && [ "$dir" != "/" ] && [ "$dir" != "." ]; do
   dir=$(dirname -- "$dir")
 done
-[ -d "$dir" ] || exit 0
+[ -d "$dir" ] || return 0
 
-toplevel=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
-[ -z "$toplevel" ] && exit 0
+toplevel=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || return 0
+[ -z "$toplevel" ] && return 0
 
 # Linked worktree → already isolated. Discriminate STRUCTURALLY: a linked
 # worktree's git-dir (<common>/worktrees/<id>) differs from the repo's common
@@ -73,7 +90,7 @@ if [ "$isolated" -eq 0 ] && [ -n "$absgitdir" ]; then
     d=$(dirname -- "$d"); hops=$((hops+1))
   done
 fi
-[ "$isolated" -eq 1 ] && exit 0
+[ "$isolated" -eq 1 ] && return 0
 
 deny() {
   local branch
@@ -99,4 +116,9 @@ if [ "${live:-1}" -gt 1 ]; then
   deny "并发隔离闸：[$toplevel] 存在 $live 个活动 worktree（有并行开发），别直接改主检出——在对应 worktree 里改，或新建：git worktree add -b <new-branch> <path>。（确需直接改请 /hooks 关闭）"
 fi
 
+return 0
+}
+while IFS= read -r -d '' fp; do
+  check_target "$fp"
+done < <(printf '%s' "$normalized" | jq -j '.paths[] | . + "\u0000"')
 exit 0

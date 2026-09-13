@@ -19,8 +19,9 @@
 | `skills/skill-extraction-workflow/` | 元技能:如何提炼/更新/评审技能(贡献规则的权威来源) |
 | `skills/skill-extraction-workflow/scripts/check-ccl-skills.sh` | 仓库验证门禁(frontmatter / overlay / 泄漏 / 路由 / 引用),内含 F4 Tier-1 路由分析器 |
 | `skills/skill-extraction-workflow/scripts/eval-routing*.rb` · `eval-golden-trace.rb` | F4 路由有效性 harness(静态分析器 / 廉价 grader / 真 agent 回放),见治理段 |
-| `hooks/` | 三端共用的运行时护栏；Claude Code 与 Codex 直接消费 plugin hooks，OpenCode 通过原生事件 adapter 调用同一批脚本。`hooks.json` 把 10 个脚本挂在 7 个事件上；另有 `session-context.sh` helper 和 6 个 `test_*.sh` |
+| `hooks/` | Claude Code 与 Codex 直接消费 plugin hooks，OpenCode 通过原生事件 adapter 调用脚本。`hooks.json` 定义事件绑定；`host-input.py` 归一化宿主输入，`session-context.sh` 提供恢复索引，测试覆盖允许、拒绝与降级路径 |
 | `agent-context/session-start.md` | 注入每个会话的路由指引(被 SessionStart hook 加载) |
+| `agent-context/session-policy.md` | 启动入口按动作引用的完整规则；安装包保留可解析路径 |
 | `agent-context/subagent-start.md` | 子 agent 派活时的 owner 路由约定(被 SubagentStart hook 加载) |
 | `AGENTS.md` · `opencode.json` | OpenCode / 通用 agent 开工契约、项目级技能扫描配置和高频场景 command |
 | `scripts/install.sh` · `Makefile` | 安装/更新/清缓存/跑门禁与 eval(`make help` 列全部目标) |
@@ -42,6 +43,7 @@
 - **会话注入**:`agent-context/session-start.md` 经 SessionStart hook 注入 Claude Code 与 Codex；OpenCode 在源仓内通过 `opencode.json` 加载，在安装场景由原生 plugin 的 system transform 调用 bundled `session-start.sh`。
 - **OpenCode 原生路径**:`scripts/install-opencode.sh` 默认同步 skills、commands、plugin、bootstrap 和 `ccl-skills/runtime`，并兼容刷新 `~/.agents/skills`；`--project` 把同一闭包同步到当前仓 `.opencode/`。
 - **运行时拦截**:路由没走对也拦得住这一层,靠 hook 在动手那一刻校验,不靠模型自觉。
+- **交接提醒**:Claude Code 与 Codex 的 Stop hook 在有研发交付证据、当前最终回复缺少 `proposed-next:` 时提醒修正一次；它不生成目标或授权。缺少当前回复或流程证据时不拦截。OpenCode idle 事件未提供当前最终回复，因此该格式检查保持未验证。
 
 技能协同要同时看三种结构，不能把它们压成一张平铺清单或一条固定链：
 

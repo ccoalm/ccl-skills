@@ -43,6 +43,7 @@ import {
 } from "./paths.js";
 import type { Journal, Manifest, Options, OwnedFile, Result } from "./types.js";
 import { compare } from "./version.js";
+import { inspectHooks } from "./codex-hooks.js";
 
 const pending = (
 	message: string,
@@ -614,9 +615,13 @@ function doctor(context: PathContext): Result {
 			message:
 				"owned files exist but Codex registration does not match the manifest",
 		};
-	return pending("plugin is installed; hooks trust is pending/unverified", {
-		version: manifest.active.version,
-	});
+	const pluginPrefix = "marketplace/plugins/ccl-skills/";
+	const pluginFiles = manifest.active.ownedFiles.filter(file => file.path.startsWith(pluginPrefix)).map(file => ({ ...file, path: file.path.slice(pluginPrefix.length) }));
+	const hooks = inspectHooks(p.codexHome, join(marketPath(p.root, manifest.active.path), "plugins/ccl-skills"), pluginFiles);
+	const details = { version: manifest.active.version, hooks };
+	if (hooks.status === "trusted" || hooks.status === "managed")
+		return { code: 0, status: "installed-hooks-trusted", message: "plugin hooks are configured and trusted; runtime execution is not verified", details };
+	return pending(`plugin is installed; hook trust: ${hooks.status}; runtime execution is not verified`, details);
 }
 
 function installOrUpdate(

@@ -48,8 +48,9 @@ printf '%s' "$ctx" | grep -q 'app.txt' \
 printf '%s' "$ctx" | grep -q 'read the smallest relevant local session/memory slice' \
   && printf '%s' "$ctx" | grep -q 'Do not ask the user to reconstruct discoverable history' \
   && ok "capsule makes history recovery controller-owned" || bad "missing autonomous recovery contract"
-printf '%s' "$ctx" | grep -q 'local_history: repo-attributed-available' \
-  && ! printf '%s' "$ctx" | grep -Eq 'codex_sessions|claude_project_sessions|cursor_sessions|opencode_sessions|\.codex|\.claude|\.cursor' \
+recovery=$(printf '%s' "$ctx" | sed -n '/^<agent-context-recovery /,$p')
+printf '%s' "$recovery" | grep -q 'local_history: repo-attributed-available' \
+  && ! printf '%s' "$recovery" | grep -Eq 'codex_sessions|claude_project_sessions|cursor_sessions|opencode_sessions|\.codex|\.claude|\.cursor' \
   && ok "capsule aggregates local history without host/tool fingerprint" || bad "capsule leaks per-tool history identity"
 
 UNRELATED_HOME="$WORK/unrelated-history-home"
@@ -89,7 +90,8 @@ printf '%s' "$unknown_ctx" | grep -q 'repo_root: unknown' \
 for i in $(seq 1 25); do printf 'dirty\n' > "$REPO/dirty-$i.txt"; done
 many_out=$(printf '{"cwd":"%s"}' "$REPO" | HOME="$HISTORY_HOME" bash "$HOOK")
 many_ctx=$(printf '%s' "$many_out" | jq -r '.hookSpecificOutput.additionalContext // empty')
-printf '%s' "$many_ctx" | grep -Eq '\.\.\. \(\+[0-9]+ more; refresh with git status\)' \
+many_recovery=$(printf '{"cwd":"%s"}' "$REPO" | HOME="$HISTORY_HOME" bash "$(dirname "$HOOK")/session-context.sh")
+printf '%s' "$many_recovery" | grep -Eq '\.\.\. \(\+[0-9]+ more; refresh with git status\)' \
   && ok "dirty-scope truncation is explicit" || bad "dirty-scope truncation is silent"
 
 # --- the optional context must never corrupt the mandatory bootstrap ----------
@@ -165,6 +167,39 @@ d=$(mktemp -d); mkdir -p "$d/hooks"; cp "$HOOK" "$d/hooks/session-start.sh"
 printf '{}' | bash "$d/hooks/session-start.sh" >/dev/null 2>"$d/err"
 grep -q 'routing layer NOT injected' "$d/err" \
   && ok "missing bootstrap is diagnosable on stderr" || bad "missing bootstrap failed silently"
+
+# Keep the real merged payload inside both hosts' direct-context budgets.
+# Codex estimates tokens from UTF-8 bytes; a byte cap also bounds Claude characters.
+printf '%s' "$many_ctx" | grep -Fq 'proposed-next:' \
+  && printf '%s' "$many_ctx" | grep -Fq 'none — status only' \
+  && ok "delivery handoff cue remains directly visible" \
+  || bad "startup omits the delivery handoff cue"
+ctx_bytes=$(printf '%s' "$many_ctx" | LC_ALL=C wc -c | tr -d ' ')
+[ "$ctx_bytes" -le 9600 ] \
+  && ok "startup with bounded dirty scope fits direct-context budget" \
+  || bad "startup context exceeds 9600 bytes: $ctx_bytes"
+for source in startup clear compact resume fork; do
+  matcher=$(jq -r '.hooks.SessionStart[0].matcher' "$(dirname "$HOOK")/hooks.json")
+  printf '%s' "$source" | grep -Eq "^($matcher)$" \
+    && ok "SessionStart matches $source" || bad "SessionStart omits $source"
+done
+
+policy="$(cd "$(dirname "$HOOK")/.." && pwd)/agent-context/session-policy.md"
+printf '%s' "$ctx" | grep -Fq "](<$policy>)" \
+  && [ -r "$policy" ] \
+  && ok "deferred policy has a readable absolute plugin path" || bad "deferred policy pointer cannot resolve from a product cwd"
+
+r=$(fake_root '#!/usr/bin/env bash
+printf "<agent-context-recovery priority=\"high\">\n"
+printf "%020000d\n" 0
+printf "</agent-context-recovery>\n"')
+c=$(ctx_of "$r")
+[ "$(printf '%s' "$c" | LC_ALL=C wc -c | tr -d ' ')" -le 9600 ] \
+  && printf '%s' "$c" | grep -q '</ccl-skills-routing>' \
+  && printf '%s' "$c" | grep -q 'refresh live Git' \
+  && [ "$(tag_balance "$r")" = "1 1" ] \
+  && ok "oversized recovery is replaced whole while mandatory rules stay intact" \
+  || bad "oversized recovery spills or truncates the startup rules"
 
 printf '%s\n' "---" "PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ]

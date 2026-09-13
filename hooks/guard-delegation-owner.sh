@@ -23,7 +23,7 @@
 # Safety posture:
 # - HARD FAIL-OPEN on absent evidence: no jq, no transcript, non-regular
 #   transcript => allow silently. The gate is a nudge, never a blocker.
-# - "ask", never "deny".
+# - Claude: "ask", never "deny". Codex: bounded additionalContext only.
 # - Never echoes transcript content anywhere: the transcript may hold prompt
 #   payloads or secrets. Nothing is written to stderr.
 # - Evidence is the structured Skill tool-use event on a single JSONL line, not
@@ -43,16 +43,15 @@
 # - A crafted transcript line carrying a real-shaped Skill event; and a local
 #   user who can pre-create the verified marker, or edit this file outright. The
 #   trust model is a cooperating developer on their own machine.
-# - A cold session with a very large or slow (network/FUSE) transcript pays a
-#   full scan per dispatch until the owner is loaded; the host's hook timeout
-#   bounds it, and the scan stops early once a match is found.
+# - Transcript inspection is bounded to 20,000 JSONL events; later evidence may
+#   be missed. Host timeout also bounds slow filesystem reads.
 set -u
 IN=$(cat 2>/dev/null) || exit 0
 command -v jq >/dev/null 2>&1 || exit 0
 
 TOOL=$(printf '%s' "$IN" | jq -r '.tool_name // empty' 2>/dev/null)
 case "$TOOL" in
-  Task|Agent) ;;
+  Task|Agent|spawn_agent) ;;
   *) exit 0 ;;
 esac
 
@@ -80,42 +79,27 @@ VERIFIED=""
 # stall the tool call until the hook timeout.
 [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ] || exit 0
 
-# STRUCTURAL evidence, not text matching. Two rounds of adversarial review kept
-# finding new ways to satisfy a regex without a real invocation (fragments in
-# quoted user text, the key on an unrelated tool's input, a pasted example
-# event), so the check no longer looks for a pattern — it parses each candidate
-# line as JSON and requires an actual assistant-authored Skill tool_use whose
-# input.skill IS this owner. Pasted or quoted text cannot satisfy that: in the
-# transcript it is a string value inside a user/text event, not a tool_use node.
-#
-# grep prefilters so jq only parses plausible lines, and the line cap bounds the
-# work on a very large or slow transcript. Overrunning the cap can only cost a
-# redundant prompt, never a false pass.
-# A REQUEST is not a LOAD. Verified against real host transcripts: a completed
-# Skill invocation is two events — an assistant `tool_use` carrying an id, and a
-# later user `tool_result` whose tool_use_id matches it. Accepting the request
-# alone lets one assistant turn emit Skill(...) plus several Task calls at once
-# and have every dispatch pass on a call that may still be pending, denied, or
-# failed. So we require the matching result.
-#
-# The owner name must be the canonical ccl-scoped id: a bare basename could
-# resolve to a different locally installed skill.
-if grep -E '"name"[[:space:]]*:[[:space:]]*"Skill"|"tool_result"' -- "$TRANSCRIPT" 2>/dev/null \
-   | head -n 4000 \
-   | jq -R -r 'fromjson? // empty
-       | if .type == "assistant" then
-           ((.message.content // [])[]?
-            | select(.type == "tool_use" and .name == "Skill"
-                     and (.input.skill? == "ccl-skills:multi-agent-delegation"))
-            | "REQ " + (.id // "?"))
-         elif .type == "user" then
-           ((.message.content // [])[]?
-            | select(.type == "tool_result")
-            | "RES " + (.tool_use_id // "?"))
-         else empty end' 2>/dev/null \
-   | awk '$1=="REQ"{req[$2]=1} $1=="RES"{res[$2]=1}
-          END{for (i in req) if (i in res) {found=1} exit !found}'; then
+# Shared boundary parser recognizes Claude Skill request/result pairs and
+# successful Codex literal SKILL.md reads. Request-only and failed calls do not
+# establish completion. Transcript text is never copied into hook output.
+HELPER="$(cd "$(dirname "$0")" && pwd)/host-input.py"
+command -v python3 >/dev/null 2>&1 && [ -r "$HELPER" ] || {
+  jq -nc '{systemMessage:"Delegation routing reminder unavailable: Python input normalizer missing; skill loading could not be verified."}'
+  exit 0
+}
+SUMMARY=$(python3 "$HELPER" transcript "$TRANSCRIPT" 2>/dev/null) || exit 0
+if printf '%s' "$SUMMARY" | jq -e '.completed_skills | index("ccl-skills:multi-agent-delegation") != null' >/dev/null 2>&1; then
   [ -n "$VERIFIED" ] && mkdir "$VERIFIED" 2>/dev/null
+  exit 0
+fi
+
+# Codex does not support permissionDecision ask. This optional routing reminder
+# is context, once per session; its marker records delivery, never approval.
+if [ "$TOOL" = spawn_agent ]; then
+  REMINDED="${VERIFIED:+$VERIFIED.advisory}"
+  [ -n "$REMINDED" ] && [ -d "$REMINDED" ] && exit 0
+  [ -n "$REMINDED" ] && mkdir "$REMINDED" 2>/dev/null
+  jq -nc '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:"Delegation routing reminder (advisory): load ccl-skills:multi-agent-delegation before dispatch and include its required owner, scope, time bound, and parent verification fields. A completed literal cat read of its SKILL.md is recognized; unsupported read formats remain unverifiable. This reminder does not grant authorization."}}'
   exit 0
 fi
 

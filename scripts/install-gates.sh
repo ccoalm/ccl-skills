@@ -64,6 +64,7 @@ SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}" 2>/dev/null)" || { echo "install-gat
 SELF_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd -P)"
 AGENTS_SRC="$SELF_DIR/../skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh"
 OD_SRC="$SELF_DIR/owner-dispatch/owner-dispatch.sh"
+HOST_INPUT_SRC="$SELF_DIR/../hooks/host-input.py"
 CP_SRC="$SELF_DIR/control-plane/control-plane.sh"
 
 die() { printf 'install-gates: %s\n' "$*" >&2; exit 1; }
@@ -176,6 +177,7 @@ command -v git >/dev/null 2>&1 || die "git required"
 command -v realpath >/dev/null 2>&1 || die "realpath required"
 want agents && assert_trusted_src "$AGENTS_SRC"
 want owner-dispatch && assert_trusted_src "$OD_SRC"
+want owner-dispatch && assert_trusted_src "$HOST_INPUT_SRC"
 want control-plane && assert_trusted_src "$CP_SRC"
 
 [ -d "$TARGET" ] || die "target is not a directory: $TARGET"
@@ -242,6 +244,7 @@ vendor_script() { # $1 trusted-src  $2 dest-rel-under-target
 }
 want agents && vendor_script "$AGENTS_SRC" "tools/check-agent-contract-coverage.sh"
 want owner-dispatch && vendor_script "$OD_SRC" "scripts/owner-dispatch/owner-dispatch.sh"
+want owner-dispatch && vendor_script "$HOST_INPUT_SRC" "hooks/host-input.py"
 want control-plane && vendor_script "$CP_SRC" "scripts/control-plane/control-plane.sh"
 
 # The vendored dirs hold ONLY a gate engine, but the coverage scan treats any .sh dir as
@@ -277,6 +280,7 @@ No product code lives in this directory.
 if [ "$SCAFFOLD" = 1 ]; then
   want agents && write_machinery_contract "tools" "check-agent-contract-coverage.sh" "agents-file-coverage-gate"
   want owner-dispatch && write_machinery_contract "scripts/owner-dispatch" "owner-dispatch.sh" "owner-dispatch"
+  want owner-dispatch && write_machinery_contract "hooks" "host-input.py" "host input normalization"
   want control-plane && write_machinery_contract "scripts/control-plane" "control-plane.sh" "control-plane"
 fi
 

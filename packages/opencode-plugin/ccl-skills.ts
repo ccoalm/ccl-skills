@@ -64,6 +64,7 @@ const OPENCODE_HOOK_BINDINGS = Object.freeze({
   "subagent-start.sh": "tool.execute.before:task/agent",
   "owner-dispatch-stop.sh": "event:session.idle/session.status",
   "skill-extraction-gate-stop.sh": "event:session.idle/session.status",
+  "proposed-next-stop.sh": "event:session.idle/session.status",
 })
 
 type HookJson = {
@@ -630,10 +631,14 @@ export const CclSkills = async (context: {
       if (!isIdle || idleInFlight.has(sessionID)) return
       idleInFlight.add(sessionID)
       try {
-        const stopPayload = payload(sessionID, { stop_hook_active: false })
+        // Idle events do not carry an authoritative final assistant message.
+        // Formatting backstops stay unverifiable rather than reading stale text
+        // from the intentionally metadata-only adapter transcript.
+        const stopPayload = payload(sessionID, { hook_event_name: "Stop", stop_hook_active: false, last_assistant_message: null })
         const results = [
           runHook(hooksRoot, "owner-dispatch-stop.sh", stopPayload, directory, 10_000),
           runHook(hooksRoot, "skill-extraction-gate-stop.sh", stopPayload, directory, 15_000),
+          runHook(hooksRoot, "proposed-next-stop.sh", stopPayload, directory, 5_000),
         ]
         const reasons = results
           .filter((result) => result.output?.decision === "block" && typeof result.output.reason === "string")
