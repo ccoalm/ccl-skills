@@ -7,7 +7,7 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
-HOOK="$SCRIPT_DIR/merge-authorization-prompt.sh"
+HOOK="${HOOK:-$SCRIPT_DIR/merge-authorization-prompt.sh}"
 [ -f "$HOOK" ] || { echo "FAIL: hook not found: $HOOK" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq required for this suite" >&2; exit 1; }
 
@@ -18,11 +18,14 @@ SID="sess-prompt-test"
 AUTH_DIR="$tmp/ccl-skills-merge-auth-$(id -u)"
 SENT="$AUTH_DIR/$SID"
 
+git -C "$tmp" init -q repo
+git -C "$tmp/repo" remote add origin https://example.invalid/team/project.git
+
 pass=0; fail=0
 
 send() { # send <prompt> [sid]
   local p="$1" s="${2-$SID}"
-  jq -nc --arg p "$p" --arg s "$s" '{prompt:$p,session_id:$s}' | TMPDIR="$tmp" bash "$HOOK"
+  jq -nc --arg p "$p" --arg s "$s" --arg w "$tmp/repo" '{prompt:$p,session_id:$s,cwd:$w}' | TMPDIR="$tmp" bash "$HOOK"
 }
 
 expect_armed() { # expect_armed <prompt> [expected sentinel content]
@@ -160,8 +163,9 @@ fi
 rm -f "$SENT"
 
 # --- degrade / hostile inputs: no session_id, path-traversal session_id ---
+before_missing_sid=$(ls -A "$AUTH_DIR" 2>/dev/null)
 jq -nc '{prompt:"合并"}' | TMPDIR="$tmp" bash "$HOOK"
-if [ ! -d "$AUTH_DIR" ] || [ -z "$(ls -A "$AUTH_DIR" 2>/dev/null)" ]; then pass=$((pass+1)); else
+if [ "$(ls -A "$AUTH_DIR" 2>/dev/null)" = "$before_missing_sid" ]; then pass=$((pass+1)); else
   fail=$((fail+1)); echo 'FAIL  missing session_id must be a no-op' >&2
 fi
 send '合并' '../evil'
@@ -170,6 +174,55 @@ if [ ! -f "$tmp/evil" ] && [ ! -f "$AUTH_DIR/../evil" ]; then pass=$((pass+1)); 
 fi
 out=$(printf 'not-json' | TMPDIR="$tmp" bash "$HOOK")
 if [ -z "$out" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL  bad json -> $out" >&2; fi
+
+# Target goals have a closed grammar and retain their original deadline.
+expect_goal() {
+  send "$1"
+  if sed -n '1p' "$SENT" 2>/dev/null | jq -e '.kind == "target-goal" and .state == "active" and .id == "123" and .repo == "example.invalid/team/project"' >/dev/null 2>&1; then
+    pass=$((pass+1))
+  else fail=$((fail+1)); echo "FAIL target goal not armed: $1" >&2; fi
+}
+expect_goal '完成并合并 PR #123'
+expect_goal 'finish and merge PR #123'
+for bad in '完成并合并 PR #123？' '不要完成并合并 PR #123' '如果通过，完成并合并 PR #123' '“完成并合并 PR #123”' '完成并合并 PR #123 然后发布' '完成并合并 PR #0123' '发布下个 npm 补丁'; do
+  expect_not_armed "$bad"
+done
+for neutral in '继续' '继续吧' '进度' '状态' 'continue' 'status' 'progress'; do
+  rm -f "$SENT"
+  send "$neutral"
+  if [ ! -f "$SENT" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL neutral created authority: $neutral" >&2; fi
+  expect_goal '完成并合并 PR #123'
+  old_ts=$(date -v-30M +%Y%m%d%H%M 2>/dev/null || date -d '-30 minutes' +%Y%m%d%H%M)
+  touch -t "$old_ts" "$SENT"
+  cp -p "$SENT" "$tmp/before-neutral"
+  send "$neutral"
+  if cmp -s "$SENT" "$tmp/before-neutral" && [ ! "$SENT" -nt "$tmp/before-neutral" ]; then
+    pass=$((pass+1))
+  else fail=$((fail+1)); echo "FAIL neutral must preserve scope and original expiry: $neutral" >&2; fi
+done
+expect_goal '完成并合并 PR #123'
+send '先改 README'
+if sed -n '1p' "$SENT" 2>/dev/null | jq -e '.state == "suspended"' >/dev/null 2>&1; then pass=$((pass+1)); else fail=$((fail+1)); echo 'FAIL unresolved message must suspend goal' >&2; fi
+send '继续'
+if sed -n '1p' "$SENT" 2>/dev/null | jq -e '.state == "suspended"' >/dev/null 2>&1; then pass=$((pass+1)); else fail=$((fail+1)); echo 'FAIL neutral must not reactivate suspended goal' >&2; fi
+for revoke in '停止' '停一下' '不要合并' '撤销合并授权' 'stop' 'pause' 'cancel merge'; do
+  expect_goal '完成并合并 PR #123'
+  send "$revoke"
+  if [ ! -f "$SENT" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL explicit revocation: $revoke" >&2; fi
+done
+send '批量合并 3'
+send '继续'
+if [ ! -f "$SENT" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo 'FAIL legacy batch still clears on neutral prompt' >&2; fi
+git -C "$tmp/repo" remote set-url origin 'https://user:password@example.invalid/team/project.git'
+expect_not_armed '完成并合并 PR #123'
+git -C "$tmp/repo" remote set-url origin 'git@example.invalid:team/project.git'
+expect_goal '完成并合并 PR #123'
+git -C "$tmp/repo" remote set-url origin 'ssh://git@example.invalid/team/project.git'
+expect_goal '完成并合并 PR #123'
+git -C "$tmp/repo" remote set-url origin $'https://example.invalid/team/project.git\nhttps://user:password@example.org/team/other'
+expect_not_armed '完成并合并 PR #123'
+git -C "$tmp/repo" remote remove origin
+expect_not_armed '完成并合并 PR #123'
 
 if [ "$fail" -ne 0 ]; then
   echo "test_merge_authorization_prompt: FAIL pass=$pass fail=$fail" >&2

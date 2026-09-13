@@ -11,8 +11,10 @@
 # direct default-branch pushes stay hard-denied there).
 #
 # Semantics (spec: specs/007-merge-gate-user-directive-valve/spec.md):
-#   - Every user prompt CLEARS any pending sentinel first — authorization
-#     always reflects the LATEST user message, never an earlier one.
+#   - Legacy single/count grants clear on every new prompt. Target-goal
+#     grants retain one use for 60 minutes across a closed neutral vocabulary;
+#     explicit revocation removes them and other messages suspend them.
+#     This execution cache does not decide arbitrary natural-language authority.
 #   - The sentinel is re-armed only when the whole (single-line, trimmed)
 #     message is a standalone explicit merge directive: 合并 / merge /
 #     land it / 合并吧 / 请直接合并 / merge !546 / 可以合并 / 合并这个MR …
@@ -55,6 +57,8 @@ case "$sid" in */*|*..*) exit 0 ;; esac   # session_id is a path component
 auth_dir="${TMPDIR:-/tmp}/ccl-skills-merge-auth-$(id -u)"
 sentinel="$auth_dir/$sid"
 lock_dir="$auth_dir/$sid.lock"
+epoch_file="$sentinel.epoch"
+grant_epoch_file="$sentinel.grant-epoch"
 
 # Per-session critical-section lock, shared with the guard's consume/re-arm
 # path. Closes the revocation race (review P1): without it, a user prompt
@@ -79,30 +83,103 @@ acquire_lock() {
   return 0
 }
 
-locked=0
-if [ -d "$auth_dir" ] || mkdir -p "$auth_dir" 2>/dev/null; then
-  chmod 700 "$auth_dir" 2>/dev/null
-  if acquire_lock; then
-    locked=1
-    trap 'rmdir "$lock_dir" 2>/dev/null' EXIT
+# An invalidation epoch is published BEFORE waiting for the consume lock.
+# A consumer paused after mv must observe it before rearming or emitting allow.
+# Grant publication also checks the epoch, so an older prompt cannot overwrite
+# a newer invalidation after finally acquiring the lock.
+advance_epoch() {
+  local next
+  next=$(mktemp "$epoch_file.XXXXXX") || return 1
+  epoch="${next##*/}"
+  if printf '%s\n' "$epoch" >"$next" && mv "$next" "$epoch_file"; then return 0; fi
+  rm -f "$next"
+  return 1
+}
+write_grant() {
+  local next="$sentinel.new.$$"
+  [ "$locked" = 1 ] && [ "$(cat "$epoch_file" 2>/dev/null)" = "$epoch" ] || return 1
+  if printf '%s\n' "$1" >"$next" \
+    && printf '%s\n' "$epoch" >"$grant_epoch_file" \
+    && mv "$next" "$sentinel"; then return 0; fi
+  rm -f "$next" "$sentinel"
+  return 1
+}
+
+[ -d "$auth_dir" ] || mkdir -p "$auth_dir" 2>/dev/null || exit 0
+chmod 700 "$auth_dir" 2>/dev/null
+trimmed=$(printf '%s' "$prompt" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+trimmed=$(printf '%s' "$trimmed" | sed $'s/０/0/g; s/１/1/g; s/２/2/g; s/３/3/g; s/４/4/g; s/５/5/g; s/６/6/g; s/７/7/g; s/８/8/g; s/９/9/g')
+neutral=0
+case "$prompt" in
+  *$'\n'*|*$'\r'*) trimmed="" ;;
+  *) printf '%s' "$trimmed" | grep -Eiq '^(继续|继续吧|进度|状态|continue|status|progress)[。.!！]*$' && neutral=1 ;;
+esac
+# Neutral messages need the lock before deciding whether a goal may survive.
+# A lock timeout is unresolved and invalidates the execution cache safely.
+epoch=""; locked=0
+if [ "$neutral" = 0 ]; then
+  advance_epoch || { rm -f "$sentinel"; exit 0; }
+fi
+if acquire_lock; then
+  locked=1
+  trap 'rmdir "$lock_dir" 2>/dev/null' EXIT
+else
+  [ -n "$epoch" ] || advance_epoch
+  rm -f "$sentinel" 2>/dev/null
+  exit 0
+fi
+if [ "$neutral" = 1 ] \
+  && [ -f "$sentinel" ] && [ -O "$sentinel" ] \
+  && jq -e '.kind == "target-goal" and (.state == "active" or .state == "suspended")' "$sentinel" >/dev/null 2>&1 \
+  && [ "$(cat "$grant_epoch_file" 2>/dev/null)" = "$(cat "$epoch_file" 2>/dev/null)" ]; then
+  exit 0 # Preserve bytes and mtime; neutral never resumes a suspended grant.
+fi
+[ -n "$epoch" ] || advance_epoch || { rm -f "$sentinel"; exit 0; }
+[ "$(cat "$epoch_file" 2>/dev/null)" = "$epoch" ] || exit 0
+
+# Whole-message target goals are bounded to the current origin repository.
+# Only credential-free HTTPS/SSH repository URLs with literal path segments
+# are recognized. No host configuration, remote API or agent-written plan is
+# used to infer the scope. Unsupported origin forms remain unresolved.
+if printf '%s' "$trimmed" | grep -Eiq '^(请[[:space:]]*)?(完成并合并|finish[[:space:]]+and[[:space:]]+merge)[[:space:]]+(PR|MR)[[:space:]]+[!#]?[1-9][0-9]{0,5}[。.!！]*$'; then
+  cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+  repo=$(git -C "$cwd" config --local --get remote.origin.url 2>/dev/null)
+  case "$repo" in
+    https://*) repo="${repo#https://}" ;;
+    ssh://git@*) repo="${repo#ssh://git@}" ;;
+    git@*:*) repo="${repo#git@}"; repo="${repo/:/\/}" ;;
+    *) repo="" ;;
+  esac
+  repo="${repo%.git}"
+  case "$repo" in *$'\n'*|*$'\r'*|*/./*|*/../*|*/.|*/..) repo="" ;; esac
+  if printf '%s' "$repo" | grep -Eq '^[A-Za-z0-9.-]+/[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)+$'; then
+    host="${repo%%/*}"; path="${repo#*/}"
+    repo="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')/$path"
+    num=$(printf '%s' "$trimmed" | grep -Eo '[1-9][0-9]{0,5}' | head -1)
+    family=gh
+    printf '%s' "$trimmed" | grep -Eiq '[[:space:]]MR[[:space:]]' && family=glab
+    line=$(jq -nc --arg id "$num" --arg repo "$repo" --arg family "$family" '{kind:"target-goal",state:"active",id:$id,repo:$repo,family:$family}')
+    write_grant "$line"
+    exit 0
   fi
 fi
 
-# Latest-message semantics: any new prompt invalidates a pending grant.
-# Revocation runs even when the lock could not be acquired (removing a
-# grant is always the safe direction); ARMING below additionally requires
-# the lock (arming into an unknown interleaving is not safe — false
-# negatives are fine, the user re-issues the directive).
-rm -f "$sentinel" 2>/dev/null
-
-[ -z "$prompt" ] && exit 0
-# Multi-line messages are never a standalone directive.
-case "$prompt" in *$'\n'*) exit 0 ;; esac
-
-trimmed=$(printf '%s' "$prompt" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
-# Normalize fullwidth digits ０-９ → 0-9 (challenge R2 P2): a Chinese IME
-# naturally yields "批量合并 ３０"; the count grammar/extraction is ASCII.
-trimmed=$(printf '%s' "$trimmed" | sed $'s/０/0/g; s/１/1/g; s/２/2/g; s/３/3/g; s/４/4/g; s/５/5/g; s/６/6/g; s/７/7/g; s/８/8/g; s/９/9/g')
+# Revocation is stronger than suspension. Other unclassified messages retain
+# the goal's scope for explanation, but the guard cannot execute it. Only a
+# fresh explicit directive can reactivate it; a later "continue" cannot.
+if [ -f "$sentinel" ] && jq -e '.kind == "target-goal"' "$sentinel" >/dev/null 2>&1; then
+  if printf '%s' "$trimmed" | grep -Eiq '^(停|停一下|停止|不要合并|取消合并|撤销合并授权|stop|pause|cancel[[:space:]]+merge|revoke[[:space:]]+merge[[:space:]]+authorization)[。.!！]*$'; then
+    rm -f "$sentinel"
+  else
+    next="$sentinel.new.$$"
+    if jq -c '.state = "suspended"' "$sentinel" >"$next" \
+      && touch -r "$sentinel" "$next" \
+      && printf '%s\n' "$epoch" >"$grant_epoch_file" \
+      && mv "$next" "$sentinel"; then :; else rm -f "$next" "$sentinel"; fi
+  fi
+else
+  rm -f "$sentinel" 2>/dev/null
+fi
 
 # BATCH directive first (patterns are disjoint — the single-directive match
 # below has no 批量/batch prefix). Anchored whole-message match: optional
@@ -116,7 +193,7 @@ if printf '%s' "$trimmed" | grep -Eiq \
   # yet when the chain starts); the prose duty to merge only the presented
   # release plan stays with the agent (worktree-isolation 合并执行协议).
   n=$(printf '%s' "$trimmed" | grep -Eo '[1-9][0-9]{0,2}' | head -1)
-  [ -n "$n" ] && printf 'armed batch %s\n' "$n" >"$sentinel" 2>/dev/null
+  [ -n "$n" ] && write_grant "armed batch $n"
   exit 0
 fi
 
@@ -133,9 +210,9 @@ if printf '%s' "$trimmed" | grep -Eiq \
   # discussed MR stays with the agent).
   num=$(printf '%s' "$trimmed" | grep -Eo '[!#]?[0-9]{1,6}' | head -1 | tr -d '!#')
   if [ -n "$num" ]; then
-    printf 'armed %s\n' "$num" >"$sentinel" 2>/dev/null
+    write_grant "armed $num"
   else
-    printf 'armed\n' >"$sentinel" 2>/dev/null
+    write_grant "armed"
   fi
 fi
 

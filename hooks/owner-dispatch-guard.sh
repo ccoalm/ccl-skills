@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 # PreToolUse handler — owner-dispatch firing gate (fast path).
-# Thin wrapper: delegates to the shared engine and is hard FAIL-OPEN — it always
-# exits 0, and only forwards the engine's decision JSON when the engine produced it
-# cleanly (rc 0 + non-empty). Any engine error/crash/timeout => no output => allow.
-# Enforcement is hard only on Claude Code; Codex runs this hook but ignores the
-# decision (advisory). Host-agnostic hard enforcement is the engine's `ci` subcommand.
+# Existing opt-in policy takes precedence. The default source-edit checkpoint
+# creates one model replan opportunity per actor/context; it is not a load-proof
+# gate. Failures preserve the engine output and never synthesize an allow.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+IN=$(cat 2>/dev/null) || exit 0
 ENGINE="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/scripts/owner-dispatch/owner-dispatch.sh"
-[ -r "$ENGINE" ] || exit 0
-out=$(bash "$ENGINE" pretool 2>/dev/null); rc=$?
-[ "$rc" -eq 0 ] && [ -n "$out" ] && printf '%s' "$out"
+out=""
+if [ -r "$ENGINE" ]; then
+  out=$(printf '%s' "$IN" | bash "$ENGINE" pretool 2>/dev/null) || out=""
+fi
+if command -v python3 >/dev/null 2>&1 && [ -r "$SCRIPT_DIR/skill-loading.py" ]; then
+  result=$(printf '%s' "$IN" | python3 "$SCRIPT_DIR/skill-loading.py" "$out" 2>/dev/null)
+  if [ $? -eq 0 ]; then
+    [ -n "$result" ] && printf '%s' "$result"
+    exit 0
+  fi
+fi
+[ -n "$out" ] && printf '%s' "$out"
 exit 0

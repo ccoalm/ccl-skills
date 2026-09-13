@@ -29,8 +29,10 @@ class SourceInstallStatusTests(unittest.TestCase):
             "packages/opencode-plugin/ccl-skills.ts": "export default {}\n",
             "packages/opencode-plugin/commands/ccl-sample.md": "sample command\n",
             "agent-context/session-start.md": "session context\n",
+            "agent-context/session-policy.md": "session policy\n",
             "agent-context/subagent-start.md": "subagent context\n",
             "hooks/hooks.json": "{}\n",
+            "hooks/host-input.py": "# synthetic input normalizer fixture\n",
             "hooks/sample.sh": "exit 0\n",
             "scripts/owner-dispatch/owner-dispatch.sh": "exit 0\n",
         }

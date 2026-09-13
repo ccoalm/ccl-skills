@@ -19,8 +19,9 @@
 | `skills/skill-extraction-workflow/` | 元技能:如何提炼/更新/评审技能(贡献规则的权威来源) |
 | `skills/skill-extraction-workflow/scripts/check-ccl-skills.sh` | 仓库验证门禁(frontmatter / overlay / 泄漏 / 路由 / 引用),内含 F4 Tier-1 路由分析器 |
 | `skills/skill-extraction-workflow/scripts/eval-routing*.rb` · `eval-golden-trace.rb` | F4 路由有效性 harness(静态分析器 / 廉价 grader / 真 agent 回放),见治理段 |
-| `hooks/` | 三端共用的运行时护栏；Claude Code 与 Codex 直接消费 plugin hooks，OpenCode 通过原生事件 adapter 调用同一批脚本。`hooks.json` 把 10 个脚本挂在 7 个事件上；另有 `session-context.sh` helper 和 6 个 `test_*.sh` |
+| `hooks/` | Claude Code 与 Codex 直接消费 plugin hooks，OpenCode 通过原生事件 adapter 调用脚本。`hooks.json` 定义事件绑定；`host-input.py` 归一化宿主输入，`session-context.sh` 提供恢复索引，测试覆盖允许、拒绝与降级路径 |
 | `agent-context/session-start.md` | 注入每个会话的路由指引(被 SessionStart hook 加载) |
+| `agent-context/session-policy.md` | 启动入口按动作引用的完整规则；安装包保留可解析路径 |
 | `agent-context/subagent-start.md` | 子 agent 派活时的 owner 路由约定(被 SubagentStart hook 加载) |
 | `AGENTS.md` · `opencode.json` | OpenCode / 通用 agent 开工契约、项目级技能扫描配置和高频场景 command |
 | `scripts/install.sh` · `Makefile` | 安装/更新/清缓存/跑门禁与 eval(`make help` 列全部目标) |
@@ -41,7 +42,9 @@
 - **入口路由器**:跨阶段交付先走 `product-rd-workflow`,它再分派设计/架构/dev/测试/发布。
 - **会话注入**:`agent-context/session-start.md` 经 SessionStart hook 注入 Claude Code 与 Codex；OpenCode 在源仓内通过 `opencode.json` 加载，在安装场景由原生 plugin 的 system transform 调用 bundled `session-start.sh`。
 - **OpenCode 原生路径**:`scripts/install-opencode.sh` 默认同步 skills、commands、plugin、bootstrap 和 `ccl-skills/runtime`，并兼容刷新 `~/.agents/skills`；`--project` 把同一闭包同步到当前仓 `.opencode/`。
-- **运行时拦截**:路由没走对也拦得住这一层,靠 hook 在动手那一刻校验,不靠模型自觉。
+- **运行时检查**:编辑隔离与授权检查保持各自策略。首次明确的源码编辑、当前上下文未核实 owner 加载的委派，各退回 Agent 一次，让它按已有路由补读技能后重试；不请求用户批准读技能。重试和并行的其它调用仍可能执行，因此这个检查点不保证 owner 选择正确，也不替代项目自选的 owner-dispatch 检查。
+- **压缩恢复**:`PreCompact` 记录旧边界，`PostCompact` 按 actor 作废旧状态；确认新原生边界后才接受重新加载的证据，避免延迟日志把旧读取算成新读取。恢复提示在下一次源码编辑或委派前送达。只读技能名称、失败或截断的结果不算完整加载；分段读取须覆盖完整正文。标记只限制提醒次数，不表示已加载或已授权。
+- **交接提醒**:Claude Code 与 Codex 的 Stop hook 在有研发交付证据、当前最终回复缺少 `proposed-next:` 时提醒修正一次；它不生成目标或授权。缺少当前回复或流程证据时不拦截。OpenCode idle 事件未提供当前最终回复，因此该格式检查保持未验证。
 
 技能协同要同时看三种结构，不能把它们压成一张平铺清单或一条固定链：
 
@@ -56,7 +59,8 @@ owner 之间的关系边按作用分四组：路由与边界（入口分派、Sk
 | 事件 | hook 干什么 |
 |---|---|
 | `SessionStart` · `SubagentStart` | 注入 `agent-context/` 下同名文件的路由纪律 + 当前 repo/branch/head/dirty/近期提交等会话上下文 |
-| `PreToolUse` | 四道闸:编辑隔离(主检出/`.worktree-only`)、owner-dispatch、合并授权、委托 owner 校验 |
+| `PreToolUse` | 编辑隔离、项目 owner-dispatch、合并授权，以及源码编辑与委派的有限技能加载检查点 |
+| `PreCompact` · `PostCompact` | 前者记录旧边界，后者作废当前 actor 的旧技能状态；恢复提示由后续 `PreToolUse` 送达 |
 | `UserPromptSubmit` | 合并授权哨兵——用户单独回"合并"/"批量合并 N"时布防 |
 | `Stop` · `SubagentStop` | 收尾核 owner 是否真被调用、技能改动是否挂过提炼 |
 | `PostToolUse` | 合并命令跑完注入 worktree 清理清单(非阻断提醒) |

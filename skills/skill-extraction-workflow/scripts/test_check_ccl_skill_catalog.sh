@@ -60,6 +60,11 @@ new_case() {
   rm -rf "$CASE_DIR/skills"
   mkdir -p "$CASE_DIR/skills"
   cp -R "$candidate_skill_root/skills/." "$CASE_DIR/skills/"
+  # Candidate ledger firing paths may name a newly added shipped hook. Keep the
+  # executable surface with its candidate contracts instead of committed HEAD.
+  rm -rf "$CASE_DIR/hooks"
+  mkdir -p "$CASE_DIR/hooks"
+  cp -R "$REPO_ROOT/hooks/." "$CASE_DIR/hooks/"
   cp "$REPO_ROOT/docs/SKILLS.md" "$CASE_DIR/docs/SKILLS.md"
   cp "$REPO_ROOT/agent-context/session-start.md" "$CASE_DIR/agent-context/session-start.md"
   cp "$candidate_eval_root/eval/routing-tasks.jsonl" "$CASE_DIR/eval/routing-tasks.jsonl"

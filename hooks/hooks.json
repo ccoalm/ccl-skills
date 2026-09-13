@@ -2,7 +2,7 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|clear|compact",
+        "matcher": "startup|clear|compact|resume|fork",
         "hooks": [
           {
             "type": "command",
@@ -144,6 +144,37 @@
             "timeout": 15,
             "async": false,
             "statusMessage": "extraction-gate backstop"
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/proposed-next-stop.sh\"",
+            "timeout": 5,
+            "async": false,
+            "statusMessage": "Checking delivery handoff..."
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/skill-context-compact.sh\"",
+            "timeout": 5,
+            "async": false
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/skill-context-compact.sh\"",
+            "timeout": 5,
+            "async": false
           }
         ]
       }
