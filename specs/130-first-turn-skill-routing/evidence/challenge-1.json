@@ -1,0 +1,353 @@
+{
+  "schema_version": 3,
+  "mode": "challenge",
+  "stage": "release",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "findings",
+  "selected_client": "claude",
+  "selected_reviewer": "claude",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P2",
+      "file": "skills/code-review/scripts/review_gate.py",
+      "line": 3342,
+      "failure_path": "Any direct controller caller, not only extraction_review_gate.sh, can pass --review-lane extraction --mode review --challenge-budget 0 at release depth or with shared-gate tags. The 'not extraction_pass' exemption skips 'release and high-risk review require at least one challenge'. The result is a conclusive high-risk review with no challenge obligation in the controller. Only a review_lane field marks it, and neither the CI presence check nor the hooks read that field. The gated party picks the lane, so it rules on its own exemption. The tests cover only the wrapper and the default staged refusal, not a direct misuse on a non-extraction candidate.",
+      "smallest_fix": "Refuse --review-lane extraction unless the controller-derived owner_selection_evidence already includes skill-extraction-workflow (before the lane adds it). Alternatively, require a marker that only the wrapper sets. Add a regression: a direct controller call with the extraction lane on a non-skill candidate at release depth exits 2."
+    },
+    {
+      "severity": "P2",
+      "file": "hooks/host-input.py",
+      "line": 40,
+      "failure_path": "The status exclusion accepts only 'none' or 'none — status only'. A handoff that correctly reports a blocker, such as 'proposed-next: blocked: need user decision on X' or 'proposed-next: none — awaiting approval', counts as an actionable declaration. It therefore receives the 'execute it now instead of waiting' block. This over-triggers on the exact handoff the pre-final gate prescribes, which pressures the agent to push past a required user decision. The tests only check unmarked text and the exact status-only strings.",
+      "smallest_fix": "Also treat markers that start with 'blocked:' and markers that start with 'none' as non-actionable. Add negative Stop fixtures for 'proposed-next: blocked: …' and 'proposed-next: none — awaiting …'."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [],
+  "attempts": [
+    {
+      "client": "claude",
+      "mode": "challenge",
+      "findings": [
+        {
+          "severity": "P2",
+          "file": "skills/code-review/scripts/review_gate.py",
+          "line": 3342,
+          "failure_path": "Any direct controller caller, not only extraction_review_gate.sh, can pass --review-lane extraction --mode review --challenge-budget 0 at release depth or with shared-gate tags. The 'not extraction_pass' exemption skips 'release and high-risk review require at least one challenge'. The result is a conclusive high-risk review with no challenge obligation in the controller. Only a review_lane field marks it, and neither the CI presence check nor the hooks read that field. The gated party picks the lane, so it rules on its own exemption. The tests cover only the wrapper and the default staged refusal, not a direct misuse on a non-extraction candidate.",
+          "smallest_fix": "Refuse --review-lane extraction unless the controller-derived owner_selection_evidence already includes skill-extraction-workflow (before the lane adds it). Alternatively, require a marker that only the wrapper sets. Add a regression: a direct controller call with the extraction lane on a non-skill candidate at release depth exits 2."
+        },
+        {
+          "severity": "P2",
+          "file": "hooks/host-input.py",
+          "line": 40,
+          "failure_path": "The status exclusion accepts only 'none' or 'none — status only'. A handoff that correctly reports a blocker, such as 'proposed-next: blocked: need user decision on X' or 'proposed-next: none — awaiting approval', counts as an actionable declaration. It therefore receives the 'execute it now instead of waiting' block. This over-triggers on the exact handoff the pre-final gate prescribes, which pressures the agent to push past a required user decision. The tests only check unmarked text and the exact status-only strings.",
+          "smallest_fix": "Also treat markers that start with 'blocked:' and markers that start with 'none' as non-actionable. Add negative Stop fixtures for 'proposed-next: blocked: …' and 'proposed-next: none — awaiting …'."
+        }
+      ],
+      "concern_results": [
+        {
+          "concern": "challenge_focus",
+          "conclusion": "I found no prompt disclosure. task-entry.sh never reads stdin, and OpenCode passes it an empty payload. Task-entry delivery is registered, packed and tested. The Stop recheck is bounded by stop_hook_active on Claude Code and Codex. Two gaps remain open. First, a caller can pick the extraction lane to skip the release/high-risk challenge requirement. Second, the actionable-marker branch treats any non-'none' marker as work, so it also fires on a legitimate 'blocked:' handoff."
+        },
+        {
+          "concern": "high_risk_boundary",
+          "conclusion": "The controller's release/high-risk challenge requirement can be skipped without its trigger. A direct controller call with --review-lane extraction and --challenge-budget 0 produces a conclusive single review, and the gated party chooses that lane itself. The completion replay refusal covers only the complete mode, not consumers of review receipts. No new permission sink is added: the Stop reminder supplies no authority, and the renderer is independent of the prompt."
+        }
+      ],
+      "lens_id": "code-review:challenge:no-tools-adversarial",
+      "tool_identity": "code-review:no-tools",
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "status": "findings",
+      "packet_sha256": "aada0da4ef453c1befe6d0f1e2a413b9efbb040a6320b66f56bf3007710088b9"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "aada0da4ef453c1befe6d0f1e2a413b9efbb040a6320b66f56bf3007710088b9",
+  "candidate_sha256": "c4b8f102a90de2fc9fadcbe3a8cd9ec620a0d162755b5acfa90372f62371a165",
+  "review_context_sha256": "d8ad7016ba6fcfc05e32009b4812c3b4bf8e029651a78850219b29e6bc862fb2",
+  "review_controller_sha256": "2443908f46cda5b4a6abd093e66d17908bec1609f2828f8f30692d69b67776cb",
+  "review_profile_sha256": "e261680d2e01a1593cf1a39f7df16ae2329a9b5421ccf9c8bf15b42bdaaccfb5",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/SKILL.md"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/references/staged-review-contract.md"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/review_gate.py"
+    },
+    {
+      "skill": "product-rd-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/product-rd-workflow/references/pre-final-continuation-gate.md"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/host-input.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/test_proposed_next.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/test_task_entry.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/code-review/scripts/review_gate.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/extraction_review_gate.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "hooks/proposed-next-stop.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "hooks/task-entry.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/extraction_review_gate.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "hooks/test_proposed_next.py"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "hooks/test_task_entry.py"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "packages/ccl-skills-npm/test/opencode-hooks.test.mjs"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "packages/ccl-skills-npm/test/pack.test.mjs"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "web-react-dev",
+      "source": "file-type:.mjs",
+      "path": "packages/ccl-skills-npm/test/opencode-hooks.test.mjs"
+    },
+    {
+      "skill": "web-react-dev",
+      "source": "file-type:.mjs",
+      "path": "packages/ccl-skills-npm/test/pack.test.mjs"
+    },
+    {
+      "skill": "web-react-dev",
+      "source": "file-type:.ts",
+      "path": "packages/opencode-plugin/ccl-skills.ts"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "repository_contract": null,
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "claude-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "llm-inference-integration",
+    "nodejs-service-dev",
+    "product-rd-workflow",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "selected_skills_sha256": "504009b5597f1a9e5c4240c7b3ce055bfcb19c70ef87041099dee5f100ecbace",
+  "risk_tags": [
+    "ai-output",
+    "external-integration",
+    "shared-gate"
+  ],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 1,
+  "challenge_index": 1,
+  "challenge_focus": "Challenge the whole candidate for actionable failures, especially prompt disclosure, missed task-entry context, Stop authorization and loop boundaries, extraction versus staged review evidence, and packaged runtime behavior. The prior finding remains open for independent severity assessment.",
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "4ab91d3dffed3c1f2f22d13a601eac8608f7ab1efeaccff19cdb06bf3f81f20d",
+    "acceptance_sha256": "e407c976e512f707bf40b9b6dd687e31557d1efa97069f453aaf15f707133ae7",
+    "stage": "release",
+    "review_depth": "release",
+    "risk_tags": [
+      "ai-output",
+      "external-integration",
+      "shared-gate"
+    ],
+    "challenge_budget": 1,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "2fdc148b64fd7946deea8f1bf2c7a8e23f78d12bb4b2af669a0359c16c9bdf18",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 2,
+  "autonomous_review_index": 2,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review",
+      "risk_or_scope_escalation"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "challenge_focus",
+      "conclusion": "I found no prompt disclosure. task-entry.sh never reads stdin, and OpenCode passes it an empty payload. Task-entry delivery is registered, packed and tested. The Stop recheck is bounded by stop_hook_active on Claude Code and Codex. Two gaps remain open. First, a caller can pick the extraction lane to skip the release/high-risk challenge requirement. Second, the actionable-marker branch treats any non-'none' marker as work, so it also fires on a legitimate 'blocked:' handoff."
+    },
+    {
+      "concern": "high_risk_boundary",
+      "conclusion": "The controller's release/high-risk challenge requirement can be skipped without its trigger. A direct controller call with --review-lane extraction and --challenge-budget 0 produces a conclusive single review, and the gated party chooses that lane itself. The completion replay refusal covers only the complete mode, not consumers of review receipts. No new permission sink is added: the Stop reminder supplies no authority, and the renderer is independent of the prompt."
+    }
+  ],
+  "reviewed_concerns": [
+    "challenge_focus",
+    "high_risk_boundary"
+  ],
+  "reviewed_skills": [
+    "llm-inference-integration",
+    "nodejs-service-dev",
+    "product-rd-workflow",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "claude",
+    "mode": "challenge",
+    "findings": [
+      {
+        "severity": "P2",
+        "file": "skills/code-review/scripts/review_gate.py",
+        "line": 3342,
+        "failure_path": "Any direct controller caller, not only extraction_review_gate.sh, can pass --review-lane extraction --mode review --challenge-budget 0 at release depth or with shared-gate tags. The 'not extraction_pass' exemption skips 'release and high-risk review require at least one challenge'. The result is a conclusive high-risk review with no challenge obligation in the controller. Only a review_lane field marks it, and neither the CI presence check nor the hooks read that field. The gated party picks the lane, so it rules on its own exemption. The tests cover only the wrapper and the default staged refusal, not a direct misuse on a non-extraction candidate.",
+        "smallest_fix": "Refuse --review-lane extraction unless the controller-derived owner_selection_evidence already includes skill-extraction-workflow (before the lane adds it). Alternatively, require a marker that only the wrapper sets. Add a regression: a direct controller call with the extraction lane on a non-skill candidate at release depth exits 2."
+      },
+      {
+        "severity": "P2",
+        "file": "hooks/host-input.py",
+        "line": 40,
+        "failure_path": "The status exclusion accepts only 'none' or 'none — status only'. A handoff that correctly reports a blocker, such as 'proposed-next: blocked: need user decision on X' or 'proposed-next: none — awaiting approval', counts as an actionable declaration. It therefore receives the 'execute it now instead of waiting' block. This over-triggers on the exact handoff the pre-final gate prescribes, which pressures the agent to push past a required user decision. The tests only check unmarked text and the exact status-only strings.",
+        "smallest_fix": "Also treat markers that start with 'blocked:' and markers that start with 'none' as non-actionable. Add negative Stop fixtures for 'proposed-next: blocked: …' and 'proposed-next: none — awaiting …'."
+      }
+    ],
+    "concern_results": [
+      {
+        "concern": "challenge_focus",
+        "conclusion": "I found no prompt disclosure. task-entry.sh never reads stdin, and OpenCode passes it an empty payload. Task-entry delivery is registered, packed and tested. The Stop recheck is bounded by stop_hook_active on Claude Code and Codex. Two gaps remain open. First, a caller can pick the extraction lane to skip the release/high-risk challenge requirement. Second, the actionable-marker branch treats any non-'none' marker as work, so it also fires on a legitimate 'blocked:' handoff."
+      },
+      {
+        "concern": "high_risk_boundary",
+        "conclusion": "The controller's release/high-risk challenge requirement can be skipped without its trigger. A direct controller call with --review-lane extraction and --challenge-budget 0 produces a conclusive single review, and the gated party chooses that lane itself. The completion replay refusal covers only the complete mode, not consumers of review receipts. No new permission sink is added: the Stop reminder supplies no authority, and the renderer is independent of the prompt."
+      }
+    ],
+    "lens_id": "code-review:challenge:no-tools-adversarial",
+    "tool_identity": "code-review:no-tools",
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "status": "findings",
+    "packet_sha256": "aada0da4ef453c1befe6d0f1e2a413b9efbb040a6320b66f56bf3007710088b9"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}

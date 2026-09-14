@@ -81,6 +81,26 @@ function traceRuntimeHooks(runtime) {
 	}
 }
 
+test("OpenCode delivers task entry before analysis even with an existing bootstrap", async () => {
+	const root = mkdtempSync(join(tmpdir(), "ccl-opencode-entry-"));
+	const home = join(root, "home"), project = join(root, "project");
+	mkdirSync(home);
+	mkdirSync(project);
+	copyRuntime(home);
+	const { hooks } = await loadPlugin(home, project);
+	const system = { system: ["existing ccl-skills-routing bootstrap"] };
+	for (const sessionID of ["entry-a", "entry-a", "entry-b"]) {
+		await hooks["experimental.chat.system.transform"]({ sessionID }, system);
+		assert.equal(system.system.filter((entry) => entry.includes("<ccl-task-entry>")).length, 1);
+	}
+	assert.match(system.system.join("\n"), /Before task-specific investigation or substantive analysis/);
+	assert.match(system.system.join("\n"), /\*\*product-rd-workflow\*\*/);
+	assert.match(system.system.join("\n"), /\*\*defect-diagnosis\*\*/);
+	const fresh = { system: ["existing ccl-skills-routing bootstrap"] };
+	await hooks["experimental.chat.system.transform"]({ sessionID: "entry-b" }, fresh);
+	assert.equal(fresh.system.filter((entry) => entry.includes("<ccl-task-entry>")).length, 1);
+});
+
 test("OpenCode binding inventory covers every command hook", async () => {
 	const root = mkdtempSync(join(tmpdir(), "ccl-opencode-bindings-"));
 	const home = join(root, "home"), project = join(root, "project");

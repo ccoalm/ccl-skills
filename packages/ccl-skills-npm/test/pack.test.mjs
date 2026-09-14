@@ -147,7 +147,7 @@ test("published tarball carries the plugin hooks in the verified snapshot", () =
 		releasePaths = new Set(release.files.map((entry) => entry.path));
 	assert.equal(listing.status, 0, listing.stderr);
 	const packedPaths = new Set(listing.stdout.trim().split("\n"));
-	for (const path of ["hooks/hooks.json", "hooks/session-start.sh", "hooks/guard-edit-isolation.sh", "hooks/host-input.py", "hooks/skill-loading.py", "hooks/skill-context-compact.sh", "hooks/proposed-next-stop.sh", "agent-context/session-policy.md", "agent-context/subagent-start.md"]) {
+	for (const path of ["hooks/hooks.json", "hooks/session-start.sh", "hooks/task-entry.sh", "hooks/guard-edit-isolation.sh", "hooks/host-input.py", "hooks/skill-loading.py", "hooks/skill-context-compact.sh", "hooks/proposed-next-stop.sh", "agent-context/session-policy.md", "agent-context/subagent-start.md"]) {
 		const assetPath = `marketplace/plugins/ccl-skills/${path}`;
 		assert.equal(packedPaths.has(`package/dist/assets/${assetPath}`), true, `${assetPath} missing from tarball`);
 		assert.equal(releasePaths.has(assetPath), true, `${assetPath} missing from release manifest`);
@@ -165,6 +165,12 @@ test("published tarball carries the plugin hooks in the verified snapshot", () =
 		const policy = join(root, "agent-context/session-policy.md");
 		assert.equal(existsSync(policy), true);
 		assert.ok(context.includes(`](<${policy}>)`), "packed bootstrap must resolve its policy outside a product cwd");
+		const entry = spawnSync("bash", [join(root, "hooks/task-entry.sh")], {
+			cwd: extracted, input: "{}", encoding: "utf8",
+		});
+		assert.equal(entry.status, 0, entry.stderr);
+		assert.match(JSON.parse(entry.stdout).hookSpecificOutput.additionalContext,
+			/Before task-specific investigation or substantive analysis/);
 	} finally {
 		rmSync(extracted, { recursive: true, force: true });
 	}

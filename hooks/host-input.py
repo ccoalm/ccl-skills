@@ -18,7 +18,7 @@ class TranscriptTruncated(ValueError):
     """The bounded scan could not establish complete transcript evidence."""
 
 
-def handoff(text):
+def handoff(text, actionable_only=False):
     """Recognize an assistant handoff, never quoted examples or fenced output."""
     if not isinstance(text, str):
         return False
@@ -37,6 +37,9 @@ def handoff(text):
             continue
         match = re.fullmatch(r'(?:[-*] )?(?:\*\*)?proposed-next:(?:\*\*)?\s*(.+)', stripped)
         if match and match[1].strip() and not match[1].strip().startswith('<'):
+            if actionable_only and re.fullmatch(r'(?:none(?:\s*[—–-]\s*.+)?|blocked:\s*.+)',
+                                               match[1].strip(), re.IGNORECASE):
+                continue
             return True
     return False
 
@@ -482,8 +485,23 @@ def proposed_next(payload):
             or payload.get('stop_hook_active') is not False):
         return None
     final = payload.get('last_assistant_message')
-    if not isinstance(final, str) or not final.strip() or machine_artifact(final) or handoff(final):
+    if not isinstance(final, str) or not final.strip() or machine_artifact(final):
         return None
+    actionable = handoff(final, actionable_only=True)
+    if handoff(final) and not actionable:
+        return None
+    # A declared next action triggers a recheck, never inferred authorization.
+    # Host stop_hook_active bounds this reminder to one stop attempt per turn.
+    if actionable:
+        return {'decision': 'block', 'reason': (
+            'Delivery continuation reminder: a proposed-next: action is still declared. '
+            'Recheck the active goal and current user scope before stopping. If that action is already '
+            'authorized and runnable, execute it now instead of waiting for another continue message. '
+            'For unrun, failed or inconclusive checks, continue available diagnosis, research, safe repair '
+            'and retesting; a report alone does not complete implementation. Respect explicit stop, '
+            'planning-only and status-only requests. If a user decision or missing authority/resource '
+            'prevents action, report the concrete blocker; do not invent work or bypass a failed gate. '
+            'This reminder supplies no new goal or authorization.')}
     path = payload.get('transcript_path')
     if not isinstance(path, str) or not path:
         return None
@@ -494,8 +512,6 @@ def proposed_next(payload):
                 or summary['continuation_contract_visible'])
     if not eligible:
         return None
-    # This is formatting eligibility, never intent, authorization, or completed
-    # owner evidence. A source review may expose the rule and receive one nudge.
     return {'decision': 'block', 'reason': (
         'Delivery handoff reminder: repair one proposed-next: line with the next action and scope, '
         'or proposed-next: none — status only when there is no authorized next action. '
