@@ -5,6 +5,7 @@ Codex shapes: openai/codex rust-v0.154.0 protocol/models.rs and
 core/src/tools/context.rs. Unsupported evidence remains unverifiable.
 """
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,10 @@ import re
 import shlex
 import stat
 import sys
+
+# Hook assets may be installed read-only; importing the optional state helper
+# must not create bytecode beside them.
+sys.dont_write_bytecode = True
 
 
 class TranscriptTruncated(ValueError):
@@ -80,8 +85,11 @@ def transcript_lines(path):
     remaining = 16 * 1024 * 1024
     descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
     with os.fdopen(descriptor, 'rb') as stream:
-        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+        metadata = os.fstat(stream.fileno())
+        if not stat.S_ISREG(metadata.st_mode):
             raise ValueError('transcript is not a regular file')
+        if metadata.st_size > remaining:
+            raise TranscriptTruncated()
         for _ in range(20000):
             limit = min(remaining, 1024 * 1024)
             if limit <= 0:
@@ -480,6 +488,54 @@ def machine_artifact(text):
     return False
 
 
+def stop_notice(payload, lane, message):
+    """Cap notice attempts only; these markers never establish verification."""
+    try:
+        # Reuse the installed runtime's owned-directory/no-follow/atomic claim
+        # protections. Minimal vendored runtimes may omit this optional helper.
+        source = Path(__file__).resolve().with_name('skill-loading.py')
+        spec = importlib.util.spec_from_file_location('ccl_stop_state', source)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        # Stop checks scan transcript_path even if subagent metadata also
+        # carries a separate agent_transcript_path.
+        notice_actor = dict(payload)
+        notice_actor.pop('agent_transcript_path', None)
+        key, path = module.actor(notice_actor)
+        info = module.regular_info(path)
+        state = module.State(key)
+        try:
+            if not state.claim_attempt('stop-notice-' + lane, [info.st_dev, info.st_ino]):
+                return None
+        finally:
+            state.close()
+    except Exception:
+        # Missing identity, a broken optional helper or unsafe/unavailable state
+        # must not invent success. This boundary only controls advisory output.
+        pass
+    return {'systemMessage': message}
+
+
+def extraction_overflow(payload):
+    path = payload.get('transcript_path')
+    cwd = payload.get('cwd')
+    current = context_transcript(path, cwd if isinstance(cwd, str) else os.getcwd())
+    if any(skill in ('skill-extraction-workflow', 'ccl-skills:skill-extraction-workflow')
+           for skill in current['requested_skills']):
+        # Positive current-context evidence also proves a session invocation.
+        # Missing current evidence cannot prove a missing session invocation.
+        return None
+    return stop_notice(payload, 'extraction-overflow',
+                       'Conversation history is too large for the skill workflow check. '
+                       'The check is incomplete; this does not block your task.')
+
+
+def delivery_eligible(summary):
+    return (any(skill in ('product-rd-workflow', 'ccl-skills:product-rd-workflow')
+                for skill in summary['completed_skills']) or summary['prior_handoff']
+            or summary['continuation_contract_visible'])
+
+
 def proposed_next(payload):
     if (not isinstance(payload, dict) or payload.get('hook_event_name') != 'Stop'
             or payload.get('stop_hook_active') is not False):
@@ -506,11 +562,16 @@ def proposed_next(payload):
     if not isinstance(path, str) or not path:
         return None
     cwd = payload.get('cwd')
-    summary = transcript(path, cwd if isinstance(cwd, str) else os.getcwd())
-    eligible = (any(skill in ('product-rd-workflow', 'ccl-skills:product-rd-workflow')
-                    for skill in summary['completed_skills']) or summary['prior_handoff']
-                or summary['continuation_contract_visible'])
-    if not eligible:
+    cwd = cwd if isinstance(cwd, str) else os.getcwd()
+    try:
+        summary = transcript(path, cwd)
+    except TranscriptTruncated:
+        summary = context_transcript(path, cwd)
+        if not delivery_eligible(summary):
+            # A complete recent context can establish eligibility, but cannot
+            # disprove evidence in the omitted session prefix.
+            raise
+    if not delivery_eligible(summary):
         return None
     return {'decision': 'block', 'reason': (
         'Delivery handoff reminder: repair one proposed-next: line with the next action and scope, '
@@ -538,18 +599,27 @@ def main():
                               'verifiable': False, 'truncated': True, 'prior_handoff': False,
                               'continuation_contract_visible': False}))
             return 1
-    elif sys.argv[1] == 'proposed-next':
+    elif sys.argv[1] in ('proposed-next', 'extraction-overflow'):
+        payload = {}
         try:
             raw = sys.stdin.read(2 * 1024 * 1024 + 1)
             if len(raw) > 2 * 1024 * 1024:
                 raise ValueError('oversized input')
-            result = proposed_next(json.loads(raw))
+            payload = json.loads(raw)
+            result = (extraction_overflow(payload) if sys.argv[1] == 'extraction-overflow'
+                      else proposed_next(payload))
             if result:
                 print(json.dumps(result))
         except TranscriptTruncated:
-            print(json.dumps({'systemMessage': 'Delivery handoff reminder unverified: transcript scan exceeded its bounded limit.'}))
+            result = stop_notice(payload, 'handoff-overflow',
+                                 'Delivery handoff reminder unverified: transcript scan exceeded its bounded limit.')
+            if result:
+                print(json.dumps(result))
         except (OSError, ValueError, TypeError, IndexError, AttributeError):
-            print(json.dumps({'systemMessage': 'Delivery handoff reminder unavailable: input or transcript could not be verified.'}))
+            message = ('Skill workflow check incomplete: input or conversation history could not be verified. '
+                       'This does not block your task.' if sys.argv[1] == 'extraction-overflow' else
+                       'Delivery handoff reminder unavailable: input or transcript could not be verified.')
+            print(json.dumps({'systemMessage': message}))
     return 0
 
 
