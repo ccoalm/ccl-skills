@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Host boundary regressions; all repositories and transcripts are synthetic."""
 import importlib.util
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -317,8 +318,170 @@ class HostInputTests(unittest.TestCase):
                         self.assertIn('unverified', result.get('systemMessage', '').lower())
                     self.assertNotIn('decision', result)
                     self.assertNotIn('Synthetic private status', json.dumps(result))
+                    repeat = self.run_hook('hooks/' + hook, {
+                        'session_id': 'limit-' + label, 'cwd': str(self.repo),
+                        'transcript_path': path, 'hook_event_name': 'Stop',
+                        'stop_hook_active': False, 'last_assistant_message': 'Synthetic private status.'})
+                    self.assertEqual(repeat, {}, 'unchanged incomplete checks must not repeat notices')
+
+    def test_long_history_recovers_positive_evidence_after_compaction(self):
+        for owner, hook, expected in (
+                ('skill-extraction-workflow', 'skill-extraction-gate-stop.sh', {}),
+                ('product-rd-workflow', 'proposed-next-stop.sh', {'decision': 'block'})):
+            skill = self.repo / 'skills' / owner / 'SKILL.md'
+            skill.parent.mkdir(parents=True, exist_ok=True)
+            skill.write_text(f'---\nname: {owner}\n---\n# Synthetic owner\n')
+            runtime = self.root / owner
+            shutil.copytree(ROOT / 'hooks', runtime / 'hooks')
+            canonical = runtime / 'skills' / owner / 'SKILL.md'
+            canonical.parent.mkdir(parents=True)
+            shutil.copy2(skill, canonical)
+            hosts = ('claude', 'codex')
+            if owner == 'skill-extraction-workflow':
+                hosts += ('claude-pending', 'claude-failed')
+            for host in hosts:
+                with self.subTest(owner=owner, host=host):
+                    boundaries = {'claude': {'type': 'system', 'subtype': 'compact_boundary'},
+                                  'codex': {'type': 'compacted', 'payload': {}}}
+                    loads = {
+                        'claude': [
+                            {'type': 'assistant', 'message': {'content': [{'type': 'tool_use',
+                             'id': 'load', 'name': 'Skill', 'input': {'skill': 'ccl-skills:' + owner}}]}},
+                            {'type': 'user', 'message': {'content': [{'type': 'tool_result',
+                             'tool_use_id': 'load', 'content': 'Loaded'}]}}],
+                        'codex': [self.call('exec_command', {'cmd': f'cat {skill}'}),
+                                  self.output('Process exited with code 0\nOutput:\n' + skill.read_text())]}
+                    family = host.split('-')[0]
+                    invocation = loads[family]
+                    if host == 'claude-pending':
+                        invocation = invocation[:1]
+                    elif host == 'claude-failed':
+                        invocation[1]['message']['content'][0]['is_error'] = True
+                    events = [{'type': 'ignored'}] * 20001 + [boundaries[family]] + invocation
+                    result = self.run_hook(runtime / 'hooks' / hook, {
+                        'session_id': owner + host, 'cwd': str(self.repo),
+                        'transcript_path': self.transcript(events), 'hook_event_name': 'Stop',
+                        'stop_hook_active': False, 'last_assistant_message': 'Checks recorded.'})
+                    self.assertEqual({k: v for k, v in result.items() if k != 'reason'}, expected)
+
+    def test_notice_does_not_suppress_checks_or_other_sessions(self):
+        path = self.transcript([{'type': 'ignored'}] * 20001)
+        agent_path = self.root / 'agent.jsonl'
+        agent_path.write_text('{}\n')
+        payload = {'session_id': 'first', 'cwd': str(self.repo), 'transcript_path': path,
+                   'agent_transcript_path': str(agent_path),
+                   'hook_event_name': 'Stop', 'stop_hook_active': False,
+                   'last_assistant_message': 'Checks recorded.'}
+        for hook in ('skill-extraction-gate-stop.sh', 'proposed-next-stop.sh'):
+            with self.subTest(hook=hook):
+                self.assertIn('systemMessage', self.run_hook('hooks/' + hook, payload))
+                self.assertEqual(self.run_hook('hooks/' + hook, payload), {})
+                self.assertIn('systemMessage', self.run_hook('hooks/' + hook,
+                              dict(payload, session_id='second')))
+                self.assertIn('systemMessage', self.run_hook('hooks/' + hook,
+                              dict(payload, agent_id='sibling')))
+        replacement = self.root / 'replacement.jsonl'
+        replacement.write_bytes(Path(path).read_bytes())
+        replacement.replace(path)
+        self.assertIn('systemMessage', self.run_hook('hooks/proposed-next-stop.sh', payload))
+        self.assertEqual(self.run_hook('hooks/proposed-next-stop.sh', payload), {})
+        with Path(path).open('a') as stream:
+            stream.write(json.dumps({'type': 'system', 'subtype': 'compact_boundary'}) + '\n')
+            stream.write(json.dumps({'type': 'assistant', 'message': {'content': [
+                {'type': 'text', 'text': 'proposed-next: run local checks'}]}}) + '\n')
+        self.assertEqual(self.run_hook('hooks/proposed-next-stop.sh', payload).get('decision'), 'block')
+        self.assertEqual(self.run_hook('hooks/proposed-next-stop.sh',
+                                     dict(payload, stop_hook_active=True)), {})
+
+    def test_concurrent_incomplete_notice_is_claimed_once(self):
+        payload = {'session_id': 'parallel', 'cwd': str(self.repo),
+                   'transcript_path': self.transcript([{'type': 'ignored'}] * 20001),
+                   'hook_event_name': 'Stop', 'stop_hook_active': False,
+                   'last_assistant_message': 'Checks recorded.'}
+        for hook in ('skill-extraction-gate-stop.sh', 'proposed-next-stop.sh'):
+            with self.subTest(hook=hook), ThreadPoolExecutor(max_workers=4) as pool:
+                results = list(pool.map(lambda _: self.run_hook('hooks/' + hook, payload), range(4)))
+                self.assertEqual(sum('systemMessage' in result for result in results), 1)
+                self.assertTrue(all('decision' not in result for result in results))
+
+    def test_unavailable_notice_state_keeps_truthful_output(self):
+        payload = {'session_id': 'unsafe-state', 'cwd': str(self.repo),
+                   'transcript_path': self.transcript([{'type': 'ignored'}] * 20001),
+                   'hook_event_name': 'Stop', 'stop_hook_active': False,
+                   'last_assistant_message': 'Checks recorded.'}
+        victim = self.root / 'untouched'
+        victim.mkdir()
+        (self.root / ('ccl-skill-loading-' + str(os.getuid()))).symlink_to(victim)
+        for hook in ('skill-extraction-gate-stop.sh', 'proposed-next-stop.sh'):
+            for identity in ({}, {'session_id': None}):
+                with self.subTest(hook=hook, identity=identity):
+                    for _ in range(2):
+                        result = self.run_hook('hooks/' + hook, dict(payload, **identity))
+                        self.assertIn('systemMessage', result)
+                        self.assertNotIn('decision', result)
+        self.assertEqual(list(victim.iterdir()), [])
+        runtime = self.root / 'minimal-hooks'
+        runtime.mkdir()
+        for name in ('host-input.py', 'proposed-next-stop.sh', 'skill-extraction-gate-stop.sh'):
+            shutil.copy2(ROOT / 'hooks' / name, runtime / name)
+        for body in (None, 'raise RuntimeError("synthetic-private-detail")\n', 'invalid syntax !\n'):
+            helper = runtime / 'skill-loading.py'
+            if body is not None:
+                helper.write_text(body)
+            for hook, text in (('skill-extraction-gate-stop.sh', 'check is incomplete'),
+                               ('proposed-next-stop.sh', 'unverified: transcript scan')):
+                with self.subTest(optional_helper=body, hook=hook):
+                    for _ in range(2):
+                        result = self.run_hook(runtime / hook, payload)
+                        self.assertIn(text, result.get('systemMessage', ''))
+                        self.assertNotIn('synthetic-private-detail', json.dumps(result))
+                        self.assertNotIn('decision', result)
+
+    def test_long_history_without_positive_current_evidence_stays_unknown(self):
+        marker = {'type': 'system', 'subtype': 'compact_boundary'}
+        request = {'type': 'assistant', 'message': {'content': [{'type': 'tool_use',
+                   'id': 'load', 'name': 'Skill', 'input': {'skill': 'ccl-skills:product-rd-workflow'}}]}}
+        failed = {'type': 'user', 'message': {'content': [{'type': 'tool_result',
+                  'tool_use_id': 'load', 'is_error': True, 'content': 'Failed'}]}}
+        success = {'type': 'user', 'message': {'content': [{'type': 'tool_result',
+                   'tool_use_id': 'load', 'content': 'Loaded'}]}}
+        for label, tail in [('empty-context', [marker]), ('pending-owner', [marker, request]),
+                            ('failed-owner', [marker, request, failed]),
+                            ('no-boundary', [request]),
+                            ('completed-without-boundary', [request, success]),
+                            ('invalid-context', [marker, None])]:
+            for hook in ('skill-extraction-gate-stop.sh', 'proposed-next-stop.sh'):
+                with self.subTest(label=label, hook=hook):
+                    result = self.run_hook('hooks/' + hook, {
+                        'session_id': label, 'cwd': str(self.repo),
+                        'transcript_path': self.transcript([{'type': 'ignored'}] * 20001 + tail),
+                        'hook_event_name': 'Stop', 'stop_hook_active': False,
+                        'last_assistant_message': 'Checks recorded.'})
+                    self.assertIn('systemMessage', result)
+                    self.assertNotIn('decision', result)
+
+    def test_large_session_is_rejected_before_parsing_records(self):
+        path = self.root / 'large.jsonl'
+        with path.open('wb') as stream:
+            stream.write(b'{}\n')
+            stream.truncate(17 * 1024 * 1024)
+        spec = importlib.util.spec_from_file_location('bounded_probe', ROOT / 'hooks/host-input.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with patch.object(module.json, 'loads', side_effect=AssertionError('record parsed')):
+            with self.assertRaises(module.TranscriptTruncated):
+                module.transcript(str(path), str(self.repo))
 
     def test_extraction_helper_failures_explain_task_impact_without_private_details(self):
+        for invalid in ('null', '{', '[]'):
+            with self.subTest(input=invalid):
+                result = subprocess.run(['python3', str(ROOT / 'hooks/host-input.py'),
+                                         'extraction-overflow'], input=invalid,
+                                        text=True, capture_output=True, env=self.env)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                message = json.loads(result.stdout)['systemMessage']
+                self.assertIn('Skill workflow check incomplete', message)
+                self.assertNotIn('Delivery handoff', message)
         runtime = self.root / 'runtime'
         runtime.mkdir()
         hook = runtime / 'skill-extraction-gate-stop.sh'
