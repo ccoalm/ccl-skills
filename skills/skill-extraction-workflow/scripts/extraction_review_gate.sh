@@ -32,7 +32,7 @@ for arg in "$@"; do
     # full spellings, so a shortened flag cannot reopen a chain.
     --challenge-b*|--challenge-i*)
       fail "the extraction lane fixes the challenge budget and index; do not pass $arg" ;;
-    --review-c*|--au*|--prio*|--pre*|--com*)
+    --review-c*|--review-l*|--au*|--prio*|--pre*|--com*)
       fail "the extraction lane is single-shot; review-chain option $arg is not accepted" ;;
   esac
 done
@@ -48,4 +48,4 @@ if [[ ! -x "$CONTROLLER" ]]; then
   fail "code-review controller is unavailable"
 fi
 
-exec bash "$CONTROLLER" "${fixed[@]}" "$@"
+exec bash "$CONTROLLER" --review-lane extraction "${fixed[@]}" "$@"

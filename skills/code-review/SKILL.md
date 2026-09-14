@@ -66,15 +66,15 @@ credentials only; broad semantic confidentiality stays operator-owned per the
 Diff Confidentiality section. Consult stays on `claude_review.sh`. Load the
 staged-contract and client-routing references below for details.
 
-Current contract: review/challenge may use a stamped
+Staged contract: review/challenge may use a stamped
 `review_plan_source=derived-default`; `complete` requires a plan and output uses
 schema 3. Automation retains one chain (one review, at most four challenges) plus one
 succession.
 Positive challenge capacity opens it at index 1; budget zero is untracked.
-The sole release/high-risk budget-zero exception is a controller-proved
-`markdown-punctuation-only` review: it requires `wording_only_boundary`, permits
-no `complete`, and rejects an author assertion alone (recipe:
-`references/wording-only-review.md`). After a clean/source-refuted tracked
+Staged release/high-risk budget zero requires controller-proved
+`markdown-punctuation-only`, `wording_only_boundary` and no `complete`; author
+assertions cannot qualify (`references/wording-only-review.md`). Extraction uses
+separate passes (`references/staged-review-contract.md`). After a clean/source-refuted tracked
 challenge, `complete` may close early and preserve unused rounds. Every result
 exposes controller-owned `self_review_gate`; an outstanding checkpoint blocks
 only external review or completion, not implementation or tests. Even a passed

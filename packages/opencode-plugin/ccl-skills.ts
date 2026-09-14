@@ -45,6 +45,7 @@ const MAX_TRANSCRIPT_BYTES = 4 * 1024 * 1024
 // Distinctive substring of bootstrap.md; when the system prompt already carries
 // it (e.g. the source repo's opencode.json instructions), skip the second copy.
 const BOOTSTRAP_DEDUPE_MARKER = "ccl-skills-routing"
+const TASK_ENTRY_MARKER = "<ccl-task-entry>"
 const UPDATE_REMINDER_MARKER = "CCL Skills Update Reminder"
 
 // Keep this inventory in one-to-one correspondence with hooks/hooks.json.
@@ -52,6 +53,7 @@ const UPDATE_REMINDER_MARKER = "CCL Skills Update Reminder"
 // silently inactive in OpenCode.
 const OPENCODE_HOOK_BINDINGS = Object.freeze({
   "session-start.sh": "experimental.chat.system.transform",
+  "task-entry.sh": "experimental.chat.system.transform",
   "skill-context-compact.sh": "event:session.compacted:PreCompact/PostCompact bridge",
   "guard-edit-isolation.sh": "tool.execute.before:edit/write/apply_patch",
   "owner-dispatch-guard.sh": "tool.execute.before:edit/write/apply_patch/bash",
@@ -481,6 +483,13 @@ export const CclSkills = async (context: {
         const hookContext = additionalContext(result)
         const bootstrap = hookContext || readBootstrap()
         if (bootstrap) output.system.push(`\n# CCL Skills Bootstrap\n\n${bootstrap}`)
+      }
+
+      // A source-configured bootstrap must not suppress task-entry delivery.
+      // The renderer is stateless and never receives user prompt contents.
+      if (!output.system.some((entry) => entry.includes(TASK_ENTRY_MARKER))) {
+        const entry = additionalContext(runHook(hooksRoot, "task-entry.sh", {}, directory, 5_000))
+        if (entry) output.system.push(entry)
       }
 
       try {

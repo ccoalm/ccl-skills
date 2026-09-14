@@ -140,10 +140,36 @@ class ProposedNextTests(unittest.TestCase):
         for text in ('Which option should I use?', 'Stopped as requested.', 'Status: checks passed.'):
             self.payload['last_assistant_message'] = text
             self.assert_block(self.run_hook())
-        for text in ('proposed-next: none — status only', '**proposed-next:** none — status only',
-                     'proposed-next: run the existing local verification suite'):
+        for text in ('proposed-next: none — status only', '**proposed-next:** none — status only'):
             self.payload['last_assistant_message'] = text
             self.assertEqual(self.run_hook(), {})
+
+    def test_actionable_handoff_rechecks_continuation_instead_of_silently_stopping(self):
+        for events in ([], self.claude_load(), self.codex_read()):
+            self.events(events)
+            for text in ('Next I will verify.\nproposed-next: run the existing local verification suite',
+                         '**proposed-next:** repair the failing check and retest',
+                         'proposed-next: none — status only\nproposed-next: finish the remaining repair'):
+                payload = dict(self.payload, last_assistant_message=text)
+                result = self.run_hook(payload)
+                self.assert_block(result)
+                self.assertIn('execute it now', result['reason'])
+                self.assertIn('planning-only', result['reason'])
+                self.assertIn('supplies no new goal or authorization', result['reason'])
+                self.assertEqual(self.run_hook(dict(payload, stop_hook_active=True)), {})
+
+    def test_quoted_actions_do_not_turn_a_status_handoff_into_work(self):
+        self.events(self.claude_load())
+        for suffix in ('\n> proposed-next: deploy', '\n```text\nproposed-next: deploy\n```'):
+            self.payload['last_assistant_message'] = 'proposed-next: none — status only' + suffix
+            self.assertEqual(self.run_hook(), {})
+
+    def test_current_action_recheck_needs_no_transcript_read(self):
+        self.path.write_text('not a valid transcript')
+        for path in (str(self.path), str(self.root / 'missing'), None):
+            payload = dict(self.payload, transcript_path=path,
+                           last_assistant_message='proposed-next: run the existing checks')
+            self.assert_block(self.run_hook(payload))
 
     def test_complete_machine_artifacts_are_preserved(self):
         self.events(self.claude_load())

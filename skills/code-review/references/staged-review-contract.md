@@ -6,7 +6,7 @@ The controller has three modes:
 - `challenge`: a focused adversarial external round;
 - `complete`: a local deep-self-review checkpoint that calls no reviewer.
 
-Explore/build may configure `challenge_budget=0..4`; release/high-risk requires
+In the default staged lane, explore/build may configure `challenge_budget=0..4`; release/high-risk requires
 at least one challenge unless the exact candidate qualifies for the
 proof-bound wording-only single-review exception below. The initial review consumes chain round 1;
 each bounded chain uses at most five rounds. Necessary task-scoped review after a
@@ -47,6 +47,14 @@ Two mechanics that cost time when they are discovered by experiment:
   to back with nothing changed in between.
 
 ## Plan and owner binding
+
+The extraction-owned wrapper selects `--review-lane extraction` for its separate
+single-shot review and challenge. This lane retains the full stage and risk
+concerns, selects `skill-extraction-workflow`, and records the lane in the bound
+review scope. It cannot use tracked-chain, wording-waiver or completion inputs.
+Its initial review does not carry challenge capacity because the extraction
+owner requires a separate challenge receipt; it never satisfies that challenge.
+The default `staged` lane retains its existing high-risk challenge requirement.
 
 The plan is optional for `review` and `challenge` and required for `complete`.
 When supplied, the bounded UTF-8 plan contains exactly intent, acceptance,

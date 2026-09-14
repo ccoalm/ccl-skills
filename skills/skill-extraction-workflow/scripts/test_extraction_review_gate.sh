@@ -38,6 +38,7 @@ PY
 
 CAPTURE_PATH="$TMP/args" "$FAKE_WRAPPER" --mode review --cwd /synthetic --implementer-family openai
 assert_contains "--challenge-budget 0 --mode review" "$(captured)" "review is single-shot with no challenge capacity"
+assert_contains "--review-lane extraction" "$(captured)" "wrapper selects its owner lane"
 
 CAPTURE_PATH="$TMP/args" "$FAKE_WRAPPER" --mode challenge --cwd /synthetic --implementer-family openai --focus f
 assert_contains "--challenge-budget 1 --challenge-index 1 --mode challenge" "$(captured)" "challenge is the single untracked challenge"
@@ -61,6 +62,7 @@ done
 # Every chain option, full or abbreviated, with or without =VALUE, is refused.
 for spelling in \
   --review-chain-id --review-chain-id=x --review-c \
+  --review-lane --review-lane=staged --review-l \
   --autonomous-review-index --autonomous-review-index=2 --au \
   --prior-review-result-file --prior-review-result-file=/r.json --prio \
   --predecessor-chain-result-file --pre \
@@ -114,7 +116,7 @@ diff_path.write_text(
 # keeping a copy that drifts when the set changes.
 required = subprocess.run(
     [sys.executable, str(root / "skills/code-review/scripts/review_gate.py"),
-     "--print-required-concerns", "--stage", "build"],
+     "--print-required-concerns", "--stage", "release", "--risk-tag", "shared-gate"],
     capture_output=True, text=True, check=True,
 ).stdout.split()
 assert required, "the controller printed no required concerns"
@@ -144,23 +146,52 @@ PY
 mkdir -p "$TMP/fake-bin"
 printf '%s\n' '#!/usr/bin/env bash' 'printf invoked >"$CODEX_MARKER"' 'exit 99' >"$TMP/fake-bin/codex"
 chmod +x "$TMP/fake-bin/codex"
+run_real_controller() {
+  CODEX_MARKER="$TMP/codex-invoked" PATH="$TMP/fake-bin:$PATH" CODE_REVIEW_CLIENT_ORDER=codex \
+    "$REAL_CONTROLLER" "$@"
+}
 real_args=(
   --cwd "$ROOT" --diff-file "$TMP/real.diff" --implementer-family openai
-  --review-plan-file "$TMP/real-plan.json" --stage build --review-harness
+  --review-plan-file "$TMP/real-plan.json" --review-harness
   --timeout 5 --total-timeout 5
 )
-for pass in review challenge; do
+for profile in build release shared-gate; do
+  risk_args=(--stage "$profile")
+  [ "$profile" = shared-gate ] && risk_args=(--stage build --risk-tag shared-gate)
+  for pass in review challenge; do
   extra=()
   [ "$pass" = challenge ] && extra=(--focus "single-shot probe")
   set +e
   out="$(CODEX_MARKER="$TMP/codex-invoked" PATH="$TMP/fake-bin:$PATH" CODE_REVIEW_CLIENT_ORDER=codex \
-    "$WRAPPER" --mode "$pass" "${real_args[@]}" "${extra[@]}" 2>&1)"
+    "$WRAPPER" --mode "$pass" "${real_args[@]}" "${risk_args[@]}" "${extra[@]}" 2>&1)"
   rc=$?
   set -e
-  assert_rc "$rc" 2 "real $pass must stop before model inference"
+  assert_rc "$rc" 2 "real $profile $pass must stop before model inference: $out"
   assert_contains '"reason_code":"no_independent_reviewer_available"' "$out" "real $pass reaches reviewer selection"
   assert_not_contains 'review_chain_required' "$out" "real $pass needs no chain"
   assert_not_contains 'review_chain_invalid' "$out" "real $pass needs no chain"
+  assert_contains '"review_lane":"extraction"' "$out" "$profile $pass binds the extraction lane"
+  done
+  if [ "$profile" != build ]; then
+    set +e
+    out="$(run_real_controller --mode review --challenge-budget 0 "${real_args[@]}" "${risk_args[@]}" 2>&1)"
+    rc=$?
+    set -e
+    assert_rc "$rc" 2 "staged $profile review still requires challenge capacity"
+    assert_contains 'release and high-risk review require at least one challenge' "$out" "staged risk guard remains active"
+  fi
+done
+
+# The explicit owner lane must never turn into a chain or claim completion.
+for incompatible in '--review-chain-id probe' '--challenge-budget 1' '--wording-only-proof-file /missing'; do
+  set +e
+  # shellcheck disable=SC2086
+  out="$(run_real_controller --review-lane extraction --mode review --challenge-budget 0 \
+    "${real_args[@]}" --stage release $incompatible 2>&1)"
+  rc=$?
+  set -e
+  assert_rc "$rc" 2 "extraction rejects $incompatible"
+  assert_contains 'extraction runs separate single-shot review and challenge passes' "$out" "extraction configuration fails closed"
 done
 [ ! -e "$TMP/codex-invoked" ] || fail "same-family Codex executable was invoked"
 

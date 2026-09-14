@@ -37,7 +37,11 @@ ccl-skills install
 
 The npm tarball includes the skills, agent context, plugin manifests, and runtime hooks. Claude Code and Codex consume the plugin hooks directly. OpenCode installs a native plugin plus the same bundled hook runtime, including edit isolation for `edit`, `write`, and `apply_patch`. Installation does not need a Git checkout.
 
-Skill loading has a bounded recovery checkpoint: the first precise source edit, or a dispatch without current owner-load evidence, is returned to the agent once so it can load the applicable skills and retry. Compaction starts a new context window. This does not ask you to approve reading skills, and a retry or parallel sibling can proceed without proof of correct owner selection. Project-configured owner-dispatch and safety checks remain separate.
+Task entry delivers the routing instruction before the agent investigates or analyzes the task: through `UserPromptSubmit` in Claude Code and Codex, and the system transform in OpenCode. It directs the agent to load the selected skill, keeps narrow tasks with their owners, and permits reuse of skills already loaded in the current context. For implementation and repair, it also calls for continued investigation, safe fixes and retesting when verification is missing or unsuccessful; a report alone is not completion. This delivers guidance; it does not prove the agent followed it.
+
+Skill loading also has a bounded recovery checkpoint: the first precise source edit, or a dispatch without current owner-load evidence, is returned to the agent once so it can load the applicable skills and retry. Compaction starts a new context window. This does not ask you to approve reading skills, and a retry or parallel sibling can proceed without proof of correct owner selection. Project-configured owner-dispatch and safety checks remain separate.
+
+On Claude Code and Codex, a non-status `proposed-next:` declaration at Stop now triggers one continuation recheck: execute it if it is already authorized and runnable, or preserve the current scope and explain the concrete blocker. Status-only handoffs and the host's retry guard remain respected. This reminder cannot establish authorization or guarantee that the agent continues.
 
 If npm returns `E404` before the initial registry release, install from source:
 
