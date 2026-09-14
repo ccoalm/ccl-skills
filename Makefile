@@ -33,6 +33,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	python3 skills/skill-extraction-workflow/scripts/test_eval_runtime.py
 	python3 hooks/test_host_input.py
 	python3 hooks/test_skill_loading.py
+	python3 hooks/test_task_entry.py
 	python3 hooks/test_proposed_next.py
 	bash hooks/test_guard_delegation_owner.sh
 	bash hooks/test_guard_edit_isolation.sh

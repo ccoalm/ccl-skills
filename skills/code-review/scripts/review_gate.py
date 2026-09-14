@@ -1981,6 +1981,8 @@ def _canonical_review_scope(profile: dict[str, Any]) -> dict[str, Any]:
             else None
         ),
     }
+    if profile.get("review_lane") == "extraction":
+        scope["review_lane"] = "extraction"
     if _review_scope_digest(scope) != profile["review_scope_sha256"]:
         raise GateError(
             "review scope reconstruction does not reproduce its recorded digest",
@@ -3303,6 +3305,19 @@ def freeze_review_profile(
         raise GateError(
             "--challenge-budget must be between 0 and 4 so the initial review plus challenges never exceeds five Agent-autonomous external rounds"
         )
+    extraction_pass = args.review_lane == "extraction"
+    if extraction_pass and (
+        args.mode not in {"review", "challenge"}
+        or challenge_budget != (0 if args.mode == "review" else 1)
+        or args.review_chain_id is not None
+        or args.autonomous_review_index is not None
+        or args.prior_review_result_file
+        or args.predecessor_chain_result_file
+        or args.completion_review_result_file
+        or args.finding_dispositions_file
+        or args.wording_only_proof_file
+    ):
+        raise GateError("extraction runs separate single-shot review and challenge passes")
     wording_only_proof_sha256: str | None = None
     wording_only_scope: dict[str, Any] | None = None
     if args.wording_only_proof_file:
@@ -3324,7 +3339,7 @@ def freeze_review_profile(
             candidate_paths,
             Path(args.cwd),
         )
-    if review_depth == "release" and challenge_budget == 0:
+    if review_depth == "release" and challenge_budget == 0 and not extraction_pass:
         if wording_only_scope is None:
             raise GateError("release and high-risk review require at least one challenge")
         if wording_only_scope["check_kind"] != "markdown-punctuation-only":
@@ -3358,6 +3373,10 @@ def freeze_review_profile(
     owner_selection_evidence = derive_owner_selection(candidate_paths, registry_root)
     derived_skill_names = {item["skill"] for item in owner_selection_evidence}
     declared_skill_names = {item["skill"] for item in self_review}
+    if extraction_pass and "skill-extraction-workflow" not in derived_skill_names:
+        raise GateError(
+            "extraction lane requires controller-derived skill-extraction-workflow ownership"
+        )
     missing_self_review_owners = sorted(
         derived_skill_names - declared_skill_names - {"code-review"}
     )
@@ -3508,6 +3527,9 @@ def freeze_review_profile(
             else None
         ),
     }
+    if extraction_pass:
+        # The lane shape never lowers risk concerns or supplies a challenge receipt.
+        review_scope["review_lane"] = "extraction"
     review_scope_sha256 = _review_scope_digest(review_scope)
     if review_scope_sha256 is None:
         raise GateError("review scope is not representable", "invalid_input")
@@ -3814,6 +3836,8 @@ def freeze_review_profile(
         "self_review": self_review,
         "evidence": evidence,
     }
+    if extraction_pass:
+        profile["review_lane"] = "extraction"
     encoded = json.dumps(
         profile,
         ensure_ascii=False,
@@ -4548,6 +4572,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--wording-only-proof-file")
     parser.add_argument("--stage", choices=tuple(STAGE_CONCERNS), default="build")
     parser.add_argument("--risk-tag", action="append", default=[])
+    parser.add_argument("--review-lane", choices=("staged", "extraction"), default="staged")
     parser.add_argument("--challenge-budget", type=int)
     # No argparse default: 0 is illegal in challenge mode and required outside
     # it, so a single static default is wrong for one of the two. main() derives

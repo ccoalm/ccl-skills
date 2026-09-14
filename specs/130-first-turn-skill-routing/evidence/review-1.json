@@ -1,0 +1,482 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "release",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "findings",
+  "selected_client": "claude",
+  "selected_reviewer": "claude",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P2",
+      "file": "skills/code-review/scripts/review_gate.py",
+      "line": 3342,
+      "failure_path": "Any generic staged caller (not only extraction_review_gate.sh) can pass `--review-lane extraction --mode review --challenge-budget 0` at release depth or with shared-gate/high-risk tags. The `not extraction_pass` exemption then skips the 'release and high-risk review require at least one challenge' guard, so a single untracked review returns a conclusive release/high-risk receipt with no challenge obligation anywhere in the controller. The only mark is `review_lane: extraction`, which the hook and the CI presence check do not distinguish. The test only proves the staged default still refuses, not that the lane cannot be misused by non-extraction callers.",
+      "smallest_fix": "Bind the lane to its owner. Either require a wrapper-set env or controller-only marker, or refuse the extraction lane unless the owner_selection evidence already contains a skills/skill-extraction-workflow or hooks/skills path. Add a regression that a direct controller call with --review-lane extraction on a non-extraction candidate is refused. Alternatively, make result consumers treat extraction-lane review receipts as not satisfying the staged release/high-risk requirement, and document that."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [],
+  "attempts": [
+    {
+      "client": "claude",
+      "mode": "review",
+      "findings": [
+        {
+          "severity": "P2",
+          "file": "skills/code-review/scripts/review_gate.py",
+          "line": 3342,
+          "failure_path": "Any generic staged caller (not only extraction_review_gate.sh) can pass `--review-lane extraction --mode review --challenge-budget 0` at release depth or with shared-gate/high-risk tags. The `not extraction_pass` exemption then skips the 'release and high-risk review require at least one challenge' guard, so a single untracked review returns a conclusive release/high-risk receipt with no challenge obligation anywhere in the controller. The only mark is `review_lane: extraction`, which the hook and the CI presence check do not distinguish. The test only proves the staged default still refuses, not that the lane cannot be misused by non-extraction callers.",
+          "smallest_fix": "Bind the lane to its owner. Either require a wrapper-set env or controller-only marker, or refuse the extraction lane unless the owner_selection evidence already contains a skills/skill-extraction-workflow or hooks/skills path. Add a regression that a direct controller call with --review-lane extraction on a non-extraction candidate is refused. Alternatively, make result consumers treat extraction-lane review receipts as not satisfying the staged release/high-risk requirement, and document that."
+        }
+      ],
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "Task-entry renderer extracts the framed routing block, prepends boundary text, caps at 4096 bytes and emits UserPromptSubmit context; Stop parser blocks on non-status proposed-next (including mixed markers) before transcript reads and skips on stop_hook_active. OpenCode dedupes per output. Matches acceptance; status-only regex is strict (e.g. trailing period counts as actionable) but that only yields one extra bounded recheck."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "Renderer never reads stdin/prompt; no prompt echo or persistence; no permission fields. Stop reason grants no authority. The one safety-relevant gap is the caller-selectable extraction lane in review_gate.py, which relaxes the staged release/high-risk challenge guard without an owner binding (finding)."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "Missing python3, missing/invalid UTF-8/oversized/duplicate/misordered frames emit {} plus a bounded stderr diagnostic with exit 0. Stop loop bounded by stop_hook_active. OpenCode runHook failures yield no entry without breaking the transform."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "Python tests cover registration, prompt independence, fail-soft, duplicate/oversize, action recheck, quoted/fenced exclusions, transcript independence and retry guard; pack test runs the packed hook. The extraction test covers wrapper lane injection, the staged guard and incompatible inputs, but no test asserts that direct generic callers cannot select the extraction lane for staged work, because nothing enforces that."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "Default staged scope digest unchanged (review_lane key added only for extraction); hook envelopes and OpenCode binding inventory updated consistently; version/lock bump aligned."
+        },
+        {
+          "concern": "rollout_rollback",
+          "conclusion": "No migrations, credentials or publication; advisory hooks revert by removing registration. Version prep only."
+        },
+        {
+          "concern": "observability_operations",
+          "conclusion": "Renderer diagnostics are bounded and prompt-free; Stop failures fall back to systemMessage. OpenCode Stop path is explicitly documented as unverified."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "README/ARCHITECTURE/plan consistently state delivery is not adherence and the marker grants no authority. Docs say the extraction lane is 'selected by the extraction-owned wrapper'. That overstates containment, because any caller can select it."
+        },
+        {
+          "concern": "high_risk_boundary",
+          "conclusion": "Shared-gate boundary: release/high-risk review with challenge_budget 0 was previously refused unless it had a wording-only proof. It is now accepted for any direct controller invocation with --review-lane extraction, and the receipt looks like a normal conclusive release review apart from one review_lane field (finding)."
+        },
+        {
+          "concern": "repository_contract",
+          "conclusion": "hooks/AGENTS.md and the scripts contracts are respected: deterministic, no secrets, no broad mutation, and there are self-tests. The code-review contract says 'keep review and challenge lanes distinct; do not let one satisfy the other'. The lane is designed to follow that, but because it is not owner-bound, a staged caller can drop the challenge."
+        }
+      ],
+      "lens_id": "code-review:review:no-tools",
+      "tool_identity": "code-review:no-tools",
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "status": "findings",
+      "packet_sha256": "58e20dc810d08134369e7abf4ad60948516001db7d2e8eaf2e509c94aea1e514"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "58e20dc810d08134369e7abf4ad60948516001db7d2e8eaf2e509c94aea1e514",
+  "candidate_sha256": "c4b8f102a90de2fc9fadcbe3a8cd9ec620a0d162755b5acfa90372f62371a165",
+  "review_context_sha256": "c97ed27ffba2257ab2bd087ce444e9b03833f97c79615d997cea8997fba91c80",
+  "review_controller_sha256": "2443908f46cda5b4a6abd093e66d17908bec1609f2828f8f30692d69b67776cb",
+  "review_profile_sha256": "737cf891fb11c4962b241128c848d266da23595e03b45ca52b405828528f0307",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/SKILL.md"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/references/staged-review-contract.md"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/review_gate.py"
+    },
+    {
+      "skill": "product-rd-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/product-rd-workflow/references/pre-final-continuation-gate.md"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/host-input.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/test_proposed_next.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/test_task_entry.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/code-review/scripts/review_gate.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/extraction_review_gate.sh"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "hooks/proposed-next-stop.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "hooks/task-entry.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/extraction_review_gate.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "hooks/test_proposed_next.py"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "hooks/test_task_entry.py"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "packages/ccl-skills-npm/test/opencode-hooks.test.mjs"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "packages/ccl-skills-npm/test/pack.test.mjs"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "web-react-dev",
+      "source": "file-type:.mjs",
+      "path": "packages/ccl-skills-npm/test/opencode-hooks.test.mjs"
+    },
+    {
+      "skill": "web-react-dev",
+      "source": "file-type:.mjs",
+      "path": "packages/ccl-skills-npm/test/pack.test.mjs"
+    },
+    {
+      "skill": "web-react-dev",
+      "source": "file-type:.ts",
+      "path": "packages/opencode-plugin/ccl-skills.ts"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "repository_contract": {
+    "coverage": "complete",
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "bytes": 7081,
+        "sha256": "cbfe015efc63917b7237f10533efcd45c875323a9f464e0a23d03a758a8d4d29"
+      },
+      {
+        "path": "hooks/AGENTS.md",
+        "bytes": 700,
+        "sha256": "ed81fc4b329cc0099e28c6cc4ad6beb5842258b6286fa2429f77bbd1f4368af0"
+      },
+      {
+        "path": "packages/AGENTS.md",
+        "bytes": 1339,
+        "sha256": "f133984fd6df6c78b486f931284467d4bf5576ff2a34e2df6be5bdb689f686d8"
+      },
+      {
+        "path": "packages/opencode-plugin/AGENTS.md",
+        "bytes": 595,
+        "sha256": "6b0a214f91bf2abe637d2bbd430b815caf2ab4c20cd25e33a80e70f21bc02b3a"
+      },
+      {
+        "path": "packages/ccl-skills-npm/test/AGENTS.md",
+        "bytes": 1052,
+        "sha256": "545aa167365976c23e6e95d77198027fb549e899a6aa78e71156ce746bd35f3b"
+      },
+      {
+        "path": "skills/code-review/scripts/AGENTS.md",
+        "bytes": 7767,
+        "sha256": "1b7831a9bf483285682d7d751cdbb4bbc0eb43868fb3ea94904388f50fe50f31"
+      },
+      {
+        "path": "skills/skill-extraction-workflow/scripts/AGENTS.md",
+        "bytes": 635,
+        "sha256": "0ff35bd5c18039ec144ca0050de1290a7058a65e08b65b97e4c1190edc97f26b"
+      }
+    ],
+    "omitted": [],
+    "sources_not_read": [
+      "CLAUDE.local.md and untracked files",
+      "@path imports",
+      ".claude/rules",
+      "host-configured fallback filenames"
+    ]
+  },
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "claude-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "llm-inference-integration",
+    "nodejs-service-dev",
+    "product-rd-workflow",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "selected_skills_sha256": "504009b5597f1a9e5c4240c7b3ce055bfcb19c70ef87041099dee5f100ecbace",
+  "risk_tags": [
+    "ai-output",
+    "external-integration",
+    "shared-gate"
+  ],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": null,
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "4ab91d3dffed3c1f2f22d13a601eac8608f7ab1efeaccff19cdb06bf3f81f20d",
+    "acceptance_sha256": "e407c976e512f707bf40b9b6dd687e31557d1efa97069f453aaf15f707133ae7",
+    "stage": "release",
+    "review_depth": "release",
+    "risk_tags": [
+      "ai-output",
+      "external-integration",
+      "shared-gate"
+    ],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "2564e0d5fb52aa779e163bbc02167265ebd9c7d5a8d579c6aae799bf473343bb",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review",
+      "risk_or_scope_escalation"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "Task-entry renderer extracts the framed routing block, prepends boundary text, caps at 4096 bytes and emits UserPromptSubmit context; Stop parser blocks on non-status proposed-next (including mixed markers) before transcript reads and skips on stop_hook_active. OpenCode dedupes per output. Matches acceptance; status-only regex is strict (e.g. trailing period counts as actionable) but that only yields one extra bounded recheck."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "Renderer never reads stdin/prompt; no prompt echo or persistence; no permission fields. Stop reason grants no authority. The one safety-relevant gap is the caller-selectable extraction lane in review_gate.py, which relaxes the staged release/high-risk challenge guard without an owner binding (finding)."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "Missing python3, missing/invalid UTF-8/oversized/duplicate/misordered frames emit {} plus a bounded stderr diagnostic with exit 0. Stop loop bounded by stop_hook_active. OpenCode runHook failures yield no entry without breaking the transform."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "Python tests cover registration, prompt independence, fail-soft, duplicate/oversize, action recheck, quoted/fenced exclusions, transcript independence and retry guard; pack test runs the packed hook. The extraction test covers wrapper lane injection, the staged guard and incompatible inputs, but no test asserts that direct generic callers cannot select the extraction lane for staged work, because nothing enforces that."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "Default staged scope digest unchanged (review_lane key added only for extraction); hook envelopes and OpenCode binding inventory updated consistently; version/lock bump aligned."
+    },
+    {
+      "concern": "rollout_rollback",
+      "conclusion": "No migrations, credentials or publication; advisory hooks revert by removing registration. Version prep only."
+    },
+    {
+      "concern": "observability_operations",
+      "conclusion": "Renderer diagnostics are bounded and prompt-free; Stop failures fall back to systemMessage. OpenCode Stop path is explicitly documented as unverified."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "README/ARCHITECTURE/plan consistently state delivery is not adherence and the marker grants no authority. Docs say the extraction lane is 'selected by the extraction-owned wrapper'. That overstates containment, because any caller can select it."
+    },
+    {
+      "concern": "high_risk_boundary",
+      "conclusion": "Shared-gate boundary: release/high-risk review with challenge_budget 0 was previously refused unless it had a wording-only proof. It is now accepted for any direct controller invocation with --review-lane extraction, and the receipt looks like a normal conclusive release review apart from one review_lane field (finding)."
+    },
+    {
+      "concern": "repository_contract",
+      "conclusion": "hooks/AGENTS.md and the scripts contracts are respected: deterministic, no secrets, no broad mutation, and there are self-tests. The code-review contract says 'keep review and challenge lanes distinct; do not let one satisfy the other'. The lane is designed to follow that, but because it is not owner-bound, a staged caller can drop the challenge."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "rollout_rollback",
+    "observability_operations",
+    "claim_strength",
+    "high_risk_boundary",
+    "repository_contract"
+  ],
+  "reviewed_skills": [
+    "llm-inference-integration",
+    "nodejs-service-dev",
+    "product-rd-workflow",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy",
+    "web-react-dev"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "claude",
+    "mode": "review",
+    "findings": [
+      {
+        "severity": "P2",
+        "file": "skills/code-review/scripts/review_gate.py",
+        "line": 3342,
+        "failure_path": "Any generic staged caller (not only extraction_review_gate.sh) can pass `--review-lane extraction --mode review --challenge-budget 0` at release depth or with shared-gate/high-risk tags. The `not extraction_pass` exemption then skips the 'release and high-risk review require at least one challenge' guard, so a single untracked review returns a conclusive release/high-risk receipt with no challenge obligation anywhere in the controller. The only mark is `review_lane: extraction`, which the hook and the CI presence check do not distinguish. The test only proves the staged default still refuses, not that the lane cannot be misused by non-extraction callers.",
+        "smallest_fix": "Bind the lane to its owner. Either require a wrapper-set env or controller-only marker, or refuse the extraction lane unless the owner_selection evidence already contains a skills/skill-extraction-workflow or hooks/skills path. Add a regression that a direct controller call with --review-lane extraction on a non-extraction candidate is refused. Alternatively, make result consumers treat extraction-lane review receipts as not satisfying the staged release/high-risk requirement, and document that."
+      }
+    ],
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "Task-entry renderer extracts the framed routing block, prepends boundary text, caps at 4096 bytes and emits UserPromptSubmit context; Stop parser blocks on non-status proposed-next (including mixed markers) before transcript reads and skips on stop_hook_active. OpenCode dedupes per output. Matches acceptance; status-only regex is strict (e.g. trailing period counts as actionable) but that only yields one extra bounded recheck."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "Renderer never reads stdin/prompt; no prompt echo or persistence; no permission fields. Stop reason grants no authority. The one safety-relevant gap is the caller-selectable extraction lane in review_gate.py, which relaxes the staged release/high-risk challenge guard without an owner binding (finding)."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "Missing python3, missing/invalid UTF-8/oversized/duplicate/misordered frames emit {} plus a bounded stderr diagnostic with exit 0. Stop loop bounded by stop_hook_active. OpenCode runHook failures yield no entry without breaking the transform."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "Python tests cover registration, prompt independence, fail-soft, duplicate/oversize, action recheck, quoted/fenced exclusions, transcript independence and retry guard; pack test runs the packed hook. The extraction test covers wrapper lane injection, the staged guard and incompatible inputs, but no test asserts that direct generic callers cannot select the extraction lane for staged work, because nothing enforces that."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "Default staged scope digest unchanged (review_lane key added only for extraction); hook envelopes and OpenCode binding inventory updated consistently; version/lock bump aligned."
+      },
+      {
+        "concern": "rollout_rollback",
+        "conclusion": "No migrations, credentials or publication; advisory hooks revert by removing registration. Version prep only."
+      },
+      {
+        "concern": "observability_operations",
+        "conclusion": "Renderer diagnostics are bounded and prompt-free; Stop failures fall back to systemMessage. OpenCode Stop path is explicitly documented as unverified."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "README/ARCHITECTURE/plan consistently state delivery is not adherence and the marker grants no authority. Docs say the extraction lane is 'selected by the extraction-owned wrapper'. That overstates containment, because any caller can select it."
+      },
+      {
+        "concern": "high_risk_boundary",
+        "conclusion": "Shared-gate boundary: release/high-risk review with challenge_budget 0 was previously refused unless it had a wording-only proof. It is now accepted for any direct controller invocation with --review-lane extraction, and the receipt looks like a normal conclusive release review apart from one review_lane field (finding)."
+      },
+      {
+        "concern": "repository_contract",
+        "conclusion": "hooks/AGENTS.md and the scripts contracts are respected: deterministic, no secrets, no broad mutation, and there are self-tests. The code-review contract says 'keep review and challenge lanes distinct; do not let one satisfy the other'. The lane is designed to follow that, but because it is not owner-bound, a staged caller can drop the challenge."
+      }
+    ],
+    "lens_id": "code-review:review:no-tools",
+    "tool_identity": "code-review:no-tools",
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "status": "findings",
+    "packet_sha256": "58e20dc810d08134369e7abf4ad60948516001db7d2e8eaf2e509c94aea1e514"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}
