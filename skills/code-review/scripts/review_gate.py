@@ -3373,8 +3373,10 @@ def freeze_review_profile(
     owner_selection_evidence = derive_owner_selection(candidate_paths, registry_root)
     derived_skill_names = {item["skill"] for item in owner_selection_evidence}
     declared_skill_names = {item["skill"] for item in self_review}
-    if extraction_pass:
-        derived_skill_names.add("skill-extraction-workflow")
+    if extraction_pass and "skill-extraction-workflow" not in derived_skill_names:
+        raise GateError(
+            "extraction lane requires controller-derived skill-extraction-workflow ownership"
+        )
     missing_self_review_owners = sorted(
         derived_skill_names - declared_skill_names - {"code-review"}
     )

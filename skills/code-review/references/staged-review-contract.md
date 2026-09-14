@@ -50,8 +50,11 @@ Two mechanics that cost time when they are discovered by experiment:
 
 The extraction-owned wrapper selects `--review-lane extraction` for its separate
 single-shot review and challenge. This lane retains the full stage and risk
-concerns, selects `skill-extraction-workflow`, and records the lane in the bound
-review scope. It cannot use tracked-chain, wording-waiver or completion inputs.
+concerns and records the lane in the bound review scope. The actual candidate
+must derive `skill-extraction-workflow` ownership; a declared owner alone is
+insufficient. Extraction register changes provide that evidence for this
+repository's plugin runtime deliveries. The lane cannot use tracked-chain,
+wording-waiver or completion inputs.
 Its initial review does not carry challenge capacity because the extraction
 owner requires a separate challenge receipt; it never satisfies that challenge.
 The default `staged` lane retains its existing high-risk challenge requirement.

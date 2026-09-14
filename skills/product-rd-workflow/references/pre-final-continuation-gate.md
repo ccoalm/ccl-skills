@@ -97,7 +97,11 @@ At the start of the next turn, recover intent in this order:
 
 ### Stop-time continuation reminder
 
-On hosts providing a current final message, `proposed-next-stop.sh` returns one bounded Stop reminder when the assistant declares a non-status `proposed-next:` action. Recheck the active request: execute a runnable, already-authorized action in the same turn; otherwise preserve explicit stop, planning-only and status-only scope, or state the concrete decision/resource/authority blocker. Missing labels with observable delivery evidence retain their formatting reminder. A status-only marker without another action declaration, quoted example, complete machine artifact, unsupported payload or host `stop_hook_active` retry does not trigger a continuation reminder. Mixed status/action markers still require reconciliation. The hook recognizes declarations, not authorization or actual task completion, and cannot force the model to follow through. OpenCode idle does not expose the required final-message evidence; its Stop behavior remains unverified.
+On hosts providing a current final message, `proposed-next-stop.sh` returns one bounded Stop reminder when the assistant declares a non-status `proposed-next:` action. Recheck the active request: execute a runnable, already-authorized action in the same turn; otherwise preserve explicit stop, planning-only and status-only scope, or state the concrete decision/resource/authority blocker. Missing labels with observable delivery evidence retain their formatting reminder. A status-only marker without another action declaration, quoted example, complete machine artifact, unsupported payload or host `stop_hook_active` retry does not trigger a continuation reminder.
+
+- Do not request continuation for `blocked:` with a concrete explanation or `none` with a dash-separated status explanation. Mixed status/action markers still require reconciliation.
+
+The hook recognizes declarations, not authorization or actual task completion, and cannot force the model to follow through. OpenCode idle does not expose the required final-message evidence; its Stop behavior remains unverified.
 
 ## Gate triggers and outcome contract
 

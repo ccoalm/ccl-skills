@@ -307,9 +307,42 @@ class HostInputTests(unittest.TestCase):
                         'session_id': 'limit-' + label, 'cwd': str(self.repo),
                         'transcript_path': path, 'hook_event_name': 'Stop',
                         'stop_hook_active': False, 'last_assistant_message': 'Synthetic private status.'})
-                    self.assertIn('unverified', result.get('systemMessage', '').lower())
+                    if hook == 'skill-extraction-gate-stop.sh':
+                        message = result.get('systemMessage', '')
+                        self.assertIn('history is too large', message)
+                        self.assertIn('check is incomplete', message)
+                        self.assertIn('does not block your task', message)
+                        self.assertNotIn('backstop', message)
+                    else:
+                        self.assertIn('unverified', result.get('systemMessage', '').lower())
                     self.assertNotIn('decision', result)
                     self.assertNotIn('Synthetic private status', json.dumps(result))
+
+    def test_extraction_helper_failures_explain_task_impact_without_private_details(self):
+        runtime = self.root / 'runtime'
+        runtime.mkdir()
+        hook = runtime / 'skill-extraction-gate-stop.sh'
+        shutil.copy2(ROOT / 'hooks/skill-extraction-gate-stop.sh', hook)
+        helper = runtime / 'host-input.py'
+        payload = {'session_id': 'helper-failure', 'cwd': str(self.repo),
+                   'transcript_path': self.transcript([])}
+        for label, body, explanation in (
+                ('read-failure', 'raise OSError("synthetic-private-detail")\n',
+                 'conversation history could not be read'),
+                ('missing-helper', None, 'local helper is unavailable')):
+            with self.subTest(label=label):
+                if body is None:
+                    helper.unlink(missing_ok=True)
+                else:
+                    helper.write_text(body)
+                result = self.run_hook(hook, payload)
+                message = result.get('systemMessage', '')
+                self.assertIn(explanation, message)
+                self.assertIn('does not block your task', message)
+                self.assertNotIn('history is too large', message)
+                self.assertNotIn('synthetic-private-detail', message)
+                self.assertNotIn(str(self.root), message)
+                self.assertNotIn('decision', result)
 
 
 class ContextTranscriptTests(unittest.TestCase):

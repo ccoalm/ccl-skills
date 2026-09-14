@@ -140,16 +140,22 @@ class ProposedNextTests(unittest.TestCase):
         for text in ('Which option should I use?', 'Stopped as requested.', 'Status: checks passed.'):
             self.payload['last_assistant_message'] = text
             self.assert_block(self.run_hook())
-        for text in ('proposed-next: none — status only', '**proposed-next:** none — status only'):
-            self.payload['last_assistant_message'] = text
-            self.assertEqual(self.run_hook(), {})
+        for text in ('proposed-next: none — status only', '**proposed-next:** none — status only',
+                     'proposed-next: blocked: need an explicit decision',
+                     'proposed-next: none — awaiting approval',
+                     'proposed-next: none - waiting for a resource'):
+            with self.subTest(text=text):
+                self.payload['last_assistant_message'] = text
+                self.assertEqual(self.run_hook(), {})
 
     def test_actionable_handoff_rechecks_continuation_instead_of_silently_stopping(self):
         for events in ([], self.claude_load(), self.codex_read()):
             self.events(events)
             for text in ('Next I will verify.\nproposed-next: run the existing local verification suite',
                          '**proposed-next:** repair the failing check and retest',
-                         'proposed-next: none — status only\nproposed-next: finish the remaining repair'):
+                         'proposed-next: none — status only\nproposed-next: finish the remaining repair',
+                         'proposed-next: blocked: need approval\nproposed-next: run local checks',
+                         'proposed-next: nonetheless finish the repair'):
                 payload = dict(self.payload, last_assistant_message=text)
                 result = self.run_hook(payload)
                 self.assert_block(result)

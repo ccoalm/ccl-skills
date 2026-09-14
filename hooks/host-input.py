@@ -37,7 +37,7 @@ def handoff(text, actionable_only=False):
             continue
         match = re.fullmatch(r'(?:[-*] )?(?:\*\*)?proposed-next:(?:\*\*)?\s*(.+)', stripped)
         if match and match[1].strip() and not match[1].strip().startswith('<'):
-            if actionable_only and re.fullmatch(r'none(?:\s*[—–-]\s*status only)?',
+            if actionable_only and re.fullmatch(r'(?:none(?:\s*[—–-]\s*.+)?|blocked:\s*.+)',
                                                match[1].strip(), re.IGNORECASE):
                 continue
             return True

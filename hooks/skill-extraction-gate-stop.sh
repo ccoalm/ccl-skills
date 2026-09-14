@@ -40,12 +40,16 @@ TRANSCRIPT=$(printf '%s' "$IN" | jq -r '.transcript_path // empty' 2>/dev/null)
 #    skills/<slug>/... OR the plugin behavior surfaces hooks/ and repo-root scripts/).
 HELPER="$(cd "$(dirname "$0")" && pwd)/host-input.py"
 command -v python3 >/dev/null 2>&1 && [ -r "$HELPER" ] || {
-  jq -nc '{systemMessage:"Extraction backstop unavailable: Python input normalizer missing; transcript evidence could not be verified."}'
+  jq -nc '{systemMessage:"Skill workflow check skipped: its local helper is unavailable. This does not block your task."}'
   exit 0
 }
 CWD=$(printf '%s' "$IN" | jq -r '.cwd // empty' 2>/dev/null)
 SUMMARY=$(python3 "$HELPER" transcript "$TRANSCRIPT" "${CWD:-$PWD}" 2>/dev/null) || {
-  jq -nc '{systemMessage:"Extraction backstop unverified: transcript could not be fully inspected."}'
+  if printf '%s' "$SUMMARY" | jq -e '.truncated == true' >/dev/null 2>&1; then
+    jq -nc '{systemMessage:"Conversation history is too large for the skill workflow check. The check is incomplete; this does not block your task."}'
+  else
+    jq -nc '{systemMessage:"Skill workflow check incomplete: conversation history could not be read. This does not block your task."}'
+  fi
   exit 0
 }
 CANDIDATES=$(printf '%s' "$SUMMARY" | jq -r '.edit_paths[:40][]' 2>/dev/null)

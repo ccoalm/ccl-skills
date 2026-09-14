@@ -195,6 +195,29 @@ for incompatible in '--review-chain-id probe' '--challenge-budget 1' '--wording-
 done
 [ ! -e "$TMP/codex-invoked" ] || fail "same-family Codex executable was invoked"
 
+# Declaring the extraction owner in the plan cannot route an ordinary candidate
+# around staged high-risk requirements. The real candidate must derive the owner.
+sed 's@skills/skill-extraction-workflow/scripts/extraction_review_gate.sh@src/example.py@g' \
+  "$TMP/real.diff" >"$TMP/ordinary.diff"
+for pass in review challenge; do
+  extra=(--challenge-budget 0)
+  [ "$pass" = challenge ] && extra=(--challenge-budget 1 --focus "ordinary candidate")
+  set +e
+  out="$(run_real_controller "${real_args[@]}" --diff-file "$TMP/ordinary.diff" \
+    --review-lane extraction --mode "$pass" --stage release "${extra[@]}" 2>&1)"
+  rc=$?
+  set -e
+  assert_rc "$rc" 2 "ordinary candidate cannot use extraction $pass"
+  assert_contains 'extraction lane requires controller-derived skill-extraction-workflow ownership' "$out" "candidate ownership is required"
+done
+set +e
+out="$(run_real_controller "${real_args[@]}" --diff-file "$TMP/ordinary.diff" --mode review --stage build 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 2 "ordinary staged review reaches reviewer selection"
+assert_contains '"reason_code":"no_independent_reviewer_available"' "$out" "ordinary staged scope stays valid"
+[ ! -e "$TMP/codex-invoked" ] || fail "same-family Codex executable was invoked"
+
 # The owner documents must route non-wording work through this wrapper and must
 # no longer send anyone to the retired chain ledger or merge-side binder.
 python3 - "$ROOT" <<'PY'

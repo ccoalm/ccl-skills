@@ -10,6 +10,10 @@ The extraction review wrapper also needs an explicit controller lane. Its single
 
 ## Implementation boundary
 
+Review follow-up: extraction lane selection must have controller-derived `skill-extraction-workflow` ownership from the actual candidate; a caller-declared owner alone is insufficient. This repository's extraction source-register changes supply that ownership for plugin runtime deliveries. Ordinary code continues through the staged lane. Stop declarations beginning with `blocked:` or a `none` status plus a dash explanation are non-actionable; a separate action declaration still triggers the bounded recheck. Negative fixtures precede both repairs, and the updated controller receives the full local lane and an independent delta pass.
+
+Advisory diagnostic repair: the extraction Stop check must distinguish oversized history from a read failure and explain that an incomplete check does not block the task. Partial evidence remains discarded, and advisory failures never emit a blocking decision or a success claim. This is a small host-message change owned by `terminal-cli-dev` with `product-ui-ux-design` copy acceptance, Python regression fixtures and the existing extraction review lane. Preserve English package copy and JSON output. Synthetic oversized-history and failing-helper cases precede the change; the final candidate receives the full lane and delta review. No locale detection, scan-policy change or host configuration change is needed.
+
 - Baseline: the current default-branch release, with this plan as the active local implementation artifact.
 - Owner: `skill-extraction-workflow`; lifecycle/shared-surface classification: `product-rd-workflow`; risk: `feature-risk-router`.
 - Implementation: `llm-inference-integration` for context timing, `nodejs-service-dev` for the OpenCode adapter, `python-service-dev` for synthetic hook tests. These owners are loaded before code changes.
