@@ -1,0 +1,304 @@
+{
+  "schema_version": 3,
+  "mode": "challenge",
+  "stage": "release",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "findings",
+  "selected_client": "claude",
+  "selected_reviewer": "claude",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P2",
+      "file": "skills/code-review/scripts/review_gate.py",
+      "line": 3376,
+      "failure_path": "derive_owner_selection marks any changed path skills/skill-extraction-workflow/** as owned. A candidate can change src/ or hooks/ code at release depth or with shared-gate tags and add one row to references/source-register.md. The contract text explicitly allows this. That candidate passes the new check, and a --review-lane extraction --challenge-budget 0 review skips the challenge guard. The author chooses both the lane and the qualifying path, so they decide their own exemption. The regression covers only a candidate with no extraction-owned path.",
+      "smallest_fix": "Require the extraction lane candidate's paths to be extraction-scoped (skills/**, hooks/**, scripts/**). Otherwise require the staged challenge guard whenever the candidate has non-extraction paths. Add a mixed-candidate fixture (src/example.py plus a register row) that must exit 2."
+    },
+    {
+      "severity": "P2",
+      "file": "hooks/host-input.py",
+      "line": 40,
+      "failure_path": "The pattern none(?:\\s*[—–-]\\s*.+)? and blocked:\\s*.+ matches any text after the prefix. 'proposed-next: none - run the migration and push' and 'proposed-next: blocked: none, I will now run the full suite' both skip the check. So a runnable next action gets no continuation reminder, the trigger miss this gate exists to catch. The docs describe a 'status explanation', but the code accepts any action text, so the rule cannot be enforced as written. The tests have only true status examples, with no negative case of an action after the dash.",
+      "smallest_fix": "Accept only status-shaped explanations after 'none —', such as status only, awaiting/waiting for, or needs approval/decision. Require 'blocked:' to name a decision, resource or authority. Add Stop fixtures where an action after the dash still gets the block."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [],
+  "attempts": [
+    {
+      "client": "claude",
+      "mode": "challenge",
+      "findings": [
+        {
+          "severity": "P2",
+          "file": "skills/code-review/scripts/review_gate.py",
+          "line": 3376,
+          "failure_path": "derive_owner_selection marks any changed path skills/skill-extraction-workflow/** as owned. A candidate can change src/ or hooks/ code at release depth or with shared-gate tags and add one row to references/source-register.md. The contract text explicitly allows this. That candidate passes the new check, and a --review-lane extraction --challenge-budget 0 review skips the challenge guard. The author chooses both the lane and the qualifying path, so they decide their own exemption. The regression covers only a candidate with no extraction-owned path.",
+          "smallest_fix": "Require the extraction lane candidate's paths to be extraction-scoped (skills/**, hooks/**, scripts/**). Otherwise require the staged challenge guard whenever the candidate has non-extraction paths. Add a mixed-candidate fixture (src/example.py plus a register row) that must exit 2."
+        },
+        {
+          "severity": "P2",
+          "file": "hooks/host-input.py",
+          "line": 40,
+          "failure_path": "The pattern none(?:\\s*[—–-]\\s*.+)? and blocked:\\s*.+ matches any text after the prefix. 'proposed-next: none - run the migration and push' and 'proposed-next: blocked: none, I will now run the full suite' both skip the check. So a runnable next action gets no continuation reminder, the trigger miss this gate exists to catch. The docs describe a 'status explanation', but the code accepts any action text, so the rule cannot be enforced as written. The tests have only true status examples, with no negative case of an action after the dash.",
+          "smallest_fix": "Accept only status-shaped explanations after 'none —', such as status only, awaiting/waiting for, or needs approval/decision. Require 'blocked:' to name a decision, resource or authority. Add Stop fixtures where an action after the dash still gets the block."
+        }
+      ],
+      "concern_results": [
+        {
+          "concern": "challenge_focus",
+          "conclusion": "The delta closes the original lane-by-flag finding only partly. Any file under skills/skill-extraction-workflow/ now counts as ownership, including a single register row. The caller still controls that input. The blocked/none fix over-corrects: any text after 'none —' or 'blocked:' passes, including real next actions. Both original P2 findings stay partly open."
+        },
+        {
+          "concern": "high_risk_boundary",
+          "conclusion": "Ownership now comes from changed paths, not from self-attestation. Staged guards stay in place, and the diagnostic branches remain advisory with no decision field and no private text. The containment is weak, though. The author can add a trivial extraction-owned path to any code candidate and get a release/high-risk review with no challenge. Nothing in the controller enforces the later challenge. The tests use only a candidate with no extraction-owned path, so this mixed candidate goes untested."
+        }
+      ],
+      "lens_id": "code-review:challenge:no-tools-adversarial",
+      "tool_identity": "code-review:no-tools",
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "status": "findings",
+      "packet_sha256": "421542b9475dd26d142d709ed3e6099b92e9c79ab23c4ca6d6c01564a5a4682f"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "421542b9475dd26d142d709ed3e6099b92e9c79ab23c4ca6d6c01564a5a4682f",
+  "candidate_sha256": "dc62e9d53baf4f9a97f90df8fae468525822401597911183b99eb26939a00367",
+  "review_context_sha256": "c80ed626559793539899462ae594255d2ff382a831fd8f8ac3b31619bc508978",
+  "review_controller_sha256": "efe3e312690f129aea2533cf29ab82e51798993bcfc6ea8476e81b77d1996e7f",
+  "review_profile_sha256": "f511e2550a3573a2b55db48b9a4a9f361c53fbd5936bc059313418ffcf062baa",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/references/staged-review-contract.md"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/review_gate.py"
+    },
+    {
+      "skill": "product-rd-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/product-rd-workflow/references/pre-final-continuation-gate.md"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/host-input.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/test_host_input.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/test_proposed_next.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/code-review/scripts/review_gate.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "hooks/skill-extraction-gate-stop.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "hooks/test_host_input.py"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "hooks/test_proposed_next.py"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "repository_contract": null,
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "claude-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "product-rd-workflow",
+    "product-ui-ux-design",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "selected_skills_sha256": "b1a491ed4454f543e519eb73ff1e3bfbc4f161cdf495534073fb7b11a88a33b1",
+  "risk_tags": [
+    "ai-output",
+    "external-integration",
+    "shared-gate"
+  ],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 1,
+  "challenge_index": 1,
+  "challenge_focus": "Challenge only the post-review delta and assess all original findings as open items. Find current-phase failure paths and any P0/P1 in the delta; preserve partial-verification and authorization boundaries.",
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "320b07ff206fb5bcaea1f9fcfd21ad65ae7e67c6512fcfdc0d82b5711916cec0",
+    "acceptance_sha256": "2736599fe90cf49c09a710f6873f280712990a2c8e546a075d7e70aecaf1d81c",
+    "stage": "release",
+    "review_depth": "release",
+    "risk_tags": [
+      "ai-output",
+      "external-integration",
+      "shared-gate"
+    ],
+    "challenge_budget": 1,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "a158617253f4fd21e554caa3a1209e8d59820062bb8c0e661a858156e8e4f2d4",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 2,
+  "autonomous_review_index": 2,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review",
+      "risk_or_scope_escalation"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "challenge_focus",
+      "conclusion": "The delta closes the original lane-by-flag finding only partly. Any file under skills/skill-extraction-workflow/ now counts as ownership, including a single register row. The caller still controls that input. The blocked/none fix over-corrects: any text after 'none —' or 'blocked:' passes, including real next actions. Both original P2 findings stay partly open."
+    },
+    {
+      "concern": "high_risk_boundary",
+      "conclusion": "Ownership now comes from changed paths, not from self-attestation. Staged guards stay in place, and the diagnostic branches remain advisory with no decision field and no private text. The containment is weak, though. The author can add a trivial extraction-owned path to any code candidate and get a release/high-risk review with no challenge. Nothing in the controller enforces the later challenge. The tests use only a candidate with no extraction-owned path, so this mixed candidate goes untested."
+    }
+  ],
+  "reviewed_concerns": [
+    "challenge_focus",
+    "high_risk_boundary"
+  ],
+  "reviewed_skills": [
+    "product-rd-workflow",
+    "product-ui-ux-design",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "claude",
+    "mode": "challenge",
+    "findings": [
+      {
+        "severity": "P2",
+        "file": "skills/code-review/scripts/review_gate.py",
+        "line": 3376,
+        "failure_path": "derive_owner_selection marks any changed path skills/skill-extraction-workflow/** as owned. A candidate can change src/ or hooks/ code at release depth or with shared-gate tags and add one row to references/source-register.md. The contract text explicitly allows this. That candidate passes the new check, and a --review-lane extraction --challenge-budget 0 review skips the challenge guard. The author chooses both the lane and the qualifying path, so they decide their own exemption. The regression covers only a candidate with no extraction-owned path.",
+        "smallest_fix": "Require the extraction lane candidate's paths to be extraction-scoped (skills/**, hooks/**, scripts/**). Otherwise require the staged challenge guard whenever the candidate has non-extraction paths. Add a mixed-candidate fixture (src/example.py plus a register row) that must exit 2."
+      },
+      {
+        "severity": "P2",
+        "file": "hooks/host-input.py",
+        "line": 40,
+        "failure_path": "The pattern none(?:\\s*[—–-]\\s*.+)? and blocked:\\s*.+ matches any text after the prefix. 'proposed-next: none - run the migration and push' and 'proposed-next: blocked: none, I will now run the full suite' both skip the check. So a runnable next action gets no continuation reminder, the trigger miss this gate exists to catch. The docs describe a 'status explanation', but the code accepts any action text, so the rule cannot be enforced as written. The tests have only true status examples, with no negative case of an action after the dash.",
+        "smallest_fix": "Accept only status-shaped explanations after 'none —', such as status only, awaiting/waiting for, or needs approval/decision. Require 'blocked:' to name a decision, resource or authority. Add Stop fixtures where an action after the dash still gets the block."
+      }
+    ],
+    "concern_results": [
+      {
+        "concern": "challenge_focus",
+        "conclusion": "The delta closes the original lane-by-flag finding only partly. Any file under skills/skill-extraction-workflow/ now counts as ownership, including a single register row. The caller still controls that input. The blocked/none fix over-corrects: any text after 'none —' or 'blocked:' passes, including real next actions. Both original P2 findings stay partly open."
+      },
+      {
+        "concern": "high_risk_boundary",
+        "conclusion": "Ownership now comes from changed paths, not from self-attestation. Staged guards stay in place, and the diagnostic branches remain advisory with no decision field and no private text. The containment is weak, though. The author can add a trivial extraction-owned path to any code candidate and get a release/high-risk review with no challenge. Nothing in the controller enforces the later challenge. The tests use only a candidate with no extraction-owned path, so this mixed candidate goes untested."
+      }
+    ],
+    "lens_id": "code-review:challenge:no-tools-adversarial",
+    "tool_identity": "code-review:no-tools",
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "status": "findings",
+    "packet_sha256": "421542b9475dd26d142d709ed3e6099b92e9c79ab23c4ca6d6c01564a5a4682f"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}

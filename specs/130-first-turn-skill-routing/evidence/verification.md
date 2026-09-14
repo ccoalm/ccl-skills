@@ -9,7 +9,9 @@ Version candidate: `0.18.3`; base: `688ff9f11871259729fc49a5230106c2f6432539`. P
 - Keep startup text byte-identical, prompt contents out of the new renderer, and npm/plugin distribution aligned.
 - Preserve release/shared-gate profiles in the extraction wrapper's separate review and challenge passes, without changing default staged-review requirements.
 
-## Checks completed before independent review
+## Checks on the initial reviewed candidate
+
+The following results cover `22b5a99238c221fc25eebb66c79481e5f74b8b1e`; current delta verification is listed separately below.
 
 | Check | Observation | Boundary |
 | --- | --- | --- |
@@ -28,7 +30,23 @@ Version candidate: `0.18.3`; base: `688ff9f11871259729fc49a5230106c2f6432539`. P
 
 ## Integration and publication
 
-Independent review and challenge receipts are required alongside this file before integration. Integration uses protected pull requests through `dev` and `main`, with exact-head CI and platform merge receipts. Tag publication and registry-only consumer verification are outside this merge delivery. The local process-state tests require permission to inspect `ps`; a sandbox refusal is not a passed process-cleanup test.
+The [review coverage and dispositions](dispositions.md) link the completed independent review, challenge and delta challenge. There are no P0/P1 findings; two P2 detection limits remain open and visible. Integration uses pull requests through `dev` and `main`, with exact-head CI and platform merge receipts. Tag publication and registry-only consumer verification are outside this merge delivery. The local process-state tests require permission to inspect `ps`; a sandbox refusal is not a passed process-cleanup test.
+
+## Current delta verification
+
+Candidate: `af115de0492251c49750d54b8c19f58b7de79c18`. Changes after this commit are non-executable review records in this evidence directory.
+
+| Command or check | Result | Boundary |
+| --- | --- | --- |
+| `make -j3 test` | Terminal exit 0 | Repository gates, 43 fast-regression suites, review regressions and all abort-leak legs |
+| `python3 -m unittest hooks.test_host_input hooks.test_proposed_next` | 55 passed | Status/action declarations, host inputs, bounded history and diagnostic failure paths |
+| `bash skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh` | Passed | Ordinary-candidate refusal in both extraction modes and unchanged staged path |
+| Disposable controller/Stop mutation probe | Passing controls; nine mutations failed the intended assertions | Lane, staged-risk, chain, scope, ownership and marker boundaries |
+| Disposable diagnostic mutation probe | Passing control; four mutations failed the intended assertions | Scan-limit classification, task impact, read-failure classification and advisory-only output |
+| `npm run build`, `npm run test:pack`, `npm pack --dry-run` | Terminal exit 0; pack tests 11/11 | Rebuilt assets include the current hook; no registry publication |
+| Structure/private leakage and public sanitization | `alias_audit_ok`, `ccl_skill_check_clean_ok`, `public_sanitization_ok` | Current committed implementation; record-only files receive final checks before push |
+
+Full package tests and heavy regressions remain required on the pull request's exact head before merge. The prior 356-test package run and three-host lifecycle smoke were not repeated locally for the delta; current rebuilt-pack and focused hook results are recorded above. Native UI rendering and updating an already-installed plugin are not proved by these checks.
 
 ## Operational boundaries
 
