@@ -26,10 +26,20 @@ Walk these before you open a pull or merge request, push to one that is already 
 1. Name the commit or packet the last conclusive review covered and compare it with the current candidate: HEAD plus staged, unstaged and untracked implementation files. For a review whose candidate `--base` derived from the whole worktree, the controller records that commit in the worktree's git directory (`ccl-code-review/last-review.json`; a bare `--diff-file` or `--paths` review records nothing), and the plugin's pull-request hook repeats this comparison when you open, ready or merge one; its reminder is this step firing, not a new question.
 2. Any difference makes the current candidate unreviewed: a fix for a finding of any severity, an added or changed test, a changelog or doc line, a rebase that changed a file the candidate touches. Only the review's own record files (result JSON, disposition notes) are exempt.
 3. An unreviewed candidate must get the owning gate's renewed review now, run by you: a fresh full run per [manual invocation](manual-invocation-and-prompts.md); the skill-extraction lane runs its own delta pass instead. Pushing it for a human to review does not discharge it, and "awaiting human review" never stands in for the run.
-4. Renewed runs stop at five after the first review; a tracked chain's own five-round ceiling still applies inside it. A P0/P1 still open after the fifth, or a change made after it, is reverted or reported blocked, never reported ready.
+4. Apply the [review continuation checkpoint](#review-continuation-checkpoint) after five renewed runs or earlier when findings recur without progress. Necessary review continues within the task's authority; unresolved P0/P1 or unreviewed changes still prevent a ready report.
 5. The report and the pull-request description name each review and the commit it covered. Call HEAD reviewed only when the last conclusive review covered HEAD.
 
 Before completion or landing handoff, report the actual diff classification and a concrete reason if review is inapplicable. Support that classification with the change-inspection command and result, including untracked implementation files. Report the actual review outcome and candidate it covers, relevant tests and their results, skips, unresolved findings and remaining restrictions. A failed or missing required review leaves review/completion pending. Review does not grant permission to commit, push, merge, publish or deploy.
+
+## Review continuation checkpoint
+
+Necessary in-scope review inherits the existing task authority, including review of a fix made after an earlier pass. Five renewed runs trigger a progress checkpoint, not an authorization request. At that checkpoint, and before each later renewed run:
+
+1. Check current scope and any explicit user stop, count, cost or time limit. Honor a host permission denial or unavailable resource through its normal recovery path; task authority never bypasses it. Ask only for a missing decision or authority that the next action actually needs.
+2. Record what changed, the disposition of the previous findings, and what new evidence the next pass should obtain. When findings recur without progress, change the method or gather different evidence before calling again. Continue available in-scope repair and tests; park only work that needs an unavailable decision or resource.
+3. Run the necessary review of the changed candidate without requesting permission per pass. Keep the tracked chain's own round ceiling and each invocation's timeout. A terminal chain stays terminal; use the owning lane's documented fresh-review or delta-pass path, and never reset an unchanged candidate's chain merely to obtain zero findings. Record the real pass history; an automatic pass is not a newly human-requested one.
+
+The checkpoint waives no review, challenge, evidence or readiness requirement. A missing conclusive pass or unresolved P0/P1 remains pending regardless of how many passes have run. If the current candidate already has valid review and dispositions, reuse them and finish.
 
 ## Review tools
 
