@@ -88,6 +88,8 @@ end
 # those exact rows (one digest, or an array when several rows cited the retired
 # locator); a new row cannot inherit it by reusing the locator.
 EXEMPT = {
+  "file:skills/skill-extraction-workflow/references/dual-track-review-gate.md#After five delta passes a still-open P0/P1" =>
+    "147 replaces the task-wide review stop with a progress checkpoint; the superseding register row preserves required delta review",
   "file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#Disabled semantics are real, not painted" =>
     "065 replaced the combined platform walkthrough with an authority-classed claim ledger and executable delivery contract",
   "file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#predictive-back geometry routes to" =>
@@ -481,6 +483,8 @@ end
 exempt_uses = {}
 EXEMPT_USE_ALLOWANCE = 1
 EXEMPT_ROW_DIGESTS = {
+  "file:skills/skill-extraction-workflow/references/dual-track-review-gate.md#After five delta passes a still-open P0/P1" =>
+    "44d4bf30abb863fd031f4bc47b12d1a3685062514ca3e344481f7faa1598bc5e",
   "file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#Disabled semantics are real, not painted" =>
     "729839dab2f900b92a3f7e866eb6602eb5261c112d39973d9eb470a797f8ca41",
   "file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#predictive-back geometry routes to" =>

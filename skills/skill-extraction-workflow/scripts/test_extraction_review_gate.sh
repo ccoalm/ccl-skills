@@ -244,8 +244,30 @@ assert re.search(r"[Ww]ording-only.{0,500}(?:single|one)[- ](?:round|review|pass
                  docs["quickstart"], re.DOTALL), "quickstart lost the wording-only single-review exception"
 assert "--challenge-budget" not in docs["quickstart"], "quickstart must not hand callers the budget flag"
 dual = docs["dual-track"]
-for pinned in ("post-review delta", "Every post-review delta gets a delta pass", "After five delta passes", "never left to a human reader"):
+for pinned in ("post-review delta", "Every post-review delta gets a delta pass", "never left to a human reader"):
     assert pinned in dual, f"dual-track lost '{pinned}'"
+# The sixth necessary review inherits task authority. A convergence checkpoint
+# must not become a fresh permission request, or override an explicit user limit.
+completion = (root / "skills/code-review/references/development-completion.md").read_text(encoding="utf-8")
+checkpoint = "#review-continuation-checkpoint"
+assert checkpoint in dual, "extraction must use the canonical review continuation checkpoint"
+assert "Unresolved P0/P1 or an unreviewed delta still blocks readiness" in dual, "extraction must keep unresolved findings and unreviewed changes pending"
+assert "review continuation checkpoint" in docs["SKILL"], "entrypoint must route the continuation decision"
+assert "review continuation checkpoint" in docs["quickstart"], "quickstart must route the continuation decision"
+for label, text in {"completion": completion, **docs}.items():
+    for retired in ("Renewed runs stop at five", "After five delta passes a still-open", "delta pass (at most five)", "delta only (at most five"):
+        assert retired not in text, f"{label} restores a task-wide review permission ceiling"
+for obligation in (
+    "Five renewed runs trigger a progress checkpoint, not an authorization request",
+    "Necessary in-scope review inherits the existing task authority",
+    "explicit user stop, count, cost or time limit",
+    "host permission denial",
+    "change the method or gather different evidence",
+    "tracked chain's own round ceiling",
+    "never reset an unchanged candidate's chain merely to obtain zero findings",
+    "A missing conclusive pass or unresolved P0/P1 remains pending",
+):
+    assert obligation in completion, f"review continuation lost '{obligation}'"
 wording_only = (root / "skills/code-review/references/wording-only-review.md").read_text(encoding="utf-8")
 assert "--wording-only-proof-file" in wording_only
 assert "--challenge-budget 0" in wording_only
