@@ -59,7 +59,29 @@ shared-gate risk tag.
 - `check-ccl-skills.sh`: passed with `r0_status=private-ok` on the implementation
   candidate. The real private alias audit ran; no audit stub was used.
 - Public sanitization, Markdown links, spec references and whitespace checks
-  passed. Full local lanes, package rehearsal and wiring remain in progress.
+  passed.
+
+Final local verification covers the implementation candidate and its
+non-executable evidence records through
+`5ccda2a3a512036946ac5393dba9d02415c99001`:
+
+| Command or lane | Result |
+| --- | --- |
+| `make test-repo-gates` | Passed after environment and locator repairs |
+| `make test-regressions-fast` recipe in the aggregate run | Passed; 43 suites |
+| `make test-code-review-1` recipe in the aggregate run | Passed; 9 suites |
+| `make -j3 test-code-review-2 test-code-review-abort-leak` | Passed; 8 suites and both abort-leak legs for primary and fallback |
+| `test_register_firing_path_wiring.sh` | Passed; 21 assertions |
+| `make npm-publish-dry` | Passed; 356 package tests, 11 pack tests, no skips |
+| Rebuild plus `npm run test:pack` with `EXPECT_SOURCE_COMMIT` and `REQUIRE_CLEAN_RELEASE=1` | Passed; exact tarball bound to the commit above |
+| `TGZ_PATH=<verified artifact> bash scripts/host-smoke.sh` | Passed; actual artifact CLI and real Codex, Claude and OpenCode lifecycle checks |
+
+The original `make -j3 test` aggregate exited nonzero before the repairs.
+Its passing fast lane and first review shard were retained; the failed
+repository lane and not-yet-run review recipes were then completed separately.
+Together these cover every `make test` recipe; no successful aggregate exit is
+claimed. The separate heavy regression lane is required in CI. Current pipeline
+and release state are tracked by the pull request and tag workflow.
 
 The direct resolver probe extracts `git archive <candidate>` into a disposable
 directory, finds the unique row containing the retired five-pass locator, and
