@@ -1,0 +1,302 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "release",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "passed",
+  "selected_client": "claude",
+  "selected_reviewer": "claude",
+  "selected_attempt_index": 0,
+  "findings": [],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [],
+  "attempts": [
+    {
+      "client": "claude",
+      "mode": "review",
+      "findings": [],
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "The only change points the code-review row's firing path at the numbered rule 'Run the necessary review of the changed candidate' instead of the section heading. That matches the gate's need for a normative rule. The packet can't show whether the anchor matches the unchanged reference, and I found no defect in the delta."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "This is a documentation locator change only. It has no write path, no permission or actor bypass, and no data mutation."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "If the anchor fails to resolve, the register resolution check fails closed. The fix does not quietly weaken anything."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "The claimed register-resolution and check-ccl-skills passes would catch an anchor that doesn't resolve. I can't check those runs from the packet, and the full lane is still reported as running."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "Only one row's locator text changes. No other rows, formats or exception digests change in this delta."
+        },
+        {
+          "concern": "rollout_rollback",
+          "conclusion": "This is a one-line edit to a reference file. It is easy to reverse and has no release impact on its own."
+        },
+        {
+          "concern": "observability_operations",
+          "conclusion": "The row still records the owner, the consolidation and the regression evidence. Diagnosability is unchanged."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "The row's rationale is unchanged and states a RED-baseline regression. The evidence packet says it validates instruction structure only, so nothing is overstated."
+        },
+        {
+          "concern": "high_risk_boundary",
+          "conclusion": "The shared-gate risk is limited to firing-path resolution. The row now names a normative rule, which is stricter than a heading. The retired-locator exception is not touched in this delta."
+        },
+        {
+          "concern": "repository_contract",
+          "conclusion": "The AGENTS.md rule to record a baseline and a falsifiable check for behavior changes is met by the cited test row. The contract is not loosened and no contract defect is visible."
+        }
+      ],
+      "lens_id": "code-review:review:no-tools",
+      "tool_identity": "code-review:no-tools",
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "packet_sha256": "2c8fdd39bf54a257f0b3584e9fd19ceb96dc492d4cadce7649c8d428250435b3"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "2c8fdd39bf54a257f0b3584e9fd19ceb96dc492d4cadce7649c8d428250435b3",
+  "candidate_sha256": "8c5218873202bd69fc79ed25d3f932ad377c94361d6a9e4461f479f038077b1a",
+  "review_context_sha256": "98114be643508d2c40e8b6416cb1a803956010b5527488794236d9523a762c76",
+  "review_controller_sha256": "efe3e312690f129aea2533cf29ab82e51798993bcfc6ea8476e81b77d1996e7f",
+  "review_profile_sha256": "39cb8606a0b29ac4940d9fd2bf08ef9ca8b1a9bb9cf4baf73719434b7ce10627",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "repository_contract": {
+    "coverage": "complete",
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "bytes": 7081,
+        "sha256": "cbfe015efc63917b7237f10533efcd45c875323a9f464e0a23d03a758a8d4d29"
+      }
+    ],
+    "omitted": [],
+    "sources_not_read": [
+      "CLAUDE.local.md and untracked files",
+      "@path imports",
+      ".claude/rules",
+      "host-configured fallback filenames"
+    ]
+  },
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "claude-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "release-coordination",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "selected_skills_sha256": "898095cdb842fc02b031ffed0306cffa103ef80aa0a518ae675008d593899f1f",
+  "risk_tags": [
+    "shared-gate"
+  ],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": "Review only this source-register locator delta. Original gate failure: impact_chain_firing_path_missing: RED-baseline row has no owner-scoped firing path in this committed diff. The unchanged completion reference has numbered rule 3: Run the necessary review of the changed candidate without requesting permission per pass. The gate requires a changed normative numbered/list rule, rather than a section heading. Identify any P0/P1 in the delta.",
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "6481a47873d60905748562a69c2c0b06e98322ac3927c190c858fbe46787ee63",
+    "acceptance_sha256": "31fcb31927eb0d7b5f778b3e7dc0fadac051651aba91157fac93627645d13160",
+    "stage": "release",
+    "review_depth": "release",
+    "risk_tags": [
+      "shared-gate"
+    ],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "e1f7b2f4c146734f6d7e609b62187ee29a581987943b736de5ab064f4ae14745",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": false,
+  "human_decision_required": false,
+  "review_state": "reviewed",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "before_completion_claim"
+    ],
+    "satisfied_triggers": [
+      "before_external_review",
+      "risk_or_scope_escalation"
+    ],
+    "blocks": [
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "The only change points the code-review row's firing path at the numbered rule 'Run the necessary review of the changed candidate' instead of the section heading. That matches the gate's need for a normative rule. The packet can't show whether the anchor matches the unchanged reference, and I found no defect in the delta."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "This is a documentation locator change only. It has no write path, no permission or actor bypass, and no data mutation."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "If the anchor fails to resolve, the register resolution check fails closed. The fix does not quietly weaken anything."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "The claimed register-resolution and check-ccl-skills passes would catch an anchor that doesn't resolve. I can't check those runs from the packet, and the full lane is still reported as running."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "Only one row's locator text changes. No other rows, formats or exception digests change in this delta."
+    },
+    {
+      "concern": "rollout_rollback",
+      "conclusion": "This is a one-line edit to a reference file. It is easy to reverse and has no release impact on its own."
+    },
+    {
+      "concern": "observability_operations",
+      "conclusion": "The row still records the owner, the consolidation and the regression evidence. Diagnosability is unchanged."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "The row's rationale is unchanged and states a RED-baseline regression. The evidence packet says it validates instruction structure only, so nothing is overstated."
+    },
+    {
+      "concern": "high_risk_boundary",
+      "conclusion": "The shared-gate risk is limited to firing-path resolution. The row now names a normative rule, which is stricter than a heading. The retired-locator exception is not touched in this delta."
+    },
+    {
+      "concern": "repository_contract",
+      "conclusion": "The AGENTS.md rule to record a baseline and a falsifiable check for behavior changes is met by the cited test row. The contract is not loosened and no contract defect is visible."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "rollout_rollback",
+    "observability_operations",
+    "claim_strength",
+    "high_risk_boundary",
+    "repository_contract"
+  ],
+  "reviewed_skills": [
+    "release-coordination",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "claude",
+    "mode": "review",
+    "findings": [],
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "The only change points the code-review row's firing path at the numbered rule 'Run the necessary review of the changed candidate' instead of the section heading. That matches the gate's need for a normative rule. The packet can't show whether the anchor matches the unchanged reference, and I found no defect in the delta."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "This is a documentation locator change only. It has no write path, no permission or actor bypass, and no data mutation."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "If the anchor fails to resolve, the register resolution check fails closed. The fix does not quietly weaken anything."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "The claimed register-resolution and check-ccl-skills passes would catch an anchor that doesn't resolve. I can't check those runs from the packet, and the full lane is still reported as running."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "Only one row's locator text changes. No other rows, formats or exception digests change in this delta."
+      },
+      {
+        "concern": "rollout_rollback",
+        "conclusion": "This is a one-line edit to a reference file. It is easy to reverse and has no release impact on its own."
+      },
+      {
+        "concern": "observability_operations",
+        "conclusion": "The row still records the owner, the consolidation and the regression evidence. Diagnosability is unchanged."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "The row's rationale is unchanged and states a RED-baseline regression. The evidence packet says it validates instruction structure only, so nothing is overstated."
+      },
+      {
+        "concern": "high_risk_boundary",
+        "conclusion": "The shared-gate risk is limited to firing-path resolution. The row now names a normative rule, which is stricter than a heading. The retired-locator exception is not touched in this delta."
+      },
+      {
+        "concern": "repository_contract",
+        "conclusion": "The AGENTS.md rule to record a baseline and a falsifiable check for behavior changes is met by the cited test row. The contract is not loosened and no contract defect is visible."
+      }
+    ],
+    "lens_id": "code-review:review:no-tools",
+    "tool_identity": "code-review:no-tools",
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "status": "passed",
+    "packet_sha256": "2c8fdd39bf54a257f0b3584e9fd19ceb96dc492d4cadce7649c8d428250435b3"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "deep_self_review_before_completion"
+}

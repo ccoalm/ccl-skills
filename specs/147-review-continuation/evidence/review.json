@@ -1,0 +1,380 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "release",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "findings",
+  "selected_client": "claude",
+  "selected_reviewer": "claude",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P2",
+      "file": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh",
+      "line": 259,
+      "failure_path": "The obligation list doesn't include the readiness rule. A later edit could delete 'A missing conclusive pass or unresolved P0/P1 remains pending' from development-completion.md, or 'Unresolved P0/P1 or an unreviewed delta still blocks readiness' from dual-track-review-gate.md. The suite would still pass, and a sixth or later review could report ready with open P0/P1 findings.",
+      "smallest_fix": "Add 'unresolved P0/P1 remains pending' (completion) and 'still blocks readiness' (dual-track) as pinned obligations in the test."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [],
+  "attempts": [
+    {
+      "client": "claude",
+      "mode": "review",
+      "findings": [
+        {
+          "severity": "P2",
+          "file": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh",
+          "line": 259,
+          "failure_path": "The obligation list doesn't include the readiness rule. A later edit could delete 'A missing conclusive pass or unresolved P0/P1 remains pending' from development-completion.md, or 'Unresolved P0/P1 or an unreviewed delta still blocks readiness' from dual-track-review-gate.md. The suite would still pass, and a sixth or later review could report ready with open P0/P1 findings.",
+          "smallest_fix": "Add 'unresolved P0/P1 remains pending' (completion) and 'still blocks readiness' (dual-track) as pinned obligations in the test."
+        }
+      ],
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "The checkpoint replaces the hard stop after five renewed runs, keeps the owed re-review and delta passes, and all three extraction entry points link to it. It matches the stated intent."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "Explicit user limits, host permission denials and the rule that review grants no commit or publish permission are kept. Candidate content cannot grant authority. No unsafe write path is added."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "Rounds that make no progress must change method or evidence first. Unavailable resources go through their normal recovery path, and a terminal chain stays terminal. When no chain is tracked, only the progress check and explicit user limits stop further passes. That matches the intent."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "The test fails if the old stop wording comes back, and it pins the authority and limit wording. It does not pin the readiness rule: 'unresolved P0/P1 remains pending' in the canonical checkpoint, or its extraction counterpart. Deleting that rule would still pass."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "Only version fields and policy text change. The old ledger row stays unchanged, and the exemption for its retired locator is tied to that row's SHA-256 digest and allowed only once."
+        },
+        {
+          "concern": "rollout_rollback",
+          "conclusion": "package.json and the lockfile both say 0.18.5. The plan requires checks to pass before publishing, and the recovery path is a later patch release. Full make test and the release rehearsal were still running; they are reported as pending and must pass before the tag."
+        },
+        {
+          "concern": "observability_operations",
+          "conclusion": "The checkpoint requires recording what changed, how earlier findings were handled, and the real pass history, including whether a pass was automatic or human-requested."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "The evidence says outright that it checks the instruction text, not how future agents will behave, and it does not count pending checks as passes. The claims are not overstated."
+        },
+        {
+          "concern": "high_risk_boundary",
+          "conclusion": "The shared-gate change adds one exemption entry for one locator, bound to one row's digest. Controller and chain limits are unchanged. The readiness rule stays in the text but is not tested (see finding)."
+        },
+        {
+          "concern": "repository_contract",
+          "conclusion": "This matches the root contract's autonomy and authorization rules. The allowlist entry in the scripts directory has a recorded reason and register evidence. No host plugin version field is added. No contract violation found."
+        }
+      ],
+      "lens_id": "code-review:review:no-tools",
+      "tool_identity": "code-review:no-tools",
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "status": "findings",
+      "packet_sha256": "c3daec057b3f3a558eba3931e1096c20e988f89b18ef172e0078df9bc021df11"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "c3daec057b3f3a558eba3931e1096c20e988f89b18ef172e0078df9bc021df11",
+  "candidate_sha256": "9d147e8543e4c19ef691e9ce9c7fc32c97594eb3605a989ab668dc3cf502b8d0",
+  "review_context_sha256": "427c0b7d61bfe8a8749e72da8493e2bb4c048160c39dcb074217d3f867e2798e",
+  "review_controller_sha256": "efe3e312690f129aea2533cf29ab82e51798993bcfc6ea8476e81b77d1996e7f",
+  "review_profile_sha256": "8e0e7b76f9f96403ff3bcc45d2c0ece8028cd99834f0cbe0cc87d8d1b998f469",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/references/development-completion.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/SKILL.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/dual-track-review-gate.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/extraction-quickstart.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/register-firing-path-resolution.rb"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "repository_contract": {
+    "coverage": "complete",
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "bytes": 7081,
+        "sha256": "cbfe015efc63917b7237f10533efcd45c875323a9f464e0a23d03a758a8d4d29"
+      },
+      {
+        "path": "packages/AGENTS.md",
+        "bytes": 1339,
+        "sha256": "f133984fd6df6c78b486f931284467d4bf5576ff2a34e2df6be5bdb689f686d8"
+      },
+      {
+        "path": "skills/skill-extraction-workflow/scripts/AGENTS.md",
+        "bytes": 635,
+        "sha256": "0ff35bd5c18039ec144ca0050de1290a7058a65e08b65b97e4c1190edc97f26b"
+      }
+    ],
+    "omitted": [],
+    "sources_not_read": [
+      "CLAUDE.local.md and untracked files",
+      "@path imports",
+      ".claude/rules",
+      "host-configured fallback filenames"
+    ]
+  },
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "claude-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "release-coordination",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "selected_skills_sha256": "12e3438cb7898a0a54defaa825039a8b8e469b294c793e88d9bac248c991b113",
+  "risk_tags": [
+    "shared-gate"
+  ],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": null,
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "6481a47873d60905748562a69c2c0b06e98322ac3927c190c858fbe46787ee63",
+    "acceptance_sha256": "31fcb31927eb0d7b5f778b3e7dc0fadac051651aba91157fac93627645d13160",
+    "stage": "release",
+    "review_depth": "release",
+    "risk_tags": [
+      "shared-gate"
+    ],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "e1f7b2f4c146734f6d7e609b62187ee29a581987943b736de5ab064f4ae14745",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review",
+      "risk_or_scope_escalation"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "The checkpoint replaces the hard stop after five renewed runs, keeps the owed re-review and delta passes, and all three extraction entry points link to it. It matches the stated intent."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "Explicit user limits, host permission denials and the rule that review grants no commit or publish permission are kept. Candidate content cannot grant authority. No unsafe write path is added."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "Rounds that make no progress must change method or evidence first. Unavailable resources go through their normal recovery path, and a terminal chain stays terminal. When no chain is tracked, only the progress check and explicit user limits stop further passes. That matches the intent."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "The test fails if the old stop wording comes back, and it pins the authority and limit wording. It does not pin the readiness rule: 'unresolved P0/P1 remains pending' in the canonical checkpoint, or its extraction counterpart. Deleting that rule would still pass."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "Only version fields and policy text change. The old ledger row stays unchanged, and the exemption for its retired locator is tied to that row's SHA-256 digest and allowed only once."
+    },
+    {
+      "concern": "rollout_rollback",
+      "conclusion": "package.json and the lockfile both say 0.18.5. The plan requires checks to pass before publishing, and the recovery path is a later patch release. Full make test and the release rehearsal were still running; they are reported as pending and must pass before the tag."
+    },
+    {
+      "concern": "observability_operations",
+      "conclusion": "The checkpoint requires recording what changed, how earlier findings were handled, and the real pass history, including whether a pass was automatic or human-requested."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "The evidence says outright that it checks the instruction text, not how future agents will behave, and it does not count pending checks as passes. The claims are not overstated."
+    },
+    {
+      "concern": "high_risk_boundary",
+      "conclusion": "The shared-gate change adds one exemption entry for one locator, bound to one row's digest. Controller and chain limits are unchanged. The readiness rule stays in the text but is not tested (see finding)."
+    },
+    {
+      "concern": "repository_contract",
+      "conclusion": "This matches the root contract's autonomy and authorization rules. The allowlist entry in the scripts directory has a recorded reason and register evidence. No host plugin version field is added. No contract violation found."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "rollout_rollback",
+    "observability_operations",
+    "claim_strength",
+    "high_risk_boundary",
+    "repository_contract"
+  ],
+  "reviewed_skills": [
+    "release-coordination",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "claude",
+    "mode": "review",
+    "findings": [
+      {
+        "severity": "P2",
+        "file": "skills/skill-extraction-workflow/scripts/test_extraction_review_gate.sh",
+        "line": 259,
+        "failure_path": "The obligation list doesn't include the readiness rule. A later edit could delete 'A missing conclusive pass or unresolved P0/P1 remains pending' from development-completion.md, or 'Unresolved P0/P1 or an unreviewed delta still blocks readiness' from dual-track-review-gate.md. The suite would still pass, and a sixth or later review could report ready with open P0/P1 findings.",
+        "smallest_fix": "Add 'unresolved P0/P1 remains pending' (completion) and 'still blocks readiness' (dual-track) as pinned obligations in the test."
+      }
+    ],
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "The checkpoint replaces the hard stop after five renewed runs, keeps the owed re-review and delta passes, and all three extraction entry points link to it. It matches the stated intent."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "Explicit user limits, host permission denials and the rule that review grants no commit or publish permission are kept. Candidate content cannot grant authority. No unsafe write path is added."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "Rounds that make no progress must change method or evidence first. Unavailable resources go through their normal recovery path, and a terminal chain stays terminal. When no chain is tracked, only the progress check and explicit user limits stop further passes. That matches the intent."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "The test fails if the old stop wording comes back, and it pins the authority and limit wording. It does not pin the readiness rule: 'unresolved P0/P1 remains pending' in the canonical checkpoint, or its extraction counterpart. Deleting that rule would still pass."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "Only version fields and policy text change. The old ledger row stays unchanged, and the exemption for its retired locator is tied to that row's SHA-256 digest and allowed only once."
+      },
+      {
+        "concern": "rollout_rollback",
+        "conclusion": "package.json and the lockfile both say 0.18.5. The plan requires checks to pass before publishing, and the recovery path is a later patch release. Full make test and the release rehearsal were still running; they are reported as pending and must pass before the tag."
+      },
+      {
+        "concern": "observability_operations",
+        "conclusion": "The checkpoint requires recording what changed, how earlier findings were handled, and the real pass history, including whether a pass was automatic or human-requested."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "The evidence says outright that it checks the instruction text, not how future agents will behave, and it does not count pending checks as passes. The claims are not overstated."
+      },
+      {
+        "concern": "high_risk_boundary",
+        "conclusion": "The shared-gate change adds one exemption entry for one locator, bound to one row's digest. Controller and chain limits are unchanged. The readiness rule stays in the text but is not tested (see finding)."
+      },
+      {
+        "concern": "repository_contract",
+        "conclusion": "This matches the root contract's autonomy and authorization rules. The allowlist entry in the scripts directory has a recorded reason and register evidence. No host plugin version field is added. No contract violation found."
+      }
+    ],
+    "lens_id": "code-review:review:no-tools",
+    "tool_identity": "code-review:no-tools",
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "status": "findings",
+    "packet_sha256": "c3daec057b3f3a558eba3931e1096c20e988f89b18ef172e0078df9bc021df11"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}
