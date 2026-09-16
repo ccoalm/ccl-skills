@@ -54,7 +54,7 @@ Prevention is the firing mechanism on the failure class (status predicate, compl
 | Result classification and RCA | met after the fact | Sections above |
 | R0 | met | `check-ccl-skills.sh` with base `origin/dev`: `r0_status=private-ok`, `ccl_skill_check_clean_ok` |
 | Behavioral evidence | met | `RED-baseline` in the register row; walks in `verification.md` |
-| Independent review and challenge | see below | First passes ran through `code-review/scripts/review_gate.sh` as a tracked chain, not the extraction lane's single-shot `scripts/extraction_review_gate.sh`; same controller, candidate and owners, but not the prescribed entry. Extraction-lane passes are recorded separately |
+| Independent review and challenge | met through the extraction lane | First passes ran through `code-review/scripts/review_gate.sh` as a tracked chain (`review.json`, `challenge.json`), not the prescribed entry. The prescribed single-shot `scripts/extraction_review_gate.sh` passes then ran on `fe810dc`, which includes this record: review kimi passed 0 findings (`extraction-lane-review.json`), challenge kimi passed 0 findings (`extraction-lane-challenge.json`) |
 | Impact-chain row | met | Owner-scoped firing path resolved on the committed diff |
 
 ## Pending
