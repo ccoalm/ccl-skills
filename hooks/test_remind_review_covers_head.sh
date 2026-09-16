@@ -24,10 +24,11 @@ git -C "$repo" config user.name 'Test User'
 commit() { printf '%s\n' "$2" >"$repo/$1"; git -C "$repo" add -A; git -C "$repo" commit -q -m "$3"; }
 commit code.txt one "first change"
 
-write_receipt() { # <head> <worktree_clean true|false>
+write_receipt() { # <head> <worktree_clean true|false> [status | none to omit; default passed]
   mkdir -p "$repo/.git/ccl-code-review"
-  jq -nc --arg h "$1" --argjson c "$2" \
-    '{schema_version:1,head:$h,worktree_clean:$c,mode:"review",status:"findings",recorded_at:"2026-01-01T00:00:00Z"}' \
+  jq -nc --arg h "$1" --argjson c "$2" --arg s "${3:-passed}" \
+    '{schema_version:1,head:$h,worktree_clean:$c,mode:"review",status:$s,recorded_at:"2026-01-01T00:00:00Z"}
+     | if .status == "none" then del(.status) else . end' \
     >"$repo/.git/ccl-code-review/last-review.json"
 }
 
@@ -45,6 +46,7 @@ probe() {
 }
 
 probe "no receipt" remind 'glab mr create --title x' "$repo" '没有记录到任何结论性的 code-review 结果'
+probe "no receipt names the path it checked" remind 'glab mr create --title x' "$repo" 'ccl-code-review/last-review.json'
 head1=$(git -C "$repo" rev-parse HEAD)
 write_receipt "$head1" true
 probe "covered head" quiet 'glab mr create --title x'
@@ -52,6 +54,17 @@ probe "covered head, gh" quiet 'gh pr create --fill'
 probe "commit in the same command" remind 'git add -A && git commit -m fix && gh pr create --fill' "$repo" '会先改动 HEAD'
 probe "HEAD moves only after the PR opens" quiet 'gh pr create --fill && git checkout main'
 probe "draft, commit, then ready" remind 'gh pr create --draft --fill && git add -A && git commit -m fix && git push && gh pr ready' "$repo" '会先改动 HEAD'
+
+# Coverage is not disposition: findings on the covered HEAD still remind.
+write_receipt "$head1" true findings
+probe "findings on the covered head" remind 'glab mr merge 8 --yes' "$repo" '结论是 findings，不是 passed'
+probe "findings reminder names the receipt it read" remind 'gh pr ready 12' "$repo" 'ccl-code-review/last-review.json'
+write_receipt "$head1" true none
+[ "$(jq -r 'has("status")' "$repo/.git/ccl-code-review/last-review.json")" = false ] \
+  || { echo "FAIL: fixture still carries a status" >&2; exit 1; }
+probe "a receipt without a status is not a pass" remind 'glab mr create --title x' "$repo" '不是 passed'
+write_receipt "$head1" true
+probe "passed on the covered head" quiet 'glab mr merge 8 --yes'
 
 commit test.txt added "add regression test after review"
 probe "commit after review" remind 'glab mr create --title x' "$repo" 'add regression test after review'
@@ -82,6 +95,8 @@ head2=$(git -C "$repo" rev-parse HEAD)
 write_receipt "$head2" true
 git -C "$repo" commit -q --amend -m "reworded message only"
 probe "message-only amend keeps the reviewed tree" quiet 'glab mr create --title x'
+write_receipt "$head2" true findings
+probe "message-only amend keeps the findings too" remind 'glab mr create --title x' "$repo" '结论是 findings，不是 passed'
 
 # Rewritten history with different content: the reviewed commit is gone.
 git -C "$repo" reset -q --hard "$head1"
