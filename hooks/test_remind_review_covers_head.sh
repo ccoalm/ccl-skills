@@ -63,6 +63,7 @@ write_receipt "$head1" true none
 [ "$(jq -r 'has("status")' "$repo/.git/ccl-code-review/last-review.json")" = false ] \
   || { echo "FAIL: fixture still carries a status" >&2; exit 1; }
 probe "a receipt without a status is not a pass" remind 'glab mr create --title x' "$repo" '不是 passed'
+probe "a missing status is not reported as findings" remind 'glab mr create --title x' "$repo" '没有记录可识别的结论'
 write_receipt "$head1" true
 probe "passed on the covered head" quiet 'glab mr merge 8 --yes'
 

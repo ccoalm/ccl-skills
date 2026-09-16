@@ -118,8 +118,13 @@ else
   short_head=$(printf '%.12s' "$head")
   if [ "$covered" = 1 ]; then
     note="⚠️ 已注入 code-review 覆盖检查：最后一次评审覆盖了当前 HEAD，但结论不是 passed。"
+    if [ "$status" = "findings" ]; then
+      situation="有发现未处置就要开 / 就绪 / 合并 PR：先逐条对照实际调用路径核验——确认的缺陷修掉后重审；全部源头驳回的，按 code-review staged contract 跑 --mode complete，成功后收据记为 passed。"
+    else
+      situation="收据没有记录可识别的结论，无法确认这条评审链已处置：打开对应的评审结果看 status 与 next_action，必要时重跑评审。"
+    fi
     message="⚠️ code-review 覆盖检查（自动）：收据 ${receipt} 记录的最后一次评审（${mode}, ${status}, ${at}）覆盖了当前 HEAD ${short_head}，但结论是 ${status}，不是 passed。
-有发现未处置就要开 / 就绪 / 合并 PR：先逐条对照实际调用路径核验——确认的缺陷修掉后重审；全部源头驳回的，按 code-review staged contract 跑 --mode complete，成功后收据记为 passed。按 ${walk}，未处置的 P0/P1 不能报告就绪，也不交给人工 review。"
+${situation}按 ${walk}，未处置的 P0/P1 不能报告就绪，也不交给人工 review。"
   elif [ "$moves_head" = 1 ]; then
     detail="这条命令会先改动 HEAD（commit / rebase / reset 等）再开 / 就绪 / 合并 PR，本 hook 看不到新产生的提交，无法确认它们被评审过；拆开执行，先提交，再让评审覆盖新 HEAD。"
   elif [ "$reviewed" = "$head" ]; then
