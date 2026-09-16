@@ -77,6 +77,83 @@ class SkillLoadingTests(unittest.TestCase):
         self.assertNotIn('permissionDecision":"ask', json.dumps(result))
         self.assertEqual(self.run_hook(self.payload()), {})
 
+    def ccl_checkout(self):
+        root = self.root / 'ccl'
+        (root / 'skills' / 'skill-extraction-workflow').mkdir(parents=True)
+        (root / 'skills' / 'skill-extraction-workflow' / 'SKILL.md').write_text('marker')
+        (root / 'skills' / 'sample-owner' / 'references').mkdir(parents=True)
+        (root / 'hooks').mkdir()
+        return root
+
+    def extraction_loaded(self, ident='ext'):
+        self.append({'type': 'assistant', 'message': {'content': [
+            {'type': 'tool_use', 'id': ident, 'name': 'Skill',
+             'input': {'skill': 'ccl-skills:skill-extraction-workflow'}}]}},
+            {'type': 'user', 'message': {'content': [
+                {'type': 'tool_result', 'tool_use_id': ident, 'content': 'Loaded owner'}]}})
+
+    def test_shared_skill_edit_names_the_extraction_owner_at_the_first_edit(self):
+        root = self.ccl_checkout()
+        target = root / 'skills' / 'sample-owner' / 'scripts' / 'gate.sh'
+        target.parent.mkdir(parents=True)
+        result = self.run_hook(self.payload(tool_input={'file_path': str(target)}))
+        self.assertEqual(self.decision(result), 'deny')
+        reason = result['hookSpecificOutput']['permissionDecisionReason']
+        self.assertIn('skill-extraction-workflow', reason)
+        self.assertIn('charter', reason.lower())
+
+    def test_shared_skill_markdown_edit_reaches_the_checkpoint(self):
+        root = self.ccl_checkout()
+        target = root / 'skills' / 'sample-owner' / 'references' / 'rule.md'
+        result = self.run_hook(self.payload(tool_input={'file_path': str(target)}))
+        self.assertEqual(self.decision(result), 'deny')
+        self.assertIn('skill-extraction-workflow',
+                      result['hookSpecificOutput']['permissionDecisionReason'])
+
+    def test_markdown_outside_a_ccl_checkout_still_skips_the_checkpoint(self):
+        outside = self.root / 'product' / 'skills' / 'thing' / 'notes.md'
+        outside.parent.mkdir(parents=True)
+        self.assertEqual(self.run_hook(self.payload(tool_input={'file_path': str(outside)})), {})
+        cached = self.ccl_checkout() / 'skills' / 'sample-owner' / 'SKILL.md'
+        # An installed plugin copy carries the same marker; only the cache exclusion skips it.
+        cache_root = self.root / 'plugins' / 'cache' / 'ccl'
+        (cache_root / 'skills' / 'skill-extraction-workflow').mkdir(parents=True)
+        (cache_root / 'skills' / 'skill-extraction-workflow' / 'SKILL.md').write_text('marker')
+        plugin_cache = cache_root / 'skills' / 'x' / 'SKILL.md'
+        plugin_cache.parent.mkdir(parents=True)
+        self.assertEqual(self.run_hook(self.payload(tool_input={'file_path': str(plugin_cache)})), {})
+        # The checkpoint is still unspent for a real shared-skill edit.
+        result = self.run_hook(self.payload(tool_input={'file_path': str(cached)}))
+        self.assertEqual(self.decision(result), 'deny')
+
+    def test_checkout_under_an_ancestor_named_like_a_surface_is_recognised(self):
+        root = self.root / 'skills' / 'ccl'
+        (root / 'skills' / 'skill-extraction-workflow').mkdir(parents=True)
+        (root / 'skills' / 'skill-extraction-workflow' / 'SKILL.md').write_text('marker')
+        target = root / 'skills' / 'sample-owner' / 'SKILL.md'
+        target.parent.mkdir(parents=True)
+        result = self.run_hook(self.payload(tool_input={'file_path': str(target)}))
+        self.assertEqual(self.decision(result), 'deny')
+        self.assertIn('skill-extraction-workflow',
+                      result['hookSpecificOutput']['permissionDecisionReason'])
+
+    def test_codex_install_copy_is_exempt_like_the_plugin_cache(self):
+        install = self.root / '.codex' / 'ccl'
+        (install / 'skills' / 'skill-extraction-workflow').mkdir(parents=True)
+        (install / 'skills' / 'skill-extraction-workflow' / 'SKILL.md').write_text('marker')
+        target = install / 'skills' / 'x' / 'SKILL.md'
+        target.parent.mkdir(parents=True)
+        self.assertEqual(self.run_hook(self.payload(tool_input={'file_path': str(target)})), {})
+        self.assertEqual(self.decision(self.run_hook(self.payload())), 'deny')
+
+    def test_shared_skill_edit_with_the_owner_loaded_keeps_the_generic_reason(self):
+        root = self.ccl_checkout()
+        self.extraction_loaded()
+        target = root / 'hooks' / 'gate.sh'
+        result = self.run_hook(self.payload(tool_input={'file_path': str(target)}))
+        self.assertEqual(self.decision(result), 'deny')
+        self.assertNotIn('charter', result['hookSpecificOutput']['permissionDecisionReason'].lower())
+
     def test_native_patch_and_all_targets(self):
         patch = '*** Begin Patch\n*** Add File: README.md\n+doc\n*** Add File: src/new.ts\n+code\n*** End Patch'
         value = self.run_hook(self.payload('apply_patch', tool_input={'command': patch}))
