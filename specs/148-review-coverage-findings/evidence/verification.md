@@ -54,7 +54,21 @@ Not an independent pass. Dispositions:
 | Finding | Severity | Disposition |
 | --- | --- | --- |
 | Pull request description named only the first chain | medium | Fixed: description updated to name every pass and the commit it covered |
-| Completion receipt case uses `completion_basis=external_pass`, not the `--finding-dispositions-file` entry | low | Deferred with reason: both entries converge on the same `result.update` and `record_local_review` call; the dispositions entry is not exercised end to end |
+| Completion receipt case uses `completion_basis=external_pass`, not the `--finding-dispositions-file` entry | low | Fixed in `206a3ab`: `CompletionFindingDispositionTest` records findings on a committed `--base` candidate, closes with a `source_refuted` manifest, and asserts the receipt becomes `complete` / `passed` for the same HEAD; against the `origin/dev` controller it fails with the receipt still `challenge` / `findings` |
 | Mutation evidence wording was narrower than the mutant | low | Fixed in the table above; the register row keeps its committed wording |
-| Covered reminder says findings are outstanding when the status is missing | low | Deferred with reason: the reminder still fires; the text change would move the candidate for wording alone |
+| Covered reminder says findings are outstanding when the status is missing | low | Fixed in `206a3ab`: a status other than `findings` gets its own text; the prior hook fails only the new case |
 | Rebase then completion could record a passed receipt on an unreviewed tree | candidate | Refuted by probe: a rebase touching only untouched files leaves the candidate hash identical (matches the rebase rule in `development-completion.md`); a rebase changing a touched file outside the hunk changes the `index` line and the hash, so completion is rejected |
+
+## Follow-up candidate `317ff31`
+
+`c4c2bf7` adds one sentence to step 1 of `code-review/references/development-completion.md`; `317ff31` registers the follow-up.
+
+| Check | Result |
+| --- | --- |
+| `make test` | exit 0 |
+| `test_check_ccl_regressions.sh --heavy-only` | exit 0 |
+| `check-public-sanitization.py .` | exit 0 |
+| `git diff --check origin/dev..HEAD` | exit 0 |
+| `CCL_SKILL_BASE_REF=origin/dev check-ccl-skills.sh .` | `ccl_skill_check_clean_ok` |
+| Extraction-lane review on `317ff31` | kimi, passed, 0 findings (`renewed-extraction-lane-review.json`) |
+| Extraction-lane challenge on `317ff31` | kimi, passed, 0 findings (`renewed-extraction-lane-challenge.json`) |
