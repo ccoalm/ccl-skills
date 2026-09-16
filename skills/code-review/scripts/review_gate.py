@@ -4661,8 +4661,10 @@ def main(argv: list[str] | None = None) -> int:
             )
         # Only a candidate derived from the whole worktree says what HEAD holds:
         # a bare --diff-file packet or a --paths slice may cover less than HEAD.
+        # A completion checkpoint records too: it is what turns a findings
+        # receipt into a passed one once every finding is disposed.
         anchors_wanted = (
-            args.mode in {"review", "challenge"}
+            args.mode in {"review", "challenge", "complete"}
             and bool(args.base)
             and not args.paths
         )
@@ -4831,6 +4833,7 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             )
             result.update(completion_metadata)
+            record_local_review(review_anchor, result)
             return emit(result, 0)
         last_reason_code = "no_independent_reviewer_available"
         for client in order:

@@ -4863,6 +4863,24 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
 check "a bare --diff-file review records no receipt" \
   '[ "$rc" = 0 ] && json_fields "$out" status=passed && [ ! -e "$contract_repo/.git/ccl-code-review" ]'
 
+# The completion checkpoint is what the pull-request reminder reads as disposed:
+# on the same whole-worktree candidate it replaces the review's receipt with a
+# passed one; a checkpoint that fails leaves the receipt as it was.
+reset_case passed unavailable unavailable
+out="$(run_contract_gate --mode review)"; rc=$?
+printf '%s\n' "$out" >"$WORK/contract-completion-review.json"
+check "the review before a completion checkpoint records its own receipt" \
+  '[ "$rc" = 0 ] && [ "$(jq -r .mode "$receipt_file")" = review ]'
+reset_case passed unavailable unavailable
+out="$(run_contract_gate --mode complete --completion-review-result-file "$WORK/contract-completion-review.json")"; rc=$?
+check "a successful completion checkpoint records a passed receipt for the HEAD it bound" \
+  '[ "$rc" = 0 ] && json_fields "$out" mode=complete status=passed && [ "$(jq -r .mode "$receipt_file")" = complete ] && [ "$(jq -r .status "$receipt_file")" = passed ] && [ "$(jq -r .head "$receipt_file")" = "$(git -C "$contract_repo" rev-parse HEAD)" ]'
+cp "$receipt_file" "$WORK/receipt-before-failed-completion"
+reset_case passed unavailable unavailable
+out="$(run_contract_gate --mode complete --review-plan-file "$WORK/changed-review-plan.json" --completion-review-result-file "$WORK/contract-completion-review.json")"; rc=$?
+check "a failed completion checkpoint leaves the receipt untouched" \
+  '[ "$rc" = 2 ] && cmp -s "$receipt_file" "$WORK/receipt-before-failed-completion"'
+
 swap_out="$(PYTHONPATH="$WORK/harness/scripts" python3 - "$WORK" <<'PY' 2>&1
 import os, sys, review_gate
 root = os.path.realpath(os.path.join(sys.argv[1], "gitdir-swap"))
