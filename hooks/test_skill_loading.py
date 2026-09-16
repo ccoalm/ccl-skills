@@ -126,6 +126,26 @@ class SkillLoadingTests(unittest.TestCase):
         result = self.run_hook(self.payload(tool_input={'file_path': str(cached)}))
         self.assertEqual(self.decision(result), 'deny')
 
+    def test_checkout_under_an_ancestor_named_like_a_surface_is_recognised(self):
+        root = self.root / 'skills' / 'ccl'
+        (root / 'skills' / 'skill-extraction-workflow').mkdir(parents=True)
+        (root / 'skills' / 'skill-extraction-workflow' / 'SKILL.md').write_text('marker')
+        target = root / 'skills' / 'sample-owner' / 'SKILL.md'
+        target.parent.mkdir(parents=True)
+        result = self.run_hook(self.payload(tool_input={'file_path': str(target)}))
+        self.assertEqual(self.decision(result), 'deny')
+        self.assertIn('skill-extraction-workflow',
+                      result['hookSpecificOutput']['permissionDecisionReason'])
+
+    def test_codex_install_copy_is_exempt_like_the_plugin_cache(self):
+        install = self.root / '.codex' / 'ccl'
+        (install / 'skills' / 'skill-extraction-workflow').mkdir(parents=True)
+        (install / 'skills' / 'skill-extraction-workflow' / 'SKILL.md').write_text('marker')
+        target = install / 'skills' / 'x' / 'SKILL.md'
+        target.parent.mkdir(parents=True)
+        self.assertEqual(self.run_hook(self.payload(tool_input={'file_path': str(target)})), {})
+        self.assertEqual(self.decision(self.run_hook(self.payload())), 'deny')
+
     def test_shared_skill_edit_with_the_owner_loaded_keeps_the_generic_reason(self):
         root = self.ccl_checkout()
         self.extraction_loaded()

@@ -37,11 +37,11 @@ def shared_skill_paths(paths, cwd):
         text = path.as_posix()
         if '/plugins/cache/' in text or '/.codex/' in text:
             continue
-        for marker in ('/skills/', '/hooks/', '/scripts/'):
-            index = text.find(marker)
-            if index > 0 and (Path(text[:index]) / 'skills/skill-extraction-workflow/SKILL.md').is_file():
-                shared.append(text)
-                break
+        # Every occurrence, not only the first: a checkout may sit under an
+        # ancestor that is itself named skills, hooks or scripts.
+        roots = (text[:match.start()] for match in re.finditer(r'/(?:skills|hooks|scripts)/', text))
+        if any(root and (Path(root) / 'skills/skill-extraction-workflow/SKILL.md').is_file() for root in roots):
+            shared.append(text)
     return shared
 
 

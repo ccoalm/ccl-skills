@@ -276,6 +276,17 @@ class HostInputTests(unittest.TestCase):
                 'session_id': label, 'transcript_path': self.transcript(events)})
             self.assertEqual(result.get('decision'), expected)
 
+    def test_extraction_backstop_scope_checks_every_path_component(self):
+        checkout = self.root / 'skills' / 'ccl'
+        marker = checkout / 'skills/skill-extraction-workflow/SKILL.md'
+        marker.parent.mkdir(parents=True)
+        marker.write_text('# Owner\n')
+        edit = {'type': 'assistant', 'message': {'content': [{'type': 'tool_use', 'name': 'Edit',
+                 'input': {'file_path': str(checkout / 'skills/sample-owner/SKILL.md')}}]}}
+        result = self.run_hook('hooks/skill-extraction-gate-stop.sh', {
+            'session_id': 'ancestor', 'cwd': str(checkout), 'transcript_path': self.transcript([edit])})
+        self.assertEqual(result.get('decision'), 'block')
+
     def test_truncated_transcripts_never_supply_partial_verification(self):
         marker = self.repo / 'skills/skill-extraction-workflow/SKILL.md'
         marker.parent.mkdir(parents=True)
