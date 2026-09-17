@@ -832,10 +832,48 @@ class CompletionFindingDispositionTest(unittest.TestCase):
                                             "failure_path": "A distinct synthetic failure on the same line."})
         return subprocess.CompletedProcess(command, 0, json.dumps(payload).encode("utf-8"), b"")
 
+    base_repo: Path | None = None
+
     def arguments(self, mode: str) -> list[str]:
-        return ["--mode", mode, "--cwd", str(self.root), "--diff-file", str(self.packet),
+        if self.base_repo is not None:
+            candidate = ["--cwd", str(self.base_repo), "--base", self.base_commit]
+        else:
+            candidate = ["--cwd", str(self.root), "--diff-file", str(self.packet)]
+        return ["--mode", mode, *candidate,
                 "--implementer-family", "openai", "--review-plan-file", str(self.plan),
                 "--challenge-budget", "1"]
+
+    def test_source_refuted_completion_records_a_passed_receipt(self) -> None:
+        # The chain the pull-request reminder reads: findings recorded on a
+        # committed whole-worktree candidate, then disposed through completion.
+        repo = self.root / "repo"
+        repo.mkdir()
+        def git(*command: str) -> str:
+            return subprocess.run(["git", "-C", str(repo), "-c", "user.email=t@example.invalid",
+                             "-c", "user.name=t", *command],
+                            capture_output=True, check=True, text=True).stdout.strip()
+        git("init", "-q")
+        (repo / "x").write_text("a\n", encoding="utf-8")
+        git("add", "x")
+        git("commit", "-q", "-m", "base")
+        self.base_commit = git("rev-parse", "HEAD")
+        (repo / "x").write_text("b\n", encoding="utf-8")
+        git("commit", "-q", "-am", "candidate")
+        head = git("rev-parse", "HEAD")
+        self.base_repo = repo
+        self.record_receipts()
+        receipt = repo / ".git" / "ccl-code-review" / "last-review.json"
+        before = json.loads(receipt.read_text(encoding="utf-8"))
+        self.assertEqual((before["mode"], before["status"], before["head"], before["worktree_clean"]),
+                         ("challenge", "findings", head, True))
+
+        code, result = self.complete()
+
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["status"], "passed", result)
+        after = json.loads(receipt.read_text(encoding="utf-8"))
+        self.assertEqual((after["mode"], after["status"], after["head"], after["worktree_clean"]),
+                         ("complete", "passed", head, True))
 
     def invoke(self, mode: str, extra: list[str]) -> tuple[int, dict]:
         output = io.StringIO()

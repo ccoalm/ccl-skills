@@ -62,10 +62,21 @@ CANDIDATES=$(printf '%s' "$SUMMARY" | jq -r '.edit_paths[:40][]' 2>/dev/null)
 #    (root containing skills/skill-extraction-workflow/SKILL.md), excluding plugin caches.
 IN_SCOPE=""
 while IFS= read -r f; do
+  [ -n "$f" ] || continue
   case "$f" in */plugins/cache/*|*/.codex/*) continue ;; esac
-  for root in "${f%%/skills/*}" "${f%%/hooks/*}" "${f%%/scripts/*}"; do
-    [ "$root" = "$f" ] && continue
-    if [ -f "$root/skills/skill-extraction-workflow/SKILL.md" ]; then IN_SCOPE=1; break 2; fi
+  # Every skills/, hooks/ or scripts/ component, not only the first: a checkout
+  # may sit under an ancestor that carries one of those names.
+  case "$f" in /*) prefix="" ;; *) prefix="." ;; esac
+  IFS=/ read -r -a parts <<PARTS
+$f
+PARTS
+  for part in "${parts[@]}"; do
+    [ -n "$part" ] || continue
+    case "$part" in
+      skills|hooks|scripts)
+        if [ -n "$prefix" ] && [ "$prefix" != "." ] && [ -f "$prefix/skills/skill-extraction-workflow/SKILL.md" ]; then IN_SCOPE=1; break 2; fi ;;
+    esac
+    prefix="$prefix/$part"
   done
 done <<EOF
 $CANDIDATES

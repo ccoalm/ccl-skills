@@ -19,6 +19,32 @@ SOURCE_EXTENSIONS = frozenset((
     '.cs', '.vue', '.svelte', '.ipynb', '.sql', '.css', '.scss', '.html'))
 
 
+EXTRACTION_OWNER = 'ccl-skills:skill-extraction-workflow'
+
+
+def shared_skill_paths(paths, cwd):
+    """Targets on a ccl-skills checkout's shared-skill or plugin-behavior surface.
+
+    Same scope as the extraction stop backstop: a root that holds
+    skills/skill-extraction-workflow/SKILL.md, reached through skills/, hooks/
+    or scripts/, with plugin caches excluded. Moving that knowledge to the first
+    edit lets the round open with the extraction charter instead of learning at
+    Stop, after commit, push and pull request.
+    """
+    shared = []
+    for raw in paths:
+        path = Path(raw) if os.path.isabs(raw) else Path(cwd) / raw
+        text = path.as_posix()
+        if '/plugins/cache/' in text or '/.codex/' in text:
+            continue
+        # Every occurrence, not only the first: a checkout may sit under an
+        # ancestor that is itself named skills, hooks or scripts.
+        roots = (text[:match.start()] for match in re.finditer(r'/(?:skills|hooks|scripts)/', text))
+        if any(root and (Path(root) / 'skills/skill-extraction-workflow/SKILL.md').is_file() for root in roots):
+            shared.append(text)
+    return shared
+
+
 def digest(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=True, sort_keys=True).encode()).hexdigest()
 
@@ -158,8 +184,13 @@ def handle(payload, base):
         lane = 'delegation'
     elif event == 'PreToolUse' and tool in ('Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'apply_patch'):
         parsed = module.paths(payload)
-        if parsed['malformed_patch'] or not any(Path(path).suffix.lower() in SOURCE_EXTENSIONS
-                                               for path in parsed['paths']):
+        if parsed['malformed_patch']:
+            return base
+        edit_cwd = payload.get('cwd') if isinstance(payload.get('cwd'), str) else os.getcwd()
+        shared = shared_skill_paths(parsed['paths'], edit_cwd)
+        # Skill text is behavior on the shared surface, so markdown counts there only.
+        if not (any(Path(path).suffix.lower() in SOURCE_EXTENSIONS for path in parsed['paths'])
+                or any(Path(path).suffix.lower() == '.md' for path in shared)):
             return base
         lane = 'implementation'
     else:
@@ -232,6 +263,12 @@ def handle(payload, base):
             reason = ('First source-edit skill checkpoint: this edit attempt did not execute. Before retrying, '
                       'apply the canonical routing rule and load the owning implementation skill if missing '
                       'from the current context. If already loaded, apply it without unnecessary re-reading. ')
+            if shared and EXTRACTION_OWNER not in loaded:
+                reason += ('This edit targets a ccl-skills shared-skill or plugin-behavior surface ('
+                           + shared[0] + '). Invoke ' + EXTRACTION_OWNER + ' now and record its extraction '
+                           'charter before this edit, even when another owner (a bug fix, a test change) also '
+                           'applies: the charter cannot be written after the edits, and the stop backstop '
+                           'fires only after commit, push and pull request. ')
         reason += routing_rule() + (' Resolve this checkpoint yourself; do not ask the user to approve skill loading. '
                           'Respect explicit user scope and skill choices. This is one bounded replan opportunity, '
                           'not new authority or proof that the owner is correct.')

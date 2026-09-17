@@ -12,6 +12,12 @@
 # that opens, readies or merges a pull/merge request and compares HEAD with the
 # local receipt review_gate.py writes after each conclusive review.
 #
+# Coverage is not disposition: a review that returned findings covers HEAD as
+# well as one that passed. The reminder stays quiet only for a passed receipt
+# covering HEAD; a completion checkpoint (`--mode complete`) that disposes the
+# findings records a passed receipt. Every reminder names the receipt path it
+# read, so results saved elsewhere are not mistaken for that receipt.
+#
 # NON-BLOCKING by design: the receipt cannot tell an evidence-only commit from a
 # code change, and a deny or ask would hand the decision to a human, which the
 # walk forbids. The reminder names the unreviewed commits so the agent can run
@@ -84,7 +90,7 @@ receipt="$git_dir/ccl-code-review/last-review.json"
 walk='code-review development-completion「Before a pull request or a ready report」'
 if [ ! -f "$receipt" ] || [ -L "$receipt" ]; then
   note="⚠️ 已注入 code-review 覆盖检查：这个 worktree 没有结论性评审记录。"
-  message="⚠️ code-review 覆盖检查（自动）：这个 worktree 没有记录到任何结论性的 code-review 结果，就要开 / 就绪 / 合并 PR。若本次改了代码或可执行测试，先按 ${walk} 由你自己跑评审，不交给人工 review；确实不需要评审（纯文档且不属共享技能改动等）就在报告里写明理由。"
+  message="⚠️ code-review 覆盖检查（自动）：这个 worktree 没有记录到任何结论性的 code-review 结果（检查的收据：${receipt}），就要开 / 就绪 / 合并 PR。别处保存的评审结果文件不算收据，也不说明链已处置——打开它看 status 与 next_action。若本次改了代码或可执行测试，先按 ${walk} 由你自己跑评审，不交给人工 review；确实不需要评审（纯文档且不属共享技能改动等）就在报告里写明理由。"
 else
   reviewed=$(jq -r '.head // empty' "$receipt" 2>/dev/null)
   clean=$(jq -r '.worktree_clean // empty' "$receipt" 2>/dev/null)
@@ -92,17 +98,34 @@ else
   status=$(jq -r '.status // "?"' "$receipt" 2>/dev/null)
   at=$(jq -r '.recorded_at // "?"' "$receipt" 2>/dev/null)
   printf '%s' "$reviewed" | grep -Eq '^[0-9a-f]{40,64}$' || exit 0
-  if [ "$moves_head" = 0 ] && [ "$reviewed" = "$head" ] && [ "$clean" = "true" ]; then
-    exit 0
+  covered=0
+  if [ "$moves_head" = 0 ] && [ "$clean" = "true" ]; then
+    if [ "$reviewed" = "$head" ]; then
+      covered=1
+    else
+      reviewed_tree=$(g rev-parse -q --verify "${reviewed}^{tree}" 2>/dev/null || true)
+      head_tree=$(g rev-parse -q --verify "${head}^{tree}" 2>/dev/null || true)
+      if [ -n "$reviewed_tree" ] && [ "$reviewed_tree" = "$head_tree" ]; then covered=1; fi
+    fi
   fi
-  reviewed_tree=$(g rev-parse -q --verify "${reviewed}^{tree}" 2>/dev/null || true)
-  head_tree=$(g rev-parse -q --verify "${head}^{tree}" 2>/dev/null || true)
-  if [ "$moves_head" = 0 ] && [ "$clean" = "true" ] && [ -n "$reviewed_tree" ] && [ "$reviewed_tree" = "$head_tree" ]; then
+  # Coverage is not disposition: a review that returned findings covers HEAD as
+  # well as one that passed. Only a passed receipt stays quiet; a completion
+  # checkpoint that disposes the findings records a passed one.
+  if [ "$covered" = 1 ] && [ "$status" = "passed" ]; then
     exit 0
   fi
   short_reviewed=$(printf '%.12s' "$reviewed")
   short_head=$(printf '%.12s' "$head")
-  if [ "$moves_head" = 1 ]; then
+  if [ "$covered" = 1 ]; then
+    note="⚠️ 已注入 code-review 覆盖检查：最后一次评审覆盖了当前 HEAD，但结论不是 passed。"
+    if [ "$status" = "findings" ]; then
+      situation="有发现未处置就要开 / 就绪 / 合并 PR：先逐条对照实际调用路径核验——确认的缺陷修掉后重审；全部源头驳回的，按 code-review staged contract 跑 --mode complete，成功后收据记为 passed。"
+    else
+      situation="收据没有记录可识别的结论，无法确认这条评审链已处置：打开对应的评审结果看 status 与 next_action，必要时重跑评审。"
+    fi
+    message="⚠️ code-review 覆盖检查（自动）：收据 ${receipt} 记录的最后一次评审（${mode}, ${status}, ${at}）覆盖了当前 HEAD ${short_head}，但结论是 ${status}，不是 passed。
+${situation}按 ${walk}，未处置的 P0/P1 不能报告就绪，也不交给人工 review。"
+  elif [ "$moves_head" = 1 ]; then
     detail="这条命令会先改动 HEAD（commit / rebase / reset 等）再开 / 就绪 / 合并 PR，本 hook 看不到新产生的提交，无法确认它们被评审过；拆开执行，先提交，再让评审覆盖新 HEAD。"
   elif [ "$reviewed" = "$head" ]; then
     detail="评审时工作区有未提交改动，之后 HEAD 没动；确认那批改动就是现在要提交的内容。"
@@ -117,10 +140,12 @@ ${stat}"
   else
     detail="评审过的提交 ${short_reviewed} 已不在当前 HEAD 的历史里（rebase / amend / 换了分支），无法证明现在的内容被评审过。"
   fi
-  note="⚠️ 已注入 code-review 覆盖检查：当前 HEAD 没有被最后一次评审覆盖。"
-  message="⚠️ code-review 覆盖检查（自动）：最后一次结论性评审（${mode}, ${status}, ${at}）覆盖的是 ${short_reviewed}，当前 HEAD 是 ${short_head}。
+  if [ "$covered" != 1 ]; then
+    note="⚠️ 已注入 code-review 覆盖检查：当前 HEAD 没有被最后一次评审覆盖。"
+    message="⚠️ code-review 覆盖检查（自动）：收据 ${receipt} 记录的最后一次结论性评审（${mode}, ${status}, ${at}）覆盖的是 ${short_reviewed}，当前 HEAD 是 ${short_head}。
 ${detail}
 按 ${walk}：评审后的任何改动（含测试、文档、changelog）都要先由你按所属闸重审，重审最多 5 次，不交给人工 review，也不能说 HEAD 已评审。只多了评审记录文件（结果 JSON、处置说明）时可忽略本提醒。"
+  fi
 fi
 
 jq -nc --arg r "$message" --arg n "$note" \
