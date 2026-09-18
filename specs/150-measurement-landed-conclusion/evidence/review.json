@@ -1,0 +1,265 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "build",
+  "stage_source": "caller-declared",
+  "review_depth": "build",
+  "status": "passed",
+  "selected_client": "kimi",
+  "selected_reviewer": "kimi",
+  "selected_attempt_index": 0,
+  "findings": [],
+  "client_order": [
+    "kimi",
+    "opencode",
+    "codex"
+  ],
+  "skipped_clients": [],
+  "attempts": [
+    {
+      "client": "kimi",
+      "reviewer": "kimi",
+      "mode": "review",
+      "status": "passed",
+      "reviewer_family": "moonshot",
+      "provider": "kimi-cli",
+      "model": null,
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "SKILL.md now enumerates three conclusion forms and consistently drops \"Both forms\" to \"Forms\"; the reference still scopes exactly two admissible falsification forms with the measurement leg as an instrument-varied instance of form (2), and the register row's firing-path anchor, owner key, and authoring/reviewing-half claims all match the diff."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "Guidance-only edit; the sandbox/permission/non-destructive/synthetic-target/credential-safety boundary clause is retained verbatim, and the change only tightens what may land on shared surfaces (measurements now owe falsification), so no unsafe-mutation, permission, or data-loss path is introduced."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "No runtime behavior to partially fail; the added reference text itself names the failure modes (powerless control leg, asserted-but-undemonstrated mover, mover not bound to the reported configuration) and the new register row is a well-formed table line with no embedded unescaped pipes."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "This repo's evidence form for a wording-level rule edit is a source-register row with RED-baseline classification; the added row carries result-class, observed-failure, firing-path locator, and an executed-baseline description consistent with neighboring rows, matching the documented convention."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "No routing surface, host config, or interface changes; per the register claim and verifiable from the hunks, entrypoint size does not grow (net word count slightly decreases), consistent with SKILL.md staying a lean entrypoint with detail relocated to references."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "New claims are bounded and hedged where required (\"qualifies only on three counts together\", \"demonstrated execution, not validity\"); the register's size-neutrality claim holds against the diff and no absolute, universal, or causal claim exceeds the evidence its row cites."
+        },
+        {
+          "concern": "repository_contract",
+          "conclusion": "Complies with root AGENTS.md: shared-skill text stays generic (no business names, private paths, credentials, or personal data), decided points are preserved (the search-hit exclusion remains in the reference rule), SKILL.md keeps hard-rule-plus-reference-pointer form, and no quoted contract rule is contradicted, shown to name a dead path, or loosened alongside forbidden code."
+        }
+      ],
+      "findings": [],
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "packet_sha256": "01d092fe8cc08ea7b93a957d5e28c8bb6f76f313aae3cfae745180c7640211ca"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "01d092fe8cc08ea7b93a957d5e28c8bb6f76f313aae3cfae745180c7640211ca",
+  "candidate_sha256": "7194dbc1e72591854cd18c20d852c829afe9e6764f6ad8ef89188eb7a56e22b7",
+  "review_context_sha256": "c9178aecb12986446ec124f93e1d6f9ef16da4db517a36a498243f6cc10e29ae",
+  "review_controller_sha256": "bf25eb58ca7d6cff9adaba9cdacf5dbc231067c9ceba1bb5c7201fb7889e416c",
+  "review_profile_sha256": "1eeb8a8c45504e450d3a6e8795e8fd83dbfb4e7d6c23ae7050d4a53080549ae7",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/SKILL.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/validation-and-landing.md"
+    }
+  ],
+  "review_plan_source": "derived-default",
+  "repository_contract": {
+    "coverage": "complete",
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "bytes": 7081,
+        "sha256": "cbfe015efc63917b7237f10533efcd45c875323a9f464e0a23d03a758a8d4d29"
+      }
+    ],
+    "omitted": [],
+    "sources_not_read": [
+      "CLAUDE.local.md and untracked files",
+      "@path imports",
+      ".claude/rules",
+      "host-configured fallback filenames"
+    ]
+  },
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "kimi-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "skill-extraction-workflow"
+  ],
+  "selected_skills_sha256": "5ab49c90e90c257e718545c856eb45500a4bd888f15f2a8acfdff050d6ece699",
+  "risk_tags": [],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": null,
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "e7bbe900f9afd1fe32d805ebe1f2ee7903cf0f8c5ddfd907189c6019dd57ad22",
+    "acceptance_sha256": "1d49782fd1bf9c0184629bc1940e6f58c8cfe252e233ef278c930ad6c40c73e8",
+    "stage": "build",
+    "review_depth": "build",
+    "risk_tags": [],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "be00a126a781b89fcd3fe4253df371c8a9d5984f5c8c6fde151e804371009845",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": false,
+  "human_decision_required": false,
+  "review_state": "reviewed",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "before_completion_claim"
+    ],
+    "satisfied_triggers": [
+      "before_external_review"
+    ],
+    "blocks": [
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "SKILL.md now enumerates three conclusion forms and consistently drops \"Both forms\" to \"Forms\"; the reference still scopes exactly two admissible falsification forms with the measurement leg as an instrument-varied instance of form (2), and the register row's firing-path anchor, owner key, and authoring/reviewing-half claims all match the diff."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "Guidance-only edit; the sandbox/permission/non-destructive/synthetic-target/credential-safety boundary clause is retained verbatim, and the change only tightens what may land on shared surfaces (measurements now owe falsification), so no unsafe-mutation, permission, or data-loss path is introduced."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "No runtime behavior to partially fail; the added reference text itself names the failure modes (powerless control leg, asserted-but-undemonstrated mover, mover not bound to the reported configuration) and the new register row is a well-formed table line with no embedded unescaped pipes."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "This repo's evidence form for a wording-level rule edit is a source-register row with RED-baseline classification; the added row carries result-class, observed-failure, firing-path locator, and an executed-baseline description consistent with neighboring rows, matching the documented convention."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "No routing surface, host config, or interface changes; per the register claim and verifiable from the hunks, entrypoint size does not grow (net word count slightly decreases), consistent with SKILL.md staying a lean entrypoint with detail relocated to references."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "New claims are bounded and hedged where required (\"qualifies only on three counts together\", \"demonstrated execution, not validity\"); the register's size-neutrality claim holds against the diff and no absolute, universal, or causal claim exceeds the evidence its row cites."
+    },
+    {
+      "concern": "repository_contract",
+      "conclusion": "Complies with root AGENTS.md: shared-skill text stays generic (no business names, private paths, credentials, or personal data), decided points are preserved (the search-hit exclusion remains in the reference rule), SKILL.md keeps hard-rule-plus-reference-pointer form, and no quoted contract rule is contradicted, shown to name a dead path, or loosened alongside forbidden code."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "claim_strength",
+    "repository_contract"
+  ],
+  "reviewed_skills": [
+    "skill-extraction-workflow"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "environment"
+  },
+  "primary": {
+    "client": "kimi",
+    "reviewer": "kimi",
+    "mode": "review",
+    "status": "passed",
+    "reviewer_family": "moonshot",
+    "provider": "kimi-cli",
+    "model": null,
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "SKILL.md now enumerates three conclusion forms and consistently drops \"Both forms\" to \"Forms\"; the reference still scopes exactly two admissible falsification forms with the measurement leg as an instrument-varied instance of form (2), and the register row's firing-path anchor, owner key, and authoring/reviewing-half claims all match the diff."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "Guidance-only edit; the sandbox/permission/non-destructive/synthetic-target/credential-safety boundary clause is retained verbatim, and the change only tightens what may land on shared surfaces (measurements now owe falsification), so no unsafe-mutation, permission, or data-loss path is introduced."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "No runtime behavior to partially fail; the added reference text itself names the failure modes (powerless control leg, asserted-but-undemonstrated mover, mover not bound to the reported configuration) and the new register row is a well-formed table line with no embedded unescaped pipes."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "This repo's evidence form for a wording-level rule edit is a source-register row with RED-baseline classification; the added row carries result-class, observed-failure, firing-path locator, and an executed-baseline description consistent with neighboring rows, matching the documented convention."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "No routing surface, host config, or interface changes; per the register claim and verifiable from the hunks, entrypoint size does not grow (net word count slightly decreases), consistent with SKILL.md staying a lean entrypoint with detail relocated to references."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "New claims are bounded and hedged where required (\"qualifies only on three counts together\", \"demonstrated execution, not validity\"); the register's size-neutrality claim holds against the diff and no absolute, universal, or causal claim exceeds the evidence its row cites."
+      },
+      {
+        "concern": "repository_contract",
+        "conclusion": "Complies with root AGENTS.md: shared-skill text stays generic (no business names, private paths, credentials, or personal data), decided points are preserved (the search-hit exclusion remains in the reference rule), SKILL.md keeps hard-rule-plus-reference-pointer form, and no quoted contract rule is contradicted, shown to name a dead path, or loosened alongside forbidden code."
+      }
+    ],
+    "findings": [],
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "packet_sha256": "01d092fe8cc08ea7b93a957d5e28c8bb6f76f313aae3cfae745180c7640211ca"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "deep_self_review_before_completion"
+}
