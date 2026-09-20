@@ -106,19 +106,20 @@ runtime's error wording — matching the wording would be the same pin again.
 | Probe stderr | Reason | Reason code |
 | --- | --- | --- |
 | `EMFILE` / too many open files | `kimi_host_resource_exhausted` | `client_unavailable` |
-| Weekly/usage-limit or quota-exceeded wording, no auth envelope | `kimi_quota` | `quota` |
-| Auth envelope naming a weekly limit, an exceeded quota, or rate-limit exhaustion | `kimi_quota` | `quota` |
-| Auth envelope mentioning quota or limit metadata only | `kimi_auth_unavailable` | `provider_unavailable` |
-| Auth wording, no quota wording | `kimi_auth_unavailable` | `provider_unavailable` |
-| Bare `authentication` wording with no status code | `kimi_tool_capability_unverified` | `capability_missing` |
-| A number carrying status context (`HTTP 429`, `403 Forbidden`) | classified as that status | — |
-| A bare number, whatever its value, including an offset of exactly `429` or `403` | `kimi_tool_capability_unverified` | `capability_missing` |
+| Says the caller's allowance ran out — reached/exceeded/exhausted a quota, usage, limit or credit, or `too many requests` | `kimi_quota` | `quota` |
+| Says so inside an auth envelope | `kimi_quota` | `quota` |
+| Names quota or limit only as unavailable *metadata* | `kimi_auth_unavailable` | `provider_unavailable` |
+| Auth wording (`unauthorized`, `forbidden`, `auth_error`, authentication failed/required, required credential) | `kimi_auth_unavailable` | `provider_unavailable` |
+| Anything else, including every message whose only status-like content is a number | `kimi_tool_capability_unverified` | `capability_missing` |
 
-The last two rows replace a digit-boundary guard that kept `4290` out but still
-read an offset of exactly `429` as a status code. A number now classifies only
-with status context; wording carries the rest, and one auth predicate serves
-both the auth branch and the envelope test inside the quota branch so the two
-cannot drift apart.
+**Numbers are not classified at all.** Three review rounds each found a new
+message where a numeric match landed in the wrong class: a digit boundary kept
+`4290` out but not an offset of exactly `429`; requiring a status word before
+the number then matched `code` inside `decode`. Rather than add a fourth guard,
+the predicate is expressed over what the message says happened — a semantic this
+lane owns — instead of over the provider's status vocabulary, which it does not.
+Both branches are `die_inconclusive` and cascade-eligible, so this decides the
+operator's reason string and never whether the lane passes.
 
 Every row below the first table's first two is a non-pass. No row turns a
 failed probe into a review result.
@@ -148,10 +149,13 @@ Cases, one per new row:
 - `capability_quota`, `capability_auth`, `capability_auth_quota_mention`,
   `capability_auth_limit`, `capability_auth_word`, `capability_offset`,
   `capability_exact_offset`, `capability_rate_limit_403`,
-  `capability_http_quota`, `capability_forbidden`: one per classification row
-  above. The last four came from the independent review and challenge, which
-  found that an offset of exactly `429` classified as quota and that an auth
-  envelope naming rate-limit exhaustion fell through to the auth class.
+  `capability_http_quota`, `capability_forbidden`, `capability_decode_offset`,
+  `capability_auth_weekly_metadata`, `capability_auth_too_many`: one per
+  classification row above. The last seven carry the exact strings the
+  independent review and challenge used to break the two predecessor
+  predicates — an offset of exactly `429`, an auth envelope naming rate-limit
+  exhaustion, `decode offset 429`, a weekly limit named only as unavailable
+  metadata, and an auth envelope that really did run out of allowance.
 
 Falsification: each case must fail when its own behavior is removed. Mutations
 applied on copies of the scripts directory, each differing from the candidate in
@@ -164,8 +168,8 @@ Base suite: 241 checks, all green. Each mutant differs from it in one line.
 | Retry removed; first rejection terminal again | the fallback case only |
 | `omit` mode still writes `[watch]` | the fallback case (no `watch`-absent config) and the terminal case (the omit generation now fails its own semantic check, so the reason changes to `kimi_packet_only_config_failed`) |
 | `KIMI_CODE_WATCH=0` dropped from the capability probe alone | all four watcher-override assertions |
-| Status context dropped, so a bare number classifies again | the exact-offset case only |
-| Rate-limit exhaustion dropped from the wording that wins inside an auth envelope | the rate-limit case only |
+| `429` added back to the exhaustion predicate as a bare number | the exact-offset and decode-offset cases |
+| The exhaustion branch moved after the auth branch, so auth wording wins again | the rate-limit and too-many-requests cases |
 | The generated marker is no longer dropped on regeneration | the fallback case only, through the strict-subset comparison |
 
 ## Verification

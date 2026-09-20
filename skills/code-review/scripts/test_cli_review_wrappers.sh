@@ -324,7 +324,19 @@ if [[ "$prompt" = "No-tools capability probe."* ]]; then
     exit 1
   fi
   if [ "${STUB_BEHAVIOR:-pass}" = capability_http_quota ]; then
-    printf '%s\n' 'provider error: HTTP 429 returned by upstream' >&2
+    printf '%s\n' 'provider error: HTTP 429 Too Many Requests' >&2
+    exit 1
+  fi
+  if [ "${STUB_BEHAVIOR:-pass}" = capability_decode_offset ]; then
+    printf '%s\n' 'provider failed to decode offset 429' >&2
+    exit 1
+  fi
+  if [ "${STUB_BEHAVIOR:-pass}" = capability_auth_weekly_metadata ]; then
+    printf '%s\n' 'provider.auth_error: 403 authentication required; weekly usage limit metadata unavailable' >&2
+    exit 1
+  fi
+  if [ "${STUB_BEHAVIOR:-pass}" = capability_auth_too_many ]; then
+    printf '%s\n' 'provider.auth_error: HTTP 429 Too Many Requests' >&2
     exit 1
   fi
   if [ "${STUB_BEHAVIOR:-pass}" = capability_forbidden ]; then
@@ -1469,11 +1481,21 @@ out="$(run_kimi capability_rate_limit_403)"; rc=$?
 check "Kimi reports provider rate-limit exhaustion inside an auth envelope as quota" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_quota ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 out="$(run_kimi capability_http_quota)"; rc=$?
-check "Kimi still classifies a status code that carries status context" \
+check "Kimi classifies a status message by its reason phrase, not its number" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_quota ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ]'
 out="$(run_kimi capability_forbidden)"; rc=$?
-check "Kimi still classifies a status code that carries its reason phrase" \
+check "Kimi classifies a refusal by its auth wording, not its number" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_auth_unavailable ] && [ "$(field reason_code "$out")" = provider_unavailable ] && [ "$(field cascade_eligible "$out")" = True ]'
+# A status word can occur inside an unrelated word, so no number classifies.
+out="$(run_kimi capability_decode_offset)"; rc=$?
+check "Kimi does not read a decode offset as a status code" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ]'
+out="$(run_kimi capability_auth_weekly_metadata)"; rc=$?
+check "Kimi keeps auth status when a limit is only named as unavailable metadata" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_auth_unavailable ] && [ "$(field reason_code "$out")" = provider_unavailable ] && [ "$(field cascade_eligible "$out")" = True ]'
+out="$(run_kimi capability_auth_too_many)"; rc=$?
+check "Kimi reports exhaustion over auth wording when the allowance actually ran out" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_quota ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ]'
 probe_started=$SECONDS
 out="$(REVIEW_TEST_TIMEOUT=5 run_kimi capability_hang)"; rc=$?
 probe_elapsed=$((SECONDS - probe_started))

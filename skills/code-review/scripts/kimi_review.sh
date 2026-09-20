@@ -912,22 +912,22 @@ if [ "$probe_rc" -ne 0 ]; then
   if grep -qiE 'EMFILE|too many open files' "$PROBE_STDERR"; then
     die_inconclusive kimi_host_resource_exhausted client_unavailable true "$probe_rc"
   fi
-  # A bare integer in provider stderr is as often a byte offset or a line number
-  # as an HTTP status — a digit boundary keeps 4290 out but not an offset that
-  # IS 429 — so a number classifies only when it carries status context: a
-  # status word just before it, or its standard reason phrase just after.
-  # Wording carries the rest, and the same auth predicate decides both the
-  # envelope test below and the auth branch, so they cannot drift apart.
-  quota_pattern='usage[[:space:]_-]+limit|weekly.*limit|reached.*limit|quota[[:space:]_-]+exceeded|rate[[:space:]_-]+limit[[:space:]]+exceeded|(status|code|http)[^0-9]{0,8}429([^0-9]|$)|(^|[^0-9])429[^0-9]{0,4}too[[:space:]]+many[[:space:]]+requests'
-  # Wording that names provider exhaustion outright, unlike a bare "limit" an
-  # auth error may merely mention, and so wins inside an auth envelope.
-  quota_over_auth_pattern='weekly.*limit|reached.*limit|quota[[:space:]_-]+exceeded|rate[[:space:]_-]+limit[[:space:]]+exceeded'
-  auth_pattern='unauthori[sz]ed|auth_error|authentication[[:space:]]+(failed|required)|required[[:space:]]+credential|(status|code|http)[^0-9]{0,8}(401|403)([^0-9]|$)|(^|[^0-9])(401|403)[^0-9]{0,4}(unauthori[sz]ed|forbidden)'
-  if grep -qiE "$quota_pattern" "$PROBE_STDERR"; then
-    if ! grep -qiE "$auth_pattern" "$PROBE_STDERR" \
-      || grep -qiE "$quota_over_auth_pattern" "$PROBE_STDERR"; then
-      die_inconclusive kimi_quota quota true "$probe_rc"
-    fi
+  # NUMBERS ARE NOT CLASSIFIED. An integer in provider stderr is as often a byte
+  # offset, a line or a decode position as an HTTP status, and three review
+  # rounds each found a new message where a numeric match landed in the wrong
+  # class: 4290 was excluded but an offset of exactly 429 was not, then a status
+  # word before the number matched inside an unrelated word. The predicate is
+  # expressed over what the message says happened — a semantic this lane owns —
+  # instead of over the provider's status vocabulary, which it does not.
+  #
+  # Both branches below are die_inconclusive and cascade-eligible, so this
+  # decides the operator's reason string, never whether the lane passes.
+  exhaustion_pattern='(reached|exceeded|exhausted|hit|out[[:space:]]+of|ran[[:space:]]+out[[:space:]]+of)[^.;]{0,40}(quota|usage|limit|credit)|(quota|usage[[:space:]_-]+limit|rate[[:space:]_-]+limit)[^.;]{0,20}(exceeded|exhausted|reached)|too[[:space:]]+many[[:space:]]+requests'
+  auth_pattern='unauthori[sz]ed|forbidden|auth_error|authentication[[:space:]]+(failed|required)|required[[:space:]]+credential'
+  # An auth envelope that also says the caller's allowance ran out IS a quota
+  # condition; a message that merely mentions quota or limit metadata is not.
+  if grep -qiE "$exhaustion_pattern" "$PROBE_STDERR"; then
+    die_inconclusive kimi_quota quota true "$probe_rc"
   fi
   if grep -qiE "$auth_pattern" "$PROBE_STDERR"; then
     die_inconclusive kimi_auth_unavailable provider_unavailable true "$probe_rc"
