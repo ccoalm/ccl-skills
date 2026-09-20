@@ -912,15 +912,24 @@ if [ "$probe_rc" -ne 0 ]; then
   if grep -qiE 'EMFILE|too many open files' "$PROBE_STDERR"; then
     die_inconclusive kimi_host_resource_exhausted client_unavailable true "$probe_rc"
   fi
-  if grep -qiE '(^|[^0-9])429([^0-9]|$)|usage[[:space:]_-]+limit|weekly.*limit|reached.*limit|quota[[:space:]_-]+exceeded|rate[[:space:]_-]+limit[[:space:]]+exceeded' "$PROBE_STDERR"; then
-    # A generic limit phrase in a 401/403 envelope is still an auth failure;
-    # explicit provider-quota wording wins for the known weekly/quota forms.
-    if ! grep -qiE '(^|[^0-9])(401|403)([^0-9]|$)' "$PROBE_STDERR" \
-      || grep -qiE 'weekly.*limit|reached.*limit|quota[[:space:]_-]+exceeded' "$PROBE_STDERR"; then
+  # A bare integer in provider stderr is as often a byte offset or a line number
+  # as an HTTP status — a digit boundary keeps 4290 out but not an offset that
+  # IS 429 — so a number classifies only when it carries status context: a
+  # status word just before it, or its standard reason phrase just after.
+  # Wording carries the rest, and the same auth predicate decides both the
+  # envelope test below and the auth branch, so they cannot drift apart.
+  quota_pattern='usage[[:space:]_-]+limit|weekly.*limit|reached.*limit|quota[[:space:]_-]+exceeded|rate[[:space:]_-]+limit[[:space:]]+exceeded|(status|code|http)[^0-9]{0,8}429([^0-9]|$)|(^|[^0-9])429[^0-9]{0,4}too[[:space:]]+many[[:space:]]+requests'
+  # Wording that names provider exhaustion outright, unlike a bare "limit" an
+  # auth error may merely mention, and so wins inside an auth envelope.
+  quota_over_auth_pattern='weekly.*limit|reached.*limit|quota[[:space:]_-]+exceeded|rate[[:space:]_-]+limit[[:space:]]+exceeded'
+  auth_pattern='unauthori[sz]ed|auth_error|authentication[[:space:]]+(failed|required)|required[[:space:]]+credential|(status|code|http)[^0-9]{0,8}(401|403)([^0-9]|$)|(^|[^0-9])(401|403)[^0-9]{0,4}(unauthori[sz]ed|forbidden)'
+  if grep -qiE "$quota_pattern" "$PROBE_STDERR"; then
+    if ! grep -qiE "$auth_pattern" "$PROBE_STDERR" \
+      || grep -qiE "$quota_over_auth_pattern" "$PROBE_STDERR"; then
       die_inconclusive kimi_quota quota true "$probe_rc"
     fi
   fi
-  if grep -qiE '(^|[^0-9])(401|403)([^0-9]|$)|unauthori[sz]ed|auth_error|authentication[[:space:]]+(failed|required)|required[[:space:]]+credential' "$PROBE_STDERR"; then
+  if grep -qiE "$auth_pattern" "$PROBE_STDERR"; then
     die_inconclusive kimi_auth_unavailable provider_unavailable true "$probe_rc"
   fi
   die_inconclusive kimi_tool_capability_unverified capability_missing true "$probe_rc"

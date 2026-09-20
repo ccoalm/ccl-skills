@@ -181,6 +181,13 @@ if [ "${1:-}" = doctor ]; then
   touch "$state/kimi_doctor_checked"
   printf '%s\n' "$*" >"$state/kimi_doctor_args"
   printf '%s\t%s\n' doctor "${KIMI_CODE_WATCH-}" >>"$state/kimi_watch"
+  # Keep every validated config so a retry can be compared against the attempt
+  # it replaced, rather than only asserted about one property at a time.
+  doctor_n=$(( $(cat "$state/kimi_doctor_count" 2>/dev/null || echo 0) + 1 ))
+  printf '%s' "$doctor_n" >"$state/kimi_doctor_count"
+  if [ -n "${3:-}" ] && [ -f "$3" ]; then
+    cp "$3" "$state/kimi_doctor_config.$doctor_n"
+  fi
   if [ "${STUB_BEHAVIOR:-pass}" = doctor_reject_all ]; then
     printf '%s\n' 'config rejected' >&2
     exit 1
@@ -306,6 +313,22 @@ if [[ "$prompt" = "No-tools capability probe."* ]]; then
   fi
   if [ "${STUB_BEHAVIOR:-pass}" = capability_offset ]; then
     printf '%s\n' 'provider failed at byte offset 4290 and line 14030' >&2
+    exit 1
+  fi
+  if [ "${STUB_BEHAVIOR:-pass}" = capability_exact_offset ]; then
+    printf '%s\n' 'provider failed at byte offset 429 and line 403' >&2
+    exit 1
+  fi
+  if [ "${STUB_BEHAVIOR:-pass}" = capability_rate_limit_403 ]; then
+    printf '%s\n' 'provider.auth_error: 403 rate limit exceeded' >&2
+    exit 1
+  fi
+  if [ "${STUB_BEHAVIOR:-pass}" = capability_http_quota ]; then
+    printf '%s\n' 'provider error: HTTP 429 returned by upstream' >&2
+    exit 1
+  fi
+  if [ "${STUB_BEHAVIOR:-pass}" = capability_forbidden ]; then
+    printf '%s\n' 'provider error: 403 Forbidden' >&2
     exit 1
   fi
   if [ "${STUB_BEHAVIOR:-pass}" = capability_missing ]; then
@@ -1376,13 +1399,24 @@ rm -f "$WORK/state/kimi_watch" "$WORK/state/kimi_watch_all" "$WORK/state/kimi_wa
 out="$(KIMI_CODE_WATCH=1 run_kimi pass)"; rc=$?
 check "Kimi clean result passes with fixed Moonshot attribution" \
   '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ "$(field concern_results.0.concern "$out")" = correctness ] && [ "$(field reviewer_family "$out")" = moonshot ] && [ "$(field provider "$out")" = kimi-cli ] && [ "$(field model "$out")" = None ] && [ "$(dir_mode "$WORK/kimi-source/config.toml")" = 400 ] && [ "$(cat "$WORK/state/kimi_runtime_config_mode")" = 600 ] && [ "$(wc -l < "$WORK/state/kimi_watch" | tr -d " ")" = 3 ] && [ "$(grep -c "^doctor[[:space:]]0$" "$WORK/state/kimi_watch")" = 1 ] && [ "$(grep -c "^capability[[:space:]]0$" "$WORK/state/kimi_watch")" = 1 ] && [ "$(grep -c "^formal[[:space:]]0$" "$WORK/state/kimi_watch")" = 1 ] && [ "$(wc -l < "$WORK/state/kimi_watch_all" | tr -d " ")" = 3 ] && ! grep -qEv "^invocation[[:space:]]0$" "$WORK/state/kimi_watch_all" && [ -e "$WORK/state/kimi_watch_disabled" ]'
-rm -f "$WORK/state/kimi_watch" "$WORK/state/kimi_watch_all" "$WORK/state/kimi_watch_disabled" "$WORK/state/kimi_watch_absent"
+# The retry's config must differ from the attempt it replaced by exactly the
+# watcher table: asserting only that watch is absent would also pass a retry
+# that dropped or widened something else.
+retry_config_is_watch_only_delta() {
+  python3 -c '
+import sys
+first = open(sys.argv[1], encoding="utf-8").read()
+retry = open(sys.argv[2], encoding="utf-8").read()
+sys.exit(0 if first.replace("[watch]\nenabled = false\n", "", 1) == retry else 1)
+' "$1" "$2"
+}
+rm -f "$WORK/state/kimi_watch" "$WORK/state/kimi_watch_all" "$WORK/state/kimi_watch_disabled" "$WORK/state/kimi_watch_absent" "$WORK/state/kimi_doctor_count" "$WORK/state/kimi_doctor_config."*
 out="$(KIMI_CODE_WATCH=1 run_kimi doctor_reject_watch)"; rc=$?
 # The watcher guard is belt on top of the per-invocation override, which the
 # runtime reads ahead of the config. A runtime that does not know the table may
 # not cost the whole lane: drop the table, keep the override, stay admitted.
 check "Kimi keeps the lane when the runtime rejects only the watcher table" \
-  '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ -e "$WORK/state/kimi_watch_absent" ] && [ ! -e "$WORK/state/kimi_watch_disabled" ] && [ "$(tr -d " " < "$WORK/state/kimi_generated_marker_count")" = 1 ] && [ "$(grep -c "^doctor[[:space:]]0$" "$WORK/state/kimi_watch")" = 2 ] && [ "$(grep -c "^capability[[:space:]]0$" "$WORK/state/kimi_watch")" = 1 ] && [ "$(grep -c "^formal[[:space:]]0$" "$WORK/state/kimi_watch")" = 1 ] && ! grep -qEv "^invocation[[:space:]]0$" "$WORK/state/kimi_watch_all"'
+  '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ] && [ -e "$WORK/state/kimi_watch_absent" ] && [ ! -e "$WORK/state/kimi_watch_disabled" ] && [ "$(tr -d " " < "$WORK/state/kimi_generated_marker_count")" = 1 ] && retry_config_is_watch_only_delta "$WORK/state/kimi_doctor_config.1" "$WORK/state/kimi_doctor_config.2" && [ "$(grep -c "^doctor[[:space:]]0$" "$WORK/state/kimi_watch")" = 2 ] && [ "$(grep -c "^capability[[:space:]]0$" "$WORK/state/kimi_watch")" = 1 ] && [ "$(grep -c "^formal[[:space:]]0$" "$WORK/state/kimi_watch")" = 1 ] && ! grep -qEv "^invocation[[:space:]]0$" "$WORK/state/kimi_watch_all"'
 out="$(run_kimi doctor_reject_all)"; rc=$?
 check "Kimi still fails closed when no generated config is accepted" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_packet_only_config_unrecognized ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
@@ -1426,6 +1460,20 @@ check "Kimi does not classify capability errors from bare authentication wording
 out="$(run_kimi capability_offset)"; rc=$?
 check "Kimi does not classify numeric offsets as HTTP status codes" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
+# A digit boundary keeps 4290 out but not an offset that IS 429, so the numeric
+# form only classifies with status context.
+out="$(run_kimi capability_exact_offset)"; rc=$?
+check "Kimi does not read a bare offset of exactly 429 or 403 as a status code" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
+out="$(run_kimi capability_rate_limit_403)"; rc=$?
+check "Kimi reports provider rate-limit exhaustion inside an auth envelope as quota" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_quota ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
+out="$(run_kimi capability_http_quota)"; rc=$?
+check "Kimi still classifies a status code that carries status context" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_quota ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ]'
+out="$(run_kimi capability_forbidden)"; rc=$?
+check "Kimi still classifies a status code that carries its reason phrase" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_auth_unavailable ] && [ "$(field reason_code "$out")" = provider_unavailable ] && [ "$(field cascade_eligible "$out")" = True ]'
 probe_started=$SECONDS
 out="$(REVIEW_TEST_TIMEOUT=5 run_kimi capability_hang)"; rc=$?
 probe_elapsed=$((SECONDS - probe_started))

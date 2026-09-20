@@ -107,11 +107,18 @@ runtime's error wording — matching the wording would be the same pin again.
 | --- | --- | --- |
 | `EMFILE` / too many open files | `kimi_host_resource_exhausted` | `client_unavailable` |
 | Weekly/usage-limit or quota-exceeded wording, no auth envelope | `kimi_quota` | `quota` |
-| `403` auth envelope naming a weekly limit or exceeded quota | `kimi_quota` | `quota` |
-| `403` auth envelope mentioning quota or limit metadata only | `kimi_auth_unavailable` | `provider_unavailable` |
-| Auth status or wording, no quota wording | `kimi_auth_unavailable` | `provider_unavailable` |
+| Auth envelope naming a weekly limit, an exceeded quota, or rate-limit exhaustion | `kimi_quota` | `quota` |
+| Auth envelope mentioning quota or limit metadata only | `kimi_auth_unavailable` | `provider_unavailable` |
+| Auth wording, no quota wording | `kimi_auth_unavailable` | `provider_unavailable` |
 | Bare `authentication` wording with no status code | `kimi_tool_capability_unverified` | `capability_missing` |
-| Numeric offsets that merely contain `429`/`403` | `kimi_tool_capability_unverified` | `capability_missing` |
+| A number carrying status context (`HTTP 429`, `403 Forbidden`) | classified as that status | — |
+| A bare number, whatever its value, including an offset of exactly `429` or `403` | `kimi_tool_capability_unverified` | `capability_missing` |
+
+The last two rows replace a digit-boundary guard that kept `4290` out but still
+read an offset of exactly `429` as a status code. A number now classifies only
+with status context; wording carries the rest, and one auth predicate serves
+both the auth branch and the envelope test inside the quota branch so the two
+cannot drift apart.
 
 Every row below the first table's first two is a non-pass. No row turns a
 failed probe into a review result.
@@ -127,28 +134,39 @@ Cases, one per new row:
 - `doctor_reject_watch`: doctor rejects a config containing `[watch]`; the lane
   is admitted on the retry, the installed config carries no `watch` table,
   carries exactly one generated marker, and every invocation still reports
-  `KIMI_CODE_WATCH=0`. The stub answers the doctor stage only, so its formal
-  stage is mapped to the ordinary clean verdict — the case proves the lane
-  survived, not that a rejection produces a pass.
+  `KIMI_CODE_WATCH=0`. The stub keeps every config it validated, so the case
+  also asserts the strict-subset claim directly: the retry's config equals the
+  first one with only the watcher table removed, which asserting `watch`
+  absence alone would not establish. The stub answers the doctor stage only, so
+  its formal stage is mapped to the ordinary clean verdict — the case proves the
+  lane survived, not that a rejection produces a pass.
 - `doctor_reject_all`: doctor rejects both attempts; terminal
   `kimi_packet_only_config_unrecognized`, cascade-eligible.
 - The watcher-guard assertions run under an inherited `KIMI_CODE_WATCH=1`, so a
   dropped override at any of the four sites fails the case rather than passing
   on the ambient value.
 - `capability_quota`, `capability_auth`, `capability_auth_quota_mention`,
-  `capability_auth_limit`, `capability_auth_word`, `capability_offset`: one per
-  classification row above.
+  `capability_auth_limit`, `capability_auth_word`, `capability_offset`,
+  `capability_exact_offset`, `capability_rate_limit_403`,
+  `capability_http_quota`, `capability_forbidden`: one per classification row
+  above. The last four came from the independent review and challenge, which
+  found that an offset of exactly `429` classified as quota and that an auth
+  envelope naming rate-limit exhaustion fell through to the auth class.
 
 Falsification: each case must fail when its own behavior is removed. Mutations
 applied on copies of the scripts directory, each differing from the candidate in
 exactly one line, and each observed to fail its owning case for its own reason:
+
+Base suite: 241 checks, all green. Each mutant differs from it in one line.
 
 | Mutation | Cases that turn RED |
 | --- | --- |
 | Retry removed; first rejection terminal again | the fallback case only |
 | `omit` mode still writes `[watch]` | the fallback case (no `watch`-absent config) and the terminal case (the omit generation now fails its own semantic check, so the reason changes to `kimi_packet_only_config_failed`) |
 | `KIMI_CODE_WATCH=0` dropped from the capability probe alone | all four watcher-override assertions |
-| Digit-boundary guard removed from the quota regex | the numeric-offset case only |
+| Status context dropped, so a bare number classifies again | the exact-offset case only |
+| Rate-limit exhaustion dropped from the wording that wins inside an auth envelope | the rate-limit case only |
+| The generated marker is no longer dropped on regeneration | the fallback case only, through the strict-subset comparison |
 
 ## Verification
 

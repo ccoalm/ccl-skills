@@ -1,43 +1,27 @@
-# Review lane status — round 151
+# Review lane status and finding dispositions — round 151
 
-Recorded state of the owed passes, and what was attempted for the one still
-outstanding.
+## Lanes
 
-## Review — recorded
+The Claude lane is skipped at preflight as the implementer's own model family.
+Codex and Kimi both reported `quota` for roughly two hours; the Codex CLI names
+its own reset time, and the lane produced conclusive results immediately after
+it. The OpenCode lane returned two conclusive `passed` reviews on an earlier
+candidate and then repeatedly returned `missing_final_text`; that cause was not
+isolated and is recorded as unresolved rather than attributed to a component.
+Kimi's own unavailability was reported through the classification this round
+adds.
 
-`round1-review.json`: schema-3 controller envelope, `status: passed`, zero
-findings, ten concerns at release depth, reviewed by the OpenCode lane
-(DeepSeek family). A second conclusive pass over the same candidate was produced
-independently and is not duplicated here.
+Recorded passes: `round1-review.json` (review) and `round2-challenge.json`
+(challenge), both schema-3 controller envelopes bound to the same candidate.
 
-Scope note: that pass covered the wrapper, test and contract changes. Two
-additions followed it — this round's evidence files, and the impact-chain row in
-`skill-extraction-workflow/references/source-register.md`. The evidence files are
-review records and exempt; the ledger row is not, so it carries no independent
-pass. The round was also rebased from a `main` base onto `dev` so the
-impact-chain row and the owner change it declares sit in one round, which moved
-the reviewed commit out of the branch's history even though its content is
-unchanged.
+## Findings and dispositions
 
-## Challenge — outstanding
+The review returned four and the challenge three, overlapping on two.
 
-Not recorded. Every eligible lane was exercised, twice through the full client
-order and around twenty times through the lane that had been answering:
-
-| Lane | Result |
+| Finding | Disposition |
 | --- | --- |
-| Claude | Skipped at preflight: same model family as the implementer, so it cannot serve as the independent pass. |
-| Codex | `codex_quota` / `quota` — provider quota exhausted, re-probed after ~40 minutes with the same result. |
-| Kimi | `kimi_quota` / `quota` — same, and reported through the classification this round adds. |
-| OpenCode | Two conclusive `passed` reviews, then `missing_final_text` / `invalid_model_output` on every later attempt across ~90 minutes. The agent answers a trivial prompt normally, so the failure is specific to the review packet rather than to the client or its credentials. |
-
-Remediation attempted before recording this: a direct client probe, immediate
-retries, spaced retries with backoff, a re-probe of the full client order for a
-quota reset, and a fresh chain id per attempt so none reused a consumed budget.
-
-Consequence: this round is `interim`. The unblock action is one conclusive
-challenge over this candidate from any non-Claude lane, which needs a recovered
-provider rather than a change to the candidate. The deterministic evidence is
-unaffected: the full local lane, the heavy lane, the sanitization scan and the
-base-ref repository gate are green, and every required check on the pull request
-passed.
+| A digit boundary keeps `4290` out but still reads an offset of exactly `429` as a status code, so `byte offset 429` classified as quota (both lanes) | Fixed. A number now classifies only with status context — a status word before it or its reason phrase after — and wording carries the rest. `capability_exact_offset` fails on the prior predicate; `capability_http_quota` and `capability_forbidden` hold the two forms that must keep classifying. |
+| `403 rate limit exceeded` matched the quota pattern but the envelope exception sent it to the auth class (challenge) | Fixed. Rate-limit exhaustion joins the wording that wins inside an auth envelope, and one auth predicate now serves both the auth branch and that envelope test so they cannot drift. `capability_rate_limit_403` fails on the prior code. |
+| The strict-subset claim cannot be verified from the packet: the fallback case asserted watcher absence and marker count, never compared the two configs (both lanes) | Fixed. The stub keeps every config it validated and the case asserts the retry's config equals the first one with only the watcher table removed. |
+| The fallback's safety rests on the override working on a build that rejects the table, and the evidence covers one installed build (review) | Accepted as scoped, no code change. The claim is written with its scope in the plan and is not asserted for every release. The reason it is safe without that evidence is separate: where neither the table nor the override is honoured, the watcher runs — which is exactly what the default branch ships today, so the degraded path is not a regression, and the isolation boundary (the `[tools]` allowlist plus the tool_use scan) is untouched either way. |
+| This status note excluded client, wrapper and parser causes for the OpenCode failure from a trivial-prompt success, then prescribed provider recovery as the unblock (review) | Fixed in this file. The diagnosis is withdrawn; the cause is recorded as unresolved. |
