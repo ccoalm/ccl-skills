@@ -10,9 +10,11 @@ OpenCode lane returned two conclusive `passed` reviews on an early candidate and
 then repeatedly returned `missing_final_text`; that cause was not isolated and
 is recorded as unresolved rather than attributed to a component.
 
-Four review rounds and four challenge rounds ran across three candidates. The
+Five review rounds and five challenge rounds ran across four candidates. The
 recorded pair is the last one, in `round1-review.json` and
-`round2-challenge.json`.
+`round2-challenge.json`; both lanes returned the same two findings, each already
+dispositioned below, and no new defect class — which is the convergence this
+round stops on.
 
 ## Findings and dispositions
 
