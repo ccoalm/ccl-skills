@@ -10,7 +10,8 @@ Rules:
   their arguments, returned bytes and completed lifecycle. This does not permit
   arbitrary commands or workspace access. A malformed, timeout, or inconclusive
   wrapper result is not a pass.
-- **Never pin the parser to a CLI version's vocabulary.** `parse_probe_result.py`
+- **Never pin a lane to a CLI version's vocabulary — reading it or writing it.**
+  `parse_probe_result.py`
   gates on *shape*, not on field/value names: the isolation proof is the exact
   `tools` allowlist plus the tool_use scan, which no init field can bypass.
   Field-name and value whitelists were tried twice (`fast_mode_state`, then
@@ -19,6 +20,15 @@ Rules:
   or empty-container, and `agents`/`capabilities` are list-of-strings checks
   with no value vocabulary. Only `permissionMode` stays value-pinned (it widens
   what the runtime may do with no tool added).
+  The write side is the same class and was missed once: config a wrapper
+  GENERATES and then submits to the runtime's own validator as an admission
+  precondition carries a key that release may not know, and rejecting it turns
+  the whole lane off. So a generated setting that a per-invocation environment
+  variable already carries is belt, not the gate — on rejection regenerate the
+  strict subset without it and revalidate, unconditionally rather than by
+  matching the runtime's error wording, which is the same pin relocated. Only a
+  setting with no second, independent path to the same property may fail the
+  lane closed, and admission must never widen on the retry.
 - **Skill, command and plugin lists are vocabulary, not a boundary.**
   `slash_commands`, `terminal_slash_commands`, `skills` and `plugins` may hold
   any value and are never judged by name, shape, or origin; only `mcp_servers`
