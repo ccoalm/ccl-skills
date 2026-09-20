@@ -3,16 +3,17 @@
 The Kimi review lane installs a generated packet-only `config.toml` into a
 private runtime home and validates it with `kimi doctor config` before any
 inference. This round adds a watcher guard to that config, sets the watcher
-override on every invocation, and classifies provider quota exhaustion apart
-from authentication failure. It is written after the first candidate was
-reviewed; the review's open finding is dispositioned here, and the closeout
-records that this plan did not exist before those edits.
+override on every invocation, and keeps a rejected guard from costing the lane.
+It also withdraws the provider-prose failure classification the first candidate
+carried. It is written after that candidate was reviewed; the findings from four
+review rounds are dispositioned here, and the closeout records that this plan
+did not exist before the first edits.
 
-Artifact classification: `gate implementation`. The lane's admission rule and
-its failure classification both change: a new terminal reason for an
-unusable runtime config, and a new `quota` reason code ahead of the existing
-auth branch. The set of results that count as a review pass does not change —
-every new branch is `die_inconclusive`, which is not a pass.
+Artifact classification: `gate implementation`. The lane's admission rule
+changes — a rejected watcher table is retried instead of being terminal — and
+its failure reasons return to the single capability class. The set of results
+that count as a review pass does not change: every branch here is
+`die_inconclusive`, which is not a pass.
 
 Risk tags: `shared-gate`, `external-integration`, `security-review`
 (change-triggered arm). Visible surface: no — the changed surface is the
@@ -51,10 +52,10 @@ Three behaviors:
    generated marker comment is dropped on the way in and re-added, which keeps
    the regenerated file byte-equivalent to a first-pass `omit` generation
    instead of accumulating a marker per attempt.
-3. **Quota classification.** A probe failure whose stderr carries provider
-   quota wording is reported `kimi_quota` / `quota` instead of being folded
-   into the auth or generic capability class. Digit-boundary guards keep byte
-   and line offsets from matching an HTTP status code.
+3. **Withdrawn prose classification.** The first candidate split a failed probe
+   into `quota` and auth reasons by matching the provider's stderr. Four review
+   rounds each broke that predicate on a new message, so the split is removed
+   and every non-`EMFILE` probe failure keeps the one capability reason.
 
 Out of scope: the `EMFILE` classification (unchanged, predates this round),
 the OpenCode and Codex wrappers, and the cascade policy that consumes
@@ -103,26 +104,37 @@ runtime's error wording — matching the wording would be the same pin again.
 | Rejects both attempts | — | `kimi_packet_only_config_unrecognized` / `capability_missing`, cascade-eligible |
 | Config generation itself fails | — | `kimi_packet_only_config_failed` / `capability_missing`, cascade-eligible |
 
+### Provider-prose classification: withdrawn
+
 | Probe stderr | Reason | Reason code |
 | --- | --- | --- |
 | `EMFILE` / too many open files | `kimi_host_resource_exhausted` | `client_unavailable` |
-| Says the caller's allowance ran out — reached/exceeded/exhausted a quota, usage, limit or credit, or `too many requests` | `kimi_quota` | `quota` |
-| Says so inside an auth envelope | `kimi_quota` | `quota` |
-| Names quota or limit only as unavailable *metadata* | `kimi_auth_unavailable` | `provider_unavailable` |
-| Auth wording (`unauthorized`, `forbidden`, `auth_error`, authentication failed/required, required credential) | `kimi_auth_unavailable` | `provider_unavailable` |
-| Anything else, including every message whose only status-like content is a number | `kimi_tool_capability_unverified` | `capability_missing` |
+| Anything else | `kimi_tool_capability_unverified` | `capability_missing` |
 
-**Numbers are not classified at all.** Three review rounds each found a new
-message where a numeric match landed in the wrong class: a digit boundary kept
-`4290` out but not an offset of exactly `429`; requiring a status word before
-the number then matched `code` inside `decode`. Rather than add a fourth guard,
-the predicate is expressed over what the message says happened — a semantic this
-lane owns — instead of over the provider's status vocabulary, which it does not.
-Both branches are `die_inconclusive` and cascade-eligible, so this decides the
-operator's reason string and never whether the lane passes.
+This round tried three times to split that second row into `quota` and auth
+reasons, and four independent review rounds each broke the predicate on a new
+message: a digit boundary excluded `4290` but not an offset of exactly `429`;
+requiring a status word before the number matched `code` inside `decode`;
+matching what the message said instead matched `hit` inside `whitelisted` and
+still missed `credits are exhausted`. That is a predicate over a vocabulary this
+control does not own, which the directory contract already names, and
+same-class recurrence across four rounds is the cue to remove the capability
+rather than guard it a fifth time.
 
-Every row below the first table's first two is a non-pass. No row turns a
-failed probe into a review result.
+Nothing about the gate changes. Every one of those reasons was
+`die_inconclusive` and cascade-eligible, so the split only ever decided an
+operator hint, and a wrong hint is worse than none. The thirteen message
+fixtures stay, now asserting the single class, so a prose predicate cannot be
+re-added without the diff saying so.
+
+The honest replacement is not a looser regex. The probe already streams
+`--output-format stream-json`, and a structured error there is a source this
+lane can own — the shape the Claude lane's envelope classifier uses, with raw
+prose kept out of the payload as the contract requires. That is its own change,
+against a real sample, and is not attempted here.
+
+No row in either table turns a failed probe or a rejected config into a review
+result.
 
 ## Test and register coverage
 
@@ -146,39 +158,34 @@ Cases, one per new row:
 - The watcher-guard assertions run under an inherited `KIMI_CODE_WATCH=1`, so a
   dropped override at any of the four sites fails the case rather than passing
   on the ambient value.
-- `capability_quota`, `capability_auth`, `capability_auth_quota_mention`,
-  `capability_auth_limit`, `capability_auth_word`, `capability_offset`,
-  `capability_exact_offset`, `capability_rate_limit_403`,
-  `capability_http_quota`, `capability_forbidden`, `capability_decode_offset`,
-  `capability_auth_weekly_metadata`, `capability_auth_too_many`: one per
-  classification row above. The last seven carry the exact strings the
-  independent review and challenge used to break the two predecessor
-  predicates — an offset of exactly `429`, an auth envelope naming rate-limit
-  exhaustion, `decode offset 429`, a weekly limit named only as unavailable
-  metadata, and an auth envelope that really did run out of allowance.
+- Thirteen provider-prose messages, each asserting the single capability class.
+  They are kept rather than deleted with the predicate: seven of them are the
+  exact strings the review and challenge used to break a predecessor — an offset
+  of exactly `429`, `decode offset 429`, an auth envelope naming rate-limit
+  exhaustion, a weekly limit named only as unavailable metadata, an envelope
+  that really had run out of allowance — so re-adding a prose predicate cannot
+  pass without the diff changing them.
 
 Falsification: each case must fail when its own behavior is removed. Mutations
 applied on copies of the scripts directory, each differing from the candidate in
-exactly one line, and each observed to fail its owning case for its own reason:
-
-Base suite: 241 checks, all green. Each mutant differs from it in one line.
+exactly one line, each observed to fail its owning case for its own reason, with
+the unmutated suite green at 244 checks:
 
 | Mutation | Cases that turn RED |
 | --- | --- |
 | Retry removed; first rejection terminal again | the fallback case only |
 | `omit` mode still writes `[watch]` | the fallback case (no `watch`-absent config) and the terminal case (the omit generation now fails its own semantic check, so the reason changes to `kimi_packet_only_config_failed`) |
 | `KIMI_CODE_WATCH=0` dropped from the capability probe alone | all four watcher-override assertions |
-| `429` added back to the exhaustion predicate as a bare number | the exact-offset and decode-offset cases |
-| The exhaustion branch moved after the auth branch, so auth wording wins again | the rate-limit and too-many-requests cases |
 | The generated marker is no longer dropped on regeneration | the fallback case only, through the strict-subset comparison |
+| Any prose predicate re-added over the probe's stderr | the message fixtures it reclassifies |
 
 ## Verification
 
 `make test`; `test_check_ccl_regressions.sh --heavy-only`;
 `python3 scripts/check-public-sanitization.py .`; `git diff --check`;
-`check-ccl-skills.sh` with a base ref. Live Kimi inference is not available —
-the account is quota-exhausted, which the lane itself now reports as
-`kimi_quota`; recorded as blocked external verification rather than a pass.
+`check-ccl-skills.sh` with a base ref. Live Kimi inference is not available:
+that account reports exhaustion, and the lane records it as an unverified
+capability. Recorded as blocked external verification rather than a pass.
 
 ## Status sync
 

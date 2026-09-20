@@ -912,26 +912,24 @@ if [ "$probe_rc" -ne 0 ]; then
   if grep -qiE 'EMFILE|too many open files' "$PROBE_STDERR"; then
     die_inconclusive kimi_host_resource_exhausted client_unavailable true "$probe_rc"
   fi
-  # NUMBERS ARE NOT CLASSIFIED. An integer in provider stderr is as often a byte
-  # offset, a line or a decode position as an HTTP status, and three review
-  # rounds each found a new message where a numeric match landed in the wrong
-  # class: 4290 was excluded but an offset of exactly 429 was not, then a status
-  # word before the number matched inside an unrelated word. The predicate is
-  # expressed over what the message says happened — a semantic this lane owns —
-  # instead of over the provider's status vocabulary, which it does not.
+  # NO SUB-CLASSIFICATION OF PROVIDER PROSE. Splitting this failure into quota
+  # and auth reasons was tried and withdrawn: four independent review rounds
+  # each broke the predicate on a new message. A digit boundary excluded 4290
+  # but not an offset of exactly 429; requiring a status word before the number
+  # matched `code` inside `decode`; matching what the message said instead
+  # matched `hit` inside `whitelisted` and still missed `credits are exhausted`.
+  # That is the shape this directory's contract already names — a predicate over
+  # a vocabulary the control does not own — and same-class recurrence is the cue
+  # to remove the capability rather than guard it again.
   #
-  # Both branches below are die_inconclusive and cascade-eligible, so this
-  # decides the operator's reason string, never whether the lane passes.
-  exhaustion_pattern='(reached|exceeded|exhausted|hit|out[[:space:]]+of|ran[[:space:]]+out[[:space:]]+of)[^.;]{0,40}(quota|usage|limit|credit)|(quota|usage[[:space:]_-]+limit|rate[[:space:]_-]+limit)[^.;]{0,20}(exceeded|exhausted|reached)|too[[:space:]]+many[[:space:]]+requests'
-  auth_pattern='unauthori[sz]ed|forbidden|auth_error|authentication[[:space:]]+(failed|required)|required[[:space:]]+credential'
-  # An auth envelope that also says the caller's allowance ran out IS a quota
-  # condition; a message that merely mentions quota or limit metadata is not.
-  if grep -qiE "$exhaustion_pattern" "$PROBE_STDERR"; then
-    die_inconclusive kimi_quota quota true "$probe_rc"
-  fi
-  if grep -qiE "$auth_pattern" "$PROBE_STDERR"; then
-    die_inconclusive kimi_auth_unavailable provider_unavailable true "$probe_rc"
-  fi
+  # Nothing about the gate changes: every one of those reasons was
+  # die_inconclusive and cascade-eligible, so the split only ever decided an
+  # operator hint, and a wrong hint is worse than none. The contract also
+  # forbids putting raw provider text in the payload, so the honest replacement
+  # is not a looser regex but a classifier over the structured error the probe
+  # already streams, the way the Claude lane's envelope classifier works. That
+  # is its own change, against a real sample.
+  :
   die_inconclusive kimi_tool_capability_unverified capability_missing true "$probe_rc"
 fi
 # MCP mode enables the packet reader for the later formal transport, but this

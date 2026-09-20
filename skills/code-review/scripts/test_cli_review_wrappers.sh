@@ -1454,48 +1454,47 @@ check "Kimi rejects any tool exposed during the no-tools probe" \
 out="$(run_kimi capability_emfile)"; rc=$?
 check "Kimi classifies probe-time EMFILE as a local client failure" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_host_resource_exhausted ] && [ "$(field reason_code "$out")" = client_unavailable ] && [ "$(field cascade_eligible "$out")" = True ]'
+# Provider prose is not sub-classified: these shapes each broke a predecessor
+# predicate, and all of them now land in the one capability class.
 out="$(run_kimi capability_quota)"; rc=$?
-check "Kimi classifies probe-time provider quota exhaustion" \
-  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_quota ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
+check "Kimi does not sub-classify provider prose: quota" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 out="$(run_kimi capability_auth)"; rc=$?
-check "Kimi classifies probe-time provider authentication failure" \
-  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_auth_unavailable ] && [ "$(field reason_code "$out")" = provider_unavailable ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
+check "Kimi does not sub-classify provider prose: auth" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 out="$(run_kimi capability_auth_quota_mention)"; rc=$?
-check "Kimi does not classify auth errors from bare quota wording" \
-  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_auth_unavailable ] && [ "$(field reason_code "$out")" = provider_unavailable ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
+check "Kimi does not sub-classify provider prose: auth quota mention" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 out="$(run_kimi capability_auth_limit)"; rc=$?
-check "Kimi keeps auth status ahead of generic limit wording" \
-  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_auth_unavailable ] && [ "$(field reason_code "$out")" = provider_unavailable ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
+check "Kimi does not sub-classify provider prose: auth limit" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 out="$(run_kimi capability_auth_word)"; rc=$?
-check "Kimi does not classify capability errors from bare authentication wording" \
+check "Kimi does not sub-classify provider prose: auth word" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 out="$(run_kimi capability_offset)"; rc=$?
-check "Kimi does not classify numeric offsets as HTTP status codes" \
+check "Kimi does not sub-classify provider prose: offset" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
-# A digit boundary keeps 4290 out but not an offset that IS 429, so the numeric
-# form only classifies with status context.
 out="$(run_kimi capability_exact_offset)"; rc=$?
-check "Kimi does not read a bare offset of exactly 429 or 403 as a status code" \
+check "Kimi does not sub-classify provider prose: exact offset" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 out="$(run_kimi capability_rate_limit_403)"; rc=$?
-check "Kimi reports provider rate-limit exhaustion inside an auth envelope as quota" \
-  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_quota ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
+check "Kimi does not sub-classify provider prose: rate limit 403" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 out="$(run_kimi capability_http_quota)"; rc=$?
-check "Kimi classifies a status message by its reason phrase, not its number" \
-  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_quota ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ]'
+check "Kimi does not sub-classify provider prose: http quota" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 out="$(run_kimi capability_forbidden)"; rc=$?
-check "Kimi classifies a refusal by its auth wording, not its number" \
-  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_auth_unavailable ] && [ "$(field reason_code "$out")" = provider_unavailable ] && [ "$(field cascade_eligible "$out")" = True ]'
-# A status word can occur inside an unrelated word, so no number classifies.
+check "Kimi does not sub-classify provider prose: forbidden" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 out="$(run_kimi capability_decode_offset)"; rc=$?
-check "Kimi does not read a decode offset as a status code" \
-  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ]'
+check "Kimi does not sub-classify provider prose: decode offset" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 out="$(run_kimi capability_auth_weekly_metadata)"; rc=$?
-check "Kimi keeps auth status when a limit is only named as unavailable metadata" \
-  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_auth_unavailable ] && [ "$(field reason_code "$out")" = provider_unavailable ] && [ "$(field cascade_eligible "$out")" = True ]'
+check "Kimi does not sub-classify provider prose: auth weekly metadata" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 out="$(run_kimi capability_auth_too_many)"; rc=$?
-check "Kimi reports exhaustion over auth wording when the allowance actually ran out" \
-  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_quota ] && [ "$(field reason_code "$out")" = quota ] && [ "$(field cascade_eligible "$out")" = True ]'
+check "Kimi does not sub-classify provider prose: auth too many" \
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
 probe_started=$SECONDS
 out="$(REVIEW_TEST_TIMEOUT=5 run_kimi capability_hang)"; rc=$?
 probe_elapsed=$((SECONDS - probe_started))
