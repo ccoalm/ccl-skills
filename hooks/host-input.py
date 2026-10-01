@@ -23,10 +23,10 @@ class TranscriptTruncated(ValueError):
     """The bounded scan could not establish complete transcript evidence."""
 
 
-def handoff(text, actionable_only=False):
-    """Recognize an assistant handoff, never quoted examples or fenced output."""
+def prose_lines(text):
+    """Yield assistant prose lines, skipping fenced, quoted and indented text."""
     if not isinstance(text, str):
-        return False
+        return
     fence = None
     for line in text.splitlines():
         stripped = line.strip()
@@ -40,13 +40,61 @@ def handoff(text, actionable_only=False):
             continue
         if fence is not None or stripped.startswith('>') or line.startswith(('    ', '\t')):
             continue
-        match = re.fullmatch(r'(?:[-*] )?(?:\*\*)?proposed-next:(?:\*\*)?\s*(.+)', stripped)
+        yield stripped
+
+
+HANDOFF = re.compile(r'(?:[-*] )?(?:\*\*)?proposed-next:(?:\*\*)?\s*(.+)')
+
+
+def handoff_values(text):
+    """Return assistant handoff values, never quoted examples or fenced output."""
+    values = []
+    for stripped in prose_lines(text):
+        match = HANDOFF.fullmatch(stripped)
         if match and match[1].strip() and not match[1].strip().startswith('<'):
-            if actionable_only and re.fullmatch(r'(?:none(?:\s*[—–-]\s*.+)?|blocked:\s*.+)',
-                                               match[1].strip(), re.IGNORECASE):
-                continue
-            return True
-    return False
+            values.append(match[1].strip())
+    return values
+
+
+def handoff(text, actionable_only=False):
+    """Recognize an assistant handoff, never quoted examples or fenced output."""
+    return any(not (actionable_only and re.fullmatch(
+        r'(?:none(?:\s*[—–-]\s*.+)?|blocked:\s*.+)', value, re.IGNORECASE))
+        for value in handoff_values(text))
+
+
+# A stop that waits on the user: a blocked handoff, a non-status "none" naming
+# a wait for the user, or a last prose line asking permission. Matching is
+# phrase-based so finished states ("PR approved", "tests confirm") stay quiet.
+USER_WAIT = re.compile(
+    r'^blocked:'
+    r'|\b(?:await(?:s|ing)?|waiting (?:for|on)|pending)\s+(?:your|the user|user|the owner|owner|approval'
+    r'|confirmation|a decision|decision|sign[- ]?off|input|reply|a resource|access|credentials)\b'
+    r'|\b(?:approval|confirmation|decision|sign[- ]?off) (?:is )?(?:pending|needed|required)\b'
+    r'|(?<!after )(?<!per )(?<!on )(?<!following )\byour (?:call|decision|approval|confirmation|go-ahead'
+    r'|input|reply)\b|\b(?:up|over) to you\b'
+    r'|\bneeds? (?:approval|confirmation|a decision|your|the owner|an owner|sign[- ]?off|access|credentials)\b'
+    r'|待确认|待你(?:确认|决定|审批|批准|回复|选择)|等你|等待(?:你|用户|确认|审批|批准|授权|决定)|请你|请选择|需要你'
+    r'|你来定|由你定|你定吧|由你决定|你决定|负责人未定|待审批|待批准|待授权', re.IGNORECASE)
+PERMISSION_QUESTION = re.compile(
+    r'(?:(?:^|[.;!:,—–-]\s*)(?:should|shall|may) I\b|\bcan I (?:proceed|continue|go ahead|start|merge|push)\b'
+    r'|\b(?:do|would) you (?:want|like) me\b|\bwant me to\b'
+    r'|\bok(?:ay)? to (?:merge|push|proceed|continue|go ahead|start|deploy)\b'
+    r'|^(?:proceed|continue|go ahead)\b|\bgo ahead(?: and [^?？]{0,40})?(?=[?？])'
+    r'|是否(?:继续|需要我|要我|合并|推送|提交|执行|开始)|需要我|请确认|你决定|您决定|由你决定|(?:^|我|[。，！；.!;,]\s*)继续'
+    r'|继续吗|接着做|要不要我|可以吗|行吗).*[?？]\s*$'
+    r'|\blet me know if you(?:\'d| would)? (?:like|want) me to (?:continue|proceed|go ahead|push|merge)\b'
+    r'|^要不要我[^。]*$', re.IGNORECASE)
+
+
+def waits_on_user(values):
+    return any(USER_WAIT.search(value) for value in values
+               if not re.fullmatch(r'none\s*[—–-]\s*status only\.?', value, re.IGNORECASE))
+
+
+def asks_permission(text):
+    lines = [line for line in prose_lines(text) if line and not HANDOFF.fullmatch(line)]
+    return bool(lines) and bool(PERMISSION_QUESTION.search(lines[-1]))
 
 
 def text_content(content):
@@ -536,6 +584,22 @@ def delivery_eligible(summary):
             or summary['continuation_contract_visible'])
 
 
+# One bounded recheck (host stop_hook_active) for stops that hand work back to
+# the user; it names the real blockers and grants no authority.
+DECISION_RECHECK = {'decision': 'block', 'reason': (
+    'Decision recheck: this stop hands a decision, confirmation or wait back to the user. '
+    'Real blockers are: missing credentials or authority; a fact unavailable from local evidence; '
+    'an action the safety rules gate (destructive or irreversible without recovery, production or '
+    'customer data, merge or publication outside the goal); overturning an established user direction; '
+    'or a material product tradeoff the evidence cannot settle. Design-time security questions, '
+    'security self-review, choosing the owner skill, module or approach, test and naming choices, and '
+    'the next in-scope step are yours: decide, state the assumption, and finish the remaining requested '
+    'work now. A report or summary does not complete delivery. If a real blocker remains, first finish '
+    'all independent work, then end with proposed-next: blocked: <action> — <concrete blocker>. '
+    'Respect explicit stop, planning-only and status-only requests and add no work beyond the request. '
+    'This reminder supplies no new goal or authorization.')}
+
+
 def proposed_next(payload):
     if (not isinstance(payload, dict) or payload.get('hook_event_name') != 'Stop'
             or payload.get('stop_hook_active') is not False):
@@ -543,8 +607,11 @@ def proposed_next(payload):
     final = payload.get('last_assistant_message')
     if not isinstance(final, str) or not final.strip() or machine_artifact(final):
         return None
+    values = handoff_values(final)
     actionable = handoff(final, actionable_only=True)
-    if handoff(final) and not actionable:
+    if values and not actionable:
+        if waits_on_user(values) or asks_permission(final):
+            return DECISION_RECHECK
         return None
     # A declared next action triggers a recheck, never inferred authorization.
     # Host stop_hook_active bounds this reminder to one stop attempt per turn.
@@ -568,9 +635,13 @@ def proposed_next(payload):
     except TranscriptTruncated:
         summary = context_transcript(path, cwd)
         if not delivery_eligible(summary):
+            if summary['edit_paths'] and asks_permission(final):
+                return DECISION_RECHECK
             # A complete recent context can establish eligibility, but cannot
             # disprove evidence in the omitted session prefix.
             raise
+    if asks_permission(final) and (delivery_eligible(summary) or summary['edit_paths']):
+        return DECISION_RECHECK
     if not delivery_eligible(summary):
         return None
     return {'decision': 'block', 'reason': (

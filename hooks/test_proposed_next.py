@@ -141,12 +141,101 @@ class ProposedNextTests(unittest.TestCase):
             self.payload['last_assistant_message'] = text
             self.assert_block(self.run_hook())
         for text in ('proposed-next: none — status only', '**proposed-next:** none — status only',
-                     'proposed-next: blocked: need an explicit decision',
-                     'proposed-next: none — awaiting approval',
-                     'proposed-next: none - waiting for a resource'):
+                     'proposed-next: none — all requested work is done and verified'):
             with self.subTest(text=text):
                 self.payload['last_assistant_message'] = text
                 self.assertEqual(self.run_hook(), {})
+
+    def assert_decision_recheck(self, payload):
+        result = self.run_hook(payload)
+        self.assert_block(result)
+        self.assertIn('Decision recheck', result['reason'])
+        self.assertIn('security', result['reason'])
+        self.assertIn('supplies no new goal or authorization', result['reason'])
+        self.assertEqual(self.run_hook(dict(payload, stop_hook_active=True)), {})
+
+    def test_user_dependent_stop_rechecks_the_blocker_once(self):
+        for events in ([], self.claude_load()):
+            self.events(events)
+            for text in ('proposed-next: blocked: need an explicit decision',
+                         'proposed-next: none — awaiting approval',
+                         'proposed-next: none - waiting for a resource',
+                         'proposed-next: none — 等待确认安全负责人'):
+                with self.subTest(text=text):
+                    self.assert_decision_recheck(dict(self.payload, last_assistant_message=text))
+
+    def test_permission_question_after_edits_rechecks_instead_of_formatting(self):
+        for events in (self.claude_load(), self.edit_events()):
+            self.events(events)
+            for text in ('Patch is ready. Should I proceed with the remaining tests?',
+                         'Done with step 1. Do you want me to continue?',
+                         '第一步已完成，是否继续？', '安全风险需要你决定，要不要我修改？'):
+                with self.subTest(text=text):
+                    self.assert_decision_recheck(dict(self.payload, last_assistant_message=text))
+        self.events([])
+        for text in ('Should I proceed?', '是否继续？'):
+            self.payload['last_assistant_message'] = text
+            self.assertEqual(self.run_hook(), {})
+        self.events(self.edit_events())
+        self.payload['last_assistant_message'] = 'Done; checks passed.'
+        self.assertEqual(self.run_hook(), {})
+
+    def test_finished_none_states_are_not_waits(self):
+        self.events(self.claude_load())
+        for text in ('proposed-next: none — PR approved and merged',
+                     'proposed-next: none — tests confirm the fix',
+                     'proposed-next: none — permission tests added',
+                     'proposed-next: none — authorization module refactored',
+                     'proposed-next: none — status only; awaiting nothing',
+                     'proposed-next: none — 已确认完成',
+                     'proposed-next: none — 已批准并合并',
+                     'proposed-next: none — merged after your approval',
+                     'proposed-next: none — all done; let me know if you need more',
+                     'proposed-next: none — fixed the await bug in fetch()',
+                     'proposed-next: none — 修复了等待超时',
+                     'proposed-next: none — 审批流程已实现',
+                     'proposed-next: none — PR opened; awaiting review',
+                     "Done.\nLet me know if you'd like me to make any other changes.\nproposed-next: none — complete",
+                     'proposed-next: none — 完成，期待你的反馈', 'proposed-next: none — 已按你定义的接口实现',
+                     'proposed-next: none — merged based on your approval'):
+            with self.subTest(text=text):
+                self.assertEqual(self.run_hook(dict(self.payload, last_assistant_message=text)), {})
+
+    def test_more_user_waits_and_labelled_questions_are_rechecked(self):
+        self.events(self.claude_load())
+        for text in ('proposed-next: none — your call', 'proposed-next: none — needs sign-off',
+                     'proposed-next: none — 等你拍板', 'proposed-next: none — 需要你审批',
+                     'Patch ready. Should I push it?\nproposed-next: none — work is ready',
+                     'Ready to merge. OK to merge?', 'Should I proceed? Or stop?',
+                     'Should I push the branch?\nproposed-next: none — status only',
+                     'proposed-next: none — 待确认', 'proposed-next: none — pending approval',
+                     'proposed-next: none — decision pending', 'proposed-next: none — 负责人未定',
+                     'proposed-next: none — need the owner to sign off', 'proposed-next: none — 请选择方案 A 或 B',
+                     '已改完。继续？\nproposed-next: none — 改动已完成', '要不要我继续\nproposed-next: none — 改动已完成',
+                     'proposed-next: none — 由你决定', 'proposed-next: none — up to you',
+                     'proposed-next: none — need access to prod', 'Done — should I push?\nproposed-next: none — ready',
+                     '我可以继续吗？\nproposed-next: none — 改动已完成'):
+            with self.subTest(text=text):
+                self.assert_decision_recheck(dict(self.payload, last_assistant_message=text))
+
+    def test_pleasantries_and_quoted_questions_after_edits_are_not_permission_asks(self):
+        self.events(self.edit_events())
+        for text in ('Done. Can I help with anything else?',
+                     'Fixed. Q: why does continue fail?',
+                     'Done.\n> Should I proceed?',
+                     '这个问题是否已修复？', 'How should I interpret this error?',
+                     'What is the default if I go ahead without a flag?',
+                     'Does this look ok to you?', '不管要不要我做都行。'):
+            with self.subTest(text=text):
+                self.assertEqual(self.run_hook(dict(self.payload, last_assistant_message=text)), {})
+
+    def edit_events(self):
+        target = str(self.root / 'src.txt')
+        return [
+            {'type': 'assistant', 'message': {'content': [{'type': 'tool_use', 'id': 'edit',
+             'name': 'Edit', 'input': {'file_path': target, 'old_string': 'a', 'new_string': 'b'}}]}},
+            {'type': 'user', 'message': {'content': [{'type': 'tool_result',
+             'tool_use_id': 'edit', 'is_error': False, 'content': 'updated'}]}}]
 
     def test_actionable_handoff_rechecks_continuation_instead_of_silently_stopping(self):
         for events in ([], self.claude_load(), self.codex_read()):
