@@ -82,8 +82,9 @@ PERMISSION_QUESTION = re.compile(
     r'|\bok(?:ay)? to (?:merge|push|proceed|continue|go ahead|start|deploy)\b'
     r'|^(?:proceed|continue|go ahead)\b|\bgo ahead(?: and [^?？]{0,40})?(?=[?？])'
     r'|是否(?:继续|需要我|要我|合并|推送|提交|执行|开始)|需要我|请确认|你决定|您决定|由你决定|(?:^|我|[。，！；.!;,]\s*)继续'
-    r'|继续吗|接着做|要不要我|可以吗|行吗).*[?？]\s*$'
-    r'|\blet me know if you(?:\'d| would)? (?:like|want) me to (?:continue|proceed|go ahead|push|merge)\b'
+    r'|继续吗|接着做|要不要我|可以吗|行吗)', re.IGNORECASE)
+PERMISSION_REQUEST = re.compile(
+    r'\blet me know if you(?:\'d| would)? (?:like|want) me to (?:continue|proceed|go ahead|push|merge)\b'
     r'|^要不要我[^。]*$', re.IGNORECASE)
 
 
@@ -94,7 +95,24 @@ def waits_on_user(values):
 
 def asks_permission(text):
     lines = [line for line in prose_lines(text) if line and not HANDOFF.fullmatch(line)]
-    return bool(lines) and bool(PERMISSION_QUESTION.search(lines[-1]))
+    if not lines:
+        return False
+    line = lines[-1]
+    # Remove one terminal emphasis pair, including a question after a prose
+    # prefix. Fixed marker choices keep malformed Markdown scans linear.
+    for marker in ('***', '___', '**', '__', '*', '_'):
+        if not line.endswith(marker):
+            continue
+        opening = line.rfind(marker, 0, len(line) - len(marker))
+        if (opening >= 0 and not line[opening + len(marker)].isspace()
+                and (opening == 0 or not (line[opening - 1].isalnum()
+                                         or line[opening - 1] in '\\*_'))):
+            line = line[:opening] + line[opening + len(marker):-len(marker)]
+            break
+    # Test terminal punctuation once, rather than rescanning the remaining
+    # suffix for every permission phrase in an unpunctuated long line.
+    return bool((line.endswith(('?', '？')) and PERMISSION_QUESTION.search(line))
+                or PERMISSION_REQUEST.search(line))
 
 
 def text_content(content):

@@ -169,16 +169,35 @@ class ProposedNextTests(unittest.TestCase):
             self.events(events)
             for text in ('Patch is ready. Should I proceed with the remaining tests?',
                          'Done with step 1. Do you want me to continue?',
-                         '第一步已完成，是否继续？', '安全风险需要你决定，要不要我修改？'):
+                         '第一步已完成，是否继续？', '安全风险需要你决定，要不要我修改？',
+                         'Patch ready. **Should I proceed?**', '**是否继续？**',
+                         'Patch ready. __Should I proceed?__', '_是否继续？_',
+                         '***Should I proceed?***', '*是否继续？*',
+                         '**是否继续？**\nproposed-next: none — status only'):
                 with self.subTest(text=text):
                     self.assert_decision_recheck(dict(self.payload, last_assistant_message=text))
         self.events([])
-        for text in ('Should I proceed?', '是否继续？'):
+        for text in ('Should I proceed?', '是否继续？', '**Should I proceed?**', '_是否继续？_'):
             self.payload['last_assistant_message'] = text
             self.assertEqual(self.run_hook(), {})
         self.events(self.edit_events())
         self.payload['last_assistant_message'] = 'Done; checks passed.'
         self.assertEqual(self.run_hook(), {})
+
+    def test_long_permission_lines_finish_within_hook_timeout(self):
+        self.events(self.edit_events())
+        prefix = 'Should I do this; ' * 60000
+        for suffix, expected in (('', None), ('continue?', 'block')):
+            with self.subTest(terminal_question=bool(suffix)):
+                payload = dict(self.payload, last_assistant_message=prefix + suffix)
+                result = subprocess.run(
+                    ['python3', str(self.hooks / 'host-input.py'), 'proposed-next'],
+                    input=json.dumps(payload), text=True, capture_output=True,
+                    cwd=self.root, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stderr, '')
+                value = json.loads(result.stdout) if result.stdout else {}
+                self.assertEqual(value.get('decision'), expected)
 
     def test_finished_none_states_are_not_waits(self):
         self.events(self.claude_load())
@@ -225,7 +244,10 @@ class ProposedNextTests(unittest.TestCase):
                      'Done.\n> Should I proceed?',
                      '这个问题是否已修复？', 'How should I interpret this error?',
                      'What is the default if I go ahead without a flag?',
-                     'Does this look ok to you?', '不管要不要我做都行。'):
+                     'Does this look ok to you?', '不管要不要我做都行。',
+                     '> **Should I proceed?**', '```text\n**是否继续？**\n```',
+                     '`**Should I proceed?**`', '**Done; checks passed.**',
+                     '__Done; checks passed.__'):
             with self.subTest(text=text):
                 self.assertEqual(self.run_hook(dict(self.payload, last_assistant_message=text)), {})
 

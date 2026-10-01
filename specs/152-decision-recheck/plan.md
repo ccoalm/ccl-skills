@@ -51,3 +51,22 @@ The base test suite pinned shapes 1 and 2 as quiet. Sixteen new cases in
 ## Review
 
 See `evidence/review-lane-status.md`.
+
+## Permission matching
+
+Terminal Markdown emphasis around a permission question has the same meaning
+as plain prose. The matcher removes one terminal pair of one to three asterisks
+or underscores before classification. Quoted text, fenced examples, inline code
+and conversations without delivery evidence retain their existing behavior.
+
+Question punctuation is checked once before phrase matching. A repeated
+permission prefix without terminal punctuation must finish within the hook's
+five-second timeout; a long line ending in a real question must still recheck.
+This avoids an unbounded suffix scan for every candidate phrase. No dependency,
+stored state, sampling or additional retry is introduced. Reverting the matcher
+is the rollback path.
+
+The native-payload suite covers English and Chinese emphasis, status labels,
+negative examples and both long-line outcomes. On the unmodified matcher, the
+new cases produced 14 assertion failures and one five-second timeout. These are
+synthetic hook-contract checks, not evidence of a model completing a real task.
