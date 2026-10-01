@@ -2,16 +2,57 @@
 
 ## Required lane
 
-`skills/skill-extraction-workflow/scripts/extraction_review_gate.sh --mode review`
-ran against `origin/dev` with `--implementer-family claude --stage release`.
-`round1-review.json` records the result: `inconclusive`. The Claude lane is
-skipped at preflight as the implementer's own model family, and Codex, Kimi and
-OpenCode are `client_unavailable` in the authoring environment, which has no
-credential for any of them. The challenge pass was not run for the same reason.
+Both repair passes reviewed commit
+`f6748369a46cad18bcd58a52c7542cb5c080df80` against the confirmed `dev` tip
+`914653c657ea8ab7a73bc0f1650ff11472ea0c04`. The base was confirmed from
+`origin` before invocation and is contained in the candidate.
 
-Status: **the independent cross-family review and challenge are outstanding.**
-This round is interim until a Codex, Kimi or OpenCode review and challenge run
-on the candidate, or a release owner records an explicit waiver.
+| Pass | Controller receipt | Outcome |
+| --- | --- | --- |
+| Independent review | [repair-review.json](repair-review.json) | One P2: stale outstanding-challenge status |
+| Adversarial challenge | [repair-challenge.json](repair-challenge.json) | One P1 and three P2; dispositions below |
+
+Both single-shot extraction calls used release depth and the `shared-gate`
+risk tag. The repair implementer family was `openai`; the controller selected
+`claude`, with native skill binding established. This is independent review of
+the repair candidate. The original contribution's unavailable-client receipt
+in `round1-review.json` remains historical evidence, not a passing result.
+
+### Dispositions
+
+- Review P2, outstanding challenge: resolved by the separate challenge receipt.
+- Challenge P1, labelled stops lack a transcript eligibility check: source-refuted.
+  The [continuation contract](../../../skills/product-rd-workflow/references/pre-final-continuation-gate.md#stop-time-continuation-reminder)
+  explicitly checks permission questions before a handoff label and requires
+  delivery or edits only without a label. `proposed_next()` implements that
+  distinction, and `test_user_dependent_stop_rechecks_the_blocker_once` pins
+  empty-event labelled cases. The private review plan's phrase "ineligible
+  conversations remain quiet" was too broad: it applies to unlabelled questions.
+  Applying the proposed eligibility guard would weaken the declared-stop check.
+  The reminder explicitly preserves planning-only/status-only scope and grants
+  no new work or authority.
+- Challenge P2, reported prose such as "Users often ask: should I proceed?":
+  reproduced and deferred as a heuristic limitation. Such unquoted prose can
+  cost one recheck. Markdown block quotes, fenced text and whole-line backticks
+  remain excluded. Distinguishing reported intent from an actual request after
+  a colon requires broader language interpretation; a colon blacklist would
+  also suppress real questions such as "Ready: should I proceed?".
+- Challenge P2, missing pressure combinations: eight native-payload probes
+  covered ordinary and truncated transcripts, repeated prefixes with and without
+  a final question mark, one million malformed emphasis characters, and a long
+  labelled wait. Each returned the expected decision within 0.505 seconds under
+  a five-second subprocess timeout. The truncated fixture includes a native
+  compaction boundary; without it, the expected result is an unverified scan
+  notice. The committed regression targets the changed matcher; a larger
+  permanent cross-product is deferred without evidence of another failing path.
+- Challenge P2, reviewer is the original implementer's family: source-refuted
+  for the repair. The receipt identifies the current repair implementer as
+  `openai` and selected reviewer as `claude`; the finding relied on the stale
+  original lane status. This does not reclassify the old same-family passes.
+
+No executable changes followed these passes. Added controller receipts and
+disposition records do not expand their reviewed code scope. Verification and
+remaining limitations are recorded in [repair-validation.md](repair-validation.md).
 
 ## Supplementary same-family review
 

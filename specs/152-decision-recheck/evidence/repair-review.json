@@ -1,0 +1,360 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "release",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "findings",
+  "selected_client": "claude",
+  "selected_reviewer": "claude",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P2",
+      "file": "specs/152-decision-recheck/evidence/review-lane-status.md",
+      "line": 12,
+      "failure_path": "hooks/AGENTS.md requires independent review plus an adversarial challenge before a non-wording hook change lands. This file records both as outstanding (all cross-family clients unavailable, challenge not run). The release candidate would land the hooks/host-input.py behavior change without the required challenge.",
+      "smallest_fix": "Run an independent challenge pass on this candidate before merge, or record an explicit release-owner waiver here, and update the status line."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [],
+  "attempts": [
+    {
+      "client": "claude",
+      "mode": "review",
+      "findings": [
+        {
+          "severity": "P2",
+          "file": "specs/152-decision-recheck/evidence/review-lane-status.md",
+          "line": 12,
+          "failure_path": "hooks/AGENTS.md requires independent review plus an adversarial challenge before a non-wording hook change lands. This file records both as outstanding (all cross-family clients unavailable, challenge not run). The release candidate would land the hooks/host-input.py behavior change without the required challenge.",
+          "smallest_fix": "Run an independent challenge pass on this candidate before merge, or record an explicit release-owner waiver here, and update the status line."
+        }
+      ],
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "Removing terminal emphasis and checking terminal punctuation once both match the tests. The empty-emphasis and malformed-marker indexing paths cannot go out of range. Labelled stops recheck without a delivery-eligibility check, but the tests intend this, so it is not blocking."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "The hook only returns a block reason, bounded by stop_hook_active. The reason text keeps the safety blockers and grants no authority. The session-policy commit/push/merge wording now matches the goal-authorization rule in the root AGENTS.md."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "Scanning a long line without a question mark skips the question regex. The remaining regexes are anchored or bounded ({0,40}), so the scan stays linear. Truncated transcripts fall back to recent-context edit evidence."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "The tests cover positive, negative, quoted, emphasized, Chinese and long-line cases. The long-line case runs as a subprocess with a 5-second timeout, so it would fail on the old quadratic scan. The evidence reports 14 failures on the base matcher."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "The hook payload and entrypoint are unchanged. Refactoring handoff() into prose_lines/handoff_values keeps the earlier behavior. Two base-quiet cases (blocked/awaiting) were intentionally reclassified and documented."
+        },
+        {
+          "concern": "rollout_rollback",
+          "conclusion": "No state or migration. Reverting the matcher is enough; the npm version bump is consistent across both files."
+        },
+        {
+          "concern": "observability_operations",
+          "conclusion": "The 'Decision recheck' reason string is the observable result. No new logging is needed."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "The plan says outright that the native-payload checks are synthetic and do not prove model follow-through. The review-lane-status file admits independent review is outstanding."
+        },
+        {
+          "concern": "high_risk_boundary",
+          "conclusion": "This is a shared-gate hook. The one-retry bound is preserved, and no path executes transcript content or grants merge or credential authority."
+        },
+        {
+          "concern": "repository_contract",
+          "conclusion": "hooks/AGENTS.md requires independent review and an adversarial challenge before a non-wording hook change lands. The packet's own evidence records the cross-family review and challenge as outstanding (challenge_budget 0), so landing is not yet contract-compliant."
+        }
+      ],
+      "lens_id": "code-review:review:no-tools",
+      "tool_identity": "code-review:no-tools",
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "status": "findings",
+      "packet_sha256": "477974a301b171fd89e44a40688cf89ecbfa88ae5bec45356d854169505c3a54"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "477974a301b171fd89e44a40688cf89ecbfa88ae5bec45356d854169505c3a54",
+  "candidate_sha256": "bf636b7d7f8cf963d4bb273300482341e0bf8cf407a33511b42a9cf9edc175c8",
+  "review_context_sha256": "ce51c5e7d09d5bbff381a3f1e69337dd9a3e46ba50420a8b53ae73838fec7c2d",
+  "review_controller_sha256": "f3234fbca805aed6cc654b8c11e0756037c878a70422596a6fee6159f7bc30ea",
+  "review_profile_sha256": "ec39758129e1194c92dc0ba13ca0038a3515412d006d710b9891ae430ba56459",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "product-rd-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/product-rd-workflow/references/pre-final-continuation-gate.md"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/host-input.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/test_proposed_next.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "hooks/test_proposed_next.py"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "repository_contract": {
+    "coverage": "complete",
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "bytes": 7081,
+        "sha256": "cbfe015efc63917b7237f10533efcd45c875323a9f464e0a23d03a758a8d4d29"
+      },
+      {
+        "path": "hooks/AGENTS.md",
+        "bytes": 700,
+        "sha256": "ed81fc4b329cc0099e28c6cc4ad6beb5842258b6286fa2429f77bbd1f4368af0"
+      },
+      {
+        "path": "packages/AGENTS.md",
+        "bytes": 1339,
+        "sha256": "f133984fd6df6c78b486f931284467d4bf5576ff2a34e2df6be5bdb689f686d8"
+      }
+    ],
+    "omitted": [],
+    "sources_not_read": [
+      "CLAUDE.local.md and untracked files",
+      "@path imports",
+      ".claude/rules",
+      "host-configured fallback filenames"
+    ]
+  },
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "claude-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "product-rd-workflow",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "testing-strategy"
+  ],
+  "selected_skills_sha256": "3cb3d921191de545b7c82b477a83b5afdc0bb6d79c82f179bbb9fe9bd413f2ab",
+  "risk_tags": [
+    "shared-gate"
+  ],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": null,
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "509b342dfe513d243105f94c0453a35525becfccd8125b10a3709d1344230f0b",
+    "acceptance_sha256": "d1640006307c6f5c1d665f44cb6e250e8353956086c0fbb384bb8bf369b9f328",
+    "stage": "release",
+    "review_depth": "release",
+    "risk_tags": [
+      "shared-gate"
+    ],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "448f60d1726abf7c77872a7fe433b2a0299010760279b11b169bffbd8bb0930e",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review",
+      "risk_or_scope_escalation"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "Removing terminal emphasis and checking terminal punctuation once both match the tests. The empty-emphasis and malformed-marker indexing paths cannot go out of range. Labelled stops recheck without a delivery-eligibility check, but the tests intend this, so it is not blocking."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "The hook only returns a block reason, bounded by stop_hook_active. The reason text keeps the safety blockers and grants no authority. The session-policy commit/push/merge wording now matches the goal-authorization rule in the root AGENTS.md."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "Scanning a long line without a question mark skips the question regex. The remaining regexes are anchored or bounded ({0,40}), so the scan stays linear. Truncated transcripts fall back to recent-context edit evidence."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "The tests cover positive, negative, quoted, emphasized, Chinese and long-line cases. The long-line case runs as a subprocess with a 5-second timeout, so it would fail on the old quadratic scan. The evidence reports 14 failures on the base matcher."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "The hook payload and entrypoint are unchanged. Refactoring handoff() into prose_lines/handoff_values keeps the earlier behavior. Two base-quiet cases (blocked/awaiting) were intentionally reclassified and documented."
+    },
+    {
+      "concern": "rollout_rollback",
+      "conclusion": "No state or migration. Reverting the matcher is enough; the npm version bump is consistent across both files."
+    },
+    {
+      "concern": "observability_operations",
+      "conclusion": "The 'Decision recheck' reason string is the observable result. No new logging is needed."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "The plan says outright that the native-payload checks are synthetic and do not prove model follow-through. The review-lane-status file admits independent review is outstanding."
+    },
+    {
+      "concern": "high_risk_boundary",
+      "conclusion": "This is a shared-gate hook. The one-retry bound is preserved, and no path executes transcript content or grants merge or credential authority."
+    },
+    {
+      "concern": "repository_contract",
+      "conclusion": "hooks/AGENTS.md requires independent review and an adversarial challenge before a non-wording hook change lands. The packet's own evidence records the cross-family review and challenge as outstanding (challenge_budget 0), so landing is not yet contract-compliant."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "rollout_rollback",
+    "observability_operations",
+    "claim_strength",
+    "high_risk_boundary",
+    "repository_contract"
+  ],
+  "reviewed_skills": [
+    "product-rd-workflow",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "testing-strategy"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "claude",
+    "mode": "review",
+    "findings": [
+      {
+        "severity": "P2",
+        "file": "specs/152-decision-recheck/evidence/review-lane-status.md",
+        "line": 12,
+        "failure_path": "hooks/AGENTS.md requires independent review plus an adversarial challenge before a non-wording hook change lands. This file records both as outstanding (all cross-family clients unavailable, challenge not run). The release candidate would land the hooks/host-input.py behavior change without the required challenge.",
+        "smallest_fix": "Run an independent challenge pass on this candidate before merge, or record an explicit release-owner waiver here, and update the status line."
+      }
+    ],
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "Removing terminal emphasis and checking terminal punctuation once both match the tests. The empty-emphasis and malformed-marker indexing paths cannot go out of range. Labelled stops recheck without a delivery-eligibility check, but the tests intend this, so it is not blocking."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "The hook only returns a block reason, bounded by stop_hook_active. The reason text keeps the safety blockers and grants no authority. The session-policy commit/push/merge wording now matches the goal-authorization rule in the root AGENTS.md."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "Scanning a long line without a question mark skips the question regex. The remaining regexes are anchored or bounded ({0,40}), so the scan stays linear. Truncated transcripts fall back to recent-context edit evidence."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "The tests cover positive, negative, quoted, emphasized, Chinese and long-line cases. The long-line case runs as a subprocess with a 5-second timeout, so it would fail on the old quadratic scan. The evidence reports 14 failures on the base matcher."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "The hook payload and entrypoint are unchanged. Refactoring handoff() into prose_lines/handoff_values keeps the earlier behavior. Two base-quiet cases (blocked/awaiting) were intentionally reclassified and documented."
+      },
+      {
+        "concern": "rollout_rollback",
+        "conclusion": "No state or migration. Reverting the matcher is enough; the npm version bump is consistent across both files."
+      },
+      {
+        "concern": "observability_operations",
+        "conclusion": "The 'Decision recheck' reason string is the observable result. No new logging is needed."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "The plan says outright that the native-payload checks are synthetic and do not prove model follow-through. The review-lane-status file admits independent review is outstanding."
+      },
+      {
+        "concern": "high_risk_boundary",
+        "conclusion": "This is a shared-gate hook. The one-retry bound is preserved, and no path executes transcript content or grants merge or credential authority."
+      },
+      {
+        "concern": "repository_contract",
+        "conclusion": "hooks/AGENTS.md requires independent review and an adversarial challenge before a non-wording hook change lands. The packet's own evidence records the cross-family review and challenge as outstanding (challenge_budget 0), so landing is not yet contract-compliant."
+      }
+    ],
+    "lens_id": "code-review:review:no-tools",
+    "tool_identity": "code-review:no-tools",
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "status": "findings",
+    "packet_sha256": "477974a301b171fd89e44a40688cf89ecbfa88ae5bec45356d854169505c3a54"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}

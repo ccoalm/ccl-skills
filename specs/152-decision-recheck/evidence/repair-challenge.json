@@ -1,0 +1,293 @@
+{
+  "schema_version": 3,
+  "mode": "challenge",
+  "stage": "release",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "findings",
+  "selected_client": "claude",
+  "selected_reviewer": "claude",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P1",
+      "file": "hooks/host-input.py",
+      "line": 631,
+      "failure_path": "When `values` is non-empty and none is actionable, the hook returns DECISION_RECHECK on `waits_on_user(values) or asks_permission(final)`. This happens before any transcript or delivery_eligible check. So a pure Q&A or planning-only turn with no edits is blocked once if it ends with `proposed-next: blocked: …`, `none — your call`, or `Should I push?\\nproposed-next: none — status only`. The test suite pins this with `events []`. That contradicts the acceptance criterion 'ineligible conversations remain quiet' and the plan's claim that only delivery stops are rechecked. The recheck then pushes the agent to 'finish the remaining requested work' in a conversation that has no delivery.",
+      "smallest_fix": "Move the labelled-stop recheck after the transcript summary and require `delivery_eligible(summary) or summary['edit_paths']`. Add `events []` negative cases for blocked, waiting and status-only-plus-question labelled stops."
+    },
+    {
+      "severity": "P2",
+      "file": "hooks/host-input.py",
+      "line": 84,
+      "failure_path": "PERMISSION_QUESTION accepts `[.;!:,—–-]\\s*(should|shall|may) I`. The final line is not checked for inline quotation marks. So prose that quotes a user question is classified as the agent asking permission: `Users often ask: should I proceed?`, `The FAQ answers — may I reuse tokens?`, or `Fixed the prompt that asks: Should I continue?` all trigger a recheck after edits. Only `>` blocks, fences and backtick-wrapped whole lines are excluded. The acceptance criterion says quoted examples stay quiet.",
+      "smallest_fix": "Skip lines whose match falls inside quotation marks, or after a colon introducing reported speech. Add negative tests for colon-quoted and double-quoted questions."
+    },
+    {
+      "severity": "P2",
+      "file": "hooks/test_proposed_next.py",
+      "line": 186,
+      "failure_path": "The long-input timeout test covers only the non-truncated edit_events path, and only plain `; `-separated prefixes. It does not cover the TranscriptTruncated branch, where asks_permission runs before `raise`. It does not cover a long malformed emphasis line such as `'*_' * N + '?'` or a long labelled `none —` value scanned by USER_WAIT. A quadratic regression on those paths would still pass this test.",
+      "smallest_fix": "Parameterize the 5-second subprocess test over the truncated-transcript path, long emphasis-marker runs and a long `proposed-next: none — …` value."
+    },
+    {
+      "severity": "P2",
+      "file": "specs/152-decision-recheck/evidence/review-lane-status.md",
+      "line": 12,
+      "failure_path": "The shared-gate hook change can land with no cross-family review. This challenge comes from the same Claude family, and the lane-status file treats a waiver or a family-independent run as the bar. Nothing in the diff stops a same-family challenge from being recorded as satisfying the gate, so the implementer's own family could self-adjudicate it.",
+      "smallest_fix": "Keep the status explicitly interim. Require either a non-Claude review and challenge result or a named release-owner waiver before merge, and record this challenge as supplementary only."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [],
+  "attempts": [
+    {
+      "client": "claude",
+      "mode": "challenge",
+      "findings": [
+        {
+          "severity": "P1",
+          "file": "hooks/host-input.py",
+          "line": 631,
+          "failure_path": "When `values` is non-empty and none is actionable, the hook returns DECISION_RECHECK on `waits_on_user(values) or asks_permission(final)`. This happens before any transcript or delivery_eligible check. So a pure Q&A or planning-only turn with no edits is blocked once if it ends with `proposed-next: blocked: …`, `none — your call`, or `Should I push?\\nproposed-next: none — status only`. The test suite pins this with `events []`. That contradicts the acceptance criterion 'ineligible conversations remain quiet' and the plan's claim that only delivery stops are rechecked. The recheck then pushes the agent to 'finish the remaining requested work' in a conversation that has no delivery.",
+          "smallest_fix": "Move the labelled-stop recheck after the transcript summary and require `delivery_eligible(summary) or summary['edit_paths']`. Add `events []` negative cases for blocked, waiting and status-only-plus-question labelled stops."
+        },
+        {
+          "severity": "P2",
+          "file": "hooks/host-input.py",
+          "line": 84,
+          "failure_path": "PERMISSION_QUESTION accepts `[.;!:,—–-]\\s*(should|shall|may) I`. The final line is not checked for inline quotation marks. So prose that quotes a user question is classified as the agent asking permission: `Users often ask: should I proceed?`, `The FAQ answers — may I reuse tokens?`, or `Fixed the prompt that asks: Should I continue?` all trigger a recheck after edits. Only `>` blocks, fences and backtick-wrapped whole lines are excluded. The acceptance criterion says quoted examples stay quiet.",
+          "smallest_fix": "Skip lines whose match falls inside quotation marks, or after a colon introducing reported speech. Add negative tests for colon-quoted and double-quoted questions."
+        },
+        {
+          "severity": "P2",
+          "file": "hooks/test_proposed_next.py",
+          "line": 186,
+          "failure_path": "The long-input timeout test covers only the non-truncated edit_events path, and only plain `; `-separated prefixes. It does not cover the TranscriptTruncated branch, where asks_permission runs before `raise`. It does not cover a long malformed emphasis line such as `'*_' * N + '?'` or a long labelled `none —` value scanned by USER_WAIT. A quadratic regression on those paths would still pass this test.",
+          "smallest_fix": "Parameterize the 5-second subprocess test over the truncated-transcript path, long emphasis-marker runs and a long `proposed-next: none — …` value."
+        },
+        {
+          "severity": "P2",
+          "file": "specs/152-decision-recheck/evidence/review-lane-status.md",
+          "line": 12,
+          "failure_path": "The shared-gate hook change can land with no cross-family review. This challenge comes from the same Claude family, and the lane-status file treats a waiver or a family-independent run as the bar. Nothing in the diff stops a same-family challenge from being recorded as satisfying the gate, so the implementer's own family could self-adjudicate it.",
+          "smallest_fix": "Keep the status explicitly interim. Require either a non-Claude review and challenge result or a named release-owner waiver before merge, and record this challenge as supplementary only."
+        }
+      ],
+      "concern_results": [
+        {
+          "concern": "challenge_focus",
+          "conclusion": "Breaks found. Any stop that carries a handoff label skips the transcript eligibility check, so ineligible conversations are not quiet. Quoted questions written as prose are classified as permission asks. Long-input bounding looks linear: the emphasis strip uses rfind, the punctuation test runs once, and `go ahead` is bounded to 40 characters."
+        },
+        {
+          "concern": "high_risk_boundary",
+          "conclusion": "The hook never grants authority, and stop_hook_active still limits it to one recheck. However, the safety claim that the recheck applies only to delivery stops is false for labelled stops. Containment also rests on a same-family challenge, because cross-family review is still outstanding."
+        }
+      ],
+      "lens_id": "code-review:challenge:no-tools-adversarial",
+      "tool_identity": "code-review:no-tools",
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "status": "findings",
+      "packet_sha256": "4254cbee2af701516d0a11ea3d72c226344381261b75035a1b8826b5cc106264"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "4254cbee2af701516d0a11ea3d72c226344381261b75035a1b8826b5cc106264",
+  "candidate_sha256": "4254cbee2af701516d0a11ea3d72c226344381261b75035a1b8826b5cc106264",
+  "review_context_sha256": "e1a72541a1750717364bd69a0503028e61df0e2f58256bc2fcd08c9376ed767d",
+  "review_controller_sha256": "f3234fbca805aed6cc654b8c11e0756037c878a70422596a6fee6159f7bc30ea",
+  "review_profile_sha256": "7011fb300129e43e74c5ae498e44bd1d384fb8072b8d7731fdebf8b2b31a4e3b",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "product-rd-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/product-rd-workflow/references/pre-final-continuation-gate.md"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/host-input.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/test_proposed_next.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "hooks/test_proposed_next.py"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "repository_contract": null,
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "claude-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "product-rd-workflow",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "testing-strategy"
+  ],
+  "selected_skills_sha256": "3cb3d921191de545b7c82b477a83b5afdc0bb6d79c82f179bbb9fe9bd413f2ab",
+  "risk_tags": [
+    "shared-gate"
+  ],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 1,
+  "challenge_index": 1,
+  "challenge_focus": "Try to break Stop classification and its safety boundaries using malformed Markdown, long adversarial inputs, transcript eligibility, quoted examples, retry state and completed handoffs. Check the full candidate for material regressions and unsupported claims.",
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "509b342dfe513d243105f94c0453a35525becfccd8125b10a3709d1344230f0b",
+    "acceptance_sha256": "d1640006307c6f5c1d665f44cb6e250e8353956086c0fbb384bb8bf369b9f328",
+    "stage": "release",
+    "review_depth": "release",
+    "risk_tags": [
+      "shared-gate"
+    ],
+    "challenge_budget": 1,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "8083b5d6caac2ca89c86fcf57c7c61aad95d3392e3466d4dfcd55a8892639d3b",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 2,
+  "autonomous_review_index": 2,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review",
+      "risk_or_scope_escalation"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "challenge_focus",
+      "conclusion": "Breaks found. Any stop that carries a handoff label skips the transcript eligibility check, so ineligible conversations are not quiet. Quoted questions written as prose are classified as permission asks. Long-input bounding looks linear: the emphasis strip uses rfind, the punctuation test runs once, and `go ahead` is bounded to 40 characters."
+    },
+    {
+      "concern": "high_risk_boundary",
+      "conclusion": "The hook never grants authority, and stop_hook_active still limits it to one recheck. However, the safety claim that the recheck applies only to delivery stops is false for labelled stops. Containment also rests on a same-family challenge, because cross-family review is still outstanding."
+    }
+  ],
+  "reviewed_concerns": [
+    "challenge_focus",
+    "high_risk_boundary"
+  ],
+  "reviewed_skills": [
+    "product-rd-workflow",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "testing-strategy"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "claude",
+    "mode": "challenge",
+    "findings": [
+      {
+        "severity": "P1",
+        "file": "hooks/host-input.py",
+        "line": 631,
+        "failure_path": "When `values` is non-empty and none is actionable, the hook returns DECISION_RECHECK on `waits_on_user(values) or asks_permission(final)`. This happens before any transcript or delivery_eligible check. So a pure Q&A or planning-only turn with no edits is blocked once if it ends with `proposed-next: blocked: …`, `none — your call`, or `Should I push?\\nproposed-next: none — status only`. The test suite pins this with `events []`. That contradicts the acceptance criterion 'ineligible conversations remain quiet' and the plan's claim that only delivery stops are rechecked. The recheck then pushes the agent to 'finish the remaining requested work' in a conversation that has no delivery.",
+        "smallest_fix": "Move the labelled-stop recheck after the transcript summary and require `delivery_eligible(summary) or summary['edit_paths']`. Add `events []` negative cases for blocked, waiting and status-only-plus-question labelled stops."
+      },
+      {
+        "severity": "P2",
+        "file": "hooks/host-input.py",
+        "line": 84,
+        "failure_path": "PERMISSION_QUESTION accepts `[.;!:,—–-]\\s*(should|shall|may) I`. The final line is not checked for inline quotation marks. So prose that quotes a user question is classified as the agent asking permission: `Users often ask: should I proceed?`, `The FAQ answers — may I reuse tokens?`, or `Fixed the prompt that asks: Should I continue?` all trigger a recheck after edits. Only `>` blocks, fences and backtick-wrapped whole lines are excluded. The acceptance criterion says quoted examples stay quiet.",
+        "smallest_fix": "Skip lines whose match falls inside quotation marks, or after a colon introducing reported speech. Add negative tests for colon-quoted and double-quoted questions."
+      },
+      {
+        "severity": "P2",
+        "file": "hooks/test_proposed_next.py",
+        "line": 186,
+        "failure_path": "The long-input timeout test covers only the non-truncated edit_events path, and only plain `; `-separated prefixes. It does not cover the TranscriptTruncated branch, where asks_permission runs before `raise`. It does not cover a long malformed emphasis line such as `'*_' * N + '?'` or a long labelled `none —` value scanned by USER_WAIT. A quadratic regression on those paths would still pass this test.",
+        "smallest_fix": "Parameterize the 5-second subprocess test over the truncated-transcript path, long emphasis-marker runs and a long `proposed-next: none — …` value."
+      },
+      {
+        "severity": "P2",
+        "file": "specs/152-decision-recheck/evidence/review-lane-status.md",
+        "line": 12,
+        "failure_path": "The shared-gate hook change can land with no cross-family review. This challenge comes from the same Claude family, and the lane-status file treats a waiver or a family-independent run as the bar. Nothing in the diff stops a same-family challenge from being recorded as satisfying the gate, so the implementer's own family could self-adjudicate it.",
+        "smallest_fix": "Keep the status explicitly interim. Require either a non-Claude review and challenge result or a named release-owner waiver before merge, and record this challenge as supplementary only."
+      }
+    ],
+    "concern_results": [
+      {
+        "concern": "challenge_focus",
+        "conclusion": "Breaks found. Any stop that carries a handoff label skips the transcript eligibility check, so ineligible conversations are not quiet. Quoted questions written as prose are classified as permission asks. Long-input bounding looks linear: the emphasis strip uses rfind, the punctuation test runs once, and `go ahead` is bounded to 40 characters."
+      },
+      {
+        "concern": "high_risk_boundary",
+        "conclusion": "The hook never grants authority, and stop_hook_active still limits it to one recheck. However, the safety claim that the recheck applies only to delivery stops is false for labelled stops. Containment also rests on a same-family challenge, because cross-family review is still outstanding."
+      }
+    ],
+    "lens_id": "code-review:challenge:no-tools-adversarial",
+    "tool_identity": "code-review:no-tools",
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "status": "findings",
+    "packet_sha256": "4254cbee2af701516d0a11ea3d72c226344381261b75035a1b8826b5cc106264"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}
