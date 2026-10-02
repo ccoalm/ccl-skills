@@ -5,7 +5,10 @@ CCL_SKILL_DEFAULT_BASE_REF ?= origin/dev
 # Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the
 # UTF-8 skill text as US-ASCII and crashes. Targets that call ruby directly pin
 # UTF-8 here (the gate scripts pin themselves).
-eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health: override export RUBYOPT := $(if $(filter -Ku,$(RUBYOPT)),$(RUBYOPT),-Ku $(RUBYOPT))
+# Keep export separate: combining it with target-specific override does not
+# parse on GNU Make 3.81 (the system make on macOS).
+export RUBYOPT
+eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health: override RUBYOPT := $(if $(filter -Ku,$(RUBYOPT)),$(RUBYOPT),-Ku $(RUBYOPT))
 
 help: ## 显示可用目标
 	@grep -E '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-20s %s\n", $$1, $$2}'

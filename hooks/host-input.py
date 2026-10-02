@@ -104,8 +104,12 @@ CONDITIONAL_OFFER = re.compile(r'\bif you\b|\blet me know\b|如果你|如需|如
 
 def announces_steps(text):
     lines = [line for line in prose_lines(text) if line and not HANDOFF.fullmatch(line)]
-    return any(ANNOUNCED_STEP.search(line.strip('*_ ')) and not CONDITIONAL_OFFER.search(line)
-               for line in lines[-3:])
+    # Conditions qualify their own sentence/semicolon clause. A separate
+    # optional offer must not hide an unconditional step elsewhere on the line.
+    clauses = (clause.strip('*_ ') for line in lines[-3:]
+               for clause in re.split(r'[.;!?。；！？]', line))
+    return any(ANNOUNCED_STEP.search(clause) and not CONDITIONAL_OFFER.search(clause)
+               for clause in clauses)
 
 
 def waits_on_user(values):
@@ -631,9 +635,12 @@ DECISION_RECHECK = {'decision': 'block', 'reason': (
     'customer data, merge or publication outside the goal); overturning an established user direction; '
     'or a material product tradeoff the evidence cannot settle. An ordinary change needs no human review, '
     'sign-off or risk owner: run the self-review and external review yourself. '
-    'Announcing a plan or next steps is not '
-    'a stopping point: run the runnable steps now; a blocker on one step, such as a cost cap or a paid '
-    'run, parks only that step. Design-time security questions, '
+    'Small tests and routine development/test-environment operations within the authorized task '
+    'run directly with configured accounts; do not ask for per-run approval or invent a cost cap. '
+    'Respect explicit user cost or run-count limits and keep production, destructive actions and '
+    'new purchases within their actual authorization boundaries. '
+    'Announcing a plan or next steps is not a stopping point: run the runnable steps now; '
+    'a real blocker parks only its dependent step. Design-time security questions, '
     'security self-review, choosing the owner skill, module or approach, test and naming choices, and '
     'the next in-scope step are yours: decide, state the assumption, and finish the remaining requested '
     'work now. A report or summary does not complete delivery. If a real blocker remains, first finish '
@@ -652,9 +659,12 @@ def proposed_next(payload):
     values = handoff_values(final)
     actionable = handoff(final, actionable_only=True)
     if values and not actionable:
-        if waits_on_user(values) or asks_permission(final) or announces_steps(final):
+        if waits_on_user(values) or asks_permission(final):
             return DECISION_RECHECK
-        return None
+        if not announces_steps(final):
+            return None
+        # An announcement beside a status handoff still needs the work evidence
+        # used below; a status-only explanation cannot create a delivery task.
     # A declared next action triggers a recheck, never inferred authorization.
     # Host stop_hook_active bounds this reminder to one stop attempt per turn.
     if actionable:

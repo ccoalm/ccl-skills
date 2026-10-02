@@ -138,7 +138,7 @@ done <<<"$tracked"
 # Makefile targets that run ruby in a recipe must be on the target-specific
 # RUBYOPT pin line. A rule line names every target before its first colon
 # (`a b: deps`); `X := y` assignments and the pin line itself are not rules.
-mk_pinned_of() { sed -nE 's/^([^#:]*):[[:space:]]*(override[[:space:]]+)?export RUBYOPT :=.*-Ku.*$/\1/p' "$1"; }
+mk_pinned_of() { sed -nE 's/^([^#:]*):[[:space:]]*override RUBYOPT :=.*-Ku.*$/\1/p' "$1"; }
 mk_ruby_of() {
   awk '
     /^\t/ { if ($0 ~ /(^|[^a-z_])ruby([^a-z0-9_.-]|$)/) for (i in cur) print cur[i]; next }
@@ -146,13 +146,14 @@ mk_ruby_of() {
       c = index($0, ":"); if (c == 0) next
       head = substr($0, 1, c - 1)
       if (substr($0, c + 1, 1) == "=" || head ~ /=/) next
-      if ($0 ~ /export RUBYOPT :=/) next
+      if ($0 ~ /RUBYOPT :=/) next
       split("", cur); n = split(head, names, /[[:space:]]+/)
       for (i = 1; i <= n; i++) if (names[i] != "") cur[i] = names[i]
     }' "$1" | sort -u
 }
 mk_missing_of() { # <Makefile>: ruby-running targets absent from the pin line
   local pinned t
+  grep -qxF 'export RUBYOPT' "$1" || { echo "(RUBYOPT is not exported)"; return; }
   pinned="$(mk_pinned_of "$1")"
   [ -n "$pinned" ] || { echo "(no target-specific RUBYOPT -Ku pin line)"; return; }
   for t in $(mk_ruby_of "$1"); do
@@ -164,7 +165,7 @@ for t in $(mk_missing_of "$ROOT/Makefile"); do missing="$missing\n  Makefile tar
 # The tracker itself, on a fixture: a multi-target ruby rule after a pinned one
 # must be reported under its own names, and an assignment line must not reset it.
 mk_fx="$(mktemp "${TMPDIR:-/tmp}/locale-mk.XXXXXX")"
-printf 'X := 1\np1 p2: override export RUBYOPT := -Ku\np1:\n\truby a.rb\nnew-a new-b: dep\n\t@ruby b.rb\nY := 2\n\techo no\n' >"$mk_fx"
+printf 'X := 1\nexport RUBYOPT\np1 p2: override RUBYOPT := -Ku\np1:\n\truby a.rb\nnew-a new-b: dep\n\t@ruby b.rb\nY := 2\n\techo no\n' >"$mk_fx"
 mk_fx_out="$(mk_missing_of "$mk_fx" | tr '\n' ' ')"
 rm -f "$mk_fx"
 [ "$mk_fx_out" = "new-a new-b " ] || fail "Makefile tracker must report exactly new-a new-b on its fixture, got: $mk_fx_out"
@@ -173,6 +174,41 @@ rm -f "$mk_fx"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/locale-gates.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
+
+# Exercise the actual Makefile declarations using inert recipes. In particular,
+# command-line RUBYOPT must not override the UTF-8 pin. Replacing just the recipes
+# keeps live evals offline and preserves Make's assignment/export semantics.
+make_targets="$(mk_ruby_of "$ROOT/Makefile" | tr '\n' ' ')"
+printf '%s:\n' "$make_targets" >"$TMP/probe.mk"
+printf '\t@ruby -e '\''abort "make recipe lost UTF-8" unless Encoding.default_external == Encoding::UTF_8; abort "make recipe lost caller option" if ENV["CCL_MAKE_CALLER_OPTION"] == "yes" && !ENV.fetch("RUBYOPT").split.include?("-W0")'\''\n' >>"$TMP/probe.mk"
+run_make_pin() {
+  local makefile="$1"
+  shift
+  env -u LANGUAGE -u RUBYOPT LC_ALL=C LANG=C make --no-print-directory \
+    -f "$makefile" -f "$TMP/probe.mk" "$@" $make_targets
+}
+if ! make_out="$(run_make_pin "$ROOT/Makefile" RUBYOPT=-W0 CCL_MAKE_CALLER_OPTION=yes 2>&1)"; then
+  fail "Makefile Ruby targets failed under LC_ALL=C with CLI RUBYOPT:\n$make_out"
+fi
+if ! make_out="$(run_make_pin "$ROOT/Makefile" 2>&1)"; then
+  fail "Makefile Ruby targets failed with RUBYOPT absent:\n$make_out"
+fi
+# Applied mutations prove both declarations matter at runtime, as well as in
+# the static tracker. CLI variables are auto-exported by Make, so the export
+# mutation must run without the CLI override to avoid masking a missing export.
+sed 's/: override RUBYOPT :=/: RUBYOPT :=/' "$ROOT/Makefile" >"$TMP/no-override.mk"
+sed '/^export RUBYOPT$/d' "$ROOT/Makefile" >"$TMP/no-export.mk"
+for mutant in no-override no-export; do
+  cmp -s "$ROOT/Makefile" "$TMP/$mutant.mk" && fail "$mutant mutation was not applied"
+  [ -n "$(mk_missing_of "$TMP/$mutant.mk")" ] || fail "Makefile tracker accepted $mutant mutation"
+  make_args=()
+  [ "$mutant" != no-override ] || make_args=(RUBYOPT=-W0)
+  # Bash 3.2 treats an empty array as unset under nounset.
+  if make_out="$(run_make_pin "$TMP/$mutant.mk" ${make_args[@]+"${make_args[@]}"} 2>&1)"; then
+    fail "Makefile $mutant mutation still passed the UTF-8 assertion"
+  fi
+  case "$make_out" in *'make recipe lost UTF-8'*) : ;; *) fail "$mutant failed for an unrelated reason:\n$make_out" ;; esac
+done
 
 # (1c) The scan as a whole, on a fixture file: only a line that drops the pin is
 # reported, including one that also contains the pin text.

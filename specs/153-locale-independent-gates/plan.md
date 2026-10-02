@@ -81,8 +81,9 @@ installed and also changes collation and other tools' character handling.
 
 - The Makefile targets that call `ruby` directly (`eval-routing`, which the
   routing-surface gate names, and the other `eval-*` targets) carry a
-  target-specific `override export RUBYOPT` pin, so a command-line
-  `RUBYOPT=…` is extended rather than replacing it; the suite fails if a
+  separate `export RUBYOPT` declaration and target-specific `override RUBYOPT :=`
+  pin, so command-line `RUBYOPT=…` is extended rather than replacing it. The
+  combined override/export form does not parse on GNU Make 3.81. The suite fails if a
   Makefile recipe runs `ruby` under any target of a rule line (multi-target
   rules included) missing from that pin. A recipe that runs Ruby through a
   make variable (`$(RUBY)`) is not detected.

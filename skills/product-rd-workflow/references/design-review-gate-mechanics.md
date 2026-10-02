@@ -55,7 +55,7 @@ Merging triggered-work implementation on green-tests-alone, with the adversarial
 
 ## Human/team sign-off
 
-(b) human/team sign-off before merge or launch — never as a precondition for local, reversible implementation — for high-risk money/permission/data paths and for a breaking contract/API change with an external consumer (reviewed interface diff plus compatibility decision). A backward-compatible addition needs no human sign-off; the recorded deep self-review and external independent review cover it. Read-only investigation or an isolated disposable prototype that will not be merged, reused, or launched is exempt, and promoting such work to a merge or launch reruns this gate.
+(b) human/team sign-off before merge or launch — never as a precondition for local, reversible implementation — for high-risk money/permission/data paths and for a breaking contract/API change with an external consumer (reviewed interface diff plus compatibility decision). A backward-compatible addition outside those high-risk paths needs no human sign-off; the recorded deep self-review and external independent review cover it. Read-only investigation or an isolated disposable prototype that will not be merged, reused, or launched is exempt, and promoting such work to a merge or launch reruns this gate.
 
 ## Floor
 

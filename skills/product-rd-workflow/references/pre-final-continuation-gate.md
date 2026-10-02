@@ -132,5 +132,5 @@ Before deriving the next slice from a status source, reconcile it against the ap
 
 Binding detail:
 
-- Internal developer self-use through already configured model/tool accounts is an ordinary execution detail: it requires no separate quota/cost disclosure, estimate, cap, or per-run confirmation.
+- Small tests and routine development/test-environment operations within the task are ordinary execution details. Use configured accounts and access directly, without per-run approval or inventing a quota/cost estimate or cap. Normal metered model/tool use is not a new purchase. Honor explicit user spending/count limits; a development/test label does not grant destructive, production, customer-data, permission-changing or new-purchase authority beyond the task.
 - Assent never replaces an owner gate's stricter authorization form and never broadens scope or implies an external purchase/financial commitment, merge, publish, destructive, production, external-message, or high-impact-decision authority.

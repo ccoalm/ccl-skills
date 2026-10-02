@@ -4194,9 +4194,24 @@ def exited(pid):
         with open(f"/proc/{pid}/stat", encoding="utf-8") as stat:
             return stat.read().rsplit(")", 1)[1].split()[0] == "Z"
     except FileNotFoundError:
-        return True
+        # procfs may be absent (macOS), or the PID may have exited between
+        # probes. Only a second failed liveness check proves the latter.
+        try:
+            module.os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        return False
     except OSError:
         return False
+from unittest.mock import patch, mock_open
+# Negative control: a live PID must remain live even on hosts without procfs.
+assert not exited(module.os.getpid())
+with patch("builtins.open", side_effect=FileNotFoundError):
+    assert not exited(module.os.getpid()), "missing procfs is not process-exit evidence"
+with patch.object(module.os, "kill", side_effect=ProcessLookupError):
+    assert exited(42), "a missing PID must count as exited without relying on PID reuse timing"
+with patch.object(module.os, "kill"), patch("builtins.open", mock_open(read_data="42 (worker) Z 1")):
+    assert exited(42), "a Linux zombie has exited even when signal 0 succeeds"
 for _ in range(100):
     if exited(tree_child_pid):
         tree_child_gone = True
