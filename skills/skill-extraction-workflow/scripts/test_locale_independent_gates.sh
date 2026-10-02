@@ -28,10 +28,15 @@ fail() { printf 'FAIL: %b\n' "$*" >&2; exit 1; }
 # replacing, clearing, unset, env -u, any other Ruby option - drops the pin.
 # Ruby's option names are not this repo's to enumerate, so the suffix is
 # allowlisted, never denylisted. Returns 0 when allowed.
-KEEP_TOKEN='(-r[^[:space:]"]+|[$][{]?[A-Za-z_0-9]+[}]?)'
+KEEP_TOKEN='(-r[^[:space:]"\\]+|[$][{]?[A-Za-z_0-9]+[}]?)'
 pin_kept() {
   local line="$1" rest
   [ "$line" = "$PIN" ] && return 0
+  # An attribute builtin on the variable can unexport or rescope it even when
+  # the value is the keep idiom.
+  if printf '%s\n' "$line" | grep -qE '(^|[^A-Za-z_])(declare|typeset|local|readonly|export[[:space:]]+-n)[^;|&]*RUBYOPT'; then
+    return 1
+  fi
   rest="$(printf '%s\n' "$line" | sed -E \
     -e "s/^([^\"'\\\\]*)[[:space:]]#.*\$/\\1/" \
     -e "s/RUBYOPT=\"[\$][{]RUBYOPT:[+][\$]RUBYOPT [}](${KEEP_TOKEN}([[:space:]]+${KEEP_TOKEN})*)?\"//g" \
@@ -83,6 +88,10 @@ case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOP
 RUBYOPT="${RUBYOPT:+$RUBYOPT }-Kn" ruby x.rb
 RUBYOPT="${RUBYOPT:+$RUBYOPT }-E ASCII" ruby x.rb
 RUBYOPT="${RUBYOPT:+$RUBYOPT }--internal-encoding=US-ASCII" ruby x.rb
+RUBYOPT="${RUBYOPT:+$RUBYOPT }--disable=rubyopt" ruby x.rb
+RUBYOPT="${RUBYOPT:+$RUBYOPT }-r\" -Kn" ruby x.rb
+export -n RUBYOPT="${RUBYOPT:+$RUBYOPT }-rdate"
+declare +x RUBYOPT="${RUBYOPT:+$RUBYOPT }"
 RUBYOPT="${RUBYOPT:+$RUBYOPT_EXTRA }" ruby x.rb
 RUBYOPT="${RUBYOPT:+$RUBYOPT}-Kn" ruby x.rb
 x=$#; unset RUBYOPT

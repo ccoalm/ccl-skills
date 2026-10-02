@@ -44,7 +44,8 @@ installed and also changes collation and other tools' character handling.
      requires or variables (Ruby's option names are not this repository's to
      enumerate, so the suffix is allowlisted), or an empty `RUBYOPT=` before
      `bash "$script"`, whose script pins itself — and anything else (replacing,
-     clearing, `unset`, `env -u`, any other Ruby option) fails. The classifier
+     clearing, `unset`, `env -u`, an attribute builtin such as `export -n` or
+     `declare`, any other Ruby option) fails. The classifier
      is held by permanent rows in the suite — every bypass spelling review found
      must be flagged and every near-miss must stay allowed — and the whole scan
      runs once on a fixture file; the leg also fails rather than passing
@@ -101,7 +102,9 @@ installed and also changes collation and other tools' character handling.
   `-r<lib>` values through it.
 - The comment strip treats ` #` as a comment only when no quote or backslash
   precedes it on the line, so a trailing comment after a quoted value is
-  scanned too (flagged if it names the variable).
+  scanned too (flagged if it names the variable). A ` #` inside an unquoted parameter
+  expansion (`${a// #/}`) is still read as a comment start; no live script
+  writes one.
 - The allowed `RUBYOPT= bash "$script"` shape trusts that the script pins
   itself; a variable that expands to `-c`, or a generated script without the
   pin, would run Ruby unpinned.
