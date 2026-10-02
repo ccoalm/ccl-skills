@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
@@ -23,6 +23,12 @@ function fixture(t, install = true) {
 	if (install) assert.equal(runOpenCode("install", {}, context).status, "installed");
 	const fetched = join(temp, "fetched");
 	cpSync(resolve("dist"), join(fetched, "dist"), { recursive: true });
+	// npm extraction uses 0755 directories, unlike a permissive-umask build tree.
+	const normalizeDirectories = path => {
+		chmodSync(path, 0o755);
+		for (const entry of readdirSync(path, { withFileTypes: true })) if (entry.isDirectory()) normalizeDirectories(join(path, entry.name));
+	};
+	normalizeDirectories(fetched);
 	const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 	pkg.version = "99.0.0"; writeFileSync(join(fetched, "package.json"), JSON.stringify(pkg));
 	const releasePath = join(fetched, "dist/assets/release.json"), release = JSON.parse(readFileSync(releasePath, "utf8"));
@@ -92,7 +98,7 @@ for (const state of ["absent", "source-copy", "override", "drift"]) test(`OpenCo
 	assert.equal(f.jobs.size, 0);
 });
 
-for (const failure of ["fetch", "wrong-package", "symlink-package", "removed", "drift", "disabled"]) test(`OpenCode ${failure} before update preserves installed bytes`, async t => {
+for (const failure of ["fetch", "wrong-package", "symlink-package", "writable-package", "removed", "drift", "disabled"]) test(`OpenCode ${failure} before update preserves installed bytes`, async t => {
 	const f = fixture(t), before = readFileSync(join(f.base, sample), "utf8");
 	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
 	const command = async (file, args, env, timeout, options) => {
@@ -102,6 +108,7 @@ for (const failure of ["fetch", "wrong-package", "symlink-package", "removed", "
 			const pkgRoot = join(args[args.indexOf("--prefix") + 1], "node_modules/@ccoalm/ccl-skills");
 			if (failure === "wrong-package") { const p = join(pkgRoot, "package.json"), value = JSON.parse(readFileSync(p, "utf8")); value.name = "unrelated"; writeFileSync(p, JSON.stringify(value)); }
 			if (failure === "symlink-package") symlinkSync(f.temp, join(pkgRoot, "external"));
+			if (failure === "writable-package") chmodSync(join(pkgRoot, "dist/assets"), 0o775);
 			if (failure === "removed") rmSync(join(f.base, "ccl-skills-npm"), { recursive: true });
 			if (failure === "drift") writeFileSync(join(f.base, sample), "local edit");
 			if (failure === "disabled") assert.equal((await autoUpdate("disable", f.deps)).code, 0);
@@ -211,7 +218,7 @@ test("OpenCode package identity assertion rejects removal of its guard", t => {
 	const args = ["--test", "--test-reporter=tap", "--test-name-pattern=^OpenCode wrong-package before update preserves installed bytes$", "test/opencode-auto-update.test.mjs"];
 	const control = spawnSync(process.execPath, args, { cwd: scratch, env, encoding: "utf8", timeout: 30000 });
 	assert.equal(control.status, 0, control.stdout + control.stderr);
-	assert.match(control.stdout, /# tests 1\b/);
+	assert.match(control.stdout, /# pass 1\b/);
 	const file = join(scratch, "dist/auto-update.js"), source = readFileSync(file, "utf8"), guard = "pkg.name !== PACKAGE || ";
 	assert.equal(source.split(guard).length, 2);
 	writeFileSync(file, source.replace(guard, ""));
@@ -294,7 +301,7 @@ test("scheduled rollback assertion detects missing worker cancellation propagati
 	const args = ["--test", "--test-reporter=tap", "--test-name-pattern=^OpenCode real fetched CLI rolls back a write after scheduled SIGTERM$", "test/opencode-auto-update.test.mjs"];
 	const control = spawnSync(process.execPath, args, { cwd: scratch, env, encoding: "utf8", timeout: 30000 });
 	assert.equal(control.status, 0, control.stdout + control.stderr);
-	assert.match(control.stdout, /# tests 1\b/);
+	assert.match(control.stdout, /# pass 1\b/);
 	const file = join(scratch, "dist/cli-worker.js"), source = readFileSync(file, "utf8"), guard = "Atomics.load(abort, 0) === 1";
 	assert.equal(source.split(guard).length, 2);
 	writeFileSync(file, source.replace(guard, "false"));

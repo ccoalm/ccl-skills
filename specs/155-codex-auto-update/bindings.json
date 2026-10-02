@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "base": "dcdc9ba9c54f708348dbfc46fb4964ec8d452001",
-  "runtime": "v26.7.0",
+  "runtime": "v20.20.2",
   "command": "node --test test/auto-update.test.mjs test/opencode-auto-update.test.mjs",
   "members": [
     {
@@ -110,7 +110,7 @@
     },
     {
       "path": "packages/ccl-skills-npm/test/opencode-auto-update.test.mjs",
-      "binding": "artifact-sha256:426d26c3915f19d6b4ac83e0858259dcce711b25e4fe51f8b27aab4fd917c654"
+      "binding": "artifact-sha256:86b3fbfc517b733df963d68605d8ff47b4bd804a0cf35f46b0bb3c2f53308bfd"
     },
     {
       "path": "packages/ccl-skills-npm/tsconfig.json",
@@ -118,7 +118,7 @@
     },
     {
       "path": "specs/155-codex-auto-update/evidence.md",
-      "binding": "artifact-sha256:dfd64203ce7654fa334d09eb20d9027617082075689d72fc2b93b7c1f8013d43"
+      "binding": "artifact-sha256:ae64c95c5f80223a7440ed575059fbbbe6645b26a48e0ffbc1543f2f2f90e62d"
     },
     {
       "path": "specs/155-codex-auto-update/focused-tests.txt",
@@ -146,8 +146,8 @@
     }
   ],
   "result": {
-    "tests": 73,
-    "passed": 73,
+    "tests": 74,
+    "passed": 74,
     "failed": 0,
     "skipped": 0
   },
