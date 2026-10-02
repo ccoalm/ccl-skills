@@ -88,6 +88,7 @@ if ! ruby -e '
     "prd-continue-dev-test" => "continuing",
     "prd-continue-small-test" => "continuing",
     "prd-stop-test-preparation" => "blocked",
+    "prd-stop-explicit-signoff" => "blocked",
     "prd-stop-test-limit" => "blocked",
     "prd-stop-dev-destructive" => "blocked"
   }.each do |id, verdict|
