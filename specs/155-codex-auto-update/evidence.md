@@ -3,7 +3,7 @@
 ## Candidate and commands
 
 The exact artifact hashes are in [bindings.json](bindings.json). The current
-focused run passed 74/74 tests on Node 20.20.2, including real fetched-CLI rollback and its
+focused run passed 76/76 tests on Node 20.20.2, including real fetched-CLI rollback and its
 worker-cancellation mutation probe. The preceding ownership summary is
 [log-ownership-checks.txt](log-ownership-checks.txt). Bindings include
 changed design, source, CLI, test and documentation files plus the generated
@@ -18,7 +18,7 @@ Commands below ran in `packages/ccl-skills-npm` with synthetic homes and command
 | `npm run build` | Passed; generated JavaScript is included in the current bindings. |
 | `node --test --test-name-pattern='command boundary\|old live-PID' test/auto-update.test.mjs test/opencode-auto-update.test.mjs` against baseline runtime | RED, exit 1: all six assertions failed. [Captured output](lifecycle-red.txt) replaces local paths with placeholders; the raw log is retained outside the repository. |
 | Same six assertions against repaired runtime | GREEN, exit 0: 6/6 passed, no skips. [Captured output](lifecycle-green.txt). |
-| `node --test test/auto-update.test.mjs test/opencode-auto-update.test.mjs` | Exit 0 on Node 20.20.2: 74/74 passed, no skips, including ownership/package and worker-cancellation mutation controls. The earlier 71-test summary and 69-test output remain as historical evidence. |
+| `node --test test/auto-update.test.mjs test/opencode-auto-update.test.mjs` | Exit 0 on Node 20.20.2: 76/76 passed, no skips, including ownership/package and worker-cancellation mutation controls. The earlier 71-test summary and 69-test output remain as historical evidence. |
 | `node --test --test-name-pattern='refused runner preserves' test/auto-update.test.mjs` before log-ownership correction | RED, 2/2 failed: an empty or malformed lock let a refused invocation replace an existing running record with failed. Both pass in the 71-test run. |
 | `git diff --check` | Passed. |
 | Fresh full repository, package, pack, host and independent review checks | Pending release verification on the repaired candidate. Earlier passes below are historical evidence. |
@@ -78,10 +78,16 @@ The Node 20 CI run exposed two fixture assumptions: the build-mode test leaves
 directories at 0775, whereas an actual registry install produced 125 directories
 all at 0755; filtered TAP totals also include skipped tests on Node 20. Running
 the same build-mode command and OpenCode suite locally on Node 20.20.2 reproduced
-all six CI failures. The fetched fixture now models npm directory modes, and
+all six CI failures. The fetched fixture now models npm extraction modes, and
 mutation controls require one passing test instead of one total test. A separate
 writable-package case retains rejection of 0775 package directories. The complete
-focused suite then passes 74/74 on Node 20.20.2; no runtime guard was changed.
+build-mode path also exposed a 0664 release.json; the real registry package has
+0644 data files and 0755 executables. The fixture now normalizes both kinds and
+a writable-file negative retains rejection of 0664 metadata. Production ownership
+checks are unchanged. Every pre-update failure also asserts refresh cleanup.
+The existing Codex SIGTERM case now covers both upgrade and add, proving failed
+status, the existing instruction to inspect Codex, and lock release. The full
+focused suite passes 76/76 on Node 20.20.2.
 
 ### Historical implementation checks
 

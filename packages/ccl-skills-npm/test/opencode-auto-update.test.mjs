@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
@@ -23,12 +23,13 @@ function fixture(t, install = true) {
 	if (install) assert.equal(runOpenCode("install", {}, context).status, "installed");
 	const fetched = join(temp, "fetched");
 	cpSync(resolve("dist"), join(fetched, "dist"), { recursive: true });
-	// npm extraction uses 0755 directories, unlike a permissive-umask build tree.
-	const normalizeDirectories = path => {
-		chmodSync(path, 0o755);
-		for (const entry of readdirSync(path, { withFileTypes: true })) if (entry.isDirectory()) normalizeDirectories(join(path, entry.name));
+	// Model npm extraction, including files produced by a permissive-umask build.
+	const normalizePackageModes = path => {
+		const info = lstatSync(path);
+		chmodSync(path, info.isDirectory() || (info.mode & 0o111) ? 0o755 : 0o644);
+		if (info.isDirectory()) for (const entry of readdirSync(path)) normalizePackageModes(join(path, entry));
 	};
-	normalizeDirectories(fetched);
+	normalizePackageModes(fetched);
 	const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 	pkg.version = "99.0.0"; writeFileSync(join(fetched, "package.json"), JSON.stringify(pkg));
 	const releasePath = join(fetched, "dist/assets/release.json"), release = JSON.parse(readFileSync(releasePath, "utf8"));
@@ -98,7 +99,7 @@ for (const state of ["absent", "source-copy", "override", "drift"]) test(`OpenCo
 	assert.equal(f.jobs.size, 0);
 });
 
-for (const failure of ["fetch", "wrong-package", "symlink-package", "writable-package", "removed", "drift", "disabled"]) test(`OpenCode ${failure} before update preserves installed bytes`, async t => {
+for (const failure of ["fetch", "wrong-package", "symlink-package", "writable-package", "writable-file", "removed", "drift", "disabled"]) test(`OpenCode ${failure} before update preserves installed bytes`, async t => {
 	const f = fixture(t), before = readFileSync(join(f.base, sample), "utf8");
 	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
 	const command = async (file, args, env, timeout, options) => {
@@ -109,6 +110,7 @@ for (const failure of ["fetch", "wrong-package", "symlink-package", "writable-pa
 			if (failure === "wrong-package") { const p = join(pkgRoot, "package.json"), value = JSON.parse(readFileSync(p, "utf8")); value.name = "unrelated"; writeFileSync(p, JSON.stringify(value)); }
 			if (failure === "symlink-package") symlinkSync(f.temp, join(pkgRoot, "external"));
 			if (failure === "writable-package") chmodSync(join(pkgRoot, "dist/assets"), 0o775);
+			if (failure === "writable-file") chmodSync(join(pkgRoot, "dist/assets/release.json"), 0o664);
 			if (failure === "removed") rmSync(join(f.base, "ccl-skills-npm"), { recursive: true });
 			if (failure === "drift") writeFileSync(join(f.base, sample), "local edit");
 			if (failure === "disabled") assert.equal((await autoUpdate("disable", f.deps)).code, 0);

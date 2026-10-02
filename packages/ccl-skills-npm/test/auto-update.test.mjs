@@ -351,12 +351,12 @@ test("unset CODEX_HOME selects the default profile", async t => {
 	assert.equal(existsSync(f.root), false);
 });
 
-test("SIGTERM during update records failure and releases runner lock", async t => {
+for (const step of ["upgrade", "add"]) test(`SIGTERM during ${step} records failure, inspection guidance and releases runner lock`, async t => {
 	const f = fixture(t); await autoUpdate("enable", f.deps);
 	const moduleUrl = pathToFileURL(join(process.cwd(), "dist", "auto-update.js")).href;
 	const script = `import {runScheduled, runCommand} from ${JSON.stringify(moduleUrl)};
 const result = await runScheduled(process.env, (file,args,env,timeout) => {
- if(args.includes('upgrade')) {
+ if(args.includes(${JSON.stringify(step)})) {
   process.nextTick(()=>process.kill(process.pid,'SIGTERM'));
   return runCommand(process.execPath,['-e','setInterval(()=>{},1000)'],env,5000);
  }
@@ -366,6 +366,7 @@ console.log(JSON.stringify(result)); process.exitCode=result.code;`;
 	const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], { env:f.env, encoding:"utf8", timeout:10000 });
 	assert.equal(result.status, 5, result.stderr);
 	assert.match(JSON.parse(result.stdout).message, /interrupted/);
+	assert.match(JSON.parse(result.stdout).message, /inspect Codex/);
 	assert.equal(f.log().status, "failed");
 	assert.equal(existsSync(join(f.root, "run.lock")), false);
 });
