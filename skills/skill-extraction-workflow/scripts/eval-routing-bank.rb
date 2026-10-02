@@ -62,6 +62,9 @@ if root.nil? || root.start_with?("-")
 end
 bank_path = arg("--bank", File.join(root, "eval", "routing-tasks.jsonl"))
 model = arg("--model", "claude-haiku-4-5")
+# Routing is decided by the model that reads the skill listing. The default is a
+# cheap screen; record whether the router model was chosen on purpose.
+model_source = ARGV.include?("--model") ? "explicit" : "default"
 limit = (l = arg("--limit")) ? l.to_i : nil
 dry_run = ARGV.include?("--dry-run")
 json_path = arg("--json")
@@ -313,7 +316,10 @@ end
 # Run the grader with a portable hard timeout (pure Ruby — does not depend on a
 # GNU `timeout` binary being present).
 def grade(model, timeout_s, prompt)
-  cmd = ["claude", "--print", "--tools", "", "--model", model]
+  # Installed plugins' hooks would add routing context (a SessionStart block) the
+  # bank never asked for and could rewrite the final answer (a Stop hook); the
+  # bootstrap is measured only through --with-bootstrap, so hooks are disabled.
+  cmd = ["claude", "--print", "--tools", "", "--settings", '{"disableAllHooks":true}', "--model", model]
   out = +""
   err = +""
   status = nil
@@ -572,7 +578,7 @@ min_valid_observations = results.map { |r| r[:valid_observations] }.min.to_i
 action_resolution = !results.empty? && results.all? { |r| r[:actionable] }
 
 report = {
-  model: model, tasks: results.size, pass: passes, fail: fails.size, error: errors.size,
+  model: model, model_source: model_source, tasks: results.size, pass: passes, fail: fails.size, error: errors.size,
   replicas: replicas, verdicts: all_observed.size,
   error_verdicts: error_verdicts, partial_error_tasks: partial_error_ids,
   clarify_count: clarify_count, low_confidence_count: low_conf_count,
@@ -591,6 +597,9 @@ report = {
 File.write(json_path, JSON.pretty_generate(report)) if json_path
 
 puts "eval-routing-bank (#{model}): #{passes}/#{results.size} pass, #{fails.size} fail, #{errors.size} grader-error"
+if model_source == "default"
+  puts "  router_model_default: #{model} was not chosen with --model; a description edit needs the model tier that routes in use (references/eval-routing.md)"
+end
 unless action_resolution
   puts "  \u26a0 screening_resolution_only: replicas=#{replicas}, weakest task has #{min_valid_observations} valid observations, floor #{ACTION_RESOLUTION_MIN_REPLICAS} — this report locates candidates, it does not license a description edit; a per-case edit needs #{ACTION_RESOLUTION_MIN_REPLICAS} valid observations of that case (references/eval-routing.md)"
 end

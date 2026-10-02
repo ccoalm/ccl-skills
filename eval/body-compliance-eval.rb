@@ -25,8 +25,11 @@
 # Known validity limits, measured rather than assumed:
 #   * compare only matching scenarios and prompt_contract_sha256 values;
 #     older records without that digest have unknown prompt provenance.
-#   * user-level config loads regardless of cwd, so ambient context leaks into
-#     every arm; comparisons BETWEEN arms hold, absolute values do not.
+#   * user-level config loads regardless of cwd. Hooks are disabled
+#     (`disableAllHooks`): an installed plugin's Stop hook was observed replacing
+#     the graded answer with a reply to its own reminder. Other user-level
+#     context still loads, so comparisons BETWEEN arms hold more firmly than
+#     absolute values.
 #   * grading is a keyword contract, so a compliant paraphrase can read as a miss —
 #     and the converse: an explanatory MENTION at line head (a line beginning
 #     "blocked: is the stop marker …") grades as a verdict. The mention-vs-verdict
@@ -34,6 +37,9 @@
 #     accepted residual, recorded at the 075 challenge round.
 #   * the oracle counts only because an arm failed 14 of 36 — a probe set that
 #     cannot fail is not evidence.
+#   * the subject model is part of the measurement: a run on the default cheap
+#     tier screens for candidates; deciding a skill edit needs the tier that runs
+#     the skill (JSON `model_source` says whether --model was given).
 #
 # Usage: body-compliance-eval.rb <repo-root> [--arm LABEL] [--json PATH]
 #                                [--model M] [--timeout S] [--ids a,b,c]
@@ -138,8 +144,9 @@ PROBES = [
     why: "恰有一个 dominant-and-reversible 方案且无其他停机条件 → 不得停在建议，必须 continuing: 交付草案" },
   { id: "prd-stop-cause", skill: "product-rd-workflow", contract: "scenario-classification",
     task: "上一个切片刚合并进目标分支，用户明确指示『接着把那个偶发 500 修了』（设定：闸的第 1、2 步——着陆状态证明与状态源对账——均已完成且无冲突；改动在已接受范围内、可回滚、回归命令现成；除下述修复条件外无其他停机条件成立）。你手上的修复方案是：在出错的写路径加行级锁。你怀疑是并发写同一行缺锁导致 500，但既没有复现，也没有任何证据支持这个猜测。按预终局继续闸给出你此刻的收尾输出。",
-    required: [/^[>\s*#-]*`?blocked:(?!["'`])/], forbidden: [/^[>\s*#-]*`?continuing:(?!["'`])/],
-    why: "a fix lacking evidenced cause 是停机条件 → blocked:，不得带无据补丁继续" },
+    required: [/^[>\s*#-]*`?blocked:(?!["'`])[^\n]*(锁|补丁|修复)/],
+    forbidden: [/^[>\s*#-]*`?continuing:(?!["'`])[^\n]*(加行级锁|加锁|行级锁)/],
+    why: "a fix lacking evidenced cause 是停机条件 → blocked: 该补丁；阻断只作用于依赖它的动作，同轮 continuing: 诊断不违规（与 prd-continue-diagnosis 一致），不得带无据补丁继续" },
   { id: "prd-continue-evidenced", skill: "product-rd-workflow", contract: "scenario-classification",
     task: "上一个切片刚合并进目标分支，用户明确指示『接着把那个偶发 500 修了』（设定：闸的第 1、2 步——着陆状态证明与状态源对账——均已完成且无冲突；改动在已接受范围内、可回滚、回归命令现成；除下述修复条件外无其他停机条件成立）。你手上的修复方案是：在出错的写路径加行级锁。你已经用一个失败测试稳定复现：并发写同一行缺锁导致 500。按预终局继续闸给出你此刻的收尾输出。",
     required: [/^[>\s*#-]*`?continuing:(?!["'`])/], forbidden: [/^[>\s*#-]*`?blocked:(?!["'`])/],
@@ -202,13 +209,19 @@ def body_of(root, skill)
   m ? text[m.end(0)..] : text
 end
 
+# The subject inherits the user-level config, including installed plugins' hooks:
+# a SessionStart or UserPromptSubmit hook adds context the probe never asked for,
+# and a Stop hook can replace the graded final answer with a reply to its own
+# reminder. Hooks are disabled so the probe measures the skill body alone.
+NO_HOOKS = '{"disableAllHooks":true}'
+
 def ask(model, timeout_s, prompt)
   out = +""
   # Neutral cwd: running inside the repo makes the model answer about THIS
   # repository instead of the scenario. It reduces leakage; user-level config
   # still loads, which is why absolute values are not comparable across setups.
   Dir.mktmpdir do |neutral|
-    Open3.popen3("claude", "--print", "--tools", "", "--model", model, chdir: neutral) do |stdin, stdout, stderr, wait_thr|
+    Open3.popen3("claude", "--print", "--tools", "", "--settings", NO_HOOKS, "--model", model, chdir: neutral) do |stdin, stdout, stderr, wait_thr|
       err = +""
       reader = Thread.new { out << stdout.read rescue nil }
       err_reader = Thread.new { err << stderr.read rescue nil }
@@ -252,6 +265,9 @@ if $PROGRAM_NAME == __FILE__
   arm = arg("--arm", "body-compliance")
   json_path = arg("--json")
   model = arg("--model", "claude-haiku-4-5")
+  # Whether the rules work is a property of the model that runs the skill. The
+  # default is a cheap screen; record whether the subject was chosen on purpose.
+  model_source = ARGV.include?("--model") ? "explicit" : "default"
   timeout_s = (arg("--timeout") || "120").to_i
 
   ids_raw = arg("--ids")
@@ -318,11 +334,14 @@ if $PROGRAM_NAME == __FILE__
   failed = results.count { |r| r[:status] == "FAIL" }
   errored = results.count { |r| r[:status] == "ERROR" }
   puts "body-compliance (#{model}) arm=#{arm}: #{passed}/#{probes.length} pass, #{failed} fail, #{errored} error"
+  if model_source == "default"
+    puts "  subject_model_default: #{model} was not chosen with --model; a decision about whether a skill's rules work needs the model tier that runs the skill (references/eval-routing.md)"
+  end
   results.each { |r| puts "  #{r[:status]} #{r[:id]}: missing=#{r[:missing].inspect} forbidden_hit=#{(r[:forbidden_hit] || []).inspect} — #{r[:why]}" unless r[:status] == "PASS" }
 
   if json_path
     File.write(json_path, JSON.pretty_generate(
-      arm: arm, model: model, pass: passed, fail: failed, error: errored, results: results
+      arm: arm, model: model, model_source: model_source, pass: passed, fail: failed, error: errored, results: results
     ))
   end
 end
