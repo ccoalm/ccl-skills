@@ -31,10 +31,20 @@ while IFS= read -r rel; do
   # leaves `rubygems` / `ruby-build` alone. Over-matching only over-requires the pin.
   grep -qE '(^|[^a-z_])ruby([^a-z0-9_.-]|$)' "$ROOT/$rel" || continue
   grep -qxF "$PIN" "$ROOT/$rel" || missing="$missing\n  $rel"
-  # A per-command RUBYOPT=... replaces the exported pin unless it keeps $RUBYOPT.
+  # This suite clears the pin on purpose to probe the host, so only its pin is checked.
+  [ "$rel" = "skills/skill-extraction-workflow/scripts/test_locale_independent_gates.sh" ] && continue
+  # Anything that replaces or clears the exported pin drops it: a RUBYOPT=value
+  # that does not keep $RUBYOPT, an empty RUBYOPT= right before ruby, unset, or
+  # env -u. An empty RUBYOPT= before a self-pinning script (bash x.sh) is fine.
   while IFS= read -r hit; do
-    case "$hit" in *'$RUBYOPT'*|*'${RUBYOPT'*) ;; *) dropped="$dropped\n  $rel: $hit" ;; esac
-  done < <(grep -nE 'RUBYOPT[=][^ ]' "$ROOT/$rel" | grep -vF "$PIN" | grep -vE '^[0-9]+:[[:space:]]*#' || true)
+    if printf '%s\n' "$hit" | grep -qE 'unset[[:space:]]+RUBYOPT|-u[[:space:]]+RUBYOPT'; then
+      dropped="$dropped\n  $rel: $hit"
+    elif printf '%s\n' "$hit" | grep -qE 'RUBYOPT[=][^[:space:]]'; then
+      printf '%s\n' "$hit" | grep -qE '[$][{]?RUBYOPT([^A-Za-z0-9_]|$)' || dropped="$dropped\n  $rel: $hit"
+    elif printf '%s\n' "$hit" | grep -qE 'RUBYOPT[=][[:space:]]+ruby([^a-z0-9_.-]|$)'; then
+      dropped="$dropped\n  $rel: $hit"
+    fi
+  done < <(grep -nE 'RUBYOPT' "$ROOT/$rel" | grep -vF "$PIN" | grep -vE '^[0-9]+:[[:space:]]*#' || true)
 done <<<"$tracked"
 [ -z "$missing" ] || fail "ruby-invoking scripts without the RUBYOPT UTF-8 pin:$missing"
 [ -z "$dropped" ] || fail "RUBYOPT assignments that drop the UTF-8 pin (keep \$RUBYOPT):$dropped"
@@ -66,8 +76,12 @@ case "$out" in *markdown_references_ok*) : ;; *) fail "validate-skill.sh did not
 cp -R "$SCRIPT_DIR" "$TMP/scripts"
 grep -vxF "$PIN" "$SCRIPT_DIR/validate-skill.sh" >"$TMP/scripts/validate-skill.sh"
 if mout="$(run_c_locale "$TMP/scripts/validate-skill.sh" 2>&1)"; then
-  # Leg 2 already proved the gate works here; without the crash the pin is simply
-  # not load-bearing on this host, so say so instead of reporting a full pass.
+  # Unevaluated only when the host itself explains the pass: Ruby already reads
+  # UTF-8 under the C locale, so the pin is not load-bearing here. Any other
+  # reason the unpinned run passed means leg 2 may be vacuous.
+  if ! env -u LANGUAGE LC_ALL=C LANG=C RUBYOPT= ruby -e 'exit(Encoding.default_external == Encoding::UTF_8 ? 0 : 1)'; then
+    fail "pin removed, yet validate-skill.sh still passed under LC_ALL=C on a host whose Ruby reads US-ASCII there, so leg 2 proves nothing:\n$mout"
+  fi
   echo "test_locale_independent_gates_leg3_unevaluated: this host's Ruby reads UTF-8 under LC_ALL=C, so removing the pin cannot be shown to matter here" >&2
   echo "test_locale_independent_gates: ok (legs 1-2; leg 3 unevaluated on this host)"
   exit 0

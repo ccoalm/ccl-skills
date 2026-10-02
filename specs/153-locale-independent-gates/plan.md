@@ -38,13 +38,15 @@ installed and also changes collation and other tools' character handling.
   unchanged. Three test lines that set `RUBYOPT` for a single ruby call now keep
   the exported value instead of replacing it.
 - `test_locale_independent_gates.sh` (fast lane) holds the class:
-  1. every live ruby-invoking shell script carries the pin, no per-command
-     `RUBYOPT=` assignment drops it, and the leg fails rather than passing when
-     `git ls-files` cannot list the tracked scripts;
+  1. every live ruby-invoking shell script carries the pin; nothing drops it —
+     a `RUBYOPT=value` that does not keep `$RUBYOPT`, an empty `RUBYOPT=` right
+     before `ruby`, `unset RUBYOPT` or `env -u RUBYOPT` (an empty `RUBYOPT=`
+     before a self-pinning `bash` script is allowed); and the leg fails rather
+     than passing when `git ls-files` cannot list the tracked scripts;
   2. `validate-skill.sh` passes on a UTF-8 fixture under `LC_ALL=C`;
   3. the same run with the pin removed fails for the encoding reason, which shows
-     the pin is what makes leg 2 pass. On a host whose C locale already reads
-     UTF-8 the pin is not load-bearing; leg 3 then prints
+     the pin is what makes leg 2 pass. When a probe shows the host's Ruby already
+     reads UTF-8 under the C locale, the pin is not load-bearing; leg 3 then prints
      `test_locale_independent_gates_leg3_unevaluated` and the suite reports
      legs 1-2 only.
 - Frozen evidence scripts under the per-spec evidence directories and `eval/evidence/` are
@@ -55,11 +57,12 @@ installed and also changes collation and other tools' character handling.
 | Input | Expected |
 | --- | --- |
 | live ruby-invoking script without the pin | leg 1 fails, names the script |
-| per-command `RUBYOPT="…"` that does not keep `$RUBYOPT` | leg 1 fails, names the line |
+| `RUBYOPT="…"` without `$RUBYOPT`, `RUBYOPT= ruby`, `unset`/`env -u RUBYOPT` | leg 1 fails, names the line |
 | run outside a git checkout | leg 1 fails instead of passing on an empty list |
 | fixture skill, shipped `validate-skill.sh`, `LC_ALL=C` | passes, prints `markdown_references_ok` |
 | same, pin removed | fails with `invalid byte sequence` / `invalid multibyte char` |
 | same, pin removed, host C locale reads UTF-8 | `…_leg3_unevaluated`; suite reports legs 1-2 |
+| same, pin removed passes, host Ruby reads US-ASCII under C | leg 3 fails: leg 2 may be vacuous |
 | `check-ccl-skills.sh .`, `LC_ALL=C` | `ccl_skill_check_interim_ok` (was: Ruby crash) |
 | `make test`, `LC_ALL=C` and `C.UTF-8` | same verdicts as CI |
 
@@ -73,8 +76,10 @@ installed and also changes collation and other tools' character handling.
   a variable (`"$RUBY"`) or executes a `.rb` file directly by its shebang would
   not be flagged; no live script does either today.
 - Python callers (`test_eval_runtime.py` runs `eval-golden-trace.rb`) are not
-  pinned; Python's own locale coercion exports `LC_CTYPE=C.UTF-8` to the child,
-  and that suite passes under `LC_ALL=C`.
+  pinned. That suite passes under `LC_ALL=C`, but not because of Python's locale
+  coercion, which `LC_ALL` disables; the pass is observed, not explained, and
+  would not survive a UTF-8 input reaching that ruby call.
+- Leg 1 also misses `ruby.exe`; Windows hosts are not a target of these gates.
 - A caller `RUBYOPT` that sets a different external encoding (`-E ASCII`,
   `-EASCII-8BIT`) now conflicts with `-Ku` and Ruby refuses to start
   (`default_external already set`); `-EUTF-8` and `-U` still work, and a later
