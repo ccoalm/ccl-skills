@@ -40,12 +40,14 @@ installed and also changes collation and other tools' character handling.
 - `test_locale_independent_gates.sh` (fast lane) holds the class:
   1. every live ruby-invoking shell script carries the pin; every other
      literal `RUBYOPT` mention is one of two allowed shapes — the keep idiom
-     `RUBYOPT="${RUBYOPT:+$RUBYOPT }…"` with no encoding option (`-K`, `-E`,
-     `--encoding`, `--disable`) after it, or an empty `RUBYOPT=` before
+     `RUBYOPT="${RUBYOPT:+$RUBYOPT }…"` whose suffix holds only `-r<lib>`
+     requires or variables (Ruby's option names are not this repository's to
+     enumerate, so the suffix is allowlisted), or an empty `RUBYOPT=` before
      `bash "$script"`, whose script pins itself — and anything else (replacing,
-     clearing, `unset`, `env -u`) fails. The classifier is held by permanent
-     rows in the suite: every bypass spelling review found must be flagged and
-     every near-miss must stay allowed; the leg also fails rather than passing
+     clearing, `unset`, `env -u`, any other Ruby option) fails. The classifier
+     is held by permanent rows in the suite — every bypass spelling review found
+     must be flagged and every near-miss must stay allowed — and the whole scan
+     runs once on a fixture file; the leg also fails rather than passing
      when `git ls-files` cannot list the tracked scripts. Three review rounds each
      found new shell spellings past a list of forbidden forms, so the check is an
      allowlist over the idiom this repository owns, not a denylist over shell
@@ -93,6 +95,13 @@ installed and also changes collation and other tools' character handling.
   literal token (`unset RUBY''OPT`, `eval` of a built string, an indirect
   variable name) and `ruby --disable=rubyopt`, which ignores `RUBYOPT`
   entirely, pass it; no live script uses them.
+- The allowlist is deliberately strict: a safe option such as `--disable-gems`
+  after the keep idiom is flagged until it is expressed another way. A
+  variable in the suffix (`$2`) is opaque; the live caller passes only
+  `-r<lib>` values through it.
+- The comment strip treats ` #` as a comment only when no quote or backslash
+  precedes it on the line, so a trailing comment after a quoted value is
+  scanned too (flagged if it names the variable).
 - The allowed `RUBYOPT= bash "$script"` shape trusts that the script pins
   itself; a variable that expands to `-c`, or a generated script without the
   pin, would run Ruby unpinned.

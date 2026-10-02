@@ -23,21 +23,31 @@ fail() { printf 'FAIL: %b\n' "$*" >&2; exit 1; }
 
 # Closed contract over the idiom this repo owns: a RUBYOPT mention keeps the pin
 # only as the pin line itself, the keep idiom RUBYOPT="${RUBYOPT:+$RUBYOPT }..."
-# with no encoding option after it, or an empty RUBYOPT= before
-# `bash "$script"` (that script pins itself). Any other literal mention -
-# replacing, clearing, unset, env -u - drops the pin. Returns 0 when allowed.
+# whose suffix holds only `-r<lib>` requires or variables, or an empty RUBYOPT=
+# before `bash "$script"` (that script pins itself). Any other literal mention -
+# replacing, clearing, unset, env -u, any other Ruby option - drops the pin.
+# Ruby's option names are not this repo's to enumerate, so the suffix is
+# allowlisted, never denylisted. Returns 0 when allowed.
+KEEP_TOKEN='(-r[^[:space:]"]+|[$][{]?[A-Za-z_0-9]+[}]?)'
 pin_kept() {
   local line="$1" rest
   [ "$line" = "$PIN" ] && return 0
-  if printf '%s\n' "$line" | grep -qE 'RUBYOPT="[$][{]RUBYOPT:[+][$]RUBYOPT [}][^"]*(-K|-E|--encoding|--external-encoding|--disable)'; then
-    return 1
-  fi
   rest="$(printf '%s\n' "$line" | sed -E \
-    -e "s/^([^\"']*)[[:space:]]#.*\$/\\1/" \
-    -e 's/RUBYOPT="[$][{]RUBYOPT:[+][$]RUBYOPT [}]//g' \
+    -e "s/^([^\"'\\\\]*)[[:space:]]#.*\$/\\1/" \
+    -e "s/RUBYOPT=\"[\$][{]RUBYOPT:[+][\$]RUBYOPT [}](${KEEP_TOKEN}([[:space:]]+${KEEP_TOKEN})*)?\"//g" \
     -e 's/(^|[[:space:]])RUBYOPT=[[:space:]]+bash[[:space:]]+"[$][A-Za-z_{][^"]*"/\1/g')"
   case "$rest" in *RUBYOPT*) return 1 ;; esac
   return 0
+}
+
+# Every RUBYOPT line of one file that drops the pin, as "N:line". Whole-line
+# comments are skipped; nothing else is pre-filtered, so a line that merely
+# contains the pin text is still classified.
+pin_drops() {
+  local hit
+  while IFS= read -r hit; do
+    pin_kept "${hit#*:}" || printf '%s\n' "$hit"
+  done < <(grep -nE 'RUBYOPT' "$1" | grep -vE '^[0-9]+:[[:space:]]*#' || true)
 }
 
 # (1a) The classifier itself: every bypass row must be flagged and every
@@ -72,7 +82,11 @@ printf ' #' ; unset RUBYOPT
 case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac; unset RUBYOPT
 RUBYOPT="${RUBYOPT:+$RUBYOPT }-Kn" ruby x.rb
 RUBYOPT="${RUBYOPT:+$RUBYOPT }-E ASCII" ruby x.rb
-RUBYOPT="${RUBYOPT:+$RUBYOPT }--disable=rubyopt" ruby x.rb
+RUBYOPT="${RUBYOPT:+$RUBYOPT }--internal-encoding=US-ASCII" ruby x.rb
+RUBYOPT="${RUBYOPT:+$RUBYOPT_EXTRA }" ruby x.rb
+RUBYOPT="${RUBYOPT:+$RUBYOPT}-Kn" ruby x.rb
+x=$#; unset RUBYOPT
+echo a\ #b; unset RUBYOPT
 local RUBYOPT
 declare -x RUBYOPT=
 ROWS
@@ -83,8 +97,10 @@ done <<'ROWS'
 out="$(RUBYOPT="${RUBYOPT:+$RUBYOPT }-rdate" ruby x.rb)"
 env -u X LC_ALL=C RUBYOPT= bash "$SIZE_SCRIPT" "$REPO"
 f() { # takes a RUBYOPT value
-echo rubygems
 RUBYOPT= bash "$x"; ruby -e 1
+RUBYOPT="${RUBYOPT:+$RUBYOPT }-r$SHIM -rdate" ruby x.rb
+RUBYOPT="${RUBYOPT:+$RUBYOPT }$2" ruby "$1"
+run_gate() { # <gate-path> <RUBYOPT value or empty>
 ROWS
 
 # (1b) Static coverage over tracked live shell scripts.
@@ -101,14 +117,26 @@ while IFS= read -r rel; do
   # This file names RUBYOPT in its own patterns and rows, so only its pin is checked.
   [ "$rel" = "skills/skill-extraction-workflow/scripts/test_locale_independent_gates.sh" ] && continue
   while IFS= read -r hit; do
-    pin_kept "${hit#*:}" || dropped="$dropped\n  $rel: $hit"
-  done < <(grep -nE 'RUBYOPT' "$ROOT/$rel" | grep -vE '^[0-9]+:[[:space:]]*#' || true)
+    [ -n "$hit" ] && dropped="$dropped\n  $rel: $hit"
+  done < <(pin_drops "$ROOT/$rel")
 done <<<"$tracked"
 [ -z "$missing" ] || fail "ruby-invoking scripts without the RUBYOPT UTF-8 pin:$missing"
 [ -z "$dropped" ] || fail "RUBYOPT mentions that drop the UTF-8 pin (use the keep idiom):$dropped"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/locale-gates.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
+
+# (1c) The scan as a whole, on a fixture file: only a line that drops the pin is
+# reported, including one that also contains the pin text.
+{
+  printf '%s\n' "$PIN"
+  printf '%s; unset RUBYOPT\n' "$PIN"
+  printf '# unset RUBYOPT in a comment\n'
+  printf 'out="$(RUBYOPT="${RUBYOPT:+$RUBYOPT }-rdate" ruby x.rb)"\n'
+} >"$TMP/scan-fixture.sh"
+scan_out="$(pin_drops "$TMP/scan-fixture.sh")"
+[ "${scan_out%%:*}" = "2" ] && [ "$(printf '%s\n' "$scan_out" | grep -c .)" = "1" ] \
+  || fail "pin_drops must report only line 2 of the scan fixture, got:\n$scan_out"
 mkdir -p "$TMP/skill/references"
 cat >"$TMP/skill/SKILL.md" <<'EOF'
 ---
