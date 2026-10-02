@@ -1,0 +1,138 @@
+{
+  "schema": 1,
+  "base": "dcdc9ba9c54f708348dbfc46fb4964ec8d452001",
+  "runtime": "v26.7.0",
+  "command": "node --test test/auto-update.test.mjs test/opencode-auto-update.test.mjs",
+  "members": [
+    {
+      "path": "README.md",
+      "binding": "artifact-sha256:2b260903c8aac9671d79469c4dc98d4ee0541daf2b87309efc19eb444824d7fa"
+    },
+    {
+      "path": "packages/ccl-skills-npm/README.md",
+      "binding": "artifact-sha256:eb228faad8bd117207a82de23593a274a9efc049a28e795eb49ace2ae7d15fc9"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/assets/release.json",
+      "binding": "artifact-sha256:6b5f6c77aed425ee154b4105d308b1a67dd939a4f64e69a81a75d0e01d2ccf35"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/auto-update.js",
+      "binding": "artifact-sha256:a33be389c048bc482084316267083dc611552fefc5112be6f5a83a8779e026aa"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/claude-adapter.js",
+      "binding": "artifact-sha256:75386ab4c98d7e4056fa22683168da1867536bdc2de4d02c8b6fbef68e908713"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/cli-worker.js",
+      "binding": "artifact-sha256:605797d715672800e5c12300affd512ec284e1efda36463f49de54eaa9a0aeae"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/cli.js",
+      "binding": "artifact-sha256:eeebfd87d3b83885e683698e10596d8fc8b3a25e6b6ddf609cbf8e8e00506373"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/codex-hooks.js",
+      "binding": "artifact-sha256:cd2a131514391ed37e83cf8b5e90eb0d34c3f049c4d1780fa9b0443afa242de4"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/codex-host.js",
+      "binding": "artifact-sha256:ad899e1fcbe06d53ee195fb10161c2352e4dd865e5632e35c346110cf594c479"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/fs-safe.js",
+      "binding": "artifact-sha256:4e2cf0e4742d91d8f9b2024d7df3fc93690fa3a71ab35a4762bed59705e87044"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/host-probe.js",
+      "binding": "artifact-sha256:4ef90d7773116ac96e1a3b235a04071a2732f036630c0d5202bd67e3a82919f9"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/index.js",
+      "binding": "artifact-sha256:4c8706b041a2dc06f061f2e6b0cb9f24b2f72540ba3a828432968009bfadf122"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/manifest.js",
+      "binding": "artifact-sha256:514c28ab169dae528e7137fff8a7a4884bd53b69b413340f052dc99ef978854e"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/opencode-adapter.js",
+      "binding": "artifact-sha256:b2eb03764adb252924d355281bffa8532f6add36d06cb2a6b907b4406b4e4c13"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/operations.js",
+      "binding": "artifact-sha256:c7d2150f3158a34181c5234f02727b347c6612cdd474877d277e31f1369b31d0"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/paths.js",
+      "binding": "artifact-sha256:cbce1ddce5d441b3abec3314e9ecf514f653fea86d4222021a4db2ab3d37c702"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/types.js",
+      "binding": "artifact-sha256:8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/unified.js",
+      "binding": "artifact-sha256:58b51ed8718885006dce2eab9f327833f450459737b6bf72a060f84718550677"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/update-notice.js",
+      "binding": "artifact-sha256:da5ceca856f4492afd38010918d4c33c5f8dfc04d490bbf84ff955a8e12f7245"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/version-check.js",
+      "binding": "artifact-sha256:bd6babcff7eb222ce39f8ed4d8945f55f4004f45d17600fee497ee64357099da"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/version.js",
+      "binding": "artifact-sha256:a1cc618d49d4db724fb95724fef76415f164b47841e203a6436b1b450bbb8f2f"
+    },
+    {
+      "path": "packages/ccl-skills-npm/package.json",
+      "binding": "artifact-sha256:91be9bac16be8b675c8ce198a63aa50f6b3b4f5d075afec11e9e7f0b556584a9"
+    },
+    {
+      "path": "packages/ccl-skills-npm/src/auto-update.ts",
+      "binding": "artifact-sha256:724e851b5f2757a362dc19ff147287971a891a4e85f1f07bb663fadd6be1d8b7"
+    },
+    {
+      "path": "packages/ccl-skills-npm/src/cli.ts",
+      "binding": "artifact-sha256:f262fc5328ebebdb5a3a9fcf51020a3271debbb88f9e9324299669852e539316"
+    },
+    {
+      "path": "packages/ccl-skills-npm/src/opencode-adapter.ts",
+      "binding": "artifact-sha256:984bff120b04bf73ad6ce15e068f0810665ea915c6b0645f9fd539199d4a6ea3"
+    },
+    {
+      "path": "packages/ccl-skills-npm/test/auto-update.test.mjs",
+      "binding": "artifact-sha256:3652b443828473aeb3b16a915fe40e43f41c1f56b9122e61cfaa97dfcf877190"
+    },
+    {
+      "path": "packages/ccl-skills-npm/test/opencode-auto-update.test.mjs",
+      "binding": "artifact-sha256:4811ed2a1dca87efab4823547a28461b29c3a973bc73c92b444b3972e4eb628b"
+    },
+    {
+      "path": "packages/ccl-skills-npm/tsconfig.json",
+      "binding": "artifact-sha256:1cff94d5cd8d553d2288fbe5afae223d8f02bd36e2f336d55dd4d53bf8e159ca"
+    },
+    {
+      "path": "specs/155-codex-auto-update/evidence.md",
+      "binding": "artifact-sha256:c90275a8c234f142a69aadebe2c508f0b2bc5bea5283d47c1177b2111a08b6c8"
+    },
+    {
+      "path": "specs/155-codex-auto-update/focused-tests.txt",
+      "binding": "artifact-sha256:3ad57f075cb0940da85a9890eff272c01e58d9183bb6daa55a71e66024d021f9"
+    },
+    {
+      "path": "specs/155-codex-auto-update/plan.md",
+      "binding": "artifact-sha256:1416c509668057b8d65fb6fd483ab601f739a1b35d9e304cd529bf7decc46cab"
+    }
+  ],
+  "result": {
+    "tests": 63,
+    "passed": 63,
+    "failed": 0,
+    "skipped": 0
+  }
+}

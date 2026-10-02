@@ -309,7 +309,7 @@ function doctor(context: OpenCodeContext): Result {
 	try { drift = preflight(p.base, manifest.entries, manifest); }
 	catch (error) { reason = String(error); }
 	if (drift.length || reason) return { code: 3, status: "shared-drift", message: "OpenCode shared files changed after npm install; they will never be auto-deleted", details: { drift, ...(reason ? { reason } : {}) } };
-	return { code: 0, status: "healthy", message: `OpenCode uses @ccoalm/ccl-skills ${manifest.version}` };
+	return { code: 0, status: "healthy", message: `OpenCode uses @ccoalm/ccl-skills ${manifest.version}`, details: { version: manifest.version, sourceKind: manifest.sourceKind } };
 }
 
 function installOrUpdate(commandName: "install" | "update", options: Options, context: OpenCodeContext): Result {
