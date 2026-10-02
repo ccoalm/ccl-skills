@@ -1,6 +1,8 @@
 # Portable gates and continuation boundaries
 
-Status: implementation in progress; independent review and challenge pending.
+Status: implementation and local verification complete; independent review and
+challenge dispositions recorded in [validation evidence](evidence/validation.md).
+Current-head CI is tracked on the pull request.
 
 Artifact classification: gate implementation. Risk tag: shared-gate. The
 change repairs deterministic acceptance checks and the Stop reminder; evaluation
@@ -54,10 +56,11 @@ dispositions belong in this directory's evidence folder.
 
 The root contract, README, Makefile, package scripts, scripts and CI declare
 structural/spec-reference checks but no validator for plan activation. This is
-an open plan-verifier gap; status stays interim until supported by the recorded
-executed acceptance traces and review evidence. No passing structural check is
-claimed as proof of the plan's semantics.
+an open plan-verifier gap. The recorded executed acceptance traces and review
+evidence support this candidate; no passing structural check is claimed as
+proof of the plan's semantics.
 
 Status-sync targets: this plan, validation evidence, and the existing pull
-request. Missing private R0 evidence must remain explicitly pending maintainer
-audit; local passing tests alone do not establish merge readiness.
+request. The named private R0 audit passed. Local passing tests alone do not
+establish merge readiness; current-head CI and the separate merge authority
+remain outside this local verification record.
