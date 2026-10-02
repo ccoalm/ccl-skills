@@ -3,6 +3,8 @@
 # The canonical reference owns the protocol; each participating skill keeps
 # only its local responsibility and a pointer to that reference.
 set -euo pipefail
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 ROOT="${UIUX_CONTRACT_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd -P)}"
 CONTRACT="$ROOT/skills/product-ui-ux-design/references/delivery-contract.md"

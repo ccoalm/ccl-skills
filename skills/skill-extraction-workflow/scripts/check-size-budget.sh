@@ -81,6 +81,8 @@
 # Invoked by check-ccl-skills.sh (which fails the gate when this script exits
 # non-zero) and exercised directly by test_check_ccl_size_budget.sh.
 set -uo pipefail
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 root="${1:-.}"
 

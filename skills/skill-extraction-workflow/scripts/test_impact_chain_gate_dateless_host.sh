@@ -21,6 +21,8 @@
 # the defect class is host-dependence itself: one mutant, two hosts, two
 # verdicts — exactly the masking this fix removes.
 set -euo pipefail
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 GATE="$SCRIPT_DIR/impact-chain-gate.rb"
@@ -88,7 +90,7 @@ git -C "$REPO" commit -qm "description-only change with #description row"
 
 run_gate() { # <gate-path> <RUBYOPT value or empty>
   set +e
-  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="$2" ruby "$1" "$REPO" 2>&1)"
+  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="${RUBYOPT:+$RUBYOPT }$2" ruby "$1" "$REPO" 2>&1)"
   rc=$?
   set -e
 }

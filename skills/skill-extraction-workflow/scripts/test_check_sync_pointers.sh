@@ -8,6 +8,8 @@
 # portable to GNU sed (Linux CI), and a red suite there would be a harness
 # defect, not evidence.
 set -euo pipefail
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 SYNC_SCRIPT="$SCRIPT_DIR/check-sync-pointers.sh"

@@ -50,6 +50,8 @@
 # violation. Reserving 3 for declared violations keeps every unexpected rc on
 # the infra path, which is fail-closed AND correctly diagnosed.
 set -uo pipefail
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 root="${1:-.}"
 

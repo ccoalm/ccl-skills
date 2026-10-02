@@ -9,6 +9,8 @@
 #
 # Uses a fake `claude` earlier in PATH: never invokes a real CLI or account.
 set -euo pipefail
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 EVAL_SCRIPT="$SCRIPT_DIR/eval-routing-bank.rb"
@@ -86,6 +88,36 @@ out_hi="$(ruby "$EVAL_SCRIPT" "$REPO" --replicas 10 --json "$TMP/hi.json" 2>&1)"
 assert_absent "screening_resolution_only" "$out_hi" "a run at the floor must not be labelled screening-only"
 grep -q '"action_resolution": true' "$TMP/hi.json" \
   || fail "at-floor report must carry action_resolution:true"
+
+# --- (2a) the router model is part of the measurement -----------------------
+# A run on the runner's default model screens; a description edit needs the tier
+# that routes in use. The report says whether --model was given, the default run
+# says so on stdout, and the reference states the rule the flag serves.
+grep -q '"model_source": "default"' "$TMP/hi.json" \
+  || fail "a run without --model must report model_source:default"
+assert_contains "router_model_default" "$out_hi" "a run on the default router model must say so"
+out_ex="$(ruby "$EVAL_SCRIPT" "$REPO" --replicas 1 --model fixture-router --json "$TMP/ex.json" 2>&1)" \
+  || fail "runner exited non-zero with an explicit model:\n$out_ex"
+grep -q '"model_source": "explicit"' "$TMP/ex.json" \
+  || fail "a run with --model must report model_source:explicit"
+assert_absent "router_model_default" "$out_ex" "an explicitly chosen router model must not be flagged as the default"
+grep -q 'model_source: explicit' "$DOC" \
+  || fail "eval-routing.md must state that a skill decision needs an explicitly chosen deploying-tier model"
+
+# --- (2a') the router runs with hooks disabled --------------------------------
+# Installed plugins' hooks would inject routing context the bank never asked for
+# (the bootstrap is measured only through --with-bootstrap) and could rewrite the
+# final answer, so the grader call must carry the hook-disabling settings.
+cat > "$FAKE_BIN/claude" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$ROUTER_ARGS_FILE"
+cat >/dev/null
+printf '{"selected_skill":"testing-strategy","clarify":false,"confidence":0.9,"rationale_short":"fixture"}\n'
+EOF
+chmod +x "$FAKE_BIN/claude"
+ROUTER_ARGS_FILE="$TMP/router-args" ruby "$EVAL_SCRIPT" "$REPO" --replicas 1 --json "$TMP/args.json" >/dev/null 2>&1 || true
+grep -qF '"disableAllHooks":true' "$TMP/router-args" \
+  || fail "the router call must disable hooks so plugin context cannot leak into the measurement"
 
 # --- (2b) a nominal at-floor run with an invalid observation is NOT actionable -
 # The floor is on valid observations. A grader that fails one call leaves the

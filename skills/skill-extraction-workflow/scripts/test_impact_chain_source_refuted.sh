@@ -7,6 +7,8 @@
 #
 # 全部确定性，不调模型。每用例一条分支，互不影响本地未提交改动。
 set -u
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd -P)"
 GATE="$ROOT/skills/skill-extraction-workflow/scripts/impact-chain-gate.rb"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT INT TERM

@@ -2,6 +2,13 @@
 .PHONY: help test test-repo-gates test-regressions-fast test-code-review test-code-review-1 test-code-review-2 test-code-review-abort-leak test-code-review-abort-leak-1 test-code-review-abort-leak-2 test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
 .DEFAULT_GOAL := help
 CCL_SKILL_DEFAULT_BASE_REF ?= origin/dev
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the
+# UTF-8 skill text as US-ASCII and crashes. Targets that call ruby directly pin
+# UTF-8 here (the gate scripts pin themselves).
+# Keep export separate: combining it with target-specific override does not
+# parse on GNU Make 3.81 (the system make on macOS).
+export RUBYOPT
+eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health: override RUBYOPT := $(if $(filter -Ku,$(RUBYOPT)),$(RUBYOPT),-Ku $(RUBYOPT))
 
 help: ## 显示可用目标
 	@grep -E '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-20s %s\n", $$1, $$2}'

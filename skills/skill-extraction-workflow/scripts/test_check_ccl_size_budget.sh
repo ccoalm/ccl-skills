@@ -32,6 +32,8 @@
 # the real repository's actual file sizes/counts. Calls check-size-budget.sh directly
 # (not the full validator) so unrelated blocking gates do not interfere.
 set -euo pipefail
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 SIZE_SCRIPT="$SCRIPT_DIR/check-size-budget.sh"
@@ -708,7 +710,7 @@ HAN_WORD_SKILL="$WORD_REPO/skills/han-skill/SKILL.md"
 ruby -e 's = File.binread(ARGV.fetch(0)).force_encoding(Encoding::UTF_8); exit(s.valid_encoding? ? 0 : 1)' "$HAN_WORD_SKILL" \
   || fail "f3 fixture: generated invalid UTF-8"
 set +e
-out="$(env -u CCL_SKILL_BASE_REF LC_ALL=C bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+out="$(env -u CCL_SKILL_BASE_REF LC_ALL=C RUBYOPT= bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
 rc=$?
 set -e
 assert_rc "$rc" 1 "unspaced Han body above the word-equivalent limit must block under the C locale"
@@ -724,7 +726,7 @@ INVALID_UTF8_WORD_SKILL="$WORD_REPO/skills/invalid-utf8-skill/SKILL.md"
 write_skill_with_body_words "$INVALID_UTF8_WORD_SKILL" 5000
 ruby -e 'File.open(ARGV.fetch(0), "ab") { |f| f.write([0xFF].pack("C")) }' "$INVALID_UTF8_WORD_SKILL"
 set +e
-out="$(env -u CCL_SKILL_BASE_REF LC_ALL=C bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+out="$(env -u CCL_SKILL_BASE_REF LC_ALL=C RUBYOPT= bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
 rc=$?
 set -e
 assert_rc "$rc" 1 "invalid UTF-8 byte must be counted without crashing the size gate"

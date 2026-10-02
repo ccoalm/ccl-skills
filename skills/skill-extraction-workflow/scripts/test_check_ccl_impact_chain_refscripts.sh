@@ -9,6 +9,8 @@
 # per-case branches so unrelated local edits do not affect the assertions while the
 # current checker under test is still used.
 set -euo pipefail
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 CHECK_SCRIPT="${CHECK_SCRIPT_UNDER_TEST:-$SCRIPT_DIR/check-ccl-skills.sh}"
@@ -1020,7 +1022,7 @@ RUBY
 run_gate_dateless() {
   gate_runs=$((gate_runs + 1))
   set +e
-  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="-r$DATELESS_SHIM" ruby "$GATE_SCRIPT" "$REPO" 2>&1)"
+  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="${RUBYOPT:+$RUBYOPT }-r$DATELESS_SHIM" ruby "$GATE_SCRIPT" "$REPO" 2>&1)"
   rc=$?
   set -e
 }
@@ -1044,7 +1046,7 @@ cmp -s "$GATE_SCRIPT" "$GATE_DATELESS_MUTANT" && fail "dateless mutation is a no
 run_gate_dateless_mutant() {
   gate_runs=$((gate_runs + 1))
   set +e
-  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="-r$DATELESS_SHIM" ruby "$GATE_DATELESS_MUTANT" "$REPO" 2>&1)"
+  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="${RUBYOPT:+$RUBYOPT }-r$DATELESS_SHIM" ruby "$GATE_DATELESS_MUTANT" "$REPO" 2>&1)"
   rc=$?
   set -e
 }
