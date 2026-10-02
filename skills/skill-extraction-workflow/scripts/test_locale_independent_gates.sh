@@ -34,7 +34,7 @@ pin_kept() {
   [ "$line" = "$PIN" ] && return 0
   # An attribute builtin on the variable can unexport or rescope it even when
   # the value is the keep idiom.
-  if printf '%s\n' "$line" | grep -qE '(^|[^A-Za-z_])(declare|typeset|local|readonly|export[[:space:]]+-n)[^;|&]*RUBYOPT'; then
+  if printf '%s\n' "$line" | grep -qE '(^|[[:space:];&|({])(declare|typeset|local|readonly|export[[:space:]]+-n)([[:space:]]|$)[^;|&]*RUBYOPT'; then
     return 1
   fi
   rest="$(printf '%s\n' "$line" | sed -E \
@@ -92,6 +92,9 @@ RUBYOPT="${RUBYOPT:+$RUBYOPT }--disable=rubyopt" ruby x.rb
 RUBYOPT="${RUBYOPT:+$RUBYOPT }-r\" -Kn" ruby x.rb
 export -n RUBYOPT="${RUBYOPT:+$RUBYOPT }-rdate"
 declare +x RUBYOPT="${RUBYOPT:+$RUBYOPT }"
+local RUBYOPT="${RUBYOPT:+$RUBYOPT }-rdate"
+readonly RUBYOPT="${RUBYOPT:+$RUBYOPT }-rdate"
+typeset -x RUBYOPT="${RUBYOPT:+$RUBYOPT }-rdate"
 RUBYOPT="${RUBYOPT:+$RUBYOPT_EXTRA }" ruby x.rb
 RUBYOPT="${RUBYOPT:+$RUBYOPT}-Kn" ruby x.rb
 x=$#; unset RUBYOPT
@@ -110,6 +113,9 @@ RUBYOPT= bash "$x"; ruby -e 1
 RUBYOPT="${RUBYOPT:+$RUBYOPT }-r$SHIM -rdate" ruby x.rb
 RUBYOPT="${RUBYOPT:+$RUBYOPT }$2" ruby "$1"
 run_gate() { # <gate-path> <RUBYOPT value or empty>
+locale=C RUBYOPT= bash "$x"
+dir=/usr/local RUBYOPT="${RUBYOPT:+$RUBYOPT }-rdate" ruby x.rb
+declared=1 RUBYOPT= bash "$s"
 ROWS
 
 # (1b) Static coverage over tracked live shell scripts.
