@@ -88,6 +88,26 @@ PERMISSION_REQUEST = re.compile(
     r'|^要不要我[^。]*$', re.IGNORECASE)
 
 
+# A final message that announces the agent's own next steps, or parks one on a
+# decision nobody was asked for, has not finished the work it names.
+ANNOUNCED_STEP = re.compile(
+    r'\b(?:next|now|then),? (?:I|we)(?:\'ll| will| am going to|\'m going to)\b'
+    r'|\bI(?:\'ll| will) (?:now|next|then|start|begin|proceed|continue|move on)\b'
+    r'|^(?:next|now),? let me\b|^let me now\b'
+    r'|\b(?:still )?needs? to (?:settle|decide|agree on|confirm) (?:a |the )?(?:budget|cost|spend|quota|cap|limit)\b'
+    r'|接下来(?:我|先)?(?:会|将|要|去|就|再|先)|下一步(?:我)?(?:会|将|要|去|就|先)|先推进'
+    r'|我(?:会|将|马上|这就|随后|接着)(?:去|来|再|先)?(?:推进|做|处理|执行|修|改|补|跑|运行|实现|开始|继续|提交|推送|验证|测试|检查)'
+    r'|还需要(?:先)?(?:确定|确认|决定|商定)|需要先(?:确定|确认|决定)', re.IGNORECASE)
+# Offers conditioned on the user are pleasantries or scope questions, not steps.
+CONDITIONAL_OFFER = re.compile(r'\bif you\b|\blet me know\b|如果你|如需|如果需要|需要的话|要是你', re.IGNORECASE)
+
+
+def announces_steps(text):
+    lines = [line for line in prose_lines(text) if line and not HANDOFF.fullmatch(line)]
+    return any(ANNOUNCED_STEP.search(line.strip('*_ ')) and not CONDITIONAL_OFFER.search(line)
+               for line in lines[-3:])
+
+
 def waits_on_user(values):
     return any(USER_WAIT.search(value) for value in values
                if not re.fullmatch(r'none\s*[—–-]\s*status only\.?', value, re.IGNORECASE))
@@ -609,7 +629,11 @@ DECISION_RECHECK = {'decision': 'block', 'reason': (
     'Real blockers are: missing credentials or authority; a fact unavailable from local evidence; '
     'an action the safety rules gate (destructive or irreversible without recovery, production or '
     'customer data, merge or publication outside the goal); overturning an established user direction; '
-    'or a material product tradeoff the evidence cannot settle. Design-time security questions, '
+    'or a material product tradeoff the evidence cannot settle. An ordinary change needs no human review, '
+    'sign-off or risk owner: run the self-review and external review yourself. '
+    'Announcing a plan or next steps is not '
+    'a stopping point: run the runnable steps now; a blocker on one step, such as a cost cap or a paid '
+    'run, parks only that step. Design-time security questions, '
     'security self-review, choosing the owner skill, module or approach, test and naming choices, and '
     'the next in-scope step are yours: decide, state the assumption, and finish the remaining requested '
     'work now. A report or summary does not complete delivery. If a real blocker remains, first finish '
@@ -628,7 +652,7 @@ def proposed_next(payload):
     values = handoff_values(final)
     actionable = handoff(final, actionable_only=True)
     if values and not actionable:
-        if waits_on_user(values) or asks_permission(final):
+        if waits_on_user(values) or asks_permission(final) or announces_steps(final):
             return DECISION_RECHECK
         return None
     # A declared next action triggers a recheck, never inferred authorization.
@@ -653,12 +677,13 @@ def proposed_next(payload):
     except TranscriptTruncated:
         summary = context_transcript(path, cwd)
         if not delivery_eligible(summary):
-            if summary['edit_paths'] and asks_permission(final):
+            if summary['edit_paths'] and (asks_permission(final) or announces_steps(final)):
                 return DECISION_RECHECK
             # A complete recent context can establish eligibility, but cannot
             # disprove evidence in the omitted session prefix.
             raise
-    if asks_permission(final) and (delivery_eligible(summary) or summary['edit_paths']):
+    if ((asks_permission(final) or announces_steps(final))
+            and (delivery_eligible(summary) or summary['edit_paths'])):
         return DECISION_RECHECK
     if not delivery_eligible(summary):
         return None

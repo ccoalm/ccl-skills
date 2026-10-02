@@ -237,6 +237,37 @@ class ProposedNextTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assert_decision_recheck(dict(self.payload, last_assistant_message=text))
 
+    def test_announced_next_steps_after_work_recheck_instead_of_stopping(self):
+        plan = ('已完成两项检查。下一步：\n1. 补回归用例\n2. 重跑本地套件\n3. 跑一次付费对照生成\n'
+                '先推进前两步；付费对照还需要确定费用上限。')
+        for events in (self.edit_events(), self.claude_load(), self.codex_read()):
+            self.events(events)
+            for text in (plan, "Patch applied. Next, I'll rerun the suite and update the docs.",
+                         '接下来我会补测试并重跑。', 'Now let me run the remaining checks.',
+                         'The config change is in. I will now update the migration.',
+                         'Step 1 is done; the paid comparison run still needs to settle a budget cap.',
+                         '**接下来我先修复失败用例。**', '第一步完成，我马上跑回归。',
+                         '下一步我先跑回归。\nproposed-next: none — status only'):
+                with self.subTest(text=text):
+                    payload = dict(self.payload, last_assistant_message=text)
+                    self.assert_decision_recheck(payload)
+                    self.assertIn('not a stopping point', self.run_hook(payload)['reason'])
+
+    def test_finished_reports_offers_and_quoted_plans_are_not_announcements(self):
+        self.events(self.edit_events())
+        for text in ('Done; all checks passed.', "If you want, I'll also add a CLI flag.",
+                     '如需，我可以接着补文档。', '修复完成。我已经补了测试并重跑。',
+                     'Earlier I said I would rerun the suite; it now passes.',
+                     "Let me know if you need anything else and I'll start on it.",
+                     '> 接下来我会补测试', "```text\nNext, I'll run the suite\n```",
+                     "Plan was: next, I'll fix A.\nFixed A.\nFixed B.\nAll checks pass."):
+            with self.subTest(text=text):
+                self.assertEqual(self.run_hook(dict(self.payload, last_assistant_message=text)), {})
+        self.events([])
+        for text in ('接下来我会解释这个错误的含义。', "Next, I'll explain the error."):
+            with self.subTest(text=text, transcript='no work evidence'):
+                self.assertEqual(self.run_hook(dict(self.payload, last_assistant_message=text)), {})
+
     def test_pleasantries_and_quoted_questions_after_edits_are_not_permission_asks(self):
         self.events(self.edit_events())
         for text in ('Done. Can I help with anything else?',

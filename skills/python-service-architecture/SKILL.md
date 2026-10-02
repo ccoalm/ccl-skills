@@ -133,7 +133,7 @@ Before changing architecture guidance, contracts, service boundaries, diagrams, 
 - High-risk operations require a resilience contract: fail-closed policy, idempotency strategy, durable status, reconciliation or repair path, trace/request id propagation, user/support explanation surface, and proof that fallback/degradation cannot bypass authorization, tenant/user isolation, quota, audit, or data-retention controls.
 - High-risk context resolution must reject missing tenant, actor, subject, or resource scope instead of falling back to default identities. Durable side effects need atomic audit/outbox evidence or an explicit reconciliation/repair workflow.
 - Python AI/RAG service hosts must separate service wiring from inference design. Model routing, prompt policy, retrieval design, evaluation, and replay belong to `llm-inference-integration`.
-- Generated API clients and generated protobuf code are output surfaces; do not hand-edit them. Generated migrations are drafts that require human review before landing.
+- Generated API clients and generated protobuf code are output surfaces; do not hand-edit them. Generated migrations are drafts: review them before landing, and get human sign-off only before a destructive one runs on shared data.
 
 ## Reference Loading
 
