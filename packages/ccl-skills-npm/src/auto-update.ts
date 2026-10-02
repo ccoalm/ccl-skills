@@ -361,11 +361,9 @@ export async function autoUpdate(action: AutoUpdateAction, deps: AutoUpdateDeps 
 export async function runScheduled(env: NodeJS.ProcessEnv = process.env, execute: Command = runCommand, host: AutoUpdateHost = "codex"): Promise<Result> {
 	const scope = interruptionScope(execute), command = scope.command;
 	let release: (() => void) | undefined, c: Context | undefined;
-	let safeState = false;
 	try {
 		c = context(env, host);
 		let s = readState(c);
-		safeState = !!s;
 		if (!s || !s.enabled) return { code: 0, status: "disabled", message: "Schedule disabled; no update performed" };
 		verifyFiles(c, s);
 		release = lock(c);
@@ -397,7 +395,7 @@ export async function runScheduled(env: NodeJS.ProcessEnv = process.env, execute
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "Scheduled update failed";
 		if (message.includes("already running")) return { code: 0, status: "skipped", message };
-		if (safeState && c) {
+		if (release && c) {
 			try { atomic(c.log, JSON.stringify({ owner: OWNER, status: "failed", finishedAt: new Date().toISOString(), message })); } catch { /* launchd last exit remains the independent failure signal */ }
 		}
 		return { code: 5, status: "auto-update-error", message };

@@ -188,6 +188,21 @@ test("runner skips a concurrent operation without replacing its log", async t =>
 	assert.deepEqual(["SIGINT", "SIGTERM"].map(signal => process.listenerCount(signal)), listeners);
 });
 
+for (const contents of ["", "invalid"]) test(`refused runner preserves the owning run log for ${contents ? "malformed" : "initializing"} lock`, async t => {
+	const f = fixture(t); await autoUpdate("enable", f.deps);
+	const log = JSON.stringify({ owner: "ccl-skills-auto-update-v1", status: "running", startedAt: "2026-01-01T00:00:00Z", finishedAt: "2026-01-01T00:00:00Z", message: "Existing update" });
+	writeFileSync(join(f.root, "last-run.json"), log, { mode: 0o600 });
+	writeFileSync(join(f.root, "run.lock"), contents, { mode: 0o600 });
+	const calls = f.calls();
+	const result = await runScheduled(f.env, f.command);
+	assert.equal(result.code, 5);
+	assert.match(result.message, /Invalid automatic-update lock/);
+	assert.equal(readFileSync(join(f.root, "last-run.json"), "utf8"), log);
+	assert.equal(readFileSync(join(f.root, "run.lock"), "utf8"), contents);
+	assert.deepEqual(f.calls(), calls);
+	assert.equal((await autoUpdate("status", f.deps)).code, 5);
+});
+
 test("disable fences execution even when launchd unload fails", async t => {
 	const listeners = ["SIGINT", "SIGTERM"].map(signal => process.listenerCount(signal));
 	const f = fixture(t); await autoUpdate("enable", f.deps); f.unloadFailure = true;
@@ -311,7 +326,7 @@ test("stale runner lock fails visibly and remains intact for inspected recovery"
 	const result = await runScheduled(f.env, f.command);
 	assert.equal(result.code, 5); assert.match(result.message, /Stale automatic-update lock/);
 	assert.equal(readFileSync(path, "utf8"), String(exited.pid));
-	assert.equal(f.log().status, "failed");
+	assert.equal(existsSync(join(f.root, "last-run.json")), false);
 	const status = await autoUpdate("status", f.deps);
 	assert.equal(status.status, "update-failed"); assert.equal(status.details.staleLock, true);
 	assert.equal(f.calls().filter(c => !c.args.includes("--json")).length, 0);

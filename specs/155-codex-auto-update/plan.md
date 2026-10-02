@@ -268,3 +268,20 @@ Logs and current artifact hashes are in evidence.md and bindings.json. Fresh
 full-package/repo/pack/host checks and renewed independent review remain release
 verification work. No manual visual test is needed for unchanged newline-only
 rendering.
+
+## Scheduled log ownership
+
+The last-run record belongs to the invocation holding run.lock. Validation of
+state alone must not permit a losing or refused invocation to replace that
+record. Test the visible empty-lock publication window and malformed lock data
+with an existing running record: refuse the new invocation, retain the record
+and lock byte-for-byte, and invoke no host command. A dead-PID lock still fails
+visibly through status without creating a run record it does not own.
+
+Design decision: keep the requested updater and narrow diagnostic writes to
+lock ownership. An independent lifecycle risk review agrees. Retain conservative
+failure for incomplete lock data; treating empty locks as healthy or introducing
+link-based publication would weaken ownership checks. No lock is reclaimed.
+The existing CLI cancellation path already passes SIGINT through an atomic
+worker abort flag into the OpenCode adapter's rollback checks; that complete
+call path must accompany renewed review. This adds no scheduler capability.

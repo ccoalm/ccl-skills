@@ -3,7 +3,7 @@
 ## Candidate and commands
 
 The exact artifact hashes are in [bindings.json](bindings.json). The current
-focused output is [lifecycle-focused-tests.txt](lifecycle-focused-tests.txt). Bindings include
+focused summary is [log-ownership-checks.txt](log-ownership-checks.txt). Bindings include
 changed design, source, CLI, test and documentation files plus the generated
 JavaScript actually executed. The runtime was Node 26.7.0 on macOS; the package
 continues to declare Node 20+ and TypeScript/ESM with zero runtime dependencies.
@@ -16,7 +16,8 @@ Commands below ran in `packages/ccl-skills-npm` with synthetic homes and command
 | `npm run build` | Passed; generated JavaScript is included in the current bindings. |
 | `node --test --test-name-pattern='command boundary\|old live-PID' test/auto-update.test.mjs test/opencode-auto-update.test.mjs` against baseline runtime | RED, exit 1: all six assertions failed. [Captured output](lifecycle-red.txt) replaces local paths with placeholders; the raw log is retained outside the repository. |
 | Same six assertions against repaired runtime | GREEN, exit 0: 6/6 passed, no skips. [Captured output](lifecycle-green.txt). |
-| `node --test test/auto-update.test.mjs test/opencode-auto-update.test.mjs` | Exit 0: 69/69 passed, no skips, including ownership/package mutation controls. [Captured output](lifecycle-focused-tests.txt). |
+| `node --test test/auto-update.test.mjs test/opencode-auto-update.test.mjs` | Exit 0: 71/71 passed, no skips, including ownership/package mutation controls. [Summary](log-ownership-checks.txt). The earlier 69-test output remains in lifecycle-focused-tests.txt. |
+| `node --test --test-name-pattern='refused runner preserves' test/auto-update.test.mjs` before log-ownership correction | RED, 2/2 failed: an empty or malformed lock let a refused invocation replace an existing running record with failed. Both pass in the 71-test run. |
 | `git diff --check` | Passed. |
 | Fresh full repository, package, pack, host and independent review checks | Pending release verification on the repaired candidate. Earlier passes below are historical evidence. |
 
@@ -38,12 +39,26 @@ real-signal and live-PID fixtures do.
 Implementation self-review preceded the renewed independent review. The delivery
 owner read the complete runtime/test diff and checked A4/A5/A11, operation-wide
 signal handling, preserved child-failure details, finally cleanup, retained old
-locks and true overlap. The six RED-to-GREEN cases and complete 69-test focused
+locks and true overlap. The six RED-to-GREEN cases and complete 71-test focused
 run support those checks. Changed files are the package README, runtime, two
 test files and this spec's plan, evidence, logs and bindings; unchanged feature
 files retain their earlier file-by-file self-review. Residual limits are overlap
 from a reused PID for up to 15 minutes, no cleanup after SIGKILL, and no Node 20
 runtime execution. Broad regression and publication checks remain pending.
+
+The subsequent log-ownership check confirmed two additional RED cases before
+the correction: state validation permitted writing last-run.json without owning
+run.lock. The implementation now requires successful lock acquisition. A refused
+invocation preserves an existing record and leaves an absent record absent;
+status still reports malformed or stale locks without claiming healthy overlap.
+The delivery owner rechecked every changed branch and updated assertion before
+renewed review. The independent design judgment is keep the updater and narrow
+log writes to their owner; no new lock protocol or automatic recovery is needed.
+
+The existing interruption call path is cli.ts SIGINT handling, the shared atomic
+flag in cli-worker.ts, unified.ts host dispatch and opencode-adapter.ts interruption
+checks and rollback. The existing host-adapters test covers rollback of shared
+writes mid-copy. Forced process termination still reports unknown finality.
 
 ### Historical implementation checks
 

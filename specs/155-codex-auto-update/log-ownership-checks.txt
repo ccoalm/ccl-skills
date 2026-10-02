@@ -1,0 +1,16 @@
+Baseline: 80d2b0a001a8b76d3a5fb4504b43791d39d86519
+Command: node --test --test-name-pattern='refused runner preserves' test/auto-update.test.mjs
+RED: 2 tests, 0 passed, 2 failed, 0 skipped.
+Expected existing last-run status: running
+Actual replacement status: failed
+Cases: initializing lock; malformed lock.
+
+After ownership correction:
+Command: npm run build && node --test test/auto-update.test.mjs test/opencode-auto-update.test.mjs
+Build: passed
+Tests: 71
+Passed: 71
+Failed: 0
+Skipped: 0
+Duration: 69591.405875 ms
+Raw output retained in the release verification record.

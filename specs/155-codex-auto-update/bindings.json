@@ -14,11 +14,11 @@
     },
     {
       "path": "packages/ccl-skills-npm/dist/assets/release.json",
-      "binding": "artifact-sha256:92da84f1ba1db16f867e2b53b45df5e3e52ac92333c9383251318d2ae860c115"
+      "binding": "artifact-sha256:df868f8e1b85e7bee3679f6a9a9439a1b3fc7e816424499de84cdb5637fe3aa7"
     },
     {
       "path": "packages/ccl-skills-npm/dist/auto-update.js",
-      "binding": "artifact-sha256:c07ad06e45ba4a4c5f0bc5567ae6ed20a655b507c66ac0bd3cee890f25dd1693"
+      "binding": "artifact-sha256:a77be76bb68c1281d9ad046add1b2f3713337001754fd6339792c7fb0550122a"
     },
     {
       "path": "packages/ccl-skills-npm/dist/claude-adapter.js",
@@ -94,7 +94,7 @@
     },
     {
       "path": "packages/ccl-skills-npm/src/auto-update.ts",
-      "binding": "artifact-sha256:f230779037f8e83932049dcf2b81496343636b5841fff1d84143f522164adf42"
+      "binding": "artifact-sha256:236ab98f7614749a870dd5d27ab70cad93d95eb9689f2ee707727f9e0d94f95d"
     },
     {
       "path": "packages/ccl-skills-npm/src/cli.ts",
@@ -106,7 +106,7 @@
     },
     {
       "path": "packages/ccl-skills-npm/test/auto-update.test.mjs",
-      "binding": "artifact-sha256:016ab787588092235e1539ca387c72107e08bb564de61a3eb73cc67d733b690d"
+      "binding": "artifact-sha256:660420ab07402c69b7b68e77b0530069973ac30969a3ef78fac4b648d2a0a17d"
     },
     {
       "path": "packages/ccl-skills-npm/test/opencode-auto-update.test.mjs",
@@ -118,7 +118,7 @@
     },
     {
       "path": "specs/155-codex-auto-update/evidence.md",
-      "binding": "artifact-sha256:f823cf271c25760574b55889182d8cfc09d87dfe7660b5db2e5d3765105a98d9"
+      "binding": "artifact-sha256:805e8718d4cea31b4ad534f580dbb1cc595ab74abb1917cabfe73dfdbab39a10"
     },
     {
       "path": "specs/155-codex-auto-update/focused-tests.txt",
@@ -138,22 +138,27 @@
     },
     {
       "path": "specs/155-codex-auto-update/plan.md",
-      "binding": "artifact-sha256:e086071656b2eb0a768077a45843ab1fff07da59cd6632f89cdeaa467d7ed745"
+      "binding": "artifact-sha256:4f067e1a397de1ed8675507036fc3be8f33467f05b3ec92a1ddff04d6f1f57e1"
+    },
+    {
+      "path": "specs/155-codex-auto-update/log-ownership-checks.txt",
+      "binding": "artifact-sha256:1de80cb4e2fd9b3f8778ab7f95b16aaf9c44fada2f373b064968b97636826d5f"
     }
   ],
   "result": {
-    "tests": 69,
-    "passed": 69,
+    "tests": 71,
+    "passed": 71,
     "failed": 0,
     "skipped": 0
   },
   "repair_base": "3872d491bcd761d733b697fa3d2d4e2e62fc5887",
-  "output": "specs/155-codex-auto-update/lifecycle-focused-tests.txt",
+  "output": "specs/155-codex-auto-update/log-ownership-checks.txt",
   "historical_validation": {
     "candidate": "3872d491bcd761d733b697fa3d2d4e2e62fc5887",
     "output": "specs/155-codex-auto-update/focused-tests.txt",
     "tests": 63,
     "passed": 63,
     "note": "Broader checks recorded before the lifecycle repair do not bind the repaired runtime."
-  }
+  },
+  "log_ownership_base": "80d2b0a001a8b76d3a5fb4504b43791d39d86519"
 }
