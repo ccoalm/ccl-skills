@@ -3,7 +3,9 @@
 ## Candidate and commands
 
 The exact artifact hashes are in [bindings.json](bindings.json). The current
-focused summary is [log-ownership-checks.txt](log-ownership-checks.txt). Bindings include
+focused run passed 73/73 tests, including real fetched-CLI rollback and its
+worker-cancellation mutation probe. The preceding ownership summary is
+[log-ownership-checks.txt](log-ownership-checks.txt). Bindings include
 changed design, source, CLI, test and documentation files plus the generated
 JavaScript actually executed. The runtime was Node 26.7.0 on macOS; the package
 continues to declare Node 20+ and TypeScript/ESM with zero runtime dependencies.
@@ -16,7 +18,7 @@ Commands below ran in `packages/ccl-skills-npm` with synthetic homes and command
 | `npm run build` | Passed; generated JavaScript is included in the current bindings. |
 | `node --test --test-name-pattern='command boundary\|old live-PID' test/auto-update.test.mjs test/opencode-auto-update.test.mjs` against baseline runtime | RED, exit 1: all six assertions failed. [Captured output](lifecycle-red.txt) replaces local paths with placeholders; the raw log is retained outside the repository. |
 | Same six assertions against repaired runtime | GREEN, exit 0: 6/6 passed, no skips. [Captured output](lifecycle-green.txt). |
-| `node --test test/auto-update.test.mjs test/opencode-auto-update.test.mjs` | Exit 0: 71/71 passed, no skips, including ownership/package mutation controls. [Summary](log-ownership-checks.txt). The earlier 69-test output remains in lifecycle-focused-tests.txt. |
+| `node --test test/auto-update.test.mjs test/opencode-auto-update.test.mjs` | Exit 0: 73/73 passed, no skips, including ownership/package and worker-cancellation mutation controls. The earlier 71-test summary and 69-test output remain as historical evidence. |
 | `node --test --test-name-pattern='refused runner preserves' test/auto-update.test.mjs` before log-ownership correction | RED, 2/2 failed: an empty or malformed lock let a refused invocation replace an existing running record with failed. Both pass in the 71-test run. |
 | `git diff --check` | Passed. |
 | Fresh full repository, package, pack, host and independent review checks | Pending release verification on the repaired candidate. Earlier passes below are historical evidence. |
@@ -59,6 +61,18 @@ The existing interruption call path is cli.ts SIGINT handling, the shared atomic
 flag in cli-worker.ts, unified.ts host dispatch and opencode-adapter.ts interruption
 checks and rollback. The existing host-adapters test covers rollback of shared
 writes mid-copy. Forced process termination still reports unknown finality.
+
+The fetched-CLI integration now pauses immediately after the sample shared file
+is renamed into place, observes the new bytes, and sends real SIGTERM to the
+scheduled runner. Its unchanged command runner sends process-group SIGINT to
+the fetched CLI; the real supervisor and worker complete the adapter rollback
+with child exit 130. Assertions require scheduled exit 5, a failed run record,
+the previous manifest and every previous managed file byte, and no run lock or
+refresh/rollback/staging residue. A test-only Node preload coordinates the write
+boundary without replacing cancellation handling or the adapter transaction.
+The isolated mutation probe removes worker cancellation propagation; the same
+test then fails at the unchanged-manifest assertion. Both targeted tests pass,
+and the full focused suite passes 73/73. This final addition changes tests only.
 
 ### Historical implementation checks
 

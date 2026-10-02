@@ -110,7 +110,7 @@
     },
     {
       "path": "packages/ccl-skills-npm/test/opencode-auto-update.test.mjs",
-      "binding": "artifact-sha256:9ee8f32ed301a8067382466bce9aeea173781b7985ccdd9e0f20bcee75e50378"
+      "binding": "artifact-sha256:426d26c3915f19d6b4ac83e0858259dcce711b25e4fe51f8b27aab4fd917c654"
     },
     {
       "path": "packages/ccl-skills-npm/tsconfig.json",
@@ -118,7 +118,7 @@
     },
     {
       "path": "specs/155-codex-auto-update/evidence.md",
-      "binding": "artifact-sha256:805e8718d4cea31b4ad534f580dbb1cc595ab74abb1917cabfe73dfdbab39a10"
+      "binding": "artifact-sha256:dfd64203ce7654fa334d09eb20d9027617082075689d72fc2b93b7c1f8013d43"
     },
     {
       "path": "specs/155-codex-auto-update/focused-tests.txt",
@@ -146,13 +146,13 @@
     }
   ],
   "result": {
-    "tests": 71,
-    "passed": 71,
+    "tests": 73,
+    "passed": 73,
     "failed": 0,
     "skipped": 0
   },
   "repair_base": "3872d491bcd761d733b697fa3d2d4e2e62fc5887",
-  "output": "specs/155-codex-auto-update/log-ownership-checks.txt",
+  "output": "specs/155-codex-auto-update/evidence.md",
   "historical_validation": {
     "candidate": "3872d491bcd761d733b697fa3d2d4e2e62fc5887",
     "output": "specs/155-codex-auto-update/focused-tests.txt",

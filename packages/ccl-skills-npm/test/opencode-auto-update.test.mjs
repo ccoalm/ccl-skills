@@ -247,3 +247,60 @@ console.log(JSON.stringify({result,calls,before,after:['SIGINT','SIGTERM'].map(s
 	assert.equal(readFileSync(join(f.base, sample), "utf8"), before);
 	assert.deepEqual(f.manifest(), manifest);
 });
+
+test("OpenCode real fetched CLI rolls back a write after scheduled SIGTERM", async t => {
+	const f = fixture(t), manifest = f.manifest();
+	const before = manifest.entries.map(entry => [entry.destination, readFileSync(join(f.base, entry.destination))]);
+	const marker = join(f.temp, "copied"), ack = join(f.temp, "signal-ack"), preload = join(f.temp, "pause-copy.mjs");
+	// Pause only after the actual shared rename; the CLI and worker stay unmodified.
+	writeFileSync(preload, `import fs from 'node:fs';import {syncBuiltinESMExports} from 'node:module';import {isMainThread} from 'node:worker_threads';
+if(isMainThread)process.on('SIGINT',()=>setImmediate(()=>fs.writeFileSync(${JSON.stringify(ack)},'received')));
+else {const rename=fs.renameSync;let paused=false;fs.renameSync=(from,to)=>{rename(from,to);
+ if(!paused && to===${JSON.stringify(join(f.base, sample))}){paused=true;fs.writeFileSync(${JSON.stringify(marker)},fs.readFileSync(to));
+ const end=Date.now()+5000;while(!fs.existsSync(${JSON.stringify(ack)})){if(Date.now()>end)throw Error('signal acknowledgement timed out');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,10);}
+ }};syncBuiltinESMExports();}`);
+	writeFileSync(join(f.bin, "npm"), `#!${process.execPath}\nconst fs=require('node:fs'),path=require('node:path');const a=process.argv.slice(2);fs.cpSync(${JSON.stringify(f.fetched)},path.join(a[a.indexOf('--prefix')+1],'node_modules/@ccoalm/ccl-skills'),{recursive:true});\n`);
+	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
+	const moduleUrl = pathToFileURL(resolve("dist/auto-update.js")).href;
+	const script = `import {existsSync} from 'node:fs';import {runScheduled,runCommand} from ${JSON.stringify(moduleUrl)};
+let update;const result=await runScheduled(process.env,async(file,args,env,timeout,options)=>{
+ if(args[1]!=='update')return runCommand(file,args,env,timeout,options);
+ const timer=setInterval(()=>{if(existsSync(${JSON.stringify(marker)})){clearInterval(timer);process.kill(process.pid,'SIGTERM');}},10);
+ try{return update=await runCommand(file,['--import',${JSON.stringify(pathToFileURL(preload).href)},...args],env,timeout,options);}finally{clearInterval(timer);}
+},'opencode');console.log(JSON.stringify({result,update}));process.exitCode=result.code;`;
+	const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], { env: f.env, encoding: "utf8", timeout: 20000 });
+	assert.equal(child.signal, null, child.stderr);
+	assert.equal(child.status, 5, child.stdout + child.stderr);
+	const output = JSON.parse(child.stdout);
+	assert.equal(readFileSync(marker, "utf8"), f.freshText);
+	assert.equal(output.update.code, 130);
+	assert.equal(output.update.failure, "interrupted");
+	assert.equal(f.log().status, "failed");
+	assert.deepEqual(f.manifest(), manifest, "interrupted update must preserve its previous manifest");
+	for (const [destination, bytes] of before) assert.deepEqual(readFileSync(join(f.base, destination)), bytes, `rollback must restore ${destination}`);
+	assert.equal(existsSync(join(f.root, "run.lock")), false);
+	assert.deepEqual(readdirSync(f.root).filter(name => name.startsWith("refresh-")), []);
+	assert.deepEqual(readdirSync(join(f.base, "ccl-skills-npm")).filter(name => name.startsWith(".rollback-") || name === ".shared-staging"), []);
+});
+
+test("scheduled rollback assertion detects missing worker cancellation propagation", t => {
+	const scratch = mkdtempSync(join(tmpdir(), "ccl-open-abort-mutant-"));
+	t.after(() => rmSync(scratch, { recursive: true, force: true }));
+	cpSync(resolve("dist"), join(scratch, "dist"), { recursive: true });
+	cpSync(resolve("package.json"), join(scratch, "package.json"));
+	mkdirSync(join(scratch, "test"));
+	cpSync(resolve("test/opencode-auto-update.test.mjs"), join(scratch, "test/opencode-auto-update.test.mjs"));
+	const env = { HOME: scratch, PATH: process.env.PATH };
+	const args = ["--test", "--test-reporter=tap", "--test-name-pattern=^OpenCode real fetched CLI rolls back a write after scheduled SIGTERM$", "test/opencode-auto-update.test.mjs"];
+	const control = spawnSync(process.execPath, args, { cwd: scratch, env, encoding: "utf8", timeout: 30000 });
+	assert.equal(control.status, 0, control.stdout + control.stderr);
+	assert.match(control.stdout, /# tests 1\b/);
+	const file = join(scratch, "dist/cli-worker.js"), source = readFileSync(file, "utf8"), guard = "Atomics.load(abort, 0) === 1";
+	assert.equal(source.split(guard).length, 2);
+	writeFileSync(file, source.replace(guard, "false"));
+	assert.equal(spawnSync(process.execPath, ["--check", file]).status, 0);
+	const mutant = spawnSync(process.execPath, args, { cwd: scratch, env, encoding: "utf8", timeout: 30000 });
+	assert.equal(mutant.status, 1, mutant.stdout + mutant.stderr);
+	assert.match(mutant.stdout, /# fail 1\b/);
+	assert.match(mutant.stdout, /interrupted update must preserve its previous manifest/);
+});
