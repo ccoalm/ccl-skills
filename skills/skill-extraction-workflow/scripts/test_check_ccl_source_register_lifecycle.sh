@@ -18,7 +18,13 @@ TMP="$(mktemp -d "${TMPDIR:-/tmp}/source-register-lifecycle.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
-assert_rc() { [ "$1" = "$2" ] || fail "expected rc=$2 got rc=$1${3:+ ($3)}"; }
+# On a mismatch, show the tail of the run that produced it: an rc alone gave CI
+# no way to name which gate inside the full check went red.
+assert_rc() {
+  [ "$1" = "$2" ] && return 0
+  printf '%s\n' "${out:-}" | tail -n 40 >&2
+  fail "expected rc=$2 got rc=$1${3:+ ($3)}"
+}
 assert_contains() { case "$2" in *"$1"*) : ;; *) fail "expected output to contain: $1${3:+ ($3)}";; esac; }
 assert_not_contains() { case "$2" in *"$1"*) fail "expected output NOT to contain: $1${3:+ ($3)}";; *) : ;; esac; }
 
