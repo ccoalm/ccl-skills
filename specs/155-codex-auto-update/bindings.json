@@ -106,11 +106,11 @@
     },
     {
       "path": "packages/ccl-skills-npm/test/auto-update.test.mjs",
-      "binding": "artifact-sha256:660420ab07402c69b7b68e77b0530069973ac30969a3ef78fac4b648d2a0a17d"
+      "binding": "artifact-sha256:0d2b3dc4bfc5e724358f73c9cc7584b6ba0bd78f6d283cce56e7069e9b8a9a20"
     },
     {
       "path": "packages/ccl-skills-npm/test/opencode-auto-update.test.mjs",
-      "binding": "artifact-sha256:86b3fbfc517b733df963d68605d8ff47b4bd804a0cf35f46b0bb3c2f53308bfd"
+      "binding": "artifact-sha256:efe4ebe74e543a359d040fa9908b92751b2b7c0c1076e470fb80bd8ceba57a32"
     },
     {
       "path": "packages/ccl-skills-npm/tsconfig.json",

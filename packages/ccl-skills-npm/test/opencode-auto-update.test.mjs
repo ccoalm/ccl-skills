@@ -121,6 +121,7 @@ for (const failure of ["fetch", "wrong-package", "symlink-package", "writable-pa
 	assert.equal(readFileSync(join(f.base, sample), "utf8"), failure === "drift" ? "local edit" : before);
 	assert.equal(f.calls.some(call => call.args[1] === "update"), false);
 	assert.equal(f.log().status, "failed");
+	assert.deepEqual(readdirSync(f.root).filter(name => name.startsWith("refresh-")), []);
 });
 
 test("OpenCode retains a newer installed version", async t => {

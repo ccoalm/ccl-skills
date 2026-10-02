@@ -388,17 +388,17 @@ test("disable ownership assertions reject guard-removal mutants", { skip: !!proc
 	];
 	for (const [name, anchor, replacement] of mutations) {
 		assert.equal(original.split(anchor).length - 1, 1, `mutation anchor: ${name}`);
-		const run = () => spawnSync(process.execPath,["--test",`--test-name-pattern=^${name}$`,"test/auto-update.test.mjs"], {cwd:scratch,encoding:"utf8",env:childEnv,timeout:10000});
+		const run = () => spawnSync(process.execPath,["--test","--test-reporter=tap",`--test-name-pattern=^${name}$`,"test/auto-update.test.mjs"], {cwd:scratch,encoding:"utf8",env:childEnv,timeout:10000});
 		writeFileSync(path,original);
 		const control = run();
 		assert.equal(control.status,0,`control: ${name}`);
-		assert.match(control.stdout,/pass 1|pass: 1/);
+		assert.match(control.stdout,/^# pass 1$/m);
 		writeFileSync(path,original.replace(anchor,replacement));
 		assert.equal(spawnSync(process.execPath,["--check",path]).status,0,`syntax: ${name}`);
 		const mutant = run();
 		assert.equal(mutant.status,1,`mutant must fail: ${name}`);
 		assert.match(mutant.stdout,/AssertionError|ERR_ASSERTION/);
-		assert.match(mutant.stdout,/fail 1|fail: 1/);
+		assert.match(mutant.stdout,/^# fail 1$/m);
 	}
 });
 
