@@ -126,7 +126,7 @@
     },
     {
       "path": "specs/155-codex-auto-update/plan.md",
-      "binding": "artifact-sha256:1416c509668057b8d65fb6fd483ab601f739a1b35d9e304cd529bf7decc46cab"
+      "binding": "artifact-sha256:40bdc853ca5381c7c378529cae2a35c7d57127627562692c7423db74fc096655"
     }
   ],
   "result": {
