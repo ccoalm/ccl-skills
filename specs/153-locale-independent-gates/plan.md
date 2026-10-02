@@ -39,10 +39,13 @@ installed and also changes collation and other tools' character handling.
   the exported value instead of replacing it.
 - `test_locale_independent_gates.sh` (fast lane) holds the class:
   1. every live ruby-invoking shell script carries the pin; every other
-     `RUBYOPT` mention is one of two allowed shapes — the keep idiom
-     `RUBYOPT="${RUBYOPT:+$RUBYOPT }…"` or an empty `RUBYOPT=` before
+     literal `RUBYOPT` mention is one of two allowed shapes — the keep idiom
+     `RUBYOPT="${RUBYOPT:+$RUBYOPT }…"` with no encoding option (`-K`, `-E`,
+     `--encoding`, `--disable`) after it, or an empty `RUBYOPT=` before
      `bash "$script"`, whose script pins itself — and anything else (replacing,
-     clearing, `unset`, `env -u`) fails; the leg also fails rather than passing
+     clearing, `unset`, `env -u`) fails. The classifier is held by permanent
+     rows in the suite: every bypass spelling review found must be flagged and
+     every near-miss must stay allowed; the leg also fails rather than passing
      when `git ls-files` cannot list the tracked scripts. Three review rounds each
      found new shell spellings past a list of forbidden forms, so the check is an
      allowlist over the idiom this repository owns, not a denylist over shell
@@ -86,6 +89,13 @@ installed and also changes collation and other tools' character handling.
   `JSON.parse`, which handled UTF-8 under the C locale in a direct probe; an
   end-to-end run on UTF-8 trace input was not made.
 - Leg 1 also misses `ruby.exe`; Windows hosts are not a target of these gates.
+- Leg 1 is a scan of literal text. Spellings that drop the pin without the
+  literal token (`unset RUBY''OPT`, `eval` of a built string, an indirect
+  variable name) and `ruby --disable=rubyopt`, which ignores `RUBYOPT`
+  entirely, pass it; no live script uses them.
+- The allowed `RUBYOPT= bash "$script"` shape trusts that the script pins
+  itself; a variable that expands to `-c`, or a generated script without the
+  pin, would run Ruby unpinned.
 - A caller `RUBYOPT` that sets a different external encoding (`-E ASCII`,
   `-EASCII-8BIT`) now conflicts with `-Ku` and Ruby refuses to start
   (`default_external already set`); `-EUTF-8` and `-U` still work, and a later

@@ -5,8 +5,9 @@
 # "invalid byte sequence in US-ASCII" before checking anything, while CI (which
 # runs C.UTF-8) stayed green. Each ruby-invoking script pins `RUBYOPT=-Ku`.
 #   (1) every tracked live shell script (skills/, hooks/, scripts/) that invokes
-#       ruby carries the pin, and no per-command RUBYOPT= assignment drops it;
-#       frozen evidence under specs/ and eval/ is exempt;
+#       ruby carries the pin, and no other literal RUBYOPT mention drops it; the
+#       classifier is held by pinned bypass and near-miss rows; frozen evidence
+#       under specs/ and eval/ is exempt;
 #   (2) validate-skill.sh passes on a UTF-8 fixture under LC_ALL=C;
 #   (3) the same run with the pin deleted goes red for the encoding reason, which
 #       shows the pin is what makes leg (2) pass; on a host whose C locale already
@@ -20,7 +21,73 @@ ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd -P)"
 PIN='case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac'
 fail() { printf 'FAIL: %b\n' "$*" >&2; exit 1; }
 
-# (1) Static coverage over tracked live shell scripts.
+# Closed contract over the idiom this repo owns: a RUBYOPT mention keeps the pin
+# only as the pin line itself, the keep idiom RUBYOPT="${RUBYOPT:+$RUBYOPT }..."
+# with no encoding option after it, or an empty RUBYOPT= before
+# `bash "$script"` (that script pins itself). Any other literal mention -
+# replacing, clearing, unset, env -u - drops the pin. Returns 0 when allowed.
+pin_kept() {
+  local line="$1" rest
+  [ "$line" = "$PIN" ] && return 0
+  if printf '%s\n' "$line" | grep -qE 'RUBYOPT="[$][{]RUBYOPT:[+][$]RUBYOPT [}][^"]*(-K|-E|--encoding|--external-encoding|--disable)'; then
+    return 1
+  fi
+  rest="$(printf '%s\n' "$line" | sed -E \
+    -e "s/^([^\"']*)[[:space:]]#.*\$/\\1/" \
+    -e 's/RUBYOPT="[$][{]RUBYOPT:[+][$]RUBYOPT [}]//g' \
+    -e 's/(^|[[:space:]])RUBYOPT=[[:space:]]+bash[[:space:]]+"[$][A-Za-z_{][^"]*"/\1/g')"
+  case "$rest" in *RUBYOPT*) return 1 ;; esac
+  return 0
+}
+
+# (1a) The classifier itself: every bypass row must be flagged and every
+# near-miss row must stay allowed, so a broken classifier cannot pass on a
+# corpus that happens to hold only allowed shapes.
+while IFS= read -r row; do
+  [ -n "$row" ] || continue
+  if pin_kept "$row"; then fail "classifier allowed a pin-dropping line: $row"; fi
+done <<'ROWS'
+RUBYOPT="-r$SHIM" ruby x.rb
+RUBYOPT= ruby -e "p 1"
+unset RUBYOPT
+env -u RUBYOPT ruby -e 1
+RUBYOPT="$RUBYOPT_EXTRA -rfoo" ruby -e 1
+export RUBYOPT=
+RUBYOPT=
+RUBYOPT= LC_ALL=C ruby -e 1
+LC_ALL=C RUBYOPT= LANG=C ruby -e 1
+RUBYOPT= exec ruby -e 1
+RUBYOPT= "${RUBY:-ruby}" -e 1
+RUBYOPT= bash -c "ruby -e 1"
+unset -v RUBYOPT
+unset LANG RUBYOPT
+env --unset=RUBYOPT ruby -e 1
+env -uRUBYOPT ruby -e 1
+RUBYOPT=-W0 ruby -e 1 "$RUBYOPT"
+RUBYOPT="${RUBYOPT#-Ku}" ruby -e 1
+RUBYOPT="" bash x.sh
+export RUBYOPT=-W0
+echo "a #b"; RUBYOPT=-Kn ruby -e 1
+printf ' #' ; unset RUBYOPT
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac; unset RUBYOPT
+RUBYOPT="${RUBYOPT:+$RUBYOPT }-Kn" ruby x.rb
+RUBYOPT="${RUBYOPT:+$RUBYOPT }-E ASCII" ruby x.rb
+RUBYOPT="${RUBYOPT:+$RUBYOPT }--disable=rubyopt" ruby x.rb
+local RUBYOPT
+declare -x RUBYOPT=
+ROWS
+while IFS= read -r row; do
+  [ -n "$row" ] || continue
+  pin_kept "$row" || fail "classifier flagged an allowed line: $row"
+done <<'ROWS'
+out="$(RUBYOPT="${RUBYOPT:+$RUBYOPT }-rdate" ruby x.rb)"
+env -u X LC_ALL=C RUBYOPT= bash "$SIZE_SCRIPT" "$REPO"
+f() { # takes a RUBYOPT value
+echo rubygems
+RUBYOPT= bash "$x"; ruby -e 1
+ROWS
+
+# (1b) Static coverage over tracked live shell scripts.
 tracked="$(git -C "$ROOT" ls-files -- 'skills/*.sh' 'hooks/*.sh' 'scripts/*.sh')" \
   || fail "cannot list tracked scripts (not a git checkout?); leg 1 needs git ls-files"
 [ -n "$tracked" ] || fail "git ls-files listed no tracked scripts under $ROOT; leg 1 would pass vacuously"
@@ -31,22 +98,14 @@ while IFS= read -r rel; do
   # leaves `rubygems` / `ruby-build` alone. Over-matching only over-requires the pin.
   grep -qE '(^|[^a-z_])ruby([^a-z0-9_.-]|$)' "$ROOT/$rel" || continue
   grep -qxF "$PIN" "$ROOT/$rel" || missing="$missing\n  $rel"
-  # Closed contract over the idiom this repo owns: every RUBYOPT mention must be
-  # the pin, the keep idiom RUBYOPT="${RUBYOPT:+$RUBYOPT }...", or an empty
-  # RUBYOPT= before `bash "$script"` (the script pins itself). Anything else -
-  # replacing, clearing, unset, env -u - is flagged. This file names RUBYOPT in
-  # its own patterns, so only its pin is checked.
+  # This file names RUBYOPT in its own patterns and rows, so only its pin is checked.
   [ "$rel" = "skills/skill-extraction-workflow/scripts/test_locale_independent_gates.sh" ] && continue
   while IFS= read -r hit; do
-    rest="$(printf '%s\n' "${hit#*:}" | sed -E \
-      -e 's/[[:space:]]#.*$//' \
-      -e 's/RUBYOPT="[$][{]RUBYOPT:[+][$]RUBYOPT [}]//g' \
-      -e 's/(^|[[:space:]])RUBYOPT=[[:space:]]+bash[[:space:]]+"[$][A-Za-z_{][^"]*"/\1/g')"
-    case "$rest" in *RUBYOPT*) dropped="$dropped\n  $rel: $hit" ;; esac
-  done < <(grep -nE 'RUBYOPT' "$ROOT/$rel" | grep -vF "$PIN" | grep -vE '^[0-9]+:[[:space:]]*#' || true)
+    pin_kept "${hit#*:}" || dropped="$dropped\n  $rel: $hit"
+  done < <(grep -nE 'RUBYOPT' "$ROOT/$rel" | grep -vE '^[0-9]+:[[:space:]]*#' || true)
 done <<<"$tracked"
 [ -z "$missing" ] || fail "ruby-invoking scripts without the RUBYOPT UTF-8 pin:$missing"
-[ -z "$dropped" ] || fail "RUBYOPT assignments that drop the UTF-8 pin (keep \$RUBYOPT):$dropped"
+[ -z "$dropped" ] || fail "RUBYOPT mentions that drop the UTF-8 pin (use the keep idiom):$dropped"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/locale-gates.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
