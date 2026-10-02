@@ -10,15 +10,15 @@
     },
     {
       "path": "packages/ccl-skills-npm/README.md",
-      "binding": "artifact-sha256:eb228faad8bd117207a82de23593a274a9efc049a28e795eb49ace2ae7d15fc9"
+      "binding": "artifact-sha256:d613aaad22162f9257024e75ddbf815af0db02092e69050508a0a7c545c9ca12"
     },
     {
       "path": "packages/ccl-skills-npm/dist/assets/release.json",
-      "binding": "artifact-sha256:6b5f6c77aed425ee154b4105d308b1a67dd939a4f64e69a81a75d0e01d2ccf35"
+      "binding": "artifact-sha256:92da84f1ba1db16f867e2b53b45df5e3e52ac92333c9383251318d2ae860c115"
     },
     {
       "path": "packages/ccl-skills-npm/dist/auto-update.js",
-      "binding": "artifact-sha256:a33be389c048bc482084316267083dc611552fefc5112be6f5a83a8779e026aa"
+      "binding": "artifact-sha256:c07ad06e45ba4a4c5f0bc5567ae6ed20a655b507c66ac0bd3cee890f25dd1693"
     },
     {
       "path": "packages/ccl-skills-npm/dist/claude-adapter.js",
@@ -94,7 +94,7 @@
     },
     {
       "path": "packages/ccl-skills-npm/src/auto-update.ts",
-      "binding": "artifact-sha256:724e851b5f2757a362dc19ff147287971a891a4e85f1f07bb663fadd6be1d8b7"
+      "binding": "artifact-sha256:f230779037f8e83932049dcf2b81496343636b5841fff1d84143f522164adf42"
     },
     {
       "path": "packages/ccl-skills-npm/src/cli.ts",
@@ -106,11 +106,11 @@
     },
     {
       "path": "packages/ccl-skills-npm/test/auto-update.test.mjs",
-      "binding": "artifact-sha256:3652b443828473aeb3b16a915fe40e43f41c1f56b9122e61cfaa97dfcf877190"
+      "binding": "artifact-sha256:016ab787588092235e1539ca387c72107e08bb564de61a3eb73cc67d733b690d"
     },
     {
       "path": "packages/ccl-skills-npm/test/opencode-auto-update.test.mjs",
-      "binding": "artifact-sha256:4811ed2a1dca87efab4823547a28461b29c3a973bc73c92b444b3972e4eb628b"
+      "binding": "artifact-sha256:9ee8f32ed301a8067382466bce9aeea173781b7985ccdd9e0f20bcee75e50378"
     },
     {
       "path": "packages/ccl-skills-npm/tsconfig.json",
@@ -118,21 +118,42 @@
     },
     {
       "path": "specs/155-codex-auto-update/evidence.md",
-      "binding": "artifact-sha256:ce0af429d2f4235fe4a5f891a632988aaefe755e7a3092bd10c6e5e3a2f94dd7"
+      "binding": "artifact-sha256:f823cf271c25760574b55889182d8cfc09d87dfe7660b5db2e5d3765105a98d9"
     },
     {
       "path": "specs/155-codex-auto-update/focused-tests.txt",
       "binding": "artifact-sha256:3ad57f075cb0940da85a9890eff272c01e58d9183bb6daa55a71e66024d021f9"
     },
     {
+      "path": "specs/155-codex-auto-update/lifecycle-focused-tests.txt",
+      "binding": "artifact-sha256:1ebea9f9846a108630910555b11de9036a57ae96fd8b11595500d7de4537923e"
+    },
+    {
+      "path": "specs/155-codex-auto-update/lifecycle-green.txt",
+      "binding": "artifact-sha256:1d7a0628cc8d4894d8064975d59b33158e46e7f6f613dbce785de206991a17e8"
+    },
+    {
+      "path": "specs/155-codex-auto-update/lifecycle-red.txt",
+      "binding": "artifact-sha256:5a6b01b89a6ec4b3076bea8b002ef49706b7ee2c6bf9b5a0ae08a93dea24072e"
+    },
+    {
       "path": "specs/155-codex-auto-update/plan.md",
-      "binding": "artifact-sha256:40bdc853ca5381c7c378529cae2a35c7d57127627562692c7423db74fc096655"
+      "binding": "artifact-sha256:e086071656b2eb0a768077a45843ab1fff07da59cd6632f89cdeaa467d7ed745"
     }
   ],
   "result": {
-    "tests": 63,
-    "passed": 63,
+    "tests": 69,
+    "passed": 69,
     "failed": 0,
     "skipped": 0
+  },
+  "repair_base": "3872d491bcd761d733b697fa3d2d4e2e62fc5887",
+  "output": "specs/155-codex-auto-update/lifecycle-focused-tests.txt",
+  "historical_validation": {
+    "candidate": "3872d491bcd761d733b697fa3d2d4e2e62fc5887",
+    "output": "specs/155-codex-auto-update/focused-tests.txt",
+    "tests": 63,
+    "passed": 63,
+    "note": "Broader checks recorded before the lifecycle repair do not bind the repaired runtime."
   }
 }

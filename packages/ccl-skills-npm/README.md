@@ -135,7 +135,7 @@ Commands receive fixed HOME/PATH plus CODEX_HOME and `GIT_TERMINAL_PROMPT=0` for
 
 `status` checks live registration and the latest bounded `last-run.json` record, which excludes raw command output. Failed or interrupted runs, registration errors and ownership errors return exit `5`. Restore the reported dependency and retry `enable` or `disable`. Overlapping runs are skipped. `disable` removes only that host's owned schedule and retains its runner, state and log. Disable first if removing the CLI should also stop updates.
 
-An unclean shutdown can leave a stale `run.lock` or `manage.lock`. Updates stop and report it. Read its PID and confirm that process has exited before removing only that lock file and retrying. Never remove a running process's lock.
+SIGINT and SIGTERM release owned locks, including between commands. A crash or forced kill can leave a `run.lock` or `manage.lock`. A lock at least 15 minutes old, or dated at least 15 minutes into the future, reports failure even if its PID is alive. The scheduler never removes these locks automatically. Inspect the recorded PID and launchd job; remove only that lock after confirming no updater owns it. Never remove a running updater's lock.
 
 ## Update notice
 

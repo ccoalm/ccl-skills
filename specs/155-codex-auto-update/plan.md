@@ -224,3 +224,47 @@ Verifier discovery: root contract, Makefile and CI name check-spec-references.py
 as the applicable spec-reference verifier; it passed before this gate edit. No
 runtime plan-status format is introduced. This is a simple deterministic
 non-incident regression; no customer data, credentials or permissions change.
+
+## Runner lifecycle repair
+
+Re-entry baseline: local, unlanded candidate
+`3872d491bcd761d733b697fa3d2d4e2e62fc5887`, clean isolated feature worktree.
+The accepted A4/A5/A11 lifecycle and truthful-status requirements remain active.
+Prior full-suite and host evidence remains bound to that candidate. This repair
+does not change installer behavior, scheduling scope or release authorization.
+
+Hypotheses to verify before runtime edits: a signal after a child finishes can
+escape cleanup; an old lock whose PID is now alive can be reported as healthy
+overlap indefinitely. Controlled subprocess boundaries and filesystem timestamps
+provide deterministic falsifiers. No real launchctl or host installation is used.
+
+| Case | Layer and expected evidence | RED → GREEN |
+| --- | --- | --- |
+| R1 Codex signal between commands | subprocess receives real SIGINT/SIGTERM; failed log, released lock, no later mutation | Both terminated by signal with lock/running log → both exit 5, clean lock, failed log |
+| R2 OpenCode signal after fetch | subprocess receives real SIGTERM without an active child; failed log and private-prefix/lock cleanup | Terminated with lock/running log/refresh directory → exit 5, cleanup, no next command |
+| R3 old lock with unrelated live PID | filesystem/runner/status integration; nonzero failure, retained lock and no host mutation | Both lock types reported healthy → both return exit 5 and preserve lock |
+| R4 adjacent lifecycle controls | repeated signals, listener cleanup, management lock and existing true overlap/graceful-child cases | Management signal retained lock → clean exit 5; full focused suite 69/69, no skips |
+
+Implementation owner: nodejs-service-dev (async lifecycle reference); diagnosis:
+defect-diagnosis; layers and RED/GREEN: testing-strategy. Terminal and product
+UI owners preserve the existing plain/JSON envelope and recovery surface while
+requiring a visible uncertain-lock failure instead of a healthy running claim.
+The original Design brief, adaptation matrix and client entry apply. Documentation
+finalization uses tighten-doc. Product-rd re-entry and session policy were applied.
+This is one continuing delegated slice; no child delegation or new owner boundary.
+
+Implemented correction: cancellation listeners cover the complete runner and
+management operation, with checks around child commands. A single event-loop
+yield lets queued signals run before accepting a command result. Child failure
+details and OpenCode rollback grace remain intact; listeners are removed in
+finally. Locks whose timestamps differ from the current time by at least 15
+minutes fail closed, even with a live PID. The lock stays available for inspection.
+Younger live-PID locks still count as overlap; this is a bounded age policy, not
+process identity verification. No automatic lock reclamation was added.
+
+Build passed, the six reproducers changed from 0/6 to 6/6 passing, and both complete
+auto-update suites passed 69/69 without skips, including the mutation controls.
+Logs and current artifact hashes are in evidence.md and bindings.json. Fresh
+full-package/repo/pack/host checks and renewed independent review remain release
+verification work. No manual visual test is needed for unchanged newline-only
+rendering.

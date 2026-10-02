@@ -14,7 +14,7 @@ test("auto-update parser accepts explicit actions and JSON without changing upda
 
 import { autoUpdate, runScheduled, runCommand } from "../dist/auto-update.js";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, rmSync, symlinkSync, linkSync, realpathSync, cpSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, rmSync, symlinkSync, linkSync, realpathSync, cpSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -165,22 +165,31 @@ for (const [name, options, expected] of [["upgrade failure",{upgradeExit:8},1], 
 	});
 
 test("runner rechecks provenance and does not update after source changes", async t => {
+	const listeners = ["SIGINT", "SIGTERM"].map(signal => process.listenerCount(signal));
 	const f = fixture(t); await autoUpdate("enable", f.deps);
 	writeFileSync(f.control, JSON.stringify({ sourceType:"local" }));
 	assert.equal((await runScheduled(f.env, f.command)).code, 5);
 	assert.equal(f.calls().filter(c => !c.args.includes("--json")).length, 0);
 	assert.equal(f.log().status, "failed");
+	assert.deepEqual(["SIGINT", "SIGTERM"].map(signal => process.listenerCount(signal)), listeners);
 });
 
 test("runner skips a concurrent operation without replacing its log", async t => {
+	const listeners = ["SIGINT", "SIGTERM"].map(signal => process.listenerCount(signal));
 	const f = fixture(t); await autoUpdate("enable", f.deps);
 	writeFileSync(join(f.root, "run.lock"), String(process.pid), {mode:0o600});
 	assert.equal((await runScheduled(f.env, f.command)).status, "skipped");
 	assert.equal(existsSync(join(f.root, "last-run.json")), false);
 	assert.equal(f.calls().filter(c => !c.args.includes("--json")).length, 0);
+	const status = await autoUpdate("status", f.deps);
+	assert.equal(status.code, 0);
+	assert.equal(status.details.running, true);
+	assert.equal(status.details.uncertainLock, false);
+	assert.deepEqual(["SIGINT", "SIGTERM"].map(signal => process.listenerCount(signal)), listeners);
 });
 
 test("disable fences execution even when launchd unload fails", async t => {
+	const listeners = ["SIGINT", "SIGTERM"].map(signal => process.listenerCount(signal));
 	const f = fixture(t); await autoUpdate("enable", f.deps); f.unloadFailure = true;
 	assert.equal((await autoUpdate("disable", f.deps)).code, 5);
 	assert.equal(f.state().enabled, false);
@@ -188,6 +197,7 @@ test("disable fences execution even when launchd unload fails", async t => {
 	assert.equal((await autoUpdate("status", f.deps)).status, "scheduler-error");
 	f.unloadFailure = false;
 	assert.equal((await autoUpdate("disable", f.deps)).code, 0);
+	assert.deepEqual(["SIGINT", "SIGTERM"].map(signal => process.listenerCount(signal)), listeners);
 });
 
 test("launchd failure overrides an old successful run record", async t => {
@@ -384,4 +394,64 @@ test("auto-update accepts explicit Codex or OpenCode and defaults to Codex", () 
 		assert.equal(result.options.host, host);
 	}
 	assert.equal(parseArgs(["auto-update", "status"]).options.host, "codex");
+});
+
+for (const signal of ["SIGINT", "SIGTERM"]) test(`Codex ${signal} at command boundary records failure and releases lock`, async t => {
+	const f = fixture(t); assert.equal((await autoUpdate("enable", f.deps)).code, 0);
+	const moduleUrl = pathToFileURL(join(process.cwd(), "dist/auto-update.js")).href;
+	const script = `import {runScheduled,runCommand} from ${JSON.stringify(moduleUrl)};
+let sent=false;
+const before=['SIGINT','SIGTERM'].map(s=>process.listenerCount(s));
+const result=await runScheduled(process.env,async (...args)=>{
+ const result=await runCommand(...args);
+ if(!sent){sent=true;process.kill(process.pid,${JSON.stringify(signal)});await new Promise(setImmediate);process.kill(process.pid,${JSON.stringify(signal)});await new Promise(setImmediate);}
+ return result;
+});
+console.log(JSON.stringify({result,before,after:['SIGINT','SIGTERM'].map(s=>process.listenerCount(s))}));process.exitCode=result.code;`;
+	const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], { env: f.env, encoding: "utf8", timeout: 10000 });
+	assert.deepEqual({ exit: child.status, signal: child.signal, lock: existsSync(join(f.root, "run.lock")), log: f.log().status }, { exit: 5, signal: null, lock: false, log: "failed" }, child.stderr);
+	const output = JSON.parse(child.stdout);
+	assert.match(output.result.message, /interrupted/);
+	assert.deepEqual(output.after, output.before);
+	assert.equal(f.log().status, "failed");
+	assert.equal(existsSync(join(f.root, "run.lock")), false);
+	assert.equal(f.calls().filter(call => !call.args.includes("--json")).length, 0);
+});
+
+test("management signal at command boundary releases its lock without unloading", async t => {
+	const f = fixture(t); assert.equal((await autoUpdate("enable", f.deps)).code, 0);
+	const moduleUrl = pathToFileURL(join(process.cwd(), "dist/auto-update.js")).href;
+	const script = `import {autoUpdate} from ${JSON.stringify(moduleUrl)};
+const before=['SIGINT','SIGTERM'].map(s=>process.listenerCount(s));let calls=[];
+const result=await autoUpdate('disable',{env:process.env,platform:'darwin',command:async (file,args)=>{
+ calls.push(args);process.kill(process.pid,'SIGTERM');await new Promise(setImmediate);
+ return {code:0,stdout:${JSON.stringify(`path = ${f.plist()}\nstate = not running\n`)},stderr:''};
+}});
+console.log(JSON.stringify({result,calls,before,after:['SIGINT','SIGTERM'].map(s=>process.listenerCount(s))}));process.exitCode=result.code;`;
+	const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], { env: f.env, encoding: "utf8", timeout: 10000 });
+	assert.deepEqual({ exit: child.status, signal: child.signal, lock: existsSync(join(f.root, "manage.lock")) }, { exit: 5, signal: null, lock: false }, child.stderr);
+	const output = JSON.parse(child.stdout);
+	assert.match(output.result.message, /interrupted/);
+	assert.deepEqual(output.calls.map(args => args[0]), ["print"]);
+	assert.deepEqual(output.after, output.before);
+	assert.equal(existsSync(join(f.root, "manage.lock")), false);
+	assert.equal(f.state().enabled, true);
+	assert.equal(existsSync(f.plist()), true);
+});
+
+for (const name of ["run.lock", "manage.lock"]) test(`old live-PID ${name} fails visibly without removing the lock`, async t => {
+	const f = fixture(t); assert.equal((await autoUpdate("enable", f.deps)).code, 0);
+	const path = join(f.root, name), contents = String(process.pid), old = new Date(Date.now() - 16 * 60 * 1000);
+	writeFileSync(path, contents, { mode: 0o600 }); utimesSync(path, old, old);
+	const status = await autoUpdate("status", f.deps);
+	assert.equal(status.code, 5, status.message);
+	assert.equal(status.status, "update-failed");
+	assert.equal(status.details.uncertainLock, true);
+	assert.match(status.message, /older than 15 minutes/);
+	const attempt = name === "run.lock" ? await runScheduled(f.env, f.command) : await autoUpdate("disable", f.deps);
+	assert.equal(attempt.code, 5, attempt.message);
+	assert.match(attempt.message, /older than 15 minutes/);
+	assert.equal(readFileSync(path, "utf8"), contents);
+	assert.equal(f.calls().filter(call => !call.args.includes("--json")).length, 0);
+	assert.equal(f.state().enabled, true);
 });

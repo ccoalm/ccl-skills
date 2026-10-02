@@ -1,0 +1,14 @@
+✔ Codex SIGINT at command boundary records failure and releases lock (1261.423375ms)
+✔ Codex SIGTERM at command boundary records failure and releases lock (662.8755ms)
+✔ management signal at command boundary releases its lock without unloading (625.516875ms)
+✔ old live-PID run.lock fails visibly without removing the lock (577.495917ms)
+✔ old live-PID manage.lock fails visibly without removing the lock (519.1185ms)
+✔ OpenCode signal at command boundary removes private refresh directory and lock (2341.390041ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3704.005166

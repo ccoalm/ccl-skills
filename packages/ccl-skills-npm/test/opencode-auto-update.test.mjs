@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { autoUpdate, runCommand, runScheduled } from "../dist/auto-update.js";
 import { runOpenCode } from "../dist/opencode-adapter.js";
 
@@ -219,4 +220,30 @@ test("OpenCode package identity assertion rejects removal of its guard", t => {
 	assert.equal(mutant.status, 1, mutant.stdout + mutant.stderr);
 	assert.match(mutant.stdout, /# fail 1\b/);
 	assert.match(mutant.stdout, /ERR_ASSERTION/);
+});
+
+test("OpenCode signal at command boundary removes private refresh directory and lock", async t => {
+	const f = fixture(t), before = readFileSync(join(f.base, sample), "utf8"), manifest = f.manifest();
+	writeFileSync(join(f.bin, "npm"), `#!${process.execPath}\nconst fs=require('node:fs'),path=require('node:path');const a=process.argv.slice(2);fs.cpSync(${JSON.stringify(f.fetched)},path.join(a[a.indexOf('--prefix')+1],'node_modules/@ccoalm/ccl-skills'),{recursive:true});\n`);
+	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
+	const moduleUrl = pathToFileURL(resolve("dist/auto-update.js")).href;
+	const script = `import {runScheduled,runCommand} from ${JSON.stringify(moduleUrl)};
+const before=['SIGINT','SIGTERM'].map(s=>process.listenerCount(s));let calls=[];
+const result=await runScheduled(process.env,async (...args)=>{
+ calls.push(args[1]);const result=await runCommand(...args);
+ if(args[1][0]==='install'){process.kill(process.pid,'SIGTERM');await new Promise(setImmediate);}
+ return result;
+},'opencode');
+console.log(JSON.stringify({result,calls,before,after:['SIGINT','SIGTERM'].map(s=>process.listenerCount(s))}));process.exitCode=result.code;`;
+	const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], { env: f.env, encoding: "utf8", timeout: 15000 });
+	assert.deepEqual({ exit: child.status, signal: child.signal, lock: existsSync(join(f.root, "run.lock")), log: f.log().status, refresh: readdirSync(f.root).filter(name => name.startsWith("refresh-")).length }, { exit: 5, signal: null, lock: false, log: "failed", refresh: 0 }, child.stderr);
+	const output = JSON.parse(child.stdout);
+	assert.match(output.result.message, /interrupted/);
+	assert.deepEqual(output.calls.map(args => args[0]), ["install"]);
+	assert.deepEqual(output.after, output.before);
+	assert.equal(f.log().status, "failed");
+	assert.equal(existsSync(join(f.root, "run.lock")), false);
+	assert.deepEqual(readdirSync(f.root).filter(name => name.startsWith("refresh-")), []);
+	assert.equal(readFileSync(join(f.base, sample), "utf8"), before);
+	assert.deepEqual(f.manifest(), manifest);
 });

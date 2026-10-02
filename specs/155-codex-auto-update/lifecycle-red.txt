@@ -1,0 +1,161 @@
+✖ Codex SIGINT at command boundary records failure and releases lock (1182.989ms)
+✖ Codex SIGTERM at command boundary records failure and releases lock (596.411042ms)
+✖ management signal at command boundary releases its lock without unloading (643.133042ms)
+✖ old live-PID run.lock fails visibly without removing the lock (508.678583ms)
+✖ old live-PID manage.lock fails visibly without removing the lock (487.091458ms)
+✖ OpenCode signal at command boundary removes private refresh directory and lock (2211.16025ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 0
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3463.311667
+
+✖ failing tests:
+
+test at test/auto-update.test.mjs:389:45
+✖ Codex SIGINT at command boundary records failure and releases lock (1182.989ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   exit: null,
+  +   lock: true,
+  +   log: 'running',
+  +   signal: 'SIGINT'
+  -   exit: 5,
+  -   lock: false,
+  -   log: 'failed',
+  -   signal: null
+    }
+
+      at TestContext.<anonymous> (file://<worktree>/packages/ccl-skills-npm/test/auto-update.test.mjs:402:9)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { exit: null, signal: 'SIGINT', lock: true, log: 'running' },
+    expected: { exit: 5, signal: null, lock: false, log: 'failed' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/auto-update.test.mjs:389:45
+✖ Codex SIGTERM at command boundary records failure and releases lock (596.411042ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   exit: null,
+  +   lock: true,
+  +   log: 'running',
+  +   signal: 'SIGTERM'
+  -   exit: 5,
+  -   lock: false,
+  -   log: 'failed',
+  -   signal: null
+    }
+
+      at TestContext.<anonymous> (file://<worktree>/packages/ccl-skills-npm/test/auto-update.test.mjs:402:9)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { exit: null, signal: 'SIGTERM', lock: true, log: 'running' },
+    expected: { exit: 5, signal: null, lock: false, log: 'failed' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/auto-update.test.mjs:411:1
+✖ management signal at command boundary releases its lock without unloading (643.133042ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   exit: null,
+  +   lock: true,
+  +   signal: 'SIGTERM'
+  -   exit: 5,
+  -   lock: false,
+  -   signal: null
+    }
+
+      at TestContext.<anonymous> (file://<worktree>/packages/ccl-skills-npm/test/auto-update.test.mjs:422:9)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { exit: null, signal: 'SIGTERM', lock: true },
+    expected: { exit: 5, signal: null, lock: false },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/auto-update.test.mjs:432:49
+✖ old live-PID run.lock fails visibly without removing the lock (508.678583ms)
+  AssertionError [ERR_ASSERTION]: Codex automatic updates are scheduled every 24 hours. Last run: running. Log: <synthetic-temp>/home ' & <xml>/profile with spaces/ccl-skills-auto-update/last-run.json
+
+  0 !== 5
+
+      at TestContext.<anonymous> (file://<worktree>/packages/ccl-skills-npm/test/auto-update.test.mjs:437:9)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 5,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/auto-update.test.mjs:432:49
+✖ old live-PID manage.lock fails visibly without removing the lock (487.091458ms)
+  AssertionError [ERR_ASSERTION]: Codex automatic updates are scheduled every 24 hours. Last run: not yet recorded. Log: <synthetic-temp>/home ' & <xml>/profile with spaces/ccl-skills-auto-update/last-run.json
+
+  0 !== 5
+
+      at TestContext.<anonymous> (file://<worktree>/packages/ccl-skills-npm/test/auto-update.test.mjs:437:9)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 5,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/opencode-auto-update.test.mjs:225:1
+✖ OpenCode signal at command boundary removes private refresh directory and lock (2211.16025ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    {
+  +   exit: null,
+  +   lock: true,
+  +   log: 'running',
+  +   refresh: 1,
+  +   signal: 'SIGTERM'
+  -   exit: 5,
+  -   lock: false,
+  -   log: 'failed',
+  -   refresh: 0,
+  -   signal: null
+    }
+
+      at TestContext.<anonymous> (file://<worktree>/packages/ccl-skills-npm/test/opencode-auto-update.test.mjs:239:9)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { exit: null, signal: 'SIGTERM', lock: true, log: 'running', refresh: 1 },
+    expected: { exit: 5, signal: null, lock: false, log: 'failed', refresh: 0 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

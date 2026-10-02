@@ -9,6 +9,7 @@ const OWNER = "ccl-skills-auto-update-v1";
 const SOURCES = new Set(["https://github.com/ccoalm/ccl-skills.git", "git@github.com:ccoalm/ccl-skills.git", "ssh://git@github.com/ccoalm/ccl-skills.git"]);
 const REF = "ccl-skills@ccl-skills";
 const LAUNCHCTL = "/bin/launchctl";
+const MAX_LOCK_AGE_MS = 15 * 60 * 1000;
 const digest = (text: string) => createHash("sha256").update(text).digest("hex");
 const clean = (value: string) => value.length > 0 && !/[\x00-\x1f\x7f]/.test(value);
 export type AutoUpdateAction = "enable" | "disable" | "status";
@@ -57,6 +58,32 @@ export const runCommand: Command = (file, args, env, timeout, options = {}) => n
 		done({ code, stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString(), ...(failure ? { failure } : {}) });
 	});
 });
+
+// Child cancellation belongs to runCommand; this scope also covers the gaps
+// between children and keeps repeated signals from bypassing owned cleanup.
+function interruptionScope(execute: Command) {
+	let interrupted = false;
+	const interrupt = () => { interrupted = true; };
+	const check = () => {
+		if (interrupted) throw new Error("Automatic-update operation interrupted; inspect host state before retrying");
+	};
+	process.on("SIGINT", interrupt);
+	process.on("SIGTERM", interrupt);
+	const command: Command = async (...args) => {
+		check();
+		const result = await execute(...args);
+		// Promise continuations can outrun queued signal callbacks. Yield to the
+		// event loop before accepting a result or starting another command.
+		await new Promise<void>(resolve => setImmediate(resolve));
+		// Preserve child failures, including forced termination's unknown finality.
+		if (!result.failure) check();
+		return result;
+	};
+	return { command, dispose: () => {
+		process.removeListener("SIGINT", interrupt);
+		process.removeListener("SIGTERM", interrupt);
+	} };
+}
 
 function owned(path: string, directory = false): boolean {
 	try {
@@ -227,16 +254,20 @@ function lastRun(c: Context): unknown {
 	if (!record || record.owner !== OWNER || !["running", "success", "failed"].includes(record.status) || typeof record.message !== "string" || typeof record.finishedAt !== "string") throw new Error("Invalid automatic-update run record; inspect the log before retrying");
 	return record;
 }
-function lockState(path: string): "absent" | "active" | "stale" {
+function lockState(path: string): "absent" | "active" | "stale" | "uncertain" {
 	if (!owned(path)) return "absent";
 	const pid = Number(readFileSync(path, "utf8"));
 	if (!Number.isSafeInteger(pid) || pid <= 0) throw new Error(`Invalid automatic-update lock: ${path}; inspect it manually`);
+	// PID liveness cannot establish process identity after a crash and reuse.
+	// A bounded age prevents indefinite healthy overlap; never reclaim the lock.
+	if (Math.abs(Date.now() - lstatSync(path).mtimeMs) >= MAX_LOCK_AGE_MS) return "uncertain";
 	try { process.kill(pid, 0); return "active"; }
 	catch (error) { if ((error as NodeJS.ErrnoException).code === "ESRCH") return "stale"; throw error; }
 }
 function lock(c: Context, name = "run.lock"): () => void {
 	const path = join(c.root, name), state = lockState(path);
 	if (state === "stale") throw new Error(`Stale automatic-update lock: ${path}. Confirm its PID has exited, remove only this lock file, then retry`);
+	if (state === "uncertain") throw new Error(`Automatic-update lock is older than 15 minutes or its timestamp is uncertain: ${path}. Inspect the PID and job; remove only this lock after confirming no updater owns it`);
 	if (state === "active") throw new Error("Automatic-update operation already running; retry after it finishes");
 	try {
 		const fd = openSync(path, "wx", 0o600);
@@ -250,7 +281,8 @@ function lock(c: Context, name = "run.lock"): () => void {
 
 export async function autoUpdate(action: AutoUpdateAction, deps: AutoUpdateDeps = {}): Promise<Result> {
 	if ((deps.platform || process.platform) !== "darwin") return { code: 4, status: "unsupported-platform", message: "Automatic updates currently require macOS launchd. Use the documented manual update commands on other platforms." };
-	const env = deps.env || process.env, command = deps.command || runCommand;
+	const env = deps.env || process.env;
+	const scope = interruptionScope(deps.command || runCommand), command = scope.command;
 	let release: (() => void) | undefined;
 	try {
 		const c = context(env, deps.host);
@@ -262,10 +294,12 @@ export async function autoUpdate(action: AutoUpdateAction, deps: AutoUpdateDeps 
 			const registrationState = await registration(c, s!, command), registered = registrationState.registered, last = lastRun(c) as { status?: string } | null;
 			const enabled = s!.enabled && registered && owned(c.runner) && owned(c.plist);
 			const runLock = lockState(join(c.root, "run.lock"));
-			const staleLock = runLock === "stale" || lockState(join(c.root, "manage.lock")) === "stale";
+			const manageLock = lockState(join(c.root, "manage.lock"));
+			const staleLock = runLock === "stale" || manageLock === "stale";
+			const uncertainLock = runLock === "uncertain" || manageLock === "uncertain";
 			const running = registrationState.running || runLock === "active";
-			const failed = staleLock || last?.status === "failed" || !!registrationState.lastExit || (last?.status === "running" && !running);
-			const details = { registered, enabled, running, staleLock, lastExit: registrationState.lastExit, profile: c.profile, label: c.label, log: c.log, lastRun: last };
+			const failed = staleLock || uncertainLock || last?.status === "failed" || !!registrationState.lastExit || (last?.status === "running" && !running);
+			const details = { registered, enabled, running, staleLock, uncertainLock, lastExit: registrationState.lastExit, profile: c.profile, label: c.label, log: c.log, lastRun: last };
 			if (!enabled) {
 				if (registered || s!.enabled) return { code: 5, status: "scheduler-error", message: "Schedule registration is incomplete; rerun auto-update enable or disable to recover.", details };
 				return { code: 0, status: "disabled", message: `${name} automatic updates are disabled.`, details };
@@ -274,6 +308,7 @@ export async function autoUpdate(action: AutoUpdateAction, deps: AutoUpdateDeps 
 			if (running) summary = "running";
 			if (failed) summary = "failed or interrupted; inspect the run log";
 			if (staleLock) summary = "stale lock; confirm its PID has exited, remove only that lock file, then retry";
+			if (uncertainLock) summary = "lock older than 15 minutes or timestamp uncertain; inspect its PID and job before recovery, never remove a running updater's lock";
 			return { code: failed ? 5 : 0, status: failed ? "update-failed" : "enabled", message: `${name} automatic updates are scheduled every 24 hours. Last run: ${summary}. Log: ${c.log}`, details };
 		}
 		if (!s) {
@@ -318,10 +353,13 @@ export async function autoUpdate(action: AutoUpdateAction, deps: AutoUpdateDeps 
 		return { code: 0, status: "enabled", message: `${name} automatic updates are scheduled every 24 hours and at login. Log: ${c.log}`, details: { label: c.label, profile: c.profile, log: c.log } };
 	} catch (error) {
 		return { code: 5, status: "auto-update-error", message: error instanceof Error ? error.message : "Automatic-update operation failed" };
-	} finally { release?.(); }
+	} finally {
+		try { release?.(); } finally { scope.dispose(); }
+	}
 }
 
-export async function runScheduled(env: NodeJS.ProcessEnv = process.env, command: Command = runCommand, host: AutoUpdateHost = "codex"): Promise<Result> {
+export async function runScheduled(env: NodeJS.ProcessEnv = process.env, execute: Command = runCommand, host: AutoUpdateHost = "codex"): Promise<Result> {
+	const scope = interruptionScope(execute), command = scope.command;
 	let release: (() => void) | undefined, c: Context | undefined;
 	let safeState = false;
 	try {
@@ -364,7 +402,9 @@ export async function runScheduled(env: NodeJS.ProcessEnv = process.env, command
 		}
 		return { code: 5, status: "auto-update-error", message };
 	}
-	finally { release?.(); }
+	finally {
+		try { release?.(); } finally { scope.dispose(); }
+	}
 }
 if (process.argv[2] === "--run" && process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
 	runScheduled(process.env, runCommand, process.argv[3] as AutoUpdateHost || "codex").then(result => { process.exitCode = result.code; });
