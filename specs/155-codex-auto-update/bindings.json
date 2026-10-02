@@ -118,7 +118,7 @@
     },
     {
       "path": "specs/155-codex-auto-update/evidence.md",
-      "binding": "artifact-sha256:c90275a8c234f142a69aadebe2c508f0b2bc5bea5283d47c1177b2111a08b6c8"
+      "binding": "artifact-sha256:ce0af429d2f4235fe4a5f891a632988aaefe755e7a3092bd10c6e5e3a2f94dd7"
     },
     {
       "path": "specs/155-codex-auto-update/focused-tests.txt",

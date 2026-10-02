@@ -18,7 +18,11 @@ continues to declare Node 20+ and TypeScript/ESM with zero runtime dependencies.
 | Graceful output-limit assertion before fix | RED: stdout exceeded its bound while waiting for cancellation. |
 | `git diff --check` | Passed. |
 | `npm test` during implementation | Invalid evidence: a concurrent rebuild removed generated assets while operations tests used them. Run was stopped with exit 143; no package-wide pass claimed. |
-| Full package/repo/pack/release checks | Assigned to release verification on an isolated candidate checkout. |
+| Full package checks | Build, build-mode checks and the complete test glob passed: 419 tests, zero failures or skips. Node test-file concurrency was limited to 2 on the local host. |
+| `npm run build && npm run test:pack` | Passed on clean candidate `c2554232447ecc337d5f249295f9c3f2ceb2c34f`: 11 tests, zero skips; 669 verified asset files. |
+| `npm run smoke:host` | Passed real Codex, Claude Code and OpenCode installation, update, doctor and uninstall in isolated homes. Public registration is covered; live hook enforcement is not inferred. |
+| macOS launchd integration | Passed RunAtLoad, spaces/XML paths, idempotent enable, execution after the npx package was removed, failed-run status, recovery and disable/unregister. Only the Codex network boundary was substituted. |
+| Repository and publication checks | Release verification owns the full repository lane, independent review, current-head CI and registry-backed publication acceptance. |
 
 ## Acceptance coverage
 
@@ -30,7 +34,7 @@ continues to declare Node 20+ and TypeScript/ESM with zero runtime dependencies.
 | A4 | Exact upgrade/add order, failed upgrade suppresses add, provenance change during upgrade suppresses add, concurrent run skipped, process-group timeout, SIGTERM cleanup | Public Codex lacks atomic compare-and-update; checks protect the observed checkpoints. |
 | A5 | Idempotent enable, bootstrap failure/retry, disable/fenced unload failure, launchd exit overriding old success, stale lock failure, concurrent first enable | launchctl itself is a test boundary; real login persistence remains a host check. |
 | A6 | Managed symlink/hardlink, foreign plist/job, missing-state registration, forged profile, unsafe ancestor cases preserve targets | No authentication guarantee against a hostile writer with the same UID. |
-| A7 | Pending release verification | Real launchd lifecycle, original local plugin update and published npm entry are release-owner checks. |
+| A7 | Real launchd and three-host lifecycle passed | Original local activation and the published npm entry remain post-publication release checks. |
 | A8 | Parser defaults/host validation plus simultaneous independent Codex/OpenCode jobs; disabling OpenCode preserves Codex registration | Synthetic launchctl boundary. |
 | A9 | Real adapter doctor rejects absent, source-copy, override and drift fixtures before scheduling | Synthetic host executable; real filesystem and manifests. |
 | A10 | Fresh downloaded skill content and version pass through fetched CLI; older version retained; wrong identity and symlinked package refused | npm download is faked; registry transport/integrity is a release check. |
@@ -63,11 +67,25 @@ plain newline output and never alters terminal state. No claim depends on a
 terminal emulator screenshot. Actual scheduler and published-package behavior
 are not inferred from text output.
 
-Test Phase 1: lower-layer criteria A1-A6 and A8-A12 are covered to the boundaries above;
-aggregate sufficiency remains blocked on the named full-package and actual-host
-release checks. Design verdict is pending; next state is blocked on those remaining checks,
-with release verification owning the evidence.
-No merge-ready, publication or field-reliability claim is made here.
+Test Phase 1: A1-A6 and A8-A12 pass within the stated boundaries. The full package
+suite and actual scheduler/host lifecycle checks close the implementation
+handoff's remaining test gaps. The complete design, test, producer and client
+binding set remains in bindings.json; release validation exercised the same
+source and test bytes, with later changes limited to evidence records.
+
+Design verdict: accepted for the narrow CLI state, output and recovery contract;
+verdict owner: design author under the deterministic narrow-visible exception;
+next state: complete for that surface. Each criterion uses a deterministic
+oracle, with no aesthetic or product-direction judgment. Publication, registry
+verification and activation of the original local installations remain separate
+operational acceptance checks under A7/A12. This record does not claim those
+post-publication outcomes or field reliability.
+
+The first broad package run passed 417 of 419 tests. An inherited self-update
+opt-out invalidated one test; a mutation subprocess exited abnormally during
+parallel execution. Both passed in the clean, bounded-concurrency full rerun.
+Its exact command was `npm run build && node scripts/test-build-modes.mjs &&
+node --test --test-concurrency=2 test/*.test.mjs`; no test was filtered out.
 
 ## Ownership and recovery limits
 
