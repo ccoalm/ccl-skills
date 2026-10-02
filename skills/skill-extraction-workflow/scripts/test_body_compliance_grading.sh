@@ -108,6 +108,11 @@ cat > "$stub_dir/claude" <<'STUB'
 #!/bin/sh
 cat > /dev/null
 [ -n "${BODY_COMPLIANCE_ARGS_FILE:-}" ] && printf '%s\n' "$@" > "$BODY_COMPLIANCE_ARGS_FILE"
+# mkdir is atomic: exactly one concurrent call takes the alternate line.
+if [ -n "${BODY_COMPLIANCE_STUB_ONCE_DIR:-}" ] && mkdir "$BODY_COMPLIANCE_STUB_ONCE_DIR" 2>/dev/null; then
+  printf '%s\n' "$BODY_COMPLIANCE_STUB_ONCE_LINE"
+  exit 0
+fi
 printf '%s\n' "$BODY_COMPLIANCE_STUB_LINE"
 exit "${BODY_COMPLIANCE_STUB_EXIT:-0}"
 STUB
@@ -193,6 +198,36 @@ ruby -r json -e '
     abort "quality-gate denominator changed" unless [result.fetch("pass"), result.fetch("fail"), result.fetch("error")] == [statuses.count("PASS"), statuses.count("FAIL"), 0]
   end
 ' "$stub_dir" || fail "quality-gate subset routing and grading"
+
+# E9/E10: --replicas N grades each probe N times. Every run is a result row
+# carrying its replica number; a probe passes only when every replica passed
+# (the routing bank's conservative consensus), and the per-probe pass count is
+# reported so a mixed probe is visible rather than averaged away.
+for bad in 0 -1 x ''; do
+  BODY_COMPLIANCE_STUB_LINE=x PATH="$stub_dir:$PATH" ruby "$runner" "$repo_root" --ids prd-continue-evidenced --replicas "$bad" >/dev/null 2>&1
+  [ $? -eq 2 ] || fail "E9 --replicas '$bad' must be a usage error"
+done
+BODY_COMPLIANCE_STUB_LINE=x PATH="$stub_dir:$PATH" ruby "$runner" "$repo_root" --ids prd-continue-evidenced --replicas >/dev/null 2>&1
+[ $? -eq 2 ] || fail "E9 bare --replicas must be a usage error"
+BODY_COMPLIANCE_STUB_LINE='continuing: 桩裁决' PATH="$stub_dir:$PATH" ruby "$runner" "$repo_root" --ids prd-continue-evidenced,prd-stop-ambiguous-assent --replicas 3 --json "$stub_dir/rep.json" --timeout 30 >/dev/null 2>&1 || fail "E9 replicated run failed"
+e10_out="$(BODY_COMPLIANCE_STUB_ONCE_DIR="$stub_dir/once" BODY_COMPLIANCE_STUB_ONCE_LINE='blocked: 桩裁决' BODY_COMPLIANCE_STUB_LINE='continuing: 桩裁决' PATH="$stub_dir:$PATH" ruby "$runner" "$repo_root" --ids prd-continue-evidenced --replicas 3 --json "$stub_dir/mixed.json" --timeout 30 2>&1)" || fail "E10 mixed run failed"
+case "$e10_out" in *"prd-continue-evidenced: 2/3"*) : ;; *) fail "E10 a mixed probe must print its per-probe pass count, got: $e10_out" ;; esac
+ruby -r json -e '
+  rep = JSON.parse(File.read(File.join(ARGV[0], "rep.json")))
+  abort "replica count not reported" unless rep.fetch("replicas") == 3
+  rows = rep.fetch("results")
+  abort "expected 6 replica rows, got #{rows.length}" unless rows.length == 6
+  %w[prd-continue-evidenced prd-stop-ambiguous-assent].each do |id|
+    abort "replica numbers wrong for #{id}" unless rows.select { |r| r["id"] == id }.map { |r| r["replica"] }.sort == [1, 2, 3]
+  end
+  summary = rep.fetch("probes")
+  abort "consensus wrong: #{summary}" unless summary.fetch("prd-continue-evidenced") == { "pass" => 3, "fail" => 0, "error" => 0, "status" => "PASS" } && summary.fetch("prd-stop-ambiguous-assent").fetch("status") == "FAIL"
+  mixed = JSON.parse(File.read(File.join(ARGV[0], "mixed.json"))).fetch("probes").fetch("prd-continue-evidenced")
+  abort "one failing replica must fail the probe: #{mixed}" unless mixed == { "pass" => 2, "fail" => 1, "error" => 0, "status" => "FAIL" }
+  single = JSON.parse(File.read(File.join(ARGV[0], "pass.json")))
+  abort "single run must report replicas 1" unless single.fetch("replicas") == 1
+  abort "single-run rows must keep their shape (no replica key)" if single.fetch("results").any? { |r| r.key?("replica") }
+' "$stub_dir" || fail "E9/E10 replica rows, consensus and single-run shape"
 
 if [ "$fails" -gt 0 ]; then
   echo "test_body_compliance_grading: $fails failure(s)" >&2

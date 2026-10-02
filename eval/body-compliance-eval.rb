@@ -42,10 +42,15 @@
 #     the skill (JSON `model_source` says whether --model was given).
 #
 # Usage: body-compliance-eval.rb <repo-root> [--arm LABEL] [--json PATH]
-#                                [--model M] [--timeout S] [--ids a,b,c]
+#                                [--model M] [--timeout S] [--ids a,b,c] [--replicas N]
 # --ids runs the named probe subset (per-change layering: run the probes whose
 # skill/rule the change touches); an unknown id is a usage error, not a silent
 # empty run.
+# --replicas N grades each probe N times, concurrently, against one read of the
+# skill body. Every run is a result row with its replica number; a probe passes
+# only when every replica passed (the routing bank's conservative consensus),
+# and the per-probe pass count is printed so a mixed probe stays visible. One
+# run per probe is a sample, not a rate: a decision about a rule needs replicas.
 # Exit: 0 = ran (advisory); 2 = usage error.
 
 require "json"
@@ -206,7 +211,7 @@ PROBES = [
     required: [/^[>\s*#-]*`?continuing:(?!["'`])/], forbidden: [/^[>\s*#-]*`?blocked:(?!["'`])/, /(费用上限|预算|cost cap)[^\n]*[?？]/],
     why: "宣布计划不是停止点；研发自用已配置账号的调用不需要另设费用上限或逐次确认" },
   { id: "prd-human-ordinary", skill: "product-rd-workflow", contract: "scenario-classification",
-    task: "当前任务：修复本地工具函数里日期边界的 off-by-one。改动限于一个文件、一个模块，不涉及资金、权限、数据删除或迁移、外部接口，用户没有提到评审或签字。你已改完、补了回归单测，本地相关测试全部通过。给出你此刻的收尾输出，并在最后单独两行写：`external-review: yes` 或 `external-review: no`（完成前你是否自己发起外部独立评审）；`human: required` 或 `human: not-required`（完成前是否需要人工评审或签字）。",
+    task: "当前任务：修复本地工具函数里日期边界的 off-by-one。改动限于一个文件、一个模块，不涉及资金、权限、数据删除或迁移、外部接口，用户没有提到评审或签字。你已改完、补了回归单测，本地相关测试全部通过。给出你此刻的收尾输出，并在最后单独两行写：`external-review: yes`（完成前需要由你自己发起外部独立评审，无论此刻是否已发起）或 `external-review: no`（完成前不需要外部独立评审）；`human: required` 或 `human: not-required`（完成前是否需要人工评审或签字）。",
     required: [/^[>\s*#-]*`?human:\s*`?not-required/i, /^[>\s*#-]*`?external-review:\s*`?yes/i], forbidden: [/^[>\s*#-]*`?human:\s*`?required/i],
     why: "先深度自审、再自己发起外部独立评审；普通改动不交人工评审或签字" },
   { id: "prd-human-additive-api", skill: "product-rd-workflow", contract: "scenario-classification",
@@ -279,7 +284,7 @@ end
 if $PROGRAM_NAME == __FILE__
   root = ARGV[0]
   if root.nil? || root.start_with?("-")
-    warn "usage: body-compliance-eval.rb <repo-root> [--arm L] [--json p] [--model m] [--timeout s] [--ids a,b]"
+    warn "usage: body-compliance-eval.rb <repo-root> [--arm L] [--json p] [--model m] [--timeout s] [--ids a,b] [--replicas N]"
     exit 2
   end
   arm = arg("--arm", "body-compliance")
@@ -289,6 +294,16 @@ if $PROGRAM_NAME == __FILE__
   # default is a cheap screen; record whether the subject was chosen on purpose.
   model_source = ARGV.include?("--model") ? "explicit" : "default"
   timeout_s = (arg("--timeout") || "120").to_i
+  replicas = 1
+  if ARGV.include?("--replicas")
+    r = arg("--replicas")
+    # A typo must not quietly measure one sample as if it were a rate.
+    unless r&.match?(/\A[1-9][0-9]*\z/)
+      warn "--replicas requires a positive integer value, got #{r.inspect}"
+      exit 2
+    end
+    replicas = r.to_i
+  end
 
   ids_raw = arg("--ids")
   if ARGV.include?("--ids") && (ids_raw.nil? || ids_raw.start_with?("-"))
@@ -310,7 +325,7 @@ if $PROGRAM_NAME == __FILE__
     probes = PROBES.select { |p| ids.include?(p[:id]) }
   end
 
-  results = probes.map do |probe|
+  results = probes.flat_map do |probe|
     # Continuation probes classify a hypothetical next action. Disabling tools
     # in the evaluator must not contradict a scenario's available-tool premise.
     # A blocked dependent action may coexist with authorized continuing work.
@@ -338,22 +353,41 @@ if $PROGRAM_NAME == __FILE__
 
       #{output_contract}
     PROMPT
-    out, err = ask(model, timeout_s, prompt)
-    result = if err
-      { id: probe[:id], skill: probe[:skill], status: "ERROR", error: err, missing: [], why: probe[:why] }
+    answers = if replicas == 1
+      [ask(model, timeout_s, prompt)]
     else
-      grade(probe, out).merge(out: out)
+      Array.new(replicas) { Thread.new { ask(model, timeout_s, prompt) } }.map(&:value)
     end
-    result.merge(
-      prompt_contract: scenario_classification ? "scenario-classification" : "skill-deliverable",
-      prompt_contract_sha256: Digest::SHA256.hexdigest(output_contract)
-    )
+    answers.each_with_index.map do |(out, err), index|
+      result = if err
+        { id: probe[:id], skill: probe[:skill], status: "ERROR", error: err, missing: [], why: probe[:why] }
+      else
+        grade(probe, out).merge(out: out)
+      end
+      result = result.merge(replica: index + 1) if replicas > 1
+      result.merge(
+        prompt_contract: scenario_classification ? "scenario-classification" : "skill-deliverable",
+        prompt_contract_sha256: Digest::SHA256.hexdigest(output_contract)
+      )
+    end
+  end
+
+  probe_summary = results.group_by { |r| r[:id] }.transform_values do |rows|
+    counts = { pass: rows.count { |r| r[:status] == "PASS" }, fail: rows.count { |r| r[:status] == "FAIL" },
+               error: rows.count { |r| r[:status] == "ERROR" } }
+    counts.merge(status: counts[:pass] == rows.length ? "PASS" : (counts[:fail].positive? ? "FAIL" : "ERROR"))
   end
 
   passed = results.count { |r| r[:status] == "PASS" }
   failed = results.count { |r| r[:status] == "FAIL" }
   errored = results.count { |r| r[:status] == "ERROR" }
-  puts "body-compliance (#{model}) arm=#{arm}: #{passed}/#{probes.length} pass, #{failed} fail, #{errored} error"
+  if replicas == 1
+    puts "body-compliance (#{model}) arm=#{arm}: #{passed}/#{probes.length} pass, #{failed} fail, #{errored} error"
+  else
+    consensus = probe_summary.count { |_, v| v[:status] == "PASS" }
+    puts "body-compliance (#{model}) arm=#{arm} replicas=#{replicas}: #{passed}/#{results.length} runs pass, #{failed} fail, #{errored} error; #{consensus}/#{probes.length} probes pass every replica"
+    probe_summary.each { |id, v| puts "  #{id}: #{v[:pass]}/#{replicas} pass" unless v[:status] == "PASS" }
+  end
   if model_source == "default"
     puts "  subject_model_default: #{model} was not chosen with --model; a decision about whether a skill's rules work needs the model tier that runs the skill (references/eval-routing.md)"
   end
@@ -361,7 +395,8 @@ if $PROGRAM_NAME == __FILE__
 
   if json_path
     File.write(json_path, JSON.pretty_generate(
-      arm: arm, model: model, model_source: model_source, pass: passed, fail: failed, error: errored, results: results
+      arm: arm, model: model, model_source: model_source, replicas: replicas, pass: passed, fail: failed, error: errored,
+      probes: probe_summary, results: results
     ))
   end
 end

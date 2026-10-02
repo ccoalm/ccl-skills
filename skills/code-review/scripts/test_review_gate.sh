@@ -4182,10 +4182,23 @@ module.signal_reviewer_process_group(
 )
 tree_process.communicate(timeout=2)
 tree_child_gone = False
-for _ in range(100):
+# The killed grandchild is reparented to PID 1. Where PID 1 never reaps
+# orphans (some containers), it stays a zombie that still answers signal 0,
+# so a zombie counts as gone: it has exited and holds no pipe or lock.
+def exited(pid):
     try:
-        module.os.kill(tree_child_pid, 0)
+        module.os.kill(pid, 0)
     except ProcessLookupError:
+        return True
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as stat:
+            return stat.read().rsplit(")", 1)[1].split()[0] == "Z"
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+for _ in range(100):
+    if exited(tree_child_pid):
         tree_child_gone = True
         break
     time.sleep(0.01)
