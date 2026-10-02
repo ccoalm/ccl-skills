@@ -174,8 +174,8 @@ recovery, test-case register/RED, UI design contract. Risk routing and delegatio
 were completed by the controller; this is its single cohesive implementation
 slice with no subdelegation. Existing nearest contracts already cover this
 distributable CLI and its public-host/ownership boundaries; no contract edit is
-needed. Auth/trust, schema migration, shared-gate changes and cross-repo edits are
-not applicable. First source-edit checkpoint requested a recheck; session-policy
+needed. Auth/trust, schema migration and cross-repo edits are
+not applicable to the scheduler. First source-edit checkpoint requested a recheck; session-policy
 and implementation-entry-reentry-gate were read and the same owners applied.
 
 RED-baseline: `npm ci && npm run build && node --test test/auto-update.test.mjs`
@@ -196,3 +196,31 @@ failed against unbounded accumulation before that fix. Both are included in the
 final focused run. Re-entry retained this same local, unlanded baseline; the
 Node, terminal, testing, design and documentation owners were reloaded and the
 accepted safety/test boundaries reapplied before further edits.
+
+## Release-check repair
+
+Classification: gate implementation; risk tag shared-gate, in addition to the
+release-ops route. The public sanitizer incorrectly classifies GitHub SSH Git
+transport userinfo as a private email address. The release check reported three
+affected candidate files. Scope is the existing sanitizer and its regression
+suite; private addresses and other privacy checks must retain their verdicts.
+
+| Named input | Required verdict |
+| --- | --- |
+| Canonical GitHub Git SSH URL or SCP-style repository address | pass |
+| Bare GitHub email, other username, other domain, malformed repository path | fail |
+| Existing private IP, hostname, tenant and email cases | fail |
+| Existing public/example and escaped-decorator cases | pass |
+
+Implementation owner: python-service-dev; failure evidence: defect-diagnosis;
+test strategy: testing-strategy. Add the passing Git transport case first and
+observe RED, then recognize only that exact transport grammar. Add near-miss
+negative cases to the existing table. Run the focused sanitizer suite, repository
+sanitizer and full make lane. Independent review and challenge must include the
+gate's false-positive and false-negative boundary before shared branch push.
+Status and results are recorded with this feature's release evidence.
+
+Verifier discovery: root contract, Makefile and CI name check-spec-references.py
+as the applicable spec-reference verifier; it passed before this gate edit. No
+runtime plan-status format is introduced. This is a simple deterministic
+non-incident regression; no customer data, credentials or permissions change.

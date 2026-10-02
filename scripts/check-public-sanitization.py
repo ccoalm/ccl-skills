@@ -48,6 +48,11 @@ def tracked_paths(root: Path) -> list[str]:
 
 URL_RE = re.compile(r"(?:https?|ssh)://[^\s<>\"')\]]+", re.IGNORECASE)
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@([A-Z0-9.-]+\.[A-Z]{2,})", re.IGNORECASE)
+GIT_SSH_RE = re.compile(
+    r"(?<![A-Za-z0-9._%+@/-])(?P<scheme>ssh://)?"
+    r"(?P<identity>git@github\.com)(?(scheme)/|:)"
+    r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\.git(?=$|[\s<>\"')\]])"
+)
 IP_RE = re.compile(r"(?<![0-9])(?:10(?:\.[0-9]{1,3}){3}|192\.168(?:\.[0-9]{1,3}){2}|172\.(?:1[6-9]|2[0-9]|3[01])(?:\.[0-9]{1,3}){2})(?![0-9])")
 ALLOWED_EMAIL_DOMAINS = {"example.com", "example.org", "example.net", "example.invalid"}
 SAAS_TENANT_SUFFIXES = ("feishu.cn", "larksuite.com")
@@ -101,7 +106,12 @@ def scan(root: Path) -> list[tuple[str, str]]:
             except ValueError:
                 findings.append((relative, "content:malformed-private-ipv4"))
 
+        # GitHub's fixed SSH transport user is not a person's email. Exempt
+        # only its span inside a complete repository URL, never the domain.
+        git_identities = {match.span("identity") for match in GIT_SSH_RE.finditer(content)}
         for match in EMAIL_RE.finditer(content):
+            if match.span() in git_identities:
+                continue
             # A literal JSON escape butting against a Python decorator — the byte
             # sequence `\n@pytest.fixture` inside stored model output — parses as
             # local part "n" with "domain" pytest.fixture. Exempt ONLY a
