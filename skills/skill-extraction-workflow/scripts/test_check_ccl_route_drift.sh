@@ -4,6 +4,8 @@
 # creates a deterministic bad diff there so unrelated local edits do not affect
 # the assertion while the current checker under test is still used.
 set -euo pipefail
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 CHECK_SCRIPT="$SCRIPT_DIR/check-ccl-skills.sh"

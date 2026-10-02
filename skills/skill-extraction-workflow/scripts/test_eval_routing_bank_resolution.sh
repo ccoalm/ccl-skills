@@ -9,6 +9,8 @@
 #
 # Uses a fake `claude` earlier in PATH: never invokes a real CLI or account.
 set -euo pipefail
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 EVAL_SCRIPT="$SCRIPT_DIR/eval-routing-bank.rb"

@@ -11,6 +11,7 @@
 #
 # --fast runs the quick/mid wrapper regressions:
 #   - test_ai_coding_implementation_gates.sh
+#   - test_locale_independent_gates.sh
 #   - test_controlled_escalation_pins.sh
 #   - test_check_ccl_size_budget.sh
 #   - test_check_ccl_skill_catalog.sh
@@ -104,6 +105,9 @@ run_lane() {
 
 fast_tests=(
   test_ai_coding_implementation_gates.sh
+  # Gates under a POSIX/unset locale: static pin coverage plus an applied
+  # pin-removal mutation, one throwaway fixture, seconds.
+  test_locale_independent_gates.sh
   # Reproducible RED-baseline for the controlled-escalation pin family: parses
   # family 8 out of the fixture above and proves each pin reds under its own
   # applied deletion mutation in a throwaway copy (spec 031 review disposition).

@@ -11,6 +11,8 @@
 # ALIAS_AUDIT_CMD=true stands in for a passing private R0 audit so the assertion
 # isolates firing-path enforcement from the separate R0 interim path.
 set -euo pipefail
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 CHECK_SCRIPT="$SCRIPT_DIR/check-ccl-skills.sh"

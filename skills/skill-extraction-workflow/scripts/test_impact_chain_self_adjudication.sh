@@ -14,6 +14,8 @@
 # 期望红的用例都必须点名 WHICH refusal：rc 单独是弱 oracle，为无关原因（fixture 缺陷、
 # 锚点断掉）红同样是 rc=1，会把「形态已关闭」读成绿。
 set -u
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd -P)"
 GATE="$ROOT/skills/skill-extraction-workflow/scripts/impact-chain-gate.rb"
 LEDGER_REL="skills/skill-extraction-workflow/references/source-register.md"

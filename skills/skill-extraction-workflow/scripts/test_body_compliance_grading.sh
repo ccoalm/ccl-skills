@@ -16,6 +16,8 @@
 #   because the lane is advisory by construction.
 # Bash 3.2-safe. Runs against the real repo tree read-only plus a tmp stub dir.
 set -u
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 repo_root="$(cd "$script_dir/../../.." && pwd -P)"

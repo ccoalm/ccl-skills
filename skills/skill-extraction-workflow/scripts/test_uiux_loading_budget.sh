@@ -7,6 +7,8 @@
 # entry and every routed reference local and resolvable. Real provider load,
 # token, latency, correction, and task-quality claims still require task trials.
 set -euo pipefail
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 ROOT="${UIUX_LOADING_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd -P)}"
 DEFAULT_BASE_REF="e322db47abe5736e6e1fdf0e73e2ed3eb32c006b"
