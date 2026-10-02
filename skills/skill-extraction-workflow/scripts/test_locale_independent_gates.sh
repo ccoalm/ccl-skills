@@ -136,14 +136,38 @@ while IFS= read -r rel; do
   done < <(pin_drops "$ROOT/$rel")
 done <<<"$tracked"
 # Makefile targets that run ruby in a recipe must be on the target-specific
-# RUBYOPT pin line.
-mk_pinned="$(sed -nE 's/^([^#:]*):[[:space:]]*export RUBYOPT :=.*-Ku.*$/\1/p' "$ROOT/Makefile")"
-[ -n "$mk_pinned" ] || fail "Makefile has no target-specific RUBYOPT -Ku pin line"
-mk_ruby="$(awk '/^[A-Za-z0-9_.-]+:/ { t=$1; sub(/:.*/, "", t) } /^\t/ && /(^|[^a-z_])ruby([^a-z0-9_.-]|$)/ { print t }' "$ROOT/Makefile" | sort -u)"
-[ -n "$mk_ruby" ] || fail "found no Makefile recipe that runs ruby; the Makefile check would pass vacuously"
-for t in $mk_ruby; do
-  case " $mk_pinned " in *" $t "*) ;; *) missing="$missing\n  Makefile target $t" ;; esac
-done
+# RUBYOPT pin line. A rule line names every target before its first colon
+# (`a b: deps`); `X := y` assignments and the pin line itself are not rules.
+mk_pinned_of() { sed -nE 's/^([^#:]*):[[:space:]]*(override[[:space:]]+)?export RUBYOPT :=.*-Ku.*$/\1/p' "$1"; }
+mk_ruby_of() {
+  awk '
+    /^\t/ { if ($0 ~ /(^|[^a-z_])ruby([^a-z0-9_.-]|$)/) for (i in cur) print cur[i]; next }
+    /^[^#[:space:]]/ {
+      c = index($0, ":"); if (c == 0) next
+      head = substr($0, 1, c - 1)
+      if (substr($0, c + 1, 1) == "=" || head ~ /=/) next
+      if ($0 ~ /export RUBYOPT :=/) next
+      split("", cur); n = split(head, names, /[[:space:]]+/)
+      for (i = 1; i <= n; i++) if (names[i] != "") cur[i] = names[i]
+    }' "$1" | sort -u
+}
+mk_missing_of() { # <Makefile>: ruby-running targets absent from the pin line
+  local pinned t
+  pinned="$(mk_pinned_of "$1")"
+  [ -n "$pinned" ] || { echo "(no target-specific RUBYOPT -Ku pin line)"; return; }
+  for t in $(mk_ruby_of "$1"); do
+    case " $pinned " in *" $t "*) ;; *) echo "$t" ;; esac
+  done
+}
+[ -n "$(mk_ruby_of "$ROOT/Makefile")" ] || fail "found no Makefile recipe that runs ruby; the Makefile check would pass vacuously"
+for t in $(mk_missing_of "$ROOT/Makefile"); do missing="$missing\n  Makefile target $t"; done
+# The tracker itself, on a fixture: a multi-target ruby rule after a pinned one
+# must be reported under its own names, and an assignment line must not reset it.
+mk_fx="$(mktemp "${TMPDIR:-/tmp}/locale-mk.XXXXXX")"
+printf 'X := 1\np1 p2: override export RUBYOPT := -Ku\np1:\n\truby a.rb\nnew-a new-b: dep\n\t@ruby b.rb\nY := 2\n\techo no\n' >"$mk_fx"
+mk_fx_out="$(mk_missing_of "$mk_fx" | tr '\n' ' ')"
+rm -f "$mk_fx"
+[ "$mk_fx_out" = "new-a new-b " ] || fail "Makefile tracker must report exactly new-a new-b on its fixture, got: $mk_fx_out"
 [ -z "$missing" ] || fail "ruby-invoking scripts without the RUBYOPT UTF-8 pin:$missing"
 [ -z "$dropped" ] || fail "RUBYOPT mentions that drop the UTF-8 pin (use the keep idiom):$dropped"
 
