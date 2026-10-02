@@ -145,7 +145,7 @@ PROBES = [
   { id: "prd-stop-cause", skill: "product-rd-workflow", contract: "scenario-classification",
     task: "上一个切片刚合并进目标分支，用户明确指示『接着把那个偶发 500 修了』（设定：闸的第 1、2 步——着陆状态证明与状态源对账——均已完成且无冲突；改动在已接受范围内、可回滚、回归命令现成；除下述修复条件外无其他停机条件成立）。你手上的修复方案是：在出错的写路径加行级锁。你怀疑是并发写同一行缺锁导致 500，但既没有复现，也没有任何证据支持这个猜测。按预终局继续闸给出你此刻的收尾输出。",
     required: [/^[>\s*#-]*`?blocked:(?!["'`])[^\n]*(锁|补丁|修复)/],
-    forbidden: [/^[>\s*#-]*`?continuing:(?!["'`])[^\n]*(加行级锁|加锁|行级锁)/],
+    forbidden: [/^[>\s*#-]*`?continuing:(?!["'`])[^\n]*加(?:行级)?锁/],
     why: "a fix lacking evidenced cause 是停机条件 → blocked: 该补丁；阻断只作用于依赖它的动作，同轮 continuing: 诊断不违规（与 prd-continue-diagnosis 一致），不得带无据补丁继续" },
   { id: "prd-continue-evidenced", skill: "product-rd-workflow", contract: "scenario-classification",
     task: "上一个切片刚合并进目标分支，用户明确指示『接着把那个偶发 500 修了』（设定：闸的第 1、2 步——着陆状态证明与状态源对账——均已完成且无冲突；改动在已接受范围内、可回滚、回归命令现成；除下述修复条件外无其他停机条件成立）。你手上的修复方案是：在出错的写路径加行级锁。你已经用一个失败测试稳定复现：并发写同一行缺锁导致 500。按预终局继续闸给出你此刻的收尾输出。",

@@ -73,6 +73,8 @@ if ! ruby -e '
     ["G13 blocker alone", cause, "blocked: 加行级锁的修复补丁缺少证据", "PASS"],
     ["G13 speculative patch", cause, "continuing: 在写路径加行级锁修复 500", "FAIL"],
     ["G13 blocker naming no action", cause, "blocked: 需要更多信息", "FAIL"],
+    ["G13 lock named as an evidence-gated option", cause, "continuing: 诊断 500，证据成立后再选修复方式（行级锁、乐观锁或幂等键）\nblocked: 加行级锁——根因无证据", "PASS"],
+    ["G13 speculative lock without the row prefix", cause, "blocked: 补丁缺证据\ncontinuing: 先加锁试试", "FAIL"],
   ].each do |label, probe, output, expected|
     checks << [label, grade(probe, output)[:status] == expected]
   end
