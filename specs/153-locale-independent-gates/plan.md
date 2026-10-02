@@ -79,8 +79,10 @@ installed and also changes collation and other tools' character handling.
 
 ## Residual
 
-- The Makefile `eval-*` targets call `ruby` directly; they are outside
-  `make test` and keep the caller's locale.
+- The Makefile targets that call `ruby` directly (`eval-routing`, which the
+  routing-surface gate names, and the other `eval-*` targets) carry a
+  target-specific `RUBYOPT` pin; the suite fails if a Makefile recipe runs
+  `ruby` under a target missing from that line.
 - A caller that clears the environment (`env -i`) before invoking ruby inside a
   gate loses the pin; no live script does this today.
 - Leg 1 finds ruby by the bare word `ruby`. A script that runs Ruby only through

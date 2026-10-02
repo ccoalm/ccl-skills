@@ -4,8 +4,8 @@
 # UTF-8 skill text (or runs a `ruby -e` program with UTF-8 literals) crashed with
 # "invalid byte sequence in US-ASCII" before checking anything, while CI (which
 # runs C.UTF-8) stayed green. Each ruby-invoking script pins `RUBYOPT=-Ku`.
-#   (1) every tracked live shell script (skills/, hooks/, scripts/) that invokes
-#       ruby carries the pin, and no other literal RUBYOPT mention drops it; the
+#   (1) every tracked live shell script (skills/, hooks/, scripts/) and every
+#       Makefile target that invokes ruby carries the pin, and no other literal RUBYOPT mention drops it; the
 #       classifier is held by pinned bypass and near-miss rows; frozen evidence
 #       under specs/ and eval/ is exempt;
 #   (2) validate-skill.sh passes on a UTF-8 fixture under LC_ALL=C;
@@ -135,6 +135,15 @@ while IFS= read -r rel; do
     [ -n "$hit" ] && dropped="$dropped\n  $rel: $hit"
   done < <(pin_drops "$ROOT/$rel")
 done <<<"$tracked"
+# Makefile targets that run ruby in a recipe must be on the target-specific
+# RUBYOPT pin line.
+mk_pinned="$(sed -nE 's/^([^#:]*):[[:space:]]*export RUBYOPT :=.*-Ku.*$/\1/p' "$ROOT/Makefile")"
+[ -n "$mk_pinned" ] || fail "Makefile has no target-specific RUBYOPT -Ku pin line"
+mk_ruby="$(awk '/^[A-Za-z0-9_.-]+:/ { t=$1; sub(/:.*/, "", t) } /^\t/ && /(^|[^a-z_])ruby([^a-z0-9_.-]|$)/ { print t }' "$ROOT/Makefile" | sort -u)"
+[ -n "$mk_ruby" ] || fail "found no Makefile recipe that runs ruby; the Makefile check would pass vacuously"
+for t in $mk_ruby; do
+  case " $mk_pinned " in *" $t "*) ;; *) missing="$missing\n  Makefile target $t" ;; esac
+done
 [ -z "$missing" ] || fail "ruby-invoking scripts without the RUBYOPT UTF-8 pin:$missing"
 [ -z "$dropped" ] || fail "RUBYOPT mentions that drop the UTF-8 pin (use the keep idiom):$dropped"
 
