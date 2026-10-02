@@ -33,13 +33,20 @@ installed and also changes collation and other tools' character handling.
 - Each tracked shell script under `skills/`, `hooks/` and `scripts/` that invokes
   ruby (24, all in `skills/skill-extraction-workflow/scripts/`) pins
   `RUBYOPT=-Ku` right after its `set` line, idempotently, so nested scripts do not
-  stack the flag and a caller's own `RUBYOPT` is kept. Under a UTF-8 locale this
-  is what Ruby already does, so CI behaviour is unchanged.
+  stack the flag and a caller's own `RUBYOPT` is appended. Under a UTF-8 locale
+  this is what Ruby already does at default verbosity, so CI behaviour is
+  unchanged. Three test lines that set `RUBYOPT` for a single ruby call now keep
+  the exported value instead of replacing it.
 - `test_locale_independent_gates.sh` (fast lane) holds the class:
-  1. every live ruby-invoking shell script carries the pin;
+  1. every live ruby-invoking shell script carries the pin, no per-command
+     `RUBYOPT=` assignment drops it, and the leg fails rather than passing when
+     `git ls-files` cannot list the tracked scripts;
   2. `validate-skill.sh` passes on a UTF-8 fixture under `LC_ALL=C`;
-  3. the same run with the pin removed fails for the encoding reason, so leg 2
-     cannot pass vacuously.
+  3. the same run with the pin removed fails for the encoding reason, which shows
+     the pin is what makes leg 2 pass. On a host whose C locale already reads
+     UTF-8 the pin is not load-bearing; leg 3 then prints
+     `test_locale_independent_gates_leg3_unevaluated` and the suite reports
+     legs 1-2 only.
 - Frozen evidence scripts under the per-spec evidence directories and `eval/evidence/` are
   records, not live gates, and stay untouched.
 
@@ -48,8 +55,11 @@ installed and also changes collation and other tools' character handling.
 | Input | Expected |
 | --- | --- |
 | live ruby-invoking script without the pin | leg 1 fails, names the script |
+| per-command `RUBYOPT="…"` that does not keep `$RUBYOPT` | leg 1 fails, names the line |
+| run outside a git checkout | leg 1 fails instead of passing on an empty list |
 | fixture skill, shipped `validate-skill.sh`, `LC_ALL=C` | passes, prints `markdown_references_ok` |
 | same, pin removed | fails with `invalid byte sequence` / `invalid multibyte char` |
+| same, pin removed, host C locale reads UTF-8 | `…_leg3_unevaluated`; suite reports legs 1-2 |
 | `check-ccl-skills.sh .`, `LC_ALL=C` | `ccl_skill_check_interim_ok` (was: Ruby crash) |
 | `make test`, `LC_ALL=C` and `C.UTF-8` | same verdicts as CI |
 
@@ -59,6 +69,20 @@ installed and also changes collation and other tools' character handling.
   `make test` and keep the caller's locale.
 - A caller that clears the environment (`env -i`) before invoking ruby inside a
   gate loses the pin; no live script does this today.
+- Leg 1 finds ruby by the bare word `ruby`. A script that runs Ruby only through
+  a variable (`"$RUBY"`) or executes a `.rb` file directly by its shebang would
+  not be flagged; no live script does either today.
+- Python callers (`test_eval_runtime.py` runs `eval-golden-trace.rb`) are not
+  pinned; Python's own locale coercion exports `LC_CTYPE=C.UTF-8` to the child,
+  and that suite passes under `LC_ALL=C`.
+- A caller `RUBYOPT` that sets a different external encoding (`-E ASCII`,
+  `-EASCII-8BIT`) now conflicts with `-Ku` and Ruby refuses to start
+  (`default_external already set`); `-EUTF-8` and `-U` still work, and a later
+  caller `-Kn`/`-Ke` wins the source encoding.
+- `-K` is legacy syntax: Ruby 3.3 no longer lists it in `ruby -h`, and with `-w`,
+  `-W2` or `ruby -v` it prints a compatibility warning on stderr (default
+  verbosity stays clean). A future Ruby that drops it would make every pinned
+  gate fail loudly, CI included, not pass silently.
 
 ## Review
 

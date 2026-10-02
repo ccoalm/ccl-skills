@@ -1022,7 +1022,7 @@ RUBY
 run_gate_dateless() {
   gate_runs=$((gate_runs + 1))
   set +e
-  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="-r$DATELESS_SHIM" ruby "$GATE_SCRIPT" "$REPO" 2>&1)"
+  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="${RUBYOPT:+$RUBYOPT }-r$DATELESS_SHIM" ruby "$GATE_SCRIPT" "$REPO" 2>&1)"
   rc=$?
   set -e
 }
@@ -1046,7 +1046,7 @@ cmp -s "$GATE_SCRIPT" "$GATE_DATELESS_MUTANT" && fail "dateless mutation is a no
 run_gate_dateless_mutant() {
   gate_runs=$((gate_runs + 1))
   set +e
-  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="-r$DATELESS_SHIM" ruby "$GATE_DATELESS_MUTANT" "$REPO" 2>&1)"
+  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="${RUBYOPT:+$RUBYOPT }-r$DATELESS_SHIM" ruby "$GATE_DATELESS_MUTANT" "$REPO" 2>&1)"
   rc=$?
   set -e
 }

@@ -90,7 +90,7 @@ git -C "$REPO" commit -qm "description-only change with #description row"
 
 run_gate() { # <gate-path> <RUBYOPT value or empty>
   set +e
-  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="$2" ruby "$1" "$REPO" 2>&1)"
+  out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF RUBYOPT="${RUBYOPT:+$RUBYOPT }$2" ruby "$1" "$REPO" 2>&1)"
   rc=$?
   set -e
 }

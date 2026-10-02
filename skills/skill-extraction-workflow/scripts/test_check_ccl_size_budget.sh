@@ -710,7 +710,7 @@ HAN_WORD_SKILL="$WORD_REPO/skills/han-skill/SKILL.md"
 ruby -e 's = File.binread(ARGV.fetch(0)).force_encoding(Encoding::UTF_8); exit(s.valid_encoding? ? 0 : 1)' "$HAN_WORD_SKILL" \
   || fail "f3 fixture: generated invalid UTF-8"
 set +e
-out="$(env -u CCL_SKILL_BASE_REF LC_ALL=C bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+out="$(env -u CCL_SKILL_BASE_REF LC_ALL=C RUBYOPT= bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
 rc=$?
 set -e
 assert_rc "$rc" 1 "unspaced Han body above the word-equivalent limit must block under the C locale"
@@ -726,7 +726,7 @@ INVALID_UTF8_WORD_SKILL="$WORD_REPO/skills/invalid-utf8-skill/SKILL.md"
 write_skill_with_body_words "$INVALID_UTF8_WORD_SKILL" 5000
 ruby -e 'File.open(ARGV.fetch(0), "ab") { |f| f.write([0xFF].pack("C")) }' "$INVALID_UTF8_WORD_SKILL"
 set +e
-out="$(env -u CCL_SKILL_BASE_REF LC_ALL=C bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
+out="$(env -u CCL_SKILL_BASE_REF LC_ALL=C RUBYOPT= bash "$SIZE_SCRIPT" "$WORD_REPO" 2>&1)"
 rc=$?
 set -e
 assert_rc "$rc" 1 "invalid UTF-8 byte must be counted without crashing the size gate"
