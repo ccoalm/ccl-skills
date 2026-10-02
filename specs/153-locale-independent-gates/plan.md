@@ -95,7 +95,9 @@ installed and also changes collation and other tools' character handling.
 - Leg 1 is a scan of literal text. Spellings that drop the pin without the
   literal token (`unset RUBY''OPT`, `eval` of a built string, an indirect
   variable name) and `ruby --disable=rubyopt`, which ignores `RUBYOPT`
-  entirely, pass it; no live script uses them.
+  entirely, pass it; no live script uses them. The attribute-builtin check
+  looks for the builtin at command position, so one inside a quoted `eval`
+  string or behind an alias-bypass backslash (`\declare`) is not seen.
 - The allowlist is deliberately strict: a safe option such as `--disable-gems`
   after the keep idiom is flagged until it is expressed another way. A
   variable in the suffix (`$2`) is opaque; the live caller passes only
