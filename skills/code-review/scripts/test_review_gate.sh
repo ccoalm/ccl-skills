@@ -4979,33 +4979,46 @@ open(receipt_path, "w").write("[" * 30000 + "]" * 30000)
 receipt = review_gate.record_local_review(anchor, {"mode": "review"})
 review_gate.json.loads = real_loads
 assert receipt is not None and receipt["conclusive_runs"] == 1, receipt
-# A writer that finds the receipt directory locked waits, and reads the count only
-# once it holds the lock: it increments the value written under the holder's lock.
-# Without the lock the writer finishes first; reading before the lock increments
-# the stale value.
+# A writer reads the count only once it holds the receipt directory lock, so it
+# increments the value written under the holder's lock. The writer announces its
+# exclusive lock call on that directory, and the holder rewrites the count only
+# after the announcement: without the lock nothing is announced, and a read taken
+# before the lock increments the stale value, however the processes are scheduled.
 import fcntl, multiprocessing
 fork = multiprocessing.get_context("fork")
-started = fork.Event()
+locking = fork.Event()
+receipt_dir = os.path.join(gd, "ccl-code-review")
+receipt_dir_identity = (os.stat(receipt_dir).st_dev, os.stat(receipt_dir).st_ino)
 def locked_run():
-    started.set()
+    real_flock = fcntl.flock
+    def announce(fd, operation):
+        st = os.fstat(fd)
+        if operation == fcntl.LOCK_EX and (st.st_dev, st.st_ino) == receipt_dir_identity:
+            locking.set()
+        return real_flock(fd, operation)
+    fcntl.flock = announce
     os._exit(0 if review_gate.record_local_review(anchor, {"mode": "challenge"}) else 3)
-holder = os.open(os.path.join(gd, "ccl-code-review"), os.O_RDONLY | os.O_DIRECTORY)
-fcntl.flock(holder, fcntl.LOCK_EX)
-writer = fork.Process(target=locked_run)
-writer.start()
-waited = started.wait(30)
-writer.join(1)
-waited = waited and writer.is_alive()
-with open(receipt_path, "w") as handle:
-    json.dump({"mode": "review", "conclusive_runs": 40, "first_recorded_at": "2026-01-01T00:00:00Z"}, handle)
-fcntl.flock(holder, fcntl.LOCK_UN)
-os.close(holder)
-writer.join(30)
-if writer.is_alive():
-    writer.kill()
-    writer.join()
+holder = os.open(receipt_dir, os.O_RDONLY | os.O_DIRECTORY)
+writer = fork.Process(target=locked_run, daemon=True)
+try:
+    fcntl.flock(holder, fcntl.LOCK_EX)
+    writer.start()
+    announced = locking.wait(30)
+    with open(receipt_path, "w") as handle:
+        json.dump({"mode": "review", "conclusive_runs": 40, "first_recorded_at": "2026-01-01T00:00:00Z"}, handle)
+finally:
+    fcntl.flock(holder, fcntl.LOCK_UN)
+    os.close(holder)
+    if writer.pid is not None:
+        writer.join(30)
+        if writer.is_alive():
+            writer.kill()
+            writer.join(5)
+        if writer.is_alive():
+            print("writer_not_reaped", flush=True)
+            os._exit(1)
 receipt = json.load(open(receipt_path))
-assert waited and writer.exitcode == 0, (waited, writer.exitcode)
+assert announced and writer.exitcode == 0, (announced, writer.exitcode)
 assert receipt["conclusive_runs"] == 41 and receipt["first_recorded_at"] == "2026-01-01T00:00:00Z", receipt
 print("run_count_ok")
 PY
