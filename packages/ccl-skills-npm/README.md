@@ -60,7 +60,7 @@ ccl-skills uninstall         # preview
 ccl-skills uninstall --yes   # remove host assets
 ```
 
-Limit any operation to one host with `--host claude`, `--host codex`, or `--host opencode`. Add `--json` for machine-readable output.
+Limit these operations to one host with `--host claude`, `--host codex`, or `--host opencode`. Add `--json` for machine-readable output.
 
 For `--host codex`, unreadable public plugin state returns exit `3` with `host-state-unknown`; a missing CLI or failed capability probe returns `4`. If that host failure occurs with a pending journal, recovery is deferred: exit `5` with `partial-journal` retains the journal and records `details.hostFailure`. Restore the CLI or readable public plugin state, then rerun the command. Other outcomes can share these exit codes, so inspect the JSON status as well.
 
@@ -70,9 +70,76 @@ Codex `doctor` also reads the native hook inventory. When every expected package
 
 After `ccl-skills uninstall --yes`, remove the CLI package itself with `npm uninstall --global @ccoalm/ccl-skills` if it is no longer needed.
 
+## Automatic CCL updates
+
+On macOS, explicitly enable daily CCL updates for one host:
+
+```bash
+# Existing Codex Git plugin; Codex is the default host
+npx --yes @ccoalm/ccl-skills@latest auto-update enable
+npx --yes @ccoalm/ccl-skills@latest auto-update status --json
+npx --yes @ccoalm/ccl-skills@latest auto-update disable
+
+# Existing npm-managed OpenCode skills, plugin and hooks
+npx --yes @ccoalm/ccl-skills@latest auto-update enable --host opencode
+npx --yes @ccoalm/ccl-skills@latest auto-update status --host opencode --json
+npx --yes @ccoalm/ccl-skills@latest auto-update disable --host opencode
+```
+
+With the CLI installed globally, replace `npx --yes @ccoalm/ccl-skills@latest` with `ccl-skills`. Each command acts on one host and executes directly; `--yes` and `--host all` are unsupported. Installation never enables scheduling. Separate launchd jobs run every 24 hours while logged in and when loaded at login. A non-root macOS user is required; other platforms return exit `4` with `unsupported-platform`.
+
+### Codex
+
+The target is `ccl-skills@ccl-skills` in the current `CODEX_HOME`, or `~/.codex` when unset. Its marketplace and plugin must use the canonical `ccoalm/ccl-skills` Git repository over HTTPS or SSH, and the plugin must be enabled. Codex must support `--no-daemon` and plugin JSON output.
+
+Each run checks public plugin state before and between these steps:
+
+```bash
+codex --no-daemon plugin marketplace upgrade ccl-skills
+codex --no-daemon plugin add ccl-skills@ccl-skills
+```
+
+An unsuccessful upgrade prevents the add step. Each update command has a two-minute limit; timeout terminates its child process group. Source changes are checked at those boundaries; Codex does not provide an atomic compare-and-update operation. Restart Codex to load changes. Hook trust follows Codex's normal policy.
+
+Codex npm installations use a local snapshot under `ccl-skills-npm`, which this scheduler refuses. Keep those current with `ccl-skills update --yes`. To migrate, preview removal with `ccl-skills uninstall --host codex`, then repeat with `--yes`. Register the Git installation explicitly:
+
+```bash
+codex --no-daemon plugin marketplace add https://github.com/ccoalm/ccl-skills.git
+codex --no-daemon plugin add ccl-skills@ccl-skills
+npx --yes @ccoalm/ccl-skills@latest auto-update enable
+```
+
+### OpenCode
+
+OpenCode requires an existing healthy npm-managed CCL installation with bundled assets. The scheduler updates only its CCL skills, native plugin and hook runtime under `~/.config/opencode`. It preserves OpenCode itself, application configuration, authentication, unrelated files and `~/.agents`. Restart OpenCode to load changes.
+
+Each run downloads `@ccoalm/ccl-skills@latest` from the public npm registry into a fresh private directory. It disables lifecycle scripts and package self-update, validates package identity, then invokes the fetched CLI's OpenCode doctor and update commands. It refuses missing installations, source overrides and locally changed managed files. A newer installed version is retained. Success requires a healthy receipt matching the fetched package version and bundled source.
+
+Source-checkout installs are unsupported. To migrate, first back up their CCL files and receipt, move only those verified CCL-owned files out of OpenCode's shared directories, then explicitly run the npm installer:
+
+```bash
+npx --yes @ccoalm/ccl-skills@latest install --host opencode
+npx --yes @ccoalm/ccl-skills@latest doctor --host opencode
+npx --yes @ccoalm/ccl-skills@latest auto-update enable --host opencode
+```
+
+The scheduler never adopts or deletes a source-copy installation. Resolve any collision or drift reported by the installer before enabling it.
+
+Package download has a three-minute limit; asset update has a two-minute limit. Cancellation sends SIGINT and allows ten seconds for rollback before forcing termination. A forced termination reports unknown finality; inspect `doctor --host opencode` before retrying. Fetch and preflight failures leave installed assets intact.
+
+### Status and recovery
+
+State lives in `$CODEX_HOME/ccl-skills-auto-update` for Codex and `~/.config/opencode/ccl-skills-auto-update` for OpenCode. Each profile has its own file in `~/Library/LaunchAgents`. The saved runner survives removal of an npx download and keeps the executable paths and profile selected at enable time. Those executables must remain installed. Re-enabling retains the saved runner; upgrading the npm CLI does not replace it.
+
+Commands receive fixed HOME/PATH plus CODEX_HOME and `GIT_TERMINAL_PROMPT=0` for Codex, or the self-update/notifier opt-outs for OpenCode. npm uses private empty config files and cache. Credentials and source/registry overrides from the enabling shell are not persisted; macOS may add runtime variables.
+
+`status` checks live registration and the latest bounded `last-run.json` record, which excludes raw command output. Failed or interrupted runs, registration errors and ownership errors return exit `5`. Restore the reported dependency and retry `enable` or `disable`. Overlapping runs are skipped. `disable` removes only that host's owned schedule and retains its runner, state and log. Disable first if removing the CLI should also stop updates.
+
+SIGINT and SIGTERM release owned locks, including between commands. A crash or forced kill can leave a `run.lock` or `manage.lock`. A lock at least 15 minutes old, or dated at least 15 minutes into the future, reports failure even if its PID is alive. The scheduler never removes these locks automatically. Inspect the recorded PID and launchd job; remove only that lock after confirming no updater owns it. Never remove a running updater's lock.
+
 ## Update notice
 
-Nothing here updates itself. An interactive run prints a one-line notice on **stderr** when a newer version exists, at most once a day per version:
+The npm package does not update itself automatically. An interactive run prints a one-line notice on **stderr** when a newer version exists, at most once a day per version:
 
 ```
 Update available: 0.2.0 -> 0.3.0

@@ -6,18 +6,20 @@ import { spawn, spawnSync } from "node:child_process";
 import { paths } from "./paths.js";
 import { cachePath, emitNotice } from "./update-notice.js";
 import type { Host, Options, Result } from "./types.js";
+import { autoUpdate, type AutoUpdateAction } from "./auto-update.js";
 const pkg = JSON.parse(
 	readFileSync(
 		fileURLToPath(new URL("../package.json", import.meta.url)),
 		"utf8",
 	),
 ) as { version: string };
-const HELP = `ccl-skills — npm snapshot installer for Claude Code, Codex, and OpenCode\n\nUsage:\n  ccl-skills install [--host claude|codex|opencode] [--json]\n  ccl-skills update [--host claude|codex|opencode] [--yes] [--allow-downgrade] [--json]\n  ccl-skills doctor [--host claude|codex|opencode] [--json]\n  ccl-skills uninstall [--host claude|codex|opencode] [--yes] [--json]\n\nWithout --host, every installed or package-owned host is selected.\nUpdate and uninstall are dry-run unless --yes is supplied.\nBy default update --yes upgrades the global npm package to @latest before refreshing assets.\nSet CCL_SKILLS_SKIP_SELF_UPDATE=1 for an assets-only refresh; --allow-downgrade always uses the invoked package without installing @latest first.\n\nAn interactive run prints an update notice on stderr at most once a day.\nSet CCL_SKILLS_NO_UPDATE_NOTIFIER=1 (or NO_UPDATE_NOTIFIER) to silence it; it is\nalready silent under --json, in CI, and when output is not a terminal.`;
+const HELP = `ccl-skills — npm snapshot installer for Claude Code, Codex, and OpenCode\n\nUsage:\n  ccl-skills install [--host claude|codex|opencode] [--json]\n  ccl-skills update [--host claude|codex|opencode] [--yes] [--allow-downgrade] [--json]\n  ccl-skills doctor [--host claude|codex|opencode] [--json]\n  ccl-skills uninstall [--host claude|codex|opencode] [--yes] [--json]\n  ccl-skills auto-update enable|disable|status [--host codex|opencode] [--json]\n\nAuto-update schedules an existing Codex Git or npm-managed OpenCode CCL installation on macOS; default host: codex.\nFor install/update/doctor/uninstall, omitting --host selects every installed or package-owned host.\nUpdate and uninstall are dry-run unless --yes is supplied.\nBy default update --yes upgrades the global npm package to @latest before refreshing assets.\nSet CCL_SKILLS_SKIP_SELF_UPDATE=1 for an assets-only refresh; --allow-downgrade always uses the invoked package without installing @latest first.\n\nAn interactive run prints an update notice on stderr at most once a day.\nSet CCL_SKILLS_NO_UPDATE_NOTIFIER=1 (or NO_UPDATE_NOTIFIER) to silence it; it is\nalready silent under --json, in CI, and when output is not a terminal.`;
 type Parsed = {
 	direct?: { code: number; stream: "stdout" | "stderr"; text: string };
 	command?: string;
 	options?: Options;
 	json?: boolean;
+	autoUpdateAction?: AutoUpdateAction;
 };
 export function parseArgs(args: string[]): Parsed {
 	if (
@@ -30,6 +32,22 @@ export function parseArgs(args: string[]): Parsed {
 	if (args.includes("--version"))
 		return { direct: { code: 0, stream: "stdout", text: pkg.version } };
 	const command = args[0], flags = args.slice(1);
+	if (command === "auto-update") {
+		const action = flags[0];
+		let host: "codex" | "opencode" = "codex", json = false, seenHost = false, invalid = false;
+		for (let index = 1; index < flags.length; index++) {
+			if (flags[index] === "--json" && !json) json = true;
+			else if (flags[index] === "--host" && !seenHost) {
+				seenHost = true;
+				const value = flags[++index];
+				if (value !== "codex" && value !== "opencode") invalid = true;
+				else host = value;
+			} else invalid = true;
+		}
+		if (!["enable", "disable", "status"].includes(action) || invalid)
+			return { direct: { code: 2, stream: "stderr", text: "Usage: ccl-skills auto-update enable|disable|status [--host codex|opencode] [--json] (macOS; default: codex)." } };
+		return { command, autoUpdateAction: action as AutoUpdateAction, options: {host}, json };
+	}
 	let host: Host | undefined;
 	const normalizedFlags: string[] = [];
 	for (let index = 0; index < flags.length; index++) {
@@ -238,7 +256,9 @@ export async function main(args: string[]): Promise<number> {
 	}
 	const shouldSelfUpdate = parsed.command === "update" && parsed.options!.yes && !parsed.options!.allowDowngrade && process.env.CCL_SKILLS_SKIP_SELF_UPDATE !== "1";
 	let result: Result;
-	if (shouldSelfUpdate) {
+	if (parsed.autoUpdateAction) {
+		result = await autoUpdate(parsed.autoUpdateAction, { host: parsed.options!.host as "codex" | "opencode" });
+	} else if (shouldSelfUpdate) {
 		const preflight = await supervise("update", { ...parsed.options!, yes: false });
 		result = preflight.code === 0 ? selfUpdate(parsed.options!) : preflight;
 	} else {
@@ -252,7 +272,7 @@ export async function main(args: string[]): Promise<number> {
 			? JSON.stringify(result)
 			: `${result.status}: ${result.message}${result.plan ? `\n${result.plan.map((x) => `- ${x}`).join("\n")}` : ""}`,
 	);
-	notifyUpdate(!!parsed.json);
+	if (!parsed.autoUpdateAction) notifyUpdate(!!parsed.json);
 	return result.code;
 }
 export function isDirectEntrypoint(

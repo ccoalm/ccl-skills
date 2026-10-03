@@ -1,0 +1,164 @@
+{
+  "schema": 1,
+  "base": "dcdc9ba9c54f708348dbfc46fb4964ec8d452001",
+  "runtime": "v20.20.2",
+  "command": "node --test test/auto-update.test.mjs test/opencode-auto-update.test.mjs",
+  "members": [
+    {
+      "path": "README.md",
+      "binding": "artifact-sha256:2b260903c8aac9671d79469c4dc98d4ee0541daf2b87309efc19eb444824d7fa"
+    },
+    {
+      "path": "packages/ccl-skills-npm/README.md",
+      "binding": "artifact-sha256:d613aaad22162f9257024e75ddbf815af0db02092e69050508a0a7c545c9ca12"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/assets/release.json",
+      "binding": "artifact-sha256:df868f8e1b85e7bee3679f6a9a9439a1b3fc7e816424499de84cdb5637fe3aa7"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/auto-update.js",
+      "binding": "artifact-sha256:a77be76bb68c1281d9ad046add1b2f3713337001754fd6339792c7fb0550122a"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/claude-adapter.js",
+      "binding": "artifact-sha256:75386ab4c98d7e4056fa22683168da1867536bdc2de4d02c8b6fbef68e908713"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/cli-worker.js",
+      "binding": "artifact-sha256:605797d715672800e5c12300affd512ec284e1efda36463f49de54eaa9a0aeae"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/cli.js",
+      "binding": "artifact-sha256:eeebfd87d3b83885e683698e10596d8fc8b3a25e6b6ddf609cbf8e8e00506373"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/codex-hooks.js",
+      "binding": "artifact-sha256:cd2a131514391ed37e83cf8b5e90eb0d34c3f049c4d1780fa9b0443afa242de4"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/codex-host.js",
+      "binding": "artifact-sha256:ad899e1fcbe06d53ee195fb10161c2352e4dd865e5632e35c346110cf594c479"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/fs-safe.js",
+      "binding": "artifact-sha256:4e2cf0e4742d91d8f9b2024d7df3fc93690fa3a71ab35a4762bed59705e87044"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/host-probe.js",
+      "binding": "artifact-sha256:4ef90d7773116ac96e1a3b235a04071a2732f036630c0d5202bd67e3a82919f9"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/index.js",
+      "binding": "artifact-sha256:4c8706b041a2dc06f061f2e6b0cb9f24b2f72540ba3a828432968009bfadf122"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/manifest.js",
+      "binding": "artifact-sha256:514c28ab169dae528e7137fff8a7a4884bd53b69b413340f052dc99ef978854e"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/opencode-adapter.js",
+      "binding": "artifact-sha256:b2eb03764adb252924d355281bffa8532f6add36d06cb2a6b907b4406b4e4c13"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/operations.js",
+      "binding": "artifact-sha256:c7d2150f3158a34181c5234f02727b347c6612cdd474877d277e31f1369b31d0"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/paths.js",
+      "binding": "artifact-sha256:cbce1ddce5d441b3abec3314e9ecf514f653fea86d4222021a4db2ab3d37c702"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/types.js",
+      "binding": "artifact-sha256:8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/unified.js",
+      "binding": "artifact-sha256:58b51ed8718885006dce2eab9f327833f450459737b6bf72a060f84718550677"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/update-notice.js",
+      "binding": "artifact-sha256:da5ceca856f4492afd38010918d4c33c5f8dfc04d490bbf84ff955a8e12f7245"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/version-check.js",
+      "binding": "artifact-sha256:bd6babcff7eb222ce39f8ed4d8945f55f4004f45d17600fee497ee64357099da"
+    },
+    {
+      "path": "packages/ccl-skills-npm/dist/version.js",
+      "binding": "artifact-sha256:a1cc618d49d4db724fb95724fef76415f164b47841e203a6436b1b450bbb8f2f"
+    },
+    {
+      "path": "packages/ccl-skills-npm/package.json",
+      "binding": "artifact-sha256:91be9bac16be8b675c8ce198a63aa50f6b3b4f5d075afec11e9e7f0b556584a9"
+    },
+    {
+      "path": "packages/ccl-skills-npm/src/auto-update.ts",
+      "binding": "artifact-sha256:236ab98f7614749a870dd5d27ab70cad93d95eb9689f2ee707727f9e0d94f95d"
+    },
+    {
+      "path": "packages/ccl-skills-npm/src/cli.ts",
+      "binding": "artifact-sha256:f262fc5328ebebdb5a3a9fcf51020a3271debbb88f9e9324299669852e539316"
+    },
+    {
+      "path": "packages/ccl-skills-npm/src/opencode-adapter.ts",
+      "binding": "artifact-sha256:984bff120b04bf73ad6ce15e068f0810665ea915c6b0645f9fd539199d4a6ea3"
+    },
+    {
+      "path": "packages/ccl-skills-npm/test/auto-update.test.mjs",
+      "binding": "artifact-sha256:b8d9fccc9dc47a7acfd964822098d764ff50fa4a4f5f77dd07d677fc4287d385"
+    },
+    {
+      "path": "packages/ccl-skills-npm/test/opencode-auto-update.test.mjs",
+      "binding": "artifact-sha256:3aab135f3f6a675bf6a592886ce9c2982cecc2d917db24cf77b18b6d49f8a2e9"
+    },
+    {
+      "path": "packages/ccl-skills-npm/tsconfig.json",
+      "binding": "artifact-sha256:1cff94d5cd8d553d2288fbe5afae223d8f02bd36e2f336d55dd4d53bf8e159ca"
+    },
+    {
+      "path": "specs/155-codex-auto-update/evidence.md",
+      "binding": "artifact-sha256:234ed77dd1db3174aa7c7f69811d8d759742d26336e0fabe82845a0cfa3dbebd"
+    },
+    {
+      "path": "specs/155-codex-auto-update/focused-tests.txt",
+      "binding": "artifact-sha256:3ad57f075cb0940da85a9890eff272c01e58d9183bb6daa55a71e66024d021f9"
+    },
+    {
+      "path": "specs/155-codex-auto-update/lifecycle-focused-tests.txt",
+      "binding": "artifact-sha256:1ebea9f9846a108630910555b11de9036a57ae96fd8b11595500d7de4537923e"
+    },
+    {
+      "path": "specs/155-codex-auto-update/lifecycle-green.txt",
+      "binding": "artifact-sha256:1d7a0628cc8d4894d8064975d59b33158e46e7f6f613dbce785de206991a17e8"
+    },
+    {
+      "path": "specs/155-codex-auto-update/lifecycle-red.txt",
+      "binding": "artifact-sha256:5a6b01b89a6ec4b3076bea8b002ef49706b7ee2c6bf9b5a0ae08a93dea24072e"
+    },
+    {
+      "path": "specs/155-codex-auto-update/plan.md",
+      "binding": "artifact-sha256:4f067e1a397de1ed8675507036fc3be8f33467f05b3ec92a1ddff04d6f1f57e1"
+    },
+    {
+      "path": "specs/155-codex-auto-update/log-ownership-checks.txt",
+      "binding": "artifact-sha256:1de80cb4e2fd9b3f8778ab7f95b16aaf9c44fada2f373b064968b97636826d5f"
+    }
+  ],
+  "result": {
+    "tests": 76,
+    "passed": 76,
+    "failed": 0,
+    "skipped": 0
+  },
+  "repair_base": "3872d491bcd761d733b697fa3d2d4e2e62fc5887",
+  "output": "specs/155-codex-auto-update/evidence.md",
+  "historical_validation": {
+    "candidate": "3872d491bcd761d733b697fa3d2d4e2e62fc5887",
+    "output": "specs/155-codex-auto-update/focused-tests.txt",
+    "tests": 63,
+    "passed": 63,
+    "note": "Broader checks recorded before the lifecycle repair do not bind the repaired runtime."
+  },
+  "log_ownership_base": "80d2b0a001a8b76d3a5fb4504b43791d39d86519"
+}

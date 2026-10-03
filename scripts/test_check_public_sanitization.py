@@ -62,10 +62,26 @@ def main() -> int:
         clean = run(root)
         assert clean.returncode == 0, f"escaped decorator flagged: {clean.stdout}{clean.stderr}"
 
+        transport_user = "git@" + "github.com"
+        write_and_track(
+            root, "git-transports.txt",
+            f"{transport_user}:example/project.git\nssh://{transport_user}/example/project.git\n",
+        )
+        clean = run(root)
+        assert clean.returncode == 0, f"Git SSH transport flagged: {clean.stdout}{clean.stderr}"
+
         cases = {
             "private-ip": "10." + "1.2.3",
             "private-email": "person@" + "corp.local",
             "escaped-newline-then-real-email": '"\\nfoo@' + 'corp.com"',
+            "bare-git-email": transport_user,
+            "other-github-user": "person@" + "github.com:example/project.git",
+            "github-suffix-domain": "git@" + "github.com.invalid:example/project.git",
+            "missing-repository": transport_user + ":example/",
+            "ssh-missing-repository": "ssh://" + transport_user + "/example/",
+            "embedded-address-prefix": "person." + transport_user + ":example/project.git",
+            "ssh-wrong-separator": "ssh://" + transport_user + ":example/project.git",
+            "https-userinfo": "https://" + transport_user + ":example/project.git",
             "private-hostname": "https://service." + "internal/api",
             "feishu-tenant-hostname": "https://team-workspace." + "feishu.cn/base/BASxxx",
             "mixed-case-feishu-tenant-hostname": "https://Team-Workspace." + "FEISHU.CN/base/BASxxx",
@@ -84,6 +100,7 @@ def main() -> int:
             write_and_track(root, relative, value + "\n")
             result = run(root)
             assert result.returncode == 1, f"{label} unexpectedly passed"
+            assert f": {relative}" in result.stderr, f"{label} failed for another reason: {result.stderr}"
             subprocess.run(["git", "-C", str(root), "reset", "-q", "HEAD", "--", relative], check=False)
             (root / relative).unlink()
 
