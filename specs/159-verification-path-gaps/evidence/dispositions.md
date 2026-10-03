@@ -1,8 +1,9 @@
 # 159 review dispositions
 
-Every pass ran through `extraction_review_gate.sh`. The round's register rows
-land in the last content commit, so the delta pass after the challenge holds a
-file the extraction lane owns.
+Passes 1–3 ran through `extraction_review_gate.sh`. The round's register rows
+land in the last content commit, so the delta pass after the challenge held a
+file the extraction lane owns. Later deltas changed only `AGENTS.md`, so they
+ran through the generic controller, as the delta-pass step now describes.
 
 ## Pass 1 — review (codex), base `origin/main`, reviewed commit `8dd869a`: 4 × P2
 
@@ -48,3 +49,16 @@ verbatim as open items. Record: `pass3-delta.json`.
 | 2 | P2 | "Nothing consumes the chain's remaining challenge" is an absence claim | fixed in the record: a repository search finds one reader of `next_action` outside the controller, the non-blocking reminder hook (pass 2, finding 2) | this file |
 | 3 | P2 | The register row's lane claim lacks wiring evidence, and "lane results below" pointed at nothing | fixed: the lane results are recorded below on the final commit; a shallow clone was probed and the audit fails closed with "needs full history (fetch-depth: 0)" | this file |
 | 4 | P2 | A stale local base can include an already-landed review result, so the local check can pass where CI fails; "never looser" does not follow | confirmed and fixed: against a base three merges old, a branch with no evidence of its own passed with 8 reviews from landed rounds; with the merge-base of the current target it failed as CI would. `AGENTS.md` now says to fetch the target and use the merge-base | `AGENTS.md` |
+
+## Pass 4 — delta review (codex), base `69f9ec0`, reviewed commit `3f0c70b`: 2 × P2
+
+The delta held no file the extraction lane owns, so it ran through the generic
+controller with the round's plan and risk tag, `--review-chain-id
+pr-159-delta2` and `--autonomous-review-index 1`, as the delta-pass step now
+describes. The controller admitted it and a reviewer returned findings. Record:
+`pass4-delta.json`.
+
+| # | Sev | Finding | Disposition | Where |
+| --- | --- | --- | --- | --- |
+| 1 | P2 | A branch reused after a squash merge keeps a merge-base older than the landed review, so the local check can still pass where CI fails; parity with CI's diff is not established | fixed by narrowing: the line no longer claims parity and keeps only the fetch warning. Reusing a branch after a squash merge remains a known false-green path; this repository merges pull requests with merge commits | `AGENTS.md` |
+| 2 | P2 | "Lane results below" still points at nothing | fixed: the lane results follow | this file |
