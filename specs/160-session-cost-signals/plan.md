@@ -6,7 +6,7 @@ Status: implemented. Measurements and reproduction are in
 
 Artifact classification: hook behavior, review-controller output and reference
 text. Risk tag: shared-gate (the review controller). The round adds one
-user-only notice, removes one redundant injection and adds a counter to an
+user-only notice, trims one redundant injection and adds a counter to an
 existing receipt. It adds no gate, block, flag or permission.
 
 ## Observed failures
@@ -21,7 +21,7 @@ line's repositories and this one — measured where time and tokens went:
   nothing told the user how large the context had grown.
 - Redundant injection. About one third of the task-entry injections fired on
   turns the host starts itself to deliver a background-task completion, where
-  the routing is already in context.
+  the routing list is already in context.
 - Review loops. Single changes ran 13 to 49 conclusive review runs, several
   after the five-run continuation checkpoint existed. The controller kept no
   count, so the checkpoint depended on the agent remembering one across hours
@@ -35,15 +35,18 @@ line's repositories and this one — measured where time and tokens went:
   (`/clear` after a handoff at a delivery boundary, `/autocompact`). It is shown
   to the user only, once per band per transcript, reads only the transcript
   tail, and joins any existing reminder without changing its text.
-- `hooks/task-entry.sh`: a prompt that is the host's `<task-notification>`
-  envelope gets no entry; every other prompt, and any input the hook cannot
-  parse, keeps it. The prompt is still neither classified nor echoed.
+- `hooks/task-entry.sh`: a prompt that is exactly one host `<task-notification>`
+  envelope gets only the skill-loading and unfinished-work boundary, not the
+  routing list, which SessionStart keeps in context (also after compaction).
+  Every other prompt, and any input the hook cannot parse, keeps the full
+  entry. The prompt is still neither classified nor echoed.
 - `skills/code-review/scripts/review_gate.py`: the worktree receipt carries
   `conclusive_runs` and `first_recorded_at`; review and challenge runs count,
   completion checkpoints do not. From the sixth conclusive run the output
   carries `continuation_checkpoint` with the count and the checkpoint's steps.
-  A missing, corrupt or linked prior receipt restarts the count and never costs
-  the new receipt.
+  The read-increment-replace holds a lock on the receipt directory, so
+  overlapping runs do not lose increments; a missing, corrupt or linked prior
+  receipt restarts the count and never costs the new receipt.
 - `skills/code-review/references/development-completion.md`: the checkpoint
   names the counter and adds the same-class decision — narrow or remove the
   capability that keeps producing a class before patching it again.

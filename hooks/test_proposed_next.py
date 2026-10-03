@@ -575,6 +575,14 @@ class ProposedNextTests(unittest.TestCase):
         self.assertIn('61 万', second.get('systemMessage', ''))
         self.assertEqual(self.run_with_state(), {})
 
+    def test_large_context_notice_stays_quiet_without_its_state_helper(self):
+        # Without the once-per-band record the notice would repeat on every stop, so
+        # it is withheld; notices that must show (handoff overflow) still show.
+        self.events([self.usage_event(450000)])
+        self.assertFalse((self.hooks / 'skill-loading.py').exists())
+        self.assertEqual(self.run_hook(), {})
+        self.assertEqual(self.run_hook(), {})
+
     def test_large_context_notice_rides_with_a_continuation_reminder(self):
         self.events([self.usage_event(450000)])
         payload = dict(self.payload, last_assistant_message='Fixed.\n\nproposed-next: run the integration suite')

@@ -80,23 +80,33 @@ class TaskEntryTests(unittest.TestCase):
         self.assertIn('A report alone does not complete it', context)
         self.assertIn('required user decision or unavailable authority/resource', context)
 
-    def test_host_task_notification_turn_gets_no_entry(self):
+    def test_host_task_notification_turn_keeps_only_the_boundary(self):
         # The host also runs UserPromptSubmit on turns it starts itself; a background
-        # completion arrives wrapped in its <task-notification> envelope. Those turns
-        # continue work whose routing is already in context, so re-sending the entry
-        # only spends tokens (about a third of all injections in measured sessions).
+        # completion arrives as one <task-notification> envelope. SessionStart keeps the
+        # routing list in context (also after compaction), so that turn drops only the
+        # list; the skill-loading and unfinished-work boundary appears nowhere else and
+        # matters most when a background check has just failed.
         expected, _ = self.run_hook(prompt='Add a feature')
-        for prompt in ['<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n</task-notification>',
+        full = expected['hookSpecificOutput']['additionalContext']
+        for prompt in ['<task-notification>\n<task-id>b1</task-id>\n<status>failed</status>\n</task-notification>',
                        '\n  <task-notification><task-id>b2</task-id></task-notification>']:
             with self.subTest(prompt=prompt[:30]):
                 output, error = self.run_hook(prompt=prompt)
-                self.assertEqual(output, {})
                 self.assertEqual(error, '')
+                context = output['hookSpecificOutput']['additionalContext']
+                self.assertIn('unrun, failed or inconclusive verification is unfinished work', context)
+                self.assertIn('Before task-specific investigation or substantive analysis', context)
+                self.assertTrue(context.startswith('<ccl-task-entry>') and context.endswith('</ccl-task-entry>'))
+                self.assertNotIn('<!-- ccl:entry-routing:start -->', context)
+                self.assertNotIn('**product-rd-workflow**', context)
+                self.assertLess(len(context), len(full) // 2)
         # Controls: a human prompt that merely mentions the envelope still gets the
         # entry, as does input the hook cannot parse.
         for prompt in ['Why did <task-notification> fire twice?', 'task-notification arrived',
                        '<task-notification><task-id>b3</task-id></task-notification>\nWhat does this mean?',
-                       '<task-notification> pasted without its closing tag']:
+                       '<task-notification> pasted without its closing tag',
+                       '<task-notification>first</task-notification>\nCompare these.\n'
+                       '<task-notification>second</task-notification>']:
             with self.subTest(prompt=prompt):
                 output, _ = self.run_hook(prompt=prompt)
                 self.assertEqual(output, expected)
@@ -104,7 +114,8 @@ class TaskEntryTests(unittest.TestCase):
     def test_unreadable_hook_input_keeps_the_entry(self):
         expected, _ = self.run_hook(prompt='Add a feature')
         for raw in ['', 'not json', json.dumps(['<task-notification>']),
-                    json.dumps({'prompt': 42}), json.dumps({'prompt': '<task-notification>' + 'x' * 2_000_000})]:
+                    json.dumps({'prompt': 42}), json.dumps({'prompt': '<task-notification>' + 'x' * 2_000_000}),
+                    '[' * 500000 + ']' * 500000]:
             with self.subTest(raw=raw[:30]):
                 with tempfile.TemporaryDirectory(prefix='ccl-task-entry-') as directory:
                     root = Path(directory)

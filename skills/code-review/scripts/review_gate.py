@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import errno
+import fcntl
 import hashlib
 import json
 import math
@@ -1671,7 +1672,7 @@ def prior_local_review(receipt_fd: int) -> dict[str, Any]:
         os.close(descriptor)
     try:
         value = json.loads(data) if len(data) <= 65536 else None
-    except ValueError:
+    except (ValueError, RecursionError):
         return {}
     return value if isinstance(value, dict) else {}
 
@@ -1736,6 +1737,9 @@ def record_local_review(anchor: dict[str, Any] | None, result: dict[str, Any]) -
         except FileExistsError:
             pass
         receipt_fd = os.open(LOCAL_REVIEW_RECEIPT_DIR, directory_flags, dir_fd=git_fd)
+        # Serialize read-increment-replace so overlapping review and challenge
+        # completions in one worktree cannot both read N and write N + 1.
+        fcntl.flock(receipt_fd, fcntl.LOCK_EX)
         prior = prior_local_review(receipt_fd)
         receipt["conclusive_runs"] = conclusive_review_runs(prior, receipt["mode"])
         first = prior.get("first_recorded_at") or prior.get("recorded_at")

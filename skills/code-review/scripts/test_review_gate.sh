@@ -4970,6 +4970,23 @@ os.symlink(target, receipt_path)
 receipt = review_gate.record_local_review(anchor, {"mode": "review"})
 assert receipt is not None and receipt["conclusive_runs"] == 1 and not os.path.islink(receipt_path), receipt
 assert json.load(open(target))["conclusive_runs"] == 40
+# A prior receipt the parser cannot finish (nesting too deep) is invalid, never fatal.
+real_loads = review_gate.json.loads
+def too_deep(*args, **kwargs):
+    raise RecursionError("maximum recursion depth exceeded")
+review_gate.json.loads = too_deep
+open(receipt_path, "w").write("[" * 30000 + "]" * 30000)
+receipt = review_gate.record_local_review(anchor, {"mode": "review"})
+review_gate.json.loads = real_loads
+assert receipt is not None and receipt["conclusive_runs"] == 1, receipt
+# Overlapping writers never lose an increment.
+import multiprocessing
+os.unlink(receipt_path)
+def one_run(_):
+    return review_gate.record_local_review(anchor, {"mode": "challenge"}) is not None
+with multiprocessing.get_context("fork").Pool(8) as pool:
+    assert all(pool.map(one_run, range(24)))
+assert json.load(open(receipt_path))["conclusive_runs"] == 24, json.load(open(receipt_path))
 print("run_count_ok")
 PY
 )"

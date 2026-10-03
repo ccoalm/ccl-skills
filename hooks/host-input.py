@@ -579,8 +579,8 @@ def machine_artifact(text):
     return False
 
 
-def stop_notice(payload, lane, message):
-    """Cap notice attempts only; these markers never establish verification."""
+def claim_notice(payload, lane):
+    """True on this lane's first attempt, False on a repeat, None when state is unavailable."""
     try:
         # Reuse the installed runtime's owned-directory/no-follow/atomic claim
         # protections. Minimal vendored runtimes may omit this optional helper.
@@ -596,14 +596,19 @@ def stop_notice(payload, lane, message):
         info = module.regular_info(path)
         state = module.State(key)
         try:
-            if not state.claim_attempt('stop-notice-' + lane, [info.st_dev, info.st_ino]):
-                return None
+            return bool(state.claim_attempt('stop-notice-' + lane, [info.st_dev, info.st_ino]))
         finally:
             state.close()
     except Exception:
-        # Missing identity, a broken optional helper or unsafe/unavailable state
-        # must not invent success. This boundary only controls advisory output.
-        pass
+        return None
+
+
+def stop_notice(payload, lane, message):
+    """Cap notice attempts only; these markers never establish verification."""
+    # Missing identity, a broken optional helper or unsafe/unavailable state must
+    # not invent success: the notice still shows. This only controls advisory output.
+    if claim_notice(payload, lane) is False:
+        return None
     return {'systemMessage': message}
 
 
@@ -772,8 +777,9 @@ def context_notice(payload):
     message = ('本会话上下文约 {} 万 token：之后每次请求都会重读这些内容，长会话的 token 主要花在这里。'
                '当前交付收口后可先写好交接再 /clear 开新会话；或用 /autocompact 把自动压缩提前'
                '（如 /autocompact 400k）。此提示只显示给你，不影响当前任务。').format(tokens // 10000)
-    notice = stop_notice(payload, 'context-{}k'.format(reached[-1] // 1000), message)
-    return notice.get('systemMessage') if notice else None
+    # Optional information: without the state helper it stays quiet rather than
+    # repeating on every stop.
+    return message if claim_notice(payload, 'context-{}k'.format(reached[-1] // 1000)) is True else None
 
 
 def with_context_notice(payload, result):
