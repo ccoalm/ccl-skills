@@ -74,6 +74,28 @@ this record, which owes no further pass.
 | 1 | P2 | Pass 4 finding 1 was marked fixed although only its wording was corrected, and the merge-practice remark was unsupported | fixed in this record: pass 4 finding 1 now reads "wording fixed", with the squash-reuse false green left open as a residual and the merge-commit count as observed practice | this file |
 | 2 | P2 | The lane results are still missing | fixed: they follow | this file |
 
+## Pass 6 — delta review (codex) after the rebase onto round 158, base `8e312ee`, reviewed commit `c11cf43`: 3 × P2
+
+Round 158's pull request merges first, so this branch was rebased onto its
+head `8e312ee`. Two files conflicted because both rounds inserted at the same
+place: `test_review_gate.sh` (round 158's three focus and egress cases, then
+this round's refusal case) and `source-register.md` (round 158's three rows,
+then this round's two). Both sides were kept. The last commit bumps the npm
+package to 0.18.10 for the release that follows both merges. The delta pass
+ran through `extraction_review_gate.sh` on the two resolved files and the two
+package files. Record: `pass6-delta.json`.
+
+| # | Sev | Finding | Disposition | Where |
+| --- | --- | --- | --- | --- |
+| 1 | P2 | The packet shows one resolved case and part of another, so exact-once preservation and a passing suite are not shown | evidence supplied: each of the four case names occurs exactly once; both resolved blocks are byte-identical to their source commits (`8e312ee` and `1bf9e54`); the file parses with `bash -n`; the suite result is in the lanes below | `test_review_gate.sh` |
+| 2 | P2 | The register rows' preservation and anchors are not shown against `8e312ee` | evidence supplied: round 158's three rows and this round's two rows are byte-identical to their source commits; `check-ccl-skills.sh` with base `8e312ee` ends `ccl_skill_check_clean_ok`, impact-chain gate included | `source-register.md` |
+| 3 | P2 | `packages/AGENTS.md` requires `npm-test`, `npm-pack-verify` and `npm-publish-dry` for a package change | run: `make npm-publish-dry` covers all three (`npm ci`, `npm test`, `test:pack`, `pack --dry-run`); result in the lanes below | `packages/ccl-skills-npm` |
+
+The sorted added and removed lines of this round's change are identical before
+and after the rebase (16 files, 353 insertions, 8 deletions), and the
+controller diff between `8e312ee` and the rebased head is only this round's
+refusal message.
+
 ## Verification lanes
 
 On `69f9ec0`, in a detached checkout with `CCL_SKILL_BASE_REF=origin/main` and
@@ -89,3 +111,11 @@ On `69f9ec0`, in a detached checkout with `CCL_SKILL_BASE_REF=origin/main` and
 
 The commits after `69f9ec0` change one `AGENTS.md` line and these records; the
 repository gates ran again on the final commit before the pull request.
+
+After the rebase onto `8e312ee` and the version bump (`c11cf43`):
+
+- `check-ccl-skills.sh` with base `8e312ee`: `ccl_skill_check_clean_ok`.
+- `test_review_gate.sh`: `review_gate_tests_ok`.
+- `make npm-publish-dry`: exit 0. `npm test` 432 of 432 pass, `test:pack` 11
+  of 11, and `npm pack --dry-run` lists 709 files for `@ccoalm/ccl-skills`
+  0.18.10.
