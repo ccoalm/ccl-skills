@@ -4979,14 +4979,34 @@ open(receipt_path, "w").write("[" * 30000 + "]" * 30000)
 receipt = review_gate.record_local_review(anchor, {"mode": "review"})
 review_gate.json.loads = real_loads
 assert receipt is not None and receipt["conclusive_runs"] == 1, receipt
-# Overlapping writers never lose an increment.
-import multiprocessing
-os.unlink(receipt_path)
-def one_run(_):
-    return review_gate.record_local_review(anchor, {"mode": "challenge"}) is not None
-with multiprocessing.get_context("fork").Pool(8) as pool:
-    assert all(pool.map(one_run, range(24)))
-assert json.load(open(receipt_path))["conclusive_runs"] == 24, json.load(open(receipt_path))
+# A writer that finds the receipt directory locked waits, and reads the count only
+# once it holds the lock: it increments the value written under the holder's lock.
+# Without the lock the writer finishes first; reading before the lock increments
+# the stale value.
+import fcntl, multiprocessing
+fork = multiprocessing.get_context("fork")
+started = fork.Event()
+def locked_run():
+    started.set()
+    os._exit(0 if review_gate.record_local_review(anchor, {"mode": "challenge"}) else 3)
+holder = os.open(os.path.join(gd, "ccl-code-review"), os.O_RDONLY | os.O_DIRECTORY)
+fcntl.flock(holder, fcntl.LOCK_EX)
+writer = fork.Process(target=locked_run)
+writer.start()
+waited = started.wait(30)
+writer.join(1)
+waited = waited and writer.is_alive()
+with open(receipt_path, "w") as handle:
+    json.dump({"mode": "review", "conclusive_runs": 40, "first_recorded_at": "2026-01-01T00:00:00Z"}, handle)
+fcntl.flock(holder, fcntl.LOCK_UN)
+os.close(holder)
+writer.join(30)
+if writer.is_alive():
+    writer.kill()
+    writer.join()
+receipt = json.load(open(receipt_path))
+assert waited and writer.exitcode == 0, (waited, writer.exitcode)
+assert receipt["conclusive_runs"] == 41 and receipt["first_recorded_at"] == "2026-01-01T00:00:00Z", receipt
 print("run_count_ok")
 PY
 )"
