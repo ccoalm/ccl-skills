@@ -57,10 +57,13 @@ round 157 in the same pull request.
 - Review (kimi) P2: the moved red-CI section pointed at antecedents absent from
   the playbook; fixed by naming the entrypoint rules.
 - Challenge (codex) P1: a typed stop inside a forged notification wrapper
-  skipped revocation. The prompt hook now skips only a block whose every line
-  is a single-line tag element; free text, nested tags or a multi-line result
-  falls back to a user message (revokes). Four new cases fail on the previous
-  hook.
+  skipped revocation. A narrowed exemption (every line a single-line tag
+  element) was then broken by the delta pass with a stop written as a tag
+  element. The same class twice, over a predicate that only stands in for host
+  origin, so the exemption was deleted: the prompt hook is main's again, a
+  notification revokes like any message, and agents wait for CI in the
+  foreground during a granted merge sequence (round 157 plan). New prompt
+  cases fail twice on the exemption version and pass on main's hook.
 - Challenge P1: a budget the user explicitly adopted ("keep that ceiling") was
   classified as the agent's estimate. The rule now binds any count the user
   adopted as a limit; plain assent to the work does not adopt it.
@@ -82,6 +85,13 @@ round 157 in the same pull request.
   did not change measured behaviour: `diag-fix-local-no-push` passed 4/4 on the
   previous, main and new bodies, and the replay with "fix locally, do not push"
   (`recheck_replay.py --no-push`) fixed locally 6/6 on both reminder texts.
+- Delta review (codex) P2 on the document closeout reminder: edits are seen
+  only through file-edit tool calls (Write, Edit, MultiEdit, NotebookEdit,
+  apply_patch); shell writes are outside it, and the plan now says so. Added
+  Edit and MultiEdit fixtures. A path the check cannot resolve does not reach
+  it: the transcript scan drops a NUL-bearing path (probe: `edit_paths` empty),
+  and a case pins that the continuation reminder survives it (a control; it
+  passes on the previous hook too).
 
 ## Probe controls
 
@@ -122,7 +132,7 @@ was rejected; no source identifiers, services or vendors appear.
 | session policy | always-on | updated | `agent-context/session-policy.md`; `session-start.md` unchanged (byte ceiling; recheck carries it) |
 | skill-extraction-workflow | this workflow | updated | `references/resume-paused-delivery.md` RCA rule for stops that survive a recheck; grading walk |
 | testing-strategy | test layer | unchanged | no new layer rule; probes and hook tests follow existing practice |
-| worktree-isolation merge protocol | merge gate | updated | round 157: help probes and task notifications no longer cost a grant; the entrypoint is at its word ceiling, so the Draft rule lives in the continuation gate and the Stop reminder |
+| worktree-isolation merge protocol | merge gate | updated | round 157: help probes no longer cost a grant or trigger the cleanup reminder; notifications still revoke, so the hook notes require foreground CI waits during granted merges; the entrypoint is at its word ceiling, so the Draft rule lives in the continuation gate and the Stop reminder |
 | code-review | completion review | unchanged | review still runs before MR; nothing in its contract named push/MR as needing approval |
 
 ## Self-review (recorded before external review)

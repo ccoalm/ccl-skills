@@ -66,8 +66,10 @@ corrected them directly ("is there a rule that needs this confirmation?",
   detection.
 - `hooks/host-input.py` also adds a document closeout reminder at Stop: when the
   session edited reader-facing documents (Markdown/MDX/reST outside skill
-  bodies, contracts, memory, scratch and temporary paths) and never loaded
-  tighten-doc, the stop gets one reminder to run its closeout readback. In the
+  bodies, contracts, memory, scratch and temporary paths) through file-edit
+  tool calls (Write, Edit, MultiEdit, NotebookEdit, apply_patch; shell writes
+  are not seen) and never loaded tighten-doc, the stop gets one reminder to run
+  its closeout readback. In the
   reviewed window 26 of 29 sessions that edited plans, specs, READMEs or handoff
   documents never loaded tighten-doc. The reminder shares the existing
   one-recheck bound and joins any other Stop reminder.

@@ -375,11 +375,11 @@ class ProposedNextTests(unittest.TestCase):
                     self.assertIn('waiting on a CI run you can poll', result['reason'])
                     self.assertIn('supplies no new goal or authorization', result['reason'])
 
-    def doc_edit(self, relative, tool_id='doc'):
+    def doc_edit(self, relative, tool_id='doc', tool='Write'):
         target = str(self.root / relative)
         return [
             {'type': 'assistant', 'message': {'content': [{'type': 'tool_use', 'id': tool_id,
-             'name': 'Write', 'input': {'file_path': target, 'content': 'x'}}]}},
+             'name': tool, 'input': {'file_path': target, 'content': 'x'}}]}},
             {'type': 'user', 'message': {'content': [{'type': 'tool_result',
              'tool_use_id': tool_id, 'is_error': False, 'content': 'written'}]}}]
 
@@ -415,6 +415,26 @@ class ProposedNextTests(unittest.TestCase):
         self.assert_block(result)
         self.assertIn('execute it now', result['reason'])
         self.assertIn('tighten-doc', result['reason'])
+
+    def test_doc_reminder_covers_each_file_edit_tool(self):
+        # Edits are seen through the file-edit tool calls the transcript records;
+        # shell writes are outside this check by design.
+        for tool in ('Edit', 'MultiEdit'):
+            with self.subTest(tool=tool):
+                self.events(self.doc_edit('docs/handoff.md', tool=tool))
+                result = self.run_hook()
+                self.assert_block(result)
+                self.assertIn('handoff.md', result['reason'])
+
+    def test_unreadable_doc_path_never_costs_the_delivery_reminder(self):
+        # The document check is advisory; a path it cannot resolve (an embedded
+        # NUL makes realpath raise) must not replace the continuation reminder
+        # with the "reminder unavailable" notice.
+        self.events(self.doc_edit('docs/plans/roll\x00out.md'))
+        result = self.run_hook(dict(self.payload,
+                                    last_assistant_message='proposed-next: run the remaining local checks'))
+        self.assert_block(result)
+        self.assertIn('execute it now', result['reason'])
 
     def test_quoted_actions_do_not_turn_a_status_handoff_into_work(self):
         self.events(self.claude_load())

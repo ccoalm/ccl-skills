@@ -72,6 +72,11 @@ masked=$(printf '%s' "$cmd" | sed -E \
 # NON-fire — `glab mr merge` / `gh pr merge` is the near-universal agent merge
 # path, and the human-readable cleanup rule in worktree-isolation SKILL.md +
 # bootstrap covers EVERY merge path regardless of this reminder.
+# `gh help pr merge` / `glab help mr merge` print help (the merge guard's help
+# denial points there); drop those spans first so only a real merge segment in
+# the same command can still match.
+masked=$(printf '%s' "$masked" | sed -E \
+  's/(glab|gh)[[:space:]]([^&|;]*[[:space:]])?help[[:space:]]+(mr|pr)[[:space:]]+(merge|accept)([[:space:]]|$)/ /g')
 printf '%s' "$masked" | grep -Eq \
   'glab[[:space:]]([^&|;]*[[:space:]])?mr[[:space:]]+(merge|accept)([[:space:]]|$)|gh[[:space:]]([^&|;]*[[:space:]])?pr[[:space:]]+merge([[:space:]]|$)' \
   || exit 0
