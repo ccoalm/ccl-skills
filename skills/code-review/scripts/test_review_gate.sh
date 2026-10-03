@@ -4983,14 +4983,15 @@ assert receipt is not None and receipt["conclusive_runs"] == 1, receipt
 # read-increment-replace runs under an exclusive lock on the receipt directory.
 # Checked where it matters, not by racing writers: when the controller opens the
 # prior receipt and when it replaces it, a second open of that directory cannot
-# take even a shared lock.
+# take even a shared lock, and no lock call falls between the two, so the lock
+# is never released or changed in between.
 import fcntl
 receipt_dir = os.path.join(gd, "ccl-code-review")
-real_open, real_replace = review_gate.os.open, review_gate.os.replace
+real_open, real_replace, real_flock = review_gate.os.open, review_gate.os.replace, review_gate.fcntl.flock
 def exclusively_locked():
     probe = real_open(receipt_dir, os.O_RDONLY | os.O_DIRECTORY)
     try:
-        fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        real_flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
     except BlockingIOError:
         return True
     finally:
@@ -5005,15 +5006,24 @@ def watched_replace(src, dst, *args, **kwargs):
     if dst == review_gate.LOCAL_REVIEW_RECEIPT_FILE:
         seen.append(("replace", exclusively_locked()))
     return real_replace(src, dst, *args, **kwargs)
+def watched_flock(fd, operation):
+    seen.append(("flock", operation))
+    return real_flock(fd, operation)
 with open(receipt_path, "w") as handle:
     json.dump({"mode": "review", "conclusive_runs": 40, "first_recorded_at": "2026-01-01T00:00:00Z"}, handle)
-review_gate.os.open, review_gate.os.replace = watched_open, watched_replace
+review_gate.os.open, review_gate.os.replace, review_gate.fcntl.flock = watched_open, watched_replace, watched_flock
 try:
     receipt = review_gate.record_local_review(anchor, {"mode": "challenge"})
 finally:
-    review_gate.os.open, review_gate.os.replace = real_open, real_replace
-assert seen == [("read", True), ("replace", True)], seen
-assert receipt["conclusive_runs"] == 41 and receipt["first_recorded_at"] == "2026-01-01T00:00:00Z", receipt
+    review_gate.os.open, review_gate.os.replace, review_gate.fcntl.flock = real_open, real_replace, real_flock
+kinds = [kind for kind, _ in seen]
+assert kinds.count("read") == 1 and kinds.count("replace") == 1, seen
+read_at, replace_at = kinds.index("read"), kinds.index("replace")
+assert read_at < replace_at and seen[read_at][1] and seen[replace_at][1], seen
+assert "flock" not in kinds[read_at:replace_at], seen
+stored = json.load(open(receipt_path))
+assert stored == receipt and stored["conclusive_runs"] == 41, (stored, receipt)
+assert stored["first_recorded_at"] == "2026-01-01T00:00:00Z", stored
 print("run_count_ok")
 PY
 )"
