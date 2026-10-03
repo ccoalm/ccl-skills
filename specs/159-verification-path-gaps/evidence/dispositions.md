@@ -60,5 +60,32 @@ describes. The controller admitted it and a reviewer returned findings. Record:
 
 | # | Sev | Finding | Disposition | Where |
 | --- | --- | --- | --- | --- |
-| 1 | P2 | A branch reused after a squash merge keeps a merge-base older than the landed review, so the local check can still pass where CI fails; parity with CI's diff is not established | fixed by narrowing: the line no longer claims parity and keeps only the fetch warning. Reusing a branch after a squash merge remains a known false-green path; this repository merges pull requests with merge commits | `AGENTS.md` |
+| 1 | P2 | A branch reused after a squash merge keeps a merge-base older than the landed review, so the local check can still pass where CI fails; parity with CI's diff is not established | wording fixed: the line no longer claims parity and keeps only the fetch warning. The squash-reuse false green stays open as a residual: the local command can pass where CI fails for a branch reused after its review landed by squash. 35 of the last 40 first-parent commits on main are merge commits, which keep a branch's commits in main's history; this is observed practice, not an enforced rule | `AGENTS.md` |
 | 2 | P2 | "Lane results below" still points at nothing | fixed: the lane results follow | this file |
+
+## Pass 5 — delta review (codex), base `3f0c70b`, reviewed commit `cbc2ab4`: 2 × P2
+
+Generic controller with `--review-chain-id pr-159-delta3`; the delta deleted
+one clause from `AGENTS.md`. Record: `pass5-delta.json`. Both findings concern
+this record, which owes no further pass.
+
+| # | Sev | Finding | Disposition | Where |
+| --- | --- | --- | --- | --- |
+| 1 | P2 | Pass 4 finding 1 was marked fixed although only its wording was corrected, and the merge-practice remark was unsupported | fixed in this record: pass 4 finding 1 now reads "wording fixed", with the squash-reuse false green left open as a residual and the merge-commit count as observed practice | this file |
+| 2 | P2 | The lane results are still missing | fixed: they follow | this file |
+
+## Verification lanes
+
+On `69f9ec0`, in a detached checkout with `CCL_SKILL_BASE_REF=origin/main` and
+`GITHUB_HEAD_REF` set as CI sets them:
+
+- `make -k test`: exit 0. `ccl_skill_check_clean_ok` and
+  `shared_git_surface_gate_ok` in the repo gates; `regression_fast_lane_ok:
+  45 suites`, one more than before because the repo ledger audit now runs
+  there; `code_review_shard_1_ok`, `code_review_shard_2_ok` and
+  `review_gate_abort_leak_ok` for both legs.
+- `test_check_ccl_regressions.sh --heavy-only`: `regression_heavy_lane_ok:
+  9 suites`, one fewer for the same reason.
+
+The commits after `69f9ec0` change one `AGENTS.md` line and these records; the
+repository gates ran again on the final commit before the pull request.
