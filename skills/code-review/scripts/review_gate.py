@@ -1646,10 +1646,67 @@ def open_directory_without_links(path: str) -> int:
     return fd
 
 
-def record_local_review(anchor: dict[str, Any] | None, result: dict[str, Any]) -> None:
-    """Best-effort local receipt of the last conclusive review; never fails it."""
+# development-completion.md "Review continuation checkpoint": the first review plus
+# five renewed runs. The count lives in the worktree's receipt because a count kept
+# in prose does not survive long sessions, compaction or a new session on the same
+# worktree, and a loop in which every round fixes something never looks stuck.
+REVIEW_CHECKPOINT_RUNS = 6
+
+
+def prior_local_review(receipt_fd: int) -> dict[str, Any]:
+    try:
+        descriptor = os.open(
+            LOCAL_REVIEW_RECEIPT_FILE, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=receipt_fd
+        )
+    except OSError:
+        return {}
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            return {}
+        data = os.read(descriptor, 65537)
+    except OSError:
+        # A prior receipt that cannot be read only loses the count, never the new receipt.
+        return {}
+    finally:
+        os.close(descriptor)
+    try:
+        value = json.loads(data) if len(data) <= 65536 else None
+    except ValueError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def conclusive_review_runs(prior: dict[str, Any], mode: Any) -> int:
+    runs = prior.get("conclusive_runs")
+    if not (isinstance(runs, int) and not isinstance(runs, bool) and runs >= 0):
+        # A receipt written before the count existed still proves one run.
+        runs = 1 if prior.get("mode") in ("review", "challenge") else 0
+    return runs + (1 if mode in ("review", "challenge") else 0)
+
+
+def continuation_checkpoint(runs: Any, first_recorded_at: Any) -> dict[str, Any] | None:
+    if not isinstance(runs, int) or isinstance(runs, bool) or runs < REVIEW_CHECKPOINT_RUNS:
+        return None
+    return {
+        "conclusive_review_runs": runs,
+        "first_review_recorded_at": first_recorded_at if isinstance(first_recorded_at, str) else None,
+        "rule": "code-review references/development-completion.md#review-continuation-checkpoint",
+        "before_next_run": [
+            "record what changed and the disposition of the previous findings",
+            "when the same class of finding keeps returning, even if each instance was fixed, decide whether the "
+            "capability producing it should be narrowed or removed before patching it again",
+            "check the remaining findings against the requester's own words; findings outside the request are "
+            "dispositioned, not implemented",
+        ],
+    }
+
+
+def record_local_review(anchor: dict[str, Any] | None, result: dict[str, Any]) -> dict[str, Any] | None:
+    """Best-effort local receipt of the last conclusive review; never fails it.
+
+    Returns the receipt it wrote, or None when nothing was recorded."""
     if not anchor:
-        return
+        return None
     receipt = {
         "schema_version": 1,
         "head": anchor["head"],
@@ -1673,12 +1730,16 @@ def record_local_review(anchor: dict[str, Any] | None, result: dict[str, Any]) -
         # under it since then is not the one the anchor described.
         opened = os.fstat(git_fd)
         if [opened.st_dev, opened.st_ino] != anchor.get("git_dir_identity"):
-            return
+            return None
         try:
             os.mkdir(LOCAL_REVIEW_RECEIPT_DIR, 0o700, dir_fd=git_fd)
         except FileExistsError:
             pass
         receipt_fd = os.open(LOCAL_REVIEW_RECEIPT_DIR, directory_flags, dir_fd=git_fd)
+        prior = prior_local_review(receipt_fd)
+        receipt["conclusive_runs"] = conclusive_review_runs(prior, receipt["mode"])
+        first = prior.get("first_recorded_at") or prior.get("recorded_at")
+        receipt["first_recorded_at"] = first if isinstance(first, str) else receipt["recorded_at"]
         temporary = f".last-review.{os.getpid()}.{secrets.token_hex(8)}"
         file_fd = os.open(
             temporary,
@@ -1697,8 +1758,9 @@ def record_local_review(anchor: dict[str, Any] | None, result: dict[str, Any]) -
             dst_dir_fd=receipt_fd,
         )
         temporary = None
+        return receipt
     except OSError:
-        pass
+        return None
     finally:
         if temporary is not None and receipt_fd is not None:
             try:
@@ -5190,7 +5252,12 @@ def main(argv: list[str] | None = None) -> int:
                 if time.monotonic() >= gate_deadline:
                     apply_gate_timeout(result)
                     return emit(result, 2)
-                record_local_review(review_anchor, result)
+                receipt = record_local_review(review_anchor, result)
+                checkpoint = continuation_checkpoint(
+                    (receipt or {}).get("conclusive_runs"), (receipt or {}).get("first_recorded_at")
+                )
+                if checkpoint:
+                    result["continuation_checkpoint"] = checkpoint
                 return emit(result, 0)
             if completed.returncode == 0 and status in {"passed", "findings"}:
                 payload.update(

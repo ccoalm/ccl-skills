@@ -1,14 +1,33 @@
 #!/usr/bin/env bash
-# Deliver the canonical task entry before sampling, without inspecting the prompt.
+# Deliver the canonical task entry before sampling. The prompt is never classified
+# or echoed; the one structural check skips turns the host starts itself to deliver
+# a background completion (its <task-notification> envelope): routing is already in
+# context there, so re-sending it only spends tokens.
 SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 if ! command -v python3 >/dev/null 2>&1; then
   printf 'ccl-skills task-entry: python3 unavailable; task entry omitted\n' >&2
   printf '{}\n'
   exit 0
 fi
-python3 - "$SCRIPT_DIR/../agent-context/session-start.md" <<'PY'
+# fd 3 carries the hook input; stdin is the heredoc program. A closed stdin reads
+# as empty input, which keeps the entry.
+if ! { : 3<&0; } 2>/dev/null; then exec 0</dev/null; fi
+python3 - "$SCRIPT_DIR/../agent-context/session-start.md" 3<&0 <<'PY'
 import json
+import os
 import sys
+
+try:
+    with os.fdopen(3, 'rb') as hook_input:
+        raw = hook_input.read(1048577)
+    payload = json.loads(raw) if len(raw) <= 1048576 else None
+    prompt = payload.get('prompt') if isinstance(payload, dict) else None
+    if isinstance(prompt, str) and prompt.lstrip().startswith('<task-notification>'):
+        print('{}')
+        sys.exit(0)
+except (OSError, ValueError):
+    # Unreadable input keeps the entry: skipping is only for a proven host turn.
+    pass
 
 try:
     with open(sys.argv[1], 'rb') as stream:
