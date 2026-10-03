@@ -4979,46 +4979,40 @@ open(receipt_path, "w").write("[" * 30000 + "]" * 30000)
 receipt = review_gate.record_local_review(anchor, {"mode": "review"})
 review_gate.json.loads = real_loads
 assert receipt is not None and receipt["conclusive_runs"] == 1, receipt
-# A writer reads the count only once it holds the receipt directory lock, so it
-# increments the value written under the holder's lock. The writer announces its
-# exclusive lock call on that directory, and the holder rewrites the count only
-# after the announcement: without the lock nothing is announced, and a read taken
-# before the lock increments the stale value, however the processes are scheduled.
-import fcntl, multiprocessing
-fork = multiprocessing.get_context("fork")
-locking = fork.Event()
+# Overlapping completions cannot lose an increment because the whole
+# read-increment-replace runs under an exclusive lock on the receipt directory.
+# Checked where it matters, not by racing writers: when the controller opens the
+# prior receipt and when it replaces it, a second open of that directory cannot
+# take even a shared lock.
+import fcntl
 receipt_dir = os.path.join(gd, "ccl-code-review")
-receipt_dir_identity = (os.stat(receipt_dir).st_dev, os.stat(receipt_dir).st_ino)
-def locked_run():
-    real_flock = fcntl.flock
-    def announce(fd, operation):
-        st = os.fstat(fd)
-        if operation == fcntl.LOCK_EX and (st.st_dev, st.st_ino) == receipt_dir_identity:
-            locking.set()
-        return real_flock(fd, operation)
-    fcntl.flock = announce
-    os._exit(0 if review_gate.record_local_review(anchor, {"mode": "challenge"}) else 3)
-holder = os.open(receipt_dir, os.O_RDONLY | os.O_DIRECTORY)
-writer = fork.Process(target=locked_run, daemon=True)
+real_open, real_replace = review_gate.os.open, review_gate.os.replace
+def exclusively_locked():
+    probe = real_open(receipt_dir, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return True
+    finally:
+        os.close(probe)
+    return False
+seen = []
+def watched_open(path, flags, *args, **kwargs):
+    if path == review_gate.LOCAL_REVIEW_RECEIPT_FILE and not flags & (os.O_WRONLY | os.O_RDWR):
+        seen.append(("read", exclusively_locked()))
+    return real_open(path, flags, *args, **kwargs)
+def watched_replace(src, dst, *args, **kwargs):
+    if dst == review_gate.LOCAL_REVIEW_RECEIPT_FILE:
+        seen.append(("replace", exclusively_locked()))
+    return real_replace(src, dst, *args, **kwargs)
+with open(receipt_path, "w") as handle:
+    json.dump({"mode": "review", "conclusive_runs": 40, "first_recorded_at": "2026-01-01T00:00:00Z"}, handle)
+review_gate.os.open, review_gate.os.replace = watched_open, watched_replace
 try:
-    fcntl.flock(holder, fcntl.LOCK_EX)
-    writer.start()
-    announced = locking.wait(30)
-    with open(receipt_path, "w") as handle:
-        json.dump({"mode": "review", "conclusive_runs": 40, "first_recorded_at": "2026-01-01T00:00:00Z"}, handle)
+    receipt = review_gate.record_local_review(anchor, {"mode": "challenge"})
 finally:
-    fcntl.flock(holder, fcntl.LOCK_UN)
-    os.close(holder)
-    if writer.pid is not None:
-        writer.join(30)
-        if writer.is_alive():
-            writer.kill()
-            writer.join(5)
-        if writer.is_alive():
-            print("writer_not_reaped", flush=True)
-            os._exit(1)
-receipt = json.load(open(receipt_path))
-assert announced and writer.exitcode == 0, (announced, writer.exitcode)
+    review_gate.os.open, review_gate.os.replace = real_open, real_replace
+assert seen == [("read", True), ("replace", True)], seen
 assert receipt["conclusive_runs"] == 41 and receipt["first_recorded_at"] == "2026-01-01T00:00:00Z", receipt
 print("run_count_ok")
 PY
