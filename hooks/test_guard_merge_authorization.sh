@@ -1059,6 +1059,19 @@ probe_sid allow "$FEAT_CWD" "$VSID" 'glab mr merge 123 -m --help --auto-merge=fa
 sentinel_state absent 'a --help message value is a real merge and consumes the grant'
 probe allow "$FEAT_CWD" 'glab help mr merge'
 probe allow "$FEAT_CWD" 'gh help pr merge'
+# A help probe compounded with a real merge denies the whole command and keeps
+# the grant; a quoted --help message value is masked and stays a real merge.
+varm
+probe_sid deny "$FEAT_CWD" "$VSID" 'glab mr merge 123 --auto-merge=false --yes && glab mr merge --help'
+sentinel_state present 'help compounded with a merge keeps the grant'
+rm -f "$VAUTH_DIR/$VSID"
+varm
+probe_sid allow "$FEAT_CWD" "$VSID" 'glab mr merge 123 -m "--help" --auto-merge=false --yes'
+sentinel_state absent 'a quoted --help message is a real merge and consumes the grant'
+# Without any grant a help probe is denied and creates no grant.
+rm -f "$VAUTH_DIR/$VSID"
+probe_sid deny "$FEAT_CWD" "$VSID" 'gh pr merge 45 --merge --help'
+sentinel_state absent 'a help probe without a grant creates nothing'
 
 if [ "$fail" -ne 0 ]; then
   echo "test_guard_merge_authorization: FAIL pass=$pass fail=$fail" >&2

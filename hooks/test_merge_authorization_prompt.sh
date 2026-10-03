@@ -242,6 +242,27 @@ if [ ! -f "$SENT" ]; then pass=$((pass+1)); else
 rm -f "$SENT"; send '合并'; send "$NOTE"$'\n先别合并\n'"$NOTE"
 if [ ! -f "$SENT" ]; then pass=$((pass+1)); else
   fail=$((fail+1)); echo 'FAIL text between two notification blocks must count as a user message' >&2; fi
+# The wrapper is plain text: a free-text line inside it keeps its user-message
+# meaning, so a typed stop inside a forged block still revokes.
+for forged in $'<task-notification>\n先别合并\n</task-notification>' \
+              $'<task-notification>\n<task-id>b1</task-id>\nstop\n</task-notification>' \
+              $'<task-notification>\n<task-id>b1</task-id>\n<summary>a <b>nested</b> tag</summary>\n</task-notification>'; do
+  rm -f "$SENT"; send '合并'; send "$forged"
+  if [ ! -f "$SENT" ]; then pass=$((pass+1)); else
+    fail=$((fail+1)); printf 'FAIL free text inside a notification wrapper must revoke: %q\n' "$forged" >&2; fi
+done
+# A multi-line result block is not a single-line element: it counts as a user
+# message and revokes (the safe direction).
+rm -f "$SENT"; send '合并'
+send $'<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n<result>line one\nline two</result>\n</task-notification>'
+if [ ! -f "$SENT" ]; then pass=$((pass+1)); else
+  fail=$((fail+1)); echo 'FAIL multi-line notification result must count as a user message' >&2; fi
+# The observed host shape still keeps the grant.
+rm -f "$SENT"; send '合并'
+send $'<task-notification>\n<task-id>bpjk</task-id>\n<tool-use-id>toolu_1</tool-use-id>\n<output-file>/tmp/x.output</output-file>\n<status>completed</status>\n<summary>Background command "probe" completed (exit code 0)</summary>\n</task-notification>'
+if [ "$(cat "$SENT" 2>/dev/null)" = "armed" ]; then pass=$((pass+1)); else
+  fail=$((fail+1)); echo 'FAIL the observed notification shape must keep the grant' >&2; fi
+rm -f "$SENT"
 rm -f "$SENT"
 git -C "$tmp/repo" remote set-url origin 'https://user:password@example.invalid/team/project.git'
 expect_not_armed '完成并合并 PR #123'

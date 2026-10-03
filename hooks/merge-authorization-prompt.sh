@@ -57,13 +57,27 @@ case "$sid" in */*|*..*) exit 0 ;; esac   # session_id is a path component
 # closes with </task-notification>. It is not a user message, so it neither
 # arms nor revokes. Treating it as one revoked grants while the agent waited on
 # CI between the merges of a single release. Any text outside the block makes
-# it an ordinary message again, and so does a second block, since text could
-# sit between two blocks.
+# it an ordinary message again, and so does any line inside the block that is
+# not a single-line <tag>value</tag> element: the wrapper is plain text anyone
+# can type, so a free-text line such as a stop keeps its user-message meaning.
+# A multi-line result block therefore also counts as a user message, which
+# revokes; that is the safe direction.
 case "$prompt" in
   '<task-notification>'$'\n'*$'\n''</task-notification>')
-    note_body=${prompt#'<task-notification>'}
-    note_body=${note_body%'</task-notification>'}
-    case "$note_body" in *'task-notification>'*) ;; *) exit 0 ;; esac
+    note_body=${prompt#'<task-notification>'$'\n'}
+    note_body=${note_body%$'\n''</task-notification>'}
+    note_only=1
+    while IFS= read -r note_line || [ -n "$note_line" ]; do
+      case "$note_line" in
+        '<'[a-z]*'>'*'</'[a-z]*'>')
+          note_value=${note_line#*>}
+          note_value=${note_value%<*}
+          case "$note_value" in *'<'*|*'>'*) note_only=0 ;; esac
+          ;;
+        *) note_only=0 ;;
+      esac
+    done <<< "$note_body"
+    [ "$note_only" = 1 ] && exit 0
     ;;
 esac
 

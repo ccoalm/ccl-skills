@@ -37,8 +37,10 @@ host experiment:
   a merge. An unknown value-taking flag can only turn a real merge into this
   deny, never release one.
 - `hooks/merge-authorization-prompt.sh`: a prompt that is exactly one task
-  notification block exits before any arming or epoch change. Text before,
-  after or between blocks makes it an ordinary message again.
+  notification block, every line of which is a single-line `<tag>value</tag>`
+  element, exits before any arming or epoch change. Text before, after or
+  between blocks, a free-text or nested line inside, or a multi-line result
+  makes it an ordinary message again, so a typed stop always revokes.
 - `skills/worktree-isolation/references/hook-authorization.md`: both rules.
 
 ## Not changed

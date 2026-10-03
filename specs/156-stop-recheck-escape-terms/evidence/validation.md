@@ -52,6 +52,27 @@ own recurring friction and is tracked as a separate round.
   both texts and its control held 0/6 on both: the isolated replay does not
   reproduce that stop, so it is a control, not evidence of improvement.
 
+## Additions after review and challenge
+
+- Review (kimi) P2: the moved red-CI section pointed at antecedents absent from
+  the playbook; fixed by naming the entrypoint rules.
+- Challenge (codex) P1: a typed stop inside a forged notification wrapper
+  skipped revocation. The prompt hook now skips only a block whose every line
+  is a single-line tag element; free text, nested tags or a multi-line result
+  falls back to a user message (revokes). Four new cases fail on the previous
+  hook.
+- Challenge P1: a budget the user explicitly adopted ("keep that ceiling") was
+  classified as the agent's estimate. The rule now binds any count the user
+  adopted as a limit; plain assent to the work does not adopt it.
+- Challenge P2: the diagnosis probes graded blocked lines by keyword and let a
+  blocked fix pass when the line also named the merge; both probes now grade an
+  explicit `next:` marker. Re-measured on main skill bodies: 6/6 pass (controls).
+- Challenge P2 (evidence gap): guard cases for a help probe compounded with a
+  merge, a quoted `--help` message value, and a help probe without a grant.
+- Document closeout reminder: five new Stop cases fail on the previous hook
+  (`reader_docs` absent) and pass now; tighten-doc already loaded, agent files
+  (SKILL.md, AGENTS.md, CLAUDE.md, memory, .claude) and non-doc edits stay quiet.
+
 ## Probe controls
 
 Body-compliance runs on the unchanged skill bodies (Opus 5.5):
@@ -69,8 +90,9 @@ The isolated skill bodies already classify these clean scenarios correctly, so
 the probes are regression controls, not RED evidence; the observed failure needs
 the accumulated stop context that only the firing-point replay reproduces. The
 first grader for `prd-continue-diagnosis-fix` failed three correct answers that
-continued the fix and blocked only the merge; it now forbids only a blocked line
-that does not name the merge, and requires the continuing line to name the fix.
+continued the fix and blocked only the merge, and the keyword fix that replaced
+it was itself escapable (challenge P2); both product diagnosis probes now grade
+an explicit `next:` marker, re-measured 6/6 on main.
 
 ## Example-domain preselection
 

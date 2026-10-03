@@ -354,7 +354,9 @@ class ProposedNextTests(unittest.TestCase):
                     'proposed-next: blocked: 上限修复、补测试、提 MR——改共享仓库需要你确认',
                     'Root cause verified.\nproposed-next: open a branch, fix the limit, add the test and open the MR',
                     'Required CI passed; the advisory review timed out and its evidence was cleared.\n'
-                    'proposed-next: blocked: complete the CI review — no resume handle; a retry restarts from scratch'):
+                    'proposed-next: blocked: complete the CI review — no resume handle; a retry restarts from scratch',
+                    'Both MRs pushed; required CI is still running, the MRs stay in Draft.\n'
+                    'proposed-next: wait for CI to finish and for your merge confirmation'):
                 with self.subTest(text=text):
                     result = self.run_hook(dict(self.payload, last_assistant_message=text))
                     self.assert_block(result)
@@ -365,7 +367,50 @@ class ProposedNextTests(unittest.TestCase):
                     self.assertIn('stop bar you proposed yourself', result['reason'])
                     self.assertIn('A blocker names something only the user can supply', result['reason'])
                     self.assertIn('a rerun or retry of a failed, timed-out or inconclusive check', result['reason'])
+                    self.assertIn('marking that MR/PR ready once your own checks pass', result['reason'])
+                    self.assertIn('waiting on a CI run you can poll', result['reason'])
                     self.assertIn('supplies no new goal or authorization', result['reason'])
+
+    def doc_edit(self, relative, tool_id='doc'):
+        target = str(self.root / relative)
+        return [
+            {'type': 'assistant', 'message': {'content': [{'type': 'tool_use', 'id': tool_id,
+             'name': 'Write', 'input': {'file_path': target, 'content': 'x'}}]}},
+            {'type': 'user', 'message': {'content': [{'type': 'tool_result',
+             'tool_use_id': tool_id, 'is_error': False, 'content': 'written'}]}}]
+
+    def test_reader_doc_edit_without_tighten_doc_gets_one_closeout_reminder(self):
+        # Observed: 26 of 29 sessions that edited plans, specs, READMEs or
+        # handoff documents never loaded tighten-doc before finishing.
+        status = 'Plan updated.\nproposed-next: none — status only'
+        for relative in ('docs/plans/rollout.md', 'README.md', 'handoffs/state.md', 'specs/9-x/plan.md'):
+            with self.subTest(relative=relative):
+                self.events(self.doc_edit(relative))
+                result = self.run_hook(dict(self.payload, last_assistant_message=status))
+                self.assert_block(result)
+                self.assertIn('tighten-doc', result['reason'])
+                self.assertIn(Path(relative).name, result['reason'])
+                self.assertIn('supplies no new goal or authorization', result['reason'])
+                self.assertEqual(self.run_hook(dict(self.payload, last_assistant_message=status,
+                                                    stop_hook_active=True)), {})
+
+    def test_doc_reminder_is_quiet_after_tighten_doc_or_for_agent_files(self):
+        status = 'Plan updated.\nproposed-next: none — status only'
+        self.events(self.claude_load('tighten-doc') + self.doc_edit('docs/plans/rollout.md'))
+        self.assertEqual(self.run_hook(dict(self.payload, last_assistant_message=status)), {})
+        for relative in ('skills/x/SKILL.md', 'AGENTS.md', 'CLAUDE.md', 'memory/note.md',
+                         '.claude/notes.md', 'src/app.py', 'notes.txt'):
+            with self.subTest(relative=relative):
+                self.events(self.doc_edit(relative))
+                self.assertEqual(self.run_hook(dict(self.payload, last_assistant_message=status)), {})
+
+    def test_doc_reminder_joins_a_continuation_reminder(self):
+        self.events(self.doc_edit('docs/plans/rollout.md'))
+        result = self.run_hook(dict(self.payload,
+                                    last_assistant_message='proposed-next: run the remaining local checks'))
+        self.assert_block(result)
+        self.assertIn('execute it now', result['reason'])
+        self.assertIn('tighten-doc', result['reason'])
 
     def test_quoted_actions_do_not_turn_a_status_handoff_into_work(self):
         self.events(self.claude_load())

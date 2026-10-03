@@ -57,6 +57,18 @@ corrected them directly ("is there a rule that needs this confirmation?",
   retrospective on a stop that survived its recheck quotes the agent's
   justification and closes that term at the recheck, instead of adding
   detection.
+- `hooks/host-input.py` also adds a document closeout reminder at Stop: when the
+  session edited reader-facing documents (Markdown/MDX/reST outside skill
+  bodies, contracts, memory, scratch and temporary paths) and never loaded
+  tighten-doc, the stop gets one reminder to run its closeout readback. In the
+  reviewed window 26 of 29 sessions that edited plans, specs, READMEs or handoff
+  documents never loaded tighten-doc. The reminder shares the existing
+  one-recheck bound and joins any other Stop reminder.
+- The self-performable steps in the reminder include marking an MR/PR ready
+  once the agent's own checks pass and polling its own CI run; agents left MRs
+  in Draft at the end of 21 reviewed sessions and ended on "waiting for CI" 13
+  times. The continuation gate and session policy say the same. A count the
+  agent proposed binds only when the user adopted it as a limit.
 - `eval/body-compliance-eval.rb`: three paired probes (failure goal vs explicit
   diagnosis-only limit, under both owners; clarifying question vs explicit
   hold). They are regression controls; see the measurement section.
