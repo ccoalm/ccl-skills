@@ -388,7 +388,13 @@ STAGE_CONCERNS = {
         ),
         (
             "compatibility",
-            "Compatibility, maintainability, and unnecessary-complexity regressions.",
+            "Compatibility, maintainability, and unnecessary-complexity regressions. "
+            "Check scope against the requester's own words when the intent or focus "
+            "quotes them, not only against the implementer's restatement: report each "
+            "switch, flag, gate, permission, rollout restriction, compatibility layer, "
+            "manual step or abstraction the request does not need, and each fix for a "
+            "pre-existing risk that the request does not cover and the change does not "
+            "expose or worsen, naming what to drop or split out.",
         ),
         (
             "claim_strength",
@@ -411,7 +417,13 @@ STAGE_CONCERNS = {
         ),
         (
             "compatibility",
-            "Compatibility, maintainability, and unnecessary-complexity regressions.",
+            "Compatibility, maintainability, and unnecessary-complexity regressions. "
+            "Check scope against the requester's own words when the intent or focus "
+            "quotes them, not only against the implementer's restatement: report each "
+            "switch, flag, gate, permission, rollout restriction, compatibility layer, "
+            "manual step or abstraction the request does not need, and each fix for a "
+            "pre-existing risk that the request does not cover and the change does not "
+            "expose or worsen, naming what to drop or split out.",
         ),
         (
             "rollout_rollback",

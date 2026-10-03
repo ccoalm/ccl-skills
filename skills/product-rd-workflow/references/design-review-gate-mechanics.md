@@ -12,6 +12,8 @@ a triggered diff, and whenever the candidate diff changes after a review.
 
 (a) a recorded independent adversarial review is the gate for all triggered work — prefer an available review/challenge skill discovered in the session when suitable, otherwise a ccl-owned independent review (the external skill supplements, it is not itself the required gate); save an artifact naming concrete objections, their disposition, and the reviewer or tool identity; same-agent inline prose review is acceptable only for explicitly low-risk, non-cross-boundary design-only work with no implementation diff. Once code or executable tests change, invoke `code-review` automatically under its development-completion rule; green tests or low risk do not replace that invocation.
 
+- The review packet must quote the requester's own words verbatim, sanitized like the rest of the packet, beside the design's restatement of the goal, and ask the reviewer to check scope against those words before anything else. A reviewer that sees only the restatement reviews that reading of the goal: it hardens an over-grown design instead of questioning it.
+
 ## Binds to the implementation diff
 
 When this gate requires the independent review for triggered work, that review **binds to the implementation diff, not only the upstream design/decision**: the adversarial review/challenge must cover the actual code diff before it merges or pushes to a shared branch — green unit/conformance tests do NOT discharge it (tests prove the code does what it does, not that the behavior is correct, and a test written to assert the current behavior can lock in the very flaw the review should catch).

@@ -2298,6 +2298,33 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
 check "review runs without a --review-plan-file and marks the plan derived-default" \
   '[ "$rc" = 0 ] && [ "$(cat "$WORK/state/client_sequence")" = claude ] && json_fields "$out" review_plan_source=derived-default'
 
+# The derived default has no intent to quote the requester in; --focus carries
+# their words to the reviewer instead.
+reset_case passed unavailable unavailable
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --cwd "$WORK/repo" --diff-file "$WORK/diff.patch" \
+  --implementer-family openai --focus "Requester: record the differences only")"; rc=$?
+profile="$(cat "$WORK/state/claude_profile" 2>/dev/null || true)"
+check "a derived-default review carries the --focus words in the reviewer profile" \
+  '[ "$rc" = 0 ] && json_fields "$out" review_plan_source=derived-default && json_fields "$profile" "challenge_focus=Requester: record the differences only"'
+
+# Every client gets the same frozen profile file, so a fallback reviewer sees
+# the words too; a credential-shaped value in them blocks non-Claude egress.
+reset_case quota passed passed
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --cwd "$WORK/repo" --diff-file "$WORK/diff.patch" \
+  --implementer-family openai --focus "Requester: record the differences only")"; rc=$?
+profile="$(cat "$WORK/state/claude_profile" 2>/dev/null || true)"
+check "a fallback reviewer gets the same profile, --focus words included" \
+  '[ "$rc" = 0 ] && [ "$(tr "\n" " " < "$WORK/state/client_sequence")" = "claude kimi " ] && [ "$(cat "$WORK/state/kimi_profile_hash")" = "$(cat "$WORK/state/claude_profile_hash")" ] && json_fields "$profile" "challenge_focus=Requester: record the differences only"'
+
+reset_case quota passed passed
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --cwd "$WORK/repo" --diff-file "$WORK/diff.patch" \
+  --implementer-family openai --focus "Requester: use the key AKIAIOSFODNN7EXAMPLE")"; rc=$?
+check "a credential-shaped --focus value blocks non-Claude egress without approval" \
+  '[ "$rc" = 2 ] && [ "$(cat "$WORK/state/client_sequence")" = claude ] && json_fields "$out" reason_code=egress_denied egress.secret_scan.0=aws_access_key_id'
+
 reset_case passed unavailable unavailable
 out="$(run_gate --allow-fallback-egress)"; rc=$?
 check "a supplied review plan is marked implementer-supplied" \
@@ -4830,6 +4857,11 @@ reset_case passed unavailable unavailable
 out="$(run_contract_gate --mode review)"; rc=$?
 check "review quotes the tracked contract files governing the changed path, root first" \
   '[ "$rc" = 0 ] && contract_packet_check "$out" "AGENTS.md,.claude/CLAUDE.md,sub/AGENTS.override.md,sub/CLAUDE.md" complete | grep -qx contract_packet_ok'
+# A reviewer given only the implementer's restatement checks that reading of the
+# goal; the compatibility lens asks for scope against the requester's own words,
+# and does not ask to drop a pre-existing-risk fix the request covers.
+check "the compatibility concern checks scope against the requester's own words" \
+  'python3 -c "import json,sys; p=json.load(open(sys.argv[1])); d={c[\"id\"]: c[\"description\"] for c in p[\"required_concerns\"]}; assert \"own words\" in d[\"compatibility\"] and \"does not need\" in d[\"compatibility\"] and \"request does not cover and the change does not expose or worsen\" in d[\"compatibility\"], d[\"compatibility\"]" "$WORK/state/claude_profile"'
 
 printf 'after\n' >"$contract_repo/linked/code.txt"
 printf 'after\n' >"$contract_repo/big/code.txt"

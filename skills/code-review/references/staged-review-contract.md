@@ -76,6 +76,10 @@ that silently stops satisfying the gate when the set changes. It prints what the
 PLAN owes: the synthetic challenge slot and the wording-only boundary, which the
 controller adds for the reviewer and never for the plan, are absent.
 
+The intent quotes the requester's own words verbatim, sanitized like the rest
+of the packet, before the implementer's restatement; the derived default carries them in `--focus`. The build and
+release `compatibility` concern checks scope against those words.
+
 The serialized plan is at most 32,000 bytes and `intent` is 8..4,000
 characters. Those are validation limits, not permission for a caller to slice a
 longer value into shape: the gate can validate only the final value it receives
