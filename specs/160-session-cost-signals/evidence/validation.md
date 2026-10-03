@@ -28,8 +28,8 @@ Claude Code documentation. Raw per-session data stays in a private archive.
 | Change | RED on main | GREEN |
 | --- | --- | --- |
 | Context notice | `hooks/test_proposed_next.py`: the three new cases fail; 39 existing pass | 42 pass; a real 45 MB transcript prints the notice in 0.2 s and keeps the existing reminder text |
-| Task-entry skip | `hooks/test_task_entry.py`: both notification prompts receive the entry; controls pass | 8 pass |
-| Review-run count | the previous controller after six conclusive runs writes no count and returns no checkpoint | `test_review_gate.sh`: 310 checks ok, including the three new ones |
+| Notification-turn entry | `hooks/test_task_entry.py`: a notification receives the full routing list, two envelopes around a request lose the entry, deep nesting crashes the hook | 8 pass; a notification turn carries 969 of 2,779 bytes and keeps the unfinished-work boundary |
+| Review-run count | the previous controller after six conclusive runs writes no count and returns no checkpoint; a too-deep prior receipt raises; without the lock 24 overlapping writers record 4 to 7 runs | `test_review_gate.sh` counting unit and integration checks pass |
 
 ## Behavior replays
 
