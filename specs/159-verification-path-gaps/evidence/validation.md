@@ -59,6 +59,14 @@ precondition stops at client selection.
 - Control: the same branch plus a committed controller result under a round's
   `evidence/`: `review_evidence_present_ok: 1 review, 0 challenge`, exit 0.
 
+## Candidate behavior
+
+- The same one-line shift in a clone of the candidate (`a37d9df`):
+  `test_check_ccl_regressions.sh --fast` exits 1, with one failed suite,
+  `test_obligation_ledger_repo_audit.sh`. Its output names `STALE_LEDGER` and a
+  `fix: regenerate the ledger:` command. Running that command exactly as
+  printed regenerates the ledger, and the repo audit then passes.
+
 ## Tests against the base
 
 - `test_obligation_ledger.sh` with main's `obligation-ledger.py`: fails at the
