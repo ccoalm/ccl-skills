@@ -213,6 +213,36 @@ done
 send '批量合并 3'
 send '继续'
 if [ ! -f "$SENT" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo 'FAIL legacy batch still clears on neutral prompt' >&2; fi
+# A harness-injected background-task notification is not a user message: it
+# neither arms nor revokes. Observed: the completion notification of a CI wait
+# revoked a batch grant between the two merges of one release.
+NOTE=$'<task-notification>\n<task-id>b1</task-id>\n<tool-use-id>toolu_x</tool-use-id>\n<status>completed</status>\n<summary>Background command "wait for CI" completed (exit code 0)</summary>\n</task-notification>'
+NOTE_MERGE=$'<task-notification>\n<task-id>b2</task-id>\n<status>completed</status>\n<result>合并</result>\n</task-notification>'
+for grant in '合并' '批量合并 3' 'merge !546'; do
+  rm -f "$SENT"; send "$grant"; cp -p "$SENT" "$tmp/before-note"
+  epoch_before=$(cat "$SENT.epoch" 2>/dev/null)
+  send "$NOTE"
+  if cmp -s "$SENT" "$tmp/before-note" && [ "$(cat "$SENT.epoch" 2>/dev/null)" = "$epoch_before" ]; then
+    pass=$((pass+1))
+  else fail=$((fail+1)); echo "FAIL task notification revoked grant: $grant" >&2; fi
+done
+expect_goal '完成并合并 PR #123'
+cp -p "$SENT" "$tmp/before-note"
+send "$NOTE"
+if cmp -s "$SENT" "$tmp/before-note" && [ ! "$SENT" -nt "$tmp/before-note" ]; then pass=$((pass+1)); else
+  fail=$((fail+1)); echo 'FAIL task notification changed a target goal' >&2; fi
+expect_not_armed "$NOTE"
+expect_not_armed "$NOTE_MERGE"
+rm -f "$SENT"; send '合并'; send "$NOTE"$'\n先别合并'
+if [ ! -f "$SENT" ]; then pass=$((pass+1)); else
+  fail=$((fail+1)); echo 'FAIL text after a notification block must count as a user message' >&2; fi
+rm -f "$SENT"; send '合并'; send "看下这个 $NOTE"
+if [ ! -f "$SENT" ]; then pass=$((pass+1)); else
+  fail=$((fail+1)); echo 'FAIL text before a notification block must count as a user message' >&2; fi
+rm -f "$SENT"; send '合并'; send "$NOTE"$'\n先别合并\n'"$NOTE"
+if [ ! -f "$SENT" ]; then pass=$((pass+1)); else
+  fail=$((fail+1)); echo 'FAIL text between two notification blocks must count as a user message' >&2; fi
+rm -f "$SENT"
 git -C "$tmp/repo" remote set-url origin 'https://user:password@example.invalid/team/project.git'
 expect_not_armed '完成并合并 PR #123'
 git -C "$tmp/repo" remote set-url origin 'git@example.invalid:team/project.git'

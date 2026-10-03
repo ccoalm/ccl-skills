@@ -52,6 +52,21 @@ sid=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)
 [ -z "$sid" ] && exit 0
 case "$sid" in */*|*..*) exit 0 ;; esac   # session_id is a path component
 
+# The host also submits a background-task completion notification through
+# this event, as a whole message that opens with <task-notification> and
+# closes with </task-notification>. It is not a user message, so it neither
+# arms nor revokes. Treating it as one revoked grants while the agent waited on
+# CI between the merges of a single release. Any text outside the block makes
+# it an ordinary message again, and so does a second block, since text could
+# sit between two blocks.
+case "$prompt" in
+  '<task-notification>'$'\n'*$'\n''</task-notification>')
+    note_body=${prompt#'<task-notification>'}
+    note_body=${note_body%'</task-notification>'}
+    case "$note_body" in *'task-notification>'*) ;; *) exit 0 ;; esac
+    ;;
+esac
+
 # KEEP IN SYNC with hooks/guard-merge-authorization.sh (sentinel path, lock
 # protocol).
 auth_dir="${TMPDIR:-/tmp}/ccl-skills-merge-auth-$(id -u)"

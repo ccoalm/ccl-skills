@@ -1035,6 +1035,31 @@ for invalidation in '停止' '改成另一个功能'; do
 done
 unset RACE_SENT RACE_REACHED RACE_RESUME REAL_MV
 
+# A help probe merges nothing, so it must never consume a grant. Observed: an
+# agent added --auto-merge=false to `glab mr merge --help` to pass the spelling
+# check, the probe consumed the one-shot grant, and the real merge was denied.
+# Earlier cases leave epoch files for this session; clear them so each probe
+# meets a valid grant rather than an epoch mismatch (which also denies).
+rm -f "$VAUTH_DIR/$VSID.epoch" "$VAUTH_DIR/$VSID.grant-epoch"
+for help_cmd in 'glab mr merge --help --auto-merge=false' 'glab mr merge 123 -h --auto-merge=false --yes' \
+                'gh pr merge 45 --merge --help' 'gh pr merge --squash -h'; do
+  varm
+  probe_sid deny "$FEAT_CWD" "$VSID" "$help_cmd"
+  sentinel_state present "help probe kept the grant: $help_cmd"
+done
+varm
+reason_help=$(jq -nc --arg c 'glab mr merge --help --auto-merge=false' --arg w "$FEAT_CWD" --arg s "$VSID" \
+  '{tool_input:{command:$c},cwd:$w,session_id:$s}' | TMPDIR="$tmp" bash "$GUARD")
+if printf '%s' "$reason_help" | grep -q 'glab help mr merge'; then pass=$((pass+1)); else
+  fail=$((fail+1)); echo 'FAIL help denial must name the non-merge help form' >&2; fi
+rm -f "$VAUTH_DIR/$VSID"
+# A value-taking flag swallows a following --help: the command still merges.
+varm
+probe_sid allow "$FEAT_CWD" "$VSID" 'glab mr merge 123 -m --help --auto-merge=false --yes'
+sentinel_state absent 'a --help message value is a real merge and consumes the grant'
+probe allow "$FEAT_CWD" 'glab help mr merge'
+probe allow "$FEAT_CWD" 'gh help pr merge'
+
 if [ "$fail" -ne 0 ]; then
   echo "test_guard_merge_authorization: FAIL pass=$pass fail=$fail" >&2
   exit 1
