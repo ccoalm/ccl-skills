@@ -4830,6 +4830,10 @@ reset_case passed unavailable unavailable
 out="$(run_contract_gate --mode review)"; rc=$?
 check "review quotes the tracked contract files governing the changed path, root first" \
   '[ "$rc" = 0 ] && contract_packet_check "$out" "AGENTS.md,.claude/CLAUDE.md,sub/AGENTS.override.md,sub/CLAUDE.md" complete | grep -qx contract_packet_ok'
+# A reviewer given only the implementer's restatement checks that reading of the
+# goal; the compatibility lens asks for scope against the requester's own words.
+check "the compatibility concern checks scope against the requester's own words" \
+  'python3 -c "import json,sys; p=json.load(open(sys.argv[1])); d={c[\"id\"]: c[\"description\"] for c in p[\"required_concerns\"]}; assert \"own words\" in d[\"compatibility\"] and \"does not need\" in d[\"compatibility\"] and \"predates the change\" in d[\"compatibility\"], d[\"compatibility\"]" "$WORK/state/claude_profile"'
 
 printf 'after\n' >"$contract_repo/linked/code.txt"
 printf 'after\n' >"$contract_repo/big/code.txt"
