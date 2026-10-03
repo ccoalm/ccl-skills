@@ -55,3 +55,16 @@ Record: `pass4-delta.json`. The commits under review added the version for the n
 | 2 | P2 | An error while rewriting the receipt skips unlock and cleanup | fixed: unlock and writer cleanup run in `finally` | `test_review_gate.sh` |
 | 3 | P2 | The join after kill has no bound | fixed: the writer is a daemon, the join after kill is bounded, and an unreaped writer ends the check with a failure | `test_review_gate.sh` |
 | 4 | P2 | No current-candidate results for the full lane, package and shared-skill checks | fixed with pass 3 finding 3 | `validation.md` |
+
+## Pass 5 — delta review (codex), base `5c84b38`, reviewed commit `047decb`: 4 × P2
+
+Record: `pass5-delta.json`. This pass was the fifth conclusive run in the worktree; the next one is the sixth, where the controller returns the continuation checkpoint.
+
+| # | Sev | Finding | Disposition | Where |
+| --- | --- | --- | --- | --- |
+| 1 | P2 | A controller that takes the exclusive lock and releases it before reading still passes | fixed by changing the method (see the checkpoint decision below): the check asserts the lock at the read and the replace themselves | `test_review_gate.sh` |
+| 2 | P2 | A failed diagnostic print can skip the emergency exit for an unreaped writer | no longer applies: the check runs in one process and starts no writer | `test_review_gate.sh` |
+| 3 | P2 | The packet lacks the controller's read, replace and lock code and the unit's fixture setup | no change: the delta packet holds the changed files only; the next delta pass states the controller's read, replace and lock sequence in its plan | — |
+| 4 | P2 | The validation dispositions are marked fixed before the validation notes exist | fixed: the validation notes land with the final candidate and list its commands, results and what was not run | `validation.md` |
+
+Checkpoint decision before the sixth run. Three successive passes (3, 4 and 5) each found a controller variant that the receipt-lock check let through, and each fix kept the same method: race a second writer and decide by order or time. Decision: replace the method. The check now records, at the controller's own open of the prior receipt and at its replace of the receipt, whether a second open of the receipt directory can take a shared lock, and requires that it cannot at both points. It starts no process and waits on nothing. Applied against copies of the controller, it fails a missing lock, a shared lock, a lock on another descriptor, a read before the lock, an unlock before the read and an unlock before the replace, each on the recorded lock states. The remaining findings of this pass concern evidence placement and are dispositioned above; none is outside the request.
