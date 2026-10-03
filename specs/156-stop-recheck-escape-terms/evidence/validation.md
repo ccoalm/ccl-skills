@@ -54,6 +54,9 @@ round 157 in the same pull request.
 
 ## Additions after review and challenge
 
+Each pass, the commit it read, its result file and the disposition of every
+finding are in [the review dispositions](dispositions.md).
+
 - Review (kimi) P2: the moved red-CI section pointed at antecedents absent from
   the playbook; fixed by naming the entrypoint rules.
 - Challenge (codex) P1: a typed stop inside a forged notification wrapper
