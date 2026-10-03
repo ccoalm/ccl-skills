@@ -1,14 +1,35 @@
 #!/usr/bin/env bash
-# Deliver the canonical task entry before sampling, without inspecting the prompt.
+# Deliver the canonical task entry before sampling. The prompt is never classified
+# or echoed. One structural check spots a prompt that is exactly one
+# <task-notification> envelope, the turn the host starts itself to deliver a
+# background completion: that turn keeps the skill-loading and unfinished-work
+# boundary but not the routing list, which SessionStart already keeps in context.
 SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 if ! command -v python3 >/dev/null 2>&1; then
   printf 'ccl-skills task-entry: python3 unavailable; task entry omitted\n' >&2
   printf '{}\n'
   exit 0
 fi
-python3 - "$SCRIPT_DIR/../agent-context/session-start.md" <<'PY'
+# fd 3 carries the hook input; stdin is the heredoc program. A closed stdin reads
+# as empty input, which keeps the entry.
+if ! { : 3<&0; } 2>/dev/null; then exec 0</dev/null; fi
+python3 - "$SCRIPT_DIR/../agent-context/session-start.md" 3<&0 <<'PY'
 import json
+import os
 import sys
+
+host_turn = False
+try:
+    with os.fdopen(3, 'rb') as hook_input:
+        raw = hook_input.read(1048577)
+    payload = json.loads(raw) if len(raw) <= 1048576 else None
+    prompt = payload.get('prompt') if isinstance(payload, dict) else None
+    envelope = prompt.strip() if isinstance(prompt, str) else ''
+    host_turn = (envelope.startswith('<task-notification>') and envelope.endswith('</task-notification>')
+                 and envelope.count('<task-notification>') == 1 and envelope.count('</task-notification>') == 1)
+except (OSError, ValueError, RecursionError):
+    # Unreadable input keeps the full entry: trimming is only for a proven host turn.
+    host_turn = False
 
 try:
     with open(sys.argv[1], 'rb') as stream:
@@ -35,7 +56,7 @@ try:
                 'Inspect failure evidence, research or change the approach, repair safely and rerun the relevant checks. '
                 'A report alone does not complete it. Continue available authorized work; hand back only for a '
                 'required user decision or unavailable authority/resource, stating the concrete blocker.\n\n')
-    context = '<ccl-task-entry>\n' + boundary + entry + '\n</ccl-task-entry>'
+    context = '<ccl-task-entry>\n' + (boundary.rstrip('\n') if host_turn else boundary + entry) + '\n</ccl-task-entry>'
     if len(context.encode('utf-8')) > 4096:
         raise ValueError('oversized entry')
     print(json.dumps({'hookSpecificOutput': {

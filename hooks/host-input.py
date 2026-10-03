@@ -579,8 +579,8 @@ def machine_artifact(text):
     return False
 
 
-def stop_notice(payload, lane, message):
-    """Cap notice attempts only; these markers never establish verification."""
+def claim_notice(payload, lane):
+    """True on this lane's first attempt, False on a repeat, None when state is unavailable."""
     try:
         # Reuse the installed runtime's owned-directory/no-follow/atomic claim
         # protections. Minimal vendored runtimes may omit this optional helper.
@@ -596,14 +596,19 @@ def stop_notice(payload, lane, message):
         info = module.regular_info(path)
         state = module.State(key)
         try:
-            if not state.claim_attempt('stop-notice-' + lane, [info.st_dev, info.st_ino]):
-                return None
+            return bool(state.claim_attempt('stop-notice-' + lane, [info.st_dev, info.st_ino]))
         finally:
             state.close()
     except Exception:
-        # Missing identity, a broken optional helper or unsafe/unavailable state
-        # must not invent success. This boundary only controls advisory output.
-        pass
+        return None
+
+
+def stop_notice(payload, lane, message):
+    """Cap notice attempts only; these markers never establish verification."""
+    # Missing identity, a broken optional helper or unsafe/unavailable state must
+    # not invent success: the notice still shows. This only controls advisory output.
+    if claim_notice(payload, lane) is False:
+        return None
     return {'systemMessage': message}
 
 
@@ -721,6 +726,75 @@ def doc_closeout_note(payload):
             'the substance stays as the owning skill decided.'.format(names))
 
 
+# Every request re-reads the whole context, so a long session's token cost grows
+# with its size, and a 1M-token window compacts only near its limit by default.
+# The notice goes to the user only (systemMessage, never the model's context),
+# once per band per transcript, and reads just the transcript tail.
+CONTEXT_BANDS = (300000, 600000)
+CONTEXT_TAIL_BYTES = 1024 * 1024
+
+
+def last_context_tokens(path):
+    """Context size of the latest real Claude request, or None when unknown."""
+    descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    with os.fdopen(descriptor, 'rb') as stream:
+        metadata = os.fstat(stream.fileno())
+        if not stat.S_ISREG(metadata.st_mode):
+            return None
+        stream.seek(max(0, metadata.st_size - CONTEXT_TAIL_BYTES))
+        tail = stream.read(CONTEXT_TAIL_BYTES)
+    for line in reversed(tail.split(b'\n')):
+        if b'"usage"' not in line:
+            continue
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict) or event.get('type') != 'assistant' or event.get('isSidechain'):
+            continue
+        message = event.get('message')
+        usage = message.get('usage') if isinstance(message, dict) else None
+        if not isinstance(usage, dict):
+            continue
+        total = 0
+        for key in ('input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'):
+            value = usage.get(key)
+            if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+                total += value
+        if total:
+            return total
+    return None
+
+
+def context_notice(payload):
+    path = payload.get('transcript_path')
+    if not isinstance(path, str) or not path:
+        return None
+    tokens = last_context_tokens(path)
+    reached = [band for band in CONTEXT_BANDS if tokens is not None and tokens >= band]
+    if not reached:
+        return None
+    message = ('本会话上下文约 {} 万 token：之后每次请求都会重读这些内容，长会话的 token 主要花在这里。'
+               '当前交付收口后可先写好交接再 /clear 开新会话；或用 /autocompact 把自动压缩提前'
+               '（如 /autocompact 400k）。此提示只显示给你，不影响当前任务。').format(tokens // 10000)
+    # Optional information: without the state helper it stays quiet rather than
+    # repeating on every stop.
+    return message if claim_notice(payload, 'context-{}k'.format(reached[-1] // 1000)) is True else None
+
+
+def with_context_notice(payload, result):
+    try:
+        notice = context_notice(payload) if isinstance(payload, dict) else None
+    except Exception:  # advisory: a failed size check never costs another notice
+        notice = None
+    if not notice:
+        return result
+    result = dict(result or {})
+    result['systemMessage'] = (result['systemMessage'] + '\n' + notice
+                               if result.get('systemMessage') else notice)
+    return result
+
+
 def proposed_next(payload):
     if (not isinstance(payload, dict) or payload.get('hook_event_name') != 'Stop'
             or payload.get('stop_hook_active') is not False):
@@ -818,12 +892,14 @@ def main():
                 raise ValueError('oversized input')
             payload = json.loads(raw)
             result = (extraction_overflow(payload) if sys.argv[1] == 'extraction-overflow'
-                      else proposed_next(payload))
+                      else with_context_notice(payload, proposed_next(payload)))
             if result:
                 print(json.dumps(result))
         except TranscriptTruncated:
             result = stop_notice(payload, 'handoff-overflow',
                                  'Delivery handoff reminder unverified: transcript scan exceeded its bounded limit.')
+            if sys.argv[1] == 'proposed-next':
+                result = with_context_notice(payload, result)
             if result:
                 print(json.dumps(result))
         except (OSError, ValueError, TypeError, IndexError, AttributeError):

@@ -80,6 +80,69 @@ class TaskEntryTests(unittest.TestCase):
         self.assertIn('A report alone does not complete it', context)
         self.assertIn('required user decision or unavailable authority/resource', context)
 
+    def test_host_task_notification_turn_keeps_only_the_boundary(self):
+        # The host also runs UserPromptSubmit on turns it starts itself; a background
+        # completion arrives as one <task-notification> envelope. SessionStart keeps the
+        # routing list in context (also after compaction), so that turn drops only the
+        # list; the skill-loading and unfinished-work boundary appears nowhere else and
+        # matters most when a background check has just failed.
+        expected, _ = self.run_hook(prompt='Add a feature')
+        full = expected['hookSpecificOutput']['additionalContext']
+        for prompt in ['<task-notification>\n<task-id>b1</task-id>\n<status>failed</status>\n</task-notification>',
+                       '\n  <task-notification><task-id>b2</task-id></task-notification>']:
+            with self.subTest(prompt=prompt[:30]):
+                output, error = self.run_hook(prompt=prompt)
+                self.assertEqual(error, '')
+                context = output['hookSpecificOutput']['additionalContext']
+                self.assertIn('unrun, failed or inconclusive verification is unfinished work', context)
+                self.assertIn('Before task-specific investigation or substantive analysis', context)
+                self.assertTrue(context.startswith('<ccl-task-entry>') and context.endswith('</ccl-task-entry>'))
+                self.assertNotIn('<!-- ccl:entry-routing:start -->', context)
+                self.assertNotIn('**product-rd-workflow**', context)
+                self.assertLess(len(context), len(full) // 2)
+        # Controls: a human prompt that merely mentions the envelope still gets the
+        # entry, as does input the hook cannot parse.
+        for prompt in ['Why did <task-notification> fire twice?', 'task-notification arrived',
+                       '<task-notification><task-id>b3</task-id></task-notification>\nWhat does this mean?',
+                       '<task-notification> pasted without its closing tag',
+                       '<task-notification>first</task-notification>\nCompare these.\n'
+                       '<task-notification>second</task-notification>']:
+            with self.subTest(prompt=prompt):
+                output, _ = self.run_hook(prompt=prompt)
+                self.assertEqual(output, expected)
+
+    def test_unreadable_hook_input_keeps_the_entry(self):
+        expected, _ = self.run_hook(prompt='Add a feature')
+        for raw in ['', 'not json', json.dumps(['<task-notification>']),
+                    json.dumps({'prompt': 42}), json.dumps({'prompt': '<task-notification>' + 'x' * 2_000_000}),
+                    '[' * 500000 + ']' * 500000]:
+            with self.subTest(raw=raw[:30]):
+                with tempfile.TemporaryDirectory(prefix='ccl-task-entry-') as directory:
+                    root = Path(directory)
+                    (root / 'hooks').mkdir()
+                    (root / 'agent-context').mkdir()
+                    shutil.copyfile(ROOT / 'hooks/task-entry.sh', root / 'hooks/task-entry.sh')
+                    (root / 'agent-context/session-start.md').write_text(
+                        (ROOT / 'agent-context/session-start.md').read_text())
+                    result = subprocess.run(['bash', str(root / 'hooks/task-entry.sh')], input=raw,
+                                            text=True, capture_output=True, timeout=5,
+                                            cwd=root, env={'PATH': os.environ['PATH']})
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(json.loads(result.stdout), expected)
+        # A closed stdin is read as empty input, never a silent hook.
+        with tempfile.TemporaryDirectory(prefix='ccl-task-entry-') as directory:
+            root = Path(directory)
+            (root / 'hooks').mkdir()
+            (root / 'agent-context').mkdir()
+            shutil.copyfile(ROOT / 'hooks/task-entry.sh', root / 'hooks/task-entry.sh')
+            (root / 'agent-context/session-start.md').write_text(
+                (ROOT / 'agent-context/session-start.md').read_text())
+            result = subprocess.run(['bash', '-c', 'bash "$1" <&-', 'x', str(root / 'hooks/task-entry.sh')],
+                                    text=True, capture_output=True, timeout=5,
+                                    cwd=root, env={'PATH': os.environ['PATH']})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout), expected)
+
     def test_missing_or_invalid_source_is_observable_and_fail_soft(self):
         for source, missing in [('', True), ('not a routing document', False),
                                 ('<!-- ccl:entry-routing:end -->', False),

@@ -4931,6 +4931,118 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
 check "a bare --diff-file review records no receipt" \
   '[ "$rc" = 0 ] && json_fields "$out" status=passed && [ ! -e "$contract_repo/.git/ccl-code-review" ]'
 
+# The continuation checkpoint is counted, not remembered: the receipt carries the
+# worktree's conclusive review runs, and the sixth (the first review plus five
+# renewed runs) brings the checkpoint into the gate's own output.
+counting_out="$(PYTHONPATH="$WORK/harness/scripts" python3 - "$WORK" <<'PY' 2>&1
+import json, os, sys, review_gate
+root = os.path.realpath(os.path.join(sys.argv[1], "run-count"))
+gd = os.path.join(root, "gitdir")
+os.makedirs(gd)
+st = os.stat(gd)
+anchor = {"git_dir": gd, "git_dir_identity": [st.st_dev, st.st_ino], "head": "a" * 40, "worktree_clean": True}
+receipt_path = os.path.join(gd, "ccl-code-review", "last-review.json")
+runs = [review_gate.record_local_review(anchor, {"mode": mode, "status": "findings"})["conclusive_runs"]
+        for mode in ["review", "challenge", "review", "complete", "review", "review", "challenge"]]
+assert runs == [1, 2, 3, 3, 4, 5, 6], runs
+first = json.load(open(receipt_path))["first_recorded_at"]
+assert review_gate.continuation_checkpoint(5, first) is None
+assert review_gate.continuation_checkpoint(True, first) is None
+cp = review_gate.continuation_checkpoint(6, first)
+assert cp["conclusive_review_runs"] == 6 and cp["first_review_recorded_at"] == first, cp
+assert any("narrowed or removed" in step for step in cp["before_next_run"]), cp
+assert any("own words" in step for step in cp["before_next_run"]), cp
+# A receipt written before the count existed still proves one run.
+json.dump({"mode": "review", "recorded_at": "2026-01-01T00:00:00Z"}, open(receipt_path, "w"))
+receipt = review_gate.record_local_review(anchor, {"mode": "review"})
+assert receipt["conclusive_runs"] == 2 and receipt["first_recorded_at"] == "2026-01-01T00:00:00Z", receipt
+# Corrupt or hostile prior values restart the count; they never cost the new receipt.
+for bad in ["not json", json.dumps({"conclusive_runs": True, "mode": "complete"}),
+            json.dumps({"conclusive_runs": -3}), json.dumps([1]), "x" * 70000]:
+    open(receipt_path, "w").write(bad)
+    receipt = review_gate.record_local_review(anchor, {"mode": "review"})
+    assert receipt is not None and receipt["conclusive_runs"] == 1, (bad[:20], receipt)
+# A prior receipt that is a link is never read through, and the write replaces the link.
+target = os.path.join(root, "elsewhere.json")
+json.dump({"conclusive_runs": 40, "mode": "review"}, open(target, "w"))
+os.unlink(receipt_path)
+os.symlink(target, receipt_path)
+receipt = review_gate.record_local_review(anchor, {"mode": "review"})
+assert receipt is not None and receipt["conclusive_runs"] == 1 and not os.path.islink(receipt_path), receipt
+assert json.load(open(target))["conclusive_runs"] == 40
+# A prior receipt the parser cannot finish (nesting too deep) is invalid, never fatal.
+real_loads = review_gate.json.loads
+def too_deep(*args, **kwargs):
+    raise RecursionError("maximum recursion depth exceeded")
+review_gate.json.loads = too_deep
+open(receipt_path, "w").write("[" * 30000 + "]" * 30000)
+receipt = review_gate.record_local_review(anchor, {"mode": "review"})
+review_gate.json.loads = real_loads
+assert receipt is not None and receipt["conclusive_runs"] == 1, receipt
+# Overlapping completions cannot lose an increment because the whole
+# read-increment-replace runs under an exclusive lock on the receipt directory.
+# Checked where it matters, not by racing writers: when the controller opens the
+# prior receipt and when it replaces it, a second open of that directory cannot
+# take even a shared lock, and no lock call falls between the two, so the lock
+# is never released or changed in between.
+import fcntl
+receipt_dir = os.path.join(gd, "ccl-code-review")
+real_open, real_replace, real_flock = review_gate.os.open, review_gate.os.replace, review_gate.fcntl.flock
+def exclusively_locked():
+    probe = real_open(receipt_dir, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        real_flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return True
+    finally:
+        os.close(probe)
+    return False
+seen = []
+def watched_open(path, flags, *args, **kwargs):
+    if path == review_gate.LOCAL_REVIEW_RECEIPT_FILE and not flags & (os.O_WRONLY | os.O_RDWR):
+        seen.append(("read", exclusively_locked()))
+    return real_open(path, flags, *args, **kwargs)
+def watched_replace(src, dst, *args, **kwargs):
+    if dst == review_gate.LOCAL_REVIEW_RECEIPT_FILE:
+        seen.append(("replace", exclusively_locked()))
+    return real_replace(src, dst, *args, **kwargs)
+def watched_flock(fd, operation):
+    seen.append(("flock", operation))
+    return real_flock(fd, operation)
+with open(receipt_path, "w") as handle:
+    json.dump({"mode": "review", "conclusive_runs": 40, "first_recorded_at": "2026-01-01T00:00:00Z"}, handle)
+review_gate.os.open, review_gate.os.replace, review_gate.fcntl.flock = watched_open, watched_replace, watched_flock
+try:
+    receipt = review_gate.record_local_review(anchor, {"mode": "challenge"})
+finally:
+    review_gate.os.open, review_gate.os.replace, review_gate.fcntl.flock = real_open, real_replace, real_flock
+kinds = [kind for kind, _ in seen]
+assert kinds.count("read") == 1 and kinds.count("replace") == 1, seen
+read_at, replace_at = kinds.index("read"), kinds.index("replace")
+assert read_at < replace_at and seen[read_at][1] and seen[replace_at][1], seen
+assert "flock" not in kinds[read_at:replace_at], seen
+stored = json.load(open(receipt_path))
+assert stored == receipt and stored["conclusive_runs"] == 41, (stored, receipt)
+assert stored["first_recorded_at"] == "2026-01-01T00:00:00Z", stored
+print("run_count_ok")
+PY
+)"
+check "conclusive review runs are counted per worktree; the checkpoint starts at the sixth" \
+  '[ "$counting_out" = run_count_ok ]'
+
+mkdir -p "$contract_repo/.git/ccl-code-review"
+printf '{"mode":"review","conclusive_runs":5,"first_recorded_at":"2026-01-01T00:00:00Z"}\n' >"$receipt_file"
+reset_case passed unavailable unavailable
+out="$(run_contract_gate --mode review)"; rc=$?
+check "the sixth conclusive run carries the continuation checkpoint in the gate output" \
+  '[ "$rc" = 0 ] && json_fields "$out" continuation_checkpoint.conclusive_review_runs=6 continuation_checkpoint.first_review_recorded_at=2026-01-01T00:00:00Z && [ "$(jq -r .conclusive_runs "$receipt_file")" = 6 ]'
+printf '{"mode":"review","conclusive_runs":3}\n' >"$receipt_file"
+reset_case passed unavailable unavailable
+out="$(run_contract_gate --mode review)"; rc=$?
+check "an earlier run carries no checkpoint" \
+  '[ "$rc" = 0 ] && json_lacks "$out" continuation_checkpoint && [ "$(jq -r .conclusive_runs "$receipt_file")" = 4 ]'
+rm -rf "$contract_repo/.git/ccl-code-review"
+
 # The completion checkpoint is what the pull-request reminder reads as disposed:
 # on the same whole-worktree candidate it replaces the review's receipt with a
 # passed one; a checkpoint that fails leaves the receipt as it was.

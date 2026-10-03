@@ -1,0 +1,74 @@
+# Validation evidence
+
+## Sources
+
+A retrospective over Claude Code transcripts and Codex rollouts from one month
+(one product line's repositories plus this one). Per-session metrics were
+computed by script for every file; Codex threads were deduplicated on turn,
+response and command ids (files over-stated them about threefold). Prices for
+the dollar shares come from the bundled API price table; host behavior
+(auto-compaction window, transcript retention) was checked against the primary
+Claude Code documentation. Raw per-session data stays in a private archive.
+
+## Measurements behind the round
+
+| Measure | Value |
+| --- | --- |
+| Product-line Claude interactive sessions | 146, about 58k requests |
+| Request context, median / p90 | about 453k / 821k tokens |
+| Cost share of requests above 300k / 500k context | about 85% / 62% |
+| Cost components | cache read 73%, 1h cache write 15%, output 10% |
+| Base context at a session's first request | about 126k tokens |
+| Task-entry injections on background notifications | 1,410 of 4,151 (34%) |
+| Resumptions after ≥ 1h idle rewriting > 200k tokens | 83, about $5.5 each |
+| Conclusive review runs on single changes (deep-read sample) | 13 to 49 |
+
+## Reproduction on main (RED) and the change (GREEN)
+
+| Change | RED on main | GREEN |
+| --- | --- | --- |
+| Context notice | `hooks/test_proposed_next.py`: the three new cases fail; 39 existing pass | 42 pass; a real 45 MB transcript prints the notice in 0.2 s and keeps the existing reminder text |
+| Notification-turn entry | `hooks/test_task_entry.py`: a notification receives the full routing list, two envelopes around a request lose the entry, deep nesting crashes the hook | 8 pass; a notification turn carries 969 of 2,779 bytes and keeps the unfinished-work boundary |
+| Review-run count | the previous controller after six conclusive runs writes no count and returns no checkpoint; a too-deep prior receipt raises; a controller without the lock reads and replaces the receipt unlocked | `test_review_gate.sh` counting unit and integration checks pass; in this round's own review the sixth conclusive run in the worktree returned `continuation_checkpoint` |
+
+## Behavior replays
+
+Pre-registered before running (rubric, arms and decision rule frozen; blind
+grading by a separate call). Model `claude-opus-5-5`, tools disabled, hooks
+disabled, no user settings, n = 6 per arm.
+
+| Question | Arms | Result | Reading |
+| --- | --- | --- | --- |
+| Does the checkpoint object change the next action when only the latest finding is visible? | without / with `continuation_checkpoint` | 2/6 / 6/6 step back before patching | effect claimed (pre-registered threshold met) |
+| Does the added same-class sentence change the next action when three same-area findings are listed? | old text / new text / new text plus object | 6/6 / 6/6 / 6/6 | ceiling; no claim |
+| Would a session-history counting reference make a planner deduplicate? | without / with the reference | 6/6 / 6/6 | ceiling; the reference was withdrawn |
+
+Deviation: the same-class sentence was drafted before its rubric was written;
+the rubric judges only whether the chosen next action questions the classifier,
+and grading was blind. The second measurement was registered after reading two
+answers of the first and before any grading.
+
+Spot-check of the checkpoint replay: every with-object answer narrows the
+classifier first; two of the without-object answers graded PASS patch the 1403
+case first and only mention the design, which the rubric counts as FAIL. The
+grader's leniency works against the claim, so the measured gap (6/6 vs 2/6) is
+if anything understated; per the pre-registration it was not re-graded.
+
+## Checks on the final candidate
+
+Code candidate `bf672fb` (later commits change only this directory's evidence
+records). Base `origin/main` at `f21b499`.
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Full local lane | `CCL_SKILL_BASE_REF=origin/main make -k test` | exit 0 in 1,344 s; an earlier run on a superseded commit stopped on a load-sensitive eval timeout (`codex --version` stub, 5 s) that passed 3 of 3 alone |
+| Heavy regression lane | `bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only` | `regression_heavy_lane_ok: 9 suites` |
+| Public sanitization | `python3 scripts/check-public-sanitization.py .` | `public_sanitization_ok` |
+| Structure, routing and leakage | `CCL_SKILL_BASE_REF=origin/main bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` and `git diff --check` | `ccl_skill_check_clean_ok`; diff check clean |
+| npm package rehearsal | `make npm-publish-dry` | exit 0; `@ccoalm/ccl-skills` 0.18.11, 709 files, 3.7 MB |
+| Review evidence present | `python3 skills/skill-extraction-workflow/scripts/check_review_evidence_present.py --repo-root . --base "$(git merge-base origin/main HEAD)"` | `review_evidence_present_ok: 4 review, 1 challenge` |
+| Lock check mutation walk | controller variants applied in disposable copies, three runs each | unchanged controller passes; lock removed, shared lock, lock on another descriptor, read before the lock, unlock before the read, unlock and relock between the read and the replace, and unlock before the replace each fail on the recorded lock calls; a stored count or start time differing from the returned one, applied to the last call only, fails on the stored receipt |
+| CI | eight required checks on the pushed head | all eight pass on `bf672fb` |
+
+Not run locally: the hosted CI matrix itself (read from the pull request), and
+the release workflow, which runs only from the tag after merge.

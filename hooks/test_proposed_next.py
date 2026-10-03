@@ -541,6 +541,77 @@ class ProposedNextTests(unittest.TestCase):
         (self.hooks / 'host-input.py').unlink()
         self.assertIn('unavailable', self.run_hook().get('systemMessage', ''))
 
+    def usage_event(self, context, cache_read=None, model='claude-opus-5-5'):
+        read = context - 2000 if cache_read is None else cache_read
+        return {'type': 'assistant', 'message': {'model': model, 'content': [{'type': 'text', 'text': 'ok'}],
+                'usage': {'input_tokens': 2, 'cache_read_input_tokens': read,
+                          'cache_creation_input_tokens': context - 2 - read, 'output_tokens': 50}}}
+
+    def run_with_state(self, payload=None):
+        # The once-per-band cap uses the optional state helper; give it a private TMPDIR.
+        shutil.copyfile(ROOT / 'hooks/skill-loading.py', self.hooks / 'skill-loading.py')
+        state = self.root.parent / (self.root.name + '-state')
+        state.mkdir(exist_ok=True)
+        value = self.payload if payload is None else payload
+        result = subprocess.run(['bash', str(self.hooks / 'proposed-next-stop.sh')],
+                                input=json.dumps(value), text=True, capture_output=True, cwd=self.root,
+                                env=dict(os.environ, TMPDIR=str(state)))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, '')
+        return json.loads(result.stdout) if result.stdout else {}
+
+    def test_large_context_notice_is_user_only_and_once_per_band(self):
+        self.events([self.usage_event(120000), self.usage_event(299999)])
+        self.assertEqual(self.run_with_state(), {})
+        self.events([self.usage_event(120000), self.usage_event(321000)])
+        first = self.run_with_state()
+        self.assertEqual(set(first), {'systemMessage'})  # shown to the user, never a block or model context
+        self.assertIn('32 万', first['systemMessage'])
+        self.assertIn('/autocompact', first['systemMessage'])
+        self.assertIn('/clear', first['systemMessage'])
+        self.assertEqual(self.run_with_state(), {})  # same band: no repeat
+        self.events([self.usage_event(321000), self.usage_event(612000)])
+        second = self.run_with_state()
+        self.assertIn('61 万', second.get('systemMessage', ''))
+        self.assertEqual(self.run_with_state(), {})
+
+    def test_large_context_notice_stays_quiet_without_its_state_helper(self):
+        # Without the once-per-band record the notice would repeat on every stop, so
+        # it is withheld; notices that must show (handoff overflow) still show.
+        self.events([self.usage_event(450000)])
+        self.assertFalse((self.hooks / 'skill-loading.py').exists())
+        self.assertEqual(self.run_hook(), {})
+        self.assertEqual(self.run_hook(), {})
+
+    def test_large_context_notice_rides_with_a_continuation_reminder(self):
+        self.events([self.usage_event(450000)])
+        payload = dict(self.payload, last_assistant_message='Fixed.\n\nproposed-next: run the integration suite')
+        value = self.run_with_state(payload)
+        self.assertEqual(value.get('decision'), 'block')
+        self.assertIn('proposed-next:', value['reason'])
+        self.assertIn('45 万', value.get('systemMessage', ''))
+        self.assertNotIn('万 token', value['reason'])  # the model-facing reason stays unchanged
+
+    def test_large_context_notice_reads_only_the_latest_real_claude_usage(self):
+        # A trailing zero-usage (synthetic) entry is skipped; Codex shapes and huge
+        # trailing tool output without usage stay quiet; the notice never needs the
+        # bounded full-transcript scan.
+        synthetic = self.usage_event(0, cache_read=0, model='<synthetic>')
+        synthetic['message']['usage'] = {'input_tokens': 0, 'cache_read_input_tokens': 0,
+                                         'cache_creation_input_tokens': 0, 'output_tokens': 0}
+        self.events([self.usage_event(330000), synthetic])
+        self.assertIn('33 万', self.run_with_state().get('systemMessage', ''))
+        self.setUp()
+        self.events([{'type': 'event_msg', 'payload': {'type': 'token_count', 'info': {
+            'last_token_usage': {'input_tokens': 900000}}}}])
+        self.assertEqual(self.run_with_state(), {})
+        self.setUp()
+        self.events([self.usage_event(500000)] + [{'type': 'user', 'text': 'x' * 400000}] * 3)
+        self.assertEqual(self.run_with_state(), {})
+        self.setUp()
+        self.events([{'type': 'ignored'}] * 20000 + [self.usage_event(700000)])
+        self.assertIn('70 万', self.run_with_state().get('systemMessage', ''))
+
     def test_scan_is_bounded_and_no_filesystem_markers_are_written(self):
         self.events([{'type': 'ignored'}] * 20000 + self.claude_load())
         before = set(self.root.rglob('*'))
