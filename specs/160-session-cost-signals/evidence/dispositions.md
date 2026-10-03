@@ -34,3 +34,24 @@ Change made alongside the pass-2 fixes after a requester question about effect:
 a notification turn keeps the skill-loading and unfinished-work boundary (it
 appears nowhere else after compaction) and drops only the routing list, which
 SessionStart keeps in context.
+
+## Pass 3 — delta review (codex), base `571cd80`, reviewed commit `f6dc5ec`: 3 × P2
+
+Record: `pass3-delta.json`.
+
+| # | Sev | Finding | Disposition | Where |
+| --- | --- | --- | --- | --- |
+| 1 | P2 | The delta packet holds only the follow-up commits, so acceptance about code outside them cannot be checked from it | no change: a delta pass covers the commits after the full passes; the whole change was covered by pass 1 (review) and pass 2 (challenge) | — |
+| 2 | P2 | The overlapping-writer check proves the lock only when the writers happen to overlap | fixed in two steps; the second follows pass 4 finding 1 | `test_review_gate.sh` |
+| 3 | P2 | The validation notes carry no results for the current candidate | fixed: the validation notes list the commands run on the final candidate, their results and what was not run | `validation.md` |
+
+## Pass 4 — delta review (codex), base `f6dc5ec`, reviewed commit `5c84b38`: 1 × P1, 3 × P2
+
+Record: `pass4-delta.json`. The commits under review added the version for the npm release and the first rewrite of the lock check.
+
+| # | Sev | Finding | Disposition | Where |
+| --- | --- | --- | --- | --- |
+| 1 | P1 | The writer can be paused after signalling that it started and before it reaches the lock; past the one-second wait both mutants pass | fixed: no wait decides the result. The writer signals from inside its own exclusive lock call on the receipt directory, and the holder rewrites the count only after that signal; a missing lock, a shared lock or a lock on another object never signals, and a read before the lock increments the stale value. Same class as pass 3 finding 2; the timing dependence is removed rather than shortened | `test_review_gate.sh` |
+| 2 | P2 | An error while rewriting the receipt skips unlock and cleanup | fixed: unlock and writer cleanup run in `finally` | `test_review_gate.sh` |
+| 3 | P2 | The join after kill has no bound | fixed: the writer is a daemon, the join after kill is bounded, and an unreaped writer ends the check with a failure | `test_review_gate.sh` |
+| 4 | P2 | No current-candidate results for the full lane, package and shared-skill checks | fixed with pass 3 finding 3 | `validation.md` |
