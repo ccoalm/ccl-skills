@@ -82,7 +82,7 @@ IMPORTANT: This review run has no tools enabled and must use only the diff packe
 Requester's own words (verbatim, sanitized): <the request that set this change's goal>
 
 Review the current unmerged diff. Focus only on blocking or materially misleading issues:
-- anything the request does not need: a new switch, flag, gate, permission, rollout restriction, compatibility layer, manual step or abstraction, or a fix for a risk that predates the change
+- anything the request does not need: a new switch, flag, gate, permission, rollout restriction, compatibility layer, manual step or abstraction, or a fix for a pre-existing risk the request does not cover and this change does not expose or worsen
 - accidental write path or unsafe mutation
 - auth, permission, tenant, owner, or actor bypass
 - data loss, money, privacy, compliance, safety, or rollback risk

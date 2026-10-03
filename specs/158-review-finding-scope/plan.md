@@ -1,7 +1,8 @@
 # Reviews check scope against the requester's own words
 
-Status: implementation and local verification complete; review and challenge
-are recorded in [validation evidence](evidence/validation.md).
+Status: implementation and local verification complete. Measurements are in
+[validation evidence](evidence/validation.md); review, challenge and delta
+passes are in [dispositions](evidence/dispositions.md).
 
 Artifact classification: gate implementation. Risk tag: shared-gate. The
 change edits the reviewer lens the review controller sends with every build and
@@ -39,7 +40,8 @@ Registered remedies were treated as hypotheses and replayed before any edit
    With the requester's words in the intent, every run flagged the gate as
    contradicting the request. The new concern text added the rest: the admin
    override and the staged rollout named as unrequested in every run. On a plan
-   that matches the request, the new text raised no scope finding.
+   that matches the request, the new text raised no scope finding, and no run
+   called a requested fix of an older defect droppable.
 
 ## Change
 
@@ -47,8 +49,9 @@ Registered remedies were treated as hypotheses and replayed before any edit
   `compatibility` concern now asks the reviewer to check scope against the
   requester's own words when the intent or focus quotes them, and to report each
   switch, flag, gate, permission, rollout restriction, compatibility layer,
-  manual step or abstraction the request does not need, and each fix for a risk
-  that predates the change.
+  manual step or abstraction the request does not need, and each fix for a
+  pre-existing risk that the request does not cover and the change does not
+  expose or worsen.
 - `skills/code-review/references/development-completion.md` and
   `staged-review-contract.md`: the plan's intent quotes the requester's own
   words verbatim ahead of the restatement; the derived default carries them in
@@ -76,4 +79,6 @@ its text.
 | Concern IDs and required-concern output | Unchanged | `test_review_gate.sh` existing cases |
 | Over-designed plan, restatement only vs requester's words with the new text | Gate questioned only with the words; override and rollout flagged with the new text | `scope_anchor_replay.py` (evidence) |
 | Plan that matches the request, new text | No scope finding | `scope_anchor_replay.py --matched` (control) |
+| Derived-default review with `--focus` | The words reach the reviewer profile | `test_review_gate.sh` (pins the existing route; a copy that drops the focus fails it) |
+| Request to fix a defect that predates the change, plan that fixes exactly it | The fix is never called droppable | `scope_anchor_replay.py --requested-fix` (control; no run called it droppable under either wording) |
 | Docs | Intent quotes the words; `--focus` for the derived default; manual template; design gate packet | review |

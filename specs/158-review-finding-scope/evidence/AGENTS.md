@@ -1,7 +1,8 @@
 # evidence Agent Contract
 
-Frozen measurement artifacts for round 158: the validation record and the
-replay runners behind its numbers.
+Frozen artifacts for round 158: the validation record, the replay runners
+behind its numbers and their per-run record, and the review pass records with
+their dispositions.
 
 Rules:
 

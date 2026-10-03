@@ -1,7 +1,7 @@
 """Replay a staged review of an over-designed plan under four packet shapes.
 
 Usage: python3 scope_anchor_replay.py <runs> --candidate-file PATH [--client claude|codex]
-                                      [--arms A,B,C,D] [--raw-dir DIR] [--matched]
+                                      [--arms A,B,C,D] [--raw-dir DIR] [--matched | --requested-fix]
 
 The packet has the shape observed in a corrected session, in a neutral domain:
 the request asks for an automatic template check before export and only a record
@@ -16,7 +16,11 @@ override. Arms:
 
 --matched swaps in a plan that does exactly what the request asks (a check and
 fix before export, differences recorded after it, nothing blocked): a scope
-finding there is a false positive of the lens.
+finding there is a false positive of the lens. (Its first version also added a
+weekly review of the differences, which the request does not ask for; Codex
+flagged that step, so it was removed.) --requested-fix swaps in a request
+to fix a defect that predates the change and a plan that fixes exactly that: a
+finding that calls the fix droppable is the over-correction the lens must avoid.
 
 A run counts as flagging the over-design when one of its findings says a gate,
 permission, override, rollout or blocking step is not requested, should be
@@ -65,13 +69,23 @@ new file mode 100644
 
 MATCHED_DIFF = r'''diff --git a/docs/plans/report-quality.md b/docs/plans/report-quality.md
 new file mode 100644
-@@ -0,0 +1,8 @@
+@@ -0,0 +1,6 @@
 +# Template check before export, difference log after it
 +1. Before rendering, the export service runs the existing template check on the confirmed template and the data
 +   snapshot, and applies its automatic mapping fixes; anything it cannot fix is listed in the export log.
 +2. After rendering, the service compares the report with the template and appends the differences to the
 +   observation table. Publication, notifications and downloads never wait for or depend on this comparison.
-+3. The difference table is read weekly to improve the template check.
++'''
+
+FIX_RESTATEMENT = "Fix duplicate charges caused by export retries."
+FIX_REQUEST = "Requester's own words: 「修复导出重试导致的重复扣费。」"
+FIX_DIFF = r'''diff --git a/docs/plans/export-retry-charges.md b/docs/plans/export-retry-charges.md
+new file mode 100644
+@@ -0,0 +1,6 @@
++# Stop duplicate charges from export retries
++1. The retry worker sends an idempotency key derived from the export job with every submission.
++2. After a read timeout, it queries the job state with that key and resubmits only when no job exists.
++3. A regression test makes a submission time out, retries it, and asserts that one job and one charge exist.
 +'''
 
 PROMPT = '''Review this diff using the controller-frozen staged review profile below.
@@ -130,15 +144,18 @@ def main():
     for arm in arms:
         amended, quoted = shapes[arm]
         concerns = [(cid, candidate if amended and cid == 'compatibility' else text) for cid, text in CONCERNS]
+        fix = '--requested-fix' in args
+        restatement, request = (FIX_RESTATEMENT, FIX_REQUEST) if fix else (RESTATEMENT, REQUEST)
         profile = json.dumps({
-            'intent': RESTATEMENT + ('\n' + REQUEST if quoted else ''),
+            'intent': restatement + ('\n' + request if quoted else ''),
             'acceptance': ['The plan can be implemented and rolled out safely.'],
             'required_concerns': [{'id': cid, 'description': text} for cid, text in concerns],
         }, ensure_ascii=False, indent=1)
-        prompt = PROMPT.format(profile=profile, diff=MATCHED_DIFF if '--matched' in args else DIFF)
+        diff = FIX_DIFF if fix else (MATCHED_DIFF if '--matched' in args else DIFF)
+        prompt = PROMPT.format(profile=profile, diff=diff)
         with concurrent.futures.ThreadPoolExecutor(runs) as pool:
             results = list(pool.map(ask, [(prompt, client)] * runs))
-        tag = 'matched-' if '--matched' in args else ''
+        tag = 'requested-fix-' if fix else ('matched-' if '--matched' in args else '')
         print(client, tag + arm, json.dumps([r for r, _ in results]), flush=True)
         if raw_dir:
             with open(os.path.join(raw_dir, f'scope-anchor-{client}-{tag}{arm}.json'), 'w', encoding='utf-8') as out:
