@@ -33,6 +33,7 @@
 #   - test_uiux_delivery_contract.sh
 #   - test_uiux_loading_budget.sh
 #   - test_obligation_ledger.sh
+#   - test_obligation_ledger_repo_audit.sh
 #   - test_reference_access_census.sh
 # --full runs --fast plus the heavy full-checker regressions:
 #   - test_check_ccl_r0_status.sh
@@ -186,6 +187,13 @@ fast_tests=(
   test_uiux_loading_budget.sh
   test_governing_chain_diff.sh
   test_obligation_ledger.sh
+  # Audits the REAL specs/065 mapping and ledger against the base and head
+  # pinned in the ledger header, catching carrier drift the synthetic fixtures
+  # above cannot see: any edit that moves a cited line in skills/**/*.md makes
+  # the ledger stale. It needs full history (the CI fast job checks out with
+  # fetch-depth 0) and takes seconds, so it runs here, where `make test` and the
+  # fast CI job reach it before a push, not only in the heavy lane.
+  test_obligation_ledger_repo_audit.sh
   # Owned by another skill package; run_test resolves it relative to SCRIPTS_DIR.
   # Registered here because this runner is the repo's only regression lane —
   # a skill-local test left unregistered is the false-green this file guards.
@@ -195,11 +203,6 @@ fast_tests=(
 heavy_tests=(
   test_check_ccl_r0_status.sh
   test_entrypoint_domain_scan_terms.sh
-  # Audits the REAL specs/065 mapping/ledger against the base SHA pinned in
-  # the ledger header. Catches carrier drift the synthetic obligation-ledger
-  # fixtures cannot see. Needs full history and walks a 1240-row real corpus,
-  # so it stays out of the pre-commit lane; CI --full enforces it.
-  test_obligation_ledger_repo_audit.sh
   test_check_ccl_source_register_lifecycle.sh
   # Clones the whole repo once; impact-chain cases call the standalone gate and
   # retain one full-checker wiring case. Still kept out of the pre-commit lane.

@@ -2325,6 +2325,14 @@ out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.s
 check "a credential-shaped --focus value blocks non-Claude egress without approval" \
   '[ "$rc" = 2 ] && [ "$(cat "$WORK/state/client_sequence")" = claude ] && json_fields "$out" reason_code=egress_denied egress.secret_scan.0=aws_access_key_id'
 
+# The extraction lane needs a skill-extraction-workflow file in the candidate; a
+# delta pass without one is refused before any reviewer runs, and the refusal
+# names where the delta-pass recipe for that case lives.
+reset_case passed unavailable unavailable
+out="$(run_gate --review-lane extraction --challenge-budget 0)"; rc=$?
+check "the extraction lane refuses a candidate it does not own and points at the delta-pass recipe" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=invalid_input && printf "%s" "$out" | grep -q "dual-track-review-gate.md, delta pass"'
+
 reset_case passed unavailable unavailable
 out="$(run_gate --allow-fallback-egress)"; rc=$?
 check "a supplied review plan is marked implementer-supplied" \

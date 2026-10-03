@@ -16,6 +16,7 @@ import hashlib
 import importlib.util
 import json
 import re
+import shlex
 import subprocess
 import sys
 from collections import Counter
@@ -2741,6 +2742,18 @@ def main(argv: list[str]) -> int:
         return 0
     except AuditError as exc:
         print(f"ERROR {exc.code}: {exc.detail}", file=sys.stderr)
+        if exc.code == "STALE_LEDGER":
+            # Every other check already passed, so the mapping still resolves
+            # and only the rendered ledger differs, typically because a carrier
+            # line moved. A carrier whose text changed fails earlier with its
+            # own code and cannot be cleared by re-rendering.
+            command = [
+                "python3", sys.argv[0], "render", "--repo", args.repo,
+                "--base", args.base,
+                *(["--head", args.head] if args.head else []),
+                "--mapping", args.mapping, "--output", args.ledger,
+            ]
+            print(f"fix: regenerate the ledger: {shlex.join(command)}", file=sys.stderr)
         return 1
 
 

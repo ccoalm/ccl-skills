@@ -1205,6 +1205,37 @@ run_mutant must_to_may QUALIFIER_WEAKENED 'skills/source/SKILL.md#1' "$DELTA_DES
 run_mutant wrong_parent CARRIER_CHAIN_MISMATCH 'skills/source/SKILL.md#1' "$DELTA_DEST" mutation_wrong_parent
 run_mutant recency_direction_reversal QUALIFIER_REVERSED 'skills/source/SKILL.md#1' "$DELTA_DEST_MAPPING" mutation_reverse_recency
 run_mutant stale_locator STALE_LEDGER 'specs/ledger.md' 'specs/ledger.md' mutation_stale_locator
+
+# A stale ledger names the command that regenerates it, and that exact command
+# clears the failure.
+stale_case="$TMP_ROOT/stale_fix_hint"
+git clone -q "$FIXTURE" "$stale_case"
+mutation_stale_locator "$stale_case"
+set +e
+stale_output="$(python3 "$TOOL" audit --repo "$stale_case" --base "$BASE" \
+  --mapping "$stale_case/specs/mapping.jsonl" --ledger "$stale_case/specs/ledger.md" 2>&1)"
+set -e
+python3 - "$stale_output" <<'PY'
+import shlex
+import subprocess
+import sys
+
+lines = [line for line in sys.argv[1].splitlines() if line.startswith("fix: regenerate the ledger: ")]
+if len(lines) != 1:
+    print(f"FAIL stale fix hint: expected one fix line, got: {sys.argv[1]}", file=sys.stderr)
+    raise SystemExit(1)
+command = shlex.split(lines[0].split(": ", 2)[2])
+if command[2] != "render" or "--output" not in command:
+    print(f"FAIL stale fix hint: not a render command: {command}", file=sys.stderr)
+    raise SystemExit(1)
+subprocess.run(command, check=True, capture_output=True)
+PY
+python3 "$TOOL" audit --repo "$stale_case" --base "$BASE" \
+  --mapping "$stale_case/specs/mapping.jsonl" --ledger "$stale_case/specs/ledger.md" 2>&1 | grep -q '^audit_ok' || {
+  echo "FAIL stale fix hint: the printed command did not clear STALE_LEDGER" >&2
+  exit 1
+}
+echo "PASS stale ledger prints a render command that clears it"
 run_mutant invalid_status INVALID_DISPOSITION 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_invalid_status
 run_mutant retired_dead_preserved RETIRED_EFFECT_INVALID 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_retired_preserved
 run_mutant retired_dead_strengthened RETIRED_EFFECT_INVALID 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_retired_dead_strengthened
