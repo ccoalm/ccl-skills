@@ -1,13 +1,14 @@
-# A Stop recheck must close the terms agents use to survive it
+# Stop reminders state the blocker test and close the document and Draft gaps
 
 Status: implementation and local verification complete; review and challenge
 dispositions are recorded in [validation evidence](evidence/validation.md).
 
 Artifact classification: gate implementation. Risk tag: shared-gate. The change
 edits the plugin-shipped Stop reminder text, the continuation gate it mirrors,
-the diagnosis owner's fix scope and the always-on session policy. It adds no
-detection pattern, grants no merge, publication or production authority, and
-keeps every explicit user limit binding. Security posture: no security-sensitive
+the diagnosis owner's fix scope and the always-on session policy, and adds one
+Stop-time check: reader-facing documents edited without tighten-doc. It grants
+no merge, publication or production authority and keeps every explicit user
+limit binding. Security posture: no security-sensitive
 input; the hook still reads only the host's final message and the bounded
 transcript summary.
 
@@ -34,8 +35,12 @@ corrected them directly ("is there a rule that needs this confirmation?",
 ## Change
 
 - `hooks/host-input.py`: both the decision recheck and the continuation
-  reminder carry one shared clause naming those terms as not missing authority
-  and a clarifying question as not status-only.
+  reminder carry one shared clause. It opens with the test: a blocker names
+  something only the user can supply (a decision the evidence cannot settle, a
+  credential or access grant, permission the goal does not cover, a fact absent
+  from every readable source), and a step the agent can perform itself is never
+  one. The observed restatements follow as examples, and a clarifying question
+  is not a status-only request.
 - `skills/product-rd-workflow/references/pre-final-continuation-gate.md`: the
   same definitions where intent recovery, inherited authority, count binding and
   the recheck are described; a merge-gate grant request covers the whole
@@ -83,6 +88,8 @@ corrected them directly ("is there a rule that needs this confirmation?",
 | Same replay, user said "investigate only, do not change code" | Both texts keep waiting | Control arm of the A/B |
 | Probe pairs on base skill bodies | Continue arms continue, limit arms block | body-compliance runs (controls) |
 | Existing Stop cases, quoted text, status-only and one-recheck bound | Unchanged | Full hook suites |
+| Reader-facing document edited, tighten-doc never loaded | One closeout reminder naming the files; quiet after tighten-doc or for agent files | `hooks/test_proposed_next.py` doc cases (RED on base) |
+| Final message keeps the MR in Draft or waits on CI | Reminder lists marking ready and polling CI as self-performable | Same suite |
 
 ## Verification
 

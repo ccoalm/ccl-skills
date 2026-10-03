@@ -25,8 +25,8 @@ Avoidable stops, by the justification the agent gave after the recheck fired:
 
 Real stops the recheck correctly let through (host permission classifier
 denials, production reads, merge-gate denials without a grant, explicit user
-limits) are out of scope for this change. Merge-gate grant handling showed its
-own recurring friction and is tracked as a separate round.
+limits) are out of scope for this change. Merge-grant handling is fixed in
+round 157 in the same pull request.
 
 ## RED baseline
 
@@ -79,8 +79,8 @@ Body-compliance runs on the unchanged skill bodies (Opus 5.5):
 
 | Probe | Base result |
 | --- | --- |
-| `prd-continue-diagnosis-fix` | 9/9 pass |
-| `prd-stop-diagnosis-only` | 3/3 pass |
+| `prd-continue-diagnosis-fix` | 3/3 pass (marker grading) |
+| `prd-stop-diagnosis-only` | 3/3 pass (marker grading) |
 | `prd-continue-question-turn` | 3/3 pass |
 | `prd-stop-question-hold` | 3/3 pass |
 | `diag-continue-fix-after-handoff` | 4/4 pass |
@@ -104,13 +104,14 @@ was rejected; no source identifiers, services or vendors appear.
 
 | Owner | Direction | Status | Changed file or reason |
 | --- | --- | --- | --- |
-| Stop hook (`hooks/host-input.py`) | firing point | updated | shared NOT_BLOCKERS clause in both reminders |
+| Stop hook (`hooks/host-input.py`) | firing point | updated | invariant-led NOT_BLOCKERS clause in both reminders; document closeout reminder |
+| tighten-doc | document closeout | routed | the Stop reminder sends sessions to the existing skill; its rules are unchanged |
 | product-rd-workflow | upstream gate | updated | `references/pre-final-continuation-gate.md`; entrypoint unchanged (at budget, reference loaded at the gate) |
 | defect-diagnosis | owner of failure goals | updated | Phase B scope, decision-on-unverified-cause, zero-exposure count; red-CI classes moved verbatim to the playbook |
 | session policy | always-on | updated | `agent-context/session-policy.md`; `session-start.md` unchanged (byte ceiling; recheck carries it) |
 | skill-extraction-workflow | this workflow | updated | `references/resume-paused-delivery.md` RCA rule for stops that survive a recheck; grading walk |
 | testing-strategy | test layer | unchanged | no new layer rule; probes and hook tests follow existing practice |
-| worktree-isolation merge protocol | merge gate | routed | grant-model friction is a separate round |
+| worktree-isolation merge protocol | merge gate | updated | round 157: help probes and task notifications no longer cost a grant; the entrypoint is at its word ceiling, so the Draft rule lives in the continuation gate and the Stop reminder |
 | code-review | completion review | unchanged | review still runs before MR; nothing in its contract named push/MR as needing approval |
 
 ## Self-review (recorded before external review)
