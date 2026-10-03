@@ -172,6 +172,7 @@ DENY_TEXT_AUTO="合并授权闸：该命令会开启 auto-merge / merge-when-pip
 DENY_TEXT_SPELL="合并授权闸：授权有效但命令拼写不满足一次性立即合并要求——glab 需显式 --auto-merge=false（pipeline 运行中裸 merge 会默认转 auto-merge），gh 需显式 --merge/--squash/--rebase 策略，merge REST API 需显式 -X PUT。授权未消费，按上述拼写改写命令直接重试即可（无需用户重新授权）。"
 DENY_TEXT_TARGET="合并授权闸：用户授权指向了特定 MR/PR 编号，但该命令的合并对象与之不符或无法识别。授权未消费——请显式点名该编号（如 glab mr merge <授权编号> --auto-merge=false --yes）后重试；确需合并其他 MR 请让用户重新授权。"
 DENY_TEXT_MULTI="合并授权闸：同一条命令内检测到多个平台合并调用。每条命令只放行一个合并——把命令拆开逐条执行（单个授权下每个合并由用户分别授权；批量授权下每条命令消费 1 个额度，无需用户再次回复）。"
+DENY_TEXT_HELP="合并授权闸：命令带 -h/--help，只会打印帮助、不会合并，因此拒绝且不消费授权。查看帮助请用 glab help mr merge 或 gh help pr merge；正式合并时去掉帮助参数，用户已给的授权仍然有效。"
 DENY_TEXT_AMBIGUOUS="合并授权闸：检测到原始 HTTP 客户端、变更 method 的选项和 merge endpoint，但 method、transfer 边界、目标或动作数无法可靠关联。授权未消费——请改写成单个 curl/wget、单个明确 PUT method 和单个 merge URL 后重试。"
 
 # Missing legacy epoch files are compatible with pre-upgrade grants. Once
@@ -741,7 +742,7 @@ printf '%s\n' "$masked" | tr ';|&(){}' '\n' | while IFS= read -r seg; do
       # gh explicit strategy; REST/GraphQL calls are immediate by API
       # semantics). mid: the merge target id when statically extractable
       # ("?" otherwise) — matched against a number-bound grant below.
-      hit=0; auto=0; spell=SPELLBAD; mid="?"; multi_seg=0
+      hit=0; auto=0; spell=SPELLBAD; mid="?"; multi_seg=0; help=0
       if [ "$tool" = "glab" ]; then
         # `accept` is glab's documented alias of `mr merge` (same help text).
         if [ "${1:-}" = "mr" ] && { [ "${2:-}" = "merge" ] || [ "${2:-}" = "accept" ]; }; then
@@ -755,6 +756,7 @@ printf '%s\n' "$masked" | tr ';|&(){}' '\n' | while IFS= read -r seg; do
               # value-taking flags: consume the value so it is not mistaken
               # for the MR id positional (`glab mr merge --sha abc 546`).
               --sha|-m|--message|--squash-message) [ $# -ge 2 ] && shift ;;
+              -h|--help) help=1 ;;
               -*) : ;;
               *)
                 if [ "$mid" = "?" ] && [ -z "${id_seen:-}" ]; then
@@ -826,6 +828,7 @@ printf '%s\n' "$masked" | tr ';|&(){}' '\n' | while IFS= read -r seg; do
               # value-taking flags: consume the value so it is not mistaken
               # for the PR id positional.
               -b|--body|-F|--body-file|-t|--subject|--match-head-commit|-A|--author-email) [ $# -ge 2 ] && shift ;;
+              -h|--help) help=1 ;;
               -*) : ;;
               *)
                 if [ "$mid" = "?" ] && [ -z "${id_seen:-}" ]; then
@@ -876,7 +879,11 @@ printf '%s\n' "$masked" | tr ';|&(){}' '\n' | while IFS= read -r seg; do
         # the id unresolvable so bound grants deny (unbound grants keep the
         # agent-side duty to target the discussed MR — documented residual).
         [ "$retarget" = 1 ] && mid="?"
-        if [ "$auto" = 1 ]; then echo DENY_AUTO; else
+        # A help flag in flag position means the CLI prints help and merges
+        # nothing; deny it without touching any grant. A help token taken as a
+        # known flag's value never reaches here, and an unknown value-taking
+        # flag only makes this deny a real merge, never release one.
+        if [ "$help" = 1 ]; then echo DENY_HELP; elif [ "$auto" = 1 ]; then echo DENY_AUTO; else
           echo "DENY_MR $mid $spell"
           # A single segment carrying multiple aliased merge mutations emits a
           # second DENY_MR so the >1 exactly-one-per-command guard denies it.
@@ -1065,6 +1072,9 @@ if printf '%s\n' "$verdicts" | grep -q '^DENY_GIT$'; then
 fi
 if printf '%s\n' "$verdicts" | grep -q '^DENY_GIT_UNRESOLVED$'; then
   deny "$DENY_TEXT_GIT_UNRESOLVED"
+fi
+if printf '%s\n' "$verdicts" | grep -q '^DENY_HELP$'; then
+  deny "$DENY_TEXT_HELP"
 fi
 if printf '%s\n' "$verdicts" | grep -q '^DENY_AUTO'; then
   deny "$DENY_TEXT_AUTO"

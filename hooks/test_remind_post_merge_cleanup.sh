@@ -113,6 +113,18 @@ probe_json remind 'glab mr merge 123 --yes'  '{"stdout":"Merged !123"}'
 # --- --help / -h is not a merge → quiet ---
 probe quiet 'gh pr merge --help'
 probe quiet 'glab mr merge -h'
+# The help subcommand form, which the merge guard's help denial points to,
+# prints help and merges nothing.
+probe quiet 'gh help pr merge' 'Merge a pull request on GitHub.'
+probe quiet 'glab help mr merge' 'Merges a merge request.'
+probe quiet 'gh help pr merge 2>&1 | grep -- --match-head-commit' '--match-head-commit SHA'
+# A real merge beside a help lookup in one command still reminds, whichever
+# comes first: only the help invocation itself is set aside.
+probe remind 'gh help pr merge >/dev/null; gh pr merge 45 --merge' 'Merged'
+probe remind 'glab help mr merge && glab mr merge 123 --yes' 'Merged !123'
+probe remind 'gh pr merge 45 --merge # see gh help pr merge' 'Merged'
+probe remind 'gh pr merge 45 --merge $(gh help pr merge >/dev/null)' 'Merged'
+probe remind 'glab mr merge 123 --yes; glab help mr merge' 'Merged !123'
 # a successful-looking string response still reminds
 probe remind 'glab mr merge 123 --yes' 'Merged! https://.../merge_requests/123'
 

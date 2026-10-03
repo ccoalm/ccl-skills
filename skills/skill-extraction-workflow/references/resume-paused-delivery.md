@@ -11,6 +11,14 @@ Bind recovery when either:
 
 A semantic compaction paraphrase supplies neither binding path; recover the original proposal and assent before deciding path (a) is unavailable. A bare "why did you stop" complaint does not itself name path (b)'s action and scope. Never copy real conversation text into a shared repository record, reconstruct, broaden, or substitute it. The user's challenge reactivates that exact slice. Restate and proceed when either path binds; ask only when the action, scope, or required authority remains unresolved. A new user message or a changed gate requires reassessment, not automatic reconfirmation.
 
+## A stop that survived its recheck
+
+When the corrected stop happened after a Stop recheck or other reminder had already fired on it, detection worked and is not the cause.
+
+- The RCA must quote the agent's post-recheck justification from the transcript and name the term it leaned on ("missing authority", "status-only", "outward-facing", "the approved count is used up").
+- The prevention must close that term's definition inside the recheck text and the owning gate, with a test on the reminder content that fails before the change and a replay of the stop against both reminder texts.
+- Another detection pattern does not address this shape; repeated landings that only add detection are the cross-landing signal in `SKILL.md`.
+
 ## Invalid `blocked:` recovery
 
 A `blocked:` recovery without applicable state evidence and a specific remaining blocker is invalid: recover intent and rerun the owning gate. If a decision or permission remains unresolved, ask in the same turn and block that dependent action. Continue available authorized diagnosis, bounded remediation, or independent work; do not let stale assent bypass a newly pending or inconclusive gate. Do not let correction RCA or extraction delay recovery of a still-authorized delivery.

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Synthetic native Stop payloads; no real host state or conversations."""
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -7,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -340,6 +342,115 @@ class ProposedNextTests(unittest.TestCase):
                 self.assertIn('planning-only', result['reason'])
                 self.assertIn('supplies no new goal or authorization', result['reason'])
                 self.assertEqual(self.run_hook(dict(payload, stop_hook_active=True)), {})
+
+    def test_diagnosis_scope_and_question_turn_are_named_in_both_reminders(self):
+        # Observed stops after a verified root cause: the agent read "missing
+        # authority" as "you only asked me to investigate", and a clarifying
+        # question as a status-only request. Both reminders must close those terms.
+        for events in ([], self.claude_load()):
+            self.events(events)
+            for text in (
+                    'Fixing it changes shared code and opens an MR, beyond the investigation you asked for.\n'
+                    'proposed-next: blocked: limit fix, consistency test and MR — waiting for you to authorize the code change',
+                    '这一轮你只问了一个问题，我只解释了现状。\n'
+                    'proposed-next: blocked: 上限修复、补测试、提 MR——改共享仓库需要你确认',
+                    'Root cause verified.\nproposed-next: open a branch, fix the limit, add the test and open the MR',
+                    'Required CI passed; the advisory review timed out and its evidence was cleared.\n'
+                    'proposed-next: blocked: complete the CI review — no resume handle; a retry restarts from scratch',
+                    'Both MRs pushed; required CI is still running, the MRs stay in Draft.\n'
+                    'proposed-next: wait for CI to finish and for your merge confirmation'):
+                with self.subTest(text=text):
+                    result = self.run_hook(dict(self.payload, last_assistant_message=text))
+                    self.assert_block(result)
+                    self.assertIn('you only asked me to investigate', result['reason'])
+                    self.assertIn('failure or diagnosis goal includes the verified fix', result['reason'])
+                    # Closing the terms must not widen past an explicit user
+                    # limit: a "fix locally, do not push" instruction still binds.
+                    self.assertIn('unless an explicit user limit says otherwise (diagnosis only, no push)',
+                                  result['reason'])
+                    self.assertIn('clarifying question is not a status-only request', result['reason'])
+                    self.assertIn('outward-facing" — a feature branch and its MR/PR are routine', result['reason'])
+                    self.assertIn('stop bar you proposed yourself', result['reason'])
+                    self.assertIn('A blocker names something only the user can supply', result['reason'])
+                    self.assertIn('a rerun or retry of a failed, timed-out or inconclusive check', result['reason'])
+                    self.assertIn('marking that MR/PR ready once your own checks pass', result['reason'])
+                    self.assertIn('waiting on a CI run you can poll', result['reason'])
+                    self.assertIn('supplies no new goal or authorization', result['reason'])
+
+    def doc_edit(self, relative, tool_id='doc', tool='Write'):
+        target = str(self.root / relative)
+        return [
+            {'type': 'assistant', 'message': {'content': [{'type': 'tool_use', 'id': tool_id,
+             'name': tool, 'input': {'file_path': target, 'content': 'x'}}]}},
+            {'type': 'user', 'message': {'content': [{'type': 'tool_result',
+             'tool_use_id': tool_id, 'is_error': False, 'content': 'written'}]}}]
+
+    def test_reader_doc_edit_without_tighten_doc_gets_one_closeout_reminder(self):
+        # Observed: 26 of 29 sessions that edited plans, specs, READMEs or
+        # handoff documents never loaded tighten-doc before finishing.
+        status = 'Plan updated.\nproposed-next: none — status only'
+        for relative in ('docs/plans/rollout.md', 'README.md', 'handoffs/state.md', 'specs/9-x/plan.md'):
+            with self.subTest(relative=relative):
+                self.events(self.doc_edit(relative))
+                result = self.run_hook(dict(self.payload, last_assistant_message=status))
+                self.assert_block(result)
+                self.assertIn('tighten-doc', result['reason'])
+                self.assertIn(Path(relative).name, result['reason'])
+                self.assertIn('supplies no new goal or authorization', result['reason'])
+                self.assertEqual(self.run_hook(dict(self.payload, last_assistant_message=status,
+                                                    stop_hook_active=True)), {})
+
+    def test_doc_reminder_is_quiet_after_tighten_doc_or_for_agent_files(self):
+        status = 'Plan updated.\nproposed-next: none — status only'
+        self.events(self.claude_load('tighten-doc') + self.doc_edit('docs/plans/rollout.md'))
+        self.assertEqual(self.run_hook(dict(self.payload, last_assistant_message=status)), {})
+        for relative in ('skills/x/SKILL.md', 'AGENTS.md', 'CLAUDE.md', 'memory/note.md',
+                         '.claude/notes.md', 'src/app.py', 'notes.txt'):
+            with self.subTest(relative=relative):
+                self.events(self.doc_edit(relative))
+                self.assertEqual(self.run_hook(dict(self.payload, last_assistant_message=status)), {})
+
+    def test_doc_reminder_joins_a_continuation_reminder(self):
+        self.events(self.doc_edit('docs/plans/rollout.md'))
+        result = self.run_hook(dict(self.payload,
+                                    last_assistant_message='proposed-next: run the remaining local checks'))
+        self.assert_block(result)
+        self.assertIn('execute it now', result['reason'])
+        self.assertIn('tighten-doc', result['reason'])
+
+    def test_doc_reminder_covers_each_file_edit_tool(self):
+        # Edits are seen through the file-edit tool calls the transcript records;
+        # shell writes are outside this check by design.
+        for tool in ('Edit', 'MultiEdit'):
+            with self.subTest(tool=tool):
+                self.events(self.doc_edit('docs/handoff.md', tool=tool))
+                result = self.run_hook()
+                self.assert_block(result)
+                self.assertIn('handoff.md', result['reason'])
+
+    def test_unreadable_doc_path_never_costs_the_delivery_reminder(self):
+        # The document check is advisory; a path it cannot resolve (an embedded
+        # NUL makes realpath raise) must not replace the continuation reminder
+        # with the "reminder unavailable" notice.
+        self.events(self.doc_edit('docs/plans/roll\x00out.md'))
+        result = self.run_hook(dict(self.payload,
+                                    last_assistant_message='proposed-next: run the remaining local checks'))
+        self.assert_block(result)
+        self.assertIn('execute it now', result['reason'])
+
+    def test_doc_check_failure_never_costs_the_delivery_reminder(self):
+        # The document check is advisory: whatever it raises, the continuation
+        # reminder it would have joined is still returned.
+        self.events(self.doc_edit('docs/plans/rollout.md'))
+        spec = importlib.util.spec_from_file_location('doc_check_probe', self.hooks / 'host-input.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        payload = dict(self.payload, last_assistant_message='proposed-next: run the remaining local checks')
+        with patch.object(module, 'reader_docs', side_effect=RuntimeError('unexpected')):
+            result = module.proposed_next(payload)
+        self.assert_block(result)
+        self.assertIn('execute it now', result['reason'])
+        self.assertNotIn('tighten-doc', result['reason'])
 
     def test_quoted_actions_do_not_turn_a_status_handoff_into_work(self):
         self.events(self.claude_load())

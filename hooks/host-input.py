@@ -13,6 +13,7 @@ import re
 import shlex
 import stat
 import sys
+import tempfile
 
 # Hook assets may be installed read-only; importing the optional state helper
 # must not create bytecode beside them.
@@ -626,6 +627,23 @@ def delivery_eligible(summary):
             or summary['continuation_contract_visible'])
 
 
+# Stops kept surviving the recheck by restating the blocker in a new term, so
+# the test is stated as an invariant (who can act) and the observed terms are
+# only examples of restatements that fail it.
+NOT_BLOCKERS = (
+    'A blocker names something only the user can supply: a decision the evidence cannot settle, a credential '
+    'or access grant, permission the goal does not cover, or a fact absent from every source you can read. '
+    'A next step you can perform yourself is not a blocker, whatever it costs in time or runs: a fix with its '
+    'tests and review, a branch push and MR/PR, marking that MR/PR ready once your own checks pass instead of '
+    'leaving it in Draft, waiting on a CI run you can poll, a rerun or retry of a failed, timed-out or '
+    'inconclusive check, or a lookup. Restatements observed to fail this test: "you only asked me to investigate" — a failure or '
+    'diagnosis goal includes the verified fix, tests, review, branch push and MR/PR to the development target '
+    'unless an explicit user limit says otherwise (diagnosis only, no push); "pushing or opening an MR is outward-facing" — a feature branch '
+    'and its MR/PR are routine; a count, round or stop bar you proposed yourself, unless the user adopted it as '
+    'a limit; "the check can only restart '
+    'from scratch"; and facts, logs, test data or access you can find or reuse yourself. A clarifying question '
+    'is not a status-only request: answer it, then continue. ')
+
 # One bounded recheck (host stop_hook_active) for stops that hand work back to
 # the user; it names the real blockers and grants no authority.
 DECISION_RECHECK = {'decision': 'block', 'reason': (
@@ -633,7 +651,8 @@ DECISION_RECHECK = {'decision': 'block', 'reason': (
     'Real blockers are: missing credentials or authority; a fact unavailable from local evidence; '
     'an action the safety rules gate (destructive or irreversible without recovery, production or '
     'customer data, merge or publication outside the goal); overturning an established user direction; '
-    'or a material product tradeoff the evidence cannot settle. An ordinary change needs no human review, '
+    'or a material product tradeoff the evidence cannot settle. ' + NOT_BLOCKERS +
+    'An ordinary change needs no human review, '
     'sign-off or risk owner: run the self-review and external review yourself. '
     'Small tests and routine development/test-environment operations within the authorized task '
     'run directly with configured accounts; do not ask for per-run approval or invent a cost cap. '
@@ -649,10 +668,77 @@ DECISION_RECHECK = {'decision': 'block', 'reason': (
     'This reminder supplies no new goal or authorization.')}
 
 
+# Reader-facing documents edited in a session owe the tighten-doc closeout
+# readback (the routing rule says so), yet it was skipped in 26 of 29 observed
+# sessions. Agent-facing files are excluded: skill bodies, contracts, memory
+# and scratch or temporary paths.
+READER_DOC_SUFFIXES = ('.md', '.mdx', '.rst')
+AGENT_DOC_NAMES = {'skill.md', 'agents.md', 'claude.md', 'memory.md'}
+AGENT_DOC_DIRS = {'memory', '.claude', '.codex', '.git', 'node_modules', 'skills', 'agent-context',
+                  'scratchpad'}
+
+
+def reader_docs(edit_paths, cwd):
+    base = os.path.realpath(cwd) if isinstance(cwd, str) and cwd else None
+    temp_roots = tuple(os.path.realpath(root) + os.sep
+                       for root in {tempfile.gettempdir(), '/tmp', '/private/tmp', '/var/folders'})
+    found = []
+    for path in edit_paths:
+        if not isinstance(path, str) or not path.lower().endswith(READER_DOC_SUFFIXES):
+            continue
+        real = os.path.realpath(path)
+        if base and (real == base or real.startswith(base + os.sep)):
+            parts = os.path.relpath(real, base).split(os.sep)
+        elif real.startswith(temp_roots):
+            continue
+        else:
+            parts = real.split(os.sep)
+        if parts[-1].lower() in AGENT_DOC_NAMES or any(p.lower() in AGENT_DOC_DIRS for p in parts[:-1]):
+            continue
+        found.append(real)
+    return found
+
+
+def doc_closeout_note(payload):
+    path, cwd = payload.get('transcript_path'), payload.get('cwd')
+    if not isinstance(path, str) or not path:
+        return ''
+    cwd = cwd if isinstance(cwd, str) else os.getcwd()
+    try:
+        summary = transcript(path, cwd)
+    except TranscriptTruncated:
+        summary = context_transcript(path, cwd)
+    except (OSError, ValueError):
+        return ''
+    if any(skill.split(':')[-1] == 'tighten-doc' for skill in summary['completed_skills']):
+        return ''
+    docs = reader_docs(summary['edit_paths'], cwd)
+    if not docs:
+        return ''
+    names = ', '.join(sorted({os.path.basename(doc) for doc in docs})[:5])
+    return ('Document closeout: this session edited reader-facing documents ({}) without loading '
+            'tighten-doc. Load it and run its closeout readback on those documents before finishing; '
+            'the substance stays as the owning skill decided.'.format(names))
+
+
 def proposed_next(payload):
     if (not isinstance(payload, dict) or payload.get('hook_event_name') != 'Stop'
             or payload.get('stop_hook_active') is not False):
         return None
+    result = delivery_reminder(payload)
+    try:
+        note = doc_closeout_note(payload)
+    except Exception:  # advisory: a failed document check never costs the reminder
+        note = ''
+    if not note:
+        return result
+    if not result:
+        return {'decision': 'block', 'reason': note + ' Then end with the same proposed-next: line. '
+                'This reminder supplies no new goal or authorization.'}
+    return {'decision': 'block', 'reason': note + ' ' + result['reason']}
+
+
+def delivery_reminder(payload):
     final = payload.get('last_assistant_message')
     if not isinstance(final, str) or not final.strip() or machine_artifact(final):
         return None
@@ -674,7 +760,8 @@ def proposed_next(payload):
             'authorized and runnable, execute it now instead of waiting for another continue message. '
             'For unrun, failed or inconclusive checks, continue available diagnosis, research, safe repair '
             'and retesting; a report alone does not complete implementation. Respect explicit stop, '
-            'planning-only and status-only requests. If a user decision or missing authority/resource '
+            'planning-only and status-only requests. ' + NOT_BLOCKERS +
+            'If a user decision or missing authority/resource '
             'prevents action, report the concrete blocker; do not invent work or bypass a failed gate. '
             'This reminder supplies no new goal or authorization.')}
     path = payload.get('transcript_path')

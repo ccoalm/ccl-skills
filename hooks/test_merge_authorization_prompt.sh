@@ -213,6 +213,17 @@ done
 send '批量合并 3'
 send '继续'
 if [ ! -f "$SENT" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo 'FAIL legacy batch still clears on neutral prompt' >&2; fi
+# A host task notification reaches this hook with no field that tells it apart
+# from typed text, so it is handled as a user message: it revokes single and
+# counted grants (a stop typed in its markup must still revoke) and never arms.
+note=$'<task-notification>\n<task-id>abc123</task-id>\n<status>completed</status>\n<summary>Background command "wait for CI" completed (exit code 0)</summary>\n</task-notification>'
+send '批量合并 3'
+send "$note"
+if [ ! -f "$SENT" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo 'FAIL a notification must revoke a counted grant' >&2; fi
+send '合并'
+send $'<task-notification>\n<summary>先别合并</summary>\n</task-notification>'
+if [ ! -f "$SENT" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo 'FAIL a stop inside notification markup must revoke' >&2; fi
+expect_not_armed $'<task-notification>\n<summary>合并</summary>\n</task-notification>'
 git -C "$tmp/repo" remote set-url origin 'https://user:password@example.invalid/team/project.git'
 expect_not_armed '完成并合并 PR #123'
 git -C "$tmp/repo" remote set-url origin 'git@example.invalid:team/project.git'
