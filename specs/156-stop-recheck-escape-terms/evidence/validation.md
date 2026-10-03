@@ -35,11 +35,12 @@ own recurring friction and is tracked as a separate round.
   sets); the reminder text never mentions the investigation-only, outward-facing
   or self-proposed-count terms.
 - Firing-point replay (`claude --print`, tools and hooks disabled, Opus 5.5,
-  6 runs per arm): a stop already restated twice, then the decision recheck.
-  Base reminder text: 2/6 proceed to the fix and MR, 4/6 keep waiting. New text:
-  6/6 proceed.
+  6 runs per arm, two runs of the experiment; the second used the committed
+  `recheck_replay.py`): a stop already restated twice, then the decision
+  recheck. Base reminder text: 2/6 and 3/6 proceed to the fix and MR (5/12).
+  New text: 6/6 and 6/6 (12/12).
 - Control arm, same replay but the user said "investigate only, do not change
-  code": base 0/6 and new 0/6 proceed. The new text does not override an
+  code": base 0/12 and new 0/12 proceed. The new text does not override an
   explicit limit.
 
 ## Probe controls
