@@ -47,3 +47,9 @@ Deviation: the same-class sentence was drafted before its rubric was written;
 the rubric judges only whether the chosen next action questions the classifier,
 and grading was blind. The second measurement was registered after reading two
 answers of the first and before any grading.
+
+Spot-check of the checkpoint replay: every with-object answer narrows the
+classifier first; two of the without-object answers graded PASS patch the 1403
+case first and only mention the design, which the rubric counts as FAIL. The
+grader's leniency works against the claim, so the measured gap (6/6 vs 2/6) is
+if anything understated; per the pre-registration it was not re-graded.
