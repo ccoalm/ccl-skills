@@ -92,6 +92,15 @@ round 157 in the same pull request.
   it: the transcript scan drops a NUL-bearing path (probe: `edit_paths` empty),
   and a case pins that the continuation reminder survives it (a control; it
   passes on the previous hook too).
+- Second delta review (codex) P2: nothing kept an unexpected failure inside the
+  document check from replacing the continuation reminder with the "reminder
+  unavailable" notice. The Stop hook now computes the delivery reminder first
+  and contains any document-check failure; an in-process case that makes the
+  check raise fails on the previous hook and passes now.
+- Second delta review P2: the cleanup reminder's help strip accepted any prefix,
+  so `gh pr merge 45 --merge # see gh help pr merge` erased the real merge. It
+  now removes only the literal help invocation; that case and a command
+  substitution case fail on the previous strip and pass now.
 
 ## Probe controls
 

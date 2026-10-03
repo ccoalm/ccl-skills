@@ -725,8 +725,11 @@ def proposed_next(payload):
     if (not isinstance(payload, dict) or payload.get('hook_event_name') != 'Stop'
             or payload.get('stop_hook_active') is not False):
         return None
-    note = doc_closeout_note(payload)
     result = delivery_reminder(payload)
+    try:
+        note = doc_closeout_note(payload)
+    except Exception:  # advisory: a failed document check never costs the reminder
+        note = ''
     if not note:
         return result
     if not result:

@@ -72,7 +72,8 @@ corrected them directly ("is there a rule that needs this confirmation?",
   its closeout readback. In the
   reviewed window 26 of 29 sessions that edited plans, specs, READMEs or handoff
   documents never loaded tighten-doc. The reminder shares the existing
-  one-recheck bound and joins any other Stop reminder.
+  one-recheck bound and joins any other Stop reminder; a failure inside the
+  document check never costs that other reminder.
 - The self-performable steps in the reminder include marking an MR/PR ready
   once the agent's own checks pass and polling its own CI run; agents left MRs
   in Draft at the end of 21 reviewed sessions and ended on "waiting for CI" 13

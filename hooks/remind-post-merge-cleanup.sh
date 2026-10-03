@@ -73,10 +73,10 @@ masked=$(printf '%s' "$cmd" | sed -E \
 # path, and the human-readable cleanup rule in worktree-isolation SKILL.md +
 # bootstrap covers EVERY merge path regardless of this reminder.
 # `gh help pr merge` / `glab help mr merge` print help (the merge guard's help
-# denial points there); drop those spans first so only a real merge segment in
-# the same command can still match.
+# denial points there). Remove only those literal invocations, never a prefix,
+# so a real merge before or after them in the same command still matches.
 masked=$(printf '%s' "$masked" | sed -E \
-  's/(glab|gh)[[:space:]]([^&|;]*[[:space:]])?help[[:space:]]+(mr|pr)[[:space:]]+(merge|accept)([[:space:]]|$)/ /g')
+  's/(glab|gh)[[:space:]]+help[[:space:]]+(mr|pr)[[:space:]]+(merge|accept)([[:space:]]|$)/ /g')
 printf '%s' "$masked" | grep -Eq \
   'glab[[:space:]]([^&|;]*[[:space:]])?mr[[:space:]]+(merge|accept)([[:space:]]|$)|gh[[:space:]]([^&|;]*[[:space:]])?pr[[:space:]]+merge([[:space:]]|$)' \
   || exit 0

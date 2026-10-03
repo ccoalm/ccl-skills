@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Synthetic native Stop payloads; no real host state or conversations."""
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -7,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -435,6 +437,20 @@ class ProposedNextTests(unittest.TestCase):
                                     last_assistant_message='proposed-next: run the remaining local checks'))
         self.assert_block(result)
         self.assertIn('execute it now', result['reason'])
+
+    def test_doc_check_failure_never_costs_the_delivery_reminder(self):
+        # The document check is advisory: whatever it raises, the continuation
+        # reminder it would have joined is still returned.
+        self.events(self.doc_edit('docs/plans/rollout.md'))
+        spec = importlib.util.spec_from_file_location('doc_check_probe', self.hooks / 'host-input.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        payload = dict(self.payload, last_assistant_message='proposed-next: run the remaining local checks')
+        with patch.object(module, 'reader_docs', side_effect=RuntimeError('unexpected')):
+            result = module.proposed_next(payload)
+        self.assert_block(result)
+        self.assertIn('execute it now', result['reason'])
+        self.assertNotIn('tighten-doc', result['reason'])
 
     def test_quoted_actions_do_not_turn_a_status_handoff_into_work(self):
         self.events(self.claude_load())
