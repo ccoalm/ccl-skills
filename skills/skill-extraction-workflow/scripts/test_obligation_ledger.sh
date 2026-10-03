@@ -1236,6 +1236,29 @@ python3 "$TOOL" audit --repo "$stale_case" --base "$BASE" \
   exit 1
 }
 echo "PASS stale ledger prints a render command that clears it"
+
+# The hint is safe only because re-rendering cannot clear a carrier whose text
+# or structure changed: render refuses, or writes a ledger the audit still
+# rejects with the carrier's own code.
+for carrier_case in wrong_parent:CARRIER_CHAIN_MISMATCH table_carrier_to_fence:CARRIER_COMPOSITE_NOT_UNIQUE; do
+  carrier_name="${carrier_case%%:*}"
+  carrier_code="${carrier_case#*:}"
+  carrier_dir="$TMP_ROOT/render_cannot_clear_$carrier_name"
+  git clone -q "$FIXTURE" "$carrier_dir"
+  "mutation_$carrier_name" "$carrier_dir"
+  set +e
+  python3 "$TOOL" render --repo "$carrier_dir" --base "$BASE" \
+    --mapping "$carrier_dir/specs/mapping.jsonl" --output "$carrier_dir/specs/ledger.md" >/dev/null 2>&1
+  carrier_output="$(python3 "$TOOL" audit --repo "$carrier_dir" --base "$BASE" \
+    --mapping "$carrier_dir/specs/mapping.jsonl" --ledger "$carrier_dir/specs/ledger.md" 2>&1)"
+  carrier_status=$?
+  set -e
+  if [ "$carrier_status" -eq 0 ] || ! printf '%s\n' "$carrier_output" | grep -q "^ERROR $carrier_code:"; then
+    echo "FAIL render cannot clear $carrier_name: expected $carrier_code after a render, got: $carrier_output" >&2
+    exit 1
+  fi
+done
+echo "PASS re-rendering cannot clear a changed carrier"
 run_mutant invalid_status INVALID_DISPOSITION 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_invalid_status
 run_mutant retired_dead_preserved RETIRED_EFFECT_INVALID 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_retired_preserved
 run_mutant retired_dead_strengthened RETIRED_EFFECT_INVALID 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_retired_dead_strengthened
