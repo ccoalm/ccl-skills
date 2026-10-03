@@ -1237,10 +1237,10 @@ python3 "$TOOL" audit --repo "$stale_case" --base "$BASE" \
 }
 echo "PASS stale ledger prints a render command that clears it"
 
-# The hint is safe only because re-rendering cannot clear a carrier whose text
-# or structure changed: render refuses, or writes a ledger the audit still
-# rejects with the carrier's own code.
-for carrier_case in wrong_parent:CARRIER_CHAIN_MISMATCH table_carrier_to_fence:CARRIER_COMPOSITE_NOT_UNIQUE; do
+# The hint is safe only because re-rendering cannot clear a carrier whose text,
+# structure or qualifier changed: render refuses, or writes a ledger the audit
+# still rejects with that change's own code.
+for carrier_case in wrong_parent:CARRIER_CHAIN_MISMATCH table_carrier_to_fence:CARRIER_COMPOSITE_NOT_UNIQUE weaken_modality:QUALIFIER_WEAKENED; do
   carrier_name="${carrier_case%%:*}"
   carrier_code="${carrier_case#*:}"
   carrier_dir="$TMP_ROOT/render_cannot_clear_$carrier_name"
