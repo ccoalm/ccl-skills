@@ -626,6 +626,16 @@ def delivery_eligible(summary):
             or summary['continuation_contract_visible'])
 
 
+# Terms observed carrying stops past the recheck: each one is closed here so a
+# reminder cannot be answered by restating it as the blocker.
+NOT_BLOCKERS = (
+    'These are not missing authority: "you only asked me to investigate" — a failure or diagnosis goal '
+    'includes the verified fix, tests, review, branch push and MR/PR to the development target unless the '
+    'user limited it to diagnosis; "pushing or opening an MR is outward-facing" — a feature branch and its '
+    'MR/PR are routine; a count, round or stop bar you proposed yourself; and facts, logs, test data or '
+    'access you can find or reuse yourself. A clarifying question is not a status-only request: answer it, '
+    'then continue. ')
+
 # One bounded recheck (host stop_hook_active) for stops that hand work back to
 # the user; it names the real blockers and grants no authority.
 DECISION_RECHECK = {'decision': 'block', 'reason': (
@@ -633,7 +643,8 @@ DECISION_RECHECK = {'decision': 'block', 'reason': (
     'Real blockers are: missing credentials or authority; a fact unavailable from local evidence; '
     'an action the safety rules gate (destructive or irreversible without recovery, production or '
     'customer data, merge or publication outside the goal); overturning an established user direction; '
-    'or a material product tradeoff the evidence cannot settle. An ordinary change needs no human review, '
+    'or a material product tradeoff the evidence cannot settle. ' + NOT_BLOCKERS +
+    'An ordinary change needs no human review, '
     'sign-off or risk owner: run the self-review and external review yourself. '
     'Small tests and routine development/test-environment operations within the authorized task '
     'run directly with configured accounts; do not ask for per-run approval or invent a cost cap. '
@@ -674,7 +685,8 @@ def proposed_next(payload):
             'authorized and runnable, execute it now instead of waiting for another continue message. '
             'For unrun, failed or inconclusive checks, continue available diagnosis, research, safe repair '
             'and retesting; a report alone does not complete implementation. Respect explicit stop, '
-            'planning-only and status-only requests. If a user decision or missing authority/resource '
+            'planning-only and status-only requests. ' + NOT_BLOCKERS +
+            'If a user decision or missing authority/resource '
             'prevents action, report the concrete blocker; do not invent work or bypass a failed gate. '
             'This reminder supplies no new goal or authorization.')}
     path = payload.get('transcript_path')

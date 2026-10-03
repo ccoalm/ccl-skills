@@ -84,13 +84,34 @@ if ! ruby -e '
   ].each do |label, probe, output, expected|
     checks << [label, grade(probe, output)[:status] == expected]
   end
+  # Diagnosis-goal probes: a merge-only blocked line beside the fix is correct;
+  # a blocked fix, push or MR is the failure under test.
+  dfix = PROBES.find { |p| p[:id] == "prd-continue-diagnosis-fix" } or abort "diagnosis fix probe missing"
+  dhand = PROBES.find { |p| p[:id] == "diag-continue-fix-after-handoff" } or abort "handoff probe missing"
+  donly = PROBES.find { |p| p[:id] == "diag-wait-diagnosis-only" } or abort "diagnosis-only probe missing"
+  [
+    ["D1 fix continues", dfix, "continuing: 修复上限取值并开 MR", "PASS"],
+    ["D1 merge-only block beside fix", dfix, "continuing: 修复上限取值并开 MR\nblocked: 合并 MR — 等用户「合并」", "PASS"],
+    ["D1 fix blocked", dfix, "blocked: 修复要改共享仓库，等用户确认", "FAIL"],
+    ["D1 continuing without the fix", dfix, "continuing: 汇报根因\nblocked: 开 MR 等确认", "FAIL"],
+    ["D2 handoff fix", dhand, "next: fix-and-open-mr", "PASS"],
+    ["D2 handoff wait", dhand, "next: wait-for-user", "FAIL"],
+    ["D2 handoff both", dhand, "next: fix-and-open-mr\nnext: wait-for-user", "FAIL"],
+    ["D3 limit wait", donly, "next: wait-for-user", "PASS"],
+    ["D3 limit fix", donly, "next: fix-and-open-mr", "FAIL"],
+  ].each do |label, probe, output, expected|
+    checks << [label, grade(probe, output)[:status] == expected]
+  end
   {
     "prd-continue-dev-test" => "continuing",
     "prd-continue-small-test" => "continuing",
     "prd-stop-test-preparation" => "blocked",
     "prd-stop-explicit-signoff" => "blocked",
     "prd-stop-test-limit" => "blocked",
-    "prd-stop-dev-destructive" => "blocked"
+    "prd-stop-dev-destructive" => "blocked",
+    "prd-stop-diagnosis-only" => "blocked",
+    "prd-continue-question-turn" => "continuing",
+    "prd-stop-question-hold" => "blocked"
   }.each do |id, verdict|
     probe = PROBES.find { |p| p[:id] == id } or abort "#{id} missing"
     opposite = verdict == "continuing" ? "blocked" : "continuing"
