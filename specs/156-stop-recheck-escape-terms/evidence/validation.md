@@ -72,6 +72,16 @@ round 157 in the same pull request.
 - Document closeout reminder: five new Stop cases fail on the previous hook
   (`reader_docs` absent) and pass now; tighten-doc already loaded, agent files
   (SKILL.md, AGENTS.md, CLAUDE.md, memory, .claude) and non-doc edits stay quiet.
+- Scoped review (codex) P2: Phase B of `defect-diagnosis` listed its stops as
+  "stop only for" four cases, so "fix locally, do not push", a cost cap, a
+  destructive non-production repair or a purchase matched none of them. Every
+  explicit user limit and existing gate now stops the step it covers, and the
+  cases are examples; the continuation gate, session policy and both Stop
+  reminders say the same. The reminder case asserting "no push" fails 10 times
+  on the previous hook and passes now. Two controls show that the old wording
+  did not change measured behaviour: `diag-fix-local-no-push` passed 4/4 on the
+  previous, main and new bodies, and the replay with "fix locally, do not push"
+  (`recheck_replay.py --no-push`) fixed locally 6/6 on both reminder texts.
 
 ## Probe controls
 
@@ -85,6 +95,7 @@ Body-compliance runs on the unchanged skill bodies (Opus 5.5):
 | `prd-stop-question-hold` | 3/3 pass |
 | `diag-continue-fix-after-handoff` | 4/4 pass |
 | `diag-wait-diagnosis-only` | 4/4 pass |
+| `diag-fix-local-no-push` | 4/4 pass (also 4/4 on main and on the new body) |
 
 The isolated skill bodies already classify these clean scenarios correctly, so
 the probes are regression controls, not RED evidence; the observed failure needs
@@ -118,8 +129,9 @@ was rejected; no source identifiers, services or vendors appear.
 
 - Acceptance: plan table rows 1–6.
 - Changed-file scope: the files in `git diff --stat origin/main` for this branch.
-- Edge and failure paths: explicit user limits (control arm, limit probes);
-  confirm-first repository areas, shared-gate route and merge/deploy/production
+- Edge and failure paths: explicit user limits such as diagnosis only, no push
+  or a cost cap (control arms, limit probes); confirm-first repository areas,
+  the shared-gate route, destructive actions, purchases and merge/deploy/production
   authority still stop; status-only and explicit stop/hold requests still stop;
   the one-recheck bound and quoted-text exclusion are unchanged (full hook suite).
 - Residual risks: the reminder is advisory and bounded to one recheck per stop;

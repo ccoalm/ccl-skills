@@ -93,7 +93,9 @@ The hypothesize → instrument → verify loop must not run forever, and escalat
 
 ## Phase B: Fix And Verify
 
-A failure or diagnosis goal carries this phase. Once the cause is verified, fix, test, review, push the branch and open or update the MR/PR to the repository's development target in the same delivery. "You only asked me to investigate" is not missing authority, and a "read-only" note on one step of a handoff binds that step only. Stop only for an explicit diagnosis-only limit (只查 / 先别改), a repository contract that marks the touched area confirm-first, the shared-gate route below, or merge, deploy or production authority.
+A failure or diagnosis goal carries this phase. Once the cause is verified, fix, test, review, push the branch and open or update the MR/PR to the repository's development target in the same delivery. "You only asked me to investigate" is not missing authority, and a "read-only" note on one step of a handoff binds that step only.
+
+- Every explicit user limit and existing gate must still stop the step it covers, for example diagnosis only (只查 / 先别改), no push, a cost or run cap, a repository's confirm-first areas, the shared-gate route below, destructive actions, purchases, and merge, deploy or production steps.
 
 1. Fix minimally.
    - Address the proven cause with the smallest correct change.

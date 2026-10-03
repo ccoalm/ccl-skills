@@ -362,6 +362,10 @@ class ProposedNextTests(unittest.TestCase):
                     self.assert_block(result)
                     self.assertIn('you only asked me to investigate', result['reason'])
                     self.assertIn('failure or diagnosis goal includes the verified fix', result['reason'])
+                    # Closing the terms must not widen past an explicit user
+                    # limit: a "fix locally, do not push" instruction still binds.
+                    self.assertIn('unless an explicit user limit says otherwise (diagnosis only, no push)',
+                                  result['reason'])
                     self.assertIn('clarifying question is not a status-only request', result['reason'])
                     self.assertIn('outward-facing" — a feature branch and its MR/PR are routine', result['reason'])
                     self.assertIn('stop bar you proposed yourself', result['reason'])

@@ -46,10 +46,12 @@ corrected them directly ("is there a rule that needs this confirmation?",
   the recheck are described; a merge-gate grant request covers the whole
   remaining plan.
 - `skills/defect-diagnosis/SKILL.md`: a failure goal carries Phase B through the
-  verified fix, test, review, branch push and MR/PR, unless the user limited it
-  to diagnosis, the repository marks the area confirm-first, the shared-gate
-  route applies, or the step needs merge, deploy or production authority. A
-  tradeoff resting on an unverified cause is not yet a user decision. A zero
+  verified fix, test, review, branch push and MR/PR. Every explicit user limit
+  (diagnosis only, no push, a cost or run cap) and every existing gate
+  (confirm-first areas, the shared-gate route, destructive actions, purchases,
+  merge, deploy and production) still stops the step it covers; the examples
+  are not an exhaustive list. A tradeoff resting on an unverified cause is not
+  yet a user decision. A zero
   failure count says nothing until the path's exposure is confirmed. To stay
   within the entrypoint word budget, the red-CI cause classes moved verbatim to
   `references/diagnosis-playbook.md`; the entrypoint keeps the rule and a
@@ -86,6 +88,7 @@ corrected them directly ("is there a rule that needs this confirmation?",
 | Same three shapes with an actionable marker | Continuation reminder carries the same clause | Same test |
 | Replayed stop, base vs new decision-recheck text | New text continues to the fix and MR | Firing-point A/B (evidence) |
 | Same replay, user said "investigate only, do not change code" | Both texts keep waiting | Control arm of the A/B |
+| User said "fix locally, do not push or open an MR" | Both reminders name "no push" as a binding limit; the agent fixes locally without pushing | `hooks/test_proposed_next.py` (RED on the earlier reminder text); no-push probe and replay (controls) |
 | Probe pairs on base skill bodies | Continue arms continue, limit arms block | body-compliance runs (controls) |
 | Existing Stop cases, quoted text, status-only and one-recheck bound | Unchanged | Full hook suites |
 | Reader-facing document edited, tighten-doc never loaded | One closeout reminder naming the files; quiet after tighten-doc or for agent files | `hooks/test_proposed_next.py` doc cases (RED on base) |

@@ -638,7 +638,7 @@ NOT_BLOCKERS = (
     'leaving it in Draft, waiting on a CI run you can poll, a rerun or retry of a failed, timed-out or '
     'inconclusive check, or a lookup. Restatements observed to fail this test: "you only asked me to investigate" — a failure or '
     'diagnosis goal includes the verified fix, tests, review, branch push and MR/PR to the development target '
-    'unless the user limited it to diagnosis; "pushing or opening an MR is outward-facing" — a feature branch '
+    'unless an explicit user limit says otherwise (diagnosis only, no push); "pushing or opening an MR is outward-facing" — a feature branch '
     'and its MR/PR are routine; a count, round or stop bar you proposed yourself, unless the user adopted it as '
     'a limit; "the check can only restart '
     'from scratch"; and facts, logs, test data or access you can find or reuse yourself. A clarifying question '
