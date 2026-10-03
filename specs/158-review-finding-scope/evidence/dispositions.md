@@ -1,7 +1,7 @@
 # 158 review dispositions
 
 R0 evidence: `check-ccl-skills.sh` against `origin/main` reported
-`r0_status=private-ok` (`alias_audit_ok`) on `8d84e30` and on `82faac0`.
+`r0_status=private-ok` (`alias_audit_ok`) on `8d84e30`, `82faac0` and `a844691`.
 
 ## Pass 1 — review (kimi), base `origin/main`, reviewed commit `8d84e30`: passed
 
@@ -38,3 +38,37 @@ opened with bypass by omission. Record: `pass3-delta.json`.
 | 3 | P2 | The credential scan of the intent and `--focus` routes is asserted, not shown | fixed: a test sends a credential-shaped `--focus` value and expects egress denied; the plan route already had one. A controller copy that skips the profile scan fails both and no other check | `test_review_gate.sh` |
 | 4 | P2 | The `--focus` test inspects only the Claude profile; other clients could omit it | fixed: the controller writes one frozen profile file and passes it to every client; the Claude, Kimi, Codex and OpenCode wrappers embed the whole file. A test shows a fallback reviewer receiving the same file. A copy that drops the focus fails the three focus checks and no other | `test_review_gate.sh`; wrappers in `skills/code-review/scripts/` |
 | 5 | P2 | The plan claims local verification complete without the mandatory `make test` result | fixed: the plan no longer claims it; lane results on the final commit are recorded below | `plan.md` |
+
+## Pass 4 — delta review (codex), base `82faac0`, reviewed commit `a844691`: 5 × P2
+
+The packet quoted the five pass 3 findings verbatim as open items and left out
+`scope_anchor_runs.json`, which alone exceeds the 200 KB packet limit; its
+summary was in the plan evidence. A first attempt stopped before review with
+`egress_denied`: the only scan hit was `AKIAIOSFODNN7EXAMPLE`, the documented
+AWS example key the new egress test sends (the suite already uses it in three
+cases), so the rerun passed `--allow-fallback-egress`. Record: `pass4-delta.json`.
+
+| # | Sev | Finding | Disposition | Where |
+| --- | --- | --- | --- | --- |
+| 1 | P2 | Rerunning `reviewer_scope_replay.py` into the same `--raw-dir` overwrites an earlier capture non-atomically | accepted, no change: the caller chooses the raw directory; the evidence contract puts a new measurement in a new round's directory, and this round's raw outputs are archived separately | `reviewer_scope_replay.py` |
+| 2 | P2 | Pass 3 finding 2 cannot be verified because the per-run record is outside the packet | packet boundary: the record is in the repository with every finding and the index behind each count; the by-hand reading is the implementer's record, open to audit there. `reviewer_scope_runs.json`, in the packet, has the same structure | `scope_anchor_runs.json` |
+| 3 | P2 | The intent-route scan, the approval case and the mutation results are not shown | covered outside the delta: the plan-secret test (`test_review_gate.sh`, just before the derived-default checks) covers the intent route, the approval-flag test follows it, and the mutation results are in `validation.md` | `test_review_gate.sh`, `validation.md` |
+| 4 | P2 | Equal profile hashes do not show each wrapper puts the focus in its prompt | covered by existing wrapper tests, which assert the profile body between each wrapper's sentinels in the prompt it builds: Claude in `test_claude_review_probe.sh`, Kimi and Codex in `test_cli_review_wrappers.sh`, OpenCode in `test_opencode_review_retry.sh`. The wrappers embed the whole profile file, focus included | wrapper test suites |
+| 5 | P2 | The lane results the dispositions point to are not supplied | recorded below after the lanes ran on the final commit | this file |
+
+## Verification lanes on `a844691`
+
+Run in a detached checkout of `a844691` with `CCL_SKILL_BASE_REF=origin/main`,
+as CI sets it. The commit after `a844691` adds only records in this directory.
+
+- `make -k test`: `regression_fast_lane_ok` (44 suites), `code_review_shard_1_ok`,
+  `code_review_shard_2_ok`, `review_gate_abort_leak_ok` for both legs. Its
+  `test-repo-gates` step stopped at `shared_git_surface_gate_error: candidate
+  branch name is unavailable`, an effect of the detached checkout; rerun with
+  `GITHUB_HEAD_REF` set as CI does, `make test-repo-gates` exits 0
+  (`ccl_skill_check_clean_ok`, `shared_git_surface_gate_ok`).
+- `test_check_ccl_regressions.sh --heavy-only`: `regression_heavy_lane_ok`
+  (10 suites).
+- An earlier run on `82faac0` failed the impact-chain gate, because that
+  commit changed `code-review` after the first register commit; the second
+  register row in `a844691` closes that round.
