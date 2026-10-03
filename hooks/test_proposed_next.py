@@ -352,7 +352,9 @@ class ProposedNextTests(unittest.TestCase):
                     'proposed-next: blocked: limit fix, consistency test and MR — waiting for you to authorize the code change',
                     '这一轮你只问了一个问题，我只解释了现状。\n'
                     'proposed-next: blocked: 上限修复、补测试、提 MR——改共享仓库需要你确认',
-                    'Root cause verified.\nproposed-next: open a branch, fix the limit, add the test and open the MR'):
+                    'Root cause verified.\nproposed-next: open a branch, fix the limit, add the test and open the MR',
+                    'Required CI passed; the advisory review timed out and its evidence was cleared.\n'
+                    'proposed-next: blocked: complete the CI review — no resume handle; a retry restarts from scratch'):
                 with self.subTest(text=text):
                     result = self.run_hook(dict(self.payload, last_assistant_message=text))
                     self.assert_block(result)
@@ -361,6 +363,8 @@ class ProposedNextTests(unittest.TestCase):
                     self.assertIn('clarifying question is not a status-only request', result['reason'])
                     self.assertIn('outward-facing" — a feature branch and its MR/PR are routine', result['reason'])
                     self.assertIn('stop bar you proposed yourself', result['reason'])
+                    self.assertIn('A blocker names something only the user can supply', result['reason'])
+                    self.assertIn('a rerun or retry of a failed, timed-out or inconclusive check', result['reason'])
                     self.assertIn('supplies no new goal or authorization', result['reason'])
 
     def test_quoted_actions_do_not_turn_a_status_handoff_into_work(self):

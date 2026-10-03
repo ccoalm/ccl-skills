@@ -42,6 +42,15 @@ own recurring friction and is tracked as a separate round.
 - Control arm, same replay but the user said "investigate only, do not change
   code": base 0/12 and new 0/12 proceed. The new text does not override an
   explicit limit.
+- A third observed stop (an inconclusive CI review whose only remedy is a fresh
+  full run, stopped as "no resume handle") showed that listing terms is
+  open-ended, so the clause now leads with the invariant: a blocker names
+  something only the user can supply, and a step the agent can perform itself,
+  including a rerun of a failed, timed-out or inconclusive check, is not one.
+  Re-measured with that text: diagnosis replay base 2/6, candidate 6/6;
+  diagnosis control 0/6 and 0/6. The CI-review replay (`--ci`) proceeded 6/6 on
+  both texts and its control held 0/6 on both: the isolated replay does not
+  reproduce that stop, so it is a control, not evidence of improvement.
 
 ## Probe controls
 

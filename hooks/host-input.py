@@ -626,15 +626,20 @@ def delivery_eligible(summary):
             or summary['continuation_contract_visible'])
 
 
-# Terms observed carrying stops past the recheck: each one is closed here so a
-# reminder cannot be answered by restating it as the blocker.
+# Stops kept surviving the recheck by restating the blocker in a new term, so
+# the test is stated as an invariant (who can act) and the observed terms are
+# only examples of restatements that fail it.
 NOT_BLOCKERS = (
-    'These are not missing authority: "you only asked me to investigate" — a failure or diagnosis goal '
-    'includes the verified fix, tests, review, branch push and MR/PR to the development target unless the '
-    'user limited it to diagnosis; "pushing or opening an MR is outward-facing" — a feature branch and its '
-    'MR/PR are routine; a count, round or stop bar you proposed yourself; and facts, logs, test data or '
-    'access you can find or reuse yourself. A clarifying question is not a status-only request: answer it, '
-    'then continue. ')
+    'A blocker names something only the user can supply: a decision the evidence cannot settle, a credential '
+    'or access grant, permission the goal does not cover, or a fact absent from every source you can read. '
+    'A next step you can perform yourself is not a blocker, whatever it costs in time or runs: a fix with its '
+    'tests and review, a branch push and MR/PR, a rerun or retry of a failed, timed-out or inconclusive check, '
+    'or a lookup. Restatements observed to fail this test: "you only asked me to investigate" — a failure or '
+    'diagnosis goal includes the verified fix, tests, review, branch push and MR/PR to the development target '
+    'unless the user limited it to diagnosis; "pushing or opening an MR is outward-facing" — a feature branch '
+    'and its MR/PR are routine; a count, round or stop bar you proposed yourself; "the check can only restart '
+    'from scratch"; and facts, logs, test data or access you can find or reuse yourself. A clarifying question '
+    'is not a status-only request: answer it, then continue. ')
 
 # One bounded recheck (host stop_hook_active) for stops that hand work back to
 # the user; it names the real blockers and grants no authority.
