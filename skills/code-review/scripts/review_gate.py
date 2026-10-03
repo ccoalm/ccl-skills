@@ -3387,7 +3387,9 @@ def freeze_review_profile(
     declared_skill_names = {item["skill"] for item in self_review}
     if extraction_pass and "skill-extraction-workflow" not in derived_skill_names:
         raise GateError(
-            "extraction lane requires controller-derived skill-extraction-workflow ownership"
+            "extraction lane requires controller-derived skill-extraction-workflow ownership; "
+            "a delta pass over files that skill does not own runs the generic controller "
+            "(skill-extraction-workflow/references/dual-track-review-gate.md, delta pass)"
         )
     missing_self_review_owners = sorted(
         derived_skill_names - declared_skill_names - {"code-review"}

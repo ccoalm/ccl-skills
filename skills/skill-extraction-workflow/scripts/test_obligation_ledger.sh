@@ -1205,6 +1205,60 @@ run_mutant must_to_may QUALIFIER_WEAKENED 'skills/source/SKILL.md#1' "$DELTA_DES
 run_mutant wrong_parent CARRIER_CHAIN_MISMATCH 'skills/source/SKILL.md#1' "$DELTA_DEST" mutation_wrong_parent
 run_mutant recency_direction_reversal QUALIFIER_REVERSED 'skills/source/SKILL.md#1' "$DELTA_DEST_MAPPING" mutation_reverse_recency
 run_mutant stale_locator STALE_LEDGER 'specs/ledger.md' 'specs/ledger.md' mutation_stale_locator
+
+# A stale ledger names the command that regenerates it, and that exact command
+# clears the failure.
+stale_case="$TMP_ROOT/stale_fix_hint"
+git clone -q "$FIXTURE" "$stale_case"
+mutation_stale_locator "$stale_case"
+set +e
+stale_output="$(python3 "$TOOL" audit --repo "$stale_case" --base "$BASE" \
+  --mapping "$stale_case/specs/mapping.jsonl" --ledger "$stale_case/specs/ledger.md" 2>&1)"
+set -e
+python3 - "$stale_output" <<'PY'
+import shlex
+import subprocess
+import sys
+
+lines = [line for line in sys.argv[1].splitlines() if line.startswith("fix: regenerate the ledger: ")]
+if len(lines) != 1:
+    print(f"FAIL stale fix hint: expected one fix line, got: {sys.argv[1]}", file=sys.stderr)
+    raise SystemExit(1)
+command = shlex.split(lines[0].split(": ", 2)[2])
+if command[2] != "render" or "--output" not in command:
+    print(f"FAIL stale fix hint: not a render command: {command}", file=sys.stderr)
+    raise SystemExit(1)
+subprocess.run(command, check=True, capture_output=True)
+PY
+python3 "$TOOL" audit --repo "$stale_case" --base "$BASE" \
+  --mapping "$stale_case/specs/mapping.jsonl" --ledger "$stale_case/specs/ledger.md" 2>&1 | grep -q '^audit_ok' || {
+  echo "FAIL stale fix hint: the printed command did not clear STALE_LEDGER" >&2
+  exit 1
+}
+echo "PASS stale ledger prints a render command that clears it"
+
+# The hint is safe only because re-rendering cannot clear a carrier whose text,
+# structure or qualifier changed: render refuses, or writes a ledger the audit
+# still rejects with that change's own code.
+for carrier_case in wrong_parent:CARRIER_CHAIN_MISMATCH table_carrier_to_fence:CARRIER_COMPOSITE_NOT_UNIQUE weaken_modality:QUALIFIER_WEAKENED; do
+  carrier_name="${carrier_case%%:*}"
+  carrier_code="${carrier_case#*:}"
+  carrier_dir="$TMP_ROOT/render_cannot_clear_$carrier_name"
+  git clone -q "$FIXTURE" "$carrier_dir"
+  "mutation_$carrier_name" "$carrier_dir"
+  set +e
+  python3 "$TOOL" render --repo "$carrier_dir" --base "$BASE" \
+    --mapping "$carrier_dir/specs/mapping.jsonl" --output "$carrier_dir/specs/ledger.md" >/dev/null 2>&1
+  carrier_output="$(python3 "$TOOL" audit --repo "$carrier_dir" --base "$BASE" \
+    --mapping "$carrier_dir/specs/mapping.jsonl" --ledger "$carrier_dir/specs/ledger.md" 2>&1)"
+  carrier_status=$?
+  set -e
+  if [ "$carrier_status" -eq 0 ] || ! printf '%s\n' "$carrier_output" | grep -q "^ERROR $carrier_code:"; then
+    echo "FAIL render cannot clear $carrier_name: expected $carrier_code after a render, got: $carrier_output" >&2
+    exit 1
+  fi
+done
+echo "PASS re-rendering cannot clear a changed carrier"
 run_mutant invalid_status INVALID_DISPOSITION 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_invalid_status
 run_mutant retired_dead_preserved RETIRED_EFFECT_INVALID 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_retired_preserved
 run_mutant retired_dead_strengthened RETIRED_EFFECT_INVALID 'skills/source/SKILL.md#1' "$DELTA_MAPPING" mutation_retired_dead_strengthened
