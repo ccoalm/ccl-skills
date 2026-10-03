@@ -18,7 +18,12 @@ The per-session tables stay in the maintainer's private archive.
 ## Measurements
 
 All runs use `claude --print` (Opus 5.5) or `codex exec` (the configured Codex
-model) with tools and hooks disabled in an empty directory. The scope-anchor
+model) with tools and hooks disabled in an empty directory. They did not switch
+off the operator's own context: Claude runs loaded the global instruction files
+and Codex runs loaded the account's memories, in every arm alike. No recorded
+answer carries wording specific to that context; the only identifier-like terms
+shared with the Codex memory summary (observe-only, paid submission,
+user-confirmed) come from the scenarios themselves. The scope-anchor
 and reviewer-scope counts come from reading every run by hand, against rules
 fixed before the reading; their per-run records hold each run's complete
 findings, the classification and the index of each finding it rests on. The
