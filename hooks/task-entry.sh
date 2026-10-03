@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Deliver the canonical task entry before sampling. The prompt is never classified
-# or echoed; the one structural check skips turns the host starts itself to deliver
-# a background completion (its <task-notification> envelope): routing is already in
-# context there, so re-sending it only spends tokens.
+# or echoed; the one structural check skips a prompt that is exactly one
+# <task-notification> envelope, the turn the host starts itself to deliver a
+# background completion: routing is already in context there, so re-sending it
+# only spends tokens.
 SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 if ! command -v python3 >/dev/null 2>&1; then
   printf 'ccl-skills task-entry: python3 unavailable; task entry omitted\n' >&2
@@ -22,7 +23,8 @@ try:
         raw = hook_input.read(1048577)
     payload = json.loads(raw) if len(raw) <= 1048576 else None
     prompt = payload.get('prompt') if isinstance(payload, dict) else None
-    if isinstance(prompt, str) and prompt.lstrip().startswith('<task-notification>'):
+    envelope = prompt.strip() if isinstance(prompt, str) else ''
+    if envelope.startswith('<task-notification>') and envelope.endswith('</task-notification>'):
         print('{}')
         sys.exit(0)
 except (OSError, ValueError):

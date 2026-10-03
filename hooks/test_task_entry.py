@@ -94,7 +94,9 @@ class TaskEntryTests(unittest.TestCase):
                 self.assertEqual(error, '')
         # Controls: a human prompt that merely mentions the envelope still gets the
         # entry, as does input the hook cannot parse.
-        for prompt in ['Why did <task-notification> fire twice?', 'task-notification arrived']:
+        for prompt in ['Why did <task-notification> fire twice?', 'task-notification arrived',
+                       '<task-notification><task-id>b3</task-id></task-notification>\nWhat does this mean?',
+                       '<task-notification> pasted without its closing tag']:
             with self.subTest(prompt=prompt):
                 output, _ = self.run_hook(prompt=prompt)
                 self.assertEqual(output, expected)
