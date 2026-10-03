@@ -1,6 +1,6 @@
 """Replay a staged review of an over-grown hotfix under two concern texts.
 
-Usage: python3 reviewer_scope_replay.py <runs> --candidate-file PATH [--client claude|codex]
+Usage: python3 reviewer_scope_replay.py <runs> --candidate-file PATH [--client claude|codex] [--raw-dir DIR]
 
 The packet is a synthetic hotfix whose stated goal is one path-escaping fix,
 while the diff also adds a configuration switch, an idempotency rework of an
@@ -8,11 +8,13 @@ untouched retry worker, a manual-review queue and a compatibility shim. The
 base arm lists the build-stage concerns as the controller states them today;
 the candidate arm replaces the `compatibility` description with the text in
 --candidate-file. A run counts as flagging scope when at least one returned
-finding names a change the stated goal does not need; the grader prints the
-per-run count so the reading can be checked by eye. Advisory measurement only.
+finding names a change the stated goal does not need. The regex count is a
+recall aid; raw outputs go to --raw-dir for reading by hand. Advisory
+measurement only.
 """
 import concurrent.futures
 import json
+import os
 import re
 import subprocess
 import sys
@@ -117,9 +119,9 @@ def ask(job):
     except json.JSONDecodeError:
         findings = None
     if findings is None:
-        return 'unparsed'
+        return 'unparsed', text
     scoped = [f for f in findings if SCOPE.search(str(f.get('failure_path', '')) + ' ' + str(f.get('smallest_fix', '')))]
-    return f'{len(scoped)}/{len(findings)}'
+    return f'{len(scoped)}/{len(findings)}', text
 
 
 def main():
@@ -127,6 +129,7 @@ def main():
     args = sys.argv[2:]
     client = args[args.index('--client') + 1] if '--client' in args else 'claude'
     candidate = open(args[args.index('--candidate-file') + 1], encoding='utf-8').read().strip()
+    raw_dir = args[args.index('--raw-dir') + 1] if '--raw-dir' in args else None
     for label in ('base', 'candidate'):
         concerns = [(cid, candidate if (label == 'candidate' and cid == 'compatibility') else text)
                     for cid, text in BASE_CONCERNS]
@@ -134,7 +137,10 @@ def main():
                                concerns='\n'.join(f'- {cid}: {text}' for cid, text in concerns))
         with concurrent.futures.ThreadPoolExecutor(runs) as pool:
             results = list(pool.map(ask, [(prompt, client)] * runs))
-        print(client, label, json.dumps(results), flush=True)
+        print(client, label, json.dumps([r for r, _ in results]), flush=True)
+        if raw_dir:
+            with open(os.path.join(raw_dir, f'reviewer-scope-{client}-{label}.json'), 'w', encoding='utf-8') as out:
+                json.dump([t for _, t in results], out, ensure_ascii=False)
 
 
 if __name__ == '__main__':

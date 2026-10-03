@@ -2308,6 +2308,23 @@ profile="$(cat "$WORK/state/claude_profile" 2>/dev/null || true)"
 check "a derived-default review carries the --focus words in the reviewer profile" \
   '[ "$rc" = 0 ] && json_fields "$out" review_plan_source=derived-default && json_fields "$profile" "challenge_focus=Requester: record the differences only"'
 
+# Every client gets the same frozen profile file, so a fallback reviewer sees
+# the words too; a credential-shaped value in them blocks non-Claude egress.
+reset_case quota passed passed
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --cwd "$WORK/repo" --diff-file "$WORK/diff.patch" \
+  --implementer-family openai --focus "Requester: record the differences only")"; rc=$?
+profile="$(cat "$WORK/state/claude_profile" 2>/dev/null || true)"
+check "a fallback reviewer gets the same profile, --focus words included" \
+  '[ "$rc" = 0 ] && [ "$(tr "\n" " " < "$WORK/state/client_sequence")" = "claude kimi " ] && [ "$(cat "$WORK/state/kimi_profile_hash")" = "$(cat "$WORK/state/claude_profile_hash")" ] && json_fields "$profile" "challenge_focus=Requester: record the differences only"'
+
+reset_case quota passed passed
+out="$(REVIEW_GATE_TEST_STATE="$WORK/state" "$WORK/harness/scripts/review_gate.sh" \
+  --mode review --cwd "$WORK/repo" --diff-file "$WORK/diff.patch" \
+  --implementer-family openai --focus "Requester: use the key AKIAIOSFODNN7EXAMPLE")"; rc=$?
+check "a credential-shaped --focus value blocks non-Claude egress without approval" \
+  '[ "$rc" = 2 ] && [ "$(cat "$WORK/state/client_sequence")" = claude ] && json_fields "$out" reason_code=egress_denied egress.secret_scan.0=aws_access_key_id'
+
 reset_case passed unavailable unavailable
 out="$(run_gate --allow-fallback-egress)"; rc=$?
 check "a supplied review plan is marked implementer-supplied" \

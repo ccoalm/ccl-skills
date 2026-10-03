@@ -13,9 +13,10 @@ Rules:
   models, are non-deterministic, and must never be wired into `make test` or any
   blocking check. A run proves only what one model produced on one prompt.
 - **Read the runner before citing a number.** Each one disables tools and hooks,
-  runs in an empty directory and states in its docstring what it counts; the
-  regex graders are recall aids, and the validation record says which readings
-  were checked by eye.
+  runs in an empty directory and states in its docstring what it counts. The
+  regex graders are recall aids: the scope counts in the validation record come
+  from by-hand readings kept in the per-run records, and the triage replay reads
+  a marker the model emits.
 - **Neutral domain only.** Scenarios use a synthetic report-export service; no
   credentials, host paths, source sessions' product terms or requester text.
 

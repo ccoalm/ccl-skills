@@ -17,15 +17,15 @@ override. Arms:
 --matched swaps in a plan that does exactly what the request asks (a check and
 fix before export, differences recorded after it, nothing blocked): a scope
 finding there is a false positive of the lens. (Its first version also added a
-weekly review of the differences, which the request does not ask for; Codex
-flagged that step, so it was removed.) --requested-fix swaps in a request
+weekly review of the differences, which the request does not ask for;
+reviewers flagged that step, so it was removed.) --requested-fix swaps in a request
 to fix a defect that predates the change and a plan that fixes exactly that: a
 finding that calls the fix droppable is the over-correction the lens must avoid.
 
 A run counts as flagging the over-design when one of its findings says a gate,
 permission, override, rollout or blocking step is not requested, should be
 dropped, or contradicts the request. Raw outputs go to --raw-dir for reading by
-eye; the regex is a recall aid, not the verdict. Advisory measurement only.
+hand; the regex is a recall aid, not the verdict. Advisory measurement only.
 """
 import concurrent.futures
 import json

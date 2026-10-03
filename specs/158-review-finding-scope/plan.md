@@ -1,8 +1,8 @@
 # Reviews check scope against the requester's own words
 
-Status: implementation and local verification complete. Measurements are in
-[validation evidence](evidence/validation.md); review, challenge and delta
-passes are in [dispositions](evidence/dispositions.md).
+Status: implemented. Measurements are in
+[validation evidence](evidence/validation.md); review passes and the
+verification lanes are in [dispositions](evidence/dispositions.md).
 
 Artifact classification: gate implementation. Risk tag: shared-gate. The
 change edits the reviewer lens the review controller sends with every build and
@@ -33,7 +33,9 @@ Registered remedies were treated as hypotheses and replayed before any edit
    every arm fixed only the introduced defect. The isolated decision is already
    right; no change was made for it.
 2. A scope lens on a diff whose intent states the narrow request: the current
-   concern text already flagged the extra machinery in every run. Control.
+   concern text already flagged the extra code paths in every run, so that part
+   is a control. Only the new text called the configuration switch unrequested
+   (0/4 runs before, 4/4 after).
 3. A plan review of the over-designed plan, re-created in a neutral domain. With
    only the implementer's restatement, no reviewer questioned the gate, and the
    findings hardened it instead (bound the override, gate the downloads too).
@@ -79,6 +81,7 @@ its text.
 | Concern IDs and required-concern output | Unchanged | `test_review_gate.sh` existing cases |
 | Over-designed plan, restatement only vs requester's words with the new text | Gate questioned only with the words; override and rollout flagged with the new text | `scope_anchor_replay.py` (evidence) |
 | Plan that matches the request, new text | No scope finding | `scope_anchor_replay.py --matched` (control) |
-| Derived-default review with `--focus` | The words reach the reviewer profile | `test_review_gate.sh` (pins the existing route; a copy that drops the focus fails it) |
-| Request to fix a defect that predates the change, plan that fixes exactly it | The fix is never called droppable | `scope_anchor_replay.py --requested-fix` (control; no run called it droppable under either wording) |
+| Over-grown hotfix diff, new text | The configuration switch is called unrequested | `reviewer_scope_replay.py` (evidence) |
+| Derived-default review with `--focus` | The words reach the reviewer profile and a fallback reviewer; a credential-shaped value blocks non-Claude egress | `test_review_gate.sh` (pins existing routes; mutated controller copies fail them) |
+| Request to fix a defect that predates the change, plan that fixes exactly it | No run calls the fix droppable | `scope_anchor_replay.py --requested-fix` (control, both wordings) |
 | Docs | Intent quotes the words; `--focus` for the derived default; manual template; design gate packet | review |
