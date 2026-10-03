@@ -68,3 +68,24 @@ Record: `pass5-delta.json`. This pass was the fifth conclusive run in the worktr
 | 4 | P2 | The validation dispositions are marked fixed before the validation notes exist | fixed: the validation notes land with the final candidate and list its commands, results and what was not run | `validation.md` |
 
 Checkpoint decision before the sixth run. Three successive passes (3, 4 and 5) each found a controller variant that the receipt-lock check let through, and each fix kept the same method: race a second writer and decide by order or time. Decision: replace the method. The check now records, at the controller's own open of the prior receipt and at its replace of the receipt, whether a second open of the receipt directory can take a shared lock, and requires that it cannot at both points. It starts no process and waits on nothing. Applied against copies of the controller, it fails a missing lock, a shared lock, a lock on another descriptor, a read before the lock, an unlock before the read and an unlock before the replace, each on the recorded lock states. The remaining findings of this pass concern evidence placement and are dispositioned above; none is outside the request.
+
+## Pass 6 — delta review (codex), base `047decb`, reviewed commit `1ee6d60`: 4 × P2
+
+Record: `pass6-delta.json`. The sixth conclusive run in the worktree; the controller's output carried `continuation_checkpoint` (`conclusive_review_runs` 6), so the new counter fired on this round's own review.
+
+| # | Sev | Finding | Disposition | Where |
+| --- | --- | --- | --- | --- |
+| 1 | P2 | Probes at the read and the replace pass a controller that unlocks and relocks in between | fixed: the check records every lock call during the controller's call and requires none between the read and the replace | `test_review_gate.sh` |
+| 2 | P2 | The check trusts the returned receipt instead of the stored one | fixed: the stored receipt must equal the returned one, with the incremented count and the preserved start time | `test_review_gate.sh` |
+| 3 | P2 | The packet lacks the controller's lock, read and replace code and the fixture setup | no change: the review controller packets the diff only and has no option for unchanged supporting files; the controller code was in the pass 1 and pass 2 packets | — |
+| 4 | P2 | The validation dispositions are marked fixed before the validation notes exist | fixed: `validation.md` lands in the same commit as these dispositions, with the commands and results on the final code commit | `validation.md` |
+
+Checkpoint, before the seventh run: scope unchanged (the requester asked for the improvements and their npm release; no stop, count or time limit). Findings 1 and 2 are within the same replaced method and close gaps in it rather than reopening the racing-writer class; findings 3 and 4 concern where evidence sits.
+
+## Pass 7 — delta review (codex), base `1ee6d60`, reviewed commit `bf672fb`: 1 × P2
+
+Record: `pass7-delta.json`.
+
+| # | Sev | Finding | Disposition | Where |
+| --- | --- | --- | --- | --- |
+| 1 | P2 | The diff context omits the unchanged probe-close and read-wrapper lines, so they cannot be checked from this packet | no change: the finding states that no implementation change is implied; those lines were added in `1ee6d60` and were in the pass 6 packet in full | — |
