@@ -311,6 +311,18 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(paired.manifest_changes(before, paired.tree_manifest(tmp)), ["link"])
 
 
+    @unittest.skipIf(os.geteuid() == 0, "root reads any directory")
+    def test_an_unreadable_directory_makes_the_manifest_fail(self):
+        tmp = Path(tempfile.mkdtemp(prefix="paired-manifest-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        (tmp / "locked").mkdir()
+        (tmp / "locked" / "a.md").write_text("a")
+        (tmp / "locked").chmod(0)
+        self.addCleanup((tmp / "locked").chmod, 0o700)
+        with self.assertRaises(PermissionError):
+            paired.tree_manifest(tmp)
+
+
 class IsolationTests(unittest.TestCase):
     PLUGIN = "/out/arms/candidate"
 
@@ -659,6 +671,33 @@ class BatchTests(unittest.TestCase):
         with mock.patch.object(paired, "run_sample", failing_sample), \
                 mock.patch.object(paired, "write_report", broken_report), self.assertRaisesRegex(RuntimeError, "worker"):
             self.main()
+
+    @unittest.skipIf(os.geteuid() == 0, "root reads any directory")
+    def test_an_unreadable_export_is_recorded_as_unknown(self):
+        locked = []
+        def locking_sample(ctx, task, arm, index):
+            target = ctx["arm_dirs"]["base"] / ".claude-plugin"
+            target.chmod(0)
+            locked.append(target)
+            raise RuntimeError("worker failed")
+        try:
+            with mock.patch.object(paired, "run_sample", locking_sample), self.assertRaisesRegex(RuntimeError, "worker"):
+                self.main()
+        finally:
+            for target in locked:
+                target.chmod(0o700)
+        integrity = json.loads((self.out / "integrity.json").read_text())
+        self.assertIsNone(integrity["unchanged"])
+        self.assertIn("PermissionError", integrity["error"])
+
+    def test_integrity_is_recorded_on_an_interrupt(self):
+        def interrupted_sample(ctx, task, arm, index):
+            (ctx["arm_dirs"]["base"] / "late.md").write_text("written before the interrupt\n")
+            raise KeyboardInterrupt
+        with mock.patch.object(paired, "run_sample", interrupted_sample):
+            code, err = self.main()
+        self.assertEqual(code, 130, err)
+        self.assertEqual(json.loads((self.out / "integrity.json").read_text())["changed"], {"base": ["late.md"]})
 
     def test_integrity_is_recorded_when_a_batch_fails(self):
         def failing_sample(ctx, task, arm, index):

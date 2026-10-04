@@ -570,10 +570,15 @@ def resolve_commit(repo, ref):
     return out.stdout.strip()
 
 
+def _raise(error):
+    raise error
+
+
 def tree_manifest(root):
-    """[kind, relative path, content digest or link target] for every file under root."""
+    """[kind, relative path, content digest or link target] for every file under root. A directory
+    that cannot be read raises instead of being skipped, so a manifest is never silently partial."""
     entries = []
-    for dirpath, dirs, files in os.walk(root):
+    for dirpath, dirs, files in os.walk(root, onerror=_raise):
         dirs.sort()
         for name in sorted(files):
             path = os.path.join(dirpath, name)
