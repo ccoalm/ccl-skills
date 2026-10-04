@@ -936,51 +936,80 @@ done <<< "$TEARDOWN_PINS"
 (( teardown_rows >= 20 )) || fail "teardown guard: only $teardown_rows pin rows parsed"
 
 # Sweep: a Markdown surface that names `worktree remove` must also carry the
-# ignored-output scan, its exit-0 requirement and a pointer to the canonical
-# teardown, `worktree-isolation/references/merge-and-teardown.md` (inside that
-# package the package-relative path; the canonical file is itself the target).
-# It keys on the command because prose wording is not ours to enumerate;
-# prose-only removal steps are pinned per surface above. specs/ and eval/ hold
-# round records and evaluation inputs, not guidance, so they are not scanned,
-# and neither is the append-only source register, whose rows describe the
-# defects they record. A listing or read error fails the sweep, since a file
-# it skipped would otherwise pass unseen.
+# ignored-output scan with its exit-0 requirement on the same line, and a
+# pointer to the canonical teardown, `worktree-isolation/references/merge-and-teardown.md`
+# (inside that package the package-relative path; the canonical file is itself
+# the target). It keys on the command because prose wording is not ours to
+# enumerate; prose-only removal steps are pinned per surface above. The set is
+# the repository's own Markdown: in a git work tree, tracked plus untracked
+# files git does not ignore (so local build output and caches stay out); in a
+# plain copy, every Markdown file outside the same local-only directories.
+# specs/ and eval/ hold round records and evaluation inputs, not guidance, and
+# the append-only source register describes the defects it records, so none of
+# them is scanned. A listing or read error fails the sweep, since a file it
+# skipped would otherwise pass unseen.
 WT_PACKAGE="$REPO_ROOT/skills/worktree-isolation/"
 WT_TEARDOWN="${WT_PACKAGE}references/merge-and-teardown.md"
 SOURCE_REGISTER="$REPO_ROOT/skills/skill-extraction-workflow/references/source-register.md"
 teardown_list="$(mktemp "${TMPDIR:-/tmp}/teardown-sweep.XXXXXX")"
+trap 'rm -f "$teardown_list"' EXIT
 teardown_fail() { rm -f "$teardown_list"; fail "teardown guard sweep: $1"; }
-find "$REPO_ROOT" -maxdepth 1 -name '*.md' -type f -print0 > "$teardown_list" ||
-  teardown_fail "could not list Markdown at the repository root"
-for dir in skills agent-context docs hooks scripts packages .opencode; do
-  [[ -d "$REPO_ROOT/$dir" ]] || continue
-  find "$REPO_ROOT/$dir" \( -name node_modules -o -name __pycache__ \) -prune -o -name '*.md' -type f -print0 >> "$teardown_list" ||
-    teardown_fail "could not list Markdown under $dir"
-done
-teardown_visited=0
-teardown_offenders=""
-while IFS= read -r -d '' md; do
-  [[ "$md" != "$SOURCE_REGISTER" ]] || continue
-  rc=0
-  grep -qF -- 'worktree remove' "$md" || rc=$?
-  case "$rc" in
-    0) ;;
-    1) continue ;;
-    *) teardown_fail "could not read ${md#"$REPO_ROOT"/}" ;;
-  esac
-  [[ "$md" == "$WT_TEARDOWN" ]] && teardown_visited=1
-  pointer='worktree-isolation/references/merge-and-teardown.md'
-  [[ "$md" != "$WT_PACKAGE"* ]] || pointer='references/merge-and-teardown.md'
-  if ! grep -qF -- 'status --ignored' "$md"; then
-    teardown_offenders+="${teardown_offenders:+; }${md#"$REPO_ROOT"/}: no ignored-output scan"
-  elif ! grep -qF -- 'exit 0' "$md"; then
-    teardown_offenders+="${teardown_offenders:+; }${md#"$REPO_ROOT"/}: no exit-0 requirement for the scan"
-  elif [[ "$md" != "$WT_TEARDOWN" ]] && ! grep -qF -- "$pointer" "$md"; then
-    teardown_offenders+="${teardown_offenders:+; }${md#"$REPO_ROOT"/}: no pointer to the canonical teardown"
-  fi
-done < "$teardown_list"
+if [[ "$(git -C "$REPO_ROOT" rev-parse --show-toplevel 2>/dev/null)" == "$REPO_ROOT" ]]; then
+  git -C "$REPO_ROOT" ls-files -z --cached --others --exclude-standard -- '*.md' > "$teardown_list" ||
+    teardown_fail "could not list the repository's Markdown"
+  teardown_prefix="$REPO_ROOT/"
+else
+  find "$REPO_ROOT" \( -name .git -o -name .work -o -name .claude -o -name .gstack -o -name .review-evidence \
+    -o -name .pytest_cache -o -name node_modules -o -name __pycache__ -o -path "$REPO_ROOT/packages/*/dist" \
+    -o -path "$REPO_ROOT/packages/*/artifacts" \) -prune -o -name '*.md' -type f -print0 > "$teardown_list" ||
+    teardown_fail "could not list Markdown under the copy"
+  teardown_prefix=""
+fi
+# One pass reads every listed file; a grep per file made this sweep the slowest
+# part of the fixture, which the pin walks run dozens of times.
+teardown_report="$(python3 - "$teardown_list" "$teardown_prefix" "$REPO_ROOT" <<'PY'
+import sys
+listing, prefix, root = sys.argv[1:4]
+package = root + "/skills/worktree-isolation/"
+canonical = package + "references/merge-and-teardown.md"
+register = root + "/skills/skill-extraction-workflow/references/source-register.md"
+visited = False
+offenders = []
+for raw in open(listing, "rb").read().split(b"\0"):
+    if not raw:
+        continue
+    path = prefix + raw.decode("utf-8", "surrogateescape")
+    rel = path[len(root) + 1:]
+    if rel.startswith(("specs/", "eval/")) or path == register:
+        continue
+    try:
+        text = open(path, "rb").read().decode("utf-8", "replace")
+    except OSError:
+        print("unreadable\t" + rel)
+        sys.exit(0)
+    if "worktree remove" not in text:
+        continue
+    visited = visited or path == canonical
+    pointer = "references/merge-and-teardown.md" if path.startswith(package) else "worktree-isolation/references/merge-and-teardown.md"
+    if "status --ignored" not in text:
+        offenders.append(rel + ": no ignored-output scan")
+    elif not any("status --ignored" in line and "exit 0" in line for line in text.splitlines()):
+        offenders.append(rel + ": no exit-0 requirement on the scan line")
+    elif path != canonical and pointer not in text:
+        offenders.append(rel + ": no pointer to the canonical teardown")
+print("visited\t" + ("yes" if visited else "no"))
+if offenders:
+    print("offenders\t" + "; ".join(offenders))
+PY
+)" || teardown_fail "the classification pass failed"
 rm -f "$teardown_list"
-(( teardown_visited )) || fail "teardown guard sweep: the canonical teardown was never scanned, so the sweep roots are wrong"
+trap - EXIT
+case "$teardown_report" in
+  unreadable*) fail "teardown guard sweep: could not read ${teardown_report#unreadable$'\t'}" ;;
+esac
+grep -qx $'visited\tyes' <<< "$teardown_report" ||
+  fail "teardown guard sweep: the canonical teardown was never scanned, so the sweep roots are wrong"
+teardown_offenders="$(sed -n $'s/^offenders\t//p' <<< "$teardown_report")"
 [[ -z "$teardown_offenders" ]] || fail "teardown guard sweep: $teardown_offenders"
 
 echo "test_ai_coding_implementation_gates: ok"

@@ -8,9 +8,13 @@
 # a scoped phrase out of its section or line. The sweep gets decoy surfaces in
 # every scanned root: a removal without the scan, without its exit-0
 # requirement, or with a pointer that does not name the canonical reference
-# must red it; a compliant decoy, a package-relative pointer inside the
-# canonical package, a prune-only mention, a vendored dependency file and a
-# register row must not; an unreadable directory or file must red it too.
+# must red it, including from a new top-level directory; a compliant decoy, a
+# package-relative pointer inside the canonical package, a prune-only mention,
+# ignored or local-only paths, round records, evaluation inputs and a register
+# row must not; an unreadable file must red it too. The copy is a git
+# repository, so the sweep enumerates it the way it does in CI; one leg removes
+# the repository to exercise the plain-copy fallback, including an unreadable
+# directory.
 # Rows are parsed from the fixture, so a new row enters this walk unasked; a
 # teardown assertion written outside the row table is not walked, which is why
 # the fixture keeps them all as rows.
@@ -33,6 +37,10 @@ cp -R "$repo_root/skills" "$tmp_root/skills"
 cp -R "$repo_root/agent-context" "$tmp_root/agent-context"
 cp -R "$repo_root/docs" "$tmp_root/docs"
 cp "$repo_root/AGENTS.md" "$tmp_root/AGENTS.md"
+cp "$repo_root/.gitignore" "$tmp_root/.gitignore"
+git -C "$tmp_root" init -q
+git -C "$tmp_root" add -A
+git -C "$tmp_root" -c user.name=walk -c user.email=walk@invalid commit -qm copy
 copy_fixture="$tmp_root/$fixture_rel"
 [[ -f "$copy_fixture" ]] || fail "copy is missing the fixture"
 
@@ -52,7 +60,9 @@ PY
 row_count="$(wc -l < "$rows_file" | tr -d ' ')"
 (( row_count >= 20 )) || fail "parsed only $row_count teardown pin rows"
 
-run_copy() { bash "$copy_fixture" 2>&1; }
+# Fixture temp files land in the copy, so the trap removes them even after an
+# interrupted run.
+run_copy() { TMPDIR="$tmp_root" bash "$copy_fixture" 2>&1; }
 
 # Mutate one row in place. Exit 3 when the mutation cannot land exactly once,
 # so a moved or duplicated phrase fails the walk instead of passing unmutated.
@@ -171,6 +181,7 @@ relocate order
 canonical='`worktree-isolation/references/merge-and-teardown.md`'
 recipe_no_scan=$'```bash\ngit worktree remove <path>\n```\n'
 recipe_no_exit="See $canonical."$'\n\n```bash\ngit -C <path> status --ignored -s\ngit worktree remove <path>\n```\n'
+recipe_exit_elsewhere="See $canonical."$'\n\n```bash\ngit -C <path> status --ignored -s\ngit worktree remove <path>\n```\n\nThe health check must exit 0 before release.\n'
 recipe_no_pointer=$'```bash\ngit -C <path> status --ignored -s   # must exit 0\ngit worktree remove <path>\n```\n'
 recipe_basename_pointer=$'See `references/merge-and-teardown.md`.\n\n```bash\ngit -C <path> status --ignored -s   # must exit 0\ngit worktree remove <path>\n```\n'
 recipe_compliant="See $canonical."$'\n\n```bash\ngit -C <path> status --ignored -s   # must exit 0\ngit worktree remove <path>\n```\n'
@@ -196,19 +207,19 @@ decoy() { # <copy-relative path> <content> <red|green> [expected offender text]
 }
 decoy "skills/zz-teardown-decoy/references/recipe.md" "$recipe_no_scan" red "no ignored-output scan"
 decoy "docs/zz-teardown-decoy.md" "$recipe_no_pointer" red "no pointer to the canonical teardown"
-decoy "zz-teardown-decoy.md" "$recipe_no_scan" red "no ignored-output scan"
-decoy "agent-context/zz-teardown-decoy.md" "$recipe_no_pointer" red "no pointer to the canonical teardown"
-for root in hooks scripts packages .opencode; do
-  decoy "$root/zz-teardown-decoy/README.md" "$recipe_no_scan" red "no ignored-output scan"
-  rm -rf "$tmp_root/$root/zz-teardown-decoy"
-done
-decoy "docs/zz-no-exit.md" "$recipe_no_exit" red "no exit-0 requirement for the scan"
+decoy "docs/zz-no-exit.md" "$recipe_no_exit" red "no exit-0 requirement on the scan line"
+decoy "docs/zz-exit-elsewhere.md" "$recipe_exit_elsewhere" red "no exit-0 requirement on the scan line"
+decoy "zz-new-root/guide.md" "$recipe_no_scan" red "no ignored-output scan"
+rm -rf "$tmp_root/zz-new-root"
 decoy "docs/zz-basename-pointer.md" "$recipe_basename_pointer" red "no pointer to the canonical teardown"
 decoy "docs/zz-teardown-compliant.md" "$recipe_compliant" green
 decoy "skills/worktree-isolation/references/zz-package-relative.md" "$recipe_basename_pointer" green
 decoy "skills/zz-teardown-decoy/references/prune.md" $'```bash\ngit worktree prune\n```\n' green
 decoy "skills/zz-teardown-decoy/node_modules/pkg/README.md" "$recipe_no_scan" green
-rm -rf "$tmp_root/skills/zz-teardown-decoy"
+decoy ".work/zz-local.md" "$recipe_no_scan" green
+decoy "specs/zz-round/plan.md" "$recipe_no_scan" green
+decoy "eval/zz-input.md" "$recipe_no_scan" green
+rm -rf "$tmp_root/skills/zz-teardown-decoy" "$tmp_root/specs" "$tmp_root/eval"
 # The append-only register describes defects, removal commands included, and
 # the sweep skips it; a register row naming the command must stay green.
 register="$tmp_root/skills/skill-extraction-workflow/references/source-register.md"
@@ -220,23 +231,12 @@ fi
 cp "$pristine" "$register"
 greens=$((greens + 1))
 
-# A listing or read error must fail the sweep rather than skip what it could
-# not see. Permissions do not bind root, so these two probes are skipped there.
-unreadable="skipped as root"
-if [[ "$(id -u)" != 0 ]]; then
-  locked="$tmp_root/hooks/zz-unreadable"
-  mkdir -p "$locked"
-  printf '%s' "$recipe_no_scan" > "$locked/README.md"
-  chmod 000 "$locked"
-  if out="$(run_copy)"; then
-    fail "an unreadable directory left the sweep green"
-  fi
-  chmod 755 "$locked"
-  case "$(printf '%s\n' "$out" | tail -1)" in
-    "FAIL: teardown guard sweep: could not list Markdown under hooks"*) : ;;
-    *) fail "unreadable directory red for the wrong reason: $(printf '%s\n' "$out" | tail -1)" ;;
-  esac
-  rm -rf "$locked"
+# A read error must fail the sweep rather than skip a file it could not see.
+# Permissions do not bind root, so the unreadable probes are skipped there.
+as_root=0
+[[ "$(id -u)" != 0 ]] || as_root=1
+unreadable="permission probes skipped as root"
+if (( ! as_root )); then
   locked_file="$tmp_root/docs/zz-unreadable.md"
   printf '%s' "$recipe_no_scan" > "$locked_file"
   chmod 000 "$locked_file"
@@ -249,8 +249,58 @@ if [[ "$(id -u)" != 0 ]]; then
     *) fail "unreadable file red for the wrong reason: $(printf '%s\n' "$out" | tail -1)" ;;
   esac
   rm -f "$locked_file"
-  unreadable="2 unreadable probes red"
+  # A listing failure must fail the sweep too: an unreadable index stops git.
+  chmod 000 "$tmp_root/.git/index"
+  if out="$(run_copy)"; then
+    fail "a failed repository listing left the sweep green"
+  fi
+  chmod 644 "$tmp_root/.git/index"
+  case "$(printf '%s\n' "$out" | tail -1)" in
+    "FAIL: teardown guard sweep: could not list the repository's Markdown"*) : ;;
+    *) fail "failed listing red for the wrong reason: $(printf '%s\n' "$out" | tail -1)" ;;
+  esac
 fi
+# A classification pass that dies must fail the sweep, not pass it.
+mkdir -p "$tmp_root/shim"
+printf '#!/bin/sh\nexit 1\n' > "$tmp_root/shim/python3"
+chmod +x "$tmp_root/shim/python3"
+if out="$(PATH="$tmp_root/shim:$PATH" TMPDIR="$tmp_root" bash "$copy_fixture" 2>&1)"; then
+  fail "a failed classification pass left the sweep green"
+fi
+case "$(printf '%s\n' "$out" | tail -1)" in
+  "FAIL: teardown guard sweep: the classification pass failed"*) : ;;
+  *) fail "failed classification red for the wrong reason: $(printf '%s\n' "$out" | tail -1)" ;;
+esac
+rm -rf "$tmp_root/shim"
+
+# Plain-copy fallback: without the repository the sweep lists files itself, so
+# it must still reach a new top-level directory, still skip local-only paths,
+# and fail on a directory it cannot list.
+mkdir -p "$tmp_root/.work"
+mv "$tmp_root/.git" "$tmp_root/.work/git-off"
+run_copy >/dev/null || fail "plain-copy control not green"
+decoy "zz-new-root/guide.md" "$recipe_no_scan" red "no ignored-output scan"
+rm -rf "$tmp_root/zz-new-root"
+decoy ".work/zz-local.md" "$recipe_no_scan" green
+decoy "packages/zz-pkg/dist/README.md" "$recipe_no_scan" green
+rm -rf "$tmp_root/packages"
+if (( ! as_root )); then
+  locked="$tmp_root/hooks/zz-unreadable"
+  mkdir -p "$locked"
+  printf '%s' "$recipe_no_scan" > "$locked/README.md"
+  chmod 000 "$locked"
+  if out="$(run_copy)"; then
+    fail "an unreadable directory left the plain-copy sweep green"
+  fi
+  chmod 755 "$locked"
+  case "$(printf '%s\n' "$out" | tail -1)" in
+    "FAIL: teardown guard sweep: could not list Markdown under the copy"*) : ;;
+    *) fail "unreadable directory red for the wrong reason: $(printf '%s\n' "$out" | tail -1)" ;;
+  esac
+  rm -rf "$tmp_root/hooks"
+  unreadable="3 unreadable or unlistable probes red"
+fi
+mv "$tmp_root/.work/git-off" "$tmp_root/.git"
 
 # Post-control green, then tree isolation: a mutated copy reds while the live
 # tree's own fixture stays green, so the walk above read the copy.
@@ -260,7 +310,7 @@ IFS='|' read -r kind rel scope phrase label <<< "$first_row"
 cp "$tmp_root/$rel" "$pristine"
 mutate mutate "$kind" "$tmp_root/$rel" "$scope" "$phrase" || fail "isolation mutation did not land"
 if run_copy >/dev/null; then fail "tree-isolation probe: mutated copy stayed green"; fi
-bash "$repo_root/$fixture_rel" >/dev/null 2>&1 || fail "tree-isolation probe: live tree fixture not green"
+TMPDIR="$tmp_root" bash "$repo_root/$fixture_rel" >/dev/null 2>&1 || fail "tree-isolation probe: live tree fixture not green"
 cp "$pristine" "$tmp_root/$rel"
 
-echo "test_teardown_guard_pins: ok ($applied applied mutations, each red on its own row; $relocations relocations red; $reds sweep decoys red, $greens precision decoys green; $unreadable; controls green)"
+echo "test_teardown_guard_pins: ok ($applied applied mutations, each red on its own row; $relocations relocations red; $reds sweep decoys red, $greens precision decoys green; $unreadable; failed classification red; controls green)"
