@@ -41,3 +41,17 @@ state helper appended.
 | --- | --- | --- | --- |
 | 1 | P1 | the dispatcher's prelude and epilogue and both modules' entry guards were not shown, so the full path's reads could not be checked | closed by construction for this class: the third evidence gap in a row, so the next pass gets both helper files appended whole instead of another excerpt |
 | 2 | P1 | the walk recorded mutation names and failing cases but not the edits applied | fixed: `hook-mutation-walk.json` holds, for each of the 22 mutations, the exact text replaced and its replacement, the named cases, the cases that failed and the suite's exit, plus the unmutated copy's exit before and after |
+
+## Second full-candidate review (`pass6-full.json`)
+
+Run with both helpers appended in full.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | the packet was too large for the controller to include the root repository contract | fixed: for the next pass the earlier passes' result files were set aside, since they are review records summarized here and are committed back afterwards, which left room for the contract |
+
+## Third full-candidate review (`pass7-full.json`)
+
+Run on the whole candidate with both helpers in full and both repository contracts included. Passed
+with no findings. It notes that the mutation results were not re-executed by the reviewer and that the
+probes support the sampled mechanism, not a reliability rate.
