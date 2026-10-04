@@ -963,18 +963,28 @@ class BatchTests(unittest.TestCase):
                 self.assertEqual(code, 2)
                 self.assertIn("no runner-recorded canary token", err)
 
-    def test_regrade_rejects_a_record_without_transcript_classification(self):
+    def test_regrade_rejects_run_evidence_written_under_earlier_rules(self):
         self.assertEqual(self.main()[0], 0)
         sample = self.out / "runs" / self.TASK / "base" / "1"
-        record = json.loads((sample / "record.json").read_text())
-        del record["run"]["session_files"]  # as an earlier version of this tool wrote it
-        record["run"]["transcripts"] = [f"transcript-{record['run']['transcripts'][0][11:-6]}"]
-        record["invalid_reasons"], record["valid"] = ["transcript_missing"], False
-        (sample / "record.json").write_text(json.dumps(record))
-        code, err = self.regrade()
-        self.assertEqual(code, 2)
-        self.assertIn("predates the transcript classification", err)
-        self.assertFalse(json.loads((sample / "record.json").read_text())["valid"])
+        original = json.loads((sample / "record.json").read_text())
+        session = original["run"]["transcripts"][0][len("transcript-"):-len(".jsonl")]
+        def before_classification(r):  # a session directory listed as the transcript
+            del r["run"]["session_files"]
+            r["run"]["transcripts"] = [f"transcript-{session}"]
+        def before_the_name_check(r):  # a bare session file accepted as the transcript
+            r["run"]["session_files"] = []
+            r["run"]["transcripts"] = [f"transcript-{session}"]
+        for earlier in (before_classification, before_the_name_check):
+            with self.subTest(format=earlier.__name__):
+                record = copy.deepcopy(original)
+                earlier(record)
+                del record["run"]["evidence_version"]
+                record["invalid_reasons"], record["valid"] = ["transcript_missing"], False
+                (sample / "record.json").write_text(json.dumps(record))
+                code, err = self.regrade()
+                self.assertEqual(code, 2)
+                self.assertIn("written under other rules", err)
+                self.assertFalse(json.loads((sample / "record.json").read_text())["valid"])
 
     def test_records_outside_the_plan_inventory_are_refused(self):
         self.assertEqual(self.main()[0], 0)

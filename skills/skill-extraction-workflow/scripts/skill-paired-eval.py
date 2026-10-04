@@ -117,6 +117,8 @@ ROLES = ("primary", "completion", "precision", "process", "trace")
 TASK_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 CHECK_ID = re.compile(r"^[a-z0-9_]+$")
 SESSION_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+# Bumped whenever the meaning of the run evidence a record keeps changes; regrade refuses other versions.
+RUN_EVIDENCE_VERSION = 2
 CHECK_KINDS = {
     "blob_kept": {"path"},
     "path_absent": {"path"},
@@ -1140,7 +1142,7 @@ def make_record(ctx, task, arm, index, sample_dir, snapshot, token, run, plugin_
         "seconds": run["seconds"], "exit_code": run["exit_code"],
         "run": {"timed_out": run["timed_out"], "cleanup_confirmed": run["cleanup_confirmed"],
                 "export_changes": run.get("export_changes") or [], "transcripts": run.get("transcripts") or [],
-                "session_files": run.get("session_files") or []},
+                "session_files": run.get("session_files") or [], "evidence_version": RUN_EVIDENCE_VERSION},
         "canary": token, "snapshot": snapshot, "plugin_dir": str(plugin_dir) if plugin_dir else None,
         "max_utilization": parsed["max_utilization"],
         "skills_invoked": [str(u["input"].get("skill")) for u in parsed["tool_uses"] if u["name"] == "Skill"],
@@ -1165,9 +1167,9 @@ def regrade(ctx, out, tasks):
                 or old.get("legacy_inputs")):
             raise TaskError(f"{sample_dir.relative_to(out)}: the record holds no runner-recorded canary token, snapshot "
                             "and plugin path, and the world's copies could have been rewritten by the run")
-        if not isinstance((old.get("run") or {}).get("session_files"), list):
-            raise TaskError(f"{sample_dir.relative_to(out)}: the record predates the transcript classification, so "
-                            "regrading cannot tell a persisted transcript from a session directory")
+        if (old.get("run") or {}).get("evidence_version") != RUN_EVIDENCE_VERSION:
+            raise TaskError(f"{sample_dir.relative_to(out)}: the record's run evidence was written under other rules "
+                            "(such as an earlier transcript check), so regrading would reuse evidence it cannot trust")
         token, snapshot = old["canary"], old["snapshot"]
         plugin_dir = Path(old["plugin_dir"]) if old["plugin_dir"] else None
         run = dict(old.get("run") or {"timed_out": "timeout" in old["invalid_reasons"],
