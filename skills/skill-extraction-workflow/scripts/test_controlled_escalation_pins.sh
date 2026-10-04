@@ -11,6 +11,11 @@
 # tree. The pin list is parsed from the fixture itself so a new pin cannot be
 # added without automatically entering this walk.
 set -euo pipefail
+# The copy gets its own repository; inherited git variables (set inside git
+# hooks, for one) would point git at the real one instead.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+  GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+  GIT_NAMESPACE
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_root="$(cd "$script_dir/../../.." && pwd -P)"
@@ -27,6 +32,12 @@ cp -R "$repo_root/skills" "$tmp_root/skills"
 cp -R "$repo_root/agent-context" "$tmp_root/agent-context"
 cp -R "$repo_root/docs" "$tmp_root/docs"
 cp "$repo_root/AGENTS.md" "$tmp_root/AGENTS.md"
+# The fixture's teardown sweep lists the repository's Markdown through git, so
+# the copy needs an index; nothing is committed, which keeps user commit hooks
+# and signing out of the run.
+cp "$repo_root/.gitignore" "$tmp_root/.gitignore"
+git -C "$tmp_root" init -q
+git -C "$tmp_root" add -A
 copy_fixture="$tmp_root/$fixture_rel"
 copy_ref="$tmp_root/$ref_rel"
 [[ -f "$copy_fixture" && -f "$copy_ref" ]] || fail "copy is missing the fixture or the reference"
@@ -63,7 +74,7 @@ pin_count="$(wc -l < "$pins_file" | tr -d ' ')"
 raw_count="$(grep -c 'assert_in_section "\$EXTRACTION_METHOD_REF" "\$BLOCKED_VERIFICATION_SECTION"' "$repo_root/$fixture_rel")"
 [[ "$pin_count" == "$raw_count" ]] || fail "parser dropped family-8 assertions: parsed $pin_count of $raw_count calls"
 
-run_copy() { bash "$copy_fixture" 2>&1; }
+run_copy() { TMPDIR="$tmp_root" bash "$copy_fixture" 2>&1; }
 
 # Control: the unmutated copy is green, proving the harness reads the copy.
 control_out="$(run_copy)" || fail "pre-control not green: $control_out"
