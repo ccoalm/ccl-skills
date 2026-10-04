@@ -612,6 +612,65 @@ def stop_notice(payload, lane, message):
     return {'systemMessage': message}
 
 
+# Claude Code reports `sdk-cli` for `claude -p` and an `sdk` entrypoint for the SDKs; interactive
+# sessions report other values and are re-invoked when a background task finishes.
+NON_INTERACTIVE_ENTRYPOINT = re.compile(r'sdk(?:-[a-z]+)?')
+
+
+def claim_background_notice(payload, task_id):
+    """True the first time this session stops with the task still running, False on a repeat,
+    None when state is unavailable. Keyed by session, not transcript, which may not exist."""
+    try:
+        source = Path(__file__).resolve().with_name('skill-loading.py')
+        spec = importlib.util.spec_from_file_location('ccl_stop_state', source)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        session = payload.get('session_id')
+        if not isinstance(session, str) or not session or len(session) > 1024:
+            return None
+        state = module.State(module.digest([str(module.ROOT), session, 'headless-background']))
+        try:
+            return bool(state.claim_attempt('headless-background', [task_id]))
+        finally:
+            state.close()
+    except Exception:
+        return None
+
+
+def headless_background(payload):
+    """Block a stop once per background task still running in a session nothing re-invokes; the
+    caller has already checked that the entrypoint is one (NON_INTERACTIVE_ENTRYPOINT).
+
+    A headless session ends at the stop and the host stops its background tasks seconds later,
+    so work waiting on their results is lost. Reads only the hook input, so it also works when
+    session persistence is off and the transcript-reading hooks cannot run."""
+    if not isinstance(payload, dict) or payload.get('hook_event_name') != 'Stop':
+        return None
+    tasks = payload.get('background_tasks')
+    running = [task for task in tasks if isinstance(task, dict) and task.get('status') == 'running'
+               and isinstance(task.get('id'), str) and 0 < len(task['id']) <= 128] if isinstance(tasks, list) else []
+    fresh = []
+    for task in running:
+        claimed = claim_background_notice(payload, task['id'])
+        # Without state a repeat cannot be told apart, so the host's own retry flag bounds it.
+        if claimed or (claimed is None and payload.get('stop_hook_active') is False):
+            fresh.append(task)
+    if not fresh:
+        return None
+    def label(task):
+        text = re.sub(r'\s+', ' ', str(task.get('description') or task.get('type') or 'task')).strip()
+        return f'- {text[:100]} ({task["id"]})'
+    listed = [label(task) for task in fresh[:5]] + ([f'- and {len(fresh) - 5} more'] if len(fresh) > 5 else [])
+    return {'decision': 'block', 'reason': (
+        'Background task check: this is a headless session. When you stop, the session ends and these '
+        'background tasks are stopped within seconds, with no notification afterwards:\n' + '\n'.join(listed) +
+        '\nIf the request still depends on one of them, wait for that task in the foreground: poll its output '
+        'file, or the files it writes, in a bounded foreground loop until it has finished, then act on its '
+        'result. Do not start it again; a second run would repeat its effects. If none is needed, stop it with '
+        'TaskStop or say why it can be dropped. '
+        'This check fires once per task.')}
+
+
 def extraction_overflow(payload):
     path = payload.get('transcript_path')
     cwd = payload.get('cwd')
@@ -884,6 +943,18 @@ def main():
                               'verifiable': False, 'truncated': True, 'prior_handoff': False,
                               'continuation_contract_visible': False}))
             return 1
+    elif sys.argv[1] == 'headless-background':
+        if not NON_INTERACTIVE_ENTRYPOINT.fullmatch(os.environ.get('CLAUDE_CODE_ENTRYPOINT', '')):
+            return 0  # an interactive session hears nothing from this check, whatever its input
+        try:
+            raw = sys.stdin.read(2 * 1024 * 1024 + 1)
+            if len(raw) > 2 * 1024 * 1024:
+                raise ValueError('oversized input')
+            result = headless_background(json.loads(raw))
+            if result:
+                print(json.dumps(result))
+        except (OSError, ValueError, TypeError, IndexError, AttributeError):
+            print(json.dumps({'systemMessage': 'Background task check unavailable: input could not be verified.'}))
     elif sys.argv[1] in ('proposed-next', 'extraction-overflow'):
         payload = {}
         try:

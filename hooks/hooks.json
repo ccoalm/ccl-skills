@@ -161,6 +161,13 @@
             "timeout": 5,
             "async": false,
             "statusMessage": "Checking delivery handoff..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/headless-background-stop.sh\"",
+            "timeout": 5,
+            "async": false,
+            "statusMessage": "Checking background tasks..."
           }
         ]
       }
