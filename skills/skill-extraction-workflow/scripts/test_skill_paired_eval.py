@@ -160,6 +160,13 @@ class GraderTests(unittest.TestCase):
         shutil.rmtree(world / "app")
         self.assertEqual(paired.grade(task, world, gitconfig, snapshot, [])["gone"]["result"], "fail")
 
+    def test_a_repository_above_the_world_is_never_graded(self):
+        git(self.tmp, "init", "-q", "-b", "main")  # an enclosing repository, like a dotfiles home
+        checks = [{"id": "gone", "role": "completion", "kind": "ref_absent", "repo": "app", "refs": ["refs/heads/x"]}]
+        task, world, gitconfig, snapshot = self.world(checks)
+        shutil.rmtree(world / "app" / ".git")
+        self.assertEqual(paired.grade(task, world, gitconfig, snapshot, [])["gone"]["result"], "fail")
+
     def test_blob_kept_follows_content_not_path(self):
         checks = [{"id": "kept", "role": "primary", "kind": "blob_kept", "path": "app/a.txt"}]
         task, world, gitconfig, snapshot = self.world(checks)
@@ -202,6 +209,25 @@ class GraderTests(unittest.TestCase):
         subprocess.run(["git", "worktree", "add", "-q", "-b", "f", "../wt", "main"], cwd=app, env=env, check=True)
         results = paired.grade(task, world, gitconfig, snapshot, [])
         self.assertEqual([results[k]["result"] for k in ("feature", "two", "same")], ["pass", "pass", "fail"])
+
+
+class ExportTests(unittest.TestCase):
+    def test_an_interrupted_export_is_never_reused(self):
+        tmp = Path(tempfile.mkdtemp(prefix="paired-export-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        repo = tmp / "repo"
+        (repo / ".claude-plugin").mkdir(parents=True)
+        (repo / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": "ccl-skills"}))
+        git(repo, "init", "-q", "-b", "main")
+        git(repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "add", ".")
+        git(repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", "c")
+        dest = tmp / "arms" / "base"
+        with mock.patch.object(paired.tarfile.TarFile, "extractall", side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                paired.export_arm(repo, "main", dest)
+        self.assertFalse(dest.exists())
+        self.assertEqual(paired.export_arm(repo, "main", dest), "ccl-skills")
+        self.assertEqual(sorted(p.name for p in dest.parent.iterdir()), ["base"])
 
 
 class IsolationTests(unittest.TestCase):
@@ -411,7 +437,9 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(argv[argv.index("--permission-mode") + 1], "bypassPermissions")
             self.assertEqual(argv[argv.index("--disallowedTools") + 1], paired.DISALLOWED_TOOLS)
             self.assertEqual(set(call["env"]), {"CLAUDE_CODE_DISABLE_CLAUDE_MDS", "CLAUDE_CODE_DISABLE_AUTO_MEMORY",
-                                                "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_TERMINAL_PROMPT"})
+                                                "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_TERMINAL_PROMPT",
+                                                "GIT_CEILING_DIRECTORIES"})
+            self.assertEqual(call["env"]["GIT_CEILING_DIRECTORIES"], os.path.realpath(Path(call["cwd"]).parents[1]))
             arm = Path(call["cwd"]).parts[-4]
             if arm == "off":
                 self.assertNotIn("--plugin-dir", argv)

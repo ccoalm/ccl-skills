@@ -247,8 +247,11 @@ def load_tasks(tasks_dir, only=None):
 
 def clean_env(gitconfig, agent=False):
     """Environment for setup, grading and the tested agent: nothing inherited from a
-    parent Claude Code session or from the caller's git state; git reads a world-local config."""
+    parent Claude Code session or from the caller's git state; git reads a world-local config
+    and never discovers a repository above the sample directory, so a world repository that
+    lost its .git is never graded through an enclosing one."""
     env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE", "GIT_"))}
+    env["GIT_CEILING_DIRECTORIES"] = os.path.realpath(Path(gitconfig).parent)
     env["GIT_CONFIG_GLOBAL"] = str(gitconfig)
     env["GIT_CONFIG_NOSYSTEM"] = "1"
     env["GIT_TERMINAL_PROMPT"] = "0"
@@ -499,8 +502,12 @@ def plugin_name_of(root):
 
 
 def export_arm(repo, commit, dest):
-    """Extract `git archive <commit>` into dest and return the plugin name."""
-    dest.mkdir(parents=True, exist_ok=False)
+    """Extract `git archive <commit>` into a staging directory and move it to dest only when
+    complete, so an interrupted export is never reused as an arm. Returns the plugin name."""
+    staging = dest.parent / f".{dest.name}.partial"
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True)
     with tempfile.TemporaryFile() as tar_file:
         done = subprocess.run(["git", "-C", str(repo), "archive", "--format=tar", commit], stdout=tar_file,
                               stderr=subprocess.PIPE, env=source_env(), timeout=300)
@@ -509,11 +516,12 @@ def export_arm(repo, commit, dest):
         tar_file.seek(0)
         with tarfile.open(fileobj=tar_file) as tar:
             try:
-                tar.extractall(dest, filter="data")
+                tar.extractall(staging, filter="data")
             except tarfile.FilterError as exc:
                 raise TaskError(f"archive member rejected: {exc}") from None
-    if not (dest / ".claude-plugin" / "plugin.json").is_file():
+    if not (staging / ".claude-plugin" / "plugin.json").is_file():
         raise TaskError(f"{commit} has no .claude-plugin/plugin.json")
+    staging.rename(dest)
     return plugin_name_of(dest)
 
 
