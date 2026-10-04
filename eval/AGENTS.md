@@ -64,6 +64,11 @@ Rules:
   masquerading as a green gate. Pending active-control arms remain non-runnable
   until the pre-registered independent-candidate and blinded-selection rules are
   met.
+- **Paired tasks carry their own proof.** `paired-tasks/*.json` are synthetic
+  worlds for `skills/skill-extraction-workflow/scripts/skill-paired-eval.py`:
+  every check must fail on at least one bad oracle trajectory and pass on the
+  good one (`--check-oracles`), a world never references a real repository,
+  and run output stays under a private `--out` outside every checkout.
 - **No project, person, or repository identity in committed output or fixtures.**
   Sample rows printed for diagnosis carry a truncated path and an agent id, never
   brief bodies — a dispatch brief may contain proprietary or personal content.
@@ -73,6 +78,7 @@ Validation:
 - `python3 -m unittest eval/test_subagent_owner_audit.py`
 - `python3 -m unittest eval/test_skill_effectiveness_bridge.py`
 - `python3 -m unittest eval/test_skill_effectiveness_trial.py`
+- `python3 skills/skill-extraction-workflow/scripts/test_skill_paired_eval.py`
 - `python3 eval/skill-effectiveness/run.py smoke --fixture
   eval/skill-effectiveness/fixtures/e10-smoke.json --out
   /private/tmp/ccl-skills-e10-smoke` (only exit `3` is expected for the

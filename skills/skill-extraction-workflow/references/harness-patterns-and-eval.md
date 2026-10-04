@@ -129,6 +129,8 @@ Result inflation 没有 MAST 对应——它是 context / 成本问题，不是�
 
 **用**：本 skill `skill-extraction-workflow` 自身的 R0 / drafting 类大改动；产品 skill 的 routing 调整。
 
+**落地形态**：`scripts/skill-paired-eval.py` + `eval/paired-tasks/`（`make eval-paired`）。同一合成 git 世界里交错跑 off / base / candidate 三臂，按世界状态判分，实现上面的冻结任务库、同轮起跑、成本列与逐断言读数；每个检查都带能把它判红的坏轨迹（`--check-oracles`）。它的数不是什么、隔离怎么核验，以脚本头为准。
+
 ### 3.2 Golden trace（中量）
 
 为每个 stable skill 沉淀 1-2 个 **golden agent trace**：

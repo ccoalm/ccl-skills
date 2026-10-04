@@ -12,6 +12,7 @@
 | **T2 冻结路由 task-bank** | 当前 description 能否让廉价 grader 把固定 utterance 路由到预期 owner | `make eval-routing-bank`；模型输出是兼容性信号，不是真值 | runner 始终 advisory；结果是否成为某次改动的落地条件，由该改动已有的 owner、风险或评审门禁决定 |
 | **T3 golden trace** | 真 Agent 在完整技能与 hook 环境中是否走到预期路由结构 | `make eval-golden-trace`；真实回放、非确定、人工判定 | runner 始终 advisory；破坏性或安全问题由各自确定性门禁独立阻断 |
 | **B 正文合规探针** | 技能已激活时，Agent 是否真按正文硬规则分类/产出（含 product-rd 停机谓词的成对分类探针） | `make eval-body-compliance`（子集：`--ids a,b`）；正文即 prompt，逐探针 marker 契约判分 | runner 始终 advisory（`eval/AGENTS.md` 契约：本目录任何东西不得成为 merge gate） |
+| **P 配对结果评测** | 同一合成任务里，改动前、改动后的插件和不加载插件三种情况，Agent 留下的世界状态有什么不同 | `make eval-paired`；真 Agent 在合成 git 世界里做任务，按世界状态判分；隔离由每次运行自己的结构化事件和指令文件金丝雀核验；任务库 `eval/paired-tasks/` 的每个检查都带能把它判红的坏轨迹 | runner 始终 advisory；配对比较只报计数和未校正的 Fisher p，不是显著性结论 |
 
 “runner 是否以非零退出”与“这次改动是否允许落地”是两件事。T2/T3/B 不把 grader 或单次 Agent 输出当真值，因此 F4 不因 miss 生成统一阻断；若改动的 owner、风险或评审门禁预先把某项 T2/T3/B 证据纳入本轮接受标准，则由那道门禁作落地判断并记录理由。
 
@@ -53,7 +54,7 @@ T1 必须覆盖全仓。路由是图属性，枢纽技能是否有效取决于�
 本仓的技能有效性证据分两条轨，测的是**不同的失效轴**，互不替代：
 
 - **确定性轨**（tests）：`check-ccl-skills.sh` + 注册的 `test_*.sh` 套件。钉的是**措辞与结构**——契约锚、entrypoint 锚、register firing-path 锚、尺寸棘轮。CI 每 PR 全量跑，客观失败阻断。
-- **行为轨**（evals）：T2/T3/B。测的是**应用与行为**——固定 utterance 是否路由到预期 owner、真 Agent 是否走到预期结构、规则谓词把一个案例分到哪边。需本机 `claude` CLI 与凭据，CI runner 没有，因此**不进 CI、无自动节奏**，靠下面的触发纪律运行。
+- **行为轨**（evals）：T2/T3/B/P。测的是**应用与行为**——固定 utterance 是否路由到预期 owner、真 Agent 是否走到预期结构、规则谓词把一个案例分到哪边。需本机 `claude` CLI 与凭据，CI runner 没有，因此**不进 CI、无自动节奏**，靠下面的触发纪律运行。
 
 互补边界有实测：对停机谓词做词数补偿的加句语义中和（applied mutation），确定性轨全绿放行；同一突变喂给 B 面探针，真 Agent 行为也未翻转（n=2 突变 × 2 探针，小样本）。反过来，B 面首跑曾在真实输出上报 FAIL（探针集能失败，oracle 有效）。所以：**锚管「文字没被动」，探针管「行为没漂移」**；两轨都测不到的编辑是既不动锚定措辞也不动行为的编辑。
 
@@ -63,6 +64,7 @@ T1 必须覆盖全仓。路由是图属性，枢纽技能是否有效取决于�
 |---|---|---|
 | 每次 PR（CI） | 确定性轨全量（含 T1） | 客观可判才阻断 |
 | 改动触及某技能正文硬规则/停机谓词 | 该技能的 B 面探针子集（`--ids`），本机手动 | 行为证据行的一种执行形态；结果按该改动既有门禁处置 |
+| 改动会改变 Agent 在任务里的做法，且结局能按世界状态判定（清理、隔离、分支保护等） | `make eval-paired`：BASE 取改动前的提交，CANDIDATE 取改动提交；任务库没有覆盖该行为的任务时，先补任务并过 `--check-oracles` 再跑 | 行为证据行的一种执行形态；插件两臂都恒过而 off 臂有差别时，说明任务测不到这次文本的差别 |
 | 改动触及路由面（description/redirect） | T1 必过（已在 checker 内）；T2 邻居对照、T3 golden trace 按 eval-routing.md 的既有条款选跑 | 见 [eval-routing.md](../skills/skill-extraction-workflow/references/eval-routing.md) |
 | 周期性（本地，可选） | 行为轨全量 + `make eval-health` | 描述性仪表盘，找「哪里值得看」 |
 
@@ -70,7 +72,7 @@ T1 必须覆盖全仓。路由是图属性，枢纽技能是否有效取决于�
 
 ## 最小度量记录
 
-每次声称某项技能改动“更好”之前，至少记录：
+每次声称某项技能改动“更好”之前，至少记录（`make eval-paired` 的 `plan.json` 与 `report.md` 覆盖前五项，决策由改动的 owner 记录）：
 
 | 字段 | 必须回答 |
 |---|---|
@@ -99,6 +101,7 @@ make eval-routing
 make eval-routing-bank
 make eval-golden-trace
 make eval-health
+make eval-paired BASE=<ref> CANDIDATE=<ref> OUT=<仓外私有目录>
 ```
 
 具体输入、退出码、防作弊字段和报告 schema 以 [Routing Eval 契约](../skills/skill-extraction-workflow/references/eval-routing.md) 为准。

@@ -1,5 +1,5 @@
 # ccl-skills 安装与更新（薄封装，逻辑在 scripts/install*.sh）
-.PHONY: help test test-repo-gates test-regressions-fast test-code-review test-code-review-1 test-code-review-2 test-code-review-abort-leak test-code-review-abort-leak-1 test-code-review-abort-leak-2 test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
+.PHONY: help test test-repo-gates test-regressions-fast test-code-review test-code-review-1 test-code-review-2 test-code-review-abort-leak test-code-review-abort-leak-1 test-code-review-abort-leak-2 test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health eval-paired npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
 .DEFAULT_GOAL := help
 CCL_SKILL_DEFAULT_BASE_REF ?= origin/dev
 # Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the
@@ -38,6 +38,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	bash scripts/test_run_parallel_suites.sh
 	python3 scripts/test_lane_isolation.py
 	python3 skills/skill-extraction-workflow/scripts/test_eval_runtime.py
+	python3 skills/skill-extraction-workflow/scripts/test_skill_paired_eval.py
 	python3 hooks/test_host_input.py
 	python3 hooks/test_skill_loading.py
 	python3 hooks/test_task_entry.py
@@ -149,6 +150,10 @@ eval-golden-trace: ## F4 Tier-3 hub golden trace 真 agent 回放（advisory，�
 
 eval-health: ## F4 描述性信号仪表盘（advisory 0-10 显示值 + 同尺子变化；T2/T3 报告按需喂入）
 	ruby skills/skill-extraction-workflow/scripts/eval-health.rb .
+
+eval-paired: ## 技能改动前后的配对行为评测（advisory；需本机 claude CLI；BASE=<ref> CANDIDATE=<ref> OUT=<仓外私有目录>）
+	@test -n "$(OUT)" -a -n "$(BASE)" -a -n "$(CANDIDATE)" || { echo "usage: make eval-paired BASE=<ref> CANDIDATE=<ref> OUT=<dir outside this checkout> [PAIRED_ARGS=...]" >&2; exit 2; }
+	python3 skills/skill-extraction-workflow/scripts/skill-paired-eval.py --out "$(OUT)" --base "$(BASE)" --candidate "$(CANDIDATE)" $(PAIRED_ARGS)
 
 install-codex-cron: ## 同 install，并给 Codex 装每日 cron 伪自动更新（改 crontab）
 	bash scripts/install.sh --codex-cron
