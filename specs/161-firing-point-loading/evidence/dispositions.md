@@ -20,3 +20,11 @@
 | 3 | P2 | The packet could not show that the gate catches a dangling always-on pointer; the hop from `SKILL.md` to the reference was unchecked. | Fixed in part, refuted in part. A removed forwarding sentence left the sync gate green, so the registry now pins it (`worktree-reference-forwarding`) and the suite has a case for it. Decoy, duplicate and missing-file shapes are already blocked by the existing exactly-once and target-state checks and their suite cases. |
 | 4 | P2 | The packet still lacked the anchors on the edited references. | Fixed with evidence. `validation.md` lists every anchor with its count in the candidate file. |
 | 5 | P2 | The dispositions claimed final-candidate full and heavy results that `validation.md` did not yet hold. | Fixed. The results were recorded after the runs on the final candidate. |
+
+## Pass 3 — delta review of the post-challenge changes (`pass3-delta.json`)
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P2 | The packet did not show whether the two changed register rows were already landed, which would make the change an overwrite of append-only evidence. | Refuted after checking: against the landing base the register diff is three added lines and no removed line, so the rows are new in this unlanded change and no landed row is edited. |
+| 2 | P2 | The packet did not show that the reminder assertions run the candidate hook or that a failure reaches the suite's exit status. | Refuted after checking: `reminder_text` is captured by running `$SCRIPT_DIR/remind-post-merge-cleanup.sh`, the suite ends with `[ "$fail" -eq 0 ] \|\| exit 1`, and the RED run against the previous hook and every mutation run returned rc=1. |
+| 3 | P2 | The packet did not show that the new sync case runs in a disposable fixture against the candidate checker. | Refuted after checking: the suite clones the committed tree into a `mktemp -d` directory removed by an EXIT trap and runs `$SCRIPT_DIR/check-sync-pointers.sh` against that clone. |

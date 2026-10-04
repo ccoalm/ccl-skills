@@ -129,6 +129,19 @@ its occurrence count in the candidate file; the whole ledger resolves
 | `external-practice-controls.md` | must be treated as carrying an unverified reading | 1 |
 | `external-practice-controls.md` | 必须先在本机读过该 CLI 的 help 输出 | 1 |
 
+## Lanes on the final candidate
+
+Candidate `d9217b8` (tree `4445eb1fe7eff9935660b612766f9b660c673e2b`), the
+last change to any non-record file in this round.
+
+| Lane | Result |
+| --- | --- |
+| `CCL_SKILL_BASE_REF=origin/main make -k test` | rc=0 in about 25 minutes |
+| `test_check_ccl_regressions.sh --heavy-only` | rc=0, `regression_heavy_lane_ok: 9 suites` |
+| `check-ccl-skills.sh` | `ccl_skill_check_clean_ok`, private R0 audit ok, 609 ledger locators resolve |
+| `check-public-sanitization.py`, `git diff --check` | ok |
+| npm package `npm ci && npm test` | rc=0, 0 failures, run on an earlier candidate; since then files under the packaged roots were only modified, none added or removed |
+
 ## Focused suites on the candidate
 
 | Suite | Result |
