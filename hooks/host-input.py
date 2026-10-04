@@ -638,13 +638,13 @@ def claim_background_notice(payload, task_id):
 
 
 def headless_background(payload):
-    """Block a stop once per background task still running in a session nothing re-invokes.
+    """Block a stop once per background task still running in a session nothing re-invokes; the
+    caller has already checked that the entrypoint is one (NON_INTERACTIVE_ENTRYPOINT).
 
     A headless session ends at the stop and the host stops its background tasks seconds later,
     so work waiting on their results is lost. Reads only the hook input, so it also works when
     session persistence is off and the transcript-reading hooks cannot run."""
-    if (not isinstance(payload, dict) or payload.get('hook_event_name') != 'Stop'
-            or not NON_INTERACTIVE_ENTRYPOINT.fullmatch(os.environ.get('CLAUDE_CODE_ENTRYPOINT', ''))):
+    if not isinstance(payload, dict) or payload.get('hook_event_name') != 'Stop':
         return None
     tasks = payload.get('background_tasks')
     running = [task for task in tasks if isinstance(task, dict) and task.get('status') == 'running'
@@ -664,9 +664,10 @@ def headless_background(payload):
     return {'decision': 'block', 'reason': (
         'Background task check: this is a headless session. When you stop, the session ends and these '
         'background tasks are stopped within seconds, with no notification afterwards:\n' + '\n'.join(listed) +
-        '\nIf the request still depends on one of them, wait for it in the foreground now, either by running it '
-        'again in the foreground (Bash allows up to 10 minutes) or by polling its output in a foreground loop, '
-        'then act on its result. If none is needed, stop it with TaskStop or say why it can be dropped. '
+        '\nIf the request still depends on one of them, wait for that task in the foreground: poll its output '
+        'file, or the files it writes, in a bounded foreground loop until it has finished, then act on its '
+        'result. Do not start it again; a second run would repeat its effects. If none is needed, stop it with '
+        'TaskStop or say why it can be dropped. '
         'This check fires once per task.')}
 
 
@@ -943,6 +944,8 @@ def main():
                               'continuation_contract_visible': False}))
             return 1
     elif sys.argv[1] == 'headless-background':
+        if not NON_INTERACTIVE_ENTRYPOINT.fullmatch(os.environ.get('CLAUDE_CODE_ENTRYPOINT', '')):
+            return 0  # an interactive session hears nothing from this check, whatever its input
         try:
             raw = sys.stdin.read(2 * 1024 * 1024 + 1)
             if len(raw) > 2 * 1024 * 1024:

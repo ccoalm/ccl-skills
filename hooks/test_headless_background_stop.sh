@@ -61,7 +61,10 @@ expect() {
 
 one="[$(task t1 running 'Run the external review on the diff')]"
 expect block "headless stop with a running task" sdk-cli "$STATE" "$(payload s1 false "$one")" \
-  "headless session" "Run the external review on the diff (t1)" "foreground" "TaskStop" "once per task"
+  "headless session" "Run the external review on the diff (t1)" "foreground" "Do not start it again" "TaskStop" "once per task"
+if printf '%s' "$OUT" | jq -e '.reason | test("(?i)run(ning)? it again|rerun")' >/dev/null 2>&1; then
+  echo "FAIL [headless stop with a running task]: the reason advises starting the task again"; fail=$((fail + 1))
+fi
 expect quiet "the same task at the next stop" sdk-cli "$STATE" "$(payload s1 true "$one")"
 expect quiet "the same task without the host retry flag" sdk-cli "$STATE" "$(payload s1 false "$one")"
 both="[$(task t1 running),$(task t2 running 'Wait for the lane')]"
@@ -94,6 +97,8 @@ helper_quiet() {  # helper_quiet <label> <entrypoint>
 }
 helper_quiet "the helper alone in an interactive session" cli
 helper_quiet "the helper alone with a lookalike entrypoint" sdkx
+out=$(printf 'not json' | CLAUDE_CODE_ENTRYPOINT=cli TMPDIR="$STATE" python3 "$HELPER" headless-background 2>"$ERR")
+if [ -z "$out" ] && [ ! -s "$ERR" ]; then pass=$((pass + 1)); else echo "FAIL [the helper alone, interactive, bad input]: $out"; fail=$((fail + 1)); fi
 
 # The wrapper leaves interactive sessions before the helper: no Python start, no notice about it.
 BASH_BIN="$(command -v bash)"; mkdir -p "$WORK/no-python"; ln -s "$(command -v dirname)" "$WORK/no-python/dirname"
@@ -108,6 +113,35 @@ no_python "a headless session without Python" sdk-cli \
 
 many="[$(for i in 1 2 3 4 5 6 7; do task "m$i" running; printf ','; done | sed 's/,$//')]"
 expect block "a long task list" sdk-cli "$STATE" "$(payload s7 false "$many")" "(m5)" "and 2 more"
+if printf '%s' "$OUT" | jq -e '.reason | test("\\(m[67]\\)")' >/dev/null 2>&1; then
+  echo "FAIL [a long task list]: a task beyond the first five was listed"; fail=$((fail + 1))
+fi
+hundred=$(printf 'x%.0s' $(seq 100))
+long="[$(task c1 running "${hundred}yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy")]"
+expect block "a long description" sdk-cli "$STATE" "$(payload s11 false "$long")" "${hundred} (c1)"
+
+# Identifiers from the input never name a path: hostile ones stay inside the state root.
+hostile="[$(task '../../../evil-task' running)]"
+expect block "hostile identifiers, first stop" sdk-cli "$STATE" "$(payload '../../escape' false "$hostile")" "(../../../evil-task)"
+expect quiet "hostile identifiers, next stop" sdk-cli "$STATE" "$(payload '../../escape' false "$hostile")"
+if find "$WORK" -name '*evil*' -o -name '*escape*' | grep -q .; then
+  echo "FAIL [hostile identifiers]: an input identifier became a path"; fail=$((fail + 1))
+else pass=$((pass + 1)); fi
+
+# Two stops racing for the same new task: the claim is atomic, so exactly one blocks.
+race="$(payload race false "[$(task r1 running)]")"
+for i in 1 2 3 4; do
+  (printf '%s' "$race" | CLAUDE_CODE_ENTRYPOINT=sdk-cli TMPDIR="$STATE" bash "$HOOK" > "$WORK/race.$i" 2>/dev/null) &
+done
+wait
+blocks=$(cat "$WORK"/race.* | grep -c '"decision": "block"')
+if [ "$blocks" = 1 ]; then pass=$((pass + 1)); else echo "FAIL [racing stops]: $blocks blocks for one task"; fail=$((fail + 1)); fi
+
+# A state root that is a symlink is refused, so the guard falls back to the host retry flag.
+mkdir -p "$WORK/sym" "$WORK/elsewhere"; ln -s "$WORK/elsewhere" "$WORK/sym/ccl-skill-loading-$(id -u)"
+expect block "symlinked state root, first stop" sdk-cli "$WORK/sym" "$(payload s12 false "$one")" "(t1)"
+expect quiet "symlinked state root, host retry" sdk-cli "$WORK/sym" "$(payload s12 true "$one")"
+if [ -z "$(ls -A "$WORK/elsewhere")" ]; then pass=$((pass + 1)); else echo "FAIL [symlinked state root]: state written through the link"; fail=$((fail + 1)); fi
 multiline="[$(task n1 running "$(printf 'line one\nline two')")]"
 expect block "a description with a line break" sdk-cli "$STATE" "$(payload s8 false "$multiline")" "line one line two (n1)"
 
