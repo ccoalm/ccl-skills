@@ -56,24 +56,27 @@ the check pass and wrote the status.
 
 ## Suite and mutation walk
 
-`hooks/test_headless_background_stop.sh` (repository-gates lane, 21 cases) drives the hook with
-synthetic Stop inputs: a block naming the task; no repeat for the same task, with or without the host's
-retry flag; a new task in the same session blocks with only that task; per-session state; the SDK
-entrypoint; interactive, missing and lookalike entrypoints stay quiet, also through the helper alone;
-finished tasks, a missing field and other hook events stay quiet; input that is not JSON gives a notice;
-without usable state the host's retry flag bounds the block; long lists are summarized and labels
-flattened; an interactive session never starts the helper, and a headless one without Python gets a
-notice.
+`hooks/test_headless_background_stop.sh` (repository-gates lane, 30 cases) drives the hook with
+synthetic Stop inputs: a block naming the task, telling the agent to wait for it in the foreground
+without starting it again; no repeat for the same task, with or without the host's retry flag; a new
+task in the same session blocks with only that task; per-session state; the SDK entrypoint;
+interactive, missing and lookalike entrypoints stay quiet, also through the helper alone and on bad
+input; finished tasks, a missing field and other hook events stay quiet; input that is not JSON gives a
+notice; without usable state the host's retry flag bounds the block; long lists stop at five with a
+count and descriptions at 100 characters; hostile session and task ids never become paths; four racing
+stops for one task block once; a symlinked state root is refused and nothing is written through it; an
+interactive session never starts the helper, and a headless one without Python gets a notice.
 
-On a disposable copy of the hook, its helper, the state helper and the suite, 17 mutations were applied
-one at a time; each turned its named case red and the copy was green before and after:
+On a disposable copy of the hook, its helper, the state helper and the suite, 22 mutations were applied
+one at a time; each turned its named case red and the copy was green before and after. The
+per-mutation output is in `hook-mutation-walk.txt`.
 
 | Area | Mutations |
 | --- | --- |
-| entrypoint | no headless session recognized, the helper ignoring the entrypoint, a lookalike accepted, only `claude -p` recognized, the wrapper letting interactive sessions through, a missing helper passing silently |
+| entrypoint | no headless session recognized, the helper speaking to interactive sessions, a lookalike accepted, only `claude -p` recognized, the wrapper letting interactive sessions through, a missing helper passing silently |
 | once per task | every stop blocking again, reported tasks listed again, state shared across sessions, without state every stop blocking, without state nothing blocking |
-| input | finished tasks counted, other hook events handled, bad input passing silently |
-| reason | a long list not summarized, line breaks kept in labels, the way out (TaskStop or a reason) missing |
+| input and state | finished tasks counted, other hook events handled, bad input passing silently, the session id used as a path, a symlinked state root followed |
+| reason | a long list not summarized, every task listed, descriptions not capped, line breaks kept in labels, the way out (TaskStop or a reason) missing, a rerun advised |
 
 ## Lanes
 
