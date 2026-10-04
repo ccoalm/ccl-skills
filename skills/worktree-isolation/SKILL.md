@@ -70,3 +70,10 @@ Claude Code 端有 PreToolUse 硬闸：直接改共享/并行主检出会被 den
 | push / 建或更新 MR / 合并之前 | `references/pre-merge-landing-checks.md` | 落地对象必须已含全部预期改动：worktree 里未提交、本地 tip 未推送都算漏，以这次实际要合的 ref 的 head SHA 对预期 tip，不只信 `@{u}`；分支落后目标先更新再合，已推送/挂 MR 的分支默认并入目标或平台 update，不无脑 rebase；合并后看碰撞集的全内容 diff，`--stat` 不够 |
 | 执行或报告任何合并、平台合并前 | `references/merge-and-teardown.md`「合并执行协议」 | 按用户目标判断授权，MR 本身不是授权；一次性立即合并，不开 auto-merge / 排队 / `--admin`，不直推默认分支；显式点名 MR/PR 并带 head SHA 守卫，flag 以本机 `--help` 为准；方向「源→目标」必须可读 |
 | 已集成后清理 worktree / 分支 | `references/merge-and-teardown.md`「收尾」节 | 只在确认已集成后删（默认分支看平台 MR 在当前 head SHA 上的合并证据，squash 测不到祖先就保守保留）；删任何 worktree 目录前先跑 `git -C <path> status --ignored -s`，必须 exit 0，重算代价高的产物先救回；`git worktree remove` 不加 `--force`、`git branch -d` 不用 `-D`；永久/集成分支与名字含 `release` 的分支不自动删；承载未完成外部副作用的任务等它完成再清 |
+
+落后分支的分流规则管破坏性改写（rebase 已共享分支），且台账 firing-path 锚点钉在这里，所以留在入口；`$TARGET` 的钉住步骤、冲突解析与合并后内容验证在 `references/pre-merge-landing-checks.md`。
+
+把落后分支更新到最新目标——**先分清分支是否已共享**：
+
+- **私有 / 未推送分支**：可 `git rebase "$TARGET"`。
+- **已推送 / 挂着 MR / 别人可能在上面工作的分支**：默认并入目标/平台 “update branch”，**别无脑 rebase**；方向/报告见「收尾·合并方向必须可读」`-F`。rebase 前**必须读** `references/shared-branch-rebase.md`：`git fetch origin` 刷新目标；再 fetch 本分支一次（`git fetch origin <branch>` / `git fetch origin <branch>:refs/remotes/origin/<branch>`，择一），`remote_oid=$(git rev-parse FETCH_HEAD)`（禁读 `origin/<branch>`），推前勿再 fetch 本分支；必须原样 `git rev-list --left-right --count <branch>...$remote_oid`，右侧（远端独有）非 `0` 即并入、禁 rebase，`git diff` 不证拓扑；`0` 才 rebase；`--force-with-lease=<branch>:$remote_oid`，禁 `--force` / 裸 lease；post-push fetch，重审六项 thread / approval / mergeable / CI / commit / 行锚；工具合并重写/发布后逐层重验，绿前禁合并。
