@@ -55,37 +55,42 @@ was reached.
 
 ## Sweep design
 
-The sweep reads the repository's own Markdown: in a git work tree, the files git
-tracks or would track (`git ls-files --cached --others --exclude-standard`), so
-a new top-level directory is covered while ignored build output, caches and
-local worktree lanes are not; in a plain copy, every Markdown file outside the
-same local-only directories. Round records (`specs/`), evaluation inputs
-(`eval/`) and the append-only source register are skipped. A file that names
-`worktree remove` must carry `status --ignored`, the exit-0 requirement on the
-same line, and `worktree-isolation/references/merge-and-teardown.md` (the
-package-relative path inside the canonical package). A failed listing, an
-unreadable file or a failed classification fails the sweep. One python pass
-reads every listed file; with a grep per file the sweep had doubled the
-fixture's runtime, and the two pin walks run the fixture over a hundred times.
+The sweep reads the repository's own Markdown as git lists it (`git ls-files
+--cached --others --exclude-standard`): a new top-level directory is covered,
+while ignored build output, caches and local worktree lanes are not. Outside a
+git work tree there is no such list and the sweep fails rather than guess one;
+anything git reports while listing (an untracked directory it cannot read, for
+one) counts as an incomplete listing. Round records (`specs/`), evaluation
+inputs (`eval/`) and the append-only source register are skipped. A file that
+names `worktree remove` must carry `status --ignored`, the exit-0 requirement
+on the same line, and `worktree-isolation/references/merge-and-teardown.md`
+(the package-relative path inside the canonical package). One python pass reads
+every listed file and reports its verdict through its exit status, escaping
+control characters in the names it prints; with a grep per file the sweep had
+doubled the fixture's runtime, and the two pin walks run the fixture over a
+hundred times. A listing that never reaches the canonical file, an unreadable
+file and a failed classification each fail the sweep.
 
 ## Applied-mutation walk
 
-`test_teardown_guard_pins.sh` runs on a git copy of the tree: 24 applied
-mutations, each red on its own row's label (order rows reordered inside their
-section); three relocation probes, one per row kind (an order row's first line
-moved ahead of its section, where a file-wide comparison would still pass), each
-red its row; seven decoys red the sweep for the stated reason (no scan, no
-pointer, no exit-0 requirement, an exit 0 that is not on the scan line, a
-file-name-only pointer, a new top-level directory, and a new directory in the
-plain-copy fallback); ten precision decoys stay green (a compliant surface, a
-package-relative pointer inside the canonical package, a prune-only mention, a
-file under `node_modules/`, a file under `.work/`, a round record, an
-evaluation input, a register row naming the command, and `.work/` and
-`packages/*/dist/` files in the fallback); an unreadable file, an unreadable
-git index and an unreadable directory in the fallback each red the sweep; a
-`python3` that fails reds it as a failed classification; the unmutated copy is
-green before and after, and the live tree stays green while a mutated copy
-reds. Fixture temp files are written inside the walk's own directory.
+`test_teardown_guard_pins.sh` runs on a copy of the tree that is a git
+repository with an index and no commit, so user commit hooks and signing never
+run: 24 applied mutations, each red on its own row's label (order rows
+reordered inside their section); three relocation probes, one per row kind (an
+order row's first line moved ahead of its section, where a file-wide comparison
+would still pass), each red its row; seven decoys red the sweep for the stated
+reason (no scan, no pointer, no exit-0 requirement, an exit 0 that is not on the
+scan line, a file-name-only pointer, a new top-level directory, and a file name
+that starts with a newline); eight precision decoys stay green (a compliant
+surface, a package-relative pointer inside the canonical package, a prune-only
+mention, files under `node_modules/` and `.work/`, a round record, an evaluation
+input, and a register row naming the command); an unreadable file, an
+unreadable git index and an unreadable untracked directory each red the sweep,
+as do a canonical file hidden from git, a copy without its repository and a
+`python3` that fails. The unmutated copy is green before and after, and the
+live tree stays green while a mutated copy reds. Fixture temp files are written
+inside the walk's own directory. The escalation-pin walk, which also runs this
+fixture, now builds its copy the same way.
 
 SABOTAGE_PENDING
 
