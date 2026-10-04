@@ -935,11 +935,14 @@ done <<< "$TEARDOWN_PINS"
 # itself the target). It keys on the command because prose wording is not ours
 # to enumerate; prose-only removal steps are pinned per surface above. specs/
 # and eval/ hold round records and evaluation inputs, not guidance, so they are
-# not scanned.
+# not scanned, and neither is the append-only source register, whose rows
+# describe the defects they record.
 WT_TEARDOWN="$REPO_ROOT/skills/worktree-isolation/references/merge-and-teardown.md"
+SOURCE_REGISTER="$REPO_ROOT/skills/skill-extraction-workflow/references/source-register.md"
 teardown_visited=0
 teardown_offenders=""
 while IFS= read -r -d '' md; do
+  [[ "$md" != "$SOURCE_REGISTER" ]] || continue
   grep -qF -- 'worktree remove' "$md" || continue
   [[ "$md" == "$WT_TEARDOWN" ]] && teardown_visited=1
   if ! grep -qF -- 'status --ignored' "$md"; then

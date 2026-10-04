@@ -171,6 +171,15 @@ done
 decoy "docs/zz-teardown-compliant.md" "$recipe_compliant" green
 decoy "skills/zz-teardown-decoy/references/prune.md" $'```bash\ngit worktree prune\n```\n' green
 decoy "skills/zz-teardown-decoy/node_modules/pkg/README.md" "$recipe_no_scan" green
+# The append-only register describes defects, removal commands included, and
+# the sweep skips it; a register row naming the command must stay green.
+register="$tmp_root/skills/skill-extraction-workflow/references/source-register.md"
+cp "$register" "$pristine"
+printf '%s\n' '| decoy row | `decoy` | listed only `git worktree remove <path>` | n/a | n/a |' >> "$register"
+if ! out="$(run_copy)"; then
+  fail "precision decoy in the source register redded the fixture: $(printf '%s\n' "$out" | tail -1)"
+fi
+cp "$pristine" "$register"
 rm -rf "$tmp_root/skills/zz-teardown-decoy"
 
 # Post-control green, then tree isolation: a mutated copy reds while the live
@@ -184,4 +193,4 @@ if run_copy >/dev/null; then fail "tree-isolation probe: mutated copy stayed gre
 bash "$repo_root/$fixture_rel" >/dev/null 2>&1 || fail "tree-isolation probe: live tree fixture not green"
 cp "$pristine" "$tmp_root/$rel"
 
-echo "test_teardown_guard_pins: ok ($applied applied mutations, each red on its own row; 2 relocations red; 8 sweep decoys red, 3 precision decoys green; controls green)"
+echo "test_teardown_guard_pins: ok ($applied applied mutations, each red on its own row; 2 relocations red; 8 sweep decoys red, 4 precision decoys green; controls green)"
