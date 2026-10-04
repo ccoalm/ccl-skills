@@ -7,6 +7,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import signal
 import subprocess
@@ -15,7 +16,7 @@ import tempfile
 import threading
 import time
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from unittest import mock
 
 
@@ -64,6 +65,10 @@ if plugin_dir:
 util = 0.1 if calibration else float(os.environ.get("FAKE_UTIL", "0.1"))
 emit({"type": "rate_limit_event", "rate_limit_info": {"status": "allowed", "unifiedWindows": {
       "five_hour": {"utilization": util}, "seven_day": {"utilization": 0.01}}}})
+if ("signal_parent" in modes and not calibration) or ("signal_calibration" in modes and calibration):
+    import signal  # signal the runner mid-run, then keep running unless it kills this run
+    os.kill(os.getppid(), getattr(signal, os.environ["FAKE_SIGNAL"]))
+    time.sleep(float(os.environ.get("FAKE_SIGNAL_SLEEP", "10")))
 def canary_token():
     d = os.getcwd()
     while d != os.path.dirname(d):
@@ -489,6 +494,17 @@ class ProcessTests(unittest.TestCase):
         self.assertTrue(run["cleanup_confirmed"])
         self.assertTrue(self.child_gone(pid_file))
 
+    def test_the_runners_own_commands_run_outside_its_process_group(self):
+        # A terminal interrupt goes to the runner's process group; a grader's git must not die with
+        # it and turn a finished run into a wrong record.
+        probe = shlex.join([sys.executable, "-c", "import os; print(os.getpgid(0))"])
+        env = paired.inherited_env()
+        by_script = paired.run_script([probe], self.tmp, env)
+        by_git = paired.git(self.tmp, "-c", f"alias.pgid=!{probe}", "pgid", env=env)
+        self.assertEqual((by_script.returncode, by_git.returncode), (0, 0), by_script.stderr + by_git.stderr)
+        self.assertNotEqual(int(by_script.stdout), os.getpgrp())
+        self.assertNotEqual(int(by_git.stdout), os.getpgrp())
+
 
 class BatchTests(unittest.TestCase):
     TASK = "branch-cleanup-keeps-protected"
@@ -536,6 +552,21 @@ class BatchTests(unittest.TestCase):
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as err:
             code = paired.main(["--out", str(self.out), "--regrade", "--repo", str(self.repo), *extra])
         return code, err.getvalue()
+
+    @contextmanager
+    def caught_signals(self, ignored=()):
+        """Give the signals a batch latches a recording handler, so one the tool fails to latch is
+        recorded instead of stopping the test process; restore the originals afterwards."""
+        escaped = []
+        def record(signum, frame):
+            escaped.append(signum)
+        originals = {sig: signal.signal(sig, signal.SIG_IGN if sig in ignored else record)
+                     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
+        try:
+            yield escaped, record
+        finally:
+            for sig, handler in originals.items():
+                signal.signal(sig, handler)
 
     def test_batch_isolates_each_run_and_grades_the_world(self):
         code, err = self.main()
@@ -702,19 +733,62 @@ class BatchTests(unittest.TestCase):
 
     def test_a_signal_while_evidence_is_written_is_latched(self):
         original = paired.record_integrity
-        for signum in (signal.SIGINT, signal.SIGTERM):
+        for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             with self.subTest(signal=signum.name):
                 self.out = self.tmp / f"out-{signum.name}"
                 def signalled(out, arm_dirs, manifests, signum=signum):
                     os.kill(os.getpid(), signum)
                     time.sleep(0.2)  # the handler runs here; it must not abort the write below
                     original(out, arm_dirs, manifests)
-                with mock.patch.object(paired, "record_integrity", signalled):
+                with self.caught_signals() as (escaped, _), mock.patch.object(paired, "record_integrity", signalled):
                     code, err = self.main()
-                self.assertEqual(code, 130, err)
+                self.assertEqual((code, escaped), (130, []), err)
                 self.assertIn("evidence was written", err)
                 self.assertTrue(json.loads((self.out / "integrity.json").read_text())["unchanged"])
                 self.assertTrue((self.out / "report.md").exists())
+
+    def test_a_signal_during_a_run_stops_the_batch_and_writes_its_evidence(self):
+        for name in ("SIGINT", "SIGTERM", "SIGHUP"):
+            with self.subTest(signal=name):
+                self.out = self.tmp / f"out-run-{name}"
+                with self.caught_signals() as (escaped, record):
+                    code, err = self.main(env={"FAKE_MODE": "signal_parent", "FAKE_SIGNAL": name})
+                    restored = [signal.getsignal(s) is record for s in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)]
+                self.assertEqual((code, escaped, restored), (130, [], [True, True, True]), err)
+                self.assertEqual(self.records(), [])  # the live runs were killed, not waited for
+                self.assertTrue(json.loads((self.out / "integrity.json").read_text())["unchanged"])
+                self.assertTrue((self.out / "report.md").exists())
+
+    def test_a_signal_during_the_calibration_stops_it(self):
+        with self.caught_signals() as (escaped, _):
+            code, err = self.main(env={"FAKE_MODE": "signal_calibration", "FAKE_SIGNAL": "SIGTERM"})
+        self.assertEqual((code, escaped), (130, []), err)
+        self.assertFalse((self.out / "canary-calibration.json").exists())
+        self.assertEqual([c for c in self.calls() if "project" not in c["argv"]], [])
+
+    def test_a_signal_the_caller_ignores_stays_ignored(self):
+        with self.caught_signals(ignored=(signal.SIGHUP,)) as (escaped, _):
+            code, err = self.main(env={"FAKE_MODE": "signal_parent", "FAKE_SIGNAL": "SIGHUP", "FAKE_SIGNAL_SLEEP": "0"})
+            still_ignored = signal.getsignal(signal.SIGHUP) == signal.SIG_IGN
+        self.assertEqual((code, escaped, still_ignored), (0, [], True), err)
+        self.assertEqual(len(self.records()), 3)
+
+    def test_every_report_recomputes_integrity_against_the_frozen_manifest(self):
+        code, err = self.main()
+        self.assertEqual(code, 0, err)
+        def report_only():
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(paired.main(["--out", str(self.out), "--report-only"]), 0, err.getvalue())
+            return json.loads((self.out / "integrity.json").read_text())
+        late = self.out / "arms" / "base" / "late.md"
+        late.write_text("written after the batch's last report\n")
+        self.assertEqual(report_only()["changed"], {"base": ["late.md"]})
+        self.assertIn("unchanged after the batch: NO", (self.out / "report.md").read_text())
+        manifest = self.out / "arms" / "base.manifest.json"  # a manifest edited to hide the change
+        manifest.write_text(json.dumps(json.loads(manifest.read_text()) + [["f", "late.md", paired.file_digest(late)]]))
+        integrity = report_only()
+        self.assertIsNone(integrity["unchanged"])
+        self.assertIn("no manifest matching the plan", integrity["error"])
 
     def test_integrity_is_recorded_when_a_batch_fails(self):
         def failing_sample(ctx, task, arm, index):

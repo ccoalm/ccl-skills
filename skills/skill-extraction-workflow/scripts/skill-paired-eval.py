@@ -67,6 +67,12 @@ to resume; 2 invalid input, a plan that differs from the one frozen under
 --out, another invocation holding --out, or a canary calibration that did not
 fire (no sample is then run); 1 internal failure. --check-oracles exits 1 when a task's oracle
 expectations do not hold.
+
+Interrupts: once a batch starts its first run, SIGINT, SIGTERM and SIGHUP (unless the caller
+ignores them) stop new runs, kill the live ones and still write the report before exit 130.
+Every report, including --report-only and --regrade, recomputes the integrity record by
+comparing each export with the manifest the plan froze. A batch killed outright (SIGKILL)
+writes nothing more; the next rerun or --report-only brings the record up to date.
 """
 import argparse
 import concurrent.futures as cf
@@ -280,13 +286,16 @@ def clean_env(gitconfig, ceiling, agent=False):
 
 
 def git(repo, *args, env):
-    return subprocess.run(["git", "-C", str(repo), *args], env=env, capture_output=True, text=True, timeout=120)
+    # A new session keeps a terminal interrupt meant for the runner from killing a grader's git
+    # mid-check, which would record a wrong result for a run that had finished.
+    return subprocess.run(["git", "-C", str(repo), *args], env=env, capture_output=True, text=True, timeout=120,
+                          start_new_session=True)
 
 
 def run_script(lines, cwd, env, timeout=300):
     script = "\n".join(lines) + "\n"
     return subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=str(cwd), env=env,
-                          capture_output=True, text=True, timeout=timeout)
+                          capture_output=True, text=True, timeout=timeout, start_new_session=True)
 
 
 def repo_ok(repo, env):
@@ -1180,22 +1189,48 @@ def lock_output(out):
 
 
 def record_integrity(out, arm_dirs, manifests):
-    """Name every path that differs from each frozen export, on every exit once runs may have
-    started. An export that cannot be inspected is recorded as unknown with the reason, so the
-    batch's own outcome or failure is never replaced by this check."""
+    """Name every path that differs from each frozen export. It runs whenever a report is written,
+    so no report carries an older integrity record. An export or frozen manifest that cannot be
+    read is recorded as unknown with the reason, so the batch's own outcome or failure is never
+    replaced by this check."""
     if not arm_dirs:
         return
     try:
-        changed = {arm: paths for arm in arm_dirs
-                   if (paths := manifest_changes(manifests[arm], tree_manifest(arm_dirs[arm])))}
+        changed = {}
+        for arm, root in arm_dirs.items():
+            if manifests.get(arm) is None:
+                raise FileNotFoundError(f"no manifest matching the plan for the {arm} export")
+            if paths := manifest_changes(manifests[arm], tree_manifest(root)):
+                changed[arm] = paths
         payload = {"unchanged": not changed, "changed": changed}
     except OSError as exc:
         payload = {"unchanged": None, "changed": {}, "error": f"{type(exc).__name__}: {exc}"[:300]}
     write_atomic(out / "integrity.json", json.dumps(payload, indent=1))
 
 
-def _raise_interrupt(signum, frame):
-    raise KeyboardInterrupt
+def frozen_manifest(out, plan, arm):
+    """The manifest saved when the arm's export was built, or None unless it reads back and hashes
+    to the export digest the plan froze."""
+    try:
+        manifest = read_json(out / "arms" / f"{arm}.manifest.json")
+        if manifest and tree_digest(None, manifest) == plan["arms"][arm]["export_digest"]:
+            return manifest
+    except (OSError, ValueError, TypeError):  # unreadable, not JSON, or not a manifest's shape
+        pass
+    return None
+
+
+def wait_latched(futures, latched, poll=0.2):
+    """Wait for every future and return their results. Signal handlers only latch during a batch,
+    so this is where an interrupt takes effect: between waits, never inside other code."""
+    pending = set(futures)
+    while pending:
+        done, pending = cf.wait(pending, timeout=poll, return_when=cf.FIRST_COMPLETED)
+        if latched:  # checked before any result, so a failure the signal caused reads as the interrupt
+            raise KeyboardInterrupt
+        for future in done:
+            future.result()
+    return [future.result() for future in futures]
 
 
 def tool_sha256():
@@ -1305,48 +1340,39 @@ def _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version
               + " ".join(f"{k}={v['result']}" for k, v in record["checks"].items()), file=sys.stderr, flush=True)
         return record
 
-    previous = signal.signal(signal.SIGTERM, _raise_interrupt)
+    # Before the first launch, SIGINT, SIGTERM and SIGHUP stop raising and only latch; a signal the
+    # caller ignores stays ignored. Nothing is then raised in this thread asynchronously: a latched
+    # signal takes effect in wait_latched, and the evidence below is written in full before exit.
+    latched = []
+    handlers = {sig: signal.signal(sig, lambda signum, frame: latched.append(signum))
+                for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP) if signal.getsignal(sig) != signal.SIG_IGN}
     pool = cf.ThreadPoolExecutor(max_workers=args.jobs)
-    failure, latched = None, []
+    failure = None
     try:
-        try:
-            if need_calibration:
-                calibration = calibrate_canary(ctx)
-                if calibration is None:
-                    raise KeyboardInterrupt
-                if not calibration["fired"]:
-                    raise TaskError("the canary calibration did not fire, so a silent canary would prove nothing; "
-                                    "no samples were run (see calibration/stream.jsonl under --out)")
-                if (calibration.get("max_utilization") or 0) >= args.stop_util:
-                    trip_stop()
-            futures = [pool.submit(worker, item) for item in pending]
-            for future in cf.as_completed(futures):
-                future.result()
-        except BaseException as exc:
-            failure = exc
+        if need_calibration:
+            calibration = wait_latched([pool.submit(calibrate_canary, ctx)], latched)[0]
+            if calibration is None:
+                raise KeyboardInterrupt
+            if not calibration["fired"]:
+                raise TaskError("the canary calibration did not fire, so a silent canary would prove nothing; "
+                                "no samples were run (see calibration/stream.jsonl under --out)")
+            if (calibration.get("max_utilization") or 0) >= args.stop_util:
+                trip_stop()
+        wait_latched([pool.submit(worker, item) for item in pending], latched)
+    except BaseException as exc:
+        failure = exc
+    try:
+        records = _finish_batch(ctx, out, plan, pool, arm_dirs, manifests, failure)
     finally:
-        # Every exit after the first launch passes through here. SIGINT and SIGTERM are latched,
-        # not raised, while the batch's evidence is written; a signal landing before the latch is
-        # in place is caught and the latch installed again.
-        while True:
-            try:
-                originals = {sig: signal.signal(sig, lambda signum, frame: latched.append(signum))
-                             for sig in (signal.SIGINT, signal.SIGTERM)}
-                break
-            except KeyboardInterrupt:
-                latched.append(signal.SIGINT)
-        try:
-            records = _finish_batch(ctx, out, plan, pool, arm_dirs, manifests, failure)
-        finally:
-            signal.signal(signal.SIGINT, originals[signal.SIGINT])
-            signal.signal(signal.SIGTERM, previous)
+        for sig, handler in handlers.items():
+            signal.signal(sig, handler)
     if failure is not None:
         if isinstance(failure, KeyboardInterrupt):
             print("interrupted: rerun the same command to resume", file=sys.stderr)
             return 130
         raise failure
     if latched:
-        print("interrupted while the batch's evidence was written; it was written in full; rerun the same command "
+        print("interrupted after the last run finished; the evidence was written in full; rerun the same command "
               "to resume", file=sys.stderr)
         return 130
     print(out / "report.md")
@@ -1424,10 +1450,11 @@ def main(argv=None):
                 raise TaskError("no plan.json under --out")
             lock = lock_output(out)
             try:
+                arm_dirs = {a: out / "arms" / a for a, info in plan["arms"].items() if info.get("commit")}
                 if args.regrade:
-                    arm_dirs = {a: out / "arms" / a for a, info in plan["arms"].items() if info.get("commit")}
                     ctx = make_context(out, plan, arm_dirs, checkout_roots(args.repo.resolve()))
                     print(f"regraded {regrade(ctx, out, load_tasks(args.tasks_dir))} records", file=sys.stderr)
+                record_integrity(out, arm_dirs, {arm: frozen_manifest(out, plan, arm) for arm in arm_dirs})
                 write_report(out, plan, load_records(out, plan))
             finally:
                 lock.close()
