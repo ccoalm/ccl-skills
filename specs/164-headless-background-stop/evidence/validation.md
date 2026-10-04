@@ -80,8 +80,7 @@ exact replacement each mutation applied, its named cases, the cases that failed 
 
 ## Lanes
 
-On the final candidate (tree `e1b44db`, the branch head before this record), with
-`CCL_SKILL_BASE_REF=origin/main` and `origin/main` at `1b87bad`:
+On the round's final code, based on `main` at `1b87bad`, with `CCL_SKILL_BASE_REF=origin/main`:
 
 | Lane | Result |
 | --- | --- |
@@ -92,12 +91,14 @@ On the final candidate (tree `e1b44db`, the branch head before this record), wit
 | `check_review_evidence_present.py` against the merge base | `review_evidence_present_ok` |
 | `check-markdown-links.py`, `check-spec-references.py`, `git diff --check` | all ok |
 | `npm run test:pack` in `packages/ccl-skills-npm` | pass |
-| `npm ci`, `npm test` in `packages/ccl-skills-npm` | pass, 433 of 433, on the code-identical head before the review records |
+| `npm ci`, `npm test` in `packages/ccl-skills-npm` | pass, 433 of 433 |
 
-The first `make test` run on this tree failed one code-review suite, `test_opencode_review_retry.sh`. Its
-three timeout cases failed while other checks ran at the same time. This branch does not change that
-suite or the code it tests. The suite then passed alone (102 cases), and the full `make test` rerun
-passed.
+The first `make test` run failed one code-review suite, `test_opencode_review_retry.sh`. Its three
+timeout cases failed while other checks ran at the same time. This round does not change that suite or
+the code it tests. The suite then passed alone (102 cases), and the full `make test` rerun passed.
+
+The round was then rebased onto round 163 (`f873c32`), which also appends a row to the source
+register; both rows were kept. On the rebased head, `154d65e`, all eight CI checks passed.
 
 Before the OpenCode binding, two OpenCode inventory tests failed in CI, because every command hook
 needs a binding in the adapter.
