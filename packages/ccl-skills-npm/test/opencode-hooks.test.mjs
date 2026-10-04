@@ -120,6 +120,30 @@ test("OpenCode binding inventory covers every command hook", async () => {
 	assert.deepEqual(inventory.properties.map((property) => property.name.text).sort(), commandHooks());
 });
 
+test("OpenCode runs the headless background guard without an inherited Claude Code entrypoint", async () => {
+	const root = mkdtempSync(join(tmpdir(), "ccl-opencode-headless-"));
+	const home = join(root, "home"), project = join(root, "project");
+	mkdirSync(home);
+	mkdirSync(project);
+	const runtime = copyRuntime(home);
+	const seen = join(root, "entrypoint-seen");
+	// A spy in place of the guard records what the adapter hands it.
+	writeFileSync(join(runtime, "hooks/headless-background-stop.sh"),
+		`#!/bin/sh\ncat >/dev/null\nprintf '%s' "\${CLAUDE_CODE_ENTRYPOINT-unset}" > '${seen}'\n`, { mode: 0o755 });
+	const previous = process.env.CLAUDE_CODE_ENTRYPOINT;
+	process.env.CLAUDE_CODE_ENTRYPOINT = "sdk-cli";
+	let hooks;
+	try {
+		({ hooks } = await loadPlugin(home, project));
+		await hooks.event({ event: { type: "session.status", properties: { sessionID: "inherited", status: { type: "idle" } } } });
+		assert.equal(readFileSync(seen, "utf8"), "unset");
+	} finally {
+		if (hooks) await hooks.dispose();
+		if (previous === undefined) delete process.env.CLAUDE_CODE_ENTRYPOINT;
+		else process.env.CLAUDE_CODE_ENTRYPOINT = previous;
+	}
+});
+
 test("OpenCode blocks apply_patch targets in a protected primary checkout", async () => {
 	const root = mkdtempSync(join(tmpdir(), "ccl-opencode-apply-patch-"));
 	const home = join(root, "home"), project = join(root, "project");

@@ -68,7 +68,7 @@ const OPENCODE_HOOK_BINDINGS = Object.freeze({
   "owner-dispatch-stop.sh": "event:session.idle/session.status",
   "skill-extraction-gate-stop.sh": "event:session.idle/session.status",
   "proposed-next-stop.sh": "event:session.idle/session.status",
-  // Inert here: it acts only for a Claude Code sdk entrypoint, which OpenCode never sets.
+  // Inert here: it acts only for a Claude Code sdk entrypoint, which runHook never passes on.
   "headless-background-stop.sh": "event:session.idle/session.status",
 })
 
@@ -107,10 +107,13 @@ function runHook(root: string | null, script: keyof typeof OPENCODE_HOOK_BINDING
     if (!existsSync(path) || !lstatSync(path).isFile() || lstatSync(path).isSymbolicLink()) {
       return { status: "missing", message: `${script} is missing from the OpenCode hook runtime` }
     }
+    // A Claude Code entrypoint inherited from a parent process does not describe this OpenCode
+    // session, so no hook here may act on it.
+    const { CLAUDE_CODE_ENTRYPOINT: _inheritedEntrypoint, ...inherited } = process.env
     const result = spawnSync("bash", [path], {
       cwd,
       encoding: "utf8",
-      env: { ...process.env, CLAUDE_PLUGIN_ROOT: root },
+      env: { ...inherited, CLAUDE_PLUGIN_ROOT: root },
       input: JSON.stringify(payload),
       maxBuffer: 256 * 1024,
       timeout,
