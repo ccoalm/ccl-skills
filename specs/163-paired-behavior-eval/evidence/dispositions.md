@@ -212,3 +212,9 @@ The persistence-evidence class came back a fourth time, here as compatibility
 with records from earlier versions of this tool's own rules. None of those
 records exist outside tests and one scratch smoke run, so regrading them serves
 no real need; refusing them closes the class instead of growing a migration.
+
+## Eleventh delta review (`pass13-delta.json`)
+
+Run on the diff from `7165623`. Passed with no findings. It noted that a
+numeric version mismatch has no test of its own; the predicate compares for
+equality, and both earlier formats, which carry no version, are covered.
