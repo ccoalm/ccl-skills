@@ -104,6 +104,8 @@ On hosts providing a current final message, `proposed-next-stop.sh` returns one 
 
 The hook recognizes declarations, not authorization or actual task completion, and cannot force the model to follow through. OpenCode idle does not expose the required final-message evidence; its Stop behavior remains unverified.
 
+A session nothing re-invokes gets no second chance at the in-flight-work rule below: Claude Code reports an `sdk` entrypoint for `claude -p` and the SDKs, the session ends at the stop, and the host stops its background tasks seconds later, so work waiting on them is lost. `headless-background-stop.sh` blocks such a stop once per background task still running and names them: wait in the foreground for any the request depends on, and stop the rest with TaskStop or say why they can be dropped. It reads only the hook input, so it also fires when session persistence is off and the transcript-reading reminders above cannot run. Interactive sessions, which the host re-invokes when a task finishes, are left alone.
+
 ## Gate triggers and outcome contract
 
 An eligible next slice comes from an explicit status/task/acceptance source or active user continuation, is low-risk, local-only/already-authenticated, in accepted scope, clearly owned and verifiable with existing commands. It needs no destructive action, external purchase/financial commitment, production access, legal/compliance/product-strategy decision or high-impact architecture choice. Existing configured internal developer-self-use metered model/tool accounts are not an external purchase. Apply the following conditions to each action.

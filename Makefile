@@ -46,6 +46,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	bash hooks/test_guard_delegation_owner.sh
 	bash hooks/test_guard_edit_isolation.sh
 	bash hooks/test_guard_merge_authorization.sh
+	bash hooks/test_headless_background_stop.sh
 	bash hooks/test_merge_authorization_prompt.sh
 	bash hooks/test_remind_post_merge_cleanup.sh
 	bash hooks/test_remind_review_covers_head.sh
