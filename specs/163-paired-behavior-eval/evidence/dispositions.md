@@ -156,3 +156,13 @@ skill-loading checkpoint reporting unavailable. The cause was the tool's own
 | # | Severity | Finding | Disposition |
 | --- | --- | --- | --- |
 | 1 | P1 | the runs disabled session persistence, so the plugin's transcript-reading hooks did not run and the plugin arms measured a degraded plugin | fixed: persistence stays on; after each run, calibration included, the files named by that run's own session ids move from `~/.claude/projects` into the sample directory, a project directory is removed only when empty, and a run without a transcript is invalid. Proven by a paired probe (only the flag differs) and a live smoke (both runs valid, nothing left under `~/.claude/projects`, no "unavailable" message). The first batch carries a caveat in `validation.md`, the PR text and the register row instead of a rerun |
+
+## Seventh delta review (`pass9-delta.json`)
+
+Run on the diff from `6e6b5b4` (the tree the sixth delta pass reviewed), with
+the transcript functions appended after the candidate.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | a rerun deleted every `transcript-*` entry in the sample directory, including files the runner never created | fixed by deletion: the rerun cleanup is gone. An interrupted attempt's transcripts stay as its evidence, and a record lists only the files its own run collected. Regression: an operator's `transcript-notes.txt` and `transcript-analysis/` survive a rerun, and each record's list matches the session ids in its own stream |
+| 2 | P1 | a session directory without its `.jsonl` transcript counted as persisted | fixed: validity needs a collected `.jsonl` transcript, so a directory alone stays `transcript_missing`, on regrade too. Regression with a fake session that writes only the directory |
