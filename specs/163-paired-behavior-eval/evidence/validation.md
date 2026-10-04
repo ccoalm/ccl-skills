@@ -101,7 +101,8 @@ runs, and both readings are kept:
   snapshot.
 
 `batch-records.json` holds every sample's checks and validity under the
-as-run tool and under the final one, without paths or model text; exactly
+as-run tool and under the last regrade, whose grading and validity rules are
+the final tool's, without paths or model text; exactly
 the three samples named above differ.
 
 The plugin exports differed after the batch only by `__pycache__` under the
@@ -215,4 +216,19 @@ records nothing. `dispositions.md` maps every finding.
 
 ## Lanes
 
-LANES_PENDING
+On the final candidate `b1fde39`, with `CCL_SKILL_BASE_REF=origin/main` and
+`origin/main` at `1b87bad`:
+
+| Lane | Result |
+| --- | --- |
+| `make test` (repository gates, fast regressions, code-review families) | pass, 24 min; the paired suite ran 58 tests |
+| `test_check_ccl_regressions.sh --heavy-only` | pass, 9 suites |
+| `check-ccl-skills.sh` | `ccl_skill_check_clean_ok`, `r0_status=private-ok` |
+| `check-public-sanitization.py .` | `public_sanitization_ok` |
+| `check_review_evidence_present.py` against the merge base | `review_evidence_present_ok` |
+| `shared_git_surface_gate.py` against `origin/main` | `shared_git_surface_gate_ok` |
+| `test_skill_paired_eval.py` under Python 3.12 | 58 tests pass |
+
+The branch history was rebuilt before these lanes so the register changes in
+one commit after every owner change; the rebuilt tree is identical to the
+reviewed one.
