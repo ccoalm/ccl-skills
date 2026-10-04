@@ -153,6 +153,12 @@ text_has   'ignored-artifact scan before removal' 'status --ignored -s'
 text_has   'scan exit-0 requirement' '必须 exit 0'
 text_has   'release-name branch exception' '分支名含 release'
 text_lacks 'single-exception claim' '唯一例外'
+# The scan guards the removal, so it must come first — an order the substring
+# checks above cannot see.
+scan_at=$(printf '%s\n' "$reminder_text" | grep -n -F 'status --ignored -s' | head -1 | cut -d: -f1)
+remove_at=$(printf '%s\n' "$reminder_text" | grep -n -F 'git worktree remove' | head -1 | cut -d: -f1)
+if [ -n "$scan_at" ] && [ -n "$remove_at" ] && [ "$scan_at" -lt "$remove_at" ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL  [reminder text lacks scan ordered before removal] scan=${scan_at:-none} remove=${remove_at:-none}" >&2; fi
 # The pointer must resolve: the canonical file exists in this tree and still
 # carries the teardown section heading the pointer names.
 if grep -Fq '## 收尾：' "$SCRIPT_DIR/../skills/$TEARDOWN_REF" 2>/dev/null; then pass=$((pass+1))

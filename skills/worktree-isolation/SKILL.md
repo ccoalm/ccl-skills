@@ -67,8 +67,8 @@ Claude Code 端有 PreToolUse 硬闸：直接改共享/并行主检出会被 den
 
 | 触发点 | 先读 | 承重义务（配方、命令与判据细节只在 reference） |
 | --- | --- | --- |
-| push / 建或更新 MR / 合并之前 | `references/pre-merge-landing-checks.md` | 落地对象必须已含全部预期改动：worktree 里未提交、本地 tip 未推送都算漏，以这次实际要合的 ref 的 head SHA 对预期 tip，不只信 `@{u}`；分支落后目标先更新再合，已推送/挂 MR 的分支默认并入目标或平台 update，不无脑 rebase；合并后看碰撞集的全内容 diff，`--stat` 不够 |
-| 执行或报告任何合并、平台合并前 | `references/merge-and-teardown.md`「合并执行协议」 | 按用户目标判断授权，MR 本身不是授权；一次性立即合并，不开 auto-merge / 排队 / `--admin`，不直推默认分支；显式点名 MR/PR 并带 head SHA 守卫，flag 以本机 `--help` 为准；方向「源→目标」必须可读 |
+| push / 建或更新 MR / 合并之前 | `references/pre-merge-landing-checks.md`；设 remove-source-branch 前读 `references/merge-and-teardown.md`「远端分支」 | 落地对象必须已含全部预期改动：worktree 里未提交、本地 tip 未推送都算漏，以这次实际要合的 ref 的 head SHA 对预期 tip，不只信 `@{u}`；分支落后目标先更新再合，已推送/挂 MR 的分支默认并入目标或平台 update，不无脑 rebase；合并后看碰撞集的全内容 diff，`--stat` 不够；建 MR 时只给临时 feature 分支设 remove-source-branch，源分支是永久/集成分支（如 dev→main 的 promotion）或名字含 `release` 时绝不设 |
+| 执行或报告任何合并、平台合并前 | `references/merge-and-teardown.md`「合并执行协议」 | 按用户目标判断授权，MR 本身不是授权；不开 auto-merge / 排队 / `--admin`，不直推默认分支；方向「源→目标」必须可读；一次性立即合并、显式点名 MR/PR、建议带 head SHA 守卫、flag 以本机 `--help` 为准等执行建议见协议第 3 条 |
 | 已集成后清理 worktree / 分支 | `references/merge-and-teardown.md`「收尾」节 | 只在确认已集成后删（默认分支看平台 MR 在当前 head SHA 上的合并证据，squash 测不到祖先就保守保留）；删任何 worktree 目录前先跑 `git -C <path> status --ignored -s`，必须 exit 0，重算代价高的产物先救回；`git worktree remove` 不加 `--force`、`git branch -d` 不用 `-D`；永久/集成分支与名字含 `release` 的分支不自动删；承载未完成外部副作用的任务等它完成再清 |
 
 落后分支的分流规则管破坏性改写（rebase 已共享分支），且台账 firing-path 锚点钉在这里，所以留在入口；`$TARGET` 的钉住步骤、冲突解析与合并后内容验证在 `references/pre-merge-landing-checks.md`。
