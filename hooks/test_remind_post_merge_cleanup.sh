@@ -151,8 +151,19 @@ TEARDOWN_REF='worktree-isolation/references/merge-and-teardown.md'
 text_has   'canonical teardown pointer' "$TEARDOWN_REF"
 text_has   'ignored-artifact scan before removal' 'status --ignored -s'
 text_has   'scan exit-0 requirement' '必须 exit 0'
-text_has   'release-name branch exception' '分支名含 release'
 text_lacks 'single-exception claim' '唯一例外'
+# A guard is its meaning, not one keyword: every needle must sit on the same
+# line, so dropping the "keep" sense while a keyword survives still fails.
+line_has_all() { # <label> <needle>...
+  local label="$1"; shift
+  if printf '%s\n' "$reminder_text" | awk -v n="$#" 'BEGIN{for(i=1;i<=n;i++) want[i]=ARGV[i]; ARGC=1}
+       {hit=1; for(i=1;i<=n;i++) if (index($0, want[i])==0) hit=0; if (hit) found=1}
+       END{exit found?0:1}' "$@"; then pass=$((pass+1))
+  else fail=$((fail+1)); printf 'FAIL  [reminder text lacks %s on one line]\n' "$label" >&2; fi
+}
+line_has_all 'release-name branch kept' '不删的例外' '分支名含 release' '要删由用户显式指名'
+line_has_all 'permanent/integration branch kept' '不删的例外' '源分支本身是永久/集成分支'
+line_has_all 'external-side-effect wait' '未完成的外部副作用任务' '等它完成再清'
 # The scan guards the removal, so it must come first — an order the substring
 # checks above cannot see.
 scan_at=$(printf '%s\n' "$reminder_text" | grep -n -F 'status --ignored -s' | head -1 | cut -d: -f1)

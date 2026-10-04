@@ -87,6 +87,15 @@ assert_rc "$rc" 1 "renamed teardown heading must block"
 assert_contains "sync_pointer_block: worktree-teardown-section" "$out" "block names the pair"
 git -C "$REPO" checkout -- skills/worktree-isolation/references/merge-and-teardown.md
 
+# s2b RED: the entrypoint's forwarding sentence removed => the always-on
+# pointer still names the skill, but nothing in SKILL.md leads to the
+# reference that carries the teardown section and the merge protocol.
+replace_in_file "$REPO/skills/worktree-isolation/SKILL.md" "都在 \`references/merge-and-teardown.md\`" "见各 reference"
+run_sync
+assert_rc "$rc" 1 "a removed forwarding sentence must block"
+assert_contains "sync_pointer_block: worktree-reference-forwarding" "$out" "block names the forwarding pair"
+git -C "$REPO" checkout -- skills/worktree-isolation/SKILL.md
+
 # s3 RED: bootstrap side reworded => pointer literal lost on the source side.
 replace_in_file "$REPO/agent-context/session-start.md" "「合并执行协议」" "「合并协议」"
 run_sync

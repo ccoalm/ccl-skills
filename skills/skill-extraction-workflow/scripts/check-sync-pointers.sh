@@ -58,6 +58,9 @@ root="${1:-.}"
 bootstrap="$root/agent-context/session-start.md"
 # The merge protocol and the teardown section load at their firing point, so
 # they live in the package reference the entrypoint points to, not in SKILL.md.
+# The entrypoint's forwarding sentence is the hop an agent takes from the
+# always-on pointer to that reference, so it is pinned too.
+wt_entry="$root/skills/worktree-isolation/SKILL.md"
 wt_teardown="$root/skills/worktree-isolation/references/merge-and-teardown.md"
 prd="$root/skills/product-rd-workflow/SKILL.md"
 se="$root/skills/skill-extraction-workflow/SKILL.md"
@@ -176,6 +179,8 @@ if [ "$bootstrap_present" -eq 1 ]; then
     "「依据: worktree-isolation 合并执行协议」" "$wt_teardown" "**合并执行协议（canonical——" "$root/skills/worktree-isolation"
   run_pair "worktree-teardown-section" \
     "在 \`worktree-isolation\` 收尾节" "$wt_teardown" "## 收尾：" "$root/skills/worktree-isolation"
+  run_pair "worktree-reference-forwarding" \
+    "在 \`worktree-isolation\` 收尾节" "$wt_entry" "都在 \`references/merge-and-teardown.md\`" "$root/skills/worktree-isolation"
   run_pair "owner-dispatch-firing-gate" \
     "product-rd \`Implementation entry / re-entry gate\` + \`Owner-dispatch firing gate\`" "$prd" "- **Owner-dispatch firing gate (" "$root/skills/product-rd-workflow"
   run_pair "implementation-entry-reentry-gate" \
