@@ -26,6 +26,7 @@ removing or cleaning up a worktree, and for `rm -rf` near worktree paths.
 | `agent-context/session-start.md`, `agent-context/session-policy.md` | always-on | yes | yes | unchanged |
 | `docs/skills-theory-foundations.md` | summary | yes | not a recipe | unchanged |
 | `docs/SKILLS.md`, `docs/ARCHITECTURE.md` | description | n/a | n/a | not a recipe |
+| `.opencode/commands/*.md` | host commands | no removal step | n/a | unchanged; now inside the sweep roots |
 | test scripts removing their own probe worktrees | fixture teardown | n/a | n/a | not guidance |
 | `worktree-isolation/scripts/worktree-sweep.sh` | implementation | built-in check keeps ignored content | n/a | unchanged |
 
@@ -56,9 +57,9 @@ was reached.
 
 `test_teardown_guard_pins.sh` on the candidate: 24 applied mutations, each red
 on its own row's label; relocating a section row's phrase under a decoy
-heading and a line row's phrase onto its own line each red that row; seven
+heading and a line row's phrase onto its own line each red that row; eight
 decoy surfaces (in `skills/`, `docs/`, the root, `agent-context/`, `hooks/`,
-`scripts/` and `packages/`) red the sweep for the stated reason; a compliant
+`scripts/`, `packages/` and `.opencode/`) red the sweep for the stated reason; a compliant
 decoy, a prune-only mention and a file under `node_modules/` stay green; the
 unmutated copy is green before and after, and the live tree stays green while
 a mutated copy reds.

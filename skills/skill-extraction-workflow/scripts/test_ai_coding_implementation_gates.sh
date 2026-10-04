@@ -933,7 +933,9 @@ done <<< "$TEARDOWN_PINS"
 # Sweep: a Markdown surface that names `worktree remove` must also carry the
 # ignored-output scan and point at the canonical teardown (the canonical file is
 # itself the target). It keys on the command because prose wording is not ours
-# to enumerate; prose-only removal steps are pinned per surface above.
+# to enumerate; prose-only removal steps are pinned per surface above. specs/
+# and eval/ hold round records and evaluation inputs, not guidance, so they are
+# not scanned.
 WT_TEARDOWN="$REPO_ROOT/skills/worktree-isolation/references/merge-and-teardown.md"
 teardown_visited=0
 teardown_offenders=""
@@ -947,7 +949,7 @@ while IFS= read -r -d '' md; do
   fi
 done < <(
   find "$REPO_ROOT" -maxdepth 1 -name '*.md' -type f -print0
-  for dir in skills agent-context docs hooks scripts packages; do
+  for dir in skills agent-context docs hooks scripts packages .opencode; do
     [[ ! -d "$REPO_ROOT/$dir" ]] ||
       find "$REPO_ROOT/$dir" \( -name node_modules -o -name __pycache__ \) -prune -o -name '*.md' -type f -print0
   done

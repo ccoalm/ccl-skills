@@ -164,7 +164,7 @@ decoy "skills/zz-teardown-decoy/references/recipe.md" "$recipe_no_scan" red "no 
 decoy "docs/zz-teardown-decoy.md" "$recipe_no_pointer" red "no pointer to the canonical teardown"
 decoy "zz-teardown-decoy.md" "$recipe_no_scan" red "no ignored-output scan"
 decoy "agent-context/zz-teardown-decoy.md" "$recipe_no_pointer" red "no pointer to the canonical teardown"
-for root in hooks scripts packages; do
+for root in hooks scripts packages .opencode; do
   decoy "$root/zz-teardown-decoy/README.md" "$recipe_no_scan" red "no ignored-output scan"
   rm -rf "$tmp_root/$root/zz-teardown-decoy"
 done
@@ -184,4 +184,4 @@ if run_copy >/dev/null; then fail "tree-isolation probe: mutated copy stayed gre
 bash "$repo_root/$fixture_rel" >/dev/null 2>&1 || fail "tree-isolation probe: live tree fixture not green"
 cp "$pristine" "$tmp_root/$rel"
 
-echo "test_teardown_guard_pins: ok ($applied applied mutations, each red on its own row; 2 relocations red; 7 sweep decoys red, 3 precision decoys green; controls green)"
+echo "test_teardown_guard_pins: ok ($applied applied mutations, each red on its own row; 2 relocations red; 8 sweep decoys red, 3 precision decoys green; controls green)"
