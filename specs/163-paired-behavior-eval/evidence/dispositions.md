@@ -109,3 +109,25 @@ exit path: no handler raises once runs may start, and integrity is recomputed
 by every report instead of written by whichever exit is taken. Only an
 uncatchable kill skips the final report; the next rerun or `--report-only`
 then writes a current one.
+
+## Fifth delta review (`pass7-delta.json`)
+
+Run on the diff from `384b532`, with the batch lifecycle's current source
+appended after the candidate.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | the spawn check could not see a latched signal, so for up to one wait interval another worker could still start a run | fixed, and the claim narrowed to what the design guarantees: the spawn check reads the latch, so no run starts once a signal is latched. The latch is set when the main thread handles the signal, at most one 0.2 s wait after it arrives; a run that passed the check before then is killed with the others and records nothing. Work submitted after a signal needs no separate check, because every run passes the spawn check. Regression: the check refuses with a latched signal, with shutdown begun and with the guard stopped, and starts a run when nothing is tripped. The suggested synchronized test would exercise the window that is now a stated limit, so the guard is pinned directly instead |
+
+### Review continuation checkpoint (after five delta passes)
+
+What changed since the last checkpoint: the latch from the first launch,
+report-time integrity, the runner's own commands in their own session, and the
+spawn check reading the latch. Integrity on exit did not come back in this
+pass. Starting a run after a stop or an interrupt has now come back three times
+(review 10, the third delta pass's 4, this pass). The recurrence rule applies,
+so the claim is narrowed to what the design guarantees instead of adding a
+thread-independent signal channel: no run starts once a signal is latched, and
+the lag between arrival and latching is bounded and stated. If the class comes
+back again, that claim is removed too, leaving only that every run alive at
+shutdown is killed and records nothing. The next delta pass covers this change.
