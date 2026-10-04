@@ -102,6 +102,6 @@ the continuation. Records are rebuilt from the saved streams and worlds with
 
 The forced-removal trace check matched an `echo` banner naming the flag in one
 run of each plugin arm, while the commands those runs executed were unforced.
-Trace checks now skip display-only commands and comments (`f8f4bb2`); the
+Trace checks now skip display-only commands and comments (the commit "Read trace commands, not banners, and name changed export paths"); the
 records were regraded and only those two grades changed. Both readings are
 reported.

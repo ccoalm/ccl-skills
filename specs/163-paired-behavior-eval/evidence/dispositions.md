@@ -1,5 +1,10 @@
 # Round 163 review dispositions
 
+Commit ids below name what each pass reviewed. The branch was later rebuilt
+with identical trees so that the register changes in one commit after the
+code, so those ids stay in the review results but are no longer on the
+branch.
+
 Review (independent, codex, release depth) and challenge (adversarial, codex,
 release depth), both on candidate `7574e97`, the branch before the fixes and
 before the history was reordered to keep the register row last. The fixes
@@ -140,3 +145,14 @@ figure bounds the main thread's wait, not every delay between a signal and its
 handling; during the run phase the main thread is either in that wait or
 running Python code, so the stated latch interval holds wherever a run could
 still start.
+
+## Found after the sixth delta pass
+
+Reading the first batch's plugin-arm transcripts for a follow-up showed every
+Stop hook reporting "Delivery handoff reminder unavailable" and the
+skill-loading checkpoint reporting unavailable. The cause was the tool's own
+`--no-session-persistence` flag: without a transcript those hooks fail open.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | the runs disabled session persistence, so the plugin's transcript-reading hooks did not run and the plugin arms measured a degraded plugin | fixed: persistence stays on; after each run, calibration included, the files named by that run's own session ids move from `~/.claude/projects` into the sample directory, a project directory is removed only when empty, and a run without a transcript is invalid. Proven by a paired probe (only the flag differs) and a live smoke (both runs valid, nothing left under `~/.claude/projects`, no "unavailable" message). The first batch carries a caveat in `validation.md`, the PR text and the register row instead of a rerun |

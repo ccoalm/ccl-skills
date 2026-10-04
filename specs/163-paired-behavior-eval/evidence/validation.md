@@ -45,7 +45,7 @@ environment to their child runs. The tool strips every inherited `CLAUDE*` and
 trajectory and fails on each bad trajectory that names it, and every check is
 named by at least one.
 
-On a disposable copy of the tool, its tests and the task bank, 94 mutations were
+On a disposable copy of the tool, its tests and the task bank, 102 mutations were
 applied one at a time to the final tool; each turned its named test red while an
 unrelated test stayed green, and the copy was green before and after.
 
@@ -59,6 +59,7 @@ unrelated test stayed green, and the copy was green before and after.
 | isolation | canary check removed, canary read only from replies, plugin identity by name only, routing check, foreign plugin, over-firing foreign check, MCP, model, missing result, allowed roots ignored, tilde lookahead removed |
 | statistics | lower tail only, stricter threshold |
 | process | only the leader killed, no reaping after a normal exit, a run starting after shutdown began, the utilization stop not checked at spawn, the spawn check ignoring the latch, no latch during the batch, SIGHUP not latched, an ignored signal overridden, a latched signal never acted on, the calibration waited for outside the latch, the caller's handlers not restored, a latched signal reported as success, the runner's git and setup scripts sharing its process group |
+| transcripts | session persistence turned off, transcripts not collected, a missing transcript accepted, a project directory with other sessions removed, session ids not checked, the calibration's or an interrupted run's transcript left in the home directory, stale transcripts kept on a rerun |
 | batch | parent `CLAUDE*` variables inherited, source-repository reads inherit `GIT_*`, version probe inherits the environment, bytecode writes allowed, prompt not on stdin, off arm gets a plugin, runs share the frozen export, export changes not checked, integrity list truncated, calibration always fired, calibration failure ignored, no output lock, the lock file counted as content, a non-empty root without a plan accepted, an invalid plan crashing, records not checked against the plan, output inside a checkout accepted, sibling worktrees not listed, worktree list read without `-z`, recorded samples rerun, changed plan accepted, max-runs not enforced, stop reported when nothing remains, sample utilization never stops the batch, integrity skipped on a failed batch, an inspection failure raised, a report failure replacing the batch failure, unknown integrity shown as a pass, a report keeping an older integrity record, a frozen manifest not checked against the plan, a missing manifest crashing the record |
 | regrade | old records kept, changed tasks accepted, the world's copies read, a record without recorded inputs accepted, legacy-derived records regraded |
 
@@ -72,12 +73,26 @@ worktree-isolation skill.
 
 ## First batch
 
-Run on 2026-10-04 with the tool as committed in `e3f1fc0`: claude 2.1.288,
+Run on 2026-10-04 with the round's first tool version (`tool_sha256` `5fa6a51f6def…` in the batch
+plan): claude 2.1.288,
 Opus 5.5, effort max; `base` = `1e07f1c` (0.18.11), `candidate` = `1b87bad`
 (main); 54 samples plus the calibration, three runs at a time, about 55
 minutes, $45.04 of Claude spend. The plugin arms also ran external review CLIs,
 whose spend is not in that figure. Calibration fired, and the canary stayed
 absent from every sample.
+
+Session persistence was off in this batch. The runs passed
+`--no-session-persistence`, so no session transcript existed, and the
+plugin's hooks that read it reported themselves unavailable and let
+everything through: the Stop delivery reminder 9 times and the
+skill-loading checkpoint 22 times across the plugin arms. The plugin arms
+therefore measured the plugin without those hooks. A paired probe that
+differs only in that flag shows the reminder reporting unavailable without
+persistence and running with it, the transcript then sitting under
+`~/.claude/projects`. The tool now keeps persistence on, moves each run's
+transcript into its sample directory and marks a run without one invalid.
+This batch was not rerun; its readings hold for the plugin without its
+transcript-reading hooks.
 
 The records were rebuilt twice from the saved streams and worlds, with no model
 runs, and both readings are kept:
@@ -85,7 +100,7 @@ runs, and both readings are kept:
 - Validity amendment (`plan.md`): one plugin-arm sample held two results after
   a Stop hook sent the agent back for a turn. Counting it changes one cell
   (feature worktree, candidate, change committed: 1/2 to 2/3) and no label.
-- Trace grader fix (`f8f4bb2`): one run in each plugin arm failed the
+- Trace grader fix (the commit "Read trace commands, not banners, and name changed export paths"): one run in each plugin arm failed the
   forced-removal check on an `echo` banner that named the flag
   (`echo "== git worktree remove (no --force) =="`); the commands the runs
   executed were unforced. Both arms go from 4/5 to 5/5; no label changes.
