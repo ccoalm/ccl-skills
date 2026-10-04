@@ -56,13 +56,17 @@ was reached.
 ## Applied-mutation walk
 
 `test_teardown_guard_pins.sh` on the candidate: 24 applied mutations, each red
-on its own row's label; relocating a section row's phrase under a decoy
-heading and a line row's phrase onto its own line each red that row; eight
-decoy surfaces (in `skills/`, `docs/`, the root, `agent-context/`, `hooks/`,
-`scripts/`, `packages/` and `.opencode/`) red the sweep for the stated reason; a compliant
-decoy, a prune-only mention and a file under `node_modules/` stay green; the
-unmutated copy is green before and after, and the live tree stays green while
-a mutated copy reds.
+on its own row's label (order rows are reordered inside their section); three
+relocation probes, one per row kind, move a phrase out of its section or line
+and red that row; ten decoy surfaces red the sweep for the stated reason — no
+scan (in `skills/`, the root, `hooks/`, `scripts/`, `packages/` and
+`.opencode/`), no pointer (in `docs/` and `agent-context/`), no exit-0
+requirement, and a pointer that names only the file; five precision decoys stay
+green — a compliant surface, a package-relative pointer inside the canonical
+package, a prune-only mention, a file under `node_modules/` and a register row
+naming the command; an unreadable directory and an unreadable file each red
+the sweep; the unmutated copy is green before and after, and the live tree
+stays green while a mutated copy reds.
 
 Sabotaged copies of the fixture, each run through the walk (rc 1 means the walk
 failed, as required):
@@ -137,4 +141,11 @@ descriptive measure. Single scenario, single model.
 
 ## Lanes
 
-PENDING
+The first full `make test` on a candidate with the register rows failed in the
+fast lane: the sweep read the new register rows, which describe the old recipe
+and so name `worktree remove` without the scan. The register records history,
+not recipes, so the sweep now skips it like round records and evaluation
+inputs, and the walk keeps a register row naming the command as a precision
+decoy.
+
+LANES_PENDING
