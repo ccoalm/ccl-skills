@@ -130,9 +130,9 @@ if command -v git >/dev/null 2>&1 && git -C "$cwd" rev-parse --git-dir >/dev/nul
   wt=$(git -C "$cwd" worktree list 2>/dev/null)
 fi
 
-# The text points at the canonical teardown section and carries, verbatim in
-# substance, the guards that must not be lost at this moment; a digest that
-# drops any of them would out-vote the canonical rule the agent loaded earlier.
+# The text points at the canonical teardown section and carries the guards that
+# must not be lost at this moment; a digest that drops any of them would
+# out-vote the canonical rule the agent loaded earlier.
 reminder="🧹 worktree-isolation 收尾提醒（自动）：检测到 MR/PR 合并命令。动手前先读 worktree-isolation/references/merge-and-teardown.md 的「收尾」节，按其「已集成判据」确认这次合并**已真正完成**（平台 MR/PR 已在当前 head SHA 上 merged；仅授权、仅排队 auto-merge、或合并失败都不算已集成）；确认后，若源分支是临时 feature 分支就立即清理三侧，别攒：
   git -C <path> status --ignored -s  # 删 worktree 前必须先跑且必须 exit 0；非空先按重算代价判定，贵的产物先救回主检出
   git worktree remove <path>        # 不加 --force（脏树/未合并被拒=安全网）
