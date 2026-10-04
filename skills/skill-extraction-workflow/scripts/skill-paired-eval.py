@@ -69,7 +69,9 @@ fire (no sample is then run); 1 internal failure. --check-oracles exits 1 when a
 expectations do not hold.
 
 Interrupts: once a batch starts its first run, SIGINT, SIGTERM and SIGHUP (unless the caller
-ignores them) stop new runs, kill the live ones and still write the report before exit 130.
+ignores them) are latched within one 0.2 s wait. From then on no run starts; the live ones,
+including one that started inside that window, are killed and record nothing, and the report is
+still written before exit 130.
 Every report, including --report-only and --regrade, recomputes the integrity record by
 comparing each export with the manifest the plan froze. A batch killed outright (SIGKILL)
 writes nothing more; the next rerun or --report-only brings the record up to date.
@@ -682,13 +684,15 @@ def kill_group(proc):
 
 def run_agent(cmd, prompt, cwd, env, timeout, stream_path, stderr_path, ctx=None):
     """Run one agent process in its own process group. With a batch context, the spawn happens
-    under the context's lock and is refused once shutdown has begun, so an interrupt can never
-    be followed by a new run; returns None in that case."""
+    under the context's lock and is refused once a signal is latched, shutdown has begun or the
+    guard has stopped the batch; returns None in that case. The latch is set when the runner's
+    main thread handles the signal, at most one wait interval after it arrives; a run that passed
+    this check before then is killed with the others and records nothing."""
     started = time.monotonic()
     timed_out = False
     with open(stream_path, "wb") as out, open(stderr_path, "wb") as err:
         with ctx["spawn_lock"] if ctx else threading.Lock():
-            if ctx and (ctx["interrupted"].is_set() or ctx["stop"].is_set()):
+            if ctx and (ctx["latched"] or ctx["interrupted"].is_set() or ctx["stop"].is_set()):
                 return None
             proc = subprocess.Popen(cmd, cwd=str(cwd), env=env, stdin=subprocess.PIPE, stdout=out, stderr=err,
                                     start_new_session=True)
@@ -1243,7 +1247,7 @@ def make_context(out, plan, arm_dirs, roots, claude=None, manifests=None):
             "arm_dirs_real": [os.path.realpath(d) for d in arm_dirs.values()], "home": home,
             "watched": [home, *roots, os.path.realpath(out)], "manifests": manifests or {},
             "tool_sha256": tool_sha256(), "live": set(), "interrupted": threading.Event(),
-            "stop": threading.Event(), "spawn_lock": threading.Lock()}
+            "stop": threading.Event(), "spawn_lock": threading.Lock(), "latched": []}
 
 
 def run_batch(args, out, arms, only):
@@ -1343,7 +1347,8 @@ def _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version
     # Before the first launch, SIGINT, SIGTERM and SIGHUP stop raising and only latch; a signal the
     # caller ignores stays ignored. Nothing is then raised in this thread asynchronously: a latched
     # signal takes effect in wait_latched, and the evidence below is written in full before exit.
-    latched = []
+    # The spawn check reads the same latch, so no run starts once a signal is latched.
+    latched = ctx["latched"]
     handlers = {sig: signal.signal(sig, lambda signum, frame: latched.append(signum))
                 for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP) if signal.getsignal(sig) != signal.SIG_IGN}
     pool = cf.ThreadPoolExecutor(max_workers=args.jobs)

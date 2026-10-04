@@ -476,17 +476,20 @@ class ProcessTests(unittest.TestCase):
         self.assertTrue(run["cleanup_confirmed"])
         self.assertTrue(self.child_gone(pid_file))
 
-    def test_no_run_starts_once_shutdown_or_the_guard_has_begun(self):
-        for flag in ("interrupted", "stop"):
-            with self.subTest(flag=flag):
+    def test_no_run_starts_once_a_signal_is_latched_or_the_batch_stops(self):
+        cases = {"nothing tripped": (lambda ctx: None, True),
+                 "signal latched": (lambda ctx: ctx["latched"].append(signal.SIGTERM), False),
+                 "shutdown begun": (lambda ctx: ctx["interrupted"].set(), False),
+                 "guard stopped": (lambda ctx: ctx["stop"].set(), False)}
+        for name, (trip, starts) in cases.items():
+            with self.subTest(case=name):
                 ctx = {"spawn_lock": threading.Lock(), "interrupted": threading.Event(), "stop": threading.Event(),
-                       "live": set()}
-                ctx[flag].set()
-                marker = self.tmp / f"started-{flag}"
+                       "latched": [], "live": set()}
+                trip(ctx)
+                marker = self.tmp / f"started-{name.replace(' ', '-')}"
                 run = paired.run_agent([sys.executable, "-c", f"open({str(marker)!r}, 'w').write('x')"], "", self.tmp,
                                        dict(os.environ), 5, self.tmp / "out.jsonl", self.tmp / "err.txt", ctx)
-                self.assertIsNone(run)
-                self.assertFalse(marker.exists())
+                self.assertEqual((run is not None, marker.exists()), (starts, starts))
 
     def test_background_jobs_left_by_a_finished_run_are_reaped(self):
         run, pid_file = self.run_leader(0, 30)
