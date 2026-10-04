@@ -185,3 +185,17 @@ artifact. It is now expressed over the file itself, which the runner observes
 when it moves it. If the class comes back again, the claim narrows to "a run
 whose transcript file was not found is invalid", with forged transcripts left
 to the trust model the header already states.
+
+## Ninth delta review (`pass11-delta.json`)
+
+Run on the diff from `6bdff09`.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | dropping the name check let a regular file named just `<session>` count as the transcript | fixed: the name check is back, as an exact `<session>.jsonl` match, and now pinned by a case with a bare `<session>` file, as recorded and after regrading. It had been dropped as redundant only because no test held it |
+| 2 | P1 | records written before the classification hold a `transcripts` list that regrade would reuse, so a directory-only record could be promoted to valid | fixed by refusal: regrade refuses a record without the `session_files` classification, as it refuses legacy inputs. Regression with a record in the earlier format |
+
+The persistence class came back a third time, so the claim narrows as the last
+checkpoint decided: the tool header now says exactly what is checked, a
+non-empty regular file named by the run's own session id, and leaves a run that
+forges such a file to the stated trust model.
