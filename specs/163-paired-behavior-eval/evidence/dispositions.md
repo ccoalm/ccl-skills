@@ -166,3 +166,22 @@ the transcript functions appended after the candidate.
 | --- | --- | --- | --- |
 | 1 | P1 | a rerun deleted every `transcript-*` entry in the sample directory, including files the runner never created | fixed by deletion: the rerun cleanup is gone. An interrupted attempt's transcripts stay as its evidence, and a record lists only the files its own run collected. Regression: an operator's `transcript-notes.txt` and `transcript-analysis/` survive a rerun, and each record's list matches the session ids in its own stream |
 | 2 | P1 | a session directory without its `.jsonl` transcript counted as persisted | fixed: validity needs a collected `.jsonl` transcript, so a directory alone stays `transcript_missing`, on regrade too. Regression with a fake session that writes only the directory |
+
+## Eighth delta review (`pass10-delta.json`)
+
+Run on the diff from `ccf7cf0`.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | a directory named `<session>.jsonl` still counted as a persisted transcript, because the check read the name | fixed: `collect_transcripts` classifies each entry when it finds it, and only a non-symlink, non-empty regular file counts as a transcript; directories, links and empty files are recorded as `session_files` and never count. Regrade reuses that recorded split. Regression covers a session directory, a directory named like the transcript and an empty transcript, as recorded and after regrading |
+
+### Review continuation checkpoint (after eight delta passes)
+
+What changed: persistence stays on, the rerun cleanup is deleted, and transcript
+validity reads the artifact's type and size at collection time instead of its
+name. "What counts as a persisted transcript" came back twice (the seventh
+delta pass's 2, this pass's 1), each time as a name standing in for the
+artifact. It is now expressed over the file itself, which the runner observes
+when it moves it. If the class comes back again, the claim narrows to "a run
+whose transcript file was not found is invalid", with forged transcripts left
+to the trust model the header already states.
