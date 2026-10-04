@@ -30,23 +30,30 @@ done, while it is loaded at Step 0 before the first edit.
 | Sync gate, new registry | exit 0, `sync_semantic_check_ok` |
 | Sync gate, protocol anchor removed from the reference (scratch copy) | exit 1; blocks the two merge-exec pins naming the reference path, nothing else |
 | Sync gate, teardown heading renamed in the reference (scratch copy) | exit 1; blocks `worktree-teardown-section` only |
-| Hook suite against the previous hook | exit 1; the seven new text-contract assertions fail (canonical pointer, ignored-artifact scan, exit-0 requirement, release-name exception, "only exception" claim, scan ordered before removal, pointer target) and every one of the 57 existing remind/quiet probes passes |
-| Hook suite against the new hook | 65 pass, 0 fail |
+| Hook suite against the previous hook | exit 1; the nine new text-contract assertions fail (canonical pointer, ignored-artifact scan, exit-0 requirement, "only exception" claim, release-name and permanent/integration branches kept, external-side-effect wait, scan ordered before removal, pointer target) and every one of the 57 existing remind/quiet probes passes |
+| Hook suite against the new hook | 67 pass, 0 fail |
+| Sync gate, forwarding sentence removed from `SKILL.md` (scratch copy) | before the forwarding pin: exit 0, `sync_semantic_check_ok` (the hop from the always-on pointer to the reference was unguarded); with the pin: exit 1, blocks `worktree-reference-forwarding` only |
 
 ## Killing mutations for the new hook assertions
 
 Applied one at a time to a scratch copy of the hook and the reference, then
 restored; the restored control passes.
 
-| Named property | Mutation | Result |
-| --- | --- | --- |
-| canonical teardown pointer | drop the reference path from the reminder | only that assertion fails |
-| ignored-artifact scan before removal | `status --ignored -s` → `status -s` | only that assertion fails |
-| scan exit-0 requirement | drop "必须 exit 0" | only that assertion fails |
-| release-name branch exception | drop the release exception | only that assertion fails |
-| single-exception claim | reintroduce "唯一例外" | only that assertion fails |
-| pointer target resolves | rename `## 收尾：` in the reference | only that assertion fails |
-| scan ordered before removal (added after review) | move the removal line above the scan line | only that assertion fails |
+Run against the final suite (67 checks). Where one edit breaks two properties
+that share a line or a header, both failures are listed.
+
+| Mutation | Failing assertions |
+| --- | --- |
+| drop the reference path from the reminder | canonical teardown pointer |
+| `status --ignored -s` → `status -s` | ignored-artifact scan; scan ordered before removal (the order check needs the scan line) |
+| drop "必须 exit 0" | scan exit-0 requirement |
+| drop the release-name exception | release-name branch kept |
+| rename the exception header from "keep" to "delete" | release-name branch kept; permanent/integration branch kept (both read the shared header) |
+| append an "only exception" remark | single-exception claim |
+| drop the permanent/integration exception | permanent/integration branch kept |
+| move the removal line above the scan line | scan ordered before removal |
+| drop the external-side-effect wait | external-side-effect wait |
+| rename `## 收尾：` in the reference | teardown pointer resolves |
 
 ## Recorded incident: a ledger anchor moved with the text
 
@@ -102,10 +109,25 @@ name-and-description routing inputs are unchanged. The static routing analyzer
 
 ## Ledger anchors on the edited references
 
-Every register firing-path anchor that targets `attention-budget-ratchet.md`
-(11, two of them new) or `external-practice-controls.md` (2) occurs exactly
-once in the edited file; `register_firing_path_resolution_ok (609 locators
-resolved)`.
+Every register firing-path anchor that targets either edited reference, with
+its occurrence count in the candidate file; the whole ledger resolves
+(`register_firing_path_resolution_ok (609 locators resolved)`).
+
+| File | Anchor | Count |
+| --- | --- | --- |
+| `attention-budget-ratchet.md` | A mention count is not an open count | 1 |
+| `attention-budget-ratchet.md` | a scan batch that fails without writing stderr must still withhold the table | 1 |
+| `attention-budget-ratchet.md` | must be treated as an input error | 1 |
+| `attention-budget-ratchet.md` | must live verbatim in the reference the entrypoint already points at | 1 |
+| `attention-budget-ratchet.md` | must name the canonical section it summarizes (new) | 1 |
+| `attention-budget-ratchet.md` | must not misreport an all-no-match batch under an inherited errexit | 1 |
+| `attention-budget-ratchet.md` | must search every non-Markdown file in the repository for the path (new) | 1 |
+| `attention-budget-ratchet.md` | overlapping or repeated log roots must count a transcript once | 1 |
+| `attention-budget-ratchet.md` | the last-touched column must be the newest touching transcript's date | 1 |
+| `attention-budget-ratchet.md` | the read shape must be counted in the same window | 1 |
+| `attention-budget-ratchet.md` | withholds the table (exit 2 on input errors) | 1 |
+| `external-practice-controls.md` | must be treated as carrying an unverified reading | 1 |
+| `external-practice-controls.md` | 必须先在本机读过该 CLI 的 help 输出 | 1 |
 
 ## Focused suites on the candidate
 
@@ -115,4 +137,4 @@ resolved)`.
 | `skills/skill-extraction-workflow/scripts/test_ai_coding_implementation_gates.sh` | ok |
 | `skills/worktree-isolation/scripts/test_worktree_sweep.sh` | 17 passed, 0 failed |
 | `skills/worktree-isolation/scripts/test_worktree_status.sh` | ok |
-| `hooks/test_remind_post_merge_cleanup.sh` | 65 pass, 0 fail |
+| `hooks/test_remind_post_merge_cleanup.sh` | 67 pass, 0 fail |
