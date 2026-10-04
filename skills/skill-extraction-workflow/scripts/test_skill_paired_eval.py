@@ -62,7 +62,11 @@ session = str(uuid.uuid4())
 if "--no-session-persistence" not in argv and "no_transcript" not in modes:  # persist as Claude Code does
     project = os.path.join(os.environ["HOME"], ".claude", "projects", re.sub(r"[^A-Za-z0-9]", "-", os.getcwd()))
     os.makedirs(project, exist_ok=True)
-    open(os.path.join(project, session + ".jsonl"), "w").write(json.dumps({"type": "user", "prompt": prompt}) + "\n")
+    if "session_dir_only" in modes and not calibration:  # a session directory but no transcript file
+        os.makedirs(os.path.join(project, session, "subagents"))
+        open(os.path.join(project, session, "subagents", "agent.jsonl"), "w").write("{}\n")
+    else:
+        open(os.path.join(project, session + ".jsonl"), "w").write(json.dumps({"type": "user", "prompt": prompt}) + "\n")
     if "foreign_session_file" in modes and not calibration:  # another session of the same project
         open(os.path.join(project, "other-session.jsonl"), "w").write("{}\n")
 emit({"type": "system", "subtype": "init", "model": opt("--model"), "plugins": plugins,
@@ -801,15 +805,31 @@ class BatchTests(unittest.TestCase):
                 self.assertTrue((self.out / "report.md").exists())
                 self.assertEqual(list((self.home / ".claude" / "projects").iterdir()), [])  # killed runs' transcripts too
 
-    def test_a_rerun_replaces_the_transcript_of_an_interrupted_attempt(self):
+    def test_a_rerun_keeps_other_files_and_records_only_its_own_transcript(self):
         with self.caught_signals():
             code, err = self.main(env={"FAKE_MODE": "signal_parent", "FAKE_SIGNAL": "SIGTERM"})
         self.assertEqual(code, 130, err)
+        keep = []
+        for sample_dir in (self.out / "runs").glob("*/*/*"):  # an operator's notes beside an interrupted attempt
+            (sample_dir / "transcript-notes.txt").write_text("mine\n")
+            (sample_dir / "transcript-analysis").mkdir()
+            keep += [sample_dir / "transcript-notes.txt", sample_dir / "transcript-analysis"]
         code, err = self.main()
         self.assertEqual(code, 0, err)
+        self.assertTrue(keep and all(path.exists() for path in keep))
         for record in self.records():
             sample_dir = self.out / "runs" / record["task"] / record["arm"] / str(record["sample"])
-            self.assertEqual(sorted(p.name for p in sample_dir.glob("transcript-*")), record["run"]["transcripts"])
+            events = [json.loads(line) for line in (sample_dir / "stream.jsonl").read_text().splitlines()]
+            sessions = [e["session_id"] for e in events if e.get("subtype") == "init"]
+            self.assertEqual(record["run"]["transcripts"], [f"transcript-{s}.jsonl" for s in sessions])
+
+    def test_a_session_directory_without_a_transcript_file_is_invalid(self):
+        code, err = self.main(env={"FAKE_MODE": "session_dir_only"})
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.regrade()[0], 0)
+        for record in self.records():
+            self.assertEqual([name.endswith(".jsonl") for name in record["run"]["transcripts"]], [False])
+            self.assertIn("transcript_missing", record["invalid_reasons"])
 
     def test_a_signal_during_the_calibration_stops_it(self):
         with self.caught_signals() as (escaped, _):

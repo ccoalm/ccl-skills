@@ -1082,11 +1082,6 @@ def run_sample(ctx, task, arm, index):
     edits the plugin changes only its own copy and is recorded as invalid."""
     sample_dir = ctx["out"] / "runs" / task["id"] / arm / str(index)
     world, gitconfig, snapshot, token = build_world(task, sample_dir)
-    for stale in sample_dir.glob("transcript-*"):  # left by an interrupted earlier attempt
-        if stale.is_dir() and not stale.is_symlink():
-            shutil.rmtree(stale)
-        else:
-            stale.unlink()
     write_atomic(sample_dir / "snapshot.json", json.dumps(snapshot, indent=1))
     plugin_dir = None
     if arm in ctx["arm_dirs"]:
@@ -1122,7 +1117,7 @@ def make_record(ctx, task, arm, index, sample_dir, snapshot, token, run, plugin_
                                 ctx["arm_dirs_real"], token)
     if run.get("export_changes"):
         reasons.append("plugin_export_changed")
-    if not run.get("transcripts"):
+    if not any(name.endswith(".jsonl") for name in run.get("transcripts") or []):
         reasons.append("transcript_missing")  # hooks that read the session transcript did not run as in normal use
     allowed = [os.path.realpath(world)] + ([os.path.realpath(plugin_dir)] if plugin_dir else [])
     suspects = outside_paths(parsed["tool_uses"], allowed, ctx["watched"], ctx["home"])
