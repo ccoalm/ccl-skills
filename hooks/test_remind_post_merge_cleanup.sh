@@ -128,6 +128,53 @@ probe remind 'glab mr merge 123 --yes; glab help mr merge' 'Merged !123'
 # a successful-looking string response still reminds
 probe remind 'glab mr merge 123 --yes' 'Merged! https://.../merge_requests/123'
 
+# --- Reminder TEXT contract: the injected text is what the agent acts on right
+#     after the merge, so it must route to the canonical teardown section and
+#     carry the guards a lossy digest once dropped — the ignored-artifact scan
+#     that must exit 0 before any worktree removal, and the release-name branch
+#     exception — instead of claiming a single exception. ---
+reminder_text=$(jq -nc --arg c 'gh pr merge 45 --merge' --arg r 'Merged' \
+  '{tool_input:{command:$c},tool_response:$r,cwd:"/tmp"}' | bash "$HOOK" \
+  | jq -r '.hookSpecificOutput.additionalContext // empty')
+text_has() { # <label> <needle>
+  if printf '%s' "$reminder_text" | grep -Fq -- "$2"; then pass=$((pass+1))
+  else fail=$((fail+1)); printf 'FAIL  [reminder text lacks %s]  %s\n' "$1" "$2" >&2; fi
+}
+text_lacks() { # <label> <needle>
+  if printf '%s' "$reminder_text" | grep -Fq -- "$2"; then
+    fail=$((fail+1)); printf 'FAIL  [reminder text still carries %s]  %s\n' "$1" "$2" >&2
+  else pass=$((pass+1)); fi
+}
+if [ -n "$reminder_text" ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo 'FAIL  [no reminder text extracted]' >&2; fi
+TEARDOWN_REF='worktree-isolation/references/merge-and-teardown.md'
+text_has   'canonical teardown pointer' "$TEARDOWN_REF"
+text_has   'ignored-artifact scan before removal' 'status --ignored -s'
+text_has   'scan exit-0 requirement' '必须 exit 0'
+text_lacks 'single-exception claim' '唯一例外'
+# A guard is its meaning, not one keyword: every needle must sit on the same
+# line, so dropping the "keep" sense while a keyword survives still fails.
+line_has_all() { # <label> <needle>...
+  local label="$1"; shift
+  if printf '%s\n' "$reminder_text" | awk -v n="$#" 'BEGIN{for(i=1;i<=n;i++) want[i]=ARGV[i]; ARGC=1}
+       {hit=1; for(i=1;i<=n;i++) if (index($0, want[i])==0) hit=0; if (hit) found=1}
+       END{exit found?0:1}' "$@"; then pass=$((pass+1))
+  else fail=$((fail+1)); printf 'FAIL  [reminder text lacks %s on one line]\n' "$label" >&2; fi
+}
+line_has_all 'release-name branch kept' '不删的例外' '分支名含 release' '要删由用户显式指名'
+line_has_all 'permanent/integration branch kept' '不删的例外' '源分支本身是永久/集成分支'
+line_has_all 'external-side-effect wait' '未完成的外部副作用任务' '等它完成再清'
+# The scan guards the removal, so it must come first — an order the substring
+# checks above cannot see.
+scan_at=$(printf '%s\n' "$reminder_text" | grep -n -F 'status --ignored -s' | head -1 | cut -d: -f1)
+remove_at=$(printf '%s\n' "$reminder_text" | grep -n -F 'git worktree remove' | head -1 | cut -d: -f1)
+if [ -n "$scan_at" ] && [ -n "$remove_at" ] && [ "$scan_at" -lt "$remove_at" ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL  [reminder text lacks scan ordered before removal] scan=${scan_at:-none} remove=${remove_at:-none}" >&2; fi
+# The pointer must resolve: the canonical file exists in this tree and still
+# carries the teardown section heading the pointer names.
+if grep -Fq '## 收尾：' "$SCRIPT_DIR/../skills/$TEARDOWN_REF" 2>/dev/null; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL  [teardown pointer dangles] skills/$TEARDOWN_REF lacks '## 收尾：'" >&2; fi
+
 printf 'remind-post-merge-cleanup tests: pass=%d fail=%d\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1
 echo "test_remind_post_merge_cleanup_ok"

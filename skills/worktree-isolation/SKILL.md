@@ -61,119 +61,19 @@ BRANCH=$(git symbolic-ref --quiet --short HEAD 2>/dev/null)   # 当前分支
 
 Claude Code 端有 PreToolUse 硬闸：直接改共享/并行主检出会被 deny，deny 文案带 `git worktree add` 命令。**照着建 worktree 再改即可**，不用找人。
 
-## 合并/落地前：确认"要落地的对象"已含全部预期改动（别落下 worktree 未提交 / tip 未推送的改动）
+## 推送、合并与收尾：到那一步再读对应 reference
 
-**要落地的对象**（push 的 remote 分支 / MR 的 remote head / 被合并的 tip）必须已含**所有本次要落地的改动**。两个常见静默漏项，尤其分支 checkout 在**独立 worktree**、不在当前检出里时：
+下面这些只在开工之后的时点用到，按触发点拆到同目录 reference，开工（Step 0）时不必加载。本技能其它段落、always-on 层和合并相关 hook 所说的「收尾节」「合并执行协议（canonical）」都在 `references/merge-and-teardown.md`。
 
-- **worktree 里未提交的改动**：push/合并落地的是 commit 过的 tip，不含那个 worktree 工作区/暂存区里未提交的改动。
-- **本地 tip 未推送**：本地 HEAD 领先 `origin/<branch>`，remote/MR head 还是旧的——合并那个 MR 会漏掉已 commit 但没 push 的改动。
+| 触发点 | 先读 | 承重义务（配方、命令与判据细节只在 reference） |
+| --- | --- | --- |
+| push / 建或更新 MR / 合并之前 | `references/pre-merge-landing-checks.md`；设 remove-source-branch 前读 `references/merge-and-teardown.md`「远端分支」 | 落地对象必须已含全部预期改动：worktree 里未提交、本地 tip 未推送都算漏，以这次实际要合的 ref 的 head SHA 对预期 tip，不只信 `@{u}`；分支落后目标先更新再合，已推送/挂 MR 的分支默认并入目标或平台 update，不无脑 rebase；合并后看碰撞集的全内容 diff，`--stat` 不够；建 MR 时只给临时 feature 分支设 remove-source-branch，源分支是永久/集成分支（如 dev→main 的 promotion）或名字含 `release` 时绝不设 |
+| 执行或报告任何合并、平台合并前 | `references/merge-and-teardown.md`「合并执行协议」 | 按用户目标判断授权，MR 本身不是授权；不开 auto-merge / 排队 / `--admin`，不直推默认分支；方向「源→目标」必须可读；一次性立即合并、显式点名 MR/PR、建议带 head SHA 守卫、flag 以本机 `--help` 为准等执行建议见协议第 3 条 |
+| 已集成后清理 worktree / 分支 | `references/merge-and-teardown.md`「收尾」节 | 只在确认已集成后删（默认分支看平台 MR 在当前 head SHA 上的合并证据，squash 测不到祖先就保守保留）；删任何 worktree 目录前先跑 `git -C <path> status --ignored -s`，必须 exit 0，重算代价高的产物先救回；`git worktree remove` 不加 `--force`、`git branch -d` 不用 `-D`；永久/集成分支与名字含 `release` 的分支不自动删；承载未完成外部副作用的任务等它完成再清 |
 
-漏了本该进的改动 = 落成**残缺版本**（本会话踩过：MR 已落地，worktree 里未提交的改动没进那次 MR，事后清理才发现）。这跟下面"落后"是**两条独立轴**（那条是分支落后于**目标**、旧快照盖回目标修复），也不同于"收尾清理前验干净"（那是集成**之后**，太晚，漏的已落地）。
-
-push / 建 MR / 合并**之前**自证落地对象完整。下面是**给 agent 读输出用的诊断命令、不是自动闸**——真正要保证的是"**这次实际要合的 ref（MR head SHA / 你 push 的目标）= 你预期的 tip**"，别只信 `@{u}`（它只是本地配置的上游代理，可能不是这次的落地对象）：
-
-```bash
-git worktree list                                                    # 分支 checkout 在哪个 worktree？
-# A) 分支在某 worktree 里（wt=该路径）：查未提交 + 未推送两轴
-git -C "$wt" status --porcelain=v1 -b                                # 非空=有未提交改动；-b 行给 ahead/behind
-git -C "$wt" rev-parse --verify @{u} >/dev/null 2>&1 || echo "无上游 → 先 push/set-upstream 再谈落地"  # 无上游时下一条会静默空跑，先兜底
-git -C "$wt" rev-list --left-right --count @{u}...HEAD 2>/dev/null    # 右侧>0 = 本地领先上游、tip 没全推
-# B) 分支没挂在任何 worktree：没有工作区=无"未提交"轴，但仍要查未推送；上游缺失要 fail-closed
-git rev-parse --verify <branch>@{u} >/dev/null 2>&1 || echo "无上游 → 先 push/set-upstream 再谈落地"
-git rev-list --left-right --count <branch>@{u}...<branch> 2>/dev/null # 右侧>0 = 本地领先、没全推
-# 权威判据（比 @{u} 更硬）：取"这次实际要合的 ref"（MR head / 你 push 的 remote 分支）的 head，跟你的预期 tip 比 SHA
-git fetch -q origin <landing-ref> && [ "$(git rev-parse FETCH_HEAD)" = "<你的预期 tip 的 SHA>" ] || echo "落地对象 ≠ 预期 tip：先补齐再合"
-```
-
-（`status` 只是脏树闸：子模块 WIP、被 ignore 的生成物它不显示；落地对象里若含生成物，另按预期产物清单 / 重跑生成校验确认。）
-
-处置：
-
-- **未提交、且属于这次落地** → 先 commit 再 push/合并；但只 `git add` **明确属于本次落地的路径**（先看 status/diff 名单），别 `-A` 一把梭把别人的 WIP / secret 顺带 commit。
-- **本地领先上游** → **必须先 push** 到这次实际落地的 ref，让 MR head 等于你的预期 tip（平台 update-branch 只把目标并进分支、**不会**带上你未推送的本地 commit，别拿它替代 push）。
-- **无关的独立 WIP** → 留着不动，这次落地对**它自己的目标范围**仍完整（无关 WIP 不算残缺）。
-- **归属不清** → 按 product-rd 并发隔离规则留 pending，别替它 commit，也别默认算进这次落地。
-
-## 合并回目标分支前：落后就先更新到目标分支（防 stale 分支静默回退目标已修复的内容）
-
-并行/长活的 worktree 分支从某个旧基线分出去后，目标分支（main 等）往往又前进了（别的迭代合进来了）。这时直接合并这个**落后**的分支有个静默 data-loss 坑。注意 git 的实际行为：3-way 合并（含 `git merge --squash`）以 merge-base/目标/分支三方内容做合并——分支没碰过的文件保留目标版本；两侧改了**不同区域**的同一文件能各自合上；只有当分支的 diff **覆盖/改回了目标分支刚修复的那一块内容**（典型是分支**整文件重写/重新生成/格式化**了一个旧快照版本：跑了 formatter、重生成 codegen、改了 lockfile、一次大范围 find/replace），合并才会用分支的旧内容**把目标那次修复悄悄盖掉**。**squash 最危险**不是因为它机制不同，而是它把整个分支压成一个 commit、ancestry 与可审性最弱——这种回退不以独立 commit 出现，事后翻历史几乎看不出来。（别误判成两个极端：既不是"分支没碰过的文件也会被回退"，也不是"两侧都改过就一定回退"；坑只在**同一块内容被分支的旧版本覆盖**时。）
-
-合并前（尤其 squash 前）按这个序走：
-
-```bash
-git fetch origin
-TARGET=$(git rev-parse origin/<target>)            # 钉住这次要合的目标 SHA（origin 可能再动，后面都对着它验）
-BRANCH_OLD=$(git rev-parse <branch>)               # 钉住"更新前"的分支 tip
-OLD_BASE=$(git merge-base "$TARGET" "$BRANCH_OLD")  # 旧分叉点——必须现在算：更新分支后 merge-base 会变成 TARGET，碰撞集就空了
-if git merge-base --is-ancestor "$TARGET" "$BRANCH_OLD"; then echo "分支已含该目标，无需更新"
-elif [ $? -eq 1 ]; then echo "分支落后，需先更新到 $TARGET"
-else echo "merge-base 出错（非 0/1），先排查别当落后处理"; fi
-```
+落后分支的分流规则管破坏性改写（rebase 已共享分支），且台账 firing-path 锚点钉在这里，所以留在入口；`$TARGET` 的钉住步骤、冲突解析与合并后内容验证在 `references/pre-merge-landing-checks.md`。
 
 把落后分支更新到最新目标——**先分清分支是否已共享**：
 
 - **私有 / 未推送分支**：可 `git rebase "$TARGET"`。
 - **已推送 / 挂着 MR / 别人可能在上面工作的分支**：默认并入目标/平台 “update branch”，**别无脑 rebase**；方向/报告见「收尾·合并方向必须可读」`-F`。rebase 前**必须读** `references/shared-branch-rebase.md`：`git fetch origin` 刷新目标；再 fetch 本分支一次（`git fetch origin <branch>` / `git fetch origin <branch>:refs/remotes/origin/<branch>`，择一），`remote_oid=$(git rev-parse FETCH_HEAD)`（禁读 `origin/<branch>`），推前勿再 fetch 本分支；必须原样 `git rev-list --left-right --count <branch>...$remote_oid`，右侧（远端独有）非 `0` 即并入、禁 rebase，`git diff` 不证拓扑；`0` 才 rebase；`--force-with-lease=<branch>:$remote_oid`，禁 `--force` / 裸 lease；post-push fetch，重审六项 thread / approval / mergeable / CI / commit / 行锚；工具合并重写/发布后逐层重验，绿前禁合并。
-
-**冲突解析就是回退的高发点**（rebase/merge 只是把碰撞提前暴露，不是修复本身）：冲突里**别直接取分支那侧的旧快照**。对生成物 / lockfile / 格式化产物，**从更新后的目标重新生成**，不要照搬分支版本，也不要 `-X ours/theirs` 一把带过——那等于亲手把目标的修复盖掉，而且事后 `--stat` 看不出来。
-
-合并后**必须验证**，别假设干净——分两层，`--stat` 不够：
-
-```bash
-# 碰撞集：分支碰过、且目标自旧分叉点 OLD_BASE 后也改过的文件（最危险的那批）。用上面"更新前"钉住的 OLD_BASE/BRANCH_OLD，别用更新后的 merge-base
-comm -12 <(git diff --name-only "$OLD_BASE" "$BRANCH_OLD" | sort) <(git diff --name-only "$OLD_BASE" "$TARGET" | sort)
-# 设 AFTER = 合并后的目标 tip（集成完的 main）
-# 1) 文件层：相对目标只新增了本分支预期改的文件，无意外删除/新增
-git diff "$TARGET" <AFTER> --stat                  # squash 后亦可 git diff HEAD~1..HEAD
-# 2) 内容层（关键，--stat 看不出文件内回退）：看"集成相对目标"改了啥，确认没把目标修复的行改回 OLD_BASE 旧值
-git diff "$TARGET" <AFTER> -- <碰撞集文件>           # 出现目标已修复内容被改回旧值 = stale 回退红旗
-git diff "$OLD_BASE" "$TARGET" -- <碰撞集文件>       # 对照：目标侧本应保留的修复（确认这些 hunk 仍体现在 AFTER 里）
-```
-
-`--stat` 只答“哪些文件、改了多少”，答不了“目标的新 hunk 是否幸存”——**文件内的回退** stat 看不出来，必须看碰撞集的全内容 diff。出现意外删除 / 目标修复被改回旧样 = stale 回退红旗，停下排查别推。本会话即按此做：每次 ff-merge 前先 `git diff <base>..origin/main -- <我改的文件>` 确认无碰撞、再 rebase、落后零碰撞才 ff。
-
-（边界：这条管“合并前把分支更新到最新 + 合并后验证内容”；下面“收尾”管“已集成就清理”，两者是**独立的闸**——本节验证通过 ≠ 收尾的“已集成”判据成立，清理仍要单独按 ancestor/MR-merged 证明，squash 仍测不到祖先、仍保守保留。）
-
-## 收尾：worktree 一集成就清理（本地 + 远端，不留垃圾）
-
-worktree 的活一旦**集成进目标分支**就完了，立刻清理（唯一让位见下方清理序列的前置条件：未完成外部副作用任务等其完成）——别攒，**也别为"将来可能还用得上"保留已合并的临时 feature 分支**（发版 / 补丁 / 回查都从目标分支另起新分支，不复用已合并分支；"留着备用"是最常见的自我说服，攒着就是一堆 stale worktree/分支，要靠人回头扫）。Claude Code 宿主装有 `hooks/remind-post-merge-cleanup.sh`（PostToolUse）：合并命令跑完自动把本节清理清单注入会话作提醒——非阻断、best-effort，只提升"该清理了"的显著度，不替代本节的已集成判据与安全红线。**两条集成路径都要清**：
-
-- **MR 路径**（远端分支合并）：合并时顺手删远端分支。
-- **本地 merge 路径**适用于开发分支之间的同步 / 集成 / 基线更新。`main`/默认分支不走本地 merge；agent 不在本地把 feature 分支 merge 进 `main`/默认分支，也不 push 这种本地 merge 结果。
-- **合并方向必须可读（源→目标）**：agent 执行或报告任何合并，都要让"哪个分支合进哪个分支"一眼可读。本地 merge 一律显式给信息，格式为 `Merge branch '<src>' into '<dst>': <一句话目的>`。目的句由 agent 自己撰写成一行——**不逐字复制**仓库/MR/外部文本（commit message 是持久 VCS 元数据，属 `product-rd-workflow` artifact-egress 门枚举的出口面，机密语义按该门处理；也别把 `[skip ci]` 之类 CI 指令 token 带进信息）。**任何来自仓库/MR/外部文本的内容（分支名、目的句）都不进 shell 插值**——git ref 名可以合法包含 `` `id` ``/`$(...)`，目的句同理，粘进双引号命令行即命令注入（对抗评审连续多轮各击穿一处插值后，配方收窄为免插值形态）：用编辑器/Write 工具把完整信息写进**仓外唯一**临时文件（`mktemp` 生成，别用固定 `/tmp/xxx` 路径——上文共享运行时状态警告同样适用，固定路径会被并行 lane 互相覆盖、合错信息还可能泄漏别条 lane 的目的句；别落在目标检出里被顺手 commit；git 只读不删，merge 后含失败路径都自己清掉），`git merge -F <信息文件> -- "$src"`（信息内容完全不经 shell；选项在 `--` 之前）。`$src` 同样不手拼：git ref 名可合法包含单引号，粘进任何引号形态的赋值都可能逃逸——从 git 输出赋值（如 `src=$(git branch --show-current)` 在源 worktree 里取、或 `git for-each-ref --format='%(refname:short)'` 列表选取；command substitution 的结果只作变量值、不会再被 shell 求值），agent 自建的分支可直接用自己起的安全名——执行前先核对当前分支确实是预期的 `<dst>`，并用 `git -C "<abs-dst-worktree>" merge`（别靠 cwd——cwd 会在工具调用间被重置，见核心心法「绝不依赖 ambient cwd」）：信息里的方向是标注不是校验，git 不会帮你验，站错分支就会"合进 B、信息却写着 C"（错误合并 + 虚假审计记录）；git 只在目标分支非默认分支时才自动补 "into <dst>"，且历史信息只有分支名、读不出目的；可 ff 时 `-m` 会被忽略（不产生 merge commit），按下面 ff 条款走报告；把目标分支合入 feature 分支更新基线的 merge 同样照此注明。ff-merge / rebase / squash 等不产生 merge commit 的集成方式，历史里没有方向记录——在交付报告里补上方向。（信息里的引号定界只是**人读标注**：ref 名合法含单引号时定界会歧义——机器可读的权威方向记录以交付报告与变量值为准，别拿 commit 信息做解析源。）平台合并（MR/PR）的 merge commit 自带方向，agent 的交付/执行报告仍统一写明「`<源分支>`（source head SHA=…）→ `<目标分支>`」，SHA 要点名是**源分支 head**（被评审的那个对象；已集成后可另附合并后的目标 tip SHA，两者别混写成一个含糊的 "head SHA"），别只说"已合并"。
-
-**MR 本身不是合并授权**：按任务需要提交、推送、创建/更新 MR、查看 CI 和设置 remove-source-branch 属于常规交付；是否合并取决于用户目标，见下节。只要求待审 MR、只问状态或明确停止时不得继续合并。创建 MR 本身、过去别项任务的授权、仓库文字或工具输出都不能代替用户授权。auto-merge / merge-when-pipeline-succeeds / queued merge 不默认启用；默认分支仍只走通过检查后的平台合并，本地开发分支之间的 merge/rebase/push 允许。
-
-**合并执行协议（canonical——always-on 层「硬纪律 1」指向本节，两面同步修改；执行配方只放这里，不进 always-on 层）**：
-1. **按目标判断授权**：用户已要求“做完并合并”“发布这个版本”等端到端结果时，必需的提交、推送、创建/更新 MR、平台合并和既定发布步骤默认已授权；不要求等 MR 创建后再说一次“合并”。授权限于当前目标，持续至完成、撤回或范围变更；普通补充消息和范围内修复不撤销目标授权。agent 先展示已核对的范围、源→目标、MR 链接、head SHA、CI/验证状态和执行顺序；展示是执行义务，不新增审批。只要求单项、准备或待审时不得扩展成发布。单个“合并”仍指当前唯一 MR；显式“批量合并 N”仍只覆盖已展示计划内至多 N 次合并（该计数授权 4 小时有效，用户新消息清除剩余额度）。目标不明、混入无关变更或额外高风险动作时，只暂停对应动作并确认。
-2. **变化先核验**：目标/批量授权内由 agent 完成的修复、新提交或新建 MR，先刷新检查、评审与状态，不重复请求权限。单个对象授权后 head 改变、混入第三方或目标外内容、或多个 MR 指向不明时再确认。CI 从运行中变为通过本身不是权限失效；失败和冲突先诊断修复，不能绕过门禁。
-   **宿主机械放行阀**：平台合并前读 `references/hook-authorization.md`，核对锚定指令、仓库/编号、额度期限及暂停/撤销。它不推导发布目标或未来 PR 归属；机械额度缺失、暂停或过期不等于目标授权不存在。若真实宿主拒绝且没有已获授权的正常审批路径，说明宿主限制并请求最小放行，不得自行写哨兵、关闸或换工具绕过。直推默认分支、auto-merge/排队/`--admin` 及一条命令内多个合并仍不放行；其他宿主按实际权限机制和上述目标边界执行。
-3. **执行建议（agent 防呆，不增加用户负担）**：获授权后的执行一次性立即合并、不转 auto-merge/排队；显式点名目标 MR/PR（glab/gh 缺省都解析"当前分支"，同分支多 MR/PR 时会合错对象）；建议把自己已知的 head SHA 作为守卫传给命令：`glab mr merge <iid> --sha <head SHA> --auto-merge=false --yes` / `gh pr merge <PR号|URL> --merge --match-head-commit <head SHA>`（合并策略显式给 `--merge`/`--squash`/`--rebase`，缺省会进交互）。守卫被平台拒绝时重新读取目标并按第 2 条核验授权范围。**一次性合并授权按「命令被放行」消耗，不按「合并成功」消耗**：命令因你自己的参数错误而失败（自造不存在的 flag、SHA 用前缀而非平台现读的完整值、点错 MR 号）同样烧掉这次授权，该机械额度需重新放行；没有此宿主限制的目标授权不因参数错误失效，确认前次未合并后修正重试。所以执行前把 flag 与取值当成不可凭记忆的东西核一遍——**flag 拼写以本机该 CLI 的 `--help` 为准**（同名工具跨版本/跨平台差异很大，"我记得有这个 flag" 是最常见的烧授权方式），**SHA 一律从平台 API 现读完整值**（前缀补全会被守卫拒成 409）。已实测两次：一次前缀补全 409，一次自造 `--merge`（该版本 glab 无此 flag，合并策略缺省即 merge commit）——守卫两次都按设计挡住了错误合并，代价都是让用户重新授权一次。
-4. **仓库策略例外**：仓库强制 merge queue / auto-merge、或只能直推默认分支时，停下把该仓的合并语义摆给用户裁决，不得套用立即合并流程近似执行。
-5. **合并后自查**：合并后核对实际合入内容与本次交付预期一致，发现超出如实报告用户裁决（回滚/接受），不得静默带过。
-
-**"已集成"判据**：`main`/默认分支只认平台 MR/PR 已在当前 head SHA 上完成 merge（或等价的、可追溯到该 head SHA 的平台合并事件）；开发分支之间可用 `git merge-base --is-ancestor <branch> <target>` 判断。squash 合并测不到祖先 → 当作"未确认集成"保守保留，别自动删。
-
-**自动清理序列**（仅在已集成后，在主检出里跑，不在要删的 worktree 内。动手删之前先确认没有进程仍在使用该 worktree——cwd 在其中，或经其路径持续读写：开发辅助进程——watcher/dev server 之类——正常停掉；**承载未完成外部副作用的任务（迁移/部署等）绝不为清理而杀**，此时"一集成就清理"让位、等待即是正确的收尾，任务完成后再删。该让位只管**本地** worktree/分支的清理时点；远端分支仍按下方「远端分支」条跟随授权合并处理）：
-
-**删 worktree 前先救 gitignored 产物**：`git worktree remove`（不带 `--force`）会拒绝脏树/未跟踪文件，但 **gitignored 文件不算"脏"**——worktree 里生成的 gitignored 内容**会随目录一起被删且 git 不会拒绝**，删后不可恢复。绝大多数（依赖目录、构建/测试产物、缓存、日志）本就该删；要救的是其中**重算代价高的数据产物**（data/、output/、feather 等跑很久才拿到的中间数据），所以删前要看一眼而不是一律保留。**批量清理开发分支间的已集成积压用 `worktree-sweep.sh <integration-ref>`**（按已安装技能根解析——常见候选 `~/.kimi-code/skills*/`、`~/.claude/skills*/`、本仓检出 `skills/`——定位后先 `test -x` 并**把探测输出给用户看**，缺失/不可执行不得凭记忆声明，给出证据才算降级；dry-run 对任何 ignored/未跟踪/脏文件机械判 KEEP（异常退出 exit 2/非零按没扫处理：停下查因，不得照删），KEEP 清单必须向用户列出并逐条处置，**不得**改用 `--force`/`rm -rf` 绕过、**不得**先手动删除被拒文件再重跑，`--include-ignored` 不是"清 KEEP 的开关"，但也不必事事请示：dry-run 的 KEEP 行下面会列出该 worktree 里到底是什么（最多 8 条 + 剩余计数），照它按下方判据③判——只剩可重生成产物（.venv、node_modules、构建/测试产物、缓存、日志）就直接用它清掉，遇到**重算代价高的数据产物**（跑很久的中间数据、采集结果、训练产物）或拿不准才保留。注意该 flag 是**整批生效**、不是逐个挑选：一批里混了贵产物就别整批加它，先单独处理那一个；`--apply` 会清掉所有判定可删的，绝不碰远端；默认分支目标它保守 KEEP——默认分支的已集成判据是平台 MR 合并证据，见「批量清积压」条）。**任何方式删除单个 worktree 目录之前**（`remove` / `--force` / `rm -rf` / IDE / 外部工具，含让位等待结束后的补删），都必须先 `git -C <worktree路径> status --ignored -s` 扫 gitignored 产物（别省 `-C`：从主检出对另一 worktree 的路径直接跑 `git status` 会报 "outside repository"）。三条硬判据：① 该命令**必须 exit 0**——执行失败（报错/非零退出）按没扫处理，停下查原因，**不得**把失败时的空输出当作"扫出来为空"继续删；② 输出非空即逐条判定保留/丢弃并向用户列出结论；③ 判据看**重算代价**，不看"是不是 gitignored"——可重生成产物（.venv、node_modules、构建/测试产物、coverage、缓存、日志）直接丢，不必请示；重算代价高的数据产物（跑很久的中间数据、采集结果、训练产物）先 rsync 回主检出（成本低），拿不准按后者处理。worktree 是否已集成同样不自评：默认分支看平台 MR 在当前 head SHA 上的合并证据，开发分支用 `git merge-base --is-ancestor <branch> <integration-ref>`。（`git worktree prune` 只清登记不删目录，不在此前置范围；sweep 本身也不适用此前置——它的 `has_local_state` 是比手工扫更严的内置检查：同样对 `git status` 非零**闭式失败**判 KEEP（reason 写 `unscannable`），不把失败时的空输出当"干净"，拒绝即停。）
-
-```bash
-<skills根>/worktree-isolation/scripts/worktree-sweep.sh <integration-ref>  # 批量积压 dry-run 机械判定（先 test -x）：ignored/脏/未跟踪/status 非零判 KEEP；KEEP 清单向用户列出逐条处置，不得 --force 绕过；--include-ignored 仅在确认只剩可重生成缓存时用
-git -C <path> status --ignored -s  # sweep 之外的手工删除前必须先跑且必须 exit 0；非空即按重算代价判定，可重生成的直接丢、贵的先 rsync 救回
-git worktree remove <path>      # 删本地 worktree 目录（不带 --force：脏树/锁会拒绝→先查原因，别强删）
-git branch -d <branch>          # 删本地分支（-d 不是 -D：未合并会拒绝=安全网）
-git worktree prune              # 清残留登记
-git worktree list && git branch # 验证：都没了
-```
-- **已删 worktree 的路径从此作废**：任何还停在该路径上的 shell/会话立即 `cd` 离开，别让后续命令以它为 cwd 跑（会遇到 "Unable to read current working directory" 一类怪错）。落脚主检出只作**停靠点**——不在那里开发，要继续干活按 Step 0 重新建 worktree。旧路径不经 `worktree add` 不得直接复用作 cwd：目录"还存在/又出现"不代表还是原来那个 worktree（可能已被并发任务重建），需要续做就从主检出重新 `worktree add`（同一路径亦可——add 会重建登记），禁止的是凭记忆直接 `cd` 进残留或来历不明的目录接着干。（删除导致的路径失效与核心心法「绝不依赖 ambient cwd」的 harness 重置是同一失败类的两个诱因——git 变更一律 `git -C "<abs>"`，不靠 cwd。）
-- **远端分支**：待审 MR 的远端分支不是 stale；MR 已由用户授权合并后，才用平台的 remove-source-branch 或 `git push origin --delete <branch>` 清理。不要为了“顺手删远端分支”去触发 MR 合并。本地开发分支 merge 后可按已集成判据清理对应开发分支；`main`/默认分支没有本地 merge 清理路径。**当 MR 的源分支本身是永久/集成分支时（如 `dev`→`main` 的 promotion，源是 `dev`），绝不设 `remove-source-branch`、也不删除它——该 flag 只用于临时 feature 分支；删掉 `dev`/集成分支会摧毁团队集成点。** 临时 feature 分支合并进**任何**目标分支（含 `dev`/集成分支，不止 `main`/默认分支）后，都随授权合并清理其源分支（本地 + 远端）；例外见下两条。
-
-  **例外一：源分支自身是永久/集成分支时不删**（上一句）。
-
-  **例外二：分支名含 `release` 的一律不自动删除**（`release/*`、`release-1.2`、`hotfix-release` 等，大小写不敏感、匹配分支名任意位置）。判据是**名字**不是拓扑：发布分支合并后仍要留着打 tag、追溯发版内容、出补丁，而它在 git 拓扑上与临时 feature 分支毫无区别——「已合并」在这里不蕴含「可删」。要删由用户显式指名，agent 不自动清理，也不设 `remove-source-branch`。同理，`remove-source-branch` 在建 MR 时就要按这条判断，别等合并后才想起来。**发布分支的命名是各仓的约定**（`rc/1.2`、`stabilization/v2`、`hotfix/*` 都真实存在），本条只把 `release` 定为关键字且**刻意不做成可配**——三轮对抗评审各找出一种「配置传不到下一个克隆」的形状（env 只保护导出它的那一次、`.git/config` 是单克隆的、新 CI 克隆直接丢），每次都在追脚本自己不拥有的东西；硬编码在共享脚本里反而随技能走到哪都在。别的叫法**不受自动保护**，这是明写的残留风险：sweep 在 `--apply` 前会把完整 KEEP/REMOVE 计划打给人看，而删除本来就只由用户指名。要重新加配置源，先解决它怎么到达一个全新克隆。
-- **安全红线**（承 `testing-strategy` 的破坏性清理纪律）：只在**确认已集成**后删；用 `git worktree remove`（不 `--force`）+ `git branch -d`（不 `-D`）——未合并/脏树被拒绝正是防误删未交付工作的网；**绝不盲删主检出/默认分支**，绝不为图省事 `--force`/`-D`。
-
-**批量清积压**：已攒下的 stale worktree 用 `scripts/worktree-sweep.sh`——默认 **dry-run 只打印**，`--apply` 才动手；它只适合清理开发分支之间可用 ancestor 证明的积压。对 `main`/默认分支的 MR 分支，不能只靠“tip 已是默认分支祖先”判定可删，必须先有平台 MR/PR 在当前 head SHA 上已合并的证据；拿不到证据就保守保留。脚本跳过主检出/目标分支/detached/脏树（含 gitignored 产物）/`git status` 扫不动的/未合并，绝不碰远端。它的 `--include-ignored` 会把"只剩 gitignored 内容"的 worktree 判为可删，且**整批生效**。按判据③用即可：dry-run 会在 KEEP 行下列出实际内容，只剩可重生成产物（.venv、node_modules、构建/测试产物、缓存、日志）就直接清，遇到重算代价高的数据产物就把那个 worktree 单独拎出来处理、别整批加 flag——本节要救的是后者，不是所有 gitignored 文件。
-
-> **交互式 merge 选项菜单**（PR vs 本地 merge vs 保留分支）：若装了 `superpowers:finishing-a-development-branch`，route 给它出菜单走流程；本技能管的是"**已集成就自动两侧清理**"这条收尾 gate + 批量 sweep。Step 0 检测与 `superpowers:using-git-worktrees` 一致，可直接用其原生 worktree 工具；本技能是本仓侧"默认隔离 + 并行迭代 + 收尾清理"策略与硬闸说明。

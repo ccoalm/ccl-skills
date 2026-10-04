@@ -61,7 +61,7 @@ git -C "$REPO" config user.name "Test User"
 git -C "$REPO" branch -f fixture-base HEAD
 git -C "$REPO" switch -q -C fixture-work fixture-base
 git -C "$REPO" branch --set-upstream-to=fixture-base fixture-work >/dev/null 2>&1
-WT="$REPO/skills/worktree-isolation/SKILL.md"
+WT="$REPO/skills/worktree-isolation/references/merge-and-teardown.md"
 SEC4="$REPO/skills/requirement-doc-writer/references/security-four-questions.md"
 DTREF="$REPO/skills/skill-extraction-workflow/references/dual-track-review-gate.md"
 
@@ -77,7 +77,7 @@ replace_in_file "$WT" "合并执行协议（canonical" "合并落地协议（can
 run_sync
 assert_rc "$rc" 1 "reworded canonical section must block"
 assert_contains "sync_pointer_block: merge-exec-protocol-section" "$out" "block names the pair"
-git -C "$REPO" checkout -- skills/worktree-isolation/SKILL.md
+git -C "$REPO" checkout -- skills/worktree-isolation/references/merge-and-teardown.md
 
 # s2 RED: section heading renamed => 收尾节 pointer dangles (the pinned
 # literal carries the colon so a longer heading cannot substring-satisfy it).
@@ -85,6 +85,15 @@ replace_in_file "$WT" "## 收尾：" "## 收尾清理："
 run_sync
 assert_rc "$rc" 1 "renamed teardown heading must block"
 assert_contains "sync_pointer_block: worktree-teardown-section" "$out" "block names the pair"
+git -C "$REPO" checkout -- skills/worktree-isolation/references/merge-and-teardown.md
+
+# s2b RED: the entrypoint's forwarding sentence removed => the always-on
+# pointer still names the skill, but nothing in SKILL.md leads to the
+# reference that carries the teardown section and the merge protocol.
+replace_in_file "$REPO/skills/worktree-isolation/SKILL.md" "都在 \`references/merge-and-teardown.md\`" "见各 reference"
+run_sync
+assert_rc "$rc" 1 "a removed forwarding sentence must block"
+assert_contains "sync_pointer_block: worktree-reference-forwarding" "$out" "block names the forwarding pair"
 git -C "$REPO" checkout -- skills/worktree-isolation/SKILL.md
 
 # s3 RED: bootstrap side reworded => pointer literal lost on the source side.
@@ -314,7 +323,7 @@ replace_in_file "$WT" "**合并执行协议（canonical——" "（既往）合�
 run_sync
 assert_rc "$rc" 1 "a demoted-to-narrative section label must block"
 assert_contains "sync_pointer_block: merge-exec-protocol-section" "$out" "block names the pair"
-git -C "$REPO" checkout -- skills/worktree-isolation/SKILL.md
+git -C "$REPO" checkout -- skills/worktree-isolation/references/merge-and-teardown.md
 
 # s24 RED: a compliant decoy line inserted before the real reflection makes
 # the extraction anchor ambiguous (scan requires exactly one hit).
@@ -358,7 +367,7 @@ run_sync
 assert_rc "$rc" 1 "two-sided drift must block"
 assert_contains "agent-context/session-start.md lost the registered pointer literal" "$out" "source side reported"
 assert_contains "canonical target" "$out" "target side reported in the same run"
-git -C "$REPO" checkout -- agent-context/session-start.md skills/worktree-isolation/SKILL.md
+git -C "$REPO" checkout -- agent-context/session-start.md skills/worktree-isolation/references/merge-and-teardown.md
 
 # s29a: the semantic gate resolves beside the validator, so pruning the IN-TREE
 # copy changes nothing — on a clean tree the validator still evaluates with its
