@@ -165,7 +165,7 @@ printf '%s\n' "$OUT" | grep -q 'data/' || note "p1e: data worktree payload not s
 OUT=$(cd "$d1e" && bash "$SWEEP" dev --apply --include-ignored 2>&1); RC=$?
 [ "$RC" -eq 0 ] || note "p1e: --include-ignored --apply exit $RC, want 0"
 [ -d "$d1e-cache" ] && note "p1e: cache-only worktree survived --include-ignored: $OUT"
-[ -d "$d1e-data" ] && note "p1e: ACCEPTED-RISK CHANGED — the data worktree now survives --include-ignored; if that is intended, rewrite this probe and the SKILL.md criterion together: $OUT"
+[ -d "$d1e-data" ] && note "p1e: ACCEPTED-RISK CHANGED — the data worktree now survives --include-ignored; if that is intended, rewrite this probe and the references/merge-and-teardown.md criterion together: $OUT"
 ok
 
 # P2: dirty untracked (not ignored) blocks removal

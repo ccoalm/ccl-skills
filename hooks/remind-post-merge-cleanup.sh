@@ -70,8 +70,9 @@ masked=$(printf '%s' "$cmd" | sed -E \
 # `-f body=` values, echoed docs, `git log --grep`), and an advisory that cries
 # wolf gets ignored. Raw-API / GraphQL / curl merges are an ACCEPTED best-effort
 # NON-fire — `glab mr merge` / `gh pr merge` is the near-universal agent merge
-# path, and the human-readable cleanup rule in worktree-isolation SKILL.md +
-# bootstrap covers EVERY merge path regardless of this reminder.
+# path, and the human-readable cleanup rule in worktree-isolation
+# references/merge-and-teardown.md + bootstrap covers EVERY merge path
+# regardless of this reminder.
 # `gh help pr merge` / `glab help mr merge` print help (the merge guard's help
 # denial points there). Remove only those literal invocations, never a prefix,
 # so a real merge before or after them in the same command still matches.
@@ -129,12 +130,16 @@ if command -v git >/dev/null 2>&1 && git -C "$cwd" rev-parse --git-dir >/dev/nul
   wt=$(git -C "$cwd" worktree list 2>/dev/null)
 fi
 
-reminder="🧹 worktree-isolation 收尾提醒（自动）：检测到 MR/PR 合并命令。先按本节「已集成判据」确认这次合并**已真正完成**（平台 MR/PR 已在当前 head SHA 上 merged；仅授权、仅排队 auto-merge、或合并失败都不算已集成）；确认后，若源分支是临时 feature 分支就立即清理三侧，别攒：
+# The text points at the canonical teardown section and carries, verbatim in
+# substance, the guards that must not be lost at this moment; a digest that
+# drops any of them would out-vote the canonical rule the agent loaded earlier.
+reminder="🧹 worktree-isolation 收尾提醒（自动）：检测到 MR/PR 合并命令。动手前先读 worktree-isolation/references/merge-and-teardown.md 的「收尾」节，按其「已集成判据」确认这次合并**已真正完成**（平台 MR/PR 已在当前 head SHA 上 merged；仅授权、仅排队 auto-merge、或合并失败都不算已集成）；确认后，若源分支是临时 feature 分支就立即清理三侧，别攒：
+  git -C <path> status --ignored -s  # 删 worktree 前必须先跑且必须 exit 0；非空先按重算代价判定，贵的产物先救回主检出
   git worktree remove <path>        # 不加 --force（脏树/未合并被拒=安全网）
   git branch -d <branch>            # 不加 -D（未合并被拒=安全网）
   git push origin --delete <branch> # 远端源分支——破坏性，务必先确认已集成再删
   git worktree prune && git worktree list && git branch   # 验证三侧都没了
-唯一例外：源分支本身是永久/集成分支（如 dev→main promotion，源是 dev）——绝不删。squash 合并测不到祖先则保守保留、先确认已集成。"
+不删的例外：① 源分支本身是永久/集成分支（如 dev→main promotion，源是 dev）；② 分支名含 release 的分支（大小写不敏感，如 release/*、hotfix-release），要删由用户显式指名。squash 合并测不到祖先则保守保留、先确认已集成；worktree 里仍有未完成的外部副作用任务（迁移/部署等）时，等它完成再清。"
 if [ -n "$wt" ]; then
   reminder="${reminder}
 当前 worktrees（挑出刚合并的那个源 worktree 清理）：

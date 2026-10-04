@@ -1,6 +1,6 @@
 # 已共享分支的安全 rebase
 
-动作、停止条件和推送命令以 `worktree-isolation/SKILL.md`「把落后分支更新到最新目标」的共享分支条目为准；默认 merge / 平台 update 及方向报告以同文件「收尾」节的「合并方向必须可读」为准。本页只解释这些硬规则为何不可放松。
+动作、停止条件和推送命令以 `pre-merge-landing-checks.md`「把落后分支更新到最新目标」的共享分支条目为准；默认 merge / 平台 update 及方向报告以 `merge-and-teardown.md`「收尾」节的「合并方向必须可读」为准。本页只解释这些硬规则为何不可放松。
 
 ## 为什么只信本分支的这次 fetch
 

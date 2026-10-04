@@ -128,6 +128,36 @@ probe remind 'glab mr merge 123 --yes; glab help mr merge' 'Merged !123'
 # a successful-looking string response still reminds
 probe remind 'glab mr merge 123 --yes' 'Merged! https://.../merge_requests/123'
 
+# --- Reminder TEXT contract: the injected text is what the agent acts on right
+#     after the merge, so it must route to the canonical teardown section and
+#     carry the guards a lossy digest once dropped — the ignored-artifact scan
+#     that must exit 0 before any worktree removal, and the release-name branch
+#     exception — instead of claiming a single exception. ---
+reminder_text=$(jq -nc --arg c 'gh pr merge 45 --merge' --arg r 'Merged' \
+  '{tool_input:{command:$c},tool_response:$r,cwd:"/tmp"}' | bash "$HOOK" \
+  | jq -r '.hookSpecificOutput.additionalContext // empty')
+text_has() { # <label> <needle>
+  if printf '%s' "$reminder_text" | grep -Fq -- "$2"; then pass=$((pass+1))
+  else fail=$((fail+1)); printf 'FAIL  [reminder text lacks %s]  %s\n' "$1" "$2" >&2; fi
+}
+text_lacks() { # <label> <needle>
+  if printf '%s' "$reminder_text" | grep -Fq -- "$2"; then
+    fail=$((fail+1)); printf 'FAIL  [reminder text still carries %s]  %s\n' "$1" "$2" >&2
+  else pass=$((pass+1)); fi
+}
+if [ -n "$reminder_text" ]; then pass=$((pass+1))
+else fail=$((fail+1)); echo 'FAIL  [no reminder text extracted]' >&2; fi
+TEARDOWN_REF='worktree-isolation/references/merge-and-teardown.md'
+text_has   'canonical teardown pointer' "$TEARDOWN_REF"
+text_has   'ignored-artifact scan before removal' 'status --ignored -s'
+text_has   'scan exit-0 requirement' '必须 exit 0'
+text_has   'release-name branch exception' '分支名含 release'
+text_lacks 'single-exception claim' '唯一例外'
+# The pointer must resolve: the canonical file exists in this tree and still
+# carries the teardown section heading the pointer names.
+if grep -Fq '## 收尾：' "$SCRIPT_DIR/../skills/$TEARDOWN_REF" 2>/dev/null; then pass=$((pass+1))
+else fail=$((fail+1)); echo "FAIL  [teardown pointer dangles] skills/$TEARDOWN_REF lacks '## 收尾：'" >&2; fi
+
 printf 'remind-post-merge-cleanup tests: pass=%d fail=%d\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1
 echo "test_remind_post_merge_cleanup_ok"

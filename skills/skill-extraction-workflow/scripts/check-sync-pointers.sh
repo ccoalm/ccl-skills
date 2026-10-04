@@ -56,7 +56,9 @@ case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOP
 root="${1:-.}"
 
 bootstrap="$root/agent-context/session-start.md"
-wt="$root/skills/worktree-isolation/SKILL.md"
+# The merge protocol and the teardown section load at their firing point, so
+# they live in the package reference the entrypoint points to, not in SKILL.md.
+wt_teardown="$root/skills/worktree-isolation/references/merge-and-teardown.md"
 prd="$root/skills/product-rd-workflow/SKILL.md"
 se="$root/skills/skill-extraction-workflow/SKILL.md"
 sec4="$root/skills/requirement-doc-writer/references/security-four-questions.md"
@@ -169,11 +171,11 @@ run_pair() { # <name> <bootstrap literal> <target> <target literal> <package-dir
 
 if [ "$bootstrap_present" -eq 1 ]; then
   run_pair "merge-exec-protocol-section" \
-    "「合并执行协议」（canonical" "$wt" "**合并执行协议（canonical——" "$root/skills/worktree-isolation"
+    "「合并执行协议」（canonical" "$wt_teardown" "**合并执行协议（canonical——" "$root/skills/worktree-isolation"
   run_pair "merge-exec-citation-token" \
-    "「依据: worktree-isolation 合并执行协议」" "$wt" "**合并执行协议（canonical——" "$root/skills/worktree-isolation"
+    "「依据: worktree-isolation 合并执行协议」" "$wt_teardown" "**合并执行协议（canonical——" "$root/skills/worktree-isolation"
   run_pair "worktree-teardown-section" \
-    "在 \`worktree-isolation\` 收尾节" "$wt" "## 收尾：" "$root/skills/worktree-isolation"
+    "在 \`worktree-isolation\` 收尾节" "$wt_teardown" "## 收尾：" "$root/skills/worktree-isolation"
   run_pair "owner-dispatch-firing-gate" \
     "product-rd \`Implementation entry / re-entry gate\` + \`Owner-dispatch firing gate\`" "$prd" "- **Owner-dispatch firing gate (" "$root/skills/product-rd-workflow"
   run_pair "implementation-entry-reentry-gate" \

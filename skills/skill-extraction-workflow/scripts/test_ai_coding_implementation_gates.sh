@@ -270,7 +270,7 @@ assert_in_section "$PRE_FINAL_REF" '## Gate triggers and outcome contract' 'cite
 assert_same_line "$REPO_ROOT/AGENTS.md" '授权按用户已明确的交付目标判断' '只授权单项、只问状态、明确停止或限制范围时遵守该边界' "goal authority (root scope and stop)"
 assert_contains "$REPO_ROOT/docs/npm-release.md" 'Do not ask again for each prerequisite' "goal authority (release follows through)"
 assert_contains "$REPO_ROOT/skills/release-coordination/SKILL.md" 'Existing host permission checks and resource-owner requirements still apply' "goal authority (host and resource boundary)"
-assert_contains "$REPO_ROOT/skills/worktree-isolation/SKILL.md" '目标/批量授权内由 agent 完成的修复、新提交或新建 MR，先刷新检查、评审与状态，不重复请求权限' "goal authority (repair refreshes evidence)"
+assert_contains "$REPO_ROOT/skills/worktree-isolation/references/merge-and-teardown.md" '目标/批量授权内由 agent 完成的修复、新提交或新建 MR，先刷新检查、评审与状态，不重复请求权限' "goal authority (repair refreshes evidence)"
 assert_contains "$REPO_ROOT/skills/product-rd-workflow/references/refactoring-discipline.md" 'do not ask again merely because it involves refactoring' "quality gate (authorized cleanup)"
 assert_contains "$REPO_ROOT/skills/product-rd-workflow/references/refactoring-discipline.md" 'Do not abbreviate meaningful names, remove necessary explanations, pack statements, fragment responsibilities arbitrarily, or change the threshold/history just to satisfy a counter.' "quality gate (readability and metric integrity)"
 assert_contains "$REPO_ROOT/skills/product-rd-workflow/references/refactoring-discipline.md" 'Broader redesign and breaking changes retain their scope and approval checks.' "quality gate (scope and compatibility boundary)"
