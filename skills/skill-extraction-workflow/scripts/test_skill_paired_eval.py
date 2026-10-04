@@ -70,6 +70,8 @@ if "--no-session-persistence" not in argv and "no_transcript" not in modes:  # p
         open(os.path.join(project, session + ".jsonl", "inner.jsonl"), "w").write("{}\n")
     elif "empty_transcript" in modes and not calibration:
         open(os.path.join(project, session + ".jsonl"), "w").close()
+    elif "bare_session_file" in modes and not calibration:  # named by the session but not a .jsonl transcript
+        open(os.path.join(project, session), "w").write("{}\n")
     else:
         open(os.path.join(project, session + ".jsonl"), "w").write(json.dumps({"type": "user", "prompt": prompt}) + "\n")
     if "foreign_session_file" in modes and not calibration:  # another session of the same project
@@ -829,7 +831,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(record["run"]["transcripts"], [f"transcript-{s}.jsonl" for s in sessions])
 
     def test_only_a_non_empty_transcript_file_counts_as_persisted(self):
-        for mode in ("session_dir_only", "transcript_is_directory", "empty_transcript"):
+        for mode in ("session_dir_only", "transcript_is_directory", "empty_transcript", "bare_session_file"):
             with self.subTest(mode=mode):
                 self.out = self.tmp / f"out-{mode}"
                 code, err = self.main(env={"FAKE_MODE": mode})
@@ -960,6 +962,19 @@ class BatchTests(unittest.TestCase):
                 code, err = self.regrade()
                 self.assertEqual(code, 2)
                 self.assertIn("no runner-recorded canary token", err)
+
+    def test_regrade_rejects_a_record_without_transcript_classification(self):
+        self.assertEqual(self.main()[0], 0)
+        sample = self.out / "runs" / self.TASK / "base" / "1"
+        record = json.loads((sample / "record.json").read_text())
+        del record["run"]["session_files"]  # as an earlier version of this tool wrote it
+        record["run"]["transcripts"] = [f"transcript-{record['run']['transcripts'][0][11:-6]}"]
+        record["invalid_reasons"], record["valid"] = ["transcript_missing"], False
+        (sample / "record.json").write_text(json.dumps(record))
+        code, err = self.regrade()
+        self.assertEqual(code, 2)
+        self.assertIn("predates the transcript classification", err)
+        self.assertFalse(json.loads((sample / "record.json").read_text())["valid"])
 
     def test_records_outside_the_plan_inventory_are_refused(self):
         self.assertEqual(self.main()[0], 0)

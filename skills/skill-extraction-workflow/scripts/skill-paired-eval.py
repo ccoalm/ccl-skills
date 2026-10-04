@@ -55,9 +55,10 @@ A plugin arm also runs whatever the plugin asks for, such as external review
 CLIs installed on this machine; their spend is not in the reported cost.
 Session persistence stays on, because a plugin's hooks may read the session
 transcript and run degraded without it: Claude Code writes each run's
-transcript under ~/.claude/projects, the runner moves the files named by that
-run's own session ids into the sample directory, and a run whose transcript was
-not written is invalid.
+transcript under ~/.claude/projects, and the runner moves the entries named by
+that run's own session ids into the sample directory. A run is invalid unless
+one of them was a non-empty regular file named <session id>.jsonl; a run that
+forges such a file falls under the trust model above.
 
 Usage:
   python3 skill-paired-eval.py --check-oracles
@@ -1069,7 +1070,8 @@ def collect_transcripts(stream_path, dest):
     transcripts, others = [], []
     for session in sorted(sessions):
         for source in sorted(projects.glob(f"*/{session}.jsonl")) + sorted(projects.glob(f"*/{session}")):
-            real = source.is_file() and not source.is_symlink() and source.stat().st_size > 0
+            real = (source.name == f"{session}.jsonl" and source.is_file() and not source.is_symlink()
+                    and source.stat().st_size > 0)
             target = dest / f"transcript-{source.name}"
             shutil.move(str(source), str(target))
             (transcripts if real else others).append(target.name)
@@ -1163,6 +1165,9 @@ def regrade(ctx, out, tasks):
                 or old.get("legacy_inputs")):
             raise TaskError(f"{sample_dir.relative_to(out)}: the record holds no runner-recorded canary token, snapshot "
                             "and plugin path, and the world's copies could have been rewritten by the run")
+        if not isinstance((old.get("run") or {}).get("session_files"), list):
+            raise TaskError(f"{sample_dir.relative_to(out)}: the record predates the transcript classification, so "
+                            "regrading cannot tell a persisted transcript from a session directory")
         token, snapshot = old["canary"], old["snapshot"]
         plugin_dir = Path(old["plugin_dir"]) if old["plugin_dir"] else None
         run = dict(old.get("run") or {"timed_out": "timeout" in old["invalid_reasons"],
