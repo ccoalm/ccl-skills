@@ -36,11 +36,10 @@ done, while it is loaded at Step 0 before the first edit.
 
 ## Killing mutations for the new hook assertions
 
-Applied one at a time to a scratch copy of the hook and the reference, then
-restored; the restored control passes.
-
-Run against the final suite (67 checks). Where one edit breaks two properties
-that share a line or a header, both failures are listed.
+Each mutation was applied alone to a scratch copy of the hook and the
+reference and run against the final suite (67 checks); the restored control
+passes. Where one edit breaks two properties that share a line or a header,
+both failures are listed.
 
 | Mutation | Failing assertions |
 | --- | --- |
@@ -66,8 +65,8 @@ token, so the change caused it. The pin enumeration had read the contract
 anchors and the suite assertions but not the ledger anchors, which is the
 recipe gap the trim rule in `attention-budget-ratchet.md` now closes. The
 bullet went back into the entrypoint verbatim; afterwards
-`register_firing_path_resolution_ok (606 locators resolved)` and the suite
-passes.
+`register_firing_path_resolution_ok (606 locators resolved)`, before this
+round's three register rows were added, and the suite passes.
 
 ## Behavior: paired agent runs on a synthetic cleanup task
 
@@ -142,7 +141,7 @@ last change to any non-record file in this round.
 | `check-public-sanitization.py`, `git diff --check` | ok |
 | npm package `npm ci && npm test` | rc=0, 0 failures, run on an earlier candidate; since then files under the packaged roots were only modified, none added or removed |
 
-## Focused suites on the candidate
+## Touched suites in the final full lane
 
 | Suite | Result |
 | --- | --- |

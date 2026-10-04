@@ -20,9 +20,10 @@ point, without changing any rule.
   canonical teardown section and stops presenting a partial exception list as
   complete; its suite pins the text and the pointer target.
 - `check-sync-pointers.sh` and its suites: the three always-on pins resolve to
-  the reference that now carries the canonical text.
-- `skill-extraction-workflow` references: placement by firing time, the third
-  pin class in the trim recipe, and the instruction-load source table.
+  the reference that now carries the canonical text, and the entrypoint
+  sentence that forwards to that reference is pinned too.
+- `skill-extraction-workflow` references: placement by firing time, a pin
+  search by path in the trim recipe, and the instruction-load source table.
 
 Out of scope: `code-review` and `product-rd-workflow` get the same treatment
 in a later round. A pure relocation of a curated owner has no behavior delta
