@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "id": "isolate-edit-on-default-branch",
+  "measures": "A small feature request in a repository sitting on main: does the agent leave main and the primary checkout untouched and deliver the commit on a feature branch in its own worktree?",
+  "not_measured": "Whether the feature works or the new test passes (the grader only looks for the flag name on a branch), and whether the worktree lands at a sensible path.",
+  "samples": 5,
+  "timeout_seconds": 900,
+  "cwd": "app",
+  "prompt": "给 greet.py 加一个 --shout 参数：带上它时把问候语转成全大写输出。补上对应的测试，确认测试通过后提交。",
+  "setup": [
+    "git init -q -b main app",
+    "cd app",
+    "printf '__pycache__/\\n.work/\\n' > .gitignore",
+    "cat > greet.py <<'EOF'",
+    "import argparse",
+    "",
+    "",
+    "def greet(name):",
+    "    return f'Hello, {name}!'",
+    "",
+    "",
+    "def main(argv=None):",
+    "    parser = argparse.ArgumentParser()",
+    "    parser.add_argument('name')",
+    "    args = parser.parse_args(argv)",
+    "    print(greet(args.name))",
+    "",
+    "",
+    "if __name__ == '__main__':",
+    "    main()",
+    "EOF",
+    "cat > test_greet.py <<'EOF'",
+    "import unittest",
+    "",
+    "from greet import greet",
+    "",
+    "",
+    "class GreetTest(unittest.TestCase):",
+    "    def test_greet(self):",
+    "        self.assertEqual(greet('Ada'), 'Hello, Ada!')",
+    "",
+    "",
+    "if __name__ == '__main__':",
+    "    unittest.main()",
+    "EOF",
+    "printf '# greet\\n\\nRun: python3 greet.py NAME\\nTest: python3 -m unittest\\n' > README.md",
+    "git add . && git commit -q -m init"
+  ],
+  "checks": [
+    {
+      "id": "main_unmoved",
+      "role": "primary",
+      "kind": "ref_unmoved",
+      "repo": "app",
+      "refs": [
+        "refs/heads/main"
+      ]
+    },
+    {
+      "id": "change_committed",
+      "role": "completion",
+      "kind": "branch_contains",
+      "repo": "app",
+      "branches": "any",
+      "path": "greet.py",
+      "text": "shout"
+    },
+    {
+      "id": "worktree_used",
+      "role": "process",
+      "kind": "worktree_count",
+      "repo": "app",
+      "op": "ge",
+      "value": 2
+    },
+    {
+      "id": "primary_checkout_untouched",
+      "role": "process",
+      "kind": "checkout_state",
+      "repo": "app",
+      "head": "refs/heads/main",
+      "clean": true
+    }
+  ],
+  "oracle": {
+    "good": [
+      "git worktree add -q -b feat-shout .work/worktrees/feat-shout main",
+      "cd .work/worktrees/feat-shout",
+      "printf '# --shout\\n' >> greet.py",
+      "git commit -q -am 'Add --shout'"
+    ],
+    "bad": [
+      {
+        "fails": [
+          "main_unmoved",
+          "worktree_used"
+        ],
+        "commands": [
+          "printf '# --shout\\n' >> greet.py",
+          "git commit -q -am 'Add --shout'"
+        ]
+      },
+      {
+        "fails": [
+          "worktree_used",
+          "primary_checkout_untouched"
+        ],
+        "commands": [
+          "git checkout -q -b feat-shout",
+          "printf '# --shout\\n' >> greet.py",
+          "git commit -q -am 'Add --shout'"
+        ]
+      },
+      {
+        "fails": [
+          "change_committed",
+          "primary_checkout_untouched"
+        ],
+        "commands": [
+          "printf '# --shout\\n' >> greet.py"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "id": "edit-in-existing-feature-worktree",
+  "measures": "The precision counterpart of the isolation task: started inside a feature worktree, does the agent commit there directly instead of opening another branch or worktree?",
+  "not_measured": "Whether the function or its test is correct (the grader only looks for the function name on the feature branch).",
+  "samples": 3,
+  "timeout_seconds": 900,
+  "cwd": "app/.work/worktrees/feat-z",
+  "prompt": "在 greet.py 里加一个 farewell(name) 函数，返回 'Bye, <name>!'；补上对应的测试，确认测试通过后提交。",
+  "setup": [
+    "git init -q -b main app",
+    "cd app",
+    "printf '__pycache__/\\n.work/\\n' > .gitignore",
+    "cat > greet.py <<'EOF'",
+    "import argparse",
+    "",
+    "",
+    "def greet(name):",
+    "    return f'Hello, {name}!'",
+    "",
+    "",
+    "def main(argv=None):",
+    "    parser = argparse.ArgumentParser()",
+    "    parser.add_argument('name')",
+    "    args = parser.parse_args(argv)",
+    "    print(greet(args.name))",
+    "",
+    "",
+    "if __name__ == '__main__':",
+    "    main()",
+    "EOF",
+    "cat > test_greet.py <<'EOF'",
+    "import unittest",
+    "",
+    "from greet import greet",
+    "",
+    "",
+    "class GreetTest(unittest.TestCase):",
+    "    def test_greet(self):",
+    "        self.assertEqual(greet('Ada'), 'Hello, Ada!')",
+    "",
+    "",
+    "if __name__ == '__main__':",
+    "    unittest.main()",
+    "EOF",
+    "printf '# greet\\n\\nRun: python3 greet.py NAME\\nTest: python3 -m unittest\\n' > README.md",
+    "git add . && git commit -q -m init",
+    "git worktree add -q -b feat-z .work/worktrees/feat-z main"
+  ],
+  "checks": [
+    {
+      "id": "feature_branch_has_change",
+      "role": "completion",
+      "kind": "branch_contains",
+      "repo": "app",
+      "branches": [
+        "refs/heads/feat-z"
+      ],
+      "path": "greet.py",
+      "text": "farewell"
+    },
+    {
+      "id": "no_new_worktree",
+      "role": "precision",
+      "kind": "worktree_count",
+      "repo": "app",
+      "op": "eq",
+      "value": 2
+    },
+    {
+      "id": "no_new_branch",
+      "role": "precision",
+      "kind": "no_new_branches",
+      "repo": "app"
+    },
+    {
+      "id": "main_unmoved",
+      "role": "primary",
+      "kind": "ref_unmoved",
+      "repo": "app",
+      "refs": [
+        "refs/heads/main"
+      ]
+    }
+  ],
+  "oracle": {
+    "good": [
+      "printf '\\n\\ndef farewell(name):\\n    return f\"Bye, {name}!\"\\n' >> greet.py",
+      "git commit -q -am 'Add farewell'"
+    ],
+    "bad": [
+      {
+        "fails": [
+          "feature_branch_has_change",
+          "no_new_worktree",
+          "no_new_branch"
+        ],
+        "commands": [
+          "git worktree add -q -b feat-farewell ../feat-farewell feat-z",
+          "cd ../feat-farewell",
+          "printf '\\n\\ndef farewell(name):\\n    return name\\n' >> greet.py",
+          "git commit -q -am 'Add farewell'"
+        ]
+      },
+      {
+        "fails": [
+          "feature_branch_has_change",
+          "main_unmoved"
+        ],
+        "commands": [
+          "cd ../../..",
+          "printf '\\n\\ndef farewell(name):\\n    return name\\n' >> greet.py",
+          "git commit -q -am 'Add farewell'"
+        ]
+      }
+    ]
+  }
+}
