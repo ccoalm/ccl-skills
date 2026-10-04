@@ -34,7 +34,7 @@ prompt = sys.stdin.read()
 calibration = opt("--setting-sources") == "project"
 with open(os.environ["FAKE_LOG"], "a") as fh:
     fh.write(json.dumps({"argv": argv, "cwd": os.getcwd(), "prompt": prompt, "env": {
-        k: v for k, v in os.environ.items() if k.startswith(("CLAUDE", "GIT_"))}}) + "\n")
+        k: v for k, v in os.environ.items() if k.startswith(("CLAUDE", "GIT_", "PYTHONDONTWRITE"))}}) + "\n")
 modes = set(filter(None, os.environ.get("FAKE_MODE", "").split(",")))
 def emit(event):
     print(json.dumps(event), flush=True)
@@ -44,6 +44,8 @@ if plugin_dir:
     name = json.load(open(os.path.join(plugin_dir, ".claude-plugin", "plugin.json")))["name"]
     path = "/elsewhere/plugin" if "wrong_plugin_path" in modes else plugin_dir
     plugins.append({"name": name, "path": path, "source": name + "@inline"})
+if plugin_dir and "touch_plugin" in modes:
+    open(os.path.join(plugin_dir, "injected.md"), "w").write("changed by the run\n")
 emit({"type": "system", "subtype": "init", "model": opt("--model"), "plugins": plugins,
       "mcp_servers": [], "claude_code_version": "9.9.9"})
 if plugin_dir:
@@ -189,6 +191,29 @@ class GraderTests(unittest.TestCase):
         for label, (commands, want) in cases.items():
             with self.subTest(case=label):
                 self.assertEqual(paired.grade(task, world, gitconfig, snapshot, commands)["order"]["result"], want)
+
+    def test_trace_checks_read_commands_not_banners_or_comments(self):
+        checks = [{"id": "forced", "role": "trace", "kind": "no_command",
+                   "patterns": [r"\bworktree\s+remove\b.*\s(?:--force|-f)\b"]},
+                  {"id": "order", "role": "trace", "kind": "command_before",
+                   "first": r"\bstatus\b.*--ignored", "then": r"\bworktree\s+remove\b"}]
+        task, world, gitconfig, snapshot = self.world(checks)
+        cases = {
+            "banner naming the flag": (['echo "== git worktree remove (no --force) =="', "git worktree remove w"],
+                                       "pass", "fail"),
+            "comment naming the flag": (["git status --ignored -s", "git worktree remove w  # no --force"],
+                                        "pass", "pass"),
+            "forced command quoted for bash -c": (['bash -c "git worktree remove --force w"'], "fail", None),
+            "forced command after a quoted separator": (['bash -c "cd x; git worktree remove --force w"'], "fail", None),
+            "scan named only in output": (['printf "run git status --ignored first"', "git worktree remove w"],
+                                          "pass", "fail"),
+        }
+        for label, (commands, forced, order) in cases.items():
+            with self.subTest(case=label):
+                results = paired.grade(task, world, gitconfig, snapshot, commands)
+                self.assertEqual(results["forced"]["result"], forced)
+                if order is not None:
+                    self.assertEqual(results["order"]["result"], order)
 
     def test_branch_selectors_and_worktree_counts(self):
         checks = [
@@ -438,7 +463,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(argv[argv.index("--disallowedTools") + 1], paired.DISALLOWED_TOOLS)
             self.assertEqual(set(call["env"]), {"CLAUDE_CODE_DISABLE_CLAUDE_MDS", "CLAUDE_CODE_DISABLE_AUTO_MEMORY",
                                                 "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_TERMINAL_PROMPT",
-                                                "GIT_CEILING_DIRECTORIES"})
+                                                "GIT_CEILING_DIRECTORIES", "PYTHONDONTWRITEBYTECODE"})
             self.assertEqual(call["env"]["GIT_CEILING_DIRECTORIES"], os.path.realpath(Path(call["cwd"]).parents[1]))
             arm = Path(call["cwd"]).parts[-4]
             if arm == "off":
@@ -517,6 +542,15 @@ class BatchTests(unittest.TestCase):
             code = paired.main(["--out", str(self.out), "--regrade", "--repo", str(self.repo), "--tasks-dir", str(tasks)])
         self.assertEqual(code, 2)
         self.assertIn("differs from the one the batch ran", err.getvalue())
+
+    def test_a_changed_plugin_export_is_reported_with_its_paths(self):
+        code, err = self.main(env={"FAKE_MODE": "touch_plugin"})
+        self.assertEqual(code, 0, err)
+        integrity = json.loads((self.out / "integrity.json").read_text())
+        self.assertFalse(integrity["unchanged"])
+        self.assertEqual(integrity["changed"], {"base": ["injected.md"], "candidate": ["injected.md"]})
+        self.assertIn("unchanged after the batch: NO (base: injected.md; candidate: injected.md)",
+                      (self.out / "report.md").read_text())
 
     def test_a_guard_trip_on_the_last_samples_is_not_a_stop(self):
         code, err = self.main("--jobs", "3", env={"FAKE_UTIL": "0.95"})
