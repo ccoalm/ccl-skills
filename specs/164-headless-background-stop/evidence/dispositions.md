@@ -12,3 +12,12 @@ the self-review and ran again with it added.
 | review | 2 | P1 | same as challenge 2 | fixed with it |
 | review | 3 | P2 | the helper called directly in an interactive session still printed a notice on bad input | fixed: the subcommand checks the entrypoint before reading input; the check inside the function, now redundant, is gone so one pinned gate remains |
 | review | 4 | P2 | the caps on the reason were not asserted, the walk had only a prose summary and the lanes were pending | fixed: the suite asserts the 100-character description cap and that tasks past the fifth are not listed; the walk's per-mutation output is `hook-mutation-walk.txt`; the lanes are recorded when they run on the final candidate |
+
+## Delta review (`pass3-delta.json`)
+
+Run on the diff from the reviewed candidate, with the state helper, the guard's functions, the Stop
+registration and the existing Stop retry logic appended.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | the packet could not show that the whole Stop group stays bounded, because the other registered Stop hooks' retry paths, the wrapper, the entrypoint definition and the full suite were not in it | the claim is narrowed to what this hook guarantees: it adds at most one block per distinct running task id per session, and without usable state at most one per stop chain; the other Stop hooks are unchanged and keep their own bounds. The next pass gets the wrapper, the entrypoint definition, the complete suite and its Makefile entry appended |
