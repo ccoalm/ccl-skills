@@ -5,16 +5,17 @@
 # note: in a throwaway copy, every pin row is deleted (an order row is
 # reordered inside its section) and the fixture must red on that row's own
 # label, with the unmutated copy green before and after. Relocation probes move
-# a scoped phrase out of its section or line. The sweep gets decoy surfaces in
-# every scanned root: a removal without the scan, without its exit-0
-# requirement, or with a pointer that does not name the canonical reference
-# must red it, including from a new top-level directory; a compliant decoy, a
-# package-relative pointer inside the canonical package, a prune-only mention,
-# ignored or local-only paths, round records, evaluation inputs and a register
-# row must not; an unreadable file must red it too. The copy is a git
-# repository, so the sweep enumerates it the way it does in CI; one leg removes
-# the repository to exercise the plain-copy fallback, including an unreadable
-# directory.
+# a scoped phrase out of its section or line. The sweep gets decoy surfaces: a
+# removal without the scan, without its exit-0 requirement on the scan line, or
+# with a pointer that does not name the canonical reference must red it,
+# including from a new top-level directory and under a file name that starts
+# with a newline; a compliant decoy, a package-relative pointer inside the
+# canonical package, a prune-only mention, ignored paths, round records,
+# evaluation inputs and a register row must not. An unreadable file, an
+# unreadable untracked directory, an unreadable index, a missing repository and
+# a failed classification must each red it too. The copy is a git repository
+# with an index and no commit, so the sweep lists it the way it does in CI
+# while user commit hooks and signing never run.
 # Rows are parsed from the fixture, so a new row enters this walk unasked; a
 # teardown assertion written outside the row table is not walked, which is why
 # the fixture keeps them all as rows.
@@ -31,8 +32,7 @@ tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/teardown-guard-pins.XXXXXX")"
 # cleanup cannot leave them behind after a failure.
 trap 'chmod -R u+rwX "$tmp_root" 2>/dev/null; rm -rf "$tmp_root"' EXIT
 # The fixture reads the skills, the always-on layer, the docs and the root
-# contract. The copy is not a git checkout, so the fixture derives its root
-# from the copied script location; the isolation probe below proves it does.
+# contract; the isolation probe below proves the fixture reads the copy.
 cp -R "$repo_root/skills" "$tmp_root/skills"
 cp -R "$repo_root/agent-context" "$tmp_root/agent-context"
 cp -R "$repo_root/docs" "$tmp_root/docs"
@@ -40,7 +40,6 @@ cp "$repo_root/AGENTS.md" "$tmp_root/AGENTS.md"
 cp "$repo_root/.gitignore" "$tmp_root/.gitignore"
 git -C "$tmp_root" init -q
 git -C "$tmp_root" add -A
-git -C "$tmp_root" -c user.name=walk -c user.email=walk@invalid commit -qm copy
 copy_fixture="$tmp_root/$fixture_rel"
 [[ -f "$copy_fixture" ]] || fail "copy is missing the fixture"
 
@@ -211,6 +210,19 @@ decoy "docs/zz-no-exit.md" "$recipe_no_exit" red "no exit-0 requirement on the s
 decoy "docs/zz-exit-elsewhere.md" "$recipe_exit_elsewhere" red "no exit-0 requirement on the scan line"
 decoy "zz-new-root/guide.md" "$recipe_no_scan" red "no ignored-output scan"
 rm -rf "$tmp_root/zz-new-root"
+# A file name that starts with a newline must still be reported: the verdict
+# comes from the classifier's exit status, not from parsing its text.
+newline_name="$tmp_root/docs/"$'\n'"unsafe.md"
+printf '%s' "$recipe_no_scan" > "$newline_name"
+if out="$(run_copy)"; then
+  fail "a decoy whose name starts with a newline left the sweep green"
+fi
+case "$(printf '%s\n' "$out" | tail -1)" in
+  "FAIL: teardown guard sweep: "*'docs/\nunsafe.md: no ignored-output scan'*) : ;;
+  *) fail "newline-named decoy red for the wrong reason: $(printf '%s\n' "$out" | tail -1)" ;;
+esac
+rm -f "$newline_name"
+reds=$((reds + 1))
 decoy "docs/zz-basename-pointer.md" "$recipe_basename_pointer" red "no pointer to the canonical teardown"
 decoy "docs/zz-teardown-compliant.md" "$recipe_compliant" green
 decoy "skills/worktree-isolation/references/zz-package-relative.md" "$recipe_basename_pointer" green
@@ -273,34 +285,55 @@ case "$(printf '%s\n' "$out" | tail -1)" in
 esac
 rm -rf "$tmp_root/shim"
 
-# Plain-copy fallback: without the repository the sweep lists files itself, so
-# it must still reach a new top-level directory, still skip local-only paths,
-# and fail on a directory it cannot list.
-mkdir -p "$tmp_root/.work"
-mv "$tmp_root/.git" "$tmp_root/.work/git-off"
-run_copy >/dev/null || fail "plain-copy control not green"
-decoy "zz-new-root/guide.md" "$recipe_no_scan" red "no ignored-output scan"
-rm -rf "$tmp_root/zz-new-root"
-decoy ".work/zz-local.md" "$recipe_no_scan" green
-decoy "packages/zz-pkg/dist/README.md" "$recipe_no_scan" green
-rm -rf "$tmp_root/packages"
+# Git reports an untracked directory it cannot read on stderr and still exits
+# 0; the sweep must treat that report as an incomplete listing.
 if (( ! as_root )); then
   locked="$tmp_root/hooks/zz-unreadable"
   mkdir -p "$locked"
   printf '%s' "$recipe_no_scan" > "$locked/README.md"
   chmod 000 "$locked"
   if out="$(run_copy)"; then
-    fail "an unreadable directory left the plain-copy sweep green"
+    fail "an unreadable untracked directory left the sweep green"
   fi
   chmod 755 "$locked"
   case "$(printf '%s\n' "$out" | tail -1)" in
-    "FAIL: teardown guard sweep: could not list Markdown under the copy"*) : ;;
+    "FAIL: teardown guard sweep: git could not list every file"*) : ;;
     *) fail "unreadable directory red for the wrong reason: $(printf '%s\n' "$out" | tail -1)" ;;
   esac
   rm -rf "$tmp_root/hooks"
-  unreadable="3 unreadable or unlistable probes red"
+  unreadable="3 unreadable probes red"
+fi
+
+# A listing that never reaches the canonical file is a broken listing, not a
+# clean one: hide it from git (the row pins still read it directly).
+canonical_rel="skills/worktree-isolation/references/merge-and-teardown.md"
+mkdir -p "$tmp_root/.git/info"
+touch "$tmp_root/.git/info/exclude"
+cp "$tmp_root/.git/info/exclude" "$pristine"
+git -C "$tmp_root" rm -q --cached "$canonical_rel"
+printf '%s\n' "/$canonical_rel" >> "$tmp_root/.git/info/exclude"
+if out="$(run_copy)"; then
+  fail "a listing without the canonical file left the sweep green"
+fi
+cp "$pristine" "$tmp_root/.git/info/exclude"
+git -C "$tmp_root" add "$canonical_rel"
+case "$(printf '%s\n' "$out" | tail -1)" in
+  "FAIL: teardown guard sweep: the canonical teardown was never scanned"*) : ;;
+  *) fail "hidden canonical file red for the wrong reason: $(printf '%s\n' "$out" | tail -1)" ;;
+esac
+
+# Without a repository there is no list of the repository's Markdown, so the
+# sweep must fail rather than fall back to a guess.
+mkdir -p "$tmp_root/.work"
+mv "$tmp_root/.git" "$tmp_root/.work/git-off"
+if out="$(run_copy)"; then
+  fail "a copy without a repository left the sweep green"
 fi
 mv "$tmp_root/.work/git-off" "$tmp_root/.git"
+case "$(printf '%s\n' "$out" | tail -1)" in
+  "FAIL: teardown guard sweep: not a git work tree"*) : ;;
+  *) fail "missing repository red for the wrong reason: $(printf '%s\n' "$out" | tail -1)" ;;
+esac
 
 # Post-control green, then tree isolation: a mutated copy reds while the live
 # tree's own fixture stays green, so the walk above read the copy.
@@ -313,4 +346,4 @@ if run_copy >/dev/null; then fail "tree-isolation probe: mutated copy stayed gre
 TMPDIR="$tmp_root" bash "$repo_root/$fixture_rel" >/dev/null 2>&1 || fail "tree-isolation probe: live tree fixture not green"
 cp "$pristine" "$tmp_root/$rel"
 
-echo "test_teardown_guard_pins: ok ($applied applied mutations, each red on its own row; $relocations relocations red; $reds sweep decoys red, $greens precision decoys green; $unreadable; failed classification red; controls green)"
+echo "test_teardown_guard_pins: ok ($applied applied mutations, each red on its own row; $relocations relocations red; $reds sweep decoys red, $greens precision decoys green; $unreadable; hidden canonical file, missing repository and failed classification red; controls green)"

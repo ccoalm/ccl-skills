@@ -27,6 +27,12 @@ cp -R "$repo_root/skills" "$tmp_root/skills"
 cp -R "$repo_root/agent-context" "$tmp_root/agent-context"
 cp -R "$repo_root/docs" "$tmp_root/docs"
 cp "$repo_root/AGENTS.md" "$tmp_root/AGENTS.md"
+# The fixture's teardown sweep lists the repository's Markdown through git, so
+# the copy needs an index; nothing is committed, which keeps user commit hooks
+# and signing out of the run.
+cp "$repo_root/.gitignore" "$tmp_root/.gitignore"
+git -C "$tmp_root" init -q
+git -C "$tmp_root" add -A
 copy_fixture="$tmp_root/$fixture_rel"
 copy_ref="$tmp_root/$ref_rel"
 [[ -f "$copy_fixture" && -f "$copy_ref" ]] || fail "copy is missing the fixture or the reference"
