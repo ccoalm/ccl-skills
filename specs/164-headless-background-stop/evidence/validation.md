@@ -80,22 +80,32 @@ exact replacement each mutation applied, its named cases, the cases that failed 
 
 ## Lanes
 
-On the final candidate (tree `b47aeeaf5194`, the branch head before this record), with
+On the final candidate (tree `e1b44db`, the branch head before this record), with
 `CCL_SKILL_BASE_REF=origin/main` and `origin/main` at `1b87bad`:
 
 | Lane | Result |
 | --- | --- |
-| `make test` (repository gates, fast regressions, code-review families) | pass, 26 min; the guard suite reported `test_headless_background_stop_ok` |
+| `make test` (repository gates, fast regressions, code-review families) | pass; the guard suite reported `test_headless_background_stop_ok` |
 | `test_check_ccl_regressions.sh --heavy-only` | pass, 9 suites |
 | `check-ccl-skills.sh` | `ccl_skill_check_clean_ok`, `r0_status=private-ok` |
 | `check-public-sanitization.py .` | `public_sanitization_ok` |
 | `check_review_evidence_present.py` against the merge base | `review_evidence_present_ok` |
-| `shared_git_surface_gate.py` against `origin/main` | `shared_git_surface_gate_ok` |
-| `check-markdown-links.py`, `check-spec-references.py` | both ok |
-| `npm ci`, `npm test`, `npm run test:pack` in `packages/ccl-skills-npm` | pass, after the OpenCode adapter gained the guard's binding; before it, two OpenCode inventory tests failed in CI because every command hook needs a binding |
+| `check-markdown-links.py`, `check-spec-references.py`, `git diff --check` | all ok |
+| `npm run test:pack` in `packages/ccl-skills-npm` | pass |
+| `npm ci`, `npm test` in `packages/ccl-skills-npm` | pass, 433 of 433, on the code-identical head before the review records |
 
-After the OpenCode adapter began dropping an inherited `CLAUDE_CODE_ENTRYPOINT`, `npm test` passed
-433 of 433. One earlier full run failed one unrelated test once: the package-identity case in
-`opencode-auto-update.test.mjs`, where its control child exited 7. That test passed alone and in the
-next full run, and the failure was not reproduced. On disposable copies, removing the entrypoint strip
-failed the new spy test, and removing the guard's idle call failed it and the native-events test.
+The first `make test` run on this tree failed one code-review suite, `test_opencode_review_retry.sh`. Its
+three timeout cases failed while other checks ran at the same time. This branch does not change that
+suite or the code it tests. The suite then passed alone (102 cases), and the full `make test` rerun
+passed.
+
+Before the OpenCode binding, two OpenCode inventory tests failed in CI, because every command hook
+needs a binding in the adapter.
+
+After the adapter began dropping an inherited `CLAUDE_CODE_ENTRYPOINT`, one full `npm test` run
+failed one unrelated test once: the package-identity case in `opencode-auto-update.test.mjs`, where
+its control child exited 7. That test passed alone and in the next full run, and the failure was not
+reproduced.
+
+On disposable copies, removing the entrypoint strip failed the new spy test, and removing the guard's
+idle call failed both the spy test and the native-events test.
