@@ -559,7 +559,6 @@ class BatchTests(unittest.TestCase):
         self.assertNotIn("CLAUDE_CODE_DISABLE_CLAUDE_MDS", calibration[0]["env"])
         self.assertTrue(json.loads((self.out / "canary-calibration.json").read_text())["fired"])
         self.assertTrue(json.loads((self.out / "integrity.json").read_text())["unchanged"])
-        self.assertTrue((self.out / paired.OWNER_MARKER).exists())
         self.assertEqual((self.out / "arms" / "base" / "skill.md").read_text(), "base\n")
         self.assertEqual((self.out / "arms" / "candidate" / "skill.md").read_text(), "candidate\n")
         report = (self.out / "report.md").read_text()
@@ -595,7 +594,6 @@ class BatchTests(unittest.TestCase):
 
     def test_a_second_invocation_on_the_same_out_is_refused(self):
         self.out.mkdir(mode=0o700)
-        (self.out / paired.OWNER_MARKER).touch()
         held = paired.lock_output(self.out)
         try:
             code, err = self.main()
@@ -605,23 +603,32 @@ class BatchTests(unittest.TestCase):
         self.assertIn("another invocation", err)
         self.assertEqual(self.calls(), [])
 
-    def test_exports_without_a_frozen_plan_are_rebuilt(self):
+    def test_exports_without_a_frozen_plan_are_refused_not_reused(self):
         stale = self.out / "arms" / "base"
         stale.mkdir(parents=True)
-        (self.out / paired.OWNER_MARKER).touch()
         (stale / ".claude-plugin").mkdir()
         (stale / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": "ccl-skills"}))
         (stale / "skill.md").write_text("from another ref\n")
         code, err = self.main()
-        self.assertEqual(code, 0, err)
-        self.assertEqual((self.out / "arms" / "base" / "skill.md").read_text(), "base\n")
+        self.assertEqual(code, 2)
+        self.assertIn("holds no plan from this tool", err)
+        self.assertEqual((stale / "skill.md").read_text(), "from another ref\n")
+        self.assertEqual(self.calls(), [])
+
+    def test_an_unreadable_plan_is_refused(self):
+        self.out.mkdir(mode=0o700)
+        (self.out / "plan.json").write_text("{")
+        code, err = self.main()
+        self.assertEqual(code, 2)
+        self.assertIn("not valid JSON", err)
+        self.assertEqual(self.calls(), [])
 
     def test_an_output_root_with_foreign_files_is_left_alone(self):
         (self.out / "arms").mkdir(parents=True)
         (self.out / "arms" / "notes.txt").write_text("someone else's\n")
         code, err = self.main()
         self.assertEqual(code, 2)
-        self.assertIn("did not create", err)
+        self.assertIn("holds no plan from this tool", err)
         self.assertEqual((self.out / "arms" / "notes.txt").read_text(), "someone else's\n")
         self.assertEqual(self.calls(), [])
 
@@ -630,6 +637,28 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(code, 0, err)
         for record in self.records():
             self.assertIn("malformed_stream", record["invalid_reasons"])
+
+    def test_an_integrity_inspection_failure_is_recorded_not_raised(self):
+        def failing_sample(ctx, task, arm, index):
+            raise RuntimeError("worker failed")
+        def unreadable(before, after):
+            raise PermissionError("export unreadable")
+        with mock.patch.object(paired, "run_sample", failing_sample), \
+                mock.patch.object(paired, "manifest_changes", unreadable), self.assertRaisesRegex(RuntimeError, "worker"):
+            self.main()
+        integrity = json.loads((self.out / "integrity.json").read_text())
+        self.assertIsNone(integrity["unchanged"])
+        self.assertIn("PermissionError", integrity["error"])
+        self.assertIn("unchanged after the batch: UNKNOWN", (self.out / "report.md").read_text())
+
+    def test_a_report_failure_never_replaces_the_batch_failure(self):
+        def failing_sample(ctx, task, arm, index):
+            raise RuntimeError("worker failed")
+        def broken_report(out, plan, records):
+            raise OSError("disk full")
+        with mock.patch.object(paired, "run_sample", failing_sample), \
+                mock.patch.object(paired, "write_report", broken_report), self.assertRaisesRegex(RuntimeError, "worker"):
+            self.main()
 
     def test_integrity_is_recorded_when_a_batch_fails(self):
         def failing_sample(ctx, task, arm, index):
@@ -678,7 +707,7 @@ class BatchTests(unittest.TestCase):
         record = json.loads((sample / "record.json").read_text())
         self.assertEqual(record["checks"]["merged_feature_deleted"]["result"], "fail")
         self.assertEqual(record["graded_by"], paired.tool_sha256())
-        self.assertEqual(record["legacy_inputs"], [])
+        self.assertNotIn("legacy_inputs", record)
         self.assertEqual(len(self.calls()), 4)  # three samples and the calibration, nothing rerun
         tasks = self.tmp / "tasks"
         shutil.copytree(paired.DEFAULT_TASKS, tasks)
@@ -706,18 +735,19 @@ class BatchTests(unittest.TestCase):
     def test_regrade_refuses_a_record_without_runner_recorded_inputs(self):
         self.assertEqual(self.main()[0], 0)
         sample = self.out / "runs" / self.TASK / "base" / "1"
-        record = json.loads((sample / "record.json").read_text())
-        record["legacy_inputs"] = ["canary"]
-        (sample / "record.json").write_text(json.dumps(record))
-        code, err = self.regrade()
-        self.assertEqual(code, 0, err)
-        self.assertEqual(json.loads((sample / "record.json").read_text())["legacy_inputs"], ["canary"])
-        record = json.loads((sample / "record.json").read_text())
-        record.pop("canary")
-        (sample / "record.json").write_text(json.dumps(record))
-        code, err = self.regrade()
-        self.assertEqual(code, 2)
-        self.assertIn("no runner-recorded canary token", err)
+        original = (sample / "record.json").read_text()
+        cases = {
+            "token missing": lambda r: r.pop("canary"),
+            "inputs taken from the world by an older regrade": lambda r: r.__setitem__("legacy_inputs", ["canary"]),
+        }
+        for label, mutate in cases.items():
+            with self.subTest(case=label):
+                record = json.loads(original)
+                mutate(record)
+                (sample / "record.json").write_text(json.dumps(record))
+                code, err = self.regrade()
+                self.assertEqual(code, 2)
+                self.assertIn("no runner-recorded canary token", err)
 
     def test_records_outside_the_plan_inventory_are_refused(self):
         self.assertEqual(self.main()[0], 0)

@@ -97,7 +97,6 @@ DEFAULT_TASKS = REPO_ROOT / "eval" / "paired-tasks"
 ARMS = ("off", "base", "candidate")
 TREATMENT = {"off": "off", "base": "reference", "candidate": "full"}
 ROUTING_MARKER = "<ccl-skills-routing"
-OWNER_MARKER = ".paired-eval-output"
 DISALLOWED_TOOLS = "WebFetch,WebSearch,SendMessage,ListAgents,RemoteTrigger,PushNotification"
 ROLES = ("primary", "completion", "precision", "process", "trace")
 TASK_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -903,8 +902,9 @@ def build_report(plan, records, calibration, integrity):
     lines.append(f"- instruction-file canary calibration: {cal}")
     if integrity is not None:
         detail = "; ".join(f"{arm}: {', '.join(paths[:5])}" for arm, paths in (integrity.get("changed") or {}).items())
-        lines.append(f"- plugin exports unchanged after the batch: {'yes' if integrity.get('unchanged') else 'NO'}"
-                     + (f" ({detail})" if detail else ""))
+        state = {True: "yes", False: "NO"}.get(integrity.get("unchanged"), "UNKNOWN")
+        detail = detail or integrity.get("error", "")
+        lines.append(f"- plugin exports unchanged after the batch: {state}" + (f" ({detail})" if detail else ""))
     costs = [r["cost_usd"] for r in records if isinstance(r.get("cost_usd"), (int, float))]
     lines += [f"- samples recorded {len(records)}, valid {sum(r['valid'] for r in records)}, "
               f"with suspects {sum(bool(r['suspect_paths']) for r in records)}, spend ${round(sum(costs), 2)}", "",
@@ -1048,7 +1048,7 @@ def run_sample(ctx, task, arm, index):
     return make_record(ctx, task, arm, index, sample_dir, snapshot, token, run, plugin_dir)
 
 
-def make_record(ctx, task, arm, index, sample_dir, snapshot, token, run, plugin_dir, legacy=()):
+def make_record(ctx, task, arm, index, sample_dir, snapshot, token, run, plugin_dir):
     """Assess and grade one finished run from its saved stream and world, and write record.json.
     The record keeps the canary token and the snapshot so later regrading never reads files the
     tested agent could have rewritten."""
@@ -1076,7 +1076,7 @@ def make_record(ctx, task, arm, index, sample_dir, snapshot, token, run, plugin_
         "run": {"timed_out": run["timed_out"], "cleanup_confirmed": run["cleanup_confirmed"],
                 "export_changes": run.get("export_changes") or []},
         "canary": token, "snapshot": snapshot, "plugin_dir": str(plugin_dir) if plugin_dir else None,
-        "legacy_inputs": list(legacy), "max_utilization": parsed["max_utilization"],
+        "max_utilization": parsed["max_utilization"],
         "skills_invoked": [str(u["input"].get("skill")) for u in parsed["tool_uses"] if u["name"] == "Skill"],
         "bash_commands": len(commands), "result_excerpt": str(last.get("result", ""))[:300],
     }
@@ -1095,7 +1095,8 @@ def regrade(ctx, out, tasks):
     records = load_records(out, ctx["plan"])
     for old in records:
         sample_dir = out / "runs" / old["task"] / old["arm"] / str(old["sample"])
-        if not (isinstance(old.get("canary"), str) and isinstance(old.get("snapshot"), dict) and "plugin_dir" in old):
+        if (not (isinstance(old.get("canary"), str) and isinstance(old.get("snapshot"), dict) and "plugin_dir" in old)
+                or old.get("legacy_inputs")):
             raise TaskError(f"{sample_dir.relative_to(out)}: the record holds no runner-recorded canary token, snapshot "
                             "and plugin path, and the world's copies could have been rewritten by the run")
         token, snapshot = old["canary"], old["snapshot"]
@@ -1103,8 +1104,7 @@ def regrade(ctx, out, tasks):
         run = dict(old.get("run") or {"timed_out": "timeout" in old["invalid_reasons"],
                                       "cleanup_confirmed": "process_cleanup_unconfirmed" not in old["invalid_reasons"]},
                    seconds=old["seconds"], exit_code=old["exit_code"])
-        make_record(ctx, by_id[old["task"]], old["arm"], old["sample"], sample_dir, snapshot, token, run,
-                    plugin_dir, old.get("legacy_inputs") or ())
+        make_record(ctx, by_id[old["task"]], old["arm"], old["sample"], sample_dir, snapshot, token, run, plugin_dir)
     return len(records)
 
 
@@ -1175,11 +1175,18 @@ def lock_output(out):
 
 
 def record_integrity(out, arm_dirs, manifests):
-    """Name every path that differs from each frozen export; runs on every exit of a batch."""
-    if arm_dirs:
+    """Name every path that differs from each frozen export, on every exit once runs may have
+    started. An export that cannot be inspected is recorded as unknown with the reason, so the
+    batch's own outcome or failure is never replaced by this check."""
+    if not arm_dirs:
+        return
+    try:
         changed = {arm: paths for arm in arm_dirs
                    if (paths := manifest_changes(manifests[arm], tree_manifest(arm_dirs[arm])))}
-        write_atomic(out / "integrity.json", json.dumps({"unchanged": not changed, "changed": changed}, indent=1))
+        payload = {"unchanged": not changed, "changed": changed}
+    except OSError as exc:
+        payload = {"unchanged": None, "changed": {}, "error": f"{type(exc).__name__}: {exc}"[:300]}
+    write_atomic(out / "integrity.json", json.dumps(payload, indent=1))
 
 
 def _raise_interrupt(signum, frame):
@@ -1218,11 +1225,12 @@ def run_batch(args, out, arms, only):
     version = claude_version(args.claude)
     if out.exists() and not out.is_dir():
         raise TaskError("--out exists and is not a directory")
-    owned = (out / OWNER_MARKER).exists() or (out / "plan.json").exists()
-    if out.is_dir() and any(out.iterdir()) and not owned:
-        raise TaskError("--out holds files this tool did not create; use a new or empty directory")
+    contents = [entry for entry in out.iterdir() if entry.name != ".lock"] if out.is_dir() else []
+    if contents and not (out / "plan.json").is_file():
+        # The runner never deletes what it did not create in this batch: a root holding anything
+        # but a frozen plan, including exports an interrupted run left before freezing it, is refused.
+        raise TaskError("--out is not empty and holds no plan from this tool; use a new or empty directory")
     out.mkdir(mode=0o700, parents=True, exist_ok=True)
-    (out / OWNER_MARKER).touch()
     lock = lock_output(out)
     try:
         return _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version)
@@ -1231,11 +1239,10 @@ def run_batch(args, out, arms, only):
 
 
 def _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version):
-    existing = read_json(out / "plan.json")
-    if existing is None and (out / "arms").exists():
-        # Exports left by a run that stopped before freezing its plan have no recorded commit;
-        # rebuild them rather than bind them to the refs requested now.
-        shutil.rmtree(out / "arms")
+    try:
+        existing = read_json(out / "plan.json")
+    except json.JSONDecodeError:
+        raise TaskError("plan.json under --out is not valid JSON; use a new --out") from None
     arm_dirs, arm_info, names, manifests = {}, {}, set(), {}
     for arm in arms:
         if arm == "off":
@@ -1317,8 +1324,12 @@ def _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version
             kill_group(proc)
         pool.shutdown(wait=True, cancel_futures=True)
         signal.signal(signal.SIGTERM, previous)
-        record_integrity(out, arm_dirs, manifests)
-        write_report(out, plan, load_records(out, plan))
+        try:  # evidence is best effort here; the original failure is what this exit reports
+            record_integrity(out, arm_dirs, manifests)
+            write_report(out, plan, load_records(out, plan))
+        except Exception as report_error:
+            print(f"report not written after the failure: {type(report_error).__name__}: {report_error}",
+                  file=sys.stderr)
         if isinstance(exc, KeyboardInterrupt):
             print("interrupted: rerun the same command to resume", file=sys.stderr)
             return 130
