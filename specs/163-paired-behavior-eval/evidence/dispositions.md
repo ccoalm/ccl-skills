@@ -34,3 +34,43 @@ write-up corrected. 24 findings were fixed; one is an accepted limitation.
 | challenge | 11 | P2 | "neither helped nor hurt" treated no separation as equivalence | fixed in the write-up, the PR text and the register row |
 | review | 13 | P2 | same as challenge 11 | fixed with it |
 | review | 14 | P2 | lanes still pending in the committed record | closed by the final lanes on the final candidate |
+
+## Delta review of the fixes (`pass3-delta.json`)
+
+Run on `0539ab9`, a path slice of the candidate (tool, tests, register row and
+round records). The slice was a workaround for the packet limit; the protocol's
+delta packet is the diff from the reviewed commit, which the next pass used.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | a truncated line after the last result left the run valid | fixed: a malformed line makes the stream unfinished (`malformed_stream`); isolation and batch tests |
+| 2 | P1 | the legacy canary fallback accepted a re-tokened file | fixed by deletion: regrading reads only runner-recorded inputs and refuses a record without them; the first batch's records already hold theirs, taken from untouched canary files and marked in `legacy_inputs` |
+| 3 | P1 | an output root without plan.json lost its arms/ directory | fixed: the runner only touches an output root it created (owner marker) or already planned in, and refuses one holding other files |
+| 4 | P2 | a worker past its stop check could still spawn | fixed: the utilization stop is checked and set under the spawn lock |
+| 5 | P2 | single-quoted substitutions and multi-command `bash -c` payloads are misread | accepted and documented in the tool header: the third successive round of shell-parsing near-misses, in a check labelled heuristic whose outcome is graded directly from the world, so the class stops being patched |
+| 6 | P2 | worktree paths with special characters were quoted | fixed: `git worktree list --porcelain -z` |
+| 7 | P2 | integrity was lost on interrupted or failed exits | fixed: recorded on every exit |
+| 8 | P2 | the slice omitted unchanged files and the projection | the unchanged files were covered by the first two passes; the next delta pass reviews the diff from the reviewed commit |
+| 9 | P2 | lanes were still pending | closed when the final lanes on the final candidate finished |
+
+## Second delta review (`pass4-delta.json`)
+
+Run on the diff from `0539ab9` with the previous pass's P1 findings carried
+verbatim as open items.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | records an older regrade built from world-side inputs were still accepted | fixed by deletion: regrading refuses any record whose inputs were legacy-derived; the first batch, last regraded before this, is frozen as recorded |
+| 2 | P1 | the ownership marker was written before an existing plan was validated | fixed by deletion: the runner no longer deletes exports and needs no marker; a non-empty output root without a plan from this tool is refused |
+| 3 | P1 | integrity on every exit was not established, and inspecting a damaged export could raise over the original failure | fixed: an export that cannot be inspected is recorded as unknown with its reason, evidence writing after a failure never replaces that failure, and the claim is scoped to every exit once runs may have started; tests for both |
+
+The ownership and legacy findings were the third round of each class, so both
+converged by removing the capability rather than refining it again.
+
+## Third delta review (`pass5-delta.json`)
+
+Run on the diff from `ed2d10a`.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | integrity on every exit could not be established from the bounded packet, and a mocked inspection error proved nothing about real traversal | fixed: `os.walk` skipped unreadable directories silently, so traversal now raises and the record says unknown; tests use a real unreadable export directory and an interrupt during the batch; the next pass received the batch lifecycle as appended context |

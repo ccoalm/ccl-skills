@@ -45,7 +45,7 @@ environment to their child runs. The tool strips every inherited `CLAUDE*` and
 trajectory and fails on each bad trajectory that names it, and every check is
 named by at least one.
 
-On a disposable copy of the tool, its tests and the task bank, 71 mutations were
+On a disposable copy of the tool, its tests and the task bank, 80 mutations were
 applied one at a time to the final tool; each turned its named test red while an
 unrelated test stayed green, and the copy was green before and after.
 
@@ -55,12 +55,12 @@ unrelated test stayed green, and the copy was green before and after.
 | graders | missing repository passes, no git discovery ceiling, grading through the sample's own git config, blob by size only, blob by original path, non-default selector includes main |
 | trace segmentation | commands not split at separators, banners counted as commands, comments kept, a hash inside a word starting a comment, a quoted command reduced to its first word, substitutions not inspected, unparsable text dropped |
 | exports | export extracted in place, directory symlinks ignored |
-| stream and validity | utilization windows ignored, top-level utilization ignored, first result decides, several results rejected, activity after the last result accepted, trailing activity never reset, cost from the first result |
+| stream and validity | utilization windows ignored, top-level utilization ignored, first result decides, several results rejected, activity after the last result accepted, trailing activity never reset, cost from the first result, malformed lines accepted |
 | isolation | canary check removed, canary read only from replies, plugin identity by name only, routing check, foreign plugin, over-firing foreign check, MCP, model, missing result, allowed roots ignored, tilde lookahead removed |
 | statistics | lower tail only, stricter threshold |
-| process | only the leader killed, no reaping after a normal exit, a run starting after shutdown began |
-| batch | parent `CLAUDE*` variables inherited, source-repository reads inherit `GIT_*`, version probe inherits the environment, bytecode writes allowed, prompt not on stdin, off arm gets a plugin, runs share the frozen export, export changes not checked, integrity list truncated, calibration always fired, calibration failure ignored, stale exports reused, no output lock, records not checked against the plan, output inside a checkout accepted, sibling worktrees not listed, recorded samples rerun, changed plan accepted, max-runs not enforced, stop reported when nothing remains, sample utilization never stops the batch |
-| regrade | old records kept, changed tasks accepted, the world's canary file trusted, the world's snapshot trusted, a legacy canary accepted after an edit |
+| process | only the leader killed, no reaping after a normal exit, a run starting after shutdown began, the utilization stop not checked at spawn |
+| batch | parent `CLAUDE*` variables inherited, source-repository reads inherit `GIT_*`, version probe inherits the environment, bytecode writes allowed, prompt not on stdin, off arm gets a plugin, runs share the frozen export, export changes not checked, integrity list truncated, calibration always fired, calibration failure ignored, no output lock, the lock file counted as content, a non-empty root without a plan accepted, an invalid plan crashing, records not checked against the plan, output inside a checkout accepted, sibling worktrees not listed, worktree list read without `-z`, recorded samples rerun, changed plan accepted, max-runs not enforced, stop reported when nothing remains, sample utilization never stops the batch, integrity skipped on a failed batch, an inspection failure raised, a report failure replacing the batch failure, unknown integrity shown as a pass |
+| regrade | old records kept, changed tasks accepted, the world's copies read, a record without recorded inputs accepted, legacy-derived records regraded |
 
 ## Instrument smoke
 
@@ -90,12 +90,15 @@ runs, and both readings are kept:
   (`echo "== git worktree remove (no --force) =="`); the commands the runs
   executed were unforced. Both arms go from 4/5 to 5/5; no label changes.
   Nothing else in the 54 records changed.
-- After the review fixes, the records were rebuilt once more with the
-  hardened tool: a run must show no activity after its last result, and the
-  canary is checked against the whole stream, tool results included. No
-  record changed. The tokens came from the worlds' canary files, which all
-  54 still held in their original form, and the snapshots from the saved
-  `snapshot.json`; newer records keep both themselves.
+- After the review fixes, the records were rebuilt twice more with the
+  hardened tool: a run must show no activity after its last result and no
+  malformed line, and the canary is checked against the whole stream, tool
+  results included. No record changed. The tokens came from the worlds'
+  canary files, which all 54 still held in their original form, and the
+  snapshots from the saved `snapshot.json`; each record marks that in
+  `legacy_inputs`. The final tool refuses to regrade such records, so this
+  batch is frozen as recorded; newer records keep their own token and
+  snapshot.
 
 `batch-records.json` holds every sample's checks and validity under the
 as-run tool and under the final one, without paths or model text; exactly
@@ -189,11 +192,16 @@ Follow-ups, not in this change:
 
 Independent review and adversarial challenge, both run by codex at release
 depth on the candidate before the fixes, returned 14 and 11 findings
-(`pass1-review.json`, `pass2-challenge.json`). Twenty-four are fixed in the
-hardening commit with a test each, and the walk above covers those tests. One,
-a process that starts its own session outliving the run's process-group
-kill, is an accepted limitation stated in the tool header; no process from
-the first batch survived the batch. `dispositions.md` maps every finding.
+(`pass1-review.json`, `pass2-challenge.json`). Twenty-four were fixed with a
+test each, and the walk above covers those tests. One, a process that starts
+its own session outliving the run's process-group kill, is an accepted
+limitation stated in the tool header; no process from the first batch
+survived the batch. Delta reviews of the fixes followed (`pass3-delta.json`,
+`pass4-delta.json` and later), each carrying the previous pass's findings as
+open items; where the same class came back a third time (legacy regrade
+inputs, output-root ownership, shell parsing in trace checks) it was closed by
+removing the capability or documenting the heuristic, not by another
+refinement. `dispositions.md` maps every finding.
 
 ## Lanes
 
