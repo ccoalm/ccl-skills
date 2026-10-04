@@ -68,6 +68,8 @@ const OPENCODE_HOOK_BINDINGS = Object.freeze({
   "owner-dispatch-stop.sh": "event:session.idle/session.status",
   "skill-extraction-gate-stop.sh": "event:session.idle/session.status",
   "proposed-next-stop.sh": "event:session.idle/session.status",
+  // Inert here: it acts only for a Claude Code sdk entrypoint, which OpenCode never sets.
+  "headless-background-stop.sh": "event:session.idle/session.status",
 })
 
 type HookJson = {
@@ -664,6 +666,7 @@ export const CclSkills = async (context: {
           runHook(hooksRoot, "owner-dispatch-stop.sh", stopPayload, directory, 10_000),
           runHook(hooksRoot, "skill-extraction-gate-stop.sh", stopPayload, directory, 15_000),
           runHook(hooksRoot, "proposed-next-stop.sh", stopPayload, directory, 5_000),
+          runHook(hooksRoot, "headless-background-stop.sh", stopPayload, directory, 5_000),
         ]
         const reasons = results
           .filter((result) => result.output?.decision === "block" && typeof result.output.reason === "string")
