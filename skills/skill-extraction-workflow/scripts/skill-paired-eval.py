@@ -1052,7 +1052,9 @@ def agent_command(claude, model, effort, budget, plugin_dir, setting_sources="")
 def collect_transcripts(stream_path, dest):
     """Move the session transcripts Claude Code wrote for this run out of ~/.claude/projects into
     dest. Only entries named by a session id from this run's own init events are moved, and a
-    project directory is removed only when that leaves it empty. Returns the moved names."""
+    project directory is removed only when that leaves it empty. Returns the moved names in two
+    lists: transcripts, which were non-empty regular files when found, and everything else, such
+    as session directories or links, which never count as a persisted transcript."""
     sessions = set()
     for line in Path(stream_path).read_text(encoding="utf-8", errors="replace").splitlines():
         try:
@@ -1064,17 +1066,18 @@ def collect_transcripts(stream_path, dest):
             if isinstance(session, str) and SESSION_ID.fullmatch(session):
                 sessions.add(session)
     projects = Path.home() / ".claude" / "projects"
-    moved = []
+    transcripts, others = [], []
     for session in sorted(sessions):
         for source in sorted(projects.glob(f"*/{session}.jsonl")) + sorted(projects.glob(f"*/{session}")):
+            real = source.is_file() and not source.is_symlink() and source.stat().st_size > 0
             target = dest / f"transcript-{source.name}"
             shutil.move(str(source), str(target))
-            moved.append(target.name)
+            (transcripts if real else others).append(target.name)
             try:
                 source.parent.rmdir()
             except OSError:
                 pass  # the project directory still holds other sessions
-    return moved
+    return transcripts, others
 
 
 def run_sample(ctx, task, arm, index):
@@ -1095,7 +1098,7 @@ def run_sample(ctx, task, arm, index):
                     task["timeout_seconds"], sample_dir / "stream.jsonl", sample_dir / "stderr.txt", ctx)
     if run is None:
         return None  # never started: resume runs it
-    run["transcripts"] = collect_transcripts(sample_dir / "stream.jsonl", sample_dir)
+    run["transcripts"], run["session_files"] = collect_transcripts(sample_dir / "stream.jsonl", sample_dir)
     if ctx["interrupted"].is_set():
         return None  # stopped by an interrupt: not an outcome; resume reruns it
     run["export_changes"] = []
@@ -1117,7 +1120,7 @@ def make_record(ctx, task, arm, index, sample_dir, snapshot, token, run, plugin_
                                 ctx["arm_dirs_real"], token)
     if run.get("export_changes"):
         reasons.append("plugin_export_changed")
-    if not any(name.endswith(".jsonl") for name in run.get("transcripts") or []):
+    if not run.get("transcripts"):
         reasons.append("transcript_missing")  # hooks that read the session transcript did not run as in normal use
     allowed = [os.path.realpath(world)] + ([os.path.realpath(plugin_dir)] if plugin_dir else [])
     suspects = outside_paths(parsed["tool_uses"], allowed, ctx["watched"], ctx["home"])
@@ -1134,7 +1137,8 @@ def make_record(ctx, task, arm, index, sample_dir, snapshot, token, run, plugin_
         "continuations": max(len(results) - 1, 0),
         "seconds": run["seconds"], "exit_code": run["exit_code"],
         "run": {"timed_out": run["timed_out"], "cleanup_confirmed": run["cleanup_confirmed"],
-                "export_changes": run.get("export_changes") or [], "transcripts": run.get("transcripts") or []},
+                "export_changes": run.get("export_changes") or [], "transcripts": run.get("transcripts") or [],
+                "session_files": run.get("session_files") or []},
         "canary": token, "snapshot": snapshot, "plugin_dir": str(plugin_dir) if plugin_dir else None,
         "max_utilization": parsed["max_utilization"],
         "skills_invoked": [str(u["input"].get("skill")) for u in parsed["tool_uses"] if u["name"] == "Skill"],

@@ -65,6 +65,11 @@ if "--no-session-persistence" not in argv and "no_transcript" not in modes:  # p
     if "session_dir_only" in modes and not calibration:  # a session directory but no transcript file
         os.makedirs(os.path.join(project, session, "subagents"))
         open(os.path.join(project, session, "subagents", "agent.jsonl"), "w").write("{}\n")
+    elif "transcript_is_directory" in modes and not calibration:  # a directory where the transcript belongs
+        os.makedirs(os.path.join(project, session + ".jsonl"))
+        open(os.path.join(project, session + ".jsonl", "inner.jsonl"), "w").write("{}\n")
+    elif "empty_transcript" in modes and not calibration:
+        open(os.path.join(project, session + ".jsonl"), "w").close()
     else:
         open(os.path.join(project, session + ".jsonl"), "w").write(json.dumps({"type": "user", "prompt": prompt}) + "\n")
     if "foreign_session_file" in modes and not calibration:  # another session of the same project
@@ -823,13 +828,18 @@ class BatchTests(unittest.TestCase):
             sessions = [e["session_id"] for e in events if e.get("subtype") == "init"]
             self.assertEqual(record["run"]["transcripts"], [f"transcript-{s}.jsonl" for s in sessions])
 
-    def test_a_session_directory_without_a_transcript_file_is_invalid(self):
-        code, err = self.main(env={"FAKE_MODE": "session_dir_only"})
-        self.assertEqual(code, 0, err)
-        self.assertEqual(self.regrade()[0], 0)
-        for record in self.records():
-            self.assertEqual([name.endswith(".jsonl") for name in record["run"]["transcripts"]], [False])
-            self.assertIn("transcript_missing", record["invalid_reasons"])
+    def test_only_a_non_empty_transcript_file_counts_as_persisted(self):
+        for mode in ("session_dir_only", "transcript_is_directory", "empty_transcript"):
+            with self.subTest(mode=mode):
+                self.out = self.tmp / f"out-{mode}"
+                code, err = self.main(env={"FAKE_MODE": mode})
+                self.assertEqual(code, 0, err)
+                before = self.records()
+                self.assertEqual(self.regrade()[0], 0)
+                for record in before + self.records():  # as recorded, and again after regrading
+                    self.assertEqual(record["run"]["transcripts"], [])
+                    self.assertEqual(len(record["run"]["session_files"]), 1)  # moved out of home all the same
+                    self.assertIn("transcript_missing", record["invalid_reasons"])
 
     def test_a_signal_during_the_calibration_stops_it(self):
         with self.caught_signals() as (escaped, _):
