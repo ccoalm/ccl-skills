@@ -53,6 +53,11 @@ group that is killed when the run ends. Authentication configured only through
 CLAUDE* variables is stripped too, so such runs fail visibly as invalid samples.
 A plugin arm also runs whatever the plugin asks for, such as external review
 CLIs installed on this machine; their spend is not in the reported cost.
+Session persistence stays on, because a plugin's hooks may read the session
+transcript and run degraded without it: Claude Code writes each run's
+transcript under ~/.claude/projects, the runner moves the files named by that
+run's own session ids into the sample directory, and a run whose transcript was
+not written is invalid.
 
 Usage:
   python3 skill-paired-eval.py --check-oracles
@@ -74,7 +79,8 @@ including one that started inside that window, are killed and record nothing, an
 still written before exit 130.
 Every report, including --report-only and --regrade, recomputes the integrity record by
 comparing each export with the manifest the plan froze. A batch killed outright (SIGKILL)
-writes nothing more; the next rerun or --report-only brings the record up to date.
+writes nothing more and leaves its live runs' transcripts under ~/.claude/projects; the next
+rerun or --report-only brings the integrity record up to date.
 """
 import argparse
 import concurrent.futures as cf
@@ -109,6 +115,7 @@ DISALLOWED_TOOLS = "WebFetch,WebSearch,SendMessage,ListAgents,RemoteTrigger,Push
 ROLES = ("primary", "completion", "precision", "process", "trace")
 TASK_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 CHECK_ID = re.compile(r"^[a-z0-9_]+$")
+SESSION_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 CHECK_KINDS = {
     "blob_kept": {"path"},
     "path_absent": {"path"},
@@ -1034,10 +1041,40 @@ def agent_command(claude, model, effort, budget, plugin_dir, setting_sources="")
         cmd += ["--effort", effort]
     if plugin_dir:
         cmd += ["--plugin-dir", str(plugin_dir)]
+    # Session persistence stays on: a plugin's hooks may read the session transcript, and without
+    # it they run degraded. collect_transcripts moves the run's transcript out of the home directory.
     cmd += ["--setting-sources", setting_sources, "--strict-mcp-config", "--permission-mode", "bypassPermissions",
-            "--output-format", "stream-json", "--verbose", "--no-session-persistence",
+            "--output-format", "stream-json", "--verbose",
             "--max-budget-usd", str(budget), "--disallowedTools", DISALLOWED_TOOLS]
     return cmd
+
+
+def collect_transcripts(stream_path, dest):
+    """Move the session transcripts Claude Code wrote for this run out of ~/.claude/projects into
+    dest. Only entries named by a session id from this run's own init events are moved, and a
+    project directory is removed only when that leaves it empty. Returns the moved names."""
+    sessions = set()
+    for line in Path(stream_path).read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict) and event.get("type") == "system" and event.get("subtype") == "init":
+            session = event.get("session_id")
+            if isinstance(session, str) and SESSION_ID.fullmatch(session):
+                sessions.add(session)
+    projects = Path.home() / ".claude" / "projects"
+    moved = []
+    for session in sorted(sessions):
+        for source in sorted(projects.glob(f"*/{session}.jsonl")) + sorted(projects.glob(f"*/{session}")):
+            target = dest / f"transcript-{source.name}"
+            shutil.move(str(source), str(target))
+            moved.append(target.name)
+            try:
+                source.parent.rmdir()
+            except OSError:
+                pass  # the project directory still holds other sessions
+    return moved
 
 
 def run_sample(ctx, task, arm, index):
@@ -1045,6 +1082,11 @@ def run_sample(ctx, task, arm, index):
     edits the plugin changes only its own copy and is recorded as invalid."""
     sample_dir = ctx["out"] / "runs" / task["id"] / arm / str(index)
     world, gitconfig, snapshot, token = build_world(task, sample_dir)
+    for stale in sample_dir.glob("transcript-*"):  # left by an interrupted earlier attempt
+        if stale.is_dir() and not stale.is_symlink():
+            shutil.rmtree(stale)
+        else:
+            stale.unlink()
     write_atomic(sample_dir / "snapshot.json", json.dumps(snapshot, indent=1))
     plugin_dir = None
     if arm in ctx["arm_dirs"]:
@@ -1056,8 +1098,11 @@ def run_sample(ctx, task, arm, index):
     cmd = agent_command(ctx["claude"], plan["model"], plan["effort_flag"], plan["max_budget_usd"], plugin_dir)
     run = run_agent(cmd, task["prompt"], world / task["cwd"], clean_env(gitconfig, sample_dir, agent=True),
                     task["timeout_seconds"], sample_dir / "stream.jsonl", sample_dir / "stderr.txt", ctx)
-    if run is None or ctx["interrupted"].is_set():
-        return None  # never started, or stopped by an interrupt: not an outcome; resume reruns it
+    if run is None:
+        return None  # never started: resume runs it
+    run["transcripts"] = collect_transcripts(sample_dir / "stream.jsonl", sample_dir)
+    if ctx["interrupted"].is_set():
+        return None  # stopped by an interrupt: not an outcome; resume reruns it
     run["export_changes"] = []
     if plugin_dir is not None:
         run["export_changes"] = manifest_changes(ctx["manifests"][arm], tree_manifest(plugin_dir))
@@ -1077,6 +1122,8 @@ def make_record(ctx, task, arm, index, sample_dir, snapshot, token, run, plugin_
                                 ctx["arm_dirs_real"], token)
     if run.get("export_changes"):
         reasons.append("plugin_export_changed")
+    if not run.get("transcripts"):
+        reasons.append("transcript_missing")  # hooks that read the session transcript did not run as in normal use
     allowed = [os.path.realpath(world)] + ([os.path.realpath(plugin_dir)] if plugin_dir else [])
     suspects = outside_paths(parsed["tool_uses"], allowed, ctx["watched"], ctx["home"])
     commands = [str(u["input"].get("command", "")) for u in parsed["tool_uses"] if u["name"] == "Bash"]
@@ -1092,7 +1139,7 @@ def make_record(ctx, task, arm, index, sample_dir, snapshot, token, run, plugin_
         "continuations": max(len(results) - 1, 0),
         "seconds": run["seconds"], "exit_code": run["exit_code"],
         "run": {"timed_out": run["timed_out"], "cleanup_confirmed": run["cleanup_confirmed"],
-                "export_changes": run.get("export_changes") or []},
+                "export_changes": run.get("export_changes") or [], "transcripts": run.get("transcripts") or []},
         "canary": token, "snapshot": snapshot, "plugin_dir": str(plugin_dir) if plugin_dir else None,
         "max_utilization": parsed["max_utilization"],
         "skills_invoked": [str(u["input"].get("skill")) for u in parsed["tool_uses"] if u["name"] == "Skill"],
@@ -1137,7 +1184,10 @@ def calibrate_canary(ctx):
     cmd = agent_command(ctx["claude"], ctx["plan"]["model"], None, 1, None, setting_sources="project")
     run = run_agent(cmd, "Reply with the single word OK.", world / "app", env, 300,
                     sample_dir / "stream.jsonl", sample_dir / "stderr.txt", ctx)
-    if run is None or ctx["interrupted"].is_set():
+    if run is None:
+        return None
+    collect_transcripts(sample_dir / "stream.jsonl", sample_dir)
+    if ctx["interrupted"].is_set():
         return None
     parsed = parse_stream(sample_dir / "stream.jsonl")
     last = parsed["results"][-1] if parsed["results"] else {}

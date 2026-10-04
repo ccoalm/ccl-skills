@@ -57,8 +57,17 @@ if plugin_dir and "touch_frozen" in modes:  # reach past the private copy into t
         open(os.path.join(frozen, name), "w").write("written into the frozen export\n")
 if plugin_dir and "touch_plugin" in modes:
     open(os.path.join(plugin_dir, "injected.md"), "w").write("changed by the run\n")
+import uuid
+session = str(uuid.uuid4())
+if "--no-session-persistence" not in argv and "no_transcript" not in modes:  # persist as Claude Code does
+    project = os.path.join(os.environ["HOME"], ".claude", "projects", re.sub(r"[^A-Za-z0-9]", "-", os.getcwd()))
+    os.makedirs(project, exist_ok=True)
+    open(os.path.join(project, session + ".jsonl"), "w").write(json.dumps({"type": "user", "prompt": prompt}) + "\n")
+    if "foreign_session_file" in modes and not calibration:  # another session of the same project
+        open(os.path.join(project, "other-session.jsonl"), "w").write("{}\n")
 emit({"type": "system", "subtype": "init", "model": opt("--model"), "plugins": plugins,
-      "mcp_servers": [], "claude_code_version": "9.9.9"})
+      "mcp_servers": [], "claude_code_version": "9.9.9",
+      "session_id": "*" if "bad_session_id" in modes and not calibration else session})
 if plugin_dir:
     emit({"type": "system", "subtype": "hook_response", "hook_name": "SessionStart:startup",
           "output": "{\"additionalContext\": \"<ccl-skills-routing priority=high>route</ccl-skills-routing>\"}"})
@@ -531,8 +540,10 @@ class BatchTests(unittest.TestCase):
         self.log = self.tmp / "fake.log"
         self.out = self.tmp / "out"
         good = committed_task(self.TASK)["oracle"]["good"]
+        self.home = self.tmp / "home"  # the runner and the fake share it, so no run writes into the real home
+        self.home.mkdir()
         self.env = {"FAKE_LOG": str(self.log), "FAKE_COMMANDS": json.dumps(good),
-                    "FAKE_VERSION_LOG": str(self.tmp / "version.log"),
+                    "FAKE_VERSION_LOG": str(self.tmp / "version.log"), "HOME": str(self.home),
                     "CLAUDE_EFFORT": "max", "CLAUDE_CODE_MESSAGING_TOKEN": "parent-secret",
                     "GIT_DIR": str(self.tmp / "not-a-repo"), "GIT_INDEX_FILE": str(self.tmp / "index")}
 
@@ -587,8 +598,9 @@ class BatchTests(unittest.TestCase):
             argv = call["argv"]
             self.assertEqual(call["prompt"], prompt)
             self.assertEqual(argv[argv.index("--setting-sources") + 1], "")
-            for flag in ("--strict-mcp-config", "--no-session-persistence", "--verbose"):
+            for flag in ("--strict-mcp-config", "--verbose"):
                 self.assertIn(flag, argv)
+            self.assertNotIn("--no-session-persistence", argv)  # the plugin's transcript-reading hooks need it
             self.assertEqual(argv[argv.index("--permission-mode") + 1], "bypassPermissions")
             self.assertEqual(argv[argv.index("--disallowedTools") + 1], paired.DISALLOWED_TOOLS)
             self.assertEqual(set(call["env"]), {"CLAUDE_CODE_DISABLE_CLAUDE_MDS", "CLAUDE_CODE_DISABLE_AUTO_MEMORY",
@@ -602,6 +614,11 @@ class BatchTests(unittest.TestCase):
             else:  # a private copy per run, removed afterwards because the run left it unchanged
                 self.assertEqual(Path(argv[argv.index("--plugin-dir") + 1]).resolve(), (sample_dir / "plugin").resolve())
                 self.assertFalse((sample_dir / "plugin").exists())
+        for record in records:  # each run's transcript moved into its own sample directory
+            sample_dir = self.out / "runs" / record["task"] / record["arm"] / str(record["sample"])
+            self.assertEqual(len(record["run"]["transcripts"]), 1)
+            self.assertTrue((sample_dir / record["run"]["transcripts"][0]).is_file())
+        self.assertEqual(list((self.home / ".claude" / "projects").iterdir()), [])  # nothing of the runs stays in home
         self.assertEqual({line for line in (self.tmp / "version.log").read_text().splitlines()}, {"[]"})
         self.assertNotIn("CLAUDE_CODE_DISABLE_CLAUDE_MDS", calibration[0]["env"])
         self.assertTrue(json.loads((self.out / "canary-calibration.json").read_text())["fired"])
@@ -678,6 +695,27 @@ class BatchTests(unittest.TestCase):
         self.assertIn("holds no plan from this tool", err)
         self.assertEqual((self.out / "arms" / "notes.txt").read_text(), "someone else's\n")
         self.assertEqual(self.calls(), [])
+
+    def test_a_run_whose_transcript_was_not_persisted_is_invalid(self):
+        code, err = self.main(env={"FAKE_MODE": "no_transcript"})
+        self.assertEqual(code, 0, err)
+        for record in self.records():
+            self.assertIn("transcript_missing", record["invalid_reasons"])
+
+    def test_only_the_runs_own_session_files_leave_the_home_directory(self):
+        code, err = self.main(env={"FAKE_MODE": "foreign_session_file"})
+        self.assertEqual(code, 0, err)
+        self.assertTrue(all(record["valid"] for record in self.records()))
+        left = sorted(p.name for p in (self.home / ".claude" / "projects").rglob("*") if p.is_file())
+        self.assertEqual(left, ["other-session.jsonl"] * 3)  # the sessions' project directories keep them
+
+    def test_a_session_id_that_is_not_a_uuid_moves_nothing(self):
+        code, err = self.main(env={"FAKE_MODE": "bad_session_id"})
+        self.assertEqual(code, 0, err)
+        for record in self.records():
+            self.assertEqual(record["run"]["transcripts"], [])
+            self.assertIn("transcript_missing", record["invalid_reasons"])
+        self.assertEqual(len(list((self.home / ".claude" / "projects").rglob("*.jsonl"))), 3)
 
     def test_a_truncated_stream_is_not_a_finished_run(self):
         code, err = self.main(env={"FAKE_MODE": "truncated_after_result"})
@@ -761,6 +799,17 @@ class BatchTests(unittest.TestCase):
                 self.assertEqual(self.records(), [])  # the live runs were killed, not waited for
                 self.assertTrue(json.loads((self.out / "integrity.json").read_text())["unchanged"])
                 self.assertTrue((self.out / "report.md").exists())
+                self.assertEqual(list((self.home / ".claude" / "projects").iterdir()), [])  # killed runs' transcripts too
+
+    def test_a_rerun_replaces_the_transcript_of_an_interrupted_attempt(self):
+        with self.caught_signals():
+            code, err = self.main(env={"FAKE_MODE": "signal_parent", "FAKE_SIGNAL": "SIGTERM"})
+        self.assertEqual(code, 130, err)
+        code, err = self.main()
+        self.assertEqual(code, 0, err)
+        for record in self.records():
+            sample_dir = self.out / "runs" / record["task"] / record["arm"] / str(record["sample"])
+            self.assertEqual(sorted(p.name for p in sample_dir.glob("transcript-*")), record["run"]["transcripts"])
 
     def test_a_signal_during_the_calibration_stops_it(self):
         with self.caught_signals() as (escaped, _):
