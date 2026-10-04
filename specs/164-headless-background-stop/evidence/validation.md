@@ -92,3 +92,4 @@ On the final candidate (tree `b47aeeaf5194`, the branch head before this record)
 | `check_review_evidence_present.py` against the merge base | `review_evidence_present_ok` |
 | `shared_git_surface_gate.py` against `origin/main` | `shared_git_surface_gate_ok` |
 | `check-markdown-links.py`, `check-spec-references.py` | both ok |
+| `npm ci`, `npm test`, `npm run test:pack` in `packages/ccl-skills-npm` | pass, after the OpenCode adapter gained the guard's binding; before it, two OpenCode inventory tests failed in CI because every command hook needs a binding |
