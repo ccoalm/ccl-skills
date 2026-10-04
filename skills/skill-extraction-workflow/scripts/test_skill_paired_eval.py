@@ -74,6 +74,10 @@ if not calibration:
 emit({"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}})
 emit({"type": "result", "subtype": "success", "is_error": False, "result": text,
       "total_cost_usd": 0.01, "num_turns": 2})
+if "two_results" in modes and not calibration:
+    emit({"type": "assistant", "message": {"content": [{"type": "text", "text": "checked again"}]}})
+    emit({"type": "result", "subtype": "success", "is_error": False, "result": "checked again",
+          "total_cost_usd": 0.02, "num_turns": 1})
 '''
 
 
@@ -123,6 +127,7 @@ class TaskBankTests(unittest.TestCase):
             "unknown kind": (lambda t: t["checks"][0].__setitem__("kind", "vibes"), "unknown kind"),
             "extra key": (lambda t: t.__setitem__("notes", "x"), "keys must be exactly"),
             "cwd escapes": (lambda t: t.__setitem__("cwd", "../outside"), "cwd must be"),
+            "cwd is the world root": (lambda t: t.__setitem__("cwd", "."), "cwd must be"),
             "path escapes": (lambda t: t["checks"][0].__setitem__("repo", "/abs"), "repo must be"),
             "bad pattern": (lambda t: add_trace_check(t, "("), "invalid pattern"),
         }
@@ -227,7 +232,9 @@ class IsolationTests(unittest.TestCase):
         cases = {
             "timeout": ({}, {"timed_out": True, "cleanup_confirmed": True}, "candidate", "timeout"),
             "no result": ({"results": []}, None, "candidate", "no_result"),
-            "two results": ({"results": self.parsed()["results"] * 2}, None, "candidate", "multiple_results"),
+            "last of two results failed": ({"results": self.parsed()["results"] + [
+                {"subtype": "error_max_budget_usd", "is_error": True}]}, None, "candidate",
+                "error_result:error_max_budget_usd"),
             "error result": ({"results": [{"subtype": "error_max_budget_usd", "is_error": True}]}, None,
                              "candidate", "error_result:error_max_budget_usd"),
             "no init": ({"init": None}, None, "candidate", "no_init_event"),
@@ -250,6 +257,9 @@ class IsolationTests(unittest.TestCase):
         for label, (overrides, run, arm, want) in cases.items():
             with self.subTest(case=label):
                 self.assertIn(want, self.reasons(self.parsed(**overrides), arm=arm, run=run))
+
+    def test_a_stop_hook_continuation_is_not_a_breach(self):
+        self.assertEqual(self.reasons(self.parsed(results=self.parsed()["results"] * 2)), [])
 
     def test_outside_paths_flags_watched_roots_only(self):
         home, out = "/h", "/o"
@@ -446,6 +456,42 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(code, 3, err)
         self.assertEqual(len(paired.load_records(self.out)), 1)
         code, err = self.main("--jobs", "1")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(paired.load_records(self.out)), 3)
+
+    def test_a_stop_hook_continuation_counts_as_one_run(self):
+        code, err = self.main(env={"FAKE_MODE": "two_results"})
+        self.assertEqual(code, 0, err)
+        for record in paired.load_records(self.out):
+            self.assertTrue(record["valid"], record)
+            self.assertEqual((record["continuations"], record["cost_usd"], record["turns"]), (1, 0.02, 3))
+
+    def test_regrade_rebuilds_records_from_saved_worlds(self):
+        self.assertEqual(self.main()[0], 0)
+        sample = self.out / "runs" / self.TASK / "off" / "1"
+        world_app = sample / "world" / "app"
+        subprocess.run(["git", "branch", "feat-y", "main"], cwd=world_app, check=True, capture_output=True,
+                       env=paired.clean_env(sample / "gitconfig"))
+        with mock.patch.dict(os.environ, {"FAKE_LOG": str(self.log)}), \
+                redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            code = paired.main(["--out", str(self.out), "--regrade", "--repo", str(self.repo)])
+        self.assertEqual(code, 0)
+        record = json.loads((sample / "record.json").read_text())
+        self.assertEqual(record["checks"]["merged_feature_deleted"]["result"], "fail")
+        self.assertEqual(record["graded_by"], paired.tool_sha256())
+        self.assertEqual(len(self.calls()), 4)  # three samples and the calibration, nothing rerun
+        tasks = self.tmp / "tasks"
+        shutil.copytree(paired.DEFAULT_TASKS, tasks)
+        changed = json.loads((tasks / f"{self.TASK}.json").read_text())
+        changed["prompt"] += " "
+        (tasks / f"{self.TASK}.json").write_text(json.dumps(changed, ensure_ascii=False))
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as err:
+            code = paired.main(["--out", str(self.out), "--regrade", "--repo", str(self.repo), "--tasks-dir", str(tasks)])
+        self.assertEqual(code, 2)
+        self.assertIn("differs from the one the batch ran", err.getvalue())
+
+    def test_a_guard_trip_on_the_last_samples_is_not_a_stop(self):
+        code, err = self.main("--jobs", "3", env={"FAKE_UTIL": "0.95"})
         self.assertEqual(code, 0, err)
         self.assertEqual(len(paired.load_records(self.out)), 3)
 

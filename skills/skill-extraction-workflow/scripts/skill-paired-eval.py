@@ -42,16 +42,20 @@ parent Claude Code session passes its effort level and its messaging socket and
 token, which would change the tested behavior and let the tested agent reach
 other local sessions), git reads a world-local global config, cross-session and
 web tools are denied, and each run has a spend cap, a timeout and a process
-group that is killed when the run ends.
+group that is killed when the run ends. Authentication configured only through
+CLAUDE* variables is stripped too, so such runs fail visibly as invalid samples.
+A plugin arm also runs whatever the plugin asks for, such as external review
+CLIs installed on this machine; their spend is not in the reported cost.
 
 Usage:
   python3 skill-paired-eval.py --check-oracles
   python3 skill-paired-eval.py --out DIR --base REF --candidate REF --dry-run
   python3 skill-paired-eval.py --out DIR --base REF --candidate REF [--tasks a,b] [--arms off,base,candidate]
   python3 skill-paired-eval.py --out DIR --report-only
+  python3 skill-paired-eval.py --out DIR --regrade      # reassess saved runs after a grader or rule fix
 
-Exit status: 0 batch recorded (whatever the results say); 3 stopped early by
-the rate-limit guard, rerun the same command to resume; 130 interrupted, rerun
+Exit status: 0 every planned sample recorded (whatever the results say); 3 the
+rate-limit guard left samples unrun, rerun the same command to resume; 130 interrupted, rerun
 to resume; 2 invalid input or a plan that differs from the one frozen under
 --out; 1 internal failure. --check-oracles exits 1 when a task's oracle
 expectations do not hold.
@@ -134,7 +138,9 @@ def _require(cond, task_id, message):
 
 
 def _relative_inside(value):
-    return isinstance(value, str) and value and not os.path.isabs(value) and ".." not in Path(value).parts
+    """A path below the world root: the root itself holds the instruction-file canary."""
+    return (isinstance(value, str) and bool(Path(value).parts) and not os.path.isabs(value)
+            and ".." not in Path(value).parts)
 
 
 def validate_task(task, stem):
@@ -501,14 +507,11 @@ def export_arm(repo, commit, dest):
         if done.returncode != 0:
             raise TaskError(f"git archive failed for {commit}: {done.stderr.decode(errors='replace').strip()}")
         tar_file.seek(0)
-        root = str(dest.resolve())
         with tarfile.open(fileobj=tar_file) as tar:
-            members = tar.getmembers()
-            for member in members:
-                target = os.path.realpath(os.path.join(root, member.name))
-                if not (target == root or target.startswith(root + os.sep)) or member.isdev():
-                    raise TaskError(f"archive member escapes the export: {member.name}")
-            tar.extractall(dest, members=members)
+            try:
+                tar.extractall(dest, filter="data")
+            except tarfile.FilterError as exc:
+                raise TaskError(f"archive member rejected: {exc}") from None
     if not (dest / ".claude-plugin" / "plugin.json").is_file():
         raise TaskError(f"{commit} has no .claude-plugin/plugin.json")
     return plugin_name_of(dest)
@@ -662,17 +665,17 @@ def outside_paths(tool_uses, allowed, watched, home):
 
 
 def assess(parsed, run, arm, model, arm_dir, plugin_name, arm_dirs, token):
-    """Structural isolation evidence for one run. Returns the reasons the sample is invalid."""
+    """Structural isolation evidence for one run. Returns the reasons the sample is invalid.
+    A run may hold several results: a plugin Stop hook can send the agent back for more
+    turns, which is the treatment's own behavior, so the last result decides how it ended."""
     reasons = []
     results = parsed["results"]
     if run["timed_out"]:
         reasons.append("timeout")
     elif not results:
         reasons.append("no_result")
-    elif len(results) > 1:
-        reasons.append("multiple_results")
-    elif results[0].get("subtype") != "success" or results[0].get("is_error"):
-        reasons.append(f"error_result:{results[0].get('subtype')}")
+    elif results[-1].get("subtype") != "success" or results[-1].get("is_error"):
+        reasons.append(f"error_result:{results[-1].get('subtype')}")
     init = parsed["init"]
     isolation = {"hooks": sorted(set(parsed["hooks"]))}
     if not isinstance(init, dict):
@@ -764,6 +767,10 @@ def build_report(plan, records, calibration, integrity):
         info = plan["arms"][arm]
         lines.append(f"- `{arm}` ({TREATMENT[arm]}): " + ("no plugin" if arm == "off" else
                      f"`{info['ref']}` = {info['commit'][:12]}, export digest {info['export_digest'][:12]}"))
+    graders = sorted({r.get("graded_by") or plan["tool_sha256"] for r in records} - {plan["tool_sha256"]})
+    if graders:
+        lines.append(f"- records regraded by tool `{', '.join(g[:12] for g in graders)}`; the batch ran with "
+                     f"`{plan['tool_sha256'][:12]}`")
     cal = "not run" if calibration is None else ("fired" if calibration.get("fired") else "DID NOT FIRE")
     lines.append(f"- instruction-file canary calibration: {cal}")
     if integrity is not None:
@@ -771,8 +778,8 @@ def build_report(plan, records, calibration, integrity):
     costs = [r["cost_usd"] for r in records if isinstance(r.get("cost_usd"), (int, float))]
     lines += [f"- samples recorded {len(records)}, valid {sum(r['valid'] for r in records)}, "
               f"with suspects {sum(bool(r['suspect_paths']) for r in records)}, spend ${round(sum(costs), 2)}", "",
-              "## Isolation", "", "| arm | recorded | valid | invalid reasons | suspects |",
-              "| --- | --- | --- | --- | --- |"]
+              "## Isolation", "", "| arm | recorded | valid | invalid reasons | suspects | continued after a Stop hook |",
+              "| --- | --- | --- | --- | --- | --- |"]
     for arm in arms:
         rows = [r for r in records if r["arm"] == arm]
         reasons = {}
@@ -781,7 +788,7 @@ def build_report(plan, records, calibration, integrity):
                 reasons[reason] = reasons.get(reason, 0) + 1
         text = ", ".join(f"{k} {v}" for k, v in sorted(reasons.items())) or "none"
         lines.append(f"| {arm} | {len(rows)} | {sum(r['valid'] for r in rows)} | {text} | "
-                     f"{sum(bool(r['suspect_paths']) for r in rows)} |")
+                     f"{sum(bool(r['suspect_paths']) for r in rows)} | {sum(bool(r.get('continuations')) for r in rows)} |")
     lines.append("")
     pairs = [(a, b) for a, b in (("candidate", "base"), ("base", "off"), ("candidate", "off"))
              if a in arms and b in arms]
@@ -885,25 +892,63 @@ def run_sample(ctx, task, arm, index):
                     task["timeout_seconds"], sample_dir / "stream.jsonl", sample_dir / "stderr.txt", ctx["live"])
     if ctx["interrupted"].is_set():
         return None  # an interrupted run is not an outcome; resume reruns it
+    return make_record(ctx, task, arm, index, sample_dir, snapshot, token, run)
+
+
+def make_record(ctx, task, arm, index, sample_dir, snapshot, token, run):
+    """Assess and grade one finished run from its saved stream and world, and write record.json."""
+    world, gitconfig = sample_dir / "world", sample_dir / "gitconfig"
+    arm_dir = ctx["arm_dirs"].get(arm)
+    plan = ctx["plan"]
     parsed = parse_stream(sample_dir / "stream.jsonl")
     reasons, isolation = assess(parsed, run, arm, plan["model"], arm_dir, ctx["plugin_name"],
                                 ctx["arm_dirs_real"], token)
     allowed = [os.path.realpath(world)] + ([os.path.realpath(arm_dir)] if arm_dir else [])
     suspects = outside_paths(parsed["tool_uses"], allowed, ctx["watched"], ctx["home"])
     commands = [str(u["input"].get("command", "")) for u in parsed["tool_uses"] if u["name"] == "Bash"]
-    result = parsed["results"][0] if len(parsed["results"]) == 1 else {}
+    results = parsed["results"]
+    last = results[-1] if results else {}
     record = {
         "task": task["id"], "arm": arm, "treatment": TREATMENT[arm], "sample": index,
-        "plan_hash": plan["plan_hash"], "valid": not reasons, "invalid_reasons": reasons,
-        "suspect_paths": suspects[:10], "isolation": isolation,
+        "plan_hash": plan["plan_hash"], "graded_by": ctx["tool_sha256"], "valid": not reasons,
+        "invalid_reasons": reasons, "suspect_paths": suspects[:10], "isolation": isolation,
         "checks": grade(task, world, gitconfig, snapshot, commands),
-        "cost_usd": result.get("total_cost_usd"), "turns": result.get("num_turns"),
-        "seconds": run["seconds"], "exit_code": run["exit_code"], "max_utilization": parsed["max_utilization"],
+        "cost_usd": last.get("total_cost_usd"),  # cumulative across continuations
+        "turns": sum(r["num_turns"] for r in results if isinstance(r.get("num_turns"), int)) or None,
+        "continuations": max(len(results) - 1, 0),
+        "seconds": run["seconds"], "exit_code": run["exit_code"],
+        "run": {"timed_out": run["timed_out"], "cleanup_confirmed": run["cleanup_confirmed"]},
+        "max_utilization": parsed["max_utilization"],
         "skills_invoked": [str(u["input"].get("skill")) for u in parsed["tool_uses"] if u["name"] == "Skill"],
-        "bash_commands": len(commands), "result_excerpt": str(result.get("result", ""))[:300],
+        "bash_commands": len(commands), "result_excerpt": str(last.get("result", ""))[:300],
     }
     (sample_dir / "record.json").write_text(json.dumps(record, indent=1, ensure_ascii=False), encoding="utf-8")
     return record
+
+
+def regrade(ctx, out, tasks):
+    """Rebuild every record from its saved stream, snapshot and world with the current
+    assessment and graders; no model runs. The batch's tasks must be byte-identical."""
+    by_id = {t["id"]: t for t in tasks}
+    for entry in ctx["plan"]["tasks"]:
+        if entry["id"] not in by_id or by_id[entry["id"]]["_sha256"] != entry["sha256"]:
+            raise TaskError(f"task {entry['id']} differs from the one the batch ran; regrading would apply other checks")
+    count = 0
+    for path in sorted((out / "runs").glob("*/*/*/record.json")):
+        old = json.loads(path.read_text(encoding="utf-8"))
+        if old.get("plan_hash") != ctx["plan"]["plan_hash"]:
+            raise TaskError(f"{path.parent.name}: record belongs to another plan")
+        sample_dir = path.parent
+        canary = re.search(r"CANARY-[0-9a-f]{12}", (sample_dir / "world" / "CLAUDE.md").read_text(encoding="utf-8"))
+        if canary is None:
+            raise TaskError(f"{sample_dir}: canary file missing; cannot reassess")
+        run = dict(old.get("run") or {"timed_out": "timeout" in old["invalid_reasons"],
+                                      "cleanup_confirmed": "process_cleanup_unconfirmed" not in old["invalid_reasons"]},
+                   seconds=old["seconds"], exit_code=old["exit_code"])
+        snapshot = json.loads((sample_dir / "snapshot.json").read_text(encoding="utf-8"))
+        make_record(ctx, by_id[old["task"]], old["arm"], old["sample"], sample_dir, snapshot, canary.group(0), run)
+        count += 1
+    return count
 
 
 def calibrate_canary(ctx):
@@ -946,6 +991,18 @@ def _raise_interrupt(signum, frame):
     raise KeyboardInterrupt
 
 
+def tool_sha256():
+    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+
+
+def make_context(out, plan, arm_dirs, checkout_root, claude=None):
+    home = os.path.realpath(os.path.expanduser("~"))
+    return {"out": out, "claude": claude, "plan": plan, "arm_dirs": arm_dirs, "plugin_name": plan["plugin_name"],
+            "arm_dirs_real": [os.path.realpath(d) for d in arm_dirs.values()], "home": home,
+            "watched": [home, os.path.realpath(checkout_root), os.path.realpath(out)],
+            "tool_sha256": tool_sha256(), "live": set(), "interrupted": threading.Event()}
+
+
 def run_batch(args, out, arms, only):
     repo = args.repo.resolve()
     checkout_root = common_checkout_root(repo)
@@ -981,7 +1038,7 @@ def run_batch(args, out, arms, only):
         raise TaskError("base and candidate exports name different plugins")
     plugin_name = names.pop() if names else plugin_name_of(repo)
     plan = {
-        "tool_version": TOOL_VERSION, "tool_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "tool_version": TOOL_VERSION, "tool_sha256": tool_sha256(),
         "model": args.model, "effort": args.effort or "cli-default", "effort_flag": args.effort,
         "max_budget_usd": args.max_budget_usd, "disallowed_tools": DISALLOWED_TOOLS, "claude_version": version,
         "arms": arm_info, "plugin_name": plugin_name, "samples_override": args.samples,
@@ -1001,11 +1058,7 @@ def run_batch(args, out, arms, only):
     need_calibration = bool(pending) and read_json(out / "canary-calibration.json") is None
     if len(pending) + need_calibration > args.max_runs:
         raise TaskError(f"{len(pending) + need_calibration} runs exceed --max-runs {args.max_runs}")
-    home = os.path.realpath(os.path.expanduser("~"))
-    ctx = {"out": out, "claude": args.claude, "plan": plan, "arm_dirs": arm_dirs, "plugin_name": plugin_name,
-           "arm_dirs_real": [os.path.realpath(d) for d in arm_dirs.values()], "home": home,
-           "watched": [home, os.path.realpath(checkout_root), os.path.realpath(out)],
-           "live": set(), "interrupted": threading.Event()}
+    ctx = make_context(out, plan, arm_dirs, checkout_root, args.claude)
     stop = threading.Event()
 
     def worker(item):
@@ -1048,9 +1101,11 @@ def run_batch(args, out, arms, only):
     if arm_dirs:
         unchanged = all(tree_digest(arm_dirs[a]) == arm_info[a]["export_digest"] for a in arm_dirs)
         (out / "integrity.json").write_text(json.dumps({"unchanged": unchanged}), encoding="utf-8")
-    write_report(out, plan, load_records(out))
+    records = load_records(out)
+    write_report(out, plan, records)
     print(out / "report.md")
-    if stop.is_set():
+    recorded = {(r["task"], r["arm"], r["sample"]) for r in records if r.get("plan_hash") == plan["plan_hash"]}
+    if any((t["id"], a, i) not in recorded for t, a, i in planned):
         print("stopped early: rate-limit utilization reached --stop-util; rerun the same command to resume",
               file=sys.stderr)
         return 3
@@ -1078,6 +1133,8 @@ def main(argv=None):
     parser.add_argument("--repo", type=Path, default=REPO_ROOT, help="repository the refs are exported from")
     parser.add_argument("--dry-run", action="store_true", help="print the plan; no runs, nothing written")
     parser.add_argument("--report-only", action="store_true", help="rebuild report.md from saved records")
+    parser.add_argument("--regrade", action="store_true",
+                        help="rebuild every record from its saved stream and world with this tool; no model runs")
     parser.add_argument("--check-oracles", action="store_true",
                         help="prove every task's checks pass on its good trajectory and fail on its bad ones")
     args = parser.parse_args(argv)
@@ -1092,10 +1149,14 @@ def main(argv=None):
         if args.out is None:
             raise TaskError("--out is required")
         out = args.out.resolve()
-        if args.report_only:
+        if args.report_only or args.regrade:
             plan = read_json(out / "plan.json")
             if plan is None:
                 raise TaskError("no plan.json under --out")
+            if args.regrade:
+                arm_dirs = {a: out / "arms" / a for a, info in plan["arms"].items() if info.get("commit")}
+                ctx = make_context(out, plan, arm_dirs, common_checkout_root(args.repo.resolve()))
+                print(f"regraded {regrade(ctx, out, load_tasks(args.tasks_dir))} records", file=sys.stderr)
             write_report(out, plan, load_records(out))
             print(out / "report.md")
             return 0
