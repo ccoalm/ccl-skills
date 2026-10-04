@@ -203,4 +203,17 @@ not recipes, so the sweep now skips it like round records and evaluation
 inputs, and the walk keeps a register row naming the command as a precision
 decoy.
 
-LANES_PENDING
+Final candidate `5c0b11f` (the register commit; the commits after it add
+round records only):
+
+| Check | Result |
+| --- | --- |
+| `make test` (repository gates, fast regression lane, code-review lanes) | exit 0; fast lane 46 suites including `test_teardown_guard_pins.sh`, code-review shards of 9 and 8 suites, every abort-leak leg ok |
+| `test_check_ccl_regressions.sh --heavy-only` | exit 0, 9 suites |
+| `CCL_SKILL_BASE_REF=origin/main check-ccl-skills.sh` | exit 0, `ccl_skill_check_clean_ok`, `r0_status=private-ok`, 613 register locators resolved |
+| `scripts/check-public-sanitization.py` | `public_sanitization_ok` |
+| `git diff --check origin/main...HEAD` | clean |
+
+The runs shared the machine with other work (load average 60 to 80), so wall
+times are not representative: `make test` took 44 minutes and the heavy lane
+12.
