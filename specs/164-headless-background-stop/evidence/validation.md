@@ -69,7 +69,7 @@ interactive session never starts the helper, and a headless one without Python g
 
 On a disposable copy of the hook, its helper, the state helper and the suite, 22 mutations were applied
 one at a time; each turned its named case red and the copy was green before and after. The
-per-mutation output is in `hook-mutation-walk.txt`.
+exact replacement each mutation applied, its named cases, the cases that failed and the suite's exit are in `hook-mutation-walk.json`.
 
 | Area | Mutations |
 | --- | --- |

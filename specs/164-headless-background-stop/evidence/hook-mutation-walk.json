@@ -1,0 +1,336 @@
+{
+ "baseline_exit": 0,
+ "restored_exit": 0,
+ "mutations": [
+  {
+   "mutation": "no headless session recognized",
+   "file": "host-input.py",
+   "replaced": "NON_INTERACTIVE_ENTRYPOINT = re.compile(r'sdk(?:-[a-z]+)?')",
+   "with": "NON_INTERACTIVE_ENTRYPOINT = re.compile(r'never')",
+   "named_cases": [
+    "headless stop with a running task"
+   ],
+   "failing_cases": [
+    "a description with a line break",
+    "a long description",
+    "a long task list",
+    "a new task in the same session",
+    "an SDK entrypoint",
+    "another session with the same task id",
+    "headless stop with a running task",
+    "hostile identifiers, first stop",
+    "input that is not JSON",
+    "no state, first stop",
+    "racing stops",
+    "symlinked state root, first stop"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "a lookalike entrypoint accepted",
+   "file": "host-input.py",
+   "replaced": "NON_INTERACTIVE_ENTRYPOINT.fullmatch(",
+   "with": "NON_INTERACTIVE_ENTRYPOINT.match(",
+   "named_cases": [
+    "the helper alone with a lookalike entrypoint"
+   ],
+   "failing_cases": [
+    "the helper alone with a lookalike entrypoint"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "the wrapper lets interactive sessions through",
+   "file": "headless-background-stop.sh",
+   "replaced": "  sdk|sdk-*) ;;\n  *) exit 0 ;;\n",
+   "with": "  *) ;;\n",
+   "named_cases": [
+    "an interactive session without Python"
+   ],
+   "failing_cases": [
+    "an interactive session without Python"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "a missing helper passes silently",
+   "file": "headless-background-stop.sh",
+   "replaced": "  printf '%s\\n' '{\"systemMessage\":\"Background task check unavailable: Python input normalizer missing.\"}'\n",
+   "with": "",
+   "named_cases": [
+    "a headless session without Python"
+   ],
+   "failing_cases": [
+    "a headless session without Python"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "only claude -p recognized",
+   "file": "host-input.py",
+   "replaced": "re.compile(r'sdk(?:-[a-z]+)?')",
+   "with": "re.compile(r'sdk-cli')",
+   "named_cases": [
+    "an SDK entrypoint"
+   ],
+   "failing_cases": [
+    "an SDK entrypoint"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "every stop blocks again",
+   "file": "host-input.py",
+   "replaced": "            return bool(state.claim_attempt('headless-background', [task_id]))",
+   "with": "            state.claim_attempt('headless-background', [task_id])\n            return True",
+   "named_cases": [
+    "the same task at the next stop",
+    "the same task without the host retry flag",
+    "racing stops"
+   ],
+   "failing_cases": [
+    "a new task in the same session",
+    "hostile identifiers, next stop",
+    "racing stops",
+    "the same task at the next stop",
+    "the same task without the host retry flag"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "reported tasks listed again",
+   "file": "host-input.py",
+   "replaced": "    listed = [label(task) for task in fresh[:5]]",
+   "with": "    listed = [label(task) for task in running[:5]]",
+   "named_cases": [
+    "a new task in the same session"
+   ],
+   "failing_cases": [
+    "a new task in the same session"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "state shared across sessions",
+   "file": "host-input.py",
+   "replaced": "module.digest([str(module.ROOT), session, 'headless-background'])",
+   "with": "module.digest([str(module.ROOT), 'headless-background'])",
+   "named_cases": [
+    "another session with the same task id"
+   ],
+   "failing_cases": [
+    "an SDK entrypoint",
+    "another session with the same task id"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "finished tasks counted",
+   "file": "host-input.py",
+   "replaced": "isinstance(task, dict) and task.get('status') == 'running'",
+   "with": "isinstance(task, dict)",
+   "named_cases": [
+    "no task still running"
+   ],
+   "failing_cases": [
+    "no task still running"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "other hook events handled",
+   "file": "host-input.py",
+   "replaced": "    if not isinstance(payload, dict) or payload.get('hook_event_name') != 'Stop':",
+   "with": "    if not isinstance(payload, dict):",
+   "named_cases": [
+    "another hook event"
+   ],
+   "failing_cases": [
+    "another hook event"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "bad input passes silently",
+   "file": "host-input.py",
+   "replaced": "            print(json.dumps({'systemMessage': 'Background task check unavailable: input could not be verified.'}))",
+   "with": "            pass",
+   "named_cases": [
+    "input that is not JSON"
+   ],
+   "failing_cases": [
+    "input that is not JSON"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "without state every stop blocks",
+   "file": "host-input.py",
+   "replaced": "        if claimed or (claimed is None and payload.get('stop_hook_active') is False):",
+   "with": "        if claimed or claimed is None:",
+   "named_cases": [
+    "no state, host retry"
+   ],
+   "failing_cases": [
+    "no state, host retry",
+    "symlinked state root, host retry"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "without state nothing blocks",
+   "file": "host-input.py",
+   "replaced": "        if claimed or (claimed is None and payload.get('stop_hook_active') is False):",
+   "with": "        if claimed:",
+   "named_cases": [
+    "no state, first stop"
+   ],
+   "failing_cases": [
+    "no state, first stop",
+    "symlinked state root, first stop"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "a long list not summarized",
+   "file": "host-input.py",
+   "replaced": " + ([f'- and {len(fresh) - 5} more'] if len(fresh) > 5 else [])",
+   "with": "",
+   "named_cases": [
+    "a long task list"
+   ],
+   "failing_cases": [
+    "a long task list"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "line breaks kept in labels",
+   "file": "host-input.py",
+   "replaced": "        text = re.sub(r'\\s+', ' ', str(task.get('description') or task.get('type') or 'task')).strip()",
+   "with": "        text = str(task.get('description') or task.get('type') or 'task').strip()",
+   "named_cases": [
+    "a description with a line break"
+   ],
+   "failing_cases": [
+    "a description with a line break"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "the reminder omits the way out",
+   "file": "host-input.py",
+   "replaced": "If none is needed, stop it with '\n        'TaskStop or say why it can be dropped. ",
+   "with": "",
+   "named_cases": [
+    "headless stop with a running task"
+   ],
+   "failing_cases": [
+    "headless stop with a running task"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "the reminder advises a rerun",
+   "file": "host-input.py",
+   "replaced": "Do not start it again; a second run would repeat its effects. ",
+   "with": "Or run it again in the foreground. ",
+   "named_cases": [
+    "headless stop with a running task"
+   ],
+   "failing_cases": [
+    "headless stop with a running task"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "the helper speaks to interactive sessions",
+   "file": "host-input.py",
+   "replaced": "        if not NON_INTERACTIVE_ENTRYPOINT.fullmatch(os.environ.get('CLAUDE_CODE_ENTRYPOINT', '')):\n            return 0",
+   "with": "        if False:\n            return 0",
+   "named_cases": [
+    "the helper alone in an interactive session",
+    "the helper alone, interactive, bad input"
+   ],
+   "failing_cases": [
+    "the helper alone in an interactive session",
+    "the helper alone, interactive, bad input"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "descriptions not capped",
+   "file": "host-input.py",
+   "replaced": "        return f'- {text[:100]} ({task[\"id\"]})'",
+   "with": "        return f'- {text} ({task[\"id\"]})'",
+   "named_cases": [
+    "a long description"
+   ],
+   "failing_cases": [
+    "a long description"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "every task listed",
+   "file": "host-input.py",
+   "replaced": "    listed = [label(task) for task in fresh[:5]]",
+   "with": "    listed = [label(task) for task in fresh]",
+   "named_cases": [
+    "a long task list"
+   ],
+   "failing_cases": [
+    "a long task list"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "the session id used as a path",
+   "file": "host-input.py",
+   "replaced": "        state = module.State(module.digest([str(module.ROOT), session, 'headless-background']))",
+   "with": "        state = module.State(session)",
+   "named_cases": [
+    "hostile identifiers"
+   ],
+   "failing_cases": [
+    "hostile identifiers"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  },
+  {
+   "mutation": "a symlinked state root followed",
+   "file": "skill-loading.py",
+   "replaced": "        descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)",
+   "with": "        descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)",
+   "named_cases": [
+    "symlinked state root"
+   ],
+   "failing_cases": [
+    "symlinked state root"
+   ],
+   "suite_exit": 1,
+   "verdict": "RED"
+  }
+ ]
+}
