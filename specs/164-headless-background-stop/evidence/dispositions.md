@@ -55,3 +55,24 @@ Run with both helpers appended in full.
 Run on the whole candidate with both helpers in full and both repository contracts included. Passed
 with no findings. It notes that the mutation results were not re-executed by the reviewer and that the
 probes support the sampled mechanism, not a reliability rate.
+
+## OpenCode binding review (`pass8-delta.json`)
+
+CI then failed `npm-packages`: the OpenCode adapter keeps a one-to-one inventory of the command hooks
+in `hooks.json`. The adapter now binds the guard and runs it on session idle with the other Stop hooks.
+This pass ran through the generic controller on that change.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | an OpenCode process started from a headless Claude Code process can inherit `CLAUDE_CODE_ENTRYPOINT=sdk-cli`, so the guard could act inside OpenCode, and the packet did not show the hook environment | fixed: `runHook` drops `CLAUDE_CODE_ENTRYPOINT` from every hook's environment, since a Claude Code entrypoint never describes an OpenCode session. A spy test sets `sdk-cli` in the parent and asserts that the guard sees it unset. On a disposable copy, removing the strip fails that test (1 of 49) |
+| 2 | P1 | the packet did not show that the idle invocation runs, nor what happens if it fails | the coverage existed and is now in the packet: the native-events test asserts that the hooks traced during a simulated session equal every command hook in `hooks.json`. On a disposable copy, removing the guard's idle call fails that test and the spy test (2 of 49). `runHook` catches every error and returns a status, so a failing hook cannot skip the other results or the resume |
+
+## Delta review of the OpenCode fixes (`pass9-delta.json`)
+
+Run through the generic controller on the diff from `9adf4f4`, with `runHook`, `resumeForStop`, the
+idle handler and the three related tests appended.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | the spy stands in for the real guard, so the packet could not show that the real guard stays silent without an entrypoint | rejected with evidence: the wrapper reads `${CLAUDE_CODE_ENTRYPOINT:-}` and exits 0 before Python for anything but `sdk` or `sdk-*`, so unset and empty take the same branch. The guard's suite pins that path in its no-entrypoint, lookalike and interactive-without-Python cases, and the walk's "the wrapper letting interactive sessions through" mutation fails them. A test of the real guard inside OpenCode could not catch a missing strip anyway: OpenCode's Stop payload carries no `background_tasks`, so the guard has nothing to block even with an `sdk` entrypoint. The spy is the test that fails when the strip is removed |
+| 2 | P1 | the npm results, the mutation results and the repository lanes were asserted in the plan but not shown | the results are recorded in this round's `validation.md` (433 of 433 npm tests and both mutations with their failing tests). The repository lanes are rerun on the final candidate and recorded there before the pull request is updated |

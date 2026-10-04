@@ -93,3 +93,9 @@ On the final candidate (tree `b47aeeaf5194`, the branch head before this record)
 | `shared_git_surface_gate.py` against `origin/main` | `shared_git_surface_gate_ok` |
 | `check-markdown-links.py`, `check-spec-references.py` | both ok |
 | `npm ci`, `npm test`, `npm run test:pack` in `packages/ccl-skills-npm` | pass, after the OpenCode adapter gained the guard's binding; before it, two OpenCode inventory tests failed in CI because every command hook needs a binding |
+
+After the OpenCode adapter began dropping an inherited `CLAUDE_CODE_ENTRYPOINT`, `npm test` passed
+433 of 433. One earlier full run failed one unrelated test once: the package-identity case in
+`opencode-auto-update.test.mjs`, where its control child exited 7. That test passed alone and in the
+next full run, and the failure was not reproduced. On disposable copies, removing the entrypoint strip
+failed the new spy test, and removing the guard's idle call failed it and the native-events test.
