@@ -878,15 +878,20 @@ assert_contains "$DELEGATION_SKILL" 'respecting explicit user limits' "delegatio
 # the canonical teardown section; the sweep below requires the same of any
 # Markdown surface added later. Rows are data so test_teardown_guard_pins.sh can
 # apply one mutation per row: kind|repo-relative file|scope|phrase|label, where
-# scope is a section heading (section), the anchor of the line that must carry
-# the phrase (line), or the literal that must come first (order).
-assert_line_order() {
-  local file="$1" first="$2" second="$3" label="$4"
+# scope is a section heading (section, order) or the anchor of the line that
+# must carry the phrase (line); an order row's phrase reads `first ⟶ second`,
+# both inside the section and in that order.
+assert_order_in_section() {
+  local file="$1" heading="$2" pair="$3" label="$4"
+  local first="${pair%% ⟶ *}" second="${pair#* ⟶ }"
+  [[ "$first" != "$pair" && -n "$first" && -n "$second" ]] || fail "$label: order row must read 'first ⟶ second'"
   [[ -f "$file" ]] || fail "$label: missing file $file"
-  local a b
-  a="$(grep -n -F -m1 -- "$first" "$file")" || fail "$label: first literal absent from $file: $first"
-  b="$(grep -n -F -m1 -- "$second" "$file")" || fail "$label: second literal absent from $file: $second"
-  (( ${a%%:*} < ${b%%:*} )) || fail "$label: \`$first\` must come before \`$second\`"
+  local section a b
+  section="$(awk -v h="$heading" '$0 == h {inside = 1; next} inside && /^#/ {exit} inside {print}' "$file")"
+  [[ -n "$section" ]] || fail "$label: section not found or empty: $heading"
+  a="$(grep -n -F -m1 -- "$first" <<< "$section")" || fail "$label: \`$first\` absent from section $heading"
+  b="$(grep -n -F -m1 -- "$second" <<< "$section")" || fail "$label: \`$second\` absent from section $heading"
+  (( ${a%%:*} < ${b%%:*} )) || fail "$label: \`$first\` must come before \`$second\` in section $heading"
 }
 
 TEARDOWN_PINS="$(cat <<'PINS'
@@ -898,12 +903,12 @@ section|skills/product-rd-workflow/references/worktree-mechanics.md|## Closeout 
 section|skills/product-rd-workflow/references/worktree-mechanics.md|## Closeout Cleanup|wait for it to finish; never kill it to clean up|product-rd cleanup waits for in-flight side effects
 section|skills/product-rd-workflow/references/worktree-mechanics.md|## Closeout Cleanup|Never pass `--force` to `git worktree remove` or use `git branch -D`|product-rd cleanup forbids forced removal
 section|skills/product-rd-workflow/references/worktree-mechanics.md|## Closeout Cleanup|Never delete a permanent or integration branch, or any branch whose name contains `release`|product-rd cleanup keeps permanent and release branches
-order|skills/product-rd-workflow/references/worktree-mechanics.md|status --ignored -s   # must exit 0|git worktree remove <path>|product-rd recipe scans before it removes
+order|skills/product-rd-workflow/references/worktree-mechanics.md|## Closeout Cleanup|status --ignored -s   # must exit 0 ⟶ git worktree remove <path>|product-rd recipe scans before it removes
 line|skills/multi-agent-delegation/references/multi-agent-delegation-playbook.md|Every worktree removal below must run the pre-removal scan|`worktree-isolation/references/merge-and-teardown.md`|delegation cleanup names the canonical teardown
 line|skills/multi-agent-delegation/references/multi-agent-delegation-playbook.md|Every worktree removal below must run the pre-removal scan|`git -C <worktree-path> status --ignored -s` must exit 0, and a failed scan counts as no scan|delegation cleanup scans gitignored outputs first
 line|skills/multi-agent-delegation/references/multi-agent-delegation-playbook.md|Every worktree removal below must run the pre-removal scan|Copy costly gitignored outputs the worker produced (long-running results, collected data, trained artifacts) into the target checkout before removal|delegation cleanup rescues costly outputs
 line|skills/multi-agent-delegation/references/multi-agent-delegation-playbook.md|Every worktree removal below must run the pre-removal scan|Record the scan exit status and each kept or dropped entry in `cleanup_proof`|delegation cleanup records the scan in cleanup_proof
-order|skills/multi-agent-delegation/references/multi-agent-delegation-playbook.md|Every worktree removal below must run the pre-removal scan|For local-commit-only handoff|delegation scan precedes the removal paths
+order|skills/multi-agent-delegation/references/multi-agent-delegation-playbook.md|## Handoff-Style Delivery Recipe|Every worktree removal below must run the pre-removal scan ⟶ For local-commit-only handoff|delegation scan precedes the removal paths
 line|skills/skill-extraction-workflow/references/extraction-lifecycle-handoff.md|**Isolate each change with a worktree, not a clone.**|`worktree-isolation/references/merge-and-teardown.md`|extraction worktree names the canonical teardown
 line|skills/skill-extraction-workflow/references/extraction-lifecycle-handoff.md|**Isolate each change with a worktree, not a clone.**|you must scan its gitignored outputs before removal (`git -C <worktree> status --ignored -s`, which must exit 0)|extraction worktree scans before removal
 line|skills/skill-extraction-workflow/references/extraction-lifecycle-handoff.md|**Isolate each change with a worktree, not a clone.**|copy any output that is costly to recreate back to the standing checkout|extraction worktree rescues costly outputs
@@ -913,7 +918,7 @@ line|skills/worktree-isolation/references/merge-and-teardown.md|**任何方式�
 line|skills/worktree-isolation/references/merge-and-teardown.md|**任何方式删除单个 worktree 目录之前**|③ 判据看**重算代价**|canonical judges by recompute cost
 line|skills/worktree-isolation/references/merge-and-teardown.md|**任何方式删除单个 worktree 目录之前**|宿主原生移除如 Claude Code `ExitWorktree` 的 remove|canonical scan covers host-native removal
 line|skills/worktree-isolation/references/merge-and-teardown.md|**交互式 merge 选项菜单**|删前照样先按上文扫 gitignored 产物|canonical handoff keeps the scan for external finishing skills
-order|skills/worktree-isolation/references/merge-and-teardown.md|git -C <path> status --ignored -s  # sweep 之外|git worktree remove <path>      # 删本地|canonical recipe scans before it removes
+order|skills/worktree-isolation/references/merge-and-teardown.md|## 收尾：worktree 一集成就清理（本地 + 远端，不留垃圾）|git -C <path> status --ignored -s  # sweep 之外 ⟶ git worktree remove <path>      # 删本地|canonical recipe scans before it removes
 PINS
 )"
 teardown_rows=0
@@ -924,39 +929,57 @@ while IFS='|' read -r kind rel scope phrase label extra; do
   case "$kind" in
     section) assert_in_section "$REPO_ROOT/$rel" "$scope" "$phrase" "teardown guard: $label" ;;
     line) assert_same_line "$REPO_ROOT/$rel" "$scope" "$phrase" "teardown guard: $label" ;;
-    order) assert_line_order "$REPO_ROOT/$rel" "$scope" "$phrase" "teardown guard: $label" ;;
+    order) assert_order_in_section "$REPO_ROOT/$rel" "$scope" "$phrase" "teardown guard: $label" ;;
     *) fail "teardown guard: unknown pin kind $kind in row $label" ;;
   esac
 done <<< "$TEARDOWN_PINS"
 (( teardown_rows >= 20 )) || fail "teardown guard: only $teardown_rows pin rows parsed"
 
 # Sweep: a Markdown surface that names `worktree remove` must also carry the
-# ignored-output scan and point at the canonical teardown (the canonical file is
-# itself the target). It keys on the command because prose wording is not ours
-# to enumerate; prose-only removal steps are pinned per surface above. specs/
-# and eval/ hold round records and evaluation inputs, not guidance, so they are
-# not scanned, and neither is the append-only source register, whose rows
-# describe the defects they record.
-WT_TEARDOWN="$REPO_ROOT/skills/worktree-isolation/references/merge-and-teardown.md"
+# ignored-output scan, its exit-0 requirement and a pointer to the canonical
+# teardown, `worktree-isolation/references/merge-and-teardown.md` (inside that
+# package the package-relative path; the canonical file is itself the target).
+# It keys on the command because prose wording is not ours to enumerate;
+# prose-only removal steps are pinned per surface above. specs/ and eval/ hold
+# round records and evaluation inputs, not guidance, so they are not scanned,
+# and neither is the append-only source register, whose rows describe the
+# defects they record. A listing or read error fails the sweep, since a file
+# it skipped would otherwise pass unseen.
+WT_PACKAGE="$REPO_ROOT/skills/worktree-isolation/"
+WT_TEARDOWN="${WT_PACKAGE}references/merge-and-teardown.md"
 SOURCE_REGISTER="$REPO_ROOT/skills/skill-extraction-workflow/references/source-register.md"
+teardown_list="$(mktemp "${TMPDIR:-/tmp}/teardown-sweep.XXXXXX")"
+teardown_fail() { rm -f "$teardown_list"; fail "teardown guard sweep: $1"; }
+find "$REPO_ROOT" -maxdepth 1 -name '*.md' -type f -print0 > "$teardown_list" ||
+  teardown_fail "could not list Markdown at the repository root"
+for dir in skills agent-context docs hooks scripts packages .opencode; do
+  [[ -d "$REPO_ROOT/$dir" ]] || continue
+  find "$REPO_ROOT/$dir" \( -name node_modules -o -name __pycache__ \) -prune -o -name '*.md' -type f -print0 >> "$teardown_list" ||
+    teardown_fail "could not list Markdown under $dir"
+done
 teardown_visited=0
 teardown_offenders=""
 while IFS= read -r -d '' md; do
   [[ "$md" != "$SOURCE_REGISTER" ]] || continue
-  grep -qF -- 'worktree remove' "$md" || continue
+  rc=0
+  grep -qF -- 'worktree remove' "$md" || rc=$?
+  case "$rc" in
+    0) ;;
+    1) continue ;;
+    *) teardown_fail "could not read ${md#"$REPO_ROOT"/}" ;;
+  esac
   [[ "$md" == "$WT_TEARDOWN" ]] && teardown_visited=1
+  pointer='worktree-isolation/references/merge-and-teardown.md'
+  [[ "$md" != "$WT_PACKAGE"* ]] || pointer='references/merge-and-teardown.md'
   if ! grep -qF -- 'status --ignored' "$md"; then
     teardown_offenders+="${teardown_offenders:+; }${md#"$REPO_ROOT"/}: no ignored-output scan"
-  elif [[ "$md" != "$WT_TEARDOWN" ]] && ! grep -qF -- 'merge-and-teardown.md' "$md"; then
+  elif ! grep -qF -- 'exit 0' "$md"; then
+    teardown_offenders+="${teardown_offenders:+; }${md#"$REPO_ROOT"/}: no exit-0 requirement for the scan"
+  elif [[ "$md" != "$WT_TEARDOWN" ]] && ! grep -qF -- "$pointer" "$md"; then
     teardown_offenders+="${teardown_offenders:+; }${md#"$REPO_ROOT"/}: no pointer to the canonical teardown"
   fi
-done < <(
-  find "$REPO_ROOT" -maxdepth 1 -name '*.md' -type f -print0
-  for dir in skills agent-context docs hooks scripts packages .opencode; do
-    [[ ! -d "$REPO_ROOT/$dir" ]] ||
-      find "$REPO_ROOT/$dir" \( -name node_modules -o -name __pycache__ \) -prune -o -name '*.md' -type f -print0
-  done
-)
+done < "$teardown_list"
+rm -f "$teardown_list"
 (( teardown_visited )) || fail "teardown guard sweep: the canonical teardown was never scanned, so the sweep roots are wrong"
 [[ -z "$teardown_offenders" ]] || fail "teardown guard sweep: $teardown_offenders"
 
