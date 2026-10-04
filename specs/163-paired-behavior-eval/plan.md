@@ -78,3 +78,15 @@ Written before any batch result existed.
   worktree-isolation entrypoint by 63%) and is the open question of this batch;
   in an existing feature worktree every arm commits directly in at least two of
   three runs.
+
+## Amendment to the validity rule
+
+Made during the batch, before the tallies were computed. The tool as frozen for
+the batch rejected a run holding more than one result. The sixth sample was a
+plugin-arm run that committed its change, after which the plugin's Stop hook
+sent the agent back for one more turn; the stream held two success results,
+and the run was rejected as `multiple_results`. That continuation is the
+treatment's own behavior, not a failed run, and the world the agent left is the
+same either way. The amended rule judges a run by its last result and records
+the continuation. Records are rebuilt from the saved streams and worlds with
+`--regrade`; the write-up reports the counts under both rules.
