@@ -38,14 +38,15 @@ records are not rewritten; `eval/` inputs are not guidance.
 
 ## Decisions
 
-- The sweep keys on the `worktree remove` command and requires the scan, its
-  exit-0 condition and the qualified pointer
+- The sweep reads the repository's Markdown as git lists it (tracked or
+  trackable files), keys on the `worktree remove` command, and requires the
+  scan with its exit-0 requirement on the same line and the qualified pointer
   `worktree-isolation/references/merge-and-teardown.md` (the package's own files
   may use the package-relative path). Removal described only in prose is pinned
   per surface; a prose vocabulary would flag catalog and architecture pages that
   describe cleanup without prescribing it. Round records, evaluation inputs and
-  the append-only source register are not scanned, and a listing or read error
-  fails the sweep.
+  the append-only source register are not scanned, and a failed listing, read
+  or classification fails the sweep.
 - Cross-skill pointers use the `<skill>/references/<file>.md` form, so the
   fast validator also fails when the canonical file moves.
 - No new gate in `check-ccl-skills.sh`: the fixture and its mutation walk run
