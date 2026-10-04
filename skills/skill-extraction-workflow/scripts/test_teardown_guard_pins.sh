@@ -20,6 +20,11 @@
 # teardown assertion written outside the row table is not walked, which is why
 # the fixture keeps them all as rows.
 set -euo pipefail
+# The copy gets its own repository; inherited git variables (set inside git
+# hooks, for one) would point git at the real one instead.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+  GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+  GIT_NAMESPACE
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_root="$(cd "$script_dir/../../.." && pwd -P)"
