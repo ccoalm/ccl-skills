@@ -131,3 +131,12 @@ thread-independent signal channel: no run starts once a signal is latched, and
 the lag between arrival and latching is bounded and stated. If the class comes
 back again, that claim is removed too, leaving only that every run alive at
 shutdown is killed and records nothing. The next delta pass covers this change.
+
+## Sixth delta review (`pass8-delta.json`)
+
+Run on the diff from `9fbfe33`, with the batch lifecycle's current source
+appended after the candidate. Passed with no findings. It noted that the 0.2 s
+figure bounds the main thread's wait, not every delay between a signal and its
+handling; during the run phase the main thread is either in that wait or
+running Python code, so the stated latch interval holds wherever a run could
+still start.
