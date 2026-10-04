@@ -46,6 +46,12 @@ recorded as a follow-up, not fixed here.
   token. Effort is pinned explicitly instead.
 - Advisory only: exit status reports whether the batch was recorded, never what
   it found.
+- Each run gets a private copy of its arm's frozen export, so a run that edits
+  the plugin changes only its own copy and is recorded as invalid. Decisions
+  read runner-written records, never files inside a world. The tool guards
+  against accidental contamination, not a hostile agent: an agent with the
+  operator's permissions could still rewrite the output root or start a
+  process in its own session, and the tool header says so.
 
 ## Pre-registered reading of the first batch
 
@@ -81,8 +87,9 @@ Written before any batch result existed.
 
 ## Amendment to the validity rule
 
-Made during the batch, before the tallies were computed. The tool as frozen for
-the batch rejected a run holding more than one result. The sixth sample was a
+Made during the batch. No tally had been computed, but the per-sample progress
+lines, which print each check's result, had been visible. The tool as frozen
+for the batch rejected a run holding more than one result. The sixth sample was a
 plugin-arm run that committed its change, after which the plugin's Stop hook
 sent the agent back for one more turn; the stream held two success results,
 and the run was rejected as `multiple_results`. That continuation is the
@@ -90,3 +97,11 @@ treatment's own behavior, not a failed run, and the world the agent left is the
 same either way. The amended rule judges a run by its last result and records
 the continuation. Records are rebuilt from the saved streams and worlds with
 `--regrade`; the write-up reports the counts under both rules.
+
+## Grader fix after the batch
+
+The forced-removal trace check matched an `echo` banner naming the flag in one
+run of each plugin arm, while the commands those runs executed were unforced.
+Trace checks now skip display-only commands and comments (`f8f4bb2`); the
+records were regraded and only those two grades changed. Both readings are
+reported.

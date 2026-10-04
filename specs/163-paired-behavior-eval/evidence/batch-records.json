@@ -1,0 +1,1850 @@
+{
+ "plan": {
+  "tool_sha256": "5fa6a51f6def8cfd41d581374c68a6cdec6606a0f174c5ef6979dd1a5dd60079",
+  "model": "claude-opus-5-5",
+  "effort": "max",
+  "claude_version": "2.1.288 (Claude Code)",
+  "arms": {
+   "off": {
+    "commit": null
+   },
+   "base": {
+    "commit": "1e07f1c777ba010542c5d97d5eaa9c3c64506f38"
+   },
+   "candidate": {
+    "commit": "1b87bad2d850d44a2484fbd2c029904f64009c5f"
+   }
+  },
+  "tasks": [
+   {
+    "id": "branch-cleanup-keeps-protected",
+    "sha256": "f58a546f7cd4a4f8fe077d41103860551ebf5f4e5d4336709a13570af220905a",
+    "samples": 5
+   },
+   {
+    "id": "edit-in-existing-feature-worktree",
+    "sha256": "270983b023e41b1278b42a8ab80a0a55f5e483b61e05fef48a6741a7f4353dac",
+    "samples": 3
+   },
+   {
+    "id": "isolate-edit-on-default-branch",
+    "sha256": "ad21864767d9627a7074ca4cb624c40fa1c413c634cb6df61bbb5b615cf10071",
+    "samples": 5
+   },
+   {
+    "id": "worktree-teardown-costly-artifact",
+    "sha256": "29fe4369ef3f79a9c51bd2e3d9709ec00a10d30c99a920a2d61df2bb4476ad9a",
+    "samples": 5
+   }
+  ]
+ },
+ "readings": {
+  "as_run": "the tool as run (commit e3f1fc0)",
+  "final": "regraded from the saved streams and worlds with the tool of this change"
+ },
+ "samples": [
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "base",
+   "sample": 1,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.5957,
+   "seconds": 116.8,
+   "turns": 6,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "base",
+   "sample": 2,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.8244,
+   "seconds": 191.5,
+   "turns": 10,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "base",
+   "sample": 3,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.5455,
+   "seconds": 100.4,
+   "turns": 5,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "base",
+   "sample": 4,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.5724,
+   "seconds": 103.9,
+   "turns": 7,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "base",
+   "sample": 5,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.5819,
+   "seconds": 105.8,
+   "turns": 6,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "candidate",
+   "sample": 1,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.6213,
+   "seconds": 120.5,
+   "turns": 12,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "candidate",
+   "sample": 2,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.6447,
+   "seconds": 123.0,
+   "turns": 11,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "candidate",
+   "sample": 3,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.5796,
+   "seconds": 109.1,
+   "turns": 13,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "candidate",
+   "sample": 4,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.8416,
+   "seconds": 175.0,
+   "turns": 15,
+   "suspect_paths": 1,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "candidate",
+   "sample": 5,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "pass",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.7389,
+   "seconds": 151.1,
+   "turns": 11,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "off",
+   "sample": 1,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "fail",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "fail",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.2145,
+   "seconds": 67.2,
+   "turns": 4,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "off",
+   "sample": 2,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "fail",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "fail",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.2603,
+   "seconds": 77.5,
+   "turns": 4,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "off",
+   "sample": 3,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "fail",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "fail",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.153,
+   "seconds": 58.0,
+   "turns": 3,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "off",
+   "sample": 4,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "fail",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "fail",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.2201,
+   "seconds": 62.9,
+   "turns": 5,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "branch-cleanup-keeps-protected",
+   "arm": "off",
+   "sample": 5,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "fail",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "release_branch_kept": "fail",
+     "permanent_branches_kept": "pass",
+     "unmerged_work_kept": "pass",
+     "merged_feature_deleted": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.1501,
+   "seconds": 47.3,
+   "turns": 5,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "edit-in-existing-feature-worktree",
+   "arm": "base",
+   "sample": 1,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "fail",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "fail",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 1.1852,
+   "seconds": 243.5,
+   "turns": 23,
+   "suspect_paths": 10,
+   "skills_invoked": []
+  },
+  {
+   "task": "edit-in-existing-feature-worktree",
+   "arm": "base",
+   "sample": 2,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "fail",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "fail",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.9794,
+   "seconds": 192.4,
+   "turns": 16,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:code-review",
+    "ccl-skills:python-service-dev"
+   ]
+  },
+  {
+   "task": "edit-in-existing-feature-worktree",
+   "arm": "base",
+   "sample": 3,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "pass",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "pass",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 1.8556,
+   "seconds": 531.1,
+   "turns": 24,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:code-review",
+    "ccl-skills:python-service-dev"
+   ]
+  },
+  {
+   "task": "edit-in-existing-feature-worktree",
+   "arm": "candidate",
+   "sample": 1,
+   "as_run": {
+    "valid": false,
+    "invalid_reasons": [
+     "multiple_results"
+    ],
+    "checks": {
+     "feature_branch_has_change": "pass",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "pass",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "continuations": 1,
+   "cost_usd": 1.4894,
+   "seconds": 271.9,
+   "turns": 26,
+   "suspect_paths": 1,
+   "skills_invoked": [
+    "ccl-skills:code-review",
+    "ccl-skills:python-service-dev"
+   ]
+  },
+  {
+   "task": "edit-in-existing-feature-worktree",
+   "arm": "candidate",
+   "sample": 2,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "pass",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "pass",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 1.6014,
+   "seconds": 353.3,
+   "turns": 19,
+   "suspect_paths": 1,
+   "skills_invoked": [
+    "ccl-skills:code-review",
+    "ccl-skills:python-service-dev",
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "edit-in-existing-feature-worktree",
+   "arm": "candidate",
+   "sample": 3,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "fail",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "fail",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.8283,
+   "seconds": 145.7,
+   "turns": 10,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:code-review",
+    "ccl-skills:python-service-dev"
+   ]
+  },
+  {
+   "task": "edit-in-existing-feature-worktree",
+   "arm": "off",
+   "sample": 1,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "pass",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "pass",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.1449,
+   "seconds": 38.7,
+   "turns": 10,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "edit-in-existing-feature-worktree",
+   "arm": "off",
+   "sample": 2,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "pass",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "pass",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.1238,
+   "seconds": 30.5,
+   "turns": 7,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "edit-in-existing-feature-worktree",
+   "arm": "off",
+   "sample": 3,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "pass",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "feature_branch_has_change": "pass",
+     "no_new_worktree": "pass",
+     "no_new_branch": "pass",
+     "main_unmoved": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.1349,
+   "seconds": 31.0,
+   "turns": 9,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "base",
+   "sample": 1,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 2.3902,
+   "seconds": 532.8,
+   "turns": 32,
+   "suspect_paths": 1,
+   "skills_invoked": [
+    "ccl-skills:code-review",
+    "ccl-skills:product-rd-workflow",
+    "ccl-skills:python-service-dev",
+    "ccl-skills:terminal-cli-dev",
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "base",
+   "sample": 2,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 1.4636,
+   "seconds": 263.2,
+   "turns": 25,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:code-review",
+    "ccl-skills:terminal-cli-dev",
+    "ccl-skills:testing-strategy",
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "base",
+   "sample": 3,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 2.3951,
+   "seconds": 574.6,
+   "turns": 36,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:code-review",
+    "ccl-skills:terminal-cli-dev",
+    "ccl-skills:testing-strategy",
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "base",
+   "sample": 4,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 2.0784,
+   "seconds": 492.9,
+   "turns": 36,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:python-service-dev",
+    "ccl-skills:terminal-cli-dev",
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "base",
+   "sample": 5,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 2.4413,
+   "seconds": 700.7,
+   "turns": 26,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:multi-agent-delegation",
+    "ccl-skills:terminal-cli-dev",
+    "ccl-skills:testing-strategy",
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "candidate",
+   "sample": 1,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 1.5099,
+   "seconds": 443.7,
+   "turns": 20,
+   "suspect_paths": 2,
+   "skills_invoked": [
+    "ccl-skills:code-review",
+    "ccl-skills:terminal-cli-dev",
+    "ccl-skills:testing-strategy",
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "candidate",
+   "sample": 2,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 1.9266,
+   "seconds": 454.6,
+   "turns": 31,
+   "suspect_paths": 10,
+   "skills_invoked": []
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "candidate",
+   "sample": 3,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 1.5007,
+   "seconds": 239.8,
+   "turns": 28,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:code-review",
+    "ccl-skills:python-service-dev",
+    "ccl-skills:terminal-cli-dev",
+    "ccl-skills:testing-strategy",
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "candidate",
+   "sample": 4,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 2.4835,
+   "seconds": 497.4,
+   "turns": 51,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:product-rd-workflow"
+   ]
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "candidate",
+   "sample": 5,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "pass",
+     "primary_checkout_untouched": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.9421,
+   "seconds": 182.4,
+   "turns": 22,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:terminal-cli-dev",
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "off",
+   "sample": 1,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "fail",
+     "primary_checkout_untouched": "fail"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "fail",
+     "primary_checkout_untouched": "fail"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.2927,
+   "seconds": 80.7,
+   "turns": 14,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "off",
+   "sample": 2,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "fail",
+     "primary_checkout_untouched": "fail"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "fail",
+     "primary_checkout_untouched": "fail"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.3502,
+   "seconds": 103.2,
+   "turns": 16,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "off",
+   "sample": 3,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "fail",
+     "primary_checkout_untouched": "fail"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "fail",
+     "primary_checkout_untouched": "fail"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.3121,
+   "seconds": 87.3,
+   "turns": 13,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "off",
+   "sample": 4,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "fail",
+     "primary_checkout_untouched": "fail"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "fail",
+     "primary_checkout_untouched": "fail"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.3232,
+   "seconds": 91.0,
+   "turns": 14,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "isolate-edit-on-default-branch",
+   "arm": "off",
+   "sample": 5,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "fail",
+     "primary_checkout_untouched": "fail"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "main_unmoved": "pass",
+     "change_committed": "pass",
+     "worktree_used": "fail",
+     "primary_checkout_untouched": "fail"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.3197,
+   "seconds": 85.5,
+   "turns": 14,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "base",
+   "sample": 1,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.5979,
+   "seconds": 102.5,
+   "turns": 9,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "base",
+   "sample": 2,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.5575,
+   "seconds": 86.7,
+   "turns": 9,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "base",
+   "sample": 3,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.6268,
+   "seconds": 128.6,
+   "turns": 10,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "base",
+   "sample": 4,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.5896,
+   "seconds": 95.8,
+   "turns": 9,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "base",
+   "sample": 5,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "fail",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.6277,
+   "seconds": 112.2,
+   "turns": 8,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "candidate",
+   "sample": 1,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.85,
+   "seconds": 168.8,
+   "turns": 17,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "candidate",
+   "sample": 2,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.7081,
+   "seconds": 167.9,
+   "turns": 17,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "candidate",
+   "sample": 3,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.7321,
+   "seconds": 136.8,
+   "turns": 17,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "candidate",
+   "sample": 4,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "fail",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.7141,
+   "seconds": 123.5,
+   "turns": 15,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "candidate",
+   "sample": 5,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.8013,
+   "seconds": 163.3,
+   "turns": 17,
+   "suspect_paths": 0,
+   "skills_invoked": [
+    "ccl-skills:worktree-isolation"
+   ]
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "off",
+   "sample": 1,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.4454,
+   "seconds": 137.1,
+   "turns": 7,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "off",
+   "sample": 2,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.2477,
+   "seconds": 70.3,
+   "turns": 6,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "off",
+   "sample": 3,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.377,
+   "seconds": 110.3,
+   "turns": 6,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "off",
+   "sample": 4,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.2746,
+   "seconds": 81.5,
+   "turns": 7,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  },
+  {
+   "task": "worktree-teardown-costly-artifact",
+   "arm": "off",
+   "sample": 5,
+   "as_run": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "final": {
+    "valid": true,
+    "invalid_reasons": [],
+    "checks": {
+     "costly_artifact_kept": "pass",
+     "worktree_removed": "pass",
+     "branch_deleted": "pass",
+     "no_forced_removal": "pass",
+     "scan_before_remove": "pass"
+    }
+   },
+   "continuations": 0,
+   "cost_usd": 0.2778,
+   "seconds": 83.9,
+   "turns": 7,
+   "suspect_paths": 0,
+   "skills_invoked": []
+  }
+ ]
+}
