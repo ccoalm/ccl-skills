@@ -38,12 +38,19 @@ A per-line WIP branch stays local/private until the normal shared-branch-push an
 
 ## Closeout Cleanup
 
-At closeout, after the work lands or is abandoned, clean up the worktree and private branch:
+At closeout, after the work lands or is abandoned, clean up the worktree and private branch. `worktree-isolation` owns this teardown in its teardown section (`## 收尾` in `worktree-isolation/references/merge-and-teardown.md`), which also holds the integration evidence and the remote-branch rules. Its guards apply to every removal:
+
+- Before removing the worktree directory, you must run `git -C <path> status --ignored -s` from the primary checkout. It must exit 0; a failed scan counts as no scan, so stop and find the cause instead of reading empty output as nothing to keep. `git worktree remove` without `--force` still deletes gitignored files.
+- Judge each listed entry by what it costs to recreate: drop regenerable outputs (dependency directories, build and test outputs, caches, logs) and copy costly ones (long-running results, collected data, trained artifacts) back to the primary checkout before removal. When unsure, treat an entry as costly.
+- If a task with unfinished external side effects, such as a migration or a deployment, still runs from the worktree, wait for it to finish; never kill it to clean up.
+- Never pass `--force` to `git worktree remove` or use `git branch -D`: a refusal means unmerged or uncommitted work. An abandoned line's branch usually fails `-d`; keep it and report it.
+- Never delete a permanent or integration branch, or any branch whose name contains `release`, as part of this cleanup.
 
 ```bash
-git worktree remove <path>
+git -C <path> status --ignored -s   # must exit 0; copy costly ignored outputs out first
+git worktree remove <path>          # no --force
 git worktree prune
-git branch -d <line-branch>
+git branch -d <line-branch>         # -d, not -D
 ```
 
 ## Owner Routing

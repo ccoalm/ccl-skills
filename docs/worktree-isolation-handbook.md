@@ -95,11 +95,11 @@ flowchart TD
 
 > 精确边界：不是"落后就必回退"，也不是"两侧都改过就回退"——坑**只在分支用旧版本盖回目标已修复的同一块**时。别两头过读。
 
-合并前序：`git fetch` → 钉住目标 SHA → 判断是否落后 → 私有分支可 rebase / 已推送挂 MR 的分支用 merge 或平台 "update branch"（别无脑 rebase+force-push）→ 合并后**看碰撞集的全内容 diff**（`--stat` 看不出文件内回退）。完整命令见 [worktree-isolation 技能](../skills/worktree-isolation/SKILL.md) 的"合并回目标分支前"段。
+合并前序：`git fetch` → 钉住目标 SHA → 判断是否落后 → 私有分支可 rebase / 已推送挂 MR 的分支用 merge 或平台 "update branch"（别无脑 rebase+force-push）→ 合并后**看碰撞集的全内容 diff**（`--stat` 看不出文件内回退）。完整命令见 worktree-isolation 的 [合并前检查](../skills/worktree-isolation/references/pre-merge-landing-checks.md)"合并回目标分支前"段。
 
 ## 收尾：一集成就清理（本地 + 远端）
 
-**"已集成"判据**（**开发分支之间**，任一即真）：MR 已 merge；或分支 tip 是目标分支祖先（`git merge-base --is-ancestor <branch> <target>` 退出 0）。squash 合并测不到祖先 → 当"未确认"保守保留。`main`/默认分支更严：只认平台 MR/PR 已在当前 head SHA 上完成 merge（见 SKILL.md「已集成判据」）。
+**"已集成"判据**（**开发分支之间**，任一即真）：MR 已 merge；或分支 tip 是目标分支祖先（`git merge-base --is-ancestor <branch> <target>` 退出 0）。squash 合并测不到祖先 → 当"未确认"保守保留。`main`/默认分支更严：只认平台 MR/PR 已在当前 head SHA 上完成 merge（见 [合并与收尾](../skills/worktree-isolation/references/merge-and-teardown.md)「"已集成"判据」）。
 
 **删目录之前先扫一眼被 ignore 的产物**——`git worktree remove` 不带 `--force` 会拒绝脏树和未跟踪文件，但 **gitignored 文件不算"脏"，会跟着目录一起被删且 git 不拦你**，删完找不回来：
 
@@ -127,12 +127,14 @@ git worktree list && git branch # 验证都没了
 - 它合并后还要打 tag、追溯发版内容、出补丁，所以"已合并"在这里不等于"可删"。
 - 要删由人指名；建 MR 时也别给它设 remove-source-branch。
 
-远端分支：MR 路径在**用户已明确下达合并指令**（按「合并执行协议」——见 [SKILL.md](../skills/worktree-isolation/SKILL.md)）后，随合并用平台 remove-source-branch 顺手删（执行建议的守卫命令形态见 SKILL.md 协议第 3 条，`--remove-source-branch` 随之附带；本页不给可复制的裸 merge 命令）；清理压力不是合并授权，`dev` 等永久/集成分支绝不设 remove-source-branch。本地 merge 路径推过远端的用 `git push origin --delete <branch>`。
+远端分支：MR 路径在**用户已明确下达合并指令**（按「合并执行协议」——见 [合并与收尾](../skills/worktree-isolation/references/merge-and-teardown.md)）后，随合并用平台 remove-source-branch 顺手删（执行建议的守卫命令形态见该协议第 3 条，`--remove-source-branch` 随之附带；本页不给可复制的裸 merge 命令）；清理压力不是合并授权，`dev` 等永久/集成分支绝不设 remove-source-branch。本地 merge 路径推过远端的用 `git push origin --delete <branch>`。
 
 **安全红线**：只在确认已集成后删；用 `remove`（不 `--force`）+ `branch -d`（不 `-D`），被拒绝正是防误删未交付工作；绝不盲删主检出/默认分支。批量清积压用 `skills/worktree-isolation/scripts/worktree-sweep.sh`（默认 dry-run，`--apply` 才动手）。
 
 ## 延伸阅读
 
-- [worktree-isolation 技能](../skills/worktree-isolation/SKILL.md)（含合并前更新的完整命令序）
+- [worktree-isolation 技能](../skills/worktree-isolation/SKILL.md)（开工自检与各时点入口）
+- [合并前检查](../skills/worktree-isolation/references/pre-merge-landing-checks.md)（含合并前更新的完整命令序）
+- [合并与收尾](../skills/worktree-isolation/references/merge-and-teardown.md)（合并执行协议、已集成判据、清理序列）
 - [架构总览](ARCHITECTURE.md)
-- 交互式 merge 菜单：若装了 `superpowers:finishing-a-development-branch`，可交给它处理
+- 交互式 merge 菜单：若装了 `superpowers:finishing-a-development-branch`，可交给它处理；它删 worktree 前不扫 gitignored 产物，删前仍按上文先扫

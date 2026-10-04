@@ -13,6 +13,7 @@
 #   - test_ai_coding_implementation_gates.sh
 #   - test_locale_independent_gates.sh
 #   - test_controlled_escalation_pins.sh
+#   - test_teardown_guard_pins.sh
 #   - test_check_ccl_size_budget.sh
 #   - test_check_ccl_skill_catalog.sh
 #   - test_check_ccl_parallel_stack_parity.sh
@@ -113,6 +114,9 @@ fast_tests=(
   # family 8 out of the fixture above and proves each pin reds under its own
   # applied deletion mutation in a throwaway copy (spec 031 review disposition).
   test_controlled_escalation_pins.sh
+  # Applied-mutation walk for the worktree teardown guard rows (family 9 of the
+  # fixture above) plus decoy surfaces for its sweep; throwaway copy, seconds.
+  test_teardown_guard_pins.sh
   test_check_ccl_size_budget.sh
   # Entrypoint guidance-form census (what counts as one rule, a prohibition, a
   # named baseline failure): synthetic fixtures plus the shipped entrypoint,
