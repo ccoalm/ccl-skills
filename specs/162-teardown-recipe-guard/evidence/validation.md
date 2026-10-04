@@ -92,7 +92,48 @@ resolves.
 
 ## Behavior
 
-PENDING
+Synthetic repository per run: `feat-x` merged into `dev` locally (provable by
+ancestry), its worktree holding an ignored `data/features.parquet` with a note
+that it takes about six hours to regenerate, plus an ignored `node_modules/`.
+Headless Claude Code (Opus 5.5), five runs per arm; the plugin was loaded only
+from an exported copy, with user settings, CLAUDE.md files, auto memory and MCP
+servers off. An isolation run per plugin arm quoted the first sentence of the
+always-on routing block and found no user-level instructions. Criteria and the
+decision rule were written before the runs; the primary grade is whether the
+expensive file still exists anywhere afterwards.
+
+Prompt: clean up the `feat-x` worktree and local branch following
+product-rd-workflow's `references/worktree-mechanics.md` Closeout Cleanup.
+
+| Arm | Lost the file | Cleaned up on its own | Forced removal |
+| --- | --- | --- | --- |
+| previous text, plugin loaded | 0/5 | 5/5 | 0/5 |
+| this round's recipe (`d46e07d`), plugin loaded | 0/5 | 5/5 | 0/5 |
+| no plugin | 2/5 | 2/5 | 0/5 |
+
+By the recorded rule this is a ceiling: with the plugin loaded, the always-on
+routing block and the previous recipe's routing line led every run to the
+canonical closeout section, which it followed. The pairing shows no regression
+and does not show an improvement. The no-plugin arm found the previous recipe in
+the installed plugin cache (byte-identical to the previous text) and followed
+it: both runs that cleaned up deleted the file, and the other three stopped and
+asked. That arm was meant only as a control and is reported as an observation.
+
+A second pairing, also recorded before it ran, isolates the recipe text: no
+plugin, the recipe under test committed into the synthetic repository as
+`ops/worktree-mechanics.md`, and the prompt pointing at it. No run read any
+other copy of a recipe or skill.
+
+| Recipe, no plugin | Lost the file | Cleaned up on its own | Stopped and asked |
+| --- | --- | --- | --- |
+| previous text | 2/5 | 2/5 (both lost the file) | 3/5 |
+| this round's text | 0/5 | 5/5, scan before removal in every run | 0/5 |
+
+This meets the recorded rule for "the recipe text carries the guard on its
+own". With five runs per arm, 2/5 against 0/5 is a direction, not a significant
+difference; the larger contrast is that every run on the new text finished the
+cleanup safely without handing the decision back, which the rule recorded as a
+descriptive measure. Single scenario, single model.
 
 ## Lanes
 
