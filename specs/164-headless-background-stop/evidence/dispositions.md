@@ -21,3 +21,13 @@ registration and the existing Stop retry logic appended.
 | # | Severity | Finding | Disposition |
 | --- | --- | --- | --- |
 | 1 | P1 | the packet could not show that the whole Stop group stays bounded, because the other registered Stop hooks' retry paths, the wrapper, the entrypoint definition and the full suite were not in it | the claim is narrowed to what this hook guarantees: it adds at most one block per distinct running task id per session, and without usable state at most one per stop chain; the other Stop hooks are unchanged and keep their own bounds. The next pass gets the wrapper, the entrypoint definition, the complete suite and its Makefile entry appended |
+
+## Second delta review (`pass4-delta.json`)
+
+Run through the generic controller, because the delta held only records, on the diff from the
+register commit with the wrapper, entrypoint definition, state helper, Stop registration, complete
+suite and Makefile entry appended.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | the packet still lacked the helpers' module initialization, the rule and register excerpts, the mutation and probe records and the lanes | method changed instead of appending more excerpts: an evidence gap came back twice because a record-only delta cannot carry the round-level claims, so the next pass reviews the whole candidate against `origin/main`, which holds every record, the rule, the register row and the Makefile entry, with both helpers' unchanged module initialization appended. The lanes are claimed only after they run on the final candidate |
