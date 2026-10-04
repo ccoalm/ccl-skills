@@ -80,4 +80,15 @@ exact replacement each mutation applied, its named cases, the cases that failed 
 
 ## Lanes
 
-LANES_PENDING
+On the final candidate (tree `b47aeeaf5194`, the branch head before this record), with
+`CCL_SKILL_BASE_REF=origin/main` and `origin/main` at `1b87bad`:
+
+| Lane | Result |
+| --- | --- |
+| `make test` (repository gates, fast regressions, code-review families) | pass, 26 min; the guard suite reported `test_headless_background_stop_ok` |
+| `test_check_ccl_regressions.sh --heavy-only` | pass, 9 suites |
+| `check-ccl-skills.sh` | `ccl_skill_check_clean_ok`, `r0_status=private-ok` |
+| `check-public-sanitization.py .` | `public_sanitization_ok` |
+| `check_review_evidence_present.py` against the merge base | `review_evidence_present_ok` |
+| `shared_git_surface_gate.py` against `origin/main` | `shared_git_surface_gate_ok` |
+| `check-markdown-links.py`, `check-spec-references.py` | both ok |
