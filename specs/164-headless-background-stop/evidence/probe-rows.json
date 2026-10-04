@@ -1,0 +1,120 @@
+{
+ "guard_probe": [
+  {
+   "arm": "base",
+   "sample": 1,
+   "status_verified": false,
+   "check_exists": false,
+   "task_fates": [
+    "killed"
+   ],
+   "guard_text_seen": false,
+   "seconds": 21.4
+  },
+  {
+   "arm": "candidate",
+   "sample": 1,
+   "status_verified": true,
+   "check_exists": true,
+   "task_fates": [
+    "completed"
+   ],
+   "guard_text_seen": true,
+   "seconds": 86.6
+  },
+  {
+   "arm": "base",
+   "sample": 2,
+   "status_verified": false,
+   "check_exists": false,
+   "task_fates": [
+    "killed"
+   ],
+   "guard_text_seen": false,
+   "seconds": 23.5
+  },
+  {
+   "arm": "candidate",
+   "sample": 2,
+   "status_verified": true,
+   "check_exists": true,
+   "task_fates": [
+    "completed"
+   ],
+   "guard_text_seen": true,
+   "seconds": 69.7
+  },
+  {
+   "arm": "base",
+   "sample": 3,
+   "status_verified": false,
+   "check_exists": false,
+   "task_fates": [
+    "killed"
+   ],
+   "guard_text_seen": false,
+   "seconds": 22.9
+  },
+  {
+   "arm": "candidate",
+   "sample": 3,
+   "status_verified": true,
+   "check_exists": true,
+   "task_fates": [
+    "completed"
+   ],
+   "guard_text_seen": true,
+   "seconds": 65.4
+  }
+ ],
+ "baseline": [
+  {
+   "arm": "base",
+   "sample": 1,
+   "valid": true,
+   "change_committed": true,
+   "background_launches": 0,
+   "killed_tasks": 0
+  },
+  {
+   "arm": "base",
+   "sample": 2,
+   "valid": true,
+   "change_committed": true,
+   "background_launches": 0,
+   "killed_tasks": 0
+  },
+  {
+   "arm": "base",
+   "sample": 3,
+   "valid": true,
+   "change_committed": true,
+   "background_launches": 0,
+   "killed_tasks": 0
+  },
+  {
+   "arm": "off",
+   "sample": 1,
+   "valid": true,
+   "change_committed": true,
+   "background_launches": 0,
+   "killed_tasks": 0
+  },
+  {
+   "arm": "off",
+   "sample": 2,
+   "valid": true,
+   "change_committed": true,
+   "background_launches": 0,
+   "killed_tasks": 0
+  },
+  {
+   "arm": "off",
+   "sample": 3,
+   "valid": true,
+   "change_committed": true,
+   "background_launches": 0,
+   "killed_tasks": 0
+  }
+ ]
+}
