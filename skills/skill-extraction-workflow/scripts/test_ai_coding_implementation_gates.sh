@@ -890,7 +890,7 @@ assert_line_order() {
 }
 
 TEARDOWN_PINS="$(cat <<'PINS'
-section|skills/product-rd-workflow/references/worktree-mechanics.md|## Closeout Cleanup|its teardown section (`## 收尾` in `worktree-isolation/references/merge-and-teardown.md`)|product-rd cleanup names the canonical teardown
+section|skills/product-rd-workflow/references/worktree-mechanics.md|## Closeout Cleanup|the closeout section (`## 收尾`) of `worktree-isolation/references/merge-and-teardown.md`|product-rd cleanup names the canonical teardown
 section|skills/product-rd-workflow/references/worktree-mechanics.md|## Closeout Cleanup|you must run `git -C <path> status --ignored -s` from the primary checkout|product-rd cleanup scans gitignored outputs first
 section|skills/product-rd-workflow/references/worktree-mechanics.md|## Closeout Cleanup|It must exit 0; a failed scan counts as no scan|product-rd cleanup treats a failed scan as no scan
 section|skills/product-rd-workflow/references/worktree-mechanics.md|## Closeout Cleanup|copy costly ones (long-running results, collected data, trained artifacts) back to the primary checkout before removal|product-rd cleanup rescues costly outputs
@@ -911,8 +911,8 @@ line|skills/worktree-isolation/references/merge-and-teardown.md|**任何方式�
 line|skills/worktree-isolation/references/merge-and-teardown.md|**任何方式删除单个 worktree 目录之前**|① 该命令**必须 exit 0**|canonical scan must succeed
 line|skills/worktree-isolation/references/merge-and-teardown.md|**任何方式删除单个 worktree 目录之前**|② 输出非空即逐条判定保留/丢弃并向用户列出结论|canonical lists each kept or dropped entry
 line|skills/worktree-isolation/references/merge-and-teardown.md|**任何方式删除单个 worktree 目录之前**|③ 判据看**重算代价**|canonical judges by recompute cost
-line|skills/worktree-isolation/references/merge-and-teardown.md|**任何方式删除单个 worktree 目录之前**|宿主原生的 worktree 移除（如 Claude Code `ExitWorktree` 的 remove）|canonical scan covers host-native removal
-line|skills/worktree-isolation/references/merge-and-teardown.md|**交互式 merge 选项菜单**|删前照样先跑上文的 ignored 扫描|canonical handoff keeps the scan for external finishing skills
+line|skills/worktree-isolation/references/merge-and-teardown.md|**任何方式删除单个 worktree 目录之前**|宿主原生移除如 Claude Code `ExitWorktree` 的 remove|canonical scan covers host-native removal
+line|skills/worktree-isolation/references/merge-and-teardown.md|**交互式 merge 选项菜单**|删前照样先按上文扫 gitignored 产物|canonical handoff keeps the scan for external finishing skills
 order|skills/worktree-isolation/references/merge-and-teardown.md|git -C <path> status --ignored -s  # sweep 之外|git worktree remove <path>      # 删本地|canonical recipe scans before it removes
 PINS
 )"

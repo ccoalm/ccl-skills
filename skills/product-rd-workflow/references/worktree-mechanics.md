@@ -38,7 +38,7 @@ A per-line WIP branch stays local/private until the normal shared-branch-push an
 
 ## Closeout Cleanup
 
-At closeout, after the work lands or is abandoned, clean up the worktree and private branch. `worktree-isolation` owns this teardown in its teardown section (`## 收尾` in `worktree-isolation/references/merge-and-teardown.md`), which also holds the integration evidence and the remote-branch rules. Its guards apply to every removal:
+At closeout, after the work lands or is abandoned, clean up the worktree and private branch. The canonical procedure is the closeout section (`## 收尾`) of `worktree-isolation/references/merge-and-teardown.md`, which also holds the integration evidence and the remote-branch rules; its guards apply to every removal:
 
 - Before removing the worktree directory, you must run `git -C <path> status --ignored -s` from the primary checkout. It must exit 0; a failed scan counts as no scan, so stop and find the cause instead of reading empty output as nothing to keep. `git worktree remove` without `--force` still deletes gitignored files.
 - Judge each listed entry by what it costs to recreate: drop regenerable outputs (dependency directories, build and test outputs, caches, logs) and copy costly ones (long-running results, collected data, trained artifacts) back to the primary checkout before removal. When unsure, treat an entry as costly.

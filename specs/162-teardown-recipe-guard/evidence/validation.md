@@ -1,0 +1,98 @@
+# Validation evidence
+
+## Why the scan is the only guard
+
+Scratch repository, git 2.50.1: a worktree held an ignored `out/model.bin`.
+`git -C <wt> status --porcelain -uall` printed nothing and exited 0;
+`git -C <wt> status --ignored -s` printed `!! out/`; `git worktree remove <wt>`
+without `--force` exited 0 and deleted the directory with the file. A clean
+`git status` and git's own refusal therefore say nothing about gitignored
+outputs.
+
+## Surfaces that restate the removal
+
+Searched every tracked file outside `specs/` for the command form
+(`worktree remove`, `worktree prune`), for English and Chinese prose forms of
+removing or cleaning up a worktree, and for `rm -rf` near worktree paths.
+
+| Surface | Form | Scan before | Names the canonical section | Disposition |
+| --- | --- | --- | --- | --- |
+| `product-rd-workflow/references/worktree-mechanics.md`, Closeout Cleanup | three-command list | no | no | updated |
+| `multi-agent-delegation/references/multi-agent-delegation-playbook.md`, step 5 | prose, three removal paths | no | routine cleanup routed in step 1 only | updated |
+| `skill-extraction-workflow/references/extraction-lifecycle-handoff.md` | inline command | no | no | updated |
+| `worktree-isolation/references/merge-and-teardown.md`, finishing-skill handoff | routing sentence | rule above covers "external tools" but the handoff did not say so | is the canonical section | updated |
+| `docs/worktree-isolation-handbook.md` | commands and explanation | yes | no; four pointers named the entrypoint for moved sections | updated |
+| `hooks/remind-post-merge-cleanup.sh` | injected reminder | yes | yes | unchanged (pinned by its own suite) |
+| `agent-context/session-start.md`, `agent-context/session-policy.md` | always-on | yes | yes | unchanged |
+| `docs/skills-theory-foundations.md` | summary | yes | not a recipe | unchanged |
+| `docs/SKILLS.md`, `docs/ARCHITECTURE.md` | description | n/a | n/a | not a recipe |
+| test scripts removing their own probe worktrees | fixture teardown | n/a | n/a | not guidance |
+| `worktree-isolation/scripts/worktree-sweep.sh` | implementation | built-in check keeps ignored content | n/a | unchanged |
+
+The installed external finishing skill (versions 6.3.0 and 6.4.1) removes the
+worktree with one `git worktree remove`; it never passes `--ignored`, and its
+refusal path inspects `status --porcelain -uall` only.
+
+## Pins on the base text and on the candidate
+
+The final 24-row table was evaluated one row at a time against the base tree
+(each run kept a single row; the rest of the fixture passed first).
+
+| Rows | Base | Candidate |
+| --- | --- | --- |
+| product-rd Closeout Cleanup, 8 section rows and 1 order row | all 9 fail | pass |
+| delegation step 5, 4 line rows and 1 order row | all 5 fail | pass |
+| extraction lifecycle note, 3 line rows | all 3 fail | pass |
+| canonical: host-native removal, finishing-skill handoff | both fail | pass |
+| canonical: scan before any removal, exit 0, list each entry, recompute cost, scan line before the remove line | all 5 pass (rules already present, now pinned) | pass |
+
+Sweep on the base tree: exit 1, naming exactly three files —
+`extraction-lifecycle-handoff.md` and `worktree-mechanics.md` (no
+ignored-output scan) and `docs/worktree-isolation-handbook.md` (no pointer to
+the canonical section). On the candidate: no offender, and the canonical file
+was reached.
+
+## Applied-mutation walk
+
+`test_teardown_guard_pins.sh` on the candidate: 24 applied mutations, each red
+on its own row's label; relocating a section row's phrase under a decoy
+heading and a line row's phrase onto its own line each red that row; seven
+decoy surfaces (in `skills/`, `docs/`, the root, `agent-context/`, `hooks/`,
+`scripts/` and `packages/`) red the sweep for the stated reason; a compliant
+decoy, a prune-only mention and a file under `node_modules/` stay green; the
+unmutated copy is green before and after, and the live tree stays green while
+a mutated copy reds.
+
+Sabotaged copies of the fixture, each run through the walk (rc 1 means the walk
+failed, as required):
+
+| Sabotage | Walk result |
+| --- | --- |
+| section rows checked against the whole file | relocation probe: row stayed green with its phrase outside its section |
+| line rows checked against the whole file | relocation probe: row stayed green with its phrase outside its line |
+| sweep pointer check removed | sweep decoy stayed green: `docs/zz-teardown-decoy.md` |
+| `docs` dropped from the sweep roots | sweep decoy stayed green: `docs/zz-teardown-decoy.md` |
+| order rows not evaluated | mutant stayed green on the product-rd order row |
+| sweep scan check removed | decoy red for the wrong reason (no pointer instead of no scan) |
+
+## Pointers that name a moved section
+
+Round 161 (`specs/161-firing-point-loading/`) moved worktree-isolation's merge and
+teardown sections into
+references and searched non-Markdown files for the path, as its recipe asked.
+On the merged tree that search returns registries and suites only, nothing
+under `docs/`. Searching Markdown outside `specs/` for each moved section's
+name returns the three handbook lines that named the entrypoint for
+「合并回目标分支前」, 「"已集成"判据」 and the merge protocol (a fourth pointer,
+in the further-reading list, described the entrypoint as holding the full
+pre-merge command sequence). The other hits name the protocol by skill and
+section without a file, which the entrypoint's pinned forwarding sentence
+resolves.
+
+## Behavior
+
+PENDING
+
+## Lanes
+
+PENDING
