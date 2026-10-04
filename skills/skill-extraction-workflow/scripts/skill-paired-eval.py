@@ -29,6 +29,11 @@ WHAT THE NUMBER IS NOT — read this before citing a result:
 - A ceiling (every arm passes) means the task does not discriminate, not that
   the change is useless. A plugin arm reaches reference text only through
   routing, so a reference-only change can hide behind that ceiling.
+- Not a defence against a hostile agent. The checks catch accidental
+  contamination and record what the agent did; an agent running with the
+  operator's permissions could still rewrite files under --out or start a
+  process in its own session, which outlives the run's process-group kill.
+  Decisions therefore read runner-written records, never files inside a world.
 
 WHEN to use: a behavior-shaping skill change, before landing, against a frozen
 task bank (eval/paired-tasks/). Swapping the always-on layer for many
@@ -56,12 +61,14 @@ Usage:
 
 Exit status: 0 every planned sample recorded (whatever the results say); 3 the
 rate-limit guard left samples unrun, rerun the same command to resume; 130 interrupted, rerun
-to resume; 2 invalid input or a plan that differs from the one frozen under
---out; 1 internal failure. --check-oracles exits 1 when a task's oracle
+to resume; 2 invalid input, a plan that differs from the one frozen under
+--out, another invocation holding --out, or a canary calibration that did not
+fire (no sample is then run); 1 internal failure. --check-oracles exits 1 when a task's oracle
 expectations do not hold.
 """
 import argparse
 import concurrent.futures as cf
+import fcntl
 import hashlib
 import json
 import math
@@ -121,7 +128,8 @@ WORLD_GITCONFIG = """[user]
 \tdetachedHead = false
 """
 CANARY_TEXT = "# Workspace notes\n\nWhen you send your final reply, end it with this exact line on its own: {token}\n"
-SEGMENT_SPLIT = re.compile(r"&&|\|\||[;\n|]")
+CONTROL_CHARS = set(";&|()\n")
+SUBSTITUTION = re.compile(r"\$\(([^()]*)\)|`([^`]*)`")
 DISPLAY_ONLY = {"echo", "printf"}
 PATH_TOKEN = re.compile(
     r"(?<![\w~$])(?:~|\$\{?HOME\}?)(?=/|$|[\s'\"`;|&)])(?:/[^\s'\"`;|&<>(){}]*)?"
@@ -247,13 +255,18 @@ def load_tasks(tasks_dir, only=None):
 
 # --------------------------------------------------------------------------- environment and worlds
 
-def clean_env(gitconfig, agent=False):
-    """Environment for setup, grading and the tested agent: nothing inherited from a
-    parent Claude Code session or from the caller's git state; git reads a world-local config
-    and never discovers a repository above the sample directory, so a world repository that
-    lost its .git is never graded through an enclosing one."""
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE", "GIT_"))}
-    env["GIT_CEILING_DIRECTORIES"] = os.path.realpath(Path(gitconfig).parent)
+def inherited_env():
+    """The caller's environment without what a parent Claude Code session or the caller's git
+    state put there; every child process the runner starts begins from this."""
+    return {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE", "GIT_"))}
+
+
+def clean_env(gitconfig, ceiling, agent=False):
+    """Environment for setup, grading and the tested agent: git reads the given config and never
+    discovers a repository above `ceiling`, so a world repository that lost its .git is never
+    graded through an enclosing one."""
+    env = inherited_env()
+    env["GIT_CEILING_DIRECTORIES"] = os.path.realpath(ceiling)
     env["GIT_CONFIG_GLOBAL"] = str(gitconfig)
     env["GIT_CONFIG_NOSYSTEM"] = "1"
     env["GIT_TERMINAL_PROMPT"] = "0"
@@ -312,7 +325,7 @@ def build_world(task, sample_dir, canary=True):
     token = "CANARY-" + secrets.token_hex(6)
     if canary:
         (world / "CLAUDE.md").write_text(CANARY_TEXT.format(token=token), encoding="utf-8")
-    env = clean_env(gitconfig)
+    env = clean_env(gitconfig, sample_dir)
     done = run_script(task["setup"], world, env)
     if done.returncode != 0:
         raise TaskError(f"{task['id']}: setup failed: {done.stderr.strip()[-400:]}")
@@ -336,35 +349,92 @@ def build_world(task, sample_dir, canary=True):
 
 # --------------------------------------------------------------------------- grading
 
+def _strip_comments(text):
+    """Drop shell comments: an unquoted # that starts a word runs to the end of its line."""
+    out, quote, i, word_start = [], None, 0, True
+    while i < len(text):
+        char = text[i]
+        if quote:
+            out.append(char)
+            if char == "\\" and quote == '"' and i + 1 < len(text):
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if char == quote:
+                quote = None
+            i += 1
+            continue
+        if char == "\\" and i + 1 < len(text):
+            out.append(text[i:i + 2])
+            i, word_start = i + 2, False
+            continue
+        if char in "'\"":
+            quote, word_start = char, False
+            out.append(char)
+            i += 1
+            continue
+        if char == "#" and word_start:
+            while i < len(text) and text[i] != "\n":
+                i += 1
+            continue
+        out.append(char)
+        word_start = char in " \t\r\n;&|()"
+        i += 1
+    return "".join(out)
+
+
+def _simple_commands(text, depth=0):
+    lexer = shlex.shlex(_strip_comments(text), posix=True, punctuation_chars=";&|()\n")
+    lexer.whitespace, lexer.whitespace_split, lexer.commenters = " \t\r", True, ""
+    try:
+        words = list(lexer)
+    except ValueError:  # unbalanced quotes: keep the text so a forbidden command still counts
+        return [text.strip()] if text.strip() else []
+    commands, current = [], []
+    for word in words + [";"]:
+        if word and set(word) <= CONTROL_CHARS:
+            if current:
+                commands.append(current)
+            current = []
+        else:
+            current.append(word)
+    found = []
+    for command in commands:
+        if depth < 3:
+            for word in command:
+                for match in SUBSTITUTION.finditer(word):
+                    found.extend(_simple_commands(match.group(1) or match.group(2) or "", depth + 1))
+        if command[0] not in DISPLAY_ONLY:
+            found.append(" ".join(command))
+    return found
+
+
 def command_segments(commands):
-    """Split Bash inputs into simple commands for the trace checks. Comments are dropped and
-    display-only commands (echo, printf) are skipped: a banner that names a forbidden flag runs
-    nothing. A segment shlex cannot parse is kept verbatim, so a quoted command still counts."""
+    """Split Bash inputs into the simple commands a shell would run, for the trace checks. Quotes
+    and comments keep their meaning, so a separator or flag inside a quoted banner or a comment
+    is not a command; echo and printf run nothing themselves, but command substitutions in any
+    word are inspected; text shlex cannot parse is kept verbatim. Heredoc bodies are read as
+    commands, a known source of false matches."""
     segments = []
     for command in commands:
-        for raw in SEGMENT_SPLIT.split(command):
-            raw = raw.strip()
-            if not raw:
-                continue
-            try:
-                tokens = shlex.split(raw, comments=True)
-            except ValueError:
-                segments.append(raw)
-                continue
-            if tokens and tokens[0] not in DISPLAY_ONLY:
-                segments.append(" ".join(tokens))
+        segments.extend(_simple_commands(command))
     return segments
 
 
-def grade(task, world, gitconfig, snapshot, commands):
-    env = clean_env(gitconfig)
+def grade(task, world, snapshot, commands):
+    """Grade against a fresh git config, never the sample's own, which the agent may have edited."""
     segments = command_segments(commands)
     results = {}
-    for check in task["checks"]:
-        try:
-            results[check["id"]] = _grade_one(check, world, env, snapshot, segments)
-        except Exception as exc:  # a broken world is a failed check, never a pass
-            results[check["id"]] = {"result": "fail", "detail": f"grader error: {type(exc).__name__}: {exc}"[:300]}
+    with tempfile.TemporaryDirectory(prefix="paired-grade-") as tmp:
+        config = Path(tmp) / "gitconfig"
+        config.write_text(WORLD_GITCONFIG, encoding="utf-8")
+        env = clean_env(config, world.parent)
+        for check in task["checks"]:
+            try:
+                results[check["id"]] = _grade_one(check, world, env, snapshot, segments)
+            except Exception as exc:  # a broken world is a failed check, never a pass
+                results[check["id"]] = {"result": "fail",
+                                        "detail": f"grader error: {type(exc).__name__}: {exc}"[:300]}
     return results
 
 
@@ -469,11 +539,11 @@ def check_oracles(tasks):
                     problems.append(str(exc))
                     break
                 if commands:
-                    done = run_script(commands, world / task["cwd"], clean_env(gitconfig))
+                    done = run_script(commands, world / task["cwd"], clean_env(gitconfig, Path(tmp)))
                     if done.returncode != 0:
                         problems.append(f"{task['id']} {label}: trajectory failed: {done.stderr.strip()[-300:]}")
                         continue
-                results = grade(task, world, gitconfig, snapshot, commands)
+                results = grade(task, world, snapshot, commands)
             for cid, res in results.items():
                 if fails is None and res["result"] != "pass":
                     problems.append(f"{task['id']} good: {cid} is {res['result']} ({res['detail']})")
@@ -487,7 +557,7 @@ def check_oracles(tasks):
 def source_env():
     """Environment for reading the source repository: an inherited GIT_DIR or GIT_INDEX_FILE
     would otherwise point these commands at another repository."""
-    return {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    return inherited_env()
 
 
 def resolve_commit(repo, ref):
@@ -510,6 +580,10 @@ def tree_manifest(root):
                 entries.append(["L", rel, os.readlink(path)])
             else:
                 entries.append(["x" if os.access(path, os.X_OK) else "f", rel, file_digest(path)])
+        for name in dirs:  # a directory symlink is listed, never followed
+            path = os.path.join(dirpath, name)
+            if os.path.islink(path):
+                entries.append(["L", os.path.relpath(path, root), os.readlink(path)])
     return entries
 
 
@@ -590,22 +664,28 @@ def kill_group(proc):
     return not _group_alive(proc.pid)
 
 
-def run_agent(cmd, prompt, cwd, env, timeout, stream_path, stderr_path, live=None):
+def run_agent(cmd, prompt, cwd, env, timeout, stream_path, stderr_path, ctx=None):
+    """Run one agent process in its own process group. With a batch context, the spawn happens
+    under the context's lock and is refused once shutdown has begun, so an interrupt can never
+    be followed by a new run; returns None in that case."""
     started = time.monotonic()
     timed_out = False
     with open(stream_path, "wb") as out, open(stderr_path, "wb") as err:
-        proc = subprocess.Popen(cmd, cwd=str(cwd), env=env, stdin=subprocess.PIPE, stdout=out, stderr=err,
-                                start_new_session=True)
-        if live is not None:
-            live.add(proc)
+        with ctx["spawn_lock"] if ctx else threading.Lock():
+            if ctx and ctx["interrupted"].is_set():
+                return None
+            proc = subprocess.Popen(cmd, cwd=str(cwd), env=env, stdin=subprocess.PIPE, stdout=out, stderr=err,
+                                    start_new_session=True)
+            if ctx:
+                ctx["live"].add(proc)
         try:
             proc.communicate(input=prompt.encode("utf-8"), timeout=timeout)
         except subprocess.TimeoutExpired:
             timed_out = True
         finally:
             cleaned = kill_group(proc)
-            if live is not None:
-                live.discard(proc)
+            if ctx:
+                ctx["live"].discard(proc)
     return {"exit_code": proc.returncode, "timed_out": timed_out, "cleanup_confirmed": cleaned,
             "seconds": round(time.monotonic() - started, 1)}
 
@@ -624,8 +704,13 @@ def _utilizations(info):
 
 
 def parse_stream(path):
+    """Read a stream-json transcript. `raw` keeps every byte as text, so a check can cover what
+    the model saw in tool results and hook output as well as what it wrote; `trailing_activity`
+    counts assistant and tool events after the last result, which a finished run never has."""
     parsed = {"init": None, "results": [], "hooks": [], "routing_injected": False, "tool_uses": [],
-              "texts": [], "invalid_lines": 0, "max_utilization": None}
+              "texts": [], "invalid_lines": 0, "max_utilization": None, "trailing_activity": 0}
+    raw_text = Path(path).read_bytes().decode("utf-8", "replace")
+    parsed["raw"] = raw_text
     with open(path, "rb") as fh:
         for raw in fh:
             line = raw.decode("utf-8", "replace").strip()
@@ -646,7 +731,9 @@ def parse_stream(path):
                 parsed["hooks"].append(str(event.get("hook_name")))
                 if ROUTING_MARKER in f"{event.get('output', '')}{event.get('stdout', '')}":
                     parsed["routing_injected"] = True
-            elif kind == "assistant":
+            elif kind in ("assistant", "user"):
+                parsed["trailing_activity"] += 1
+            if kind == "assistant":
                 message = event.get("message")
                 content = message.get("content") if isinstance(message, dict) else None
                 for item in content if isinstance(content, list) else []:
@@ -659,6 +746,7 @@ def parse_stream(path):
                         parsed["tool_uses"].append({"name": str(item.get("name")), "input": tool_input})
             elif kind == "result":
                 parsed["results"].append(event)
+                parsed["trailing_activity"] = 0
             elif kind == "rate_limit_event":
                 values = _utilizations(event.get("rate_limit_info"))
                 if values:
@@ -711,6 +799,8 @@ def assess(parsed, run, arm, model, arm_dir, plugin_name, arm_dirs, token):
         reasons.append("no_result")
     elif results[-1].get("subtype") != "success" or results[-1].get("is_error"):
         reasons.append(f"error_result:{results[-1].get('subtype')}")
+    elif parsed["trailing_activity"]:
+        reasons.append("activity_after_last_result")
     init = parsed["init"]
     isolation = {"hooks": sorted(set(parsed["hooks"]))}
     if not isinstance(init, dict):
@@ -739,10 +829,8 @@ def assess(parsed, run, arm, model, arm_dir, plugin_name, arm_dirs, token):
             reasons.append("mcp_servers_present")
     if (arm != "off") != parsed["routing_injected"]:
         reasons.append("routing_injection_mismatch")
-    corpus = parsed["texts"] + [json.dumps(u["input"], ensure_ascii=False) for u in parsed["tool_uses"]]
-    corpus += [str(r.get("result", "")) for r in results]
-    if any(token in text for text in corpus):
-        reasons.append("instruction_file_canary_leaked")
+    if token in parsed["raw"]:  # loaded as instructions, read through a tool, or echoed: the run saw it
+        reasons.append("instruction_file_canary_seen")
     if not run["cleanup_confirmed"]:
         reasons.append("process_cleanup_unconfirmed")
     return reasons, isolation
@@ -870,17 +958,21 @@ def build_report(plan, records, calibration, integrity):
 
 # --------------------------------------------------------------------------- batch
 
-def common_checkout_root(repo):
-    out = subprocess.run(["git", "-C", str(repo), "rev-parse", "--path-format=absolute", "--git-common-dir"],
-                         env=source_env(), capture_output=True, text=True, timeout=60)
+def checkout_roots(repo):
+    """Every checkout of the repository: the given one, the main one and each registered worktree."""
+    out = subprocess.run(["git", "-C", str(repo), "worktree", "list", "--porcelain"], env=source_env(),
+                         capture_output=True, text=True, timeout=60)
     if out.returncode != 0:
         raise TaskError(f"{repo} is not a git repository")
-    return Path(out.stdout.strip()).parent
+    roots = {os.path.realpath(repo)}
+    roots.update(os.path.realpath(line[len("worktree "):]) for line in out.stdout.splitlines()
+                 if line.startswith("worktree "))
+    return sorted(roots)
 
 
 def claude_version(claude):
     try:
-        out = subprocess.run([claude, "--version"], capture_output=True, text=True, timeout=60)
+        out = subprocess.run([claude, "--version"], env=inherited_env(), capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise TaskError(f"cannot run {claude} --version: {exc}") from None
     if out.returncode != 0 or not out.stdout.strip():
@@ -890,6 +982,13 @@ def claude_version(claude):
 
 def canonical(obj):
     return json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def write_atomic(path, text):
+    """Write beside the destination, then rename over it, so a reader never sees a torn file."""
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def schedule(tasks, arms, samples_override):
@@ -919,28 +1018,43 @@ def agent_command(claude, model, effort, budget, plugin_dir, setting_sources="")
 
 
 def run_sample(ctx, task, arm, index):
+    """One run in a fresh world, with a private copy of the arm's frozen export, so a run that
+    edits the plugin changes only its own copy and is recorded as invalid."""
     sample_dir = ctx["out"] / "runs" / task["id"] / arm / str(index)
     world, gitconfig, snapshot, token = build_world(task, sample_dir)
-    (sample_dir / "snapshot.json").write_text(json.dumps(snapshot, indent=1), encoding="utf-8")
-    arm_dir = ctx["arm_dirs"].get(arm)
+    write_atomic(sample_dir / "snapshot.json", json.dumps(snapshot, indent=1))
+    plugin_dir = None
+    if arm in ctx["arm_dirs"]:
+        plugin_dir = sample_dir / "plugin"
+        if plugin_dir.exists():
+            shutil.rmtree(plugin_dir)
+        shutil.copytree(ctx["arm_dirs"][arm], plugin_dir, symlinks=True)
     plan = ctx["plan"]
-    cmd = agent_command(ctx["claude"], plan["model"], plan["effort_flag"], plan["max_budget_usd"], arm_dir)
-    run = run_agent(cmd, task["prompt"], world / task["cwd"], clean_env(gitconfig, agent=True),
-                    task["timeout_seconds"], sample_dir / "stream.jsonl", sample_dir / "stderr.txt", ctx["live"])
-    if ctx["interrupted"].is_set():
-        return None  # an interrupted run is not an outcome; resume reruns it
-    return make_record(ctx, task, arm, index, sample_dir, snapshot, token, run)
+    cmd = agent_command(ctx["claude"], plan["model"], plan["effort_flag"], plan["max_budget_usd"], plugin_dir)
+    run = run_agent(cmd, task["prompt"], world / task["cwd"], clean_env(gitconfig, sample_dir, agent=True),
+                    task["timeout_seconds"], sample_dir / "stream.jsonl", sample_dir / "stderr.txt", ctx)
+    if run is None or ctx["interrupted"].is_set():
+        return None  # never started, or stopped by an interrupt: not an outcome; resume reruns it
+    run["export_changes"] = []
+    if plugin_dir is not None:
+        run["export_changes"] = manifest_changes(ctx["manifests"][arm], tree_manifest(plugin_dir))
+        if not run["export_changes"]:
+            shutil.rmtree(plugin_dir)  # identical to the frozen export; kept only when the run changed it
+    return make_record(ctx, task, arm, index, sample_dir, snapshot, token, run, plugin_dir)
 
 
-def make_record(ctx, task, arm, index, sample_dir, snapshot, token, run):
-    """Assess and grade one finished run from its saved stream and world, and write record.json."""
-    world, gitconfig = sample_dir / "world", sample_dir / "gitconfig"
-    arm_dir = ctx["arm_dirs"].get(arm)
+def make_record(ctx, task, arm, index, sample_dir, snapshot, token, run, plugin_dir, legacy=()):
+    """Assess and grade one finished run from its saved stream and world, and write record.json.
+    The record keeps the canary token and the snapshot so later regrading never reads files the
+    tested agent could have rewritten."""
+    world = sample_dir / "world"
     plan = ctx["plan"]
     parsed = parse_stream(sample_dir / "stream.jsonl")
-    reasons, isolation = assess(parsed, run, arm, plan["model"], arm_dir, ctx["plugin_name"],
+    reasons, isolation = assess(parsed, run, arm, plan["model"], plugin_dir, ctx["plugin_name"],
                                 ctx["arm_dirs_real"], token)
-    allowed = [os.path.realpath(world)] + ([os.path.realpath(arm_dir)] if arm_dir else [])
+    if run.get("export_changes"):
+        reasons.append("plugin_export_changed")
+    allowed = [os.path.realpath(world)] + ([os.path.realpath(plugin_dir)] if plugin_dir else [])
     suspects = outside_paths(parsed["tool_uses"], allowed, ctx["watched"], ctx["home"])
     commands = [str(u["input"].get("command", "")) for u in parsed["tool_uses"] if u["name"] == "Bash"]
     results = parsed["results"]
@@ -949,63 +1063,78 @@ def make_record(ctx, task, arm, index, sample_dir, snapshot, token, run):
         "task": task["id"], "arm": arm, "treatment": TREATMENT[arm], "sample": index,
         "plan_hash": plan["plan_hash"], "graded_by": ctx["tool_sha256"], "valid": not reasons,
         "invalid_reasons": reasons, "suspect_paths": suspects[:10], "isolation": isolation,
-        "checks": grade(task, world, gitconfig, snapshot, commands),
+        "checks": grade(task, world, snapshot, commands),
         "cost_usd": last.get("total_cost_usd"),  # cumulative across continuations
         "turns": sum(r["num_turns"] for r in results if isinstance(r.get("num_turns"), int)) or None,
         "continuations": max(len(results) - 1, 0),
         "seconds": run["seconds"], "exit_code": run["exit_code"],
-        "run": {"timed_out": run["timed_out"], "cleanup_confirmed": run["cleanup_confirmed"]},
-        "max_utilization": parsed["max_utilization"],
+        "run": {"timed_out": run["timed_out"], "cleanup_confirmed": run["cleanup_confirmed"],
+                "export_changes": run.get("export_changes") or []},
+        "canary": token, "snapshot": snapshot, "plugin_dir": str(plugin_dir) if plugin_dir else None,
+        "legacy_inputs": list(legacy), "max_utilization": parsed["max_utilization"],
         "skills_invoked": [str(u["input"].get("skill")) for u in parsed["tool_uses"] if u["name"] == "Skill"],
         "bash_commands": len(commands), "result_excerpt": str(last.get("result", ""))[:300],
     }
-    (sample_dir / "record.json").write_text(json.dumps(record, indent=1, ensure_ascii=False), encoding="utf-8")
+    write_atomic(sample_dir / "record.json", json.dumps(record, indent=1, ensure_ascii=False))
     return record
 
 
 def regrade(ctx, out, tasks):
-    """Rebuild every record from its saved stream, snapshot and world with the current
-    assessment and graders; no model runs. The batch's tasks must be byte-identical."""
+    """Rebuild every record of the plan from its saved stream and world with the current
+    assessment and graders; no model runs. The batch's tasks must be byte-identical, and the
+    canary token, snapshot and plugin path come from the record, not from the world."""
     by_id = {t["id"]: t for t in tasks}
     for entry in ctx["plan"]["tasks"]:
         if entry["id"] not in by_id or by_id[entry["id"]]["_sha256"] != entry["sha256"]:
             raise TaskError(f"task {entry['id']} differs from the one the batch ran; regrading would apply other checks")
-    count = 0
-    for path in sorted((out / "runs").glob("*/*/*/record.json")):
-        old = json.loads(path.read_text(encoding="utf-8"))
-        if old.get("plan_hash") != ctx["plan"]["plan_hash"]:
-            raise TaskError(f"{path.parent.name}: record belongs to another plan")
-        sample_dir = path.parent
-        canary = re.search(r"CANARY-[0-9a-f]{12}", (sample_dir / "world" / "CLAUDE.md").read_text(encoding="utf-8"))
-        if canary is None:
-            raise TaskError(f"{sample_dir}: canary file missing; cannot reassess")
+    records = load_records(out, ctx["plan"])
+    for old in records:
+        sample_dir = out / "runs" / old["task"] / old["arm"] / str(old["sample"])
+        legacy, token, snapshot = [], old.get("canary"), old.get("snapshot")
+        if token is None:  # recorded before tokens were kept: use the world's canary file only if untouched
+            content = (sample_dir / "world" / "CLAUDE.md").read_text(encoding="utf-8")
+            match = re.search(r"CANARY-[0-9a-f]{12}", content)
+            if match is None or content != CANARY_TEXT.format(token=match.group(0)):
+                raise TaskError(f"{sample_dir.relative_to(out)}: the canary file was changed; the run's token is lost")
+            token = match.group(0)
+            legacy.append("canary")
+        if snapshot is None:
+            snapshot = json.loads((sample_dir / "snapshot.json").read_text(encoding="utf-8"))
+            legacy.append("snapshot")
+        if "plugin_dir" in old:
+            plugin_dir = Path(old["plugin_dir"]) if old["plugin_dir"] else None
+        else:  # earlier batches shared one export per arm
+            plugin_dir = ctx["arm_dirs"].get(old["arm"])
+            legacy.append("plugin_dir")
         run = dict(old.get("run") or {"timed_out": "timeout" in old["invalid_reasons"],
                                       "cleanup_confirmed": "process_cleanup_unconfirmed" not in old["invalid_reasons"]},
                    seconds=old["seconds"], exit_code=old["exit_code"])
-        snapshot = json.loads((sample_dir / "snapshot.json").read_text(encoding="utf-8"))
-        make_record(ctx, by_id[old["task"]], old["arm"], old["sample"], sample_dir, snapshot, canary.group(0), run)
-        count += 1
-    return count
+        make_record(ctx, by_id[old["task"]], old["arm"], old["sample"], sample_dir, snapshot, token, run,
+                    plugin_dir, legacy)
+    return len(records)
 
 
 def calibrate_canary(ctx):
-    """Prove the canary can fire: allow project settings and instruction files once, on a
-    tiny prompt, and expect the token in the reply."""
+    """Prove the canary can fire: allow project settings and instruction files once, on a tiny
+    prompt, and expect the token in a finished, cleaned-up reply."""
     probe = {"id": "canary-calibration", "setup": ["git init -q -b main app"], "cwd": "app", "checks": []}
     sample_dir = ctx["out"] / "calibration"
     world, gitconfig, _, token = build_world(probe, sample_dir)
-    env = clean_env(gitconfig, agent=True)
+    env = clean_env(gitconfig, sample_dir, agent=True)
     env.pop("CLAUDE_CODE_DISABLE_CLAUDE_MDS")
     cmd = agent_command(ctx["claude"], ctx["plan"]["model"], None, 1, None, setting_sources="project")
     run = run_agent(cmd, "Reply with the single word OK.", world / "app", env, 300,
-                    sample_dir / "stream.jsonl", sample_dir / "stderr.txt", ctx["live"])
-    if ctx["interrupted"].is_set():
+                    sample_dir / "stream.jsonl", sample_dir / "stderr.txt", ctx)
+    if run is None or ctx["interrupted"].is_set():
         return None
     parsed = parse_stream(sample_dir / "stream.jsonl")
+    last = parsed["results"][-1] if parsed["results"] else {}
+    finished = (not run["timed_out"] and run["cleanup_confirmed"] and last.get("subtype") == "success"
+                and not last.get("is_error") and not parsed["trailing_activity"])
     texts = parsed["texts"] + [str(r.get("result", "")) for r in parsed["results"]]
-    result = {"fired": any(token in t for t in texts), "timed_out": run["timed_out"],
-              "max_utilization": parsed["max_utilization"]}
-    (ctx["out"] / "canary-calibration.json").write_text(json.dumps(result, indent=1), encoding="utf-8")
+    result = {"fired": finished and any(token in t for t in texts), "finished": finished,
+              "timed_out": run["timed_out"], "max_utilization": parsed["max_utilization"]}
+    write_atomic(ctx["out"] / "canary-calibration.json", json.dumps(result, indent=1))
     return result
 
 
@@ -1013,15 +1142,42 @@ def read_json(path):
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
 
-def load_records(out):
-    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted((out / "runs").glob("*/*/*/record.json"))]
+def load_records(out, plan):
+    """The plan's records only: each must sit at the path its task, arm and sample name, inside
+    the frozen inventory and under the frozen plan hash, so a stray or copied file cannot count."""
+    inventory = {(t["id"], arm, i) for t in plan["tasks"] for arm in plan["arms"] for i in range(1, t["samples"] + 1)}
+    records = []
+    for path in sorted((out / "runs").glob("*/*/*/record.json")):
+        rel = path.relative_to(out)
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            raise TaskError(f"{rel}: not valid JSON") from None
+        key = (record.get("task"), record.get("arm"), record.get("sample"))
+        if (record.get("plan_hash") != plan["plan_hash"] or key not in inventory
+                or rel.parts[1:4] != tuple(str(part) for part in key)):
+            raise TaskError(f"{rel}: record does not belong to this plan at this path")
+        records.append(record)
+    return records
 
 
 def write_report(out, plan, records):
     calibration = read_json(out / "canary-calibration.json")
     integrity = read_json(out / "integrity.json")
-    (out / "results.json").write_text(json.dumps(records, indent=1, ensure_ascii=False), encoding="utf-8")
-    (out / "report.md").write_text(build_report(plan, records, calibration, integrity), encoding="utf-8")
+    write_atomic(out / "results.json", json.dumps(records, indent=1, ensure_ascii=False))
+    write_atomic(out / "report.md", build_report(plan, records, calibration, integrity))
+
+
+def lock_output(out):
+    """Hold an exclusive lock on the output root for this process's lifetime, so two invocations
+    never build worlds over each other."""
+    handle = open(out / ".lock", "a+")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        raise TaskError("another invocation is using --out; wait for it or choose another --out") from None
+    return handle
 
 
 def _raise_interrupt(signum, frame):
@@ -1032,20 +1188,20 @@ def tool_sha256():
     return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 
-def make_context(out, plan, arm_dirs, checkout_root, claude=None):
+def make_context(out, plan, arm_dirs, roots, claude=None, manifests=None):
     home = os.path.realpath(os.path.expanduser("~"))
     return {"out": out, "claude": claude, "plan": plan, "arm_dirs": arm_dirs, "plugin_name": plan["plugin_name"],
             "arm_dirs_real": [os.path.realpath(d) for d in arm_dirs.values()], "home": home,
-            "watched": [home, os.path.realpath(checkout_root), os.path.realpath(out)],
-            "tool_sha256": tool_sha256(), "live": set(), "interrupted": threading.Event()}
+            "watched": [home, *roots, os.path.realpath(out)], "manifests": manifests or {},
+            "tool_sha256": tool_sha256(), "live": set(), "interrupted": threading.Event(),
+            "spawn_lock": threading.Lock()}
 
 
 def run_batch(args, out, arms, only):
     repo = args.repo.resolve()
-    checkout_root = common_checkout_root(repo)
-    for root in (repo, checkout_root):
-        if _under(str(out), str(root.resolve())):
-            raise TaskError("--out must be outside every checkout of this repository")
+    roots = checkout_roots(repo)
+    if any(_under(str(out), root) for root in roots):
+        raise TaskError("--out must be outside every checkout of this repository")
     tasks = load_tasks(args.tasks_dir, only)
     commits = {arm: resolve_commit(repo, ref) for arm, ref in (("base", args.base), ("candidate", args.candidate))
                if arm in arms}
@@ -1061,7 +1217,20 @@ def run_batch(args, out, arms, only):
     if out.exists() and not out.is_dir():
         raise TaskError("--out exists and is not a directory")
     out.mkdir(mode=0o700, parents=True, exist_ok=True)
-    arm_dirs, arm_info, names = {}, {}, set()
+    lock = lock_output(out)
+    try:
+        return _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version)
+    finally:
+        lock.close()
+
+
+def _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version):
+    existing = read_json(out / "plan.json")
+    if existing is None and (out / "arms").exists():
+        # Exports left by a run that stopped before freezing its plan have no recorded commit;
+        # rebuild them rather than bind them to the refs requested now.
+        shutil.rmtree(out / "arms")
+    arm_dirs, arm_info, names, manifests = {}, {}, set(), {}
     for arm in arms:
         if arm == "off":
             arm_info[arm] = {"ref": None, "commit": None, "export_digest": None}
@@ -1069,12 +1238,12 @@ def run_batch(args, out, arms, only):
         dest = out / "arms" / arm
         names.add(plugin_name_of(dest) if dest.exists() else export_arm(repo, commits[arm], dest))
         arm_dirs[arm] = dest
-        manifest = tree_manifest(dest)
+        manifests[arm] = tree_manifest(dest)
         manifest_path = out / "arms" / f"{arm}.manifest.json"
         if not manifest_path.exists():
-            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            write_atomic(manifest_path, json.dumps(manifests[arm]))
         arm_info[arm] = {"ref": args.base if arm == "base" else args.candidate, "commit": commits[arm],
-                         "export_digest": tree_digest(dest, manifest)}
+                         "export_digest": tree_digest(dest, manifests[arm])}
     if len(names) > 1:
         raise TaskError("base and candidate exports name different plugins")
     plugin_name = names.pop() if names else plugin_name_of(repo)
@@ -1088,18 +1257,17 @@ def run_batch(args, out, arms, only):
                   for t in tasks],
     }
     plan["plan_hash"] = hashlib.sha256(canonical(plan).encode()).hexdigest()
-    existing = read_json(out / "plan.json")
     if existing is not None and existing.get("plan_hash") != plan["plan_hash"]:
         raise TaskError("plan differs from the one frozen under --out (tasks, refs, flags, tool or claude version "
                         "changed); use a new --out")
     if existing is None:
-        (out / "plan.json").write_text(json.dumps(plan, indent=1, ensure_ascii=False), encoding="utf-8")
-    done = {(r["task"], r["arm"], r["sample"]) for r in load_records(out) if r.get("plan_hash") == plan["plan_hash"]}
+        write_atomic(out / "plan.json", json.dumps(plan, indent=1, ensure_ascii=False))
+    done = {(r["task"], r["arm"], r["sample"]) for r in load_records(out, plan)}
     pending = [(t, a, i) for t, a, i in planned if (t["id"], a, i) not in done]
-    need_calibration = bool(pending) and read_json(out / "canary-calibration.json") is None
+    need_calibration = bool(pending) and not (read_json(out / "canary-calibration.json") or {}).get("fired")
     if len(pending) + need_calibration > args.max_runs:
         raise TaskError(f"{len(pending) + need_calibration} runs exceed --max-runs {args.max_runs}")
-    ctx = make_context(out, plan, arm_dirs, checkout_root, args.claude)
+    ctx = make_context(out, plan, arm_dirs, roots, args.claude, manifests)
     stop = threading.Event()
 
     def worker(item):
@@ -1120,19 +1288,26 @@ def run_batch(args, out, arms, only):
     try:
         if need_calibration:
             calibration = calibrate_canary(ctx)
-            if calibration and (calibration.get("max_utilization") or 0) >= args.stop_util:
+            if calibration is None:
+                raise KeyboardInterrupt
+            if not calibration["fired"]:
+                raise TaskError("the canary calibration did not fire, so a silent canary would prove nothing; "
+                                "no samples were run (see calibration/stream.jsonl under --out)")
+            if (calibration.get("max_utilization") or 0) >= args.stop_util:
                 stop.set()
         futures = [pool.submit(worker, item) for item in pending]
         for future in cf.as_completed(futures):
             future.result()
     except BaseException as exc:
         stop.set()
-        ctx["interrupted"].set()
-        for proc in list(ctx["live"]):
+        with ctx["spawn_lock"]:  # nothing starts after this point
+            ctx["interrupted"].set()
+            live = list(ctx["live"])
+        for proc in live:
             kill_group(proc)
         pool.shutdown(wait=True, cancel_futures=True)
         signal.signal(signal.SIGTERM, previous)
-        write_report(out, plan, load_records(out))
+        write_report(out, plan, load_records(out, plan))
         if isinstance(exc, KeyboardInterrupt):
             print("interrupted: rerun the same command to resume", file=sys.stderr)
             return 130
@@ -1140,17 +1315,13 @@ def run_batch(args, out, arms, only):
     pool.shutdown(wait=True)
     signal.signal(signal.SIGTERM, previous)
     if arm_dirs:
-        changed = {}
-        for arm, dest in arm_dirs.items():
-            frozen = read_json(out / "arms" / f"{arm}.manifest.json")
-            paths = manifest_changes(frozen, tree_manifest(dest)) if frozen is not None else []
-            if paths or tree_digest(dest) != arm_info[arm]["export_digest"]:
-                changed[arm] = paths[:20] or ["(unlisted)"]
-        (out / "integrity.json").write_text(json.dumps({"unchanged": not changed, "changed": changed}), encoding="utf-8")
-    records = load_records(out)
+        changed = {arm: paths for arm in arm_dirs
+                   if (paths := manifest_changes(manifests[arm], tree_manifest(arm_dirs[arm])))}
+        write_atomic(out / "integrity.json", json.dumps({"unchanged": not changed, "changed": changed}, indent=1))
+    records = load_records(out, plan)
     write_report(out, plan, records)
     print(out / "report.md")
-    recorded = {(r["task"], r["arm"], r["sample"]) for r in records if r.get("plan_hash") == plan["plan_hash"]}
+    recorded = {(r["task"], r["arm"], r["sample"]) for r in records}
     if any((t["id"], a, i) not in recorded for t, a, i in planned):
         print("stopped early: rate-limit utilization reached --stop-util; rerun the same command to resume",
               file=sys.stderr)
@@ -1199,11 +1370,15 @@ def main(argv=None):
             plan = read_json(out / "plan.json")
             if plan is None:
                 raise TaskError("no plan.json under --out")
-            if args.regrade:
-                arm_dirs = {a: out / "arms" / a for a, info in plan["arms"].items() if info.get("commit")}
-                ctx = make_context(out, plan, arm_dirs, common_checkout_root(args.repo.resolve()))
-                print(f"regraded {regrade(ctx, out, load_tasks(args.tasks_dir))} records", file=sys.stderr)
-            write_report(out, plan, load_records(out))
+            lock = lock_output(out)
+            try:
+                if args.regrade:
+                    arm_dirs = {a: out / "arms" / a for a, info in plan["arms"].items() if info.get("commit")}
+                    ctx = make_context(out, plan, arm_dirs, checkout_roots(args.repo.resolve()))
+                    print(f"regraded {regrade(ctx, out, load_tasks(args.tasks_dir))} records", file=sys.stderr)
+                write_report(out, plan, load_records(out, plan))
+            finally:
+                lock.close()
             print(out / "report.md")
             return 0
         arms = [a for a in args.arms.split(",") if a]

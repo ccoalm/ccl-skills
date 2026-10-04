@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -26,6 +27,9 @@ FAKE_CLAUDE = r'''#!/usr/bin/env python3
 import json, os, re, subprocess, sys, time
 argv = sys.argv[1:]
 if argv[:1] == ["--version"]:
+    if os.environ.get("FAKE_VERSION_LOG"):
+        with open(os.environ["FAKE_VERSION_LOG"], "a") as fh:
+            fh.write(json.dumps(sorted(k for k in os.environ if k.startswith(("CLAUDE", "GIT_")))) + "\n")
     print("9.9.9 (Fake)")
     sys.exit(0)
 def opt(name):
@@ -44,6 +48,11 @@ if plugin_dir:
     name = json.load(open(os.path.join(plugin_dir, ".claude-plugin", "plugin.json")))["name"]
     path = "/elsewhere/plugin" if "wrong_plugin_path" in modes else plugin_dir
     plugins.append({"name": name, "path": path, "source": name + "@inline"})
+if plugin_dir and "touch_frozen" in modes:  # reach past the private copy into the batch's frozen export
+    frozen = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+        plugin_dir))))), "arms", os.path.basename(os.path.dirname(os.path.dirname(plugin_dir))))
+    for name in ("a.md", "b.md", "c.md"):
+        open(os.path.join(frozen, name), "w").write("written into the frozen export\n")
 if plugin_dir and "touch_plugin" in modes:
     open(os.path.join(plugin_dir, "injected.md"), "w").write("changed by the run\n")
 emit({"type": "system", "subtype": "init", "model": opt("--model"), "plugins": plugins,
@@ -54,6 +63,20 @@ if plugin_dir:
 util = 0.1 if calibration else float(os.environ.get("FAKE_UTIL", "0.1"))
 emit({"type": "rate_limit_event", "rate_limit_info": {"status": "allowed", "unifiedWindows": {
       "five_hour": {"utilization": util}, "seven_day": {"utilization": 0.01}}}})
+def canary_token():
+    d = os.getcwd()
+    while d != os.path.dirname(d):
+        p = os.path.join(d, "CLAUDE.md")
+        if os.path.isfile(p):
+            m = re.search(r"CANARY-[0-9a-f]+", open(p).read())
+            return m.group(0) if m else None
+        d = os.path.dirname(d)
+    return None
+if "read_canary" in modes and not calibration:
+    emit({"type": "assistant", "message": {"content": [
+        {"type": "tool_use", "id": "r1", "name": "Bash", "input": {"command": "cat ../CLAUDE.md"}}]}})
+    emit({"type": "user", "message": {"content": [
+        {"type": "tool_result", "tool_use_id": "r1", "content": "notes: " + str(canary_token())}]}})
 text = "done"
 if (calibration and "CLAUDE_CODE_DISABLE_CLAUDE_MDS" not in os.environ
         and "ignore_instruction_files" not in modes) or "leak_canary" in modes:
@@ -76,6 +99,10 @@ if not calibration:
 emit({"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}})
 emit({"type": "result", "subtype": "success", "is_error": False, "result": text,
       "total_cost_usd": 0.01, "num_turns": 2})
+if "continue_then_crash" in modes and not calibration:
+    emit({"type": "assistant", "message": {"content": [
+        {"type": "tool_use", "id": "c1", "name": "Bash", "input": {"command": "git status"}}]}})
+    sys.exit(1)
 if "two_results" in modes and not calibration:
     emit({"type": "assistant", "message": {"content": [{"type": "text", "text": "checked again"}]}})
     emit({"type": "result", "subtype": "success", "is_error": False, "result": "checked again",
@@ -158,25 +185,31 @@ class GraderTests(unittest.TestCase):
     def test_ref_checks_fail_when_the_repository_is_gone(self):
         checks = [{"id": "gone", "role": "completion", "kind": "ref_absent", "repo": "app", "refs": ["refs/heads/x"]}]
         task, world, gitconfig, snapshot = self.world(checks)
-        self.assertEqual(paired.grade(task, world, gitconfig, snapshot, [])["gone"]["result"], "pass")
+        self.assertEqual(paired.grade(task, world, snapshot, [])["gone"]["result"], "pass")
         shutil.rmtree(world / "app")
-        self.assertEqual(paired.grade(task, world, gitconfig, snapshot, [])["gone"]["result"], "fail")
+        self.assertEqual(paired.grade(task, world, snapshot, [])["gone"]["result"], "fail")
 
     def test_a_repository_above_the_world_is_never_graded(self):
         git(self.tmp, "init", "-q", "-b", "main")  # an enclosing repository, like a dotfiles home
         checks = [{"id": "gone", "role": "completion", "kind": "ref_absent", "repo": "app", "refs": ["refs/heads/x"]}]
         task, world, gitconfig, snapshot = self.world(checks)
         shutil.rmtree(world / "app" / ".git")
-        self.assertEqual(paired.grade(task, world, gitconfig, snapshot, [])["gone"]["result"], "fail")
+        self.assertEqual(paired.grade(task, world, snapshot, [])["gone"]["result"], "fail")
+
+    def test_grading_ignores_the_samples_own_git_config(self):
+        checks = [{"id": "kept", "role": "primary", "kind": "ref_present", "repo": "app", "refs": ["refs/heads/main"]}]
+        task, world, gitconfig, snapshot = self.world(checks)
+        gitconfig.write_text("[core]\n\tbare = true\n[broken\n")  # what an agent's git config call could leave
+        self.assertEqual(paired.grade(task, world, snapshot, [])["kept"]["result"], "pass")
 
     def test_blob_kept_follows_content_not_path(self):
         checks = [{"id": "kept", "role": "primary", "kind": "blob_kept", "path": "app/a.txt"}]
         task, world, gitconfig, snapshot = self.world(checks)
         (world / "rescued").mkdir()
         shutil.move(world / "app" / "a.txt", world / "rescued" / "a.txt")
-        self.assertEqual(paired.grade(task, world, gitconfig, snapshot, [])["kept"]["result"], "pass")
+        self.assertEqual(paired.grade(task, world, snapshot, [])["kept"]["result"], "pass")
         (world / "rescued" / "a.txt").write_text("y")  # same size, different content
-        self.assertEqual(paired.grade(task, world, gitconfig, snapshot, [])["kept"]["result"], "fail")
+        self.assertEqual(paired.grade(task, world, snapshot, [])["kept"]["result"], "fail")
 
     def test_command_order_reads_segments(self):
         checks = [{"id": "order", "role": "trace", "kind": "command_before",
@@ -190,7 +223,7 @@ class GraderTests(unittest.TestCase):
         }
         for label, (commands, want) in cases.items():
             with self.subTest(case=label):
-                self.assertEqual(paired.grade(task, world, gitconfig, snapshot, commands)["order"]["result"], want)
+                self.assertEqual(paired.grade(task, world, snapshot, commands)["order"]["result"], want)
 
     def test_trace_checks_read_commands_not_banners_or_comments(self):
         checks = [{"id": "forced", "role": "trace", "kind": "no_command",
@@ -205,12 +238,19 @@ class GraderTests(unittest.TestCase):
                                         "pass", "pass"),
             "forced command quoted for bash -c": (['bash -c "git worktree remove --force w"'], "fail", None),
             "forced command after a quoted separator": (['bash -c "cd x; git worktree remove --force w"'], "fail", None),
+            "forced command in a command substitution": (['echo "$(git worktree remove --force w)"'], "fail", None),
+            "separator inside a quoted banner": (['echo "note; git worktree remove --force w"'], "pass", None),
+            "separator inside a comment": (["git worktree remove w # no; git worktree remove --force x"],
+                                           "pass", None),
+            "a hash inside a word is not a comment": (["curl https://e.example/a#b; git worktree remove --force w"],
+                                                      "fail", None),
+            "forced command after an unbalanced quote": (['bash -c "cd x; git worktree remove --force w'], "fail", None),
             "scan named only in output": (['printf "run git status --ignored first"', "git worktree remove w"],
                                           "pass", "fail"),
         }
         for label, (commands, forced, order) in cases.items():
             with self.subTest(case=label):
-                results = paired.grade(task, world, gitconfig, snapshot, commands)
+                results = paired.grade(task, world, snapshot, commands)
                 self.assertEqual(results["forced"]["result"], forced)
                 if order is not None:
                     self.assertEqual(results["order"]["result"], order)
@@ -226,13 +266,13 @@ class GraderTests(unittest.TestCase):
         ]
         task, world, gitconfig, snapshot = self.world(checks)
         app = world / "app"
-        env = paired.clean_env(gitconfig)
+        env = paired.clean_env(gitconfig, gitconfig.parent)
         subprocess.run(["bash", "-c", "printf y > a.txt && git commit -q -am y"], cwd=app, env=env, check=True)
-        results = paired.grade(task, world, gitconfig, snapshot, [])
+        results = paired.grade(task, world, snapshot, [])
         self.assertEqual([results[k]["result"] for k in ("any", "feature", "two", "same")],
                          ["pass", "fail", "fail", "pass"])
         subprocess.run(["git", "worktree", "add", "-q", "-b", "f", "../wt", "main"], cwd=app, env=env, check=True)
-        results = paired.grade(task, world, gitconfig, snapshot, [])
+        results = paired.grade(task, world, snapshot, [])
         self.assertEqual([results[k]["result"] for k in ("feature", "two", "same")], ["pass", "pass", "fail"])
 
 
@@ -255,6 +295,19 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in dest.parent.iterdir()), ["base"])
 
 
+    def test_a_directory_symlink_is_part_of_the_manifest(self):
+        tmp = Path(tempfile.mkdtemp(prefix="paired-manifest-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        (tmp / "real").mkdir()
+        (tmp / "real" / "a.md").write_text("a")
+        (tmp / "link").symlink_to("real")
+        before = paired.tree_manifest(tmp)
+        self.assertIn(["L", "link", "real"], before)
+        (tmp / "link").unlink()
+        (tmp / "link").symlink_to("elsewhere")
+        self.assertEqual(paired.manifest_changes(before, paired.tree_manifest(tmp)), ["link"])
+
+
 class IsolationTests(unittest.TestCase):
     PLUGIN = "/out/arms/candidate"
 
@@ -262,7 +315,8 @@ class IsolationTests(unittest.TestCase):
         parsed = {"init": {"model": "m", "plugins": [
             {"name": "builtin-thing", "path": "builtin"}, {"name": "ccl-skills", "path": self.PLUGIN}],
             "mcp_servers": []}, "results": [{"subtype": "success", "is_error": False, "result": "ok"}],
-            "hooks": ["SessionStart:startup"], "routing_injected": True, "tool_uses": [], "texts": ["ok"]}
+            "hooks": ["SessionStart:startup"], "routing_injected": True, "tool_uses": [], "texts": ["ok"],
+            "raw": "{\"type\": \"result\"}", "trailing_activity": 0}
         parsed.update(overrides)
         return parsed
 
@@ -299,9 +353,13 @@ class IsolationTests(unittest.TestCase):
             "routing missing": ({"routing_injected": False}, None, "candidate", "routing_injection_mismatch"),
             "routing in off": ({"init": dict(init, plugins=[]), "routing_injected": True}, None, "off",
                                "routing_injection_mismatch"),
-            "canary": ({"texts": ["ok CANARY-abc"]}, None, "candidate", "instruction_file_canary_leaked"),
-            "canary in tool input": ({"tool_uses": [{"name": "Bash", "input": {"command": "echo CANARY-abc"}}]},
-                                     None, "candidate", "instruction_file_canary_leaked"),
+            "canary in the reply": ({"raw": "ok CANARY-abc"}, None, "candidate", "instruction_file_canary_seen"),
+            "canary only in a tool result": ({"raw": '{"type": "user", "content": "notes: CANARY-abc"}'}, None,
+                                             "candidate", "instruction_file_canary_seen"),
+            "activity after the last result": ({"trailing_activity": 2}, None, "candidate",
+                                               "activity_after_last_result"),
+            "canary in a tool input": ({"raw": '{"type": "assistant", "input": {"command": "echo CANARY-abc"}}'},
+                                       None, "candidate", "instruction_file_canary_seen"),
             "cleanup": ({}, {"timed_out": False, "cleanup_confirmed": False}, "candidate",
                         "process_cleanup_unconfirmed"),
         }
@@ -396,6 +454,15 @@ class ProcessTests(unittest.TestCase):
         self.assertTrue(run["cleanup_confirmed"])
         self.assertTrue(self.child_gone(pid_file))
 
+    def test_no_run_starts_once_shutdown_has_begun(self):
+        ctx = {"spawn_lock": threading.Lock(), "interrupted": threading.Event(), "live": set()}
+        ctx["interrupted"].set()
+        marker = self.tmp / "started"
+        run = paired.run_agent([sys.executable, "-c", f"open({str(marker)!r}, 'w').write('x')"], "", self.tmp,
+                               dict(os.environ), 5, self.tmp / "out.jsonl", self.tmp / "err.txt", ctx)
+        self.assertIsNone(run)
+        self.assertFalse(marker.exists())
+
     def test_background_jobs_left_by_a_finished_run_are_reaped(self):
         run, pid_file = self.run_leader(0, 30)
         self.assertFalse(run["timed_out"])
@@ -426,6 +493,7 @@ class BatchTests(unittest.TestCase):
         self.out = self.tmp / "out"
         good = committed_task(self.TASK)["oracle"]["good"]
         self.env = {"FAKE_LOG": str(self.log), "FAKE_COMMANDS": json.dumps(good),
+                    "FAKE_VERSION_LOG": str(self.tmp / "version.log"),
                     "CLAUDE_EFFORT": "max", "CLAUDE_CODE_MESSAGING_TOKEN": "parent-secret",
                     "GIT_DIR": str(self.tmp / "not-a-repo"), "GIT_INDEX_FILE": str(self.tmp / "index")}
 
@@ -441,10 +509,18 @@ class BatchTests(unittest.TestCase):
     def calls(self):
         return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
 
+    def records(self):
+        return paired.load_records(self.out, json.loads((self.out / "plan.json").read_text()))
+
+    def regrade(self, *extra):
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as err:
+            code = paired.main(["--out", str(self.out), "--regrade", "--repo", str(self.repo), *extra])
+        return code, err.getvalue()
+
     def test_batch_isolates_each_run_and_grades_the_world(self):
         code, err = self.main()
         self.assertEqual(code, 0, err)
-        records = paired.load_records(self.out)
+        records = self.records()
         self.assertEqual(len(records), 3)
         for record in records:
             self.assertTrue(record["valid"], record)
@@ -464,13 +540,15 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(set(call["env"]), {"CLAUDE_CODE_DISABLE_CLAUDE_MDS", "CLAUDE_CODE_DISABLE_AUTO_MEMORY",
                                                 "GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_TERMINAL_PROMPT",
                                                 "GIT_CEILING_DIRECTORIES", "PYTHONDONTWRITEBYTECODE"})
-            self.assertEqual(call["env"]["GIT_CEILING_DIRECTORIES"], os.path.realpath(Path(call["cwd"]).parents[1]))
+            sample_dir = Path(call["cwd"]).parents[1]
+            self.assertEqual(call["env"]["GIT_CEILING_DIRECTORIES"], os.path.realpath(sample_dir))
             arm = Path(call["cwd"]).parts[-4]
             if arm == "off":
                 self.assertNotIn("--plugin-dir", argv)
-            else:
-                self.assertEqual(Path(argv[argv.index("--plugin-dir") + 1]).resolve(),
-                                 (self.out / "arms" / arm).resolve())
+            else:  # a private copy per run, removed afterwards because the run left it unchanged
+                self.assertEqual(Path(argv[argv.index("--plugin-dir") + 1]).resolve(), (sample_dir / "plugin").resolve())
+                self.assertFalse((sample_dir / "plugin").exists())
+        self.assertEqual({line for line in (self.tmp / "version.log").read_text().splitlines()}, {"[]"})
         self.assertNotIn("CLAUDE_CODE_DISABLE_CLAUDE_MDS", calibration[0]["env"])
         self.assertTrue(json.loads((self.out / "canary-calibration.json").read_text())["fired"])
         self.assertTrue(json.loads((self.out / "integrity.json").read_text())["unchanged"])
@@ -491,9 +569,12 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(len(self.calls()), before)
 
     def test_refusals_start_no_model_run(self):
+        sibling = self.tmp / "sibling-worktree"
+        git(self.repo, "worktree", "add", "-q", "-b", "side", str(sibling), "main")
         cases = {
             "too many runs": (["--max-runs", "2"], None, "exceed --max-runs"),
             "out inside the repository": ([], self.repo / "eval-out", "outside every checkout"),
+            "out inside another worktree": ([], sibling / "eval-out", "outside every checkout"),
         }
         for label, (extra, out, message) in cases.items():
             with self.subTest(case=label):
@@ -504,83 +585,173 @@ class BatchTests(unittest.TestCase):
                 self.assertIn(message, err)
                 self.assertEqual(self.calls(), [])
 
+    def test_a_second_invocation_on_the_same_out_is_refused(self):
+        self.out.mkdir(mode=0o700)
+        held = paired.lock_output(self.out)
+        try:
+            code, err = self.main()
+        finally:
+            held.close()
+        self.assertEqual(code, 2)
+        self.assertIn("another invocation", err)
+        self.assertEqual(self.calls(), [])
+
+    def test_exports_without_a_frozen_plan_are_rebuilt(self):
+        stale = self.out / "arms" / "base"
+        stale.mkdir(parents=True)
+        (stale / ".claude-plugin").mkdir()
+        (stale / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": "ccl-skills"}))
+        (stale / "skill.md").write_text("from another ref\n")
+        code, err = self.main()
+        self.assertEqual(code, 0, err)
+        self.assertEqual((self.out / "arms" / "base" / "skill.md").read_text(), "base\n")
+
     def test_rate_limit_guard_stops_and_the_rerun_resumes(self):
         code, err = self.main("--jobs", "1", env={"FAKE_UTIL": "0.95"})
         self.assertEqual(code, 3, err)
-        self.assertEqual(len(paired.load_records(self.out)), 1)
+        self.assertEqual(len(self.records()), 1)
         code, err = self.main("--jobs", "1")
         self.assertEqual(code, 0, err)
-        self.assertEqual(len(paired.load_records(self.out)), 3)
+        self.assertEqual(len(self.records()), 3)
 
     def test_a_stop_hook_continuation_counts_as_one_run(self):
         code, err = self.main(env={"FAKE_MODE": "two_results"})
         self.assertEqual(code, 0, err)
-        for record in paired.load_records(self.out):
+        for record in self.records():
             self.assertTrue(record["valid"], record)
             self.assertEqual((record["continuations"], record["cost_usd"], record["turns"]), (1, 0.02, 3))
+
+    def test_activity_after_the_last_result_is_an_unfinished_run(self):
+        code, err = self.main(env={"FAKE_MODE": "continue_then_crash"})
+        self.assertEqual(code, 0, err)
+        for record in self.records():
+            self.assertIn("activity_after_last_result", record["invalid_reasons"])
+
+    def test_a_canary_seen_only_in_a_tool_result_invalidates_the_run(self):
+        code, err = self.main(env={"FAKE_MODE": "read_canary"})
+        self.assertEqual(code, 0, err)
+        for record in self.records():
+            self.assertIn("instruction_file_canary_seen", record["invalid_reasons"])
 
     def test_regrade_rebuilds_records_from_saved_worlds(self):
         self.assertEqual(self.main()[0], 0)
         sample = self.out / "runs" / self.TASK / "off" / "1"
         world_app = sample / "world" / "app"
         subprocess.run(["git", "branch", "feat-y", "main"], cwd=world_app, check=True, capture_output=True,
-                       env=paired.clean_env(sample / "gitconfig"))
-        with mock.patch.dict(os.environ, {"FAKE_LOG": str(self.log)}), \
-                redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-            code = paired.main(["--out", str(self.out), "--regrade", "--repo", str(self.repo)])
-        self.assertEqual(code, 0)
+                       env=paired.clean_env(sample / "gitconfig", sample))
+        with mock.patch.dict(os.environ, {"FAKE_LOG": str(self.log)}):
+            code, err = self.regrade()
+        self.assertEqual(code, 0, err)
         record = json.loads((sample / "record.json").read_text())
         self.assertEqual(record["checks"]["merged_feature_deleted"]["result"], "fail")
         self.assertEqual(record["graded_by"], paired.tool_sha256())
+        self.assertEqual(record["legacy_inputs"], [])
         self.assertEqual(len(self.calls()), 4)  # three samples and the calibration, nothing rerun
         tasks = self.tmp / "tasks"
         shutil.copytree(paired.DEFAULT_TASKS, tasks)
         changed = json.loads((tasks / f"{self.TASK}.json").read_text())
         changed["prompt"] += " "
         (tasks / f"{self.TASK}.json").write_text(json.dumps(changed, ensure_ascii=False))
-        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as err:
-            code = paired.main(["--out", str(self.out), "--regrade", "--repo", str(self.repo), "--tasks-dir", str(tasks)])
+        code, err = self.regrade("--tasks-dir", str(tasks))
         self.assertEqual(code, 2)
-        self.assertIn("differs from the one the batch ran", err.getvalue())
+        self.assertIn("differs from the one the batch ran", err)
 
-    def test_a_changed_plugin_export_is_reported_with_its_paths(self):
+    def test_regrade_reads_the_token_and_snapshot_the_runner_recorded(self):
+        code, err = self.main(env={"FAKE_MODE": "leak_canary"})
+        self.assertEqual(code, 0, err)
+        sample = self.out / "runs" / self.TASK / "off" / "1"
+        (sample / "world" / "CLAUDE.md").write_text(paired.CANARY_TEXT.format(token="CANARY-000000000000"))
+        snapshot = json.loads((sample / "snapshot.json").read_text())
+        snapshot["refs"]["app"]["refs/heads/main"] = "0" * 40
+        (sample / "snapshot.json").write_text(json.dumps(snapshot))
+        code, err = self.regrade()
+        self.assertEqual(code, 0, err)
+        record = json.loads((sample / "record.json").read_text())
+        self.assertIn("instruction_file_canary_seen", record["invalid_reasons"])
+        self.assertNotEqual(record["snapshot"]["refs"]["app"]["refs/heads/main"], "0" * 40)
+
+    def test_legacy_records_regrade_only_from_an_untouched_canary_file(self):
+        self.assertEqual(self.main()[0], 0)
+        sample = self.out / "runs" / self.TASK / "base" / "1"
+        record = json.loads((sample / "record.json").read_text())
+        for key in ("canary", "snapshot", "plugin_dir"):
+            record.pop(key)
+        (sample / "record.json").write_text(json.dumps(record))
+        code, err = self.regrade()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(json.loads((sample / "record.json").read_text())["legacy_inputs"],
+                         ["canary", "snapshot", "plugin_dir"])
+        record = json.loads((sample / "record.json").read_text())
+        for key in ("canary", "snapshot", "plugin_dir"):
+            record.pop(key)
+        (sample / "record.json").write_text(json.dumps(record))
+        canary = sample / "world" / "CLAUDE.md"
+        canary.write_text(canary.read_text() + "edited by the run\n")
+        code, err = self.regrade()
+        self.assertEqual(code, 2)
+        self.assertIn("canary file was changed", err)
+
+    def test_records_outside_the_plan_inventory_are_refused(self):
+        self.assertEqual(self.main()[0], 0)
+        source = self.out / "runs" / self.TASK / "off" / "1" / "record.json"
+        copy = self.out / "runs" / self.TASK / "off" / "2" / "record.json"
+        copy.parent.mkdir()
+        shutil.copy(source, copy)
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as err:
+            code = paired.main(["--out", str(self.out), "--report-only"])
+        self.assertEqual(code, 2)
+        self.assertIn("does not belong to this plan", err.getvalue())
+
+    def test_a_run_that_edits_its_plugin_copy_is_invalid_and_the_export_stays_frozen(self):
         code, err = self.main(env={"FAKE_MODE": "touch_plugin"})
+        self.assertEqual(code, 0, err)
+        for record in self.records():
+            if record["arm"] == "off":
+                self.assertTrue(record["valid"], record)
+                continue
+            self.assertIn("plugin_export_changed", record["invalid_reasons"])
+            self.assertEqual(record["run"]["export_changes"], ["injected.md"])
+            self.assertTrue(Path(record["plugin_dir"]).is_dir())  # kept for inspection
+        self.assertTrue(json.loads((self.out / "integrity.json").read_text())["unchanged"])
+
+    def test_integrity_names_every_path_changed_in_a_frozen_export(self):
+        code, err = self.main(env={"FAKE_MODE": "touch_frozen"})
         self.assertEqual(code, 0, err)
         integrity = json.loads((self.out / "integrity.json").read_text())
         self.assertFalse(integrity["unchanged"])
-        self.assertEqual(integrity["changed"], {"base": ["injected.md"], "candidate": ["injected.md"]})
-        self.assertIn("unchanged after the batch: NO (base: injected.md; candidate: injected.md)",
+        self.assertEqual(integrity["changed"], {"base": ["a.md", "b.md", "c.md"], "candidate": ["a.md", "b.md", "c.md"]})
+        self.assertIn("unchanged after the batch: NO (base: a.md, b.md, c.md; candidate: a.md, b.md, c.md)",
                       (self.out / "report.md").read_text())
 
     def test_a_guard_trip_on_the_last_samples_is_not_a_stop(self):
         code, err = self.main("--jobs", "3", env={"FAKE_UTIL": "0.95"})
         self.assertEqual(code, 0, err)
-        self.assertEqual(len(paired.load_records(self.out)), 3)
+        self.assertEqual(len(self.records()), 3)
 
     def test_a_loaded_instruction_file_invalidates_every_sample(self):
         code, err = self.main(env={"FAKE_MODE": "leak_canary"})
         self.assertEqual(code, 0, err)
-        records = paired.load_records(self.out)
+        records = self.records()
         self.assertTrue(records)
         for record in records:
             self.assertFalse(record["valid"])
-            self.assertIn("instruction_file_canary_leaked", record["invalid_reasons"])
+            self.assertIn("instruction_file_canary_seen", record["invalid_reasons"])
 
-    def test_calibration_reports_a_canary_that_cannot_fire(self):
+    def test_a_calibration_that_does_not_fire_runs_no_sample(self):
         code, err = self.main(env={"FAKE_MODE": "ignore_instruction_files"})
-        self.assertEqual(code, 0, err)
+        self.assertEqual(code, 2)
+        self.assertIn("did not fire", err)
         self.assertFalse(json.loads((self.out / "canary-calibration.json").read_text())["fired"])
-        self.assertIn("calibration: DID NOT FIRE", (self.out / "report.md").read_text())
+        self.assertEqual([c for c in self.calls() if "project" not in c["argv"]], [])
 
     def test_a_plugin_loaded_from_another_path_invalidates_plugin_arms(self):
         code, err = self.main(env={"FAKE_MODE": "wrong_plugin_path"})
         self.assertEqual(code, 0, err)
-        for record in paired.load_records(self.out):
+        for record in self.records():
             if record["arm"] == "off":
                 self.assertTrue(record["valid"], record)
             else:
                 self.assertIn("plugin_identity_mismatch", record["invalid_reasons"])
-
 
 if __name__ == "__main__":
     unittest.main()
