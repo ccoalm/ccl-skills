@@ -862,7 +862,7 @@ class BatchTests(unittest.TestCase):
         self.assertIn("instruction_file_canary_seen", record["invalid_reasons"])
         self.assertNotEqual(record["snapshot"]["refs"]["app"]["refs/heads/main"], "0" * 40)
 
-    def test_regrade_refuses_a_record_without_runner_recorded_inputs(self):
+    def test_regrade_rejects_a_record_without_runner_recorded_inputs(self):
         self.assertEqual(self.main()[0], 0)
         sample = self.out / "runs" / self.TASK / "base" / "1"
         original = (sample / "record.json").read_text()
