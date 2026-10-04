@@ -1307,43 +1307,48 @@ def _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version
 
     previous = signal.signal(signal.SIGTERM, _raise_interrupt)
     pool = cf.ThreadPoolExecutor(max_workers=args.jobs)
+    failure, latched = None, []
     try:
-        if need_calibration:
-            calibration = calibrate_canary(ctx)
-            if calibration is None:
-                raise KeyboardInterrupt
-            if not calibration["fired"]:
-                raise TaskError("the canary calibration did not fire, so a silent canary would prove nothing; "
-                                "no samples were run (see calibration/stream.jsonl under --out)")
-            if (calibration.get("max_utilization") or 0) >= args.stop_util:
-                trip_stop()
-        futures = [pool.submit(worker, item) for item in pending]
-        for future in cf.as_completed(futures):
-            future.result()
-    except BaseException as exc:
-        stop.set()
-        with ctx["spawn_lock"]:  # nothing starts after this point
-            ctx["interrupted"].set()
-            live = list(ctx["live"])
-        for proc in live:
-            kill_group(proc)
-        pool.shutdown(wait=True, cancel_futures=True)
-        signal.signal(signal.SIGTERM, previous)
-        try:  # evidence is best effort here; the original failure is what this exit reports
-            record_integrity(out, arm_dirs, manifests)
-            write_report(out, plan, load_records(out, plan))
-        except Exception as report_error:
-            print(f"report not written after the failure: {type(report_error).__name__}: {report_error}",
-                  file=sys.stderr)
-        if isinstance(exc, KeyboardInterrupt):
+        try:
+            if need_calibration:
+                calibration = calibrate_canary(ctx)
+                if calibration is None:
+                    raise KeyboardInterrupt
+                if not calibration["fired"]:
+                    raise TaskError("the canary calibration did not fire, so a silent canary would prove nothing; "
+                                    "no samples were run (see calibration/stream.jsonl under --out)")
+                if (calibration.get("max_utilization") or 0) >= args.stop_util:
+                    trip_stop()
+            futures = [pool.submit(worker, item) for item in pending]
+            for future in cf.as_completed(futures):
+                future.result()
+        except BaseException as exc:
+            failure = exc
+    finally:
+        # Every exit after the first launch passes through here. SIGINT and SIGTERM are latched,
+        # not raised, while the batch's evidence is written; a signal landing before the latch is
+        # in place is caught and the latch installed again.
+        while True:
+            try:
+                originals = {sig: signal.signal(sig, lambda signum, frame: latched.append(signum))
+                             for sig in (signal.SIGINT, signal.SIGTERM)}
+                break
+            except KeyboardInterrupt:
+                latched.append(signal.SIGINT)
+        try:
+            records = _finish_batch(ctx, out, plan, pool, arm_dirs, manifests, failure)
+        finally:
+            signal.signal(signal.SIGINT, originals[signal.SIGINT])
+            signal.signal(signal.SIGTERM, previous)
+    if failure is not None:
+        if isinstance(failure, KeyboardInterrupt):
             print("interrupted: rerun the same command to resume", file=sys.stderr)
             return 130
-        raise
-    pool.shutdown(wait=True)
-    signal.signal(signal.SIGTERM, previous)
-    record_integrity(out, arm_dirs, manifests)
-    records = load_records(out, plan)
-    write_report(out, plan, records)
+        raise failure
+    if latched:
+        print("interrupted while the batch's evidence was written; it was written in full; rerun the same command "
+              "to resume", file=sys.stderr)
+        return 130
     print(out / "report.md")
     recorded = {(r["task"], r["arm"], r["sample"]) for r in records}
     if any((t["id"], a, i) not in recorded for t, a, i in planned):
@@ -1351,6 +1356,29 @@ def _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version
               file=sys.stderr)
         return 3
     return 0
+
+
+def _finish_batch(ctx, out, plan, pool, arm_dirs, manifests, failure):
+    """Stop what is still running after a failure, then write the batch's integrity record and
+    report. After a failure, evidence is best effort and never replaces that failure."""
+    if failure is not None:
+        with ctx["spawn_lock"]:  # nothing starts after this point
+            ctx["stop"].set()
+            ctx["interrupted"].set()
+            live = list(ctx["live"])
+        for proc in live:
+            kill_group(proc)
+    pool.shutdown(wait=True, cancel_futures=failure is not None)
+    try:
+        record_integrity(out, arm_dirs, manifests)
+        records = load_records(out, plan)
+        write_report(out, plan, records)
+        return records
+    except Exception as report_error:
+        if failure is None:
+            raise
+        print(f"report not written after the failure: {type(report_error).__name__}: {report_error}", file=sys.stderr)
+        return None
 
 
 def main(argv=None):
@@ -1419,6 +1447,9 @@ def main(argv=None):
     except TaskError as exc:
         print(f"skill-paired-eval: {exc}", file=sys.stderr)
         return 2
+    except KeyboardInterrupt:
+        print("interrupted", file=sys.stderr)
+        return 130
     except BrokenPipeError:
         return 0
 

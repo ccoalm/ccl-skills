@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -698,6 +699,22 @@ class BatchTests(unittest.TestCase):
             code, err = self.main()
         self.assertEqual(code, 130, err)
         self.assertEqual(json.loads((self.out / "integrity.json").read_text())["changed"], {"base": ["late.md"]})
+
+    def test_a_signal_while_evidence_is_written_is_latched(self):
+        original = paired.record_integrity
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            with self.subTest(signal=signum.name):
+                self.out = self.tmp / f"out-{signum.name}"
+                def signalled(out, arm_dirs, manifests, signum=signum):
+                    os.kill(os.getpid(), signum)
+                    time.sleep(0.2)  # the handler runs here; it must not abort the write below
+                    original(out, arm_dirs, manifests)
+                with mock.patch.object(paired, "record_integrity", signalled):
+                    code, err = self.main()
+                self.assertEqual(code, 130, err)
+                self.assertIn("evidence was written", err)
+                self.assertTrue(json.loads((self.out / "integrity.json").read_text())["unchanged"])
+                self.assertTrue((self.out / "report.md").exists())
 
     def test_integrity_is_recorded_when_a_batch_fails(self):
         def failing_sample(ctx, task, arm, index):
