@@ -94,3 +94,18 @@ path; if it returns again, narrow the claim to normal completion, because a
 changed export is still caught on the next invocation, where the plan hash,
 which binds each export's digest, refuses a mismatch. The next pass should
 establish whether any exit after a launch can skip or replace the evidence.
+
+### Self-review before the fifth delta pass
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | until the finalization latch was installed, signals still raised asynchronously, so whether an interrupt at that boundary skipped the evidence depended on where the interpreter checks for signals | fixed by construction: from before the first launch, SIGINT, SIGTERM and SIGHUP only latch (a signal the caller ignores stays ignored), waits poll the latch, and the calibration runs in the pool so it stops the same way; tests send real signals mid-run and mid-calibration |
+| 2 | P1 | after a hard kill, `--report-only` rewrote the report with an earlier invocation's integrity record | fixed: every report recomputes integrity against the manifest the plan froze, and a manifest that does not hash to the plan's export digest is recorded as unknown |
+| 3 | P1 | a terminal interrupt also reached the runner's own git, so a grade in progress could fail and be recorded for a run that had finished | fixed: the runner's git and setup commands run in their own session |
+
+The class came back a fourth time, found in self-review rather than by the
+reviewer. Instead of narrowing the claim, the fix removed its dependence on the
+exit path: no handler raises once runs may start, and integrity is recomputed
+by every report instead of written by whichever exit is taken. Only an
+uncatchable kill skips the final report; the next rerun or `--report-only`
+then writes a current one.

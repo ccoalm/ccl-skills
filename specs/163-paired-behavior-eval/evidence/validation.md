@@ -45,7 +45,7 @@ environment to their child runs. The tool strips every inherited `CLAUDE*` and
 trajectory and fails on each bad trajectory that names it, and every check is
 named by at least one.
 
-On a disposable copy of the tool, its tests and the task bank, 83 mutations were
+On a disposable copy of the tool, its tests and the task bank, 93 mutations were
 applied one at a time to the final tool; each turned its named test red while an
 unrelated test stayed green, and the copy was green before and after.
 
@@ -58,8 +58,8 @@ unrelated test stayed green, and the copy was green before and after.
 | stream and validity | utilization windows ignored, top-level utilization ignored, first result decides, several results rejected, activity after the last result accepted, trailing activity never reset, cost from the first result, malformed lines accepted |
 | isolation | canary check removed, canary read only from replies, plugin identity by name only, routing check, foreign plugin, over-firing foreign check, MCP, model, missing result, allowed roots ignored, tilde lookahead removed |
 | statistics | lower tail only, stricter threshold |
-| process | only the leader killed, no reaping after a normal exit, a run starting after shutdown began, the utilization stop not checked at spawn, signals not latched while evidence is written, a latched signal reported as success |
-| batch | parent `CLAUDE*` variables inherited, source-repository reads inherit `GIT_*`, version probe inherits the environment, bytecode writes allowed, prompt not on stdin, off arm gets a plugin, runs share the frozen export, export changes not checked, integrity list truncated, calibration always fired, calibration failure ignored, no output lock, the lock file counted as content, a non-empty root without a plan accepted, an invalid plan crashing, records not checked against the plan, output inside a checkout accepted, sibling worktrees not listed, worktree list read without `-z`, recorded samples rerun, changed plan accepted, max-runs not enforced, stop reported when nothing remains, sample utilization never stops the batch, integrity skipped on a failed batch, an inspection failure raised, a report failure replacing the batch failure, unknown integrity shown as a pass |
+| process | only the leader killed, no reaping after a normal exit, a run starting after shutdown began, the utilization stop not checked at spawn, no latch during the batch, SIGHUP not latched, an ignored signal overridden, a latched signal never acted on, the calibration waited for outside the latch, the caller's handlers not restored, a latched signal reported as success, the runner's git and setup scripts sharing its process group |
+| batch | parent `CLAUDE*` variables inherited, source-repository reads inherit `GIT_*`, version probe inherits the environment, bytecode writes allowed, prompt not on stdin, off arm gets a plugin, runs share the frozen export, export changes not checked, integrity list truncated, calibration always fired, calibration failure ignored, no output lock, the lock file counted as content, a non-empty root without a plan accepted, an invalid plan crashing, records not checked against the plan, output inside a checkout accepted, sibling worktrees not listed, worktree list read without `-z`, recorded samples rerun, changed plan accepted, max-runs not enforced, stop reported when nothing remains, sample utilization never stops the batch, integrity skipped on a failed batch, an inspection failure raised, a report failure replacing the batch failure, unknown integrity shown as a pass, a report keeping an older integrity record, a frozen manifest not checked against the plan, a missing manifest crashing the record |
 | regrade | old records kept, changed tasks accepted, the world's copies read, a record without recorded inputs accepted, legacy-derived records regraded |
 
 ## Instrument smoke
@@ -201,7 +201,13 @@ survived the batch. Delta reviews of the fixes followed (`pass3-delta.json`,
 open items; where the same class came back a third time (legacy regrade
 inputs, output-root ownership, shell parsing in trace checks) it was closed by
 removing the capability or documenting the heuristic, not by another
-refinement. `dispositions.md` maps every finding.
+refinement. Integrity on exit came back in three successive delta passes and
+once more in a self-review before the fifth; it was then addressed by
+construction instead of path by path: from the first launch the signal
+handlers only latch, every report recomputes integrity against the manifest
+the plan froze, and the runner's own git and setup commands run outside its
+process group, so a terminal interrupt cannot cut a grade short.
+`dispositions.md` maps every finding.
 
 ## Lanes
 
