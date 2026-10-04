@@ -199,3 +199,16 @@ The persistence class came back a third time, so the claim narrows as the last
 checkpoint decided: the tool header now says exactly what is checked, a
 non-empty regular file named by the run's own session id, and leaves a run that
 forges such a file to the stated trust model.
+
+## Tenth delta review (`pass12-delta.json`)
+
+Run on the diff from `1edf90b`.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | the key that marked classified records could not tell the corrected classifier from the one before it, which had accepted a bare session file | fixed by removing the capability: records now carry a run-evidence version, and regrade refuses any record written under other evidence rules rather than reinterpreting old evidence. Regression with both earlier formats; a mutation that drops the version from records turns the regrade test red |
+
+The persistence-evidence class came back a fourth time, here as compatibility
+with records from earlier versions of this tool's own rules. None of those
+records exist outside tests and one scratch smoke run, so regrading them serves
+no real need; refusing them closes the class instead of growing a migration.
