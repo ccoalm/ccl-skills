@@ -99,6 +99,9 @@ if not calibration:
 emit({"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}})
 emit({"type": "result", "subtype": "success", "is_error": False, "result": text,
       "total_cost_usd": 0.01, "num_turns": 2})
+if "truncated_after_result" in modes and not calibration:
+    print('{"type": "assistant", "message": {"cont', flush=True)
+    sys.exit(1)
 if "continue_then_crash" in modes and not calibration:
     emit({"type": "assistant", "message": {"content": [
         {"type": "tool_use", "id": "c1", "name": "Bash", "input": {"command": "git status"}}]}})
@@ -316,7 +319,7 @@ class IsolationTests(unittest.TestCase):
             {"name": "builtin-thing", "path": "builtin"}, {"name": "ccl-skills", "path": self.PLUGIN}],
             "mcp_servers": []}, "results": [{"subtype": "success", "is_error": False, "result": "ok"}],
             "hooks": ["SessionStart:startup"], "routing_injected": True, "tool_uses": [], "texts": ["ok"],
-            "raw": "{\"type\": \"result\"}", "trailing_activity": 0}
+            "raw": "{\"type\": \"result\"}", "trailing_activity": 0, "invalid_lines": 0}
         parsed.update(overrides)
         return parsed
 
@@ -358,6 +361,7 @@ class IsolationTests(unittest.TestCase):
                                              "candidate", "instruction_file_canary_seen"),
             "activity after the last result": ({"trailing_activity": 2}, None, "candidate",
                                                "activity_after_last_result"),
+            "a malformed line": ({"invalid_lines": 1}, None, "candidate", "malformed_stream"),
             "canary in a tool input": ({"raw": '{"type": "assistant", "input": {"command": "echo CANARY-abc"}}'},
                                        None, "candidate", "instruction_file_canary_seen"),
             "cleanup": ({}, {"timed_out": False, "cleanup_confirmed": False}, "candidate",
@@ -454,14 +458,17 @@ class ProcessTests(unittest.TestCase):
         self.assertTrue(run["cleanup_confirmed"])
         self.assertTrue(self.child_gone(pid_file))
 
-    def test_no_run_starts_once_shutdown_has_begun(self):
-        ctx = {"spawn_lock": threading.Lock(), "interrupted": threading.Event(), "live": set()}
-        ctx["interrupted"].set()
-        marker = self.tmp / "started"
-        run = paired.run_agent([sys.executable, "-c", f"open({str(marker)!r}, 'w').write('x')"], "", self.tmp,
-                               dict(os.environ), 5, self.tmp / "out.jsonl", self.tmp / "err.txt", ctx)
-        self.assertIsNone(run)
-        self.assertFalse(marker.exists())
+    def test_no_run_starts_once_shutdown_or_the_guard_has_begun(self):
+        for flag in ("interrupted", "stop"):
+            with self.subTest(flag=flag):
+                ctx = {"spawn_lock": threading.Lock(), "interrupted": threading.Event(), "stop": threading.Event(),
+                       "live": set()}
+                ctx[flag].set()
+                marker = self.tmp / f"started-{flag}"
+                run = paired.run_agent([sys.executable, "-c", f"open({str(marker)!r}, 'w').write('x')"], "", self.tmp,
+                                       dict(os.environ), 5, self.tmp / "out.jsonl", self.tmp / "err.txt", ctx)
+                self.assertIsNone(run)
+                self.assertFalse(marker.exists())
 
     def test_background_jobs_left_by_a_finished_run_are_reaped(self):
         run, pid_file = self.run_leader(0, 30)
@@ -552,6 +559,7 @@ class BatchTests(unittest.TestCase):
         self.assertNotIn("CLAUDE_CODE_DISABLE_CLAUDE_MDS", calibration[0]["env"])
         self.assertTrue(json.loads((self.out / "canary-calibration.json").read_text())["fired"])
         self.assertTrue(json.loads((self.out / "integrity.json").read_text())["unchanged"])
+        self.assertTrue((self.out / paired.OWNER_MARKER).exists())
         self.assertEqual((self.out / "arms" / "base" / "skill.md").read_text(), "base\n")
         self.assertEqual((self.out / "arms" / "candidate" / "skill.md").read_text(), "candidate\n")
         report = (self.out / "report.md").read_text()
@@ -569,7 +577,7 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(len(self.calls()), before)
 
     def test_refusals_start_no_model_run(self):
-        sibling = self.tmp / "sibling-worktree"
+        sibling = self.tmp / "sibling\nworktree"  # porcelain output would quote this path
         git(self.repo, "worktree", "add", "-q", "-b", "side", str(sibling), "main")
         cases = {
             "too many runs": (["--max-runs", "2"], None, "exceed --max-runs"),
@@ -587,6 +595,7 @@ class BatchTests(unittest.TestCase):
 
     def test_a_second_invocation_on_the_same_out_is_refused(self):
         self.out.mkdir(mode=0o700)
+        (self.out / paired.OWNER_MARKER).touch()
         held = paired.lock_output(self.out)
         try:
             code, err = self.main()
@@ -599,12 +608,36 @@ class BatchTests(unittest.TestCase):
     def test_exports_without_a_frozen_plan_are_rebuilt(self):
         stale = self.out / "arms" / "base"
         stale.mkdir(parents=True)
+        (self.out / paired.OWNER_MARKER).touch()
         (stale / ".claude-plugin").mkdir()
         (stale / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": "ccl-skills"}))
         (stale / "skill.md").write_text("from another ref\n")
         code, err = self.main()
         self.assertEqual(code, 0, err)
         self.assertEqual((self.out / "arms" / "base" / "skill.md").read_text(), "base\n")
+
+    def test_an_output_root_with_foreign_files_is_left_alone(self):
+        (self.out / "arms").mkdir(parents=True)
+        (self.out / "arms" / "notes.txt").write_text("someone else's\n")
+        code, err = self.main()
+        self.assertEqual(code, 2)
+        self.assertIn("did not create", err)
+        self.assertEqual((self.out / "arms" / "notes.txt").read_text(), "someone else's\n")
+        self.assertEqual(self.calls(), [])
+
+    def test_a_truncated_stream_is_not_a_finished_run(self):
+        code, err = self.main(env={"FAKE_MODE": "truncated_after_result"})
+        self.assertEqual(code, 0, err)
+        for record in self.records():
+            self.assertIn("malformed_stream", record["invalid_reasons"])
+
+    def test_integrity_is_recorded_when_a_batch_fails(self):
+        def failing_sample(ctx, task, arm, index):
+            (ctx["arm_dirs"]["base"] / "late.md").write_text("written before the failure\n")
+            raise RuntimeError("worker failed")
+        with mock.patch.object(paired, "run_sample", failing_sample), self.assertRaises(RuntimeError):
+            self.main()
+        self.assertEqual(json.loads((self.out / "integrity.json").read_text())["changed"], {"base": ["late.md"]})
 
     def test_rate_limit_guard_stops_and_the_rerun_resumes(self):
         code, err = self.main("--jobs", "1", env={"FAKE_UTIL": "0.95"})
@@ -670,26 +703,21 @@ class BatchTests(unittest.TestCase):
         self.assertIn("instruction_file_canary_seen", record["invalid_reasons"])
         self.assertNotEqual(record["snapshot"]["refs"]["app"]["refs/heads/main"], "0" * 40)
 
-    def test_legacy_records_regrade_only_from_an_untouched_canary_file(self):
+    def test_regrade_refuses_a_record_without_runner_recorded_inputs(self):
         self.assertEqual(self.main()[0], 0)
         sample = self.out / "runs" / self.TASK / "base" / "1"
         record = json.loads((sample / "record.json").read_text())
-        for key in ("canary", "snapshot", "plugin_dir"):
-            record.pop(key)
+        record["legacy_inputs"] = ["canary"]
         (sample / "record.json").write_text(json.dumps(record))
         code, err = self.regrade()
         self.assertEqual(code, 0, err)
-        self.assertEqual(json.loads((sample / "record.json").read_text())["legacy_inputs"],
-                         ["canary", "snapshot", "plugin_dir"])
+        self.assertEqual(json.loads((sample / "record.json").read_text())["legacy_inputs"], ["canary"])
         record = json.loads((sample / "record.json").read_text())
-        for key in ("canary", "snapshot", "plugin_dir"):
-            record.pop(key)
+        record.pop("canary")
         (sample / "record.json").write_text(json.dumps(record))
-        canary = sample / "world" / "CLAUDE.md"
-        canary.write_text(canary.read_text() + "edited by the run\n")
         code, err = self.regrade()
         self.assertEqual(code, 2)
-        self.assertIn("canary file was changed", err)
+        self.assertIn("no runner-recorded canary token", err)
 
     def test_records_outside_the_plan_inventory_are_refused(self):
         self.assertEqual(self.main()[0], 0)

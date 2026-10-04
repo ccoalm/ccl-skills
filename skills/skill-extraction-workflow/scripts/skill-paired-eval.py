@@ -24,8 +24,10 @@ WHAT THE NUMBER IS NOT — read this before citing a result:
   per-sample instruction-file canary. Tool inputs that name paths outside the
   world and the arm's own plugin are flagged as suspects by a heuristic; their
   absence is not proof that nothing outside was read.
-- Trace checks match Bash tool inputs with regular expressions. A command run
-  another way, or spelled differently, is invisible to them.
+- Trace checks match Bash tool inputs with regular expressions after a
+  shell-like split. A command run another way, or spelled differently, is
+  invisible to them; a substitution inside single quotes counts as run, and
+  several commands inside one `bash -c` payload share one position.
 - A ceiling (every arm passes) means the task does not discriminate, not that
   the change is useless. A plugin arm reaches reference text only through
   routing, so a reference-only change can hide behind that ceiling.
@@ -95,6 +97,7 @@ DEFAULT_TASKS = REPO_ROOT / "eval" / "paired-tasks"
 ARMS = ("off", "base", "candidate")
 TREATMENT = {"off": "off", "base": "reference", "candidate": "full"}
 ROUTING_MARKER = "<ccl-skills-routing"
+OWNER_MARKER = ".paired-eval-output"
 DISALLOWED_TOOLS = "WebFetch,WebSearch,SendMessage,ListAgents,RemoteTrigger,PushNotification"
 ROLES = ("primary", "completion", "precision", "process", "trace")
 TASK_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -672,7 +675,7 @@ def run_agent(cmd, prompt, cwd, env, timeout, stream_path, stderr_path, ctx=None
     timed_out = False
     with open(stream_path, "wb") as out, open(stderr_path, "wb") as err:
         with ctx["spawn_lock"] if ctx else threading.Lock():
-            if ctx and ctx["interrupted"].is_set():
+            if ctx and (ctx["interrupted"].is_set() or ctx["stop"].is_set()):
                 return None
             proc = subprocess.Popen(cmd, cwd=str(cwd), env=env, stdin=subprocess.PIPE, stdout=out, stderr=err,
                                     start_new_session=True)
@@ -801,6 +804,8 @@ def assess(parsed, run, arm, model, arm_dir, plugin_name, arm_dirs, token):
         reasons.append(f"error_result:{results[-1].get('subtype')}")
     elif parsed["trailing_activity"]:
         reasons.append("activity_after_last_result")
+    if parsed["invalid_lines"]:  # the CLI writes only JSON lines; anything else is a truncated or broken stream
+        reasons.append("malformed_stream")
     init = parsed["init"]
     isolation = {"hooks": sorted(set(parsed["hooks"]))}
     if not isinstance(init, dict):
@@ -960,13 +965,13 @@ def build_report(plan, records, calibration, integrity):
 
 def checkout_roots(repo):
     """Every checkout of the repository: the given one, the main one and each registered worktree."""
-    out = subprocess.run(["git", "-C", str(repo), "worktree", "list", "--porcelain"], env=source_env(),
+    out = subprocess.run(["git", "-C", str(repo), "worktree", "list", "--porcelain", "-z"], env=source_env(),
                          capture_output=True, text=True, timeout=60)
     if out.returncode != 0:
         raise TaskError(f"{repo} is not a git repository")
     roots = {os.path.realpath(repo)}
-    roots.update(os.path.realpath(line[len("worktree "):]) for line in out.stdout.splitlines()
-                 if line.startswith("worktree "))
+    roots.update(os.path.realpath(field[len("worktree "):]) for field in out.stdout.split("\0")
+                 if field.startswith("worktree "))  # -z keeps paths unquoted, newlines included
     return sorted(roots)
 
 
@@ -1090,27 +1095,16 @@ def regrade(ctx, out, tasks):
     records = load_records(out, ctx["plan"])
     for old in records:
         sample_dir = out / "runs" / old["task"] / old["arm"] / str(old["sample"])
-        legacy, token, snapshot = [], old.get("canary"), old.get("snapshot")
-        if token is None:  # recorded before tokens were kept: use the world's canary file only if untouched
-            content = (sample_dir / "world" / "CLAUDE.md").read_text(encoding="utf-8")
-            match = re.search(r"CANARY-[0-9a-f]{12}", content)
-            if match is None or content != CANARY_TEXT.format(token=match.group(0)):
-                raise TaskError(f"{sample_dir.relative_to(out)}: the canary file was changed; the run's token is lost")
-            token = match.group(0)
-            legacy.append("canary")
-        if snapshot is None:
-            snapshot = json.loads((sample_dir / "snapshot.json").read_text(encoding="utf-8"))
-            legacy.append("snapshot")
-        if "plugin_dir" in old:
-            plugin_dir = Path(old["plugin_dir"]) if old["plugin_dir"] else None
-        else:  # earlier batches shared one export per arm
-            plugin_dir = ctx["arm_dirs"].get(old["arm"])
-            legacy.append("plugin_dir")
+        if not (isinstance(old.get("canary"), str) and isinstance(old.get("snapshot"), dict) and "plugin_dir" in old):
+            raise TaskError(f"{sample_dir.relative_to(out)}: the record holds no runner-recorded canary token, snapshot "
+                            "and plugin path, and the world's copies could have been rewritten by the run")
+        token, snapshot = old["canary"], old["snapshot"]
+        plugin_dir = Path(old["plugin_dir"]) if old["plugin_dir"] else None
         run = dict(old.get("run") or {"timed_out": "timeout" in old["invalid_reasons"],
                                       "cleanup_confirmed": "process_cleanup_unconfirmed" not in old["invalid_reasons"]},
                    seconds=old["seconds"], exit_code=old["exit_code"])
         make_record(ctx, by_id[old["task"]], old["arm"], old["sample"], sample_dir, snapshot, token, run,
-                    plugin_dir, legacy)
+                    plugin_dir, old.get("legacy_inputs") or ())
     return len(records)
 
 
@@ -1180,6 +1174,14 @@ def lock_output(out):
     return handle
 
 
+def record_integrity(out, arm_dirs, manifests):
+    """Name every path that differs from each frozen export; runs on every exit of a batch."""
+    if arm_dirs:
+        changed = {arm: paths for arm in arm_dirs
+                   if (paths := manifest_changes(manifests[arm], tree_manifest(arm_dirs[arm])))}
+        write_atomic(out / "integrity.json", json.dumps({"unchanged": not changed, "changed": changed}, indent=1))
+
+
 def _raise_interrupt(signum, frame):
     raise KeyboardInterrupt
 
@@ -1194,7 +1196,7 @@ def make_context(out, plan, arm_dirs, roots, claude=None, manifests=None):
             "arm_dirs_real": [os.path.realpath(d) for d in arm_dirs.values()], "home": home,
             "watched": [home, *roots, os.path.realpath(out)], "manifests": manifests or {},
             "tool_sha256": tool_sha256(), "live": set(), "interrupted": threading.Event(),
-            "spawn_lock": threading.Lock()}
+            "stop": threading.Event(), "spawn_lock": threading.Lock()}
 
 
 def run_batch(args, out, arms, only):
@@ -1216,7 +1218,11 @@ def run_batch(args, out, arms, only):
     version = claude_version(args.claude)
     if out.exists() and not out.is_dir():
         raise TaskError("--out exists and is not a directory")
+    owned = (out / OWNER_MARKER).exists() or (out / "plan.json").exists()
+    if out.is_dir() and any(out.iterdir()) and not owned:
+        raise TaskError("--out holds files this tool did not create; use a new or empty directory")
     out.mkdir(mode=0o700, parents=True, exist_ok=True)
+    (out / OWNER_MARKER).touch()
     lock = lock_output(out)
     try:
         return _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version)
@@ -1268,7 +1274,11 @@ def _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version
     if len(pending) + need_calibration > args.max_runs:
         raise TaskError(f"{len(pending) + need_calibration} runs exceed --max-runs {args.max_runs}")
     ctx = make_context(out, plan, arm_dirs, roots, args.claude, manifests)
-    stop = threading.Event()
+    stop = ctx["stop"]
+
+    def trip_stop():
+        with ctx["spawn_lock"]:  # a worker past its own check cannot spawn after this
+            stop.set()
 
     def worker(item):
         task, arm, index = item
@@ -1278,7 +1288,7 @@ def _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version
         if record is None:
             return None
         if (record.get("max_utilization") or 0) >= args.stop_util:
-            stop.set()
+            trip_stop()
         print(f"{task['id']} {arm} #{index}: valid={record['valid']} "
               + " ".join(f"{k}={v['result']}" for k, v in record["checks"].items()), file=sys.stderr, flush=True)
         return record
@@ -1294,7 +1304,7 @@ def _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version
                 raise TaskError("the canary calibration did not fire, so a silent canary would prove nothing; "
                                 "no samples were run (see calibration/stream.jsonl under --out)")
             if (calibration.get("max_utilization") or 0) >= args.stop_util:
-                stop.set()
+                trip_stop()
         futures = [pool.submit(worker, item) for item in pending]
         for future in cf.as_completed(futures):
             future.result()
@@ -1307,6 +1317,7 @@ def _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version
             kill_group(proc)
         pool.shutdown(wait=True, cancel_futures=True)
         signal.signal(signal.SIGTERM, previous)
+        record_integrity(out, arm_dirs, manifests)
         write_report(out, plan, load_records(out, plan))
         if isinstance(exc, KeyboardInterrupt):
             print("interrupted: rerun the same command to resume", file=sys.stderr)
@@ -1314,10 +1325,7 @@ def _locked_batch(args, out, arms, tasks, commits, planned, repo, roots, version
         raise
     pool.shutdown(wait=True)
     signal.signal(signal.SIGTERM, previous)
-    if arm_dirs:
-        changed = {arm: paths for arm in arm_dirs
-                   if (paths := manifest_changes(manifests[arm], tree_manifest(arm_dirs[arm])))}
-        write_atomic(out / "integrity.json", json.dumps({"unchanged": not changed, "changed": changed}, indent=1))
+    record_integrity(out, arm_dirs, manifests)
     records = load_records(out, plan)
     write_report(out, plan, records)
     print(out / "report.md")
