@@ -74,3 +74,23 @@ Run on the diff from `ed2d10a`.
 | # | Severity | Finding | Disposition |
 | --- | --- | --- | --- |
 | 1 | P1 | integrity on every exit could not be established from the bounded packet, and a mocked inspection error proved nothing about real traversal | fixed: `os.walk` skipped unreadable directories silently, so traversal now raises and the record says unknown; tests use a real unreadable export directory and an interrupt during the batch; the next pass received the batch lifecycle as appended context |
+
+## Fourth delta review (`pass6-delta.json`)
+
+Run on the diff from `7e6dad9`, with the batch lifecycle's current source
+appended after the candidate.
+
+| # | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | P1 | an interrupt after the last worker finished, during pool shutdown or the integrity write, bypassed the handler, so "only SIGKILL skips it" was false | fixed: shutdown, integrity and report run in a `finally` section on every exit after the first launch, with SIGINT and SIGTERM latched while they are written and a retry if a signal lands before the latch; a latched signal exits 130 after the evidence is complete; regression for both signals during the integrity write |
+
+### Review continuation checkpoint
+
+The next delta pass is the fifth. What changed: the finalization rewrite above,
+nothing else in the tool. Integrity-on-exit has returned three times (second,
+third and fourth delta passes). Decision: keep it, since the always-run
+finalization closes the class by construction instead of patching one more
+path; if it returns again, narrow the claim to normal completion, because a
+changed export is still caught on the next invocation, where the plan hash,
+which binds each export's digest, refuses a mismatch. The next pass should
+establish whether any exit after a launch can skip or replace the evidence.
