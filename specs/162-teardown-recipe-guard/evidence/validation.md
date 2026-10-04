@@ -92,7 +92,42 @@ live tree stays green while a mutated copy reds. Fixture temp files are written
 inside the walk's own directory. The escalation-pin walk, which also runs this
 fixture, now builds its copy the same way.
 
-SABOTAGE_PENDING
+Both walks clear inherited git variables before building their copies. Run
+with `GIT_DIR` pointing at a scratch repository, as inside a git hook, the walk
+before that change staged 652 of its copy's files into the scratch repository's
+index; after it, both walks pass under the same `GIT_DIR` and the scratch index
+keeps its one entry.
+
+Nineteen sabotaged copies of the fixture, each run through the walk from a
+frozen copy of the sweep and walk code (every run exited 1, so the walk caught
+each one; where the walk names a different failure than the sabotage's own
+probe, another layer caught it first):
+
+| Sabotage | How the walk failed |
+| --- | --- |
+| section rows checked against the whole file | relocation probe: row stayed green with its phrase outside its section |
+| line rows checked against the whole file | relocation probe: row stayed green with its phrase outside its line |
+| order rows skipped | mutant stayed green on the product-rd order row |
+| order rows compared file-wide | relocation probe: order row stayed green with its first line ahead of the section |
+| scan check removed | decoy red for the wrong reason (no pointer instead of no scan) |
+| exit-0 check removed | decoy without the exit-0 requirement stayed green |
+| exit 0 accepted anywhere in the file | decoy with an unrelated exit 0 stayed green |
+| pointer check removed | decoy without the pointer stayed green |
+| file-name-only pointer accepted | decoy with a file-name-only pointer stayed green |
+| listing narrowed to `skills/` | `docs/` decoy stayed green |
+| source register scanned | control red: the register rows name the command |
+| round records and evaluation inputs scanned | precision decoy under `specs/` redded the fixture |
+| failed git listing ignored | the stderr check reported the failed listing instead |
+| git's stderr ignored | unreadable untracked directory left the sweep green |
+| missing repository tolerated | the listing step reported the missing repository instead |
+| read error skipped | unreadable file left the sweep green |
+| classifier exit status ignored | decoy without the scan stayed green |
+| printed names not escaped | newline-named decoy reported without its escape |
+| canonical-file check removed | listing without the canonical file left the sweep green |
+
+The order-row case first passed the walk: its relocation probe had moved the
+line after the section, where a file-wide comparison also reds. The probe now
+moves it ahead of the section, and that sabotage fails it.
 
 ## Pointers that name a moved section
 
