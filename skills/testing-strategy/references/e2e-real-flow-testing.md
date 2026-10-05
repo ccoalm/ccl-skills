@@ -38,6 +38,13 @@ Capture evidence per the `Browser E2E Rules` above (console/network/screenshot/t
 
 A sweep is **report-and-route, not fix-in-place**: document each finding (severity, category, expected-vs-actual, repro evidence) and route it through `defect-diagnosis` for triage — only confirmed defects proceed to cause + fix + regression evidence; observations (CSP report-only, expected denials, third-party deprecations, ambiguous reds) stay recorded with owner, residual risk, and follow-up path, not treated as defects before triage. During the sweep, treat product/runtime code as read-only (external-state mutation stays governed by the auth-boundary rule above — controlled synthetic/dry-run submits for the functional checks are fine; unrequested or real-data destructive mutation is not): you may write evidence artifacts and scoped QA/test files when they are part of the requested deliverable, but do not make a finding green by patching product code, so a read-only QA / acceptance pass cannot silently become unrequested code changes. If the current-turn request explicitly asks for QA *and* fixing, close the sweep evidence first, then start a separate `defect-diagnosis` phase before any product-code edit.
 
+## Runtime input preflight
+
+- Run input preflight at the existing request builder's dispatch boundary before a scripted live turn. If it is absent or that path cannot invoke it, record `preflight: unavailable(<reason>)`; implement/connect it or choose a supported path before dispatch. Derive required source bindings from the scenario and normal receipts, rather than assuming files mentioned in prose are attached.
+- Reuse the owning schema/state validator. For each attempt, read a prescribed tool or action's registration/admission evidence from the owning runtime's normal authoritative source, never from a driver constant or cached list. When that evidence is unknown, leave the capability goal open or reject the prescribed input. Do not infer global tool unavailability from rejection in a narrower operation.
+- Verify the durable request record when required by the existing runner, then dispatch its validated immutable snapshot once. Do not add a second runner, copied tool catalog, widened grant or retry loop.
+- Prove that invalid inputs emit no request and that a valid control emits the checked payload through the normal entry. This validates driver input, not arbitrary model output; runtime guards and independent durable-effect acceptance remain mandatory.
+
 ## Backend/API Real Flows
 
 - Assert response envelope, canonical error code, trace/log id, persisted state, emitted event, and dependency outcome.

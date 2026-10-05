@@ -1,0 +1,32 @@
+{
+  "schema_version": 3,
+  "mode": "challenge",
+  "status": "findings",
+  "selected_client": "claude",
+  "candidate_sha256": "0702e0bb897ff8134b3952610e176e4fdd2aa45418729aef608fb3240c375c48",
+  "packet_sha256": "575e34f3b088fa73e20542f789562e1590f3f9e5d4b29efd98f77d552217732c",
+  "review_profile_sha256": "c89fa05fe1427addc5e29452089abf072513a25c65dfc49790739b718a7de175",
+  "findings": [
+    {
+      "severity": "P1",
+      "file": "skills/testing-strategy/SKILL.md",
+      "line": 185,
+      "failure_path": "'Invoke the repository's input preflight' gives no legal outcome for a repository that has no preflight, or a sender whose preflight argument is optional and omitted. Example: sendBenchmarkTurn(preflight=undefined) or a uiSubmit path dispatches with no checks and still reads as compliant. Under the repo's own IMPOSSIBLE-invocation rule, a gate with no unavailable value is self-forging.",
+      "smallest_fix": "Add: if no owning preflight exists or the send path cannot run it (UI submit, omitted argument), record 'preflight: unavailable(<reason>)' and do not dispatch the scripted live turn until the risk owner accepts that gap."
+    },
+    {
+      "severity": "P2",
+      "file": "skills/testing-strategy/references/e2e-real-flow-testing.md",
+      "line": 44,
+      "failure_path": "'Current registration/admission evidence' does not say where the evidence must come from. In the reference helper, availableToolNames is a caller callback, so a driver can return a static or cached list and approve its own prescribed route from stale data.",
+      "smallest_fix": "Require tool/route evidence to be read per attempt from the runtime's authoritative registration source, never from a driver-supplied constant or a cache."
+    },
+    {
+      "severity": "P2",
+      "file": "skills/testing-strategy/SKILL.md",
+      "line": 186,
+      "failure_path": "The relocated rule originally applied in context to any test or verification that seeds or mutates tracked files. The new pointer fires only 'before preparing file-output tests', so a verification script that mutates a tracked file without counting as a file-output test never loads the cleanup boundary, and blanket-cleanup protection is missed.",
+      "smallest_fix": "Change the trigger to 'Before tests or verifications that write files or seed/mutate tracked files, load ...'."
+    }
+  ]
+}
