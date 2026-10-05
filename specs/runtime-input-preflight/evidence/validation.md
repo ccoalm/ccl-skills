@@ -1,6 +1,6 @@
 # Runtime input preflight validation
 
-Status: test controls and repository checks observed; independent passes pending.
+Status: original review passed; challenge findings corrected; delta verification pending.
 
 ## Behavioral evidence
 
@@ -56,3 +56,30 @@ passed; its isolated full suite then passed, as did the remaining shard and all 
 abort-probe legs. The subsequent literal full make test finished with exit 0,
 including both review-wrapper shards and all required abort-probe legs. The earlier
 failed run remains part of the record. Independent review and challenge are pending.
+
+The original independent review passed; the challenge reported one P1 and two P2.
+Their verified corrections are recorded in dispositions.md. A subsequent committed
+gate rejected the extraction firing sentence's missing normative-action vocabulary;
+the local unpushed checkpoint was corrected to explicit must, preserving its anchor.
+The source-register gate evaluates the row's original committed span, so a later
+unrelated commit cannot repair that span. Full gates and the owning correction delta
+are rerun before shared delivery; no checker or threshold was relaxed.
+
+
+## Final configured checks and review
+
+The initial gate statement in the plan records its pre-review checkpoint;
+this evidence section records the final results.
+
+- Literal standard `make test` exited0 after repository gates, fast regression
+  lane, both review shards and all required abort legs. Current full heavy lane
+  passed9 suites. No test, threshold or timeout was relaxed.
+- Original independent review passed. Original challenge returned three
+  findings. Each correction is recorded in the dispositions.
+- The required delta review covered the post-review normative corrections and
+  original findings, returned passed with no findings, and is preserved in
+  `delta-review.json`. The unchanged content was context rather than another
+  whole review round.
+- Invocation guidance, deterministic sender controls and source-record gates
+  are verified. Future host invocation compliance, model semantic accuracy and
+  media quality remain unmeasured by this slice.
