@@ -8,13 +8,47 @@
       "file": "specs/stop-recheck-boundary/plan.md",
       "line": 150,
       "disposition": "fixed",
-      "action": "Added conclusive controller review output and terminal validation records under this round's evidence directory. Publication is explicitly pending in validation.json. The challenge result will be recorded before pushing.",
+      "action": "Committed the conclusive review, challenge and validation records. Publication remains separately pending.",
       "evidence": [
         "review.json",
-        "validation.json"
+        "challenge.json",
+        "validation.json",
+        "validation-delta.json"
       ]
     }
   ],
+  "challenge": {
+    "reviewed_commit": "ea96bed",
+    "result": "challenge.json",
+    "findings": [
+      {
+        "severity": "P2",
+        "file": "hooks/host-input.py",
+        "line": 908,
+        "failure_path": "When there is no turn_id, the Codex fallback uses message.get('id') or event.get('timestamp') from the latest role=user response_item. It only excludes records that are isMeta, isSidechain, compact summaries or tool_result/tool_use. Codex host-injected user-role items get a new timestamp, so each one creates a new claim and the block can repeat within one real user turn. Examples: environment_context, instruction records, or a Stop-hook continuation written back as a user message. test_codex_transcript_user_timestamp_starts_a_fresh_recheck only checks distinct genuine user records, so it would not catch this.",
+        "smallest_fix": "Skip Codex user items whose content is a host-injected wrapper (e.g. text starting with '<environment_context>' or '<user_instructions>' or the hook-feedback form), or treat a timestamp-only Codex identity as unverifiable. Add a regression test that inserts an injected user-role item between two stops.",
+        "disposition": "fixed",
+        "action": "Removed transcript-only Codex turn inference. Three injected-record assertions reproduced the defect before the edit; current controls pass and restored prior fallback fails six assertions."
+      },
+      {
+        "severity": "P2",
+        "file": "specs/stop-recheck-boundary/evidence/dispositions.json",
+        "line": 10,
+        "failure_path": "The shared-gate rule requires the challenge result before shared push. The evidence only says 'The challenge result will be recorded before pushing'. check_review_evidence_present is already satisfied by review.json, so the PR can merge and npm 0.18.13 can publish without the challenge. validation.json also binds the evidence to ac33ab6 and fdde610, not the final candidate, so the release evidence is stale.",
+        "smallest_fix": "Commit this challenge's result and its dispositions under evidence/ and bind validation.json to the final candidate SHA. Make the release step check for a challenge-mode record, not just any review JSON.",
+        "disposition": "fixed",
+        "action": "Committed the actual challenge result and bound current validation and delta review to the runtime candidate. Publication preparation checks review/challenge/delta records; the general CI presence-only gate is retained as required by its owning contract."
+      }
+    ]
+  },
+  "delta_review": {
+    "reviewed_commit": "aaaa287080b0f90ac019b97fa86bd19bb703f480",
+    "base": "ea96bed",
+    "result": "delta-review.json",
+    "status": "passed",
+    "findings": []
+  },
+  "main_self_review_after_delta": "Source remains unchanged since the delta pass. Explicit host IDs and Claude metadata keep first/repeat/new-turn behavior; injected Codex user-role records are nonblocking. Marker authority and safe filesystem boundaries are unchanged. All local component, package and host checks have terminal evidence.",
   "unresolved_p0_p1": 0,
   "post_review_delta": "Only non-executable record files in this round's evidence directory."
 }
