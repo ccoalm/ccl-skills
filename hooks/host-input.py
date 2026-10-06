@@ -887,14 +887,12 @@ def stop_turn(payload):
             if not isinstance(event, dict) or any(event.get(key) for key in (
                     'isMeta', 'isSidechain', 'isCompactSummary', 'sourceToolAssistantUUID')):
                 continue
-            if event.get('type') == 'user':
-                message = event.get('message')
-                kind = 'claude-user'
-            elif event.get('type') == 'response_item':
-                message = event.get('payload')
-                kind = 'codex-user'
-            else:
+            # Codex user-role response items also carry host-injected context;
+            # their timestamp/message id cannot establish a genuine user turn.
+            # That host needs an explicit turn_id for a blocking recheck.
+            if event.get('type') != 'user':
                 continue
+            message = event.get('message')
             if not isinstance(message, dict) or message.get('role') != 'user':
                 continue
             content = message.get('content')
@@ -904,9 +902,8 @@ def stop_turn(payload):
                 continue
             if not isinstance(content, (str, list)) or not content:
                 return None
-            value = (event.get('promptId') or event.get('uuid') if kind == 'claude-user'
-                     else message.get('id') or event.get('timestamp'))
-            return [kind, value] if identifier(value) else None
+            value = event.get('promptId') or event.get('uuid')
+            return ['claude-user', value] if identifier(value) else None
     except (OSError, ValueError):
         pass
     return None

@@ -44,8 +44,11 @@ Status-sync target: this plan and its evidence directory.
 ## Design
 
 Use a validated host turn identifier when available. Otherwise derive a stable
-turn identifier from the latest non-meta, non-sidechain native user record in
-a bounded regular-file transcript tail. Tool results, hook feedback and compact
+turn identifier from the latest non-meta, non-sidechain Claude user record in
+a bounded regular-file transcript tail. Codex user-role records also carry
+host-injected context; their timestamp or message ID cannot identify a genuine
+user turn, so Codex needs an explicit host turn ID for a blocking recheck.
+Tool results, hook feedback and compact
 summaries must not start a new user turn. Use metadata identifiers, never prompt
 text, in marker state.
 
@@ -77,8 +80,8 @@ IDs are generated for this repair's acceptance inventory.
 | --- | --- | --- | --- | --- |
 | S1 | Eligible final, valid actor/turn, first claim | One block with the existing reason | pass-existing | Native wrapper plus real temporary state |
 | S2 | Same turn, false retry flag again; unchanged or restated blocker | Allow stop; no second decision/reason | fail | Multi-call native wrapper regression |
-| S3 | Tool result, hook feedback, compact summary, transcript growth or rewrite between stops | No new claim for the same user turn | fail | Claude metadata and file lifecycle fixtures |
-| S4 | New real user record or validated host turn ID | A fresh single block, followed by quiet stop | pass-existing without an owned bound | Claude/Codex wrapper controls |
+| S3 | Tool result, hook feedback, compact summary, host-injected user-role record, transcript growth or rewrite between stops | No new claim for the same user turn | fail | Claude metadata, Codex injection and file lifecycle fixtures |
+| S4 | New Claude user record or validated host turn ID | A fresh single block, followed by quiet stop | pass-existing without an owned bound | Claude transcript and explicit host-turn controls |
 | S5 | True retry flag, malformed event, quiet status or unrelated final | Quiet; a quiet status consumes no reminder | pass-existing | Existing tests plus quiet-then-eligible control |
 | S6 | Missing helper, invalid identity, unsafe/unwritable state or no usable user record | Nonblocking information with no verdict claim | fail | Fail-open advisory controls |
 | S7 | Concurrent duplicate Stop calls for one turn | Exactly one block | fail | Real atomic-state process race |

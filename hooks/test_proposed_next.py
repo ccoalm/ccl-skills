@@ -205,17 +205,41 @@ class ProposedNextTests(unittest.TestCase):
         self.assert_block(self.run_hook(payload, fresh_turn=False))
         self.assertEqual(self.run_hook(payload, fresh_turn=False), {})
 
-    def test_codex_transcript_user_timestamp_starts_a_fresh_recheck(self):
+    def test_codex_user_role_metadata_without_host_turn_is_unverifiable(self):
         user = {'type': 'response_item', 'timestamp': 'synthetic-time-one',
                 'payload': {'type': 'message', 'role': 'user',
                             'content': [{'type': 'input_text', 'text': 'Repair the fixture.'}]}}
         payload = dict(self.payload, last_assistant_message='proposed-next: run fixture checks')
         self.events([user])
-        self.assert_block(self.run_hook(payload, fresh_turn=False))
-        self.assertEqual(self.run_hook(payload, fresh_turn=False), {})
-        self.events([user, dict(user, timestamp='synthetic-time-two')])
-        self.assert_block(self.run_hook(payload, fresh_turn=False))
-        self.assertEqual(self.run_hook(payload, fresh_turn=False), {})
+        for record in (user, dict(user, timestamp='synthetic-time-two'),
+                       dict(user, payload=dict(user['payload'], id='message-id'))):
+            with self.subTest(record=record):
+                self.events([record])
+                result = self.run_hook(payload, fresh_turn=False)
+                self.assertNotEqual(result.get('decision'), 'block')
+                self.assertIn('systemMessage', result)
+
+    def test_codex_injected_user_role_cannot_create_a_new_attempt(self):
+        user = {'type': 'response_item', 'timestamp': 'synthetic-user-time',
+                'payload': {'type': 'message', 'role': 'user',
+                            'content': [{'type': 'input_text', 'text': 'Repair the fixture.'}]}}
+        payload = dict(self.payload, last_assistant_message='proposed-next: run fixture checks')
+        self.events([user])
+        self.assert_block(self.run_hook(dict(payload, turn_id='explicit-user-one')))
+        for index, text in enumerate(('<environment_context>synthetic context</environment_context>',
+                                      '<user_instructions>synthetic policy</user_instructions>',
+                                      'Stop hook feedback')):
+            with self.subTest(injected=text):
+                injected = {'type': 'response_item', 'timestamp': 'injected-time-' + str(index),
+                            'payload': {'type': 'message', 'role': 'user',
+                                        'id': 'injected-message-' + str(index),
+                                        'content': [{'type': 'input_text', 'text': text}]}}
+                self.events([user, injected])
+                result = self.run_hook(payload, fresh_turn=False)
+                self.assertNotEqual(result.get('decision'), 'block')
+                self.assertIn('systemMessage', result)
+                self.assertEqual(self.run_hook(dict(payload, turn_id='explicit-user-one')), {})
+        self.assert_block(self.run_hook(dict(payload, turn_id='explicit-user-two')))
 
     def test_quiet_status_does_not_consume_the_turn_recheck(self):
         payload = dict(self.payload, turn_id='fixed-turn',
