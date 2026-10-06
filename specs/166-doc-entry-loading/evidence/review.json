@@ -1,0 +1,26 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "build",
+  "review_depth": "build",
+  "status": "passed",
+  "selected_client": "claude",
+  "selected_reviewer": "claude",
+  "selected_attempt_index": 0,
+  "candidate_sha256": "4d2aa8fb963ccf0f634359de02bd21f3de6443bda4f2c5ee2a98f3e92b5701c0",
+  "packet_sha256": "d52150e3244cd20a384a0af520d51f06f47c299e97d7e680721a21c3ac1d24ab",
+  "review_controller_sha256": "d37ec1c370fde1b254820811c257b8aa43dd9a1cd1243e31c2627bd9cc606dd5",
+  "review_profile_sha256": "bbb05ffba1f9ba6a7ea3ac55adbb7bca277fc1d81af317c36ed96df054fe566f",
+  "selected_skills": [
+    "code-review",
+    "tighten-doc"
+  ],
+  "selected_skills_sha256": "a297324d56809d50986e4b0b0aaf2a4d24e330dde98712b1cd32d477ee9c7a34",
+  "findings": [],
+  "native_skill_binding": "established",
+  "publication_record": {
+    "kind": "controller_result_projection",
+    "omitted": "Private caller context and host-specific metadata; complete original receipt retained separately.",
+    "reusable_completion_receipt": false
+  }
+}
