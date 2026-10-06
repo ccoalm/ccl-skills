@@ -1,0 +1,353 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "release",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "passed",
+  "selected_client": "claude",
+  "selected_reviewer": "claude",
+  "selected_attempt_index": 0,
+  "findings": [],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [],
+  "attempts": [
+    {
+      "client": "claude",
+      "mode": "review",
+      "findings": [],
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "Both stubs write the wrapper PID ($$, which is also correct inside the Claude subshell) only on entering the hang branch. live_wrapper now requires a numeric latch equal to the candidate PID and still requires a review_gate.py parent, so a wrapper that is still starting up can no longer be selected. A stale latch from an earlier case cannot match a new wrapper's PID unless the PID is reused, and the parent check still applies even then."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "The new test signals only the process group it created (killpg on the wrapper PID it started) and the controller it spawned. It runs with an allowlisted environment and private temp directories. The probe's ownership checks, STOP-group validation and cleanup scope are unchanged. I found no unsafe mutation or signal to an unrelated process."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "A missing or malformed latch keeps the probe in setup polling, bounded by REACH, so it is never treated as a pass. If the controller's PID readline fails, the stub is left blocked at its barrier; stdin then closes and it runs a 20s bounded hang. That is minor and bounded. Leg 2 still stops the whole group before reading the bound marker."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "The negative startup case would fail against the old selector, because behavior=hang and the review_gate.py parent alone selected the wrapper. The positive hang case catches a selector that never selects anything. It runs for both claude and kimi, and the probe runs it as a precondition of every leg, so CI exercises it."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "The only additions to the generated stubs are latch writes that test code reads. Production wrappers, the controller and the CLI contract are untouched. The change stays within the release-validation repair the intent describes."
+        },
+        {
+          "concern": "rollout_rollback",
+          "conclusion": "This is a test-only delta and fully reversible. Publication is still gated on fresh CI and binding the final artifact to source. I saw no irreversible step."
+        },
+        {
+          "concern": "observability_operations",
+          "conclusion": "The existing diagnostics (unreached, setup_lost, bound marker state) are kept. A missing readiness latch shows up as unreached with the behavior state, which is enough for diagnosis."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "The plan and the register say the exact CI interleaving is unknown, and they claim only a demonstrated setup defect plus a match to the failure's observable class. That is proportionate to the evidence."
+        },
+        {
+          "concern": "high_risk_boundary",
+          "conclusion": "Shared-gate risk: the cleanup assertion and the assertion that the fixture's own bound ended the wrapper are both unchanged. The new requirement only narrows which wrapper can be selected. Nothing weakens the gate's ability to go RED on a reverted bound or a surviving leak."
+        },
+        {
+          "concern": "repository_contract",
+          "conclusion": "The register row and plan cite paths that exist. The test data is synthetic. The change is confined to the needed files and adds a failing-first regression as the root contract requires. I found no contract violation and no contract defect."
+        }
+      ],
+      "lens_id": "code-review:review:no-tools",
+      "tool_identity": "code-review:no-tools",
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "packet_sha256": "3c595faf065dcf2f29eec424f82c386067fce1d9937c1437c3e93c4c8c5aa260"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "3c595faf065dcf2f29eec424f82c386067fce1d9937c1437c3e93c4c8c5aa260",
+  "candidate_sha256": "8bfabf94a72d6d14f6d232c1ec977907714681791b67a91f56c2e95ea2afd061",
+  "review_context_sha256": "c9d93c7028e595646a64f9b2ef77b9dd4f1b16d402bc26d7c9a6417965059a24",
+  "review_controller_sha256": "d37ec1c370fde1b254820811c257b8aa43dd9a1cd1243e31c2627bd9cc606dd5",
+  "review_profile_sha256": "5e97ed5c66a1147c4f9317a48f0420840fd32339019248352ff575e13926525c",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/test_abort_leak_readiness.py"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/test_review_gate.sh"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/test_review_gate_abort_leak.sh"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/code-review/scripts/test_abort_leak_readiness.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/code-review/scripts/test_review_gate.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/code-review/scripts/test_review_gate_abort_leak.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/code-review/scripts/test_abort_leak_readiness.py"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/code-review/scripts/test_review_gate.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/code-review/scripts/test_review_gate_abort_leak.sh"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "repository_contract": {
+    "coverage": "complete",
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "bytes": 7523,
+        "sha256": "49485fc6de2c919eecd3c1088bf7b65d9c2ef12f5ffbe3b10357a54fee4b5124"
+      },
+      {
+        "path": "skills/code-review/scripts/AGENTS.md",
+        "bytes": 8473,
+        "sha256": "a9eecb32e6437afa7cf8efadb7b7abea4d3776484619f376dcd7560416d8a944"
+      }
+    ],
+    "omitted": [],
+    "sources_not_read": [
+      "CLAUDE.local.md and untracked files",
+      "@path imports",
+      ".claude/rules",
+      "host-configured fallback filenames"
+    ]
+  },
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "claude-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "selected_skills_sha256": "7c09ad50ffd80d80f9e3edb6a40f3a6934d7fc75821ee5bdc1a1390e156e85be",
+  "risk_tags": [
+    "shared-gate"
+  ],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": "Assess only the post-review delta. The original CI failure is open evidence: an orphaned wrapper/group ended with no bound marker. Find any remaining P0/P1/P2, especially pre-hang selection, stale readiness PID, signal ownership, weak positive/negative coverage, or lost cleanup/bound proof. Do not infer the unavailable historical interleaving or endorse the implementation rationale.",
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "6b7431646ed2d4a029606429cd2ef51b6765ddf0a89977074c7ab0b0aa007008",
+    "acceptance_sha256": "d66fefd283107e245475e85802286035a7e6d02e91a786f4a063b3c84d3a132c",
+    "stage": "release",
+    "review_depth": "release",
+    "risk_tags": [
+      "shared-gate"
+    ],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "a59c1d332c84d290719e8f890452eea38c5250e44e01a6a2331c8edffe9178dc",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": false,
+  "human_decision_required": false,
+  "review_state": "reviewed",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "before_completion_claim"
+    ],
+    "satisfied_triggers": [
+      "before_external_review",
+      "risk_or_scope_escalation"
+    ],
+    "blocks": [
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "Both stubs write the wrapper PID ($$, which is also correct inside the Claude subshell) only on entering the hang branch. live_wrapper now requires a numeric latch equal to the candidate PID and still requires a review_gate.py parent, so a wrapper that is still starting up can no longer be selected. A stale latch from an earlier case cannot match a new wrapper's PID unless the PID is reused, and the parent check still applies even then."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "The new test signals only the process group it created (killpg on the wrapper PID it started) and the controller it spawned. It runs with an allowlisted environment and private temp directories. The probe's ownership checks, STOP-group validation and cleanup scope are unchanged. I found no unsafe mutation or signal to an unrelated process."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "A missing or malformed latch keeps the probe in setup polling, bounded by REACH, so it is never treated as a pass. If the controller's PID readline fails, the stub is left blocked at its barrier; stdin then closes and it runs a 20s bounded hang. That is minor and bounded. Leg 2 still stops the whole group before reading the bound marker."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "The negative startup case would fail against the old selector, because behavior=hang and the review_gate.py parent alone selected the wrapper. The positive hang case catches a selector that never selects anything. It runs for both claude and kimi, and the probe runs it as a precondition of every leg, so CI exercises it."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "The only additions to the generated stubs are latch writes that test code reads. Production wrappers, the controller and the CLI contract are untouched. The change stays within the release-validation repair the intent describes."
+    },
+    {
+      "concern": "rollout_rollback",
+      "conclusion": "This is a test-only delta and fully reversible. Publication is still gated on fresh CI and binding the final artifact to source. I saw no irreversible step."
+    },
+    {
+      "concern": "observability_operations",
+      "conclusion": "The existing diagnostics (unreached, setup_lost, bound marker state) are kept. A missing readiness latch shows up as unreached with the behavior state, which is enough for diagnosis."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "The plan and the register say the exact CI interleaving is unknown, and they claim only a demonstrated setup defect plus a match to the failure's observable class. That is proportionate to the evidence."
+    },
+    {
+      "concern": "high_risk_boundary",
+      "conclusion": "Shared-gate risk: the cleanup assertion and the assertion that the fixture's own bound ended the wrapper are both unchanged. The new requirement only narrows which wrapper can be selected. Nothing weakens the gate's ability to go RED on a reverted bound or a surviving leak."
+    },
+    {
+      "concern": "repository_contract",
+      "conclusion": "The register row and plan cite paths that exist. The test data is synthetic. The change is confined to the needed files and adds a failing-first regression as the root contract requires. I found no contract violation and no contract defect."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "rollout_rollback",
+    "observability_operations",
+    "claim_strength",
+    "high_risk_boundary",
+    "repository_contract"
+  ],
+  "reviewed_skills": [
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "claude",
+    "mode": "review",
+    "findings": [],
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "Both stubs write the wrapper PID ($$, which is also correct inside the Claude subshell) only on entering the hang branch. live_wrapper now requires a numeric latch equal to the candidate PID and still requires a review_gate.py parent, so a wrapper that is still starting up can no longer be selected. A stale latch from an earlier case cannot match a new wrapper's PID unless the PID is reused, and the parent check still applies even then."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "The new test signals only the process group it created (killpg on the wrapper PID it started) and the controller it spawned. It runs with an allowlisted environment and private temp directories. The probe's ownership checks, STOP-group validation and cleanup scope are unchanged. I found no unsafe mutation or signal to an unrelated process."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "A missing or malformed latch keeps the probe in setup polling, bounded by REACH, so it is never treated as a pass. If the controller's PID readline fails, the stub is left blocked at its barrier; stdin then closes and it runs a 20s bounded hang. That is minor and bounded. Leg 2 still stops the whole group before reading the bound marker."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "The negative startup case would fail against the old selector, because behavior=hang and the review_gate.py parent alone selected the wrapper. The positive hang case catches a selector that never selects anything. It runs for both claude and kimi, and the probe runs it as a precondition of every leg, so CI exercises it."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "The only additions to the generated stubs are latch writes that test code reads. Production wrappers, the controller and the CLI contract are untouched. The change stays within the release-validation repair the intent describes."
+      },
+      {
+        "concern": "rollout_rollback",
+        "conclusion": "This is a test-only delta and fully reversible. Publication is still gated on fresh CI and binding the final artifact to source. I saw no irreversible step."
+      },
+      {
+        "concern": "observability_operations",
+        "conclusion": "The existing diagnostics (unreached, setup_lost, bound marker state) are kept. A missing readiness latch shows up as unreached with the behavior state, which is enough for diagnosis."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "The plan and the register say the exact CI interleaving is unknown, and they claim only a demonstrated setup defect plus a match to the failure's observable class. That is proportionate to the evidence."
+      },
+      {
+        "concern": "high_risk_boundary",
+        "conclusion": "Shared-gate risk: the cleanup assertion and the assertion that the fixture's own bound ended the wrapper are both unchanged. The new requirement only narrows which wrapper can be selected. Nothing weakens the gate's ability to go RED on a reverted bound or a surviving leak."
+      },
+      {
+        "concern": "repository_contract",
+        "conclusion": "The register row and plan cite paths that exist. The test data is synthetic. The change is confined to the needed files and adds a failing-first regression as the root contract requires. I found no contract violation and no contract defect."
+      }
+    ],
+    "lens_id": "code-review:review:no-tools",
+    "tool_identity": "code-review:no-tools",
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "status": "passed",
+    "packet_sha256": "3c595faf065dcf2f29eec424f82c386067fce1d9937c1437c3e93c4c8c5aa260"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "deep_self_review_before_completion"
+}
+

@@ -1,0 +1,18 @@
+{
+  "source_commit": "0b6cd0c7018409147bd1c4659bf32beb80eef625",
+  "review_base": "e3655ac30739b23ff1cc3292e719f11016e3d837",
+  "reviewed_packet_sha256": "3c595faf065dcf2f29eec424f82c386067fce1d9937c1437c3e93c4c8c5aa260",
+  "status": "disposed",
+  "findings": [],
+  "main_self_review_after_delta": {
+    "trigger": "before_completion_claim",
+    "scope": "test-only readiness repair and its evidence row",
+    "correctness": "Re-traced both latch writes, the exact PID match and the controller-parent predicate. No initialization path writes the latch. The two barrier-controlled negative cases reject startup and both positive cases select an actual hang.",
+    "signal_and_failure_paths": "Only fixture-owned groups are signalled in the new test. Missing readiness stays bounded setup; both full KILL legs prove the fixture's own marker and all group members gone. The existing ownership and STOP barriers are unchanged. The reviewer-noted PID-readline failure remains bounded and is not a blocking defect.",
+    "privacy_and_authority": "The test allowlists PATH plus synthetic inputs. No production review controller, hook authority, permission settings or registry workflow changed.",
+    "evidence_limits": "The historical CI interleaving is unknown; the engineered paired control and exact RED assertions prove the repaired setup defect. All prior hook review/challenge records remain valid for unchanged runtime.",
+    "validation": "Current-source make test ended exit 0, including both review shards and all three abort legs. Public sanitization passed. Heavy, final package rebuild and fresh CI remain release prerequisites."
+  },
+  "challenge_reuse": "The round's original adversarial challenge is preserved. Under the extraction delta protocol this pass ends with dispositions; it does not start another full challenge chain."
+}
+
