@@ -579,7 +579,7 @@ def machine_artifact(text):
     return False
 
 
-def claim_notice(payload, lane):
+def claim_notice(payload, lane, epoch=None):
     """True on this lane's first attempt, False on a repeat, None when state is unavailable."""
     try:
         # Reuse the installed runtime's owned-directory/no-follow/atomic claim
@@ -596,7 +596,8 @@ def claim_notice(payload, lane):
         info = module.regular_info(path)
         state = module.State(key)
         try:
-            return bool(state.claim_attempt('stop-notice-' + lane, [info.st_dev, info.st_ino]))
+            stamp = [info.st_dev, info.st_ino] if epoch is None else epoch
+            return bool(state.claim_attempt('stop-notice-' + lane, stamp))
         finally:
             state.close()
     except Exception:
@@ -854,6 +855,63 @@ def with_context_notice(payload, result):
     return result
 
 
+def stop_turn(payload):
+    """Identify a user turn from host metadata, never assistant or prompt wording."""
+    def identifier(value):
+        return isinstance(value, str) and bool(value.strip()) and len(value) <= 1024
+
+    if 'turn_id' in payload:
+        value = payload['turn_id']
+        return ['host-turn', value] if identifier(value) else None
+    path = payload.get('transcript_path')
+    if not isinstance(path, str) or not path or len(path) > 8192:
+        return None
+    try:
+        # O_NONBLOCK avoids hanging on a FIFO; fstat excludes every non-file.
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode):
+                return None
+            limit = 1024 * 1024
+            offset = max(0, info.st_size - limit)
+            stream.seek(offset)
+            tail = stream.read(limit)
+        if offset:
+            tail = tail.partition(b'\n')[2]
+        for line in reversed(tail.splitlines()):
+            try:
+                event = json.loads(line)
+            except (ValueError, UnicodeError):
+                continue
+            if not isinstance(event, dict) or any(event.get(key) for key in (
+                    'isMeta', 'isSidechain', 'isCompactSummary', 'sourceToolAssistantUUID')):
+                continue
+            if event.get('type') == 'user':
+                message = event.get('message')
+                kind = 'claude-user'
+            elif event.get('type') == 'response_item':
+                message = event.get('payload')
+                kind = 'codex-user'
+            else:
+                continue
+            if not isinstance(message, dict) or message.get('role') != 'user':
+                continue
+            content = message.get('content')
+            if isinstance(content, list) and any(
+                    isinstance(part, dict) and part.get('type') in ('tool_result', 'tool_use')
+                    for part in content):
+                continue
+            if not isinstance(content, (str, list)) or not content:
+                return None
+            value = (event.get('promptId') or event.get('uuid') if kind == 'claude-user'
+                     else message.get('id') or event.get('timestamp'))
+            return [kind, value] if identifier(value) else None
+    except (OSError, ValueError):
+        pass
+    return None
+
+
 def proposed_next(payload):
     if (not isinstance(payload, dict) or payload.get('hook_event_name') != 'Stop'
             or payload.get('stop_hook_active') is not False):
@@ -863,12 +921,20 @@ def proposed_next(payload):
         note = doc_closeout_note(payload)
     except Exception:  # advisory: a failed document check never costs the reminder
         note = ''
-    if not note:
+    if note:
+        result = {'decision': 'block', 'reason': note + ' ' + result['reason']} if result else {
+            'decision': 'block', 'reason': note + ' Then end with the same proposed-next: line. '
+            'This reminder supplies no new goal or authorization.'}
+    if not result or result.get('decision') != 'block':
         return result
-    if not result:
-        return {'decision': 'block', 'reason': note + ' Then end with the same proposed-next: line. '
-                'This reminder supplies no new goal or authorization.'}
-    return {'decision': 'block', 'reason': note + ' ' + result['reason']}
+    turn = stop_turn(payload)
+    claimed = claim_notice(payload, 'delivery-recheck', turn) if turn is not None else None
+    if claimed is True:
+        return result
+    if claimed is False:
+        return None
+    return {'systemMessage': 'Delivery recheck skipped: user turn or attempt state is unavailable. '
+            'This advisory check does not prevent stopping or establish completion or authority.'}
 
 
 def delivery_reminder(payload):
@@ -885,7 +951,7 @@ def delivery_reminder(payload):
         # An announcement beside a status handoff still needs the work evidence
         # used below; a status-only explanation cannot create a delivery task.
     # A declared next action triggers a recheck, never inferred authorization.
-    # Host stop_hook_active bounds this reminder to one stop attempt per turn.
+    # proposed_next applies the host retry guard and an owned per-user-turn claim.
     if actionable:
         return {'decision': 'block', 'reason': (
             'Delivery continuation reminder: a proposed-next: action is still declared. '

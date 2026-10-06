@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Optional Stop handoff/continuation recheck, bounded by host stop_hook_active.
+# Optional Stop handoff/continuation recheck, bounded by host retry and turn state.
 # It neither establishes product intent nor authorizes a next action. Source
 # review that exposes the full canonical rule can produce one advisory repair.
 # No transcript echo or host configuration reads. Incomplete-check notices use

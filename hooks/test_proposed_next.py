@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,7 +21,7 @@ class ProposedNextTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.hooks = self.root / 'hooks'
         self.hooks.mkdir()
-        for name in ('host-input.py', 'proposed-next-stop.sh'):
+        for name in ('host-input.py', 'skill-loading.py', 'proposed-next-stop.sh'):
             source = ROOT / 'hooks' / name
             if source.exists():
                 shutil.copyfile(source, self.hooks / name)
@@ -35,15 +36,23 @@ class ProposedNextTests(unittest.TestCase):
         self.payload = {'session_id': 'synthetic', 'cwd': str(self.root),
                         'transcript_path': str(self.path), 'hook_event_name': 'Stop',
                         'stop_hook_active': False, 'last_assistant_message': 'Checks passed.'}
+        self.hook_calls = 0
+        self.env = dict(os.environ, TMPDIR=str(self.root))
 
     def events(self, events):
         self.path.write_text(''.join(json.dumps(e) + '\n' for e in events))
 
-    def run_hook(self, payload=None):
+    def run_hook(self, payload=None, *, fresh_turn=True):
         value = self.payload if payload is None else payload
+        self.hook_calls += 1
+        # Classifier subcases represent separate first stops. Lifecycle tests
+        # supply a fixed host ID or use genuine transcript user records.
+        if fresh_turn and isinstance(value, dict) and 'turn_id' not in value:
+            value = dict(value, turn_id='synthetic-turn-' + str(self.hook_calls))
         raw = value if isinstance(value, str) else json.dumps(value)
         result = subprocess.run(['bash', str(self.hooks / 'proposed-next-stop.sh')],
-                                input=raw, text=True, capture_output=True, cwd=self.root)
+                                input=raw, text=True, capture_output=True, cwd=self.root,
+                                env=self.env, timeout=5)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, '')
         return json.loads(result.stdout) if result.stdout else {}
@@ -156,6 +165,112 @@ class ProposedNextTests(unittest.TestCase):
         self.assertIn('supplies no new goal or authorization', result['reason'])
         self.assertEqual(self.run_hook(dict(payload, stop_hook_active=True)), {})
 
+    def test_same_host_turn_blocks_once_despite_false_retry_flag_and_rewording(self):
+        payload = dict(self.payload, turn_id='fixed-turn', last_assistant_message=
+                       'proposed-next: blocked: source is unavailable; an access grant is required')
+        self.assert_block(self.run_hook(payload))
+        for final in (payload['last_assistant_message'],
+                      'proposed-next: blocked: readable input is still required',
+                      'proposed-next: run the remaining authorized checks'):
+            with self.subTest(final=final):
+                self.assertEqual(self.run_hook(dict(payload, last_assistant_message=final)), {})
+        next_turn = dict(payload, turn_id='next-turn')
+        self.assert_block(self.run_hook(next_turn))
+        self.assertEqual(self.run_hook(next_turn), {})
+
+    def test_claude_user_metadata_ignores_feedback_tools_and_compaction(self):
+        user = {'type': 'user', 'uuid': 'user-one', 'promptId': 'prompt-one',
+                'message': {'role': 'user', 'content': 'Repair the synthetic fixture.'}}
+        payload = dict(self.payload, last_assistant_message='proposed-next: blocked: input unavailable')
+        self.events([user])
+        self.assert_block(self.run_hook(payload, fresh_turn=False))
+        ignored = [
+            {'type': 'user', 'uuid': 'feedback', 'isMeta': True,
+             'message': {'role': 'user', 'content': 'Stop hook feedback'}},
+            {'type': 'user', 'uuid': 'tool-result', 'sourceToolAssistantUUID': 'tool-call',
+             'message': {'role': 'user', 'content': [{'type': 'tool_result', 'content': 'done'}]}},
+            dict(user, uuid='sidechain', promptId='sidechain', isSidechain=True),
+            dict(user, uuid='summary', promptId='summary', isCompactSummary=True),
+            {'type': 'system', 'subtype': 'compact_boundary', 'compactMetadata': {}},
+        ]
+        for event in ignored:
+            with self.subTest(event=event.get('uuid', event.get('subtype'))):
+                self.events([user, event])
+                self.assertEqual(self.run_hook(payload, fresh_turn=False), {})
+        # A regular transcript may be rewritten at compaction without creating
+        # a new user request. Its stable prompt metadata remains the same.
+        self.events([dict(user, timestamp='later-metadata')])
+        self.assertEqual(self.run_hook(payload, fresh_turn=False), {})
+        self.events([user, dict(user, uuid='user-two', promptId='prompt-two')])
+        self.assert_block(self.run_hook(payload, fresh_turn=False))
+        self.assertEqual(self.run_hook(payload, fresh_turn=False), {})
+
+    def test_codex_transcript_user_timestamp_starts_a_fresh_recheck(self):
+        user = {'type': 'response_item', 'timestamp': 'synthetic-time-one',
+                'payload': {'type': 'message', 'role': 'user',
+                            'content': [{'type': 'input_text', 'text': 'Repair the fixture.'}]}}
+        payload = dict(self.payload, last_assistant_message='proposed-next: run fixture checks')
+        self.events([user])
+        self.assert_block(self.run_hook(payload, fresh_turn=False))
+        self.assertEqual(self.run_hook(payload, fresh_turn=False), {})
+        self.events([user, dict(user, timestamp='synthetic-time-two')])
+        self.assert_block(self.run_hook(payload, fresh_turn=False))
+        self.assertEqual(self.run_hook(payload, fresh_turn=False), {})
+
+    def test_quiet_status_does_not_consume_the_turn_recheck(self):
+        payload = dict(self.payload, turn_id='fixed-turn',
+                       last_assistant_message='proposed-next: none — status only')
+        self.assertEqual(self.run_hook(payload), {})
+        self.assert_block(self.run_hook(dict(payload,
+                          last_assistant_message='proposed-next: run fixture checks')))
+
+    def test_unverifiable_turn_or_missing_state_helper_cannot_block(self):
+        payload = dict(self.payload, last_assistant_message='proposed-next: blocked: input unavailable')
+        for updates in ({}, {'turn_id': ''}, {'turn_id': []}, {'turn_id': 'x' * 2048},
+                        {'turn_id': 'known', 'session_id': ''}):
+            with self.subTest(updates=updates):
+                result = self.run_hook(dict(payload, **updates), fresh_turn=False)
+                self.assertNotIn('decision', result)
+                self.assertIn('systemMessage', result)
+        (self.hooks / 'skill-loading.py').unlink()
+        for _ in range(2):
+            result = self.run_hook(dict(payload, turn_id='known'))
+            self.assertNotIn('decision', result)
+            self.assertIn('systemMessage', result)
+
+    def test_unsafe_state_directory_is_not_followed_and_cannot_block(self):
+        outside = self.root / 'outside'
+        outside.mkdir()
+        sentinel = outside / 'sentinel'
+        sentinel.write_text('preserve')
+        (self.root / ('ccl-skill-loading-' + str(os.getuid()))).symlink_to(outside)
+        payload = dict(self.payload, turn_id='fixed-turn',
+                       last_assistant_message='proposed-next: blocked: input unavailable')
+        result = self.run_hook(payload)
+        self.assertNotIn('decision', result)
+        self.assertEqual(list(outside.iterdir()), [sentinel])
+        self.assertEqual(sentinel.read_text(), 'preserve')
+
+    def test_concurrent_same_turn_stops_emit_exactly_one_block(self):
+        payload = dict(self.payload, turn_id='fixed-turn',
+                       last_assistant_message='proposed-next: blocked: input unavailable')
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(lambda _: self.run_hook(payload), range(8)))
+        self.assertEqual(sum(r.get('decision') == 'block' for r in results), 1)
+        self.assertTrue(all(r == {} or r.get('decision') == 'block' for r in results))
+
+    def test_bounded_unknown_tail_and_nonregular_transcript_do_not_block(self):
+        payload = dict(self.payload, last_assistant_message='proposed-next: blocked: input unavailable')
+        old_user = {'type': 'user', 'uuid': 'outside-tail', 'message': {
+            'role': 'user', 'content': 'Synthetic earlier request'}}
+        self.path.write_text(json.dumps(old_user) + '\n' + 'x' * (2 * 1024 * 1024) + '\n{}\n')
+        result = self.run_hook(payload, fresh_turn=False)
+        self.assertNotIn('decision', result)
+        fifo = self.root / 'transcript.fifo'
+        os.mkfifo(fifo)
+        result = self.run_hook(dict(payload, transcript_path=str(fifo)), fresh_turn=False)
+        self.assertNotIn('decision', result)
+
     def test_user_dependent_stop_rechecks_the_blocker_once(self):
         for events in ([], self.claude_load()):
             self.events(events)
@@ -191,11 +306,12 @@ class ProposedNextTests(unittest.TestCase):
         prefix = 'Should I do this; ' * 60000
         for suffix, expected in (('', None), ('continue?', 'block')):
             with self.subTest(terminal_question=bool(suffix)):
-                payload = dict(self.payload, last_assistant_message=prefix + suffix)
+                payload = dict(self.payload, turn_id='long-permission',
+                               last_assistant_message=prefix + suffix)
                 result = subprocess.run(
                     ['python3', str(self.hooks / 'host-input.py'), 'proposed-next'],
                     input=json.dumps(payload), text=True, capture_output=True,
-                    cwd=self.root, timeout=5)
+                    cwd=self.root, env=self.env, timeout=5)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stderr, '')
                 value = json.loads(result.stdout) if result.stdout else {}
@@ -445,8 +561,10 @@ class ProposedNextTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('doc_check_probe', self.hooks / 'host-input.py')
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        payload = dict(self.payload, last_assistant_message='proposed-next: run the remaining local checks')
-        with patch.object(module, 'reader_docs', side_effect=RuntimeError('unexpected')):
+        payload = dict(self.payload, turn_id='doc-check-probe',
+                       last_assistant_message='proposed-next: run the remaining local checks')
+        with patch.dict(os.environ, self.env), patch.object(
+                module, 'reader_docs', side_effect=RuntimeError('unexpected')):
             result = module.proposed_next(payload)
         self.assert_block(result)
         self.assertIn('execute it now', result['reason'])
@@ -458,12 +576,17 @@ class ProposedNextTests(unittest.TestCase):
             self.payload['last_assistant_message'] = 'proposed-next: none — status only' + suffix
             self.assertEqual(self.run_hook(), {})
 
-    def test_current_action_recheck_needs_no_transcript_read(self):
+    def test_current_action_recheck_requires_usable_attempt_state(self):
         self.path.write_text('not a valid transcript')
         for path in (str(self.path), str(self.root / 'missing'), None):
             payload = dict(self.payload, transcript_path=path,
                            last_assistant_message='proposed-next: run the existing checks')
-            self.assert_block(self.run_hook(payload))
+            result = self.run_hook(payload)
+            if path == str(self.path):
+                self.assert_block(result)  # host ID needs regular-file metadata only
+            else:
+                self.assertNotIn('decision', result)
+                self.assertIn('unavailable', result.get('systemMessage', ''))
 
     def test_complete_machine_artifacts_are_preserved(self):
         self.events(self.claude_load())
@@ -548,17 +671,9 @@ class ProposedNextTests(unittest.TestCase):
                           'cache_creation_input_tokens': context - 2 - read, 'output_tokens': 50}}}
 
     def run_with_state(self, payload=None):
-        # The once-per-band cap uses the optional state helper; give it a private TMPDIR.
+        # Restore the optional helper if a test deliberately removed it.
         shutil.copyfile(ROOT / 'hooks/skill-loading.py', self.hooks / 'skill-loading.py')
-        state = self.root.parent / (self.root.name + '-state')
-        state.mkdir(exist_ok=True)
-        value = self.payload if payload is None else payload
-        result = subprocess.run(['bash', str(self.hooks / 'proposed-next-stop.sh')],
-                                input=json.dumps(value), text=True, capture_output=True, cwd=self.root,
-                                env=dict(os.environ, TMPDIR=str(state)))
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stderr, '')
-        return json.loads(result.stdout) if result.stdout else {}
+        return self.run_hook(payload)
 
     def test_large_context_notice_is_user_only_and_once_per_band(self):
         self.events([self.usage_event(120000), self.usage_event(299999)])
@@ -579,6 +694,7 @@ class ProposedNextTests(unittest.TestCase):
         # Without the once-per-band record the notice would repeat on every stop, so
         # it is withheld; notices that must show (handoff overflow) still show.
         self.events([self.usage_event(450000)])
+        (self.hooks / 'skill-loading.py').unlink()
         self.assertFalse((self.hooks / 'skill-loading.py').exists())
         self.assertEqual(self.run_hook(), {})
         self.assertEqual(self.run_hook(), {})
@@ -612,17 +728,19 @@ class ProposedNextTests(unittest.TestCase):
         self.events([{'type': 'ignored'}] * 20000 + [self.usage_event(700000)])
         self.assertIn('70 万', self.run_with_state().get('systemMessage', ''))
 
-    def test_scan_is_bounded_and_no_filesystem_markers_are_written(self):
+    def test_scan_is_bounded_and_only_owned_advisory_markers_are_written(self):
         self.events([{'type': 'ignored'}] * 20000 + self.claude_load())
         before = set(self.root.rglob('*'))
         self.assertIn('unverified', self.run_hook().get('systemMessage', '').lower())
-        self.assertEqual(set(self.root.rglob('*')), before)
         self.events([{'type': 'ignored'}] * 20000)
         self.assertEqual(self.run_hook(), {})
         self.events(self.claude_load())
         self.assert_block(self.run_hook())
         self.assert_block(self.run_hook())  # A new host turn must not be suppressed by session id.
-        self.assertEqual(set(self.root.rglob('*')), before)
+        state = self.root / ('ccl-skill-loading-' + str(os.getuid()))
+        added = set(self.root.rglob('*')) - before
+        self.assertTrue(added)
+        self.assertTrue(all(path == state or state in path.parents for path in added))
 
     def test_oversized_or_malformed_input_fails_soft_without_transcript_echo(self):
         self.path.write_text(json.dumps({'type': 'ignored', 'text': 'x' * (1024 * 1024)}) + '\n')
