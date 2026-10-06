@@ -90,7 +90,7 @@ IDs are generated for this repair's acceptance inventory.
 | Integration/contract | Run the same wrapper against real disposable marker state | Repeat/reset, independent turns and atomic concurrency |
 | E2E/host smoke | Run native Stop JSON through the shipped shell entry | Proves hook output and state integration; does not prove model compliance |
 | Manual/exploratory | Inspect native event metadata and reported output | Confirms fixture shape; interrupted-session recovery remains separate |
-| Repository | `make test CCL_SKILL_DEFAULT_BASE_REF=origin/main` | Required local lanes |
+| Repository | `make test` | Required local lanes; explicit shared Git checks use `origin/main` |
 | Supplemental | Public sanitization; heavy lane if shared skill text changes | Scope-driven checks beyond the local lane |
 
 ## Completeness and minimality
