@@ -34,6 +34,7 @@ set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SUITE="$DIR/test_review_gate.sh"
+python3 "$DIR/test_abort_leak_readiness.py" || exit 1
 # How long an abandoned wrapper may still be alive after the suite is gone.
 GRACE="${ABORT_LEAK_PROBE_GRACE:-30}"
 # Bound on reaching the target case. The suite reaches it in ~2min on an idle host; the
@@ -68,9 +69,11 @@ esac
 ABORT_LEAK_PROBE_CLIENT="${ABORT_LEAK_PROBE_CLIENT:-claude}"
 case "$ABORT_LEAK_PROBE_CLIENT" in
   claude) PROBE_BEHAVIOR_FILE=claude_behavior; PROBE_WRAPPER=claude_review.sh
-          PROBE_BOUND_MARKER=claude_hang_bound_reached ;;
+          PROBE_BOUND_MARKER=claude_hang_bound_reached
+          PROBE_STARTED_MARKER=claude_hang_started ;;
   fallback) PROBE_BEHAVIOR_FILE=kimi_behavior; PROBE_WRAPPER=kimi_review.sh
-            PROBE_BOUND_MARKER=kimi_hang_bound_reached ;;
+            PROBE_BOUND_MARKER=kimi_hang_bound_reached
+            PROBE_STARTED_MARKER=kimi_hang_started ;;
   *) echo "ABORT_LEAK_PROBE_CLIENT must be claude or fallback" >&2; exit 2 ;;
 esac
 # How many times a leg may rebuild its scenario before giving up. Only the SETUP is
@@ -240,15 +243,21 @@ bound_marker_state() {
 }
 
 live_wrapper() {
-  local work behavior pid parent_cmd
+  local work behavior pid parent_cmd started_pid
   work="$(suite_work_dir)" || return 0
   behavior="$(cat "$work/state/$PROBE_BEHAVIOR_FILE" 2>/dev/null || true)"
   [ "$behavior" = "hang" ] || return 0
+  # Configuration alone does not prove the stub reached its hang. Selecting a
+  # startup wrapper lets the suite reset behavior after controller removal and
+  # the wrapper can then exit normally without exercising its lifetime bound.
+  started_pid="$(cat "$work/state/$PROBE_STARTED_MARKER" 2>/dev/null || true)"
+  case "$started_pid" in ''|*[!0-9]*) return 0 ;; esac
   for pid in $(ps -eo pid=,command= 2>/dev/null |
       grep -e "$PROBE_TMP/" -e "$PROBE_TMP_REAL/" -F |
       grep -F "$PROBE_WRAPPER" |
       grep -v '[g]rep' |
       awk '{print $1}'); do
+    [ "$pid" = "$started_pid" ] || continue
     parent_cmd="$(ps -o command= -p "$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')" 2>/dev/null || true)"
     case "$parent_cmd" in
       *review_gate.py*) printf '%s\n' "$pid"; return 0 ;;

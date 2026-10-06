@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "candidate_commit": "ac33ab64b07bf19dda73429b1f0699fcb8bed4e0",
+  "baseline": "origin/main",
+  "classification": "shared-gate",
+  "behavioral_baseline": {
+    "test": "test_concurrent_same_turn_stops_emit_exactly_one_block",
+    "expected_blocks": 1,
+    "observed_blocks": 8,
+    "result": "assertion-failed-before-runtime-change"
+  },
+  "focused": [
+    {
+      "command": "python3 hooks/test_proposed_next.py",
+      "tests": 51,
+      "result": "passed"
+    },
+    {
+      "command": "python3 hooks/test_host_input.py",
+      "tests": 41,
+      "result": "passed"
+    }
+  ],
+  "required_lanes": {
+    "result": "all-components-passed",
+    "commands": [
+      "CCL_SKILL_BASE_REF=origin/main make test-repo-gates CCL_SKILL_DEFAULT_BASE_REF=origin/main",
+      "make test-regressions-fast test-code-review"
+    ],
+    "fast_suites": 46,
+    "review_shard_suites": [
+      9,
+      8
+    ],
+    "abort_leak_result": "all-three-legs-passed",
+    "invocation_notes": "Initial aggregate attempts failed because of caller ref selection and an inherited Make command-line override. The branch upstream was corrected to origin/main; the affected repository lane and standard-environment fast/review lanes were rerun to terminal exit 0. Runtime source was unchanged."
+  },
+  "supplemental": [
+    {
+      "command": "bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only",
+      "suites": 9,
+      "result": "passed"
+    },
+    {
+      "command": "python3 scripts/check-public-sanitization.py .",
+      "result": "passed"
+    },
+    {
+      "command": "bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .",
+      "result": "passed",
+      "r0_status": "private-ok"
+    }
+  ],
+  "mutation_checks": {
+    "method": "in-memory runtime mutations exercised through native subprocess test entry",
+    "unmutated_controls": "passed",
+    "killed": 9,
+    "properties": [
+      "same_turn",
+      "parallel",
+      "feedback",
+      "fresh_codex_turn",
+      "quiet_then_action",
+      "unknown_state",
+      "unsafe_state",
+      "bounded_tail",
+      "nonblocking_fifo"
+    ],
+    "source_bytes": "unchanged"
+  },
+  "package": {
+    "command": "make npm-publish-dry",
+    "unit_tests": 433,
+    "pack_tests": 11,
+    "result": "passed",
+    "strict_clean_pack_tests": 11,
+    "strict_pack_result": "passed",
+    "source_commit": "fdde610",
+    "later_source_delta": "plan wording only",
+    "snapshot_hash": "b6a2561468113cc86693b190194cacd14853d9792020d416e3e5b4c21fc66130"
+  },
+  "host_smoke": {
+    "command": "TGZ_PATH=<clean-tarball> npm --prefix packages/ccl-skills-npm run smoke:host",
+    "result": "passed",
+    "signals": [
+      "actual-artifact-cli-passed",
+      "three-host-smoke-passed"
+    ],
+    "scope": "Disposable host homes; actual artifact CLI plus synthetic-version lifecycle. Model execution and recovery of the reported interrupted session were not replayed."
+  },
+  "review_capture_recovery": {
+    "initial_status": "findings",
+    "initial_finding_severities": [
+      "P2"
+    ],
+    "complete_result_retained": false,
+    "reason": "Transport truncated the terminal JSON. The capture is retained privately and not counted as a complete controller result; recapture uses the same runtime candidate and preserves the known finding."
+  },
+  "publication": {
+    "status": "pending",
+    "expected_version": "0.18.13",
+    "release_source": "reviewed default-branch commit",
+    "workflow": "npm-publish.yml"
+  },
+  "limitations": [
+    "The wrapper cap is verified; screenshot-specific infinite-loop or model-compliance claims are not made.",
+    "Deleted temporary attempt state or changed host turn identity can permit a new advisory attempt.",
+    "Attempt markers never establish authorization or completion.",
+    "The original source-access blocker is independent."
+  ]
+}

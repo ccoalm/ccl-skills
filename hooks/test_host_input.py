@@ -370,7 +370,7 @@ class HostInputTests(unittest.TestCase):
                         invocation[1]['message']['content'][0]['is_error'] = True
                     events = [{'type': 'ignored'}] * 20001 + [boundaries[family]] + invocation
                     result = self.run_hook(runtime / 'hooks' / hook, {
-                        'session_id': owner + host, 'cwd': str(self.repo),
+                        'session_id': owner + host, 'turn_id': owner + host, 'cwd': str(self.repo),
                         'transcript_path': self.transcript(events), 'hook_event_name': 'Stop',
                         'stop_hook_active': False, 'last_assistant_message': 'Checks recorded.'})
                     self.assertEqual({k: v for k, v in result.items() if k != 'reason'}, expected)
@@ -400,9 +400,11 @@ class HostInputTests(unittest.TestCase):
             stream.write(json.dumps({'type': 'system', 'subtype': 'compact_boundary'}) + '\n')
             stream.write(json.dumps({'type': 'assistant', 'message': {'content': [
                 {'type': 'text', 'text': 'proposed-next: run local checks'}]}}) + '\n')
-        self.assertEqual(self.run_hook('hooks/proposed-next-stop.sh', payload).get('decision'), 'block')
+        active = dict(payload, turn_id='recovered-turn')
+        self.assertEqual(self.run_hook('hooks/proposed-next-stop.sh', active).get('decision'), 'block')
+        self.assertEqual(self.run_hook('hooks/proposed-next-stop.sh', active), {})
         self.assertEqual(self.run_hook('hooks/proposed-next-stop.sh',
-                                     dict(payload, stop_hook_active=True)), {})
+                                     dict(active, stop_hook_active=True)), {})
 
     def test_concurrent_incomplete_notice_is_claimed_once(self):
         payload = {'session_id': 'parallel', 'cwd': str(self.repo),

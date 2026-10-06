@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "source_commit": "0b6cd0c7018409147bd1c4659bf32beb80eef625",
+  "scope": "required abort-fixture readiness repair",
+  "original_ci_failure": {
+    "run": 37531208976,
+    "job": "code-review-abort-leak-2",
+    "result": "wrapper/group ended with no own-bound marker; exact inner interleaving unavailable"
+  },
+  "baseline_red": {
+    "command": "python3 skills/code-review/scripts/test_abort_leak_readiness.py ReadinessTests.test_startup_wrapper_is_not_a_hanging_fixture",
+    "unchanged_selector_exit_code": 1,
+    "assertion_failures": 2,
+    "setup_errors": 0
+  },
+  "verification": [
+    {
+      "command": "python3 skills/code-review/scripts/test_abort_leak_readiness.py",
+      "exit_code": 0,
+      "tests": 2,
+      "client_variants": [
+        "claude",
+        "kimi"
+      ],
+      "coverage": [
+        "unready startup rejected",
+        "actual hang selected"
+      ]
+    },
+    {
+      "command": "env CCL_SKILL_BASE_REF=origin/main make test",
+      "exit_code": 0,
+      "lanes": [
+        "repository-gates",
+        "regression-fast",
+        "code-review"
+      ],
+      "fast_suites": 46,
+      "review_shards": [
+        9,
+        8
+      ],
+      "abort_legs": [
+        "Claude TERM",
+        "fallback KILL",
+        "Claude KILL"
+      ],
+      "own_bound_markers": "both KILL legs present"
+    },
+    {
+      "command": "bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only",
+      "exit_code": 0,
+      "suites": 9
+    },
+    {
+      "command": "python3 scripts/check-public-sanitization.py .",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "review": {
+    "record": "abort-fixture-delta-review.json",
+    "mode": "review",
+    "status": "passed",
+    "findings": 0,
+    "native_skill_binding": "established",
+    "base": "e3655ac30739b23ff1cc3292e719f11016e3d837",
+    "reviewed_commit": "0b6cd0c7018409147bd1c4659bf32beb80eef625"
+  },
+  "earlier_attempts": "Three preparatory ledger failures were preserved privately. Their unpublished commits were consolidated without changing the final source tree. The final owner row cites the changed executable abort probe; no gate implementation changed.",
+  "release_prerequisites": {
+    "fresh_package_rebuild": "pending",
+    "fresh_pr_ci": "pending",
+    "publication": "pending"
+  },
+  "evidence_limits": "Synthetic runtime assertions and source review establish the bounded hook and valid abort setup; no original interrupted-session or live model recovery is claimed."
+}
+
