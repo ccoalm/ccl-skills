@@ -152,3 +152,26 @@ the reviewed Stop repair and the version synchronization.
 
 Implementation and focused regressions passed. Execution results, review
 dispositions and publication verification are recorded under `evidence/`.
+
+## CI abort-fixture readiness repair
+
+The release candidate's second abort-leak job failed because the wrapper ended
+without its own bound-reached marker. The CI trace cannot reconstruct the exact
+interleaving. An engineered paired probe using the real Claude fixture and the
+unchanged selector demonstrates an invalid setup: the selector accepts a
+wrapper before it reads the hang behavior. Keeping that state gives a bound
+marker; resetting it after controller removal gives a normal exit with no
+marker, matching the failed assertion's observable class.
+
+This is a shared test-harness repair inside the required release validation,
+owned by defect diagnosis and testing strategy. Add a wrapper-PID readiness
+record when each fake client actually enters its hang, and require that record
+before selecting the controller to remove. Keep the process-ownership checks,
+atomic Stop repair, cleanup assertions, and bound-reached assertion unchanged.
+
+Regression: hold both native and fallback stubs at an input barrier before
+their behavior read. The unchanged selector must fail the assertion that these
+startup wrappers are ineligible. After release, both actual hanging fixtures
+must remain selectable. Run all three abort legs, affected review regressions,
+repository gates, and fresh CI before landing. Re-review this test delta and
+retain the original CI failure as diagnostic evidence.

@@ -734,6 +734,7 @@ case "$behavior" in
     (
       trap '' TERM
       printf '%s\n' "$BASHPID" >"$state/hang_child_pid"
+      printf '%s\n' "$$" >"$state/claude_hang_started"
       # Bounded, like the escaped-descendant fixture below: this must outlive every
       # budget any case gives it (largest is --total-timeout 50) so the controller's
       # kill is what ends it, but it must NOT be unbounded. When an abort removes the
@@ -904,6 +905,7 @@ case "$behavior" in
   oversize_inline) printf '{"reviewer":"%s","mode":"%s","status":"inconclusive","reason":"packet_too_large_for_inline","reason_code":"capability_missing","cascade_eligible":true}\n' "$client" "$mode"; exit 2 ;;
   hang)
     trap '' TERM
+    printf '%s\n' "$$" >"$state/${client}_hang_started"
     # Bounded for the same reason as the claude stub's hang: an abort that removes
     # the controller leaves this TERM-immune process with no other reaper.
     hang_left="${REVIEW_GATE_TEST_HANG_SECONDS:-300}"
