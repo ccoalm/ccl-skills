@@ -1,0 +1,322 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "release",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "passed",
+  "selected_client": "claude",
+  "selected_reviewer": "claude",
+  "selected_attempt_index": 0,
+  "findings": [],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [],
+  "attempts": [
+    {
+      "client": "claude",
+      "mode": "review",
+      "findings": [],
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "stop_turn now accepts only Claude `type=user` records, keyed by promptId or uuid. Codex response_item user-role records are skipped, so a Codex stop without turn_id falls through to the nonblocking systemMessage. An explicit turn_id is still handled first. The original attribution failure path (an injected user-role record mints a new timestamp or id claim) is closed."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "The diff adds no new write path. Marker state, the atomic mkdir claim and no-follow directories are unchanged. Removing the Codex fallback can only reduce blocking. Turn identity grants no authority, and no transcript text reaches the marker or the output."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "Without turn_id, a Codex Stop now always returns None from stop_turn and degrades to the advisory systemMessage. This is fail-open and cannot loop. One effect is that an eligible Codex stop without turn_id shows the nonblocking notice on every stop. That is non-blocking and consistent with the stated acceptance for unknown identity."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "Both new tests would fail against the prior runtime. The old fallback would block on the first Codex record without a turn and on each injected record that has a new id or timestamp. Both tests assert not-block plus systemMessage. They also check that the explicit turn stays spent and that a new explicit turn blocks again. The redundant `self.events([user])` before the subTest loop is harmless."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "Codex sessions that relied on transcript-only turn identity lose the blocking recheck unless the host supplies turn_id. This is a deliberate and documented reduction, and it fits the requester's goal of stopping repeated blocks. Claude lookup and the other notice epochs are unchanged. The diff adds no extra flags or abstractions."
+        },
+        {
+          "concern": "rollout_rollback",
+          "conclusion": "No data or state migration is needed. Existing markers stay valid, and a rollback is a code revert. The npm publication steps are outside this diff and are declared as pending, not claimed as done."
+        },
+        {
+          "concern": "observability_operations",
+          "conclusion": "The unverifiable path returns a fixed systemMessage that says the recheck was skipped and that no completion or authority is established. It contains no transcript content."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "The updated plan rows S3 and S4 and the register row match the code: Codex needs an explicit turn ID, and injected user-role records are covered. The packet cannot verify the evidence claims for mutation counts, lanes and the tarball. They are treated as claims only, and none of them is contradicted by the diff."
+        },
+        {
+          "concern": "high_risk_boundary",
+          "conclusion": "Shared-gate hook: the change only narrows the conditions under which a block can happen, and no bypass is introduced. The committed challenge.json still contains its second finding: the challenge record was missing and validation was bound to an older SHA. The plan states that publication must inspect the pass records bound to the reviewed SHA. Release-time verification remains outside this diff."
+        },
+        {
+          "concern": "repository_contract",
+          "conclusion": "The hooks contract requires the change to stay deterministic and advisory, and it is. Synthetic test data is used. The challenge record is committed under the specs evidence/ directory, as the root contract's evidence rule requires. No contract file is loosened, and no conflicting or stale command was found in the quoted contracts."
+        }
+      ],
+      "lens_id": "code-review:review:no-tools",
+      "tool_identity": "code-review:no-tools",
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "status": "passed",
+      "packet_sha256": "f51be04c33ac5cc13f205f4d6bbb2266736b5397f3d839c67d2dd22ab6643143"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "f51be04c33ac5cc13f205f4d6bbb2266736b5397f3d839c67d2dd22ab6643143",
+  "candidate_sha256": "5d0cc1f3d9dcbe0a2447390982b622247306e72b0a16033c6b650b3cbfe68714",
+  "review_context_sha256": "f2c378e537c6e4d8d1261bd86ea08534f933c213c8172745c48ab3d0b5d0ae0f",
+  "review_controller_sha256": "d37ec1c370fde1b254820811c257b8aa43dd9a1cd1243e31c2627bd9cc606dd5",
+  "review_profile_sha256": "f1617938f9ee42b02d3b2a4a9a2c57f9ed4c9d0f93b6bf655ce554fa2c02684c",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/host-input.py"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "hooks/test_proposed_next.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "hooks/test_proposed_next.py"
+    }
+  ],
+  "review_plan_source": "implementer-supplied",
+  "repository_contract": {
+    "coverage": "complete",
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "bytes": 7523,
+        "sha256": "49485fc6de2c919eecd3c1088bf7b65d9c2ef12f5ffbe3b10357a54fee4b5124"
+      },
+      {
+        "path": "hooks/AGENTS.md",
+        "bytes": 700,
+        "sha256": "ed81fc4b329cc0099e28c6cc4ad6beb5842258b6286fa2429f77bbd1f4368af0"
+      }
+    ],
+    "omitted": [],
+    "sources_not_read": [
+      "CLAUDE.local.md and untracked files",
+      "@path imports",
+      ".claude/rules",
+      "host-configured fallback filenames"
+    ]
+  },
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "claude-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "selected_skills_sha256": "8a68ecfab8206e05285ef3d11cb784956dd96265aa948d6eddf758fbddb7dcc6",
+  "risk_tags": [
+    "shared-gate"
+  ],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": "Find concrete defects, including P0/P1, in this delta. The original attribution finding in specs/stop-recheck-boundary/evidence/challenge.json is an open item; assess its failure path from the current code.",
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "728dc54eeeffac63c98ed67eba3aad3c8bf212ec32893dbad3c1f445c85445db",
+    "acceptance_sha256": "e8aa250ceb2f8172c6930b44e16b9acdccef7d2b72090dca94232516e0260121",
+    "stage": "release",
+    "review_depth": "release",
+    "risk_tags": [
+      "shared-gate"
+    ],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "03213da0c56bd9c48cf59cc70c96fd98304a9e2b74a43b549bdd3f0b02a981df",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": false,
+  "human_decision_required": false,
+  "review_state": "reviewed",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "before_completion_claim"
+    ],
+    "satisfied_triggers": [
+      "before_external_review",
+      "risk_or_scope_escalation"
+    ],
+    "blocks": [
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "stop_turn now accepts only Claude `type=user` records, keyed by promptId or uuid. Codex response_item user-role records are skipped, so a Codex stop without turn_id falls through to the nonblocking systemMessage. An explicit turn_id is still handled first. The original attribution failure path (an injected user-role record mints a new timestamp or id claim) is closed."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "The diff adds no new write path. Marker state, the atomic mkdir claim and no-follow directories are unchanged. Removing the Codex fallback can only reduce blocking. Turn identity grants no authority, and no transcript text reaches the marker or the output."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "Without turn_id, a Codex Stop now always returns None from stop_turn and degrades to the advisory systemMessage. This is fail-open and cannot loop. One effect is that an eligible Codex stop without turn_id shows the nonblocking notice on every stop. That is non-blocking and consistent with the stated acceptance for unknown identity."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "Both new tests would fail against the prior runtime. The old fallback would block on the first Codex record without a turn and on each injected record that has a new id or timestamp. Both tests assert not-block plus systemMessage. They also check that the explicit turn stays spent and that a new explicit turn blocks again. The redundant `self.events([user])` before the subTest loop is harmless."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "Codex sessions that relied on transcript-only turn identity lose the blocking recheck unless the host supplies turn_id. This is a deliberate and documented reduction, and it fits the requester's goal of stopping repeated blocks. Claude lookup and the other notice epochs are unchanged. The diff adds no extra flags or abstractions."
+    },
+    {
+      "concern": "rollout_rollback",
+      "conclusion": "No data or state migration is needed. Existing markers stay valid, and a rollback is a code revert. The npm publication steps are outside this diff and are declared as pending, not claimed as done."
+    },
+    {
+      "concern": "observability_operations",
+      "conclusion": "The unverifiable path returns a fixed systemMessage that says the recheck was skipped and that no completion or authority is established. It contains no transcript content."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "The updated plan rows S3 and S4 and the register row match the code: Codex needs an explicit turn ID, and injected user-role records are covered. The packet cannot verify the evidence claims for mutation counts, lanes and the tarball. They are treated as claims only, and none of them is contradicted by the diff."
+    },
+    {
+      "concern": "high_risk_boundary",
+      "conclusion": "Shared-gate hook: the change only narrows the conditions under which a block can happen, and no bypass is introduced. The committed challenge.json still contains its second finding: the challenge record was missing and validation was bound to an older SHA. The plan states that publication must inspect the pass records bound to the reviewed SHA. Release-time verification remains outside this diff."
+    },
+    {
+      "concern": "repository_contract",
+      "conclusion": "The hooks contract requires the change to stay deterministic and advisory, and it is. Synthetic test data is used. The challenge record is committed under the specs evidence/ directory, as the root contract's evidence rule requires. No contract file is loosened, and no conflicting or stale command was found in the quoted contracts."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "rollout_rollback",
+    "observability_operations",
+    "claim_strength",
+    "high_risk_boundary",
+    "repository_contract"
+  ],
+  "reviewed_skills": [
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "claude",
+    "mode": "review",
+    "findings": [],
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "stop_turn now accepts only Claude `type=user` records, keyed by promptId or uuid. Codex response_item user-role records are skipped, so a Codex stop without turn_id falls through to the nonblocking systemMessage. An explicit turn_id is still handled first. The original attribution failure path (an injected user-role record mints a new timestamp or id claim) is closed."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "The diff adds no new write path. Marker state, the atomic mkdir claim and no-follow directories are unchanged. Removing the Codex fallback can only reduce blocking. Turn identity grants no authority, and no transcript text reaches the marker or the output."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "Without turn_id, a Codex Stop now always returns None from stop_turn and degrades to the advisory systemMessage. This is fail-open and cannot loop. One effect is that an eligible Codex stop without turn_id shows the nonblocking notice on every stop. That is non-blocking and consistent with the stated acceptance for unknown identity."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "Both new tests would fail against the prior runtime. The old fallback would block on the first Codex record without a turn and on each injected record that has a new id or timestamp. Both tests assert not-block plus systemMessage. They also check that the explicit turn stays spent and that a new explicit turn blocks again. The redundant `self.events([user])` before the subTest loop is harmless."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "Codex sessions that relied on transcript-only turn identity lose the blocking recheck unless the host supplies turn_id. This is a deliberate and documented reduction, and it fits the requester's goal of stopping repeated blocks. Claude lookup and the other notice epochs are unchanged. The diff adds no extra flags or abstractions."
+      },
+      {
+        "concern": "rollout_rollback",
+        "conclusion": "No data or state migration is needed. Existing markers stay valid, and a rollback is a code revert. The npm publication steps are outside this diff and are declared as pending, not claimed as done."
+      },
+      {
+        "concern": "observability_operations",
+        "conclusion": "The unverifiable path returns a fixed systemMessage that says the recheck was skipped and that no completion or authority is established. It contains no transcript content."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "The updated plan rows S3 and S4 and the register row match the code: Codex needs an explicit turn ID, and injected user-role records are covered. The packet cannot verify the evidence claims for mutation counts, lanes and the tarball. They are treated as claims only, and none of them is contradicted by the diff."
+      },
+      {
+        "concern": "high_risk_boundary",
+        "conclusion": "Shared-gate hook: the change only narrows the conditions under which a block can happen, and no bypass is introduced. The committed challenge.json still contains its second finding: the challenge record was missing and validation was bound to an older SHA. The plan states that publication must inspect the pass records bound to the reviewed SHA. Release-time verification remains outside this diff."
+      },
+      {
+        "concern": "repository_contract",
+        "conclusion": "The hooks contract requires the change to stay deterministic and advisory, and it is. Synthetic test data is used. The challenge record is committed under the specs evidence/ directory, as the root contract's evidence rule requires. No contract file is loosened, and no conflicting or stale command was found in the quoted contracts."
+      }
+    ],
+    "lens_id": "code-review:review:no-tools",
+    "tool_identity": "code-review:no-tools",
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "status": "passed",
+    "packet_sha256": "f51be04c33ac5cc13f205f4d6bbb2266736b5397f3d839c67d2dd22ab6643143"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "deep_self_review_before_completion"
+}

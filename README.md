@@ -43,6 +43,8 @@ Skill loading also has a bounded recovery checkpoint: the first precise source e
 
 On Claude Code and Codex, a non-status `proposed-next:` declaration at Stop now triggers one continuation recheck: execute it if it is already authorized and runnable, or preserve the current scope and explain the concrete blocker. A stop that hands a decision back to you (`blocked:`, waiting for approval, or a closing "should I proceed?") gets one recheck against the real blockers — missing credentials or authority, facts unavailable locally, actions the safety rules gate, overturning your established direction, an unsettled product tradeoff — so the agent decides routine choices itself and finishes remaining work. A final message that announces the agent's own next steps ("Next, I'll…", "接下来我会…") or parks one on a decision nobody asked for gets the same recheck, so announcing a plan is not a stopping point. Development review is the main agent's deep self-review followed by an external independent review it runs itself; human review or sign-off is reserved for merging or launching money, permission or data paths, breaking external contracts, and destructive steps. Status-only handoffs and the host's retry guard remain respected. This reminder cannot establish authorization or guarantee that the agent continues.
 
+The delivery and document reminders share one atomic attempt per user turn. Repeated stops in that turn are quiet even if the host retry flag resets or the blocker is reworded. A new user turn can receive a fresh reminder. If turn metadata or safe attempt state is unavailable, the hook shows nonblocking information and allows stopping.
+
 If npm returns `E404` before the initial registry release, install from source:
 
 ```bash

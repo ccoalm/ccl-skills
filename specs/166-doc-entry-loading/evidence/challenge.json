@@ -1,0 +1,34 @@
+{
+  "schema_version": 3,
+  "mode": "challenge",
+  "stage": "build",
+  "review_depth": "build",
+  "status": "findings",
+  "selected_client": "claude",
+  "selected_reviewer": "claude",
+  "selected_attempt_index": 0,
+  "candidate_sha256": "4d2aa8fb963ccf0f634359de02bd21f3de6443bda4f2c5ee2a98f3e92b5701c0",
+  "packet_sha256": "73d151ae58f5b4bee4a949e5859aa9b13c84ad395062ae4d3a25d759d1313efb",
+  "review_controller_sha256": "d37ec1c370fde1b254820811c257b8aa43dd9a1cd1243e31c2627bd9cc606dd5",
+  "review_profile_sha256": "abbed8f23c8303f3d54f969b1ec1645b337ddfacb2a88a51aaf13ae56fc83d51",
+  "selected_skills": [
+    "code-review",
+    "tighten-doc"
+  ],
+  "selected_skills_sha256": "a297324d56809d50986e4b0b0aaf2a4d24e330dde98712b1cd32d477ee9c7a34",
+  "findings": [
+    {
+      "severity": "P1",
+      "file": "skills/tighten-doc/SKILL.md",
+      "line": 88,
+      "failure_path": "The 'Global boilerplate-strip + retitle' guard is not specific to cards. It covers deleting a duplicated line and retitling its section across N docs, and it is the guard that protects a doc whose substance is that line, plus do-not-touch docs. It now lives only in the reference, which the entry tells the agent to read only before generating, modifying, or reviewing an execution or domain card. A batch strip across specs, runbooks, index docs, or a mixed set never triggers the read. The agent can then apply a blanket replace fallback, which destroys a spec or runbook whose substance is the stripped line or mis-titles its section. The obligation-preservation table marks this rule 'rehosted' but does not check that its trigger scope shrank.",
+      "smallest_fix": "Keep the global boilerplate-strip + retitle bullet in the SKILL.md entry, next to the applicability guard. Alternatively, widen the load condition to also cover any cross-document batch strip or retitle."
+    }
+  ],
+  "native_skill_binding": "established",
+  "publication_record": {
+    "kind": "controller_result_projection",
+    "omitted": "Private caller context and host-specific metadata; complete original receipt retained separately.",
+    "reusable_completion_receipt": false
+  }
+}

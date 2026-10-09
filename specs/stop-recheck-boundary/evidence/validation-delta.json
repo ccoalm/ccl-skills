@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "candidate_commit": "aaaa287080b0f90ac019b97fa86bd19bb703f480",
+  "base": "ea96bed",
+  "focused": [
+    {
+      "command": "python3 hooks/test_proposed_next.py",
+      "tests": 52,
+      "result": "passed"
+    },
+    {
+      "command": "python3 hooks/test_host_input.py",
+      "tests": 41,
+      "result": "passed"
+    }
+  ],
+  "baseline_red": {
+    "command": "python3 hooks/test_proposed_next.py -k codex_injected_user_role",
+    "assertion_failures": 3,
+    "result": "RED-before-runtime-edit"
+  },
+  "mutation": {
+    "method": "Compiled runtime through isolated subprocess entry; no source writes",
+    "control_tests": 2,
+    "control_failures": 0,
+    "restored_fallback_assertion_failures": 6,
+    "setup_errors": 0,
+    "result": "killed"
+  },
+  "required_lanes": {
+    "commands": [
+      "make test-repo-gates CCL_SKILL_DEFAULT_BASE_REF=origin/main",
+      "make test-regressions-fast test-code-review"
+    ],
+    "result": "passed",
+    "fast_suites": 46,
+    "code_review_shards": [
+      9,
+      8
+    ],
+    "abort_leak_legs": "all-three-passed",
+    "gate_repair": "Corrected the register's false changed-entrypoint declaration. No gate code was changed."
+  },
+  "supplemental": [
+    {
+      "command": "bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only",
+      "suites": 9,
+      "result": "passed"
+    },
+    {
+      "command": "python3 scripts/check-public-sanitization.py .",
+      "result": "passed"
+    },
+    {
+      "command": "check-ccl-skills.sh (inside repository lane)",
+      "r0_status": "private-ok",
+      "audit_scope": "origin/dev..HEAD plus worktree",
+      "result": "passed"
+    }
+  ],
+  "package": {
+    "command": "REQUIRE_CLEAN_RELEASE=1 EXPECT_SOURCE_COMMIT=<candidate_commit> npm --prefix packages/ccl-skills-npm run test:pack",
+    "tests": 11,
+    "source_state": "clean",
+    "result": "passed",
+    "snapshot_hash": "8c02882481efad63995163ec0504a2147b983a868b4e0c45a31a6cc61d28f9d2",
+    "initial_unchanged_cli_unit_tests": 433
+  },
+  "host_smoke": {
+    "command": "TGZ_PATH=<candidate-tarball> npm --prefix packages/ccl-skills-npm run smoke:host",
+    "signals": [
+      "actual-artifact-cli-passed",
+      "three-host-smoke-passed"
+    ],
+    "result": "passed",
+    "scope": "Disposable homes and synthetic lifecycle versions; original model session was not replayed."
+  },
+  "review": {
+    "original": "review.json",
+    "challenge": "challenge.json",
+    "delta": "delta-review.json",
+    "delta_status": "passed",
+    "findings_disposition": "dispositions.json"
+  },
+  "publication": {
+    "status": "pending",
+    "version": "0.18.13",
+    "release_source": "Protected default-branch merge of the reviewed runtime plus record-only evidence deltas",
+    "required_proof": [
+      "Review and challenge records present and findings disposed",
+      "Tag equals merged default-branch SHA",
+      "Terminal publish workflow",
+      "Registry integrity/provenance/signatures",
+      "Fresh-cache published consumer and shipped hook behavior"
+    ]
+  }
+}
