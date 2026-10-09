@@ -83,3 +83,26 @@ this evidence section records the final results.
 - Invocation guidance, deterministic sender controls and source-record gates
   are verified. Future host invocation compliance, model semantic accuracy and
   media quality remain unmeasured by this slice.
+
+## Integration against current main
+
+The integration candidate is 89d07af82c223cbcf9d6ab284bca53f3dee2adc0,
+containing main at 5cab7572bdca599b44c9fc20e6ca4e3180541501. Only the register
+path overlapped. Its full bytes equal the target plus the original preflight
+section from 4c87d452d492599f15c9404590895808ff70302a; all non-overlapping
+source and target blobs match their originating commits. The comparison passes
+the combined control and rejects both one-sided resolutions and deletion of
+either side's final row.
+
+The independent integration delta review covered that overlapping path against
+the previous source tip, passed without findings, and is recorded in
+`landing-delta-review.json`. All concern conclusions were inspected; the
+whole-file and blob claims were independently verified outside the bounded
+review packet. The original guidance and its review/challenge dispositions are
+unchanged. Later evidence records introduce no executable change.
+
+At this checkpoint, literal `make test` exited 0, including 46 fast suites,
+both review shards and all three abort-cleanup legs. Public sanitization and
+the configured private leakage audit against the pinned main also passed.
+Heavy regression and fresh PR CI are awaited separately before landing;
+the previous source tip's CI is not evidence for the updated tip.
