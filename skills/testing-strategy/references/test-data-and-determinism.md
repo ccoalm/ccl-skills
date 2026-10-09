@@ -10,6 +10,10 @@ Use this when tests need realistic data or must be repeatable run to run.
 - Keep one canonical minimal fixture per scenario; do not grow a shared mega-fixture.
 - Commit only data that is safe, readable, and needed for the assertion.
 
+## Test-owned files
+
+- Use temp directories and cleanup hooks for file output. A temporary smoke/instrumentation test file created only as delivery evidence is removed (or promoted to a maintained test) before the MR/PR (or equivalent review gate) is review-ready — the recorded run output/transcript is the evidence, not the lingering file. Prefer a temp dir or a dry-run/`--no-write` flag over mutating a real tracked repo file in place. If a test or verification MUST seed or mutate a tracked file, undo only the exact thing you added (delete that line/file) and re-check `git status` before continuing. In a non-disposable working tree (one with other uncommitted work or that you are not about to delete wholesale), never clean up with a blanket `git checkout .` / `git checkout -- <file>` / `git reset --hard` / `rm` unless `git status` first proves your seeded mutation is the only change present — otherwise it also discards unrelated uncommitted edits or deletes committed files. (A throwaway worktree or fresh clone you will remove entirely is exempt.)
+
 ## Determinism Controls
 
 Make these injectable, pinned, or normalized in tests:

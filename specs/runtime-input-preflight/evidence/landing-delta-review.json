@@ -1,0 +1,13 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "status": "passed",
+  "selected_client": "claude",
+  "reviewed_commit": "89d07af82c223cbcf9d6ab284bca53f3dee2adc0",
+  "base_commit": "4c87d452d492599f15c9404590895808ff70302a",
+  "paths": ["skills/skill-extraction-workflow/references/source-register.md"],
+  "candidate_sha256": "43ba9741c0added8bf9bfabcdb8b0382ba55a9e904c5a45166aba89d12b2e9e5",
+  "packet_sha256": "1ae492d6ec4c2e1b99c1c48d8d33dff4b9dd4288f2ad9fcd85c5ff1654fb1df7",
+  "review_profile_sha256": "0f3ca60639a7e6082df71368a10fab6c442dcb4f99da4b10c29b89fb735da6b7",
+  "findings": []
+}

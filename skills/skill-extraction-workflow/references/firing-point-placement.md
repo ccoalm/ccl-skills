@@ -14,6 +14,8 @@ The same meta-class — a rule is precise but is walked past at the routing → 
 
 The lesson: a repeat at a new sub-point signals the prior firing point was under-specified. **Naming/knowing an owner is not invoking/loading it** — a named-but-unloaded owner's mechanical rules never fire. The durable lever is to move the owning gate's firing point ONTO the transition itself (pre-substance-draft AND pre-first-impl-edit) and sharpen *name→invoke* at the SAME transition, rather than adding a downstream bullet or more prose. And note the honest limit: a completion-time "interim until the map exists" check does not fire if the agent produces+completes the substance without ever building the map — so the closeout gate + user-signal escalation remain the real-world backstops (do not overclaim the moved firing point is mechanical).
 
+- For recurring hand-assembled live-input failures, you must place the executable prevention at the existing request builder's pre-dispatch hook and connect that invocation to the testing owner's live-execution step. Route the recipe to `testing-strategy/references/e2e-real-flow-testing.md` (Runtime input preflight); keep product schemas and state adapters in their repository. A shared prose rule is not evidence that the dispatch hook ran.
+
 ## The landed mechanical implementation (owner-invoke case)
 
 For the specific owner-dispatch case, the firing point is now **mechanically enforceable where the plugin hooks + a wired CI gate are present** (not merely prose):

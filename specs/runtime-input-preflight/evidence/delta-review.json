@@ -1,0 +1,10 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "status": "passed",
+  "selected_client": "claude",
+  "candidate_sha256": "4f0074674fc0973dce5373f083df7a2406cc145a37667826724b491dab966908",
+  "packet_sha256": "6d12bfa037d280f0a5db45fa3ca9f00a029ef4b5a99c9fde0314ddd985ae73f5",
+  "review_profile_sha256": "760883e8700afdd552c0cc665efb31611b33b5bfb1fa09ce5a5775791f65c569",
+  "findings": []
+}
