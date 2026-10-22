@@ -83,6 +83,36 @@ fi
 # No repository-supplied executable (fsmonitor, pager) runs from this hook.
 g() { git -c core.fsmonitor=false --no-pager -C "$cwd" "$@"; }
 
+# True when HEAD differs from the reviewed commit only by integrating the
+# target (Gerrit's TRIVIAL_REBASE and MERGE_FIRST_PARENT_UPDATE change kinds,
+# narrowed to the path-disjoint case). With the reviewed paths being the files
+# the reviewed commit changed since it met the target: the target changed none
+# of them since then, HEAD holds exactly the reviewed version of each, and
+# every other path in HEAD is exactly the target's. That is what a clean merge
+# of the target or a conflict-free rebase onto it produces; a resolved
+# conflict, an edit in a merge, an extra commit, another merged branch or a
+# relocated edit is not. Only tree entries are compared with plumbing, so no
+# file content is read, no index is written and no diff configuration or
+# repository program applies. The target is the remote default branch; without
+# one, with a promisor remote (a missing tree would be fetched), or on any git
+# error nothing is exempt. Whether the integrated result works is CI's
+# question, not this review's.
+integration_only() {
+  local target fork base path
+  local -a paths=() others=()
+  [ -z "$(g config --get-regexp '^(extensions\.partialclone|remote\..*\.promisor)$' 2>/dev/null)" ] || return 1
+  target=$(g symbolic-ref -q refs/remotes/origin/HEAD 2>/dev/null) || return 1
+  fork=$(g merge-base "$reviewed" "$target" 2>/dev/null) || return 1
+  base=$(g merge-base "$head" "$target" 2>/dev/null) || return 1
+  while IFS= read -r -d '' path; do
+    paths+=(":(top,literal)$path")
+    others+=(":(top,literal,exclude)$path")
+  done < <(g diff-tree -r -z --name-only --no-renames "$fork" "$reviewed" 2>/dev/null)
+  g diff-tree -r --quiet "$fork" "$base" -- "${paths[@]}" 2>/dev/null || return 1
+  g diff-tree -r --quiet "$reviewed" "$head" -- "${paths[@]}" 2>/dev/null || return 1
+  g diff-tree -r --quiet "$base" "$head" -- ':(top)' "${others[@]}" 2>/dev/null
+}
+
 git_dir=$(g rev-parse --absolute-git-dir 2>/dev/null) || exit 0
 head=$(g rev-parse --verify -q 'HEAD^{commit}' 2>/dev/null) || exit 0
 receipt="$git_dir/ccl-code-review/last-review.json"
@@ -106,6 +136,7 @@ else
       reviewed_tree=$(g rev-parse -q --verify "${reviewed}^{tree}" 2>/dev/null || true)
       head_tree=$(g rev-parse -q --verify "${head}^{tree}" 2>/dev/null || true)
       if [ -n "$reviewed_tree" ] && [ "$reviewed_tree" = "$head_tree" ]; then covered=1; fi
+      if [ "$covered" = 0 ] && integration_only; then covered=1; fi
     fi
   fi
   # Coverage is not disposition: a review that returned findings covers HEAD as
