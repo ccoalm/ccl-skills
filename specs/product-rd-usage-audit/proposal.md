@@ -52,6 +52,22 @@ The entrypoint is 73 KB in 51 rule units. The largest:
 
 24 of the 51 units carry 89 phrases that tests, hooks or install scripts quote verbatim. Moving or rewording those phrases means moving their pins in the same change.
 
+### Wider corpus
+
+The same census script, run on the owner's main machine (2026-09-13 to 2026-10-23: 1,155 Claude sessions, 239 with source edits; 3,250 Codex sessions, counted only), supersedes the three-day figures above where they differ:
+
+| Stack skill | Sessions editing that language | Stack skill loaded first | `product-rd-workflow` loaded first |
+| --- | --- | --- | --- |
+| `python-service-dev` | 102 | 65 (64%) | 47 (46%) |
+| `nodejs-service-dev` | 149 | 43 (29%) | 56 (38%) |
+| `web-react-dev` | 53 | 32 (60%) | 17 (32%) |
+| `go-microservice-dev` | 7 | 6 | 5 |
+
+- References read in the window: `product-rd-workflow` 13 of 35 (118 reads); `go-microservice-dev` 0 of 27; `python-service-dev` 1 of 20; `nodejs-service-dev` 0 of 4; `web-react-dev` 0 of 6.
+- P0/P1 categories over 2,062 findings (multi-label): failure path 42%, concurrency 35%, money/permission/data loss 30%, cross-module contract 22%, retry/idempotency 21%, lifecycle 16%, review-packet noise 13%.
+
+So the stack skills are loaded before the first edit in only 29% to 64% of the sessions that edit their language, their references are effectively never read, and the hazard classes are stable across the wider corpus. Part of the `nodejs-service-dev` gap is `.ts`/`.js` code that is not service code.
+
 ## Proposal
 
 Goal: entrypoint from 73 KB to about 25 KB with no gate lost, and the engineering-hazard checks placed where code is written.
@@ -69,7 +85,7 @@ Every move carries a zero-loss obligation map: each obligation before the change
 
 ### B. Stack implementation skills
 
-The stack skills are loaded but their hazard detail sits in references nobody reads, while the most frequent reported P0/P1 classes are failure paths, concurrency and retry/idempotency. Add to each stack entrypoint, near the top, a short pre-edit check for changes that touch shared state, external calls, retries or money: list the states, who writes each, and what happens on a lost response, a duplicate, reordering and a timeout, with one test per row. Keep it under 1 KB per skill and point to the existing references for depth. For `nodejs-service-dev`, check why half the sessions editing `.ts`/`.js` did not load it before editing, and fix the routing only if those edits were service code.
+The stack skills are often not loaded before the first edit, and when they are, their hazard detail sits in references nobody reads, while the most frequent reported P0/P1 classes are failure paths, concurrency, money/permission and retry/idempotency. Add to each stack entrypoint, near the top, a short pre-edit check for changes that touch shared state, external calls, retries or money: list the states, who writes each, and what happens on a lost response, a duplicate, reordering and a timeout, with one test per row. Keep it under 1 KB per skill and point to the existing references for depth. Because the stack skills load before the first edit in only 29% to 64% of the relevant sessions, the check also needs a firing point that does not depend on the agent choosing the stack skill: the existing first-source-edit checkpoint is the candidate. For `nodejs-service-dev`, separate service code from web and tooling `.ts`/`.js` edits before changing its routing.
 
 ### C. Validation before any live trial
 
