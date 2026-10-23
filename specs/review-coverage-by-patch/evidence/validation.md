@@ -120,18 +120,22 @@ including context lines, no conflict resolution; default for Code-Review) and
 
 ## Repository lanes
 
-Tree of commit c9a14c6 (later amends changed only wording in this directory
-and the commit message).
+Tested tree: commit c9a14c6 (tree 9c3d230), base `origin/main` 20c7102. After
+it, `git diff --stat c9a14c6 HEAD` lists only files in this evidence
+directory, so every lane below applies to the current candidate; the
+reference and link checks were rerun on it (`spec_reference_check_ok`,
+`markdown_link_check_ok`).
 
 | Command | Result |
 | --- | --- |
 | `make test` | exit 0 |
 | `bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only` | `regression_heavy_lane_ok: 9 suites` |
 | `python3 scripts/check-public-sanitization.py .` | `public_sanitization_ok` |
-| `python3 skills/skill-extraction-workflow/scripts/check_review_evidence_present.py --repo-root . --base <merge-base with fetched origin/main>` | `review_evidence_present_ok: 5 review, 1 challenge` |
+| `python3 skills/skill-extraction-workflow/scripts/check_review_evidence_present.py --repo-root . --base 20c7102` (merge-base with fetched `origin/main`) | `review_evidence_present_ok: 5 review, 1 challenge` |
 | `CCL_SKILL_BASE_REF=origin/main bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` | `ccl_skill_check_clean_ok`, `r0_status=private-ok` |
 | `python3 skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py --repo . --base-ref origin/main` | `shared_git_surface_gate_ok` |
 | `bash hooks/test_remind_review_covers_head.sh` | 62 passed, 0 failed |
 
-Delta pass 5 on the final hook change reported no P0/P1; its two P2s asked
-for these lane results and wider packet context.
+Delta pass 5 on the final hook change and delta pass 6 on the plan wording
+reported no P0/P1; their P2s asked for these lane results, the tested-tree
+binding and wider packet context.
