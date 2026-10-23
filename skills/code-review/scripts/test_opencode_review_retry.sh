@@ -927,6 +927,17 @@ env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" \
     --skill-registry-root "$WORK/skill-registry" --review-skill testing-strategy \
     --timeout 5 --diagnostic-dir "$WORK/closed-stdout-diagnostics" >&- 2>"$WORK/xtrace.log"; echo "PROBE xtrace rc=$?"
   grep -nE "printf '%s\\n'|TIMEOUT_ARTIFACT_REPORTED=|discard_timeout_artifacts|rm -rf .*opencode-review-timeout" "$WORK/xtrace.log" | tail -12 | sed 's/^/PROBE xt: /'
+  awk 'BEGIN{m="{ printf \"FD@%s: \" \"%s\"; ls -l /proc/$$/fd/1 2>&1; } >>\"$PROBE_FD_LOG\" 2>\"/dev/null\""}
+       NR==2 || NR==300 || NR==450 || NR==600 || NR==900 || NR==1100 || NR==1186 {printf m "\n", "L", NR}
+       {print}
+       NR==525 || NR==869 {printf m "\n", "after", NR}' "$WRAPPER" >"$DIR/opencode_review_fdprobe.sh"
+  rm -rf "$WORK/closed-stdout-diagnostics"/*
+  env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" XDG_DATA_HOME="$WORK/source-data" PROBE_FD_LOG="$WORK/fd.log" \
+    bash "$DIR/opencode_review_fdprobe.sh" --implementer-family claude --diff-file "$WORK/diff.patch" \
+    --review-profile-file "$WORK/native-review-profile.json" \
+    --skill-registry-root "$WORK/skill-registry" --review-skill testing-strategy \
+    --timeout 5 --diagnostic-dir "$WORK/closed-stdout-diagnostics" >&- 2>/dev/null; echo "PROBE fdprobe rc=$?"
+  sed 's/^/PROBE fdlog: /' "$WORK/fd.log"
   printf '#!/usr/bin/env bash\nls -l /proc/$$/fd 2>&1 | sed "s/^/PROBE scriptfd: /" >&2\nprintf "x\\n"; echo "PROBE script printf rc=$?" >&2\n' >"$WORK/fdprobe.sh"
   bash "$WORK/fdprobe.sh" >&-
   ps -eo pid,ppid,pgid,etimes,args --forest | grep -E "opencode|timeout|sleep|cp |stub" | grep -v grep | sed 's/^/PROBE ps0: /'
