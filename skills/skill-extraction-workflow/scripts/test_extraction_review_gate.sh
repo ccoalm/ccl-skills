@@ -274,6 +274,8 @@ for obligation in (
     "Daily development spends two external passes per change",
     "then one challenge on the candidate with the review's fixes applied",
     "A change made after the challenge gets no further reviewer call",
+    "A fix for a confirmed P0/P1 gets one delta pass on that fix alone",
+    "That pass is the last call",
     "fix it with a test that fails before and passes after",
     "A confirmed P0/P1 without such evidence is reported as blocking",
     "The budget is not a permission request; finish without asking",
