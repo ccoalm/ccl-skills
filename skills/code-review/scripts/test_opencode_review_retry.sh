@@ -921,6 +921,34 @@ env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" \
 check "closed stdout cannot strand an unreported diagnostic child" \
   '[ "$closed_stdout_rc" = 2 ] && [ -z "$(find "$WORK/closed-stdout-diagnostics" -mindepth 1 -print -quit)" ]'
 
+# A stdout that was closed when the wrapper started can be reused by a later
+# open inside the wrapper, so the final write lands in that file and reports
+# success. Reopen fd 1 on the line before that write, which runs whether or
+# not the write does, to make the reuse deterministic.
+cat >"$WORK/reused-stdout-env.sh" <<'STUB'
+# BASH_ENV reaches every child bash too; only the wrapper itself may reopen fd 1.
+if [ -z "${REUSED_STDOUT_WRAPPER_PID:-}" ]; then
+  REUSED_STDOUT_WRAPPER_PID="$$"
+  export REUSED_STDOUT_WRAPPER_PID
+fi
+[ "$$" = "$REUSED_STDOUT_WRAPPER_PID" ] && trap 'case "$BASH_COMMAND" in "trap "*" INT TERM HUP PIPE") ! [ /dev/fd/1 -ef /dev/null ] || : >"$HELD_STDOUT_MARKER"; exec 1>>"$REUSED_STDOUT_FILE"; trap - DEBUG ;; esac' DEBUG
+STUB
+mkdir -p "$WORK/reused-stdout-diagnostics"
+: >"$WORK/reused-stdout.out"
+rm -f "$WORK/state/stdout-held"
+printf '%s' native_stream_timeout >"$WORK/state/review_mode"
+env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" \
+  XDG_DATA_HOME="$WORK/source-data" BASH_ENV="$WORK/reused-stdout-env.sh" \
+  REUSED_STDOUT_FILE="$WORK/reused-stdout.out" HELD_STDOUT_MARKER="$WORK/state/stdout-held" \
+  bash "$WRAPPER" --implementer-family claude --diff-file "$WORK/diff.patch" \
+  --review-profile-file "$WORK/native-review-profile.json" \
+  --skill-registry-root "$WORK/skill-registry" --review-skill testing-strategy \
+  --timeout 5 --diagnostic-dir "$WORK/reused-stdout-diagnostics" >&-; reused_stdout_rc=$?
+check "a closed stdout reused inside the wrapper neither reports nor strands a diagnostic child" \
+  '[ "$reused_stdout_rc" = 2 ] && [ -z "$(find "$WORK/reused-stdout-diagnostics" -mindepth 1 -print -quit)" ] && [ ! -s "$WORK/reused-stdout.out" ]'
+check "a closed stdout is held on /dev/null so no later open can take fd 1" \
+  '[ -e "$WORK/state/stdout-held" ]'
+
 cat >"$WORK/post-write-signal-env.sh" <<'STUB'
 if [ -z "${WRAPPER_TEST_PID:-}" ]; then
   WRAPPER_TEST_PID="$$"
