@@ -278,6 +278,7 @@ for obligation in (
     "That pass is the last call",
     "Deferral never clears a confirmed P0/P1",
     "within this budget neither is a stop or a request for a person",
+    "these are advisory fields that no hook or CI check enforces",
     "skill text, agent instructions, prompts, runbooks and other operational recipes are not exempt",
     "run the review with `--challenge-budget 0` and the challenge with `--mode challenge --challenge-budget 1 --focus <surface>`",
     "fix it with a test that fails before and passes after",
