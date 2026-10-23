@@ -276,6 +276,7 @@ for obligation in (
     "A change made after the challenge gets no further reviewer call",
     "A fix for a confirmed P0/P1 gets one delta pass on that fix alone",
     "That pass is the last call",
+    "run the review with `--challenge-budget 0` and the challenge with `--mode challenge --challenge-budget 1 --focus <surface>`",
     "fix it with a test that fails before and passes after",
     "A confirmed P0/P1 without such evidence is reported as blocking",
     "The budget is not a permission request; finish without asking",
