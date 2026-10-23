@@ -918,6 +918,28 @@ env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" \
   --review-profile-file "$WORK/native-review-profile.json" \
   --skill-registry-root "$WORK/skill-registry" --review-skill testing-strategy \
   --timeout 5 --diagnostic-dir "$WORK/closed-stdout-diagnostics" >&-; closed_stdout_rc=$?
+{
+  echo "PROBE env path: $(readlink -f "$(command -v env)")"
+  env bash -c 'echo "PROBE via env fd1=$(readlink /proc/$$/fd/1 || echo closed)"' >&- 2>&1 >/dev/null
+  env bash -c 'echo "PROBE via env fd1=$(readlink /proc/$$/fd/1 2>/dev/null || echo closed)" >&2' >&-
+  bash -c 'echo "PROBE direct fd1=$(readlink /proc/$$/fd/1 2>/dev/null || echo closed)" >&2' >&-
+  /usr/bin/env bash -c 'echo "PROBE /usr/bin/env fd1=$(readlink /proc/$$/fd/1 2>/dev/null || echo closed)" >&2' >&-
+  for i in 1 2 3; do
+    for how in env direct; do
+      d="$WORK/probe-$how-$i"; mkdir -p "$d"; chmod 700 "$d"
+      if [ "$how" = env ]; then
+        env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" XDG_DATA_HOME="$WORK/source-data" \
+          bash "$WRAPPER" --implementer-family claude --diff-file "$WORK/diff.patch" --review-profile-file "$WORK/native-review-profile.json" \
+          --skill-registry-root "$WORK/skill-registry" --review-skill testing-strategy --timeout 5 --diagnostic-dir "$d" >&- 2>/dev/null; rc=$?
+      else
+        PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" XDG_DATA_HOME="$WORK/source-data" \
+          bash "$WRAPPER" --implementer-family claude --diff-file "$WORK/diff.patch" --review-profile-file "$WORK/native-review-profile.json" \
+          --skill-registry-root "$WORK/skill-registry" --review-skill testing-strategy --timeout 5 --diagnostic-dir "$d" >&- 2>/dev/null; rc=$?
+      fi
+      echo "PROBE run $how #$i rc=$rc kept=$(find "$d" -mindepth 1 -maxdepth 1 | wc -l)"
+    done
+  done
+} >&2
 check "closed stdout cannot strand an unreported diagnostic child" \
   '[ "$closed_stdout_rc" = 2 ] && [ -z "$(find "$WORK/closed-stdout-diagnostics" -mindepth 1 -print -quit)" ]'
 
