@@ -918,6 +918,15 @@ env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" \
   --review-profile-file "$WORK/native-review-profile.json" \
   --skill-registry-root "$WORK/skill-registry" --review-skill testing-strategy \
   --timeout 5 --diagnostic-dir "$WORK/closed-stdout-diagnostics" >&-; closed_stdout_rc=$?
+{
+  echo "PROBE rc=$closed_stdout_rc"
+  echo "PROBE leftover:"; find "$WORK/closed-stdout-diagnostics" -mindepth 1 -maxdepth 2 -print
+  echo "PROBE bash=$BASH_VERSION"; timeout --version 2>&1 | head -1 | sed 's/^/PROBE timeout: /'
+  readlink -f "$(command -v timeout)" | sed 's/^/PROBE timeout path: /'
+  ( printf 'x\n' ) >&-; echo "PROBE builtin printf to closed stdout rc=$?"
+  bash -c 'printf "x\n"; echo "PROBE inner rc=$?" >&2' >&-
+  bash -c 'exec 3>/dev/null; ls -l /proc/$$/fd/1 2>&1 | sed "s/^/PROBE fd1: /" >&2' >&-
+} >&2
 check "closed stdout cannot strand an unreported diagnostic child" \
   '[ "$closed_stdout_rc" = 2 ] && [ -z "$(find "$WORK/closed-stdout-diagnostics" -mindepth 1 -print -quit)" ]'
 
