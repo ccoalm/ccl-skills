@@ -120,4 +120,18 @@ including context lines, no conflict resolution; default for Code-Review) and
 
 ## Repository lanes
 
-Filled in from the final candidate's runs below.
+Tree of commit c9a14c6 (later amends changed only wording in this directory
+and the commit message).
+
+| Command | Result |
+| --- | --- |
+| `make test` | exit 0 |
+| `bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only` | `regression_heavy_lane_ok: 9 suites` |
+| `python3 scripts/check-public-sanitization.py .` | `public_sanitization_ok` |
+| `python3 skills/skill-extraction-workflow/scripts/check_review_evidence_present.py --repo-root . --base <merge-base with fetched origin/main>` | `review_evidence_present_ok: 5 review, 1 challenge` |
+| `CCL_SKILL_BASE_REF=origin/main bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` | `ccl_skill_check_clean_ok`, `r0_status=private-ok` |
+| `python3 skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py --repo . --base-ref origin/main` | `shared_git_surface_gate_ok` |
+| `bash hooks/test_remind_review_covers_head.sh` | 62 passed, 0 failed |
+
+Delta pass 5 on the final hook change reported no P0/P1; its two P2s asked
+for these lane results and wider packet context.
