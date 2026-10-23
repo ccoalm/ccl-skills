@@ -920,6 +920,15 @@ env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" \
   --timeout 5 --diagnostic-dir "$WORK/closed-stdout-diagnostics" >&-; closed_stdout_rc=$?
 {
   echo "PROBE rc=$closed_stdout_rc"
+  rm -rf "$WORK/closed-stdout-diagnostics"/*
+  env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" XDG_DATA_HOME="$WORK/source-data" \
+    bash -x "$WRAPPER" --implementer-family claude --diff-file "$WORK/diff.patch" \
+    --review-profile-file "$WORK/native-review-profile.json" \
+    --skill-registry-root "$WORK/skill-registry" --review-skill testing-strategy \
+    --timeout 5 --diagnostic-dir "$WORK/closed-stdout-diagnostics" >&- 2>"$WORK/xtrace.log"; echo "PROBE xtrace rc=$?"
+  grep -nE "printf '%s\\n'|TIMEOUT_ARTIFACT_REPORTED=|discard_timeout_artifacts|rm -rf .*opencode-review-timeout" "$WORK/xtrace.log" | tail -12 | sed 's/^/PROBE xt: /'
+  printf '#!/usr/bin/env bash\nls -l /proc/$$/fd 2>&1 | sed "s/^/PROBE scriptfd: /" >&2\nprintf "x\\n"; echo "PROBE script printf rc=$?" >&2\n' >"$WORK/fdprobe.sh"
+  bash "$WORK/fdprobe.sh" >&-
   ps -eo pid,ppid,pgid,etimes,args --forest | grep -E "opencode|timeout|sleep|cp |stub" | grep -v grep | sed 's/^/PROBE ps0: /'
   for t in 1 5; do sleep "$t"; echo "PROBE after ${t}s:"; find "$WORK/closed-stdout-diagnostics" -mindepth 1 -maxdepth 3 -printf 'PROBE  %TT %p\n'; done
   ps -eo pid,ppid,pgid,etimes,args --forest | grep -E "opencode|timeout|sleep|cp |stub" | grep -v grep | sed 's/^/PROBE ps6: /'
