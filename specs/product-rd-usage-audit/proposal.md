@@ -1,6 +1,6 @@
 # Usage census and slimming proposal
 
-Corpus: local Claude transcripts from the last 30 days, 55 sessions, 42 with source edits. Single user, single machine; rare paths such as release or destructive change are judged by mechanism, not frequency. Codex transcripts are not included.
+Corpus: every Claude transcript on one machine, 2026-10-21 to 2026-10-23. That is three days, the machine's whole history: 55 sessions, 42 with source edits, a few repositories concentrated in one product domain. Single user; rare paths such as release or destructive change are judged by mechanism, not frequency. Codex transcripts are not included. "Never read" below means never read in those three days, which is weak evidence for rarely needed references.
 
 ## Census
 
