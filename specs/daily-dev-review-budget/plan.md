@@ -57,4 +57,4 @@ Measured by script over local Claude and Codex transcripts (private archive, rec
 - **Local full test runs in daily development:** a minor cost. The test-selection pointer prevents drift, and no test rule changes.
 - **Reruns with no recorded edit:** many passes followed no recorded edit. These are retries, reruns or shell edits. The existing "never rerun an unchanged candidate for zero findings" rule stays.
 - **This repository (out of scope here):** `make test` took 28.7% of active time, with a median of 22 minutes per run, and was rerun in each review loop. This is noted as a follow-up for the repository contract.
-- **Independent recount:** a separate regex over the same raw records gave higher counts in the same direction, so the figures above are a lower bound.
+- **Independent recount:** a separate regex over the same raw records gave higher counts in the same direction. Both classifiers are heuristic, so the figures are session-level estimates, not exact counts per change.
