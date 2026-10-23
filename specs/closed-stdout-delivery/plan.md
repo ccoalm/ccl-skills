@@ -1,5 +1,10 @@
 # Report delivery only to the caller's stdout
 
+> **Withdrawn.** The cause below (fd 1 reused by an open inside the wrapper)
+> was never observed; a later comparison on the failing image showed that the
+> test's `env` reopened the closed stdout on `/dev/null` instead. The wrapper
+> change was reverted. See `specs/closed-stdout-test-launch/plan.md`.
+
 `code-review-regressions-1` fails intermittently on the `ubuntu-26.04` runner
 image (`ubuntu-latest` moved from 24.04): "closed stdout cannot strand an
 unreported diagnostic child" in `test_opencode_review_retry.sh`. Main's own

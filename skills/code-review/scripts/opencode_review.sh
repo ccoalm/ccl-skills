@@ -25,16 +25,6 @@
 # Output: one JSON line (the judge's verdict). Exit 0 = passed/findings, 2 = inconclusive.
 set -uo pipefail
 umask 077
-# The result is delivered only on the stdout the caller handed over. When that
-# stdout is closed, fd 1 is the lowest free descriptor and a later open here
-# could take it, so a write would "succeed" into an unrelated file. Hold fd 1
-# on /dev/null instead and remember that nothing can be delivered. (bash tests
-# /dev/fd/N as "descriptor N is open" on every platform.)
-CALLER_STDOUT_OPEN=true
-if [ ! -e /dev/fd/1 ]; then
-  CALLER_STDOUT_OPEN=false
-  exec 1>/dev/null
-fi
 
 BASE=""; DIFF_FILE=""; REVIEW_PROFILE_FILE=""; MODE="review"; IMPL_FAMILY=""; TIMEOUT="600"
 SKILL_REGISTRY_ROOT=""
@@ -1194,7 +1184,7 @@ if [ -n "$TIMEOUT_ARTIFACT_NAME" ] \
   discard_timeout_artifacts || true
 fi
 trap '' INT TERM HUP PIPE
-if [ "$CALLER_STDOUT_OPEN" = true ] && printf '%s\n' "$OUT"; then
+if printf '%s\n' "$OUT"; then
   [ -z "$TIMEOUT_ARTIFACT_NAME" ] || TIMEOUT_ARTIFACT_REPORTED="true"
   trap post_handoff_signal_cleanup INT TERM HUP
   trap - PIPE
