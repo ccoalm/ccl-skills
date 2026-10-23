@@ -177,6 +177,18 @@ must git -C "$ir" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
 fresh; must git -C "$ir" merge --no-commit main
 printf 'sneaked\n' >"$ir/feature.txt"; must git -C "$ir" commit -qam "merge with an edit"
 probe "A2 merge commit carrying an edit" remind 'gh pr merge 3 --merge' "$ir" '评审之后又有这些提交'
+# The reminder carries the daily two-pass budget, not the retired five-rerun rule.
+probe "A2 reminder names the challenge budget" remind 'gh pr merge 3 --merge' "$ir" 'review + challenge 两次用完后，不再调评审器'
+probe "A2 reminder exempts high-risk and extraction work" remind 'gh pr merge 3 --merge' "$ir" '高风险改动和技能提炼线按各自的闸走'
+probe "A2 reminder sends new scope back to review" remind 'gh pr merge 3 --merge' "$ir" '新增的行为或范围算新改动'
+probe "A2 reminder keeps behavior-governing docs under review" remind 'gh pr merge 3 --merge' "$ir" '技能文本、agent 指令、prompt、runbook 不算'
+probe "A2 reminder excludes loosened assertions" remind 'gh pr merge 3 --merge' "$ir" '删除、跳过或放宽断言不在此列'
+out_retired=$(jq -nc --arg d "$ir" '{tool_input:{command:"gh pr merge 3 --merge"},cwd:$d}' | bash "$HOOK")
+if printf '%s' "$out_retired" | grep -qF '重审最多 5 次'; then
+  fail=$((fail+1)); printf 'FAIL  [A2 reminder restores the five-rerun rule]\n' >&2
+else
+  pass=$((pass+1))
+fi
 
 must git -C "$ir" checkout -q -b other "$reviewed~1"
 ic other.txt other "another author branch"
