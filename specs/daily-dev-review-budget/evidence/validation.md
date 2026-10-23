@@ -31,6 +31,8 @@ D2 is the third finding in the same class: evidence that the sequence can run on
 
 Delta 2 (`evidence/delta-review-2.json`, base e088ed9) raised the same class a fourth time: no evidence shows that disposition clears `completion_gated` / `self_review_gate.blocks: completion_claim`. Same-class decision: **narrow**. The receipt design stays, and the rule names the fields. Evidence: `git grep -l -E "completion_gated|self_review_gate" -- ':!specs' ':!*.md'` lists only `skills/code-review/scripts/review_gate.py`, the writer. No hook, CI workflow or script reads either field, and this round's own challenge and delta passes ran after findings receipts without refusal. Nothing mechanical blocks completion. The defect was that an agent could read the advisory fields as a stop, so step 3 now names `completion_gated` beside `human_decision_required` as advisory and not a stop within the budget.
 
+Delta 3 (`evidence/delta-review-3.json`, base 5795e9d) raised the class a fifth time and asked whether `review_gate.py` itself enforces the gate. That source is outside the reviewer's packet, so it was checked here. `review_gate.py` reads a prior receipt's `self_review_gate` and `completion_gated` only in `validate_completion_checkpoint` (`review_gate.py:4231`, reads at `:4244` and `:4350`). That is the optional `--mode complete` path, and it treats the fields as required inputs. No path refuses a report, a pull request or a later pass because of them. Disposition: source-refuted. No rule change, and no further pass for this class; this record changes no executable file.
+
 ## Behavioral evidence
 
 RED-baseline: the pins and probes above change state between the base text and the candidate. Session evidence for the cost is in `../plan.md` (Evidence).
