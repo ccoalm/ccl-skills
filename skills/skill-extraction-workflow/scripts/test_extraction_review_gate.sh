@@ -268,6 +268,19 @@ for obligation in (
     "A missing conclusive pass or unresolved P0/P1 remains pending",
 ):
     assert obligation in completion, f"review continuation lost '{obligation}'"
+# Daily development: one review, then one challenge on the fixed candidate, then
+# agent disposition with evidence; never a fresh full rerun of every changed candidate.
+for obligation in (
+    "Daily development spends two external passes per change",
+    "then one challenge on the candidate with the review's fixes applied",
+    "A change made after the challenge gets no further reviewer call",
+    "fix it with a test that fails before and passes after",
+    "A confirmed P0/P1 without such evidence is reported as blocking",
+    "The budget is not a permission request; finish without asking",
+    "testing-strategy/references/ci-fixtures-and-flake-control.md#local-evidence-selection",
+):
+    assert obligation in completion, f"daily review budget lost '{obligation}'"
+assert "a fresh full run per [manual invocation]" not in completion, "completion restores the fresh full rerun of every changed candidate"
 wording_only = (root / "skills/code-review/references/wording-only-review.md").read_text(encoding="utf-8")
 assert "--wording-only-proof-file" in wording_only
 assert "--challenge-budget 0" in wording_only
