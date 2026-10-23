@@ -78,3 +78,25 @@ Refuted from the suite: `$WORK/bin` holds only `cat`, `head`, `ls`,
 `opencode`, `python3`, `stat` and `timeout`, so `bash` is the system shell;
 `BASH_ENV` is set only inside a command substitution near line 573 and around
 the post-write signal case after this one, where it is unset again.
+
+## Rebuild on the pushed branch and its delta pass
+
+The pull request branch already held the withdrawn wrapper commit, so this
+round was rebuilt on top of it instead of rewriting it: commit 7901a3a reverts
+the wrapper to `main`, carries the test file and this directory unchanged from
+the reviewed candidate, marks the withdrawn round, and appends a superseding
+register row. `git diff --numstat` per commit shows the register gaining one
+line and losing none in each of the two commits.
+
+Delta pass over that rebuild (codex, 4 P2, no P0/P1), run against the earlier
+local candidate, which is not an ancestor of 7901a3a:
+
+- Register row "replaced": an artifact of that base; per commit the register
+  is append-only, as above.
+- Launcher, probe, local RED/GREEN and sibling inventory missing from the
+  packet: they are in this file, unchanged by the rebuild.
+
+Lanes on 7901a3a: `make test` exit 0, heavy lane
+`regression_heavy_lane_ok: 9 suites`, `public_sanitization_ok`,
+`shared_git_surface_gate_ok`, and all eight CI checks green on ubuntu-26.04,
+including `code-review-regressions-1`.
