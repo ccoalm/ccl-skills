@@ -920,6 +920,9 @@ env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" \
   --timeout 5 --diagnostic-dir "$WORK/closed-stdout-diagnostics" >&-; closed_stdout_rc=$?
 {
   echo "PROBE rc=$closed_stdout_rc"
+  ps -eo pid,ppid,pgid,etimes,args --forest | grep -E "opencode|timeout|sleep|cp |stub" | grep -v grep | sed 's/^/PROBE ps0: /'
+  for t in 1 5; do sleep "$t"; echo "PROBE after ${t}s:"; find "$WORK/closed-stdout-diagnostics" -mindepth 1 -maxdepth 3 -printf 'PROBE  %TT %p\n'; done
+  ps -eo pid,ppid,pgid,etimes,args --forest | grep -E "opencode|timeout|sleep|cp |stub" | grep -v grep | sed 's/^/PROBE ps6: /'
   echo "PROBE leftover:"; find "$WORK/closed-stdout-diagnostics" -mindepth 1 -maxdepth 2 -print
   echo "PROBE bash=$BASH_VERSION"; timeout --version 2>&1 | head -1 | sed 's/^/PROBE timeout: /'
   readlink -f "$(command -v timeout)" | sed 's/^/PROBE timeout path: /'
