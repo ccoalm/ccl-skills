@@ -102,3 +102,18 @@ Four delivery cases, three runs per case per arm, same graders on both arms: a C
 | `test-repo-gates` | all ok except `hooks/test_host_input.py` (17 failures) and `hooks/test_remind_unverified_cli_flag.sh` (100 pass, 19 fail) |
 
 All three failures reproduce identically on `main` at 590eb29 on this host, run in the same session; they are host baseline failures, not caused by this change. CI on a pull request is the authoritative run for them.
+
+## Full local lane after rebasing onto main at f6cc294
+
+The three host baseline failures were fixed on `main`, and the branch was rebased onto it; the rebase brought in exactly that change and left the branch's own content unchanged.
+
+| Lane | Result |
+| --- | --- |
+| `test-repo-gates` | all ok |
+| `test-regressions-fast` | all ok |
+| `test-code-review` | all ok except one assertion in `test_cli_review_wrappers.sh` ("Kimi reports a capability probe that exits on its timeout signal", a 5-second timeout case), with the host load average near 29 |
+| `test_cli_review_wrappers.sh` rerun alone, three times | 0 failures each time, two of them at the same load |
+| `test_check_ccl_regressions.sh --heavy-only` (`SUITE_JOBS=1`) | `test_check_ccl_regressions_heavy_only_ok` |
+| `check_review_evidence_present.py`, `shared_git_surface_gate.py`, `check-public-sanitization.py`, `git diff --check` | ok |
+
+The branch changes no file under `skills/code-review/`, so the one failure is recorded as a load-dependent flake in a timing-sensitive case, not caused by this change.
