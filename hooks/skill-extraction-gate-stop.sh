@@ -45,7 +45,8 @@ command -v python3 >/dev/null 2>&1 && [ -r "$HELPER" ] || {
 }
 CWD=$(printf '%s' "$IN" | jq -r '.cwd // empty' 2>/dev/null)
 SUMMARY=$(python3 "$HELPER" transcript "$TRANSCRIPT" "${CWD:-$PWD}" 2>/dev/null) || {
-  if printf '%s' "$SUMMARY" | jq -e '.truncated == true' >/dev/null 2>&1; then
+  # A failed helper may print nothing, and jq 1.6 `-e` exits 0 on empty input.
+  if [ -n "$SUMMARY" ] && printf '%s' "$SUMMARY" | jq -e '.truncated == true' >/dev/null 2>&1; then
     # A complete recent context may prove invocation despite the old prefix.
     # Otherwise the helper emits this advisory at most once per actor/file.
     printf '%s' "$IN" | python3 "$HELPER" extraction-overflow 2>/dev/null ||

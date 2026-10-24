@@ -67,8 +67,9 @@ probe() {
   run_hook "$cmd" "$sess"
   got="quiet"
   # Assert the STRUCTURE the PreToolUse consumer reads, not just the key name: a
-  # top-level `additionalContext` is valid JSON the host ignores.
-  printf '%s' "$HOOK_OUT" | jq -e \
+  # top-level `additionalContext` is valid JSON the host ignores. Empty output is
+  # quiet before jq runs: jq 1.6 `-e` exits 0 on empty input.
+  [ -n "$HOOK_OUT" ] && printf '%s' "$HOOK_OUT" | jq -e \
     '.hookSpecificOutput.hookEventName == "PreToolUse"
      and (.hookSpecificOutput.additionalContext | type) == "string"
      and (.hookSpecificOutput.additionalContext | length) > 0' >/dev/null 2>&1 && got="remind"
