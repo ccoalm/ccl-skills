@@ -122,6 +122,7 @@ Retired outright: lines 52, 53, 55 and 56 of Generalization Discipline (homes ve
 1. Deterministic: all repository lanes green except the known host baseline failures; size budget shrinks; the disposition ledger above is checked row by row against the diff.
 2. Dual-track review and challenge on the diff. The packet carries the old and new entrypoint, the hooks that read it, every destination reference, and this ledger, so each row can be checked against real text rather than taken on trust.
 3. Behavior: the `evals-stack-hazard` hard suite, three runs per case on the redesigned branch. The baseline is the existing 24-run `main` result at 590eb29 from the stack hazard round (mean 0.760, code handles the hazard 17/24, $23.79). Pass requires all three: every case keeps at least `main`'s "code handles the hazard" count, where a case that loses any pass is rerun three more times and its six-run rate must be at least `main`'s three-run rate; mean score at least 0.710; total cost below $23.79. Any failed condition blocks the merge and sends the failing case back to the ledger.
+4. No daily-use trial. The text moved verbatim and only four lines were retired, so the loss a trial would catch is covered by review and the pins; run in sequence after the review-budget trial, a daily trial would delay the decision by weeks. After merge, the usage stats script tracks loads and reference reads, and a regression is undone by reverting the change.
 
 ## Landed as
 
