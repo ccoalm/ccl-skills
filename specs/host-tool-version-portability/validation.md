@@ -23,6 +23,7 @@ Host: git 2.39.5, jq 1.6, Python 3.12 with a virtual environment first on `PATH`
 | `hooks/test_session_start.sh`, `hooks/test_skill_loading.py` | not run | ok |
 | `check-ccl-skills.sh`, `check-public-sanitization.py`, `git diff --check` | not run | `ccl_skill_check_interim_ok` (R0 pending maintainer audit), ok, ok |
 | `make -k test` (`SUITE_JOBS=1`) | fails in `test-repo-gates` and `test-regressions-fast` on the three suites above | exit 0, all three lanes green |
+| `test_check_ccl_regressions.sh --heavy-only` (`SUITE_JOBS=1`) | not run | `test_check_ccl_regressions_heavy_only_ok`. One earlier run with parallel suites failed W1 of `test_pinned_phrase_mutation_walk.sh` inside the evidence-card self-test; that suite passed twice when run alone and the serial lane passed, so it is recorded as a load-dependent flake, not caused by this change |
 
 ## Passes
 
