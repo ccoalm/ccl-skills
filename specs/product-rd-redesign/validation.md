@@ -49,3 +49,7 @@ Run on 4c78255, the candidate after the review fixes, in the same two partitions
 | C1 product/spec normalization and standards-to-health-gate work no longer reach the shared-gate classification | Applied: both are back in the shared-gate trigger. |
 | C1, C2 evidence gaps on preservation | Checked mechanically: of 183 old entrypoint lines of 30 characters or more, all but 13 appear verbatim in the new entrypoint or a reference. The 13 are line 61 (rewritten as the stage-boundary sentence), line 135 (retired) and lines 223–233 (the old reference-loading list). Every reference that list names is still named in the new entrypoint, and each conditional load survives at its trigger. |
 | C2 evidence gap on the exemption | Checked by mutation: changing one word in register line 598 makes `register-firing-path-resolution.rb` fail with `register_firing_path_unresolved`; restoring it passes. The exemption covers only that exact row. |
+
+## Delta review (`evidence/impl-delta-review.json`)
+
+Run over the two challenge fixes and the new register row, base 4c78255. One P2, an evidence gap: the narrow packet held only the two restored triggers, not this file. The other six restorations are the review findings applied above, and the check results are the GREEN table plus `check-ccl-skills.sh` rerun after this round (`ccl_skill_check_interim_ok`). No further review round runs on this candidate.
