@@ -66,3 +66,39 @@ Same eight cases, settings and three runs per case as the `main` baseline.
 No case lost a judge pass; every case matches `main`'s count. The mean clears 0.710. Cost is $0.22 over the "below $23.79" bar.
 
 This suite cannot decide the redesign. Two diagnostic runs with traces kept (`hard-react-checkout`, `hard-go-deposits`) loaded the stack skill and `multi-agent-delegation`, never `product-rd-workflow`: these are narrow coding tasks that route straight to the stack owner. The entrypoint therefore never enters these sessions, and the cost difference is run-to-run variation (single runs of one case range from $0.69 to $1.41). What the suite shows is that narrow coding work did not regress. The cost condition is judged on the delivery suite below, whose cases enter product-rd.
+
+## Delivery suite (candidate 03216ed against `main` at 590eb29)
+
+Four delivery cases, three runs per case per arm, same graders on both arms: a CSV export feature, a per-user daily upload quota, invoice-paid webhooks, and removing a replaced endpoint whose module a scheduled job still calls. The export case ran a second round after a grader fix, described below.
+
+| Measure | main | candidate |
+| --- | --- | --- |
+| Runs that loaded `product-rd-workflow` | 9 of 9 export and webhook runs; 0 of 6 quota and removal runs | same |
+| Cost per run, runs that loaded product-rd (n=9 each) | mean $1.41, sd $0.33 | mean $1.15, sd $0.37 |
+| Cost per run, runs that did not (n=6 each) | mean $0.83 | mean $0.74 |
+| Export judge, second round | 3/3 | 2/3 |
+| Export range check, second round | 2/3 | 3/3 |
+| Webhook judge | 1/3 | 2/3 |
+| Quota judge | 0/3 | 0/3 |
+| Removal: route, doc row, scheduled caller kept | 9/9 | 9/9 |
+| Removal: v1 test removed | 3/3 | 2/3 |
+| Plan file written before code | 0/12 | 0/12 |
+| Continuation line in the final message | 12/12 | 12/12 |
+
+- **Quality:** no difference found. Every candidate export run that the judge failed (three in the first round, one in the second) keeps the failing piece outside `orders/export.py`, the only file the judge reads: the inverted-range check in `api/routes.py` in all three first-round failures, and the inclusive end date (`end + timedelta(days=1)`) in the route for the second-round failure. The same placement made a first-round `main` run fail. The traces show every export run in both arms rejects an inverted range somewhere.
+- **Grader fix:** the first round's export judge also required the range check, and the Write/Edit regexes assumed `file_path` is the first input field, which an Edit with `replace_all` breaks. The range check became its own trace grader and both regexes accept the `replace_all` field; the fixed graders were checked on the first-round traces and a negative-control trace before the second round, and both arms used the same files.
+- **Cost:** the point estimate is 18% lower per product-rd run, but with nine runs per arm the difference is within run-to-run spread (t ≈ 1.6). The certain saving is fixed per load: the entrypoint is 44,247 bytes smaller (75,741 to 31,494 at 4c78255; 31,659 now).
+- **No reference reads:** no run in either arm opened a product-rd reference file, so moving text into references does not change what these sessions read.
+- **Plan gate:** neither arm wrote a plan file before code in any case; this is current `main` behavior, unchanged by the redesign.
+
+## Full local lane (candidate 03216ed)
+
+`make -k test` with `SUITE_JOBS=1`, then each `test-repo-gates` command after the first failure run individually. Python 3.12 here has no PyYAML or pytest, so the lane ran with a virtual environment first on `PATH`.
+
+| Lane | Result |
+| --- | --- |
+| `test-code-review` | all suites ok |
+| `test-regressions-fast` | all ok except `test_check_ccl_skill_catalog.sh` (`c12-upstream-empty`) |
+| `test-repo-gates` | all ok except `hooks/test_host_input.py` (17 failures) and `hooks/test_remind_unverified_cli_flag.sh` (100 pass, 19 fail) |
+
+All three failures reproduce identically on `main` at 590eb29 on this host, run in the same session; they are host baseline failures, not caused by this change. CI on a pull request is the authoritative run for them.
