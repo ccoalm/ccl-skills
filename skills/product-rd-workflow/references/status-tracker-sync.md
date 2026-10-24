@@ -75,3 +75,7 @@ Route must-not-lose decisions to a durable record with path/link and owner:
 A squashable MR comment/log is not durable unless mirrored into one of those records.
 
 Human-facing rollup may live in a tracker or milestone. It is not the agent's continuation truth, and the two do not copy each other.
+
+## When the delivery-status ledger is required
+
+- For multi-repo delivery, or any delivery that changes remote branch, MR, pipeline, release, or deployable-artifact state, maintain a compact per-changed-unit delivery-status ledger (row schema + persistence rules in `references/status-tracker-sync.md`) before claiming done, recommending MR/merge, or choosing the next slice. A required verification/review gate passes only when its state is `success`, `not-applicable`, or `not-required`; any other state blocks a done/merge recommendation, so remediate, wait to a terminal state, or report the delivery as pending with the unblock action. Residual-risk acceptance by the user only permits the recommendation/handoff label for that concrete action; it does **not** authorize merge, auto-merge, default-branch push, or cleanup, which still require the user's explicit merge instruction for the current MR (per `worktree-isolation`). Small local-only multi-file edits use the normal concise status unless they introduce remote, CI, MR, release, or deployable-artifact state.

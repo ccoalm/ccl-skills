@@ -32,3 +32,7 @@ The workflow owns the acceptance dimension only; route execution + evidence per 
 - Deprecation / migration → `platform-release-engineering`.
 
 Do not build a generic DX-scorecard skill — the acceptance gate lives in the entrypoint, and the recipes stay with the executor owners.
+
+## When developer experience is an acceptance dimension
+
+- **Developer-facing surfaces** (CLI / SDK / library / public API / developer docs): the user is a developer, so developer experience is an acceptance dimension. **For a new/public developer surface, or a change touching onboarding, install/setup, first-success, defaults, error surfaces, or a breaking migration**, prove DX by the **measured onboarding journey** — run the real discover→install→first-success path as a new user; do not infer DX from README / feature-list quality. Error messages are a first-class acceptance item; a non-safety default needs a safe override or a documented no-escape rationale; a **safety / security default stays fail-closed** (widening needs risk-owner approval; DX never licenses an `--insecure` bypass); breaking changes need a migration path. Journey metrics, segment proof, blocked handling, and per-surface executor routing: `references/verify-developer-experience.md`.

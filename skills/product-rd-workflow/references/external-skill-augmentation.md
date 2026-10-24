@@ -44,3 +44,7 @@ Illustrative only — the actual canonical owner is whatever the current session
 - retro family
 - repo-health family
 - skill-authoring family
+
+## Ownership summary
+
+CCL skills remain primary owners of every stage and every gate. Installed external skills may supplement a narrow lifecycle discipline, but they never replace CCL ownership, never become required gates, and never block delivery when absent; discover them from the current session's available-skills list and map each to a narrow role before use. Operational detail: `references/external-skill-augmentation.md`.

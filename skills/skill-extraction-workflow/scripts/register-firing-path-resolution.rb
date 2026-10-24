@@ -96,6 +96,8 @@ EXEMPT = {
     "065 moved platform mechanics to the canonical client-owner return while keeping platform guidance scoped",
   "file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#Interaction-state matrix is complete" =>
     "065 replaced walkthrough-level proof with criterion IDs, test-layer selection, runtime evidence, and a candidate-bound verdict",
+  "file:skills/product-rd-workflow/SKILL.md#you must use the R&D standards checklist in Workflow" =>
+    "product-rd redesign removed the Workflow section; the superseding register row anchors the same R&D standards territory on its trigger line",
   "command:skills/skill-extraction-workflow/scripts/test_validate_extraction_review_state.sh" =>
     "127 retired the closeout ledger and its validator; the extraction lane records single-shot passes instead",
   "command:skills/skill-extraction-workflow/scripts/test_review_ledger_binding.sh" =>
@@ -491,6 +493,8 @@ EXEMPT_ROW_DIGESTS = {
     "6847e68f062c2fe65a32f34bc743a6162a4e245a3a5d858c020faa841868f929",
   "file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#Interaction-state matrix is complete" =>
     "9671789a4bac36787dc26965ca03c98c7ab1c10de3312c6792587cb34e7c548e",
+  "file:skills/product-rd-workflow/SKILL.md#you must use the R&D standards checklist in Workflow" =>
+    "a9297cb087915b586ae50965cc5b1e1a98a0d56b68cba601fe419806c7e4cca3",
   "command:skills/skill-extraction-workflow/scripts/test_validate_extraction_review_state.sh" => [
     "da20ca2ada11f70a55bbfbffde84a80d0a8a8a46c9e4010a96a9614ca854fd34",
     "b8eede70a62910f0a7f2d11cfd854537c3450889bc294cfc933b37f2a13c55b8",

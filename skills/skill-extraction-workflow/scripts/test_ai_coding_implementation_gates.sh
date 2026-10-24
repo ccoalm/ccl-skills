@@ -34,6 +34,12 @@ assert_contains "$PRODUCT_REF" "Functional completeness and structural minimalit
 assert_contains "$PRODUCT_SKILL" "functional completeness and structural minimality are independent gates" "product workflow gate (entry firing signal)"
 assert_contains "$PRODUCT_SKILL" 'gaps block `complete`' "product workflow gate (entry firing consequence)"
 assert_contains "$PRODUCT_SKILL" "references/implementation-completeness-and-minimality.md" "product workflow pointer"
+# The redesigned entrypoint keeps mechanised gates and one-line triggers; detail
+# lives in references. This ratchet stops it regrowing toward the 75 KB it was.
+product_skill_bytes=$(wc -c < "$PRODUCT_SKILL")
+if [ "$product_skill_bytes" -gt 32768 ]; then
+  fail "product-rd entrypoint is $product_skill_bytes bytes, over the 32768-byte ratchet; move detail to a reference"
+fi
 assert_contains "$PRODUCT_REF" "Requirement / acceptance point | Source decision | Implementation surface | Verification | Fresh evidence | Status" "acceptance closure matrix"
 assert_contains "$PRODUCT_REF" "New concept | Current acceptance point or hard constraint | Simpler alternative | Decision" "concept delta matrix"
 assert_contains "$PRE_FINAL_REF" "Awaiting work you started yourself is not a stop condition." "continuation gate (self-initiated in-flight work is not a stop)"

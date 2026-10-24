@@ -13,3 +13,7 @@ The cascade itself is the contract: external skills slot into individual steps w
 7. **Status sync** — update the product/status source-of-truth document and any shared roadmap entry in the same delivery batch; cite the merged commit, removed surfaces, and the 废弃 TC IDs. Do not leave the product doc claiming the feature is active or "to be deprecated" after the code is gone.
 
 A deprecation slice is `complete` only when steps 2–7 each have evidence; a missing step is a release defect, not a follow-up.
+
+## Cascade summary
+
+When a feature is sunset, downscoped, or replaced (需求变更导致功能下线、迭代废弃旧能力、产品方向收敛), treat it as a multi-skill delivery slice, not a one-line status change. **Load `references/feature-deprecation-cascade.md` before any TC/test/code deletion or `complete` label.** Coordinate its 7-step cascade in order — (1) confirm scope and source of truth, (2) TC layer (`test-artifact-management`), (3) test-code cascade (`testing-strategy`), (4) code removal (owning stack dev skill), (5) operational follow-through, (6) orphan detection, (7) status sync — and never delete on inline summary alone: a test or business symbol is deleted only when the underlying code is removed or has no other product callers. A deprecation slice is `complete` only when steps 2–7 each have evidence; a missing step is a release defect, not a follow-up.
