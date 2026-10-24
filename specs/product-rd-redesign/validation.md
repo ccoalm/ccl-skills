@@ -53,3 +53,16 @@ Run on 4c78255, the candidate after the review fixes, in the same two partitions
 ## Delta review (`evidence/impl-delta-review.json`)
 
 Run over the two challenge fixes and the new register row, base 4c78255. One P2, an evidence gap: the narrow packet held only the two restored triggers, not this file. The other six restorations are the review findings applied above, and the check results are the GREEN table plus `check-ccl-skills.sh` rerun after this round (`ccl_skill_check_interim_ok`). No further review round runs on this candidate.
+
+## Hard stack-hazard suite (candidate 03216ed against `main` at 590eb29)
+
+Same eight cases, settings and three runs per case as the `main` baseline.
+
+| Arm | Mean score | Code handles the hazard (judge) | Hazard-targeted test | Cost | Duration |
+| --- | --- | --- | --- | --- | --- |
+| candidate | 0.771 | 17/24 | 20/24 | $24.01 | 1341 s |
+| main | 0.760 | 17/24 | 19/24 | $23.79 | 1347 s |
+
+No case lost a judge pass; every case matches `main`'s count. The mean clears 0.710. Cost is $0.22 over the "below $23.79" bar.
+
+This suite cannot decide the redesign. Two diagnostic runs with traces kept (`hard-react-checkout`, `hard-go-deposits`) loaded the stack skill and `multi-agent-delegation`, never `product-rd-workflow`: these are narrow coding tasks that route straight to the stack owner. The entrypoint therefore never enters these sessions, and the cost difference is run-to-run variation (single runs of one case range from $0.69 to $1.41). What the suite shows is that narrow coding work did not regress. The cost condition is judged on the delivery suite below, whose cases enter product-rd.
