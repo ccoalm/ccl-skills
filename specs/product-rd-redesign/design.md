@@ -123,6 +123,27 @@ Retired outright: lines 52, 53, 55 and 56 of Generalization Discipline (homes ve
 2. Dual-track review and challenge on the diff. The packet carries the old and new entrypoint, the hooks that read it, every destination reference, and this ledger, so each row can be checked against real text rather than taken on trust.
 3. Behavior: the `evals-stack-hazard` hard suite, three runs per case on the redesigned branch. The baseline is the existing 24-run `main` result at 590eb29 from the stack hazard round (mean 0.760, code handles the hazard 17/24, $23.79). Pass requires all three: every case keeps at least `main`'s "code handles the hazard" count, where a case that loses any pass is rerun three more times and its six-run rate must be at least `main`'s three-run rate; mean score at least 0.710; total cost below $23.79. Any failed condition blocks the merge and sends the failing case back to the ledger.
 
+## Landed as
+
+Implementation took the more conservative reading of the ledger: a unit not kept in the entrypoint moved verbatim, not as a summary, and G6 stayed verbatim instead of one line per step. Destinations by original line:
+
+| Destination | Original lines |
+| --- | --- |
+| Kept in the entrypoint (verbatim or as the gate anchor) | 10, 12, 26, 33, 36, 50, 188–199, 203, 207, 217 |
+| `delivery-lifecycle.md`, appended under topic headings | 8, 20–22, 24, 28–32, 34, 35, 37, 38, 42–48, 54, 57, 63–77, 79–100, 102–135, 137–177, 179–186, 201 |
+| `implementation-entry-reentry-gate.md` | 14–19 |
+| `status-tracker-sync.md` | 23 |
+| `design-routing-and-readiness.md` | 39 |
+| `verify-developer-experience.md` | 40 |
+| `artifact-egress-confidentiality.md` | 41 |
+| `external-skill-augmentation.md` | 205 |
+| `existing-project-assessment-report.md` | 209, 211–215 |
+| `feature-deprecation-cascade.md` | 219 |
+| Retired | 52, 53, 55, 56; 135 is still carried in `delivery-lifecycle.md` |
+| Headings, regenerated or replaced | 1–6 (frontmatter and title), 59 (`## Workflow`), 61 (now the stage-boundary sentence under Hard gates), 221–233 (Reference loading, regenerated) |
+
+The large numbered blocks went to `delivery-lifecycle.md` rather than to each topic reference: splitting them would cut list items away from their parents, and the specs/065 ledger binds carriers by heading chain. The entrypoint is 31,494 bytes, not the 20 KB targeted here or the 25 KB in the charter. The difference is text that must stay byte-exact in the entrypoint: the pinned phrases, the register firing paths, the anchor gate in `check-ccl-skills.sh`, the paragraph `host-input.py` reads, and the verbatim G6 section. Going lower means migrating those pins, which is left to a follow-up round. A 32,768-byte ratchet in `test_ai_coding_implementation_gates.sh` stops the file regrowing.
+
 ## Open questions for the owner
 
 - The frontmatter description stays as is in this round. Change it later as a separate routing round, or now?
