@@ -1,0 +1,28 @@
+# Product-rd redesign around mechanisms
+
+`product-rd-workflow` is a 73 KB entrypoint of 51 rule units. Agents load it in most delivery sessions but almost never reason with its rule names, and the rules that demonstrably hold are the ones a hook, validator or pinned test enforces. This round redesigns the skill around those mechanisms: a short entrypoint with a routing table and a small set of hard gates, each stating its trigger, its action and the mechanical check that fires it; detail moves to references that the firing point names; rules with no usage evidence and no mechanism may be retired with a recorded reason.
+
+## Charter
+
+| Field | Decision |
+| --- | --- |
+| Purpose | Cut the always-loaded process text that agents do not apply, so delivery sessions spend less context and attention on it, while every gate that actually holds keeps firing. Success is measured, not asserted: equal quality on the eval suite and lower cost. |
+| Scope | In: `skills/product-rd-workflow/SKILL.md`, its `references/`, the hooks, validators and tests that quote or enforce its text, and the always-on routing line that names its gates. Out: other skills' entrypoints (their pointers into product-rd are updated only where a target moves), the review-budget trial, the stack hazard check (closed, not merged). Owner approval covers retiring rules that have neither usage evidence nor a mechanism; each retirement is recorded with its evidence. Not an iterative program; no watermark. |
+| Depth | Full workflow redesign of one skill: unit-by-unit disposition, new entrypoint, moved and retired text with a disposition ledger, pin and hook migration, then validation. |
+| Result classification | Failure/correction. Evidence: the entrypoint is loaded before the first edit in most sessions, yet in the three-day census ten of its rule names appear four times in agent reasoning against about fifty times in injected text, 32 of 35 references were unread, and the stack hazard experiment showed added entrypoint prose did not change agent behavior across 32 runs per arm. |
+| Matching analysis | Widened RCA: (1) stale process model: each correction appended a rule, so the entrypoint grew to 73 KB without retirement; (2) prose versus mechanism: rules that hold are enforced by hooks (owner-dispatch, first-source-edit, delegation, proposed-next stop check) or pinned tests, while unenforced prose is loaded but not applied; (3) attention budget: co-resident rules degrade joint satisfaction (`external-practice-controls.md#instruction-following-mechanisms`); (4) missing feedback: no measurement told authors whether a rule changed behavior, which the eval suite now provides. Counterfactual to test: an entrypoint that keeps the mechanised gates and the routing table, with the rest moved or retired, keeps eval quality equal and lowers cost. Prevention: the redesigned entrypoint plus a size ratchet and a rule that a new hard gate names its mechanical check. |
+| Failure mode or success boundary | Weak redesign would drop a gate that holds without being cited (a hook-enforced rule whose prose looks unused), retire a rare-but-critical rule (release, destructive change, data egress) because a short corpus never exercised it, break the 89 pinned phrases or the hooks that quote the entrypoint, or move text into references nobody reads and call that preservation. Rare-path rules are judged by mechanism and blast radius, never by frequency alone. |
+| Lifecycle impact | Product intent and requirement routing, design gates, implementation entry, verification and completion, release routing, onboarding (entrypoint readability). Use without source access: not applicable. |
+| Evidence plan | Produced artifacts first: the eval suite under `evals-stack-hazard/` (quality and cost baseline on `main`), the usage census in `specs/product-rd-usage-audit/`. Then: (1) a unit-level usage census on the owner's main machine over at least 40 days (loads, reference reads, citations in visible reasoning), run there with counts only returned; (2) the mechanism inventory: every hook, validator and test that quotes or enforces a product-rd unit; (3) the 89 pinned phrases; (4) the always-on layer and sibling skills that point into product-rd. External grounding: not applicable, this is a repository-internal restructuring with no industry-practice claim. |
+| Completion standard | Disposition ledger covering all 51 units (keep as gate, move, merge to owner, retire) with evidence per row; new entrypoint at or under 25 KB; all pins, hooks and repository gates green; dual-track review and challenge; the hard eval suite on the redesigned branch against `main` with equal or better quality and lower cost. The design is reviewed by the owner before implementation. |
+
+## Target-output map
+
+| Owner | Direction | Status | Reason |
+| --- | --- | --- | --- |
+| product-rd-workflow | self | pending | Redesign target. |
+| hooks quoting product-rd (`host-input.py`, `owner-dispatch`, proposed-next, skill-loading) | firing points | pending | Must keep quoting a surviving anchor. |
+| skill-extraction-workflow scripts that pin product-rd text | validators | pending | Pins move with their phrases. |
+| agent-context/session-start.md | always-on | pending | Names product-rd gates; must match the new names. |
+| Sibling skills pointing into product-rd | downstream | pending | Pointers updated only where a target moves. |
+| skill-extraction-workflow | process owner | pending | Candidate home for "a hard gate names its mechanical check" if it is not already stated. |
