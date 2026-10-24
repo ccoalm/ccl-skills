@@ -133,16 +133,27 @@ run_with_hostile_git_context() {
   return "$status"
 }
 
+# Every ref whose fully peeled target is the oid. `for-each-ref --points-at`
+# misses a nested annotated tag on older git (2.39 does; 2.50 does not).
+refs_peeling_to() {
+  local oid="$1" ref_name
+  git -C "$CASE_DIR" for-each-ref --format='%(refname)' | while read -r ref_name; do
+    if [ "$(git -C "$CASE_DIR" rev-parse -q --verify "$ref_name^{}")" = "$oid" ]; then
+      printf '%s\n' "$ref_name"
+    fi
+  done
+}
+
 retain_only_ref_at_oid() {
   local oid="$1" expected_ref="$2" label="$3"
   local refs_at_oid expected_label ref_name
-  refs_at_oid="$(git -C "$CASE_DIR" for-each-ref --points-at "$oid" --format='%(refname)')"
+  refs_at_oid="$(refs_peeling_to "$oid")"
   while read -r ref_name; do
     if [ -n "$ref_name" ] && [ "$ref_name" != "$expected_ref" ]; then
       git -C "$CASE_DIR" update-ref --no-deref -d "$ref_name"
     fi
   done <<<"$refs_at_oid"
-  refs_at_oid="$(git -C "$CASE_DIR" for-each-ref --points-at "$oid" --format='%(refname)')"
+  refs_at_oid="$(refs_peeling_to "$oid")"
   expected_label="${expected_ref:-no ref}"
   [ "$refs_at_oid" = "$expected_ref" ] || {
     echo "FAIL[$label]: expected $expected_label at the fixture base" >&2

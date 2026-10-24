@@ -28,10 +28,12 @@ HELPER="$(cd "$(dirname "$0")" && pwd)/host-input.py"
 legacy_paths() {
   # Claude's single-path input remains enforceable with the original jq/git
   # dependencies. Resolve relative input against the host cwd without Python.
+  # NUL is tested on code points: jq 1.6 `contains("\u0000")` is true for every
+  # string, which would drop every path and leave the edit unguarded.
   printf '%s' "$input" | jq -c --arg cwd "$PWD" '
     . as $event | {malformed_patch:false, paths:[
       (.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // empty)
-      | select(type == "string" and length > 0 and (contains("\u0000") | not))
+      | select(type == "string" and length > 0 and (explode | any(. == 0) | not))
       | if startswith("/") then . else
           (($event.cwd | select(type == "string" and length > 0)) // $cwd) + "/" + .
         end]}' 2>/dev/null
