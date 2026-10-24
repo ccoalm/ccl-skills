@@ -134,7 +134,7 @@ run_with_hostile_git_context() {
 }
 
 # Every ref whose fully peeled target is the oid. `for-each-ref --points-at`
-# peels nested annotated tags only from git 2.42, so older git would miss them.
+# misses a nested annotated tag on older git (2.39 does; 2.50 does not).
 refs_peeling_to() {
   local oid="$1" ref_name
   git -C "$CASE_DIR" for-each-ref --format='%(refname)' | while read -r ref_name; do
