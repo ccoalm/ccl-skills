@@ -66,16 +66,17 @@ Status values: `gate` (stays in the entrypoint as a hard-gate block), `trigger` 
 | 45 | Text artifact quality | owner | `tighten-doc`, which a stop hook already enforces; one routing row. |
 | 46–47 | R&D standards docs, standards-to-health-gate | trigger | One line; `rd-standards-doc-family-checklist.md`. |
 | 48 | High-risk resilience gating | trigger | One line; `high-risk-resilience-gates.md`; routes to `feature-risk-router`. |
-| 50–57 | Generalization Discipline | retire | Restates `skill-extraction-workflow` sanitization and placement rules and the repository contract; no usage, no mechanism. Line 57's precedence (root cause before workaround, acceptance before implementation, deterministic over manual) survives in G3 and the non-negotiables. |
+| 50–57 | Generalization Discipline | retire, one rule merged | Lines 52, 53, 55 and 56 restate rules that already hold elsewhere: no project nouns (`skill-extraction-workflow` "do not extract business nouns" and "no business or source-repo leakage"), generic SOP versus project evidence (`tighten-doc` "Generic process docs should carry rules, gates, owners"), extraction routing. Line 54 (split a mined observation into mechanism, business noun and source quality or age) applies to building a new product from an old one, which those homes do not cover, so it merges into the internal-reference trigger line (rows 173–174). Line 57's precedence survives in G3 and the non-negotiables. |
 | 61 | Stage-entry state checklist | trigger | One line; `delivery-lifecycle.md`. |
 | 63–77 | Classify the work (14 bullets) | routing | Routing table; the diagnostic spec-match baseline and quality remediation program become trigger lines. |
 | 79–100 | Route responsibilities (owner list) | routing | Routing table; duplicates of the owners' own descriptions are dropped. |
-| 96 | Surface delegation when work becomes parallelizable | gate | Kept as a G1 boundary field (delegation decision), which the delegation hook enforces. |
+| 96 | Surface delegation when work becomes parallelizable | trigger | Its own trigger line, because the trigger is mid-delivery (two or more slices that look independent), not the first edit; the G1 boundary field still records the decision. The delegation hook fires only at dispatch and does not cover discovery. |
 | 103–106 | Plan before editing, re-entry check, formal spec-plan decision | gate | G1 and `delivery-lifecycle.md` §Plan Authoring. |
 | 104 | Optional Feishu requirement record | move | `delivery-lifecycle.md`; no trigger line (only on request). |
 | 107 | Spec / repo-contract sync gate | trigger | One line; `sync-spec-repo-contract.md`. |
 | 108 | Cross-repo feature coordination | trigger | One line; `cross-repo-coordination.md`. |
-| 109–119 | Technical design gate, owner ownership, owner-dispatch, mechanism-operability | gate | G2 and G4; sub-rules stay in `dispatch-owner-skills.md` and `design-review-gate-mechanics.md`. |
+| 109–116, 118–119 | Technical design gate, owner ownership, owner-dispatch | gate | G2 and G4; sub-rules stay in `dispatch-owner-skills.md` and `design-review-gate-mechanics.md`. |
+| 117 | Mechanism-operability check | trigger | Its own trigger line with both triggers: proposing new mechanical enforcement or verification machinery, and withdrawing or downgrading the evidentiary claim an existing mechanism rests on, at any scope; `design-review-gate-mechanics.md`. |
 | 120–129 | Design review firing-point registry | move | `design-review-gate-mechanics.md`, which already holds the authoritative text; G4 names it. |
 | 130 | Task plan for assessment-fix-verify | gate | G1. |
 | 131 | Concurrent-session isolation | owner | `worktree-isolation` and `guard-edit-isolation.sh`; pointer. |
@@ -95,10 +96,10 @@ Status values: `gate` (stays in the entrypoint as a hard-gate block), `trigger` 
 | 166 | Live infrastructure kept separate | move | `delivery-lifecycle.md`. |
 | 167–168 | Self-review then `code-review` | owner | `code-review` development completion and its hook; one line in G3. |
 | 169 | Shared deterministic gate classification | gate | G4; detail stays in `shared-gate-artifact-classification.md`. |
-| 170 | Landing labels need evidence | gate | Non-negotiables. |
+| 170 | Landing labels need evidence | gate | Kept in the entrypoint as a compact definition list, not one sentence: `landed`, `MR-ready`, `release-ready`, `shared-status-ready` with their required evidence, and the local-status rule for exploratory slices. |
 | 171–172 | Status docs and contract-sync evidence | trigger | Covered by the status ledger and spec-sync trigger lines. |
-| 173–174 | Internal reference sanitization, inspect other branches | owner | `skill-extraction-workflow` and the repository contract; pointer. |
-| 175–176 | Hosted platform, protected default branch | gate | Non-negotiables (no direct push to a protected default); merge authority stays with `worktree-isolation`. |
+| 173–174 | Internal reference sanitization, inspect other branches | trigger | One trigger line for product artifacts built from an internal checkout: name only mechanisms, boundaries and acceptance gates, split observations into mechanism, business noun and source quality or age (from line 54), scan changed files for source identity before commit, and inspect nested repositories and other branches before declaring no evidence. These are product-artifact rules, not only skill-extraction rules. |
+| 175–176 | Hosted platform, protected default branch | gate | Non-negotiables, keeping the specifics: separate transport from platform control plane and verify platform auth before trusting API errors; when the default branch is protected or its protection is unknown, land through branch plus MR; an accidental local commit on it moves to a branch and MR; MR creation is not merge authorization (`worktree-isolation`). |
 | 177 | Verify a reference's core abstraction | move | `delivery-lifecycle.md`. |
 | 179–186 | Close the loop | owner | `skill-extraction-workflow`; lines 181–182 fold into G6. |
 | 188–199 | Pre-Final Continuation Gate | gate | G6; step text compressed to one line each, full text stays in `pre-final-continuation-gate.md`. |
@@ -108,7 +109,7 @@ Status values: `gate` (stays in the entrypoint as a hard-gate block), `trigger` 
 | 217–219 | Feature deprecation | trigger | One line; `feature-deprecation-cascade.md`. |
 | 221–233 | Reference loading | gate | Section 8, regenerated from the trigger lines. |
 
-Retired outright: the Generalization Discipline section (lines 50–57, survivors noted) and line 135. Every other unit keeps a home in the entrypoint, a reference, or another owner.
+Retired outright: lines 52, 53, 55 and 56 of Generalization Discipline (homes verified above) and line 135. Line 54 merges into the internal-reference trigger line. Every other unit keeps a home in the entrypoint, a reference, or another owner. Implementation checks each `move` and `owner` row against the destination text in the review packet; a row whose destination does not already hold the obligation gets the text added there in the same change.
 
 ## Migration work
 
@@ -120,7 +121,7 @@ Retired outright: the Generalization Discipline section (lines 50–57, survivor
 
 1. Deterministic: all repository lanes green except the known host baseline failures; size budget shrinks; the disposition ledger above is checked row by row against the diff.
 2. Dual-track review and challenge on the diff. The packet carries the old and new entrypoint, the hooks that read it, every destination reference, and this ledger, so each row can be checked against real text rather than taken on trust.
-3. Behavior: the `evals-stack-hazard` hard suite, three runs per case on the redesigned branch. The baseline is the existing 24-run `main` result at 590eb29 from the stack hazard round (mean 0.760, code handles the hazard 17/24, $23.79). Pass requires all three: no case loses two or more of its three "code handles the hazard" passes against `main`; mean score at least 0.710; total cost below $23.79. Any failed condition blocks the merge and sends the failing case back to the ledger.
+3. Behavior: the `evals-stack-hazard` hard suite, three runs per case on the redesigned branch. The baseline is the existing 24-run `main` result at 590eb29 from the stack hazard round (mean 0.760, code handles the hazard 17/24, $23.79). Pass requires all three: every case keeps at least `main`'s "code handles the hazard" count, where a case that loses any pass is rerun three more times and its six-run rate must be at least `main`'s three-run rate; mean score at least 0.710; total cost below $23.79. Any failed condition blocks the merge and sends the failing case back to the ledger.
 
 ## Open questions for the owner
 
