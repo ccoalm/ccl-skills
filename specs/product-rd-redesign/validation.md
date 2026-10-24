@@ -38,3 +38,14 @@ The diff is over the 200 KB packet cap with the obligation mapping, so it ran as
 | P1 standalone non-PRD artifacts lost their direct return | Applied: the routing row keeps the exception. |
 | P1 DX trigger broadened to any developer surface | Applied: the original qualifier is restored. |
 | P1, P2 evidence gaps (no test results; old text, hooks or digest logic outside the partition) | Disposed by the GREEN table above. The exemption is bound to the digest of register line 598; `test_register_firing_path_wiring.sh` drives a clone of the repository and covers the real-ledger digest and missing-row cases. |
+
+## Challenge (`evidence/impl-challenge-c1.json`, `evidence/impl-challenge-c2.json`)
+
+Run on 4c78255, the candidate after the review fixes, in the same two partitions.
+
+| Finding | Disposition |
+| --- | --- |
+| C1 a process skill mentioned as an auxiliary step could take over as the primary action | Applied: the exception again requires the user to name the process skill as the primary or only action. |
+| C1 product/spec normalization and standards-to-health-gate work no longer reach the shared-gate classification | Applied: both are back in the shared-gate trigger. |
+| C1, C2 evidence gaps on preservation | Checked mechanically: of 183 old entrypoint lines of 30 characters or more, all but 13 appear verbatim in the new entrypoint or a reference. The 13 are line 61 (rewritten as the stage-boundary sentence), line 135 (retired) and lines 223–233 (the old reference-loading list). Every reference that list names is still named in the new entrypoint, and each conditional load survives at its trigger. |
+| C2 evidence gap on the exemption | Checked by mutation: changing one word in register line 598 makes `register-firing-path-resolution.rb` fail with `register_firing_path_unresolved`; restoring it passes. The exemption covers only that exact row. |
