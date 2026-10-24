@@ -20,9 +20,9 @@
 
 | Owner | Direction | Status | Reason |
 | --- | --- | --- | --- |
-| product-rd-workflow | self | pending | Redesign target. |
-| hooks quoting product-rd (`host-input.py`, `owner-dispatch`, proposed-next, skill-loading) | firing points | pending | Must keep quoting a surviving anchor. |
-| skill-extraction-workflow scripts that pin product-rd text | validators | pending | Pins move with their phrases. |
-| agent-context/session-start.md | always-on | pending | Names product-rd gates; must match the new names. |
-| Sibling skills pointing into product-rd | downstream | pending | Pointers updated only where a target moves. |
-| skill-extraction-workflow | process owner | pending | Candidate home for "a hard gate names its mechanical check" if it is not already stated. |
+| product-rd-workflow | self | updated | Entrypoint redesigned; unkept text moved verbatim to references. |
+| hooks quoting product-rd (`host-input.py`, `owner-dispatch`, proposed-next, skill-loading) | firing points | unchanged | Every quoted anchor survives verbatim in the entrypoint; hook suites pass. |
+| skill-extraction-workflow scripts that pin product-rd text | validators | updated | Pins unchanged because their phrases stayed; the size ratchet and the row-598 exemption are added. |
+| agent-context/session-start.md | always-on | unchanged | The gate names it cites are kept. |
+| Sibling skills pointing into product-rd | downstream | unchanged | No reference file moved or was renamed. |
+| skill-extraction-workflow | process owner | unchanged | "A hard gate names its mechanical check" is stated in the product-rd Hard gates intro; promoting it to a process rule is not part of this round. |

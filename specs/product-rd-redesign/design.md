@@ -109,7 +109,7 @@ Status values: `gate` (stays in the entrypoint as a hard-gate block), `trigger` 
 | 217–219 | Feature deprecation | trigger | One line; `feature-deprecation-cascade.md`. |
 | 221–233 | Reference loading | gate | Section 8, regenerated from the trigger lines. |
 
-Retired outright: lines 52, 53, 55 and 56 of Generalization Discipline (homes verified above) and line 135. Line 54 merges into the internal-reference trigger line. Every other unit keeps a home in the entrypoint, a reference, or another owner. Implementation checks each `move` and `owner` row against the destination text in the review packet; a row whose destination does not already hold the obligation gets the text added there in the same change.
+Retired outright: lines 52, 53, 55 and 56 of Generalization Discipline (homes verified above). Line 135 was planned for retirement but landed in `delivery-lifecycle.md` with its block (see Landed as). Line 54 merges into the internal-reference trigger line. Every other unit keeps a home in the entrypoint, a reference, or another owner. Implementation checks each `move` and `owner` row against the destination text in the review packet; a row whose destination does not already hold the obligation gets the text added there in the same change.
 
 ## Migration work
 
@@ -139,7 +139,7 @@ Implementation took the more conservative reading of the ledger: a unit not kept
 | `external-skill-augmentation.md` | 205 |
 | `existing-project-assessment-report.md` | 209, 211–215 |
 | `feature-deprecation-cascade.md` | 219 |
-| Retired | 52, 53, 55, 56; 135 is still carried in `delivery-lifecycle.md` |
+| Retired | 52, 53, 55, 56 |
 | Headings, regenerated or replaced | 1–6 (frontmatter and title), 59 (`## Workflow`), 61 (now the stage-boundary sentence under Hard gates), 221–233 (Reference loading, regenerated) |
 
 The large numbered blocks went to `delivery-lifecycle.md` rather than to each topic reference: splitting them would cut list items away from their parents, and the specs/065 ledger binds carriers by heading chain. The entrypoint is 31,494 bytes, not the 20 KB targeted here or the 25 KB in the charter. The difference is text that must stay byte-exact in the entrypoint: the pinned phrases, the register firing paths, the anchor gate in `check-ccl-skills.sh`, the paragraph `host-input.py` reads, and the verbatim G6 section. Going lower means migrating those pins, which is left to a follow-up round. A 32,768-byte ratchet in `test_ai_coding_implementation_gates.sh` stops the file regrowing.
