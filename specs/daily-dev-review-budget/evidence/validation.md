@@ -33,6 +33,8 @@ Delta 2 (`evidence/delta-review-2.json`, base e088ed9) raised the same class a f
 
 Delta 3 (`evidence/delta-review-3.json`, base 5795e9d) raised the class a fifth time and asked whether `review_gate.py` itself enforces the gate. That source is outside the reviewer's packet, so it was checked here. `review_gate.py` reads a prior receipt's `self_review_gate` and `completion_gated` only in `validate_completion_checkpoint` (`review_gate.py:4231`, reads at `:4244` and `:4350`). That is the optional `--mode complete` path, and it treats the fields as required inputs. No path refuses a report, a pull request or a later pass because of them. Disposition: source-refuted. No rule change, and no further pass for this class; this record changes no executable file.
 
+Rebase onto `origin/main` f6cc294 before merging: the target had appended a source-register row, and the conflict was resolved by keeping both rows, the target's first. Delta 4 (`evidence/delta-review-4.json`) raised one P2 evidence gap about whether the new row's anchor resolves. Refuted: `check-ccl-skills.sh` on the rebased candidate printed `ccl_skill_check_clean_ok` with no `register_firing_path_unresolved` line, and the anchor text appears exactly once in `development-completion.md`. `make test-regressions-fast` and the hook suite also passed on the rebased candidate.
+
 ## Behavioral evidence
 
 RED-baseline: the pins and probes above change state between the base text and the candidate. Session evidence for the cost is in `../plan.md` (Evidence).
