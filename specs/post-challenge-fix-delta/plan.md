@@ -33,6 +33,7 @@ The 31 P0/P1 findings from pass 3 onward were read one by one:
 - Step 4: before spending the daily budget, check the change against the router's objective high-risk change shapes. A matching change takes the checkpoint even when no tag was recorded.
 - The pull-request hook reminder and the session-start line say the same.
 - Per change this stays at most three external passes, so the cap from the previous round holds.
+- The previous round's register row anchored the retired clause. `register-firing-path-resolution.rb` gets a waiver for that locator, bound to that row's digest; the new row anchors the replacement rule.
 
 ## Out of scope
 

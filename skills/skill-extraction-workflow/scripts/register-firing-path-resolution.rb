@@ -88,6 +88,8 @@ end
 # those exact rows (one digest, or an array when several rows cited the retired
 # locator); a new row cannot inherit it by reusing the locator.
 EXEMPT = {
+  "file:skills/code-review/references/development-completion.md#no further reviewer call when it only fixes findings below P0/P1" =>
+    "the post-challenge-fix-delta round sends every non-exempt post-challenge fix to one delta pass; its superseding register row anchors the new rule",
   "file:skills/skill-extraction-workflow/references/dual-track-review-gate.md#After five delta passes a still-open P0/P1" =>
     "147 replaces the task-wide review stop with a progress checkpoint; the superseding register row preserves required delta review",
   "file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#Disabled semantics are real, not painted" =>
@@ -483,6 +485,8 @@ end
 exempt_uses = {}
 EXEMPT_USE_ALLOWANCE = 1
 EXEMPT_ROW_DIGESTS = {
+  "file:skills/code-review/references/development-completion.md#no further reviewer call when it only fixes findings below P0/P1" =>
+    "73af10f3442cccb8ed9a0fd677317a7bef43770bd71adc2c91d3ccc756570b0e",
   "file:skills/skill-extraction-workflow/references/dual-track-review-gate.md#After five delta passes a still-open P0/P1" =>
     "44d4bf30abb863fd031f4bc47b12d1a3685062514ca3e344481f7faa1598bc5e",
   "file:skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md#Disabled semantics are real, not painted" =>
