@@ -150,7 +150,7 @@ else
   if [ "$covered" = 1 ]; then
     note="⚠️ 已注入 code-review 覆盖检查：最后一次评审覆盖了当前 HEAD，但结论不是 passed。"
     if [ "$status" = "findings" ]; then
-      situation="有发现未处置就要开 / 就绪 / 合并 PR：先逐条对照实际调用路径核验——确认的缺陷修掉（review 之后的修复由接着跑的 challenge 覆盖；challenge 之后的修复配先红后绿的测试或从源码驳回；challenge 之后又改了豁免以外内容的（会影响行为的文档也算），攒齐后再跑一次只看这些修复的增量复查）；全部源头驳回的，按 code-review staged contract 跑 --mode complete，成功后收据记为 passed。"
+      situation="有发现未处置就要开 / 就绪 / 合并 PR：先逐条对照实际调用路径核验——确认的缺陷修掉（review 之后的修复由接着跑的 challenge 覆盖；challenge 之后的修复配先红后绿的测试或从源码驳回；challenge 之后又改了豁免以外内容的（会影响行为的文档也算），攒齐后再跑一次只看这些修复的增量复查；这次增量复查已经跑过的，它的发现不再送评审，只配先红后绿的测试或从源码驳回）；全部源头驳回的，按 code-review staged contract 跑 --mode complete，成功后收据记为 passed。"
     else
       situation="收据没有记录可识别的结论，无法确认这条评审链已处置：打开对应的评审结果看 status 与 next_action，必要时重跑评审。"
     fi

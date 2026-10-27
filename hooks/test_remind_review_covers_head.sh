@@ -59,6 +59,7 @@ probe "draft, commit, then ready" remind 'gh pr create --draft --fill && git add
 write_receipt "$head1" true findings
 probe "findings on the covered head" remind 'glab mr merge 8 --yes' "$repo" '结论是 findings，不是 passed'
 probe "findings reminder names the receipt it read" remind 'gh pr ready 12' "$repo" 'ccl-code-review/last-review.json'
+probe "findings after the final delta go to disposition, not another pass" remind 'gh pr ready 12' "$repo" '这次增量复查已经跑过的，它的发现不再送评审'
 write_receipt "$head1" true none
 [ "$(jq -r 'has("status")' "$repo/.git/ccl-code-review/last-review.json")" = false ] \
   || { echo "FAIL: fixture still carries a status" >&2; exit 1; }
