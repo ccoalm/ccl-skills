@@ -184,6 +184,7 @@ probe "A2 reminder sends new scope back to review" remind 'gh pr merge 3 --merge
 probe "A2 reminder keeps behavior-governing docs under review" remind 'gh pr merge 3 --merge' "$ir" '技能文本、agent 指令、prompt、runbook 不算'
 probe "A2 reminder excludes loosened assertions" remind 'gh pr merge 3 --merge' "$ir" '删除、跳过或放宽断言不在此列'
 probe "A2 reminder sends every post-challenge fix to one delta" remind 'gh pr merge 3 --merge' "$ir" '不论修的是几级发现），攒齐后对这些修复跑一次增量复查'
+probe "A2 reminder sends behavior-governing doc fixes to the delta" remind 'gh pr merge 3 --merge' "$ir" '本提醒末尾列的可忽略情形除外，会影响行为的文档也算'
 probe "A2 reminder treats untagged high-risk shapes as high-risk" remind 'gh pr merge 3 --merge' "$ir" '没打风险标签、但属于删除/迁移数据、鉴权、计费这类高风险形态的也算高风险'
 out_retired=$(jq -nc --arg d "$ir" '{tool_input:{command:"gh pr merge 3 --merge"},cwd:$d}' | bash "$HOOK")
 if printf '%s' "$out_retired" | grep -qF -e '重审最多 5 次' -e '只有修了已确认 P0/P1 的'; then

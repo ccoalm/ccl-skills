@@ -17,7 +17,7 @@ A tally over local review result files from the last 30 days measured how often 
 The 31 P0/P1 findings from pass 3 onward were read one by one:
 
 - Most do not repeat an earlier finding of the same change: text similarity to earlier findings on the same file is low.
-- Several are regressions that an earlier fix opened, for example a narrowed error condition that hid other error paths, or a removed assertion.
+- Several read as regressions that an earlier fix opened, for example a narrowed error condition that hid other error paths, or a removed assertion. This is a reading of the findings' text; the causal link was not verified against the code.
 - About half come from work that carried a high-risk tag. About half come from untagged work, including one data-repair change.
 - Severity is the reviewer's claim and was not verified.
 
@@ -43,4 +43,6 @@ Controller code, the router's tag list, the skill-extraction lane and design rev
 
 - `test_extraction_review_gate.sh` pins the new obligations and rejects the old P0/P1-only clause. It fails on the base text and passes on the candidate.
 - `test_remind_review_covers_head.sh` has two new probes plus a retired-phrase check. Three checks fail on the base hook; all 70 pass on the candidate.
-- `make test`, the heavy lane and public sanitization run on the candidate.
+- `make test`, the heavy lane and public sanitization: results in `evidence/validation.md`.
+
+The tally scripts and per-finding output are kept outside the repository because they quote source paths and finding text from other projects; the method is the one described above.
