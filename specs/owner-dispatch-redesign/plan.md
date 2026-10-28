@@ -105,14 +105,14 @@ They are broken by the combination. Once the plugin docs stop telling agents abo
 
 Local inventory, taken from checkouts that track `.owner-dispatch.json` at the repository root:
 
-- 40 opted-in repositories.
+- 40 opted-in checkouts.
 - 39 of them have a tracked CI file that runs `owner-dispatch.sh ci`, in most cases `ci/agent-gates.gitlab-ci.yml` included from `.gitlab-ci.yml`. One has no such job.
-- In 3 checkouts the job is enforced (no `allow_failure`). These are two copies of one toolkit repository and one service repository.
+- In 3 checkouts the job is enforced (no `allow_failure`). One of those is a plain directory copy with no git repository, so 2 repositories enforce it: one toolkit repository and one service repository.
 - Everywhere else it is the installer's warn-only default: a failure shows as a warning and does not block merge.
 
 Order:
 
-1. The 3 enforced repositories delete the `owner-dispatch` job block by hand before the plugin change lands. Each is a config-only change.
+1. The 2 enforced repositories delete the `owner-dispatch` job block by hand before the plugin change lands. Each is a config-only change.
    - Do not rerun `install-gates` there. Regenerating a fragment that still carries the installer marker writes `allow_failure: true` back, which would also undo the enforcement those repositories set on the coverage job.
 2. The plugin change lands.
 3. The warn-only repositories drop the job as ordinary cleanup.
@@ -131,7 +131,7 @@ The existing map files stay as history and are no longer appended to.
 ## Risk
 
 - `shared-gate`: this removes a merge gate other repositories installed. Independent review and challenge run before push.
-- `release-ops`: product-repository CI changes. The 3 enforced repositories land before the plugin change, each as a config-only change.
+- `release-ops`: product-repository CI changes. The 2 enforced repositories land before the plugin change, each as a config-only change.
 - `security-review`: not applicable. Security posture is unchanged: no trust boundary, secret, permission or data-visibility path changes.
 
 ## Verification
@@ -148,7 +148,7 @@ The existing map files stay as history and are no longer appended to.
 - `test_skill_loading.py` and `test_host_input.py`: unchanged and still green, since the checkpoint and transcript parsing are untouched.
 - `check-sync-pointers.sh` stays green; the pinned `Owner-dispatch firing gate` heading is kept.
 - A sweep for `ci_artifact`, `owner-dispatch.sh ci` and `owner-dispatch-map` returns only history (specs, evidence, the source register).
-- Product repositories: in each of the 3 enforced ones, a pipeline on the removal change is green before the plugin change merges.
+- Product repositories: in each of the 2 enforced ones, a pipeline on the removal change is green before the plugin change merges.
 - `make test`, `make npm-test`, the heavy lane and public sanitization. Results go in `evidence/validation.md`.
 
 Plan review results are in `evidence/plan-review.md`.
