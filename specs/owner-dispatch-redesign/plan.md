@@ -2,7 +2,7 @@
 
 ## Problem
 
-Product repositories that enable owner-dispatch get a merge conflict on every pair of parallel merge requests. The `ci` subcommand accepts the change only when one fixed file, `ci_artifact` (default `design/owner-dispatch-map.md`), is part of the diff. Every request appends a section at the end of that file. Two insertions at the same position cannot merge automatically.
+Product repositories that enable owner-dispatch get a merge conflict on every pair of parallel merge requests. The `ci` subcommand accepts a change only when one fixed file, `ci_artifact` (default `design/owner-dispatch-map.md`), is part of the diff. Every request appends a section at the end of that file, and two insertions at the same position cannot merge automatically.
 
 A scratch repository reproduced it with two parallel branches:
 
@@ -14,63 +14,30 @@ A scratch repository reproduced it with two parallel branches:
 
 ## What the subsystem is for
 
-The rule behind it: an agent loads the owning skill into its current context before it produces substance. Naming the skill is not loading it. The only evidence that a skill was loaded is a `Skill` invocation, or a full read of its `SKILL.md`, in the session transcript.
+The rule: an agent loads the owning skills into its current context before it produces substance. Naming a skill is not loading it. The only evidence of a load is a `Skill` invocation, or a full read of its `SKILL.md`, in the session transcript.
 
-Measured against that purpose:
+Each part, measured against that purpose:
 
-| Part | Evidence it uses | Does it show the skill was loaded? |
+| Part | Evidence it uses | Does it show the skills were loaded? |
 | --- | --- | --- |
 | `ci` map file | a paragraph the agent writes; `ci` checks only that the file changed | no |
-| `record --owners` | owner names the agent declares | no; the README calls it self-attestation |
-| Stop check | `Skill` calls in the transcript, compared with the `record` list | only for the names that were declared; an owner left out of `record` is never checked |
-| Default first-edit checkpoint (`hooks/skill-loading.py`) | the transcript | it does not judge which owner is right; it denies the first source edit once per context so the agent loads the owner before retrying |
+| `record --owners` | owner names the agent declares at the start of a slice, kept in local git state and never committed | no, but it fixes the set to check |
+| Stop check | `Skill` calls in the transcript, compared with the `record` list | yes, for every declared owner |
+| Default first-edit checkpoint (`hooks/skill-loading.py`) | the transcript | it denies the first source edit once per context so the agent loads an owner; it does not judge which owners are needed |
 
-Two further mismatches:
+The map file is the only part that is both committed and shared, which is why only it conflicts. It is also the only part whose check reads nothing but the agent's own text.
 
-- The rule fires before design substance. The hooks fire at the first code edit, so the design-time half was never enforced mechanically.
-- The first-edit checkpoint already covers "load before editing code" in every repository with no configuration. The opt-in parts were not retired when it landed.
-
-## Change
-
-Keep what reads the transcript; delete what rests on self-declaration.
-
-Keep:
-
-- The first-edit checkpoint, unchanged in behavior. Its wrapper no longer calls the engine. The wrapper is renamed from `owner-dispatch-guard.sh` to `source-edit-checkpoint.sh`, and the `Bash` matcher is dropped, because the checkpoint handles only edit tools.
-- The design-time rule in `product-rd-workflow` (`Owner-dispatch firing gate`). It stays prose, and the text says no hook enforces it. `check-sync-pointers.sh` pins this heading, so the heading is kept.
-- The controller's worker-recovery rule in `multi-agent-delegation`, which checks transcripts directly.
-
-Delete:
-
-- `scripts/owner-dispatch/`: the engine, `test.sh`, README, example config and AGENTS.md. This removes `.owner-dispatch.json` opt-in, `record`, `ci`, `status` and `verify-invocations`.
-- `hooks/owner-dispatch-stop.sh` and its Stop and SubagentStop wiring, with no replacement (see the next section).
-- The owner-dispatch path in `install-gates.sh`, which vendored the engine, wrote the config and emitted the CI job. `agents-file-coverage-gate` stays.
-- Packaging and runtime lists: `install-opencode.sh`, the npm build roots, `host-smoke.sh`, `verify-packed.mjs`, the OpenCode adapter and plugin mapping, and the control-plane protected paths.
-- Rule text telling agents to run `record` or keep the map:
-  - `agent-context/session-policy.md` (unlock line)
-  - `agent-context/subagent-start.md` (last bullet)
-  - `agent-context/session-start.md` (the clause "recording the boundary" in Transitions)
-  - `product-rd-workflow/SKILL.md` (mechanical-firing bullet and closeout-acquire)
-  - `references/dispatch-owner-skills.md` (mechanical section)
-  - `multi-agent-delegation/SKILL.md` (mechanical-backstop bullet)
-- Descriptive text in README, `docs/ARCHITECTURE.md`, `docs/CONTRIBUTING.md` and `firing-point-placement.md`:
-  - It is rewritten to describe the checkpoint.
-  - The firing-point example keeps its history and records why the self-attested layer was retired.
-  - Its closing advice to "build the in-session-hook + CI-backstop pair" is replaced. A backstop must read real evidence; a file the agent writes is not evidence.
-
-## Stop check: deleted, not replaced
-
-The candidate replacement was to block once at Stop when an actor edited a source file and its transcript shows no implementation-skill load. The decision was to add it only if the first-edit checkpoint leaves a material share of source-editing sessions with no load.
+## Measurement
 
 ### Population
 
 - Local transcripts from the last 60 days, in product repositories that had the gate enabled.
 - 258 main sessions and 100 subagent transcripts.
-- The repositories in the original report had no transcripts in that window. The gate code is the same, so the active ones were measured instead.
+- The repositories in the original report had no transcripts in that window. The gate code is the same, so the active ones were measured.
 
 ### Definitions
 
-- An implementation-class skill is one whose name ends in `-dev` or `-architecture`, or is `testing-strategy` or `defect-diagnosis`.
+- An implementation-class skill has a name ending in `-dev` or `-architecture`, or is `testing-strategy` or `defect-diagnosis`.
 - A load is a `Skill` call or a slash command.
 - Before and after use line order within one transcript file.
 
@@ -79,60 +46,110 @@ The candidate replacement was to block once at Stop when an actor edited a sourc
 | Measure | Value |
 | --- | --- |
 | Main sessions with a source edit | 191 |
-| Loaded an implementation skill at some point | 186 (97%) |
-| Loaded one only by reading its `SKILL.md` | 4 |
-| Never loaded one | 1 |
-| Loaded before the first successful edit | 170 of 189 |
+| Never loaded an implementation-class skill | 5, of which 4 read one in full through its `SKILL.md` |
 | First-edit checkpoint fired | in 188 of 191 |
-| Owner-dispatch Stop blocks | 72 |
-| Stop blocks where a skill was already loaded before the block | 66 |
-| Stop blocks where a load followed the block and none preceded it | 5 |
-| Of those 5, preceded by the first-edit checkpoint | 2 |
+| Stop blocks, nothing recorded | 45; `record` followed in 40 |
+| Stop blocks, a declared owner was never loaded | 27 |
+| Of those 27, every missing owner was then loaded | 16 |
+| Sessions where the first implementation-class load came only after a Stop block | 3; 2 of these had already read a `SKILL.md` |
 | Owner-dispatch PreToolUse `ask` prompts | 752, in 72 sessions |
 
-- The 2 sessions in the second-to-last row had read a `SKILL.md` and been compacted, so they may not be real misses.
-- Subagents: 4 transcripts had source edits. All 4 loaded a skill, and the Stop block never fired in a subagent.
+Owners named as declared but not loaded, counted per block: `testing-strategy` 17, `defect-diagnosis` 9, `python-service-dev` 7, `product-rd-workflow` 7, `feature-risk-router` 6, `platform-observability` 5, others 1 to 3.
 
 ### Reading
 
-- The Stop block mostly enforced running `record`, not loading a skill. The `ask` prompts are recurring friction for the same declaration.
-- With the first-edit checkpoint alone, the residual is about 1 session in 191.
-- A Stop replacement would catch that one session at the cost of a new predicate, a list of implementation-skill names that must not drift, and a block on every session where the agent legitimately needed none.
-- So the Stop hook is deleted with no replacement. If the residual grows, the trigger to revisit is this same measurement over a later window.
+- The Stop check on declared owners is the one part with measured effect beyond the first-edit checkpoint. In 16 sessions, a second owner that the agent had itself named (most often the testing owner) was loaded only because of the block.
+- The first-edit checkpoint cannot replace it. It asks for one owner and does not know which others the slice needs.
+- A transcript-only Stop check with no declared list would only ask "was any implementation skill loaded". It would have caught at most 3 sessions and none of the 16.
+- The `ci` map has no measurable detection effect: it checks the file changed, not its content.
 
 ### Caveats
 
-- A resumed session is a new file, so a load in the earlier file is not counted. That understates "before" and overstates the caught bucket.
+- A resumed session is a new file, so a load in the earlier file is not counted.
 - Opt-in was dated by commit, not by the worktree a session ran in.
+- "Then loaded" means a later `Skill` call for each missing name in the same file. It does not show the reload changed the work.
 
-The script and per-transcript rows stay outside the repository, because they carry session file names and local paths.
+The scripts and per-transcript rows stay outside the repository, because they carry session file names and local paths.
 
-## Consumers
+## Change
 
-- Product repositories with a vendored engine and CI job keep running their own copy. Nothing breaks on plugin update.
-- The plugin's in-session `ask` in those repositories stops, because the plugin no longer ships the engine. The first-edit checkpoint still fires there.
-- Removing `.owner-dispatch.json`, the CI include, the vendored engine and the map requirement from each product repository is a separate round, one config-only change per repository.
-- The existing map files stay as history.
+Delete the committed, shared layer and keep the in-session layer.
+
+Delete from the plugin:
+
+- The `ci` subcommand (`cmd_ci`, `cmd_ci_python`) and the `ci_artifact` config key in `scripts/owner-dispatch/owner-dispatch.sh`. A config that still sets `ci_artifact` is accepted and the key ignored, so existing product configs stay valid.
+- The CI fragment `install-gates.sh` emits for owner-dispatch, its `ci` invocation and its install text. `install-gates` keeps vendoring the config. It no longer vendors the engine, because only CI needed an in-tree copy.
+- Rule and doc text that tells agents to keep the map or describes `ci` as the backstop:
+  - `skills/product-rd-workflow/SKILL.md` (mechanical-firing bullet)
+  - `references/dispatch-owner-skills.md`
+  - `scripts/owner-dispatch/README.md`
+  - `firing-point-placement.md`
+  - README, `docs/ARCHITECTURE.md`, `docs/CONTRIBUTING.md`
+- In `firing-point-placement.md`, the closing advice to "build the in-session-hook + CI-backstop pair" becomes: a backstop must read evidence the agent does not write.
+- Tests for `ci` in `scripts/owner-dispatch/test.sh` and the CI-fragment assertions in the install tests.
+
+Keep unchanged: `.owner-dispatch.json` opt-in and globs, `record`, the PreToolUse `ask`, the Stop and SubagentStop checks, `status`, `verify-invocations`, and the first-edit checkpoint.
+
+The closeout-acquire rule in `product-rd-workflow` (`status` must read `opted-in: yes`) stays. It no longer mentions the CI backstop.
+
+## Product repositories
+
+Plugin users are not broken by the plugin change alone:
+
+- Each product repository runs its own vendored engine copy in CI.
+- The `ask` and Stop hooks keep working, because they never used `ci`.
+
+They are broken by the combination. Once the plugin docs stop telling agents about the map, agents in a repository whose CI still runs `owner-dispatch.sh ci` stop updating the map, and its pipeline fails on every gated change.
+
+Local inventory, taken from checkouts that track `.owner-dispatch.json` at the repository root:
+
+- 40 opted-in repositories.
+- 39 of them have a tracked CI file that runs `owner-dispatch.sh ci`, in most cases `ci/agent-gates.gitlab-ci.yml` included from `.gitlab-ci.yml`. One has no such job.
+- In 3 checkouts the job is enforced (no `allow_failure`). These are two copies of one toolkit repository and one service repository.
+- Everywhere else it is the installer's warn-only default: a failure shows as a warning and does not block merge.
+
+Order:
+
+1. The 3 enforced repositories remove the `owner-dispatch` job, or set it to `allow_failure: true`, before the plugin change lands. Each is a config-only change.
+2. The plugin change lands.
+3. The warn-only repositories remove the job, and the vendored engine copy when nothing else calls it, as ordinary cleanup.
+   - Until then their pipelines show a warning and nothing blocks.
+   - Leave `.owner-dispatch.json` and the `agents-file-coverage-gate` job in place.
+
+The existing map files stay as history and are no longer appended to.
 
 ## Out of scope
 
-- Product-repository cleanup.
-- `agents-file-coverage-gate`.
-- The checkpoint's decision logic.
+- Reducing the 752 PreToolUse `ask` prompts. They are friction, but the data does not separate how much of the record-then-load effect they drive. This is a candidate for a later measured round.
 - Mechanising the design-time owner rule. No hook can tell when design work starts.
+- `agents-file-coverage-gate`.
 
 ## Risk
 
-- `shared-gate`: this deletes a merge gate other repositories installed, so independent review and challenge run before push.
+- `shared-gate`: this removes a merge gate other repositories installed. Independent review and challenge run before push.
+- `release-ops`: product-repository CI changes. The 3 enforced repositories land before the plugin change, each as a config-only change.
 - `security-review`: not applicable. Security posture is unchanged: no trust boundary, secret, permission or data-visibility path changes.
-- `release-ops`: not triggered in this round. No product-repository CI changes here.
 
 ## Verification
 
-- `test_skill_loading.py`: the checkpoint still denies the first source edit and allows after a load, with the engine absent. Tests that built `.owner-dispatch.json` are removed or rewritten.
-- `test_host_input.py`: the `verify-invocations` case is removed. The transcript parser cases stay.
-- `test_install_gates_runtime.py` and `test_install_status.py`: install-gates no longer accepts or installs `owner-dispatch`, and the coverage gate still installs.
-- `test_install_opencode_skill_migration.sh` and the npm `opencode-hooks` and `host-adapters` tests: the mapping update matches the renamed wrapper.
-- `check-sync-pointers.sh` stays green, with the heading kept.
-- A sweep for `owner-dispatch.sh`, `record --owners`, `.owner-dispatch.json` and `ci_artifact` returns only history (specs, evidence, the source register).
+- `scripts/owner-dispatch/test.sh`:
+  - the `ci` cases are removed;
+  - a new case shows a config carrying `ci_artifact` still loads, and `pretool`, `stop` and `record` behave as before;
+  - a case fails if `ci` is still dispatched.
+- `test_install_gates_runtime.py` and `test_install_status.py`: no owner-dispatch CI job or vendored engine is emitted, and the coverage gate still installs.
+- `test_skill_loading.py` and `test_host_input.py`: unchanged and still green, since the checkpoint and transcript parsing are untouched.
+- `check-sync-pointers.sh` stays green; the pinned `Owner-dispatch firing gate` heading is kept.
+- A sweep for `ci_artifact`, `owner-dispatch.sh ci` and `owner-dispatch-map` returns only history (specs, evidence, the source register).
+- Product repositories: in each of the 3 enforced ones, a pipeline on the removal change is green before the plugin change merges.
 - `make test`, `make npm-test`, the heavy lane and public sanitization. Results go in `evidence/validation.md`.
+
+## Review record
+
+The first plan proposed deleting `record` and the Stop check as well. Its independent review (Codex, one pass) raised four P2 findings. The disposition of each:
+
+| Finding | Disposition |
+| --- | --- |
+| The residual estimate counted Stop-triggered recoveries as checkpoint successes | Accepted. The table now separates them. |
+| "Any implementation skill loaded" does not show every declared owner was loaded | Accepted, and measured: 16 of the 27 declared-owner blocks led to the missing owner being loaded. The design now keeps `record` and the Stop check. |
+| Unmigrated repositories keep a CI map requirement after the plugin docs drop it | Accepted. Inventory shows 3 repositories where the job blocks merge; they land first. The rest are warn-only. |
+| The packet did not include source for the retained paths | The retained paths are now untouched. The implementation review packet carries the engine diff and test results. |
