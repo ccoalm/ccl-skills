@@ -352,6 +352,8 @@ config <<'JSON'
 JSON
 [ "$(edit "$REPO/src/foo.go" S10 | bash "$ENGINE" pretool | decision)" = ask ] \
   && ok "legacy ci_artifact key: config still gates" || bad "legacy ci_artifact key disabled the gate"
+s10_reason=$(edit "$REPO/src/foo.go" S10 | bash "$ENGINE" pretool | jq -r '.hookSpecificOutput.permissionDecisionReason // ""')
+case "$s10_reason" in *"owner-dispatch map"*) bad "ask still tells the agent to build a map" "$s10_reason" ;; *record*) ok "ask asks only for the owner load and record" ;; *) bad "ask reason missing" "$s10_reason" ;; esac
 echo "// s10 gated edit" >> "$REPO/src/foo.go"
 [ "$( cd "$REPO" && printf '{"session_id":"S10"}' | bash "$ENGINE" stop | sdecision )" = block ] \
   && ok "legacy ci_artifact key: Stop still blocks an unrecorded gated edit" || bad "legacy ci_artifact key: Stop no longer blocks"

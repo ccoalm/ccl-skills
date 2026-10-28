@@ -89,6 +89,9 @@ Delete from the plugin:
   - README, `docs/ARCHITECTURE.md`, `docs/CONTRIBUTING.md`
 - In `firing-point-placement.md`, the closing advice to "build the in-session-hook + CI-backstop pair" becomes: a backstop must check a property the agent cannot satisfy just by writing a declaration.
 - Tests for `ci` in `scripts/owner-dispatch/test.sh` and the CI-fragment assertions in the install tests.
+- The engine's PreToolUse prompt no longer says "build the owner-dispatch map".
+  - It now asks for the owner load and `record` only.
+  - That phrase names the design-time owner map, but where a repository configures `ci_artifact`, agents read it as the map file and append to it.
 
 Keep unchanged: `.owner-dispatch.json` opt-in and globs, `record`, the PreToolUse `ask`, the Stop and SubagentStop checks, `status`, `verify-invocations`, and the first-edit checkpoint.
 
@@ -119,6 +122,8 @@ Order:
    - Rerunning `install-gates` regenerates their unedited fragment without it and refreshes the vendored engine.
    - Until then their pipelines show a warning and nothing blocks.
    - `.owner-dispatch.json`, the vendored engine and the coverage job stay.
+
+Repository rules that tell agents to update the map file in every merge request (`AGENTS.md`, `CLAUDE.md`) are removed in the same per-repository change. Without that, agents keep appending to the map and parallel merge requests keep conflicting, whatever the CI does.
 
 The existing map files stay as history and are no longer appended to.
 
