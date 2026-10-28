@@ -112,6 +112,29 @@ class InstalledRuntimeTests(unittest.TestCase):
             result = self._install(target)
             self.assertIn(".gitlab/ci/gates.yml still runs 'owner-dispatch.sh ci'", result.stderr)
 
+    def test_warns_on_quoted_and_spaced_spellings_of_the_job(self):
+        spellings = {
+            'quoted.yml': 'bash "scripts/owner-dispatch/owner-dispatch.sh" ci --base x',
+            'spaced.yml': 'bash scripts/owner-dispatch/owner-dispatch.sh   ci --base x',
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self._repo(temporary)
+            (target / 'ci').mkdir()
+            for name, command in spellings.items():
+                (target / 'ci' / name).write_text(f'owner-dispatch:\n  script:\n    - {command}\n')
+            result = self._install(target)
+            for name in spellings:
+                self.assertIn(f"ci/{name} still runs 'owner-dispatch.sh ci'", result.stderr)
+
+    def test_no_warning_for_other_owner_dispatch_subcommands(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self._repo(temporary)
+            (target / 'ci').mkdir()
+            (target / 'ci/status.yml').write_text(
+                'probe:\n  script:\n    - bash scripts/owner-dispatch/owner-dispatch.sh status\n')
+            result = self._install(target)
+            self.assertNotIn('still runs', result.stderr)
+
     def test_no_stale_job_warning_on_a_clean_target(self):
         with tempfile.TemporaryDirectory() as temporary:
             result = self._install(self._repo(temporary))
