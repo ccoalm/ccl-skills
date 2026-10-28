@@ -5,7 +5,7 @@
 # WHY: code-review's completion walk (references/development-completion.md,
 # "Before a pull request or a ready report") requires every implementation change
 # made after the last conclusive pass to be covered — by the challenge that
-# follows the review, by one delta pass on a post-challenge P0/P1 fix, or by
+# follows the review, by one delta pass on the post-challenge fixes, or by
 # the agent's own disposition with test evidence — never left to a human reviewer. The rule was stated, and an agent still committed a post-review test
 # and opened the merge request with the delta unreviewed. What was missing is a
 # firing point AT the transition, not more text: this hook fires on the command
@@ -150,7 +150,7 @@ else
   if [ "$covered" = 1 ]; then
     note="⚠️ 已注入 code-review 覆盖检查：最后一次评审覆盖了当前 HEAD，但结论不是 passed。"
     if [ "$status" = "findings" ]; then
-      situation="有发现未处置就要开 / 就绪 / 合并 PR：先逐条对照实际调用路径核验——确认的缺陷修掉（review 之后的修复由接着跑的 challenge 覆盖；challenge 之后的修复配先红后绿的测试或从源码驳回；P0/P1 的修复再跑一次只看该修复的增量复查）；全部源头驳回的，按 code-review staged contract 跑 --mode complete，成功后收据记为 passed。"
+      situation="有发现未处置就要开 / 就绪 / 合并 PR：先逐条对照实际调用路径核验——确认的缺陷修掉（review 之后的修复由接着跑的 challenge 覆盖；challenge 之后的修复配先红后绿的测试或从源码驳回；challenge 之后又改了豁免以外内容的（会影响行为的文档也算），攒齐后再跑一次只看这些修复的增量复查；这次增量复查已经跑过的，它的发现不再送评审，只配先红后绿的测试或从源码驳回）；全部源头驳回的，按 code-review staged contract 跑 --mode complete，成功后收据记为 passed。"
     else
       situation="收据没有记录可识别的结论，无法确认这条评审链已处置：打开对应的评审结果看 status 与 next_action，必要时重跑评审。"
     fi
@@ -175,7 +175,7 @@ ${stat}"
     note="⚠️ 已注入 code-review 覆盖检查：当前 HEAD 没有被最后一次评审覆盖。"
     message="⚠️ code-review 覆盖检查（自动）：收据 ${receipt} 记录的最后一次结论性评审（${mode}, ${status}, ${at}）覆盖的是 ${short_reviewed}，当前 HEAD 是 ${short_head}。
 ${detail}
-按 ${walk}（高风险改动和技能提炼线按各自的闸走，不适用下面的日常预算）：评审后改了实现代码的，若还没跑 challenge，就由你对修复后的版本跑 challenge；日常开发 review + challenge 两次用完后，不再调评审器，由你逐条处置（修复要有先红后绿的测试，或从源码驳回，或写明理由挂账）；只有修了已确认 P0/P1 的，对该修复再跑一次增量复查（--base 指向 challenge 时的提交），那是最后一次，未处置的 P0/P1 在报告和 PR 里标为阻塞（只写理由的挂账不算处置）；challenge 之后新增的行为或范围算新改动，对该增量重走 review 和 challenge。不交给人工 review，也不能说 HEAD 已评审。只多了评审记录文件、日常开发中只改了不影响 agent 或运行行为的文档/changelog/注释（技能文本、agent 指令、prompt、runbook 不算）、或只新增/加强了测试且已跑绿时可忽略本提醒（删除、跳过或放宽断言不在此列）。"
+按 ${walk}（高风险改动和技能提炼线按各自的闸走，不适用下面的日常预算；没打风险标签、但属于删除/迁移数据、鉴权、计费这类高风险形态的也算高风险）：评审后改了实现代码的，若还没跑 challenge，就由你对修复后的版本跑 challenge；日常开发 review + challenge 两次用完后，不再调评审器，由你逐条处置（修复要有先红后绿的测试，或从源码驳回，或写明理由挂账）；challenge 之后又改了东西的（本提醒末尾列的可忽略情形除外，会影响行为的文档也算；不论修的是几级发现），攒齐后对这些修复跑一次增量复查（--base 指向 challenge 时的提交），那是最后一次，未处置的 P0/P1 在报告和 PR 里标为阻塞（只写理由的挂账不算处置）；challenge 之后新增的行为或范围算新改动，对该增量重走 review 和 challenge。不交给人工 review，也不能说 HEAD 已评审。只多了评审记录文件、日常开发中只改了不影响 agent 或运行行为的文档/changelog/注释（技能文本、agent 指令、prompt、runbook 不算）、或只新增/加强了测试且已跑绿时可忽略本提醒（删除、跳过或放宽断言不在此列）。"
   fi
 fi
 

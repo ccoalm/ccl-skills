@@ -273,8 +273,9 @@ for obligation in (
 for obligation in (
     "Daily development spends two external passes per change",
     "then one challenge on the candidate with the review's fixes applied",
-    "A change made after the challenge gets no further reviewer call",
-    "A fix for a confirmed P0/P1 gets one delta pass on that fix alone",
+    "Any other change made after the challenge gets one delta pass",
+    "whatever the severity of the finding it fixes",
+    "objective high-risk change shapes",
     "That pass is the last call",
     "Deferral never clears a confirmed P0/P1",
     "within this budget neither is a stop or a request for a person",
@@ -288,6 +289,7 @@ for obligation in (
 ):
     assert obligation in completion, f"daily review budget lost '{obligation}'"
 assert "a fresh full run per [manual invocation]" not in completion, "completion restores the fresh full rerun of every changed candidate"
+assert "only fixes findings below P0/P1" not in completion, "completion restores the P0/P1-only post-challenge delta"
 wording_only = (root / "skills/code-review/references/wording-only-review.md").read_text(encoding="utf-8")
 assert "--wording-only-proof-file" in wording_only
 assert "--challenge-budget 0" in wording_only
