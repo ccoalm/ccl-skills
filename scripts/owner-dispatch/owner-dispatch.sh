@@ -27,7 +27,7 @@
 #     (so strict can never brick a repo whose state dir is unavailable).
 #   - Bash write-gating is BEST-EFFORT / ADVISORY only (a shell hook cannot reliably
 #     detect every write form — `python -c`, `ed`, `make generate`, rsync, etc. slip
-#     through). The host-agnostic un-bypassable gate is the `ci` subcommand.
+#     through). There is no merge-time backstop: writes these hooks miss are not gated.
 #   - STATE WRITES are symlink-safe (refuse/replace symlinked state paths; atomic
 #     temp+rename) so a crafted repo cannot redirect a write outside the state dir.
 #   - STOP enforcement is per-session (keyed by a real session id; fail-open without
@@ -37,7 +37,7 @@
 #     marker, block-once cap, and waiver are scoped to that subagent, so a read-only
 #     sibling / the main thread's dirty gated work never blocks an unrelated subagent.
 #
-# SUBCOMMANDS: pretool | stop | record --owners "a,b" | ci [--base REF] | status
+# SUBCOMMANDS: pretool | stop | record --owners "a,b" | status
 #              | verify-invocations --owners "a,b" --transcript PATH
 
 set -u
@@ -499,7 +499,7 @@ owners_not_invoked() { # $1 boundary.json  $2 transcript-path  $3 empty-is-missi
 # state). That distinguishes real new gated work (committed OR dirty) from a read-only/
 # rejected/reverted session and from untouched pre-existing dirt — without trapping —
 # and resists config mutation (product-shrink / exclude-widen) via baseline∪current
-# classification, with `ci` as the reliable backstop.
+# classification.
 note_touched() { # $1 root  $2 rel  (per-session, symlink-safe; + per-agent in a subagent)
   local sd; sd=$(state_dir "$1") || return 0
   capture_baseline "$1"
@@ -626,7 +626,7 @@ session_gated_changed() { # $1 root  $2 state-dir  $3 sidf
 # alone would blame a subagent that merely ATTEMPTED a gated edit for a SIBLING's change.
 # A subagent whose only activity was a Bash write (no .touched paths, sentinel only) is
 # NOT path-attributable, so it is NOT blocked here (the Bash heuristic is advisory by
-# design; the session Stop + `ci` remain the backstop for those). No per-agent touched
+# design; the session Stop remains the only check for those). No per-agent touched
 # file => nothing to attribute => allow. No baseline (state write failed) => CANNOT
 # attribute precisely, so ALLOW (return 1) rather than falling back to the session-wide
 # check, which would re-introduce the sibling-blame this function exists to prevent.
@@ -738,9 +738,9 @@ cmd_pretool() {
       # never unblock => brick); otherwise downgrade to ask.
       [ "$strict" = "true" ] && [ -n "$sdv" ] && decision="deny"
       if [ "$decision" = "deny" ]; then
-        emit_pretool_deny "owner-dispatch (strict): blocked edit of gated product code ($rel) in [$repo] — no owner-dispatch boundary this session. INVOKE (load) ${hint} for each touched concern, build the owner-dispatch map, then: bash $SELF record --owners \"<owner1,owner2>\". If this is a genuinely narrow exempt edit (single bug/test/doc/config), record an exemption to proceed: touch \"$sdv/s.$sidf.waiver\" (only after classifying this as a genuinely narrow exempt edit; otherwise invoke + record). (naming an owner is not invoking it.) Clearing THIS owner-dispatch boundary is yours, agent — invoke the owners then run record; don't punt it to the user as an approval. It unblocks only this gate: merge/push/destructive/scope/product decisions still require user authorization." "deny"
+        emit_pretool_deny "owner-dispatch (strict): blocked edit of gated product code ($rel) in [$repo] — no owner-dispatch boundary this session. INVOKE (load) ${hint} for each touched concern, then: bash $SELF record --owners \"<owner1,owner2>\". If this is a genuinely narrow exempt edit (single bug/test/doc/config), record an exemption to proceed: touch \"$sdv/s.$sidf.waiver\" (only after classifying this as a genuinely narrow exempt edit; otherwise invoke + record). (naming an owner is not invoking it.) Clearing THIS owner-dispatch boundary is yours, agent — invoke the owners then run record; don't punt it to the user as an approval. It unblocks only this gate: merge/push/destructive/scope/product decisions still require user authorization." "deny"
       else
-        emit_pretool_deny "owner-dispatch: about to edit gated product code ($rel) in [$repo] with no owner-dispatch boundary this session. Per the product-rd owner-dispatch firing gate, INVOKE (load) ${hint} for each touched concern and build the owner-dispatch map BEFORE producing substance — naming an owner is not invoking it. Then record it: bash $SELF record --owners \"<owner1,owner2>\". (Narrow self-contained bug/test/doc/config edits are exempt — proceed if so.) Agent: clearing this is yours — invoke the owners + record; don't punt it to the user as an approval. It clears only this owner-dispatch gate; merge/push/destructive/scope/product decisions still require user authorization." "ask"
+        emit_pretool_deny "owner-dispatch: about to edit gated product code ($rel) in [$repo] with no owner-dispatch boundary this session. Per the product-rd owner-dispatch firing gate, INVOKE (load) ${hint} for each touched concern BEFORE producing substance — naming an owner is not invoking it. Then record it: bash $SELF record --owners \"<owner1,owner2>\". (Narrow self-contained bug/test/doc/config edits are exempt — proceed if so.) Agent: clearing this is yours — invoke the owners + record; don't punt it to the user as an approval. It clears only this owner-dispatch gate; merge/push/destructive/scope/product decisions still require user authorization." "ask"
       fi
       ;;
     Bash)
@@ -764,7 +764,7 @@ cmd_pretool() {
       # (`python -c`, heredocs, `>/dev/null`) and can never hard-deny anyway, so raising
       # a user `ask` popup here is pure false-positive noise that trains users to disable
       # the gate. Drop the activity marker for the Stop backstop and ALLOW SILENTLY (emit
-      # nothing). Real gated work is caught by the evidence-based Stop hook + `ci`; a real
+      # nothing). Real gated work is caught by the evidence-based Stop hook; a real
       # Edit/Write to a gated file still prompts the agent via the Edit branch above.
       note_bashwrite "$repo"
       allow_pretool
@@ -852,8 +852,8 @@ cmd_stop() {
   # gated work that lives ONLY in the index/HEAD with a worktree deliberately restored to
   # baseline (`git add` + `git restore --worktree`, or commit + `git checkout <base> --`),
   # or a write the Bash heuristic never recorded (`node -e …`), is out of this nudge's
-  # reach — the reliable `ci` subcommand (diffs base..HEAD at commit/merge) is the gate
-  # for those. Stop is a fast in-session nudge, not the enforcement boundary.
+  # reach, and nothing else gates them. Stop is an in-session nudge, not an
+  # enforcement boundary.
   # Evidence gate — actor-precise: a subagent blocks only for a gated path IT touched
   # (not a sibling's); the main session uses the session-wide check.
   if [ -n "$AID" ]; then
@@ -944,379 +944,6 @@ cmd_record() {
   echo "owner-dispatch: boundary recorded for [$repo] @ ${head:0:8} (owners: $owners; expires in $((ttl/3600))h)"
 }
 
-# Load product/exclude globs from a config CONTENT string (used for the BASE config).
-load_globs_from() { # $1 json-string -> sets ARG_PRODUCT_GLOBS / ARG_EXCLUDE_GLOBS
-  ARG_PRODUCT_GLOBS=(); ARG_EXCLUDE_GLOBS=()
-  local line
-  while IFS= read -r line; do [ -n "$line" ] && ARG_PRODUCT_GLOBS+=("$line"); done < <(printf '%s' "$1" | jq -r '(.product_globs // [])[]' 2>/dev/null)
-  while IFS= read -r line; do [ -n "$line" ] && ARG_EXCLUDE_GLOBS+=("$line"); done < <(printf '%s' "$1" | jq -r '(.exclude_globs // [])[]' 2>/dev/null)
-  ARG_EXCLUDE_GLOBS+=("**/*.md" ".owner-dispatch.json" ".git/**")
-}
-# Fail-closed schema check for an ENABLED config: an enabled-but-unusable config
-# (product_globs missing / empty / not a string array) would silently gate nothing.
-cfg_schema_ok() { # $1 config-json -> 0 if a valid enabled config
-  printf '%s' "$1" | jq -e '
-    (.enabled==true)
-    and ((.product_globs|type)=="array") and ((.product_globs|length)>0)
-    and (all(.product_globs[]; (type=="string") and (length>0)))
-    and (((.exclude_globs)//[])|type=="array")
-    and (((.ci_artifact)//"x")|type=="string")
-    and (((.strict)//false)|type=="boolean")
-    and (((.gate_bash)//true)|type=="boolean")
-  ' >/dev/null 2>&1
-}
-
-cmd_ci_python() {
-  python3 - "$@" <<'PY'
-import fnmatch
-import json
-import os
-import subprocess
-import sys
-
-
-def fail(message, code=2):
-    print(message, file=sys.stderr)
-    return code
-
-
-def run_git(args, cwd=None, text=True, check=False):
-    result = subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=text,
-    )
-    if check and result.returncode != 0:
-        raise RuntimeError(args)
-    return result
-
-
-def load_json_text(text):
-    if not text:
-        return None
-    return json.loads(text)
-
-
-def load_json_file(path):
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def enabled(cfg):
-    return bool(isinstance(cfg, dict) and cfg.get("enabled") is True)
-
-
-def glob_list(cfg, key):
-    if not isinstance(cfg, dict):
-        return []
-    value = cfg.get(key) or []
-    return value if isinstance(value, list) else []
-
-
-def path_matches_any(rel, globs):
-    for glob in globs:
-        if not glob:
-            continue
-        # fnmatch's '*' crosses '/', matching bash `case` semantics used above.
-        if fnmatch.fnmatchcase(rel, glob):
-            return True
-        if glob.startswith("**/") and fnmatch.fnmatchcase(rel, glob[3:]):
-            return True
-    return False
-
-
-def load_globs(cfg):
-    product = [g for g in glob_list(cfg, "product_globs") if isinstance(g, str) and g]
-    exclude = [g for g in glob_list(cfg, "exclude_globs") if isinstance(g, str) and g]
-    exclude.extend(["**/*.md", ".owner-dispatch.json", ".git/**"])
-    return product, exclude
-
-
-def is_gated_path(rel, cfg):
-    product, exclude = load_globs(cfg)
-    if not product:
-        return False
-    if path_matches_any(rel, exclude):
-        return False
-    return path_matches_any(rel, product)
-
-
-def schema_ok(cfg):
-    if not isinstance(cfg, dict) or cfg.get("enabled") is not True:
-        return False
-    product = cfg.get("product_globs")
-    exclude = cfg.get("exclude_globs", [])
-    ci_artifact = cfg.get("ci_artifact", "x")
-    return (
-        isinstance(product, list)
-        and len(product) > 0
-        and all(isinstance(x, str) and len(x) > 0 for x in product)
-        and isinstance(exclude, list)
-        and (ci_artifact is None or isinstance(ci_artifact, str))
-        and isinstance(cfg.get("strict", False), bool)
-        and isinstance(cfg.get("gate_bash", True), bool)
-    )
-
-
-def main(argv):
-    base = ""
-    if len(argv) >= 2 and argv[0] == "--base":
-        base = argv[1]
-
-    top = run_git(["rev-parse", "--show-toplevel"], check=False)
-    if top.returncode != 0:
-        return fail("owner-dispatch ci: not a git repo — FAIL-CLOSED (2)")
-    repo = top.stdout.strip()
-
-    if not base:
-        default_branch = os.environ.get("CI_DEFAULT_BRANCH") or "origin/main"
-        mb = run_git(["merge-base", "HEAD", default_branch], cwd=repo, check=False)
-        base = mb.stdout.strip()
-    if not base:
-        return fail("owner-dispatch ci: could not determine a diff base — pass --base <sha>. FAIL-CLOSED (2).")
-    if run_git(["rev-parse", "--verify", f"{base}^{{commit}}"], cwd=repo).returncode != 0:
-        return fail(f"owner-dispatch ci: invalid base '{base}' — FAIL-CLOSED (2)")
-
-    head_cfg = None
-    head_cfg_path = os.path.join(repo, ".owner-dispatch.json")
-    if os.path.exists(head_cfg_path):
-        try:
-            head_cfg = load_json_file(head_cfg_path)
-        except (OSError, json.JSONDecodeError):
-            head_cfg = None
-
-    base_show = run_git(["show", f"{base}:.owner-dispatch.json"], cwd=repo)
-    base_cfg_text = base_show.stdout if base_show.returncode == 0 else ""
-    try:
-        base_cfg = load_json_text(base_cfg_text)
-    except json.JSONDecodeError:
-        base_cfg = None
-
-    head_enabled = enabled(head_cfg)
-    base_enabled = enabled(base_cfg)
-
-    # --no-renames so a file moved OUT of a gated directory is still seen at its old
-    # (gated) path; rename detection would only report the exempt destination.
-    # --ignore-submodules=none so repository config (diff.ignoreSubmodules=all) cannot
-    # suppress a gitlink move out of the gated tree, which would leave only .gitmodules.
-    diff = run_git(
-        ["diff", "-z", "--name-only", "--no-renames", "--ignore-submodules=none", base, "HEAD"],
-        cwd=repo,
-        text=False,
-    )
-    if diff.returncode != 0:
-        return fail("owner-dispatch ci: diff failed — FAIL-CLOSED (2)")
-    changed = [p.decode("utf-8", "surrogateescape") for p in diff.stdout.split(b"\0") if p]
-
-    base_product, base_exclude = load_globs(base_cfg)
-    gated = []
-    for rel in changed:
-        if is_gated_path(rel, head_cfg):
-            gated.append(rel)
-            continue
-        if base_product and not path_matches_any(rel, base_exclude) and path_matches_any(rel, base_product):
-            gated.append(rel)
-
-    gated_disp = "".join(f" {p}" for p in gated)
-
-    tracked = run_git(["ls-files", "--error-unmatch", ".owner-dispatch.json"], cwd=repo).returncode == 0
-    if tracked and not isinstance(head_cfg, dict):
-        return fail("owner-dispatch ci: FAIL-CLOSED (2) — tracked .owner-dispatch.json is malformed or non-object JSON.")
-
-    if base_enabled and not head_enabled:
-        if gated:
-            print(
-                f"owner-dispatch ci: FAIL (1) — this change disables/removes the gate AND touches gated product code:{gated_disp}",
-                file=sys.stderr,
-            )
-            print("  Decommission the gate in a separate config-only change, or keep it enabled.", file=sys.stderr)
-            return 1
-        print("owner-dispatch ci: gate disabled/removed in a config-only change — allowed (clean decommit)")
-        return 0
-
-    if not head_enabled:
-        print("owner-dispatch ci: not opted in — skip")
-        return 0
-
-    if not schema_ok(head_cfg):
-        return fail(
-            "owner-dispatch ci: FAIL-CLOSED (2) — enabled .owner-dispatch.json is schema-invalid "
-            "(product_globs must be a non-empty array of non-empty strings; strict/gate_bash boolean; ci_artifact a string)."
-        )
-
-    if not gated:
-        print("owner-dispatch ci: no gated product files changed — ok")
-        return 0
-
-    artifact_value = head_cfg.get("ci_artifact", "design/owner-dispatch-map.md")
-    if artifact_value is None:
-        artifact_value = "design/owner-dispatch-map.md"
-    artifact = str(artifact_value)
-    if artifact.startswith("./"):
-        artifact = artifact[2:]
-    if artifact.startswith("/") or ".." in artifact.split("/") or artifact == "":
-        print(
-            f"owner-dispatch ci: FAIL (1) — unsafe ci_artifact path '{artifact}' (must be repo-relative, no '..' path component).",
-            file=sys.stderr,
-        )
-        return 1
-    if artifact == ".owner-dispatch.json":
-        print("owner-dispatch ci: FAIL (1) — ci_artifact must not be the config file.", file=sys.stderr)
-        return 1
-
-    head_product, _ = load_globs(head_cfg)
-    if head_product and path_matches_any(artifact, head_product):
-        print(
-            f"owner-dispatch ci: FAIL (1) — ci_artifact '{artifact}' matches product_globs; the map must be a dedicated non-product file.",
-            file=sys.stderr,
-        )
-        return 1
-    if artifact in gated:
-        print(
-            f"owner-dispatch ci: FAIL (1) — ci_artifact '{artifact}' is itself a gated changed file; use a dedicated map.",
-            file=sys.stderr,
-        )
-        return 1
-
-    artifact_path = os.path.join(repo, artifact)
-    if not os.path.exists(artifact_path) or os.path.getsize(artifact_path) <= 0:
-        print(
-            f"owner-dispatch ci: FAIL (1) — gated product files changed:{gated_disp} but no owner-dispatch map at '{artifact}'.",
-            file=sys.stderr,
-        )
-        return 1
-    if artifact not in changed:
-        print(
-            f"owner-dispatch ci: FAIL (1) — '{artifact}' exists but was not updated in this change (stale) for gated files:{gated_disp}",
-            file=sys.stderr,
-        )
-        return 1
-
-    print(f"owner-dispatch ci: gated files changed and '{artifact}' updated in this change — ok")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
-PY
-}
-
-# =============================================================================
-# Host-agnostic BACKSTOP for product repos. Unlike the in-session hooks (which fail
-# OPEN so a bug never bricks editing), CI fails CLOSED: any inability to verify is a
-# failure, because this is the gate of last resort. Exit: 0 ok / not-opted / clean
-# decommit; 1 violation; 2 could-not-verify (a gating job must treat 2 as failure).
-cmd_ci() {
-  have git || { echo "owner-dispatch ci: git required to verify — FAIL-CLOSED (2)" >&2; return 2; }
-  if ! have jq; then
-    have python3 || { echo "owner-dispatch ci: jq missing and python3 fallback unavailable — FAIL-CLOSED (2)" >&2; return 2; }
-    cmd_ci_python "$@"; return $?
-  fi
-  local base=""; [ "${1:-}" = "--base" ] && base="${2:-}"
-  local repo; repo=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "owner-dispatch ci: not a git repo — FAIL-CLOSED (2)" >&2; return 2; }
-  [ -n "$base" ] || base=$(git merge-base HEAD "${CI_DEFAULT_BRANCH:-origin/main}" 2>/dev/null)
-  [ -n "$base" ] || { echo "owner-dispatch ci: could not determine a diff base — pass --base <sha>. FAIL-CLOSED (2)." >&2; return 2; }
-  git rev-parse --verify "$base^{commit}" >/dev/null 2>&1 || { echo "owner-dispatch ci: invalid base '$base' — FAIL-CLOSED (2)" >&2; return 2; }
-
-  local head_enabled base_cfg base_enabled
-  head_enabled=$([ "$(cfg_enabled "$repo")" = "enabled" ] && echo 1 || echo 0)
-  base_cfg=$(git show "$base:.owner-dispatch.json" 2>/dev/null)
-  base_enabled=$(printf '%s' "$base_cfg" | jq -er 'if (.enabled // false) then 1 else 0 end' 2>/dev/null || echo 0)
-  # Direct two-tree diff against the EXPLICIT base (NOT three-dot, which recomputes a
-  # merge-base and breaks on shallow/disconnected CI clones). NUL-delimited via a temp
-  # file (NUL can't survive a shell var) so paths with spaces/newlines classify exactly.
-  local CHANGED=() difftmp rel
-  difftmp=$(mktemp 2>/dev/null) || { echo "owner-dispatch ci: mktemp failed — FAIL-CLOSED (2)" >&2; return 2; }
-  # -C "$repo" so diff.relative cannot truncate the set when ci runs from a subdirectory;
-  # --no-renames and --ignore-submodules=none: see the Python path above. Both paths must
-  # classify the same file set regardless of repository diff configuration or cwd.
-  git -C "$repo" diff -z --name-only --no-renames --ignore-submodules=none "$base" HEAD > "$difftmp" 2>/dev/null || { rm -f "$difftmp"; echo "owner-dispatch ci: diff failed — FAIL-CLOSED (2)" >&2; return 2; }
-  while IFS= read -r -d '' rel; do CHANGED+=("$rel"); done < "$difftmp"
-  rm -f "$difftmp"
-
-  # Classify changed files against the UNION of base-config and head-config product
-  # globs (base = the contract in force before this change), so an MR cannot dodge the
-  # gate by shrinking product_globs / widening excludes in the same change.
-  load_globs_from "$base_cfg"
-  # bash-3.2-safe array copies (expanding an empty array under `set -u` errors on 3.2).
-  local base_product=() base_exclude=() GATED=()
-  [ "${#ARG_PRODUCT_GLOBS[@]}" -gt 0 ] && base_product=("${ARG_PRODUCT_GLOBS[@]}")
-  [ "${#ARG_EXCLUDE_GLOBS[@]}" -gt 0 ] && base_exclude=("${ARG_EXCLUDE_GLOBS[@]}")
-  if [ "${#CHANGED[@]}" -gt 0 ]; then
-    for rel in "${CHANGED[@]}"; do
-      if is_gated_path "$repo" "$rel"; then GATED+=("$rel"); continue; fi
-      if [ "${#base_product[@]}" -gt 0 ] && ! path_matches_any "$rel" "${base_exclude[@]}" && path_matches_any "$rel" "${base_product[@]}"; then
-        GATED+=("$rel")
-      fi
-    done
-  fi
-  local n_gated=${#GATED[@]} gated_disp=""
-  [ "$n_gated" -gt 0 ] && gated_disp=$(printf ' %s' "${GATED[@]}")
-
-  # A TRACKED-but-unparseable config is "cannot verify" (fail-closed), NOT "not opted
-  # in" and NOT a clean decommit: cfg_enabled returns empty for malformed JSON. This MUST
-  # run BEFORE the decommit branch, else malforming an enabled config in a config-only
-  # change (n_gated=0) would be mistaken for a clean removal and pass.
-  if git -C "$repo" ls-files --error-unmatch .owner-dispatch.json >/dev/null 2>&1; then
-    jq -e 'type=="object"' "$repo/.owner-dispatch.json" >/dev/null 2>&1 || {
-      echo "owner-dispatch ci: FAIL-CLOSED (2) — tracked .owner-dispatch.json is malformed or non-object JSON." >&2; return 2; }
-  fi
-  # Anti-bypass: turning the gate OFF (disable/REMOVE) is allowed ONLY in a change that
-  # touches NO gated product code — a clean, separately-reviewed decommit. (A malformed
-  # config was already rejected above, so only a genuine disable/removal reaches here.)
-  if [ "$base_enabled" = "1" ] && [ "$head_enabled" != "1" ]; then
-    if [ "$n_gated" -gt 0 ]; then
-      echo "owner-dispatch ci: FAIL (1) — this change disables/removes the gate AND touches gated product code:$gated_disp" >&2
-      echo "  Decommission the gate in a separate config-only change, or keep it enabled." >&2
-      return 1
-    fi
-    echo "owner-dispatch ci: gate disabled/removed in a config-only change — allowed (clean decommit)"
-    return 0
-  fi
-  [ "$head_enabled" = "1" ] || { echo "owner-dispatch ci: not opted in — skip"; return 0; }
-  # Fail-closed: an enabled config must be schema-valid, else it gates nothing silently.
-  cfg_schema_ok "$(cat "$repo/.owner-dispatch.json" 2>/dev/null)" || {
-    echo "owner-dispatch ci: FAIL-CLOSED (2) — enabled .owner-dispatch.json is schema-invalid (product_globs must be a non-empty array of non-empty strings; strict/gate_bash boolean; ci_artifact a string)." >&2; return 2; }
-  [ "$n_gated" -gt 0 ] || { echo "owner-dispatch ci: no gated product files changed — ok"; return 0; }
-
-  local artifact; artifact=$(cfg_get "$repo" '.ci_artifact' 'design/owner-dispatch-map.md')
-  artifact=${artifact#./}   # normalize to git's path form (git reports 'design/x', not './design/x')
-  case "$artifact" in
-    /*|"") echo "owner-dispatch ci: FAIL (1) — unsafe ci_artifact path '$artifact' (must be repo-relative, no '..' path component)." >&2; return 1 ;;
-  esac
-  case "/$artifact/" in
-    */../*) echo "owner-dispatch ci: FAIL (1) — unsafe ci_artifact path '$artifact' (must be repo-relative, no '..' path component)." >&2; return 1 ;;
-  esac
-  # The map must be a DEDICATED artifact — not the config and not product code, or a
-  # change to that very file would falsely satisfy the gate.
-  [ "$artifact" = ".owner-dispatch.json" ] && { echo "owner-dispatch ci: FAIL (1) — ci_artifact must not be the config file." >&2; return 1; }
-  load_globs "$repo"
-  if [ "${#PRODUCT_GLOBS[@]}" -gt 0 ] && path_matches_any "$artifact" "${PRODUCT_GLOBS[@]}"; then
-    echo "owner-dispatch ci: FAIL (1) — ci_artifact '$artifact' matches product_globs; the map must be a dedicated non-product file." >&2; return 1
-  fi
-  for rel in "${GATED[@]}"; do
-    [ "$rel" = "$artifact" ] && { echo "owner-dispatch ci: FAIL (1) — ci_artifact '$artifact' is itself a gated changed file; use a dedicated map." >&2; return 1; }
-  done
-  if [ ! -s "$repo/$artifact" ]; then
-    echo "owner-dispatch ci: FAIL (1) — gated product files changed:$gated_disp but no owner-dispatch map at '$artifact'." >&2
-    return 1
-  fi
-  # Anti-stale: the artifact must be one of the files actually changed in this diff.
-  local art_updated=0
-  for rel in "${CHANGED[@]}"; do [ "$rel" = "$artifact" ] && { art_updated=1; break; }; done
-  if [ "$art_updated" != "1" ]; then
-    echo "owner-dispatch ci: FAIL (1) — '$artifact' exists but was not updated in this change (stale) for gated files:$gated_disp" >&2
-    return 1
-  fi
-  # RESIDUAL (documented): CI checks the map EXISTS, is updated in-change, and sits on
-  # a safe repo-relative path. It does NOT validate the map's semantic content (that the
-  # listed owners actually cover the gated files) — that stays reviewer/owner judgment.
-  echo "owner-dispatch ci: gated files changed and '$artifact' updated in this change — ok"
-}
-
 cmd_status() {
   # Resolve exactly like the enforcement paths do (opt_in_root realpath's to the physical
   # path, "to match git's toplevel"). Using the raw logical path here made `status` compare
@@ -1345,13 +972,14 @@ main() {
     stop)    cmd_stop "$@" ;;
     record)  cmd_record "$@" ;;
     verify-invocations) cmd_verify_invocations "$@" ;;
-    ci)      cmd_ci "$@" ;;
     status)  cmd_status "$@" ;;
+    # Kept only to explain itself: a leftover CI job is the one caller that still runs it.
+    ci) echo "owner-dispatch: the ci subcommand was removed; delete the CI job that runs it. The gate now runs only in the session hooks." >&2; return 2 ;;
     # Introspection: where boundary state for a root actually lands. Exists so the
     # read/write path can be ASSERTED across the worktree boundary rather than
     # inferred, and so a human debugging a Stop block can compare two roots directly.
     boundary-path) boundary_dir "${1:-$PWD}" ;;
-    *) echo "usage: owner-dispatch.sh {pretool|stop|record --owners \"a,b\"|ci [--base REF]|status|boundary-path [root]}" >&2; return 2 ;;
+    *) echo "usage: owner-dispatch.sh {pretool|stop|record --owners \"a,b\"|verify-invocations|status|boundary-path [root]}" >&2; return 2 ;;
   esac
 }
 main "$@"
