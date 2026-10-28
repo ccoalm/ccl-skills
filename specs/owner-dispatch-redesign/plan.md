@@ -78,7 +78,9 @@ Delete the committed, shared layer and keep the in-session layer.
 Delete from the plugin:
 
 - The `ci` subcommand (`cmd_ci`, `cmd_ci_python`) and the `ci_artifact` config key in `scripts/owner-dispatch/owner-dispatch.sh`. A config that still sets `ci_artifact` is accepted and the key ignored, so existing product configs stay valid.
-- The CI fragment `install-gates.sh` emits for owner-dispatch, its `ci` invocation and its install text. `install-gates` keeps vendoring the config. It no longer vendors the engine, because only CI needed an in-tree copy.
+- The `owner-dispatch` job in the CI fragment `install-gates.sh` emits, and the install text about the map.
+  - `install-gates` keeps writing the config and vendoring the engine and `host-input.py`.
+  - The plugin hooks run the plugin's own engine. The vendored copy is still the path rule text gives for `record` and `status` (`scripts/owner-dispatch/owner-dispatch.sh`), so it stays.
 - Rule and doc text that tells agents to keep the map or describes `ci` as the backstop:
   - `skills/product-rd-workflow/SKILL.md` (mechanical-firing bullet)
   - `references/dispatch-owner-skills.md`
@@ -110,11 +112,13 @@ Local inventory, taken from checkouts that track `.owner-dispatch.json` at the r
 
 Order:
 
-1. The 3 enforced repositories remove the `owner-dispatch` job, or set it to `allow_failure: true`, before the plugin change lands. Each is a config-only change.
+1. The 3 enforced repositories delete the `owner-dispatch` job block by hand before the plugin change lands. Each is a config-only change.
+   - Do not rerun `install-gates` there. Regenerating a fragment that still carries the installer marker writes `allow_failure: true` back, which would also undo the enforcement those repositories set on the coverage job.
 2. The plugin change lands.
-3. The warn-only repositories remove the job, and the vendored engine copy when nothing else calls it, as ordinary cleanup.
+3. The warn-only repositories drop the job as ordinary cleanup.
+   - Rerunning `install-gates` regenerates their unedited fragment without it and refreshes the vendored engine.
    - Until then their pipelines show a warning and nothing blocks.
-   - Leave `.owner-dispatch.json` and the `agents-file-coverage-gate` job in place.
+   - `.owner-dispatch.json`, the vendored engine and the coverage job stay.
 
 The existing map files stay as history and are no longer appended to.
 
@@ -136,7 +140,10 @@ The existing map files stay as history and are no longer appended to.
   - the `ci` cases are removed;
   - a new case shows a config carrying `ci_artifact` still loads, and `pretool`, `stop` and `record` behave as before;
   - a case fails if `ci` is still dispatched.
-- `test_install_gates_runtime.py` and `test_install_status.py`: no owner-dispatch CI job or vendored engine is emitted, and the coverage gate still installs.
+- `test_install_gates_runtime.py` and `test_install_status.py`:
+  - no owner-dispatch CI job is emitted;
+  - the engine, `host-input.py` and config are still vendored;
+  - the coverage job is unchanged.
 - `test_skill_loading.py` and `test_host_input.py`: unchanged and still green, since the checkpoint and transcript parsing are untouched.
 - `check-sync-pointers.sh` stays green; the pinned `Owner-dispatch firing gate` heading is kept.
 - A sweep for `ci_artifact`, `owner-dispatch.sh ci` and `owner-dispatch-map` returns only history (specs, evidence, the source register).
@@ -152,4 +159,4 @@ The first plan proposed deleting `record` and the Stop check as well. Its indepe
 | The residual estimate counted Stop-triggered recoveries as checkpoint successes | Accepted. The table now separates them. |
 | "Any implementation skill loaded" does not show every declared owner was loaded | Accepted, and measured: 16 of the 27 declared-owner blocks led to the missing owner being loaded. The design now keeps `record` and the Stop check. |
 | Unmigrated repositories keep a CI map requirement after the plugin docs drop it | Accepted. Inventory shows 3 repositories where the job blocks merge; they land first. The rest are warn-only. |
-| The packet did not include source for the retained paths | The retained paths are now untouched. The implementation review packet carries the engine diff and test results. |
+| The packet did not include source for the retained paths | Second pass raised it again. The installer, both hook wrappers and the engine's `ci` dispatch were checked; the plan now keeps the vendored engine. The third pass packet carries those excerpts. |
