@@ -16,12 +16,12 @@ Each new case was run against the code before its fix:
 
 ## Commands on the final candidate
 
-Run on `d9ec382`:
+Run on `1b01a27`, which adds the prompt change below. `CCL_SKILL_BASE_REF=origin/main` is set explicitly: after the branch is pushed, `check-ccl-skills.sh` otherwise takes the upstream branch as its base, sees the owner packages unchanged, and rejects the register rows. That is a local tracking artifact; CI compares against the pull request base.
 
 | Command | Result |
 | --- | --- |
-| `make test` | `make_test_rc=0` |
-| `bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only` | `test_check_ccl_regressions_heavy_only_ok` |
+| `CCL_SKILL_BASE_REF=origin/main make test` | `make_test_rc=0` |
+| `CCL_SKILL_BASE_REF=origin/main bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only` | `test_check_ccl_regressions_heavy_only_ok` |
 | `python3 scripts/check-public-sanitization.py .` | `public_sanitization_ok` |
 | `CCL_SKILL_BASE_REF=origin/main bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` | `ccl_skill_check_clean_ok` (`r0_status=private-ok`) |
 | `bash skills/skill-extraction-workflow/scripts/test_obligation_ledger_repo_audit.sh` | `audit_ok domain=50 rows=1240 unresolved=0` (inside `make test`) |
@@ -32,7 +32,8 @@ Run on `d9ec382`:
 | --- | --- | --- | --- |
 | Review, extraction lane, base `origin/main` | `review.json` | 1 × P1, 5 × P2 | See below. |
 | Challenge, extraction lane, base `origin/main` | `challenge.json` | 1 × P1, 1 × P2 | See below. |
-| Delta, generic controller, base = the challenged commit | `delta-review-1.json` | 2 × P2 | See below. The last reviewer call. |
+| Delta, generic controller, base = the challenged commit | `delta-review-1.json` | 2 × P2 | See below. |
+| Delta, generic controller, base `dbf19f0` | `delta-review-2.json` | passed, no findings | Covers the prompt change below. |
 
 Review:
 
@@ -54,6 +55,8 @@ Delta:
 
 - **P2, `ci;` was missed by the first regex.** Fixed. After `ci`, any character that cannot continue a word, or the line end, now matches. The fix is proven by a semicolon fixture that fails on the first regex and passes after. A `ci-report` fixture must stay silent, and does. This fix followed the last reviewer call, so its evidence is the test.
 - **P2, the evidence did not cover this delta.** Superseded by the table above.
+
+Prompt change, added after the pull request opened: the engine's PreToolUse prompt no longer says "build the owner-dispatch map". Where a repository configures `ci_artifact`, agents read that phrase as the map file and kept appending to it. `scripts/owner-dispatch/test.sh` asserts the prompt asks only for the owner load and `record`; that case fails on the previous prompt.
 
 ## Product repositories
 
