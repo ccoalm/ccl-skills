@@ -30,8 +30,8 @@ precise source edit it returns one agent-facing denial so the agent can apply th
 canonical routing rule, load missing implementation skills and retry. It does not
 guess an owner from a file extension, request user approval, or verify a boundary
 record. Its cap is per actor and context; blind retries and parallel siblings can
-proceed. The configured engine's decisions take precedence. The opt-in and CI
-contracts below describe this subsystem, not that bounded recovery checkpoint.
+proceed. The configured engine's decisions take precedence. The opt-in contract
+below describes this subsystem, not that bounded recovery checkpoint.
 
 ## Surfaces (defense in depth)
 
@@ -40,7 +40,6 @@ contracts below describe this subsystem, not that bounded recovery checkpoint.
 | `PreToolUse` (Edit/Write/MultiEdit/NotebookEdit + Bash) → `owner-dispatch-guard.sh` | at the first product-code edit (**fires in subagents too** — Claude Code runs PreToolUse inside dispatched workers, carrying `agent_id`) | Claude precise edits use `ask`, or `deny` under `strict`. Codex `apply_patch` uses advisory context by default and `deny` under `strict`; its native hook parser rejects `ask`. **Bash writes are record-only — silent allow, no prompt** (they only drop an activity marker for the Stop backstop). | Yes — the Bash heuristic never blocks (it over-matches read-only commands, so prompting on it is pure noise); many Bash write forms also slip it. This surface is a fast nudge on precise edits, not the gate. |
 | `SubagentStart` → `subagent-start.sh` | when any subagent is spawned | injects a slim, **self-gating** ccl-skills routing pointer (impl/test/design/doc workers invoke their owning skill; read-only workers ignore it) for the new actor. Informational: SubagentStart **cannot block**. | n/a — additive context only; never overrides an owner-set the controller named in the dispatch prompt. |
 | `Stop` / `SubagentStop` → `owner-dispatch-stop.sh` | at session/subagent end, **only if that actor actually changed gated code** (current tree diffed against a baseline snapshot taken at the first touch) with no boundary or with required owners not actually invoked | Claude/Codex native hooks: block **once per actor per session** — `SubagentStop` verifies `agent_transcript_path` when present; a legacy controller-transcript fallback never uses strict empty-set proof. Zero Skill calls are a miss only when the worker tool-event shape is verifiable. `agent_id` scopes activity/cap/waiver so siblings do not contaminate each other. | one-block cap + fail-open for unreadable/malformed/shape-drifted evidence + evidence-gate (read-only / rejected / reverted / pre-existing-dirty actors never block) means it never traps the user. |
-| `ci` subcommand (pre-commit / CI) | at commit/merge | host-agnostic; rejects gated changes lacking an updated map, and rejects changes that remove/disable/malform the config or point the artifact off-tree | The durable backstop — **but only as un-bypassable as the CI job itself** (needs pipelines-must-succeed + protected branch + CODEOWNERS, per the repo deployment checklist). |
 
 ## Safety posture (every default is the safe one)
 
@@ -60,7 +59,7 @@ contracts below describe this subsystem, not that bounded recovery checkpoint.
   checkpoint adds one bounded agent-facing denial. Engine `strict:true` applies **only to
   precise file paths** — a write-like **Bash** command is matched only heuristically (it over-matches
   read-only commands and can never be sure), so it is **record-only: silent allow, never a
-  prompt and never a deny**, even under `strict`. The Stop hook + `ci` catch what the Bash
+  prompt and never a deny**, even under `strict`. The Stop hook catches what the Bash
   heuristic can only hint at. `strict` also downgrades to `ask` when the state dir can't be
   written (so it can never brick a repo).
 - **The agent can resolve the owner boundary.** Invoke the owning skills, then `record --owners`.
@@ -80,8 +79,7 @@ contracts below describe this subsystem, not that bounded recovery checkpoint.
   prompted. For precise edits, it turns Claude `ask` or Codex advisory context into an agent-facing
   `deny` that the agent self-clears. It does **not** make the gate
   safe on its own — it is fail-open, downgrades to `ask` (Codex advisory) when state is unwritable, never
-  hard-denies heuristic Bash, and does not replace CI / protected branches /
-  CODEOWNERS / human map review (the durable backstop).
+  hard-denies heuristic Bash, and is not a merge-time control.
 - **Stop / SubagentStop never traps the user.** It requires a real `session_id` (fail-open
   without one), inspects only the current `PWD` repo, blocks **at most once per actor per
   session**, is skipped by a `waiver`, and fails open if the cap can't be persisted (read-only
@@ -100,12 +98,12 @@ contracts below describe this subsystem, not that bounded recovery checkpoint.
   no new gated change and never block. No baseline (write failed) ⇒ the **main Stop** falls
   back to a conservative dirty-only check, while **SubagentStop cannot attribute and therefore
   allows** (the missing per-actor evidence must not become a sibling-blaming session-wide block;
-  the session Stop / `ci` remain the backstop). Stop
+  the session Stop remains the check). Stop
   inspects the **working tree**, so gated work parked only in the index/HEAD with the worktree
   deliberately restored to baseline (`git add` + `git restore --worktree`; commit + `git checkout
   <base> --`), a write the Bash heuristic never recorded (`node -e …`), a config mutation, or a
-  cross-`PWD` repo is out of this nudge's reach — `ci` (diffs base..HEAD at commit/merge) is the
-  reliable backstop for all of those. Stop is a fast in-session nudge, not the enforcement boundary.
+  cross-`PWD` repo is out of this nudge's reach, and nothing else gates them. Stop is a fast
+  in-session nudge, not an enforcement boundary.
 - **Symlink-safe state.** State lives under `<git-dir>/owner-dispatch`; writes refuse/replace
   symlinked paths and use `mktemp`+atomic-rename. (Residual TOCTOU there requires write access
   to your `.git` — at which point the attacker already owns the repo.)
@@ -128,13 +126,14 @@ contracts below describe this subsystem, not that bounded recovery checkpoint.
   the normal case for a repo with a stable owner set. So "record before first edit" is not
   enforced per-actor; treat the boundary as a per-worktree, time-bounded record.
 - **`record` is in-session self-attestation** — `record --owners "…"` is trusted, not verified
-  against actual owner invocation; it unblocks editing until the TTL expires. The real
-  verification is the human/CI **map artifact**, checked by `ci`.
+  against actual owner invocation; it unblocks editing until the TTL expires. The verification
+  is the Stop hook's transcript check (see *Invocation evidence* below): every recorded
+  skill-shaped owner needs a real `Skill` invocation.
 
 ## Bootstrap a repo (one-click)
 
 `install-gates` vendors the gate **mechanics** into a product repo in one step — the engine
-script, a default config, and a warn-only CI fragment. It installs **both** repo-local gates
+script and a default config. owner-dispatch contributes no CI job. It installs **both** repo-local gates
 (`owner-dispatch` and `agents-file-coverage-gate`) since they share the same vendor-and-wire shape;
 pass `--gates owner-dispatch` for this gate alone.
 
@@ -145,31 +144,28 @@ make install-gates TARGET=/path/to/product-repo          # both gates, warn-only
 
 What it does for owner-dispatch:
 
-- vendors `scripts/owner-dispatch/owner-dispatch.sh` into the target (CI/hooks can't reach the
-  plugin cache, so the engine must live in-tree); re-running **refreshes** it to the current
+- vendors `scripts/owner-dispatch/owner-dispatch.sh` into the target, so `record` and `status`
+  run from a stable repo path; re-running **refreshes** it to the current
   plugin version (fixes drift) and **never** overwrites an existing `.owner-dispatch.json`;
 - writes a default `.owner-dispatch.json` with **`enabled:false`** — the gate is a complete
   no-op until you deliberately turn it on. The default `product_globs` are a generic guess the
   installer cannot verify against your layout;
-- generates `ci/agent-gates.gitlab-ci.yml` with the owner-dispatch `ci` job scoped to **MR
-  pipelines** (`$CI_MERGE_REQUEST_IID`) so the diff base SHA always exists — no shallow-clone
-  `merge-base` guesswork — and `allow_failure: true` so a fresh repo never breaks.
 
-It installs **mechanics, not obligations** — it cannot write your real `product_globs`, the
-owner-dispatch map a gated change owes, or decide the enforce flip. Finish the rollout by hand:
+It installs **mechanics, not obligations** — it cannot write your real `product_globs` or
+decide the `enabled` flip. Finish the rollout by hand:
 
 1. Edit `product_globs` / `exclude_globs` to this repo's source layout, then **prove the globs
    match** — `owner-dispatch.sh status` only shows opt-in/boundary state, it does not exercise
-   the gate. After you enable+commit the config, run `owner-dispatch.sh ci --base <sha>` on a
-   branch that edits a real gated file and confirm it classifies that file as gated (a generic
-   glob can silently gate nothing — see *Writing globs* below).
-2. Flip `enabled:true` in a **separate config-only change** (no gated product files in that
-   diff, so it passes `ci` cleanly), then add `include: { local: ci/agent-gates.gitlab-ci.yml }`
-   to `.gitlab-ci.yml`.
-3. To **enforce** (block, not warn): once contracts/maps exist, remove `allow_failure` from the
-   CI job (a deliberate, separately-reviewed change — the installer never does this for you).
-   Enabling on a repo with pending gated changes owes a map in that same MR — keep the install
-   change and the product change separate.
+   the gate. After you enable+commit the config, pipe an Edit of a real gated file into
+   `pretool` and confirm it asks (a generic glob can silently gate nothing — see *Writing
+   globs* below):
+
+   ```bash
+   printf '{"tool_name":"Edit","tool_input":{"file_path":"src/main.go"},"session_id":"probe"}' \
+     | bash scripts/owner-dispatch/owner-dispatch.sh pretool
+   ```
+2. Flip `enabled:true` in a **separate config-only change**, with no gated product files in
+   that diff.
 
 ## Usage
 
@@ -177,7 +173,7 @@ Or opt a **product** repo in by hand (what `install-gates` automates):
 
 ```bash
 cp <plugin>/scripts/owner-dispatch/owner-dispatch.example.json <product-repo>/.owner-dispatch.json
-# edit product_globs / exclude_globs / strict / ci_artifact, then commit it
+# edit product_globs / exclude_globs / strict, then commit it
 ```
 
 The owner, after invoking the owning skills and building the owner-dispatch map, records the
@@ -185,12 +181,6 @@ boundary so editing is unblocked:
 
 ```bash
 scripts/owner-dispatch/owner-dispatch.sh record --owners "product-rd-workflow,go-microservice-dev"
-```
-
-Wire the host-agnostic backstop into the product repo's CI / pre-commit:
-
-```bash
-scripts/owner-dispatch/owner-dispatch.sh ci --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
 ```
 
 Inspect state: `scripts/owner-dispatch/owner-dispatch.sh status`.
@@ -213,27 +203,27 @@ Gotcha: to gate a **top-level** product file, use `**/*.go` (or a bare `*.go`) �
 dir-prefixed glob like `src/**` only covers files under that directory. A repo whose
 production code lives at the root with a `["src/**"]`-style config silently gates
 nothing. Verify a new config against a **real** product file: a gated edit must `ask`
-(`owner-dispatch.sh status` + a dry `pretool`/`ci`), not just trust the glob.
+(`owner-dispatch.sh status` + a dry `pretool`), not just trust the glob.
 
-### What `ci` enforces (and its limits)
+### No merge-time backstop
 
-Exit codes: **0** = ok / not-opted-in / clean config-only decommit; **1** = violation;
-**2** = could-not-verify (a gating CI job must treat 2 as failure). `ci` fails **closed**.
+There is no `ci` subcommand and no CI job for this gate:
 
-It rejects, when gated product files changed in the diff:
-- a missing or stale (not-updated-in-this-change) map artifact;
-- an `enabled` config that is schema-invalid (`product_globs` not a non-empty string array, etc.);
-- a `ci_artifact` that is unsafe (`..`/absolute), is the config file, or points at product code
-  / a gated changed file (so a change to that file can't self-satisfy the gate);
-- a change that disables/removes the config **and** touches gated code (disabling the gate must
-  be a separate, reviewed, config-only commit);
-- a change that shrinks `product_globs` / widens excludes to dodge — files are classified against
-  the **union of base and head** globs, so **config-contract changes must land in their own
-  commit**, separate from the product change they would re-scope.
+- A committed per-change record has to be appended to one shared file, so every pair of parallel
+  merge requests conflicts on it.
+- A CI check on that file proves only that the file changed, not that an owner was loaded.
 
-It does **not** validate the map's semantic content (that the listed owners actually cover the
-gated files) — that stays reviewer/owner judgment. And it is only as un-bypassable as the CI job
-itself (needs pipelines-must-succeed + protected branch + CODEOWNERS on the config).
+The Stop hook's check of recorded owners against the transcript is the part that verifies
+loading. Writes the hooks miss are not gated anywhere.
+
+A config that still sets `ci_artifact` stays valid, and the key is ignored. A product repository
+whose CI still runs a vendored `owner-dispatch.sh ci` must delete that job:
+
+- If the job keeps `allow_failure: true`, it only warns. Rerunning `install-gates` regenerates an
+  unedited fragment without it.
+- If `allow_failure` was removed, delete the job block by hand before upgrading. Do not rerun
+  `install-gates` there: regenerating the fragment writes `allow_failure: true` back onto the
+  other gates' jobs too.
 
 ### Invocation evidence (name ≠ invoke)
 
@@ -281,4 +271,4 @@ waiving.
 
 `bash scripts/owner-dispatch/test.sh` runs the RED→GREEN behavioral suite (baseline: no
 config ⇒ silent allow; with config ⇒ gate fires; with boundary ⇒ allow; strict ⇒ deny; Stop
-cap; CI mode).
+cap; no `ci` subcommand; a legacy `ci_artifact` key still gates).

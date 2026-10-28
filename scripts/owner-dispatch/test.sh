@@ -336,245 +336,26 @@ echo "package x" > "$REPO/root_test.go"
 [ "$(edit "$REPO/src/foo.go" S9 | bash "$ENGINE" pretool | decision)" = ask ] && ok "**/ glob still gates subdir src/foo.go (no regression)" || bad "subdir regression under **/ glob"
 rm -rf "$BDIR"
 
-# ---- 10. CI backstop (raw config writes; commits managed explicitly per scenario) ----
-rawcfg(){ cat > "$REPO/.owner-dispatch.json"; }
-gc(){ git -C "$REPO" add -A; git -C "$REPO" commit -q -m "$1"; }
-EN='{ "enabled": true, "product_globs": ["src/**"], "ci_artifact": "design/map.md" }'
-
-# 10a. enabled, gated change, no artifact => fail.
-printf '%s\n' "$EN" | rawcfg; gc cfg
-base=$(git -C "$REPO" rev-parse HEAD)
-echo "// change" >> "$REPO/src/foo.go"; gc change
-( cd "$REPO" && bash "$ENGINE" ci --base "$base" >/dev/null 2>&1 ) && bad "ci no-artifact should fail" || ok "ci: gated change, no artifact => fail"
-# 10b. artifact updated in the change => ok.
-mkdir -p "$REPO/design"; echo "owners: x" > "$REPO/design/map.md"; gc map
-( cd "$REPO" && bash "$ENGINE" ci --base "$base" >/dev/null 2>&1 ) && ok "ci: artifact updated in change => ok" || bad "ci ok"
-# 10c. stale artifact (gated change without touching the map) => fail.
-base2=$(git -C "$REPO" rev-parse HEAD)
-echo "// more" >> "$REPO/src/foo.go"; gc change2
-( cd "$REPO" && bash "$ENGINE" ci --base "$base2" >/dev/null 2>&1 ) && bad "ci stale should fail" || ok "ci: stale artifact => fail"
-# 10d. unsafe ci_artifact path (+ gated change) => fail.
-printf '%s\n' '{ "enabled": true, "product_globs": ["src/**"], "ci_artifact": "../evil" }' | rawcfg
-echo "// c" >> "$REPO/src/foo.go"; gc badcfg
-( cd "$REPO" && bash "$ENGINE" ci --base "$(git -C "$REPO" rev-parse HEAD~1)" >/dev/null 2>&1 ) && bad "ci unsafe should fail" || ok "ci: unsafe ci_artifact path => fail"
-# 10e. shrink product_globs to dodge a gated change (base globs still apply) => fail.
-printf '%s\n' "$EN" | rawcfg; gc reenable
-shrinkbase=$(git -C "$REPO" rev-parse HEAD)
-printf '%s\n' '{ "enabled": true, "product_globs": ["nonexistent/**"], "ci_artifact": "design/map.md" }' | rawcfg
-echo "// dodge" >> "$REPO/src/foo.go"; gc shrink
-( cd "$REPO" && bash "$ENGINE" ci --base "$shrinkbase" >/dev/null 2>&1 ) && bad "ci shrink-dodge should fail" || ok "ci: shrink product_globs to dodge => fail (base-glob union)"
-# 10f. disable + gated change in one commit (from enabled base) => fail.
-printf '%s\n' "$EN" | rawcfg; gc reenable2
-enbase=$(git -C "$REPO" rev-parse HEAD)
-printf '%s\n' '{ "enabled": false, "product_globs": ["src/**"] }' | rawcfg
-echo "// sneaky" >> "$REPO/src/foo.go"; gc disable
-( cd "$REPO" && bash "$ENGINE" ci --base "$enbase" >/dev/null 2>&1 ) && bad "ci disable+gated should fail" || ok "ci: disable gate + gated change => fail (anti-bypass)"
-# 10g. clean decommit: config-only removal, no gated change => allowed (0).
-printf '%s\n' "$EN" | rawcfg; echo "// x" >> "$REPO/src/foo.go"; gc reenable3
-enbase2=$(git -C "$REPO" rev-parse HEAD)
-git -C "$REPO" rm -q .owner-dispatch.json; git -C "$REPO" commit -q -m decommit
-( cd "$REPO" && bash "$ENGINE" ci --base "$enbase2" >/dev/null 2>&1 ) && ok "ci: clean config-only decommit => allowed(0)" || bad "ci decommit"
-# 10g2. ci_artifact pointing at product code (would self-satisfy) => fail.
-printf '%s\n' "$EN" | rawcfg; gc reN
-b_art=$(git -C "$REPO" rev-parse HEAD)
-printf '%s\n' '{ "enabled": true, "product_globs": ["src/**"], "ci_artifact": "src/foo.go" }' | rawcfg
-echo "// art" >> "$REPO/src/foo.go"; gc artbad
-( cd "$REPO" && bash "$ENGINE" ci --base "$b_art" >/dev/null 2>&1 ) && bad "ci artifact=product should fail" || ok "ci: ci_artifact pointing at product code => fail"
-# 10g3. enabled but schema-invalid config (product_globs not an array) => fail-closed.
-printf '%s\n' "$EN" | rawcfg; gc reS
-b_sch=$(git -C "$REPO" rev-parse HEAD)
-printf '%s\n' '{ "enabled": true, "product_globs": "src/**" }' | rawcfg
-echo "// s" >> "$REPO/src/foo.go"; gc schbad
-( cd "$REPO" && bash "$ENGINE" ci --base "$b_sch" >/dev/null 2>&1 ) && bad "ci schema-invalid should fail" || ok "ci: enabled schema-invalid config => fail-closed"
-# 10g5. tracked-but-malformed config + gated change (from a non-enabled base) => fail-closed.
-git -C "$REPO" rm -q .owner-dispatch.json 2>/dev/null; gc noc
-b_m=$(git -C "$REPO" rev-parse HEAD)
-printf '%s' '{ bad json not closed' > "$REPO/.owner-dispatch.json"; echo "// m" >> "$REPO/src/foo.go"; gc malformed
-( cd "$REPO" && bash "$ENGINE" ci --base "$b_m" >/dev/null 2>&1 ) && bad "ci malformed should fail" || ok "ci: tracked malformed config => fail-closed"
-# 10g5b. tracked-but-non-object JSON is also malformed as a config => fail-closed.
-printf '%s\n' "$EN" | rawcfg; gc reObj
-b_obj=$(git -C "$REPO" rev-parse HEAD)
-printf '%s\n' '[]' > "$REPO/.owner-dispatch.json"; gc nonobject
-( cd "$REPO" && bash "$ENGINE" ci --base "$b_obj" >/dev/null 2>&1 ) && bad "ci non-object config should fail" || ok "ci: tracked non-object config => fail-closed"
-# 10g6. ./-prefixed ci_artifact resolves to git path form => not false-failed.
-printf '%s\n' '{ "enabled": true, "product_globs": ["src/**"], "ci_artifact": "./design/map.md" }' | rawcfg; gc reDot
-b_dot=$(git -C "$REPO" rev-parse HEAD)
-echo "// d" >> "$REPO/src/foo.go"; mkdir -p "$REPO/design"; echo owners > "$REPO/design/map.md"; gc dotchange
-( cd "$REPO" && bash "$ENGINE" ci --base "$b_dot" >/dev/null 2>&1 ) && ok "ci: ./-prefixed ci_artifact matches => ok" || bad "ci dot-artifact false-fail"
-# 10g6b. '..' inside a filename is safe; only '..' path components are unsafe.
-printf '%s\n' '{ "enabled": true, "product_globs": ["src/**"], "ci_artifact": "design/v1..2-map.md" }' | rawcfg; gc reDotsName
-b_dots_name=$(git -C "$REPO" rev-parse HEAD)
-echo "// d2" >> "$REPO/src/foo.go"; mkdir -p "$REPO/design"; echo owners > "$REPO/design/v1..2-map.md"; gc dotsname
-( cd "$REPO" && bash "$ENGINE" ci --base "$b_dots_name" >/dev/null 2>&1 ) && ok "ci: ci_artifact filename containing '..' => ok" || bad "ci dots-in-filename false-fail"
-# 10g7. malforming an enabled config in a config-only change (no product change) => fail-closed.
-printf '%s\n' "$EN" | rawcfg; gc reMM
-b_mm=$(git -C "$REPO" rev-parse HEAD)
-printf '%s' '{ bad' > "$REPO/.owner-dispatch.json"; gc malformonly
-( cd "$REPO" && bash "$ENGINE" ci --base "$b_mm" >/dev/null 2>&1 ) && bad "malform-only should fail" || ok "ci: malform enabled config (config-only) => fail-closed (not decommit)"
-# 10g4. a gated product path WITH A SPACE is classified correctly (no substring/split bug).
-printf '%s\n' "$EN" | rawcfg; gc reSP
-b_sp=$(git -C "$REPO" rev-parse HEAD)
-echo "x" > "$REPO/src/a b.go"; gc spacefile
-( cd "$REPO" && bash "$ENGINE" ci --base "$b_sp" >/dev/null 2>&1 ) && bad "ci space-path should fail (gated, no map)" || ok "ci: gated path with a space classified => fail"
-# 10g8. CI fallback: a runner without jq but with python3 still verifies the same
-#       backstop semantics instead of warning forever because a shared runner lacks jq.
-NOJQBIN="$WORK/nojqbin"; mkdir -p "$NOJQBIN"
-for _cmd in bash git python3 dirname basename; do ln -sf "$(command -v "$_cmd")" "$NOJQBIN/$_cmd"; done
-EN_NJ='{ "enabled": true, "product_globs": ["src/**"], "ci_artifact": "design/nojq-map.md" }'
-printf '%s\n' "$EN_NJ" | rawcfg; gc reNJ
-b_nj=$(git -C "$REPO" rev-parse HEAD)
-echo "// nojq fail" >> "$REPO/src/foo.go"; gc nojqfail
-( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_nj" >/dev/null 2>&1 ) \
-  && bad "ci no-jq no-artifact should fail" || ok "ci: no-jq fallback keeps no-artifact failure"
-mkdir -p "$REPO/design"; printf 'owners nojq\n' > "$REPO/design/nojq-map.md"; gc nojqmap
-( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_nj" >/dev/null 2>&1 ) \
-  && ok "ci: no-jq fallback accepts updated artifact" || bad "ci no-jq fallback false-fail"
-jq_rc=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$b_nj" >/dev/null 2>&1 ) || jq_rc=$?
-py_rc=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_nj" >/dev/null 2>&1 ) || py_rc=$?
-[ "$jq_rc" = "$py_rc" ] && ok "ci: jq and no-jq verdicts match on same fixture ($jq_rc)" || bad "ci jq/no-jq parity" "jq=$jq_rc py=$py_rc"
-EN_STAR='{ "enabled": true, "product_globs": ["src/*.go"], "ci_artifact": "design/star-map.md" }'
-printf '%s\n' "$EN_STAR" | rawcfg; gc reStar
-b_star=$(git -C "$REPO" rev-parse HEAD)
-mkdir -p "$REPO/src/nested" "$REPO/design"; echo "package nested" > "$REPO/src/nested/b.go"; echo star > "$REPO/design/star-map.md"; gc starglob
-jq_rc=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$b_star" >/dev/null 2>&1 ) || jq_rc=$?
-py_rc=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_star" >/dev/null 2>&1 ) || py_rc=$?
-[ "$jq_rc" = "$py_rc" ] && ok "ci: jq/no-jq parity for single-star nested path ($jq_rc)" || bad "ci single-star parity" "jq=$jq_rc py=$py_rc"
-EN_EXCL='{ "enabled": true, "product_globs": ["src/**"], "exclude_globs": ["src/*.go"], "ci_artifact": "design/exclude-map.md" }'
-printf '%s\n' "$EN_EXCL" | rawcfg; gc reExcl
-b_excl=$(git -C "$REPO" rev-parse HEAD)
-echo "package excluded" > "$REPO/src/nested/excluded.go"; gc exclglob
-jq_rc=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$b_excl" >/dev/null 2>&1 ) || jq_rc=$?
-py_rc=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_excl" >/dev/null 2>&1 ) || py_rc=$?
-[ "$jq_rc" = "$py_rc" ] && ok "ci: jq/no-jq parity for exclude single-star nested path ($jq_rc)" || bad "ci exclude-star parity" "jq=$jq_rc py=$py_rc"
-EN_ROOTTXT='{ "enabled": true, "product_globs": ["**/*.txt"], "ci_artifact": "design/root-txt-map.md" }'
-printf '%s\n' "$EN_ROOTTXT" | rawcfg; gc reRootTxt
-b_root_txt=$(git -C "$REPO" rev-parse HEAD)
-echo root > "$REPO/root.txt"; gc roottxt
-jq_rc=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$b_root_txt" >/dev/null 2>&1 ) || jq_rc=$?
-py_rc=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_root_txt" >/dev/null 2>&1 ) || py_rc=$?
-[ "$jq_rc" = "$py_rc" ] && ok "ci: jq/no-jq parity for **/ product root path ($jq_rc)" || bad "ci root **/ product parity" "jq=$jq_rc py=$py_rc"
-EN_ROOTMD='{ "enabled": true, "product_globs": ["**/*.md"], "ci_artifact": "design/root-md-map.md" }'
-printf '%s\n' "$EN_ROOTMD" | rawcfg; gc reRootMd
-b_root_md=$(git -C "$REPO" rev-parse HEAD)
-echo root > "$REPO/root.md"; gc rootmd
-jq_rc=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$b_root_md" >/dev/null 2>&1 ) || jq_rc=$?
-py_rc=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_root_md" >/dev/null 2>&1 ) || py_rc=$?
-[ "$jq_rc" = "$py_rc" ] && ok "ci: jq/no-jq parity for default **/*.md root exclude ($jq_rc)" || bad "ci root md exclude parity" "jq=$jq_rc py=$py_rc"
-EN_EMPTY_ART='{ "enabled": true, "product_globs": ["src/**"], "ci_artifact": "" }'
-printf '%s\n' "$EN_EMPTY_ART" | rawcfg; gc reEmptyArt
-b_empty_art=$(git -C "$REPO" rev-parse HEAD)
-echo "// empty art" >> "$REPO/src/foo.go"; gc emptyart
-jq_rc=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$b_empty_art" >/dev/null 2>&1 ) || jq_rc=$?
-py_rc=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_empty_art" >/dev/null 2>&1 ) || py_rc=$?
-[ "$jq_rc" = "$py_rc" ] && ok "ci: jq/no-jq parity for empty ci_artifact ($jq_rc)" || bad "ci empty artifact parity" "jq=$jq_rc py=$py_rc"
-EN_NULL_ART='{ "enabled": true, "product_globs": ["src/**"], "ci_artifact": null }'
-printf '%s\n' "$EN_NULL_ART" | rawcfg; gc reNullArt
-b_null_art=$(git -C "$REPO" rev-parse HEAD)
-echo "// null art" >> "$REPO/src/foo.go"; mkdir -p "$REPO/design"; echo owners > "$REPO/design/owner-dispatch-map.md"; gc nullart
-jq_rc=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$b_null_art" >/dev/null 2>&1 ) || jq_rc=$?
-py_rc=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_null_art" >/dev/null 2>&1 ) || py_rc=$?
-[ "$jq_rc" = "$py_rc" ] && ok "ci: jq/no-jq parity for null ci_artifact default ($jq_rc)" || bad "ci null artifact parity" "jq=$jq_rc py=$py_rc"
-EN_STRICT='{ "enabled": true, "strict": true, "gate_bash": false, "product_globs": ["src/**"], "ci_artifact": "design/strict-map.md" }'
-printf '%s\n' "$EN_STRICT" | rawcfg; gc reStrict
-b_strict=$(git -C "$REPO" rev-parse HEAD)
-echo "// strict" >> "$REPO/src/foo.go"; echo strict > "$REPO/design/strict-map.md"; gc strictci
-jq_rc=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$b_strict" >/dev/null 2>&1 ) || jq_rc=$?
-py_rc=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_strict" >/dev/null 2>&1 ) || py_rc=$?
-[ "$jq_rc" = "$py_rc" ] && ok "ci: jq/no-jq parity for strict+gate_bash schema edge ($jq_rc)" || bad "ci strict/gate_bash parity" "jq=$jq_rc py=$py_rc"
-EN_BAD_BOOL='{ "enabled": true, "strict": 1, "gate_bash": "false", "product_globs": ["src/**"], "ci_artifact": "design/bad-bool-map.md" }'
-printf '%s\n' "$EN_BAD_BOOL" | rawcfg; gc reBadBool
-b_bad_bool=$(git -C "$REPO" rev-parse HEAD)
-echo "// bad bool" >> "$REPO/src/foo.go"; gc badbool
-jq_rc=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$b_bad_bool" >/dev/null 2>&1 ) || jq_rc=$?
-py_rc=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_bad_bool" >/dev/null 2>&1 ) || py_rc=$?
-[ "$jq_rc" = "$py_rc" ] && ok "ci: jq/no-jq parity for non-boolean strict/gate_bash ($jq_rc)" || bad "ci bad bool parity" "jq=$jq_rc py=$py_rc"
-EN_EMPTY_BRANCH='{ "enabled": true, "product_globs": ["src/**"], "ci_artifact": "design/empty-branch-map.md" }'
-printf '%s\n' "$EN_EMPTY_BRANCH" | rawcfg; gc reEmptyBranch
-b_empty_branch=$(git -C "$REPO" rev-parse HEAD)
-git -C "$REPO" update-ref refs/remotes/origin/main "$b_empty_branch"
-echo "// empty branch" >> "$REPO/src/foo.go"; echo branch > "$REPO/design/empty-branch-map.md"; gc emptybranch
-jq_rc=0; ( cd "$REPO" && CI_DEFAULT_BRANCH="" bash "$ENGINE" ci >/dev/null 2>&1 ) || jq_rc=$?
-py_rc=0; ( cd "$REPO" && CI_DEFAULT_BRANCH="" PATH="$NOJQBIN" bash "$ENGINE" ci >/dev/null 2>&1 ) || py_rc=$?
-[ "$jq_rc" = "$py_rc" ] && ok "ci: jq/no-jq parity for empty CI_DEFAULT_BRANCH fallback ($jq_rc)" || bad "ci empty CI_DEFAULT_BRANCH parity" "jq=$jq_rc py=$py_rc"
-printf '%s\n' "$EN_NJ" | rawcfg; gc reNJS
-b_njs=$(git -C "$REPO" rev-parse HEAD)
-printf '%s\n' '{ "enabled": true, "product_globs": "src/**", "ci_artifact": "design/nojq-map.md" }' | rawcfg
-echo "// nojq schema" >> "$REPO/src/foo.go"; gc nojqschema
-py_rc=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_njs" >/dev/null 2>&1 ) || py_rc=$?
-[ "$py_rc" = 2 ] && ok "ci: no-jq fallback schema-invalid => fail-closed(2)" || bad "ci no-jq schema rc" "py=$py_rc"
-printf '%s\n' "$EN_NJ" | rawcfg; gc reNJD
-b_njd=$(git -C "$REPO" rev-parse HEAD)
-printf '%s\n' '{ "enabled": false, "product_globs": ["src/**"], "ci_artifact": "design/nojq-map.md" }' | rawcfg
-echo "// nojq disable" >> "$REPO/src/foo.go"; gc nojqdisable
-py_rc=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_njd" >/dev/null 2>&1 ) || py_rc=$?
-[ "$py_rc" = 1 ] && ok "ci: no-jq fallback disable+gated => fail(1)" || bad "ci no-jq disable rc" "py=$py_rc"
-printf '%s\n' "$EN_NJ" | rawcfg; gc reNJObj
-b_njo=$(git -C "$REPO" rev-parse HEAD)
-printf '%s\n' '[]' > "$REPO/.owner-dispatch.json"; gc nojqnonobject
-jq_rc=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$b_njo" >/dev/null 2>&1 ) || jq_rc=$?
-py_rc=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$b_njo" >/dev/null 2>&1 ) || py_rc=$?
-[ "$py_rc" = 2 ] && ok "ci: no-jq fallback non-object config => fail-closed(2)" || bad "ci no-jq non-object rc" "py=$py_rc"
-[ "$jq_rc" = "$py_rc" ] && ok "ci: jq/no-jq parity for non-object config ($jq_rc)" || bad "ci non-object parity" "jq=$jq_rc py=$py_rc"
-# 10h. never opted in (absent at base AND head) => skip(0).
-git -C "$REPO" rm -q .owner-dispatch.json 2>/dev/null; gc rmfinal
-nb=$(git -C "$REPO" rev-parse HEAD)
-echo "// z" >> "$REPO/src/foo.go"; gc more
-( cd "$REPO" && bash "$ENGINE" ci --base "$nb" >/dev/null 2>&1 ) && ok "ci: never opted in => skip(0)" || bad "ci skip"
-# 10i. CI fails CLOSED when it cannot determine a base (no --base, no upstream).
-if ( cd "$REPO" && bash "$ENGINE" ci >/dev/null 2>&1 ); then bad "ci no-base should fail-closed"; else ok "ci: no base => fail-closed (non-zero)"; fi
-
-# 10j. a gated file moved OUT of the gated tree is still a gated change. Two ways the diff
-#      can hide it: rename detection resolves a pure move to the exempt destination only,
-#      and diff.ignoreSubmodules=all drops a moved gitlink entirely. Both ci paths (jq and
-#      the python fallback) must classify the same set, so each case runs on both.
-command -v jq >/dev/null 2>&1 || bad "ci rename-out: jq absent" "the jq lane would silently be a second python run"
-[ -z "$(PATH="$NOJQBIN" command -v jq || true)" ] || bad "ci rename-out: NOJQBIN still resolves jq" "the python lane would silently be a second jq run"
-printf '%s\n' "$EN" | rawcfg
-mkdir -p "$REPO/design" "$REPO/exempt"; echo "owners: x" > "$REPO/design/map.md"
-echo "package x" > "$REPO/src/moved.go"; gc renamebase
-rnbase=$(git -C "$REPO" rev-parse HEAD)
-git -C "$REPO" config diff.renames true   # else the base engine reports the source anyway
-git -C "$REPO" mv src/moved.go exempt/moved.go; gc renameout
-jq_rc=0; jq_out=$( cd "$REPO" && bash "$ENGINE" ci --base "$rnbase" 2>&1 ) || jq_rc=$?
-py_rc=0; py_out=$( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$rnbase" 2>&1 ) || py_rc=$?
-[ "$jq_rc" = 1 ] && [ "$py_rc" = 1 ] && ok "ci: gated file renamed out of scope, stale map => fail on both lanes" || bad "ci rename-out rc" "jq=$jq_rc py=$py_rc"
-case "$jq_out$py_out" in *src/moved.go*src/moved.go*) ok "ci rename-out: both lanes name the gated source path" ;; *) bad "ci rename-out diagnostic" "$jq_out | $py_out" ;; esac
-# cwd must not change the verdict: with diff.relative=true a diff run from a subdirectory
-# would drop paths outside it, and the two lanes would disagree.
-git -C "$REPO" config diff.relative true
-rel_jq=0; ( cd "$REPO/exempt" && bash "$ENGINE" ci --base "$rnbase" >/dev/null 2>&1 ) || rel_jq=$?
-rel_py=0; ( cd "$REPO/exempt" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$rnbase" >/dev/null 2>&1 ) || rel_py=$?
-[ "$rel_jq" = 1 ] && [ "$rel_py" = 1 ] && ok "ci: run from a subdirectory under diff.relative=true => still fail on both lanes" || bad "ci rename-out relative rc" "jq=$rel_jq py=$rel_py"
-git -C "$REPO" config --unset diff.relative
-echo "owners: y" >> "$REPO/design/map.md"; gc renameoutmap
-ok_jq=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$rnbase" >/dev/null 2>&1 ) || ok_jq=$?
-ok_py=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$rnbase" >/dev/null 2>&1 ) || ok_py=$?
-[ "$ok_jq" = 0 ] && [ "$ok_py" = 0 ] && ok "ci: renamed-out gated file with updated map => ok on both lanes" || bad "ci rename-out with map" "jq=$ok_jq py=$ok_py"
-# an option-like base must be rejected before any diff runs, on both lanes
-for badbase in "--output=$WORK/pwned" "-z"; do
-  b_jq=0; ( cd "$REPO" && bash "$ENGINE" ci --base "$badbase" >/dev/null 2>&1 ) || b_jq=$?
-  b_py=0; ( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$badbase" >/dev/null 2>&1 ) || b_py=$?
-  [ "$b_jq" = 2 ] && [ "$b_py" = 2 ] && ok "ci: option-like base '$badbase' => fail-closed(2) on both lanes" || bad "ci option-base rc" "jq=$b_jq py=$b_py"
-done
-[ ! -e "$WORK/pwned" ] && ok "ci: option-like base created no file" || bad "ci option-base wrote a file"
-
-# 10j2. the same bypass through a submodule, which repository config can hide outright.
-SUBSRC="$WORK/subsrc"; mkdir -p "$SUBSRC"
-git -C "$SUBSRC" init -q; git -C "$SUBSRC" config user.email t@t; git -C "$SUBSRC" config user.name t
-echo hi > "$SUBSRC/f.txt"; git -C "$SUBSRC" add -A; git -C "$SUBSRC" commit -qm sub
-sub_err=$(git -C "$REPO" -c protocol.file.allow=always submodule add -q "$SUBSRC" src/vendor 2>&1) || true
-if [ -e "$REPO/src/vendor/f.txt" ]; then
-  gc subbase
-  sub_base=$(git -C "$REPO" rev-parse HEAD)
-  git -C "$REPO" config diff.ignoreSubmodules all
-  git -C "$REPO" mv src/vendor exempt/vendor; gc submove
-  sm_jq=0; sm_jq_out=$( cd "$REPO" && bash "$ENGINE" ci --base "$sub_base" 2>&1 ) || sm_jq=$?
-  sm_py=0; sm_py_out=$( cd "$REPO" && PATH="$NOJQBIN" bash "$ENGINE" ci --base "$sub_base" 2>&1 ) || sm_py=$?
-  [ "$sm_jq" = 1 ] && [ "$sm_py" = 1 ] && ok "ci: submodule moved out of scope under diff.ignoreSubmodules=all => fail on both lanes" || bad "ci submodule-move rc" "jq=$sm_jq py=$sm_py"
-  git -C "$REPO" config --unset diff.ignoreSubmodules
-else
-  bad "ci submodule-move: could not create the submodule fixture" "$sub_err"
-fi
+# ---- 10. No CI backstop: the gate is in-session only. ----
+# A committed per-change map made parallel merge requests conflict and proved only that
+# the file changed. The engine has no `ci` subcommand; an existing config that still
+# carries `ci_artifact` keeps gating exactly as before.
+git -C "$REPO" add -A; git -C "$REPO" commit -q -m "settle fixtures" >/dev/null 2>&1 || true
+rm -rf "$BDIR"
+ci_rc=0; ci_out=$( cd "$REPO" && bash "$ENGINE" ci --base HEAD 2>&1 ) || ci_rc=$?
+[ "$ci_rc" = 2 ] && ok "ci: not a subcommand => usage error (2)" || bad "ci still dispatched" "rc=$ci_rc out=$ci_out"
+case "$ci_out" in *"ci ["*|*"|ci"*) bad "usage still advertises ci" "$ci_out" ;; *) ok "usage no longer advertises ci" ;; esac
+config <<'JSON'
+{ "enabled": true, "strict": false, "gate_bash": true,
+  "product_globs": ["src/**"], "ci_artifact": "design/owner-dispatch-map.md" }
+JSON
+[ "$(edit "$REPO/src/foo.go" S10 | bash "$ENGINE" pretool | decision)" = ask ] \
+  && ok "legacy ci_artifact key: config still gates" || bad "legacy ci_artifact key disabled the gate"
+echo "// s10 gated edit" >> "$REPO/src/foo.go"
+[ "$( cd "$REPO" && printf '{"session_id":"S10"}' | bash "$ENGINE" stop | sdecision )" = block ] \
+  && ok "legacy ci_artifact key: Stop still blocks an unrecorded gated edit" || bad "legacy ci_artifact key: Stop no longer blocks"
+git -C "$REPO" checkout -q -- src/foo.go
+rm -rf "$BDIR"
 
 # ---- 11. SubagentStop: agent_id-scoped enforcement (the same engine handles Stop +
 #         SubagentStop; agent_id is present only for the latter and scopes markers/cap). ----

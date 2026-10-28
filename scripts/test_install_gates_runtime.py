@@ -50,6 +50,37 @@ class InstalledRuntimeTests(unittest.TestCase):
             self.assertEqual(json.loads(parsed.stdout), {
                 'paths': [str(target / 'file.py')], 'malformed_patch': False})
 
+    def test_owner_dispatch_contributes_no_ci_job(self):
+        # owner-dispatch is in-session only: a committed per-change map made parallel
+        # merge requests conflict, so the installer emits no CI job and no map key.
+        with tempfile.TemporaryDirectory() as temporary:
+            env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null',
+                       GIT_CONFIG_SYSTEM='/dev/null')
+            for key in ('GIT_DIR', 'GIT_COMMON_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'):
+                env.pop(key, None)
+            for gates in ('agents,owner-dispatch,control-plane', 'owner-dispatch'):
+                target = Path(temporary).resolve() / gates.replace(',', '-')
+                subprocess.run(['git', 'init', '-q', '-b', 'dev', str(target)],
+                               env=env, check=True, capture_output=True)
+                result = subprocess.run(['bash', str(ROOT / 'scripts/install-gates.sh'),
+                                         str(target), '--gates', gates], env=env,
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue((target / 'scripts/owner-dispatch/owner-dispatch.sh').is_file())
+                self.assertTrue((target / 'hooks/host-input.py').is_file())
+                config = json.loads((target / '.owner-dispatch.json').read_text())
+                self.assertNotIn('ci_artifact', config)
+                fragment = target / 'ci/agent-gates.gitlab-ci.yml'
+                if gates == 'owner-dispatch':
+                    self.assertFalse(fragment.exists(), 'a fragment with no jobs was written')
+                    self.assertNotIn('include: { local: ci/agent-gates', result.stdout)
+                    continue
+                text = fragment.read_text()
+                self.assertIn('\nagent-contract-coverage:\n', text)
+                self.assertIn('\ncontrol-plane:\n', text)
+                self.assertNotIn('\nowner-dispatch:\n', text)
+                self.assertNotIn('owner-dispatch.sh ci', text)
+
 
 if __name__ == '__main__':
     unittest.main()

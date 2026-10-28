@@ -25,10 +25,11 @@ The owner-dispatch map gates the START of design-substance production, not only 
 
 This gate is enforceable in code, not only prose:
 
-- The `owner-dispatch` PreToolUse hook gates the first product-code edit (and write-like Bash); the Stop hook gates session close when gated edits happened without a recorded boundary. `scripts/owner-dispatch/owner-dispatch.sh ci` is the host-agnostic merge/pre-commit backstop.
+- The `owner-dispatch` PreToolUse hook gates the first product-code edit (and write-like Bash); the Stop hook gates session close when gated edits happened without a recorded boundary, or when a recorded owner was never loaded.
+- There is no CI or pre-commit backstop. A committed per-change map made parallel merge requests conflict and proved only that a file changed, not that an owner was loaded.
 - A product repo opts in by committing `.owner-dispatch.json` (product globs + excludes); absent it, the gate stays prose-only.
-- Installing the backstop in a delivery: `bash scripts/install-gates.sh <repo> --gates owner-dispatch`, then flip `enabled:true` in a separate config-only change.
-- Default posture: `ask` (not block), fail-open, Claude-Code-hard / Codex-advisory — the in-session hook raises enforcement above prose where wired; the `ci` backstop is as strong as the CI job's own enforcement (pipelines-must-succeed + protected branch).
+- Installing the gate in a delivery: `bash scripts/install-gates.sh <repo> --gates owner-dispatch`, then flip `enabled:true` in a separate config-only change.
+- Default posture: `ask` (not block), fail-open, Claude-Code-hard / Codex-advisory — the in-session hooks raise enforcement above prose where wired, and writes they miss are not gated.
 - After invoking the owners and building the map, record the boundary to unblock editing: `scripts/owner-dispatch/owner-dispatch.sh record --owners "…"`. See `scripts/owner-dispatch/README.md`.
 - ccl-skills itself ships no config (its own edits are shared-skill/process edits, exempt from owner-load).
 
