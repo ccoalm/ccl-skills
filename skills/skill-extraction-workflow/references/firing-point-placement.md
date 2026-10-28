@@ -27,7 +27,10 @@ For the specific owner-dispatch case, the firing point is now **mechanically enf
 
 This is the worked example of moving an already-precise recognition-dependent gate ONTO the transition. **Honesty preserved — enforcement is partial, not total:** opt-in per product repo (`.owner-dispatch.json`), default `ask`, fail-open, Claude-hook-hard / Codex-advisory, in-session Bash-write detection is best-effort and nothing else gates what it misses, and the whole thing is a no-op on the generic Agent-Skills channel. So it raises enforcement where the plugin hooks load, but the closeout gate + user-signal escalation remain the backstop everywhere they do not. The opt-in gap itself is now narrowed by a **closeout-acquire check** in `product-rd-workflow` (a gated multi-owner delivery whose repo lacks `.owner-dispatch.json` installs the backstop or records exempt at closeout) — so "silently absent" is caught, though still recognition-dependent at closeout, not a hard gate.
 
-**When a future recognition-dependent gate recurs, prefer an in-session hook over more prose. A backstop added beside it must read evidence the agent does not write. A file the agent writes to satisfy the check proves only that the file was written.**
+When a future recognition-dependent gate recurs:
+
+- Prefer an in-session hook over more prose.
+- A backstop beside that hook must read evidence the agent does not write; a file the agent writes to satisfy the check proves only that the file was written.
 
 ## Recursive worked example: the gate's own agent-facing guidance must also sit at the seen surface
 
