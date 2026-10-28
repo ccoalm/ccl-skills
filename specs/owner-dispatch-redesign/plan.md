@@ -143,7 +143,8 @@ The existing map files stay as history and are no longer appended to.
 - `test_install_gates_runtime.py` and `test_install_status.py`:
   - no owner-dispatch CI job is emitted;
   - the engine, `host-input.py` and config are still vendored;
-  - the coverage job is unchanged.
+  - the coverage job is unchanged;
+  - an existing pipeline file that still runs `owner-dispatch.sh ci` produces a warning to delete that job, because the refreshed engine exits 2 on it.
 - `test_skill_loading.py` and `test_host_input.py`: unchanged and still green, since the checkpoint and transcript parsing are untouched.
 - `check-sync-pointers.sh` stays green; the pinned `Owner-dispatch firing gate` heading is kept.
 - A sweep for `ci_artifact`, `owner-dispatch.sh ci` and `owner-dispatch-map` returns only history (specs, evidence, the source register).

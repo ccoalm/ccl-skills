@@ -334,6 +334,15 @@ control-plane:
   fi
 fi
 
+# A CI job left from the removed `owner-dispatch.sh ci` subcommand now fails on every run
+# against the refreshed engine; an edited fragment or the main pipeline keeps it.
+if want owner-dispatch; then
+  for stale in "$TARGET/.gitlab-ci.yml" "$TARGET"/ci/*.yml "$TARGET"/ci/*.yaml; do
+    [ -f "$stale" ] && grep -qF 'owner-dispatch.sh ci' "$stale" 2>/dev/null \
+      && warn "${stale#"$TARGET"/} still runs 'owner-dispatch.sh ci', which no longer exists — delete that job; the refreshed engine exits 2 on it."
+  done
+fi
+
 # ----- next steps -------------------------------------------------------------
 note "Installed (warn-only). Next steps (substance, not scaffolding):"
 want agents && info "Fill each scaffolded AGENTS.md with the real directory contract (role / allowed+forbidden deps / build+test / link to parent)."

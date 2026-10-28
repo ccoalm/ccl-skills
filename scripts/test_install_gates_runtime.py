@@ -81,6 +81,33 @@ class InstalledRuntimeTests(unittest.TestCase):
                 self.assertNotIn('\nowner-dispatch:\n', text)
                 self.assertNotIn('owner-dispatch.sh ci', text)
 
+    def test_warns_on_a_kept_owner_dispatch_ci_job(self):
+        # An edited fragment is left untouched, so a job calling the removed subcommand
+        # would fail on every run against the refreshed engine.
+        with tempfile.TemporaryDirectory() as temporary:
+            env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null',
+                       GIT_CONFIG_SYSTEM='/dev/null')
+            for key in ('GIT_DIR', 'GIT_COMMON_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'):
+                env.pop(key, None)
+            target = Path(temporary).resolve() / 'target'
+            subprocess.run(['git', 'init', '-q', '-b', 'dev', str(target)],
+                           env=env, check=True, capture_output=True)
+            (target / 'ci').mkdir()
+            (target / 'ci/agent-gates.gitlab-ci.yml').write_text(
+                'owner-dispatch:\n  script:\n    - bash scripts/owner-dispatch/owner-dispatch.sh ci --base x\n')
+            result = subprocess.run(['bash', str(ROOT / 'scripts/install-gates.sh'),
+                                     str(target)], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("ci/agent-gates.gitlab-ci.yml still runs 'owner-dispatch.sh ci'",
+                          result.stderr)
+            clean = Path(temporary).resolve() / 'clean'
+            subprocess.run(['git', 'init', '-q', '-b', 'dev', str(clean)],
+                           env=env, check=True, capture_output=True)
+            result = subprocess.run(['bash', str(ROOT / 'scripts/install-gates.sh'),
+                                     str(clean)], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn('still runs', result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()
