@@ -23,7 +23,7 @@ The candidate at pass 1 also deleted `record` and the Stop check.
 | --- | --- | --- |
 | 1 | The residual estimate counted sessions that loaded a skill only after a Stop block as checkpoint successes. | Accepted. The results table lists those sessions separately. |
 | 1 | "Any implementation skill was loaded" does not show that every declared owner was loaded. | Accepted, and measured. 16 of the 27 declared-owner Stop blocks were followed by a load of every missing owner. The plan keeps `record` and the Stop check. |
-| 1 | Repositories whose CI still runs `ci` keep the map requirement after the plugin docs stop mentioning it. | Accepted. Inventory found 3 repositories where the job blocks merge. They migrate first; the rest are warn-only. |
+| 1 | Repositories whose CI still runs `ci` keep the map requirement after the plugin docs stop mentioning it. | Accepted. Inventory found the job blocking merge in 2 repositories; a third hit was a directory copy with no repository. They migrate first; the rest are warn-only. |
 | 1 | The packet held only the plan, so retained dependency paths could not be checked against source. | Carried to pass 2. |
 | 2 | The same evidence gap, now about vendoring and installer consumers. | Checked against source: the hooks run the plugin's engine, and rule text points `record` and `status` at the vendored path. The plan keeps vendoring and edits the enforced repositories' CI by hand. Pass 3 was rerun with the source excerpts. |
 
