@@ -103,6 +103,15 @@ class InstalledRuntimeTests(unittest.TestCase):
             self.assertIn("ci/agent-gates.gitlab-ci.yml still runs 'owner-dispatch.sh ci'",
                           result.stderr)
 
+    def test_warns_on_a_kept_job_in_a_nested_included_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self._repo(temporary)
+            (target / '.gitlab/ci').mkdir(parents=True)
+            (target / '.gitlab/ci/gates.yml').write_text(
+                'owner-dispatch:\n  script:\n    - bash scripts/owner-dispatch/owner-dispatch.sh ci --base x\n')
+            result = self._install(target)
+            self.assertIn(".gitlab/ci/gates.yml still runs 'owner-dispatch.sh ci'", result.stderr)
+
     def test_no_stale_job_warning_on_a_clean_target(self):
         with tempfile.TemporaryDirectory() as temporary:
             result = self._install(self._repo(temporary))

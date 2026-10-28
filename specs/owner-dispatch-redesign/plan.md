@@ -2,7 +2,7 @@
 
 ## Problem
 
-Product repositories that enable owner-dispatch get a merge conflict on every pair of parallel merge requests. The `ci` subcommand accepts a change only when one fixed file, `ci_artifact` (default `design/owner-dispatch-map.md`), is part of the diff. Every request appends a section at the end of that file, and two insertions at the same position cannot merge automatically.
+Product repositories that enable owner-dispatch get a merge conflict whenever parallel merge requests both touch gated code. The `ci` subcommand accepts a change only when one fixed file, `ci_artifact` (default `design/owner-dispatch-map.md`), is part of the diff. Every request appends a section at the end of that file, and two insertions at the same position cannot merge automatically.
 
 A scratch repository reproduced it with two parallel branches:
 
@@ -58,7 +58,7 @@ Owners named as declared but not loaded, counted per block: `testing-strategy` 1
 
 ### Reading
 
-- The Stop check on declared owners is the one part with measured effect beyond the first-edit checkpoint. In 16 sessions, a second owner that the agent had itself named (most often the testing owner) was loaded only because of the block.
+- The Stop check on declared owners is the one part with measured effect beyond the first-edit checkpoint. In 16 sessions, a second owner that the agent had itself named (most often the testing owner) was loaded after the block. Transcript order shows the sequence, not that the block caused the load.
 - The first-edit checkpoint cannot replace it. It asks for one owner and does not know which others the slice needs.
 - A transcript-only Stop check with no declared list would only ask "was any implementation skill loaded". It would have caught at most 3 sessions and none of the 16.
 - The `ci` map has no measurable detection effect: it checks the file changed, not its content.
@@ -81,13 +81,13 @@ Delete from the plugin:
 - The `owner-dispatch` job in the CI fragment `install-gates.sh` emits, and the install text about the map.
   - `install-gates` keeps writing the config and vendoring the engine and `host-input.py`.
   - The plugin hooks run the plugin's own engine. The vendored copy is still the path rule text gives for `record` and `status` (`scripts/owner-dispatch/owner-dispatch.sh`), so it stays.
-- Rule and doc text that tells agents to keep the map or describes `ci` as the backstop:
+- Rule and doc text that tells agents to keep the committed map file or describes `ci` as the backstop:
   - `skills/product-rd-workflow/SKILL.md` (mechanical-firing bullet)
   - `references/dispatch-owner-skills.md`
   - `scripts/owner-dispatch/README.md`
   - `firing-point-placement.md`
   - README, `docs/ARCHITECTURE.md`, `docs/CONTRIBUTING.md`
-- In `firing-point-placement.md`, the closing advice to "build the in-session-hook + CI-backstop pair" becomes: a backstop must read evidence the agent does not write.
+- In `firing-point-placement.md`, the closing advice to "build the in-session-hook + CI-backstop pair" becomes: a backstop must check a property the agent cannot satisfy just by writing a declaration.
 - Tests for `ci` in `scripts/owner-dispatch/test.sh` and the CI-fragment assertions in the install tests.
 
 Keep unchanged: `.owner-dispatch.json` opt-in and globs, `record`, the PreToolUse `ask`, the Stop and SubagentStop checks, `status`, `verify-invocations`, and the first-edit checkpoint.

@@ -176,8 +176,8 @@ cp <plugin>/scripts/owner-dispatch/owner-dispatch.example.json <product-repo>/.o
 # edit product_globs / exclude_globs / strict, then commit it
 ```
 
-The owner, after invoking the owning skills and building the owner-dispatch map, records the
-boundary so editing is unblocked:
+The owner, after invoking the owning skills and recording the design-time owner map in the design
+artifact (see `product-rd-workflow`), records the boundary so editing is unblocked:
 
 ```bash
 scripts/owner-dispatch/owner-dispatch.sh record --owners "product-rd-workflow,go-microservice-dev"
@@ -212,8 +212,8 @@ to delete the job that still calls it.
 
 The reasons:
 
-- A committed per-change record has to be appended to one shared file, so every pair of parallel
-  merge requests conflicts on it.
+- Every gated change had to update the same committed file. In practice each appended a section
+  at its end, so parallel merge requests conflicted on it.
 - A CI check on that file proves only that the file changed, not that an owner was loaded.
 
 The Stop hook's check of recorded owners against the transcript is the part that verifies

@@ -335,11 +335,12 @@ control-plane:
 fi
 
 # A CI job left from the removed `owner-dispatch.sh ci` subcommand now fails on every run
-# against the refreshed engine; an edited fragment or the main pipeline keeps it.
+# against the refreshed engine. Any pipeline file can carry it (an edited fragment, the
+# main pipeline or a nested include), so every YAML file outside .git is scanned.
 if want owner-dispatch; then
-  for stale in "$TARGET/.gitlab-ci.yml" "$TARGET"/ci/*.yml "$TARGET"/ci/*.yaml; do
-    [ -f "$stale" ] && grep -qF 'owner-dispatch.sh ci' "$stale" 2>/dev/null \
-      && warn "${stale#"$TARGET"/} still runs 'owner-dispatch.sh ci', which no longer exists — delete that job; the refreshed engine exits 2 on it."
+  grep -rlF --include='*.yml' --include='*.yaml' --exclude-dir=.git --exclude-dir=node_modules \
+    'owner-dispatch.sh ci' "$TARGET" 2>/dev/null | LC_ALL=C sort | while IFS= read -r stale; do
+    warn "${stale#"$TARGET"/} still runs 'owner-dispatch.sh ci', which no longer exists — delete that job; the refreshed engine exits 2 on it."
   done
 fi
 
