@@ -33,7 +33,7 @@ The map file is the only part that is both committed and shared, which is why on
 
 - Local transcripts from the last 60 days, in product repositories that had the gate enabled.
 - 258 main sessions and 100 subagent transcripts.
-- The repositories in the original report had no transcripts in that window. The gate code is the same, so the active ones were measured.
+- Repositories with no transcripts in that window are not represented. All opted-in repositories run the same gate code.
 
 ### Definitions
 
@@ -150,13 +150,4 @@ The existing map files stay as history and are no longer appended to.
 - Product repositories: in each of the 3 enforced ones, a pipeline on the removal change is green before the plugin change merges.
 - `make test`, `make npm-test`, the heavy lane and public sanitization. Results go in `evidence/validation.md`.
 
-## Review record
-
-The first plan proposed deleting `record` and the Stop check as well. Its independent review (Codex, one pass) raised four P2 findings. The disposition of each:
-
-| Finding | Disposition |
-| --- | --- |
-| The residual estimate counted Stop-triggered recoveries as checkpoint successes | Accepted. The table now separates them. |
-| "Any implementation skill loaded" does not show every declared owner was loaded | Accepted, and measured: 16 of the 27 declared-owner blocks led to the missing owner being loaded. The design now keeps `record` and the Stop check. |
-| Unmigrated repositories keep a CI map requirement after the plugin docs drop it | Accepted. Inventory shows 3 repositories where the job blocks merge; they land first. The rest are warn-only. |
-| The packet did not include source for the retained paths | Second pass raised it again. The installer, both hook wrappers and the engine's `ci` dispatch were checked; the plan now keeps the vendored engine. The third pass packet carries those excerpts. |
+Plan review results are in `evidence/plan-review.md`.
