@@ -37,7 +37,10 @@ Run on `1b01a27`, which adds the prompt change below. `CCL_SKILL_BASE_REF=origin
 
 Review:
 
-- **P1, both enforced consumers must migrate first.** This is a merge prerequisite, not a defect in the candidate. Status: open, and it blocks merge (see Product repositories).
+- **P1, both enforced consumers must migrate first.** This is a merge-ordering question, not a defect in the candidate.
+  - The service repository has merged its removal.
+  - The toolkit repository keeps its own vendored engine and its own rules until it reruns `install-gates`, so this change cannot break it.
+  - The remaining condition is operational: do not rerun `install-gates` there before its job is deleted (see Product repositories).
 - **P2, a nested include escaped the stale-job scan.** Fixed: every YAML file outside `.git` and `node_modules` is scanned. A nested-include case was added.
 - **P2, "build the map" read as the retired map.** That map is the design-time owner map in the design artifact, which the plan keeps. The README now names it that way, and the acceptance text names the committed map file.
 - **P2, the backstop rule was too broad.** The rule is narrowed: a backstop must check a property the agent cannot satisfy just by writing a declaration.
@@ -62,8 +65,10 @@ Prompt change, added after the pull request opened: the engine's PreToolUse prom
 
 | Repository | Job | State |
 | --- | --- | --- |
-| Service repository | enforced | Removal merge request open. The pipeline YAML passes server-side lint. No remaining job references the deleted one. |
-| Toolkit repository | enforced | Not started. Its remote was unreachable from this machine (TLS connection failure). |
-| 37 others | warn-only | Clean up after this lands by rerunning `install-gates` or deleting the job. |
+| Service repository | enforced | Merged: job and per-MR map rule removed, pipeline green. |
+| Toolkit repository | enforced | Not started; its remote was unreachable from this machine (TLS connection failure). Delete the job by hand before any `install-gates` rerun. |
+| Gateway repository | warn-only | Removal open. A first pipeline failed the repository's AGENTS.md chain budget; the rule text was shortened below its original size, and the local check passes. |
+| Orchestrator repository | warn-only | Removal open. Its pipeline fails a dependency scan on an advisory published on 2026-10-27 for a package its main branch already pins. That failure is unrelated to this change, and every merge request there now hits it. |
+| 34 others | warn-only | Clean up after this lands, by rerunning `install-gates` or deleting the job. Also remove any repository rule that asks for a map update per merge request. |
 
-This change merges only after both enforced repositories have merged their removal and shown a green pipeline.
+Repository rules that ask for a map update in every merge request are what made agents append to the map. They are removed in the same per-repository change as the job.
