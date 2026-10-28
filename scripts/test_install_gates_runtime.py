@@ -116,6 +116,7 @@ class InstalledRuntimeTests(unittest.TestCase):
         spellings = {
             'quoted.yml': 'bash "scripts/owner-dispatch/owner-dispatch.sh" ci --base x',
             'spaced.yml': 'bash scripts/owner-dispatch/owner-dispatch.sh   ci --base x',
+            'terminated.yml': 'bash scripts/owner-dispatch/owner-dispatch.sh ci; echo done',
         }
         with tempfile.TemporaryDirectory() as temporary:
             target = self._repo(temporary)
@@ -131,7 +132,8 @@ class InstalledRuntimeTests(unittest.TestCase):
             target = self._repo(temporary)
             (target / 'ci').mkdir()
             (target / 'ci/status.yml').write_text(
-                'probe:\n  script:\n    - bash scripts/owner-dispatch/owner-dispatch.sh status\n')
+                'probe:\n  script:\n    - bash scripts/owner-dispatch/owner-dispatch.sh status\n'
+                '    - bash scripts/owner-dispatch/owner-dispatch.sh ci-report\n')
             result = self._install(target)
             self.assertNotIn('still runs', result.stderr)
 

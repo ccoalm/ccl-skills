@@ -338,9 +338,10 @@ fi
 # against the refreshed engine. Any pipeline file can carry it (an edited fragment, the
 # main pipeline or a nested include), so every YAML file outside .git is scanned.
 if want owner-dispatch; then
-  # The script path may be quoted and `ci` may follow any run of blanks.
+  # The script path may be quoted, `ci` may follow any run of blanks, and any character that
+  # cannot continue a word (blank, quote, `;`, `&`, `|`, `)`) or the line end may follow it.
   grep -rlE --include='*.yml' --include='*.yaml' --exclude-dir=.git --exclude-dir=node_modules \
-    "owner-dispatch\\.sh[\"']?[[:space:]]+ci([[:space:]\"']|\$)" "$TARGET" 2>/dev/null \
+    "owner-dispatch\\.sh[\"']?[[:space:]]+ci([^[:alnum:]_-]|\$)" "$TARGET" 2>/dev/null \
     | LC_ALL=C sort | while IFS= read -r stale; do
     warn "${stale#"$TARGET"/} still runs 'owner-dispatch.sh ci', which no longer exists — delete that job; the refreshed engine exits 2 on it."
   done
