@@ -11,10 +11,10 @@
 - Changed pre-existing `skills/**/*.md`: 37
 - Explicit relocation destinations: 13
 - Governing-chain-diff rows: 1240
-- Effects: preserved=657, strengthened=460, retired=123, unresolved=0
-- Partition parts (partitioned/partial-retirement rows close row-level as their dominant effect; part-level outcomes are counted here so neither the deleted nor the strengthened dimension of a mixed row disappears): survived-preserved=35, survived-strengthened=175, retired=37
-- Proof modes: exact-mechanical=91, reviewed-semantic=1149, unresolved=0
-- Dispositions: merged=59, partial-retirement=25, partitioned=167, rehosted=846, retired-dead=98, subsumed=45
+- Effects: preserved=656, strengthened=460, retired=124, unresolved=0
+- Partition parts (partitioned/partial-retirement rows close row-level as their dominant effect; part-level outcomes are counted here so neither the deleted nor the strengthened dimension of a mixed row disappears): survived-preserved=36, survived-strengthened=175, retired=38
+- Proof modes: exact-mechanical=89, reviewed-semantic=1151, unresolved=0
+- Dispositions: merged=59, partial-retirement=26, partitioned=167, rehosted=845, retired-dead=98, subsumed=45
 
 The row set is the bidirectional equality of the mechanical governing-chain diff and the JSONL mapping manifest. Exact before/carrier text, lexical qualifier evidence, semantic-review decisions, and review notes live only in the canonical mapping. `proof_mode=reviewed-semantic` validates review evidence presence and shape, not the truth or correctness of the semantic judgment. Carrier line ranges below are recomputed from exact current text, so stale locators still fail audit.
 
@@ -27,7 +27,7 @@ The row set is the bidirectional equality of the mechanical governing-chain diff
 | `skills/go-microservice-dev/SKILL.md` | 3 | 0 | 3 | 0 |
 | `skills/llm-inference-integration/SKILL.md` | 3 | 0 | 3 | 0 |
 | `skills/miniapp-product-dev/SKILL.md` | 25 | 16 | 9 | 0 |
-| `skills/product-rd-workflow/SKILL.md` | 44 | 30 | 14 | 0 |
+| `skills/product-rd-workflow/SKILL.md` | 44 | 29 | 14 | 1 |
 | `skills/product-rd-workflow/references/design-routing-and-readiness.md` | 18 | 0 | 17 | 1 |
 | `skills/product-rd-workflow/references/verify-developer-experience.md` | 1 | 1 | 0 | 0 |
 | `skills/product-ui-ux-design/SKILL.md` | 304 | 214 | 85 | 5 |
@@ -124,10 +124,10 @@ The row set is the bidirectional equality of the mechanical governing-chain diff
 | O0061 | `skills/product-rd-workflow/SKILL.md#11` | governing-chain-changed | rehosted / preserved | `skills/product-rd-workflow/SKILL.md:111-111` | proof_mode=exact-mechanical; verbatim exact carrier |
 | O0062 | `skills/product-rd-workflow/SKILL.md#12` | governing-chain-changed | rehosted / preserved | `skills/product-rd-workflow/SKILL.md:111-111` | proof_mode=exact-mechanical; verbatim exact carrier |
 | O0063 | `skills/product-rd-workflow/SKILL.md#13` | governing-chain-changed | rehosted / preserved | `skills/product-rd-workflow/SKILL.md:110-110` | proof_mode=exact-mechanical; verbatim exact carrier |
-| O0064 | `skills/product-rd-workflow/SKILL.md#14` | governing-chain-changed | rehosted / preserved | `skills/product-rd-workflow/SKILL.md:112-112` | proof_mode=exact-mechanical; verbatim exact carrier |
+| O0064 | `skills/product-rd-workflow/SKILL.md#14` | governing-chain-changed | partial-retirement / retired | p1.1. `skills/product-rd-workflow/SKILL.md:112-112`<br>p2. retired | proof_mode=reviewed-semantic; schema4 exact-span partition; survives=1; retired=1; carriers=1; hash+bridge+qualifier checked |
 | O0065 | `skills/product-rd-workflow/SKILL.md#15` | governing-chain-changed | rehosted / preserved | `skills/product-rd-workflow/SKILL.md:112-112` | proof_mode=exact-mechanical; verbatim exact carrier |
 | O0066 | `skills/product-rd-workflow/SKILL.md#16` | governing-chain-changed | rehosted / preserved | `skills/product-rd-workflow/SKILL.md:112-112` | proof_mode=exact-mechanical; verbatim exact carrier |
-| O0067 | `skills/product-rd-workflow/SKILL.md#17` | governing-chain-changed | rehosted / preserved | `skills/product-rd-workflow/SKILL.md:112-112` | proof_mode=exact-mechanical; verbatim exact carrier |
+| O0067 | `skills/product-rd-workflow/SKILL.md#17` | governing-chain-changed | rehosted / preserved | `skills/product-rd-workflow/SKILL.md:112-112` | proof_mode=reviewed-semantic; reviewed scalar; lexical qualifier kinds=actor |
 | O0068 | `skills/product-rd-workflow/SKILL.md#18` | governing-chain-changed | rehosted / preserved | `skills/product-rd-workflow/SKILL.md:112-112` | proof_mode=exact-mechanical; verbatim exact carrier |
 | O0069 | `skills/product-rd-workflow/SKILL.md#19` | governing-chain-changed | rehosted / preserved | `skills/product-rd-workflow/SKILL.md:112-112` | proof_mode=exact-mechanical; verbatim exact carrier |
 | O0070 | `skills/product-rd-workflow/SKILL.md#20` | governing-chain-changed | rehosted / preserved | `skills/product-rd-workflow/SKILL.md:112-112` | proof_mode=exact-mechanical; verbatim exact carrier |
