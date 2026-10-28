@@ -50,64 +50,63 @@ class InstalledRuntimeTests(unittest.TestCase):
             self.assertEqual(json.loads(parsed.stdout), {
                 'paths': [str(target / 'file.py')], 'malformed_patch': False})
 
-    def test_owner_dispatch_contributes_no_ci_job(self):
-        # owner-dispatch is in-session only: a committed per-change map made parallel
-        # merge requests conflict, so the installer emits no CI job and no map key.
+    # owner-dispatch is in-session only: a committed per-change map made parallel merge
+    # requests conflict, so the installer emits no CI job and no map key for it.
+    @staticmethod
+    def _env():
+        env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_SYSTEM='/dev/null')
+        for key in ('GIT_DIR', 'GIT_COMMON_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'):
+            env.pop(key, None)
+        return env
+
+    def _repo(self, root):
+        target = Path(root).resolve() / 'target'
+        subprocess.run(['git', 'init', '-q', '-b', 'dev', str(target)],
+                       env=self._env(), check=True, capture_output=True)
+        return target
+
+    def _install(self, target, *args):
+        result = subprocess.run(['bash', str(ROOT / 'scripts/install-gates.sh'), str(target), *args],
+                                env=self._env(), capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((target / 'scripts/owner-dispatch/owner-dispatch.sh').is_file())
+        self.assertTrue((target / 'hooks/host-input.py').is_file())
+        self.assertNotIn('ci_artifact', json.loads((target / '.owner-dispatch.json').read_text()))
+        return result
+
+    def test_full_install_has_no_owner_dispatch_job(self):
         with tempfile.TemporaryDirectory() as temporary:
-            env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null',
-                       GIT_CONFIG_SYSTEM='/dev/null')
-            for key in ('GIT_DIR', 'GIT_COMMON_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'):
-                env.pop(key, None)
-            for gates in ('agents,owner-dispatch,control-plane', 'owner-dispatch'):
-                target = Path(temporary).resolve() / gates.replace(',', '-')
-                subprocess.run(['git', 'init', '-q', '-b', 'dev', str(target)],
-                               env=env, check=True, capture_output=True)
-                result = subprocess.run(['bash', str(ROOT / 'scripts/install-gates.sh'),
-                                         str(target), '--gates', gates], env=env,
-                                        capture_output=True, text=True)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertTrue((target / 'scripts/owner-dispatch/owner-dispatch.sh').is_file())
-                self.assertTrue((target / 'hooks/host-input.py').is_file())
-                config = json.loads((target / '.owner-dispatch.json').read_text())
-                self.assertNotIn('ci_artifact', config)
-                fragment = target / 'ci/agent-gates.gitlab-ci.yml'
-                if gates == 'owner-dispatch':
-                    self.assertFalse(fragment.exists(), 'a fragment with no jobs was written')
-                    self.assertNotIn('include: { local: ci/agent-gates', result.stdout)
-                    continue
-                text = fragment.read_text()
-                self.assertIn('\nagent-contract-coverage:\n', text)
-                self.assertIn('\ncontrol-plane:\n', text)
-                self.assertNotIn('\nowner-dispatch:\n', text)
-                self.assertNotIn('owner-dispatch.sh ci', text)
+            target = self._repo(temporary)
+            self._install(target)
+            text = (target / 'ci/agent-gates.gitlab-ci.yml').read_text()
+            self.assertIn('\nagent-contract-coverage:\n', text)
+            self.assertIn('\ncontrol-plane:\n', text)
+            self.assertNotIn('\nowner-dispatch:\n', text)
+            self.assertNotIn('owner-dispatch.sh ci', text)
+
+    def test_owner_dispatch_alone_writes_no_ci_fragment(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = self._repo(temporary)
+            result = self._install(target, '--gates', 'owner-dispatch')
+            self.assertFalse((target / 'ci/agent-gates.gitlab-ci.yml').exists())
+            self.assertNotIn('include: { local: ci/agent-gates', result.stdout)
 
     def test_warns_on_a_kept_owner_dispatch_ci_job(self):
         # An edited fragment is left untouched, so a job calling the removed subcommand
         # would fail on every run against the refreshed engine.
         with tempfile.TemporaryDirectory() as temporary:
-            env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null',
-                       GIT_CONFIG_SYSTEM='/dev/null')
-            for key in ('GIT_DIR', 'GIT_COMMON_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'):
-                env.pop(key, None)
-            target = Path(temporary).resolve() / 'target'
-            subprocess.run(['git', 'init', '-q', '-b', 'dev', str(target)],
-                           env=env, check=True, capture_output=True)
+            target = self._repo(temporary)
             (target / 'ci').mkdir()
             (target / 'ci/agent-gates.gitlab-ci.yml').write_text(
                 'owner-dispatch:\n  script:\n    - bash scripts/owner-dispatch/owner-dispatch.sh ci --base x\n')
-            result = subprocess.run(['bash', str(ROOT / 'scripts/install-gates.sh'),
-                                     str(target)], env=env, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
+            result = self._install(target)
             self.assertIn("ci/agent-gates.gitlab-ci.yml still runs 'owner-dispatch.sh ci'",
                           result.stderr)
-            clean = Path(temporary).resolve() / 'clean'
-            subprocess.run(['git', 'init', '-q', '-b', 'dev', str(clean)],
-                           env=env, check=True, capture_output=True)
-            result = subprocess.run(['bash', str(ROOT / 'scripts/install-gates.sh'),
-                                     str(clean)], env=env, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertNotIn('still runs', result.stderr)
 
+    def test_no_stale_job_warning_on_a_clean_target(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result = self._install(self._repo(temporary))
+            self.assertNotIn('still runs', result.stderr)
 
 if __name__ == '__main__':
     unittest.main()

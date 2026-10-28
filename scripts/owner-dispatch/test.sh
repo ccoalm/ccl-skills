@@ -345,6 +345,7 @@ rm -rf "$BDIR"
 ci_rc=0; ci_out=$( cd "$REPO" && bash "$ENGINE" ci --base HEAD 2>&1 ) || ci_rc=$?
 [ "$ci_rc" = 2 ] && ok "ci: not a subcommand => usage error (2)" || bad "ci still dispatched" "rc=$ci_rc out=$ci_out"
 case "$ci_out" in *"ci ["*|*"|ci"*) bad "usage still advertises ci" "$ci_out" ;; *) ok "usage no longer advertises ci" ;; esac
+case "$ci_out" in *"ci subcommand was removed"*"delete the CI job"*) ok "ci: names the removal and the repair" ;; *) bad "ci: no actionable removal message" "$ci_out" ;; esac
 config <<'JSON'
 { "enabled": true, "strict": false, "gate_bash": true,
   "product_globs": ["src/**"], "ci_artifact": "design/owner-dispatch-map.md" }

@@ -207,7 +207,10 @@ nothing. Verify a new config against a **real** product file: a gated edit must 
 
 ### No merge-time backstop
 
-There is no `ci` subcommand and no CI job for this gate:
+There is no `ci` subcommand and no CI job for this gate. `owner-dispatch.sh ci` exits 2 with a message
+to delete the job that still calls it.
+
+The reasons:
 
 - A committed per-change record has to be appended to one shared file, so every pair of parallel
   merge requests conflicts on it.

@@ -973,6 +973,8 @@ main() {
     record)  cmd_record "$@" ;;
     verify-invocations) cmd_verify_invocations "$@" ;;
     status)  cmd_status "$@" ;;
+    # Kept only to explain itself: a leftover CI job is the one caller that still runs it.
+    ci) echo "owner-dispatch: the ci subcommand was removed; delete the CI job that runs it. The gate now runs only in the session hooks." >&2; return 2 ;;
     # Introspection: where boundary state for a root actually lands. Exists so the
     # read/write path can be ASSERTED across the worktree boundary rather than
     # inferred, and so a human debugging a Stop block can compare two roots directly.
