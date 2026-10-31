@@ -26,7 +26,7 @@ Disconfirming observation: the result would be an application gap rather than a 
 | Factor | Category | Counterfactual |
 | --- | --- | --- |
 | `defect-diagnosis` Phase B says to preserve contracts unless the task requires a change, and says nothing about what is owed when the fix does change one | missing control at the decision point | A required reader list at this point would have listed the alignment control: removes the failure |
-| The field's type did not change, so neither the compiler nor a search of the writer's callers reaches a reader that parses the stored value by name | missing mechanical signal | Explains why diligent work missed it; not removable |
+| The field is a style string whose type did not change, so neither the compiler nor a search of the writer's callers reaches a reader that parses the stored value by property name | missing mechanical signal | Explains why diligent work missed it in this representation; an enum with exhaustive switches would have failed to compile |
 | The reader's "writer only produces X" comment recorded an assumption the first fix broke | stale process model | A rule that treats such a comment as a broken contract makes it a search hit |
 | The reader returned the absence default for a declared value it could not parse | latent condition | Returning unknown would have turned a wrong write into a no-op: reduces severity |
 | The same-class fix in a sibling panel did not check the field's other readers | detection gap | A sibling sweep at that point would have found the alignment control |
@@ -66,6 +66,8 @@ Target-output map:
 
 Example-domain pre-selection: the new text gives `auto`, unit, enum member and variant as forms, and null, an `unknown` state and a disabled control as unknown representations. Wording from the source's own domain (layout geometry) was rejected. The behavior tasks use a job scheduler.
 
-## Behavior evidence
+## Evidence
 
-See `evidence/behavior-eval.md`.
+- Behavior: `evidence/behavior-eval.md`; the decisive task's world and grader are in `evidence/legacy-model-task.md`.
+- Local validation: `evidence/validation.md`.
+- Review and challenge: `evidence/review.md`.
