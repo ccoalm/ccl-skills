@@ -11,7 +11,7 @@ Two later fixes made that comment false:
 
 The result: a declared keyword or pixel size reads as 100%, so centre, end and far-edge alignment write 0. A size that is not declared is correctly read as the default. Only a declared value the reader could not interpret got that default.
 
-Over two days the same product took about six fix commits, each finding one more reader or editor that mishandled the new forms. One of them fixed this exact class in a sibling panel, which also fell back to the defaults, and did not check the field's other readers. The alignment case is the one that reached acceptance testing.
+Over the next two days the product's history shows about six follow-up fix commits whose subjects each handle the new forms in one more reading or editing path (counted from commit subjects; the diffs were not all read). One of them fixed this exact class in a sibling panel, which also fell back to the defaults, and did not check the field's other readers. The alignment case is the one that reached acceptance testing.
 
 The two fixes and the sibling-panel fix all went through `defect-diagnosis`, the web stack skill, `testing-strategy` and `code-review`, according to the product's own owner-dispatch record.
 
