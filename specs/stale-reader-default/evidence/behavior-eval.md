@@ -1,6 +1,6 @@
 # Behavior evidence
 
-Tool: `skills/skill-extraction-workflow/scripts/skill-paired-eval.py`, arms `base` (`326374b`) and `candidate`. Model `claude-opus-5-5`, CLI default effort, $4 cap per run. Every task is a synthetic job-scheduler repository built from scratch. The task files, worlds and the hidden graders stay in the maintainer's private archive.
+Tool: `skills/skill-extraction-workflow/scripts/skill-paired-eval.py`, arms `base` (`326374b`) and `candidate`. Model `claude-opus-5-5`, CLI default effort, $4 cap per run. Every task is a synthetic job-scheduler repository built from scratch. The decisive task's repository, prompt and grader are published in `legacy-model-task.md`; the other two tasks, the run records and the transcripts stay in the maintainer's private archive.
 
 ## Grading
 
@@ -11,6 +11,8 @@ Each world is graded after the run by a hidden Node test that imports the module
 - controls hold: `30m` and `15m` still compute as before, and a job with no interval still gets the 60-minute default.
 
 Before any run, each grader was checked against the untouched world (fails), a fix that leaves the reader stale (fails) and a full fix (passes).
+
+The challenge pass found that the first grader for the decisive task accepted a capacity result of `Infinity`, and it ignored the named consumers and the details mapper. That grader was tightened (see `legacy-model-task.md`). Under the tightened grader a mutant that makes the mapper return null without fixing capacity now fails. Every sample of that task was then regraded, and the counts did not change.
 
 ## Results
 
@@ -30,4 +32,12 @@ Both arms loaded `defect-diagnosis` in every run of the third task. Only candida
 
 `3621914` and `f5e8725` differ only in example words: `anchor` became `variant`, and "a content-sized marker" became "an `unknown` state".
 
-Spend: $4.32 + $4.62 + $5.84.
+## Replays on later text
+
+The rule was narrowed after `f5e8725`, so the decisive task's candidate arm was rerun on later text. The base arm's ref did not change and was not rerun.
+
+| Candidate | What changed since the previous measurement | candidate pass |
+| --- | --- | --- |
+| `9224c5d` | only a reader that cannot interpret the form reports unknown; the enum wording was corrected | 5/5 |
+
+Spend: $4.32 + $4.62 + $5.84 + $2.72.

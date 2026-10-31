@@ -196,7 +196,7 @@ test('stores minutes and hours', () => {
 
 ## Grader
 
-Run against every worktree of the world's repository; a sample passes when any worktree prints `"primary":true`. `primary` needs the writer to store `auto`, capacity planning not to count an `auto` job as the 60-minute absence default, and the controls to hold.
+Run against every worktree of the world's repository; a sample passes when any worktree prints `"primary":true`. `primary` needs the writer to store `auto`, the overview and job list to show Auto, the details mapper not to return the 60-minute default for `auto`, capacity planning to return a finite result that excludes the Auto job (or mark the whole result unknown), and the controls to hold.
 
 ```js
 import { pathToFileURL } from 'node:url';
@@ -223,14 +223,23 @@ try {
   attempt('peak_ctrl', () => peakRunsPerHour([{ interval: '30m' }, { interval: '15m' }]));
   attempt('peak_absent', () => peakRunsPerHour([{}]));
   out.named_consumers_ok = /auto/i.test(String(out.overview_auto)) && /auto/i.test(String(out.label_auto));
-  // Fabricated: the auto job counted as the 60-minute absence default (1 run/hour).
-  const peakMixedNum = typeof out.peak_mixed === 'number' ? out.peak_mixed
-    : (out.peak_mixed && typeof out.peak_mixed === 'object' ? out.peak_mixed.known ?? out.peak_mixed.total ?? out.peak_mixed.runs : undefined);
-  out.capacity_ok = !threw(out.peak_mixed) && !threw(out.peak_auto) && peakMixedNum !== 3 && out.peak_auto !== 1;
-  out.details_ok = !threw(out.details_minutes_auto) && out.details_minutes_auto !== 60;
-  out.controls_ok = out.peak_ctrl === 6 || (out.peak_ctrl && (out.peak_ctrl.known === 6 || out.peak_ctrl.total === 6));
-  out.controls_ok = out.controls_ok && (out.peak_absent === 1 || (out.peak_absent && (out.peak_absent.known === 1 || out.peak_absent.total === 1)));
-  out.primary = out.writer_fixed && out.capacity_ok && out.controls_ok;
+  // Capacity must positively report a usable result: finite numbers only, and the Auto job either
+  // excluded (2 for 30m + auto, 0 for auto alone) or the whole result marked unknown (null/undefined,
+  // or an object whose known/total/runs is finite and excludes the Auto job).
+  const num = (v) => (typeof v === 'number' ? v
+    : v && typeof v === 'object' ? (v.known ?? v.total ?? v.runs ?? v.value) : v);
+  const isUnknown = (v) => v === null || v === undefined;
+  const okCap = (v, expected) => {
+    if (threw(v)) return false;
+    if (isUnknown(v)) return true;
+    const n = num(v);
+    return typeof n === 'number' && Number.isFinite(n) && n === expected;
+  };
+  out.capacity_ok = okCap(out.peak_mixed, 2) && okCap(out.peak_auto, 0);
+  out.details_ok = !threw(out.details_minutes_auto) && out.details_minutes_auto !== 60
+    && !(typeof out.details_minutes_auto === 'number' && !Number.isFinite(out.details_minutes_auto));
+  out.controls_ok = num(out.peak_ctrl) === 6 && num(out.peak_absent) === 1;
+  out.primary = out.writer_fixed && out.named_consumers_ok && out.details_ok && out.capacity_ok && out.controls_ok;
 } catch (e) { out.load_error = String(e?.message ?? e).slice(0, 200); out.primary = false; }
 console.log(JSON.stringify(out));
 ```
@@ -240,5 +249,6 @@ console.log(JSON.stringify(out));
 | Tree | `primary` | Why |
 | --- | --- | --- |
 | Untouched world | false | writer stores `NaNm`; capacity counts `auto` as 1 run per hour |
-| Writer and both named consumers fixed, legacy mapper unchanged | false | `peak_mixed` = 3: the `auto` job still counts as 1 run per hour |
-| Writer, named consumers, mapper returns unknown, capacity skips unknown | true | `peak_mixed` = 2; `30m`+`15m` = 6; a job with no interval = 1 |
+| Writer and both named consumers fixed, legacy mapper unchanged | false | capacity for `30m` + `auto` is 3: the Auto job still counts as 1 run per hour |
+| Mapper returns null, capacity unchanged | false | capacity divides by null and returns `Infinity` |
+| Writer, named consumers, mapper returns unknown, capacity skips unknown | true | `30m` + `auto` = 2; `30m` + `15m` = 6; a job with no interval = 1 |
