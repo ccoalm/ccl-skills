@@ -39,5 +39,6 @@ The rule was narrowed after `f5e8725`, so the decisive task's candidate arm was 
 | Candidate | What changed since the previous measurement | candidate pass |
 | --- | --- | --- |
 | `9224c5d` | only a reader that cannot interpret the form reports unknown; the enum wording was corrected | 5/5 |
+| `c4c7560` | contract-defined rejection and safe fallbacks are kept; the `defect-diagnosis` line was trimmed to its word budget (final text) | 5/5 |
 
-Spend: $4.32 + $4.62 + $5.84 + $2.72.
+Spend: $4.32 + $4.62 + $5.84 + $2.72 + $2.66.
