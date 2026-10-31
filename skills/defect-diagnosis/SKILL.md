@@ -100,6 +100,7 @@ A failure or diagnosis goal carries this phase. Once the cause is verified, fix,
 1. Fix minimally.
    - Address the proven cause with the smallest correct change.
    - Preserve contracts unless the task explicitly requires a contract change.
+   - Storing a new form in an existing field (keyword, unit, enum member, anchor) changes its contract: first give each reader of the field a disposition; readers report unknown, never the absence default. If one reader mishandled such a form, check the others. Rule: `product-rd-workflow/references/refactoring-discipline.md` (Data Shape Changes).
    - If the minimal fix would change a shared deterministic gate/verifier (workspace verifier, conformance/contract-coverage script, status-source validator, CI harness, continuation-state checker) or shared/cross-repo contract/status/version/release/compatibility semantics — whether in a named surface or in code, generated artifacts, config, or scripts — stop before editing and route the fix through `product-rd-workflow`'s shared-gate classification (its *Enforce quality gates* shared deterministic gate/verifier rule: artifact classification + persistent repo-local plan + `feature-risk-router` shared-gate route). Diagnosis still owns the verified cause and regression test; that handoff governs only how the fix lands.
    - Keep unrelated cleanup separate.
 
