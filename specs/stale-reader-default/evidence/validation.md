@@ -19,4 +19,4 @@ Inside `check-ccl-skills.sh`, the impact-chain gate accepts both rows in `source
 
 The 065 obligation ledger cites `defect-diagnosis/SKILL.md` by line number. The inserted line shifted that citation, so it was re-rendered with the command the audit printed. The only change is `160-160` to `161-161`.
 
-Not run locally: the pull-request-only `check_review_evidence_present.py`. It runs before pushing (see the pull request).
+The pull-request-only `python3 skills/skill-extraction-workflow/scripts/check_review_evidence_present.py --repo-root . --base "$(git merge-base origin/main HEAD)"` was also run locally after fetching `origin/main`: `review_evidence_present_ok: 2 review, 1 challenge`.
