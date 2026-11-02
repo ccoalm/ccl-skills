@@ -346,8 +346,54 @@ def compact_boundary(event):
              or (event.get('type') == 'compacted' and isinstance(event.get('payload'), dict))))
 
 
+def midtask_message_id(event):
+    """Identify a person's message the host absorbed into a running turn.
+
+    Such a message has no turn start of its own, so nothing prompts a reply to it.
+    Claude Code records it as a queued_command attachment. Peer agents and task
+    notifications carry another origin or mode; headless input has no origin.
+    """
+    if event.get('type') != 'attachment' or event.get('isSidechain'):
+        return None
+    attachment = event.get('attachment')
+    if not isinstance(attachment, dict) or attachment.get('type') != 'queued_command':
+        return None
+    origin = attachment.get('origin')
+    if attachment.get('commandMode') != 'prompt' or (
+            origin is not None and (not isinstance(origin, dict) or origin.get('kind') != 'human')):
+        return None
+    value = attachment.get('source_uuid')
+    return value if isinstance(value, str) and value else None
+
+
+# Tool calls an agent may make after such a message before any prose counts as
+# carrying on without replying. Measured on real sessions: about a third of these
+# messages get prose first, and 5% wait for this many calls. Those are mostly
+# real requests, and it fires about once in ten sessions; a limit of 5 fires four
+# times as often.
+MIDTASK_SILENT_CALLS = 10
+
+
+def track_midtask_replies(event, waiting, silent):
+    """Move a message to silent once enough tool calls pass with no prose at all."""
+    message = event.get('message')
+    content = message.get('content') if isinstance(message, dict) else None
+    for item in content if isinstance(content, list) else []:
+        if not isinstance(item, dict):
+            continue
+        if item.get('type') == 'text' and str(item.get('text', '')).strip():
+            waiting.clear()
+        elif item.get('type') == 'tool_use':
+            for key in list(waiting):
+                waiting[key] += 1
+                if waiting[key] >= MIDTASK_SILENT_CALLS:
+                    silent.append(key)
+                    del waiting[key]
+
+
 def summarize(lines, cwd, current=False):
     requested, completed, edited = set(), set(), set()
+    midtask, silent = {}, []
     pending = {}
     pending_reads, coverage, sources = {}, {}, {}
     pending_visibility = set()
@@ -374,6 +420,11 @@ def summarize(lines, cwd, current=False):
             continue
         if current and event.get('isSidechain'):
             continue
+        midtask_id = midtask_message_id(event)
+        if midtask_id:
+            midtask[midtask_id] = 0
+        if event.get('type') == 'assistant' and not event.get('isSidechain'):
+            track_midtask_replies(event, midtask, silent)
         if event.get('type') == 'turn_context':
             context = event.get('payload', {})
             if isinstance(context, dict) and isinstance(context.get('cwd'), str):
@@ -474,7 +525,7 @@ def summarize(lines, cwd, current=False):
                         requested.add(read['skill'])
     return {'requested_skills': sorted(requested), 'completed_skills': sorted(completed),
             'edit_paths': sorted(edited), 'verifiable': verifiable and not invalid and not unverifiable_reads,
-            'unverifiable_reads': unverifiable_reads,
+            'unverifiable_reads': unverifiable_reads, 'silent_midtask': silent,
             'prior_handoff': prior_handoff, 'continuation_contract_visible': contract_visible}
 
 
@@ -491,7 +542,7 @@ def context_transcript(path, cwd, start_offset=0):
     An omitted prefix is safe only when a later native boundary is visible.
     Unknown/incomplete context discards evidence; IDs contain no transcript text.
     """
-    unknown = {'requested_skills': [], 'completed_skills': [], 'edit_paths': [],
+    unknown = {'requested_skills': [], 'completed_skills': [], 'edit_paths': [], 'silent_midtask': [],
                'verifiable': False, 'context_complete': False, 'context_id': None,
                'unverifiable_reads': False, 'prior_handoff': False,
                'continuation_contract_visible': False}
@@ -764,17 +815,25 @@ def reader_docs(edit_paths, cwd):
     return found
 
 
-def doc_closeout_note(payload):
+def stop_summary(payload):
+    """Session evidence for the optional closeout notes, or None when unreadable."""
     path, cwd = payload.get('transcript_path'), payload.get('cwd')
     if not isinstance(path, str) or not path:
-        return ''
+        return None
     cwd = cwd if isinstance(cwd, str) else os.getcwd()
     try:
-        summary = transcript(path, cwd)
+        return transcript(path, cwd)
     except TranscriptTruncated:
-        summary = context_transcript(path, cwd)
+        return context_transcript(path, cwd)
     except (OSError, ValueError):
+        return None
+
+
+def doc_closeout_note(payload, summary):
+    if summary is None:
         return ''
+    cwd = payload.get('cwd')
+    cwd = cwd if isinstance(cwd, str) else os.getcwd()
     if any(skill.split(':')[-1] == 'tighten-doc' for skill in summary['completed_skills']):
         return ''
     docs = reader_docs(summary['edit_paths'], cwd)
@@ -784,6 +843,66 @@ def doc_closeout_note(payload):
     return ('Document closeout: this session edited reader-facing documents ({}) without loading '
             'tighten-doc. Load it and run its closeout readback on those documents before finishing; '
             'the substance stays as the owning skill decided.'.format(names))
+
+
+# The closeout rule says to check every requested item, and agents walk the list
+# they are tracking. A message absorbed mid-turn has no slot on that list, and a
+# generic recheck only re-reads the list. So this names the messages as the thing
+# to walk. It counts them and never classifies their wording: a phrasing test on
+# this hook has repeatedly failed, and only the agent can read what was meant.
+MIDTASK_NOTE = (
+    'Later-message recheck: {} message(s) from the user arrived while you were working, and you carried '
+    'on without replying. Check every later user message against what you delivered, however casually it was phrased. If it '
+    'names something to produce or change, it is a request: do it now if it is in scope; otherwise say '
+    'in one line that it is not done and why, or where you handed it off. "X can be a reference, '
+    'especially Y" may ask for your own Y or only point at material. If you cannot tell, or you used it '
+    'only as material, say in one line how you read it, so the user can correct that; do not absorb it '
+    'silently. Answered questions, '
+    'used authorizations, status checks and small talk need nothing: leave them and finished items out '
+    'of your report. If nothing is open, say nothing about this recheck, not even that nothing is open.')
+
+
+def recent_transcript(path, cwd):
+    """Tail evidence for a transcript past the full-scan limits, or None with no message in it.
+
+    The longest sessions need this check most. Unlike the audits above it can use
+    a partial view: a message before the tail was normally checked while the file
+    was smaller. One stretch longer than the tail would lose its message; the
+    longest seen in real sessions was 9.6 MB.
+    """
+    descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    with os.fdopen(descriptor, 'rb') as stream:
+        metadata = os.fstat(stream.fileno())
+        if not stat.S_ISREG(metadata.st_mode):
+            return None
+        begin = max(0, metadata.st_size - 16 * 1024 * 1024)
+        stream.seek(begin)
+        data = stream.read()
+    if b'"queued_command"' not in data:
+        return None
+    if begin:
+        data = data.partition(b'\n')[2]
+    lines = data.rsplit(b'\n', 20001)[-20000:]
+    return summarize((raw.decode('utf-8', errors='replace') for raw in lines), cwd)
+
+
+def midtask_note(payload, summary):
+    """One recheck per newest unanswered message, so a later one can fire it again."""
+    tail_only = summary is None or summary.get('context_complete') is False
+    if tail_only:
+        path, cwd = payload.get('transcript_path'), payload.get('cwd')
+        if not isinstance(path, str) or not path:
+            return ''
+        summary = recent_transcript(path, cwd if isinstance(cwd, str) else os.getcwd())
+    if summary is None or not summary['silent_midtask']:
+        return ''
+    # A transcript past the limits is a long session, and the tail may have lost
+    # its delivery evidence; only a complete view can say there was none.
+    if not tail_only and not (delivery_eligible(summary) or summary['edit_paths']):
+        return ''
+    if claim_notice(payload, 'midtask-messages', [summary['silent_midtask'][-1]]) is not True:
+        return ''
+    return MIDTASK_NOTE.format(len(summary['silent_midtask']))
 
 
 # Every request re-reads the whole context, so a long session's token cost grows
@@ -855,6 +974,18 @@ def with_context_notice(payload, result):
     return result
 
 
+def checked_midtask_note(payload, summary):
+    try:
+        return midtask_note(payload, summary)
+    except Exception:  # advisory: a failed message check never costs the reminder
+        return ''
+
+
+def midtask_block(note):
+    return {'decision': 'block', 'reason': note + ' Then end with the same proposed-next: line, if you '
+            'wrote one. This reminder supplies no new goal or authorization.'}
+
+
 def stop_turn(payload):
     """Identify a user turn from host metadata, never assistant or prompt wording."""
     def identifier(value):
@@ -913,25 +1044,40 @@ def proposed_next(payload):
     if (not isinstance(payload, dict) or payload.get('hook_event_name') != 'Stop'
             or payload.get('stop_hook_active') is not False):
         return None
-    result = delivery_reminder(payload)
     try:
-        note = doc_closeout_note(payload)
+        result = delivery_reminder(payload)
+    except TranscriptTruncated:
+        later = checked_midtask_note(payload, None)
+        if not later:
+            raise
+        return midtask_block(later)
+    summary, note = None, ''
+    try:
+        summary = stop_summary(payload)
+        note = doc_closeout_note(payload, summary)
     except Exception:  # advisory: a failed document check never costs the reminder
-        note = ''
+        pass
     if note:
         result = {'decision': 'block', 'reason': note + ' ' + result['reason']} if result else {
             'decision': 'block', 'reason': note + ' Then end with the same proposed-next: line. '
             'This reminder supplies no new goal or authorization.'}
-    if not result or result.get('decision') != 'block':
+    if result and result.get('decision') == 'block':
+        turn = stop_turn(payload)
+        claimed = claim_notice(payload, 'delivery-recheck', turn) if turn is not None else None
+        if claimed is False:
+            result = None
+        elif claimed is None:
+            result = {'systemMessage': 'Delivery recheck skipped: user turn or attempt state is unavailable. '
+                      'This advisory check does not prevent stopping or establish completion or authority.'}
+    later = checked_midtask_note(payload, summary)
+    if not later:
         return result
-    turn = stop_turn(payload)
-    claimed = claim_notice(payload, 'delivery-recheck', turn) if turn is not None else None
-    if claimed is True:
-        return result
-    if claimed is False:
-        return None
-    return {'systemMessage': 'Delivery recheck skipped: user turn or attempt state is unavailable. '
-            'This advisory check does not prevent stopping or establish completion or authority.'}
+    # Bounded by its own per-message claim, so it needs no per-turn claim and can
+    # join a reminder that has one. It shares that reminder's one continuation.
+    if result and result.get('decision') == 'block':
+        return {'decision': 'block', 'reason': later + ' ' + result['reason']}
+    blocked = midtask_block(later)
+    return dict(blocked, systemMessage=result['systemMessage']) if result else blocked
 
 
 def delivery_reminder(payload):
