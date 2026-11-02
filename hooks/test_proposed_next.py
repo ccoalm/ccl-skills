@@ -594,6 +594,145 @@ class ProposedNextTests(unittest.TestCase):
         self.assertIn('execute it now', result['reason'])
         self.assertNotIn('tighten-doc', result['reason'])
 
+    def later_message(self, source='later-1', text='synthetic later wording', **fields):
+        attachment = {'type': 'queued_command', 'prompt': text, 'source_uuid': source,
+                      'commandMode': 'prompt', 'origin': {'kind': 'human'}}
+        attachment.update(fields)
+        return {'type': 'attachment', 'attachment': attachment}
+
+    def tool_calls(self, count):
+        return [{'type': 'assistant', 'message': {'content': [{'type': 'tool_use', 'id': f'call-{index}',
+                 'name': 'Bash', 'input': {'command': 'true'}}]}} for index in range(count)]
+
+    STATUS_STOP = 'Checks passed.\nproposed-next: none — status only'
+
+    def status_stop(self):
+        return self.run_with_state(dict(self.payload, last_assistant_message=self.STATUS_STOP))
+
+    def test_message_the_agent_never_answered_gets_one_recheck_without_echo(self):
+        # Observed: a closing status-only stop passes every other reminder, so a
+        # later request the agent worked past without replying was never revisited.
+        self.events(self.doc_edit('src/app.py') + [self.later_message()] + self.tool_calls(10))
+        result = self.status_stop()
+        self.assert_block(result)
+        self.assertIn('1 message(s)', result['reason'])
+        self.assertIn('supplies no new goal or authorization', result['reason'])
+        self.assertNotIn('synthetic later wording', json.dumps(result))
+        self.assertEqual(self.status_stop(), {})  # the same message never asks twice
+
+    def test_a_newer_unanswered_message_fires_again_with_the_running_count(self):
+        events = self.doc_edit('src/app.py') + [self.later_message('later-1')] + self.tool_calls(10)
+        self.events(events)
+        self.assert_block(self.status_stop())
+        self.events(events + [self.later_message('later-2')] + self.tool_calls(10))
+        self.assertIn('2 message(s)', self.status_stop()['reason'])
+
+    def test_recheck_needs_ten_silent_calls_and_any_prose_ends_the_silence(self):
+        # Prose right after the message is the common case and is left alone; the
+        # count has to reach the threshold before any prose appears.
+        head = self.doc_edit('src/app.py') + [self.later_message()]
+        for events in (head + self.tool_calls(9),
+                       head + self.tool_calls(9) + [self.assistant('Noted.', host='claude')] + self.tool_calls(30),
+                       head + [self.assistant('Noted.', host='claude')] + self.tool_calls(30)):
+            self.setUp()
+            self.events(events)
+            self.assertEqual(self.status_stop(), {})
+        self.setUp()
+        self.events(head + self.tool_calls(10) + [self.assistant('Later prose.', host='claude')])
+        self.assertIn('1 message(s)', self.status_stop()['reason'])
+
+    def test_recheck_counts_only_a_persons_message_in_the_main_chain(self):
+        for later in (self.later_message(origin={'kind': 'peer'}),
+                      self.later_message(origin={'kind': 'task-notification'}),
+                      self.later_message(origin='human'),
+                      self.later_message(commandMode='task-notification', origin=None),
+                      self.later_message(source_uuid=''),
+                      self.later_message(source_uuid=None),
+                      dict(self.later_message(), isSidechain=True)):
+            with self.subTest(later=later):
+                self.setUp()
+                self.events(self.doc_edit('src/app.py') + [later] + self.tool_calls(12))
+                self.assertEqual(self.status_stop(), {})
+
+    def test_subagent_tool_calls_do_not_count_as_silence(self):
+        calls = [dict(call, isSidechain=True) for call in self.tool_calls(12)]
+        self.events(self.doc_edit('src/app.py') + [self.later_message()] + calls)
+        self.assertEqual(self.status_stop(), {})
+
+    def test_recheck_covers_a_headless_message_with_no_origin_field(self):
+        later = self.later_message()
+        del later['attachment']['origin']
+        self.events(self.doc_edit('src/app.py') + [later] + self.tool_calls(10))
+        self.assert_block(self.status_stop())
+
+    def test_recheck_waits_for_delivery_evidence(self):
+        self.events([self.later_message()] + self.tool_calls(12))
+        self.assertEqual(self.status_stop(), {})
+
+    def test_recheck_shares_one_continuation_with_a_declared_action(self):
+        self.events(self.doc_edit('src/app.py') + [self.later_message()] + self.tool_calls(10))
+        result = self.run_with_state(dict(self.payload,
+                                          last_assistant_message='proposed-next: run the remaining local checks'))
+        self.assert_block(result)
+        self.assertIn('1 message(s)', result['reason'])
+        self.assertIn('execute it now', result['reason'])
+
+    def test_recheck_is_not_spent_by_a_retry_stop(self):
+        self.events(self.doc_edit('src/app.py') + [self.later_message()] + self.tool_calls(10))
+        retry = dict(self.payload, last_assistant_message=self.STATUS_STOP, stop_hook_active=True)
+        self.assertEqual(self.run_with_state(retry), {})
+        self.assert_block(self.status_stop())
+
+    def test_recheck_still_reaches_a_turn_whose_reminder_already_fired(self):
+        # A message absorbed after this turn's one delivery reminder must not be
+        # lost to that per-turn claim; its own per-message claim bounds it.
+        action = dict(self.payload, turn_id='one-turn',
+                      last_assistant_message='proposed-next: run the remaining local checks')
+        self.events(self.doc_edit('src/app.py'))
+        self.assertIn('execute it now', self.run_with_state(action)['reason'])
+        self.events(self.doc_edit('src/app.py') + [self.later_message()] + self.tool_calls(10))
+        result = self.run_with_state(action)
+        self.assert_block(result)
+        self.assertIn('1 message(s)', result['reason'])
+        self.assertNotIn('execute it now', result['reason'])
+
+    def test_recheck_stays_quiet_without_its_state_helper(self):
+        # With no record of having asked, it would ask on every stop.
+        self.events(self.doc_edit('src/app.py') + [self.later_message()] + self.tool_calls(10))
+        (self.hooks / 'skill-loading.py').unlink()
+        payload = dict(self.payload, last_assistant_message=self.STATUS_STOP)
+        self.assertEqual(self.run_hook(payload), {})
+
+    def test_recheck_survives_a_transcript_past_the_full_scan_limits(self):
+        # The longest sessions are where a message is most easily dropped, and they
+        # are the ones the whole-session scan gives up on. Both limits are covered.
+        tail = self.doc_edit('src/app.py') + [self.later_message()] + self.tool_calls(10)
+        padding = {'type': 'ignored', 'text': 'x' * 900000}
+        for events in ([{'type': 'ignored'}] * 20001 + tail, [padding] * 20 + tail):
+            self.setUp()
+            self.events(events)
+            self.assertIn('1 message(s)', self.status_stop().get('reason', ''))
+
+    def test_tail_scan_keeps_counting_a_message_it_can_see_answered(self):
+        tail = self.doc_edit('src/app.py') + [self.later_message()] + [
+            self.assistant('Noted.', host='claude')] + self.tool_calls(30)
+        self.events([{'type': 'ignored'}] * 20001 + tail)
+        self.assertNotIn('message(s)', self.status_stop().get('reason', ''))
+
+    def test_recheck_failure_never_costs_the_delivery_reminder(self):
+        self.events(self.doc_edit('src/app.py') + [self.later_message()] + self.tool_calls(10))
+        spec = importlib.util.spec_from_file_location('later_check_probe', self.hooks / 'host-input.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        payload = dict(self.payload, turn_id='later-check-probe',
+                       last_assistant_message='proposed-next: run the remaining local checks')
+        with patch.dict(os.environ, self.env), patch.object(
+                module, 'claim_notice', side_effect=[True, RuntimeError('unexpected')]):
+            result = module.proposed_next(payload)
+        self.assert_block(result)
+        self.assertIn('execute it now', result['reason'])
+        self.assertNotIn('message(s)', result['reason'])
+
     def test_quoted_actions_do_not_turn_a_status_handoff_into_work(self):
         self.events(self.claude_load())
         for suffix in ('\n> proposed-next: deploy', '\n```text\nproposed-next: deploy\n```'):

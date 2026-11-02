@@ -131,7 +131,7 @@ For incoming review feedback, use `review-reception.md`.
 - After a high-risk slice, run a checkpoint before starting the next slice. Treat schema or migration, protobuf/OpenAPI/Pydantic or external contracts, platform runtime, auth or permission, cross-service behavior, KMS/secrets, observability, deployment, and other high-blast-radius architecture as high risk.
 - The checkpoint definition of done should stay short: review the diff, resolve blocking findings, update the nearest repo docs or harness when boundaries changed, rerun the relevant local gate, and commit before stacking another high-risk slice.
 - Do not make skill or memory updates mandatory for every slice. Update skills only when a reusable pattern has repeated enough to be durable; update memory only when explicitly asked or when the fact cannot be derived from repo docs.
-- Do not claim work is complete, fixed, passing, or ready without fresh verification evidence.
+- Do not claim work is complete, fixed, passing, or ready without fresh verification evidence. "Complete" also covers what was asked: walk every later user message too, not only the original task or handoff list (`pre-final-continuation-gate.md`, later-message recheck).
 - Identify the command or inspection that proves the claim, run it, read the output, and report the actual result.
 - A passing linter does not prove the build, test suite, migration, or user workflow passes.
 - Agent or subagent success reports are not evidence until their diff and verification output are checked.

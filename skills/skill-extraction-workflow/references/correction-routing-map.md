@@ -1,6 +1,6 @@
 # Correction Routing Map
 
-Use this when a retrospective, review follow-up, or user correction names tests, verifiers, coverage, test order, or real/external evidence that was unavailable, blocked, deferred, skipped, or mock-substituted. It decides which owner(s) the target-output map must name for that correction type; the extraction workflow itself still gets its prevention point per the entrypoint's always-land rule.
+Use this when a retrospective, review follow-up, or user correction names tests, verifiers, coverage, test order, real/external evidence that was unavailable, blocked, deferred, skipped, or mock-substituted, or something the user asked for later in the task that closeout never reported. It decides which owner(s) the target-output map must name for that correction type; the extraction workflow itself still gets its prevention point per the entrypoint's always-land rule.
 
 The two rules below were relocated verbatim from `SKILL.md`'s `Retrospectives, corrections & auto-triggered learning` Core Rules group (low-frequency detail per the entrypoint's content-placement rule); the entrypoint keeps a one-bullet summary that points here. Wording changes here go through the same shared-skill gates as an entrypoint edit.
 
@@ -20,3 +20,4 @@ The two rules below were relocated verbatim from `SKILL.md`'s `Retrospectives, c
 | Test-hardening, coverage, or test-order correction with no deferral element and no deferral-as-terminal claim | `testing-strategy` + this workflow |
 | Both a deferral signal and a test-order signal | `product-rd-workflow` (`DFE-CONT`) + `testing-strategy` + this workflow (test-case-first still mandatory) |
 | Tests were run before test cases / why were test cases not written first | `testing-strategy` + the coordinating workflow (`product-rd-workflow`) + this workflow |
+| Something the user asked for after the task started was dropped, or closeout reported only against the original task or handoff list | `product-rd-workflow` (later-message recheck, `pre-final-continuation-gate.md`) + this workflow. Check first whether the recheck fired: if it did, the reminder text failed; if not, read how the host recorded the message, because the hook only sees a message absorbed into a running turn |
