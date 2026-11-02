@@ -1,0 +1,76 @@
+{
+  "schema_version": 3,
+  "runner": "review_diff",
+  "mode": "review",
+  "status": "findings",
+  "reason_code": null,
+  "findings": [
+    {
+      "severity": "P1",
+      "title": "Enforce a read-only filesystem boundary for Claude",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 189,
+      "body": "The Bash grants permit commands such as `git diff HEAD --output=src/app.py`, which overwrites repository files despite `--permission-mode dontAsk`. Detecting the changed candidate afterward cannot undo the data loss. Restrict Git arguments or run Claude inside a filesystem sandbox."
+    },
+    {
+      "severity": "P1",
+      "title": "Normalize implementer families before excluding reviewers",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 234,
+      "body": "Passing `--implementer-family openai`, an existing family spelling used throughout this repository, leaves Codex eligible because its family is recorded as `codex`. With the default order, the runner selects the implementer’s own family and records its verdict as independent review."
+    },
+    {
+      "severity": "P1",
+      "title": "Reject unsuccessful reviewer exits before accepting a verdict",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 252,
+      "body": "A reviewer returning exit code 1 with `No findings.` in its captured answer produces runner exit code 0 and a passed receipt. This is reproducible through the main function with a mocked child result. Check the return code before treating any answer as conclusive."
+    },
+    {
+      "severity": "P1",
+      "title": "Create result temporary files without following symlinks",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 199,
+      "body": "With `--out specs/r/evidence/review.json` and `review.json.tmp` symlinked to `src/app.py`, `write_text()` overwrites the source file. This happens after candidate verification, so the runner can also record a passed receipt for the altered tree. Use an exclusively created temporary file."
+    },
+    {
+      "severity": "P2",
+      "title": "Require the entire clean answer to match the sentinel",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 119,
+      "body": "The answer `The repository reads failed, so this review is incomplete.\\nNo findings.` parses as passed. Arbitrary surrounding text is ignored, allowing an explicit inability to review to become approval. Accept a clean verdict only when the complete trimmed answer matches `No findings.`."
+    },
+    {
+      "severity": "P2",
+      "title": "Preserve the selected Codex provider definition",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 143,
+      "body": "For a valid configuration containing `model_provider = \"custom\"` and `[model_providers.custom]`, the private home retains the provider name but discards its definition. Codex cannot resolve that provider, so Claude implementations with this configuration lose their only independent reviewer. Preserve the selected provider’s required configuration."
+    }
+  ],
+  "selected_client": "codex",
+  "reviewer_family": "codex",
+  "implementer_family": "claude",
+  "base": "68473be9aa6ba33329b744464edc31790eae83a2",
+  "head": "68473be9aa6ba33329b744464edc31790eae83a2",
+  "candidate_tree": "67a15cebb4ccb48bd348d9d400c2aca2f6c2afd9",
+  "worktree_clean": false,
+  "untracked_files": [
+    "skills/code-review/scripts/review_diff.py",
+    "skills/code-review/scripts/test_review_diff.sh",
+    "specs/diff-first-review/evidence/review.json",
+    "specs/diff-first-review/plan.md"
+  ],
+  "intent_sha256": "348401c8e04bdcf6599f4304387382f283872324bc35a352ce13c37e18bb122b",
+  "elapsed_seconds": 302.5,
+  "attempts": [
+    {
+      "client": "codex",
+      "returncode": 0,
+      "elapsed_seconds": 302.3,
+      "status": "findings"
+    }
+  ],
+  "recorded_at": "2026-11-02T23:40:36+00:00",
+  "raw_answer": "[P1] Enforce a read-only filesystem boundary for Claude — skills/code-review/scripts/review_diff.py:189\n\nThe Bash grants permit commands such as `git diff HEAD --output=src/app.py`, which overwrites repository files despite `--permission-mode dontAsk`. Detecting the changed candidate afterward cannot undo the data loss. Restrict Git arguments or run Claude inside a filesystem sandbox.\n\n[P1] Normalize implementer families before excluding reviewers — skills/code-review/scripts/review_diff.py:234\n\nPassing `--implementer-family openai`, an existing family spelling used throughout this repository, leaves Codex eligible because its family is recorded as `codex`. With the default order, the runner selects the implementer’s own family and records its verdict as independent review.\n\n[P1] Reject unsuccessful reviewer exits before accepting a verdict — skills/code-review/scripts/review_diff.py:252\n\nA reviewer returning exit code 1 with `No findings.` in its captured answer produces runner exit code 0 and a passed receipt. This is reproducible through the main function with a mocked child result. Check the return code before treating any answer as conclusive.\n\n[P1] Create result temporary files without following symlinks — skills/code-review/scripts/review_diff.py:199\n\nWith `--out specs/r/evidence/review.json` and `review.json.tmp` symlinked to `src/app.py`, `write_text()` overwrites the source file. This happens after candidate verification, so the runner can also record a passed receipt for the altered tree. Use an exclusively created temporary file.\n\n[P2] Require the entire clean answer to match the sentinel — skills/code-review/scripts/review_diff.py:119\n\nThe answer `The repository reads failed, so this review is incomplete.\\nNo findings.` parses as passed. Arbitrary surrounding text is ignored, allowing an explicit inability to review to become approval. Accept a clean verdict only when the complete trimmed answer matches `No findings.`.\n\n[P2] Preserve the selected Codex provider definition — skills/code-review/scripts/review_diff.py:143\n\nFor a valid configuration containing `model_provider = \"custom\"` and `[model_providers.custom]`, the private home retains the provider name but discards its definition. Codex cannot resolve that provider, so Claude implementations with this configuration lose their only independent reviewer. Preserve the selected provider’s required configuration."
+}

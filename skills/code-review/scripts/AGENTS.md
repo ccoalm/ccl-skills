@@ -10,6 +10,19 @@ Rules:
   their arguments, returned bytes and completed lifecycle. This does not permit
   arbitrary commands or workspace access. A malformed, timeout, or inconclusive
   wrapper result is not a pass.
+- **`review_diff.py` is the one runner without a packet.** Its reviewer reads
+  the repository and `git diff` itself, because packet intake was where review
+  calls failed (`specs/diff-first-review/plan.md`). Its boundary is the host's
+  own read-only mode instead: Codex runs `-s read-only` under a private
+  `CODEX_HOME` with no MCP servers, hooks or plugins, kept outside the system
+  temp dir so the sandbox helper can start; Claude gets only `Read`, `Grep` and
+  `Glob` with no shell (git can write files through `--output`), no setting
+  sources and no MCP servers. The Codex reviewer may run commands inside its
+  read-only sandbox, which is the one exception to the no-target-code rule
+  below. The reviewer can read files the user can read and sends what it reads
+  to its provider; that is the accepted trade-off. Do not
+  add a write-capable tool, a shell for Claude, or inherited config to it, and
+  keep the result envelope that CI and the pull-request reminder read.
 - **Never pin a lane to a CLI version's vocabulary — reading it or writing it.**
   `parse_probe_result.py`
   gates on *shape*, not on field/value names: the isolation proof is the exact
@@ -120,3 +133,4 @@ Validation:
 - `python3 skills/code-review/scripts/test_kimi_packet_mcp.py`
 - `python3 skills/code-review/scripts/test_review_client_compat.py`
 - `bash skills/code-review/scripts/test_code_review_identity.sh`
+- `bash skills/code-review/scripts/test_review_diff.sh`
