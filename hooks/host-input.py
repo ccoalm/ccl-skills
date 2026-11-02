@@ -369,8 +369,8 @@ def midtask_message_id(event):
 # Tool calls an agent may make after such a message before any prose counts as
 # carrying on without replying. Measured on real sessions: about a third of these
 # messages get prose first, and 5% wait for this many calls. Those are mostly
-# real requests, and it fires about once in ten sessions. Lower values fired too
-# often on messages that were already being handled.
+# real requests, and it fires about once in ten sessions; a limit of 5 fires four
+# times as often.
 MIDTASK_SILENT_CALLS = 10
 
 
@@ -968,6 +968,18 @@ def with_context_notice(payload, result):
     return result
 
 
+def checked_midtask_note(payload, summary):
+    try:
+        return midtask_note(payload, summary)
+    except Exception:  # advisory: a failed message check never costs the reminder
+        return ''
+
+
+def midtask_block(note):
+    return {'decision': 'block', 'reason': note + ' Then end with the same proposed-next: line, if you '
+            'wrote one. This reminder supplies no new goal or authorization.'}
+
+
 def stop_turn(payload):
     """Identify a user turn from host metadata, never assistant or prompt wording."""
     def identifier(value):
@@ -1026,7 +1038,13 @@ def proposed_next(payload):
     if (not isinstance(payload, dict) or payload.get('hook_event_name') != 'Stop'
             or payload.get('stop_hook_active') is not False):
         return None
-    result = delivery_reminder(payload)
+    try:
+        result = delivery_reminder(payload)
+    except TranscriptTruncated:
+        later = checked_midtask_note(payload, None)
+        if not later:
+            raise
+        return midtask_block(later)
     summary, note = None, ''
     try:
         summary = stop_summary(payload)
@@ -1045,18 +1063,14 @@ def proposed_next(payload):
         elif claimed is None:
             result = {'systemMessage': 'Delivery recheck skipped: user turn or attempt state is unavailable. '
                       'This advisory check does not prevent stopping or establish completion or authority.'}
-    try:
-        later = midtask_note(payload, summary)
-    except Exception:  # advisory: a failed message check never costs the reminder
-        later = ''
+    later = checked_midtask_note(payload, summary)
     if not later:
         return result
     # Bounded by its own per-message claim, so it needs no per-turn claim and can
     # join a reminder that has one. It shares that reminder's one continuation.
     if result and result.get('decision') == 'block':
         return {'decision': 'block', 'reason': later + ' ' + result['reason']}
-    blocked = {'decision': 'block', 'reason': later + ' Then end with the same proposed-next: line, if you '
-               'wrote one. This reminder supplies no new goal or authorization.'}
+    blocked = midtask_block(later)
     return dict(blocked, systemMessage=result['systemMessage']) if result else blocked
 
 

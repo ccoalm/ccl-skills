@@ -713,6 +713,16 @@ class ProposedNextTests(unittest.TestCase):
             self.events(events)
             self.assertIn('1 message(s)', self.status_stop().get('reason', ''))
 
+    def test_recheck_reaches_an_unlabelled_stop_past_the_scan_limits(self):
+        # The handoff check gives up on this stop before any note is built, and the
+        # message must not be lost with it. Without a message it still reports overflow.
+        tail = self.doc_edit('src/app.py') + [self.later_message()] + self.tool_calls(10)
+        self.events([{'type': 'ignored'}] * 20001 + tail)
+        self.assertIn('1 message(s)', self.run_with_state().get('reason', ''))
+        self.setUp()
+        self.events([{'type': 'ignored'}] * 20001 + self.doc_edit('src/app.py'))
+        self.assertIn('unverified', self.run_with_state().get('systemMessage', ''))
+
     def test_tail_scan_keeps_counting_a_message_it_can_see_answered(self):
         tail = self.doc_edit('src/app.py') + [self.later_message()] + [
             self.assistant('Noted.', host='claude')] + self.tool_calls(30)
