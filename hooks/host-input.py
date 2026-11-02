@@ -865,7 +865,9 @@ def recent_transcript(path, cwd):
     """Tail evidence for a transcript past the full-scan limits, or None with no message in it.
 
     The longest sessions need this check most. Unlike the audits above it can use
-    a partial view: a message before the tail was checked while the file was smaller.
+    a partial view: a message before the tail was normally checked while the file
+    was smaller. One stretch longer than the tail would lose its message; the
+    longest seen in real sessions was 9.6 MB.
     """
     descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
     with os.fdopen(descriptor, 'rb') as stream:
@@ -885,14 +887,17 @@ def recent_transcript(path, cwd):
 
 def midtask_note(payload, summary):
     """One recheck per newest unanswered message, so a later one can fire it again."""
-    if summary is None or summary.get('context_complete') is False:
+    tail_only = summary is None or summary.get('context_complete') is False
+    if tail_only:
         path, cwd = payload.get('transcript_path'), payload.get('cwd')
         if not isinstance(path, str) or not path:
             return ''
         summary = recent_transcript(path, cwd if isinstance(cwd, str) else os.getcwd())
     if summary is None or not summary['silent_midtask']:
         return ''
-    if not (delivery_eligible(summary) or summary['edit_paths']):
+    # A transcript past the limits is a long session, and the tail may have lost
+    # its delivery evidence; only a complete view can say there was none.
+    if not tail_only and not (delivery_eligible(summary) or summary['edit_paths']):
         return ''
     if claim_notice(payload, 'midtask-messages', [summary['silent_midtask'][-1]]) is not True:
         return ''

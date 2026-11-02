@@ -723,6 +723,13 @@ class ProposedNextTests(unittest.TestCase):
         self.events([{'type': 'ignored'}] * 20001 + self.doc_edit('src/app.py'))
         self.assertIn('unverified', self.run_with_state().get('systemMessage', ''))
 
+    def test_tail_scan_does_not_need_delivery_evidence_it_cannot_see(self):
+        # Edits older than the tail are invisible, and a transcript this long is
+        # not the casual chat the delivery check exists to leave alone.
+        padding = {'type': 'ignored', 'text': 'x' * 900000}
+        self.events(self.doc_edit('src/app.py') + [padding] * 20 + [self.later_message()] + self.tool_calls(10))
+        self.assertIn('1 message(s)', self.status_stop().get('reason', ''))
+
     def test_tail_scan_keeps_counting_a_message_it_can_see_answered(self):
         tail = self.doc_edit('src/app.py') + [self.later_message()] + [
             self.assistant('Noted.', host='claude')] + self.tool_calls(30)
