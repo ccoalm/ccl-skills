@@ -855,8 +855,9 @@ MIDTASK_NOTE = (
     'on without replying. Check every later user message against what you delivered, however casually it was phrased. If it '
     'names something to produce or change, it is a request: do it now if it is in scope; otherwise say '
     'in one line that it is not done and why, or where you handed it off. "X can be a reference, '
-    'especially Y" asks for Y when Y is a named output. If you used a message only as material, say so '
-    'in one line, so the user can correct that reading; do not absorb it silently. Answered questions, '
+    'especially Y" may ask for your own Y or only point at material. If you cannot tell, or you used it '
+    'only as material, say in one line how you read it, so the user can correct that; do not absorb it '
+    'silently. Answered questions, '
     'used authorizations, status checks and small talk need nothing: leave them and finished items out '
     'of your report. If nothing is open, say nothing about this recheck, not even that nothing is open.')
 

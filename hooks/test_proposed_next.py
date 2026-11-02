@@ -736,6 +736,28 @@ class ProposedNextTests(unittest.TestCase):
         self.events([{'type': 'ignored'}] * 20001 + tail)
         self.assertNotIn('message(s)', self.status_stop().get('reason', ''))
 
+    def test_concurrent_stops_get_one_recheck(self):
+        self.events(self.doc_edit('src/app.py') + [self.later_message()] + self.tool_calls(10))
+        payload = dict(self.payload, last_assistant_message=self.STATUS_STOP)
+        shutil.copyfile(ROOT / 'hooks/skill-loading.py', self.hooks / 'skill-loading.py')
+        with ThreadPoolExecutor(8) as pool:
+            results = list(pool.map(lambda _: self.run_hook(payload), range(8)))
+        self.assertEqual(sum(result.get('decision') == 'block' for result in results), 1)
+
+    def test_recheck_rides_with_the_large_context_notice(self):
+        self.events(self.doc_edit('src/app.py') + [self.later_message()] + self.tool_calls(10)
+                    + [self.usage_event(450000)])
+        result = self.status_stop()
+        self.assertIn('1 message(s)', result.get('reason', ''))
+        self.assertIn('45 万', result.get('systemMessage', ''))
+
+    def test_recheck_tells_the_agent_to_report_an_unclear_reading_not_assume_a_request(self):
+        # A reference named as material must not turn into an invented deliverable.
+        self.events(self.doc_edit('src/app.py') + [self.later_message()] + self.tool_calls(10))
+        reason = self.status_stop()['reason']
+        self.assertIn('or only point at material', reason)
+        self.assertIn('say in one line how you read it', reason)
+
     def test_recheck_failure_never_costs_the_delivery_reminder(self):
         self.events(self.doc_edit('src/app.py') + [self.later_message()] + self.tool_calls(10))
         spec = importlib.util.spec_from_file_location('later_check_probe', self.hooks / 'host-input.py')
