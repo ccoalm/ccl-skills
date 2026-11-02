@@ -2,10 +2,6 @@
 
 Base: `origin/main` at `319955d`, confirmed with `git ls-remote` before the review. Every command ran with `CCL_SKILL_BASE_REF=origin/main`.
 
-## Lanes
-
-Results for the final candidate are listed under Final run below.
-
 ## Hook tests
 
 `python3 hooks/test_proposed_next.py`: 71 tests pass. Run against the base hook (`git show origin/main:hooks/host-input.py`), the new behavior tests fail; tests guarding existing behavior pass on both.
@@ -52,4 +48,19 @@ The tail scan covers the last 16 MiB and 20,000 lines. Across 40 qualifying mess
 
 ## Final run
 
-Pending the last commit.
+Candidate: `b49091a`, the last commit that changes anything outside this directory. Base `origin/main` at `319955d`, with nothing on it missing from the candidate.
+
+| Command | Result |
+| --- | --- |
+| `make test` | exit 0: repository gates, `regression_fast_lane_ok: 46 suites`, `code_review_shard_1_ok`, `code_review_shard_2_ok`, abort-leak legs ok |
+| `bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only` | `regression_heavy_lane_ok: 9 suites` |
+| `python3 scripts/check-public-sanitization.py .` | `public_sanitization_ok` |
+| `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` | `ccl_skill_check_clean_ok`, `r0_status=private-ok` (private alias audit ran), `entrypoint_word_budget_blocking_ok` |
+| `git diff --check origin/main..HEAD` | clean |
+| `shared_git_surface_gate.py` | `shared_git_surface_gate_ok` |
+
+`session-start.md` is 7,796 bytes at head and 7,798 at base.
+
+Inside `check-ccl-skills.sh`, the impact-chain gate accepts both rows in `source-register.md`. The anchors are `A later-message recheck covers a user message` in `pre-final-continuation-gate.md` and `Check first whether the recheck fired` in `correction-routing-map.md`.
+
+Not run locally: CI itself, and any host other than Claude Code for the recheck.
