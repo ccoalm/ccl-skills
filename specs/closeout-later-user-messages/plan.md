@@ -38,8 +38,8 @@ Ruled out: context compaction. The session had none, so the message stayed in co
 
 One owner rule, one mechanical firing point:
 
-1. **Rule.** Requested items include each later user message, however casually put. A named output in "can reference X, especially Y" is requested. A message used only as material, or left open, gets one line instead of silent absorption.
-2. **Firing point.** The Stop hook adds one recheck when a person's message was absorbed into a running turn and the agent then made 10 tool calls with no prose. It joins a reminder already firing and also covers a `none — status only` stop that would otherwise pass. It counts messages, never reads or echoes their wording, and leaves the judgment to the agent.
+1. **Rule.** Requested items include each later user message, however casually put. "Can reference X, especially Y" may ask for the agent's own Y or only point at material. When the agent cannot tell, used a message only as material, or left it open, it says so in one line instead of absorbing it silently.
+2. **Firing point.** The Stop hook adds one recheck when a person's message was absorbed into a running turn and the agent then made 10 tool calls with no prose. It joins a reminder already firing and also covers a `none — status only` stop that would otherwise pass. It needs delivery evidence, counts messages, never reads or echoes their wording, and leaves the judgment to the agent. On a transcript past the scan limits it skips the delivery check, because the tail may have lost that evidence; the worst case is one extra continuation per message in a long session.
 
 Boundary against noise:
 
@@ -58,7 +58,11 @@ Offline replay over 271 interactive sessions from one maintainer's last 45 days,
 
 Of 797 absorbed messages, 41 waited for 10 or more tool calls or never got prose. Reading all 41: most are real requests, such as asking for a version bump after a fix, taking over a merge request, or limiting a change to one environment.
 
-The threshold trades recall for quiet. A message acknowledged with unrelated prose inside 10 calls does not fire the hook. The rule still covers it, and the behavior evidence measures that case separately.
+The threshold trades recall for quiet. A message acknowledged with unrelated prose inside 10 calls does not fire the hook, and only the rule covers it.
+
+### Why both the rule and the hook
+
+Replaying the real stop, with about 490,000 tokens of context, the base scored 1/5, the new text alone 2/5, and the text plus the recheck 5/5. In small synthetic worlds the text alone matched the full change (2/2, small n), where it sits close at hand. At that depth it did not. The rule still earns its place: it is all that other hosts have, and it covers messages the hook does not see. Details, void samples and limits are in `evidence/behavior-eval.md`.
 
 ## Target-output map
 
