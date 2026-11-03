@@ -30,14 +30,17 @@ python3 "$CODE_REVIEW_SKILL_DIR/scripts/review_diff.py" --cwd "$PWD" \
 - `--client-order` defaults to `codex,claude,opencode,kimi`. Installed clients
   of another family run in that order until one answers: a timeout, failed
   exit, empty or unparseable answer moves on to the next. An interrupt or a
-  changed candidate ends the run. OpenCode's family comes from the model in
-  the user's OpenCode config, the model id before its provider
-  (`openai/deepseek-chat` is DeepSeek, `anthropic/claude-...` Claude). Kimi's
-  comes from the model id and provider that its `default_model` alias selects
-  in `[models.<alias>]`, then the alias, and is Kimi only when no default is
-  set. A model naming no known family is skipped, and so is a client whose
-  config cannot be read. Eligibility and launch use one read of that config.
-  The result lists skipped clients and why under `skipped`.
+  changed candidate ends the run. OpenCode's family comes only from the model
+  part of `provider/model` in the user's OpenCode config: `openai/deepseek-chat`
+  is DeepSeek, and `openai/house-model` is unknown, because a provider name says
+  nothing about the model it serves. Kimi's comes from the model id that its
+  `default_model` alias selects in the parsed `models` table (header, inline or
+  dotted form); a provider of type `kimi`, Moonshot's own API, makes an
+  otherwise unnamed id Kimi, and no `default_model` means Kimi's own default.
+  Any other unknown model is skipped, and so is a client whose config cannot be
+  read or parsed (Kimi needs Python 3.11 or later for `tomllib`). Eligibility
+  and launch use one read of that config. The result lists skipped clients and
+  why under `skipped`.
 - `--timeout` is per reviewer attempt (default 900 s), so a run that tries all
   four can take four times that. Set the host's own command timeout above it,
   or pass a shorter `--client-order`.
@@ -100,9 +103,12 @@ fields `hooks/remind-review-covers-head.sh` reads.
   code from its project directory and each parent up to the git root, and no
   flag turns that off, so its project is a private empty git repository and
   the repository under review is read as an outside directory by path.
-- Kimi Code runs `kimi -p` under a private `KIMI_CODE_HOME` with links to the
-  credential files, the model, provider and thinking tables, and a global tool
-  allowlist of `Read`, `Grep` and `Glob`; hooks, MCP servers, plugins and skill
+- Kimi Code runs `kimi -p --output-format stream-json` under a private
+  `KIMI_CODE_HOME` with links to the credential files, the top-level model and
+  endpoint keys, the model, provider and thinking tables, and a global tool
+  allowlist of `Read`, `Grep` and `Glob`. Only its last assistant message is the
+  answer, since it also prints the narration between tool calls. A config whose
+  carried subset would not parse to the same models is skipped rather than run; hooks, MCP servers, plugins and skill
   dirs stay out, and the workspace is never marked trusted, so project-level
   MCP servers stay off.
 - Every git call the runner makes switches off repository-configured programs:

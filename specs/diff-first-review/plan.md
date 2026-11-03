@@ -276,3 +276,13 @@ Removing each protected line (try-next, failed-answer isolation, interrupt
 stop, order, OpenCode project-config, pure, deny-all, agent, private project,
 unknown and same family, setup-failure guard, Kimi tool allowlist, trust strip,
 bullet strip, table filter) turned its own assertion red.
+
+Passes on this round:
+
+| Pass | Reviewer | Result | Disposition |
+| --- | --- | --- | --- |
+| Runner review (`review_diff.py`) | Codex, 330 s | three findings; the run itself voided by a commit made during it, answer read from its diagnostics | Kimi alias family, multi-block answers and unguarded discovery fixed with RED tests |
+| Extraction review | Codex through `extraction_review_gate.sh`, 413 s | two P1, three P2 | provider/model order, Kimi alias, config snapshot and discovery fixed with RED tests; live probe evidence recorded in `evidence/round2-live-probes.md` |
+| Extraction challenge | Codex, 366 s | two P1, one P2, all reviewer-family inference again | third round on one class, so the capability was narrowed: family only from the model id that runs, Kimi config parsed once with `tomllib`, unknown skipped |
+| Live runner review through OpenCode | DeepSeek, 639 s | three P2 | Kimi top-level keys, dotted tables and a preamble before a clean answer fixed with RED tests |
+| Live runner review through Kimi | Kimi, 832 s | unparseable: text mode printed the narration between tool calls before `No findings.` | Kimi read through stream-json, final message only; the prompt says the final message is parsed |

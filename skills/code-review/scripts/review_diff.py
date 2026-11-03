@@ -47,7 +47,8 @@ INTERRUPT_CODES = {130, 137, 143}
 # that define the models they select. An allowlist on purpose: anything else
 # (MCP servers, hooks, plugins, skills, tool settings) stays out.
 CODEX_KEYS = ("model", "model_reasoning_effort", "model_provider", "model_verbosity")
-KIMI_KEYS = ("default_model", "default_effort", "default_thinking")
+KIMI_KEYS = ("default_model", "default_effort", "default_thinking", "model", "provider", "protocol",
+             "base_url", "api_key", "max_context_size", "max_input_size", "max_output_size")
 KIMI_TABLES = ("models", "providers", "thinking")
 KIMI_LINKS = ("credentials", "oauth", "device_id", "region")  # links, so a token refresh persists
 READ_TOOLS = ("Read", "Grep", "Glob")
@@ -156,6 +157,7 @@ def build_prompt(mode: str, cwd: str, base: str, intent: str, focus: str, untrac
         "One line per finding: [P0|P1|P2|P3] <imperative title> — <path>:<line>",
         "followed by one short paragraph with the failing scenario.",
         "If there are no qualifying findings, output exactly: No findings.",
+        "Your final message is read by a program: put nothing else in it, no summary.",
     ]
     return "\n".join(lines) + "\n"
 
@@ -242,14 +244,16 @@ def link_if_present(source: Path, target: str) -> None:
         os.symlink(str(source), target)
 
 
-def filter_toml(config: Path, keys, keep_table):
+def read_config(config: Path) -> str:
+    return config.read_text(encoding="utf-8", errors="replace") if config.is_file() else ""
+
+
+def filter_toml(text: str, keys, keep_table):
     """Keep top-level `keys` and the tables keep_table(name, top) accepts.
 
     Returns (kept lines, {key: value}) for the kept top-level keys."""
     kept, top, table, keep = [], {}, None, False
-    if not config.is_file():
-        return kept, top
-    for line in config.read_text(encoding="utf-8", errors="replace").splitlines():
+    for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith("["):
             header = stripped.split("#", 1)[0].strip()  # a header may carry a comment
@@ -260,7 +264,10 @@ def filter_toml(config: Path, keys, keep_table):
             continue
         if table is None:
             key = stripped.split("=", 1)[0].strip()
-            if key in keys and "=" in stripped:
+            root = key.split(".", 1)[0].strip("\"'")
+            if "=" in stripped and key not in keys and keep_table(root, top):
+                kept.append(line)  # a dotted assignment into a kept table, `models.x = {...}`
+            elif key in keys and "=" in stripped:
                 kept.append(line)
                 value = stripped.split("=", 1)[1].strip()
                 quoted = re.match(r"""^(["'])(.*?)\1""", value)
@@ -280,7 +287,7 @@ def private_codex_home(source: Path):
         return bool(provider) and (table == f"model_providers.{provider}"
                                    or table.startswith(f"model_providers.{provider}."))
 
-    kept, top = filter_toml(source / "config.toml", CODEX_KEYS, selected_provider)
+    kept, top = filter_toml(read_config(source / "config.toml"), CODEX_KEYS, selected_provider)
     Path(home, "config.toml").write_text("\n".join(kept) + "\n", encoding="utf-8")
     return home, top.get("model"), top.get("model_provider")
 
@@ -289,32 +296,33 @@ def kimi_source() -> Path:
     return Path(os.environ.get("KIMI_CODE_HOME") or Path.home() / ".kimi-code")
 
 
-def kimi_config(source: Path):
-    return filter_toml(source / "config.toml", KIMI_KEYS,
-                       lambda table, top: table.split(".", 1)[0] in KIMI_TABLES)
+def kimi_snapshot(source: Path):
+    """Return (family, alias, config lines) from one read of Kimi Code's config.
 
-
-def kimi_family(source: Path):
-    """Return (family, alias, config lines) of Kimi Code's default model; family None if unknown.
-
-    The alias is a key into the user's `[models.<alias>]` table, so the model id
-    and provider it names decide the family before the alias itself does."""
-    kept, top = kimi_config(source)
-    alias = top.get("default_model")
+    The family comes from the model id the default alias selects; a provider of
+    type `kimi` (Moonshot's own API) makes an otherwise unnamed id Kimi. Any other
+    unknown model has no family. Raises ValueError when the config cannot be
+    parsed or the carried subset would not define the same models."""
+    try:
+        import tomllib
+    except ImportError:  # Python < 3.11
+        raise ValueError("reading the Kimi Code config needs Python 3.11 or later")
+    text = read_config(source / "config.toml")
+    data = tomllib.loads(text)
+    kept, _ = filter_toml(text, KIMI_KEYS, lambda table, top: table.split(".", 1)[0] in KIMI_TABLES)
+    expected = {k: v for k, v in data.items() if k in KIMI_KEYS or k in KIMI_TABLES}
+    if tomllib.loads("\n".join(kept)) != expected:
+        raise ValueError("the Kimi Code config uses a form the carried subset cannot keep")
+    alias = data.get("default_model")
     if not alias:
         return "kimi", None, kept  # Kimi Code's own default model
-    table, _ = filter_toml(source / "config.toml", (), lambda name, top: name == f"models.{alias}")
-    values = {}
-    for line in table:
-        if "=" in line and not line.strip().startswith("["):
-            key, value = line.split("=", 1)
-            quoted = re.match(r"""^\s*(["'])(.*?)\1""", value)
-            values[key.strip()] = quoted.group(2) if quoted else value.split("#", 1)[0].strip()
-    for word in (values.get("model"), values.get("provider"), alias):
-        family = model_family(word)
-        if family:
-            return family, alias, kept
-    return None, alias, kept
+    entry = (data.get("models") or {}).get(alias)
+    entry = entry if isinstance(entry, dict) else {}
+    family = model_family(entry.get("model") or alias)
+    provider = (data.get("providers") or {}).get(entry.get("provider")) or {}
+    if family is None and isinstance(provider, dict) and provider.get("type") == "kimi":
+        family = "kimi"
+    return family, alias, kept
 
 
 def private_kimi_home(source: Path, kept: list):
@@ -404,14 +412,12 @@ def private_opencode_root(model: str, providers: dict, read_dirs: list) -> str:
 
 
 def model_family(model: Optional[str]) -> Optional[str]:
-    """Family named by a model id; for `provider/model` the model part decides
-    first, because an OpenAI-compatible provider can serve any family."""
-    parts = (model or "").lower().rsplit("/", 1)
-    for part in reversed(parts):
-        hits = [(part.find(word), family) for word, family in MODEL_FAMILY_WORDS if word in part]
-        if hits:
-            return min(hits)[1]
-    return None
+    """Family named by a model id. For `provider/model` only the model part
+    counts: a provider name says nothing, since an OpenAI-compatible endpoint
+    can serve any family."""
+    part = (model or "").lower().rsplit("/", 1)[-1]
+    hits = [(part.find(word), family) for word, family in MODEL_FAMILY_WORDS if word in part]
+    return min(hits)[1] if hits else None
 
 
 def reviewer_family(client: str):
@@ -423,18 +429,30 @@ def reviewer_family(client: str):
         model, providers = opencode_config()
         return model_family(model), model, (model, providers)
     if client == "kimi":
-        family, alias, kept = kimi_family(kimi_source())
+        family, alias, kept = kimi_snapshot(kimi_source())
         return family, alias, (alias, kept)
     return client, None, None
 
 
-def unbullet(text: str) -> str:
-    # Kimi's text output bullets the first line of each response block and
-    # indents the rest of the block by two spaces.
-    lines = text.strip("\n").splitlines()
-    if not any(line.startswith("• ") for line in lines):
-        return text
-    return "\n".join(line[2:] if line.startswith(("• ", "  ")) else line for line in lines)
+def final_message(stream: str) -> str:
+    """The last assistant message of Kimi Code's stream-json output.
+
+    Its text mode prints every assistant message, including the narration
+    between tool calls, so only the last one is the answer."""
+    answer = ""
+    for line in stream.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict) or event.get("role") != "assistant":
+            continue
+        content = event.get("content")
+        if isinstance(content, list):
+            content = "".join(part.get("text", "") for part in content
+                              if isinstance(part, dict) and part.get("type") == "text")
+        answer = content if isinstance(content, str) else ""
+    return answer
 
 
 def run_child(cmd: list, prompt: str, cwd: str, env: dict, timeout: int):
@@ -508,12 +526,12 @@ def run_client(client: str, snapshot, prompt: str, cwd: str, timeout: int, diff_
                    KIMI_CODE_NO_AUTO_UPDATE="1", KIMI_CLI_NO_AUTO_UPDATE="1")
         cmd = ["kimi", "--skills-dir", os.path.join(home, "no-skills"), "--add-dir", diff_dir]
         cmd += ["-m", model] if model else []
-        cmd += ["-p", prompt, "--output-format", "text"]
+        cmd += ["-p", prompt, "--output-format", "stream-json"]
         try:
             outcome, rc, out, err = run_child(cmd, "", cwd, env, timeout)
         finally:
             shutil.rmtree(home, ignore_errors=True)
-        return outcome, rc, unbullet(out), err
+        return outcome, rc, final_message(out), err
     if client == "codex":
         source = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
         home, model, provider = private_codex_home(source)
@@ -561,6 +579,10 @@ def main(argv=None) -> int:
     ap.add_argument("--timeout", type=int, default=900, help="seconds per reviewer attempt")
     ap.add_argument("--out", help="result JSON path (default: under <git-dir>/ccl-code-review/)")
     args = ap.parse_args(argv)
+    # An argument cut mid-character arrives with surrogate escapes, which cannot
+    # be sent to a reviewer; replace the broken bytes instead of crashing.
+    args.intent, args.focus = (s.encode("utf-8", "surrogateescape").decode("utf-8", "replace")
+                               for s in (args.intent, args.focus))
 
     cwd = git(str(Path(args.cwd).resolve()), "rev-parse", "--show-toplevel")
     neutralize_filters(cwd)

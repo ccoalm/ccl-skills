@@ -125,13 +125,20 @@ for ((i = 0; i < ${#args[@]}; i++)); do
 done
 diff_file="$(printf '%s' "${prompt:-}" | grep -o '/[^ `]*\.diff' | head -1)"
 if [ -n "$diff_file" ] && grep -q '^diff --git' "$diff_file" 2>/dev/null; then echo yes >"$FAKE_LOG.kimi.diff"; fi
-# Kimi's text output bullets the first line and indents the rest.
+# Kimi's stream-json prints one event per message; only the last assistant
+# message is the answer.
+say() { python3 -c 'import json,sys; print(json.dumps({"role": "assistant", "content": sys.argv[1]}))' "$1"; }
+printf '{"role": "meta", "type": "system.version", "version": "2"}\n'
+printf '{"role": "assistant", "content": "Let me read the diff.", "tool_calls": [{"type": "function", "id": "t1", "function": {"name": "Read", "arguments": "{}"}}]}\n'
+printf '{"role": "tool", "tool_call_id": "t1", "content": "diff"}\n'
 case "${FAKE_KIMI:-passed}" in
-  passed) printf '• No findings.\n\n' ;;
-  findings) printf '• [P2] Close the file — src/app.py:1\n\n  The file stays open.\n\n' ;;
-  blocks) printf '• Let me read the diff first.\n\n• [P2] Close the file — src/app.py:1\n\n  The file stays open.\n\n' ;;
+  passed) say 'No findings.' ;;
+  preamble) say 'I checked the loop and the config handling.'; say 'No findings.' ;;
+  findings) say "$(printf '[P2] Close the file — src/app.py:1\n\nThe file stays open.')" ;;
+  blocks) say 'Let me read the diff first.'; say "$(printf '[P2] Close the file — src/app.py:1\n\nThe file stays open.')" ;;
   fail) exit 1 ;;
 esac
+printf '{"role": "meta", "type": "session.resume_hint", "content": "To resume this session"}\n'
 EOF
   chmod +x "$bin/codex" "$bin/claude" "$bin/opencode" "$bin/kimi"
 }
@@ -197,6 +204,7 @@ mkdir -p "$KIMI_CODE_HOME/credentials" "$KIMI_CODE_HOME/oauth" "$KIMI_CODE_HOME/
 printf '{}' >"$KIMI_CODE_HOME/mcp.json"
 cat >"$KIMI_CODE_HOME/config.toml" <<'EOF'
 default_model = "kimi-code/k3"
+base_url = "https://gateway.invalid/v1"
 extra_skill_dirs = [
   "/somewhere",
 ]
@@ -455,6 +463,10 @@ repo="$(new_repo ocprovider)"
 write_opencode_config openai/deepseek-chat
 FAKE_CODEX=failclean FAKE_CLAUDE=fail run_runner ocprovider "$repo" --implementer-family deepseek
 expect_eq ocprovider-attempts "$(clients "$out")" codex,claude,kimi
+# A provider name never establishes the family of an unknown model.
+write_opencode_config openai/house-model
+FAKE_CODEX=failclean run_runner ochouse "$repo" --implementer-family claude
+expect_eq ochouse-attempts "$(clients "$out")" codex,kimi
 write_opencode_config deepseek/deepseek-chat
 
 # 9f1b. Eligibility and launch use one config snapshot.
@@ -496,6 +508,32 @@ expect_eq kimialias-attempts "$(clients "$out")" codex,opencode
 printf 'default_model = "house-model"\n\n[models.house-model]\nmodel = "house-1"\nprovider = "proxy"\n' >"$KIMI_CODE_HOME/config.toml"
 FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimiunknown "$repo" --implementer-family claude
 expect_eq kimiunknown-attempts "$(clients "$out")" codex,opencode
+# An inline model table is read structurally, like a [models.<alias>] header.
+printf 'default_model = "kimi-review"\n\n[models]\nkimi-review = { model = "claude-test", provider = "proxy" }\n' >"$KIMI_CODE_HOME/config.toml"
+FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimiinline "$repo" --implementer-family claude
+expect_eq kimiinline-attempts "$(clients "$out")" codex,opencode
+# Dotted top-level model and provider assignments are carried like tables.
+printf 'default_model = "r"\nproviders.p = { type = "kimi" }\nmodels.r = { model = "k9", provider = "p" }\n' >"$KIMI_CODE_HOME/config.toml"
+FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimidotted "$repo" --implementer-family claude
+expect_eq kimidotted-status "$(field "$out" status 2>/dev/null || true)" passed
+grep -q '^models.r = ' "$FAKE_LOG.kimi.config" 2>/dev/null || note_fail kimidotted-carried "dotted model assignment not carried"
+# A config form the carried subset would change skips Kimi rather than launch with it.
+printf 'default_model = "r"\n\n[models.r]\nmodel = "kimi-x"\n\n[notes]\ntext = """\n[models.q]\nmodel = "claude-test"\n[hooks]\n"""\n' >"$KIMI_CODE_HOME/config.toml"
+FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimistring "$repo" --implementer-family claude
+expect_eq kimistring-skip "$(python3 -c 'import json,sys; print([s["reason"] for s in json.load(open(sys.argv[1]))["skipped"] if s["client"]=="kimi"])' "$out" 2>/dev/null || true)" "['config_unreadable']"
+# One read decides the family and the config the reviewer launches with.
+single="$(python3 -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("review_diff", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+texts = iter([
+    "default_model = \"r\"\n\n[models.r]\nmodel = \"claude-test\"\nprovider = \"p\"\n",
+    "default_model = \"r\"\n\n[models.r]\nmodel = \"deepseek-chat\"\nprovider = \"p\"\n",
+] * 3)
+m.read_config = lambda path: next(texts)
+family, alias, (model, kept) = m.reviewer_family("kimi")
+print(family, "claude-test" in "\n".join(kept))' "$runner" 2>&1 || true)"
+expect_eq kimi-single-read "$single" "claude True"
 
 # 9f4. An unreadable or malformed reviewer config skips only that reviewer.
 printf 'default_model\n' >"$KIMI_CODE_HOME/config.toml"
@@ -515,11 +553,12 @@ expect_eq kimi-status "$(field "$out" status)" findings
 expect_eq kimi-title "$(field "$out" findings.0.title)" "Close the file"
 expect_eq kimi-body "$(field "$out" findings.0.body)" "The file stays open."
 args="$(cat "$FAKE_LOG.kimi" 2>/dev/null || true)"
-for want in '--skills-dir' '--add-dir' '-m kimi-code/k3' '--output-format text'; do
+for want in '--skills-dir' '--add-dir' '-m kimi-code/k3' '--output-format stream-json'; do
   case "$args" in *"$want"*) ;; *) note_fail kimi-args "missing '$want' in: $args" ;; esac
 done
 grep -q '^enabled = \["Read", "Grep", "Glob"\]$' "$FAKE_LOG.kimi.config" 2>/dev/null || note_fail kimi-tools "read-only tool allowlist missing"
 grep -q '^default_model = "kimi-code/k3"$' "$FAKE_LOG.kimi.config" 2>/dev/null || note_fail kimi-model "default model not carried"
+grep -q '^base_url = ' "$FAKE_LOG.kimi.config" 2>/dev/null || note_fail kimi-endpoint "top-level endpoint not carried"
 grep -q '^\[models."kimi-code/k3"\]$' "$FAKE_LOG.kimi.config" 2>/dev/null || note_fail kimi-models "model table not carried"
 if grep -q -E 'hooks|extra_skill_dirs|somewhere|Bash' "$FAKE_LOG.kimi.config" 2>/dev/null; then note_fail kimi-isolation "hooks, skill dirs or the user's tool list carried"; fi
 if grep -q -x -E 'hooks|mcp.json' "$FAKE_LOG.kimi.home" 2>/dev/null; then note_fail kimi-home "hooks or MCP config in the private home"; fi
@@ -530,6 +569,9 @@ FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimipass "$repo" --implemente
 expect_eq kimipass-status "$(field "$out" status)" passed
 FAKE_CODEX=failclean FAKE_OPENCODE=fail FAKE_KIMI=blocks run_runner kimiblocks "$repo" --implementer-family claude
 expect_eq kimiblocks-title "$(field "$out" findings.0.title 2>/dev/null || true)" "Close the file"
+FAKE_CODEX=failclean FAKE_OPENCODE=fail FAKE_KIMI=preamble run_runner kimipreamble "$repo" --implementer-family claude
+expect_eq kimipreamble-status "$(field "$out" status 2>/dev/null || true)" passed
+grep -q 'read by a program' "$FAKE_LOG.codex.prompt" 2>/dev/null || note_fail prompt-final "prompt does not say the final message is parsed"
 
 # 10. Untracked files are named; a dirty tree is reported as such.
 repo="$(new_repo untracked)"
@@ -609,6 +651,12 @@ printf 'caf\xe9 = 1\n' >"$repo/src/latin1.py"
 git -C "$repo" add src/latin1.py && git -C "$repo" commit -q -m latin1
 FAKE_CODEX=passed run_runner latin1 "$repo" --implementer-family claude
 expect_eq latin1-status "$(field "$out" status)" passed
+
+# 10h. An intent that is not valid UTF-8 (a byte cut mid-character) still runs.
+repo="$(new_repo badintent)"
+FAKE_CODEX=passed run_runner badintent "$repo" --implementer-family claude --intent "$(printf 'cut \xe4\xb8')"
+expect_eq badintent-rc "$rc" 0
+expect_eq badintent-status "$(field "$out" status 2>/dev/null || true)" passed
 
 # 11. A candidate that changes during the review is inconclusive.
 repo="$(new_repo mutate)"
