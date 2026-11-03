@@ -74,13 +74,14 @@ reported above.
 
 ## Repeat runs, owner lenses and other repositories
 
-Each figure above came from one run per arm. To see the spread, the relaxed
-review brief, the same brief with owner skills as review lenses (the selected
-owners' `SKILL.md` paths named in the prompt, read before judging), and packet
-review ran again: three runs, two and three on the eight cases here, and two,
-two and one on ten changes from four Go and Python service repositories, each
-also followed by a fix commit for defects it introduced. One judge per
-repository set scored every run blind in one pass (32 and 27 known defects).
+Each figure above came from one run per arm. To see the spread, three arms ran
+again: the relaxed review brief, the same brief with owner skills as review
+lenses (the selected owners' `SKILL.md` paths named in the prompt, read before
+judging), and packet review. On the eight cases here they ran three, two and
+three times. On ten changes from four Go and Python service repositories, each
+also followed by a fix commit for defects it introduced, they ran twice, twice
+and once. One judge per repository set scored every run blind in one pass (32
+and 27 known defects).
 
 | Arm | This repository: caught per run | Noise per run | Service repositories: caught per run | Noise per run |
 | --- | --- | --- | --- | --- |

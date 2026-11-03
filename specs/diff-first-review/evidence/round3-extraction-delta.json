@@ -1,0 +1,359 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "build",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "findings",
+  "selected_client": "codex",
+  "selected_reviewer": "codex",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P2",
+      "file": "specs/diff-first-review/plan.md",
+      "line": 466,
+      "failure_path": "Evidence gap: the final-candidate table records the fast lane failing, then asserts the fix without a successful rerun. The packet also omits the self-check setup and failure arm. Consequently, it cannot establish the required check that a wrong expectation remains detectable after repairing the shared harness.",
+      "smallest_fix": "Supply the relevant self-check context and candidate-bound output and exit status from a post-fix suite run, including the wrong-expectation self-check, and record the final fast-lane result."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [
+    {
+      "client": "claude",
+      "stage": "preflight",
+      "reason": "claude belongs to the implementer model family",
+      "reason_code": "same_family_as_implementer"
+    }
+  ],
+  "attempts": [
+    {
+      "client": "codex",
+      "reviewer": "codex",
+      "mode": "review",
+      "status": "findings",
+      "reviewer_family": "openai",
+      "provider": "openai",
+      "model": null,
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "Both substitutions preserve grep matching and the visible failure-counter behavior."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "No new command evaluation, permission change, or unsafe mutation is introduced."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "Missing matches and redirection errors still produce failure; removing the writer eliminates the identified SIGPIPE path."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "The packet lacks a post-fix suite result demonstrating that the wrong-expectation self-check still works."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "The change fits the stated Bash context and adds no unrelated flags, gates, or abstractions."
+        },
+        {
+          "concern": "rollout_rollback",
+          "conclusion": "No migration, persistent-state change, or irreversible operation is present."
+        },
+        {
+          "concern": "observability_operations",
+          "conclusion": "Existing diagnostics remain intact, but successful post-fix validation is undocumented."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "The code supports the SIGPIPE explanation; reproduction and execution claims lack supplied results."
+        },
+        {
+          "concern": "high_risk_boundary",
+          "conclusion": "No new P0/P1 bypass is visible; the shared gate's end-to-end failure detection remains an evidence gap."
+        },
+        {
+          "concern": "repository_contract",
+          "conclusion": "No contract is weakened; completion of required validation on the repaired candidate is unsupported."
+        }
+      ],
+      "findings": [
+        {
+          "severity": "P2",
+          "file": "specs/diff-first-review/plan.md",
+          "line": 466,
+          "failure_path": "Evidence gap: the final-candidate table records the fast lane failing, then asserts the fix without a successful rerun. The packet also omits the self-check setup and failure arm. Consequently, it cannot establish the required check that a wrong expectation remains detectable after repairing the shared harness.",
+          "smallest_fix": "Supply the relevant self-check context and candidate-bound output and exit status from a post-fix suite run, including the wrong-expectation self-check, and record the final fast-lane result."
+        }
+      ],
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "packet_sha256": "1ba0949f8f669edbefa4a570b573d2b25be80482eb3ec43e6148cca68e4a5a00"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "1ba0949f8f669edbefa4a570b573d2b25be80482eb3ec43e6148cca68e4a5a00",
+  "candidate_sha256": "3b52d6049ec16f4f5b254384d585ee4b2e09694d8030d9ae6a2e702a7d2cf1e7",
+  "review_context_sha256": "e50b31c4f813bd705c7f8a060281e4543eef2d12f3a516d11d6730b6411e823a",
+  "review_controller_sha256": "6539e119fb0e414ee8e95bfa64e194942cb353bce73df92750889311ab04d0a6",
+  "review_profile_sha256": "017e73632933501fcf04959c700f1a50a480215dce350e0a9c535101b9ae937a",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_governing_chain_diff.sh"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/skill-extraction-workflow/scripts/test_governing_chain_diff.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/skill-extraction-workflow/scripts/test_governing_chain_diff.sh"
+    }
+  ],
+  "review_plan_source": "derived-default",
+  "repository_contract": {
+    "coverage": "complete",
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "bytes": 7523,
+        "sha256": "49485fc6de2c919eecd3c1088bf7b65d9c2ef12f5ffbe3b10357a54fee4b5124"
+      },
+      {
+        "path": "skills/skill-extraction-workflow/scripts/AGENTS.md",
+        "bytes": 635,
+        "sha256": "0ff35bd5c18039ec144ca0050de1290a7058a65e08b65b97e4c1190edc97f26b"
+      }
+    ],
+    "omitted": [],
+    "sources_not_read": [
+      "CLAUDE.local.md and untracked files",
+      "@path imports",
+      ".claude/rules",
+      "host-configured fallback filenames"
+    ]
+  },
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "codex-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "selected_skills_sha256": "5167afdaa86fc6662486b0b9506674375e658d5763dc85c995eab7e5c407909a",
+  "risk_tags": [
+    "shared-gate"
+  ],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": "Delta pass on a test-harness fix made after the extraction challenge. The governing-chain suite failed intermittently because it piped its output into grep -q under pipefail: when grep matched and exited while the writer still held the pipe, the writer died of SIGPIPE and a passing case was reported as a failure. Both checks now read from a here-string. Check that the fix keeps every check able to fail (the suite self-check that a wrong expectation is reported) and whether it opens a new P0/P1.",
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "e7bbe900f9afd1fe32d805ebe1f2ee7903cf0f8c5ddfd907189c6019dd57ad22",
+    "acceptance_sha256": "1d49782fd1bf9c0184629bc1940e6f58c8cfe252e233ef278c930ad6c40c73e8",
+    "stage": "build",
+    "review_depth": "release",
+    "risk_tags": [
+      "shared-gate"
+    ],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "8bce27d1ab45626ed02a497180aa6e160f5ea9dcad1436e38b618f9f6ea5ca3d",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review",
+      "risk_or_scope_escalation"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "Both substitutions preserve grep matching and the visible failure-counter behavior."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "No new command evaluation, permission change, or unsafe mutation is introduced."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "Missing matches and redirection errors still produce failure; removing the writer eliminates the identified SIGPIPE path."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "The packet lacks a post-fix suite result demonstrating that the wrong-expectation self-check still works."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "The change fits the stated Bash context and adds no unrelated flags, gates, or abstractions."
+    },
+    {
+      "concern": "rollout_rollback",
+      "conclusion": "No migration, persistent-state change, or irreversible operation is present."
+    },
+    {
+      "concern": "observability_operations",
+      "conclusion": "Existing diagnostics remain intact, but successful post-fix validation is undocumented."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "The code supports the SIGPIPE explanation; reproduction and execution claims lack supplied results."
+    },
+    {
+      "concern": "high_risk_boundary",
+      "conclusion": "No new P0/P1 bypass is visible; the shared gate's end-to-end failure detection remains an evidence gap."
+    },
+    {
+      "concern": "repository_contract",
+      "conclusion": "No contract is weakened; completion of required validation on the repaired candidate is unsupported."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "rollout_rollback",
+    "observability_operations",
+    "claim_strength",
+    "high_risk_boundary",
+    "repository_contract"
+  ],
+  "reviewed_skills": [
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "codex",
+    "reviewer": "codex",
+    "mode": "review",
+    "status": "findings",
+    "reviewer_family": "openai",
+    "provider": "openai",
+    "model": null,
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "Both substitutions preserve grep matching and the visible failure-counter behavior."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "No new command evaluation, permission change, or unsafe mutation is introduced."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "Missing matches and redirection errors still produce failure; removing the writer eliminates the identified SIGPIPE path."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "The packet lacks a post-fix suite result demonstrating that the wrong-expectation self-check still works."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "The change fits the stated Bash context and adds no unrelated flags, gates, or abstractions."
+      },
+      {
+        "concern": "rollout_rollback",
+        "conclusion": "No migration, persistent-state change, or irreversible operation is present."
+      },
+      {
+        "concern": "observability_operations",
+        "conclusion": "Existing diagnostics remain intact, but successful post-fix validation is undocumented."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "The code supports the SIGPIPE explanation; reproduction and execution claims lack supplied results."
+      },
+      {
+        "concern": "high_risk_boundary",
+        "conclusion": "No new P0/P1 bypass is visible; the shared gate's end-to-end failure detection remains an evidence gap."
+      },
+      {
+        "concern": "repository_contract",
+        "conclusion": "No contract is weakened; completion of required validation on the repaired candidate is unsupported."
+      }
+    ],
+    "findings": [
+      {
+        "severity": "P2",
+        "file": "specs/diff-first-review/plan.md",
+        "line": 466,
+        "failure_path": "Evidence gap: the final-candidate table records the fast lane failing, then asserts the fix without a successful rerun. The packet also omits the self-check setup and failure arm. Consequently, it cannot establish the required check that a wrong expectation remains detectable after repairing the shared harness.",
+        "smallest_fix": "Supply the relevant self-check context and candidate-bound output and exit status from a post-fix suite run, including the wrong-expectation self-check, and record the final fast-lane result."
+      }
+    ],
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "packet_sha256": "1ba0949f8f669edbefa4a570b573d2b25be80482eb3ec43e6148cca68e4a5a00"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}

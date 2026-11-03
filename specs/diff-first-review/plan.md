@@ -450,6 +450,19 @@ Passes on this round:
 | Extraction-lane review rerun (`evidence/round3-extraction-review.json`), candidate 79fe8af | Codex through `extraction_review_gate.sh`, 426 s | one P2 evidence gap: no current-candidate `make test`, heavy, sanitization or challenge results | accepted: those results are recorded in the validation table below on the final candidate |
 | Runner delta (`evidence/round3-delta.json`), the challenge fix on 285df3a | Codex through the new runner, 83 s | passed | the last runner pass under the daily budget |
 | Extraction-lane challenge (`evidence/round3-extraction-challenge.json`), candidate 285df3a | Codex through `extraction_review_gate.sh`, 320 s (a first call was refused before any review: its focus exceeded the controller's 1000-character limit) | passed | none needed |
+| Extraction-lane delta (`evidence/round3-extraction-delta.json`), the governing-chain suite fix on d4656a6 | Codex through `extraction_review_gate.sh`, 182 s | one P2 evidence gap: no post-fix run showing a wrong expectation is still reported | answered: on the fixed suite the control passes 18 of 18 including its self-check, and changing one case's expected reason to a wrong one makes the suite exit 1 on that case alone |
+
+Target-output map for this round:
+
+| Owner | Direction | Status | Changed file or reason |
+| --- | --- | --- | --- |
+| `code-review` | target | updated | `scripts/review_diff.py`, new `scripts/review_diff_clients.py`, `scripts/test_review_diff.sh`, `references/diff-first-runner.md`, `scripts/AGENTS.md` |
+| `skill-extraction-workflow` | sibling lane | updated | source register rows for this round; `scripts/test_governing_chain_diff.sh` here-string fix found while running its lane |
+| `code-review` `SKILL.md`, `references/development-completion.md` | upstream text | unchanged | they name the runner and its options, which are unchanged |
+| CI `check_review_evidence_present.py`, PR reminder hook | downstream | unchanged | the result envelope and receipt are byte-identical on every suite scenario (differential run) |
+| `terminal-cli-dev`, `product-ui-ux-design`, `python-service-dev`, `python-service-architecture` | owners applied | unchanged | applied to this change; no rule in them was missing or wrong |
+| `testing-strategy` | owner applied | unchanged | the differential and mutation rules it already states covered this refactor |
+| Owner lenses in the runner | considered | not adopted | replay data in `evidence/replay.md` |
 
 Owner lenses: decided against, from the repeat and service-repository replay in
 `evidence/replay.md` ("Repeat runs, owner lenses and other repositories"):
@@ -464,7 +477,7 @@ Validation on the final candidate:
 | `make test-code-review-abort-leak` | ok inside a private PID namespace |
 | `make test-repo-gates` | ok after the register gained a row for the review fixes: the impact-chain gate scopes rows per round, and those fixes landed after the round's first row |
 | `make test-regressions-fast` | `test_governing_chain_diff.sh` failed intermittently here and on `origin/main` (one run in eight there), a different case each time, with the expected reason visible in the tool's output. Cause: the suite piped its output into `grep -q` under `pipefail`, so a writer still holding the pipe after the match died of SIGPIPE; reproduced in a fresh bash and fixed with here-strings. `test_reference_access_census.sh` carries the same pattern and is left for its own change |
-| Heavy lane | two suites failed once each while other sessions held the host at load 11 to 25 (`test_check_ccl_r0_status.sh`, then `test_pinned_phrase_mutation_walk.sh`); both pass alone |
+| Fast and heavy lanes under load | while other sessions held the host at load 11 to 34, each run failed a different set of suites, none touching the runner: `test_reference_access_census.sh`, `test_check_ccl_route_drift.sh`, `test_check_sync_pointers.sh` and `test_check_ccl_skill_catalog.sh` in the fast lane; `test_check_ccl_r0_status.sh`, `test_pinned_phrase_mutation_walk.sh`, `test_register_firing_path_wiring.sh`, `test_entrypoint_domain_scan_terms.sh` and `test_impact_chain_gate_verdict_differential.sh` in the heavy lane. Each passes alone on this branch |
 | `python3 scripts/check-public-sanitization.py .`, `git diff --check`, `shared_git_surface_gate.py`, `check_review_evidence_present.py` against fetched `origin/main` | ok |
 | Private R0 alias audit | pending: the audit host is reached through a local tunnel that was down; the public fallback reports `ccl_skill_check_interim_ok`, which allows a push but not a clean-landing claim |
 
