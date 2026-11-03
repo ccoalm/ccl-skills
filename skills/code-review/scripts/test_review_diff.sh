@@ -844,6 +844,14 @@ run_runner notrepo "$work/notrepo" --implementer-family claude
 expect_eq notrepo-rc "$rc" 2
 has_line notrepo-line "$work/stderr-notrepo" '^review: not run: .*not a git repository'
 lacks_line notrepo-traceback "$work/stderr-notrepo" 'Traceback'
+# Under a mount point git ends with "Stopping at filesystem boundary"; the line
+# shown is still git's own fatal message.
+if [ -d /dev/shm ] && [ -w /dev/shm ]; then
+  shm="$(mktemp -d /dev/shm/review-diff-test.XXXXXX)"
+  run_runner shmrepo "$shm" --implementer-family claude
+  rmdir "$shm"
+  has_line shmrepo-line "$work/stderr-shmrepo" '^review: not run: fatal: not a git repository'
+fi
 repo="$(new_repo badbase)"
 run_runner badbase "$repo" --implementer-family claude --base no-such-ref
 expect_eq badbase-rc "$rc" 2

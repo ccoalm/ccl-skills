@@ -559,7 +559,10 @@ def main(argv=None) -> int:
     except subprocess.CalledProcessError as exc:
         err = exc.stderr.decode("utf-8", "replace") if isinstance(exc.stderr, bytes) else exc.stderr or ""
         lines = err.strip().splitlines()
-        progress.say(f"not run: {lines[-1] if lines else f'git exited {exc.returncode}'}")
+        # git's own verdict, not a trailing note such as "Stopping at filesystem boundary".
+        fatal = [line for line in lines if line.startswith(("fatal:", "error:"))]
+        shown = fatal[0] if fatal else lines[-1] if lines else f"git exited {exc.returncode}"
+        progress.say(f"not run: {shown}")
         progress.say("next: check that --cwd is inside a git repository and --base names a commit in it",
                      detail=True)
         return 2
