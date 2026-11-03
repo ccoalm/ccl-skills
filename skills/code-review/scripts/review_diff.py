@@ -156,7 +156,7 @@ def parse_answer(text: str):
     if findings:
         # A finding without its scenario is a truncated or placeholder answer.
         return ("findings", findings) if all(f["body"] for f in findings) else (None, findings)
-    # Only the bare sentinel is a pass: "reads failed ... No findings." is not.
+    # Only the bare sentinel passes; the same sentinel after "reads failed" does not.
     return ("passed", []) if text.strip() == "No findings." else (None, [])
 
 
