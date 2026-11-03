@@ -31,10 +31,13 @@ python3 "$CODE_REVIEW_SKILL_DIR/scripts/review_diff.py" --cwd "$PWD" \
   of another family run in that order until one answers: a timeout, failed
   exit, empty or unparseable answer moves on to the next. An interrupt or a
   changed candidate ends the run. OpenCode's family comes from the model in
-  the user's OpenCode config (`anthropic/...` is Claude, `deepseek/...` is
-  DeepSeek); a model id naming no known family is skipped. Kimi's comes from
-  its `default_model`, Kimi when unnamed. The result lists skipped clients
-  and why under `skipped`.
+  the user's OpenCode config, the model id before its provider
+  (`openai/deepseek-chat` is DeepSeek, `anthropic/claude-...` Claude). Kimi's
+  comes from the model id and provider that its `default_model` alias selects
+  in `[models.<alias>]`, then the alias, and is Kimi only when no default is
+  set. A model naming no known family is skipped, and so is a client whose
+  config cannot be read. Eligibility and launch use one read of that config.
+  The result lists skipped clients and why under `skipped`.
 - `--timeout` is per reviewer attempt (default 900 s), so a run that tries all
   four can take four times that. Set the host's own command timeout above it,
   or pass a shorter `--client-order`.

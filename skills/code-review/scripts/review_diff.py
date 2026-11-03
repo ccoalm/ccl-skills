@@ -260,7 +260,7 @@ def filter_toml(config: Path, keys, keep_table):
             continue
         if table is None:
             key = stripped.split("=", 1)[0].strip()
-            if key in keys:
+            if key in keys and "=" in stripped:
                 kept.append(line)
                 value = stripped.split("=", 1)[1].strip()
                 quoted = re.match(r"""^(["'])(.*?)\1""", value)
@@ -294,12 +294,35 @@ def kimi_config(source: Path):
                        lambda table, top: table.split(".", 1)[0] in KIMI_TABLES)
 
 
-def private_kimi_home(source: Path):
+def kimi_family(source: Path):
+    """Return (family, alias, config lines) of Kimi Code's default model; family None if unknown.
+
+    The alias is a key into the user's `[models.<alias>]` table, so the model id
+    and provider it names decide the family before the alias itself does."""
+    kept, top = kimi_config(source)
+    alias = top.get("default_model")
+    if not alias:
+        return "kimi", None, kept  # Kimi Code's own default model
+    table, _ = filter_toml(source / "config.toml", (), lambda name, top: name == f"models.{alias}")
+    values = {}
+    for line in table:
+        if "=" in line and not line.strip().startswith("["):
+            key, value = line.split("=", 1)
+            quoted = re.match(r"""^\s*(["'])(.*?)\1""", value)
+            values[key.strip()] = quoted.group(2) if quoted else value.split("#", 1)[0].strip()
+    for word in (values.get("model"), values.get("provider"), alias):
+        family = model_family(word)
+        if family:
+            return family, alias, kept
+    return None, alias, kept
+
+
+def private_kimi_home(source: Path, kept: list):
     """Return the home for a Kimi Code run with read tools only and no hooks, MCP or skills."""
     home = scratch_dir("kimi-home-")
     for name in KIMI_LINKS:
         link_if_present(source / name, os.path.join(home, name))
-    kept, _ = kimi_config(source)
+    kept = list(kept)
     # A non-empty enabled list is Kimi Code's global tool allowlist.
     kept += ["", "[tools]", "enabled = " + json.dumps(list(READ_TOOLS))]
     write_private(os.path.join(home, "config.toml"), "\n".join(kept) + "\n")
@@ -381,27 +404,37 @@ def private_opencode_root(model: str, providers: dict, read_dirs: list) -> str:
 
 
 def model_family(model: Optional[str]) -> Optional[str]:
-    lowered = (model or "").lower()
-    return next((family for word, family in MODEL_FAMILY_WORDS if word in lowered), None)
+    """Family named by a model id; for `provider/model` the model part decides
+    first, because an OpenAI-compatible provider can serve any family."""
+    parts = (model or "").lower().rsplit("/", 1)
+    for part in reversed(parts):
+        hits = [(part.find(word), family) for word, family in MODEL_FAMILY_WORDS if word in part]
+        if hits:
+            return min(hits)[1]
+    return None
 
 
 def reviewer_family(client: str):
-    """Return (family, model) of the model a client would review with; family None if unknown."""
+    """Return (family, model, config snapshot) for a client; family None if unknown.
+
+    The launch uses the same snapshot, so the model judged independent is the
+    model that runs even if the user's config changes during an earlier attempt."""
     if client == "opencode":
-        model, _ = opencode_config()
-        return model_family(model), model
+        model, providers = opencode_config()
+        return model_family(model), model, (model, providers)
     if client == "kimi":
-        model = kimi_config(kimi_source())[1].get("default_model")
-        return model_family(model) or "kimi", model
-    return client, None
+        family, alias, kept = kimi_family(kimi_source())
+        return family, alias, (alias, kept)
+    return client, None, None
 
 
 def unbullet(text: str) -> str:
-    # Kimi's text output bullets the first line and indents the rest by two spaces.
+    # Kimi's text output bullets the first line of each response block and
+    # indents the rest of the block by two spaces.
     lines = text.strip("\n").splitlines()
-    if not lines or not lines[0].startswith("• "):
+    if not any(line.startswith("• ") for line in lines):
         return text
-    return "\n".join([lines[0][2:]] + [line[2:] if line.startswith("  ") else line for line in lines[1:]])
+    return "\n".join(line[2:] if line.startswith(("• ", "  ")) else line for line in lines)
 
 
 def run_child(cmd: list, prompt: str, cwd: str, env: dict, timeout: int):
@@ -448,10 +481,10 @@ def reap(proc):
     return out or "", err or ""
 
 
-def run_client(client: str, prompt: str, cwd: str, timeout: int, diff_dir: str, meta: dict):
+def run_client(client: str, snapshot, prompt: str, cwd: str, timeout: int, diff_dir: str, meta: dict):
     env = dict(os.environ)
     if client == "opencode":
-        model, providers = opencode_config()
+        model, providers = snapshot
         meta.update(model=model or "")
         root = private_opencode_root(model, providers, [cwd, diff_dir])
         project = os.path.join(root, "project")
@@ -467,9 +500,8 @@ def run_client(client: str, prompt: str, cwd: str, timeout: int, diff_dir: str, 
         finally:
             shutil.rmtree(root, ignore_errors=True)
     if client == "kimi":
-        source = kimi_source()
-        home = private_kimi_home(source)
-        model = kimi_config(source)[1].get("default_model")
+        model, kept = snapshot
+        home = private_kimi_home(kimi_source(), kept)
         meta.update(model=model or "")
         env.pop("KIMI_CODE_TRUST_WORKSPACE", None)  # an untrusted workspace loads no project MCP or config
         env.update(KIMI_CODE_HOME=home, KIMI_CODE_WATCH="0", KIMI_DISABLE_TELEMETRY="1",
@@ -561,13 +593,17 @@ def main(argv=None) -> int:
         if not shutil.which(client):
             skipped.append({"client": client, "reason": "not_installed"})
             continue
-        family, model = reviewer_family(client)
+        try:
+            family, model, snapshot = reviewer_family(client)
+        except (OSError, ValueError):
+            skipped.append({"client": client, "reason": "config_unreadable"})
+            continue
         if family is None:
             skipped.append({"client": client, "reason": "reviewer_family_unknown", "model": model or ""})
         elif family == implementer:
             skipped.append({"client": client, "reason": "same_family", "model": model or ""})
         else:
-            reviewers.append((client, family))
+            reviewers.append((client, family, snapshot))
     reason = None if implementer in KNOWN_FAMILIES else "implementer_family_ambiguous"
     status, findings, selected, family, attempts, diagnostics = None, [], "", "", [], []
     prompt = build_prompt(args.mode, cwd, base, args.intent, args.focus, untracked, diff_file)
@@ -575,12 +611,12 @@ def main(argv=None) -> int:
     # private home and its answer is read only after a clean exit, so nothing
     # from a failed attempt reaches the verdict. An interrupt ends the chain.
     try:
-        for selected, family in reviewers:
+        for selected, family, snapshot in reviewers:
             t0, meta = time.time(), {}
             attempt = {"client": selected, "status": "operator_interrupt"}
             attempts.append(attempt)
             try:
-                outcome, rc, text, err = run_client(selected, prompt, cwd, args.timeout, diff_dir, meta)
+                outcome, rc, text, err = run_client(selected, snapshot, prompt, cwd, args.timeout, diff_dir, meta)
             except (OSError, subprocess.CalledProcessError) as exc:
                 # Its private home could not be built; the next reviewer still runs.
                 outcome, rc, text, err = "missing", None, "", str(exc)

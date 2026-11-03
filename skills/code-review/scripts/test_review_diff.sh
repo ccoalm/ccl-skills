@@ -26,7 +26,8 @@ mkdir -p "$work/sysbin"
 for tool in git python3; do ln -sf "$(command -v "$tool")" "$work/sysbin/$tool"; done
 TEST_PATH="$work/bin:$work/sysbin:/usr/bin:/bin"
 # The user's own OpenCode and Kimi configs are never read.
-export XDG_CONFIG_HOME="$work/user-config" XDG_DATA_HOME="$work/user-data" KIMI_CODE_HOME="$work/user-kimi"
+user_config="$work/user-config" user_data="$work/user-data"
+export XDG_CONFIG_HOME="$user_config" XDG_DATA_HOME="$user_data" KIMI_CODE_HOME="$work/user-kimi"
 unset OPENCODE_CONFIG OPENCODE_CONFIG_DIR OPENCODE_CONFIG_CONTENT OPENCODE_PERMISSION
 
 make_fakes() {
@@ -69,6 +70,7 @@ case "${FAKE_CODEX:-findings}" in
   holdpipe) setsid sleep 30 & sleep 30 ;;
   orphan) sleep 60 >/dev/null 2>&1 & echo $! >"$FAKE_LOG.orphan"; exit 130 ;;
   hedged) printf 'The repository reads failed, so this review is incomplete.\nNo findings.\n' >"$out" ;;
+  swapoc) sed -i.bak 's#deepseek/deepseek-chat#anthropic/claude-test#' "$FAKE_OC_CONFIG"; exit 1 ;;
 esac
 EOF
   cat >"$bin/claude" <<'EOF'
@@ -95,11 +97,12 @@ printf 'dir=%s\ntoplevel=%s\ndotopencode=%s\n' "${oc_dir:-}" "$(git -C "${oc_dir
   "$(ls -A "${oc_dir:-/nonexistent}" 2>/dev/null | grep -c '^\.opencode$')" >"$FAKE_LOG.opencode.project"
 printf '%s' "${@: -1}" >"$FAKE_LOG.opencode.prompt"
 {
-  printf 'xdg_config=%s\nxdg_data=%s\n' "${XDG_CONFIG_HOME:-}" "${XDG_DATA_HOME:-}"
+  printf 'xdg_config=%s\nxdg_data=%s\n' "$(printenv XDG_CONFIG_HOME)" "$(printenv XDG_DATA_HOME)"
   printf 'no_project=%s\nno_plugins=%s\npure=%s\n' "${OPENCODE_DISABLE_PROJECT_CONFIG:-}" "${OPENCODE_DISABLE_DEFAULT_PLUGINS:-}" "${OPENCODE_PURE:-}"
 } >"$FAKE_LOG.opencode.env"
-cp "$XDG_CONFIG_HOME/opencode/opencode.json" "$FAKE_LOG.opencode.config" 2>/dev/null
-[ -L "$XDG_DATA_HOME/opencode/auth.json" ] && readlink "$XDG_DATA_HOME/opencode/auth.json" >"$FAKE_LOG.opencode.auth"
+oc_config_dir="$(printenv XDG_CONFIG_HOME)" oc_data_dir="$(printenv XDG_DATA_HOME)"
+cp "$oc_config_dir/opencode/opencode.json" "$FAKE_LOG.opencode.config" 2>/dev/null
+[ -L "$oc_data_dir/opencode/auth.json" ] && readlink "$oc_data_dir/opencode/auth.json" >"$FAKE_LOG.opencode.auth"
 diff_file="$(printf '%s' "${@: -1}" | grep -o '/[^ `]*\.diff' | head -1)"
 if [ -n "$diff_file" ] && grep -q '^diff --git' "$diff_file" 2>/dev/null; then echo yes >"$FAKE_LOG.opencode.diff"; fi
 case "${FAKE_OPENCODE:-passed}" in
@@ -126,6 +129,7 @@ if [ -n "$diff_file" ] && grep -q '^diff --git' "$diff_file" 2>/dev/null; then e
 case "${FAKE_KIMI:-passed}" in
   passed) printf '• No findings.\n\n' ;;
   findings) printf '• [P2] Close the file — src/app.py:1\n\n  The file stays open.\n\n' ;;
+  blocks) printf '• Let me read the diff first.\n\n• [P2] Close the file — src/app.py:1\n\n  The file stays open.\n\n' ;;
   fail) exit 1 ;;
 esac
 EOF
@@ -177,10 +181,10 @@ make_fakes
 mkdir -p "$work/user-codex-home"
 printf 'model = "m-test"\nmodel_reasoning_effort = "high"\n\n[mcp_servers.danger]\ncommand = "rm"\n\n[profiles.other]\nmodel = "table-model"\n\n[hooks.state."x"]\nenabled = true\n' >"$work/user-codex-home/config.toml"
 printf '{}' >"$work/user-codex-home/auth.json"
-mkdir -p "$XDG_CONFIG_HOME/opencode" "$XDG_DATA_HOME/opencode"
-printf '{}' >"$XDG_DATA_HOME/opencode/auth.json"
+mkdir -p "$user_config/opencode" "$user_data/opencode"
+printf '{}' >"$user_data/opencode/auth.json"
 write_opencode_config() {
-  cat >"$XDG_CONFIG_HOME/opencode/opencode.json" <<EOF
+  cat >"$user_config/opencode/opencode.json" <<EOF
 {"model": "$1", "small_model": "openai/gpt-small",
  "provider": {"deepseek": {"options": {"apiKey": "k"}}, "anthropic": {"options": {}}},
  "mcp": {"danger": {"type": "local", "command": ["rm"]}}, "plugin": ["evil-plugin"],
@@ -188,7 +192,7 @@ write_opencode_config() {
 EOF
 }
 write_opencode_config deepseek/deepseek-chat
-printf '{\n  // user theme\n  "$schema": "https://opencode.ai/config.json",\n  "plugin": ["other-plugin"],\n}\n' >"$XDG_CONFIG_HOME/opencode/opencode.jsonc"
+printf '{\n  // user theme\n  "$schema": "https://opencode.ai/config.json",\n  "plugin": ["other-plugin"],\n}\n' >"$user_config/opencode/opencode.jsonc"
 mkdir -p "$KIMI_CODE_HOME/credentials" "$KIMI_CODE_HOME/oauth" "$KIMI_CODE_HOME/hooks"
 printf '{}' >"$KIMI_CODE_HOME/mcp.json"
 cat >"$KIMI_CODE_HOME/config.toml" <<'EOF'
@@ -403,9 +407,9 @@ expect_eq opencode-project-root "$(sed -n 's/^toplevel=//p' "$FAKE_LOG.opencode.
 expect_eq opencode-project-empty "$(sed -n 's/^dotopencode=//p' "$FAKE_LOG.opencode.project" 2>/dev/null || true)" 0
 grep -q "$repo" "$FAKE_LOG.opencode.prompt" 2>/dev/null || note_fail opencode-prompt-repo "prompt does not name the repository path"
 oc_config_home="$(sed -n 's/^xdg_config=//p' "$FAKE_LOG.opencode.env" 2>/dev/null || true)"
-[ -n "$oc_config_home" ] && [ "$oc_config_home" != "$XDG_CONFIG_HOME" ] || note_fail opencode-home "reviewer used the user's config dir"
+[ -n "$oc_config_home" ] && [ "$oc_config_home" != "$user_config" ] || note_fail opencode-home "reviewer used the user's config dir"
 [ ! -e "$oc_config_home" ] || note_fail opencode-cleanup "private config left behind"
-expect_eq opencode-auth "$(cat "$FAKE_LOG.opencode.auth" 2>/dev/null)" "$XDG_DATA_HOME/opencode/auth.json"
+expect_eq opencode-auth "$(cat "$FAKE_LOG.opencode.auth" 2>/dev/null)" "$user_data/opencode/auth.json"
 expect_eq opencode-diff-file "$(cat "$FAKE_LOG.opencode.diff" 2>/dev/null)" yes
 oc_check="$(python3 - "$FAKE_LOG.opencode.config" 2>/dev/null <<'PY' || echo config-missing
 import json, sys
@@ -446,6 +450,22 @@ run_runner deepseek "$repo" --implementer-family deepseek
 expect_eq deepseek-client "$(field "$out" selected_client)" codex
 [ ! -e "$FAKE_LOG.opencode" ] || note_fail deepseek-skip "same-family opencode ran"
 
+# 9f1. The model id decides the family before the provider alias does.
+repo="$(new_repo ocprovider)"
+write_opencode_config openai/deepseek-chat
+FAKE_CODEX=failclean FAKE_CLAUDE=fail run_runner ocprovider "$repo" --implementer-family deepseek
+expect_eq ocprovider-attempts "$(clients "$out")" codex,claude,kimi
+write_opencode_config deepseek/deepseek-chat
+
+# 9f1b. Eligibility and launch use one config snapshot.
+repo="$(new_repo ocsnapshot)"
+FAKE_OC_CONFIG="$user_config/opencode/opencode.json" FAKE_CODEX=swapoc run_runner ocsnapshot "$repo" --implementer-family claude
+case "$(cat "$FAKE_LOG.opencode" 2>/dev/null || true)" in
+  *"-m deepseek/deepseek-chat"*) ;; *) note_fail ocsnapshot-model "opencode launched with a model other than the one judged independent" ;;
+esac
+expect_eq ocsnapshot-family "$(field "$out" reviewer_family)" deepseek
+write_opencode_config deepseek/deepseek-chat
+
 # 9f2. A reviewer whose private home cannot be built counts as a failed launch.
 repo="$(new_repo setupfail)"
 export FAKE_LOG="$work/log-setupfail" FAKE_REPO="$repo"
@@ -467,6 +487,27 @@ expect_eq setupfail-rc "$rc" 0
 expect_eq setupfail-attempts "$(clients "$out" 2>/dev/null || true)" codex,opencode,kimi
 expect_eq setupfail-status "$(field "$out" attempts.1.status 2>/dev/null || true)" reviewer_launch_failed
 
+# 9f3. Kimi's family comes from the model its alias selects; unknown is skipped.
+repo="$(new_repo kimialias)"
+cp "$KIMI_CODE_HOME/config.toml" "$work/kimi.saved"
+printf 'default_model = "review"\n\n[models.review]\nmodel = "claude-test"\nprovider = "proxy"\n' >"$KIMI_CODE_HOME/config.toml"
+FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimialias "$repo" --implementer-family claude
+expect_eq kimialias-attempts "$(clients "$out")" codex,opencode
+printf 'default_model = "house-model"\n\n[models.house-model]\nmodel = "house-1"\nprovider = "proxy"\n' >"$KIMI_CODE_HOME/config.toml"
+FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimiunknown "$repo" --implementer-family claude
+expect_eq kimiunknown-attempts "$(clients "$out")" codex,opencode
+
+# 9f4. An unreadable or malformed reviewer config skips only that reviewer.
+printf 'default_model\n' >"$KIMI_CODE_HOME/config.toml"
+run_runner kimimalformed "$repo" --implementer-family claude
+expect_eq kimimalformed-status "$(field "$out" status 2>/dev/null || true)" findings
+cp "$work/kimi.saved" "$KIMI_CODE_HOME/config.toml"
+chmod 000 "$KIMI_CODE_HOME/config.toml"
+run_runner kimiunreadable "$repo" --implementer-family claude
+chmod 600 "$KIMI_CODE_HOME/config.toml"
+expect_eq kimiunreadable-status "$(field "$out" status 2>/dev/null || true)" findings
+expect_eq kimiunreadable-skip "$(python3 -c 'import json,sys; print([s["reason"] for s in json.load(open(sys.argv[1]))["skipped"] if s["client"]=="kimi"])' "$out" 2>/dev/null || true)" "['config_unreadable']"
+
 # 9g. Kimi runs under a private home with read tools only; its bulleted answer parses.
 repo="$(new_repo kimi)"
 KIMI_CODE_TRUST_WORKSPACE=1 FAKE_CODEX=failclean FAKE_OPENCODE=fail FAKE_KIMI=findings run_runner kimi "$repo" --implementer-family claude
@@ -487,6 +528,8 @@ grep -q '^trust=$' "$FAKE_LOG.kimi.env" 2>/dev/null || note_fail kimi-trust "wor
 expect_eq kimi-diff-file "$(cat "$FAKE_LOG.kimi.diff" 2>/dev/null)" yes
 FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimipass "$repo" --implementer-family claude
 expect_eq kimipass-status "$(field "$out" status)" passed
+FAKE_CODEX=failclean FAKE_OPENCODE=fail FAKE_KIMI=blocks run_runner kimiblocks "$repo" --implementer-family claude
+expect_eq kimiblocks-title "$(field "$out" findings.0.title 2>/dev/null || true)" "Close the file"
 
 # 10. Untracked files are named; a dirty tree is reported as such.
 repo="$(new_repo untracked)"
