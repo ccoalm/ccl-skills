@@ -685,7 +685,19 @@ expect_eq latin1-status "$(field "$out" status)" passed
 
 # 10h. An intent that is not valid UTF-8 (a byte cut mid-character) still runs.
 repo="$(new_repo badintent)"
-FAKE_CODEX=passed run_runner badintent "$repo" --implementer-family claude --intent "$(printf 'cut \xe4\xb8')"
+# The cut bytes reach the runner through an exec shim: some timeout builds
+# (uutils on newer Ubuntu) refuse a non-UTF-8 argument of their own.
+export FAKE_LOG="$work/log-badintent" FAKE_REPO="$repo" FAKE_CODEX=passed
+out="$work/out-badintent.json"
+set +e
+PATH="$TEST_PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" timeout 60 python3 -c '
+import os, sys
+os.execv(sys.executable, [sys.executable] + sys.argv[1:] + ["--intent", os.fsdecode(b"cut \xe4\xb8")])' \
+  "$runner" --cwd "$repo" --base base-ref --implementer-family claude --out "$out" --timeout 5 \
+  >"$work/stdout-badintent" 2>"$work/stderr-badintent"
+rc=$?
+set -e
+unset FAKE_CODEX
 expect_eq badintent-rc "$rc" 0
 expect_eq badintent-status "$(field "$out" status 2>/dev/null || true)" passed
 
