@@ -4,7 +4,9 @@
 entrypoint. The reviewer reads the diff against the merge base and the
 surrounding code itself, read-only, and answers in text. The runner only picks
 independent reviewers, moves on to the next when one fails, binds the
-candidate, parses the answer and records the result. Why it exists and what it replaced: `specs/diff-first-review/plan.md`.
+candidate, parses the answer and records the result. The reviewer clients,
+one adapter per CLI with its private home, live in
+`scripts/review_diff_clients.py`. Why it exists and what it replaced: `specs/diff-first-review/plan.md`.
 
 ## Use
 
@@ -62,6 +64,29 @@ python3 "$CODE_REVIEW_SKILL_DIR/scripts/review_diff.py" --cwd "$PWD" \
 | 0 | `passed` | the whole answer was `No findings.` |
 | 1 | `findings` | one or more `[P0-3] title — path:line` findings |
 | 2 | `inconclusive` | see `reason_code` |
+| 2 | no result | `review: not run` (a git failure before the review: not a repository, unknown `--base`), `review: not recorded` (the result could not be written) or an internal error |
+
+Exit 1 always means recorded findings. A consumer that closes stdout or
+stderr early does not change the exit code.
+
+stdout is for programs: one JSON line with `status`, `reason_code`, `result`,
+`reviewer` and `elapsed_seconds`, then one line per finding. stderr is for the
+person or agent watching, one plain line per step:
+
+```text
+review: 3 files changed against 1b2c3d4, head 3f2a1c9, uncommitted edits included
+review: skipped claude (same family as the implementer)
+review: codex reviewing (timeout 900s)
+review: codex timed out after 15m00s; trying opencode
+review: opencode reviewing (deepseek/deepseek-chat, timeout 900s)
+review: opencode answered in 6m52s
+review: findings: 2 (1 P1, 1 P2) from opencode in 21m53s
+  result: <git-dir>/ccl-code-review/results/2026-11-03T053400Z-review.json
+```
+
+An inconclusive run ends with `review: inconclusive: <why>` and a `  next:`
+line naming the step to take, plus `  diagnostics:` when a diagnostics file
+was written.
 
 - `reason_code` is the last attempt's: `reviewer_timeout`,
   `reviewer_launch_failed`, `reviewer_failed` (non-zero exit), `empty_answer`

@@ -505,7 +505,7 @@ spec = importlib.util.spec_from_file_location("review_diff", sys.argv[1])
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 def boom(*a, **k):
     raise OSError("no space left")
-m.private_opencode_root = boom
+m.clients.private_opencode_root = boom
 sys.exit(m.main(sys.argv[2:]))' "$runner" --cwd "$repo" --base base-ref --intent x --implementer-family claude \
   --out "$work/out-setupfail.json" >/dev/null 2>"$work/stderr-setupfail"
 rc=$?
@@ -560,8 +560,8 @@ texts = iter([
     "default_model = \"r\"\n\n[models.r]\nmodel = \"claude-test\"\nprovider = \"p\"\n",
     "default_model = \"r\"\n\n[models.r]\nmodel = \"deepseek-chat\"\nprovider = \"p\"\n",
 ] * 3)
-m.read_config = lambda path: next(texts)
-family, alias, (model, kept) = m.reviewer_family("kimi")
+m.clients.read_config = lambda path: next(texts)
+family, alias, (model, kept) = m.clients.CLIENTS["kimi"].snapshot()
 print(family, "claude-test" in "\n".join(kept))' "$runner" 2>&1 || true)"
 expect_eq kimi-single-read "$single" "claude True"
 
@@ -740,6 +740,14 @@ grep -q '^\[model_providers.custom\]' "$FAKE_LOG.codex.config" || note_fail prov
 if grep -q -E 'other.invalid|mcp_servers' "$FAKE_LOG.codex.config"; then note_fail provider-only "unselected tables carried"; fi
 cp "$work/config.saved" "$work/user-codex-home/config.toml"
 
+# 12d. A top-level Codex config line without `=` is dropped, not a crash.
+repo="$(new_repo codexbare)"
+printf 'model = "m-test"\nmodel_provider\n' >"$work/user-codex-home/config.toml"
+FAKE_CODEX=passed run_runner codexbare "$repo" --implementer-family claude
+expect_eq codexbare-status "$(field "$out" status 2>/dev/null || true)" passed
+if grep -q '^model_provider$' "$FAKE_LOG.codex.config" 2>/dev/null; then note_fail codexbare-dropped "a line without = was carried"; fi
+cp "$work/config.saved" "$work/user-codex-home/config.toml"
+
 # 13. The PR reminder hook stays quiet for a passed review of a clean HEAD.
 repo="$(new_repo hook)"
 FAKE_CODEX=passed run_runner hook "$repo" --implementer-family claude
@@ -747,6 +755,129 @@ if command -v jq >/dev/null 2>&1; then
   said="$(printf '{"tool_name":"Bash","tool_input":{"command":"gh pr create --fill"},"cwd":"%s"}' "$repo" | bash "$hook" 2>&1 || true)"
   [ -z "$said" ] || note_fail hook-quiet "reminder fired for a covered passed review: $said"
 fi
+
+# 14. What the person or agent running the review sees: stdout stays the
+# machine-readable lines; progress, the summary and the next step go to stderr.
+has_line() {  # NAME FILE REGEX: FILE has a line matching the extended REGEX
+  grep -q -E -- "$3" "$2" 2>/dev/null || note_fail "$1" "no line matching '$3' in: $(cat "$2" 2>/dev/null)"
+}
+lacks_line() {
+  if grep -q -E -- "$3" "$2" 2>/dev/null; then note_fail "$1" "unexpected line matching '$3'"; fi
+}
+err="$work/stderr-trynext"
+has_line progress-start "$err" '^review: 1 file changed against [0-9a-f]{7}, head [0-9a-f]{7}$'
+has_line progress-attempt "$err" '^review: codex reviewing \(timeout 2s\)$'
+has_line progress-trynext "$err" '^review: codex timed out after [0-9]+s; trying claude$'
+has_line progress-answered "$err" '^review: claude answered in [0-9]+s$'
+has_line progress-passed "$err" '^review: passed, no findings from claude in [0-9]+s$'
+has_line progress-result "$err" "^  result: $work/out-trynext.json\$"
+has_line progress-skipped "$work/stderr-samefamily" '^review: skipped codex \(same family as the implementer\)$'
+has_line summary-findings "$work/stderr-findings" '^review: findings: 1 \(1 P1\) from codex in [0-9]+s$'
+has_line summary-failed "$work/stderr-stderr" '^review: inconclusive: no reviewer answered; the last one exited with an error$'
+has_line summary-failed-next "$work/stderr-stderr" '^  next: read the diagnostics file'
+has_line summary-failed-diag "$work/stderr-stderr" "^  diagnostics: .*/ccl-code-review/diagnostics/.* \\(private\\)\$"
+has_line summary-empty-next "$work/stderr-empty" '^  next: the reviewer printed nothing'
+lacks_line summary-empty-diag "$work/stderr-empty" '^  diagnostics: '
+has_line summary-timeout "$work/stderr-timeout" '^review: inconclusive: no reviewer answered; the last one timed out$'
+has_line summary-timeout-next "$work/stderr-timeout" '^  next: rerun with a larger --timeout'
+has_line summary-ambiguous-next "$work/stderr-ambiguous" '^  next: pass the family of the model that wrote it'
+has_line summary-changed "$work/stderr-mutate" '^review: inconclusive: the working tree changed during the review$'
+has_line summary-interrupt "$work/stderr-interrupt" '^review: inconclusive: interrupted$'
+lacks_line summary-interrupt-next "$work/stderr-interrupt" 'trying'
+repo="$(new_repo noeligible)"
+run_runner noeligible "$repo" --implementer-family kimi --client-order kimi
+expect_eq noeligible-reason "$(field "$out" reason_code)" no_eligible_reviewer
+has_line summary-noeligible "$work/stderr-noeligible" '^review: skipped kimi \(same family as the implementer: kimi-code/k3\)$'
+has_line summary-noeligible-next "$work/stderr-noeligible" '^  next: install a reviewer CLI of another family'
+
+# 14b. stdout: one JSON line, then one line per finding.
+stdout_shape="$(python3 -c 'import json,sys
+lines = open(sys.argv[1]).read().splitlines()
+head = json.loads(lines[0])
+print(sorted(head), head["status"], lines[1:])' "$work/stdout-findings" 2>&1 || true)"
+expect_eq stdout-shape "$stdout_shape" "['elapsed_seconds', 'reason_code', 'result', 'reviewer', 'status'] findings ['[P1] Reject the empty key — src/app.py:2']"
+
+# 14c. Challenge mode sends the challenge brief and the focus, not the review brief.
+repo="$(new_repo challenge)"
+FAKE_CODEX=passed run_runner challenge "$repo" --implementer-family claude --mode challenge --focus "the cache key"
+expect_eq challenge-mode "$(field "$out" mode)" challenge
+grep -q 'Think like an attacker' "$FAKE_LOG.codex.prompt" || note_fail challenge-brief "challenge brief missing"
+grep -q '^Look hardest at: the cache key$' "$FAKE_LOG.codex.prompt" || note_fail challenge-focus "focus missing"
+if grep -q 'Report every defect you suspect' "$FAKE_LOG.codex.prompt"; then note_fail challenge-review-brief "review brief sent in challenge mode"; fi
+has_line challenge-progress "$work/stderr-challenge" '^challenge: passed, no findings from codex'
+
+# 14d. A reader that closes stdout or stderr early does not change the exit code.
+closed_run() {  # NAME REDIRECT-MODE: run a passing review with one stream closed
+  local name="$1" mode="$2"
+  repo="$(new_repo "$name")"
+  export FAKE_LOG="$work/log-$name" FAKE_REPO="$repo" FAKE_CODEX=passed
+  out="$work/out-$name.json"
+  local cmd=(env PATH="$TEST_PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" timeout 60
+    python3 "$runner" --cwd "$repo" --base base-ref --intent x --implementer-family claude --out "$out" --timeout 5)
+  set +e
+  case "$mode" in
+    stdout-pipe) "${cmd[@]}" 2>"$work/stderr-$name" | true; rc=${PIPESTATUS[0]} ;;
+    stderr-pipe) { "${cmd[@]}" 2>&1 1>&3 | true; rc=${PIPESTATUS[0]}; } 3>"$work/stdout-$name" ;;
+    stderr-closed) "${cmd[@]}" >"$work/stdout-$name" 2>&-; rc=$? ;;
+  esac
+  set -e
+  unset FAKE_CODEX
+}
+closed_run pipeout stdout-pipe
+expect_eq pipeout-rc "$rc" 0
+expect_eq pipeout-status "$(field "$out" status 2>/dev/null || true)" passed
+lacks_line pipeout-traceback "$work/stderr-pipeout" 'BrokenPipeError|Traceback'
+closed_run pipeerr stderr-pipe
+expect_eq pipeerr-rc "$rc" 0
+expect_eq pipeerr-stdout "$(python3 -c 'import json,sys; print(json.loads(open(sys.argv[1]).readline())["status"])' "$work/stdout-pipeerr" 2>&1 || true)" passed
+closed_run noerr stderr-closed
+expect_eq noerr-rc "$rc" 0
+expect_eq noerr-stdout-lines "$(wc -l <"$work/stdout-noerr" | tr -d ' ')" 1
+
+# 14e. A git failure before the review exits 2 with one line, never a traceback.
+mkdir -p "$work/notrepo"
+run_runner notrepo "$work/notrepo" --implementer-family claude
+expect_eq notrepo-rc "$rc" 2
+has_line notrepo-line "$work/stderr-notrepo" '^review: not run: .*not a git repository'
+lacks_line notrepo-traceback "$work/stderr-notrepo" 'Traceback'
+repo="$(new_repo badbase)"
+run_runner badbase "$repo" --implementer-family claude --base no-such-ref
+expect_eq badbase-rc "$rc" 2
+has_line badbase-next "$work/stderr-badbase" '^  next: check that --cwd is inside a git repository and --base names a commit in it$'
+
+# 14f. A result that cannot be written exits 2 with a next step, never 1.
+repo="$(new_repo readonly)"
+mkdir -p "$work/ro" && chmod 500 "$work/ro"
+run_runner readonly "$repo" --implementer-family claude --out "$work/ro/sub/out.json"
+chmod 700 "$work/ro"
+expect_eq readonly-rc "$rc" 2
+has_line readonly-line "$work/stderr-readonly" '^review: not recorded: '
+lacks_line readonly-traceback "$work/stderr-readonly" 'Traceback'
+
+# 14g. Any other unexpected error exits 2 with its traceback, never 1.
+repo="$(new_repo crash)"
+crash="$(PATH="$TEST_PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" timeout 60 python3 -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("review_diff", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+def boom(*a, **k):
+    raise RuntimeError("boom")
+m.build_prompt = boom
+sys.argv = ["review_diff.py"] + sys.argv[2:]
+print("rc", m.entry())' "$runner" --cwd "$repo" --base base-ref --intent x --implementer-family claude \
+  --out "$work/out-crash.json" 2>"$work/stderr-crash" || true)"
+expect_eq crash-rc "$crash" "rc 2"
+has_line crash-line "$work/stderr-crash" '^review_diff: internal error, not a verdict$'
+
+# 14h. The clients module next to the runner is the one loaded, whatever the
+# caller's directory holds.
+mkdir -p "$work/shadow"
+printf 'raise SystemExit("shadow module loaded")\n' >"$work/shadow/review_diff_clients.py"
+loaded="$(cd "$work/shadow" && python3 -c 'import importlib.util, sys
+spec = importlib.util.spec_from_file_location("review_diff", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+print(m.clients.__file__)' "$runner" 2>&1 || true)"
+expect_eq shadow-clients "$loaded" "$(dirname "$runner")/review_diff_clients.py"
 
 if [ "$fail" -ne 0 ]; then
   exit 1

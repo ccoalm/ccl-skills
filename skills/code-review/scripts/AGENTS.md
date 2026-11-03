@@ -30,6 +30,11 @@ Rules:
   to its provider; that is the accepted trade-off. Do not
   add a write-capable tool, a shell for Claude, or inherited config to it, and
   keep the result envelope that CI and the pull-request reminder read.
+  `review_diff.py` owns the review flow (candidate, attempts, verdict, result,
+  terminal output); `review_diff_clients.py` holds one adapter per CLI behind
+  one interface, so a client change stays there and the flow never names a
+  CLI. stdout stays the machine-readable lines, progress goes to stderr, and
+  exit 1 means recorded findings only.
 - **Never pin a lane to a CLI version's vocabulary — reading it or writing it.**
   `parse_probe_result.py`
   gates on *shape*, not on field/value names: the isolation proof is the exact

@@ -5,15 +5,20 @@ The reviewer CLI runs read-only, reads the diff against the merge base that
 this runner saved and whatever surrounding code it needs, and answers in a
 fixed text form. This runner only picks independent reviewers, trying the next
 when one fails, binds the reviewed candidate, parses the answer, and records
-the result and the local receipt the pull-request reminder reads.
+the result and the local receipt the pull-request reminder reads. The reviewer
+clients live in review_diff_clients.py.
 
-Exit codes: 0 passed, 1 findings, 2 inconclusive.
+stdout carries the result line and the findings; progress and the summary go
+to stderr. Exit codes: 0 passed, 1 findings, 2 inconclusive or not run.
 """
-from __future__ import annotations
-
+# No `from __future__ import annotations`: callers load this file by path
+# without registering it in sys.modules, where dataclasses would look up
+# string annotations.
 import argparse
 import datetime
+import functools
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -23,39 +28,26 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib.parse
+import traceback
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+HERE = Path(__file__).resolve().parent
+
+
+def _load_sibling(name: str):
+    """Load a module that ships next to this file, by path, so a module of that
+    name in the caller's directory or on sys.path cannot stand in for it."""
+    spec = importlib.util.spec_from_file_location(name, str(HERE / f"{name}.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+clients = _load_sibling("review_diff_clients")
+
 SCHEMA_VERSION = 3  # the envelope check_review_evidence_present.py accepts
-CLIENTS = ("codex", "claude", "opencode", "kimi")
-DEFAULT_ORDER = ",".join(CLIENTS)
-# Spellings of a model family used across this repository and its callers.
-FAMILY_ALIASES = {"openai": "codex", "gpt": "codex", "chatgpt": "codex", "anthropic": "claude",
-                  "moonshot": "kimi"}
-# A word in a model id that names its family. OpenCode can run any provider, so
-# its family comes from the model it is configured with; an id naming none of
-# these is of unknown family and is not used as a reviewer.
-MODEL_FAMILY_WORDS = (("claude", "claude"), ("anthropic", "claude"), ("gpt", "codex"),
-                      ("openai", "codex"), ("codex", "codex"), ("kimi", "kimi"),
-                      ("moonshot", "kimi"), ("deepseek", "deepseek"), ("gemini", "gemini"),
-                      ("qwen", "qwen"), ("glm", "glm"))
-# Families an implementer can be named as. A client name that can run any model
-# (opencode) or "other" says nothing about independence, so it is refused.
-KNOWN_FAMILIES = {family for _, family in MODEL_FAMILY_WORDS}
-INTERRUPT_CODES = {130, 137, 143}
-# Top-level config keys carried into a reviewer's private home, plus the tables
-# that define the models they select. An allowlist on purpose: anything else
-# (MCP servers, hooks, plugins, skills, tool settings) stays out.
-CODEX_KEYS = ("model", "model_reasoning_effort", "model_provider", "model_verbosity")
-KIMI_KEYS = ("default_model", "default_effort", "default_thinking", "model", "provider", "protocol",
-             "base_url", "api_key", "max_context_size", "max_input_size", "max_output_size")
-KIMI_TABLES = ("models", "providers", "thinking")
-KIMI_LINKS = ("credentials", "oauth", "device_id", "region")  # links, so a token refresh persists
-READ_TOOLS = ("Read", "Grep", "Glob")
-# Moonshot's own API hosts. A `kimi`-type provider elsewhere is a gateway that
-# can serve any model, so only these make an unnamed model id Kimi.
-MOONSHOT_HOSTS = ("moonshot.cn", "moonshot.ai", "kimi.com")
 FINDING = re.compile(r"^\s*\[(P[0-3])\]\s+(.+?)\s+[—–-]{1,2}\s+(\S+?):(\d+)\s*$")
 DIAG_LIMIT = 20000  # bytes of answer and of stderr kept in the private diagnostics file
 
@@ -77,86 +69,119 @@ corruption, swallowed errors and trust-boundary violations. Report only problems
 in the changed code that you can show with a concrete scenario."""
 
 
-class Interrupted(Exception):
-    pass
+# The candidate under review.
 
+class Git:
+    """git in one repository with repository-configured programs switched off.
 
-# Repository config can name programs git runs on status, add and diff
-# (fsmonitor, filter drivers, textconv, external diff). The candidate may carry
-# those programs, so every git call here switches them off.
-GIT_SAFETY = ["-c", "core.fsmonitor=false"]  # diff also passes --no-ext-diff --no-textconv
+    Repository config can name programs git runs on status, add and diff
+    (fsmonitor, filter drivers, textconv, external diff). The candidate may
+    carry those programs, so every git call here switches them off; diff also
+    passes --no-ext-diff --no-textconv."""
 
+    def __init__(self, cwd: str):
+        self.cwd = cwd
+        self.safety = ["-c", "core.fsmonitor=false"]
 
-def git(cwd: str, *args: str, env: Optional[dict] = None) -> str:
-    return subprocess.run(
-        ["git", "-C", cwd, *GIT_SAFETY, *args], check=True, capture_output=True, text=True, env=env
-    ).stdout.strip()
+    def raw(self, *args: str) -> bytes:
+        return subprocess.run(["git", "-C", self.cwd, *self.safety, *args],
+                              check=True, capture_output=True).stdout
 
+    def out(self, *args: str) -> str:
+        return subprocess.run(["git", "-C", self.cwd, *self.safety, *args],
+                              check=True, capture_output=True, text=True).stdout.strip()
 
-def neutralize_filters(cwd: str) -> None:
-    """Replace every configured filter driver with a pass-through for this run."""
-    try:
-        # Names only: a value can span lines and must never be parsed.
-        listed = git(cwd, "config", "--name-only", "--get-regexp", r"^filter\..*\.(clean|smudge|process)$")
-    except subprocess.CalledProcessError:
-        return  # none configured
-    for name in sorted({key.rsplit(".", 1)[0][len("filter."):] for key in listed.splitlines() if key.strip()}):
-        GIT_SAFETY.extend(["-c", f"filter.{name}.clean=cat", "-c", f"filter.{name}.smudge=cat",
-                           "-c", f"filter.{name}.process=", "-c", f"filter.{name}.required=false"])
-
-
-def resolve_base(cwd: str, ref: Optional[str]) -> str:
-    if not ref:
+    def neutralize_filters(self) -> None:
+        """Replace every configured filter driver with a pass-through."""
         try:
-            ref = git(cwd, "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD")
+            # Names only: a value can span lines and must never be parsed.
+            listed = self.out("config", "--name-only", "--get-regexp", r"^filter\..*\.(clean|smudge|process)$")
         except subprocess.CalledProcessError:
-            ref = "origin/main"
-    return git(cwd, "merge-base", "HEAD", ref)
+            return  # none configured
+        for name in sorted({key.rsplit(".", 1)[0][len("filter."):] for key in listed.splitlines() if key.strip()}):
+            self.safety.extend(["-c", f"filter.{name}.clean=cat", "-c", f"filter.{name}.smudge=cat",
+                                "-c", f"filter.{name}.process=", "-c", f"filter.{name}.required=false"])
+
+    def untracked(self) -> list:
+        # -z: unquoted paths, so non-ASCII names resolve on disk.
+        out = self.raw("ls-files", "-z", "--others", "--exclude-standard")
+        return sorted(p.decode("utf-8", "surrogateescape") for p in out.split(b"\0") if p)
+
+    def digest(self) -> str:
+        """Digest of HEAD and the working tree against it, untracked files included.
+
+        Computed without writing objects: staging the tree would store working-tree
+        bytes (with filters switched off, possibly plaintext) in the object store."""
+        digest = hashlib.sha256(self.out("rev-parse", "HEAD").encode("ascii") + b"\0")
+        digest.update(self.raw("diff", "--binary", "--no-ext-diff", "--no-textconv", "HEAD"))
+
+        def frame(kind: bytes, data: bytes) -> None:
+            digest.update(kind + len(data).to_bytes(8, "big") + data)
+
+        for rel in self.untracked():
+            path = os.path.join(self.cwd, rel)
+            frame(b"P", rel.encode("utf-8", "surrogateescape"))
+            if os.path.islink(path):
+                frame(b"L", os.readlink(path).encode("utf-8", "surrogateescape"))
+            elif os.path.isfile(path):
+                frame(b"M", oct(os.stat(path).st_mode & 0o777).encode("ascii"))
+                with open(path, "rb") as fh:
+                    frame(b"F", hashlib.sha256(fh.read()).digest())
+        return digest.hexdigest()
 
 
-def untracked_files(cwd: str) -> list:
-    # -z: unquoted paths, so non-ASCII names resolve on disk.
-    out = subprocess.run(["git", "-C", cwd, *GIT_SAFETY, "ls-files", "-z", "--others", "--exclude-standard"],
-                         check=True, capture_output=True).stdout
-    return sorted(p.decode("utf-8", "surrogateescape") for p in out.split(b"\0") if p)
+@dataclass(frozen=True)
+class Candidate:
+    """What is reviewed: the working tree, uncommitted edits included, against a base.
+
+    Bound once before the first attempt; a verdict is void if the digest moves."""
+    git: Git
+    root: str
+    git_dir: Path
+    head: str
+    base: str
+    clean: bool
+    untracked: list
+    digest: str
+
+    @classmethod
+    def bind(cls, path: str, base_ref: Optional[str]) -> "Candidate":
+        root = Git(str(Path(path).resolve())).out("rev-parse", "--show-toplevel")
+        git = Git(root)
+        git.neutralize_filters()
+        git_dir = Path(git.out("rev-parse", "--absolute-git-dir"))
+        head = git.out("rev-parse", "HEAD")
+        if not base_ref:
+            try:
+                base_ref = git.out("symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD")
+            except subprocess.CalledProcessError:
+                base_ref = "origin/main"
+        base = git.out("merge-base", "HEAD", base_ref)
+        clean = git.out("status", "--porcelain", "--untracked-files=all") == ""
+        return cls(git, root, git_dir, head, base, clean, git.untracked(), git.digest())
+
+    def save_diff(self, path: str) -> int:
+        """Write the diff against the base for the reviewer; return how many files it touches."""
+        # Bytes, not text: a changed file need not be UTF-8.
+        data = self.git.raw("diff", "--no-ext-diff", "--no-textconv", self.base)
+        Path(path).write_bytes(data)
+        return sum(1 for line in data.splitlines() if line.startswith(b"diff --git ")) + len(self.untracked)
+
+    def changed(self) -> bool:
+        return self.git.digest() != self.digest
 
 
-def candidate_digest(cwd: str) -> str:
-    """Digest of HEAD and the working tree against it, untracked files included.
-
-    Computed without writing objects: staging the tree would store working-tree
-    bytes (with filters switched off, possibly plaintext) in the object store.
-    """
-    digest = hashlib.sha256(git(cwd, "rev-parse", "HEAD").encode("ascii") + b"\0")
-    digest.update(subprocess.run(
-        ["git", "-C", cwd, *GIT_SAFETY, "diff", "--binary", "--no-ext-diff", "--no-textconv", "HEAD"],
-        check=True, capture_output=True).stdout)
-    def frame(kind: bytes, data: bytes) -> None:
-        digest.update(kind + len(data).to_bytes(8, "big") + data)
-
-    for rel in untracked_files(cwd):
-        path = os.path.join(cwd, rel)
-        frame(b"P", rel.encode("utf-8", "surrogateescape"))
-        if os.path.islink(path):
-            frame(b"L", os.readlink(path).encode("utf-8", "surrogateescape"))
-        elif os.path.isfile(path):
-            frame(b"M", oct(os.stat(path).st_mode & 0o777).encode("ascii"))
-            with open(path, "rb") as fh:
-                frame(b"F", hashlib.sha256(fh.read()).digest())
-    return digest.hexdigest()
-
-
-def build_prompt(mode: str, cwd: str, base: str, intent: str, focus: str, untracked: list, diff_file: str) -> str:
+def build_prompt(mode: str, candidate: Candidate, intent: str, focus: str, diff_file: str) -> str:
     # The reviewer reads the diff the runner saved with repository-configured git
     # programs switched off; a `git diff` of its own could be replaced by them.
     lines = [
-        f"Review the change in the repository at {cwd} against base commit {base}.",
+        f"Review the change in the repository at {candidate.root} against base commit {candidate.base}.",
         f"Read the diff saved at {diff_file} (it includes uncommitted edits), and read",
         "surrounding code, tests and AGENTS.md files as needed. Do not modify anything.",
     ]
-    if untracked:
+    if candidate.untracked:
         lines.append("These new untracked files are part of the change; read them directly:")
-        lines += [f"- {p}" for p in untracked]
+        lines += [f"- {p}" for p in candidate.untracked]
     lines += ["", f"What the change is meant to do: {intent}", ""]
     lines.append(CHALLENGE_BRIEF if mode == "challenge" else REVIEW_BRIEF)
     if focus:
@@ -172,6 +197,8 @@ def build_prompt(mode: str, cwd: str, base: str, intent: str, focus: str, untrac
     ]
     return "\n".join(lines) + "\n"
 
+
+# Judging an answer.
 
 def parse_answer(text: str):
     """Return (status, findings); status is None when the answer is unreadable."""
@@ -191,11 +218,10 @@ def parse_answer(text: str):
     return ("passed", []) if text.strip() == "No findings." else (None, [])
 
 
+@functools.lru_cache(maxsize=None)
 def _secret_patterns():
     """The controller's egress secret patterns, so both runners agree on what a credential is."""
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "review_gate_patterns", str(Path(__file__).resolve().with_name("review_gate.py")))
+    spec = importlib.util.spec_from_file_location("review_gate_patterns", str(HERE / "review_gate.py"))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return (module.EGRESS_SECRET_PATTERNS, module._SECRET_ASSIGNMENT,
@@ -232,369 +258,194 @@ def redact_finding(finding: dict) -> dict:
     return out
 
 
-def scratch_dir(prefix: str) -> str:
-    # Not under the system temp dir: Codex refuses to create its sandbox helper
-    # binaries there, and every shell command in the review then fails.
-    parent = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "ccl-code-review"
-    parent.mkdir(parents=True, exist_ok=True)
-    path = tempfile.mkdtemp(prefix=prefix, dir=str(parent))
-    os.chmod(path, 0o700)
-    return path
+def judge(run) -> tuple:
+    """Return (status, findings, reason) for one run; a failed run's text is never a verdict."""
+    if run.outcome == "interrupted":
+        return None, [], "operator_interrupt"
+    if run.outcome == "timeout":
+        return None, [], "reviewer_timeout"
+    if run.outcome == "missing":
+        return None, [], "reviewer_launch_failed"
+    if run.returncode != 0:
+        return None, [], "reviewer_failed"
+    if not run.answer.strip():
+        return None, [], "empty_answer"
+    status, findings = parse_answer(run.answer)
+    if status is None:
+        return None, [], "unparseable_answer"
+    return status, [redact_finding(f) for f in findings], None
 
 
-def write_private(path: str, text: str) -> None:
-    # Reviewer config can hold provider keys.
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write(text)
+# The attempts.
+
+@dataclass
+class Attempt:
+    client: str
+    status: str = "operator_interrupt"  # until the run returns
+    returncode: Optional[int] = None
+    elapsed_seconds: Optional[float] = None
+    meta: dict = field(default_factory=dict)  # model and provider, as the client recorded them
+    answer: str = ""  # kept out of the result: it can quote repository content
+    stderr: str = ""
+    finished: bool = False
+
+    def record(self) -> dict:
+        if not self.finished:
+            return {"client": self.client, "status": self.status}
+        return {"client": self.client, "status": self.status, "returncode": self.returncode,
+                "elapsed_seconds": self.elapsed_seconds, **self.meta}
 
 
-def link_if_present(source: Path, target: str) -> None:
-    # A link, so a refreshed token lands in the user's own file.
-    if source.exists():
-        os.symlink(str(source), target)
+@dataclass
+class Review:
+    status: Optional[str] = None
+    findings: list = field(default_factory=list)
+    reason: Optional[str] = None
+    attempts: list = field(default_factory=list)
+    selected: str = ""
+    family: str = ""
 
 
-def read_config(config: Path) -> str:
-    return config.read_text(encoding="utf-8", errors="replace") if config.is_file() else ""
+def run_attempts(reviewers: list, prompt: str, candidate: Candidate, diff_dir: str, timeout: int,
+                 reason: Optional[str], progress: "Progress") -> Review:
+    """Run each reviewer in turn until one answers.
 
-
-def filter_toml(text: str, keys, keep_table):
-    """Keep top-level `keys` and the tables keep_table(name, top) accepts.
-
-    Returns (kept lines, {key: value}) for the kept top-level keys."""
-    kept, top, table, keep = [], {}, None, False
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("["):
-            header = stripped.split("#", 1)[0].strip()  # a header may carry a comment
-            table = header.strip("[]").replace('"', "").replace("'", "").strip()
-            keep = keep_table(table, top)
-            if keep:
-                kept += ["", line]
-            continue
-        if table is None:
-            key = stripped.split("=", 1)[0].strip()
-            root = key.split(".", 1)[0].strip("\"'")
-            if "=" in stripped and key not in keys and keep_table(root, top):
-                kept.append(line)  # a dotted assignment into a kept table, `models.x = {...}`
-            elif key in keys and "=" in stripped:
-                kept.append(line)
-                value = stripped.split("=", 1)[1].strip()
-                quoted = re.match(r"""^(["'])(.*?)\1""", value)
-                top[key] = quoted.group(2) if quoted else value.split("#", 1)[0].strip()
-        elif keep:
-            kept.append(line)
-    return kept, top
-
-
-def private_codex_home(source: Path):
-    """Return (home, model, provider) for a Codex run that loads nothing else."""
-    home = scratch_dir("codex-home-")
-    link_if_present(source / "auth.json", os.path.join(home, "auth.json"))
-
-    def selected_provider(table, top):
-        provider = top.get("model_provider")
-        return bool(provider) and (table == f"model_providers.{provider}"
-                                   or table.startswith(f"model_providers.{provider}."))
-
-    kept, top = filter_toml(read_config(source / "config.toml"), CODEX_KEYS, selected_provider)
-    Path(home, "config.toml").write_text("\n".join(kept) + "\n", encoding="utf-8")
-    return home, top.get("model"), top.get("model_provider")
-
-
-def kimi_source() -> Path:
-    return Path(os.environ.get("KIMI_CODE_HOME") or Path.home() / ".kimi-code")
-
-
-def kimi_snapshot(source: Path):
-    """Return (family, alias, config lines) from one read of Kimi Code's config.
-
-    The family comes from the model id the default alias selects; a provider of
-    type `kimi` (Moonshot's own API) makes an otherwise unnamed id Kimi. Any other
-    unknown model has no family. Raises ValueError when the config cannot be
-    parsed or the carried subset would not define the same models."""
+    Every attempt has its own private home and its answer is read only after a
+    clean exit, so nothing from a failed attempt reaches the verdict. An
+    interrupt ends the chain. `reason` stands when no reviewer runs."""
+    review = Review(reason=reason)
     try:
-        import tomllib
-    except ImportError:  # Python < 3.11
-        raise ValueError("reading the Kimi Code config needs Python 3.11 or later")
-    text = read_config(source / "config.toml")
-    data = tomllib.loads(text)
-    kept, _ = filter_toml(text, KIMI_KEYS, lambda table, top: table.split(".", 1)[0] in KIMI_TABLES)
-    expected = {k: v for k, v in data.items() if k in KIMI_KEYS or k in KIMI_TABLES}
-    if tomllib.loads("\n".join(kept)) != expected:
-        raise ValueError("the Kimi Code config uses a form the carried subset cannot keep")
-    alias = data.get("default_model")
-    if alias is None:
-        return "kimi", None, kept  # Kimi Code's own default model
-    if not isinstance(alias, str):
-        raise ValueError("default_model is not a string")
-    models, providers = data.get("models"), data.get("providers")
-    entry = models.get(alias) if isinstance(models, dict) else None
-    entry = entry if isinstance(entry, dict) else {}
-    model = entry.get("model")
-    family = model_family(model if isinstance(model, str) else alias)
-    provider = providers.get(entry.get("provider")) if isinstance(providers, dict) else None
-    if family is None and isinstance(provider, dict) and provider.get("type") == "kimi":
-        host = urllib.parse.urlparse(str(provider.get("base_url") or "https://api.moonshot.cn")).hostname or ""
-        if any(host == h or host.endswith("." + h) for h in MOONSHOT_HOSTS):
-            family = "kimi"
-    return family, alias, kept
+        for index, reviewer in enumerate(reviewers):
+            name = reviewer.client.name
+            review.selected, review.family = name, reviewer.family
+            attempt = Attempt(name)
+            review.attempts.append(attempt)
+            progress.attempt_started(name, reviewer.model, timeout)
+            t0 = time.time()
+            try:
+                run = reviewer.client.run(reviewer.snapshot, prompt, candidate.root, diff_dir, timeout, attempt.meta)
+            except (OSError, subprocess.CalledProcessError) as exc:
+                # Its private home could not be built; the next reviewer still runs.
+                run = clients.Run("missing", stderr=str(exc))
+            attempt.returncode, attempt.elapsed_seconds = run.returncode, round(time.time() - t0, 1)
+            attempt.answer, attempt.stderr, attempt.finished = run.answer, run.stderr, True
+            review.status, review.findings, review.reason = judge(run)
+            attempt.status = review.status or review.reason
+            following = reviewers[index + 1].client.name if index + 1 < len(reviewers) else None
+            progress.attempt_finished(attempt, review.reason, following)
+            if review.status or review.reason == "operator_interrupt":
+                break
+        else:
+            review.reason = review.reason or "no_eligible_reviewer"
+    except clients.Interrupted:
+        review.status, review.findings, review.reason = None, [], "operator_interrupt"
+    return review
 
 
-def private_kimi_home(source: Path, kept: list):
-    """Return the home for a Kimi Code run with read tools only and no hooks, MCP or skills."""
-    home = scratch_dir("kimi-home-")
-    for name in KIMI_LINKS:
-        link_if_present(source / name, os.path.join(home, name))
-    kept = list(kept)
-    # A non-empty enabled list is Kimi Code's global tool allowlist.
-    kept += ["", "[tools]", "enabled = " + json.dumps(list(READ_TOOLS))]
-    write_private(os.path.join(home, "config.toml"), "\n".join(kept) + "\n")
-    os.mkdir(os.path.join(home, "no-skills"))
-    return home
+# What the person or agent running the review sees.
+
+SKIP_TEXT = {"not_installed": "not installed", "config_unreadable": "config unreadable",
+             "reviewer_family_unknown": "model family unknown", "same_family": "same family as the implementer"}
+FAILURE_TEXT = {"reviewer_timeout": "timed out", "reviewer_launch_failed": "could not start",
+                "reviewer_failed": "exited with an error", "empty_answer": "gave an empty answer",
+                "unparseable_answer": "gave an answer not in the required form",
+                "operator_interrupt": "was interrupted"}
+INCONCLUSIVE_TEXT = {
+    "no_eligible_reviewer": ("no installed reviewer of another model family",
+                             "install a reviewer CLI of another family, or name one in --client-order"),
+    "implementer_family_ambiguous": ("the model family that wrote the change is unknown",
+                                     "pass the family of the model that wrote it to --implementer-family"),
+    "operator_interrupt": ("interrupted", "rerun when ready; nothing was recorded as reviewed"),
+    "candidate_changed": ("the working tree changed during the review", "let the working tree settle and rerun"),
+    "reviewer_timeout": (None, "rerun with a larger --timeout, or review a smaller change"),
+}
+READ_DIAGNOSTICS = "read the diagnostics file, fix the cause (often login, quota or config) and rerun"
+NO_DIAGNOSTICS = "the reviewer printed nothing; check its login, quota and model config, then rerun"
 
 
-def _outside_strings(text: str, step):
-    """Rebuild JSON text, letting step(text, i) skip characters outside strings.
-
-    step returns how many characters to drop at i, or 0 to keep text[i]."""
-    out, i, in_string = [], 0, False
-    while i < len(text):
-        ch = text[i]
-        if in_string:
-            out.append(text[i:i + 2] if ch == "\\" else ch)
-            i += 2 if ch == "\\" else 1
-            in_string = ch != '"'
-            continue
-        skip = step(text, i)
-        if skip:
-            i += skip
-            continue
-        in_string = ch == '"'
-        out.append(ch)
-        i += 1
-    return "".join(out)
+def duration(seconds: float) -> str:
+    seconds = int(round(seconds))
+    return f"{seconds}s" if seconds < 60 else f"{seconds // 60}m{seconds % 60:02d}s"
 
 
-def _comment(text: str, i: int) -> int:
-    if text.startswith("//", i):
-        end = text.find("\n", i)
-        return (len(text) if end < 0 else end) - i
-    if text.startswith("/*", i):
-        end = text.find("*/", i + 2)
-        return (len(text) if end < 0 else end + 2) - i
-    return 0
-
-
-CLOSER = re.compile(r"\s*[}\]]")
-
-
-def _trailing_comma(text: str, i: int) -> int:
-    return 1 if text[i] == "," and CLOSER.match(text, i + 1) else 0
-
-
-def load_jsonc(path: Path):
-    """Parse JSON with comments and trailing commas, as OpenCode config allows."""
-    text = path.read_text(encoding="utf-8", errors="replace")
-    return json.loads(_outside_strings(_outside_strings(text, _comment), _trailing_comma))
-
-
-def opencode_config():
-    """Return (model, provider tables) from the user's global OpenCode config."""
-    base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "opencode"
-    paths = [base / name for name in ("config.json", "opencode.json", "opencode.jsonc")]
-    if os.environ.get("OPENCODE_CONFIG"):
-        paths.append(Path(os.environ["OPENCODE_CONFIG"]))
-    model, providers = None, {}
-    for path in paths:
-        try:
-            data = load_jsonc(path) if path.is_file() else None
-        except (OSError, ValueError):
-            data = None
-        if not isinstance(data, dict):
-            continue
-        if isinstance(data.get("model"), str):
-            model = data["model"]
-        if isinstance(data.get("provider"), dict):
-            providers.update(data["provider"])
-    return model, providers
-
-
-def private_opencode_root(model: str, providers: dict, read_dirs: list) -> str:
-    """Return the root of a private XDG layout and project for an OpenCode run with read tools only.
-
-    OpenCode imports `.opencode/plugin` code from its project directory and each
-    parent up to the git root, whatever its config says, so its project is an
-    empty git repository here and the reviewed repository is an outside
-    directory it may only read."""
-    root = scratch_dir("opencode-")
-    provider = model.split("/", 1)[0]
-    outside = {"*": "deny"}
-    outside.update({d + "/*": "allow" for d in read_dirs})
-    permission = {"*": "deny", "read": "allow", "grep": "allow", "glob": "allow", "list": "allow",
-                  "external_directory": outside}
-    config = {"model": model, "small_model": model, "share": "disabled", "autoupdate": False,
-              "permission": permission,
-              "agent": {"ccl-review": {"mode": "primary", "description": "Read-only code review",
-                                       "permission": permission}}}
-    if provider in providers:
-        config["provider"] = {provider: providers[provider]}
-    for sub in ("config/opencode", "data/opencode", "state", "project"):
-        os.makedirs(os.path.join(root, sub))
-    subprocess.run(["git", "init", "-q", os.path.join(root, "project")], check=True, capture_output=True)
-    write_private(os.path.join(root, "config", "opencode", "opencode.json"), json.dumps(config))
-    data_home = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
-    link_if_present(data_home / "opencode" / "auth.json", os.path.join(root, "data", "opencode", "auth.json"))
-    return root
-
-
-def model_family(model: Optional[str]) -> Optional[str]:
-    """Family named by a model id. For `provider/model` only the model part
-    counts: a provider name says nothing, since an OpenAI-compatible endpoint
-    can serve any family."""
-    part = (model or "").lower().rsplit("/", 1)[-1]
-    hits = [(part.find(word), family) for word, family in MODEL_FAMILY_WORDS if word in part]
-    return min(hits)[1] if hits else None
-
-
-def reviewer_family(client: str):
-    """Return (family, model, config snapshot) for a client; family None if unknown.
-
-    The launch uses the same snapshot, so the model judged independent is the
-    model that runs even if the user's config changes during an earlier attempt."""
-    if client == "opencode":
-        model, providers = opencode_config()
-        return model_family(model), model, (model, providers)
-    if client == "kimi":
-        family, alias, kept = kimi_snapshot(kimi_source())
-        return family, alias, (alias, kept)
-    return client, None, None
-
-
-def final_message(stream: str) -> str:
-    """The last assistant message of Kimi Code's stream-json output.
-
-    Its text mode prints every assistant message, including the narration
-    between tool calls, so only the last one is the answer. A line that is not
-    JSON means the stream was cut, so there is no answer."""
-    answer = ""
-    for line in stream.splitlines():
-        if not line.strip():
-            continue
-        try:
-            event = json.loads(line)
-        except ValueError:
-            return ""
-        if not isinstance(event, dict) or event.get("role") != "assistant":
-            continue
-        content = event.get("content")
-        if isinstance(content, list):
-            content = "".join(part.get("text", "") for part in content
-                              if isinstance(part, dict) and part.get("type") == "text")
-        answer = content if isinstance(content, str) else ""
-    return answer
-
-
-def run_child(cmd: list, prompt: str, cwd: str, env: dict, timeout: int):
-    """Run one reviewer; return (outcome, returncode, stdout, stderr)."""
+def to_stderr(text: str) -> None:
+    """Write one line to stderr without ever failing the run or touching stdout."""
+    stream = sys.stderr
+    if stream is None:  # closed at start; print(file=None) would write to stdout
+        return
     try:
-        proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                text=True, start_new_session=True)
-    except OSError as exc:
-        return "missing", None, "", str(exc)
-    try:
-        out, err = proc.communicate(prompt, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        if proc.poll() is None:
-            _, err = reap(proc)
-            return "timeout", None, "", err  # a cut-off answer is never read
-        # The reviewer exited but a descendant still holds its pipes.
-        out, err = reap(proc)
-    except Interrupted:
-        reap(proc)
-        raise
-    else:
-        reap(proc)  # descendants left in the reviewer's group
-    if proc.returncode in INTERRUPT_CODES or proc.returncode < 0:
-        return "interrupted", proc.returncode, "", err
-    return "ran", proc.returncode, out, err
-
-
-def reap(proc):
-    """Kill the reviewer's process group and drain its pipes within a bound."""
-    try:
-        os.killpg(proc.pid, signal.SIGKILL)
-    except (ProcessLookupError, PermissionError):
+        print(text, file=stream, flush=True)
+    except ValueError:  # closed by someone else
         pass
-    try:
-        out, err = proc.communicate(timeout=5)
-    except subprocess.TimeoutExpired:
-        # A descendant in another session keeps the pipes open; stop reading.
-        for pipe in (proc.stdin, proc.stdout, proc.stderr):
-            if pipe:
-                pipe.close()
-        proc.wait()
-        out, err = "", ""
-    return out or "", err or ""
+    except OSError:
+        # The reader left. Point fd 2 at /dev/null so the interpreter's final
+        # flush cannot fail and replace the verdict's exit code with 120.
+        try:
+            os.dup2(os.open(os.devnull, os.O_WRONLY), stream.fileno())
+        except (OSError, ValueError):
+            pass
 
 
-def run_client(client: str, snapshot, prompt: str, cwd: str, timeout: int, diff_dir: str, meta: dict):
-    env = dict(os.environ)
-    if client == "opencode":
-        model, providers = snapshot
-        meta.update(model=model or "")
-        root = private_opencode_root(model, providers, [cwd, diff_dir])
-        project = os.path.join(root, "project")
-        for name in ("OPENCODE_CONFIG", "OPENCODE_CONFIG_DIR", "OPENCODE_CONFIG_CONTENT", "OPENCODE_PERMISSION"):
-            env.pop(name, None)
-        env.update(XDG_CONFIG_HOME=os.path.join(root, "config"), XDG_DATA_HOME=os.path.join(root, "data"),
-                   XDG_STATE_HOME=os.path.join(root, "state"), OPENCODE_DISABLE_PROJECT_CONFIG="1",
-                   OPENCODE_DISABLE_DEFAULT_PLUGINS="1", OPENCODE_DISABLE_CLAUDE_CODE="1",
-                   OPENCODE_DISABLE_AUTOUPDATE="1", OPENCODE_DISABLE_SHARE="1", OPENCODE_PURE="1")
-        cmd = ["opencode", "run", "--dir", project, "--agent", "ccl-review", "-m", model, "--", prompt]
-        try:
-            return run_child(cmd, "", project, env, timeout)
-        finally:
-            shutil.rmtree(root, ignore_errors=True)
-    if client == "kimi":
-        model, kept = snapshot
-        home = private_kimi_home(kimi_source(), kept)
-        meta.update(model=model or "")
-        env.pop("KIMI_CODE_TRUST_WORKSPACE", None)  # an untrusted workspace loads no project MCP or config
-        env.update(KIMI_CODE_HOME=home, KIMI_CODE_WATCH="0", KIMI_DISABLE_TELEMETRY="1",
-                   KIMI_CODE_NO_AUTO_UPDATE="1", KIMI_CLI_NO_AUTO_UPDATE="1")
-        cmd = ["kimi", "--skills-dir", os.path.join(home, "no-skills"), "--add-dir", diff_dir]
-        cmd += ["-m", model] if model else []
-        cmd += ["-p", prompt, "--output-format", "stream-json"]
-        try:
-            outcome, rc, out, err = run_child(cmd, "", cwd, env, timeout)
-        finally:
-            shutil.rmtree(home, ignore_errors=True)
-        return outcome, rc, final_message(out), err
-    if client == "codex":
-        source = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
-        home, model, provider = private_codex_home(source)
-        meta.update(model=model or "", provider=provider or "openai")
-        answer = os.path.join(home, "answer.txt")
-        env["CODEX_HOME"] = home
-        cmd = ["codex", "exec", "-C", cwd, "-s", "read-only", "--ephemeral", "-o", answer, "-"]
-        try:
-            outcome, rc, _, err = run_child(cmd, prompt, cwd, env, timeout)
-            text = ""
-            if outcome == "ran" and os.path.exists(answer):
-                text = Path(answer).read_text(encoding="utf-8", errors="replace")
-        finally:
-            shutil.rmtree(home, ignore_errors=True)
-        return outcome, rc, text, err
-    # No shell at all: git itself can write files (`git diff --output=...`), so
-    # Claude gets only read tools and reads the diff the runner saved for it.
-    cmd = ["claude", "-p", "--tools", *READ_TOOLS, "--add-dir", diff_dir,
-           "--permission-mode", "dontAsk", "--setting-sources", "", "--strict-mcp-config",
-           "--no-session-persistence", "--output-format", "text"]
-    return run_child(cmd, prompt, cwd, env, timeout)
+class Progress:
+    """Plain lines on stderr for whoever watches the run."""
 
+    def __init__(self, mode: str):
+        self.mode = mode
+
+    def say(self, text: str, detail: bool = False) -> None:
+        to_stderr(f"  {text}" if detail else f"{self.mode}: {text}")
+
+    def started(self, candidate: Candidate, files: int) -> None:
+        note = "" if candidate.clean else ", uncommitted edits included"
+        self.say(f"{files} file{'' if files == 1 else 's'} changed against {candidate.base[:7]}, "
+                 f"head {candidate.head[:7]}{note}")
+
+    def skipped(self, skipped: list) -> None:
+        def why(s):
+            text = SKIP_TEXT.get(s["reason"], s["reason"])
+            return f"{text}: {s['model']}" if s.get("model") else text
+
+        if skipped:
+            self.say("skipped " + ", ".join(f"{s['client']} ({why(s)})" for s in skipped))
+
+    def attempt_started(self, client: str, model: Optional[str], timeout: int) -> None:
+        self.say(f"{client} reviewing ({model + ', ' if model else ''}timeout {timeout}s)")
+
+    def attempt_finished(self, attempt: Attempt, reason: Optional[str], following: Optional[str]) -> None:
+        took = duration(attempt.elapsed_seconds or 0)
+        if reason is None:
+            self.say(f"{attempt.client} answered in {took}")
+            return
+        failure = FAILURE_TEXT.get(reason, reason)
+        if reason == "reviewer_failed":
+            failure = f"exited {attempt.returncode}"
+        then = f"; trying {following}" if following and reason != "operator_interrupt" else ""
+        self.say(f"{attempt.client} {failure} after {took}{then}")
+
+    def summary(self, result: dict) -> None:
+        status, reason, client = result["status"], result["reason_code"], result["selected_client"]
+        took = duration(result["elapsed_seconds"])
+        if status == "findings":
+            counts = {}
+            for f in result["findings"]:
+                counts[f["severity"]] = counts.get(f["severity"], 0) + 1
+            by_severity = ", ".join(f"{n} {sev}" for sev, n in sorted(counts.items()))
+            self.say(f"findings: {len(result['findings'])} ({by_severity}) from {client} in {took}")
+        elif status == "passed":
+            self.say(f"passed, no findings from {client} in {took}")
+        else:
+            fallback = READ_DIAGNOSTICS if result.get("diagnostics_path") else NO_DIAGNOSTICS
+            what, action = INCONCLUSIVE_TEXT.get(reason, (None, fallback))
+            if what is None:
+                what = f"no reviewer answered; the last one {FAILURE_TEXT.get(reason, reason)}"
+            self.say(f"inconclusive: {what}")
+            self.say(f"next: {action}", detail=True)
+        self.say(f"result: {result['result_path']}", detail=True)
+        if result.get("diagnostics_path"):
+            self.say(f"diagnostics: {result['diagnostics_path']} (private)", detail=True)
+
+
+# Recording the result.
 
 def write_json(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -605,17 +456,81 @@ def write_json(path: Path, value: dict) -> None:
     os.replace(tmp, path)
 
 
-def main(argv=None) -> int:
+def record(args, candidate: Candidate, review: Review, implementer: str, skipped: list,
+           started: float) -> dict:
+    """Write the diagnostics, the result and the receipt; return the result plus where it went."""
+    final = review.status or "inconclusive"
+    recorded_at = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    result = {
+        "schema_version": SCHEMA_VERSION,
+        "runner": "review_diff",
+        "mode": args.mode,
+        "status": final,
+        "reason_code": review.reason,
+        "findings": review.findings,
+        "selected_client": review.selected,
+        "reviewer_family": review.family,
+        "implementer_family": implementer,
+        "base": candidate.base,
+        "head": candidate.head,
+        "candidate_digest": candidate.digest,
+        "worktree_clean": candidate.clean,
+        "untracked_files": candidate.untracked,
+        "intent_sha256": hashlib.sha256(args.intent.encode("utf-8")).hexdigest(),
+        "elapsed_seconds": round(time.time() - started, 1),
+        "attempts": [a.record() for a in review.attempts],
+        "skipped": skipped,
+        "recorded_at": recorded_at,
+    }
+    stamp = recorded_at.replace(":", "").replace("+0000", "Z")
+    store = candidate.git_dir / "ccl-code-review"
+    # The answer and stderr can quote repository content or credentials, so they
+    # go to a private file under the git dir, never into the shareable result.
+    noisy = [a for a in review.attempts if a.answer or a.stderr]
+    if noisy:
+        diag = store / "diagnostics" / f"{stamp}-{args.mode}.txt"
+        diag.parent.mkdir(parents=True, exist_ok=True)
+        clients.write_private(str(diag), "".join(
+            f"## {a.client} answer\n{a.answer[:DIAG_LIMIT]}\n## {a.client} stderr (tail)\n{a.stderr[-DIAG_LIMIT:]}\n"
+            for a in noisy))
+        result["diagnostics_path"] = str(diag)
+    out = Path(args.out) if args.out else store / "results" / f"{stamp}-{args.mode}.json"
+    write_json(out, result)
+    receipt = {k: result[k] for k in ("head", "worktree_clean", "mode", "status", "recorded_at",
+                                       "candidate_digest", "selected_client", "runner")}
+    receipt["result_path"] = str(out)
+    write_json(store / "last-review.json", receipt)
+    return dict(result, result_path=str(out))
+
+
+def emit(result: dict) -> None:
+    """The machine-readable lines on stdout. A reader that left early costs nothing:
+    the result file is the record."""
+    try:
+        print(json.dumps({"status": result["status"], "reason_code": result["reason_code"],
+                          "result": result["result_path"], "reviewer": result["selected_client"],
+                          "elapsed_seconds": result["elapsed_seconds"]}))
+        for f in result["findings"]:
+            print(f"[{f['severity']}] {f['title']} — {f['file']}:{f['line']}")
+        sys.stdout.flush()
+    except BrokenPipeError:
+        # Point stdout at /dev/null so the interpreter's final flush cannot fail again.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+
+
+# Entry point.
+
+def parse_args(argv):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--cwd", required=True, help="repository under review")
     ap.add_argument("--mode", choices=("review", "challenge"), default="review")
     ap.add_argument("--intent", required=True, help="one or two sentences: what the change should do")
     ap.add_argument("--implementer-family", required=True,
-                    help="model family that wrote the change: " + ", ".join(sorted(KNOWN_FAMILIES))
+                    help="model family that wrote the change: " + ", ".join(sorted(clients.KNOWN_FAMILIES))
                     + " (aliases: anthropic, openai, gpt, moonshot)")
     ap.add_argument("--base", help="ref to diff against via merge-base (default: origin/HEAD)")
     ap.add_argument("--focus", default="", help="challenge: what to look at hardest")
-    ap.add_argument("--client-order", default=DEFAULT_ORDER,
+    ap.add_argument("--client-order", default=",".join(clients.CLIENT_ORDER),
                     help="reviewers to try in turn until one answers (default: %(default)s)")
     ap.add_argument("--timeout", type=int, default=900, help="seconds per reviewer attempt")
     ap.add_argument("--out", help="result JSON path (default: under <git-dir>/ccl-code-review/)")
@@ -624,142 +539,71 @@ def main(argv=None) -> int:
     # be sent to a reviewer; replace the broken bytes instead of crashing.
     args.intent, args.focus = (s.encode("utf-8", "surrogateescape").decode("utf-8", "replace")
                                for s in (args.intent, args.focus))
+    return args
 
-    cwd = git(str(Path(args.cwd).resolve()), "rev-parse", "--show-toplevel")
-    neutralize_filters(cwd)
-    git_dir = Path(git(cwd, "rev-parse", "--absolute-git-dir"))
-    head = git(cwd, "rev-parse", "HEAD")
-    base = resolve_base(cwd, args.base)
-    clean = git(cwd, "status", "--porcelain", "--untracked-files=all") == ""
-    untracked = untracked_files(cwd)
-    digest_before = candidate_digest(cwd)
-    diff_dir = scratch_dir("diff-")
-    diff_file = os.path.join(diff_dir, "change.diff")
-    # Bytes, not text: a changed file need not be UTF-8.
-    Path(diff_file).write_bytes(subprocess.run(
-        ["git", "-C", cwd, *GIT_SAFETY, "diff", "--no-ext-diff", "--no-textconv", base],
-        check=True, capture_output=True).stdout)
-    started = time.time()
 
-    def on_signal(signum, frame):
-        raise Interrupted()
+def on_signal(signum, frame):
+    raise clients.Interrupted()
 
-    signal.signal(signal.SIGINT, on_signal)
-    signal.signal(signal.SIGTERM, on_signal)
 
-    implementer = args.implementer_family.strip().lower()
-    implementer = FAMILY_ALIASES.get(implementer, implementer)
-    reviewers, skipped = [], []
-    for client in (s.strip() for s in args.client_order.split(",")):
-        if client not in CLIENTS or implementer not in KNOWN_FAMILIES:
-            continue
-        if not shutil.which(client):
-            skipped.append({"client": client, "reason": "not_installed"})
-            continue
-        try:
-            family, model, snapshot = reviewer_family(client)
-        except (OSError, ValueError):
-            skipped.append({"client": client, "reason": "config_unreadable"})
-            continue
-        if family is None:
-            skipped.append({"client": client, "reason": "reviewer_family_unknown", "model": model or ""})
-        elif family == implementer:
-            skipped.append({"client": client, "reason": "same_family", "model": model or ""})
-        else:
-            reviewers.append((client, family, snapshot))
-    reason = None if implementer in KNOWN_FAMILIES else "implementer_family_ambiguous"
-    status, findings, selected, family, attempts, diagnostics = None, [], "", "", [], []
-    prompt = build_prompt(args.mode, cwd, base, args.intent, args.focus, untracked, diff_file)
-    # Each reviewer runs in turn until one answers. Every attempt has its own
-    # private home and its answer is read only after a clean exit, so nothing
-    # from a failed attempt reaches the verdict. An interrupt ends the chain.
+def main(argv=None) -> int:
+    args = parse_args(argv)
+    progress = Progress(args.mode)
     try:
-        for selected, family, snapshot in reviewers:
-            t0, meta = time.time(), {}
-            attempt = {"client": selected, "status": "operator_interrupt"}
-            attempts.append(attempt)
-            try:
-                outcome, rc, text, err = run_client(selected, snapshot, prompt, cwd, args.timeout, diff_dir, meta)
-            except (OSError, subprocess.CalledProcessError) as exc:
-                # Its private home could not be built; the next reviewer still runs.
-                outcome, rc, text, err = "missing", None, "", str(exc)
-            attempt.update(returncode=rc, elapsed_seconds=round(time.time() - t0, 1), **meta)
-            if text or err:
-                diagnostics.append((selected, text, err))
-            status, findings, reason = None, [], None
-            if outcome == "interrupted":
-                reason = "operator_interrupt"
-            elif outcome == "timeout":
-                reason = "reviewer_timeout"
-            elif outcome == "missing":
-                reason = "reviewer_launch_failed"
-            elif rc != 0:
-                reason = "reviewer_failed"  # its text is never a verdict
-            elif not text.strip():
-                reason = "empty_answer"
-            else:
-                status, findings = parse_answer(text)
-                findings = [redact_finding(f) for f in findings] if status else []
-                if status is None:
-                    reason = "unparseable_answer"
-            attempt["status"] = status or reason
-            if status or reason == "operator_interrupt":
-                break
-        else:
-            reason = reason or "no_eligible_reviewer"
-    except Interrupted:
-        status, findings, reason = None, [], "operator_interrupt"
+        candidate = Candidate.bind(args.cwd, args.base)
+    except subprocess.CalledProcessError as exc:
+        err = exc.stderr.decode("utf-8", "replace") if isinstance(exc.stderr, bytes) else exc.stderr or ""
+        lines = err.strip().splitlines()
+        progress.say(f"not run: {lines[-1] if lines else f'git exited {exc.returncode}'}")
+        progress.say("next: check that --cwd is inside a git repository and --base names a commit in it",
+                     detail=True)
+        return 2
+    diff_dir = clients.scratch_dir("diff-")
+    try:
+        diff_file = os.path.join(diff_dir, "change.diff")
+        files = candidate.save_diff(diff_file)
+        started = time.time()
+        implementer = clients.canonical_family(args.implementer_family)
+        reviewers, skipped = clients.select_reviewers(args.client_order, implementer)
+        reason = None if implementer in clients.KNOWN_FAMILIES else "implementer_family_ambiguous"
+        prompt = build_prompt(args.mode, candidate, args.intent, args.focus, diff_file)
+        progress.started(candidate, files)
+        progress.skipped(skipped)
+        handlers = {sig: signal.signal(sig, on_signal) for sig in (signal.SIGINT, signal.SIGTERM)}
+        try:
+            review = run_attempts(reviewers, prompt, candidate, diff_dir, args.timeout, reason, progress)
+        finally:
+            for sig, handler in handlers.items():
+                signal.signal(sig, handler)
     finally:
         shutil.rmtree(diff_dir, ignore_errors=True)
 
-    if status and candidate_digest(cwd) != digest_before:
-        status, findings, reason = None, [], "candidate_changed"
-    final = status or "inconclusive"
-    recorded_at = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
-    result = {
-        "schema_version": SCHEMA_VERSION,
-        "runner": "review_diff",
-        "mode": args.mode,
-        "status": final,
-        "reason_code": reason,
-        "findings": findings,
-        "selected_client": selected,
-        "reviewer_family": family,
-        "implementer_family": implementer,
-        "base": base,
-        "head": head,
-        "candidate_digest": digest_before,
-        "worktree_clean": clean,
-        "untracked_files": untracked,
-        "intent_sha256": hashlib.sha256(args.intent.encode("utf-8")).hexdigest(),
-        "elapsed_seconds": round(time.time() - started, 1),
-        "attempts": attempts,
-        "skipped": skipped,
-        "recorded_at": recorded_at,
-    }
-    stamp = recorded_at.replace(":", "").replace("+0000", "Z")
-    # The answer and stderr can quote repository content or credentials, so they
-    # go to a private file under the git dir, never into the shareable result.
-    if diagnostics:
-        diag = git_dir / "ccl-code-review" / "diagnostics" / f"{stamp}-{args.mode}.txt"
-        diag.parent.mkdir(parents=True, exist_ok=True)
-        write_private(str(diag), "".join(
-            f"## {client} answer\n{text[:DIAG_LIMIT]}\n## {client} stderr (tail)\n{err[-DIAG_LIMIT:]}\n"
-            for client, text, err in diagnostics))
-        result["diagnostics_path"] = str(diag)
-    out = Path(args.out) if args.out else git_dir / "ccl-code-review" / "results" / f"{stamp}-{args.mode}.json"
-    write_json(out, result)
-    receipt = {k: result[k] for k in ("head", "worktree_clean", "mode", "status", "recorded_at",
-                                       "candidate_digest", "selected_client", "runner")}
-    receipt["result_path"] = str(out)
-    write_json(git_dir / "ccl-code-review" / "last-review.json", receipt)
+    if review.status and candidate.changed():
+        review.status, review.findings, review.reason = None, [], "candidate_changed"
+    try:
+        result = record(args, candidate, review, implementer, skipped, started)
+    except OSError as exc:
+        progress.say(f"not recorded: {exc}")
+        progress.say("next: check that the --out directory and the repository's git dir are writable, then rerun",
+                     detail=True)
+        return 2
+    emit(result)
+    progress.summary(result)
+    return {"passed": 0, "findings": 1}.get(result["status"], 2)
 
-    print(json.dumps({"status": final, "reason_code": reason, "result": str(out),
-                      "reviewer": selected, "elapsed_seconds": result["elapsed_seconds"]}))
-    for f in findings:
-        print(f"[{f['severity']}] {f['title']} — {f['file']}:{f['line']}")
-    return {"passed": 0, "findings": 1}.get(final, 2)
+
+def entry() -> int:
+    """main() under one rule: exit 1 means recorded findings and nothing else."""
+    try:
+        return main()
+    except KeyboardInterrupt:
+        to_stderr("review_diff: interrupted; nothing was recorded")
+        return 2
+    except Exception:  # an unexpected error is never a verdict
+        to_stderr(traceback.format_exc().rstrip())
+        to_stderr("review_diff: internal error, not a verdict")
+        return 2
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(entry())

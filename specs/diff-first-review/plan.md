@@ -303,3 +303,143 @@ brief (`evidence/replay.md`, "The review brief").
 The brief change had its own review and challenge through the runner, both
 conclusive with no findings (`evidence/brief-review.json`,
 `evidence/brief-challenge.json`).
+
+## Round 3: runner structure and terminal output
+
+`review_diff.py` grew to one 765-line module that mixes six jobs: safe git and
+candidate binding, the prompt, four reviewer clients with their private-home
+builders and config readers, process control, answer parsing and redaction,
+and result writing. Safe git state is a module-level list that
+`neutralize_filters` mutates. A run prints nothing until it ends, which can
+take an hour when every reviewer times out, and an inconclusive result
+gives a reason code but no next step.
+
+| Field | Decision |
+| --- | --- |
+| Purpose | People and agents running a daily review see which reviewer is working and why it moved on, and get one next step for every inconclusive result. A maintainer can change one reviewer client without reading the attempt loop. |
+| Scope | `review_diff.py` split into the review flow and a new `review_diff_clients.py`; progress and a summary on stderr; exits that misreport the verdict; the runner suite; `references/diff-first-runner.md`; `scripts/AGENTS.md`. The controller, the wrappers and the review brief are out of scope. No iterative-program watermark applies. |
+| Depth | Generator/tooling change. |
+| Result classification | Failure/correction: the user asked for a clear architecture and domain model, clean code and a good terminal experience, judging the runner short of that. |
+| Matching analysis | Each earlier round added a client or an edge fix where the code already was: nothing in the module or its directory contract named a boundary between policy and client mechanics, and no case looked at what a person sees during a run. Prevention: the two-module boundary with one client interface, a directory-contract line naming it, and suite cases that pin stderr and exit codes. Seams the suite reaches into: `main`, `reviewer_family`, `private_opencode_root`. |
+| Failure boundary | Unchanged: the result envelope and its field order, the receipt, stdout, exit codes, prompt text, each client's argv, environment and private home, when each client reads its config, family rules and the try-next semantics. Any difference the differential run finds is a defect, not a design choice. Declared exceptions, all defect fixes for exits that misreport the verdict: a git failure before the review (not a repository, unknown base), a result that cannot be written and any unexpected error exit 2 with a message instead of a traceback and exit 1, and a closed stdout or stderr no longer turns the verdict's exit code into 120. |
+| Lifecycle impact | Every daily review and challenge; debugging review failures. |
+| Evidence plan | Differential run of the old and new runner over every suite scenario; the mutation walk ported to the new code; the suite; a live review through the new runner. |
+| Completion standard | Suite assertions unchanged and green; the new output cases RED on the old runner and green after; differential identical; each ported mutant red on its own assertion; `make test` lanes; review and challenge through the runner. |
+
+Owner skills applied: `python-service-architecture` (module boundary, state
+ownership, error mapping in one place), `python-service-dev`,
+`terminal-cli-dev` and `product-ui-ux-design` (stdout/stderr contract,
+progress, recovery copy), `testing-strategy` (differential proof, killing
+mutations), `code-review`. Visible surface: yes, stderr only.
+
+### Domain model
+
+| Concept | Where | Owns | Invariant |
+| --- | --- | --- | --- |
+| `Git` | `review_diff.py` | every git call: fsmonitor off, filter drivers replaced by pass-through, no external diff or textconv | no git call bypasses it; replaces the mutable `GIT_SAFETY` global |
+| `Candidate` | `review_diff.py` | repository root, git dir, head, base, clean flag, untracked files, digest; saving the diff; detecting a change | bound once before the first attempt; a verdict is void when the digest moves |
+| `Client` | `review_diff_clients.py`, one class per CLI | `snapshot()` reads the config that decides the family, once (OpenCode, Kimi); `run()` builds the private home, argv and environment, launches, extracts the answer and deletes the home | OpenCode and Kimi launch with the snapshot that judged eligibility; Codex still reads its config only when it launches; judging the answer is not the client's job |
+| `Reviewer` | `review_diff_clients.py` | an eligible client, its family, model and snapshot | family by model id for OpenCode and Kimi, by CLI for Codex and Claude |
+| `Run` | `review_diff_clients.py` | one process: outcome (`ran`, `timeout`, `interrupted`, `missing`), exit code, answer, stderr | a timed-out or interrupted run carries no answer; a failed exit keeps its text for the private diagnostics |
+| `Attempt` | `review_diff.py` | one attempt's record in the result | holds only client and status when interrupted before the run returned |
+| `Review` | `review_diff.py` | the outcome of the attempts: status, findings, reason, attempts, selected client and family | the reason is the last attempt's, or `no_eligible_reviewer` or `implementer_family_ambiguous` when none ran |
+| `judge()` | `review_diff.py` | Run → status, findings, reason | only a clean exit with a non-empty, parseable answer yields a status |
+| `Progress` | `review_diff.py` | stderr lines | never raises and never writes to stdout, so a closed or missing stderr changes neither the verdict nor its exit code |
+
+`review_diff.py` loads `review_diff_clients.py` by path, as it already loads
+the controller's secret patterns, so a module of that name in the caller's
+directory or `sys.path` cannot stand in for it. The dependency points one way:
+flow to clients; clients know nothing of verdicts or results.
+
+Two modules, split by reason to change: clients change with CLI releases, the
+flow with review policy. Rejected: one file with classes (keeps CLI churn and
+policy in one place); a package with a module per client (an `AGENTS.md` and
+import plumbing for four classes, with no current need).
+
+### Terminal output
+
+Users are an agent's shell tool, often under a command timeout, and a person
+watching a terminal. stdout stays the machine contract: one JSON line, then
+one line per finding. stderr gets plain ASCII lines prefixed with the mode, no
+color, cursor movement or carriage returns, so pipes, CI logs, `NO_COLOR`,
+`TERM=dumb` and captured tool output read the same.
+
+| State | stderr |
+| --- | --- |
+| start | `review: 3 files changed against 1b2c3d4, head 3f2a1c9, uncommitted edits included` |
+| skipped clients | `review: skipped claude (same family as the implementer), kimi (not installed)` |
+| attempt starts | `review: codex reviewing (timeout 900s)`; OpenCode and Kimi also name their model |
+| attempt fails | `review: codex timed out after 15m00s; trying opencode` |
+| attempt answers | `review: opencode answered in 6m52s` |
+| findings | `review: findings: 2 (1 P1, 1 P2) from opencode in 21m53s`, then `  result: <path>` |
+| passed | `review: passed, no findings from codex in 3m02s`, then `  result: <path>` |
+| inconclusive | `review: inconclusive: <plain reason>`, then `  next: <action>`, `  result: <path>` and, when written, `  diagnostics: <path> (private)` |
+| result not written | `review: not recorded: <error>`, then `  next: check that the --out directory and the repository's git dir are writable, then rerun`; exit 2 |
+| unexpected error | the traceback, then `review_diff: internal error, not a verdict`; exit 2 |
+
+| Reason | Next step |
+| --- | --- |
+| `no_eligible_reviewer` | install a reviewer CLI of another family, or name one in `--client-order` (the skipped list says why each was skipped) |
+| `implementer_family_ambiguous` | pass the family of the model that wrote the change |
+| `reviewer_timeout` | rerun with a larger `--timeout`, or review a smaller change |
+| `reviewer_failed`, `reviewer_launch_failed`, `empty_answer`, `unparseable_answer` | with a diagnostics file: read it, fix the cause (often login, quota or config) and rerun; without one, the reviewer printed nothing: check its login, quota and model config, then rerun |
+| `operator_interrupt` | rerun when ready; nothing was recorded as reviewed |
+| `candidate_changed` | let the working tree settle and rerun |
+| git failure before the review | `review: not run: <git's error line>`, then `  next: check that --cwd is inside a git repository and --base names a commit in it`; exit 2, no result |
+
+A consumer that closes stdout or stderr before reading it gets the same
+verdict exit code: the result and receipt are already written. Today the
+final flush fails with `BrokenPipeError` and the runner exits 120 whatever the
+verdict. When stderr is closed at start, Python sets `sys.stderr` to `None`
+and `print(file=None)` writes to stdout, so progress checks for that rather
+than corrupting the machine-readable lines.
+
+### Tests
+
+| Case | Layer | Before |
+| --- | --- | --- |
+| existing suite (fake CLIs, real git) | script integration | pass; assertions unchanged, seams point at the clients module |
+| progress for a try-next run: start, skipped, each attempt, final | script integration | fail: no stderr |
+| summary and next step for each inconclusive reason, with and without a diagnostics file | script integration | fail |
+| stdout: JSON line and finding lines | script integration | pass, now pinned |
+| challenge mode with `--focus`: the challenge brief and the focus reach the reviewer, the review brief does not | script integration | pass, now pinned (no case ran challenge mode) |
+| stdout closed early; stderr a closed pipe; stderr closed at start: verdict exit code, stdout unchanged, result and receipt written | script integration | fail |
+| not a git repository, unknown `--base`: exit 2, one line, no traceback | script integration | fail |
+| result directory not writable: exit 2, `not recorded`, no traceback | script integration | fail |
+| an unexpected error inside the run: exit 2, `internal error, not a verdict` | script integration | fail (no entry guard) |
+| a `review_diff_clients.py` in the caller's directory does not replace the real one | script integration | fail (no clients module) |
+| old and new runner over every suite scenario plus a challenge run, with hostile ambient variables (`OPENCODE_CONFIG_CONTENT`, `OPENCODE_PERMISSION`, `KIMI_CODE_TRUST_WORKSPACE` and the like): result JSON, receipt, stdout, and each fake client's argv, environment, prompt, generated config and auth links equal after normalizing times and temp paths | scratch differential, not committed | — |
+| each protected property mutated in the new code | scratch mutation walk | red on its own assertion |
+
+Python 3.9: both modules compile and the suite runs under 3.9 except the Kimi
+cases, which need `tomllib` (3.11).
+
+Plan review: Codex through the runner, 454 s, seven P2 findings, all confirmed
+and adopted above: failed-run text kept for diagnostics, Codex's config read at
+launch, the exit-code fixes declared as exceptions, next steps that depend on
+whether a diagnostics file exists, launch inputs and challenge prompts in the
+differential, and the closed-stderr cases (checked: a closed stderr pipe turns
+any verdict into exit 120, and a stderr closed at start makes `sys.stderr`
+`None`).
+
+Implementation boundary: baseline this section; mechanics owners
+`python-service-dev` and `terminal-cli-dev`, design owner
+`product-ui-ux-design` (the terminal output above is its brief), all loaded
+before code. Risk tags `shared-gate` and `visible-ui`; `security-review` not
+applicable, because no trust boundary, input surface or sink changes and
+progress never prints answer or stderr text. Delegation: local, one coupled
+slice; only the read-only replay judges run as agents.
+
+### Round 3 evidence
+
+| Check | Result |
+| --- | --- |
+| New suite cases on the previous runner | 33 assertions RED: progress, summaries and next steps, closed stdout, git failure, unwritable result, unexpected error, module shadowing. The stdout, challenge-prompt, closed-stderr and Codex bare-key pins pass on both runners |
+| `bash skills/code-review/scripts/test_review_diff.sh` on the candidate | ok |
+| Differential: a copy of the suite run once per runner with pinned commit dates, hostile `OPENCODE_CONFIG_CONTENT`, `OPENCODE_PERMISSION`, `OPENCODE_CONFIG_DIR` and `KIMI_CODE_TRUST_WORKSPACE`, and every fake client dumping its whole environment | 823 of 829 artifacts identical after normalizing times and temp paths: result envelopes in field order, receipts, stdout, and each client's argv, environment, prompt, private config and auth link. The six others are harness artifacts: one case commits a script containing the work-dir path, and diagnostics files of runs that share a repository collide within the same second |
+| Mutation walk on the candidate | control clean; 67 of 67 protected properties red on their own assertion. Two needed more: the Codex config's bare-key guard is reachable only through Codex since Kimi's config is parsed first, so a Codex case now pins it; carrying every Kimi table is refused first by the carried-subset check, and with that check removed only `kimi-isolation` turns red |
+| Python 3.9.25 | the suite passes except the Kimi cases and the lines naming Kimi as skipped, as expected without `tomllib` |
+
+Not changed, noted: finding titles reach stdout as the reviewer wrote them, as
+before this round; a title carrying terminal control sequences would reach a
+terminal that prints stdout raw.
