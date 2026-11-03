@@ -17,7 +17,14 @@ Rules:
   `CODEX_HOME` with no MCP servers, hooks or plugins, kept outside the system
   temp dir so the sandbox helper can start; Claude gets only `Read`, `Grep` and
   `Glob` with no shell (git can write files through `--output`), no setting
-  sources and no MCP servers. The Codex reviewer may run commands inside its
+  sources and no MCP servers; OpenCode runs a generated `ccl-review` agent
+  that denies every permission but reading, under private config/data/state
+  dirs with project config and plugins off, from a private empty git project,
+  because OpenCode imports `.opencode/plugin` code from its project and parents; Kimi Code runs under a private
+  home whose global tool allowlist is `Read`, `Grep`, `Glob`, without hooks,
+  MCP or workspace trust. Each attempt builds its own private home and is
+  read only after a clean exit, so the try-next loop carries nothing from a
+  failed attempt into the verdict. The Codex reviewer may run commands inside its
   read-only sandbox, which is the one exception to the no-target-code rule
   below. The reviewer can read files the user can read and sends what it reads
   to its provider; that is the accepted trade-off. Do not

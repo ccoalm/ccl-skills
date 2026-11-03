@@ -225,3 +225,54 @@ The lanes ran under a venv with `requirements-test.txt` and umask 022. Two
 regression suites (a date-window census and a sync-pointer check) failed once
 each while a controller challenge ran in parallel and passed alone and on the
 idle rerun.
+
+## Round 2: OpenCode, Kimi and the next reviewer on failure
+
+The first round removed the fallback chain to converge (see the deep
+self-review above). Direction since: OpenCode belongs in the runner ahead of
+Kimi, and a failed run should move on to the next reviewer; extra model calls
+are acceptable. The removal argued that each round found a new edge in the
+chain. Those edges came from state shared between attempts (a timed-out answer
+read later, findings carried from a failed run). Each attempt now builds its
+own private home, reads its answer only when it exited 0, and is discarded
+otherwise, so the chain is a plain loop over isolated attempts.
+
+| Field | Decision |
+| --- | --- |
+| Purpose | Fewer inconclusive daily reviews: when one reviewer fails, another family answers in the same call. |
+| Scope | `review_diff.py` clients (OpenCode, Kimi), its try-next loop, its tests and reference, the directory contract. The controller and wrappers stay unchanged. No watermark applies. |
+| Depth | Generator/tooling change. |
+| Result classification | Failure/correction: the user corrected the round-one decision to drop the fallback and to leave out OpenCode and Kimi. |
+| Matching analysis | The deletion was the wrong lever for the user's goal (fewer failed reviews). Its stated cause, shared state between attempts, is removed structurally; the loop's own edges get RED tests: failed answers never carried, interrupt ends the chain, candidate change voids the verdict, same or unknown family skipped. |
+| Failure boundary | No write-capable tool, shell or inherited MCP/plugin/hook config for any client; no verdict from a failed, timed-out or interrupted attempt; independence by model family, not by CLI name. |
+| Lifecycle impact | Implementation and verification of every change that owes daily review; debugging of review failures. |
+| Evidence plan | Live probes of OpenCode 1.19 and Kimi Code 2.2 under the private configs (read tools only, write attempt refused, answer format); the existing wrappers' isolation choices (`opencode_review.sh`, `kimi_review.sh`); then the runner suite. |
+| Completion standard | RED tests first, GREEN after; mutation of each new protected property; `make test` lanes; a live review through the runner; review and challenge on this delta. |
+
+Target-output map for this round:
+
+| Owner | Direction | Status | Changed file or reason |
+| --- | --- | --- | --- |
+| `code-review` | target | updated | `scripts/review_diff.py`, `scripts/test_review_diff.sh`, `references/diff-first-runner.md`, `scripts/AGENTS.md` |
+| `skill-extraction-workflow` | sibling lane | updated | source register gains this round's impact-chain row; its lane still runs `extraction_review_gate.sh` |
+| Kimi / OpenCode wrappers | sibling clients | unchanged | `review_gate.sh` keeps them for the packet lanes; the runner builds its own private configs |
+| `development-completion.md`, `SKILL.md` | upstream text | unchanged | they name the runner, not its client list |
+| CI `check_review_evidence_present.py`, PR reminder hook | downstream | unchanged | envelope fields unchanged; `attempts` may now hold several entries and `skipped` is new, neither is read by them |
+| `testing-strategy`, `product-rd-workflow`, `feature-risk-router` | upstream | unchanged | no layer, gate or risk-tag change |
+
+Live probes for this round (OpenCode 1.19, Kimi Code 2.2, real models, a
+synthetic repository):
+
+| Probe | Result |
+| --- | --- |
+| OpenCode under the private config | resolved agent tools `read`, `glob`, `grep` only; read the saved diff and a repository file; a write request was refused |
+| Kimi Code under the private home | read the diff and a file; a write request was refused (only `Read`, `Glob`, `Grep` exposed); text output bullets the first line and indents the rest, which the runner strips |
+| Hostile repository: `opencode.json` allowing everything, a `ccl-review` agent override, `.opencode/plugin` and `.opencode/tool` code | tools stayed read-only, but the plugin file ran with project config disabled, and again with `OPENCODE_PURE=1`; run from a private empty git project with the repository as an outside read-only directory, nothing ran and reads and grep still worked |
+| `.opencode/plugin` in a parent directory | ran from a plain project directory; did not run when the project is its own git repository |
+| Hostile repository for Kimi: project `mcp.json`, `local.toml` and `config.toml` enabling `Bash` and hooks | untrusted workspace (the runner strips `KIMI_CODE_TRUST_WORKSPACE`): nothing ran and tools stayed read-only; the same run marked trusted started the project MCP server |
+
+The suite's new cases failed on the previous runner and pass on the candidate.
+Removing each protected line (try-next, failed-answer isolation, interrupt
+stop, order, OpenCode project-config, pure, deny-all, agent, private project,
+unknown and same family, setup-failure guard, Kimi tool allowlist, trust strip,
+bullet strip, table filter) turned its own assertion red.

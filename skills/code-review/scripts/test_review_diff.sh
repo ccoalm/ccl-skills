@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Regression tests for review_diff.py, the lean runner where the reviewer reads
-# the diff itself read-only. Fake codex/claude executables stand in for the
-# real CLIs; FAKE_* variables choose their behavior and they log what they saw.
+# the diff itself read-only. Fake codex/claude/opencode/kimi executables stand in
+# for the real CLIs; FAKE_* variables choose their behavior and they log what
+# they saw.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,6 +25,9 @@ note_fail() {
 mkdir -p "$work/sysbin"
 for tool in git python3; do ln -sf "$(command -v "$tool")" "$work/sysbin/$tool"; done
 TEST_PATH="$work/bin:$work/sysbin:/usr/bin:/bin"
+# The user's own OpenCode and Kimi configs are never read.
+export XDG_CONFIG_HOME="$work/user-config" XDG_DATA_HOME="$work/user-data" KIMI_CODE_HOME="$work/user-kimi"
+unset OPENCODE_CONFIG OPENCODE_CONFIG_DIR OPENCODE_CONFIG_CONTENT OPENCODE_PERMISSION
 
 make_fakes() {
   local bin="$work/bin"
@@ -76,9 +80,56 @@ if [ -n "$diff_file" ] && grep -q '^diff --git' "$diff_file" 2>/dev/null; then e
 case "${FAKE_CLAUDE:-passed}" in
   passed) printf 'No findings.\n' ;;
   findings) printf '[P2] Close the handle — src/app.py:1\n\nThe handle leaks.\n' ;;
+  fail) exit 1 ;;
 esac
 EOF
-  chmod +x "$bin/codex" "$bin/claude"
+  cat >"$bin/opencode" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+printf 'args=%s\n' "$*" >>"$FAKE_LOG.opencode"
+oc_args=("$@")
+for ((i = 0; i < ${#oc_args[@]}; i++)); do
+  [ "${oc_args[$i]}" = "--dir" ] && oc_dir="${oc_args[$((i + 1))]}"
+done
+printf 'dir=%s\ntoplevel=%s\ndotopencode=%s\n' "${oc_dir:-}" "$(git -C "${oc_dir:-/nonexistent}" rev-parse --show-toplevel 2>/dev/null)" \
+  "$(ls -A "${oc_dir:-/nonexistent}" 2>/dev/null | grep -c '^\.opencode$')" >"$FAKE_LOG.opencode.project"
+printf '%s' "${@: -1}" >"$FAKE_LOG.opencode.prompt"
+{
+  printf 'xdg_config=%s\nxdg_data=%s\n' "${XDG_CONFIG_HOME:-}" "${XDG_DATA_HOME:-}"
+  printf 'no_project=%s\nno_plugins=%s\npure=%s\n' "${OPENCODE_DISABLE_PROJECT_CONFIG:-}" "${OPENCODE_DISABLE_DEFAULT_PLUGINS:-}" "${OPENCODE_PURE:-}"
+} >"$FAKE_LOG.opencode.env"
+cp "$XDG_CONFIG_HOME/opencode/opencode.json" "$FAKE_LOG.opencode.config" 2>/dev/null
+[ -L "$XDG_DATA_HOME/opencode/auth.json" ] && readlink "$XDG_DATA_HOME/opencode/auth.json" >"$FAKE_LOG.opencode.auth"
+diff_file="$(printf '%s' "${@: -1}" | grep -o '/[^ `]*\.diff' | head -1)"
+if [ -n "$diff_file" ] && grep -q '^diff --git' "$diff_file" 2>/dev/null; then echo yes >"$FAKE_LOG.opencode.diff"; fi
+case "${FAKE_OPENCODE:-passed}" in
+  passed) printf 'No findings.\n' ;;
+  findings) printf '[P2] Bound the loop — src/app.py:2\n\nThe loop never ends.\n' ;;
+  fail) exit 1 ;;
+esac
+EOF
+  cat >"$bin/kimi" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+args=("$@")
+printf 'args=%s\n' "$*" >>"$FAKE_LOG.kimi"
+printf 'trust=%s\nwatch=%s\n' "${KIMI_CODE_TRUST_WORKSPACE:-}" "${KIMI_CODE_WATCH:-}" >"$FAKE_LOG.kimi.env"
+cp "$KIMI_CODE_HOME/config.toml" "$FAKE_LOG.kimi.config" 2>/dev/null
+[ -L "$KIMI_CODE_HOME/credentials" ] && readlink "$KIMI_CODE_HOME/credentials" >"$FAKE_LOG.kimi.auth"
+ls -A "$KIMI_CODE_HOME" >"$FAKE_LOG.kimi.home"
+for ((i = 0; i < ${#args[@]}; i++)); do
+  [ "${args[$i]}" = "-p" ] && prompt="${args[$((i + 1))]}"
+done
+diff_file="$(printf '%s' "${prompt:-}" | grep -o '/[^ `]*\.diff' | head -1)"
+if [ -n "$diff_file" ] && grep -q '^diff --git' "$diff_file" 2>/dev/null; then echo yes >"$FAKE_LOG.kimi.diff"; fi
+# Kimi's text output bullets the first line and indents the rest.
+case "${FAKE_KIMI:-passed}" in
+  passed) printf '• No findings.\n\n' ;;
+  findings) printf '• [P2] Close the file — src/app.py:1\n\n  The file stays open.\n\n' ;;
+  fail) exit 1 ;;
+esac
+EOF
+  chmod +x "$bin/codex" "$bin/claude" "$bin/opencode" "$bin/kimi"
 }
 
 new_repo() {
@@ -126,6 +177,38 @@ make_fakes
 mkdir -p "$work/user-codex-home"
 printf 'model = "m-test"\nmodel_reasoning_effort = "high"\n\n[mcp_servers.danger]\ncommand = "rm"\n\n[profiles.other]\nmodel = "table-model"\n\n[hooks.state."x"]\nenabled = true\n' >"$work/user-codex-home/config.toml"
 printf '{}' >"$work/user-codex-home/auth.json"
+mkdir -p "$XDG_CONFIG_HOME/opencode" "$XDG_DATA_HOME/opencode"
+printf '{}' >"$XDG_DATA_HOME/opencode/auth.json"
+write_opencode_config() {
+  cat >"$XDG_CONFIG_HOME/opencode/opencode.json" <<EOF
+{"model": "$1", "small_model": "openai/gpt-small",
+ "provider": {"deepseek": {"options": {"apiKey": "k"}}, "anthropic": {"options": {}}},
+ "mcp": {"danger": {"type": "local", "command": ["rm"]}}, "plugin": ["evil-plugin"],
+ "agent": {"build": {"permission": {"bash": "allow"}}}, "permission": "allow"}
+EOF
+}
+write_opencode_config deepseek/deepseek-chat
+printf '{\n  // user theme\n  "$schema": "https://opencode.ai/config.json",\n  "plugin": ["other-plugin"],\n}\n' >"$XDG_CONFIG_HOME/opencode/opencode.jsonc"
+mkdir -p "$KIMI_CODE_HOME/credentials" "$KIMI_CODE_HOME/oauth" "$KIMI_CODE_HOME/hooks"
+printf '{}' >"$KIMI_CODE_HOME/mcp.json"
+cat >"$KIMI_CODE_HOME/config.toml" <<'EOF'
+default_model = "kimi-code/k3"
+extra_skill_dirs = [
+  "/somewhere",
+]
+
+[providers."managed:kimi-code"]
+type = "kimi"
+
+[models."kimi-code/k3"]
+provider = "managed:kimi-code"
+
+[hooks.pre]
+command = "touch danger"
+
+[tools]
+enabled = ["Bash"]
+EOF
 
 # 1. Findings from codex: parsed, envelope fields, receipt.
 repo="$(new_repo findings)"
@@ -166,30 +249,28 @@ FAKE_CODEX=passed run_runner passed "$repo" --implementer-family claude
 expect_eq passed-rc "$rc" 0
 expect_eq passed-status "$(field "$out" status)" passed
 
-# 4. Unparseable output is inconclusive and does not fall back.
+# 4. Unparseable output is inconclusive.
 repo="$(new_repo garbage)"
-FAKE_CODEX=garbage run_runner garbage "$repo" --implementer-family kimi
+FAKE_CODEX=garbage run_runner garbage "$repo" --implementer-family kimi --client-order codex
 expect_eq garbage-rc "$rc" 2
 expect_eq garbage-status "$(field "$out" status)" inconclusive
-[ ! -e "$FAKE_LOG.claude" ] || note_fail garbage-fallback "fell back on unparseable output"
 
-# 5. One reviewer runs once: a timeout is inconclusive, with no second family.
+# 5. A timeout is inconclusive.
 repo="$(new_repo timeout)"
-FAKE_CODEX=slow run_runner timeout "$repo" --implementer-family kimi --timeout 2
+FAKE_CODEX=slow run_runner timeout "$repo" --implementer-family kimi --client-order codex --timeout 2
 expect_eq timeout-rc "$rc" 2
 expect_eq timeout-reason "$(field "$out" reason_code)" reviewer_timeout
-[ ! -e "$FAKE_LOG.claude" ] || note_fail timeout-single "a second reviewer ran after a timeout"
 
 # 5b. A timed-out answer is never read, and raw text stays out of the result.
 repo="$(new_repo leak)"
-FAKE_CODEX=leak run_runner leak "$repo" --implementer-family claude --timeout 2
+FAKE_CODEX=leak run_runner leak "$repo" --implementer-family claude --client-order codex --timeout 2
 if grep -q 'sk-leaked-token' "$out"; then note_fail leak-result "timed-out answer copied into the result"; fi
 diag="$(field "$out" diagnostics_path)"
 if [ -n "$diag" ] && grep -q 'sk-leaked-token' "$diag"; then note_fail leak-diag "timed-out answer kept in diagnostics"; fi
 
 # 5c. Reviewer stderr goes to a private diagnostics file, not the result.
 repo="$(new_repo stderr)"
-FAKE_CODEX=stderr run_runner stderr "$repo" --implementer-family claude
+FAKE_CODEX=stderr run_runner stderr "$repo" --implementer-family claude --client-order codex
 expect_eq stderr-reason "$(field "$out" reason_code)" reviewer_failed
 diag="$(field "$out" diagnostics_path)"
 grep -q 'auth expired' "$diag" 2>/dev/null || note_fail stderr-diag "stderr not kept for diagnosis"
@@ -198,7 +279,7 @@ if grep -q 'auth expired' "$out"; then note_fail stderr-result "stderr copied in
 
 # 6. Empty output is inconclusive.
 repo="$(new_repo empty)"
-FAKE_CODEX=empty run_runner empty "$repo" --implementer-family kimi
+FAKE_CODEX=empty run_runner empty "$repo" --implementer-family kimi --client-order codex
 expect_eq empty-reason "$(field "$out" reason_code)" empty_answer
 
 # 7. Interrupt is terminal: no fallback.
@@ -206,14 +287,14 @@ repo="$(new_repo interrupt)"
 FAKE_CODEX=interrupt run_runner interrupt "$repo" --implementer-family kimi
 expect_eq interrupt-rc "$rc" 2
 expect_eq interrupt-status "$(field "$out" status)" inconclusive
-[ ! -e "$FAKE_LOG.claude" ] || note_fail interrupt-fallback "fell back after an interrupt"
+[ ! -e "$FAKE_LOG.claude" ] && [ ! -e "$FAKE_LOG.opencode" ] || note_fail interrupt-fallback "another reviewer ran after an interrupt"
 
 # 8. Same-family reviewer is skipped; Claude runs with a read-only tool surface.
 repo="$(new_repo samefamily)"
 FAKE_CLAUDE=findings run_runner samefamily "$repo" --implementer-family codex
 expect_eq samefamily-client "$(field "$out" selected_client)" claude
 [ ! -e "$FAKE_LOG.codex" ] || note_fail samefamily-skip "same-family codex was run"
-args="$(cat "$FAKE_LOG.claude" 2>/dev/null)"
+args="$(cat "$FAKE_LOG.claude" 2>/dev/null || true)"
 for want in '--tools Read Grep Glob --' '--permission-mode dontAsk' '--strict-mcp-config' '--setting-sources' '--add-dir'; do
   case "$args" in *"$want"*) ;; *) note_fail claude-args "missing '$want' in: $args" ;; esac
 done
@@ -228,24 +309,23 @@ expect_eq alias-client "$(field "$out" selected_client)" claude
 
 # 8c. A failed exit never yields a verdict, even with a clean answer.
 repo="$(new_repo failclean)"
-FAKE_CODEX=failclean run_runner failclean "$repo" --implementer-family kimi
+FAKE_CODEX=failclean run_runner failclean "$repo" --implementer-family kimi --client-order codex
 expect_eq failclean-status "$(field "$out" status)" inconclusive
 expect_eq failclean-reason "$(field "$out" reason_code)" reviewer_failed
-[ ! -e "$FAKE_LOG.claude" ] || note_fail failclean-single "a second reviewer ran after a failure"
 
 # 8d. A clean sentinel inside other text is not a pass.
 repo="$(new_repo hedged)"
-FAKE_CODEX=hedged run_runner hedged "$repo" --implementer-family claude
+FAKE_CODEX=hedged run_runner hedged "$repo" --implementer-family claude --client-order codex
 expect_eq hedged-status "$(field "$out" status)" inconclusive
 
 # 8e. A failed run that wrote a finding is still inconclusive, never passed.
 repo="$(new_repo failfinding)"
-FAKE_CODEX=failfinding run_runner failfinding "$repo" --implementer-family kimi
+FAKE_CODEX=failfinding run_runner failfinding "$repo" --implementer-family kimi --client-order codex
 expect_eq failfinding-status "$(field "$out" status)" inconclusive
 
 # 8f. A finding header without its scenario is not a verdict.
 repo="$(new_repo headeronly)"
-FAKE_CODEX=headeronly run_runner headeronly "$repo" --implementer-family claude
+FAKE_CODEX=headeronly run_runner headeronly "$repo" --implementer-family claude --client-order codex
 expect_eq headeronly-status "$(field "$out" status)" inconclusive
 
 # 8g. An implementer whose model family is unknown is refused before any review.
@@ -253,12 +333,12 @@ repo="$(new_repo ambiguous)"
 run_runner ambiguous "$repo" --implementer-family opencode
 expect_eq ambiguous-rc "$rc" 2
 expect_eq ambiguous-reason "$(field "$out" reason_code)" implementer_family_ambiguous
-[ ! -e "$FAKE_LOG.codex" ] && [ ! -e "$FAKE_LOG.claude" ] || note_fail ambiguous-run "a reviewer ran for an ambiguous family"
+[ ! -e "$FAKE_LOG.codex" ] && [ ! -e "$FAKE_LOG.claude" ] && [ ! -e "$FAKE_LOG.opencode" ] && [ ! -e "$FAKE_LOG.kimi" ] || note_fail ambiguous-run "a reviewer ran for an ambiguous family"
 
 # 8h. A descendant holding the reviewer's pipes cannot stall the runner.
 repo="$(new_repo holdpipe)"
 t0=$(date +%s)
-FAKE_CODEX=holdpipe run_runner holdpipe "$repo" --implementer-family kimi --timeout 2
+FAKE_CODEX=holdpipe run_runner holdpipe "$repo" --implementer-family kimi --client-order codex --timeout 2
 [ $(( $(date +%s) - t0 )) -lt 20 ] || note_fail holdpipe-bound "runner waited on a descendant's pipe"
 expect_eq holdpipe-reason "$(field "$out" reason_code)" reviewer_timeout
 
@@ -276,6 +356,137 @@ rm "$work/bin/codex"
 run_runner missing "$repo" --implementer-family kimi
 expect_eq missing-client "$(field "$out" selected_client)" claude
 make_fakes
+
+clients() { python3 -c 'import json,sys; print(",".join(a["client"] for a in json.load(open(sys.argv[1]))["attempts"]))' "$1"; }
+
+# 9b. A failed reviewer hands over to the next eligible one.
+repo="$(new_repo trynext)"
+FAKE_CODEX=slow run_runner trynext "$repo" --implementer-family kimi --timeout 2 --client-order codex,claude
+expect_eq trynext-rc "$rc" 0
+expect_eq trynext-status "$(field "$out" status)" passed
+expect_eq trynext-client "$(field "$out" selected_client)" claude
+expect_eq trynext-attempts "$(clients "$out")" codex,claude
+expect_eq trynext-first "$(field "$out" attempts.0.status)" reviewer_timeout
+
+# 9c. A failed run's finding never reaches the next reviewer's verdict.
+repo="$(new_repo carried)"
+FAKE_CODEX=failfinding run_runner carried "$repo" --implementer-family kimi --client-order codex,claude
+expect_eq carried-status "$(field "$out" status)" passed
+expect_eq carried-findings "$(field "$out" findings)" "[]"
+
+# 9d. Default order puts OpenCode before Kimi; every failure moves on.
+repo="$(new_repo allfail)"
+FAKE_CODEX=failclean FAKE_OPENCODE=fail FAKE_KIMI=fail run_runner allfail "$repo" --implementer-family claude
+expect_eq allfail-rc "$rc" 2
+expect_eq allfail-attempts "$(clients "$out")" codex,opencode,kimi
+expect_eq allfail-reason "$(field "$out" reason_code)" reviewer_failed
+
+# 9e. OpenCode runs under a private config with read tools only.
+repo="$(new_repo opencode)"
+FAKE_CODEX=failclean run_runner opencode "$repo" --implementer-family claude
+expect_eq opencode-client "$(field "$out" selected_client)" opencode
+expect_eq opencode-family "$(field "$out" reviewer_family)" deepseek
+expect_eq opencode-attempts "$(clients "$out")" codex,opencode
+[ ! -e "$FAKE_LOG.kimi" ] || note_fail opencode-stop "kimi ran after opencode answered"
+args="$(cat "$FAKE_LOG.opencode" 2>/dev/null || true)"
+for want in 'run ' '--agent ccl-review' '-m deepseek/deepseek-chat' '--dir '; do
+  case "$args" in *"$want"*) ;; *) note_fail opencode-args "missing '$want' in: $args" ;; esac
+done
+grep -q '^no_project=1$' "$FAKE_LOG.opencode.env" 2>/dev/null || note_fail opencode-project "project config not disabled"
+grep -q '^no_plugins=1$' "$FAKE_LOG.opencode.env" 2>/dev/null || note_fail opencode-plugins "default plugins not disabled"
+grep -q '^pure=1$' "$FAKE_LOG.opencode.env" 2>/dev/null || note_fail opencode-pure "external plugins not disabled"
+# OpenCode imports .opencode/plugin code from its project and parents, so its
+# project is a private empty git repository, never the candidate.
+oc_dir="$(sed -n 's/^dir=//p' "$FAKE_LOG.opencode.project" 2>/dev/null || true)"
+[ -n "$oc_dir" ] && [ "$oc_dir" != "$repo" ] || note_fail opencode-project-dir "opencode ran with the candidate as its project: $oc_dir"
+expect_eq opencode-project-root "$(sed -n 's/^toplevel=//p' "$FAKE_LOG.opencode.project" 2>/dev/null || true)" "$oc_dir"
+expect_eq opencode-project-empty "$(sed -n 's/^dotopencode=//p' "$FAKE_LOG.opencode.project" 2>/dev/null || true)" 0
+grep -q "$repo" "$FAKE_LOG.opencode.prompt" 2>/dev/null || note_fail opencode-prompt-repo "prompt does not name the repository path"
+oc_config_home="$(sed -n 's/^xdg_config=//p' "$FAKE_LOG.opencode.env" 2>/dev/null || true)"
+[ -n "$oc_config_home" ] && [ "$oc_config_home" != "$XDG_CONFIG_HOME" ] || note_fail opencode-home "reviewer used the user's config dir"
+[ ! -e "$oc_config_home" ] || note_fail opencode-cleanup "private config left behind"
+expect_eq opencode-auth "$(cat "$FAKE_LOG.opencode.auth" 2>/dev/null)" "$XDG_DATA_HOME/opencode/auth.json"
+expect_eq opencode-diff-file "$(cat "$FAKE_LOG.opencode.diff" 2>/dev/null)" yes
+oc_check="$(python3 - "$FAKE_LOG.opencode.config" 2>/dev/null <<'PY' || echo config-missing
+import json, sys
+c = json.load(open(sys.argv[1]))
+bad = [k for k in ("mcp", "plugin", "instructions") if k in c]
+if c.get("model") != "deepseek/deepseek-chat" or c.get("small_model") != c.get("model"):
+    bad.append("model")
+if sorted(c.get("provider", {})) != ["deepseek"]:
+    bad.append("provider")
+for name, perm in (("top", c.get("permission")), ("agent", c.get("agent", {}).get("ccl-review", {}).get("permission"))):
+    if not isinstance(perm, dict) or perm.get("*") != "deny":
+        bad.append(name + ":default")
+        continue
+    allowed = sorted(k for k, v in perm.items() if v == "allow")
+    if allowed != ["glob", "grep", "list", "read"]:
+        bad.append(name + ":" + ",".join(allowed))
+    ext = perm.get("external_directory", {})
+    if ext.get("*") != "deny" or len([v for v in ext.values() if v == "allow"]) != 2:
+        bad.append(name + ":external")
+if set(c.get("agent", {})) != {"ccl-review"}:
+    bad.append("agents")
+print(" ".join(bad) or "ok")
+PY
+)"
+expect_eq opencode-config "$oc_check" ok
+
+# 9f. OpenCode's family comes from its model: same or unknown family is skipped.
+repo="$(new_repo ocfamily)"
+write_opencode_config anthropic/claude-test
+FAKE_CODEX=failclean run_runner ocfamily "$repo" --implementer-family claude
+expect_eq ocfamily-attempts "$(clients "$out")" codex,kimi
+expect_eq ocfamily-skip "$(python3 -c 'import json,sys; print([s["reason"] for s in json.load(open(sys.argv[1]))["skipped"] if s["client"]=="opencode"])' "$out")" "['same_family']"
+write_opencode_config acme/house-model
+FAKE_CODEX=failclean run_runner ocunknown "$repo" --implementer-family claude
+expect_eq ocunknown-attempts "$(clients "$out")" codex,kimi
+write_opencode_config deepseek/deepseek-chat
+run_runner deepseek "$repo" --implementer-family deepseek
+expect_eq deepseek-client "$(field "$out" selected_client)" codex
+[ ! -e "$FAKE_LOG.opencode" ] || note_fail deepseek-skip "same-family opencode ran"
+
+# 9f2. A reviewer whose private home cannot be built counts as a failed launch.
+repo="$(new_repo setupfail)"
+export FAKE_LOG="$work/log-setupfail" FAKE_REPO="$repo"
+rm -f "$FAKE_LOG".*
+set +e
+FAKE_CODEX=failclean PATH="$TEST_PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" timeout 60 python3 -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("review_diff", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+def boom(*a, **k):
+    raise OSError("no space left")
+m.private_opencode_root = boom
+sys.exit(m.main(sys.argv[2:]))' "$runner" --cwd "$repo" --base base-ref --intent x --implementer-family claude \
+  --out "$work/out-setupfail.json" >/dev/null 2>"$work/stderr-setupfail"
+rc=$?
+set -e
+out="$work/out-setupfail.json"
+expect_eq setupfail-rc "$rc" 0
+expect_eq setupfail-attempts "$(clients "$out" 2>/dev/null || true)" codex,opencode,kimi
+expect_eq setupfail-status "$(field "$out" attempts.1.status 2>/dev/null || true)" reviewer_launch_failed
+
+# 9g. Kimi runs under a private home with read tools only; its bulleted answer parses.
+repo="$(new_repo kimi)"
+KIMI_CODE_TRUST_WORKSPACE=1 FAKE_CODEX=failclean FAKE_OPENCODE=fail FAKE_KIMI=findings run_runner kimi "$repo" --implementer-family claude
+expect_eq kimi-status "$(field "$out" status)" findings
+expect_eq kimi-title "$(field "$out" findings.0.title)" "Close the file"
+expect_eq kimi-body "$(field "$out" findings.0.body)" "The file stays open."
+args="$(cat "$FAKE_LOG.kimi" 2>/dev/null || true)"
+for want in '--skills-dir' '--add-dir' '-m kimi-code/k3' '--output-format text'; do
+  case "$args" in *"$want"*) ;; *) note_fail kimi-args "missing '$want' in: $args" ;; esac
+done
+grep -q '^enabled = \["Read", "Grep", "Glob"\]$' "$FAKE_LOG.kimi.config" 2>/dev/null || note_fail kimi-tools "read-only tool allowlist missing"
+grep -q '^default_model = "kimi-code/k3"$' "$FAKE_LOG.kimi.config" 2>/dev/null || note_fail kimi-model "default model not carried"
+grep -q '^\[models."kimi-code/k3"\]$' "$FAKE_LOG.kimi.config" 2>/dev/null || note_fail kimi-models "model table not carried"
+if grep -q -E 'hooks|extra_skill_dirs|somewhere|Bash' "$FAKE_LOG.kimi.config" 2>/dev/null; then note_fail kimi-isolation "hooks, skill dirs or the user's tool list carried"; fi
+if grep -q -x -E 'hooks|mcp.json' "$FAKE_LOG.kimi.home" 2>/dev/null; then note_fail kimi-home "hooks or MCP config in the private home"; fi
+expect_eq kimi-auth "$(cat "$FAKE_LOG.kimi.auth" 2>/dev/null)" "$KIMI_CODE_HOME/credentials"
+grep -q '^trust=$' "$FAKE_LOG.kimi.env" 2>/dev/null || note_fail kimi-trust "workspace trust passed to the reviewer"
+expect_eq kimi-diff-file "$(cat "$FAKE_LOG.kimi.diff" 2>/dev/null)" yes
+FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimipass "$repo" --implementer-family claude
+expect_eq kimipass-status "$(field "$out" status)" passed
 
 # 10. Untracked files are named; a dirty tree is reported as such.
 repo="$(new_repo untracked)"
