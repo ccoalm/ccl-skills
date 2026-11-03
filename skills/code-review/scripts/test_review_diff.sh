@@ -241,6 +241,7 @@ expect_eq findings-receipt-clean "$(field "$receipt" worktree_clean)" true
 [ -n "$(field "$receipt" recorded_at)" ] || note_fail findings-receipt-time "recorded_at missing"
 grep -q 'base-ref\|'"$(git -C "$repo" rev-parse base-ref)" "$FAKE_LOG.codex.prompt" || note_fail findings-prompt-base "prompt does not name the base"
 grep -q 'Use get() for missing keys' "$FAKE_LOG.codex.prompt" || note_fail findings-prompt-intent "prompt lacks the intent"
+grep -q 'including ones you could not fully confirm' "$FAKE_LOG.codex.prompt" || note_fail findings-prompt-suspected "review brief drops unconfirmed suspicions"
 expect_eq codex-diff-file "$(cat "$FAKE_LOG.codex.diff" 2>/dev/null)" yes
 if grep -q 'Run `git diff' "$FAKE_LOG.codex.prompt"; then note_fail codex-own-diff "codex told to build the diff itself"; fi
 expect_eq codex-model "$(field "$out" attempts.0.model)" m-test

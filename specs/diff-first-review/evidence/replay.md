@@ -48,3 +48,26 @@ comes from elsewhere in the packet path (its structured per-concern output, or
 a reviewer confined to the diff). The two flows catch the same total, and the
 two runners catch different defects, so pairing a packet review with a diff
 challenge caught the most. Eight cases bound how far these numbers generalize.
+
+## The review brief
+
+The arms above share the runner's first review brief, which asked only for
+defects the reviewer could show from the code and to skip speculation. A
+relaxed brief asks for every suspected defect with its failing scenario,
+including ones it could not fully confirm, and to say what it could not
+confirm. Scored blind with the diff and packet review arms (30 known defects in
+that pass):
+
+| Review arm | Known defects caught | Other real issues | Noise | Precision |
+| --- | --- | --- | --- | --- |
+| diff review, first brief | 8 | 7 | 1 | 94% |
+| diff review, relaxed brief | 15 | 13 | 9 | 76% |
+| packet review | 14 | 4 | 15 | 55% |
+
+The review gap came from the brief. The relaxed brief is now the runner's
+review brief; the challenge brief is unchanged.
+
+Two further arms, each scored blind with the diff and packet arms, did not
+close the gap: owner skills as review lenses plus the packet's review method
+and per-concern conclusions (review 8 caught, 2 partial), and the inlined diff
+reported above.

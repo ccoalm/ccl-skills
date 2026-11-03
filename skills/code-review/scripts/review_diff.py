@@ -59,10 +59,17 @@ MOONSHOT_HOSTS = ("moonshot.cn", "moonshot.ai", "kimi.com")
 FINDING = re.compile(r"^\s*\[(P[0-3])\]\s+(.+?)\s+[—–-]{1,2}\s+(\S+?):(\d+)\s*$")
 DIAG_LIMIT = 20000  # bytes of answer and of stderr kept in the private diagnostics file
 
-REVIEW_BRIEF = """Report only defects introduced by this change that the author would fix:
-correctness, security, data loss, broken contracts, or clearly wrong behavior.
-Each finding must name a concrete failing scenario you can show from the code.
-Skip style nits, speculation and problems that existed before the change."""
+# Replayed on past changes with known defects, a reviewer told to drop what it
+# cannot prove from the code found about half as many of them
+# (specs/diff-first-review/evidence/replay.md).
+REVIEW_BRIEF = """Find defects this change introduces: correctness, security, data loss, broken
+contracts, missing error handling, unsafe edge cases, and tests that would not
+fail when the defect is present. Go through every hunk of the diff before
+reading further. Report every defect you suspect with a concrete failing
+scenario, including ones you could not fully confirm from the surrounding code;
+say in the scenario what you could not confirm. Do not drop a suspicion only
+because proving it would need more context. Skip style and problems that
+existed before the change."""
 
 CHALLENGE_BRIEF = """Think like an attacker and a chaos engineer. Find ways this change fails in
 production: edge cases, races, security holes, resource leaks, silent data

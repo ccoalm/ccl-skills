@@ -14,6 +14,12 @@ python3 "$CODE_REVIEW_SKILL_DIR/scripts/review_diff.py" --cwd "$PWD" \
   --intent "<requester's own words, then what the change does>"
 ```
 
+- `--mode review` asks for every suspected defect with its failing scenario,
+  including ones the reviewer could not fully confirm, and says what it could
+  not confirm. On replayed changes with known defects this found about twice
+  as many as a brief that dropped unproven suspicions, at some precision cost,
+  so verify each finding before acting on it (`evidence/replay.md` under
+  `specs/diff-first-review/`).
 - `--mode challenge` runs the adversarial pass on the candidate with the
   review's fixes applied; `--focus` names what to look at hardest.
 - `--base` is any ref; the runner saves the diff of the working tree against

@@ -294,3 +294,8 @@ defects, scored blind: `evidence/replay.md`. Review alone catches fewer known
 defects in diff mode than packet review (7–8 against 12 of 27), challenge
 alone catches more (11 against 9), and review then challenge ties at 12. The
 concern walk and an inlined diff did not close the review gap.
+
+The review brief: a replay arm with a brief that keeps unconfirmed suspicions
+caught 15 of 30 known defects in review against 8 for the first brief and 14
+for packet review, with less noise than packet review; it is now the review
+brief (`evidence/replay.md`, "The review brief").
