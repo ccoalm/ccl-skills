@@ -45,8 +45,8 @@ the sessions that called the controller.
   index rules (10), packet byte-order rules (6), size budget (4), relative
   `--cwd` (4).
 - Counterfactual: removing the intake contract removes every listed refusal
-  class; the reviewer-side timeout class remains and is handled by one
-  fallback to the next family.
+  class; the reviewer-side timeout class remains and is reported as
+  `inconclusive`.
 
 Contributing factors: the controller grew to 221 KB with per-client wrappers
 of 34–58 KB; each failure class was patched where it appeared, adding inputs
@@ -67,7 +67,7 @@ and Codex passes).
 | Findings as `[P0-3] title — path:line` plus a scenario; `No findings.` when clean | Codex agent | P(功能等价) (our JSON findings carry the same fields) | adopt the text form and parse it |
 | Only defects introduced by the change, with a demonstrable scenario | Claude, Codex agent | P | keep |
 | Separate validation of each finding before acting | Claude (validation subagents) | P(功能等价) (implementer verifies per development-completion step 3) | unchanged |
-| Errors in an optional second opinion never block | gstack | I (an inconclusive lane blocks until remediated) | one fallback to the next family, then report inconclusive; unchanged authority |
+| Errors in an optional second opinion never block | gstack | I (an inconclusive lane blocks until remediated) | one run, reported as inconclusive with private diagnostics; the caller reruns; unchanged authority |
 | Intent passed as plain text, never the session history | superpowers, Claude | P | keep, as a single `--intent` string |
 
 ## Design
@@ -82,15 +82,15 @@ and Codex passes).
    in the prompt because `git diff` omits them. Every git call switches off
    repository-configured programs (fsmonitor, filter drivers, textconv,
    external diff), because the candidate may carry them.
-2. Bind the candidate: a digest of `git diff --binary HEAD` plus the untracked
-   files' contents, taken before and after the run, with no objects written. A
-   changed digest makes the result `inconclusive`.
+2. Bind the candidate: a digest of HEAD, `git diff --binary HEAD` and the
+   untracked files' contents (listed with `-z`), taken before and after the
+   run, with no objects written. A changed digest makes the result
+   `inconclusive`.
 3. Refuse an implementer family that names no model (`opencode`, `other`).
-   Pick the first client in `--client-order` whose family differs and whose
-   CLI is installed. On a timeout, a launch failure, a non-zero exit or empty
-   output, try the next eligible client once; findings from the failed attempt
-   are kept. An interrupt (exit 130, 137 or 143, or a signal to the runner) is
-   terminal.
+   Run the first client in `--client-order` whose family differs and whose
+   CLI is installed, once. A timeout, launch failure, non-zero exit, empty
+   output or interrupt ends the run as `inconclusive`; a failed run's text is
+   never a verdict and a timed-out answer is never read.
 4. Run it read-only in the repository. Codex: `codex exec -C <repo> -s
    read-only --ephemeral -o <file>` under a private `CODEX_HOME` holding only a
    link to `auth.json`, the user's top-level model keys and the selected
@@ -108,8 +108,10 @@ and Codex passes).
    head, candidate tree, worktree_clean, intent digest, elapsed seconds and
    attempts; and the receipt `<git-dir>/ccl-code-review/last-review.json` with
    the fields the PR reminder reads (`head`, `worktree_clean`, `mode`,
-   `status`, `recorded_at`). Exit 0 on passed, 1 on findings, 2 on
-   inconclusive. The runner is Python 3.9 compatible.
+   `status`, `recorded_at`). The answer and the stderr tail go to a mode-600
+   diagnostics file under the git dir, never into the result. Exit 0 on
+   passed, 1 on findings, 2 on inconclusive. The runner is Python 3.9
+   compatible.
 
 Plan review (Codex, read-only, 552 s) raised six findings, all confirmed
 against source and adopted above: Claude `--allowedTools` adds grants without
@@ -156,6 +158,7 @@ rates were 80–85% and 47–52%, and the existing wrappers stay available.
 | Review (`evidence/review.json`) | Codex through the runner, 302 s | six findings | all confirmed and fixed with RED tests: Claude shell removed in favor of a saved diff (`git diff --output` writes files), family aliases, a non-zero exit never yields a verdict, exclusive temp files, the bare `No findings.` sentinel, the selected provider table |
 | Challenge (`evidence/challenge.json`) | Codex through the runner, 657 s | `inconclusive` (`candidate_changed`: the register row was edited during the run), ten findings | all confirmed and fixed with RED tests: repository git config (fsmonitor, filters, textconv, external diff) switched off; an implementer family that names no model is refused; untracked files seen under `status.showUntrackedFiles=no` and from a subdirectory; a failed attempt's findings survive a later clean answer; bounded pipe draining and process-group cleanup on every exit; a finding needs its scenario; TOML-quoted provider names. The interrupt-after-parse race is fixed by clearing the verdict in the interrupt handler; it has no deterministic test |
 | Delta (`evidence/delta-review.json`) | Codex through the runner, 322 s | four findings | three confirmed and fixed with RED tests: the candidate is bound by a digest, because staging it with filters off would write plaintext of filtered files into the object store; a scenario-less header from a failed attempt is not carried; filter drivers are listed by name only. One refuted from source: a reviewer that exited 0 while a descendant held its pipes is answered by its own output, which passes only as the exact `No findings.` sentinel, and Codex's answer comes from its `-o` file |
+| Extraction-lane review (`evidence/extraction-review.json`) | Codex through `extraction_review_gate.sh`, 594 s (its first run stopped in 0 s on `egress_denied`: a code comment reading `pass: "…"` matched the secret scan) | seven findings | led to the redesign below. Fixed with RED tests: one reviewer per run, so a timed-out answer and its findings can no longer leak into a later verdict; timed-out answers are never read; answer and stderr go to a private diagnostics file; HEAD and `-z` untracked paths enter the digest; a commented TOML table header is kept. The evidence-gap finding is answered by the live Claude run and the validation record below |
 
 Live run also caught two defects no fake could: Codex refused to create its
 sandbox helper under the system temp dir (the private home moved to the cache
@@ -165,6 +168,19 @@ dir), and an empty `diff.external` override broke plain `git diff` (removed;
 Every protected property was mutated in the runner and turned the suite red
 for the named assertion; two broken mutants (one syntax error, one that
 crashed the first case) were redone so the red came from the property.
+
+## Deep self-review after five passes
+
+Five conclusive passes still returned P1 findings, so review paused for a
+design check. The 33 findings fall into five classes:
+
+| Class | Passes | Decision |
+| --- | --- | --- |
+| Reviewer isolation (Claude tools, Codex MCP and hooks, repository git programs) | plan, review, challenge | keep: the boundary the runner exists to hold |
+| Failure and fallback handling (non-zero exits, carried findings, timeouts dropping output, interrupts) | review, challenge, delta, extraction review | delete the fallback chain: each round found a new edge in it, Codex alone was conclusive 91–94% of the time, and gstack reports errors without retrying. One run per call; the caller reruns with another order |
+| Candidate binding (dirty tree, untracked files, object store, HEAD moves, non-ASCII names) | challenge, delta, extraction review | keep and complete: the receipt claims what was reviewed |
+| Hand-written TOML parsing | review, challenge, extraction review | narrow: top-level allowlist plus the selected provider table only |
+| Diagnostics (stderr, raw answers) | extraction review | move raw text to a private file; the result keeps structured fields |
 
 ## Target-output map
 
@@ -179,4 +195,5 @@ crashed the first case) were redone so the red came from the property.
 | CI `check_review_evidence_present.py` | downstream | unchanged | the runner writes `schema_version: 3`, `mode`, `status`, `selected_client`; case 12 loads a result through the checker |
 | `agent-context/session-start.md` | always-on | unchanged | its completion line names `code-review` and `development-completion.md`, not an entrypoint script |
 | Kimi / OpenCode wrappers | sibling clients | unchanged | not in the runner; `review_gate.sh` stays available for them |
+| `scripts/AGENTS.md` (code-review) | directory contract | updated | the runner's read-only boundary is the one exception to the packet rule |
 | External packs (Claude code-review, Codex review-agent, superpowers, gstack) | reference-only | routed | benchmark source only; nothing copied |

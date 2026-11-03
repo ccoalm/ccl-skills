@@ -19,6 +19,12 @@ note_fail() {
   fail=1
 }
 
+# Only fakes and the tools the runner needs are on PATH, so no test can reach a
+# real reviewer CLI installed next to python3.
+mkdir -p "$work/sysbin"
+for tool in git python3; do ln -sf "$(command -v "$tool")" "$work/sysbin/$tool"; done
+TEST_PATH="$work/bin:$work/sysbin:/usr/bin:/bin"
+
 make_fakes() {
   local bin="$work/bin"
   mkdir -p "$bin"
@@ -48,7 +54,10 @@ case "${FAKE_CODEX:-findings}" in
   failclean) printf 'No findings.\n' >"$out"; exit 1 ;;
   failfinding) printf '[P1] Keep the guard — src/app.py:2\n\nThe guard is gone.\n' >"$out"; exit 1 ;;
   headeronly) printf '[P1] Example finding — src/app.py:1\n' >"$out" ;;
-  failheader) printf '[P1] Truncated — src/app.py:1\n' >"$out"; exit 1 ;;
+  leak) printf 'sk-leaked-token partial\n' >"$out"; sleep 30 ;;
+  stderr) printf 'auth expired\n' >&2; exit 1 ;;
+  unicode) printf 'more\n' >>"$FAKE_REPO/src/é.py"; printf 'No findings.\n' >"$out" ;;
+  commit) git -C "$FAKE_REPO" commit -q --allow-empty -m during; printf 'No findings.\n' >"$out" ;;
   holdpipe) setsid sleep 30 & sleep 30 ;;
   orphan) sleep 60 >/dev/null 2>&1 & echo $! >"$FAKE_LOG.orphan"; exit 130 ;;
   hedged) printf 'The repository reads failed, so this review is incomplete.\nNo findings.\n' >"$out" ;;
@@ -92,7 +101,7 @@ run_runner() {
   rm -f "$FAKE_LOG".*
   out="$work/out-$name.json"
   set +e
-  PATH="$work/bin:$PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" timeout 60 python3 "$runner" \
+  PATH="$TEST_PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" timeout 60 python3 "$runner" \
     --cwd "$repo" --base base-ref --mode review --intent "Use get() for missing keys" \
     --out "$out" --timeout 5 "$@" >"$work/stdout-$name" 2>"$work/stderr-$name"
   rc=$?
@@ -157,17 +166,33 @@ expect_eq garbage-rc "$rc" 2
 expect_eq garbage-status "$(field "$out" status)" inconclusive
 [ ! -e "$FAKE_LOG.claude" ] || note_fail garbage-fallback "fell back on unparseable output"
 
-# 5. Timeout falls back once to the next eligible family.
+# 5. One reviewer runs once: a timeout is inconclusive, with no second family.
 repo="$(new_repo timeout)"
 FAKE_CODEX=slow run_runner timeout "$repo" --implementer-family kimi --timeout 2
-expect_eq timeout-rc "$rc" 0
-expect_eq timeout-client "$(field "$out" selected_client)" claude
-expect_eq timeout-attempt0 "$(field "$out" attempts.0.status)" timeout
+expect_eq timeout-rc "$rc" 2
+expect_eq timeout-reason "$(field "$out" reason_code)" reviewer_timeout
+[ ! -e "$FAKE_LOG.claude" ] || note_fail timeout-single "a second reviewer ran after a timeout"
 
-# 6. Empty output falls back as well.
+# 5b. A timed-out answer is never read, and raw text stays out of the result.
+repo="$(new_repo leak)"
+FAKE_CODEX=leak run_runner leak "$repo" --implementer-family claude --timeout 2
+if grep -q 'sk-leaked-token' "$out"; then note_fail leak-result "timed-out answer copied into the result"; fi
+diag="$(field "$out" diagnostics_path)"
+if [ -n "$diag" ] && grep -q 'sk-leaked-token' "$diag"; then note_fail leak-diag "timed-out answer kept in diagnostics"; fi
+
+# 5c. Reviewer stderr goes to a private diagnostics file, not the result.
+repo="$(new_repo stderr)"
+FAKE_CODEX=stderr run_runner stderr "$repo" --implementer-family claude
+expect_eq stderr-reason "$(field "$out" reason_code)" reviewer_failed
+diag="$(field "$out" diagnostics_path)"
+grep -q 'auth expired' "$diag" 2>/dev/null || note_fail stderr-diag "stderr not kept for diagnosis"
+expect_eq stderr-mode "$(stat -c %a "$diag" 2>/dev/null || stat -f %Lp "$diag")" 600
+if grep -q 'auth expired' "$out"; then note_fail stderr-result "stderr copied into the result"; fi
+
+# 6. Empty output is inconclusive.
 repo="$(new_repo empty)"
 FAKE_CODEX=empty run_runner empty "$repo" --implementer-family kimi
-expect_eq empty-client "$(field "$out" selected_client)" claude
+expect_eq empty-reason "$(field "$out" reason_code)" empty_answer
 
 # 7. Interrupt is terminal: no fallback.
 repo="$(new_repo interrupt)"
@@ -194,32 +219,27 @@ run_runner alias "$repo" --implementer-family OpenAI
 expect_eq alias-client "$(field "$out" selected_client)" claude
 [ ! -e "$FAKE_LOG.codex" ] || note_fail alias-skip "codex ran for an openai implementer"
 
-# 8c. A failed exit never yields a verdict, even with a clean answer; it falls back.
+# 8c. A failed exit never yields a verdict, even with a clean answer.
 repo="$(new_repo failclean)"
-FAKE_CODEX=failclean FAKE_CLAUDE=findings run_runner failclean "$repo" --implementer-family kimi
-expect_eq failclean-client "$(field "$out" selected_client)" claude
-expect_eq failclean-attempt0 "$(field "$out" attempts.0.status)" failed
+FAKE_CODEX=failclean run_runner failclean "$repo" --implementer-family kimi
+expect_eq failclean-status "$(field "$out" status)" inconclusive
+expect_eq failclean-reason "$(field "$out" reason_code)" reviewer_failed
+[ ! -e "$FAKE_LOG.claude" ] || note_fail failclean-single "a second reviewer ran after a failure"
 
 # 8d. A clean sentinel inside other text is not a pass.
 repo="$(new_repo hedged)"
 FAKE_CODEX=hedged run_runner hedged "$repo" --implementer-family claude
 expect_eq hedged-status "$(field "$out" status)" inconclusive
 
-# 8e. A finding from a failed attempt survives a later clean answer.
+# 8e. A failed run that wrote a finding is still inconclusive, never passed.
 repo="$(new_repo failfinding)"
-FAKE_CODEX=failfinding FAKE_CLAUDE=passed run_runner failfinding "$repo" --implementer-family kimi
-expect_eq failfinding-status "$(field "$out" status)" findings
-expect_eq failfinding-title "$(field "$out" findings.0.title)" "Keep the guard"
+FAKE_CODEX=failfinding run_runner failfinding "$repo" --implementer-family kimi
+expect_eq failfinding-status "$(field "$out" status)" inconclusive
 
 # 8f. A finding header without its scenario is not a verdict.
 repo="$(new_repo headeronly)"
 FAKE_CODEX=headeronly run_runner headeronly "$repo" --implementer-family claude
 expect_eq headeronly-status "$(field "$out" status)" inconclusive
-
-# 8f2. A failed attempt's scenario-less header is not carried into the verdict.
-repo="$(new_repo failheader)"
-FAKE_CODEX=failheader FAKE_CLAUDE=passed run_runner failheader "$repo" --implementer-family kimi
-expect_eq failheader-status "$(field "$out" status)" passed
 
 # 8g. An implementer whose model family is unknown is refused before any review.
 repo="$(new_repo ambiguous)"
@@ -233,7 +253,7 @@ repo="$(new_repo holdpipe)"
 t0=$(date +%s)
 FAKE_CODEX=holdpipe run_runner holdpipe "$repo" --implementer-family kimi --timeout 2
 [ $(( $(date +%s) - t0 )) -lt 20 ] || note_fail holdpipe-bound "runner waited on a descendant's pipe"
-expect_eq holdpipe-fallback "$(field "$out" selected_client)" claude
+expect_eq holdpipe-reason "$(field "$out" reason_code)" reviewer_timeout
 
 # 8i. An interrupted reviewer leaves no descendants behind.
 repo="$(new_repo orphan)"
@@ -268,7 +288,7 @@ printf 'y = 2\n' >"$repo/lib/sibling.py"
 export FAKE_LOG="$work/log-hidden" FAKE_REPO="$repo" FAKE_CODEX=passed
 rm -f "$FAKE_LOG".*
 set +e
-PATH="$work/bin:$PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" timeout 60 python3 "$runner" \
+PATH="$TEST_PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" timeout 60 python3 "$runner" \
   --cwd "$repo/src" --base base-ref --intent x --implementer-family claude --out "$work/out-hidden.json" >/dev/null 2>&1
 set -e
 unset FAKE_CODEX
@@ -297,6 +317,18 @@ git -C "$repo" config filter.multi.clean "$(printf 'cat\n  \nexit 0')"
 FAKE_CODEX=passed run_runner multiline "$repo" --implementer-family claude
 expect_eq multiline-status "$(field "$out" status)" passed
 
+# 10e. A non-ASCII untracked file is named and its edits are seen.
+repo="$(new_repo unicode)"
+printf 'z = 3\n' >"$repo/src/é.py"
+FAKE_CODEX=unicode run_runner unicode "$repo" --implementer-family claude
+grep -q 'src/é.py' "$FAKE_LOG.codex.prompt" || note_fail unicode-named "non-ASCII untracked file not named"
+expect_eq unicode-reason "$(field "$out" reason_code)" candidate_changed
+
+# 10f. A commit made during the review changes the candidate.
+repo="$(new_repo commit)"
+FAKE_CODEX=commit run_runner commit "$repo" --implementer-family claude
+expect_eq commit-reason "$(field "$out" reason_code)" candidate_changed
+
 # 11. A candidate that changes during the review is inconclusive.
 repo="$(new_repo mutate)"
 FAKE_CODEX=mutate run_runner mutate "$repo" --implementer-family claude
@@ -319,7 +351,7 @@ ln -sf "$repo/src/app.py" "$work/evid/out.json.tmp"
 before="$(cat "$repo/src/app.py")"
 export FAKE_LOG="$work/log-symlink" FAKE_REPO="$repo" FAKE_CODEX=passed
 set +e
-PATH="$work/bin:$PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" timeout 60 python3 "$runner" \
+PATH="$TEST_PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" timeout 60 python3 "$runner" \
   --cwd "$repo" --base base-ref --intent x --implementer-family claude --out "$work/evid/out.json" >/dev/null 2>&1
 set -e
 unset FAKE_CODEX
@@ -328,10 +360,10 @@ expect_eq symlink-untouched "$(cat "$repo/src/app.py")" "$before"
 # 12c. A custom model provider keeps its definition in the private home.
 repo="$(new_repo provider)"
 cp "$work/user-codex-home/config.toml" "$work/config.saved"
-printf 'model = "m-test"\nmodel_provider = "custom" # hosted endpoint\n\n[model_providers.custom]\nbase_url = "https://example.invalid/v1"\n\n[model_providers.other]\nbase_url = "https://other.invalid"\n\n[mcp_servers.danger]\ncommand = "rm"\n' >"$work/user-codex-home/config.toml"
+printf 'model = "m-test"\nmodel_provider = "custom" # hosted endpoint\n\n[model_providers.custom] # hosted\nbase_url = "https://example.invalid/v1"\n\n[model_providers.other]\nbase_url = "https://other.invalid"\n\n[mcp_servers.danger]\ncommand = "rm"\n' >"$work/user-codex-home/config.toml"
 FAKE_CODEX=passed run_runner provider "$repo" --implementer-family claude
 grep -q 'example.invalid' "$FAKE_LOG.codex.config" || note_fail provider-kept "selected provider definition dropped"
-grep -q '^\[model_providers.custom\]$' "$FAKE_LOG.codex.config" || note_fail provider-header "provider table header dropped"
+grep -q '^\[model_providers.custom\]' "$FAKE_LOG.codex.config" || note_fail provider-header "provider table header dropped"
 if grep -q -E 'other.invalid|mcp_servers' "$FAKE_LOG.codex.config"; then note_fail provider-only "unselected tables carried"; fi
 cp "$work/config.saved" "$work/user-codex-home/config.toml"
 

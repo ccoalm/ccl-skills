@@ -41,7 +41,7 @@ INTERRUPT_CODES = {130, 137, 143}
 # (mcp_servers, hooks, plugins, other providers) stays out.
 CODEX_KEYS = ("model", "model_reasoning_effort", "model_provider", "model_verbosity")
 FINDING = re.compile(r"^\s*\[(P[0-3])\]\s+(.+?)\s+[—–-]{1,2}\s+(\S+?):(\d+)\s*$")
-RAW_LIMIT = 20000
+DIAG_LIMIT = 20000  # bytes of answer and of stderr kept in the private diagnostics file
 
 REVIEW_BRIEF = """Report only defects introduced by this change that the author would fix:
 correctness, security, data loss, broken contracts, or clearly wrong behavior.
@@ -91,19 +91,26 @@ def resolve_base(cwd: str, ref: Optional[str]) -> str:
     return git(cwd, "merge-base", "HEAD", ref)
 
 
+def untracked_files(cwd: str) -> list:
+    # -z: unquoted paths, so non-ASCII names resolve on disk.
+    out = subprocess.run(["git", "-C", cwd, *GIT_SAFETY, "ls-files", "-z", "--others", "--exclude-standard"],
+                         check=True, capture_output=True).stdout
+    return sorted(p.decode("utf-8", "surrogateescape") for p in out.split(b"\0") if p)
+
+
 def candidate_digest(cwd: str) -> str:
-    """Digest of the working tree against HEAD, untracked files included.
+    """Digest of HEAD and the working tree against it, untracked files included.
 
     Computed without writing objects: staging the tree would store working-tree
     bytes (with filters switched off, possibly plaintext) in the object store.
     """
-    digest = hashlib.sha256()
+    digest = hashlib.sha256(git(cwd, "rev-parse", "HEAD").encode("ascii") + b"\0")
     digest.update(subprocess.run(
         ["git", "-C", cwd, *GIT_SAFETY, "diff", "--binary", "--no-ext-diff", "--no-textconv", "HEAD"],
         check=True, capture_output=True).stdout)
-    for rel in sorted(git(cwd, "ls-files", "--others", "--exclude-standard").splitlines()):
+    for rel in untracked_files(cwd):
         path = os.path.join(cwd, rel)
-        digest.update(rel.encode("utf-8") + b"\0")
+        digest.update(rel.encode("utf-8", "surrogateescape") + b"\0")
         if os.path.islink(path):
             digest.update(os.readlink(path).encode("utf-8", "surrogateescape"))
         elif os.path.isfile(path):
@@ -182,7 +189,8 @@ def private_codex_home(source: Path) -> str:
         for line in config.read_text(encoding="utf-8", errors="replace").splitlines():
             stripped = line.strip()
             if stripped.startswith("["):
-                table = stripped.strip("[]").replace('"', "").replace("'", "").strip()
+                header = stripped.split("#", 1)[0].strip()  # a header may carry a comment
+                table = header.strip("[]").replace('"', "").replace("'", "").strip()
                 selected = provider and (table == f"model_providers.{provider}"
                                          or table.startswith(f"model_providers.{provider}."))
                 if selected:
@@ -203,47 +211,47 @@ def private_codex_home(source: Path) -> str:
 
 
 def run_child(cmd: list, prompt: str, cwd: str, env: dict, timeout: int):
-    """Run one reviewer; return (outcome, returncode, stdout)."""
+    """Run one reviewer; return (outcome, returncode, stdout, stderr)."""
     try:
         proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 text=True, start_new_session=True)
-    except OSError:
-        return "missing", None, ""
+    except OSError as exc:
+        return "missing", None, "", str(exc)
     try:
-        out, _ = proc.communicate(prompt, timeout=timeout)
+        out, err = proc.communicate(prompt, timeout=timeout)
     except subprocess.TimeoutExpired:
         if proc.poll() is None:
-            reap(proc)
-            return "timeout", None, ""
+            _, err = reap(proc)
+            return "timeout", None, "", err  # a cut-off answer is never read
         # The reviewer exited but a descendant still holds its pipes.
-        out = reap(proc)
+        out, err = reap(proc)
     except Interrupted:
         reap(proc)
         raise
     else:
         reap(proc)  # descendants left in the reviewer's group
     if proc.returncode in INTERRUPT_CODES or proc.returncode < 0:
-        return "interrupted", proc.returncode, out
-    return "ran", proc.returncode, out
+        return "interrupted", proc.returncode, "", err
+    return "ran", proc.returncode, out, err
 
 
-def reap(proc) -> str:
+def reap(proc):
     """Kill the reviewer's process group and drain its pipes within a bound."""
     try:
         os.killpg(proc.pid, signal.SIGKILL)
     except (ProcessLookupError, PermissionError):
         pass
     try:
-        out, _ = proc.communicate(timeout=5)
+        out, err = proc.communicate(timeout=5)
     except subprocess.TimeoutExpired:
         # A descendant in another session keeps the pipes open; stop reading.
         for pipe in (proc.stdin, proc.stdout, proc.stderr):
             if pipe:
                 pipe.close()
         proc.wait()
-        out = ""
-    return out or ""
+        out, err = "", ""
+    return out or "", err or ""
 
 
 def run_client(client: str, prompt: str, cwd: str, timeout: int, diff_dir: str):
@@ -255,11 +263,13 @@ def run_client(client: str, prompt: str, cwd: str, timeout: int, diff_dir: str):
         env["CODEX_HOME"] = home
         cmd = ["codex", "exec", "-C", cwd, "-s", "read-only", "--ephemeral", "-o", answer, "-"]
         try:
-            outcome, rc, _ = run_child(cmd, prompt, cwd, env, timeout)
-            text = Path(answer).read_text(encoding="utf-8", errors="replace") if os.path.exists(answer) else ""
+            outcome, rc, _, err = run_child(cmd, prompt, cwd, env, timeout)
+            text = ""
+            if outcome == "ran" and os.path.exists(answer):
+                text = Path(answer).read_text(encoding="utf-8", errors="replace")
         finally:
             shutil.rmtree(home, ignore_errors=True)
-        return outcome, rc, text
+        return outcome, rc, text, err
     # No shell at all: git itself can write files (`git diff --output=...`), so
     # Claude gets only read tools and reads the diff the runner saved for it.
     cmd = ["claude", "-p", "--tools", "Read", "Grep", "Glob", "--add-dir", diff_dir,
@@ -297,7 +307,7 @@ def main(argv=None) -> int:
     head = git(cwd, "rev-parse", "HEAD")
     base = resolve_base(cwd, args.base)
     clean = git(cwd, "status", "--porcelain", "--untracked-files=all") == ""
-    untracked = [p for p in git(cwd, "ls-files", "--others", "--exclude-standard").splitlines() if p]
+    untracked = untracked_files(cwd)
     digest_before = candidate_digest(cwd)
     diff_dir = scratch_dir("diff-")
     diff_file = os.path.join(diff_dir, "change.diff")
@@ -315,46 +325,43 @@ def main(argv=None) -> int:
     implementer = FAMILY_ALIASES.get(implementer, implementer)
     eligible = [c for c in (s.strip() for s in args.client_order.split(","))
                 if c in FAMILY and FAMILY[c] != implementer]
-    attempts, status, findings, selected, text, reason = [], None, [], None, "", None
-    carried = []  # findings from attempts whose run failed; a later pass cannot erase them
+    status, findings, selected, text, err, reason, attempt = None, [], "", "", "", None, {}
     if implementer not in KNOWN_FAMILIES:
         eligible, reason = [], "implementer_family_ambiguous"
+    installed = [c for c in eligible if shutil.which(c)]
+    # One reviewer, one run. A failed run is reported, never retried on another
+    # family here: the caller reruns with --client-order when it wants one.
     try:
-        for client in eligible:
-            if shutil.which(client) is None:
-                attempts.append({"client": client, "status": "missing"})
-                continue
+        if not installed:
+            reason = reason or "no_eligible_reviewer"
+        else:
+            selected = installed[0]
             t0 = time.time()
             prompt = build_prompt(args.mode, base, args.intent, args.focus, untracked,
-                                  diff_file if client == "claude" else None)
-            outcome, rc, text = run_client(client, prompt, cwd, args.timeout, diff_dir)
-            attempt = {"client": client, "returncode": rc, "elapsed_seconds": round(time.time() - t0, 1)}
-            attempts.append(attempt)
+                                  diff_file if selected == "claude" else None)
+            outcome, rc, text, err = run_client(selected, prompt, cwd, args.timeout, diff_dir)
+            attempt = {"client": selected, "returncode": rc, "elapsed_seconds": round(time.time() - t0, 1)}
             if outcome == "interrupted":
-                attempt["status"], reason = "interrupted", "operator_interrupt"
-                break
-            if outcome != "ran" or rc != 0 or not text.strip():
-                # A failed run's text is never a verdict; the next family gets one try.
-                attempt["status"] = outcome if outcome != "ran" else ("failed" if rc else "empty")
-                carried += [dict(f, from_failed_attempt=client) for f in parse_answer(text)[1] if f["body"]]
-                continue
-            status, findings = parse_answer(text)
-            attempt["status"] = status or "unparseable"
-            selected = client
-            if status is None:
-                reason = "unparseable_answer"
-            break
-        else:
-            reason = reason or ("no_eligible_reviewer" if not attempts else "all_reviewers_failed")
+                reason = "operator_interrupt"
+            elif outcome == "timeout":
+                reason = "reviewer_timeout"
+            elif outcome == "missing":
+                reason = "reviewer_launch_failed"
+            elif rc != 0:
+                reason = "reviewer_failed"  # its text is never a verdict
+            elif not text.strip():
+                reason = "empty_answer"
+            else:
+                status, findings = parse_answer(text)
+                if status is None:
+                    reason = "unparseable_answer"
+            attempt["status"] = status or reason
     except Interrupted:
         status, reason = None, "operator_interrupt"
+        attempt["status"] = reason
     finally:
         shutil.rmtree(diff_dir, ignore_errors=True)
 
-    if carried:
-        findings = findings + carried
-        if status == "passed":
-            status = "findings"
     if status and candidate_digest(cwd) != digest_before:
         status, reason = None, "candidate_changed"
     final = status or "inconclusive"
@@ -366,7 +373,7 @@ def main(argv=None) -> int:
         "status": final,
         "reason_code": reason,
         "findings": findings,
-        "selected_client": selected if status else (selected or ""),
+        "selected_client": selected,
         "reviewer_family": FAMILY.get(selected or "", ""),
         "implementer_family": implementer,
         "base": base,
@@ -376,11 +383,19 @@ def main(argv=None) -> int:
         "untracked_files": untracked,
         "intent_sha256": hashlib.sha256(args.intent.encode("utf-8")).hexdigest(),
         "elapsed_seconds": round(time.time() - started, 1),
-        "attempts": attempts,
+        "attempts": [attempt] if attempt else [],
         "recorded_at": recorded_at,
-        "raw_answer": text[:RAW_LIMIT],
     }
     stamp = recorded_at.replace(":", "").replace("+0000", "Z")
+    # The answer and stderr can quote repository content or credentials, so they
+    # go to a private file under the git dir, never into the shareable result.
+    if text or err:
+        diag = git_dir / "ccl-code-review" / "diagnostics" / f"{stamp}-{args.mode}.txt"
+        diag.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(str(diag), os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write("## answer\n" + text[:DIAG_LIMIT] + "\n## stderr (tail)\n" + err[-DIAG_LIMIT:] + "\n")
+        result["diagnostics_path"] = str(diag)
     out = Path(args.out) if args.out else git_dir / "ccl-code-review" / "results" / f"{stamp}-{args.mode}.json"
     write_json(out, result)
     receipt = {k: result[k] for k in ("head", "worktree_clean", "mode", "status", "recorded_at",

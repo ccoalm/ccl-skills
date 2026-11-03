@@ -24,8 +24,10 @@ python3 "$CODE_REVIEW_SKILL_DIR/scripts/review_diff.py" --cwd "$PWD" \
   The reviewer of the same family is skipped. A client that can run any model
   (`opencode`) or `other` is refused with `implementer_family_ambiguous`; pass
   the family of the model it ran.
-- `--client-order` defaults to `codex,claude`. Kimi and OpenCode are not in
-  this runner; use `review_gate.sh` when only they are independent.
+- `--client-order` defaults to `codex,claude`; the first installed client of
+  another family runs, once. To try the other family after an inconclusive
+  run, rerun with the order swapped. Kimi and OpenCode are not in this runner;
+  use `review_gate.sh` when only they are independent.
 - `--timeout` is per reviewer attempt (default 900 s). Set the host's own
   command timeout above it.
 - `--out` names the result file, for example under the round's `evidence/`
@@ -39,21 +41,25 @@ python3 "$CODE_REVIEW_SKILL_DIR/scripts/review_diff.py" --cwd "$PWD" \
 | 1 | `findings` | one or more `[P0-3] title — path:line` findings |
 | 2 | `inconclusive` | see `reason_code` |
 
-- A timeout, a launch failure, a non-zero exit or an empty answer gives the
-  next eligible family one try. Findings the failed attempt did write are
-  kept, so a later `No findings.` cannot erase them. An interrupt (exit 130,
-  137 or 143, or a signal to the runner) ends the run without fallback.
-- `unparseable_answer` keeps the answer in `raw_answer`; it often says why the
-  reviewer could not finish. A finding line without its scenario counts as
-  unparseable too. Fix the cause and rerun; never read it as a pass.
+- `reviewer_timeout`, `reviewer_launch_failed`, `reviewer_failed` (non-zero
+  exit), `empty_answer` and `operator_interrupt` (exit 130, 137 or 143, or a
+  signal to the runner) end the run; a failed run's text is never a verdict,
+  and a timed-out answer is never read.
+- `unparseable_answer` means the answer was neither findings nor exactly
+  `No findings.`; a finding line without its scenario counts too. It often
+  says why the reviewer could not finish.
+- For any of these, read `diagnostics_path`: a mode-600 file under
+  `<git-dir>/ccl-code-review/diagnostics/` with the answer and the stderr
+  tail. They stay out of the result because they can quote repository content
+  or credentials. Fix the cause and rerun; never read inconclusive as a pass.
 - `candidate_changed` means the working tree changed during the review, for
   example an edit or a generated file; rerun on the settled candidate.
 
 The result carries `schema_version: 3`, `mode`, `status` and `selected_client`
 (the envelope `check_review_evidence_present.py` accepts) plus findings,
-reviewer and implementer family, base, head, candidate digest (of
-`git diff --binary HEAD` plus untracked contents, written to no object store),
-elapsed time and attempts. The receipt `<git-dir>/ccl-code-review/last-review.json` carries the
+reviewer and implementer family, base, head, candidate digest (of HEAD,
+`git diff --binary HEAD` and untracked contents, written to no object store),
+elapsed time and the one attempt. The receipt `<git-dir>/ccl-code-review/last-review.json` carries the
 fields `hooks/remind-review-covers-head.sh` reads.
 
 ## Boundary
