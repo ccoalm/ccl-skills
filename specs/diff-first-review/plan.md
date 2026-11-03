@@ -286,3 +286,5 @@ Passes on this round:
 | Extraction challenge | Codex, 366 s | two P1, one P2, all reviewer-family inference again | third round on one class, so the capability was narrowed: family only from the model id that runs, Kimi config parsed once with `tomllib`, unknown skipped |
 | Live runner review through OpenCode | DeepSeek, 639 s | three P2 | Kimi top-level keys, dotted tables and a preamble before a clean answer fixed with RED tests |
 | Live runner review through Kimi | Kimi, 832 s | unparseable: text mode printed the narration between tool calls before `No findings.` | Kimi read through stream-json, final message only; the prompt says the final message is parsed |
+| Delta pass on the post-challenge fixes (last reviewer call) | Codex through `extraction_review_gate.sh`, 398 s | two P1, one P2 | `kimi`-type provider counted only on Moonshot's endpoint; a cut stream voids the answer; validation evidence recorded below |
+| Live runner review through Kimi, stream-json | Kimi, 796 s, conclusive | one P2, one P3 | config shape checks and string-aware trailing-comma removal fixed with RED tests |

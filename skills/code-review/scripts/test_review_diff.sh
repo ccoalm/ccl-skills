@@ -445,6 +445,20 @@ PY
 )"
 expect_eq opencode-config "$oc_check" ok
 
+# 9e2. A comma inside a config string value is not a trailing comma.
+repo="$(new_repo occomma)"
+python3 - "$user_config/opencode/opencode.json" <<'PY'
+import json, sys
+c = json.load(open(sys.argv[1])); c["provider"]["deepseek"]["options"]["apiKey"] = "tok,}"
+open(sys.argv[1], "w").write(json.dumps(c))
+PY
+printf '{\n  "model": "deepseek/deepseek-other", // pinned\n  "plugin": ["x"], /* last */\n}\n' >"$user_config/opencode/opencode.jsonc"
+FAKE_CODEX=failclean run_runner occomma "$repo" --implementer-family claude
+expect_eq occomma-jsonc "$(field "$out" attempts.1.model 2>/dev/null || true)" deepseek/deepseek-other
+printf '{\n  // user theme\n  "$schema": "https://opencode.ai/config.json",\n  "plugin": ["other-plugin"],\n}\n' >"$user_config/opencode/opencode.jsonc"
+expect_eq occomma-key "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["provider"]["deepseek"]["options"]["apiKey"])' "$FAKE_LOG.opencode.config" 2>/dev/null || true)" "tok,}"
+write_opencode_config deepseek/deepseek-chat
+
 # 9f. OpenCode's family comes from its model: same or unknown family is skipped.
 repo="$(new_repo ocfamily)"
 write_opencode_config anthropic/claude-test
@@ -525,6 +539,13 @@ expect_eq kimigateway-attempts "$(clients "$out")" codex,opencode
 printf 'default_model = "r"\n\n[models.r]\nmodel = "k9"\nprovider = "p"\n\n[providers.p]\ntype = "kimi"\nbase_url = "https://api.moonshot.cn/v1"\n' >"$KIMI_CODE_HOME/config.toml"
 FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimifirstparty "$repo" --implementer-family claude
 expect_eq kimifirstparty-attempts "$(clients "$out")" codex,opencode,kimi
+# Valid TOML of an unexpected shape skips only Kimi; the run still answers.
+printf 'default_model = "r"\nmodels = "kimi-latest"\n' >"$KIMI_CODE_HOME/config.toml"
+run_runner kimiscalar "$repo" --implementer-family claude
+expect_eq kimiscalar-status "$(field "$out" status 2>/dev/null || true)" findings
+printf 'default_model = 1\n' >"$KIMI_CODE_HOME/config.toml"
+run_runner kimiint "$repo" --implementer-family claude
+expect_eq kimiint-status "$(field "$out" status 2>/dev/null || true)" findings
 # A config form the carried subset would change skips Kimi rather than launch with it.
 printf 'default_model = "r"\n\n[models.r]\nmodel = "kimi-x"\n\n[notes]\ntext = """\n[models.q]\nmodel = "claude-test"\n[hooks]\n"""\n' >"$KIMI_CODE_HOME/config.toml"
 FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimistring "$repo" --implementer-family claude

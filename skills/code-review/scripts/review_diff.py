@@ -318,12 +318,16 @@ def kimi_snapshot(source: Path):
     if tomllib.loads("\n".join(kept)) != expected:
         raise ValueError("the Kimi Code config uses a form the carried subset cannot keep")
     alias = data.get("default_model")
-    if not alias:
+    if alias is None:
         return "kimi", None, kept  # Kimi Code's own default model
-    entry = (data.get("models") or {}).get(alias)
+    if not isinstance(alias, str):
+        raise ValueError("default_model is not a string")
+    models, providers = data.get("models"), data.get("providers")
+    entry = models.get(alias) if isinstance(models, dict) else None
     entry = entry if isinstance(entry, dict) else {}
-    family = model_family(entry.get("model") or alias)
-    provider = (data.get("providers") or {}).get(entry.get("provider")) or {}
+    model = entry.get("model")
+    family = model_family(model if isinstance(model, str) else alias)
+    provider = providers.get(entry.get("provider")) if isinstance(providers, dict) else None
     if family is None and isinstance(provider, dict) and provider.get("type") == "kimi":
         host = urllib.parse.urlparse(str(provider.get("base_url") or "https://api.moonshot.cn")).hostname or ""
         if any(host == h or host.endswith("." + h) for h in MOONSHOT_HOSTS):
@@ -344,9 +348,11 @@ def private_kimi_home(source: Path, kept: list):
     return home
 
 
-def load_jsonc(path: Path):
-    """Parse JSON with comments and trailing commas, as OpenCode config allows."""
-    text, out, i, in_string = path.read_text(encoding="utf-8", errors="replace"), [], 0, False
+def _outside_strings(text: str, step):
+    """Rebuild JSON text, letting step(text, i) skip characters outside strings.
+
+    step returns how many characters to drop at i, or 0 to keep text[i]."""
+    out, i, in_string = [], 0, False
     while i < len(text):
         ch = text[i]
         if in_string:
@@ -354,18 +360,37 @@ def load_jsonc(path: Path):
             i += 2 if ch == "\\" else 1
             in_string = ch != '"'
             continue
-        if text.startswith("//", i):
-            end = text.find("\n", i)
-            i = len(text) if end < 0 else end
-            continue
-        if text.startswith("/*", i):
-            end = text.find("*/", i + 2)
-            i = len(text) if end < 0 else end + 2
+        skip = step(text, i)
+        if skip:
+            i += skip
             continue
         in_string = ch == '"'
         out.append(ch)
         i += 1
-    return json.loads(re.sub(r",(\s*[}\]])", r"\1", "".join(out)))
+    return "".join(out)
+
+
+def _comment(text: str, i: int) -> int:
+    if text.startswith("//", i):
+        end = text.find("\n", i)
+        return (len(text) if end < 0 else end) - i
+    if text.startswith("/*", i):
+        end = text.find("*/", i + 2)
+        return (len(text) if end < 0 else end + 2) - i
+    return 0
+
+
+CLOSER = re.compile(r"\s*[}\]]")
+
+
+def _trailing_comma(text: str, i: int) -> int:
+    return 1 if text[i] == "," and CLOSER.match(text, i + 1) else 0
+
+
+def load_jsonc(path: Path):
+    """Parse JSON with comments and trailing commas, as OpenCode config allows."""
+    text = path.read_text(encoding="utf-8", errors="replace")
+    return json.loads(_outside_strings(_outside_strings(text, _comment), _trailing_comma))
 
 
 def opencode_config():
