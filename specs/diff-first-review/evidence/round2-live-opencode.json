@@ -1,0 +1,51 @@
+{
+  "schema_version": 3,
+  "runner": "review_diff",
+  "mode": "review",
+  "status": "findings",
+  "reason_code": null,
+  "findings": [
+    {
+      "severity": "P2",
+      "title": "Keep Kimi's top-level endpoint and credential keys in the private home",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 50,
+      "body": "`KIMI_KEYS` carries only `default_model`, `default_effort` and `default_thinking`, while the existing `kimi_review.sh` preserves top-level `api_key`, `base_url`, `model`, `provider`, `protocol` and size limits. For a supported config such as `default_model = \"kimi-k2\"`, `base_url = \"https://gateway/...\"` and `api_key = \"...\"` (the bare-model form `test_cli_review_wrappers.sh` accepts), the private `config.toml` is written without the endpoint or key, so `kimi -m kimi-k2` talks to the wrong endpoint or fails auth and the attempt falls through or ends inconclusive."
+    },
+    {
+      "severity": "P2",
+      "title": "Preserve Kimi's dotted provider/model assignments",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 245,
+      "body": "`filter_toml` treats only bracketed lines as tables, so valid TOML dotted assignments such as `providers.\"managed:kimi-code\" = {...}` and `models.\"kimi-code/k3\" = { provider = \"managed:kimi-code\", model = \"k3\" }` are ordinary top-level keys and are dropped because they are not in `KIMI_KEYS`; the existing `kimi-dotted-model` fixture says this form must survive. Consequently `kimi_family` cannot read the selected model/provider, so an alias like `default_model = \"review\"` is skipped as unknown, or when the alias text contains \"kimi\" the launch runs `-m kimi-code/k3` with no model/provider definition and Kimi fails."
+    },
+    {
+      "severity": "P2",
+      "title": "Accept a clean Kimi answer after a preamble block",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 431,
+      "body": "`unbullet` removes bullets but keeps non-verdict blocks, while `parse_answer` accepts a clean answer only when the whole trimmed text is exactly `No findings.`. A Kimi text answer with an earlier read block, e.g. `• Let me read the diff first.\\n\\n• No findings.` (the same multi-block shape the suite covers for findings), becomes `Let me read the diff first.\\n\\nNo findings.`, is classified `unparseable_answer`, and a clean Kimi review is discarded in favor of another model or an inconclusive result."
+    }
+  ],
+  "selected_client": "opencode",
+  "reviewer_family": "deepseek",
+  "implementer_family": "claude",
+  "base": "613bb1bfb22cf87291889c2021fee6234cb5aff4",
+  "head": "a939a4ae003182a57df5c55a9278c8bf33596fc7",
+  "candidate_digest": "d9f2627dd06cc34388d364ade8bdfd7946f76a461d4cd9fec4090e344ad42594",
+  "worktree_clean": true,
+  "untracked_files": [],
+  "intent_sha256": "98951b686314e3dba6aa6c38cb6ba2848bbee243e6213491899bbbdc8c9cce7c",
+  "elapsed_seconds": 638.1,
+  "attempts": [
+    {
+      "client": "opencode",
+      "status": "findings",
+      "returncode": 0,
+      "elapsed_seconds": 638.1,
+      "model": "deepseek/deepseek-flash"
+    }
+  ],
+  "skipped": [],
+  "recorded_at": "2026-11-03T05:39:35+00:00"
+}

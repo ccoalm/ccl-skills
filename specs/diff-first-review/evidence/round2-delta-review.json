@@ -1,0 +1,418 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "build",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "findings",
+  "selected_client": "codex",
+  "selected_reviewer": "codex",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P1",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 323,
+      "failure_path": "A configuration with models.r={model=\"house-model\",provider=\"p\"} and providers.p={type=\"kimi\",base_url=\"https://gateway.invalid/v1\"} passes the subset check and returns family kimi. Nothing constrains that endpoint to Moonshot. If the gateway serves the implementer's family, the runner nevertheless admits it as an independent reviewer. This newly accepts configurations whose actual model family remains unknown.",
+      "smallest_fix": "Remove the provider-type fallback and skip unknown model ids. Add a regression covering type=kimi with an unknown model and custom endpoint."
+    },
+    {
+      "severity": "P1",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 446,
+      "failure_path": "JSON decoding errors are silently ignored. A clean-exit stream containing an earlier assistant 'No findings.' followed by a malformed or truncated final assistant finding returns the earlier clean answer. The gate can therefore pass malformed output, contrary to the repository contract. The new fixtures do not exercise this path.",
+      "smallest_fix": "Make a nonempty malformed JSON record invalidate the attempt, and add a regression with malformed final output following a clean-looking assistant message."
+    },
+    {
+      "severity": "P2",
+      "file": "specs/diff-first-review/plan.md",
+      "line": 280,
+      "failure_path": "Evidence gap: the packet provides review narratives and synthetic fixtures, but no current-candidate results for make test, the required shared-skill heavy/sanitization checks, or the claimed RED/GREEN mutation runs. It also supplies no successful real Kimi stream demonstrating the newly selected protocol. The required validation and compatibility checks cannot be established from this bounded evidence.",
+      "smallest_fix": "Attach candidate-bound command results, skips and RED/GREEN evidence, plus a redacted real Kimi stream fixture validating the parser's assumed message shape."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [
+    {
+      "client": "claude",
+      "stage": "preflight",
+      "reason": "claude belongs to the implementer model family",
+      "reason_code": "same_family_as_implementer"
+    }
+  ],
+  "attempts": [
+    {
+      "client": "codex",
+      "reviewer": "codex",
+      "mode": "review",
+      "status": "findings",
+      "reviewer_family": "openai",
+      "provider": "openai",
+      "model": null,
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "The targeted parsing and snapshot fixes are visible, but provider-based classification and malformed-stream handling retain false-green paths."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "No new mutation capability is visible; the provider fallback can defeat reviewer-family independence."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "Single-read configuration and argument repair address reported failures; malformed JSON can preserve an earlier clean answer."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "Added fixtures cover the reported examples, but malformed-stream coverage and candidate-bound execution results are absent."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "The Python 3.11 requirement is documented, and the changes otherwise remain within the targeted fixes."
+        },
+        {
+          "concern": "rollout_rollback",
+          "conclusion": "No irreversible changes or migrations are introduced; required release-validation evidence remains unavailable."
+        },
+        {
+          "concern": "observability_operations",
+          "conclusion": "Skipped-client reporting remains documented, but silently discarded JSON errors can conceal corrupted reviewer output."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "Model-only classification and RED/GREEN claims exceed what the implementation and supplied evidence establish."
+        },
+        {
+          "concern": "high_risk_boundary",
+          "conclusion": "The shared review gate can admit an unknown model family and accept stale clean output."
+        },
+        {
+          "concern": "repository_contract",
+          "conclusion": "Malformed-output acceptance conflicts with the quoted contract; required parser cases and validation evidence are missing."
+        }
+      ],
+      "findings": [
+        {
+          "severity": "P1",
+          "file": "skills/code-review/scripts/review_diff.py",
+          "line": 323,
+          "failure_path": "A configuration with models.r={model=\"house-model\",provider=\"p\"} and providers.p={type=\"kimi\",base_url=\"https://gateway.invalid/v1\"} passes the subset check and returns family kimi. Nothing constrains that endpoint to Moonshot. If the gateway serves the implementer's family, the runner nevertheless admits it as an independent reviewer. This newly accepts configurations whose actual model family remains unknown.",
+          "smallest_fix": "Remove the provider-type fallback and skip unknown model ids. Add a regression covering type=kimi with an unknown model and custom endpoint."
+        },
+        {
+          "severity": "P1",
+          "file": "skills/code-review/scripts/review_diff.py",
+          "line": 446,
+          "failure_path": "JSON decoding errors are silently ignored. A clean-exit stream containing an earlier assistant 'No findings.' followed by a malformed or truncated final assistant finding returns the earlier clean answer. The gate can therefore pass malformed output, contrary to the repository contract. The new fixtures do not exercise this path.",
+          "smallest_fix": "Make a nonempty malformed JSON record invalidate the attempt, and add a regression with malformed final output following a clean-looking assistant message."
+        },
+        {
+          "severity": "P2",
+          "file": "specs/diff-first-review/plan.md",
+          "line": 280,
+          "failure_path": "Evidence gap: the packet provides review narratives and synthetic fixtures, but no current-candidate results for make test, the required shared-skill heavy/sanitization checks, or the claimed RED/GREEN mutation runs. It also supplies no successful real Kimi stream demonstrating the newly selected protocol. The required validation and compatibility checks cannot be established from this bounded evidence.",
+          "smallest_fix": "Attach candidate-bound command results, skips and RED/GREEN evidence, plus a redacted real Kimi stream fixture validating the parser's assumed message shape."
+        }
+      ],
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "packet_sha256": "8a6033a21c01ead5b80d1169a6e37351335bbb9b819d4de38bab46e3e2c2033f"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "8a6033a21c01ead5b80d1169a6e37351335bbb9b819d4de38bab46e3e2c2033f",
+  "candidate_sha256": "5e0066921e7b6388ea5c68b8448179b96b43ae821b41d75ced9fa0fa85c70e8d",
+  "review_context_sha256": "4d94f3354c321f30e29608b144e807d808d1274add603785e65b306b1f4a9a95",
+  "review_controller_sha256": "6d2492ead7645f30d072e6d251c4dfa4f4da1703ee430018f27ac97314092ec1",
+  "review_profile_sha256": "0cf8dd88dcb145cca226f0f8dbb400ae2591ad61da58749ca88e18fe6d1e0414",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/references/diff-first-runner.md"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/review_diff.py"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/test_review_diff.sh"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/code-review/scripts/review_diff.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/code-review/scripts/test_review_diff.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/code-review/scripts/test_review_diff.sh"
+    }
+  ],
+  "review_plan_source": "derived-default",
+  "repository_contract": {
+    "coverage": "complete",
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "bytes": 7523,
+        "sha256": "49485fc6de2c919eecd3c1088bf7b65d9c2ef12f5ffbe3b10357a54fee4b5124"
+      },
+      {
+        "path": "skills/code-review/scripts/AGENTS.md",
+        "bytes": 10083,
+        "sha256": "dfecc5405621504b44fd30f19746ed65ce467d654ee9aa8b4f917a4bbd4b31bb"
+      }
+    ],
+    "omitted": [],
+    "sources_not_read": [
+      "CLAUDE.local.md and untracked files",
+      "@path imports",
+      ".claude/rules",
+      "host-configured fallback filenames"
+    ]
+  },
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "codex-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "selected_skills_sha256": "eb4832e5dcb9ef2081b8101ee9130a20e43c091d673dcc3de902b62bc8a654fe",
+  "risk_tags": [
+    "shared-gate"
+  ],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": "Delta pass on the fixes made after the challenge. Findings they fix: (1) model_family('openai/house-model') returned codex from the provider alias; (2) a Kimi inline [models] table was not read structurally, so an alias selecting a Claude model counted as Kimi; (3) the Kimi config was read twice, so eligibility and launch could see different models; (4) live: Kimi text output carried narration before 'No findings.' so a clean answer never parsed; (5) live: Kimi top-level base_url/api_key and dotted providers/models assignments were dropped; (6) replay: an intent cut mid-character crashed the runner. Check the fixes and whether they open a new P0/P1.",
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "e7bbe900f9afd1fe32d805ebe1f2ee7903cf0f8c5ddfd907189c6019dd57ad22",
+    "acceptance_sha256": "1d49782fd1bf9c0184629bc1940e6f58c8cfe252e233ef278c930ad6c40c73e8",
+    "stage": "build",
+    "review_depth": "release",
+    "risk_tags": [
+      "shared-gate"
+    ],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "8bce27d1ab45626ed02a497180aa6e160f5ea9dcad1436e38b618f9f6ea5ca3d",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review",
+      "risk_or_scope_escalation"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "The targeted parsing and snapshot fixes are visible, but provider-based classification and malformed-stream handling retain false-green paths."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "No new mutation capability is visible; the provider fallback can defeat reviewer-family independence."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "Single-read configuration and argument repair address reported failures; malformed JSON can preserve an earlier clean answer."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "Added fixtures cover the reported examples, but malformed-stream coverage and candidate-bound execution results are absent."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "The Python 3.11 requirement is documented, and the changes otherwise remain within the targeted fixes."
+    },
+    {
+      "concern": "rollout_rollback",
+      "conclusion": "No irreversible changes or migrations are introduced; required release-validation evidence remains unavailable."
+    },
+    {
+      "concern": "observability_operations",
+      "conclusion": "Skipped-client reporting remains documented, but silently discarded JSON errors can conceal corrupted reviewer output."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "Model-only classification and RED/GREEN claims exceed what the implementation and supplied evidence establish."
+    },
+    {
+      "concern": "high_risk_boundary",
+      "conclusion": "The shared review gate can admit an unknown model family and accept stale clean output."
+    },
+    {
+      "concern": "repository_contract",
+      "conclusion": "Malformed-output acceptance conflicts with the quoted contract; required parser cases and validation evidence are missing."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "rollout_rollback",
+    "observability_operations",
+    "claim_strength",
+    "high_risk_boundary",
+    "repository_contract"
+  ],
+  "reviewed_skills": [
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "codex",
+    "reviewer": "codex",
+    "mode": "review",
+    "status": "findings",
+    "reviewer_family": "openai",
+    "provider": "openai",
+    "model": null,
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "The targeted parsing and snapshot fixes are visible, but provider-based classification and malformed-stream handling retain false-green paths."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "No new mutation capability is visible; the provider fallback can defeat reviewer-family independence."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "Single-read configuration and argument repair address reported failures; malformed JSON can preserve an earlier clean answer."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "Added fixtures cover the reported examples, but malformed-stream coverage and candidate-bound execution results are absent."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "The Python 3.11 requirement is documented, and the changes otherwise remain within the targeted fixes."
+      },
+      {
+        "concern": "rollout_rollback",
+        "conclusion": "No irreversible changes or migrations are introduced; required release-validation evidence remains unavailable."
+      },
+      {
+        "concern": "observability_operations",
+        "conclusion": "Skipped-client reporting remains documented, but silently discarded JSON errors can conceal corrupted reviewer output."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "Model-only classification and RED/GREEN claims exceed what the implementation and supplied evidence establish."
+      },
+      {
+        "concern": "high_risk_boundary",
+        "conclusion": "The shared review gate can admit an unknown model family and accept stale clean output."
+      },
+      {
+        "concern": "repository_contract",
+        "conclusion": "Malformed-output acceptance conflicts with the quoted contract; required parser cases and validation evidence are missing."
+      }
+    ],
+    "findings": [
+      {
+        "severity": "P1",
+        "file": "skills/code-review/scripts/review_diff.py",
+        "line": 323,
+        "failure_path": "A configuration with models.r={model=\"house-model\",provider=\"p\"} and providers.p={type=\"kimi\",base_url=\"https://gateway.invalid/v1\"} passes the subset check and returns family kimi. Nothing constrains that endpoint to Moonshot. If the gateway serves the implementer's family, the runner nevertheless admits it as an independent reviewer. This newly accepts configurations whose actual model family remains unknown.",
+        "smallest_fix": "Remove the provider-type fallback and skip unknown model ids. Add a regression covering type=kimi with an unknown model and custom endpoint."
+      },
+      {
+        "severity": "P1",
+        "file": "skills/code-review/scripts/review_diff.py",
+        "line": 446,
+        "failure_path": "JSON decoding errors are silently ignored. A clean-exit stream containing an earlier assistant 'No findings.' followed by a malformed or truncated final assistant finding returns the earlier clean answer. The gate can therefore pass malformed output, contrary to the repository contract. The new fixtures do not exercise this path.",
+        "smallest_fix": "Make a nonempty malformed JSON record invalidate the attempt, and add a regression with malformed final output following a clean-looking assistant message."
+      },
+      {
+        "severity": "P2",
+        "file": "specs/diff-first-review/plan.md",
+        "line": 280,
+        "failure_path": "Evidence gap: the packet provides review narratives and synthetic fixtures, but no current-candidate results for make test, the required shared-skill heavy/sanitization checks, or the claimed RED/GREEN mutation runs. It also supplies no successful real Kimi stream demonstrating the newly selected protocol. The required validation and compatibility checks cannot be established from this bounded evidence.",
+        "smallest_fix": "Attach candidate-bound command results, skips and RED/GREEN evidence, plus a redacted real Kimi stream fixture validating the parser's assumed message shape."
+      }
+    ],
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "packet_sha256": "8a6033a21c01ead5b80d1169a6e37351335bbb9b819d4de38bab46e3e2c2033f"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}

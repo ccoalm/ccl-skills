@@ -288,3 +288,9 @@ Passes on this round:
 | Live runner review through Kimi | Kimi, 832 s | unparseable: text mode printed the narration between tool calls before `No findings.` | Kimi read through stream-json, final message only; the prompt says the final message is parsed |
 | Delta pass on the post-challenge fixes (last reviewer call) | Codex through `extraction_review_gate.sh`, 398 s | two P1, one P2 | `kimi`-type provider counted only on Moonshot's endpoint; a cut stream voids the answer; validation evidence recorded below |
 | Live runner review through Kimi, stream-json | Kimi, 796 s, conclusive | one P2, one P3 | config shape checks and string-aware trailing-comma removal fixed with RED tests |
+
+Replay against the packet controller on eight historical changes with known
+defects, scored blind: `evidence/replay.md`. Review alone catches fewer known
+defects in diff mode than packet review (7–8 against 12 of 27), challenge
+alone catches more (11 against 9), and review then challenge ties at 12. The
+concern walk and an inlined diff did not close the review gap.
