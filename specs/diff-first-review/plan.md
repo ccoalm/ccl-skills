@@ -143,3 +143,20 @@ rates were 80–85% and 47–52%, and the existing wrappers stay available.
 - Live: one review through the runner with each family on a real diff.
 - `make test`, the heavy lane, public sanitization, `git diff --check`,
   independent review and challenge.
+
+## Review passes
+
+| Pass | Reviewer | Result | Disposition |
+| --- | --- | --- | --- |
+| Plan review | Codex, read-only, 552 s | six findings | all confirmed and adopted (design above) |
+| Review (`evidence/review.json`) | Codex through the runner, 302 s | six findings | all confirmed and fixed with RED tests: Claude shell removed in favor of a saved diff (`git diff --output` writes files), family aliases, a non-zero exit never yields a verdict, exclusive temp files, the bare `No findings.` sentinel, the selected provider table |
+| Challenge (`evidence/challenge.json`) | Codex through the runner, 657 s | `inconclusive` (`candidate_changed`: the register row was edited during the run), ten findings | all confirmed and fixed with RED tests: repository git config (fsmonitor, filters, textconv, external diff) switched off; an implementer family that names no model is refused; untracked files seen under `status.showUntrackedFiles=no` and from a subdirectory; a failed attempt's findings survive a later clean answer; bounded pipe draining and process-group cleanup on every exit; a finding needs its scenario; TOML-quoted provider names. The interrupt-after-parse race is fixed by clearing the verdict in the interrupt handler; it has no deterministic test |
+
+Live run also caught two defects no fake could: Codex refused to create its
+sandbox helper under the system temp dir (the private home moved to the cache
+dir), and an empty `diff.external` override broke plain `git diff` (removed;
+`--no-ext-diff` covers it).
+
+Every protected property was mutated in the runner and turned the suite red
+for the named assertion; two broken mutants (one syntax error, one that
+crashed the first case) were redone so the red came from the property.

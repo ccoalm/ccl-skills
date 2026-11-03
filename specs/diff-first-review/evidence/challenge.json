@@ -1,0 +1,99 @@
+{
+  "schema_version": 3,
+  "runner": "review_diff",
+  "mode": "challenge",
+  "status": "inconclusive",
+  "reason_code": "candidate_changed",
+  "findings": [
+    {
+      "severity": "P1",
+      "title": "Disable executable Git configuration during preflight",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 60,
+      "body": "A repository whose `core.fsmonitor` or clean/textconv driver points to a tracked script executes that script during `status`, `add`, or `diff`, before either reviewer’s sandbox applies. Reviewing a change to that script therefore executes candidate code with the runner’s write permissions, including on the Claude path."
+    },
+    {
+      "severity": "P1",
+      "title": "Resolve OpenCode’s actual model family before excluding reviewers",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 263,
+      "body": "The documented `--implementer-family opencode` leaves both reviewers eligible. If OpenCode implemented the change using an OpenAI model, the default order selects Codex and records the same model family as an independent review. Reject ambiguous client names or resolve their underlying family."
+    },
+    {
+      "severity": "P2",
+      "title": "Override configuration that hides untracked files from cleanliness checks",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 247,
+      "body": "With `status.showUntrackedFiles=no`, this command reports clean despite untracked implementation files. A committed import plus its untracked module can pass review together, while the receipt claims that HEAD alone was reviewed. The PR reminder then stays quiet even though the committed candidate lacks the module."
+    },
+    {
+      "severity": "P2",
+      "title": "Enumerate untracked files from the repository root",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 248,
+      "body": "When `--cwd` names a subdirectory, `ls-files --others` lists only files beneath it, while `candidate_tree()` uses repository-wide `git add -A`. An untracked sibling module or deployment script is therefore included in the recorded candidate hash but absent from both the diff and the reviewer’s untracked-file list."
+    },
+    {
+      "severity": "P2",
+      "title": "Preserve concern evidence when falling back",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 280,
+      "body": "If Codex writes a concrete P1 finding and then exits 1, a subsequent Claude `No findings.` produces a passed receipt. The earlier answer disappears completely: attempts retain only execution metadata, and `raw_answer` contains Claude’s answer. Keep the failed attempt’s concern evidence so fallback cannot silently erase an actionable defect."
+    },
+    {
+      "severity": "P2",
+      "title": "Bound pipe draining after terminating the reviewer",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 187,
+      "body": "A reviewer descendant that starts a separate session and inherits stdout or stderr survives `killpg`. The subsequent timeout-free `communicate()` waits until that descendant closes its descriptors, potentially forever. A probe using `setsid sleep 2` made a 0.05-second timeout take two seconds; a persistent worker prevents fallback and receipt emission indefinitely."
+    },
+    {
+      "severity": "P2",
+      "title": "Clean up descendants when the reviewer exits interrupted",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 193,
+      "body": "When the direct reviewer exits 130 or is killed, this branch returns without terminating its remaining process group. A reviewer that starts `sleep 60 >/dev/null 2>&1 &` and exits 130 leaves that child alive after the runner reports interruption. Real worker processes can likewise continue consuming resources after cancellation."
+    },
+    {
+      "severity": "P2",
+      "title": "Validate complete finding records before declaring a conclusive review",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 129,
+      "body": "An exit-zero answer containing only `[P1] Example finding — app.py:1` becomes conclusive `findings` despite lacking the required scenario. A disclaimer followed by an example header is accepted too. The emitted schema-3 envelope passes the evidence validator, allowing truncated or explicitly incomplete output to satisfy the recorded-review requirement."
+    },
+    {
+      "severity": "P2",
+      "title": "Parse provider identity using TOML semantics",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 167,
+      "body": "For valid configuration such as `model_provider = \"custom\" # hosted endpoint`, the extracted provider name includes the comment, so its provider table is discarded. Codex receives an unresolved provider name and cannot run. For a Claude implementer, this disables the only eligible default reviewer even though the original configuration works."
+    },
+    {
+      "severity": "P2",
+      "title": "Clear verdict state when handling operator interruption",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 292,
+      "body": "If SIGINT or SIGTERM arrives after `parse_answer()` assigns `status` but before reviewer selection finishes, this handler changes only the reason. The runner can subsequently exit 0 and write a passed receipt with `reason_code=operator_interrupt` and an empty selected client. Clearing the verdict on interruption prevents the PR reminder from accepting this inconsistent receipt."
+    }
+  ],
+  "selected_client": "codex",
+  "reviewer_family": "codex",
+  "implementer_family": "claude",
+  "base": "68473be9aa6ba33329b744464edc31790eae83a2",
+  "head": "25de65b199a748e873ea19f7130e4ed676473956",
+  "candidate_tree": "dee1c777818d83fcf9c97036534d7ca30b3d70cf",
+  "worktree_clean": true,
+  "untracked_files": [],
+  "intent_sha256": "a3416b65b12615cf243da8cdd139f6d12aa6627829d201f4df4812025301c5ae",
+  "elapsed_seconds": 656.9,
+  "attempts": [
+    {
+      "client": "codex",
+      "returncode": 0,
+      "elapsed_seconds": 656.7,
+      "status": "findings"
+    }
+  ],
+  "recorded_at": "2026-11-03T00:00:03+00:00",
+  "raw_answer": "[P1] Disable executable Git configuration during preflight — skills/code-review/scripts/review_diff.py:60\n\nA repository whose `core.fsmonitor` or clean/textconv driver points to a tracked script executes that script during `status`, `add`, or `diff`, before either reviewer’s sandbox applies. Reviewing a change to that script therefore executes candidate code with the runner’s write permissions, including on the Claude path.\n\n[P1] Resolve OpenCode’s actual model family before excluding reviewers — skills/code-review/scripts/review_diff.py:263\n\nThe documented `--implementer-family opencode` leaves both reviewers eligible. If OpenCode implemented the change using an OpenAI model, the default order selects Codex and records the same model family as an independent review. Reject ambiguous client names or resolve their underlying family.\n\n[P2] Override configuration that hides untracked files from cleanliness checks — skills/code-review/scripts/review_diff.py:247\n\nWith `status.showUntrackedFiles=no`, this command reports clean despite untracked implementation files. A committed import plus its untracked module can pass review together, while the receipt claims that HEAD alone was reviewed. The PR reminder then stays quiet even though the committed candidate lacks the module.\n\n[P2] Enumerate untracked files from the repository root — skills/code-review/scripts/review_diff.py:248\n\nWhen `--cwd` names a subdirectory, `ls-files --others` lists only files beneath it, while `candidate_tree()` uses repository-wide `git add -A`. An untracked sibling module or deployment script is therefore included in the recorded candidate hash but absent from both the diff and the reviewer’s untracked-file list.\n\n[P2] Preserve concern evidence when falling back — skills/code-review/scripts/review_diff.py:280\n\nIf Codex writes a concrete P1 finding and then exits 1, a subsequent Claude `No findings.` produces a passed receipt. The earlier answer disappears completely: attempts retain only execution metadata, and `raw_answer` contains Claude’s answer. Keep the failed attempt’s concern evidence so fallback cannot silently erase an actionable defect.\n\n[P2] Bound pipe draining after terminating the reviewer — skills/code-review/scripts/review_diff.py:187\n\nA reviewer descendant that starts a separate session and inherits stdout or stderr survives `killpg`. The subsequent timeout-free `communicate()` waits until that descendant closes its descriptors, potentially forever. A probe using `setsid sleep 2` made a 0.05-second timeout take two seconds; a persistent worker prevents fallback and receipt emission indefinitely.\n\n[P2] Clean up descendants when the reviewer exits interrupted — skills/code-review/scripts/review_diff.py:193\n\nWhen the direct reviewer exits 130 or is killed, this branch returns without terminating its remaining process group. A reviewer that starts `sleep 60 >/dev/null 2>&1 &` and exits 130 leaves that child alive after the runner reports interruption. Real worker processes can likewise continue consuming resources after cancellation.\n\n[P2] Validate complete finding records before declaring a conclusive review — skills/code-review/scripts/review_diff.py:129\n\nAn exit-zero answer containing only `[P1] Example finding — app.py:1` becomes conclusive `findings` despite lacking the required scenario. A disclaimer followed by an example header is accepted too. The emitted schema-3 envelope passes the evidence validator, allowing truncated or explicitly incomplete output to satisfy the recorded-review requirement.\n\n[P2] Parse provider identity using TOML semantics — skills/code-review/scripts/review_diff.py:167\n\nFor valid configuration such as `model_provider = \"custom\" # hosted endpoint`, the extracted provider name includes the comment, so its provider table is discarded. Codex receives an unresolved provider name and cannot run. For a Claude implementer, this disables the only eligible default reviewer even though the original configuration works.\n\n[P2] Clear verdict state when handling operator interruption — skills/code-review/scripts/review_diff.py:292\n\nIf SIGINT or SIGTERM arrives after `parse_answer()` assigns `status` but before reviewer selection finishes, this handler changes only the reason. The runner can subsequently exit 0 and write a passed receipt with `reason_code=operator_interrupt` and an empty selected client. Clearing the verdict on interruption prevents the PR reminder from accepting this inconsistent receipt."
+}

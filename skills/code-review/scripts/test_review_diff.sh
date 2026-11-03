@@ -46,6 +46,10 @@ case "${FAKE_CODEX:-findings}" in
   interrupt) exit 130 ;;
   mutate) printf 'changed\n' >>"$FAKE_REPO/src/app.py"; printf 'No findings.\n' >"$out" ;;
   failclean) printf 'No findings.\n' >"$out"; exit 1 ;;
+  failfinding) printf '[P1] Keep the guard — src/app.py:2\n\nThe guard is gone.\n' >"$out"; exit 1 ;;
+  headeronly) printf '[P1] Example finding — src/app.py:1\n' >"$out" ;;
+  holdpipe) setsid sleep 30 & sleep 30 ;;
+  orphan) sleep 60 >/dev/null 2>&1 & echo $! >"$FAKE_LOG.orphan"; exit 130 ;;
   hedged) printf 'The repository reads failed, so this review is incomplete.\nNo findings.\n' >"$out" ;;
 esac
 EOF
@@ -87,7 +91,7 @@ run_runner() {
   rm -f "$FAKE_LOG".*
   out="$work/out-$name.json"
   set +e
-  PATH="$work/bin:$PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" python3 "$runner" \
+  PATH="$work/bin:$PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" timeout 60 python3 "$runner" \
     --cwd "$repo" --base base-ref --mode review --intent "Use get() for missing keys" \
     --out "$out" --timeout 5 "$@" >"$work/stdout-$name" 2>"$work/stderr-$name"
   rc=$?
@@ -200,6 +204,39 @@ repo="$(new_repo hedged)"
 FAKE_CODEX=hedged run_runner hedged "$repo" --implementer-family claude
 expect_eq hedged-status "$(field "$out" status)" inconclusive
 
+# 8e. A finding from a failed attempt survives a later clean answer.
+repo="$(new_repo failfinding)"
+FAKE_CODEX=failfinding FAKE_CLAUDE=passed run_runner failfinding "$repo" --implementer-family kimi
+expect_eq failfinding-status "$(field "$out" status)" findings
+expect_eq failfinding-title "$(field "$out" findings.0.title)" "Keep the guard"
+
+# 8f. A finding header without its scenario is not a verdict.
+repo="$(new_repo headeronly)"
+FAKE_CODEX=headeronly run_runner headeronly "$repo" --implementer-family claude
+expect_eq headeronly-status "$(field "$out" status)" inconclusive
+
+# 8g. An implementer whose model family is unknown is refused before any review.
+repo="$(new_repo ambiguous)"
+run_runner ambiguous "$repo" --implementer-family opencode
+expect_eq ambiguous-rc "$rc" 2
+expect_eq ambiguous-reason "$(field "$out" reason_code)" implementer_family_ambiguous
+[ ! -e "$FAKE_LOG.codex" ] && [ ! -e "$FAKE_LOG.claude" ] || note_fail ambiguous-run "a reviewer ran for an ambiguous family"
+
+# 8h. A descendant holding the reviewer's pipes cannot stall the runner.
+repo="$(new_repo holdpipe)"
+t0=$(date +%s)
+FAKE_CODEX=holdpipe run_runner holdpipe "$repo" --implementer-family kimi --timeout 2
+[ $(( $(date +%s) - t0 )) -lt 20 ] || note_fail holdpipe-bound "runner waited on a descendant's pipe"
+expect_eq holdpipe-fallback "$(field "$out" selected_client)" claude
+
+# 8i. An interrupted reviewer leaves no descendants behind.
+repo="$(new_repo orphan)"
+FAKE_CODEX=orphan run_runner orphan "$repo" --implementer-family kimi
+sleep 0.5
+if [ -s "$FAKE_LOG.orphan" ] && kill -0 "$(cat "$FAKE_LOG.orphan")" 2>/dev/null; then
+  note_fail orphan-cleanup "reviewer child still running"; kill "$(cat "$FAKE_LOG.orphan")" 2>/dev/null || true
+fi
+
 # 9. Missing CLI is skipped.
 repo="$(new_repo missing)"
 rm "$work/bin/codex"
@@ -214,6 +251,37 @@ FAKE_CODEX=passed run_runner untracked "$repo" --implementer-family claude
 grep -q 'src/new_module.py' "$FAKE_LOG.codex.prompt" || note_fail untracked-prompt "untracked file not named in the prompt"
 expect_eq untracked-clean "$(field "$out" worktree_clean)" false
 [ -n "$(field "$out" candidate_tree)" ] || note_fail untracked-tree "candidate tree missing"
+
+# 10b. Hidden-untracked config and a subdirectory --cwd still see every new file.
+repo="$(new_repo hidden)"
+git -C "$repo" config status.showUntrackedFiles no
+mkdir -p "$repo/lib"
+printf 'y = 2\n' >"$repo/lib/sibling.py"
+export FAKE_LOG="$work/log-hidden" FAKE_REPO="$repo" FAKE_CODEX=passed
+rm -f "$FAKE_LOG".*
+set +e
+PATH="$work/bin:$PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" timeout 60 python3 "$runner" \
+  --cwd "$repo/src" --base base-ref --intent x --implementer-family claude --out "$work/out-hidden.json" >/dev/null 2>&1
+set -e
+unset FAKE_CODEX
+expect_eq hidden-clean "$(field "$work/out-hidden.json" worktree_clean)" false
+grep -q 'lib/sibling.py' "$FAKE_LOG.codex.prompt" 2>/dev/null || note_fail hidden-untracked "sibling untracked file not named"
+
+# 10c. Repository git config never executes candidate scripts.
+repo="$(new_repo gitexec)"
+printf '#!/bin/sh\ntouch "%s"\nexec cat\n' "$work/gitexec.marker" >"$repo/evil.sh"
+printf '#!/bin/sh\ntouch "%s"\nexit 1\n' "$work/gitexec.marker" >"$repo/fsmon.sh"
+chmod +x "$repo/evil.sh" "$repo/fsmon.sh"
+git -C "$repo" add evil.sh fsmon.sh && git -C "$repo" commit -q -m evil
+printf '*.py diff=evil filter=evil\n' >"$repo/.gitattributes"
+git -C "$repo" config core.fsmonitor "$repo/fsmon.sh"
+git -C "$repo" config diff.evil.textconv "$repo/evil.sh"
+git -C "$repo" config filter.evil.clean "$repo/evil.sh"
+git -C "$repo" config filter.evil.process "$repo/evil.sh"
+git -C "$repo" config diff.external "$repo/evil.sh"
+rm -f "$work/gitexec.marker"
+FAKE_CODEX=passed run_runner gitexec "$repo" --implementer-family claude
+[ ! -e "$work/gitexec.marker" ] || note_fail gitexec "a repository-configured script ran"
 
 # 11. A candidate that changes during the review is inconclusive.
 repo="$(new_repo mutate)"
@@ -237,7 +305,7 @@ ln -sf "$repo/src/app.py" "$work/evid/out.json.tmp"
 before="$(cat "$repo/src/app.py")"
 export FAKE_LOG="$work/log-symlink" FAKE_REPO="$repo" FAKE_CODEX=passed
 set +e
-PATH="$work/bin:$PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" python3 "$runner" \
+PATH="$work/bin:$PATH" CODEX_HOME="$work/user-codex-home" XDG_CACHE_HOME="$work/cache" timeout 60 python3 "$runner" \
   --cwd "$repo" --base base-ref --intent x --implementer-family claude --out "$work/evid/out.json" >/dev/null 2>&1
 set -e
 unset FAKE_CODEX
@@ -246,7 +314,7 @@ expect_eq symlink-untouched "$(cat "$repo/src/app.py")" "$before"
 # 12c. A custom model provider keeps its definition in the private home.
 repo="$(new_repo provider)"
 cp "$work/user-codex-home/config.toml" "$work/config.saved"
-printf 'model = "m-test"\nmodel_provider = "custom"\n\n[model_providers.custom]\nbase_url = "https://example.invalid/v1"\n\n[model_providers.other]\nbase_url = "https://other.invalid"\n\n[mcp_servers.danger]\ncommand = "rm"\n' >"$work/user-codex-home/config.toml"
+printf 'model = "m-test"\nmodel_provider = "custom" # hosted endpoint\n\n[model_providers.custom]\nbase_url = "https://example.invalid/v1"\n\n[model_providers.other]\nbase_url = "https://other.invalid"\n\n[mcp_servers.danger]\ncommand = "rm"\n' >"$work/user-codex-home/config.toml"
 FAKE_CODEX=passed run_runner provider "$repo" --implementer-family claude
 grep -q 'example.invalid' "$FAKE_LOG.codex.config" || note_fail provider-kept "selected provider definition dropped"
 grep -q '^\[model_providers.custom\]$' "$FAKE_LOG.codex.config" || note_fail provider-header "provider table header dropped"

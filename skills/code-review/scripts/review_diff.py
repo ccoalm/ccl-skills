@@ -31,6 +31,9 @@ FAMILY = {"codex": "codex", "claude": "claude"}
 # Spellings of a model family used across this repository and its callers.
 FAMILY_ALIASES = {"openai": "codex", "gpt": "codex", "chatgpt": "codex", "anthropic": "claude",
                   "moonshot": "kimi"}
+# Families an implementer can be named as. A client name that can run any model
+# (opencode) or "other" says nothing about independence, so it is refused.
+KNOWN_FAMILIES = {"claude", "codex", "kimi"}
 DEFAULT_ORDER = "codex,claude"
 INTERRUPT_CODES = {130, 137, 143}
 # Top-level Codex config keys carried into the reviewer's private home, plus the
@@ -55,10 +58,27 @@ class Interrupted(Exception):
     pass
 
 
+# Repository config can name programs git runs on status, add and diff
+# (fsmonitor, filter drivers, textconv, external diff). The candidate may carry
+# those programs, so every git call here switches them off.
+GIT_SAFETY = ["-c", "core.fsmonitor=false"]  # diff also passes --no-ext-diff --no-textconv
+
+
 def git(cwd: str, *args: str, env: Optional[dict] = None) -> str:
     return subprocess.run(
-        ["git", "-C", cwd, *args], check=True, capture_output=True, text=True, env=env
+        ["git", "-C", cwd, *GIT_SAFETY, *args], check=True, capture_output=True, text=True, env=env
     ).stdout.strip()
+
+
+def neutralize_filters(cwd: str) -> None:
+    """Replace every configured filter driver with a pass-through for this run."""
+    try:
+        listed = git(cwd, "config", "--get-regexp", r"^filter\..*\.(clean|smudge|process)$")
+    except subprocess.CalledProcessError:
+        return  # none configured
+    for name in sorted({line.split()[0].rsplit(".", 1)[0][len("filter."):] for line in listed.splitlines() if line}):
+        GIT_SAFETY.extend(["-c", f"filter.{name}.clean=cat", "-c", f"filter.{name}.smudge=cat",
+                           "-c", f"filter.{name}.process=", "-c", f"filter.{name}.required=false"])
 
 
 def resolve_base(cwd: str, ref: Optional[str]) -> str:
@@ -127,7 +147,8 @@ def parse_answer(text: str):
         elif current is not None and line.strip():
             current["body"] = (current["body"] + " " + line.strip()).strip()
     if findings:
-        return "findings", findings
+        # A finding without its scenario is a truncated or placeholder answer.
+        return ("findings", findings) if all(f["body"] for f in findings) else (None, findings)
     # Only the bare sentinel is a pass: "reads failed ... No findings." is not.
     return ("passed", []) if text.strip() == "No findings." else (None, [])
 
@@ -164,7 +185,9 @@ def private_codex_home(source: Path) -> str:
             if table is None and key in CODEX_KEYS:
                 kept.append(line)
                 if key == "model_provider":
-                    provider = stripped.split("=", 1)[1].strip().strip('"').strip("'")
+                    value = stripped.split("=", 1)[1].strip()
+                    quoted = re.match(r"""^(["'])(.*?)\1""", value)
+                    provider = quoted.group(2) if quoted else value.split("#", 1)[0].strip()
             elif table is not None and provider and (table == f"model_providers.{provider}"
                                                      or table.startswith(f"model_providers.{provider}.")):
                 kept.append(line)
@@ -183,16 +206,37 @@ def run_child(cmd: list, prompt: str, cwd: str, env: dict, timeout: int):
     try:
         out, _ = proc.communicate(prompt, timeout=timeout)
     except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)
-        proc.communicate()
-        return "timeout", None, ""
+        if proc.poll() is None:
+            reap(proc)
+            return "timeout", None, ""
+        # The reviewer exited but a descendant still holds its pipes.
+        out = reap(proc)
     except Interrupted:
-        os.killpg(proc.pid, signal.SIGKILL)
-        proc.communicate()
+        reap(proc)
         raise
+    else:
+        reap(proc)  # descendants left in the reviewer's group
     if proc.returncode in INTERRUPT_CODES or proc.returncode < 0:
         return "interrupted", proc.returncode, out
     return "ran", proc.returncode, out
+
+
+def reap(proc) -> str:
+    """Kill the reviewer's process group and drain its pipes within a bound."""
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+    try:
+        out, _ = proc.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        # A descendant in another session keeps the pipes open; stop reading.
+        for pipe in (proc.stdin, proc.stdout, proc.stderr):
+            if pipe:
+                pipe.close()
+        proc.wait()
+        out = ""
+    return out or ""
 
 
 def run_client(client: str, prompt: str, cwd: str, timeout: int, diff_dir: str):
@@ -232,7 +276,7 @@ def main(argv=None) -> int:
     ap.add_argument("--mode", choices=("review", "challenge"), default="review")
     ap.add_argument("--intent", required=True, help="one or two sentences: what the change should do")
     ap.add_argument("--implementer-family", required=True,
-                    help="family of the model that wrote the change (claude, codex, kimi, opencode, other)")
+                    help="model family that wrote the change: claude, codex or kimi (aliases: anthropic, openai, gpt)")
     ap.add_argument("--base", help="ref to diff against via merge-base (default: origin/HEAD)")
     ap.add_argument("--focus", default="", help="challenge: what to look at hardest")
     ap.add_argument("--client-order", default=DEFAULT_ORDER)
@@ -240,16 +284,18 @@ def main(argv=None) -> int:
     ap.add_argument("--out", help="result JSON path (default: under <git-dir>/ccl-code-review/)")
     args = ap.parse_args(argv)
 
-    cwd = str(Path(args.cwd).resolve())
+    cwd = git(str(Path(args.cwd).resolve()), "rev-parse", "--show-toplevel")
+    neutralize_filters(cwd)
     git_dir = Path(git(cwd, "rev-parse", "--absolute-git-dir"))
     head = git(cwd, "rev-parse", "HEAD")
     base = resolve_base(cwd, args.base)
-    clean = git(cwd, "status", "--porcelain") == ""
+    clean = git(cwd, "status", "--porcelain", "--untracked-files=all") == ""
     untracked = [p for p in git(cwd, "ls-files", "--others", "--exclude-standard").splitlines() if p]
     tree_before = candidate_tree(cwd)
     diff_dir = scratch_dir("diff-")
     diff_file = os.path.join(diff_dir, "change.diff")
-    Path(diff_file).write_text(git(cwd, "diff", base) + "\n", encoding="utf-8")
+    Path(diff_file).write_text(git(cwd, "diff", "--no-ext-diff", "--no-textconv", base) + "\n",
+                               encoding="utf-8")
     started = time.time()
 
     def on_signal(signum, frame):
@@ -263,6 +309,9 @@ def main(argv=None) -> int:
     eligible = [c for c in (s.strip() for s in args.client_order.split(","))
                 if c in FAMILY and FAMILY[c] != implementer]
     attempts, status, findings, selected, text, reason = [], None, [], None, "", None
+    carried = []  # findings from attempts whose run failed; a later pass cannot erase them
+    if implementer not in KNOWN_FAMILIES:
+        eligible, reason = [], "implementer_family_ambiguous"
     try:
         for client in eligible:
             if shutil.which(client) is None:
@@ -280,6 +329,7 @@ def main(argv=None) -> int:
             if outcome != "ran" or rc != 0 or not text.strip():
                 # A failed run's text is never a verdict; the next family gets one try.
                 attempt["status"] = outcome if outcome != "ran" else ("failed" if rc else "empty")
+                carried += [dict(f, from_failed_attempt=client) for f in parse_answer(text)[1]]
                 continue
             status, findings = parse_answer(text)
             attempt["status"] = status or "unparseable"
@@ -290,10 +340,14 @@ def main(argv=None) -> int:
         else:
             reason = reason or ("no_eligible_reviewer" if not attempts else "all_reviewers_failed")
     except Interrupted:
-        reason = "operator_interrupt"
+        status, reason = None, "operator_interrupt"
     finally:
         shutil.rmtree(diff_dir, ignore_errors=True)
 
+    if carried:
+        findings = findings + carried
+        if status == "passed":
+            status = "findings"
     if status and candidate_tree(cwd) != tree_before:
         status, reason = None, "candidate_changed"
     final = status or "inconclusive"
