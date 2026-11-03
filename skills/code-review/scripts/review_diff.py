@@ -73,10 +73,11 @@ def git(cwd: str, *args: str, env: Optional[dict] = None) -> str:
 def neutralize_filters(cwd: str) -> None:
     """Replace every configured filter driver with a pass-through for this run."""
     try:
-        listed = git(cwd, "config", "--get-regexp", r"^filter\..*\.(clean|smudge|process)$")
+        # Names only: a value can span lines and must never be parsed.
+        listed = git(cwd, "config", "--name-only", "--get-regexp", r"^filter\..*\.(clean|smudge|process)$")
     except subprocess.CalledProcessError:
         return  # none configured
-    for name in sorted({line.split()[0].rsplit(".", 1)[0][len("filter."):] for line in listed.splitlines() if line}):
+    for name in sorted({key.rsplit(".", 1)[0][len("filter."):] for key in listed.splitlines() if key.strip()}):
         GIT_SAFETY.extend(["-c", f"filter.{name}.clean=cat", "-c", f"filter.{name}.smudge=cat",
                            "-c", f"filter.{name}.process=", "-c", f"filter.{name}.required=false"])
 
@@ -90,19 +91,25 @@ def resolve_base(cwd: str, ref: Optional[str]) -> str:
     return git(cwd, "merge-base", "HEAD", ref)
 
 
-def candidate_tree(cwd: str) -> str:
-    """Tree id of the working tree, untracked files included, via a scratch index."""
-    fd, index = tempfile.mkstemp(prefix="review-index-")
-    os.close(fd)
-    os.unlink(index)
-    env = dict(os.environ, GIT_INDEX_FILE=index)
-    try:
-        git(cwd, "read-tree", "HEAD", env=env)
-        git(cwd, "add", "-A", env=env)
-        return git(cwd, "write-tree", env=env)
-    finally:
-        if os.path.exists(index):
-            os.unlink(index)
+def candidate_digest(cwd: str) -> str:
+    """Digest of the working tree against HEAD, untracked files included.
+
+    Computed without writing objects: staging the tree would store working-tree
+    bytes (with filters switched off, possibly plaintext) in the object store.
+    """
+    digest = hashlib.sha256()
+    digest.update(subprocess.run(
+        ["git", "-C", cwd, *GIT_SAFETY, "diff", "--binary", "--no-ext-diff", "--no-textconv", "HEAD"],
+        check=True, capture_output=True).stdout)
+    for rel in sorted(git(cwd, "ls-files", "--others", "--exclude-standard").splitlines()):
+        path = os.path.join(cwd, rel)
+        digest.update(rel.encode("utf-8") + b"\0")
+        if os.path.islink(path):
+            digest.update(os.readlink(path).encode("utf-8", "surrogateescape"))
+        elif os.path.isfile(path):
+            with open(path, "rb") as fh:
+                digest.update(hashlib.sha256(fh.read()).digest())
+    return digest.hexdigest()
 
 
 def build_prompt(mode: str, base: str, intent: str, focus: str, untracked: list,
@@ -291,7 +298,7 @@ def main(argv=None) -> int:
     base = resolve_base(cwd, args.base)
     clean = git(cwd, "status", "--porcelain", "--untracked-files=all") == ""
     untracked = [p for p in git(cwd, "ls-files", "--others", "--exclude-standard").splitlines() if p]
-    tree_before = candidate_tree(cwd)
+    digest_before = candidate_digest(cwd)
     diff_dir = scratch_dir("diff-")
     diff_file = os.path.join(diff_dir, "change.diff")
     Path(diff_file).write_text(git(cwd, "diff", "--no-ext-diff", "--no-textconv", base) + "\n",
@@ -329,7 +336,7 @@ def main(argv=None) -> int:
             if outcome != "ran" or rc != 0 or not text.strip():
                 # A failed run's text is never a verdict; the next family gets one try.
                 attempt["status"] = outcome if outcome != "ran" else ("failed" if rc else "empty")
-                carried += [dict(f, from_failed_attempt=client) for f in parse_answer(text)[1]]
+                carried += [dict(f, from_failed_attempt=client) for f in parse_answer(text)[1] if f["body"]]
                 continue
             status, findings = parse_answer(text)
             attempt["status"] = status or "unparseable"
@@ -348,7 +355,7 @@ def main(argv=None) -> int:
         findings = findings + carried
         if status == "passed":
             status = "findings"
-    if status and candidate_tree(cwd) != tree_before:
+    if status and candidate_digest(cwd) != digest_before:
         status, reason = None, "candidate_changed"
     final = status or "inconclusive"
     recorded_at = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
@@ -364,7 +371,7 @@ def main(argv=None) -> int:
         "implementer_family": implementer,
         "base": base,
         "head": head,
-        "candidate_tree": tree_before,
+        "candidate_digest": digest_before,
         "worktree_clean": clean,
         "untracked_files": untracked,
         "intent_sha256": hashlib.sha256(args.intent.encode("utf-8")).hexdigest(),
@@ -377,7 +384,7 @@ def main(argv=None) -> int:
     out = Path(args.out) if args.out else git_dir / "ccl-code-review" / "results" / f"{stamp}-{args.mode}.json"
     write_json(out, result)
     receipt = {k: result[k] for k in ("head", "worktree_clean", "mode", "status", "recorded_at",
-                                       "candidate_tree", "selected_client", "runner")}
+                                       "candidate_digest", "selected_client", "runner")}
     receipt["result_path"] = str(out)
     write_json(git_dir / "ccl-code-review" / "last-review.json", receipt)
 

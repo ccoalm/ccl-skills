@@ -1,0 +1,57 @@
+{
+  "schema_version": 3,
+  "runner": "review_diff",
+  "mode": "review",
+  "status": "findings",
+  "reason_code": null,
+  "findings": [
+    {
+      "severity": "P1",
+      "title": "Keep unfiltered snapshots out of the repository object store",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 80,
+      "body": "In a repository using an encryption clean filter, replacing that filter with `cat` makes `candidate_tree()` write plaintext blobs through `git add -A`. Only the index is temporary; the objects remain in the repository’s object database after review. Previously, the clean filter encrypted those bytes before storage."
+    },
+    {
+      "severity": "P2",
+      "title": "Preserve timeout status when the reviewer has already exited",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 213,
+      "body": "A reviewer that prints `No findings.`, starts a background process inheriting stdout, and exits zero triggers `TimeoutExpired` while draining its pipes. This branch cleans up and returns `ran` with exit zero, producing a passed receipt without fallback. The same scenario returned `timeout` at the base commit."
+    },
+    {
+      "severity": "P2",
+      "title": "Validate carried findings before promoting the final verdict",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 332,
+      "body": "If Codex exits nonzero with only a finding header, `parse_answer()` returns no valid status but retains the header with an empty body. This line carries it forward anyway; a subsequent clean Claude response is converted into conclusive `findings`. The resulting evidence therefore bypasses the new requirement that every finding include a scenario."
+    },
+    {
+      "severity": "P2",
+      "title": "Enumerate filter keys without parsing command values",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 79,
+      "body": "A valid multiline filter command containing a whitespace-only line, such as `cat\\n  \\nexit 0`, makes this comprehension raise `IndexError`: the line passes `if line`, but `line.split()` is empty. Because enumeration happens before review, even an unused configured filter can now abort the runner without producing a result."
+    }
+  ],
+  "selected_client": "codex",
+  "reviewer_family": "codex",
+  "implementer_family": "claude",
+  "base": "25de65b199a748e873ea19f7130e4ed676473956",
+  "head": "378cae1433c67052272e81511d9c4a8fe3969e43",
+  "candidate_tree": "d2278c17401d7a4e64284d790e6d29c7383494fb",
+  "worktree_clean": true,
+  "untracked_files": [],
+  "intent_sha256": "b5d77207035e2080e27e03e5606f69d9b1d99518479783d590379f8204f89202",
+  "elapsed_seconds": 321.8,
+  "attempts": [
+    {
+      "client": "codex",
+      "returncode": 0,
+      "elapsed_seconds": 321.7,
+      "status": "findings"
+    }
+  ],
+  "recorded_at": "2026-11-03T00:39:25+00:00",
+  "raw_answer": "[P1] Keep unfiltered snapshots out of the repository object store — skills/code-review/scripts/review_diff.py:80\n\nIn a repository using an encryption clean filter, replacing that filter with `cat` makes `candidate_tree()` write plaintext blobs through `git add -A`. Only the index is temporary; the objects remain in the repository’s object database after review. Previously, the clean filter encrypted those bytes before storage.\n\n[P2] Preserve timeout status when the reviewer has already exited — skills/code-review/scripts/review_diff.py:213\n\nA reviewer that prints `No findings.`, starts a background process inheriting stdout, and exits zero triggers `TimeoutExpired` while draining its pipes. This branch cleans up and returns `ran` with exit zero, producing a passed receipt without fallback. The same scenario returned `timeout` at the base commit.\n\n[P2] Validate carried findings before promoting the final verdict — skills/code-review/scripts/review_diff.py:332\n\nIf Codex exits nonzero with only a finding header, `parse_answer()` returns no valid status but retains the header with an empty body. This line carries it forward anyway; a subsequent clean Claude response is converted into conclusive `findings`. The resulting evidence therefore bypasses the new requirement that every finding include a scenario.\n\n[P2] Enumerate filter keys without parsing command values — skills/code-review/scripts/review_diff.py:79\n\nA valid multiline filter command containing a whitespace-only line, such as `cat\\n  \\nexit 0`, makes this comprehension raise `IndexError`: the line passes `if line`, but `line.split()` is empty. Because enumeration happens before review, even an unused configured filter can now abort the runner without producing a result."
+}

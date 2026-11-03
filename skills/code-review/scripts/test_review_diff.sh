@@ -48,6 +48,7 @@ case "${FAKE_CODEX:-findings}" in
   failclean) printf 'No findings.\n' >"$out"; exit 1 ;;
   failfinding) printf '[P1] Keep the guard — src/app.py:2\n\nThe guard is gone.\n' >"$out"; exit 1 ;;
   headeronly) printf '[P1] Example finding — src/app.py:1\n' >"$out" ;;
+  failheader) printf '[P1] Truncated — src/app.py:1\n' >"$out"; exit 1 ;;
   holdpipe) setsid sleep 30 & sleep 30 ;;
   orphan) sleep 60 >/dev/null 2>&1 & echo $! >"$FAKE_LOG.orphan"; exit 130 ;;
   hedged) printf 'The repository reads failed, so this review is incomplete.\nNo findings.\n' >"$out" ;;
@@ -215,6 +216,11 @@ repo="$(new_repo headeronly)"
 FAKE_CODEX=headeronly run_runner headeronly "$repo" --implementer-family claude
 expect_eq headeronly-status "$(field "$out" status)" inconclusive
 
+# 8f2. A failed attempt's scenario-less header is not carried into the verdict.
+repo="$(new_repo failheader)"
+FAKE_CODEX=failheader FAKE_CLAUDE=passed run_runner failheader "$repo" --implementer-family kimi
+expect_eq failheader-status "$(field "$out" status)" passed
+
 # 8g. An implementer whose model family is unknown is refused before any review.
 repo="$(new_repo ambiguous)"
 run_runner ambiguous "$repo" --implementer-family opencode
@@ -250,7 +256,9 @@ printf 'x = 1\n' >"$repo/src/new_module.py"
 FAKE_CODEX=passed run_runner untracked "$repo" --implementer-family claude
 grep -q 'src/new_module.py' "$FAKE_LOG.codex.prompt" || note_fail untracked-prompt "untracked file not named in the prompt"
 expect_eq untracked-clean "$(field "$out" worktree_clean)" false
-[ -n "$(field "$out" candidate_tree)" ] || note_fail untracked-tree "candidate tree missing"
+[ -n "$(field "$out" candidate_digest)" ] || note_fail untracked-digest "candidate digest missing"
+new_blob="$(git -C "$repo" hash-object src/new_module.py)"
+if git -C "$repo" cat-file -e "$new_blob" 2>/dev/null; then note_fail untracked-objects "the review wrote working-tree content into the object store"; fi
 
 # 10b. Hidden-untracked config and a subdirectory --cwd still see every new file.
 repo="$(new_repo hidden)"
@@ -282,6 +290,12 @@ git -C "$repo" config diff.external "$repo/evil.sh"
 rm -f "$work/gitexec.marker"
 FAKE_CODEX=passed run_runner gitexec "$repo" --implementer-family claude
 [ ! -e "$work/gitexec.marker" ] || note_fail gitexec "a repository-configured script ran"
+
+# 10d. A multi-line filter command does not abort the run.
+repo="$(new_repo multiline)"
+git -C "$repo" config filter.multi.clean "$(printf 'cat\n  \nexit 0')"
+FAKE_CODEX=passed run_runner multiline "$repo" --implementer-family claude
+expect_eq multiline-status "$(field "$out" status)" passed
 
 # 11. A candidate that changes during the review is inconclusive.
 repo="$(new_repo mutate)"

@@ -19,9 +19,11 @@ python3 "$CODE_REVIEW_SKILL_DIR/scripts/review_diff.py" --cwd "$PWD" \
 - `--base` is any ref; the runner diffs the working tree against
   `git merge-base HEAD <ref>`, so uncommitted edits are covered and untracked
   files are named in the prompt. The default ref is `origin/HEAD`.
-- `--implementer-family` accepts `claude`, `codex`, `kimi`, `opencode` and the
-  aliases `openai`, `gpt`, `anthropic`; the reviewer of the same family is
-  skipped.
+- `--implementer-family` names the model family that wrote the change:
+  `claude`, `codex` or `kimi`, or the aliases `anthropic`, `openai`, `gpt`.
+  The reviewer of the same family is skipped. A client that can run any model
+  (`opencode`) or `other` is refused with `implementer_family_ambiguous`; pass
+  the family of the model it ran.
 - `--client-order` defaults to `codex,claude`. Kimi and OpenCode are not in
   this runner; use `review_gate.sh` when only they are independent.
 - `--timeout` is per reviewer attempt (default 900 s). Set the host's own
@@ -38,17 +40,20 @@ python3 "$CODE_REVIEW_SKILL_DIR/scripts/review_diff.py" --cwd "$PWD" \
 | 2 | `inconclusive` | see `reason_code` |
 
 - A timeout, a launch failure, a non-zero exit or an empty answer gives the
-  next eligible family one try. An interrupt (exit 130, 137 or 143, or a
-  signal to the runner) ends the run without fallback.
+  next eligible family one try. Findings the failed attempt did write are
+  kept, so a later `No findings.` cannot erase them. An interrupt (exit 130,
+  137 or 143, or a signal to the runner) ends the run without fallback.
 - `unparseable_answer` keeps the answer in `raw_answer`; it often says why the
-  reviewer could not finish. Fix that cause and rerun; never read it as a pass.
-- `candidate_changed` means the working tree changed during the review;
-  rerun on the settled candidate.
+  reviewer could not finish. A finding line without its scenario counts as
+  unparseable too. Fix the cause and rerun; never read it as a pass.
+- `candidate_changed` means the working tree changed during the review, for
+  example an edit or a generated file; rerun on the settled candidate.
 
 The result carries `schema_version: 3`, `mode`, `status` and `selected_client`
 (the envelope `check_review_evidence_present.py` accepts) plus findings,
-reviewer and implementer family, base, head, candidate tree, elapsed time and
-attempts. The receipt `<git-dir>/ccl-code-review/last-review.json` carries the
+reviewer and implementer family, base, head, candidate digest (of
+`git diff --binary HEAD` plus untracked contents, written to no object store),
+elapsed time and attempts. The receipt `<git-dir>/ccl-code-review/last-review.json` carries the
 fields `hooks/remind-review-covers-head.sh` reads.
 
 ## Boundary
@@ -62,5 +67,9 @@ fields `hooks/remind-review-covers-head.sh` reads.
 - Claude gets `Read`, `Grep` and `Glob` only, `--add-dir` for the saved diff,
   `--permission-mode dontAsk`, no setting sources and no MCP servers. It has no
   shell, because git can write files (`git diff --output=...`).
+- Every git call the runner makes switches off repository-configured programs:
+  fsmonitor, filter drivers (replaced by pass-through), textconv and external
+  diff. A repository with an encrypting filter therefore shows its stored
+  bytes against the working-tree bytes in the diff.
 - The reviewer can read what the user can read and sends it to its provider.
   The prompt tells it not to quote secret values.

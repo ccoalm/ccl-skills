@@ -76,29 +76,33 @@ and Codex passes).
 --implementer-family <family> [--base <ref>] [--focus <text>] [--timeout <s>]
 [--client-order codex,claude] [--out <path>]`
 
-1. Resolve the base as `git merge-base HEAD <ref>`; the default ref is the
-   remote default branch. Review the working tree against it, so uncommitted
-   changes are covered; untracked files are listed in the prompt because
-   `git diff` omits them.
-2. Bind the candidate: write the working tree, untracked files included, into
-   a temporary index and take its tree id before and after the run. A changed
-   tree makes the result `inconclusive`.
-3. Pick the first client in `--client-order` whose family differs from the
-   implementer and whose CLI is installed. On timeout, a launch failure or
-   empty output, try the next eligible client once. An interrupt (exit 130,
-   137 or 143, or a signal to the runner) is terminal.
+1. Resolve the repository root and the base as `git merge-base HEAD <ref>`;
+   the default ref is the remote default branch. Review the working tree
+   against it, so uncommitted changes are covered; untracked files are listed
+   in the prompt because `git diff` omits them. Every git call switches off
+   repository-configured programs (fsmonitor, filter drivers, textconv,
+   external diff), because the candidate may carry them.
+2. Bind the candidate: a digest of `git diff --binary HEAD` plus the untracked
+   files' contents, taken before and after the run, with no objects written. A
+   changed digest makes the result `inconclusive`.
+3. Refuse an implementer family that names no model (`opencode`, `other`).
+   Pick the first client in `--client-order` whose family differs and whose
+   CLI is installed. On a timeout, a launch failure, a non-zero exit or empty
+   output, try the next eligible client once; findings from the failed attempt
+   are kept. An interrupt (exit 130, 137 or 143, or a signal to the runner) is
+   terminal.
 4. Run it read-only in the repository. Codex: `codex exec -C <repo> -s
    read-only --ephemeral -o <file>` under a private `CODEX_HOME` holding only a
-   link to `auth.json` and the user's top-level model keys, so MCP servers,
-   hooks and plugins from the user's home never load. Claude: `claude -p
-   --tools Read Grep Glob Bash --allowedTools "Bash(git diff:*)" "Bash(git
-   log:*)" "Bash(git show:*)" "Bash(git ls-files:*)" --permission-mode dontAsk
-   --setting-sources "" --strict-mcp-config --no-session-persistence`, so no
-   write tool exists, other shell commands are denied, and settings or MCP
+   link to `auth.json`, the user's top-level model keys and the selected
+   provider's table, so MCP servers, hooks and plugins never load. Claude:
+   `claude -p --tools Read Grep Glob --add-dir <saved diff> --permission-mode
+   dontAsk --setting-sources "" --strict-mcp-config --no-session-persistence`:
+   no shell (git can write files through `--output`), and settings or MCP
    servers cannot add tools. The prompt names the base, the intent and, for
    challenge, the adversarial brief and optional focus.
-5. Parse `[P0-3] title — path:line` lines; `No findings.` is `passed`;
-   anything else is `inconclusive` with the raw text kept.
+5. Parse `[P0-3] title — path:line` lines, each followed by its scenario; an
+   answer that is exactly `No findings.` is `passed`; anything else is
+   `inconclusive` with the raw text kept.
 6. Write the result JSON in the envelope CI reads (`schema_version: 3`,
    `mode`, `status`, `selected_client`) plus findings, reviewer family, base,
    head, candidate tree, worktree_clean, intent digest, elapsed seconds and
@@ -130,16 +134,16 @@ rates were 80–85% and 47–52%, and the existing wrappers stay available.
   code-review entry and completion walk. The existing controller stays the
   path for the skill-extraction lane, `--mode complete` and callers that need
   it.
-- After two weeks: compare inconclusive rate, wall time and passes per change
-  between runners with `review_yield_v2`-style counts; retire controller
-  features with no remaining caller in a separate change.
+- After two weeks: count inconclusive rate, wall time and passes per change
+  for each runner from the result files; retire controller features with no
+  remaining caller in a separate change.
 
 ## Validation
 
 - RED: a test suite for the runner fails before the script exists.
-- GREEN: fake `codex`/`claude` executables on `PATH` cover passed, findings,
-  unparseable output, timeout with fallback, same-family skip, missing CLI,
-  receipt fields read by the reminder hook, and dirty-tree coverage.
+- GREEN: `skills/code-review/scripts/test_review_diff.sh` runs the runner
+  against fake `codex` and `claude` executables and covers each property in
+  the design and in the review passes below.
 - Live: one review through the runner with each family on a real diff.
 - `make test`, the heavy lane, public sanitization, `git diff --check`,
   independent review and challenge.
@@ -151,6 +155,7 @@ rates were 80–85% and 47–52%, and the existing wrappers stay available.
 | Plan review | Codex, read-only, 552 s | six findings | all confirmed and adopted (design above) |
 | Review (`evidence/review.json`) | Codex through the runner, 302 s | six findings | all confirmed and fixed with RED tests: Claude shell removed in favor of a saved diff (`git diff --output` writes files), family aliases, a non-zero exit never yields a verdict, exclusive temp files, the bare `No findings.` sentinel, the selected provider table |
 | Challenge (`evidence/challenge.json`) | Codex through the runner, 657 s | `inconclusive` (`candidate_changed`: the register row was edited during the run), ten findings | all confirmed and fixed with RED tests: repository git config (fsmonitor, filters, textconv, external diff) switched off; an implementer family that names no model is refused; untracked files seen under `status.showUntrackedFiles=no` and from a subdirectory; a failed attempt's findings survive a later clean answer; bounded pipe draining and process-group cleanup on every exit; a finding needs its scenario; TOML-quoted provider names. The interrupt-after-parse race is fixed by clearing the verdict in the interrupt handler; it has no deterministic test |
+| Delta (`evidence/delta-review.json`) | Codex through the runner, 322 s | four findings | three confirmed and fixed with RED tests: the candidate is bound by a digest, because staging it with filters off would write plaintext of filtered files into the object store; a scenario-less header from a failed attempt is not carried; filter drivers are listed by name only. One refuted from source: a reviewer that exited 0 while a descendant held its pipes is answered by its own output, which passes only as the exact `No findings.` sentinel, and Codex's answer comes from its `-o` file |
 
 Live run also caught two defects no fake could: Codex refused to create its
 sandbox helper under the system temp dir (the private home moved to the cache
@@ -160,3 +165,18 @@ dir), and an empty `diff.external` override broke plain `git diff` (removed;
 Every protected property was mutated in the runner and turned the suite red
 for the named assertion; two broken mutants (one syntax error, one that
 crashed the first case) were redone so the red came from the property.
+
+## Target-output map
+
+| Owner | Direction | Status | Changed file or reason |
+| --- | --- | --- | --- |
+| `code-review` | target | updated | `SKILL.md`, `references/diff-first-runner.md`, `references/development-completion.md`, `references/manual-invocation-and-prompts.md` (moved consult note), `scripts/review_diff.py`, `scripts/test_review_diff.sh`, `scripts/AGENTS.md` |
+| `skill-extraction-workflow` | sibling lane | unchanged | its lane keeps `extraction_review_gate.sh` over `review_gate.sh` (`SKILL.md` dual-track rule); only its source register gains the impact-chain row. No routing, extraction or validation miss exposed this failure, so no workflow prevention point is owed |
+| `feature-risk-router` | upstream | unchanged | high-risk tags still route to `review_gate.sh` through development-completion step 4 |
+| `product-rd-workflow` | upstream | unchanged | its completion gate delegates review to `code-review`; no entrypoint named in its text |
+| `testing-strategy` | downstream | unchanged | test-layer choice unchanged; the runner suite is a script regression in the code-review lane |
+| `hooks/remind-review-covers-head.sh` | downstream | unchanged | the runner writes the fields it reads; case 13 of the runner suite runs the hook against a passed receipt |
+| CI `check_review_evidence_present.py` | downstream | unchanged | the runner writes `schema_version: 3`, `mode`, `status`, `selected_client`; case 12 loads a result through the checker |
+| `agent-context/session-start.md` | always-on | unchanged | its completion line names `code-review` and `development-completion.md`, not an entrypoint script |
+| Kimi / OpenCode wrappers | sibling clients | unchanged | not in the runner; `review_gate.sh` stays available for them |
+| External packs (Claude code-review, Codex review-agent, superpowers, gstack) | reference-only | routed | benchmark source only; nothing copied |
