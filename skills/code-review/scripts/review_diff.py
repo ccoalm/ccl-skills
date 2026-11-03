@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 from pathlib import Path
 from typing import Optional
 
@@ -52,6 +53,9 @@ KIMI_KEYS = ("default_model", "default_effort", "default_thinking", "model", "pr
 KIMI_TABLES = ("models", "providers", "thinking")
 KIMI_LINKS = ("credentials", "oauth", "device_id", "region")  # links, so a token refresh persists
 READ_TOOLS = ("Read", "Grep", "Glob")
+# Moonshot's own API hosts. A `kimi`-type provider elsewhere is a gateway that
+# can serve any model, so only these make an unnamed model id Kimi.
+MOONSHOT_HOSTS = ("moonshot.cn", "moonshot.ai", "kimi.com")
 FINDING = re.compile(r"^\s*\[(P[0-3])\]\s+(.+?)\s+[—–-]{1,2}\s+(\S+?):(\d+)\s*$")
 DIAG_LIMIT = 20000  # bytes of answer and of stderr kept in the private diagnostics file
 
@@ -321,7 +325,9 @@ def kimi_snapshot(source: Path):
     family = model_family(entry.get("model") or alias)
     provider = (data.get("providers") or {}).get(entry.get("provider")) or {}
     if family is None and isinstance(provider, dict) and provider.get("type") == "kimi":
-        family = "kimi"
+        host = urllib.parse.urlparse(str(provider.get("base_url") or "https://api.moonshot.cn")).hostname or ""
+        if any(host == h or host.endswith("." + h) for h in MOONSHOT_HOSTS):
+            family = "kimi"
     return family, alias, kept
 
 
@@ -438,13 +444,16 @@ def final_message(stream: str) -> str:
     """The last assistant message of Kimi Code's stream-json output.
 
     Its text mode prints every assistant message, including the narration
-    between tool calls, so only the last one is the answer."""
+    between tool calls, so only the last one is the answer. A line that is not
+    JSON means the stream was cut, so there is no answer."""
     answer = ""
     for line in stream.splitlines():
+        if not line.strip():
+            continue
         try:
             event = json.loads(line)
         except ValueError:
-            continue
+            return ""
         if not isinstance(event, dict) or event.get("role") != "assistant":
             continue
         content = event.get("content")

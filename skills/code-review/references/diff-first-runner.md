@@ -35,8 +35,10 @@ python3 "$CODE_REVIEW_SKILL_DIR/scripts/review_diff.py" --cwd "$PWD" \
   is DeepSeek, and `openai/house-model` is unknown, because a provider name says
   nothing about the model it serves. Kimi's comes from the model id that its
   `default_model` alias selects in the parsed `models` table (header, inline or
-  dotted form); a provider of type `kimi`, Moonshot's own API, makes an
+  dotted form); a provider of type `kimi` on Moonshot's own endpoint
+  (`moonshot.cn`, `moonshot.ai`, `kimi.com`, or no `base_url`) makes an
   otherwise unnamed id Kimi, and no `default_model` means Kimi's own default.
+  A stream line that is not JSON means the answer was cut and voids it.
   Any other unknown model is skipped, and so is a client whose config cannot be
   read or parsed (Kimi needs Python 3.11 or later for `tomllib`). Eligibility
   and launch use one read of that config. The result lists skipped clients and

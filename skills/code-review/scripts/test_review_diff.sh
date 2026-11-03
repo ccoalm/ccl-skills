@@ -136,6 +136,7 @@ case "${FAKE_KIMI:-passed}" in
   preamble) say 'I checked the loop and the config handling.'; say 'No findings.' ;;
   findings) say "$(printf '[P2] Close the file — src/app.py:1\n\nThe file stays open.')" ;;
   blocks) say 'Let me read the diff first.'; say "$(printf '[P2] Close the file — src/app.py:1\n\nThe file stays open.')" ;;
+  truncated) say 'No findings.'; printf '{"role": "assistant", "content": "[P1] Keep the guard\n' ;;
   fail) exit 1 ;;
 esac
 printf '{"role": "meta", "type": "session.resume_hint", "content": "To resume this session"}\n'
@@ -517,6 +518,13 @@ printf 'default_model = "r"\nproviders.p = { type = "kimi" }\nmodels.r = { model
 FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimidotted "$repo" --implementer-family claude
 expect_eq kimidotted-status "$(field "$out" status 2>/dev/null || true)" passed
 grep -q '^models.r = ' "$FAKE_LOG.kimi.config" 2>/dev/null || note_fail kimidotted-carried "dotted model assignment not carried"
+# A kimi-type provider on an endpoint outside Moonshot's own says nothing about the model.
+printf 'default_model = "r"\n\n[models.r]\nmodel = "house-model"\nprovider = "p"\n\n[providers.p]\ntype = "kimi"\nbase_url = "https://gateway.invalid/v1"\n' >"$KIMI_CODE_HOME/config.toml"
+FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimigateway "$repo" --implementer-family claude
+expect_eq kimigateway-attempts "$(clients "$out")" codex,opencode
+printf 'default_model = "r"\n\n[models.r]\nmodel = "k9"\nprovider = "p"\n\n[providers.p]\ntype = "kimi"\nbase_url = "https://api.moonshot.cn/v1"\n' >"$KIMI_CODE_HOME/config.toml"
+FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimifirstparty "$repo" --implementer-family claude
+expect_eq kimifirstparty-attempts "$(clients "$out")" codex,opencode,kimi
 # A config form the carried subset would change skips Kimi rather than launch with it.
 printf 'default_model = "r"\n\n[models.r]\nmodel = "kimi-x"\n\n[notes]\ntext = """\n[models.q]\nmodel = "claude-test"\n[hooks]\n"""\n' >"$KIMI_CODE_HOME/config.toml"
 FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimistring "$repo" --implementer-family claude
@@ -569,6 +577,8 @@ FAKE_CODEX=failclean FAKE_OPENCODE=fail run_runner kimipass "$repo" --implemente
 expect_eq kimipass-status "$(field "$out" status)" passed
 FAKE_CODEX=failclean FAKE_OPENCODE=fail FAKE_KIMI=blocks run_runner kimiblocks "$repo" --implementer-family claude
 expect_eq kimiblocks-title "$(field "$out" findings.0.title 2>/dev/null || true)" "Close the file"
+FAKE_CODEX=failclean FAKE_OPENCODE=fail FAKE_KIMI=truncated run_runner kimitruncated "$repo" --implementer-family claude
+expect_eq kimitruncated-status "$(field "$out" status 2>/dev/null || true)" inconclusive
 FAKE_CODEX=failclean FAKE_OPENCODE=fail FAKE_KIMI=preamble run_runner kimipreamble "$repo" --implementer-family claude
 expect_eq kimipreamble-status "$(field "$out" status 2>/dev/null || true)" passed
 grep -q 'read by a program' "$FAKE_LOG.codex.prompt" 2>/dev/null || note_fail prompt-final "prompt does not say the final message is parsed"
