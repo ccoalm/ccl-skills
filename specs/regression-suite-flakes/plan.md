@@ -1,13 +1,13 @@
 # Regression suite flakes
 
-Two suites in the fast regression lane report failures for checks that hold. This round removes both causes.
+Suites in the regression lanes report failures for checks that hold. This round removes two causes: a pipe race in three suites and a `mkdir` lock in one test stub.
 
 ## Charter
 
 | Field | Answer |
 | --- | --- |
-| Purpose | Stop two false failures in the fast lane: the reference-access census suite's checks failing on SIGPIPE, and the body-compliance grading suite's mixed-replica leg failing on runners whose `mkdir` utility does not exclude concurrent callers. A false red costs a rerun and teaches people to rerun reds without reading them. |
-| Scope | In: `skills/skill-extraction-workflow/scripts/test_reference_access_census.sh` and `test_body_compliance_grading.sh` (its test-only `claude` stub). Out: the tools under test (`reference-access-census.sh`, `eval/body-compliance-eval.rb`), other suites that share either pattern (listed under Residual risk), the hooks that take a `mkdir` lock. No watermark applies; this is not an iterative-program source. |
+| Purpose | Stop false failures in the regression lanes: pipe-into-`grep -q` checks failing on SIGPIPE (the reference-access census suite; the parallel-suites runner test, added during validation), and the body-compliance grading suite's mixed-replica leg failing on runners whose `mkdir` utility does not exclude concurrent callers. A false red costs a rerun and teaches people to rerun reds without reading them. |
+| Scope | In: `skills/skill-extraction-workflow/scripts/test_reference_access_census.sh` and `test_body_compliance_grading.sh` (its test-only `claude` stub). Added during validation: `scripts/test_run_parallel_suites.sh`, a required repo-gates suite with the same pipe race, which failed alone on this branch (4 of 10 runs) and on `origin/main` (2 of 10) and so blocked the local lanes. Out: the tools under test (`reference-access-census.sh`, `eval/body-compliance-eval.rb`), other suites that share either pattern (listed under Residual risk), the hooks that take a `mkdir` lock. No watermark applies; this is not an iterative-program source. |
 | Depth | Targeted check plus test-only change: two named defects, each reproduced and fixed in its suite. No skill text changes. |
 | Result classification | Failure. Both are observed false failures: the census pattern reproduces in a fresh bash, and the grading suite failed in CI on a change that did not touch it. Disconfirming observation for each cause is under Diagnosis. |
 | Matching analysis | Widen-check plus control per cause (Diagnosis, Prevention). |
@@ -23,6 +23,7 @@ Order note: the census conversion was applied before this charter was written do
 | Owner | Direction | Status | File or reason |
 | --- | --- | --- | --- |
 | `skill-extraction-workflow` | owner | updated | the two suites and the source-register row |
+| repository scripts (`scripts/`) | sibling | updated | `scripts/test_run_parallel_suites.sh`, same pipe race |
 | `testing-strategy` | sibling | unchanged | Its flake rules already require diagnosis before rerun and deterministic suites; both defects are local test-harness bugs, not a missing rule. Its mutation-walk reference was used as written. |
 | `defect-diagnosis` | sibling | unchanged | Used as written; the CI-trace-first and paired-control rules found the cause. |
 | `code-review` | sibling | unchanged | Suites of the same shape exist there (Residual risk); not changed in this round. |
@@ -40,6 +41,10 @@ The suite runs under `set -euo pipefail` and had 39 checks of the form `printf '
 
 The five `[ "$(printf ... | tail -1)" = ... ]` checks are not of this shape: `tail` reads to end of input, so the writer is never cut off. They are unchanged.
 
+### Parallel-suites runner test: same race
+
+`scripts/test_run_parallel_suites.sh` failed the repo-gates lane with `suite output missing: SLOW-MARKER` (and other markers on other runs). A copy instrumented to print `PIPESTATUS` and whether the marker was in the captured output failed 5 of 30 runs; every marker failure showed `141 0` with the marker present. Its nine `grep -q` checks read from a pipe the same way. The `grep -n`, `grep -c` and message-only `grep` calls in the file read their whole input and are unchanged.
+
 ### Grading suite: `mkdir` as a lock
 
 The CI failure (regression-fast, attempt 1 of the run) printed `prd-continue-evidenced: 1/3 pass` and two FAIL rows, each with `continuing:` missing and `blocked:` present. The leg runs three replicas concurrently against a stub `claude` that takes a one-shot line when `mkdir "$ONCE_DIR"` succeeds, so exactly one replica should print `blocked:` (2/3). Two did, so `mkdir` succeeded twice.
@@ -54,8 +59,8 @@ This host runs GNU `mkdir`, which is why the leg never failed locally. The stub'
 
 ## Change
 
-- Census suite: every pipe-into-`grep -q` check reads the output from a here-string, the form `test_governing_chain_diff.sh` already uses.
-- Grading suite: the stub takes its one-shot line from `Dir.mkdir`, which is the `mkdir(2)` call itself, through Ruby, which the suite already requires. The mixed-replica leg runs with a `mkdir` on `PATH` that reports success without excluding anyone, so a stub that goes back to the utility fails the leg on every host, not only on uutils runners.
+- Census suite and parallel-suites runner test: every pipe-into-`grep -q` check reads the output from a here-string, the form `test_governing_chain_diff.sh` already uses.
+- Grading suite: the stub takes its one-shot line from `Dir.mkdir`, which is the `mkdir(2)` call itself, through Ruby, which the suite already requires. The mixed-replica leg runs with a `mkdir` on `PATH` that reports success without excluding anyone, so a stub that locks with the utility fails the leg on every host, not only on uutils runners.
 
 ## Test cases
 
@@ -63,13 +68,15 @@ This host runs GNU `mkdir`, which is why the leg never failed locally. The stub'
 | --- | --- | --- | --- | --- |
 | Each converted census check | suite | a wrong expected value in a disposable copy turns the suite red at that check | n/a | see Validation |
 | Census suite passes repeatedly under load | suite | N consecutive green runs | intermittent | see Validation |
+| Each converted parallel-suites check | suite | a wrong expected value in a disposable copy turns the suite red at that check | n/a | see Validation |
+| Parallel-suites test alone, repeated | suite | consecutive green runs | 4 of 10 failed | see Validation |
 | E10 under a non-excluding `mkdir` | suite | `prd-continue-evidenced: 2/3`, mixed summary `{pass 2, fail 1}` | fails (0/3) | passes |
 | E10 on the CI image with its own `mkdir` | suite, container | repeated runs, no miss | misses | see Validation |
 
 ## Prevention
 
 - The class is "a test helper relies on a property of a host tool that differs across supported hosts". The guard here pins the suite's own stub; the hooks below use the same primitive at runtime and are listed, not changed.
-- The pipe race is the second suite fixed in two rounds. Other suites with the same shape are listed below; each is a separate change.
+- With this round, three suites have been fixed for the pipe race, two of them only after the race broke a lane. Other suites with the same shape are listed below; each is a separate change.
 
 ## Residual risk
 
