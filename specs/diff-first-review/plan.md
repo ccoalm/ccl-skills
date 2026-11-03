@@ -448,6 +448,13 @@ Passes on this round:
 | Extraction-lane review, candidate 26fb191 | Codex through `extraction_review_gate.sh`, 393 s | inconclusive: `tool_boundary_violation` (Codex sent arguments outside the packet tool schema) | not a result; rerun on the fixed candidate |
 | Runner challenge (`evidence/round3-challenge.json`), candidate 79fe8af | Codex through the new runner, 512 s | one P2: the clients module loaded at import, outside the exit-2 guard, so a partial install exited 1 even for `--help` | confirmed and fixed with a RED case (`partial-rc`) |
 | Extraction-lane review rerun (`evidence/round3-extraction-review.json`), candidate 79fe8af | Codex through `extraction_review_gate.sh`, 426 s | one P2 evidence gap: no current-candidate `make test`, heavy, sanitization or challenge results | accepted: those results are recorded in the validation table below on the final candidate |
+| Runner delta (`evidence/round3-delta.json`), the challenge fix on 285df3a | Codex through the new runner, 83 s | passed | the last runner pass under the daily budget |
+| Extraction-lane challenge (`evidence/round3-extraction-challenge.json`), candidate 285df3a | Codex through `extraction_review_gate.sh`, 320 s (a first call was refused before any review: its focus exceeded the controller's 1000-character limit) | passed | none needed |
+
+Owner lenses: decided against, from the repeat and service-repository replay in
+`evidence/replay.md` ("Repeat runs, owner lenses and other repositories"):
+paired by case, lenses tied or traded wins with the plain brief inside one
+arm's run-to-run spread.
 
 Not changed, noted: finding titles reach stdout as the reviewer wrote them, as
 before this round; a title carrying terminal control sequences would reach a

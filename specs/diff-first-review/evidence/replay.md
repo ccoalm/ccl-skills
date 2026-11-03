@@ -71,3 +71,32 @@ Two further arms, each scored blind with the diff and packet arms, did not
 close the gap: owner skills as review lenses plus the packet's review method
 and per-concern conclusions (review 8 caught, 2 partial), and the inlined diff
 reported above.
+
+## Repeat runs, owner lenses and other repositories
+
+Each figure above came from one run per arm. To see the spread, the relaxed
+review brief, the same brief with owner skills as review lenses (the selected
+owners' `SKILL.md` paths named in the prompt, read before judging), and packet
+review ran again: three runs, two and three on the eight cases here, and two,
+two and one on ten changes from four Go and Python service repositories, each
+also followed by a fix commit for defects it introduced. One judge per
+repository set scored every run blind in one pass (32 and 27 known defects).
+
+| Arm | This repository: caught per run | Noise per run | Service repositories: caught per run | Noise per run |
+| --- | --- | --- | --- | --- |
+| relaxed brief | 13, 13, 16 | 1, 0, 1 | 16, 15 | 1, 1 |
+| relaxed brief with owner lenses | 13, 13 | 2, 3 | 16, 15 | 3, 2 |
+| packet review | 12, 10, 11 | 13, 12, 12 | 7 | 17 |
+
+- Owner lenses did not help. Paired by case they beat the plain brief on three
+  changes and lost on four here, and tied on eight of ten service changes with
+  the same totals, at slightly more noise. The runner names no owner skills.
+- Run-to-run spread for one arm reached three caught defects over eight cases;
+  a single run cannot separate arms closer than that.
+- On the service repositories the diff runner caught about twice as many known
+  defects as packet review with a fraction of the noise; packet review was
+  inconclusive on three of ten (two `tool_boundary_violation`, one
+  `egress_denied`), the diff runner on none.
+- Limits: the ground truth is later bug fixes only, so lenses could still help
+  where the defect is a broken contract or process rule that nobody later fixed
+  in code; Codex was the reviewer in every arm.
