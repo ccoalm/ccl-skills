@@ -1,0 +1,371 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "build",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "findings",
+  "selected_client": "codex",
+  "selected_reviewer": "codex",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P2",
+      "file": "specs/diff-first-review/plan.md",
+      "line": 482,
+      "failure_path": "Evidence gap: this row and the source-register addition assert a RED reproduction, successful fix, and completed delta review, but the packet supplies no supporting execution or review results. The test only checks that /dev/shm is writable; it can skip entirely or pass the old implementation when Git does not emit the filesystem-boundary suffix. Consequently, the required regression-evidence and current-candidate validation checks cannot be completed.",
+      "smallest_fix": "Supply candidate-bound RED/GREEN output demonstrating the boundary suffix and corrected diagnostic, plus the required validation results or explicit skips. A deterministic two-line Git-stderr fixture would make regression coverage independent of mount availability."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [
+    {
+      "client": "claude",
+      "stage": "preflight",
+      "reason": "claude belongs to the implementer model family",
+      "reason_code": "same_family_as_implementer"
+    }
+  ],
+  "attempts": [
+    {
+      "client": "codex",
+      "reviewer": "codex",
+      "mode": "review",
+      "status": "findings",
+      "reviewer_family": "openai",
+      "provider": "openai",
+      "model": null,
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "The selector correctly prefers the first fatal/error line and preserves existing fallbacks. No new P0/P1 found."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "No new permission, privacy, data-loss, or unsafe-mutation path is visible."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "Empty stderr, unmatched stderr, and exit 2 behavior remain intact."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "The assertion targets the defect, but its conditional mount setup does not guarantee reproduction; execution evidence is absent."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "The change is narrowly scoped and adds no CLI options, dependencies, or compatibility layers."
+        },
+        {
+          "concern": "rollout_rollback",
+          "conclusion": "The diagnostic change requires no migration or irreversible operation and is directly reversible."
+        },
+        {
+          "concern": "observability_operations",
+          "conclusion": "The change improves the reported Git failure reason while preserving recovery guidance."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "The RED/GREEN and completed delta-review statements lack supporting results in the bounded packet."
+        },
+        {
+          "concern": "high_risk_boundary",
+          "conclusion": "The shared gate's admission, isolation, verdict, and exit-status boundaries are unchanged."
+        },
+        {
+          "concern": "repository_contract",
+          "conclusion": "No direct implementation-rule violation is visible; required candidate-bound validation cannot be verified from the packet."
+        }
+      ],
+      "findings": [
+        {
+          "severity": "P2",
+          "file": "specs/diff-first-review/plan.md",
+          "line": 482,
+          "failure_path": "Evidence gap: this row and the source-register addition assert a RED reproduction, successful fix, and completed delta review, but the packet supplies no supporting execution or review results. The test only checks that /dev/shm is writable; it can skip entirely or pass the old implementation when Git does not emit the filesystem-boundary suffix. Consequently, the required regression-evidence and current-candidate validation checks cannot be completed.",
+          "smallest_fix": "Supply candidate-bound RED/GREEN output demonstrating the boundary suffix and corrected diagnostic, plus the required validation results or explicit skips. A deterministic two-line Git-stderr fixture would make regression coverage independent of mount availability."
+        }
+      ],
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "packet_sha256": "d9be2a91acd2d0279981ae5c82a7d80c9170469c20e3ae601b816d1fa585f9f6"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "d9be2a91acd2d0279981ae5c82a7d80c9170469c20e3ae601b816d1fa585f9f6",
+  "candidate_sha256": "908fb52d28faaf1b2fb753ef0a073d548b9e798b411d71cc043d19c2964764b9",
+  "review_context_sha256": "c45dbb20ecdca3b98339390a31cf6ecc4ae315946f573e78e7aeeb47a9c1a331",
+  "review_controller_sha256": "6e7f84d6779af3fe0ac47972f73d955047810d1d808a9c7877b888d954c39ba9",
+  "review_profile_sha256": "2034bbd9afce9c72cfd807ea0282f88d9c4c7a723820018084a062fd89d8ecb5",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/review_diff.py"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/test_review_diff.sh"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/code-review/scripts/review_diff.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/code-review/scripts/test_review_diff.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/code-review/scripts/test_review_diff.sh"
+    }
+  ],
+  "review_plan_source": "derived-default",
+  "repository_contract": {
+    "coverage": "complete",
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "bytes": 7523,
+        "sha256": "49485fc6de2c919eecd3c1088bf7b65d9c2ef12f5ffbe3b10357a54fee4b5124"
+      },
+      {
+        "path": "skills/code-review/scripts/AGENTS.md",
+        "bytes": 10431,
+        "sha256": "16e6102bda68e17dcd117a53be991e5170eeff1c3a6a4ebb4eeebc81a3fad997"
+      }
+    ],
+    "omitted": [],
+    "sources_not_read": [
+      "CLAUDE.local.md and untracked files",
+      "@path imports",
+      ".claude/rules",
+      "host-configured fallback filenames"
+    ]
+  },
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "codex-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "selected_skills_sha256": "6ec16fa419e347a297301bba5e233cd7f5f65631c8ff32bc07c8b70d8064d185",
+  "risk_tags": [
+    "shared-gate"
+  ],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": "Delta pass on a fix for a CI failure: when the work directory sits on its own mount, git ends its error with \"Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).\" and the runner showed that note as the not-run reason. The runner now shows the first fatal: or error: line, falling back to the last line. Check the fix and its test, and whether it opens a new P0/P1.",
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "e7bbe900f9afd1fe32d805ebe1f2ee7903cf0f8c5ddfd907189c6019dd57ad22",
+    "acceptance_sha256": "1d49782fd1bf9c0184629bc1940e6f58c8cfe252e233ef278c930ad6c40c73e8",
+    "stage": "build",
+    "review_depth": "release",
+    "risk_tags": [
+      "shared-gate"
+    ],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "8bce27d1ab45626ed02a497180aa6e160f5ea9dcad1436e38b618f9f6ea5ca3d",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review",
+      "risk_or_scope_escalation"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "The selector correctly prefers the first fatal/error line and preserves existing fallbacks. No new P0/P1 found."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "No new permission, privacy, data-loss, or unsafe-mutation path is visible."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "Empty stderr, unmatched stderr, and exit 2 behavior remain intact."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "The assertion targets the defect, but its conditional mount setup does not guarantee reproduction; execution evidence is absent."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "The change is narrowly scoped and adds no CLI options, dependencies, or compatibility layers."
+    },
+    {
+      "concern": "rollout_rollback",
+      "conclusion": "The diagnostic change requires no migration or irreversible operation and is directly reversible."
+    },
+    {
+      "concern": "observability_operations",
+      "conclusion": "The change improves the reported Git failure reason while preserving recovery guidance."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "The RED/GREEN and completed delta-review statements lack supporting results in the bounded packet."
+    },
+    {
+      "concern": "high_risk_boundary",
+      "conclusion": "The shared gate's admission, isolation, verdict, and exit-status boundaries are unchanged."
+    },
+    {
+      "concern": "repository_contract",
+      "conclusion": "No direct implementation-rule violation is visible; required candidate-bound validation cannot be verified from the packet."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "rollout_rollback",
+    "observability_operations",
+    "claim_strength",
+    "high_risk_boundary",
+    "repository_contract"
+  ],
+  "reviewed_skills": [
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "codex",
+    "reviewer": "codex",
+    "mode": "review",
+    "status": "findings",
+    "reviewer_family": "openai",
+    "provider": "openai",
+    "model": null,
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "The selector correctly prefers the first fatal/error line and preserves existing fallbacks. No new P0/P1 found."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "No new permission, privacy, data-loss, or unsafe-mutation path is visible."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "Empty stderr, unmatched stderr, and exit 2 behavior remain intact."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "The assertion targets the defect, but its conditional mount setup does not guarantee reproduction; execution evidence is absent."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "The change is narrowly scoped and adds no CLI options, dependencies, or compatibility layers."
+      },
+      {
+        "concern": "rollout_rollback",
+        "conclusion": "The diagnostic change requires no migration or irreversible operation and is directly reversible."
+      },
+      {
+        "concern": "observability_operations",
+        "conclusion": "The change improves the reported Git failure reason while preserving recovery guidance."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "The RED/GREEN and completed delta-review statements lack supporting results in the bounded packet."
+      },
+      {
+        "concern": "high_risk_boundary",
+        "conclusion": "The shared gate's admission, isolation, verdict, and exit-status boundaries are unchanged."
+      },
+      {
+        "concern": "repository_contract",
+        "conclusion": "No direct implementation-rule violation is visible; required candidate-bound validation cannot be verified from the packet."
+      }
+    ],
+    "findings": [
+      {
+        "severity": "P2",
+        "file": "specs/diff-first-review/plan.md",
+        "line": 482,
+        "failure_path": "Evidence gap: this row and the source-register addition assert a RED reproduction, successful fix, and completed delta review, but the packet supplies no supporting execution or review results. The test only checks that /dev/shm is writable; it can skip entirely or pass the old implementation when Git does not emit the filesystem-boundary suffix. Consequently, the required regression-evidence and current-candidate validation checks cannot be completed.",
+        "smallest_fix": "Supply candidate-bound RED/GREEN output demonstrating the boundary suffix and corrected diagnostic, plus the required validation results or explicit skips. A deterministic two-line Git-stderr fixture would make regression coverage independent of mount availability."
+      }
+    ],
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "packet_sha256": "d9be2a91acd2d0279981ae5c82a7d80c9170469c20e3ae601b816d1fa585f9f6"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}

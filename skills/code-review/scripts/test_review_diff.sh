@@ -845,13 +845,26 @@ expect_eq notrepo-rc "$rc" 2
 has_line notrepo-line "$work/stderr-notrepo" '^review: not run: .*not a git repository'
 lacks_line notrepo-traceback "$work/stderr-notrepo" 'Traceback'
 # Under a mount point git ends with "Stopping at filesystem boundary"; the line
-# shown is still git's own fatal message.
-if [ -d /dev/shm ] && [ -w /dev/shm ]; then
-  shm="$(mktemp -d /dev/shm/review-diff-test.XXXXXX)"
-  run_runner shmrepo "$shm" --implementer-family claude
-  rmdir "$shm"
-  has_line shmrepo-line "$work/stderr-shmrepo" '^review: not run: fatal: not a git repository'
-fi
+# shown is still git's own fatal message. A git shim emits that two-line error.
+mkdir -p "$work/notegit"
+cat >"$work/notegit/git" <<EOF
+#!/usr/bin/env bash
+for arg in "\$@"; do
+  if [ "\$arg" = "--show-toplevel" ]; then
+    printf 'fatal: not a git repository (or any parent up to mount point /mnt)\nStopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).\n' >&2
+    exit 128
+  fi
+done
+exec "$(command -v git)" "\$@"
+EOF
+chmod +x "$work/notegit/git"
+set +e
+PATH="$work/notegit:$TEST_PATH" python3 "$runner" --cwd "$work/notrepo" --intent x --implementer-family claude \
+  --out "$work/out-boundary.json" >/dev/null 2>"$work/stderr-boundary"
+rc=$?
+set -e
+expect_eq boundary-rc "$rc" 2
+has_line boundary-line "$work/stderr-boundary" '^review: not run: fatal: not a git repository \(or any parent up to mount point /mnt\)$'
 repo="$(new_repo badbase)"
 run_runner badbase "$repo" --implementer-family claude --base no-such-ref
 expect_eq badbase-rc "$rc" 2
