@@ -1,0 +1,45 @@
+{
+  "schema_version": 3,
+  "runner": "review_diff",
+  "mode": "review",
+  "status": "findings",
+  "reason_code": null,
+  "findings": [
+    {
+      "severity": "P2",
+      "title": "Guard non-table Kimi config values so a bad config skips only Kimi instead of crashing the whole run",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 323,
+      "body": "`kimi_snapshot` assumes the parsed shapes: line 323 calls `(data.get(\"models\") or {}).get(alias)` and line 326 does the same for `providers`, but a TOML-valid config like `default_model = \"r\"` with `models = \"kimi-latest\"` (a scalar, e.g. from a user error or a future Kimi config-format drift) passes the subset-equality check at line 318 because `filter_toml` keeps the scalar line and it parses to the identical value; `.get` on a string then raises `AttributeError`. Likewise `default_model = 1` reaches `model_family(1)` and crashes on `(1 or \"\").lower()` at line 424. `main` only catches `(OSError, ValueError)` around `reviewer_family` (line 629), so the exception escapes, killing the entire run with a traceback and exit code 1 (the documented \"findings\" code) before codex or claude even attempt, and no result JSON or receipt is written — exactly the \"one malformed reviewer config stops every reviewer\" failure class this change claims to have fixed."
+    },
+    {
+      "severity": "P3",
+      "title": "Strip trailing commas in load_jsonc only outside string literals",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 368,
+      "body": "`load_jsonc` handles `//` and `/* */` comments with string-awareness, but then applies `re.sub(r\",(\\s*[}\\]])\", r\"\\1\", ...)` to the entire remaining text, including inside string literals. An OpenCode config value that legitimately contains a comma directly before a closing brace or bracket on one line — e.g. `{\"provider\": {\"acme\": {\"options\": {\"apiKey\": \"[REDACTED]\"}}}` where the provider's opaque token happens to end in a comma — is silently rewritten to `tok-en}`, so the private OpenCode config carries a corrupted credential or model id and the review fails or runs against the wrong endpoint, with no error surfaced; standard JSONC parsers only strip trailing commas in structural position, so this config loads correctly in the real OpenCode.",
+      "redacted": true
+    }
+  ],
+  "selected_client": "kimi",
+  "reviewer_family": "kimi",
+  "implementer_family": "claude",
+  "base": "613bb1bfb22cf87291889c2021fee6234cb5aff4",
+  "head": "1c847ad3ea3150b59de6e3381efb647241778702",
+  "candidate_digest": "e86b12bc0496e2dcc0c12f45d3951c67f3cdd78dce517698042ffd9d6e7f1a29",
+  "worktree_clean": false,
+  "untracked_files": [],
+  "intent_sha256": "932b18d003e77060a9128bd4d97190f77ea27d7a1d2e9f757458dfa8cfece5f2",
+  "elapsed_seconds": 795.0,
+  "attempts": [
+    {
+      "client": "kimi",
+      "status": "findings",
+      "returncode": 0,
+      "elapsed_seconds": 794.9,
+      "model": "kimi-code/k3"
+    }
+  ],
+  "skipped": [],
+  "recorded_at": "2026-11-03T06:36:56+00:00"
+}

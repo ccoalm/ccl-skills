@@ -20,7 +20,7 @@ Use challenge mode when the user asks for "challenge", "poke holes", "try to bre
 
 ## Script Entry Point
 
-For gate-eligible **review** and **challenge**, use `scripts/review_gate.sh`.
+For daily-development **review** and **challenge**, use `scripts/review_diff.py`; the reviewer reads the diff itself, read-only ([usage](references/diff-first-runner.md)). High-risk work, the skill-extraction lane and complete mode use `scripts/review_gate.sh`.
 `--review-plan-file` is optional for review and challenge: supply a four-field
 plan (`intent`, `acceptance`, `self_review`, `evidence`) to bind
 implementer-authored scope and per-owner self-review, or omit it to run under a
@@ -253,7 +253,7 @@ The script exits:
 - `2`: consult advisory JSON, consult findings, inconclusive output, or fail-closed safe invocation failure; callers should map this to a pending/manual-review gate state, not to "passed" or "no findings"
 - non-zero other: local script/tool error
 
-Compatibility note: consult success used to share the `0` exit path with review/challenge. Current consult mode intentionally exits `2` for both answers and findings so gate callers cannot accidentally count a consult as review approval. Existing consult consumers must migrate from rc-only handling to parsing `status`, `consult_scope`, `advisory`, `untrusted_evidence`, and `gate_eligible`. Prompt-only consult no longer requires `--allow-prompt-only-advisory`; the advisory/untrusted/gate-ineligible metadata on every prompt-only result is the guard, and the flag stays accepted only for back-compat.
+Consult exit-code history: `references/manual-invocation-and-prompts.md`.
 
 Entrypoint availability check: run `skills/code-review/scripts/review_gate.sh --help` for review/challenge or `claude_review.sh --help` for consult. This local check does not invoke a model and is not review evidence; gate evidence starts only after validating a real structured result.
 
@@ -311,7 +311,8 @@ activation was observed; only a public event/export may populate
 
 ## Reference Loading
 
-- `references/staged-review-contract.md` — review-plan schema, stage concerns, high-risk depth, prompt layers, challenge budget. Load before review/challenge.
+- `references/diff-first-runner.md` — `review_diff.py` options, outcomes and read-only boundary. Load before daily-development review/challenge.
+- `references/staged-review-contract.md` — review-plan schema, stage concerns, high-risk depth, prompt layers, challenge budget. Load before `review_gate.sh` review/challenge.
 - `references/wording-only-review.md` — the proof-bound wording-only single review. Load when claiming it.
 - `references/manual-invocation-and-prompts.md` — manual command shape, filesystem-boundary text, and the review/challenge prompt templates. Load only when debugging or patching the wrapper or its prompt construction.
 - `references/timeout-auth-and-capabilities.md` — wait-policy timing tables, the numbered auth-recovery procedure, per-mode tool-flag matrix, and CLI capability adoption notes. Load on timeout/auth failures or when maintaining wrapper flag adoption.

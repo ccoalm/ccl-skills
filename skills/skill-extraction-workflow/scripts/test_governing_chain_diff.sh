@@ -42,7 +42,9 @@ run_case() {
     fail=$((fail + 1))
     return
   fi
-  if [ -n "$want_reason" ] && ! printf '%s\n' "$out" | grep -qF "[$want_reason]"; then
+  # A here-string, not a pipe: grep -q exits on the first match, and under
+  # pipefail a writer still holding the pipe dies of SIGPIPE and fails the check.
+  if [ -n "$want_reason" ] && ! grep -qF "[$want_reason]" <<<"$out"; then
     printf 'FAIL %-46s expected reason %s\n' "$name" "$want_reason"
     printf '%s\n' "$out" | sed 's/^/       /'
     fail=$((fail + 1))
@@ -407,7 +409,7 @@ $HOST_B
 "
   printf 'fail=%s' "$fail"
 )"
-if printf '%s' "$mutant_output" | grep -q 'fail=1'; then
+if grep -q 'fail=1' <<<"$mutant_output"; then
   printf 'PASS %s\n' "harness self-check reports a wrong expectation"
   pass=$((pass + 1))
 else

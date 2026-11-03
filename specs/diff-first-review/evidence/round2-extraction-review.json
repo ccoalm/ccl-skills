@@ -1,0 +1,465 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "build",
+  "stage_source": "caller-declared",
+  "review_depth": "release",
+  "status": "findings",
+  "selected_client": "codex",
+  "selected_reviewer": "codex",
+  "selected_attempt_index": 0,
+  "findings": [
+    {
+      "severity": "P1",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 385,
+      "failure_path": "Family matching searches the entire provider/model string in fixed keyword order. For an OpenAI-compatible provider configured as openai/deepseek-chat, it returns codex before considering deepseek. An implementer-family deepseek run therefore admits the same DeepSeek model and can record its answer as an independent pass.",
+      "smallest_fix": "Classify the resolved model separately from its provider alias, and skip conflicting or ambiguous identities. Add a regression using an OpenAI-compatible provider serving another supported family."
+    },
+    {
+      "severity": "P1",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 395,
+      "failure_path": "Every unrecognized Kimi default_model is assigned family kimi. A named alias such as house-model can point to the implementer's family, yet remain eligible because its identity was replaced with kimi. This accepts a verdict without establishing independence.",
+      "smallest_fix": "Resolve the configured model behind the alias; return unknown when a named model cannot be classified. Reserve any documented Kimi default assumption for an absent model, and test unknown aliases."
+    },
+    {
+      "severity": "P2",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 570,
+      "failure_path": "Eligibility stores only client and family, while run_client rereads model configuration later. During an earlier reviewer's timeout, OpenCode can change from DeepSeek to the implementer's Claude model; it then runs Claude while the result still reports deepseek. Removing the model instead can cause an uncaught AttributeError in private_opencode_root.",
+      "smallest_fix": "Derive eligibility and launch arguments from the same immutable configuration snapshot, and test a configuration change between attempts."
+    },
+    {
+      "severity": "P2",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 564,
+      "failure_path": "All installed clients are inspected before entering the guarded attempt loop. An unreadable Kimi config raises OSError through reviewer_family; a malformed default_model line can raise IndexError in filter_toml. Either aborts the whole runner before a healthy Codex reviewer runs, without fallback or a structured result.",
+      "smallest_fix": "Guard discovery per client and continue after a recorded configuration failure. Include discovery in cleanup/result handling and add unreadable and malformed-config regressions."
+    },
+    {
+      "severity": "P2",
+      "file": "specs/diff-first-review/plan.md",
+      "line": 263,
+      "failure_path": "Evidence gap: the live-probe table supplies author-reported outcomes without commands or captured results. Supplied executable tests replace both clients with shell fakes, so they cannot establish that the real runtimes suppress plugins, MCP, hooks, and write tools. Current-candidate full-lane results required by the repository contract are also absent.",
+      "smallest_fix": "Attach bounded synthetic probe evidence tied to the candidate and client versions, including effective tools, denied writes, hostile plugin/MCP sentinel results, and required validation commands and outcomes."
+    }
+  ],
+  "client_order": [
+    "claude",
+    "codex",
+    "kimi",
+    "opencode"
+  ],
+  "skipped_clients": [
+    {
+      "client": "claude",
+      "stage": "preflight",
+      "reason": "claude belongs to the implementer model family",
+      "reason_code": "same_family_as_implementer"
+    }
+  ],
+  "attempts": [
+    {
+      "client": "codex",
+      "reviewer": "codex",
+      "mode": "review",
+      "status": "findings",
+      "reviewer_family": "openai",
+      "provider": "openai",
+      "model": null,
+      "concern_results": [
+        {
+          "concern": "correctness",
+          "conclusion": "Retry order matches the request, but model-family classification can admit a same-family reviewer."
+        },
+        {
+          "concern": "safety",
+          "conclusion": "Generated configs request read-only tools; actual client enforcement is not established by the supplied evidence."
+        },
+        {
+          "concern": "failure_paths",
+          "conclusion": "The loop clears failed-attempt findings, but configuration discovery can abort before fallback starts."
+        },
+        {
+          "concern": "tests_evidence",
+          "conclusion": "Fakes cover ordering and constructed settings, but miss unknown Kimi models, conflicting family names, configuration changes, and discovery failures."
+        },
+        {
+          "concern": "compatibility",
+          "conclusion": "Defaults and additive result fields fit the request; eager configuration reads introduce a dependency on otherwise unused clients."
+        },
+        {
+          "concern": "rollout_rollback",
+          "conclusion": "No irreversible migration appears; rollback is a code reversion, while defaults immediately activate the new clients."
+        },
+        {
+          "concern": "observability_operations",
+          "conclusion": "Attempt diagnostics improve recovery, but discovery exceptions bypass structured results and diagnostics."
+        },
+        {
+          "concern": "claim_strength",
+          "conclusion": "Model-independence guarantees exceed the implementation, and live-probe and validation claims lack verifiable captures."
+        },
+        {
+          "concern": "high_risk_boundary",
+          "conclusion": "Family classification and configuration races can bypass reviewer independence; runtime isolation remains an evidence gap."
+        },
+        {
+          "concern": "repository_contract",
+          "conclusion": "The contract edit preserves read-only requirements, but required current-candidate validation is asserted rather than demonstrated."
+        }
+      ],
+      "findings": [
+        {
+          "severity": "P1",
+          "file": "skills/code-review/scripts/review_diff.py",
+          "line": 385,
+          "failure_path": "Family matching searches the entire provider/model string in fixed keyword order. For an OpenAI-compatible provider configured as openai/deepseek-chat, it returns codex before considering deepseek. An implementer-family deepseek run therefore admits the same DeepSeek model and can record its answer as an independent pass.",
+          "smallest_fix": "Classify the resolved model separately from its provider alias, and skip conflicting or ambiguous identities. Add a regression using an OpenAI-compatible provider serving another supported family."
+        },
+        {
+          "severity": "P1",
+          "file": "skills/code-review/scripts/review_diff.py",
+          "line": 395,
+          "failure_path": "Every unrecognized Kimi default_model is assigned family kimi. A named alias such as house-model can point to the implementer's family, yet remain eligible because its identity was replaced with kimi. This accepts a verdict without establishing independence.",
+          "smallest_fix": "Resolve the configured model behind the alias; return unknown when a named model cannot be classified. Reserve any documented Kimi default assumption for an absent model, and test unknown aliases."
+        },
+        {
+          "severity": "P2",
+          "file": "skills/code-review/scripts/review_diff.py",
+          "line": 570,
+          "failure_path": "Eligibility stores only client and family, while run_client rereads model configuration later. During an earlier reviewer's timeout, OpenCode can change from DeepSeek to the implementer's Claude model; it then runs Claude while the result still reports deepseek. Removing the model instead can cause an uncaught AttributeError in private_opencode_root.",
+          "smallest_fix": "Derive eligibility and launch arguments from the same immutable configuration snapshot, and test a configuration change between attempts."
+        },
+        {
+          "severity": "P2",
+          "file": "skills/code-review/scripts/review_diff.py",
+          "line": 564,
+          "failure_path": "All installed clients are inspected before entering the guarded attempt loop. An unreadable Kimi config raises OSError through reviewer_family; a malformed default_model line can raise IndexError in filter_toml. Either aborts the whole runner before a healthy Codex reviewer runs, without fallback or a structured result.",
+          "smallest_fix": "Guard discovery per client and continue after a recorded configuration failure. Include discovery in cleanup/result handling and add unreadable and malformed-config regressions."
+        },
+        {
+          "severity": "P2",
+          "file": "specs/diff-first-review/plan.md",
+          "line": 263,
+          "failure_path": "Evidence gap: the live-probe table supplies author-reported outcomes without commands or captured results. Supplied executable tests replace both clients with shell fakes, so they cannot establish that the real runtimes suppress plugins, MCP, hooks, and write tools. Current-candidate full-lane results required by the repository contract are also absent.",
+          "smallest_fix": "Attach bounded synthetic probe evidence tied to the candidate and client versions, including effective tools, denied writes, hostile plugin/MCP sentinel results, and required validation commands and outcomes."
+        }
+      ],
+      "native_skill_binding": "established",
+      "wrapper_exit_code": 0,
+      "packet_sha256": "2b4c379f5565a4730fe8cafa6e2282320bdfdf57e99d91f758a91d1b20407aea"
+    }
+  ],
+  "fallback_attempt_count": 0,
+  "packet_sha256": "2b4c379f5565a4730fe8cafa6e2282320bdfdf57e99d91f758a91d1b20407aea",
+  "candidate_sha256": "e854a4dd3b49abff59922fad46cf85e37dac2217b12e07cccfd144e3f450d1bb",
+  "review_context_sha256": "a05b3b24f062ea5af0d53b5a7948d79de84575bc0bf58ed7f89b99351f0a146c",
+  "review_controller_sha256": "62940358a810870d0d43a52842ad85b034c6c6a41f02699df983c300e11b1440",
+  "review_profile_sha256": "3a1fd18c8c9daed39ff7baf03b845e307fc3b8ceafe164649422797aa4d7c245",
+  "wording_only_proof_sha256": null,
+  "wording_only_scope": null,
+  "owner_selection_source": "controller-derived+implementer-declared",
+  "owner_selection_evidence": [
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/references/diff-first-runner.md"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/AGENTS.md"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/review_diff.py"
+    },
+    {
+      "skill": "code-review",
+      "source": "changed-skill-path",
+      "path": "skills/code-review/scripts/test_review_diff.sh"
+    },
+    {
+      "skill": "python-service-dev",
+      "source": "file-type:.py",
+      "path": "skills/code-review/scripts/review_diff.py"
+    },
+    {
+      "skill": "skill-extraction-workflow",
+      "source": "changed-skill-path",
+      "path": "skills/skill-extraction-workflow/references/source-register.md"
+    },
+    {
+      "skill": "terminal-cli-dev",
+      "source": "file-type:.sh",
+      "path": "skills/code-review/scripts/test_review_diff.sh"
+    },
+    {
+      "skill": "testing-strategy",
+      "source": "test-path",
+      "path": "skills/code-review/scripts/test_review_diff.sh"
+    }
+  ],
+  "review_plan_source": "derived-default",
+  "repository_contract": {
+    "coverage": "complete",
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "bytes": 7523,
+        "sha256": "49485fc6de2c919eecd3c1088bf7b65d9c2ef12f5ffbe3b10357a54fee4b5124"
+      },
+      {
+        "path": "skills/code-review/scripts/AGENTS.md",
+        "bytes": 10083,
+        "sha256": "dfecc5405621504b44fd30f19746ed65ce467d654ee9aa8b4f917a4bbd4b31bb"
+      }
+    ],
+    "omitted": [],
+    "sources_not_read": [
+      "CLAUDE.local.md and untracked files",
+      "@path imports",
+      ".claude/rules",
+      "host-configured fallback filenames"
+    ]
+  },
+  "skill_delivery": "native-installed",
+  "skill_usage_evidence": {
+    "mode": "native-explicit-invocation",
+    "observed": false,
+    "source": "codex-wrapper"
+  },
+  "observed_skill_usage": [],
+  "selected_skills": [
+    "code-review",
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "selected_skills_sha256": "b6025385720615b0b54186288d74630b0c5b596f8c3ef7f5d7a77a176eb59040",
+  "risk_tags": [
+    "shared-gate"
+  ],
+  "risk_tags_source": "caller-declared",
+  "challenge_budget": 0,
+  "challenge_index": 0,
+  "challenge_focus": "User asked: opencode code 优先于kimi， 需要在里面；失败后换下一个重试为何不支持，token 不在意切换正常. This delta adds OpenCode and Kimi to review_diff.py (order codex, claude, opencode, kimi) and tries the next reviewer when one fails. Check the read-only boundary of the two new clients (OpenCode runs from a private empty git project because it imports .opencode/plugin code from its project; Kimi relies on an untrusted workspace and a tools allowlist), family-by-model independence, and that no failed attempt's text can reach a verdict.",
+  "prior_challenge_focuses": [],
+  "review_chain_tracked": false,
+  "review_chain_id": null,
+  "review_scope": {
+    "schema_version": 3,
+    "intent_sha256": "e7bbe900f9afd1fe32d805ebe1f2ee7903cf0f8c5ddfd907189c6019dd57ad22",
+    "acceptance_sha256": "1d49782fd1bf9c0184629bc1940e6f58c8cfe252e233ef278c930ad6c40c73e8",
+    "stage": "build",
+    "review_depth": "release",
+    "risk_tags": [
+      "shared-gate"
+    ],
+    "challenge_budget": 0,
+    "wording_only_proof_sha256": null,
+    "wording_only_scope_sha256": null,
+    "review_lane": "extraction"
+  },
+  "review_scope_sha256": "8bce27d1ab45626ed02a497180aa6e160f5ea9dcad1436e38b618f9f6ea5ca3d",
+  "prior_review_result_sha256": [],
+  "predecessor_challenge_focuses": [],
+  "predecessor_chain_id": null,
+  "predecessor_result_sha256": null,
+  "predecessor_candidate_sha256": null,
+  "challenge_rounds_remaining": 0,
+  "autonomous_review_budget": 1,
+  "autonomous_review_index": 1,
+  "autonomous_reviews_remaining": 0,
+  "autonomous_review_allowed": false,
+  "findings_require_implementer_self_review": true,
+  "human_decision_required": true,
+  "review_state": "post_review_budget",
+  "completion_gated": true,
+  "completion_review_result_sha256": null,
+  "self_review_gate": {
+    "required": true,
+    "required_triggers": [
+      "findings_returned",
+      "post_review_budget_checkpoint"
+    ],
+    "satisfied_triggers": [
+      "before_external_review",
+      "risk_or_scope_escalation"
+    ],
+    "blocks": [
+      "external_review",
+      "completion_claim"
+    ],
+    "allowed_next_actions": [
+      "deep_self_review",
+      "continue_implementation",
+      "continue_independent_work",
+      "resolve_review_findings"
+    ]
+  },
+  "concern_results": [
+    {
+      "concern": "correctness",
+      "conclusion": "Retry order matches the request, but model-family classification can admit a same-family reviewer."
+    },
+    {
+      "concern": "safety",
+      "conclusion": "Generated configs request read-only tools; actual client enforcement is not established by the supplied evidence."
+    },
+    {
+      "concern": "failure_paths",
+      "conclusion": "The loop clears failed-attempt findings, but configuration discovery can abort before fallback starts."
+    },
+    {
+      "concern": "tests_evidence",
+      "conclusion": "Fakes cover ordering and constructed settings, but miss unknown Kimi models, conflicting family names, configuration changes, and discovery failures."
+    },
+    {
+      "concern": "compatibility",
+      "conclusion": "Defaults and additive result fields fit the request; eager configuration reads introduce a dependency on otherwise unused clients."
+    },
+    {
+      "concern": "rollout_rollback",
+      "conclusion": "No irreversible migration appears; rollback is a code reversion, while defaults immediately activate the new clients."
+    },
+    {
+      "concern": "observability_operations",
+      "conclusion": "Attempt diagnostics improve recovery, but discovery exceptions bypass structured results and diagnostics."
+    },
+    {
+      "concern": "claim_strength",
+      "conclusion": "Model-independence guarantees exceed the implementation, and live-probe and validation claims lack verifiable captures."
+    },
+    {
+      "concern": "high_risk_boundary",
+      "conclusion": "Family classification and configuration races can bypass reviewer independence; runtime isolation remains an evidence gap."
+    },
+    {
+      "concern": "repository_contract",
+      "conclusion": "The contract edit preserves read-only requirements, but required current-candidate validation is asserted rather than demonstrated."
+    }
+  ],
+  "reviewed_concerns": [
+    "correctness",
+    "safety",
+    "failure_paths",
+    "tests_evidence",
+    "compatibility",
+    "rollout_rollback",
+    "observability_operations",
+    "claim_strength",
+    "high_risk_boundary",
+    "repository_contract"
+  ],
+  "reviewed_skills": [
+    "python-service-dev",
+    "skill-extraction-workflow",
+    "terminal-cli-dev",
+    "testing-strategy"
+  ],
+  "egress": {
+    "allowed": true,
+    "approval_flag": false,
+    "secret_scan": [],
+    "selection_source": "default"
+  },
+  "primary": {
+    "client": "codex",
+    "reviewer": "codex",
+    "mode": "review",
+    "status": "findings",
+    "reviewer_family": "openai",
+    "provider": "openai",
+    "model": null,
+    "concern_results": [
+      {
+        "concern": "correctness",
+        "conclusion": "Retry order matches the request, but model-family classification can admit a same-family reviewer."
+      },
+      {
+        "concern": "safety",
+        "conclusion": "Generated configs request read-only tools; actual client enforcement is not established by the supplied evidence."
+      },
+      {
+        "concern": "failure_paths",
+        "conclusion": "The loop clears failed-attempt findings, but configuration discovery can abort before fallback starts."
+      },
+      {
+        "concern": "tests_evidence",
+        "conclusion": "Fakes cover ordering and constructed settings, but miss unknown Kimi models, conflicting family names, configuration changes, and discovery failures."
+      },
+      {
+        "concern": "compatibility",
+        "conclusion": "Defaults and additive result fields fit the request; eager configuration reads introduce a dependency on otherwise unused clients."
+      },
+      {
+        "concern": "rollout_rollback",
+        "conclusion": "No irreversible migration appears; rollback is a code reversion, while defaults immediately activate the new clients."
+      },
+      {
+        "concern": "observability_operations",
+        "conclusion": "Attempt diagnostics improve recovery, but discovery exceptions bypass structured results and diagnostics."
+      },
+      {
+        "concern": "claim_strength",
+        "conclusion": "Model-independence guarantees exceed the implementation, and live-probe and validation claims lack verifiable captures."
+      },
+      {
+        "concern": "high_risk_boundary",
+        "conclusion": "Family classification and configuration races can bypass reviewer independence; runtime isolation remains an evidence gap."
+      },
+      {
+        "concern": "repository_contract",
+        "conclusion": "The contract edit preserves read-only requirements, but required current-candidate validation is asserted rather than demonstrated."
+      }
+    ],
+    "findings": [
+      {
+        "severity": "P1",
+        "file": "skills/code-review/scripts/review_diff.py",
+        "line": 385,
+        "failure_path": "Family matching searches the entire provider/model string in fixed keyword order. For an OpenAI-compatible provider configured as openai/deepseek-chat, it returns codex before considering deepseek. An implementer-family deepseek run therefore admits the same DeepSeek model and can record its answer as an independent pass.",
+        "smallest_fix": "Classify the resolved model separately from its provider alias, and skip conflicting or ambiguous identities. Add a regression using an OpenAI-compatible provider serving another supported family."
+      },
+      {
+        "severity": "P1",
+        "file": "skills/code-review/scripts/review_diff.py",
+        "line": 395,
+        "failure_path": "Every unrecognized Kimi default_model is assigned family kimi. A named alias such as house-model can point to the implementer's family, yet remain eligible because its identity was replaced with kimi. This accepts a verdict without establishing independence.",
+        "smallest_fix": "Resolve the configured model behind the alias; return unknown when a named model cannot be classified. Reserve any documented Kimi default assumption for an absent model, and test unknown aliases."
+      },
+      {
+        "severity": "P2",
+        "file": "skills/code-review/scripts/review_diff.py",
+        "line": 570,
+        "failure_path": "Eligibility stores only client and family, while run_client rereads model configuration later. During an earlier reviewer's timeout, OpenCode can change from DeepSeek to the implementer's Claude model; it then runs Claude while the result still reports deepseek. Removing the model instead can cause an uncaught AttributeError in private_opencode_root.",
+        "smallest_fix": "Derive eligibility and launch arguments from the same immutable configuration snapshot, and test a configuration change between attempts."
+      },
+      {
+        "severity": "P2",
+        "file": "skills/code-review/scripts/review_diff.py",
+        "line": 564,
+        "failure_path": "All installed clients are inspected before entering the guarded attempt loop. An unreadable Kimi config raises OSError through reviewer_family; a malformed default_model line can raise IndexError in filter_toml. Either aborts the whole runner before a healthy Codex reviewer runs, without fallback or a structured result.",
+        "smallest_fix": "Guard discovery per client and continue after a recorded configuration failure. Include discovery in cleanup/result handling and add unreadable and malformed-config regressions."
+      },
+      {
+        "severity": "P2",
+        "file": "specs/diff-first-review/plan.md",
+        "line": 263,
+        "failure_path": "Evidence gap: the live-probe table supplies author-reported outcomes without commands or captured results. Supplied executable tests replace both clients with shell fakes, so they cannot establish that the real runtimes suppress plugins, MCP, hooks, and write tools. Current-candidate full-lane results required by the repository contract are also absent.",
+        "smallest_fix": "Attach bounded synthetic probe evidence tied to the candidate and client versions, including effective tools, denied writes, hostile plugin/MCP sentinel results, and required validation commands and outcomes."
+      }
+    ],
+    "native_skill_binding": "established",
+    "wrapper_exit_code": 0,
+    "packet_sha256": "2b4c379f5565a4730fe8cafa6e2282320bdfdf57e99d91f758a91d1b20407aea"
+  },
+  "fallbacks": [],
+  "native_skill_binding": "established",
+  "next_action": "triage_findings_and_continue_independent_work"
+}
