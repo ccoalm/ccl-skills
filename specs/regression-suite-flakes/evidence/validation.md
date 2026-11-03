@@ -19,13 +19,25 @@
 
 | Suite | Lane failure | Alone |
 | --- | --- | --- |
-| `test_check_ccl_skill_catalog.sh`, `test_check_ccl_route_drift.sh`, `test_check_sync_pointers.sh` | the register row cited this round's `specs/` files before they were committed | pass on the committed branch |
+| `test_check_ccl_skill_catalog.sh`, `test_check_ccl_route_drift.sh`, `test_check_sync_pointers.sh` | run before the first commit, when the register row cited uncommitted `specs/` files. The catalog log also shows `evidence_card_leak_self_test_failed`, so the citation is not the proven cause of all three | pass alone on the committed branch |
 | `test_obligation_ledger.sh` | `stale_locator` printed an absolute path, with five suites running at load near 60 | passes alone on the branch and on `origin/main` |
 | `test_eval_runtime.py` | `fixture never reached the descendant path` | 3 of 3 pass alone on the branch and on `origin/main` |
 
 ## Local lanes on the candidate
 
-To be filled.
+Candidate `b16bb2d`, tree clean, tracked files at 644/755. Not complete: no push.
+
+| Lane | Result on `b16bb2d` |
+| --- | --- |
+| `make test-repo-gates` | passed once (TMPDIR on tmpfs); other runs failed `test_eval_runtime.py` (a 0.5 s fixture bound at load 24) and, with the disk full, `scripts/owner-dispatch/test.sh` |
+| `make test-regressions-fast` | passed once; another run failed `test_check_sync_pointers.sh` and `test_liveness_predicate_gate.sh` |
+| `python3 scripts/check-public-sanitization.py .` | passed |
+| `make test-code-review-1` | never passed: `test_opencode_review_retry.sh` failed three attempts inside a PID namespace, timeout cases only, 9, 7 and 4 of them. Passed alone on the branch and on `origin/main` outside the namespace |
+| `make test-code-review-2` | never passed: `test_cli_review_wrappers.sh` Kimi timeout-signal cases also failed alone on the branch (4) and on `origin/main` (5). Open: cause not diagnosed |
+| `make test-code-review-abort-leak` | never passed: leg 1 failed outside a namespace; the namespace run was stopped before finishing |
+| Heavy lane | never passed: one run failed `test_check_ccl_r0_status.sh` (passes alone on both trees); one failed `test_register_firing_path_wiring.sh` and `test_pinned_phrase_mutation_walk.sh`, not yet run alone |
+
+`check-evidence-card-leak.sh --self-test`, which `check-ccl-skills.sh` runs, failed 1 of 60 runs on the branch; the script is identical on `origin/main`. It has the pipe-into-`grep -q` shape, but that is a hypothesis: an instrumented copy failed 7 of 60 runs and printed no `PIPESTATUS` line. The `origin/main` figure from that loop is void because the tree was missing.
 
 ## Review passes
 
