@@ -299,3 +299,7 @@ The review brief: a replay arm with a brief that keeps unconfirmed suspicions
 caught 15 of 30 known defects in review against 8 for the first brief and 14
 for packet review, with less noise than packet review; it is now the review
 brief (`evidence/replay.md`, "The review brief").
+
+The brief change had its own review and challenge through the runner, both
+conclusive with no findings (`evidence/brief-review.json`,
+`evidence/brief-challenge.json`).
