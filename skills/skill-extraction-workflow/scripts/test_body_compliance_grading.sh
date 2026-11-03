@@ -158,8 +158,10 @@ cat > "$stub_dir/claude" <<'STUB'
 #!/bin/sh
 cat > /dev/null
 [ -n "${BODY_COMPLIANCE_ARGS_FILE:-}" ] && printf '%s\n' "$@" > "$BODY_COMPLIANCE_ARGS_FILE"
-# mkdir is atomic: exactly one concurrent call takes the alternate line.
-if [ -n "${BODY_COMPLIANCE_STUB_ONCE_DIR:-}" ] && mkdir "$BODY_COMPLIANCE_STUB_ONCE_DIR" 2>/dev/null; then
+# The mkdir(2) call is atomic, so exactly one concurrent call takes the alternate
+# line. The mkdir utility is not on every host: uutils mkdir (ubuntu-26.04 runners)
+# lets two racing callers both succeed, so the call goes through Ruby.
+if [ -n "${BODY_COMPLIANCE_STUB_ONCE_DIR:-}" ] && ruby -e 'Dir.mkdir(ARGV[0])' "$BODY_COMPLIANCE_STUB_ONCE_DIR" 2>/dev/null; then
   printf '%s\n' "$BODY_COMPLIANCE_STUB_ONCE_LINE"
   exit 0
 fi
@@ -260,7 +262,12 @@ done
 BODY_COMPLIANCE_STUB_LINE=x PATH="$stub_dir:$PATH" ruby "$runner" "$repo_root" --ids prd-continue-evidenced --replicas >/dev/null 2>&1
 [ $? -eq 2 ] || fail "E9 bare --replicas must be a usage error"
 BODY_COMPLIANCE_STUB_LINE='continuing: 桩裁决' PATH="$stub_dir:$PATH" ruby "$runner" "$repo_root" --ids prd-continue-evidenced,prd-stop-ambiguous-assent --replicas 3 --json "$stub_dir/rep.json" --timeout 30 >/dev/null 2>&1 || fail "E9 replicated run failed"
-e10_out="$(BODY_COMPLIANCE_STUB_ONCE_DIR="$stub_dir/once" BODY_COMPLIANCE_STUB_ONCE_LINE='blocked: 桩裁决' BODY_COMPLIANCE_STUB_LINE='continuing: 桩裁决' PATH="$stub_dir:$PATH" ruby "$runner" "$repo_root" --ids prd-continue-evidenced --replicas 3 --json "$stub_dir/mixed.json" --timeout 30 2>&1)" || fail "E10 mixed run failed"
+# E10 runs under a mkdir that never excludes, so a stub that goes back to the
+# mkdir utility fails here on every host, not only on runners whose mkdir races.
+mkdir "$stub_dir/racy-mkdir"
+printf '#!/bin/sh\nexit 0\n' > "$stub_dir/racy-mkdir/mkdir"
+chmod +x "$stub_dir/racy-mkdir/mkdir"
+e10_out="$(BODY_COMPLIANCE_STUB_ONCE_DIR="$stub_dir/once" BODY_COMPLIANCE_STUB_ONCE_LINE='blocked: 桩裁决' BODY_COMPLIANCE_STUB_LINE='continuing: 桩裁决' PATH="$stub_dir/racy-mkdir:$stub_dir:$PATH" ruby "$runner" "$repo_root" --ids prd-continue-evidenced --replicas 3 --json "$stub_dir/mixed.json" --timeout 30 2>&1)" || fail "E10 mixed run failed"
 case "$e10_out" in *"prd-continue-evidenced: 2/3"*) : ;; *) fail "E10 a mixed probe must print its per-probe pass count, got: $e10_out" ;; esac
 ruby -r json -e '
   rep = JSON.parse(File.read(File.join(ARGV[0], "rep.json")))
