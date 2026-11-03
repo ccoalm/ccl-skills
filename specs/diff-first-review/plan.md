@@ -446,6 +446,8 @@ Passes on this round:
 | --- | --- | --- | --- |
 | Runner review (`evidence/round3-review.json`), candidate 26fb191 | Codex through the new runner, 370 s | one P2: with stdout closed at start, `sys.stdout` is `None` and the final flush made a recorded verdict exit 2 | confirmed and fixed with a RED case (`noout-rc`) |
 | Extraction-lane review, candidate 26fb191 | Codex through `extraction_review_gate.sh`, 393 s | inconclusive: `tool_boundary_violation` (Codex sent arguments outside the packet tool schema) | not a result; rerun on the fixed candidate |
+| Runner challenge (`evidence/round3-challenge.json`), candidate 79fe8af | Codex through the new runner, 512 s | one P2: the clients module loaded at import, outside the exit-2 guard, so a partial install exited 1 even for `--help` | confirmed and fixed with a RED case (`partial-rc`) |
+| Extraction-lane review rerun (`evidence/round3-extraction-review.json`), candidate 79fe8af | Codex through `extraction_review_gate.sh`, 426 s | one P2 evidence gap: no current-candidate `make test`, heavy, sanitization or challenge results | accepted: those results are recorded in the validation table below on the final candidate |
 
 Not changed, noted: finding titles reach stdout as the reviewer wrote them, as
 before this round; a title carrying terminal control sequences would reach a

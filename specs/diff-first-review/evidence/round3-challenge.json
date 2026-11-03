@@ -1,0 +1,44 @@
+{
+  "schema_version": 3,
+  "runner": "review_diff",
+  "mode": "challenge",
+  "status": "findings",
+  "reason_code": null,
+  "findings": [
+    {
+      "severity": "P2",
+      "title": "Guard adapter loading with the exit-2 error boundary",
+      "file": "skills/code-review/scripts/review_diff.py",
+      "line": 48,
+      "body": "During an incomplete or concurrent skill installation, the runner can exist before its new sibling module is available. Loading that module raises `FileNotFoundError` or `PermissionError` before `entry()` can catch it, so Python exits 1 without recording findings. I reproduced exit 1 with the sibling absent, even for `--help`. Move adapter loading inside the protected startup path so this failure returns 2."
+    }
+  ],
+  "selected_client": "codex",
+  "reviewer_family": "codex",
+  "implementer_family": "claude",
+  "base": "10338dfa9364957e2e1cee645708af0a2613a0d3",
+  "head": "79fe8afeee4db5fb38eadea5d7af72915234e456",
+  "candidate_digest": "968bdc042c49c9b40c123a482a67cb68c767bba3ba53350daf62b34d9b6b0084",
+  "worktree_clean": true,
+  "untracked_files": [],
+  "intent_sha256": "61102b1b657c5e99f1942cdaa2bcc76852abc9e608a56af7f26ae521d5f45ed4",
+  "elapsed_seconds": 512.1,
+  "attempts": [
+    {
+      "client": "codex",
+      "status": "findings",
+      "returncode": 0,
+      "elapsed_seconds": 512.0,
+      "model": "gpt-6.1-sol",
+      "provider": "openai"
+    }
+  ],
+  "skipped": [
+    {
+      "client": "claude",
+      "reason": "same_family",
+      "model": ""
+    }
+  ],
+  "recorded_at": "2026-11-03T11:46:11+00:00"
+}

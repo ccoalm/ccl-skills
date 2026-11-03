@@ -45,7 +45,10 @@ def _load_sibling(name: str):
     return module
 
 
-clients = _load_sibling("review_diff_clients")
+try:
+    clients = _load_sibling("review_diff_clients")
+except Exception as exc:  # a partial install; entry() reports it rather than exit 1
+    clients, CLIENTS_ERROR = None, exc
 
 SCHEMA_VERSION = 3  # the envelope check_review_evidence_present.py accepts
 FINDING = re.compile(r"^\s*\[(P[0-3])\]\s+(.+?)\s+[—–-]{1,2}\s+(\S+?):(\d+)\s*$")
@@ -596,6 +599,10 @@ def main(argv=None) -> int:
 
 def entry() -> int:
     """main() under one rule: exit 1 means recorded findings and nothing else."""
+    if clients is None:
+        to_stderr(f"review_diff: cannot load review_diff_clients.py next to {Path(__file__).name}: {CLIENTS_ERROR}")
+        to_stderr("  next: reinstall the code-review skill so both files are present, then rerun")
+        return 2
     try:
         return main()
     except KeyboardInterrupt:

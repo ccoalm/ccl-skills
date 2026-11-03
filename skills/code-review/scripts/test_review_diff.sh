@@ -883,6 +883,16 @@ m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 print(m.clients.__file__)' "$runner" 2>&1 || true)"
 expect_eq shadow-clients "$loaded" "$(dirname "$runner")/review_diff_clients.py"
 
+# 14i. A runner whose clients module is missing (a partial install) exits 2, not 1.
+mkdir -p "$work/partial"
+cp "$runner" "$work/partial/review_diff.py"
+set +e
+python3 "$work/partial/review_diff.py" --help >/dev/null 2>"$work/stderr-partial"
+rc=$?
+set -e
+expect_eq partial-rc "$rc" 2
+has_line partial-line "$work/stderr-partial" '^review_diff: cannot load review_diff_clients.py'
+
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi
