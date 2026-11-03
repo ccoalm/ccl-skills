@@ -506,6 +506,8 @@ def record(args, candidate: Candidate, review: Review, implementer: str, skipped
 def emit(result: dict) -> None:
     """The machine-readable lines on stdout. A reader that left early costs nothing:
     the result file is the record."""
+    if sys.stdout is None:  # closed at start
+        return
     try:
         print(json.dumps({"status": result["status"], "reason_code": result["reason_code"],
                           "result": result["result_path"], "reviewer": result["selected_client"],

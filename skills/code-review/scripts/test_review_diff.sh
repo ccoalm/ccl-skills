@@ -819,6 +819,7 @@ closed_run() {  # NAME REDIRECT-MODE: run a passing review with one stream close
     stdout-pipe) "${cmd[@]}" 2>"$work/stderr-$name" | true; rc=${PIPESTATUS[0]} ;;
     stderr-pipe) { "${cmd[@]}" 2>&1 1>&3 | true; rc=${PIPESTATUS[0]}; } 3>"$work/stdout-$name" ;;
     stderr-closed) "${cmd[@]}" >"$work/stdout-$name" 2>&-; rc=$? ;;
+    stdout-closed) "${cmd[@]}" >&- 2>"$work/stderr-$name"; rc=$? ;;
   esac
   set -e
   unset FAKE_CODEX
@@ -833,6 +834,9 @@ expect_eq pipeerr-stdout "$(python3 -c 'import json,sys; print(json.loads(open(s
 closed_run noerr stderr-closed
 expect_eq noerr-rc "$rc" 0
 expect_eq noerr-stdout-lines "$(wc -l <"$work/stdout-noerr" | tr -d ' ')" 1
+closed_run noout stdout-closed
+expect_eq noout-rc "$rc" 0
+expect_eq noout-status "$(field "$out" status 2>/dev/null || true)" passed
 
 # 14e. A git failure before the review exits 2 with one line, never a traceback.
 mkdir -p "$work/notrepo"

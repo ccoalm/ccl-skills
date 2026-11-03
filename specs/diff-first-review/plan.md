@@ -440,6 +440,13 @@ slice; only the read-only replay judges run as agents.
 | Mutation walk on the candidate | control clean; 67 of 67 protected properties red on their own assertion. Two needed more: the Codex config's bare-key guard is reachable only through Codex since Kimi's config is parsed first, so a Codex case now pins it; carrying every Kimi table is refused first by the carried-subset check, and with that check removed only `kimi-isolation` turns red |
 | Python 3.9.25 | the suite passes except the Kimi cases and the lines naming Kimi as skipped, as expected without `tomllib` |
 
+Passes on this round:
+
+| Pass | Reviewer | Result | Disposition |
+| --- | --- | --- | --- |
+| Runner review (`evidence/round3-review.json`), candidate 26fb191 | Codex through the new runner, 370 s | one P2: with stdout closed at start, `sys.stdout` is `None` and the final flush made a recorded verdict exit 2 | confirmed and fixed with a RED case (`noout-rc`) |
+| Extraction-lane review, candidate 26fb191 | Codex through `extraction_review_gate.sh`, 393 s | inconclusive: `tool_boundary_violation` (Codex sent arguments outside the packet tool schema) | not a result; rerun on the fixed candidate |
+
 Not changed, noted: finding titles reach stdout as the reviewer wrote them, as
 before this round; a title carrying terminal control sequences would reach a
 terminal that prints stdout raw.
