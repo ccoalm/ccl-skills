@@ -456,6 +456,18 @@ Owner lenses: decided against, from the repeat and service-repository replay in
 paired by case, lenses tied or traded wins with the plain brief inside one
 arm's run-to-run spread.
 
+Validation on the final candidate:
+
+| Check | Result |
+| --- | --- |
+| `make test-code-review-1`, `-2` | ok |
+| `make test-code-review-abort-leak` | ok inside a private PID namespace |
+| `make test-repo-gates` | ok after the register gained a row for the review fixes: the impact-chain gate scopes rows per round, and those fixes landed after the round's first row |
+| `make test-regressions-fast` | `test_governing_chain_diff.sh` failed intermittently here and on `origin/main` (one run in eight there), a different case each time, with the expected reason visible in the tool's output. Cause: the suite piped its output into `grep -q` under `pipefail`, so a writer still holding the pipe after the match died of SIGPIPE; reproduced in a fresh bash and fixed with here-strings. `test_reference_access_census.sh` carries the same pattern and is left for its own change |
+| Heavy lane | two suites failed once each while other sessions held the host at load 11 to 25 (`test_check_ccl_r0_status.sh`, then `test_pinned_phrase_mutation_walk.sh`); both pass alone |
+| `python3 scripts/check-public-sanitization.py .`, `git diff --check`, `shared_git_surface_gate.py`, `check_review_evidence_present.py` against fetched `origin/main` | ok |
+| Private R0 alias audit | pending: the audit host is reached through a local tunnel that was down; the public fallback reports `ccl_skill_check_interim_ok`, which allows a push but not a clean-landing claim |
+
 Not changed, noted: finding titles reach stdout as the reviewer wrote them, as
 before this round; a title carrying terminal control sequences would reach a
 terminal that prints stdout raw.
