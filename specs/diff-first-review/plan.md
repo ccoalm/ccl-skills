@@ -160,6 +160,8 @@ rates were 80–85% and 47–52%, and the existing wrappers stay available.
 | Challenge (`evidence/challenge.json`) | Codex through the runner, 657 s | `inconclusive` (`candidate_changed`: the register row was edited during the run), ten findings | all confirmed and fixed with RED tests: repository git config (fsmonitor, filters, textconv, external diff) switched off; an implementer family that names no model is refused; untracked files seen under `status.showUntrackedFiles=no` and from a subdirectory; a failed attempt's findings survive a later clean answer; bounded pipe draining and process-group cleanup on every exit; a finding needs its scenario; TOML-quoted provider names. The interrupt-after-parse race is fixed by clearing the verdict in the interrupt handler; it has no deterministic test |
 | Delta (`evidence/delta-review.json`) | Codex through the runner, 322 s | four findings | three confirmed and fixed with RED tests: the candidate is bound by a digest, because staging it with filters off would write plaintext of filtered files into the object store; a scenario-less header from a failed attempt is not carried; filter drivers are listed by name only. One refuted from source: a reviewer that exited 0 while a descendant held its pipes is answered by its own output, which passes only as the exact `No findings.` sentinel, and Codex's answer comes from its `-o` file |
 | Extraction-lane review (`evidence/extraction-review.json`) | Codex through `extraction_review_gate.sh`, 594 s (its first run stopped in 0 s on `egress_denied`: a code comment reading `pass: "…"` matched the secret scan) | seven findings | led to the redesign below. Fixed with RED tests: one reviewer per run, so a timed-out answer and its findings can no longer leak into a later verdict; timed-out answers are never read; answer and stderr go to a private diagnostics file; HEAD and `-z` untracked paths enter the digest; a commented TOML table header is kept. The evidence-gap finding is answered by the live Claude run and the validation record below |
+| Extraction-lane challenge (`evidence/extraction-challenge.json`) | Codex through `extraction_review_gate.sh`, 500 s (two earlier runs: every client timed out after 1456 s; then `--timeout` above the controller's 1200 s limit was refused) | five findings | four fixed with RED tests: both reviewers read the saved diff, since repository `diff.external` could empty Codex's own `git diff`; finding text is redacted with the controller's secret patterns; untracked digest entries are framed with length, type and mode; the Codex model and provider are recorded. The family-from-CLI-name limit is documented in the runner reference. The evidence-gap finding is answered by the live probes in the validation record |
+| Delta 2 (`evidence/delta-review-2.json`) | Codex through the runner, 209 s | `passed` | the last external pass under the budget |
 
 Live run also caught two defects no fake could: Codex refused to create its
 sandbox helper under the system temp dir (the private home moved to the cache
@@ -169,8 +171,6 @@ dir), and an empty `diff.external` override broke plain `git diff` (removed;
 Every protected property was mutated in the runner and turned the suite red
 for the named assertion; two broken mutants (one syntax error, one that
 crashed the first case) were redone so the red came from the property.
-
-| Extraction-lane challenge (`evidence/extraction-challenge.json`) | Codex through `extraction_review_gate.sh`, 500 s (two earlier runs: every client timed out after 1456 s; then `--timeout` above the controller's 1200 s limit was refused) | five findings | four fixed with RED tests: both reviewers read the saved diff, since repository `diff.external` could empty Codex's own `git diff`; finding text is redacted with the controller's secret patterns; untracked digest entries are framed with length, type and mode; the Codex model and provider are recorded. The family-from-CLI-name limit is documented in the runner reference. The evidence-gap finding is answered by the live probes in the validation record |
 
 ## Deep self-review after five passes
 
@@ -210,9 +210,14 @@ design check. The 33 findings fall into five classes:
 | Live Codex isolation probe | `codex mcp list` lists two MCP servers under the user's home and none under the runner's private home, which holds only `auth.json`, `config.toml` and Codex's own `tmp` |
 | Live Claude boundary probe (`--implementer-family codex --client-order claude`) | conclusive in 66 s; read the saved diff with read tools only; its one P2 (non-UTF-8 diff crash) fixed with a RED test. Not an independent review: the implementer is also Claude |
 | Extraction-lane passes through `extraction_review_gate.sh` | review conclusive after a reworded comment cleared an `egress_denied` false positive; challenge: see the passes table |
-| `make test` | RESULT_PLACEHOLDER |
+| `make test-repo-gates` | ok |
+| `make test-regressions-fast` | ok on an idle rerun; a date-window census suite failed once when the 30-day window crossed the daylight-saving change while local and UTC dates differed, and passed alone and on the rerun |
+| `make test-code-review-1`, `-2` | ok (`test_review_diff.sh` in shard 1) |
+| `make test-code-review-abort-leak` | ok inside a private PID namespace (`unshare --user --pid --fork --mount-proc`). On the host it fails identically on the `origin/main` baseline: the session runs under a user service manager, so orphans reparent to it instead of PID 1, which the probe requires; CI runners meet that precondition |
+| Heavy lane (`test_check_ccl_regressions.sh --heavy-only`) | ok, 9 suites |
+| `check_review_evidence_present.py` against a fetched `origin/main` | ok |
 | `python3 scripts/check-public-sanitization.py .`, `git diff --check`, `shared_git_surface_gate.py` | ok |
-| Private R0 alias audit | R0_PLACEHOLDER |
+| Private R0 alias audit | `ccl_skill_check_clean_ok`, `r0_status=private-ok` on the final candidate |
 
 Local environment notes: the default `python3` lacked PyYAML, the system one is
 too old for `tarfile` filters, and the shell umask made checked-out files 600.
