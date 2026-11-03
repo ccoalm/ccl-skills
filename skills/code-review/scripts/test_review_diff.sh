@@ -41,6 +41,8 @@ prompt="$(cat)"
   printf 'codex_home=%s\n' "${CODEX_HOME:-}"
 } >>"$FAKE_LOG.codex"
 printf '%s' "$prompt" >"$FAKE_LOG.codex.prompt"
+diff_file="$(grep -o '/[^ `]*\.diff' "$FAKE_LOG.codex.prompt" | head -1)"
+if [ -n "$diff_file" ] && grep -q '^diff --git' "$diff_file" 2>/dev/null; then echo yes >"$FAKE_LOG.codex.diff"; fi
 [ -n "${CODEX_HOME:-}" ] && cp "$CODEX_HOME/config.toml" "$FAKE_LOG.codex.config" 2>/dev/null
 [ -n "${CODEX_HOME:-}" ] && [ -L "$CODEX_HOME/auth.json" ] && readlink "$CODEX_HOME/auth.json" >"$FAKE_LOG.codex.auth"
 case "${FAKE_CODEX:-findings}" in
@@ -56,6 +58,8 @@ case "${FAKE_CODEX:-findings}" in
   headeronly) printf '[P1] Example finding — src/app.py:1\n' >"$out" ;;
   leak) printf 'sk-leaked-token partial\n' >"$out"; sleep 30 ;;
   stderr) printf 'auth expired\n' >&2; exit 1 ;;
+  quote) printf '[P1] Remove the hardcoded credential — src/app.py:2\n\nIt sets %s = "%s" and ships %s.\n' "pass""word" "hunt""er2hunter2" "ghp_""abcdefghijklmnopqrstuvwxyz0123456789" >"$out" ;;
+  swaplinks) rm -f "$FAKE_REPO/a" "$FAKE_REPO/c"; ln -s x "$FAKE_REPO/a"; ln -s y "$FAKE_REPO/bc"; printf 'No findings.\n' >"$out" ;;
   unicode) printf 'more\n' >>"$FAKE_REPO/src/é.py"; printf 'No findings.\n' >"$out" ;;
   commit) git -C "$FAKE_REPO" commit -q --allow-empty -m during; printf 'No findings.\n' >"$out" ;;
   holdpipe) setsid sleep 30 & sleep 30 ;;
@@ -141,6 +145,9 @@ expect_eq findings-receipt-clean "$(field "$receipt" worktree_clean)" true
 [ -n "$(field "$receipt" recorded_at)" ] || note_fail findings-receipt-time "recorded_at missing"
 grep -q 'base-ref\|'"$(git -C "$repo" rev-parse base-ref)" "$FAKE_LOG.codex.prompt" || note_fail findings-prompt-base "prompt does not name the base"
 grep -q 'Use get() for missing keys' "$FAKE_LOG.codex.prompt" || note_fail findings-prompt-intent "prompt lacks the intent"
+expect_eq codex-diff-file "$(cat "$FAKE_LOG.codex.diff" 2>/dev/null)" yes
+if grep -q 'Run `git diff' "$FAKE_LOG.codex.prompt"; then note_fail codex-own-diff "codex told to build the diff itself"; fi
+expect_eq codex-model "$(field "$out" attempts.0.model)" m-test
 
 # 2. Codex runs read-only under a private home without MCP servers or hooks.
 grep -q -- '-s read-only' "$FAKE_LOG.codex" || note_fail codex-sandbox "codex not run with -s read-only"
@@ -328,6 +335,19 @@ expect_eq unicode-reason "$(field "$out" reason_code)" candidate_changed
 repo="$(new_repo commit)"
 FAKE_CODEX=commit run_runner commit "$repo" --implementer-family claude
 expect_eq commit-reason "$(field "$out" reason_code)" candidate_changed
+
+# 10f2. Untracked entries are framed: moving bytes between two links is a change.
+repo="$(new_repo swaplinks)"
+ln -s xb "$repo/a"; ln -s y "$repo/c"
+FAKE_CODEX=swaplinks run_runner swaplinks "$repo" --implementer-family claude
+expect_eq swaplinks-reason "$(field "$out" reason_code)" candidate_changed
+
+# 10f3. A finding that quotes a credential is redacted in the result and output.
+repo="$(new_repo quote)"
+FAKE_CODEX=quote run_runner quote "$repo" --implementer-family claude
+expect_eq quote-status "$(field "$out" status)" findings
+if grep -q 'hunter2hunter2\|abcdefghijklmnopqrstuvwxyz0123456789' "$out" "$work/stdout-quote"; then note_fail quote-redact "a quoted credential reached the result or output"; fi
+expect_eq quote-flag "$(field "$out" findings.0.redacted)" true
 
 # 10g. A non-UTF-8 text change does not crash the runner.
 repo="$(new_repo latin1)"

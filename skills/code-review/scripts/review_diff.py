@@ -108,27 +108,27 @@ def candidate_digest(cwd: str) -> str:
     digest.update(subprocess.run(
         ["git", "-C", cwd, *GIT_SAFETY, "diff", "--binary", "--no-ext-diff", "--no-textconv", "HEAD"],
         check=True, capture_output=True).stdout)
+    def frame(kind: bytes, data: bytes) -> None:
+        digest.update(kind + len(data).to_bytes(8, "big") + data)
+
     for rel in untracked_files(cwd):
         path = os.path.join(cwd, rel)
-        digest.update(rel.encode("utf-8", "surrogateescape") + b"\0")
+        frame(b"P", rel.encode("utf-8", "surrogateescape"))
         if os.path.islink(path):
-            digest.update(os.readlink(path).encode("utf-8", "surrogateescape"))
+            frame(b"L", os.readlink(path).encode("utf-8", "surrogateescape"))
         elif os.path.isfile(path):
+            frame(b"M", oct(os.stat(path).st_mode & 0o777).encode("ascii"))
             with open(path, "rb") as fh:
-                digest.update(hashlib.sha256(fh.read()).digest())
+                frame(b"F", hashlib.sha256(fh.read()).digest())
     return digest.hexdigest()
 
 
-def build_prompt(mode: str, base: str, intent: str, focus: str, untracked: list,
-                 diff_file: Optional[str]) -> str:
-    """diff_file is set for reviewers without a shell: they read the saved diff."""
-    if diff_file:
-        see = f"Read the diff saved at {diff_file} (it includes uncommitted edits), and read"
-    else:
-        see = f"Run `git diff {base}` to see it (it includes uncommitted edits), and read"
+def build_prompt(mode: str, base: str, intent: str, focus: str, untracked: list, diff_file: str) -> str:
+    # The reviewer reads the diff the runner saved with repository-configured git
+    # programs switched off; a `git diff` of its own could be replaced by them.
     lines = [
         f"Review the change in this repository against base commit {base}.",
-        see,
+        f"Read the diff saved at {diff_file} (it includes uncommitted edits), and read",
         "surrounding code, tests and AGENTS.md files as needed. Do not modify anything.",
     ]
     if untracked:
@@ -167,6 +167,47 @@ def parse_answer(text: str):
     return ("passed", []) if text.strip() == "No findings." else (None, [])
 
 
+def _secret_patterns():
+    """The controller's egress secret patterns, so both runners agree on what a credential is."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "review_gate_patterns", str(Path(__file__).resolve().with_name("review_gate.py")))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return (module.EGRESS_SECRET_PATTERNS, module._SECRET_ASSIGNMENT,
+            module._SECRET_ASSIGNMENT_PLACEHOLDERS, module._SECRET_ASSIGNMENT_PLACEHOLDER_PREFIXES)
+
+
+def redact(text: str):
+    """Return (text, changed) with credential material replaced by [REDACTED]."""
+    patterns, assignment, placeholders, prefixes = _secret_patterns()
+    data = text.encode("utf-8", "surrogateescape")
+    original = data
+    for _, pattern in patterns:
+        data = pattern.sub(b"[REDACTED]", data)
+
+    def scrub(match):
+        value = match.group("value")
+        low = value.strip().lower()
+        if not low or low in placeholders or low.startswith(prefixes):
+            return match.group(0)
+        start, end = match.span("value")
+        whole = match.group(0)
+        return whole[:start - match.start()] + b"[REDACTED]" + whole[end - match.start():]
+
+    data = assignment.sub(scrub, data)
+    return data.decode("utf-8", "surrogateescape"), data != original
+
+
+def redact_finding(finding: dict) -> dict:
+    title, t_changed = redact(finding["title"])
+    body, b_changed = redact(finding["body"])
+    out = dict(finding, title=title, body=body)
+    if t_changed or b_changed:
+        out["redacted"] = True
+    return out
+
+
 def scratch_dir(prefix: str) -> str:
     # Not under the system temp dir: Codex refuses to create its sandbox helper
     # binaries there, and every shell command in the review then fails.
@@ -177,13 +218,14 @@ def scratch_dir(prefix: str) -> str:
     return path
 
 
-def private_codex_home(source: Path) -> str:
+def private_codex_home(source: Path):
+    """Return (home, model, provider) for a Codex run that loads nothing else."""
     home = scratch_dir("codex-home-")
     auth = source / "auth.json"
     if auth.exists():
         # A link, so a refreshed token lands in the user's own file.
         os.symlink(auth, os.path.join(home, "auth.json"))
-    kept, table, provider = [], None, None
+    kept, table, provider, model = [], None, None, None
     config = source / "config.toml"
     if config.is_file():
         for line in config.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -199,6 +241,8 @@ def private_codex_home(source: Path) -> str:
             key = stripped.split("=", 1)[0].strip()
             if table is None and key in CODEX_KEYS:
                 kept.append(line)
+                if key == "model":
+                    model = stripped.split("=", 1)[1].split("#", 1)[0].strip().strip('"').strip("'")
                 if key == "model_provider":
                     value = stripped.split("=", 1)[1].strip()
                     quoted = re.match(r"""^(["'])(.*?)\1""", value)
@@ -207,7 +251,7 @@ def private_codex_home(source: Path) -> str:
                                                      or table.startswith(f"model_providers.{provider}.")):
                 kept.append(line)
     Path(home, "config.toml").write_text("\n".join(kept) + "\n", encoding="utf-8")
-    return home
+    return home, model, provider
 
 
 def run_child(cmd: list, prompt: str, cwd: str, env: dict, timeout: int):
@@ -254,11 +298,12 @@ def reap(proc):
     return out or "", err or ""
 
 
-def run_client(client: str, prompt: str, cwd: str, timeout: int, diff_dir: str):
+def run_client(client: str, prompt: str, cwd: str, timeout: int, diff_dir: str, meta: dict):
     env = dict(os.environ)
     if client == "codex":
         source = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
-        home = private_codex_home(source)
+        home, model, provider = private_codex_home(source)
+        meta.update(model=model or "", provider=provider or "openai")
         answer = os.path.join(home, "answer.txt")
         env["CODEX_HOME"] = home
         cmd = ["codex", "exec", "-C", cwd, "-s", "read-only", "--ephemeral", "-o", answer, "-"]
@@ -339,10 +384,10 @@ def main(argv=None) -> int:
         else:
             selected = installed[0]
             t0 = time.time()
-            prompt = build_prompt(args.mode, base, args.intent, args.focus, untracked,
-                                  diff_file if selected == "claude" else None)
-            outcome, rc, text, err = run_client(selected, prompt, cwd, args.timeout, diff_dir)
-            attempt = {"client": selected, "returncode": rc, "elapsed_seconds": round(time.time() - t0, 1)}
+            prompt = build_prompt(args.mode, base, args.intent, args.focus, untracked, diff_file)
+            meta = {}
+            outcome, rc, text, err = run_client(selected, prompt, cwd, args.timeout, diff_dir, meta)
+            attempt = {"client": selected, "returncode": rc, "elapsed_seconds": round(time.time() - t0, 1), **meta}
             if outcome == "interrupted":
                 reason = "operator_interrupt"
             elif outcome == "timeout":
@@ -355,6 +400,7 @@ def main(argv=None) -> int:
                 reason = "empty_answer"
             else:
                 status, findings = parse_answer(text)
+                findings = [redact_finding(f) for f in findings]
                 if status is None:
                     reason = "unparseable_answer"
             attempt["status"] = status or reason

@@ -98,8 +98,9 @@ and Codex passes).
    `claude -p --tools Read Grep Glob --add-dir <saved diff> --permission-mode
    dontAsk --setting-sources "" --strict-mcp-config --no-session-persistence`:
    no shell (git can write files through `--output`), and settings or MCP
-   servers cannot add tools. The prompt names the base, the intent and, for
-   challenge, the adversarial brief and optional focus.
+   servers cannot add tools. Both read the diff the runner saved with
+   repository git programs off. The prompt names the base, the intent and,
+   for challenge, the adversarial brief and optional focus.
 5. Parse `[P0-3] title — path:line` lines, each followed by its scenario; an
    answer that is exactly `No findings.` is `passed`; anything else is
    `inconclusive` with the raw text kept.
@@ -169,6 +170,8 @@ Every protected property was mutated in the runner and turned the suite red
 for the named assertion; two broken mutants (one syntax error, one that
 crashed the first case) were redone so the red came from the property.
 
+| Extraction-lane challenge (`evidence/extraction-challenge.json`) | Codex through `extraction_review_gate.sh`, 500 s (two earlier runs: every client timed out after 1456 s; then `--timeout` above the controller's 1200 s limit was refused) | five findings | four fixed with RED tests: both reviewers read the saved diff, since repository `diff.external` could empty Codex's own `git diff`; finding text is redacted with the controller's secret patterns; untracked digest entries are framed with length, type and mode; the Codex model and provider are recorded. The family-from-CLI-name limit is documented in the runner reference. The evidence-gap finding is answered by the live probes in the validation record |
+
 ## Deep self-review after five passes
 
 Five conclusive passes still returned P1 findings, so review paused for a
@@ -197,3 +200,23 @@ design check. The 33 findings fall into five classes:
 | Kimi / OpenCode wrappers | sibling clients | unchanged | not in the runner; `review_gate.sh` stays available for them |
 | `scripts/AGENTS.md` (code-review) | directory contract | updated | the runner's read-only boundary is the one exception to the packet rule |
 | External packs (Claude code-review, Codex review-agent, superpowers, gstack) | reference-only | routed | benchmark source only; nothing copied |
+
+## Validation record
+
+| Check | Result |
+| --- | --- |
+| `bash skills/code-review/scripts/test_review_diff.sh` | ok; each protected property mutated and observed red for its own assertion |
+| Live Codex reviews through the runner | four conclusive passes (302–657 s) on earlier candidates of this change |
+| Live Codex isolation probe | `codex mcp list` lists two MCP servers under the user's home and none under the runner's private home, which holds only `auth.json`, `config.toml` and Codex's own `tmp` |
+| Live Claude boundary probe (`--implementer-family codex --client-order claude`) | conclusive in 66 s; read the saved diff with read tools only; its one P2 (non-UTF-8 diff crash) fixed with a RED test. Not an independent review: the implementer is also Claude |
+| Extraction-lane passes through `extraction_review_gate.sh` | review conclusive after a reworded comment cleared an `egress_denied` false positive; challenge: see the passes table |
+| `make test` | RESULT_PLACEHOLDER |
+| `python3 scripts/check-public-sanitization.py .`, `git diff --check`, `shared_git_surface_gate.py` | ok |
+| Private R0 alias audit | R0_PLACEHOLDER |
+
+Local environment notes: the default `python3` lacked PyYAML, the system one is
+too old for `tarfile` filters, and the shell umask made checked-out files 600.
+The lanes ran under a venv with `requirements-test.txt` and umask 022. Two
+regression suites (a date-window census and a sync-pointer check) failed once
+each while a controller challenge ran in parallel and passed alone and on the
+idle rerun.

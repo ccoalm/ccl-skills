@@ -1,7 +1,7 @@
 # Diff-First Runner
 
 `scripts/review_diff.py` is the daily-development review and challenge
-entrypoint. The reviewer reads `git diff` against the merge base and the
+entrypoint. The reviewer reads the diff against the merge base and the
 surrounding code itself, read-only, and answers in text. The runner only picks
 an independent reviewer, binds the candidate, parses the answer and records
 the result. Why it exists and what it replaced: `specs/diff-first-review/plan.md`.
@@ -16,9 +16,11 @@ python3 "$CODE_REVIEW_SKILL_DIR/scripts/review_diff.py" --cwd "$PWD" \
 
 - `--mode challenge` runs the adversarial pass on the candidate with the
   review's fixes applied; `--focus` names what to look at hardest.
-- `--base` is any ref; the runner diffs the working tree against
-  `git merge-base HEAD <ref>`, so uncommitted edits are covered and untracked
-  files are named in the prompt. The default ref is `origin/HEAD`.
+- `--base` is any ref; the runner saves the diff of the working tree against
+  `git merge-base HEAD <ref>`, so uncommitted edits are covered, and names
+  untracked files in the prompt. Both reviewers read that saved diff rather
+  than running `git diff` themselves, because repository git config could
+  replace their output. The default ref is `origin/HEAD`.
 - `--implementer-family` names the model family that wrote the change:
   `claude`, `codex` or `kimi`, or the aliases `anthropic`, `openai`, `gpt`.
   The reviewer of the same family is skipped. A client that can run any model
@@ -59,7 +61,9 @@ The result carries `schema_version: 3`, `mode`, `status` and `selected_client`
 (the envelope `check_review_evidence_present.py` accepts) plus findings,
 reviewer and implementer family, base, head, candidate digest (of HEAD,
 `git diff --binary HEAD` and untracked contents, written to no object store),
-elapsed time and the one attempt. The receipt `<git-dir>/ccl-code-review/last-review.json` carries the
+elapsed time and the one attempt (with the Codex model and provider it ran).
+Finding text is passed through the controller's secret patterns; a match is
+replaced by `[REDACTED]` and the finding carries `redacted: true`. The receipt `<git-dir>/ccl-code-review/last-review.json` carries the
 fields `hooks/remind-review-covers-head.sh` reads.
 
 ## Boundary
@@ -79,3 +83,6 @@ fields `hooks/remind-review-covers-head.sh` reads.
   bytes against the working-tree bytes in the diff.
 - The reviewer can read what the user can read and sends it to its provider.
   The prompt tells it not to quote secret values.
+- Reviewer family comes from the CLI name. A Codex configured with a
+  provider that serves another family's model is still counted as Codex;
+  check `attempts[0].model` and `provider` when that matters.
