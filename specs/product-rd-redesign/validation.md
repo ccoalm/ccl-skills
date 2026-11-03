@@ -117,3 +117,36 @@ The three host baseline failures were fixed on `main`, and the branch was rebase
 | `check_review_evidence_present.py`, `shared_git_surface_gate.py`, `check-public-sanitization.py`, `git diff --check` | ok |
 
 The branch changes no file under `skills/code-review/`, so the one failure is recorded as a load-dependent flake in a timing-sensitive case, not caused by this change.
+
+## Daily-use trial (candidate b49446d, 2026-10-24 to 2026-10-30)
+
+Counts-only census over Claude transcripts, reviewed on 2026-11-03. A session is assigned to an arm by the plugin root its SessionStart injection links; evaluation and scratch harness directories are excluded. A code edit is an Edit or Write on a source-file extension; a plan is a Write to a plan, spec, design or proposal Markdown file before the first code edit. Arms:
+
+- trial: the owner's main machine through the trial wrapper, 36 sessions, 26 with code edits, 17 loading product-rd;
+- concurrent `main`: another of the owner's machines in the same window, 157 sessions, 137 with code edits, 88 loading product-rd;
+- later `main`: the owner's main machine from 2026-10-31 to 2026-11-03, 24 sessions, 16 with code edits, 14 loading product-rd;
+- earlier `main`: the owner's main machine from 2026-09-13 to 2026-10-23, 204 sessions. Only sessions whose injection carries the link are classified, and the hooks were older then, so this arm is not a fair control.
+
+| Measure | trial | concurrent `main` | later `main` | earlier `main` |
+| --- | --- | --- | --- | --- |
+| product-rd loaded before the first code edit | 12/26 (46%) | 69/137 (50%), p=0.83 | 9/16 (56%), p=0.75 | 53/161 (33%), p=0.19 |
+| Plan written before the first code edit | 5/26 (19%) | 42/137 (31%), p=0.34 | 4/16 (25%), p=0.71 | 26/161 (16%) |
+| product-rd sessions that read a reference | 6/17 (35%) | 20/88 (23%) | 8/14 (57%) | 13/81 (16%) |
+| Reads of `delivery-lifecycle.md` | 0 | 6 | 7 | 0 |
+
+p is Fisher's exact test against the trial arm.
+
+- **Direction:** against both same-era controls the trial is lower on loading before the first edit and on plans written before code. Against the earlier arm it looks better, but that arm predates the hooks that raised loading on `main`.
+- **Moved text:** `delivery-lifecycle.md` holds most of the old entrypoint and was never opened in the trial. Rare-path situations did occur: 7 trial sessions sent content to shared docs or chat and 10 deleted code files, and `artifact-egress-confidentiality.md` and `feature-deprecation-cascade.md` were opened 0 times. Controls also almost never open those references, but there the text sits in the loaded entrypoint.
+- **Corrections:** user messages with a correction marker are too sparse to compare (trial 1 of 409, earlier `main` 3 of 2,008).
+- **Power:** none of the differences is significant at 26 sessions with code edits. Detecting 31% against 19% at 80% power needs about 200 sessions with code edits per arm, so another daily trial cannot decide this either.
+
+## Decision
+
+The trial does not pass validation step 4 in `design.md`. Both behavior measures are worse against both same-era controls, and the most plausible mechanism is the failure mode named in the charter in `plan.md`: text moved into a reference that agents do not open. The branch is not merged; it stays as the record of this round.
+
+The branch is also stale: 96 commits behind `main` at d0e9b34, with merge conflicts in the entrypoint, `source-register.md` and both specs/065 obligation files. The entrypoint and `delivery-lifecycle.md` still cite `owner-dispatch.sh ci`, which `main` has since removed.
+
+A later slimming round keeps behavior-shaping lines, such as the plan gate and the rare-path triggers, in the entrypoint or turns them into hooks. It decides on the delivery suite with more runs per arm, with plans written before code as a measure, rather than on a daily trial.
+
+The trial wrapper, its `.zshrc` source line and the pinned trial checkout were removed from the owner's main machine on 2026-11-03.
