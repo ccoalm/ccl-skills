@@ -311,8 +311,10 @@ def main(argv=None) -> int:
     digest_before = candidate_digest(cwd)
     diff_dir = scratch_dir("diff-")
     diff_file = os.path.join(diff_dir, "change.diff")
-    Path(diff_file).write_text(git(cwd, "diff", "--no-ext-diff", "--no-textconv", base) + "\n",
-                               encoding="utf-8")
+    # Bytes, not text: a changed file need not be UTF-8.
+    Path(diff_file).write_bytes(subprocess.run(
+        ["git", "-C", cwd, *GIT_SAFETY, "diff", "--no-ext-diff", "--no-textconv", base],
+        check=True, capture_output=True).stdout)
     started = time.time()
 
     def on_signal(signum, frame):

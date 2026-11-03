@@ -329,6 +329,13 @@ repo="$(new_repo commit)"
 FAKE_CODEX=commit run_runner commit "$repo" --implementer-family claude
 expect_eq commit-reason "$(field "$out" reason_code)" candidate_changed
 
+# 10g. A non-UTF-8 text change does not crash the runner.
+repo="$(new_repo latin1)"
+printf 'caf\xe9 = 1\n' >"$repo/src/latin1.py"
+git -C "$repo" add src/latin1.py && git -C "$repo" commit -q -m latin1
+FAKE_CODEX=passed run_runner latin1 "$repo" --implementer-family claude
+expect_eq latin1-status "$(field "$out" status)" passed
+
 # 11. A candidate that changes during the review is inconclusive.
 repo="$(new_repo mutate)"
 FAKE_CODEX=mutate run_runner mutate "$repo" --implementer-family claude
