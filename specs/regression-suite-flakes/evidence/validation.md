@@ -9,6 +9,9 @@
 | Census mutation walk: each of the 39 here-string checks mutated alone in a disposable copy (positive checks: an expected value that cannot match; negative checks: an empty pattern, which matches everything) | n/a | control run green; 39 of 39 mutants exit 1 with their own check's message as the first failure; no two checks share a message |
 | Parallel-suites runner test alone, repeated | branch: 4 of 10 failed; `origin/main`: 2 of 10; a copy printing `PIPESTATUS` on a marker miss failed 5 of 30, each marker miss `141 0` with the marker present | 0 of 20 failed |
 | Parallel-suites mutation walk: each of its 9 here-string checks mutated alone in a disposable copy with the runner | n/a | control green; 9 of 9 exit 1 with their own message first. The marker-loop check was mutated through its marker list (`PY-MARKER-MUTANT`): a mutation inside `"$marker"` names an unset variable and aborts before any check runs |
+| Evidence-card self-test: two-line output through the pipe, `pipefail`, 3,000 runs | 159 false misses; one-line output 0 | here-string form 0 |
+| Stock `check-evidence-card-leak.sh --self-test` with `printf` overridden to write line by line, 3 runs | 3 failed: `changed-scope missed a now-modified historical card`; without the override it passes | 3 passed |
+| Evidence-card mutation walk: each of the 7 converted self-test checks mutated alone in a disposable copy | n/a | control green; 7 of 7 exit 1 with exactly one failure line, their own |
 | Grading suite, mixed-replica leg under the non-excluding `mkdir`, old stub restored in a disposable copy | fails: `prd-continue-evidenced: 0/3`, and the summary check fails; the same two failures the CI run printed | passes: `2/3`, summary `{pass 2, fail 1}` |
 | Grading suite, one-shot directory under a missing parent, so `Dir.mkdir` fails with ENOENT for every replica | n/a | E10 fails with `3/3`: a Ruby failure other than EEXIST makes the leg red, not green |
 | Mixed-replica leg on the CI image (`ubuntu:26.04`, Ruby 3.3.8, uutils `mkdir` 0.10.0), 200 runs each | 31 misses | 0 misses |
@@ -19,7 +22,7 @@
 
 | Suite | Lane failure | Alone |
 | --- | --- | --- |
-| `test_check_ccl_skill_catalog.sh`, `test_check_ccl_route_drift.sh`, `test_check_sync_pointers.sh` | run before the first commit, when the register row cited uncommitted `specs/` files. The catalog log also shows `evidence_card_leak_self_test_failed`, so the citation is not the proven cause of all three | pass alone on the committed branch |
+| `test_check_ccl_skill_catalog.sh`, `test_check_ccl_route_drift.sh`, `test_check_sync_pointers.sh` | the evidence-card self-test stopped the full checker they run (plan, Diagnosis). The first occurrence also had an uncommitted citation in the register, which is not the cause: the same three failed again with no such citation | pass alone on the committed branch |
 | `test_obligation_ledger.sh` | `stale_locator` printed an absolute path, with five suites running at load near 60 | passes alone on the branch and on `origin/main` |
 | `test_eval_runtime.py` | `fixture never reached the descendant path` | 3 of 3 pass alone on the branch and on `origin/main` |
 
@@ -37,7 +40,7 @@ Candidate `b16bb2d`, tree clean, tracked files at 644/755. Not complete: no push
 | `make test-code-review-abort-leak` | never passed: leg 1 failed outside a namespace; the namespace run was stopped before finishing |
 | Heavy lane | never passed: one run failed `test_check_ccl_r0_status.sh` (passes alone on both trees); one failed `test_register_firing_path_wiring.sh` and `test_pinned_phrase_mutation_walk.sh`, not yet run alone |
 
-`check-evidence-card-leak.sh --self-test`, which `check-ccl-skills.sh` runs, failed 1 of 60 runs on the branch; the script is identical on `origin/main`. It has the pipe-into-`grep -q` shape, but that is a hypothesis: an instrumented copy failed 7 of 60 runs and printed no `PIPESTATUS` line. The `origin/main` figure from that loop is void because the tree was missing.
+Lane results above predate the evidence-card fix; the table is replaced by the run on the final candidate.
 
 ## Review passes
 

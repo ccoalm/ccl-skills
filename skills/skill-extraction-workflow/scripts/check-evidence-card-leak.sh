@@ -263,6 +263,8 @@ report() {
 }
 
 self_test() {
+  # Checks read output from a here-string, not a pipe: grep -q exits on the first match, and
+  # under pipefail a writer still holding the pipe dies of SIGPIPE, which reads as a miss.
   local tmp rc=0
   tmp="$(mktemp -d)"
   # shellcheck disable=SC2064
@@ -353,10 +355,10 @@ self_test() {
   fi
 
   # ---- report() status mapping (no git needed): degraded is distinct + WARNING-PASS by default
-  if ! printf '%s' "$(report 0)" | grep -q 'evidence_card_leak_scan_ok'; then
+  if ! grep -q 'evidence_card_leak_scan_ok' <<<"$(report 0)"; then
     echo "self-test FAIL: report(0) should print scan_ok" >&2; rc=1
   fi
-  if ! printf '%s' "$(report 3 2>&1 || true)" | grep -q 'evidence_card_leak_scan_degraded'; then
+  if ! grep -q 'evidence_card_leak_scan_degraded' <<<"$(report 3 2>&1 || true)"; then
     echo "self-test FAIL: report(3) should print scan_degraded (distinct, not ok)" >&2; rc=1
   fi
   if ! ( report 3 >/dev/null 2>&1 ); then
@@ -416,17 +418,17 @@ self_test() {
     # (i) untracked NEW offender caught vs HEAD; committed unchanged historical NOT scanned
     printf '## Evidence Card\n- Recommended path: L2\n' > "$gr/skills/h/references/new-leak.md"
     out="$(scan_default "$gr" 2>/dev/null || true)"
-    if ! printf '%s' "$out" | grep -q 'new-leak.md'; then
+    if ! grep -q 'new-leak.md' <<<"$out"; then
       echo "self-test FAIL: changed-scope missed a new offending markdown" >&2; rc=1
     fi
-    if printf '%s' "$out" | grep -q 'historical.md'; then
+    if grep -q 'historical.md' <<<"$out"; then
       echo "self-test FAIL: changed-scope wrongly scanned an unchanged historical offender" >&2; rc=1
     fi
 
     # (ii) modifying the historical file brings it INTO worktree-vs-HEAD scope -> caught
     printf '\n- Trigger / context: y\n' >> "$gr/skills/h/references/historical.md"
     out="$(scan_default "$gr" 2>/dev/null || true)"
-    if ! printf '%s' "$out" | grep -q 'historical.md'; then
+    if ! grep -q 'historical.md' <<<"$out"; then
       echo "self-test FAIL: changed-scope missed a now-modified historical card" >&2; rc=1
     fi
 
@@ -438,7 +440,7 @@ self_test() {
     fgit "$gr" add -A >/dev/null 2>&1
     fgit "$gr" commit -q --no-verify -m branch-leak >/dev/null 2>&1
     out="$(CCL_SKILL_BASE_REF="$base_sha" scan_default "$gr" 2>/dev/null || true)"
-    if ! printf '%s' "$out" | grep -q 'branch-leak.md'; then
+    if ! grep -q 'branch-leak.md' <<<"$out"; then
       echo "self-test FAIL: base-ref changed-scope missed a branch-committed offender" >&2; rc=1
     fi
 
@@ -446,7 +448,7 @@ self_test() {
     #      (path-join must use the toplevel, not the subdir root).
     printf '## Evidence Card\n- Recommended path: L2\n' > "$gr/skills/h/references/subdir-leak.md"
     out="$(scan_default "$gr/skills/h" 2>/dev/null || true)"
-    if ! printf '%s' "$out" | grep -q 'subdir-leak.md'; then
+    if ! grep -q 'subdir-leak.md' <<<"$out"; then
       echo "self-test FAIL: subdir-root scan missed the offender (toplevel/path-join bug)" >&2; rc=1
     fi
     rm -f "$gr/skills/h/references/subdir-leak.md"
