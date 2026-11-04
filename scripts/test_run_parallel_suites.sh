@@ -14,6 +14,8 @@ RUNNER="$SCRIPT_DIR/run-parallel-suites.sh"
 [ -f "$RUNNER" ] || { printf 'FAIL: runner not found: %s\n' "$RUNNER" >&2; exit 1; }
 
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
+# Checks read output from a here-string, not a pipe: grep -q exits on the first
+# match, and under pipefail a writer still holding the pipe dies of SIGPIPE.
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/parallel-suites-test.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
@@ -31,7 +33,7 @@ printf 'print("PY-MARKER")\n' >"$TMP/pysuite.py"
 out="$(bash "$RUNNER" --jobs 4 "$TMP/slow.sh" "$TMP/fast.sh" "$TMP/pysuite.py")" \
   || fail "green run exited nonzero"
 for marker in SLOW-MARKER FAST-MARKER PY-MARKER; do
-  printf '%s' "$out" | grep -q "$marker" || fail "suite output missing: $marker"
+  grep -q "$marker" <<<"$out" || fail "suite output missing: $marker"
 done
 slow_line="$(printf '%s' "$out" | grep -n 'SLOW-MARKER' | cut -d: -f1)"
 fast_line="$(printf '%s' "$out" | grep -n 'FAST-MARKER' | cut -d: -f1)"
@@ -68,10 +70,10 @@ red_out="$(bash "$RUNNER" --jobs 4 "$TMP/fast.sh" "$TMP/red.sh" 2>&1)"
 red_rc=$?
 set -e
 [ "$red_rc" -ne 0 ] || fail "a failing suite did not make the runner exit nonzero"
-printf '%s' "$red_out" | grep -q 'red.sh' || fail "failure summary does not name the failing suite"
-printf '%s' "$red_out" | grep -q 'BOOM' || fail "failing suite's stderr was swallowed"
-printf '%s' "$red_out" | grep -q 'FAST-MARKER' || fail "passing suite's output lost on a failed run"
-printf '%s' "$red_out" | grep -q 'status=3' || fail "failing suite's exit status not reported"
+grep -q 'red.sh' <<<"$red_out" || fail "failure summary does not name the failing suite"
+grep -q 'BOOM' <<<"$red_out" || fail "failing suite's stderr was swallowed"
+grep -q 'FAST-MARKER' <<<"$red_out" || fail "passing suite's output lost on a failed run"
+grep -q 'status=3' <<<"$red_out" || fail "failing suite's exit status not reported"
 
 # 6) a missing suite fails BEFORE anything runs
 : >"$TMP/ran-marker"
@@ -81,7 +83,7 @@ miss_out="$(bash "$RUNNER" "$TMP/canary.sh" "$TMP/does-not-exist.sh" 2>&1)"
 miss_rc=$?
 set -e
 [ "$miss_rc" -ne 0 ] || fail "a missing suite did not fail the runner"
-printf '%s' "$miss_out" | grep -q 'missing suite' || fail "missing-suite failure not reported as such"
+grep -q 'missing suite' <<<"$miss_out" || fail "missing-suite failure not reported as such"
 [ ! -s "$TMP/ran-marker" ] || fail "suites launched despite a missing suite in the list"
 
 # 7) a suite path is data, never a shell command: a path containing shell
@@ -93,7 +95,7 @@ evil_name='$(touch pwned);echo hi;.sh'
 printf '#!/usr/bin/env bash\necho ODD-PATH-MARKER\n' >"$TMP/dir with spaces/$evil_name"
 odd_out="$(cd "$TMP" && bash "$RUNNER" --jobs 2 "dir with spaces/$evil_name")" \
   || fail "odd-path suite did not run"
-printf '%s' "$odd_out" | grep -q 'ODD-PATH-MARKER' || fail "odd-path suite produced no output"
+grep -q 'ODD-PATH-MARKER' <<<"$odd_out" || fail "odd-path suite produced no output"
 [ ! -e "$TMP/pwned" ] || fail "suite path was evaluated by a shell"
 
 # 8) an invalid jobs value is rejected rather than silently defaulted
@@ -141,7 +143,7 @@ ws_out="$(bash "$RUNNER" --jobs 2 "$TMP/fail dir/red suite.sh" 2>&1)"
 ws_rc=$?
 set -e
 [ "$ws_rc" -ne 0 ] || fail "a failing whitespace path did not fail the runner"
-printf '%s' "$ws_out" | grep -q '1 suite(s) failed' \
+grep -q '1 suite(s) failed' <<<"$ws_out" \
   || fail "a failing path with spaces was miscounted: $(printf '%s' "$ws_out" | grep 'suite(s) failed')"
 
 # 10) a dash-prefixed suite name must EXECUTE, not be read as an interpreter
@@ -150,7 +152,7 @@ printf '%s' "$ws_out" | grep -q '1 suite(s) failed' \
 printf '#!/usr/bin/env bash\necho DASH-MARKER\n' >"$TMP/--help"
 dash_out="$(cd "$TMP" && bash "$RUNNER" --jobs 2 -- "./--help")" \
   || fail "dash-prefixed suite did not run"
-printf '%s' "$dash_out" | grep -q 'DASH-MARKER' \
+grep -q 'DASH-MARKER' <<<"$dash_out" \
   || fail "dash-prefixed suite was read as an interpreter option, not executed"
 
 # 11) cancellation terminates running suites instead of orphaning them. The

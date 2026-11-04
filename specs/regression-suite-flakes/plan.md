@@ -1,0 +1,117 @@
+# Regression suite flakes
+
+Suites in the regression lanes report failures for checks that hold. This round removes two causes: a pipe race in three scripts, one of them a shared gate's self-test, and a `mkdir` lock in one test stub.
+
+## Charter
+
+| Field | Answer |
+| --- | --- |
+| Purpose | Stop false failures in the regression lanes: pipe-into-`grep -q` checks failing on SIGPIPE (the reference-access census suite; added during validation, the parallel-suites runner test and the evidence-card self-test), and the body-compliance grading suite's mixed-replica leg failing on runners whose `mkdir` utility does not exclude concurrent callers. A false red costs a rerun and teaches people to rerun reds without reading them. |
+| Scope | In: `skills/skill-extraction-workflow/scripts/test_reference_access_census.sh` and `test_body_compliance_grading.sh` (its test-only `claude` stub). Added during validation: `scripts/test_run_parallel_suites.sh`, a required repo-gates suite with the same pipe race, which failed alone on this branch (4 of 10 runs) and on `origin/main` (2 of 10) and so blocked the local lanes; and the `self_test()` of `check-evidence-card-leak.sh`, which `check-ccl-skills.sh` runs (see its plan below). Out: the tools under test (`reference-access-census.sh`, `eval/body-compliance-eval.rb`), other suites that share either pattern (listed under Residual risk), the hooks that take a `mkdir` lock. No watermark applies; this is not an iterative-program source. |
+| Depth | Targeted check plus test-only change: two named defects, each reproduced and fixed in its suite. No skill text changes. |
+| Result classification | Failure. Both are observed false failures: the census pattern reproduces in a fresh bash, and the grading suite failed in CI on a change that did not touch it. Disconfirming observation for each cause is under Diagnosis. |
+| Matching analysis | Widen-check plus control per cause (Diagnosis, Prevention). |
+| Failure mode | A weak fix would rerun until green, retry the leg, or loosen the expected count (accept 1/3 or 2/3), which hides the defect class and lets a real miscount through. |
+| Lifecycle impact | Testing and CI only. Product intent, design, release and onboarding are unaffected: the suites' assertions and the tools' behavior stay the same. |
+| Evidence plan | The failing CI log (attempt 1 of the run), both suites and the runner source, a fresh-bash reproduction of the pipe race, a repeated local run of the mixed-replica leg, and a paired run of uutils and GNU `mkdir` in the CI image (`ubuntu:26.04`). |
+| Completion standard | Each converted census check turns red on its own mutation in a disposable copy. The grading suite's new guard fails on the old stub and passes on the new one. The repository's local lanes pass on the exact candidate, then extraction review, challenge, and a delta pass for any later change. |
+
+Order note: the census conversion was applied before this charter was written down. Its scope and method were fixed by the task (every pipe-into-`grep -q` check, here-string form as in `test_governing_chain_diff.sh`); nothing else was edited before the charter.
+
+## Target-output map
+
+| Owner | Direction | Status | File or reason |
+| --- | --- | --- | --- |
+| `skill-extraction-workflow` | owner | updated | the two suites, `check-evidence-card-leak.sh` and two source-register rows |
+| repository scripts (`scripts/`) | sibling | updated | `scripts/test_run_parallel_suites.sh`, same pipe race |
+| `testing-strategy` | sibling | unchanged | Its flake rules already require diagnosis before rerun and deterministic suites; both defects are local test-harness bugs, not a missing rule. Its mutation-walk reference was used as written. |
+| `defect-diagnosis` | sibling | unchanged | Used as written; the CI-trace-first and paired-control rules found the cause. |
+| `code-review` | sibling | unchanged | Suites of the same shape exist there (Residual risk); not changed in this round. |
+| `product-rd-workflow` | upstream | not-applicable | no product, contract or gate semantics change |
+
+## Diagnosis
+
+### Census suite: SIGPIPE under pipefail
+
+The suite runs under `set -euo pipefail` and had 39 checks of the form `printf '%s\n' "$out" | grep -q... PATTERN`. `grep -q` exits on its first match. When the writer still has output to write after that (bash's `printf` evidently writes in more than one call: a single write could not be cut off after a match, yet short outputs fail below), the write reaches a pipe whose reader has exited, the writer dies of SIGPIPE (141), `pipefail` fails the pipeline, and a positive check reports a failure although the text is present. Negative checks (`... && fail`) fail the other way: a leak that matched would kill the writer, the pipeline would report 141, and `&& fail` would not run.
+
+- Reproduced in a fresh bash: `{ printf "a\n[x]\n"; sleep 0.3; printf "b\n"; } | grep -qF "[x]"` under pipefail prints `141 0`.
+- Rate with the suite's own shape on this host: a 40-line output gave 82 false failures in 2,000 runs; a 20,000-line output failed 200 of 200.
+- Disconfirming observation: if the converted checks still failed intermittently, the cause would be elsewhere. They read from a here-string, so no pipe exists.
+
+The five `[ "$(printf ... | tail -1)" = ... ]` checks are not of this shape: `tail` reads to end of input, so the writer is never cut off. They are unchanged.
+
+### Parallel-suites runner test: same race
+
+`scripts/test_run_parallel_suites.sh` failed the repo-gates lane with `suite output missing: SLOW-MARKER` (and other markers on other runs). A copy instrumented to print `PIPESTATUS` and whether the marker was in the captured output failed 5 of 30 runs; every marker failure showed `141 0` with the marker present. Its nine `grep -q` checks read from a pipe the same way. The `grep -n`, `grep -c` and message-only `grep` calls in the file read their whole input and are unchanged.
+
+### Grading suite: `mkdir` as a lock
+
+The CI failure (regression-fast, attempt 1 of the run) printed `prd-continue-evidenced: 1/3 pass` and two FAIL rows, each with `continuing:` missing and `blocked:` present. The leg runs three replicas concurrently against a stub `claude` that takes a one-shot line when `mkdir "$ONCE_DIR"` succeeds, so exactly one replica should print `blocked:` (2/3). Two did, so `mkdir` succeeded twice.
+
+| Hypothesis | Prediction | Probe | Result |
+| --- | --- | --- | --- |
+| Runner mixes replica outputs (shared buffer, fd mix-up between concurrent spawns) | duplicated outputs appear on any host under concurrency | the leg 1,200 times on this host (8 parallel loops, load around 60); `ask()` called by 20 threads, 40 rounds | rejected: 0 misses, 0 duplicates |
+| The suite or runner changed since the failing commit | a diff between that commit and `main` | `git diff` on both files | rejected: identical |
+| The runner image's `mkdir` does not exclude concurrent callers | more than one winner among concurrent `mkdir` of one path on that image, none with GNU `mkdir` | `ubuntu:26.04` (the CI image; `mkdir` is uutils 0.10.0, `gnumkdir` is GNU 9.7), three concurrent callers per round, 500 rounds each | confirmed: uutils 26 rounds with several winners, GNU 0 |
+
+This host runs GNU `mkdir`, which is why the leg never failed locally. The stub's comment ("mkdir is atomic") holds for the `mkdir(2)` system call and for GNU `mkdir`, not for every `mkdir` utility.
+
+### Evidence-card self-test: same race in a shared gate
+
+`check-ccl-skills.sh` runs `check-evidence-card-leak.sh --self-test` and stops if it fails, so one false failure there reddens every suite that runs the full checker. The failing case is always `changed-scope missed a now-modified historical card`: it is the first self-test case whose output has two lines. `historical.md` sorts first, `grep -q` exits on it, and the writer dies on the second line; `if ! pipeline` reads the 141 as a miss.
+
+| Probe | Result |
+| --- | --- |
+| Two-line output through the pipe, `pipefail`, 3,000 runs | 159 false misses |
+| One-line output, same pipe (control) | 0 |
+| Two-line output through a here-string (control) | 0 |
+| Stock self-test, 60 runs | 1 failed; the script is identical on `origin/main` |
+| Stock self-test with `printf` writing line by line, 3 runs | 3 failed, with the message above |
+
+This corrects two earlier readings: the first fast-lane failures of the catalog, route-drift and sync-pointer suites were attributed to an uncommitted citation, and an instrumented loop's silent failures were read as saying nothing about the pipe. That loop ran the pipeline bare under `set -e`, so a 141 ended the script before it could print.
+
+### Shared-gate plan for that fix
+
+- Artifact classification: `gate implementation`; risk tag `shared-gate`.
+- Scope: the seven `grep -q` checks in `self_test()` of `check-evidence-card-leak.sh`. The two in `classify_conclusion` read one field value at a time and are unchanged.
+- Semantics: no rule, scope, failure or completion semantics change. `scan_all`, `scan_changed`, `report` and the exit codes are untouched; only how a self-test reads text it already holds. The negative case (`wrongly scanned an unchanged historical offender`) gains the ability to fire on a match that SIGPIPE could have hidden.
+- Status-sync target: `evidence/validation.md`. Review gate: extraction review and challenge on this change before push.
+
+| Input to a converted self-test check | Before | After |
+| --- | --- | --- |
+| Expected text present, single-line output | pass | pass |
+| Expected text present, multi-line output, writer cut off | false `self_test_failed` | pass |
+| Expected text absent | `self_test_failed` | `self_test_failed` |
+| Forbidden text present, writer cut off | hidden | `self_test_failed` |
+
+## Change
+
+- Census suite and parallel-suites runner test: every pipe-into-`grep -q` check reads the output from a here-string, the form `test_governing_chain_diff.sh` already uses.
+- Grading suite: the stub takes its one-shot line from `Dir.mkdir`, which is the `mkdir(2)` call itself, through Ruby, which the suite already requires. The mixed-replica leg runs with a `mkdir` on `PATH` that reports success without excluding anyone, so a stub that locks with the utility fails the leg on every host, not only on uutils runners.
+
+## Test cases
+
+| Case | Layer | Assertion | Before | After |
+| --- | --- | --- | --- | --- |
+| Each converted census check | suite | a wrong expected value in a disposable copy turns the suite red at that check | n/a | see Validation |
+| Census suite passes repeatedly under load | suite | N consecutive green runs | intermittent | see Validation |
+| Each converted parallel-suites check | suite | a wrong expected value in a disposable copy turns the suite red at that check | n/a | see Validation |
+| Parallel-suites test alone, repeated | suite | consecutive green runs | 4 of 10 failed | see Validation |
+| E10 under a non-excluding `mkdir` | suite | `prd-continue-evidenced: 2/3`, mixed summary `{pass 2, fail 1}` | fails (0/3) | passes |
+| E10 on the CI image with its own `mkdir` | suite, container | repeated runs, no miss | misses | see Validation |
+
+## Prevention
+
+- The class is "a test helper relies on a property of a host tool that differs across supported hosts". The guard here pins the suite's own stub; the hooks below use the same primitive at runtime and are listed, not changed.
+- With this round, three suites have been fixed for the pipe race, two of them only after the race broke a lane. Other suites with the same shape are listed below; each is a separate change.
+
+## Residual risk
+
+- `check-ccl-skills.sh:695` and `:1389` and the self-test in `generic-r0-leak-scan.sh` keep the pipe shape. Line 695 is the sharper one: it reads a multi-line window, so a cut-off writer would hide a hit rather than raise a false failure. None was seen failing here; each is a shared-gate change of its own.
+- `hooks/merge-authorization-prompt.sh` and `hooks/guard-merge-authorization.sh` take a lock with `mkdir "$lock_dir"`, as does `skills/code-review/scripts/test_opencode_review_concurrency.sh`. On a host whose `mkdir` is uutils 0.10.0 that lock may admit two holders. Not exercised against those scripts in this round.
+- About 25 other scripts contain `| grep -q` and `pipefail`; not every match is a check under pipefail. Not audited here.
+
+## Validation
+
+Results on the final candidate, the review passes and the commits they reviewed: `evidence/validation.md`.
