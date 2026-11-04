@@ -63,19 +63,17 @@ Failure path: `self_test` returns `rc`, `main` returns it, and `check-ccl-skills
 
 ## Local lanes on the candidate
 
-Candidate `b16bb2d`, tree clean, tracked files at 644/755. Not complete: no push.
+Candidate `261015f`, tree clean, tracked files at 644/755. The only later commit adds this record.
 
-| Lane | Result on `b16bb2d` |
-| --- | --- |
-| `make test-repo-gates` | passed once (TMPDIR on tmpfs); other runs failed `test_eval_runtime.py` (a 0.5 s fixture bound at load 24) and, with the disk full, `scripts/owner-dispatch/test.sh` |
-| `make test-regressions-fast` | passed once; another run failed `test_check_sync_pointers.sh` and `test_liveness_predicate_gate.sh` |
-| `python3 scripts/check-public-sanitization.py .` | passed |
-| `make test-code-review-1` | never passed: `test_opencode_review_retry.sh` failed three attempts inside a PID namespace, timeout cases only, 9, 7 and 4 of them. Passed alone on the branch and on `origin/main` outside the namespace |
-| `make test-code-review-2` | never passed: `test_cli_review_wrappers.sh` Kimi timeout-signal cases also failed alone on the branch (4) and on `origin/main` (5). Open: cause not diagnosed |
-| `make test-code-review-abort-leak` | never passed: leg 1 failed outside a namespace; the namespace run was stopped before finishing |
-| Heavy lane | never passed: one run failed `test_check_ccl_r0_status.sh` (passes alone on both trees); one failed `test_register_firing_path_wiring.sh` and `test_pinned_phrase_mutation_walk.sh`, not yet run alone |
-
-Lane results above predate the evidence-card fix; the table is replaced by the run on the final candidate.
+| Lane | Result | Failed attempts |
+| --- | --- | --- |
+| `make test-repo-gates` | passed, load 2 | 3 at load 17 to 57, on wall-clock bounds: `test_eval_runtime.py` (0.5 s for two interpreter starts), and the concurrency check in `test_run_parallel_suites.sh` |
+| `make test-regressions-fast` | passed first attempt, load 51 | none |
+| `make test-code-review-1` | passed, load 6 | 2 at load 45 and 12, `test_opencode_review_retry.sh` timeout cases |
+| `make test-code-review-2` | passed first attempt, load 3 | none |
+| `make test-code-review-abort-leak` | passed first attempt in a private PID namespace, load 2 | an earlier run outside the namespace failed leg 1 |
+| Heavy lane | passed, load 2 | 1, see below |
+| `python3 scripts/check-public-sanitization.py .` | passed | none |
 
 ## Review passes
 
