@@ -63,7 +63,7 @@ Failure path: `self_test` returns `rc`, `main` returns it, and `check-ccl-skills
 
 ## Local lanes on the candidate
 
-Candidate `261015f`, tree clean, tracked files at 644/755. The only later commit adds this record.
+Candidate `261015f`, tree clean, tracked files at 644/755. Later commits add only this record.
 
 | Lane | Result | Failed attempts |
 | --- | --- | --- |
@@ -72,7 +72,7 @@ Candidate `261015f`, tree clean, tracked files at 644/755. The only later commit
 | `make test-code-review-1` | passed, load 6 | 2 at load 45 and 12, `test_opencode_review_retry.sh` timeout cases |
 | `make test-code-review-2` | passed first attempt, load 3 | none |
 | `make test-code-review-abort-leak` | passed first attempt in a private PID namespace, load 2 | an earlier run outside the namespace failed leg 1 |
-| Heavy lane | passed, load 2 | 1, see below |
+| Heavy lane | passed, load 2 | 1 at load 3: `test_impact_chain_gate_verdict_differential.sh` exited 141. It passed 8 of 8 alone on the branch and on `origin/main`. Likely cause, not proven: its diagnostics use `printf ... \| head -N \| sed` under `set -e` and `pipefail`. Unchanged here |
 | `python3 scripts/check-public-sanitization.py .` | passed | none |
 
 ## Review passes
