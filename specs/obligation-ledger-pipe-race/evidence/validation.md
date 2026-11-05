@@ -113,6 +113,9 @@ Candidate `2e47a93`, tree clean, tracked files at 644/755. Later commits add onl
 | `make test-regressions-fast` | passed, load 8 to 17 | none on `2e47a93` |
 | `make test-code-review-1` | passed, load 6 to 16 | none |
 | `make test-code-review-2` | passed, load 4 to 13 | none |
+| Heavy lane (`test_check_ccl_regressions.sh --heavy-only`) | passed on `b6ddaff`, load 3 to 6 | none |
+| `python3 scripts/check-public-sanitization.py .` | passed on `b6ddaff` | none |
+| Private R0 alias audit | not run: `ALIAS_AUDIT_CMD` is unset on this host and no private alias profile is present; `check-ccl-skills.sh` ends `ccl_skill_check_interim_ok` with `r0_status=public-fallback` | R0 pending maintainer audit |
 | `make test-code-review-abort-leak` | passed in a private PID namespace (`unshare --user --map-root-user --pid --fork --mount-proc`) | outside a namespace leg 1 fails on this host, which reparents orphans to a subreaper rather than PID 1 |
 
 ## Review passes
