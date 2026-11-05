@@ -105,7 +105,15 @@ The exit-status pair replaces, in a scratch copy, `stale_fixed_output="$(python3
 
 ## Local lanes on the candidate
 
-Pending: `make test` on this branch has not run yet.
+Candidate `2e47a93`, tree clean, tracked files at 644/755. Later commits add only this record.
+
+| Lane | Result | Failed attempts |
+| --- | --- | --- |
+| `make test-repo-gates` | passed, load 7 to 19 | 2 on earlier commits of this branch, both from this round's records and both fixed: the impact-chain gate rejected the register row after a later commit edited it (branch rebuilt, see Review passes), and the spec-reference check read the fixture's ledger path in `plan.md` as a repository citation (reworded) |
+| `make test-regressions-fast` | passed, load 8 to 17 | none on `2e47a93` |
+| `make test-code-review-1` | passed, load 6 to 16 | none |
+| `make test-code-review-2` | passed, load 4 to 13 | none |
+| `make test-code-review-abort-leak` | passed in a private PID namespace (`unshare --user --map-root-user --pid --fork --mount-proc`) | outside a namespace leg 1 fails on this host, which reparents orphans to a subreaper rather than PID 1 |
 
 ## Review passes
 
