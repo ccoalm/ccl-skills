@@ -216,6 +216,22 @@ run_gate "$r"
 if [ "$RC" -eq 0 ]; then ok
 else note "p10b a real ps -o stat= read must still clear the line (rc=$RC): $OUT"; fi
 
+# --- P10c: the same read clears it whatever follows it in the window -----------
+# The waiver once piped the window into `grep -q` under `pipefail`: when text followed
+# the matched line, `grep` could exit while the writer still had output, the writer died
+# of SIGPIPE, and the gate reported this cleared line. p10b's short window hit that only
+# sometimes. A 1 MiB line after the read is more than `grep` reads before it exits, so
+# the old form fails here on every run instead of by chance.
+r=$(mk_root real_stat_long_tail)
+{ printf '#!/usr/bin/env bash\n'
+  printf 'st="$(ps -o stat= -p "$pid")"\n'
+  printf '%s\n' "$VIOLATION"
+  printf 'pad="%s"\n' "$(head -c 1048576 /dev/zero | tr '\0' a)"
+} > "$r/scripts/test_probe.sh"
+run_gate "$r"
+if [ "$RC" -eq 0 ]; then ok
+else note "p10c a real ps -o stat= read must clear the line even with a long window tail (rc=$RC): $OUT"; fi
+
 # --- P11: a HOLLOW helper plus an unrelated state read elsewhere is not a fix --
 # Found by adversarial review: "the file defines *_state" and "the file reads process
 # state somewhere" were checked independently, so the two were never tied together and a

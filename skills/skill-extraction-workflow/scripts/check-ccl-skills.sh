@@ -692,7 +692,10 @@ while IFS= read -r -d '' liveness_file; do
     # rather than bare `stat=`: an unrelated assignment such as `stat=unknown` is not a
     # process-state read, and accepting it was the fourth way this waiver was found to
     # clear a real hit.
-    if printf '%s' "$liveness_win" | grep -qE '\-o[[:space:]]*stat='; then
+    # Here-string, not a pipe: under `pipefail`, `grep -q` exits on its match while
+    # `printf` may still be writing the rest of the window, the writer dies of SIGPIPE,
+    # and the waiver reads a miss, which reports a violation on a line this check clears.
+    if grep -qE '\-o[[:space:]]*stat=' <<<"$liveness_win"; then
       continue
     fi
     # Otherwise the window may CALL a state helper — but only one this file actually
