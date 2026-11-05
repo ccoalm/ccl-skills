@@ -103,7 +103,28 @@ Attempts on `8742ffa`, with the host's load average between 16 and 80 from unrel
 | `make test-code-review-1` | failed | `test_opencode_review_retry.sh`: timeout-handling cases, 5 failed in the lane and 8 in a standalone rerun, a different set each time |
 | `make test-code-review-2` | failed | timeout-signal cases of the Kimi and Codex wrapper suites |
 
-Every failing check bounds wall-clock time, none is in a file this branch changes, and the failing set moves between runs. The same lanes passed on this branch's earlier candidate at load 3 to 19. The runs are not counted as passes; the lanes are rerun at low load on the final candidate below.
+Every failing check bounds wall-clock time, none is in a file this branch changes, and the failing set moves between runs. The same lanes passed on this branch's earlier candidate at load 3 to 19. None of these runs counts as a pass.
+
+Final runs on `f3840ff`, each lane started only below load average 15:
+
+| Lane | Result |
+| --- | --- |
+| `make test-repo-gates` | passed, 535 s |
+| `make test-regressions-fast` | passed, 487 s |
+| `make test-code-review-1` | passed, 151 s |
+| `make test-code-review-2` | passed, 435 s |
+| `make test-code-review-abort-leak`, in a private PID namespace (`unshare --user --map-root-user --pid --fork --mount-proc`) | passed, 521 s |
+| `test_check_ccl_regressions.sh --heavy-only` | passed, 350 s |
+| `python3 scripts/check-public-sanitization.py .` | passed |
+| `make npm-test` | passed, 520 s |
+| `make npm-pack-verify` | passed, 22 s |
+| `make npm-publish-dry` | passed, 370 s |
+
+The final runs needed three changes to the shell environment, none to the repository:
+
+- A scratch virtual environment for Python 3.12 with `requirements-test.txt` installed, the same file CI installs. `pytest` is not installed for the host's `python3`.
+- `umask 022`. Under the session's `umask 077`, `tsc` writes `dist/` at mode 600 and the npm build rejects it (`unsafe package runtime`), and seven tracked files checked out at 600 on disk. Their modes were reset to 644, which matches their git mode.
+- The default `TMPDIR` for the npm lanes. With `TMPDIR` set to the long scratch path, two rollback-failure cases in the npm suite report `rolled-back` instead of `partial`. The same two cases pass with `TMPDIR` unset, and nothing else differs between the two runs. The npm package is unchanged on this branch.
 
 ## Review passes
 
@@ -115,5 +136,7 @@ Base `ebec7f7`, the branch head before this round. Reviewer: codex (implementer 
 | Challenge (`challenge.json`), focus: false greens and false reds in the waiver | `6463065` | 2 P2: p10c's every-run red rests on `grep -q` stopping at its match, which the packet does not bound for every host; the runner's exposed-set rule contradicted the stated "p10c only" acceptance | Claims scoped to this host, with the assumption and the `grep` in use stated in `plan.md`; the fixed form's pass does not depend on it. The suggested synchronized writer is not adopted: the cut-off writer is inside the checker, where a test cannot add synchronization. The acceptance is reconciled with the evidence: with the pipe, cases the waiver decides may fail and p10c fails in every round; with the fix, no case changes result |
 
 | Delta (`delta-1.json`), base `6463065` | `8742ffa` | 2 P2: the packet held only the delta, so the checker, the suite and the runners could not be checked against the reconciled acceptance; the lane results the disposition cites were still pending | Both are about the packet and the pending record, not the candidate. The packet is widened with the gate section and the full suite, and the pass reruns once the lane attempts are recorded |
+
+| Delta (`delta-2.json`), base `6463065`, packet widened with the gate section and the full suite | `f3840ff` | 2 P2: the probe and the mutation runner were outside the diff hunks, so their bodies were not in the packet; final-candidate lane results were absent, as were the npm checks `packages/AGENTS.md` names | The final lane table above covers every lane plus the three npm checks. The last delta pass gets the whole of this file |
 
 `bac2007` and `6463065` were local only. `bac2007`'s register row was reworded after its review, and the impact-chain gate scopes a row to the commit that adds it, so the branch was rebuilt into a code commit carrying the row in its final wording and a records commit, with the tree unchanged. `origin/main` was then merged in, which brings the released package version; the release-version check fails on the branch without it.
