@@ -561,8 +561,8 @@ if grep -Fq 'The owner MUST retain the release token before final approval.' \
 fi
 audit_output="$(python3 "$TOOL" audit --repo "$FIXTURE" --base "$BASE" \
   --mapping "$FIXTURE/specs/mapping.jsonl" --ledger "$FIXTURE/specs/ledger.md" 2>&1)"
-printf '%s\n' "$audit_output" | grep -Fq 'exact_mechanical='
-printf '%s\n' "$audit_output" | grep -Fq 'reviewed_semantic='
+grep -Fq 'exact_mechanical=' <<<"$audit_output"
+grep -Fq 'reviewed_semantic=' <<<"$audit_output"
 git -C "$FIXTURE" add .
 git -C "$FIXTURE" commit -qm candidate
 
@@ -588,14 +588,14 @@ PY
 pinned_audit="$(python3 "$TOOL" audit --repo "$FIXTURE" --base "$BASE" --head "$CANDIDATE_HEAD" \
   --mapping "$FIXTURE/specs/mapping.jsonl" --ledger "$FIXTURE/specs/ledger-pinned.md" 2>&1)" \
   || { printf 'FAIL pinned-head audit went red on a post-head rewrite:\n%s\n' "$pinned_audit" >&2; exit 1; }
-printf '%s\n' "$pinned_audit" | grep -Fq 'audit_ok' \
+grep -Fq 'audit_ok' <<<"$pinned_audit" \
   || { printf 'FAIL pinned-head audit missing audit_ok:\n%s\n' "$pinned_audit" >&2; exit 1; }
 if unpinned_audit="$(python3 "$TOOL" audit --repo "$FIXTURE" --base "$BASE" \
   --mapping "$FIXTURE/specs/mapping.jsonl" --ledger "$FIXTURE/specs/ledger.md" 2>&1)"; then
   printf 'FAIL unpinned audit must demand a row for the post-head rewrite:\n%s\n' "$unpinned_audit" >&2
   exit 1
 fi
-printf '%s\n' "$unpinned_audit" | grep -Fq 'ROW_SET_MISMATCH' \
+grep -Fq 'ROW_SET_MISMATCH' <<<"$unpinned_audit" \
   || { printf 'FAIL unpinned audit failed for the wrong reason:\n%s\n' "$unpinned_audit" >&2; exit 1; }
 git -C "$FIXTURE" checkout -q -- skills/destination/SKILL.md
 echo "PASS pinned-head domain freeze"
@@ -617,8 +617,8 @@ PY
 
 mutation_error_matches() {
   local expected_code="$1" expected_target="$2" output="$3"
-  printf '%s\n' "$output" | grep -q "^ERROR $expected_code:" && \
-    printf '%s\n' "$output" | grep -Fq "$expected_target"
+  grep -q "^ERROR $expected_code:" <<<"$output" && \
+    grep -Fq "$expected_target" <<<"$output"
 }
 
 if mutation_error_matches \
@@ -649,8 +649,8 @@ run_mutant() {
     echo "FAIL $name: expected exact delta $expected_delta, got $actual_delta" >&2
     exit 1
   fi
-  if printf '%s\n' "$actual_delta" | grep -Fq 'specs/mapping.jsonl' && \
-    printf '%s\n' "$expected_target" | grep -q '^skills/source/.*#[0-9]'; then
+  if grep -Fq 'specs/mapping.jsonl' <<<"$actual_delta" && \
+    grep -q '^skills/source/.*#[0-9]' <<<"$expected_target"; then
     local changed_rows expected_row
     expected_row="${expected_target%%/member-*}"
     expected_row="${expected_row%%/part-*}"
@@ -1230,8 +1230,9 @@ if command[2] != "render" or "--output" not in command:
     raise SystemExit(1)
 subprocess.run(command, check=True, capture_output=True)
 PY
-python3 "$TOOL" audit --repo "$stale_case" --base "$BASE" \
-  --mapping "$stale_case/specs/mapping.jsonl" --ledger "$stale_case/specs/ledger.md" 2>&1 | grep -q '^audit_ok' || {
+stale_fixed_output="$(python3 "$TOOL" audit --repo "$stale_case" --base "$BASE" \
+  --mapping "$stale_case/specs/mapping.jsonl" --ledger "$stale_case/specs/ledger.md" 2>&1)" &&
+  grep -q '^audit_ok' <<<"$stale_fixed_output" || {
   echo "FAIL stale fix hint: the printed command did not clear STALE_LEDGER" >&2
   exit 1
 }
@@ -1253,7 +1254,7 @@ for carrier_case in wrong_parent:CARRIER_CHAIN_MISMATCH table_carrier_to_fence:C
     --mapping "$carrier_dir/specs/mapping.jsonl" --ledger "$carrier_dir/specs/ledger.md" 2>&1)"
   carrier_status=$?
   set -e
-  if [ "$carrier_status" -eq 0 ] || ! printf '%s\n' "$carrier_output" | grep -q "^ERROR $carrier_code:"; then
+  if [ "$carrier_status" -eq 0 ] || ! grep -q "^ERROR $carrier_code:" <<<"$carrier_output"; then
     echo "FAIL render cannot clear $carrier_name: expected $carrier_code after a render, got: $carrier_output" >&2
     exit 1
   fi
