@@ -109,7 +109,7 @@ Final runs on `f3840ff`, each lane started only below load average 15:
 
 | Lane | Result |
 | --- | --- |
-| `make test-repo-gates` | passed, 535 s |
+| `make test-repo-gates`, whose first command is `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` | passed, 535 s |
 | `make test-regressions-fast` | passed, 487 s |
 | `make test-code-review-1` | passed, 151 s |
 | `make test-code-review-2` | passed, 435 s |
@@ -119,6 +119,8 @@ Final runs on `f3840ff`, each lane started only below load average 15:
 | `make npm-test` | passed, 520 s |
 | `make npm-pack-verify` | passed, 22 s |
 | `make npm-publish-dry` | passed, 370 s |
+
+After the records commits, `check-ccl-skills.sh .` (ending `ccl_skill_check_interim_ok`, `r0_status=public-fallback`), `check-spec-references.py`, `check-markdown-links.py`, `check-public-sanitization.py` and `shared_git_surface_gate.py --base-ref origin/main` were rerun on the branch head and pass. Those commits change only files under this round's `specs/` directory.
 
 The final runs needed three changes to the shell environment, none to the repository:
 
@@ -138,5 +140,7 @@ Base `ebec7f7`, the branch head before this round. Reviewer: codex (implementer 
 | Delta (`delta-1.json`), base `6463065` | `8742ffa` | 2 P2: the packet held only the delta, so the checker, the suite and the runners could not be checked against the reconciled acceptance; the lane results the disposition cites were still pending | Both are about the packet and the pending record, not the candidate. The packet is widened with the gate section and the full suite, and the pass reruns once the lane attempts are recorded |
 
 | Delta (`delta-2.json`), base `6463065`, packet widened with the gate section and the full suite | `f3840ff` | 2 P2: the probe and the mutation runner were outside the diff hunks, so their bodies were not in the packet; final-candidate lane results were absent, as were the npm checks `packages/AGENTS.md` names | The final lane table above covers every lane plus the three npm checks. The last delta pass gets the whole of this file |
+
+| Delta (`delta-3.json`), base `6463065`, packet with the full validation record | `f6532d8` | 1 P2: the full checker's result was not shown separately | It is the first command of `make test-repo-gates`, and its standalone rerun on the branch head is recorded under the final lanes. No P0 or P1 remains |
 
 `bac2007` and `6463065` were local only. `bac2007`'s register row was reworded after its review, and the impact-chain gate scopes a row to the commit that adds it, so the branch was rebuilt into a code commit carrying the row in its final wording and a records commit, with the tree unchanged. `origin/main` was then merged in, which brings the released package version; the release-version check fails on the branch without it.
