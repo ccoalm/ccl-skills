@@ -60,7 +60,7 @@ owner 之间的关系边按作用分四组：路由与边界（入口分派、Sk
 | 事件 | hook 干什么 |
 |---|---|
 | `SessionStart` · `SubagentStart` | 注入 `agent-context/` 下同名文件的路由纪律 + 当前 repo/branch/head/dirty/近期提交等会话上下文 |
-| `PreToolUse` | 编辑隔离、项目 owner-dispatch、合并授权，以及源码编辑与委派的有限技能加载检查点 |
+| `PreToolUse` | 编辑隔离、项目 owner-dispatch、合并授权、拦截不带筛选的本地测试，以及源码编辑与委派的有限技能加载检查点 |
 | `PreCompact` · `PostCompact` | 前者记录旧边界，后者作废当前 actor 的旧技能状态；恢复提示由后续 `PreToolUse` 送达 |
 | `UserPromptSubmit` | 任务处理前注入 owner 加载与路由提示；独立的合并授权哨兵按既定指令布防 |
 | `Stop` · `SubagentStop` | 收尾核 owner 是否真被调用、技能改动是否挂过提炼 |

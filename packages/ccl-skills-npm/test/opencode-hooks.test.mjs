@@ -186,6 +186,36 @@ test("OpenCode fails closed when a safety hook runtime is unavailable", async ()
 	await hooks.dispose();
 });
 
+test("OpenCode runs Bash when the broad-test guard fails and blocks on its deny", async () => {
+	const root = mkdtempSync(join(tmpdir(), "ccl-opencode-broad-test-"));
+	const home = join(root, "home"), project = join(root, "project");
+	mkdirSync(home);
+	mkdirSync(project);
+	const runtime = copyRuntime(home);
+	const guard = join(runtime, "hooks/guard-broad-local-test.sh");
+	const { hooks } = await loadPlugin(home, project);
+	try {
+		writeFileSync(guard, "#!/bin/sh\ncat >/dev/null\nexit 1\n", { mode: 0o755 });
+		await hooks["tool.execute.before"](
+			{ tool: "bash", sessionID: "broad-test", callID: "broken-guard" },
+			{ args: { command: "git status" } },
+		);
+		writeFileSync(guard, `#!/bin/sh
+cat >/dev/null
+printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"broad-test-denied"}}\\n'
+`, { mode: 0o755 });
+		await assert.rejects(
+			() => hooks["tool.execute.before"](
+				{ tool: "bash", sessionID: "broad-test", callID: "denied" },
+				{ args: { command: "npm test" } },
+			),
+			/broad-test-denied/,
+		);
+	} finally {
+		await hooks.dispose();
+	}
+});
+
 test("OpenCode native events execute the installed CCL hook runtime", async () => {
 	const root = mkdtempSync(join(tmpdir(), "ccl-opencode-runtime-"));
 	const home = join(root, "home"), project = join(root, "project"), runtimeTmp = join(root, "tmp");
