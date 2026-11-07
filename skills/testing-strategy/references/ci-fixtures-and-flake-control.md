@@ -77,6 +77,11 @@ There is no universal local baseline beyond the repository's own hooks. CI owns 
 
 Run the full local rehearsal only on explicit request, while diagnosing a CI failure, or for a change so repository-wide that no narrower set is credible. Do not re-run a passing check merely because commit or push follows — but an earlier green counts for a later commit/push **only when the tested commit/tree and its dependency and environment inputs are unchanged and that fact is recorded**; after an amend, rebase, regeneration, or config change the affected checks run again. Report only the commands actually run; if a relevant check fails before push, stop and fix or explain — do not push and hope CI differs.
 
+A suite's duration in a handoff or status note is a fact about the suite, never an instruction to run it. Two controls make this selection fire when the command is written:
+
+- **The host guard** (`hooks/guard-broad-local-test.sh`) denies a test command that selects nothing, in every repository, before it runs. Select the affected cases. When an exception above applies, prefix the command with `CCL_BROAD_TEST_REASON=user-request`, `ci-failure` or `repo-wide`; use `repo-required` for a lane the repository's contract requires locally.
+- **The repository entry** keeps a suite that CI runs whole and that takes minutes off the local default. The bare target fails outside CI and names the next step, a selection variable passes the affected cases to the runner, and an explicit opt-in such as `FULL=1` runs everything. Pass the selector to the runner unchanged, because test-name patterns hold characters the build tool and shell both expand. The repository contract says which checks run locally, which run only on CI, and how to run one case. This covers people and hosts without the guard, so add it to a repository whenever a long suite wastes a local run.
+
 ## Verification Report
 
 When claiming tests pass, report:

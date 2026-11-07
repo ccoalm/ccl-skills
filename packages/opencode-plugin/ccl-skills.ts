@@ -58,6 +58,7 @@ const OPENCODE_HOOK_BINDINGS = Object.freeze({
   "guard-edit-isolation.sh": "tool.execute.before:edit/write/apply_patch",
   "owner-dispatch-guard.sh": "tool.execute.before:edit/write/apply_patch/bash",
   "guard-merge-authorization.sh": "tool.execute.before:bash",
+  "guard-broad-local-test.sh": "tool.execute.before:bash",
   "remind-unverified-cli-flag.sh": "tool.execute.before:bash",
   "remind-untracked-background.sh": "tool.execute.before:bash",
   "remind-review-covers-head.sh": "tool.execute.before:bash",
@@ -567,6 +568,10 @@ export const CclSkills = async (context: {
           throw new Error(`ccl-skills merge authorization blocked this operation.\n${merge.message ?? "OpenCode hook runtime unavailable."}`)
         }
         enforce(merge, "ccl-skills merge authorization")
+        // Fails open like the script itself: a guard that cannot run must not block Bash.
+        // Mirrors hooks/guard-broad-local-test.sh under Claude Code, where a failed hook allows.
+        const scope = runHook(hooksRoot, "guard-broad-local-test.sh", hookPayload, directory, 10_000)
+        if (scope.status === "ok") enforce(scope, "ccl-skills broad local test guard")
         // Advisory only: it never blocks, so its context is appended rather than
         // enforced. Mirrors hooks/remind-unverified-cli-flag.sh under Claude Code.
         const flagNote = additionalContext(runHook(hooksRoot, "remind-unverified-cli-flag.sh", hookPayload, directory, 10_000))
