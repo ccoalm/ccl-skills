@@ -1,0 +1,37 @@
+{
+  "schema_version": 3,
+  "mode": "review",
+  "stage": "build",
+  "status": "passed",
+  "selected_client": "kimi",
+  "selected_reviewer": "kimi",
+  "findings": [],
+  "packet_sha256": "ae019c89349185048c6084599baa0aef65103848f52fcfc7c2229f00e63448e8",
+  "candidate_sha256": "cbedd60ba28d7163148d232f8bbc00e5eca4af1a5c66561b58fc6e62410f5974",
+  "repository_contract": {
+    "coverage": "complete",
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "bytes": 7523,
+        "sha256": "49485fc6de2c919eecd3c1088bf7b65d9c2ef12f5ffbe3b10357a54fee4b5124"
+      },
+      {
+        "path": "hooks/AGENTS.md",
+        "bytes": 700,
+        "sha256": "ed81fc4b329cc0099e28c6cc4ad6beb5842258b6286fa2429f77bbd1f4368af0"
+      }
+    ],
+    "omitted": [],
+    "sources_not_read": [
+      "CLAUDE.local.md and untracked files",
+      "@path imports",
+      ".claude/rules",
+      "host-configured fallback filenames"
+    ]
+  },
+  "reviewed_skills": [
+    "terminal-cli-dev",
+    "testing-strategy"
+  ]
+}

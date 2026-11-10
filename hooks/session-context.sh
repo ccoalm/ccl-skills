@@ -26,7 +26,8 @@ if [ -n "$repo" ]; then
   dirty_all=$(
     # status quotes newline/control-bearing filenames, then the sanitizer removes the
     # remaining boundary characters. The two-byte status prefix is useful context too.
-    git -C "$repo" status --short --untracked-files=all 2>/dev/null | sanitize_context_data
+    # Keep this read-only query from rewriting the index's cached stat data.
+    git --no-optional-locks -C "$repo" status --short --untracked-files=all 2>/dev/null | sanitize_context_data
   )
   dirty_count=$(printf '%s\n' "$dirty_all" | awk 'NF { n++ } END { print n + 0 }')
   dirty=$(printf '%s\n' "$dirty_all" | sed '/^$/d' | sed -n '1,20p' | sed 's/^/  - /')
