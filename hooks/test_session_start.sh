@@ -63,6 +63,52 @@ printf '%s' "$unrelated_ctx" | grep -q 'local_history: not-indexed' \
 printf '%s' "$ctx" | grep -q '<ccl-skills-routing' \
   && ok "existing routing bootstrap remains present" || bad "routing bootstrap lost"
 
+# A read-only startup query must not refresh Git's cached stat data. A stale
+# index can otherwise change a plugin bundle's fingerprint without source edits.
+INDEX_REPO="$WORK/index-repo"
+git init -q -b index-main "$INDEX_REPO"
+git -C "$INDEX_REPO" config user.email test@example.invalid
+git -C "$INDEX_REPO" config user.name test
+printf 'unchanged\n' > "$INDEX_REPO/unchanged.txt"
+printf 'original\n' > "$INDEX_REPO/modified.txt"
+git -C "$INDEX_REPO" add -A
+git -C "$INDEX_REPO" commit -qm 'index fixture'
+git -C "$INDEX_REPO" worktree add -q -b index-linked "$WORK/index-linked"
+
+check_index_preserved() {
+  local checkout="$1" label="$2" index before hook_out hook_ctx
+  index=$(git -C "$checkout" rev-parse --git-path index)
+  case "$index" in /*) ;; *) index="$checkout/$index" ;; esac
+  before="$WORK/$label-index-before"
+  # Chosen fixture timestamps differ from the freshly indexed metadata; no sleep
+  # or filesystem timestamp resolution assumption is needed.
+  touch -t 200001010000 "$checkout/unchanged.txt"
+  printf 'changed\n' >> "$checkout/modified.txt"
+  printf 'new\n' > "$checkout/untracked.txt"
+  cp "$index" "$before"
+  hook_out=$(printf '{"cwd":"%s"}' "$checkout" | GIT_OPTIONAL_LOCKS=1 HOME="$HISTORY_HOME" bash "$HOOK")
+  hook_ctx=$(printf '%s' "$hook_out" | jq -r '.hookSpecificOutput.additionalContext // empty')
+  cmp -s "$index" "$before" \
+    && ok "$label startup preserves index bytes" || bad "$label startup rewrites index"
+  printf '%s' "$hook_ctx" | grep -Fq ' M modified.txt' \
+    && printf '%s' "$hook_ctx" | grep -Fq '?? untracked.txt' \
+    && printf '%s' "$hook_ctx" | grep -Fq '</agent-context-recovery>' \
+    && ok "$label read-only query still reports modified and untracked files" \
+    || bad "$label startup lost dirty scope or complete recovery context"
+  # Positive control: ordinary Git remains writable and this fixture must expose
+  # the original optional refresh, even if the preceding hook already did it.
+  touch -t 200101010000 "$checkout/unchanged.txt"
+  cp "$index" "$before"
+  GIT_OPTIONAL_LOCKS=1 git -C "$checkout" status --short --untracked-files=all >/dev/null
+  if cmp -s "$index" "$before"; then
+    bad "$label index fixture cannot detect an ordinary status refresh"
+  else
+    ok "$label ordinary status can still refresh index"
+  fi
+}
+check_index_preserved "$INDEX_REPO" checkout
+check_index_preserved "$WORK/index-linked" linked-worktree
+
 # Guard the specific compatibility regression that occurred: simulate a jq without
 # --rawfile while delegating other operations to the installed binary. This is not a full
 # jq-version matrix; it proves that reintroducing that newer flag cannot drop the bootstrap.
