@@ -97,4 +97,19 @@
 
 ## 仓库通道
 
-待补。
+以下结果对应候选提交 `318237e`，也就是本记录所在提交的父提交。
+
+本地先在 `9cc1a4a` 上跑过一轮：`test-code-review` 有 3 个 Kimi 计时用例失败（诊断和修复见 `review-dispositions.md` 的"9cc1a4a 本地通道暴露的第四处计时失败"），其余 4 条通道都通过。修复并入候选后，全部通道在 `318237e` 上重跑，负载约 17–35：
+
+| 通道 | 命令 | rc | 关键结论行 |
+| --- | --- | --- | --- |
+| repository-gates | `make test-repo-gates` | 0 | `ccl_skill_check_clean_ok`，`r0_status=private-ok` |
+| regression-fast | `make test-regressions-fast` | 0 | `regression_fast_lane_ok: 45 suites, jobs=8` |
+| code-review 分片 | `make test-code-review` | 2 | `code_review_shard_1_ok: 10 suites`，`code_review_shard_2_ok: 8 suites`；修过的 Kimi 用例全部通过。失败的是 abort-leak 第 1 段，见下文 |
+| code-review abort-leak | 在 PID 命名空间里跑 `make test-code-review-abort-leak-1`、`make test-code-review-abort-leak-2` | 0、0 | `review_gate_abort_leak_ok leg=1 client=claude`、`leg=2 client=fallback`、`leg=2 client=claude` |
+| regression-heavy | `bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only` | 0 | `regression_heavy_lane_ok: 9 suites, jobs=8` |
+| 公开脱敏 | `python3 scripts/check-public-sanitization.py .` | 0 | `public_sanitization_ok` |
+
+`make test-code-review` 的 rc=2 来自 abort-leak 第 1 段，失败输出是 `could not build the scenario in 3 attempts`（`wrapper ... was never reparented`）。这一段要求被弃置的 wrapper 由 1 号进程收养（ppid=1）。本机的会话跑在 `systemd --user` 下，它是 child subreaper，孤儿进程会被它收养：实测一个孤儿进程的 ppid 是它的 pid，不是 1。所以这一步无论代码对错都建不起来；`make` 在第一处错误处停下，第 2 段这次也没跑到。对照：同一检出、同一环境，只换掉收养者，用 `unshare --user --map-current-user --pid --fork --mount-proc` 让命名空间里的 1 号进程收养孤儿，这时三段全部通过。这个套件和被测的 `review_gate` 都与 `origin/main` 相同；CI 的 runner 由 1 号进程收养孤儿，`main` 最近 3 次 CI 都是绿的。
+
+PR 侧检查：先 fetch `origin/main`（`2126c9d`），再运行 `check_review_evidence_present.py --base "$(git merge-base origin/main HEAD)"`，结果为 `review_evidence_present_ok: 18 review, 6 challenge`。
