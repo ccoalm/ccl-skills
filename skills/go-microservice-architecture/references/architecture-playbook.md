@@ -106,14 +106,19 @@ This layering is the **[Ports-and-Adapters / Hexagonal](https://alistair.cockbur
 Recommended:
 
 ```text
-transport -> application/service -> domain -> infrastructure adapters
-                         |
-                         -> generated clients/contracts
+imports:  transport -> application/service -> domain
+          infrastructure adapters -> domain
+          application/service -> generated clients/contracts
+
+calls:    transport -> application/service -> [interface] -> infrastructure adapter -> store
 ```
+
+An arrow in the `imports` lines means the left side may import the right side and never the reverse; the `calls` line is run-time call order. They point opposite ways at the adapter boundary.
 
 Rules:
 
 - Domain logic should not import HTTP or RPC framework packages.
+- The domain never imports an adapter package. The application calls an adapter through an interface an inner layer owns; the adapter satisfies that interface implicitly and imports inner-layer packages only for the types its signatures use; the wiring code at the composition root (`main` or the DI setup) connects the two. Where a simple adapter is used without an interface (next rule), the application/service layer may import it directly; the domain still must not.
 - Infrastructure adapters should be behind interfaces when they are complex or externally visible.
 - Generated code may be imported by transport and adapter layers; avoid letting generated DTOs dominate core domain modeling when behavior is complex.
 - How a layer boundary is enforced is itself an architecture decision, with a strength ladder: physical module/package boundary (a violation is a compile or import error), import-architecture lint (the tiering CI gate below), then review convention — in decreasing strength; prefer mechanisms where a violation is a CI error, not a review comment. For a core where a frozen contract must coexist with continuous evolution (a gateway data plane, a billing domain), prefer the physical boundary, and add a deterministic digest/conformance anchor as machine proof that evolution has not touched the frozen surface. Record why the chosen strength is enough (cost versus strength); a weaker tier is a documented tradeoff, not a default. Sibling: `python-service-architecture/references/architecture-playbook.md` ("Layering Depth") carries the same rule for Python; keep the two in sync.

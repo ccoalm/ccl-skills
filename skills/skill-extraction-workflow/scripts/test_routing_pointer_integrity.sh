@@ -156,7 +156,7 @@ check_line_all() { # <file> <selector> <label> <req...> — EVERY <req> must sit
 # Self-pin: an emptied or truncated suite must fail, not pass. Update EXPECTED
 # when adding/removing checks deliberately (same diff). Runs FIRST: a truncated
 # tail removes real checks and the count goes red.
-EXPECTED_CHECKS=24
+EXPECTED_CHECKS=29
 actual_checks=$(grep -cE '^check([_a-z]+)? ' "$0")
 if [ "$actual_checks" -ne "$EXPECTED_CHECKS" ]; then
   echo "FAIL: suite self-pin: expected $EXPECTED_CHECKS checks, found $actual_checks" >&2
@@ -229,6 +229,24 @@ check "$ROOT/skills/product-rd-workflow/SKILL.md" "command/subcommand/flag/help 
 check_line_all "$ROOT/skills/testing-strategy/SKILL.md" "- Use \`terminal-cli-dev\` for" "testing-strategy scopes terminal-cli-dev to the interface contract, not language-stack CLI implementation" "terminal interface contract"
 check_frontmatter_present "$ROOT/skills/platform-release-engineering/SKILL.md" "上线范围确认 / 合并 main / 打 tag" "rollout description prod-release skip"
 check "$ROOT/skills/app-cross-platform-dev/agents/openai.yaml" "React Native" "app-cross-platform-dev openai overlay RN parity"
+# The Go playbook's Dependency Direction diagram must show import direction: read
+# as imports, the arrow it used to draw told the domain to import a database
+# adapter, against the rule text of the same section. The three import lines are
+# pinned as WHOLE lines: a substring pin passes when a further arrow is appended
+# to a line (`... -> domain -> infrastructure adapter`), which restores the
+# contradiction. The absent pin covers singular and plural, and the run-time
+# `calls` line does not contain it because an interface sits between.
+check_exact_line() { # <file> <whole line> <label>
+  if ! grep -qxF -e "$2" "$1" 2>/dev/null; then
+    echo "FAIL: $3 missing as a whole line ($1 :: $2)" >&2
+    fail=1
+  fi
+}
+check_absent "$ROOT/skills/go-microservice-architecture/references/architecture-playbook.md" "domain -> infrastructure" "Go playbook diagram does not draw the domain importing adapters"
+check_exact_line "$ROOT/skills/go-microservice-architecture/references/architecture-playbook.md" "imports:  transport -> application/service -> domain" "Go playbook import line ends at the domain"
+check_exact_line "$ROOT/skills/go-microservice-architecture/references/architecture-playbook.md" "          infrastructure adapters -> domain" "Go playbook diagram shows adapters importing the domain"
+check_exact_line "$ROOT/skills/go-microservice-architecture/references/architecture-playbook.md" "          application/service -> generated clients/contracts" "Go playbook generated-code import line ends at the generated code"
+check "$ROOT/skills/go-microservice-architecture/references/architecture-playbook.md" "The domain never imports an adapter package." "Go playbook states the domain import rule beside the diagram"
 
 if [ "$fail" -eq 0 ]; then
   echo "routing_pointer_integrity_ok"
