@@ -8,9 +8,8 @@
 
 | 技能 | owns |
 |---|---|
-| [`go-microservice-architecture`](../skills/go-microservice-architecture/SKILL.md) | Go 服务边界、IDL/RPC、数据所有权、可靠性、安全、运行时（Kitex/Hertz/protobuf/MySQL/Redis/MQ/服务发现/动态config/codegen） |
+| [`software-architecture`](../skills/software-architecture/SKILL.md) | Go、Python、Node.js/TypeScript 的服务/worker/批任务/包边界、IDL/RPC/API 契约、数据所有权、可靠性、安全、运行时；Go 默认 Kitex/Hertz/protobuf/MySQL/Redis/MQ/服务发现/动态config/codegen，Python 默认 FastAPI/Flask/Django/SQLAlchemy/Alembic/Celery/asyncio/Pydantic/OpenAPI |
 | [`go-microservice-dev`](../skills/go-microservice-dev/SKILL.md) | Go 实现：protobuf、Kitex/Hertz、Wire/DI、GORM DAL、Redis、MQ、codegen、聚焦测试 |
-| [`python-service-architecture`](../skills/python-service-architecture/SKILL.md) | Python 服务/worker/批任务/包/运行时边界（FastAPI/Flask/Django/SQLAlchemy/Alembic/Celery/asyncio/Pydantic/OpenAPI） |
 | [`python-service-dev`](../skills/python-service-dev/SKILL.md) | Python 实现：接口、model、Celery 任务、pytest、ruff、mypy、依赖管理 |
 
 ## 后端的活怎么路由

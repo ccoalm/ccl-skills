@@ -50,12 +50,11 @@ Stop when the answer points to a durable prevention mechanism, not when it only 
 Update the smallest correct durable place:
 
 - Product workflow issue: update `product-rd-workflow`.
-- Go backend architecture issue: update `go-microservice-architecture`.
+- Backend architecture issue on Go, Python, or Node.js/TypeScript — service, AI-service host, worker, SDK/package, or batch job: update `software-architecture`, in the shared method when the rule holds across stacks and in the matching stack part when it does not.
 - Go backend implementation, testing, codegen, DB, Redis, MQ, or protobuf issue: update `go-microservice-dev` references.
-- Python backend, AI-service host, worker, SDK/package, or batch-job architecture issue: update `python-service-architecture`.
 - Python implementation, pytest, packaging, schema, ORM/migration, Redis, queue, async, or service-wiring issue: update `python-service-dev` references.
 - Node.js implementation, runtime/module/type path, package-manager or lockfile, async lifecycle, stream, worker, outbound-client, or `node:test`/runner issue: update `nodejs-service-dev` references.
-- Node.js architecture or service-boundary issue: there is no Node architecture sibling skill by decision — update this workflow's architecture gate text or the relevant `platform-*` owner, and record which one absorbed it rather than filing it under a sibling stack's architecture skill.
+- Node.js architecture or service-boundary issue: update `software-architecture` (the shared method or its Node.js/TypeScript part) or the relevant `platform-*` owner, and record which one absorbed it rather than filing it under the Go or Python stack defaults.
 - UI/product interaction issue: update the relevant design or frontend skill.
 - One-off business/domain issue: do not turn it into a generic skill rule.
 

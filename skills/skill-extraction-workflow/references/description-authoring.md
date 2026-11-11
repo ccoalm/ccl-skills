@@ -38,7 +38,7 @@ Four sections. In order. Each does a different job:
 
 Good: `End-to-end product R&D workflow: shapes requirements and routes design / architecture / dev / test / review / release / postmortem stages to the right skill.`
 
-Bad: `Use when turning a product idea, feature request, bug, refactor, or release goal into an end-to-end product R&D workflow. Coordinates product clarification, architecture decisions, design readiness routing, implementation skills such as app-cross-platform-dev, web-react-dev, go-microservice-architecture/go-microservice-dev, and python-service-architecture/python-service-dev, testing, code review, release readiness, and postmortem learning.`
+Bad: `Use when turning a product idea, feature request, bug, refactor, or release goal into an end-to-end product R&D workflow. Coordinates product clarification, architecture decisions, design readiness routing, implementation skills such as app-cross-platform-dev, web-react-dev, software-architecture, go-microservice-dev, and python-service-dev, testing, code review, release readiness, and postmortem learning.`
 (Too long; implementation skill names are noise for trigger matching.)
 
 ### Section 2 — `Use when asked to "<quoted phrases>"`

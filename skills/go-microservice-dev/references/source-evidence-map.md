@@ -29,8 +29,7 @@ When extracting Go implementation guidance from a new source set, organize evide
 For each Go extraction, record decisions across sibling skills:
 
 - `python-service-dev` — does the same pattern apply to Python? mirror with evidence caveat.
-- `go-microservice-architecture` — does the rule belong at architecture level instead?
-- `python-service-architecture` — cross-language architecture consequence?
+- `software-architecture` — does the rule belong at architecture level instead, and is there a cross-language consequence for its other stack parts?
 - `testing-strategy` — does this affect test-layer policy?
 - `defect-diagnosis` — does this prevent a class of defect?
 

@@ -27,6 +27,20 @@ def success(**overrides):
             "result": "complete", **overrides}
 
 
+def running(pid):
+    """True while pid is a live process. A zombie counts as terminated: an
+    orphan may wait for a reaper that a minimal container never runs."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as stat:
+            return stat.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except (OSError, IndexError):
+        return True
+
+
 class BehaviorRuntimeTests(unittest.TestCase):
     def fake_process(self, communicate):
         process = mock.Mock(pid=12345, returncode=0)
@@ -61,17 +75,70 @@ class BehaviorRuntimeTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix", "process groups require POSIX")
     def test_timeout_stops_descendant_with_inherited_stdout(self):
+        # The timeout leaves room for two interpreter start-ups on a loaded host
+        # (about 1 s at load 30, longer during spikes); a 0.5 s budget killed the
+        # group before the descendant existed and failed the precondition.
+        # The parent waits for the descendant to report its pid and then exits,
+        # so the group leader is gone while the descendant still holds the
+        # inherited stdout — the case the group kill exists for. The check polls
+        # that pid instead of sleeping past a fixed marker deadline.
         with tempfile.TemporaryDirectory() as temp:
             marker = Path(temp) / "descendant-finished"
             ready = Path(temp) / "descendant-ready"
-            descendant = f"import time; from pathlib import Path; Path({str(ready)!r}).touch(); time.sleep(1.2); Path({str(marker)!r}).touch()"
-            source = f"import subprocess,sys; subprocess.Popen([sys.executable,'-c',{descendant!r}])"
-            result, elapsed = self.invoke(source, timeout=0.5)
-            self.assertEqual(result[1], "timeout_0.5s")
-            self.assertLess(elapsed, 1.5)
-            self.assertTrue(ready.exists(), "fixture never reached the descendant path")
-            time.sleep(1.3)
-            self.assertFalse(marker.exists(), "descendant continued after timeout")
+            leader_gone = Path(temp) / "leader-gone-at"
+            # The descendant itself watches its parent (the group leader) and
+            # records, on the shared monotonic clock, when the leader actually
+            # stopped running; a zombie counts as stopped.
+            descendant = (
+                "import os, time; from pathlib import Path\n"
+                "def running(pid):\n"
+                "    try:\n"
+                "        os.kill(pid, 0)\n"
+                "    except ProcessLookupError:\n"
+                "        return False\n"
+                "    try:\n"
+                "        with open(f'/proc/{pid}/stat') as stat:\n"
+                "            return stat.read().rsplit(')', 1)[1].split()[0] != 'Z'\n"
+                "    except (OSError, IndexError):\n"
+                "        return True\n"
+                "leader = os.getppid()\n"
+                f"Path({str(ready)!r}).write_text(str(os.getpid()))\n"
+                "while running(leader):\n"
+                "    time.sleep(0.01)\n"
+                f"Path({str(leader_gone)!r}).write_text(repr(time.monotonic()))\n"
+                "time.sleep(60)\n"
+                f"Path({str(marker)!r}).touch()\n")
+            source = (f"import subprocess, sys, time; from pathlib import Path; "
+                      f"subprocess.Popen([sys.executable, '-c', {descendant!r}]); "
+                      f"[time.sleep(0.01) for _ in iter(lambda: Path({str(ready)!r}).exists(), True)]")
+            try:
+                started = time.monotonic()
+                result, elapsed = self.invoke(source, timeout=6.0)
+                self.assertEqual(result[1], "timeout_6.0s")
+                self.assertLess(elapsed, 7.5)
+                self.assertTrue(ready.exists(), "fixture never reached the descendant path")
+                # The case is only exercised when the leader was already gone
+                # well before the timeout cleanup ran.
+                self.assertTrue(leader_gone.exists(), "group leader never exited")
+                self.assertLess(float(leader_gone.read_text()), started + 6.0 - 0.5,
+                                "group leader exited too close to the timeout to exercise the exited-leader case")
+                pid = int(ready.read_text())
+                deadline = time.monotonic() + 3.0
+                alive = True
+                while alive and time.monotonic() < deadline:
+                    alive = running(pid)
+                    if alive:
+                        time.sleep(0.05)
+                self.assertFalse(alive, "descendant continued after timeout")
+                self.assertFalse(marker.exists(), "descendant continued after timeout")
+            finally:
+                # A failed assertion must not leave the fixture's descendant
+                # running for the rest of its 60 s sleep; this runs while the
+                # temporary directory, and so the pid file, still exists.
+                try:
+                    os.kill(int(ready.read_text()), signal.SIGKILL)
+                except (FileNotFoundError, ValueError, ProcessLookupError):
+                    pass
 
     @unittest.skipUnless(os.name == "posix", "terminal process groups require POSIX")
     def test_cli_signals_stop_detached_child(self):
@@ -95,7 +162,10 @@ class BehaviorRuntimeTests(unittest.TestCase):
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
                 child_pid = None
                 try:
-                    deadline = time.monotonic() + 3
+                    # Only a precondition wait: it ends as soon as the stub reports,
+                    # so a generous bound costs nothing on a quiet host and keeps a
+                    # loaded one from failing before the behaviour is exercised.
+                    deadline = time.monotonic() + 15
                     while (not ready.exists() or not ready.read_text()) and time.monotonic() < deadline:
                         time.sleep(0.01)
                     self.assertTrue(ready.exists(), "fixture never reached the child")

@@ -480,6 +480,14 @@ class ProcessTests(unittest.TestCase):
             time.sleep(0.05)
         return False
 
+    def reap_child(self, pid_file):
+        # A failed assertion must not leave the 60 s child running. Registered
+        # after setUp's rmtree, so it runs first and the pid file still exists.
+        try:
+            os.kill(int(pid_file.read_text()), signal.SIGKILL)
+        except (FileNotFoundError, ValueError, ProcessLookupError):
+            pass
+
     def run_leader(self, leader_sleeps, timeout):
         pid_file = self.tmp / "child.pid"
         source = ("import subprocess, sys, time\n"
@@ -491,7 +499,13 @@ class ProcessTests(unittest.TestCase):
         return run, pid_file
 
     def test_timeout_kills_the_whole_process_group(self):
-        run, pid_file = self.run_leader(60, 1)
+        # The leader must start and record its child before the timeout fires.
+        # That took up to about 0.9 s at load 55, so a 1 s budget left the pid
+        # file unwritten on a loaded host; 6 s keeps the case about the group
+        # kill rather than about interpreter start-up time.
+        run, pid_file = self.run_leader(60, 6)
+        self.addCleanup(self.reap_child, pid_file)
+        self.assertTrue(pid_file.exists(), "fixture never started the child before the timeout")
         self.assertTrue(run["timed_out"])
         self.assertTrue(run["cleanup_confirmed"])
         self.assertTrue(self.child_gone(pid_file))

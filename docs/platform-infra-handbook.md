@@ -27,7 +27,7 @@
 ```mermaid
 flowchart TD
   Q["一个问题"] --> D{"服务内部 还是 服务间运行时?"}
-  D -->|"服务内：分层 / DB 表 / 队列怎么用"| ARCH["go / python-service-architecture"]
+  D -->|"服务内：分层 / DB 表 / 队列怎么用"| ARCH["software-architecture"]
   D -->|"服务间"| W{"哪一面?"}
   W -->|"怎么安全到达另一个服务：发现 / mTLS / 超时重试熔断 / 请求预算"| CONN["platform-service-connectivity"]
   W -->|"改动在生产可见吗：日志 / 指标 / trace / 告警 / SLO"| OBS["platform-observability"]

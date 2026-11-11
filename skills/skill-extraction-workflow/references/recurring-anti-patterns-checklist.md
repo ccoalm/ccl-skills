@@ -219,7 +219,7 @@ Distilled from dual-track review passes across the platform-* skill family + go-
 
 **Why bad**: defeats the sibling-sync invariant; the mirrored sections drift between Go and Python; agents copying from the wrong stack produce code that does not run.
 
-**Fix**: each parallel-stack file ends its stack-glue section with a `### Mirrored-section grep gate` (token list + awk-then-grep run command). The grep runs on every commit; zero hits required. See `parallel-stack-references-pattern.md` for the gate shape. Allowed exception: the sibling-sync header itself names the category classes (without tokens) and the routing-reference text may differ per stack (`api-security-boundaries.md` vs `web-framework-boundaries.md`).
+**Fix**: each parallel-stack file ends its stack-glue section with a `### Mirrored-section grep gate` (token list + awk-then-grep run command). The grep runs on every commit; zero hits required. See `parallel-stack-references-pattern.md` for the gate shape; in the single-file form the same gate is one `## Shared-region grep gate` H2 after the last stack section, scanning up to the first stack section. Allowed exception: the sibling-sync header itself names the category classes (without tokens) and the routing-reference text may differ per stack (`api-security-boundaries.md` vs `web-framework-boundaries.md`).
 
 **Grep**: run the file's own gate, e.g. `awk '/^## Go-specific implementation patterns/{exit} 1' <file>.md | grep -nE 'SET LOCAL|BYPASSRLS|FORCE ROW LEVEL SECURITY|context\.Context|\bgoroutine\b|contextvars|\basyncio\b|GORM|SQLAlchemy|FastAPI'`
 

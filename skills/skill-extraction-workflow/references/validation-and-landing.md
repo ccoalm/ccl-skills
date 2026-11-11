@@ -96,7 +96,7 @@ Review the changed skill without assuming the intended answer is correct. Focus 
 
 ## Cross-File Wording Drift Detection
 
-When a rule lives in two or more authored files — `SKILL.md` entrypoints and `references/` files alike (typical cause: cross-stack mirror — the same operational invariant has a producer-side rule in `python-service-architecture/...` and a consumer-side rule in `go-microservice-architecture/...`; or a test-strategy mirror of a production rule; or a routing rule that lives both in `SKILL.md` and in its owning reference) — fix-one-file drift is a recurring failure mode. A correction to one copy silently leaves the sibling copies stating the old (wrong) rule, and the next reader picks the wrong one. Throughout this section, "authored files" means authored `SKILL.md` entrypoints and `references/` files; generator output and private archives are excluded.
+When a rule lives in two or more authored files — `SKILL.md` entrypoints and `references/` files alike (typical cause: cross-stack mirror — the same operational invariant has a producer-side rule in one stack's skill or stack part and a consumer-side rule in another's; or a test-strategy mirror of a production rule; or a routing rule that lives both in `SKILL.md` and in its owning reference) — fix-one-file drift is a recurring failure mode. A correction to one copy silently leaves the sibling copies stating the old (wrong) rule, and the next reader picks the wrong one. Throughout this section, "authored files" means authored `SKILL.md` entrypoints and `references/` files; generator output and private archives are excluded.
 
 Examples observed in real extraction work:
 

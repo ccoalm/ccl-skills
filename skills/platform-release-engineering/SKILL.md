@@ -12,7 +12,7 @@ Owns lane/environment topology, build/deploy pipelines, traffic shifting (canary
 You do not own:
 - What signals exist to judge a release — see `platform-observability`.
 - How a request reaches a service or which subset of pods it lands on — see `platform-service-connectivity` for mesh, registry, and lane-routing primitives. This skill *uses* those primitives.
-- Service-internal change shape (handler-level refactor, DB migration mechanics) — language-specific service-architecture skills.
+- Service-internal shape (handler-level refactor, DB migration mechanics) must route to `software-architecture`.
 - Language-specific library/module tagging mechanics — the owning stack dev skill. A release task that tags a module in a multi-module repo using local path overrides (e.g. Go `replace`) must run that stack's external-consumer-view verification (see `go-microservice-dev`) before the tag is pushed; this skill owns when a tag may ship and how registry publication is verified, not how the language toolchain validates package internals.
 
 ## Skill Routing

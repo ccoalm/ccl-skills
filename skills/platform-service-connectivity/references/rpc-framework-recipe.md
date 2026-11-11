@@ -188,7 +188,7 @@ kerrors.ErrTimeoutByBusiness    → Code_Timeout    (504)
 <anything else>                 → Code_ServerError (500)
 ```
 
-The error handler wraps the result as a `*Error{code, msg}` and serializes it into the transport error slot. **New services use the canonical carrier: `google.rpc.Status` with `details` (transported via the `grpc-status-details-bin` trailer or the framework's native details mechanism) — see `go-microservice-architecture/references/error-contract-architecture.md` "Cross-RPC Envelope".**
+The error handler wraps the result as a `*Error{code, msg}` and serializes it into the transport error slot. **New services use the canonical carrier: `google.rpc.Status` with `details` (transported via the `grpc-status-details-bin` trailer or the framework's native details mechanism) — see `software-architecture/references/error-contract-architecture.md` "Cross-RPC Envelope".**
 
 > **Legacy carrier — do not adopt for new work.** Older framework builds pack the wrapper as JSON into the freeform `status.Message()` string (`{"code": N, "message": "..."}`) and re-parse it on the client. That string is size-limited, not a structured channel, loses typed retry/security semantics, and risks leaking server-rendered text — the anti-pattern the canonical error-contract rule forbids. It reflects a pre-migration framework reality (the same JSON-in-status-message drift that shared-IDL error-contract alignment is migrating off); keep it here only to explain existing wire traffic, and migrate to `grpc-status-details-bin` details.
 

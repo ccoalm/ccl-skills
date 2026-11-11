@@ -1,0 +1,4 @@
+interface:
+  display_name: "Software Architecture"
+  short_description: "Design backend and service architecture"
+  default_prompt: "Use $software-architecture to design a product-agnostic backend architecture and choose service boundaries from ownership, data, runtime, scale, release, and rollback evidence."

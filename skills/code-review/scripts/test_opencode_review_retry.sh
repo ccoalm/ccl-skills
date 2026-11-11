@@ -49,6 +49,9 @@ cat >"$WORK/bin/opencode" <<'STUB'
 #                native_slow_copy_timeout | legacy_stream_timeout |
 #                pre_stream_timeout | provider_balance_exhausted |
 #                provider_balance_then_server_error | provider_auth_then_server_error
+# Timeout modes hang for 24 s against a 15 s wrapper budget. With a 5 s budget a
+# loaded host spent most of it in the wrapper's own setup, so the wrapper timed out
+# before this stub printed anything and every timeout classification read as empty.
 set -u
 STATE="$STUB_STATE_DIR"
 MODE="$(cat "$STATE/review_mode")"
@@ -135,18 +138,18 @@ if [ "$1" = "run" ]; then
     exit 1
   fi
   if [ "$MODE" = "retry_timeout" ] && [ "$n" -ge 2 ]; then
-    sleep 8
+    sleep 24
   fi
   if [ "$MODE" = "pre_stream_timeout" ]; then
-    sleep 8
+    sleep 24
   fi
   if [ "$MODE" = "invalid_stream_timeout" ]; then
     printf '%s\n' 'partial non-json transport output'
-    sleep 8
+    sleep 24
   fi
   if [ "$MODE" = "session_only_timeout" ]; then
     printf '%s\n' "{\"type\":\"session_created\",\"sessionID\":\"sid-review-$n\"}"
-    sleep 8
+    sleep 24
   fi
   if [ "$MODE" = "completed_session_timeout" ] \
     || [ "$MODE" = "completed_malformed_timeout" ] \
@@ -154,31 +157,31 @@ if [ "$1" = "run" ]; then
     || [ "$MODE" = "invalid_export_timeout" ]; then
     printf '%s\n' "{\"type\":\"step_start\",\"sessionID\":\"sid-review-$n\",\"part\":{\"type\":\"step-start\"}}"
     printf '%s\n' "{\"type\":\"step_finish\",\"sessionID\":\"sid-review-$n\",\"part\":{\"type\":\"step-finish\",\"reason\":\"stop\"}}"
-    sleep 8
+    sleep 24
   fi
   if [ "$MODE" = "legacy_stream_timeout" ]; then
     printf '%s\n' "{\"type\":\"step_start\",\"sessionID\":\"sid-review-$n\",\"part\":{\"type\":\"step-start\"}}"
-    sleep 8
+    sleep 24
   fi
   if [ "$MODE" = "native_stream_timeout" ]; then
     mkdir -p "$XDG_DATA_HOME/opencode/log"
     printf '%s\n' 'native owner skill loaded; second model stream pending' \
       >"$XDG_DATA_HOME/opencode/log/reviewer.log"
     printf '%s\n' "{\"type\":\"step_start\",\"sessionID\":\"sid-review-$n\",\"part\":{\"type\":\"step-start\"}}"
-    sleep 8
+    sleep 24
   fi
   if [ "$MODE" = "native_large_log_timeout" ]; then
     mkdir -p "$XDG_DATA_HOME/opencode/log"
     head -c 6000000 /dev/zero >"$XDG_DATA_HOME/opencode/log/oversized.log"
     printf '%s\n' "{\"type\":\"step_start\",\"sessionID\":\"sid-review-$n\",\"part\":{\"type\":\"step-start\"}}"
-    sleep 8
+    sleep 24
   fi
   if [ "$MODE" = "native_slow_copy_timeout" ]; then
     mkdir -p "$XDG_DATA_HOME/opencode/log"
     printf '%s\n' 'copy interrupted sentinel' \
       >"$XDG_DATA_HOME/opencode/log/slow-copy.log"
     printf '%s\n' "{\"type\":\"step_start\",\"sessionID\":\"sid-review-$n\",\"part\":{\"type\":\"step-start\"}}"
-    sleep 8
+    sleep 24
   fi
   if [ "$MODE" = "auth_refresh" ]; then
     printf '%s\n' '{"openai":{"type":"oauth","refresh":"rotated","access":"fresh","expires":9999999999999}}' \
@@ -195,7 +198,7 @@ if [ "$1" = "export" ]; then
   sid="$2"
   MODE="$(cat "$STATE/review_mode")"
   [ "$MODE" = "export_fail" ] && exit 1
-  [ "$MODE" = "export_timeout" ] && sleep 8
+  [ "$MODE" = "export_timeout" ] && sleep 24
   if [ "$MODE" = "invalid_export_timeout" ]; then
     printf '%s\n' 'not-json'
     exit 0
@@ -402,7 +405,7 @@ run_native_wrapper() {
 
 run_native_timeout_wrapper() { # $1=review_mode $2=diagnostic-dir-or-empty $3=timeout-or-default
   local diagnostic_dir="${2:-}"
-  local timeout_seconds="${3:-5}"
+  local timeout_seconds="${3:-15}"
   printf '%s' "$1" >"$WORK/state/review_mode"
   rm -f "$WORK/state/review_runs" "$WORK/state"/review_prompt_* \
     "$WORK/state/native-opencode.json" "$WORK/state/prompt_file_transport"
@@ -767,11 +770,11 @@ check "missing model attribution is a terminal binding failure" \
 out="$(run_wrapper export_fail)"; rc=$?
 check "export failure is stage-specific and not retried" '[ "$rc" = 2 ] && [ "$(field reason "$out")" = review_export_failed ] && [ "$(runs)" = 1 ]'
 
-out="$(printf '%s' export_timeout >"$WORK/state/review_mode"; rm -f "$WORK/state/review_runs" "$WORK/state"/review_prompt_*; env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" XDG_DATA_HOME="$WORK/source-data" bash "$WRAPPER" --implementer-family claude --diff-file "$WORK/diff.patch" --timeout 5)"; rc=$?
+out="$(printf '%s' export_timeout >"$WORK/state/review_mode"; rm -f "$WORK/state/review_runs" "$WORK/state"/review_prompt_*; env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" XDG_DATA_HOME="$WORK/source-data" bash "$WRAPPER" --implementer-family claude --diff-file "$WORK/diff.patch" --timeout 15)"; rc=$?
 check "export timeout remains bounded and candidate-local" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = review_export_timeout ] && [ "$(field reason_code "$out")" = timeout ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(runs)" = 1 ]'
 
-TIMEOUT_OVERRIDE=5
+TIMEOUT_OVERRIDE=15
 out="$(printf '%s' retry_timeout >"$WORK/state/review_mode"; rm -f "$WORK/state/review_runs" "$WORK/state"/review_prompt_*; env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" XDG_DATA_HOME="$WORK/source-data" bash "$WRAPPER" --implementer-family claude --diff-file "$WORK/diff.patch" --timeout $TIMEOUT_OVERRIDE)"; rc=$?
 check "retry timeout still yields structured inconclusive" '[ "$rc" = 2 ] && [ "$(field status "$out")" = inconclusive ] && [ -n "$(field reason "$out")" ]'
 check "review timeout remains eligible for the next review client" \
@@ -897,7 +900,7 @@ env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" \
   bash "$WRAPPER" --implementer-family claude --diff-file "$WORK/diff.patch" \
   --review-profile-file "$WORK/native-review-profile.json" \
   --skill-registry-root "$WORK/skill-registry" --review-skill testing-strategy \
-  --timeout 5 --diagnostic-dir "$WORK/interrupted-copy-diagnostics" \
+  --timeout 15 --diagnostic-dir "$WORK/interrupted-copy-diagnostics" \
   >"$WORK/interrupted-copy.out" &
 interrupted_copy_pid=$!
 for _ in {1..100}; do
@@ -930,7 +933,7 @@ printf '%s' native_stream_timeout >"$WORK/state/review_mode"
 launch_with_closed_stdout bash "$WRAPPER" --implementer-family claude --diff-file "$WORK/diff.patch" \
   --review-profile-file "$WORK/native-review-profile.json" \
   --skill-registry-root "$WORK/skill-registry" --review-skill testing-strategy \
-  --timeout 5 --diagnostic-dir "$WORK/closed-stdout-diagnostics"; closed_stdout_rc=$?
+  --timeout 15 --diagnostic-dir "$WORK/closed-stdout-diagnostics"; closed_stdout_rc=$?
 check "closed stdout cannot strand an unreported diagnostic child" \
   '[ "$closed_stdout_rc" = 2 ] && [ -z "$(find "$WORK/closed-stdout-diagnostics" -mindepth 1 -print -quit)" ]'
 
@@ -971,7 +974,7 @@ check "session creation without a structured stream part keeps the generic timeo
 printf '%s' legacy_stream_timeout >"$WORK/state/review_mode"
 rm -f "$WORK/state/review_runs" "$WORK/state"/review_prompt_* \
   "$WORK/state/selected_skill_only"
-out="$(env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" XDG_DATA_HOME="$WORK/source-data" bash "$WRAPPER" --implementer-family claude --diff-file "$WORK/diff.patch" --timeout 5)"; rc=$?
+out="$(env PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" STUB_STATE_DIR="$WORK/state" XDG_DATA_HOME="$WORK/source-data" bash "$WRAPPER" --implementer-family claude --diff-file "$WORK/diff.patch" --timeout 15)"; rc=$?
 check "structured stream progress without owner skills keeps the generic timeout" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = review_timeout ] && [ "$(field reason_code "$out")" = timeout ] && [ "$(field cascade_eligible "$out")" = True ]'
 

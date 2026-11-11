@@ -24,7 +24,7 @@ Defaults shift across major versions; verify against the installed tool version'
 
 ## Transactional Enqueue Boundary
 
-- Enqueueing from inside an open DB transaction is a dual write: the broker publish does not roll back with the transaction. Either enqueue through an outbox row committed with the business write (see `python-service-architecture/references/event-driven-architecture.md` and the outbox section of `sqlalchemy-and-migrations-patterns.md`), or enqueue after commit and accept the crash window between commit and enqueue with a documented reconciliation path.
+- Enqueueing from inside an open DB transaction is a dual write: the broker publish does not roll back with the transaction. Either enqueue through an outbox row committed with the business write (see `software-architecture/references/event-driven-architecture.md` and the outbox section of `sqlalchemy-and-migrations-patterns.md`), or enqueue after commit and accept the crash window between commit and enqueue with a documented reconciliation path.
 - The inverse ordering — enqueue first, then commit — hands the worker a job for state that may never commit; workers must re-read durable state, not trust the enqueue payload as proof the write happened.
 
 ## Request Boundary

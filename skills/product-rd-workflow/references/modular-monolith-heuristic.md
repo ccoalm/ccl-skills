@@ -101,5 +101,5 @@
 |---|---|
 | Team Topologies 全套 operating model（Skelton 2019）| 本团队规模未到完整采用门槛 — 但**借 vocabulary**（team ownership boundary / cognitive load / stream-aligned vs platform team）在跨团队职责讨论时仍有用 |
 | Service mesh / sidecar 选型决策 | 是拆 service 后的实施细节，归 `platform-service-connectivity` |
-| Saga / outbox pattern 实现 | 是拆 service 后的具体技术，归 `go-microservice-architecture` / `python-service-architecture` |
+| Saga / outbox pattern 实现 | 是拆 service 后的具体技术，归 `software-architecture` |
 | DDD strategic patterns 全套（context map / anticorruption layer / shared kernel 等）| 太学院；本 ref 取 bounded context 概念即可 |
