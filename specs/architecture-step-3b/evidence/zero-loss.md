@@ -1,6 +1,6 @@
 # `product-rd-workflow` 入口瘦身的零丢失核对
 
-对照基线是 `origin/main` 上的 `skills/product-rd-workflow/SKILL.md`（233 行，75,615 字节）。瘦身后入口 26,909 字节（方案 11.12 测的就是这一版），移出的文字在三个新参考文件里：`references/stage-classify-and-route.md`、`references/stage-plan-and-design.md`、`references/stage-quality-and-landing.md`。
+对照基线是 `origin/main` 上的 `skills/product-rd-workflow/SKILL.md`（233 行，75,615 字节）。瘦身后入口 26,994 字节（方案 11.12 测的是 26,909 字节的一版，之后补回技术设计闸摘要里的一处触发限定），移出的文字在三个新参考文件里：`references/stage-classify-and-route.md`、`references/stage-plan-and-design.md`、`references/stage-quality-and-landing.md`。
 
 核对方法：基线入口的每个非空行，把连续空白归一成一个空格后，在新入口和三个参考文件里做整行子串查找。202 行里 188 行找到，其中 187 行是整行相等，1 行是被并进一个更长的行；14 行没找到，逐行列在第二张表。
 
@@ -69,4 +69,4 @@
 
 方案 11.11 那一版在开头多两句（「在触发点加载每个参考文件」和一条会改代码就先加载的分流规则），没有过字节线，当前版本已删掉。其中「会改代码就先加载」的要求由 `hooks/skill-loading.py` 的首次改源码检查点承担（方案 11.10）。
 
-入口里的摘要在方案 11.10 逐条和搬走的原文对过，补回了 13 处丢掉的触发条件、适用范围或时机。摘要只是索引：入口开头写明「a summary never narrows it」，规则以参考文件里的原文为准。
+入口里的摘要在方案 11.10 逐条和搬走的原文对过，补回了 13 处丢掉的触发条件、适用范围或时机；对抗挑战又找出 1 处（技术设计闸的「两个及以上负责团队」限定），已补回，见方案 11.12 末尾。摘要只是索引：入口开头写明「a summary never narrows it」，规则以参考文件里的原文为准。
