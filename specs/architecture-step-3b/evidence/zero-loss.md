@@ -67,6 +67,6 @@
 - 第 4 步的一条「You must load `references/stage-quality-and-landing.md` at its firing point above …」。
 - Scope 一节开头的一句，说明全文在 `stage-classify-and-route.md`。
 
-方案 11.11 那一版在开头多两句（「在触发点加载每个参考文件」和一条会改代码就先加载的分流规则），没有过字节线，当前版本已删掉。两句的作用由 `hooks/skill-loading.py` 的首次改源码检查点承担（方案 11.10）。
+方案 11.11 那一版在开头多两句（「在触发点加载每个参考文件」和一条会改代码就先加载的分流规则），没有过字节线，当前版本已删掉。其中「会改代码就先加载」的要求由 `hooks/skill-loading.py` 的首次改源码检查点承担（方案 11.10）。
 
 入口里的摘要在方案 11.10 逐条和搬走的原文对过，补回了 13 处丢掉的触发条件、适用范围或时机。摘要只是索引：入口开头写明「a summary never narrows it」，规则以参考文件里的原文为准。
