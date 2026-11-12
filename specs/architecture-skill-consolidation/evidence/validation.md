@@ -113,3 +113,5 @@
 `make test-code-review` 的 rc=2 来自 abort-leak 第 1 段，失败输出是 `could not build the scenario in 3 attempts`（`wrapper ... was never reparented`）。这一段要求被弃置的 wrapper 由 1 号进程收养（ppid=1）。本机的会话跑在 `systemd --user` 下，它是 child subreaper，孤儿进程会被它收养：实测一个孤儿进程的 ppid 是它的 pid，不是 1。所以这一步无论代码对错都建不起来；`make` 在第一处错误处停下，第 2 段这次也没跑到。对照：同一检出、同一环境，只换掉收养者，用 `unshare --user --map-current-user --pid --fork --mount-proc` 让命名空间里的 1 号进程收养孤儿，这时三段全部通过。这个套件和被测的 `review_gate` 都与 `origin/main` 相同；CI 的 runner 由 1 号进程收养孤儿，`main` 最近 3 次 CI 都是绿的。
 
 PR 侧检查：先 fetch `origin/main`（`2126c9d`），再运行 `check_review_evidence_present.py --base "$(git merge-base origin/main HEAD)"`，结果为 `review_evidence_present_ok: 18 review, 6 challenge`。
+
+PR 上第一次 CI 的 `repository-gates` 失败在 `python3 scripts/test_check_skill_count.py`：两份 README 还写着 33 个技能，合并后 `skills/` 下是 32 个。这一步只在 CI 的 `repository-gates` job 里跑，不在 `make test-repo-gates` 里，所以本地通道没有发现。修复提交把两处都改成 32，然后在本地逐条跑了 CI `repository-gates` job 的全部检查步骤（公开脱敏的回归测试和闸、Markdown 链接、specs 引用、技能数的回归测试和闸），全部通过，`check-skill-count.py` 输出 `skill_count_ok: READMEs agree with skills/ (32)`；之后在修复提交上重跑 `make test-repo-gates`。
