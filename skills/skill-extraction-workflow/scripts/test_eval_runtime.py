@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline regression cases for evaluator deadlines and terminal evidence."""
 import importlib.util
+import inspect
 import io
 import json
 import os
@@ -29,7 +30,9 @@ def success(**overrides):
 
 def running(pid):
     """True while pid is a live process. A zombie counts as terminated: an
-    orphan may wait for a reaper that a minimal container never runs."""
+    orphan may wait for a reaper that a minimal container never runs. Linux
+    reports the state in /proc; where that is absent (macOS, BSD) `ps` does.
+    When neither can tell, the process counts as running."""
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -38,7 +41,83 @@ def running(pid):
         with open(f"/proc/{pid}/stat", encoding="utf-8") as stat:
             return stat.read().rsplit(")", 1)[1].split()[0] != "Z"
     except (OSError, IndexError):
+        pass
+    try:
+        done = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
         return True
+    state = done.stdout.strip()
+    if done.returncode == 0 and state:
+        return not state.startswith("Z")
+    try:
+        os.kill(pid, 0)  # ps printed nothing: gone since the first probe, or ps cannot tell
+    except ProcessLookupError:
+        return False
+    return True
+
+
+class ProcessProbeTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "posix", "zombies require POSIX")
+    def test_exited_but_unreaped_child_counts_as_stopped(self):
+        child = subprocess.Popen([sys.executable, "-c", "pass"])
+        try:
+            deadline = time.monotonic() + 10.0
+            while running(child.pid) and time.monotonic() < deadline:
+                time.sleep(0.05)
+            # Not reaped yet: the pid still answers a signal probe, so only the state says it stopped.
+            os.kill(child.pid, 0)
+            self.assertFalse(running(child.pid), "a zombie was reported as running")
+        finally:
+            child.wait()
+
+    def test_missing_process_counts_as_stopped(self):
+        with mock.patch.object(os, "kill", side_effect=ProcessLookupError):
+            self.assertFalse(running(12345))
+
+    @unittest.skipUnless(os.name == "posix", "the probe is POSIX-only")
+    def test_live_child_counts_as_running_with_and_without_proc(self):
+        # Another process, not this one: a probe that only recognises its own pid must fail here.
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        try:
+            self.assertTrue(running(child.pid))
+            with self.without_proc():
+                self.assertTrue(running(child.pid))
+        finally:
+            child.kill()
+            child.wait()
+
+    def without_proc(self):
+        """Makes /proc unreadable for the block, as on macOS and the BSDs, so the
+        ps branch is exercised on Linux too."""
+        real_open = open
+
+        def fake_open(path, *args, **kwargs):
+            if str(path).startswith("/proc/"):
+                raise FileNotFoundError(path)
+            return real_open(path, *args, **kwargs)
+        return mock.patch("builtins.open", fake_open)
+
+    @unittest.skipUnless(os.name == "posix", "zombies require POSIX")
+    def test_without_proc_ps_tells_a_zombie_from_a_live_process(self):
+        child = subprocess.Popen([sys.executable, "-c", "pass"])
+        try:
+            with self.without_proc():
+                deadline = time.monotonic() + 10.0
+                while running(child.pid) and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                os.kill(child.pid, 0)  # still a zombie: the pid answers a signal probe
+                self.assertFalse(running(child.pid), "ps did not report the zombie as stopped")
+        finally:
+            child.wait()
+
+    def test_live_process_counts_as_running_when_nothing_can_tell(self):
+        silent = subprocess.CompletedProcess(["ps"], 1, stdout="", stderr="")
+        for label, ps in (("ps missing", mock.Mock(side_effect=FileNotFoundError("ps"))),
+                          ("ps timed out", mock.Mock(side_effect=subprocess.TimeoutExpired("ps", 5))),
+                          ("ps failed without output", mock.Mock(return_value=silent))):
+            with self.subTest(label), self.without_proc(), mock.patch.object(subprocess, "run", ps):
+                self.assertTrue(running(os.getpid()))
+                ps.assert_called_once()
 
 
 class BehaviorRuntimeTests(unittest.TestCase):
@@ -89,18 +168,10 @@ class BehaviorRuntimeTests(unittest.TestCase):
             # The descendant itself watches its parent (the group leader) and
             # records, on the shared monotonic clock, when the leader actually
             # stopped running; a zombie counts as stopped.
+            # It runs this module's own `running`, so the two never drift apart.
             descendant = (
-                "import os, time; from pathlib import Path\n"
-                "def running(pid):\n"
-                "    try:\n"
-                "        os.kill(pid, 0)\n"
-                "    except ProcessLookupError:\n"
-                "        return False\n"
-                "    try:\n"
-                "        with open(f'/proc/{pid}/stat') as stat:\n"
-                "            return stat.read().rsplit(')', 1)[1].split()[0] != 'Z'\n"
-                "    except (OSError, IndexError):\n"
-                "        return True\n"
+                "import os, subprocess, time; from pathlib import Path\n"
+                f"{inspect.getsource(running)}\n"
                 "leader = os.getppid()\n"
                 f"Path({str(ready)!r}).write_text(str(os.getpid()))\n"
                 "while running(leader):\n"
