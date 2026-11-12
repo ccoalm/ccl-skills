@@ -13,6 +13,7 @@
 | `check_review_evidence_present.py`，fetch 目标分支之后 | macOS | 见下方「最终提交」 |
 | `shared_git_surface_gate.py --base-ref origin/main`，含拟用的 PR 标题和正文 | macOS | 见下方「最终提交」 |
 | 设计任务对照 | 方案 11.12 | 36 次运行，33 次有效，过 10.6 |
+| 最严任务在最终文本上重测 | 方案 11.12 末尾 | 6 次，6 次有效，加载字节 100,008，不高于基线 100,135 |
 | 实现探针 | 方案 11.12 | 8 次运行，8 次有效；加载了 `product-rd-workflow` 的 6 次都在写代码前读了两个阶段参考文件 |
 
 ## 最终提交
@@ -21,4 +22,4 @@
 
 ## 评审
 
-见方案 11.7 和本目录下的结果文件：`review.json`、`challenge.json` 审的是第一版；`review-2.json`、`challenge-2.json`、`delta-2.json` 审的是第二版相对第一版新增的行为；`review3a.json`、`review3b.json` 是第三版的独立评审（方案 11.10 的改动由它们触发）；`challenge-3*.json` 和 `delta-3*.json` 是第三版的对抗挑战和之后的增量复查。
+见方案 11.7 和本目录下的结果文件：`review.json`、`challenge.json` 审的是第一版；`review-2.json`、`challenge-2.json`、`delta-2.json` 审的是第二版相对第一版新增的行为；`review3a.json`、`review3b.json` 是第三版的独立评审（方案 11.10 的改动由它们触发）；`challenge-3a.json`、`challenge-3b.json` 是第三版的对抗挑战，处置见同名的 `-dispositions.md`；`delta-3.json` 是挑战之后的增量复查。
