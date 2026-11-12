@@ -1,0 +1,86 @@
+{
+ "schema_version": 3,
+ "runner": "review_diff",
+ "mode": "review",
+ "status": "findings",
+ "reason_code": null,
+ "findings": [
+  {
+   "severity": "P2",
+   "title": "Revalidate calibration identity when rebuilding reports",
+   "file": "eval/design-judge.py",
+   "line": 455,
+   "body": "After calibrating and judging, change a rubric statement or known-answer document and run `--report-only`. The report compares the saved judgment hash only with the saved calibration hash, so both stale artifacts still agree and their scores remain counted. An in-memory reproduction retained a passing score after changing the rule. This bypasses the documented invalidation contract; the existing tests cover invalidation through `judge_runs` only."
+  },
+  {
+   "severity": "P2",
+   "title": "Bind report membership to the current paired-run batch",
+   "file": "eval/design-judge.py",
+   "line": 459,
+   "body": "Reuse a judge output directory for a new batch containing fewer samples or different arms. `judge_runs` updates only records present in the new input, while `build_report` includes every saved judgment with the matching judge hash. Old samples and arms therefore remain in the comparison. The judge never validates the paired runner’s plan hash or inventory, so results can silently combine different candidates."
+  },
+  {
+   "severity": "P2",
+   "title": "Include document and stream contents in the cache identity",
+   "file": "eval/design-judge.py",
+   "line": 402,
+   "body": "Replace or truncate a saved design document, or update its stream to reveal a rubric read, without changing `record.json`. The cached judgment is reused before either file is inspected. An in-memory reproduction retained a passing, uncontaminated verdict after both changes. The paired record does not hash these artifacts, and the cache test changes only the record, leaving this failure undetected."
+  },
+  {
+   "severity": "P2",
+   "title": "Surface failed task checks in the design comparison",
+   "file": "eval/design-judge.py",
+   "line": 411,
+   "body": "A run that writes a good design while modifying source can have `valid: true` and `checks.source_untouched.result: \"fail\"`: the paired runner computes validity from isolation checks separately from task checks. The judge ignores `checks` entirely and reports the document’s passing scores without exposing the scope violation. This was reproduced with a synthetic record, allowing a design-only comparison to count implementation runs without reporting their failed constraint."
+  },
+  {
+   "severity": "P2",
+   "title": "Check source-tree preservation instead of blob survival",
+   "file": "eval/paired-tasks/arch-design-refund-go.json",
+   "line": 51,
+   "body": "All six tasks use `blob_kept` for `source_untouched`, but that checker searches for the original content anywhere in the world. Copying `main.go` to `main.go.bak` and then rewriting `main.go` passes; adding implementation files while retaining the stub also passes. The backup scenario was reproduced against the existing checker. The supplied negative oracle only edits the original without retaining a copy, so it cannot detect this mismatch."
+  },
+  {
+   "severity": "P2",
+   "title": "Retry transient judge failures on subsequent invocations",
+   "file": "eval/design-judge.py",
+   "line": 402,
+   "body": "If authentication, timeout, or malformed replies exhaust the retries, the saved judgment has `excluded: \"judge_reply_invalid\"`. After the provider recovers, rerunning the same command skips that judgment because its hashes still match. A reproduction made zero judge calls on the recovered invocation. Transient failures consequently remain excluded indefinitely unless users manually remove artifacts or change otherwise unrelated inputs."
+  },
+  {
+   "severity": "P2",
+   "title": "Reject unsuccessful CLI envelopes before accepting votes",
+   "file": "eval/design-judge.py",
+   "line": 253,
+   "body": "The adapter extracts `result` without checking the subprocess exit code, `is_error`, or terminal subtype. A failed invocation retaining parseable rubric JSON is therefore accepted as a valid vote and can contribute to calibration. A mocked nonzero exit with `is_error: true` reproduced a passing judgment; I could not confirm whether the live CLI emits such retained results on its failure paths."
+  }
+ ],
+ "selected_client": "codex",
+ "reviewer_family": "codex",
+ "implementer_family": "claude",
+ "base": "b2a6fa34a62076f02058700640d5ede0841734ca",
+ "head": "9c20400809c491786111e48403b37d1885962e76",
+ "candidate_digest": "8f44bcf9c898bcd837b5fe4141dd56e6fc2856c711150bff47a7bbd251ffc76b",
+ "worktree_clean": true,
+ "untracked_files": [],
+ "intent_sha256": "10376ad97d82ccfe1db2eb5ae368c42fce1381f9835b6fad61bd6c8ef6327b1c",
+ "elapsed_seconds": 524.9,
+ "attempts": [
+  {
+   "client": "codex",
+   "status": "findings",
+   "returncode": 0,
+   "elapsed_seconds": 524.8,
+   "model": "gpt-6-astra",
+   "provider": "openai"
+  }
+ ],
+ "skipped": [
+  {
+   "client": "claude",
+   "reason": "same_family",
+   "model": ""
+  }
+ ],
+ "recorded_at": "2026-11-12T03:31:15+00:00"
+}
