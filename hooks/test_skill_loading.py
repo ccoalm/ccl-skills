@@ -92,6 +92,28 @@ class SkillLoadingTests(unittest.TestCase):
             {'type': 'user', 'message': {'content': [
                 {'type': 'tool_result', 'tool_use_id': ident, 'content': 'Loaded owner'}]}})
 
+    def skill_loaded(self, name, ident):
+        self.append({'type': 'assistant', 'message': {'content': [
+            {'type': 'tool_use', 'id': ident, 'name': 'Skill', 'input': {'skill': name}}]}},
+            {'type': 'user', 'message': {'content': [
+                {'type': 'tool_result', 'tool_use_id': ident, 'content': 'Loaded owner'}]}})
+
+    def test_first_edit_with_the_product_workflow_loaded_names_its_stage_references(self):
+        self.skill_loaded('ccl-skills:product-rd-workflow', 'rd')
+        result = self.run_hook(self.payload())
+        self.assertEqual(self.decision(result), 'deny')
+        reason = result['hookSpecificOutput']['permissionDecisionReason']
+        self.assertIn('references/stage-plan-and-design.md', reason)
+        self.assertIn('references/stage-quality-and-landing.md', reason)
+        for name in ('stage-plan-and-design.md', 'stage-quality-and-landing.md'):
+            self.assertTrue((ROOT / 'skills/product-rd-workflow/references' / name).is_file(), name)
+
+    def test_first_edit_without_the_product_workflow_does_not_name_its_stage_references(self):
+        self.skill_loaded('ccl-skills:python-service-dev', 'py')
+        result = self.run_hook(self.payload())
+        self.assertEqual(self.decision(result), 'deny')
+        self.assertNotIn('stage-plan-and-design', result['hookSpecificOutput']['permissionDecisionReason'])
+
     def test_shared_skill_edit_names_the_extraction_owner_at_the_first_edit(self):
         root = self.ccl_checkout()
         target = root / 'skills' / 'sample-owner' / 'scripts' / 'gate.sh'
