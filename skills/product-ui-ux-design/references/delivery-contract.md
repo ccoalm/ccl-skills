@@ -45,10 +45,12 @@ Record these fields:
 | `design_source` | Current product source, approved draft, design system, user-provided target, or source-light hypothesis; name specified states separately from design freedom. Record the source revision/version/content basis and any replacement or review artifact that can change the criteria. Mutable locators remain planning references until covered by an immutable design member below. |
 | `design_record` | Resolvable location for the brief, criteria, source/replacement revisions, and review artifact. It may be mutable during planning; before evidence or a verdict relies on it, every changed or claim-bearing design item must have a keyed immutable member in `candidate_binding_set`. |
 | `reference_surface` | Chosen current or accepted surface used to carry direction plus why it fits this slice; when no redesigned surface exists, say so and name the design reference/spec used instead. |
+| `visual_source` | Every visual-system source found (visual direction, design file, tokens, accepted surfaces), listed apart from behavior sources; search all of these, not only until the first is found. If none exists, write `none` with the locations searched. |
+| `visual_conformance` | One row per added or changed visible treatment (surface, borders, emphasis, color, spacing, type, icons, component variant): the source rule or `reference_surface` instance it follows. `design-freedom` needs a reason and every listed source inspected and silent; a library default is not a source rule. With `visual_source: none` the row stays `design-freedom`, marked `source-light`, and the user or an independent design owner decides. Sourced rows are blocking criteria. |
 | `owners` | Design owner, test owner, a `producer_owner_set` keyed by every changed or claim-bearing backend/config/content/inference member, and a `client_owner_set` keyed by every affected rendered layer/runtime/target/repo, plus unresolved owner gaps. |
 | `evidence_plan` | Planned automated, rendered/device, accessibility, task/user, and production evidence; list known unavailable layers. |
 
-The initial record deliberately leaves `assertion_layer`, `rendered_evidence_layer`, verifier type, oracle, exact commands, producer returns, and client entry rules pending. Stage 2 and Stage 3 fill them. Criteria are complete when their observable condition and consequence are known; missing test-owned fields cannot make the brief incomplete. This ordering prevents the old circular wait in which testing required a completed checkpoint while the checkpoint required testing's layer choice.
+The initial record deliberately leaves `assertion_layer`, `rendered_evidence_layer`, verifier type, oracle, exact commands, producer returns, and client entry rules pending. Stage 2 and Stage 3 fill them. Criteria are complete when their observable condition and consequence are known; missing test-owned fields cannot make the brief incomplete. A missing `visual_source` or `visual_conformance` row does: Phase 0 and `client_entry` wait. This ordering prevents the old circular wait in which testing required a completed checkpoint while the checkpoint required testing's layer choice.
 
 ### Trigger depth
 
@@ -98,7 +100,7 @@ Return a compact record before implementation:
 | `rendered_evidence_layer` | Browser, simulator/emulator, real device, host preview, desktop runner, or PTY/terminal capture, including required sizes/themes/input modes. |
 | `cases` | Criterion IDs mapped to happy, boundary, failure, recovery, and accessibility cases. |
 | `command_and_target` | Planned command or interaction, candidate target, fixture/data needs, and expected current result. |
-| `oracle` | What observation makes the case pass or fail; DOM existence alone is not a visual or interaction oracle. |
+| `oracle` | What observation makes the case pass or fail; DOM existence alone is not a visual or interaction oracle. A `visual_conformance` criterion compares the candidate with the `reference_surface`, or the cited source artifact if none exists, at the same runtime and size in every shipped theme; a candidate judged alone fails. |
 | `test_definition_set` | Resolvable Phase 0 mapping plus every harness, assertion/oracle, fixture, config, script, external test artifact, or manual protocol that can change the result. Before execution, each changed or claim-bearing item gets its own immutable test member in `candidate_binding_set`. |
 | `evidence_gap` | Missing harness, environment, data, device, or human judgment with owner and next action. |
 

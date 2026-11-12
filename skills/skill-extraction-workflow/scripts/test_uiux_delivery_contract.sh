@@ -8,6 +8,7 @@ case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOP
 
 ROOT="${UIUX_CONTRACT_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd -P)}"
 CONTRACT="$ROOT/skills/product-ui-ux-design/references/delivery-contract.md"
+DESIGN_ENTRYPOINT="$ROOT/skills/product-ui-ux-design/SKILL.md"
 ROUTER="$ROOT/skills/product-ui-ux-design/references/design-execution-checklist.md"
 LEDGER="$ROOT/skills/product-ui-ux-design/references/external-ui-ux-quality-benchmarks.md"
 SOURCE_MAP="$ROOT/skills/product-ui-ux-design/references/source-map.md"
@@ -345,6 +346,46 @@ testing_incomplete_branches_valid() {
   [ "$(printf '%s\n' "$line" | sed '/^$/d' | wc -l | tr -d ' ')" = "1" ] || return 1
   case "$line" in
     *'applicable full/lightweight design inputs are missing, or when'*'DOM/component existence, a build pass, or an unreviewed screenshot is used in place of required rendered, interaction, accessibility, recovery, or design evidence'*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# A brief that names only a behavior source must not be complete: the contract
+# asks for the visual-system source, one conformance row per changed treatment,
+# and a reference comparison as the oracle.
+visual_source_contract_valid() {
+  local file="$1" source_row conformance_row oracle_row row
+  source_row=$(active_text "$file" | grep -F '| `visual_source` |' || true)
+  conformance_row=$(active_text "$file" | grep -F '| `visual_conformance` |' || true)
+  oracle_row=$(active_text "$file" | grep -F '| `oracle` |' || true)
+  for row in "$source_row" "$conformance_row" "$oracle_row"; do
+    [ "$(printf '%s\n' "$row" | sed '/^$/d' | wc -l | tr -d ' ')" = "1" ] || return 1
+  done
+  case "$source_row" in
+    *'Every visual-system source found (visual direction, design file, tokens, accepted surfaces), listed apart from behavior sources; search all of these, not only until the first is found'*'If none exists, write `none` with the locations searched'*) ;;
+    *) return 1 ;;
+  esac
+  case "$conformance_row" in
+    *'One row per added or changed visible treatment'*'`design-freedom` needs a reason and every listed source inspected and silent; a library default is not a source rule'*'stays `design-freedom`, marked `source-light`, and the user or an independent design owner decides'*'Sourced rows are blocking criteria'*) ;;
+    *) return 1 ;;
+  esac
+  case "$oracle_row" in
+    *'compares the candidate with the `reference_surface`, or the cited source artifact if none exists, at the same runtime and size in every shipped theme; a candidate judged alone fails'*) ;;
+    *) return 1 ;;
+  esac
+  active_text "$file" | grep -F 'A missing `visual_source` or `visual_conformance` row does: Phase 0 and `client_entry` wait' >/dev/null
+}
+
+visual_source_entrypoint_valid() {
+  active_text "$1" | grep -F 'Visuals are free only where the visual-system source is silent' >/dev/null &&
+    active_text "$1" | grep -F 'A full record includes `visual_source` and `visual_conformance` rows' >/dev/null
+}
+
+visual_source_phase0_valid() {
+  local line
+  line=$(active_text "$1" | grep -F 'Phase 0 is incomplete when' || true)
+  case "$line" in
+    *'a `visual_conformance` criterion lacks the oracle'*'the reference comparison in every shipped theme'*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -1176,6 +1217,18 @@ if ! testing_incomplete_branches_valid "$TEST_MATRIX"; then
   echo "FAIL: testing Phase 0 incomplete rule lost a top-level branch or named evidence substitution" >&2
   fail=1
 fi
+if ! visual_source_contract_valid "$CONTRACT"; then
+  echo "FAIL: design brief can be complete without a visual-system source, conformance rows, or the reference-comparison oracle" >&2
+  fail=1
+fi
+if ! visual_source_entrypoint_valid "$DESIGN_ENTRYPOINT"; then
+  echo "FAIL: design entrypoint treats visuals as free without a silent visual-system source" >&2
+  fail=1
+fi
+if ! visual_source_phase0_valid "$TEST_MATRIX"; then
+  echo "FAIL: testing Phase 0 is complete without the visual reference comparison" >&2
+  fail=1
+fi
 
 for profile in \
   "Copy-only" \
@@ -1329,6 +1382,43 @@ run_rule_mutation phase0-missing-input-branch-dropped "$TEST_MATRIX" testing_inc
 run_rule_mutation phase0-evidence-substitution-branch-dropped "$TEST_MATRIX" testing_incomplete_branches_valid \
   'DOM/component existence, a build pass, or an unreviewed screenshot is used in place of required rendered, interaction, accessibility, recovery, or design evidence' \
   'a build pass is accepted as sufficient evidence'
+
+run_rule_mutation visual-source-merged "$CONTRACT" visual_source_contract_valid \
+  ', listed apart from behavior sources' ', listed with behavior sources'
+run_rule_mutation visual-source-search-stops-at-first "$CONTRACT" visual_source_contract_valid \
+  '; search all of these, not only until the first is found' ''
+run_rule_mutation visual-source-none-unsearched "$CONTRACT" visual_source_contract_valid \
+  'write `none` with the locations searched' 'write `none`'
+run_rule_mutation visual-rows-optional "$CONTRACT" visual_source_contract_valid \
+  'One row per added or changed visible treatment' 'An optional row per visible treatment'
+run_rule_mutation visual-freedom-unconditional "$CONTRACT" visual_source_contract_valid \
+  '`design-freedom` needs a reason and every listed source inspected and silent' '`design-freedom` needs no source'
+run_rule_mutation visual-source-found-not-listed "$CONTRACT" visual_source_contract_valid \
+  'Every visual-system source found' 'A visual-system source'
+run_rule_mutation visual-freedom-uninspected "$CONTRACT" visual_source_contract_valid \
+  'every listed source inspected and silent' 'every listed source silent'
+run_rule_mutation visual-library-default-as-source "$CONTRACT" visual_source_contract_valid \
+  'a library default is not a source rule' 'a library default is a source rule'
+run_rule_mutation visual-source-light-author-verdict "$CONTRACT" visual_source_contract_valid \
+  'and the user or an independent design owner decides' 'and the author decides'
+run_rule_mutation visual-rows-not-criteria "$CONTRACT" visual_source_contract_valid \
+  'Sourced rows are blocking criteria' 'Sourced rows are advisory'
+run_rule_mutation visual-brief-complete-without-rows "$CONTRACT" visual_source_contract_valid \
+  'row does: Phase 0 and `client_entry` wait' 'row does not: Phase 0 and `client_entry` start'
+run_rule_mutation visual-oracle-candidate-alone "$CONTRACT" visual_source_contract_valid \
+  'a candidate judged alone fails' 'a candidate judged alone passes'
+run_rule_mutation visual-oracle-one-theme "$CONTRACT" visual_source_contract_valid \
+  'in every shipped theme; a candidate' 'in one theme; a candidate'
+run_rule_mutation visual-oracle-fallback-dropped "$CONTRACT" visual_source_contract_valid \
+  ', or the cited source artifact if none exists' ''
+run_rule_mutation visual-oracle-size-dropped "$CONTRACT" visual_source_contract_valid \
+  ', at the same runtime and size' ''
+run_rule_mutation visual-entrypoint-freedom-unconditional "$DESIGN_ENTRYPOINT" visual_source_entrypoint_valid \
+  ' Visuals are free only where the visual-system source is silent.' ''
+run_rule_mutation visual-entrypoint-pre-edit-dropped "$DESIGN_ENTRYPOINT" visual_source_entrypoint_valid \
+  ' A full record includes `visual_source` and `visual_conformance` rows.' ''
+run_rule_mutation visual-phase0-comparison-dropped "$TEST_MATRIX" visual_source_phase0_valid \
+  'the reference comparison in every shipped theme' 'a candidate capture'
 
 run_rule_mutation copy-only-misclassification-branch-dropped "$CONTRACT" copy_only_misclassification_valid \
   'If later evidence proves the `copy-only` classification wrong, the lightweight record is invalid from that discovery point, and you must apply **Missed pre-edit record** to the existing diff by stopping implementation edits, rebuilding the full Design brief, obtaining full Phase 0 and every affected producer/client owner entry, auditing the whole existing diff against them, then rerunning producer/client execution, Phase 1, and the design verdict. Until that remediation closes, the slice is `pending + blocked`; the old lightweight result cannot support completion.' \
