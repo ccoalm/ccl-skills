@@ -1,0 +1,65 @@
+{
+ "schema_version": 3,
+ "runner": "review_diff",
+ "mode": "challenge",
+ "status": "findings",
+ "reason_code": null,
+ "findings": [
+  {
+   "severity": "P2",
+   "title": "Validate samples against the paired-run plan before counting them",
+   "file": "eval/design-judge.py",
+   "line": 461,
+   "body": "Copying `base/1` to `base/99` causes the same run to count twice, even though its record still says `sample: 1` and the plan allows only five samples. The judge derives identity from directory names without checking the plan inventory or record identity. Both copies retain the same `plan_hash`, so the report’s mixed-batch check accepts the inflated counts."
+  },
+  {
+   "severity": "P2",
+   "title": "Check for added implementation files throughout the world",
+   "file": "eval/design-judge.py",
+   "line": 429,
+   "body": "In the notification-splitting task, an agent can leave the original files untouched but create `world/notify-service/src/server.ts` alongside `world/svc`. `source_changed()` walks only `svc`, returns false, and the run contributes to the report despite implementing code outside `docs/`."
+  },
+  {
+   "severity": "P2",
+   "title": "Recheck document containment before reusing cached judgments",
+   "file": "eval/design-judge.py",
+   "line": 469,
+   "body": "After judging a regular design document, replace it with a symlink to an identical document outside the world. Its content hash and `source_changed` result remain unchanged, so the cache skips the subsequent `inside_world()` check and retains the accepted verdict. A fresh judgment would exclude this exact filesystem state as `no_document`."
+  },
+  {
+   "severity": "P2",
+   "title": "Reject unavailable run roots before pruning judgments",
+   "file": "eval/design-judge.py",
+   "line": 500,
+   "body": "Passing a nonexistent `--runs` directory with an existing calibrated `--out` produces an empty inventory and deletes every saved judgment for the selected tasks. The command then successfully writes an empty report. A path typo or unavailable run directory therefore silently destroys previously collected judgments instead of reporting invalid input."
+  }
+ ],
+ "selected_client": "codex",
+ "reviewer_family": "codex",
+ "implementer_family": "claude",
+ "base": "b2a6fa34a62076f02058700640d5ede0841734ca",
+ "head": "3f230f5752b1715b166dedfa00c003b35beae0f9",
+ "candidate_digest": "f4776f7052f0082f89a22958f598c5384f995c615f95074d16e231834a6fb633",
+ "worktree_clean": true,
+ "untracked_files": [],
+ "intent_sha256": "137ec354e71f62464747d108f768e542957643b3f09e673888428b4e2fc8b9f0",
+ "elapsed_seconds": 289.6,
+ "attempts": [
+  {
+   "client": "codex",
+   "status": "findings",
+   "returncode": 0,
+   "elapsed_seconds": 289.4,
+   "model": "gpt-6-astra",
+   "provider": "openai"
+  }
+ ],
+ "skipped": [
+  {
+   "client": "claude",
+   "reason": "same_family",
+   "model": ""
+  }
+ ],
+ "recorded_at": "2026-11-12T03:43:59+00:00"
+}

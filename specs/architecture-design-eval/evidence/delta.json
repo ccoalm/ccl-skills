@@ -1,0 +1,36 @@
+{
+ "schema_version": 3,
+ "runner": "review_diff",
+ "mode": "review",
+ "status": "passed",
+ "reason_code": null,
+ "findings": [],
+ "selected_client": "codex",
+ "reviewer_family": "codex",
+ "implementer_family": "claude",
+ "base": "3f230f5752b1715b166dedfa00c003b35beae0f9",
+ "head": "48c9bee20cdc155e3b344e79dad3d9680239ccb0",
+ "candidate_digest": "f84cfef09f6935e5c313adab91d6d4f48cd043e5826b767cd63277e4023e3d88",
+ "worktree_clean": true,
+ "untracked_files": [],
+ "intent_sha256": "9eae9f892849cef6b2a8a875aa4168d74e3d2a7c9a02170bfbb18f2e89310b27",
+ "elapsed_seconds": 151.8,
+ "attempts": [
+  {
+   "client": "codex",
+   "status": "passed",
+   "returncode": 0,
+   "elapsed_seconds": 151.8,
+   "model": "gpt-6-astra",
+   "provider": "openai"
+  }
+ ],
+ "skipped": [
+  {
+   "client": "claude",
+   "reason": "same_family",
+   "model": ""
+  }
+ ],
+ "recorded_at": "2026-11-12T03:52:07+00:00"
+}
