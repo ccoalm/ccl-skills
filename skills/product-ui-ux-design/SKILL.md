@@ -89,7 +89,7 @@ new/reshaped/systemic slice. Each redesigned screen remains a full IA/behavior
 slice; only a pure token/component sweep may batch. Link the contract instead
 of copying its fields.
 
-Before the first implementation edit, the applicable draft must contain the design-owned inputs defined by the contract. `testing-strategy` then selects verifier, assertion/rendered layers and oracles; every changed producer and affected client-owner member confirms its local target and evidence plan. The producer records immutable artifact/config/prompt/model identity and API/event/output facts; each client member records platform facts and which producer version it exercised. Testing Phase 1 cites the complete design/test/producer/client record and candidate-binding sets to decide criterion results and aggregate sufficiency before the design verdict. If the record was missed, stop, record the process defect, reconstruct it from pre-change evidence, and audit the existing diff before further edits or handoff; a retroactive brief cannot bless the implementation. This order is intentional and is not a circular wait.
+Before the first implementation edit, the applicable draft must contain the design-owned inputs defined by the contract. A full record includes `visual_source` and `visual_conformance` rows. `testing-strategy` then selects verifier, assertion/rendered layers and oracles; every changed producer and affected client-owner member confirms its local target and evidence plan. The producer records immutable artifact/config/prompt/model identity and API/event/output facts; each client member records platform facts and which producer version it exercised. Testing Phase 1 cites the complete design/test/producer/client record and candidate-binding sets to decide criterion results and aggregate sufficiency before the design verdict. If the record was missed, stop, record the process defect, reconstruct it from pre-change evidence, and audit the existing diff before further edits or handoff; a retroactive brief cannot bless the implementation. This order is intentional and is not a circular wait.
 
 ### 4. Evaluate evidence at its real level
 
@@ -117,7 +117,7 @@ Missing evidence or silence is `pending`, never acceptance. Required runtime evi
 Treat the current implementation as current state, not automatically as the design spec. Classify each independent difference:
 
 - `defect-fix`: incorrect or misleading behavior/rendering; fix it.
-- `design-freedom`: visual language, layout grouping, component treatment, and unspecified states; improve without pretending the source required it.
+- `design-freedom`: visual language, layout grouping, component treatment, and unspecified states; improve without pretending the source required it. Visuals are free only where the visual-system source is silent.
 - `behavior-change`: new/removed controls, changed routes, write flows, semantics, or return behavior; declare the product/implementation/test/risk owner and evidence.
 
 Split mixed changes. If one point cannot be split, `behavior-change` outranks `defect-fix`, which outranks `design-freedom`.
