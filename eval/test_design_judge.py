@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """Deterministic tests for eval/design-judge.py. No model is called: the judge is a function the
 tests supply."""
+import hashlib
 import importlib.util
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 EVAL_DIR = Path(__file__).resolve().parent
 TOOL_PATH = EVAL_DIR / "design-judge.py"
+SOURCE = "package main\n"
+SOURCE_SHA = hashlib.sha256(SOURCE.encode()).hexdigest()
 QUOTE = "Refunds never exceed the amount paid."
 MECHANISM = "A unique index on request_id enforces it."
 DOCUMENT = f"# Design\n\n{QUOTE}\n{MECHANISM}\nHandlers call the domain layer only.\n"
@@ -36,8 +41,8 @@ def write_rubric(directory, known=None, items=None, task="demo"):
     (directory / f"{task}.bare.md").write_text("# Design\n\nAn endpoint and a table. Nothing else here.\n", encoding="utf-8")
     known = known if known is not None else {"full": {"file": f"{task}.full.md", "expect": ALL},
                                              "bare": {"file": f"{task}.bare.md", "expect": NONE}}
-    rubric = {"schema_version": 1, "task": task, "doc_path": "svc/docs/design.md", "items": items or ITEMS,
-              "known_answers": known}
+    rubric = {"schema_version": 1, "task": task, "project_dir": "svc", "doc_path": "svc/docs/design.md",
+              "source_files": {"svc/main.go": SOURCE_SHA}, "items": items or ITEMS, "known_answers": known}
     (directory / f"{task}.json").write_text(json.dumps(rubric), encoding="utf-8")
     return rubric
 
@@ -67,6 +72,17 @@ class RubricValidation(unittest.TestCase):
         for task, rubric in rubrics.items():
             paired = json.loads((EVAL_DIR / "paired-tasks" / f"{task}.json").read_text(encoding="utf-8"))
             self.assertEqual(rubric["doc_path"], f"{paired['cwd']}/docs/design.md")
+            self.assertEqual(rubric["project_dir"], paired["cwd"])
+
+    @unittest.skipUnless(os.name == "posix", "task setup is a shell script")
+    def test_source_digests_match_what_each_task_sets_up(self):
+        for task, rubric in TOOL.load_rubrics().items():
+            paired = json.loads((EVAL_DIR / "paired-tasks" / f"{task}.json").read_text(encoding="utf-8"))
+            with tempfile.TemporaryDirectory() as tmp:
+                subprocess.run(["bash", "-c", "\n".join(paired["setup"])], cwd=tmp, check=True)
+                made = {p.relative_to(tmp).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                        for p in Path(tmp).rglob("*") if p.is_file()}
+            self.assertEqual(rubric["source_files"], made, task)
 
     def test_valid_rubric_loads(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -100,6 +116,22 @@ class RubricValidation(unittest.TestCase):
         self.rejected("at least one invariant", items=ITEMS[1:],
                       known={"full": {"file": "demo.full.md", "expect": {k: ALL[k] for k in ("stack_deadline", "dep_direction")}},
                              "bare": {"file": "demo.bare.md", "expect": {k: NONE[k] for k in ("stack_deadline", "dep_direction")}}})
+
+    def test_source_files_and_project_dir_are_checked(self):
+        for field, value, message in (
+                ("source_files", {}, "source_files must map"),
+                ("source_files", {"other/main.go": SOURCE_SHA}, "source_files must map"),
+                ("source_files", {"svc/main.go": "abc"}, "source_files must map"),
+                ("source_files", {"svc/docs/design.md": SOURCE_SHA}, "cannot be a source file"),
+                ("project_dir", "svc/x", "project_dir must be one directory"),
+                ("doc_path", "svc/design.md", "doc_path must sit under")):
+            with self.subTest(field=field, value=value), tempfile.TemporaryDirectory() as tmp:
+                rubric = write_rubric(tmp)
+                rubric[field] = value
+                (Path(tmp) / "demo.json").write_text(json.dumps(rubric), encoding="utf-8")
+                with self.assertRaises(TOOL.JudgeError) as caught:
+                    TOOL.load_rubrics(tmp)
+                self.assertIn(message, str(caught.exception))
 
     def test_unknown_task_filter_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -198,6 +230,51 @@ class Judging(unittest.TestCase):
         self.assertNotEqual(first, second)
 
 
+class JudgeReply(unittest.TestCase):
+    def test_only_a_successful_run_yields_a_reply(self):
+        good = json.dumps({"is_error": False, "result": "answer"})
+        self.assertEqual(TOOL.reply_text(0, good), "answer")
+        for returncode, stdout in ((1, good), (0, json.dumps({"is_error": True, "result": "answer"})),
+                                   (0, json.dumps({"result": "answer"})), (0, json.dumps(["answer"])),
+                                   (0, "not json"), (0, "")):
+            self.assertEqual(TOOL.reply_text(returncode, stdout), "", (returncode, stdout))
+
+
+class JudgeIdentity(unittest.TestCase):
+    def test_identity_follows_what_decides_a_verdict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rubric = write_rubric(tmp)
+            path = Path(tmp) / "demo.json"
+            base = TOOL.judge_hash(tmp, "demo", "m", 3)
+            self.assertNotEqual(base, TOOL.judge_hash(tmp, "demo", "other", 3))
+            self.assertNotEqual(base, TOOL.judge_hash(tmp, "demo", "m", 1))
+            path.write_text(json.dumps(dict(rubric, source_files={"svc/other.go": SOURCE_SHA}, doc_path="svc/docs/d.md")))
+            self.assertEqual(base, TOOL.judge_hash(tmp, "demo", "m", 3))  # not judged: no effect on a verdict
+            changed = json.loads(json.dumps(rubric))
+            changed["items"][0]["statement"] = "Another rule."
+            path.write_text(json.dumps(changed))
+            self.assertNotEqual(base, TOOL.judge_hash(tmp, "demo", "m", 3))
+            changed = json.loads(json.dumps(rubric))
+            changed["known_answers"]["bare"]["expect"]["stack_deadline"]["stated"] = True
+            path.write_text(json.dumps(changed))
+            self.assertNotEqual(base, TOOL.judge_hash(tmp, "demo", "m", 3))
+            path.write_text(json.dumps(rubric))
+            self.assertEqual(base, TOOL.judge_hash(tmp, "demo", "m", 3))
+            (Path(tmp) / "demo.bare.md").write_text("# Design\n\nA changed known answer.\n", encoding="utf-8")
+            self.assertNotEqual(base, TOOL.judge_hash(tmp, "demo", "m", 3))
+
+    def test_identity_covers_the_prompt_and_the_judging_functions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_rubric(tmp)
+            base = TOOL.judge_hash(tmp, "demo", "m", 3)
+            for name, value in (("INSTRUCTIONS", "x"), ("SYSTEM_PROMPT", "x"), ("MIN_QUOTE", 1), ("MAX_DOC_CHARS", 1),
+                                ("JUDGING", TOOL.JUDGING[:-1])):
+                with self.subTest(name), mock.patch.object(TOOL, name, value):
+                    self.assertNotEqual(base, TOOL.judge_hash(tmp, "demo", "m", 3))
+            self.assertEqual({f.__name__ for f in TOOL.JUDGING},
+                             {"fields_of", "squash", "build_prompt", "parse_reply", "judge_document"})
+
+
 class OutputRoot(unittest.TestCase):
     def test_out_inside_a_checkout_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -236,16 +313,18 @@ class Pipeline(unittest.TestCase):
         self.calls += 1
         return known_answer_judge(prompt)
 
-    def sample(self, arm, index, document=DOCUMENT, valid=True, uses=(), skills=()):
+    def sample(self, arm, index, document=DOCUMENT, valid=True, uses=(), skills=(), checks=None, plan="p1"):
         sample_dir = self.runs / "runs" / "demo" / arm / str(index)
         (sample_dir / "world" / "svc" / "docs").mkdir(parents=True)
+        (sample_dir / "world" / "svc" / "main.go").write_text(SOURCE, encoding="utf-8")
         if document is not None:
             (sample_dir / "world" / "svc" / "docs" / "design.md").write_text(document, encoding="utf-8")
         events = [{"type": "assistant", "message": {"content": [{"type": "tool_use", "name": name, "input": payload}]}}
                   for name, payload in uses]
         (sample_dir / "stream.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events), encoding="utf-8")
         (sample_dir / "record.json").write_text(json.dumps(
-            {"valid": valid, "cost_usd": 0.5, "skills_invoked": list(skills),
+            {"valid": valid, "cost_usd": 0.5, "skills_invoked": list(skills), "plan_hash": plan,
+             "checks": checks if checks is not None else {"design_written": {"result": "pass"}},
              "plugin_dir": str(sample_dir / "plugin")}), encoding="utf-8")
         return sample_dir
 
@@ -254,7 +333,10 @@ class Pipeline(unittest.TestCase):
 
     def run_judge(self):
         TOOL.judge_runs(self.rubrics, self.rubric_dir, self.runs, self.out, self.ask, "m", 1)
-        return TOOL.build_report(self.rubrics, self.out)["tasks"]["demo"]
+        return self.report()
+
+    def report(self, model="m", votes=1):
+        return TOOL.build_report(self.rubrics, self.out, self.rubric_dir, model, votes)["tasks"]["demo"]
 
     def judgment(self, arm, index):
         return json.loads((self.out / "judgments" / "demo" / arm / f"{index}.json").read_text(encoding="utf-8"))
@@ -344,6 +426,78 @@ class Pipeline(unittest.TestCase):
         self.assertEqual(report["uncalibrated"], ["inv_cap", "dep_direction"])
         self.assertEqual((row["primary_pass"], row["primary_n"], row["invariant_slots"], row["dependency_n"]), (0, 0, 0, 0))
         self.assertEqual(list(row["per_item"]), ["stack_deadline"])
+
+    def test_runs_that_did_more_than_write_the_design_are_excluded(self):
+        self.calibrate()
+        world = lambda index: self.runs / "runs" / "demo" / "base" / str(index) / "world" / "svc"
+        self.sample("base", 1)
+        (world(1) / "main.go.bak").write_text(SOURCE, encoding="utf-8")  # kept a copy,
+        (world(1) / "main.go").write_text("package main\n// rewritten\n", encoding="utf-8")  # rewrote the original
+        self.sample("base", 2)
+        (world(2) / "refund.go").write_text("package main\n", encoding="utf-8")  # added an implementation file
+        self.sample("base", 3)
+        (world(3) / "main.go").unlink()
+        self.sample("base", 4, checks={"design_written": {"result": "pass"}, "source_untouched": {"result": "fail"}})
+        self.sample("base", 5)  # allowed: more documents, dot files and caches
+        (world(5) / "docs" / "notes.md").write_text("notes\n", encoding="utf-8")
+        (world(5) / ".DS_Store").write_text("x", encoding="utf-8")
+        (world(5) / "__pycache__").mkdir()
+        (world(5) / "__pycache__" / "x.pyc").write_text("x", encoding="utf-8")
+        self.sample("base", 6)
+        (world(6) / "main.go").write_text("package main\n// edited in place\n", encoding="utf-8")
+        calls_before = self.calls
+        report = self.run_judge()
+        self.assertEqual([self.judgment("base", i)["excluded"] for i in range(1, 7)],
+                         ["source_changed"] * 4 + [None, "source_changed"])
+        self.assertEqual(self.calls, calls_before + 1)
+        self.assertEqual(report["arms"]["base"]["excluded"], {"source_changed": 5})
+
+    def test_report_refuses_numbers_made_under_another_identity(self):
+        self.calibrate()
+        self.sample("base", 1)
+        self.assertEqual(self.run_judge()["arms"]["base"]["judged"], 1)
+        self.assertEqual(self.report(votes=3), {"stale": "calibration", "arms": {}})
+        (self.rubric_dir / "demo.bare.md").write_text("# Design\n\nA changed known answer, nothing else here.\n")
+        self.assertEqual(self.report(), {"stale": "calibration", "arms": {}})
+        self.assertIn("No calibration under the current judge identity", (self.out / "report.md").read_text())
+
+    def test_changed_document_or_stream_is_judged_again(self):
+        self.calibrate()
+        sample_dir = self.sample("base", 1)
+        self.assertEqual(self.run_judge()["arms"]["base"]["primary_pass"], 1)
+        (sample_dir / "world" / "svc" / "docs" / "design.md").write_text("# Design\n\nNothing else here at all.\n")
+        self.assertEqual(self.run_judge()["arms"]["base"]["primary_pass"], 0)
+        read = {"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "Read", "input": {"file_path": "/x/eval/design-rubrics/demo.json"}}]}}
+        (sample_dir / "stream.jsonl").write_text(json.dumps(read) + "\n", encoding="utf-8")
+        self.run_judge()
+        self.assertEqual(self.judgment("base", 1)["excluded"], "contaminated")
+
+    def test_a_judgment_the_judge_could_not_complete_is_tried_again(self):
+        self.calibrate()
+        self.sample("base", 1)
+        TOOL.judge_runs(self.rubrics, self.rubric_dir, self.runs, self.out, lambda prompt: "", "m", 1)
+        self.assertEqual(self.judgment("base", 1)["excluded"], "judge_reply_invalid")
+        self.assertEqual(self.run_judge()["arms"]["base"]["judged"], 1)
+        self.assertIsNone(self.judgment("base", 1)["excluded"])
+
+    def test_judgments_from_an_earlier_batch_are_not_compared(self):
+        self.calibrate()
+        self.sample("base", 1)
+        self.sample("base", 2)
+        self.sample("candidate", 1)
+        self.run_judge()
+        for stale in ("base/2", "candidate/1"):  # the next batch holds fewer samples and arms
+            for path in sorted((self.runs / "runs" / "demo" / stale).rglob("*"), reverse=True):
+                path.unlink() if path.is_file() or path.is_symlink() else path.rmdir()
+            (self.runs / "runs" / "demo" / stale).rmdir()
+        report = self.run_judge()
+        self.assertEqual({arm: row["judged"] for arm, row in report["arms"].items()}, {"base": 1})
+        self.assertFalse((self.out / "judgments" / "demo" / "candidate" / "1.json").exists())
+        # A judgment copied in from another batch is caught by the report itself.
+        other = dict(self.judgment("base", 1), sample="9", plan_hash="p2")
+        (self.out / "judgments" / "demo" / "base" / "9.json").write_text(json.dumps(other), encoding="utf-8")
+        self.assertEqual(self.report(), {"stale": "mixed_batches", "arms": {}})
 
     def test_saved_judgments_are_reused_until_the_record_changes(self):
         self.calibrate()

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "arch-design-booking-implicit-go",
   "measures": "Room booking in a Go service, with a requirement that lists features and no business rules: does the agent write a design document and leave the code alone? The rubric's invariants have to be inferred.",
-  "not_measured": "The quality of the design. The checks here only see that a design document was written and that no source file was changed; whether the design states the business invariants and ties each to a check is judged afterwards by eval/design-judge.py against eval/design-rubrics/, which this runner does not read.",
+  "not_measured": "The quality of the design, and whether the code was left alone: these checks only see that a design document exists and that the content of one set-up source file still exists somewhere in the world, so a rewritten file with a kept copy passes. eval/design-judge.py reads the saved run afterwards; it excludes a run that changed a set-up file or added a file outside docs/, and judges the document against eval/design-rubrics/, which this runner does not read.",
   "samples": 5,
   "timeout_seconds": 1500,
   "cwd": "svc",
@@ -45,7 +45,7 @@
       "path": "svc/docs/design.md"
     },
     {
-      "id": "source_untouched",
+      "id": "stub_content_kept",
       "role": "precision",
       "kind": "blob_kept",
       "path": "svc/cmd/server/main.go"
@@ -64,7 +64,7 @@
       },
       {
         "fails": [
-          "source_untouched"
+          "stub_content_kept"
         ],
         "commands": [
           "printf '# design\\n' > docs/design.md",

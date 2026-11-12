@@ -1,7 +1,14 @@
 {
   "schema_version": 1,
   "task": "arch-design-refund-implicit-python",
+  "project_dir": "svc",
   "doc_path": "svc/docs/design.md",
+  "source_files": {
+    "svc/README.md": "7f46c44d6e3b6001aad95ca1f3f8feb3d432b59f963269af28db57b2602c463c",
+    "svc/app/main.py": "9fc033bd1da8f7d592b7b2a4c1d4db0d7c248bc278c71f5b9a1b5386edebb809",
+    "svc/docs/requirement.md": "803553029eb4db5ff39d652b6c710a673219660d0fe3a57edc57a6f140973e35",
+    "svc/pyproject.toml": "5fe6bb37f7d43f564b5f02ad1ca1139aac360d602c6c3c292601f4877d03cc8f"
+  },
   "items": [
     {
       "id": "inv_refund_cap",

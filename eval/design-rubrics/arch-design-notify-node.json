@@ -1,7 +1,14 @@
 {
   "schema_version": 1,
   "task": "arch-design-notify-node",
+  "project_dir": "svc",
   "doc_path": "svc/docs/design.md",
+  "source_files": {
+    "svc/README.md": "e0031278b9b27a4c9610b1a9315ba7194284d27d835cf972667df16949cfd1b8",
+    "svc/docs/requirement.md": "07465edce27598604f1919aeaddfb8bff142bcc2bae1cd8dc54aa89d9dd8a302",
+    "svc/package.json": "5cb25acf8a4b84484eb455bae04bd095e044870a3b3a2665e75901a83a4c4e8b",
+    "svc/src/server.ts": "2b6444cee2bcfa12e5d36c60cbd7d27285d39789f2056b7dee0eaa56d14c3336"
+  },
   "items": [
     {
       "id": "inv_notify_once",

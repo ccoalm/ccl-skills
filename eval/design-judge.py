@@ -15,6 +15,10 @@ WHAT THE NUMBER IS NOT — read this before citing a result:
   is counted only when the judge reproduced the expected verdict on every one of them in the
   calibration recorded under the same --out. Calibration covers those few documents; it does not
   prove the judge is right on documents written in another style.
+- A calibration or judgment belongs to one judge identity: the rubric items, the known answers,
+  the prompt text, the reply parsing and voting code, the judge model and the vote count. The code
+  that calls the model, caches judgments and builds the report is not part of it, so a defect
+  there is not detected by a stale identity.
 - A positive verdict needs a verbatim quote from the document; a quote that is not found in the
   document turns the verdict negative. This catches invented evidence, not a wrong reading of a
   real sentence.
@@ -36,12 +40,15 @@ Usage:
   python3 eval/design-judge.py --runs PAIRED_OUT --out DIR [--tasks a,b]
   python3 eval/design-judge.py --out DIR --report-only
 
---out must sit outside every checkout of this repository. Exit status: 0 the requested step
-finished (whatever the verdicts say); 2 invalid input, including --runs without a calibration made
-by the same rubric, tool, model and vote count; 1 internal failure.
+--out must sit outside every checkout of this repository. --runs judges one output root of the
+paired runner per task: judgments saved for that task from samples the root no longer holds are
+removed. --report-only needs the same --model and --votes the judgments were made with.
+Exit status: 0 the requested step finished (whatever the verdicts say); 2 invalid input, including
+--runs without a calibration made under the current judge identity; 1 internal failure.
 """
 import argparse
 import hashlib
+import inspect
 import json
 import os
 import re
@@ -96,13 +103,23 @@ def fields_of(item):
 
 
 def validate_rubric(rubric, stem, base):
-    _require(isinstance(rubric, dict) and set(rubric) == {"schema_version", "task", "doc_path", "items", "known_answers"},
-             stem, "keys must be schema_version, task, doc_path, items, known_answers")
+    keys = {"schema_version", "task", "project_dir", "doc_path", "source_files", "items", "known_answers"}
+    _require(isinstance(rubric, dict) and set(rubric) == keys, stem, f"keys must be exactly {sorted(keys)}")
     _require(rubric["schema_version"] == SCHEMA_VERSION, stem, "unsupported schema_version")
     _require(rubric["task"] == stem, stem, "task must match the file name")
     doc_path = rubric["doc_path"]
     _require(isinstance(doc_path, str) and doc_path and not os.path.isabs(doc_path) and ".." not in Path(doc_path).parts,
              stem, "doc_path must be a relative path inside the world")
+    project = rubric["project_dir"]
+    _require(isinstance(project, str) and project and "/" not in project and project not in (".", ".."), stem,
+             "project_dir must be one directory name inside the world")
+    _require(doc_path.startswith(f"{project}/docs/"), stem, "doc_path must sit under <project_dir>/docs/")
+    sources = rubric["source_files"]
+    _require(isinstance(sources, dict) and sources and all(
+        isinstance(k, str) and k.startswith(f"{project}/") and ".." not in Path(k).parts
+        and isinstance(v, str) and re.fullmatch(r"[0-9a-f]{64}", v) for k, v in sources.items()), stem,
+             "source_files must map paths under project_dir to sha256 digests")
+    _require(doc_path not in sources, stem, "the design document cannot be a source file")
     items = rubric["items"]
     _require(isinstance(items, list) and items, stem, "items must be a non-empty list")
     ids = []
@@ -249,11 +266,20 @@ def claude_asker(claude, model, budget, timeout=600):
                                       timeout=timeout)
             except (OSError, subprocess.TimeoutExpired):
                 return ""
-        try:
-            return str(json.loads(done.stdout).get("result", ""))
-        except (json.JSONDecodeError, AttributeError):
-            return ""
+        return reply_text(done.returncode, done.stdout)
     return ask
+
+
+def reply_text(returncode, stdout):
+    """The model's answer from a `claude -p --output-format json` run, or "" unless the process
+    exited 0 and its envelope says the run was not an error; a failed run is never a vote."""
+    try:
+        data = json.loads(stdout)
+    except (json.JSONDecodeError, TypeError):
+        return ""
+    if returncode != 0 or not isinstance(data, dict) or data.get("is_error") is not False:
+        return ""
+    return str(data.get("result", ""))
 
 
 # --------------------------------------------------------------------------- hashing and files
@@ -262,16 +288,25 @@ def sha256_file(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+JUDGING = (fields_of, squash, build_prompt, parse_reply, judge_document)
+
+
 def judge_hash(rubric_dir, task, model, votes):
-    """Identity of a judgment: the rubric with its known-answer documents, this tool, the judge
-    model and the vote count. A judgment or calibration made under another identity is not reused."""
+    """Identity of a judgment: what decides a verdict. That is the rubric items, the known answers
+    with their documents, the prompt text, the source of the parsing and voting functions, the
+    judge model and the vote count. A judgment or calibration made under another identity is not
+    reused. The rest of this file (calling the model, caching, reporting) is left out, so fixing
+    it does not void a calibration."""
     rubric_dir = Path(rubric_dir)
     rubric = json.loads((rubric_dir / f"{task}.json").read_text(encoding="utf-8"))
-    names = [f"{task}.json"] + sorted(entry["file"] for entry in rubric["known_answers"].values())
     h = hashlib.sha256()
-    for name in names:
+    h.update(json.dumps({"items": rubric["items"], "known_answers": rubric["known_answers"]}, sort_keys=True,
+                        ensure_ascii=False).encode() + b"\0")
+    for name in sorted(entry["file"] for entry in rubric["known_answers"].values()):
         h.update(name.encode() + b"\0" + sha256_file(rubric_dir / name).encode() + b"\0")
-    h.update(sha256_file(__file__).encode() + f"\0{model}\0{votes}".encode())
+    for part in (SYSTEM_PROMPT, INSTRUCTIONS, str(MIN_QUOTE), str(MAX_DOC_CHARS), *(inspect.getsource(f) for f in JUDGING)):
+        h.update(part.encode() + b"\0")
+    h.update(f"{model}\0{votes}".encode())
     return h.hexdigest()
 
 
@@ -384,27 +419,62 @@ def inside_world(path, world):
     return path.is_file() and world.resolve() in path.resolve().parents
 
 
+def source_changed(world, rubric):
+    """True when the run did more than write under docs/: a file the task set up is missing or
+    differs, or the project holds another file outside docs/. Dot files and caches are ignored."""
+    for rel, digest in rubric["source_files"].items():
+        path = world / rel
+        if not inside_world(path, world) or sha256_file(path) != digest:
+            return True
+    project = world / rubric["project_dir"]
+    for root, dirs, files in os.walk(project):
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__pycache__"]
+        for name in files:
+            path = Path(root) / name
+            if (name.startswith(".") or path.relative_to(world).as_posix() in rubric["source_files"]
+                    or project / "docs" in path.parents):
+                continue
+            return True
+    return False
+
+
+def inputs_hash(sample_dir, rubric):
+    """What a saved judgment was made from: the record, the stream, the document and whether the
+    source was left alone. A judgment is reused only while all of them are unchanged."""
+    h = hashlib.sha256()
+    for path in (sample_dir / "record.json", sample_dir / "stream.jsonl", sample_dir / "world" / rubric["doc_path"]):
+        h.update((sha256_file(path) if path.is_file() else "absent").encode() + b"\0")
+    h.update(str(source_changed(sample_dir / "world", rubric)).encode())
+    return h.hexdigest()
+
+
 def judge_runs(rubrics, rubric_dir, runs, out, ask, model, votes):
     calibration = read_json(out / "calibration.json") or {}
     for task in rubrics:
         entry = calibration.get(task)
         if not entry or entry.get("judge_hash") != judge_hash(rubric_dir, task, model, votes):
-            raise JudgeError(f"{task}: no calibration for this rubric, tool, model and vote count; run --calibrate first")
+            raise JudgeError(f"{task}: no calibration under the current judge identity; run --calibrate first")
     runs = Path(runs)
     for task, rubric in rubrics.items():
         identity = calibration[task]["judge_hash"]
+        current = set()
         for record_path in sorted((runs / "runs" / task).glob("*/*/record.json")):
             sample_dir = record_path.parent
             arm, sample = sample_dir.parent.name, sample_dir.name
             target = out / "judgments" / task / arm / f"{sample}.json"
-            record_sha = sha256_file(record_path)
+            current.add(target)
+            inputs = inputs_hash(sample_dir, rubric)
             saved = read_json(target)
-            if saved and saved.get("judge_hash") == identity and saved.get("record_sha256") == record_sha:
+            # A judgment the judge could not complete is tried again: the cause may have passed.
+            if (saved and saved.get("judge_hash") == identity and saved.get("inputs_sha256") == inputs
+                    and saved.get("excluded") != "judge_reply_invalid"):
                 continue
-            record = read_json(record_path) or {}
+            record = read_json(sample_dir / "record.json") or {}
             uses = tool_inputs(sample_dir / "stream.jsonl")
+            checks = record.get("checks") if isinstance(record.get("checks"), dict) else {}
             judgment = {"task": task, "arm": arm, "sample": sample, "judge_hash": identity,
-                        "record_sha256": record_sha, "cost_usd": record.get("cost_usd"),
+                        "inputs_sha256": inputs, "plan_hash": record.get("plan_hash"),
+                        "cost_usd": record.get("cost_usd"),
                         "skills_invoked": record.get("skills_invoked") or [], "verdicts": None, "excluded": None,
                         "loaded_bytes": None}
             document_path = sample_dir / "world" / rubric["doc_path"]
@@ -417,12 +487,18 @@ def judge_runs(rubrics, rubric_dir, runs, out, ask, model, votes):
                 judgment["excluded"] = "contaminated"
             elif not inside_world(document_path, sample_dir / "world"):
                 judgment["excluded"] = "no_document"
+            elif (source_changed(sample_dir / "world", rubric)
+                  or any(not isinstance(c, dict) or c.get("result") != "pass" for c in checks.values())):
+                judgment["excluded"] = "source_changed"
             else:
                 document = document_path.read_text(encoding="utf-8", errors="replace")
                 judgment["verdicts"], judgment["excluded"] = judge_document(rubric, document, ask, votes)
                 judgment["loaded_bytes"] = 0 if arm == "off" else loaded_bytes(
                     uses, judgment["skills_invoked"], runs / "arms" / arm, record.get("plugin_dir"))
             write_json(target, judgment)
+        # Judgments of samples this output root does not hold belong to an earlier batch.
+        for stale in set((out / "judgments" / task).glob("*/*.json")) - current:
+            stale.unlink()
 
 
 # --------------------------------------------------------------------------- report
@@ -445,7 +521,7 @@ def _show(value):
     return "n/a" if value is None else str(value)
 
 
-def build_report(rubrics, out):
+def build_report(rubrics, out, rubric_dir, model, votes):
     calibration = read_json(out / "calibration.json") or {}
     report = {"tasks": {}}
     lines = ["# Design judge report", "",
@@ -453,14 +529,26 @@ def build_report(rubrics, out):
              "language model, each arm has a few samples, and only calibrated rubric items are counted.", ""]
     for task, rubric in rubrics.items():
         entry = calibration.get(task) or {}
+        identity = judge_hash(rubric_dir, task, model, votes)
+        lines += [f"## {task}", ""]
+        if entry.get("judge_hash") != identity:
+            lines += ["No calibration under the current judge identity: the rubric, a known answer, the judging code,",
+                      "the model or the vote count changed. Run --calibrate and --runs again.", ""]
+            report["tasks"][task] = {"stale": "calibration", "arms": {}}
+            continue
         calibrated = set(entry.get("calibrated") or [])
         dropped = [i["id"] for i in rubric["items"] if i["id"] not in calibrated]
-        arms = {}
+        arms, batches = {}, set()
         for path in sorted((out / "judgments" / task).glob("*/*.json")):
             judgment = read_json(path)
-            if judgment and entry and judgment.get("judge_hash") == entry.get("judge_hash"):
+            if judgment and judgment.get("judge_hash") == identity:
                 arms.setdefault(judgment["arm"], []).append(judgment)
-        lines += [f"## {task}", "", f"Uncalibrated items left out: {', '.join(dropped) if dropped else 'none'}.", "",
+                batches.add(judgment.get("plan_hash"))
+        if len(batches) > 1:
+            lines += ["The saved judgments come from more than one paired-run batch and are not compared.", ""]
+            report["tasks"][task] = {"stale": "mixed_batches", "arms": {}}
+            continue
+        lines += [f"Uncalibrated items left out: {', '.join(dropped) if dropped else 'none'}.", "",
                   "| arm | judged | excluded | all invariants stated and checked | invariants stated | invariants checked "
                   "| stack items missing (mean) | dependency direction stated | loaded skill bytes (median) | run cost USD (median) |",
                   "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
@@ -539,7 +627,7 @@ def main(argv=None):
             return 0
         if args.runs:
             judge_runs(rubrics, args.rubrics, args.runs, out, ask, args.model, args.votes)
-        build_report(rubrics, out)
+        build_report(rubrics, out, args.rubrics, args.model, args.votes)
         print(f"design_judge_report {out / 'report.md'}")
         return 0
     except JudgeError as exc:

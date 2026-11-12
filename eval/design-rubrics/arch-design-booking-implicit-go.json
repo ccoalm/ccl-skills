@@ -1,7 +1,14 @@
 {
   "schema_version": 1,
   "task": "arch-design-booking-implicit-go",
+  "project_dir": "svc",
   "doc_path": "svc/docs/design.md",
+  "source_files": {
+    "svc/README.md": "42ea658ec873454cb6a100c6a55a067e2a0be567a45f2f10e94dd3bf29641359",
+    "svc/cmd/server/main.go": "55a60bb97151b2b4b680462447ce60ec34511b14fa10d77440c97b9777101566",
+    "svc/docs/requirement.md": "1c69081895a7aabab0c5daa6feb10bf0c695156328612d0948fb20562dc1c88d",
+    "svc/go.mod": "7dd445d94928428eb2f56cd69941d15f960cc8f69b453644ca61cd512afd5188"
+  },
   "items": [
     {
       "id": "inv_no_overlap",

@@ -70,15 +70,18 @@ Rules:
   good one (`--check-oracles`), a world never references a real repository,
   and run output stays under a private `--out` outside every checkout.
 - **Design documents are judged against a calibrated rubric.** The
-  `arch-design-*` paired tasks only check that a design document was written and
-  the code left alone. `design-judge.py` reads the saved runs afterwards and
-  judges each document against `design-rubrics/<task>.json` with a language
-  model. A positive verdict needs a quote found verbatim in the document, and a
-  rubric item is counted only after the judge reproduced the expected verdict on
-  every known-answer document next to the rubric (`--calibrate`). Each rubric
-  item needs a known answer where it holds and one where it does not. Changing a
-  rubric, a known-answer document, the tool, the judge model or the vote count
-  voids earlier calibration and judgments.
+  `arch-design-*` paired tasks only check that a design document exists.
+  `design-judge.py` reads the saved runs afterwards, excludes a run that changed
+  a file the task set up or added one outside `docs/`, and judges each remaining
+  document against `design-rubrics/<task>.json` with a language model. A
+  positive verdict needs a quote found verbatim in the document, and a rubric
+  item is counted only after the judge reproduced the expected verdict on every
+  known-answer document next to the rubric (`--calibrate`). Each rubric item
+  needs a known answer where it holds and one where it does not. Changing the
+  rubric items, a known answer, the prompt, the parsing and voting functions
+  listed in `JUDGING`, the judge model or the vote count voids earlier
+  calibration and judgments; a change to a function that decides a verdict
+  belongs in `JUDGING`.
 - **No project, person, or repository identity in committed output or fixtures.**
   Sample rows printed for diagnosis carry a truncated path and an agent id, never
   brief bodies — a dispatch brief may contain proprietary or personal content.
