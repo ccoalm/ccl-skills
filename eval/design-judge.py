@@ -419,20 +419,24 @@ def inside_world(path, world):
     return path.is_file() and world.resolve() in path.resolve().parents
 
 
+WORLD_NOTES = "CLAUDE.md"  # the paired runner writes its canary instruction file at the world root
+
+
 def source_changed(world, rubric):
-    """True when the run did more than write under docs/: a file the task set up is missing or
-    differs, or the project holds another file outside docs/. Dot files and caches are ignored."""
+    """True when the run did more than write under the project's docs/: a file the task set up is
+    missing or differs, or the world holds another file anywhere else, in the project or beside it.
+    Dot files, caches and the runner's own instruction file are ignored."""
     for rel, digest in rubric["source_files"].items():
         path = world / rel
         if not inside_world(path, world) or sha256_file(path) != digest:
             return True
-    project = world / rubric["project_dir"]
-    for root, dirs, files in os.walk(project):
+    docs = world / rubric["project_dir"] / "docs"
+    for root, dirs, files in os.walk(world):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__pycache__"]
         for name in files:
             path = Path(root) / name
-            if (name.startswith(".") or path.relative_to(world).as_posix() in rubric["source_files"]
-                    or project / "docs" in path.parents):
+            rel = path.relative_to(world).as_posix()
+            if name.startswith(".") or rel == WORLD_NOTES or rel in rubric["source_files"] or docs in path.parents:
                 continue
             return True
     return False
@@ -442,9 +446,12 @@ def inputs_hash(sample_dir, rubric):
     """What a saved judgment was made from: the record, the stream, the document and whether the
     source was left alone. A judgment is reused only while all of them are unchanged."""
     h = hashlib.sha256()
-    for path in (sample_dir / "record.json", sample_dir / "stream.jsonl", sample_dir / "world" / rubric["doc_path"]):
+    document = sample_dir / "world" / rubric["doc_path"]
+    for path in (sample_dir / "record.json", sample_dir / "stream.jsonl", document):
         h.update((sha256_file(path) if path.is_file() else "absent").encode() + b"\0")
-    h.update(str(source_changed(sample_dir / "world", rubric)).encode())
+    # Where the document really is counts too: the same bytes behind a link leaving the world are
+    # not a document the run wrote.
+    h.update(f"{inside_world(document, sample_dir / 'world')}\0{source_changed(sample_dir / 'world', rubric)}".encode())
     return h.hexdigest()
 
 
@@ -455,6 +462,11 @@ def judge_runs(rubrics, rubric_dir, runs, out, ask, model, votes):
         if not entry or entry.get("judge_hash") != judge_hash(rubric_dir, task, model, votes):
             raise JudgeError(f"{task}: no calibration under the current judge identity; run --calibrate first")
     runs = Path(runs)
+    for task in rubrics:
+        # A mistyped or unmounted --runs must not look like a batch with no samples: the pruning
+        # below would then delete every judgment saved for the task.
+        if not (runs / "runs" / task).is_dir():
+            raise JudgeError(f"{task}: {runs} holds no runs for this task")
     for task, rubric in rubrics.items():
         identity = calibration[task]["judge_hash"]
         current = set()
@@ -478,7 +490,9 @@ def judge_runs(rubrics, rubric_dir, runs, out, ask, model, votes):
                         "skills_invoked": record.get("skills_invoked") or [], "verdicts": None, "excluded": None,
                         "loaded_bytes": None}
             document_path = sample_dir / "world" / rubric["doc_path"]
-            if not record.get("valid"):
+            if (record.get("task"), record.get("arm"), str(record.get("sample"))) != (task, arm, sample):
+                judgment["excluded"] = "record_mismatch"  # a copied or moved sample directory
+            elif not record.get("valid"):
                 judgment["excluded"] = "run_invalid"
             elif uses is None:
                 judgment["excluded"] = "stream_missing"

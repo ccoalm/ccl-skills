@@ -323,7 +323,8 @@ class Pipeline(unittest.TestCase):
                   for name, payload in uses]
         (sample_dir / "stream.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events), encoding="utf-8")
         (sample_dir / "record.json").write_text(json.dumps(
-            {"valid": valid, "cost_usd": 0.5, "skills_invoked": list(skills), "plan_hash": plan,
+            {"task": "demo", "arm": arm, "sample": index, "valid": valid, "cost_usd": 0.5,
+             "skills_invoked": list(skills), "plan_hash": plan,
              "checks": checks if checks is not None else {"design_written": {"result": "pass"}},
              "plugin_dir": str(sample_dir / "plugin")}), encoding="utf-8")
         return sample_dir
@@ -443,14 +444,51 @@ class Pipeline(unittest.TestCase):
         (world(5) / ".DS_Store").write_text("x", encoding="utf-8")
         (world(5) / "__pycache__").mkdir()
         (world(5) / "__pycache__" / "x.pyc").write_text("x", encoding="utf-8")
+        (world(5).parent / "CLAUDE.md").write_text("runner notes\n", encoding="utf-8")
         self.sample("base", 6)
         (world(6) / "main.go").write_text("package main\n// edited in place\n", encoding="utf-8")
+        self.sample("base", 7)  # implemented beside the project instead of inside it
+        (world(7).parent / "notify-service").mkdir()
+        (world(7).parent / "notify-service" / "server.ts").write_text("export {}\n", encoding="utf-8")
         calls_before = self.calls
         report = self.run_judge()
-        self.assertEqual([self.judgment("base", i)["excluded"] for i in range(1, 7)],
-                         ["source_changed"] * 4 + [None, "source_changed"])
+        self.assertEqual([self.judgment("base", i)["excluded"] for i in range(1, 8)],
+                         ["source_changed"] * 4 + [None, "source_changed", "source_changed"])
         self.assertEqual(self.calls, calls_before + 1)
-        self.assertEqual(report["arms"]["base"]["excluded"], {"source_changed": 5})
+        self.assertEqual(report["arms"]["base"]["excluded"], {"source_changed": 6})
+
+    def test_copied_sample_directory_is_not_counted_twice(self):
+        self.calibrate()
+        original = self.sample("base", 1)
+        copy = original.parent / "99"
+        copy.mkdir()
+        for path in sorted(original.rglob("*")):
+            target = copy / path.relative_to(original)
+            target.mkdir() if path.is_dir() else target.write_bytes(path.read_bytes())
+        report = self.run_judge()
+        self.assertEqual(report["arms"]["base"]["judged"], 1)
+        self.assertEqual(self.judgment("base", 99)["excluded"], "record_mismatch")
+
+    def test_missing_runs_root_keeps_saved_judgments(self):
+        self.calibrate()
+        self.sample("base", 1)
+        self.run_judge()
+        saved = self.out / "judgments" / "demo" / "base" / "1.json"
+        with self.assertRaises(TOOL.JudgeError):
+            TOOL.judge_runs(self.rubrics, self.rubric_dir, self.runs / "typo", self.out, self.ask, "m", 1)
+        self.assertTrue(saved.is_file())
+
+    def test_document_swapped_for_a_link_out_of_the_world_is_judged_again(self):
+        self.calibrate()
+        sample_dir = self.sample("base", 1)
+        self.assertEqual(self.run_judge()["arms"]["base"]["judged"], 1)
+        document = sample_dir / "world" / "svc" / "docs" / "design.md"
+        outside = Path(self.tmp.name) / "same-bytes.md"
+        outside.write_bytes(document.read_bytes())
+        document.unlink()
+        document.symlink_to(outside)
+        self.run_judge()
+        self.assertEqual(self.judgment("base", 1)["excluded"], "no_document")
 
     def test_report_refuses_numbers_made_under_another_identity(self):
         self.calibrate()
@@ -506,7 +544,8 @@ class Pipeline(unittest.TestCase):
         calls = self.calls
         self.run_judge()
         self.assertEqual(self.calls, calls)
-        (sample_dir / "record.json").write_text(json.dumps({"valid": True, "cost_usd": 0.7, "skills_invoked": []}))
+        record = json.loads((sample_dir / "record.json").read_text(encoding="utf-8"))
+        (sample_dir / "record.json").write_text(json.dumps(dict(record, cost_usd=0.7)), encoding="utf-8")
         self.run_judge()
         self.assertEqual(self.calls, calls + 1)
 
