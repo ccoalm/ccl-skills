@@ -1889,13 +1889,61 @@ assert not path_reads, [(node.func.attr, node.lineno) for node in path_reads]
 oversized_skill = root / "oversized-skill"
 oversized_skill.mkdir()
 (oversized_skill / "SKILL.md").touch()
-os.truncate(oversized_skill / "SKILL.md", 1_048_577)
+os.truncate(oversized_skill / "SKILL.md", review_gate.MAX_SELECTED_SKILL_PACKAGE_BYTES + 1)
 try:
     review_gate._hash_skill_package(oversized_skill, "oversized-skill")
 except review_gate.GateError as exc:
     assert exc.reason_code == "local_tool_failure", exc.reason_code
 else:
     raise AssertionError("an oversized selected-skill file was hashed")
+
+# An append-only ledger grows without bound, so one file may pass the size that
+# bounds other inputs; the package ceiling is what stops the read.
+ledger_skill = root / "ledger-skill"
+(ledger_skill / "references").mkdir(parents=True)
+(ledger_skill / "SKILL.md").write_text("# ledger\n", encoding="utf-8")
+ledger = ledger_skill / "references" / "ledger.md"
+ledger.touch()
+os.truncate(ledger, 1_048_577)
+first = review_gate._hash_skill_package(ledger_skill, "ledger-skill")
+with open(ledger, "r+b") as handle:
+    handle.seek(1_048_576)
+    handle.write(b"x")
+assert first != review_gate._hash_skill_package(ledger_skill, "ledger-skill"), (
+    "a byte past the first mebibyte of a selected-skill file must change the digest"
+)
+
+# Each read is capped at what the package ceiling still leaves, so a package is
+# rejected before a read that would pass the ceiling. A package of exactly the
+# ceiling is accepted, an empty file after that still is, and one more byte is not.
+ceiling = review_gate.MAX_SELECTED_SKILL_PACKAGE_BYTES
+exact_skill = root / "exact-skill"
+(exact_skill / "references").mkdir(parents=True)
+(exact_skill / "SKILL.md").write_text("# exact\n", encoding="utf-8")
+entry_bytes = (exact_skill / "SKILL.md").stat().st_size
+filler = exact_skill / "references" / "a-filler.md"
+filler.touch()
+os.truncate(filler, ceiling - entry_bytes)
+tail = exact_skill / "references" / "b-tail.md"
+tail.touch()
+real_read = review_gate.read_bounded_regular_file
+budgets = []
+def recording_read(path_value, **kwargs):
+    budgets.append(kwargs["maximum"])
+    return real_read(path_value, **kwargs)
+review_gate.read_bounded_regular_file = recording_read
+try:
+    review_gate._hash_skill_package(exact_skill, "exact-skill")
+    assert budgets == [ceiling, ceiling - entry_bytes, 0], budgets
+    tail.write_bytes(b"x")
+    try:
+        review_gate._hash_skill_package(exact_skill, "exact-skill")
+    except review_gate.GateError as exc:
+        assert exc.reason_code == "local_tool_failure", exc.reason_code
+    else:
+        raise AssertionError("a package one byte over the ceiling was hashed")
+finally:
+    review_gate.read_bounded_regular_file = real_read
 
 aggregate_skill = root / "aggregate-skill"
 (aggregate_skill / "references").mkdir(parents=True)

@@ -332,24 +332,23 @@ def _hash_skill_package(skill_root: Path, skill_name: str) -> str:
     package_bytes = 0
     for selected_path in selected_paths:
         relative_name = selected_path.relative_to(skill_root).as_posix()
+        # A file may use whatever the package ceiling still leaves: a skill's
+        # append-only ledger outgrows any fixed per-file bound. Capping each
+        # read at the remainder keeps the bytes read for one package at the
+        # ceiling, where a per-file bound let it run one file past it.
         selected_bytes = read_bounded_regular_file(
             selected_path,
             label=f"selected skill file {skill_name}/{relative_name}",
-            maximum=MAX_BOUND_SOURCE_FILE_BYTES,
+            maximum=MAX_SELECTED_SKILL_PACKAGE_BYTES - package_bytes,
             regular_error=(
                 f"selected skill file is not a single-link regular file: {skill_name}/{relative_name}"
             ),
             oversized_error=(
-                f"selected skill file exceeds {MAX_BOUND_SOURCE_FILE_BYTES} bytes: {skill_name}/{relative_name}"
+                f"selected skill package exceeds {MAX_SELECTED_SKILL_PACKAGE_BYTES} bytes: {skill_name}"
             ),
             reason_code="local_tool_failure",
         )
         package_bytes += len(selected_bytes)
-        if package_bytes > MAX_SELECTED_SKILL_PACKAGE_BYTES:
-            raise GateError(
-                f"selected skill package exceeds {MAX_SELECTED_SKILL_PACKAGE_BYTES} bytes: {skill_name}",
-                "local_tool_failure",
-            )
         digest.update(relative_name.encode())
         digest.update(b"\0")
         digest.update(len(selected_bytes).to_bytes(8, "big"))
