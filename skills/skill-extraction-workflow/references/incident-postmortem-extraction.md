@@ -54,7 +54,7 @@ Owners are exact skill names. An incident with hybrid causes maps to a **coordin
 
 | Incident class | First-pass owners (coordinated set) | Common second owners |
 | --- | --- | --- |
-| Production outage from deploy | `platform-release-engineering` + `platform-observability` (detection lag) | the affected stack skill (`go-microservice-architecture` / `python-service-architecture` / `web-react-dev` / `app-cross-platform-dev`) only for service-internal architecture rules |
+| Production outage from deploy | `platform-release-engineering` + `platform-observability` (detection lag) | the affected stack skill (`software-architecture` / `web-react-dev` / `app-cross-platform-dev`) only for service-internal architecture rules |
 | Data corruption / write loss | the affected `*-architecture` skill (contract / idempotency / ordering / schema ownership) + `testing-strategy` (contract & duplicate-delivery tests) | `platform-release-engineering` (migration & runbook); `platform-observability` (reconciliation) |
 | Security event | installed security owner (`cso` if present; no dedicated security skill exists in this repo — otherwise `feature-risk-router` security-review gate) + the affected `*-dev` skill (input validation / auth / capability model) + the affected `*-architecture` skill (trust boundary) | `platform-release-engineering` (secrets handling) |
 | Perf regression in prod — pure runtime/capacity | `platform-observability` (SLI/SLO) + the affected `*-architecture` skill (capacity / quota) | `testing-strategy` (load) |

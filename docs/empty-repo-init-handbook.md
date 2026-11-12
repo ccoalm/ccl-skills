@@ -24,7 +24,7 @@
 └──────────────────────────────────────────────────────┘
                           ↓
 ┌── Phase 1：栈骨架（python OR node） ─────────────────┐
-│  python: python-service-architecture                  │
+│  python: software-architecture                        │
 │          → python-service-dev                         │
 │  node:   web-react-dev / app-cross-platform-dev /     │
 │          miniapp-product-dev / terminal-cli-dev       │
@@ -75,7 +75,7 @@
 
 | 步 | Skill | 跑什么 | 产物 | 必要性 |
 |---|---|---|---|---|
-| P1 | [`python-service-architecture`](../skills/python-service-architecture/SKILL.md) | 定服务边界、分层、DB/queue 选型 | 架构 Doc / `docs/architecture.md` | 推荐 |
+| P1 | [`software-architecture`](../skills/software-architecture/SKILL.md) | 定服务边界、分层、DB/queue 选型 | 架构 Doc / `docs/architecture.md` | 推荐 |
 | P2 | [`python-service-dev`](../skills/python-service-dev/SKILL.md) | 搭骨架：`pyproject.toml`、`uv` 或 `poetry`、入口、第一个 endpoint、`pytest` 配置 | 仓内代码 | **必须** |
 | P3 | [`testing-strategy`](../skills/testing-strategy/SKILL.md) | 定测试层（unit / integration / e2e）+ fixture 策略 + CI gate | 测试方案 | **必须** |
 | P4 | [`test-artifact-management`](../skills/test-artifact-management/SKILL.md) | 建 `test/cases/`，初始化/复用测试用例 Base，接 `tc()` 与报告/CI 模板 | 用例 Base、`test/cases/`、报告配置 | **必须**（要用例管理） |
@@ -90,7 +90,7 @@
 "使用 agents-file-coverage-gate 给 <repo> --check 后 --fix 缺失"
 
 # Phase 1
-"使用 python-service-architecture 设计 <product> 的服务边界"
+"使用 software-architecture 设计 <product> 的服务边界"
 "使用 python-service-dev 用 FastAPI 搭一个最小可跑骨架，含 pytest 和 uv"
 
 # Phase 2
@@ -241,7 +241,7 @@ CI=true TC_SIDECAR_STRICT=1 python3 test/scripts/gen_report.py \
 | 拿到空 git 仓，第一件事 | `worktree-isolation` |
 | 仓里没 AGENTS.md | `agents-file-coverage-gate --fix` |
 | 不知道这仓做什么、要不要做 | `product-rd-workflow` |
-| 决定用 Python 后端 | `python-service-architecture` + `python-service-dev` |
+| 决定用 Python 后端 | `software-architecture` + `python-service-dev` |
 | 决定用 React/Vue Web | `web-react-dev`（vitest 变体） |
 | 决定用小程序 | `miniapp-product-dev`（Taro / `node --test`） |
 | 决定用 Flutter/RN | `app-cross-platform-dev`（当前 skill 无 CI 模板） |

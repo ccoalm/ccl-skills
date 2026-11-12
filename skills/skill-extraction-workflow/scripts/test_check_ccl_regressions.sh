@@ -16,7 +16,6 @@
 #   - test_teardown_guard_pins.sh
 #   - test_check_ccl_size_budget.sh
 #   - test_check_ccl_skill_catalog.sh
-#   - test_check_ccl_parallel_stack_parity.sh
 #   - test_generic_r0_leak_scan.sh
 #   - test_shared_git_surface_gate.sh
 #   - test_extraction_review_gate.sh
@@ -126,7 +125,6 @@ fast_tests=(
   # unevaluated sentinel, ARG_MAX batching): no host logs, seconds.
   test_reference_access_census.sh
   test_check_ccl_skill_catalog.sh
-  test_check_ccl_parallel_stack_parity.sh
   test_check_mr_target_freshness.sh
   test_generic_r0_leak_scan.sh
   test_shared_git_surface_gate.sh

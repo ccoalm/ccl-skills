@@ -31,7 +31,7 @@ Mini-program hosts enforce per-app HTTPS domain allowlists (request / socket / u
 
 ## CloudFunction / Cloud-Development Client Boundary
 
-If the project uses a host's serverless backend (WeChat 云开发 / Alipay 云开发 / cloud functions), the mini-program is only the **client** of those functions — service-shape and backend ownership stay with `python-service-architecture` / `go-microservice-architecture` / `platform-release-engineering` as appropriate:
+If the project uses a host's serverless backend (WeChat 云开发 / Alipay 云开发 / cloud functions), the mini-program is only the **client** of those functions — service-shape and backend ownership stay with `software-architecture` / `platform-release-engineering` as appropriate:
 
 - The client SDK call (`wx.cloud.callFunction` / equivalent) is treated like any other RPC endpoint: typed payload, timeout / retry / idempotency-key per the High-Risk Finality rules in `contracts-and-state.md`, error-class mapping to the same surface as normal HTTP errors, observability with the same scene / route / request-id fields.
 - Identity assumption: the host's automatic OpenID injection into cloud-function context is convenient but is NOT a substitute for the project's session-epoch identity tuple — sensitive mutations still bind to the full identity tuple (`bound-account`, `tenant`, `session-incarnation`, `permission-scope-hash`) verified server-side, not to the host OpenID alone.

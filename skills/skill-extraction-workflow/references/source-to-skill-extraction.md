@@ -265,7 +265,7 @@ Use this when naming a new skill, naming a reference file, renaming an extracted
 
 Rules:
 
-- Name the durable output by the reusable capability a future teammate needs, not by the source artifact that taught the rule. Prefer names like `complex-workspace-patterns`, `testing-strategy`, or `python-service-architecture`; avoid names that mirror a Figma file, old feature, migration task, internal project, or source page.
+- Name the durable output by the reusable capability a future teammate needs, not by the source artifact that taught the rule. Prefer names like `complex-workspace-patterns`, `testing-strategy`, or `software-architecture`; avoid names that mirror a Figma file, old feature, migration task, internal project, or source page.
 - Source names belong in provenance only: source maps, source registers, evidence rows, or a short `Source` field inside a reference. They should not be the trigger, routing label, file name, or normal reading path unless the skill is explicitly about that source.
 - For private or domain-sensitive sources, shared provenance must be sanitized too. Replace repo names, product names, source file/page names, and domain-heavy labels with capability-first aliases in shared skills; keep original-to-alias mappings only in local private notes or memory so future duplicate extraction can still be detected.
 - Generalization must update semantics, not only paths. After a rename, scan headings, role sentences, rules, source registers, sibling skills, and final summaries for the old source label, old English shorthand, and old capability phrase. Replace them with the new reusable concept, or mark them as provenance.

@@ -762,6 +762,198 @@ run_gate
 assert_rc "$rc" 1 "deleting an upstream owner without a row must still block"
 assert_contains "platform-observability/SKILL.md" "$out" "the deleted owner must stay a subject"
 
+# A MERGE retires an owner without renaming it: its content moves into a successor
+# that already exists or is created beside it, so git reports a deletion and no
+# rename pair, and a row may not cite a SKILL.md its round head no longer has.
+# Without an explicit path that shape can never land. The successor's own row
+# declares it — `retires: <slug>` in the declaration cell — and the declaration is
+# honoured only for a selected owner this round really deleted, into a successor
+# whose package carries at least one of the retired package's blobs.
+RETIRE_ROW='| Fixture retirement row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; retires: %s; firing-path: file:skills/product-rd-workflow/SKILL.md#Fixture successor rule after absorbing a retired owner | `updated` | `product-rd-workflow/SKILL.md` absorbs the retired owner |\n'
+RETIRE_RULE='\n- MUST enforce Fixture successor rule after absorbing a retired owner.\n'
+new_case case-owner-retired-into-successor
+git -C "$REPO" mv skills/platform-observability/SKILL.md skills/product-rd-workflow/references/zz-fixture-carried-over.md
+git -C "$REPO" rm -rq skills/platform-observability
+printf "$RETIRE_RULE" >> "$REPO/skills/product-rd-workflow/SKILL.md"
+printf "$RETIRE_ROW" platform-observability >> "$REGISTER"
+routing_surface_downscope
+commit_case "retire an upstream owner into a successor that declares it"
+run_gate
+assert_not_contains "impact_chain_gate_missing" "$out" "a retirement declared by the successor's row must not read as an undeclared deletion"
+assert_rc "$rc" 0 "a declared retirement into a successor that carries the content should pass"
+
+# The declaration is not a waiver. With nothing of the retired package carried into
+# the successor, the row is naming a deletion, not a merge.
+new_case case-owner-retired-nothing-carried
+git -C "$REPO" rm -rq skills/platform-observability
+printf "$RETIRE_RULE" >> "$REPO/skills/product-rd-workflow/SKILL.md"
+printf "$RETIRE_ROW" platform-observability >> "$REGISTER"
+routing_surface_downscope
+commit_case "declare a retirement while carrying nothing over"
+run_gate
+assert_rc "$rc" 1 "a retirement that carries no content into the successor must block"
+assert_contains "impact_chain_retires_invalid" "$out" "the refusal must name the retirement declaration"
+assert_contains "carries none of" "$out" "the refusal must say what is missing"
+
+# Nor can it be spent on an owner that is still there: that would let a row excuse
+# a later deletion in advance, or name a live owner to look thorough.
+new_case case-owner-retired-but-still-present
+printf "$RETIRE_RULE" >> "$REPO/skills/product-rd-workflow/SKILL.md"
+printf "$RETIRE_ROW" platform-observability >> "$REGISTER"
+routing_surface_downscope
+commit_case "declare a retirement of an owner that still exists"
+run_gate
+assert_rc "$rc" 1 "retiring an owner that still exists must block"
+assert_contains "impact_chain_retires_invalid" "$out" "the refusal must name the retirement declaration"
+assert_contains "was not deleted in this round" "$out" "the refusal must say the owner is still present"
+
+# A slug that is not one of this gate's owners retires nothing this gate tracks.
+new_case case-owner-retired-unknown-slug
+printf "$RETIRE_RULE" >> "$REPO/skills/product-rd-workflow/SKILL.md"
+printf "$RETIRE_ROW" zz-not-an-owner >> "$REGISTER"
+routing_surface_downscope
+commit_case "declare a retirement of a name that is not an owner"
+run_gate
+assert_rc "$rc" 1 "retiring a name that is not a selectable owner must block"
+assert_contains "impact_chain_retires_invalid" "$out" "the refusal must name the retirement declaration"
+
+# Once a retirement is verified, a THIRD owner that only replaces the retired slug
+# with its successor has retargeted an identifier: there is no changed rule to
+# anchor a firing path on, and the rewrite is reproducible from the base bytes.
+RETARGET_ROW='| Fixture retirement retarget row | `downstream-executor` | behavioral-evidence: not-required identifier-rename; observed-failure: no; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK | `updated` | `defect-diagnosis/SKILL.md` pointer retarget |\n'
+new_case case-owner-retired-third-owner-retarget
+grep -q 'platform-observability' "$REPO/skills/defect-diagnosis/SKILL.md" \
+  || fail "fixture drift: defect-diagnosis no longer mentions the owner this case retires"
+git -C "$REPO" mv skills/platform-observability/SKILL.md skills/product-rd-workflow/references/zz-fixture-carried-over.md
+git -C "$REPO" rm -rq skills/platform-observability
+printf "$RETIRE_RULE" >> "$REPO/skills/product-rd-workflow/SKILL.md"
+printf "$RETIRE_ROW" platform-observability >> "$REGISTER"
+sed -i.bak 's/platform-observability/product-rd-workflow/g' "$REPO/skills/defect-diagnosis/SKILL.md" && rm -f "$REPO/skills/defect-diagnosis/SKILL.md.bak"
+printf "$RETARGET_ROW" >> "$REGISTER"
+routing_surface_downscope
+commit_case "retarget a third owner's pointer after a declared retirement"
+run_gate
+assert_rc "$rc" 0 "a pure slug retarget after a verified retirement should classify as an identifier rename"
+
+# The class is granted by reproduction, not by the label: one changed word beside
+# the retarget is content the rewrite cannot produce, so the owner owes the
+# ordinary evidence and the row is refused.
+new_case case-owner-retired-third-owner-smuggles
+git -C "$REPO" mv skills/platform-observability/SKILL.md skills/product-rd-workflow/references/zz-fixture-carried-over.md
+git -C "$REPO" rm -rq skills/platform-observability
+printf "$RETIRE_RULE" >> "$REPO/skills/product-rd-workflow/SKILL.md"
+printf "$RETIRE_ROW" platform-observability >> "$REGISTER"
+sed -i.bak 's/platform-observability/product-rd-workflow/g' "$REPO/skills/defect-diagnosis/SKILL.md" && rm -f "$REPO/skills/defect-diagnosis/SKILL.md.bak"
+printf '\n- Fixture smuggled rule beside the retarget.\n' >> "$REPO/skills/defect-diagnosis/SKILL.md"
+printf "$RETARGET_ROW" >> "$REGISTER"
+routing_surface_downscope
+commit_case "smuggle a rule beside a retirement retarget"
+run_gate
+assert_rc "$rc" 1 "content beside the retarget must not ride the identifier-rename class"
+assert_contains "defect-diagnosis/SKILL.md" "$out" "the refusal must name the owner whose diff did not reproduce"
+
+# Overlap the successor ALREADY had is not carried content. Two packages can share
+# a boilerplate file before any merge; counting that blob would let a row retire
+# an owner whose rules were simply deleted. The first round copies a file of the
+# retired owner into the successor (its own row covers that change); the second
+# round deletes the owner and declares the retirement, carrying nothing new.
+new_case case-owner-retired-preexisting-overlap-only
+cp "$REPO/skills/platform-observability/SKILL.md" "$REPO/skills/product-rd-workflow/references/zz-fixture-shared-boilerplate.md"
+printf '\n- MUST enforce Fixture boilerplate rule before any retirement.\n' >> "$REPO/skills/product-rd-workflow/SKILL.md"
+printf '| Fixture boilerplate row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/product-rd-workflow/SKILL.md#Fixture boilerplate rule before any retirement | `updated` | `product-rd-workflow/SKILL.md` boilerplate |\n' >> "$REGISTER"
+routing_surface_downscope
+commit_case "share a boilerplate file before the retirement round"
+git -C "$REPO" rm -rq skills/platform-observability
+printf "$RETIRE_RULE" >> "$REPO/skills/product-rd-workflow/SKILL.md"
+printf "$RETIRE_ROW" platform-observability >> "$REGISTER"
+routing_surface_downscope
+commit_case "retire into a successor that only shares pre-existing boilerplate"
+run_gate
+assert_rc "$rc" 1 "overlap the successor already had must not count as carried content"
+assert_contains "impact_chain_retires_invalid" "$out" "the refusal must name the retirement declaration"
+assert_contains "carries none of" "$out" "the refusal must say nothing new was carried"
+
+# The list canonicalisation applies to the rewritten BASE only. A HEAD that writes
+# the successor twice with no list separator is content the rewrite cannot
+# produce, and must fall back to the ordinary evidence bar.
+new_case case-owner-retired-third-owner-doubled-path
+git -C "$REPO" mv skills/platform-observability/SKILL.md skills/product-rd-workflow/references/zz-fixture-carried-over.md
+git -C "$REPO" rm -rq skills/platform-observability
+printf "$RETIRE_RULE" >> "$REPO/skills/product-rd-workflow/SKILL.md"
+printf "$RETIRE_ROW" platform-observability >> "$REGISTER"
+sed -i.bak '0,/platform-observability/s//product-rd-workflow\/product-rd-workflow/' "$REPO/skills/defect-diagnosis/SKILL.md" && rm -f "$REPO/skills/defect-diagnosis/SKILL.md.bak"
+sed -i.bak 's/platform-observability/product-rd-workflow/g' "$REPO/skills/defect-diagnosis/SKILL.md" && rm -f "$REPO/skills/defect-diagnosis/SKILL.md.bak"
+grep -q 'product-rd-workflow/product-rd-workflow' "$REPO/skills/defect-diagnosis/SKILL.md" \
+  || fail "mutation did not apply: no doubled successor path in the third owner"
+printf "$RETARGET_ROW" >> "$REGISTER"
+routing_surface_downscope
+commit_case "write a doubled successor path beside a retirement retarget"
+run_gate
+assert_rc "$rc" 1 "a doubled successor path must not ride the identifier-rename class"
+assert_contains "defect-diagnosis/SKILL.md" "$out" "the refusal must name the owner whose diff did not reproduce"
+
+# The package must keep its shape. The changed-path list cannot see a file
+# deleted beside an otherwise valid retarget, so this case pairs a pure retarget
+# with the deletion of one of the third owner's references.
+new_case case-owner-retired-third-owner-drops-a-file
+git -C "$REPO" mv skills/platform-observability/SKILL.md skills/product-rd-workflow/references/zz-fixture-carried-over.md
+git -C "$REPO" rm -rq skills/platform-observability
+printf "$RETIRE_RULE" >> "$REPO/skills/product-rd-workflow/SKILL.md"
+printf "$RETIRE_ROW" platform-observability >> "$REGISTER"
+sed -i.bak 's/platform-observability/product-rd-workflow/g' "$REPO/skills/defect-diagnosis/SKILL.md" && rm -f "$REPO/skills/defect-diagnosis/SKILL.md.bak"
+drop_ref="$(git -C "$REPO" ls-files 'skills/defect-diagnosis/references/*.md' | head -n 1)"
+[ -n "$drop_ref" ] || fail "fixture drift: defect-diagnosis has no reference to drop"
+git -C "$REPO" rm -q "$drop_ref"
+printf "$RETARGET_ROW" >> "$REGISTER"
+routing_surface_downscope
+commit_case "drop a reference beside a retirement retarget"
+run_gate
+assert_rc "$rc" 1 "a deletion beside a retarget must not ride the identifier-rename class"
+assert_contains "defect-diagnosis/SKILL.md" "$out" "the refusal must name the owner whose package changed shape"
+
+# Whole identifiers only. The first round puts a retired slug next to a LONGER
+# name that starts with the successor's slug; the second round retires the owner
+# and rewrites that line so the longer name swallows the handoff. A collapse
+# without identifier boundaries would accept it as a pure retarget.
+new_case case-owner-retired-third-owner-longer-name
+printf '\n- MUST enforce Fixture handoff to platform-observability and product-rd-workflow-extra for traces.\n' >> "$REPO/skills/defect-diagnosis/SKILL.md"
+printf '| Fixture handoff row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: file:skills/defect-diagnosis/SKILL.md#Fixture handoff to platform-observability and product-rd-workflow-extra | `updated` | `defect-diagnosis/SKILL.md` handoff |\n' >> "$REGISTER"
+routing_surface_downscope
+commit_case "name a retired slug beside a longer successor-prefixed name"
+git -C "$REPO" mv skills/platform-observability/SKILL.md skills/product-rd-workflow/references/zz-fixture-carried-over.md
+git -C "$REPO" rm -rq skills/platform-observability
+printf "$RETIRE_RULE" >> "$REPO/skills/product-rd-workflow/SKILL.md"
+printf "$RETIRE_ROW" platform-observability >> "$REGISTER"
+sed -i.bak 's/platform-observability and product-rd-workflow-extra/product-rd-workflow-extra/; s/platform-observability/product-rd-workflow/g' "$REPO/skills/defect-diagnosis/SKILL.md" && rm -f "$REPO/skills/defect-diagnosis/SKILL.md.bak"
+grep -q 'Fixture handoff to product-rd-workflow-extra for traces' "$REPO/skills/defect-diagnosis/SKILL.md" \
+  || fail "mutation did not apply: the handoff line still names the retired owner"
+printf "$RETARGET_ROW" >> "$REGISTER"
+routing_surface_downscope
+commit_case "swallow a retired handoff into a longer name"
+run_gate
+assert_rc "$rc" 1 "a retired mention swallowed by a longer name must not ride the identifier-rename class"
+assert_contains "defect-diagnosis/SKILL.md" "$out" "the refusal must name the owner whose diff did not reproduce"
+
+# Positive control: an unchanged executable helper elsewhere in the third owner's
+# package does not stop a pure retarget from classifying as an identifier rename.
+new_case case-owner-retired-third-owner-keeps-executable
+mkdir -p "$REPO/skills/defect-diagnosis/scripts"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$REPO/skills/defect-diagnosis/scripts/zz-fixture-helper.sh"
+chmod 755 "$REPO/skills/defect-diagnosis/scripts/zz-fixture-helper.sh"
+printf '| Fixture helper row | `downstream-executor` | behavioral-evidence: RED-baseline; observed-failure: yes; result-class: failure; bank-evidence: downscoped:REFSCRIPTS-FIXTURE-NO-BANK; firing-path: command:skills/defect-diagnosis/scripts/zz-fixture-helper.sh | `updated` | `defect-diagnosis/SKILL.md` helper |\n' >> "$REGISTER"
+routing_surface_downscope
+commit_case "add an executable helper to the third owner"
+git -C "$REPO" mv skills/platform-observability/SKILL.md skills/product-rd-workflow/references/zz-fixture-carried-over.md
+git -C "$REPO" rm -rq skills/platform-observability
+printf "$RETIRE_RULE" >> "$REPO/skills/product-rd-workflow/SKILL.md"
+printf "$RETIRE_ROW" platform-observability >> "$REGISTER"
+sed -i.bak 's/platform-observability/product-rd-workflow/g' "$REPO/skills/defect-diagnosis/SKILL.md" && rm -f "$REPO/skills/defect-diagnosis/SKILL.md.bak"
+printf "$RETARGET_ROW" >> "$REGISTER"
+routing_surface_downscope
+commit_case "retarget a third owner that carries an unchanged executable"
+run_gate
+assert_rc "$rc" 0 "an unchanged executable helper must not block a pure retarget"
+
 # The bijection must bite on a DEPENDENT owner, which is the only kind that can
 # still hold the class. Retarget its pointers cleanly but delete one of its files:
 # the changed set names only the edited file, so without comparing the complete
@@ -1658,6 +1850,6 @@ assert_rc "$rc" 1 "a directory masquerading as SKILL.md must not read as a prese
 assert_contains "platform-observability/SKILL.md" "$out" "the masqueraded owner must be named"
 
 assert_rc "$full_check_runs" 1 "fixture suite must retain exactly one full checker wiring case"
-assert_rc "$gate_runs" 118 "all remaining impact-chain fixtures must run the standalone gate"
+assert_rc "$gate_runs" 129 "all remaining impact-chain fixtures must run the standalone gate"
 
 echo "test_check_ccl_impact_chain_refscripts: ok"

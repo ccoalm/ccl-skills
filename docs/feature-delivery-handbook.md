@@ -105,7 +105,7 @@ flowchart TD
 
 | 你的工作 | 路由到 |
 |---|---|
-| 架构/服务边界/契约 | `go-microservice-architecture` / `python-service-architecture` |
+| 架构/服务边界/契约 | `software-architecture` |
 | 后端实现 | `go-microservice-dev` / `python-service-dev` |
 | React Web | `web-react-dev` |
 | App | `app-cross-platform-dev` |

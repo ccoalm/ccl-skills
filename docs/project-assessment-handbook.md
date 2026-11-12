@@ -41,7 +41,7 @@ flowchart TD
 | 维度 | owner 技能 |
 |---|---|
 | 理解结构/流程 | `codebase-analysis`（若装了）+ 直接读仓库 |
-| 架构/服务边界 | `go-microservice-architecture` / `python-service-architecture` / `platform-*` |
+| 架构/服务边界 | `software-architecture` / `platform-*` |
 | 实现质量 | `go-microservice-dev` / `python-service-dev` / `web-react-dev` / `app-cross-platform-dev` / `miniapp-product-dev` / `terminal-cli-dev` |
 | 测试拓扑/缺层 | `testing-strategy` |
 | UI/UX | `product-ui-ux-design` + 对应客户端技能 |

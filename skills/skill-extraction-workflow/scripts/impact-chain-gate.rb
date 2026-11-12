@@ -502,6 +502,22 @@ if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_
     true
   end
   bad_evidence_files = []
+  invalid_retirements = []
+  # Verified retirements per round: { [base, head] => { retired slug => successor } }.
+  retired_pairs_by_round = Hash.new { |h, k| h[k] = {} }
+  # Non-empty blob ids of one owner package at a ref. Empty files are left out:
+  # every package can hold one, so sharing it says nothing about shared content.
+  empty_blob = "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+  package_blobs_at = lambda do |ref, owner|
+    out = IO.popen(["git", "-C", root, "ls-tree", "-r", "-z", ref, "--", "skills/#{owner}/"],
+                   err: File::NULL, &:read)
+    next [] unless $?.success?
+    out.split("\0").filter_map do |entry|
+      meta, = entry.split("\t", 2)
+      mode, type, sha = meta.to_s.split(/\s+/)
+      sha if type == "blob" && %w[100644 100755].include?(mode) && sha != empty_blob
+    end.uniq
+  end
   ambiguous_evidence_rows = []
   unchanged_owner_rows = []
   evidence_rows_by_upstream_path = Hash.new(0)
@@ -727,6 +743,68 @@ if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_
     evidence_rows_by_upstream_path[path] += 1
     rows_by_upstream_path[path] << row
     declared_in_round[[row[:scope].base, row[:scope].head, path]] = true
+    # RETIREMENT INTO A SUCCESSOR. A merge removes an owner without renaming it:
+    # its content moves into another package, git reports a deletion with no
+    # rename pair, and the evidence check below refuses any row that cites a
+    # SKILL.md its round head no longer has. Without a declared path that shape
+    # could never land, and the only way through would be to stage a fake rename.
+    # The successor's own row declares it instead — a `retires: <slug>[, <slug>]`
+    # fragment in the declaration cell — so the deletion is still named in the
+    # ledger and still sits in front of the reviewer, which is what the
+    # fail-closed deletion rule exists to guarantee.
+    # The declaration is a claim about THIS round and is checked as one. It is
+    # honoured only on a declaring row bound to a successor that survives at the
+    # round head, for a selectable owner whose SKILL.md existed at the round base
+    # and is gone at the round head, and only when the successor package carries
+    # at least one non-empty blob the retired package carried — a deletion that
+    # moved nothing is a deletion, and keeps failing closed. A fragment that does
+    # not meet every condition blocks rather than being ignored: a declaration
+    # the gate silently drops would read to its author as accepted.
+    # The row itself still has to clear the ordinary bar for its own owner, so a
+    # retirement cannot be declared by a row that would not otherwise be valid.
+    next unless declares_impact_chain
+    successor = path.sub(%r{/SKILL\.md\z}, "")
+    row[:behavior].split(";").each do |fragment|
+      next unless (m = fragment.match(/\A\s*retires:\s*(.*?)\s*\z/i))
+      slugs = m[1].split(",").map(&:strip)
+      slugs = [""] if slugs.empty?
+      slugs.each do |slug|
+        retired_path = "#{slug}/SKILL.md"
+        problem =
+          if !slug.match?(/\A[a-z][a-z0-9_-]*\z/) || !selectable_path.call(retired_path)
+            "#{slug.inspect} is not an upstream owner this gate selects"
+          elsif slug == successor
+            "#{slug} cannot retire into itself"
+          elsif !regular_blob_at.call(row[:scope].base, "skills/#{retired_path}") ||
+                regular_blob_at.call(row[:scope].head, "skills/#{retired_path}")
+            "#{slug} was not deleted in this round (its SKILL.md must exist at the round base and be gone at the round head)"
+          elsif !regular_blob_at.call(row[:scope].head, "skills/#{path}")
+            "the successor #{successor} has no SKILL.md at the round head"
+          elsif ((package_blobs_at.call(row[:scope].base, slug) & package_blobs_at.call(row[:scope].head, successor)) -
+                 package_blobs_at.call(row[:scope].base, successor)).empty?
+            # Only content the successor GAINED this round counts: a blob both
+            # packages already shared at the round base is incidental overlap,
+            # and counting it would let a plain deletion pass as a merge.
+            "the successor #{successor} carries none of the files #{slug} had at the round base (overlap it already had does not count)"
+          end
+        if problem
+          invalid_retirements << { line: row[:line].sub(/^\+/, "").strip, problem: problem }
+        else
+          declared_in_round[[row[:scope].base, row[:scope].head, retired_path]] = true
+          retired_pairs_by_round[[row[:scope].base, row[:scope].head]][slug] = successor
+        end
+      end
+    end
+  end
+  unless invalid_retirements.empty?
+    warn "impact_chain_retires_invalid: a row declares `retires:` for an owner this round did not merge into the row's own owner"
+    warn "  note: `retires: <slug>` accounts for an upstream owner whose package was deleted because its content moved into the row's owner; it is not a waiver for a plain deletion"
+    warn "  fix: name only owners deleted in this round whose files the successor now carries, or drop the fragment and restore the owner"
+    invalid_retirements.each do |entry|
+      warn "  problem: #{entry[:problem]}"
+      warn "  row: #{entry[:line]}"
+    end
+    exit 1
   end
   # A malformed line is blocking only when it is BOTH making this gate's
   # declaration and naming a selected owner — the exact pair that would otherwise
@@ -884,6 +962,87 @@ if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_
   # Named apart from the `blob_at` defined further down: that one returns entry
   # metadata for the firing-path anchors, and sharing the name would silently
   # rebind this closure to it.
+  # A VERIFIED RETIREMENT is a rename as far as a third owner's pointers go: an
+  # owner that only replaces the retired slug with its successor has retargeted
+  # an identifier, exactly like the git-paired case below, and has no changed
+  # rule to anchor a firing path on. The pairs here come from the round's
+  # `retires:` declarations, but only after the binding pass proved each one
+  # against git state (the retired SKILL.md deleted in that round, the successor
+  # carrying its content), so this is still "rewrite the BASE bytes mechanically
+  # and require the HEAD bytes" — a wrong or forged pair can only make the
+  # reproduction fail.
+  # One canonicalisation is added, and it is forced by the shape rather than
+  # chosen: a merge maps SEVERAL slugs onto one, so a list that named two of them
+  # reproduces as the successor twice. The HEAD may therefore equal either the
+  # rewritten BASE, or the rewrite of a BASE in which each run of whole mentions
+  # joined only by a prose list separator (a comma, a spaced slash, "or", "and")
+  # was first collapsed to one successor mention. A run collapses only when at
+  # least one member is a retired slug and every member maps to the same
+  # successor, so a run the merge did not create is never touched. Mentions are
+  # whole identifiers: a slug that continues into a longer name is not one. The
+  # HEAD is never normalised, so writing the successor twice in a path or a value
+  # still fails, and the package must keep the same files and modes on both
+  # sides, so a deletion beside a valid retarget fails too. Nothing else is
+  # normalised: any other byte the owner changed breaks equality and the owner
+  # falls back to the ordinary evidence bar.
+  # Neither end of a retirement qualifies: the retired owner is gone, and the
+  # successor absorbed real content and owes its own evidence.
+  retirement_pairs_for = lambda do |scope|
+    retired_pairs_by_round.each_with_object({}) do |((span_base, span_head), pairs), acc|
+      whole_range = scope.base == cumulative.base && scope.head == cumulative.head
+      acc.merge!(pairs) if whole_range || (span_base == scope.base && span_head == scope.head)
+    end
+  end
+  retirement_retarget_for = lambda do |scope, owner|
+    pairs = retirement_pairs_for.call(scope)
+    next false if pairs.empty? || pairs.key?(owner) || pairs.value?(owner)
+    owner_changed = scope.changed_paths.select do |changed|
+      changed.start_with?("skills/#{owner}/") && changed != LEDGER_PATH
+    end
+    next false if owner_changed.empty?
+    # The whole package must keep its shape: the same paths with the same modes
+    # on both sides. The changed-path list alone cannot see a file deleted next
+    # to a valid retarget, so the inventory is compared directly.
+    base_inventory = package_files.call(scope.base, owner)
+    head_inventory = package_files.call(scope.head, owner)
+    next false if base_inventory.nil? || head_inventory.nil? || base_inventory.sort != head_inventory.sort
+    # Only the files that changed must be plain text; an unchanged executable
+    # helper elsewhere in the package keeps its mode and is not a reason to
+    # refuse a pure retarget.
+    changed_modes = head_inventory.to_h { |entry| entry.split(" ", 2).reverse }
+    next false unless owner_changed.all? { |changed| changed_modes[changed] == "100644" }
+    # Whole identifiers only: a slug immediately followed or preceded by a word
+    # character or hyphen is part of a longer name and is never rewritten.
+    slug_alt = ->(names) { names.sort_by { |k| -k.length }.map { |k| Regexp.escape(k) }.join("|") }
+    bounded = ->(names) { /(?<![\w-])(?:#{slug_alt.call(names)})(?![\w-])/n }
+    retired_rx = bounded.call(pairs.keys)
+    rewrite = ->(bytes) { bytes.gsub(retired_rx) { |hit| pairs.fetch(hit.dup.force_encoding(Encoding::UTF_8)).dup.force_encoding(Encoding::BINARY) } }
+    # A run of whole mentions joined only by prose list separators, read on the
+    # ORIGINAL base. It collapses to one successor mention only when at least one
+    # member is a retired slug and every member maps to the same successor, so a
+    # run the rewrite did not create is left exactly as it was.
+    mention = /(`?)(#{slug_alt.call(pairs.keys + pairs.values.uniq)})\1/n
+    separator = /(?:\s*,\s*|\s+\/\s+|\s+(?:or|and)\s+|,\s+(?:or|and)\s+)/n
+    run_rx = /(?<![\w-])#{mention}(?![\w-])(?:#{separator}(?<![\w-])`?(?:#{slug_alt.call(pairs.keys + pairs.values.uniq)})`?(?![\w-]))+/n
+    collapse_runs = lambda do |bytes|
+      bytes.gsub(run_rx) do |run|
+        names = run.scan(/(?<![\w-])(?:#{slug_alt.call(pairs.keys + pairs.values.uniq)})(?![\w-])/n).map { |n| n.dup.force_encoding(Encoding::UTF_8) }
+        targets = names.map { |n| pairs.fetch(n, n) }.uniq
+        if names.any? { |n| pairs.key?(n) } && targets.length == 1
+          tick = run.start_with?("`") ? "`" : ""
+          "#{tick}#{targets.first}#{tick}".dup.force_encoding(Encoding::BINARY)
+        else
+          run
+        end
+      end
+    end
+    owner_changed.all? do |changed|
+      base_bytes = raw_blob_at.call(scope.base, changed)
+      head_bytes = raw_blob_at.call(scope.head, changed)
+      next false if base_bytes.nil? || head_bytes.nil?
+      head_bytes == rewrite.call(base_bytes) || head_bytes == rewrite.call(collapse_runs.call(base_bytes))
+    end
+  end
   identifier_rename_cache = {}
   identifier_rename_diff_for = lambda do |scope, path|
     cache_key = [scope.base, scope.head, path]
@@ -896,7 +1055,9 @@ if upstream.any? || routing_entrypoint_changed || changed_paths.include?(LEDGER_
       # every caller still saying the old name now resolves to nothing. A
       # destination therefore owes the normal RED evidence and firing path, the
       # same bar its own rename record has to meet.
-      if scope.rename_pattern.nil? || scope.rename_pairs.value?(owner)
+      if retirement_retarget_for.call(scope, owner)
+        true
+      elsif scope.rename_pattern.nil? || scope.rename_pairs.value?(owner)
         false
       else
         owner_changed = scope.changed_paths.select do |changed|

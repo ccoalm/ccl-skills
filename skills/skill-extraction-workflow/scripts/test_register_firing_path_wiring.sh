@@ -144,7 +144,7 @@ printf '%s\n' '#!/usr/bin/env ruby' 'exit 0' > "$STUB_GATE"
 
 run_stub_check() {
   set +e
-  out="$(env -u CCL_SKILL_BASE_REF -u REGISTER_FIRING_PATH_EXEMPT_DIGESTS \
+  out="$(env -u CCL_SKILL_BASE_REF -u REGISTER_FIRING_PATH_EXEMPT_DIGESTS -u REGISTER_FIRING_PATH_MOVED_PATHS \
     ALIAS_AUDIT_CMD='true' bash "$STUB_CHECK" "$REPO" 2>&1)"
   rc=$?
   set -e

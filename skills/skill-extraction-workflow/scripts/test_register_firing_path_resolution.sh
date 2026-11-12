@@ -62,10 +62,16 @@ MD
 # actual repository.
 EMPTY_DIGEST_TABLE="$TMP/empty-exempt-digests.json"
 printf '{}\n' > "$EMPTY_DIGEST_TABLE"
+# The moved-path table follows the same seam for the same reason: a synthetic
+# ledger cites none of the real repository's relocated files, and an entry no row
+# cites is red by design.
+EMPTY_MOVED_TABLE="$TMP/empty-moved-paths.json"
+printf '{}\n' > "$EMPTY_MOVED_TABLE"
 
 run_gate() {
   set +e
-  out="$(REGISTER_FIRING_PATH_EXEMPT_DIGESTS="$EMPTY_DIGEST_TABLE" ruby "$GATE" "$1" 2>&1)"
+  out="$(REGISTER_FIRING_PATH_EXEMPT_DIGESTS="$EMPTY_DIGEST_TABLE" \
+    REGISTER_FIRING_PATH_MOVED_PATHS="$EMPTY_MOVED_TABLE" ruby "$GATE" "$1" 2>&1)"
   rc=$?
   set -e
 }
@@ -762,5 +768,75 @@ assert_contains "register_firing_path_resolution_ok" "$out" "boundary control"
 assert_not_contains "anchor text absent" "$out" "no false RED on unanchored text"
 pass "text outside the anchor can be gutted while the gate stays green (declared boundary)"
 
-[ "$passed" -eq 59 ] || fail "expected 59 assertions, saw $passed (a case was skipped or misplaced)"
+# ── Relocated files: the anchor is re-checked at the recorded new path ───────
+# A file that MOVED keeps its rule text; the append-only row cannot be rewritten
+# to name the new path, and an anchor waiver would stop checking the text at all.
+# The moved-path table resolves the old path to the new one and then runs every
+# ordinary check there, so rewording the rule after the move still reds.
+MOVED_ROW='| p | c | prose; firing-path: file:skills/old-skill/SKILL.md#Never bypass the demo isolation boundary | `updated` | demo |'
+MOVED_TABLE="$TMP/moved-paths.json"
+printf '{"skills/old-skill/SKILL.md":"skills/demo-skill/SKILL.md"}\n' > "$MOVED_TABLE"
+run_gate_moved() {
+  set +e
+  out="$(REGISTER_FIRING_PATH_EXEMPT_DIGESTS="$EMPTY_DIGEST_TABLE" \
+    REGISTER_FIRING_PATH_MOVED_PATHS="${2:-$MOVED_TABLE}" ruby "$GATE" "$1" 2>&1)"
+  rc=$?
+  set -e
+}
+
+new_fixture moved_control "$MOVED_ROW"
+run_gate "$FIX"
+assert_rc "$rc" 1 "a locator naming a path that no longer exists is unresolved without a moved-path entry"
+assert_contains "file not found" "$out" "moved control"
+pass "a relocated file without a moved-path entry stays RED (control)"
+
+new_fixture moved_green "$MOVED_ROW"
+run_gate_moved "$FIX"
+assert_rc "$rc" 0 "a moved-path entry resolves the old path at its new location"
+assert_contains "register_firing_path_moved_paths_injected" "$out" "the injected table is visible"
+assert_contains "register_firing_path_moved_paths_used: 1" "$out" "the relocation count is visible"
+[ "$(printf '%s\n' "$out" | awk 'NF' | tail -n 1)" = "register_firing_path_resolution_ok (1 locators resolved)" ] \
+  || fail "the ok token must stay the last non-empty line in its exact shape"
+pass "a recorded relocation resolves the anchor at the new path"
+
+new_fixture moved_reworded "$MOVED_ROW"
+sed -i.bak 's/Never bypass the demo isolation boundary/Prefer keeping the demo isolation boundary/' \
+  "$FIX/skills/demo-skill/SKILL.md"
+grep -qF 'Prefer keeping the demo isolation boundary' "$FIX/skills/demo-skill/SKILL.md" \
+  || fail "mutation did not apply: the anchored rule is unchanged"
+run_gate_moved "$FIX"
+assert_rc "$rc" 1 "rewording the rule at the new path must still be caught"
+assert_contains "anchor text absent from target" "$out" "moved and reworded"
+assert_contains "skills/demo-skill/SKILL.md" "$out" "the report names where it looked"
+pass "a relocation does not waive the anchor: rewording at the new path turns the gate RED"
+
+new_fixture moved_target_missing "$MOVED_ROW"
+printf '{"skills/old-skill/SKILL.md":"skills/demo-skill/GONE.md"}\n' > "$TMP/moved-missing.json"
+run_gate_moved "$FIX" "$TMP/moved-missing.json"
+assert_rc "$rc" 1 "a moved-path entry whose new path is absent is unresolved"
+assert_contains "file not found" "$out" "moved target missing"
+pass "a relocation to a missing file turns the gate RED"
+
+new_fixture moved_old_path_back "$MOVED_ROW"
+mkdir -p "$FIX/skills/old-skill"
+printf '# Old Skill\n\nNever bypass the demo isolation boundary.\n' > "$FIX/skills/old-skill/SKILL.md"
+run_gate_moved "$FIX"
+assert_rc "$rc" 1 "an old path that exists again makes the entry ambiguous and must fail closed"
+assert_contains "moved-path entry is stale" "$out" "old path back"
+pass "a moved-path entry whose old path exists again turns the gate RED"
+
+new_fixture moved_entry_unused "$LITERAL"
+run_gate_moved "$FIX"
+assert_rc "$rc" 1 "a moved-path entry no row cites is dead configuration"
+assert_contains "moved-path entry has no citing row" "$out" "unused entry"
+pass "a moved-path entry with no citing row turns the gate RED"
+
+new_fixture moved_escape "$MOVED_ROW"
+printf '{"skills/old-skill/SKILL.md":"../outside.md"}\n' > "$TMP/moved-escape.json"
+run_gate_moved "$FIX" "$TMP/moved-escape.json"
+assert_rc "$rc" 1 "a moved-path entry cannot point outside the repository"
+assert_contains "path escapes the repository" "$out" "moved escape"
+pass "a relocation outside the repository turns the gate RED"
+
+[ "$passed" -eq 66 ] || fail "expected 66 assertions, saw $passed (a case was skipped or misplaced)"
 echo "register_firing_path_resolution_tests_ok ($passed assertions)"

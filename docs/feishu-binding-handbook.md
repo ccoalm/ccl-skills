@@ -71,7 +71,7 @@
 | 产物 | 飞书位置 | Owner skill | 写入方式 | 时机 |
 |---|---|---|---|---|
 | UI/UX 设计走查记录 | `需求/<REQ>-design-review` Wiki Doc | [`product-ui-ux-design`](../skills/product-ui-ux-design/SKILL.md) | 人手 | 设计验收 |
-| API 契约 / IDL | Git 仓内（不进飞书） | [`go-microservice-architecture`](../skills/go-microservice-architecture/SKILL.md) / [`python-service-architecture`](../skills/python-service-architecture/SKILL.md) | git commit | 契约评审 |
+| API 契约 / IDL | Git 仓内（不进飞书） | [`software-architecture`](../skills/software-architecture/SKILL.md) | git commit | 契约评审 |
 | 数据库 schema / migration | Git + 提测文档库的"数据库变更"字段 | [`go-microservice-dev`](../skills/go-microservice-dev/SKILL.md) / [`python-service-dev`](../skills/python-service-dev/SKILL.md) | git + 提测时人填 | 改 schema 时 |
 
 ### 阶段 3：用例与测试
@@ -143,8 +143,8 @@
 
 | Skill | Git 产物 | CI 关联 |
 |---|---|---|
-| [`go-microservice-architecture`](../skills/go-microservice-architecture/SKILL.md) / [`go-microservice-dev`](../skills/go-microservice-dev/SKILL.md) | 代码 + IDL | 测试结果→测试报告 |
-| [`python-service-architecture`](../skills/python-service-architecture/SKILL.md) / [`python-service-dev`](../skills/python-service-dev/SKILL.md) | 代码 | 同上 |
+| [`software-architecture`](../skills/software-architecture/SKILL.md) / [`go-microservice-dev`](../skills/go-microservice-dev/SKILL.md) | 代码 + IDL | 测试结果→测试报告 |
+| [`software-architecture`](../skills/software-architecture/SKILL.md) / [`python-service-dev`](../skills/python-service-dev/SKILL.md) | 代码 | 同上 |
 | [`web-react-dev`](../skills/web-react-dev/SKILL.md) | 代码 | 同上 |
 | [`app-cross-platform-dev`](../skills/app-cross-platform-dev/SKILL.md) | 代码 | 同上 |
 | [`miniapp-product-dev`](../skills/miniapp-product-dev/SKILL.md) | 代码 | 同上 |

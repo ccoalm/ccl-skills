@@ -2,7 +2,7 @@
 
 The SKILL.md entrypoint states the principle: project-specific provenance never enters the shared skill tree. This file is the operational mechanism: what lives where in each lifecycle phase, what migrates between phases, what the shared-repo history (commits, branch refs, and the MR/PR record) is allowed to say, and how to handle existing dirty registers.
 
-Sibling skills routing to "Extraction lifecycle handoff" (e.g. `python-service-architecture / dev`, `go-microservice-architecture / dev` source-evidence-map files) route to this rule as a whole.
+Sibling skills routing to "Extraction lifecycle handoff" (e.g. the `software-architecture`, `go-microservice-dev`, and `python-service-dev` source-evidence-map files) route to this rule as a whole.
 
 ## The Three Phases
 

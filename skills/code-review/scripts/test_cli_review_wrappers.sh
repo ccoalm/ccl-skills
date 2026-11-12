@@ -23,6 +23,7 @@ export REAL_TIMEOUT_BIN
 cat >"$WORK/timeout-probe-bin/timeout" <<'TIMEOUT_SHIM'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$REVIEW_WRAPPER_TEST_STATE/timeout_args"
+date +%s >>"$REVIEW_WRAPPER_TEST_STATE/timeout_times"
 exec "$REAL_TIMEOUT_BIN" "$@"
 TIMEOUT_SHIM
 chmod +x "$WORK/timeout-probe-bin/timeout"
@@ -285,7 +286,7 @@ if [[ "$prompt" = "No-tools capability probe."* ]]; then
     while :; do /bin/sleep 1; done
   fi
   if [ "${STUB_BEHAVIOR:-pass}" = capability_delay ]; then
-    /bin/sleep 2
+    /bin/sleep 8
   fi
   if [ "${STUB_BEHAVIOR:-pass}" = capability_emfile ]; then
     printf '%s\n' 'EMFILE: too many open files, watch' >&2
@@ -1495,16 +1496,33 @@ check "Kimi does not sub-classify provider prose: auth weekly metadata" \
 out="$(run_kimi capability_auth_too_many)"; rc=$?
 check "Kimi does not sub-classify provider prose: auth too many" \
   '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 1 ]'
+# The wrapper's own start-up before the probe grows with host load (6-7 s at a
+# load average near 27). Measure it on a probe that fails at once, then bound
+# only the time the probe itself adds: the 5 s timeout plus the 1 s kill-after
+# for a probe that ignores TERM, 5 s for one that exits on it, each with the
+# original 2 s of slack. The baseline is the faster of two samples, so a single
+# slow sample cannot widen the bound on its own.
+probe_baseline=""
+for _ in 1 2; do
+  probe_started=$SECONDS
+  out="$(REVIEW_TEST_TIMEOUT=5 run_kimi capability_emfile)"; rc=$?
+  sample=$((SECONDS - probe_started))
+  check "Kimi probe start-up baseline fails at once" \
+    '[ "$rc" = 2 ] && [ "$(field transport_exit_code "$out")" = 1 ]'
+  if [ -z "$probe_baseline" ] || [ "$sample" -lt "$probe_baseline" ]; then
+    probe_baseline=$sample
+  fi
+done
 probe_started=$SECONDS
 out="$(REVIEW_TEST_TIMEOUT=5 run_kimi capability_hang)"; rc=$?
 probe_elapsed=$((SECONDS - probe_started))
 check "Kimi bounds a capability probe that ignores its timeout signal" \
-  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 137 ] && [ "$probe_elapsed" -le 8 ]'
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 137 ] && [ "$probe_elapsed" -le $((probe_baseline + 8)) ]'
 probe_started=$SECONDS
 out="$(REVIEW_TEST_TIMEOUT=5 run_kimi capability_timeout)"; rc=$?
 probe_elapsed=$((SECONDS - probe_started))
 check "Kimi reports a capability probe that exits on its timeout signal" \
-  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 124 ] && [ "$probe_elapsed" -le 7 ]'
+  '[ "$rc" = 2 ] && [ "$(field reason "$out")" = kimi_tool_capability_unverified ] && [ "$(field reason_code "$out")" = capability_missing ] && [ "$(field cascade_eligible "$out")" = True ] && [ "$(field transport_exit_code "$out")" = 124 ] && [ "$probe_elapsed" -le $((probe_baseline + 7)) ]'
 rm -f "$WORK/state/kimi_invoked"
 out="$(run_kimi_glob_tmpdir)"; rc=$?
 check "Kimi inline delivery accepts a runtime path with pattern metacharacters" \
@@ -1562,11 +1580,21 @@ check "Kimi gives private MCP review only the remaining controller budget" \
   '[ "$rc" = 0 ] && [ "$formal_timeout" -ge 1 ] && [ "$formal_timeout" -le 180 ]'
 check "Kimi sets the watcher override on private MCP formal delivery" \
   '[ "$(wc -l < "$WORK/state/kimi_watch" | tr -d " ")" = 3 ] && [ "$(grep -c "^doctor[[:space:]]0$" "$WORK/state/kimi_watch")" = 1 ] && [ "$(grep -c "^capability[[:space:]]0$" "$WORK/state/kimi_watch")" = 1 ] && [ "$(grep -c "^formal[[:space:]]0$" "$WORK/state/kimi_watch")" = 1 ] && [ "$(wc -l < "$WORK/state/kimi_watch_all" | tr -d " ")" = 3 ] && ! grep -qEv "^invocation[[:space:]]0$" "$WORK/state/kimi_watch_all" && [ -e "$WORK/state/kimi_watch_disabled" ]'
-rm -f "$WORK/state/timeout_args"
-out="$(REVIEW_TEST_TIMEOUT=10 REVIEW_TEST_PATH_PREFIX="$WORK/timeout-probe-bin" run_kimi capability_delay claude "$WORK/kimi-source" "$WORK/agent-template.patch")"; rc=$?
+rm -f "$WORK/state/timeout_args" "$WORK/state/timeout_times"
+# The lane budget also pays for wrapper start-up, which alone can exceed 10 s on a
+# loaded host, so the budget is 30 s and the probe stub sleeps 8 s. A wrapper
+# that charges everything it spent leaves 30 s minus the time used before the
+# formal call, give or take the few seconds spent outside its own accounting
+# (process launch, the step between computing the budget and calling timeout).
+# One that skips the probe leaves 8 s more, which the 6 s allowance cannot
+# absorb at any load.
+formal_run_started="$(date +%s)"
+out="$(REVIEW_TEST_TIMEOUT=30 REVIEW_TEST_PATH_PREFIX="$WORK/timeout-probe-bin" run_kimi capability_delay claude "$WORK/kimi-source" "$WORK/agent-template.patch")"; rc=$?
 formal_timeout="$(tail -n 1 "$WORK/state/timeout_args" | awk '{ value=$2; sub(/s$/, "", value); print value }')"
+formal_called="$(tail -n 1 "$WORK/state/timeout_times")"
+budget_used=$((formal_called - formal_run_started))
 check "Kimi charges the capability probe against the MCP lane timeout" \
-  '[ "$rc" = 0 ] && [ "$formal_timeout" -ge 1 ] && [ "$formal_timeout" -lt 10 ]'
+  '[ "$rc" = 0 ] && [ "$formal_timeout" -ge 1 ] && [ "$formal_timeout" -le 22 ] && [ "$formal_timeout" -le $((30 - budget_used + 6)) ]'
 out="$(STUB_BEHAVIOR=pass REVIEW_WRAPPER_TEST_STATE="$WORK/state" PATH="$WORK/bin:$PATH" TMPDIR="$WORK/tmp" KIMI_CODE_HOME="$WORK/kimi-source" /bin/bash "$DIR/kimi_review.sh" --implementer-family claude --diff-file "$WORK/diff.patch" --review-profile-file "$WORK/review-profile.json" --mode review --timeout 30)"; rc=$?
 check "Kimi no-owner profile remains Bash 3.2 compatible" \
   '[ "$rc" = 0 ] && [ "$(field status "$out")" = passed ]'

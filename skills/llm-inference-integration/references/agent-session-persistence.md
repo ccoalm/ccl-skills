@@ -461,7 +461,7 @@ When a session's estimated context approaches the model window, compact it.
 - Rollout/migration of a session-file format change or a default-compaction-policy change →
   `platform-release-engineering`.
 - Generic relational-store/index durability mechanics (if the index grows into a real service DB) →
-  `go-microservice-architecture` / `python-service-architecture`; the agent-session semantics stay here.
+  `software-architecture`; the agent-session semantics stay here.
 
 ## Remote or externally controlled agent sessions
 

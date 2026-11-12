@@ -812,7 +812,7 @@ firing-path 锚点必须落在**本轮被改动的、属于该 owner 的、带�
                                ├─ requirement-scope     （改哪些 / 不改哪些）
                                └─ requirement-doc-writer（成文 PRD）
 设计      product-ui-ux-design
-架构      go-microservice-architecture / python-service-architecture
+架构      software-architecture
 实现      go-microservice-dev / python-service-dev / web-react-dev
           app-cross-platform-dev / miniapp-product-dev / terminal-cli-dev
           llm-inference-integration

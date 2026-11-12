@@ -233,8 +233,11 @@ python3 - "$CHECK_SCRIPT" "$PROBE_CHECK" <<'PY'
 import sys
 src, dst = sys.argv[1], sys.argv[2]
 text = open(src).read()
+import hashlib
 anchor = 'md_ref_exempt() {\n  case "$1" in\n'
-entry = anchor + '    "agent-context/session-start.md requirement-doc-writer/references/definitely-missing.md") return 0 ;;\n'
+cited = 'Prose cites `requirement-doc-writer/references/definitely-missing.md` here.'
+digest = hashlib.sha256(cited.encode()).hexdigest()
+entry = anchor + f'    "agent-context/session-start.md requirement-doc-writer/references/definitely-missing.md {digest}") return 0 ;;\n'
 assert anchor in text, "md_ref_exempt function shape changed; update the probe patch"
 open(dst, "w").write(text.replace(anchor, entry, 1))
 PY
@@ -255,6 +258,17 @@ rc3=$?
 set -e
 assert_rc "$rc3" 0 "root=. CI shape must also honor the exemption"
 assert_contains "md_reference_exempt:" "$out3" "exempt print token present with root=. shape"
+# The waiver is bound to the citing line, not to the cited path: a NEW line that
+# reuses the same dead path must still block under the patched checker.
+printf '\nA later row also cites `requirement-doc-writer/references/definitely-missing.md` again.\n' >> "$REPO2/agent-context/session-start.md"
+set +e
+out4="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF bash "$PROBE_CHECK" "$REPO2" 2>&1)"
+rc4=$?
+set -e
+assert_rc "$rc4" 1 "a new line reusing an exempted dead path must still block"
+assert_contains "md_reference_block:" "$out4" "the new citing line is reported as a block"
+assert_contains "md_reference_exempt:" "$out4" "the pinned historical line is still exempt beside it"
+git -C "$REPO2" checkout -- agent-context/session-start.md
 run_check2
 assert_rc "$rc2" 1 "differential: the same citation without the entry must block"
 assert_contains "md_reference_block:" "$out2" "unpatched checker reports the citation as a block"
@@ -370,7 +384,25 @@ set -e
 #      still faces the full saturated premise — that is what catches an
 #      unregistered risk tag or domain enum.
 sat_blocks="$(printf '%s\n' "$sat_out" | grep -F 'route_existence_block' || true)"
+# The waived (path, token) pairs, read from the checker's own table.
+waived_pairs="$(printf '%s\n' "$ruby_block" \
+  | sed -nE 's/^[[:space:]]*\["([^"]+)", "([a-z0-9_-]+)"\] =>.*$/\1 \2/p')"
+[ -n "$waived_pairs" ] || fail "could not read the waived route pairs from the checker; table shape changed"
 sat_real="$sat_blocks"
+while read -r waived_path waived_token; do
+  [ -n "$waived_token" ] || continue
+  # Premise pin, per pair: a token the ledger still carries must surface here,
+  # or the extracted block did not run on that file.
+  if grep -qF "\`$waived_token\`" "$ROOT/$waived_path" 2>/dev/null \
+    && ! awk -v p="$waived_path:" -v t="references \"$waived_token\"" \
+      'index($0, p) && index($0, t) { hit = 1 } END { exit !hit }' <<<"$sat_blocks"; then
+    fail "saturation premise broken: waived token $waived_token is in $waived_path but did not surface"
+  fi
+  # Filter exactly that token on exactly that file; the same token anywhere
+  # else, and every other token, still faces the saturated premise.
+  sat_real="$(printf '%s\n' "$sat_real" | awk -v p="$waived_path:" -v t="references \"$waived_token\"" \
+    'NF && !(index($0, p) && index($0, t))')"
+done <<<"$waived_pairs"
 if [ -n "$sat_real" ]; then
   printf '%s\n' "$sat_real" | sed "s|$SAT/||" >&2
   fail "a backticked non-route token blocks once its line carries a route word; register it in risk_tags or scoped_non_route_vocab (lines above)"

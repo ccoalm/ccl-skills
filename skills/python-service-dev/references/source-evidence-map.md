@@ -30,9 +30,8 @@ When extracting Python implementation guidance from a new source set, organize e
 
 For each Python extraction, record decisions across sibling skills:
 
-- `python-service-architecture` — does the rule belong at architecture level instead?
+- `software-architecture` — does the rule belong at architecture level instead, and is there a cross-language consequence for its other stack parts?
 - `go-microservice-dev` — does the same pattern apply to Go? mirror with evidence caveat.
-- `go-microservice-architecture` — cross-language architecture consequence?
 - `llm-inference-integration` — does the AI/inference-adjacent rule belong there?
 - `testing-strategy` — does this affect test-layer policy?
 - `defect-diagnosis` — does this prevent a class of defect?

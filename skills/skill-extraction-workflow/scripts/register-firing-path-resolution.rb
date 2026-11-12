@@ -111,8 +111,70 @@ EXEMPT = {
   "file:skills/skill-extraction-workflow/references/extraction-quickstart.md#still owes the two-round chain before it can land" =>
     "127 retired the merge-side binding that imposed the chain on wording-only changes",
   "file:skills/skill-extraction-workflow/references/extraction-quickstart.md#must exclude every evidence JSON the round has already added" =>
-    "127 retired the merge-side binding whose evidence exclusion this rule mirrored"
+    "127 retired the merge-side binding whose evidence exclusion this rule mirrored",
+  "command:skills/skill-extraction-workflow/scripts/check-parallel-stack-parity.sh" =>
+    "the architecture-skill merge put each mirrored pair into one file, so the cross-file parity gate has nothing left to compare; the superseding register row records the single-file form",
+  "file:skills/nodejs-service-dev/SKILL.md#Do not borrow the Go or Python architecture skill" =>
+    "the architecture-skill merge gave Node.js/TypeScript architecture a named owner (software-architecture, read with its Node.js/TypeScript part), so the no-sibling wording was replaced; the superseding register row anchors the new route and its guard against borrowing the Go or Python stack defaults",
+  "file:skills/defect-diagnosis/SKILL.md#must not be filed under a sibling stack's architecture skill" =>
+    "the architecture-skill merge gave Node.js/TypeScript architecture a named owner (software-architecture, read with its Node.js/TypeScript part), so the no-sibling wording was replaced; the superseding register row anchors the new route and its guard against borrowing the Go or Python stack defaults",
+  "file:skills/llm-inference-integration/SKILL.md#never to a Node architecture sibling" =>
+    "the architecture-skill merge gave Node.js/TypeScript architecture a named owner (software-architecture, read with its Node.js/TypeScript part), so the no-sibling wording was replaced; the superseding register row anchors the new route and its guard against borrowing the Go or Python stack defaults"
 }.freeze
+
+# Recorded relocations. A file that MOVED keeps its rule text, but the append-only
+# row that anchors into it cannot be rewritten to name the new path, and an EXEMPT
+# waiver would be the wrong repair: it stops checking the anchor text altogether.
+# An entry here resolves the old path to the new one and then runs every ordinary
+# check there — containment, existence, anchor text, line digest — so rewording
+# the rule after the move still reds. Three guards keep the table honest: the old
+# path must be absent (an old path that exists again is ambiguous, so it fails
+# closed instead of silently preferring either file), every entry must be cited by
+# a ledger row (dead configuration reds), and the new path passes the same
+# containment checks as any locator. Like the digest table it is injectable for
+# fixtures and vendoring repositories (REGISTER_FIRING_PATH_MOVED_PATHS, a JSON
+# object of old path => new path); production uses the built-in table.
+MOVED_PATHS = {
+  # The Go and Python architecture skills were merged into `software-architecture`.
+  "skills/go-microservice-architecture/references/architecture-playbook.md" =>
+    "skills/software-architecture/references/go-architecture-playbook.md",
+  "skills/go-microservice-architecture/references/cross-cutting-concerns.md" =>
+    "skills/software-architecture/references/cross-cutting-concerns.md",
+  "skills/go-microservice-architecture/references/event-driven-architecture.md" =>
+    "skills/software-architecture/references/event-driven-architecture.md",
+  "skills/go-microservice-architecture/references/multi-tenant-isolation.md" =>
+    "skills/software-architecture/references/multi-tenant-isolation.md",
+  "skills/python-service-architecture/SKILL.md" =>
+    "skills/software-architecture/SKILL.md",
+  "skills/python-service-architecture/references/architecture-playbook.md" =>
+    "skills/software-architecture/references/python-architecture-playbook.md",
+  "skills/python-service-architecture/references/multi-tenant-isolation.md" =>
+    "skills/software-architecture/references/multi-tenant-isolation.md",
+  "skills/python-service-architecture/references/packaging-runtime-readiness.md" =>
+    "skills/software-architecture/references/packaging-runtime-readiness.md",
+  "skills/python-service-architecture/references/workflow-state-architecture.md" =>
+    "skills/software-architecture/references/python-workflow-state-architecture.md"
+}.freeze
+
+moved_table_path = ENV["REGISTER_FIRING_PATH_MOVED_PATHS"].to_s
+moved_paths =
+  if moved_table_path.empty?
+    MOVED_PATHS
+  else
+    begin
+      parsed = JSON.parse(File.read(moved_table_path))
+      unless parsed.is_a?(Hash) && parsed.all? { |k, v| k.is_a?(String) && v.is_a?(String) }
+        raise JSON::ParserError, "expected an object of old path => new path strings"
+      end
+      puts "register_firing_path_moved_paths_injected: #{moved_table_path} (#{parsed.length} entries)"
+      parsed
+    rescue SystemCallError, IOError, JSON::ParserError => e
+      warn "register_firing_path_moved_paths_table_unreadable: #{moved_table_path}: #{e.message}"
+      exit 2
+    end
+  end
+moved_uses = Hash.new(0)
+moved_lookups = {}
 
 # `\p{Word}` rather than `[a-z0-9]`: GitHub keeps non-ASCII characters in a slug,
 # and most headings in this repository are Chinese. Stripping them would collapse
@@ -532,7 +594,15 @@ EXEMPT_ROW_DIGESTS = {
   "file:skills/skill-extraction-workflow/references/extraction-quickstart.md#still owes the two-round chain before it can land" =>
     "bf1fa382021b079b200b6d8d367e407bd0adbbac1d862e22d78062d83906c05e",
   "file:skills/skill-extraction-workflow/references/extraction-quickstart.md#must exclude every evidence JSON the round has already added" =>
-    "d762cbab094279d26461843dfe12c5dd28ae41a1e9a40b7ae9f7f806fee51c36"
+    "d762cbab094279d26461843dfe12c5dd28ae41a1e9a40b7ae9f7f806fee51c36",
+  "command:skills/skill-extraction-workflow/scripts/check-parallel-stack-parity.sh" =>
+    "4e476a5f137ec3add88696125b6eb0f6941afd388dd356bf129f28caa573e5a2",
+  "file:skills/nodejs-service-dev/SKILL.md#Do not borrow the Go or Python architecture skill" =>
+    "470e4e4c375afa3f5cce3be6d7e4899c3637b2954f20aacddaad2e7d4d3fef37",
+  "file:skills/defect-diagnosis/SKILL.md#must not be filed under a sibling stack's architecture skill" =>
+    "0976c129bfec4c415fc1a0e0e06ce59954bdac348b82363c61670d0daa5a0fdf",
+  "file:skills/llm-inference-integration/SKILL.md#never to a Node architecture sibling" =>
+    "fb4cf36af0fd812d9581129e8ac53ed4bc7fae17ab6b73ae209ca924eb49916c"
 }.freeze
 # TRUST BOUNDARY. The count answers "one row"; it cannot answer "WHICH row", so
 # it is paired with the digest of the citing row in EXEMPT_ROW_DIGESTS above.
@@ -615,6 +685,16 @@ File.foreach(register_path).with_index(1) do |line, lineno|
         if anchor.empty? && !anchor_waived
           unresolved << [lineno, locator, "file locator carries no #anchor"]
           next
+        end
+        if (moved_to = moved_paths[rel])
+          moved_uses[rel] += 1
+          if File.exist?(File.join(root, rel))
+            unresolved << [lineno, locator, "moved-path entry is stale: #{rel} exists again, so the recorded " \
+                                            "relocation is ambiguous — retire the entry or remove the old file"]
+            next
+          end
+          moved_lookups[[lineno, locator]] = moved_to
+          rel = moved_to
         end
         target = File.join(root, rel)
         if !syntactically_contained?(rel)
@@ -828,6 +908,15 @@ exempt_uses.each do |locator, linenos|
                  "or retire its digest in the same change"]
 end
 
+# A moved-path entry nothing cites is dead configuration: either the row it served
+# was deleted from an append-only ledger, or the entry was added speculatively.
+moved_paths.each_key do |old_rel|
+  next if moved_uses[old_rel].positive?
+
+  unresolved << [0, "file:#{old_rel}",
+                 "moved-path entry has no citing row in the ledger; retire the entry in the same change"]
+end
+
 # Both groups print before exiting. Bailing out on `malformed` alone would hide
 # every unresolved locator and every EXEMPT over-use in the same run, so a fixer
 # would have to rerun the gate once per class to discover them.
@@ -845,7 +934,9 @@ unless unresolved.empty?
   warn "  fix: restore the anchored text at its recorded location, or (when the move was"
   warn "       intended) append a superseding row and add the old locator to EXEMPT with a reason."
   unresolved.each do |lineno, locator, why|
-    warn "  #{REGISTER}:#{lineno}: #{why}: #{locator}"
+    looked_at = moved_lookups[[lineno, locator]]
+    where = looked_at ? " (relocated; looked at #{looked_at})" : ""
+    warn "  #{REGISTER}:#{lineno}: #{why}: #{locator}#{where}"
   end
 end
 
@@ -884,4 +975,8 @@ exit 1 unless malformed.empty? && unresolved.empty?
 # (an anchor mutation must turn the gate red) rather than by the gate grading
 # its own eyesight at runtime.
 
+# Visibility only, and printed BEFORE the terminal line: the checker's contract is
+# that the last non-empty stdout line is the ok token in its exact shape.
+moved_total = moved_uses.values.sum
+puts "register_firing_path_moved_paths_used: #{moved_total}" if moved_total.positive?
 puts "register_firing_path_resolution_ok (#{locator_count} locators resolved)"

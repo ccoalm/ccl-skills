@@ -31,7 +31,7 @@ flowchart TD
 
 | 方案触达的关切 | owner 技能 |
 |---|---|
-| 后端架构：服务边界/契约/数据所有权/一致性 | [`go-microservice-architecture`](../skills/go-microservice-architecture/SKILL.md) / [`python-service-architecture`](../skills/python-service-architecture/SKILL.md) |
+| 后端架构：服务边界/契约/数据所有权/一致性 | [`software-architecture`](../skills/software-architecture/SKILL.md) |
 | 连通性：mesh / 泳道 / mTLS / 重试超时熔断 / baggage 传播 | [`platform-service-connectivity`](../skills/platform-service-connectivity/SKILL.md) |
 | 发布：多环境 / 灰度 / 晋升 / 密钥分发 / 回滚 | [`platform-release-engineering`](../skills/platform-release-engineering/SKILL.md) |
 | 可观测：审计 / 日志 trace / SLI/SLO / 告警 | [`platform-observability`](../skills/platform-observability/SKILL.md) |

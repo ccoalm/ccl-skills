@@ -60,12 +60,16 @@ gate_runs=0
 # table means this register binds no waivers.
 EMPTY_DIGEST_TABLE="$TMP/empty-exempt-digests.json"
 printf '{}\n' > "$EMPTY_DIGEST_TABLE"
+# Same seam for the moved-path table: this register cites no relocated file.
+EMPTY_MOVED_TABLE="$TMP/empty-moved-paths.json"
+printf '{}\n' > "$EMPTY_MOVED_TABLE"
 
 run_full_check() {
   full_check_runs=$((full_check_runs + 1))
   set +e
   out="$(env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF \
     REGISTER_FIRING_PATH_EXEMPT_DIGESTS="$EMPTY_DIGEST_TABLE" \
+    REGISTER_FIRING_PATH_MOVED_PATHS="$EMPTY_MOVED_TABLE" \
     bash "$CHECK_SCRIPT" "$REPO" 2>&1)"
   rc=$?
   set -e

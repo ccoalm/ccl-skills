@@ -1,6 +1,6 @@
 ---
 name: python-service-dev
-description: 用 Python 写接口 / FastAPI / Django model / Celery 任务 / pytest → implement, modify, scaffold, test, and wire Python backend services, workers, packages, standalone CLI/tooling, migrations, Redis, queues, config, observability, and clients. Triggers also include "用 Python 写个命令行工具", "重构 Python 服务里的某文件/某类(局部)", "refactor a file/class within a Python service". For reproduction, isolation, or root-cause debugging, use defect-diagnosis first; for architecture/layering decisions or a service-wide refactor, use python-service-architecture; for a multi-stage / cross-module refactor delivery, re-enter product-rd-workflow.
+description: 用 Python 写接口 / FastAPI / Django model / Celery 任务 / pytest → implement, modify, scaffold, test, and wire Python backend services, workers, packages, standalone CLI/tooling, migrations, Redis, queues, config, observability, and clients. Triggers also include "用 Python 写个命令行工具", "重构 Python 服务里的某文件/某类(局部)", "refactor a file/class within a Python service". For reproduction, isolation, or root-cause debugging, use defect-diagnosis first; for architecture/layering decisions or a service-wide refactor, use software-architecture; for a multi-stage / cross-module refactor delivery, re-enter product-rd-workflow.
 ---
 
 # Python Service Dev
@@ -12,7 +12,7 @@ Use this for implementation of Python backend products, services, microservices,
 - Use this skill for Python implementation, scaffolding, handlers/routes/views, schemas, services, microservices, repositories, migrations, Redis, queues, workers, external/inter-service clients, config, observability, packaging, and tests.
 - Use `product-rd-workflow` first when the request is an end-to-end product delivery workflow, product idea to implementation plan, release workflow, cross-skill coordination, bug postmortem, or durable process improvement.
 - Use `defect-diagnosis` first when the task is to reproduce, isolate, instrument, fix, verify, or root-cause a backend defect, regression, repeated failure, review finding, or failing test.
-- Use `python-service-architecture` when the user asks for system design, service boundaries, contract strategy, storage ownership, reliability design, or architecture review without code changes.
+- System design, service boundaries, contract strategy, storage ownership, reliability design, or architecture review without code changes must go to `software-architecture`.
 - Use `testing-strategy` when the main question is which unit, integration, contract, or E2E layer should prove behavior; then return here for Python-specific implementation.
 - Use `test-artifact-management` when the ask is about generating structured test cases from a Feishu requirements doc or codebase and tracking them in Feishu Bitable before implementation begins.
 - Use `llm-inference-integration` for inference, RAG, prompt, model-routing, evaluation, replay, token-cost, and batch-inference design. Return here for Python API, worker, adapter, persistence, and observability implementation.

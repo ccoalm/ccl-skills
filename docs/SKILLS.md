@@ -33,19 +33,17 @@
 
 ## 架构
 
-- `go-microservice-architecture` `leaf` — 用：Go 后端/微服务的边界划分、RPC 与 IDL 契约、数据归属、可靠性与安全不变式、多租户隔离、事件驱动/Kafka 与数据平台架构、平台选型。
-  - 不用：写实现码 → `go-microservice-dev`；跨仓多阶段架构改造交付 → `product-rd-workflow`。
-- `python-service-architecture` `leaf` — 用：Python 后端的服务与包边界、API 契约、数据归属、异步/任务边界、多租户隔离、事件驱动/消息队列与数据平台架构、运行时分层。
-  - 不用：写实现码或局部重构 → `python-service-dev`；跨模块多阶段重构交付 → `product-rd-workflow`。
+- `software-architecture` `leaf` — 用：Go、Python、Node.js/TypeScript 或跨栈后端的服务与包边界、RPC/API 与 IDL 契约、数据归属、异步/任务边界、可靠性与安全不变式、多租户隔离、事件驱动/消息队列与数据平台架构、平台选型、运行时分层。
+  - 不用：写实现码或局部重构 → `go-microservice-dev` / `python-service-dev` / `nodejs-service-dev`；跨仓或跨模块的多阶段架构改造交付 → `product-rd-workflow`。
 
 ## 实现
 
 - `go-microservice-dev` `leaf` — 用：写或改 Go 服务、IDL、DI、DAL、缓存、MQ、配置、代码生成与聚焦测试，以及 Go 命令行工具。
-  - 不用：先定架构边界 → `go-microservice-architecture`；先复现和定位失败 → `defect-diagnosis`。
+  - 不用：先定架构边界 → `software-architecture`；先复现和定位失败 → `defect-diagnosis`。
 - `python-service-dev` `leaf` — 用：写或改 Python 接口、模型、任务、迁移、队列、配置、客户端与聚焦测试，以及 Python 命令行工具。
-  - 不用：先定分层与边界 → `python-service-architecture`；先复现和定位失败 → `defect-diagnosis`。
+  - 不用：先定分层与边界 → `software-architecture`；先复现和定位失败 → `defect-diagnosis`。
 - `nodejs-service-dev` `leaf` — 用：写或改 Node.js 服务、HTTP/RPC handler、worker/job、运行时配置、JS/TS 模块与异步生命周期、Node 命令行工具，以及 Node 专属测试机制。
-  - 不用：跨模块架构或多阶段交付 → `product-rd-workflow`；先复现和定位失败 → `defect-diagnosis`；先选测试层与覆盖策略 → `testing-strategy`。
+  - 不用：先定架构与服务边界 → `software-architecture`；多阶段交付 → `product-rd-workflow`；先复现和定位失败 → `defect-diagnosis`；先选测试层与覆盖策略 → `testing-strategy`。
 - `web-react-dev` `leaf` — 用：React Web 的组件结构、路由、状态归属、数据获取、表单、浏览器行为、构建部署与渲染态验证。
   - 不用：界面该长什么样还没定 → `product-ui-ux-design`；小程序 → `miniapp-product-dev`；App → `app-cross-platform-dev`。
 - `app-cross-platform-dev` `leaf` — 用：Flutter、React Native、原生 Android/iOS 的页面、导航、状态、离线缓存、平台能力、打包发版与真机验证。

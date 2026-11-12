@@ -373,7 +373,7 @@ echo "entrypoint_and_reference_domain_scan_ok"
 # The rule it enforces:
 #   "Do not inherit a framework's reserved envelope/base field number as a contract
 #    convention. New products should choose an explicit envelope field and document it."
-#   (go-microservice-architecture/references/protobuf-contract-architecture.md)
+#   (software-architecture/references/protobuf-contract-architecture.md)
 # The comprehensive net stays the human/agent checklist + the dual-track challenge;
 # this gate is the fast deterministic catch for the exact shape that has leaked before.
 # Additional per-class mechanical gates may be added as a symptom recurs across 2+
@@ -934,9 +934,38 @@ exempt_historical_routes = {
        9379f50564f42671e0f0a41fed83a2ab21d8ed64c73979fa0941da42b92d02eb
        ed78f65c3a3e5fbfc185931eac40b2cbf06f71de7ead851dcf1ecaa1fb187f56
      ]],
+  ["skills/platform-observability/references/source-register.md", "go-microservice-architecture"] =>
+    ["the Go architecture skill was merged into software-architecture; row 11 of the observability owner source register records a rule that was left unchanged in the two former architecture skills",
+     %w[83bb928a4aeac202c13210857f28bf5aae6375f8ec6952f8a20edd785cb27a4a]],
+  ["skills/platform-observability/references/source-register.md", "python-service-architecture"] =>
+    ["the Python architecture skill was merged into software-architecture; row 11 of the observability owner source register records a rule that was left unchanged in the two former architecture skills",
+     %w[83bb928a4aeac202c13210857f28bf5aae6375f8ec6952f8a20edd785cb27a4a]],
   ["skills/skill-extraction-workflow/references/source-register.md", "resume-fit-evaluator"] =>
     ["recruitment-domain skill split out of this repo into common/hr-skills; the append-only ledger row (register row 70) records the org-screening-policy extraction that landed while it still lived here",
      %w[88111b77874de4bb63822288861be00bd7a78beb51801946136c06dec1266a37]],
+  ["skills/skill-extraction-workflow/references/source-register.md", "go-microservice-architecture"] =>
+    ["the Go architecture skill was merged into software-architecture; these append-only ledger rows record rules that landed while it was a separate skill, and the rules now live under skills/software-architecture",
+     %w[
+       8526134cde4d39583c6534de180ebb2c6f6cffaaa7e38a969476784cc90d53cd
+       46bfd05ba4fc2568eeab33a640d225fbaccedaff0f4b116f07985a21e9260a86
+       f411d3528cb5f25a1f451e8a3097f43af64f3ac6ad87503722c26b92b65dab37
+       ea1ad535ebf7f1c7c973a8077aa63448ad6c9b3b581cd2981692c193cece207c
+       4e2ceda74bd90e3441920b88b60d539f93494acc9b8ec9f15fe2d45a98243bc0
+       cea397d2253928a06d6e373c12b41361dd2dfc301a5e67155a6a1cac3970b556
+       2d5236b693292edaf455d6948e95db62bb80084e77fc60585018bb5f2ab64fe0
+       9170d43d6898b0b4371441ee26509345b39e684cafc5ed726eed78f4a312e9e8
+     ]],
+  ["skills/skill-extraction-workflow/references/source-register.md", "python-service-architecture"] =>
+    ["the Python architecture skill was merged into software-architecture; these append-only ledger rows record rules that landed while it was a separate skill, and the rules now live under skills/software-architecture",
+     %w[
+       aa10ce10e31f0833ecd062ec588233813cbe5f6adbd7f028ebae693812529946
+       a04c2b6e5e557ac27f600af3f5a3d36724cd42fe5dc15d5e943a56d924208b74
+       f9c75d4307b466aa2a217da324677a598a9124fa98d29f8de881dca298324283
+       3c8bb02b84a0b7efc58125615d7d83d70e08d5905fb22c9644efd688cb961758
+       f760a88cc7450c1af3c5203bc8afe14edf6b743a8ab7e238f497985cb37a062f
+       24ee322ffa8b1f979292bdeb0f2f5fb46c39f30b473ba4e112b45d3338d9081b
+       a5c4ea974d890a45a1da077288c79e64aed7b75cf06e483906f66efc4687b3e9
+     ]],
   ["skills/skill-extraction-workflow/references/source-register.md", "jd-writer"] =>
     ["recruitment-domain skill split out of this repo into common/hr-skills; the append-only ledger row (register row 808) is a provenance note recording why the artifact-egress gate scopes recruitment JDs out",
      %w[dc4e874f9e430e711eb7c6909d2a3d876f650d1736a5d0100e09e91ced3750b0]],
@@ -1072,11 +1101,23 @@ echo "bootstrap_route_scan: $([ -f "$root/agent-context/session-start.md" ] && e
 # Append-only ledger rows may legitimately cite a renamed/removed references
 # file as historical provenance (the ledger must never be edited, so a stale
 # citation there has no legal fix). Exemptions key on "<repo-relative path>
-# <cited ref>": anything else still blocks. Empty today — add an entry with a
-# reason only when a real rename creates the collision; applied exemptions
-# are printed, never silent.
+# <cited ref> <sha256 of the citing line>": the digest binds the waiver to the
+# historical row it was written for, so a NEW row reusing the same dead path
+# still blocks, and an edited historical row reds instead of riding the waiver.
+# Anything else still blocks. Add an entry with a reason only
+# when a real rename creates the collision; applied exemptions are printed,
+# never silent.
 md_ref_exempt() {
   case "$1" in
+    # The Go and Python architecture skills were merged into software-architecture.
+    # These four ledger rows cite reference files by their path in the old skills;
+    # the files now live under skills/software-architecture/references/, and each
+    # row's firing-path anchor is still checked there through the moved-path table
+    # in register-firing-path-resolution.rb.
+    "skills/skill-extraction-workflow/references/source-register.md go-microservice-architecture/references/cross-cutting-concerns.md 46bfd05ba4fc2568eeab33a640d225fbaccedaff0f4b116f07985a21e9260a86") return 0 ;;
+    "skills/skill-extraction-workflow/references/source-register.md python-service-architecture/references/packaging-runtime-readiness.md a04c2b6e5e557ac27f600af3f5a3d36724cd42fe5dc15d5e943a56d924208b74") return 0 ;;
+    "skills/skill-extraction-workflow/references/source-register.md go-microservice-architecture/references/architecture-playbook.md f411d3528cb5f25a1f451e8a3097f43af64f3ac6ad87503722c26b92b65dab37") return 0 ;;
+    "skills/skill-extraction-workflow/references/source-register.md python-service-architecture/references/architecture-playbook.md f9c75d4307b466aa2a217da324677a598a9124fa98d29f8de881dca298324283") return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -1131,7 +1172,8 @@ while IFS=: read -r path lineno match; do
     # the root prefix, then a defensive leading "./" (root="." CI shape).
     path_rel="${path#"${root%/}/"}"
     path_rel="${path_rel#./}"
-    if md_ref_exempt "$path_rel $ref"; then
+    line_digest="$(printf '%s' "$match" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -d' ' -f1)"
+    if md_ref_exempt "$path_rel $ref $line_digest"; then
       echo "md_reference_exempt: $path:$lineno cites \`$ref\` — exempt (append-only historical citation)"
     else
       echo "md_reference_block: $path:$lineno cites \`$ref\` but $candidate does not exist" >&2
@@ -1690,30 +1732,6 @@ else
   # checkout, not a skippable advisory.
   echo "entrypoint_size_budget_blocking_failed: check-size-budget.sh missing" >&2
   exit 1
-fi
-
-# Parallel-stack mirrored-section parity: the sibling reference pairs listed in
-# check-parallel-stack-parity.sh declare a mirrored region that must stay in sync
-# across the Python and Go trees. The per-file grep gates check token hygiene
-# INSIDE one file and cannot see cross-file drift; this gate diffs the normalized
-# mirrored regions and blocks on any divergence beyond the two allowed classes
-# (sibling skill names, backticked routing references).
-parity_script="$root/skills/skill-extraction-workflow/scripts/check-parallel-stack-parity.sh"
-if [[ -L "$parity_script" || ! -f "$parity_script" ]]; then
-  echo "parallel_stack_parity_infra_failed: check-parallel-stack-parity.sh missing beside the validator" >&2
-  exit 2
-fi
-parity_rc=0
-parity_out="$(bash "$parity_script" "$root" 2>&1)" || parity_rc=$?
-printf '%s\n' "$parity_out"
-if [ "$parity_rc" -eq 1 ]; then
-  echo "parallel_stack_parity_blocking_failed rc=1 (mirrored sections drifted or markers malformed — fix both siblings in the same change)" >&2
-  exit 1
-elif [ "$parity_rc" -ne 0 ]; then
-  # Any other nonzero result is the script itself failing (awk/sed/read/runtime), not a
-  # content verdict; keep the infra distinction so maintainers repair CI, not content.
-  echo "parallel_stack_parity_infra_failed rc=$parity_rc (parity gate could not run — fail-closed)" >&2
-  exit 2
 fi
 
 # Final status token. The legacy `ccl_skill_check_ok` is still printed for

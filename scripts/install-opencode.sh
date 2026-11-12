@@ -115,24 +115,83 @@ finish_backups() {
   done
 }
 
-migrate_legacy_review_skill() {
+# Skills this package used to ship under another name. Each row is
+# "<retired name>|<file only the shipped skill carried>|<replacement>|<proof>".
+# A directory is moved out of the skill scan root only when its frontmatter name
+# and the marker file match, and, for proof "history", only when its SKILL.md is
+# byte-identical to a version this repository once shipped. A personal skill
+# that happens to share the name and the marker file is therefore kept. Without
+# a git checkout to compare against, a "history" row cannot be proven and the
+# directory is kept with a warning.
+RETIRED_SKILLS=(
+  "claude-code-review|scripts/claude_review.sh|code-review|marker"
+  "go-microservice-architecture|references/architecture-playbook.md|software-architecture|history"
+  "python-service-architecture|references/architecture-playbook.md|software-architecture|history"
+)
+
+# True when FILE's bytes equal some version of skills/<name>/SKILL.md in this
+# repository's history.
+shipped_skill_md() { # <name> <file>
+  local blob
+  git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1 || return 1
+  blob="$(git -C "$REPO_ROOT" hash-object --no-filters -- "$2" 2>/dev/null)" || return 1
+  [ -n "$blob" ] || return 1
+  # Raw diff lines carry both blob ids as space-delimited fields.
+  git -C "$REPO_ROOT" log --all --format= --raw --no-abbrev -- "skills/$1/SKILL.md" 2>/dev/null \
+    | grep -F -- " $blob " >/dev/null
+}
+
+# The name a SKILL.md declares in its frontmatter: the first `name:` line between
+# the opening `---` and the closing one. A body line that merely looks like
+# frontmatter does not count.
+# Pure bash: the installer runs with a small fixed set of external commands
+# (scripts/test_install_status.py pins it), and awk is not among them.
+frontmatter_name() {
+  local line first=1
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$first" = 1 ]; then
+      first=0
+      [ "$line" = "---" ] || return 0
+      continue
+    fi
+    [[ "$line" =~ ^---[[:space:]]*$ ]] && return 0
+    if [[ "$line" == name:* ]]; then
+      # The first name field decides, even when it is empty.
+      line="${line#name:}"
+      line="${line#"${line%%[![:space:]]*}"}"
+      line="${line%"${line##*[![:space:]]}"}"
+      printf '%s\n' "$line"
+      return 0
+    fi
+  done <"$1"
+}
+
+# Returns 0 when at least one retired skill was moved out, 1 when none was, and 2
+# when a move failed. Every row is attempted: one unrecognised directory must not
+# leave a later retired skill installed beside its replacement.
+migrate_retired_skills() {
   local dst_root="$1"
-  local legacy_dir="$dst_root/claude-code-review"
-  local backup_root backup_dir
+  local backup_root backup_dir row name marker replacement legacy_dir moved=1
 
   backup_root="$(dirname "$dst_root")/.ccl-skills-backup/$(basename "$dst_root")"
   BACKUP_ROOTS+=("$backup_root")
-  [ -d "$legacy_dir" ] || return 1
-  if [ -f "$legacy_dir/SKILL.md" ] \
-    && grep -qE '^name:[[:space:]]*claude-code-review[[:space:]]*$' "$legacy_dir/SKILL.md" \
-    && [ -f "$legacy_dir/scripts/claude_review.sh" ]; then
-    backup_dir="$backup_root/.pending"
-    preserve_replaced_dir "$legacy_dir" "$backup_dir" || return 2
-    echo "  ⓘ 旧 claude-code-review 已迁出 skill 扫描目录；现由 code-review 替代"
-    return 0
-  fi
-  echo "  ⚠ 保留未识别的同名目录：${legacy_dir}（未按 CCL 旧 skill 结构自动迁移）"
-  return 1
+  backup_dir="$backup_root/.pending"
+  for row in "${RETIRED_SKILLS[@]}"; do
+    IFS='|' read -r name marker replacement proof <<<"$row"
+    legacy_dir="$dst_root/$name"
+    [ -d "$legacy_dir" ] || continue
+    if [ -f "$legacy_dir/SKILL.md" ] \
+      && [ "$(frontmatter_name "$legacy_dir/SKILL.md")" = "$name" ] \
+      && [ -f "$legacy_dir/$marker" ] \
+      && { [ "$proof" = marker ] || shipped_skill_md "$name" "$legacy_dir/SKILL.md"; }; then
+      preserve_replaced_dir "$legacy_dir" "$backup_dir" || return 2
+      echo "  ⓘ 旧 ${name} 已迁出 skill 扫描目录；现由 ${replacement} 替代"
+      moved=0
+    else
+      echo "  ⚠ 保留未识别的同名目录：${legacy_dir}（未按 CCL 旧 skill 结构自动迁移）"
+    fi
+  done
+  return "$moved"
 }
 
 sync_skill_set() {
@@ -144,7 +203,7 @@ sync_skill_set() {
   backup_root="$(dirname "$dst_root")/.ccl-skills-backup/$(basename "$dst_root")"
   backup_dir="$backup_root/.pending"
   BACKUP_ROOTS+=("$backup_root")
-  if migrate_legacy_review_skill "$dst_root"; then
+  if migrate_retired_skills "$dst_root"; then
     replaced_any=1
   else
     migration_rc=$?
@@ -254,8 +313,8 @@ if [ "$PROJECT_MODE" = 0 ]; then
     sync_skill_set "$AGENT_SKILLS_DIR" || exit "$?"
     echo "  ✔ 通用 Agent Skills 兼容路径已同步：$AGENT_SKILLS_DIR"
   else
-    if migrate_legacy_review_skill "$AGENT_SKILLS_DIR"; then
-      echo "  ⓘ --no-agent 仅完成旧 reviewer skill 迁移，未同步其他兼容 skills"
+    if migrate_retired_skills "$AGENT_SKILLS_DIR"; then
+      echo "  ⓘ --no-agent 仅完成已退役 skill 的迁出，未同步其他兼容 skills"
     else
       migration_rc=$?
       [ "$migration_rc" -eq 1 ] || exit "$migration_rc"

@@ -156,7 +156,7 @@ check_line_all() { # <file> <selector> <label> <req...> — EVERY <req> must sit
 # Self-pin: an emptied or truncated suite must fail, not pass. Update EXPECTED
 # when adding/removing checks deliberately (same diff). Runs FIRST: a truncated
 # tail removes real checks and the count goes red.
-EXPECTED_CHECKS=29
+EXPECTED_CHECKS=36
 actual_checks=$(grep -cE '^check([_a-z]+)? ' "$0")
 if [ "$actual_checks" -ne "$EXPECTED_CHECKS" ]; then
   echo "FAIL: suite self-pin: expected $EXPECTED_CHECKS checks, found $actual_checks" >&2
@@ -182,7 +182,8 @@ check_frontmatter_present "$ROOT/skills/python-service-dev/SKILL.md" "用 Python
 # description-scoped: the bare trigger must be gone from the frontmatter
 # description line (body may legitimately discuss the boundary).
 check_frontmatter_absent "$ROOT/skills/python-service-dev/SKILL.md" "Python 服务重构" "python-service-dev unqualified refactor trigger"
-check_frontmatter_present "$ROOT/skills/python-service-architecture/SKILL.md" "Python 服务重构" "python-service-architecture unqualified refactor trigger"
+check_frontmatter_present "$ROOT/skills/software-architecture/SKILL.md" "Python 服务重构" "software-architecture unqualified Python refactor trigger"
+check_frontmatter_present "$ROOT/skills/software-architecture/SKILL.md" "Go 服务重构" "software-architecture unqualified Go refactor trigger"
 check_frontmatter_present "$ROOT/skills/miniapp-product-dev/SKILL.md" "重构这个小程序页面/组件(局部)" "miniapp localized-refactor trigger"
 check_frontmatter_present "$ROOT/skills/terminal-cli-dev/SKILL.md" "用 Python 写个命令行工具\" → python-service-dev" "terminal-cli-dev language-stack CLI skip"
 # Both legs of that skip clause must be reciprocated by the named stack owner,
@@ -203,15 +204,22 @@ check "$ROOT/skills/product-rd-workflow/SKILL.md" "no such dev owner stays with 
 # sent Node deliveries to a coordinator with no owner to dispatch to recurs
 # invisibly, with the no-owner fallback above silently reclaiming Node CLIs.
 check_line_all "$ROOT/skills/product-rd-workflow/SKILL.md" "- Development routing:" "product-rd Development-routing line carries the Node owner in BOTH the stack enumeration and the CLI carve-out" "\`nodejs-service-dev\` for Node.js services" "\`python-service-dev\`, \`nodejs-service-dev\`)"
-# Node has no *-architecture sibling by decision, so the technical-design gate
-# must name where its architecture decisions go; without this the gate lists
-# only the Go and Python architecture owners and Node design work has no owner.
-# Naming the vacuum is not naming a destination: both owners must sit on that
-# line, or the gate can declare Node has no architecture sibling and stop there.
-# The positive ownership clause is pinned too: keeping only the two owner tokens
-# while deleting "run this gate here" would leave the architecture decision ownerless,
-# since nodejs-service-dev is named there as the IMPLEMENTATION owner, not the gate.
-check_line_all "$ROOT/skills/product-rd-workflow/references/delivery-lifecycle.md" "For Node.js backend, worker, or CLI/tooling architecture" "product-rd design gate owns the Node architecture decision and names both downstream owners on that line" "run this gate here" "\`platform-*\` owners" "\`nodejs-service-dev\` for the Node-side implementation contract"
+# Node.js/TypeScript architecture is owned by software-architecture, read with its
+# Node.js/TypeScript part. The design gate must say so on the Node line itself and
+# keep both downstream owners there: naming only the architecture owner drops the
+# implementation contract, and dropping the "do not substitute" clause re-opens the
+# failure the earlier no-sibling rule closed — a Node service designed from the Go
+# or Python stack defaults because they were the nearest-looking ones.
+check_line_all "$ROOT/skills/product-rd-workflow/references/delivery-lifecycle.md" "For Node.js backend, worker, or CLI/tooling architecture" "product-rd design gate sends Node architecture to software-architecture and names both downstream owners on that line" "use \`software-architecture\` for this gate" "its Node.js/TypeScript part" "\`platform-*\` owners" "\`nodejs-service-dev\` for the Node-side implementation contract" "do not substitute the Go or Python stack defaults" "runs this gate here"
+# The owner side of the same route: the entrypoint must actually carry the part the
+# gate points at, the guard against borrowing a sibling stack's defaults, and the
+# trigger that makes a Node/TypeScript architecture request reach it at all.
+check "$ROOT/skills/software-architecture/SKILL.md" "### Node.js / TypeScript" "software-architecture carries a Node.js/TypeScript stack part"
+check "$ROOT/skills/software-architecture/SKILL.md" "The Go and Python defaults above do not transfer" "software-architecture forbids borrowing sibling stack defaults for Node"
+check_frontmatter_present "$ROOT/skills/software-architecture/SKILL.md" "Node.js·TypeScript 服务架构与服务边界" "software-architecture Node/TypeScript architecture trigger"
+check_frontmatter_present "$ROOT/skills/nodejs-service-dev/SKILL.md" "architecture and service-boundary decisions to software-architecture" "nodejs-service-dev routes architecture to software-architecture"
+check "$ROOT/skills/defect-diagnosis/SKILL.md" "A Node.js architecture or service-boundary issue -> \`software-architecture\`" "defect-diagnosis routes Node architecture defects to software-architecture"
+check "$ROOT/skills/llm-inference-integration/SKILL.md" "its architecture decisions go to \`software-architecture\`" "llm-inference-integration routes Node host architecture to software-architecture"
 # Both legs of the skip clause are pinned: an unanchored leg can be deleted while
 # the reciprocal trigger anchor above stays green, and the eval fixtures assert
 # terminal-cli-dev must NOT receive either request.
@@ -242,11 +250,11 @@ check_exact_line() { # <file> <whole line> <label>
     fail=1
   fi
 }
-check_absent "$ROOT/skills/go-microservice-architecture/references/architecture-playbook.md" "domain -> infrastructure" "Go playbook diagram does not draw the domain importing adapters"
-check_exact_line "$ROOT/skills/go-microservice-architecture/references/architecture-playbook.md" "imports:  transport -> application/service -> domain" "Go playbook import line ends at the domain"
-check_exact_line "$ROOT/skills/go-microservice-architecture/references/architecture-playbook.md" "          infrastructure adapters -> domain" "Go playbook diagram shows adapters importing the domain"
-check_exact_line "$ROOT/skills/go-microservice-architecture/references/architecture-playbook.md" "          application/service -> generated clients/contracts" "Go playbook generated-code import line ends at the generated code"
-check "$ROOT/skills/go-microservice-architecture/references/architecture-playbook.md" "The domain never imports an adapter package." "Go playbook states the domain import rule beside the diagram"
+check_absent "$ROOT/skills/software-architecture/references/go-architecture-playbook.md" "domain -> infrastructure" "Go playbook diagram does not draw the domain importing adapters"
+check_exact_line "$ROOT/skills/software-architecture/references/go-architecture-playbook.md" "imports:  transport -> application/service -> domain" "Go playbook import line ends at the domain"
+check_exact_line "$ROOT/skills/software-architecture/references/go-architecture-playbook.md" "          infrastructure adapters -> domain" "Go playbook diagram shows adapters importing the domain"
+check_exact_line "$ROOT/skills/software-architecture/references/go-architecture-playbook.md" "          application/service -> generated clients/contracts" "Go playbook generated-code import line ends at the generated code"
+check "$ROOT/skills/software-architecture/references/go-architecture-playbook.md" "The domain never imports an adapter package." "Go playbook states the domain import rule beside the diagram"
 
 if [ "$fail" -eq 0 ]; then
   echo "routing_pointer_integrity_ok"

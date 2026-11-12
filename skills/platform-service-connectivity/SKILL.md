@@ -12,7 +12,7 @@ This skill owns **how requests move between services**: the transport layer (mes
 You do not own:
 - Whether the right signals exist or how to alert on them — go to `platform-observability`.
 - Whether a change is safe to promote across environments — `platform-release-engineering` consumes connectivity policy as input.
-- HTTP handler shape, DB schema, or business contract design — language-specific service-architecture skills.
+- HTTP handler shape, DB schema, or business contract design must route to `software-architecture`.
 - Agent/MCP tool exposure, dynamic tool catalog/cache behavior, model-visible schemas, or execution-time tool authorization — route those to `llm-inference-integration`. This skill owns the connector's network path, egress policy, mTLS/TLS boundary, service identity, and transport observability, not whether the agent may call a tool.
 
 ## Skill Routing
