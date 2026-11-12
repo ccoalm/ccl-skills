@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "task": "arch-design-refund-python",
+  "doc_path": "svc/docs/design.md",
+  "items": [
+    {
+      "id": "inv_refund_cap",
+      "class": "invariant",
+      "statement": "For one order, the sum of refunds that succeeded or are still in progress never exceeds the amount paid, including when two refund requests for the same order are processed at the same time."
+    },
+    {
+      "id": "inv_refund_idempotent",
+      "class": "invariant",
+      "statement": "A retried refund request and a repeated channel callback do not create or apply a second refund: one refund request maps to at most one refund."
+    },
+    {
+      "id": "inv_refund_terminal",
+      "class": "invariant",
+      "statement": "A refund that reached a final result (succeeded or failed) never changes again; a late or out-of-order callback carrying an earlier status is ignored."
+    },
+    {
+      "id": "inv_order_closed",
+      "class": "invariant",
+      "statement": "No refund can be created for an order that is closed."
+    },
+    {
+      "id": "stack_py_async_blocking",
+      "class": "stack",
+      "statement": "The design decides what runs in the request path and what runs in a worker, and keeps blocking or slow work (the channel call, the accounting notification) out of an async request handler or isolates it."
+    },
+    {
+      "id": "stack_py_wiring",
+      "class": "stack",
+      "statement": "Clients (database, channel, queue) are assembled in an app factory or at startup, with no network I/O at import time and no hidden global client."
+    },
+    {
+      "id": "dep_direction",
+      "class": "dependency",
+      "statement": "The design states a dependency direction in which business rules do not depend on transport, storage or vendor code: handlers or adapters call into the domain or service layer, and the domain layer does not import the database, HTTP framework or supplier SDK."
+    }
+  ],
+  "known_answers": {
+    "full": {
+      "file": "arch-design-refund-python.full.md",
+      "expect": {
+        "inv_refund_cap": {
+          "stated": true,
+          "checked": true
+        },
+        "inv_refund_idempotent": {
+          "stated": true,
+          "checked": true
+        },
+        "inv_refund_terminal": {
+          "stated": true,
+          "checked": true
+        },
+        "inv_order_closed": {
+          "stated": true,
+          "checked": true
+        },
+        "stack_py_async_blocking": {
+          "stated": true
+        },
+        "stack_py_wiring": {
+          "stated": true
+        },
+        "dep_direction": {
+          "stated": true
+        }
+      }
+    },
+    "bare": {
+      "file": "arch-design-refund-python.bare.md",
+      "expect": {
+        "inv_refund_cap": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_refund_idempotent": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_refund_terminal": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_order_closed": {
+          "stated": false,
+          "checked": false
+        },
+        "stack_py_async_blocking": {
+          "stated": false
+        },
+        "stack_py_wiring": {
+          "stated": false
+        },
+        "dep_direction": {
+          "stated": false
+        }
+      }
+    }
+  }
+}

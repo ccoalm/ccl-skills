@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "id": "arch-design-notify-node",
+  "measures": "A design-only request to split notification out of a Node.js/TypeScript order service (service boundary and data ownership): does the agent write a design document and leave the code alone?",
+  "not_measured": "The quality of the design. The checks here only see that a design document was written and that no source file was changed; whether the design states the business invariants and ties each to a check is judged afterwards by eval/design-judge.py against eval/design-rubrics/, which this runner does not read.",
+  "samples": 5,
+  "timeout_seconds": 1500,
+  "cwd": "svc",
+  "prompt": "docs/requirement.md 是这次要做的需求。先不要写代码，给出技术设计，写到 docs/design.md。",
+  "setup": [
+    "mkdir -p svc/docs",
+    "cat > svc/package.json <<'EOF_FILE'",
+    "{",
+    "  \"name\": \"svc\",",
+    "  \"private\": true,",
+    "  \"type\": \"module\",",
+    "  \"engines\": {\"node\": \">=20\"}",
+    "}",
+    "EOF_FILE",
+    "mkdir -p svc/src",
+    "cat > svc/src/server.ts <<'EOF_FILE'",
+    "export function start(): void {}",
+    "EOF_FILE",
+    "cat > svc/README.md <<'EOF_FILE'",
+    "# svc",
+    "",
+    "订单服务，Node.js 20 + TypeScript，Fastify，存储 PostgreSQL。",
+    "EOF_FILE",
+    "mkdir -p svc/docs",
+    "cat > svc/docs/requirement.md <<'EOF_FILE'",
+    "# 需求：把通知从订单服务里拆出来",
+    "",
+    "现在订单服务在下单、发货、退款时直接调短信和邮件供应商，代码和订单逻辑搅在一起。要拆成独立的通知服务。",
+    "",
+    "- 订单服务只说“发生了什么事”，由通知服务决定发给谁、走哪个渠道。",
+    "- 用户可以在个人中心设置各渠道的通知开关和联系方式。现在这些数据在订单库的用户表里，订单服务和客服后台都在直接改。",
+    "- 同一件事同一个渠道只应通知用户一次。订单服务的事件可能重发。",
+    "- 用户关闭了某个渠道之后，不应再从这个渠道收到通知，包括已经在排队的。",
+    "- 供应商接口会限流、会超时。通知发不出去不能拖慢或卡住下单。",
+    "EOF_FILE"
+  ],
+  "checks": [
+    {
+      "id": "design_written",
+      "role": "completion",
+      "kind": "path_present",
+      "path": "svc/docs/design.md"
+    },
+    {
+      "id": "source_untouched",
+      "role": "precision",
+      "kind": "blob_kept",
+      "path": "svc/src/server.ts"
+    }
+  ],
+  "oracle": {
+    "good": [
+      "printf '# design\\n' > docs/design.md"
+    ],
+    "bad": [
+      {
+        "fails": [
+          "design_written"
+        ],
+        "commands": []
+      },
+      {
+        "fails": [
+          "source_untouched"
+        ],
+        "commands": [
+          "printf '# design\\n' > docs/design.md",
+          "printf '// changed\\n' >> src/server.ts"
+        ]
+      }
+    ]
+  }
+}

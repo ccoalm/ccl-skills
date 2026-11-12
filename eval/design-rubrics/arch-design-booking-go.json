@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "task": "arch-design-booking-go",
+  "doc_path": "svc/docs/design.md",
+  "items": [
+    {
+      "id": "inv_no_overlap",
+      "class": "invariant",
+      "statement": "For one room, two bookings that hold the slot (pending or confirmed) never overlap in time, including when two requests arrive at the same time."
+    },
+    {
+      "id": "inv_booking_transitions",
+      "class": "invariant",
+      "statement": "Booking status only moves along allowed transitions: pending to confirmed, cancelled or expired, and confirmed to cancelled. Cancelled and expired are final and can never become confirmed or active again."
+    },
+    {
+      "id": "inv_pending_expiry",
+      "class": "invariant",
+      "statement": "A pending booking that is not confirmed within 10 minutes stops holding the slot, and a confirmation arriving after expiry is rejected."
+    },
+    {
+      "id": "inv_reminder_once",
+      "class": "invariant",
+      "statement": "A booking's reminder is delivered at most once even when the reminder trigger fires repeatedly."
+    },
+    {
+      "id": "inv_room_disabled",
+      "class": "invariant",
+      "statement": "No new booking can be created for a room while it is disabled."
+    },
+    {
+      "id": "stack_go_deadline",
+      "class": "stack",
+      "statement": "Calls to the external dependency carry a deadline or timeout, propagated through context.Context."
+    },
+    {
+      "id": "stack_go_dal_boundary",
+      "class": "stack",
+      "statement": "Database access sits behind a DAL or repository boundary and handlers do not construct database or external clients themselves (dependencies are injected)."
+    },
+    {
+      "id": "dep_direction",
+      "class": "dependency",
+      "statement": "The design states a dependency direction in which business rules do not depend on transport, storage or vendor code: handlers or adapters call into the domain or service layer, and the domain layer does not import the database, HTTP framework or supplier SDK."
+    }
+  ],
+  "known_answers": {
+    "full": {
+      "file": "arch-design-booking-go.full.md",
+      "expect": {
+        "inv_no_overlap": {
+          "stated": true,
+          "checked": true
+        },
+        "inv_booking_transitions": {
+          "stated": true,
+          "checked": true
+        },
+        "inv_pending_expiry": {
+          "stated": true,
+          "checked": true
+        },
+        "inv_reminder_once": {
+          "stated": true,
+          "checked": true
+        },
+        "inv_room_disabled": {
+          "stated": true,
+          "checked": true
+        },
+        "stack_go_deadline": {
+          "stated": true
+        },
+        "stack_go_dal_boundary": {
+          "stated": true
+        },
+        "dep_direction": {
+          "stated": true
+        }
+      }
+    },
+    "bare": {
+      "file": "arch-design-booking-go.bare.md",
+      "expect": {
+        "inv_no_overlap": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_booking_transitions": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_pending_expiry": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_reminder_once": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_room_disabled": {
+          "stated": false,
+          "checked": false
+        },
+        "stack_go_deadline": {
+          "stated": false
+        },
+        "stack_go_dal_boundary": {
+          "stated": false
+        },
+        "dep_direction": {
+          "stated": false
+        }
+      }
+    },
+    "stuffed": {
+      "file": "arch-design-booking-go.stuffed.md",
+      "expect": {
+        "inv_no_overlap": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_booking_transitions": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_pending_expiry": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_reminder_once": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_room_disabled": {
+          "stated": false,
+          "checked": false
+        },
+        "stack_go_deadline": {
+          "stated": false
+        },
+        "stack_go_dal_boundary": {
+          "stated": false
+        },
+        "dep_direction": {
+          "stated": false
+        }
+      }
+    }
+  }
+}

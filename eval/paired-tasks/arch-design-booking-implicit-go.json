@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "id": "arch-design-booking-implicit-go",
+  "measures": "Room booking in a Go service, with a requirement that lists features and no business rules: does the agent write a design document and leave the code alone? The rubric's invariants have to be inferred.",
+  "not_measured": "The quality of the design. The checks here only see that a design document was written and that no source file was changed; whether the design states the business invariants and ties each to a check is judged afterwards by eval/design-judge.py against eval/design-rubrics/, which this runner does not read.",
+  "samples": 5,
+  "timeout_seconds": 1500,
+  "cwd": "svc",
+  "prompt": "docs/requirement.md 是这次要做的需求。先不要写代码，给出技术设计，写到 docs/design.md。",
+  "setup": [
+    "mkdir -p svc/docs",
+    "cat > svc/go.mod <<'EOF_FILE'",
+    "module example.invalid/svc",
+    "",
+    "go 1.22",
+    "EOF_FILE",
+    "mkdir -p svc/cmd/server",
+    "cat > svc/cmd/server/main.go <<'EOF_FILE'",
+    "package main",
+    "",
+    "func main() {}",
+    "EOF_FILE",
+    "cat > svc/README.md <<'EOF_FILE'",
+    "# svc",
+    "",
+    "Go 服务。现有分层：handler / service / dal。存储 MySQL，对外 HTTP，内部 RPC。",
+    "EOF_FILE",
+    "mkdir -p svc/docs",
+    "cat > svc/docs/requirement.md <<'EOF_FILE'",
+    "# 需求：会议室预约",
+    "",
+    "- 员工可以预约某个会议室的一个时间段。",
+    "- 预约提交后需要发起人在 10 分钟内确认，否则作废。",
+    "- 预约可以取消。",
+    "- 预约开始前 15 分钟给参会人发提醒。",
+    "- 管理员可以停用会议室。",
+    "- 办公区有 200 间会议室，上午 9 点到 10 点是预约高峰。",
+    "EOF_FILE"
+  ],
+  "checks": [
+    {
+      "id": "design_written",
+      "role": "completion",
+      "kind": "path_present",
+      "path": "svc/docs/design.md"
+    },
+    {
+      "id": "source_untouched",
+      "role": "precision",
+      "kind": "blob_kept",
+      "path": "svc/cmd/server/main.go"
+    }
+  ],
+  "oracle": {
+    "good": [
+      "printf '# design\\n' > docs/design.md"
+    ],
+    "bad": [
+      {
+        "fails": [
+          "design_written"
+        ],
+        "commands": []
+      },
+      {
+        "fails": [
+          "source_untouched"
+        ],
+        "commands": [
+          "printf '# design\\n' > docs/design.md",
+          "printf '// changed\\n' >> cmd/server/main.go"
+        ]
+      }
+    ]
+  }
+}

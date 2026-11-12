@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "task": "arch-design-notify-node",
+  "doc_path": "svc/docs/design.md",
+  "items": [
+    {
+      "id": "inv_notify_once",
+      "class": "invariant",
+      "statement": "For one business event and one channel, a user is notified at most once even when the order service delivers the event more than once."
+    },
+    {
+      "id": "inv_pref_single_writer",
+      "class": "invariant",
+      "statement": "Notification preferences and contact details have exactly one owning service that writes them; the order service and the support console stop writing that data directly."
+    },
+    {
+      "id": "inv_optout_respected",
+      "class": "invariant",
+      "statement": "After a user turns a channel off, nothing is sent on that channel, including notifications already queued: the preference is checked at send time."
+    },
+    {
+      "id": "inv_order_not_blocked",
+      "class": "invariant",
+      "statement": "Placing an order never waits on or fails because of notification delivery: the order service hands the event off asynchronously."
+    },
+    {
+      "id": "stack_node_runtime_validation",
+      "class": "stack",
+      "statement": "Incoming events or requests are validated with a runtime schema at the service boundary, because TypeScript types do not exist at run time."
+    },
+    {
+      "id": "stack_node_bounded_outbound",
+      "class": "stack",
+      "statement": "Outbound supplier calls are bounded: timeouts plus a limit on concurrency, queue length or retries."
+    },
+    {
+      "id": "dep_direction",
+      "class": "dependency",
+      "statement": "The design states a dependency direction in which business rules do not depend on transport, storage or vendor code: handlers or adapters call into the domain or service layer, and the domain layer does not import the database, HTTP framework or supplier SDK."
+    }
+  ],
+  "known_answers": {
+    "full": {
+      "file": "arch-design-notify-node.full.md",
+      "expect": {
+        "inv_notify_once": {
+          "stated": true,
+          "checked": true
+        },
+        "inv_pref_single_writer": {
+          "stated": true,
+          "checked": true
+        },
+        "inv_optout_respected": {
+          "stated": true,
+          "checked": true
+        },
+        "inv_order_not_blocked": {
+          "stated": true,
+          "checked": true
+        },
+        "stack_node_runtime_validation": {
+          "stated": true
+        },
+        "stack_node_bounded_outbound": {
+          "stated": true
+        },
+        "dep_direction": {
+          "stated": true
+        }
+      }
+    },
+    "stated-only": {
+      "file": "arch-design-notify-node.stated-only.md",
+      "expect": {
+        "inv_notify_once": {
+          "stated": true,
+          "checked": false
+        },
+        "inv_pref_single_writer": {
+          "stated": true,
+          "checked": false
+        },
+        "inv_optout_respected": {
+          "stated": true,
+          "checked": false
+        },
+        "inv_order_not_blocked": {
+          "stated": true,
+          "checked": false
+        },
+        "stack_node_runtime_validation": {
+          "stated": true
+        },
+        "stack_node_bounded_outbound": {
+          "stated": true
+        },
+        "dep_direction": {
+          "stated": true
+        }
+      }
+    },
+    "bare": {
+      "file": "arch-design-notify-node.bare.md",
+      "expect": {
+        "inv_notify_once": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_pref_single_writer": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_optout_respected": {
+          "stated": false,
+          "checked": false
+        },
+        "inv_order_not_blocked": {
+          "stated": false,
+          "checked": false
+        },
+        "stack_node_runtime_validation": {
+          "stated": false
+        },
+        "stack_node_bounded_outbound": {
+          "stated": false
+        },
+        "dep_direction": {
+          "stated": false
+        }
+      }
+    }
+  }
+}

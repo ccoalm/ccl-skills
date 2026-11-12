@@ -63,7 +63,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	bash scripts/owner-dispatch/test.sh
 	bash scripts/control-plane/test.sh
 	python3 -m pytest -q skills/test-artifact-management/references/test_gen_report.py
-	python3 -m unittest eval.test_subagent_owner_audit eval.test_skill_effectiveness_bridge eval.test_skill_effectiveness_trial eval.test_reviewer_calibration_protocol
+	python3 -m unittest eval.test_subagent_owner_audit eval.test_skill_effectiveness_bridge eval.test_skill_effectiveness_trial eval.test_reviewer_calibration_protocol eval.test_design_judge
 
 test-regressions-fast: ## fast 回归 lane（CI regression-fast 并行 job；本地 make test 直跑）
 	bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --fast

@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "id": "arch-design-refund-python",
+  "measures": "The same partial-refund requirement in a Python service: does the agent write a design document and leave the code alone?",
+  "not_measured": "The quality of the design. The checks here only see that a design document was written and that no source file was changed; whether the design states the business invariants and ties each to a check is judged afterwards by eval/design-judge.py against eval/design-rubrics/, which this runner does not read.",
+  "samples": 5,
+  "timeout_seconds": 1500,
+  "cwd": "svc",
+  "prompt": "docs/requirement.md 是这次要做的需求。先不要写代码，给出技术设计，写到 docs/design.md。",
+  "setup": [
+    "mkdir -p svc/docs",
+    "cat > svc/pyproject.toml <<'EOF_FILE'",
+    "[project]",
+    "name = \"svc\"",
+    "version = \"0.0.0\"",
+    "requires-python = \">=3.11\"",
+    "EOF_FILE",
+    "mkdir -p svc/app",
+    "cat > svc/app/main.py <<'EOF_FILE'",
+    "from fastapi import FastAPI",
+    "",
+    "",
+    "def create_app() -> FastAPI:",
+    "    return FastAPI()",
+    "EOF_FILE",
+    "cat > svc/README.md <<'EOF_FILE'",
+    "# svc",
+    "",
+    "Python 服务，FastAPI + SQLAlchemy，异步任务用 Celery。存储 MySQL。",
+    "EOF_FILE",
+    "mkdir -p svc/docs",
+    "cat > svc/docs/requirement.md <<'EOF_FILE'",
+    "# 需求：订单部分退款",
+    "",
+    "- 客服或用户可以对已支付的订单发起退款，可以分多次、每次退一部分。",
+    "- 一个订单退出去的钱加起来不能比实际付的多。两个人同时对同一订单点退款的情况线上出现过。",
+    "- 客户端发起退款后可能因为超时再点一次，这不应该变成两笔退款。",
+    "- 退款要调支付渠道，渠道的结果通过回调通知我们。回调可能重复到达，也可能乱序（先到“成功”，之后又到一条更早的“处理中”）。",
+    "- 一笔退款有了最终结果（成功或失败）之后，不应再被改回去。",
+    "- 订单关闭之后不能再发起退款。",
+    "- 退款成功后要通知账务系统记一笔，账务系统偶尔不可用。",
+    "EOF_FILE"
+  ],
+  "checks": [
+    {
+      "id": "design_written",
+      "role": "completion",
+      "kind": "path_present",
+      "path": "svc/docs/design.md"
+    },
+    {
+      "id": "source_untouched",
+      "role": "precision",
+      "kind": "blob_kept",
+      "path": "svc/app/main.py"
+    }
+  ],
+  "oracle": {
+    "good": [
+      "printf '# design\\n' > docs/design.md"
+    ],
+    "bad": [
+      {
+        "fails": [
+          "design_written"
+        ],
+        "commands": []
+      },
+      {
+        "fails": [
+          "source_untouched"
+        ],
+        "commands": [
+          "printf '# design\\n' > docs/design.md",
+          "printf '// changed\\n' >> app/main.py"
+        ]
+      }
+    ]
+  }
+}
