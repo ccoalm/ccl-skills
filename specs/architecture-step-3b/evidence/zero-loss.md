@@ -1,8 +1,8 @@
 # `product-rd-workflow` 入口瘦身的零丢失核对
 
-对照基线是 `origin/main` 上的 `skills/product-rd-workflow/SKILL.md`（233 行，75,615 字节）。瘦身后入口 26,887 字节，移出的文字在三个新参考文件里：`references/stage-classify-and-route.md`、`references/stage-plan-and-design.md`、`references/stage-quality-and-landing.md`。
+对照基线是 `origin/main` 上的 `skills/product-rd-workflow/SKILL.md`（233 行，75,615 字节）。瘦身后入口 26,909 字节（方案 11.12 测的就是这一版），移出的文字在三个新参考文件里：`references/stage-classify-and-route.md`、`references/stage-plan-and-design.md`、`references/stage-quality-and-landing.md`。
 
-核对方法：基线入口的每个非空行，把连续空白归一成一个空格后，在新入口和三个参考文件里做整行子串查找。202 行里 189 行找到，其中 188 行是整行相等，1 行是被并进一个更长的行；13 行没找到，逐行列在第二张表。
+核对方法：基线入口的每个非空行，把连续空白归一成一个空格后，在新入口和三个参考文件里做整行子串查找。202 行里 188 行找到，其中 187 行是整行相等，1 行是被并进一个更长的行；14 行没找到，逐行列在第二张表。
 
 这个方法证明的是文字都还在，不证明每条规则的上下文没变。上下文另查了两项：
 
@@ -54,14 +54,19 @@
 | 146 | 「per the entry-gate name→invoke rule above」 | 改成指向入口，其余逐字 |
 | 162 | 「the step-3 test-layer decision table」 | 加了所在文件名，其余逐字 |
 | 181 | 「run the Pre-Final Continuation Gate below」 | 改成指向入口，其余逐字 |
+| 203 | 标题「### External Skill Augmentation」 | 在 `stage-classify-and-route.md` 里是二级标题「## External Skill Augmentation」，正文逐字 |
 
-第 32、33 行是行为改动，有对照证据。其余 11 行只改了指向，因为原文里的「上文」「下文」在搬家后不再成立。
+第 32、33 行是行为改动，有对照证据。第 203 行只是标题级别不同。其余 11 行只改了指向，因为原文里的「上文」「下文」在搬家后不再成立。
 
 ## 入口新增的文字
 
 入口新增四处，都只规定何时加载哪个参考文件，没有改任何阶段规则的内容：
 
-- 开头的一段说明和触发点表。
-- 第 3 步的一条「You must load `references/stage-plan-and-design.md` …」。
-- 第 4 步的一条「You must load `references/stage-quality-and-landing.md` …」。
+- 开头的一段说明（「A stage's full text is in the reference at its firing point. Naming a reference is not loading it; a summary never narrows it.」）和触发点表。
+- 第 3 步的一条「You must load `references/stage-plan-and-design.md` at its firing point above …」。
+- 第 4 步的一条「You must load `references/stage-quality-and-landing.md` at its firing point above …」。
 - Scope 一节开头的一句，说明全文在 `stage-classify-and-route.md`。
+
+方案 11.11 那一版在开头多两句（「在触发点加载每个参考文件」和一条会改代码就先加载的分流规则），没有过字节线，当前版本已删掉。两句的作用由 `hooks/skill-loading.py` 的首次改源码检查点承担（方案 11.10）。
+
+入口里的摘要在方案 11.10 逐条和搬走的原文对过，补回了 13 处丢掉的触发条件、适用范围或时机。摘要只是索引：入口开头写明「a summary never narrows it」，规则以参考文件里的原文为准。

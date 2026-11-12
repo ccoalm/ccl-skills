@@ -1,17 +1,24 @@
 # 验证记录
 
-整条 lane 跑在提交 7b19cc2 的树上；本文件是之后唯一的改动。行为对照跑在提交 e205911 的技能文本上，之后技能文本只在清单第 3 条补了一句（方案 11.7）。本分支叠在 `specs/review-skill-file-bound/plan.md` 的修复之上。
+技能文本的最终版是方案 11.12 测的那一版（`product-rd-workflow` 入口 26,909 字节）。之后只改了 `specs/` 下的方案和证据文件，没有改技能文本、hook 或脚本。下表的检查都跑在最终提交上，提交号见 PR。
 
 | 检查 | 环境 | 结果 |
 | --- | --- | --- |
-| `CCL_BROAD_TEST_REASON=repo-required CCL_SKILL_BASE_REF=origin/main make test` | Linux，完整历史的克隆，含发布 tag，提交 7b19cc2 | 通过 |
-| `test_check_ccl_regressions.sh --heavy-only` | 同上 | 通过 |
-| `make eval-routing` | macOS | 无阻断项，无提示项 |
-| `check-ccl-skills.sh`（含体量闸、登记行锚点闸） | macOS | 通过；`agent-context/session-start.md` 7,796 → 7,796 字节，`product-rd-workflow` 入口没有增长 |
-| `python3 -m pytest hooks/test_task_entry.py` | macOS | 8 条通过 |
-| `python3 scripts/check-public-sanitization.py .` | macOS | 通过 |
-| `check_review_evidence_present.py`，fetch 目标分支之后 | macOS | 通过 |
-| `shared_git_surface_gate.py --base-ref origin/main`，含拟用的 PR 标题和正文 | macOS | 通过 |
-| 行为对照 | 见方案 11.6 | 60 次运行，40 次有效 |
+| `CCL_BROAD_TEST_REASON=repo-required CCL_SKILL_BASE_REF=origin/main make test` | Linux，含发布 tag 的完整历史克隆 | 见下方「最终提交」 |
+| `test_check_ccl_regressions.sh --heavy-only` | 同上 | 见下方「最终提交」 |
+| `make eval-routing` | macOS | 见下方「最终提交」 |
+| `check-ccl-skills.sh`（含体量闸、登记行锚点闸） | macOS | 见下方「最终提交」 |
+| `python3 -m pytest hooks/test_skill_loading.py hooks/test_task_entry.py` | macOS | 见下方「最终提交」 |
+| `python3 scripts/check-public-sanitization.py .` | macOS | 见下方「最终提交」 |
+| `check_review_evidence_present.py`，fetch 目标分支之后 | macOS | 见下方「最终提交」 |
+| `shared_git_surface_gate.py --base-ref origin/main`，含拟用的 PR 标题和正文 | macOS | 见下方「最终提交」 |
+| 设计任务对照 | 方案 11.12 | 36 次运行，33 次有效，过 10.6 |
+| 实现探针 | 方案 11.12 | 8 次运行，8 次有效；加载了 `product-rd-workflow` 的 6 次都在写代码前读了两个阶段参考文件 |
 
-评审见方案 11.7 和本目录下的结果文件：`review.json`、`challenge.json` 审的是第一版；`review-2.json`、`challenge-2.json`、`delta-2.json` 审的是第二版相对第一版新增的行为。
+## 最终提交
+
+（检查跑完后填写。）
+
+## 评审
+
+见方案 11.7 和本目录下的结果文件：`review.json`、`challenge.json` 审的是第一版；`review-2.json`、`challenge-2.json`、`delta-2.json` 审的是第二版相对第一版新增的行为；`review3a.json`、`review3b.json` 是第三版的独立评审（方案 11.10 的改动由它们触发）；`challenge-3*.json` 和 `delta-3*.json` 是第三版的对抗挑战和之后的增量复查。
