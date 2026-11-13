@@ -58,3 +58,19 @@ code), and later misses are recorded as known misses in the plan rather than
 patched pass by pass. Delete was considered and rejected: the observed miss
 (Bash writes reaching only Stop) is real, and the common forms are covered
 with measured precision.
+
+## Delta pass
+
+- Reviewed: the challenge fixes, `b3053e9..04901ac`, plus the register row;
+  the packet appends the full shell-write section and this record as context
+- Reviewer: Codex; findings: 5 (0 P0 / 0 P1 / 5 P2); result `delta-review.json`
+- This is the last external pass. Its fixes are dispositioned by tests that
+  failed first (`red-delta-fixes.txt`) and applied mutations (`mutation-walk.md`).
+
+| Finding | Disposition |
+| --- | --- |
+| Inline code was scanned line by line, so a triple-quoted example spanning lines read as a write, and a write call split across lines (`open(\n'…', 'w')`) was missed | Fixed. The code is scanned as one text: quotes span lines, and a comment ends at its newline. One row for each direction. |
+| The 256 cap was checked only between segments, so one `touch` with 1,000 operands resolved 1,000 paths | Fixed. The cap now bounds path work inside a segment, too: operands, inline-code matches and redirections each stop at 256. The test counts path resolutions, not only returned targets, so each of the three caps has its own failing mutant. |
+| Evidence gap: the packet omits `hooks/skill-loading.py`, the guard and routing | Out of this packet's scope by design. The challenge packet carried those files in full (`challenge.json` records its packet hash), and the delta does not change them. |
+| Evidence gap: `validation.md` and the lane results are not in the packet | Resolved by `validation.md`, which records each command's result on the final candidate. |
+| Evidence gap: the 5a decision is only referenced | `declared-unenforced-class.md` is committed in this branch and unchanged by the delta; it holds the prototype definition, the 9 hits by name and the samples. |

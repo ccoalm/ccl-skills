@@ -6,6 +6,7 @@ core/src/tools/context.rs. Unsupported evidence remains unverifiable.
 """
 import hashlib
 import importlib.util
+import itertools
 import json
 import os
 from pathlib import Path
@@ -267,12 +268,19 @@ _SHOW = {value: key for key, value in _HIDE.items()}
 
 
 def _live_syntax(line, comment='#'):
-    """Scan one line: a per-character mask (True = unquoted, unescaped code) and
-    the index where an unquoted comment starts (the line length when none)."""
-    live, quote, escaped = [], None, False
+    """Scan text: a per-character mask (True = unquoted, unescaped code) and the
+    index where the first unquoted comment starts (the length when none).
+
+    Quotes span lines, so a multi-line string stays text; a comment ends at
+    its newline.
+    """
+    live, quote, escaped, commented, first = [], None, False, False, len(line)
     quotes = ('"', "'", '`') if comment == '//' else ('"', "'")
     for index, char in enumerate(line):
-        if escaped:
+        if commented:
+            commented = char != '\n'
+            live.append(False)
+        elif escaped:
             escaped = False
             live.append(False)
         elif quote:
@@ -287,11 +295,12 @@ def _live_syntax(line, comment='#'):
         elif char in quotes:
             quote = char
             live.append(False)
-        elif line.startswith(comment, index) and (comment != '#' or not index or line[index - 1] in ' \t;&|()'):
-            return live + [False] * (len(line) - index), index
+        elif line.startswith(comment, index) and (comment != '#' or not index or line[index - 1] in ' \t\n;&|()'):
+            commented, first = True, min(first, index)
+            live.append(False)
         else:
             live.append(True)
-    return live, len(line)
+    return live, first
 
 
 def _heredocs(command):
@@ -367,18 +376,15 @@ def _operands(args, takes_value=()):
             skip = True
         elif not arg.startswith('-') or arg == '-':
             found.append(arg)
-    return found
+    return found[:MAX_TARGETS]
 
 
 def _code_targets(code, cwd, comment):
     """Write-call targets in inline code. A call counts only where it is live
     code: one inside a comment or a string literal is text."""
-    found = []
-    for line in code.split('\n'):
-        live = _live_syntax(line, comment)[0]
-        found += [_target(match[2], cwd) for pattern in WRITE_CALLS for match in pattern.finditer(line)
-                  if live[match.start()]]
-    return found
+    live = _live_syntax(code, comment)[0]
+    words = (match[2] for pattern in WRITE_CALLS for match in pattern.finditer(code) if live[match.start()])
+    return [_target(word, cwd) for word in itertools.islice(words, MAX_TARGETS)]
 
 
 MAX_TARGETS = 256  # bounds the path work one command can cause
@@ -397,7 +403,7 @@ def _segment(words, cwd, bodies, depth):
             if word in ('<<', '<<-'):
                 match = re.fullmatch(r'__ccl_heredoc_(\d+)', following)
                 heredoc = bodies[int(match[1])] if match and int(match[1]) < len(bodies) else heredoc
-            elif '>' in word and not following.isdigit() and following != '-':
+            elif '>' in word and not following.isdigit() and following != '-' and len(targets) < MAX_TARGETS:
                 targets.append(_target(following, cwd))
             if args and args[-1].isdigit():
                 args.pop()  # file-descriptor number, not an operand
@@ -521,7 +527,7 @@ def bash_write_targets(command, cwd, depth=0):
                 saved.append(cwd)
             elif char == ')' and saved:
                 cwd = saved.pop()
-    return list(dict.fromkeys(path for path in found if path))
+    return list(dict.fromkeys(path for path in found if path))[:MAX_TARGETS]
 
 
 def bounded_skill_source(path):

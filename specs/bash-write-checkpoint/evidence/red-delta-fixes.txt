@@ -1,0 +1,15 @@
+New rows for the delta-pass findings, run against 04901ac before the fixes.
+Every failure below is a row added for a finding; every pre-existing row passed.
+
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command="python3 - <<'EOF'\nwith open(\n        'hooks/gate.py', 'w') as out:\n    out.write('x')\nEOF")
+AssertionError: None != 'deny'
+FAIL: test_one_command_yields_a_bounded_number_of_targets (command='touch hooks/gate0.py')
+AssertionError: 1000 != 256
+FAIL: test_one_command_yields_a_bounded_number_of_targets (command='python3 -c "open(\'ho')
+AssertionError: 1000 != 256
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint (command='python3 - <<\'EOF\'\nexample = """\nopen(\'hooks/gate.py\', \'w\')\n"""\nprint(example)\nEOF')
+AssertionError: {'hookSpecificOutput': {'hookEventName': '[1673 chars]t.'}} != {}
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint
+AssertionError: 1 != 0
+Ran 35 tests in 23.312s
+FAILED (failures=5)

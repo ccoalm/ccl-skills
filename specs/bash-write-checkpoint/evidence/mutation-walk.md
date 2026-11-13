@@ -30,15 +30,19 @@ passed `hooks/test_skill_loading.py` first.
 | leave a `git mv` directory destination unmapped | shared-surface writes (`git mv /tmp/draft.py hooks/`) | same | yes |
 | ignore `bash -n` | read-only (`bash -n -c '… > hooks/gate.py'`) | same | yes |
 | ignore `env -C` / `--chdir` | read-only (`env -C /tmp touch …`, `env --chdir=/tmp touch …`) | same | yes |
+| scan inline code line by line | shared-surface write (`open(` split across lines) and read-only (triple-quoted example) | same | yes |
+| drop the operand cap | bounded-targets case (`touch` with 1,000 operands) | same | yes |
+| drop the inline-code cap | bounded-targets case (1,000 write calls) | same | yes |
+| drop the redirection cap | bounded-targets case (1,000 redirections) | same | yes |
 
 The first run of the `mv` mutant deleted the line and left an empty `if`
 body, which is a syntax error that failed every case. That is a failure for
 the wrong reason and was not counted; the mutant was re-applied as `pass`,
 and it then failed only its owning sub-case.
 
-Rows 11 to 18 cover the review fixes and rows 19 to 24 the challenge fixes.
+Rows 11 to 18 cover the review fixes, rows 19 to 24 the challenge fixes and rows 25 to 28 the delta-pass fixes.
 Each fix's rows were run first against the candidate that pass reviewed and
-failed there (`evidence/red-review-fixes.txt`, `evidence/red-challenge-fixes.txt`).
+failed there (`evidence/red-review-fixes.txt`, `evidence/red-challenge-fixes.txt`, `evidence/red-delta-fixes.txt`).
 The "keep comments in inline code" mutant was run on `b3053e9`; on the final
 candidate, comments and string literals share one mask, which the
 string-literal mutant covers. The read-only control case gives every

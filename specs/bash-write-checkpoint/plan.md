@@ -66,13 +66,15 @@ comment is text, not an operator. Quoted or escaped shell metacharacters are
 hidden before tokenizing, so `grep '>' file` is not a redirection. An unquoted
 `#` starting a word comments out the rest of its line. In inline code, a
 write call counts only where the call itself is live code: one inside a
-string literal or a `#` (Python, Ruby) or `//` (node) comment is text. Glued
+string literal (including one spanning lines) or a `#` (Python, Ruby) or `//`
+(node) comment is text, and a call split across lines still counts. Glued
 punctuation such as `)>` or `;>` is split into its separator and its
 redirection. `sed`/`perl` scripts attached to `-e` (`-e's/a/b/'`) count as
 the script. `bash -n -c` writes nothing. A command run through `env -C DIR` or
 `--chdir` yields no target, because its directory is not tracked. Commands
-over 64 KiB yield no target, and one command yields at most 256 targets; at
-that cap the hook's worst measured run is 0.43 s (`evidence/validation.md`).
+over 64 KiB yield no target, and one command resolves at most 256 paths per
+source (operands, inline-code write calls, redirections). The hook's worst
+measured run at the input cap is in `evidence/validation.md`.
 
 Known misses (stay on the stop backstop, quiet side): words containing `$` or
 backticks, `git -C`, `find -exec`, `xargs`, `git apply`/`checkout`/`restore`,

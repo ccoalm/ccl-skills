@@ -229,6 +229,7 @@ class SkillLoadingTests(unittest.TestCase):
             "perl -pi -e's/a/b/' hooks/gate.sh",
             "sed -i -e's/a/b/' hooks/gate.sh",
             'git mv /tmp/draft.py hooks/',
+            "python3 - <<'EOF'\nwith open(\n        'hooks/gate.py', 'w') as out:\n    out.write('x')\nEOF",
         ]
         for index, command in enumerate(commands):
             with self.subTest(command=command):
@@ -285,6 +286,7 @@ class SkillLoadingTests(unittest.TestCase):
             "bash -n -c 'echo x > hooks/gate.py'",
             'env -C /tmp touch hooks/gate.py',
             'env --chdir=/tmp touch hooks/gate.py',
+            "python3 - <<'EOF'\nexample = \"\"\"\nopen('hooks/gate.py', 'w')\n\"\"\"\nprint(example)\nEOF",
             'echo x > /tmp/x.md ' + ' ' * 70000 + '> hooks/gate.sh',
         ]
         # A fresh actor per command: one false positive must not spend the
@@ -294,6 +296,25 @@ class SkillLoadingTests(unittest.TestCase):
                 self.assertEqual(self.run_hook(self.bash(command, root, 'quiet-%d' % index)), {})
         self.assertEqual(self.attempts(), 0)
         self.assertEqual(self.decision(self.run_hook(self.payload())), 'deny')
+
+    def test_one_command_yields_a_bounded_number_of_targets(self):
+        spec = importlib.util.spec_from_file_location('ccl_host_input_bound', ROOT / 'hooks/host-input.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        operands = ' '.join('hooks/gate%d.py' % index for index in range(1000))
+        code = "python3 -c \"" + ''.join("open('hooks/w%d.py', 'w'); " % index for index in range(1000)) + "\""
+        redirects = 'echo x ' + ' '.join('>hooks/r%d.py' % index for index in range(1000))
+        resolve = module._target
+        for command in ('touch ' + operands, code, redirects):
+            with self.subTest(command=command[:20]):
+                self.assertLess(len(command), 65536)
+                calls = []
+                # The bound is on path work, not only on the returned list.
+                with patch.object(module, '_target', side_effect=lambda *a: calls.append(a) or resolve(*a)):
+                    targets = module.bash_write_targets(command, str(self.root))
+                self.assertLessEqual(len(calls), module.MAX_TARGETS)
+                self.assertEqual(len(targets), module.MAX_TARGETS)
+                self.assertTrue(targets[0].endswith(('gate0.py', 'w0.py', 'r0.py')))
 
     def test_bash_write_with_the_extraction_owner_loaded_is_not_checkpointed(self):
         root = self.shared_files()
