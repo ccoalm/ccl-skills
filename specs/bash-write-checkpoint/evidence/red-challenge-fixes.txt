@@ -1,0 +1,14 @@
+New rows for the challenge findings, run against b3053e9 before the fixes.
+Every failure below is a row added for a finding; every pre-existing row passed.
+
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='(printf x)>hooks/gate.py')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='printf x;>hooks/gate.py')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command="perl -pi -e's/a/b/' hooks/gate.sh")
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command="sed -i -e's/a/b/' hooks/gate.sh")
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='git mv /tmp/draft.py hooks/')
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint (command='python3 - <<\'EOF\'\nprint("open(\'hooks/gate.py\', \'w\')")\nEOF')
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint (command="bash -n -c 'echo x > hooks/gate.py'")
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint (command='env -C /tmp touch hooks/gate.py')
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint (command='env --chdir=/tmp touch hooks/gate.py')
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint
+FAILED (failures=10)

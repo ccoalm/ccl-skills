@@ -180,6 +180,7 @@ def handle(payload, base):
     event = payload.get('hook_event_name')
     tool = payload.get('tool_name')
     module = normalizer()
+    shell = False
     if event in ('PreCompact', 'PostCompact'):
         lane = 'compact'
     elif event == 'PreToolUse' and tool in ('Task', 'Agent', 'spawn_agent'):
@@ -195,6 +196,18 @@ def handle(payload, base):
                 or any(Path(path).suffix.lower() == '.md' for path in shared)):
             return base
         lane = 'implementation'
+    elif event == 'PreToolUse' and tool == 'Bash':
+        # Shell writes reach this checkpoint only for the shared surface and only
+        # to carry the extraction owner; other shell writes stay unchecked here,
+        # because a false positive would spend the context's single attempt.
+        args = payload.get('tool_input')
+        command = args.get('command') if isinstance(args, dict) else None
+        edit_cwd = payload.get('cwd') if isinstance(payload.get('cwd'), str) else os.getcwd()
+        shared = [path for path in shared_skill_paths(module.bash_write_targets(command, edit_cwd), edit_cwd)
+                  if Path(path).suffix.lower() in SOURCE_EXTENSIONS or Path(path).suffix.lower() == '.md']
+        if not shared:
+            return base
+        lane, shell = 'implementation', True
     else:
         return base
     key, path = actor(payload)
@@ -257,12 +270,16 @@ def handle(payload, base):
         loaded = summary.get('completed_skills', []) if complete else []
         if lane == 'delegation' and 'ccl-skills:multi-agent-delegation' in loaded:
             return base
+        if shell and EXTRACTION_OWNER in loaded:
+            return base
         if lane == 'delegation':
             reason = ('Delegation skill checkpoint: load ccl-skills:multi-agent-delegation in this actor\'s '
                       'current context before dispatch. A prior-context read, a name, or a partial read is '
                       'not current full-load evidence. ')
         else:
-            reason = ('First source-edit skill checkpoint: this edit attempt did not execute. Before retrying, '
+            reason = ('First source-edit skill checkpoint: this '
+                      + ('shell command writes a file and' if shell else 'edit attempt')
+                      + ' did not execute. Before retrying, '
                       'apply the canonical routing rule and load the owning implementation skill if missing '
                       'from the current context. If already loaded, apply it without unnecessary re-reading. ')
             if shared and EXTRACTION_OWNER not in loaded:

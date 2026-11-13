@@ -1,0 +1,17 @@
+New rows for the review findings, run against the reviewed candidate (7af702b) before the fixes.
+Every failure below is a row added for a finding; every pre-existing row passed.
+
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='# <<EOF\nprintf x > hooks/gate.sh')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command="echo 'a <<EOF'\nprintf x > hooks/gate.sh")
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='(cd /tmp); printf x > hooks/gate.sh')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='cd /tmp | true; printf x > hooks/gate.sh')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='rsync -t /tmp/draft.py hooks/gate.py')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='rm -r hooks/gate.sh')
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint (command='python3 -c "# open(\'hooks/gate.py\', \'w\')"')
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint (command='node -e "// require(\'fs\').writeFileSync(\'hooks/gate.mjs\', \'x\')"')
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint (command='git rm -n -- hooks/gate.sh')
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint (command='git mv --dry-run hooks/gate.sh hooks/moved.sh')
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint (command='rsync -n /tmp/draft.py hooks/gate.py')
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint (command='rsync -av --dry-run /tmp/draft.py hooks/gate.py')
+FAIL: test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint
+FAILED (failures=13)
