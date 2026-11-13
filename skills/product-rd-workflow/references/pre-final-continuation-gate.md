@@ -87,6 +87,8 @@ If over-polishing around deferred evidence recurs, or the user flags it as a reu
 
 The entrypoint uses `proposed-next:` as an observable handoff, not an authorization token. The contract follows the delivery across status answers, questions, reviews, and dispatched owners, before or after a slice lands. Progress messages need no ritual marker to preserve a user's request.
 
+A `proposed-next:` action is one the Agent can start without a reply. Do not write an action conditioned on the requester's answer ("after you confirm …, I will …"): decide what has a defensible default and name the real next step, or, when the request fenced the scope (design only, document only), name the next step outside that scope as the plain action, with no "once you confirm" or "when you give the go-ahead" in front of it — the requester's reply is the go-ahead. Only a decision that passes the stop conditions below is reported, as `proposed-next: blocked: <action> — <the one decision or resource missing>`; the sole-owner rule in `agent-context/session-policy.md`「请求者即唯一负责人」 says which decisions those are.
+
 At the start of the next turn, recover intent in this order:
 
 1. Follow the current explicit user instruction, including a correction, changed scope, stop, or status-only request. A clarifying question is not a status-only request: answer it, then continue the active authorized action unless the user also stopped it.

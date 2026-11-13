@@ -12,7 +12,7 @@ description: 产品需求沟通 / 需求讨论完善 / 产品需求澄清 / 澄�
 1. **证据不足不得写成事实。** 每条结论标来源；缺来源的事实交 `requirement-baseline`，不自行推断。
 2. **描述性证据不决定产品承诺。** 代码、数据、配置只补事实，不裁决产品口径。
 3. **关闭表只补自己那部分。** 唯一 canonical 是 `requirement-doc-writer/references/requirement-closure-contract.md`。本技能只补用户价值、问题、方案关联、产品口径、路径和验收字段，逐字段记录 closure_method/source、decision_authority 和所需 decision_evidence，**只提出行状态候选，不得把整行设为 `closed`**。
-4. **自动填写的边界。** 仅凭可引用的已批准 policy，才可以 `bounded-agent-policy` 为 decision_authority 批量确定单个 `low-risk-default` 非核心字段；没有该 policy 时保持 open 或转 `human-decision`。不得升级为核心承诺。
+4. **自动填写的边界。** 仅凭可引用的已批准 policy，才可以 `bounded-agent-policy` 为 decision_authority 批量确定单个 `low-risk-default` 非核心字段；没有该 policy 时保持 open 或转 `human-decision`。不得升级为核心承诺。请求者即唯一负责人时，能给出推荐默认值的 `human-decision` 字段按关闭契约第 4 档 `requester-default` 确定，不留作追问。
 5. **PRD Ready 不由本技能判。** 完整 PRD 正文只有在完整 lifecycle 判定 `PRD Ready` 后才转 `requirement-doc-writer`；未关闭时只交接关闭表和下一动作。
 6. **「非目标」在这里是意图级**——本轮不追求的目标、容易被误解成目标而排除的诉求。变更级的「本轮不改哪些对象」属 `requirement-scope`。同理「验收」在这里是功能点的 pass/fail 条件，不是切片验收边界。
 
@@ -44,7 +44,7 @@ description: 产品需求沟通 / 需求讨论完善 / 产品需求澄清 / 澄�
 5. 分离事实与假设：每条结论标注来源；缺来源的事实交 `requirement-baseline`。
 6. 明确意图级非目标并整理讨论：分开记录争议、已决、未决和下一动作。
 7. 更新 `需求点关闭表`（按硬约束 3、4）：只知道 owner 而没有明确决定记录时保持 open/blocked。
-8. 最小化追问：批量处理可自动项后，只提出一组仍阻塞的 `human-decision` 问题；每题给候选方案、推荐、代价、accountable owner 和受影响 requirement/P0。Agent 维护完整机器账本，产品人员无需逐格填写。需要一问一答压力测试时转 `grill-me`。
+8. 最小化追问：批量处理可自动项后，只提出一组仍阻塞的 `human-decision` 问题；每题给候选方案、推荐、代价、accountable owner 和受影响 requirement/P0。请求者即唯一负责人时（`agent-context/session-policy.md`「请求者即唯一负责人」）owner 写「请求者」，问题只留关闭契约第 4 档没有覆盖的取舍，澄清文档照常写完，不以等答复收尾。Agent 维护完整机器账本，产品人员无需逐格填写。需要一问一答压力测试时转 `grill-me`。
 9. 写验收点并交接：每个功能点至少一个可观察 pass/fail 条件；安全命中项补负向验收；把完整关闭表交回 lifecycle 或下一窄 owner。
 
 ## 不用本技能，改用谁
@@ -64,7 +64,7 @@ description: 产品需求沟通 / 需求讨论完善 / 产品需求澄清 / 澄�
 
 - 产品意图、目标用户、成功标准三者都有明确记录，或明确列为 `human-decision` 待关闭项。
 - 每个功能点至少有一个**可观察的** pass/fail 验收条件（不是「体验更好」这类不可判定表述）。
-- 已知与未知分开；每条已知有来源，每条未知有 accountable owner。
+- 已知与未知分开；每条已知有来源，每条未知有 accountable owner（请求者即唯一负责人时就是请求者，不新造角色）。
 - 用户路径含异常/取消/回退，不只主路径。
 - 关闭表没有任何整行被设为 `closed`；自动填写项都能指出所依据的已批准 policy。
 - 安全 4 问：记了「无命中」，或四项逐条答案 + 写明所依据的 canonical 文件名；读取不可得时写了 `不可得(<原因>)` 并把本节标 interim。
@@ -76,7 +76,7 @@ description: 产品需求沟通 / 需求讨论完善 / 产品需求澄清 / 澄�
 - 产品意图：
 - 目标用户 / 场景：
 - 已知事实（含来源）：
-- 未知 / 待确认（含 owner）：
+- 未知 / 待确认（含 owner；请求者即唯一负责人时，已按默认值定下的另列「已按默认值确定（可改）」，这里只留真正要请求者定的）：
 - 用户路径：
 - 非目标（意图级）：
 - 沟通记录 / 争议点：

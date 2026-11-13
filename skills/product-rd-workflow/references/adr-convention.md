@@ -18,7 +18,7 @@
 - **不可逆 / 6 个月以上承诺**：数据 schema 大变；公开 API 上线后改要做 deprecation 周期
 - **存在被明确拒绝的备选**：选 A 不选 B 且 B 不是 trivial naive 选项
 - **非显然 trade-off**：决策有副作用 / 代价，且代价不在 code/commit 里能恢复出
-- **多团队 sign-off**：决定需要跨团队同意才能推进
+- **多团队 sign-off**：决定需要跨团队同意才能推进（确有多个团队时才成立；只有请求者一人负责时不因此触发）
 - **迁移 / 废弃策略**：旧系统下线节奏；新旧系统并行窗口
 
 **不触发**（明确**不**写 ADR）：
@@ -68,7 +68,7 @@
 |---|---|---|
 | **Number** | 顺序编号 `0001`、`0002`...（Nygard 操作约定，技术上非 template 字段）| ✅ |
 | **Date** | YYYY-MM-DD 决定生效日期 | 推荐 |
-| **Author / Decider** | 谁拍板（多人 sign-off 列全）| 推荐 |
+| **Author / Decider** | 谁拍板（多人 sign-off 列全；只有请求者一人负责时写「请求者」或省略本栏，不新造 Decider，见 `agent-context/session-policy.md`「请求者即唯一负责人」）| 推荐 |
 | **Related ADRs** | 引用 / 取代 / 被取代的 NNNN | 推荐 |
 
 **反模式**：写 "5 个备选方案 + 全 trade-off matrix" — 那属 spike / RFC 阶段产物。若 analysis 体量大，**分离 spike doc + ADR**（spike 记 evaluation，ADR 记最终决定 + 选择理由摘要 + consequences）。
@@ -100,7 +100,7 @@ Reviewer 见以下任一即 block "需先有 ADR"：
 - 公开 API / event schema / auth flow 变更
 - 数据 schema migration 或字段 deprecation
 - 不可逆 data model 改动
-- 跨团队 sign-off 决定
+- 跨团队 sign-off 决定（确有多个团队时）
 - 长期 config 默认值变更影响 client-visible 行为 / SLO
 
 implementation PR 不能在缺 ADR 时 merge；先开 ADR PR → review pass → ADR Accepted → implementation PR 引用 ADR number。

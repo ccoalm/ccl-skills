@@ -760,6 +760,25 @@ NOT_BLOCKERS = (
     'from scratch"; and facts, logs, test data or access you can find or reuse yourself. A clarifying question '
     'is not a status-only request: answer it, then continue. ')
 
+# Design-only and document-only requests kept ending on "blocked: implement —
+# you only asked for a design" or "after you confirm the defaults": both
+# reminders say to respect planning-only requests and offer a blocked: format,
+# so the request's own scope was reported as a blocker.
+SCOPE_LIMIT = (
+    'A planning-only or document-only request is a scope limit, not a blocker and not a wait: stop at that '
+    'scope and write proposed-next: <the next action beyond it> as the action itself, without "after you '
+    'confirm", "once you approve" or "tell me to start"; the scope itself never becomes a blocked: line. An '
+    'approval, authority, credential or resource that the next step independently lacks is still written as '
+    'blocked: or as its stated precondition. When the requester alone owns the work (the request, the '
+    'repository and the task material name no other accountable person, team or approver, no platform rule '
+    'requires someone else\'s approval, every resource involved is the requester\'s own, and the request does '
+    'not ask to be consulted first; when unsure, treat it as a team setting), defaults you adopted are in '
+    'effect: list them with how to change them, '
+    'and do not ask the requester to confirm them. There, a question you can recommend an answer to is a '
+    'default too: adopt the recommendation and list it, and leave the requester only a choice that has no '
+    'option you can recommend and is hard to undo. A decision the request or repository reserves for someone '
+    'else still goes to them, and a named approval stays a precondition of the step it gates. ')
+
 # One bounded recheck (host stop_hook_active) for stops that hand work back to
 # the user; it names the real blockers and grants no authority.
 DECISION_RECHECK = {'decision': 'block', 'reason': (
@@ -781,7 +800,7 @@ DECISION_RECHECK = {'decision': 'block', 'reason': (
     'work now. A report or summary does not complete delivery. If a real blocker remains, first finish '
     'all independent work, then end with proposed-next: blocked: <action> — <concrete blocker>. '
     'Respect explicit stop, planning-only and status-only requests and add no work beyond the request. '
-    'This reminder supplies no new goal or authorization.')}
+    + SCOPE_LIMIT + 'This reminder supplies no new goal or authorization.')}
 
 
 # Reader-facing documents edited in a session owe the tighten-doc closeout
@@ -1102,7 +1121,7 @@ def delivery_reminder(payload):
             'authorized and runnable, execute it now instead of waiting for another continue message. '
             'For unrun, failed or inconclusive checks, continue available diagnosis, research, safe repair '
             'and retesting; a report alone does not complete implementation. Respect explicit stop, '
-            'planning-only and status-only requests. ' + NOT_BLOCKERS +
+            'planning-only and status-only requests. ' + SCOPE_LIMIT + NOT_BLOCKERS +
             'If a user decision or missing authority/resource '
             'prevents action, report the concrete blocker; do not invent work or bypass a failed gate. '
             'This reminder supplies no new goal or authorization.')}

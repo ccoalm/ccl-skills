@@ -11,7 +11,7 @@ description: 写 PRD / 需求文档 / 产品需求文档 / 需求说明 / user s
 
 1. **Ready 是门，不是措辞。** 只消费带 `product`、`version`、`scope`、`closure_table_revision`、`behavior_inventory_revision`、`issued_at` 绑定的 lifecycle-issued `PRD Ready`；绑定不匹配或输入变化时回 lifecycle 重判。任一 P0 行不是 `closed`、或 Ready 条件任一不满足，**不得生成 PRD**。用语本身不决定状态，关闭表语义才是门。
 2. **`PRD Not Ready` 时不得输出 PRD 标题、目录、骨架、模板或正文**；WIP、讨论稿、会议材料也不得命名为 PRD。此时只输出产品决策视图并保留机器账本引用，不删底层审计字段。
-3. **writer 不改事实。** 不得修改推导、决策权、决策证据或行状态；不得把 `human-decision` 字段改成自动确定；不得设置整行 `closed`。
+3. **writer 不改事实。** 不得修改推导、决策权、决策证据或行状态；不得把 `human-decision` 字段改成自动确定（关闭契约第 4 档 `requester-default` 是请求者授权，不属于自动确定）；不得设置整行 `closed`。
 4. **writer 不做技术设计。** 不得设计 Agent 技术 schema、prompt/model policy、tool contract 或 eval 实现——分别转 `llm-inference-integration`、架构/技术栈 owner 与 `testing-strategy`；writer 只检查命名引用、适用版本、owner 和逐条可追踪性在机器侧是否完整。
 5. **不冒充设计 owner。** UI/用户可见产品的 IA、交互、页面状态和原型由 `product-ui-ux-design` 产出或审核，writer 只转写已确认内容。
 
@@ -113,7 +113,7 @@ Agent/Machine Spec 引用（仅在涉及 Agent/LLM/RAG/自动判断时）
 - 待决定问题：
 - 候选 / 推荐：
 - 代价：
-- accountable_owner：<具名且有权限的人类 owner>
+- accountable_owner：<具名且有权限的人类 owner；请求者即唯一负责人时写「请求者」>
 - 受影响 requirement / P0：
 
 下一动作

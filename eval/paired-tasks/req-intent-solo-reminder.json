@@ -1,0 +1,67 @@
+{
+ "schema_version": 1,
+ "id": "req-intent-solo-reminder",
+ "measures": "A requirement-clarification request on a project the requester says is theirs alone: does the agent write the clarification document and leave the code alone?",
+ "not_measured": "The quality of the document, who it names as responsible, and how the reply ends: these checks only see that the document exists and that the content of one set-up source file still exists somewhere in the world. eval/owner-role-audit.py reads the saved run afterwards and counts named people or roles, questions left for the requester, and replies that end waiting for confirmation.",
+ "samples": 5,
+ "timeout_seconds": 1500,
+ "cwd": "notes",
+ "prompt": "这是我自己一个人做的小工具，没有别人参与。docs/idea.md 是我想加的功能，帮我把需求澄清清楚，结果写到 docs/requirement-intent.md。",
+ "setup": [
+  "mkdir -p notes/docs",
+  "cat > notes/README.md <<'EOF_FILE'",
+  "# notes",
+  "",
+  "命令行笔记工具，Python。笔记存本地 SQLite，没有账号体系，没有服务端。",
+  "EOF_FILE",
+  "mkdir -p notes/src",
+  "cat > notes/src/main.py <<'EOF_FILE'",
+  "def main():",
+  "    pass",
+  "EOF_FILE",
+  "cat > notes/docs/idea.md <<'EOF_FILE'",
+  "# 想法：到期提醒",
+  "",
+  "- 给笔记加一个到期时间，到点提醒我。",
+  "- 提醒过的不要再提醒；我可以往后推一天。",
+  "- 电脑关机期间错过的提醒，开机后补一次，不要补一堆。",
+  "- 笔记删掉以后提醒也要没有。",
+  "EOF_FILE"
+ ],
+ "checks": [
+  {
+   "id": "document_written",
+   "role": "completion",
+   "kind": "path_present",
+   "path": "notes/docs/requirement-intent.md"
+  },
+  {
+   "id": "stub_content_kept",
+   "role": "precision",
+   "kind": "blob_kept",
+   "path": "notes/src/main.py"
+  }
+ ],
+ "oracle": {
+  "good": [
+   "printf '# doc\\n' > docs/requirement-intent.md"
+  ],
+  "bad": [
+   {
+    "fails": [
+     "document_written"
+    ],
+    "commands": []
+   },
+   {
+    "fails": [
+     "stub_content_kept"
+    ],
+    "commands": [
+     "printf '# doc\\n' > docs/requirement-intent.md",
+     "printf '# changed\\n' >> src/main.py"
+    ]
+   }
+  ]
+ }
+}

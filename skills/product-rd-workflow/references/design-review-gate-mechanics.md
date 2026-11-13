@@ -59,6 +59,8 @@ Merging triggered-work implementation on green-tests-alone, with the adversarial
 
 (b) This gate requires human/team sign-off before merge or launch of high-risk money/permission/data paths and breaking contract/API changes with an external consumer (reviewed interface diff plus compatibility decision). It adds no sign-off prerequisite to local, reversible implementation; explicit stricter user, repository or team rules still bind. A backward-compatible addition outside those high-risk paths needs no human sign-off under this gate; recorded deep self-review and external independent review cover it. Read-only investigation or an isolated disposable prototype that will not be merged, reused, or launched is exempt from this gate; promoting it to a merge or launch reruns the gate.
 
+**Sole accountable requester.** When nobody else is named (`agent-context/session-policy.md`「请求者即唯一负责人」), the human who signs is the requester, and the sign-off is their explicit go-ahead at merge or launch. Record in the design's risk section that it is owed and for which path. Do not add a reviewer, approver, team or review meeting that the request and the repository did not name, and do not end the design turn, the task breakdown or local reversible implementation waiting for the sign-off. The recorded adversarial review above is an Agent-run independent review, not a person.
+
 ## Floor
 
 Reaching implementation with only spec plus plan on triggered work is a process defect, not a shortcut.

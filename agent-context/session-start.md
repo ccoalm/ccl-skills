@@ -26,7 +26,7 @@ Route by deliverable and descriptions; load the owner before work. Naming is not
 
 **Recovery:** Startup evidence is an index, not current truth. Before judging earlier work verify repository contracts, Git, durable task state, history and CI/test evidence; attribute history to this repository first. Long/delegated work stays anchored to its durable spec/plan, delegation state or source-register.
 
-**Decide, don't ask:** Stop for the user only on missing credentials/authority, facts local evidence lacks, actions the safety rules gate, overturning their direction, or a product tradeoff evidence cannot settle. Security questions, owner skills, modules, approaches, tests, names and the next in-scope step are yours: decide, state the assumption, continue. “Owner” is a skill or code owner, not a person; ordinary changes need no human review or sign-off. A blocked step never stops independent work.
+**Decide, don't ask:** Stop only on missing credentials/authority, facts evidence lacks, actions the safety rules gate, overturning user direction, or a product tradeoff with no defensible default. Security questions, owner skills, approaches, tests, next steps are yours: decide, state assumptions, continue. Nobody else named, own resources: the requester is every human role; invent no approver/sign-off, end on no confirmation wait (session-policy 唯一负责人). Blocked steps never stop other work.
 
 **User direction:** Model agreement is evidence, not a decision; before overturning an established user direction explain missing context and the cost of being wrong（详见 tighten-doc cross-model caveat）.
 

@@ -11,11 +11,11 @@
 | 版本/范围 | `current_version`、`in`、`out`、`deferred`，以及适用时的 appetite/砍项 |
 | 异常/边界 | `failure`、`cancel`、`rollback/recovery`、`compatibility`，以及适用时的 `security/permission` |
 | 验收 | `positive`、`negative`、`boundary`、`evidence_shape` |
-| `closure_method` | 字段如何得到：`evidence-derived`、`low-risk-default` 或 `human-decision` |
+| `closure_method` | 字段如何得到：`evidence-derived`、`low-risk-default`、`human-decision` 或 `requester-default` |
 | `decision_authority` | 谁有权决定该字段：`descriptive-fact`、`bounded-agent-policy`、有权限的人类 owner，或仍有效且有批准记录的规范性产品来源；`bounded-agent-policy` 表示授权来自已批准的有界 Agent policy，而非 Agent 或模型自身 |
 | `decision_evidence` | 明确回答或已批准决策记录的 source/ref、`decided_at`、适用 version/scope |
 | `status` | 整条 requirement 的状态：`open`、`blocked`、`closed` 或 `deferred` |
-| `accountable_owner` | 当前人类用户，或具名、可追责且有相应决策权的人类角色 |
+| `accountable_owner` | 当前人类用户，或具名、可追责且有相应决策权的人类角色；请求者即唯一负责人时一律写「请求者」，不新造角色 |
 | `reopen_condition` | 哪类新事实、冲突、变化或撤销会重开 |
 
 每个已填字段都必须携带自己的 `closure_method`、source、`decision_authority`；产品承诺字段还必须有 `decision_evidence`。不得用一组行级元数据代替逐字段记录。复合字段按上述子项判定：任一适用子项为 open，复合字段和整行均不能 `closed`；把子项判为不适用也必须有合法依据。
@@ -29,13 +29,17 @@
 1. 当前人类用户，或具名、可追责且具备该项决策权的人类 owner 的明确决定。
 2. 仍有效、已批准并带人类 owner/批准记录的规范性产品来源；使用旧来源前核验版本、scope 和 freshness。
 
-Agent、模型、skill、workflow、工具，以及“产品团队”“需求负责人”等泛称不能签署。推荐、会议总结或 Agent 生成的关闭表不能反向成为授权证据。只知道 owner 角色但没有明确决定记录时，字段和整行保持 `open` / `blocked`。
+Agent、模型、skill、workflow、工具，以及“产品团队”“需求负责人”等泛称不能签署。推荐、会议总结或 Agent 生成的关闭表不能反向成为授权证据。只知道 owner 角色但没有明确决定记录时，字段和整行保持 `open` / `blocked`；请求者即唯一负责人时改走下面第 4 档。
 
 ## 三档关闭权限
 
 1. **`evidence-derived` 可自动确定字段**：一手来源可确定 as-is 描述性事实；仍有效且具备上述批准记录的规范性产品来源可确定其授权范围内的产品承诺。每个字段记录 source、推导、版本、freshness、适用范围、冲突检查和重开条件。
 2. **`low-risk-default` 可自动确定单个非核心字段**：`decision_authority` 必须记为 `bounded-agent-policy`，表示授权来自仍有效、已批准且可引用的有界 Agent policy，而非 Agent 或模型自身。只限该 policy 和既有规则均允许的单个非核心、低风险、可逆展示或表达细节。每个字段的 `decision_evidence` 必须记录 policy ref/version/scope、该字段为何落在允许范围、默认值、影响、撤销方式和 `reopen_condition`。不得用于产品承诺、P0 范围、核心路径、验收、数值阈值、安全、权限、数据语义、整个需求点、整行状态或商业口径。没有可引用的已批准 policy 时不得使用 `low-risk-default`；字段保持 `open`，或转为 `human-decision`。
 3. **`human-decision` 必须由 accountable owner 决定字段**：产品方向、目标用户、核心路径、P0 in/out、商业模式、成功指标、多个方案的实质权衡、身份、权限、计费、隐私、合规、删除、覆盖和外部公开。Agent 只能给候选方案、推荐和代价，不能代签。
+
+4. **`requester-default` 由请求者的本次请求授权**：只在请求者即唯一负责人（判定见 `agent-context/session-policy.md`「请求者即唯一负责人」）、且请求没有要求先征询时可用；团队场景不得使用。请求者把这份产物交给 Agent 来写，就是授权未说明处按推荐默认值先行。适用于第 3 档里能给出推荐默认值的字段：`decision_authority` 记「请求者（本次请求）」，`decision_evidence` 记请求的 ref、所取默认值、理由、错了的代价和改法，`reopen_condition` 记「请求者改口」；字段据此确定，整行状态和 `PRD Ready` 仍按各自的门判定。两类字段另行处理：
+   - 证据推不出倾向、且实现之后难改的取舍：保持 `human-decision`，连同候选和倾向一次问完；其余字段不等它。
+   - 身份、权限、计费、隐私、合规、删除、覆盖和外部公开：取最保守的默认值确定字段，并在该行标 `上线前复核`。这个标记必须进入人读 PRD 的风险部分，写明默认值和上线前要由请求者复核的原因；它只约束上线那一步，不阻止文档生成和局部可逆的开发，交付时也不为它向请求者要确认。
 
 `bounded-agent-policy` 的批准者必须是当前人类用户，或具名、可追责且具有 policy 治理权的人类 owner。Policy evidence 必须包含批准记录/ref、approver、`approved_at`、version 和 scope。当前用户对具体任务的明确授权可作为 task-scoped policy evidence；持久或跨任务 policy 必须有仓库内稳定引用及人类批准记录。同一 Agent/模型不得在当前任务中生成 policy 后自我引用授权；未经人类批准的 repo 文档、会议总结和关闭表均不是 policy。
 
@@ -58,8 +62,8 @@ Agent 只能自动确定具体字段，不能自动关闭整条 requirement。`r
 ## 分层视图与产物
 
 - **机器账本**：保留完整关闭表及全部逐字段元数据。Agent 负责维护，产品人员无需手工逐格填写。
-- **产品决策视图**：只显示待决定问题、候选/推荐、代价、`accountable_owner`、受影响的 requirement/P0，以及机器账本引用。
-- **人读 PRD**：承载产品理解和面向读者的决策；用户可见/UI 内容必须由设计 owner 确认，非 UI 产品记录原型 N/A 的依据。具体正文和原型合同见[本技能“流程明细与原型合同”](../SKILL.md#流程明细与原型合同)。
+- **产品决策视图**：只显示待决定问题、候选/推荐、代价、`accountable_owner`、受影响的 requirement/P0，以及机器账本引用。请求者即唯一负责人时，这里只剩第 4 档留下的那一类取舍；已按 `requester-default` 确定的字段列为「已按默认值确定，可改」，不列为待决定。
+- **人读 PRD**：承载产品理解和面向读者的决策；用户可见/UI 内容必须由设计 owner（`product-ui-ux-design`，是技能不是人）确认，非 UI 产品记录原型 N/A 的依据。具体正文和原型合同见[本技能“流程明细与原型合同”](../SKILL.md#流程明细与原型合同)。
 - **Agent/Machine Spec（如适用）**：承载数据结构/字段合同、实现合同、逐条需求追踪关系、评估计划，以及技术验证证据的引用与状态等机器合同与技术细节。
 
 关闭表是生成这些视图和产物的输入与证据，不等于人读 PRD 正文。不得把完整关闭表、逐字段关闭元数据、机器侧逐条 requirement inventory 或完整追踪矩阵直接投影进人读 PRD；人读 PRD 仍须完整说明面向读者的产品模块和能力，并只保留机器账本、Agent/Machine Spec 和测试证据的名称、位置、版本、owner 等最小引用。分层不得删除底层审计字段，也不得遗漏已关闭产品决定、关键业务规则、阈值、权限/安全边界、依赖和验收。
