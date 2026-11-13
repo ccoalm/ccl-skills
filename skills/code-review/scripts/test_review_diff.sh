@@ -24,6 +24,23 @@ note_fail() {
 # real reviewer CLI installed next to python3.
 mkdir -p "$work/sysbin"
 for tool in git python3; do ln -sf "$(command -v "$tool")" "$work/sysbin/$tool"; done
+# The tests also run timeout and setsid under that PATH. macOS has neither in
+# /usr/bin: take timeout from coreutils (gtimeout under Homebrew) and stand in
+# for setsid with os.setsid, so a fake still starts a new session.
+timeout_bin="$(command -v timeout || command -v gtimeout || true)"
+if [ -z "$timeout_bin" ]; then
+  printf 'test_review_diff.sh needs timeout (GNU coreutils; macOS: brew install coreutils)\n' >&2
+  exit 1
+fi
+ln -sf "$timeout_bin" "$work/sysbin/timeout"
+if setsid_bin="$(command -v setsid)"; then
+  ln -sf "$setsid_bin" "$work/sysbin/setsid"
+else
+  printf '#!%s\nimport os, sys\nos.setsid()\nos.execvp(sys.argv[1], sys.argv[1:])\n' \
+    "$(command -v python3)" >"$work/sysbin/setsid"
+  chmod +x "$work/sysbin/setsid"
+  "$work/sysbin/setsid" true  # first exec of a new script is slow on macOS; see make_fakes
+fi
 TEST_PATH="$work/bin:$work/sysbin:/usr/bin:/bin"
 # The user's own OpenCode and Kimi configs are never read.
 user_config="$work/user-config" user_data="$work/user-data"
@@ -35,6 +52,7 @@ make_fakes() {
   mkdir -p "$bin"
   cat >"$bin/codex" <<'EOF'
 #!/usr/bin/env bash
+[ -z "${FAKE_WARMUP:-}" ] || exit 0
 out=""
 args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do
@@ -75,6 +93,7 @@ esac
 EOF
   cat >"$bin/claude" <<'EOF'
 #!/usr/bin/env bash
+[ -z "${FAKE_WARMUP:-}" ] || exit 0
 cat >"$FAKE_LOG.claude.prompt"
 printf 'args=%s\n' "$*" >>"$FAKE_LOG.claude"
 diff_file="$(grep -o '/[^ `]*\.diff' "$FAKE_LOG.claude.prompt" | head -1)"
@@ -87,13 +106,17 @@ esac
 EOF
   cat >"$bin/opencode" <<'EOF'
 #!/usr/bin/env bash
+[ -z "${FAKE_WARMUP:-}" ] || exit 0
 cat >/dev/null
 printf 'args=%s\n' "$*" >>"$FAKE_LOG.opencode"
 oc_args=("$@")
 for ((i = 0; i < ${#oc_args[@]}; i++)); do
   [ "${oc_args[$i]}" = "--dir" ] && oc_dir="${oc_args[$((i + 1))]}"
 done
-printf 'dir=%s\ntoplevel=%s\ndotopencode=%s\n' "${oc_dir:-}" "$(git -C "${oc_dir:-/nonexistent}" rev-parse --show-toplevel 2>/dev/null)" \
+# git prints the toplevel with symlinks resolved (macOS: /var is /private/var),
+# so it is compared with the physical form of --dir.
+printf 'dir=%s\nrealdir=%s\ntoplevel=%s\ndotopencode=%s\n' "${oc_dir:-}" "$(cd "${oc_dir:-/nonexistent}" 2>/dev/null && pwd -P)" \
+  "$(git -C "${oc_dir:-/nonexistent}" rev-parse --show-toplevel 2>/dev/null)" \
   "$(ls -A "${oc_dir:-/nonexistent}" 2>/dev/null | grep -c '^\.opencode$')" >"$FAKE_LOG.opencode.project"
 printf '%s' "${@: -1}" >"$FAKE_LOG.opencode.prompt"
 {
@@ -113,6 +136,7 @@ esac
 EOF
   cat >"$bin/kimi" <<'EOF'
 #!/usr/bin/env bash
+[ -z "${FAKE_WARMUP:-}" ] || exit 0
 cat >/dev/null
 args=("$@")
 printf 'args=%s\n' "$*" >>"$FAKE_LOG.kimi"
@@ -142,6 +166,13 @@ esac
 printf '{"role": "meta", "type": "session.resume_hint", "content": "To resume this session"}\n'
 EOF
   chmod +x "$bin/codex" "$bin/claude" "$bin/opencode" "$bin/kimi"
+  # On macOS the first exec of a newly written script can take seconds (it is
+  # checked before it runs), longer than the 2-5 s reviewer timeouts below.
+  # Run each fake once now, so no timed attempt pays for that check.
+  local fake
+  for fake in codex claude opencode kimi; do
+    FAKE_WARMUP=1 "$bin/$fake" </dev/null >/dev/null 2>&1 || true
+  done
 }
 
 new_repo() {
@@ -413,7 +444,11 @@ grep -q '^pure=1$' "$FAKE_LOG.opencode.env" 2>/dev/null || note_fail opencode-pu
 # project is a private empty git repository, never the candidate.
 oc_dir="$(sed -n 's/^dir=//p' "$FAKE_LOG.opencode.project" 2>/dev/null || true)"
 [ -n "$oc_dir" ] && [ "$oc_dir" != "$repo" ] || note_fail opencode-project-dir "opencode ran with the candidate as its project: $oc_dir"
-expect_eq opencode-project-root "$(sed -n 's/^toplevel=//p' "$FAKE_LOG.opencode.project" 2>/dev/null || true)" "$oc_dir"
+oc_realdir="$(sed -n 's/^realdir=//p' "$FAKE_LOG.opencode.project" 2>/dev/null || true)"
+[ -n "$oc_realdir" ] || note_fail opencode-project-realdir "opencode --dir did not exist when it ran: $oc_dir"
+# Physical paths, so an alias of the candidate ("$repo/." or a symlink) is caught.
+[ "$oc_realdir" != "$(cd "$repo" && pwd -P)" ] || note_fail opencode-project-alias "opencode --dir resolves to the candidate: $oc_dir"
+expect_eq opencode-project-root "$(sed -n 's/^toplevel=//p' "$FAKE_LOG.opencode.project" 2>/dev/null || true)" "$oc_realdir"
 expect_eq opencode-project-empty "$(sed -n 's/^dotopencode=//p' "$FAKE_LOG.opencode.project" 2>/dev/null || true)" 0
 grep -q "$repo" "$FAKE_LOG.opencode.prompt" 2>/dev/null || note_fail opencode-prompt-repo "prompt does not name the repository path"
 oc_config_home="$(sed -n 's/^xdg_config=//p' "$FAKE_LOG.opencode.env" 2>/dev/null || true)"

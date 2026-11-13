@@ -1,0 +1,45 @@
+{
+  "schema_version": 3,
+  "runner": "review_diff",
+  "mode": "review",
+  "status": "findings",
+  "reason_code": null,
+  "findings": [
+    {
+      "severity": "P2",
+      "title": "Exclude the candidate using canonical paths",
+      "file": "skills/code-review/scripts/test_review_diff.sh",
+      "line": 437,
+      "body": "If the runner regresses to passing the candidate as `--dir \"$repo/.\"` or through a symlink, the string comparison against `$repo` still passes, and the new root comparison also passes because both paths resolve to the candidate’s toplevel. The fixture has no `.opencode` directory, so that assertion does not catch it either. The previous root comparison rejected these aliases. Compare the physical project path against the physical candidate path as well, so the test continues to detect this isolation breach."
+    }
+  ],
+  "selected_client": "codex",
+  "reviewer_family": "codex",
+  "implementer_family": "claude",
+  "base": "aec91217fddc56d2bd211b9193afdc1e3ff317c6",
+  "head": "03ee65ba01e34625feaa69d6d864f838de1bc83f",
+  "candidate_digest": "92f3d3a0fb7f4f879941f3e125341b47bd3c741e8f562b9bfefe5fc5157bcd00",
+  "worktree_clean": true,
+  "untracked_files": [],
+  "intent_sha256": "40505f60794e126ca9f662445751087e7a6b97b6eb7d909c4aee05262a65d2d4",
+  "elapsed_seconds": 99.7,
+  "attempts": [
+    {
+      "client": "codex",
+      "status": "findings",
+      "returncode": 0,
+      "elapsed_seconds": 99.6,
+      "model": "gpt-6.1-sol",
+      "provider": "openai"
+    }
+  ],
+  "skipped": [
+    {
+      "client": "claude",
+      "reason": "same_family",
+      "model": ""
+    }
+  ],
+  "recorded_at": "2026-11-13T06:45:03+00:00",
+  "diagnostics_path": "/Users/asen/work/code/src/github.com/ccoalm/ccl-skills/.git/worktrees/fix-macos-review-diff-path/ccl-code-review/diagnostics/2026-11-13T064503Z-review.txt"
+}
