@@ -33,8 +33,8 @@
 
 ## 架构
 
-- `software-architecture` `leaf` — 用：Go、Python、Node.js/TypeScript 或跨栈后端的服务与包边界、RPC/API 与 IDL 契约、数据归属、异步/任务边界、可靠性与安全不变式、多租户隔离、事件驱动/消息队列与数据平台架构、平台选型、运行时分层。
-  - 不用：写实现码或局部重构 → `go-microservice-dev` / `python-service-dev` / `nodejs-service-dev`；跨仓或跨模块的多阶段架构改造交付 → `product-rd-workflow`。
+- `software-architecture` `entry` — 用：Go、Python、Node.js/TypeScript 或跨栈后端的服务与包边界、RPC/API 与 IDL 契约、数据归属、异步/任务边界、可靠性与安全不变式、多租户隔离、事件驱动/消息队列与数据平台架构、平台选型、运行时分层。
+  - 不用：写实现码或局部重构 → `go-microservice-dev` / `python-service-dev` / `nodejs-service-dev`；跨仓或跨模块的多阶段架构改造交付 → `product-rd-workflow`；技术方案类请求也从 `product-rd-workflow` 进入，由它在动笔前加载本技能。
 
 ## 实现
 

@@ -20,6 +20,8 @@ SOURCE_EXTENSIONS = frozenset((
 
 
 EXTRACTION_OWNER = 'ccl-skills:skill-extraction-workflow'
+PRODUCT_WORKFLOW = 'ccl-skills:product-rd-workflow'
+STAGE_REFERENCES = ('references/stage-plan-and-design.md', 'references/stage-quality-and-landing.md')
 
 
 def shared_skill_paths(paths, cwd):
@@ -269,6 +271,12 @@ def handle(payload, base):
                            'charter before this edit, even when another owner (a bug fix, a test change) also '
                            'applies: the charter cannot be written after the edits, and the stop backstop '
                            'fires only after commit, push and pull request. ')
+            if PRODUCT_WORKFLOW in loaded:
+                # The workflow entry carries stage summaries; the stage text is in
+                # references a session reaches only if something makes it read them.
+                reason += (PRODUCT_WORKFLOW + ' is loaded in this context: before retrying, read its `'
+                           + '` and `'.join(STAGE_REFERENCES) + '` in full. Its entry only summarizes the '
+                           'plan, quality-gate and landing rules those files hold. ')
         reason += routing_rule() + (' Resolve this checkpoint yourself; do not ask the user to approve skill loading. '
                           'Respect explicit user scope and skill choices. This is one bounded replan opportunity, '
                           'not new authority or proof that the owner is correct.')

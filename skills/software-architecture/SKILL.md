@@ -81,6 +81,20 @@ Scale the plan to risk. A simple low-risk explanation can use a short inline pla
 
 For anything beyond a low-risk explanation, the output states: assumptions, alternatives considered, tradeoffs, acceptance checks, verification evidence, rollback or migration path, and named handoffs to the implementation, testing, platform, or product-workflow owners. A new or migrated HTTP gateway/framework additionally needs a quotable record with separately locatable entries for capability justification, contract source, middleware order, generated artifacts, observability, and tests.
 
+A design document also writes down how the service meets its runtime contract. Walk this list and answer each item in the document, or say why it does not apply:
+
+1. Each call to an external dependency: its deadline or timeout, and how that deadline reaches the call (in Go, through `context.Context`).
+2. Where each dependency client is constructed and how handlers receive it: built in startup or app-factory code and injected, with no network I/O at import time.
+3. Where storage access sits: behind a DAL or repository boundary that handlers and transport code do not bypass.
+4. The dependency direction: source dependencies point inward. Inbound adapters (handlers, consumers) call the service or domain layer, outbound adapters implement interfaces that layer owns, and that layer must not import the database driver, the HTTP framework, or a vendor SDK.
+5. Where untrusted input is validated at run time, at the boundary that owns it.
+
+The designer settles what the design can settle, and the document must not hand that work to a reader:
+
+1. The design-time security questions are answered in the document from the requirement and the code. Do not put them to the requester.
+2. An open point gets a stated default and the reason for it. List separately only a point the requester alone can answer, with what changes if the answer differs; do not end by waiting for a default to be confirmed.
+3. A handoff names the next stage (implementation, testing, release), never a person or a role. Do not invent an approver, a reviewer, or a sign-off for the design that the request did not name. An approval this skill or the repository requires before a runtime action, such as a destructive migration on shared data, is part of the design and stays.
+
 ## When patterns conflict
 
 - Prefer current contracts and requirements over historical code habits.
