@@ -216,6 +216,14 @@ class SkillLoadingTests(unittest.TestCase):
             'git rm -q hooks/gate.sh',
             "python3 -c \"open('hooks/gate.py', mode='w').write('x')\"",
             "python3 -c \"from pathlib import Path; Path('hooks/gate.py').open('a').write('x')\"",
+            '# <<EOF\nprintf x > hooks/gate.sh',
+            "echo 'a <<EOF'\nprintf x > hooks/gate.sh",
+            '(cd /tmp); printf x > hooks/gate.sh',
+            'cd /tmp | true; printf x > hooks/gate.sh',
+            "(cd skills/sample-owner && sed -i '' 's/a/b/' SKILL.md)",
+            'rsync -t /tmp/draft.py hooks/gate.py',
+            'rm -r hooks/gate.sh',
+            'truncate -s 0 hooks/gate.sh',
         ]
         for index, command in enumerate(commands):
             with self.subTest(command=command):
@@ -262,11 +270,19 @@ class SkillLoadingTests(unittest.TestCase):
             "python3 - <<'EOF'\nwith open('skills/sample-owner/SKILL.md') as r, open('/tmp/o', 'w') as w:\n    w.write(r.read())\nEOF",
             "git commit -F - <<'EOF'\nRefresh the gate\n\n> see hooks/gate.sh\nEOF",
             'ls skills # then > hooks/gate.sh',
+            "python3 -c \"# open('hooks/gate.py', 'w')\"",
+            "node -e \"// require('fs').writeFileSync('hooks/gate.mjs', 'x')\"",
+            'git rm -n -- hooks/gate.sh',
+            'git mv --dry-run hooks/gate.sh hooks/moved.sh',
+            'rsync -n /tmp/draft.py hooks/gate.py',
+            'rsync -av --dry-run /tmp/draft.py hooks/gate.py',
             'echo x > /tmp/x.md ' + ' ' * 70000 + '> hooks/gate.sh',
         ]
-        for command in commands:
+        # A fresh actor per command: one false positive must not spend the
+        # attempt that every later row would otherwise pass on vacuously.
+        for index, command in enumerate(commands):
             with self.subTest(command=command):
-                self.assertEqual(self.run_hook(self.bash(command, root)), {})
+                self.assertEqual(self.run_hook(self.bash(command, root, 'quiet-%d' % index)), {})
         self.assertEqual(self.attempts(), 0)
         self.assertEqual(self.decision(self.run_hook(self.payload())), 'deny')
 

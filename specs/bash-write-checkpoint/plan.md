@@ -52,18 +52,22 @@ evaluates the command: it tokenizes with `shlex` and reads literal words.
 | `sed -i…` / `--in-place` | file operands after the script |
 | `perl -i…` (bundled flags such as `-pi`) | file operands |
 | `cp`, `mv`, `install`, `ln`, `rsync` | the destination (`-t DIR` or last operand); a directory destination maps to `DIR/<source name>`; `mv` also counts its sources, which it removes |
-| `touch`, `truncate`, `rm`, `unlink`, `git mv`, `git rm` | each file operand |
+| `touch`, `truncate`, `rm`, `unlink`, `git mv`, `git rm` | each file operand; option values follow each command's own arity (`truncate -s N`, `touch -r REF`; `rm -r` takes none) |
+| `git mv`/`git rm -n`, `--dry-run`; `rsync -n`, `--dry-run` | none: a dry run writes nothing |
 | `python…`, `node`, `ruby` with `-c`/`-e` code, or with a heredoc body | only the literal a write call writes to: `open(LIT, 'w'/'a'/'x'/'+')` (also `mode=`), `Path(LIT).write_text/write_bytes/touch/unlink/open('w')`, `writeFile*/appendFile*/unlink*/rm*(LIT`, `File.write(LIT`, `os.remove/unlink(LIT`, the second argument of `shutil.copy*/move` and `os.replace/rename` |
 | `bash -c` / `sh -c` | the inner command, one level |
-| `cd DIR` earlier in the same command | later relative targets resolve from `DIR` |
+| `cd DIR` earlier in the same command | later relative targets resolve from `DIR`, except after the `( … )` group holding the `cd` closes, or when the `cd` is a pipeline member |
 
 Leading `NAME=value` assignments and `sudo`, `env`, `command`, `nohup`, `time`
 wrappers (with their options, e.g. `sudo -u root`) are skipped. Heredoc
 bodies are cut out before tokenizing; they are code only when the segment's
-command is an interpreter, and data otherwise. Quoted or escaped shell
-metacharacters are hidden before tokenizing, so `grep '>' file` is not a
-redirection. An unquoted `#` starting a word comments out the rest of its
-line. Commands over 64 KiB yield no target.
+command is an interpreter, and data otherwise. A `<<` inside quotes or a
+comment is text, not an operator. Quoted or escaped shell metacharacters are
+hidden before tokenizing, so `grep '>' file` is not a redirection. An unquoted
+`#` starting a word comments out the rest of its line; in inline code, `#`
+(Python, Ruby) or `//` (node) comments are dropped before write calls are
+matched. Commands over 64 KiB yield no target. A write call quoted inside a
+string literal of inline code still counts (accepted precision gap).
 
 Known misses (stay on the stop backstop, quiet side): words containing `$` or
 backticks, `git -C`, `find -exec`, `xargs`, `git apply`/`checkout`/`restore`,
@@ -125,7 +129,8 @@ reopen condition are in
 
 `make test`, `test_check_ccl_regressions.sh --heavy-only`,
 `check-public-sanitization.py`, `git diff --check`, `check-ccl-skills.sh` with
-`CCL_SKILL_BASE_REF=origin/main`.
+`CCL_SKILL_BASE_REF=origin/main`. Outcomes per candidate:
+`evidence/validation.md`.
 
 ## Status sync
 

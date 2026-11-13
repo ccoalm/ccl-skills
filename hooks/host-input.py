@@ -266,17 +266,51 @@ _HIDE = {ord(char): 0xE000 + index for index, char in enumerate(_METACHARACTERS)
 _SHOW = {value: key for key, value in _HIDE.items()}
 
 
+def _live_syntax(line, comment='#'):
+    """Scan one line: a per-character mask (True = unquoted, unescaped code) and
+    the index where an unquoted comment starts (the line length when none)."""
+    live, quote, escaped = [], None, False
+    quotes = ('"', "'", '`') if comment == '//' else ('"', "'")
+    for index, char in enumerate(line):
+        if escaped:
+            escaped = False
+            live.append(False)
+        elif quote:
+            if char == '\\' and quote != "'":
+                escaped = True
+            elif char == quote:
+                quote = None
+            live.append(False)
+        elif char == '\\':
+            escaped = True
+            live.append(False)
+        elif char in quotes:
+            quote = char
+            live.append(False)
+        elif line.startswith(comment, index) and (comment != '#' or not index or line[index - 1] in ' \t;&|()'):
+            return live + [False] * (len(line) - index), index
+        else:
+            live.append(True)
+    return live, len(line)
+
+
 def _heredocs(command):
-    """Cut heredoc bodies out of the command; each operator keeps a placeholder."""
+    """Cut heredoc bodies out of the command; each operator keeps a placeholder.
+
+    Only a live operator counts: `<<` inside quotes or a comment is text.
+    """
     lines, bodies, out, index = command.split('\n'), [], [], 0
     while index < len(lines):
         line = lines[index]
+        live = _live_syntax(line)[0]
         pending = []
 
         def mark(match):
+            if not live[match.start()] or match.start() and line[match.start() - 1] == '<':
+                return match[0]
             pending.append((match[1] == '-', match[3]))
             return '<< __ccl_heredoc_%d' % (len(bodies) + len(pending) - 1)
-        out.append(HEREDOC.sub(lambda m: m[0] if m.start() and line[m.start() - 1] == '<' else mark(m), line))
+        out.append(HEREDOC.sub(mark, line))
         index += 1
         for strip, delimiter in pending:
             body = []
@@ -336,8 +370,16 @@ def _operands(args, takes_value=()):
     return found
 
 
-def _code_targets(code, cwd):
+def _code_targets(code, cwd, comment):
+    """Write-call targets in inline code; a write call inside a comment is text."""
+    live_code = []
+    for line in code.split('\n'):
+        live_code.append(line[:_live_syntax(line, comment)[1]])
+    code = '\n'.join(live_code)
     return [_target(match[2], cwd) for pattern in WRITE_CALLS for match in pattern.finditer(code)]
+
+
+DRY_RUN = re.compile(r'--dry-run\Z|-[a-zA-Z]*n[a-zA-Z]*\Z')
 
 
 def _segment(words, cwd, bodies, depth):
@@ -374,7 +416,8 @@ def _segment(words, cwd, bodies, depth):
         moved = _target(rest[0], cwd) if len(rest) == 1 else None
         return targets, moved or cwd
     if name == 'git' and rest[:1] in (['mv'], ['rm']):
-        targets += [_target(word, cwd) for word in _operands(rest[1:])]
+        if not any(DRY_RUN.match(arg) for arg in rest[1:] if not arg.startswith('--') or arg == '--dry-run'):
+            targets += [_target(word, cwd) for word in _operands(rest[1:])]
     elif name == 'tee':
         targets += [_target(word, cwd) for word in _operands(rest)]
     elif name in ('sed', 'perl'):
@@ -385,10 +428,16 @@ def _segment(words, cwd, bodies, depth):
             scripted = any(arg in ('-e', '-f', '--expression', '--file') for arg in rest)
             files = [word for word in _operands(rest, ('-e', '-f', '--expression', '--file')) if word]
             targets += [_target(word, cwd) for word in (files if scripted else files[1:])]
+    elif name == 'rsync' and any(DRY_RUN.match(arg) for arg in rest
+                                 if not arg.startswith('--') or arg == '--dry-run'):
+        pass  # a dry run writes nothing
     elif name in ('cp', 'mv', 'install', 'ln', 'rsync'):
-        values = ('-t', '--target-directory', '-m', '-o', '-g', '-S', '-e')
+        # Option arities differ per command: rsync -t preserves times, while
+        # for the others -t names the target directory.
+        directory_flags = () if name == 'rsync' else ('-t', '--target-directory')
+        values = {'rsync': ('-e', '--rsh'), 'install': ('-m', '-o', '-g', '-S', '-t')}.get(name, ('-S', '-t'))
         directory = next((rest[i + 1] for i, arg in enumerate(rest[:-1])
-                          if arg in ('-t', '--target-directory')), None)
+                          if arg in directory_flags), None)
         operands = _operands(rest, values)
         sources = operands if directory else operands[:-1]
         destination = directory or (operands[-1] if len(operands) > 1 else None)
@@ -400,7 +449,8 @@ def _segment(words, cwd, bodies, depth):
         if name == 'mv':
             targets += [_target(source, cwd) for source in sources]  # a move removes its source
     elif name in ('touch', 'truncate', 'rm', 'unlink'):
-        targets += [_target(word, cwd) for word in _operands(rest, ('-s', '--size', '-r', '-d'))]
+        values = {'truncate': ('-s', '--size', '-r', '--reference'), 'touch': ('-r', '-d', '-t')}.get(name, ())
+        targets += [_target(word, cwd) for word in _operands(rest, values)]
     elif name in ('bash', 'sh', 'zsh') and '-c' in rest and depth < 1:
         position = rest.index('-c')
         if position + 1 < len(rest):
@@ -409,7 +459,7 @@ def _segment(words, cwd, bodies, depth):
         flag = next((i for i, arg in enumerate(rest) if arg in ('-c', '-e', '--eval')), None)
         code = rest[flag + 1] if flag is not None and flag + 1 < len(rest) else heredoc
         if code:
-            targets += _code_targets(code, cwd)
+            targets += _code_targets(code, cwd, '//' if name == 'node' else '#')
     return targets, cwd
 
 
@@ -429,14 +479,25 @@ def bash_write_targets(command, cwd, depth=0):
         tokens = list(lexer)
     except ValueError:
         return []
-    found, segment = [], []
+    # A `cd` reaches later commands only in the same shell: a `( ... )` group
+    # restores the directory when it closes, and every member of a pipeline
+    # runs in its own subshell.
+    found, segment, saved, piped = [], [], [], False
     for token in tokens + [';']:
-        if token and set(token) <= SHELL_SEPARATORS:
-            targets, cwd = _segment(segment, cwd, bodies, depth)
-            found += targets
-            segment = []
-        else:
+        if not (token and set(token) <= SHELL_SEPARATORS):
             segment.append(token)
+            continue
+        pipe = '|' in token.replace('||', '')
+        targets, moved = _segment(segment, cwd, bodies, depth)
+        found += targets
+        if not (piped or pipe):
+            cwd = moved
+        piped, segment = pipe, []
+        for char in token:
+            if char == '(':
+                saved.append(cwd)
+            elif char == ')' and saved:
+                cwd = saved.pop()
     return list(dict.fromkeys(path for path in found if path))
 
 
