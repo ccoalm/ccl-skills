@@ -15,6 +15,7 @@ For mobile and cross-platform apps, centralize these mechanics in the shared API
 
 ## Test Layers
 
+- React Native and other TypeScript code: load `typescript-dev` for the TypeScript layer — `tsconfig`, type design, typing bridge and API payloads, shared-package declarations, and the type-check gate that runs before tests. Metro, native modules, and device behavior stay with this skill.
 - Fast tests: pure logic, state transitions, mapping, validation, API client parsing, retry decisions, cache policy, and permission state mapping.
 - UI/widget/component tests: loading, empty, partial, success, error, retry, disabled, permission-denied, offline, and optimistic states.
 - Integration/device tests: native plugins, deep links, push opens, auth redirects, camera/files/media, background work, local database, and installable build smoke.

@@ -169,7 +169,7 @@ the warning before pushing.
 
 ### Vitest / Jest
 
-1. Copy `tc.ts` from `tc_helpers/` into the project, e.g. `test/tc.ts`.
+1. Copy `tc.ts` from `tc_helpers/` into the project, e.g. `test/tc.ts`. It becomes project source: make sure the `tsconfig` that type-checks tests includes it, and do not exclude it to silence an error (`typescript-dev` owns the type-check gate).
 2. **Wrapper form (preferred — required for `test.skip` / `skipIf` / `todo`):**
 
    ```typescript

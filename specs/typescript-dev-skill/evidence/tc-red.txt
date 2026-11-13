@@ -1,0 +1,5 @@
+tc.ts (base)(108,14): error TS18048: 'f' is possibly 'undefined'.
+tc.ts (base)(108,34): error TS18048: 'f' is possibly 'undefined'.
+tc.ts (base)(108,56): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+base rc=2

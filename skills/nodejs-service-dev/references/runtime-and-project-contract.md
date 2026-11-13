@@ -35,6 +35,8 @@ Choose one explicit path:
 | Node.js type stripping | The deployed runtime supports it and source uses erasable syntax only | no unsupported transform syntax, no `tsconfig`-dependent runtime behavior, explicit type-check gate |
 | Plain JavaScript | The repository does not require TypeScript | runtime syntax target, lint/check path, public type contract if shipped as a library |
 
+The compiler side of each path — `tsconfig` options such as `erasableSyntaxOnly` and `verbatimModuleSyntax`, the `module`/`moduleResolution` pair, declaration output, and the type-check command — is in `typescript-dev`; this table owns only how the code runs.
+
 Node.js type stripping ignores `tsconfig.json`, performs no type checking, and does not transform syntax such as enums, runtime namespaces, parameter properties, or import aliases. Do not present it as a drop-in replacement for an existing compiler pipeline.
 
 ## Configuration contract

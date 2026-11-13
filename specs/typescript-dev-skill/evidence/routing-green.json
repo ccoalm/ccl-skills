@@ -1,0 +1,1136 @@
+{
+  "model": "claude-haiku-4-5",
+  "model_source": "explicit",
+  "tasks": 10,
+  "pass": 10,
+  "fail": 0,
+  "error": 0,
+  "replicas": 10,
+  "verdicts": 100,
+  "error_verdicts": 0,
+  "partial_error_tasks": [
+
+  ],
+  "clarify_count": 0,
+  "low_confidence_count": 0,
+  "replica_agreement": {
+    "agree": 10,
+    "measured": 10
+  },
+  "desc_budget_chars": null,
+  "routing_surface": {
+    "descriptions_sha256": "74a14a22162b2bfa55875b5b50e0aec13c6e52aae7bbecf7035e815ff192f685",
+    "per_skill_description_line_sha256": {
+      "agents-file-coverage-gate": "663ce7e5a22c6551792cd1dca29d2a472a38e591c989156dbff8225b2ce84870",
+      "app-cross-platform-dev": "c60f12feb2d924b884cc7f1a33a4fd4d9fb69842482d2fe1b7b5669a64ef6696",
+      "code-review": "af5c5e964fce26499953b6fe5e7a910074a538f7a4cb0bf0d05f49cfb7a7a6b8",
+      "defect-diagnosis": "f1a4833bc22381130c58de088563e12cb07c797c6551e6304729d074dbdaa868",
+      "feature-risk-router": "53438b25822673c852717471aab374a9e505ce54e294c577463f6344ccf04ddf",
+      "go-microservice-dev": "7437a83839fdb0ddd5eebc2c566d6d680e529fb0b8a8abc49eeb95056afaff9a",
+      "grill-me": "3f0d2129338eb0236b07844c5ca874be2f475c7757a6302022170516b5fb5f5d",
+      "llm-inference-integration": "de73da80dafa8d3335e6c545c7d84ab3cbbf4130ea6558c40c9c3dd4b73628df",
+      "miniapp-product-dev": "03bd4c013fefc3d22d9ab1a8dad5a15aabd44322733416437888146cc8b490d3",
+      "multi-agent-delegation": "d33161502ceb4ac6b4592f9d9f543310c37b0f3095a00e4fbb298a6b85ee9298",
+      "multi-perspective-research": "2d6a36fd49f36bf65ff5055560789b264eb4e6e7e67a41b4aaa9f234c2988b81",
+      "nodejs-service-dev": "90f7f99707f742f8c5defa07030d8613b69282abe365d166b9761da2e147c52a",
+      "platform-observability": "9bfece98de8a8ecfcc0c77112c2d8f6ee252414321aec0eea2d3f1f8d516a26d",
+      "platform-release-engineering": "9b6ead94fd0c1c469ba9dd016d9aab679eeb27b7144811563c7f8d113c4169de",
+      "platform-service-connectivity": "9639078bae01e666d392d31db2d8d946b316ea18140a2a2597708b9d710b3ec1",
+      "product-rd-workflow": "295bc3082f4580abe27459e50c1cacfaab8ce751b8a9dacf4ba943df4505ff5c",
+      "product-ui-ux-design": "5b393b29e02f5be9f5de58cb9fa68f1e295ec2322454a8ae043bb062c732f67b",
+      "python-service-dev": "96e35b6618af65c68d3638904c8a0795b10d2e1248d9fc305ff6bc2bcfb3c129",
+      "release-coordination": "f88133c5ac8d4ee9188029a45753c51e994ecca68bcc3fbe70c643f44c390f0b",
+      "release-doc-writer": "2a0a565b502b8599f891642d13c4c6c3fdcafdbf2f473a63ffc8fa3324e073d3",
+      "requirement-baseline": "d1862d2feca8aa3f67b547ce5fb31cbd4834d100fd85a9726a5c1eb5288cfb77",
+      "requirement-doc-writer": "c1322bfc4398e5f6f4ef9af71428fe864de32bea8ed85c852db90e9f7397616e",
+      "requirement-intent": "ae198d015f0b971b554c23288cbadfc397b230890ced517456ef17384e6606c4",
+      "requirement-scope": "4d2e15af71435824033bd0bce2e603b4caf1b306e23465aecdd7843b058d532f",
+      "skill-extraction-workflow": "beedf2d25568df4601b5fd58ea6cbb5ef940cd635902f8ff074b6477c8645a5c",
+      "software-architecture": "05dd2f53a4017063af82af962618f8dd75ef9d20cfdc8e841ec3bcd479f5d132",
+      "terminal-cli-dev": "6db157ab419d0d011a868e6938856a40a58f223e88f082c0d89c6f2812cd6b91",
+      "test-artifact-management": "85e93275be87f627f3cc06d0d165c6ae636a56a68b112a3f1aec7f177a430a22",
+      "testing-strategy": "f608c18fe027cfe70b9026bc12782ee14b21cea65536df1a859077f08d447e76",
+      "tighten-doc": "43366b1dd08dd49cc206b769cbd10a1e1d233c62178b4ba521d9979f26ffd79b",
+      "typescript-dev": "18ff5ecd0b00cb468da2130bfb2c147140307a9969b475030026e3b30c1b3d58",
+      "web-react-dev": "9523899f148a70c62cf15c4ffa0a8b26c654b3016a8e63a89a0128fbfc6946ce",
+      "worktree-isolation": "fc9715e52670f7ab4aad68d28fab2fc635c1c91a2eba7a8c33440e3f15931b5c"
+    },
+    "catalog_sha256": "24b12368dee814a9a288a040f197c3d31cf76e5684ce305161138f983c01e0ff",
+    "bank_sha256": "aa2bde8a28482ae21b2840a616f207656b32fa0997e6c7a7c42d1c63def856af",
+    "bootstrap_layer_sha256": null
+  },
+  "action_resolution": true,
+  "action_resolution_scope": "cases measured by this run only; see each result's actionable field",
+  "action_resolution_min_replicas": 10,
+  "min_valid_observations": 10,
+  "co_change_bank_and_descriptions": false,
+  "co_change_check_available": true,
+  "frozen_drift": [
+
+  ],
+  "baseline_comparable": null,
+  "baseline_incomparable_reason": null,
+  "newly_failed": [
+
+  ],
+  "newly_passed": [
+
+  ],
+  "results": [
+    {
+      "id": "route-typescript-library-publish",
+      "utterance": "这个 TypeScript 工具库要发到 npm，ESM 和 CommonJS 用户都要能用，类型声明也要能被正确解析，package.json 的 exports 和 tsconfig 怎么配",
+      "expected": "typescript-dev",
+      "acceptable": [
+
+      ],
+      "selected": "typescript-dev",
+      "confidence": 0.95,
+      "clarify": false,
+      "acceptable_hit": false,
+      "must_not_route_to": [
+        "nodejs-service-dev",
+        "platform-release-engineering"
+      ],
+      "status": "PASS",
+      "labels": [
+
+      ],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 3,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 4,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 5,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 6,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 7,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 1.0,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 8,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 9,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.98,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 10,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true,
+      "valid_observations": 10,
+      "actionable": true
+    },
+    {
+      "id": "route-typescript-bundler-tsconfig",
+      "utterance": "纯 TypeScript 的 Vite 浏览器项目（没用 React），tsconfig 的 moduleResolution 该选 bundler 还是 nodenext，strict 那几个开关要开哪些",
+      "expected": "typescript-dev",
+      "acceptable": [
+
+      ],
+      "selected": "typescript-dev",
+      "confidence": 0.95,
+      "clarify": false,
+      "acceptable_hit": false,
+      "must_not_route_to": [
+        "web-react-dev",
+        "nodejs-service-dev"
+      ],
+      "status": "PASS",
+      "labels": [
+
+      ],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 3,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.98,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 4,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.98,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 5,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 6,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.98,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 7,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 1.0,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 8,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.98,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 9,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 10,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true,
+      "valid_observations": 10,
+      "actionable": true
+    },
+    {
+      "id": "route-typescript-monorepo-references",
+      "utterance": "pnpm monorepo 里有五个 TS 包互相引用类型，改一个包要整仓重新类型检查很慢，项目引用和 tsc -b 怎么配",
+      "expected": "typescript-dev",
+      "acceptable": [
+
+      ],
+      "selected": "typescript-dev",
+      "confidence": 0.95,
+      "clarify": false,
+      "acceptable_hit": false,
+      "must_not_route_to": [
+        "software-architecture",
+        "nodejs-service-dev"
+      ],
+      "status": "PASS",
+      "labels": [
+
+      ],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 3,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 4,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 5,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 6,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.99,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 7,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 8,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 9,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 10,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true,
+      "valid_observations": 10,
+      "actionable": true
+    },
+    {
+      "id": "route-typescript-boundary-validation",
+      "utterance": "代码里到处是 JSON.parse(x) as User 这种写法，外部数据直接断言成接口类型，TypeScript 里怎么改成安全的",
+      "expected": "typescript-dev",
+      "acceptable": [
+
+      ],
+      "selected": "typescript-dev",
+      "confidence": 0.98,
+      "clarify": false,
+      "acceptable_hit": false,
+      "must_not_route_to": [
+        "nodejs-service-dev",
+        "web-react-dev"
+      ],
+      "status": "PASS",
+      "labels": [
+
+      ],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.98,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 3,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 4,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 5,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 6,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 7,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 8,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 9,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 10,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true,
+      "valid_observations": 10,
+      "actionable": true
+    },
+    {
+      "id": "route-typescript-strict-migration",
+      "utterance": "老 TS 项目想打开 strict 和 noUncheckedIndexedAccess，一开就几千个报错，怎么分批迁移",
+      "expected": "typescript-dev",
+      "acceptable": [
+
+      ],
+      "selected": "typescript-dev",
+      "confidence": 0.95,
+      "clarify": false,
+      "acceptable_hit": false,
+      "must_not_route_to": [
+        "defect-diagnosis",
+        "web-react-dev"
+      ],
+      "status": "PASS",
+      "labels": [
+
+      ],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 3,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.98,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 4,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 5,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.96,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 6,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.98,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 7,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 1.0,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 8,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.98,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 9,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.98,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 10,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true,
+      "valid_observations": 10,
+      "actionable": true
+    },
+    {
+      "id": "route-typescript-deno-types",
+      "utterance": "用 Deno 写的 TypeScript 脚本，判别联合和泛型约束怎么写才能让 switch 漏分支时编译报错",
+      "expected": "typescript-dev",
+      "acceptable": [
+
+      ],
+      "selected": "typescript-dev",
+      "confidence": 0.95,
+      "clarify": false,
+      "acceptable_hit": false,
+      "must_not_route_to": [
+        "nodejs-service-dev"
+      ],
+      "status": "PASS",
+      "labels": [
+
+      ],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 3,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 4,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 5,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 6,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 7,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 8,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 9,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.98,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 10,
+          "selected": "typescript-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true,
+      "valid_observations": 10,
+      "actionable": true
+    },
+    {
+      "id": "route-typescript-node-service-stays",
+      "utterance": "用 TypeScript 和 Fastify 写个 Node.js 接口，客户端断开时要取消上游请求",
+      "expected": "nodejs-service-dev",
+      "acceptable": [
+
+      ],
+      "selected": "nodejs-service-dev",
+      "confidence": 0.98,
+      "clarify": false,
+      "acceptable_hit": false,
+      "must_not_route_to": [
+        "typescript-dev"
+      ],
+      "status": "PASS",
+      "labels": [
+
+      ],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "nodejs-service-dev",
+          "clarify": false,
+          "confidence": 0.98,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "nodejs-service-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 3,
+          "selected": "nodejs-service-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 4,
+          "selected": "nodejs-service-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 5,
+          "selected": "nodejs-service-dev",
+          "clarify": false,
+          "confidence": 0.9,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 6,
+          "selected": "nodejs-service-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 7,
+          "selected": "nodejs-service-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 8,
+          "selected": "nodejs-service-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 9,
+          "selected": "nodejs-service-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 10,
+          "selected": "nodejs-service-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true,
+      "valid_observations": 10,
+      "actionable": true
+    },
+    {
+      "id": "route-typescript-react-component-stays",
+      "utterance": "用 React 和 TypeScript 写一个带表单校验的弹窗组件",
+      "expected": "web-react-dev",
+      "acceptable": [
+
+      ],
+      "selected": "web-react-dev",
+      "confidence": 0.95,
+      "clarify": false,
+      "acceptable_hit": false,
+      "must_not_route_to": [
+        "typescript-dev"
+      ],
+      "status": "PASS",
+      "labels": [
+
+      ],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "web-react-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "web-react-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 3,
+          "selected": "web-react-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 4,
+          "selected": "web-react-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 5,
+          "selected": "web-react-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 6,
+          "selected": "web-react-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 7,
+          "selected": "web-react-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 8,
+          "selected": "web-react-dev",
+          "clarify": false,
+          "confidence": 0.98,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 9,
+          "selected": "web-react-dev",
+          "clarify": false,
+          "confidence": 0.9,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 10,
+          "selected": "web-react-dev",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true,
+      "valid_observations": 10,
+      "actionable": true
+    },
+    {
+      "id": "route-typescript-ci-failure-diagnosis",
+      "utterance": "CI 上 tsc 突然报了一堆类型错误，本地却好好的，帮我复现并定位根因",
+      "expected": "defect-diagnosis",
+      "acceptable": [
+
+      ],
+      "selected": "defect-diagnosis",
+      "confidence": 0.9,
+      "clarify": false,
+      "acceptable_hit": false,
+      "must_not_route_to": [
+        "typescript-dev"
+      ],
+      "status": "PASS",
+      "labels": [
+
+      ],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "defect-diagnosis",
+          "clarify": false,
+          "confidence": 0.9,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "defect-diagnosis",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 3,
+          "selected": "defect-diagnosis",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 4,
+          "selected": "defect-diagnosis",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 5,
+          "selected": "defect-diagnosis",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 6,
+          "selected": "defect-diagnosis",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 7,
+          "selected": "defect-diagnosis",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 8,
+          "selected": "defect-diagnosis",
+          "clarify": false,
+          "confidence": 0.92,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 9,
+          "selected": "defect-diagnosis",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 10,
+          "selected": "defect-diagnosis",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true,
+      "valid_observations": 10,
+      "actionable": true
+    },
+    {
+      "id": "route-typescript-test-layers-stay",
+      "utterance": "TypeScript 项目的测试该分哪几层，类型测试要不要进 CI 门禁，覆盖率门槛怎么定",
+      "expected": "testing-strategy",
+      "acceptable": [
+
+      ],
+      "selected": "testing-strategy",
+      "confidence": 0.9,
+      "clarify": false,
+      "acceptable_hit": false,
+      "must_not_route_to": [
+        "typescript-dev"
+      ],
+      "status": "PASS",
+      "labels": [
+
+      ],
+      "verdicts": [
+        {
+          "replica": 1,
+          "selected": "testing-strategy",
+          "clarify": false,
+          "confidence": 0.9,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 2,
+          "selected": "testing-strategy",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 3,
+          "selected": "testing-strategy",
+          "clarify": false,
+          "confidence": 0.88,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 4,
+          "selected": "testing-strategy",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 5,
+          "selected": "testing-strategy",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 6,
+          "selected": "testing-strategy",
+          "clarify": false,
+          "confidence": 0.92,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 7,
+          "selected": "testing-strategy",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 8,
+          "selected": "testing-strategy",
+          "clarify": false,
+          "confidence": 0.85,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 9,
+          "selected": "testing-strategy",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        },
+        {
+          "replica": 10,
+          "selected": "testing-strategy",
+          "clarify": false,
+          "confidence": 0.95,
+          "status": "PASS",
+          "error": null
+        }
+      ],
+      "error": null,
+      "frozen_at_sha_is_ancestor": true,
+      "valid_observations": 10,
+      "actionable": true
+    }
+  ]
+}

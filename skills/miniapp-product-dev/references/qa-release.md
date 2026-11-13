@@ -4,7 +4,7 @@ Use this reference for miniapp verification, platform review, release, and rollb
 
 ## Local Verification
 
-- Run repo formatter, lint/typecheck, unit/component tests, and the relevant miniapp build.
+- Run repo formatter, lint/typecheck, unit/component tests, and the relevant miniapp build. For TypeScript (Taro and other TS frameworks), `typescript-dev` owns the `tsconfig`, type design, typing of host-API and backend payloads, and the type-check command; host APIs, platform branching, and build targets stay with this skill.
 - Compile in the platform developer tool or framework build target.
 - For visible changes, inspect the rendered page in developer tools, preview build, or real device.
 - Verify at least the primary route entry, loading, success, one error/retry path, and one auth/permission state if relevant.

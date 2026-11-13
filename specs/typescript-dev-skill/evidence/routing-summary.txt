@@ -1,0 +1,22 @@
+== red: model=claude-haiku-4-5 replicas=10 pass=4 fail=6 error=0 clarify=8 low_confidence=8
+  route-typescript-library-publish: expected=typescript-dev status=FAIL picks={'nodejs-service-dev': 10}
+  route-typescript-bundler-tsconfig: expected=typescript-dev status=FAIL picks={'none': 10}
+  route-typescript-monorepo-references: expected=typescript-dev status=FAIL picks={'none': 7, 'nodejs-service-dev': 3}
+  route-typescript-boundary-validation: expected=typescript-dev status=FAIL picks={'nodejs-service-dev': 3, 'none': 6, 'product-rd-workflow': 1}
+  route-typescript-strict-migration: expected=typescript-dev status=FAIL picks={'product-rd-workflow': 8, 'requirement-scope': 1, 'none': 1}
+  route-typescript-deno-types: expected=typescript-dev status=FAIL picks={'none': 10}
+  route-typescript-node-service-stays: expected=nodejs-service-dev status=PASS picks={'nodejs-service-dev': 10}
+  route-typescript-react-component-stays: expected=web-react-dev status=PASS picks={'web-react-dev': 10}
+  route-typescript-ci-failure-diagnosis: expected=defect-diagnosis status=PASS picks={'defect-diagnosis': 10}
+  route-typescript-test-layers-stay: expected=testing-strategy status=PASS picks={'testing-strategy': 10}
+== green: model=claude-haiku-4-5 replicas=10 pass=10 fail=0 error=0 clarify=0 low_confidence=0
+  route-typescript-library-publish: expected=typescript-dev status=PASS picks={'typescript-dev': 10}
+  route-typescript-bundler-tsconfig: expected=typescript-dev status=PASS picks={'typescript-dev': 10}
+  route-typescript-monorepo-references: expected=typescript-dev status=PASS picks={'typescript-dev': 10}
+  route-typescript-boundary-validation: expected=typescript-dev status=PASS picks={'typescript-dev': 10}
+  route-typescript-strict-migration: expected=typescript-dev status=PASS picks={'typescript-dev': 10}
+  route-typescript-deno-types: expected=typescript-dev status=PASS picks={'typescript-dev': 10}
+  route-typescript-node-service-stays: expected=nodejs-service-dev status=PASS picks={'nodejs-service-dev': 10}
+  route-typescript-react-component-stays: expected=web-react-dev status=PASS picks={'web-react-dev': 10}
+  route-typescript-ci-failure-diagnosis: expected=defect-diagnosis status=PASS picks={'defect-diagnosis': 10}
+  route-typescript-test-layers-stay: expected=testing-strategy status=PASS picks={'testing-strategy': 10}

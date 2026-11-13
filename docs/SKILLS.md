@@ -42,8 +42,10 @@
   - 不用：先定架构边界 → `software-architecture`；先复现和定位失败 → `defect-diagnosis`。
 - `python-service-dev` `leaf` — 用：写或改 Python 接口、模型、任务、迁移、队列、配置、客户端与聚焦测试，以及 Python 命令行工具。
   - 不用：先定分层与边界 → `software-architecture`；先复现和定位失败 → `defect-diagnosis`。
-- `nodejs-service-dev` `leaf` — 用：写或改 Node.js 服务、HTTP/RPC handler、worker/job、运行时配置、JS/TS 模块与异步生命周期、Node 命令行工具，以及 Node 专属测试机制。
-  - 不用：先定架构与服务边界 → `software-architecture`；多阶段交付 → `product-rd-workflow`；先复现和定位失败 → `defect-diagnosis`；先选测试层与覆盖策略 → `testing-strategy`。
+- `nodejs-service-dev` `leaf` — 用：写或改 Node.js 服务、HTTP/RPC handler、worker/job、运行时配置、Node 模块与 TS 执行方式、异步生命周期、Node 命令行工具，以及 Node 专属测试机制。
+  - 不用：先定架构与服务边界 → `software-architecture`；多阶段交付 → `product-rd-workflow`；先复现和定位失败 → `defect-diagnosis`；先选测试层与覆盖策略 → `testing-strategy`；TS 类型、tsconfig、类型检查闸 → `typescript-dev`（与本技能一起加载）。
+- `typescript-dev` `leaf` — 用：任何运行时上的 TypeScript 语言与编译层——类型设计、tsconfig 与 strict 迁移、模块解析与 ESM/CJS 类型、声明文件与库类型发布、项目引用、类型检查与类型化 lint 闸、类型测试、编译器升级、外部输入的类型边界。与运行时技能组合加载。
+  - 不用：Node 运行时与服务 → `nodejs-service-dev`；React 组件 → `web-react-dev`；移动端 → `app-cross-platform-dev`；小程序 → `miniapp-product-dev`；类型检查挂了要找根因 → `defect-diagnosis`；测试分层和门禁策略 → `testing-strategy`；包边界和依赖方向 → `software-architecture`。
 - `web-react-dev` `leaf` — 用：React Web 的组件结构、路由、状态归属、数据获取、表单、浏览器行为、构建部署与渲染态验证。
   - 不用：界面该长什么样还没定 → `product-ui-ux-design`；小程序 → `miniapp-product-dev`；App → `app-cross-platform-dev`。
 - `app-cross-platform-dev` `leaf` — 用：Flutter、React Native、原生 Android/iOS 的页面、导航、状态、离线缓存、平台能力、打包发版与真机验证。

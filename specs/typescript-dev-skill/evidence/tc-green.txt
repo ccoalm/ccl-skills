@@ -1,0 +1,2 @@
+rc=0 [--strict --exactOptionalPropertyTypes --noUncheckedIndexedAccess --verbatimModuleSyntax --module nodenext --moduleResolution nodenext]
+rc=0 [--strict --exactOptionalPropertyTypes --noUncheckedIndexedAccess --module esnext --moduleResolution bundler --erasableSyntaxOnly]
