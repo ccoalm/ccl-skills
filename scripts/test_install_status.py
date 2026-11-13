@@ -236,8 +236,82 @@ class SourceInstallStatusTests(unittest.TestCase):
         result = self.run_install("install.sh", "--codex-cron")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("已装每日 9:00 cron", result.stdout)
-        self.assertEqual(capture.read_text(),
-                         "0 9 * * * codex plugin marketplace upgrade >/dev/null 2>&1; codex plugin add ccl-skills@ccl-skills >/dev/null 2>&1\n")
+        entries = capture.read_text().splitlines()
+        self.assertEqual(len(entries), 1)
+        self.assertTrue(entries[0].startswith("0 9 * * * "))
+        self.assert_cron_reinstalls_only_on_new_commit(entries[0][len("0 9 * * * "):])
+
+    def git_commit(self, directory, message):
+        directory.mkdir(parents=True, exist_ok=True)
+        env = {"PATH": "/usr/bin:/bin", "HOME": str(directory), "GIT_CONFIG_NOSYSTEM": "1"}
+        run = lambda *args: subprocess.run(["git", "-C", str(directory), *args], env=env, check=True,
+                                           capture_output=True, text=True).stdout.strip()
+        if not (directory / ".git").exists():
+            run("init", "-q")
+        (directory / "marker").write_text(message)
+        run("add", "marker")
+        run("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", message)
+
+    def assert_cron_reinstalls_only_on_new_commit(self, command):
+        self.fake_host("codex", failing_operation="never-matches")
+        cut = self.bin / "cut"
+        if not cut.exists():
+            cut.symlink_to(shutil.which("cut"))
+        origin = self.root / "origin"
+        subprocess.run(["git", "config", "--file", str(self.home / ".gitconfig"), "url." + str(origin) + ".insteadOf",
+                        "https://github.com/ccoalm/ccl-skills.git"], check=True)
+        # A user preference that would hide untracked files from a plain `git status`.
+        subprocess.run(["git", "config", "--file", str(self.home / ".gitconfig"), "status.showUntrackedFiles", "no"], check=True)
+        # A user fsmonitor hook: the probe must never invoke it, since a real monitor writes into .git.
+        fsmonitor, fsmonitor_calls = self.root / "fsmonitor-hook", self.root / "fsmonitor-called"
+        fsmonitor.write_text(f"#!/bin/sh\necho called >> '{fsmonitor_calls}'\nexit 1\n")
+        fsmonitor.chmod(0o755)
+        subprocess.run(["git", "config", "--file", str(self.home / ".gitconfig"), "core.fsmonitor", str(fsmonitor)], check=True)
+        codex_home = self.root / "codex home"
+        snapshot = codex_home / "plugins/cache/ccl-skills/ccl-skills/local"
+        calls = Path(self.env["HOST_CALLS"])
+
+        def run_cron():
+            calls.unlink(missing_ok=True)
+            subprocess.run(["/bin/sh", "-c", command], env={**self.env, "CODEX_HOME": str(codex_home)}, check=True)
+            return calls.read_text().splitlines()
+
+        upgrade, add = "plugin marketplace upgrade", "plugin add ccl-skills@ccl-skills"
+        self.assertEqual(run_cron(), [upgrade, add], "unreadable plugin URL must reinstall")
+        self.git_commit(origin, "one")
+        self.assertEqual(run_cron(), [upgrade, add], "unreadable snapshot must reinstall")
+        shutil.copytree(origin, snapshot)
+        self.assertEqual(run_cron(), [upgrade], "clean snapshot at the current commit must not reinstall")
+        (snapshot / "marker").write_text("damaged")
+        self.assertEqual(run_cron(), [upgrade, add], "damaged snapshot must reinstall")
+        (snapshot / "marker").write_text("one")
+        self.assertEqual(run_cron(), [upgrade])
+        (snapshot / "extra.py").write_text("unexpected")
+        self.assertEqual(run_cron(), [upgrade, add], "unexpected untracked file must reinstall")
+        (snapshot / "extra.py").unlink()
+        self.git_commit(origin, "two")
+        self.assertEqual(run_cron(), [upgrade, add], "new commit must reinstall")
+        self.assertFalse(fsmonitor_calls.exists(), "the snapshot probe must not run the user's fsmonitor")
+
+    def test_legacy_cron_entry_is_replaced_and_others_kept(self):
+        self.fake_host("codex")
+        legacy = "0 9 * * * codex plugin marketplace upgrade >/dev/null 2>&1; codex plugin add ccl-skills@ccl-skills >/dev/null 2>&1"
+        existing = self.root / "existing-crontab"
+        existing.write_text(f"5 4 * * * unrelated-job\n{legacy}\nCODEX_HOME=/elsewhere\n6 4 * * * later-job\n")
+        capture = self.root / "written-crontab"
+        self.env.update(CRON_EXISTING=str(existing), CRON_CAPTURE=str(capture))
+        cron = self.bin / "crontab"
+        cron.write_text("#!/bin/bash\nif [ \"$1\" = '-l' ]; then cat \"$CRON_EXISTING\"; exit 0; fi\ncat > \"$CRON_CAPTURE\"\n")
+        cron.chmod(0o700)
+        result = self.run_install("install.sh", "--codex-cron")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        entries = capture.read_text().splitlines()
+        self.assertEqual(len(entries), 4)
+        self.assertEqual([entries[0], entries[2], entries[3]],
+                         ["5 4 * * * unrelated-job", "CODEX_HOME=/elsewhere", "6 4 * * * later-job"])
+        self.assertNotIn(legacy, entries)
+        self.assertTrue(entries[1].startswith("0 9 * * * codex plugin marketplace upgrade"))
+        self.assert_cron_reinstalls_only_on_new_commit(entries[1][len("0 9 * * * "):])
 
     def test_backup_move_failure_does_not_overwrite_original(self):
         old = self.destination() / "skills/sample/SKILL.md"

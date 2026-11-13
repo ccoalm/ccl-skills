@@ -27,6 +27,18 @@ function fixture(t, options = {}) {
 	const home = join(temp, "home ' & <xml>"), codexHome = join(home, "profile with spaces"), bin = join(home, "bin"), calls = join(temp, "calls.jsonl"), control = join(temp, "control.json");
 	mkdirSync(codexHome, { recursive: true }); mkdirSync(bin);
 	writeFileSync(control, JSON.stringify(options));
+	// Keep the runner's `git ls-remote` offline: every canonical URL resolves to a local origin.
+	const origin = join(temp, "origin");
+	for (const url of ["https://github.com/ccoalm/ccl-skills.git", "git@github.com:ccoalm/ccl-skills.git", "ssh://git@github.com/ccoalm/ccl-skills.git"]) {
+		const r = spawnSync("git", ["config", "--file", join(home, ".gitconfig"), "--add", `url.${origin}.insteadOf`, url], { encoding: "utf8" });
+		assert.equal(r.status, 0, r.stderr);
+	}
+	// A user preference that would hide untracked files from a plain `git status`.
+	assert.equal(spawnSync("git", ["config", "--file", join(home, ".gitconfig"), "status.showUntrackedFiles", "no"]).status, 0);
+	// A user fsmonitor hook: the probe must never invoke it, since a real monitor writes into .git.
+	const fsmonitor = join(temp, "fsmonitor-hook"), fsmonitorCalls = join(temp, "fsmonitor-called");
+	writeFileSync(fsmonitor, `#!/bin/sh\necho called >> ${JSON.stringify(fsmonitorCalls)}\nexit 1\n`, { mode: 0o755 });
+	assert.equal(spawnSync("git", ["config", "--file", join(home, ".gitconfig"), "core.fsmonitor", fsmonitor]).status, 0);
 	const codex = join(bin, "codex");
 	writeFileSync(codex, `#!${process.execPath}
 const fs = require('node:fs');
@@ -38,7 +50,7 @@ const market = {name:'ccl-skills',root: ${JSON.stringify(join(codexHome, "market
 if(args.includes('--json')) {
  if(config.invalidJson) { process.stdout.write('invalid'); process.exit(0); }
  if(args.includes('marketplace')) console.log(JSON.stringify({marketplaces:config.missing ? [] : config.duplicate ? [market,market] : [market]}));
- else console.log(JSON.stringify({installed:[{pluginId:'ccl-skills@ccl-skills',name:'ccl-skills',marketplaceName:'ccl-skills',installed:true,enabled:!config.disabled,source:{source:"git",url:config.pluginSource || source},marketplaceSource:market.marketplaceSource}],available:[]}));
+ else console.log(JSON.stringify({installed:[{pluginId:'ccl-skills@ccl-skills',name:'ccl-skills',marketplaceName:'ccl-skills',version:'local',installed:true,enabled:!config.disabled,source:{source:"git",url:config.pluginSource || source,...(config.pluginRef ? {ref:config.pluginRef} : {})},marketplaceSource:market.marketplaceSource}],available:[]}));
 } else if(args.includes('upgrade')) { process.exitCode=config.upgradeExit || 0; }
 else if(args.includes('add')) { process.exitCode=config.addExit || 0; }
 else process.exitCode=7;
@@ -64,7 +76,7 @@ else process.exitCode=7;
 		registered = null;
 		return { code: 0, stdout: "", stderr: "" };
 	};
-	return { home, codexHome, root, bin, env, control, command,
+	return { home, codexHome, root, bin, env, control, command, origin, fsmonitorCalls,
 		deps: { env, platform: "darwin", command },
 		calls: () => existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse) : [],
 		state: () => JSON.parse(readFileSync(join(root, "state.json"), "utf8")),
@@ -112,6 +124,59 @@ test("enable runs persisted runner during bootstrap, stays idempotent, and disab
 	assert.equal((await runScheduled(f.env, f.command)).status, "disabled");
 	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
 	assert.equal(f.bootstrapCount, 2);
+});
+
+function gitCommit(dir, message) {
+	mkdirSync(dir, { recursive: true });
+	const git = (...args) => { const r = spawnSync("git", ["-C", dir, ...args], { encoding: "utf8", env: { PATH: "/usr/bin:/bin", HOME: dir, GIT_CONFIG_NOSYSTEM: "1" } }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim(); };
+	if (!existsSync(join(dir, ".git"))) git("init", "-q");
+	writeFileSync(join(dir, "marker"), message);
+	git("add", "marker"); git("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", message);
+	return git("rev-parse", "HEAD");
+}
+async function scheduledUpdate(t, prepare, options = {}) {
+	const f = fixture(t, options);
+	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
+	const snapshot = join(f.codexHome, "plugins", "cache", "ccl-skills", "ccl-skills", "local");
+	prepare(f.origin, snapshot);
+	const before = f.calls().length;
+	const result = await runScheduled(f.env, f.command);
+	return { f, result, calls: f.calls().slice(before).filter(c => !c.args.includes("--json")).map(c => c.args.slice(2)) };
+}
+const upgradeOnly = [["marketplace", "upgrade", "ccl-skills"]], reinstall = [...upgradeOnly, ["add", "ccl-skills@ccl-skills"]];
+test("runner skips plugin add when the clean installed snapshot is at the plugin's current commit", async t => {
+	const { f, result, calls } = await scheduledUpdate(t, (origin, snapshot) => { gitCommit(origin, "one"); cpSync(origin, snapshot, { recursive: true }); });
+	assert.equal(result.code, 0, result.message);
+	assert.equal(result.status, "current");
+	assert.deepEqual(calls, upgradeOnly);
+	assert.equal(f.log().status, "success");
+	assert.match(f.log().message, /already installed/);
+	assert.equal(existsSync(f.fsmonitorCalls), false, "the snapshot probe must not run the user's fsmonitor");
+});
+test("documented runner refresh replaces a runner saved by an older package", async t => {
+	const f = fixture(t);
+	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
+	const older = "// runner saved by an older package\n", runner = join(f.root, "runner.mjs");
+	writeFileSync(runner, older);
+	writeFileSync(join(f.root, "state.json"), JSON.stringify({ ...f.state(), runnerHash: createHash("sha256").update(older).digest("hex") }));
+	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
+	assert.equal(readFileSync(runner, "utf8"), older, "re-enabling keeps the saved runner");
+	assert.equal((await autoUpdate("disable", f.deps)).status, "disabled");
+	rmSync(f.root, { recursive: true });
+	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
+	assert.equal(readFileSync(runner, "utf8"), readFileSync(new URL("../dist/auto-update.js", import.meta.url), "utf8"));
+});
+for (const [name, prepare, options] of [
+	["the plugin URL has a newer commit", (origin, snapshot) => { gitCommit(origin, "one"); cpSync(origin, snapshot, { recursive: true }); gitCommit(origin, "two"); }],
+	["a tracked file in the snapshot is damaged", (origin, snapshot) => { gitCommit(origin, "one"); cpSync(origin, snapshot, { recursive: true }); writeFileSync(join(snapshot, "marker"), "damaged"); }],
+	["the snapshot has an unexpected file", (origin, snapshot) => { gitCommit(origin, "one"); cpSync(origin, snapshot, { recursive: true }); writeFileSync(join(snapshot, "extra"), "x"); }],
+	["the installed commit cannot be read", origin => { gitCommit(origin, "one"); }],
+	["the plugin URL cannot be read", () => {}],
+	["the plugin source pins a ref", (origin, snapshot) => { gitCommit(origin, "one"); cpSync(origin, snapshot, { recursive: true }); }, { pluginRef: "release" }],
+]) test(`runner reinstalls when ${name}`, async t => {
+	const { result, calls } = await scheduledUpdate(t, prepare, options);
+	assert.equal(result.status, "updated", result.message);
+	assert.deepEqual(calls, reinstall);
 });
 
 for (const [name, options] of [
