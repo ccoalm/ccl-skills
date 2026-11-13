@@ -79,8 +79,15 @@ if command -v codex >/dev/null 2>&1; then
   codex plugin marketplace add "$SSH_URL" 2>&1 | tail -1 || record_failure "$?"
   codex plugin add "$PLUGIN" 2>&1 | tail -1 || record_failure "$?"
   if [ "$CODEX_CRON" = 1 ]; then
-    line="0 9 * * * codex plugin marketplace upgrade >/dev/null 2>&1; codex plugin add $PLUGIN >/dev/null 2>&1"
-    if crontab -l 2>/dev/null | grep -Fq "codex plugin marketplace upgrade"; then
+    # Codex 的 hook 信任按整个安装快照（含 .git）计哈希：同一提交重装也会让 hook 全部要求重新批准，
+    # 所以只在 marketplace 提交与已装快照不同（或读不到）时才 plugin add。
+    line='0 9 * * * codex plugin marketplace upgrade >/dev/null 2>&1; h="${CODEX_HOME:-$HOME/.codex}"; m=$(git -C "$h/.tmp/marketplaces/ccl-skills" rev-parse -q --verify "HEAD^{commit}" 2>/dev/null); [ -n "$m" ] && [ "$m" = "$(git -C "$h/plugins/cache/ccl-skills/ccl-skills/local" rev-parse -q --verify "HEAD^{commit}" 2>/dev/null)" ] || codex plugin add '"$PLUGIN"' >/dev/null 2>&1'
+    legacy="0 9 * * * codex plugin marketplace upgrade >/dev/null 2>&1; codex plugin add $PLUGIN >/dev/null 2>&1"
+    current=$(crontab -l 2>/dev/null || true)
+    if grep -Fxq "$legacy" <<<"$current"; then
+      { grep -Fxv "$legacy" <<<"$current"; echo "$line"; } | crontab - \
+        && echo "  ✔ 已把旧版 Codex cron 换成同提交不重装的版本" || record_failure "$?"
+    elif grep -Fq "codex plugin marketplace upgrade" <<<"$current"; then
       echo "  ✔ Codex cron 已存在，跳过"
     else
       ( crontab -l 2>/dev/null; echo "$line" ) | crontab - \

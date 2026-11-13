@@ -176,6 +176,23 @@ async function validateCodex(s: State, command: Command) {
 	const installed = plugins.installed.filter((p: any) => p.pluginId === REF);
 	if (installed.length !== 1 || installed[0].installed !== true || installed[0].enabled !== true || installed[0].marketplaceName !== "ccl-skills" || installed[0].source?.source !== "git" || !SOURCES.has(installed[0].source?.url) || installed[0].marketplaceSource?.sourceType !== "git" || !SOURCES.has(installed[0].marketplaceSource?.source))
 		throw new Error("ccl-skills@ccl-skills must be installed and enabled from the canonical Git marketplace before enabling updates");
+	return { marketRoot: matches[0].root as unknown, version: installed[0].version as unknown };
+}
+// Codex hook trust hashes the whole installed snapshot, .git included, so reinstalling
+// an unchanged commit still revokes every approval. Unreadable state means "unknown":
+// the caller then reinstalls as before.
+async function snapshotsMatch(s: State, codex: { marketRoot: unknown; version: unknown }, command: Command): Promise<string | undefined> {
+	const { marketRoot, version } = codex;
+	if (typeof marketRoot !== "string" || !isAbsolute(marketRoot) || typeof version !== "string" || !/^[A-Za-z0-9._-]+$/.test(version) || version === "." || version === "..") return undefined;
+	const head = async (dir: string) => {
+		const r = await command("git", ["-C", dir, "rev-parse", "--verify", "--quiet", "HEAD^{commit}"], runtimeEnv(s), 10000);
+		const commit = r.stdout.trim();
+		return !r.failure && r.code === 0 && /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(commit) ? commit : undefined;
+	};
+	const market = await head(marketRoot);
+	if (!market) return undefined;
+	const installed = await head(join(s.profile, "plugins", "cache", "ccl-skills", "ccl-skills", version));
+	return installed === market ? market : undefined;
 }
 const PACKAGE = "@ccoalm/ccl-skills";
 const REGISTRY = "https://registry.npmjs.org/";
@@ -383,7 +400,14 @@ export async function runScheduled(env: NodeJS.ProcessEnv = process.env, execute
 				if (!readState(c)?.enabled) throw new Error("Schedule was disabled; no further update commands performed");
 				const result = await command(s.binary, ["--no-daemon", "plugin", ...args], runtimeEnv(s), 120000);
 				if (result.failure || result.code !== 0) throw new Error(`${args[0]} failed (${result.failure || `exit ${result.code}`}); inspect Codex and retry on the next scheduled run`);
-				await validateCodex(s, command);
+				const codex = await validateCodex(s, command);
+				if (args[0] !== "marketplace") continue;
+				const current = await snapshotsMatch(s, codex, command);
+				if (current) {
+					const message = `ccl-skills ${current.slice(0, 12)} is already installed; reinstall skipped so Codex hook approvals stay valid`;
+					record("success", message);
+					return { code: 0, status: "current", message };
+				}
 			}
 			record("success", "Git marketplace refreshed and ccl-skills plugin installed; restart Codex to load changes");
 			return { code: 0, status: "updated", message: "ccl-skills Git plugin updated" };

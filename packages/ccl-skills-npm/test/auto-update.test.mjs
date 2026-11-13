@@ -38,7 +38,7 @@ const market = {name:'ccl-skills',root: ${JSON.stringify(join(codexHome, "market
 if(args.includes('--json')) {
  if(config.invalidJson) { process.stdout.write('invalid'); process.exit(0); }
  if(args.includes('marketplace')) console.log(JSON.stringify({marketplaces:config.missing ? [] : config.duplicate ? [market,market] : [market]}));
- else console.log(JSON.stringify({installed:[{pluginId:'ccl-skills@ccl-skills',name:'ccl-skills',marketplaceName:'ccl-skills',installed:true,enabled:!config.disabled,source:{source:"git",url:config.pluginSource || source},marketplaceSource:market.marketplaceSource}],available:[]}));
+ else console.log(JSON.stringify({installed:[{pluginId:'ccl-skills@ccl-skills',name:'ccl-skills',marketplaceName:'ccl-skills',version:'local',installed:true,enabled:!config.disabled,source:{source:"git",url:config.pluginSource || source},marketplaceSource:market.marketplaceSource}],available:[]}));
 } else if(args.includes('upgrade')) { process.exitCode=config.upgradeExit || 0; }
 else if(args.includes('add')) { process.exitCode=config.addExit || 0; }
 else process.exitCode=7;
@@ -112,6 +112,42 @@ test("enable runs persisted runner during bootstrap, stays idempotent, and disab
 	assert.equal((await runScheduled(f.env, f.command)).status, "disabled");
 	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
 	assert.equal(f.bootstrapCount, 2);
+});
+
+function gitCommit(dir, message) {
+	mkdirSync(dir, { recursive: true });
+	const git = (...args) => { const r = spawnSync("git", ["-C", dir, ...args], { encoding: "utf8", env: { PATH: "/usr/bin:/bin", HOME: dir, GIT_CONFIG_NOSYSTEM: "1" } }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim(); };
+	if (!existsSync(join(dir, ".git"))) git("init", "-q");
+	writeFileSync(join(dir, "marker"), message);
+	git("add", "marker"); git("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", message);
+	return git("rev-parse", "HEAD");
+}
+async function scheduledUpdate(t, prepare) {
+	const f = fixture(t);
+	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
+	const market = join(f.codexHome, "market"), cache = join(f.codexHome, "plugins", "cache", "ccl-skills", "ccl-skills", "local");
+	prepare(market, cache);
+	const before = f.calls().length;
+	const result = await runScheduled(f.env, f.command);
+	return { f, result, calls: f.calls().slice(before).filter(c => !c.args.includes("--json")).map(c => c.args.slice(2)) };
+}
+test("runner skips plugin add when the installed snapshot already matches the marketplace commit", async t => {
+	const { f, result, calls } = await scheduledUpdate(t, (market, cache) => { gitCommit(market, "one"); cpSync(market, cache, { recursive: true }); });
+	assert.equal(result.code, 0, result.message);
+	assert.equal(result.status, "current");
+	assert.deepEqual(calls, [["marketplace", "upgrade", "ccl-skills"]]);
+	assert.equal(f.log().status, "success");
+	assert.match(f.log().message, /already installed/);
+});
+test("runner reinstalls when the marketplace commit differs from the installed snapshot", async t => {
+	const { result, calls } = await scheduledUpdate(t, (market, cache) => { gitCommit(market, "one"); cpSync(market, cache, { recursive: true }); gitCommit(market, "two"); });
+	assert.equal(result.status, "updated", result.message);
+	assert.deepEqual(calls, [["marketplace", "upgrade", "ccl-skills"], ["add", "ccl-skills@ccl-skills"]]);
+});
+test("runner still reinstalls when the installed commit cannot be read", async t => {
+	const { result, calls } = await scheduledUpdate(t, market => { gitCommit(market, "one"); });
+	assert.equal(result.status, "updated", result.message);
+	assert.deepEqual(calls, [["marketplace", "upgrade", "ccl-skills"], ["add", "ccl-skills@ccl-skills"]]);
 });
 
 for (const [name, options] of [

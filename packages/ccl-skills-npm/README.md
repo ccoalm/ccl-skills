@@ -99,7 +99,7 @@ codex --no-daemon plugin marketplace upgrade ccl-skills
 codex --no-daemon plugin add ccl-skills@ccl-skills
 ```
 
-An unsuccessful upgrade prevents the add step. Each update command has a two-minute limit; timeout terminates its child process group. Source changes are checked at those boundaries; Codex does not provide an atomic compare-and-update operation. Restart Codex to load changes. Hook trust follows Codex's normal policy.
+An unsuccessful upgrade prevents the add step. When the refreshed marketplace and the installed snapshot are at the same Git commit, the add step is skipped and the run reports `current`: Codex hook trust hashes the whole installed snapshot, so reinstalling an unchanged commit would otherwise revoke every hook approval. If either commit cannot be read, the add step runs as before. Each update command has a two-minute limit; timeout terminates its child process group. Source changes are checked at those boundaries; Codex does not provide an atomic compare-and-update operation. Restart Codex to load changes. Hook trust follows Codex's normal policy.
 
 Codex npm installations use a local snapshot under `ccl-skills-npm`, which this scheduler refuses. Keep those current with `ccl-skills update --yes`. To migrate, preview removal with `ccl-skills uninstall --host codex`, then repeat with `--yes`. Register the Git installation explicitly:
 
