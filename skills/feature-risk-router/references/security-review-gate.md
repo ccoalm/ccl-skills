@@ -12,6 +12,8 @@ The security-review gate is in exactly one state. This router can never set `pas
 
 Absence of a dedicated owner or recipe does not block *unrelated* work, but it leaves the security-review gate at **pending-dedicated-review**, never satisfied. A risk owner may accept the residual risk and ship past a **pending-dedicated-review** gate, but that is a separate recorded ship / accept-risk exception (per Stop Rules) and **leaves the gate at pending-dedicated-review — it does not make it `passed`**. Proceeding past a pending gate is a risk-owner / user decision, never something the inline pass or an external recipe can grant.
 
+- **When the requester is the only accountable person** (`agent-context/session-policy.md`「请求者即唯一负责人」): the risk owner is the requester, and no security owner, reviewer or team is written into the deliverable that nobody named. The statuses above do not change — the gate still cannot be **passed** without a professional review. Record the gate as **pending-dedicated-review** with the first-pass findings and the residual risk, state that launching with the gate pending is the requester's own decision to make at launch, and finish the classification and every local, reversible step. The `stop reason` below then names what is held (launch or the exposed path), not a person to wait for, and the turn does not end waiting on it.
+
 ## Method ownership
 
 There is no ccl-owned security-audit *method*. The router owns only the gate's status and how the review is conducted safely.

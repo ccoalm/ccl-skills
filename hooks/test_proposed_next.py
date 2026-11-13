@@ -483,6 +483,39 @@ class ProposedNextTests(unittest.TestCase):
                 self.assertIn('supplies no new goal or authorization', result['reason'])
                 self.assertEqual(self.run_hook(dict(payload, stop_hook_active=True)), {})
 
+    def test_scope_limited_request_ends_on_an_action_in_both_reminders(self):
+        # Observed in paired runs of design-only and document-only requests:
+        # the agent turned the request's own scope into "blocked: implement —
+        # you only asked for a design" or "after you confirm the defaults".
+        for events in ([], self.claude_load()):
+            self.events(events)
+            for text in ('Design written to docs/design.md.\n'
+                         'proposed-next: 你确认默认值并同意开发后，先做风险定级再写测试',
+                         'Design written to docs/design.md.\n'
+                         'proposed-next: write the failing tests from section 8, then implement'):
+                with self.subTest(text=text):
+                    result = self.run_hook(dict(self.payload, last_assistant_message=text))
+                    self.assert_block(result)
+                    self.assertIn('scope limit, not a blocker', result['reason'])
+                    self.assertIn('the scope itself never becomes a blocked: line', result['reason'])
+                    # A real missing approval or resource is still reported, not hidden as an action.
+                    self.assertIn('independently lacks is still written as blocked:', result['reason'])
+                    self.assertNotIn('never as blocked:', result['reason'])
+                    # The sole-owner test carries every condition of the canonical policy.
+                    for condition in ('task material name no other accountable person',
+                                      'no platform rule requires someone else\'s approval',
+                                      'every resource involved is the requester\'s own',
+                                      'when unsure, treat it as a team setting'):
+                        self.assertIn(condition, result['reason'])
+                    self.assertIn('do not ask the requester to confirm them', result['reason'])
+                    self.assertIn('a question you can recommend an answer to is a default', result['reason'])
+                    # Adopting defaults is scoped to a sole owner; a decision or approval the
+                    # request or repository reserves for someone else is not adopted away.
+                    self.assertIn('When the requester alone owns the work', result['reason'])
+                    self.assertIn('does not ask to be consulted first', result['reason'])
+                    self.assertIn('reserves for someone else still goes to them', result['reason'])
+                    self.assertIn('a named approval stays a precondition of the step it gates', result['reason'])
+
     def test_diagnosis_scope_and_question_turn_are_named_in_both_reminders(self):
         # Observed stops after a verified root cause: the agent read "missing
         # authority" as "you only asked me to investigate", and a clarifying
