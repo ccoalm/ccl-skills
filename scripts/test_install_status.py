@@ -254,9 +254,14 @@ class SourceInstallStatusTests(unittest.TestCase):
 
     def assert_cron_reinstalls_only_on_new_commit(self, command):
         self.fake_host("codex", failing_operation="never-matches")
+        cut = self.bin / "cut"
+        if not cut.exists():
+            cut.symlink_to(shutil.which("cut"))
+        origin = self.root / "origin"
+        subprocess.run(["git", "config", "--file", str(self.home / ".gitconfig"), "url." + str(origin) + ".insteadOf",
+                        "https://github.com/ccoalm/ccl-skills.git"], check=True)
         codex_home = self.root / "codex home"
-        market = codex_home / ".tmp/marketplaces/ccl-skills"
-        cache = codex_home / "plugins/cache/ccl-skills/ccl-skills/local"
+        snapshot = codex_home / "plugins/cache/ccl-skills/ccl-skills/local"
         calls = Path(self.env["HOST_CALLS"])
 
         def run_cron():
@@ -264,19 +269,24 @@ class SourceInstallStatusTests(unittest.TestCase):
             subprocess.run(["/bin/sh", "-c", command], env={**self.env, "CODEX_HOME": str(codex_home)}, check=True)
             return calls.read_text().splitlines()
 
-        add = "plugin add ccl-skills@ccl-skills"
-        self.git_commit(market, "one")
-        self.assertEqual(run_cron(), ["plugin marketplace upgrade", add], "unreadable snapshot must reinstall")
-        shutil.copytree(market, cache)
-        self.assertEqual(run_cron(), ["plugin marketplace upgrade"], "same commit must not reinstall")
-        self.git_commit(market, "two")
-        self.assertEqual(run_cron(), ["plugin marketplace upgrade", add], "new commit must reinstall")
+        upgrade, add = "plugin marketplace upgrade", "plugin add ccl-skills@ccl-skills"
+        self.assertEqual(run_cron(), [upgrade, add], "unreadable plugin URL must reinstall")
+        self.git_commit(origin, "one")
+        self.assertEqual(run_cron(), [upgrade, add], "unreadable snapshot must reinstall")
+        shutil.copytree(origin, snapshot)
+        self.assertEqual(run_cron(), [upgrade], "clean snapshot at the current commit must not reinstall")
+        (snapshot / "marker").write_text("damaged")
+        self.assertEqual(run_cron(), [upgrade, add], "damaged snapshot must reinstall")
+        (snapshot / "marker").write_text("one")
+        self.assertEqual(run_cron(), [upgrade])
+        self.git_commit(origin, "two")
+        self.assertEqual(run_cron(), [upgrade, add], "new commit must reinstall")
 
     def test_legacy_cron_entry_is_replaced_and_others_kept(self):
         self.fake_host("codex")
         legacy = "0 9 * * * codex plugin marketplace upgrade >/dev/null 2>&1; codex plugin add ccl-skills@ccl-skills >/dev/null 2>&1"
         existing = self.root / "existing-crontab"
-        existing.write_text(f"5 4 * * * unrelated-job\n{legacy}\n")
+        existing.write_text(f"5 4 * * * unrelated-job\n{legacy}\nCODEX_HOME=/elsewhere\n6 4 * * * later-job\n")
         capture = self.root / "written-crontab"
         self.env.update(CRON_EXISTING=str(existing), CRON_CAPTURE=str(capture))
         cron = self.bin / "crontab"
@@ -285,9 +295,11 @@ class SourceInstallStatusTests(unittest.TestCase):
         result = self.run_install("install.sh", "--codex-cron")
         self.assertEqual(result.returncode, 0, result.stderr)
         entries = capture.read_text().splitlines()
-        self.assertEqual(entries[0], "5 4 * * * unrelated-job")
+        self.assertEqual(len(entries), 4)
+        self.assertEqual([entries[0], entries[2], entries[3]],
+                         ["5 4 * * * unrelated-job", "CODEX_HOME=/elsewhere", "6 4 * * * later-job"])
         self.assertNotIn(legacy, entries)
-        self.assertEqual(len(entries), 2)
+        self.assertTrue(entries[1].startswith("0 9 * * * codex plugin marketplace upgrade"))
         self.assert_cron_reinstalls_only_on_new_commit(entries[1][len("0 9 * * * "):])
 
     def test_backup_move_failure_does_not_overwrite_original(self):

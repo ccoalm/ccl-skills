@@ -27,6 +27,12 @@ function fixture(t, options = {}) {
 	const home = join(temp, "home ' & <xml>"), codexHome = join(home, "profile with spaces"), bin = join(home, "bin"), calls = join(temp, "calls.jsonl"), control = join(temp, "control.json");
 	mkdirSync(codexHome, { recursive: true }); mkdirSync(bin);
 	writeFileSync(control, JSON.stringify(options));
+	// Keep the runner's `git ls-remote` offline: every canonical URL resolves to a local origin.
+	const origin = join(temp, "origin");
+	for (const url of ["https://github.com/ccoalm/ccl-skills.git", "git@github.com:ccoalm/ccl-skills.git", "ssh://git@github.com/ccoalm/ccl-skills.git"]) {
+		const r = spawnSync("git", ["config", "--file", join(home, ".gitconfig"), "--add", `url.${origin}.insteadOf`, url], { encoding: "utf8" });
+		assert.equal(r.status, 0, r.stderr);
+	}
 	const codex = join(bin, "codex");
 	writeFileSync(codex, `#!${process.execPath}
 const fs = require('node:fs');
@@ -64,7 +70,7 @@ else process.exitCode=7;
 		registered = null;
 		return { code: 0, stdout: "", stderr: "" };
 	};
-	return { home, codexHome, root, bin, env, control, command,
+	return { home, codexHome, root, bin, env, control, command, origin,
 		deps: { env, platform: "darwin", command },
 		calls: () => existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse) : [],
 		state: () => JSON.parse(readFileSync(join(root, "state.json"), "utf8")),
@@ -125,29 +131,44 @@ function gitCommit(dir, message) {
 async function scheduledUpdate(t, prepare) {
 	const f = fixture(t);
 	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
-	const market = join(f.codexHome, "market"), cache = join(f.codexHome, "plugins", "cache", "ccl-skills", "ccl-skills", "local");
-	prepare(market, cache);
+	const snapshot = join(f.codexHome, "plugins", "cache", "ccl-skills", "ccl-skills", "local");
+	prepare(f.origin, snapshot);
 	const before = f.calls().length;
 	const result = await runScheduled(f.env, f.command);
 	return { f, result, calls: f.calls().slice(before).filter(c => !c.args.includes("--json")).map(c => c.args.slice(2)) };
 }
-test("runner skips plugin add when the installed snapshot already matches the marketplace commit", async t => {
-	const { f, result, calls } = await scheduledUpdate(t, (market, cache) => { gitCommit(market, "one"); cpSync(market, cache, { recursive: true }); });
+const upgradeOnly = [["marketplace", "upgrade", "ccl-skills"]], reinstall = [...upgradeOnly, ["add", "ccl-skills@ccl-skills"]];
+test("runner skips plugin add when the clean installed snapshot is at the plugin's current commit", async t => {
+	const { f, result, calls } = await scheduledUpdate(t, (origin, snapshot) => { gitCommit(origin, "one"); cpSync(origin, snapshot, { recursive: true }); });
 	assert.equal(result.code, 0, result.message);
 	assert.equal(result.status, "current");
-	assert.deepEqual(calls, [["marketplace", "upgrade", "ccl-skills"]]);
+	assert.deepEqual(calls, upgradeOnly);
 	assert.equal(f.log().status, "success");
 	assert.match(f.log().message, /already installed/);
 });
-test("runner reinstalls when the marketplace commit differs from the installed snapshot", async t => {
-	const { result, calls } = await scheduledUpdate(t, (market, cache) => { gitCommit(market, "one"); cpSync(market, cache, { recursive: true }); gitCommit(market, "two"); });
-	assert.equal(result.status, "updated", result.message);
-	assert.deepEqual(calls, [["marketplace", "upgrade", "ccl-skills"], ["add", "ccl-skills@ccl-skills"]]);
+test("documented runner refresh replaces a runner saved by an older package", async t => {
+	const f = fixture(t);
+	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
+	const older = "// runner saved by an older package\n", runner = join(f.root, "runner.mjs");
+	writeFileSync(runner, older);
+	writeFileSync(join(f.root, "state.json"), JSON.stringify({ ...f.state(), runnerHash: createHash("sha256").update(older).digest("hex") }));
+	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
+	assert.equal(readFileSync(runner, "utf8"), older, "re-enabling keeps the saved runner");
+	assert.equal((await autoUpdate("disable", f.deps)).status, "disabled");
+	rmSync(f.root, { recursive: true });
+	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
+	assert.equal(readFileSync(runner, "utf8"), readFileSync(new URL("../dist/auto-update.js", import.meta.url), "utf8"));
 });
-test("runner still reinstalls when the installed commit cannot be read", async t => {
-	const { result, calls } = await scheduledUpdate(t, market => { gitCommit(market, "one"); });
+for (const [name, prepare] of [
+	["the plugin URL has a newer commit", (origin, snapshot) => { gitCommit(origin, "one"); cpSync(origin, snapshot, { recursive: true }); gitCommit(origin, "two"); }],
+	["a tracked file in the snapshot is damaged", (origin, snapshot) => { gitCommit(origin, "one"); cpSync(origin, snapshot, { recursive: true }); writeFileSync(join(snapshot, "marker"), "damaged"); }],
+	["the snapshot has an unexpected file", (origin, snapshot) => { gitCommit(origin, "one"); cpSync(origin, snapshot, { recursive: true }); writeFileSync(join(snapshot, "extra"), "x"); }],
+	["the installed commit cannot be read", origin => { gitCommit(origin, "one"); }],
+	["the plugin URL cannot be read", () => {}],
+]) test(`runner reinstalls when ${name}`, async t => {
+	const { result, calls } = await scheduledUpdate(t, prepare);
 	assert.equal(result.status, "updated", result.message);
-	assert.deepEqual(calls, [["marketplace", "upgrade", "ccl-skills"], ["add", "ccl-skills@ccl-skills"]]);
+	assert.deepEqual(calls, reinstall);
 });
 
 for (const [name, options] of [

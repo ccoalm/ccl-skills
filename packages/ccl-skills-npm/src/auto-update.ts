@@ -176,23 +176,28 @@ async function validateCodex(s: State, command: Command) {
 	const installed = plugins.installed.filter((p: any) => p.pluginId === REF);
 	if (installed.length !== 1 || installed[0].installed !== true || installed[0].enabled !== true || installed[0].marketplaceName !== "ccl-skills" || installed[0].source?.source !== "git" || !SOURCES.has(installed[0].source?.url) || installed[0].marketplaceSource?.sourceType !== "git" || !SOURCES.has(installed[0].marketplaceSource?.source))
 		throw new Error("ccl-skills@ccl-skills must be installed and enabled from the canonical Git marketplace before enabling updates");
-	return { marketRoot: matches[0].root as unknown, version: installed[0].version as unknown };
+	return { url: installed[0].source.url as string, version: installed[0].version as unknown };
 }
 // Codex hook trust hashes the whole installed snapshot, .git included, so reinstalling
-// an unchanged commit still revokes every approval. Unreadable state means "unknown":
-// the caller then reinstalls as before.
-async function snapshotsMatch(s: State, codex: { marketRoot: unknown; version: unknown }, command: Command): Promise<string | undefined> {
-	const { marketRoot, version } = codex;
-	if (typeof marketRoot !== "string" || !isAbsolute(marketRoot) || typeof version !== "string" || !/^[A-Za-z0-9._-]+$/.test(version) || version === "." || version === "..") return undefined;
-	const head = async (dir: string) => {
-		const r = await command("git", ["-C", dir, "rev-parse", "--verify", "--quiet", "HEAD^{commit}"], runtimeEnv(s), 10000);
-		const commit = r.stdout.trim();
-		return !r.failure && r.code === 0 && /^[0-9a-f]{40}([0-9a-f]{24})?$/.test(commit) ? commit : undefined;
+// an unchanged commit still revokes every approval. Skip `plugin add` only when the
+// snapshot is clean and already at the commit `add` would clone (the plugin URL's
+// default HEAD, which a pinned marketplace ref does not move). Anything unreadable
+// means "unknown", and the caller reinstalls as before.
+async function snapshotCurrent(s: State, codex: { url: string; version: unknown }, command: Command): Promise<string | undefined> {
+	const { url, version } = codex;
+	if (typeof version !== "string" || !/^[A-Za-z0-9._-]+$/.test(version) || version === "." || version === "..") return undefined;
+	const git = async (args: string[], timeout = 10000) => {
+		const r = await command("git", args, runtimeEnv(s), timeout);
+		return r.failure || r.code !== 0 ? undefined : r.stdout;
 	};
-	const market = await head(marketRoot);
-	if (!market) return undefined;
-	const installed = await head(join(s.profile, "plugins", "cache", "ccl-skills", "ccl-skills", version));
-	return installed === market ? market : undefined;
+	const commit = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
+	const target = (await git(["ls-remote", "--exit-code", url, "HEAD"], 60000))?.split(/\s/)[0];
+	if (!target || !commit.test(target)) return undefined;
+	const snapshot = join(s.profile, "plugins", "cache", "ccl-skills", "ccl-skills", version);
+	if ((await git(["-C", snapshot, "rev-parse", "--verify", "--quiet", "HEAD^{commit}"]))?.trim() !== target) return undefined;
+	// --no-optional-locks keeps status from rewriting .git/index, which Codex also hashes.
+	const status = await git(["--no-optional-locks", "-C", snapshot, "status", "--porcelain"]);
+	return status === "" ? target : undefined;
 }
 const PACKAGE = "@ccoalm/ccl-skills";
 const REGISTRY = "https://registry.npmjs.org/";
@@ -402,7 +407,7 @@ export async function runScheduled(env: NodeJS.ProcessEnv = process.env, execute
 				if (result.failure || result.code !== 0) throw new Error(`${args[0]} failed (${result.failure || `exit ${result.code}`}); inspect Codex and retry on the next scheduled run`);
 				const codex = await validateCodex(s, command);
 				if (args[0] !== "marketplace") continue;
-				const current = await snapshotsMatch(s, codex, command);
+				const current = await snapshotCurrent(s, codex, command);
 				if (current) {
 					const message = `ccl-skills ${current.slice(0, 12)} is already installed; reinstall skipped so Codex hook approvals stay valid`;
 					record("success", message);

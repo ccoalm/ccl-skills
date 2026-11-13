@@ -79,13 +79,17 @@ if command -v codex >/dev/null 2>&1; then
   codex plugin marketplace add "$SSH_URL" 2>&1 | tail -1 || record_failure "$?"
   codex plugin add "$PLUGIN" 2>&1 | tail -1 || record_failure "$?"
   if [ "$CODEX_CRON" = 1 ]; then
-    # Codex 的 hook 信任按整个安装快照（含 .git）计哈希：同一提交重装也会让 hook 全部要求重新批准，
-    # 所以只在 marketplace 提交与已装快照不同（或读不到）时才 plugin add。
-    line='0 9 * * * codex plugin marketplace upgrade >/dev/null 2>&1; h="${CODEX_HOME:-$HOME/.codex}"; m=$(git -C "$h/.tmp/marketplaces/ccl-skills" rev-parse -q --verify "HEAD^{commit}" 2>/dev/null); [ -n "$m" ] && [ "$m" = "$(git -C "$h/plugins/cache/ccl-skills/ccl-skills/local" rev-parse -q --verify "HEAD^{commit}" 2>/dev/null)" ] || codex plugin add '"$PLUGIN"' >/dev/null 2>&1'
+    # Codex 的 hook 信任按整个安装快照（含 .git）计哈希：同一提交重装也会让 hook 全部要求重新批准。
+    # 所以只在快照干净且已是插件 URL 的当前提交时跳过 plugin add；任何一项读不到都照旧重装。
+    # --no-optional-locks 让 status 不改写 .git/index（Codex 也会把它算进哈希）。
+    line='0 9 * * * codex plugin marketplace upgrade >/dev/null 2>&1; s="${CODEX_HOME:-$HOME/.codex}/plugins/cache/ccl-skills/ccl-skills/local"; t=$(git ls-remote --exit-code '"$HTTP_URL"' HEAD 2>/dev/null | cut -f1); [ -n "$t" ] && [ "$t" = "$(git -C "$s" rev-parse -q --verify "HEAD^{commit}" 2>/dev/null)" ] && [ -z "$(git --no-optional-locks -C "$s" status --porcelain 2>&1)" ] || codex plugin add '"$PLUGIN"' >/dev/null 2>&1'
     legacy="0 9 * * * codex plugin marketplace upgrade >/dev/null 2>&1; codex plugin add $PLUGIN >/dev/null 2>&1"
     current=$(crontab -l 2>/dev/null || true)
     if grep -Fxq "$legacy" <<<"$current"; then
-      { grep -Fxv "$legacy" <<<"$current"; echo "$line"; } | crontab - \
+      # 原位替换：保持它在 crontab 里的位置，前面的环境变量赋值照旧作用于它。
+      while IFS= read -r entry; do
+        if [ "$entry" = "$legacy" ]; then printf '%s\n' "$line"; else printf '%s\n' "$entry"; fi
+      done <<<"$current" | crontab - \
         && echo "  ✔ 已把旧版 Codex cron 换成同提交不重装的版本" || record_failure "$?"
     elif grep -Fq "codex plugin marketplace upgrade" <<<"$current"; then
       echo "  ✔ Codex cron 已存在，跳过"

@@ -99,7 +99,7 @@ codex --no-daemon plugin marketplace upgrade ccl-skills
 codex --no-daemon plugin add ccl-skills@ccl-skills
 ```
 
-An unsuccessful upgrade prevents the add step. When the refreshed marketplace and the installed snapshot are at the same Git commit, the add step is skipped and the run reports `current`: Codex hook trust hashes the whole installed snapshot, so reinstalling an unchanged commit would otherwise revoke every hook approval. If either commit cannot be read, the add step runs as before. Each update command has a two-minute limit; timeout terminates its child process group. Source changes are checked at those boundaries; Codex does not provide an atomic compare-and-update operation. Restart Codex to load changes. Hook trust follows Codex's normal policy.
+An unsuccessful upgrade prevents the add step. When the installed snapshot is clean and already at the plugin URL's current `HEAD` (the commit the add step would clone), the add step is skipped and the run reports `current`: Codex hook trust hashes the whole installed snapshot, `.git` included, so reinstalling an unchanged commit would otherwise revoke every hook approval. If the remote commit, the snapshot commit or the snapshot status cannot be read, the add step runs as before. Each update command has a two-minute limit; timeout terminates its child process group. Source changes are checked at those boundaries; Codex does not provide an atomic compare-and-update operation. Restart Codex to load changes. Hook trust follows Codex's normal policy.
 
 Codex npm installations use a local snapshot under `ccl-skills-npm`, which this scheduler refuses. Keep those current with `ccl-skills update --yes`. To migrate, preview removal with `ccl-skills uninstall --host codex`, then repeat with `--yes`. Register the Git installation explicitly:
 
@@ -129,7 +129,7 @@ Package download has a three-minute limit; asset update has a two-minute limit. 
 
 ### Status and recovery
 
-State lives in `$CODEX_HOME/ccl-skills-auto-update` for Codex and `~/.config/opencode/ccl-skills-auto-update` for OpenCode. Each profile has its own file in `~/Library/LaunchAgents`. The saved runner survives removal of an npx download and keeps the executable paths and profile selected at enable time. Those executables must remain installed. Re-enabling retains the saved runner; upgrading the npm CLI does not replace it.
+State lives in `$CODEX_HOME/ccl-skills-auto-update` for Codex and `~/.config/opencode/ccl-skills-auto-update` for OpenCode. Each profile has its own file in `~/Library/LaunchAgents`. The saved runner survives removal of an npx download and keeps the executable paths and profile selected at enable time. Those executables must remain installed. Re-enabling retains the saved runner; upgrading the npm CLI does not replace it. To adopt a newer runner, run `auto-update disable`, remove that state directory, then run `auto-update enable` with the newer package.
 
 Commands receive fixed HOME/PATH plus CODEX_HOME and `GIT_TERMINAL_PROMPT=0` for Codex, or the self-update/notifier opt-outs for OpenCode. npm uses private empty config files and cache. Credentials and source/registry overrides from the enabling shell are not persisted; macOS may add runtime variables.
 
