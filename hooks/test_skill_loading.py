@@ -176,6 +176,112 @@ class SkillLoadingTests(unittest.TestCase):
         self.assertEqual(self.decision(result), 'deny')
         self.assertNotIn('charter', result['hookSpecificOutput']['permissionDecisionReason'].lower())
 
+    def bash(self, command, cwd, session='synthetic'):
+        return self.payload('Bash', tool_input={'command': command}, cwd=str(cwd), session_id=session)
+
+    def shared_files(self):
+        root = self.ccl_checkout()
+        (root / 'skills' / 'sample-owner' / 'SKILL.md').write_text('a\n')
+        (root / 'skills' / 'sample-owner' / 'references' / 'rule.md').write_text('a\n')
+        (root / 'hooks' / 'gate.sh').write_text('a\n')
+        return root
+
+    def test_bash_write_to_the_shared_surface_reaches_the_checkpoint(self):
+        root = self.shared_files()
+        commands = [
+            'printf x > skills/sample-owner/references/rule.md',
+            'echo x >> hooks/gate.sh',
+            'ls 2>/dev/null >|hooks/gate.py',
+            "cat <<'EOF' > skills/sample-owner/SKILL.md\nit's > a body\nEOF",
+            'printf x | tee -a hooks/gate.py',
+            "sed -i '' 's/a/b/' skills/sample-owner/SKILL.md",
+            "sed -i.bak -e 's/a/b/' hooks/gate.sh",
+            "perl -pi -e 's/a/b/' hooks/gate.sh",
+            'cp /tmp/draft.md skills/sample-owner/references/rule.md',
+            'mv /tmp/draft.md skills/sample-owner/references/',
+            'touch hooks/new.py',
+            'rm -f skills/sample-owner/references/rule.md',
+            "python3 -c \"open('skills/sample-owner/SKILL.md', 'w').write('x')\"",
+            "python3 - <<'EOF'\nfrom pathlib import Path\nPath('hooks/gate.py').write_text('x')\nEOF",
+            "node -e \"require('fs').writeFileSync('hooks/gate.mjs', 'x')\"",
+            "bash -c 'echo x > hooks/gate.sh'",
+            "cd skills/sample-owner && sed -i '' 's/a/b/' SKILL.md",
+            'FOO=1 sudo tee hooks/gate.sh < /dev/null',
+            'sudo -u root tee hooks/gate.sh',
+            'printf x >skills/sample-owner/SKILL.md',
+            'cat skills/sample-owner/SKILL.md;rm hooks/gate.sh',
+            '# refresh the gate\necho x > hooks/gate.sh',
+            'mv skills/sample-owner/references/rule.md /tmp/',
+            'git mv skills/sample-owner/references/rule.md skills/sample-owner/references/moved.md',
+            'git rm -q hooks/gate.sh',
+            "python3 -c \"open('hooks/gate.py', mode='w').write('x')\"",
+            "python3 -c \"from pathlib import Path; Path('hooks/gate.py').open('a').write('x')\"",
+        ]
+        for index, command in enumerate(commands):
+            with self.subTest(command=command):
+                result = self.run_hook(self.bash(command, root, 'bash-%d' % index))
+                self.assertEqual(self.decision(result), 'deny')
+                reason = result['hookSpecificOutput']['permissionDecisionReason']
+                self.assertIn('skill-extraction-workflow', reason)
+                self.assertIn('charter', reason.lower())
+
+    def test_absolute_bash_write_from_another_directory_reaches_the_checkpoint(self):
+        root = self.shared_files()
+        result = self.run_hook(self.bash('echo x > ' + str(root / 'hooks' / 'gate.sh'), self.root))
+        self.assertEqual(self.decision(result), 'deny')
+
+    def test_read_only_and_off_surface_bash_does_not_spend_the_checkpoint(self):
+        root = self.shared_files()
+        outside = self.root / 'product' / 'skills' / 'thing'
+        outside.mkdir(parents=True)
+        cache_root = self.root / 'plugins' / 'cache' / 'ccl'
+        (cache_root / 'skills' / 'skill-extraction-workflow').mkdir(parents=True)
+        (cache_root / 'skills' / 'skill-extraction-workflow' / 'SKILL.md').write_text('marker')
+        commands = [
+            'cat skills/sample-owner/SKILL.md',
+            'grep -n x hooks/gate.sh > /tmp/out.txt',
+            'sed -n 1,20p skills/sample-owner/SKILL.md',
+            'git diff -- hooks/ 2>/dev/null',
+            'ls skills >/dev/null 2>&1',
+            'wc -l hooks/gate.sh 2>&1',
+            "grep '>' skills/sample-owner/SKILL.md",
+            'echo "a > hooks/gate.sh"',
+            "git log --format='%H > %s' -- skills",
+            "python3 -c \"print(open('skills/sample-owner/SKILL.md').read())\"",
+            "python3 -c \"s = open('skills/sample-owner/SKILL.md').read(); open('/tmp/o.md', 'w').write(s)\"",
+            "cat > /tmp/notes.md <<'EOF'\nsee skills/sample-owner/SKILL.md > old\nEOF",
+            'cp skills/sample-owner/SKILL.md /tmp/copy.md',
+            'echo {} > hooks/hooks.json',
+            'echo x > ' + str(outside / 'notes.md'),
+            'echo x > ' + str(cache_root / 'skills' / 'x.md'),
+            'echo x > "$HOME/skills/x.md"',
+            "echo 'unbalanced > hooks/gate.sh",
+            'echo \\> hooks/gate.sh',
+            "grep -c '>' skills/sample-owner/SKILL.md && grep -c '|' hooks/gate.sh",
+            "python3 -c \"from pathlib import Path; Path('/tmp/o').write_text(Path('skills/sample-owner/SKILL.md').read_text())\"",
+            "python3 - <<'EOF'\nwith open('skills/sample-owner/SKILL.md') as r, open('/tmp/o', 'w') as w:\n    w.write(r.read())\nEOF",
+            "git commit -F - <<'EOF'\nRefresh the gate\n\n> see hooks/gate.sh\nEOF",
+            'ls skills # then > hooks/gate.sh',
+            'echo x > /tmp/x.md ' + ' ' * 70000 + '> hooks/gate.sh',
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertEqual(self.run_hook(self.bash(command, root)), {})
+        self.assertEqual(self.attempts(), 0)
+        self.assertEqual(self.decision(self.run_hook(self.payload())), 'deny')
+
+    def test_bash_write_with_the_extraction_owner_loaded_is_not_checkpointed(self):
+        root = self.shared_files()
+        self.extraction_loaded()
+        self.assertEqual(self.run_hook(self.bash('echo x > hooks/gate.sh', root)), {})
+        self.assertEqual(self.attempts(), 0)
+
+    def test_bash_write_after_an_edit_checkpoint_in_the_same_context_is_not_denied_again(self):
+        root = self.shared_files()
+        self.assertEqual(self.decision(self.run_hook(self.payload())), 'deny')
+        self.assertEqual(self.run_hook(self.bash('echo x > hooks/gate.sh', root)), {})
+        self.assertEqual(self.attempts(), 1)
+
     def test_native_patch_and_all_targets(self):
         patch = '*** Begin Patch\n*** Add File: README.md\n+doc\n*** Add File: src/new.ts\n+code\n*** End Patch'
         value = self.run_hook(self.payload('apply_patch', tool_input={'command': patch}))

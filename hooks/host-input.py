@@ -242,6 +242,204 @@ def paths(payload):
             'malformed_patch': malformed}
 
 
+SHELL_WRAPPERS = frozenset(('sudo', 'env', 'command', 'nohup', 'time', 'exec', 'builtin'))
+SHELL_SEPARATORS = frozenset(';&|()')
+SHELL_REDIRECTS = frozenset('<>&|')
+INTERPRETER = re.compile(r'(?:python[0-9.]*|node|ruby)\Z')
+_LITERAL = r"""\s*(['"])([^'"\n]+)\1"""
+# Only the literal a write call writes to is a target: a path that is merely
+# read in the same code (or the same statement) never is.
+WRITE_CALLS = tuple(re.compile(pattern) for pattern in (
+    r"""\bopen\(""" + _LITERAL + r"""\s*,\s*(?:mode\s*=\s*)?['"][rbt]*[wxa+]""",
+    r"""\bPath\(""" + _LITERAL + r"""\s*\)\s*\.(?:write_text|write_bytes|touch|unlink|open\(\s*(?:mode\s*=\s*)?['"][rbt]*[wxa+])""",
+    r"""\b(?:writeFile|appendFile|unlink|rm)(?:Sync)?\(""" + _LITERAL,
+    r"""\bFile\.write\(""" + _LITERAL,
+    r"""\bos\.(?:remove|unlink)\(""" + _LITERAL,
+    r"""\b(?:shutil\.(?:copy\w*|move)|os\.(?:replace|rename))\([^,()]+,""" + _LITERAL,
+))
+HEREDOC = re.compile(r"""<<(-?)[ \t]*(['"]?)([A-Za-z_][\w.-]*)\2""")
+# Shell metacharacters inside quotes are word characters. They are swapped for
+# private-use stand-ins before tokenizing, so a quoted '>' never reads as a
+# redirection, and swapped back in each word afterwards.
+_METACHARACTERS = ';&|<>()'
+_HIDE = {ord(char): 0xE000 + index for index, char in enumerate(_METACHARACTERS)}
+_SHOW = {value: key for key, value in _HIDE.items()}
+
+
+def _heredocs(command):
+    """Cut heredoc bodies out of the command; each operator keeps a placeholder."""
+    lines, bodies, out, index = command.split('\n'), [], [], 0
+    while index < len(lines):
+        line = lines[index]
+        pending = []
+
+        def mark(match):
+            pending.append((match[1] == '-', match[3]))
+            return '<< __ccl_heredoc_%d' % (len(bodies) + len(pending) - 1)
+        out.append(HEREDOC.sub(lambda m: m[0] if m.start() and line[m.start() - 1] == '<' else mark(m), line))
+        index += 1
+        for strip, delimiter in pending:
+            body = []
+            while index < len(lines) and (lines[index].lstrip('\t') if strip else lines[index]) != delimiter:
+                body.append(lines[index])
+                index += 1
+            index += 1
+            bodies.append('\n'.join(body))
+    return '\n'.join(out), bodies
+
+
+def _shell_text(text):
+    """Unquoted newlines become ';'; quoted or escaped metacharacters are hidden.
+
+    An unquoted '#' that starts a word comments out the rest of its line.
+    """
+    out, quote, escaped, comment = [], None, False, False
+    for char in text:
+        if comment:
+            if char != '\n':
+                continue
+            comment = False
+        if escaped:
+            escaped = False
+            char = char.translate(_HIDE)
+        elif char == '\\' and quote != "'":
+            escaped = True
+        elif quote:
+            quote = None if char == quote else quote
+            char = char.translate(_HIDE) if quote else char
+        elif char in ('"', "'"):
+            quote = char
+        elif char == '#' and (not out or out[-1] in ' \t;&|()'):
+            comment = True
+            continue
+        elif char == '\n':
+            char = ';'
+        out.append(char)
+    return ''.join(out)
+
+
+def _target(word, cwd):
+    if not word or '$' in word or '`' in word or '\x00' in word or word == '/dev/null':
+        return None
+    return absolute(os.path.expanduser(word), cwd)
+
+
+def _operands(args, takes_value=()):
+    found, skip = [], False
+    for arg in args:
+        if skip:
+            skip = False
+        elif arg in takes_value:
+            skip = True
+        elif not arg.startswith('-') or arg == '-':
+            found.append(arg)
+    return found
+
+
+def _code_targets(code, cwd):
+    return [_target(match[2], cwd) for pattern in WRITE_CALLS for match in pattern.finditer(code)]
+
+
+def _segment(words, cwd, bodies, depth):
+    """Write targets of one simple command; returns (targets, cwd for later segments)."""
+    args, targets, heredoc, index = [], [], None, 0
+    while index < len(words):
+        word = words[index]
+        # Operators are recognised on the raw token, where a quoted metacharacter
+        # is still hidden; every word is shown again only after that test.
+        if word and set(word) <= SHELL_REDIRECTS and ('<' in word or '>' in word):
+            following = (words[index + 1] if index + 1 < len(words) else '').translate(_SHOW)
+            if word in ('<<', '<<-'):
+                match = re.fullmatch(r'__ccl_heredoc_(\d+)', following)
+                heredoc = bodies[int(match[1])] if match and int(match[1]) < len(bodies) else heredoc
+            elif '>' in word and not following.isdigit() and following != '-':
+                targets.append(_target(following, cwd))
+            if args and args[-1].isdigit():
+                args.pop()  # file-descriptor number, not an operand
+            index += 2
+            continue
+        args.append(word.translate(_SHOW))
+        index += 1
+    while args and re.fullmatch(r'[A-Za-z_]\w*=.*', args[0], re.S):
+        args.pop(0)
+    while args and os.path.basename(args[0]) in SHELL_WRAPPERS:
+        args.pop(0)
+        while args and (args[0].startswith('-') or re.fullmatch(r'[A-Za-z_]\w*=.*', args[0], re.S)):
+            if args.pop(0) in ('-u', '-g', '-C', '-h', '-p', '-U', '-D'):
+                args = args[1:]  # wrapper option value, e.g. sudo -u root
+    if not args:
+        return targets, cwd
+    name, rest = os.path.basename(args[0]), args[1:]
+    if name == 'cd':
+        moved = _target(rest[0], cwd) if len(rest) == 1 else None
+        return targets, moved or cwd
+    if name == 'git' and rest[:1] in (['mv'], ['rm']):
+        targets += [_target(word, cwd) for word in _operands(rest[1:])]
+    elif name == 'tee':
+        targets += [_target(word, cwd) for word in _operands(rest)]
+    elif name in ('sed', 'perl'):
+        flags = 'nrEsuz' if name == 'sed' else 'a-zA-Z'
+        inplace = any(arg in ('--in-place',) or arg.startswith('--in-place=')
+                      or re.fullmatch('-[' + flags + ']*i.*', arg, re.S) for arg in rest)
+        if inplace:
+            scripted = any(arg in ('-e', '-f', '--expression', '--file') for arg in rest)
+            files = [word for word in _operands(rest, ('-e', '-f', '--expression', '--file')) if word]
+            targets += [_target(word, cwd) for word in (files if scripted else files[1:])]
+    elif name in ('cp', 'mv', 'install', 'ln', 'rsync'):
+        values = ('-t', '--target-directory', '-m', '-o', '-g', '-S', '-e')
+        directory = next((rest[i + 1] for i, arg in enumerate(rest[:-1])
+                          if arg in ('-t', '--target-directory')), None)
+        operands = _operands(rest, values)
+        sources = operands if directory else operands[:-1]
+        destination = directory or (operands[-1] if len(operands) > 1 else None)
+        resolved = _target(destination, cwd) if destination and ':' not in destination else None
+        if resolved and (directory or destination.endswith('/') or os.path.isdir(resolved)):
+            targets += [os.path.join(resolved, os.path.basename(source.rstrip('/'))) for source in sources]
+        elif resolved:
+            targets.append(resolved)
+        if name == 'mv':
+            targets += [_target(source, cwd) for source in sources]  # a move removes its source
+    elif name in ('touch', 'truncate', 'rm', 'unlink'):
+        targets += [_target(word, cwd) for word in _operands(rest, ('-s', '--size', '-r', '-d'))]
+    elif name in ('bash', 'sh', 'zsh') and '-c' in rest and depth < 1:
+        position = rest.index('-c')
+        if position + 1 < len(rest):
+            targets += bash_write_targets(rest[position + 1], cwd, depth + 1)
+    elif INTERPRETER.fullmatch(name):
+        flag = next((i for i, arg in enumerate(rest) if arg in ('-c', '-e', '--eval')), None)
+        code = rest[flag + 1] if flag is not None and flag + 1 < len(rest) else heredoc
+        if code:
+            targets += _code_targets(code, cwd)
+    return targets, cwd
+
+
+def bash_write_targets(command, cwd, depth=0):
+    """Literal files a shell command would write; never evaluates the command.
+
+    Best effort on the quiet side: unrecognised forms, words carrying `$` or
+    backticks, and anything shlex cannot tokenize yield no target.
+    """
+    if not isinstance(command, str) or not command or len(command) > 65536:
+        return []
+    text, bodies = _heredocs(command)
+    lexer = shlex.shlex(_shell_text(text), posix=True, punctuation_chars=_METACHARACTERS)
+    lexer.whitespace_split = True
+    lexer.commenters = ''
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        return []
+    found, segment = [], []
+    for token in tokens + [';']:
+        if token and set(token) <= SHELL_SEPARATORS:
+            targets, cwd = _segment(segment, cwd, bodies, depth)
+            found += targets
+            segment = []
+        else:
+            segment.append(token)
+    return list(dict.fromkeys(path for path in found if path))
+
+
 def bounded_skill_source(path):
     descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
     with os.fdopen(descriptor, 'rb') as stream:

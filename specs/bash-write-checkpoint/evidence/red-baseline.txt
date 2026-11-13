@@ -1,0 +1,33 @@
+Current hooks/test_skill_loading.py run against hooks/skill-loading.py and hooks/host-input.py from 095941a (scratch copy).
+Every failure is a shared-surface write case; every control case passes on the baseline.
+
+FAIL: test_absolute_bash_write_from_another_directory_reaches_the_checkpoint
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='printf x > skills/sample-owner/references/rule.md')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='echo x >> hooks/gate.sh')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='ls 2>/dev/null >|hooks/gate.py')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command="cat <<'EOF' > skills/sample-owner/SKILL.md\nit's > a body\nEOF")
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='printf x | tee -a hooks/gate.py')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command="sed -i '' 's/a/b/' skills/sample-owner/SKILL.md")
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command="sed -i.bak -e 's/a/b/' hooks/gate.sh")
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command="perl -pi -e 's/a/b/' hooks/gate.sh")
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='cp /tmp/draft.md skills/sample-owner/references/rule.md')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='mv /tmp/draft.md skills/sample-owner/references/')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='touch hooks/new.py')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='rm -f skills/sample-owner/references/rule.md')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='python3 -c "open(\'skills/sample-owner/SKILL.md\', \'w\').write(\'x\')"')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command="python3 - <<'EOF'\nfrom pathlib import Path\nPath('hooks/gate.py').write_text('x')\nEOF")
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='node -e "require(\'fs\').writeFileSync(\'hooks/gate.mjs\', \'x\')"')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command="bash -c 'echo x > hooks/gate.sh'")
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command="cd skills/sample-owner && sed -i '' 's/a/b/' SKILL.md")
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='FOO=1 sudo tee hooks/gate.sh < /dev/null')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='sudo -u root tee hooks/gate.sh')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='printf x >skills/sample-owner/SKILL.md')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='cat skills/sample-owner/SKILL.md;rm hooks/gate.sh')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='# refresh the gate\necho x > hooks/gate.sh')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='mv skills/sample-owner/references/rule.md /tmp/')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='git mv skills/sample-owner/references/rule.md skills/sample-owner/references/moved.md')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='git rm -q hooks/gate.sh')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='python3 -c "open(\'hooks/gate.py\', mode=\'w\').write(\'x\')"')
+FAIL: test_bash_write_to_the_shared_surface_reaches_the_checkpoint (command='python3 -c "from pathlib import Path; Path(\'hooks/gate.py\').open(\'a\').write(\'x\')"')
+Ran 34 tests in 13.267s
+FAILED (failures=28)
