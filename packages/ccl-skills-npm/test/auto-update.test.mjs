@@ -35,6 +35,10 @@ function fixture(t, options = {}) {
 	}
 	// A user preference that would hide untracked files from a plain `git status`.
 	assert.equal(spawnSync("git", ["config", "--file", join(home, ".gitconfig"), "status.showUntrackedFiles", "no"]).status, 0);
+	// A user fsmonitor hook: the probe must never invoke it, since a real monitor writes into .git.
+	const fsmonitor = join(temp, "fsmonitor-hook"), fsmonitorCalls = join(temp, "fsmonitor-called");
+	writeFileSync(fsmonitor, `#!/bin/sh\necho called >> ${JSON.stringify(fsmonitorCalls)}\nexit 1\n`, { mode: 0o755 });
+	assert.equal(spawnSync("git", ["config", "--file", join(home, ".gitconfig"), "core.fsmonitor", fsmonitor]).status, 0);
 	const codex = join(bin, "codex");
 	writeFileSync(codex, `#!${process.execPath}
 const fs = require('node:fs');
@@ -72,7 +76,7 @@ else process.exitCode=7;
 		registered = null;
 		return { code: 0, stdout: "", stderr: "" };
 	};
-	return { home, codexHome, root, bin, env, control, command, origin,
+	return { home, codexHome, root, bin, env, control, command, origin, fsmonitorCalls,
 		deps: { env, platform: "darwin", command },
 		calls: () => existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse) : [],
 		state: () => JSON.parse(readFileSync(join(root, "state.json"), "utf8")),
@@ -147,6 +151,7 @@ test("runner skips plugin add when the clean installed snapshot is at the plugin
 	assert.deepEqual(calls, upgradeOnly);
 	assert.equal(f.log().status, "success");
 	assert.match(f.log().message, /already installed/);
+	assert.equal(existsSync(f.fsmonitorCalls), false, "the snapshot probe must not run the user's fsmonitor");
 });
 test("documented runner refresh replaces a runner saved by an older package", async t => {
 	const f = fixture(t);

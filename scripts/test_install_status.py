@@ -262,6 +262,11 @@ class SourceInstallStatusTests(unittest.TestCase):
                         "https://github.com/ccoalm/ccl-skills.git"], check=True)
         # A user preference that would hide untracked files from a plain `git status`.
         subprocess.run(["git", "config", "--file", str(self.home / ".gitconfig"), "status.showUntrackedFiles", "no"], check=True)
+        # A user fsmonitor hook: the probe must never invoke it, since a real monitor writes into .git.
+        fsmonitor, fsmonitor_calls = self.root / "fsmonitor-hook", self.root / "fsmonitor-called"
+        fsmonitor.write_text(f"#!/bin/sh\necho called >> '{fsmonitor_calls}'\nexit 1\n")
+        fsmonitor.chmod(0o755)
+        subprocess.run(["git", "config", "--file", str(self.home / ".gitconfig"), "core.fsmonitor", str(fsmonitor)], check=True)
         codex_home = self.root / "codex home"
         snapshot = codex_home / "plugins/cache/ccl-skills/ccl-skills/local"
         calls = Path(self.env["HOST_CALLS"])
@@ -286,6 +291,7 @@ class SourceInstallStatusTests(unittest.TestCase):
         (snapshot / "extra.py").unlink()
         self.git_commit(origin, "two")
         self.assertEqual(run_cron(), [upgrade, add], "new commit must reinstall")
+        self.assertFalse(fsmonitor_calls.exists(), "the snapshot probe must not run the user's fsmonitor")
 
     def test_legacy_cron_entry_is_replaced_and_others_kept(self):
         self.fake_host("codex")
