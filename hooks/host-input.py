@@ -371,14 +371,17 @@ def _operands(args, takes_value=()):
 
 
 def _code_targets(code, cwd, comment):
-    """Write-call targets in inline code; a write call inside a comment is text."""
-    live_code = []
+    """Write-call targets in inline code. A call counts only where it is live
+    code: one inside a comment or a string literal is text."""
+    found = []
     for line in code.split('\n'):
-        live_code.append(line[:_live_syntax(line, comment)[1]])
-    code = '\n'.join(live_code)
-    return [_target(match[2], cwd) for pattern in WRITE_CALLS for match in pattern.finditer(code)]
+        live = _live_syntax(line, comment)[0]
+        found += [_target(match[2], cwd) for pattern in WRITE_CALLS for match in pattern.finditer(line)
+                  if live[match.start()]]
+    return found
 
 
+MAX_TARGETS = 256  # bounds the path work one command can cause
 DRY_RUN = re.compile(r'--dry-run\Z|-[a-zA-Z]*n[a-zA-Z]*\Z')
 
 
@@ -405,9 +408,14 @@ def _segment(words, cwd, bodies, depth):
     while args and re.fullmatch(r'[A-Za-z_]\w*=.*', args[0], re.S):
         args.pop(0)
     while args and os.path.basename(args[0]) in SHELL_WRAPPERS:
-        args.pop(0)
+        wrapper = os.path.basename(args.pop(0))
         while args and (args[0].startswith('-') or re.fullmatch(r'[A-Za-z_]\w*=.*', args[0], re.S)):
-            if args.pop(0) in ('-u', '-g', '-C', '-h', '-p', '-U', '-D'):
+            option = args.pop(0)
+            if wrapper == 'env' and (option == '-C' or option.startswith('--chdir')):
+                # The wrapped command runs from a directory this parser does not
+                # track; its operands could resolve anywhere, so none counts.
+                return targets, cwd
+            if option in ('-u', '-g', '-C', '-h', '-p', '-U', '-D'):
                 args = args[1:]  # wrapper option value, e.g. sudo -u root
     if not args:
         return targets, cwd
@@ -417,7 +425,12 @@ def _segment(words, cwd, bodies, depth):
         return targets, moved or cwd
     if name == 'git' and rest[:1] in (['mv'], ['rm']):
         if not any(DRY_RUN.match(arg) for arg in rest[1:] if not arg.startswith('--') or arg == '--dry-run'):
-            targets += [_target(word, cwd) for word in _operands(rest[1:])]
+            operands = _operands(rest[1:])
+            targets += [_target(word, cwd) for word in operands]
+            destination = _target(operands[-1], cwd) if rest[0] == 'mv' and len(operands) > 1 else None
+            if destination and (operands[-1].endswith('/') or os.path.isdir(destination)):
+                targets += [os.path.join(destination, os.path.basename(source.rstrip('/')))
+                            for source in operands[:-1]]
     elif name == 'tee':
         targets += [_target(word, cwd) for word in _operands(rest)]
     elif name in ('sed', 'perl'):
@@ -425,7 +438,7 @@ def _segment(words, cwd, bodies, depth):
         inplace = any(arg in ('--in-place',) or arg.startswith('--in-place=')
                       or re.fullmatch('-[' + flags + ']*i.*', arg, re.S) for arg in rest)
         if inplace:
-            scripted = any(arg in ('-e', '-f', '--expression', '--file') for arg in rest)
+            scripted = any(re.match(r'-[ef]|--(?:expression|file)\b', arg) for arg in rest)
             files = [word for word in _operands(rest, ('-e', '-f', '--expression', '--file')) if word]
             targets += [_target(word, cwd) for word in (files if scripted else files[1:])]
     elif name == 'rsync' and any(DRY_RUN.match(arg) for arg in rest
@@ -453,7 +466,9 @@ def _segment(words, cwd, bodies, depth):
         targets += [_target(word, cwd) for word in _operands(rest, values)]
     elif name in ('bash', 'sh', 'zsh') and '-c' in rest and depth < 1:
         position = rest.index('-c')
-        if position + 1 < len(rest):
+        # -n parses without running: nothing is written.
+        if position + 1 < len(rest) and not any(re.fullmatch(r'-[a-zA-Z]*n[a-zA-Z]*', arg)
+                                                 for arg in rest[:position]):
             targets += bash_write_targets(rest[position + 1], cwd, depth + 1)
     elif INTERPRETER.fullmatch(name):
         flag = next((i for i, arg in enumerate(rest) if arg in ('-c', '-e', '--eval')), None)
@@ -482,8 +497,16 @@ def bash_write_targets(command, cwd, depth=0):
     # A `cd` reaches later commands only in the same shell: a `( ... )` group
     # restores the directory when it closes, and every member of a pipeline
     # runs in its own subshell.
+    split = []
+    for token in tokens:
+        parts = re.findall(r'&>>?|>\||>>?&?|<<<|<<-?|<&|<>|<|&&|\|\||\|&|[;&|()]', token) \
+            if token and set(token) <= set(_METACHARACTERS) else []
+        split += parts if parts and ''.join(parts) == token else [token]
+    tokens = split
     found, segment, saved, piped = [], [], [], False
     for token in tokens + [';']:
+        if len(found) >= MAX_TARGETS:
+            break
         if not (token and set(token) <= SHELL_SEPARATORS):
             segment.append(token)
             continue

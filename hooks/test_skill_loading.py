@@ -224,6 +224,11 @@ class SkillLoadingTests(unittest.TestCase):
             'rsync -t /tmp/draft.py hooks/gate.py',
             'rm -r hooks/gate.sh',
             'truncate -s 0 hooks/gate.sh',
+            '(printf x)>hooks/gate.py',
+            'printf x;>hooks/gate.py',
+            "perl -pi -e's/a/b/' hooks/gate.sh",
+            "sed -i -e's/a/b/' hooks/gate.sh",
+            'git mv /tmp/draft.py hooks/',
         ]
         for index, command in enumerate(commands):
             with self.subTest(command=command):
@@ -276,6 +281,10 @@ class SkillLoadingTests(unittest.TestCase):
             'git mv --dry-run hooks/gate.sh hooks/moved.sh',
             'rsync -n /tmp/draft.py hooks/gate.py',
             'rsync -av --dry-run /tmp/draft.py hooks/gate.py',
+            "python3 - <<'EOF'\nprint(\"open('hooks/gate.py', 'w')\")\nEOF",
+            "bash -n -c 'echo x > hooks/gate.py'",
+            'env -C /tmp touch hooks/gate.py',
+            'env --chdir=/tmp touch hooks/gate.py',
             'echo x > /tmp/x.md ' + ' ' * 70000 + '> hooks/gate.sh',
         ]
         # A fresh actor per command: one false positive must not spend the

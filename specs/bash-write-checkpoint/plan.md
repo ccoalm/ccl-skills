@@ -52,7 +52,7 @@ evaluates the command: it tokenizes with `shlex` and reads literal words.
 | `sed -i…` / `--in-place` | file operands after the script |
 | `perl -i…` (bundled flags such as `-pi`) | file operands |
 | `cp`, `mv`, `install`, `ln`, `rsync` | the destination (`-t DIR` or last operand); a directory destination maps to `DIR/<source name>`; `mv` also counts its sources, which it removes |
-| `touch`, `truncate`, `rm`, `unlink`, `git mv`, `git rm` | each file operand; option values follow each command's own arity (`truncate -s N`, `touch -r REF`; `rm -r` takes none) |
+| `touch`, `truncate`, `rm`, `unlink`, `git mv`, `git rm` | each file operand (a `git mv` directory destination maps to `DIR/<source name>`); option values follow each command's own arity (`truncate -s N`, `touch -r REF`; `rm -r` takes none) |
 | `git mv`/`git rm -n`, `--dry-run`; `rsync -n`, `--dry-run` | none: a dry run writes nothing |
 | `python…`, `node`, `ruby` with `-c`/`-e` code, or with a heredoc body | only the literal a write call writes to: `open(LIT, 'w'/'a'/'x'/'+')` (also `mode=`), `Path(LIT).write_text/write_bytes/touch/unlink/open('w')`, `writeFile*/appendFile*/unlink*/rm*(LIT`, `File.write(LIT`, `os.remove/unlink(LIT`, the second argument of `shutil.copy*/move` and `os.replace/rename` |
 | `bash -c` / `sh -c` | the inner command, one level |
@@ -64,16 +64,32 @@ bodies are cut out before tokenizing; they are code only when the segment's
 command is an interpreter, and data otherwise. A `<<` inside quotes or a
 comment is text, not an operator. Quoted or escaped shell metacharacters are
 hidden before tokenizing, so `grep '>' file` is not a redirection. An unquoted
-`#` starting a word comments out the rest of its line; in inline code, `#`
-(Python, Ruby) or `//` (node) comments are dropped before write calls are
-matched. Commands over 64 KiB yield no target. A write call quoted inside a
-string literal of inline code still counts (accepted precision gap).
+`#` starting a word comments out the rest of its line. In inline code, a
+write call counts only where the call itself is live code: one inside a
+string literal or a `#` (Python, Ruby) or `//` (node) comment is text. Glued
+punctuation such as `)>` or `;>` is split into its separator and its
+redirection. `sed`/`perl` scripts attached to `-e` (`-e's/a/b/'`) count as
+the script. `bash -n -c` writes nothing. A command run through `env -C DIR` or
+`--chdir` yields no target, because its directory is not tracked. Commands
+over 64 KiB yield no target, and one command yields at most 256 targets; at
+that cap the hook's worst measured run is 0.43 s (`evidence/validation.md`).
 
 Known misses (stay on the stop backstop, quiet side): words containing `$` or
 backticks, `git -C`, `find -exec`, `xargs`, `git apply`/`checkout`/`restore`,
 extension-less targets such as `cp -r dir skills/`, scripts that write
 internally, a path bound to a variable and written later, and any command
 `shlex` cannot tokenize.
+
+### Precision first, recall best effort
+
+A false positive spends the context's single attempt and costs a later real
+edit its checkpoint; a miss leaves the write where it was before this change,
+on the Stop backstop. So a form that could be read as a write but may not be
+one (an untracked directory, a dry run, a syntax check, text that only looks
+like code) yields no target. Both review passes returned new instances of the
+same class, parser edge forms. Each pass's instances were fixed with a row and
+a mutant; a further miss is recorded here as a known miss, not patched pass by
+pass.
 
 ### Deliberate differences from the edit-tool path
 

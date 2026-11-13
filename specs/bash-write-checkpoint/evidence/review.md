@@ -27,3 +27,34 @@ Each new mechanism has an applied mutation that fails only its owning rows
 changed to give each command a fresh actor. Before that, one false positive
 spent the shared attempt and every later row passed vacuously, which hid
 three of the new failures.
+
+## Challenge pass
+
+- Reviewed commit: `b3053e9` (the review fixes), with the register row last
+- Packet: the candidate diff, then the full `hooks/skill-loading.py`,
+  `hooks/owner-dispatch-guard.sh`, the `hooks.json` Bash routing entry and the
+  unchanged path helpers, appended as context after the candidate
+- Reviewer: Codex; findings: 7 (0 P0 / 0 P1 / 7 P2); result `challenge.json`
+
+| Finding | Disposition |
+| --- | --- |
+| A write call inside a string literal of inline code (`print("open(…, 'w')")`) counts as a write | Fixed. A write call counts only where it is live code; strings and comments share one mask. |
+| Glued punctuation (`(printf x)>file`, `printf x;>file`) hides the redirection | Fixed. Glued punctuation is split into separator and redirection tokens. |
+| An attached script (`perl -pi -e's/…/'`, `sed -i -e's/…/'`) drops the file operand | Fixed. An attached `-e`/`-f` counts as the script. |
+| `git mv FILE DIR/` yields only the directory | Fixed. A directory destination maps to `DIR/<source name>`, as for `mv`. |
+| `bash -n -c '…'` is a syntax check but counts its inner writes | Fixed. `-n` before `-c` yields no target. |
+| `env -C DIR cmd` resolves operands from the wrong directory | Fixed by yielding no target, since that directory is not tracked. |
+| No evidence the hook stays inside the 10 s timeout for accepted large inputs | Fixed. One command yields at most 256 targets. Five adversarial inputs at the 64 KiB cap, each on a fresh actor so the deny path runs, take at most 0.43 s (`validation.md`). |
+
+Each fix's rows failed first against `b3053e9` (`red-challenge-fixes.txt`) and
+each fix has an applied mutation (`mutation-walk.md`).
+
+**Recurring-class decision: narrow.** Both passes returned new instances of
+one class: shell forms the target parser misreads. A false positive spends
+the single attempt; a miss only falls back to the Stop backstop, which was
+the behavior before this change. The parser therefore yields no target when
+unsure (untracked directory, dry run, syntax check, text that only looks like
+code), and later misses are recorded as known misses in the plan rather than
+patched pass by pass. Delete was considered and rejected: the observed miss
+(Bash writes reaching only Stop) is real, and the common forms are covered
+with measured precision.

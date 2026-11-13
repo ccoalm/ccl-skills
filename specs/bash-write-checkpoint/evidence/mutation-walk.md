@@ -24,15 +24,24 @@ passed `hooks/test_skill_loading.py` first.
 | let `rm -r` take a value | shared-surface writes (`rm -r hooks/gate.sh`) | same | yes |
 | keep a `cd` after its `( … )` group closes | shared-surface writes (`(cd /tmp); printf x > hooks/gate.sh`) | same | yes |
 | let a `cd` in a pipeline reach later commands | shared-surface writes (`cd /tmp \| true; …`) | same | yes |
+| match write calls inside string literals and comments of inline code | read-only (`print("open(…, 'w')")`, and the two comment rows, which use the same live-code mask) | same | yes |
+| leave glued punctuation such as `)>` unsplit | shared-surface writes (`(printf x)>…`, `printf x;>…`) | same | yes |
+| recognise only a standalone `-e` script | shared-surface writes (`perl -pi -e's/…/'`, `sed -i -e's/…/'`) | same | yes |
+| leave a `git mv` directory destination unmapped | shared-surface writes (`git mv /tmp/draft.py hooks/`) | same | yes |
+| ignore `bash -n` | read-only (`bash -n -c '… > hooks/gate.py'`) | same | yes |
+| ignore `env -C` / `--chdir` | read-only (`env -C /tmp touch …`, `env --chdir=/tmp touch …`) | same | yes |
 
 The first run of the `mv` mutant deleted the line and left an empty `if`
 body, which is a syntax error that failed every case. That is a failure for
 the wrong reason and was not counted; the mutant was re-applied as `pass`,
 and it then failed only its owning sub-case.
 
-The last eight rows cover the review fixes. Each fix's rows were run first
-against the reviewed candidate and failed there
-(`evidence/red-review-fixes.txt`). The read-only control case gives every
+Rows 11 to 18 cover the review fixes and rows 19 to 24 the challenge fixes.
+Each fix's rows were run first against the candidate that pass reviewed and
+failed there (`evidence/red-review-fixes.txt`, `evidence/red-challenge-fixes.txt`).
+The "keep comments in inline code" mutant was run on `b3053e9`; on the final
+candidate, comments and string literals share one mask, which the
+string-literal mutant covers. The read-only control case gives every
 command a fresh actor, so one false positive cannot spend the attempt that
 later rows would otherwise pass on vacuously.
 
