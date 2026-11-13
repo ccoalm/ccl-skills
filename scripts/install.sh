@@ -81,8 +81,9 @@ if command -v codex >/dev/null 2>&1; then
   if [ "$CODEX_CRON" = 1 ]; then
     # Codex 的 hook 信任按整个安装快照（含 .git）计哈希：同一提交重装也会让 hook 全部要求重新批准。
     # 所以只在快照干净且已是插件 URL 的当前提交时跳过 plugin add；任何一项读不到都照旧重装。
-    # --no-optional-locks 让 status 不改写 .git/index（Codex 也会把它算进哈希）。
-    line='0 9 * * * codex plugin marketplace upgrade >/dev/null 2>&1; s="${CODEX_HOME:-$HOME/.codex}/plugins/cache/ccl-skills/ccl-skills/local"; t=$(git ls-remote --exit-code '"$HTTP_URL"' HEAD 2>/dev/null | cut -f1); [ -n "$t" ] && [ "$t" = "$(git -C "$s" rev-parse -q --verify "HEAD^{commit}" 2>/dev/null)" ] && [ -z "$(git --no-optional-locks -C "$s" status --porcelain 2>&1)" ] || codex plugin add '"$PLUGIN"' >/dev/null 2>&1'
+    # Codex 也会把 .git 算进哈希：--no-optional-locks 不改写 index，core.fsmonitor=false 不让监控进程往 .git 写文件；
+    # 显式要未跟踪文件，免得用户的 showUntrackedFiles=no 把多出的文件藏起来。
+    line='0 9 * * * codex plugin marketplace upgrade >/dev/null 2>&1; s="${CODEX_HOME:-$HOME/.codex}/plugins/cache/ccl-skills/ccl-skills/local"; t=$(git ls-remote --exit-code '"$HTTP_URL"' HEAD 2>/dev/null | cut -f1); [ -n "$t" ] && [ "$t" = "$(git -C "$s" rev-parse -q --verify "HEAD^{commit}" 2>/dev/null)" ] && [ -z "$(git -c core.fsmonitor=false --no-optional-locks -C "$s" status --porcelain --untracked-files=normal 2>&1)" ] || codex plugin add '"$PLUGIN"' >/dev/null 2>&1'
     legacy="0 9 * * * codex plugin marketplace upgrade >/dev/null 2>&1; codex plugin add $PLUGIN >/dev/null 2>&1"
     current=$(crontab -l 2>/dev/null || true)
     if grep -Fxq "$legacy" <<<"$current"; then

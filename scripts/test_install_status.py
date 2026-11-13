@@ -260,6 +260,8 @@ class SourceInstallStatusTests(unittest.TestCase):
         origin = self.root / "origin"
         subprocess.run(["git", "config", "--file", str(self.home / ".gitconfig"), "url." + str(origin) + ".insteadOf",
                         "https://github.com/ccoalm/ccl-skills.git"], check=True)
+        # A user preference that would hide untracked files from a plain `git status`.
+        subprocess.run(["git", "config", "--file", str(self.home / ".gitconfig"), "status.showUntrackedFiles", "no"], check=True)
         codex_home = self.root / "codex home"
         snapshot = codex_home / "plugins/cache/ccl-skills/ccl-skills/local"
         calls = Path(self.env["HOST_CALLS"])
@@ -279,6 +281,9 @@ class SourceInstallStatusTests(unittest.TestCase):
         self.assertEqual(run_cron(), [upgrade, add], "damaged snapshot must reinstall")
         (snapshot / "marker").write_text("one")
         self.assertEqual(run_cron(), [upgrade])
+        (snapshot / "extra.py").write_text("unexpected")
+        self.assertEqual(run_cron(), [upgrade, add], "unexpected untracked file must reinstall")
+        (snapshot / "extra.py").unlink()
         self.git_commit(origin, "two")
         self.assertEqual(run_cron(), [upgrade, add], "new commit must reinstall")
 

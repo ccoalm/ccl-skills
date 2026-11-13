@@ -176,16 +176,17 @@ async function validateCodex(s: State, command: Command) {
 	const installed = plugins.installed.filter((p: any) => p.pluginId === REF);
 	if (installed.length !== 1 || installed[0].installed !== true || installed[0].enabled !== true || installed[0].marketplaceName !== "ccl-skills" || installed[0].source?.source !== "git" || !SOURCES.has(installed[0].source?.url) || installed[0].marketplaceSource?.sourceType !== "git" || !SOURCES.has(installed[0].marketplaceSource?.source))
 		throw new Error("ccl-skills@ccl-skills must be installed and enabled from the canonical Git marketplace before enabling updates");
-	return { url: installed[0].source.url as string, version: installed[0].version as unknown };
+	// A ref or sha selects a commit other than the URL's HEAD; `pinned` disables the skip.
+	return { url: installed[0].source.url as string, pinned: Object.keys(installed[0].source).some(key => key !== "source" && key !== "url"), version: installed[0].version as unknown };
 }
 // Codex hook trust hashes the whole installed snapshot, .git included, so reinstalling
 // an unchanged commit still revokes every approval. Skip `plugin add` only when the
 // snapshot is clean and already at the commit `add` would clone (the plugin URL's
 // default HEAD, which a pinned marketplace ref does not move). Anything unreadable
 // means "unknown", and the caller reinstalls as before.
-async function snapshotCurrent(s: State, codex: { url: string; version: unknown }, command: Command): Promise<string | undefined> {
-	const { url, version } = codex;
-	if (typeof version !== "string" || !/^[A-Za-z0-9._-]+$/.test(version) || version === "." || version === "..") return undefined;
+async function snapshotCurrent(s: State, codex: { url: string; pinned: boolean; version: unknown }, command: Command): Promise<string | undefined> {
+	const { url, pinned, version } = codex;
+	if (pinned || typeof version !== "string" || !/^[A-Za-z0-9._-]+$/.test(version) || version === "." || version === "..") return undefined;
 	const git = async (args: string[], timeout = 10000) => {
 		const r = await command("git", args, runtimeEnv(s), timeout);
 		return r.failure || r.code !== 0 ? undefined : r.stdout;
@@ -195,8 +196,10 @@ async function snapshotCurrent(s: State, codex: { url: string; version: unknown 
 	if (!target || !commit.test(target)) return undefined;
 	const snapshot = join(s.profile, "plugins", "cache", "ccl-skills", "ccl-skills", version);
 	if ((await git(["-C", snapshot, "rev-parse", "--verify", "--quiet", "HEAD^{commit}"]))?.trim() !== target) return undefined;
-	// --no-optional-locks keeps status from rewriting .git/index, which Codex also hashes.
-	const status = await git(["--no-optional-locks", "-C", snapshot, "status", "--porcelain"]);
+	// Codex also hashes .git: --no-optional-locks keeps status from rewriting the index and
+	// core.fsmonitor=false keeps a monitor daemon from writing cookie files there. Untracked
+	// files are requested explicitly so a user's showUntrackedFiles=no cannot hide them.
+	const status = await git(["-c", "core.fsmonitor=false", "--no-optional-locks", "-C", snapshot, "status", "--porcelain", "--untracked-files=normal"]);
 	return status === "" ? target : undefined;
 }
 const PACKAGE = "@ccoalm/ccl-skills";

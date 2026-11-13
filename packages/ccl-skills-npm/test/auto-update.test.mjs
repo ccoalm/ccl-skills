@@ -33,6 +33,8 @@ function fixture(t, options = {}) {
 		const r = spawnSync("git", ["config", "--file", join(home, ".gitconfig"), "--add", `url.${origin}.insteadOf`, url], { encoding: "utf8" });
 		assert.equal(r.status, 0, r.stderr);
 	}
+	// A user preference that would hide untracked files from a plain `git status`.
+	assert.equal(spawnSync("git", ["config", "--file", join(home, ".gitconfig"), "status.showUntrackedFiles", "no"]).status, 0);
 	const codex = join(bin, "codex");
 	writeFileSync(codex, `#!${process.execPath}
 const fs = require('node:fs');
@@ -44,7 +46,7 @@ const market = {name:'ccl-skills',root: ${JSON.stringify(join(codexHome, "market
 if(args.includes('--json')) {
  if(config.invalidJson) { process.stdout.write('invalid'); process.exit(0); }
  if(args.includes('marketplace')) console.log(JSON.stringify({marketplaces:config.missing ? [] : config.duplicate ? [market,market] : [market]}));
- else console.log(JSON.stringify({installed:[{pluginId:'ccl-skills@ccl-skills',name:'ccl-skills',marketplaceName:'ccl-skills',version:'local',installed:true,enabled:!config.disabled,source:{source:"git",url:config.pluginSource || source},marketplaceSource:market.marketplaceSource}],available:[]}));
+ else console.log(JSON.stringify({installed:[{pluginId:'ccl-skills@ccl-skills',name:'ccl-skills',marketplaceName:'ccl-skills',version:'local',installed:true,enabled:!config.disabled,source:{source:"git",url:config.pluginSource || source,...(config.pluginRef ? {ref:config.pluginRef} : {})},marketplaceSource:market.marketplaceSource}],available:[]}));
 } else if(args.includes('upgrade')) { process.exitCode=config.upgradeExit || 0; }
 else if(args.includes('add')) { process.exitCode=config.addExit || 0; }
 else process.exitCode=7;
@@ -128,8 +130,8 @@ function gitCommit(dir, message) {
 	git("add", "marker"); git("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", message);
 	return git("rev-parse", "HEAD");
 }
-async function scheduledUpdate(t, prepare) {
-	const f = fixture(t);
+async function scheduledUpdate(t, prepare, options = {}) {
+	const f = fixture(t, options);
 	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
 	const snapshot = join(f.codexHome, "plugins", "cache", "ccl-skills", "ccl-skills", "local");
 	prepare(f.origin, snapshot);
@@ -159,14 +161,15 @@ test("documented runner refresh replaces a runner saved by an older package", as
 	assert.equal((await autoUpdate("enable", f.deps)).code, 0);
 	assert.equal(readFileSync(runner, "utf8"), readFileSync(new URL("../dist/auto-update.js", import.meta.url), "utf8"));
 });
-for (const [name, prepare] of [
+for (const [name, prepare, options] of [
 	["the plugin URL has a newer commit", (origin, snapshot) => { gitCommit(origin, "one"); cpSync(origin, snapshot, { recursive: true }); gitCommit(origin, "two"); }],
 	["a tracked file in the snapshot is damaged", (origin, snapshot) => { gitCommit(origin, "one"); cpSync(origin, snapshot, { recursive: true }); writeFileSync(join(snapshot, "marker"), "damaged"); }],
 	["the snapshot has an unexpected file", (origin, snapshot) => { gitCommit(origin, "one"); cpSync(origin, snapshot, { recursive: true }); writeFileSync(join(snapshot, "extra"), "x"); }],
 	["the installed commit cannot be read", origin => { gitCommit(origin, "one"); }],
 	["the plugin URL cannot be read", () => {}],
+	["the plugin source pins a ref", (origin, snapshot) => { gitCommit(origin, "one"); cpSync(origin, snapshot, { recursive: true }); }, { pluginRef: "release" }],
 ]) test(`runner reinstalls when ${name}`, async t => {
-	const { result, calls } = await scheduledUpdate(t, prepare);
+	const { result, calls } = await scheduledUpdate(t, prepare, options);
 	assert.equal(result.status, "updated", result.message);
 	assert.deepEqual(calls, reinstall);
 });
