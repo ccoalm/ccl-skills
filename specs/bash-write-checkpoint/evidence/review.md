@@ -44,7 +44,7 @@ three of the new failures.
 | `git mv FILE DIR/` yields only the directory | Fixed. A directory destination maps to `DIR/<source name>`, as for `mv`. |
 | `bash -n -c '…'` is a syntax check but counts its inner writes | Fixed. `-n` before `-c` yields no target. |
 | `env -C DIR cmd` resolves operands from the wrong directory | Fixed by yielding no target, since that directory is not tracked. |
-| No evidence the hook stays inside the 10 s timeout for accepted large inputs | Fixed. One command yields at most 256 targets. Five adversarial inputs at the 64 KiB cap, each on a fresh actor so the deny path runs, take at most 0.43 s (`validation.md`). |
+| No evidence the hook stays inside the 10 s timeout for accepted large inputs | Fixed. One command yields at most 256 targets. Five adversarial inputs at the 64 KiB cap, each on a fresh actor so the deny path runs, took at most 0.43 s on `04901ac`; the final candidate's figures are in `validation.md`. |
 
 Each fix's rows failed first against `b3053e9` (`red-challenge-fixes.txt`) and
 each fix has an applied mutation (`mutation-walk.md`).
