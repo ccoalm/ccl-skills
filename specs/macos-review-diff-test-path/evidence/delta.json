@@ -1,0 +1,37 @@
+{
+  "schema_version": 3,
+  "runner": "review_diff",
+  "mode": "review",
+  "status": "passed",
+  "reason_code": null,
+  "findings": [],
+  "selected_client": "codex",
+  "reviewer_family": "codex",
+  "implementer_family": "claude",
+  "base": "284298b020f420c11ea7a939d16e5cfc777a3124",
+  "head": "8eb0b33242d26ae4f624f8660f538bbdc537400a",
+  "candidate_digest": "c388cf4f1aada74967a166f0f2df3c93b7994be3b5f3133fd608577bc85508a6",
+  "worktree_clean": false,
+  "untracked_files": [],
+  "intent_sha256": "cd3adb65bc1e788c1a1821f5c2b30e3ab280c3443fb490b6d596a902268e28fd",
+  "elapsed_seconds": 79.4,
+  "attempts": [
+    {
+      "client": "codex",
+      "status": "passed",
+      "returncode": 0,
+      "elapsed_seconds": 79.3,
+      "model": "gpt-6-astra",
+      "provider": "openai"
+    }
+  ],
+  "skipped": [
+    {
+      "client": "claude",
+      "reason": "same_family",
+      "model": ""
+    }
+  ],
+  "recorded_at": "2026-11-13T07:56:16+00:00",
+  "diagnostics_path": "/Users/asen/work/code/src/github.com/ccoalm/ccl-skills/.git/worktrees/fix-macos-review-diff-path/ccl-code-review/diagnostics/2026-11-13T075616Z-review.txt"
+}

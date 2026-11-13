@@ -881,7 +881,9 @@ git -C "$REPO" mv skills/platform-observability/SKILL.md skills/product-rd-workf
 git -C "$REPO" rm -rq skills/platform-observability
 printf "$RETIRE_RULE" >> "$REPO/skills/product-rd-workflow/SKILL.md"
 printf "$RETIRE_ROW" platform-observability >> "$REGISTER"
-sed -i.bak '0,/platform-observability/s//product-rd-workflow\/product-rd-workflow/' "$REPO/skills/defect-diagnosis/SKILL.md" && rm -f "$REPO/skills/defect-diagnosis/SKILL.md.bak"
+# First occurrence only. Not sed '0,/re/': BSD sed accepts it but substitutes nothing.
+python3 -c 'import sys; p = sys.argv[1]; s = open(p).read(); open(p, "w").write(s.replace("platform-observability", "product-rd-workflow/product-rd-workflow", 1))' \
+  "$REPO/skills/defect-diagnosis/SKILL.md"
 sed -i.bak 's/platform-observability/product-rd-workflow/g' "$REPO/skills/defect-diagnosis/SKILL.md" && rm -f "$REPO/skills/defect-diagnosis/SKILL.md.bak"
 grep -q 'product-rd-workflow/product-rd-workflow' "$REPO/skills/defect-diagnosis/SKILL.md" \
   || fail "mutation did not apply: no doubled successor path in the third owner"
