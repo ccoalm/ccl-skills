@@ -61,3 +61,30 @@ Three runs per arm on the `testing-strategy` entrypoint, one task per reworded l
 | Web: browser/E2E implementation, browser automation | browser/E2E tests (browser automation is the browser/E2E layer; control row above) | kept |
 | Terminal: full-screen text UI testing | full-screen TUI testing | kept |
 | Stack pointers below apply after that choice | Stack pointers below follow that choice | kept |
+
+## Local lanes
+
+Candidate `3d16a5a` (rebased onto `origin/main` at `95cb9f7`), with the private alias audit configured:
+
+| Command | Result |
+| --- | --- |
+| `check-ccl-skills.sh` | `r0_status=private-ok`, `ccl_skill_check_clean_ok` |
+| `test_obligation_ledger_repo_audit.sh` | `test_obligation_ledger_repo_audit_ok` |
+| `make test-repo-gates` | exit 0 |
+| `make test-regressions-fast` | exit 0 |
+| `make test-code-review-1`, `make test-code-review-2` | exit 0 |
+| `make test-code-review-abort-leak-1`, `-2` (in a PID namespace, so orphans reparent to PID 1) | exit 0 |
+| `test_check_ccl_regressions.sh --heavy-only` | `regression_heavy_lane_ok: 9 suites` |
+| CI repository-gates extras: `test_check_public_sanitization.py`, `check-public-sanitization.py`, `check-markdown-links.py`, `check-spec-references.py`, `test_check_skill_count.py`, `check-skill-count.py` | exit 0 each |
+
+## Review R1
+
+Reviewer: codex via `extraction_review_gate.sh --mode review --stage build --base origin/main`, on candidate `f0cae19` (before the rebase). Result `review-R1.json`, status `findings`, five P2.
+
+| Finding | Disposition |
+| --- | --- |
+| `test_review_gate.sh` reverts seven here-string fixes | Stale base: `origin/main` gained PR #228 after this branch was cut, so the diff showed its changes as reverts. Rebased; the candidate keeps every here-string fix |
+| Two test scripts lose mode 100755 | Same cause; after the rebase the diff has no mode changes |
+| Register rows replace five sweep rows; sweep records deleted | Same cause; after the rebase the five rows are appended after the sweep rows and the sweep directory is untouched |
+| Validation record lacks candidate-bound lane results | Fixed: the Local lanes section above |
+| Reviewer context lacked eight selected skill bodies and `docs/SKILLS.md` | Packet limit, not a candidate defect. The owner-list edits are checked by the base/head probes above and the gate edit by its tests; both are controller-verified, not reviewer-verified |
