@@ -112,6 +112,6 @@ python3 harness/blind_judge.py --tool ... --fixtures eval/behavior-fixtures.json
 python3 harness/analyze.py <out> <judge>
 ```
 
-`run*/layers.jsonl` 记录了每轮实际用的树、模型、轮数和遮盖目录（家目录写作 `~`，本机目录名已泛化）。
+驱动输出的 `layers.json` 与每个样本的 `*.meta.json` 入库时各合成一个 JSON Lines 文件：`run*/layers.jsonl` 记录每轮实际用的树、模型、轮数和遮盖目录（家目录写作 `~`，本机目录名已泛化），`run*/meta.jsonl` 每行是一个样本的工具调用、费用、耗时和泄漏审计用的工具结果开头。原始回答在 `run*/responses/`，盲评输出在 `run*/judgments.jsonl`。
 
 入库副本相对原始输出的改动，只为通过公开脱敏和引用检查，均在评分之后：家目录与本机目录名泛化；三个 F43 回答里模型自拟、域名不在 example 保留域内的两个测试邮箱，改为 `a@example.org`、`a@example.net`；隔离探针回答里一处指向 specs 目录的省略路径改为 `<specs-dir>/...`。
