@@ -49,13 +49,26 @@ Usage:
   python3 skill-behavior-eval.py --arm current --only F3,F8
   python3 skill-behavior-eval.py --dry-run          # print the plan, no agent runs / no cost
 
-Run in a SCRATCH checkout: the current arm executes the installed hooks/plugins (not just the
-read-only model tools), so treat it as potentially side-effecting, not inert.
+Tool boundary: each arm agent is offered only Read/Grep/Glob/Skill (`--tools`, with
+`--strict-mcp-config` so plugin MCP tools, which can run shell commands, are not offered either);
+the judge is offered no tools. `--allowedTools` would only pre-approve and is not used. A run
+counts only if the stream's init event lists no other tool. Every agent and judge starts in a
+fresh empty directory, so the saved answers under --out and a checkout's fixture rubrics are not
+in its working directory.
+NOT isolation: the file tools still read any absolute path the host's permission rules allow
+(the current arm loads the user's settings by design, and a broad `Read` allow rule or a bypass
+mode lets it read other checkouts, /tmp and --out). When a conclusion depends on what an arm
+could see, run each arm inside a mount namespace (harness-patterns-and-eval.md §3.3). The current
+arm also still runs the installed hooks/plugins, so treat it as potentially side-effecting.
 """
-import argparse, hashlib, json, os, re, signal, subprocess, sys, time
+import argparse, hashlib, json, os, re, signal, subprocess, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_FIXTURES = os.path.normpath(os.path.join(HERE, "..", "..", "..", "eval", "behavior-fixtures.jsonl"))
+# Bump when the agent launch boundary changes (tools offered, working directory): responses saved
+# under an older boundary were produced by a differently-equipped agent and must not be reused.
+# 2 = `--strict-mcp-config --tools`, init-event check, fresh working directory.
+RUN_BOUNDARY = "run-boundary-2"
 SAFE_ID = re.compile(r"^[A-Za-z0-9._-]+$")  # fixture ids reach a filename; reject path-escaping ids
 
 
@@ -64,8 +77,9 @@ def sample_sig(fx, arm, layer_id):
     silently grade a stale response against changed inputs. `layer_id` identifies the arm's
     operating layer: the candidate contract text for `candidate`, and the user-supplied
     --current-tag for `current` (the script cannot introspect the INSTALLED bootstrap/skills,
-    so the caller versions it — bump the tag when the installed layer changes, or use --fresh)."""
-    blob = "\x00".join([fx.get("prompt", ""), fx.get("rubric", ""), arm, layer_id or ""])
+    so the caller versions it — bump the tag when the installed layer changes, or use --fresh).
+    RUN_BOUNDARY versions the launch boundary, so samples run under an older one are re-run."""
+    blob = "\x00".join([fx.get("prompt", ""), fx.get("rubric", ""), arm, layer_id or "", RUN_BOUNDARY])
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:12]
 
 
@@ -89,18 +103,20 @@ def load_fixtures(path):
     return rows
 
 
-def _headless_claude(cmd, prompt, timeout_s):
+def _headless_claude(cmd, prompt, timeout_s, expected_tools=None, cwd=None):
     """Run a headless `claude -p` (stream-json) and return (full_text, err, util, invoked_skills). Shared by the
     arm runs and the LLM-judge so the exit-code / rate-limit / truncation handling is single-source.
     An evidence-producing harness must not bank a failed/truncated run: the stream's success
     `result` event is the authoritative turn-complete signal (a nonzero exit AFTER it is a
     post-answer teardown failure — accept); absent that signal a nonzero exit or a non-success
-    subtype means the text is partial even if some streamed — reject."""
+    subtype means the text is partial even if some streamed — reject.
+    With expected_tools, the run also counts only when every init event lists tools and none
+    outside that set: the CLI's own report, not the argv, decides whether the boundary held."""
     try:
         # stderr → DEVNULL: we never read it, and a full stderr pipe would deadlock the child
         # on a verbose run and time out an otherwise-valid answer.
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                             stderr=subprocess.DEVNULL, text=True,
+                             stderr=subprocess.DEVNULL, text=True, cwd=cwd,
                              start_new_session=(os.name == "posix"))
     except FileNotFoundError:
         return None, "claude_not_found", None, []
@@ -154,7 +170,7 @@ def _headless_claude(cmd, prompt, timeout_s):
         p.stdout.close()
     rc = p.returncode
     parts, result_text, result_subtype, util, invoked = [], None, None, None, []
-    terminal_results = []
+    terminal_results, offered = [], []
     for ln in out.splitlines():
         # The stream is external/untrusted: a line may be invalid JSON, deeply nested (RecursionError),
         # or a shape-drifted value. Wrap the WHOLE per-line parse+extract so any bad line skips itself
@@ -165,6 +181,8 @@ def _headless_claude(cmd, prompt, timeout_s):
             ev = json.loads(ln)
             if not isinstance(ev, dict):
                 continue
+            if ev.get("type") == "system" and ev.get("subtype") == "init":
+                offered.append(ev.get("tools"))
             if ev.get("type") == "result":
                 terminal_results.append(ev)
                 result_subtype = ev.get("subtype")
@@ -202,6 +220,11 @@ def _headless_claude(cmd, prompt, timeout_s):
     if len(terminal_results) > 1:
         return None, "invalid_terminal_result", util, invoked
     if result_subtype == "success" and terminal_results:
+        if expected_tools is not None:
+            if not offered or not all(isinstance(t, list) for t in offered):
+                return None, "missing_tool_boundary", util, invoked
+            if any(set(map(str, t)) - set(expected_tools) for t in offered):
+                return None, "tool_boundary_violated", util, invoked
         terminal = terminal_results[0]
         if (terminal.get("is_error") not in (None, False)
                 or terminal.get("permission_denials")
@@ -219,12 +242,27 @@ def _headless_claude(cmd, prompt, timeout_s):
     return None, "missing_success_result", util, invoked
 
 
+AGENT_TOOLS = ("Read", "Grep", "Glob", "Skill")
+# Availability, not permission: `--allowedTools` only pre-approves, so whatever the host's rules or
+# mode allow (Bash, Write) still runs; `--tools` limits built-in tools and `--strict-mcp-config`
+# drops plugin MCP servers, whose tools `--tools` does not cover.
+TOOL_BOUNDARY = ["--strict-mcp-config", "--tools"]
+
+
+def _in_fresh_dir(cmd, prompt, timeout_s, expected_tools):
+    """Run in a new empty working directory, so the saved answers under --out and a checkout's
+    fixture rubrics are not under the agent's cwd. Removed afterwards."""
+    with tempfile.TemporaryDirectory(prefix="skill-behavior-eval-", ignore_cleanup_errors=True) as cwd:
+        return _headless_claude(cmd, prompt, timeout_s, expected_tools=expected_tools, cwd=cwd)
+
+
 def run_agent(prompt, timeout_s, arm, contract):
-    """One arm's headless answer, with read-only MODEL tools (Read/Grep/Glob/Skill). NOTE: this
-    bounds what the model can call, not all side effects — the `current` arm still runs the
-    installed hooks/plugins, so run the harness in a scratch checkout. Returns (text, err, util, invoked)."""
+    """One arm's headless answer. The model is offered only AGENT_TOOLS, checked against the run's
+    init event. This bounds what the model can call, not what it can read (host permission rules
+    decide that) or what hooks do — the `current` arm still runs the installed hooks/plugins.
+    Returns (text, err, util, invoked)."""
     cmd = ["claude", "-p", "--output-format", "stream-json", "--verbose",
-           "--max-turns", "6", "--allowedTools", "Read", "Grep", "Glob", "Skill"]
+           "--max-turns", "6", *TOOL_BOUNDARY, *AGENT_TOOLS]
     if arm == "candidate":
         # Disable the installed bootstrap + skills; inject the candidate contract instead.
         # NOTE: --bare is NOT used — it also drops OAuth/keychain auth (needs an API key);
@@ -235,7 +273,7 @@ def run_agent(prompt, timeout_s, arm, contract):
             text = fh.read()
         cmd += ["--settings", '{"disableAllHooks":true}', "--disable-slash-commands",
                 "--append-system-prompt", text]
-    return _headless_claude(cmd, prompt, timeout_s)
+    return _in_fresh_dir(cmd, prompt, timeout_s, AGENT_TOOLS)
 
 
 def read_saved_response(rpath):
@@ -469,10 +507,11 @@ def _write_report(verdicts, out_dir, do_judge):
 
 
 def run_judge(fx, cur_text, cand_text, timeout_s):
-    """Neutral LLM-judge (ccl-skills disabled, NO candidate contract) → (verdict|None, err, util)."""
+    """Neutral LLM-judge (ccl-skills disabled, NO candidate contract, NO tools: it reads untrusted
+    answers) → (verdict|None, err, util)."""
     cmd = ["claude", "-p", "--output-format", "stream-json", "--verbose", "--max-turns", "2",
-           "--settings", '{"disableAllHooks":true}', "--disable-slash-commands"]
-    text, err, util, _ = _headless_claude(cmd, judge_prompt(fx, cur_text, cand_text), timeout_s)
+           "--settings", '{"disableAllHooks":true}', "--disable-slash-commands", *TOOL_BOUNDARY, ""]
+    text, err, util, _ = _in_fresh_dir(cmd, judge_prompt(fx, cur_text, cand_text), timeout_s, ())
     if err:
         return None, err, util
     v = parse_judge_json(text)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Offline regression cases for evaluator deadlines and terminal evidence."""
+import hashlib
 import importlib.util
 import inspect
 import io
@@ -26,6 +27,14 @@ spec.loader.exec_module(behavior)
 def success(**overrides):
     return {"type": "result", "subtype": "success", "is_error": False,
             "result": "complete", **overrides}
+
+
+AGENT_TOOLS = ["Read", "Grep", "Glob", "Skill"]
+
+
+def init(tools):
+    """The CLI's init event: the tools the run actually offered the model."""
+    return json.dumps({"type": "system", "subtype": "init", "tools": tools}) + "\n"
 
 
 def running(pid):
@@ -395,7 +404,7 @@ class BehaviorRuntimeTests(unittest.TestCase):
         for unconfirmed in (False, True):
             with self.subTest(cleanup_unconfirmed=unconfirmed), tempfile.TemporaryDirectory() as temp:
                 timeout = subprocess.TimeoutExpired(["synthetic"], 1)
-                stream = (json.dumps(success()), None)
+                stream = (init(AGENT_TOOLS) + json.dumps(success()), None)
                 failed = self.fake_process([timeout, timeout if unconfirmed else stream])
                 failed.wait.side_effect = timeout if unconfirmed else None
                 processes = [self.fake_process([stream]), failed, self.fake_process([stream])]
@@ -440,12 +449,12 @@ class BehaviorRuntimeTests(unittest.TestCase):
                 candidate.write_text(f"# sig: {behavior.sample_sig(fx, 'candidate', contract.read_text())}\nOLD_CANDIDATE\n")
                 old_current, old_candidate = current.read_bytes(), candidate.read_bytes()
                 failed = scenario.endswith("failure")
-                stream = json.dumps(success(result="NEW_CURRENT"))
+                stream = init(AGENT_TOOLS) + json.dumps(success(result="NEW_CURRENT"))
                 if scenario == "quota_stop":
                     stream += "\n" + json.dumps({"type": "rate_limit_event", "rate_limit_info": {"utilization": 0.99}})
                 first = ([subprocess.TimeoutExpired(["synthetic"], 1), ("", None)]
                          if failed else [(stream, None)])
-                processes = [self.fake_process(first), self.fake_process([(json.dumps(success(result="NEW_CANDIDATE")), None)])]
+                processes = [self.fake_process(first), self.fake_process([(init(AGENT_TOOLS) + json.dumps(success(result="NEW_CANDIDATE")), None)])]
                 argv = ["eval", "--both-arms", "--samples", "1", "--timeout", "1", "--out", temp,
                         "--contract", str(contract), "--no-judge"]
                 if scenario not in ("stale_failure", "cache_resume"):
@@ -483,7 +492,7 @@ class BehaviorRuntimeTests(unittest.TestCase):
     def test_cleanup_uncertainty_stops_judges_and_writes_incomplete_report(self):
         verdict = {"delta": "tie", "reduced_capabilities": [], "added_capabilities": [],
                    "behavior_change": "same", "confidence": "high", "needs_human": False}
-        stream = (json.dumps(success(result=json.dumps(verdict))), None)
+        stream = (init([]) + json.dumps(success(result=json.dumps(verdict))), None)
         for unconfirmed in (False, True):
             with self.subTest(cleanup_unconfirmed=unconfirmed), tempfile.TemporaryDirectory() as temp:
                 timeout = subprocess.TimeoutExpired(["synthetic"], 1)
@@ -517,12 +526,103 @@ class BehaviorRuntimeTests(unittest.TestCase):
                 self.assertIn("INCOMPLETE", (Path(temp) / "capability-delta-report.md").read_text())
 
 
+def options(cmd, flag):
+    """The values a variadic CLI flag receives: every token after it up to the next option."""
+    values = cmd[cmd.index(flag) + 1:]
+    stop = next((i for i, token in enumerate(values) if token.startswith("--")), len(values))
+    return values[:stop]
+
+
+class ToolBoundaryTests(unittest.TestCase):
+    """The defect: `--allowedTools` only pre-approves, so a host's allow rules or bypass mode let
+    the arm agent run Bash and Write; plugin MCP tools stay even under `--tools`; the agent started
+    in the caller's directory next to the saved answers. Each case fails on that code."""
+
+    def capture(self, call):
+        seen = []
+
+        def fake(cmd, prompt, timeout_s, expected_tools=None, cwd=None):
+            seen.append({"cmd": cmd, "expected": expected_tools, "cwd": cwd,
+                         "cwd_entries": os.listdir(cwd) if cwd else None})
+            return None, "synthetic", None, []
+
+        with mock.patch.object(behavior, "_headless_claude", side_effect=fake):
+            call()
+        self.assertEqual(len(seen), 1)
+        return seen[0]
+
+    def arm_runs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            contract = Path(temp) / "contract.md"
+            contract.write_text("synthetic contract")
+            for arm in ("current", "candidate"):
+                yield arm, self.capture(lambda: behavior.run_agent("x", 1, arm, str(contract)))
+
+    def test_arms_offer_only_read_tools_and_no_mcp(self):
+        for arm, run in self.arm_runs():
+            with self.subTest(arm=arm):
+                self.assertNotIn("--allowedTools", run["cmd"])
+                self.assertIn("--strict-mcp-config", run["cmd"])
+                self.assertEqual(sorted(options(run["cmd"], "--tools")), sorted(AGENT_TOOLS))
+                self.assertEqual(sorted(run["expected"]), sorted(AGENT_TOOLS))
+
+    def test_judge_is_offered_no_tools(self):
+        fx = {"id": "synthetic", "prompt": "x", "rubric": "r"}
+        run = self.capture(lambda: behavior.run_judge(fx, "a", "b", 1))
+        self.assertIn("--strict-mcp-config", run["cmd"])
+        self.assertEqual(options(run["cmd"], "--tools"), [""])
+        self.assertEqual(tuple(run["expected"]), ())
+
+    def test_every_run_starts_in_a_fresh_empty_directory(self):
+        runs = [run for _, run in self.arm_runs()]
+        runs.append(self.capture(lambda: behavior.run_judge({"id": "s", "prompt": "x"}, "a", "b", 1)))
+        for run in runs:
+            self.assertIsNotNone(run["cwd"])
+            self.assertNotEqual(os.path.realpath(run["cwd"]), os.path.realpath(os.getcwd()))
+            self.assertEqual(run["cwd_entries"], [])
+            self.assertFalse(os.path.exists(run["cwd"]), "the run directory outlived the run")
+        self.assertEqual(len({run["cwd"] for run in runs}), len(runs))
+
+    def test_samples_saved_under_the_old_launch_boundary_are_not_reused(self):
+        # Resume skips a saved sample whose `# sig:` matches; the old signature covered only the
+        # inputs, so a sample run with the leaky argv would have been banked as current.
+        fx = {"prompt": "p", "rubric": "r"}
+        for arm, layer in (("current", "tag"), ("candidate", "contract text")):
+            old = hashlib.sha1("\x00".join(["p", "r", arm, layer]).encode("utf-8")).hexdigest()[:12]
+            self.assertNotEqual(behavior.sample_sig(fx, arm, layer), old)
+
+    def test_init_event_decides_whether_the_boundary_held(self):
+        done = json.dumps(success())
+        cases = {
+            "held": (init(AGENT_TOOLS) + done, None),
+            "subset": (init(["Read"]) + done, None),
+            "bash_offered": (init(AGENT_TOOLS + ["Bash"]) + done, "tool_boundary_violated"),
+            "mcp_offered": (init(AGENT_TOOLS + ["mcp__plugin_x__run"]) + done, "tool_boundary_violated"),
+            "second_init_widened": (init(AGENT_TOOLS) + init(["Write"]) + done, "tool_boundary_violated"),
+            "no_init": (done, "missing_tool_boundary"),
+            "tools_not_a_list": (json.dumps({"type": "system", "subtype": "init", "tools": "Read"}) + "\n" + done,
+                                 "missing_tool_boundary"),
+        }
+        for label, (stream, expected) in cases.items():
+            with self.subTest(stream=label):
+                result = behavior._headless_claude([sys.executable, "-c", f"print({stream!r})"], "x", 5,
+                                                   expected_tools=AGENT_TOOLS)
+                self.assertEqual(result[1], expected)
+                self.assertEqual(result[0] is None, expected is not None)
+        result = behavior._headless_claude([sys.executable, "-c", f"print({init(['Bash']) + done!r})"], "x", 5,
+                                           expected_tools=())
+        self.assertEqual(result[1], "tool_boundary_violated")
+
+
 class GoldenRuntimeTests(unittest.TestCase):
-    def run_golden(self, events, forbidden=False):
+    BOUNDARY = {"type": "system", "subtype": "init", "tools": ["Skill", "Read", "Grep", "Glob"]}
+
+    def run_golden(self, events, forbidden=False, argv_out=None):
         with tempfile.TemporaryDirectory() as temp:
             folder = Path(temp)
             stub = folder / "claude"
-            stub.write_text(f"#!{sys.executable}\nimport sys\nsys.stdin.read()\nprint({events!r})\n")
+            record = f"open({str(argv_out)!r}, 'w').write(json.dumps(sys.argv[1:]))\n" if argv_out else ""
+            stub.write_text(f"#!{sys.executable}\nimport json, sys\nsys.stdin.read()\n{record}print({events!r})\n")
             stub.chmod(0o700)
             traces = folder / "traces"
             traces.mkdir()
@@ -545,15 +645,21 @@ class GoldenRuntimeTests(unittest.TestCase):
         skill = {"type": "assistant", "message": {"content": [
             {"type": "tool_use", "name": "Skill", "input": {"skill": "testing-strategy"}},
         ]}}
+        boundary = self.BOUNDARY
+        widened = {**boundary, "tools": boundary["tools"] + ["Bash"]}
+        mcp = {**boundary, "tools": boundary["tools"] + ["mcp__plugin_x__run"]}
         cases = {
-            "complete": ([skill, success()], "PASS"),
-            "missing": ([skill], "INCONCLUSIVE"),
-            "failed": ([skill, success(subtype="error_max_turns")], "INCONCLUSIVE"),
-            "error_flag": ([skill, success(is_error=True)], "INCONCLUSIVE"),
-            "duplicate": ([skill, success(), success()], "INCONCLUSIVE"),
-            "malformed_event": ([skill, [], success()], "INCONCLUSIVE"),
-            "malformed_content": ([skill, {"type": "assistant", "message": {"content": "bad"}}, success()], "INCONCLUSIVE"),
-            "permission_denial": ([skill, success(permission_denials=[{"tool": "Read"}])], "INCONCLUSIVE"),
+            "complete": ([boundary, skill, success()], "PASS"),
+            "missing": ([boundary, skill], "INCONCLUSIVE"),
+            "failed": ([boundary, skill, success(subtype="error_max_turns")], "INCONCLUSIVE"),
+            "error_flag": ([boundary, skill, success(is_error=True)], "INCONCLUSIVE"),
+            "duplicate": ([boundary, skill, success(), success()], "INCONCLUSIVE"),
+            "malformed_event": ([boundary, skill, [], success()], "INCONCLUSIVE"),
+            "malformed_content": ([boundary, skill, {"type": "assistant", "message": {"content": "bad"}}, success()], "INCONCLUSIVE"),
+            "permission_denial": ([boundary, skill, success(permission_denials=[{"tool": "Read"}])], "INCONCLUSIVE"),
+            "no_boundary": ([skill, success()], "INCONCLUSIVE"),
+            "bash_offered": ([widened, skill, success()], "INCONCLUSIVE"),
+            "mcp_offered": ([mcp, skill, success()], "INCONCLUSIVE"),
         }
         for label, (events, expected) in cases.items():
             with self.subTest(stream=label):
@@ -561,8 +667,17 @@ class GoldenRuntimeTests(unittest.TestCase):
                 self.assertEqual(row["status"], expected)
                 if expected == "INCONCLUSIVE":
                     self.assertTrue(row["error"])
-        row = self.run_golden("\n".join(json.dumps(event) for event in (skill, success())), forbidden=True)
+        row = self.run_golden("\n".join(json.dumps(event) for event in (boundary, skill, success())), forbidden=True)
         self.assertEqual(row["status"], "FAIL")
+
+    def test_replay_offers_only_read_tools_and_no_mcp(self):
+        with tempfile.TemporaryDirectory() as temp:
+            argv_out = Path(temp) / "argv.json"
+            self.run_golden(json.dumps(success()), argv_out=argv_out)
+            cmd = json.loads(argv_out.read_text())
+        self.assertNotIn("--allowedTools", cmd)
+        self.assertIn("--strict-mcp-config", cmd)
+        self.assertEqual(sorted(options(cmd, "--tools")), sorted(AGENT_TOOLS))
 
 
 if __name__ == "__main__":

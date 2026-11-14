@@ -89,7 +89,7 @@ pass/fail 之外,路由失败有可命名的形态;每个形态有不同的检�
 `scripts/eval-golden-trace.rb <repo-root> [--traces d] [--max-turns N] [--timeout S] [--only id] [--limit N] [--json p] [--dry-run]`。`make eval-golden-trace`。
 
 - golden trace `eval/golden-traces/*.json`(每个 hub skill 一条):`{id, hub_skill, trigger_prompt, assert{must_invoke_skill, must_not_invoke_skill, no_destructive_command}, allowed_variance, frozen_at_sha}`。当前 3 条:product-rd-workflow / defect-diagnosis / testing-strategy。
-- runner 把 trigger 喂给 headless `claude -p --output-format stream-json --max-turns N --allowedTools Skill Read Grep Glob`(**allowlist:只读 + Skill,无副作用** —— Bash/Edit/Write/NotebookEdit/cron/task 全因不在白名单而禁用),从事件流抽**真 agent 实际 invoke 的 Skill**,做**结构化断言**:must_invoke ⊆ invoked、must_not ∩ invoked = ∅、命令无破坏性类。
+- runner 把 trigger 喂给 headless `claude -p --output-format stream-json --max-turns N --strict-mcp-config --tools Skill Read Grep Glob`(只提供 Skill + 三个读工具:Bash/Edit/Write 等内置工具和插件 MCP 工具都不提供;`--allowedTools` 只预先批准、不限制,不能用),init 事件列出其他工具或缺失即判 INCONCLUSIVE。它不限制读路径,已装 hook 照常运行,所以不是无副作用的沙箱。从事件流抽**真 agent 实际 invoke 的 Skill**,做**结构化断言**:must_invoke ⊆ invoked、must_not ∩ invoked = ∅、命令无破坏性类(Bash 不提供时这一项不会命中)。
 - **只断言路由结构,不断言措辞/顺序/tool 数**。v1 因禁用工具,聚焦路由结构;产物/命令族断言留待沙箱化后扩展。
 - **比 Tier-2 高保真**:观察真 agent(完整 skill 体 + hook + context),不是廉价模型对 description 的看法。
 - **advisory + 人工判定**:不接门禁、不挡 merge。状态 PASS / FAIL / INCONCLUSIVE(agent 未在 max-turns 内路由)。退出码:`0` = 跑完;`2` = 用法;`3` = agent 整体不可用(claude 缺失则 skipped 后 `0`)。路由漂移永不非 0。
