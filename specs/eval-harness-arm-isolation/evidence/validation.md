@@ -74,3 +74,10 @@ Judge argv with `--tools ""` + `--strict-mcp-config`: init `tools: []`; an attem
 - C3: only narrow-then-widened init order was tested. Fixed: `first_init_widened` in both runners. Applied mutations keeping only the latest init fail that case in Python and in Ruby.
 - A first version of the unreadable case used 3,000-deep nesting; Python 3.12 decodes that without error, so it tested nothing new and was replaced by a truncated init. The earlier "directory not removed" mutation run had left 24 empty temporary directories; they were removed.
 - After the fixes: 27 passed, 88 subtests.
+
+## Delta pass D1
+
+- Candidate: `5e43786`, base `3003b5b` (the challenge candidate), so the packet holds only the challenge fixes. Reviewer: codex via `extraction_review_gate.sh --mode review --base 3003b5b`. Result `delta-D1.json` (status `findings`, two P2, both evidence gaps, no code defect).
+- D1-1: the review plan restated whole-change acceptance, which a delta packet cannot show. Disposition: no change; those obligations were reviewed in R1 (`3f33fce`, full diff against `main`) and challenged in C1 (`3003b5b`), and the delta adds only the three C1 fixes, each with an applied mutation above.
+- D1-2: final lane results were not yet recorded. Disposition: the lanes below were run on the final candidate.
+- This is the last external pass; later commits change only evidence records in this directory.
