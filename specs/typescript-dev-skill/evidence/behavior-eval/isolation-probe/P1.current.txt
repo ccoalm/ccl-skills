@@ -1,0 +1,38 @@
+# sig: a332532e5e3a
+# P1 / arm=current / sample=1 / 45s / util=None
+# skills_invoked: []
+# axis: 
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# probe
+
+Every search came back empty or almost empty. The only paths containing `typescript-dev` were Claude CLI cache logs under `~/.cache`. I found no source directory, skill folder or checkout with that name.
+
+### `typescript-dev` searches
+
+| # | Tool | Path | Pattern | Result |
+|---|---|---|---|---|
+| 1 | Glob | `~` | `**/*typescript-dev*` | No files found |
+| 2 | Glob | `~` | `**/*typescript-dev*/**` | **404 files** (first 100 shown), all under one directory (see below) |
+| 3 | Glob | `/tmp` | `**/*typescript-dev*` | No files found |
+| 4 | Glob | `/tmp` | `**/*typescript-dev*/**` | No files found |
+| 5 | Glob | `/` | `**/*typescript-dev*` | No files found |
+| 6 | Grep | `/` | glob `**/*typescript-dev*/**`, regex `.` | **250 files** (hit the 250 limit, so the list is cut off) |
+| 7 | Glob | `~/<workspaces>` | `**/*typescript-dev*/**` | No files found |
+
+- **Search 2:** every file shown is under `~/.cache/claude-cli-nodejs/-home-<user>-<workspaces>-workspaces-ccl-skills-typescript-dev-skill/`, in the subfolders `mcp-logs-claude-artifacts/`, `mcp-logs-easel/`, `mcp-logs-claude-ai-Claude-Docs/` and `mcp-logs-plugin-context-mode-context-mode/`. They are all `.jsonl` log files with timestamps from 2026-11-13T19:51 to about 20:26.
+- **Search 6:** I checked the saved output. All 250 lines are under that same `.cache/...typescript-dev-skill/` directory, and none are anywhere else. Because the output stopped at 250, matches elsewhere on `/` can't be ruled out.
+- **Inconsistency:** the Glob from `/` (search 5) found nothing, even though files under `~` matched. That means the Glob from the filesystem root didn't actually cover everything.
+
+Only directory paths matched. Search 1 found no file or folder whose own name contains `typescript-dev`; all matches came from the cache folder's name.
+
+### Directory listings
+
+| Tool | Path | Pattern | Result |
+|---|---|---|---|
+| Glob | `/tmp` | `*` | **2,556 files** (first 100 shown) |
+| Glob | `~/<checkouts>` | `*` and `**/*` | No files found |
+| Glob | `~/<workspaces>` | `*` and `**/*` | No files found |
+
+- **`/tmp`:** although the pattern was `*`, the results included files in subfolders. Every file shown was under `/tmp/tsd-eval/before/`, for example `.claude-plugin/marketplace.json`, `.claude-plugin/plugin.json`, `.gitignore`, and `<specs-dir>/...` folders such as `163-paired-behavior-eval/`, `stale-reader-default/`, `017-repo-root-checker-filename-decode/`, `042-skill-corpus-optimization/`, `architecture-design-eval/` and `daily-dev-review-budget/`. The other 2,456 files were not listed.
+- **`~/<checkouts>`:** either the folder doesn't exist or it has no files.
+- **`~/<workspaces>`:** Glob found no files here, which conflicts with the cache folder name. That name suggests a workspace at `~/<workspaces>/workspaces/ccl-skills-typescript-dev-skill` existed at some point. It may have been deleted, or Glob may not have been able to read it. Glob and Grep can't tell those apart; a shell `ls -la` would.

@@ -1,0 +1,152 @@
+# sig: 873596881eb4
+# F44 / arm=current / sample=7 / 77s / util=None
+# skills_invoked: ["ccl-skills:nodejs-service-dev"]
+# axis: TypeScript monorepo project references and compiler upgrade
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：每个包 `composite: true` 并在 `references` 列出依赖包，根上建 `files: []` 的 solution tsconfig，用 `tsc -b` 增量构建；共享选项放一个被 extends 的 base；引用方向与架构层定的包依赖方向一致，循环是设计问题；明确工作区包是先构建（exports 指向产物）还是源码直连（customConditions）并让打包器和测试运行器一致；升级前读实际发布说明：6.0 改了 `strict`/`module`/`target`/`types`/`rootDir` 等默认值并废弃 `baseUrl` 查找和 `moduleResolution node10`，7.0 采用这些默认值、把废弃项变成错误且不带编译器 API，先在 6.0 上无 `ignoreDeprecations` 编译干净，再逐个确认 typescript-eslint 等依赖编译器 API 的工具怎么并行用 6.0 API。弱点：只改版本号；依赖旧默认值不显式写出；忽略需要编译器 API 的工具。
+
+我在当前目录（`/tmp/tsd-eval/cwd`）没找到 `package.json`、`tsconfig*.json` 或 `pnpm-workspace.yaml`，所以下面是一份通用方案，没有在真实仓库上跑过。包名先用 `core / utils / api / web / cli` 代替，依赖关系是 `core ← utils ← api/web/cli`，请换成你们的。
+
+## 1. 为什么每次都要整仓重查
+
+常见原因有三个，通常同时存在：
+- 根目录用一个 `tsc -p` 把所有包一起检查，没有增量；
+- 用 `paths` 把 `@scope/core` 指到兄弟包的 `src`，每个包都会把依赖包的源码当成自己的一部分再查一遍；
+- 没有开启 `composite` 和 project references，也就没有 `.tsbuildinfo`，TS 不知道哪些包没变。
+
+解决办法是改用 **project references 加 `tsc -b`**。包之间只通过各自生成的 `.d.ts` 依赖。改动没碰到对外 API 时，只重查改动的那个包；对外 API 变了，才会连带重查依赖它的包。
+
+## 2. tsconfig 结构
+
+```
+tsconfig.base.json          # 只放共享 compilerOptions
+tsconfig.json               # solution：files: []，只列 references
+packages/core/tsconfig.json
+packages/utils/tsconfig.json   → references core
+packages/api/tsconfig.json     → references core, utils
+...
+```
+
+**tsconfig.base.json**
+```jsonc
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "nodenext",           // 前端包可改 "preserve" + moduleResolution "bundler"
+    "strict": true,
+    "composite": true,              // 隐含 declaration + incremental
+    "declarationMap": true,         // 编辑器跳转能直接跳到兄弟包源码
+    "sourceMap": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "types": ["node"],              // 显式写；TS 6 起默认值变了（见下）
+    "forceConsistentCasingInFileNames": true
+  }
+}
+```
+
+**根 tsconfig.json**（只负责编排，自己不编译任何文件）
+```jsonc
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" }, { "path": "packages/utils" },
+    { "path": "packages/api" },  { "path": "packages/web" }, { "path": "packages/cli" }
+  ]
+}
+```
+
+**packages/api/tsconfig.json**
+```jsonc
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "dist" },
+  "include": ["src"],
+  "references": [{ "path": "../core" }, { "path": "../utils" }]
+}
+```
+
+**packages/core/package.json**：兄弟包从 `dist` 拿类型，不用 `paths`
+```jsonc
+{
+  "name": "@scope/core",
+  "type": "module",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } }
+}
+```
+使用方写 `"@scope/core": "workspace:*"`。
+
+要点：
+- 删掉指向兄弟包 `src` 的 `paths` 别名，否则 references 不起作用。
+- 如果 JS 由 tsup、vite 等打包，tsc 只负责类型时，在对应包里加 `"emitDeclarationOnly": true`。
+- 测试文件要单独做类型检查的话，给 `tsconfig.test.json` 再建一个 project，用 references 指向本包的 src project，不要把 test 混进 src 的 `include`。
+- 把 `*.tsbuildinfo` 和 `dist/` 加进 `.gitignore`。CI 想要增量，就缓存这两类产物。
+- 可选：加上 `"isolatedDeclarations": true`。它要求导出项写显式类型，好处是 `.d.ts` 生成更快，也更利于并行。
+
+脚本：
+```jsonc
+// 根 package.json
+"scripts": {
+  "typecheck": "tsc -b",
+  "typecheck:clean": "tsc -b --clean && tsc -b"
+}
+```
+
+## 3. 统一 TypeScript 版本
+
+在 `pnpm-workspace.yaml` 里用 catalog 锁定唯一版本，所有包都写 `"typescript": "catalog:"`：
+```yaml
+catalog:
+  typescript: <目标版本>
+```
+
+## 4. 升级步骤（每一步单独提交）
+
+**版本前提**：我不确定你们现在的"最新大版本"指 6.x 还是 7.x，请先跑 `pnpm view typescript dist-tags` 确认。下面按"6.0 是最后一个 JS 实现的版本，7.0 是 Go 原生实现"来安排，具体弃用项以官方 release notes 为准。
+
+0. **先在 5.x 上完成第 2 节的改造**，不和升级混在一起。保存基线：
+   ```bash
+   tsc -b --pretty false > diag-5x.txt
+   cp -r packages/*/dist ../dts-5x/
+   ```
+   同时用 `--extendedDiagnostics` 记录冷启动和增量各花多少时间。
+1. **升到 5.9.x**（5.x 的最后一个小版本），修掉新出现的报错。
+2. **升到 6.0**，逐项处理弃用配置，不要长期依赖 `"ignoreDeprecations": "6.0"`：
+   - `moduleResolution: node` / `node10` / `classic` 改为 `nodenext` 或 `bundler`；
+   - 去掉 `baseUrl`，`paths` 改用相对路径；
+   - `target: es5`、`outFile`，以及 `amd` / `umd` / `system` 模块格式都要迁走；
+   - 6.0 起几个默认值变了，例如 `strict`、`types`、`rootDir`。按上面的写法把它们都显式写在配置里，就不会因为默认值变化而出问题。
+3. **试 7.x（原生实现）**：先在 CI 里加一个并行任务（7.0 正式发布前用 `@typescript/native-preview` 的 `tsgo -b`），对比两边的报错列表和 `.d.ts` 产物。
+   - 要注意依赖 TS 编译器 API 的工具，比如 typescript-eslint、ts-morph、vue-tsc、ts-jest。它们可能还不支持 7。确认之前，可以让 `tsc -b` 用 7，同时保留 6.x 给这些工具用（用 npm alias 并存）。
+4. 更新 lockfile，确认 `pnpm install --frozen-lockfile` 能通过，并且 `pnpm why typescript` 只显示一个版本。
+
+## 5. 验证
+
+| 要证明的事 | 怎么验证 |
+|---|---|
+| 依赖图正确 | `tsc -b --verbose` 不报 TS6305/TS6307；`tsc -p packages/api --explainFiles` 里看不到兄弟包的 `src/**` |
+| 只改内部实现时只重查一个包 | 改 `core` 里一个没导出的函数体后跑 `tsc -b --verbose`：只有 `core` 被重查，其余显示 *up to date* |
+| 改对外 API 时连带重查依赖方 | 改 `core` 导出的类型：`core` 和依赖它的包被重查，和它无关的包被跳过 |
+| 增量结果可信 | `pnpm typecheck:clean` 的结果必须和增量构建一致；CI 至少跑一次干净构建 |
+| 真的变快了 | 用 `--extendedDiagnostics` 对比第 0 步的基线 |
+| 升级没有改变行为 | 报错列表和 `diag-5x.txt` 的差异逐条解释；`dist/**/*.d.ts` 和基线的差异逐条确认（这对外部使用者是公开 API）；单测、lint、构建、启动全部通过 |
+| references 和实际依赖不脱节 | CI 加一个小脚本，检查每个包的 `workspace:*` 依赖和 `references` 一一对应，防止以后有人加了依赖却忘了加 reference |
+
+**风险**
+- 改造后改代码需要先 build，编辑器才能看到新类型。VS Code 打开根目录时会按 references 自动处理；但测试运行器如果要解析兄弟包，需要 `dist` 已存在，或者配一个指向 `src` 的 `exports` 条件（例如 `"development"`）。
+- 7.x 的周边工具支持程度是最大的未知数，所以把它放在最后一步，并先并行运行。
+
+proposed-next: 把你们仓库的 `pnpm-workspace.yaml`、根目录和各包的 `tsconfig*.json`、`package.json` 路径给我，我按上面第 0 步在独立 worktree 里落地改造，并跑一遍第 5 节的验证。
+
+我还没法动手改造，因为两个可访问的目录里都没有这个 monorepo：`/tmp/tsd-eval/cwd` 和 `/tmp/tsd-eval/before` 里都找不到 `pnpm-workspace.yaml`。你这次要的是方案，上一条已经给全了：tsconfig 结构、升级步骤和验证方法。
+
+如果你直接按方案落地，下面这些是我替你定的默认做法，不同意的话改成括号里的写法即可：
+- **包之间怎么引用类型：** 读依赖包 `dist` 里生成的 `.d.ts`，并删掉指向兄弟包 `src` 的 `paths` 别名。（如果测试运行器必须直接读源码，就在 `exports` 里加一个 `"development"` 条件指向 `src`。）
+- **模块设置：** 后端包用 `module: nodenext`，前端包用 `preserve` 加 `moduleResolution: bundler`。（如果你们统一走打包器，就全部改成后一种。）
+- **升级顺序：** 先在 5.x 上做 project references 改造，再升 5.9、6.0，最后单独开一个 CI 任务试 7.x。（如果 typescript-eslint 等工具都已支持 7，可以跳过并行验证，直接切换。）
+- **TypeScript 版本管理：** 用 pnpm catalog 让整个仓库只用一个版本。（如果你们已有统一版本的办法，沿用即可。）
+
+blocked: 拿不到仓库，`pnpm-workspace.yaml`、各包的 `tsconfig*.json` 和 `package.json` 都看不到。请把仓库路径或这些文件给我。
+
+proposed-next: 在独立 worktree 里，先在当前 5.x 上把五个包改成 project references 加 `tsc -b`，保存报错列表和 `.d.ts` 作为基线，再按第 5 节逐项验证。

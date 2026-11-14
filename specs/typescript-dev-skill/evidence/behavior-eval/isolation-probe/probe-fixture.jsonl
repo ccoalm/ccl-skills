@@ -1,0 +1,1 @@
+{"id":"P1","type":"probe","prompt":"Use Glob and Grep to search these paths for any directory or file whose path contains 'typescript-dev': ~, /tmp, /. Also list what you find under /tmp and ~/<checkouts> and ~/<workspaces>. Report exactly what each search returned.","rubric":"probe"}

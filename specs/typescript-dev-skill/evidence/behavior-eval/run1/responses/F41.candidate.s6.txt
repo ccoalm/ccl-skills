@@ -1,0 +1,178 @@
+# sig: 2183b0e23c75
+# F41 / arm=candidate / sample=6 / 78s / util=None
+# skills_invoked: ["ccl-skills:typescript-dev"]
+# axis: TypeScript library declaration and dual-format publishing
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：指出直接被 Node.js 加载的库不应只用 `bundler` 解析来建模，改为 `nodenext`（或用打包器产出并对声明做 `nodenext` 检查）；在 `exports` 每个条件对象里把 `types` 放第一位，ESM/CJS 各自指向对应格式的声明（`.d.mts`/`.d.cts` 或按 `type` 区分），每个入口都有声明；把公开类型依赖放进 dependencies/peerDependencies；先确认受支持消费者是否真的需要 `require` 再做双发；用 `npm pack` 后对 tarball 跑 `@arethetypeswrong/cli`，并在 nodenext ESM、nodenext CJS、bundler 三种 scratch 消费者里对每个入口做类型检查。弱点：只加 `exports` 不放 `types`；一份 `.d.ts` 同时描述两种格式；只在源码树而非打包产物上验证。
+
+当前目录 `/tmp/tsd-eval/cwd` 是空的，没有你的 `package.json`、`tsconfig` 或源码，所以我没有改任何文件，也没有运行任何检查。下面是可以直接照着做的改动和验证步骤。
+
+## 先说结论：现在的配置有两处会出问题
+
+1. **`moduleResolution: bundler` 不能用来直接用 tsc 编译要发布的库。** 它允许写 `import './utils'` 这种不带扩展名的相对导入，tsc 会原样输出。Node 用 ESM 方式加载时直接报 `ERR_MODULE_NOT_FOUND`，而编译器不会提示。只有在打包工具处理所有导入时才该用 `bundler`。发布库应该用 `nodenext`。
+2. **一份 `.d.ts` 不能同时描述 ESM 和 CJS 两份产物。** 每种格式要有自己的 JS、自己的声明文件，以及告诉 Node 这是哪种格式的 `package.json#type`。
+
+另外，Node 20.19+ / 22.12+ 已经可以 `require()` 不含顶层 await 的 ESM。如果你的用户都在这些版本上，只发 ESM 就够了，产物面少一半。下面按你要的双格式来写。
+
+## 改动
+
+推荐用 **tshy** 来构建。它底层还是 tsc，只是把双格式需要的几件事自动做了：编译两次（ESM 和 CJS）、给每个输出目录写对应 `type` 的 `package.json`、生成 `types` 嵌套在各自条件里的 `exports`。纯 tsc 也能做到，但 CJS 那次编译要在编译期临时改掉 `type` 字段，自己写脚本容易出错。
+
+### `package.json`
+
+```jsonc
+{
+  "name": "your-lib",
+  "type": "module",
+  "files": ["dist"],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tshy",
+    "check:pack": "attw --pack . && publint",
+    "prepack": "npm run build"
+  },
+  "tshy": {
+    "exports": {
+      "./package.json": "./package.json",
+      ".": "./src/index.ts"
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.x 或 6.x",
+    "tshy": "*",
+    "@arethetypeswrong/cli": "*",
+    "publint": "*"
+  }
+}
+```
+
+原来手写的 `main` 和 `types` 删掉，由 tshy 重新生成。`npm run build` 之后，`package.json` 应该会出现下面这些字段：
+
+```jsonc
+"exports": {
+  "./package.json": "./package.json",
+  ".": {
+    "import":  { "types": "./dist/esm/index.d.ts",      "default": "./dist/esm/index.js" },
+    "require": { "types": "./dist/commonjs/index.d.ts", "default": "./dist/commonjs/index.js" }
+  }
+},
+"main": "./dist/commonjs/index.js",
+"types": "./dist/commonjs/index.d.ts",
+"module": "./dist/esm/index.js"
+```
+
+几个要点：
+- `types` 写在 `import` 和 `require` 各自里面，而且排在第一位。TypeScript 按对象顺序取第一个匹配的条件，排在后面就永远不会被读到。
+- 构建还会生成 `dist/esm/package.json`（`{"type":"module"}`）和 `dist/commonjs/package.json`（`{"type":"commonjs"}`）。这样两边的 `.js` 和 `.d.ts` 都会按正确的格式被识别。
+- 外部用户可见的类型（`.d.ts` 里 import 了的包）要放在 `dependencies` 或 `peerDependencies`，不能只放在 `devDependencies`。
+
+### `tsconfig.json`
+
+```jsonc
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2022",
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "isolatedModules": true,
+    "skipLibCheck": false
+  },
+  "include": ["src"]
+}
+```
+
+- 不要开 `verbatimModuleSyntax`。开了之后，同一份 ESM 语法的源码在编译 CJS 时会报错。
+- `outDir` 和 `rootDir` 由 tshy 接管，不用自己写。
+
+### 源码
+
+- 所有相对导入补上 `.js` 扩展名，比如 `export * from './utils'` 改成 `'./utils.js'`。导入目录的写法 `'./foo'` 改成 `'./foo/index.js'`。改完后 `tsc --noEmit` 会把漏掉的地方都报出来。
+- 不要用顶层 `await` 和 `import.meta`，CJS 版本里编不出来。如果非用不可，要用 tshy 的 `*-cjs.cts` / `*-esm.mts` 替换文件分别写。
+- 双包有一个已知问题：同一个进程里，ESM 和 CJS 可能各加载一份模块。如果库有模块级状态（单例、缓存、`instanceof` 判断），这些状态会分裂成两份。要么去掉这类状态，要么在文档里写明。
+
+## 验证
+
+前三步检查本地类型和产物。第 4 步检查最终会发到 npm 上的那份 tarball，这才是实际发出去的东西。
+
+```bash
+# 1. 类型检查（这是唯一真正的类型门禁；构建成功不等于类型正确）
+npm run typecheck
+
+# 2. 构建并检查输出
+npm run build
+cat dist/esm/package.json dist/commonjs/package.json   # 分别是 module / commonjs
+ls dist/esm dist/commonjs                              # 各自都有 index.js + index.d.ts
+
+# 3. 看最终会打进包里的文件
+npm pack --dry-run
+
+# 4. 检查 tarball 本身
+npx attw --pack .     # node10 / node16-CJS / node16-ESM / bundler 四列都应全绿
+npx publint
+```
+
+`attw` 是关键的一步。它能发现"ESM 用户拿到了 CJS 的类型"（Masquerading as CJS/ESM）、"某个入口没有类型"这类问题，而这些问题光在源码树上检查是看不出来的。
+
+### 5. 用独立的消费者项目跑一遍
+
+把 tarball 装进三个临时项目，分别跑类型检查和运行。用 `@ts-expect-error` 可以顺便确认类型不是 `any`：如果类型退化成 `any`，那行就不会报错，`@ts-expect-error` 本身会变成未使用的指令而让检查失败。
+
+```bash
+TARBALL=$(npm pack --silent | tail -1); ROOT=$PWD
+for kind in esm cjs bundler; do
+  d=$(mktemp -d); cd "$d"; npm init -y >/dev/null
+  npm i "$ROOT/$TARBALL" typescript @types/node >/dev/null
+  case $kind in
+    esm)     npm pkg set type=module; MOD=nodenext; RES=nodenext; F=index.ts ;;
+    cjs)     MOD=nodenext; RES=nodenext; F=index.cts ;;   # .cts 强制按 CJS 编译，导入会变成 require
+    bundler) npm pkg set type=module; MOD=esnext; RES=bundler; F=index.ts ;;
+  esac
+  cat > "$F" <<'EOF'
+import { someFn } from 'your-lib';
+const r: ReturnType<typeof someFn> = someFn(/* 合法参数 */);
+// @ts-expect-error 错误参数必须报错，证明类型不是 any
+someFn(Symbol());
+console.log(typeof someFn, r);
+EOF
+  echo "{\"compilerOptions\":{\"module\":\"$MOD\",\"moduleResolution\":\"$RES\",\"strict\":true,\"outDir\":\"out\"}}" > tsconfig.json
+  npx tsc -p . && echo "$kind types OK"
+  [ $kind != bundler ] && node out/index.*js && echo "$kind runtime OK"
+  cd "$ROOT"
+done
+```
+
+把 `your-lib`、`someFn` 和其中的参数换成你的真实导出。每增加一个 `exports` 子路径，就加一行对应的 import。
+
+### 写进 CI
+
+把 `npm run typecheck`、`npm run build`、`npm run check:pack` 都加到 CI 里。第 5 步可以只在发版前跑。
+
+## 尚未确认的地方
+
+- 没有拿到项目文件，所以 TypeScript 版本、源码里有多少不带扩展名的导入、有没有顶层 `await` 和模块级状态，都没确认。上面所有命令也都还没在你的项目上跑过。
+- 如果你坚持不引入 tshy、只用 tsc：ESM 那次用 `nodenext` 照常编译到 `dist/esm`。CJS 那次要在编译期间临时把根 `package.json` 的 `type` 改成 `commonjs`，然后编译到 `dist/commonjs`。两个目录里各写一个带 `type` 的 `package.json`，`exports` 按上面的结构手写。验证步骤完全一样，`attw` 全绿就说明结构没问题。
+
+proposed-next: 把实际的 `package.json`、`tsconfig.json` 和 `src/` 放进工作目录，我来改配置、补导入扩展名，并跑完上面第 1–5 步验证。
+
+I still can't take the next step. The library's source isn't in any directory I can see:
+
+- `/tmp/tsd-eval/cwd` is empty.
+- The only `package.json` and `tsconfig.json` I found are under `/tmp/tsd-eval/after/packages/ccl-skills-npm/`. That's the skills repository's own package, not your library, so I'm leaving it alone.
+- This session has no shell tool, so I can't run `tsc`, `tshy`, `npm pack`, `attw` or the throwaway consumer projects even with the files in place.
+
+Until then, these defaults from my previous reply stand:
+
+| Default | How to change it |
+|---|---|
+| Ship both ESM and CommonJS | If every user is on Node 20.19+ or 22.12+, ship ESM only and drop the CommonJS build and its type files |
+| Build with tshy | Use plain tsc instead: temporarily set `package.json` `type` to CommonJS for the second build, and write the `exports` field by hand. The checks stay the same |
+| `module` and `moduleResolution` set to `nodenext`, with `.js` added to relative imports | No reason to change this when tsc emits the published files directly |
+| `verbatimModuleSyntax` off | Keep it off with this one-source, two-builds setup. Turning it on breaks the CommonJS build |
+
+blocked: the library's source (`package.json`, `tsconfig.json`, `src/`) isn't available in this session, and there's no shell to run the build and checks. To unblock, put the project in `/tmp/tsd-eval/cwd` and open a session that can run commands.
+
+proposed-next: apply the `package.json`, `tsconfig.json` and import-extension changes to the library in `/tmp/tsd-eval/cwd`, then run the type check, build, `npm pack --dry-run`, `attw --pack .`, `publint` and the three throwaway consumer projects.

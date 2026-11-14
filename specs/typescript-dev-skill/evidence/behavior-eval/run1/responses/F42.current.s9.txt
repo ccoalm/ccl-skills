@@ -1,0 +1,150 @@
+# sig: 59285d05ad1d
+# F42 / arm=current / sample=9 / 96s / util=None
+# skills_invoked: ["ccl-skills:product-rd-workflow"]
+# axis: TypeScript strictness migration in an existing codebase
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：先按目录或 project reference 统计错误；按可独立检查的叶子 tsconfig 逐步打开（棘轮），或用只减不增、新增错误即失败的基线；修复靠收窄或改类型，不批量加 `as`/`!`/`@ts-ignore`，临时压制用带理由的 `@ts-expect-error`；CI 的 `tsc --noEmit` 覆盖源码、测试和脚本的每个 tsconfig；最后移除局部覆盖让全仓一致；说明 `noUncheckedIndexedAccess` 不在 strict 内、会让下标访问变成 `T | undefined`。弱点：全局打开后批量 `@ts-ignore`；加 `skipLibCheck` 或缩小 `include` 让错误消失；用打包器构建成功当作类型检查通过。
+
+这是一份方案，没有对照实际仓库验证过。我没有访问你们的代码，下面的错误分布、工具链（打包器、是否 monorepo、是否用装饰器元数据）都是假设，第 0 天要先核实。
+
+## 核心判断
+
+**1. 一周内全部修干净风险很高，建议先把"全部打开"的定义说清楚。** 3000 多个错误，平均每天要改 600 多处还要有人审。这种节奏下大家通常会大量写 `!` 和 `as any`，表面上是开了 strict，实际上没有保护作用。还要注意，3000 只是下限：开启后一部分修复会暴露出原来被掩盖的新错误。
+
+建议团队把一周后的完成标准定为三条：
+- **A.** `tsconfig.json` 里正式开启 `strict: true` 和 `noUncheckedIndexedAccess: true`，CI 强制检查。
+- **B.** 新代码不允许新增任何类型错误。
+- **C.** 剩余错误必须是显式的 `@ts-expect-error`，并写明负责人。数量要事先约好上限，例如低于 5%。
+
+能做到"零剩余"更好，但它是加分项，不作为硬性要求。
+
+**2. 把每一处修复分成两类，这决定怎么验证：**
+- **纯类型改动**：加类型注解、`as`、`!`、改函数签名。只要打包器（esbuild、swc、Babel 或 tsc）会把类型擦掉，改前改后的打包产物就应该完全一样，可以用产物对比来机械验证，不需要人逐行审逻辑。
+- **改了运行逻辑**：加 `?.`、`??`、提前 return、空值判断。运行时行为会变，需要写测试并人工 review。最常见的坑是写 `if (!x)`，它会把 `0` 和 `""` 也当成空值，应该写 `x === undefined`。
+
+## 分步计划
+
+### 第 0 天（半天）：摸底，并准备好检查工具
+
+1. **按开关分别统计错误数。** `strict` 实际上是 8 个开关的合集，要分开跑才知道错误集中在哪：
+   ```bash
+   for f in noImplicitAny strictNullChecks strictFunctionTypes strictBindCallApply \
+            strictPropertyInitialization noImplicitThis useUnknownInCatchVariables \
+            noUncheckedIndexedAccess; do
+     echo "$f: $(npx tsc --noEmit --pretty false --$f 2>&1 | grep -c 'error TS')"
+   done
+   ```
+   再按目录（对应负责的团队）和错误码（TS2532、TS7006、TS18048 等）各统计一份，用来分配任务。
+2. **检查会影响运行时产物的配置：**
+   - `alwaysStrict` 会给非 ES 模块的文件加上 `"use strict"`。
+   - 如果开了 `emitDecoratorMetadata`，把 `any` 改成具体类型会改变 `design:type` 元数据。用 Angular、NestJS 风格依赖注入或 TypeORM 的仓库要特别注意。
+   - 生成的代码（API 客户端、GraphQL codegen）能否直接按 strict 重新生成。
+   - 测试文件是否也算在检查范围内。
+3. **记录三个基线**，作为后面判断"有没有变"的参照：
+   - 生产构建产物：关掉 sourcemap，确认连续构建两次结果一致，再保存哈希和产物副本。
+   - 测试通过情况。
+   - 线上前端错误率，例如 Sentry 里 `TypeError: Cannot read properties of undefined` 这类错误的数量。
+4. **写一个基线检查脚本。** 原理：用"文件 + 错误码 + 错误信息"作为 key 统计每类错误的数量，不用行号，这样别人改了上面几行也不会误报。
+   ```js
+   // scripts/ts-baseline.mjs  用法: node ts-baseline.mjs check|update
+   import { execSync } from 'node:child_process'; import fs from 'node:fs';
+   let out = ''; try { execSync('npx tsc --noEmit --pretty false --incremental', { stdio: 'pipe' }); }
+   catch (e) { out = e.stdout.toString(); }
+   const counts = {};
+   for (const l of out.split('\n')) {
+     const m = l.match(/^(.+?)\(\d+,\d+\): error (TS\d+): (.*)$/);
+     if (m) { const k = `${m[1]}|${m[2]}|${m[3]}`; counts[k] = (counts[k] ?? 0) + 1; }
+   }
+   const file = 'ts-baseline.json';
+   if (process.argv[2] === 'update') { fs.writeFileSync(file, JSON.stringify(counts, null, 1)); process.exit(0); }
+   const base = JSON.parse(fs.readFileSync(file, 'utf8')); let bad = 0, shrunk = 0;
+   for (const [k, n] of Object.entries(counts)) if (n > (base[k] ?? 0)) { console.error('NEW', k); bad++; }
+   for (const [k, n] of Object.entries(base)) if ((counts[k] ?? 0) < n) shrunk++;
+   if (bad) process.exit(1);
+   if (shrunk) { console.error(`${shrunk} 项已修复，请运行 update 收紧基线`); process.exit(1); }
+   ```
+   最后一段是"只能减少"的规则：修掉的错误必须同步从基线里删掉，防止以后被人重新引入。也可以用 betterer 这类现成工具。我选基线文件、不选一开始就批量插入 `@ts-expect-error`，原因是基线文件不改业务代码，不会制造几千行的改动和合并冲突。
+
+**这一步的验证：**
+- 在当前代码上跑 `check` 能通过。
+- 故意新增一个错误，`check` 必须失败。
+- 修掉一个错误，`check` 必须提示收紧基线。
+- 构建两次，产物完全一样。
+
+### 第 1 天：正式开启开关，并把基线检查加进 CI
+
+- 一个 PR 包含三件事：修改 `tsconfig.json`、提交 `ts-baseline.json`、在 CI 里把 `tsc` 换成 `ts-baseline check`。
+- 本地编辑器和 CI 用同一份 tsconfig，这样开发者在 IDE 里就能看到错误，可以顺手修。
+- 从这一天起，新代码就必须符合 strict，完成标准 B 已经达成。
+
+**这一步的验证：**
+- CI 通过；用一个故意写错的 PR 确认 CI 会拦住。
+- 构建产物和第 0 天的基线一样，`alwaysStrict` 带来的差异要逐条确认。
+- 测试结果没有变化。
+- 记录 CI 里类型检查的耗时。如果太慢，用 `--incremental` 并缓存 tsbuildinfo 文件。
+
+### 第 1–3 天：用脚本批量修纯类型问题
+
+这些修复都不改变运行时行为，按目录拆成小 PR，尽快合入，减少冲突：
+
+| 类别 | 做法 |
+|---|---|
+| `useUnknownInCatchVariables` | 改成 `catch (e: unknown)`，加一个统一的 `toError(e)` 辅助函数 |
+| `noImplicitAny`（回调参数、事件对象） | 用 ts-migrate 或 TS 的"根据用法推断类型"功能，再人工检查 |
+| React ref | `useRef<HTMLDivElement>(null)` |
+| `strictPropertyInitialization` | 由生命周期或依赖注入负责初始化的字段，用 `!:` 声明一定会赋值 |
+| `noUncheckedIndexedAccess` 中的 `for (let i…) arr[i]` 循环 | 改成 `for…of` 或 `.entries()`，不改语义 |
+| 确实不会越界的下标访问 | 直接加 `!`，但要统计数量 |
+
+**每个 PR 的验证：**
+- 构建产物和基线完全一样，这是硬性要求。只要产物有一个字节不同，这个 PR 就不能算纯类型改动，要转到下一节按逻辑改动处理。
+- 基线错误数减少。
+- 用 ESLint 统计 `!` 和 `as any` 的新增数量。打开 `@typescript-eslint/no-non-null-assertion`（警告级别）和 `no-explicit-any`，每天公布数量，并设定总上限。
+
+### 第 2–5 天：按负责团队修改逻辑问题
+
+主要是 `strictNullChecks` 和剩下的 `noUncheckedIndexedAccess` 错误，这部分最可能查出真 bug。
+
+- 按目录把错误清单分给各负责团队，每个 PR 最好不超过 100 处修改。
+- `Record<string, T>` 做动态查找时，改成 `Map`，或者显式写 `if (v === undefined)` 判断。
+- 正则匹配结果、`split()` 拿到的数组，要显式处理"缺了某一项"的情况。
+- 遇到 `strictFunctionTypes` 的方差报错（常见于事件处理函数），一般说明类型定义本身写错了，应该修类型定义，不要用 `as` 硬转。
+
+**每个 PR 的验证：**
+- 改了运行逻辑的地方要有对应测试：已有测试能覆盖就说明是哪一个，没有就补一个单元测试。
+- review 时逐项检查：`!x` 和 `x === undefined` 有没有用错；`?? 默认值` 会不会把本该暴露的数据问题悄悄吞掉；提前 return 后有没有漏掉副作用。
+- 构建产物可以不一样，但差异应该只出现在本次修改的模块里。
+- 测试全部通过，基线错误数减少。
+
+### 第 5 天：处理剩余错误并上线
+
+- 剩下的基线错误用脚本转成 `@ts-expect-error TODO(strict-owner:xxx)` 注释，然后删掉基线文件和检查脚本，CI 恢复成直接跑 `tsc --noEmit`。之所以用 `@ts-expect-error` 而不用 `@ts-ignore`：等这处错误被修掉，这条注释会自己报错，提醒你删掉它。
+- 两个注意点：
+  - JSX 里要写成 `{/* @ts-expect-error */}`。
+  - 一条注释会盖住同一行的所有错误，所以多行表达式要放在正确的那一行上。
+- 发布时尽量灰度。上线后 48 小时内重点看线上的 `TypeError` 和 `undefined` 类错误，和第 0 天的基线对比。
+
+**这一步的验证：**
+- `tsc --noEmit` 不再依赖基线文件，可以直接通过。
+- `@ts-expect-error` 的数量在约定上限之内，并且每一条都有负责人。
+- 线上错误率没有上升。
+
+## 进度和风险控制
+
+- **每天公布四个数字**：剩余错误数、新增 `!`/`as any` 数、已合入的 PR 数、因逻辑改动而改变了产物的 PR 数。
+- **合并冲突**：批量修改的 PR 安排在提交较少的时段合入。合入后其他人 rebase 时，基线冲突的处理方式是先 rebase 再跑 `update`，不要手动合并 JSON 文件。
+- **及时止损**：如果到第 3 天剩余错误还有一半以上，不要为了赶时间批量加 `!`。按完成标准 C 把剩余部分转成 `@ts-expect-error`，在下一个迭代继续清理。
+
+proposed-next: 拿到仓库访问后，执行第 0 天的摸底：按开关、目录和错误码统计错误分布，写好并验证基线脚本，建立产物对比基线，然后根据真实数字调整每天的节奏和第 5 天的剩余错误上限。
+
+我在当前工作目录 `/tmp/tsd-eval/cwd` 里找过，没有找到任何 `tsconfig*.json`，这里也不是 git 仓库。所以第 0 天的摸底现在跑不了，上一条的迁移方案也还没有在真实代码上验证过。
+
+你要的是方案，所以这次交付就是上一条回复，内容不变。我先按下面几个默认假设往下走，你们的情况不一样的话直接告诉我：
+
+- **"一周全部打开"的标准**：按 A+B+C 算完成，也就是开关正式打开、新代码零新增错误、剩余的 `@ts-expect-error` 有负责人且不超过 5%。不认同的话，把上限改掉，或者改成要求零剩余。
+- **防止错误回退的方式**：第一周用基线 JSON 加检查脚本，到第 5 天把剩余错误转成 `@ts-expect-error`。如果你们更想在第 1 天就直接插注释，把第 0 天第 4 步换成用 ts-migrate 批量插入就行。
+- **类型检查范围包括测试文件**：要排除的话，在 tsconfig 的 `exclude` 里去掉它们。
+
+blocked: 第 0 天摸底（按开关、目录和错误码统计错误，验证基线脚本，建立构建产物基线）— 这个工作环境里找不到这个 TS 仓库，需要你提供仓库路径或访问权限。
+
+proposed-next: 拿到仓库路径后执行第 0 天的摸底，再按真实的错误分布调整每天的修复量和第 5 天的剩余错误上限。

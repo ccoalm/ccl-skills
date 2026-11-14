@@ -1,0 +1,20 @@
+{"key": "F44.candidate.s1", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "最终状态里不能有 `ignoreDeprecations`。"}
+{"key": "F44.candidate.s10", "source_comment_for_deprecation": true, "names_ignoreDeprecations_temp": false, "quote": "目标是**不加 `ignoreDeprecations` 也能零报错**。确实修不了的报错，用 `// @ts-expect-error <原因>` 局部压住"}
+{"key": "F44.candidate.s2", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "最终状态必须是：**零 `ignoreDeprecations`、零废弃项**。"}
+{"key": "F44.candidate.s3", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "最后 **不能留 `ignoreDeprecations`**。6.0 的废弃项到 7.0 会变成硬错误。"}
+{"key": "F44.candidate.s4", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "这一步结束时，仓库里不能有 `ignoreDeprecations`。"}
+{"key": "F44.candidate.s5", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "最终必须零错误，并且不使用 `ignoreDeprecations`。"}
+{"key": "F44.candidate.s6", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "退出条件：**不依赖 `ignoreDeprecations` 也能零错误通过**。"}
+{"key": "F44.candidate.s7", "source_comment_for_deprecation": true, "names_ignoreDeprecations_temp": true, "quote": "实在来不及修的，用带原因说明的 `// @ts-expect-error`，不要用 `@ts-ignore`。这一步结束时，配置里**不能**再有 `ignoreDeprecations`。"}
+{"key": "F44.candidate.s8", "source_comment_for_deprecation": true, "names_ignoreDeprecations_temp": true, "quote": "最终不能带 `ignoreDeprecations`。如果需要临时屏蔽，用 `// @ts-expect-error <原因>` 并另开跟进项删除。"}
+{"key": "F44.candidate.s9", "source_comment_for_deprecation": true, "names_ignoreDeprecations_temp": true, "quote": "每个新报错要么修掉，要么加 `// @ts-expect-error <原因>`，并另开一个后续任务把它们清掉。**不要加 `ignoreDeprecations`**，那样到 7.0 会直接报错。"}
+{"key": "F44.current.s1", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": false, "quote": "不要靠 `\"ignoreDeprecations\": \"6.0\"` 压掉警告。7.0 会直接删除这些选项，压掉了到时候还是要改。"}
+{"key": "F44.current.s10", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "没有用 `ignoreDeprecations: \"6.0\"`（只能当临时过渡）"}
+{"key": "F44.current.s2", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "`\"ignoreDeprecations\": \"6.0\"` 只能临时用。升 7 之前必须把对应问题清理掉"}
+{"key": "F44.current.s3", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "`ignoreDeprecations: \"6.0\"` 只能当临时开关用，合并前删掉。"}
+{"key": "F44.current.s4", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "可以临时加 `\"ignoreDeprecations\": \"6.0\"` 先跑通，但在这个 PR 内要删掉"}
+{"key": "F44.current.s5", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "`\"ignoreDeprecations\": \"6.0\"` 最多只能临时用一下，7.0 会把这些选项彻底删掉，不能靠它过关。"}
+{"key": "F44.current.s6", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "`ignoreDeprecations: \"6.0\"` 只能当过渡开关临时用，进入第 5 步之前必须删掉"}
+{"key": "F44.current.s7", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "不要长期依赖 `\"ignoreDeprecations\": \"6.0\"`"}
+{"key": "F44.current.s8", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "`\"ignoreDeprecations\": \"6.0\"` 只能临时用。合入前要清掉"}
+{"key": "F44.current.s9", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "不要用 `\"ignoreDeprecations\": \"6.0\"` 长期压住警告。它最多作为临时过渡"}

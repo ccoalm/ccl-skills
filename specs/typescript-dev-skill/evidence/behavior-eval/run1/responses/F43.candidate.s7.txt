@@ -1,0 +1,338 @@
+# sig: 7bd30d703fb7
+# F43 / arm=candidate / sample=7 / 79s / util=None
+# skills_invoked: ["ccl-skills:typescript-dev"]
+# axis: TypeScript runtime boundary for untrusted input
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：外部输入一律以 `unknown` 进入，在边界用仓库已有的运行时 schema 库（或类型守卫）解析一次，从 schema 推导静态类型而不是另写一份；解析失败返回类型化结果或在边界映射为错误，不用 `as`；按边界决定未知字段剥离还是拒绝，安全相关输入拒绝；catch 变量按 `unknown` 处理（`useUnknownInCatchVariables`）并用 `instanceof Error` 等收窄；给解析器和类型守卫写正反用例。弱点：把 `as User` 换成 `as unknown as User`；只加 TypeScript 接口不加运行时检查；在业务逻辑各处零散校验（shotgun parsing）。
+
+当前目录 `/tmp/tsd-eval/cwd` 里没有代码，所以下面给的是能直接照搬的做法和测试。我没有改任何文件，也没有运行这些代码。
+
+## 原则
+
+`JSON.parse` 的结果、`localStorage` 读到的值、`catch` 捕获的错误，都来自程序外部或运行时，编译期的类型管不到它们。三者统一这样处理：**先当作 `unknown`，在读入的那一处用运行时代码检查一次，检查通过才变成精确类型**。
+
+- `as User` 只是让编译器相信你，运行时什么都不检查。数据格式不对时，错误会在更后面的业务代码里冒出来，很难定位。
+- 类型从 schema 推导出来（`z.infer`），不要另写一份 `interface User`，否则两边迟早不一致。
+- 仓库里已经有 schema 库（zod、valibot 等）就用现有的，不要再加第二个。下面以 zod v4 为例；v3 的写法差别在注释里标出。
+
+## 1. 公共工具：Result 类型和安全解析
+
+```ts
+// src/boundary/parse.ts
+import { z } from 'zod';
+
+export type Result<T, E = string> =
+  | { ok: true; value: T }
+  | { ok: false; error: E };
+
+/** 把 JSON.parse 和 schema 校验合成一步，失败时返回错误而不是抛异常 */
+export function parseJson<S extends z.ZodType>(
+  text: string,
+  schema: S,
+): Result<z.infer<S>> {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch (e) {
+    return { ok: false, error: `invalid JSON: ${errorMessage(e)}` };
+  }
+  const r = schema.safeParse(raw);
+  return r.success
+    ? { ok: true, value: r.data }
+    : { ok: false, error: z.prettifyError(r.error) }; // v3: r.error.message
+}
+```
+
+## 2. User：替换 `JSON.parse(body) as User`
+
+```ts
+// src/user/user.ts
+import { z } from 'zod';
+import { parseJson, type Result } from '../boundary/parse';
+
+export const UserSchema = z.object({
+  id: z.string().min(1).brand<'UserId'>(), // 品牌类型：普通字符串不能冒充 UserId
+  name: z.string().min(1),
+  email: z.email(),                          // v3: z.string().email()
+  role: z.enum(['admin', 'member']),
+});
+// z.object 默认会删掉多余字段；涉及权限的输入改用 z.strictObject，直接拒绝多余字段
+
+export type User = z.infer<typeof UserSchema>;
+
+export function parseUser(body: string): Result<User> {
+  return parseJson(body, UserSchema);
+}
+```
+
+调用方改成：
+
+```ts
+const r = parseUser(body);
+if (!r.ok) return reply.status(400).send({ error: r.error }); // 在边界处转成 400，不让坏数据往下走
+const user = r.value; // 类型是 User，而且运行时已经检查过
+```
+
+## 3. 配置：替换 `localStorage.getItem('cfg') as Config`
+
+```ts
+// src/config/config.ts
+import { z } from 'zod';
+import { parseJson } from '../boundary/parse';
+
+export const ConfigSchema = z.object({
+  theme: z.enum(['light', 'dark']),
+  pageSize: z.number().int().min(1).max(200),
+});
+export type Config = z.infer<typeof ConfigSchema>;
+
+export const DEFAULT_CONFIG = { theme: 'light', pageSize: 20 } as const satisfies Config;
+
+type ReadableStorage = Pick<Storage, 'getItem'>;
+
+export function loadConfig(storage: ReadableStorage = globalThis.localStorage): Config {
+  let raw: string | null;
+  try {
+    raw = storage.getItem('cfg'); // 浏览器禁用存储或隐私模式下可能抛异常
+  } catch {
+    return { ...DEFAULT_CONFIG };
+  }
+  if (raw === null) return { ...DEFAULT_CONFIG };
+  const r = parseJson(raw, ConfigSchema);
+  return r.ok ? r.value : { ...DEFAULT_CONFIG }; // 返回副本，调用方改了也不会污染默认值
+}
+```
+
+- 存储通过参数传入，测试时不需要模拟浏览器环境。
+- 如果希望某个字段坏了只回退这一个字段，而不是整个配置回到默认值，可以给每个字段加 `.catch(默认值)`。
+
+## 4. catch：替换直接用 `err.message`
+
+```ts
+// src/boundary/error.ts
+export function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  try {
+    return JSON.stringify(err) ?? String(err);
+  } catch {
+    return 'Unknown error'; // 循环引用，或没有原型的对象让 String() 抛异常
+  }
+}
+
+/** 需要重新抛出时：保证抛出的是 Error，并把原始值放进 cause */
+export function toError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(errorMessage(err), { cause: err });
+}
+```
+
+```ts
+try { await save(); }
+catch (err) {            // 开启 strict 后 err 的类型是 unknown，直接写 err.message 编译不过
+  log.warn(errorMessage(err));
+}
+```
+
+## 5. 让编译器和 lint 防止回退
+
+tsconfig：
+
+```jsonc
+{
+  "compilerOptions": {
+    "strict": true,                      // 包含 useUnknownInCatchVariables
+    "noUncheckedIndexedAccess": true
+  }
+}
+```
+
+如果现在写 `err.message` 能编译通过，原因只可能是：没开 `strict`，或者写成了 `catch (err: any)`。两种都要改掉。
+
+typescript-eslint（需要类型信息的规则）：
+
+```js
+rules: {
+  '@typescript-eslint/no-unsafe-type-assertion': 'error', // 拦截 `JSON.parse(x) as User` 这类从 any 出发的断言
+  '@typescript-eslint/no-unsafe-assignment': 'error',
+  '@typescript-eslint/no-unsafe-member-access': 'error',
+  '@typescript-eslint/no-unsafe-argument': 'error',
+  '@typescript-eslint/no-explicit-any': 'error',
+  '@typescript-eslint/use-unknown-in-catch-callback-variable': 'error', // Promise .catch(e => …) 回调也按 unknown 处理
+}
+```
+
+不要指望 `ts-reset` 解决问题。它会让 `JSON.parse` 返回 `unknown`，但 `unknown as User` 照样能编译，最终还是要靠上面的 lint 规则拦住。
+
+找出所有要改的地方：
+
+```bash
+rg -n 'JSON\.parse\([^)]*\)\s*as\s' src
+rg -n 'getItem\([^)]*\)[^;]*\bas\s' src
+rg -n 'catch\s*\(\s*\w+\s*:\s*any' src
+rg -n '\bas unknown as\b' src
+```
+
+## 6. 测试（Vitest）
+
+### 运行时测试
+
+```ts
+// src/user/user.test.ts
+import { describe, it, expect } from 'vitest';
+import { parseUser } from './user';
+
+const valid = { id: 'u1', name: 'Ann', email: 'a@example.com', role: 'member' };
+
+describe('parseUser', () => {
+  it('accepts a valid body', () => {
+    const r = parseUser(JSON.stringify(valid));
+    expect(r).toEqual({ ok: true, value: valid });
+  });
+  it('rejects malformed JSON without throwing', () => {
+    const r = parseUser('{bad');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/invalid JSON/);
+  });
+  it.each([
+    ['missing field', { ...valid, email: undefined }],
+    ['wrong type', { ...valid, name: 42 }],
+    ['bad enum', { ...valid, role: 'root' }],
+    ['empty id', { ...valid, id: '' }],
+    ['not an object', [valid]],
+    ['null', null],
+  ])('rejects %s', (_, input) => {
+    expect(parseUser(JSON.stringify(input)).ok).toBe(false);
+  });
+  it('drops unknown keys (incl. privilege fields)', () => {
+    const r = parseUser(JSON.stringify({ ...valid, isAdmin: true }));
+    expect(r.ok && 'isAdmin' in r.value).toBe(false);
+  });
+});
+```
+
+```ts
+// src/config/config.test.ts
+import { describe, it, expect } from 'vitest';
+import { loadConfig, DEFAULT_CONFIG } from './config';
+
+const store = (v: string | null) => ({ getItem: () => v });
+
+describe('loadConfig', () => {
+  it('returns stored config when valid', () => {
+    expect(loadConfig(store('{"theme":"dark","pageSize":50}'))).toEqual({ theme: 'dark', pageSize: 50 });
+  });
+  it.each([
+    ['absent', null],
+    ['corrupt JSON', '{'],
+    ['wrong shape', '{"theme":"blue","pageSize":50}'],
+    ['out of range', '{"theme":"dark","pageSize":0}'],
+    ['legacy string', '"dark"'],
+  ])('falls back to defaults when %s', (_, raw) => {
+    expect(loadConfig(store(raw))).toEqual(DEFAULT_CONFIG);
+  });
+  it('falls back when storage throws', () => {
+    expect(loadConfig({ getItem: () => { throw new DOMException('denied'); } })).toEqual(DEFAULT_CONFIG);
+  });
+  it('returns a copy, not the shared default', () => {
+    const c = loadConfig(store(null));
+    c.pageSize = 99;
+    expect(DEFAULT_CONFIG.pageSize).toBe(20);
+  });
+});
+```
+
+```ts
+// src/boundary/error.test.ts
+import { describe, it, expect } from 'vitest';
+import { errorMessage, toError } from './error';
+
+describe('errorMessage', () => {
+  it.each<[string, unknown, string]>([
+    ['Error', new Error('boom'), 'boom'],
+    ['subclass', new TypeError('t'), 't'],
+    ['string', 'plain', 'plain'],
+    ['object', { code: 1 }, '{"code":1}'],
+    ['number', 42, '42'],
+    ['null', null, 'null'],
+    ['undefined', undefined, 'undefined'],
+  ])('%s', (_, input, expected) => expect(errorMessage(input)).toBe(expected));
+
+  it('survives circular and prototype-less values', () => {
+    const circ: Record<string, unknown> = {}; circ.self = circ;
+    expect(errorMessage(circ)).toBe('Unknown error');
+    expect(typeof errorMessage(Object.create(null))).toBe('string');
+  });
+  it('toError keeps the original as cause', () => {
+    const e = toError('x');
+    expect(e).toBeInstanceOf(Error);
+    expect(e.cause).toBe('x');
+  });
+});
+```
+
+### 类型测试
+
+```ts
+// src/boundary/types.test-d.ts
+import { expectTypeOf } from 'vitest';
+import { parseUser, type User } from '../user/user';
+import { loadConfig, type Config } from '../config/config';
+import type { Result } from './parse';
+
+expectTypeOf(parseUser).returns.toEqualTypeOf<Result<User>>();
+expectTypeOf(loadConfig).returns.toEqualTypeOf<Config>();
+
+// 普通字符串不能当 UserId 用
+// @ts-expect-error id must come from the parser (branded)
+const forged: User = { id: 'u1', name: 'a', email: 'a@b.c', role: 'member' };
+
+// 必须先检查 ok，才能拿到 value
+declare const r: Result<User>;
+// @ts-expect-error value is not accessible before narrowing
+r.value;
+
+// 确认 catch 变量是 unknown，防止有人关掉 useUnknownInCatchVariables
+try { /* noop */ } catch (err) {
+  // @ts-expect-error err is unknown under strict
+  err.message;
+}
+```
+
+注意：Vitest 只有在 `vitest --typecheck`（或配置里开启 `typecheck.enabled`）时才会检查 `*.test-d.ts`，普通的 `vitest run` 会跳过这些文件。第一次配置时，先故意写一条错误的断言，确认命令会失败，再删掉。另外，运行类型检查的那个 tsconfig 的 `include` 必须包含测试文件。
+
+### CI 依次运行
+
+```bash
+tsc --noEmit                 # 使用了 project references 时用 tsc -b
+eslint .
+vitest run --typecheck
+```
+
+打包工具或 tsx/esbuild 能跑通，只说明语法能转换，不等于做过类型检查。
+
+## 注意
+
+- 这次没有可以改的代码，我没有运行上面任何一条命令，所以以上代码都没有经过编译或测试验证。也没有修改任何文件，因此跳过了代码评审。
+- 不清楚你们的 TypeScript 和 zod 版本：
+  - zod v3 需要把 `z.email()` 改成 `z.string().email()`，把 `z.prettifyError` 改成 `error.message`。
+  - 如果仓库不用 zod，换成现有的 schema 库或手写类型守卫也可以。手写守卫的返回类型编译器不会核对，所以必须写反例测试。
+- User 去掉多余字段，还是用 `strictObject` 直接拒绝，取决于这个接口有没有权限相关的风险，我默认选了去掉。
+
+proposed-next: 把代码仓库路径发给我（或在仓库里打开），我会按上面的搜索命令逐处改造，补齐测试并运行 `tsc` / `eslint` / `vitest --typecheck`。
+
+我没能改成代码，因为找不到你说的那些代码。
+
+我在 `/tmp/tsd-eval` 下（包括当前目录和 `/tmp/tsd-eval/after`）搜过 `JSON.parse(...) as User` 和 `localStorage.getItem('cfg')`，都没有找到。搜索只命中两处 `JSON.parse(...) as unknown`，分别在 `packages/ccl-skills-npm/src/update-notice.ts:179` 和 `packages/ccl-skills-npm/src/cli.ts:214`。它们本来就是先当作 `unknown` 再检查，属于技能仓库自己的代码，不是你说的那批，所以我没动。
+
+另外，这个会话里我没有能执行命令的 shell 工具。就算找到了代码，`tsc`、`eslint`、`vitest --typecheck` 也跑不了，上一条回复里的代码目前仍然没有经过编译和测试。
+
+我先默认了下面几项，改代码时会照此执行，你想换可以直接说：
+
+- **schema 库：** 用 zod。如果仓库里已经有别的 schema 库，就改用那个。
+- **User 的多余字段：** 默认删掉。涉及权限的接口改为直接拒绝（`strictObject`）。
+- **配置读不出来或格式不对：** 整个配置回到默认值。也可以改成哪个字段坏了只回退那一个字段。
+- **测试工具：** Vitest。类型测试放在 `*.test-d.ts`，用 `vitest --typecheck` 检查。
+
+blocked: 需要你提供实际代码所在的仓库路径，或在那个仓库里打开会话；要运行检查，还需要一个能执行命令的 shell 工具。
+
+proposed-next: 在你的仓库里按上一条回复的搜索命令逐处改造，补齐运行时测试和类型测试，然后运行 `tsc --noEmit`、`eslint .` 和 `vitest run --typecheck`。

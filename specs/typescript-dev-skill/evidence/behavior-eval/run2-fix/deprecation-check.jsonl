@@ -1,0 +1,20 @@
+{"key": "F44.candidate.s1", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "tsconfig 上的弃用报错（TS5101/TS5107）只能先用 `\"ignoreDeprecations\": \"6.0\"` 临时压住，并在后续 PR 里去掉。"}
+{"key": "F44.candidate.s10", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "tsconfig 上的弃用报错（TS5101/TS5107）只能用 `\"ignoreDeprecations\": \"6.0\"` 临时压住，必须在下一个 PR 里清掉。"}
+{"key": "F44.candidate.s2", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "`\"ignoreDeprecations\": \"6.0\"` 只能作为临时措施，**进入 7.0 之前必须删掉**"}
+{"key": "F44.candidate.s3", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "弃用选项的报错（TS5101、TS5107）报在 tsconfig 上，只能临时加 `\"ignoreDeprecations\": \"6.0\"`"}
+{"key": "F44.candidate.s4", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "弃用项错误（TS5101、TS5107）报在 tsconfig 上，只能临时加 `\"ignoreDeprecations\": \"6.0\"`。"}
+{"key": "F44.candidate.s5", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "废弃选项的报错（TS5101、TS5107）出现在 tsconfig 上，只能临时加 `\"ignoreDeprecations\": \"6.0\"` 压住。"}
+{"key": "F44.candidate.s6", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "弃用项报错（TS5101、TS5107）出现在 tsconfig 上，只能用 `\"ignoreDeprecations\": \"6.0\"` 临时压住，而且这一步结束前必须删掉。"}
+{"key": "F44.candidate.s7", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "`\"ignoreDeprecations\": \"6.0\"` 只能作为临时过渡，**必须删掉之后才能进入下一步**"}
+{"key": "F44.candidate.s8", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "废弃选项的报错（TS5101、TS5107）出现在 tsconfig 上，只能用 `\"ignoreDeprecations\": \"6.0\"` 临时压掉。这个设置必须在升 7.0 之前删除。"}
+{"key": "F44.candidate.s9", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "废弃选项的报错（TS5101、TS5107）是报在 tsconfig 上的，源码注释压不住，只能临时加 `\"ignoreDeprecations\": \"6.0\"`。这个设置在升 7.0 之前必须删掉。"}
+{"key": "F44.current.s1", "source_comment_for_deprecation": true, "names_ignoreDeprecations_temp": false, "quote": "新出现的错误，要么修好，要么加 `// @ts-expect-error <原因>`。**不要用 `ignoreDeprecations`**，否则到 7.0 会直接报错。"}
+{"key": "F44.current.s10", "source_comment_for_deprecation": true, "names_ignoreDeprecations_temp": true, "quote": "临时压掉的报错用 `// @ts-expect-error <原因>`，不要用 `@ts-ignore`。完成标准：**不靠 `ignoreDeprecations` 也能全部通过**。"}
+{"key": "F44.current.s2", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "完成标准：**零报错，而且不用 `ignoreDeprecations`。**"}
+{"key": "F44.current.s3", "source_comment_for_deprecation": true, "names_ignoreDeprecations_temp": true, "quote": "实在暂时修不了的，用 `// @ts-expect-error <原因>` 压住，并且后续 PR 要清掉。不要用 `ignoreDeprecations`"}
+{"key": "F44.current.s4", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "合并前必须满足：**不靠 `ignoreDeprecations` 也能 0 错误**。"}
+{"key": "F44.current.s5", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "完成标准：零错误，并且不加 `ignoreDeprecations`。"}
+{"key": "F44.current.s6", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "`ignoreDeprecations: \"6.0\"` 只能当临时过渡，进 7.0 之前必须删掉。"}
+{"key": "F44.current.s7", "source_comment_for_deprecation": true, "names_ignoreDeprecations_temp": true, "quote": "然后处理废弃项：… 新增的报错要么修掉，要么用 `// @ts-expect-error <原因>` 临时压住。 验收标准是：不靠 `ignoreDeprecations` 也能编译通过。"}
+{"key": "F44.current.s8", "source_comment_for_deprecation": false, "names_ignoreDeprecations_temp": true, "quote": "完成标准：全仓库没有 `ignoreDeprecations`，所有检查都是绿的。"}
+{"key": "F44.current.s9", "source_comment_for_deprecation": true, "names_ignoreDeprecations_temp": true, "quote": "新出现的错误要么修掉，要么用 `// @ts-expect-error <原因>` 临时压住。**最终状态里不能有 `ignoreDeprecations`**，这是进 7.0 的前提。"}

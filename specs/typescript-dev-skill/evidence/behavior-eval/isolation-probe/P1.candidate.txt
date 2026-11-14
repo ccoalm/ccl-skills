@@ -1,0 +1,40 @@
+# sig: 3d363d53a892
+# P1 / arm=candidate / sample=1 / 66s / util=None
+# skills_invoked: []
+# axis: 
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# probe
+
+The only real copy of `typescript-dev` is in `/tmp/tsd-eval/after`. Everything else that matched is a log file under `~/.cache`.
+
+One limit to keep in mind: Glob returns files, not folders. So a folder only shows up when a file inside it matches, and empty folders never appear.
+
+## Searches for 'typescript-dev'
+
+| Path | Pattern | Result |
+|---|---|---|
+| `~` | `**/*typescript-dev*` | No files found |
+| `~` | `**/*typescript-dev*/**` | **404 files**, first 100 shown. All are under `~/.cache/claude-cli-nodejs/-home-<user>-<workspaces>-workspaces-ccl-skills-typescript-dev-skill/` (log subfolders `mcp-logs-claude-artifacts`, `mcp-logs-easel`, `mcp-logs-claude-ai-Claude-Docs`, `mcp-logs-plugin-context-mode-context-mode`), all `.jsonl` files dated 2026-11-13 |
+| `/tmp` | `**/*typescript-dev*` | No files found |
+| `/tmp` | `**/*typescript-dev*/**` | **19 files** (listed below) |
+| `/` | `**/*typescript-dev*` | No files found |
+| `/` | `**/*typescript-dev*/**` | **423 files**, first 100 shown, the same cache files as above. 404 + 19 = 423, so this adds nothing beyond the two searches above |
+| `~/<workspaces>` | `**/*typescript-dev*/**` | No files found |
+| `~/<checkouts>` | `**/*typescript-dev*/**` | No files found |
+| `~/<workspaces>/workspaces/ccl-skills` | `**/*typescript-dev*/**` | Error: `Directory does not exist` |
+
+The 19 files under `/tmp`:
+- `/tmp/tsd-eval/after/skills/typescript-dev/`: `SKILL.md`, `agents/openai.yaml`, `references/{type-design-and-boundaries,modules-and-publishing,compiler-config-and-checking,source-map}.md`
+- `/tmp/tsd-eval/after/specs/typescript-dev-skill/`: `plan.md`, plus `evidence/` holding `routing-summary.txt`, `review-R1.json`, `delta-D1.json`, `routing-green.json`, `check-ccl-skills.txt`, `tc-red.txt`, `validation.md`, `challenge-C1.json`, `AGENTS.md`, `routing-red.json`, `source-excerpts.md`, `tc-green.txt`
+
+The cache folder's name points to a workspace at `~/<workspaces>/workspaces/ccl-skills/typescript-dev-skill`, but that path no longer exists.
+
+**Grep:** I ran one Grep (any content, `~`, `.cache` excluded, capped at 1 result). It hit its time limit, returned only `~/.config/<workspaces>/claude-profiles/02d97474-.../home/.claude.json`, and is incomplete. Note that Grep filters by file content, not by file name.
+
+## Listings
+
+- **`/tmp`** (`*`): **2574 files**, first 100 shown, all under `/tmp/tsd-eval/after/` (`.claude-plugin/`, `.gitignore`, and `specs/` folders such as `163-paired-behavior-eval`, `stale-reader-default`, `042-skill-corpus-optimization`, `architecture-design-eval`, `daily-dev-review-budget`). The pattern still matched nested files. A Grep excluding `tsd-eval/after/**` found one more file outside it: `/tmp/ccl-skills-merge-auth-1001/9d791dea-a5cb-48ce-a086-8ea804d641a5.epoch`. `/tmp/tsd-eval/*` returned the same `after/` files (2573).
+- **`~/<checkouts>`** (`*` and `**/*`): No files found, with no "does not exist" error. The folder seems to exist, but Glob saw no files in it.
+- **`~/<workspaces>`** (`*` and `**/*`): No files found, also with no error, so the same applies.
+
+I didn't run anything that lists folders directly, so empty subfolders in these locations wouldn't appear in any of the results above.

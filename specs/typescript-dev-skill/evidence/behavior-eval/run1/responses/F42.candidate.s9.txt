@@ -1,0 +1,129 @@
+# sig: f86040f29c58
+# F42 / arm=candidate / sample=9 / 94s / util=None
+# skills_invoked: ["ccl-skills:typescript-dev"]
+# axis: TypeScript strictness migration in an existing codebase
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：先按目录或 project reference 统计错误；按可独立检查的叶子 tsconfig 逐步打开（棘轮），或用只减不增、新增错误即失败的基线；修复靠收窄或改类型，不批量加 `as`/`!`/`@ts-ignore`，临时压制用带理由的 `@ts-expect-error`；CI 的 `tsc --noEmit` 覆盖源码、测试和脚本的每个 tsconfig；最后移除局部覆盖让全仓一致；说明 `noUncheckedIndexedAccess` 不在 strict 内、会让下标访问变成 `T | undefined`。弱点：全局打开后批量 `@ts-ignore`；加 `skipLibCheck` 或缩小 `include` 让错误消失；用打包器构建成功当作类型检查通过。
+
+我在当前目录里没找到这个仓库，所以下面的方案没有看过你们的 `tsconfig`、TS 版本和 CI 配置，也没有跑过任何命令。涉及这些的地方都写成了要先确认的事项。
+
+## 先说结论：一周内能完成什么
+
+- **第 1 天就能做到：** `strict` 和 `noUncheckedIndexedAccess` 都在主 `tsconfig` 里打开；新代码不能再引入新错误；已知错误只能减少，不能增加。
+- **一周内清零 3000 多个错误：** 能不能做到，取决于第 1 天统计出的错误类型和投入人数，不能提前保证。机械类错误（catch 变量、隐式 any 参数）修得很快。但 `noUncheckedIndexedAccess` 和 `strictNullChecks` 的很多错误要先判断"这里拿到 undefined 时，业务上该怎么处理"，修复往往会改变运行时行为，速度慢。
+- **不建议用的捷径：** 批量加 `!`、`as`、`@ts-ignore`、`@ts-nocheck`，或加 `skipLibCheck` 来压错误。这样一周后错误数会变成 0，但问题没修，只是不再报出来，等于假完成。
+
+所以建议和团队把"全部打开"定义成两条：**第 1 天开关打开并有卡点，第 5 天剩余的错误清单要么清零，要么每项都有负责人和截止日期。**
+
+---
+
+## 第 0 步（第 1 天上午）：摸清现有的编译和检查方式
+
+要记录的内容：
+1. **TS 版本和用到编译器 API 的工具：** 用 `npx tsc -v` 查版本，再列出 typescript-eslint、`vue-tsc`、fork-ts-checker / vite-plugin-checker、jest 的 ts-jest 等。注意：如果是 TS 6.x，`strict` 默认已经是 `true`，你们应该是显式写了 `false`。
+2. **类型检查、生成 JS、生成声明文件分别由谁做：** 这通常是三个不同的工具。Vite、esbuild、SWC、Babel 和 `ts-loader --transpileOnly` 只做转译，不做类型检查，"构建通过"不代表类型检查通过。
+3. **CI 实际跑的类型检查命令覆盖了哪些 `tsconfig`：** 把仓库里所有 `tsconfig*.json`（包括 `extends` 和 `references` 链）列出来，和 CI 命令一一对照。测试、脚本、配置文件常常没被覆盖。
+
+**怎么验证：**
+- 在测试目录和脚本目录各故意写一个类型错误，提一个 PR，确认 CI 会失败。不失败的目录要先补进检查，否则后面的统计数字不准。
+- 确认 lockfile 已提交、`typescript` 版本已锁定，否则统计结果没法复现。
+
+## 第 1 步（第 1 天）：统计错误，并按类型分类
+
+`strict` 是一组开关，统计时要拆开，才能分配任务、判断风险：
+
+```bash
+for f in noImplicitAny strictNullChecks strictPropertyInitialization \
+         useUnknownInCatchVariables strictFunctionTypes strictBindCallApply; do
+  npx tsc --noEmit -p tsconfig.json --pretty false --$f > /tmp/ts-$f.txt
+done
+npx tsc --noEmit -p tsconfig.json --pretty false --strict --noUncheckedIndexedAccess > /tmp/ts-all.txt
+```
+
+（`noUncheckedIndexedAccess` 只在 `strictNullChecks` 打开时才有意义，所以要和它一起统计。）
+
+把 `file(line,col): error TSxxxx` 解析出来，按**目录 × 错误码 × 开关**做一张表。再按修复方式分三类：
+
+| 类型 | 典型 | 修法 | 运行时行为 |
+|---|---|---|---|
+| A 只改类型 | 隐式 any 参数、回调参数类型、`strictFunctionTypes` | 补注解，修正类型定义 | 不变 |
+| B 机械但改代码 | catch 变量 `unknown`、`for (i…) arr[i]` 改 `for…of` | 统一的辅助函数，或经过审查的 codemod | 基本不变 |
+| C 需判断 | `record[key]`、`arr[0]`、`querySelector`、可能为空的接口字段、类属性没初始化 | 先决定 undefined 时的业务行为，再用条件判断收窄类型 | **会变** |
+
+**怎么验证：**
+- 统计结果可复现：同一个 commit 跑两次，数字一致。
+- 从 C 类里抽一小时的样本让人实际修，用真实修复速度估算是否能在一周内清零，并据此决定第 5 天的目标。
+
+## 第 2 步（第 1 天）：打开开关，并加上"只减不增"的卡点
+
+1. 在主 `tsconfig` 里直接打开 `"strict": true, "noUncheckedIndexedAccess": true`。这样编辑器里每个人都能看到错误，新代码一写出来就会报。不要只做一个单独的 `tsconfig.strict.json` 放在旁边，那样写新代码的人看不到错误。
+2. 迁移期间，CI 里的 `tsc --noEmit` 换成一个**基线对比脚本**：
+   - 基线按 `文件 + 错误码 → 数量` 记录，不记行号，因为行号会随改动漂移。
+   - 任何一个条目的数量增加或出现新条目，CI 失败。
+   - 某个条目数量减少但基线文件没更新，CI 同样失败，强制把基线收紧，防止被修好的地方又长回错误。
+   - 有多个 `tsconfig` 或 `references` 时，每个都要跑。
+   - 现成工具可以用 betterer 的 TypeScript 测试，也可以自己写几十行脚本。
+3. 检查构建链路：如果构建里有会因类型错误失败的步骤（fork-ts-checker、不带 `transpileOnly` 的 ts-loader、`noEmitOnError`），迁移期间改成只转译，类型检查只由上面的基线脚本负责。在 PR 里写明这是临时改动，并写明什么时候恢复。
+4. 加 lint 卡点：`@typescript-eslint/no-non-null-assertion`、`no-explicit-any`、`ban-ts-comment`（只允许带说明的 `@ts-expect-error`）。它们的数量也用同样的方式只减不增，防止有人用断言绕过基线。
+
+**怎么验证（建议用三个演示 PR，验证完就关掉）：**
+- 新增一个空值相关的类型错误，CI 应该失败。
+- 修好一个已知错误但不更新基线，CI 应该失败，并提示要收紧基线。
+- 新增一个 `!` 或 `as any`，lint 卡点应该失败。
+- 主分支跑 `npm run build` 和测试，结果和打开开关之前一致。
+
+## 第 3 步（第 2～4 天）：按目录并行修复，PR 分两类
+
+- 按目录或负责人切分，每个 PR 只改一个目录或一类错误，便于审查和回滚。
+- 修复顺序：A 类 → B 类 → C 类。C 类优先处理高风险模块：支付、权限、数据提交相关的代码。
+- 推荐的修法：
+  - `arr[0]`：`const first = arr[0]; if (first === undefined) …`。下标循环改成 `for…of` 或 `.entries()`。
+  - `record[key]`：键是有限集合时改成 `Record<KnownKey, T>`；键是动态的就用 `Map` 加判空，或者显式处理 `undefined`。
+  - catch：统一用一个 `toError(e: unknown): Error` 辅助函数。
+  - 类属性：在构造函数里初始化。框架生命周期注入的属性（例如 `@ViewChild`）可以用 `!`，但要写注释说明原因。
+  - 外部数据（接口响应、`localStorage`、`postMessage`、`JSON.parse`）：先当作 `unknown`，在入口处解析一次，转换成准确的类型，不要 `as` 了事。
+- 不允许的做法：批量 `!`、`as`，批量 `@ts-expect-error`，以及为了让错误消失去改 `include`/`exclude`。确实需要临时压制时，用 `// @ts-expect-error <原因>`，它会在错误消失后报警。这类注释也要计数，只减不增。
+
+**PR 分两类，验证方式不同：**
+
+| PR 类型 | 验证 |
+|---|---|
+| **只改类型** | 用同一个转译器（esbuild/SWC/tsc）分别产出改动前后的 JS 做 diff，**输出必须完全一致**。一致就证明运行时行为没变，审查只看类型是否合理。 |
+| **改了行为**（新增了判空分支） | 要写清楚"之前这里会怎样（多数是报错崩溃），现在会怎样（提前 return、给默认值、显式抛错）"，并给新分支补单元测试。审查重点看这个决定对不对，因为把崩溃改成静默返回也可能藏住 bug。 |
+
+**每个 PR 都要过：**
+- 基线脚本：错误数下降，且没有新错误。
+- 类型 lint：`!`、`any`、`ts-expect-error` 的数量没有增加。
+- 单元测试 → 构建。
+- 改了行为的 PR 还要跑相关页面的 E2E 或冒烟测试。
+
+## 第 4 步（第 5 天）：收尾
+
+- 基线清零后：删除基线脚本，CI 恢复成每个 `tsconfig` 都跑 `tsc --noEmit`（或 `tsc -b`），任何错误都失败；撤销第 2 步临时关掉的构建检查；删除所有目录级的临时覆盖配置，让整个仓库用同一份设置。
+- 基线没清零：开关保持打开，"只减不增"的卡点继续生效。剩余错误按目录列清单，每项写明负责人和截止日期。不要为了赶日期把剩下的错误批量断言掉。
+
+**怎么验证：**
+- `tsc --noEmit` 对所有 `tsconfig` 都返回 0，或者剩余清单与基线文件一致。
+- `grep -rn "@ts-ignore\|@ts-nocheck"` 不比迁移开始前多；`@ts-expect-error` 都带原因。
+- 全量单元测试、构建、E2E 都通过。
+- 上线后观察前端错误监控（例如 Sentry），对比发布前后 `Cannot read properties of undefined`、`TypeError` 类错误的比例。这类错误应该下降；如果新增了"静默空白"一类的问题，要回查 C 类 PR。
+
+---
+
+## 风险
+
+- **最大的风险是"修复"把崩溃变成了静默错误：** 加了判空分支后，原本会报错的地方可能直接返回，页面空白却不报错。靠 C 类 PR 的单独审查、补测试和上线后的监控来兜底。
+- **工期压力导致滥用断言：** 靠 lint 计数卡点，加上"只改类型的 PR 必须证明 JS 输出不变"这条规则来拦。
+- **编辑器会突然出现大量红线：** 这是有意为之。提前告诉团队，修改文件时顺手把这个文件的错误清掉。
+
+proposed-next: 在仓库里执行第 0～1 步：记录 TS 版本、各 `tsconfig` 和 CI 检查命令的覆盖情况，按开关、目录、错误码统计这 3000 多个错误，再根据实际分布确定第 5 天的目标和人员分工。
+
+I can't run the next step yet: the repository isn't available in this session. I searched both `/tmp/tsd-eval/cwd` and `/tmp/tsd-eval/after` for `tsconfig*.json`. The working directory has none and isn't a git repo. The only match is `/tmp/tsd-eval/after/packages/ccl-skills-npm/tsconfig.json`, which is a small skills package, not your front-end codebase.
+
+That next step is to record the TS version, each `tsconfig`, and what CI type-checks, then count errors with both flags on, split by flag, directory and error code. All of it has to run against your actual repository.
+
+The plan above still stands as written. Nothing in it has been run against your code yet.
+
+blocked: I need the path to the repository. Either add it as a working directory for this session, or start a session from inside it.
+
+proposed-next: Run steps 0–1 in your repository: record the TS version, the `tsconfig` chain and CI type-check coverage, then count errors per flag, directory and error code. Use those counts to set the Day-5 goal and split the work.

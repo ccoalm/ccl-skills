@@ -1,0 +1,151 @@
+# sig: fedd061854e4
+# F44 / arm=candidate / sample=7 / 72s / util=0.76
+# skills_invoked: ["ccl-skills:typescript-dev"]
+# axis: TypeScript monorepo project references and compiler upgrade
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：每个包 `composite: true` 并在 `references` 列出依赖包，根上建 `files: []` 的 solution tsconfig，用 `tsc -b` 增量构建；共享选项放一个被 extends 的 base；引用方向与架构层定的包依赖方向一致，循环是设计问题；明确工作区包是先构建（exports 指向产物）还是源码直连（customConditions）并让打包器和测试运行器一致；升级前读实际发布说明：6.0 改了 `strict`/`module`/`target`/`types`/`rootDir` 等默认值并废弃 `baseUrl` 查找和 `moduleResolution node10`，7.0 采用这些默认值、把废弃项变成错误且不带编译器 API，先在 6.0 上无 `ignoreDeprecations` 编译干净，再逐个确认 typescript-eslint 等依赖编译器 API 的工具怎么并行用 6.0 API。弱点：只改版本号；依赖旧默认值不显式写出；忽略需要编译器 API 的工具。
+
+当前目录里没有 `package.json`、`tsconfig` 或 `pnpm-workspace.yaml`，所以我没看到你的仓库，下面是通用方案，**没有在任何代码上运行过**。包名假设为 `core`、`utils`、`api`、`web`、`cli`，依赖关系按你的实际情况替换。
+
+## 一、tsconfig 结构：用 project references 只重查改过的包
+
+改一个包就整仓重查，原因通常是只有一个大 tsconfig，或者每个包用 `paths` 直接引用别的包的源码。改成每个包是一个独立的 `composite` 项目，再用 `tsc -b` 增量构建。`tsc -b` 会跳过已是最新的项目；被依赖的包如果生成的 `.d.ts` 没变，依赖它的包也不会重查。
+
+```
+tsconfig.base.json          # 共享选项，不包含任何文件
+tsconfig.json               # 根配置：只列出所有包，自己不编译文件
+packages/core/tsconfig.json
+packages/core/tsconfig.test.json   # 测试用的全局类型不同，单独一个项目
+packages/utils/...
+```
+
+**tsconfig.base.json**：把 6.0 改了默认值的选项都写明，升级时就不会被悄悄改掉。
+
+```jsonc
+{
+  "compilerOptions": {
+    "composite": true,              // 隐含 declaration；include 必须覆盖所有源文件
+    "incremental": true,
+    "declarationMap": true,         // 编辑器跳转到源码
+    "strict": true,
+    "target": "es2022",             // 按最老的运行时定，别让它跟着版本变
+    "module": "nodenext",           // Node 直接加载的包；前端包在自己的配置里改成 esnext + bundler
+    "moduleResolution": "nodenext",
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "noUncheckedSideEffectImports": true,
+    "types": [],                    // 每个项目自己写明需要的全局类型
+    "skipLibCheck": true            // 前提：仓库里没有手写或提交进来的 .d.ts
+  }
+}
+```
+
+**packages/api/tsconfig.json**（依赖 core 和 utils）：
+
+```jsonc
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src"],
+  "references": [{ "path": "../core" }, { "path": "../utils" }]
+}
+```
+
+**packages/api/tsconfig.test.json**：
+
+```jsonc
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "noEmit": false, "emitDeclarationOnly": true, "outDir": "dist-test",
+                       "rootDir": ".", "types": ["node", "vitest/globals"] },
+  "include": ["test"],
+  "references": [{ "path": "." }]
+}
+```
+
+**根 tsconfig.json**：
+
+```jsonc
+{ "files": [], "references": [
+  { "path": "packages/core" }, { "path": "packages/core/tsconfig.test.json" },
+  { "path": "packages/utils" }, /* …五个包和各自的 test 配置都列上 */ ] }
+```
+
+几个必须定下来的点：
+
+- **`references` 必须和 `package.json` 里的 `workspace:*` 依赖一致**。在 CI 里加一个脚本比对两者，不一致就失败。项目之间出现循环引用说明架构有问题，不要靠改配置绕过去。
+- **包之间按"先构建再引用"的方式消费**。每个包的 `exports` 指向 `dist`，`types` 条件写在最前面；把跨包的 `paths` 删掉。要是想直接引用源码，就得用 `customConditions`，而且打包器和测试运行器都要支持同一个条件。两种方式混着用，编辑器、CI 和运行时看到的类型会不一样。
+- **如果 JS 由 tsup、esbuild、Vite 等工具产出**，`tsc -b` 用 `emitDeclarationOnly` 只负责类型检查和生成 `.d.ts`。
+- **常用命令**：
+  - 根目录：`"typecheck": "tsc -b"`
+  - 只检查某个包及它的依赖：`tsc -b packages/api`
+  - 开发时：`tsc -b -w`
+  - CI 缓存 `**/*.tsbuildinfo` 和 `dist`，缓存 key 带上 lockfile 的哈希。
+
+## 二、升级步骤：5.x → 6.0 → 7.0，每步单独一个 PR
+
+到 2026-11，"最新大版本"应该是 7.0，也就是用 Go 写的原生编译器。动手前先查一下官方 release notes 确认版本状态，以及 `--build` / project references 是否已经完全支持。
+
+**第 0 步：拆 references（还在 5.x 上做）**
+- 先记录基线：`tsc -b --extendedDiagnostics`，并把现在的报错输出保存成 `before.txt`。
+- 列出所有直接调用编译器 API 的工具：typescript-eslint、vitest 的类型检查、ts-jest/ts-node、api-extractor/rollup-plugin-dts、vue-tsc 等。
+- 结构调整和版本升级分开提交，否则出了新报错分不清是哪一步引起的。
+
+**第 1 步：升级到 6.0**
+1. 整个仓库只保留一个 `typescript` 版本，用 pnpm catalog 或在根 `devDependencies` 固定，并用 `pnpm why -r typescript` 确认没有第二个版本。
+2. 修掉所有弃用告警：
+   - `moduleResolution: node`/`node10` 改成 `nodenext` 或 `bundler`；
+   - 删掉 `baseUrl`，把前缀直接写进每个 `paths` 条目，或者改用 `package.json#imports`；
+   - 测试和 Node 用到的全局类型都写进各项目的 `types`。
+3. 新出现的类型错误：能改就改；暂时改不了的，用 `// @ts-expect-error <原因>` 压住。不要降低 `strict`。
+4. `"ignoreDeprecations": "6.0"` 只能作为临时过渡，**必须删掉之后才能进入下一步**，因为 7.0 会把这些弃用直接变成错误。
+5. 确认 typescript-eslint 等工具的支持版本范围已经包含 6.0。
+
+**第 2 步：升级到 7.0**
+1. 前提：6.0 下没有任何报错，也没有 `ignoreDeprecations`。
+2. 命令行的 `tsc -b` 换成 7.0。
+3. 7.0 没有编程 API，所以第 0 步列出的那些工具要继续跑在 6.0 的 API 上。TypeScript 团队为此发布了 `@typescript/typescript6`（自带 `tsc6` 命令和 6.0 的 API）。按官方文档给出的别名方式，对每个工具分别指定用哪一版，并把这个双版本安排写进仓库文档。不要无意中混出两个版本。
+4. 回滚方式：直接 revert 改版本号和 lockfile 的那个提交。
+
+## 三、验证（每一步都跑一遍）
+
+| 检查什么 | 命令或方法 | 通过标准 |
+|---|---|---|
+| 只有一个 TS 版本 | `pnpm why -r typescript` | 只有一个版本，或者是有记录的、刻意的双版本 |
+| 全量检查 | 根目录 `tsc -b` | 0 个错误；所有 test 配置都在根配置里 |
+| 增量是否生效 | 改一个叶子包后跑 `tsc -b --verbose` | 只重建这个包 |
+|  | 改 core 内部实现（导出的类型不变） | 依赖 core 的包显示 up to date |
+|  | 改 core 导出的类型 | 依赖 core 的包重新检查 |
+| 报错没有漂移 | 新旧版本的报错输出做 diff | 每条差异都有处理或解释 |
+| 对外类型没变 | 新旧版本生成的 `dist/**/*.d.ts` 做 diff | 没有意外变化 |
+| 依赖和 references 一致 | 第一部分提到的比对脚本 | 一致 |
+| 下游工具正常 | typed lint、单元测试、各包构建 | 全部通过 |
+| 发布出去的包 | `pnpm pack` 后跑 `attw --pack`，再装进一个临时项目做类型检查 | 每个入口在 `nodenext` 和 `bundler` 下都能正常解析 |
+| 性能 | 前后对比 `--extendedDiagnostics` 和 CI 耗时 | 改单个包时明显比整仓检查快 |
+
+注意：打包器或 tsx 能跑通，只说明代码能转译，不等于类型检查通过。CI 的门禁必须是 `tsc -b`。
+
+**还没确定的风险：**
+- 7.0 对 `--build` 的支持程度，以及 typescript-eslint 在 7.0 下怎么用，要以发布时的官方文档为准。
+- 如果仓库里有手写的 `.d.ts`，需要额外用 `skipLibCheck: false` 再检查一遍这些文件。
+
+proposed-next: 把仓库路径（根 `package.json`、`pnpm-workspace.yaml`、各包 tsconfig）给我，我按实际依赖图写出具体配置，然后先完成第 0 步。
+
+我也查了附加目录 `/tmp/tsd-eval/afterfix`（还有整个 `/tmp/tsd-eval`），哪里都没有 `pnpm-workspace.yaml`，所以我能接触到的地方都没有这个 monorepo。上面的方案目前不能落到真实代码上，所有验证命令也都还没跑过。
+
+你要的 tsconfig 结构、升级步骤和验证方法，上一条已经写完。我直接采用了下面这些默认做法：
+
+- **包之间按"先构建再引用"的方式消费**：每个包的 `exports` 指向 `dist`，不用跨包的 `paths`。想直接引用源码的话，改用 `customConditions`，打包器和测试运行器也要配同一个条件。
+- **`module` 和 `moduleResolution` 默认用 `nodenext`**：前端包在自己的 tsconfig 里改成 `esnext` + `bundler`。
+- **`target` 默认 `es2022`**：按你最老的运行时调整。
+- **测试单独一个 tsconfig**：每个包的测试有自己的 `tsconfig.test.json`，也加进根配置。
+- **升级分两步走**：先到 6.0，删干净 `ignoreDeprecations` 之后再到 7.0；调用编译器 API 的工具继续用 `@typescript/typescript6`。
+
+blocked: 这个 monorepo 不在我能读到的目录里。给我仓库路径，或者从仓库根目录启动会话，我才能按真实的依赖关系生成配置并跑验证。
+
+proposed-next: 读取仓库的 `pnpm-workspace.yaml`、各包的 `package.json` 和 tsconfig，按实际依赖关系写好 project references 配置（第 0 步，留在 5.x），记录 `tsc -b` 的基线报错和耗时，并跑一遍上面的增量验证。

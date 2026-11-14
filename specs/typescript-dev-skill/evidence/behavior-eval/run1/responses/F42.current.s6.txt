@@ -1,0 +1,145 @@
+# sig: 59285d05ad1d
+# F42 / arm=current / sample=6 / 86s / util=None
+# skills_invoked: ["ccl-skills:product-rd-workflow"]
+# axis: TypeScript strictness migration in an existing codebase
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：先按目录或 project reference 统计错误；按可独立检查的叶子 tsconfig 逐步打开（棘轮），或用只减不增、新增错误即失败的基线；修复靠收窄或改类型，不批量加 `as`/`!`/`@ts-ignore`，临时压制用带理由的 `@ts-expect-error`；CI 的 `tsc --noEmit` 覆盖源码、测试和脚本的每个 tsconfig；最后移除局部覆盖让全仓一致；说明 `noUncheckedIndexedAccess` 不在 strict 内、会让下标访问变成 `T | undefined`。弱点：全局打开后批量 `@ts-ignore`；加 `skipLibCheck` 或缩小 `include` 让错误消失；用打包器构建成功当作类型检查通过。
+
+# TS 仓库一周内打开 `strict` + `noUncheckedIndexedAccess`：迁移方案
+
+我手上没有这个仓库，下面的计数、命令和比例都要等第 0 天量出基线后再校准。
+
+## 先定义"完成"
+
+一周内可以做到：
+- `tsconfig` 里 `strict: true` 和 `noUncheckedIndexedAccess: true` 都已提交；
+- `tsc --noEmit` 报 0 个错误；
+- 剩下的难题一律用 `@ts-expect-error` 标出来，数量和负责人都登记在案；
+- CI 卡住这个数，只能降不能升。
+
+一周内不现实的目标是：3000 多个错误全部真正修好，一个压制注释都不留。硬赶这个目标，结果多半是满屏的 `!` 和 `as any`，或者改动了运行时行为又没有测试兜底，比留着压制注释更糟。建议团队先认可这个"完成"的定义，再开工。
+
+## 核心思路
+
+1. **第 1 天就打开开关，先防新增，再清存量。** 用一份错误基线做"只降不升"的卡口，新代码从第一天起就按严格模式写。
+2. **按子开关、按目录拆开处理。** `strict` 是一组开关的合集，每个开关的错误类型和修法都不一样。
+3. **每个修复 PR 都标明类型，验证方式不同：**
+   - **纯类型修复**：只改注解、加 `!`、加 `as`、加 `@ts-expect-error`。验证方式是构建产物逐字节一致（见第 3 步）。
+   - **运行时修复**：加判空守卫、`?.`、默认值、改写循环。这类改动会改变行为，必须有测试覆盖。
+
+## 第 0 天（半天）：量出基线
+
+```bash
+# 不改 tsconfig，直接用命令行参数试出全量错误
+npx tsc --noEmit -p tsconfig.json --strict --noUncheckedIndexedAccess --pretty false > strict-all.txt
+# 分别统计每个子开关（逐个单开）
+for f in noImplicitAny strictNullChecks strictFunctionTypes strictBindCallApply \
+         strictPropertyInitialization noImplicitThis useUnknownInCatchVariables \
+         noUncheckedIndexedAccess; do
+  echo "$f $(npx tsc --noEmit -p tsconfig.json --$f --pretty false | grep -c 'error TS')"
+done
+```
+
+注意：`strictPropertyInitialization` 必须和 `strictNullChecks` 一起开，单开会直接报配置错误。统计它的时候要加上 `--strictNullChecks`，再减去 `strictNullChecks` 单开时的错误数。
+
+**产出：**
+- 按子开关、错误码（TS2532、TS18048、TS7006 等）、一级目录分别统计的错误数表；
+- 按目录分给各个负责人（参照 CODEOWNERS）。
+
+**这一步还要查清几件事：**
+- monorepo 或 project references 要按包分别统计；
+- 生成代码（OpenAPI 客户端、GraphQL 类型）怎么处理：用支持严格模式的生成器重新生成，或者排除出检查范围；
+- 第三方 `.d.ts`：确认开着 `skipLibCheck`；
+- 测试文件是否在检查范围内；
+- `tsc` 跑一次要多久。
+
+**验证：**
+- 两次运行的统计结果一致（结果是确定的）；
+- 全量错误数和单开开关的总和量级接近。开了 `noImplicitAny` 后，原先被 `any` 掩盖的空值错误会冒出来，所以组合后的总数通常会变多，属于正常现象。
+
+## 第 1 天：打开开关，接上卡口
+
+1. **一次性把 `strict: true` 和 `noUncheckedIndexedAccess: true` 写进 `tsconfig`**，这样编辑器里也能实时看到错误。
+2. **建立错误基线 `strict-baseline.json`。** 每个错误的指纹取"文件 + 错误码 + 归一化后的报错信息"，不包含行号，免得无关改动导致基线失效。基线按一级目录拆成多个文件，减少合并冲突。可以直接用 betterer，也可以写一个约 50 行的脚本。
+3. **CI 规则：**
+   - 出现基线里没有的错误，CI 失败；
+   - 基线里的错误已经修掉但基线没更新，也失败，强制基线同步收缩。
+4. **lint 规则：**
+   - `@typescript-eslint/ban-ts-comment`：只允许带说明的 `@ts-expect-error`，禁止 `@ts-ignore`。
+   - `no-non-null-assertion` 和 `no-explicit-any` 先设为 warn，只统计数量，不阻塞。
+5. **`alwaysStrict` 会在输出里加 `"use strict"`。** 如果实际构建走的是 babel、swc 或 esbuild，并且产物都是 ESM，它对运行时没有影响。如果有 `tsc` 产出的 CJS 或脚本类产物，要单独确认。
+
+**验证：**
+- 在 PR 里故意新增一个 `arr[0].x`，CI 应该失败；
+- 修掉一个基线错误但不更新基线，CI 也应该失败；
+- 没改业务代码时，构建产物的哈希和开开关之前一致。
+
+## 第 2–4 天：按开关逐类清理
+
+推荐顺序如下。共享的类型、工具函数、API 层排在最前，因为修好它们会连带消掉下游的错误。
+
+| 顺序 | 开关 | 主要修法 | 修复类型 |
+|---|---|---|---|
+| 1 | `noImplicitThis`、`strictBindCallApply`、`useUnknownInCatchVariables` | `catch (e)` 里先用 `e instanceof Error` 收窄类型 | 大多是纯类型修复 |
+| 2 | `strictFunctionTypes` | 把回调参数类型对齐；事件处理器改用正确的泛型 | 纯类型修复 |
+| 3 | `noImplicitAny` | 补参数注解。可以先用 codemod（ts-morph，或 `ts-migrate` 的推断插件）批量推断，推不出来的写 `unknown`，不要写 `any` | 纯类型修复 |
+| 4 | `strictNullChecks` | 能用类型收窄或提前 return 就不用 `?.`（`?.` 会把"直接报错"变成"静默得到 undefined"）；确定不会为空的地方用 `!`，并写清理由 | 混合 |
+| 5 | `strictPropertyInitialization` | 优先在构造函数里初始化，或改为可选属性 | 用 `!` 是纯类型修复；改初始化方式要谨慎，可能改变行为（见下） |
+| 6 | `noUncheckedIndexedAccess` | `for (i…) arr[i]` 改成 `for…of`；`arr[0]` 改成先解构再判断；`Record<string,T>` 查表改成 `Map` 或加守卫；正则匹配结果按捕获组判断 | 混合，大部分能用 codemod 处理 |
+
+**`strictPropertyInitialization` 的特别注意：** 用 MobX、装饰器或 `useDefineForClassFields` 的类，给字段加初始值会改变行为，必须有测试覆盖。
+
+**执行规则：**
+- 每个 PR 只处理一个目录 × 一个开关，不超过约 300 行，并打上 `type-only` 或 `runtime` 标签；
+- codemod 先在一个目录试跑，人工抽查 20 处，确认没问题再全量推开；
+- 修不动的放进"尾部池"，第 5 天统一处理，不要在一个错误上卡半天；
+- 每天看三条曲线：剩余错误数、`!` 和 `as` 的增量、`@ts-expect-error` 的数量。
+
+**节奏参考：** 3000 个错误除以约 3.5 个有效工作日，大约每天 850 个。其中 60–70% 应该能用 codemod 或机械修复解决。人工部分按人头分摊，才能评估人手够不够；不够就提前扩大第 5 天的压制范围，不要压缩验证环节。
+
+**每个 PR 的验证：**
+
+1. **`type-only` PR：** 用修改前后的提交各跑一次生产构建，比较所有 JS 产物（不含 sourcemap）的哈希，必须完全一致。
+   ```bash
+   build && find dist -name '*.js' ! -name '*.map' -exec sha256sum {} + | sort > after.sha
+   diff before.sha after.sha   # 必须为空
+   ```
+   哈希不一致，就说明这个 PR 其实改了运行时行为，要改标为 `runtime`。
+2. **`runtime` PR：** 改动的分支要有单测或已有测试覆盖，并在 PR 描述里写明"原来崩溃 → 现在怎么处理"。涉及核心流程的，再跑一遍相关的 E2E 冒烟测试。
+3. **所有 PR：** 基线只减不增，lint 不新增错误，测试全部通过。
+
+## 第 5 天：清掉尾部，正式收口
+
+1. 剩下的错误统一加压制注释，格式为 `// @ts-expect-error strict-migration(<owner>): <原因>`。用 `@ts-expect-error` 而不是 `@ts-ignore`，因为底下的问题修好后它会自己报错，提醒你删掉注释。
+2. 删除错误基线文件。CI 改为要求 `tsc --noEmit` 报 0 错误；`@ts-expect-error strict-migration` 的数量记一个上限，只能降不能升。
+3. `no-non-null-assertion` 改为对新增代码报 error（可以用 lint 的 diff 模式），存量 `!` 进入后续清理清单。
+
+**验证：**
+- 在干净的 checkout 上，`tsc --noEmit` 返回码为 0；
+- 全量测试和 E2E 冒烟测试通过；
+- 第 1 天的回归用例（新增一个越界访问）仍然会让 CI 失败；
+- 压制注释数量、负责人分布表已经发到团队。
+
+## 第 6–7 天：灰度发布，观察线上
+
+- 把这一周的 `runtime` PR 一起发到灰度环境或 canary。
+- 在 Sentry 等监控里对比发布前后：`TypeError: Cannot read properties of undefined` 这类错误、空白页、接口参数为 `undefined` 的错误率。观察窗口至少覆盖一个业务高峰。
+- 出了回归问题，只回滚对应的 `runtime` PR。`type-only` PR 不影响运行时，不需要回滚。
+
+## 主要风险
+
+- **用 `!` 和 `as` 刷数字。** 这样能凑出 0 错误，但类型安全只是表面的。应对：每天发布 `!` 和 `as` 的增量，codemod 只允许生成能证明安全的写法。
+- **为了消错误而改行为。** 典型例子是 `?.` 和 `?? 默认值` 吞掉了本该暴露的 bug。应对：严格区分两类 PR，`runtime` 类必须有测试。
+- **共享类型改动引起连锁冲突。** 应对：第 2 天上午先由一个人合入共享层的修复，各目录再并行开工。
+- **`tsc` 太慢，拖垮 CI。** 应对：开 `incremental` 和 `tsBuildInfo` 缓存，或按包并行检查。
+
+proposed-next: 在仓库里跑第 0 天的统计命令，得到按开关、错误码、目录分组的错误数后，据此校准第 2–4 天的人手分配和 codemod 优先级。
+
+我在当前工作目录 `/tmp/tsd-eval/cwd` 里搜了一遍，没有找到任何 `tsconfig*.json`。这里也不是 git 仓库，所以第 0 天的错误统计我这边跑不了。你要的是迁移方案，方案已经写完，到此为止。
+
+**我替你定的默认做法**（可以直接改）：
+- **"完成"的定义：** 0 个 `tsc` 错误，剩下的难题用 `@ts-expect-error` 压住，数量登记、只降不升；不要求消灭所有压制注释。要改成"零压制"，就把第 5 天的压制改成继续修，工期也要按剩余错误数延长。
+- **开关怎么开：** 第 1 天直接写进主 `tsconfig`，配合错误基线卡口，不另开一个 `tsconfig.strict.json`。如果编辑器里满屏报错影响开发，可以退回到单独的 strict 配置，只在 CI 里检查。
+- **修复顺序：** 先改共享类型和工具层，再按目录推进，`noUncheckedIndexedAccess` 放最后。
+
+proposed-next: 在仓库根目录跑第 0 天的统计脚本，产出按开关、错误码、目录分组的错误数表，用它校准第 2–4 天的人手分配和 codemod 优先级。
