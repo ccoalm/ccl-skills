@@ -65,3 +65,12 @@ Judge argv with `--tools ""` + `--strict-mcp-config`: init `tools: []`; an attem
 - F2 (`test_eval_runtime.py`): the fresh-directory test mocked the launcher, so dropping `cwd=cwd` from `Popen` would stay green. Fixed: `test_launched_agent_process_runs_in_the_fresh_directory` runs both arms through `run_agent` with a stub `claude` that reports its own `os.getcwd()` and directory listing. Applied mutation removing `cwd=cwd` from `Popen`: that test fails, nothing else.
 - F3 (this file): lanes beyond `test-repo-gates` were not recorded. Disposition: run `make test`'s other lanes, `regression-heavy` and the public-sanitization check on the final candidate; results below.
 - After the fixes: 26 passed, 80 subtests; unmutated control green.
+
+## Challenge pass C1
+
+- Candidate: `3003b5b`. Challenger: codex via `extraction_review_gate.sh --mode challenge --stage build` with a focus on boundary bypasses, init shapes that pass while more tools were offered, banking old samples, cleanup, tests that stay green with the defect, and overclaiming text. Result `challenge-C1.json` (status `findings`, three P2).
+- C1: an unreadable stream line was skipped silently, so a widened init the parser could not read dropped out of the check. Fixed: blank lines are ignored, any other unreadable line makes a boundary-checked run `missing_tool_boundary` (the Ruby replay already rejects any unparsable line). Cases `undecodable_widened_init`, `unreadable_line`, plus `blank_lines` as the near-miss that must still pass. Applied mutations: ignoring unreadable lines fails the two cases; treating blank lines as unreadable fails `blank_lines`.
+- C2: `ignore_cleanup_errors=True` could accept a sample while its run directory survived. Fixed: `mkdtemp` plus `rmtree` in `finally`; if the directory still exists the sample is rejected with `run_dir_not_removed`, appended to any existing error. Test `test_a_run_directory_that_survives_cleanup_rejects_the_sample`. Applied mutation dropping the existence check fails both subtests.
+- C3: only narrow-then-widened init order was tested. Fixed: `first_init_widened` in both runners. Applied mutations keeping only the latest init fail that case in Python and in Ruby.
+- A first version of the unreadable case used 3,000-deep nesting; Python 3.12 decodes that without error, so it tested nothing new and was replaced by a truncated init. The earlier "directory not removed" mutation run had left 24 empty temporary directories; they were removed.
+- After the fixes: 27 passed, 88 subtests.

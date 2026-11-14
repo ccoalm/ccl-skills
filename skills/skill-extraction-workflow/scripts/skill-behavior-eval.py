@@ -61,7 +61,7 @@ mode lets it read other checkouts, /tmp and --out). When a conclusion depends on
 could see, run each arm inside a mount namespace (harness-patterns-and-eval.md §3.3). The current
 arm also still runs the installed hooks/plugins, so treat it as potentially side-effecting.
 """
-import argparse, hashlib, json, os, re, signal, subprocess, sys, tempfile, time
+import argparse, hashlib, json, os, re, shutil, signal, subprocess, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_FIXTURES = os.path.normpath(os.path.join(HERE, "..", "..", "..", "eval", "behavior-fixtures.jsonl"))
@@ -170,8 +170,10 @@ def _headless_claude(cmd, prompt, timeout_s, expected_tools=None, cwd=None):
         p.stdout.close()
     rc = p.returncode
     parts, result_text, result_subtype, util, invoked = [], None, None, None, []
-    terminal_results, offered = [], []
+    terminal_results, offered, skipped = [], [], 0
     for ln in out.splitlines():
+        if not ln.strip():
+            continue
         # The stream is external/untrusted: a line may be invalid JSON, deeply nested (RecursionError),
         # or a shape-drifted value. Wrap the WHOLE per-line parse+extract so any bad line skips itself
         # and never crashes the eval run (fail-closed-skip). We read only known fields of known event
@@ -211,6 +213,7 @@ def _headless_claude(cmd, prompt, timeout_s, expected_tools=None, cwd=None):
                 if isinstance(u, (int, float)):
                     util = u
         except Exception:
+            skipped += 1  # an unreadable line could be an init event: the boundary check counts it
             continue
     # Fail closed: an evidence-producing run is valid ONLY with the stream's own success `result`
     # event (the CLI emits it after finishing the turn). A nonzero exit AFTER it is a post-answer
@@ -232,7 +235,7 @@ def _headless_claude(cmd, prompt, timeout_s, expected_tools=None, cwd=None):
         # Last, so a failed run keeps its own error and only an otherwise valid answer is
         # rejected for its tool boundary.
         if expected_tools is not None:
-            if not offered or not all(isinstance(t, list) for t in offered):
+            if skipped or not offered or not all(isinstance(t, list) for t in offered):
                 return None, "missing_tool_boundary", util, invoked
             if any(set(map(str, t)) - set(expected_tools) for t in offered):
                 return None, "tool_boundary_violated", util, invoked
@@ -253,9 +256,16 @@ TOOL_BOUNDARY = ["--strict-mcp-config", "--tools"]
 
 def _in_fresh_dir(cmd, prompt, timeout_s, expected_tools):
     """Run in a new empty working directory, so the saved answers under --out and a checkout's
-    fixture rubrics are not under the agent's cwd. Removed afterwards."""
-    with tempfile.TemporaryDirectory(prefix="skill-behavior-eval-", ignore_cleanup_errors=True) as cwd:
-        return _headless_claude(cmd, prompt, timeout_s, expected_tools=expected_tools, cwd=cwd)
+    fixture rubrics are not under the agent's cwd. Removed afterwards; if removal fails (a hook's
+    background process can keep writing into it), the sample is not accepted and the error says so."""
+    cwd = tempfile.mkdtemp(prefix="skill-behavior-eval-")
+    try:
+        text, err, util, invoked = _headless_claude(cmd, prompt, timeout_s, expected_tools=expected_tools, cwd=cwd)
+    finally:
+        shutil.rmtree(cwd, ignore_errors=True)
+    if os.path.lexists(cwd):
+        return None, (err + ";" if err else "") + "run_dir_not_removed", util, invoked
+    return text, err, util, invoked
 
 
 def run_agent(prompt, timeout_s, arm, contract):

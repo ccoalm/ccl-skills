@@ -608,6 +608,28 @@ class ToolBoundaryTests(unittest.TestCase):
             self.assertFalse(os.path.exists(ran["cwd"]), "the run directory outlived the run")
         self.assertNotEqual(seen[0]["cwd"], seen[1]["cwd"])
 
+    def test_a_run_directory_that_survives_cleanup_rejects_the_sample(self):
+        made = []
+        real_mkdtemp = tempfile.mkdtemp
+
+        def mkdtemp(**kwargs):
+            made.append(real_mkdtemp(**kwargs))
+            return made[-1]
+
+        streams = {"valid": (init(AGENT_TOOLS) + json.dumps(success()), "run_dir_not_removed"),
+                   "already_failed": (init(AGENT_TOOLS), "missing_success_result;run_dir_not_removed")}
+        try:
+            for label, (stream, expected) in streams.items():
+                with self.subTest(run=label), \
+                        mock.patch.object(behavior.tempfile, "mkdtemp", side_effect=mkdtemp), \
+                        mock.patch.object(behavior.shutil, "rmtree"):
+                    result = behavior._in_fresh_dir([sys.executable, "-c", f"print({stream!r})"], "x", 5, AGENT_TOOLS)
+                    self.assertEqual(result[:2], (None, expected))
+                    self.assertTrue(os.path.isdir(made[-1]))
+        finally:
+            for path in made:
+                os.rmdir(path)
+
     def test_failed_run_keeps_its_own_error_whatever_its_boundary(self):
         failures = {
             "error_flag": (success(is_error=True), "invalid_terminal_result"),
@@ -640,6 +662,12 @@ class ToolBoundaryTests(unittest.TestCase):
             "bash_offered": (init(AGENT_TOOLS + ["Bash"]) + done, "tool_boundary_violated"),
             "mcp_offered": (init(AGENT_TOOLS + ["mcp__plugin_x__run"]) + done, "tool_boundary_violated"),
             "second_init_widened": (init(AGENT_TOOLS) + init(["Write"]) + done, "tool_boundary_violated"),
+            "first_init_widened": (init(AGENT_TOOLS + ["Bash"]) + init(AGENT_TOOLS) + done, "tool_boundary_violated"),
+            # A widened init the parser cannot read must not drop out of the check.
+            "undecodable_widened_init": (init(AGENT_TOOLS) + '{"type": "system", "subtype": "init", "tools": ["Bash"]\n' + done,
+                                         "missing_tool_boundary"),
+            "unreadable_line": (init(AGENT_TOOLS) + "not json\n" + done, "missing_tool_boundary"),
+            "blank_lines": (init(AGENT_TOOLS) + "\n\n" + done, None),
             "no_init": (done, "missing_tool_boundary"),
             "tools_not_a_list": (json.dumps({"type": "system", "subtype": "init", "tools": "Read"}) + "\n" + done,
                                  "missing_tool_boundary"),
@@ -700,6 +728,8 @@ class GoldenRuntimeTests(unittest.TestCase):
             "permission_denial": ([boundary, skill, success(permission_denials=[{"tool": "Read"}])], "INCONCLUSIVE"),
             "no_boundary": ([skill, success()], "INCONCLUSIVE"),
             "bash_offered": ([widened, skill, success()], "INCONCLUSIVE"),
+            "first_init_widened": ([widened, boundary, skill, success()], "INCONCLUSIVE"),
+            "second_init_widened": ([boundary, widened, skill, success()], "INCONCLUSIVE"),
             "mcp_offered": ([mcp, skill, success()], "INCONCLUSIVE"),
         }
         for label, (events, expected) in cases.items():
