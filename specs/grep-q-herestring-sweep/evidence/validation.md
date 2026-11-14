@@ -68,4 +68,4 @@ On `9692c19` (adds the evidence `AGENTS.md` and this file), same environment plu
 
 On `c70e1c9` (last executable change), same environment as above with `CCL_SKILL_BASE_REF=origin/main`: `make test-repo-gates` (`ccl_skill_check_clean_ok`, `shared_git_surface_gate_ok`), `make test-regressions-fast`, `make test-code-review-1`, `make test-code-review-2`, `test_check_public_sanitization.py`, `check-public-sanitization.py`, `check-markdown-links.py`, `check-spec-references.py`, `test_check_skill_count.py` and `check-skill-count.py` all exit 0. `test_concern_excerpt.sh` prints `concern_excerpt_tests_ok`. The probe on `c70e1c9` prints `pipe_probe_ok`.
 
-Not rerun after `4bd8435`: the heavy regression lane and the two abort-leak legs. The commits since then change only `test_concern_excerpt.sh` (run in `test-code-review-2`), the register, and files under `specs/`.
+Not rerun after `4bd8435`: the heavy regression lane and the two abort-leak legs. The commits since then change only `test_concern_excerpt.sh` (run in `test-code-review-1`), the register, and files under `specs/`.
