@@ -40,6 +40,7 @@ Changed:
 | `code-review/scripts/test_opencode_review_retry.sh` | credential-binding check, `! find … -type l -print \| grep -q .` | line 19 `set -uo pipefail`; `check` runs the expression with `eval` in the suite's shell | `find` listing of the wrapper's diagnostic copy | false green: copied links read as absent |
 | `code-review/scripts/test_review_gate.sh` | `prune_dead_pgid_records` | line 4 `set -uo pipefail`; the function runs in the suite's shell | `ps -eo pgid= \| tr -d ' '` of the whole host (1917 bytes, 482 processes on the measuring host) | a live group's record dropped as dead, which can hide a leak |
 | `skill-extraction-workflow/scripts/test_uiux_delivery_contract.sh` | `parallel_completion_claims_absent` | line 5 `set -euo pipefail` | `active_text` of design references and handbooks (12 to 18 KB each) | false green: a forbidden completion claim mid-file reads as absent |
+| `code-review/scripts/test_concern_excerpt.sh` | wrapper wiring check, `grep -A8 … claude_review.sh \| grep -q concern_excerpt` | line 5 `set -uo pipefail`; `check` runs the expression with `eval` in the suite's shell | nine lines of the wrapper's source (414 bytes on this tree, from a file whose lines run to 913 characters) | false red |
 
 None of these files turns `pipefail` off again; the later `set -u`, `set +e`/`set -e` and `set -T` lines in them leave it on. Candidates came from `git ls-files '*.sh' \| xargs grep -lE pipefail`, then every non-comment line matching `\|[[:space:]]*grep[[:space:]]+-[a-zA-Z]*q` in those files, plus a second pass for `-E -q`, `--quiet` and `--silent` spellings (no extra hits).
 
@@ -57,10 +58,10 @@ Not changed:
 | `code-review/scripts/test_opencode_review_retry.sh`, other checks | Checks on `$out` read the wrapper's stdout, one compact JSON line (440 to 893 bytes, 0 newlines in every case of a full run). The two checks on `field` values read a value from that JSON, so it is smaller than the whole line (499 and 771 bytes): the excerpt of a one-sentence fixture reply and the first reply the wrapper caps under 400 characters (the same suite asserts that cap). |
 | `code-review/scripts/test_review_gate.sh`, other checks | `$out` is the gate's one-line JSON (275 to 6186 bytes, 0 newlines in every case of a full run); `ps -o stat= -p <pid>` is one line; `contract_packet_check` prints one token. |
 | `code-review/scripts/test_code_review_identity.sh` | `tr '\n' ' '` joins the reference into one line, so `grep` reads all of it. Confirmed by the probe's control cases. |
-| `code-review/scripts/test_concern_excerpt.sh`, `test_review_gate_abort_leak.sh` | At most nine lines from `grep -A8`; a handful of this run's own pids. |
+| `code-review/scripts/test_review_gate_abort_leak.sh` | `probe_processes` prints only the pids of this run's own processes, one short number per line; passing 4096 bytes would take several hundred of them. |
 | `skill-extraction-workflow/scripts/test_impact_chain_round_attribution.sh`, `scripts/test_install_opencode_skill_migration.sh`, `skill-extraction-workflow/scripts/check-evidence-card-leak.sh` | Inputs come from small seeded fixtures (a few file names, one ledger row, one field value). |
 
-The follow-up list's 13 suites are all covered above. Three changed sites (`test_review_gate.sh`'s process table, the retry suite's `find`, and the UI/UX scan) are outside that list. The search behind the list did not match `find … | grep -q`, `-Fq`/`-Eiq` spellings, or `ps … | tr … | grep`.
+The follow-up list's 13 suites are all covered above. Four changed sites (`test_review_gate.sh`'s process table, the retry suite's `find`, the UI/UX scan and the concern-excerpt wiring check) are outside that list. The search behind the list did not match `find … | grep -q`, `-Fq`/`-Eiq` spellings, `ps … | tr … | grep`, or a `grep` feeding `grep -q`.
 
 ## Change
 
@@ -71,6 +72,7 @@ The follow-up list's 13 suites are all covered above. Three changed sites (`test
 | retry credential check | `! find "$diagnostic_path" -type l -print \| grep -q .` | `[ -z "$(find "$diagnostic_path" -type l -print -quit)" ]` |
 | `prune_dead_pgid_records` | `ps -eo pgid= 2>/dev/null \| tr -d ' ' \| grep -qx "$pgid"` | `grep -qx "$pgid" <<<"$(ps -eo pgid= 2>/dev/null \| tr -d ' ')"` |
 | `parallel_completion_claims_absent` | `active_text "$file" \| grep -Eiq '…'` | `grep -Eiq '…' <<<"$(active_text "$file")"` |
+| concern-excerpt wiring check | `grep -A8 "…" "$DIR/claude_review.sh" \| grep -q "concern_excerpt"` | `grep -q "concern_excerpt" <<<"$(grep -A8 "…" "$DIR/claude_review.sh")"` |
 
 A writer that fails can change a verdict in one way. The new forms decide from what the writer printed; the old pipes also failed on the writer's exit status.
 
@@ -89,8 +91,8 @@ The two `testing-strategy` suites also gain the executable bit their shebang imp
 
 | Group | Case | Old tree | New tree |
 | --- | --- | --- | --- |
-| changed | each of the six sites above, on input it must accept (or, for the negated sites, reject) | wrong in every run | never wrong |
-| inverse | the same six sites on the same input shape without the needle | never wrong | never wrong |
+| changed | each of the seven sites above, on input it must accept (or, for the negated sites, reject) | wrong in every run | never wrong |
+| inverse | the same seven sites on the same input shape without the needle | never wrong | never wrong |
 | writer-fails | `prune`, the symlink check and the UI/UX scan when the writer prints the match and then exits non-zero (the second row of the table under Change) | wrong in every run | never wrong |
 | control | four retry checks on one-line JSON, three identity checks on a `tr`-joined reference | never wrong | never wrong |
 
@@ -101,7 +103,7 @@ The inverse group shows the new forms still reach the opposite verdict. The cont
 | Owner | Direction | Status | File or reason |
 | --- | --- | --- | --- |
 | `testing-strategy` | owner | updated | `scripts/lang-basics-ast-check.test.sh`, `scripts/client-terminal-ansi-check.test.sh` |
-| `code-review` | owner | updated | `scripts/test_opencode_review_retry.sh`, `scripts/test_review_gate.sh` |
+| `code-review` | owner | updated | `scripts/test_opencode_review_retry.sh`, `scripts/test_review_gate.sh`, `scripts/test_concern_excerpt.sh` |
 | `tighten-doc` | owner | updated | `scripts/mutation_probe.sh` |
 | `skill-extraction-workflow` | owner | updated | `scripts/test_uiux_delivery_contract.sh`, register rows |
 | `defect-diagnosis` | sibling | unchanged | Applied as written: the failing-path probe and paired control ran before the fix and decided which sites change. |

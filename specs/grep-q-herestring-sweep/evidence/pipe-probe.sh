@@ -162,6 +162,28 @@ if parallel_completion_claims_absent "$work/claim.md"; then echo WRONG; else ech
 EOF
 run_case changed "test_uiux_delivery_contract.sh: a claim on line 1 is found" "$work/uiux.sh"
 
+# --- changed: code-review concern-excerpt suite, wrapper wiring check ------------------
+ce="$cr/test_concern_excerpt.sh"
+ce_check="$(extract_fn "$ce" check)"
+require "$ce_check" "concern-excerpt check"
+expr="$(extract_check "$ce" "claude wrapper no longer stops without an excerpt")"
+require "$expr" "concern-excerpt wiring check"
+mkdir -p "$work/ce"
+{
+  echo 'echo "Claude returned concern evidence"'
+  echo 'run concern_excerpt.py'
+  for ((i = 0; i < 7; i++)); do printf '# %s\n' "$(head -c 40000 "$filler" | tr '\n' ' ')"; done
+} >"$work/ce/claude_review.sh"
+cat >"$work/ce.sh" <<EOF
+set -uo pipefail
+fails=0
+DIR="$work/ce"
+$ce_check
+got="\$($expr)"
+case "\$got" in "ok "*) echo RIGHT ;; *) echo WRONG ;; esac
+EOF
+run_case changed "test_concern_excerpt.sh: excerpt wiring found (9 long lines)" "$work/ce.sh"
+
 # --- inverse: the same changed sites still reach the opposite verdict -------------------
 # Same input shape, minus the thing the assertion looks for. A here-string form that
 # always matched (or never did) would turn these wrong.
@@ -190,6 +212,11 @@ sed -e "s|$work/claim.md|$work/no-claim.md|" \
     -e 's/then echo WRONG; else echo RIGHT; fi/then echo RIGHT; else echo WRONG; fi/' \
   "$work/uiux.sh" >"$work/inv-uiux.sh"
 run_case inverse "test_uiux_delivery_contract.sh: no claim reads as absent" "$work/inv-uiux.sh"
+mkdir -p "$work/ce-none"
+sed -e 's/run concern_excerpt.py/run nothing/' "$work/ce/claude_review.sh" >"$work/ce-none/claude_review.sh"
+sed -e "s|DIR=\"$work/ce\"|DIR=\"$work/ce-none\"|" -e 's/"ok "\*) echo RIGHT/"FAIL "*) echo RIGHT/' \
+  "$work/ce.sh" >"$work/inv-ce.sh"
+run_case inverse "test_concern_excerpt.sh: no excerpt call is a failure" "$work/inv-ce.sh"
 
 # --- writer-fails: the writer prints the match, then exits non-zero --------------------
 # The new forms decide from what the writer printed. Expected verdicts below are the

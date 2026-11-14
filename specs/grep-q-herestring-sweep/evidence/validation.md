@@ -21,7 +21,8 @@ Host: Linux 6.1, bash 5.2.15, GNU grep 3.8 (`/usr/bin/grep`, which the suites ru
 | changed | `test_opencode_review_retry.sh`: 3000 symlinks are found | 100/100 wrong | 0/100 |
 | changed | `test_review_gate.sh`: a live group keeps its record | 100/100 wrong | 0/100 |
 | changed | `test_uiux_delivery_contract.sh`: a claim on line 1 is found | 100/100 wrong | 0/100 |
-| inverse | the same six sites without the needle | 0/100 each | 0/100 each |
+| changed | `test_concern_excerpt.sh`: excerpt wiring found in nine long lines | 100/100 wrong | 0/100 |
+| inverse | the same seven sites without the needle | 0/100 each | 0/100 each |
 | writer-fails | `test_review_gate.sh`: a group `ps` listed before failing keeps its record | 100/100 wrong | 0/100 |
 | writer-fails | `test_opencode_review_retry.sh`: a link `find` printed before failing is caught | 100/100 wrong | 0/100 |
 | writer-fails | `test_uiux_delivery_contract.sh`: a claim `active_text` printed before failing is found | 100/100 wrong | 0/100 |
@@ -47,3 +48,10 @@ On `9692c19` (adds the evidence `AGENTS.md` and this file), same environment plu
 - R1-1: when a writer prints the match and then exits non-zero, the new forms decide from the printed text, while the old pipes failed on the writer's status. The plan had said writer failures keep their verdict. Disposition: the plan now tabulates both cases under Change. For the symlink check and the UI/UX scan the new verdict is the right one (the old one was a false green); `prune` keeps the record of a group `ps` listed. The code is kept; three writer-fails probe cases are added (above).
 - R1-2: this record ended on the failed repository-gate run. Disposition: the rerun on `9692c19` is recorded above; the final lanes are recorded below.
 - R1-3: the packet did not show that the real sites run under `pipefail`, nor how candidates were found. Disposition: the plan's changed-site table now names each file's `pipefail` line and how the check runs in the suite shell, and states the search used. The selected skill texts and the commit message were not added to the packet.
+
+## Challenge pass C1
+
+- Candidate: `9072f6c`, base `origin/main`. Challenger: codex via `extraction_review_gate.sh --mode challenge --stage build`, focus: verdicts the rewrite changes beyond a cut-off writer, unchanged sites that can race, probe cases that stay green with the defect, claims the measurements do not carry. Result `challenge-C1.json` (status `findings`, three P2).
+- C1-1: `test_concern_excerpt.sh` was excluded by line count ("at most nine lines"), not by size. On this tree the nine lines are 414 bytes, but lines in `claude_review.sh` run to 913 characters, and the input is a checked-in file's contents, which the plan's own rule sends to "changed". Fixed: the wiring check reads the `grep -A8` output from a here-string; probe case and inverse added (above); register row added for `code-review`. `test_review_gate_abort_leak.sh` now has its own row with a size bound.
+- C1-2: final-lane results were not recorded for the submitted candidate. Disposition: recorded under Final local lanes.
+- C1-3: the packet omits the selected skill texts and the commit message. No change: the commit messages are on the branch and listed in the pull request.
