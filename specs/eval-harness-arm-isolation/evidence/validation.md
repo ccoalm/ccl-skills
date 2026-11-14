@@ -87,3 +87,11 @@ Judge argv with `--tools ""` + `--strict-mcp-config`: init `tools: []`; an attem
 - Candidate: `2a3e231`, base `b9c94a3`: one source-register row. Reviewer: codex. Result `delta-D2.json` (status `findings`, one P2: the packet held only the row, so its claims could not be checked against the code).
 - Disposition, by source inspection of the committed candidate: boundary checked last (`skill-behavior-eval.py` comment "Last, so a failed run keeps its own error"); unreadable lines counted (`skipped += 1`) and rejected (`if skipped or not offered`); surviving run directory rejected (`os.path.lexists(cwd)` → `run_dir_not_removed`); tests `test_launched_agent_process_runs_in_the_fresh_directory`, `test_failed_run_keeps_its_own_error_whatever_its_boundary`, `test_a_run_directory_that_survives_cleanup_rejects_the_sample`, and `first_init_widened` in both the Python and the Ruby case tables; firing path `test_eval_runtime.py` is mode 100755 with a shebang. Mutation specificity is recorded under R1 and C1 above.
 - This is the last external pass; later commits change only evidence records in this directory.
+
+## Final local lanes
+
+On `b9c94a3` (last executable change): `test-regressions-fast`, `test-code-review-1`, `test-code-review-2`, and `test-code-review-abort-leak-1`/`-2` (each under `unshare --user --map-current-user --pid --fork --mount-proc`, because this host's session ancestry includes a child subreaper) all exit 0.
+
+On `855a091` (adds only the register row and evidence records after that): `test-repo-gates`, `test_check_ccl_regressions.sh --heavy-only`, `test_check_public_sanitization.py`, `check-public-sanitization.py`, `check-markdown-links.py`, `check-spec-references.py`, `test_check_skill_count.py`, `check-skill-count.py` and `check_review_evidence_present.py` against the merge base with `origin/main` all exit 0. `check-ccl-skills.sh` with the private alias audit: `r0_status=private-ok`, `ccl_skill_check_clean_ok`.
+
+Environment note: this worktree was created under umask 077, so tracked files were mode 600 and `eval.test_skill_effectiveness_bridge` (expects 644) failed once; modes were reset with `chmod go+rX` on tracked files. Not a code change.
