@@ -106,7 +106,8 @@ flowchart TD
 | 你的工作 | 路由到 |
 |---|---|
 | 架构/服务边界/契约 | `software-architecture` |
-| 后端实现 | `go-microservice-dev` / `python-service-dev` |
+| 后端实现 | `go-microservice-dev` / `python-service-dev` / `nodejs-service-dev` |
+| TypeScript 类型与编译（与所在栈技能一起用） | `typescript-dev` |
 | React Web | `web-react-dev` |
 | App | `app-cross-platform-dev` |
 | 小程序 | `miniapp-product-dev` |

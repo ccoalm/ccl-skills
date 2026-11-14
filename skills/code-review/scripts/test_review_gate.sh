@@ -195,7 +195,10 @@ mkdir -p "$WORK/harness/scripts" "$WORK/state" "$WORK/repo" "$WORK/empty-registr
 cp "$DIR/review_gate.sh" "$DIR/review_gate.py" "$WORK/harness/scripts/"
 cp "$DIR/../SKILL.md" "$WORK/harness/SKILL.md"
 mkdir -p "$WORK/testing-strategy/references" "$WORK/python-service-dev" "$WORK/terminal-cli-dev" \
-  "$WORK/app-cross-platform-dev" "$WORK/go-microservice-dev" "$WORK/web-react-dev"
+  "$WORK/app-cross-platform-dev" "$WORK/go-microservice-dev" "$WORK/web-react-dev" \
+  "$WORK/typescript-dev" "$WORK/no-typescript-registry/web-react-dev"
+printf '%s\n' '# TypeScript Dev' >"$WORK/typescript-dev/SKILL.md"
+printf '%s\n' '# Web React Dev' >"$WORK/no-typescript-registry/web-react-dev/SKILL.md"
 printf '%s\n' '# Testing Strategy' >"$WORK/testing-strategy/SKILL.md"
 printf '%s\n' '# Focused Tests' >"$WORK/testing-strategy/references/focused-tests.md"
 printf '%s\n' '# Python Service Dev' >"$WORK/python-service-dev/SKILL.md"
@@ -248,7 +251,21 @@ assert any(
         ["skills/testing-strategy/references/focused-tests.md"], registry
     )
 )
-for suffix in (".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx", ".vue"):
+def suffix_owners(name, root=registry):
+    return {row["skill"] for row in derive_owner_selection([f"src/{name}"], root)}
+
+# A TypeScript suffix proves the language, not the runtime: .ts/.mts/.cts on
+# Node.js, Deno or a library is not React, while .tsx carries JSX.
+for name in ("service.ts", "module.mts", "module.cts", "types.d.ts", "LEGACY.TS"):
+    assert suffix_owners(name) == {"typescript-dev"}, (name, suffix_owners(name))
+assert suffix_owners("View.tsx") == {"typescript-dev", "web-react-dev"}, suffix_owners("View.tsx")
+# JavaScript reaches the type layer only under checkJs, which a suffix cannot show.
+for name in ("a.js", "a.mjs", "a.cjs", "A.jsx", "A.vue"):
+    assert suffix_owners(name) == {"web-react-dev"}, (name, suffix_owners(name))
+no_ts = registry / "no-typescript-registry"
+assert suffix_owners("View.tsx", no_ts) == {"web-react-dev"}, suffix_owners("View.tsx", no_ts)
+assert suffix_owners("service.ts", no_ts) == set(), suffix_owners("service.ts", no_ts)
+for suffix in (".cjs", ".js", ".jsx", ".mjs", ".tsx", ".vue"):
     assert any(
         row["skill"] == "web-react-dev"
         for row in derive_owner_selection([f"src/component{suffix}"], registry)
@@ -990,10 +1007,16 @@ for row in plan["self_review"]:
     row["skill"] = "code-review"
 for row, skill in zip(
     plan["self_review"],
-    ("app-cross-platform-dev", "go-microservice-dev", "web-react-dev"),
+    ("app-cross-platform-dev", "go-microservice-dev", "typescript-dev", "web-react-dev"),
 ):
     row["skill"] = skill
 Path(sys.argv[2]).write_text(json.dumps(plan, separators=(",", ":")))
+for row in plan["self_review"]:
+    if row["skill"] == "typescript-dev":
+        row["skill"] = "code-review"
+Path(sys.argv[2]).with_name("no-typescript-owner-review-plan.json").write_text(
+    json.dumps(plan, separators=(",", ":"))
+)
 PY
 sed 's/testing-strategy/missing-owner/' \
   "$WORK/owner-review-plan.json" >"$WORK/missing-owner-review-plan.json"
@@ -1333,12 +1356,17 @@ profile="$(cat "$WORK/state/claude_profile" 2>/dev/null || true)"
 check "a shell candidate routes the terminal CLI owner" \
   '[ "$rc" = 0 ] && json_fields "$profile" owner_selection_evidence.0.skill=terminal-cli-dev owner_selection_evidence.0.source=file-type:.sh skill_delivery=native-installed && [ "$(cat "$WORK/state/claude_review_skills")" = terminal-cli-dev ] && json_fields "$out" reviewed_skills.0=terminal-cli-dev'
 
-printf 'diff --git a/cmd/service.go b/cmd/service.go\n--- a/cmd/service.go\n+++ b/cmd/service.go\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/web/view.ts b/web/view.ts\n--- a/web/view.ts\n+++ b/web/view.ts\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/lib/screen.dart b/lib/screen.dart\n--- a/lib/screen.dart\n+++ b/lib/screen.dart\n@@ -1 +1 @@\n-old\n+new\n' >"$WORK/diff.patch"
+printf 'diff --git a/cmd/service.go b/cmd/service.go\n--- a/cmd/service.go\n+++ b/cmd/service.go\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/web/api.ts b/web/api.ts\n--- a/web/api.ts\n+++ b/web/api.ts\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/web/view.tsx b/web/view.tsx\n--- a/web/view.tsx\n+++ b/web/view.tsx\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/lib/screen.dart b/lib/screen.dart\n--- a/lib/screen.dart\n+++ b/lib/screen.dart\n@@ -1 +1 @@\n-old\n+new\n' >"$WORK/diff.patch"
 reset_case passed unavailable unavailable
 out="$(run_gate --review-plan-file "$WORK/language-owner-review-plan.json" --allow-fallback-egress)"; rc=$?
 profile="$(cat "$WORK/state/claude_profile" 2>/dev/null || true)"
-check "Go, web, and Dart candidates route all registered implementation owners" \
-  '[ "$rc" = 0 ] && json_fields "$profile" owner_selection_evidence.0.skill=app-cross-platform-dev owner_selection_evidence.1.skill=go-microservice-dev owner_selection_evidence.2.skill=web-react-dev && [ "$(cat "$WORK/state/claude_review_skills")" = "app-cross-platform-dev go-microservice-dev web-react-dev" ] && json_fields "$out" reviewed_skills.0=app-cross-platform-dev reviewed_skills.1=go-microservice-dev reviewed_skills.2=web-react-dev'
+check "Go, TypeScript, TSX, and Dart candidates route all registered implementation owners" \
+  '[ "$rc" = 0 ] && json_fields "$profile" owner_selection_evidence.0.skill=app-cross-platform-dev owner_selection_evidence.1.skill=go-microservice-dev owner_selection_evidence.2.skill=typescript-dev owner_selection_evidence.2.source=file-type:.ts owner_selection_evidence.2.path=web/api.ts owner_selection_evidence.3.skill=typescript-dev owner_selection_evidence.3.source=file-type:.tsx owner_selection_evidence.4.skill=web-react-dev owner_selection_evidence.4.path=web/view.tsx && [ "$(cat "$WORK/state/claude_review_skills")" = "app-cross-platform-dev go-microservice-dev typescript-dev web-react-dev" ] && json_fields "$out" reviewed_skills.0=app-cross-platform-dev reviewed_skills.1=go-microservice-dev reviewed_skills.2=typescript-dev reviewed_skills.3=web-react-dev'
+
+reset_case passed unavailable unavailable
+out="$(run_gate --review-plan-file "$WORK/no-typescript-owner-review-plan.json" --allow-fallback-egress)"; rc=$?
+check "a TypeScript candidate whose self-review omits typescript-dev fails before provider execution" \
+  '[ "$rc" = 2 ] && [ ! -e "$WORK/state/client_sequence" ] && json_fields "$out" reason_code=self_review_incomplete next_action=deep_self_review'
 
 printf 'diff --git a/src/service.py b/src/service.py\n--- a/src/service.py\n+++ b/src/service.py\n@@ -1 +1 @@\n-old\n+new\n' >"$WORK/diff.patch"
 reset_case quota passed unavailable

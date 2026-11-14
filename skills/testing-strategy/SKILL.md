@@ -11,14 +11,15 @@ Owns test scope/design, verification evidence, CI gates and test-layer choices a
 
 ## Skill Routing
 
-- Use this skill for test strategy, test pyramid decisions, unit/integration/e2e/scenario boundaries, fixtures, mocks/fakes, regression coverage, and verification evidence. Stack pointers below apply after that choice.
-- Use `go-microservice-dev` for Go-specific implementation details.
-- Use `python-service-dev` for Python-specific pytest, async test, fixture, fake client, ruff, mypy/pyright, packaging, or migration-test implementation details.
-- Node runner, mock/fixture, fake timers, stream and cancellation assertions, child-process lifecycle, and packaged-artifact verification must use `nodejs-service-dev`.
-- Use `app-cross-platform-dev` for Flutter unit/widget/integration tests, Android unit/Compose/instrumented tests, iOS unit/UI tests, mobile device smoke, and app release verification.
+- Use this skill for test strategy, test pyramid decisions, unit/integration/e2e/scenario boundaries, fixtures, mocks/fakes, regression coverage, and verification evidence. Stack pointers below follow that choice.
+- Use `go-microservice-dev` for Go implementation details.
+- Use `python-service-dev` for pytest, async, fixture, fake-client, ruff, mypy/pyright, packaging, or migration-test details.
+- Node runner, mock/fixture, fake-timer, stream/cancellation assertion, child-process lifecycle, and packaged-artifact verification must use `nodejs-service-dev`.
+- TypeScript type checks and type tests (`tsc --noEmit`, `expectTypeOf`/`tsd`) must use `typescript-dev`.
+- Use `app-cross-platform-dev` for Flutter unit/widget/integration, Android unit/Compose/instrumented, and iOS unit/UI tests, device smoke, and app release verification.
 - Use `miniapp-product-dev` for WeChat/Alipay/Douyin/Baidu mini-program build, developer-tool preview, real-device smoke, host capability verification, review submission, and release checks.
-- Use `web-react-dev` for React unit/component/API-client/browser/E2E implementation, browser automation, accessibility checks, and build/deploy smoke.
-- Use `terminal-cli-dev` for the terminal interface contract, PTY/ANSI/keyboard rendering, and full-screen text UI testing.
+- Use `web-react-dev` for React unit/component/API-client/browser/E2E tests, accessibility checks, and build/deploy smoke.
+- Use `terminal-cli-dev` for terminal interface contract, PTY/ANSI/keyboard rendering, and full-screen TUI testing.
 - Use `llm-inference-integration` for LLM/agent/RAG evals, replay sets, prompt/model regression checks, shadow runs, and inference-specific observability.
 - Use `defect-diagnosis` first when a test is failing, flaky, or used to reproduce a bug.
 - Use `product-rd-workflow` first when testing is part of an end-to-end product delivery plan.

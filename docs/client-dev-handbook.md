@@ -13,6 +13,8 @@
 | [`miniapp-product-dev`](../skills/miniapp-product-dev/SKILL.md) | 微信/支付宝/抖音/百度小程序（默认 Taro）：页面路由、登录、支付、分享、订阅、平台能力、审核、发布、开发者工具/真机验收 |
 | [`terminal-cli-dev`](../skills/terminal-cli-dev/SKILL.md) | 命令行/TUI/PTY/ANSI：布局、输入、颜色、换行、选择、scrollback、可用性、真实终端验收 |
 
+用 TypeScript 写的客户端，类型、tsconfig 和类型检查另由 [`typescript-dev`](../skills/typescript-dev/SKILL.md) 负责，和上表的技能一起加载。
+
 Vue、Svelte、static/vendor Web，Electron、桌面、TV shell 和其它客户端不因上表没有专用技能而消失：先用项目已安装 owner；没有明确映射时，按 [`delivery-contract.md`](../skills/product-ui-ux-design/references/delivery-contract.md) 查 README/CONTRIBUTING、就近 AGENTS/CLAUDE 及 client/style/design 文档。查不到或材料不可访问就记 `owner-lookup-unavailable` 并阻断完成声明，不能把它写成 `not-applicable`。复合宿主的内容层与 shell 层分别建 owner、record 和 binding member。
 
 ## 和 UI/UX 设计的分工

@@ -1096,18 +1096,24 @@ def decode_git_c_path(token: str, *, strict_utf8: bool = False) -> str | None:
     return "".join(decoded_parts)
 
 
-FILE_TYPE_OWNERS = {
-    ".dart": "app-cross-platform-dev",
-    ".cjs": "web-react-dev",
-    ".go": "go-microservice-dev",
-    ".js": "web-react-dev",
-    ".jsx": "web-react-dev",
-    ".mjs": "web-react-dev",
-    ".py": "python-service-dev",
-    ".sh": "terminal-cli-dev",
-    ".ts": "web-react-dev",
-    ".tsx": "web-react-dev",
-    ".vue": "web-react-dev",
+# A suffix proves the language, not the runtime. TypeScript files go to the
+# language owner on any runtime; only .tsx (JSX) also implies React. JavaScript
+# stays with the web owner: the type layer applies to it only under checkJs or
+# // @ts-check, which a suffix cannot show.
+FILE_TYPE_OWNERS: dict[str, tuple[str, ...]] = {
+    ".dart": ("app-cross-platform-dev",),
+    ".cjs": ("web-react-dev",),
+    ".cts": ("typescript-dev",),
+    ".go": ("go-microservice-dev",),
+    ".js": ("web-react-dev",),
+    ".jsx": ("web-react-dev",),
+    ".mjs": ("web-react-dev",),
+    ".mts": ("typescript-dev",),
+    ".py": ("python-service-dev",),
+    ".sh": ("terminal-cli-dev",),
+    ".ts": ("typescript-dev",),
+    ".tsx": ("typescript-dev", "web-react-dev"),
+    ".vue": ("web-react-dev",),
 }
 
 
@@ -1207,9 +1213,10 @@ def derive_owner_selection(
         ):
             evidence.add((parts[1], "changed-skill-path", value))
 
-        owner = FILE_TYPE_OWNERS.get(path.suffix.casefold())
-        if owner is not None and (registry_root / owner / "SKILL.md").is_file():
-            evidence.add((owner, f"file-type:{path.suffix.casefold()}", value))
+        suffix = path.suffix.casefold()
+        for owner in FILE_TYPE_OWNERS.get(suffix, ()):
+            if (registry_root / owner / "SKILL.md").is_file():
+                evidence.add((owner, f"file-type:{suffix}", value))
 
         lowered_parts = {part.casefold() for part in parts}
         lowered_name = path.name.casefold()

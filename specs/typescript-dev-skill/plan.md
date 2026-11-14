@@ -62,8 +62,8 @@
 | `miniapp-product-dev` | update | `qa-release.md` 加指针（入口在字数上限） |
 | `terminal-cli-dev` | unchanged | 见上表 |
 | `go-microservice-dev`、`python-service-dev` | unchanged | 见上表 |
-| `software-architecture` | unchanged | 架构不变式已一致；新技能不做架构决定 |
-| `testing-strategy` | update | `test-topology-and-commands.md` 加一条：类型检查与类型测试是独立命令层，运行时测试通过不等于类型通过；是否阻断合并归本技能，命令和断言机制归新技能。入口在字数与字节上限，不改 |
+| `software-architecture` | update | 架构不变式已一致，新技能不做架构决定；Node.js/TypeScript 部分在实现负责技能旁加一条：边界类型与运行时 schema 的落地加载新技能 |
+| `testing-strategy` | update | `test-topology-and-commands.md` 加一条：类型检查与类型测试是独立命令层，运行时测试通过不等于类型通过；是否阻断合并归本技能，命令和断言机制归新技能。入口在字节与正文词数上限，上限只拦净增长：在栈指针段收紧措辞后加一行指向新技能 |
 | `test-artifact-management` | update | 仓里随技能分发的 `tc.ts` 在 `noUncheckedIndexedAccess` 下编译失败，复制到开了该开关的项目会打断对方的类型检查闸。修复并在 `tc_helpers/AGENTS.md` 写明严格配置下的验证命令；`tc-marker-conventions.md` 写明复制后属于项目源码、要进类型检查 |
 | `defect-diagnosis` | update | Prevention Routing 加一行 |
 | `product-rd-workflow` | update | 开发路由加语言层负责技能 |
@@ -98,6 +98,6 @@
 ## 8. 与原定方案的偏差
 
 - 入口路由表（原定在常驻路由块登记）：新技能是 `leaf`，不进 `agent-context/session-start.md` 的常驻路由块（校验器禁止 leaf 进入，进常驻层要先测出收益），登记在 `docs/SKILLS.md`。
-- 兄弟技能入口：三个入口在历史字数上限，指针改放在各自的 reference，见第 4、5 节。
+- 兄弟技能入口：三个入口在历史字数上限。`check-size-budget.sh` 对这类入口只拦净增长（字节和正文词数都不能涨），不拦编辑：app、miniapp 的指针放在各自的 reference，testing-strategy 在入口栈指针段收紧措辞后加了一行，见第 4、5 节。
 - `skill-extraction-workflow`：成因 C4 是提炼流程没发现的问题，按「路由缺口必须在提炼流程里落一个防复发点」，在 `extraction-quickstart.md` 的兄弟技能 mini-map 一步加一条：先看兄弟技能按什么维度切分，跨运行时的语言没有语言层负责技能时记为覆盖缺口，不能记 `unchanged`。
 - 改了路由 bank，旧的全量路由基线从此不可比；本轮只对新增的十条跑了 RED/GREEN，全量基线留到下一轮补测。
