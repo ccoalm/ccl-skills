@@ -9,7 +9,7 @@ Several test suites check text by piping it into `grep -q` while `pipefail` is s
 | Purpose | Remove the remaining sites where this race can flip an assertion, so suites in the required local lanes and CI do not fail on a real match, and negated checks do not pass on a real defect. |
 | Scope | In: pipe-into-`grep -q` sites in test suites and gate scripts under `skills/`, starting from the 13 suites named in the follow-up and extended to the other suites a wider scan turned up. Out: gate semantics; `packages/ccl-skills-npm/scripts/host-smoke.sh` (see Residual risk); frozen evidence scripts under `specs/` and `eval/evidence/`; other early-exit readers such as `head`; a static check for the class (see Root cause). No watermark applies; this is not an iterative-program source. |
 | Depth | Targeted check. Each site is classified, the changed ones are one-line edits, and a paired probe is run against the old and new trees. No skill text changes. |
-| Result classification | Failure. The class has failed in practice (the Go checker suite in the required lane; earlier rounds `specs/regression-suite-flakes/`, `specs/obligation-ledger-pipe-race/` and `specs/liveness-gate-pipe-race/`). The sites changed here were not seen failing; the probe shows each one giving the wrong verdict on input it can receive. |
+| Result classification | Failure. The class has failed in practice in other suites and gates (`specs/regression-suite-flakes/`, `specs/obligation-ledger-pipe-race/`, `specs/liveness-gate-pipe-race/`). The sites changed here were not seen failing; the probe shows each one giving the wrong verdict on input it can receive. |
 | Matching analysis | Per site: is `pipefail` in effect, does the input have lines after the matching one, and can the writer emit more than one write? Measured how many writes bash's `printf` makes (below). Paired probe on the old and new trees, with inverse cases that must keep their opposite verdict. |
 | Failure mode | A weak sweep would change every hit from a text search, including sites that cannot race, or would rerun suites until green. The first adds churn and review cost without removing a failure. The second hides the class. |
 | Lifecycle impact | Testing and CI only. No assertion's accept or reject set changes; only the false outcomes go away. Product intent, design, implementation, release and onboarding are unaffected. |
@@ -38,7 +38,7 @@ Changed:
 | `testing-strategy/scripts/client-terminal-ansi-check.test.sh` | `assert_hit` | checker output, 163 to 266 bytes over up to 3 lines, also path-bearing | false red |
 | `tighten-doc/scripts/mutation_probe.sh` | `probe()` | the whole lint suite's output under a mutant, multi-line, size not fixed | a red mutant reported as uncovered |
 | `code-review/scripts/test_opencode_review_retry.sh` | credential-binding check, `! find … -type l -print \| grep -q .` | `find` listing of the wrapper's diagnostic copy | false green: copied links read as absent |
-| `code-review/scripts/test_review_gate.sh` | `prune_dead_pgid_records` | `ps -eo pgid= \| tr -d ' '` of the whole host (1917 bytes, 482 processes here) | a live group's record dropped as dead, which can hide a leak |
+| `code-review/scripts/test_review_gate.sh` | `prune_dead_pgid_records` | `ps -eo pgid= \| tr -d ' '` of the whole host (1917 bytes, 482 processes on the measuring host) | a live group's record dropped as dead, which can hide a leak |
 | `skill-extraction-workflow/scripts/test_uiux_delivery_contract.sh` | `parallel_completion_claims_absent` | `active_text` of design references and handbooks (12 to 18 KB each) | false green: a forbidden completion claim mid-file reads as absent |
 
 The `find` site uses `[ -z "$(find … -type l -print -quit)" ]`, the form the same expression already uses for `auth.json`. The others read from a here-string.
@@ -50,7 +50,7 @@ Not changed:
 | `skill-extraction-workflow/scripts/test_liveness_predicate_gate.sh`, `test_git_identity_predicate_gate.sh` | The suite runs under `set -u` only; `pipefail` appears only in the gate section it generates. |
 | `skill-extraction-workflow/scripts/test_validate_skill_root_depth.sh`, `test_register_firing_path_wiring.sh`, `test_check_ccl_skill_catalog.sh` | Already fixed; the hits are comments explaining why. |
 | `skill-extraction-workflow/scripts/generic-r0-leak-scan.sh` (self-test) | The input is one fixed message from `emit_clean_result`, at most a few hundred bytes. |
-| `skill-extraction-workflow/scripts/check-ccl-skills.sh` contract-anchor grammar check | The input is the anchor gate's stdout, which is the one-line `contract_anchor_gate_ok (N anchors)` token (37 bytes here). |
+| `skill-extraction-workflow/scripts/check-ccl-skills.sh` contract-anchor grammar check | The input is the anchor gate's stdout, which is the one-line `contract_anchor_gate_ok (N anchors)` token (37 bytes on this tree). |
 | `skill-extraction-workflow/scripts/test_locale_independent_gates.sh` | The input is one source line. |
 | `code-review/scripts/test_opencode_review_retry.sh`, other checks | Checks on `$out` read the wrapper's stdout, one compact JSON line (440 to 893 bytes, 0 newlines in every case of a full run). The two checks on `field` values read a value from that JSON, so it is smaller than the whole line (499 and 771 bytes): the excerpt of a one-sentence fixture reply and the first reply the wrapper caps under 400 characters (the same suite asserts that cap). |
 | `code-review/scripts/test_review_gate.sh`, other checks | `$out` is the gate's one-line JSON (275 to 6186 bytes, 0 newlines in every case of a full run); `ps -o stat= -p <pid>` is one line; `contract_packet_check` prints one token. |
@@ -58,7 +58,7 @@ Not changed:
 | `code-review/scripts/test_concern_excerpt.sh`, `test_review_gate_abort_leak.sh` | At most nine lines from `grep -A8`; a handful of this run's own pids. |
 | `skill-extraction-workflow/scripts/test_impact_chain_round_attribution.sh`, `scripts/test_install_opencode_skill_migration.sh`, `skill-extraction-workflow/scripts/check-evidence-card-leak.sh` | Inputs come from small seeded fixtures (a few file names, one ledger row, one field value). |
 
-The follow-up list's 13 suites are all covered above. Three changed sites (`test_review_gate.sh`'s process table, the retry suite's `find`, and the UI/UX scan) are outside that list. Its search did not match `find … | grep -q`, `-Fq`/`-Eiq` spellings, or `ps … | tr … | grep`.
+The follow-up list's 13 suites are all covered above. Three changed sites (`test_review_gate.sh`'s process table, the retry suite's `find`, and the UI/UX scan) are outside that list. The search behind the list did not match `find … | grep -q`, `-Fq`/`-Eiq` spellings, or `ps … | tr … | grep`.
 
 ## Change
 
@@ -72,7 +72,7 @@ The follow-up list's 13 suites are all covered above. Three changed sites (`test
 
 What happens when the writer itself fails stays the same. Before, `pipefail` made the pipeline fail. After, the substitution is empty and `grep` finds nothing. Each assertion reaches the same verdict either way: a positive check fails, the `prune` record is dropped, the negated checks pass. The UI/UX scan treats a failed `active_text` as "no claim" both before and after. That pre-existing fail-open is recorded under Residual risk rather than changed here. A here-string adds one trailing newline. None of the patterns is anchored at the end of the input, so the set of matches is unchanged.
 
-The two `testing-strategy` suites also gain the executable bit their shebang implies, as `lang-basics-go-check.test.sh` did. The impact-chain row's firing path names an executable.
+The two `testing-strategy` suites also gain the executable bit their shebang implies, as `lang-basics-go-check.test.sh` did, because the impact-chain row's firing path must name an executable.
 
 ## Test cases
 
