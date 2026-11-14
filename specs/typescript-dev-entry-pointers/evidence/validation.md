@@ -88,3 +88,13 @@ Reviewer: codex via `extraction_review_gate.sh --mode review --stage build --bas
 | Register rows replace five sweep rows; sweep records deleted | Same cause; after the rebase the five rows are appended after the sweep rows and the sweep directory is untouched |
 | Validation record lacks candidate-bound lane results | Fixed: the Local lanes section above |
 | Reviewer context lacked eight selected skill bodies and `docs/SKILLS.md` | Packet limit, not a candidate defect. The owner-list edits are checked by the base/head probes above and the gate edit by its tests; both are controller-verified, not reviewer-verified |
+
+## Challenge C1
+
+Challenger: codex via `extraction_review_gate.sh --mode challenge --stage build --base origin/main` on candidate `af1d113`, focused on the suffix owner map (the loosened `.ts` class, over- and under-selection, registry absence, case folding, tests that stay green with a defect) and on routing contradictions and dropped obligations in the edited owner lists. Result `challenge-C1.json`, status `findings`, one P2.
+
+| Finding | Disposition |
+| --- | --- |
+| Packet lacked `product-rd-workflow` routing, `docs/SKILLS.md` and eight selected skill bodies, so the Node.js CLI versus terminal split and the tightened obligations could not be verified | Packet limit, not a candidate defect; no finding on the gate itself. Controller-verified: `product-rd-workflow/SKILL.md` development routing sends CLI or tooling without terminal-UI concerns to the language owner (`nodejs-service-dev`) and the terminal UI and command/flag/help contract to `terminal-cli-dev`, which is the split the two empty-repo rows state; the tightened lines are covered by the obligation table and per-line controls above |
+
+No change followed the challenge, so no delta pass is owed.
