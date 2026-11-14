@@ -55,3 +55,17 @@ On `9692c19` (adds the evidence `AGENTS.md` and this file), same environment plu
 - C1-1: `test_concern_excerpt.sh` was excluded by line count ("at most nine lines"), not by size. On this tree the nine lines are 414 bytes, but lines in `claude_review.sh` run to 913 characters, and the input is a checked-in file's contents, which the plan's own rule sends to "changed". Fixed: the wiring check reads the `grep -A8` output from a here-string; probe case and inverse added (above); register row added for `code-review`. `test_review_gate_abort_leak.sh` now has its own row with a size bound.
 - C1-2: final-lane results were not recorded for the submitted candidate. Disposition: recorded under Final local lanes.
 - C1-3: the packet omits the selected skill texts and the commit message. No change: the commit messages are on the branch and listed in the pull request.
+
+## Delta pass D1
+
+- Candidate: `c70e1c9`, base `9072f6c` (the challenge candidate), so the packet holds only the C1 fixes. Reviewer: codex via `extraction_review_gate.sh --mode review --base 9072f6c`. Result `delta-D1.json` (status `findings`, three P2, all on the evidence record, none on code).
+- D1-1: the final-lane results were not yet recorded. Disposition: recorded below.
+- D1-2: the packet omits the selected skill texts and commit messages. No change, as for C1-3.
+- D1-3: the abort-leak exclusion stated a threshold, not a bound. Disposition: the plan row now cites `probe_processes` and states that the bound comes from the code, not a measurement.
+- This is the last external pass. Later commits change only `plan.md` and evidence records in this directory.
+
+## Final local lanes
+
+On `c70e1c9` (last executable change), same environment as above with `CCL_SKILL_BASE_REF=origin/main`: `make test-repo-gates` (`ccl_skill_check_clean_ok`, `shared_git_surface_gate_ok`), `make test-regressions-fast`, `make test-code-review-1`, `make test-code-review-2`, `test_check_public_sanitization.py`, `check-public-sanitization.py`, `check-markdown-links.py`, `check-spec-references.py`, `test_check_skill_count.py` and `check-skill-count.py` all exit 0. `test_concern_excerpt.sh` prints `concern_excerpt_tests_ok`. The probe on `c70e1c9` prints `pipe_probe_ok`.
+
+Not rerun after `4bd8435`: the heavy regression lane and the two abort-leak legs. The commits since then change only `test_concern_excerpt.sh` (run in `test-code-review-2`), the register, and files under `specs/`.
