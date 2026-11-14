@@ -13,9 +13,11 @@ tmp="$(mktemp -d "${base%/}/cbansi.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 pass=0 fail=0
+# Here-string, not a pipe: under pipefail `grep -q` exits on the first match and the
+# writer can take SIGPIPE, turning a real match into a false failure.
 assert_hit() { local desc="$1" want="$2"; shift 2
   set +e; local out rc; out="$(python3 "$script" "$@" 2>/dev/null)"; rc=$?; set -e
-  if [ "$rc" = 1 ] && printf '%s' "$out" | grep -qF "$want"; then pass=$((pass+1)); echo "ok   - $desc"
+  if [ "$rc" = 1 ] && grep -qF "$want" <<<"$out"; then pass=$((pass+1)); echo "ok   - $desc"
   else fail=$((fail+1)); echo "FAIL - $desc (rc=$rc, want '$want', out='$out')"; fi; }
 assert_exit() { local desc="$1" want="$2"; shift 2
   set +e; python3 "$script" "$@" >/dev/null 2>&1; local rc=$?; set -e

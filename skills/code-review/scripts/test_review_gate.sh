@@ -60,7 +60,10 @@ cleanup_escaped_descendant() {
 prune_dead_pgid_records() {
   local pgid
   for pgid in $(review_owned_pgids); do
-    ps -eo pgid= 2>/dev/null | tr -d ' ' | grep -qx "$pgid" && continue
+    # Here-string, not a pipe: under pipefail `grep -q` exits on its match while `tr`
+    # still writes the process table, `tr` takes SIGPIPE, and a live group's record
+    # would be dropped as dead.
+    grep -qx "$pgid" <<<"$(ps -eo pgid= 2>/dev/null | tr -d ' ')" && continue
     rm -f "$WORK/state/pgids/$pgid" 2>/dev/null || true
   done
 }
