@@ -98,3 +98,25 @@ Challenger: codex via `extraction_review_gate.sh --mode challenge --stage build 
 | Packet lacked `product-rd-workflow` routing, `docs/SKILLS.md` and eight selected skill bodies, so the Node.js CLI versus terminal split and the tightened obligations could not be verified | Packet limit, not a candidate defect; no finding on the gate itself. Controller-verified: `product-rd-workflow/SKILL.md` development routing sends CLI or tooling without terminal-UI concerns to the language owner (`nodejs-service-dev`) and the terminal UI and command/flag/help contract to `terminal-cli-dev`, which is the split the two empty-repo rows state; the tightened lines are covered by the obligation table and per-line controls above |
 
 No change followed the challenge, so no delta pass is owed.
+
+The routing sentence relied on above, quoted from `skills/product-rd-workflow/SKILL.md` (Development routing): "`terminal-cli-dev` for terminal/TUI surfaces and the command/subcommand/flag/help contract, which it owns even when nothing is rendered; CLI/tooling without terminal-UI concerns must go to that language's dev skill when one owns it (`go-microservice-dev`, `python-service-dev`, `nodejs-service-dev`) and must not fall back to `terminal-cli-dev` merely because it is a command".
+
+## Release 0.18.18 and delta D1
+
+`f54e8a1` sets the npm package to 0.18.18 at its three version sites (`package.json` and two in `package-lock.json`).
+
+| Command | Result |
+| --- | --- |
+| `scripts/check-release-version.py .` | `release_version_ok: 0.18.18 at or above released 0.18.17` |
+| `make npm-test` | exit 0 |
+| `make npm-pack-verify` | exit 0 |
+| `make npm-publish-dry` | exit 0, `ccoalm-ccl-skills-0.18.18.tgz` |
+
+The three npm targets need `umask 022`: under a 077 umask the build writes 600-mode files and the runtime check rejects them (`unsafe package runtime`).
+
+Delta D1: codex via the generic `review_gate.sh --mode review --base af1d113` (the challenge candidate) on `f54e8a1`. Result `delta-D1.json`, status `findings`, two P2.
+
+| Finding | Disposition |
+| --- | --- |
+| C1 disposition rests on routing text the packet did not carry | Quoted above, so the record carries the sentence it relies on |
+| No candidate-bound results for the package checks `packages/AGENTS.md` requires | Fixed: the table above |
