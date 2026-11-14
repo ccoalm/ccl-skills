@@ -68,4 +68,8 @@ On `9692c19` (adds the evidence `AGENTS.md` and this file), same environment plu
 
 On `c70e1c9` (last executable change), same environment as above with `CCL_SKILL_BASE_REF=origin/main`: `make test-repo-gates` (`ccl_skill_check_clean_ok`, `shared_git_surface_gate_ok`), `make test-regressions-fast`, `make test-code-review-1`, `make test-code-review-2`, `test_check_public_sanitization.py`, `check-public-sanitization.py`, `check-markdown-links.py`, `check-spec-references.py`, `test_check_skill_count.py` and `check-skill-count.py` all exit 0. `test_concern_excerpt.sh` prints `concern_excerpt_tests_ok`. The probe on `c70e1c9` prints `pipe_probe_ok`.
 
-Not rerun after `4bd8435`: the heavy regression lane and the two abort-leak legs. The commits since then change only `test_concern_excerpt.sh` (run in `test-code-review-1`), the register, and files under `specs/`.
+On `6471d40` (adds the D1 record and the plan's abort-leak row): `check-ccl-skills.sh` with the private alias audit (`r0_status=private-ok`, `eval_routing_ok`, `ccl_skill_check_clean_ok`), `check-public-sanitization.py`, `check-markdown-links.py`, `check-spec-references.py` and `check_review_evidence_present.py --base origin/main` (`2 review, 1 challenge`) exit 0.
+
+On `bba2c4b` (one word in this file): `test_check_ccl_regressions.sh --heavy-only` exits 0. It reads the register, which `c70e1c9` changed, so it was rerun.
+
+Not rerun after `4bd8435`: the two abort-leak legs. The commits since then change only `test_concern_excerpt.sh` (run in `test-code-review-1`), the register, and files under `specs/`; none of these is read by the abort-leak suite.
