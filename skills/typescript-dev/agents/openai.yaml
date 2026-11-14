@@ -1,0 +1,4 @@
+interface:
+  display_name: "TypeScript Dev"
+  short_description: "Type design, tsconfig, modules, declarations and type-check gates for any TypeScript project"
+  default_prompt: "Use $typescript-dev to change TypeScript types, compiler configuration, module resolution, declaration output, or type-check gates from the repository's compiler contract."

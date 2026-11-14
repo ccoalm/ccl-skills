@@ -103,8 +103,8 @@ function callerTestFile(): string {
     if (line.includes('node:internal') || line.includes('(node:')) continue
     // Match "at fn (FILE:line:col)" or "at FILE:line:col"
     const m = line.match(/[(\s](?:file:\/\/)?([^():\s]+\.(?:test|spec)\.[a-z]+):\d+:\d+\)?$/)
-    if (m) {
-      const f = m[1]
+    const f = m?.[1]
+    if (f) {
       return f.startsWith(cwd) ? f.slice(cwd.length) : f
     }
   }

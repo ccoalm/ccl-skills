@@ -80,6 +80,7 @@ For maintainers running a fresh codebase / Figma / doc extraction. Read this fir
 - Map: source stack → sibling stacks → shared workflow owner → per-sibling decision.
 - For each sibling skill: `update / unchanged / route-to-shared` with reason.
 - Don't skip even when "obvious"; documenting `unchanged` is part of the gate.
+- Check the axis the siblings are cut along. Stack skills cut by runtime or framework leave a language that spans several runtimes (TypeScript across browser, Node.js, Bun/Deno, mobile) without a language-layer owner, and its rules end up copied into each runtime skill. Record the language-layer owner as a mini-map row; when none exists, the row is a coverage gap routed to an owner or a new skill, never `unchanged`.
 
 #### 3d. Sanitization (cheap)
 

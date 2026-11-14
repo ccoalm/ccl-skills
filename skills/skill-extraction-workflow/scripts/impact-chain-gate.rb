@@ -246,6 +246,7 @@ upstream_owner_skills = %w[
   test-artifact-management
   testing-strategy
   tighten-doc
+  typescript-dev
 ]
 # Name-level selection predicate, shared by the cumulative subject filter and
 # the per-round rename-away suppression below: whether a NAME is a decision
