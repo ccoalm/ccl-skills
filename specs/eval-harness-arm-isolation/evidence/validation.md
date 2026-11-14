@@ -57,3 +57,11 @@ Judge argv with `--tools ""` + `--strict-mcp-config`: init `tools: []`; an attem
 `make test-repo-gates` on the first candidate failed in `skills/testing-strategy/scripts/lang-basics-go-check.test.sh`, a suite this change does not touch: the case's output contained the expected text, yet it was marked FAIL. Cause: its assertion piped `printf` into `grep -qF` under `pipefail`; `grep -q` exits on the first match and the writer can take SIGPIPE, so the pipeline reports 141. Measured: 1 failure in 10 suite runs on this host under load; with a 20,000-line output after the match, the pipe form failed 199/200 and a here-string 0/200 on the same input. The assertion now reads from a here-string; 15/15 suite runs pass. Thirteen other suites contain similar pipe-into-`grep -q` checks; they did not fail here and are left as a follow-up.
 
 `check-ccl-skills.sh` with the private alias audit: `r0_status=private-ok`, `eval_routing_ok`, `ccl_skill_check_clean_ok`.
+
+## Review pass R1
+
+- Candidate: `3f33fce` (rebased onto `b1b8509`). Reviewer: codex via `extraction_review_gate.sh --mode review --stage build`, result `review-R1.json` (status `findings`, three P2).
+- F1 (`skill-behavior-eval.py`): the boundary check ran before terminal-result validation, so a failed run with a missing or widened init reported a boundary error instead of its own. Fixed: the check now runs last, only on an otherwise valid answer (the Ruby replay already did this). Test `test_failed_run_keeps_its_own_error_whatever_its_boundary` (four failure kinds × three init shapes). Applied mutation moving the check back before validation: 6 subtests fail.
+- F2 (`test_eval_runtime.py`): the fresh-directory test mocked the launcher, so dropping `cwd=cwd` from `Popen` would stay green. Fixed: `test_launched_agent_process_runs_in_the_fresh_directory` runs both arms through `run_agent` with a stub `claude` that reports its own `os.getcwd()` and directory listing. Applied mutation removing `cwd=cwd` from `Popen`: that test fails, nothing else.
+- F3 (this file): lanes beyond `test-repo-gates` were not recorded. Disposition: run `make test`'s other lanes, `regression-heavy` and the public-sanitization check on the final candidate; results below.
+- After the fixes: 26 passed, 80 subtests; unmutated control green.

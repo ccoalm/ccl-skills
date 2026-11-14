@@ -220,11 +220,6 @@ def _headless_claude(cmd, prompt, timeout_s, expected_tools=None, cwd=None):
     if len(terminal_results) > 1:
         return None, "invalid_terminal_result", util, invoked
     if result_subtype == "success" and terminal_results:
-        if expected_tools is not None:
-            if not offered or not all(isinstance(t, list) for t in offered):
-                return None, "missing_tool_boundary", util, invoked
-            if any(set(map(str, t)) - set(expected_tools) for t in offered):
-                return None, "tool_boundary_violated", util, invoked
         terminal = terminal_results[0]
         if (terminal.get("is_error") not in (None, False)
                 or terminal.get("permission_denials")
@@ -234,6 +229,13 @@ def _headless_claude(cmd, prompt, timeout_s, expected_tools=None, cwd=None):
         text = "\n\n".join(parts) if parts else result_text
         if not isinstance(text, str) or not text.strip():
             return None, "invalid_terminal_result", util, invoked
+        # Last, so a failed run keeps its own error and only an otherwise valid answer is
+        # rejected for its tool boundary.
+        if expected_tools is not None:
+            if not offered or not all(isinstance(t, list) for t in offered):
+                return None, "missing_tool_boundary", util, invoked
+            if any(set(map(str, t)) - set(expected_tools) for t in offered):
+                return None, "tool_boundary_violated", util, invoked
         return text, None, util, invoked
     if rc != 0:
         return None, f"claude_exit_{rc}", util, invoked

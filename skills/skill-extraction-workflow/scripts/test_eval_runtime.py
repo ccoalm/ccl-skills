@@ -583,6 +583,47 @@ class ToolBoundaryTests(unittest.TestCase):
             self.assertFalse(os.path.exists(run["cwd"]), "the run directory outlived the run")
         self.assertEqual(len({run["cwd"] for run in runs}), len(runs))
 
+    @unittest.skipUnless(os.name == "posix", "the stub claude is a shebang script")
+    def test_launched_agent_process_runs_in_the_fresh_directory(self):
+        # Through the real launch path: a stub `claude` reports the directory it actually ran in.
+        report = ("import json, os, sys; sys.stdin.read(); "
+                  f"print(json.dumps({{'type': 'system', 'subtype': 'init', 'tools': {AGENT_TOOLS!r}}})); "
+                  "print(json.dumps({'type': 'result', 'subtype': 'success', 'is_error': False, "
+                  "'result': json.dumps({'cwd': os.getcwd(), 'entries': os.listdir('.')})}))")
+        with tempfile.TemporaryDirectory() as temp:
+            stub = Path(temp) / "claude"
+            stub.write_text(f"#!{sys.executable}\n{report}\n")
+            stub.chmod(0o700)
+            contract = Path(temp) / "contract.md"
+            contract.write_text("synthetic contract")
+            seen = []
+            with mock.patch.dict(os.environ, {"PATH": temp + os.pathsep + os.environ["PATH"]}):
+                for arm in ("current", "candidate"):
+                    text, err, _, _ = behavior.run_agent("x", 5, arm, str(contract))
+                    self.assertIsNone(err)
+                    seen.append(json.loads(text))
+        for ran in seen:
+            self.assertNotEqual(os.path.realpath(ran["cwd"]), os.path.realpath(os.getcwd()))
+            self.assertEqual(ran["entries"], [])
+            self.assertFalse(os.path.exists(ran["cwd"]), "the run directory outlived the run")
+        self.assertNotEqual(seen[0]["cwd"], seen[1]["cwd"])
+
+    def test_failed_run_keeps_its_own_error_whatever_its_boundary(self):
+        failures = {
+            "error_flag": (success(is_error=True), "invalid_terminal_result"),
+            "permission_denial": (success(permission_denials=[{"tool": "Read"}]), "invalid_terminal_result"),
+            "empty_result": (success(result=""), "invalid_terminal_result"),
+            "max_turns": (success(subtype="error_max_turns"), "result_error_max_turns"),
+        }
+        boundaries = {"no_init": "", "widened": init(AGENT_TOOLS + ["Bash"]), "held": init(AGENT_TOOLS)}
+        for label, (terminal, expected) in failures.items():
+            for shape, prefix in boundaries.items():
+                with self.subTest(failure=label, boundary=shape):
+                    stream = prefix + json.dumps(terminal)
+                    result = behavior._headless_claude([sys.executable, "-c", f"print({stream!r})"], "x", 5,
+                                                       expected_tools=AGENT_TOOLS)
+                    self.assertEqual(result[:2], (None, expected))
+
     def test_samples_saved_under_the_old_launch_boundary_are_not_reused(self):
         # Resume skips a saved sample whose `# sig:` matches; the old signature covered only the
         # inputs, so a sample run with the leaky argv would have been banked as current.
