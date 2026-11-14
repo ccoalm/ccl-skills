@@ -32,14 +32,16 @@ This measurement does not support the earlier record's "1 failure in 10 suite ru
 
 Changed:
 
-| File | Site | Writer and input | Wrong verdict with the pipe |
-| --- | --- | --- | --- |
-| `testing-strategy/scripts/lang-basics-ast-check.test.sh` | `assert_hit` | checker output, 110 to 1177 bytes over up to 11 lines; each line carries a `$TMPDIR` path | false red |
-| `testing-strategy/scripts/client-terminal-ansi-check.test.sh` | `assert_hit` | checker output, 163 to 266 bytes over up to 3 lines, also path-bearing | false red |
-| `tighten-doc/scripts/mutation_probe.sh` | `probe()` | the whole lint suite's output under a mutant, multi-line, size not fixed | a red mutant reported as uncovered |
-| `code-review/scripts/test_opencode_review_retry.sh` | credential-binding check, `! find … -type l -print \| grep -q .` | `find` listing of the wrapper's diagnostic copy | false green: copied links read as absent |
-| `code-review/scripts/test_review_gate.sh` | `prune_dead_pgid_records` | `ps -eo pgid= \| tr -d ' '` of the whole host (1917 bytes, 482 processes on the measuring host) | a live group's record dropped as dead, which can hide a leak |
-| `skill-extraction-workflow/scripts/test_uiux_delivery_contract.sh` | `parallel_completion_claims_absent` | `active_text` of design references and handbooks (12 to 18 KB each) | false green: a forbidden completion claim mid-file reads as absent |
+| File | Site | `pipefail` source | Writer and input | Wrong verdict with the pipe |
+| --- | --- | --- | --- | --- |
+| `testing-strategy/scripts/lang-basics-ast-check.test.sh` | `assert_hit` | line 5 `set -euo pipefail` | checker output, 110 to 1177 bytes over up to 11 lines; each line carries a `$TMPDIR` path | false red |
+| `testing-strategy/scripts/client-terminal-ansi-check.test.sh` | `assert_hit` | line 6 `set -euo pipefail` | checker output, 163 to 266 bytes over up to 3 lines, also path-bearing | false red |
+| `tighten-doc/scripts/mutation_probe.sh` | `probe()` | line 10 `set -uo pipefail` | the whole lint suite's output under a mutant, multi-line, size not fixed | a red mutant reported as uncovered |
+| `code-review/scripts/test_opencode_review_retry.sh` | credential-binding check, `! find … -type l -print \| grep -q .` | line 19 `set -uo pipefail`; `check` runs the expression with `eval` in the suite's shell | `find` listing of the wrapper's diagnostic copy | false green: copied links read as absent |
+| `code-review/scripts/test_review_gate.sh` | `prune_dead_pgid_records` | line 4 `set -uo pipefail`; the function runs in the suite's shell | `ps -eo pgid= \| tr -d ' '` of the whole host (1917 bytes, 482 processes on the measuring host) | a live group's record dropped as dead, which can hide a leak |
+| `skill-extraction-workflow/scripts/test_uiux_delivery_contract.sh` | `parallel_completion_claims_absent` | line 5 `set -euo pipefail` | `active_text` of design references and handbooks (12 to 18 KB each) | false green: a forbidden completion claim mid-file reads as absent |
+
+None of these files turns `pipefail` off again; the later `set -u`, `set +e`/`set -e` and `set -T` lines in them leave it on. Candidates came from `git ls-files '*.sh' \| xargs grep -lE pipefail`, then every non-comment line matching `\|[[:space:]]*grep[[:space:]]+-[a-zA-Z]*q` in those files, plus a second pass for `-E -q`, `--quiet` and `--silent` spellings (no extra hits).
 
 The `find` site uses `[ -z "$(find … -type l -print -quit)" ]`, the form the same expression already uses for `auth.json`. The others read from a here-string.
 
@@ -70,7 +72,14 @@ The follow-up list's 13 suites are all covered above. Three changed sites (`test
 | `prune_dead_pgid_records` | `ps -eo pgid= 2>/dev/null \| tr -d ' ' \| grep -qx "$pgid"` | `grep -qx "$pgid" <<<"$(ps -eo pgid= 2>/dev/null \| tr -d ' ')"` |
 | `parallel_completion_claims_absent` | `active_text "$file" \| grep -Eiq '…'` | `grep -Eiq '…' <<<"$(active_text "$file")"` |
 
-What happens when the writer itself fails stays the same. Before, `pipefail` made the pipeline fail. After, the substitution is empty and `grep` finds nothing. Each assertion reaches the same verdict either way: a positive check fails, the `prune` record is dropped, the negated checks pass. The UI/UX scan treats a failed `active_text` as "no claim" both before and after. That pre-existing fail-open is recorded under Residual risk rather than changed here. A here-string adds one trailing newline. None of the patterns is anchored at the end of the input, so the set of matches is unchanged.
+A writer that fails can change a verdict in one way. The new forms decide from what the writer printed; the old pipes also failed on the writer's exit status.
+
+| Writer behaviour | `prune` (ps, tr) | symlink check (find) | UI/UX scan (active_text) |
+| --- | --- | --- | --- |
+| fails, prints nothing | record dropped, before and after | passes, before and after | no claim, before and after |
+| prints the match, then fails | before: record dropped; after: kept | before: passes (links missed); after: fails | before: no claim; after: claim found |
+
+The second row moves the symlink check and the UI/UX scan from a false green to the right verdict. `prune` keeps the record of a group that `ps` did list. The `assert_hit` and `mutation_probe.sh` sites read output already captured in a variable, so the checker's exit status is tested separately there, as before. The UI/UX scan still treats an `active_text` that prints nothing (for example, `ruby` missing) as "no claim", as before; that fail-open is recorded under Residual risk. A here-string adds one trailing newline. None of the patterns is anchored at the end of the input, so the set of matches is unchanged.
 
 The two `testing-strategy` suites also gain the executable bit their shebang implies, as `lang-basics-go-check.test.sh` did, because the impact-chain row's firing path must name an executable.
 
@@ -82,6 +91,7 @@ The two `testing-strategy` suites also gain the executable bit their shebang imp
 | --- | --- | --- | --- |
 | changed | each of the six sites above, on input it must accept (or, for the negated sites, reject) | wrong in every run | never wrong |
 | inverse | the same six sites on the same input shape without the needle | never wrong | never wrong |
+| writer-fails | `prune`, the symlink check and the UI/UX scan when the writer prints the match and then exits non-zero (the second row of the table under Change) | wrong in every run | never wrong |
 | control | four retry checks on one-line JSON, three identity checks on a `tr`-joined reference | never wrong | never wrong |
 
 The inverse group shows the new forms still reach the opposite verdict. The control group backs the "one line, no race" reason for the sites left alone. Results: `evidence/validation.md`.

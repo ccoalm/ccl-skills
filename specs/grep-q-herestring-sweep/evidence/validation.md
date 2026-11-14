@@ -22,10 +22,13 @@ Host: Linux 6.1, bash 5.2.15, GNU grep 3.8 (`/usr/bin/grep`, which the suites ru
 | changed | `test_review_gate.sh`: a live group keeps its record | 100/100 wrong | 0/100 |
 | changed | `test_uiux_delivery_contract.sh`: a claim on line 1 is found | 100/100 wrong | 0/100 |
 | inverse | the same six sites without the needle | 0/100 each | 0/100 each |
+| writer-fails | `test_review_gate.sh`: a group `ps` listed before failing keeps its record | 100/100 wrong | 0/100 |
+| writer-fails | `test_opencode_review_retry.sh`: a link `find` printed before failing is caught | 100/100 wrong | 0/100 |
+| writer-fails | `test_uiux_delivery_contract.sh`: a claim `active_text` printed before failing is found | 100/100 wrong | 0/100 |
 | control | four retry checks on one-line JSON | 0/100 each | 0/100 each |
 | control | three identity checks on a `tr`-joined reference | 0/100 each | 0/100 each |
 
-The old and new trees differ at these functions and checks only in the changed lines, so the wrong runs come from the pipe form. A first draft of the probe left `$script` unset in the `assert_hit` cases, which made them wrong on both trees for that reason alone. The cases now require the stub output to reach the assertion, and the table above is from the corrected probe.
+The old and new trees differ at these functions and checks only in the changed lines, so the wrong runs come from the pipe form. The writer-fails rows were added after review R1 (below); on the old tree they are wrong because the old pipe also failed on the writer's status. A first draft of the probe left `$script` unset in the `assert_hit` cases, which made them wrong on both trees for that reason alone. The cases now require the stub output to reach the assertion, and the table above is from the corrected probe.
 
 ## Suites and local lanes
 
@@ -34,4 +37,13 @@ On `4bd8435`, environment: test venv with `requirements-test.txt`, `umask 022` a
 - Run directly: `lang-basics-ast-check.test.sh` and `client-terminal-ansi-check.test.sh` passed=12 failed=0 each; `mutation_probe.sh` `mutation_probe_ok`; `test_uiux_delivery_contract.sh` `uiux_delivery_contract_ok`.
 - `make test-regressions-fast`, `make test-code-review-1`, `make test-code-review-2`, `test_check_ccl_regressions.sh --heavy-only`: exit 0.
 - `make test-code-review-abort-leak-1` and `-2` under `unshare --user --map-current-user --pid --fork --mount-proc` (this host's session ancestry includes a child subreaper): exit 0.
-- `make test-repo-gates`: `ccl_skill_check_clean_ok` and `shared_git_surface_gate_ok`, then failed `check-agent-contract-coverage.sh` because this evidence directory holds a script and had no `AGENTS.md`. Fixed by adding one; results on the next commit are below.
+- `make test-repo-gates`: `ccl_skill_check_clean_ok` and `shared_git_surface_gate_ok`, then failed `check-agent-contract-coverage.sh` because this evidence directory holds a script and had no `AGENTS.md`. Fixed by adding one.
+
+On `9692c19` (adds the evidence `AGENTS.md` and this file), same environment plus `CCL_SKILL_BASE_REF=origin/main`: `make test-repo-gates` passes (`ccl_skill_check_clean_ok`, `shared_git_surface_gate_ok`); `test_check_public_sanitization.py`, `check-public-sanitization.py`, `check-markdown-links.py`, `check-spec-references.py`, `test_check_skill_count.py` and `check-skill-count.py` exit 0.
+
+## Review pass R1
+
+- Candidate: `9692c19`, base `origin/main` (`ffd974b`). Reviewer: codex via `extraction_review_gate.sh --mode review --stage build`. Result `review-R1.json` (status `findings`, three P2).
+- R1-1: when a writer prints the match and then exits non-zero, the new forms decide from the printed text, while the old pipes failed on the writer's status. The plan had said writer failures keep their verdict. Disposition: the plan now tabulates both cases under Change. For the symlink check and the UI/UX scan the new verdict is the right one (the old one was a false green); `prune` keeps the record of a group `ps` listed. The code is kept; three writer-fails probe cases are added (above).
+- R1-2: this record ended on the failed repository-gate run. Disposition: the rerun on `9692c19` is recorded above; the final lanes are recorded below.
+- R1-3: the packet did not show that the real sites run under `pipefail`, nor how candidates were found. Disposition: the plan's changed-site table now names each file's `pipefail` line and how the check runs in the suite shell, and states the search used. The selected skill texts and the commit message were not added to the packet.

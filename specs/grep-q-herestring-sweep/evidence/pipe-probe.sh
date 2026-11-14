@@ -191,6 +191,32 @@ sed -e "s|$work/claim.md|$work/no-claim.md|" \
   "$work/uiux.sh" >"$work/inv-uiux.sh"
 run_case inverse "test_uiux_delivery_contract.sh: no claim reads as absent" "$work/inv-uiux.sh"
 
+# --- writer-fails: the writer prints the match, then exits non-zero --------------------
+# The new forms decide from what the writer printed. Expected verdicts below are the
+# new tree's; the old pipe forms also failed on the writer's status, so the old tree
+# differs here by design (see plan.md, Change).
+sed -e "s|ps() { echo ' 4242'; cat \"$filler\"; }|ps() { echo ' 4242'; return 1; }|" \
+  "$work/prune.sh" >"$work/wf-prune.sh"
+grep -qF "return 1; }" "$work/wf-prune.sh" || { echo "probe_setup_failed: wf-prune rewrite" >&2; exit 2; }
+run_case writer-fails "test_review_gate.sh: a group ps listed keeps its record" "$work/wf-prune.sh"
+mkdir -p "$work/diag-fail/locked"
+ln -s /nonexistent/target "$work/diag-fail/link"
+chmod 000 "$work/diag-fail/locked"
+sed -e "s|$work/diag\"|$work/diag-fail\"|" "$work/retry-links.sh" >"$work/wf-links.sh"
+if find "$work/diag-fail" -type l >/dev/null 2>&1; then
+  chmod 700 "$work/diag-fail/locked"
+  echo "probe_setup_failed: find did not fail on the locked directory (running as root?)" >&2; exit 2
+fi
+run_case writer-fails "test_opencode_review_retry.sh: a link find printed is caught" "$work/wf-links.sh"
+chmod 700 "$work/diag-fail/locked"
+{
+  echo 'set -euo pipefail'
+  printf '%s\n' "$fns"
+  echo "active_text() { echo 'Implementation is considered ready: now.'; return 1; }"
+  echo "if parallel_completion_claims_absent \"$work/claim.md\"; then echo WRONG; else echo RIGHT; fi"
+} >"$work/wf-uiux.sh"
+run_case writer-fails "test_uiux_delivery_contract.sh: a printed claim is found" "$work/wf-uiux.sh"
+
 # --- control: retry suite checks over the wrapper's one-line JSON ---------------------
 # opencode_review.sh prints one compact JSON line on stdout; the suite captures stdout only.
 # retry_control <case> <label> <expected ok|FAIL> <python printing the JSON>
