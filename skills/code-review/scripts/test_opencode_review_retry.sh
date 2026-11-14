@@ -820,8 +820,11 @@ check "result and manifest agree that complete timeout artifacts were not trunca
     .artifacts_truncated == false
     and .logs_truncated == false
   '\'' "$diagnostic_path/manifest.json" >/dev/null'
+# `-print -quit`, not `find | grep -q .`: under pipefail, `grep -q` exits on the first
+# link while `find` is still writing, `find` takes SIGPIPE, and the negated pipeline
+# reads the links as absent.
 check "timeout diagnostics never copy the credential binding" \
-  '[ -n "$diagnostic_name" ] && [ -z "$(find "$diagnostic_path" -name auth.json -print -quit)" ] && ! grep -rqa "test-only" "$diagnostic_path" && ! find "$diagnostic_path" -type l -print | grep -q .'
+  '[ -n "$diagnostic_name" ] && [ -z "$(find "$diagnostic_path" -name auth.json -print -quit)" ] && ! grep -rqa "test-only" "$diagnostic_path" && [ -z "$(find "$diagnostic_path" -type l -print -quit)" ]'
 
 mkdir -p "$WORK/revalidated-diagnostics"
 export INVALIDATE_DIAGNOSTIC_ON_RECHECK=1

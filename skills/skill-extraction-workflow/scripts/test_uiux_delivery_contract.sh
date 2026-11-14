@@ -559,8 +559,12 @@ reachable_finish_paths_valid() {
 parallel_completion_claims_absent() {
   local file
   for file in "$@"; do
-    if active_text "$file" | grep -Eiq \
-      'Passing .*(marks|makes|finishes|completes).*(ready|complete)|marks? (the )?(runtime )?slice complete without|Launch readiness:[[:space:]]*(pass|conditional pass|block)|(^|[.;] )(may|can|does) issue (its own|an independent|a second) .*verdict|(may|can) override the canonical design verdict|implementation is considered ready:|this checklist (is|becomes) sufficient'; then
+    # Here-string, not a pipe: under pipefail `grep -q` exits on a claim while the
+    # writer still has the rest of the file, the writer takes SIGPIPE, and the claim
+    # would read as absent.
+    if grep -Eiq \
+      'Passing .*(marks|makes|finishes|completes).*(ready|complete)|marks? (the )?(runtime )?slice complete without|Launch readiness:[[:space:]]*(pass|conditional pass|block)|(^|[.;] )(may|can|does) issue (its own|an independent|a second) .*verdict|(may|can) override the canonical design verdict|implementation is considered ready:|this checklist (is|becomes) sufficient' \
+      <<<"$(active_text "$file")"; then
       return 1
     fi
   done

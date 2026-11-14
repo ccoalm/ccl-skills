@@ -60,7 +60,9 @@ open(p, "w").write(s.replace("'"'"'" + os.environ["MUT_CODE"] + "'"'"'", "'"'"'M
   local out rc
   out="$(bash test_figure_and_doc_lint.sh 2>&1)"; rc=$?
   mv "${file}.bak" "${file}"
-  if [ "${rc}" -ne 0 ] && printf '%s' "${out}" | grep -q FAIL; then
+  # 用 here-string 而不是管道：pipefail 下 grep -q 命中即退出，写端可能吃 SIGPIPE，
+  # 管道状态变成非 0，转红的突变会被误记成"无覆盖"。
+  if [ "${rc}" -ne 0 ] && grep -q FAIL <<<"${out}"; then
     pass=$((pass + 1)); printf '  %-28s RED  ok\n' "${code}"
   else
     missed="${missed} ${code}"; printf '  %-28s GREEN  NO-COVERAGE\n' "${code}"

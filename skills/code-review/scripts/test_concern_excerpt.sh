@@ -169,8 +169,10 @@ pcheck "parser flags a truncated excerpt" \
 # --- wrapper wiring -------------------------------------------------------
 check "claude wrapper feeds its concern stop through the shared helper" \
   'grep -q "concern_excerpt.py" "$DIR/claude_review.sh"'
+# Here-string, not a pipe: under pipefail the second `grep -q` exits on its match
+# while the first may still be writing, and SIGPIPE would turn the match into a FAIL.
 check "claude wrapper no longer stops without an excerpt" \
-  'grep -A8 "Claude returned concern evidence" "$DIR/claude_review.sh" | grep -q "concern_excerpt"'
+  'grep -q "concern_excerpt" <<<"$(grep -A8 "Claude returned concern evidence" "$DIR/claude_review.sh")"'
 # Either branch of the Claude stop must be scanned: the reply text (concern regex)
 # or the raw output ("concern_results"). Scanning one leaves the other empty.
 check "claude wrapper scans both files that can trip its stop" \
