@@ -77,15 +77,19 @@ def ancestor?(root, sha)
   system("git", "-C", root, "merge-base", "--is-ancestor", sha, "HEAD", out: File::NULL, err: File::NULL)
 end
 
+AGENT_TOOLS = %w[Skill Read Grep Glob].freeze
+
 # Robust subprocess run: readers start before write; write + wait + read collection
 # all under ONE hard timeout; on timeout kill the pid and close pipes to unblock
 # readers. (Same vetted pattern as eval-routing-bank.rb.)
 def run_agent(root, max_turns, timeout_s, prompt)
-  # Allowlist (not denylist): only read-only + Skill tools, so the replay can route
-  # and inspect but cannot mutate anything (Bash/Edit/Write/NotebookEdit/cron/task
-  # are all excluded by omission) — truly side-effect-free.
+  # Availability, not permission: `--tools` offers only these built-in tools and
+  # `--strict-mcp-config` drops plugin MCP servers (whose tools can run shell
+  # commands). `--allowedTools` would only pre-approve, so whatever the host's rules
+  # or mode allow (Bash, Write) would still run. parse_transcript checks the init
+  # event's tool list. Installed hooks still run, and reads are not confined.
   cmd = ["claude", "-p", "--output-format", "stream-json", "--verbose",
-         "--max-turns", max_turns.to_s, "--allowedTools", "Skill", "Read", "Grep", "Glob"]
+         "--max-turns", max_turns.to_s, "--strict-mcp-config", "--tools", *AGENT_TOOLS]
   out = +""
   err = +""
   status = nil
@@ -125,10 +129,12 @@ def parse_transcript(stream)
   skills = []
   commands = []
   results = []
+  offered = []
   stream.each_line do |line|
     next if line.strip.empty?
     ev = JSON.parse(line)
     return [skills.uniq, commands, "invalid_stream_event"] unless ev.is_a?(Hash)
+    offered << ev["tools"] if ev["type"] == "system" && ev["subtype"] == "init"
     results << ev if ev["type"] == "result"
     next unless ev["type"] == "assistant"
     message = ev["message"]
@@ -158,6 +164,8 @@ def parse_transcript(stream)
          [nil, "completed"].include?(terminal["terminal_reason"])
     return [skills.uniq, commands, "invalid_terminal_result"]
   end
+  return [skills.uniq, commands, "missing_tool_boundary"] if offered.empty? || !offered.all? { |t| t.is_a?(Array) }
+  return [skills.uniq, commands, "tool_boundary_violated"] if offered.any? { |t| !(t.map(&:to_s) - AGENT_TOOLS).empty? }
   [skills.uniq, commands, nil]
 rescue JSON::ParserError, JSON::NestingError
   [skills.uniq, commands, "invalid_stream_event"]

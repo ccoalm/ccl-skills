@@ -155,6 +155,8 @@ skill 改动后，让 agent 重跑这条 trace，**结构性偏离 = 回归信�
 - `current` —— 普通 `claude -p`：装好的 bootstrap + 全部 skills（当前操作层）。
 - `candidate` —— `--settings '{"disableAllHooks":true}' --disable-slash-commands --append-system-prompt "$(候选契约)"`：**关掉 ccl-skills 的 bootstrap + skills**，把候选契约**追加**注入。注意这不是"唯一常驻层"——base Claude Code 系统层仍在；准确说法是"移除 ccl-skills 层后、以候选契约为附加操作层"。契约用 `--contract PATH`（或 env `CANDIDATE_CONTRACT`）传。
 
+**工具边界 ≠ 隔离**：两臂只提供 Read/Grep/Glob/Skill（`--tools` + `--strict-mcp-config`），judge 不提供任何工具；每次运行以流里 init 事件列出的工具为准，多出任何工具即判无效；每次从全新空目录启动，`--out` 下的已存回答和检出里的评分标准不在工作目录里。它**不**限制读：文件工具能读宿主权限规则放行的任何绝对路径（`current` 臂按设计加载用户设置，宽泛的 `Read` 允许规则或 bypass 模式下能读其他检出、`/tmp` 和 `--out`），hook 也照常运行。结论依赖"某臂看不到 X"（评分标准、另一臂的回答、另一棵技能树）时，每臂放进挂载命名空间（如 `bwrap`：tmpfs 盖住 `/tmp`、本机检出与会话记录目录，再只读挂回本臂所需），工具本身不提供。
+
 **输出 = 能力 delta 报告（这才是 A/B 的点）**：跑完双臂后产出 `capability-delta-report.md` + `judge-verdicts.jsonl` —— 逐夹具给"候选比当前**减少的能力** / **新增的能力** / **表现怎么变**"+ 汇总 delta 计数。delta 由 **LLM-judge**（一个模型读**两臂**回答、对着 rubric 轴推理行为）产出——这正是硬教训要求的"判断评分"的**自动形态**,不是关键词打分。它是 judgment-**assist** 非 score:原始回答留存可审、judge 对畸形输出拒绝猜判、每条 security/authority/data-loss 轴或低置信行标 🔴 HUMAN 待人眼确认。`--no-judge` 则只出**填空脚手架**(judge 不跑、由人填 delta)。别只把双臂回答堆一地叫"自己看"——工具**一定要产出 delta**。
 
 **judge 的固有限度（诚实写清,别当它是权威裁决）**:(1) LLM-judge 读的是**不可信的模型输出**,理论上可被 answer 里的注入操纵——所以 answer 里出现指令状内容会**程序化强制标 🔴 HUMAN**(judge_prompt 里也 fence+禁止服从,双保险),但没有任何单行 verdict 在没核对原始回答前算权威。(2) 敏感轴的关键词表**永远不可能穷举**——它只是 best-effort 兜底;**真正权威的标记是夹具里显式 `"human": true`**,凡涉及 security/权限/隐私/PII/数据丢失/删除/计费/凭证 的夹具**必须**设它(见 `behavior-fixtures.jsonl` 里 F1/F5)。(3) 每行只取单 sample,多 sample 差异看 `.sN.txt`。incomplete(缺臂/陈旧/judge 报错/额度跳过)行**顶部横幅显式计数**,别把部分跑当满覆盖。(4) **invoke 证据 vs 自报(name≠invoke)**:agent 回答里"我先加载 owner 技能 X"是**自报**,不等于真调了 Skill 工具。harness 从 stream 里抓真实 `Skill` tool_use 记进 `# skills_invoked` 头(空则 `[]`)——这正是 owner-dispatch invocation-evidence 那条"验 invoke 别信 name"用在 eval 自身。**注意**:这个头是 `#` 注释头,`read_saved_response` 会把它剥掉,所以**自动 LLM-judge 看不到它**;它是**人工/原始文件审计**的证据,不喂给 judge。判"某能力靠加载 skill 存活"时**人工先看 `# skills_invoked`**:若为空、而纪律却在,说明能力来自契约文本/通用知识而非被加载的 skill,别把自报当已加载。
@@ -168,6 +170,7 @@ skill 改动后，让 agent 重跑这条 trace，**结构性偏离 = 回归信�
 3. **rate-limit 中止护栏。** 一次全量 A/B（12 夹具 × 2 臂 × 2 sample = 48 次 headless 跑）会吃掉可观的额度池;harness 从流里解析 7 日利用率,超 `--stop-util`（默认 0.93）**在下一次跑前中止**、存部分结果、可续跑,免得大 A/B 把用户的真实活儿挤没。
 4. **抓全部 assistant 文本。** route-first 的操作层会**先**吐一条路由消息**再**给实质答案;只抓最后一条会漏掉实质回答。拼接全部 assistant text 再判。
 5. **臂配置细节。** `--bare` 会连 OAuth/keychain 认证一起去掉（需要 API key,否则跑不起来）;`disableAllHooks + --disable-slash-commands` 才是"去掉 bootstrap 但保住认证"的正确姿势 —— 已在 candidate 臂验证:该 flag 组合下 agent 确认自己没有 ccl-skills 路由。
+6. **`--allowedTools` 不是白名单。** 它只预先批准;宿主的允许规则或 bypass 模式放行的 Bash、Write 照样能跑——两臂曾因此执行 shell、写文件,改前说明却写着"只读工具"。限制可用工具用 `--tools`,再加 `--strict-mcp-config`(否则插件的 MCP 工具仍在,可执行 shell),并用 init 事件核对实际提供的工具。父会话环境变量的继承经成对对照未复现越权。
 
 **用时机**：操作层月级别稳定 + 要做一次 system-wide 换层/瘦身时;把它当"换层前的对抗性回归证据",不是频繁迭代期的日常闸。
 
