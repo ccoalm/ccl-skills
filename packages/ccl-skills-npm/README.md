@@ -37,8 +37,8 @@ npx @ccoalm/ccl-skills@latest install
 | --- | --- |
 | Requirements | intent and acceptance points, current-state baseline, change scope and slicing, PRD writing |
 | Design | layout, interaction, states, accessibility, design-system consistency |
-| Architecture | Go and Python service boundaries, RPC and API contracts, data ownership, reliability invariants |
-| Implementation | Go, Python, React web, mini-programs, Flutter/React Native/iOS/Android, terminal and TUI, LLM integration |
+| Architecture | Go, Python, and Node.js/TypeScript service boundaries, RPC and API contracts, data ownership, reliability invariants |
+| Implementation | Go, Python, Node.js services, React web, mini-programs, Flutter/React Native/iOS/Android, terminal and TUI, TypeScript language and compiler layer, LLM integration |
 | Testing | test layers, fixtures, mocks, regression coverage, CI gates, test-case documents, defect diagnosis |
 | Review | independent CLI review, adversarial challenge, risk and gate routing, multi-perspective research |
 | Release | rollout, canary, rollback, environment lanes, release scope and docs |

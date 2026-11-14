@@ -1,0 +1,63 @@
+# Validation
+
+Round: point the testing and architecture entrypoints at `typescript-dev`. Host: Linux, Claude Code 2.1.322. Probes used `claude-haiku-5-5` with `--tools "" --strict-mcp-config` from an empty directory; raw outputs stay in the session scratch area.
+
+## Size cap
+
+`skills/skill-extraction-workflow/scripts/check-size-budget.sh` blocks a changed entrypoint that is already over 50000 bytes from growing in bytes or in body words. `testing-strategy/SKILL.md` was 51412 bytes and 7019 body words on `origin/main`. Adding the pointer alone gave +125 bytes and +18 words, and both blocks fired. After tightening the same pointer list: 51410 bytes, 7019 words, `entrypoint_size_blocking_ok`, `entrypoint_word_budget_blocking_ok`. `software-architecture/SKILL.md` is under every cap (+258 bytes).
+
+The added line shifts later `testing-strategy/SKILL.md` line numbers that the obligation ledger in `specs/065-uiux-evidence-delivery/obligation-preservation.md` cites, so `test_obligation_ledger_repo_audit.sh` reported `STALE_LEDGER`. The ledger was re-rendered with `obligation-ledger.py render` at its pinned base and head; only carrier line numbers moved (21 rows), and the audit passes (`audit_ok ... unresolved=0`).
+
+## Reproduction (RED) and fix (GREEN)
+
+Each probe gives the model one entrypoint's full text and a task, and asks which skill to load next for the implementation. Five runs per arm.
+
+| Entrypoint | Task | Base (`origin/main`) | Head |
+| --- | --- | --- | --- |
+| `testing-strategy` | Vite browser TypeScript library, no Node.js service: write the `tsc --noEmit` gate and `expectTypeOf` type tests | `typescript-dev` 0/5; `nodejs-service-dev` 5/5 | `typescript-dev` 5/5 |
+| `software-architecture` | Node.js TypeScript service: implement the runtime schema and derived types at the webhook boundary | `typescript-dev` 0/5; `nodejs-service-dev` only | `typescript-dev` 5/5, with `nodejs-service-dev` |
+| `test-artifact-management` | Approved type-level test cases for a browser TypeScript library: write `expectTypeOf` tests and the `tsc --noEmit` gate; which skills must the implementer load | `typescript-dev` 0/5 (`testing-strategy` 5/5) | `typescript-dev` 5/5 |
+| `multi-agent-delegation` | Dispatch one worker for a TypeScript React screen; list its `required_skills` | `typescript-dev` 0/5 (`web-react-dev` only) | `web-react-dev` and `typescript-dev` 5/5 |
+
+## Review gate owner selection
+
+Plan and decision table: `specs/typescript-dev-entry-pointers/plan.md`.
+
+- RED: with the new cases in `skills/code-review/scripts/test_review_gate.sh` and the base `review_gate.py`, the suite fails at the suffix table: `AssertionError: ('service.ts', {'web-react-dev'})`.
+- GREEN: `review_gate_tests_ok`, including the full-gate cases "Go, TypeScript, TSX, and Dart candidates route all registered implementation owners" and "a TypeScript candidate whose self-review omits typescript-dev fails before provider execution".
+
+Applied mutations on the fixed `review_gate.py`, each restored from a backup and the tree checked byte-identical afterwards:
+
+| Mutation | First failing assertion |
+| --- | --- |
+| `.tsx` derives only the React owner | `View.tsx` row: `{'web-react-dev'}` |
+| `.ts` keeps the React owner as well | `service.ts` row |
+| `.js` adds the language owner | `a.js` row |
+| Registry check removed | pre-existing empty-registry row; with that row neutralized, the no-language-owner registry row (`{'web-react-dev', 'typescript-dev'}`); unmutated control passes |
+| `.mts` unmapped | `module.mts` row |
+| `.cts` unmapped | `module.cts` row |
+| Suffix not case-folded | `LEGACY.TS` row |
+
+## Reworded lines: controls
+
+Three runs per arm on the `testing-strategy` entrypoint, one task per reworded line.
+
+| Line | Task | Base | Head |
+| --- | --- | --- | --- |
+| Python | async pytest fixtures and fake client | `python-service-dev` 3/3 | 3/3 |
+| Web | Playwright browser automation flows | `web-react-dev` 3/3 | 3/3 |
+| App | Flutter widget tests and device smoke | `app-cross-platform-dev` 3/3 | 3/3 |
+| Terminal | PTY rendering tests for a full-screen text UI | `terminal-cli-dev` 3/3 | 3/3 |
+| Go | handler unit tests | `go-microservice-dev` 3/3 | 3/3 |
+
+## Obligations kept when rewording
+
+| Before | After | Status |
+| --- | --- | --- |
+| Go-specific implementation details → `go-microservice-dev` | Go implementation details | kept |
+| Python-specific pytest, async test, fixture, fake client, ruff, mypy/pyright, packaging, migration-test implementation details | pytest, async, fixture, fake-client, ruff, mypy/pyright, packaging, migration-test details; the line names `python-service-dev` | kept |
+| Node: fake timers, stream and cancellation assertions | fake-timer, stream/cancellation assertion; still "must use" | kept |
+| App: Flutter, Android and iOS test kinds, mobile device smoke, app release verification | same test kinds, device smoke (the line is the app owner's), app release verification | kept |
+| Web: browser/E2E implementation, browser automation | browser/E2E tests (browser automation is the browser/E2E layer; control row above) | kept |
+| Terminal: full-screen text UI testing | full-screen TUI testing | kept |
+| Stack pointers below apply after that choice | Stack pointers below follow that choice | kept |

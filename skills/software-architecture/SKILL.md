@@ -141,6 +141,7 @@ Each part holds only what changes with the stack. The full per-stack wording, in
 - Prefer explicit dependencies and startup wiring over mutable process-wide singletons. Do not add blanket retries, speculative caches, generic base layers, or process-level exception recovery without observed need and an owning contract.
 - The Go and Python defaults above do not transfer: their RPC, storage, and code-generation contracts are stack-specific. Use the method and this part only.
 - Implementation owner: `nodejs-service-dev`, which carries the mechanics (`nodejs-service-dev/references/runtime-and-project-contract.md`, `nodejs-service-dev/references/async-lifecycle-and-performance.md`).
+- Implementing boundary types and runtime schemas must also load `typescript-dev` (`typescript-dev/references/type-design-and-boundaries.md`), which owns the type design and schema-to-type mechanics; this part keeps where each boundary sits and which side owns the contract.
 
 ## Reference index
 

@@ -26,9 +26,10 @@
 ┌── Phase 1：栈骨架（python OR node） ─────────────────┐
 │  python: software-architecture                        │
 │          → python-service-dev                         │
-│  node:   web-react-dev / app-cross-platform-dev /     │
-│          miniapp-product-dev / terminal-cli-dev       │
-│          （依实际选一）                                │
+│  node:   nodejs-service-dev / web-react-dev /         │
+│          app-cross-platform-dev / miniapp-product-dev │
+│          / terminal-cli-dev（依实际选一）             │
+│          TypeScript 另加 typescript-dev               │
 └──────────────────────────────────────────────────────┘
                           ↓
 ┌── Phase 2：测试 ─────────────────────────────────────┐
@@ -112,15 +113,18 @@
 
 ### 选择 Phase 1 的 owner skill
 
-Node 范畴大，按客户端类型分：
+Node 范畴大，按你做的东西分：
 
 | 你做的是 | Phase 1 owner skill |
 |---|---|
+| Node.js 服务 / worker / 命令行工具 | [`nodejs-service-dev`](../skills/nodejs-service-dev/SKILL.md) |
 | React Web / SSR / Next.js | [`web-react-dev`](../skills/web-react-dev/SKILL.md) |
 | Vue / Svelte 等其它 web | [`web-react-dev`](../skills/web-react-dev/SKILL.md)（暂归入 web 系；语法差异自行映射） |
 | Flutter / RN / 原生 App | [`app-cross-platform-dev`](../skills/app-cross-platform-dev/SKILL.md) |
 | Taro / 微信/支付宝/抖音小程序 | [`miniapp-product-dev`](../skills/miniapp-product-dev/SKILL.md) |
-| 终端 / CLI / TUI | [`terminal-cli-dev`](../skills/terminal-cli-dev/SKILL.md) |
+| 终端 / TUI，或命令行的参数、帮助与输出契约 | [`terminal-cli-dev`](../skills/terminal-cli-dev/SKILL.md) |
+
+用 TypeScript 写时，类型、tsconfig 和类型检查另加载 [`typescript-dev`](../skills/typescript-dev/SKILL.md)，和上表的技能一起用。
 
 ### 步骤
 
