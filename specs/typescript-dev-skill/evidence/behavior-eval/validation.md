@@ -23,3 +23,16 @@
 - Dispositions:
   - P2 `summary.md`：引用 `run*/layers.jsonl`，驱动写的是 `layers.json`。部分属实：入库文件就是 `layers.jsonl`（入库时转换），但摘要没说明转换。fixed：写明 `layers.json`、`*.meta.json` 入库时各合成一个 JSON Lines 文件，并列出原始回答与盲评输出的位置。
   - P2 `AGENTS.md`：声明的原始回答、评分输出、评审记录和 `behavior-eval/validation.md` 不在候选里。部分属实：原始回答与评分输出在候选里，只是没进评审包；本文件当时还不存在。fixed：新增本文件，并写明评审包排除了哪些文件。
+
+## Challenge pass
+
+- Reviewed commit: 7a13959；base 51b32dd
+- Reviewer: kimi（`extraction_review_gate.sh --mode challenge`，focus 为两臂构造或隔离让一臂看到另一棵树或评分标准、评分未盲或无法判红、10 样本统计夸大、新升级步骤里的 TypeScript 事实错误或过时、入库证据残留主机或个人信息），结果 `challenge-C1.json`
+- 评审包同 review，另加本文件。
+- Findings: 1 total (0 P0 / 1 P1 / 0 P2)
+- Dispositions:
+  - P1 `summary.md` 第 22 行：隔离探针的回答列出了两棵树里的 `specs/` 目录，与「两棵树都删掉 `eval/`、`specs/`」矛盾；若正式运行用的是同样的树，改后臂能读到技能的设计文档，提升可能部分来自非运行时文件。核实：探针结果写于 19:34，第一轮 `layers.json` 写于 19:36，中间执行了删除命令；当前三棵树都没有这两个目录；逐条审计两轮 100 个样本的工具调用与记录下的结果，触及 `specs/`、`eval/`、评测夹具文件或本轮 spec 目录的次数为 0。结论：正式运行的两臂都不含这两个目录，提升不来自它们。fixed：摘要写明探针在删除前运行、正式运行在删除后，并给出审计结果与其范围（每个结果只记录前 300 字符）。
+
+## 评审后的增量
+
+- `7a13959..HEAD`：只改本目录的 `summary.md`、`validation.md` 和新增 `challenge-C1.json`，都是不可执行的记录文件，按评审门规定不另跑增量复查。
