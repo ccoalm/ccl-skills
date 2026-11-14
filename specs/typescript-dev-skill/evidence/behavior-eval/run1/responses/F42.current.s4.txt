@@ -1,0 +1,183 @@
+# sig: 59285d05ad1d
+# F42 / arm=current / sample=4 / 97s / util=None
+# skills_invoked: ["ccl-skills:product-rd-workflow"]
+# axis: TypeScript strictness migration in an existing codebase
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：先按目录或 project reference 统计错误；按可独立检查的叶子 tsconfig 逐步打开（棘轮），或用只减不增、新增错误即失败的基线；修复靠收窄或改类型，不批量加 `as`/`!`/`@ts-ignore`，临时压制用带理由的 `@ts-expect-error`；CI 的 `tsc --noEmit` 覆盖源码、测试和脚本的每个 tsconfig；最后移除局部覆盖让全仓一致；说明 `noUncheckedIndexedAccess` 不在 strict 内、会让下标访问变成 `T | undefined`。弱点：全局打开后批量 `@ts-ignore`；加 `skipLibCheck` 或缩小 `include` 让错误消失；用打包器构建成功当作类型检查通过。
+
+## 结论
+
+一周内要求“开着 flag 并且 CI 零错误”，能做到。要求一周内把三千多个错误全部真正修完，风险很大，团队容易为了赶时间批量写 `!` 和 `as`。这样错误被藏起来，类型检查反而不可信。
+
+建议这样分：
+
+- **第 1 天**：全仓打开 `strict` 和 `noUncheckedIndexedAccess`。现有错误自动加上带标记的 `@ts-expect-error`，CI 从此卡住新增错误。
+- **第 2–5 天**：按类别、按负责人逐步删掉这些压制注释。凡是会改变运行时行为的修复，都要有测试和审查。
+- **第 5 天**：只剩少量压制注释，都有登记的负责人和期限。如果团队坚持一周清零，就用第 0 天的错误分布核算工作量后再承诺，不要先承诺再赶工。
+
+两点常被忽略：
+
+1. `noUncheckedIndexedAccess` 不在 `strict` 里面，要单独打开。
+2. 打开 flag 本身基本不改变运行时，风险集中在修复代码上。所以验证的核心是把修复分成“只改类型”和“改了运行时”两类，各用不同方法证明。
+
+---
+
+## 第 0 步：建立基线（约半天）
+
+**要做的事**
+
+1. 确认构建链路：最终 JS 是 `tsc` 生成的，还是 Babel、esbuild、swc 生成的。
+   - 如果 `tsc` 负责输出，`alwaysStrict` 会给非 ES module 文件加上 `"use strict"`，这是唯一会改变运行时的 flag。要查一下有没有非 module 的脚本文件。
+   - 如果 `tsc` 只做 `--noEmit` 检查，打开 flag 对运行时没有影响。
+2. 在一个临时分支打开两个 flag，统计错误分布：
+   ```bash
+   npx tsc --noEmit --pretty false > /tmp/strict-errors.txt
+   grep -oE 'error TS[0-9]+' /tmp/strict-errors.txt | sort | uniq -c | sort -rn      # 按错误码
+   grep -oE '^[^(]+' /tmp/strict-errors.txt | cut -d/ -f1-3 | sort | uniq -c | sort -rn  # 按目录
+   ```
+   常见的错误码：
+
+   | 错误码 | 来源 |
+   | --- | --- |
+   | TS2532 / TS18048 / TS2345 / TS2322 | 主要是 `strictNullChecks` 和 `noUncheckedIndexedAccess` |
+   | TS7006 / TS7031 / TS7053 | `noImplicitAny` |
+   | TS2564 | `strictPropertyInitialization` |
+   | TS18046 | catch 里的 `unknown` |
+
+3. 记录基线：`tsc` 错误数、单测和 E2E 结果、构建是否成功、类型擦除后的 JS 产物（后面用来做对比）。
+4. 检查生成代码，比如 OpenAPI/GraphQL 客户端和 i18n key 类型。优先换成支持 strict 的生成配置后重新生成，不要手工修生成文件。
+
+**怎么验证**
+
+- 主干在当前配置下构建和测试都通过，作为对照组。
+- 错误分布表放进迁移跟踪文档。后面所有工作量估算都以这张表为准。
+
+**第 0 步的决策点**：如果错误高度集中在少数几种模式（比如 `arr[i]` 循环、`Record` 查值、隐式 any 参数），其中适合 codemod 的比例越高，一周清零就越现实。
+
+---
+
+## 第 1 步：打开 flag，自动压制现有错误，合入主干（第 1 天）
+
+**要做的事**
+
+1. 修改 `tsconfig`：`"strict": true` 和 `"noUncheckedIndexedAccess": true`。monorepo 或 project references 的每个包都要改。
+2. 写一个脚本，读取 `tsc` 输出，在每个出错行的上一行插入：
+   ```ts
+   // @ts-expect-error strict-migration TS2532
+   ```
+   用 `@ts-expect-error`，不用 `@ts-ignore`：错误修好后，注释本身会报错，开发者就会顺手删掉它，计数只会减少。
+
+   脚本要处理好这几种情况：
+   - **JSX 内部**要写成 `{/* @ts-expect-error ... */}`。
+   - **模板字符串或多行表达式内部**不能插入注释。脚本要识别这种情况，在外层语句上插入，或者列出来人工处理。
+   - **同一文件里从下往上插**，避免行号漂移。
+   - **反复跑 `tsc` 直到没有新错误**。插入注释后，有时会暴露原本被前一个错误挡住的错误。
+3. 这次提交只包含 tsconfig 和注释，单独一个 PR，尽快合入，让所有人只 rebase 一次。不要开一个持续一周、改动三千处的长分支，冲突会把团队拖垮。
+4. 在 CI 加棘轮（只降不升）：
+   - `tsc --noEmit` 必须为 0 错误。
+   - `strict-migration` 注释数量不能超过主干上的数量。
+   - ESLint 规则 `@typescript-eslint/ban-ts-comment` 要求写说明。新文件和改动过的行禁止新增 `strict-migration` 压制。
+   - `@typescript-eslint/no-non-null-assertion` 先设为 warn，统计 `!` 的数量，并纳入棘轮，防止有人用 `!` 绕过。
+
+**怎么验证**
+
+| 检查 | 通过标准 |
+| --- | --- |
+| `tsc --noEmit` | 0 错误 |
+| 注释数量 | 约等于第 0 步统计的错误数，差异要能解释 |
+| 类型擦除后 JS 对比（方法见下文） | 除了注释以外没有差异；如果打开 `alwaysStrict` 时由 `tsc` 输出，只允许多出 `"use strict"` |
+| 单测、E2E、构建 | 和基线一致 |
+| CI 棘轮自测 | 故意新增一个 strict 错误，CI 必须失败；故意删掉一个已修好处的注释，CI 必须通过 |
+
+做到这一步，“打开 strict”在技术上已经完成，而且可以回滚：回退一个 PR 即可。
+
+---
+
+## 第 2–4 天：分类清理
+
+### 修复分成两类，验证方法不同
+
+**T 类：只改类型**
+- 包括：加类型注解、修正 interface、泛型、`satisfies`，以及有证据支撑的 `!` 和 `as`。
+- 验证：类型擦除后 JS 无差异。这项检查是机械的，可以完全自动化，可以大批量合入。
+
+**R 类：改运行时**
+- 包括：加判空、`?.`、`??` 默认值、提前 return、改用 `for...of`、`instanceof Error` 判断。
+- 验证：必须有覆盖这段改动的测试（已有的或新补的），加上人工审查。按负责人拆成小 PR。
+
+**类型擦除后 JS 对比的做法**：对改动前后的代码各跑一次同样的转译（比如 `esbuild --format=esm`，或者带 `removeComments` 的 `tsc`），逐个文件 diff 产物。T 类 PR 要求 diff 为空。任何非空 diff 都说明这个 PR 其实是 R 类，要改走 R 类流程。这项检查放进 CI，由 PR 标签触发。
+
+### 推荐顺序
+
+1. **先修共享类型和底层包**：公共 types、API 类型、工具函数。比如把一个字段改成可选，会在下游产生连锁变化，所以要先做。每做一批，重新统计错误数。
+2. **能用 codemod 的 T 类**（验证：擦除后 diff 为空，`tsc` 为 0）：
+   - `noImplicitAny`：使用 TS 自带的 infer-from-usage 修复（可以通过 ts-morph 或 `ts-migrate` 批量执行）。推断不出来的位置宁可写显式的 `unknown`，不写 `any`。
+   - `strictPropertyInitialization`：DI 注入或框架负责赋值的字段用 `!:`。其余字段补初始值；补初始值属于 R 类。
+3. **`noUncheckedIndexedAccess` 的常见模式**（多数是 R 类，但改动机械、容易审查）：
+   - `for (let i = 0; i < arr.length; i++) arr[i]` 改成 `for...of` 或 `arr.entries()`
+   - `Object.keys(o).forEach(k => o[k])` 改成 `Object.entries`
+   - `Record<string, T>` 查值：值确实可能不存在，要加判断，不要写 `!`
+   - 已经判断过长度的 `arr[0]`：用解构，或者写一个小工具函数 `first(arr)`
+4. **`strictNullChecks` 的真实空值问题**：按目录负责人拆分。判断原则：
+   - **能证明不会为空**：用 `!`，旁边写一行注释说明原因（T 类）。
+   - **不能证明**：加判断（R 类）。判断失败时要记日志或上报错误监控，不要静默 return。否则原来的崩溃变成静默没反应，更难排查。
+5. **`useUnknownInCatchVariables`**：`e.message` 改成 `e instanceof Error ? e.message : String(e)`，或者统一用一个 `toError(e)` 工具函数。
+
+**每个 PR 的验证**
+- `tsc` 为 0 错误。
+- 注释数量下降。
+- T 类：擦除后 diff 为空。
+- R 类：相关测试通过，覆盖率报告显示改动行被执行到。
+- CI 统计的 `!` 数量没有不合理地增长。
+
+**每日验证**
+- 发布燃尽图：剩余注释数，按错误码、按负责人分组。
+- 主干单测和 E2E 全部通过。
+
+---
+
+## 第 5 天：收尾和上线
+
+1. 剩余的压制注释逐条登记负责人和截止日期，或者在 PR 里说明为什么暂时保留。
+2. 第 2–4 天合入的 R 类改动，按正常节奏发版，最好先灰度。上线后对比错误监控（如 Sentry），观察新出现的错误类型和静默分支的日志。
+3. 把 `no-non-null-assertion` 从 warn 改为 error，或者保持棘轮计数，看团队接受程度决定。
+4. 复盘：哪些模式最多，哪些 codemod 可以复用，写进团队规范。
+
+**最终验收标准**
+
+| 项 | 标准 |
+| --- | --- |
+| tsconfig | 每个包都开了 `strict` 和 `noUncheckedIndexedAccess`，CI `tsc` 为 0 错误 |
+| 棘轮 | 新代码无法引入 strict 错误，也无法新增压制注释（已用故意违规的 PR 测过） |
+| 剩余注释 | 数量达到约定目标，每条都有负责人 |
+| 运行时 | 主干测试与基线一致，上线后错误监控没有异常上升 |
+
+---
+
+## 风险和应对
+
+| 风险 | 应对 |
+| --- | --- |
+| 为了清零大量写 `!` 和 `as`，类型检查失去意义 | 统计 `!` 数量并纳入棘轮；T 类里的 `!` 要求写注释说明；审查时抽查 |
+| 判空改动让崩溃变成静默错误 | 判断失败时记日志或上报；R 类必须有测试 |
+| 一条压制注释遮住同一行后来的新错误 | 已知局限。持续清理会缩小影响范围，清零之后问题自然消失 |
+| 长期大分支冲突 | 第 1 天一次性合入，之后都是小 PR |
+| 迁移打乱业务开发节奏 | 第 1 天之后业务开发可以照常进行，棘轮只限制新增 |
+
+---
+
+我没有看到这个仓库，以上做法都是按通用的 TypeScript 前端工程设计的。像 `alwaysStrict` 是否影响运行时、codemod 能覆盖多少，要等第 0 步统计出错误分布后才能确定。
+
+如果把仓库路径给我，我可以写好第 1 步的压制注释脚本（处理 JSX、模板字符串和行号漂移）和类型擦除后 JS 对比脚本，并在仓库里实际跑一遍错误统计。
+
+proposed-next: 拿到仓库路径后，写压制注释脚本和类型擦除 JS 对比脚本，并输出错误分布统计
+
+迁移方案和每一步的验证方法都写在上一条回复里了，这次请求要的内容已经完成。
+
+上次提议的下一步做不了：我在当前目录 `/tmp/tsd-eval/cwd` 里找了 `**/tsconfig*.json`，一个都没有，说明这台机器上没有这个仓库。
+
+两个脚本（压制注释脚本、类型擦除后 JS 对比脚本）和错误分布统计都要在真实仓库里跑：先要知道构建用的是 tsc、Babel、esbuild 还是 swc，还要拿到真实的 `tsc` 输出，才能写出处理 JSX、模板字符串和行号漂移的逻辑，并验证它们是对的。脱离仓库写出来的脚本无法验证，所以这次没有写。
+
+blocked: 写压制注释脚本和类型擦除对比脚本，并统计错误分布 — 需要你提供仓库路径，或者把仓库挂到这个环境里
+
+proposed-next: 在仓库里跑第 0 步统计（按错误码和目录），写好并试跑两个脚本，确认 `tsc` 为 0 错误、类型擦除后 JS 没有差异

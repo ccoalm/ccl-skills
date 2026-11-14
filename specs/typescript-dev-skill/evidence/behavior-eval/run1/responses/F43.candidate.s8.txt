@@ -1,0 +1,302 @@
+# sig: 7bd30d703fb7
+# F43 / arm=candidate / sample=8 / 107s / util=None
+# skills_invoked: ["ccl-skills:typescript-dev"]
+# axis: TypeScript runtime boundary for untrusted input
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：外部输入一律以 `unknown` 进入，在边界用仓库已有的运行时 schema 库（或类型守卫）解析一次，从 schema 推导静态类型而不是另写一份；解析失败返回类型化结果或在边界映射为错误，不用 `as`；按边界决定未知字段剥离还是拒绝，安全相关输入拒绝；catch 变量按 `unknown` 处理（`useUnknownInCatchVariables`）并用 `instanceof Error` 等收窄；给解析器和类型守卫写正反用例。弱点：把 `as User` 换成 `as unknown as User`；只加 TypeScript 接口不加运行时检查；在业务逻辑各处零散校验（shotgun parsing）。
+
+当前工作目录 `/tmp/tsd-eval/cwd` 里没有 TS 源码，这个会话也没有执行命令的工具。下面的代码和测试都没有编译、也没有运行过。做法是按通用 TypeScript 项目写的，假设是 TS 5.x、`strict` 已开、项目用 zod，测试用 vitest。
+
+## 做法：外部来的数据一律先当 `unknown`，在入口校验一次
+
+`JSON.parse` 的返回值、`localStorage` 读出的内容、`catch` 拿到的变量，在运行时都可能是任何东西。`as User` 只让编译器不再报错，运行时什么也不检查。改法是：这些值先当成 `unknown`，在入口处用运行时校验转成确定的类型。校验失败时返回带类型的失败结果，不再用 `as` 断言。
+
+### 1. 公共工具：`src/boundary/parse.ts`
+
+```ts
+import { z } from 'zod';
+import { errorMessage } from './errors';
+
+export type ParseFailure =
+  | { kind: 'invalid_json'; message: string }
+  | { kind: 'invalid_shape'; issues: ReadonlyArray<{ path: string; message: string }> };
+
+export type ParseResult<T> = { ok: true; value: T } | { ok: false; error: ParseFailure };
+
+/** JSON.parse 的返回值是 any，这里改成 unknown，异常改成失败结果 */
+export function parseJson(text: string): ParseResult<unknown> {
+  try {
+    const value: unknown = JSON.parse(text);
+    return { ok: true, value };
+  } catch (e) {
+    return { ok: false, error: { kind: 'invalid_json', message: errorMessage(e) } };
+  }
+}
+
+export function parseWith<T>(schema: z.ZodType<T>, input: unknown): ParseResult<T> {
+  const r = schema.safeParse(input);
+  if (r.success) return { ok: true, value: r.data };
+  return {
+    ok: false,
+    error: {
+      kind: 'invalid_shape',
+      // path 里可能有 symbol，直接 join 会抛错，所以先 map(String)
+      issues: r.error.issues.map((i) => ({ path: i.path.map(String).join('.'), message: i.message })),
+    },
+  };
+}
+```
+
+### 2. User：`src/user.ts`
+
+```ts
+import { z } from 'zod';
+import { parseJson, parseWith, type ParseResult } from './boundary/parse';
+
+// 只保留 schema 这一份定义，类型从 schema 推出来，避免两处定义不一致
+export const UserSchema = z.strictObject({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  email: z.string().email(),
+  age: z.number().int().nonnegative().optional(),
+});
+export type User = z.infer<typeof UserSchema>;
+
+export function parseUser(body: string): ParseResult<User> {
+  const json = parseJson(body);
+  return json.ok ? parseWith(UserSchema, json.value) : json;
+}
+```
+
+调用处：
+
+```ts
+const r = parseUser(body);
+if (!r.ok) return reply.status(400).send({ error: r.error.kind, issues: r.error.kind === 'invalid_shape' ? r.error.issues : [] });
+const user = r.value; // User，已经过运行时校验
+```
+
+安全上要注意两点：
+
+- **只验了格式，不代表可信。** 请求体完全由调用方控制。user id、角色、租户这类决定权限的值，必须从登录态或服务端数据里取，不能从 body 里取。
+- **多余字段直接拒绝。** `strictObject` 会拒掉 schema 里没有的字段，例如 `isAdmin`、`__proto__`。如果直接 `as User` 再展开写库，这些字段会被混进去。
+
+### 3. 配置：`src/config.ts`
+
+```ts
+import { z } from 'zod';
+import { parseJson, parseWith } from './boundary/parse';
+
+export const ConfigSchema = z.object({   // 非 strict：旧版本写入的多余字段会被去掉，不会报错
+  theme: z.enum(['light', 'dark']),
+  pageSize: z.number().int().min(10).max(100),
+  features: z.array(z.string()),
+});
+export type Config = z.infer<typeof ConfigSchema>;
+
+export const defaultConfig = (): Config => ({ theme: 'light', pageSize: 20, features: [] }); // 每次返回新对象，避免多处共享同一个对象被改
+
+export type StorageLike = Pick<Storage, 'getItem'>;
+export type ConfigLoad =
+  | { source: 'stored'; config: Config }
+  | { source: 'default'; config: Config; reason: 'unavailable' | 'missing' | 'invalid_json' | 'invalid_shape' };
+
+const KEY = 'cfg';
+
+// 传入一个取 storage 的函数：在 Safari 无痕模式或禁用 cookie 时，访问 window.localStorage 本身就会抛错
+export function loadConfig(getStorage: () => StorageLike = () => globalThis.localStorage): ConfigLoad {
+  let raw: string | null;
+  try {
+    raw = getStorage().getItem(KEY);
+  } catch {
+    return { source: 'default', config: defaultConfig(), reason: 'unavailable' };
+  }
+  if (raw === null) return { source: 'default', config: defaultConfig(), reason: 'missing' };
+  const json = parseJson(raw);
+  if (!json.ok) return { source: 'default', config: defaultConfig(), reason: 'invalid_json' };
+  const cfg = parseWith(ConfigSchema, json.value);
+  return cfg.ok
+    ? { source: 'stored', config: cfg.value }
+    : { source: 'default', config: defaultConfig(), reason: 'invalid_shape' };
+}
+```
+
+配置损坏时，这里选择整份退回默认值，并返回原因，不去删用户的存储数据。如果你希望只修好有问题的字段，可以给各字段加 `.catch(默认值)`。
+
+### 4. catch：`src/boundary/errors.ts`
+
+```ts
+export function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  // 兼容 iframe/worker 等其他运行环境里抛出的 Error，以及形如 { message } 的对象
+  if (typeof e === 'object' && e !== null && 'message' in e && typeof e.message === 'string') return e.message;
+  try {
+    return JSON.stringify(e) ?? String(e);
+  } catch {
+    try { return String(e); } catch { return 'Unknown error'; }
+  }
+}
+
+export function toError(e: unknown): Error {
+  return e instanceof Error ? e : new Error(errorMessage(e), { cause: e }); // cause 需要 lib es2022 及以上
+}
+```
+
+用法：`catch (e) { log(errorMessage(e)) }`，Promise 的写法是 `.catch((e: unknown) => …)`。注意 Promise `.catch` 回调的参数类型永远是 `any`，下面的 lint 规则能管住它。
+
+### 5. 让编译器和 lint 防止旧写法再出现
+
+- **tsconfig**：`"strict": true`。它包含 `useUnknownInCatchVariables`，开了以后 `err.message` 会直接编译报错。
+- **typescript-eslint（需要带类型信息的 lint）**：
+  - `no-unsafe-type-assertion`：拦截 `JSON.parse(x) as User` 这种从 `any` 断言的写法。
+  - `no-unsafe-assignment`、`no-unsafe-member-access`、`no-unsafe-argument`、`no-unsafe-return`。
+  - `use-unknown-in-catch-callback-variable`。
+- **可选**：用 `@total-typescript/ts-reset` 把 `JSON.parse` 和 `Response.json()` 的返回类型全局改成 `unknown`。
+- **找出现有写法**：
+  ```
+  rg -n 'JSON\.parse\(.*\)\s+as\s'
+  rg -n "getItem\(" 
+  rg -n 'catch\s*\(\s*\w+\s*(:\s*any)?\s*\)'
+  ```
+
+## 测试（vitest）
+
+```ts
+// user.test.ts
+import { describe, it, expect } from 'vitest';
+import { parseUser } from './user';
+
+const valid = { id: 'u1', name: 'A', email: 'a@example.com' };
+
+describe('parseUser', () => {
+  it('合法输入', () => expect(parseUser(JSON.stringify(valid))).toEqual({ ok: true, value: valid }));
+  it('非法 JSON', () => expect(parseUser('{bad')).toMatchObject({ ok: false, error: { kind: 'invalid_json' } }));
+  it.each([['null'], ['[]'], ['"s"'], ['42']])('非对象 %s', (b) =>
+    expect(parseUser(b)).toMatchObject({ ok: false, error: { kind: 'invalid_shape' } }));
+  it('缺字段时报出路径', () => {
+    const r = parseUser(JSON.stringify({ id: 'u1', name: 'A' }));
+    expect(r.ok).toBe(false);
+    if (!r.ok && r.error.kind === 'invalid_shape') expect(r.error.issues.map((i) => i.path)).toContain('email');
+  });
+  it('类型错误', () => expect(parseUser(JSON.stringify({ ...valid, id: 1 })).ok).toBe(false));
+  it('拒绝多余字段（伪造越权）', () => expect(parseUser(JSON.stringify({ ...valid, isAdmin: true })).ok).toBe(false));
+  it('拒绝 __proto__ 注入', () =>
+    expect(parseUser('{"id":"u1","name":"A","email":"a@example.com","__proto__":{"isAdmin":true}}').ok).toBe(false));
+});
+```
+
+```ts
+// config.test.ts
+import { describe, it, expect } from 'vitest';
+import { loadConfig, defaultConfig } from './config';
+
+const store = (v: string | null) => () => ({ getItem: () => v });
+
+describe('loadConfig', () => {
+  it('缺失', () => expect(loadConfig(store(null))).toMatchObject({ source: 'default', reason: 'missing' }));
+  it('合法', () => {
+    const c = { theme: 'dark', pageSize: 50, features: ['x'] };
+    expect(loadConfig(store(JSON.stringify(c)))).toEqual({ source: 'stored', config: c });
+  });
+  it('JSON 损坏', () => expect(loadConfig(store('{'))).toMatchObject({ reason: 'invalid_json' }));
+  it('字段类型错误', () =>
+    expect(loadConfig(store(JSON.stringify({ theme: 'dark', pageSize: '50', features: [] })))).toMatchObject({ reason: 'invalid_shape' }));
+  it('枚举越界', () =>
+    expect(loadConfig(store(JSON.stringify({ theme: 'neon', pageSize: 50, features: [] })))).toMatchObject({ reason: 'invalid_shape' }));
+  it('storage 访问抛错', () =>
+    expect(loadConfig(() => { throw new DOMException('denied', 'SecurityError'); })).toMatchObject({ reason: 'unavailable' }));
+  it('多余字段被去掉', () => {
+    const r = loadConfig(store(JSON.stringify({ theme: 'dark', pageSize: 50, features: [], legacy: 1 })));
+    expect(r.config).not.toHaveProperty('legacy');
+  });
+  it('默认值不共享引用', () => {
+    const a = loadConfig(store(null)).config;
+    a.features.push('x');
+    expect(defaultConfig().features).toEqual([]);
+  });
+});
+```
+
+```ts
+// errors.test.ts
+import { describe, it, expect } from 'vitest';
+import { errorMessage, toError } from './boundary/errors';
+
+describe('errorMessage', () => {
+  it.each<[unknown, string]>([
+    [new TypeError('t'), 't'],
+    ['plain', 'plain'],
+    [{ message: 'm' }, 'm'],
+    [42, '42'],
+    [null, 'null'],
+    [undefined, 'undefined'],
+    [Object.create(null), '{}'],
+    [{ message: 1 }, '{"message":1}'],
+  ])('%o → %s', (input, out) => expect(errorMessage(input)).toBe(out));
+
+  it('循环引用不抛错', () => {
+    const o: Record<string, unknown> = {};
+    o.self = o;
+    expect(errorMessage(o)).toBe('[object Object]');
+  });
+  it('toError 保留 cause', () => {
+    const raw = { code: 1 };
+    expect(toError(raw).cause).toBe(raw);
+  });
+});
+```
+
+```ts
+// boundary.test-d.ts  —— 类型测试，用 vitest --typecheck 或 tsc --noEmit 检查
+import { expectTypeOf } from 'vitest';
+import { parseUser, type User } from './user';
+import type { ParseResult } from './boundary/parse';
+
+expectTypeOf(parseUser).returns.toEqualTypeOf<ParseResult<User>>();
+
+declare const r: ParseResult<User>;
+// @ts-expect-error 必须先判断 ok，才能访问 value
+r.value;
+if (r.ok) expectTypeOf(r.value).toEqualTypeOf<User>();
+
+try { /* noop */ } catch (e) {
+  // @ts-expect-error strict 下 catch 变量是 unknown
+  e.message;
+}
+```
+
+## 运行和验证
+
+```
+npx tsc --noEmit            # tsconfig 的 include 要包含测试文件
+npx eslint .                # 上面那些类型相关的 lint 规则
+npx vitest run --typecheck  # 加了 --typecheck 才会检查 *.test-d.ts
+```
+
+先确认类型测试真的在生效：在 `boundary.test-d.ts` 里故意写一条错误的断言（比如 `toEqualTypeOf<string>()`），确认命令失败，然后删掉。单靠 `vitest run` 或 tsx、esbuild 能跑通，不能证明类型检查过了。
+
+## 尚未确认的地方
+
+- 代码和测试都没有运行过，原因见开头。
+- 有几处依赖 zod 版本的写法我不确定：
+  - `__proto__` 那条用例依赖 `strictObject` 对自有属性 `__proto__` 的处理，要以实际运行结果为准。
+  - 在 zod 4 里，`z.string().email()` 可以换成 `z.email()`。
+- 如果你的仓库已经在用 valibot、arktype 或别的校验库，把 zod 换成它就行，不要再加一个库。整体结构不用变。
+- 这次没有对上面的代码做独立的代码评审，因为没有真实仓库可以检查。放进你的仓库后，应该在提交前补一轮。
+
+proposed-next: 把代码放进你的仓库，用上面的 `rg` 找到现有用法，逐处替换后跑 `tsc --noEmit`、`eslint` 和 `vitest run --typecheck`。
+
+上一条回复里的 `proposed-next`（把代码放进仓库、替换现有用法、跑三项检查）我在这里做不了，原因有两个：
+
+- **找不到你描述的代码。** 我在 `/tmp/tsd-eval` 下所有 `.ts`/`.tsx` 里都没搜到 `as User`、`localStorage` 或 `getItem('cfg')`。工作目录 `/tmp/tsd-eval/cwd` 是空的。另一个目录 `/tmp/tsd-eval/after` 里有几处 `JSON.parse(...) as ...`，但那是一个技能包仓库（`packages/ccl-skills-npm`、`packages/opencode-plugin`），不是你的业务代码，我没有去改。
+- **这个会话不能写文件，也不能执行命令。** 所以上一条给出的代码和测试都还没编译、没运行过。
+
+我直接采用的默认选择（不同意可以直接改，不用先回我）：
+- **校验库用 zod**：已经在用 valibot 或 arktype 的话，换掉 `parseWith` 里的 schema 调用就行。
+- **User 用 `strictObject`**，拒绝多余字段：要放行的话改成 `z.object`。
+- **配置损坏时整份退回默认值，不删存储里的数据**：想按字段修复，就给字段加 `.catch(默认值)`。
+
+blocked: 需要你的仓库路径（或把含这些写法的文件放进 `/tmp/tsd-eval/cwd`），而且这个会话要能写文件、能执行命令。
+
+proposed-next: 在你的仓库里用 `rg` 找出这三类写法并逐处替换，加上 `src/boundary/` 和那几个测试文件，再跑 `tsc --noEmit`、`eslint`、`vitest run --typecheck`。先在类型测试里故意写错一条断言，确认会报错，再交给代码评审。

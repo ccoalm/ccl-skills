@@ -1,0 +1,179 @@
+# sig: 59285d05ad1d
+# F42 / arm=current / sample=5 / 92s / util=None
+# skills_invoked: ["ccl-skills:product-rd-workflow"]
+# axis: TypeScript strictness migration in an existing codebase
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：先按目录或 project reference 统计错误；按可独立检查的叶子 tsconfig 逐步打开（棘轮），或用只减不增、新增错误即失败的基线；修复靠收窄或改类型，不批量加 `as`/`!`/`@ts-ignore`，临时压制用带理由的 `@ts-expect-error`；CI 的 `tsc --noEmit` 覆盖源码、测试和脚本的每个 tsconfig；最后移除局部覆盖让全仓一致；说明 `noUncheckedIndexedAccess` 不在 strict 内、会让下标访问变成 `T | undefined`。弱点：全局打开后批量 `@ts-ignore`；加 `skipLibCheck` 或缩小 `include` 让错误消失；用打包器构建成功当作类型检查通过。
+
+## 先说结论
+
+**一周内把两个开关在主配置里打开、CI 零错误，是做得到的。一周内把三千多个错误都真正修好，风险很大。** 原因有两个：
+
+- **错误数会先涨后降。** 修掉 `noImplicitAny` 时，原来的 `any` 会变成真实类型，又会冒出一批新的空值错误和索引错误。实际总数通常明显多于第一次看到的数。
+- **快速批量修复最容易改变运行时行为。** 比如随手补一个 `?? ''`，或者加一个提前 `return`，都可能改掉原来的逻辑。
+
+所以建议把"一周全部打开"定义成下面四条，团队对齐后再开工：
+
+1. `strict` 和 `noUncheckedIndexedAccess` 写进主 tsconfig，`tsc` 零错误。
+2. 新写和新改的代码都按严格规则检查。
+3. 一周内没修完的错误，用统一标签 `@ts-expect-error strict-migration` 压住。它们有数量、有负责人、有截止时间，后面接着清。
+4. 迁移期间线上行为不变，有验证证据。
+
+---
+
+## 第 0 步（第一天上午）：摸底和定规则
+
+**做什么**
+
+1. **固定 TypeScript 版本。** lockfile 里锁死 `typescript` 的版本，避免中途升级导致错误数跳动。
+2. **分开统计每个开关的错误数。** 这样能知道哪个开关是大头：
+   ```bash
+   for f in noImplicitAny strictNullChecks strictFunctionTypes strictBindCallApply \
+            strictPropertyInitialization noImplicitThis useUnknownInCatchVariables \
+            noUncheckedIndexedAccess; do
+     n=$(npx tsc -p tsconfig.json --noEmit --pretty false --$f 2>&1 | grep -c 'error TS')
+     echo "$f $n"
+   done
+   ```
+   `noUncheckedIndexedAccess` 不包含在 `strict` 里，要单独开。
+3. **按目录和错误码做一张分布表**，再按 CODEOWNERS 分给各个目录的负责人。
+4. **新建 `tsconfig.strict.json`**，它 `extends` 主配置，再加上两个开关。迁移期间主配置先不动。
+5. **定修复规则**，见下一节。
+
+**验证**
+
+- 同一个 commit 跑两次，错误数完全一样。不一样说明结果不稳定，比如混进了生成代码或缓存，要先查清。
+- `npx tsc -p tsconfig.strict.json --showConfig` 里能看到 `strict: true` 和 `noUncheckedIndexedAccess: true`。
+- 确认 `include` 的范围：测试文件、stories 和生成代码（API client、GraphQL codegen）算不算进来，要明确写下来。生成代码应该用生成器的严格选项重新生成，不要手改。
+
+---
+
+## 修复规则（所有 PR 都遵守）
+
+修复分两类，分开提 PR，验证方式也不一样。
+
+| 类型 | 例子 | 运行时影响 | 验证方式 |
+|---|---|---|---|
+| A：只改类型 | 补类型注解、改泛型、`catch (e: unknown)` 加类型收窄、确实不会为空时加 `x!` | 编译后的 JS 完全一样 | 编译产物逐字节对比 |
+| B：改了运行时 | 加判空、`?? 默认值`、提前 return、改数据结构 | 有 | 补单测覆盖新分支，再做 code review |
+
+**禁止：**
+
+- 新增 `as any`
+- 用 codemod 批量加 `!`
+- 用 `// @ts-ignore`。只允许 `@ts-expect-error strict-migration`，因为错误修好后它会自己报错，提醒删掉。
+- 一个 PR 里混着 A 类和 B 类
+
+**按开关的常用修法：**
+
+- **`useUnknownInCatchVariables`**：统一用一个 `getErrorMessage(e: unknown)` 之类的 helper，可以半自动批量改。
+- **`noImplicitAny`**：最先修，因为它会带出后面的错误。函数参数尽量写真实类型。实在来不及时可以写显式的 `any`，但要用 eslint 的 `no-explicit-any` 计数跟踪，不能悄悄堆积。
+- **`strictNullChecks`**：通常是最大头。优先从源头收窄类型，比如把接口类型、props 里的可选字段写准确，而不是在每个使用点加 `!`。
+- **`strictPropertyInitialization`**：在构造函数里初始化；确实由框架注入的字段用 `!:`。
+- **`noUncheckedIndexedAccess`**：
+  - `for (let i…) arr[i]` 改成 `for…of` 或 `entries()`。
+  - 动态 key 的 `Record<string, T>` 改成 `Map`，或者显式判断。
+  - 定长数据用 tuple 类型。
+  - 已经检查过长度的 `arr[0]` 可以用 `!`，但要算 A 类，并且后面要清理。
+
+**`!` 的取舍：** 它编译后 JS 不变，最能保住原有行为，但会掩盖真实 bug。迁移期允许用，同时把 `@typescript-eslint/no-non-null-assertion` 设成 warn 并记一个基线数，迁移后再逐步清理。修复时发现的真实 bug，单独提 B 类 PR，不要顺手混进来。
+
+---
+
+## 第 1 步（第一天）：CI 只许错误变少
+
+**做什么**
+
+在 CI 里加一个检查：用 `tsconfig.strict.json` 跑 tsc，结果和仓库里提交的基线文件对比。可以直接用 betterer（`@betterer/typescript`），也可以自己写一个脚本，思路如下：
+
+```bash
+npx tsc -p tsconfig.strict.json --noEmit --pretty false \
+  | grep 'error TS' \
+  | sed -E 's/\(([0-9]+),([0-9]+)\)//' \
+  | sort | uniq -c > .strict-baseline.current
+```
+
+- 每条错误用"文件 + 错误码 + 错误信息"作为 key，去掉行号和列号，这样改动导致行号移位不会误报。
+- 对每个 key，当前数量必须小于等于基线数量。出现新 key 或某个 key 数量增加，CI 失败。
+- 错误减少后，提交新的基线文件。基线只能变小。
+
+**验证（必须实际演练一次，不能只看配置）**
+
+1. 在临时分支里故意写一个新的空值错误，确认 CI 变红。
+2. 修掉一个已有错误但不更新基线，确认脚本提示"需要更新基线"，或者按设计自动收紧基线。
+3. 只改动某个已有错误所在文件的行号，确认不会误报。
+4. 记下全量 tsc 的耗时。几十万行的仓库要开 `--incremental`，并缓存 tsbuildinfo，否则 CI 会很慢。
+
+从这一步起，新代码就不会再增加严格模式错误了。
+
+---
+
+## 第 2 步（第一天下午到第三天）：按目录并行清错误
+
+**做什么**
+
+- 顺序是：先做 codemod 能处理的部分（catch 变量、可推断的参数类型），再修 `noImplicitAny`，然后是 `strictNullChecks` 和 `strictPropertyInitialization`，最后是 `noUncheckedIndexedAccess` 和其余几个开关。
+- 每个 PR 只改一个目录、一类修复，diff 控制在几百行以内，方便快速 review、合并，出问题也好回滚。
+- 每天站会同步一次剩余数量，按开关和目录拆开看。如果第三天结束时降得明显不够快，就提前准备第 3 步的批量压制，不要压到第四天才做。
+
+**每个 PR 的验证**
+
+1. 用 `tsconfig.strict.json` 跑基线检查：错误数下降，没有新 key。
+2. 用主配置跑 `tsc --noEmit`，结果为零错误（主配置这时还没开严格模式）。
+3. lint 和单测通过。
+4. **A 类 PR 再加一项：编译产物对比。** 用 base 和 head 两个版本，以相同配置编译改动过的文件，比较输出的 JS：
+   ```bash
+   # 对 base 与 head 各跑一次，输出到不同目录后 diff
+   npx esbuild $(git diff --name-only base...head -- '*.ts' '*.tsx') \
+     --outdir=out-$REV --format=esm --log-level=error
+   diff -r out-base out-head   # A 类必须为空
+   ```
+   输出必须完全一致。只要有差异，就说明它其实是 B 类，要退回重新拆分。
+5. **B 类 PR 再加一项：** 每个新加的判空或默认值分支，都要有覆盖它的单测，并在 PR 描述里写清楚原来的行为和现在的行为。
+
+---
+
+## 第 3 步（第四天）：主配置正式打开
+
+**做什么**
+
+1. 把 `strict: true` 和 `noUncheckedIndexedAccess: true` 写进主 tsconfig。
+2. 用脚本给剩下的每个错误插入 `// @ts-expect-error strict-migration`。可以用 `ts-migrate` 的 reignore 插件，或者自己写一个按 tsc 输出插注释的脚本。
+3. 删掉 `tsconfig.strict.json`，把只减不增的检查改成统计 `strict-migration` 注释的数量，这个数只能减少。
+4. 制定剩余错误的清理计划：每个目录的负责人、数量、截止时间。
+
+**验证**
+
+- 用主配置跑 `tsc --noEmit`，零错误；`--showConfig` 确认两个开关都已生效。
+- `grep -rc 'strict-migration'` 得到剩余数量，记进迁移报告。
+- 整体构建产物和迁移开始前的 tag 对比：A 类改动不应该造成差异，产物差异应该都能对应到 B 类 PR。
+- 编辑器检查：随便打开一个文件，确认 IDE 用的是主配置，并且在报严格模式错误。
+- 跑完整的 E2E 和冒烟测试。
+
+---
+
+## 第 4 步（第五天）：发布和观察
+
+**做什么**
+
+- 带着本周所有 B 类改动发一个版本，按团队平时的灰度流程上线。
+- 留出缓冲时间，处理前几天被挤掉的 review 意见。
+
+**验证**
+
+- 线上错误监控（Sentry 等）里，`TypeError: Cannot read properties of undefined` 这类错误的比例，和迁移前一周对比，没有上升。
+- 如果出现回归，找到对应的 B 类 PR 单独回滚即可，开关本身不用关。这也是第 2 步要求 PR 拆小的原因。
+
+---
+
+## 风险和应对
+
+| 风险 | 应对 |
+|---|---|
+| 修完 `noImplicitAny` 后错误数反弹 | 先修它，把每日数量曲线拿给团队看，预期管理好 |
+| 为了赶进度，`!`、`any` 或压制注释泛滥 | 三者都用 lint 或 grep 计数，并在 CI 里设成只减不增 |
+| 打着类型修复的名义改了运行时行为 | A 类和 B 类分开提 PR，A 类必须通过编译产物对比 |
+| 合并冲突 | 按目录分工、PR 拆小、当天合并 |
+| tsc 太慢拖慢 CI | 开 `--incremental` 并缓存；monorepo 用 project references 按包分别检查 |
+
+proposed-next: none — 只是方案，没有对应的仓库可以动手。拿到仓库后，可以先执行第 0 步的分开关统计，再搭第 1 步的 CI 检查，并用故意引入的错误实际验证一遍。

@@ -1,0 +1,176 @@
+# sig: f86040f29c58
+# F42 / arm=candidate / sample=4 / 124s / util=None
+# skills_invoked: ["ccl-skills:product-rd-workflow", "ccl-skills:typescript-dev"]
+# axis: TypeScript strictness migration in an existing codebase
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：先按目录或 project reference 统计错误；按可独立检查的叶子 tsconfig 逐步打开（棘轮），或用只减不增、新增错误即失败的基线；修复靠收窄或改类型，不批量加 `as`/`!`/`@ts-ignore`，临时压制用带理由的 `@ts-expect-error`；CI 的 `tsc --noEmit` 覆盖源码、测试和脚本的每个 tsconfig；最后移除局部覆盖让全仓一致；说明 `noUncheckedIndexedAccess` 不在 strict 内、会让下标访问变成 `T | undefined`。弱点：全局打开后批量 `@ts-ignore`；加 `skipLibCheck` 或缩小 `include` 让错误消失；用打包器构建成功当作类型检查通过。
+
+# TypeScript 大仓迁移方案：开启 `strict` 和 `noUncheckedIndexedAccess`，一周落地
+
+## 0. 先确定"一周内全部打开"具体指什么
+
+3000 多个错误靠真实修复清零，按每个 3–5 分钟估算，大约需要 150–250 人时。5 个人全职做一周刚好够，几乎没有余量。为了赶日期，常见做法是批量加 `!`、`as any`、`@ts-ignore`。这样做会把 3000 个看得见的编译错误换成 3000 处类型在说谎的代码，比保持 `strict: false` 更糟。
+
+**建议把一周目标定义为以下四条：**
+1. 根 `tsconfig` 打开 `strict: true` 和 `noUncheckedIndexedAccess: true`，所有 tsconfig 都包括在内（源码、测试、脚本、storybook 等）。
+2. CI 检查：**新增任何一个类型错误都失败**。
+3. 剩余的历史错误记进一个**只减不增的基线文件**，不在代码里批量加抑制注释。
+4. 优先清零公共层（types、utils、API 层、store），因为修好这些能连带消掉下游大量错误。基线余量按目录指定负责人，后续持续清理。
+
+如果团队坚持"一周零错误、零基线"，就需要确认有足够的全职人力。前提是不能靠断言凑数，下文第 4 节的护栏会拦截这种做法。
+
+## 1. 第 0 天（半天）：摸底，结果决定排期
+
+| 动作 | 命令或方法 | 验证 / 产出 |
+|---|---|---|
+| 确认工具分工 | 读 `package.json`、所有 `tsconfig*.json`（包括 extends 和 references 链）、bundler 配置 | 搞清三件事：谁做类型检查，谁产出 JS（通常是 esbuild、SWC 或 Babel），CI 当前跑的是哪条 `tsc` 命令。**bundler 构建成功不等于类型检查通过** |
+| 固定 TS 版本 | lockfile 锁定 `typescript` | 6.0 起 `strict` 默认为 true。所有选项都在配置里显式写出，不依赖默认值 |
+| 按子开关分别计数 | 每个开关单独跑一次：`tsc --noEmit -p <cfg> --pretty false --strictNullChecks`，`--noImplicitAny`、`--strictPropertyInitialization`、`--strictFunctionTypes`、`--strictBindCallApply`、`--noImplicitThis`、`--useUnknownInCatchVariables`、`--noUncheckedIndexedAccess` 同理 | 得到一张"开关 × 一级/二级目录 × 错误码"的计数表，作为排期和分工依据 |
+| 找出"源头文件" | 统计哪些被大量引用的模块（如 shared types、API client、store）错误最多 | 这些文件排在最前面修。修好一个类型可能消掉下游几十个错误，也可能新冒出一些，所以总数会上下波动，属于正常现象 |
+
+## 2. 第 1 天：先把护栏建好，再开始修
+
+**2.1 基线检查脚本**：放在 CI 里，用来替代直接跑 `tsc`。
+
+基线的 key 用"文件 + 错误码"，值为出现次数，不含行号，这样代码挪动不会让基线失效。脚本在两种情况下失败：
+- 某个 key 的次数变多，说明有新增错误。
+- 某个 key 的次数变少但基线没更新。这会强制开发者把基线收紧，基线只能单调变小。
+
+```js
+// scripts/tsc-baseline.mjs   node scripts/tsc-baseline.mjs [--init|--update]
+import { execSync } from 'node:child_process';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+const CONFIGS = ['tsconfig.json' /* , 'tsconfig.test.json', ... 覆盖所有 tsconfig */];
+const BASELINE = 'tsc-baseline.json';
+const cur = {};
+for (const cfg of CONFIGS) {
+  let out = '', failed = false;
+  try { out = execSync(`npx tsc --noEmit -p ${cfg} --pretty false`, { encoding: 'utf8', maxBuffer: 1 << 28 }); }
+  catch (e) { out = String(e.stdout ?? ''); failed = true; }
+  let parsed = 0;
+  for (const line of out.split('\n')) {
+    if (/^error TS\d+/.test(line)) { console.error(`[${cfg}] 配置/全局错误: ${line}`); process.exit(2); }
+    const m = /^(.+?)\(\d+,\d+\): error (TS\d+):/.exec(line);
+    if (!m) continue;
+    parsed++;
+    const key = `${cfg}|${m[1]}|${m[2]}`;
+    cur[key] = (cur[key] ?? 0) + 1;
+  }
+  if (failed && parsed === 0) { console.error(`[${cfg}] tsc 失败但未解析到错误，拒绝放行`); process.exit(2); }
+}
+const write = () => writeFileSync(BASELINE, JSON.stringify(Object.fromEntries(Object.entries(cur).sort()), null, 2) + '\n');
+if (process.argv.includes('--init')) { write(); process.exit(0); }
+const base = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, 'utf8')) : {};
+const grew = [], shrank = [];
+for (const k of new Set([...Object.keys(cur), ...Object.keys(base)])) {
+  const c = cur[k] ?? 0, b = base[k] ?? 0;
+  if (c > b) grew.push(`${k}: ${b} -> ${c}`); else if (c < b) shrank.push(`${k}: ${b} -> ${c}`);
+}
+if (grew.length) { console.error('新增类型错误:\n' + grew.join('\n')); process.exit(1); }
+if (process.argv.includes('--update')) { write(); process.exit(0); }
+if (shrank.length) { console.error('错误已减少，请运行 --update 收紧基线:\n' + shrank.join('\n')); process.exit(1); }
+```
+
+这个脚本我没有在你们的仓库里跑过。上线前要做下面三项验证：
+- ① 在干净分支 `--init` 之后立即再跑一次，结果必须是 0 退出。
+- ② 故意写一个 `const x: number = 'a'`，CI 必须失败。
+- ③ 修掉一个基线里的错误但不更新基线，CI 必须失败。
+
+现成工具 betterer 也能做同样的事，可以替换。但 `typescript-strict-plugin` 这类按文件豁免的插件不支持 `noUncheckedIndexedAccess`，不建议作为主方案。
+
+基线文件发生 merge conflict 时，不要手工合并。重新跑 `--update`，确认总数不高于冲突前两边中较小的那个。
+
+**2.2 ESLint 护栏**：防止有人用断言凑数。只对 diff 生效，或者设成"不超过当前存量"。
+- `@typescript-eslint/no-non-null-assertion`
+- `@typescript-eslint/no-explicit-any`
+- `@typescript-eslint/ban-ts-comment`：禁止 `@ts-ignore`；`@ts-expect-error` 必须写说明
+- `@typescript-eslint/consistent-type-assertions`
+
+**验证方法**：在 PR 模板里统计本 PR 新增的 `!`、`as `、`any`、`@ts-expect-error` 数量，超过阈值的必须由 reviewer 逐条确认。
+
+**2.3 当天就能打开的低成本子开关**
+
+`strictBindCallApply`、`noImplicitThis`、`strictFunctionTypes`、`alwaysStrict`、`useUnknownInCatchVariables` 在大多数仓库里错误很少。逐个修到零，然后在根配置里**单独打开**，立刻锁住。
+
+注意：如果 JS 由 `tsc` 产出，`alwaysStrict` 会在产物里加 `"use strict"`，属于运行时变化，需要跑回归。如果由 bundler 产出，或者代码本身已是 ESM，则没有影响。
+
+## 3. 第 2–4 天：按目录 × 开关切分修复
+
+**顺序**：公共层的 `noImplicitAny` → 公共层的 `strictNullChecks` → 业务目录 → `noUncheckedIndexedAccess` → `strictPropertyInitialization`。
+
+**分工**：按 CODEOWNERS 或一级目录分给不同的人。每个 PR 只做"一个目录 + 一个开关"，控制在约 300 行以内，当天合并，避免和功能开发长期冲突。
+
+**每个 PR 必须标注类别，两类的验证方式不同：**
+
+| 类别 | 判定标准 | 验证 |
+|---|---|---|
+| `type-only` | 只改了类型注解、interface、泛型参数 | **产物比对**：对改动文件用项目的转译器（esbuild/SWC/Babel）分别转出改动前后的 JS 并 diff，**必须完全一致**。这能机械地证明运行时没有变化，reviewer 只需要看类型是否合理 |
+| `runtime` | 新增了 `?? 默认值`、提前 return、判空分支、改成 for-of 等 | 产物 diff 不为空，因此需要覆盖该分支的单测，或者写明手工验证路径。reviewer 重点检查：这个默认值是否掩盖了原本应该暴露的 bug |
+
+**常见修法**：用收窄（narrowing）证明类型，不用断言。
+
+- `noUncheckedIndexedAccess`
+  - `for (i…) arr[i]` 改成 `for (const x of arr)`。
+  - `if (arr.length) arr[0]` 不会收窄类型，改成 `const [first] = arr; if (first !== undefined)`。
+  - `Record<string, T>` 查找后要对结果判空。高频查表的场景考虑换成 `Map`。
+  - 正则结果 `m[1]` 需要判空。
+  - **不要一律写 `?? ''`**，这会把 undefined 静默变成空串。
+- `strictNullChecks`（React 场景）
+  - `useState([])` 会被推断为 `never[]`，要写成 `useState<Item[]>([])`。
+  - `useRef<HTMLDivElement>(null)` 是 ref 对象的正确写法。
+  - 可选 props 要在使用点判空，不要在类型上把可选改成必选。
+- `noImplicitAny`：参数类型从调用方或 API 类型推导。确实无法确定的写 `unknown` 再收窄，不要写 `any`。
+- `strictPropertyInitialization`：只有在框架生命周期或依赖注入保证赋值时，才用 `!:`，并加注释说明原因。
+- 外部输入（`fetch`、`JSON.parse`、`localStorage`、`postMessage`）的返回值本身就是 `any`，打开 strict 也查不出问题。这次顺手在边界处改成 `unknown` 加 schema 解析（如 zod）。至少不要在这里写 `as SomeType` 来消除错误。
+
+**每天收工时的验证**：
+1. 基线脚本通过，基线总数下降。把每天的燃尽数字记下来。
+2. 全量单测和 lint 通过。
+3. 构建通过。
+4. 当天合并的 `runtime` 类 PR 在测试环境冒烟。
+
+## 4. 第 4 或第 5 天：正式切换开关
+
+1. 在根 `tsconfig`（以及所有子配置或 extends 链）中写明 `"strict": true, "noUncheckedIndexedAccess": true`，删掉之前单独写的子开关。
+2. 跑 `--update` 生成最终基线。
+3. **验证**：
+   - `grep` 确认每个 tsconfig 实际生效的值。用 `tsc -p <cfg> --showConfig` 查看最终合并后的配置。
+   - CI 跑一次故意引入新错误的验证 PR，确认会被拦下。
+   - 在 IDE 里打开一个基线中的文件，能看到红线。这是预期行为：存量问题对开发者可见，但不阻塞 CI。
+4. 回滚方式：只改 tsconfig 的那次提交属于纯类型变化，回滚就是 revert 这一行。`runtime` 类 PR 各自独立 revert。
+
+## 5. 第 5 天：回归验证和收尾
+
+- 全量测试、E2E 或核心流程冒烟。优先覆盖 `runtime` 类改动集中的模块（可以从 PR 标签筛出清单）。
+- 灰度或预发观察前端错误监控（如 Sentry）中 `undefined`/`null` 相关错误的比例，与上线前对比。理想情况是下降，至少不能上升。
+- 剩余基线逐条记录：目录、负责人、目标日期。CI 的基线检查保证不会新增。建议另加一个每周检查：基线总数必须低于上周。
+- 全部清零后，删除基线脚本，恢复成直接跑 `tsc --noEmit`（或 `tsc -b`）作为 CI 检查。只有到这一步，才算真正"全部打开"。
+
+## 6. 风险与应对
+
+| 风险 | 应对 |
+|---|---|
+| 为凑数批量加 `!`、`as`、`any` | 第 2.2 节的 lint 规则加 PR 里的新增计数；每条都要有理由 |
+| `?? 默认值` 掩盖真实 bug | 归入 `runtime` 类，必须配测试；reviewer 专门检查 |
+| 修复 PR 与功能开发冲突 | 小 PR、按目录切分、当天合并；基线冲突一律重新生成 |
+| CI 只检查 `src/`，测试和脚本没覆盖 | 基线脚本中 `CONFIGS` 列出全部 tsconfig |
+| 别人升级 TS 后默认值变化，引入新错误 | 锁定版本，所有选项显式写出 |
+
+这是纯工程迁移，不涉及身份、计费或权限类的安全敏感输入。唯一相关的是第 3 节提到的外部输入边界。
+
+上面的错误数量和人时都是按你给的"3000 多个"推算的，我没有接触到仓库。第 0 天的分开关计数出来后，按实际数字决定团队选第 0 节的四条定义，还是追求真正清零。
+
+proposed-next: 在你们的仓库里跑第 0 天的分开关计数，并在干净分支上用第 2.1 节的三项检查验证基线脚本，然后根据实际错误分布定排期和分工
+
+迁移方案就是上一条回复的全部内容，这次只交付方案文本。下一步要在你们的仓库里执行，但我这边做不了。我查过当前工作目录，里面没有你们的仓库，也没有任何 `tsconfig*.json`。这个会话里也没有能执行命令的工具，所以第 2.1 节的基线脚本我没有实际跑过。
+
+方案里有几处是我直接替你定的，不需要再确认，想改的话改方案对应的位置就行：
+
+- **"一周内全部打开"的含义**：一周内做到三件事。第一，根配置打开 `strict` 和 `noUncheckedIndexedAccess`。第二，CI 上任何新增错误都会让构建失败。第三，剩下的错误记进一个只能变少的基线文件，不批量加抑制注释。如果坚持一周内清零、不留基线，改第 0 节。按 3000 多个错误、每个 3–5 分钟估算，这大约需要 5 个人全职干满一周。
+- **基线怎么记**：按"tsconfig + 文件 + 错误码"计数，不看行号，所以代码挪位置不会让基线失效。想更严格，可以在 key 里加上错误信息。
+- **每个修复 PR 怎么证明没改运行时行为**：比对改动前后转译出来的 JS，必须完全一致。不一致的 PR 要配测试。
+- **修复顺序**：先修公共层（共享类型、工具函数、API 层、store）。按第 0 天摸底的错误分布，可以在第 3 节调整。
+
+blocked: 第 0 天的分开关计数，以及基线脚本的三项检查 — 都需要在你们的仓库和 shell 里运行，这个会话两样都没有。
+
+proposed-next: 在你们的仓库里按第 0 天的分开关命令统计错误分布，在干净分支上用第 2.1 节的三项检查验证基线脚本，再按实际数字排定一周分工

@@ -1,0 +1,133 @@
+# sig: f86040f29c58
+# F42 / arm=candidate / sample=1 / 103s / util=None
+# skills_invoked: ["ccl-skills:typescript-dev"]
+# axis: TypeScript strictness migration in an existing codebase
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：先按目录或 project reference 统计错误；按可独立检查的叶子 tsconfig 逐步打开（棘轮），或用只减不增、新增错误即失败的基线；修复靠收窄或改类型，不批量加 `as`/`!`/`@ts-ignore`，临时压制用带理由的 `@ts-expect-error`；CI 的 `tsc --noEmit` 覆盖源码、测试和脚本的每个 tsconfig；最后移除局部覆盖让全仓一致；说明 `noUncheckedIndexedAccess` 不在 strict 内、会让下标访问变成 `T | undefined`。弱点：全局打开后批量 `@ts-ignore`；加 `skipLibCheck` 或缩小 `include` 让错误消失；用打包器构建成功当作类型检查通过。
+
+# 在一周内给大型 TS 前端打开 `strict` 和 `noUncheckedIndexedAccess`：迁移方案与每一步的验证
+
+我没有看到这个仓库，当前目录里没有代码。下面的方案是按"Vite/webpack 打包的前端单体"假设来写的。凡是要看仓库实际情况才能定的地方，都写成第 0 步的检查项。
+
+## 先说结论
+
+- **一周内在配置里打开这两个开关：可以做到。** 两个开关全局打开，同时加一份"已知错误基线"作为 CI 门禁。从打开那天起，新代码必须满足 strict 检查，基线里的错误只能减少。
+- **一周内把三千多个错误全部真正修完：我不建议定成硬目标。** 原因有三：
+  - 每修掉一层错误，常常会冒出新的一层（比如补全了类型，后面的空值错误才显出来）。
+  - 一部分修复会改变运行时行为。
+  - 赶工期最后常常变成批量加 `!`、`as`、`@ts-ignore`。这样开关是开了，保护作用却没了。
+- **为什么不在代码里批量加 `@ts-expect-error`：** 它会屏蔽下一行的所有错误，以后这一行再出新错也看不到。基线文件不碰代码，每个错误也仍然能看到。
+- 如果团队坚持一周清零，先做第 0 步的抽样估算，再按人力算能不能做到。
+
+## 第 0 步：摸清现状（约半天）
+
+| 动作 | 验证 / 产出 |
+|---|---|
+| 跑 `npx tsc -v`，确认 TS 版本。TS 6 里 `strict` 默认就是 `true`，所以要在 tsconfig 里写明，不要靠默认值 | 记录版本 |
+| 搞清楚三件事分别由哪个工具做：类型检查、产出 JS、产出 `.d.ts`。前端一般由打包器产出 JS，`tsc` 只做检查 | 列出工具链分工 |
+| 找出所有 `tsconfig*.json`，包括 `extends` 和 `references` 链，确认源码、测试、脚本、Storybook 都在某个 tsconfig 里，并且 CI 都会检查到 | 列出每个 tsconfig 的覆盖范围。有遗漏就先补上覆盖 |
+| **在当前设置下**跑一遍 `tsc --noEmit` | 必须是 0 个错误。不是 0，就先把现有门禁修好，否则基线里会混进老问题 |
+| 确认是不是 tsc 在产出 JS。如果是，并且产物是 CJS 或非模块脚本，打开 `strict` 会连带打开 `alwaysStrict`，产物里会多出 `"use strict"`，**这会改变运行时行为** | 由打包器产出的不受影响；由 tsc 产出的单独评估 |
+| 分开统计每个开关各自带来的错误数：`--strictNullChecks`、`--noImplicitAny`、`--strictPropertyInitialization`、`--useUnknownInCatchVariables`、`--strictFunctionTypes`、`--noUncheckedIndexedAccess`（命令行参数可以覆盖 tsconfig 的设置） | 按"开关 × 目录 × 错误码"做一张分布表，用来排优先级和分人 |
+| 每类错误随机抽 30 到 50 个，实际修一遍并计时 | 用实测的单个耗时乘以总数，看"一周清零"和团队人力对不对得上 |
+
+## 第 1 步：开关打开 + 基线门禁（第 1 天）
+
+1. 在根 tsconfig 写入 `"strict": true, "noUncheckedIndexedAccess": true`。
+2. 生成基线文件，键是"文件 + 错误码"，值是错误个数。不用行号做键，因为行号一改代码就会变。
+3. CI 里用基线检查替代原来的 `tsc --noEmit`。
+
+可以用现成工具，比如 betterer，也可以自己写一个小脚本，示意如下：
+
+```js
+// scripts/tsc-baseline.mjs   用法: node scripts/tsc-baseline.mjs check|update
+import { spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
+
+const BASELINE = 'tsc-baseline.json';
+const mode = process.argv[2] ?? 'check';
+const r = spawnSync('npx', ['tsc', '--noEmit', '-p', 'tsconfig.json', '--pretty', 'false'],
+  { encoding: 'utf8', maxBuffer: 1 << 28 });
+if (r.error) throw r.error;
+
+const cur = {};
+for (const line of r.stdout.split('\n')) {
+  if (/^error TS\d+/.test(line)) { console.error('全局/配置错误，不能入基线:', line); process.exit(1); }
+  const m = /^(.+?)\(\d+,\d+\): error (TS\d+):/.exec(line);
+  if (m) { const k = `${m[1].replaceAll('\\', '/')}|${m[2]}`; cur[k] = (cur[k] ?? 0) + 1; }
+}
+
+if (mode === 'update') {
+  writeFileSync(BASELINE, JSON.stringify(Object.fromEntries(Object.entries(cur).sort()), null, 2) + '\n');
+  process.exit(0);
+}
+const base = JSON.parse(readFileSync(BASELINE, 'utf8'));
+const worse = [], shrunk = [];
+for (const k of new Set([...Object.keys(cur), ...Object.keys(base)])) {
+  const c = cur[k] ?? 0, b = base[k] ?? 0;
+  if (c > b) worse.push(`${k}: ${b} -> ${c}`);
+  else if (c < b) shrunk.push(`${k}: ${b} -> ${c}`);
+}
+if (worse.length) { console.error('新增类型错误:\n' + worse.join('\n')); process.exit(1); }
+if (shrunk.length) { console.error('错误已减少，请运行 update 并提交收缩后的基线:\n' + shrunk.join('\n')); process.exit(1); }
+const total = Object.values(cur).reduce((a, b) => a + b, 0);
+console.log(`OK，剩余基线错误 ${total}`);
+```
+
+配套的几条规则：
+
+- **基线只能减少。** CI 再加一步：把 PR 里的 `tsc-baseline.json` 和 `origin/main` 上的版本比较，任何一项数字变大就失败。给这个文件配 CODEOWNERS。
+- **错误不能挪到别的文件。** 把某个返回类型改成 `T | undefined`，错误会传到调用方。这种情况要在同一个 PR 里把调用方一起修掉，不能把调用方的计数加进基线。
+- **重命名文件会让基线的键失效。** 重命名的 PR 要么把错误修掉，要么经过评审后更新基线。
+- **补 lint 规则，堵住绕过检查的写法：**
+  - `@typescript-eslint/ban-ts-comment` 设为必须写说明，并禁止 `@ts-ignore`。
+  - `no-non-null-assertion` 设为 error，或者要求带说明注释。
+  - 新增的 `as` 断言要在评审中逐个看过。
+  - 加 `no-unnecessary-condition`。strictNullChecks 打开后它才有意义。
+
+**第 1 天的验证：**
+
+- 在一个分支上故意写一个新错误（比如 `const a: string[] = []; a[0].length`），CI 必须失败。
+- 修掉基线里的一个错误但不更新基线，CI 必须失败并提示运行 `update`。
+- 在 PR 里手动把基线某一项调大，"只能减少"那一步必须失败。
+- 打包和全量测试的结果和打开开关前一致。这一步只改了配置和门禁，产物不应有变化，可以用打包产物的哈希或 diff 来证明。
+
+## 第 2 到 5 天：消化错误，按风险分三类处理
+
+| 类别 | 典型改法 | 运行时风险 | 每个 PR 的验证 |
+|---|---|---|---|
+| A. 只改类型 | 补参数和返回值的类型、修 `Record<string,V>` 一类的类型定义、`useRef<HTMLDivElement>(null)` | 无 | **对比改动前后的 JS 产物**，必须字节一致（打包器在固定构建条件下产出，或用 tsc/esbuild 逐文件转译后 diff）。一致就证明没有改到行为 |
+| B. 不改行为的收窄 | 把 `for (let i…) arr[i]` 改成 `for…of`；在已经判断过的分支里用类型守卫让编译器认出来；用有限的键联合代替字符串索引（这样 `noUncheckedIndexedAccess` 不再报 undefined） | 低 | 基线检查 + 相关单测 + 评审确认原来那条路径确实不会出现 undefined |
+| C. 改了行为 | 加 `?? 默认值`、提前 return、throw；`catch (e)` 改成先判断 `e instanceof Error`；类属性补上初始化 | **有**：以前是隐性崩溃，现在走了别的分支 | 单测要覆盖 undefined 和 null 那条分支；页面级冒烟测试；**单独发版**，并在前端错误监控上观察错误率 |
+
+具体安排：
+
+- **先修高价值的地方：** 接口响应解析、表单和 URL 参数、本地存储这类外部输入的边界。这些值应该先当 `unknown` 处理，解析通过后再得到具体类型，不要用 `as` 直接断言。然后是支付、权限、数据写入相关的路径。最后才是大量重复的机械修改。
+- **可以用 codemod 的：** 批量改 `catch (e)` 的写法、批量补 ref 的泛型等 A 类改动。codemod 跑完必须过一遍"产物一致"的验证。
+- **按目录分给负责人，并行推进。** 每个 PR 只做一类修改，A 类和 C 类不要混在一个 PR 里，这样产物 diff 才能起到证明作用。
+- **每天的验证：** 基线总数的趋势（按开关和目录统计）；新增 `!`、`as`、`@ts-expect-error` 的数量必须接近 0（用 grep 或 lint 统计）；主干上的 CI 一直是绿的。
+
+## 一周结束时
+
+- 两个开关已经全局打开，门禁在 CI 里生效，所有 tsconfig 都被检查到，并且没有新增错误。
+- 基线还剩多少就公开多少，按目录写明负责人和清零日期。清零后删掉基线脚本，门禁换回普通的 `tsc --noEmit`，必须 0 个错误。
+- 不做的事：不为了凑数字加 `skipLibCheck`、不扩大 `exclude`、不在局部 tsconfig 里关掉 `strict`。如果某个目录确实需要例外，单独记录负责人和解除条件。
+
+## 局限和风险
+
+- 方案没有对着真实仓库验证。TS 版本、工具链分工、tsconfig 结构和 tsc 是否产出 JS，都要在第 0 步确认，确认结果可能改变第 1 步的做法。
+- 基线期间，基线文件里的错误仍会在 IDE 里显示成红线，开发者需要知道这些是已知的存量错误。
+- C 类修改是这次迁移里唯一真正可能引起线上问题的部分，要单独发版并盯监控。
+
+proposed-next: 在仓库里执行第 0 步（版本、tsconfig 覆盖、按开关统计错误分布、抽样计时），根据结果确定一周目标是"打开开关并加门禁"还是"清零"，然后落地基线脚本和 CI 门禁。
+
+我检查过了，`/tmp/tsd-eval/cwd` 里没有任何 `tsconfig*.json`，当前环境里没有你说的这个仓库。所以第 0 步（确认 TS 版本、tsconfig 覆盖范围，按开关统计错误分布，抽样计时）现在没法跑。这次你要的是方案和验证步骤，这部分上面已经交付完整，还没有对着真实仓库验证过。
+
+方案里有几处是我按默认处理的。如果你们情况不同，按下面改：
+- **一周目标：** 默认是"两个开关全局打开 + CI 基线门禁 + 不再新增错误"，不是三千多个错误全部清零。如果坚持一周清零，先用第 0 步的抽样计时算一下人力够不够。
+- **工具链：** 默认由打包器产出 JS，`tsc` 只做类型检查。如果是 `tsc` 产出 CJS 或非模块脚本，要单独评估 `alwaysStrict` 对运行时的影响。
+- **基线怎么记：** 默认按"文件 + 错误码"记错误个数，并且只能减少。也可以换成 betterer 这类现成工具，规则保持不变。
+
+blocked: 当前环境里没有这个仓库，需要你提供仓库路径，或者把仓库放到工作目录里。
+
+proposed-next: 在仓库里执行第 0 步，然后加上 `scripts/tsc-baseline.mjs` 和 CI 门禁，并按第 1 天的验证项（故意写新错误、基线没收缩、基线被调大、产物不变）逐项验证。

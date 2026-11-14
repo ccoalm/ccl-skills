@@ -1,0 +1,137 @@
+# sig: 59285d05ad1d
+# F42 / arm=current / sample=10 / 76s / util=None
+# skills_invoked: ["ccl-skills:product-rd-workflow"]
+# axis: TypeScript strictness migration in an existing codebase
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：先按目录或 project reference 统计错误；按可独立检查的叶子 tsconfig 逐步打开（棘轮），或用只减不增、新增错误即失败的基线；修复靠收窄或改类型，不批量加 `as`/`!`/`@ts-ignore`，临时压制用带理由的 `@ts-expect-error`；CI 的 `tsc --noEmit` 覆盖源码、测试和脚本的每个 tsconfig；最后移除局部覆盖让全仓一致；说明 `noUncheckedIndexedAccess` 不在 strict 内、会让下标访问变成 `T | undefined`。弱点：全局打开后批量 `@ts-ignore`；加 `skipLibCheck` 或缩小 `include` 让错误消失；用打包器构建成功当作类型检查通过。
+
+# TS 仓库开启 `strict` 和 `noUncheckedIndexedAccess`：一周迁移方案
+
+## 结论
+
+一周内可以把两个开关在全仓库打开，CI 也可以保持全绿。但 3000 多个错误不太可能在一周内全部真正修完。
+
+建议把目标分成两层：
+
+1. **本周必须做到**：两个开关在主 `tsconfig` 里打开；CI 的 `tsc` 报 0 个错误；新写的代码必须完全满足 strict。
+2. **本周尽量做**：存量错误先用带固定标记的 `@ts-expect-error` 压住，再按类别逐步修掉。剩下的错误要有数量、负责人和截止时间。
+
+如果硬要在一周内修到 0，团队通常会到处加 `!` 和 `as any`。这样开关开了，类型检查却没有真正生效，比现在更危险。
+
+有两个前提要先讲清楚：
+
+- **改类型的提交不会改变运行时行为，增加判空分支的提交会。** 只加类型标注、`!` 或 `as` 的修改，编译后会被擦掉。增加空值检查、提前 return 或默认值，会改变程序行为。验证方式按这两类分开。
+- `strict` 包含 `alwaysStrict`，会在输出里加 `"use strict"`。ES module 本来就是严格模式，但非模块脚本，例如 legacy 全局脚本或部分 worker，可能因此改变行为，要单独检查。
+
+## Day 1：测量、准备工具、打开开关
+
+### 步骤 1.1：统计错误分布
+
+分别统计每个开关产生的错误，不要只看 `strict` 打开后的总数：
+
+```bash
+# 分别统计每个开关的错误
+for f in strictNullChecks noImplicitAny strictFunctionTypes strictBindCallApply \
+         strictPropertyInitialization noImplicitThis useUnknownInCatchVariables \
+         noUncheckedIndexedAccess; do
+  n=$(npx tsc --noEmit -p tsconfig.json --$f --pretty false 2>&1 | grep -c 'error TS')
+  echo "$f $n"
+done
+
+# 全开后按错误码、按目录分布
+npx tsc --noEmit -p tsconfig.json --strict --noUncheckedIndexedAccess --pretty false \
+  > strict-errors.txt
+grep -oE 'error TS[0-9]+' strict-errors.txt | sort | uniq -c | sort -rn
+cut -d'(' -f1 strict-errors.txt | awk -F/ '{print $1"/"$2"/"$3}' | sort | uniq -c | sort -rn
+```
+
+验证：
+
+- 确认所有 tsconfig 都统计到了，包括 project references、测试用 tsconfig 和 monorepo 子包。用 `tsc -b` 或逐个 `-p`，确认不同入口的错误总数一致。
+- 确认测量用的 `skipLibCheck` 设置和正式配置一致。
+- 用 CODEOWNERS 把错误按目录映射到负责人。
+
+### 步骤 1.2：搭建 CI 闸门
+
+1. 统一 suppress 标记：`// @ts-expect-error strict-migration`。
+   - 选 `expect-error`，不选 `ts-ignore`：错误修好之后，多余的注释本身会报错，所以修复后注释一定会被清掉。
+2. 加一个计数脚本，作为只减不增的闸门。它统计 `@ts-expect-error strict-migration` 的数量，以及非空断言 `!` 的数量（可以用 eslint 规则 `@typescript-eslint/no-non-null-assertion` 的报告来数）。任何一项超过基线文件里的数值，CI 就失败。基线文件只允许往下改。
+3. 用 eslint 的 `@typescript-eslint/ban-ts-comment` 要求每个 ts 注释都写说明，禁止裸的 `@ts-ignore`。
+
+验证：做一个临时 PR，故意新增一处 suppress、一处 `!` 和一个新的类型错误，确认三个都会让 CI 失败；删除一处 suppress 时 CI 通过，并提示可以下调基线。
+
+### 步骤 1.3：打开开关，批量压住存量错误
+
+1. 在主 `tsconfig` 里设置 `"strict": true, "noUncheckedIndexedAccess": true`。
+2. 用工具批量插入注释，例如 `suppress-ts-errors` 或 ts-migrate 的 ts-ignore 插件；也可以自己写一个脚本，按 tsc 输出的行号插入。JSX 里的注释格式是 `{/* @ts-expect-error strict-migration */}`。
+3. 这一步作为单独 PR 合入，选在合并冲突最少的时段，并提前通知团队 rebase。
+
+验证：
+
+- `tsc --noEmit` 报 0 个错误。
+- **构建产物应和改动前一致**：注释不会进入编译后的 JS。用关闭 sourcemap 的生产构建分别构建改动前后，并忽略 chunk hash 和文件名，再比较 JS 内容，应该只有 `"use strict"` 相关差异，或者完全没有差异。如果多了 `"use strict"`，要确认对应文件都是模块。
+- 全量单测和 E2E 通过。
+- 回滚方式：revert 这一个 PR。
+
+到 Day 1 结束，开关已经打开，后面的工作都是消化存量。
+
+## Day 2：机械修复，只动类型
+
+只做风险低、编译后会被擦掉的修改，按目录拆 PR，每个 PR 不超过几百处，并尽快合入，减少冲突。
+
+| 错误类别 | 修法 |
+|---|---|
+| `TS7006/7031` 参数隐式 any | 补上真实类型；暂时推不出来的写成显式 `unknown`，不要写 `any` |
+| `TS2564` 类属性未初始化 | 补初始值，或者写 `!:`（例如由 DI 或生命周期赋值的属性） |
+| `TS18046` catch 里的 `e` 类型是 unknown | 改成 `e instanceof Error ? e.message : String(e)` |
+| `strictFunctionTypes`、`strictBindCallApply` | 修正回调签名 |
+| `noImplicitThis` | 标注 `this` 参数，或者改成箭头函数 |
+
+注意：catch 的修法里有 `String(e)` 分支，会改变运行时行为，归到 Day 3 那一类处理。
+
+每个 PR 的验证：
+
+- `tsc` 0 错误，迁移标记的计数下降，基线随之下调。
+- 构建产物与改动前一致，这是最强的证据：只要产物没变，运行时行为就不可能变。如果产物出现差异，说明这个 PR 混进了行为改动，要拆出去。
+- 单测通过。
+
+## Day 3–4：修复判空问题，会改行为
+
+这两天处理 `strictNullChecks` 和 `noUncheckedIndexedAccess` 产生的错误，主要是 `TS2532`、`TS18048`、`TS2322` 里涉及 undefined 的部分，通常占错误的大头，也最有价值。
+
+先定统一的修复规则：
+
+1. **先判断值是否真的可能为空。**
+   - 不可能为空的：优先改写代码，让 TS 能自己推断出非空。例如用 `for...of` 或 `forEach` 代替下标循环；检查长度后用解构取值；`Map` 先 `get` 再判断。
+   - 确实无法改写的：用统一的 `invariant(x, 'msg')` 或 `assertDefined`，失败时**抛错**。原来访问空值也会抛 TypeError，所以运行时行为大致等价，而且错误信息更清楚，也会被错误监控捕获。
+2. **可能为空的**：这是在修真实 bug。补上处理分支，并且必须配一个测试用例，先写测试，让它在修复前失败。
+3. **禁止**用 `?.` 或 `?? 默认值` 悄悄吞掉空值，除非产品语义确实需要默认值。这种写法会把原来会报错的问题变成静默的错误数据，以后更难排查。
+4. 新增 `!` 受 Day 1 的闸门限制，确实需要时必须写注释说明。
+
+每个 PR 的验证：
+
+- `tsc` 0 错误，计数下降。
+- 只改类型的部分仍然检查构建产物是否一致。产物有差异的地方，PR 里必须有对应测试，说明这段行为改动是有意的。
+- 相关的单测、组件测试和 E2E 通过。高流量页面合入后，观察错误监控里新增的 invariant 报错。
+- Review 重点：检查是否有用 `?? 默认值` 吞掉空值的修法。
+
+## Day 5：收尾
+
+1. 确认构建链真的会做类型检查。Vite、esbuild、babel 默认不跑类型检查，CI 里的 `tsc --noEmit` 和计数闸门必须设成必过检查。
+2. 如果仓库有对外发布的包或 `.d.ts`，打开 strict 后声明文件可能变化，例如可选属性带上 `| undefined`。需要对比声明文件，并通知下游使用方。
+3. 输出剩余 suppress 的清单，按目录、负责人和错误码统计，排进后续迭代；基线计数每周只减不增。
+4. 更新团队规范：新代码禁止新增 `strict-migration` 注释，推荐使用 `invariant`，并在 Code Review 清单里加上检查空值是否被静默吞掉。
+
+验证：
+
+- 在干净的检出目录里跑完整 CI：`tsc`、lint、计数闸门、单测、E2E、构建全部通过。
+- 计数趋势是单调下降的。
+- 发布前后错误监控里没有新增异常类型。
+
+## 人力和取舍
+
+- 机械类修复配合 codemod 和逐目录 PR，一个人一天可以处理几百处。判空类修复如果认真判断，一个人一天通常只能修几十处。
+- 如果大部分错误是判空类，5 个人干 3 天大约能修掉 1000–2000 处，剩下的留在 suppress 清单里继续消化。这是可以接受的结果，因为开关已经开了，新代码已经全部受检。
+- 真正要守住的不是 0 个 suppress，而是**不用 `!` 或 `as` 凑数**。前者只影响进度，后者会让迁移失去意义。
+
+proposed-next: none — status only（纯方案；如果能提供仓库路径，可以先跑 Day 1 的错误分布统计，用实际数据校准人力和排期）

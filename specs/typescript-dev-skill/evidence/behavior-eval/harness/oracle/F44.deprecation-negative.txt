@@ -1,0 +1,3 @@
+# sig: x
+
+升级到 6.0 后，`baseUrl` 和 `moduleResolution: node10` 的弃用报错在 tsconfig 上，临时用 `"ignoreDeprecations": "6.0"` 压住，迁移 7.0 前删掉。代码里新增的类型错误，修不了的用 `// @ts-expect-error <原因>` 压住并登记。

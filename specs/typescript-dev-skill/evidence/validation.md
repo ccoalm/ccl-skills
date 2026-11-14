@@ -61,3 +61,11 @@
 - 台账重新生成属于生成型记录，审计本身逐字节校验它与工具输出一致，没有另做外部评审。
 - 在 47b5ee7 上全部通过（exit 0）：`check-ccl-skills.sh`（私有别名审计 `r0_status=private-ok`）、`check-public-sanitization.py` 及其回归、`check-markdown-links.py`、`check-spec-references.py`、`check-skill-count.py` 及其回归、`check_review_evidence_present.py`、`make test-repo-gates`、`make test-regressions-fast`、`make test-code-review-1`、`make test-code-review-2`、`make test-code-review-abort-leak-1`、`-2`（在独立 PID 命名空间里跑，见本机环境说明）、`test_check_ccl_regressions.sh --heavy-only`。
 - 之后只在本文件追加了这一段结果记录。
+
+## 后续轮：F41–F44 配对评测（2026-11-13 追加）
+
+第 10 行的「证据不足」记的是本轮落地时的状态。后续轮按冻结的任务和评分标准跑了配对评测（改前 e0a0568、改后 51b32dd 的整个插件树，每臂每任务 10 个有效样本）：
+
+- 结论类别改为**稳定成功，附一处已修复的缺陷**。四个任务的评分标准覆盖率都提高（+0.09 到 +0.19，置换检验 p ≤ 0.002）。
+- 缺陷：升级步骤没说在哪里压制报错，改后回答 4/10 建议用 `@ts-expect-error` 压弃用选项报错；第 4 步已改为按报错位置压制，修复后 0/10。
+- 摘要、原始回答、评分、评测工具隔离问题和本轮的评审记录见 `behavior-eval/summary.md`、`behavior-eval/validation.md`。

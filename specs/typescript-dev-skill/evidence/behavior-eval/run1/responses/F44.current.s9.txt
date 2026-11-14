@@ -1,0 +1,141 @@
+# sig: 873596881eb4
+# F44 / arm=current / sample=9 / 67s / util=None
+# skills_invoked: ["ccl-skills:product-rd-workflow"]
+# axis: TypeScript monorepo project references and compiler upgrade
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：每个包 `composite: true` 并在 `references` 列出依赖包，根上建 `files: []` 的 solution tsconfig，用 `tsc -b` 增量构建；共享选项放一个被 extends 的 base；引用方向与架构层定的包依赖方向一致，循环是设计问题；明确工作区包是先构建（exports 指向产物）还是源码直连（customConditions）并让打包器和测试运行器一致；升级前读实际发布说明：6.0 改了 `strict`/`module`/`target`/`types`/`rootDir` 等默认值并废弃 `baseUrl` 查找和 `moduleResolution node10`，7.0 采用这些默认值、把废弃项变成错误且不带编译器 API，先在 6.0 上无 `ignoreDeprecations` 编译干净，再逐个确认 typescript-eslint 等依赖编译器 API 的工具怎么并行用 6.0 API。弱点：只改版本号；依赖旧默认值不显式写出；忽略需要编译器 API 的工具。
+
+当前目录下没有找到 `package.json` 或 `tsconfig`，所以下面是一套通用方案，没有在你的仓库上跑过。包名先用 `packages/{core,utils,api,web,cli}` 代替。
+
+我的知识无法确认"最新大版本"具体是几，先在仓库里运行 `pnpm view typescript dist-tags` 查。下面按"5.x → 6.0 → 7.x（如果 7 已正式发布）"分段写，用不到的段跳过即可。
+
+## 一、tsconfig 结构：用 Project References 做增量检查
+
+慢的原因：每个包各自从源码检查全部依赖，或者根目录用一个大 `tsconfig` 一次检查全部。改用 project references 后，每个包检查完会生成 `.d.ts` 和 `.tsbuildinfo`。下游包只读上游的 `.d.ts`，上游没变化就直接跳过。
+
+```
+tsconfig.base.json      # 共享编译选项，不含 include
+tsconfig.json           # 根：files: []，只列出 references
+packages/core/tsconfig.json
+packages/utils/tsconfig.json   # references → core
+packages/api/tsconfig.json     # references → core, utils
+...
+```
+
+**`tsconfig.base.json`**（所有选项都写明，不依赖默认值，因为 6.0 改了不少默认值）
+
+```jsonc
+{
+  "compilerOptions": {
+    "composite": true,            // 启用 references 必需，同时隐含 incremental 和 declaration
+    "declarationMap": true,       // 编辑器里跳转能直接到源码
+    "emitDeclarationOnly": true,  // JS 由 tsup/vite 等打包器产出时用；如果由 tsc 产出 JS，删掉这一行
+    "target": "es2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",   // 打包器项目改成 "bundler" + "module": "esnext"
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"]             // 6.0 起 types 默认为 []，需要显式写上
+  }
+}
+```
+
+**`packages/api/tsconfig.json`**
+
+```jsonc
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "include": ["src"],
+  "references": [{ "path": "../core" }, { "path": "../utils" }]
+}
+```
+
+**根 `tsconfig.json`**
+
+```jsonc
+{ "files": [], "references": [
+  { "path": "packages/core" }, { "path": "packages/utils" },
+  { "path": "packages/api" }, { "path": "packages/web" }, { "path": "packages/cli" }
+]}
+```
+
+**命令**
+
+| 场景 | 命令 | 检查范围 |
+|---|---|---|
+| 全仓 | `tsc -b` | 只重新检查有变化的包，以及公开 `.d.ts` 变了的下游包 |
+| 只看某个包 | `tsc -b packages/api` | api 加上它的上游；已是最新的上游会跳过 |
+| 开发时 | `tsc -b -w` | 增量 watch |
+| 查看跳过原因 | `tsc -b --verbose` | 每个项目是否 up to date 以及原因 |
+
+需要注意：
+
+1. **包之间不能有循环引用。** 你说"互相引用"，如果确实存在 A↔B 的循环，`tsc -b` 会直接报错。必须把共用部分抽到 `core`，或者合并这两个包。这一步是这套方案能落地的前提。
+2. **`references` 要和 `package.json` 的 `workspace:*` 依赖保持一致。** 漏写 reference 时会读到旧的 `.d.ts`，或者报找不到模块。建议 CI 加一个检查，可以用 `workspaces-to-typescript-project-references --check`，或者写一个几十行的脚本对比两边。
+3. `package.json` 里 `exports.types` 指向 `dist/*.d.ts`。
+4. CI 缓存 `packages/*/dist` 和 `*.tsbuildinfo`，跨次运行也能增量。
+5. 测试 / 脚本文件如果要单独配置，可以加 `tsconfig.test.json`，引用本包后再挂到根 references 上，不要混进主项目。
+
+## 二、升级步骤（每一步单独提交，可以单独回滚）
+
+0. **记录基线**（在 5.x 上）：
+   - 运行 `tsc -b --clean && tsc -b`，确认零错误。
+   - 保存 `tsc -b --extendedDiagnostics` 输出的耗时。
+   - 把当前生成的 `dist/**/*.d.ts` 复制到 `/tmp/dts-before`，供后面对比。
+   - 跑一遍全量测试和 lint，保存结果。
+1. **统一版本源**：在 `pnpm-workspace.yaml` 用 `catalog:` 管理 typescript，各包写 `"typescript": "catalog:"`，或者只在根 devDependencies 安装一份。用 `pnpm why typescript` 确认只有一个版本。
+2. **先做结构改造，再升级**：在 5.x 上完成第一节的 references 改造并通过验证。这样后面出问题时，能分清是结构引起的还是版本引起的。
+3. **升到 5.x 的最新补丁版**（5.9）并修掉新报错。
+4. **升到 6.0**（这是 5 和 7 之间的过渡版本，主要做弃用清理）：
+   - 删掉或替换已弃用的选项：
+     - `baseUrl` 改成 `paths` 写相对路径
+     - `moduleResolution: node` / `node10` / `classic` 改成 `nodenext` 或 `bundler`
+     - `target: es5`
+     - `outFile`
+     - `downlevelIteration`
+     - `module: amd/umd/system`
+     - `esModuleInterop: false`
+   - 不要用 `"ignoreDeprecations": "6.0"` 长期压住警告。它最多作为临时过渡，因为 7.0 会直接删掉这些选项。
+   - 默认值变了的选项（`strict`、`types`、`rootDir`、`module`/`target`）已经在 base 里写明，应该不受影响。
+5. **升到 7.x（如果已是 latest）**：编译器改成了原生实现，速度明显更快。但依赖 TS JS API 的工具要逐个确认兼容，包括 typescript-eslint、ts-jest、vue-tsc、ts-node、API Extractor 等。不兼容的话有两条路：
+   - 等它们发布适配版本；
+   - 让类型检查用 7（`tsc -b`），工具链暂时继续使用 6.x 的 API 包，两者都锁定在 catalog 里。
+6. **同步升级周边**：`@types/node`、typescript-eslint（检查 peer 版本范围）、IDE 的 workspace TS 版本（`.vscode/settings.json` 里的 `typescript.tsdk`）。
+
+## 三、验证清单
+
+| 验证项 | 方法 | 通过标准 |
+|---|---|---|
+| 依赖一致 | `pnpm install --frozen-lockfile && pnpm why typescript` | 只有一个 TS 版本 |
+| 全量正确 | `tsc -b --clean && tsc -b` | 零错误 |
+| 无事可做 | 紧接着再跑 `tsc -b --verbose` | 5 个项目都显示 up to date |
+| 叶子包增量 | 改 `cli` 的一个内部函数后 `tsc -b --verbose` | 只重新检查 `cli` |
+| 上游内部改动 | 改 `core` 的私有实现（不改导出类型） | 只重新检查 `core`，下游显示 up to date |
+| 上游 API 改动 | 改 `core` 的导出类型 | `core` 和依赖它的包都重新检查，类型错误能正确报到下游 |
+| 引用一致 | 故意删掉一条 reference，跑 CI 检查 | CI 失败 |
+| 产物不变 | `diff -r /tmp/dts-before <新 dist>` | 只有预期内的差异，逐条看过 |
+| 运行行为 | 全量测试、lint、打包；`pnpm pack` 后在临时目录安装并 import 一次 | 全部通过 |
+| 性能 | 对比基线的 `--extendedDiagnostics`，以及改一个包后的耗时 | 单包改动的耗时明显下降 |
+
+**回滚**：每一步一个提交，只涉及 `tsconfig*` / `package.json` / lockfile，`git revert` 对应提交即可回退。
+
+proposed-next: 你把仓库路径给我后，我在独立 worktree 里先做基线和 references 改造（第 0、2 步），跑完上面的验证表再升级 TypeScript 版本。
+
+你要的是方案，上一条回复已经给全了：tsconfig 结构、升级步骤和验证清单。没有东西可以实际去跑，因为工作目录（`/tmp/tsd-eval/cwd`）和附加目录（`/tmp/tsd-eval/before`）里都没有 pnpm monorepo，两处都找不到 `pnpm-workspace.yaml`。所以这套方案还没在真实仓库上验证过。
+
+我还没核实最新的 TypeScript 大版本号，这个会话里我也没法执行命令去查。请在仓库里运行 `pnpm view typescript dist-tags` 确认，再决定是否跳过 7.x 那一段。
+
+方案里我先按下面这些默认处理，不合适直接改就行：
+- **包之间不能有循环引用。** 如果确实有，就把共用部分抽到 `core`。
+- **JS 由打包器生成，`tsc` 只负责类型检查和输出 `.d.ts`。** 如果 JS 由 `tsc` 生成，从 base 配置里删掉 `emitDeclarationOnly`。
+- **TypeScript 版本用 pnpm `catalog:` 统一管理。** 想改成只在根目录装一份也可以。
+- **先在 5.x 上完成结构改造，再升级版本。** 这样出问题时能分清是哪一步引起的。
+
+proposed-next: 在这个 monorepo 的独立 worktree 里先做第 0 步（记录基线）和第 2 步（references 改造），跑通验证表后，再依次升级到 5.9、6.0、7.x。

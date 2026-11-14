@@ -1,0 +1,136 @@
+# sig: 59285d05ad1d
+# F42 / arm=current / sample=8 / 98s / util=None
+# skills_invoked: ["ccl-skills:product-rd-workflow"]
+# axis: TypeScript strictness migration in an existing codebase
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：先按目录或 project reference 统计错误；按可独立检查的叶子 tsconfig 逐步打开（棘轮），或用只减不增、新增错误即失败的基线；修复靠收窄或改类型，不批量加 `as`/`!`/`@ts-ignore`，临时压制用带理由的 `@ts-expect-error`；CI 的 `tsc --noEmit` 覆盖源码、测试和脚本的每个 tsconfig；最后移除局部覆盖让全仓一致；说明 `noUncheckedIndexedAccess` 不在 strict 内、会让下标访问变成 `T | undefined`。弱点：全局打开后批量 `@ts-ignore`；加 `skipLibCheck` 或缩小 `include` 让错误消失；用打包器构建成功当作类型检查通过。
+
+# TS `strict` + `noUncheckedIndexedAccess` 一周迁移方案
+
+## 先说结论
+
+一周内把 `strict` 和 `noUncheckedIndexedAccess` 都开起来是可行的。前提是别在 3000 个错误清零之后才改配置。
+
+- **第 1 天**：加一个独立的严格配置，再加一个"错误只减不增"的 CI 检查（下文叫"计数卡关"）。从这天起，新代码就必须过严格检查。
+- **第 2–4 天**：按错误类别和目录分人修。
+- **第 5 天**：把两个开关写进主 tsconfig。还没修完的错误逐条加上带标记的 `@ts-expect-error`，并写明负责人。
+
+要注意，错误数会先涨后降。修掉隐式 `any` 后，原本被 `any` 遮住的空值错误会冒出来。所以第 1 天要实测，用实测结果判断第 5 天能清零，还是要留一批标记过的错误继续修。
+
+---
+
+## 第 0 步：量化（第 1 天上午）
+
+```bash
+# tsconfig.strict.json
+{ "extends": "./tsconfig.json",
+  "compilerOptions": { "strict": true, "noUncheckedIndexedAccess": true } }
+
+npx tsc -p tsconfig.strict.json --noEmit --pretty false > strict.log
+grep -oE 'error TS[0-9]+' strict.log | sort | uniq -c | sort -rn      # 按错误码
+grep -E 'error TS' strict.log | cut -d'(' -f1 | xargs -n1 dirname \
+  | sort | uniq -c | sort -rn | head -50                               # 按目录
+```
+
+**验证**：
+- 拿到错误码分布和目录分布。常见错误码对应关系：
+  - TS7006/7005/7031：隐式 `any`
+  - TS2532/18048/2322：空值相关
+  - TS2564：类属性没有初始化
+  - TS18046：`catch` 变量变成了 `unknown`
+- 如果是 monorepo，每个 tsconfig 或 project reference 都要单独统计。
+- 记录三个基线数字：`as any`、非空断言 `!`、`@ts-ignore`/`@ts-expect-error` 的数量。后面要防止有人靠这三种写法凑数。
+
+## 第 1 步：计数卡关（第 1 天）
+
+主 tsconfig 先不动，CI 加一项：
+
+```bash
+npx tsc -p tsconfig.strict.json --noEmit --pretty false \
+  | grep -E 'error TS[0-9]+' | sed -E 's/\([0-9]+,[0-9]+\)//' \
+  | sort | uniq -c > strict-errors.current.txt
+
+# 任一 (文件, 错误码, 消息) 的数量超过基线就失败
+awk 'NR==FNR{b[substr($0,index($0,$2))]=$1;next}
+     {k=substr($0,index($0,$2)); if($1>b[k]+0){print "NEW: "$0; f=1}}
+     END{exit f}' strict-errors.baseline.txt strict-errors.current.txt
+```
+
+- 计数去掉了行号，代码挪行不会误报。
+- 修了 `any` 引出的连带新错误，可以在同一个 PR 里更新 baseline。baseline 的 diff 由 reviewer 看，新增的条目要能说明是连带出来的。
+- 同时用 lint 给 `as any`、`!`、`@ts-expect-error` 设上限，数量只许减少。最常见的假修复就是全仓加 `!`，它比留着错误更糟：错误还在，只是看不见了。
+
+**验证**：
+1. 故意写一个新的隐式 `any`，CI 要变红。
+2. 修掉一个已有错误、但不更新 baseline，CI 要保持绿。
+3. 两条都做到，卡关才算生效。
+
+## 第 2 步：按类别修（第 1 天下午到第 4 天）
+
+先修连带效应大的，因为它们决定了错误总数最后有多少。
+
+| 顺序 | 类别 | 主要修法 | 是否改变运行时行为 |
+|---|---|---|---|
+| 1 | `noImplicitAny` | 补参数和返回类型；回调用上下文类型 | 否 |
+| 2 | `strictFunctionTypes`、`strictBindCallApply`、`noImplicitThis`、`useUnknownInCatchVariables` | 修正签名；`catch (e)` 用 `e instanceof Error` 收窄类型 | 基本不变 |
+| 3 | `strictPropertyInitialization` | 构造函数里赋值；框架注入的属性写 `!:` 并加注释 | 否 |
+| 4 | `strictNullChecks` | 先修类型源头（接口定义、API 类型），下游很多错误会自己消失；必要时再加类型收窄或默认值 | **会改变** |
+| 5 | `noUncheckedIndexedAccess` | 下标遍历改成 `for…of` 或 `entries()`；`Record` 查找加判断；`split` 解构要处理 `undefined` | **会改变** |
+
+**分工**：按第 0 步的目录分布，每人负责若干目录。每个 PR 只改一个目录、一类错误，每天合入，减少冲突。
+
+**PR 分两种，打不同标签**：
+- `type-only`：只加注解、改类型。
+- `runtime`：加了 `??`、`?.`、提前返回、断言函数等。断言函数遇到 `undefined` 会抛错，过去只是把 `undefined` 往下传，所以属于 `runtime`。
+
+**生成代码和 `.d.ts`**：
+- API 客户端、GraphQL 等生成的代码，改生成器配置后重新生成，不要手改。
+- 实在不行先 `exclude`，单独列出来跟踪。
+
+## 每步验证
+
+| 对象 | 验证方式 | 通过标准 |
+|---|---|---|
+| 每个 PR | 计数卡关 | 没有新增 key；总数下降，或增加部分都能解释为连带 |
+| 每个 PR | `as any`、`!`、`@ts-expect-error` 的 lint 上限 | 不超过基线 |
+| `type-only` PR | **关闭 sourcemap，对改动前后各构建一次，比对产出的 JS** | 产物完全一致。类型擦除后 JS 不应有任何变化；有差异就说明这个 PR 其实改了行为，要改标成 `runtime` |
+| `runtime` PR | 单测，加上受影响页面的 E2E 或冒烟测试 | 改动行被测试覆盖；没有覆盖的要写明手工验证了什么 |
+| 每天收工 | 全量 `tsc` 统计 + 单测 + 构建 | 记录燃尽曲线和三项"假修复"计数；第 2 天按速度推算第 5 天能否清零 |
+
+## 第 3 步：切换主配置（第 5 天）
+
+1. 把两个开关写进主 `tsconfig.json`，删掉 `tsconfig.strict.json` 和 baseline 文件。
+2. 剩下的错误用 codemod 逐行加上 `// @ts-expect-error TS-STRICT(<负责人>): TS2532`。JSX 里要写成 `{/* @ts-expect-error ... */}`。
+   - 选 `expect-error` 而不是 `ts-ignore`：问题修好后，这行注释本身会报错，提醒删除。
+   - 缺点是它会屏蔽同一行上后来新增的错误，所以剩下的条数要尽量少，并且排期清理。
+3. 检查 `alwaysStrict`：如果有走 tsc emit 的非 ES module 脚本，会被加上 `"use strict"`，需要冒烟测试一遍。
+4. **最终验证**：
+   - 主配置 `tsc --noEmit` 零错误
+   - `grep -c 'TS-STRICT('` 等于留下的条数，并且每条都有负责人
+   - 全量单测和 E2E 通过
+   - 预发环境冒烟测试通过
+   - 和第 0 步相比，三项假修复计数没有上升
+
+**第 2 天下午定目标**：
+- 推算第 5 天剩余数量不多，就按上面的流程收尾。
+- 剩余很多，比如空值类错误还有上千条，就不要为赶工期突击加 `!`。只把空值相关的两个开关先放在严格配置里继续跑计数卡关，等它们清零再切换。新代码已经在 CI 上受严格检查，晚几天切换主配置的代价很小；用断言硬压到零，等于把类型错误换成线上崩溃。
+
+## 前提假设
+
+这份方案没有基于具体仓库，以下几点按常见情况假设。如果和实际不符，第 0 步的数据会暴露出来：
+- 构建用的是 Babel、esbuild 或 swc 这类只擦除类型的工具，所以 `type-only` PR 才能用"产物 JS 完全一致"来验证。
+- 已经开了 `skipLibCheck`。
+- 有可用的单测和 E2E 基础设施。
+
+proposed-next: 拿到仓库后执行第 0 步的统计命令，并接入第 1 步的计数卡关脚本，再根据实际错误分布排出人员分工和逐日燃尽目标
+
+我没有执行第 0 步（错误统计）和第 1 步（CI 计数卡关），因为当前工作目录里没有 TypeScript 仓库，也找不到任何 `tsconfig*.json`。这次的交付就是上一条回复里的迁移方案，方案已经完整。
+
+方案里按以下默认做法写，与你们实际情况不符时可以这样调整：
+
+- **第 5 天把开关写进主 tsconfig，没修完的错误留着处理。** 这些错误逐条加上 `@ts-expect-error TS-STRICT(<负责人>)` 注释并安排后续清理。如果团队要求第 5 天零错误、不留任何压制注释，就改用方案里的备选：空值相关的两个开关继续只在独立配置里跑计数卡关，清零后再写进主配置。是否切换，在第 2 天下午根据燃尽速度决定。
+- **CI 卡关用计数文件。** 剩余错误记在一个 baseline 文件里，CI 只要求错误数不增加，不在源码里批量加压制注释，这样能减少多人并行修改时的冲突。如果你们更看重编辑器里不出现大片红线，可以第 1 天就用 codemod 批量加上 `@ts-expect-error`，但会多出约 3000 行 diff。
+- **用"产物 JS 完全一致"来验证只改类型的 PR。** 前提是构建工具只擦除类型（Babel、esbuild 或 swc）。如果你们用 tsc 或 ts-loader 产出 JS，要用同一套配置的 tsc 输出来比对。
+- **修复顺序按连带影响从大到小排：** 隐式 `any` → 函数和 `catch` 类 → 类属性初始化 → 空值检查 → `noUncheckedIndexedAccess`。
+
+proposed-next: 在目标仓库运行第 0 步的统计命令，按错误码和目录统计 3000 多个错误的分布，并接入第 1 步的 baseline 脚本，然后排出每个人负责的目录和每天的燃尽目标。

@@ -1,0 +1,8 @@
+# sig: x
+
+1. 外部输入（请求体、localStorage）一律先当 `unknown`：`const raw: unknown = JSON.parse(body)`。在边界用仓库已有的 zod schema 解析一次：`const User = z.object({...}); type User = z.infer<typeof User>;`，类型从 schema 推导，不另写 interface。
+2. 用 `safeParse` 返回 `{ok:false, error}` 的结果类型，在边界映射为 400，不用任何 `as`。
+3. 用户输入这类安全相关边界用 `.strict()` 拒绝未知字段；本地配置可 `.strip()` 剥离。
+4. 开 `useUnknownInCatchVariables`（strict 已包含），catch 里 `if (err instanceof Error) log(err.message) else log(String(err))`。
+5. 测试：每个 schema 写合法、缺字段、多字段、类型错、非 JSON 的正反用例；类型守卫同样正反用例。
+不要在业务代码各处再做零散校验。

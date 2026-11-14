@@ -1,0 +1,166 @@
+# sig: f86040f29c58
+# F42 / arm=candidate / sample=6 / 111s / util=None
+# skills_invoked: ["ccl-skills:typescript-dev"]
+# axis: TypeScript strictness migration in an existing codebase
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：先按目录或 project reference 统计错误；按可独立检查的叶子 tsconfig 逐步打开（棘轮），或用只减不增、新增错误即失败的基线；修复靠收窄或改类型，不批量加 `as`/`!`/`@ts-ignore`，临时压制用带理由的 `@ts-expect-error`；CI 的 `tsc --noEmit` 覆盖源码、测试和脚本的每个 tsconfig；最后移除局部覆盖让全仓一致；说明 `noUncheckedIndexedAccess` 不在 strict 内、会让下标访问变成 `T | undefined`。弱点：全局打开后批量 `@ts-ignore`；加 `skipLibCheck` 或缩小 `include` 让错误消失；用打包器构建成功当作类型检查通过。
+
+我的建议是：一周内可以让主 `tsconfig` 打开这两个开关，并让 CI 拒绝任何新增错误。但不建议承诺"一周清零 3000 个错误"。一是这个数只是下限：修掉隐式 `any` 后，原来被 `any` 遮住的错误会冒出来，总数会先涨后降。二是 `strictNullChecks` 和 `noUncheckedIndexedAccess` 的修复有一部分会改变运行时行为，赶工最容易出线上 bug。
+
+下面按"一周结束时开关在主配置里打开，CI 对新错误零容忍，存量只减不增，并尽量清零"来安排。
+
+---
+
+## 第 1 天上午：测量（先别改代码）
+
+先确认要覆盖的范围：仓库里所有 `tsconfig*.json`（源码、测试、脚本、各子包），以及 CI 现在用哪个命令做类型检查。注意 Vite、esbuild、SWC、Babel 构建成功不等于类型检查通过。
+
+```bash
+# 命令行参数覆盖 tsconfig，不用改任何文件
+npx tsc -p tsconfig.json --noEmit --pretty false --strict --noUncheckedIndexedAccess > /tmp/strict.log
+npx tsc -p tsconfig.json --noEmit --pretty false --strict                            > /tmp/strict-only.log
+
+grep -oE 'error TS[0-9]+' /tmp/strict.log | sort | uniq -c | sort -rn      # 按错误码
+grep -E '^[^ ].*error TS' /tmp/strict.log | grep -oE '^[^/]+/[^/(]+' | sort | uniq -c | sort -rn | head -40   # 按目录
+```
+
+两份日志相减，就是 `noUncheckedIndexedAccess` 单独带来的错误数。每个 `tsconfig` 都要跑一遍。
+
+常见错误码对应的修法：
+
+| 错误码 | 来源 | 修复性质 |
+|---|---|---|
+| TS7006 / TS7031 / TS7053 | `noImplicitAny` | 补类型注解，**不改运行时** |
+| TS2564 | `strictPropertyInitialization` | 初始化字段或改构造逻辑 |
+| TS18046 | catch 里的变量变成 `unknown` | 加窄化判断 |
+| TS2532 / TS18048 / TS2322 / TS2345 | `strictNullChecks`、`noUncheckedIndexedAccess` | **可能改运行时**，风险最高 |
+
+**这一步的验证：** 一张"目录 × 错误码"的计数表，按团队人数和 CODEOWNERS 分配目录。
+
+## 第 1 天：搭好棘轮护栏，当天就挡住新增错误
+
+**1. 新建 `tsconfig.strict.json`**（每个需要检查的 tsconfig 各配一个）：
+
+```json
+{ "extends": "./tsconfig.json",
+  "compilerOptions": { "strict": true, "noUncheckedIndexedAccess": true, "noEmit": true } }
+```
+
+**2. 加一个基线门禁**：按"文件 + 错误码"计数，不按行号，因为行号一改代码就会变。CI 只检查计数有没有增加；基线只能通过 `update` 命令下调，脚本会拒绝任何上调。
+
+```js
+// scripts/strict-baseline.mjs   用法: node scripts/strict-baseline.mjs check|update
+import { spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
+const BASELINE = 'strict-baseline.json';
+const CONFIGS = ['tsconfig.strict.json']; // 列出所有 strict 配置
+
+function current() {
+  const counts = {};
+  for (const p of CONFIGS) {
+    const r = spawnSync('npx', ['tsc', '-p', p, '--noEmit', '--pretty', 'false'], { encoding: 'utf8', maxBuffer: 1 << 28 });
+    for (const line of r.stdout.split('\n')) {
+      if (!/error TS\d+/.test(line)) continue;
+      const m = line.match(/^(.+?)\(\d+,\d+\): error (TS\d+)/);
+      if (!m) { console.error('无法归属的错误（配置错误等），直接失败:\n' + line); process.exit(2); }
+      const k = `${m[1]}|${m[2]}`; counts[k] = (counts[k] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+const cur = current();
+const base = JSON.parse(readFileSync(BASELINE, 'utf8'));
+const worse = Object.entries(cur).filter(([k, n]) => n > (base[k] ?? 0));
+if (worse.length) { console.error('新增 strict 错误:\n' + worse.map(([k, n]) => `${k}: ${base[k] ?? 0} -> ${n}`).join('\n')); process.exit(1); }
+if (process.argv[2] === 'update') {
+  writeFileSync(BASELINE, JSON.stringify(Object.fromEntries(Object.entries(cur).sort()), null, 2) + '\n');
+}
+const total = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+console.log(`strict 错误: 基线 ${total(base)}，当前 ${total(cur)}`);
+```
+
+第一次生成基线时，先手动写入一个空对象 `{}`，然后把全量计数直接写成文件。之后只走 `update`。
+
+**3. 防止多人同时改基线文件冲突**：普通 PR 只需要 `check` 通过，不必修改基线。由一个负责人每天合一次 `update`，把基线下调。
+
+**4. CI 同时跑两个门禁**：原来的宽松 `tsc --noEmit`（不动），加上 `strict-baseline check`。
+
+**5. lint 护栏**：
+- `@typescript-eslint/ban-ts-comment`：禁止 `ts-ignore`；`ts-expect-error` 设为 `allow-with-description`。
+- 统计 `!` 非空断言、`as` 断言、`@ts-expect-error` 的初始数量，每天对比。修错误的数量下降、而断言数量上涨，说明是在压错误而不是修代码。
+
+**这一步的验证：**
+- 故意写一个新的隐式 `any` 和一个 `arr[0].x`，CI 必须失败。
+- 修掉一个已有错误后 `check` 能通过，`update` 之后基线总数下降。
+- 往基线里人为加一个计数后 `update` 应该被拒绝。
+- 把一个 tsconfig 写坏，脚本必须以退出码 2 失败，不能静默通过。
+
+## 第 1–4 天：分批清理
+
+**PR 分两类，验证方式不同：**
+
+| 类型 | 内容 | 验证 |
+|---|---|---|
+| A：只改类型 | 类型注解、泛型参数、`useState<T[]>([])`、`useRef<HTMLDivElement>(null)`、补 props 类型 | **改动前后编译出的 JS 必须逐字节一致**：关闭压缩，用旧配置各编译一次，再 `diff -r`。只要不一致，就不算 A 类 |
+| B：改行为 | 空值判断、默认值、改数据结构 | 相关单测或组件测试，加上对改到路径的人工审查 |
+
+A 类可以快速批量合并，测试和审查资源集中给 B 类。
+
+**建议顺序**（先低风险、后高风险，也便于早点发现被 `any` 遮住的错误）：
+1. `noImplicitAny`（A 类，可借助 IDE 推断或 codemod）
+2. `useUnknownInCatchVariables`、`strictPropertyInitialization`
+3. `strictNullChecks`
+4. `noUncheckedIndexedAccess`
+
+**`strictNullChecks` 的修法优先级：**
+1. 先改源头类型，让值不可能为空：字段设为必填、给状态初始值、函数返回值收窄。
+2. 显式窄化，并把"值为空时该怎么办"写成代码。
+3. 慎用 `?.` 和 `?? 默认值`：原来会抛错的地方会变成静默的 `undefined` 或默认值，bug 就被藏起来了。这类改动按 B 类审查。
+4. `!` 和 `as T` 只用在确实能证明不为空的地方，并写明理由。
+
+**`noUncheckedIndexedAccess` 的常见情况：**
+- `for (let i…) arr[i]` 改成 `for…of` 或 `entries()`。
+- `record[key]` 先判断再用，或者改成 `Map`。
+- `str.split(',')[0]`、正则捕获组、`const [first] = arr`：显式处理取不到值的情况。
+- 注意 `arr.length > 0` 不会让 `arr[0]` 收窄。这里最容易冒出一堆 `!`，审查时重点看。
+
+**每个 PR 的验证：** `strict-baseline check` 通过、原有 `tsc` 通过、lint、单测、构建；A 类还要附上 JS diff 为空的证据。
+**每天的验证：** 负责人跑 `update`，记录剩余错误总数和断言、`@ts-expect-error` 的数量。第 3 天看清理速度，如果按这个速度第 5 天到不了零，就提前采用下面的方案 Y。
+
+## 第 5 天：在主配置里打开
+
+**情况 X：基线已经清零**
+1. 在主 `tsconfig.json` 中设置 `"strict": true, "noUncheckedIndexedAccess": true`。
+2. 删除 `tsconfig.strict.json`、基线文件和脚本，CI 回到普通的 `tsc --noEmit`。
+
+**情况 Y：还有剩余错误**
+1. 主配置照样打开两个开关。
+2. 剩余错误**按文件留在基线里**，这时基线门禁就是 CI 的类型检查。不要批量加 `@ts-ignore`。
+3. 只有当剩余量很小（比如几十处），才逐处加 `// @ts-expect-error strict-migration: <原因>`。错误修掉后这类注释会自动报错，CI 同时统计注释数量，只允许下降。
+4. 每块剩余都要有负责人和截止日期，清零后删除这套机制。
+
+**这一步的验证：**
+- 所有 `tsconfig` 都用新开关跑一遍，结果要么是 0 个错误，要么正好等于基线。
+- 构建产物和发布前一致：A 类不变，B 类已经测过。
+- 全量测试通过。
+- 在一个分支上确认 CI 确实读到了新配置：故意写一个 `arr[0].x`，必须失败。
+
+## 上线后
+
+- 回退很简单：配置开关只影响类型检查，回退 `tsconfig` 就行。真正需要关注的是 B 类改动，它们跟正常发布流程走。
+- 发布后一两周，盯一下前端错误监控（如 Sentry）里新出现的 `TypeError` 和 `Cannot read properties of undefined`，以及原来会报错、现在被 `?? 默认值` 吞掉而导致的业务数据异常。
+- 不要用 `skipLibCheck` 掩盖自己仓库里的 `.d.ts` 错误，也不要通过调整 `include`/`exclude` 让错误"消失"。
+- 这一周不要顺手升级 TypeScript 大版本。TS 6.0 默认就是 `strict: true`，到时作为单独的迁移来做，并把关键选项都写明，不依赖默认值。
+
+proposed-next: 按第 1 天上午的命令测量，拿到"目录 × 错误码"的分布后，确定人员分工，并判断第 5 天按情况 X 还是 Y 收尾。
+
+上一条回复里的方案已经完整，范围就是你要的迁移方案和每一步的验证。下一步测量没法由我来跑：当前目录 `/tmp/tsd-eval/cwd` 不是 git 仓库，里面也找不到任何 `tsconfig*.json`，我拿不到你们的代码。
+
+方案里我替你们定了几处，要改的话这样调：
+- **"一周全部打开"的含义**：第 5 天在主 `tsconfig` 里打开两个开关，CI 不允许任何新增错误，存量错误放在只减不增的基线里。如果团队要求第 5 天必须清零、不留基线，就需要更多人手，并且第 3 天就做出判断。
+- **基线怎么更新**：普通 PR 只做检查，不改基线文件；由一个负责人每天统一下调一次。人少、冲突不多时，也可以改成每个 PR 自己更新。
+- **剩余错误怎么处理**：少于大约几十处时才逐处加 `@ts-expect-error`，否则继续按文件留在基线里。这个阈值可以按团队对注释噪音的容忍度调整。
+
+proposed-next: 在仓库根目录跑第 1 天上午的两条 `tsc … --pretty false` 和计数命令，得到"目录 × 错误码"的分布，然后按 CODEOWNERS 分配第 1–4 天的清理工作。
+
+blocked: 这个仓库不在当前环境里。要我来跑，需要提供仓库路径或者把仓库挂载进来。

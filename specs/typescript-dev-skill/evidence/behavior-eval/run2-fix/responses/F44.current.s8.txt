@@ -1,0 +1,159 @@
+# sig: 873596881eb4
+# F44 / arm=current / sample=8 / 71s / util=0.76
+# skills_invoked: ["ccl-skills:typescript-dev"]
+# axis: TypeScript monorepo project references and compiler upgrade
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：每个包 `composite: true` 并在 `references` 列出依赖包，根上建 `files: []` 的 solution tsconfig，用 `tsc -b` 增量构建；共享选项放一个被 extends 的 base；引用方向与架构层定的包依赖方向一致，循环是设计问题；明确工作区包是先构建（exports 指向产物）还是源码直连（customConditions）并让打包器和测试运行器一致；升级前读实际发布说明：6.0 改了 `strict`/`module`/`target`/`types`/`rootDir` 等默认值并废弃 `baseUrl` 查找和 `moduleResolution node10`，7.0 采用这些默认值、把废弃项变成错误且不带编译器 API，先在 6.0 上无 `ignoreDeprecations` 编译干净，再逐个确认 typescript-eslint 等依赖编译器 API 的工具怎么并行用 6.0 API。弱点：只改版本号；依赖旧默认值不显式写出；忽略需要编译器 API 的工具。
+
+当前目录里没有你的仓库（找不到 `package.json`、`tsconfig*.json`、`pnpm-workspace.yaml`），所以下面是通用方案，没有在你的代码上跑过任何命令。我也查不到线上最新版本，开始前先跑 `npm view typescript dist-tags` 确认。
+
+## 一、结论
+
+1. **先改结构**：用 project references 和 `tsc -b`，只重查改动的包和依赖它的包。这一步留在 5.x 上单独完成，不和升级混在一起。
+2. **分两段升级**：5.x → 6.x → 7.x。7.0 是 Go 写的原生编译器：6.0 的弃用项在 7.0 直接报错，而且 7.0 没有编程 API。6.0 能零弃用通过之后，才能上 7。
+3. **依赖编译器 API 的工具决定能不能上 7**：typescript-eslint、vue-tsc、d.ts 打包工具这类工具调用编译器 API，7.0 没有这个 API，它们只能继续用 6.0 的。如果其中有工具找不到可行的配置，就停在 6.x。
+
+## 二、tsconfig 结构
+
+```
+tsconfig.base.json          # 共享选项，不含 include
+tsconfig.json               # 根 solution：files: []，引用所有包
+packages/a/tsconfig.json        # 包内 solution：引用 src 和 test
+packages/a/tsconfig.src.json    # composite，产出 dist 和 .d.ts
+packages/a/tsconfig.test.json   # composite，引用 src
+```
+
+**`tsconfig.base.json`**：6.0 改了几项默认值，这里全部显式写出，不依赖默认。
+
+```jsonc
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "es2022",              // 按你支持的最老运行时定，不要让它浮动
+    "lib": ["es2022"],               // 浏览器包在自己的配置里加 "dom"
+    "module": "nodenext",            // 由 bundler 产出的包改成 esnext + "bundler"
+    "moduleResolution": "nodenext",
+    "types": [],                     // 6.0 起默认就是 []，在各包配置里显式列出
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "noUncheckedSideEffectImports": true,
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "skipLibCheck": true             // 如果有手写的 .d.ts，要另跑一次 skipLibCheck:false 的检查
+  }
+}
+```
+
+**`packages/b/tsconfig.src.json`**（b 依赖 a）：
+
+```jsonc
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src", "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src"],
+  "references": [{ "path": "../a/tsconfig.src.json" }]
+}
+```
+
+**`packages/b/tsconfig.test.json`**：
+
+```jsonc
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".", "outDir": "../../.tsbuild/b-test",
+    "emitDeclarationOnly": true,     // 被引用的项目不能设 noEmit，所以输出到一个用完即弃的目录
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["test"],
+  "references": [{ "path": "./tsconfig.src.json" }]
+}
+```
+
+**`packages/b/tsconfig.json`** 写 `{ "files": [], "references": [{"path":"./tsconfig.src.json"},{"path":"./tsconfig.test.json"}] }`。根 `tsconfig.json` 也写成同样的形式，引用五个包的 `tsconfig.json`。
+
+**几条约定：**
+- `references` 要和 `package.json` 里的 `"workspace:*"` 依赖一一对应。可以加一个脚本在 CI 里比对两者。出现循环引用说明包之间的依赖方向有问题，要调整包结构，不要靠改配置绕过去。
+- 包之间的类型只走构建产物：`exports` 指向 `dist`，每个条件里 `types` 放第一位。不要一部分包走源码、一部分走产物，否则编辑器、CI 和运行时看到的类型会不一样。
+- `paths` 和 `baseUrl` 不要再用来做包之间的跳转（6.0 已弃用 `baseUrl`）。包内别名改成 `package.json#imports`（`#internal/*`）。
+- 只要有一个包里同时有浏览器、Node 和测试代码，就把它们拆成不同的 tsconfig。
+
+**日常用法：**
+
+```bash
+tsc -b packages/b            # 只检查 b 及其上游，没过期的项目会跳过
+tsc -b                       # 全仓库检查，只重建过期的项目
+tsc -b --verbose             # 打印哪些项目被判定为过期
+```
+
+CI 里可以把 `**/.tsbuildinfo` 和 `dist` 一起缓存。缓存键要包含 lockfile 和 TS 版本。
+
+## 三、升级步骤
+
+**第 0 步（5.x，单独提交）**
+- 先跑一遍旧的整仓检查，记下耗时和错误数，作为基线。
+- 落地上面的结构，直到 `tsc -b` 零错误。
+- 用 `pnpm ls -r typescript` 和 `pnpm why -r typescript` 列出所有用到编译器的地方：typescript-eslint、vue-tsc、tsup/rollup-plugin-dts/api-extractor、ts-jest、ts-node、fork-ts-checker 和编辑器插件。
+- 在根目录用 `pnpm.overrides` 或 `catalog:` 把 TS 锁定为单一版本。
+
+**第 1 步：升到 6.x**
+1. 改成 `typescript@^6`，跑 `tsc -b`。
+2. 修弃用项：
+   - `moduleResolution: node`/`node10` 改成 `nodenext` 或 `bundler`。
+   - 去掉 `baseUrl`，把前缀写进每条 `paths`。
+   - 补齐 `types`；`rootDir` 现在默认是 tsconfig 所在目录，需要的地方显式写出。
+3. 新报的错逐条处理：能修就修。暂时修不了的用 `// @ts-expect-error <原因>`，不要用 `@ts-ignore`，也不要批量关掉 `strict`。
+4. 确认 typescript-eslint 等工具支持这个版本。
+5. 完成标准：全仓库没有 `ignoreDeprecations`，所有检查都是绿的。
+
+**第 2 步：升到 7.x**
+1. 根目录装 `typescript@^7`，执行 `tsc`、`tsc -b` 的就是原生编译器。
+2. 需要 API 的工具按 TS 团队发布说明里的方案，指向 `@typescript/typescript6`（提供 6.0 的 API 和 `tsc6`）。这个拆分要写进 `AGENTS.md` 或 README，注明原因和什么时候移除。
+3. 在本地和 CI 上确认原生 `tsc -b` 支持你用到的 references/composite 选项和输出。不支持的话停在 6.x。
+4. 每一步都单独提交，不要顺手做其他类型重构。
+
+## 四、验证
+
+每一步（第 0、1、2 步）都跑下面这套：
+
+| 检查 | 命令 | 通过条件 |
+|---|---|---|
+| 类型检查 | `tsc -b`（根目录） | 0 错误 |
+| 增量是否生效 | 只改 a 的一个文件，再跑 `tsc -b --verbose` | 只重建 a 和依赖 a 的包，其余显示 up to date；耗时明显低于基线 |
+| 手写 .d.ts | `tsc --noEmit -p <types 配置> --skipLibCheck false` | 0 错误 |
+| 引用是否对齐 | 比对 references 和 workspace 依赖的脚本 | 无差异、无循环 |
+| 类型 lint | 用 `eslint` 的 `*TypeChecked` 规则集 + `projectService` | 0 error |
+| 运行时测试和构建 | 仓库已有的 `test` 和 `build` 脚本 | 绿 |
+| 公共类型没被意外改动 | 对比升级前后 `dist/**/*.d.ts` 的 diff | 只有预期内的变化 |
+| 发布包 | `pnpm pack`，再跑 `attw <tarball>` / `publint`，最后在一个临时 consumer 项目里 import 每个入口点做类型检查 | 0 问题 |
+
+注意：用 bundler、tsx、esbuild 或 Node 去掉类型后能跑通，只说明代码可以执行，不说明类型检查通过。
+
+## 五、剩余风险
+
+- **TS 版本和 API 方案未核实**：版本号以及 7.0 怎么给工具提供 API，都要以你执行时的官方发布说明为准，我这里没能在线确认。
+- **工具不支持就停在 6.x**：任何依赖 API 的工具不能用 6.0 API 跑时，留在 6.x 是安全的默认选择。
+- **`strict` 默认值的影响**：如果现在有 tsconfig 没写 `strict`，6.0 会把它默认打开，错误可能大量增加。这种情况先在 5.x 上按包逐个打开 `strict`，再升级。
+
+proposed-next: 把仓库放到可访问的目录（或给出路径），我按第 0 步读取现有配置，在独立 worktree 里落地 references 结构并跑完上面的验证。
+
+我又找了一遍，两个可访问的目录里都没有 pnpm monorepo：`/tmp/tsd-eval/cwd` 是空的，`/tmp/tsd-eval/after` 里也没有 `pnpm-workspace.yaml`。所以上面的方案没有在你的代码上落地，也没有跑过任何命令。你这次要的是方案本身，内容已经完整给出。
+
+方案里有几处是我按默认选的，可以直接改：
+
+| 默认选择 | 想换的话 |
+|---|---|
+| `nodenext` | 由 bundler 产出的包改成 `esnext` + `bundler` |
+| 包之间的类型走构建产物（`exports` 指向 `dist`） | 改成直接读源码：用 `customConditions`，并让 bundler 和测试运行器都识别这个条件 |
+| 测试配置用 `emitDeclarationOnly` 输出到用完即弃的目录 | 测试不被其他项目引用的话，可以改成 `noEmit` |
+| 依赖编译器 API 的工具在 7.0 下拿不到可用的 6.0 API 时，停在 6.x | 这个只有在你的工具链确认都能用之后才建议改 |
+
+blocked: 落地需要你仓库的路径，或者把仓库放进 `/tmp/tsd-eval/cwd`。
+
+proposed-next: 读取仓库现有的 tsconfig、package.json 和依赖编译器 API 的工具清单，在独立的 worktree 里按第 0 步落地 project references，跑完第四节的验证。

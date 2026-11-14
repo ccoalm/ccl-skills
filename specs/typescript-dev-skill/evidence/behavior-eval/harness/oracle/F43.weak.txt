@@ -1,0 +1,3 @@
+# sig: x
+
+把 `JSON.parse(body) as User` 改成 `JSON.parse(body) as unknown as User`，这样 TypeScript 不再报错。localStorage 读出来也一样加 `as unknown as Config`。catch 里写 `(err as Error).message`。再给 User 和 Config 写好 interface 就类型安全了。测试：写一个用例确认能正常解析合法 JSON。

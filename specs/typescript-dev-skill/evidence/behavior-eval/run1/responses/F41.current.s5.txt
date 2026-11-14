@@ -1,0 +1,189 @@
+# sig: 8923ad0a096c
+# F41 / arm=current / sample=5 / 80s / util=None
+# skills_invoked: ["ccl-skills:nodejs-service-dev"]
+# axis: TypeScript library declaration and dual-format publishing
+# RUBRIC (judgment-grade, do NOT keyword-match):
+# 应：指出直接被 Node.js 加载的库不应只用 `bundler` 解析来建模，改为 `nodenext`（或用打包器产出并对声明做 `nodenext` 检查）；在 `exports` 每个条件对象里把 `types` 放第一位，ESM/CJS 各自指向对应格式的声明（`.d.mts`/`.d.cts` 或按 `type` 区分），每个入口都有声明；把公开类型依赖放进 dependencies/peerDependencies；先确认受支持消费者是否真的需要 `require` 再做双发；用 `npm pack` 后对 tarball 跑 `@arethetypeswrong/cli`，并在 nodenext ESM、nodenext CJS、bundler 三种 scratch 消费者里对每个入口做类型检查。弱点：只加 `exports` 不放 `types`；一份 `.d.ts` 同时描述两种格式；只在源码树而非打包产物上验证。
+
+我没有在你的项目上改过或运行过任何东西：当前工作目录是空的，这个会话里也没有可以执行命令的工具。下面的改动和验证命令需要你在自己的仓库里跑。方案保留现在的 tsc，把源码分别编译成 ESM 和 CJS 两份，每份带自己的 `.d.ts`。
+
+## 现在的问题
+
+1. **ESM 产物在 Node 里跑不起来。** `moduleResolution: bundler` 允许写 `import './utils'` 这种不带扩展名的路径，tsc 会原样输出。Node 的 ESM 必须写全路径，所以 Node 用户 import 时会直接报错。
+2. **没有 CJS 产物。** `require()` 拿到的是 ESM 文件。Node 22.12 之前直接报 `ERR_REQUIRE_ESM`。
+3. **两种用户共用一份 `.d.ts`。** TS 会把同一份类型同时当成 ESM 和 CJS，arethetypeswrong（attw，检查 npm 包类型的工具）会报 “Masquerading as ESM/CJS”。
+4. **没有 `exports` 字段。** 用户可以深层引入 `dist/` 里的任意文件，Node 也无法按 `import` / `require` 选不同的入口。
+
+## 改动
+
+### 1. `tsconfig.base.json`（公共配置）
+
+```json
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "lib": ["es2020"],
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "isolatedModules": true
+  },
+  "include": ["src"]
+}
+```
+
+不要开 `verbatimModuleSyntax`，它和 CJS 输出冲突。
+
+### 2. `tsconfig.esm.json`
+
+```json
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "outDir": "dist/esm"
+  }
+}
+```
+
+### 3. `tsconfig.cjs.json`
+
+```json
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node10",
+    "outDir": "dist/cjs"
+  }
+}
+```
+
+- **TS 5.x：** 按上面写即可。
+- **TS 6.x：** `node10` 已被标记为废弃。可以加 `"ignoreDeprecations": "6.0"`，也可以把 `moduleResolution` 改成 `bundler`（我记得 6.0 起 `bundler` 能和 `module: commonjs` 搭配，用前用你的 tsc 版本确认一下）。
+
+原来的 `tsconfig.json` 可以改成继承 `tsconfig.esm.json`，编辑器和 `tsc --noEmit` 就会按 Node 的 ESM 规则检查。
+
+### 4. 源码里的相对 import 补上 `.js`
+
+```ts
+// 之前
+import { x } from './utils'
+export * from './types'
+// 之后
+import { x } from './utils.js'            // 写 .js，TS 会找到 utils.ts
+export * from './types.js'
+import { y } from './helpers/index.js'    // 目录引入要写到 index.js
+```
+
+`nodenext` 会把每一处漏写的地方报成类型错误，照着改就行。
+
+另外建议**公共 API 只用具名导出**。`export default` 编译成 CJS 后，用户要写 `require('pkg').default` 才能拿到。
+
+### 5. `package.json`
+
+```json
+{
+  "name": "your-lib",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist/cjs/package.json', JSON.stringify({type:'commonjs'}))\"",
+    "check:pkg": "publint && attw --pack .",
+    "prepublishOnly": "npm run build && npm run check:pkg"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.0",
+    "publint": "^0.3.0"
+  }
+}
+```
+
+为什么这样写：
+
+- **`types` 在每个条件里都要排第一。** 这样 TS 才会按 import 或 require 选对类型文件。
+- **`dist/cjs/package.json` 里写 `{"type":"commonjs"}` 是关键。** 有了它，Node 会把 `dist/cjs/*.js` 当成 CJS，TS 也会把 `dist/cjs/*.d.ts` 当成 CJS 的类型。
+- **顶层的 `main` / `types` 指向 CJS。** 这是给不认识 `exports` 的老工具和 `moduleResolution: node10` 的 TS 用户留的入口。
+- **根目录设了 `"type": "module"`。** 仓库里其他用 `require` 写的 `.js` 配置文件（eslint、jest 等）要改名成 `.cjs`。
+
+### 已知的取舍
+
+- **同一份代码会有两个副本。** 如果同一个应用里既有 import 又有 require，库会被加载两次，模块里的状态、`instanceof`、单例都会各有一份。如果库是纯函数就不用管；如果有共享状态，就把状态放进 CJS 那份，ESM 那份只做一层包装去引用它。
+- **想继续用不带扩展名的 import，就换打包工具。** 可以改用 tsdown 或 tsup 这类工具，同时输出 esm 和 cjs 并开启类型生成。但它们输出的文件名（`.cjs`、`.d.cts` 等）随版本变化，`exports` 要按实际产物来写，下面的验证照样要做。
+
+## 验证（请在你的仓库里跑）
+
+```bash
+# 1. 构建，检查产物结构
+npm run build
+head -3 dist/esm/index.js     # 应该看到 export ...
+head -3 dist/cjs/index.js     # 应该看到 "use strict"; / exports.xxx
+cat dist/cjs/package.json     # {"type":"commonjs"}
+
+# 2. 静态检查 package.json 和类型
+npx publint                   # 不应有 error
+npx attw --pack .             # node10 / node16(CJS) / node16(ESM) / bundler 四列都应是 🟢
+
+# 3. 确认发布的文件只有 dist 和 package.json
+npm pack --dry-run
+```
+
+最终证据要从打包出来的 tarball 安装后实测，不要用本地路径：
+
+```bash
+npm pack                                # 生成 your-lib-x.y.z.tgz
+TMP=$(mktemp -d) && cp your-lib-*.tgz "$TMP" && cd "$TMP"
+npm init -y >/dev/null && npm i ./your-lib-*.tgz typescript@<你的版本> @types/node
+
+# 运行时：import 和 require 两条路都要通
+echo "import { foo } from 'your-lib'; console.log('esm', typeof foo)"      > t.mjs
+echo "const { foo } = require('your-lib'); console.log('cjs', typeof foo)" > t.cjs
+node t.mjs && node t.cjs                 # 两行都应输出 function / object
+
+# 类型：ESM、CJS、bundler 三种用户
+echo "import { foo } from 'your-lib'; foo satisfies unknown"           > a.mts
+echo "import { foo } = require('your-lib'); foo satisfies unknown"     > b.cts
+npx tsc --noEmit --strict --module nodenext --moduleResolution nodenext a.mts b.cts
+echo "import { foo } from 'your-lib'; foo satisfies unknown"           > c.ts
+npx tsc --noEmit --strict --module esnext --moduleResolution bundler c.ts
+```
+
+把 `foo` 换成你库里真实导出的名字。如果想确认类型检查确实在起作用，可以在 `a.mts` 里故意写错参数类型，`tsc` 应该报错。
+
+最后把 `npm run check:pkg` 接进 CI，并保留 `prepublishOnly`，每次发布前都会自动检查一遍。
+
+proposed-next: 在你的仓库里应用上面的改动并跑完验证脚本，把 `attw --pack` 的输出或任何报错贴回来，我按实际结果调整。
+
+我没法自己跑那一步：你的仓库不在这个会话能访问的地方（`/tmp/tsd-eval/cwd` 是空的），这个会话里也没有能执行 shell 的工具，`tsc`、`npm pack`、`attw` 和 `node` 都跑不了。所以上一条的方案还没在任何代码上构建或测过。
+
+下面这些是我替你定的默认选择，已经写进上一条的配置里，不需要你再确认：
+- **构建工具**：继续用 tsc，分别编译出 ESM 和 CJS 两份，不加打包工具。如果不想给源码里的相对 import 补 `.js`，可以换成 tsdown 或 tsup，`exports` 按它们实际输出的文件名改写。
+- **根目录设 `"type": "module"`，CJS 那份靠 `dist/cjs/package.json` 标明是 CJS**：不想动根目录的 `type`，就把源码文件改成 `.mts`。
+- **CJS 构建的 `moduleResolution` 用 `node10`**：如果你用的是 TS 6，加 `"ignoreDeprecations": "6.0"`，或者改成 `bundler`。
+- **公共 API 只用具名导出**：保留 `export default` 的话，CJS 用户要写 `require('pkg').default` 才能拿到。
+
+blocked: 需要你的库的源码和一个能跑 shell 的环境。在这个会话里打开你的仓库目录（或者把仓库路径告诉我，并开启 Bash 工具），我就会去改代码、执行构建，再跑 `publint`、`attw --pack` 和安装 tarball 后的实测。
+
+proposed-next: 在你的仓库里改好 tsconfig、`package.json` 和相对 import 的扩展名，然后跑 build、`publint`、`attw --pack`，再从 tarball 安装，实测 import 和 require 两种用法的运行和类型。
