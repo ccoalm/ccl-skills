@@ -1,5 +1,5 @@
 # ccl-skills 安装与更新（薄封装，逻辑在 scripts/install*.sh）
-.PHONY: help test test-repo-gates test-regressions-fast test-code-review test-code-review-1 test-code-review-2 test-code-review-abort-leak test-code-review-abort-leak-1 test-code-review-abort-leak-2 test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-antigravity update-antigravity install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health eval-paired npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
+.PHONY: help test test-affected test-affected-plan test-repo-gates test-regressions-fast test-code-review test-code-review-1 test-code-review-2 test-code-review-abort-leak test-code-review-abort-leak-1 test-code-review-abort-leak-2 test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-antigravity update-antigravity install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health eval-paired npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
 .DEFAULT_GOAL := help
 CCL_SKILL_DEFAULT_BASE_REF ?= origin/dev
 # Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the
@@ -20,6 +20,12 @@ help: ## 显示可用目标
 # specs/036-ci-parallel-shards/plan.md）。
 test: test-repo-gates test-regressions-fast test-code-review ## 运行本仓确定性 gate、脚本测试和 Python 回归
 
+test-affected: ## 按当前分支与工作区改动路径增量运行受影响 gate 与并行测试（FULL=1 含慢速套件）
+	python3 scripts/select-affected-tests.py --repo . --default-base-ref "$(CCL_SKILL_DEFAULT_BASE_REF)" --run $(AFFECTED_ARGS)
+
+test-affected-plan: ## 预览按当前改动路径选中的增量测试命令（只读干跑）
+	python3 scripts/select-affected-tests.py --repo . --default-base-ref "$(CCL_SKILL_DEFAULT_BASE_REF)" --dry-run $(AFFECTED_ARGS)
+
 test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository-gates job；不含 code-review 族与 fast 回归 lane）
 	bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
 	python3 skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py --repo . --default-base-ref "$(CCL_SKILL_DEFAULT_BASE_REF)"
@@ -38,6 +44,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	python3 scripts/test_install_gates_runtime.py
 	bash scripts/test_run_parallel_suites.sh
 	python3 scripts/test_lane_isolation.py
+	python3 scripts/test_select_affected_tests.py
 	python3 skills/skill-extraction-workflow/scripts/test_eval_runtime.py
 	python3 skills/skill-extraction-workflow/scripts/test_skill_paired_eval.py
 	python3 hooks/test_host_input.py
