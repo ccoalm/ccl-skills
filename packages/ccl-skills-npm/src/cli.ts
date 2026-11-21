@@ -13,7 +13,7 @@ const pkg = JSON.parse(
 		"utf8",
 	),
 ) as { version: string };
-const HELP = `ccl-skills — npm snapshot installer for Claude Code, Codex, and OpenCode\n\nUsage:\n  ccl-skills install [--host claude|codex|opencode] [--json]\n  ccl-skills update [--host claude|codex|opencode] [--yes] [--allow-downgrade] [--json]\n  ccl-skills doctor [--host claude|codex|opencode] [--json]\n  ccl-skills uninstall [--host claude|codex|opencode] [--yes] [--json]\n  ccl-skills auto-update enable|disable|status [--host codex|opencode] [--json]\n\nAuto-update schedules an existing Codex Git or npm-managed OpenCode CCL installation on macOS; default host: codex.\nFor install/update/doctor/uninstall, omitting --host selects every installed or package-owned host.\nUpdate and uninstall are dry-run unless --yes is supplied.\nBy default update --yes upgrades the global npm package to @latest before refreshing assets.\nSet CCL_SKILLS_SKIP_SELF_UPDATE=1 for an assets-only refresh; --allow-downgrade always uses the invoked package without installing @latest first.\n\nAn interactive run prints an update notice on stderr at most once a day.\nSet CCL_SKILLS_NO_UPDATE_NOTIFIER=1 (or NO_UPDATE_NOTIFIER) to silence it; it is\nalready silent under --json, in CI, and when output is not a terminal.`;
+const HELP = `ccl-skills — npm snapshot installer for Claude Code, Codex, OpenCode, and Antigravity\n\nUsage:\n  ccl-skills install [--host claude|codex|opencode|antigravity] [--json]\n  ccl-skills update [--host claude|codex|opencode|antigravity] [--yes] [--allow-downgrade] [--json]\n  ccl-skills doctor [--host claude|codex|opencode|antigravity] [--json]\n  ccl-skills uninstall [--host claude|codex|opencode|antigravity] [--yes] [--json]\n  ccl-skills auto-update enable|disable|status [--host codex|opencode] [--json]\n\nAuto-update schedules an existing Codex Git or npm-managed OpenCode CCL installation on macOS; default host: codex.\nFor install/update/doctor/uninstall, omitting --host selects every installed or package-owned host.\nUpdate and uninstall are dry-run unless --yes is supplied.\nBy default update --yes upgrades the global npm package to @latest before refreshing assets.\nSet CCL_SKILLS_SKIP_SELF_UPDATE=1 for an assets-only refresh; --allow-downgrade always uses the invoked package without installing @latest first.\n\nAn interactive run prints an update notice on stderr at most once a day.\nSet CCL_SKILLS_NO_UPDATE_NOTIFIER=1 (or NO_UPDATE_NOTIFIER) to silence it; it is\nalready silent under --json, in CI, and when output is not a terminal.`;
 type Parsed = {
 	direct?: { code: number; stream: "stdout" | "stderr"; text: string };
 	command?: string;
@@ -54,12 +54,12 @@ export function parseArgs(args: string[]): Parsed {
 		const flag = flags[index];
 		if (flag === "--host") {
 			const value = flags[++index];
-			if (!["claude", "codex", "opencode"].includes(value || ""))
+			if (!["claude", "codex", "opencode", "antigravity"].includes(value || ""))
 				return {
 					direct: {
 						code: 2,
 						stream: "stderr",
-						text: "--host requires claude, codex, or opencode.",
+						text: "--host requires claude, codex, opencode, or antigravity.",
 					},
 				};
 			host = value as Host;

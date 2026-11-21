@@ -1,0 +1,29 @@
+{
+  "ccl-skills": {
+    "SessionStart": [
+      { "type": "command", "command": "python3 -I ./hooks/agy-bridge.py SessionStart", "timeout": 15 }
+    ],
+    "PreInvocation": [
+      { "type": "command", "command": "python3 -I ./hooks/agy-bridge.py PreInvocation", "timeout": 20 }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "edit_file|write_file|create_file|delete_file|apply_patch|replace_file_content|multi_replace_file_content|write_to_file|notebook_edit|run_command|invoke_subagent",
+        "hooks": [
+          { "type": "command", "command": "python3 -I ./hooks/agy-bridge.py PreToolUse", "timeout": 75 }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          { "type": "command", "command": "python3 -I ./hooks/agy-bridge.py PostToolUse", "timeout": 15 }
+        ]
+      }
+    ],
+    "Stop": [
+      { "type": "command", "command": "python3 -I ./hooks/agy-bridge.py Stop", "timeout": 45 }
+    ]
+  }
+}

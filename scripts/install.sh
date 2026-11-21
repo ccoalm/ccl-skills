@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 一键安装 ccl-skills 多端入口（Claude Code + Codex plugin + OpenCode 原生 skills/plugin），并默认开启自动更新。
+# 一键安装 ccl-skills 多端入口（Claude Code + Codex plugin + OpenCode 原生 skills/plugin + Antigravity 原生插件），并默认开启自动更新。
 #
 # 用法：
 #   bash scripts/install.sh                      # 装 Claude/Codex plugin + OpenCode 原生 skills（不动 ~/.agents/skills）
@@ -14,6 +14,8 @@
 #   - Claude Code：原生支持。脚本把 marketplace 的 autoUpdate 设为 true，启动时自动刷新+重装。
 #   - Codex：无原生 auto-update。手动刷新用 `codex plugin marketplace upgrade && codex plugin add`
 #     （upgrade 刷快照、plugin add 装入拷贝）；传 --codex-cron 则装每日 cron 跑这两步（伪自动，改 crontab，自行决定）。
+#   - Antigravity：无自动更新。`make update` / `bash scripts/install-antigravity.sh` 从当前 checkout 重装；
+#     只替换本安装器装过的 ccl-skills 插件，其它来源的同名插件原样保留并报错退出。
 #   - Agent Skills（--with-agent-skills 时）：Tabnine/Pi 等读取 ~/.agents/skills；用
 #     `npx skills add <repo> --skill '*' -g -y` 安装/刷新，通常再重启对应工具或开新会话。
 
@@ -120,6 +122,14 @@ else
   fi
 fi
 
+# ── Antigravity 原生插件（.antigravity-plugin/plugin.json + 根 hooks.json）────
+if command -v agy >/dev/null 2>&1; then
+  note "[Antigravity] 安装原生插件"
+  bash "$SCRIPT_DIR/install-antigravity.sh" || record_failure "$?"
+else
+  echo "[Antigravity] 未检测到 agy CLI，跳过"
+fi
+
 # ── 旧 symlink 提醒（plugin 与 symlink 二选一，避免重复加载）────────────────
 note "检查旧 symlink"
 found=0
@@ -136,4 +146,4 @@ if [ "$INSTALL_STATUS" -ne 0 ]; then
   echo "部分安装失败；已完成的安装未回滚。请查看上方错误后重试。" >&2
   exit "$INSTALL_STATUS"
 fi
-note "完成。重启 Claude Code / Codex / OpenCode / Tabnine / Pi 等对应客户端使新技能生效。"
+note "完成。重启 Claude Code / Codex / OpenCode / Antigravity / Tabnine / Pi 等对应客户端使新技能生效。"

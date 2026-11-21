@@ -23,7 +23,7 @@ Restart your CLI so it reloads the skills.
 
 `install` configures every host it detects. The package carries an immutable snapshot of the skills, agent context, plugin manifests, and runtime hooks, so installation needs no Git checkout.
 
-Requirements: Node.js 20 or later, macOS or Linux, and at least one host CLI — Claude Code, Codex with working `plugin marketplace list` and `plugin list` commands, or OpenCode. Codex availability is checked through these commands rather than its version number.
+Requirements: Node.js 20 or later, macOS or Linux, and at least one host CLI — Claude Code, Codex with working `plugin marketplace list` and `plugin list` commands, or OpenCode. Codex availability is checked through these commands rather than its version number. Antigravity needs the `agy` CLI.
 
 Run it without a global install:
 
@@ -60,7 +60,7 @@ ccl-skills uninstall         # preview
 ccl-skills uninstall --yes   # remove host assets
 ```
 
-Limit these operations to one host with `--host claude`, `--host codex`, or `--host opencode`. Add `--json` for machine-readable output.
+Limit these operations to one host with `--host claude`, `--host codex`, `--host opencode`, or `--host antigravity`. Add `--json` for machine-readable output.
 
 For `--host codex`, unreadable public plugin state returns exit `3` with `host-state-unknown`; a missing CLI or failed capability probe returns `4`. If that host failure occurs with a pending journal, recovery is deferred: exit `5` with `partial-journal` retains the journal and records `details.hostFailure`. Restore the CLI or readable public plugin state, then rerun the command. Other outcomes can share these exit codes, so inspect the JSON status as well.
 
@@ -156,6 +156,7 @@ The registry check runs at most once every 24 hours in a detached background pro
 | Claude Code | A package-owned local marketplace snapshot; the plugin hooks are consumed directly. |
 | Codex | The same package-owned local marketplace snapshot. |
 | OpenCode | Skills, a native event plugin, and `ccl-skills/runtime` under shared host directories. The adapter maps the shipped session, tool, prompt, subagent, and stop behaviors to OpenCode events and covers `edit`, `write`, and `apply_patch`. |
+| Antigravity | The package's bundled plugin, installed with `agy plugin install` as the native plugin `~/.gemini/config/plugins/ccl-skills`, plus an install receipt (version and file hashes) under `~/.gemini/ccl-skills-npm`. Doctor, update and uninstall require the installed directory to match the receipt byte for byte; a `ccl-skills` plugin npm did not install, or one changed after install, is refused, never replaced. An update keeps a verified temporary backup for rollback. The npm adapter and `scripts/install-antigravity.sh` share one lock. |
 
 Installation refuses unknown collisions, and uninstall preserves shared files for manual cleanup instead of guessing ownership.
 

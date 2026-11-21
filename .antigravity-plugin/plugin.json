@@ -1,0 +1,6 @@
+{
+  "name": "ccl-skills",
+  "description": "CCL 研发技能全库（按交付物路由：product-rd-workflow / testing-strategy / test-artifact-management / defect-diagnosis / skill-extraction-workflow / tighten-doc / 各 *-dev / *-architecture …）+ 团队护栏（编辑隔离、合并授权、owner 派发、任务入口路由与收尾检查，经 hooks/agy-bridge.py 适配 Antigravity 钩子协议）。",
+  "repository": "https://github.com/ccoalm/ccl-skills",
+  "homepage": "https://github.com/ccoalm/ccl-skills#readme"
+}

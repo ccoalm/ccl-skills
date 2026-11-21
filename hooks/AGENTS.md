@@ -13,7 +13,17 @@ Rules:
 - Non-wording changes require deterministic validation plus independent review
   and adversarial challenge before landing.
 
+- `agy-bridge.py` adapts Antigravity's hook protocol to these scripts. Policy
+  decisions stay in the scripts; the bridge owns only protocol errors, failure
+  defaults (edit, delegation, owner-dispatch and merge guards fail closed; a
+  merge guard that cannot run blocks every command), verdict aggregation (deny over ask over allow)
+  and Stop loop prevention. Its dispatch lists are the binding inventory and must
+  equal the command hooks in `hooks.json`; it prints exactly one JSON object per
+  event.
+
 Validation:
 
 - `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .`
 - `git diff --check`
+- `python3 hooks/test_agy_bridge.py` when the bridge, `hooks.json` or the root
+  `hooks.json` changes
