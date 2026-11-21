@@ -5,12 +5,14 @@ import { join, resolve } from "node:path";
 import { runClaude } from "./claude-adapter.js";
 import { run as runCodex } from "./operations.js";
 import { runOpenCode } from "./opencode-adapter.js";
+import { antigravityOwned, runAntigravity } from "./antigravity-adapter.js";
 import { paths, type PathContext } from "./paths.js";
 import type { Host, Options, Result } from "./types.js";
 
 function owned(host: Host) {
 	const home = process.env.HOME;
 	if (!home) return false;
+	if (host === "antigravity") return antigravityOwned(home);
 	const manifest = host === "claude"
 		? join(resolve(home), ".claude/ccl-skills-npm/install-manifest.json")
 		: host === "opencode"
@@ -22,6 +24,7 @@ function owned(host: Host) {
 function dispatch(host: Host, command: string, options: Options, codexContext: PathContext): Result {
 	if (host === "claude") return runClaude(command, options, codexContext);
 	if (host === "opencode") return runOpenCode(command, options, codexContext);
+	if (host === "antigravity") return runAntigravity(command, options, { assets: codexContext.assets, isInterrupted: () => codexContext.isInterrupted?.() ?? false });
 	return runCodex(command, options, codexContext);
 }
 
@@ -53,15 +56,15 @@ export function runHostSequence(hosts: Host[], invoke: (host: Host) => Result): 
 export function runUnified(command: string, options: Options = {}, codexContext: PathContext = {}): Result {
 	if (options.host) return dispatch(options.host, command, options, codexContext);
 	const includeOwned = command === "doctor" || command === "uninstall";
-	const candidates = (["claude", "codex", "opencode"] as Host[]).filter((host) => command !== "update" || owned(host));
+	const candidates = (["claude", "codex", "opencode", "antigravity"] as Host[]).filter((host) => command !== "update" || owned(host));
 	const probes = candidates.map((host) => {
-		const probe = host !== "codex" ? probeHostVersion(host)
+		const probe = host !== "codex" ? probeHostVersion(host === "antigravity" ? "agy" : host)
 			: isHostCommandMissing(host) ? { ok: false as const, kind: "missing", message: "codex CLI was not found on PATH" }
 				: checkHost(paths(codexContext).codexHome);
 		return { host, probe };
 	});
 	const hosts = probes.filter(({ host, probe }) => probe.ok || probe.kind !== "missing" || (includeOwned && owned(host))).map(({ host }) => host);
-	if (!hosts.length) return { code: 4, status: "host-missing", message: "no Claude Code, Codex, or OpenCode CLI is available" };
+	if (!hosts.length) return { code: 4, status: "host-missing", message: "no Claude Code, Codex, OpenCode, or Antigravity CLI is available" };
 	return runHostSequence(hosts, (host) => {
 		const probe = probes.find((entry) => entry.host === host)!.probe;
 		if (!probe.ok && probe.kind !== "missing" && !(host === "codex" && probe.kind !== "safety-refusal" && existsSync(paths(codexContext).journal))) return { code: probe.kind === "state-unknown" || probe.kind === "safety-refusal" ? 3 : 4, status: probe.kind === "safety-refusal" ? probe.kind : `host-${probe.kind}`, message: probe.message };

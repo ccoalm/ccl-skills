@@ -12,7 +12,8 @@
 #   another Stop hook's block would set and mask this gate entirely).
 # - Scope guard: only fires when the edited tree is a ccl-skills checkout,
 #   identified by the sibling marker skills/skill-extraction-workflow/SKILL.md;
-#   vendored/unrelated skills/ trees in product repos and plugin caches are exempt.
+#   vendored/unrelated skills/ trees in product repos and installed plugin copies
+#   (Claude/Codex caches, Antigravity's ~/.gemini/config/plugins) are exempt.
 # - Read-only on repo state; writes only its own /tmp marker.
 # Known accepted fail-open gaps (advisory backstop, CI is the hard gate):
 # Bash-driven edits, NotebookEdit, exotic transcript schemas, spoofed invocation text,
@@ -64,7 +65,7 @@ CANDIDATES=$(printf '%s' "$SUMMARY" | jq -r '.edit_paths[:40][]' 2>/dev/null)
 IN_SCOPE=""
 while IFS= read -r f; do
   [ -n "$f" ] || continue
-  case "$f" in */plugins/cache/*|*/.codex/*) continue ;; esac
+  case "$f" in */plugins/cache/*|*/.codex/*|*/.gemini/config/plugins/*) continue ;; esac
   # Every skills/, hooks/ or scripts/ component, not only the first: a checkout
   # may sit under an ancestor that carries one of those names.
   case "$f" in /*) prefix="" ;; *) prefix="." ;; esac

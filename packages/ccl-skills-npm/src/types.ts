@@ -1,5 +1,5 @@
 export type ExitCode = 0 | 1 | 2 | 3 | 4 | 5 | 130
-export type Host = "claude" | "codex" | "opencode"
+export type Host = "claude" | "codex" | "opencode" | "antigravity"
 export interface Result { code: ExitCode; status: string; message: string; plan?: string[]; trust?: "pending-unverified"; details?: Record<string, unknown>; interrupted?: boolean }
 export interface Options { yes?: boolean; allowDowngrade?: boolean; host?: Host }
 export interface OwnedFile { path: string; sha256: string; mode: number }

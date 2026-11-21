@@ -37,7 +37,7 @@ def shared_skill_paths(paths, cwd):
     for raw in paths:
         path = Path(raw) if os.path.isabs(raw) else Path(cwd) / raw
         text = path.as_posix()
-        if '/plugins/cache/' in text or '/.codex/' in text:
+        if '/plugins/cache/' in text or '/.codex/' in text or '/.gemini/config/plugins/' in text:
             continue
         # Every occurrence, not only the first: a checkout may sit under an
         # ancestor that is itself named skills, hooks or scripts.

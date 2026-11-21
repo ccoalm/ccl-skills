@@ -19,7 +19,7 @@
 | `skills/skill-extraction-workflow/` | 元技能:如何提炼/更新/评审技能(贡献规则的权威来源) |
 | `skills/skill-extraction-workflow/scripts/check-ccl-skills.sh` | 仓库验证门禁(frontmatter / overlay / 泄漏 / 路由 / 引用),内含 F4 Tier-1 路由分析器 |
 | `skills/skill-extraction-workflow/scripts/eval-routing*.rb` · `eval-golden-trace.rb` | F4 路由有效性 harness(静态分析器 / 廉价 grader / 真 agent 回放),见治理段 |
-| `hooks/` | Claude Code 与 Codex 直接消费 plugin hooks，OpenCode 通过原生事件 adapter 调用脚本。`hooks.json` 定义事件绑定；`host-input.py` 归一化宿主输入，`session-context.sh` 提供恢复索引，测试覆盖允许、拒绝与降级路径 |
+| `hooks/` | Claude Code 与 Codex 直接消费 plugin hooks，OpenCode 通过原生事件 adapter 调用脚本，Antigravity 经根 `hooks.json` 调用 `agy-bridge.py` 再分派到同一批脚本。`hooks.json` 定义事件绑定；`host-input.py` 归一化宿主输入，`session-context.sh` 提供恢复索引，测试覆盖允许、拒绝与降级路径 |
 | `agent-context/session-start.md` | 注入每个会话的路由指引(被 SessionStart hook 加载) |
 | `agent-context/session-policy.md` | 启动入口按动作引用的完整规则；安装包保留可解析路径 |
 | `agent-context/subagent-start.md` | 子 agent 派活时的 owner 路由约定(被 SubagentStart hook 加载) |
@@ -30,7 +30,8 @@
 | `packages/` | 对外分发物：统一 npm 包 `ccl-skills-npm`（三端 CLI、离线资产与发布校验）加 OpenCode 插件源码 `opencode-plugin` |
 | `.github/workflows/ci.yml` · `.githooks/` | GitHub Actions 门禁接线和本地 git hook |
 | `docs/` | 给人读的手册和本仓 review;agent 执行用的门禁/模板仍在各技能 `references/` |
-| `.claude-plugin/{marketplace,plugin}.json` · `.codex-plugin/plugin.json` | 两端 plugin manifest |
+| `.claude-plugin/{marketplace,plugin}.json` · `.codex-plugin/plugin.json` · `.antigravity-plugin/plugin.json` | 三端 plugin manifest；Antigravity 另读根目录 `hooks.json` |
+| `hooks/agy-bridge.py` | Antigravity 钩子协议桥：把 camelCase protojson 载荷译成 Claude 形状交给 `hooks/` 脚本，再把 `hookSpecificOutput`/`decision:block` 译回 Antigravity 的 `decision`、`injectSteps` 与 `{}`；从 Antigravity transcript 生成结构化影子 transcript（不复制用户原文与工具输出，按会话加锁、每个事件结束即删除），技能加载证据要求 `read_file` 覆盖整份与内置副本逐字节相同的 `SKILL.md` |
 | `.agents/plugins/marketplace.json` | Codex 端 marketplace 清单；Codex 与 Claude 清单都使用本仓 GitHub HTTPS 源 |
 | `opencode.json` | OpenCode 仓库本地配置:加载 `agent-context/session-start.md` 和 `skills/`,便于在源仓内直接使用/验证技能；若同时装了全局 `~/.agents/skills`,以当前 OpenCode 实际加载结果为准 |
 | `packages/opencode-plugin/ccl-skills.ts` | OpenCode 原生 plugin：注入 bootstrap，把 prompt、tool、subagent 和 session-idle 事件适配到 bundled hooks，并对 `edit`、`write`、`apply_patch` 执行主检出隔离 |
@@ -42,6 +43,7 @@
 - **入口路由器**:跨阶段交付先走 `product-rd-workflow`,它再分派设计/架构/dev/测试/发布。
 - **会话注入**:`agent-context/session-start.md` 经 SessionStart hook 注入 Claude Code 与 Codex；OpenCode 在源仓内通过 `opencode.json` 加载，在安装场景由原生 plugin 的 system transform 调用 bundled `session-start.sh`。
 - **任务入口**:`task-entry.sh` 从同一启动文件提取有界路由段，在 Claude Code/Codex 的 `UserPromptSubmit` 和 OpenCode 的 system transform 中提示先加载 owner，再探索或分析任务；实现和修复遇到未测、失败或结论不明时继续查证、修复、复测，报告本身不算完成。它不读取用户 prompt、不按关键词选 owner、不产生权限决定；当前上下文已加载的技能可复用。注入成功只证明提示送达，不证明模型遵循。
+- **Antigravity 原生路径**:`.antigravity-plugin/plugin.json` 让 `agy plugin install` 原生加载，不走有损的 Claude 扩展转换。`SessionStart` 注入启动路由；每个用户回合首次 `PreInvocation` 注入任务入口并武装合并授权；`PreToolUse` 覆盖编辑类工具、`run_command` 和 `invoke_subagent`（子 agent 上下文经 `overwrite.Prompt` 前置）；`PostToolUse` 与非阻断提醒在下一次 `PreInvocation` 送达；`Stop` 在 `continuationActive` 或非 `NO_TOOL_CALL` 时放行。编辑、委派与 owner 派发守卫跑不起来时拒绝（与 OpenCode adapter 一致）；合并守卫跑不起来时拒绝全部命令，比 OpenCode 只拒落地类命令更严，因为命令文本无法可靠判定是否落地。没有压缩与子 agent 结束事件，相应 backstop 在该宿主不运行。
 - **OpenCode 原生路径**:`scripts/install-opencode.sh` 默认同步 skills、commands、plugin、bootstrap 和 `ccl-skills/runtime`，并兼容刷新 `~/.agents/skills`；`--project` 把同一闭包同步到当前仓 `.opencode/`。
 - **运行时检查**:编辑隔离与授权检查保持各自策略。首次明确的源码编辑、当前上下文未核实 owner 加载的委派，各退回 Agent 一次，让它按已有路由补读技能后重试；不请求用户批准读技能。重试和并行的其它调用仍可能执行，因此这个检查点不保证 owner 选择正确，也不替代项目自选的 owner-dispatch 检查。
 - **压缩恢复**:`PreCompact` 记录旧边界，`PostCompact` 按 actor 作废旧状态；确认新原生边界后才接受重新加载的证据，避免延迟日志把旧读取算成新读取。恢复提示在下一次源码编辑或委派前送达。只读技能名称、失败或截断的结果不算完整加载；分段读取须覆盖完整正文。标记只限制提醒次数，不表示已加载或已授权。

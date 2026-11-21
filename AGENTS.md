@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本仓把真实研发工作中证明有效的做法提炼为可移植、可验证的 Agent Skills，供 Claude Code、Codex、OpenCode 和其它 Agent Skills 宿主使用。根契约定义全仓共用规则；更近的 `AGENTS.md` 只补充所在目录的职责、边界和验证要求。
+本仓把真实研发工作中证明有效的做法提炼为可移植、可验证的 Agent Skills，供 Claude Code、Codex、OpenCode、Antigravity 和其它 Agent Skills 宿主使用。根契约定义全仓共用规则；更近的 `AGENTS.md` 只补充所在目录的职责、边界和验证要求。
 
 ## 核心产品目标
 
@@ -45,7 +45,8 @@
 
 ## Host 配置
 
-- `.claude-plugin/plugin.json` 和 `.codex-plugin/plugin.json` 不添加 `version` 字段，避免插件更新被冻结。
+- `.claude-plugin/plugin.json`、`.codex-plugin/plugin.json` 和 `.antigravity-plugin/plugin.json` 不添加 `version` 字段，避免插件更新被冻结或与 npm 版本漂移；`agy plugin validate` 因此报的 `no version` 警告是预期结果。
+- 根目录 `hooks.json` 只供 Antigravity 读取，每个事件都经 `hooks/agy-bridge.py` 调用 `hooks/` 下的脚本；`hooks/hooks.json` 仍是 Claude Code 与 Codex 的绑定。新增或删除 `hooks/hooks.json` 里的命令 hook 时，同步 `hooks/agy-bridge.py` 的 `DISPATCH`（`--bindings` 输出由它派生，`hooks/test_agy_bridge.py` 与 npm 测试会与 `hooks/hooks.json` 比对）。
 - `opencode.json` 只注册 `./skills`、`AGENTS.md`、`agent-context/session-start.md` 和短 command。新增字段前按官方 schema 校验；禁止写模型、密钥、个人 MCP、本机绝对路径或长流程。
 - 修改 `opencode.json`、agent、skill 或 plugin 后，重启 OpenCode 以重新加载配置。
 

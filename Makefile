@@ -1,5 +1,5 @@
 # ccl-skills 安装与更新（薄封装，逻辑在 scripts/install*.sh）
-.PHONY: help test test-repo-gates test-regressions-fast test-code-review test-code-review-1 test-code-review-2 test-code-review-abort-leak test-code-review-abort-leak-1 test-code-review-abort-leak-2 test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health eval-paired npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
+.PHONY: help test test-repo-gates test-regressions-fast test-code-review test-code-review-1 test-code-review-2 test-code-review-abort-leak test-code-review-abort-leak-1 test-code-review-abort-leak-2 test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-antigravity update-antigravity install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health eval-paired npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
 .DEFAULT_GOAL := help
 CCL_SKILL_DEFAULT_BASE_REF ?= origin/dev
 # Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the
@@ -33,6 +33,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	python3 skills/tighten-doc/scripts/test_doc_lint_repo.py
 	python3 skills/tighten-doc/scripts/doc-lint-repo.py .
 	bash scripts/test_install_opencode_skill_migration.sh
+	bash scripts/test_install_antigravity.sh
 	python3 scripts/test_install_status.py
 	python3 scripts/test_install_gates_runtime.py
 	bash scripts/test_run_parallel_suites.sh
@@ -43,6 +44,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	python3 hooks/test_skill_loading.py
 	python3 hooks/test_task_entry.py
 	python3 hooks/test_proposed_next.py
+	python3 hooks/test_agy_bridge.py
 	bash hooks/test_guard_delegation_owner.sh
 	bash hooks/test_guard_edit_isolation.sh
 	bash hooks/test_guard_merge_authorization.sh
@@ -123,8 +125,15 @@ test-check-ccl-regressions: ## 运行 check-ccl-skills shell wrapper 全量回�
 test-verify-sandbox: ## verify-sandbox 行为套件（需本机 docker，故不进默认 test；改 scripts/verify-sandbox 必跑）
 	bash scripts/verify-sandbox/test.sh
 
-install: ## 安装检测到的 Claude Code、Codex 和 OpenCode 集成
+install: ## 安装检测到的 Claude Code、Codex、OpenCode 和 Antigravity 集成
 	bash scripts/install.sh
+
+install-antigravity: ## 从当前 checkout 安装/刷新 Antigravity 原生插件（只替换本脚本装过的 ccl-skills 插件）
+	bash scripts/install-antigravity.sh
+
+update-antigravity: ## 先 ff-only 拉取当前分支，再刷新 Antigravity 原生插件
+	git pull --ff-only
+	bash scripts/install-antigravity.sh
 
 install-opencode: ## 安装/刷新 OpenCode 原生全局 skills、兼容 skills、plugin 和 commands
 	bash scripts/install-opencode.sh
@@ -161,7 +170,7 @@ eval-paired: ## 技能改动前后的配对行为评测（advisory；需本机 c
 install-codex-cron: ## 同 install，并给 Codex 装每日 cron 伪自动更新（改 crontab）
 	bash scripts/install.sh --codex-cron
 
-update: ## 刷新 Claude Code、Codex 和 OpenCode 集成
+update: ## 刷新 Claude Code、Codex、OpenCode 和 Antigravity 集成
 	# Claude：必须用 `plugin update`。`plugin install` 对已装插件只会 no-op（"already installed"），不会更新。
 	-claude plugin marketplace update ccl-skills && claude plugin update ccl-skills@ccl-skills
 	# Codex：upgrade 刷新 marketplace git 快照，plugin add 再把快照装进运行缓存（安装是快照的拷贝，
@@ -181,6 +190,13 @@ update: ## 刷新 Claude Code、Codex 和 OpenCode 集成
 	    echo "  ⚠ OpenCode 更新失败，运行 make update-opencode-no-agent 重试"; \
 	  fi; \
 	else echo "  ⓘ 未检测到 opencode CLI，跳过 OpenCode 更新"; fi
+	# Antigravity：同样从当前 checkout 安装，不联网拉远端；只替换带本安装器归属标记的插件。整块非致命。
+	@if command -v agy >/dev/null 2>&1; then \
+	  echo "  ⟳ 刷新 Antigravity 原生插件（从当前 checkout）"; \
+	  if ! bash scripts/install-antigravity.sh; then \
+	    echo "  ⚠ Antigravity 更新失败，查看上方提示后运行 make install-antigravity 重试"; \
+	  fi; \
+	else echo "  ⓘ 未检测到 agy CLI，跳过 Antigravity 更新"; fi
 
 update-opencode: ## 手动刷新 OpenCode skills、plugin、commands 和 install manifest
 	git pull --ff-only
