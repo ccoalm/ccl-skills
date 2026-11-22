@@ -57,8 +57,9 @@ JQ_SAVED = {"engine-edit": 4, "engine-bash": 4, "merge": 3, "merge-trailing-newl
 # Half the 10 s timeout hooks.json gives every PreToolUse hook: a hook that
 # outlives the host timeout does not block. Both sides finish in under 1 s.
 STALL_SECONDS = 5
-# Bash prefixes its own diagnostics with "<script>: line N:".
-BASH_DIAGNOSTIC_LINE = re.compile(r"(\.sh): line [0-9]+: ")
+# Bash prefixes its own diagnostics with "<script>: line N:", followed for an
+# exec failure by the program's path, which depends on PATH order.
+BASH_DIAGNOSTIC_LINE = re.compile(r"(\.sh): line [0-9]+: (?:/[^:\s]*/)?")
 SECRET = "SECRETMARK"
 MISSING = object()
 GIT_ENV = {
@@ -520,8 +521,12 @@ GROUPS = (group_engine_edit, group_engine_bash, group_stop, group_merge, group_b
           group_stall)
 
 
-def run_group(source, group):
-    """Run one group in its own sandbox, so groups can run concurrently."""
+def run_group(source, group, calibrated=None):
+    """Run one group in its own sandbox, so groups can run concurrently.
+
+    The counting group (None) also reads the jq version the hooks see. It runs
+    the memory probes only when `calibrated` is None (regeneration) or holds
+    that version, so an uncalibrated host never depends on them."""
     results = {}
 
     def record(case_id, result):
@@ -532,7 +537,10 @@ def run_group(source, group):
     sb = Sandbox(source)
     try:
         if group is None:
-            return {}, dict(count_jq(sb), peak_ratios=peak_ratios(sb))
+            version = calibration_key(sb)
+            probe = calibrated is None or version in calibrated
+            return {}, dict(count_jq(sb), calibration=version,
+                            peak_ratios=peak_ratios(sb) if probe else None)
         group(sb, record)
         sb.check_not_executed()
         return results, {}
@@ -620,20 +628,25 @@ def fixture_key():
 
     Two things differ between hosts: whether `tr -c` replaces a multibyte
     character byte by byte (GNU, uutils) or once (BSD), and how `basename` and
-    `dirname` fail on a 900 KB argument (Linux caps one exec argument at
-    128 KiB; macOS does not, and BSD and GNU word their errors differently).
+    `dirname` fail on a 900 KB argument (Linux caps one exec argument at 32
+    pages, 128 KiB with 4 KiB pages; macOS does not, and BSD and GNU word
+    their errors differently).
     Hosts that behave alike share one entry, whatever their tools are called.
     """
     env = {"PATH": os.environ["PATH"], "LC_ALL": utf8_locale()}
     tr = subprocess.run(["tr", "-c", "A-Za-z0-9._-", "_"], input="é".encode(),
-                        env=env, capture_output=True).stdout
-    probes = ["tr-replaces-%d" % len(tr)]
+                        env=env, capture_output=True)
+    if tr.returncode != 0:
+        raise SystemExit("FAIL: tr failed while probing the host: %s" % tr.stderr.decode().strip())
+    probes = ["tr-replaces-%d" % len(tr.stdout)]
     long_arg = "/" + "a" * 900000
     for tool in ("basename", "dirname"):
         try:
             run = subprocess.run([tool, long_arg], env=env, capture_output=True, text=True)
-        except OSError as exc:  # the kernel refuses the argument before the tool runs
-            probes.append("%s-exec-%s" % (tool, errno.errorcode.get(exc.errno, exc.errno)))
+        except OSError as exc:
+            if exc.errno != errno.E2BIG:  # a broken tool is not a host behaviour
+                raise SystemExit("FAIL: %s could not run while probing the host: %s" % (tool, exc))
+            probes.append("%s-exec-E2BIG" % tool)  # the kernel refused the argument
             continue
         err = run.stderr.replace(long_arg, "<ARG>").split(":", 1)[-1].strip()
         probes.append("%s-rc%d-%s" % (tool, run.returncode,
@@ -641,8 +654,15 @@ def fixture_key():
     return platform.system() + "/" + "/".join(probes)
 
 
-def jq_version():
-    return subprocess.run(["jq", "--version"], capture_output=True, text=True).stdout.strip()
+def calibration_key(sb):
+    """What the peak-memory ratio depends on: the jq the hooks run, read in the
+    sandbox's own environment, and the Python running the probe, whose own
+    memory reaches the measured children."""
+    out = subprocess.run(["jq", "--version"], cwd=sb.root, env=sb.env(),
+                         capture_output=True, text=True)
+    if out.returncode != 0 or not out.stdout.strip():
+        raise SystemExit("FAIL: jq --version failed: %s" % out.stderr.strip())
+    return "%s python-%d.%d" % ((out.stdout.strip(),) + tuple(sys.version_info[:2]))
 
 
 def write_dump(path, results):
@@ -663,10 +683,11 @@ def stderr_texts(result):
         yield run.get("stderr", "")
 
 
-def collect(source):
+def collect(source, calibrated=None):
     results, counts = {}, {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(GROUPS) + 1) as pool:
-        for part, part_counts in pool.map(lambda g: run_group(source, g), GROUPS + (None,)):
+        for part, part_counts in pool.map(lambda g: run_group(source, g, calibrated),
+                                          GROUPS + (None,)):
             if set(part) & set(results):
                 raise AssertionError("duplicate case ids across groups")
             results.update(part)
@@ -698,6 +719,10 @@ def main():
         with open(EXPECTED) as fh:
             fixture = json.load(fh)
     if opts.regenerate:
+        if fixture.get("baseline") != BASELINE and fixture.get("platforms"):
+            print("FAIL: %s is pinned to %s; delete it to start a fixture from %s"
+                  % (os.path.relpath(EXPECTED, REPO), fixture.get("baseline"), BASELINE))
+            return 1
         results, counts = collect("baseline")
         timed_out = sorted(k for k, v in results.items()
                            if any(str(r.get("rc", "")).startswith("timeout") for r in walk(v)))
@@ -705,31 +730,38 @@ def main():
             print("FAIL: the baseline timed out in %s; rerun on a quieter host" % timed_out)
             return 1
         ratios = counts.pop("peak_ratios")
+        version = counts.pop("calibration")
         cases = {k: digest(v) for k, v in sorted(results.items())}
-        if fixture.get("baseline") != BASELINE:
-            fixture = {"baseline": BASELINE, "platforms": {}}
+        fixture["baseline"] = BASELINE
+        fixture.setdefault("platforms", {})
         entry = fixture["platforms"].get(system)
-        if entry and entry["cases"] != cases:
+        # Cases both sides hold must agree: added cases are fine, a changed
+        # one means the key misses a behaviour. jq counts must agree too.
+        if entry and (any(entry["cases"][k] != cases[k]
+                          for k in set(entry["cases"]) & set(cases))
+                      or entry["jq_counts"] != counts):
             print("FAIL: %s already holds a different baseline; the key misses a behaviour"
                   % system)
             return 1
-        entry = entry or {"cases": cases, "peak_ratios": {}}
+        entry = entry or {"peak_ratios": {}}
+        entry["cases"] = cases
         entry["jq_counts"] = counts
-        # Peak memory depends on the jq version, so each version keeps its own.
-        entry["peak_ratios"][jq_version()] = ratios
+        # Peak memory depends on jq and Python versions; each pair keeps its own.
+        entry["peak_ratios"][version] = ratios
         fixture["platforms"][system] = entry
         with open(EXPECTED, "w") as fh:
             json.dump(fixture, fh, indent=1, sort_keys=True, ensure_ascii=False)
             fh.write("\n")
         print("wrote %d %s cases (%s) to %s" % (
-            len(results), system, jq_version(), os.path.relpath(EXPECTED, REPO)))
+            len(results), system, version, os.path.relpath(EXPECTED, REPO)))
         return 0
 
     known = fixture.get("baseline") == BASELINE and system in fixture.get("platforms", {})
     if not known and not opts.dump:
         print("FAIL: no %s fixture from %s; run --regenerate on that host" % (system, BASELINE))
         return 1
-    results, counts = collect("candidate")
+    calibrated = set(fixture["platforms"][system]["peak_ratios"]) if known else set()
+    results, counts = collect("candidate", calibrated)
     if opts.dump:
         write_dump(opts.dump, results)
     if not known:
@@ -749,13 +781,12 @@ def main():
     for case_id, result in sorted(results.items()):
         if any(SECRET in text for text in stderr_texts(result)):
             failures.append("%s: payload text reached stderr" % case_id)
-    peak = fixture["peak_ratios"].get(jq_version())
+    version = counts.pop("calibration")
+    peak = fixture["peak_ratios"].get(version)
     if peak is None:
         print("SKIP peak memory: no %s calibration for %s; --regenerate on such a host adds one"
-              % (jq_version(), system))
-    for name, ratio in sorted(counts.pop("peak_ratios").items()):
-        if peak is None:
-            continue
+              % (version, system))
+    for name, ratio in sorted((counts.pop("peak_ratios") or {}).items()):
         limit = peak[name] * 1.25 + 0.1
         if ratio > limit:
             failures.append("%s peaks at %.2fx a plain jq read; at most %.2fx expected (baseline %.2fx)"

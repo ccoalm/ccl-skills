@@ -98,30 +98,35 @@ The edit checkpoint routes hook edits through `skill-extraction-workflow`. The s
 - **Compared.** Each case compares:
   - stdout, exit code and every owner-dispatch state file with its contents;
   - merge grants;
-  - stderr, where only the line number in Bash's own `<script>.sh: line N:` prefix is normalized.
+  - stderr, where only Bash's own `<script>.sh: line N:` prefix is normalized: its line number, and the path of a program that failed to start, which depends on `PATH` order.
 
   The sandbox path is replaced in its literal and both JSON-escaped forms.
 - **Checks on every case.** Payload text that would run a command if evaluated (`$(touch PWNED)`, backticks, an array element) must leave no `PWNED` file anywhere in the sandbox. A marker in malformed fields must not reach stderr.
 - **jq count.** Each script must start at least the merged number of jq processes fewer than baseline. The count runs on one ordinary payload per script, plus a merge command ending in a newline. Each counted run must exit 0 and start at least one jq.
 - **Peak memory.** The merge guard and the engine run on an 800,000-NUL field. Their peak memory, as a ratio to one plain jq read of the same payload on the same host, may exceed the baseline's ratio by at most 25% plus 0.1. Splitting before the length check changes no output, because the read falls back, so only this check sees it.
-  - The ratio depends on the jq version (1.84x with jq 1.6, about 2.7x with jq 1.8.1), so each fixture entry keeps a calibration per jq version.
-  - A jq version without one prints `SKIP peak memory` and leaves the rest of the test in force. A runner jq upgrade therefore cannot turn CI red through this check alone.
+  - The ratio depends on the jq version the hooks run (1.84x with jq 1.6, about 2.7x with jq 1.8.1) and on the Python running the probe, whose own memory reaches the measured children. Each fixture entry therefore keeps one calibration per jq and Python pair, read in the sandbox's environment.
+  - A pair without one skips the memory probes and prints `SKIP peak memory`, leaving the rest of the test in force. A runner upgrade therefore cannot turn CI red through this check alone.
 - **Environment.**
   - The hooks run under a UTF-8 locale, as on a host, because under `C` Bash evaluates quoted text much faster and the apostrophe stall disappears. A host without `C.UTF-8` or `en_US.UTF-8` fails the test rather than running a weaker one.
   - Fixture git commands run under a private `HOME` with no global config, and ignore the caller's `GIT_*` variables. Archiving the baseline keeps the caller's global config (for `safe.directory`) but disables replace objects and uses the full commit id.
 - **Fixture entries.** The baseline hooks print different results in 5 cases on different hosts: non-ASCII session ids, the apostrophe-stall edit and the long agent id. Two behaviours cause it:
   - `tr -c` replaces a multibyte character byte by byte (GNU, uutils) or once (BSD);
-  - Linux refuses an exec argument over 128 KiB, while macOS runs `basename` and `dirname`, whose errors differ between BSD and GNU.
+  - Linux refuses an exec argument over 32 pages (128 KiB with 4 KiB pages), while macOS runs `basename` and `dirname`, whose errors differ between BSD and GNU.
 
   Entries are keyed by a fingerprint of those behaviours, probed at run time, so hosts that behave alike share one. The current entries:
 
-  | Key | Covers | jq calibrations |
+  | Key | Covers | Memory calibrations |
   | --- | --- | --- |
-  | `Linux/tr-replaces-2/basename-exec-E2BIG/dirname-exec-E2BIG` | Linux with GNU coreutils; Ubuntu 26.04 with uutils (the CI runner) | jq-1.6, jq-1.8.1 |
-  | `Darwin/tr-replaces-1/...` | macOS with BSD tools | jq-1.8.2 |
-  | `Darwin/tr-replaces-2/...` | macOS with Homebrew's GNU coreutils first | jq-1.8.2 |
+  | `Linux/tr-replaces-2/basename-exec-E2BIG/dirname-exec-E2BIG` | Linux with GNU coreutils; Ubuntu 26.04 with uutils (the CI runner) | jq 1.6 with Python 3.11 and 3.12; jq 1.8.1 with Python 3.14 |
+  | `Darwin/tr-replaces-1/...` | macOS with BSD tools | jq 1.8.2 with Python 3.14 |
+  | `Darwin/tr-replaces-2/...` | macOS with Homebrew's GNU coreutils first | jq 1.8.2 with Python 3.14 |
 
-  A key without an entry fails with the regeneration step. Regeneration refuses a baseline that timed out, and refuses a second baseline under a key that already holds a different one, because that would mean the key misses a behaviour.
+  A key without an entry fails with the regeneration step. Probing fails, rather than producing a key, when `tr` fails or a tool cannot run for any reason other than the argument limit.
+
+  Regeneration refuses three things:
+  - a baseline that timed out;
+  - a fixture pinned to another commit;
+  - under an existing key, a case or jq count that differs, because that would mean the key misses a behaviour. Added cases are accepted.
 - **RED.** Commit `0b1bc53`, before the scripts changed: all 506 cases of that version matched baseline, and all 5 jq-count assertions failed (engine 5, merge 4, broad 2, edit 2 processes). Each later regression case was either seen failing on the candidate it guards or is killed by the matching mutation below.
 - **GREEN on `dcbe712`.** Each jq count is 1, and all 576 cases pass:
   - on Linux (bash 5.2.15, jq 1.6);
@@ -314,6 +319,24 @@ FAIL: no Linux/tr-other/basename-other fixture from 788470c; run --regenerate on
 - In that container, the baseline hooks gave exactly the GNU Linux results in all 576 cases.
 - The key is now a behaviour fingerprint, which the runner shares with GNU Linux.
 - In the container, the case set then matched the shared entry. The peak-memory check failed against the jq 1.6 calibration (2.68x against 1.84x), which led to the per-version calibrations above. With them, the container passes 576 cases with no failures.
+
+## Fixture review R5
+
+[`review-R5.json`](review-R5.json): Codex, review mode, of the CI fix (`a20ffaa`..`1aed4a0`). That change added a skip path to the memory check, so it was not exempt as a test-only strengthening. It reported 9 findings: 4 P2 and 5 P3. They were settled here.
+
+| Finding | Disposition |
+| --- | --- |
+| P2 Bash names the failed program by path, which depends on `PATH` order | Fixed: the path is normalized. With `/bin` first on `PATH`, all 576 cases now match. |
+| P2 the memory probes run before the calibration is looked up | Fixed: the counting sandbox reads the calibration key first and skips the probes when none exists. |
+| P2 regeneration accepts different jq counts under an existing key | Fixed: refused. Checked by raising a stored count: regeneration then fails. |
+| P2 the macOS jq 1.7.1 calibration was dropped | Not restored: that host now runs jq 1.8.2 and no longer has 1.7.1. The entry is calibrated for the versions present. |
+| P3 the jq version is read outside the sandbox and failures are ignored | Fixed: read with the sandbox's environment, and a failed `jq --version` stops the test. The key also includes the probe's Python version. Running the test under Python 3.11 instead of 3.12 moved the ratio from 1.89x to 2.96x. |
+| P3 a fixture pinned to another commit is wiped on regeneration | Fixed: refused. Checked with a fixture pinned to `0000000`: it fails and keeps all three entries. |
+| P3 adding a case looks like a key collision | Fixed: only cases both sides hold must agree. |
+| P3 a broken tool becomes a platform fingerprint | Fixed: a failing `tr`, or a tool failing to start for any reason but `E2BIG`, stops the test. Source evidence; a non-executable file on `PATH` is skipped by the lookup, so it does not reproduce this. |
+| P3 the Linux limit depends on page size | Fixed in the wording above and in the fingerprint's docstring. |
+
+The split-before-length mutation still fails the memory check under the new calibration.
 
 ## Latency
 
