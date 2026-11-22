@@ -173,4 +173,28 @@ sleep 7
 [ ! -e "$TMP/leaked" ] \
   || fail "a suite survived cancellation and kept running after the runner exited"
 
+# 12) an inherited ignored SIGPIPE (e.g. from a .NET/Node CI runner) is restored
+#     to SIG_DFL before suites run, so early-closing shell pipelines do not emit
+#     spurious `write error: Broken pipe` diagnostics on stderr.
+if command -v python3 >/dev/null 2>&1; then
+  cat >"$TMP/sigpipe-suite.sh" <<'EOF'
+#!/usr/bin/env bash
+err="$( ( set -o pipefail; ( sleep 0.05; printf '%s' "hello" ) | true ) 2>&1 )"
+rc=$?
+[ "$rc" -eq 141 ] || { printf 'expected SIGPIPE rc=141, got rc=%s err=%s\n' "$rc" "$err" >&2; exit 1; }
+[ -z "$err" ] || { printf 'unexpected stderr: %s\n' "$err" >&2; exit 1; }
+echo SIGPIPE-DEFAULT-OK
+EOF
+  sig_out="$(python3 - "$RUNNER" "$TMP/sigpipe-suite.sh" <<'PY'
+import signal, subprocess, sys
+signal.signal(signal.SIGPIPE, signal.SIG_IGN)
+p = subprocess.run(["bash", sys.argv[1], "--jobs", "2", sys.argv[2]], capture_output=True, text=True, restore_signals=False)
+sys.stdout.write(p.stdout + p.stderr)
+sys.exit(p.returncode)
+PY
+  )" || fail "suite failed when parent inherited SIGPIPE=SIG_IGN: $sig_out"
+  grep -q 'SIGPIPE-DEFAULT-OK' <<<"$sig_out" || fail "sigpipe suite marker missing"
+  ! grep -qi 'Broken pipe' <<<"$sig_out" || fail "Broken pipe diagnostic leaked under SIGPIPE=SIG_IGN"
+fi
+
 echo "run_parallel_suites_ok"

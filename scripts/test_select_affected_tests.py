@@ -1995,6 +1995,69 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 self.assertEqual(proc_pipe.returncode, 141, msg=f"{mode_flag}: stderr={proc_pipe.stderr!r}")
                 self.assertEqual(proc_pipe.stderr, "", msg=mode_flag)
 
+    def test_escalate_and_reap_waits_for_post_sigkill_group_drain_even_after_leader_exited(self):
+        mod = load_selector()
+
+        class _ExitedLeader:
+            returncode = -signal.SIGTERM
+
+            def poll(self):
+                return self.returncode
+
+            def wait(self, timeout=None):
+                return self.returncode
+
+        sent_signals: list[tuple[int, int]] = []
+        state = {"sigkill_sent": False, "post_kill_polls": 0}
+
+        def fake_killpg(pgid: int, sig: int) -> None:
+            if sig == 0:
+                if not state["sigkill_sent"]:
+                    return
+                state["post_kill_polls"] += 1
+                if state["post_kill_polls"] < 3:
+                    return
+                raise ProcessLookupError(3, "No such process")
+            sent_signals.append((pgid, sig))
+            if sig == signal.SIGKILL:
+                state["sigkill_sent"] = True
+
+        with (
+            unittest.mock.patch.object(os, "killpg", side_effect=fake_killpg),
+            unittest.mock.patch.object(mod, "Path", return_value=Path("/nonexistent-proc-root")),
+        ):
+            mod._escalate_and_reap([_ExitedLeader()], {424242}, signal.SIGTERM, grace_seconds=0.05)
+
+        self.assertEqual(sent_signals, [(424242, signal.SIGTERM), (424242, signal.SIGKILL)])
+        self.assertGreaterEqual(
+            state["post_kill_polls"],
+            3,
+            "post-SIGKILL reap returned while group members were still live",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            fake_proc = Path(tmp) / "proc"
+            (fake_proc / "101").mkdir(parents=True)
+            (fake_proc / "101" / "stat").write_text("101 (sleep) Z 1 424242 424242 0 -1 0\n", encoding="utf-8")
+            with (
+                unittest.mock.patch.object(mod, "_pgid_has_live_members", return_value=True),
+                unittest.mock.patch.object(mod, "Path", side_effect=lambda p: fake_proc if p == "/proc" else Path(p)),
+            ):
+                self.assertFalse(
+                    mod._pgid_has_live_non_zombie_members(424242),
+                    "zombie-only group under a subreaper must count as drained",
+                )
+            (fake_proc / "102").mkdir(parents=True)
+            (fake_proc / "102" / "stat").write_text("102 (sleep) R 1 424242 424242 0 -1 0\n", encoding="utf-8")
+            with (
+                unittest.mock.patch.object(mod, "_pgid_has_live_members", return_value=True),
+                unittest.mock.patch.object(mod, "Path", side_effect=lambda p: fake_proc if p == "/proc" else Path(p)),
+            ):
+                self.assertTrue(
+                    mod._pgid_has_live_non_zombie_members(424242),
+                    "runnable post-SIGKILL member must keep reaping until it reaches Z or exits",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

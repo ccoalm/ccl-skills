@@ -211,6 +211,50 @@ rm -rf "$BADGREP"
 if [ "$rc" -eq 0 ] && [ -z "$out" ] && [ ! -s "$ERR" ]; then pass=$((pass+1)); else
   fail=$((fail+1)); echo 'FAIL  failing grep stage must allow' >&2; fi
 
+# Hosts and CI runners (Node, Python, .NET) can invoke hooks with SIGPIPE ignored.
+# Neither a heredoc exceeding the pipe buffer nor an early-exiting tool may leak
+# `write error: Broken pipe` onto stderr.
+if command -v python3 >/dev/null 2>&1; then
+  SIGIGN_DIR=$(mktemp -d "${TMPDIR:-/tmp}/broad-test-sigign-XXXXXX") || exit 1
+  for t in bash head sed grep awk jq; do ln -s "$(command -v "$t")" "$SIGIGN_DIR/$t"; done
+  printf '#!/bin/sh\nexit 1\n' > "$SIGIGN_DIR/tr"; chmod +x "$SIGIGN_DIR/tr"
+  if python3 - "$HOOK" "$SIGIGN_DIR" <<'PY'
+import json, os, signal, subprocess, sys
+
+hook, badtr_dir = sys.argv[1], sys.argv[2]
+big_heredoc = "git commit -F - <<'MSG'\n" + ("x" * 70000) + "\nmake test-scenario\nMSG"
+p1 = subprocess.run(
+    ["bash", hook],
+    input=json.dumps({"tool_name": "Bash", "tool_input": {"command": big_heredoc}}).encode(),
+    capture_output=True,
+    restore_signals=False,
+    preexec_fn=lambda: signal.signal(signal.SIGPIPE, signal.SIG_IGN),
+)
+env = dict(os.environ, PATH=badtr_dir)
+big_npm = "npm test " + ("y" * 70000)
+p2 = subprocess.run(
+    ["bash", hook],
+    input=json.dumps({"tool_name": "Bash", "tool_input": {"command": big_npm}}).encode(),
+    env=env,
+    capture_output=True,
+    restore_signals=False,
+    preexec_fn=lambda: signal.signal(signal.SIGPIPE, signal.SIG_IGN),
+)
+if p1.returncode != 0 or p1.stdout or p1.stderr:
+    sys.stderr.write(f"heredoc sigign failed: rc={p1.returncode} out={p1.stdout!r} err={p1.stderr!r}\n")
+    sys.exit(1)
+if p2.returncode != 0 or p2.stdout or p2.stderr:
+    sys.stderr.write(f"badtr sigign failed: rc={p2.returncode} out={p2.stdout!r} err={p2.stderr!r}\n")
+    sys.exit(1)
+PY
+  then
+    pass=$((pass+1))
+  else
+    fail=$((fail+1)); echo 'FAIL  ignored SIGPIPE must stay silent on heredoc and failing tool' >&2
+  fi
+  rm -rf "$SIGIGN_DIR"
+fi
+
 printf 'guard-broad-local-test: %s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1
 echo guard_broad_local_test_ok
