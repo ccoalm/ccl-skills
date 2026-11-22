@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS_DIR.parent
@@ -222,6 +223,122 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         self.assertNotIn("MAKEOVERRIDES", cleaned)
         self.assertNotIn("CCL_SKILL_DEFAULT_BASE_REF", cleaned)
         self.assertIn("PATH", cleaned)
+
+    def test_every_literal_suite_path_in_selector_exists(self):
+        # Drift guard: a renamed/removed suite must fail here, not be skipped silently at run time.
+        import re
+
+        source = SELECTOR_PATH.read_text(encoding="utf-8")
+        literals = set(re.findall(r'"((?:hooks|scripts|skills|eval)/[^"\s]+\.(?:sh|py))"', source))
+        self.assertTrue(literals)
+        missing = sorted(p for p in literals if not (REPO_ROOT / p).is_file())
+        self.assertEqual(missing, [], msg="selector names suites that do not exist")
+
+    def test_hook_fallback_covers_every_makefile_hook_suite(self):
+        mod = load_selector()
+        universe = mod.makefile_suites(REPO_ROOT)
+        hook_suites = {s for s in universe if s.startswith("hooks/")}
+        self.assertIn("hooks/test_agy_bridge.py", hook_suites)
+        plan = mod.build_test_plan(["hooks/hooks.json"], repo_root=REPO_ROOT)
+        self.assertEqual(hook_suites - set(plan["parallel_suites"]), set())
+
+    def test_changed_source_selects_sibling_test_and_changed_suite_selects_itself(self):
+        mod = load_selector()
+        plan = mod.build_test_plan(["hooks/agy-bridge.py"], repo_root=REPO_ROOT)
+        self.assertIn("hooks/test_agy_bridge.py", plan["parallel_suites"])
+        plan = mod.build_test_plan(["scripts/test_install_antigravity.sh"], repo_root=REPO_ROOT)
+        self.assertIn("scripts/test_install_antigravity.sh", plan["parallel_suites"])
+
+    def test_missing_mapped_suite_is_recorded_and_escalates_to_full(self):
+        mod = load_selector()
+        builder = mod._PlanBuilder(REPO_ROOT, "origin/dev", False, False)
+        builder.add_suite("hooks/test_does_not_exist.sh")
+        self.assertEqual(builder.parallel_suites, [])
+        self.assertEqual(builder.missing_suites, ["hooks/test_does_not_exist.sh"])
+
+    def test_unresolvable_explicit_base_ref_is_an_error(self):
+        proc = subprocess.run(
+            [sys.executable, str(SELECTOR_PATH), "--repo", str(REPO_ROOT),
+             "--base-ref", "refs/heads/no-such-branch-xyz", "--json"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("no-such-branch-xyz", proc.stderr)
+        self.assertEqual(proc.stdout, "")
+
+    def test_default_base_prefers_nearest_merge_base_over_stale_branch(self):
+        mod = load_selector()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+
+            def run(*args):
+                subprocess.run(list(args), cwd=repo, check=True, capture_output=True)
+
+            run("git", "init", "-b", "main")
+            run("git", "config", "user.email", "dev@example.com")
+            run("git", "config", "user.name", "Dev")
+            (repo / "base.txt").write_text("base\n", encoding="utf-8")
+            run("git", "add", ".")
+            run("git", "commit", "-m", "init")
+            run("git", "update-ref", "refs/remotes/origin/dev", "HEAD")  # stale integration branch
+            for i in range(3):
+                (repo / f"main{i}.txt").write_text("x\n", encoding="utf-8")
+                run("git", "add", ".")
+                run("git", "commit", "-m", f"main {i}")
+            run("git", "update-ref", "refs/remotes/origin/main", "HEAD")
+            run("git", "checkout", "-b", "feat")
+            (repo / "feature.txt").write_text("f\n", encoding="utf-8")
+            run("git", "add", ".")
+            run("git", "commit", "-m", "feature")
+            env = {k: v for k, v in os.environ.items()
+                   if k not in ("CCL_SKILL_BASE_REF", "CCL_SKILL_DEFAULT_BASE_REF")}
+            with unittest.mock.patch.dict(os.environ, env, clear=True):
+                changed, resolved = mod.collect_changed_files(repo)
+            self.assertEqual(resolved, "origin/main")
+            self.assertEqual(changed, ["feature.txt"])
+
+    def test_rename_reports_both_old_and_new_paths(self):
+        mod = load_selector()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+
+            def run(*args):
+                subprocess.run(list(args), cwd=repo, check=True, capture_output=True)
+
+            run("git", "init", "-b", "main")
+            run("git", "config", "user.email", "dev@example.com")
+            run("git", "config", "user.name", "Dev")
+            (repo / "old.txt").write_text("same content\n" * 20, encoding="utf-8")
+            run("git", "add", ".")
+            run("git", "commit", "-m", "init")
+            run("git", "checkout", "-b", "feat")
+            run("git", "mv", "old.txt", "new.txt")
+            run("git", "commit", "-m", "rename")
+            changed, _ = mod.collect_changed_files(repo, base_ref="main")
+            self.assertEqual(changed, ["new.txt", "old.txt"])
+
+    def test_skipped_lane_reports_partial_not_ok(self):
+        import contextlib
+        import io
+
+        mod = load_selector()
+        plan = {
+            "changed_files": ["x"],
+            "preflight_commands": [],
+            "parallel_suites": [],
+            "serial_commands": [],
+            "notes": ["npm-packages: skipped"],
+            "skipped_lanes": ["npm-packages"],
+        }
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = mod.execute_plan(plan, REPO_ROOT)
+        self.assertEqual(rc, 0)
+        self.assertIn("select_affected_tests_partial", buf.getvalue())
+        self.assertNotIn("select_affected_tests_ok", buf.getvalue())
 
 
 if __name__ == "__main__":

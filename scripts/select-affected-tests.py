@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -20,34 +21,41 @@ import sys
 
 sys.dont_write_bytecode = True
 
-PRETOOL_HOOK_SUITES = (
-    "hooks/test_guard_edit_isolation.sh",
-    "hooks/test_guard_merge_authorization.sh",
-    "hooks/test_guard_broad_local_test.sh",
-    "hooks/test_remind_unverified_cli_flag.sh",
-    "hooks/test_remind_untracked_background.sh",
-    "hooks/test_remind_review_covers_head.sh",
-    "hooks/test_guard_delegation_owner.sh",
+# The Makefile is the one registry of suites `make test` runs. Suite sets that must stay
+# complete (the hook fallback) are derived from it instead of being copied here, so a new
+# suite added to the Makefile is picked up without editing this file.
+_MAKEFILE_SUITE_RE = re.compile(
+    r"(?<![\w./-])((?:hooks|scripts|skills|eval)/[\w./-]*?(?:test_[\w.-]+|[\w-]+\.test|/test)\.(?:sh|py))(?![\w./-])"
 )
 
-ALL_HOOK_SUITES = (
-    "hooks/test_pretool_dispatch.py",
-    "hooks/test_host_input.py",
-    "hooks/test_skill_loading.py",
-    "hooks/test_task_entry.py",
-    "hooks/test_proposed_next.py",
-    "hooks/test_guard_delegation_owner.sh",
-    "hooks/test_guard_edit_isolation.sh",
-    "hooks/test_guard_merge_authorization.sh",
-    "hooks/test_headless_background_stop.sh",
-    "hooks/test_merge_authorization_prompt.sh",
-    "hooks/test_remind_post_merge_cleanup.sh",
-    "hooks/test_remind_review_covers_head.sh",
-    "hooks/test_guard_broad_local_test.sh",
-    "hooks/test_remind_unverified_cli_flag.sh",
-    "hooks/test_remind_untracked_background.sh",
-    "hooks/test_session_start.sh",
-)
+
+def makefile_suites(repo_root: Path) -> set[str]:
+    """Return every suite file path named in the repository Makefile that exists on disk."""
+    makefile = repo_root / "Makefile"
+    try:
+        text = makefile.read_text(encoding="utf-8")
+    except OSError:
+        return set()
+    return {m for m in _MAKEFILE_SUITE_RE.findall(text) if (repo_root / m).is_file()}
+
+
+def sibling_suites(repo_root: Path, path: str) -> list[str]:
+    """Suites that test `path` by naming convention: the file itself if it is a suite,
+    else `<dir>/test_<stem>.{py,sh}` with `-` mapped to `_`."""
+    rel = Path(path)
+    name = rel.name
+    if name.startswith("test_") and name.endswith((".py", ".sh")):
+        return [path] if (repo_root / path).is_file() else []
+    if not name.endswith((".py", ".sh")):
+        return []
+    stem = rel.stem.replace("-", "_")
+    found = []
+    for ext in (".py", ".sh"):
+        candidate = (rel.parent / f"test_{stem}{ext}").as_posix()
+        if (repo_root / candidate).is_file():
+            found.append(candidate)
+    return found
+
 
 HOOK_FILE_MAP: dict[str, tuple[str, ...]] = {
     "hooks/host-input.py": (
@@ -56,7 +64,6 @@ HOOK_FILE_MAP: dict[str, tuple[str, ...]] = {
         "hooks/test_task_entry.py",
         "hooks/test_proposed_next.py",
         "hooks/test_headless_background_stop.sh",
-        "hooks/test_pretool_dispatch.py",
     ),
     "hooks/test_host_input.py": ("hooks/test_host_input.py",),
     "hooks/skill-loading.py": (
@@ -65,19 +72,17 @@ HOOK_FILE_MAP: dict[str, tuple[str, ...]] = {
         "hooks/test_proposed_next.py",
         "hooks/test_headless_background_stop.sh",
         "scripts/owner-dispatch/test.sh",
-        "hooks/test_pretool_dispatch.py",
     ),
     "hooks/test_skill_loading.py": ("hooks/test_skill_loading.py",),
-    "hooks/task-entry.py": ("hooks/test_task_entry.py",),
     "hooks/task-entry.sh": ("hooks/test_task_entry.py",),
     "hooks/test_task_entry.py": ("hooks/test_task_entry.py",),
-    "hooks/remind-proposed-next.sh": ("hooks/test_proposed_next.py",),
+    "hooks/proposed-next-stop.sh": ("hooks/test_proposed_next.py",),
     "hooks/test_proposed_next.py": ("hooks/test_proposed_next.py",),
-    "hooks/guard-delegation-owner.sh": ("hooks/test_guard_delegation_owner.sh", "hooks/test_pretool_dispatch.py"),
+    "hooks/guard-delegation-owner.sh": ("hooks/test_guard_delegation_owner.sh",),
     "hooks/test_guard_delegation_owner.sh": ("hooks/test_guard_delegation_owner.sh",),
-    "hooks/guard-edit-isolation.sh": ("hooks/test_guard_edit_isolation.sh", "hooks/test_pretool_dispatch.py"),
+    "hooks/guard-edit-isolation.sh": ("hooks/test_guard_edit_isolation.sh",),
     "hooks/test_guard_edit_isolation.sh": ("hooks/test_guard_edit_isolation.sh",),
-    "hooks/guard-merge-authorization.sh": ("hooks/test_guard_merge_authorization.sh", "hooks/test_pretool_dispatch.py"),
+    "hooks/guard-merge-authorization.sh": ("hooks/test_guard_merge_authorization.sh",),
     "hooks/test_guard_merge_authorization.sh": ("hooks/test_guard_merge_authorization.sh",),
     "hooks/merge-authorization-prompt.sh": ("hooks/test_merge_authorization_prompt.sh",),
     "hooks/test_merge_authorization_prompt.sh": ("hooks/test_merge_authorization_prompt.sh",),
@@ -85,27 +90,16 @@ HOOK_FILE_MAP: dict[str, tuple[str, ...]] = {
     "hooks/test_headless_background_stop.sh": ("hooks/test_headless_background_stop.sh",),
     "hooks/remind-post-merge-cleanup.sh": ("hooks/test_remind_post_merge_cleanup.sh",),
     "hooks/test_remind_post_merge_cleanup.sh": ("hooks/test_remind_post_merge_cleanup.sh",),
-    "hooks/remind-review-covers-head.sh": ("hooks/test_remind_review_covers_head.sh", "hooks/test_pretool_dispatch.py"),
+    "hooks/remind-review-covers-head.sh": ("hooks/test_remind_review_covers_head.sh",),
     "hooks/test_remind_review_covers_head.sh": ("hooks/test_remind_review_covers_head.sh",),
-    "hooks/guard-broad-local-test.sh": ("hooks/test_guard_broad_local_test.sh", "hooks/test_pretool_dispatch.py"),
+    "hooks/guard-broad-local-test.sh": ("hooks/test_guard_broad_local_test.sh",),
     "hooks/test_guard_broad_local_test.sh": ("hooks/test_guard_broad_local_test.sh",),
-    "hooks/remind-unverified-cli-flag.sh": ("hooks/test_remind_unverified_cli_flag.sh", "hooks/test_pretool_dispatch.py"),
+    "hooks/remind-unverified-cli-flag.sh": ("hooks/test_remind_unverified_cli_flag.sh",),
     "hooks/test_remind_unverified_cli_flag.sh": ("hooks/test_remind_unverified_cli_flag.sh",),
-    "hooks/remind-untracked-background.sh": ("hooks/test_remind_untracked_background.sh", "hooks/test_pretool_dispatch.py"),
+    "hooks/remind-untracked-background.sh": ("hooks/test_remind_untracked_background.sh",),
     "hooks/test_remind_untracked_background.sh": ("hooks/test_remind_untracked_background.sh",),
     "hooks/session-start.sh": ("hooks/test_session_start.sh", "hooks/test_skill_loading.py"),
     "hooks/test_session_start.sh": ("hooks/test_session_start.sh",),
-    "hooks/pretool-dispatch.py": (
-        "hooks/test_pretool_dispatch.py",
-        *PRETOOL_HOOK_SUITES,
-        "scripts/owner-dispatch/test.sh",
-    ),
-    "hooks/pretool-dispatch.sh": (
-        "hooks/test_pretool_dispatch.py",
-        *PRETOOL_HOOK_SUITES,
-        "scripts/owner-dispatch/test.sh",
-    ),
-    "hooks/test_pretool_dispatch.py": ("hooks/test_pretool_dispatch.py",),
 }
 
 CODE_REVIEW_SHARD_SUITES = (
@@ -208,21 +202,39 @@ def _git_lines(repo_root: Path, *args: str) -> list[str] | None:
     return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
 
 
+class BaseRefError(Exception):
+    """An explicitly requested base ref has no merge-base with HEAD."""
+
+
 def resolve_base_ref(repo_root: Path, explicit_base: str | None = None) -> str | None:
-    candidates: list[str] = []
     if explicit_base:
-        candidates.append(explicit_base)
+        # An explicit ref must resolve: silently diffing against a different base would
+        # select suites for the wrong change set.
+        if _git_lines(repo_root, "merge-base", explicit_base, "HEAD"):
+            return explicit_base
+        raise BaseRefError(f"--base-ref {explicit_base!r} has no merge-base with HEAD")
     for env_key in ("CCL_SKILL_BASE_REF", "CCL_SKILL_DEFAULT_BASE_REF"):
         val = os.environ.get(env_key, "").strip()
-        if val and val not in candidates:
-            candidates.append(val)
-    for fallback in ("origin/dev", "origin/main", "main", "HEAD~1"):
-        if fallback not in candidates:
-            candidates.append(fallback)
-    for ref in candidates:
+        if val and _git_lines(repo_root, "merge-base", val, "HEAD"):
+            return val
+    # No explicit choice: of the usual integration refs, use the one whose merge-base is
+    # nearest HEAD. A stale integration branch (far behind main) would otherwise turn
+    # every commit since it into "changed" files.
+    best: tuple[int, str] | None = None
+    for ref in ("origin/dev", "origin/main", "main"):
         mb = _git_lines(repo_root, "merge-base", ref, "HEAD")
-        if mb:
-            return ref
+        if not mb:
+            continue
+        count = _git_lines(repo_root, "rev-list", "--count", f"{mb[0]}..HEAD")
+        if not count:
+            continue
+        distance = int(count[0])
+        if best is None or distance < best[0]:
+            best = (distance, ref)
+    if best is not None:
+        return best[1]
+    if _git_lines(repo_root, "merge-base", "HEAD~1", "HEAD"):
+        return "HEAD~1"
     return None
 
 
@@ -242,11 +254,12 @@ def collect_changed_files(
     if resolved:
         mb = _git_lines(repo_root, "merge-base", resolved, "HEAD")
         if mb:
-            committed = _git_lines(repo_root, "diff", "--name-only", f"{mb[0]}...HEAD") or []
+            # --no-renames: a rename must report the old path too, so suites keyed on it run.
+            committed = _git_lines(repo_root, "diff", "--no-renames", "--name-only", f"{mb[0]}...HEAD") or []
             found.update(committed)
     for diff_args in (
-        ("diff", "--cached", "--name-only"),
-        ("diff", "--name-only"),
+        ("diff", "--cached", "--no-renames", "--name-only"),
+        ("diff", "--no-renames", "--name-only"),
         ("ls-files", "--others", "--exclude-standard"),
     ):
         lines = _git_lines(repo_root, *diff_args) or []
@@ -276,13 +289,29 @@ class _PlanBuilder:
         self.npm_required = False
         self.abort_leak_needed = False
         self.heavy_regressions_needed = False
+        self.missing_suites: list[str] = []
+        self.skipped_lanes: list[str] = []
 
     def add_suite(self, rel_suite: str) -> None:
         if rel_suite in self._parallel_seen:
             return
+        self._parallel_seen.add(rel_suite)
         if (self.repo_root / rel_suite).is_file():
-            self._parallel_seen.add(rel_suite)
             self.parallel_suites.append(rel_suite)
+        else:
+            # A mapped suite that no longer exists means this selector's map has drifted;
+            # the plan escalates to the full lanes rather than dropping coverage silently.
+            self.missing_suites.append(rel_suite)
+
+    def add_changed_suite(self, rel_suite: str) -> None:
+        """Add a suite that is itself in the change set; a deleted one is a normal change."""
+        if (self.repo_root / rel_suite).is_file():
+            self.add_suite(rel_suite)
+
+    def add_skip(self, lane: str, note: str) -> None:
+        if lane not in self.skipped_lanes:
+            self.skipped_lanes.append(lane)
+        self.add_note(note)
 
     def add_serial(self, cmd: list[str]) -> None:
         key = tuple(cmd)
@@ -323,6 +352,8 @@ def build_test_plan(
             "serial_commands": [],
             "npm_required": False,
             "notes": [],
+            "skipped_lanes": [],
+            "missing_suites": [],
         }
 
     # Always-on fast deterministic preflight (~4-6s).
@@ -358,9 +389,16 @@ def build_test_plan(
     need_fast_regressions = False
     fallback_full = False
 
+    hook_suites = sorted(s for s in makefile_suites(repo_root) if s.startswith("hooks/"))
+
     for path in cleaned:
         lower = path.lower()
         is_md = lower.endswith((".md", ".mdx"))
+
+        # Convention rule, independent of the hand-written maps below: a changed suite runs
+        # itself, and a changed `x-y.py` runs its sibling `test_x_y.*`.
+        for suite in sibling_suites(repo_root, path):
+            builder.add_suite(suite)
 
         if is_md or path.startswith(("docs/", "specs/", "agent-context/")):
             need_doc_gates = True
@@ -412,12 +450,9 @@ def build_test_plan(
             if path in HOOK_FILE_MAP:
                 for suite in HOOK_FILE_MAP[path]:
                     builder.add_suite(suite)
-                if path in ("hooks/pretool-dispatch.py", "hooks/pretool-dispatch.sh"):
-                    builder.npm_required = True
-                    builder.add_suite("scripts/test_install_opencode_skill_migration.sh")
             else:
-                # hooks/hooks.json or new/unmapped hook script: run full hook family + installer checks.
-                for suite in ALL_HOOK_SUITES:
+                # hooks/hooks.json or new/unmapped hook script: run every Makefile hook suite + installer checks.
+                for suite in hook_suites:
                     builder.add_suite(suite)
                 builder.add_suite("scripts/test_install_opencode_skill_migration.sh")
                 builder.npm_required = True
@@ -467,7 +502,8 @@ def build_test_plan(
                 if include_slow and shutil.which("docker"):
                     builder.add_serial(["bash", "scripts/verify-sandbox/test.sh"])
                 else:
-                    builder.add_note(
+                    builder.add_skip(
+                        "verify-sandbox",
                         "verify-sandbox: run 'make test-verify-sandbox' on a machine with Docker enabled."
                     )
             else:
@@ -495,7 +531,7 @@ def build_test_plan(
                     elif fname == "test_review_gate_abort_leak.sh":
                         builder.abort_leak_needed = True
                     elif fname.startswith("test_") and fname.endswith((".sh", ".py")):
-                        builder.add_suite(path)
+                        builder.add_changed_suite(path)
                     else:
                         # review_gate.py, review_gate.sh, or shared/unknown code-review script
                         for suite in CODE_REVIEW_SHARD_SUITES:
@@ -544,9 +580,9 @@ def build_test_plan(
                         continue
                     builder.add_suite("scripts/test_lane_isolation.py")
                     if fname.startswith("test_") and fname.endswith(".py"):
-                        builder.add_suite(path)
+                        builder.add_changed_suite(path)
                     elif fname.startswith("test_") and fname.endswith(".sh") and fname != "test_check_ccl_regressions.sh":
-                        builder.add_suite(path)
+                        builder.add_changed_suite(path)
                         builder.add_suite(
                             "skills/skill-extraction-workflow/scripts/test_regression_runner_registration.sh"
                         )
@@ -651,7 +687,8 @@ def build_test_plan(
                 ["bash", "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh", "--heavy-only"]
             )
         else:
-            builder.add_note(
+            builder.add_skip(
+                "heavy-regressions",
                 "heavy-regressions: skipped clone-heavy suites; pass --include-slow or run 'make test-check-ccl-regressions' before PR."
             )
 
@@ -685,7 +722,8 @@ def build_test_plan(
                 ]
             )
         else:
-            builder.add_note(
+            builder.add_skip(
+                "abort-leak",
                 "abort-leak: skipped slow abort-leak probes (~3 min); pass --include-slow or run 'make test-code-review-abort-leak' before landing."
             )
 
@@ -698,12 +736,21 @@ def build_test_plan(
             if include_slow:
                 builder.add_serial(["npm", "--prefix", "packages/ccl-skills-npm", "run", "test:pack"])
         else:
-            builder.add_note(
+            builder.add_skip(
+                "npm-packages",
                 "npm-packages: packages/ccl-skills-npm/node_modules not installed; pass --with-npm or run 'make npm-test npm-pack-verify'."
             )
 
+    if builder.missing_suites:
+        builder.add_note(
+            "selector-drift: mapped suite(s) missing on disk ("
+            + ", ".join(builder.missing_suites)
+            + "); update scripts/select-affected-tests.py. Escalating to the full lanes."
+        )
+        fallback_full = True
+
     if fallback_full:
-        builder.add_note("fallback: unrecognized root path encountered; escalating to make test-repo-gates + test-regressions-fast.")
+        builder.add_note("fallback: unrecognized path or selector drift; escalating to make test-repo-gates + test-regressions-fast.")
         builder.add_serial(["make", "test-repo-gates"])
         builder.add_serial(["make", "test-regressions-fast"])
 
@@ -714,6 +761,8 @@ def build_test_plan(
         "serial_commands": builder.serial_commands,
         "npm_required": builder.npm_required,
         "notes": builder.notes,
+        "skipped_lanes": builder.skipped_lanes,
+        "missing_suites": builder.missing_suites,
     }
 
 
@@ -779,6 +828,11 @@ def execute_plan(plan: dict, repo_root: Path, jobs: int | None = None) -> int:
     for note in plan["notes"]:
         print(f"note: {note}", flush=True)
 
+    skipped = plan.get("skipped_lanes") or []
+    if skipped:
+        # Everything that ran passed, but selected lanes were skipped: not a full "ok".
+        print(f"select_affected_tests_partial: skipped {', '.join(skipped)} (see notes)")
+        return 0
     print("select_affected_tests_ok")
     return 0
 
@@ -832,7 +886,11 @@ def main(argv: list[str] | None = None) -> int:
         changed = list(args.files)
         resolved_base = args.base_ref
     else:
-        changed, resolved_base = collect_changed_files(repo_root, base_ref=args.base_ref)
+        try:
+            changed, resolved_base = collect_changed_files(repo_root, base_ref=args.base_ref)
+        except BaseRefError as exc:
+            print(f"select-affected-tests: error: {exc}", file=sys.stderr)
+            return 2
 
     plan = build_test_plan(
         changed,
