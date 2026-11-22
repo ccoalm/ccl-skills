@@ -14,6 +14,7 @@ export CODEX_HOME="$tmp/home/.codex"
 unset npm_config_allow_scripts NPM_CONFIG_ALLOW_SCRIPTS
 # Claude locates its profile and plugin state through these variables; left
 # set, the smoke's claude commands read and change the caller's real state.
+unset exported           # an inherited export would pass the list to every child
 exported=$(compgen -e)   # an assignment, so set -e stops the smoke if this fails
 for var in $exported; do
   case "$var" in CLAUDE_CONFIG_DIR|CLAUDE_CODE_PLUGIN_*) unset "$var" ;; esac

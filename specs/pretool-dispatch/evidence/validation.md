@@ -250,7 +250,7 @@ All runs use `CCL_BROAD_TEST_REASON=repo-required`, `umask 022`, and pytest and 
 
 ## Smoke repair challenge C2 and scope decision
 
-[`challenge-C2.json`](challenge-C2.json): Codex, challenge mode, of the smoke repair after R3 (`3eccfb0`..`22030fb`). It reported 6 findings: 5 P2 and 1 P3.
+[`challenge-C2.json`](challenge-C2.json): Codex, challenge mode, of the smoke repair after R3 (`3eccfb0`..`22030fb`). It reported 6 findings: 4 P2 and 2 P3.
 
 **Scope decision.** Four findings, like R3's second, ask for a fully hermetic smoke that stages exactly what the real build reads. Two repeat R3's class. All four describe gaps the smoke had before this branch, for every root and every host it drives. Chasing them here would turn a two-line repair of a required check into a redesign of the smoke. This repair therefore stays at what made the smoke run and stop touching the caller's Claude state; the rest is one follow-up.
 
@@ -261,11 +261,25 @@ All runs use `CCL_BROAD_TEST_REASON=repo-required`, `umask 022`, and pytest and 
 | P2 a hard-linked source passes the smoke but fails the real build | Follow-up: the staging change should preserve the build's link-count check. |
 | P2 `XDG_CONFIG_HOME` points OpenCode at the caller's config | Follow-up: pre-existing; the smoke isolates OpenCode only through `HOME`. |
 | P3 Claude debug-log variables write outside the temporary directory | Follow-up, with the isolation item. |
-| P3 full-suite results not bound to the final smoke candidate | Fixed: the full suite is rerun on the final commit and recorded below. |
+| P3 full-suite results not bound to the final smoke candidate | Fixed: the full suite is rerun on the final commit; see Final verification. |
 
 **Follow-up for the host smoke** (not in this change):
 - stage each root from the Git index, preserving the build's file-mode and link-count checks;
 - run each host CLI with its config, cache and log locations confined to the temporary directory (`XDG_*`, Claude debug logs).
+
+## Last incremental review R4
+
+[`review-R4.json`](review-R4.json): Codex, review mode, of the C2 fix only (`22030fb`..`1109ccf`). It reported 3 P3 findings. This was the last external pass, so each finding was settled here.
+
+| Finding | Disposition |
+| --- | --- |
+| P3 an inherited export of `exported` passes the name list to every child | RED: replaying the smoke's clearing lines with `exported` exported and 1,800 long environment names made the next child fail. Fixed by unsetting `exported` before the assignment; the same replay then starts the child. |
+| P3 C2 disposition cites full-suite results that were not recorded | Fixed: see Final verification. |
+| P3 C2 severity totals wrong | Fixed: 4 P2 and 2 P3. |
+
+## Final verification
+
+To be filled in from the runs on the final commit.
 
 ## Latency
 
