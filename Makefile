@@ -74,7 +74,6 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	  hooks/test_task_entry.py \
 	  hooks/test_proposed_next.py \
 	  hooks/test_agy_bridge.py \
-	  hooks/test_hook_field_reads.py \
 	  hooks/test_guard_delegation_owner.sh \
 	  hooks/test_guard_edit_isolation.sh \
 	  hooks/test_guard_merge_authorization.sh \
@@ -94,6 +93,11 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	  skills/worktree-isolation/scripts/test_worktree_sweep.sh \
 	  scripts/owner-dispatch/test.sh \
 	  scripts/control-plane/test.sh
+	# test_hook_field_reads.py runs its own ThreadPoolExecutor over 576 cases
+	# with a 5s wall-clock STALL_SECONDS budget and RUSAGE_CHILDREN peak-RSS
+	# probes; run it outside run-parallel-suites.sh to avoid 4-vCPU runner
+	# oversubscription timeouts.
+	python3 hooks/test_hook_field_reads.py
 	python3 -m pytest -q skills/test-artifact-management/references/test_gen_report.py
 	python3 -m unittest eval.test_subagent_owner_audit eval.test_skill_effectiveness_bridge eval.test_skill_effectiveness_trial eval.test_reviewer_calibration_protocol eval.test_design_judge eval.test_owner_role_audit
 

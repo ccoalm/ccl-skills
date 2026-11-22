@@ -542,6 +542,20 @@ def main() -> None:
     if len(members) < 20:
         fail(f"lane derivation produced only {len(members)} members; it is broken, not clean")
 
+    # Suites that already fan out their own ThreadPoolExecutor and enforce short
+    # wall-clock latency/stall budgets or RUSAGE_CHILDREN peak-RSS ratios must
+    # run outside run-parallel-suites.sh so 4-vCPU CI runners do not
+    # oversubscribe them into false timeouts.
+    self_threaded_wallclock_suites = {"test_hook_field_reads.py"}
+    bad_parallel = sorted(
+        p.name for p in members if p.name in self_threaded_wallclock_suites
+    )
+    if bad_parallel:
+        fail(
+            "self-threaded wall-clock/RSS suite(s) placed inside run-parallel-suites.sh "
+            "(oversubscribes 4-vCPU runners): " + ", ".join(bad_parallel)
+        )
+
     findings = scan(with_helpers(members))
     unreviewed = sorted(f for f in findings if not allowed(f))
     if unreviewed:

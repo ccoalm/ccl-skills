@@ -1343,19 +1343,21 @@ class WaivedPathPresenceTest(unittest.TestCase):
             if isinstance(step, dict)
             and str(step.get("uses", "")).startswith("actions/setup-python@")
         ]
-        self.assertEqual(len(py_steps), 1)
-        self.assertEqual(py_steps[0]["with"].get("cache"), "pip")
-        self.assertEqual(
-            py_steps[0]["with"].get("cache-dependency-path"),
-            "requirements-test.txt",
-        )
+        self.assertEqual(len(py_steps), 0)
         cache_steps = [
             step
             for step in action_steps
             if isinstance(step, dict)
             and str(step.get("uses", "")).startswith("actions/cache@")
         ]
-        self.assertEqual(len(cache_steps), 1)
+        self.assertEqual(len(cache_steps), 2)
+        cache_paths = {
+            (step.get("with") or {}).get("path"): (step.get("with") or {}).get("key", "")
+            for step in cache_steps
+        }
+        self.assertIn("~/.cache/pip", cache_paths)
+        self.assertIn("hashFiles('requirements-test.txt')", cache_paths["~/.cache/pip"])
+        self.assertIn("~/.cache/ccl-ci-ripgrep", cache_paths)
         install_matches = [
             step.get("run")
             for step in action_steps
@@ -1374,6 +1376,8 @@ class WaivedPathPresenceTest(unittest.TestCase):
             'resolved_rg="$(command -v rg)"',
             'installed_version="$(rg --version | head -n 1)"',
             "failed to download pinned ripgrep",
+            "S_IWGRP",
+            "S_IWOTH",
         ):
             self.assertIn(required, install_run)
         self.assertNotIn("apt-get", install_run)
