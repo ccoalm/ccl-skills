@@ -79,11 +79,12 @@ deny() {
 }
 
 check_one_path() {
-  local p="$1" allow_dangling_walk="${2:-1}"
+  local p="$1"
   local dir toplevel absgitdir commondir isolated d hops live
   dir=$(dirname -- "$p")
   while [ ! -d "$dir" ] && [ "$dir" != "/" ] && [ "$dir" != "." ]; do
-    if [ "$allow_dangling_walk" -eq 1 ] && [ -L "$dir" ]; then
+    if [ -L "$dir" ] && [ "${total_sym_hops:-0}" -lt 16 ]; then
+      total_sym_hops=$((total_sym_hops + 1))
       check_symlink_targets "$dir"
     fi
     dir=$(dirname -- "$dir")
@@ -148,12 +149,13 @@ check_one_path() {
 # resolved destination (including dangling targets into uncreated repo subdirs)
 # are checked, bounded to 16 hops on symlink loops.
 check_symlink_targets() {
-  local cur="$1" rp link_target link_dir sym_hops=0
+  local cur="$1" rp link_target link_dir
   if rp=$(realpath "$cur" 2>/dev/null) && [ -n "$rp" ]; then
-    [ "$rp" != "$cur" ] && check_one_path "$rp" 0
+    [ "$rp" != "$cur" ] && check_one_path "$rp"
     return 0
   fi
-  while [ -L "$cur" ] && [ "$sym_hops" -lt 16 ]; do
+  while [ -L "$cur" ] && [ "${total_sym_hops:-0}" -lt 16 ]; do
+    total_sym_hops=$((total_sym_hops + 1))
     link_target=$(readlink "$cur" 2>/dev/null) || break
     [ -n "$link_target" ] || break
     case "$link_target" in
@@ -161,14 +163,13 @@ check_symlink_targets() {
       *)  link_dir=$(dirname -- "$cur")
           cur="$link_dir/$link_target" ;;
     esac
-    check_one_path "$cur" 0
-    sym_hops=$((sym_hops + 1))
+    check_one_path "$cur"
   done
 }
 
 check_target() {
-  local fp="$1"
-  check_one_path "$fp" 1
+  local fp="$1" total_sym_hops=0
+  check_one_path "$fp"
   if [ -L "$fp" ]; then
     check_symlink_targets "$fp"
   fi

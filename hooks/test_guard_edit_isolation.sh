@@ -303,6 +303,17 @@ run "$ROOT" "$(payload_for "$ROOT/p6i-dangling-dir/sub/new.py")" PATH="$shim_nop
 assert_deny "p6j jq-only fallback denies file under dangling parent symlink into .worktree-only repo" "共享仓库" ""
 run "$ROOT" "$(payload_for "$ROOT/p6e-dangling")" PATH="$shim_nopy"
 assert_deny "p6k jq-only fallback denies dangling symlink into .worktree-only repo" "共享仓库" ""
+ln -s "$ROOT/p6i-dangling-dir/sub/new.py" "$ROOT/p6l-chain"
+run "$ROOT" "$(payload_for "$ROOT/p6l-chain")" PATH="$shim_nopy"
+assert_deny "p6l jq-only fallback denies chained symlink into dangling parent of .worktree-only repo" "共享仓库" ""
+shim_norealpath="$ROOT/shim-no-realpath"; mkdir "$shim_norealpath"
+for t in jq git dirname readlink cat wc awk basename bash sed grep tr uname mktemp env find head sort; do
+  ln -s "$shim_nopy/$t" "$shim_norealpath/$t"
+done
+printf '#!/bin/sh\nexit 1\n' >"$shim_norealpath/realpath"
+chmod +x "$shim_norealpath/realpath"
+run "$ROOT" "$(payload_for "$ROOT/p6e-dangling")" PATH="$shim_norealpath"
+assert_deny "p6m jq-only fallback with BSD-like failing realpath denies dangling symlink into .worktree-only repo" "共享仓库" ""
 
 # P7: not-yet-existing file below an existing protected dir (walk-up) -> deny
 run "$d2" "$(payload_for "$d2/newdir/newfile.py")"
@@ -366,7 +377,7 @@ printf '%s' "$OUT" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/
   && note "p11 degrade must not carry permissionDecision deny: $OUT"
 
 # Self-pin: a deleted/commented-out probe must fail the suite, not shrink it.
-EXPECTED_PROBES=30
+EXPECTED_PROBES=32
 actual_probes=$(grep -cE '^[[:space:]]*assert_(quiet|deny|degrade) ' "$0")
 [ "$actual_probes" -eq "$EXPECTED_PROBES" ] \
   || { echo "FAIL: suite self-pin: expected $EXPECTED_PROBES probe assertions, found $actual_probes" >&2; exit 1; }

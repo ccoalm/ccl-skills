@@ -527,34 +527,36 @@ def resolve_turn_key(agy, ctx):
             active = parsed
     except (OSError, ValueError):
         pass
+    raw_seq = active.get('seq')
+    seq = raw_seq if is_int(raw_seq) and raw_seq >= 0 else 0
+    prev_turn = active.get('turn_id')
     stale_turn = active.get('stale_turn_id')
     effective_turn = None if (turn_id and turn_id == stale_turn) else turn_id
     active_key = active.get('key')
     if is_int(inv) and inv > 0 and isinstance(active_key, str) and active_key:
-        prev_turn = active.get('turn_id')
         if not (prev_turn and effective_turn and prev_turn != effective_turn):
             if prev_turn is None and effective_turn:
                 write_private(active_file, json.dumps({
-                    'turn_id': effective_turn, 'steps': active.get('steps'), 'key': active_key}))
+                    'seq': seq, 'turn_id': effective_turn,
+                    'stale_turn_id': stale_turn, 'key': active_key}))
             return active_key, prompt
-    new_stale = None
-    if (effective_turn and not (is_int(inv) and inv > 0)
-            and is_int(steps) and active.get('steps') is not None
-            and active.get('steps') != steps
-            and effective_turn in (active.get('turn_id'), stale_turn)):
-        new_stale = effective_turn
-        effective_turn = None
-    if effective_turn:
-        step_part = f':steps:{steps}' if is_int(steps) and not (is_int(inv) and inv > 0) else ''
-        marker = f'turn:{effective_turn}{step_part}'
+    new_stale = stale_turn if (turn_id and turn_id == stale_turn) else None
+    if is_int(inv) and inv == 0:
+        seq += 1
+        if turn_id and turn_id in (prev_turn, stale_turn):
+            new_stale = turn_id
+            effective_turn = None
+        marker = f'seq:{seq}'
     elif is_int(inv) and inv > 0:
-        marker = 'continuation'
+        seq += 1
+        marker = f'seq:{seq}'
+    elif effective_turn:
+        marker = f'turn:{effective_turn}:steps:{steps}' if is_int(steps) else f'turn:{effective_turn}'
     else:
         marker = f'steps:{steps}' if is_int(steps) else 'noturn'
     key = digest(f'{marker}\0{prompt}')
     write_private(active_file, json.dumps({
-        'turn_id': effective_turn, 'stale_turn_id': new_stale,
-        'steps': steps if is_int(steps) else None, 'key': key}))
+        'seq': seq, 'turn_id': effective_turn, 'stale_turn_id': new_stale, 'key': key}))
     return key, prompt
 
 

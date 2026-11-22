@@ -363,6 +363,30 @@ class EventShapeTests(BridgeCase):
         )
         self.assertEqual(self.bridge('PreInvocation', {**stale_base, 'invocationNum': 1, 'initialNumSteps': 12}), {})
 
+        # New user turns at invocationNum=0 with identical prompt and NO initialNumSteps
+        # (both with stale transcript and with no transcript at all).
+        nosteps_tx = self.tmp / 'stale-nosteps/transcript_full.jsonl'
+        nosteps_tx.parent.mkdir()
+        nosteps_tx.write_text(json.dumps({'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0}) + '\n')
+        nosteps_base = {'conversationId': 'stale-nosteps', 'cwd': str(self.tmp), 'lastUserInput': 'continue',
+                        'transcriptPath': str(nosteps_tx.with_name('transcript.jsonl'))}
+        ns_t1 = self.bridge('PreInvocation', {**nosteps_base, 'invocationNum': 0})
+        self.assertIn('<ccl-task-entry>', ns_t1.get('injectSteps', [{}])[0].get('systemMessage', {}).get('systemMessage', ''))
+        self.assertEqual(self.bridge('PreInvocation', {**nosteps_base, 'invocationNum': 1}), {})
+        ns_t2 = self.bridge('PreInvocation', {**nosteps_base, 'invocationNum': 0})
+        self.assertIn('<ccl-task-entry>', ns_t2.get('injectSteps', [{}])[0].get('systemMessage', {}).get('systemMessage', ''))
+        nosteps_tx.write_text(
+            json.dumps({'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0}) + '\n' +
+            json.dumps({'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 7}) + '\n'
+        )
+        self.assertEqual(self.bridge('PreInvocation', {**nosteps_base, 'invocationNum': 1}), {})
+
+        notx_nosteps = {'conversationId': 'notx-nosteps', 'cwd': str(self.tmp), 'lastUserInput': 'again'}
+        nt_t1 = self.bridge('PreInvocation', {**notx_nosteps, 'invocationNum': 0})
+        self.assertIn('<ccl-task-entry>', nt_t1.get('injectSteps', [{}])[0].get('systemMessage', {}).get('systemMessage', ''))
+        nt_t2 = self.bridge('PreInvocation', {**notx_nosteps, 'invocationNum': 0})
+        self.assertIn('<ccl-task-entry>', nt_t2.get('injectSteps', [{}])[0].get('systemMessage', {}).get('systemMessage', ''))
+
     def test_failed_task_entry_is_retried_in_the_same_turn(self):
         copy = self.tmp / 'plugin'
         shutil.copytree(ROOT / 'hooks', copy / 'hooks')

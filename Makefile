@@ -47,7 +47,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
 	python3 skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py --repo . --default-base-ref "$(CCL_SKILL_DEFAULT_BASE_REF)"
 	bash skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh --repo . --enforce
-	bash skills/product-rd-workflow/scripts/test_check_agent_contract_coverage.sh
+	REQUIRE_BASELINE=1 bash skills/product-rd-workflow/scripts/test_check_agent_contract_coverage.sh
 	python3 scripts/test_check_markdown_links.py
 	python3 scripts/check-markdown-links.py .
 	python3 scripts/test_check_spec_references.py

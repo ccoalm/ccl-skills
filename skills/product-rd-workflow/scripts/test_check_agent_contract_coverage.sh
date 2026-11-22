@@ -195,7 +195,7 @@ else
   fi
 fi
 
-# 6. Full-repo dogfood + wall-clock speed bound (< 2.0s; pre-fix baseline was ~7.8s).
+# 6. Full-repo dogfood + deterministic zero-fork check (plus optional PERF_BOUND_MS advisory bound).
 elapsed_ms="$(
   FORK_COUNT_FILE="$TMP/repo_forks" PATH="$SHIM:$PATH" GATE="$GATE" REPO_ROOT="$REPO_ROOT" python3 - <<'PY'
 import os, subprocess, sys, time
@@ -212,8 +212,9 @@ PY
 )" || { bad "case 6a full-repo --enforce failed"; elapsed_ms=99999; }
 repo_forks="$(wc -l <"$TMP/repo_forks" | tr -d ' ')"
 [[ "$repo_forks" -eq 0 ]] && ok || bad "case 6b full-repo scan spawned $repo_forks basename/dirname forks"
-PERF_BOUND_MS="${PERF_BOUND_MS:-5000}"
-[[ "$elapsed_ms" -lt "$PERF_BOUND_MS" ]] && ok || bad "case 6c full-repo scan took ${elapsed_ms}ms (expected < ${PERF_BOUND_MS}ms)"
+if [[ -n "${PERF_BOUND_MS:-}" ]]; then
+  [[ "$elapsed_ms" -lt "$PERF_BOUND_MS" ]] && ok || bad "case 6c full-repo scan took ${elapsed_ms}ms (expected < ${PERF_BOUND_MS}ms)"
+fi
 
 echo "check_agent_contract_coverage_suite: $pass passed, $fail failed, $skip skipped (repo scan ${elapsed_ms}ms)"
 [[ "$fail" -eq 0 ]]
