@@ -34,7 +34,7 @@ All nine registered behavioral scenarios (`T1`–`T9` in `specs/gate-speed-r0-pr
     1. `check-evidence-card-leak.sh` `self_test_cached()` rejects symlinked cache paths (`[ ! -L "$cache_dir" ]`), requires current-UID ownership (`[ -O "$cache_dir" ]`) and exact `0700` permissions before reading or writing `.ok` stamps, writes stamps atomically (`mktemp` + `mv -f`), prunes `.ok` count above `64`, and never caches non-zero or `evidence_card_leak_self_test_skipped` runs.
     2. `check-ccl-skills.sh` and `r0-leakage-audit.md` never auto-execute unconfigured scripts under `$HOME` and expose zero private `.yaml` filenames or contributor paths.
     3. `.github/actions/setup-validation-tools/action.yml` runs `printf '%s  %s\n' "$RIPGREP_SHA256" "$TARBALL" | sha256sum --check -` unconditionally on every run (both cache hit and cache miss) before `tar` extraction and `sudo install`.
-    4. `packages/opencode-plugin/ccl-skills.ts` preserves `completedSkill()` realpath + active-file byte verification and bounds both `pendingSkills` and synthetic `callID` queues at `64` entries per session.
+    4. `packages/opencode-plugin/ccl-skills.ts` preserves `completedSkill()` realpath + active-file byte verification and bounds both `pendingSkills` and synthetic `callID` queues at `64` entries per session under a `256`-session LRU backstop (`MAX_PENDING_SESSIONS = 256`).
 
 ## 4. GREEN Verification Matrix by Layer
 
@@ -48,7 +48,7 @@ All nine registered behavioral scenarios (`T1`–`T9` in `specs/gate-speed-r0-pr
 
 ## 5. Applied Killing-Mutation Walk and Oracle Dimensions
 
-All 19 mutants were applied in isolated `/tmp` repository copies (never mutating the live worktree) after verifying all 9 control suites exited `0`, and each failed differentially on its owning assertion:
+All 21 mutants were applied in isolated `/tmp` repository copies (never mutating the live worktree) after verifying all 9 control suites exited `0`, and each failed differentially on its owning assertion:
 
 | Mutant | Mutated predicate / file | Owning suite | Differential failure observed |
 | --- | --- | --- | --- |
@@ -68,17 +68,51 @@ All 19 mutants were applied in isolated `/tmp` repository copies (never mutating
 | `M6a` | Drop `dequeueSyntheticCall(...)` in `tool.execute.after` | `opencode-hooks.test.mjs` | `rc=1`, `fail 1`: `delegation-owner guard` blocks omitted-`callID` dispatch |
 | `M6b` | Disable `rollbackSyntheticCall(...)` in `tool.execute.before` `catch` | `opencode-hooks.test.mjs` | `rc=1`, `fail 1`: `aborted before without callID must not shift subsequent same-tool callID pairing` |
 | `M6c` | Discard earlier queued `Skill` entries on out-of-order `skillHint` match in `dequeueSyntheticCall(...)` | `opencode-hooks.test.mjs` | `rc=1`, `fail 1`: `delegation-owner guard` blocks `parallel-omitted-callid` dispatch |
+| `M6d` | Fall back to `queue.shift()` on unmatched `skillHint` for `tool === "skill"` in `dequeueSyntheticCall(...)` | `opencode-hooks.test.mjs` | `rc=1`, `fail 1`: `unmatched skillHint in after must not steal another queued skill's synthetic callID` |
 | `M7` | Raise `MAX_PENDING_CALLS` / disable `pendingSkills` eviction in `ccl-skills.ts` | `opencode-hooks.test.mjs` | `rc=1`, `fail 1`: `oldest explicit-callID pendingSkill beyond 64 must be evicted` |
+| `M7b` | Collapse session isolation (`MAX_PENDING_SESSIONS = 1`) so cross-session flood evicts active session | `opencode-hooks.test.mjs` | `rc=1`, `fail 1`: `one session flooding >64 pending skills must not evict another session's pending skill` |
 | `M8` | Remove `"antigravity"` from `packages/ccl-skills-npm/package.json` `keywords` | `basic.test.mjs` | `rc=1`, `fail 1`: `AssertionError` on Antigravity metadata |
 | `M9` | Revert `r"""` to `"""` in `client-terminal-ansi-check.py` | `client-terminal-ansi-check.test.sh` | `rc=1`: `SyntaxError: invalid escape sequence '\e'` under `-W error` |
 
-- **Oracle dimensions crossed**: `shape` (64-hex SHA-256 stamp, `tsconfig.json` strict types, 2-space `package.json`, raw docstring), `provenance` (symlink/`0700`/UID checks on cache dir, `completedSkill()` realpath+byte verification, `RIPGREP_SHA256`), `cardinality` (0 vs 1+ `git init` forks, 64-entry stamp/FIFO caps), `semantics` (degraded git-skip non-caching, `r0_status=public-fallback` vs `private-ok`, error rollback), `ordering` (FIFO `before`/`after` pairing across same-tool calls).
+- **Oracle dimensions crossed**: `shape` (64-hex SHA-256 stamp, `tsconfig.json` strict types, 2-space `package.json`, raw docstring), `provenance` (symlink/`0700`/UID checks on cache dir, `completedSkill()` realpath+byte verification, `RIPGREP_SHA256`), `cardinality` (0 vs 1+ `git init` forks, 64-entry per-session caps, 256-session LRU cap), `semantics` (degraded git-skip non-caching, `r0_status=public-fallback` vs `private-ok`, error rollback, unmatched-hint fail-closed `null`), `ordering` (FIFO `before`/`after` pairing plus out-of-order parallel `Skill` completion).
 
 ## 6. `tighten-doc` Closeout Pass
 
-- Mode: `Tighten` + closeout reread (`tighten-doc/references/closeout-reread.md` and `session-vantage-leakage.md`) across `AGENTS.md`, `README.md`, `docs/CONTRIBUTING.md`, `skills/skill-extraction-workflow/references/r0-leakage-audit.md`, `packages/opencode-plugin/AGENTS.md`, `skills/skill-extraction-workflow/scripts/AGENTS.md`, `specs/gate-speed-r0-probe-and-ts-guards/plan.md`, and `specs/gate-speed-r0-probe-and-ts-guards/evidence/validation.md`.
-- Applied fixes: reconciled CI-outside-`make test` enumeration across `AGENTS.md`, `README.md`, and `docs/CONTRIBUTING.md` with `.github/workflows/ci.yml` (`regression-heavy`, `repository-gates` `check-skill-count.py` + PR-only `check_review_evidence_present.py`, and `npm-packages`); aligned `node --test test/*.test.mjs` glob wording across `basic.test.mjs`, `plan.md`, and `validation.md`; verified all KEEP/decided points preserved, zero terminology/register drift, and zero session-vantage leakage.
+- Mode: `Tighten` + final closeout reread (`tighten-doc/references/closeout-reread.md` and `session-vantage-leakage.md`) across `AGENTS.md`, `README.md`, `docs/CONTRIBUTING.md`, `skills/skill-extraction-workflow/references/r0-leakage-audit.md`, `packages/opencode-plugin/AGENTS.md`, `skills/skill-extraction-workflow/scripts/AGENTS.md`, `specs/gate-speed-r0-probe-and-ts-guards/plan.md`, and the full `specs/gate-speed-r0-probe-and-ts-guards/evidence/validation.md` after recording review/challenge/delta passes.
+- Closeout reread 5-item record (`closeout-reread.md`): (1) surface reread = all 8 modified Markdown docs above, with full-document reread on `validation.md`; (2) changed blocks since prior sweep = `validation.md` Sections 3, 5, 6, and 7; (3) family/full-card trigger = checked across the 3-doc contributor verification family (`AGENTS.md`, `README.md`, `docs/CONTRIBUTING.md`); (4) defects found and fixed = reconciled CI-outside-`make test` list across `AGENTS.md`/`README.md`/`docs/CONTRIBUTING.md`, aligned `node --test test/*.test.mjs` wording, aligned `256`-session cap note in Section 3, verified zero terminology/register drift and zero session-vantage leakage; (5) scope rationale = full read of `validation.md` and changed hunks + surrounding sections of repo docs.
 
 ## 7. Dual-Track Independent Review and Adversarial Challenge
 
-- Pending execution on committed candidate checkpoint; receipts and per-finding dispositions recorded here immediately upon completion.
+## Review pass
+- Reviewed commit: `58a0cbc1fa40405c40810be0742cc57afd16916f` (base `origin` `refs/heads/main` = `c05fb2868832042efbb183ad2fa13b7e479299d4` confirmed via `git ls-remote origin refs/heads/main` at `2026-11-22T18:10:26Z`; receipt `specs/gate-speed-r0-probe-and-ts-guards/evidence/review-R1.json`, `selected_client: claude`, `candidate_sha256: 1c0e38615565fc01318d9b91b2a5bec346d233994a0c5ebd84298d2a63083053`)
+- Findings: `2 total (0 P0 / 0 P1 / 2 P2)`
+- R0 evidence: `alias_audit_ok` (`both`: `process-retro` + `project-alias`, `r0_status=private-ok`, `ccl_skill_check_clean_ok`)
+- Dispositions:
+  - `P2` `packages/opencode-plugin/ccl-skills.ts:405` (out-of-order parallel `Skill` completions without `callID` discarding earlier queued entries): `fixed` in `b9f05b56e94f902f6dfbdeb6131469389c782f87` (`queue.splice(idx, 1)` + `parallel-omitted-callid` test + mutant `M6c`).
+  - `P2` `specs/gate-speed-r0-probe-and-ts-guards/evidence/validation.md:56` & `specs/gate-speed-r0-probe-and-ts-guards/plan.md:164` (remote GitHub Actions PR run status before push): `fixed` in `b9f05b56e94f902f6dfbdeb6131469389c782f87` (marked `pending` until branch push and PR execution; also aligned baseline `TS18047` line citation to `ccl-skills.ts:241-245`).
+
+## Challenge pass
+- Reviewed commit: `b9f05b56e94f902f6dfbdeb6131469389c782f87` (base `origin` `refs/heads/main` = `c05fb2868832042efbb183ad2fa13b7e479299d4` confirmed via `git ls-remote origin refs/heads/main` at `2026-11-22T18:29:53Z`; receipt `specs/gate-speed-r0-probe-and-ts-guards/evidence/challenge-C1.json`, `selected_client: claude`, `candidate_sha256: 6ae22fb96e3307b7a6861d15bacc00934f7d87f738cd8ab2b3a1f364be44660b`)
+- Findings: `2 total (0 P0 / 0 P1 / 2 P2)`
+- R0 evidence: `alias_audit_ok` (`both`: `process-retro` + `project-alias`, `r0_status=private-ok`, `ccl_skill_check_clean_ok`)
+- Gate-fireability applicability: `yes` — change edits shared deterministic gates, self-test stamp cache, lane-isolation scanner, and OpenCode hook pairing; Item 9 exercised: `specs/gate-speed-r0-probe-and-ts-guards/evidence/challenge-C1.json` (`challenge_focus` item 5 bypass-by-omission probe and `concern_results[0]` evaluation)
+- Dispositions:
+  - `P2` `packages/opencode-plugin/ccl-skills.ts:365` (`pendingSkills` 64-entry cap shared across sessions rather than scoped per session): `fixed` in `ddbe9da64a25b0a3c7d207f22b7cfd75b6116abb` (`pendingBySession` per-session 64-entry cap under `MAX_PENDING_SESSIONS = 256` + cross-session flood test + mutant `M7b`).
+  - `P2` `packages/opencode-plugin/ccl-skills.ts:411` (`dequeueSyntheticCall` falling back to `queue.shift()` on unmatched `skillHint` for `tool === "skill"`): `fixed` in `ddbe9da64a25b0a3c7d207f22b7cfd75b6116abb` (exact normalized-hint match returning `null` on mismatch + `unmatched-hint-session` test + mutant `M6d`).
+  - Same-surface design check (`keep / delete / narrow / replace` across `R1` and `C1` on `ccl-skills.ts` omitted-`callID` pairing): `keep` the omitted/empty-`callID` pairing capability required by `B2-4`, and `replace` the flat `${sessionID}\0...` string-prefixed map plus `queue.shift()` fallback with per-session `SessionPending` maps and exact `normalizeSkillName` queue matching (ratified within sole-accountable-requester task scope; verified clean in `Delta pass 1`).
+
+## Delta pass 1
+- Reviewed commit: `ddbe9da64a25b0a3c7d207f22b7cfd75b6116abb`; packet: `git diff b9f05b56e94f902f6dfbdeb6131469389c782f87..ddbe9da64a25b0a3c7d207f22b7cfd75b6116abb` (receipt `specs/gate-speed-r0-probe-and-ts-guards/evidence/delta-D1.json`, `selected_client: claude`, `candidate_sha256: 347a147098db2d0dc798bc6215b5816b5cd6a1261c630459f4acc2b6fc3895ac`)
+- Findings / Dispositions: `0 total (0 P0 / 0 P1 / 0 P2)` — `status: passed`, none.
+
+## Post-review delta
+- `specs/gate-speed-r0-probe-and-ts-guards/evidence/challenge-C1.json` — controller receipt for `Challenge pass` on `b9f05b56e94f902f6dfbdeb6131469389c782f87`
+- `specs/gate-speed-r0-probe-and-ts-guards/evidence/delta-D1.json` — controller receipt for `Delta pass 1` on `ddbe9da64a25b0a3c7d207f22b7cfd75b6116abb`
+- `specs/gate-speed-r0-probe-and-ts-guards/evidence/review-R1.json` — controller receipt for `Review pass` on `58a0cbc1fa40405c40810be0742cc57afd16916f`
+- `specs/gate-speed-r0-probe-and-ts-guards/evidence/validation.md` — non-executable disposition and verification record for `R1`, `C1`, and `D1`
+
+## Convergence Declaration
+- Covered code/skill candidate commit: `ddbe9da64a25b0a3c7d207f22b7cfd75b6116abb` (followed only by the non-executable `specs/gate-speed-r0-probe-and-ts-guards/evidence/` commit above).
+- Terminal lane receipts: `review-R1.json` (`findings`, 0 P0 / 0 P1 / 2 P2 fixed), `challenge-C1.json` (`findings`, 0 P0 / 0 P1 / 2 P2 fixed), `delta-D1.json` (`passed`, 0 findings).
+- Walked self-audit axes: oracle dimensions (`shape`, `provenance`, `cardinality`, `semantics`, `ordering`) + 6 pre-cover blind-spot axes (`security/privacy/authority/data-loss`, `concurrency & lifecycle`, `resource bounds`, `rollout/migration ordering`, `over-broad absolute`, `enumeration-completeness`) + 21 applied killing mutations (`M1a`–`M1h`, `M2`, `M3`, `M4a`, `M4b`, `M5`, `M6a`–`M6d`, `M7`, `M7b`, `M8`, `M9`).
+- Standing open items at commit time: (1) remote GitHub Actions 8-job PR pipeline execution (`pending` until branch push and PR creation, polled to completion before handoff); (2) `security-review` gate at `pending-dedicated-review` (`security-first-pass-only`); (3) PR merge explicitly withheld until user merge instruction.
