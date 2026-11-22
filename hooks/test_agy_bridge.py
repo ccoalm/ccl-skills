@@ -345,6 +345,24 @@ class EventShapeTests(BridgeCase):
         tail_tx.write_text(json.dumps({'type': 'GENERIC', 'status': 'DONE', 'step_index': 50}) + '\n')
         self.assertEqual(self.bridge('PreInvocation', {**tail_base, 'invocationNum': 3, 'initialNumSteps': 51}), {})
 
+        # Stale transcript at start of a new user turn with identical prompt:
+        # Turn 2 begins (invocationNum=0, initialNumSteps=8) before turn-7 flushes, then turn-7 flushes on step 1.
+        stale_tx = self.tmp / 'stale/transcript_full.jsonl'
+        stale_tx.parent.mkdir()
+        stale_tx.write_text(json.dumps({'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0}) + '\n')
+        stale_base = {'conversationId': 'stale-turn2', 'cwd': str(self.tmp), 'lastUserInput': 'continue',
+                      'transcriptPath': str(stale_tx.with_name('transcript.jsonl'))}
+        t1 = self.bridge('PreInvocation', {**stale_base, 'invocationNum': 0, 'initialNumSteps': 1})
+        self.assertIn('<ccl-task-entry>', t1['injectSteps'][0]['systemMessage']['systemMessage'])
+        self.assertEqual(self.bridge('PreInvocation', {**stale_base, 'invocationNum': 1, 'initialNumSteps': 4}), {})
+        t2_step0 = self.bridge('PreInvocation', {**stale_base, 'invocationNum': 0, 'initialNumSteps': 8})
+        self.assertIn('<ccl-task-entry>', t2_step0.get('injectSteps', [{}])[0].get('systemMessage', {}).get('systemMessage', ''))
+        stale_tx.write_text(
+            json.dumps({'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0}) + '\n' +
+            json.dumps({'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 7}) + '\n'
+        )
+        self.assertEqual(self.bridge('PreInvocation', {**stale_base, 'invocationNum': 1, 'initialNumSteps': 12}), {})
+
     def test_failed_task_entry_is_retried_in_the_same_turn(self):
         copy = self.tmp / 'plugin'
         shutil.copytree(ROOT / 'hooks', copy / 'hooks')

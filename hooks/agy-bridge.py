@@ -517,6 +517,7 @@ def resolve_turn_key(agy, ctx):
     if not isinstance(prompt, str) or not prompt.strip():
         return None, ''
     inv = agy.get('invocationNum')
+    steps = agy.get('initialNumSteps')
     turn_id = ctx['turn_id']
     active_file = state_dir() / f"{ctx['key']}.active.turn"
     active = {}
@@ -526,22 +527,34 @@ def resolve_turn_key(agy, ctx):
             active = parsed
     except (OSError, ValueError):
         pass
+    stale_turn = active.get('stale_turn_id')
+    effective_turn = None if (turn_id and turn_id == stale_turn) else turn_id
     active_key = active.get('key')
     if is_int(inv) and inv > 0 and isinstance(active_key, str) and active_key:
         prev_turn = active.get('turn_id')
-        if not (prev_turn and turn_id and prev_turn != turn_id):
-            if prev_turn is None and turn_id:
-                write_private(active_file, json.dumps({'turn_id': turn_id, 'key': active_key}))
+        if not (prev_turn and effective_turn and prev_turn != effective_turn):
+            if prev_turn is None and effective_turn:
+                write_private(active_file, json.dumps({
+                    'turn_id': effective_turn, 'steps': active.get('steps'), 'key': active_key}))
             return active_key, prompt
-    if turn_id:
-        marker = f'turn:{turn_id}'
+    new_stale = None
+    if (effective_turn and not (is_int(inv) and inv > 0)
+            and is_int(steps) and active.get('steps') is not None
+            and active.get('steps') != steps
+            and effective_turn in (active.get('turn_id'), stale_turn)):
+        new_stale = effective_turn
+        effective_turn = None
+    if effective_turn:
+        step_part = f':steps:{steps}' if is_int(steps) and not (is_int(inv) and inv > 0) else ''
+        marker = f'turn:{effective_turn}{step_part}'
     elif is_int(inv) and inv > 0:
         marker = 'continuation'
     else:
-        steps = agy.get('initialNumSteps')
         marker = f'steps:{steps}' if is_int(steps) else 'noturn'
     key = digest(f'{marker}\0{prompt}')
-    write_private(active_file, json.dumps({'turn_id': turn_id, 'key': key}))
+    write_private(active_file, json.dumps({
+        'turn_id': effective_turn, 'stale_turn_id': new_stale,
+        'steps': steps if is_int(steps) else None, 'key': key}))
     return key, prompt
 
 
