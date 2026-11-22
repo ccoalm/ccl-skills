@@ -54,16 +54,17 @@ else
   }
 fi
 # One jq call yields the malformed-patch flag, then each target path, as
-# NUL-terminated records. The flag record always comes first, so a malformed
-# patch with no targets is still flagged. Both normalizers emit the flag as a
-# boolean, so `tostring` gives what `$(jq -r .malformed_patch)` gave. Paths
-# keep their exact bytes, trailing newlines included.
-malformed=""; targets=(); first=1
-while IFS= read -r -d '' rec; do
-  if [ -n "$first" ]; then malformed="$rec"; first=""; else targets+=("$rec"); fi
-done < <(printf '%s' "$normalized" | jq -j '
-  (.malformed_patch | tostring) + "\u0000",
-  (.paths[] | . + "\u0000")')
+# NUL-terminated records on fd 3. The flag record always comes first, so a
+# malformed patch with no targets is still flagged, and paths are then checked
+# as they arrive. The jq-only normalizer emits one object per input document,
+# and `$(jq -r .malformed_patch)` printed one line per document, so it read
+# `true` only for a single document flagged true. Paths keep their exact bytes,
+# trailing newlines included.
+exec 3< <(printf '%s' "$normalized" | jq -sj '
+  (if length == 1 then .[0].malformed_patch | tostring else "" end) + "\u0000",
+  (.[] | .paths[] | . + "\u0000")')
+malformed=""
+IFS= read -r -d '' malformed <&3
 if [ "$malformed" = true ]; then
   jq -nc '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Edit-isolation guard cannot inspect malformed apply_patch targets. Supply a complete patch before editing."}}'
   exit 0
@@ -143,7 +144,7 @@ fi
 
 return 0
 }
-for fp in "${targets[@]}"; do
+while IFS= read -r -d '' fp <&3; do
   check_target "$fp"
 done
 exit 0

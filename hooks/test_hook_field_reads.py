@@ -30,6 +30,8 @@ import concurrent.futures
 import hashlib
 import json
 import os
+import re
+import signal
 import shutil
 import stat
 import subprocess
@@ -49,8 +51,11 @@ STOP = "hooks/owner-dispatch-stop.sh"
 # merges 5 reads, the merge guard 4, the broad-test guard 2, the edit guard 2.
 JQ_SAVED = {"engine-edit": 4, "engine-bash": 4, "merge": 3, "merge-trailing-newline": 3,
             "broad": 1, "edit": 1}
-NUL_WARNING = "ignored null byte in input"
-STALL_SECONDS = 30
+# Half the 10 s timeout hooks.json gives every PreToolUse hook: a hook that
+# outlives the host timeout does not block. Both sides finish in under 1 s.
+STALL_SECONDS = 5
+# Bash prefixes its own diagnostics with "<script>: line N:".
+BASH_DIAGNOSTIC_LINE = re.compile(r"(\.sh): line [0-9]+: ")
 SECRET = "SECRETMARK"
 MISSING = object()
 GIT_ENV = {
@@ -101,6 +106,25 @@ def whole_payloads(base_text):
     ]
 
 
+def utf8_locale():
+    """Hosts run hooks under a UTF-8 locale, where Bash's quote handling is
+    slower than under C; the stall cases are only meaningful there."""
+    listed = subprocess.run(["locale", "-a"], capture_output=True, text=True).stdout.split()
+    norm = {name.lower().replace("-", ""): name for name in listed}
+    for want in ("C.UTF-8", "en_US.UTF-8"):
+        if want.lower().replace("-", "") in norm:
+            return norm[want.lower().replace("-", "")]
+    raise SystemExit("FAIL: no C.UTF-8 or en_US.UTF-8 locale; the stall cases need one")
+
+
+def git_env():
+    """The caller's GIT_* variables (GIT_DIR, GIT_INDEX_FILE, ...) would point
+    fixture commands at the caller's repository."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.update(GIT_ENV)
+    return env
+
+
 def put(obj, path, value):
     obj = json.loads(json.dumps(obj))  # deep copy
     cur = obj
@@ -122,6 +146,7 @@ class Sandbox:
         self.plugin = os.path.join(self.root, "plugin")
         self.nopy = os.path.join(self.root, "plugin-nopy")
         self.uid = str(os.getuid())
+        self.locale = utf8_locale()
         for d in ("tmp", "home/.claude/projects", "outside", "shim"):
             os.makedirs(os.path.join(self.root, d))
         self._install(source, self.plugin)
@@ -134,7 +159,7 @@ class Sandbox:
         if source == "baseline":
             archive = subprocess.run(
                 ["git", "-C", REPO, "archive", BASELINE, *COPIED],
-                check=True, capture_output=True).stdout
+                check=True, capture_output=True, env=git_env()).stdout
             subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
         else:
             for rel in COPIED:
@@ -142,8 +167,7 @@ class Sandbox:
                                 ignore=shutil.ignore_patterns("__pycache__"))
 
     def git(self, *args, cwd=None):
-        env = dict(os.environ, **GIT_ENV)
-        subprocess.run(["git", *args], cwd=cwd, env=env, check=True, capture_output=True)
+        subprocess.run(["git", *args], cwd=cwd, env=git_env(), check=True, capture_output=True)
 
     def _repo(self, name, files, config=None):
         path = os.path.join(self.root, name)
@@ -185,24 +209,29 @@ class Sandbox:
 
     def env(self, extra=None):
         env = {"PATH": os.environ["PATH"], "HOME": os.path.join(self.root, "home"),
-               "TMPDIR": os.path.join(self.root, "tmp"), "LC_ALL": "C"}
+               "TMPDIR": os.path.join(self.root, "tmp"), "LC_ALL": self.locale}
         env.update(extra or {})
         return env
 
     def run(self, script, payload, cwd=None, args=(), extra_env=None, plugin=None, timeout=60):
-        payload = payload.replace("<T>", self.root)
+        # The payload is JSON text, so the sandbox path goes in JSON-escaped.
+        payload = payload.replace("<T>", json.dumps(self.root)[1:-1])
+        # Own process group, so a timeout also ends jq inside the hook.
+        proc = subprocess.Popen(
+            ["bash", os.path.join(plugin or self.plugin, script), *args],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            cwd=cwd or self.root, env=self.env(extra_env), start_new_session=True)
         try:
-            proc = subprocess.run(
-                ["bash", os.path.join(plugin or self.plugin, script), *args],
-                input=payload.encode("utf-8", "surrogatepass"), cwd=cwd or self.root,
-                env=self.env(extra_env), capture_output=True, timeout=timeout)
+            out, err = proc.communicate(payload.encode("utf-8", "surrogatepass"), timeout=timeout)
         except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.communicate()
             return {"rc": "timeout after %ds" % timeout, "stdout": "", "stderr": ""}
-        # Bash itself warns when $(...) drops a NUL; main prints that warning
-        # and a read that drops NULs in jq does not. The warning is not output.
-        return {"rc": proc.returncode, "stdout": self.norm(proc.stdout),
-                "stderr": "\n".join(line for line in self.norm(proc.stderr).split("\n")
-                                    if NUL_WARNING not in line)}
+        # Bash diagnostics (such as the warning when $(...) drops a NUL) name
+        # the script line, which inserted code moves. Only that number is
+        # normalized; the diagnostic text is still compared.
+        return {"rc": proc.returncode, "stdout": self.norm(out),
+                "stderr": BASH_DIAGNOSTIC_LINE.sub(r"\1: line <N>: ", self.norm(err))}
 
     def norm(self, data):
         text = data.decode("utf-8", "backslashreplace")
@@ -219,12 +248,8 @@ class Sandbox:
                 continue
             for name in sorted(os.listdir(d)):
                 key = os.path.basename(repo) + "/" + name
-                path = os.path.join(d, name)
-                if name.endswith((".touched", ".bashwrite", ".waiver", ".blocked")):
-                    with open(path, "rb") as fh:
-                        out[key] = self.norm(fh.read())
-                else:
-                    out[key] = "present"
+                with open(os.path.join(d, name), "rb") as fh:
+                    out[key] = self.norm(fh.read())
         return out
 
     def grants(self):
@@ -374,11 +399,20 @@ def group_edit(sb, record):
             "*** Add File: plain/b.txt\n+x\n*** Add File: shared/b.txt\n+x\n"),
         "patch-plain": patch("*** Add File: plain/b.txt\n+x\n"),
     }
+    # Several documents: the jq-only normalizer emits one object for each.
+    raw = {
+        "two-empty-docs": "{}{}",
+        "two-docs-second-protected": jtext(scenarios["plain"]) + jtext(edit_iso),
+    }
     for plugin_label, plugin in (("py", sb.plugin), ("nopy", sb.nopy)):
         for label, payload in scenarios.items():
             sb.reset()
             record("edit/%s/scenario/%s" % (plugin_label, label),
                    sb.run(EDIT, jtext(payload), plugin=plugin))
+        for label, text in raw.items():
+            sb.reset()
+            record("edit/%s/scenario/%s" % (plugin_label, label),
+                   sb.run(EDIT, text, cwd=sb.shared, plugin=plugin))
         for case_id, payload in field_cases("edit/" + plugin_label, edit_iso,
                                             [("tool_name",), ("tool_input", "file_path")]):
             sb.reset()
@@ -390,8 +424,12 @@ def group_stall(sb, record):
 
     A hook that outlives the host's timeout does not block, so a stall would
     let the call through. Main strips these in bash at no cost."""
-    stalls = {"newlines": "\n" * 200000, "nuls": "\0" * 300000}
-    for label, suffix in stalls.items():
+    # Sized so the superlinear forms take well over the limit on jq 1.6 and
+    # Bash 5.2; the broad guard's payloads stay under its 1 MiB input head.
+    for label, suffix, broad_suffix in (
+            ("newlines", "\n" * 200000, "\n" * 200000),
+            ("nuls", "\0" * 800000, "\0" * 100000),
+            ("apostrophes", "'" * 900000, "'" * 900000)):
         runs = {
             "engine-edit": (ENGINE, {"session_id": "S1", "tool_name": "Edit",
                                      "tool_input": {"file_path": "<T>/strict/src/foo.go" + suffix}},
@@ -402,7 +440,8 @@ def group_stall(sb, record):
             "merge": (MERGE, {"session_id": "SA", "cwd": "<T>/mr-feat",
                               "tool_input": {"command": "gh pr merge 12 --squash" + suffix}},
                       None, ()),
-            "broad": (BROAD, {"tool_name": "Bash", "tool_input": {"command": "pytest" + suffix}},
+            "broad": (BROAD, {"tool_name": "Bash",
+                              "tool_input": {"command": "pytest" + broad_suffix}},
                       sb.plain, ()),
         }
         for name, (script, payload, cwd, args) in runs.items():
@@ -412,6 +451,13 @@ def group_stall(sb, record):
             res["state"] = sb.engine_state()
             res["grants"] = sb.grants()
             record("stall/%s/%s" % (name, label), res)
+    # A long agent id whose base64 is full of "/" and "+".
+    sb.reset()
+    res = sb.run(ENGINE, jtext({"session_id": "S1", "agent_id": "?~" * 350000, "tool_name": "Bash",
+                                "tool_input": {"command": "echo x > src/foo.go"}}),
+                 cwd=sb.prod, args=("pretool",), timeout=STALL_SECONDS)
+    res["state"] = sb.engine_state()
+    record("stall/engine-bash/agent-key", res)
 
 
 GROUPS = (group_engine_edit, group_engine_bash, group_stop, group_merge, group_broad, group_edit,
@@ -460,9 +506,12 @@ def count_jq(sb):
         open(count_file, "w").close()
         env = {"PATH": os.path.join(sb.root, "shim") + os.pathsep + os.environ["PATH"],
                "JQ_COUNT_FILE": count_file}
-        sb.run(script, jtext(payload), args=args, extra_env=env)
+        res = sb.run(script, jtext(payload), args=args, extra_env=env)
         with open(count_file) as fh:
             counts[name] = len(fh.read().splitlines())
+        if res["rc"] != 0 or counts[name] < 1:
+            raise AssertionError("jq count run for %s failed: %s, %d jq processes" % (
+                name, res, counts[name]))
     return counts
 
 

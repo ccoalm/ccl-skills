@@ -50,13 +50,15 @@ input=$(head -c 1048576) || exit 0
 # One jq call reads both fields. Each value is what `$(jq -r '.x // empty')`
 # gives, trailing newlines stripped. jq prints nothing, and the per-field reads
 # below run as before, unless the payload is one JSON document whose fields are
-# strings without a NUL and with at most 16 trailing newlines. Dropping NULs or
-# trimming longer runs in jq costs more than linear time.
+# strings with no NUL, at most 16 trailing newlines and at most 1000
+# apostrophes. Beyond those bounds, dropping NULs, trimming newlines or
+# evaluating the quoted value costs more than linear time.
 fields=$(printf '%s' "$input" | jq -rs '
   def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
   select(length == 1) | .[0]
   | [(.tool_name // ""), (.tool_input.command // "")]
-  | select(all(.[]; type == "string" and (split("\u0000") | length) < 2))
+  | select(all(.[]; type == "string" and (split("\u0000") | length) < 2
+      and (split("\u0027") | length) <= 1001))
   | map(trim_nl(16)) | select(all(.[]; type == "string"))
   | "tool=\(.[0] | @sh) cmd=\(.[1] | @sh) fields_read=1"' 2>/dev/null)
 fields_read=""

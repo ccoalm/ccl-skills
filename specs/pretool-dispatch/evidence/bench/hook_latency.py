@@ -12,8 +12,10 @@ Reported per call class, median of 11 runs in ms:
   parallel - every hook started at once (how Claude Code runs matching hooks)
   serial   - hooks one after another (how the OpenCode plugin and agy-bridge run them)
 
-A hook that exits non-zero, times out or prints a degrade warning stops the
-run: its timing would measure the failure, not the hook.
+A hook that exits non-zero, times out or reports a degraded or unavailable
+component stops the run: its timing would measure the failure, not the hook.
+The engine and helpers the hooks call must exist in both roots, because a
+missing one is skipped silently and would look like a speedup.
 """
 import concurrent.futures as cf
 import json
@@ -26,6 +28,9 @@ import time
 BASH = ['owner-dispatch-guard.sh', 'guard-merge-authorization.sh', 'guard-broad-local-test.sh',
         'remind-unverified-cli-flag.sh', 'remind-untracked-background.sh', 'remind-review-covers-head.sh']
 EDIT = ['guard-edit-isolation.sh', 'owner-dispatch-guard.sh']
+# Files the timed hooks run besides themselves.
+DEPENDENCIES = ['scripts/owner-dispatch/owner-dispatch.sh', 'hooks/skill-loading.py',
+                'hooks/host-input.py']
 TIMEOUT = 30
 
 
@@ -38,7 +43,7 @@ def run(root, script, data, cwd):
     proc = subprocess.run(['bash', f'{root}/hooks/{script}'], input=data, capture_output=True,
                           text=True, cwd=cwd, env=dict(os.environ, CLAUDE_PLUGIN_ROOT=root),
                           timeout=TIMEOUT)
-    if proc.returncode != 0 or 'degraded' in proc.stdout:
+    if proc.returncode != 0 or 'degraded' in proc.stdout or 'unavailable' in proc.stdout:
         sys.exit(f'{root}/hooks/{script}: exit {proc.returncode}: {proc.stdout[:200]}{proc.stderr[:200]}')
 
 
@@ -53,9 +58,9 @@ def main():
         sys.exit(__doc__)
     base, cand, cwd = (os.path.realpath(p) for p in sys.argv[1:4])
     for root in (base, cand):
-        for script in set(BASH + EDIT):
-            if not os.path.isfile(f'{root}/hooks/{script}'):
-                sys.exit(f'missing {root}/hooks/{script}')
+        for rel in sorted({f'hooks/{s}' for s in BASH + EDIT} | set(DEPENDENCIES)):
+            if not os.path.isfile(f'{root}/{rel}'):
+                sys.exit(f'missing {root}/{rel}')
     cases = {'bash': (BASH, payload(cwd, 'Bash', {'command': 'ls -la'})),
              'edit': (EDIT, payload(cwd, 'Edit', {'file_path': cwd + '/x.txt',
                                                   'old_string': 'a', 'new_string': 'b'}))}
