@@ -350,73 +350,125 @@ export const CclSkills = async (context: {
   const directory = resolve(context.directory ?? context.worktree ?? process.cwd())
   const hooksRoot = runtimeRoot()
   const MAX_PENDING_CALLS = 64
+  const MAX_PENDING_SESSIONS = 256
   let syntheticCallSeq = 0
   const parentSessions = new Map<string, string>()
   const idleInFlight = new Set<string>()
-  const pendingSkills = new Map<string, string>()
-  const pendingSyntheticCalls = new Map<string, Array<{ callID: string; skillName?: string }>>()
+  type SessionPending = {
+    skills: Map<string, string>
+    syntheticQueues: Map<string, Array<{ callID: string; skillName?: string }>>
+  }
+  const pendingBySession = new Map<string, SessionPending>()
   let stateRoot: string | null = null
 
   function normalizeCallID(raw?: string) {
     return typeof raw === "string" && raw.length > 0 ? raw : null
   }
 
-  function setBoundedPendingSkill(key: string, name: string) {
-    if (pendingSkills.has(key)) pendingSkills.delete(key)
-    while (pendingSkills.size >= MAX_PENDING_CALLS) {
-      const oldest = pendingSkills.keys().next().value
-      if (oldest === undefined) break
-      pendingSkills.delete(oldest)
+  function normalizeSkillName(raw: unknown) {
+    return typeof raw === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(raw) && raw.length <= 64
+      ? raw
+      : undefined
+  }
+
+  function getOrCreateSessionPending(sessionID: string) {
+    const existing = pendingBySession.get(sessionID)
+    if (existing) {
+      pendingBySession.delete(sessionID)
+      pendingBySession.set(sessionID, existing)
+      return existing
     }
-    pendingSkills.set(key, name)
+    while (pendingBySession.size >= MAX_PENDING_SESSIONS) {
+      const oldestSession = pendingBySession.keys().next().value
+      if (oldestSession === undefined) break
+      pendingBySession.delete(oldestSession)
+    }
+    const created: SessionPending = { skills: new Map(), syntheticQueues: new Map() }
+    pendingBySession.set(sessionID, created)
+    return created
+  }
+
+  function pruneSessionPending(sessionID: string, state: SessionPending) {
+    if (state.skills.size === 0 && state.syntheticQueues.size === 0) {
+      pendingBySession.delete(sessionID)
+    }
+  }
+
+  function setBoundedPendingSkill(sessionID: string, callID: string, name: string) {
+    const state = getOrCreateSessionPending(sessionID)
+    if (state.skills.has(callID)) state.skills.delete(callID)
+    while (state.skills.size >= MAX_PENDING_CALLS) {
+      const oldest = state.skills.keys().next().value
+      if (oldest === undefined) break
+      state.skills.delete(oldest)
+    }
+    state.skills.set(callID, name)
+  }
+
+  function deletePendingSkill(sessionID: string, callID: string) {
+    const state = pendingBySession.get(sessionID)
+    if (!state) return
+    state.skills.delete(callID)
+    pruneSessionPending(sessionID, state)
+  }
+
+  function takePendingSkill(sessionID: string, callID: string) {
+    const state = pendingBySession.get(sessionID)
+    if (!state) return undefined
+    const name = state.skills.get(callID)
+    state.skills.delete(callID)
+    pruneSessionPending(sessionID, state)
+    return name
   }
 
   function enqueueSyntheticCall(sessionID: string, tool: string, callID: string, skillName?: string) {
-    const queueKey = `${sessionID}\0${tool}`
-    let queue = pendingSyntheticCalls.get(queueKey)
+    const state = getOrCreateSessionPending(sessionID)
+    let queue = state.syntheticQueues.get(tool)
     if (!queue) {
       queue = []
-      pendingSyntheticCalls.set(queueKey, queue)
+      state.syntheticQueues.set(tool, queue)
     }
     while (queue.length >= MAX_PENDING_CALLS) {
       const evicted = queue.shift()
-      if (evicted) pendingSkills.delete(`${sessionID}\0${evicted.callID}`)
+      if (evicted) state.skills.delete(evicted.callID)
     }
     queue.push({ callID, skillName })
   }
 
   function rollbackSyntheticCall(sessionID: string, tool: string, callID: string) {
-    const queueKey = `${sessionID}\0${tool}`
-    const queue = pendingSyntheticCalls.get(queueKey)
+    const state = pendingBySession.get(sessionID)
+    if (!state) return
+    const queue = state.syntheticQueues.get(tool)
     if (queue) {
       const idx = queue.findIndex((entry) => entry.callID === callID)
       if (idx !== -1) queue.splice(idx, 1)
-      if (!queue.length) pendingSyntheticCalls.delete(queueKey)
+      if (!queue.length) state.syntheticQueues.delete(tool)
     }
-    pendingSkills.delete(`${sessionID}\0${callID}`)
+    state.skills.delete(callID)
+    pruneSessionPending(sessionID, state)
   }
 
   function dequeueSyntheticCall(sessionID: string, tool: string, skillHint?: string) {
-    const queueKey = `${sessionID}\0${tool}`
-    const queue = pendingSyntheticCalls.get(queueKey)
+    const state = pendingBySession.get(sessionID)
+    if (!state) return null
+    const queue = state.syntheticQueues.get(tool)
     if (!queue || !queue.length) return null
-    if (tool === "skill" && skillHint) {
+    if (tool === "skill") {
       const idx = queue.findIndex((entry) => entry.skillName === skillHint)
-      if (idx !== -1) {
-        const [matched] = queue.splice(idx, 1)
-        if (!queue.length) pendingSyntheticCalls.delete(queueKey)
-        return matched.callID
-      }
+      if (idx === -1) return null
+      const [matched] = queue.splice(idx, 1)
+      if (!queue.length) state.syntheticQueues.delete(tool)
+      pruneSessionPending(sessionID, state)
+      return matched.callID
     }
     const next = queue.shift()!
-    if (!queue.length) pendingSyntheticCalls.delete(queueKey)
+    if (!queue.length) state.syntheticQueues.delete(tool)
+    pruneSessionPending(sessionID, state)
     return next.callID
   }
 
   function clearSessionPending(sessionID: string) {
-    const prefix = `${sessionID}\0`
-    for (const key of pendingSkills.keys()) if (key.startsWith(prefix)) pendingSkills.delete(key)
-    for (const key of pendingSyntheticCalls.keys()) if (key.startsWith(prefix)) pendingSyntheticCalls.delete(key)
+    pendingBySession.delete(sessionID)
   }
 
   function ensureStateRoot() {
@@ -592,11 +644,9 @@ export const CclSkills = async (context: {
       output.args = args
       const targets = editPaths(tool, args, directory)
       const toolName = claudeToolName(tool)
-      const validSkillName = tool === "skill" && typeof args.name === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(args.name) && args.name.length <= 64
-        ? args.name
-        : undefined
+      const validSkillName = tool === "skill" ? normalizeSkillName(args.name) : undefined
       if (!explicitCallID) enqueueSyntheticCall(sessionID, tool, callID, validSkillName)
-      if (validSkillName) setBoundedPendingSkill(`${sessionID}\0${callID}`, validSkillName)
+      if (validSkillName) setBoundedPendingSkill(sessionID, callID, validSkillName)
 
       try {
         for (const filePath of targets) {
@@ -651,7 +701,7 @@ export const CclSkills = async (context: {
         }
       } catch (error) {
         if (!explicitCallID) rollbackSyntheticCall(sessionID, tool, callID)
-        else pendingSkills.delete(`${sessionID}\0${callID}`)
+        else deletePendingSkill(sessionID, callID)
         throw error
       }
 
@@ -677,18 +727,15 @@ export const CclSkills = async (context: {
     ) => {
       const tool = input.tool.toLowerCase()
       const sessionID = input.sessionID ?? `pid-${process.ppid}`
-      const skillHint = tool === "skill"
-        ? (typeof input.args?.name === "string"
+      const rawSkillHint = tool === "skill"
+        ? (input.args !== undefined && "name" in input.args
           ? input.args.name
-          : typeof (output.metadata as { name?: unknown } | undefined)?.name === "string"
-            ? (output.metadata as { name: string }).name
-            : undefined)
+          : (output.metadata as { name?: unknown } | undefined)?.name)
         : undefined
+      const skillHint = tool === "skill" ? normalizeSkillName(rawSkillHint) : undefined
       const callID = normalizeCallID(input.callID) ?? dequeueSyntheticCall(sessionID, tool, skillHint) ?? "unknown-call"
       if (tool === "skill") {
-        const key = `${sessionID}\0${callID}`
-        const owner = completedSkill(pendingSkills.get(key), output.metadata)
-        pendingSkills.delete(key)
+        const owner = completedSkill(takePendingSkill(sessionID, callID), output.metadata)
         if (owner) appendTranscript(sessionID, {
           type: "assistant",
           message: { content: [{ type: "tool_use", id: callID, name: "Skill", input: { skill: owner } }] },
@@ -769,8 +816,7 @@ export const CclSkills = async (context: {
     },
 
     dispose: async () => {
-      pendingSkills.clear()
-      pendingSyntheticCalls.clear()
+      pendingBySession.clear()
       if (stateRoot) rmSync(stateRoot, { recursive: true, force: true })
       stateRoot = null
     },

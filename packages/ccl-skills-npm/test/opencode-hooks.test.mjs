@@ -681,13 +681,57 @@ test("OpenCode pairs omitted and empty callID across before/after, rolls back fa
 			await protectedHooks.dispose();
 		}
 
-		// 4. >64 orphaned Skill before calls evict oldest entries (both explicit and omitted callID) and still allow fresh loads.
+		// 3b. Unmatched skillHint in after (unqueued valid name or invalid name) does not steal another queued skill's synthetic callID.
+		await hooks["tool.execute.before"](
+			{ tool: "skill", sessionID: "unmatched-hint-session" },
+			{ args: { name: "multi-agent-delegation" } },
+		);
+		await hooks["tool.execute.after"](
+			{ tool: "skill", sessionID: "unmatched-hint-session", args: { name: "unqueued-valid-skill" } },
+			{ output: "ignored", metadata: { name: "unqueued-valid-skill", dir: secondarySkillDir } },
+		);
+		await hooks["tool.execute.after"](
+			{ tool: "skill", sessionID: "unmatched-hint-session", args: { name: "INVALID_SKILL!" } },
+			{ output: "ignored", metadata: { name: "INVALID_SKILL!", dir: secondarySkillDir } },
+		);
+		await hooks["tool.execute.after"](
+			{ tool: "skill", sessionID: "unmatched-hint-session", args: { name: "multi-agent-delegation" } },
+			{ output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } },
+		);
+		await assert.doesNotReject(
+			() => hooks["tool.execute.before"](
+				{ tool: "task", sessionID: "unmatched-hint-session" },
+				{ args: { description: "inspect", prompt: "Inspect a file. required_skills: []" } },
+			),
+			"unmatched skillHint in after must not steal another queued skill's synthetic callID",
+		);
+		await hooks["tool.execute.after"](
+			{ tool: "task", sessionID: "unmatched-hint-session", args: {} },
+			{ output: "ok", metadata: {} },
+		);
+
+		// 4. >64 orphaned Skill before calls evict oldest entries per session (without evicting other sessions) and still allow fresh loads.
+		await hooks["tool.execute.before"](
+			{ tool: "skill", sessionID: "other-session-ok", callID: "keep-me" },
+			{ args: { name: "multi-agent-delegation" } },
+		);
 		for (let i = 0; i < 65; i++) {
 			await hooks["tool.execute.before"](
 				{ tool: "skill", sessionID: "bounded-explicit", callID: `exp-${i}` },
 				{ args: { name: "multi-agent-delegation" } },
 			);
 		}
+		await hooks["tool.execute.after"](
+			{ tool: "skill", sessionID: "other-session-ok", callID: "keep-me", args: { name: "multi-agent-delegation" } },
+			{ output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } },
+		);
+		await assert.doesNotReject(
+			() => hooks["tool.execute.before"](
+				{ tool: "task", sessionID: "other-session-ok", callID: "other-session-task" },
+				{ args: { description: "inspect", prompt: "Inspect a file. required_skills: []" } },
+			),
+			"one session flooding >64 pending skills must not evict another session's pending skill",
+		);
 		await hooks["tool.execute.after"](
 			{ tool: "skill", sessionID: "bounded-explicit", callID: "exp-0", args: { name: "multi-agent-delegation" } },
 			{ output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } },
