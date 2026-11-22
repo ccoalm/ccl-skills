@@ -69,6 +69,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	python3 hooks/test_task_entry.py
 	python3 hooks/test_proposed_next.py
 	python3 hooks/test_agy_bridge.py
+	python3 hooks/test_hook_field_reads.py
 	bash hooks/test_guard_delegation_owner.sh
 	bash hooks/test_guard_edit_isolation.sh
 	bash hooks/test_guard_merge_authorization.sh
