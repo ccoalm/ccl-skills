@@ -20,6 +20,23 @@ help: ## 显示可用目标
 # specs/036-ci-parallel-shards/plan.md）。
 test: test-repo-gates test-regressions-fast test-code-review ## 运行本仓确定性 gate、脚本测试和 Python 回归
 
+ifneq ($(filter test-affected test-affected-plan,$(MAKECMDGOALS)),)
+_AFFECTED_CLI_VARS := $(foreach v,$(.VARIABLES),$(if $(filter command line,$(origin $(v))),$(v)))
+ifneq ($(_AFFECTED_CLI_VARS),)
+unexport $(_AFFECTED_CLI_VARS)
+endif
+ifneq ($(filter-out FULL,$(_AFFECTED_CLI_VARS)),)
+$(error Pass environment prefixes before make or invoke python3 scripts/select-affected-tests.py directly)
+endif
+ifeq ($(origin FULL),command line)
+ifneq ($(value FULL),1)
+$(error Only FULL=1 is accepted on the make command line; pass environment prefixes before make)
+endif
+override FULL := 1
+export FULL
+endif
+endif
+
 test-affected: ## 按改动路径快速运行相关检查与并行套件（内环辅助工具，推送前仍须跑 make test；FULL=1 含慢速套件）
 	python3 scripts/select-affected-tests.py --repo . --run
 

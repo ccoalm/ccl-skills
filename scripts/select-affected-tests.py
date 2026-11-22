@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import codecs
 from dataclasses import dataclass
 import json
 import os
@@ -69,6 +70,7 @@ GIT_CONFIG_ROUTING_ENV_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
 
 _MAKE_ENV_POLLUTION_KEYS = (
     "MAKEFLAGS",
+    "MAKEFILES",
     "MFLAGS",
     "MAKELEVEL",
     "MAKEOVERRIDES",
@@ -116,6 +118,9 @@ _MAKEFILE_PATH_RE = re.compile(
 )
 _HEX_SHA_RE = re.compile(r"^[0-9a-fA-F]{40,64}$")
 _EVAL_MODULE_RE = re.compile(r"^eval\.[A-Za-z_][A-Za-z0-9_]*$")
+_SHELL_CONTROL_OPS = frozenset({";", "&", "&&", "||", "|", "|&", "(", ")"})
+_SHELL_LEADING_KEYWORDS = frozenset({"if", "then", "elif", "else", "do", "!", "{", "}"})
+_ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 
 
 class SelectorError(Exception):
@@ -220,6 +225,8 @@ def _clean_git_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
         if k not in GIT_REPOSITORY_ROUTING_ENV
         and k not in GIT_CONFIG_ROUTING_ENV
         and not k.startswith(GIT_CONFIG_ROUTING_ENV_PREFIXES)
+        and k != "GIT_TRACE"
+        and not k.startswith(("GIT_TRACE_", "GIT_TRACE2"))
     }
 
 
@@ -293,6 +300,55 @@ def _is_suite_filename(name: str) -> bool:
     )
 
 
+def _open_contained_regular_fd(repo_root: Path, rel_path: str) -> int | None:
+    """Walk `rel_path` component-by-component with O_NOFOLLOW dir_fds and open a non-blocking regular file."""
+    if not rel_path or "\x00" in rel_path or rel_path.startswith("/"):
+        return None
+    raw_parts = rel_path.split("/")
+    if ".." in raw_parts:
+        return None
+    norm = normalize_input_relpath(rel_path)
+    if not norm:
+        return None
+    parts = [p for p in norm.split("/") if p and p != "."]
+    if not parts:
+        return None
+    try:
+        root_real = repo_root.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None
+    dir_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    file_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    try:
+        cur_fd = os.open(root_real, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    except OSError:
+        return None
+    try:
+        for seg in parts[:-1]:
+            next_fd = os.open(seg, dir_flags, dir_fd=cur_fd)
+            os.close(cur_fd)
+            cur_fd = next_fd
+        leaf_fd = os.open(parts[-1], file_flags, dir_fd=cur_fd)
+    except OSError:
+        return None
+    finally:
+        try:
+            os.close(cur_fd)
+        except OSError:
+            pass
+    try:
+        if not stat.S_ISREG(os.fstat(leaf_fd).st_mode):
+            os.close(leaf_fd)
+            return None
+        return leaf_fd
+    except OSError:
+        try:
+            os.close(leaf_fd)
+        except OSError:
+            pass
+        return None
+
+
 def _classify_suite_path(repo_root: Path, rel_path: str) -> str:
     """Return 'present', 'missing', or 'unsafe' (symlink/loop/FIFO/non-regular/traversal outside repo_root)."""
     if not rel_path or "\x00" in rel_path or rel_path.startswith("/"):
@@ -307,14 +363,24 @@ def _classify_suite_path(repo_root: Path, rel_path: str) -> str:
         root_real = repo_root.resolve(strict=True)
     except (OSError, RuntimeError):
         return "unsafe"
-    candidate = repo_root / norm
+    cur = root_real
+    for seg in norm.split("/")[:-1]:
+        cur = cur / seg
+        if os.path.lexists(cur):
+            if os.path.islink(cur) or not cur.is_dir():
+                return "unsafe"
+    candidate = root_real / norm
     if os.path.lexists(candidate):
-        try:
-            resolved = candidate.resolve(strict=True)
-            resolved.relative_to(root_real)
-        except (OSError, RuntimeError, ValueError):
+        if os.path.islink(candidate):
             return "unsafe"
-        return "present" if resolved.is_file() else "unsafe"
+        fd = _open_contained_regular_fd(root_real, norm)
+        if fd is None:
+            return "unsafe"
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        return "present"
     try:
         parent_real = candidate.parent.resolve(strict=False)
         parent_real.relative_to(root_real)
@@ -324,22 +390,12 @@ def _classify_suite_path(repo_root: Path, rel_path: str) -> str:
 
 
 def _read_contained_regular_bytes(repo_root: Path, rel_path: str) -> tuple[bytes | None, str]:
-    """Read bytes from a contained regular file without blocking on FIFOs or following swapped symlinks."""
-    status = _classify_suite_path(repo_root, rel_path)
-    if status != "present":
-        return None, status
+    """Read bytes from a contained regular file through verified parent dir_fds without blocking on FIFOs."""
+    fd = _open_contained_regular_fd(repo_root, rel_path)
+    if fd is None:
+        status = _classify_suite_path(repo_root, rel_path)
+        return None, ("missing" if status == "missing" else "unsafe")
     try:
-        root_real = repo_root.resolve(strict=True)
-        resolved = (repo_root / normalize_input_relpath(rel_path)).resolve(strict=True)
-        resolved.relative_to(root_real)
-        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
-        fd = os.open(resolved, flags)
-    except (OSError, RuntimeError, ValueError):
-        return None, "unsafe"
-    try:
-        st = os.fstat(fd)
-        if not stat.S_ISREG(st.st_mode):
-            return None, "unsafe"
         with os.fdopen(fd, "rb") as fh:
             fd = -1
             return fh.read(), "present"
@@ -354,26 +410,15 @@ def _read_contained_regular_bytes(repo_root: Path, rel_path: str) -> tuple[bytes
 
 
 def _verify_contained_regular_file(repo_root: Path, rel_path: str) -> bool:
-    """Confirm `rel_path` resolves inside `repo_root` and opens non-blockingly as a regular file."""
-    if _classify_suite_path(repo_root, rel_path) != "present":
+    """Confirm `rel_path` opens through O_NOFOLLOW parent dir_fds as a regular file inside `repo_root`."""
+    fd = _open_contained_regular_fd(repo_root, rel_path)
+    if fd is None:
         return False
     try:
-        root_real = repo_root.resolve(strict=True)
-        resolved = (repo_root / normalize_input_relpath(rel_path)).resolve(strict=True)
-        resolved.relative_to(root_real)
-        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
-        fd = os.open(resolved, flags)
-    except (OSError, RuntimeError, ValueError):
-        return False
-    try:
-        return stat.S_ISREG(os.fstat(fd).st_mode)
+        os.close(fd)
     except OSError:
-        return False
-    finally:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
+        pass
+    return True
 
 
 def _is_dunder_main_guard(node: ast.If) -> bool:
@@ -396,38 +441,49 @@ def _is_dunder_main_guard(node: ast.If) -> bool:
     )
 
 
-def _is_runner_call(call: ast.AST) -> bool:
+def _is_top_level_runner_call(call: ast.AST) -> bool:
     if not isinstance(call, ast.Call):
         return False
     func = call.func
-    if isinstance(func, ast.Name) and (
-        func.id in ("main", "SystemExit") or func.id.startswith(("run_", "test_"))
-    ):
+    if isinstance(func, ast.Name) and func.id == "SystemExit":
         return True
-    if isinstance(func, ast.Attribute):
-        if (
-            func.attr in ("main", "exit")
-            and isinstance(func.value, ast.Name)
-            and func.value.id in ("unittest", "pytest", "sys", "os")
-        ):
+    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+        if func.value.id in ("unittest", "pytest") and func.attr == "main":
             return True
-        if func.attr == "run":
+        if func.value.id in ("sys", "os") and func.attr in ("exit", "_exit"):
             return True
+    return False
+
+
+def _is_non_runner_stub_stmt(stmt: ast.stmt) -> bool:
+    if isinstance(stmt, ast.Pass):
+        return True
+    if isinstance(stmt, ast.Expr):
+        val = stmt.value
+        if isinstance(val, ast.Constant):
+            return True
+        if isinstance(val, ast.Call):
+            func = val.func
+            if isinstance(func, ast.Name) and func.id == "print":
+                return True
+            if (
+                isinstance(func, ast.Attribute)
+                and func.attr == "write"
+                and isinstance(func.value, ast.Attribute)
+                and func.value.attr in ("stdout", "stderr")
+                and isinstance(func.value.value, ast.Name)
+                and func.value.value.id == "sys"
+            ):
+                return True
     return False
 
 
 def _block_invokes_runner(stmts: list[ast.stmt]) -> bool:
-    for stmt in stmts:
-        for sub in ast.walk(stmt):
-            if isinstance(sub, ast.Raise):
-                return True
-            if _is_runner_call(sub):
-                return True
-    return False
+    return any(not _is_non_runner_stub_stmt(stmt) for stmt in stmts)
 
 
 def _python_suite_has_main_entrypoint(repo_root: Path, rel_suite: str) -> bool:
-    """True only when `python3 <rel_suite>` invokes a test runner rather than only defining tests or printing usage."""
+    """True only when `python3 <rel_suite>` executes a test harness rather than only defining tests or printing usage."""
     data, status = _read_contained_regular_bytes(repo_root, rel_suite)
     if status != "present" or data is None:
         return True
@@ -438,10 +494,10 @@ def _python_suite_has_main_entrypoint(repo_root: Path, rel_suite: str) -> bool:
     for node in tree.body:
         if isinstance(node, ast.If) and _is_dunder_main_guard(node) and _block_invokes_runner(node.body):
             return True
-        if isinstance(node, ast.Expr) and _is_runner_call(node.value):
+        if isinstance(node, ast.Expr) and _is_top_level_runner_call(node.value):
             return True
         if isinstance(node, ast.Raise) and node.exc is not None:
-            if _is_runner_call(node.exc):
+            if _is_top_level_runner_call(node.exc):
                 return True
             if (
                 isinstance(node.exc, ast.Call)
@@ -476,15 +532,16 @@ def _iter_makefile_recipe_lines(text: str) -> list[str]:
     return recipes
 
 
-def _parse_makefile_tokens(repo_root: Path) -> tuple[list[str], bool]:
-    """Return (tokens across executable Makefile recipes, makefile_is_unsafe)."""
+def _parse_makefile_recipes(repo_root: Path) -> tuple[list[str], list[list[str]], bool]:
+    """Return (all_tokens, command_segments, makefile_is_unsafe)."""
     data, status = _read_contained_regular_bytes(repo_root, "Makefile")
     if status == "unsafe":
-        return [], True
+        return [], [], True
     if data is None:
-        return [], False
+        return [], [], False
     text = data.decode("utf-8", "replace")
     all_tokens: list[str] = []
+    segments: list[list[str]] = []
     for recipe in _iter_makefile_recipe_lines(text):
         try:
             lex = shlex.shlex(recipe, posix=True, punctuation_chars=";&|()")
@@ -492,14 +549,24 @@ def _parse_makefile_tokens(repo_root: Path) -> tuple[list[str], bool]:
             lex.commenters = "#"
             tokens = list(lex)
         except ValueError:
-            tokens = _MAKEFILE_PATH_RE.findall(recipe)
+            return [], [], True
         all_tokens.extend(tokens)
-    return all_tokens, False
+        cur: list[str] = []
+        for tok in tokens:
+            if tok in _SHELL_CONTROL_OPS:
+                if cur:
+                    segments.append(cur)
+                    cur = []
+            else:
+                cur.append(tok)
+        if cur:
+            segments.append(cur)
+    return all_tokens, segments, False
 
 
 def makefile_suites(repo_root: Path) -> set[str]:
     """Return every suite path referenced in executable Makefile recipe lines (before disk filtering)."""
-    tokens, unsafe = _parse_makefile_tokens(repo_root)
+    tokens, _, unsafe = _parse_makefile_recipes(repo_root)
     if unsafe:
         return set()
     found: set[str] = set()
@@ -520,12 +587,111 @@ def makefile_suites(repo_root: Path) -> set[str]:
     return found
 
 
+def _extract_segment_operands(seg: list[str], repo_root: Path) -> tuple[set[str], bool]:
+    """Extract repo-local script/module operands from one shell command segment; flag unresolved `$` operands."""
+    paths: set[str] = set()
+    idx = 0
+    while idx < len(seg) and (seg[idx] in _SHELL_LEADING_KEYWORDS or _ENV_ASSIGN_RE.match(seg[idx])):
+        idx += 1
+    if idx >= len(seg):
+        return paths, False
+    if seg[idx] == "env":
+        idx += 1
+        while idx < len(seg) and (_ENV_ASSIGN_RE.match(seg[idx]) or seg[idx].startswith("-")):
+            idx += 1
+        if idx >= len(seg):
+            return paths, False
+    sub = seg[idx:]
+    exe = sub[0].lstrip("-")
+    if not exe:
+        return paths, False
+    exe_name = Path(exe).name
+
+    if "/" in exe:
+        if "$" in exe:
+            return set(), True
+        paths.add(normalize_input_relpath(exe).rstrip("/"))
+        return paths, False
+
+    if exe_name.startswith("python"):
+        if "$" in exe:
+            return set(), True
+        if len(sub) >= 3 and sub[1] == "-m":
+            runner_mod = sub[2]
+            if "$" in runner_mod:
+                return set(), True
+            if runner_mod == "pytest":
+                for arg in sub[3:]:
+                    if arg.startswith("-"):
+                        continue
+                    if "$" in arg:
+                        return set(), True
+                    paths.add(normalize_input_relpath(arg).rstrip("/"))
+            elif runner_mod == "unittest":
+                for arg in sub[3:]:
+                    if arg.startswith("-"):
+                        continue
+                    if "$" in arg:
+                        return set(), True
+                    if arg.endswith(".py") or "/" in arg:
+                        paths.add(normalize_input_relpath(arg).rstrip("/"))
+                    else:
+                        parts = arg.split(".")
+                        if len(parts) >= 2:
+                            init_rel = "/".join(parts[:-1]) + "/__init__.py"
+                            if os.path.lexists(repo_root / init_rel):
+                                paths.add(init_rel)
+                        paths.add(arg.replace(".", "/") + ".py")
+        elif len(sub) >= 2 and sub[1] != "-c" and not sub[1].startswith("-"):
+            if "$" in sub[1]:
+                return set(), True
+            paths.add(normalize_input_relpath(sub[1]).rstrip("/"))
+
+    elif exe_name in ("bash", "sh", "ruby"):
+        if "$" in exe:
+            return set(), True
+        j = 1
+        while j < len(sub):
+            arg = sub[j]
+            if arg == "--":
+                if j + 1 < len(sub):
+                    target_arg = sub[j + 1]
+                    if "$" in target_arg:
+                        return set(), True
+                    paths.add(normalize_input_relpath(target_arg).rstrip("/"))
+                break
+            if arg in ("-c", "-e") and exe_name in ("bash", "sh", "ruby") and arg == "-c":
+                break
+            if arg.startswith("-"):
+                j += 1
+                continue
+            if "$" in arg:
+                return set(), True
+            paths.add(normalize_input_relpath(arg).rstrip("/"))
+            break
+
+    elif exe_name == "npm" and "--prefix" in sub:
+        p_idx = sub.index("--prefix")
+        if p_idx + 1 < len(sub):
+            prefix_arg = sub[p_idx + 1]
+            if "$" in prefix_arg:
+                return set(), True
+            paths.add(f"{normalize_input_relpath(prefix_arg).rstrip('/')}/package.json")
+
+    return paths, False
+
+
 def makefile_recipe_paths(repo_root: Path) -> tuple[set[str], bool]:
     """Return (all repo-local script/suite paths in Makefile recipes, makefile_is_unsafe)."""
-    tokens, unsafe = _parse_makefile_tokens(repo_root)
+    tokens, segments, unsafe = _parse_makefile_recipes(repo_root)
     if unsafe:
         return set(), True
     found: set[str] = set()
+    for seg in segments:
+        seg_paths, seg_unsafe = _extract_segment_operands(seg, repo_root)
+        if seg_unsafe:
+            return set(), True
+        found.update(p for p in seg_paths if p)
     for tok in tokens:
         if "$" in tok:
             continue
@@ -538,10 +704,8 @@ def makefile_recipe_paths(repo_root: Path) -> tuple[set[str], bool]:
         norm = normalize_input_relpath(tok).rstrip("/")
         if not norm.startswith(("hooks/", "scripts/", "skills/", "eval/", "packages/")):
             continue
-        cand = repo_root / norm
-        if os.path.lexists(cand) and not os.path.islink(cand) and cand.is_dir():
-            if norm == "packages/ccl-skills-npm":
-                found.add("packages/ccl-skills-npm/package.json")
+        if norm == "packages/ccl-skills-npm":
+            found.add("packages/ccl-skills-npm/package.json")
             continue
         found.add(norm)
     return found, False
@@ -833,7 +997,7 @@ def _canonicalize_auto_ref(ref: str) -> str:
 
 
 def _auto_ref_exists(repo_root: Path, ref: str) -> bool:
-    """Return True iff exact `ref` exists in Git refs; raise BaseRefError on broken/corrupt refs."""
+    """Return True iff exact `ref` exists in Git refs; raise BaseRefError on broken/corrupt refs or gitdir failures."""
     check_fmt = _git_bytes(repo_root, "check-ref-format", ref)
     if check_fmt.returncode != 0:
         return False
@@ -846,11 +1010,13 @@ def _auto_ref_exists(repo_root: Path, ref: str) -> bool:
     if any(line == ref_bytes for line in proc.stdout.splitlines()):
         return True
     gp = _git_bytes(repo_root, "rev-parse", "--git-path", ref)
-    if gp.returncode == 0:
-        raw_git_path = Path(os.fsdecode(_strip_single_git_newline(gp.stdout)))
-        git_path = raw_git_path if raw_git_path.is_absolute() else (repo_root / raw_git_path)
-        if os.path.lexists(git_path) and not os.path.isdir(git_path):
-            raise BaseRefError(f"broken loose ref {ref!r}")
+    if gp.returncode != 0:
+        detail = os.fsdecode(gp.stderr).strip() or f"exit {gp.returncode}"
+        raise BaseRefError(f"git rev-parse --git-path failed for {ref!r}: {detail}")
+    raw_git_path = Path(os.fsdecode(_strip_single_git_newline(gp.stdout)))
+    git_path = raw_git_path if raw_git_path.is_absolute() else (repo_root / raw_git_path)
+    if os.path.lexists(git_path) and not os.path.isdir(git_path):
+        raise BaseRefError(f"broken loose ref {ref!r}")
     return False
 
 
@@ -1177,7 +1343,7 @@ def _verify_command_containment(
                 return f"{alt_mk} escapes checkout or is non-regular"
         recipe_paths, mk_unsafe = makefile_recipe_paths(repo_root)
         if mk_unsafe:
-            return "Makefile escapes checkout or is non-regular"
+            return "Makefile escapes checkout or contains unresolved script operands"
         for rp in sorted(recipe_paths):
             if _classify_suite_path(repo_root, rp) == "unsafe":
                 return f"Makefile recipe path escapes checkout ({_terminal_safe(rp)})"
@@ -1267,7 +1433,7 @@ def build_test_plan(
         if os.path.lexists(repo_root / mk_name) and _classify_suite_path(repo_root, mk_name) != "present":
             builder.unsafe_blocked = True
             builder.add_note(f"unsafe-suite-path: non-regular or uncontained {mk_name}")
-    if makefile_unsafe:
+    if makefile_unsafe and _classify_suite_path(repo_root, "Makefile") != "present":
         builder.unsafe_blocked = True
         builder.add_note("unsafe-suite-path: non-regular or uncontained Makefile")
     if heavy_runner_unsafe:
@@ -1858,10 +2024,10 @@ def build_test_plan(
         for mk_name in _MAKEFILE_NAMES:
             if os.path.lexists(repo_root / mk_name) and _classify_suite_path(repo_root, mk_name) != "present":
                 unsafe_recipe_paths.append(mk_name)
-        if unsafe_recipe_paths or builder.unsafe_blocked:
+        if unsafe_recipe_paths or makefile_unsafe or builder.unsafe_blocked:
             builder.unsafe_blocked = True
             builder.add_note(
-                "unsafe-fallback-blocked: refusing Make target escalation while checkout contains uncontained path(s)"
+                "unsafe-fallback-blocked: refusing Make target escalation while checkout contains uncontained or unresolved recipe path(s)"
                 + (
                     f" ({', '.join(_terminal_safe(s) for s in unsafe_recipe_paths)})"
                     if unsafe_recipe_paths
@@ -1905,8 +2071,25 @@ def _parallel_runner_command(runner_path: str, suites: list[str], jobs: int | No
     cmd = ["bash", runner_path, "--label", "affected_suites"]
     if jobs is not None:
         cmd.extend(["--jobs", str(jobs)])
-    cmd.extend(suites)
+    cmd.extend(["--", *suites])
     return cmd
+
+
+def _resolve_parallel_jobs(jobs: int | None) -> int:
+    if jobs is not None:
+        if jobs < 1:
+            raise SelectorError("--jobs must be >= 1")
+        return jobs
+    raw_env = os.environ.get("SUITE_JOBS", "").strip()
+    if raw_env:
+        try:
+            parsed = int(raw_env)
+        except ValueError as exc:
+            raise SelectorError(f"invalid SUITE_JOBS={raw_env!r}; expected positive integer") from exc
+        if parsed < 1:
+            raise SelectorError(f"invalid SUITE_JOBS={raw_env!r}; expected >= 1")
+        return parsed
+    return min(os.cpu_count() or 4, 8)
 
 
 def _pgid_has_live_members(pgid: int) -> bool:
@@ -2036,9 +2219,57 @@ def _run_cmd(
         for sig, prev in previous_handlers.items():
             signal.signal(sig, prev)
 
+    if received_sig:
+        _escalate_and_reap(spawned_procs, spawned_pgids, received_sig[0])
+        return 128 + received_sig[0]
+
     if proc.returncode is not None and proc.returncode < 0:
         return 128 + (-proc.returncode)
     return proc.returncode if proc.returncode is not None else 1
+
+
+def _stream_log_to_stdout(log_path: Path) -> None:
+    """Stream captured suite output in bounded chunks without full-file decoding or ASCII codec crashes."""
+    out_buf = getattr(sys.stdout, "buffer", None)
+    try:
+        with open(log_path, "rb") as fh:
+            if out_buf is not None:
+                sys.stdout.flush()
+                last_byte = b"\n"
+                saw_bytes = False
+                while True:
+                    chunk = fh.read(65536)
+                    if not chunk:
+                        break
+                    saw_bytes = True
+                    last_byte = chunk[-1:]
+                    out_buf.write(chunk)
+                if saw_bytes and last_byte != b"\n":
+                    out_buf.write(b"\n")
+                out_buf.flush()
+            else:
+                decoder = codecs.getincrementaldecoder("utf-8")("replace")
+                last_char = "\n"
+                saw_chars = False
+                while True:
+                    chunk = fh.read(65536)
+                    if not chunk:
+                        tail = decoder.decode(b"", final=True)
+                        if tail:
+                            saw_chars = True
+                            last_char = tail[-1]
+                            sys.stdout.write(tail)
+                        break
+                    text_chunk = decoder.decode(chunk, final=False)
+                    if text_chunk:
+                        saw_chars = True
+                        last_char = text_chunk[-1]
+                        sys.stdout.write(text_chunk)
+                if saw_chars and last_char != "\n":
+                    sys.stdout.write("\n")
+                sys.stdout.flush()
+    except OSError:
+        pass
 
 
 @dataclass
@@ -2055,28 +2286,32 @@ def _run_parallel_suites_bounded(
     suites: list[str],
     repo_root: Path,
     *,
-    jobs: int | None,
+    max_workers: int,
     resolved_base: str | None,
     template_dir: Path,
-    gitconfig_path: Path,
 ) -> int:
-    max_workers = jobs if jobs is not None else min(os.cpu_count() or 4, 8)
     print(f"==> parallel_suites (jobs={max_workers}, count={len(suites)})", flush=True)
     base_env = _clean_child_env(
         resolved_base=resolved_base,
         template_dir=template_dir,
-        gitconfig_path=gitconfig_path,
+        gitconfig_path=None,
     )
     base_env["PYTHONDONTWRITEBYTECODE"] = "1"
 
     received_sig: list[int] = []
-    all_pgids: set[int] = set()
-    all_procs: list[subprocess.Popen] = []
+    live_pgids: set[int] = set()
+    live_procs: list[subprocess.Popen] = []
+
+    def _prune_retired_groups() -> None:
+        for pgid in list(live_pgids):
+            if not _pgid_has_live_members(pgid):
+                live_pgids.discard(pgid)
+        live_procs[:] = [p for p in live_procs if p.poll() is None]
 
     def _forward_signal(signum: int, _frame) -> None:
         if not received_sig:
             received_sig.append(signum)
-        for pgid in list(all_pgids):
+        for pgid in list(live_pgids):
             try:
                 os.killpg(pgid, signum)
             except ProcessLookupError:
@@ -2095,39 +2330,68 @@ def _run_parallel_suites_bounded(
 
             next_idx = 0
             containment_abort = False
+            launch_error_rc: int | None = None
 
             while (next_idx < len(suites) or active) and not received_sig:
                 try:
-                    while next_idx < len(suites) and len(active) < max_workers and not received_sig and not containment_abort:
+                    while (
+                        next_idx < len(suites)
+                        and len(active) < max_workers
+                        and not received_sig
+                        and not containment_abort
+                        and launch_error_rc is None
+                    ):
                         suite = suites[next_idx]
                         idx = next_idx
                         next_idx += 1
-                        if not _verify_contained_regular_file(repo_root, suite):
-                            print(
-                                f"select-affected-tests: error: suite missing or outside checkout at dispatch ({_terminal_safe(suite)})",
-                                file=sys.stderr,
-                            )
-                            containment_abort = True
-                            break
 
                         suite_tmp = work_dir / f"tmp.{idx}"
                         suite_tmp.mkdir(parents=True, exist_ok=True)
+                        suite_gitconfig = work_dir / f"gitconfig.{idx}"
+                        _write_isolated_gitconfig(suite_gitconfig, repo_root)
                         log_path = work_dir / f"{idx}.log"
-                        suite_env = dict(base_env, TMPDIR=str(suite_tmp))
+                        suite_env = dict(
+                            base_env,
+                            TMPDIR=str(suite_tmp),
+                            GIT_CONFIG_GLOBAL=str(suite_gitconfig),
+                        )
                         runner_bin = "python3" if suite.endswith(".py") else "bash"
-                        cmd = [runner_bin, suite]
-                        with open(log_path, "wb") as log_fh:
-                            proc = subprocess.Popen(
-                                cmd,
-                                cwd=str(repo_root),
-                                env=suite_env,
-                                stdin=subprocess.DEVNULL,
-                                stdout=log_fh,
-                                stderr=subprocess.STDOUT,
-                                start_new_session=True,
+                        cmd = [runner_bin, "--", suite]
+                        try:
+                            with open(log_path, "wb") as log_fh:
+                                if not _verify_contained_regular_file(repo_root, suite):
+                                    print(
+                                        f"select-affected-tests: error: suite missing or outside checkout at dispatch ({_terminal_safe(suite)})",
+                                        file=sys.stderr,
+                                    )
+                                    containment_abort = True
+                                    break
+                                proc = subprocess.Popen(
+                                    cmd,
+                                    cwd=str(repo_root),
+                                    env=suite_env,
+                                    stdin=subprocess.DEVNULL,
+                                    stdout=log_fh,
+                                    stderr=subprocess.STDOUT,
+                                    start_new_session=True,
+                                )
+                        except FileNotFoundError as exc:
+                            print(
+                                f"select-affected-tests: error: executable not found ({_terminal_safe(runner_bin)}): {exc}",
+                                file=sys.stderr,
                             )
-                        all_procs.append(proc)
-                        all_pgids.add(proc.pid)
+                            launch_error_rc = 127
+                            break
+                        except OSError as exc:
+                            print(
+                                f"select-affected-tests: error: failed to launch {_terminal_safe(suite)}: {exc}",
+                                file=sys.stderr,
+                            )
+                            launch_error_rc = 126
+                            break
+
+                        live_procs.append(proc)
+                        live_pgids.add(proc.pid)
                         active.append(
                             _ActiveSuite(
                                 idx=idx,
@@ -2141,19 +2405,23 @@ def _run_parallel_suites_bounded(
                         if received_sig:
                             break
 
-                    if containment_abort or received_sig:
+                    if containment_abort or launch_error_rc is not None or received_sig:
                         break
 
                     still_running: list[_ActiveSuite] = []
+                    finished_any = False
                     for item in active:
                         rc = item.proc.poll()
                         if rc is None:
                             still_running.append(item)
                         else:
+                            finished_any = True
                             elapsed = time.monotonic() - item.started_at
                             norm_rc = (128 + (-rc)) if rc < 0 else rc
                             results[item.idx] = (item.suite, norm_rc, elapsed, item.log_path)
                     active = still_running
+                    if finished_any:
+                        _prune_retired_groups()
                     if active and (len(active) >= max_workers or next_idx >= len(suites)):
                         time.sleep(_POLL_INTERVAL_SECONDS)
                 except KeyboardInterrupt:
@@ -2161,32 +2429,38 @@ def _run_parallel_suites_bounded(
                     break
 
             if received_sig:
-                _escalate_and_reap(all_procs, all_pgids, received_sig[0])
+                _escalate_and_reap(live_procs, live_pgids, received_sig[0])
                 return 128 + received_sig[0]
 
+            if launch_error_rc is not None:
+                if live_procs or live_pgids:
+                    _escalate_and_reap(live_procs, live_pgids, signal.SIGTERM)
+                return launch_error_rc
+
             if containment_abort:
-                if active:
-                    _escalate_and_reap([a.proc for a in active], {a.pgid for a in active}, signal.SIGTERM)
+                if live_procs or live_pgids:
+                    _escalate_and_reap(live_procs, live_pgids, signal.SIGTERM)
                 return 2
         finally:
             for sig, prev in previous_handlers.items():
                 signal.signal(sig, prev)
 
+        if received_sig:
+            _escalate_and_reap(live_procs, live_pgids, received_sig[0])
+            return 128 + received_sig[0]
+
         failed = 0
         for idx in sorted(results):
             suite, rc, elapsed, log_path = results[idx]
             safe_suite = _terminal_safe(suite)
+            sec_int = int(elapsed)
             if rc == 0:
                 print(f"[PASS] {safe_suite} ({elapsed:.1f}s)", flush=True)
             else:
                 failed += 1
                 print(f"[FAIL] {safe_suite} (exit {rc}, {elapsed:.1f}s)", flush=True)
-                try:
-                    raw_out = log_path.read_text(encoding="utf-8", errors="replace")
-                except OSError:
-                    raw_out = ""
-                if raw_out:
-                    print(raw_out, end="" if raw_out.endswith("\n") else "\n", flush=True)
+            _stream_log_to_stdout(log_path)
+            print(f"regression_test_timing: test={safe_suite} seconds={sec_int} status={rc}", flush=True)
         return 1 if failed else 0
 
 
@@ -2205,6 +2479,15 @@ def execute_plan(plan: dict, repo_root: Path, jobs: int | None = None) -> int:
         f"select_affected_tests: base_ref={_terminal_safe(resolved_base_ref) if resolved_base_ref else 'none'}",
         flush=True,
     )
+
+    try:
+        max_workers = _resolve_parallel_jobs(jobs)
+    except SelectorError as exc:
+        print(f"select-affected-tests: error: {exc}", file=sys.stderr)
+        _emit_diagnostics(plan)
+        print("select_affected_tests_failed: exit=2", flush=True)
+        print(ADVISORY_FOOTER, flush=True)
+        return 2
 
     if plan.get("unsafe_blocked"):
         _emit_diagnostics(plan)
@@ -2232,10 +2515,10 @@ def execute_plan(plan: dict, repo_root: Path, jobs: int | None = None) -> int:
     )
 
     with tempfile.TemporaryDirectory() as tpl_tmp:
-        tpl_dir = Path(tpl_tmp)
+        tpl_root = Path(tpl_tmp)
+        tpl_dir = tpl_root / "template"
         (tpl_dir / "info").mkdir(parents=True, exist_ok=True)
-        gitconfig_path = tpl_dir / "gitconfig"
-        _write_isolated_gitconfig(gitconfig_path, repo_root)
+        serial_seq = 0
 
         for cmd in preflights:
             violation = _verify_command_containment(repo_root, cmd)
@@ -2245,6 +2528,9 @@ def execute_plan(plan: dict, repo_root: Path, jobs: int | None = None) -> int:
                 print("select_affected_tests_failed: exit=2", flush=True)
                 print(ADVISORY_FOOTER, flush=True)
                 return 2
+            serial_seq += 1
+            gitconfig_path = tpl_root / f"gitconfig.serial.{serial_seq}"
+            _write_isolated_gitconfig(gitconfig_path, repo_root)
             rc = _run_cmd(
                 cmd,
                 repo_root,
@@ -2262,10 +2548,9 @@ def execute_plan(plan: dict, repo_root: Path, jobs: int | None = None) -> int:
             rc = _run_parallel_suites_bounded(
                 suites,
                 repo_root,
-                jobs=jobs,
+                max_workers=max_workers,
                 resolved_base=resolved_base_sha,
                 template_dir=tpl_dir,
-                gitconfig_path=gitconfig_path,
             )
             if rc != 0:
                 _emit_diagnostics(plan)
@@ -2281,6 +2566,9 @@ def execute_plan(plan: dict, repo_root: Path, jobs: int | None = None) -> int:
                 print("select_affected_tests_failed: exit=2", flush=True)
                 print(ADVISORY_FOOTER, flush=True)
                 return 2
+            serial_seq += 1
+            gitconfig_path = tpl_root / f"gitconfig.serial.{serial_seq}"
+            _write_isolated_gitconfig(gitconfig_path, repo_root)
             rc = _run_cmd(
                 cmd,
                 repo_root,
@@ -2340,10 +2628,12 @@ def print_dry_run(
             if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", k)
         )
         print(f"unset {unset_keys}")
-        print('_affected_tpl="$(mktemp -d)" && mkdir -p "$_affected_tpl/info" && trap \'rm -rf "$_affected_tpl"\' EXIT')
+        print('_affected_tpl="$(mktemp -d)"')
+        print('trap \'rm -rf "$_affected_tpl"\' EXIT')
+        print('mkdir -p "$_affected_tpl/template/info"')
         print(
             'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$_affected_tpl/gitconfig" '
-            f'GIT_CONFIG_SYSTEM={_shell_quote(os.devnull)} GIT_TERMINAL_PROMPT=0 GIT_TEMPLATE_DIR="$_affected_tpl"'
+            f'GIT_CONFIG_SYSTEM={_shell_quote(os.devnull)} GIT_TERMINAL_PROMPT=0 GIT_TEMPLATE_DIR="$_affected_tpl/template"'
         )
         cfg_line = os.fsdecode(b"[safe]\n\tdirectory = " + _gitconfig_quote_bytes(os.fsencode(resolved_repo_str)) + b"\n")
         print(f'printf %s {_shell_quote(cfg_line)} > "$_affected_tpl/gitconfig"')
@@ -2403,8 +2693,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"select-affected-tests: error: {exc}", file=sys.stderr)
         return 2
 
-    if args.jobs is not None and args.jobs < 1:
-        print("select-affected-tests: error: --jobs must be >= 1", file=sys.stderr)
+    try:
+        _resolve_parallel_jobs(args.jobs)
+    except SelectorError as exc:
+        print(f"select-affected-tests: error: {exc}", file=sys.stderr)
         return 2
 
     raw_repo = Path(args.repo)
@@ -2448,7 +2740,15 @@ def main(argv: list[str] | None = None) -> int:
     plan["advisory"] = ADVISORY_FOOTER
 
     if args.json:
-        print(json.dumps(_json_safe(plan), ensure_ascii=True, indent=2))
+        payload_bytes = (json.dumps(_json_safe(plan), ensure_ascii=True, indent=2) + "\n").encode("utf-8")
+        out_buf = getattr(sys.stdout, "buffer", None)
+        if out_buf is not None:
+            sys.stdout.flush()
+            out_buf.write(payload_bytes)
+            out_buf.flush()
+        else:
+            sys.stdout.write(payload_bytes.decode("ascii"))
+            sys.stdout.flush()
         return 2 if plan.get("unsafe_blocked") else 0
     if args.dry_run:
         print_dry_run(

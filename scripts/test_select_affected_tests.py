@@ -9,6 +9,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import signal
 import stat
 import subprocess
@@ -55,6 +56,8 @@ _SCRUB_GIT_KEYS = (
     "CCL_SKILL_DEFAULT_BASE_REF",
     "CCL_SKILL_SELECTED_DEFAULT_BASE",
     "AFFECTED_ARGS",
+    "MAKEFILES",
+    "SUITE_JOBS",
 )
 
 _RUNNABLE_PY_SUITE_BODY = (
@@ -84,7 +87,7 @@ def isolated_git_env(template_dir: Path, extra: dict[str, str] | None = None) ->
         k: v
         for k, v in os.environ.items()
         if k not in _SCRUB_GIT_KEYS
-        and not k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))
+        and not k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_", "GIT_TRACE"))
     }
     env["GIT_CONFIG_NOSYSTEM"] = "1"
     env["GIT_CONFIG_GLOBAL"] = os.devnull
@@ -152,7 +155,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             preflight_joined,
         )
 
-        # Committed whitespace check is independent of staged/worktree repairs when head_sha != merge_base_sha.
         dirty_plan = mod.build_test_plan(
             ["docs/CONTRIBUTING.md"],
             repo_root=REPO_ROOT,
@@ -397,7 +399,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                     repo, base_ref="refs/remotes/origin/main"
                 )
             self.assertEqual(resolved_base, "refs/remotes/origin/main")
-            # Staged diff must compare against captured_head explicitly rather than live symbolic HEAD!
             cached_calls = [args for args in recorded_git_calls if args[:2] == ("diff", "--cached")]
             self.assertEqual(len(cached_calls), 1)
             self.assertIn(captured_head, cached_calls[0])
@@ -417,18 +418,17 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertIn("docs/untracked_guide.md", plan["untracked_files"])
             self.assertTrue(any("untracked-files:" in n for n in plan["notes"]))
 
-            # --json must succeed even when PYTHONIOENCODING=ascii!
-            ascii_env = dict(env, PYTHONIOENCODING="ascii")
-            proc_ascii = subprocess.run(
-                [sys.executable, str(SELECTOR_PATH), "--repo", str(repo), "--files", "docs/路由.md", "--json"],
-                env=ascii_env,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(proc_ascii.returncode, 0, msg=proc_ascii.stderr)
-            self.assertEqual(json.loads(proc_ascii.stdout)["changed_files"], ["docs/路由.md"])
+            for codec in ("ascii", "utf-16"):
+                codec_env = dict(env, PYTHONIOENCODING=codec)
+                proc_json_codec = subprocess.run(
+                    [sys.executable, str(SELECTOR_PATH), "--repo", str(repo), "--files", "docs/路由.md", "--json"],
+                    env=codec_env,
+                    capture_output=True,
+                )
+                self.assertEqual(proc_json_codec.returncode, 0, msg=codec)
+                self.assertNotIn(b"\x00", proc_json_codec.stdout, msg=codec)
+                self.assertEqual(json.loads(proc_json_codec.stdout.decode("utf-8"))["changed_files"], ["docs/路由.md"])
 
-        # Portable synthetic Git output for non-UTF-8 byte 0xff (APFS rejects creating 0xff on disk).
         raw_non_utf8 = os.fsdecode(b"hooks/test_raw_\xff.py")
         literal_escaped = r"hooks/test_raw_\udcff.py"
 
@@ -485,12 +485,34 @@ class SelectAffectedTestsUnit(unittest.TestCase):
 
             subprocess.run(["git", "branch", "origin/main", "HEAD"], cwd=repo, env=env, check=True)
 
-            # Descendant ref `refs/remotes/origin/ns/topic` must NOT make `--default-base-ref origin/ns` look present!
             subprocess.run(["git", "update-ref", "refs/remotes/origin/ns/topic", "HEAD"], cwd=repo, env=env, check=True)
             with unittest.mock.patch.dict(os.environ, env, clear=True):
                 changed_ns, resolved_ns = mod.collect_changed_files(repo, default_base_ref="origin/ns")
             self.assertEqual(resolved_ns, "refs/remotes/origin/main")
             self.assertEqual(changed_ns, ["feature.txt"])
+
+            trace_env = dict(env, GIT_TRACE="1", GIT_TRACE2="1")
+            proc_trace = subprocess.run(
+                [sys.executable, str(SELECTOR_PATH), "--repo", str(repo), "--files", "feature.txt", "--json"],
+                env=trace_env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(proc_trace.returncode, 0, msg=proc_trace.stderr)
+
+            real_git_bytes = mod._git_bytes
+
+            def fail_git_path(r: Path, *g_args: str):
+                if g_args[:2] == ("rev-parse", "--git-path"):
+                    return subprocess.CompletedProcess(g_args, 128, b"", b"fatal: gitdir unreadable\n")
+                return real_git_bytes(r, *g_args)
+
+            with (
+                unittest.mock.patch.dict(os.environ, env, clear=True),
+                unittest.mock.patch.object(mod, "_git_bytes", side_effect=fail_git_path),
+            ):
+                with self.assertRaises(mod.BaseRefError):
+                    mod._auto_ref_exists(repo, "refs/remotes/origin/absent-ref")
 
             with unittest.mock.patch.dict(os.environ, env, clear=True):
                 changed, resolved = mod.collect_changed_files(repo, default_base_ref="origin/dev")
@@ -530,7 +552,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(files_payload["resolved_base_ref"], "refs/remotes/origin/main")
             self.assertEqual(files_payload["resolved_base_sha"], origin_main_sha)
 
-            # Both a ref pointing to a blob AND a broken loose ref with truncated hex must fail closed (exit 2)!
             blob_sha = subprocess.run(
                 ["git", "hash-object", "-w", "--stdin"],
                 input="not-a-commit\n",
@@ -649,7 +670,8 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                     (
                         "import json, os, pathlib, subprocess, sys; "
                         "safe_dirs = subprocess.run(['git', 'config', '--global', '--get-all', 'safe.directory'], capture_output=True, text=True).stdout.splitlines(); "
-                        "pathlib.Path(sys.argv[1]).write_text(json.dumps({'env': dict(os.environ), 'safe_dirs': safe_dirs}), encoding='utf-8')"
+                        "keep = {k: os.environ[k] for k in os.environ if k.startswith(('GIT_', 'MAKE', 'MFLAGS', 'GNUMAKE', 'CCL_', '-*-'))}; "
+                        "pathlib.Path(sys.argv[1]).write_text(json.dumps({'env': keep, 'safe_dirs': safe_dirs}), encoding='utf-8')"
                     ),
                     str(env_dump),
                 ]],
@@ -661,6 +683,7 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             dirty = dict(
                 env,
                 MAKEFLAGS=" -- CCL_SKILL_DEFAULT_BASE_REF=origin/main",
+                MAKEFILES="/decoy/evil.mk",
                 MAKEOVERRIDES="${-*-command-variables-*-}",
                 CCL_SKILL_DEFAULT_BASE_REF="origin/main",
                 GIT_DIR="/decoy/git-dir",
@@ -680,6 +703,7 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             observed = payload["env"]
             for forbidden in (
                 "MAKEFLAGS",
+                "MAKEFILES",
                 "MAKEOVERRIDES",
                 "-*-command-variables-*-",
                 "CCL_SKILL_DEFAULT_BASE_REF",
@@ -695,7 +719,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(observed["CCL_SKILL_BASE_REF"], pinned_sha)
             self.assertEqual(observed["GIT_CONFIG_NOSYSTEM"], "1")
             self.assertEqual(observed["GIT_CONFIG_SYSTEM"], os.devnull)
-            # Child GIT_CONFIG_GLOBAL must preserve safe.directory trust for `repo`!
             self.assertIn(str(repo.resolve()), payload["safe_dirs"])
 
     def test_git_isolation_disables_fsmonitor_and_isolates_child_templates_and_global_hooks(self):
@@ -783,6 +806,8 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 'd="$(mktemp -d)"\n'
                 'trap \'rm -rf "$d"\' EXIT\n'
                 'git -C "$d" init -q -b main\n'
+                '[ ! -e "$d/.git/gitconfig" ]\n'
+                'git config --global user.name LeakFromSuiteOne\n'
                 'printf "* text=auto\\n" >"$d/.git/info/attributes"\n'
                 'git -C "$d" config user.email t@example.com\n'
                 'git -C "$d" config user.name T\n'
@@ -792,11 +817,20 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 encoding="utf-8",
             )
             suite_file.chmod(0o755)
+            suite2_rel = "scripts/test_private_gitconfig.sh"
+            suite2_file = target_repo / suite2_rel
+            suite2_file.write_text(
+                "#!/usr/bin/env bash\n"
+                "set -euo pipefail\n"
+                '[ -z "$(git config --global --get user.name || true)" ]\n',
+                encoding="utf-8",
+            )
+            suite2_file.chmod(0o755)
             exec_plan = {
-                "changed_files": [suite_rel],
+                "changed_files": [suite_rel, suite2_rel],
                 "resolved_base_ref": "refs/remotes/origin/main",
                 "preflight_commands": [],
-                "parallel_suites": [suite_rel],
+                "parallel_suites": [suite_rel, suite2_rel],
                 "serial_commands": [],
                 "notes": [],
                 "skipped_lanes": [],
@@ -901,7 +935,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             (repo / "hooks/test_escape.sh").symlink_to(outside)
             (repo / "hooks/test_loop.sh").symlink_to("test_loop.sh")
 
-            # 1. FIFO at Makefile must NOT hang planning and must mark unsafe_blocked!
             fifo_repo, _, fifo_env = init_fixture_repo(sandbox / "fifo-w")
             os.mkfifo(fifo_repo / "Makefile")
             fifo_proc = subprocess.Popen(
@@ -920,7 +953,13 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(fifo_proc.returncode, 2)
             self.assertTrue(json.loads(fifo_out)["unsafe_blocked"])
 
-            # 2. Non-executable fixture `test_payload.json` + dedicated serial symlink.
+            (repo / "symparent").symlink_to(sandbox)
+            with unittest.mock.patch.object(mod, "_classify_suite_path", return_value="present"):
+                data_sym, status_sym = mod._read_contained_regular_bytes(repo, "symparent/test_outside.py")
+            self.assertIsNone(data_sym)
+            self.assertEqual(status_sym, "unsafe")
+            (repo / "symparent").unlink()
+
             (repo / "skills/demo/scripts").mkdir(parents=True)
             (repo / "skills/demo/scripts/tool.py").write_text("x = 1\n", encoding="utf-8")
             (repo / "skills/demo/scripts/test_payload.json").write_text("{}\n", encoding="utf-8")
@@ -943,14 +982,12 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertNotIn("test_gen_report.py", serial_flat)
             self.assertTrue(plan["unsafe_blocked"])
 
-            # 3. Preview/dry-run must also reject escaping gate executables such as scripts/check-markdown-links.py!
             (repo / "scripts").mkdir(exist_ok=True)
             (repo / "scripts/check-markdown-links.py").symlink_to(outside)
             doc_escape_plan = mod.build_test_plan(["README.md"], repo_root=repo)
             self.assertTrue(doc_escape_plan["unsafe_blocked"])
             (repo / "scripts/check-markdown-links.py").unlink()
 
-            # 4. Non-test script in Makefile fallback recipe (scripts/check-release-version.py) escaping checkout -> blocked!
             (repo / "hooks/test_escape.sh").unlink()
             (repo / "hooks/test_loop.sh").unlink()
             (repo / "scripts/check-release-version.py").symlink_to(outside)
@@ -963,7 +1000,30 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertFalse(any(c[0] == "make" for c in non_test_fb["serial_commands"]))
             (repo / "scripts/check-release-version.py").unlink()
 
-            # 5. Clean fallback binds `make -f Makefile ...` and rejects an escaping GNUmakefile symlink!
+            dir_script = repo / "scripts/check-release-version.py"
+            dir_script.mkdir()
+            (dir_script / "__main__.py").symlink_to(outside)
+            dir_fb = mod.build_test_plan(["unrecognized.foo"], repo_root=repo)
+            self.assertTrue(dir_fb["unsafe_blocked"])
+            shutil.rmtree(dir_script)
+
+            (repo / "tools").mkdir()
+            (repo / "tools/check.py").symlink_to(outside)
+            (repo / "Makefile").write_text(
+                "test-repo-gates:\n\tpython3 tools/check.py .\n",
+                encoding="utf-8",
+            )
+            tools_fb = mod.build_test_plan(["unrecognized.foo"], repo_root=repo)
+            self.assertTrue(tools_fb["unsafe_blocked"])
+            shutil.rmtree(repo / "tools")
+
+            (repo / "Makefile").write_text(
+                "test-repo-gates:\n\tpython3 $(SCRIPTS_DIR)/check.py .\n",
+                encoding="utf-8",
+            )
+            var_fb = mod.build_test_plan(["unrecognized.foo"], repo_root=repo)
+            self.assertTrue(var_fb["unsafe_blocked"])
+
             (repo / "Makefile").write_text("test-repo-gates:\n\t@:\n", encoding="utf-8")
             clean_fb = mod.build_test_plan(["unrecognized.foo"], repo_root=repo)
             self.assertIn(["make", "-f", "Makefile", "test-repo-gates"], clean_fb["serial_commands"])
@@ -972,13 +1032,16 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertTrue(gnu_fb["unsafe_blocked"])
             (repo / "GNUmakefile").unlink()
 
-            # 6. Queued parallel suite TOCTOU under --jobs 1: suite 1 swaps suite 2 to external symlink mid-batch!
+            s1_bg_pid_file = sandbox / "s1-bg.pid"
             s2 = repo / "hooks/test_b_second.sh"
             s2.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
             s2.chmod(0o755)
             s1 = repo / "hooks/test_a_first.sh"
             s1.write_text(
-                f"#!/usr/bin/env bash\nrm -f '{s2}'\nln -s '{outside_sh}' '{s2}'\n",
+                "#!/usr/bin/env bash\n"
+                "( trap '' TERM; sleep 30 ) &\n"
+                f'printf "%s\\n" "$!" > \'{s1_bg_pid_file}\'\n'
+                f"rm -f '{s2}'\nln -s '{outside_sh}' '{s2}'\n",
                 encoding="utf-8",
             )
             s1.chmod(0o755)
@@ -1001,8 +1064,83 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 rc_queued = mod.execute_plan(queued_plan, repo, jobs=1)
             self.assertEqual(rc_queued, 2, msg=q_out.getvalue() + q_err.getvalue())
             self.assertFalse(sentinel.exists(), "queued parallel suite executed swapped external symlink")
+            s1_bg_pid = int(s1_bg_pid_file.read_text(encoding="utf-8").strip())
+            self.assertFalse(_pid_is_live_non_zombie(s1_bg_pid), "surviving background child leaked on containment abort")
+            s2.unlink()
 
-            # 7. Serial pytest TOCTOU outside the 4 standard prefixes (`tests/test_widget.py`)!
+            dash_dir = repo / "-dash"
+            dash_dir.mkdir()
+            dash_suite = dash_dir / "test_dash.sh"
+            dash_suite.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            dash_suite.chmod(0o755)
+            dash_out = io.StringIO()
+            with unittest.mock.patch.dict(os.environ, env, clear=True), contextlib.redirect_stdout(dash_out):
+                rc_dash = mod.execute_plan(
+                    {
+                        "changed_files": ["-dash/test_dash.sh"],
+                        "resolved_base_ref": None,
+                        "preflight_commands": [],
+                        "parallel_suites": ["-dash/test_dash.sh"],
+                        "serial_commands": [],
+                        "notes": [],
+                        "skipped_lanes": [],
+                    },
+                    repo,
+                    jobs=1,
+                )
+            self.assertEqual(rc_dash, 0, msg=dash_out.getvalue())
+
+            launch_bg_file = sandbox / "launch-bg.pid"
+            slow_first = repo / "hooks/test_launch_first.sh"
+            slow_first.write_text(
+                "#!/usr/bin/env bash\n"
+                "( trap '' TERM; sleep 30 ) &\n"
+                f'printf "%s\\n" "$!" > \'{launch_bg_file}\'\n'
+                "sleep 30\n",
+                encoding="utf-8",
+            )
+            slow_first.chmod(0o755)
+            second_ok = repo / "hooks/test_launch_second.sh"
+            second_ok.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            second_ok.chmod(0o755)
+            real_popen = subprocess.Popen
+            popen_calls = 0
+
+            def flaky_popen(*p_args, **p_kwargs):
+                nonlocal popen_calls
+                popen_calls += 1
+                if popen_calls == 2:
+                    deadline_p = time.monotonic() + 3.0
+                    while not launch_bg_file.exists() and time.monotonic() < deadline_p:
+                        time.sleep(0.02)
+                    raise OSError("simulated fork resource limit")
+                return real_popen(*p_args, **p_kwargs)
+
+            lf_out, lf_err = io.StringIO(), io.StringIO()
+            with (
+                unittest.mock.patch.dict(os.environ, env, clear=True),
+                unittest.mock.patch.object(subprocess, "Popen", side_effect=flaky_popen),
+                contextlib.redirect_stdout(lf_out),
+                contextlib.redirect_stderr(lf_err),
+            ):
+                rc_lf = mod.execute_plan(
+                    {
+                        "changed_files": ["hooks/test_launch_first.sh", "hooks/test_launch_second.sh"],
+                        "resolved_base_ref": None,
+                        "preflight_commands": [],
+                        "parallel_suites": ["hooks/test_launch_first.sh", "hooks/test_launch_second.sh"],
+                        "serial_commands": [],
+                        "notes": [],
+                        "skipped_lanes": [],
+                    },
+                    repo,
+                    jobs=2,
+                )
+            self.assertEqual(rc_lf, 126)
+            self.assertEqual(lf_out.getvalue().splitlines()[-1], "advisory: run make test before push")
+            launch_bg_pid = int(launch_bg_file.read_text(encoding="utf-8").strip())
+            self.assertFalse(_pid_is_live_non_zombie(launch_bg_pid), "first worker leaked after second Popen failed")
+
             (repo / "tests").mkdir()
             widget = repo / "tests/test_widget.py"
             widget.write_text("def test_ok():\n    assert True\n", encoding="utf-8")
@@ -1077,7 +1215,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertNotIn("hooks/test_retired_comment.sh", parsed)
             self.assertNotIn("hooks/test_recipe_comment.sh", parsed)
 
-            # Deleting dotted unittest module `eval/test_design_judge.py` registered in Makefile must trigger drift!
             eval_drift = mod.build_test_plan(["eval/owner-role-audit.py"], repo_root=repo)
             self.assertIn("eval/test_design_judge.py", eval_drift["missing_suites"])
             self.assertIn(["make", "-f", "Makefile", "test-repo-gates"], eval_drift["serial_commands"])
@@ -1141,9 +1278,39 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, env=env, check=True)
             subprocess.run(["git", "update-ref", "refs/remotes/origin/price$5", "HEAD"], cwd=repo, env=env, check=True)
 
-            # Environment variable containing `$5` passed to `make test-affected-plan` is preserved literally.
+            proc_retired = subprocess.run(
+                [
+                    "make",
+                    "--no-print-directory",
+                    "-C",
+                    str(repo),
+                    "test-affected-plan",
+                    "AFFECTED_ARGS=$(warning MAKE_EXPANDED_WARNING)",
+                ],
+                env=dict(env, CCL_SKILL_BASE_REF="refs/remotes/origin/price$5"),
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(proc_retired.returncode, 0)
+            self.assertNotIn("MAKE_EXPANDED_WARNING", proc_retired.stderr)
+
+            proc_cli_base = subprocess.run(
+                [
+                    "make",
+                    "--no-print-directory",
+                    "-C",
+                    str(repo),
+                    "test-affected-plan",
+                    "CCL_SKILL_BASE_REF=refs/remotes/origin/price$5",
+                ],
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(proc_cli_base.returncode, 0)
+
             proc = subprocess.run(
-                ["make", "--no-print-directory", "-C", str(repo), "test-affected-plan"],
+                ["make", "--no-print-directory", "-C", str(repo), "test-affected-plan", "FULL=1"],
                 env=dict(env, CCL_SKILL_BASE_REF="refs/remotes/origin/price$5"),
                 capture_output=True,
                 text=True,
@@ -1151,7 +1318,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr)
             self.assertIn("# base_ref: refs/remotes/origin/price$5", proc.stdout)
 
-            # Direct CLI preserves `$5` and shell metacharacters literally without Make expansion.
             pwn_file = sandbox / "shell-injected"
             proc_cli = subprocess.run(
                 [
@@ -1178,9 +1344,10 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             repo, _, env = init_fixture_repo(sandbox)
             (repo / "scripts").mkdir()
             failing_suite = repo / "scripts/test_no_main_red.py"
-            # Even with a `__main__` block that only prints usage (no runner call!), pytest must be used!
             failing_suite.write_text(
                 "from pathlib import Path\n"
+                "import subprocess\n"
+                "subprocess.run(['true'], check=True)\n"
                 "ROOT = Path(__file__).resolve().parent\n"
                 "def test_deliberate_failure():\n"
                 "    assert ROOT.name == 'impossible'\n"
@@ -1188,11 +1355,35 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 "    print('run via pytest')\n",
                 encoding="utf-8",
             )
-            plan = mod.build_test_plan(["scripts/test_no_main_red.py"], repo_root=repo)
+            no_guard_run = repo / "scripts/test_top_subproc_run.py"
+            no_guard_run.write_text(
+                "import subprocess\n"
+                "subprocess.run(['true'], check=True)\n"
+                "def test_must_use_pytest():\n"
+                "    assert False\n",
+                encoding="utf-8",
+            )
+            custom_guard = repo / "scripts/test_custom_harness.py"
+            custom_guard.write_text(
+                "def verify_cases():\n"
+                "    assert 1 + 1 == 2\n"
+                "if __name__ == '__main__':\n"
+                "    verify_cases()\n",
+                encoding="utf-8",
+            )
+
+            plan = mod.build_test_plan(
+                ["scripts/test_no_main_red.py", "scripts/test_top_subproc_run.py", "scripts/test_custom_harness.py"],
+                repo_root=repo,
+            )
             plan["preflight_commands"] = []
             self.assertNotIn("scripts/test_no_main_red.py", plan["parallel_suites"])
+            self.assertNotIn("scripts/test_top_subproc_run.py", plan["parallel_suites"])
+            self.assertIn("scripts/test_custom_harness.py", plan["parallel_suites"])
             pytest_cmd = ["python3", "-m", "pytest", "-q", "scripts/test_no_main_red.py"]
             self.assertIn(pytest_cmd, plan["serial_commands"])
+            self.assertIn(["python3", "-m", "pytest", "-q", "scripts/test_top_subproc_run.py"], plan["serial_commands"])
+            plan["parallel_suites"] = []
             plan["serial_commands"] = [pytest_cmd]
 
             extra_env = dict(env)
@@ -1264,6 +1455,7 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(changed, ["new.txt", "old.txt"])
 
     def test_sigterm_cancellation_escalates_on_term_ignoring_child_and_descendant(self):
+        mod = load_selector()
         with tempfile.TemporaryDirectory() as tmp:
             sandbox = Path(tmp)
             repo, _, env = init_fixture_repo(sandbox)
@@ -1345,6 +1537,136 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                     time.sleep(0.05)
                 self.assertFalse(alive, f"{subcase}: TERM-ignoring grandchild process leaked after SIGTERM escalation")
 
+            serial_pid_file = sandbox / "serial-grandchild.pid"
+            serial_proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "import importlib.util, pathlib, sys; "
+                        f"spec = importlib.util.spec_from_file_location('s', {str(SELECTOR_PATH)!r}); "
+                        "m = importlib.util.module_from_spec(spec); sys.modules['s'] = m; spec.loader.exec_module(m); "
+                        "rc = m._run_cmd(['bash', '-c', '( trap \"\" TERM; sleep 30 ) & printf \"%s\\n\" \"$!\" > ' + sys.argv[1] + '; trap \"\" TERM; sleep 30'], pathlib.Path(sys.argv[2])); "
+                        "raise SystemExit(rc)"
+                    ),
+                    str(serial_pid_file),
+                    str(repo),
+                ],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                deadline_s = time.monotonic() + 5.0
+                while not serial_pid_file.exists() and time.monotonic() < deadline_s:
+                    time.sleep(0.03)
+                self.assertTrue(serial_pid_file.exists(), "serial _run_cmd child did not start")
+                serial_gpid = int(serial_pid_file.read_text(encoding="utf-8").strip())
+                serial_proc.send_signal(signal.SIGTERM)
+                serial_proc.communicate(timeout=6.0)
+            finally:
+                if serial_proc.poll() is None:
+                    serial_proc.kill()
+                try:
+                    serial_proc.communicate(timeout=2.0)
+                except Exception:
+                    pass
+            self.assertEqual(serial_proc.returncode, 128 + signal.SIGTERM)
+            self.assertFalse(_pid_is_live_non_zombie(serial_gpid), "serial _run_cmd leaked TERM-ignoring grandchild")
+
+            launch_win_pid_file = sandbox / "launch-window.pid"
+            real_popen = subprocess.Popen
+
+            def signal_during_launch(*p_args, **p_kwargs):
+                child = real_popen(*p_args, **p_kwargs)
+                launch_win_pid_file.write_text(str(child.pid), encoding="utf-8")
+                os.kill(os.getpid(), signal.SIGTERM)
+                return child
+
+            lw_out = io.StringIO()
+            with (
+                unittest.mock.patch.object(subprocess, "Popen", side_effect=signal_during_launch),
+                contextlib.redirect_stdout(lw_out),
+            ):
+                rc_lw = mod._run_cmd(["bash", "-c", "trap '' TERM; sleep 30"], repo)
+            self.assertEqual(rc_lw, 128 + signal.SIGTERM)
+            lw_pid = int(launch_win_pid_file.read_text(encoding="utf-8").strip())
+            self.assertFalse(_pid_is_live_non_zombie(lw_pid), "child survived signal delivered in Popen launch window")
+
+            real_signal_fn = signal.signal
+            active_fwd = {}
+
+            def inject_on_restore(sig, handler):
+                if sig == signal.SIGTERM and callable(handler) and handler not in (signal.SIG_DFL, signal.SIG_IGN):
+                    active_fwd["fn"] = handler
+                elif sig == signal.SIGTERM and "fn" in active_fwd:
+                    fn = active_fwd.pop("fn")
+                    fn(signal.SIGTERM, None)
+                return real_signal_fn(sig, handler)
+
+            rs_out = io.StringIO()
+            with (
+                unittest.mock.patch.object(signal, "signal", side_effect=inject_on_restore),
+                contextlib.redirect_stdout(rs_out),
+            ):
+                rc_rs = mod._run_cmd([sys.executable, "-c", "raise SystemExit(0)"], repo)
+            self.assertEqual(rc_rs, 128 + signal.SIGTERM, "late SIGTERM during handler restore was lost")
+
+            done_suite = repo / "scripts/test_fast_done.sh"
+            done_suite.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            done_suite.chmod(0o755)
+            hang_marker = sandbox / "hang-second.started"
+            hang_suite = repo / "scripts/test_hang_second.sh"
+            hang_suite.write_text(
+                f"#!/usr/bin/env bash\nprintf '1\\n' > '{hang_marker}'\nsleep 30\n",
+                encoding="utf-8",
+            )
+            hang_suite.chmod(0o755)
+            signaled_pgids: list[int] = []
+            real_killpg = os.killpg
+
+            def spy_killpg(pgid: int, sig_num: int):
+                if sig_num != 0:
+                    signaled_pgids.append(pgid)
+                return real_killpg(pgid, sig_num)
+
+            spawned_leader_pids: list[int] = []
+
+            def record_leaders(*p_args, **p_kwargs):
+                ch = real_popen(*p_args, **p_kwargs)
+                spawned_leader_pids.append(ch.pid)
+                if len(spawned_leader_pids) == 2:
+                    deadline_h = time.monotonic() + 3.0
+                    while not hang_marker.exists() and time.monotonic() < deadline_h:
+                        time.sleep(0.02)
+                    os.kill(os.getpid(), signal.SIGTERM)
+                return ch
+
+            retire_out = io.StringIO()
+            with (
+                unittest.mock.patch.dict(os.environ, env, clear=True),
+                unittest.mock.patch.object(os, "killpg", side_effect=spy_killpg),
+                unittest.mock.patch.object(subprocess, "Popen", side_effect=record_leaders),
+                contextlib.redirect_stdout(retire_out),
+            ):
+                rc_retire = mod.execute_plan(
+                    {
+                        "changed_files": ["scripts/test_fast_done.sh", "scripts/test_hang_second.sh"],
+                        "resolved_base_ref": None,
+                        "preflight_commands": [],
+                        "parallel_suites": ["scripts/test_fast_done.sh", "scripts/test_hang_second.sh"],
+                        "serial_commands": [],
+                        "notes": [],
+                        "skipped_lanes": [],
+                    },
+                    repo,
+                    jobs=1,
+                )
+            self.assertEqual(rc_retire, 128 + signal.SIGTERM)
+            self.assertEqual(len(spawned_leader_pids), 2)
+            self.assertNotIn(spawned_leader_pids[0], signaled_pgids, "reaped dead PGID was signaled on later cancel")
+
     def test_json_dry_run_replay_stop_on_error_ansi_escape_exit_codes_and_broken_pipe(self):
         mod = load_selector()
         with tempfile.TemporaryDirectory() as tmp:
@@ -1425,7 +1747,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertNotIn("SHOULD_NOT_EMIT", blocked_dry.getvalue())
             self.assertIn("(exit 2)", blocked_dry.getvalue().splitlines())
 
-            # Plain `bash -c` (NO external `-e`) replays in `repo` AND stops at the first failing command!
             other_cwd = sandbox / "elsewhere"
             other_cwd.mkdir()
             replay_marker = sandbox / "replayed-pwd.txt"
@@ -1460,6 +1781,17 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(proc_replay.returncode, 0, msg=proc_replay.stderr)
             self.assertEqual(replay_marker.read_text(encoding="utf-8"), f"{repo.resolve()}|{pinned_sha}")
 
+            replay_marker.unlink()
+            proc_bad_tmp = subprocess.run(
+                ["bash", "-c", replay_buf.getvalue()],
+                cwd=other_cwd,
+                env=dict(env, TMPDIR=str(sandbox / "no-such-tmpdir"), REPLAY_MARKER=str(replay_marker)),
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(proc_bad_tmp.returncode, 0)
+            self.assertFalse(replay_marker.exists(), "replay continued after mktemp -d failed")
+
             never_marker = sandbox / "after-fail"
             fail_replay_plan = {
                 "changed_files": ["x"],
@@ -1481,6 +1813,31 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             )
             self.assertEqual(proc_fail_replay.returncode, 5)
             self.assertFalse(never_marker.exists(), "replayed plan continued past failed preflight")
+
+            out_j0, err_j0 = io.StringIO(), io.StringIO()
+            def _j0_alarm(_s, _f):
+                raise TimeoutError("execute_plan(jobs=0) spun without progress")
+            prev_alrm = signal.signal(signal.SIGALRM, _j0_alarm)
+            signal.setitimer(signal.ITIMER_REAL, 1.5)
+            try:
+                with contextlib.redirect_stdout(out_j0), contextlib.redirect_stderr(err_j0):
+                    rc_j0 = mod.execute_plan(replay_plan, repo, jobs=0)
+            finally:
+                signal.setitimer(signal.ITIMER_REAL, 0)
+                signal.signal(signal.SIGALRM, prev_alrm)
+            self.assertEqual(rc_j0, 2)
+
+            spaced.write_text('#!/usr/bin/env bash\necho "PASS_SUITE_DETAIL"\nexit 0\n', encoding="utf-8")
+            out_sj = io.StringIO()
+            with (
+                unittest.mock.patch.dict(os.environ, dict(env, SUITE_JOBS="1"), clear=True),
+                contextlib.redirect_stdout(out_sj),
+            ):
+                rc_sj = mod.execute_plan(replay_plan, repo, jobs=None)
+            self.assertEqual(rc_sj, 0)
+            self.assertIn("jobs=1", out_sj.getvalue())
+            self.assertIn("PASS_SUITE_DETAIL", out_sj.getvalue())
+            self.assertIn("regression_test_timing: test=hooks/test_space name.sh", out_sj.getvalue())
 
             unsafe_only = mod.build_test_plan(["../outside.sh"], repo_root=repo)
             out_unsafe = io.StringIO()
@@ -1557,23 +1914,26 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(out_sig.getvalue().splitlines()[-1], "advisory: run make test before push")
 
             bad_suite = repo / "hooks/test_fail_seven.sh"
-            bad_suite.write_text("#!/usr/bin/env bash\nexit 7\n", encoding="utf-8")
+            bad_suite.write_bytes(b"#!/usr/bin/env bash\nprintf 'non-ascii: \xc3\xa9 \xff\\n'\nexit 7\n")
             bad_suite.chmod(0o755)
-            par_plan = {
-                "changed_files": ["hooks/test_fail_seven.sh"],
-                "resolved_base_ref": None,
-                "preflight_commands": [],
-                "parallel_suites": ["hooks/test_fail_seven.sh"],
-                "serial_commands": [],
-                "notes": [],
-                "skipped_lanes": [],
-            }
-            out_par = io.StringIO()
-            err_par = io.StringIO()
-            with contextlib.redirect_stdout(out_par), contextlib.redirect_stderr(err_par):
-                rc_par = mod.execute_plan(par_plan, repo, jobs=1)
-            self.assertEqual(rc_par, 1)
-            self.assertEqual(out_par.getvalue().splitlines()[-1], "advisory: run make test before push")
+            for stub_rel in (
+                "skills/skill-extraction-workflow/scripts/check-ccl-skills.sh",
+                "skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py",
+                "skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh",
+                "scripts/check-public-sanitization.py",
+            ):
+                stub = repo / stub_rel
+                stub.parent.mkdir(parents=True, exist_ok=True)
+                stub.write_text("#!/usr/bin/env bash\nexit 0\n" if stub_rel.endswith(".sh") else "raise SystemExit(0)\n", encoding="utf-8")
+                stub.chmod(0o755)
+            proc_ascii_fail = subprocess.run(
+                [sys.executable, str(SELECTOR_PATH), "--repo", str(repo), "--files", "hooks/test_fail_seven.sh", "--run"],
+                env=dict(env, PYTHONIOENCODING="ascii"),
+                capture_output=True,
+            )
+            self.assertEqual(proc_ascii_fail.returncode, 1, msg=proc_ascii_fail.stderr.decode("utf-8", "replace"))
+            self.assertNotIn(b"UnicodeEncodeError", proc_ascii_fail.stderr)
+            self.assertTrue(proc_ascii_fail.stdout.splitlines()[-1].endswith(b"advisory: run make test before push"))
 
             skip_plan = {
                 "changed_files": ["x"],
