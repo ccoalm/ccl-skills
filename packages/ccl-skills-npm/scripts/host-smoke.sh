@@ -12,7 +12,11 @@ mkdir -p "$tmp/home/.codex" "$tmp/workspace" "$tmp/install-v1" "$tmp/install-v2"
 export HOME="$tmp/home"
 export CODEX_HOME="$tmp/home/.codex"
 unset npm_config_allow_scripts NPM_CONFIG_ALLOW_SCRIPTS
-unset CLAUDE_CONFIG_DIR   # else claude reads and changes the caller's real profile, not $HOME
+# Claude locates its profile and plugin state through these variables; left
+# set, the smoke's claude commands read and change the caller's real state.
+for var in $(compgen -e); do
+  case "$var" in CLAUDE_CONFIG_DIR|CLAUDE_CODE_PLUGIN_*) unset "$var" ;; esac
+done
 export NPM_CONFIG_USERCONFIG="$tmp/home/.npmrc"
 export NPM_CONFIG_CACHE="$tmp/npm-cache"
 export npm_config_userconfig="$tmp/home/.npmrc"

@@ -220,22 +220,33 @@ The common cause was evaluating into the script's live variable names, which car
 
 ## Full local verification
 
-Run on `3eccfb0` with `CCL_BROAD_TEST_REASON=repo-required`, `umask 022`, and pytest and PyYAML from a Python 3.12 virtual environment:
+All runs use `CCL_BROAD_TEST_REASON=repo-required`, `umask 022`, and pytest and PyYAML from a Python 3.12 virtual environment.
 
-| Check | Result |
+| Check | `3eccfb0` | `8db4ef5` (smoke repair) |
+| --- | --- | --- |
+| `make test-repo-gates` | passed | passed |
+| `make test-regressions-fast` | one suite failed; see below | passed |
+| `make test-code-review-1` and `-2` | passed | not rerun: only the smoke script and docs changed |
+| `make test-code-review-abort-leak-1` and `-2` | passed, under `unshare` (the Orca session's subreaper is not PID 1) | not rerun, as above |
+| `make npm-publish-dry`, `npm test` | passed | passed |
+| `npm run smoke:host` | failed, as on a clean `788470c` | passed |
+
+- **The `3eccfb0` fast-lane failure.** That run exported `CCL_SKILL_DEFAULT_BASE_REF=origin/main`. The variable overrides the Makefile default that `test_ci_checkout_ref_binding.sh` checks. Without it, the suite passes, and the `8db4ef5` run did not set it.
+- **Host smoke repair.** The smoke failed before this change, for two reasons, each confirmed by rerunning after the previous fix:
+  - **Synthetic source.** It copied a fixed list of roots that lacks `.antigravity-plugin` and the root `hooks.json`, both of which `build-assets.mjs` builds from since Antigravity host support landed. The build of the synthetic 1.0.0 source then failed with `missing runtime closure: .../.antigravity-plugin/plugin.json`.
+  - **Claude isolation.** It sets `HOME` but not Claude's own state variables. On a host that sets them, the smoke's `claude` commands read and change the caller's real profile and plugin cache. Here the install refused with `double-install` because the caller's profile holds a Git-marketplace install.
+
+  `host-smoke.sh` now copies both roots and unsets `CLAUDE_CONFIG_DIR` and every `CLAUDE_CODE_PLUGIN_*` variable. The scripts contract records both rules.
+
+## Smoke repair review R3
+
+[`review-R3.json`](review-R3.json): Codex, review mode, of the smoke repair (`3eccfb0`..`8db4ef5`). It reported 3 findings: 2 P2 and 1 P3.
+
+| Finding | Disposition |
 | --- | --- |
-| `make test-repo-gates` | passed |
-| `make test-code-review-1` and `-2` | passed |
-| `make test-code-review-abort-leak-1` and `-2` | passed. Run under `unshare`, because the Orca session's subreaper is not PID 1. |
-| `make npm-publish-dry`, `npm test` | passed |
-| `make test-regressions-fast` | One suite failed: `test_ci_checkout_ref_binding.sh`. The run exported `CCL_SKILL_DEFAULT_BASE_REF=origin/main`, which overrides the Makefile default the suite checks. Without that variable, the suite passes. |
-| `npm run smoke:host` | Failed on `3eccfb0` and on a clean `788470c` alike. See below. |
-
-**Host smoke repair.** The smoke failed before this change, for two reasons, each confirmed by rerunning after the previous fix:
-- **Synthetic source.** It copied a fixed list of roots that lacks `.antigravity-plugin` and the root `hooks.json`, both of which `build-assets.mjs` builds from since Antigravity host support landed. The build of the synthetic 1.0.0 source then failed with `missing runtime closure: .../.antigravity-plugin/plugin.json`.
-- **Claude isolation.** It sets `HOME` but not `CLAUDE_CONFIG_DIR`. On a host that sets that variable, the smoke's `claude` commands read and change the caller's real profile; here the install refused with `double-install` because that profile holds a Git-marketplace install.
-
-`host-smoke.sh` now copies both roots and unsets `CLAUDE_CONFIG_DIR`, and the scripts contract records both rules. The smoke then passes with `three-host-smoke-passed`.
+| P2 `CLAUDE_CODE_PLUGIN_CACHE_DIR` still points Claude at the caller's cache | Confirmed: this Claude CLI reads it and `CLAUDE_CODE_PLUGIN_DIRS`. RED with all three variables pointing at disposable caller directories: the `8db4ef5` smoke wrote 841 entries into the caller's cache, including `installed_plugins.json`. Fixed by unsetting `CLAUDE_CONFIG_DIR` and every `CLAUDE_CODE_PLUGIN_*` variable; the same run then passes and leaves all three directories empty. |
+| P2 untracked files in a copied root reach the synthetic build | Not fixed here. The smoke has always copied whole working-tree roots, so the gap applies to every root, not only the two added. Copying the tracked files of each root instead is a separate change. Follow-up: make the host smoke stage roots from the Git index, as `build-assets.mjs` reads them. |
+| P3 full-suite results recorded only for `3eccfb0` | Fixed: the table above records `8db4ef5`. |
 
 ## Latency
 
