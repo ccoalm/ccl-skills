@@ -41,6 +41,7 @@ import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASELINE = "788470c"
+BASELINE_COMMIT = "788470c31d70de3c11ef1a5e2df9c95a57916b94"
 EXPECTED = os.path.join(REPO, "hooks", "test_hook_field_reads.expected.json")
 COPIED = ("hooks", "scripts/owner-dispatch")
 ENGINE = "scripts/owner-dispatch/owner-dispatch.sh"
@@ -63,7 +64,9 @@ GIT_ENV = {
     "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
     "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid",
     "GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z", "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z",
-    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+    # The baseline is the commit object itself, never a replacement for it.
+    "GIT_NO_REPLACE_OBJECTS": "1",
 }
 
 
@@ -159,7 +162,7 @@ class Sandbox:
         os.makedirs(dest)
         if source == "baseline":
             archive = subprocess.run(
-                ["git", "-C", REPO, "archive", BASELINE, *COPIED],
+                ["git", "-C", REPO, "archive", BASELINE_COMMIT, *COPIED],
                 check=True, capture_output=True, env=git_env()).stdout
             subprocess.run(["tar", "-x", "-C", dest], input=archive, check=True)
         else:
@@ -236,7 +239,9 @@ class Sandbox:
 
     def norm(self, data):
         text = data.decode("utf-8", "backslashreplace")
-        return text.replace(self.root, "<T>").replace("merge-auth-" + self.uid, "merge-auth-<UID>")
+        # Hook JSON output carries the path JSON-escaped.
+        text = text.replace(json.dumps(self.root)[1:-1], "<T>").replace(self.root, "<T>")
+        return text.replace("merge-auth-" + self.uid, "merge-auth-<UID>")
 
     def state_dirs(self):
         for repo in (self.prod, self.strict):
@@ -429,6 +434,8 @@ def group_stall(sb, record):
     # Bash 5.2; the broad guard's payloads stay under its 1 MiB input head.
     for label, suffix, broad_suffix in (
             ("newlines", "\n" * 200000, "\n" * 200000),
+            # Under the 65,536-character bound, so the trailing-newline trim runs.
+            ("newlines-in-bound", "\n" * 60000, "\n" * 60000),
             ("nuls", "\0" * 800000, "\0" * 100000),
             ("apostrophes", "'" * 900000, "'" * 900000)):
         runs = {
@@ -452,6 +459,26 @@ def group_stall(sb, record):
             res["state"] = sb.engine_state()
             res["grants"] = sb.grants()
             record("stall/%s/%s" % (name, label), res)
+    # An inherited exported `fields` keeps its export attribute. A command under
+    # the length bound whose @sh form exceeds one environment string (128 KiB
+    # on Linux) would then break every child the hook starts.
+    quoted = "'" * 40000
+    for name, (script, payload, cwd, args) in {
+            "engine-bash": (ENGINE, {"session_id": "S1", "tool_name": "Bash",
+                                     "tool_input": {"command": "echo x > src/foo.go " + quoted}},
+                            sb.prod, ("pretool",)),
+            "merge": (MERGE, {"session_id": "SA", "cwd": "<T>/mr-feat",
+                              "tool_input": {"command": "gh pr merge 12 --squash " + quoted}},
+                      None, ()),
+            "broad": (BROAD, {"tool_name": "Bash", "tool_input": {"command": "pytest " + quoted}},
+                      sb.plain, ()),
+    }.items():
+        sb.reset()
+        res = sb.run(script, jtext(payload), cwd=cwd, args=args, timeout=STALL_SECONDS,
+                     extra_env={"CLAUDECODE": "1", "fields": "inherited"})
+        res["state"] = sb.engine_state()
+        res["grants"] = sb.grants()
+        record("exported-fields/%s" % name, res)
     # A long agent id whose base64 is full of "/" and "+".
     sb.reset()
     res = sb.run(ENGINE, jtext({"session_id": "S1", "agent_id": "?~" * 350000, "tool_name": "Bash",
@@ -525,16 +552,32 @@ def summary(result):
     return text if len(text) <= 400 else text[:400] + "..."
 
 
+def fixture_key():
+    """The OS plus the flavour of the tools on PATH whose output reaches the
+    compared results: Homebrew's GNU coreutils on macOS differs from BSD."""
+    flavours = []
+    for tool in ("tr", "basename"):
+        gnu = subprocess.run([tool, "--version"], capture_output=True, text=True)
+        flavours.append("%s-%s" % (tool, "gnu" if "GNU" in gnu.stdout else "other"))
+    return "/".join([platform.system()] + flavours)
+
+
 def write_dump(path, results):
     with open(path, "w") as fh:
         json.dump(results, fh, indent=1, sort_keys=True, ensure_ascii=False)
 
 
-def stderr_texts(result):
-    yield result.get("stderr", "")
+def walk(result):
+    """The result and the hook runs nested in it (Stop, the repeat call)."""
+    yield result
     for value in result.values():
         if isinstance(value, dict) and "rc" in value:
-            yield value["stderr"]
+            yield value
+
+
+def stderr_texts(result):
+    for run in walk(result):
+        yield run.get("stderr", "")
 
 
 def collect(source):
@@ -564,15 +607,20 @@ def main():
     if opts.dump_baseline:
         write_dump(opts.dump_baseline, collect("baseline")[0])
         return 0
-    # Baseline output differs by platform where the hooks call system tools
-    # (GNU and BSD tr, basename), so each platform keeps its own entry.
-    system = platform.system()
+    # Baseline output differs where the hooks call system tools (GNU and BSD tr
+    # and basename), so each platform and tool flavour keeps its own entry.
+    system = fixture_key()
     fixture = {"baseline": BASELINE, "platforms": {}}
     if os.path.exists(EXPECTED):
         with open(EXPECTED) as fh:
             fixture = json.load(fh)
     if opts.regenerate:
         results, counts = collect("baseline")
+        timed_out = sorted(k for k, v in results.items()
+                           if any(str(r.get("rc", "")).startswith("timeout") for r in walk(v)))
+        if timed_out:
+            print("FAIL: the baseline timed out in %s; rerun on a quieter host" % timed_out)
+            return 1
         fixture["baseline"] = BASELINE
         fixture["platforms"][system] = {
             "jq_counts": counts, "cases": {k: digest(v) for k, v in sorted(results.items())}}

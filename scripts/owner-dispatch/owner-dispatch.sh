@@ -679,20 +679,21 @@ cmd_pretool() {
   # One jq call reads every field (jq start-up dominates this hook). Each value
   # is what `$(jq -r '.x // default')` gives, trailing newlines stripped. jq
   # prints nothing, and the per-field reads below run as before, unless the
-  # payload is one JSON document whose fields are strings with no NUL, at most
-  # 16 trailing newlines and at most 1000 apostrophes. Beyond those bounds,
-  # dropping NULs, trimming newlines or evaluating the quoted value costs more
-  # than linear time, and a crafted payload could stall the hook past the host
-  # timeout, where it no longer blocks. The agent key is @base64 of the original
-  # value, mapped to -_ by tr as aid_key_from does.
+  # payload is one JSON document whose fields are strings of at most 65,536
+  # characters with no NUL and at most 16 trailing newlines. The length is
+  # checked first. Beyond those bounds, dropping NULs, trimming newlines or
+  # evaluating the quoted value costs more than linear time or memory, and a
+  # crafted payload could stall the hook past the host timeout, where it no
+  # longer blocks. The agent key is @base64 of the original value, mapped to -_
+  # by tr as aid_key_from does.
   fields=$(printf '%s' "$input" | jq -rs '
     def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
     select(length == 1) | .[0]
     | [(.session_id // "nosession"), (.agent_id // ""), (.tool_name // ""),
        (.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // ""),
        (.tool_input.command // ""), (.agent_id // "" | @base64)]
-    | select(all(.[]; type == "string" and (split("\u0000") | length) < 2
-        and (split("\u0027") | length) <= 1001))
+    | select(all(.[]; type == "string" and length <= 65536
+        and (split("\u0000") | length) < 2))
     | map(trim_nl(16)) | select(all(.[]; type == "string"))
     | "SID=\(.[0] | @sh) AID=\(.[1] | @sh) tool=\(.[2] | @sh) fp=\(.[3] | @sh) cmd=\(.[4] | @sh) AIDKEY=\(.[5] | @sh) fields_read=1"' 2>/dev/null)
   case "$fields" in
@@ -707,6 +708,7 @@ cmd_pretool() {
       tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
       ;;
   esac
+  unset fields   # an inherited export would pass this buffer to every child
 
   HOST_TOOL="${1:-$tool}"
   if [ "$tool" = apply_patch ]; then

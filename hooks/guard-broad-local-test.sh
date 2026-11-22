@@ -50,19 +50,21 @@ input=$(head -c 1048576) || exit 0
 # One jq call reads both fields. Each value is what `$(jq -r '.x // empty')`
 # gives, trailing newlines stripped. jq prints nothing, and the per-field reads
 # below run as before, unless the payload is one JSON document whose fields are
-# strings with no NUL, at most 16 trailing newlines and at most 1000
-# apostrophes. Beyond those bounds, dropping NULs, trimming newlines or
-# evaluating the quoted value costs more than linear time.
+# strings of at most 65,536 characters with no NUL and at most 16 trailing
+# newlines. The length is checked first. Beyond those bounds, dropping NULs,
+# trimming newlines or evaluating the quoted value costs more than linear time
+# or memory.
 fields=$(printf '%s' "$input" | jq -rs '
   def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
   select(length == 1) | .[0]
   | [(.tool_name // ""), (.tool_input.command // "")]
-  | select(all(.[]; type == "string" and (split("\u0000") | length) < 2
-      and (split("\u0027") | length) <= 1001))
+  | select(all(.[]; type == "string" and length <= 65536
+      and (split("\u0000") | length) < 2))
   | map(trim_nl(16)) | select(all(.[]; type == "string"))
   | "tool=\(.[0] | @sh) cmd=\(.[1] | @sh) fields_read=1"' 2>/dev/null)
 fields_read=""
 case "$fields" in *' fields_read=1') eval "$fields" ;; esac   # every value is @sh-quoted
+unset fields   # an inherited export would pass this buffer to every child
 
 [ -n "$fields_read" ] || tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
 case "$tool" in ''|Bash) ;; *) exit 0 ;; esac

@@ -51,73 +51,86 @@ The edit checkpoint routes hook edits through `skill-extraction-workflow`. The s
 ## How each read is merged
 
 - **Engine, merge guard, broad-test guard.** One `jq -rs` call emits `name='value'` assignments with `@sh`, and the script evaluates them. It emits them only for exactly one JSON document whose fields, after their `// default`, are all strings with:
+  - at most 65,536 characters, checked first;
   - no NUL;
-  - at most 16 trailing newlines;
-  - at most 1000 apostrophes.
+  - at most 16 trailing newlines.
 
-  Trailing newlines are stripped, as `$(jq -r ...)` did. Any other input prints nothing, and the script then runs the original per-field reads unchanged, so those payloads behave as on main by construction. The engine's agent key is `@base64` of the original value, mapped by `tr '+/' '-_'` as `aid_key_from` does.
+  Trailing newlines are stripped, as `$(jq -r ...)` did. Any other input prints nothing, and the script then runs the original per-field reads unchanged, so those payloads behave as on main by construction.
+  - The buffer holding the assignments is unset after use, so an inherited export of that name cannot pass it to the hook's children.
+  - The engine's agent key is `@base64` of the original value, mapped by `tr '+/' '-_'` as `aid_key_from` does.
 - **Edit guard.** The plan has it keep its trailing-newline-preserving path read and its malformed flag separate from the `@sh` record.
   - Both stay `jq -j` NUL-terminated records, but from one call on fd 3.
   - The flag record comes first and is always emitted, so a malformed patch with no targets is still flagged. Targets are then checked as they arrive, as on main.
   - The jq-only normalizer emits one object per input document. `$(jq -r .malformed_patch)` printed one line per document, so it read `true` only for a single document flagged true; the flag record reproduces that.
   - Paths keep their exact bytes.
-- **Deviation from the plan.** The plan's constraints say NULs are removed in jq, trailing newlines are stripped, and values are evaluated as `@sh` assignments. Measured on jq 1.6 and Bash 5.2 under a UTF-8 locale, three of those steps cost more than linear time:
+- **Deviation from the plan.** The plan's constraints say NULs are removed in jq, trailing newlines are stripped, and values are evaluated as `@sh` assignments. Measured on jq 1.6 and Bash 5.2 under a UTF-8 locale, those steps cost more than linear time or memory on crafted values:
 
-  | Step | Input | Time |
+  | Step | Input | Cost |
   | --- | --- | --- |
   | strip loop `until(endswith("\n") \| not; .[:-1])` (first draft) | 40,000 trailing newlines | 6 s |
   | `split("\u0000") \| join("")` | 400,000 NULs | 3.9 s |
   | `eval` of the `@sh` form | 240,000 apostrophes | 3.0 s; 25.7 s at 900,000 |
+  | `split` before any length check | a 2 MiB field | 104 MiB, against 16 MiB for a plain read |
 
-  Each hook has a 10 s timeout in `hooks.json`, and a hook that outlives it does not block. Such a payload could carry an unauthorized merge past the guard, while main reads these values in linear time. Values beyond the bounds above therefore take the per-field reads: the decoded result is unchanged, and the work stays linear.
+  Each hook has a 10 s timeout in `hooks.json`, and a hook that outlives it does not block. Such a payload could carry an unauthorized merge past the guard, while main reads these values in linear time. Values beyond the bounds above therefore take the per-field reads. The decoded result is unchanged, and the work stays linear. Within the bounds, evaluating 65,536 apostrophes takes 137 ms.
 
 ## Differential test
 
 `hooks/test_hook_field_reads.py`, registered in `make test-repo-gates`.
 
-- **Cases.** 567, pinned as hashes from baseline `788470c`:
+- **Cases.** 574, pinned as hashes from baseline `788470c`:
   - 22 value variants per read field, including 16 and 17 trailing newlines, plus 8 whole-payload variants per script;
   - real gated edits followed by `owner-dispatch-stop.sh`;
   - merge grants for two sessions, with a second call after each;
   - edit-guard scenarios with and without `host-input.py`, including several documents;
-  - stall payloads for each script, held to 5 s, half the host timeout: 200,000 trailing newlines; 800,000 NULs, or 100,000 for the broad guard to stay inside its 1 MiB input head; 900,000 apostrophes; and a 700,000-character agent id. Both sides finish each in under 1 s.
-- **Environment.** The hooks run under a UTF-8 locale, as on a host, because under `C` Bash evaluates quoted text much faster and the apostrophe stall disappears. A host without `C.UTF-8` or `en_US.UTF-8` fails the test rather than running a weaker one. Fixture git commands ignore the caller's `GIT_*` variables.
+  - stall payloads for each script, held to 5 s (half the host timeout); both sides finish each in under 1 s:
+    - 200,000 trailing newlines, and 60,000 within the length bound;
+    - 800,000 NULs, or 100,000 for the broad guard to stay inside its 1 MiB input head;
+    - 900,000 apostrophes;
+    - a 700,000-character agent id;
+  - a 40,000-apostrophe command with `fields` exported in the hook's environment.
+- **Environment.** The hooks run under a UTF-8 locale, as on a host, because under `C` Bash evaluates quoted text much faster and the apostrophe stall disappears. A host without `C.UTF-8` or `en_US.UTF-8` fails the test rather than running a weaker one. Fixture git commands ignore the caller's `GIT_*` variables and global git config. The baseline is archived from the full commit id with replace objects disabled.
 - **Compared.** Each case compares:
   - stdout, exit code and every owner-dispatch state file with its contents;
   - merge grants;
   - stderr, where only the line number in Bash's own `<script>.sh: line N:` prefix is normalized.
+
+  The sandbox path is replaced in its literal and JSON-escaped forms.
 - **Checks on every case.** Payload text that would run a command if evaluated (`$(touch PWNED)`, backticks, an array element) must leave no `PWNED` file anywhere in the sandbox. A marker in malformed fields must not reach stderr.
 - **jq count.** Each script must start at least the merged number of jq processes fewer than baseline. The count runs on one ordinary payload per script, plus a merge command ending in a newline. Each counted run must exit 0 and start at least one jq.
-- **Per platform.** GNU and BSD `tr` and `basename` make the baseline hooks print different results in 5 cases, so the fixture keeps one entry per platform. The cases are non-ASCII session ids, the apostrophe-stall edit, and the long agent id. A platform without an entry fails with the regeneration step.
+- **Fixture entries.** The baseline hooks print different results in 5 cases with GNU and with BSD `tr` and `basename`: non-ASCII session ids, the apostrophe-stall edit and the long agent id. The fixture therefore keys each entry by OS and by the flavour of those two tools on `PATH`, and a key without an entry fails with the regeneration step. Regeneration refuses to record a baseline that timed out.
 - **RED.** Commit `0b1bc53`, before the scripts changed: all 506 cases of that version matched baseline, and all 5 jq-count assertions failed (engine 5, merge 4, broad 2, edit 2 processes).
-- **GREEN.** Each count is now 1. On Linux (bash 5.2.15, jq 1.6), all 567 cases pass; on macOS (bash 3.2.57, jq 1.7.1), all 567 pass against that platform's baseline.
+- **GREEN.** Each count is now 1. All 574 cases pass on Linux (bash 5.2.15, jq 1.6, GNU tools). All 574 also pass on macOS (bash 3.2.57, jq 1.7.1, BSD tools), each against its own entry.
 
-Mutation walk on `74b30f4`, run on scratch copies with the Linux fixture:
+Mutation walk, run on scratch copies with the Linux fixture of the revision named:
 
-| Mutation | Result |
-| --- | --- |
-| merge guard without the NUL fallback | 17 failures |
-| merge guard without the apostrophe bound | 1 failure (`stall/merge/apostrophes` timed out) |
-| merge guard with the unbounded strip loop | 1 failure (`stall/merge/newlines` timed out) |
-| merge guard with a strip bound of 0 | 1 failure (jq count for the newline-ending command) |
-| merge guard drops NULs with `split`/`join` | 18 failures |
-| merge guard reads the session from the transcript field | 36 failures |
-| engine without the trailing-newline strip | 19 failures |
-| engine session default `""` instead of `nosession` | 9 failures |
-| engine agent key from the newline-stripped value | 9 failures |
-| engine agent key without `tr` | 3 failures |
-| engine agent key mapped with `split`/`join` | 1 failure (`stall/engine-bash/agent-key` timed out) |
-| engine accepts several documents | 2 failures |
-| broad guard drops the command | 11 failures |
-| edit guard reads a path in place of the flag | 2 failures |
-| edit guard strips path newlines | 2 failures |
-| edit guard reads only the first document's paths | 4 failures |
-| engine without the string-type test | 0 failures. Equivalent mutant: `split` already fails on every non-string, which selects the per-field reads. The explicit test stays, per design review D3. |
-| edit guard takes the first document's flag | 0 failures. Equivalent on every reachable input: only the Python normalizer emits `true`, and it emits one document. |
+| Mutation | Revision | Result |
+| --- | --- | --- |
+| merge guard without the length bound | final | 1 failure (`stall/merge/apostrophes` timed out) |
+| engine without the length bound | final | 2 failures (apostrophe stalls timed out) |
+| merge guard without the NUL fallback | final | 16 failures |
+| merge guard with the unbounded strip loop | final | 1 failure (`stall/merge/newlines-in-bound` timed out) |
+| engine with the unbounded strip loop | final | 2 failures (`newlines-in-bound` stalls timed out) |
+| merge guard with a strip bound of 0 | final | 1 failure (jq count for the newline-ending command) |
+| merge, broad or engine without `unset fields` | final | 1 failure each (`exported-fields/*`) |
+| engine session default `""` instead of `nosession` | final | 9 failures |
+| engine agent key without `tr` | final | 3 failures |
+| engine accepts several documents | final | 2 failures |
+| broad guard drops the command | final | 12 failures |
+| edit guard reads a path in place of the flag | final | 2 failures |
+| edit guard strips path newlines | final | 2 failures |
+| edit guard reads only the first document's paths | final | 4 failures |
+| merge guard drops NULs with `split`/`join` | `74b30f4` | 18 failures |
+| merge guard reads the session from the transcript field | `74b30f4` | 36 failures |
+| engine without the trailing-newline strip | `74b30f4` | 19 failures |
+| engine agent key from the newline-stripped value | `74b30f4` | 9 failures |
+| engine agent key mapped with `split`/`join` | `74b30f4` | 1 failure (`stall/engine-bash/agent-key` timed out) |
+| engine without the string-type test | `74b30f4` | 0 failures. Equivalent mutant: `split` already fails on every non-string, which selects the per-field reads. The explicit test stays, per design review D3. |
+| edit guard takes the first document's flag | `74b30f4` | 0 failures. Equivalent on every reachable input: only the Python normalizer emits `true`, and it emits one document. |
 
 ## Existing suites
 
-On Linux (bash 5.2.15, jq 1.6), all pass on `74b30f4`:
+On Linux (bash 5.2.15, jq 1.6), all pass on the final scripts:
 
 - `test_guard_merge_authorization.sh`: 493;
 - `test_guard_edit_isolation.sh`: 20;
@@ -147,6 +160,21 @@ On macOS (bash 3.2.57, jq 1.7.1), the first four pass on `74b30f4` and on the ba
 | P3 timed-out hook descendants survive | Fixed: own process group, killed on timeout. |
 | P3 sandbox path not JSON-escaped | Fixed. |
 | P3 latency figures not bound to a revision | Fixed: the Latency section names the measured commit. |
+
+## Implementation challenge C1
+
+[`challenge-C1.json`](challenge-C1.json): Codex, challenge mode, on `04637e3`, after the R1 fixes. It reported 8 findings: 6 P2 and 2 P3. Each was reproduced or checked before acting.
+
+| Finding | Disposition |
+| --- | --- |
+| P2 an inherited exported `fields` passes the buffer to every child | Fixed: the buffer is unset after use; pinned by `exported-fields/*`. |
+| P2 `split` allocates before the apostrophe bound applies | Reproduced (104 MiB for a 2 MiB field). Fixed with the 65,536-character bound, checked first; the apostrophe bound is no longer needed and was removed. |
+| P2 fixture commits read global git config | Fixed: `GIT_CONFIG_GLOBAL` is null for fixture git commands. |
+| P2 benchmark accepts an engine that fails | Fixed: the harness syntax-checks every timed script and runs the engine on the timed payloads, requiring a clean exit. |
+| P2 fixture keyed by OS only | Fixed: keyed by OS and by the `tr` and `basename` flavour on `PATH`. |
+| P3 regeneration honors replace objects | Fixed: full commit id with `GIT_NO_REPLACE_OBJECTS=1`. |
+| P3 a baseline timeout could be saved as expected | Fixed: regeneration refuses a timed-out baseline. |
+| P3 JSON-escaped sandbox paths not normalized | Fixed. |
 
 ## Latency
 

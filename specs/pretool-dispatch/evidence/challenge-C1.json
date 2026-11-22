@@ -1,0 +1,94 @@
+{
+ "schema_version": 3,
+ "runner": "review_diff",
+ "mode": "challenge",
+ "status": "findings",
+ "reason_code": null,
+ "findings": [
+  {
+   "severity": "P2",
+   "title": "Keep the merged assignment buffer out of the child environment",
+   "file": "hooks/guard-broad-local-test.sh",
+   "line": 56,
+   "body": "Bash preserves the export attribute of an inherited `fields` variable. With `fields` exported and a harmless 150 KB command, the baseline completed silently on Linux. The candidate’s `tr`, `sed`, and `awk` all failed with `Argument list too long`, and the guard exited zero before classification. The merge guard and owner-dispatch use the same buffer."
+  },
+  {
+   "severity": "P2",
+   "title": "Bound memory before counting delimiters",
+   "file": "hooks/guard-merge-authorization.sh",
+   "line": 129,
+   "body": "`split` allocates an array for every apostrophe before checking the 1,000-apostrophe limit. On jq 1.6, the check alone used about 103 MiB for a 2 MiB field, compared with about 16 MiB for a raw read. The merge guard and owner-dispatch can incur that allocation concurrently, exhausting a constrained worker before either reaches the intended fallback."
+  },
+  {
+   "severity": "P2",
+   "title": "Isolate fixture commits from the user’s global Git configuration",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 124,
+   "body": "`git_env()` preserves `HOME` and `XDG_CONFIG_HOME`, so every fixture commit reads the developer’s global Git configuration. With `commit.gpgSign=true`, `make test-repo-gates` can prompt for a signing key or fail during setup. A global `core.hooksPath` also runs the developer’s commit hooks across the eight concurrent sandboxes."
+  },
+  {
+   "severity": "P2",
+   "title": "Verify the engine succeeds before accepting benchmark samples",
+   "file": "specs/pretool-dispatch/evidence/bench/hook_latency.py",
+   "line": 46,
+   "body": "A candidate engine with a Bash syntax error passes the file-existence check. `owner-dispatch-guard.sh` suppresses the engine’s stderr, clears its failed result, and exits zero for the benchmark’s ordinary payloads. The harness accepts every sample and reports the skipped engine work as a speedup."
+  },
+  {
+   "severity": "P2",
+   "title": "Select differential fixtures using the tools that produce their output",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 569,
+   "body": "The fixture uses only the operating system to select hashes, while the hooks resolve utilities through `PATH`. On macOS with Homebrew GNU coreutils’ `gnubin` first, GNU `tr` replaces a multibyte session ID byte by byte. The Darwin fixture expects BSD `tr`’s result, so unchanged owner-dispatch code fails the Unicode state comparisons."
+  },
+  {
+   "severity": "P3",
+   "title": "Pin fixture regeneration to the original Git object",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 162,
+   "body": "`git archive 788470c` honors replacement objects, and `git_env()` strips even a caller-supplied `GIT_NO_REPLACE_OBJECTS`. In a checkout with a replacement for the baseline commit, `--regenerate` hashes the replacement tree and labels the results `788470c`. Use the full commit ID with replacement lookup disabled."
+  },
+  {
+   "severity": "P3",
+   "title": "Reject timeouts before writing baseline hashes",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 578,
+   "body": "A timeout becomes an ordinary result dictionary. If a loaded machine times out during `--regenerate`, that timeout is saved as the expected outcome. A candidate that also times out with the same remaining state then passes the stall case despite failing its five-second deadline."
+  },
+  {
+   "severity": "P3",
+   "title": "Normalize JSON-escaped sandbox paths in hook output",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 239,
+   "body": "With a double quote in `TMPDIR`, a protected-edit denial contains the sandbox path with the quote escaped in JSON. `norm()` searches only for the literal path, leaving the random temporary directory name in the digest. The hook returns the correct denial, but the differential fails on every run."
+  }
+ ],
+ "selected_client": "codex",
+ "reviewer_family": "codex",
+ "implementer_family": "claude",
+ "base": "788470c31d70de3c11ef1a5e2df9c95a57916b94",
+ "head": "04637e34330583742dd22f8403d2c4ffd62d309d",
+ "candidate_digest": "346c8f0001ccdb6dd24b46c96249ae4c561dff5228b521d61d4c1af71f00f145",
+ "worktree_clean": true,
+ "untracked_files": [],
+ "intent_sha256": "d4e5699e4bd308bdb8e7e31fc591b0d9751c8517d8e8d1b1eaecb92c8608f481",
+ "elapsed_seconds": 344.9,
+ "attempts": [
+  {
+   "client": "codex",
+   "status": "findings",
+   "returncode": 0,
+   "elapsed_seconds": 344.9,
+   "model": "gpt-6.2-astra",
+   "provider": "openai"
+  }
+ ],
+ "skipped": [
+  {
+   "client": "claude",
+   "reason": "same_family",
+   "model": ""
+  }
+ ],
+ "recorded_at": "2026-11-22T05:21:08+00:00",
+ "diagnostics_path": "(private local diagnostics, not committed)"
+}

@@ -14,8 +14,9 @@ Reported per call class, median of 11 runs in ms:
 
 A hook that exits non-zero, times out or reports a degraded or unavailable
 component stops the run: its timing would measure the failure, not the hook.
-The engine and helpers the hooks call must exist in both roots, because a
-missing one is skipped silently and would look like a speedup.
+The engine and helpers the hooks call must exist in both roots and the engine
+must run cleanly on the timed payloads: owner-dispatch-guard.sh hides a broken
+engine, and skipped work would look like a speedup.
 """
 import concurrent.futures as cf
 import json
@@ -57,13 +58,21 @@ def main():
     if len(sys.argv) != 4:
         sys.exit(__doc__)
     base, cand, cwd = (os.path.realpath(p) for p in sys.argv[1:4])
+    cases = {'bash': (BASH, payload(cwd, 'Bash', {'command': 'ls -la'})),
+             'edit': (EDIT, payload(cwd, 'Edit', {'file_path': cwd + '/x.txt',
+                                                  'old_string': 'a', 'new_string': 'b'}))}
     for root in (base, cand):
         for rel in sorted({f'hooks/{s}' for s in BASH + EDIT} | set(DEPENDENCIES)):
             if not os.path.isfile(f'{root}/{rel}'):
                 sys.exit(f'missing {root}/{rel}')
-    cases = {'bash': (BASH, payload(cwd, 'Bash', {'command': 'ls -la'})),
-             'edit': (EDIT, payload(cwd, 'Edit', {'file_path': cwd + '/x.txt',
-                                                  'old_string': 'a', 'new_string': 'b'}))}
+            if rel.endswith('.sh') and subprocess.run(['bash', '-n', f'{root}/{rel}']).returncode:
+                sys.exit(f'syntax error in {root}/{rel}')
+        for _scripts, data in cases.values():
+            engine = subprocess.run(['bash', f'{root}/{DEPENDENCIES[0]}', 'pretool'], input=data,
+                                    capture_output=True, text=True, cwd=cwd, timeout=TIMEOUT)
+            if engine.returncode != 0 or engine.stderr:
+                sys.exit(f'{root}/{DEPENDENCIES[0]} pretool: exit {engine.returncode}: '
+                         f'{engine.stderr[:200]}')
     for name, (scripts, data) in cases.items():
         rows = {k: [] for k in ('base-parallel', 'base-serial', 'cand-parallel', 'cand-serial')}
         for _ in range(11):

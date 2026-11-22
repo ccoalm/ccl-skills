@@ -1,7 +1,7 @@
 {
  "baseline": "788470c",
  "platforms": {
-  "Darwin": {
+  "Darwin/tr-other/basename-other": {
    "cases": {
     "broad/scenario/narrow": "536db6262d0fea19b1e7ce68e6cea7e3dfb17af6f928fd7bde35431677082c82",
     "broad/tool_input.command/absent": "536db6262d0fea19b1e7ce68e6cea7e3dfb17af6f928fd7bde35431677082c82",
@@ -414,6 +414,9 @@
     "engine-edit/whole/trailing-garbage": "a5b1ac61d2b26e239d0e4b74cb227635e97418a58a435d79acfa63e86afaf225",
     "engine-edit/whole/truncated": "0d834b7d011257d5f7f3322605d39b948fd1b12e7ce7cb038c163201c532f805",
     "engine-edit/whole/two-docs": "0d834b7d011257d5f7f3322605d39b948fd1b12e7ce7cb038c163201c532f805",
+    "exported-fields/broad": "4e1860dbdf1d2db835dd6db4d1569c04b0b7f539d55fc4bc5e9756d273263867",
+    "exported-fields/engine-bash": "2933bf17e07fe2fb033548f213955eee41b1efe70b991e10ab82c2414f46ba1a",
+    "exported-fields/merge": "7cb7b28c09a8900e2450aacb00ae23ba98c306756d8bfe9dd0a1a9bca68f6f83",
     "merge/cwd/absent": "a7a10828d2af58e70681c02022673ca27467042d79c57b1c3cda5af2810a8250",
     "merge/cwd/array": "a7a10828d2af58e70681c02022673ca27467042d79c57b1c3cda5af2810a8250",
     "merge/cwd/base": "a7a10828d2af58e70681c02022673ca27467042d79c57b1c3cda5af2810a8250",
@@ -515,16 +518,20 @@
     "merge/whole/two-docs": "7789da845c5d41616cc94ead783d3f0dc6e0a210c021fafc7f240c6f142b8b94",
     "stall/broad/apostrophes": "4e1860dbdf1d2db835dd6db4d1569c04b0b7f539d55fc4bc5e9756d273263867",
     "stall/broad/newlines": "4e1860dbdf1d2db835dd6db4d1569c04b0b7f539d55fc4bc5e9756d273263867",
+    "stall/broad/newlines-in-bound": "4e1860dbdf1d2db835dd6db4d1569c04b0b7f539d55fc4bc5e9756d273263867",
     "stall/broad/nuls": "b157e280b4c6d74217548842a2e36869ed245aa46ada2055fa702596cc6dc176",
     "stall/engine-bash/agent-key": "63a741ae17d9e68eb7b73495600b481f1378338e1070d40749a8a00253cc348b",
     "stall/engine-bash/apostrophes": "2933bf17e07fe2fb033548f213955eee41b1efe70b991e10ab82c2414f46ba1a",
     "stall/engine-bash/newlines": "2933bf17e07fe2fb033548f213955eee41b1efe70b991e10ab82c2414f46ba1a",
+    "stall/engine-bash/newlines-in-bound": "2933bf17e07fe2fb033548f213955eee41b1efe70b991e10ab82c2414f46ba1a",
     "stall/engine-bash/nuls": "11ea33b108a17da235f8be54b54e2b7eac7e2a4b384ba2c22a65c350db447a49",
     "stall/engine-edit/apostrophes": "2b57c3d77cf7380c23da51904241ea8e8ae7a667820bea345c6a58dea79a351c",
     "stall/engine-edit/newlines": "c2d871a41751b974163f357ed8aa43b004969839616593faf5bc2ea50fed5f93",
+    "stall/engine-edit/newlines-in-bound": "c2d871a41751b974163f357ed8aa43b004969839616593faf5bc2ea50fed5f93",
     "stall/engine-edit/nuls": "3021109c3dccb4620dad2c85a43eae095b5660a91cf65ecae2c59219d921a8e8",
     "stall/merge/apostrophes": "7cb7b28c09a8900e2450aacb00ae23ba98c306756d8bfe9dd0a1a9bca68f6f83",
     "stall/merge/newlines": "7cb7b28c09a8900e2450aacb00ae23ba98c306756d8bfe9dd0a1a9bca68f6f83",
+    "stall/merge/newlines-in-bound": "7cb7b28c09a8900e2450aacb00ae23ba98c306756d8bfe9dd0a1a9bca68f6f83",
     "stall/merge/nuls": "05d4a9e7f352eaf5ddffbaf13837d0a9afe936704ed352487c89592c6a3267fe",
     "stop/agent_id/absent": "ec704769e12da685e46eaf6fb3aabca1c0642046be7d03f3c288ad35b369afce",
     "stop/agent_id/array": "3cef138765f20b50cd461a4052ca1f8a4324fa8b76aaa916e17e407fa43a2953",
@@ -580,7 +587,7 @@
     "merge-trailing-newline": 4
    }
   },
-  "Linux": {
+  "Linux/tr-gnu/basename-gnu": {
    "cases": {
     "broad/scenario/narrow": "536db6262d0fea19b1e7ce68e6cea7e3dfb17af6f928fd7bde35431677082c82",
     "broad/tool_input.command/absent": "536db6262d0fea19b1e7ce68e6cea7e3dfb17af6f928fd7bde35431677082c82",
@@ -993,6 +1000,9 @@
     "engine-edit/whole/trailing-garbage": "a5b1ac61d2b26e239d0e4b74cb227635e97418a58a435d79acfa63e86afaf225",
     "engine-edit/whole/truncated": "0d834b7d011257d5f7f3322605d39b948fd1b12e7ce7cb038c163201c532f805",
     "engine-edit/whole/two-docs": "0d834b7d011257d5f7f3322605d39b948fd1b12e7ce7cb038c163201c532f805",
+    "exported-fields/broad": "4e1860dbdf1d2db835dd6db4d1569c04b0b7f539d55fc4bc5e9756d273263867",
+    "exported-fields/engine-bash": "2933bf17e07fe2fb033548f213955eee41b1efe70b991e10ab82c2414f46ba1a",
+    "exported-fields/merge": "7cb7b28c09a8900e2450aacb00ae23ba98c306756d8bfe9dd0a1a9bca68f6f83",
     "merge/cwd/absent": "a7a10828d2af58e70681c02022673ca27467042d79c57b1c3cda5af2810a8250",
     "merge/cwd/array": "a7a10828d2af58e70681c02022673ca27467042d79c57b1c3cda5af2810a8250",
     "merge/cwd/base": "a7a10828d2af58e70681c02022673ca27467042d79c57b1c3cda5af2810a8250",
@@ -1094,16 +1104,20 @@
     "merge/whole/two-docs": "7789da845c5d41616cc94ead783d3f0dc6e0a210c021fafc7f240c6f142b8b94",
     "stall/broad/apostrophes": "4e1860dbdf1d2db835dd6db4d1569c04b0b7f539d55fc4bc5e9756d273263867",
     "stall/broad/newlines": "4e1860dbdf1d2db835dd6db4d1569c04b0b7f539d55fc4bc5e9756d273263867",
+    "stall/broad/newlines-in-bound": "4e1860dbdf1d2db835dd6db4d1569c04b0b7f539d55fc4bc5e9756d273263867",
     "stall/broad/nuls": "b157e280b4c6d74217548842a2e36869ed245aa46ada2055fa702596cc6dc176",
     "stall/engine-bash/agent-key": "eced656f7158deb74f75002f155d48372c1cf529664cedc8228da9e802151f8d",
     "stall/engine-bash/apostrophes": "2933bf17e07fe2fb033548f213955eee41b1efe70b991e10ab82c2414f46ba1a",
     "stall/engine-bash/newlines": "2933bf17e07fe2fb033548f213955eee41b1efe70b991e10ab82c2414f46ba1a",
+    "stall/engine-bash/newlines-in-bound": "2933bf17e07fe2fb033548f213955eee41b1efe70b991e10ab82c2414f46ba1a",
     "stall/engine-bash/nuls": "11ea33b108a17da235f8be54b54e2b7eac7e2a4b384ba2c22a65c350db447a49",
     "stall/engine-edit/apostrophes": "e37bc187e81fa5dacb83fd7a9642a1ecbda7ff72fb3a7d62adca496db5eac295",
     "stall/engine-edit/newlines": "c2d871a41751b974163f357ed8aa43b004969839616593faf5bc2ea50fed5f93",
+    "stall/engine-edit/newlines-in-bound": "c2d871a41751b974163f357ed8aa43b004969839616593faf5bc2ea50fed5f93",
     "stall/engine-edit/nuls": "3021109c3dccb4620dad2c85a43eae095b5660a91cf65ecae2c59219d921a8e8",
     "stall/merge/apostrophes": "7cb7b28c09a8900e2450aacb00ae23ba98c306756d8bfe9dd0a1a9bca68f6f83",
     "stall/merge/newlines": "7cb7b28c09a8900e2450aacb00ae23ba98c306756d8bfe9dd0a1a9bca68f6f83",
+    "stall/merge/newlines-in-bound": "7cb7b28c09a8900e2450aacb00ae23ba98c306756d8bfe9dd0a1a9bca68f6f83",
     "stall/merge/nuls": "05d4a9e7f352eaf5ddffbaf13837d0a9afe936704ed352487c89592c6a3267fe",
     "stop/agent_id/absent": "ec704769e12da685e46eaf6fb3aabca1c0642046be7d03f3c288ad35b369afce",
     "stop/agent_id/array": "3cef138765f20b50cd461a4052ca1f8a4324fa8b76aaa916e17e407fa43a2953",
