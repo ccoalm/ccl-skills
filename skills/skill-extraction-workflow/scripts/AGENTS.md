@@ -16,3 +16,4 @@ Rules:
 Validation:
 
 - `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .`
+- `bash skills/skill-extraction-workflow/scripts/test_check_evidence_card_leak_cache.sh`

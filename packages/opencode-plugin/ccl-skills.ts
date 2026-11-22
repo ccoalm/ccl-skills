@@ -208,10 +208,10 @@ function readManifest() {
     try {
       if (!existsSync(path)) continue
       return JSON.parse(readFileSync(path, "utf8")) as {
-		installedAt?: string
-		sourceCommit?: string
-		sourceKind?: string
-		npmPackage?: string
+        installedAt?: string
+        sourceCommit?: string
+        sourceKind?: string
+        npmPackage?: string
         installed_at?: string
         source_commit?: string
         install_mode?: string
@@ -229,7 +229,8 @@ function updateReminder() {
   if (!Number.isFinite(UPDATE_REMINDER_DAYS) || UPDATE_REMINDER_DAYS <= 0) return ""
 
   const manifest = readManifest()
-  const installedAtValue = manifest?.installedAt ?? manifest?.installed_at
+  if (!manifest) return ""
+  const installedAtValue = manifest.installedAt ?? manifest.installed_at
   if (typeof installedAtValue !== "string") return ""
 
   const installedAt = Date.parse(installedAtValue)
@@ -348,10 +349,77 @@ export const CclSkills = async (context: {
 } = {}) => {
   const directory = resolve(context.directory ?? context.worktree ?? process.cwd())
   const hooksRoot = runtimeRoot()
+  const MAX_PENDING_CALLS = 64
+  let syntheticCallSeq = 0
   const parentSessions = new Map<string, string>()
   const idleInFlight = new Set<string>()
   const pendingSkills = new Map<string, string>()
+  const pendingSyntheticCalls = new Map<string, Array<{ callID: string; skillName?: string }>>()
   let stateRoot: string | null = null
+
+  function normalizeCallID(raw?: string) {
+    return typeof raw === "string" && raw.length > 0 ? raw : null
+  }
+
+  function setBoundedPendingSkill(key: string, name: string) {
+    if (pendingSkills.has(key)) pendingSkills.delete(key)
+    while (pendingSkills.size >= MAX_PENDING_CALLS) {
+      const oldest = pendingSkills.keys().next().value
+      if (oldest === undefined) break
+      pendingSkills.delete(oldest)
+    }
+    pendingSkills.set(key, name)
+  }
+
+  function enqueueSyntheticCall(sessionID: string, tool: string, callID: string, skillName?: string) {
+    const queueKey = `${sessionID}\0${tool}`
+    let queue = pendingSyntheticCalls.get(queueKey)
+    if (!queue) {
+      queue = []
+      pendingSyntheticCalls.set(queueKey, queue)
+    }
+    while (queue.length >= MAX_PENDING_CALLS) {
+      const evicted = queue.shift()
+      if (evicted) pendingSkills.delete(`${sessionID}\0${evicted.callID}`)
+    }
+    queue.push({ callID, skillName })
+  }
+
+  function rollbackSyntheticCall(sessionID: string, tool: string, callID: string) {
+    const queueKey = `${sessionID}\0${tool}`
+    const queue = pendingSyntheticCalls.get(queueKey)
+    if (queue) {
+      const idx = queue.findIndex((entry) => entry.callID === callID)
+      if (idx !== -1) queue.splice(idx, 1)
+      if (!queue.length) pendingSyntheticCalls.delete(queueKey)
+    }
+    pendingSkills.delete(`${sessionID}\0${callID}`)
+  }
+
+  function dequeueSyntheticCall(sessionID: string, tool: string, skillHint?: string) {
+    const queueKey = `${sessionID}\0${tool}`
+    const queue = pendingSyntheticCalls.get(queueKey)
+    if (!queue || !queue.length) return null
+    if (tool === "skill" && skillHint) {
+      const idx = queue.findIndex((entry) => entry.skillName === skillHint)
+      if (idx !== -1) {
+        const skipped = queue.splice(0, idx)
+        for (const stale of skipped) pendingSkills.delete(`${sessionID}\0${stale.callID}`)
+        const matched = queue.shift()!
+        if (!queue.length) pendingSyntheticCalls.delete(queueKey)
+        return matched.callID
+      }
+    }
+    const next = queue.shift()!
+    if (!queue.length) pendingSyntheticCalls.delete(queueKey)
+    return next.callID
+  }
+
+  function clearSessionPending(sessionID: string) {
+    const prefix = `${sessionID}\0`
+    for (const key of pendingSkills.keys()) if (key.startsWith(prefix)) pendingSkills.delete(key)
+    for (const key of pendingSyntheticCalls.keys()) if (key.startsWith(prefix)) pendingSyntheticCalls.delete(key)
+  }
 
   function ensureStateRoot() {
     if (stateRoot) return stateRoot
@@ -520,14 +588,75 @@ export const CclSkills = async (context: {
     ) => {
       const tool = input.tool.toLowerCase()
       const sessionID = input.sessionID ?? `pid-${process.ppid}`
-      const callID = input.callID ?? `call-${Date.now()}`
+      const explicitCallID = normalizeCallID(input.callID)
+      const callID = explicitCallID ?? `call-seq-${++syntheticCallSeq}`
       const args = output.args ?? {}
       output.args = args
       const targets = editPaths(tool, args, directory)
       const toolName = claudeToolName(tool)
-      if (tool === "skill" && typeof args.name === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(args.name) && args.name.length <= 64) {
-        pendingSkills.set(`${sessionID}\0${callID}`, args.name)
+      const validSkillName = tool === "skill" && typeof args.name === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(args.name) && args.name.length <= 64
+        ? args.name
+        : undefined
+      if (!explicitCallID) enqueueSyntheticCall(sessionID, tool, callID, validSkillName)
+      if (validSkillName) setBoundedPendingSkill(`${sessionID}\0${callID}`, validSkillName)
+
+      try {
+        for (const filePath of targets) {
+          const reason = blockReason(filePath)
+          if (reason) {
+            throw new Error(
+              [
+                "ccl-skills worktree guard blocked this edit.",
+                `Target file: ${filePath}`,
+                reason,
+                "Create a feature worktree first (git worktree add -b <branch> <path>), then retry the edit there.",
+              ].join("\n"),
+            )
+          }
+          const hookPayload = payload(sessionID, { hook_event_name: "PreToolUse", tool_name: "Edit", tool_input: { ...args, file_path: filePath } })
+          enforce(runHook(hooksRoot, "guard-edit-isolation.sh", hookPayload, directory, 10_000), "ccl-skills edit-isolation guard")
+          enforce(runHook(hooksRoot, "owner-dispatch-guard.sh", hookPayload, directory, 10_000), "ccl-skills owner-dispatch guard")
+        }
+
+        if (tool === "bash") {
+          const hookPayload = payload(sessionID, { hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: args })
+          enforce(runHook(hooksRoot, "owner-dispatch-guard.sh", hookPayload, directory, 10_000), "ccl-skills owner-dispatch guard")
+          const merge = runHook(hooksRoot, "guard-merge-authorization.sh", hookPayload, directory, 10_000)
+          if (merge.status !== "ok" && potentialLandingCommand(args.command)) {
+            throw new Error(`ccl-skills merge authorization blocked this operation.\n${merge.message ?? "OpenCode hook runtime unavailable."}`)
+          }
+          enforce(merge, "ccl-skills merge authorization")
+          // Fails open like the script itself: a guard that cannot run must not block Bash.
+          // Mirrors hooks/guard-broad-local-test.sh under Claude Code, where a failed hook allows.
+          const scope = runHook(hooksRoot, "guard-broad-local-test.sh", hookPayload, directory, 10_000)
+          if (scope.status === "ok") enforce(scope, "ccl-skills broad local test guard")
+          // Advisory only: it never blocks, so its context is appended rather than
+          // enforced. Mirrors hooks/remind-unverified-cli-flag.sh under Claude Code.
+          const flagNote = additionalContext(runHook(hooksRoot, "remind-unverified-cli-flag.sh", hookPayload, directory, 10_000))
+          if (flagNote) prependTaskContext(args, [flagNote])
+          // Advisory only, like the flag note. Mirrors hooks/remind-untracked-background.sh.
+          const detachNote = additionalContext(runHook(hooksRoot, "remind-untracked-background.sh", hookPayload, directory, 10_000))
+          if (detachNote) prependTaskContext(args, [detachNote])
+          // Advisory only. Mirrors hooks/remind-review-covers-head.sh.
+          const coverNote = additionalContext(runHook(hooksRoot, "remind-review-covers-head.sh", hookPayload, directory, 10_000))
+          if (coverNote) prependTaskContext(args, [coverNote])
+        }
+
+        if (tool === "task" || tool === "agent") {
+          const hookPayload = payload(sessionID, { hook_event_name: "PreToolUse", tool_name: toolName, tool_input: args })
+          const delegation = runHook(hooksRoot, "guard-delegation-owner.sh", hookPayload, directory, 10_000)
+          const delegationReason = permission(delegation).reason ?? ""
+          enforce(delegation, "ccl-skills delegation-owner guard")
+          const subagent = runHook(hooksRoot, "subagent-start.sh", hookPayload, directory, 5_000)
+          enforce(subagent, "ccl-skills subagent-context hook")
+          prependTaskContext(args, [delegationReason, additionalContext(subagent)])
+        }
+      } catch (error) {
+        if (!explicitCallID) rollbackSyntheticCall(sessionID, tool, callID)
+        else pendingSkills.delete(`${sessionID}\0${callID}`)
+        throw error
       }
+
       if (targets.length) {
         targets.forEach((filePath, index) => appendTranscript(sessionID, {
           type: "assistant",
@@ -542,57 +671,6 @@ export const CclSkills = async (context: {
           message: { content: [{ type: "tool_use", id: callID, name: toolName, input: {} }] },
         })
       }
-
-      for (const filePath of targets) {
-        const reason = blockReason(filePath)
-        if (reason) {
-          throw new Error(
-            [
-              "ccl-skills worktree guard blocked this edit.",
-              `Target file: ${filePath}`,
-              reason,
-              "Create a feature worktree first (git worktree add -b <branch> <path>), then retry the edit there.",
-            ].join("\n"),
-          )
-        }
-        const hookPayload = payload(sessionID, { hook_event_name: "PreToolUse", tool_name: "Edit", tool_input: { ...args, file_path: filePath } })
-        enforce(runHook(hooksRoot, "guard-edit-isolation.sh", hookPayload, directory, 10_000), "ccl-skills edit-isolation guard")
-        enforce(runHook(hooksRoot, "owner-dispatch-guard.sh", hookPayload, directory, 10_000), "ccl-skills owner-dispatch guard")
-      }
-
-      if (tool === "bash") {
-        const hookPayload = payload(sessionID, { hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: args })
-        enforce(runHook(hooksRoot, "owner-dispatch-guard.sh", hookPayload, directory, 10_000), "ccl-skills owner-dispatch guard")
-        const merge = runHook(hooksRoot, "guard-merge-authorization.sh", hookPayload, directory, 10_000)
-        if (merge.status !== "ok" && potentialLandingCommand(args.command)) {
-          throw new Error(`ccl-skills merge authorization blocked this operation.\n${merge.message ?? "OpenCode hook runtime unavailable."}`)
-        }
-        enforce(merge, "ccl-skills merge authorization")
-        // Fails open like the script itself: a guard that cannot run must not block Bash.
-        // Mirrors hooks/guard-broad-local-test.sh under Claude Code, where a failed hook allows.
-        const scope = runHook(hooksRoot, "guard-broad-local-test.sh", hookPayload, directory, 10_000)
-        if (scope.status === "ok") enforce(scope, "ccl-skills broad local test guard")
-        // Advisory only: it never blocks, so its context is appended rather than
-        // enforced. Mirrors hooks/remind-unverified-cli-flag.sh under Claude Code.
-        const flagNote = additionalContext(runHook(hooksRoot, "remind-unverified-cli-flag.sh", hookPayload, directory, 10_000))
-        if (flagNote) prependTaskContext(args, [flagNote])
-        // Advisory only, like the flag note. Mirrors hooks/remind-untracked-background.sh.
-        const detachNote = additionalContext(runHook(hooksRoot, "remind-untracked-background.sh", hookPayload, directory, 10_000))
-        if (detachNote) prependTaskContext(args, [detachNote])
-        // Advisory only. Mirrors hooks/remind-review-covers-head.sh.
-        const coverNote = additionalContext(runHook(hooksRoot, "remind-review-covers-head.sh", hookPayload, directory, 10_000))
-        if (coverNote) prependTaskContext(args, [coverNote])
-      }
-
-      if (tool === "task" || tool === "agent") {
-        const hookPayload = payload(sessionID, { hook_event_name: "PreToolUse", tool_name: toolName, tool_input: args })
-        const delegation = runHook(hooksRoot, "guard-delegation-owner.sh", hookPayload, directory, 10_000)
-        const delegationReason = permission(delegation).reason ?? ""
-        enforce(delegation, "ccl-skills delegation-owner guard")
-        const subagent = runHook(hooksRoot, "subagent-start.sh", hookPayload, directory, 5_000)
-        enforce(subagent, "ccl-skills subagent-context hook")
-        prependTaskContext(args, [delegationReason, additionalContext(subagent)])
-      }
     },
 
     "tool.execute.after": async (
@@ -601,7 +679,14 @@ export const CclSkills = async (context: {
     ) => {
       const tool = input.tool.toLowerCase()
       const sessionID = input.sessionID ?? `pid-${process.ppid}`
-      const callID = input.callID ?? "unknown-call"
+      const skillHint = tool === "skill"
+        ? (typeof input.args?.name === "string"
+          ? input.args.name
+          : typeof (output.metadata as { name?: unknown } | undefined)?.name === "string"
+            ? (output.metadata as { name: string }).name
+            : undefined)
+        : undefined
+      const callID = normalizeCallID(input.callID) ?? dequeueSyntheticCall(sessionID, tool, skillHint) ?? "unknown-call"
       if (tool === "skill") {
         const key = `${sessionID}\0${callID}`
         const owner = completedSkill(pendingSkills.get(key), output.metadata)
@@ -642,7 +727,7 @@ export const CclSkills = async (context: {
       if (!sessionID) return
       if (event.type === "session.compacted" && (typeof properties.sessionID !== "string" || !properties.sessionID)) return
       if (event.type === "session.deleted" || event.type === "session.compacted" || event.type === "session.idle" || (properties.status as { type?: string } | undefined)?.type === "idle") {
-        for (const key of pendingSkills.keys()) if (key.startsWith(`${sessionID}\0`)) pendingSkills.delete(key)
+        clearSessionPending(sessionID)
       }
       if (event.type === "session.compacted") {
         // OpenCode emits this only after successful compaction, with sessionID.
@@ -687,6 +772,7 @@ export const CclSkills = async (context: {
 
     dispose: async () => {
       pendingSkills.clear()
+      pendingSyntheticCalls.clear()
       if (stateRoot) rmSync(stateRoot, { recursive: true, force: true })
       stateRoot = null
     },

@@ -17,6 +17,7 @@
 #   - test_check_ccl_size_budget.sh
 #   - test_check_ccl_skill_catalog.sh
 #   - test_generic_r0_leak_scan.sh
+#   - test_check_evidence_card_leak_cache.sh
 #   - test_shared_git_surface_gate.sh
 #   - test_extraction_review_gate.sh
 #   - test_check_review_evidence_present.sh
@@ -127,6 +128,7 @@ fast_tests=(
   test_check_ccl_skill_catalog.sh
   test_check_mr_target_freshness.sh
   test_generic_r0_leak_scan.sh
+  test_check_evidence_card_leak_cache.sh
   test_shared_git_surface_gate.sh
   test_extraction_review_gate.sh
   # Review-evidence presence gate: own throwaway git repo, seconds.

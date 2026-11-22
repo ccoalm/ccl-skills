@@ -43,6 +43,7 @@ set -e
 assert_rc "$rc" 0 "unset ALIAS_AUDIT_CMD with clean diff should pass"
 assert_contains "generic_r0_leak_scan_ok" "$out" "public fallback ran"
 assert_contains "alias_audit_unavailable" "$out" "private audit flagged unavailable"
+assert_contains "run-r0-audit.sh" "$out" "cross-host private audit probe hint"
 assert_contains "r0_status=public-fallback" "$out" "machine status token (interim)"
 assert_contains "ccl_skill_check_ok" "$out" "legacy compatibility token"
 assert_contains "ccl_skill_check_interim_ok" "$out" "final interim token"

@@ -548,3 +548,178 @@ test("OpenCode owner evidence follows supported CCL skill layouts independently 
 		} finally { await hooks.dispose(); }
 	});
 });
+
+test("OpenCode pairs omitted and empty callID across before/after, rolls back failed before, and bounds pendingSkills", async () => {
+	const root = mkdtempSync(join(tmpdir(), "ccl-opencode-callid-"));
+	const home = join(root, "home"), project = join(root, "project"), state = join(root, "tmp");
+	mkdirSync(home);
+	mkdirSync(project, { recursive: true });
+	mkdirSync(state);
+	copyRuntime(home);
+	const ownerDir = copyOwnerSkill(home);
+	const protectedRepo = join(root, "protected");
+	initProtectedRepo(protectedRepo);
+	const previousTmp = process.env.TMPDIR;
+	process.env.TMPDIR = state;
+	const { hooks } = await loadPlugin(home, project);
+	try {
+		// 1. Omitted callID on Skill before/after still pairs and authorizes Task dispatch.
+		await hooks["tool.execute.before"](
+			{ tool: "skill", sessionID: "omitted-callid" },
+			{ args: { name: "multi-agent-delegation" } },
+		);
+		await hooks["tool.execute.after"](
+			{ tool: "skill", sessionID: "omitted-callid", args: { name: "multi-agent-delegation" } },
+			{ output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } },
+		);
+		await assert.doesNotReject(() => hooks["tool.execute.before"](
+			{ tool: "task", sessionID: "omitted-callid" },
+			{ args: { description: "inspect", prompt: "Inspect a file. required_skills: []" } },
+		));
+		await hooks["tool.execute.after"](
+			{ tool: "task", sessionID: "omitted-callid", args: {} },
+			{ output: "ok", metadata: {} },
+		);
+
+		// 2. Empty-string callID ("") behaves identically to omitted callID, and transcript IDs match 1:1.
+		await hooks["tool.execute.before"](
+			{ tool: "skill", sessionID: "empty-callid", callID: "" },
+			{ args: { name: "multi-agent-delegation" } },
+		);
+		await hooks["tool.execute.after"](
+			{ tool: "skill", sessionID: "empty-callid", callID: "", args: { name: "multi-agent-delegation" } },
+			{ output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } },
+		);
+		await assert.doesNotReject(() => hooks["tool.execute.before"](
+			{ tool: "task", sessionID: "empty-callid", callID: "" },
+			{ args: { description: "inspect", prompt: "Inspect a file. required_skills: []" } },
+		));
+		await hooks["tool.execute.after"](
+			{ tool: "task", sessionID: "empty-callid", callID: "", args: {} },
+			{ output: "ok", metadata: {} },
+		);
+		const stateDir = readdirSync(state).find((entry) => entry.startsWith("ccl-skills-opencode-"));
+		assert.ok(stateDir, "expected OpenCode bridge state dir");
+		const jsonlFiles = readdirSync(join(state, stateDir)).filter((entry) => entry.endsWith(".jsonl"));
+		for (const file of jsonlFiles) {
+			const events = readFileSync(join(state, stateDir, file), "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+			const uses = events.filter((e) => e.type === "assistant").map((e) => e.message.content[0].id);
+			const results = events.filter((e) => e.type === "user").map((e) => e.message.content[0].tool_use_id);
+			assert.deepEqual(results, uses, "every omitted/empty callID tool_result must match its tool_use id");
+			assert.ok(uses.every((id) => id && id !== "unknown-call"));
+		}
+
+		// 3. Aborted tool.execute.before (without callID) rolls back queued synthetic ID so next call pairs cleanly.
+		const protectedHooks = (await loadPlugin(home, protectedRepo)).hooks;
+		try {
+			await assert.rejects(
+				() => protectedHooks["tool.execute.before"](
+					{ tool: "write", sessionID: "rollback-session" },
+					{ args: { filePath: join(protectedRepo, "blocked.txt"), content: "x" } },
+				),
+				/worktree guard blocked this edit/,
+			);
+			await assert.rejects(
+				() => protectedHooks["tool.execute.before"](
+					{ tool: "task", sessionID: "rollback-session" },
+					{ args: { description: "inspect", prompt: "Inspect a file. required_skills: []" } },
+				),
+				/delegation-owner guard/i,
+			);
+			await protectedHooks["tool.execute.before"](
+				{ tool: "skill", sessionID: "rollback-session" },
+				{ args: { name: "multi-agent-delegation" } },
+			);
+			await protectedHooks["tool.execute.after"](
+				{ tool: "skill", sessionID: "rollback-session", args: { name: "multi-agent-delegation" } },
+				{ output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } },
+			);
+			await assert.doesNotReject(() => protectedHooks["tool.execute.before"](
+				{ tool: "task", sessionID: "rollback-session" },
+				{ args: { description: "inspect", prompt: "Inspect a file. required_skills: []" } },
+			));
+			await protectedHooks["tool.execute.after"](
+				{ tool: "task", sessionID: "rollback-session", args: {} },
+				{ output: "ok", metadata: {} },
+			);
+			for (const dir of readdirSync(state).filter((entry) => entry.startsWith("ccl-skills-opencode-"))) {
+				for (const file of readdirSync(join(state, dir)).filter((entry) => entry.endsWith(".jsonl"))) {
+					const events = readFileSync(join(state, dir, file), "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+					const uses = events.filter((e) => e.type === "assistant").map((e) => e.message.content[0].id);
+					const results = events.filter((e) => e.type === "user").map((e) => e.message.content[0].tool_use_id);
+					assert.deepEqual(results, uses, "aborted before without callID must not shift subsequent same-tool callID pairing");
+				}
+			}
+		} finally {
+			await protectedHooks.dispose();
+		}
+
+		// 4. >64 orphaned Skill before calls evict oldest entries (both explicit and omitted callID) and still allow fresh loads.
+		for (let i = 0; i < 65; i++) {
+			await hooks["tool.execute.before"](
+				{ tool: "skill", sessionID: "bounded-explicit", callID: `exp-${i}` },
+				{ args: { name: "multi-agent-delegation" } },
+			);
+		}
+		await hooks["tool.execute.after"](
+			{ tool: "skill", sessionID: "bounded-explicit", callID: "exp-0", args: { name: "multi-agent-delegation" } },
+			{ output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } },
+		);
+		await assert.rejects(
+			() => hooks["tool.execute.before"](
+				{ tool: "task", sessionID: "bounded-explicit", callID: "exp-task-stale" },
+				{ args: { description: "inspect", prompt: "Inspect a file. required_skills: []" } },
+			),
+			/delegation-owner guard/,
+			"oldest explicit-callID pendingSkill beyond 64 must be evicted",
+		);
+		await hooks["tool.execute.after"](
+			{ tool: "skill", sessionID: "bounded-explicit", callID: "exp-64", args: { name: "multi-agent-delegation" } },
+			{ output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } },
+		);
+		await assert.doesNotReject(() => hooks["tool.execute.before"](
+			{ tool: "task", sessionID: "bounded-explicit", callID: "exp-task-ok" },
+			{ args: { description: "inspect", prompt: "Inspect a file. required_skills: []" } },
+		));
+
+		await hooks["tool.execute.before"](
+			{ tool: "skill", sessionID: "bounded-session" },
+			{ args: { name: "multi-agent-delegation" } },
+		);
+		for (let i = 0; i < 64; i++) {
+			await hooks["tool.execute.before"](
+				{ tool: "skill", sessionID: "bounded-session" },
+				{ args: { name: "product-rd-workflow" } },
+			);
+		}
+		await hooks["tool.execute.after"](
+			{ tool: "skill", sessionID: "bounded-session", args: { name: "multi-agent-delegation" } },
+			{ output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } },
+		);
+		await assert.rejects(
+			() => hooks["tool.execute.before"](
+				{ tool: "task", sessionID: "bounded-session" },
+				{ args: { description: "inspect", prompt: "Inspect a file. required_skills: []" } },
+			),
+			/delegation-owner guard/,
+			"oldest synthetic-callID entry beyond 64 must be evicted",
+		);
+		await hooks["tool.execute.before"](
+			{ tool: "skill", sessionID: "bounded-session" },
+			{ args: { name: "multi-agent-delegation" } },
+		);
+		await hooks["tool.execute.after"](
+			{ tool: "skill", sessionID: "bounded-session", args: { name: "multi-agent-delegation" } },
+			{ output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } },
+		);
+		await assert.doesNotReject(() => hooks["tool.execute.before"](
+			{ tool: "task", sessionID: "bounded-session" },
+			{ args: { description: "inspect", prompt: "Inspect a file. required_skills: []" } },
+		));
+	} finally {
+		await hooks.dispose();
+		if (previousTmp === undefined) delete process.env.TMPDIR;
+		else process.env.TMPDIR = previousTmp;
+		rmSync(root, { recursive: true, force: true });
+	}
+});

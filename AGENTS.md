@@ -58,7 +58,7 @@
 make test
 ```
 
-它串起 `test-repo-gates`、`test-regressions-fast`、`test-code-review` 三条 lane，对应 CI 的 `repository-gates`、`regression-fast`、`code-review-regressions-1/2` 与 `code-review-abort-leak-1/2`。三项在 `make test` 之外，本地绿不等于 CI 绿：`regression-heavy`（`test_check_ccl_regressions.sh --heavy-only`）和 `repository-gates` 里的 `python3 scripts/check-public-sanitization.py .`，改动触及共享技能文本时本地补跑；以及只在 PR 上跑的 `python3 skills/skill-extraction-workflow/scripts/check_review_evidence_present.py --repo-root . --base "$(git merge-base <target> HEAD)"`：改了 `skills/` 或 `hooks/` 的 PR，要先把结论性评审结果提交进本轮 specs 下的 `evidence/`，推送到 PR 前先 fetch 目标分支再本地跑一次。不 fetch 时，过期的目标引用会把已合入轮次的评审结果算进来，本地放行而 CI 拒绝。
+它串起 `test-repo-gates`（含 `python3 scripts/check-public-sanitization.py .`）、`test-regressions-fast`、`test-code-review` 三条 lane，对应 CI 的 `repository-gates`、`regression-fast`、`code-review-regressions-1/2` 与 `code-review-abort-leak-1/2`。以下 CI 检查仍在 `make test` 之外，本地绿不等于 CI 绿：`regression-heavy`（`test_check_ccl_regressions.sh --heavy-only`），改动触及共享技能文本或校验器时本地补跑；`repository-gates` 里的 `check-skill-count.py`，以及改了 `skills/` 或 `hooks/` 的 PR 才跑的 `python3 skills/skill-extraction-workflow/scripts/check_review_evidence_present.py --repo-root . --base "$(git merge-base <target> HEAD)"`（先把结论性评审结果提交进本轮 specs 下的 `evidence/`，推送到 PR 前先 fetch 目标分支再本地跑一次；不 fetch 时，过期的目标引用会把已合入轮次的评审结果算进来，本地放行而 CI 拒绝）；以及 `npm-packages`（改 `packages/` 时跑 `npm --prefix packages/ccl-skills-npm test` 与 `npm --prefix packages/ccl-skills-npm run test:pack`）。
 
 小改动要快速信号时，`bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` 加 `git diff --check` 覆盖结构、路由、泄漏与空白，但它是前置筛查、不是那条 lane。
 

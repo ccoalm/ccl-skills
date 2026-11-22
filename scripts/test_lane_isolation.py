@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -153,6 +154,73 @@ ALLOWED = {
     # fixture the wrapper must refuse to execute; the redirect target is $WORK.
     ("test_cli_review_wrappers.sh", "fixed-tmp",
      'printf \'%s\\n\' \'{"mcpServers":{"untrusted":{"command":"touch","args":["/tmp/forbidden-mcp-json"]}}}\' >"$WORK/kimi-source/mcp.json"'),
+    # Hook and selector unit suites in `test-repo-gates`: each line below is an
+    # unexecuted command string or JSON `cwd:"/tmp"` field passed on stdin to a
+    # parser/guard hook (or run inside a `HOME=tmp_home` child subprocess in
+    # `test_select_affected_tests.py`). None opens or writes a shared `/tmp`,
+    # global git config, or inherited `$HOME` path at test runtime.
+    ('test_guard_broad_local_test.sh', 'fixed-tmp', "check deny 'GOLANGCI_LINT=/tmp/x make test-scenario'"),
+    ('test_guard_delegation_owner.sh', 'fixed-tmp', '\'{hook_event_name:"PreToolUse",tool_name:$t,transcript_path:$p,session_id:$s,cwd:"/tmp"}\' \\'),
+    ('test_guard_delegation_owner.sh', 'fixed-tmp', '( jq -nc --arg p "$td/t.jsonl" \'{hook_event_name:"PreToolUse",tool_name:"Task",transcript_path:$p,session_id:"s-fan",cwd:"/tmp"}\' \\'),
+    ('test_guard_delegation_owner.sh', 'fixed-tmp', 'jq -nc --arg p "$td/pipe" \'{hook_event_name:"PreToolUse",tool_name:"Task",transcript_path:$p,session_id:"s-fifo",cwd:"/tmp"}\' \\'),
+    ('test_guard_delegation_owner.sh', 'fixed-tmp', 'jq -nc --arg p "$td/t.jsonl" \'{hook_event_name:"PreToolUse",tool_name:"Task",transcript_path:$p,session_id:"s-nojq",cwd:"/tmp"}\' > "$td/in.json"'),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe allow "$FEAT_CWD" \'10>/tmp/log git push origin main\'  # multi-digit fd prefix'),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe allow "$FEAT_CWD" \'git push origin feature>/tmp/log\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe allow "$FEAT_CWD" \'git push origin main2>/tmp/log\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe allow "$FEAT_CWD" \'git push origin release10>/tmp/log\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe allow "$MAIN_CWD" \'>/tmp/foo\\ bar git push origin main\' # escaped-space prefix'),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe allow "$MAIN_CWD" \'git merge --ff-only origin/main >|/tmp/gx\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe allow "$MAIN_CWD" \'git merge>|/tmp/gx --ff-only origin/main\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe allow "$MAIN_CWD" \'git pull --ff-only origin main 10>/tmp/log\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe allow "$MAIN_CWD" \'git pull --ff-only origin main >/tmp/pull.log 2>&1\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe allow "$MAIN_CWD" \'git pull --ff-only origin main >|/tmp/log\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe allow "$MAIN_CWD" \'git pull --ff-only origin main>/tmp/log\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe deny  "$FEAT_CWD" \'git push origin main >|/tmp/gx\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe deny  "$FEAT_CWD" \'git push origin main>|/tmp/gx\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe deny "$FEAT_CWD" \'>/tmp/log git push origin main\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe deny "$FEAT_CWD" \'git push origin HEAD:main>/tmp/log\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe deny "$FEAT_CWD" \'git push origin main >/tmp/foo\\ bar\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe deny "$FEAT_CWD" \'git push origin main>/tmp/log\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe deny "$FEAT_CWD" \'git push origin main>>/tmp/log\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe deny "$MAIN_CWD" \'>/tmp/log git push origin main\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe deny "$MAIN_CWD" \'>>/tmp/log git merge feature\''),
+    ('test_guard_merge_authorization.sh', 'fixed-tmp', 'probe deny "$MAIN_CWD" \'git merge feature>/tmp/log\''),
+    ('test_remind_post_merge_cleanup.sh', 'fixed-tmp', '\'{tool_input:{command:$c},tool_response:$r,cwd:"/tmp"}\' | bash "$HOOK" \\'),
+    ('test_remind_post_merge_cleanup.sh', 'fixed-tmp', '\'{tool_input:{command:$c},tool_response:$r,cwd:"/tmp"}\' | bash "$HOOK")'),
+    ('test_remind_untracked_background.sh', 'fixed-tmp', 'expect remind "multi-line script" $\'S=/tmp/x\\nnohup make test >"$S/log" 2>&1 &\''),
+    ('test_remind_unverified_cli_flag.sh', 'fixed-tmp', '\'{tool_input:{command:$c},session_id:$s,cwd:"/tmp"}\' > "$a_in"'),
+    ('test_remind_unverified_cli_flag.sh', 'fixed-tmp', '\'{tool_input:{command:$c},session_id:$s,cwd:"/tmp"}\' > "$b_in"'),
+    ('test_remind_unverified_cli_flag.sh', 'fixed-tmp', '\'{tool_input:{command:$c},session_id:$s,cwd:"/tmp"}\' > "$infile"'),
+    ('test_remind_unverified_cli_flag.sh', 'fixed-tmp', '\'{tool_input:{command:$c},session_id:$s,cwd:"/tmp"}\' > "$mode_in"'),
+    ('test_remind_unverified_cli_flag.sh', 'fixed-tmp', '\'{tool_input:{command:$c},session_id:$s,cwd:"/tmp"}\' > "$o_in"'),
+    ('test_remind_unverified_cli_flag.sh', 'fixed-tmp', '\'{tool_input:{command:$c},session_id:$s,cwd:"/tmp"}\' > "$opt_in"'),
+    ('test_remind_unverified_cli_flag.sh', 'fixed-tmp', '\'{tool_input:{command:$c},session_id:$s,cwd:"/tmp"}\' > "$s_in"'),
+    ('test_remind_unverified_cli_flag.sh', 'fixed-tmp', '\'{tool_input:{command:$c},session_id:$s,cwd:"/tmp"}\' > "$u_in"'),
+    ('test_remind_unverified_cli_flag.sh', 'fixed-tmp', '\'{tool_input:{command:$c},session_id:$s,cwd:"/tmp"}\' \\'),
+    ('test_remind_unverified_cli_flag.sh', 'fixed-tmp', '\'{tool_input:{command:$c},session_id:$s,cwd:"/tmp"}\' | bash "$HOOK" 2>"$PROBE_ERR"); HOOK_RC=$?'),
+    ('test_remind_unverified_cli_flag.sh', 'fixed-tmp', 'awk \'BEGIN{printf "{\\"tool_input\\":{\\"command\\":\\"glab mr list --state opened "; for(i=0;i<2200000;i++)printf "x"; printf "\\"},\\"session_id\\":\\"bigpay\\",\\"cwd\\":\\"/tmp\\"}"}\' > "$big_in"'),
+    ('test_select_affected_tests.py', 'git-global', '\'[ -z "$(git config --global --get user.name || true)" ]\\n\','),
+    ('test_select_affected_tests.py', 'git-global', "'git config --global user.name LeakFromSuiteOne\\n'"),
+    ('test_session_start.sh', 'fixed-tmp', 'ctx_of() { printf \'{"cwd":"/tmp"}\' | bash "$1/hooks/session-start.sh" 2>"$1/err" \\'),
+    ('test_skill_loading.py', 'fixed-tmp', '"cat > /tmp/notes.md <<\'EOF\'\\nsee skills/sample-owner/SKILL.md > old\\nEOF",'),
+    ('test_skill_loading.py', 'fixed-tmp', '"python3 - <<\'EOF\'\\nwith open(\'skills/sample-owner/SKILL.md\') as r, open(\'/tmp/o\', \'w\') as w:\\n    w.write(r.read())\\nEOF",'),
+    ('test_skill_loading.py', 'fixed-tmp', '"python3 -c \\"from pathlib import Path; Path(\'/tmp/o\').write_text(Path(\'skills/sample-owner/SKILL.md\').read_text())\\"",'),
+    ('test_skill_loading.py', 'fixed-tmp', '"python3 -c \\"s = open(\'skills/sample-owner/SKILL.md\').read(); open(\'/tmp/o.md\', \'w\').write(s)\\"",'),
+    ('test_skill_loading.py', 'fixed-tmp', "'(cd /tmp); printf x > hooks/gate.sh',"),
+    ('test_skill_loading.py', 'fixed-tmp', "'cd /tmp | true; printf x > hooks/gate.sh',"),
+    ('test_skill_loading.py', 'fixed-tmp', "'cp /tmp/draft.md skills/sample-owner/references/rule.md',"),
+    ('test_skill_loading.py', 'fixed-tmp', "'cp skills/sample-owner/SKILL.md /tmp/copy.md',"),
+    ('test_skill_loading.py', 'fixed-tmp', "'echo x > /tmp/x.md ' + ' ' * 70000 + '> hooks/gate.sh',"),
+    ('test_skill_loading.py', 'fixed-tmp', "'env --chdir=/tmp touch hooks/gate.py',"),
+    ('test_skill_loading.py', 'fixed-tmp', "'env -C /tmp touch hooks/gate.py',"),
+    ('test_skill_loading.py', 'fixed-tmp', "'git mv /tmp/draft.py hooks/',"),
+    ('test_skill_loading.py', 'fixed-tmp', "'grep -n x hooks/gate.sh > /tmp/out.txt',"),
+    ('test_skill_loading.py', 'fixed-tmp', "'mv /tmp/draft.md skills/sample-owner/references/',"),
+    ('test_skill_loading.py', 'fixed-tmp', "'mv skills/sample-owner/references/rule.md /tmp/',"),
+    ('test_skill_loading.py', 'fixed-tmp', "'rsync -av --dry-run /tmp/draft.py hooks/gate.py',"),
+    ('test_skill_loading.py', 'fixed-tmp', "'rsync -n /tmp/draft.py hooks/gate.py',"),
+    ('test_skill_loading.py', 'fixed-tmp', "'rsync -t /tmp/draft.py hooks/gate.py',"),
+    ('test_skill_loading.py', 'home-write', '\'echo x > "$HOME/skills/x.md"\','),
 }
 # Whole (file, hazard) exemptions, for a case where every occurrence in a file
 # shares one verified reason and listing them individually would be noise.
@@ -182,13 +250,39 @@ def fail(message: str) -> None:
 def lane_members() -> list[Path]:
     """Derive lane membership from the real dispatch points."""
     members: list[str] = []
-    for target in ("test-code-review-1", "test-code-review-2"):
+    for target in ("test-repo-gates", "test-code-review-1", "test-code-review-2"):
         out = subprocess.run(
             ["make", "-n", target], cwd=REPO, capture_output=True, text=True
         )
         if out.returncode != 0:
             fail(f"could not read lane membership for {target}: {out.stderr.strip()}")
-        members += re.findall(r"skills/\S+\.(?:sh|py)", out.stdout)
+        target_members: list[str] = []
+        joined = re.sub(r"\\\r?\n", " ", out.stdout)
+        for raw_line in joined.splitlines():
+            if "scripts/run-parallel-suites.sh" not in raw_line:
+                continue
+            tokens = shlex.split(raw_line)
+            for idx, tok in enumerate(tokens):
+                if tok.endswith("scripts/run-parallel-suites.sh"):
+                    i = idx + 1
+                    while i < len(tokens):
+                        if tokens[i] in ("--jobs", "--label"):
+                            i += 2
+                            continue
+                        if tokens[i] == "--":
+                            i += 1
+                            break
+                        if tokens[i].startswith("-"):
+                            i += 1
+                            continue
+                        break
+                    target_members.extend(
+                        t for t in tokens[i:] if t.endswith((".sh", ".py"))
+                    )
+                    break
+        if not target_members:
+            fail(f"{target} runs 0 parallel suites via scripts/run-parallel-suites.sh")
+        members += target_members
 
     source = RUNNER.read_text(encoding="utf-8")
     for name in ("fast_tests", "heavy_tests"):

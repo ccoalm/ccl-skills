@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""client-terminal-ansi-check.py — CB-1: terminal NO-HARDCODED-ANSI conformance.
+r"""client-terminal-ansi-check.py — CB-1: terminal NO-HARDCODED-ANSI conformance.
 
 Flags literal ANSI/VT100 escape sequences written directly in SOURCE code, outside an
 allowlisted rendering/terminal-capability module. clig.dev (Output) and the terminfo model say
 escapes must go through a capability-aware layer that can degrade for `TERM=dumb`/non-TTY/NO_COLOR;
-a raw `\\x1b[31m` sprinkled through business code is the anti-pattern this catches.
+a raw `\x1b[31m` sprinkled through business code is the anti-pattern this catches.
 
 Language-agnostic: this is a BYTE/TEXT scan (no AST, no parser), so it is genuinely
 zero-dependency and works across Go/Rust/Python/JS/TS/Swift/Kotlin/etc. It scans only
 source-code extensions, so it does not flag golden/fixture files that legitimately embed ANSI.
 
 Matched escape-intro forms (a CSI `[` or OSC `]` introducer must follow the ESC):
-  \\x1b[ \\x1B[ \\033[ \\e[ \\u001b[ \\u{1b}[ and raw-ESC(0x1b)+[   (CSI) — plus the same six with
+  \x1b[ \x1B[ \033[ \e[ \u001b[ \u{1b}[ and raw-ESC(0x1b)+[   (CSI) — plus the same six with
   a `]` introducer (OSC, e.g. OSC-8 hyperlink / OSC-52 clipboard write).
 
 Determinism boundary (honest): deterministic for "a hardcoded CSI/OSC escape literal is PRESENT".
 It does NOT decide whether the escape is correctly gated behind a capability lib / NO_COLOR / isatty
 (semantic, agent-review), and it covers the CSI/OSC introducers only — other Fe sequences (charset
-`\\x1b(`, DCS `\\x1bP`, etc.) and ESC introducers reached through a variable are not matched. It also
+`\x1b(`, DCS `\x1bP`, etc.) and ESC introducers reached through a variable are not matched. It also
 does NOT follow symlinked directories (os.walk default), so a violation behind a symlink is not
 scanned. A clean run therefore means "no matched hardcoded escape literals found in the walked,
 non-symlinked source tree outside the allowlist", NOT full conformance. Put your rendering/ANSI/

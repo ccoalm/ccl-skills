@@ -86,10 +86,39 @@ def step_runs_exact_command(step: dict, command: str) -> bool:
     return isinstance(run, str) and run.strip() == command
 
 
+def composite_action_install_violation(
+    action_yaml: str, action_ref: str, command: str
+) -> tuple[int, str | None]:
+    """Return (matching_install_count, violation_or_none) for a local composite action."""
+    try:
+        doc = yaml.load(action_yaml, Loader=yaml.BaseLoader)
+    except yaml.YAMLError as exc:
+        return 0, f"{action_ref} YAML is invalid: {exc}"
+    if not isinstance(doc, dict):
+        return 0, f"{action_ref} must be a mapping"
+    runs = doc.get("runs")
+    if not isinstance(runs, dict) or runs.get("using") != "composite":
+        return 0, f"{action_ref} must declare runs.using: composite"
+    steps = runs.get("steps")
+    if not isinstance(steps, list):
+        return 0, f"{action_ref} has no runs.steps list"
+    matches = [
+        step
+        for step in steps
+        if isinstance(step, dict) and step_runs_exact_command(step, command)
+    ]
+    for step in matches:
+        for key in ("working-directory", "if", "continue-on-error"):
+            if key in step:
+                return len(matches), f"{action_ref} dependency install may not set {key}"
+    return len(matches), None
+
+
 def dependency_wiring_violation(
     workflow: str,
     command: str,
     job_names: tuple[str, ...] = ("repository-gates", "regression-heavy"),
+    composite_actions: dict[str, str] | None = None,
 ) -> str | None:
     """Return why a required CI job may not execute the dependency command."""
     try:
@@ -111,6 +140,7 @@ def dependency_wiring_violation(
     jobs = document.get("jobs")
     if not isinstance(jobs, dict):
         return "CI workflow has no jobs mapping"
+    actions_map = composite_actions or {}
     for job_name in job_names:
         job = jobs.get(job_name)
         if not isinstance(job, dict):
@@ -149,14 +179,28 @@ def dependency_wiring_violation(
             if key in checkout_options:
                 return f"{job_name} checkout may not set {key}"
 
-        install_matches = [
-            (index, step)
-            for index, step in enumerate(steps)
-            if isinstance(step, dict) and step_runs_exact_command(step, command)
-        ]
-        if len(install_matches) != 1:
+        install_entries: list[tuple[int, dict]] = []
+        for index, step in enumerate(steps):
+            if not isinstance(step, dict):
+                continue
+            if step_runs_exact_command(step, command):
+                install_entries.append((index, step))
+                continue
+            action_path = str(step.get("uses", ""))
+            if action_path.startswith("./"):
+                if action_path not in actions_map:
+                    return f"{job_name} uses unverified local action {action_path}"
+                count, action_err = composite_action_install_violation(
+                    actions_map[action_path], action_path, command
+                )
+                if action_err:
+                    return f"{job_name}: {action_err}"
+                for _ in range(count):
+                    install_entries.append((index, step))
+
+        if len(install_entries) != 1:
             return f"{job_name} must execute exactly one {command} step"
-        install_index, install_step = install_matches[0]
+        install_index, install_step = install_entries[0]
         if checkout_index >= install_index:
             return f"{job_name} must checkout before installing test dependencies"
         for key in ("working-directory", "if", "continue-on-error"):
@@ -1198,18 +1242,30 @@ class WaivedPathPresenceTest(unittest.TestCase):
         test_recipe = make_recipe("test")
         for prerequisite in prerequisites:
             test_recipe.extend(make_recipe(prerequisite))
+        self.assertIn("\t" + command, make_recipe("test-repo-gates"))
         self.assertIn("\t" + command, test_recipe)
         workflow = (repository / ".github/workflows/ci.yml").read_text()
         workflow_lines = workflow.splitlines()
         trigger_violation = workflow_entry_violation(workflow)
         self.assertIsNone(trigger_violation, trigger_violation)
-        repository_job = workflow.split("\n  repository-gates:", 1)[1].split(
-            "\n  regression-heavy:", 1
-        )[0]
-        spec_step = repository_job.split(
-            "\n      - name: Spec reference gate", 1
-        )[1].split("\n      - ", 1)[0]
-        self.assertIn("\n        run: " + command, spec_step)
+        parsed_workflow = yaml.load(workflow, Loader=yaml.BaseLoader)
+        self.assertIsInstance(parsed_workflow, dict)
+        repo_job = parsed_workflow["jobs"]["repository-gates"]
+        for forbidden_job_key in ("needs", "if", "continue-on-error", "defaults"):
+            self.assertNotIn(forbidden_job_key, repo_job)
+        gate_suite_steps = [
+            step
+            for step in repo_job["steps"]
+            if isinstance(step, dict) and step.get("name") == "Repository gate suite"
+        ]
+        self.assertEqual(len(gate_suite_steps), 1)
+        gate_suite_step = gate_suite_steps[0]
+        for forbidden_step_key in ("if", "continue-on-error", "working-directory"):
+            self.assertNotIn(forbidden_step_key, gate_suite_step)
+        self.assertIn(
+            "make test-repo-gates",
+            [line.strip() for line in str(gate_suite_step.get("run", "")).splitlines()],
+        )
         for defaults_index, line in enumerate(workflow_lines):
             if not line.startswith("defaults:"):
                 continue
@@ -1219,12 +1275,9 @@ class WaivedPathPresenceTest(unittest.TestCase):
                     break
                 defaults_block.append(nested)
             self.assertNotIn("working-directory:", "\n".join(defaults_block))
-        self.assertNotIn("working-directory:", repository_job)
-        self.assertNotIn("\n    needs:", repository_job)
-        self.assertNotIn("\n    if:", repository_job)
-        self.assertNotIn("\n    continue-on-error:", repository_job)
-        self.assertNotIn("\n        if:", spec_step)
-        self.assertNotIn("\n        continue-on-error:", spec_step)
+        for step in repo_job["steps"]:
+            if isinstance(step, dict):
+                self.assertNotIn("working-directory", step)
         result = subprocess.run(
             ["python3", "scripts/check-spec-references.py", "."],
             cwd=repository,
@@ -1247,23 +1300,71 @@ class WaivedPathPresenceTest(unittest.TestCase):
             "33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c",
         )
 
-        install_runs: dict[str, str] = {}
-        for job_name in ("repository-gates", "regression-heavy"):
+        action_ref = "./.github/actions/setup-validation-tools"
+        gate_jobs = (
+            "repository-gates",
+            "code-review-regressions-1",
+            "code-review-regressions-2",
+            "regression-fast",
+            "regression-heavy",
+        )
+        for job_name in gate_jobs:
             steps = workflow["jobs"][job_name]["steps"]
             matches = [
-                step.get("run")
+                step
                 for step in steps
-                if isinstance(step, dict)
-                and step.get("name") == "Install validation tools"
+                if isinstance(step, dict) and step.get("uses") == action_ref
             ]
             self.assertEqual(len(matches), 1, job_name)
-            self.assertIsInstance(matches[0], str)
-            install_runs[job_name] = matches[0]
+            setup_step = matches[0]
+            for forbidden in ("if", "continue-on-error"):
+                self.assertNotIn(forbidden, setup_step, job_name)
+            with_cfg = setup_step.get("with") or {}
+            self.assertEqual(
+                with_cfg.get("ripgrep-version"),
+                "${{ env.RIPGREP_VERSION }}",
+                job_name,
+            )
+            self.assertEqual(
+                with_cfg.get("ripgrep-sha256"),
+                "${{ env.RIPGREP_SHA256 }}",
+                job_name,
+            )
 
-        self.assertEqual(
-            install_runs["repository-gates"], install_runs["regression-heavy"]
+        action_doc = yaml.load(
+            (repository / ".github/actions/setup-validation-tools/action.yml").read_text(),
+            Loader=yaml.BaseLoader,
         )
-        install_run = install_runs["repository-gates"]
+        self.assertIsInstance(action_doc, dict)
+        action_steps = action_doc["runs"]["steps"]
+        py_steps = [
+            step
+            for step in action_steps
+            if isinstance(step, dict)
+            and str(step.get("uses", "")).startswith("actions/setup-python@")
+        ]
+        self.assertEqual(len(py_steps), 1)
+        self.assertEqual(py_steps[0]["with"].get("cache"), "pip")
+        self.assertEqual(
+            py_steps[0]["with"].get("cache-dependency-path"),
+            "requirements-test.txt",
+        )
+        cache_steps = [
+            step
+            for step in action_steps
+            if isinstance(step, dict)
+            and str(step.get("uses", "")).startswith("actions/cache@")
+        ]
+        self.assertEqual(len(cache_steps), 1)
+        install_matches = [
+            step.get("run")
+            for step in action_steps
+            if isinstance(step, dict)
+            and step.get("name") == "Install validation tools"
+        ]
+        self.assertEqual(len(install_matches), 1)
+        install_run = install_matches[0]
+        self.assertIsInstance(install_run, str)
         for required in (
             "--retry-max-time 900",
             "--max-time 300",
@@ -1287,8 +1388,24 @@ class WaivedPathPresenceTest(unittest.TestCase):
         self.assertEqual(requirements, {"pytest", "pyyaml"})
 
         workflow = (repository / ".github/workflows/ci.yml").read_text()
+        action_yaml = (
+            repository / ".github/actions/setup-validation-tools/action.yml"
+        ).read_text()
         dependency_command = "python3 -m pip install -r requirements-test.txt"
-        wiring_violation = dependency_wiring_violation(workflow, dependency_command)
+        wiring_violation = dependency_wiring_violation(
+            workflow,
+            dependency_command,
+            job_names=(
+                "repository-gates",
+                "code-review-regressions-1",
+                "code-review-regressions-2",
+                "regression-fast",
+                "regression-heavy",
+            ),
+            composite_actions={
+                "./.github/actions/setup-validation-tools": action_yaml
+            },
+        )
         self.assertIsNone(wiring_violation, wiring_violation)
 
         contributing = (repository / "docs" / "CONTRIBUTING.md").read_text()
@@ -1442,6 +1559,50 @@ class WaivedPathPresenceTest(unittest.TestCase):
         )
         self.assertIsNotNone(second_job_violation)
         self.assertIn("regression-heavy may not set job-level if", second_job_violation or "")
+
+        composite_valid = (
+            "jobs:\n"
+            "  repository-gates:\n"
+            "    steps:\n"
+            "      - uses: actions/checkout@v4\n"
+            "      - uses: ./.github/actions/setup-validation-tools\n"
+        )
+        composite_action = (
+            "runs:\n"
+            "  using: composite\n"
+            "  steps:\n"
+            "    - shell: bash\n"
+            "      run: " + command + "\n"
+        )
+        self.assertIsNone(
+            dependency_wiring_violation(
+                composite_valid,
+                command,
+                ("repository-gates",),
+                {"./.github/actions/setup-validation-tools": composite_action},
+            )
+        )
+        self.assertIn(
+            "unverified local action",
+            dependency_wiring_violation(
+                composite_valid, command, ("repository-gates",), {}
+            )
+            or "",
+        )
+        self.assertIn(
+            "dependency install may not set if",
+            dependency_wiring_violation(
+                composite_valid,
+                command,
+                ("repository-gates",),
+                {
+                    "./.github/actions/setup-validation-tools": composite_action.replace(
+                        "    - shell: bash\n", "    - shell: bash\n      if: false\n"
+                    )
+                },
+            )
+            or "",
+        )
 
     def test_workflow_entry_accepts_equivalent_nonweakening_yaml(self) -> None:
         accepted = (

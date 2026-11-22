@@ -1,8 +1,8 @@
 {
   "name": "@ccoalm/ccl-skills",
-	"version": "0.18.18",
-  "description": "Reusable workflows that help coding agents plan, build, test, review, and release software — for Claude Code, Codex, and OpenCode",
-	"keywords": ["skills", "agent-skills", "claude", "claude-code", "codex", "opencode", "agent", "ai", "ai-agents", "cli", "anthropic", "developer-tools"],
+  "version": "0.18.18",
+  "description": "Reusable workflows that help coding agents plan, build, test, review, and release software — for Claude Code, Codex, OpenCode, and Antigravity",
+  "keywords": ["skills", "agent-skills", "claude", "claude-code", "codex", "opencode", "antigravity", "agent", "ai", "ai-agents", "cli", "anthropic", "developer-tools"],
   "type": "module",
   "bin": { "ccl-skills": "dist/cli.js" },
   "exports": { ".": "./dist/index.js", "./package.json": "./package.json" },
@@ -10,8 +10,8 @@
   "scripts": {
     "clean": "rm -rf dist *.tgz",
     "build": "tsc && chmod 755 dist/cli.js && node scripts/build-assets.mjs",
-    "test": "npm run build && node scripts/test-build-modes.mjs && node --test test/*.test.mjs",
-    "test:pack": "rm -rf artifacts && node scripts/pack-artifact.mjs artifacts && node --test test/pack.test.mjs",
+    "test": "tsc -p ../opencode-plugin/tsconfig.json && npm run build && node scripts/test-build-modes.mjs && node --test test/*.test.mjs",
+    "test:pack": "rm -rf artifacts && node scripts/pack-artifact.mjs artifacts && node --test scripts/check-pack-suite.mjs",
     "smoke:host": "bash scripts/host-smoke.sh",
     "prepublishOnly": "node -e \"if(!process.env.CI)throw Error('publish is CI-only')\""
   },
@@ -21,10 +21,10 @@
     "url": "git+https://github.com/ccoalm/ccl-skills.git",
     "directory": "packages/ccl-skills-npm"
   },
-	"homepage": "https://github.com/ccoalm/ccl-skills#readme",
-	"bugs": {
-		"url": "https://github.com/ccoalm/ccl-skills/issues"
-	},
+  "homepage": "https://github.com/ccoalm/ccl-skills#readme",
+  "bugs": {
+    "url": "https://github.com/ccoalm/ccl-skills/issues"
+  },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"

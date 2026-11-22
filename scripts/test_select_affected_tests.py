@@ -353,6 +353,19 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         ):
             self.assertIn(expected, plan["parallel_suites"])
 
+    def test_repo_gates_registers_public_sanitization_and_strict_selftest_wiring(self):
+        mod = load_selector()
+        suites = mod.makefile_suites(REPO_ROOT)
+        self.assertIn("scripts/test_check_public_sanitization.py", suites)
+        self.assertIn("scripts/test_check_spec_references.py", suites)
+        recipe_paths, unsafe = mod.makefile_recipe_paths(REPO_ROOT)
+        self.assertFalse(unsafe)
+        self.assertIn("scripts/check-public-sanitization.py", recipe_paths)
+        self.assertIn(
+            "skills/skill-extraction-workflow/scripts/check-evidence-card-leak.sh",
+            recipe_paths,
+        )
+
     def test_git_changed_file_discovery_special_names_cached_head_ascii_json_and_raw_bytes(self):
         mod = load_selector()
         with tempfile.TemporaryDirectory() as tmp:

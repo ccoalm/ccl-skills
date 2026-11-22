@@ -8,19 +8,23 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 script="$here/client-terminal-ansi-check.py"
 command -v python3 >/dev/null 2>&1 || { echo "python3 required" >&2; exit 2; }
-base="${TMPDIR:-/tmp}"
-tmp="$(mktemp -d "${base%/}/cbansi.XXXXXX")"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/cbansi.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 pass=0 fail=0
+if python3 -W error -m py_compile "$script" 2>"$tmp/pycompile.err"; then
+  pass=$((pass+1)); echo "ok   - py_compile under -W error has zero SyntaxWarning"
+else
+  fail=$((fail+1)); echo "FAIL - py_compile under -W error: $(cat "$tmp/pycompile.err")"
+fi
 # Here-string, not a pipe: under pipefail `grep -q` exits on the first match and the
 # writer can take SIGPIPE, turning a real match into a false failure.
 assert_hit() { local desc="$1" want="$2"; shift 2
-  set +e; local out rc; out="$(python3 "$script" "$@" 2>/dev/null)"; rc=$?; set -e
+  set +e; local out rc; out="$(python3 -W error "$script" "$@" 2>/dev/null)"; rc=$?; set -e
   if [ "$rc" = 1 ] && grep -qF "$want" <<<"$out"; then pass=$((pass+1)); echo "ok   - $desc"
   else fail=$((fail+1)); echo "FAIL - $desc (rc=$rc, want '$want', out='$out')"; fi; }
 assert_exit() { local desc="$1" want="$2"; shift 2
-  set +e; python3 "$script" "$@" >/dev/null 2>&1; local rc=$?; set -e
+  set +e; python3 -W error "$script" "$@" >/dev/null 2>&1; local rc=$?; set -e
   if [ "$rc" = "$want" ]; then pass=$((pass+1)); echo "ok   - $desc"; else fail=$((fail+1)); echo "FAIL - $desc (want exit $want, got $rc)"; fi; }
 
 mkdir -p "$tmp/src" "$tmp/render" "$tmp/empty"
