@@ -113,17 +113,46 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 
-cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+# One jq call reads every field (jq start-up dominates this hook). Each value
+# is what `$(jq -r '.x // empty')` gives, trailing newlines stripped. jq prints
+# nothing, and the per-field reads below run as before, unless the payload is
+# one JSON document whose fields are strings of at most 65,536 characters with
+# no NUL and at most 16 trailing newlines. The length is checked first. Beyond
+# those bounds, dropping NULs, trimming newlines or evaluating the quoted value
+# costs more than linear time or memory, and a crafted payload could stall the
+# hook past the host timeout, where it no longer blocks.
+# The values land in hf_* variables, unset first so an inherited export of
+# these names cannot pass them to children; cmd, cwd, sid and tpath are then
+# assigned where the per-field reads assign them.
+unset fields fields_read hf_cmd hf_cwd hf_sid hf_tpath
+fields=$(printf '%s' "$input" | jq -rs '
+  def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
+  select(length == 1) | .[0]
+  | [(.tool_input.command // ""), (.cwd // ""), (.session_id // ""), (.transcript_path // "")]
+  | select(all(.[]; type == "string" and length <= 65536
+      and (split("\u0000") | length) < 2))
+  | map(trim_nl(16)) | select(all(.[]; type == "string"))
+  | "hf_cmd=\(.[0] | @sh) hf_cwd=\(.[1] | @sh) hf_sid=\(.[2] | @sh) hf_tpath=\(.[3] | @sh) fields_read=1"' 2>/dev/null)
+fields_read=""
+case "$fields" in *' fields_read=1') eval "$fields" ;; esac   # every value is @sh-quoted
+
+if [ -n "$fields_read" ]; then cmd=$hf_cmd; else
+  cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+fi
 [ -z "$cmd" ] && exit 0
-cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+if [ -n "$fields_read" ]; then cwd=$hf_cwd; else
+  cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+fi
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd=$(pwd)
 
 # Release-valve sentinel (armed by hooks/merge-authorization-prompt.sh on an
 # explicit user merge directive; consumed below on platform merge shapes —
 # one-shot grants whole, batch grants one unit at a time). KEEP IN SYNC with
 # that script's path derivation and lock protocol.
-sid=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)
-tpath=$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null)
+if [ -n "$fields_read" ]; then sid=$hf_sid; tpath=$hf_tpath; else
+  sid=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)
+  tpath=$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null)
+fi
 case "$sid" in */*|*..*) sid="" ;; esac   # session_id is a path component
 sentinel=""; lock_dir=""
 if [ -n "$sid" ]; then

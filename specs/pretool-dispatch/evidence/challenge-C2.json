@@ -1,0 +1,80 @@
+{
+ "schema_version": 3,
+ "runner": "review_diff",
+ "mode": "challenge",
+ "status": "findings",
+ "reason_code": null,
+ "findings": [
+  {
+   "severity": "P2",
+   "title": "Stage Antigravity assets from the caller’s Git index",
+   "file": "packages/ccl-skills-npm/scripts/host-smoke.sh",
+   "line": 39,
+   "body": "If `hooks.json` is removed from the index but left on disk, `cp` copies it and the synthetic `git add .` tracks it again. The smoke can pass while the real package fails verification with `missing runtime closure`. Conversely, an untracked backup symlink under `.antigravity-plugin` makes the smoke reject a candidate the real build accepts."
+  },
+  {
+   "severity": "P2",
+   "title": "Check source link counts before copying tracked assets",
+   "file": "packages/ccl-skills-npm/scripts/host-smoke.sh",
+   "line": 39,
+   "body": "A checkout with a hard-linked `hooks.json` fails the real build because `build-assets.mjs` requires `st.nlink === 1`. The copy creates a fresh inode, so the synthetic build passes that check. Selecting tracked paths alone would still mask this failure on hard-linked local clones."
+  },
+  {
+   "severity": "P2",
+   "title": "Fail closed when Claude environment enumeration fails",
+   "file": "packages/ccl-skills-npm/scripts/host-smoke.sh",
+   "line": 17,
+   "body": "With `compgen` disabled or absent from the Bash build, `set -Eeuo pipefail` still lets the script continue. The `ERR` trap exits the command substitution, but the `for` loop receives an empty list and succeeds. This leaves `CLAUDE_CONFIG_DIR` and `CLAUDE_CODE_PLUGIN_CACHE_DIR` pointing at the caller’s state when plugin installation starts."
+  },
+  {
+   "severity": "P2",
+   "title": "Isolate OpenCode’s XDG configuration directory",
+   "file": "packages/ccl-skills-npm/scripts/host-smoke.sh",
+   "line": 18,
+   "body": "With `XDG_CONFIG_HOME` pointing at the caller’s normal config directory, the package installs its plugin under the temporary `$HOME/.config/opencode`, while `opencode debug config` reads the caller’s directory. A correct package fails when the caller lacks the plugin. An existing caller installation can also satisfy the smoke’s suffix check using the wrong plugin."
+  },
+  {
+   "severity": "P3",
+   "title": "Keep Claude debug output inside the temporary directory",
+   "file": "packages/ccl-skills-npm/scripts/host-smoke.sh",
+   "line": 18,
+   "body": "A caller running with `DEBUG=1` and `CLAUDE_CODE_DEBUG_LOGS_DIR` set to their normal log directory retains both settings. Claude’s plugin commands write smoke diagnostics there, and the exit trap only removes `$tmp`. The three-directory isolation check recorded in validation misses these writes."
+  },
+  {
+   "severity": "P3",
+   "title": "Bind full-suite verification to the final smoke candidate",
+   "file": "specs/pretool-dispatch/evidence/validation.md",
+   "line": 249,
+   "body": "The disposition marks the finding fixed using results for `8db4ef5`, which still leaked the caller’s plugin cache. The environment loop first appears in `22030fb`. The record reports a focused smoke pass after that change, but its full-suite table ends at the earlier commit and explicitly skips the code-review lanes there. It therefore supplies no `make test` result for the reviewed candidate."
+  }
+ ],
+ "selected_client": "codex",
+ "reviewer_family": "codex",
+ "implementer_family": "claude",
+ "base": "3eccfb04c8870991b6ab28c52c5be645940f9299",
+ "head": "22030fb8f673092c03a09a71db7cf8cf088b9282",
+ "candidate_digest": "743c123096c3b23e47894de29c754cfe320691c79af8c57c467bc7b5d3163b3a",
+ "worktree_clean": true,
+ "untracked_files": [],
+ "intent_sha256": "4eb02fe0aab2e56590af27e25a5410011e0561b8933c57be6da4493ff297ea25",
+ "elapsed_seconds": 163.3,
+ "attempts": [
+  {
+   "client": "codex",
+   "status": "findings",
+   "returncode": 0,
+   "elapsed_seconds": 163.3,
+   "model": "gpt-6.2-astra",
+   "provider": "openai"
+  }
+ ],
+ "skipped": [
+  {
+   "client": "claude",
+   "reason": "same_family",
+   "model": ""
+  }
+ ],
+ "recorded_at": "2026-11-22T07:39:08+00:00",
+ "diagnostics_path": "(private local diagnostics, not committed)"
+}

@@ -47,10 +47,34 @@ for t in jq sed awk grep tr head; do command -v "$t" >/dev/null 2>&1 || exit 0; 
 
 input=$(head -c 1048576) || exit 0
 
-tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
+# One jq call reads both fields. Each value is what `$(jq -r '.x // empty')`
+# gives, trailing newlines stripped. jq prints nothing, and the per-field reads
+# below run as before, unless the payload is one JSON document whose fields are
+# strings of at most 65,536 characters with no NUL and at most 16 trailing
+# newlines. The length is checked first. Beyond those bounds, dropping NULs,
+# trimming newlines or evaluating the quoted value costs more than linear time
+# or memory. The values land in hf_* variables, unset first so an inherited
+# export of these names cannot pass them to children.
+unset fields fields_read hf_tool hf_cmd
+fields=$(printf '%s' "$input" | jq -rs '
+  def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
+  select(length == 1) | .[0]
+  | [(.tool_name // ""), (.tool_input.command // "")]
+  | select(all(.[]; type == "string" and length <= 65536
+      and (split("\u0000") | length) < 2))
+  | map(trim_nl(16)) | select(all(.[]; type == "string"))
+  | "hf_tool=\(.[0] | @sh) hf_cmd=\(.[1] | @sh) fields_read=1"' 2>/dev/null)
+fields_read=""
+case "$fields" in *' fields_read=1') eval "$fields" ;; esac   # every value is @sh-quoted
+
+if [ -n "$fields_read" ]; then tool=$hf_tool; else
+  tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
+fi
 case "$tool" in ''|Bash) ;; *) exit 0 ;; esac
 
-cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+if [ -n "$fields_read" ]; then cmd=$hf_cmd; else
+  cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+fi
 [ -z "$cmd" ] && exit 0
 
 # Same mask as the sibling hooks, after dropping escaped characters so `\"`

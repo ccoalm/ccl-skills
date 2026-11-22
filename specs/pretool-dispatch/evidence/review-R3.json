@@ -1,0 +1,59 @@
+{
+ "schema_version": 3,
+ "runner": "review_diff",
+ "mode": "review",
+ "status": "findings",
+ "reason_code": null,
+ "findings": [
+  {
+   "severity": "P2",
+   "title": "Isolate Claude’s plugin cache during host smoke",
+   "file": "packages/ccl-skills-npm/scripts/host-smoke.sh",
+   "line": 15,
+   "body": "If the caller exports `CLAUDE_CODE_PLUGIN_CACHE_DIR`, Claude still reads and writes `installed_plugins.json` in that directory after `CLAUDE_CONFIG_DIR` is unset. Interrupting the smoke after installation can leave a synthetic plugin registered in the caller’s cache. Clear the cache override too, and test with both variables pointing at disposable caller directories that must remain untouched."
+  },
+  {
+   "severity": "P2",
+   "title": "Stage only tracked Antigravity assets in the synthetic source",
+   "file": "packages/ccl-skills-npm/scripts/host-smoke.sh",
+   "line": 35,
+   "body": "An untracked symlink such as `.antigravity-plugin/plugin.json.bak` is ignored by the real build. The recursive copy brings it into the synthetic repository, where `git add .` tracks it and `build-assets.mjs` rejects its Git mode. An untracked regular file is silently packed instead. Select the files from the original checkout’s Git index so the smoke exercises the same inputs as the real build."
+  },
+  {
+   "severity": "P3",
+   "title": "Record full-suite verification against the repaired candidate",
+   "file": "specs/pretool-dispatch/evidence/validation.md",
+   "line": 223,
+   "body": "The full-suite results are explicitly tied to `3eccfb0`, which predates the script and contract edits. The only `test-regressions-fast` run listed failed, and the post-repair result covers only `smoke:host`. A reviewer therefore cannot verify the repository’s required `make test` result for the candidate containing the fix."
+  }
+ ],
+ "selected_client": "codex",
+ "reviewer_family": "codex",
+ "implementer_family": "claude",
+ "base": "3eccfb04c8870991b6ab28c52c5be645940f9299",
+ "head": "8db4ef530887de126160522ffebbe0a530eb08a2",
+ "candidate_digest": "65886f61980c3151030e6c10ca77e328e92361d961cdaa7d6474860f8f939359",
+ "worktree_clean": true,
+ "untracked_files": [],
+ "intent_sha256": "503417759b3de78fee01cde28b579d69e257b042d96d3e8e00bec22b067013e5",
+ "elapsed_seconds": 68.6,
+ "attempts": [
+  {
+   "client": "codex",
+   "status": "findings",
+   "returncode": 0,
+   "elapsed_seconds": 68.6,
+   "model": "gpt-6.2-astra",
+   "provider": "openai"
+  }
+ ],
+ "skipped": [
+  {
+   "client": "claude",
+   "reason": "same_family",
+   "model": ""
+  }
+ ],
+ "recorded_at": "2026-11-22T07:08:53+00:00",
+ "diagnostics_path": "(private local diagnostics, not committed)"
+}

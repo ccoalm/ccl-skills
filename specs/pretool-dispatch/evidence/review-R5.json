@@ -1,0 +1,101 @@
+{
+ "schema_version": 3,
+ "runner": "review_diff",
+ "mode": "review",
+ "status": "findings",
+ "reason_code": null,
+ "findings": [
+  {
+   "severity": "P2",
+   "title": "Include Bash’s argument-limit diagnostic in the fingerprint",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 636,
+   "body": "I reproduced the same Linux key with `/bin` and `/usr/bin` first on `PATH`, but Bash reported `/bin/dirname` and `/usr/bin/dirname` respectively for the 900 KB argument. The `stall/engine-edit/apostrophes` case hashes that stderr, including the executable path. One host therefore gets a false differential failure, and the new collision guard prevents it from regenerating a usable entry."
+  },
+  {
+   "severity": "P2",
+   "title": "Skip the memory probes before collecting an uncalibrated candidate",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 752,
+   "body": "`collect(\"candidate\")` has already run `peak_ratios()` by the time the calibration is checked. If either 800,000-NUL memory probe times out, the exception aborts the suite before it prints `SKIP` or checks the differential results and jq counts. Look up the calibration before collection so an uncalibrated version runs only the checks that remain enforceable."
+  },
+  {
+   "severity": "P2",
+   "title": "Reject conflicting jq counts when regenerating an existing key",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 717,
+   "body": "I verified that regeneration accepts five baseline `merge` calls over a pinned four when the case digests match. It overwrites the shared count for every jq version. Since the required saving is three calls, a candidate making two calls can then pass a gate that previously required one."
+  },
+  {
+   "severity": "P2",
+   "title": "Preserve memory coverage for the validated macOS jq 1.7.1 configuration",
+   "file": "hooks/test_hook_field_reads.expected.json",
+   "line": 592,
+   "body": "`validation.md` records a passing BSD-tools run on macOS with jq 1.7.1. That configuration previously enforced the memory limit, but its migrated entry contains only jq 1.8.2. A change that splits the field before checking its length can now pass on that host because its output and jq counts stay the same. The old ratios’ exact version provenance is unclear, so remeasure 1.7.1 if necessary."
+  },
+  {
+   "severity": "P3",
+   "title": "Measure the jq version in the same environment as the memory probe",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 645,
+   "body": "A directory-aware jq shim can select jq 1.6 in the checkout and jq 1.8.1 in the temporary sandbox. `jq_version()` runs in the caller’s directory and environment, while `peak_ratios()` runs in the sandbox with a private `HOME`. This can compare a 1.8.1 measurement against the 1.6 limit or overwrite the 1.6 calibration during regeneration. A failed `--version` command also becomes an empty version key because its exit status is ignored."
+  },
+  {
+   "severity": "P3",
+   "title": "Reject an incompatible fixture pin before discarding other platforms",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 710,
+   "body": "With a fixture from a different pinned commit, `--regenerate` clears every platform before checking for a conflicting entry. I verified that a two-platform fixture became a one-platform fixture with exit status zero. A stale fixture or partial cherry-pick can therefore erase another host’s cases and all its jq calibrations without reporting the mismatch."
+  },
+  {
+   "severity": "P3",
+   "title": "Provide a regeneration path for additive test cases",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 712,
+   "body": "Adding one differential case changes the `cases` dictionary even when all 576 existing hashes still match the pinned baseline. The documented `--regenerate` command then rejects every existing platform as a fingerprint collision. Maintainers must manually edit the oracle or remove entries and reconstruct their per-version calibrations to add coverage."
+  },
+  {
+   "severity": "P3",
+   "title": "Reject tool failures instead of recording them as platform behavior",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 635,
+   "body": "A missing or non-executable `basename` produces an `ENOENT` or `EACCES` fingerprint and sends the maintainer to `--regenerate`. A failed `tr` invocation likewise contributes its stdout length regardless of its exit status. These paths can classify a broken tool installation as a new platform and attempt to pin degraded hook output. Only the expected argument-limit failure should become an exec-error fingerprint."
+  },
+  {
+   "severity": "P3",
+   "title": "Qualify the documented Linux argument limit by page size",
+   "file": "specs/pretool-dispatch/evidence/validation.md",
+   "line": 114,
+   "body": "Linux defines the per-argument limit as 32 pages. On a kernel with 64 KiB pages and a sufficient aggregate argument budget, the 900 KB argument reaches the utilities. Such a GNU Linux host can legitimately generate a different key from the documented `E2BIG` entry."
+  }
+ ],
+ "selected_client": "codex",
+ "reviewer_family": "codex",
+ "implementer_family": "claude",
+ "base": "a20ffaab29e21b90da0c50ed1b8b47e40600af38",
+ "head": "1aed4a0ac60eb01514de2712824e4f68a992daf1",
+ "candidate_digest": "98adc28118e637d44d51548bb1739055d7bd35c4f00b65850e5a461af24f9227",
+ "worktree_clean": true,
+ "untracked_files": [],
+ "intent_sha256": "d29aa0f166d0c7072abdbb8e48150ccaae8f06e3f9be90a1df5d5cee6e5f3d4d",
+ "elapsed_seconds": 191.5,
+ "attempts": [
+  {
+   "client": "codex",
+   "status": "findings",
+   "returncode": 0,
+   "elapsed_seconds": 191.5,
+   "model": "gpt-6.2-astra",
+   "provider": "openai"
+  }
+ ],
+ "skipped": [
+  {
+   "client": "claude",
+   "reason": "same_family",
+   "model": ""
+  }
+ ],
+ "recorded_at": "2026-11-22T10:14:00+00:00",
+ "diagnostics_path": "(private local diagnostics, not committed)"
+}

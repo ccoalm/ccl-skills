@@ -1,0 +1,136 @@
+{
+ "schema_version": 3,
+ "runner": "review_diff",
+ "mode": "review",
+ "status": "findings",
+ "reason_code": null,
+ "findings": [
+  {
+   "severity": "P1",
+   "title": "Isolate fixture Git commands from the caller’s repository and index",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 145,
+   "body": "`Sandbox.git()` inherits `GIT_INDEX_FILE`, `GIT_DIR`, and `GIT_WORK_TREE`. Running the new test with an absolute `GIT_INDEX_FILE` lets its `git add -A` overwrite the caller’s staging index with fixture entries. The eight parallel sandboxes can also contend for that same index. Changing `cwd` does not isolate these writes."
+  },
+  {
+   "severity": "P1",
+   "title": "Bound shell decoding for quote-heavy fields",
+   "file": "hooks/guard-merge-authorization.sh",
+   "line": 130,
+   "body": "`@sh` turns each apostrophe into another quoted shell fragment. On Bash 5.2.15, evaluating one generated assignment for a 720 KB apostrophe-heavy string took over 12 seconds, exceeding the registered 10-second hook timeout. The baseline reads the string as data. The same regression affects the broad-test guard and owner-dispatch, which now also evaluates an `apply_patch` command body before inspecting its targets."
+  },
+  {
+   "severity": "P2",
+   "title": "Keep agent-key alphabet conversion linear",
+   "file": "scripts/owner-dispatch/owner-dispatch.sh",
+   "line": 692,
+   "body": "For a long agent ID whose base64 encoding contains many `/` characters, jq 1.6 repeatedly rebuilds the string in `join(\"_\")`. I measured 9.7 seconds for this expression alone on a 1.1 MB input. The baseline uses streaming `tr`, and the new expression runs before the fallback checks. The engine has no input-size limit that keeps this work within its 10-second deadline."
+  },
+  {
+   "severity": "P2",
+   "title": "Keep subsequent malformed flags out of the target list",
+   "file": "hooks/guard-edit-isolation.sh",
+   "line": 63,
+   "body": "The jq-only normalizer emits one object per input document, but the loop recognizes only the first flag. I ran both revisions from a protected primary checkout with two empty JSON objects on stdin. The baseline returned silently. The candidate treated the second `false` as a relative filename and denied an edit even though neither object supplied a target."
+  },
+  {
+   "severity": "P2",
+   "title": "Check the malformed flag and protected targets as they arrive",
+   "file": "hooks/guard-edit-isolation.sh",
+   "line": 62,
+   "body": "The loop copies every normalized path into a Bash array before acting on the malformed flag or checking the first target. A large malformed patch with recognizable file headers now pays for every shell read before denial. A valid patch whose first target is protected has the same delay. The baseline could deny immediately in both cases. The extra buffering is certain, although I did not establish the patch size at which it crosses the host deadline."
+  },
+  {
+   "severity": "P2",
+   "title": "Test stall behavior against the registered hook deadline",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 53,
+   "body": "All four hook bindings have a 10-second timeout. A regression that returns the expected denial after 15 seconds passes this differential under its 30-second limit, while the host has already stopped waiting for that denial."
+  },
+  {
+   "severity": "P2",
+   "title": "Keep the broad-guard NUL fixture within its input limit",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 393,
+   "body": "The 300,000 NULs serialize to 1.8 MB of JSON escapes. The broad guard reads only 1 MiB, so this case exercises truncated JSON and never reaches the NUL decoder. I verified that its pinned hash is the silent-allow result. A superlinear NUL decoder in this guard would still pass the advertised stall test."
+  },
+  {
+   "severity": "P2",
+   "title": "Reject benchmark samples that skipped the measured engine",
+   "file": "specs/pretool-dispatch/evidence/bench/hook_latency.py",
+   "line": 41,
+   "body": "An extracted candidate can contain `owner-dispatch-guard.sh` but omit `scripts/owner-dispatch/owner-dispatch.sh`. The wrapper silently skips the engine and exits zero. The benchmark accepts that faster run because it checks only the wrapper file, exit status, and the word `degraded`. It also accepts the helper’s actual `Skill-loading checkpoint unavailable` diagnostic."
+  },
+  {
+   "severity": "P2",
+   "title": "Preserve stderr evidence when normalizing Bash NUL warnings",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 204,
+   "body": "The differential discards any entire line containing the warning substring before hashing stderr or checking for payload disclosure. A diagnostic that includes both that substring and the synthetic disclosure marker passes both checks. Normalize only the recognized Bash diagnostic and its variable location so additional output remains observable."
+  },
+  {
+   "severity": "P3",
+   "title": "Compare the contents of owner-dispatch baseline files",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 227,
+   "body": "The oracle records `.basehead`, `.basepaths`, `.baseglobs`, and `.baseexcl` only as `\"present\"`. For example, an empty `.baseexcl` loses the captured exclusions but leaves the digest unchanged, and the subsequent Stop case edits an ordinary included file. The suite can therefore pass with different persistent state."
+  },
+  {
+   "severity": "P3",
+   "title": "Require a successful invocation for each jq process count",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 463,
+   "body": "`count_jq()` discards the hook result, and the assertion accepts zero processes when one is expected. If the counting shim fails before logging its invocation, the separate uninstrumented verdict cases can still pass and the test reports the failed count as a successful reduction."
+  },
+  {
+   "severity": "P3",
+   "title": "Terminate hook descendants when a stall test times out",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 195,
+   "body": "On POSIX, the subprocess timeout kills the top-level Bash process. A jq process still computing inside command substitution can survive and consume CPU after the test has recorded the timeout and removed its sandbox. This matters precisely when the stall test catches the regression it was added to detect."
+  },
+  {
+   "severity": "P3",
+   "title": "Escape the temporary root when inserting it into JSON",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 193,
+   "body": "The substitution runs after JSON encoding. A valid `TMPDIR` containing a double quote or backslash can therefore turn an ordinary fixture into malformed JSON or change its decoded path. The differential then reports hook regressions caused by the temporary directory’s spelling."
+  },
+  {
+   "severity": "P3",
+   "title": "Bind the reported latency figures to the measured candidate",
+   "file": "specs/pretool-dispatch/evidence/validation.md",
+   "line": 110,
+   "body": "The latency record identifies `788470c` and an earlier draft, but calls the measured revision only “the final candidate.” After another commit changes the decoder, a reviewer cannot determine from the record which implementation met the acceptance threshold. The plan explicitly requires both revisions."
+  }
+ ],
+ "selected_client": "codex",
+ "reviewer_family": "codex",
+ "implementer_family": "claude",
+ "base": "788470c31d70de3c11ef1a5e2df9c95a57916b94",
+ "head": "7470868243e4f41acf149eea0161babdd5878877",
+ "candidate_digest": "c223cc1afc5c3f6c6185f931351cb418acfc29e1a3f5c541a22804907708978f",
+ "worktree_clean": true,
+ "untracked_files": [],
+ "intent_sha256": "b41e571b2b1a41512c4aba6d38f560733390fbefe814bea940ace7250e94e773",
+ "elapsed_seconds": 265.0,
+ "attempts": [
+  {
+   "client": "codex",
+   "status": "findings",
+   "returncode": 0,
+   "elapsed_seconds": 265.0,
+   "model": "gpt-6.2-astra",
+   "provider": "openai"
+  }
+ ],
+ "skipped": [
+  {
+   "client": "claude",
+   "reason": "same_family",
+   "model": ""
+  }
+ ],
+ "recorded_at": "2026-11-22T04:24:58+00:00",
+ "diagnostics_path": "(private local diagnostics, not committed)"
+}

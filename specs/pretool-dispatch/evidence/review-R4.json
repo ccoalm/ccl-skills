@@ -1,0 +1,59 @@
+{
+ "schema_version": 3,
+ "runner": "review_diff",
+ "mode": "review",
+ "status": "findings",
+ "reason_code": null,
+ "findings": [
+  {
+   "severity": "P3",
+   "title": "Keep the exported-name list out of child environments",
+   "file": "packages/ccl-skills-npm/scripts/host-smoke.sh",
+   "line": 17,
+   "body": "If the caller already exports `exported`, Bash preserves its export attribute when assigning the list. I reproduced this on Linux with 1,800 long environment names. The base loop ran the next external command successfully, while the candidate failed with `Argument list too long`. The same limit can prevent the exit trap from running `rm`, leaving the temporary directory behind."
+  },
+  {
+   "severity": "P3",
+   "title": "Record candidate-specific suite results before marking C2 fixed",
+   "file": "specs/pretool-dispatch/evidence/validation.md",
+   "line": 264,
+   "body": "The disposition says the final full-suite run is recorded below, but only latency measurements follow. The verification table ends at `8db4ef5` and explicitly skips the code-review lanes there. A reviewer cannot verify a full-suite pass for this candidate from the cited record."
+  },
+  {
+   "severity": "P3",
+   "title": "Correct the C2 severity totals",
+   "file": "specs/pretool-dispatch/evidence/validation.md",
+   "line": 253,
+   "body": "The summary reports five P2 findings and one P3. Both `challenge-C2.json` and the disposition table contain four P2 findings and two P3 findings, so anyone using the summary for triage will overcount P2 by one."
+  }
+ ],
+ "selected_client": "codex",
+ "reviewer_family": "codex",
+ "implementer_family": "claude",
+ "base": "22030fb8f673092c03a09a71db7cf8cf088b9282",
+ "head": "1109ccf797fd777e61295a247b9a5c64525f676f",
+ "candidate_digest": "ba09d1a5b691652febc819c80ccc5308df971f8954dd35e9012c5c65cf227ea1",
+ "worktree_clean": true,
+ "untracked_files": [],
+ "intent_sha256": "7a029ffa4e79ffa6ac75e0b9bc88f23bf9262f4b5a3a3a835615f0affcb971fa",
+ "elapsed_seconds": 47.3,
+ "attempts": [
+  {
+   "client": "codex",
+   "status": "findings",
+   "returncode": 0,
+   "elapsed_seconds": 47.3,
+   "model": "gpt-6.2-astra",
+   "provider": "openai"
+  }
+ ],
+ "skipped": [
+  {
+   "client": "claude",
+   "reason": "same_family",
+   "model": ""
+  }
+ ],
+ "recorded_at": "2026-11-22T07:43:25+00:00",
+ "diagnostics_path": "(private local diagnostics, not committed)"
+}
