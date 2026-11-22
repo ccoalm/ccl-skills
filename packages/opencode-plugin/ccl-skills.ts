@@ -403,9 +403,7 @@ export const CclSkills = async (context: {
     if (tool === "skill" && skillHint) {
       const idx = queue.findIndex((entry) => entry.skillName === skillHint)
       if (idx !== -1) {
-        const skipped = queue.splice(0, idx)
-        for (const stale of skipped) pendingSkills.delete(`${sessionID}\0${stale.callID}`)
-        const matched = queue.shift()!
+        const [matched] = queue.splice(idx, 1)
         if (!queue.length) pendingSyntheticCalls.delete(queueKey)
         return matched.callID
       }

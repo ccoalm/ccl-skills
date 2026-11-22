@@ -563,7 +563,9 @@ test("OpenCode pairs omitted and empty callID across before/after, rolls back fa
 	process.env.TMPDIR = state;
 	const { hooks } = await loadPlugin(home, project);
 	try {
-		// 1. Omitted callID on Skill before/after still pairs and authorizes Task dispatch.
+		// 1. Omitted callID on Skill before/after (including out-of-order parallel completions) pairs and authorizes Task dispatch.
+		const secondarySkillDir = join(home, ".config/opencode/skills/product-rd-workflow");
+		cpSync(join(assets, "skills/product-rd-workflow"), secondarySkillDir, { recursive: true });
 		await hooks["tool.execute.before"](
 			{ tool: "skill", sessionID: "omitted-callid" },
 			{ args: { name: "multi-agent-delegation" } },
@@ -578,6 +580,31 @@ test("OpenCode pairs omitted and empty callID across before/after, rolls back fa
 		));
 		await hooks["tool.execute.after"](
 			{ tool: "task", sessionID: "omitted-callid", args: {} },
+			{ output: "ok", metadata: {} },
+		);
+
+		await hooks["tool.execute.before"](
+			{ tool: "skill", sessionID: "parallel-omitted-callid" },
+			{ args: { name: "multi-agent-delegation" } },
+		);
+		await hooks["tool.execute.before"](
+			{ tool: "skill", sessionID: "parallel-omitted-callid" },
+			{ args: { name: "product-rd-workflow" } },
+		);
+		await hooks["tool.execute.after"](
+			{ tool: "skill", sessionID: "parallel-omitted-callid", args: { name: "product-rd-workflow" } },
+			{ output: "loaded", metadata: { name: "product-rd-workflow", dir: secondarySkillDir } },
+		);
+		await hooks["tool.execute.after"](
+			{ tool: "skill", sessionID: "parallel-omitted-callid", args: { name: "multi-agent-delegation" } },
+			{ output: "loaded", metadata: { name: "multi-agent-delegation", dir: ownerDir } },
+		);
+		await assert.doesNotReject(() => hooks["tool.execute.before"](
+			{ tool: "task", sessionID: "parallel-omitted-callid" },
+			{ args: { description: "inspect", prompt: "Inspect a file. required_skills: []" } },
+		));
+		await hooks["tool.execute.after"](
+			{ tool: "task", sessionID: "parallel-omitted-callid", args: {} },
 			{ output: "ok", metadata: {} },
 		);
 
