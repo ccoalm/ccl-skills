@@ -25,4 +25,6 @@ Rules:
 Validation:
 
 - `bash scripts/owner-dispatch/test.sh`
+- `python3 hooks/test_hook_field_reads.py` when `cmd_pretool`'s payload field
+  reads change
 - `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .`

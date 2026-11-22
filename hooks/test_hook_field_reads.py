@@ -59,13 +59,7 @@ GIT_ENV = {
 }
 
 
-class Raw(str):
-    """A JSON value written verbatim, for numbers json.dumps cannot spell."""
-
-
 def jtext(value):
-    if isinstance(value, Raw):
-        return str(value)
     if isinstance(value, dict):
         return "{" + ",".join(
             json.dumps(k) + ":" + jtext(v) for k, v in value.items() if v is not MISSING) + "}"
@@ -75,18 +69,24 @@ def jtext(value):
 
 
 def variants(base):
-    """Field values that main reads in ways one merged read could get wrong."""
+    """Field values that main reads in ways one merged read could get wrong.
+
+    No number whose printed form differs between jq 1.6 and 1.7 (such as
+    1e1000): the fixture must hold on both, and non-string values take the
+    per-field reads anyway."""
     # Relative, so the value is the same in every sandbox; any PWNED file
     # anywhere under the sandbox means a value was executed.
     pwn = "$(touch PWNED)`touch PWNED`"
     return [
         ("base", base), ("absent", MISSING), ("null", None), ("false", False),
-        ("true", True), ("int", 7), ("float", 1.5), ("bignum", Raw("1e1000")),
+        ("true", True), ("int", 7), ("float", 1.5),
         ("array", [base, "x; touch PWNED"]), ("object", {"k": base}), ("empty", ""),
         ("nul-mid", base[:2] + "\0" + base[2:]), ("nul-only", "\0"), ("nul-tail", base + "\0"),
         ("nl-tail", base + "\n\n"), ("nl-mid", base[:2] + "\n" + base[2:]),
         ("nl-lead", "\n" + base), ("nl-nul-tail", base + "\n\0\n"),
         ("quotes", base + "'\"\\ " + pwn + " " + SECRET), ("unicode", base + "é提交"),
+        # Base64 of this suffix contains "+" and "/", which the agent key maps.
+        ("base64-specials", base + "???~~~"),
     ]
 
 

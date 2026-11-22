@@ -47,10 +47,23 @@ for t in jq sed awk grep tr head; do command -v "$t" >/dev/null 2>&1 || exit 0; 
 
 input=$(head -c 1048576) || exit 0
 
-tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
+# One jq call reads both fields. Each value is what `$(jq -r '.x // empty')`
+# gives: NULs dropped, trailing newlines stripped. A payload jq cannot parse,
+# several documents or a non-string value prints nothing, and the per-field
+# reads below run as before.
+fields=$(printf '%s' "$input" | jq -rs '
+  def sh: split("\u0000") | join("") | until(endswith("\n") | not; .[:-1]) | @sh;
+  select(length == 1) | .[0]
+  | [(.tool_name // ""), (.tool_input.command // "")]
+  | select(all(.[]; type == "string"))
+  | "tool=\(.[0] | sh) cmd=\(.[1] | sh) fields_read=1"' 2>/dev/null)
+fields_read=""
+case "$fields" in *' fields_read=1') eval "$fields" ;; esac   # every value is @sh-quoted
+
+[ -n "$fields_read" ] || tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
 case "$tool" in ''|Bash) ;; *) exit 0 ;; esac
 
-cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+[ -n "$fields_read" ] || cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
 [ -z "$cmd" ] && exit 0
 
 # Same mask as the sibling hooks, after dropping escaped characters so `\"`

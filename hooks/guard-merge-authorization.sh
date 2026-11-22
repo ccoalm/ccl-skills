@@ -113,17 +113,30 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 
-cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+# One jq call reads every field (jq start-up dominates this hook). Each value
+# is what `$(jq -r '.x // empty')` gives: NULs dropped, trailing newlines
+# stripped. A payload jq cannot parse, several documents or a non-string value
+# prints nothing, and the per-field reads below run as before.
+fields=$(printf '%s' "$input" | jq -rs '
+  def sh: split("\u0000") | join("") | until(endswith("\n") | not; .[:-1]) | @sh;
+  select(length == 1) | .[0]
+  | [(.tool_input.command // ""), (.cwd // ""), (.session_id // ""), (.transcript_path // "")]
+  | select(all(.[]; type == "string"))
+  | "cmd=\(.[0] | sh) cwd=\(.[1] | sh) sid=\(.[2] | sh) tpath=\(.[3] | sh) fields_read=1"' 2>/dev/null)
+fields_read=""
+case "$fields" in *' fields_read=1') eval "$fields" ;; esac   # every value is @sh-quoted
+
+[ -n "$fields_read" ] || cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
 [ -z "$cmd" ] && exit 0
-cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+[ -n "$fields_read" ] || cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd=$(pwd)
 
 # Release-valve sentinel (armed by hooks/merge-authorization-prompt.sh on an
 # explicit user merge directive; consumed below on platform merge shapes —
 # one-shot grants whole, batch grants one unit at a time). KEEP IN SYNC with
 # that script's path derivation and lock protocol.
-sid=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)
-tpath=$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null)
+[ -n "$fields_read" ] || sid=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)
+[ -n "$fields_read" ] || tpath=$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null)
 case "$sid" in */*|*..*) sid="" ;; esac   # session_id is a path component
 sentinel=""; lock_dir=""
 if [ -n "$sid" ]; then

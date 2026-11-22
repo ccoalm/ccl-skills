@@ -674,12 +674,30 @@ gated_dirty() { # $1 root
 # =============================================================================
 cmd_pretool() {
   have jq || allow_pretool   # can't parse stdin / determine opt-in => silent fail-open
-  local input tool fp cmd repo rel
+  local input tool fp cmd repo rel fields fields_read=""
   input=$(cat)
-  SID=$(printf '%s' "$input" | jq -r '.session_id // "nosession"' 2>/dev/null)
-  AID=$(printf '%s' "$input" | jq -r '.agent_id // empty' 2>/dev/null)   # subagent => per-agent markers
-  AIDKEY=$(printf '%s' "$input" | aid_key_from)                          # injective key (jq, raw JSON)
-  tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
+  # One jq call reads every field (jq start-up dominates this hook). Each value
+  # is what `$(jq -r '.x // default')` gives: NULs dropped, trailing newlines
+  # stripped. A payload jq cannot parse, several documents or a non-string
+  # value prints nothing, and the per-field reads below run as before.
+  fields=$(printf '%s' "$input" | jq -rs '
+    def sh: split("\u0000") | join("") | until(endswith("\n") | not; .[:-1]) | @sh;
+    select(length == 1) | .[0]
+    | [(.session_id // "nosession"), (.agent_id // ""), (.tool_name // ""),
+       (.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // ""),
+       (.tool_input.command // ""),
+       (.agent_id // "" | @base64 | split("+") | join("-") | split("/") | join("_"))]
+    | select(all(.[]; type == "string"))
+    | "SID=\(.[0] | sh) AID=\(.[1] | sh) tool=\(.[2] | sh) fp=\(.[3] | sh) cmd=\(.[4] | sh) AIDKEY=\(.[5] | sh) fields_read=1"' 2>/dev/null)
+  case "$fields" in
+    *' fields_read=1') eval "$fields" ;;   # every value is @sh-quoted
+    *)
+      SID=$(printf '%s' "$input" | jq -r '.session_id // "nosession"' 2>/dev/null)
+      AID=$(printf '%s' "$input" | jq -r '.agent_id // empty' 2>/dev/null)   # subagent => per-agent markers
+      AIDKEY=$(printf '%s' "$input" | aid_key_from)                          # injective key (jq, raw JSON)
+      tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
+      ;;
+  esac
 
   HOST_TOOL="${1:-$tool}"
   if [ "$tool" = apply_patch ]; then
@@ -707,7 +725,7 @@ cmd_pretool() {
   fi
   case "$tool" in
     Edit|Write|MultiEdit|NotebookEdit)
-      fp=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // empty' 2>/dev/null)
+      [ -n "$fields_read" ] || fp=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // empty' 2>/dev/null)
       [ -n "$fp" ] || allow_pretool
       if [ -e "$fp" ]; then
         local _r; _r=$(realpath "$fp" 2>/dev/null) && [ -n "$_r" ] && fp="$_r"
@@ -744,7 +762,7 @@ cmd_pretool() {
       fi
       ;;
     Bash)
-      cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+      [ -n "$fields_read" ] || cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
       [ -n "$cmd" ] || allow_pretool
       repo=$(opt_in_root "$PWD") || allow_pretool   # cheap walk, git only if candidate
       [ "$(cfg_enabled "$repo")" = "enabled" ] || allow_pretool

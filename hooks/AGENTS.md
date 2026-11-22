@@ -20,6 +20,12 @@ Rules:
   and Stop loop prevention. Its dispatch lists are the binding inventory and must
   equal the command hooks in `hooks.json`; it prints exactly one JSON object per
   event.
+- A hook reads its payload fields with one jq call, because jq start-up is most
+  of a hook's latency. Each value must equal what `$(jq -r '.x // default')`
+  gave, and any payload the merged read cannot decode that way falls back to
+  the per-field reads. `test_hook_field_reads.py` pins this against baseline
+  `788470c` for the merge, broad-test and edit-isolation guards and the
+  owner-dispatch engine.
 
 Validation:
 
@@ -27,3 +33,5 @@ Validation:
 - `git diff --check`
 - `python3 hooks/test_agy_bridge.py` when the bridge, `hooks.json` or the root
   `hooks.json` changes
+- `python3 hooks/test_hook_field_reads.py` when a hook's payload field reads
+  change; regenerate its fixture only from the pinned baseline
