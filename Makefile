@@ -20,10 +20,10 @@ help: ## 显示可用目标
 # specs/036-ci-parallel-shards/plan.md）。
 test: test-repo-gates test-regressions-fast test-code-review ## 运行本仓确定性 gate、脚本测试和 Python 回归
 
-test-affected: ## 按当前分支与工作区改动路径增量运行受影响 gate 与并行测试（FULL=1 含慢速套件）
+test-affected: ## 按改动路径快速运行相关检查与并行套件（内环辅助工具，推送前仍须跑 make test；FULL=1 含慢速套件）
 	python3 scripts/select-affected-tests.py --repo . --default-base-ref "$(CCL_SKILL_DEFAULT_BASE_REF)" --run $(AFFECTED_ARGS)
 
-test-affected-plan: ## 预览按当前改动路径选中的增量测试命令（只读干跑）
+test-affected-plan: ## 预览按改动路径选中的辅助测试命令（只读干跑）
 	python3 scripts/select-affected-tests.py --repo . --default-base-ref "$(CCL_SKILL_DEFAULT_BASE_REF)" --dry-run $(AFFECTED_ARGS)
 
 test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository-gates job；不含 code-review 族与 fast 回归 lane）
