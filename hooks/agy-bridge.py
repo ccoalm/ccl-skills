@@ -507,20 +507,63 @@ def session_start(agy, deadline):
     return inject(texts)
 
 
-def turn_key(agy, turn_id):
-    """One key per user turn: initialNumSteps when the host sends it, else the transcript turn."""
+def is_int(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def resolve_turn_key(agy, ctx):
+    """One key per user turn across multi-step tool loops (invocationNum 0 -> 1, 2, ...)."""
     prompt = agy.get('lastUserInput')
     if not isinstance(prompt, str) or not prompt.strip():
         return None, ''
+    inv = agy.get('invocationNum')
     steps = agy.get('initialNumSteps')
-    marker = str(steps) if isinstance(steps, int) and not isinstance(steps, bool) else (turn_id or '')
-    return digest(f'{marker}\0{prompt}'), prompt
+    turn_id = ctx['turn_id']
+    active_file = state_dir() / f"{ctx['key']}.active.turn"
+    active = {}
+    try:
+        parsed = json.loads(active_file.read_text(encoding='utf-8'))
+        if isinstance(parsed, dict):
+            active = parsed
+    except (OSError, ValueError):
+        pass
+    raw_seq = active.get('seq')
+    seq = raw_seq if is_int(raw_seq) and raw_seq >= 0 else 0
+    prev_turn = active.get('turn_id')
+    stale_turn = active.get('stale_turn_id')
+    effective_turn = None if (turn_id and turn_id == stale_turn) else turn_id
+    active_key = active.get('key')
+    if is_int(inv) and inv > 0 and isinstance(active_key, str) and active_key:
+        if not (prev_turn and effective_turn and prev_turn != effective_turn):
+            if prev_turn is None and effective_turn:
+                write_private(active_file, json.dumps({
+                    'seq': seq, 'turn_id': effective_turn,
+                    'stale_turn_id': stale_turn, 'key': active_key}))
+            return active_key, prompt
+    new_stale = stale_turn if (turn_id and turn_id == stale_turn) else None
+    if is_int(inv) and inv == 0:
+        seq += 1
+        if turn_id and turn_id in (prev_turn, stale_turn):
+            new_stale = turn_id
+            effective_turn = None
+        marker = f'seq:{seq}'
+    elif is_int(inv) and inv > 0:
+        seq += 1
+        marker = f'seq:{seq}'
+    elif effective_turn:
+        marker = f'turn:{effective_turn}:steps:{steps}' if is_int(steps) else f'turn:{effective_turn}'
+    else:
+        marker = f'steps:{steps}' if is_int(steps) else 'noturn'
+    key = digest(f'{marker}\0{prompt}')
+    write_private(active_file, json.dumps({
+        'seq': seq, 'turn_id': effective_turn, 'stale_turn_id': new_stale, 'key': key}))
+    return key, prompt
 
 
 def pre_invocation(agy, deadline):
     ctx = context(agy)
     texts = []
-    key, prompt = turn_key(agy, ctx['turn_id'])
+    key, prompt = resolve_turn_key(agy, ctx)
     for script in DISPATCH['PreInvocation:first-of-turn']:
         marker = state_dir() / f"{ctx['key']}.{script}.turn"
         try:

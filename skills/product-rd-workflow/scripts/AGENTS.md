@@ -14,5 +14,6 @@ Rules:
 
 Validation:
 
+- `bash skills/product-rd-workflow/scripts/test_check_agent_contract_coverage.sh`
 - Run the touched script against a fixture or representative repo.
 - `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .`

@@ -100,11 +100,26 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   fi
 fi
 
+exclude_set="/"
+simple_ext_set="/"
+extra_source_suffixes=()
+set -f
+for _e in $exclude_segments; do
+  [[ "$_e" != */* ]] && exclude_set="${exclude_set}${_e}/"
+done
+for _e in $source_exts; do
+  if [[ "$_e" == .* && "${_e#.}" != *.* && "$_e" != */* && -n "${_e#.}" ]]; then
+    simple_ext_set="${simple_ext_set}${_e}/"
+  else
+    extra_source_suffixes+=("$_e")
+  fi
+done
+set +f
+
 _seg_excluded() {
-  local seg="$1" e
+  local seg="$1"
   [[ "$seg" == .* && "$seg" != "." ]] && return 0
-  for e in $exclude_segments; do [[ "$seg" == "$e" ]] && return 0; done
-  return 1
+  [[ "$exclude_set" == *"/$seg/"* ]]
 }
 is_excluded() {
   local rest="$1" seg
@@ -116,7 +131,14 @@ is_excluded() {
 }
 is_source() {
   local b="$1" e
-  for e in $source_exts; do [[ "$b" == *"$e" ]] && return 0; done
+  if [[ "$b" == *.* && "$simple_ext_set" == *"/.${b##*.}/"* ]]; then
+    return 0
+  fi
+  if ((${#extra_source_suffixes[@]})); then
+    for e in ${extra_source_suffixes[@]+"${extra_source_suffixes[@]}"}; do
+      [[ "$b" == *"$e" ]] && return 0
+    done
+  fi
   return 1
 }
 
@@ -131,22 +153,45 @@ else
 fi
 
 # 2. Derive in-scope dirs (root + every dir with a direct source file) and existing contracts.
-: >"$tmp_dir/dirs"
+last_checked_dir=""
+last_dir_excluded=1
+dir_is_excluded() {
+  local d="$1"
+  [[ "$d" == "." ]] && return 1
+  if [[ "$d" == "$last_checked_dir" ]]; then
+    return "$last_dir_excluded"
+  fi
+  last_checked_dir="$d"
+  if is_excluded "$d"; then
+    last_dir_excluded=0
+  else
+    last_dir_excluded=1
+  fi
+  return "$last_dir_excluded"
+}
+
+printf '.\n' >"$tmp_dir/dirs"
 : >"$tmp_dir/contracts"
-printf '.\n' >>"$tmp_dir/dirs"
 while IFS= read -r -d '' file; do
+  [[ -n "$file" ]] || continue
   file="${file#./}"
   case "$file" in *$'\n'*) echo "skipping path containing a newline: $file" >&2; continue ;; esac
-  base="$(basename "$file")"
-  dir="$(dirname "$file")"
+  if [[ "$file" == */* ]]; then
+    base="${file##*/}"
+    dir="${file%/*}"
+    [[ -z "$dir" ]] && dir="/"
+  else
+    base="$file"
+    dir="."
+  fi
   if [[ "$base" == "$contract_name" ]]; then
-    if [[ "$dir" == "." ]] || ! is_excluded "$dir"; then printf '%s\n' "$file" >>"$tmp_dir/contracts"; fi
+    if ! dir_is_excluded "$dir"; then printf '%s\n' "$file" >&4; fi
     continue
   fi
   if is_source "$base"; then
-    if [[ "$dir" == "." ]] || ! is_excluded "$dir"; then printf '%s\n' "$dir" >>"$tmp_dir/dirs"; fi
+    if ! dir_is_excluded "$dir"; then printf '%s\n' "$dir" >&3; fi
   fi
-done <"$tmp_dir/files.z"
+done <"$tmp_dir/files.z" 3>>"$tmp_dir/dirs" 4>>"$tmp_dir/contracts"
 sort -u "$tmp_dir/dirs" -o "$tmp_dir/dirs"
 sort -u "$tmp_dir/contracts" -o "$tmp_dir/contracts"
 

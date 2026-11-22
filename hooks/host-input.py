@@ -203,6 +203,17 @@ def absolute(path, cwd):
     return os.path.realpath(os.path.join(cwd, path))
 
 
+def candidate_paths(path, cwd):
+    joined = os.path.join(cwd, path)
+    resolved = os.path.realpath(joined)
+    stripped = joined.rstrip('/')
+    leaf = os.path.basename(stripped)
+    if not stripped or leaf in ('', '.', '..'):
+        return [resolved]
+    entry = os.path.join(os.path.realpath(os.path.dirname(stripped)), leaf)
+    return [entry] if entry == resolved else [entry, resolved]
+
+
 def paths(payload):
     tool = payload.get('tool_name')
     args = payload.get('tool_input')
@@ -239,7 +250,7 @@ def paths(payload):
             if isinstance(value, str) and value and '\x00' not in value:
                 found.append(value)
                 break
-    return {'paths': list(dict.fromkeys(absolute(p, cwd) for p in found)),
+    return {'paths': list(dict.fromkeys(c for p in found for c in candidate_paths(p, cwd))),
             'malformed_patch': malformed}
 
 

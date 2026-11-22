@@ -55,7 +55,13 @@ class HostInputTests(unittest.TestCase):
         return result.get('hookSpecificOutput', {}).get('permissionDecision')
 
     def test_patch_targets_receive_isolation_policy(self):
+        outside = self.root / 'outside-target.txt'
+        outside.write_text('outside\n')
+        (self.repo / 'src/out_link.txt').symlink_to(outside)
+        (self.wt / 'wt_out_link.txt').symlink_to(outside)
         cases = [
+            ('delete-primary-symlink-to-outside', '*** Delete File: src/out_link.txt', self.repo, 'deny'),
+            ('delete-worktree-symlink-to-outside', '*** Delete File: wt_out_link.txt', self.wt, None),
             ('add', '*** Add File: new/file.py\n+new', self.repo, 'deny'),
             ('delete', '*** Delete File: src/file.py', self.repo, 'deny'),
             ('update', '*** Update File: src/file.py\n@@\n-before\n+after', self.repo, 'deny'),

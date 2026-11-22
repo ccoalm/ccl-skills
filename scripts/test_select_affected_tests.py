@@ -1183,6 +1183,10 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         hook_suites = {s for s in universe if s.startswith("hooks/")}
         self.assertIn("hooks/test_agy_bridge.py", hook_suites)
         self.assertIn("eval/test_design_judge.py", universe)
+        self.assertIn("eval/test_owner_role_audit.py", universe)
+        self.assertIn("skills/code-review/scripts/test_kimi_packet_mcp.py", universe)
+        self.assertIn("skills/product-rd-workflow/scripts/test_check_agent_contract_coverage.sh", universe)
+        self.assertIn("eval.test_owner_role_audit", mod._DEFAULT_EVAL_UNITTEST_MODULES)
         plan = mod.build_test_plan(["hooks/hooks.json"], repo_root=REPO_ROOT)
         dispatched_hooks = set(plan["parallel_suites"]) | {
             cmd[-1]
