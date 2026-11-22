@@ -14,7 +14,10 @@ Plan: [`../plan.md`](../plan.md) (option A). Baseline: `788470c`.
   - `testing-strategy`, for the differential test design;
   - `python-service-dev`, for the test file;
   - `feature-risk-router`, for risk;
-  - `multi-agent-delegation`, for the delegation decision.
+  - `multi-agent-delegation`, for the delegation decision;
+  - `skill-extraction-workflow`, which the edit checkpoint requires for hook files;
+  - `code-review`, for review and challenge;
+  - `tighten-doc`, for this record.
 
   The hook scripts are Bash with no stack owner, so `product-rd-workflow` routes them; their user-visible contract does not change.
 - **Delegation:** `local`. The four edits follow one pattern and share one test, so splitting them would mean separate briefs and a merge of one decision.
@@ -121,8 +124,8 @@ Mutation walk, run on scratch copies with the Linux fixture of the revision name
 | Mutation | Revision | Result |
 | --- | --- | --- |
 | buffer not unset first (engine, merge or broad) | `dcbe712` | 1–2 failures each (`exported-fields/*`) |
-| engine assigns `cmd` for every tool | `dcbe712` | 1 failure (`exported-cmd/engine-apply-patch`) |
-| merge guard splits before the length check | `dcbe712` | 1 failure (peak memory) |
+| engine assigns `cmd` for every tool | `dcbe712`, before a redundant `unset` was removed | 1 failure (`exported-cmd/engine-apply-patch`) |
+| merge guard splits before the length check | `dcbe712`, before a redundant `unset` was removed | 1 failure (peak memory) |
 | merge guard or engine without the length bound | `9cf75b9` | 1–2 failures (apostrophe stalls timed out) |
 | merge guard without the NUL fallback | `9cf75b9` | 16 failures |
 | merge guard or engine with the unbounded strip loop | `9cf75b9` | 1–2 failures (`newlines-in-bound` stalls timed out) |
@@ -214,6 +217,25 @@ The common cause was evaluating into the script's live variable names, which car
 | P3 no test that the length check precedes `split` | Fixed: the peak-memory check, which the split-first mutation fails. Measured directly on Linux, the hook's peak was 29.7 MiB as written and 51.5 MiB with `split` first. |
 | P3 latency recorded for earlier scripts | Fixed: the Latency section measures `dcbe712`. |
 | P3 C1 severity totals wrong | Fixed: 5 P2 and 3 P3. |
+
+## Full local verification
+
+Run on `3eccfb0` with `CCL_BROAD_TEST_REASON=repo-required`, `umask 022`, and pytest and PyYAML from a Python 3.12 virtual environment:
+
+| Check | Result |
+| --- | --- |
+| `make test-repo-gates` | passed |
+| `make test-code-review-1` and `-2` | passed |
+| `make test-code-review-abort-leak-1` and `-2` | passed. Run under `unshare`, because the Orca session's subreaper is not PID 1. |
+| `make npm-publish-dry`, `npm test` | passed |
+| `make test-regressions-fast` | One suite failed: `test_ci_checkout_ref_binding.sh`. The run exported `CCL_SKILL_DEFAULT_BASE_REF=origin/main`, which overrides the Makefile default the suite checks. Without that variable, the suite passes. |
+| `npm run smoke:host` | Failed on `3eccfb0` and on a clean `788470c` alike. See below. |
+
+**Host smoke repair.** The smoke failed before this change, for two reasons, each confirmed by rerunning after the previous fix:
+- **Synthetic source.** It copied a fixed list of roots that lacks `.antigravity-plugin` and the root `hooks.json`, both of which `build-assets.mjs` builds from since Antigravity host support landed. The build of the synthetic 1.0.0 source then failed with `missing runtime closure: .../.antigravity-plugin/plugin.json`.
+- **Claude isolation.** It sets `HOME` but not `CLAUDE_CONFIG_DIR`. On a host that sets that variable, the smoke's `claude` commands read and change the caller's real profile; here the install refused with `double-install` because that profile holds a Git-marketplace install.
+
+`host-smoke.sh` now copies both roots and unsets `CLAUDE_CONFIG_DIR`, and the scripts contract records both rules. The smoke then passes with `three-host-smoke-passed`.
 
 ## Latency
 

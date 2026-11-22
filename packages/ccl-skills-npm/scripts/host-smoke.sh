@@ -12,6 +12,7 @@ mkdir -p "$tmp/home/.codex" "$tmp/workspace" "$tmp/install-v1" "$tmp/install-v2"
 export HOME="$tmp/home"
 export CODEX_HOME="$tmp/home/.codex"
 unset npm_config_allow_scripts NPM_CONFIG_ALLOW_SCRIPTS
+unset CLAUDE_CONFIG_DIR   # else claude reads and changes the caller's real profile, not $HOME
 export NPM_CONFIG_USERCONFIG="$tmp/home/.npmrc"
 export NPM_CONFIG_CACHE="$tmp/npm-cache"
 export npm_config_userconfig="$tmp/home/.npmrc"
@@ -31,7 +32,7 @@ fi
 for version in 1.0.0 2.0.0; do
   stage="synthetic-$version-source"
   source="$tmp/source-$version"; source_pkg="$source/packages/ccl-skills-npm"; mkdir -p "$source_pkg"; cp -R "$pkg_dir"/. "$source_pkg/"; rm -rf "$source_pkg/node_modules" "$source_pkg/dist" "$source_pkg"/*.tgz
-  for asset in .claude-plugin .codex-plugin agent-context skills hooks packages/opencode-plugin scripts/owner-dispatch .worktree-only; do mkdir -p "$(dirname "$source/$asset")"; cp -R "$pkg_dir/../../$asset" "$source/$asset"; done
+  for asset in .claude-plugin .codex-plugin .antigravity-plugin hooks.json agent-context skills hooks packages/opencode-plugin scripts/owner-dispatch .worktree-only; do mkdir -p "$(dirname "$source/$asset")"; cp -R "$pkg_dir/../../$asset" "$source/$asset"; done
   stage="synthetic-$version-version"
   (cd "$source_pkg" && npm ci >/dev/null && npm version "$version" --no-git-tag-version --allow-same-version >/dev/null)
   rm -rf "$source_pkg/node_modules"
