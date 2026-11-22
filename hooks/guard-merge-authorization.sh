@@ -114,15 +114,18 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 
 # One jq call reads every field (jq start-up dominates this hook). Each value
-# is what `$(jq -r '.x // empty')` gives: NULs dropped, trailing newlines
-# stripped. A payload jq cannot parse, several documents or a non-string value
-# prints nothing, and the per-field reads below run as before.
+# is what `$(jq -r '.x // empty')` gives, trailing newlines stripped. jq prints
+# nothing, and the per-field reads below run as before, unless the payload is
+# one JSON document whose fields are strings without a NUL and with at most 16
+# trailing newlines. Dropping NULs or trimming longer runs in jq costs more
+# than linear time, which a crafted payload could use to stall the hook.
 fields=$(printf '%s' "$input" | jq -rs '
-  def sh: split("\u0000") | join("") | until(endswith("\n") | not; .[:-1]) | @sh;
+  def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
   select(length == 1) | .[0]
   | [(.tool_input.command // ""), (.cwd // ""), (.session_id // ""), (.transcript_path // "")]
-  | select(all(.[]; type == "string"))
-  | "cmd=\(.[0] | sh) cwd=\(.[1] | sh) sid=\(.[2] | sh) tpath=\(.[3] | sh) fields_read=1"' 2>/dev/null)
+  | select(all(.[]; type == "string" and (split("\u0000") | length) < 2))
+  | map(trim_nl(16)) | select(all(.[]; type == "string"))
+  | "cmd=\(.[0] | @sh) cwd=\(.[1] | @sh) sid=\(.[2] | @sh) tpath=\(.[3] | @sh) fields_read=1"' 2>/dev/null)
 fields_read=""
 case "$fields" in *' fields_read=1') eval "$fields" ;; esac   # every value is @sh-quoted
 

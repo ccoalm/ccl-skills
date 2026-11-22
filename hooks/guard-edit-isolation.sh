@@ -55,15 +55,14 @@ else
 fi
 # One jq call yields the malformed-patch flag, then each target path, as
 # NUL-terminated records. The flag record always comes first, so a malformed
-# patch with no targets is still flagged. The flag gets what
-# `$(jq -r .malformed_patch)` gave (NULs dropped, trailing newlines stripped);
-# paths keep their exact bytes, trailing newlines included.
+# patch with no targets is still flagged. Both normalizers emit the flag as a
+# boolean, so `tostring` gives what `$(jq -r .malformed_patch)` gave. Paths
+# keep their exact bytes, trailing newlines included.
 malformed=""; targets=(); first=1
 while IFS= read -r -d '' rec; do
   if [ -n "$first" ]; then malformed="$rec"; first=""; else targets+=("$rec"); fi
 done < <(printf '%s' "$normalized" | jq -j '
-  (.malformed_patch | tostring | split("\u0000") | join("")
-   | until(endswith("\n") | not; .[:-1])) + "\u0000",
+  (.malformed_patch | tostring) + "\u0000",
   (.paths[] | . + "\u0000")')
 if [ "$malformed" = true ]; then
   jq -nc '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Edit-isolation guard cannot inspect malformed apply_patch targets. Supply a complete patch before editing."}}'

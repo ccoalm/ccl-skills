@@ -677,18 +677,22 @@ cmd_pretool() {
   local input tool fp cmd repo rel fields fields_read=""
   input=$(cat)
   # One jq call reads every field (jq start-up dominates this hook). Each value
-  # is what `$(jq -r '.x // default')` gives: NULs dropped, trailing newlines
-  # stripped. A payload jq cannot parse, several documents or a non-string
-  # value prints nothing, and the per-field reads below run as before.
+  # is what `$(jq -r '.x // default')` gives, trailing newlines stripped. jq
+  # prints nothing, and the per-field reads below run as before, unless the
+  # payload is one JSON document whose fields are strings without a NUL and
+  # with at most 16 trailing newlines. Dropping NULs or trimming longer runs in
+  # jq costs more than linear time, which a crafted payload could use to stall
+  # the hook. The agent key is computed from the original value.
   fields=$(printf '%s' "$input" | jq -rs '
-    def sh: split("\u0000") | join("") | until(endswith("\n") | not; .[:-1]) | @sh;
+    def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
     select(length == 1) | .[0]
     | [(.session_id // "nosession"), (.agent_id // ""), (.tool_name // ""),
        (.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // ""),
        (.tool_input.command // ""),
        (.agent_id // "" | @base64 | split("+") | join("-") | split("/") | join("_"))]
-    | select(all(.[]; type == "string"))
-    | "SID=\(.[0] | sh) AID=\(.[1] | sh) tool=\(.[2] | sh) fp=\(.[3] | sh) cmd=\(.[4] | sh) AIDKEY=\(.[5] | sh) fields_read=1"' 2>/dev/null)
+    | select(all(.[]; type == "string" and (split("\u0000") | length) < 2))
+    | map(trim_nl(16)) | select(all(.[]; type == "string"))
+    | "SID=\(.[0] | @sh) AID=\(.[1] | @sh) tool=\(.[2] | @sh) fp=\(.[3] | @sh) cmd=\(.[4] | @sh) AIDKEY=\(.[5] | @sh) fields_read=1"' 2>/dev/null)
   case "$fields" in
     *' fields_read=1') eval "$fields" ;;   # every value is @sh-quoted
     *)

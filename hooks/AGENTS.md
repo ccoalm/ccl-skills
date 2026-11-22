@@ -22,8 +22,9 @@ Rules:
   event.
 - A hook reads its payload fields with one jq call, because jq start-up is most
   of a hook's latency. Each value must equal what `$(jq -r '.x // default')`
-  gave, and any payload the merged read cannot decode that way falls back to
-  the per-field reads. `test_hook_field_reads.py` pins this against baseline
+  gave. A payload the merged read cannot decode that way, or could decode only
+  in more than linear jq time (NULs, long trailing-newline runs), falls back
+  to the per-field reads. A hook stalled past the host timeout does not block. `test_hook_field_reads.py` pins this against baseline
   `788470c` for the merge, broad-test and edit-isolation guards and the
   owner-dispatch engine.
 

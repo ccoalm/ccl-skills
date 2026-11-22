@@ -47,8 +47,10 @@ EDIT = "hooks/guard-edit-isolation.sh"
 STOP = "hooks/owner-dispatch-stop.sh"
 # jq processes each script stops starting for the counted payload: the engine
 # merges 5 reads, the merge guard 4, the broad-test guard 2, the edit guard 2.
-JQ_SAVED = {"engine-edit": 4, "engine-bash": 4, "merge": 3, "broad": 1, "edit": 1}
+JQ_SAVED = {"engine-edit": 4, "engine-bash": 4, "merge": 3, "merge-trailing-newline": 3,
+            "broad": 1, "edit": 1}
 NUL_WARNING = "ignored null byte in input"
+STALL_SECONDS = 30
 SECRET = "SECRETMARK"
 MISSING = object()
 GIT_ENV = {
@@ -82,7 +84,7 @@ def variants(base):
         ("true", True), ("int", 7), ("float", 1.5),
         ("array", [base, "x; touch PWNED"]), ("object", {"k": base}), ("empty", ""),
         ("nul-mid", base[:2] + "\0" + base[2:]), ("nul-only", "\0"), ("nul-tail", base + "\0"),
-        ("nl-tail", base + "\n\n"), ("nl-mid", base[:2] + "\n" + base[2:]),
+        ("nl-tail", base + "\n\n"), ("nl-16", base + "\n" * 16), ("nl-17", base + "\n" * 17), ("nl-mid", base[:2] + "\n" + base[2:]),
         ("nl-lead", "\n" + base), ("nl-nul-tail", base + "\n\0\n"),
         ("quotes", base + "'\"\\ " + pwn + " " + SECRET), ("unicode", base + "é提交"),
         # Base64 of this suffix contains "+" and "/", which the agent key maps.
@@ -187,12 +189,15 @@ class Sandbox:
         env.update(extra or {})
         return env
 
-    def run(self, script, payload, cwd=None, args=(), extra_env=None, plugin=None):
+    def run(self, script, payload, cwd=None, args=(), extra_env=None, plugin=None, timeout=60):
         payload = payload.replace("<T>", self.root)
-        proc = subprocess.run(
-            ["bash", os.path.join(plugin or self.plugin, script), *args],
-            input=payload.encode("utf-8", "surrogatepass"), cwd=cwd or self.root,
-            env=self.env(extra_env), capture_output=True, timeout=60)
+        try:
+            proc = subprocess.run(
+                ["bash", os.path.join(plugin or self.plugin, script), *args],
+                input=payload.encode("utf-8", "surrogatepass"), cwd=cwd or self.root,
+                env=self.env(extra_env), capture_output=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return {"rc": "timeout after %ds" % timeout, "stdout": "", "stderr": ""}
         # Bash itself warns when $(...) drops a NUL; main prints that warning
         # and a read that drops NULs in jq does not. The warning is not output.
         return {"rc": proc.returncode, "stdout": self.norm(proc.stdout),
@@ -380,7 +385,37 @@ def group_edit(sb, record):
             record(case_id, sb.run(EDIT, payload, plugin=plugin))
 
 
-GROUPS = (group_engine_edit, group_engine_bash, group_stop, group_merge, group_broad, group_edit)
+def group_stall(sb, record):
+    """Payloads that make some jq decodings superlinear must not stall a hook.
+
+    A hook that outlives the host's timeout does not block, so a stall would
+    let the call through. Main strips these in bash at no cost."""
+    stalls = {"newlines": "\n" * 200000, "nuls": "\0" * 300000}
+    for label, suffix in stalls.items():
+        runs = {
+            "engine-edit": (ENGINE, {"session_id": "S1", "tool_name": "Edit",
+                                     "tool_input": {"file_path": "<T>/strict/src/foo.go" + suffix}},
+                            None, ("pretool",)),
+            "engine-bash": (ENGINE, {"session_id": "S1", "tool_name": "Bash",
+                                     "tool_input": {"command": "echo x > src/foo.go" + suffix}},
+                            sb.prod, ("pretool",)),
+            "merge": (MERGE, {"session_id": "SA", "cwd": "<T>/mr-feat",
+                              "tool_input": {"command": "gh pr merge 12 --squash" + suffix}},
+                      None, ()),
+            "broad": (BROAD, {"tool_name": "Bash", "tool_input": {"command": "pytest" + suffix}},
+                      sb.plain, ()),
+        }
+        for name, (script, payload, cwd, args) in runs.items():
+            sb.reset()
+            res = sb.run(script, jtext(payload), cwd=cwd, args=args, timeout=STALL_SECONDS,
+                         extra_env={"CLAUDECODE": "1"})
+            res["state"] = sb.engine_state()
+            res["grants"] = sb.grants()
+            record("stall/%s/%s" % (name, label), res)
+
+
+GROUPS = (group_engine_edit, group_engine_bash, group_stop, group_merge, group_broad, group_edit,
+          group_stall)
 
 
 def run_group(source, group):
@@ -412,6 +447,9 @@ def count_jq(sb):
                                  "tool_input": {"command": "ls"}}, ("pretool",)),
         "merge": (MERGE, {"session_id": "SA", "cwd": "<T>/mr-feat",
                           "tool_input": {"command": "ls"}}, ()),
+        # A command ending in a newline keeps the one-call read.
+        "merge-trailing-newline": (MERGE, {"session_id": "SA", "cwd": "<T>/mr-feat",
+                                           "tool_input": {"command": "ls\n"}}, ()),
         "broad": (BROAD, {"tool_name": "Bash", "tool_input": {"command": "ls"}}, ()),
         "edit": (EDIT, {"tool_name": "Edit", "tool_input": {"file_path": "<T>/plain/a.txt"}}, ()),
     }

@@ -48,15 +48,17 @@ for t in jq sed awk grep tr head; do command -v "$t" >/dev/null 2>&1 || exit 0; 
 input=$(head -c 1048576) || exit 0
 
 # One jq call reads both fields. Each value is what `$(jq -r '.x // empty')`
-# gives: NULs dropped, trailing newlines stripped. A payload jq cannot parse,
-# several documents or a non-string value prints nothing, and the per-field
-# reads below run as before.
+# gives, trailing newlines stripped. jq prints nothing, and the per-field reads
+# below run as before, unless the payload is one JSON document whose fields are
+# strings without a NUL and with at most 16 trailing newlines. Dropping NULs or
+# trimming longer runs in jq costs more than linear time.
 fields=$(printf '%s' "$input" | jq -rs '
-  def sh: split("\u0000") | join("") | until(endswith("\n") | not; .[:-1]) | @sh;
+  def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
   select(length == 1) | .[0]
   | [(.tool_name // ""), (.tool_input.command // "")]
-  | select(all(.[]; type == "string"))
-  | "tool=\(.[0] | sh) cmd=\(.[1] | sh) fields_read=1"' 2>/dev/null)
+  | select(all(.[]; type == "string" and (split("\u0000") | length) < 2))
+  | map(trim_nl(16)) | select(all(.[]; type == "string"))
+  | "tool=\(.[0] | @sh) cmd=\(.[1] | @sh) fields_read=1"' 2>/dev/null)
 fields_read=""
 case "$fields" in *' fields_read=1') eval "$fields" ;; esac   # every value is @sh-quoted
 
