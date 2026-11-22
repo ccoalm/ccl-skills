@@ -279,7 +279,18 @@ All runs use `CCL_BROAD_TEST_REASON=repo-required`, `umask 022`, and pytest and 
 
 ## Final verification
 
-To be filled in from the runs on the final commit.
+On the final code, `0176e3d`, with the settings of Full local verification. The two candidates differ only in one line of `host-smoke.sh` and in evidence files:
+
+| Check | `1109ccf` | `0176e3d` |
+| --- | --- | --- |
+| `make test-repo-gates` | passed | passed |
+| `make test-regressions-fast` | passed | passed |
+| `make test-code-review-1` and `-2` | passed | not rerun: no file they read changed |
+| `make test-code-review-abort-leak-1` and `-2` | passed, under `unshare` | not rerun, as above |
+| `make npm-publish-dry`, `npm test` | passed | passed |
+| `npm run smoke:host` | passed | passed |
+
+Every run left the working tree clean. A later commit adds only this table, and the doc checks of `make test-repo-gates` were rerun on it.
 
 ## Latency
 
