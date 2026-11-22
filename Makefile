@@ -47,6 +47,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
 	python3 skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py --repo . --default-base-ref "$(CCL_SKILL_DEFAULT_BASE_REF)"
 	bash skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh --repo . --enforce
+	bash skills/product-rd-workflow/scripts/test_check_agent_contract_coverage.sh
 	python3 scripts/test_check_markdown_links.py
 	python3 scripts/check-markdown-links.py .
 	python3 scripts/test_check_spec_references.py
@@ -90,7 +91,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	bash scripts/owner-dispatch/test.sh
 	bash scripts/control-plane/test.sh
 	python3 -m pytest -q skills/test-artifact-management/references/test_gen_report.py
-	python3 -m unittest eval.test_subagent_owner_audit eval.test_skill_effectiveness_bridge eval.test_skill_effectiveness_trial eval.test_reviewer_calibration_protocol eval.test_design_judge
+	python3 -m unittest eval.test_subagent_owner_audit eval.test_skill_effectiveness_bridge eval.test_skill_effectiveness_trial eval.test_reviewer_calibration_protocol eval.test_design_judge eval.test_owner_role_audit
 
 test-regressions-fast: ## fast 回归 lane（CI regression-fast 并行 job；本地 make test 直跑）
 	bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --fast
@@ -130,6 +131,7 @@ test-code-review-2: ## code-review 分片 2（CI code-review-regressions-2 job�
 	  skills/code-review/scripts/test_review_client_order.sh \
 	  skills/code-review/scripts/test_cli_review_wrappers.sh \
 	  skills/code-review/scripts/test_review_client_compat.py \
+	  skills/code-review/scripts/test_kimi_packet_mcp.py \
 	  skills/code-review/scripts/test_code_review_identity.sh
 
 # 覆盖结构：回收器是**一份共享代码**，leg 1 证一次即够；上界是**每个 stub 各一份**

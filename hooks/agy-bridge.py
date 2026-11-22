@@ -507,20 +507,48 @@ def session_start(agy, deadline):
     return inject(texts)
 
 
-def turn_key(agy, turn_id):
-    """One key per user turn: initialNumSteps when the host sends it, else the transcript turn."""
+def is_int(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def resolve_turn_key(agy, ctx):
+    """One key per user turn across multi-step tool loops (invocationNum 0 -> 1, 2, ...)."""
     prompt = agy.get('lastUserInput')
     if not isinstance(prompt, str) or not prompt.strip():
         return None, ''
-    steps = agy.get('initialNumSteps')
-    marker = str(steps) if isinstance(steps, int) and not isinstance(steps, bool) else (turn_id or '')
-    return digest(f'{marker}\0{prompt}'), prompt
+    inv = agy.get('invocationNum')
+    turn_id = ctx['turn_id']
+    active_file = state_dir() / f"{ctx['key']}.active.turn"
+    active = {}
+    try:
+        parsed = json.loads(active_file.read_text(encoding='utf-8'))
+        if isinstance(parsed, dict):
+            active = parsed
+    except (OSError, ValueError):
+        pass
+    active_key = active.get('key')
+    if is_int(inv) and inv > 0 and isinstance(active_key, str) and active_key:
+        prev_turn = active.get('turn_id')
+        if not (prev_turn and turn_id and prev_turn != turn_id):
+            if prev_turn is None and turn_id:
+                write_private(active_file, json.dumps({'turn_id': turn_id, 'key': active_key}))
+            return active_key, prompt
+    if turn_id:
+        marker = f'turn:{turn_id}'
+    elif is_int(inv) and inv > 0:
+        marker = 'continuation'
+    else:
+        steps = agy.get('initialNumSteps')
+        marker = f'steps:{steps}' if is_int(steps) else 'noturn'
+    key = digest(f'{marker}\0{prompt}')
+    write_private(active_file, json.dumps({'turn_id': turn_id, 'key': key}))
+    return key, prompt
 
 
 def pre_invocation(agy, deadline):
     ctx = context(agy)
     texts = []
-    key, prompt = turn_key(agy, ctx['turn_id'])
+    key, prompt = resolve_turn_key(agy, ctx)
     for script in DISPATCH['PreInvocation:first-of-turn']:
         marker = state_dir() / f"{ctx['key']}.{script}.turn"
         try:

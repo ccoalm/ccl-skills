@@ -129,6 +129,26 @@ class GuardParityTests(BridgeCase):
         result = self.bridge('PreToolUse', self.edit('write_file', {'Path': str(alias / 'notes.md')}, self.tmp))
         self.assertEqual(result['decision'], 'deny', result)
 
+    def test_symlink_inside_protected_primary_checkout_is_denied(self):
+        repo, linked = self.protected_repo()
+        outside = self.tmp / 'outside.txt'
+        outside.write_text('outside\n')
+        tracked_link = repo / 'tracked_link.txt'
+        tracked_link.symlink_to(outside)
+        dangling_link = repo / 'dangling_link.txt'
+        dangling_link.symlink_to(self.tmp / 'missing' / 'target.txt')
+        linked_link = linked / 'linked_link.txt'
+        linked_link.symlink_to(outside)
+
+        self.assertEqual(self.claude_guard(tracked_link), 'deny')
+        patch = f'*** Begin Patch\n*** Delete File: {tracked_link}\n*** End Patch'
+        deleted = self.bridge('PreToolUse', self.edit('apply_patch', {'Input': patch}, repo))
+        self.assertEqual(deleted['decision'], 'deny', deleted)
+        dangling = self.bridge('PreToolUse', self.edit('write_file', {'Path': str(dangling_link), 'Content': 'x'}, repo))
+        self.assertEqual(dangling['decision'], 'deny', dangling)
+        allowed = self.bridge('PreToolUse', self.edit('write_file', {'Path': str(linked_link), 'Content': 'x'}, linked))
+        self.assertEqual(allowed, {'decision': 'allow'})
+
     def test_unknown_edit_target_fails_closed(self):
         result = self.bridge('PreToolUse', self.edit('write_file', {'Content': 'x'}, self.tmp))
         self.assertEqual(result['decision'], 'deny')
@@ -232,14 +252,98 @@ class EventShapeTests(BridgeCase):
         self.assertIn('ccl-skills-routing', text)
 
     def test_task_entry_runs_once_per_user_turn(self):
-        payload = {'conversationId': 'turns', 'cwd': str(self.tmp), 'lastUserInput': 'add a feature',
-                   'initialNumSteps': 4}
-        first = self.bridge('PreInvocation', payload)
+        transcript = self.tmp / 'logs/transcript_full.jsonl'
+        transcript.parent.mkdir()
+        steps = [{'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0, 'content': 'add a feature'}]
+        transcript.write_text(''.join(json.dumps(s) + '\n' for s in steps))
+        base = {'conversationId': 'turns', 'cwd': str(self.tmp), 'lastUserInput': 'add a feature',
+                'transcriptPath': str(transcript.with_name('transcript.jsonl'))}
+        first = self.bridge('PreInvocation', {**base, 'invocationNum': 0, 'initialNumSteps': 1})
         self.assertIn('<ccl-task-entry>', first['injectSteps'][0]['systemMessage']['systemMessage'])
-        self.assertEqual(self.bridge('PreInvocation', payload), {})
-        payload['initialNumSteps'] = 9
-        again = self.bridge('PreInvocation', payload)
+        steps.extend([
+            {'type': 'PLANNER_RESPONSE', 'step_index': 1, 'tool_calls': [{'name': 'run_command', 'args': {'CommandLine': 'ls'}}]},
+            {'type': 'GENERIC', 'status': 'DONE', 'step_index': 2, 'content': 'ok'},
+        ])
+        transcript.write_text(''.join(json.dumps(s) + '\n' for s in steps))
+        self.assertEqual(self.bridge('PreInvocation', {**base, 'invocationNum': 1, 'initialNumSteps': 5}), {})
+        # Next user turn with the exact same prompt text must still run task entry once.
+        steps.append({'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 7, 'content': 'add a feature'})
+        transcript.write_text(''.join(json.dumps(s) + '\n' for s in steps))
+        again = self.bridge('PreInvocation', {**base, 'invocationNum': 0, 'initialNumSteps': 8})
         self.assertIn('<ccl-task-entry>', again['injectSteps'][0]['systemMessage']['systemMessage'])
+        self.assertEqual(self.bridge('PreInvocation', {**base, 'invocationNum': 1, 'initialNumSteps': 12}), {})
+
+        # Without a transcript file, invocationNum > 0 still stays in the current turn.
+        notx = {'conversationId': 'turns-notx', 'cwd': str(self.tmp), 'lastUserInput': 'add a feature'}
+        first_notx = self.bridge('PreInvocation', {**notx, 'invocationNum': 0, 'initialNumSteps': 4})
+        self.assertIn('<ccl-task-entry>', first_notx['injectSteps'][0]['systemMessage']['systemMessage'])
+        self.assertEqual(self.bridge('PreInvocation', {**notx, 'invocationNum': 1, 'initialNumSteps': 9}), {})
+        next_notx = self.bridge('PreInvocation', {**notx, 'invocationNum': 0, 'initialNumSteps': 12})
+        self.assertIn('<ccl-task-entry>', next_notx['injectSteps'][0]['systemMessage']['systemMessage'])
+
+    def test_multi_step_turn_does_not_rearm_consumed_merge_grant(self):
+        _, linked = self.protected_repo()
+        transcript = self.tmp / 'merge-logs/transcript_full.jsonl'
+        transcript.parent.mkdir()
+        transcript.write_text(json.dumps({'type': 'USER_INPUT', 'source': 'USER_EXPLICIT',
+                                          'step_index': 0, 'content': 'merge #123'}) + '\n')
+        pre = {'conversationId': 'merge-once', 'cwd': str(linked), 'lastUserInput': 'merge #123',
+               'transcriptPath': str(transcript.with_name('transcript.jsonl'))}
+        self.bridge('PreInvocation', {**pre, 'invocationNum': 0, 'initialNumSteps': 1})
+
+        merge_cmd = ' '.join(('gh', 'pr', 'merge', '123', '--merge'))
+        merge_call = {'conversationId': 'merge-once', 'hookEventName': 'PreToolUse', 'cwd': str(linked),
+                      'workspacePaths': [str(linked)], 'transcriptPath': pre['transcriptPath'],
+                      'toolCall': {'id': 'm1', 'name': 'run_command', 'args': {'CommandLine': merge_cmd}}}
+        first_merge = self.bridge('PreToolUse', merge_call)
+        self.assertEqual(first_merge['decision'], 'allow', first_merge)
+        second_merge = self.bridge('PreToolUse', merge_call)
+        self.assertEqual(second_merge['decision'], 'deny', second_merge)
+
+        # Next model step of the SAME user turn advances initialNumSteps; must not re-arm merge grant,
+        # while queued advisory notes must still be delivered.
+        bridge = load_bridge()
+        os.environ['TMPDIR'] = self.env['TMPDIR']
+        try:
+            _, conv_key = bridge.conversation({'conversationId': 'merge-once'})
+            bridge.push_notes(conv_key, ['advisory-step-2'])
+        finally:
+            del os.environ['TMPDIR']
+        step2 = self.bridge('PreInvocation', {**pre, 'invocationNum': 1, 'initialNumSteps': 5})
+        delivered_text = step2['injectSteps'][0]['systemMessage']['systemMessage']
+        self.assertIn('advisory-step-2', delivered_text)
+        self.assertNotIn('<ccl-task-entry>', delivered_text)
+        third_merge = self.bridge('PreToolUse', merge_call)
+        self.assertEqual(third_merge['decision'], 'deny', third_merge)
+
+    def test_mid_turn_missing_or_late_transcript_preserves_turn_key(self):
+        # Late transcript flush: step 0 sees no transcript yet, step 1 sees turn-0, step 2 sees absorbed turn-9.
+        late_tx = self.tmp / 'late/transcript_full.jsonl'
+        late_tx.parent.mkdir()
+        base = {'conversationId': 'late-tx', 'cwd': str(self.tmp), 'lastUserInput': 'ship it',
+                'transcriptPath': str(late_tx.with_name('transcript.jsonl'))}
+        first = self.bridge('PreInvocation', {**base, 'invocationNum': 0, 'initialNumSteps': 1})
+        self.assertIn('<ccl-task-entry>', first['injectSteps'][0]['systemMessage']['systemMessage'])
+        late_tx.write_text(json.dumps({'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0}) + '\n')
+        self.assertEqual(self.bridge('PreInvocation', {**base, 'invocationNum': 1, 'initialNumSteps': 4}), {})
+        late_tx.write_text(
+            json.dumps({'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0}) + '\n' +
+            json.dumps({'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 9}) + '\n'
+        )
+        absorbed = self.bridge('PreInvocation', {**base, 'invocationNum': 2, 'initialNumSteps': 9,
+                                                  'lastUserInput': 'also fix lint'})
+        self.assertIn('<ccl-task-entry>', absorbed['injectSteps'][0]['systemMessage']['systemMessage'])
+
+        # Oversized transcript tail drop: step 0 sees turn-0, step 1 loses turn_id (None) at invocationNum > 0.
+        tail_tx = self.tmp / 'tail/transcript_full.jsonl'
+        tail_tx.parent.mkdir()
+        tail_tx.write_text(json.dumps({'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0}) + '\n')
+        tail_base = {'conversationId': 'tail-drop', 'cwd': str(self.tmp), 'lastUserInput': 'big turn',
+                     'transcriptPath': str(tail_tx.with_name('transcript.jsonl'))}
+        first_tail = self.bridge('PreInvocation', {**tail_base, 'invocationNum': 0, 'initialNumSteps': 1})
+        self.assertIn('<ccl-task-entry>', first_tail['injectSteps'][0]['systemMessage']['systemMessage'])
+        tail_tx.write_text(json.dumps({'type': 'GENERIC', 'status': 'DONE', 'step_index': 50}) + '\n')
+        self.assertEqual(self.bridge('PreInvocation', {**tail_base, 'invocationNum': 3, 'initialNumSteps': 51}), {})
 
     def test_failed_task_entry_is_retried_in_the_same_turn(self):
         copy = self.tmp / 'plugin'

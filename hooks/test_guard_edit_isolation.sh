@@ -251,6 +251,59 @@ ln -s "$d2/src/x.py" "$ROOT/p6-link"
 run "$ROOT" "$(payload_for "$ROOT/p6-link")"
 assert_deny "p6 symlink into .worktree-only repo denies edit" "共享仓库" ""
 
+# P6b: symlink INSIDE a .worktree-only primary checkout pointing outside -> deny
+touch "$ROOT/p6-outside.txt"
+ln -s "$ROOT/p6-outside.txt" "$d2/out-link.txt"
+run "$d2" "$(payload_for "$d2/out-link.txt")"
+assert_deny "p6b symlink inside .worktree-only primary pointing outside denies" "共享仓库" "main"
+
+# P6c: dangling symlink INSIDE a .worktree-only primary checkout -> deny
+ln -s "$ROOT/no-such-dir/missing.txt" "$d2/dangling-link.txt"
+run "$d2" "$(payload_for "$d2/dangling-link.txt")"
+assert_deny "p6c dangling symlink inside .worktree-only primary denies" "共享仓库" "main"
+
+# P6d: symlink INSIDE a multi-worktree primary checkout pointing outside -> deny
+ln -s "$ROOT/p6-outside.txt" "$d3/out-link.txt"
+run "$d3" "$(payload_for "$d3/out-link.txt")"
+assert_deny "p6d symlink inside multi-worktree primary pointing outside denies" "并发隔离闸" "main"
+
+# P6e: dangling symlink outside repo pointing into deep uncreated subdir of .worktree-only primary -> deny
+ln -s "$d2/uncreated-a/uncreated-b/new.py" "$ROOT/p6e-dangling"
+run "$ROOT" "$(payload_for "$ROOT/p6e-dangling")"
+assert_deny "p6e dangling symlink into uncreated subdir of .worktree-only repo denies" "共享仓库" ""
+
+# P6f: precision/spare — symlink inside a linked worktree pointing outside -> quiet allow
+ln -s "$ROOT/p6-outside.txt" "$ROOT/p4b-side/out-link.txt"
+run "$ROOT/p4b-side" "$(payload_for "$ROOT/p4b-side/out-link.txt")"
+assert_quiet "p6f symlink inside linked worktree pointing outside allows edit"
+
+# P6g: precision/spare — symlink inside a solo plain primary checkout pointing outside -> quiet allow
+ln -s "$ROOT/p6-outside.txt" "$d1/out-link.txt"
+run "$d1" "$(payload_for "$d1/out-link.txt")"
+assert_quiet "p6g symlink inside solo plain primary checkout pointing outside allows edit"
+
+# P6h: resource bound — self-referential symlink loop outside any repo terminates cleanly -> quiet allow
+mkdir -p "$ROOT/p6h-outside"
+ln -s loop "$ROOT/p6h-outside/loop"
+run "$ROOT/p6h-outside" "$(payload_for "$ROOT/p6h-outside/loop")"
+assert_quiet "p6h symlink cycle outside repo terminates cleanly and allows"
+
+# P6i: new file under a dangling parent directory symlink pointing into an uncreated subdir of .worktree-only primary -> deny
+ln -s "$d2/uncreated-parent" "$ROOT/p6i-dangling-dir"
+run "$ROOT" "$(payload_for "$ROOT/p6i-dangling-dir/sub/new.py")"
+assert_deny "p6i file under dangling parent symlink into .worktree-only repo denies" "共享仓库" ""
+
+# P6j & P6k: jq-only fallback (no python3 on PATH) still enforces both dangling-parent and target-resolution symlink checks
+shim_nopy="$ROOT/shim-no-python"; mkdir "$shim_nopy"
+for t in jq git dirname realpath readlink cat wc awk basename bash sed grep tr uname mktemp env find head sort; do
+  tp=$(command -v "$t" 2>/dev/null) || { echo "suite fixture: required shim tool missing: $t" >&2; exit 1; }
+  ln -s "$tp" "$shim_nopy/$t"
+done
+run "$ROOT" "$(payload_for "$ROOT/p6i-dangling-dir/sub/new.py")" PATH="$shim_nopy"
+assert_deny "p6j jq-only fallback denies file under dangling parent symlink into .worktree-only repo" "共享仓库" ""
+run "$ROOT" "$(payload_for "$ROOT/p6e-dangling")" PATH="$shim_nopy"
+assert_deny "p6k jq-only fallback denies dangling symlink into .worktree-only repo" "共享仓库" ""
+
 # P7: not-yet-existing file below an existing protected dir (walk-up) -> deny
 run "$d2" "$(payload_for "$d2/newdir/newfile.py")"
 assert_deny "p7 non-existent file under protected repo denies edit" "共享仓库" ""
@@ -313,7 +366,7 @@ printf '%s' "$OUT" | jq -e '.hookSpecificOutput.permissionDecision == "deny"' >/
   && note "p11 degrade must not carry permissionDecision deny: $OUT"
 
 # Self-pin: a deleted/commented-out probe must fail the suite, not shrink it.
-EXPECTED_PROBES=20
+EXPECTED_PROBES=30
 actual_probes=$(grep -cE '^[[:space:]]*assert_(quiet|deny|degrade) ' "$0")
 [ "$actual_probes" -eq "$EXPECTED_PROBES" ] \
   || { echo "FAIL: suite self-pin: expected $EXPECTED_PROBES probe assertions, found $actual_probes" >&2; exit 1; }

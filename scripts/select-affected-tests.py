@@ -110,6 +110,7 @@ _DEFAULT_EVAL_UNITTEST_MODULES = (
     "eval.test_skill_effectiveness_trial",
     "eval.test_reviewer_calibration_protocol",
     "eval.test_design_judge",
+    "eval.test_owner_role_audit",
 )
 
 _MAKEFILE_NAMES = ("Makefile", "GNUmakefile", "makefile")
