@@ -30,6 +30,7 @@ import concurrent.futures
 import hashlib
 import json
 import os
+import platform
 import re
 import signal
 import shutil
@@ -563,18 +564,28 @@ def main():
     if opts.dump_baseline:
         write_dump(opts.dump_baseline, collect("baseline")[0])
         return 0
+    # Baseline output differs by platform where the hooks call system tools
+    # (GNU and BSD tr, basename), so each platform keeps its own entry.
+    system = platform.system()
+    fixture = {"baseline": BASELINE, "platforms": {}}
+    if os.path.exists(EXPECTED):
+        with open(EXPECTED) as fh:
+            fixture = json.load(fh)
     if opts.regenerate:
         results, counts = collect("baseline")
-        fixture = {"baseline": BASELINE, "jq_counts": counts,
-                   "cases": {k: digest(v) for k, v in sorted(results.items())}}
+        fixture["baseline"] = BASELINE
+        fixture["platforms"][system] = {
+            "jq_counts": counts, "cases": {k: digest(v) for k, v in sorted(results.items())}}
         with open(EXPECTED, "w") as fh:
             json.dump(fixture, fh, indent=1, sort_keys=True, ensure_ascii=False)
             fh.write("\n")
-        print("wrote %d cases to %s" % (len(results), os.path.relpath(EXPECTED, REPO)))
+        print("wrote %d %s cases to %s" % (len(results), system, os.path.relpath(EXPECTED, REPO)))
         return 0
 
-    with open(EXPECTED) as fh:
-        fixture = json.load(fh)
+    if fixture.get("baseline") != BASELINE or system not in fixture.get("platforms", {}):
+        print("FAIL: no %s fixture from %s; run --regenerate on %s" % (system, BASELINE, system))
+        return 1
+    fixture = fixture["platforms"][system]
     results, counts = collect("candidate")
     if opts.dump:
         write_dump(opts.dump, results)
