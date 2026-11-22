@@ -157,6 +157,46 @@ if failures:
     sys.exit(1)
 PY
 
+SETUP_ACTION="$ROOT/.github/actions/setup-validation-tools/action.yml"
+if [ -f "$SETUP_ACTION" ]; then
+  python3 - "$CI" "$SETUP_ACTION" <<'PY'
+import pathlib, re, sys
+
+ci_path = pathlib.Path(sys.argv[1])
+action_path = pathlib.Path(sys.argv[2])
+ci_src = ci_path.read_text(encoding="utf-8")
+action_src = action_path.read_text(encoding="utf-8")
+
+# eval/skill-effectiveness/{bridge,reviewer_calibration_protocol}.py reject any
+# group- or world-writable sys.executable (`_reject_shared_write_access`).
+# GitHub's actions/setup-python unpacks /opt/hostedtoolcache/Python/... with
+# 0775 (group-writable) binaries, breaking repository-gates eval tests. Keep
+# the root-owned runner /usr/bin/python3 (0755) and cache ~/.cache/pip directly.
+for label, text in (("ci.yml", ci_src), ("setup-validation-tools/action.yml", action_src)):
+    if re.search(r"^\s*-?\s*uses:\s*actions/setup-python@", text, re.M):
+        print(
+            f"FAIL: {label} uses actions/setup-python, which switches python3 to "
+            "group-writable /opt/hostedtoolcache binaries rejected by eval manifest probes",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+if "~/.cache/pip" not in action_src or "hashFiles('requirements-test.txt')" not in action_src:
+    print(
+        "FAIL: setup-validation-tools/action.yml must cache ~/.cache/pip keyed by requirements-test.txt",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+if "S_IWGRP" not in action_src or "S_IWOTH" not in action_src:
+    print(
+        "FAIL: setup-validation-tools/action.yml must assert sys.executable is not group/world-writable",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+PY
+fi
+
 default_make_dry_run="$(make --no-print-directory -n -C "$ROOT" test-repo-gates)"
 override_make_dry_run="$(
   make --no-print-directory -n -C "$ROOT" \

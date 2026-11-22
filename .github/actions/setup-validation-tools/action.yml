@@ -1,5 +1,5 @@
 name: Setup CCL validation tools
-description: Set up optional Node.js, Python 3.12 with pip cache, pinned ripgrep with tarball cache and mandatory SHA-256 verification, and test dependencies.
+description: Set up optional Node.js, runner system Python pip cache, pinned ripgrep with tarball cache and mandatory SHA-256 verification, and test dependencies.
 
 inputs:
   setup-node:
@@ -22,12 +22,13 @@ runs:
       with:
         node-version: "20"
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
+    - name: Cache pip wheels
+      uses: actions/cache@v4
       with:
-        python-version: "3.12"
-        cache: "pip"
-        cache-dependency-path: "requirements-test.txt"
+        path: ~/.cache/pip
+        key: pip-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('requirements-test.txt') }}
+        restore-keys: |
+          pip-${{ runner.os }}-${{ runner.arch }}-
 
     - name: Cache pinned ripgrep archive
       uses: actions/cache@v4
@@ -82,6 +83,10 @@ runs:
         # ubuntu-latest includes Ruby; fail fast if that runner contract changes
         # instead of reintroducing the apt mirror dependency on this required job.
         ruby --version
+        # Keep the root-owned system python3 rather than actions/setup-python's
+        # group-writable /opt/hostedtoolcache binaries, which eval manifest
+        # probes (`_reject_shared_write_access`) reject by design.
+        python3 -c 'import os, stat, sys; p = os.path.realpath(sys.executable); m = os.lstat(p).st_mode; assert not (m & (stat.S_IWGRP | stat.S_IWOTH)), f"group/world-writable python3: {p} {oct(m)}"'
 
     - name: Install Python test dependencies
       shell: bash
