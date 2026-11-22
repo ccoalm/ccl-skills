@@ -158,44 +158,120 @@ if failures:
 PY
 
 SETUP_ACTION="$ROOT/.github/actions/setup-validation-tools/action.yml"
-if [ -f "$SETUP_ACTION" ]; then
-  python3 - "$CI" "$SETUP_ACTION" <<'PY'
-import pathlib, re, sys
+[ -f "$SETUP_ACTION" ] || fail "composite action not found: $SETUP_ACTION"
+python3 - "$CI" "$SETUP_ACTION" $GATE_JOBS <<'PY'
+import pathlib, re, sys, yaml
 
 ci_path = pathlib.Path(sys.argv[1])
 action_path = pathlib.Path(sys.argv[2])
-ci_src = ci_path.read_text(encoding="utf-8")
-action_src = action_path.read_text(encoding="utf-8")
+gate_jobs = sys.argv[3:]
+
+ci_doc = yaml.safe_load(ci_path.read_text(encoding="utf-8"))
+action_doc = yaml.safe_load(action_path.read_text(encoding="utf-8"))
+if not isinstance(ci_doc, dict) or not isinstance(ci_doc.get("jobs"), dict):
+    print("FAIL: ci.yml must parse to a mapping with jobs", file=sys.stderr)
+    sys.exit(1)
+if not isinstance(action_doc, dict) or not isinstance(action_doc.get("runs"), dict):
+    print("FAIL: setup-validation-tools/action.yml must parse to a mapping with runs", file=sys.stderr)
+    sys.exit(1)
+if action_doc["runs"].get("using") != "composite":
+    print("FAIL: setup-validation-tools/action.yml runs.using must be composite", file=sys.stderr)
+    sys.exit(1)
+
+def _has_hosted_py_action(step: object) -> bool:
+    if not isinstance(step, dict):
+        return False
+    uses = str(step.get("uses") or "").strip()
+    return uses.startswith("actions/setup-python@") or "/actions/setup-python@" in uses
 
 # eval/skill-effectiveness/{bridge,reviewer_calibration_protocol}.py reject any
 # group- or world-writable sys.executable (`_reject_shared_write_access`).
 # GitHub's actions/setup-python unpacks /opt/hostedtoolcache/Python/... with
-# 0775 (group-writable) binaries, breaking repository-gates eval tests. Keep
-# the root-owned runner /usr/bin/python3 (0755) and cache ~/.cache/pip directly.
-for label, text in (("ci.yml", ci_src), ("setup-validation-tools/action.yml", action_src)):
-    if re.search(r"^\s*-?\s*uses:\s*actions/setup-python@", text, re.M):
+# 0775 (group-writable) binaries, breaking repository-gates eval tests.
+for job_name, job_cfg in ci_doc["jobs"].items():
+    steps = (job_cfg or {}).get("steps") or []
+    for step in steps:
+        if _has_hosted_py_action(step):
+            print(
+                f"FAIL: ci.yml job {job_name} uses actions/setup-python, which switches python3 to "
+                "group-writable /opt/hostedtoolcache binaries rejected by eval manifest probes",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+for job_name in gate_jobs:
+    steps = ((ci_doc["jobs"].get(job_name) or {}).get("steps")) or []
+    if not any(
+        isinstance(s, dict) and str(s.get("uses") or "").strip() == "./.github/actions/setup-validation-tools"
+        for s in steps
+    ):
         print(
-            f"FAIL: {label} uses actions/setup-python, which switches python3 to "
+            f"FAIL: ci.yml gate job {job_name} does not invoke ./.github/actions/setup-validation-tools",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+action_steps = action_doc["runs"].get("steps") or []
+if not isinstance(action_steps, list) or not action_steps:
+    print("FAIL: setup-validation-tools/action.yml runs.steps must be a non-empty list", file=sys.stderr)
+    sys.exit(1)
+
+for step in action_steps:
+    if _has_hosted_py_action(step):
+        print(
+            "FAIL: setup-validation-tools/action.yml uses actions/setup-python, which switches python3 to "
             "group-writable /opt/hostedtoolcache binaries rejected by eval manifest probes",
             file=sys.stderr,
         )
         sys.exit(1)
 
-if "~/.cache/pip" not in action_src or "hashFiles('requirements-test.txt')" not in action_src:
+has_pip_cache = False
+perm_check_idx = None
+pip_install_idx = None
+perm_line_re = re.compile(
+    r"^python3\s+-c\s+.*os\.path\.realpath\(sys\.executable\).*os\.lstat\(.*S_IWGRP.*S_IWOTH"
+)
+
+for idx, step in enumerate(action_steps):
+    if not isinstance(step, dict):
+        continue
+    uses = str(step.get("uses") or "").strip()
+    with_cfg = step.get("with") if isinstance(step.get("with"), dict) else {}
+    if (
+        uses.startswith("actions/cache@")
+        and step.get("if") is None
+        and str(with_cfg.get("path") or "").strip() == "~/.cache/pip"
+        and "hashFiles('requirements-test.txt')" in str(with_cfg.get("key") or "")
+    ):
+        has_pip_cache = True
+    run_script = step.get("run")
+    if isinstance(run_script, str) and str(step.get("shell") or "").strip() == "bash":
+        active_lines = [
+            ln.strip()
+            for ln in run_script.splitlines()
+            if ln.strip() and not ln.lstrip().startswith("#")
+        ]
+        if any(perm_line_re.search(ln) for ln in active_lines):
+            perm_check_idx = idx
+        if any("pip install" in ln and "requirements-test.txt" in ln for ln in active_lines):
+            pip_install_idx = idx
+
+if not has_pip_cache:
     print(
-        "FAIL: setup-validation-tools/action.yml must cache ~/.cache/pip keyed by requirements-test.txt",
+        "FAIL: setup-validation-tools/action.yml must have an unconditional actions/cache step "
+        "with path ~/.cache/pip and key containing hashFiles('requirements-test.txt')",
         file=sys.stderr,
     )
     sys.exit(1)
 
-if "S_IWGRP" not in action_src or "S_IWOTH" not in action_src:
+if perm_check_idx is None or pip_install_idx is None or perm_check_idx > pip_install_idx:
     print(
-        "FAIL: setup-validation-tools/action.yml must assert sys.executable is not group/world-writable",
+        "FAIL: setup-validation-tools/action.yml must execute an active python3 sys.executable "
+        "S_IWGRP/S_IWOTH lstat check before installing requirements-test.txt",
         file=sys.stderr,
     )
     sys.exit(1)
 PY
-fi
 
 default_make_dry_run="$(make --no-print-directory -n -C "$ROOT" test-repo-gates)"
 override_make_dry_run="$(
