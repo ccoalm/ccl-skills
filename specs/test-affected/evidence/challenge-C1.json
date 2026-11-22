@@ -1,0 +1,165 @@
+{
+  "schema_version": 3,
+  "runner": "review_diff",
+  "mode": "challenge",
+  "status": "findings",
+  "reason_code": null,
+  "findings": [
+    {
+      "severity": "P1",
+      "title": "Preserve literal Make arguments before exporting them",
+      "file": "Makefile",
+      "line": 12,
+      "body": "GNU Make expands command-line variables while constructing the recipe environment. I confirmed that a single-quoted `AFFECTED_ARGS` naming `docs/price$5.md` reaches the selector as `docs/price.md`. Make function expressions in a filename or default ref are also evaluated before Python sees them, including during `test-affected-plan`."
+    },
+    {
+      "severity": "P1",
+      "title": "Bind Make fallback to the Makefile that passed containment checks",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1579,
+      "body": "The selector inspects `Makefile`, then invokes bare `make`. GNU Make prefers `GNUmakefile` and `makefile` over `Makefile`. With an untracked `GNUmakefile` symlink and an unknown changed path, the Python entry point can approve the repository Makefile and execute fallback recipes from outside the checkout."
+    },
+    {
+      "severity": "P1",
+      "title": "Check non-test scripts invoked by fallback recipes",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1614,
+      "body": "`makefile_suites()` collects test-shaped filenames. The actual `test-repo-gates` recipe also executes `scripts/check-release-version.py`, among other non-test scripts. If that file is an external symlink, a fallback selected by `--files` for an unrelated path passes this check and Make follows the link."
+    },
+    {
+      "severity": "P1",
+      "title": "Keep queued parallel suites bound to the files that were checked",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1765,
+      "body": "All suites are checked before the parallel runner starts. With `--jobs 1`, a later suite can wait minutes behind the first. If its regular file is replaced with an external symlink during that interval, the runner opens the replacement when its turn arrives."
+    },
+    {
+      "severity": "P1",
+      "title": "Make termination escalation reachable while a child is alive",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1673,
+      "body": "After forwarding SIGTERM, the handler returns to an unbounded `proc.wait()`. A child that ignores TERM keeps the selector there indefinitely, so the five-second timeout never starts. If the group leader exits while a descendant ignores TERM, `proc.poll()` instead skips escalation and the descendant survives."
+    },
+    {
+      "severity": "P2",
+      "title": "Cover the child-launch window with cancellation handling",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1646,
+      "body": "`Popen` starts a separate session before the selector installs its signal handlers. SIGTERM delivered between process creation and handler registration terminates the selector with the default action. The new child session stays alive without receiving that signal."
+    },
+    {
+      "severity": "P2",
+      "title": "Validate planner input files before opening them",
+      "file": "scripts/select-affected-tests.py",
+      "line": 381,
+      "body": "Every plan reads the Makefile and heavy-regression runner before checking their containment or file type. If either path points to a FIFO with no writer, even `--json --files README.md` blocks during `read_text()` and never reaches the unsafe-path diagnostic."
+    },
+    {
+      "severity": "P2",
+      "title": "Disable filesystem-monitor hooks during Git discovery",
+      "file": "scripts/select-affected-tests.py",
+      "line": 607,
+      "body": "Discovery removes `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_NOSYSTEM` without supplying isolated replacements. A caller that disabled global configuration can therefore have its configured `core.fsmonitor` program invoked by the unstaged `git diff`, even during a read-only preview."
+    },
+    {
+      "severity": "P2",
+      "title": "Preserve checkout trust when isolating fixture Git configuration",
+      "file": "scripts/select-affected-tests.py",
+      "line": 233,
+      "body": "A shared checkout owned by another UID can pass discovery through an exact `safe.directory` entry in the developer’s global config. Child execution discards that entry, so the first `git diff --check` fails with “dubious ownership” on the same checkout that produced a valid plan."
+    },
+    {
+      "severity": "P2",
+      "title": "Match automatic base refs by exact name",
+      "file": "scripts/select-affected-tests.py",
+      "line": 679,
+      "body": "`git for-each-ref` also matches descendants of its argument. In this checkout, `--default-base-ref origin/ccoalm` exits 2 because `origin/ccoalm/ts-dev-behavior-eval` exists. The selector reports that `origin/ccoalm` exists but is invalid, preventing fallback to the valid `origin/main`."
+    },
+    {
+      "severity": "P2",
+      "title": "Distinguish a broken loose ref from an absent ref",
+      "file": "scripts/select-affected-tests.py",
+      "line": 683,
+      "body": "For a loose integration ref containing a truncated object ID, `for-each-ref` can exit successfully, warn on stderr, and omit the ref from stdout. The selector treats the empty result as absence and silently chooses a peer base. The regression test covers a valid object ID naming a blob, which takes a different Git path."
+    },
+    {
+      "severity": "P2",
+      "title": "Compare the index against the captured HEAD",
+      "file": "scripts/select-affected-tests.py",
+      "line": 833,
+      "body": "The committed diff uses `head_sha`, but the cached diff implicitly uses live `HEAD`. If another process checks out a clean commit after HEAD is captured, both the cached and unstaged diffs can be empty. The selector then runs against the new checkout while omitting suites for files changed by that checkout."
+    },
+    {
+      "severity": "P2",
+      "title": "Pass the captured head SHA to the metadata gate",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1063,
+      "body": "The gate receives the pinned base but resolves its own head at execution time. If the branch is reset after planning, the whitespace check still examines the original commit while `shared_git_surface_gate.py` can pass without scanning that commit’s message. The gate already accepts `--head-ref`."
+    },
+    {
+      "severity": "P2",
+      "title": "Recheck pytest operands regardless of their top-level directory",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1619,
+      "body": "Sibling discovery accepts suites anywhere in the checkout, but serial dispatch rechecks only four directory prefixes. A selected `tests/test_widget.py` replaced with an external symlink during preflight is passed directly to pytest without another containment check."
+    },
+    {
+      "severity": "P2",
+      "title": "Validate executable paths before emitting replay commands",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1854,
+      "body": "For a README change, the preview emits `python3 scripts/check-markdown-links.py .` even if that script already points outside the checkout. Direct execution rejects it at dispatch, but the preview exits successfully and replaying its output executes the external file."
+    },
+    {
+      "severity": "P2",
+      "title": "Stop replayed plans at the first failed command",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1836,
+      "body": "The emitted Bash commands have no failure guard. If the checkout was moved after preview, `cd` fails and subsequent commands run in the caller’s directory. A failed preflight can likewise be masked by a successful final command. The replay test supplies `bash -e` externally, hiding both differences from `--run`."
+    },
+    {
+      "severity": "P2",
+      "title": "Verify that a Python main guard actually runs the tests",
+      "file": "scripts/select-affected-tests.py",
+      "line": 337,
+      "body": "Any `if __name__ == \"__main__\"` block selects direct Python execution. A pytest module with a failing test and a main guard that only prints usage exits zero without collecting the test. The selector’s own fixtures classify a guard containing only `pass` as runnable."
+    },
+    {
+      "severity": "P2",
+      "title": "Detect deletion of unittest modules registered by dotted name",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1461,
+      "body": "Deleting `eval/test_design_judge.py` omits it from the selected unittest command. The missing-file check looks for a path in `registered_suites`, but the Makefile registers `eval.test_design_judge` and the parser records only slash-separated paths. The advisory run can pass without a drift warning while the Makefile lane fails to import the module."
+    },
+    {
+      "severity": "P3",
+      "title": "Emit JSON independently of stdout’s text encoding",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1963,
+      "body": "With `PYTHONIOENCODING=ascii`, I confirmed that `--json --files docs/路由.md` raises `UnicodeEncodeError` instead of emitting a plan. The reversible encoder handles surrogate-escaped bytes, but `ensure_ascii=False` still sends ordinary Unicode filenames through the caller’s stdout codec."
+    }
+  ],
+  "selected_client": "codex",
+  "reviewer_family": "codex",
+  "implementer_family": "gemini",
+  "base": "788470c31d70de3c11ef1a5e2df9c95a57916b94",
+  "head": "480095dc9ed3a871dc368d3aafb6e9cc6c39379f",
+  "candidate_digest": "e11df261a4e0adcdd9762d19b9d5aa16286ec18585f149e72bd3070f4d2d5910",
+  "worktree_clean": true,
+  "untracked_files": [],
+  "intent_sha256": "24c9726bec0ca2fb384afc730614977e8fe6a878ac2dd96bbbf67347beefcb79",
+  "elapsed_seconds": 232.1,
+  "attempts": [
+    {
+      "client": "codex",
+      "status": "findings",
+      "returncode": 0,
+      "elapsed_seconds": 232.1,
+      "model": "gpt-6.2-astra",
+      "provider": "openai"
+    }
+  ],
+  "skipped": [],
+  "recorded_at": "2026-11-22T04:51:53+00:00",
+  "diagnostics_path": "(private local diagnostics, not committed)"
+}

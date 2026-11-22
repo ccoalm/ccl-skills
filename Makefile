@@ -1,5 +1,5 @@
 # ccl-skills 安装与更新（薄封装，逻辑在 scripts/install*.sh）
-.PHONY: help test test-repo-gates test-regressions-fast test-code-review test-code-review-1 test-code-review-2 test-code-review-abort-leak test-code-review-abort-leak-1 test-code-review-abort-leak-2 test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-antigravity update-antigravity install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health eval-paired npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
+.PHONY: help test test-affected test-affected-plan test-repo-gates test-regressions-fast test-code-review test-code-review-1 test-code-review-2 test-code-review-abort-leak test-code-review-abort-leak-1 test-code-review-abort-leak-2 test-check-ccl-regressions test-verify-sandbox install install-npm uninstall-npm install-antigravity update-antigravity install-opencode install-opencode-no-agent install-opencode-commands install-gates install-codex-cron update update-npm update-opencode update-opencode-no-agent prune-cache eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health eval-paired npm-build npm-test npm-pack-verify npm-host-smoke npm-publish-dry
 .DEFAULT_GOAL := help
 CCL_SKILL_DEFAULT_BASE_REF ?= origin/dev
 # Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the
@@ -20,6 +20,29 @@ help: ## 显示可用目标
 # specs/036-ci-parallel-shards/plan.md）。
 test: test-repo-gates test-regressions-fast test-code-review ## 运行本仓确定性 gate、脚本测试和 Python 回归
 
+ifneq ($(filter test-affected test-affected-plan,$(MAKECMDGOALS)),)
+_AFFECTED_CLI_VARS := $(foreach v,$(.VARIABLES),$(if $(filter command line,$(origin $(v))),$(v)))
+ifneq ($(_AFFECTED_CLI_VARS),)
+unexport $(_AFFECTED_CLI_VARS)
+endif
+ifneq ($(filter-out FULL,$(_AFFECTED_CLI_VARS)),)
+$(error Pass environment prefixes before make or invoke python3 scripts/select-affected-tests.py directly)
+endif
+ifeq ($(origin FULL),command line)
+ifneq ($(value FULL),1)
+$(error Only FULL=1 is accepted on the make command line; pass environment prefixes before make)
+endif
+override FULL := 1
+export FULL
+endif
+endif
+
+test-affected: ## 按改动路径快速运行相关检查与并行套件（内环辅助工具，推送前仍须跑 make test；FULL=1 含慢速套件）
+	python3 scripts/select-affected-tests.py --repo . --run
+
+test-affected-plan: ## 预览按改动路径选中的辅助测试命令（只读干跑）
+	python3 scripts/select-affected-tests.py --repo . --dry-run
+
 test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository-gates job；不含 code-review 族与 fast 回归 lane）
 	bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
 	python3 skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py --repo . --default-base-ref "$(CCL_SKILL_DEFAULT_BASE_REF)"
@@ -38,6 +61,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	python3 scripts/test_install_gates_runtime.py
 	bash scripts/test_run_parallel_suites.sh
 	python3 scripts/test_lane_isolation.py
+	python3 scripts/test_select_affected_tests.py
 	python3 skills/skill-extraction-workflow/scripts/test_eval_runtime.py
 	python3 skills/skill-extraction-workflow/scripts/test_skill_paired_eval.py
 	python3 hooks/test_host_input.py

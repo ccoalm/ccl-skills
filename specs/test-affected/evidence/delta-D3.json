@@ -1,0 +1,200 @@
+{
+  "schema_version": 3,
+  "runner": "review_diff",
+  "mode": "review",
+  "status": "findings",
+  "reason_code": null,
+  "findings": [
+    {
+      "severity": "P1",
+      "title": "Prevent GNU Make from expanding retired command-line arguments",
+      "file": "Makefile",
+      "line": 11,
+      "body": "GNU Make automatically exports command-line variables even after their explicit `export` directives are removed. I confirmed that `make test-affected-plan` evaluated a harmless Make warning embedded in `AFFECTED_ARGS` before Python started. A command-line base ref containing `$5` was also shortened. The replacement test passes the ref through the environment, which exercises a different Make behavior."
+    },
+    {
+      "severity": "P1",
+      "title": "Exclude inherited makefiles from fallback execution",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1875,
+      "body": "`-f Makefile` selects the intended primary file, but GNU Make still reads files named by the inherited `MAKEFILES` environment variable. An external makefile can add a prerequisite to `test-repo-gates`, and fallback will execute that prerequisite even though the selector inspected only the checkout’s `Makefile`."
+    },
+    {
+      "severity": "P1",
+      "title": "Validate fallback recipe operands that the token scan cannot resolve",
+      "file": "scripts/select-affected-tests.py",
+      "line": 539,
+      "body": "A fallback recipe that runs a helper through `$(SCRIPTS_DIR)/check.py`, or directly as `tools/check.py`, contributes no executable path to the containment check. If the helper is an external symlink, the selector approves the target and Make follows it. The regression fixture covers only a literal operand under `scripts/`."
+    },
+    {
+      "severity": "P1",
+      "title": "Keep fallback recipe checks valid until each recipe runs",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1181,
+      "body": "The selector checks every operand once before starting Make. The real `test-repo-gates` target runs several commands before reaching `scripts/check-release-version.py`. If that file becomes an external symlink while an earlier command runs, Make opens the replacement without another check. This window can last for whole test suites."
+    },
+    {
+      "severity": "P1",
+      "title": "Open planner inputs through verified parent directories",
+      "file": "scripts/select-affected-tests.py",
+      "line": 336,
+      "body": "`O_NOFOLLOW` applies only to the final path component. If a parent directory of the heavy-regression runner changes to a symlink after `relative_to()` succeeds, `os.open()` can read an external regular file. `fstat()` accepts it because it verifies the file type alone."
+    },
+    {
+      "severity": "P1",
+      "title": "Bind parallel execution to the suite file that passed verification",
+      "file": "scripts/select-affected-tests.py",
+      "line": 2118,
+      "body": "The verifier closes its descriptor before the worker creates its temporary directory, opens its log, and starts the interpreter. A suite replaced during those steps or during interpreter startup is reopened by pathname and can resolve outside the checkout. The queued-suite test swaps the path before verification, so it misses this interval."
+    },
+    {
+      "severity": "P1",
+      "title": "Apply per-suite containment checks during dry-run replay",
+      "file": "scripts/select-affected-tests.py",
+      "line": 2360,
+      "body": "Direct execution uses the new worker pool, while replay still invokes `run-parallel-suites.sh`. With `--jobs 1`, the first suite can replace the second with an external symlink after the shell runner’s initial file checks. Direct execution rejects that replacement when the second slot opens, but replay executes it."
+    },
+    {
+      "severity": "P1",
+      "title": "Reap active suites when a parallel launch fails",
+      "file": "scripts/select-affected-tests.py",
+      "line": 2120,
+      "body": "If one suite is running and the next `Popen` fails because of a process limit or unavailable interpreter, the exception escapes. The `finally` block restores signal handlers and the temporary directory is removed, but the first suite remains alive in its separate session. The caller also loses the failure diagnostic and advisory footer."
+    },
+    {
+      "severity": "P1",
+      "title": "Reject directories used as Python script operands in fallback recipes",
+      "file": "scripts/select-affected-tests.py",
+      "line": 542,
+      "body": "If `scripts/check-release-version.py` is replaced by a directory, the scanner drops it from the checked paths. Python accepts a directory as a script operand and executes its `__main__.py`. An external symlink there passes fallback planning even though the original recipe operand is no longer a regular file."
+    },
+    {
+      "severity": "P2",
+      "title": "Stop replay immediately when temporary-directory creation fails",
+      "file": "scripts/select-affected-tests.py",
+      "line": 2343,
+      "body": "The `mktemp` assignment is the first command in an `&&` list, where Bash suppresses `set -e`. If `TMPDIR` is unavailable, replay continues with an empty `_affected_tpl` and attempts to write `/gitconfig`. A privileged caller can create or truncate that file instead of stopping at the setup failure."
+    },
+    {
+      "severity": "P2",
+      "title": "Preserve the parallel runner’s concurrency limit",
+      "file": "scripts/select-affected-tests.py",
+      "line": 2063,
+      "body": "`SUITE_JOBS=1 make test-affected` previously ran suites serially. The new pool ignores that setting and can launch eight suites, while replay still honors it. The pool also spins indefinitely if a direct caller passes `jobs=0` to `execute_plan`, because no suite can enter the first slot."
+    },
+    {
+      "severity": "P2",
+      "title": "Terminate interpreter options before passing a suite pathname",
+      "file": "scripts/select-affected-tests.py",
+      "line": 2118,
+      "body": "A discovered suite can live under a dash-prefixed top-level directory. The new pool passes that relative pathname directly after `python3` or `bash`, allowing the interpreter to parse it as options instead of opening the verified file. The previous runner placed `--` before the pathname."
+    },
+    {
+      "severity": "P2",
+      "title": "Retire process-group IDs once their groups disappear",
+      "file": "scripts/select-affected-tests.py",
+      "line": 2079,
+      "body": "`all_pgids` retains every suite’s group ID after its leader is reaped. During a long batch on a busy host, a finished group’s numeric ID can be reused by an unrelated job. Cancelling the selector then sends the signal, and potentially `SIGKILL`, to that unrelated group."
+    },
+    {
+      "severity": "P2",
+      "title": "Clean up surviving descendants on a containment abort",
+      "file": "scripts/select-affected-tests.py",
+      "line": 2168,
+      "body": "With one worker, the first suite can start a background child and exit before the next suite fails verification. Its leader has already been removed from `active`, so the containment-abort branch returns 2 without terminating the surviving child. Signal cancellation and containment cancellation use different group lists."
+    },
+    {
+      "severity": "P2",
+      "title": "Preserve cancellation received during serial handler restoration",
+      "file": "scripts/select-affected-tests.py",
+      "line": 2032,
+      "body": "If `SIGTERM` arrives after the last `received_sig` check but before its handler is restored, the handler records it and returns. The function then returns the completed child’s exit code. A successful child can therefore cause the selector to start the next command after cancellation."
+    },
+    {
+      "severity": "P2",
+      "title": "Distinguish Git tracing from a corrupt integration ref",
+      "file": "scripts/select-affected-tests.py",
+      "line": 842,
+      "body": "I confirmed that `GIT_TRACE=1` makes `--files README.md --json` exit 2 on this checkout. `for-each-ref` succeeds, but its ordinary trace line goes to stderr and is reported as ref corruption. This prevents plan generation even when the integration refs are healthy."
+    },
+    {
+      "severity": "P2",
+      "title": "Propagate failure to locate a loose ref",
+      "file": "scripts/select-affected-tests.py",
+      "line": 849,
+      "body": "If `rev-parse --git-path` fails after `for-each-ref` omits the candidate, the function returns `False` as though it had confirmed absence. A Git-directory access failure during that second query can therefore make discovery silently select a peer base."
+    },
+    {
+      "severity": "P2",
+      "title": "Require a test runner before selecting direct Python execution",
+      "file": "scripts/select-affected-tests.py",
+      "line": 414,
+      "body": "The new `.run()` rule also applies to module-level setup. A pytest module that calls `subprocess.run()` to prepare a fixture and then defines a failing test is classified as directly runnable. Python performs the setup and exits successfully without collecting the test. The print-only main-guard fixture does not cover this newly accepted case."
+    },
+    {
+      "severity": "P2",
+      "title": "Preserve executable main guards that use custom test harnesses",
+      "file": "scripts/select-affected-tests.py",
+      "line": 439,
+      "body": "A standalone suite whose main guard calls `verify_cases()` or contains its assertions inline now gets routed to pytest. If it has no collectable test functions, pytest exits 5 without running the guard. The previous direct invocation ran those checks."
+    },
+    {
+      "severity": "P2",
+      "title": "Keep writable Git configuration private to each suite",
+      "file": "scripts/select-affected-tests.py",
+      "line": 2237,
+      "body": "Every worker receives the same writable `GIT_CONFIG_GLOBAL`. A fixture that isolates `HOME` and uses `git config --global` still writes into this shared file, so another suite can observe its settings or encounter a config lock. Placing the file inside `GIT_TEMPLATE_DIR` also causes fixture `git init` operations to copy it into their Git directories."
+    },
+    {
+      "severity": "P2",
+      "title": "Stream failing-suite output without decoding the whole log",
+      "file": "scripts/select-affected-tests.py",
+      "line": 2185,
+      "body": "A verbose failing suite now requires enough memory to read and decode its complete log. A smaller failure containing non-ASCII output can also raise `UnicodeEncodeError` when replayed under `PYTHONIOENCODING=ascii`, masking the suite failure and dropping the footer. The previous runner streamed the captured bytes."
+    },
+    {
+      "severity": "P2",
+      "title": "Test serial cancellation and cancellation during child launch",
+      "file": "scripts/test_select_affected_tests.py",
+      "line": 1330,
+      "body": "Both cancellation cases select a parallel shell suite and wait for its PID marker before signalling. Restoring the old blocking wait in `_run_cmd`, or moving handler registration after `Popen`, leaves both cases green. Neither regression is exercised by a signal sent after a parallel worker has started."
+    },
+    {
+      "severity": "P3",
+      "title": "Preserve successful suite output and timing records",
+      "file": "scripts/select-affected-tests.py",
+      "line": 2179,
+      "body": "The new dispatcher prints only `[PASS]` for successful suites and deletes their captured logs. Successful-suite warnings and the existing `regression_test_timing:` records disappear from `make test-affected`, although replay still emits them. Consumers collecting those records now receive an empty timing series."
+    },
+    {
+      "severity": "P3",
+      "title": "Write JSON using a fixed output encoding",
+      "file": "scripts/select-affected-tests.py",
+      "line": 2451,
+      "body": "`ensure_ascii=True` escapes JSON string contents, but `print()` still uses the caller’s stdout codec. I confirmed that `PYTHONIOENCODING=utf-16` produces NUL-interleaved output, which a UTF-8 JSON consumer rejects. The new ASCII-codec test passes without establishing encoding-independent output."
+    }
+  ],
+  "selected_client": "codex",
+  "reviewer_family": "codex",
+  "implementer_family": "gemini",
+  "base": "480095dc9ed3a871dc368d3aafb6e9cc6c39379f",
+  "head": "3aef33789fc24865e668129161e2852178e2061e",
+  "candidate_digest": "08bee37729a3b5bbf8f87c2f20cabd1c467efe57e0ea79124362a4507514c951",
+  "worktree_clean": true,
+  "untracked_files": [],
+  "intent_sha256": "cab37eb4976fd689c07701c688cc09cac14a306fcfc46f5c414a6a3a9844af29",
+  "elapsed_seconds": 276.4,
+  "attempts": [
+    {
+      "client": "codex",
+      "status": "findings",
+      "returncode": 0,
+      "elapsed_seconds": 276.4,
+      "model": "gpt-6.2-astra",
+      "provider": "openai"
+    }
+  ],
+  "skipped": [],
+  "recorded_at": "2026-11-22T05:35:35+00:00",
+  "diagnostics_path": "(private local diagnostics, not committed)"
+}

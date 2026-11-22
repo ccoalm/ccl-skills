@@ -75,7 +75,7 @@ Two CI jobs are outside `make test`, so a green local run is not a green CI run:
 - `regression-heavy` runs `test_check_ccl_regressions.sh --heavy-only`.
 - `repository-gates` also runs `python3 scripts/check-public-sanitization.py .`; run it locally when your change touches shared skill text.
 
-For a fast signal on a small change, `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` plus `git diff --check` covers structure, routing, leakage, and whitespace — but it is a prefilter, not the lane.
+For a fast signal during local iteration, `make test-affected` (`make test-affected-plan` to preview) runs an advisory path-based subset, and `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` plus `git diff --check` covers structure, routing, leakage, and whitespace — both are inner-loop aids, not substitutes for `make test`.
 
 Run the focused tests for every changed script or package. For the unified npm package:
 
