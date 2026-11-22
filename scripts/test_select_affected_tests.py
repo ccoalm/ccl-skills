@@ -57,6 +57,15 @@ _SCRUB_GIT_KEYS = (
     "AFFECTED_ARGS",
 )
 
+_RUNNABLE_PY_SUITE_BODY = (
+    "import unittest\n"
+    "class _Smoke(unittest.TestCase):\n"
+    "    def test_ok(self):\n"
+    "        self.assertTrue(True)\n"
+    "if __name__ == '__main__':\n"
+    "    unittest.main()\n"
+)
+
 
 def load_selector():
     if not SELECTOR_PATH.is_file():
@@ -138,7 +147,10 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             has_candidate_commits=True,
         )
         preflight_joined = "\n".join(" ".join(c) for c in commit_plan["preflight_commands"])
-        self.assertIn(f"shared_git_surface_gate.py --repo . --base-ref {base_sha}", preflight_joined)
+        self.assertIn(
+            f"shared_git_surface_gate.py --repo . --base-ref {base_sha} --head-ref {head_sha}",
+            preflight_joined,
+        )
 
         # Committed whitespace check is independent of staged/worktree repairs when head_sha != merge_base_sha.
         dirty_plan = mod.build_test_plan(
@@ -152,6 +164,19 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         )
         self.assertIn(
             ["git", "diff", "--no-ext-diff", "--check", base_sha, head_sha, "--"],
+            dirty_plan["preflight_commands"],
+        )
+        self.assertIn(
+            [
+                "python3",
+                "skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py",
+                "--repo",
+                ".",
+                "--base-ref",
+                base_sha,
+                "--head-ref",
+                head_sha,
+            ],
             dirty_plan["preflight_commands"],
         )
 
@@ -241,8 +266,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         )
         self.assertIn("abort-leak", core_plan["skipped_lanes"])
 
-        # Changing the slow abort-leak probe (including via embedded `./` or `//` aliases)
-        # must NEVER put it into parallel_suites.
         for alias in (
             "skills/code-review/scripts/test_review_gate_abort_leak.sh",
             "skills/code-review/scripts/./test_review_gate_abort_leak.sh",
@@ -274,7 +297,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             "\n".join(" ".join(c) for c in leak_slow["serial_commands"]),
         )
 
-        # Individual heavy regressions in skill-extraction-workflow must respect include_slow.
         heavy_rel = "skills/skill-extraction-workflow/scripts/test_impact_chain_gate_verdict_differential.sh"
         heavy_default = mod.build_test_plan([heavy_rel], repo_root=REPO_ROOT, include_slow=False)
         self.assertNotIn(heavy_rel, heavy_default["parallel_suites"])
@@ -329,7 +351,7 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         ):
             self.assertIn(expected, plan["parallel_suites"])
 
-    def test_git_changed_file_discovery_special_names_untracked_note_and_reversible_raw_bytes(self):
+    def test_git_changed_file_discovery_special_names_cached_head_ascii_json_and_raw_bytes(self):
         mod = load_selector()
         with tempfile.TemporaryDirectory() as tmp:
             repo, _, env = init_fixture_repo(Path(tmp))
@@ -358,13 +380,28 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 r"hooks/test_a\b.py",
             ]
             for rel in special_names:
-                (repo / rel).write_text("if __name__ == '__main__':\n    pass\n", encoding="utf-8")
+                (repo / rel).write_text(_RUNNABLE_PY_SUITE_BODY, encoding="utf-8")
 
-            with unittest.mock.patch.dict(os.environ, env, clear=True):
-                changed, resolved_base, _, _, _, _, untracked = mod._discover_candidate(
+            recorded_git_calls: list[tuple[str, ...]] = []
+            real_git_bytes = mod._git_bytes
+
+            def spy_git_bytes(r: Path, *args: str):
+                recorded_git_calls.append(args)
+                return real_git_bytes(r, *args)
+
+            with (
+                unittest.mock.patch.dict(os.environ, env, clear=True),
+                unittest.mock.patch.object(mod, "_git_bytes", side_effect=spy_git_bytes),
+            ):
+                changed, resolved_base, _, _, captured_head, _, untracked = mod._discover_candidate(
                     repo, base_ref="refs/remotes/origin/main"
                 )
             self.assertEqual(resolved_base, "refs/remotes/origin/main")
+            # Staged diff must compare against captured_head explicitly rather than live symbolic HEAD!
+            cached_calls = [args for args in recorded_git_calls if args[:2] == ("diff", "--cached")]
+            self.assertEqual(len(cached_calls), 1)
+            self.assertIn(captured_head, cached_calls[0])
+
             for expected in ["a.txt", "b.txt", "c.txt", "docs/untracked_guide.md", *special_names]:
                 self.assertIn(expected, changed)
             self.assertIn("docs/untracked_guide.md", untracked)
@@ -380,6 +417,17 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertIn("docs/untracked_guide.md", plan["untracked_files"])
             self.assertTrue(any("untracked-files:" in n for n in plan["notes"]))
 
+            # --json must succeed even when PYTHONIOENCODING=ascii!
+            ascii_env = dict(env, PYTHONIOENCODING="ascii")
+            proc_ascii = subprocess.run(
+                [sys.executable, str(SELECTOR_PATH), "--repo", str(repo), "--files", "docs/路由.md", "--json"],
+                env=ascii_env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(proc_ascii.returncode, 0, msg=proc_ascii.stderr)
+            self.assertEqual(json.loads(proc_ascii.stdout)["changed_files"], ["docs/路由.md"])
+
         # Portable synthetic Git output for non-UTF-8 byte 0xff (APFS rejects creating 0xff on disk).
         raw_non_utf8 = os.fsdecode(b"hooks/test_raw_\xff.py")
         literal_escaped = r"hooks/test_raw_\udcff.py"
@@ -393,14 +441,12 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             parsed_paths = mod._git_nul_paths(REPO_ROOT, "ls-files", "-z")
         self.assertEqual([os.fsencode(p) for p in parsed_paths], [b"hooks/test_raw_\xff.py", b"hooks/test_raw_\\udcff.py"])
 
-        # JSON encoding must keep raw 0xff and literal `\udcff` distinct and round-trippable.
-        encoded_payload = json.dumps(mod._json_safe({"files": [raw_non_utf8, literal_escaped]}), ensure_ascii=False)
+        encoded_payload = json.dumps(mod._json_safe({"files": [raw_non_utf8, literal_escaped]}), ensure_ascii=True)
         decoded_items = json.loads(encoded_payload)["files"]
         self.assertNotEqual(decoded_items[0], decoded_items[1])
         self.assertEqual(os.fsencode(mod.decode_json_str(decoded_items[0])), b"hooks/test_raw_\xff.py")
         self.assertEqual(os.fsencode(mod.decode_json_str(decoded_items[1])), b"hooks/test_raw_\\udcff.py")
 
-        # Shell quoting for --dry-run must round-trip exact bytes in bash for both names without raw ESC/FF.
         q_raw = mod._shell_quote(raw_non_utf8)
         q_lit = mod._shell_quote(literal_escaped)
         self.assertNotEqual(q_raw, q_lit)
@@ -409,7 +455,7 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         self.assertEqual(out_raw, b"hooks/test_raw_\xff.py")
         self.assertEqual(out_lit, b"hooks/test_raw_\\udcff.py")
 
-    def test_base_resolution_precedence_shadow_corrupt_ref_unrelated_upstream_and_files_env(self):
+    def test_base_resolution_exact_ref_broken_loose_ref_shadow_unrelated_and_files_env(self):
         mod = load_selector()
         with tempfile.TemporaryDirectory() as tmp:
             sandbox = Path(tmp)
@@ -417,7 +463,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             (repo / "base.txt").write_text("base\n", encoding="utf-8")
             subprocess.run(["git", "add", "."], cwd=repo, env=env, check=True)
             subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, env=env, check=True)
-            # Farther ref origin/dev is 3 commits behind origin/main and placed FIRST via default_base_ref.
             subprocess.run(["git", "update-ref", "refs/remotes/origin/dev", "HEAD"], cwd=repo, env=env, check=True)
             for i in range(3):
                 (repo / f"main{i}.txt").write_text("x\n", encoding="utf-8")
@@ -438,20 +483,20 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             subprocess.run(["git", "add", "."], cwd=repo, env=env, check=True)
             subprocess.run(["git", "commit", "-q", "-m", "feature"], cwd=repo, env=env, check=True)
 
-            # Local branch literally named `origin/main` pointing at HEAD must NOT shadow refs/remotes/origin/main,
-            # AND passing default_base_ref="origin/dev" first must still pick nearer refs/remotes/origin/main.
             subprocess.run(["git", "branch", "origin/main", "HEAD"], cwd=repo, env=env, check=True)
+
+            # Descendant ref `refs/remotes/origin/ns/topic` must NOT make `--default-base-ref origin/ns` look present!
+            subprocess.run(["git", "update-ref", "refs/remotes/origin/ns/topic", "HEAD"], cwd=repo, env=env, check=True)
+            with unittest.mock.patch.dict(os.environ, env, clear=True):
+                changed_ns, resolved_ns = mod.collect_changed_files(repo, default_base_ref="origin/ns")
+            self.assertEqual(resolved_ns, "refs/remotes/origin/main")
+            self.assertEqual(changed_ns, ["feature.txt"])
 
             with unittest.mock.patch.dict(os.environ, env, clear=True):
                 changed, resolved = mod.collect_changed_files(repo, default_base_ref="origin/dev")
             self.assertEqual(resolved, "refs/remotes/origin/main")
             self.assertEqual(changed, ["feature.txt"])
 
-            with unittest.mock.patch.dict(os.environ, env, clear=True):
-                _, resolved_shadow = mod.collect_changed_files(repo, default_base_ref="origin/main")
-            self.assertEqual(resolved_shadow, "refs/remotes/origin/main")
-
-            # Option-shaped (--base-ref=--independent reaches validator past argparse!) and missing explicit bases fail closed.
             for bad_arg in ("--base-ref=--independent", "--base-ref=refs/heads/no-such-branch-xyz"):
                 proc = subprocess.run(
                     [sys.executable, str(SELECTOR_PATH), "--repo", str(repo), bad_arg, "--json"],
@@ -462,7 +507,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 self.assertEqual(proc.returncode, 2, msg=bad_arg)
                 self.assertEqual(proc.stdout, "")
 
-            # CCL_SKILL_BASE_REF must be honored AND fail closed on invalid values even when --files is supplied!
             bad_env = dict(env, CCL_SKILL_BASE_REF="refs/remotes/origin/typo-branch")
             for extra in ([], ["--files", "feature.txt"]):
                 proc = subprocess.run(
@@ -486,8 +530,7 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(files_payload["resolved_base_ref"], "refs/remotes/origin/main")
             self.assertEqual(files_payload["resolved_base_sha"], origin_main_sha)
 
-            # Existing integration ref pointing to a non-commit (blob) or corrupt object must fail closed (exit 2),
-            # never silently fall back to a peer ref!
+            # Both a ref pointing to a blob AND a broken loose ref with truncated hex must fail closed (exit 2)!
             blob_sha = subprocess.run(
                 ["git", "hash-object", "-w", "--stdin"],
                 input="not-a-commit\n",
@@ -499,24 +542,24 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             ).stdout.strip()
             dev_ref_file = repo / ".git" / "refs" / "remotes" / "origin" / "dev"
             dev_ref_file.parent.mkdir(parents=True, exist_ok=True)
-            dev_ref_file.write_text(blob_sha + "\n", encoding="utf-8")
-            proc_corrupt_ref = subprocess.run(
-                [sys.executable, str(SELECTOR_PATH), "--repo", str(repo), "--json"],
-                env=env,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(proc_corrupt_ref.returncode, 2)
-            self.assertEqual(proc_corrupt_ref.stdout, "")
+            for corrupt_contents in (blob_sha + "\n", "1234\n"):
+                dev_ref_file.write_text(corrupt_contents, encoding="utf-8")
+                proc_corrupt_ref = subprocess.run(
+                    [sys.executable, str(SELECTOR_PATH), "--repo", str(repo), "--json"],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(proc_corrupt_ref.returncode, 2, msg=corrupt_contents)
+                self.assertEqual(proc_corrupt_ref.stdout, "", msg=corrupt_contents)
 
-            # Missing origin/dev: single-branch clone with only origin/main still resolves origin/main.
+            dev_ref_file.unlink(missing_ok=True)
             subprocess.run(["git", "update-ref", "-d", "refs/remotes/origin/dev"], cwd=repo, env=env, check=True)
             with unittest.mock.patch.dict(os.environ, env, clear=True):
                 changed_single, resolved_single = mod.collect_changed_files(repo)
             self.assertEqual(resolved_single, "refs/remotes/origin/main")
             self.assertEqual(changed_single, ["feature.txt"])
 
-            # Unrelated history on origin/dev (orphan commit, merge-base exits 1) is skipped rather than fatal.
             orphan_tree = subprocess.run(
                 ["git", "hash-object", "-t", "tree", "/dev/null"],
                 cwd=repo,
@@ -543,9 +586,8 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 _, resolved_unrelated = mod.collect_changed_files(repo)
             self.assertEqual(resolved_unrelated, "refs/remotes/origin/main")
 
-            # Upstream-only repo honors short `upstream/dev` default_base_ref (canonicalized to refs/remotes/upstream/dev)
-            # even when a local branch `refs/heads/upstream/dev` points at HEAD!
             subprocess.run(["git", "update-ref", "-d", "refs/remotes/origin/main"], cwd=repo, env=env, check=True)
+            dev_ref_file.unlink(missing_ok=True)
             subprocess.run(["git", "update-ref", "-d", "refs/remotes/origin/dev"], cwd=repo, env=env, check=True)
             subprocess.run(["git", "update-ref", "refs/remotes/upstream/dev", origin_main_sha], cwd=repo, env=env, check=True)
             subprocess.run(["git", "branch", "upstream/dev", "HEAD"], cwd=repo, env=env, check=True)
@@ -556,7 +598,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(resolved_up, "refs/remotes/upstream/dev")
             self.assertEqual(changed_up, ["feature.txt"])
 
-            # No usable integration ref at all -> exits 2 instead of diffing HEAD~1 or local main.
             subprocess.run(["git", "update-ref", "-d", "refs/remotes/upstream/dev"], cwd=repo, env=env, check=True)
             proc_no_base = subprocess.run(
                 [sys.executable, str(SELECTOR_PATH), "--repo", str(repo), "--json"],
@@ -570,12 +611,14 @@ class SelectAffectedTestsUnit(unittest.TestCase):
     def test_resolved_base_snapshot_reaches_child_subprocess_and_strips_overrides(self):
         mod = load_selector()
         pinned_sha = "c" * 40
+        head_sha = "e" * 40
         plan = mod.build_test_plan(
             ["scripts/select-affected-tests.py"],
             repo_root=REPO_ROOT,
             default_base_ref="origin/dev",
             resolved_base_ref="refs/remotes/origin/main",
             resolved_base_sha=pinned_sha,
+            head_sha=head_sha,
         )
         gate_cmds = [c for c in plan["preflight_commands"] if "shared_git_surface_gate.py" in " ".join(c)]
         self.assertEqual(
@@ -587,10 +630,11 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 ".",
                 "--base-ref",
                 pinned_sha,
+                "--head-ref",
+                head_sha,
             ]],
         )
 
-        # Verify through the real execute_plan -> _run_cmd subprocess boundary!
         with tempfile.TemporaryDirectory() as tmp:
             sandbox = Path(tmp)
             repo, _, env = init_fixture_repo(sandbox)
@@ -602,7 +646,11 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 "preflight_commands": [[
                     sys.executable,
                     "-c",
-                    "import json, os, pathlib, sys; pathlib.Path(sys.argv[1]).write_text(json.dumps(dict(os.environ)), encoding='utf-8')",
+                    (
+                        "import json, os, pathlib, subprocess, sys; "
+                        "safe_dirs = subprocess.run(['git', 'config', '--global', '--get-all', 'safe.directory'], capture_output=True, text=True).stdout.splitlines(); "
+                        "pathlib.Path(sys.argv[1]).write_text(json.dumps({'env': dict(os.environ), 'safe_dirs': safe_dirs}), encoding='utf-8')"
+                    ),
                     str(env_dump),
                 ]],
                 "parallel_suites": [],
@@ -614,7 +662,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 env,
                 MAKEFLAGS=" -- CCL_SKILL_DEFAULT_BASE_REF=origin/main",
                 MAKEOVERRIDES="${-*-command-variables-*-}",
-                AFFECTED_ARGS="--include-slow",
                 CCL_SKILL_DEFAULT_BASE_REF="origin/main",
                 GIT_DIR="/decoy/git-dir",
                 GIT_INDEX_FILE="/decoy/index",
@@ -629,12 +676,12 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             with unittest.mock.patch.dict(os.environ, dirty, clear=True), contextlib.redirect_stdout(buf):
                 rc = mod.execute_plan(probe_plan, repo)
             self.assertEqual(rc, 0)
-            observed = json.loads(env_dump.read_text(encoding="utf-8"))
+            payload = json.loads(env_dump.read_text(encoding="utf-8"))
+            observed = payload["env"]
             for forbidden in (
                 "MAKEFLAGS",
                 "MAKEOVERRIDES",
                 "-*-command-variables-*-",
-                "AFFECTED_ARGS",
                 "CCL_SKILL_DEFAULT_BASE_REF",
                 "GIT_DIR",
                 "GIT_INDEX_FILE",
@@ -647,17 +694,17 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 self.assertNotIn(forbidden, observed)
             self.assertEqual(observed["CCL_SKILL_BASE_REF"], pinned_sha)
             self.assertEqual(observed["GIT_CONFIG_NOSYSTEM"], "1")
-            self.assertEqual(observed["GIT_CONFIG_GLOBAL"], os.devnull)
             self.assertEqual(observed["GIT_CONFIG_SYSTEM"], os.devnull)
+            # Child GIT_CONFIG_GLOBAL must preserve safe.directory trust for `repo`!
+            self.assertIn(str(repo.resolve()), payload["safe_dirs"])
 
-    def test_git_isolation_covers_discovery_child_templates_and_global_hooks(self):
+    def test_git_isolation_disables_fsmonitor_and_isolates_child_templates_and_global_hooks(self):
         mod = load_selector()
         with tempfile.TemporaryDirectory() as tmp:
             sandbox = Path(tmp)
             poison_tpl = sandbox / "poison-tpl"
             hooks_dir = poison_tpl / "hooks"
             hooks_dir.mkdir(parents=True)
-            sentinel = sandbox / "hook-fired"
             for hook_name in ("pre-commit", "post-checkout", "post-index-change"):
                 hp = hooks_dir / hook_name
                 hp.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
@@ -669,8 +716,15 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             ghook = global_hooks / "pre-commit"
             ghook.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
             ghook.chmod(0o755)
+            fsmon_sentinel = sandbox / "fsmonitor-fired"
+            fsmon_script = sandbox / "fsmon.sh"
+            fsmon_script.write_text(
+                f"#!/usr/bin/env bash\nprintf 'fired' > '{fsmon_sentinel}'\nexit 0\n",
+                encoding="utf-8",
+            )
+            fsmon_script.chmod(0o755)
             (fake_home / ".gitconfig").write_text(
-                f"[core]\n\thooksPath = {global_hooks}\n",
+                f"[core]\n\thooksPath = {global_hooks}\n\tfsmonitor = {fsmon_script}\n",
                 encoding="utf-8",
             )
 
@@ -683,6 +737,8 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             (target_repo / "f.txt").write_text("v2\n", encoding="utf-8")
             subprocess.run(["git", "add", "f.txt"], cwd=target_repo, env=env, check=True)
             subprocess.run(["git", "commit", "-q", "-m", "c2"], cwd=target_repo, env=env, check=True)
+            (target_repo / "f.txt").write_text("v3-unstaged\n", encoding="utf-8")
+            subprocess.run(["git", "config", "core.fsmonitor", str(fsmon_script)], cwd=target_repo, env=env, check=True)
             tip_sha = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
                 cwd=target_repo,
@@ -715,14 +771,10 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 changed, resolved = mod.collect_changed_files(target_repo)
             self.assertEqual(resolved, "refs/remotes/origin/main")
             self.assertEqual(changed, ["f.txt"])
+            self.assertFalse(fsmon_sentinel.exists(), "Git discovery executed configured core.fsmonitor")
 
-            # Child execution via execute_plan must isolate child `git init` + `git commit` + `.git/info/attributes`
-            # from BOTH inherited GIT_TEMPLATE_DIR and $HOME/.gitconfig core.hooksPath!
             scripts_dir = target_repo / "scripts"
             scripts_dir.mkdir()
-            (scripts_dir / "run-parallel-suites.sh").write_bytes(
-                (REPO_ROOT / "scripts/run-parallel-suites.sh").read_bytes()
-            )
             suite_rel = "scripts/test_index_probe.sh"
             suite_file = target_repo / suite_rel
             suite_file.write_text(
@@ -753,7 +805,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             with unittest.mock.patch.dict(os.environ, polluted_env, clear=True), contextlib.redirect_stdout(buf):
                 rc = mod.execute_plan(exec_plan, target_repo, jobs=1)
             self.assertEqual(rc, 0, msg=buf.getvalue())
-            self.assertFalse(sentinel.exists())
             caller_index_after = hashlib.sha256(caller_index.read_bytes()).hexdigest()
             self.assertEqual(caller_index_before, caller_index_after, "child suite mutated caller GIT_INDEX_FILE")
 
@@ -771,7 +822,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(proc.returncode, 2)
             self.assertEqual(proc.stdout, "")
 
-            # Broken .git pointer must fail closed even in --files mode!
             broken_wt = sandbox / "broken-wt"
             broken_wt.mkdir()
             (broken_wt / ".git").write_text("gitdir: /nonexistent/worktree/gitdir\n", encoding="utf-8")
@@ -784,7 +834,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 self.assertEqual(proc_broken.returncode, 2, msg=extra_args)
                 self.assertEqual(proc_broken.stdout, "")
 
-            # Missing `git` binary on PATH must exit 2 cleanly without a Python traceback.
             repo, _, env = init_fixture_repo(sandbox / "w")
             proc_nogit = subprocess.run(
                 [sys.executable, str(SELECTOR_PATH), "--repo", str(repo), "--dry-run"],
@@ -796,7 +845,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(proc_nogit.stdout, "")
             self.assertNotIn("Traceback", proc_nogit.stderr)
 
-            # Checkout directory ending in `\r` (valid on POSIX) must pass verify_repo_root.
             try:
                 cr_repo, _, cr_env = init_fixture_repo(sandbox / "cr", repo_name="checkout\r")
             except OSError:
@@ -833,7 +881,7 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(proc_corrupt.returncode, 2)
             self.assertEqual(proc_corrupt.stdout, "")
 
-    def test_containment_covers_dedicated_serial_make_fallback_symlink_loops_non_suites_and_toctou(self):
+    def test_containment_fifo_gnumakefile_recipe_scripts_queued_parallel_pytest_and_dry_run(self):
         mod = load_selector()
         with tempfile.TemporaryDirectory() as tmp:
             sandbox = Path(tmp)
@@ -841,23 +889,42 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             sentinel = sandbox / "outside-executed"
             outside.write_text("raise SystemExit(0)\n", encoding="utf-8")
             outside.chmod(0o755)
+            outside_sh = sandbox / "outside_exec.sh"
+            outside_sh.write_text(
+                "#!/usr/bin/env bash\nprintf 'ran' > \"$OUTSIDE_SENTINEL\"\n",
+                encoding="utf-8",
+            )
+            outside_sh.chmod(0o755)
 
             repo, _, env = init_fixture_repo(sandbox / "w")
             (repo / "hooks").mkdir()
-            escape_link = repo / "hooks" / "test_escape.sh"
-            escape_link.symlink_to(outside)
+            (repo / "hooks/test_escape.sh").symlink_to(outside)
+            (repo / "hooks/test_loop.sh").symlink_to("test_loop.sh")
 
-            # Symlink loop must be classified unsafe without raising RuntimeError.
-            loop_link = repo / "hooks" / "test_loop.sh"
-            loop_link.symlink_to("test_loop.sh")
+            # 1. FIFO at Makefile must NOT hang planning and must mark unsafe_blocked!
+            fifo_repo, _, fifo_env = init_fixture_repo(sandbox / "fifo-w")
+            os.mkfifo(fifo_repo / "Makefile")
+            fifo_proc = subprocess.Popen(
+                [sys.executable, str(SELECTOR_PATH), "--repo", str(fifo_repo), "--files", "README.md", "--json"],
+                env=fifo_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                fifo_out, _ = fifo_proc.communicate(timeout=3.0)
+            except subprocess.TimeoutExpired:
+                fifo_proc.kill()
+                fifo_proc.communicate()
+                self.fail("planning hung on FIFO Makefile")
+            self.assertEqual(fifo_proc.returncode, 2)
+            self.assertTrue(json.loads(fifo_out)["unsafe_blocked"])
 
-            # Non-executable fixture `test_payload.json` in generic skill scripts/ must NOT be selected!
+            # 2. Non-executable fixture `test_payload.json` + dedicated serial symlink.
             (repo / "skills/demo/scripts").mkdir(parents=True)
             (repo / "skills/demo/scripts/tool.py").write_text("x = 1\n", encoding="utf-8")
             (repo / "skills/demo/scripts/test_payload.json").write_text("{}\n", encoding="utf-8")
-            (repo / "skills/demo/scripts/test_tool.py").write_text("if __name__ == '__main__':\n    pass\n", encoding="utf-8")
-
-            # Dedicated suite symlinked outside checkout must NOT be added to serial_commands!
+            (repo / "skills/demo/scripts/test_tool.py").write_text(_RUNNABLE_PY_SUITE_BODY, encoding="utf-8")
             (repo / "skills/test-artifact-management/references").mkdir(parents=True)
             (repo / "skills/test-artifact-management/references/test_gen_report.py").symlink_to(outside)
 
@@ -875,62 +942,93 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             serial_flat = "\n".join(" ".join(c) for c in plan["serial_commands"])
             self.assertNotIn("test_gen_report.py", serial_flat)
             self.assertTrue(plan["unsafe_blocked"])
-            self.assertTrue(any("unsafe" in n for n in plan["notes"]))
 
-            # Registered Makefile suite escaping checkout + unrecognized file must NOT schedule `make test-repo-gates`!
-            (repo / "Makefile").write_text(
-                "test-repo-gates:\n\tbash hooks/test_escape.sh\n",
-                encoding="utf-8",
-            )
-            esc_plan = mod.build_test_plan(["hooks/test_escape.sh", "unrecognized.foo"], repo_root=repo)
-            self.assertTrue(esc_plan["unsafe_blocked"])
-            self.assertFalse(any(c[0] == "make" for c in esc_plan["serial_commands"]))
-            esc_buf = io.StringIO()
-            with unittest.mock.patch.dict(os.environ, env, clear=True), contextlib.redirect_stdout(esc_buf):
-                rc_esc = mod.execute_plan(esc_plan, repo)
-            self.assertEqual(rc_esc, 2)
-
-            # Dispatch-time TOCTOU: suite is a safe regular file during planning, then replaced by escaping symlink
-            # during preflight before parallel runner runs -> execute_plan must block with exit 2!
-            safe_suite = repo / "hooks" / "test_toctou.sh"
-            safe_suite.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
-            safe_suite.chmod(0o755)
+            # 3. Preview/dry-run must also reject escaping gate executables such as scripts/check-markdown-links.py!
             (repo / "scripts").mkdir(exist_ok=True)
-            (repo / "scripts/run-parallel-suites.sh").write_bytes(
-                (REPO_ROOT / "scripts/run-parallel-suites.sh").read_bytes()
-            )
-            outside_sh = sandbox / "outside_exec.sh"
-            outside_sh.write_text(
-                "#!/usr/bin/env bash\nprintf 'ran' > \"$OUTSIDE_SENTINEL\"\n",
+            (repo / "scripts/check-markdown-links.py").symlink_to(outside)
+            doc_escape_plan = mod.build_test_plan(["README.md"], repo_root=repo)
+            self.assertTrue(doc_escape_plan["unsafe_blocked"])
+            (repo / "scripts/check-markdown-links.py").unlink()
+
+            # 4. Non-test script in Makefile fallback recipe (scripts/check-release-version.py) escaping checkout -> blocked!
+            (repo / "hooks/test_escape.sh").unlink()
+            (repo / "hooks/test_loop.sh").unlink()
+            (repo / "scripts/check-release-version.py").symlink_to(outside)
+            (repo / "Makefile").write_text(
+                "test-repo-gates:\n\tpython3 scripts/check-release-version.py .\n",
                 encoding="utf-8",
             )
-            outside_sh.chmod(0o755)
-            toctou_plan = {
-                "changed_files": ["hooks/test_toctou.sh"],
+            non_test_fb = mod.build_test_plan(["unrecognized.foo"], repo_root=repo)
+            self.assertTrue(non_test_fb["unsafe_blocked"])
+            self.assertFalse(any(c[0] == "make" for c in non_test_fb["serial_commands"]))
+            (repo / "scripts/check-release-version.py").unlink()
+
+            # 5. Clean fallback binds `make -f Makefile ...` and rejects an escaping GNUmakefile symlink!
+            (repo / "Makefile").write_text("test-repo-gates:\n\t@:\n", encoding="utf-8")
+            clean_fb = mod.build_test_plan(["unrecognized.foo"], repo_root=repo)
+            self.assertIn(["make", "-f", "Makefile", "test-repo-gates"], clean_fb["serial_commands"])
+            (repo / "GNUmakefile").symlink_to(outside)
+            gnu_fb = mod.build_test_plan(["unrecognized.foo"], repo_root=repo)
+            self.assertTrue(gnu_fb["unsafe_blocked"])
+            (repo / "GNUmakefile").unlink()
+
+            # 6. Queued parallel suite TOCTOU under --jobs 1: suite 1 swaps suite 2 to external symlink mid-batch!
+            s2 = repo / "hooks/test_b_second.sh"
+            s2.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+            s2.chmod(0o755)
+            s1 = repo / "hooks/test_a_first.sh"
+            s1.write_text(
+                f"#!/usr/bin/env bash\nrm -f '{s2}'\nln -s '{outside_sh}' '{s2}'\n",
+                encoding="utf-8",
+            )
+            s1.chmod(0o755)
+            queued_plan = {
+                "changed_files": ["hooks/test_a_first.sh", "hooks/test_b_second.sh"],
+                "resolved_base_ref": None,
+                "preflight_commands": [],
+                "parallel_suites": ["hooks/test_a_first.sh", "hooks/test_b_second.sh"],
+                "serial_commands": [],
+                "notes": [],
+                "skipped_lanes": [],
+            }
+            q_out, q_err = io.StringIO(), io.StringIO()
+            run_env = dict(env, OUTSIDE_SENTINEL=str(sentinel))
+            with (
+                unittest.mock.patch.dict(os.environ, run_env, clear=True),
+                contextlib.redirect_stdout(q_out),
+                contextlib.redirect_stderr(q_err),
+            ):
+                rc_queued = mod.execute_plan(queued_plan, repo, jobs=1)
+            self.assertEqual(rc_queued, 2, msg=q_out.getvalue() + q_err.getvalue())
+            self.assertFalse(sentinel.exists(), "queued parallel suite executed swapped external symlink")
+
+            # 7. Serial pytest TOCTOU outside the 4 standard prefixes (`tests/test_widget.py`)!
+            (repo / "tests").mkdir()
+            widget = repo / "tests/test_widget.py"
+            widget.write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+            pytest_toctou = {
+                "changed_files": ["tests/test_widget.py"],
                 "resolved_base_ref": None,
                 "preflight_commands": [[
                     sys.executable,
                     "-c",
                     "import os, sys; os.unlink(sys.argv[1]); os.symlink(sys.argv[2], sys.argv[1])",
-                    str(safe_suite),
-                    str(outside_sh),
+                    str(widget),
+                    str(outside),
                 ]],
-                "parallel_suites": ["hooks/test_toctou.sh"],
-                "serial_commands": [],
+                "parallel_suites": [],
+                "serial_commands": [["python3", "-m", "pytest", "-q", "tests/test_widget.py"]],
                 "notes": [],
                 "skipped_lanes": [],
             }
-            toctou_out = io.StringIO()
-            toctou_err = io.StringIO()
-            run_env = dict(env, OUTSIDE_SENTINEL=str(sentinel))
+            p_out, p_err = io.StringIO(), io.StringIO()
             with (
                 unittest.mock.patch.dict(os.environ, run_env, clear=True),
-                contextlib.redirect_stdout(toctou_out),
-                contextlib.redirect_stderr(toctou_err),
+                contextlib.redirect_stdout(p_out),
+                contextlib.redirect_stderr(p_err),
             ):
-                rc_toctou = mod.execute_plan(toctou_plan, repo, jobs=1)
-            self.assertEqual(rc_toctou, 2)
-            self.assertFalse(sentinel.exists(), "TOCTOU symlink replacement was executed")
+                rc_pt = mod.execute_plan(pytest_toctou, repo, jobs=1)
+            self.assertEqual(rc_pt, 2)
 
     def test_every_literal_suite_path_in_selector_exists(self):
         import re
@@ -941,11 +1039,12 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         missing = sorted(p for p in literals if not (REPO_ROOT / p).is_file())
         self.assertEqual(missing, [], msg="selector names suites that do not exist")
 
-    def test_makefile_recipe_parser_deleted_registered_suite_and_spaced_tmpdir_fallback(self):
+    def test_makefile_recipe_parser_dotted_eval_drift_and_spaced_tmpdir_fallback(self):
         mod = load_selector()
         universe = mod.makefile_suites(REPO_ROOT)
         hook_suites = {s for s in universe if s.startswith("hooks/")}
         self.assertIn("hooks/test_agy_bridge.py", hook_suites)
+        self.assertIn("eval/test_design_judge.py", universe)
         plan = mod.build_test_plan(["hooks/hooks.json"], repo_root=REPO_ROOT)
         dispatched_hooks = set(plan["parallel_suites"]) | {
             cmd[-1]
@@ -954,7 +1053,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         }
         self.assertEqual(hook_suites - dispatched_hooks, set())
 
-        # Use a sandbox path containing spaces so shell-path regressions fail immediately.
         with tempfile.TemporaryDirectory() as tmp:
             sandbox = Path(tmp) / "space in tmpdir"
             repo, _, env = init_fixture_repo(sandbox)
@@ -966,6 +1064,7 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 '\t# Recipe comment: hooks/test_recipe_comment.sh\n'
                 '\tbash "hooks/test_quoted space.sh" \\\n'
                 "\t  && bash hooks/test_deleted_from_disk.sh\n"
+                "\tpython3 -m unittest eval.test_design_judge\n"
                 "test-code-review-2:\n"
                 "\tbash scripts/run-parallel-suites.sh skills/code-review/scripts/test_review_client_order.sh\n",
                 encoding="utf-8",
@@ -973,26 +1072,27 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             parsed = mod.makefile_suites(repo)
             self.assertIn("hooks/test_quoted space.sh", parsed)
             self.assertIn("hooks/test_deleted_from_disk.sh", parsed)
+            self.assertIn("eval/test_design_judge.py", parsed)
             self.assertIn("skills/code-review/scripts/test_review_client_order.sh", parsed)
             self.assertNotIn("hooks/test_retired_comment.sh", parsed)
             self.assertNotIn("hooks/test_recipe_comment.sh", parsed)
 
-            # Deleting a directly changed registered suite itself must ALSO trigger selector-drift fallback!
+            # Deleting dotted unittest module `eval/test_design_judge.py` registered in Makefile must trigger drift!
+            eval_drift = mod.build_test_plan(["eval/owner-role-audit.py"], repo_root=repo)
+            self.assertIn("eval/test_design_judge.py", eval_drift["missing_suites"])
+            self.assertIn(["make", "-f", "Makefile", "test-repo-gates"], eval_drift["serial_commands"])
+
             del_direct = mod.build_test_plan(
                 ["skills/code-review/scripts/test_review_client_order.sh"],
                 repo_root=repo,
             )
             self.assertIn("skills/code-review/scripts/test_review_client_order.sh", del_direct["missing_suites"])
             self.assertTrue(any("selector-drift" in n for n in del_direct["notes"]))
-            self.assertIn(["make", "test-code-review-2"], del_direct["serial_commands"])
+            self.assertIn(["make", "-f", "Makefile", "test-code-review-2"], del_direct["serial_commands"])
 
-            # End-to-end execution of fallback Make targets without interpolating paths into shell source.
             drift_plan = mod.build_test_plan(["hooks/new-unmapped.sh"], repo_root=repo)
             self.assertIn("hooks/test_deleted_from_disk.sh", drift_plan["missing_suites"])
-            (repo / "Makefile").write_text(
-                "test-repo-gates:\n\t@:\n",
-                encoding="utf-8",
-            )
+            (repo / "Makefile").write_text("test-repo-gates:\n\t@:\n", encoding="utf-8")
             drift_plan["preflight_commands"] = []
             drift_plan["parallel_suites"] = []
             drift_plan["serial_commands"] = [c for c in drift_plan["serial_commands"] if c[0] == "make"]
@@ -1017,10 +1117,19 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             recorded_targets = ran_log.read_text(encoding="utf-8").splitlines()
             self.assertEqual(
                 recorded_targets,
-                ["test-repo-gates", "test-regressions-fast", "test-code-review-1", "test-code-review-2"],
+                [
+                    "-f Makefile test-repo-gates",
+                    "-f Makefile test-regressions-fast",
+                    "-f Makefile test-code-review-1",
+                    "-f Makefile test-code-review-2",
+                ],
             )
 
-    def test_makefile_passes_inputs_without_shell_interpretation(self):
+    def test_makefile_literal_recipes_preserve_dollar_and_avoid_make_arg_expansion(self):
+        makefile_text = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertNotIn("AFFECTED_ARGS", makefile_text)
+        self.assertNotIn("CCL_SKILL_SELECTED_DEFAULT_BASE", makefile_text)
+
         with tempfile.TemporaryDirectory() as tmp:
             sandbox = Path(tmp)
             repo, _, env = init_fixture_repo(sandbox)
@@ -1030,40 +1139,53 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             (repo / "f.txt").write_text("base\n", encoding="utf-8")
             subprocess.run(["git", "add", "."], cwd=repo, env=env, check=True)
             subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, env=env, check=True)
-            subprocess.run(["git", "update-ref", "refs/remotes/origin/main", "HEAD"], cwd=repo, env=env, check=True)
+            subprocess.run(["git", "update-ref", "refs/remotes/origin/price$5", "HEAD"], cwd=repo, env=env, check=True)
 
-            pwn_file = sandbox / "shell-injected"
+            # Environment variable containing `$5` passed to `make test-affected-plan` is preserved literally.
             proc = subprocess.run(
-                [
-                    "make",
-                    "--no-print-directory",
-                    "-C",
-                    str(repo),
-                    "test-affected-plan",
-                    f"CCL_SKILL_DEFAULT_BASE_REF=origin/main;touch {pwn_file}",
-                    f'AFFECTED_ARGS=--files "docs/a`touch {pwn_file}`.md"',
-                ],
-                env=env,
+                ["make", "--no-print-directory", "-C", str(repo), "test-affected-plan"],
+                env=dict(env, CCL_SKILL_BASE_REF="refs/remotes/origin/price$5"),
                 capture_output=True,
                 text=True,
             )
             self.assertEqual(proc.returncode, 0, msg=proc.stderr)
-            self.assertFalse(pwn_file.exists(), "Makefile shell-evaluated metacharacters in variables")
-            self.assertIn("docs/a`touch", proc.stdout)
+            self.assertIn("# base_ref: refs/remotes/origin/price$5", proc.stdout)
 
-    def test_pytest_style_suite_with_module_setup_dispatches_via_pytest_and_fails_on_red_assertion(self):
+            # Direct CLI preserves `$5` and shell metacharacters literally without Make expansion.
+            pwn_file = sandbox / "shell-injected"
+            proc_cli = subprocess.run(
+                [
+                    sys.executable,
+                    str(repo / "scripts/select-affected-tests.py"),
+                    "--repo",
+                    str(repo),
+                    "--files",
+                    f"docs/price$5`touch {pwn_file}`.md",
+                    "--dry-run",
+                ],
+                env=dict(env, CCL_SKILL_BASE_REF="refs/remotes/origin/price$5"),
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(proc_cli.returncode, 0, msg=proc_cli.stderr)
+            self.assertFalse(pwn_file.exists())
+            self.assertIn("docs/price$5`touch", proc_cli.stdout)
+
+    def test_pytest_style_suite_with_module_setup_or_print_only_main_dispatches_via_pytest(self):
         mod = load_selector()
         with tempfile.TemporaryDirectory() as tmp:
             sandbox = Path(tmp)
             repo, _, env = init_fixture_repo(sandbox)
             (repo / "scripts").mkdir()
             failing_suite = repo / "scripts/test_no_main_red.py"
+            # Even with a `__main__` block that only prints usage (no runner call!), pytest must be used!
             failing_suite.write_text(
                 "from pathlib import Path\n"
                 "ROOT = Path(__file__).resolve().parent\n"
-                "ITEMS = sorted([1, 2, 3])\n"
                 "def test_deliberate_failure():\n"
-                "    assert ROOT.name == 'impossible'\n",
+                "    assert ROOT.name == 'impossible'\n"
+                "if __name__ == '__main__':\n"
+                "    print('run via pytest')\n",
                 encoding="utf-8",
             )
             plan = mod.build_test_plan(["scripts/test_no_main_red.py"], repo_root=repo)
@@ -1095,7 +1217,7 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             buf_fail = io.StringIO()
             with unittest.mock.patch.dict(os.environ, extra_env, clear=True), contextlib.redirect_stdout(buf_fail):
                 rc_fail = mod.execute_plan(plan, repo)
-            self.assertNotEqual(rc_fail, 0, "pytest-style failing suite with module setup exited 0")
+            self.assertNotEqual(rc_fail, 0, "pytest-style failing suite with print-only __main__ exited 0")
             self.assertTrue(buf_fail.getvalue().strip().endswith("advisory: run make test before push"))
 
             failing_suite.write_text(
@@ -1141,7 +1263,7 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 changed, _ = mod.collect_changed_files(repo, base_ref="refs/remotes/origin/main")
             self.assertEqual(changed, ["new.txt", "old.txt"])
 
-    def test_sigterm_cancellation_forwards_to_active_runner_child_group(self):
+    def test_sigterm_cancellation_escalates_on_term_ignoring_child_and_descendant(self):
         with tempfile.TemporaryDirectory() as tmp:
             sandbox = Path(tmp)
             repo, _, env = init_fixture_repo(sandbox)
@@ -1149,84 +1271,88 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             (repo / "scripts/run-parallel-suites.sh").write_bytes(
                 (REPO_ROOT / "scripts/run-parallel-suites.sh").read_bytes()
             )
+            (repo / "scripts/run-parallel-suites.sh").chmod(0o755)
             for stub_rel in (
                 "skills/skill-extraction-workflow/scripts/check-ccl-skills.sh",
                 "skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py",
                 "skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh",
+                "scripts/check-spec-references.py",
+                "scripts/check-public-sanitization.py",
             ):
                 stub = repo / stub_rel
                 stub.parent.mkdir(parents=True, exist_ok=True)
                 stub.write_text("#!/usr/bin/env bash\nexit 0\n" if stub_rel.endswith(".sh") else "raise SystemExit(0)\n", encoding="utf-8")
                 stub.chmod(0o755)
-            pid_file = sandbox / "grandchild.pid"
-            term_file = sandbox / "suite.terminated"
-            slow_suite = repo / "scripts/test_slow_cancel.sh"
-            slow_suite.write_text(
-                "#!/usr/bin/env bash\n"
-                'trap \'printf "term\\n" > "$TERM_MARKER"; exit 143\' TERM\n'
-                "sleep 30 &\n"
-                'spid=$!\n'
-                'printf "%s\\n" "$spid" > "$PID_MARKER"\n'
-                "wait $spid\n",
-                encoding="utf-8",
-            )
-            slow_suite.chmod(0o755)
-            subprocess.run(["git", "add", "."], cwd=repo, env=env, check=True)
-            subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, env=env, check=True)
-            subprocess.run(["git", "update-ref", "refs/remotes/origin/main", "HEAD"], cwd=repo, env=env, check=True)
 
-            run_env = dict(env, PID_MARKER=str(pid_file), TERM_MARKER=str(term_file))
-            proc = subprocess.Popen(
-                [
-                    sys.executable,
-                    str(SELECTOR_PATH),
-                    "--repo",
-                    str(repo),
-                    "--files",
-                    "scripts/test_slow_cancel.sh",
-                    "--run",
-                ],
-                env=run_env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            try:
-                deadline = time.monotonic() + 8.0
-                while not pid_file.exists() and time.monotonic() < deadline:
+            for subcase, leader_trap in (
+                ("leader_ignores_term", 'trap \'printf "term\\n" > "$TERM_MARKER"; trap "" TERM; sleep 30\' TERM'),
+                ("leader_exits_descendant_ignores", 'trap \'printf "term\\n" > "$TERM_MARKER"; exit 0\' TERM'),
+            ):
+                pid_file = sandbox / f"grandchild.{subcase}.pid"
+                term_file = sandbox / f"suite.{subcase}.terminated"
+                slow_suite = repo / "scripts/test_slow_cancel.sh"
+                slow_suite.write_text(
+                    "#!/usr/bin/env bash\n"
+                    "( trap '' TERM; sleep 30 ) &\n"
+                    "spid=$!\n"
+                    f"{leader_trap}\n"
+                    'printf "%s\\n" "$spid" > "$PID_MARKER"\n'
+                    "wait $spid\n",
+                    encoding="utf-8",
+                )
+                slow_suite.chmod(0o755)
+                subprocess.run(["git", "add", "."], cwd=repo, env=env, check=True)
+                subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", f"case {subcase}"], cwd=repo, env=env, check=True)
+                subprocess.run(["git", "update-ref", "refs/remotes/origin/main", "HEAD"], cwd=repo, env=env, check=True)
+
+                run_env = dict(env, PID_MARKER=str(pid_file), TERM_MARKER=str(term_file))
+                proc = subprocess.Popen(
+                    [
+                        sys.executable,
+                        str(SELECTOR_PATH),
+                        "--repo",
+                        str(repo),
+                        "--files",
+                        "scripts/test_slow_cancel.sh",
+                        "--run",
+                    ],
+                    env=run_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                try:
+                    deadline = time.monotonic() + 8.0
+                    while not pid_file.exists() and time.monotonic() < deadline:
+                        time.sleep(0.05)
+                    self.assertTrue(pid_file.exists(), f"{subcase}: child suite did not start")
+                    grandchild_pid = int(pid_file.read_text(encoding="utf-8").strip())
+                    proc.send_signal(signal.SIGTERM)
+                    out, err = proc.communicate(timeout=6.0)
+                finally:
+                    if proc.poll() is None:
+                        proc.kill()
+                        proc.wait()
+
+                self.assertEqual(proc.returncode, 128 + signal.SIGTERM, msg=f"{subcase}: {err}")
+                self.assertTrue(term_file.exists(), f"{subcase}: SIGTERM was not forwarded to active suite")
+                reap_deadline = time.monotonic() + 3.0
+                alive = True
+                while time.monotonic() < reap_deadline:
+                    if not _pid_is_live_non_zombie(grandchild_pid):
+                        alive = False
+                        break
                     time.sleep(0.05)
-                self.assertTrue(pid_file.exists(), "child suite did not start")
-                grandchild_pid = int(pid_file.read_text(encoding="utf-8").strip())
-                proc.send_signal(signal.SIGTERM)
-                out, err = proc.communicate(timeout=8.0)
-            finally:
-                if proc.poll() is None:
-                    proc.kill()
-                    proc.wait()
+                self.assertFalse(alive, f"{subcase}: TERM-ignoring grandchild process leaked after SIGTERM escalation")
 
-            self.assertEqual(proc.returncode, 128 + signal.SIGTERM, msg=err)
-            self.assertTrue(term_file.exists(), "SIGTERM was not forwarded to active runner")
-            # Grandchild sleep must also have been terminated by run-parallel-suites.sh's group kill.
-            reap_deadline = time.monotonic() + 3.0
-            alive = True
-            while time.monotonic() < reap_deadline:
-                if not _pid_is_live_non_zombie(grandchild_pid):
-                    alive = False
-                    break
-                time.sleep(0.05)
-            self.assertFalse(alive, "grandchild process leaked after SIGTERM")
-
-    def test_json_dry_run_replay_early_diagnostics_ansi_escape_exit_codes_and_broken_pipe(self):
+    def test_json_dry_run_replay_stop_on_error_ansi_escape_exit_codes_and_broken_pipe(self):
         mod = load_selector()
         with tempfile.TemporaryDirectory() as tmp:
             sandbox = Path(tmp) / "dir with space"
             repo, _, env = init_fixture_repo(sandbox)
             (repo / "scripts").mkdir()
             (repo / "scripts/select-affected-tests.py").write_bytes(SELECTOR_PATH.read_bytes())
-            (repo / "scripts/test_select_affected_tests.py").write_text(
-                "if __name__ == '__main__':\n    pass\n",
-                encoding="utf-8",
-            )
+            (repo / "scripts/test_select_affected_tests.py").write_text(_RUNNABLE_PY_SUITE_BODY, encoding="utf-8")
             subprocess.run(["git", "add", "."], cwd=repo, env=env, check=True)
             subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, env=env, check=True)
             subprocess.run(["git", "update-ref", "refs/remotes/origin/main", "HEAD"], cwd=repo, env=env, check=True)
@@ -1254,6 +1380,9 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             spaced = repo / "hooks/test_space name.sh"
             spaced.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
             spaced.chmod(stat.S_IRWXU)
+            (repo / "scripts/run-parallel-suites.sh").write_bytes(
+                (REPO_ROOT / "scripts/run-parallel-suites.sh").read_bytes()
+            )
             ansi_doc = "docs/\x1b[31mRED\x1b[0m\necho INJECTED.md"
             pinned_sha = "d" * 40
             plan = mod.build_test_plan(
@@ -1270,6 +1399,7 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(dry_lines[-1], "# advisory: run make test before push")
             self.assertNotIn("\x1b", dry_text, "raw ANSI ESC leaked into dry-run output")
             self.assertFalse(any(line == "echo INJECTED.md" for line in dry_lines))
+            self.assertIn("set -euo pipefail", dry_lines)
             self.assertTrue(any(line.startswith("cd -- ") for line in dry_lines))
             self.assertTrue(any(f"CCL_SKILL_BASE_REF={pinned_sha}" in line for line in dry_lines))
             parallel_lines = [line for line in dry_lines if "run-parallel-suites.sh" in line]
@@ -1277,7 +1407,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertIn("--jobs 3", parallel_lines[0])
             self.assertIn("'hooks/test_space name.sh'", parallel_lines[0])
 
-            # Unsafe-blocked dry-run refuses to emit runnable suite commands and emits `(exit 2)`.
             blocked_dry = io.StringIO()
             with contextlib.redirect_stdout(blocked_dry):
                 mod.print_dry_run(
@@ -1296,13 +1425,9 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertNotIn("SHOULD_NOT_EMIT", blocked_dry.getvalue())
             self.assertIn("(exit 2)", blocked_dry.getvalue().splitlines())
 
-            # Replayability from a DIFFERENT working directory: executing a minimal dry-run script runs in `repo`.
+            # Plain `bash -c` (NO external `-e`) replays in `repo` AND stops at the first failing command!
             other_cwd = sandbox / "elsewhere"
             other_cwd.mkdir()
-            (repo / "scripts").mkdir(exist_ok=True)
-            (repo / "scripts/run-parallel-suites.sh").write_bytes(
-                (REPO_ROOT / "scripts/run-parallel-suites.sh").read_bytes()
-            )
             replay_marker = sandbox / "replayed-pwd.txt"
             spaced.write_text(
                 '#!/usr/bin/env bash\nprintf "%s|%s" "$PWD" "${CCL_SKILL_BASE_REF:-}" > "$REPLAY_MARKER"\n',
@@ -1326,7 +1451,7 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                     jobs=1,
                 )
             proc_replay = subprocess.run(
-                ["bash", "-euo", "pipefail", "-c", replay_buf.getvalue()],
+                ["bash", "-c", replay_buf.getvalue()],
                 cwd=other_cwd,
                 env=dict(env, REPLAY_MARKER=str(replay_marker)),
                 capture_output=True,
@@ -1335,7 +1460,28 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(proc_replay.returncode, 0, msg=proc_replay.stderr)
             self.assertEqual(replay_marker.read_text(encoding="utf-8"), f"{repo.resolve()}|{pinned_sha}")
 
-            # Early-return diagnostics: `--run --files ../outside.sh` must emit stored unsafe-input note!
+            never_marker = sandbox / "after-fail"
+            fail_replay_plan = {
+                "changed_files": ["x"],
+                "preflight_commands": [[sys.executable, "-c", "raise SystemExit(5)"]],
+                "parallel_suites": [],
+                "serial_commands": [[sys.executable, "-c", f"open({str(never_marker)!r}, 'w').close()"]],
+                "notes": [],
+                "skipped_lanes": [],
+            }
+            fail_replay_buf = io.StringIO()
+            with contextlib.redirect_stdout(fail_replay_buf):
+                mod.print_dry_run(fail_replay_plan, repo, "refs/remotes/origin/main")
+            proc_fail_replay = subprocess.run(
+                ["bash", "-c", fail_replay_buf.getvalue()],
+                cwd=other_cwd,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(proc_fail_replay.returncode, 5)
+            self.assertFalse(never_marker.exists(), "replayed plan continued past failed preflight")
+
             unsafe_only = mod.build_test_plan(["../outside.sh"], repo_root=repo)
             out_unsafe = io.StringIO()
             with contextlib.redirect_stdout(out_unsafe):
@@ -1343,7 +1489,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(rc_unsafe, 0)
             self.assertIn("note: unsafe-input-path:", out_unsafe.getvalue())
 
-            # Preflight failure stops before parallel/serial work, emits notes + skipped, and prints advisory.
             marker = sandbox / "should-not-exist"
             fail_preflight = {
                 "changed_files": ["x"],
@@ -1365,7 +1510,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertIn("skipped: abort-leak", pre_text)
             self.assertEqual(pre_text.splitlines()[-1], "advisory: run make test before push")
 
-            # Serial child exit code (7), missing executable (127), signal death (143), and parallel failure (1).
             serial_7 = {
                 "changed_files": ["x"],
                 "resolved_base_ref": None,
@@ -1425,7 +1569,8 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                 "skipped_lanes": [],
             }
             out_par = io.StringIO()
-            with contextlib.redirect_stdout(out_par):
+            err_par = io.StringIO()
+            with contextlib.redirect_stdout(out_par), contextlib.redirect_stderr(err_par):
                 rc_par = mod.execute_plan(par_plan, repo, jobs=1)
             self.assertEqual(rc_par, 1)
             self.assertEqual(out_par.getvalue().splitlines()[-1], "advisory: run make test before push")
@@ -1449,8 +1594,6 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             self.assertEqual(lines[-1], "advisory: run make test before push")
             self.assertNotIn("select_affected_tests_ok", out_skip.getvalue())
 
-            # Closed-pipe test (no shell interpolation): both --dry-run and --json must flush inside the
-            # BrokenPipeError handler, exit 141, and emit zero stderr!
             for mode_flag in ("--dry-run", "--json"):
                 r_fd, w_fd = os.pipe()
                 os.close(r_fd)

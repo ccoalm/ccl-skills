@@ -8,10 +8,7 @@ CCL_SKILL_DEFAULT_BASE_REF ?= origin/dev
 # Keep export separate: combining it with target-specific override does not
 # parse on GNU Make 3.81 (the system make on macOS).
 export RUBYOPT
-export CCL_SKILL_SELECTED_DEFAULT_BASE
-export AFFECTED_ARGS
 eval-routing eval-routing-bank eval-body-compliance eval-golden-trace eval-health: override RUBYOPT := $(if $(filter -Ku,$(RUBYOPT)),$(RUBYOPT),-Ku $(RUBYOPT))
-test-affected test-affected-plan: CCL_SKILL_SELECTED_DEFAULT_BASE = $(CCL_SKILL_DEFAULT_BASE_REF)
 
 help: ## 显示可用目标
 	@grep -E '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-20s %s\n", $$1, $$2}'
