@@ -14,9 +14,10 @@ Reported per call class, median of 11 runs in ms:
 
 A hook that exits non-zero, times out or reports a degraded or unavailable
 component stops the run: its timing would measure the failure, not the hook.
-The engine and helpers the hooks call must exist in both roots and the engine
-must run cleanly on the timed payloads: owner-dispatch-guard.sh hides a broken
-engine, and skipped work would look like a speedup.
+The engine and helpers the hooks call must exist and parse in both roots, and
+the engine must answer `status` and run cleanly on the timed payloads:
+owner-dispatch-guard.sh hides a broken engine or helper, and skipped work
+would look like a speedup.
 """
 import concurrent.futures as cf
 import json
@@ -67,6 +68,16 @@ def main():
                 sys.exit(f'missing {root}/{rel}')
             if rel.endswith('.sh') and subprocess.run(['bash', '-n', f'{root}/{rel}']).returncode:
                 sys.exit(f'syntax error in {root}/{rel}')
+            if rel.endswith('.py'):
+                try:  # compile() writes no bytecode into the measured tree
+                    with open(f'{root}/{rel}') as fh:
+                        compile(fh.read(), f'{root}/{rel}', 'exec')
+                except SyntaxError as exc:
+                    sys.exit(f'syntax error in {root}/{rel}: {exc}')
+        status = subprocess.run(['bash', f'{root}/{DEPENDENCIES[0]}', 'status'],
+                                capture_output=True, text=True, cwd=cwd, timeout=TIMEOUT)
+        if status.returncode != 0 or not status.stdout.strip():
+            sys.exit(f'{root}/{DEPENDENCIES[0]} status gave no answer')
         for _scripts, data in cases.values():
             engine = subprocess.run(['bash', f'{root}/{DEPENDENCIES[0]}', 'pretool'], input=data,
                                     capture_output=True, text=True, cwd=cwd, timeout=TIMEOUT)

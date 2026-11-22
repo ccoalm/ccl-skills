@@ -65,8 +65,6 @@ GIT_ENV = {
     "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid",
     "GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z", "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z",
     "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
-    # The baseline is the commit object itself, never a replacement for it.
-    "GIT_NO_REPLACE_OBJECTS": "1",
 }
 
 
@@ -121,11 +119,17 @@ def utf8_locale():
     raise SystemExit("FAIL: no C.UTF-8 or en_US.UTF-8 locale; the stall cases need one")
 
 
-def git_env():
+def git_env(home=None):
     """The caller's GIT_* variables (GIT_DIR, GIT_INDEX_FILE, ...) would point
-    fixture commands at the caller's repository."""
+    git at the caller's repository. With `home`, fixture commands also skip
+    the caller's global config (commit signing, hooks), including on git
+    before 2.32, which ignores GIT_CONFIG_GLOBAL. Archiving the baseline keeps
+    the caller's global config, which may hold safe.directory for a checkout
+    owned by another user."""
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    env.update(GIT_ENV)
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    if home:
+        env.update(GIT_ENV, HOME=home, XDG_CONFIG_HOME=os.path.join(home, ".config"))
     return env
 
 
@@ -151,7 +155,7 @@ class Sandbox:
         self.nopy = os.path.join(self.root, "plugin-nopy")
         self.uid = str(os.getuid())
         self.locale = utf8_locale()
-        for d in ("tmp", "home/.claude/projects", "outside", "shim"):
+        for d in ("tmp", "home/.claude/projects", "outside", "shim", "git-home/.config"):
             os.makedirs(os.path.join(self.root, d))
         self._install(source, self.plugin)
         self._install(source, self.nopy)
@@ -171,7 +175,8 @@ class Sandbox:
                                 ignore=shutil.ignore_patterns("__pycache__"))
 
     def git(self, *args, cwd=None):
-        subprocess.run(["git", *args], cwd=cwd, env=git_env(), check=True, capture_output=True)
+        subprocess.run(["git", *args], cwd=cwd, env=git_env(os.path.join(self.root, "git-home")),
+                       check=True, capture_output=True)
 
     def _repo(self, name, files, config=None):
         path = os.path.join(self.root, name)
@@ -240,7 +245,9 @@ class Sandbox:
     def norm(self, data):
         text = data.decode("utf-8", "backslashreplace")
         # Hook JSON output carries the path JSON-escaped.
-        text = text.replace(json.dumps(self.root)[1:-1], "<T>").replace(self.root, "<T>")
+        for spelling in (json.dumps(self.root)[1:-1],
+                         json.dumps(self.root, ensure_ascii=False)[1:-1], self.root):
+            text = text.replace(spelling, "<T>")
         return text.replace("merge-auth-" + self.uid, "merge-auth-<UID>")
 
     def state_dirs(self):
@@ -479,6 +486,26 @@ def group_stall(sb, record):
         res["state"] = sb.engine_state()
         res["grants"] = sb.grants()
         record("exported-fields/%s" % name, res)
+    # The same, with an agent id: the engine converts its key with tr.
+    sb.reset()
+    res = sb.run(ENGINE, jtext({"session_id": "S1", "agent_id": "A1", "tool_name": "Bash",
+                                "tool_input": {"command": "echo x > src/foo.go " + quoted}}),
+                 cwd=sb.prod, args=("pretool",), timeout=STALL_SECONDS,
+                 extra_env={"fields": "inherited"})
+    res["state"] = sb.engine_state()
+    record("exported-fields/engine-bash-agent", res)
+    # An exported `cmd`: main never assigns it for apply_patch, so a patch longer
+    # than one environment string (128 KiB on Linux) must not reach the children.
+    # 40,000 four-byte characters: under the length bound, 160 KB as bytes.
+    patch_text = ("*** Begin Patch\n*** Add File: src/new.go\n+" + "\U0001F600" * 40000
+                  + "\n*** End Patch")
+    sb.reset()
+    res = sb.run(ENGINE, jtext({"session_id": "S1", "tool_name": "apply_patch", "cwd": "<T>/prod",
+                                "tool_input": {"command": patch_text}}),
+                 cwd=sb.prod, args=("pretool",), timeout=STALL_SECONDS,
+                 extra_env={"cmd": "inherited"})
+    res["state"] = sb.engine_state()
+    record("exported-cmd/engine-apply-patch", res)
     # A long agent id whose base64 is full of "/" and "+".
     sb.reset()
     res = sb.run(ENGINE, jtext({"session_id": "S1", "agent_id": "?~" * 350000, "tool_name": "Bash",
@@ -504,7 +531,7 @@ def run_group(source, group):
     sb = Sandbox(source)
     try:
         if group is None:
-            return {}, count_jq(sb)
+            return {}, dict(count_jq(sb), peak_ratios=peak_ratios(sb))
         group(sb, record)
         sb.check_not_executed()
         return results, {}
@@ -541,6 +568,41 @@ def count_jq(sb):
             raise AssertionError("jq count run for %s failed: %s, %d jq processes" % (
                 name, res, counts[name]))
     return counts
+
+
+PEAK_PROBE = """import resource, subprocess, sys
+with open(sys.argv[1], 'rb') as fh:
+    subprocess.run(sys.argv[2:], stdin=fh, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+r = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+print(r if sys.platform == 'darwin' else r * 1024)
+"""
+
+
+def peak_ratios(sb):
+    """Peak memory of a hook on an 800,000-NUL field, relative to one plain
+    jq read of the same payload on this host. Splitting before the length
+    check would raise it without changing any output: the read falls back."""
+    payloads = {
+        "merge": (MERGE, {"session_id": "SA", "cwd": "<T>/mr-feat",
+                          "tool_input": {"command": "gh pr merge 12 --squash" + "\0" * 800000}},
+                  ()),
+        "engine-bash": (ENGINE, {"session_id": "S1", "tool_name": "Bash",
+                                 "tool_input": {"command": "ls" + "\0" * 800000}}, ("pretool",)),
+    }
+    ratios = {}
+    for name, (script, payload, args) in payloads.items():
+        sb.reset()
+        path = os.path.join(sb.root, "peak.json")
+        with open(path, "w") as fh:
+            fh.write(jtext(payload).replace("<T>", json.dumps(sb.root)[1:-1]))
+
+        def peak(*cmd):
+            out = subprocess.run([sys.executable, "-c", PEAK_PROBE, path, *cmd], cwd=sb.root,
+                                 env=sb.env(), capture_output=True, text=True, timeout=60)
+            return int(out.stdout)
+        ratios[name] = round(peak("bash", os.path.join(sb.plugin, script), *args)
+                             / peak("jq", "-r", ".tool_input.command"), 2)
+    return ratios
 
 
 def digest(result):
@@ -622,8 +684,10 @@ def main():
             print("FAIL: the baseline timed out in %s; rerun on a quieter host" % timed_out)
             return 1
         fixture["baseline"] = BASELINE
+        ratios = counts.pop("peak_ratios")
         fixture["platforms"][system] = {
-            "jq_counts": counts, "cases": {k: digest(v) for k, v in sorted(results.items())}}
+            "jq_counts": counts, "peak_ratios": ratios,
+            "cases": {k: digest(v) for k, v in sorted(results.items())}}
         with open(EXPECTED, "w") as fh:
             json.dump(fixture, fh, indent=1, sort_keys=True, ensure_ascii=False)
             fh.write("\n")
@@ -650,6 +714,11 @@ def main():
     for case_id, result in sorted(results.items()):
         if any(SECRET in text for text in stderr_texts(result)):
             failures.append("%s: payload text reached stderr" % case_id)
+    for name, ratio in sorted(counts.pop("peak_ratios").items()):
+        limit = fixture["peak_ratios"][name] * 1.25 + 0.1
+        if ratio > limit:
+            failures.append("%s peaks at %.2fx a plain jq read; at most %.2fx expected (baseline %.2fx)"
+                            % (name, ratio, limit, fixture["peak_ratios"][name]))
     for name, saved in sorted(JQ_SAVED.items()):
         want = fixture["jq_counts"][name] - saved
         if counts[name] > want:

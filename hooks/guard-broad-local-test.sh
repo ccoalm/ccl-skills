@@ -53,7 +53,9 @@ input=$(head -c 1048576) || exit 0
 # strings of at most 65,536 characters with no NUL and at most 16 trailing
 # newlines. The length is checked first. Beyond those bounds, dropping NULs,
 # trimming newlines or evaluating the quoted value costs more than linear time
-# or memory.
+# or memory. The values land in hf_* variables, unset first so an inherited
+# export of these names cannot pass them to children.
+unset fields fields_read hf_tool hf_cmd
 fields=$(printf '%s' "$input" | jq -rs '
   def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
   select(length == 1) | .[0]
@@ -61,15 +63,18 @@ fields=$(printf '%s' "$input" | jq -rs '
   | select(all(.[]; type == "string" and length <= 65536
       and (split("\u0000") | length) < 2))
   | map(trim_nl(16)) | select(all(.[]; type == "string"))
-  | "tool=\(.[0] | @sh) cmd=\(.[1] | @sh) fields_read=1"' 2>/dev/null)
+  | "hf_tool=\(.[0] | @sh) hf_cmd=\(.[1] | @sh) fields_read=1"' 2>/dev/null)
 fields_read=""
 case "$fields" in *' fields_read=1') eval "$fields" ;; esac   # every value is @sh-quoted
-unset fields   # an inherited export would pass this buffer to every child
 
-[ -n "$fields_read" ] || tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
+if [ -n "$fields_read" ]; then tool=$hf_tool; else
+  tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
+fi
 case "$tool" in ''|Bash) ;; *) exit 0 ;; esac
 
-[ -n "$fields_read" ] || cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+if [ -n "$fields_read" ]; then cmd=$hf_cmd; else
+  cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+fi
 [ -z "$cmd" ] && exit 0
 
 # Same mask as the sibling hooks, after dropping escaped characters so `\"`

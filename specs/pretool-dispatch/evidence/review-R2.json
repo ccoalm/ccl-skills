@@ -1,0 +1,122 @@
+{
+ "schema_version": 3,
+ "runner": "review_diff",
+ "mode": "review",
+ "status": "findings",
+ "reason_code": null,
+ "findings": [
+  {
+   "severity": "P2",
+   "title": "Clear the exported buffer before converting the agent key",
+   "file": "scripts/owner-dispatch/owner-dispatch.sh",
+   "line": 711,
+   "body": "With `fields` exported and a nonempty `agent_id`, the engine starts `tr` before reaching `unset fields`. On Linux, the 40,000-apostrophe command already used by the test makes that environment entry too large to execute `tr`. The conversion leaves `AIDKEY` empty, so the engine writes the wrong per-agent marker and SubagentStop misses it. The new exported-buffer case omits `agent_id`, skipping this child entirely."
+  },
+  {
+   "severity": "P2",
+   "title": "Keep unused patch text out of exported shell variables",
+   "file": "scripts/owner-dispatch/owner-dispatch.sh",
+   "line": 695,
+   "body": "If the parent exports `cmd`, the merged assignment preserves its export attribute. A valid `apply_patch` command containing multibyte text and more than 1,000 apostrophes can fit under 65,536 characters while exceeding Linux’s 128 KiB environment-entry limit. The new fast path assigns that text to `cmd`, preventing the Python normalizer and verdict-producing `jq` from starting. The previous apostrophe bound selected the fallback, which never assigned `cmd` for `apply_patch`."
+  },
+  {
+   "severity": "P2",
+   "title": "Supply the fixture for macOS with GNU coreutils",
+   "file": "hooks/test_hook_field_reads.expected.json",
+   "line": 4,
+   "body": "With Homebrew’s `gnubin` first on `PATH`, the new selector requests `Darwin/tr-gnu/basename-gnu`. The fixture contains only the BSD-tool Darwin entry and the GNU-tool Linux entry, so `make test-repo-gates` exits before comparing a single case on the configuration identified by C1. A shallow clone without `788470c` cannot perform the suggested regeneration."
+  },
+  {
+   "severity": "P2",
+   "title": "Require evidence that the benchmarked engine performs work",
+   "file": "specs/pretool-dispatch/evidence/bench/hook_latency.py",
+   "line": 73,
+   "body": "A zero-byte or accidentally truncated engine can pass `bash -n` and return zero with empty stderr for both preflight payloads. Both payloads normally allow silently in the benchmark project, so the wrapper also succeeds and the harness reports the missing engine work as a speedup. An untimed control with an expected observable engine result would detect this."
+  },
+  {
+   "severity": "P2",
+   "title": "Check the Python helpers included in the latency measurement",
+   "file": "specs/pretool-dispatch/evidence/bench/hook_latency.py",
+   "line": 68,
+   "body": "A syntax error in `skill-loading.py` passes the new preflight because it checks only `.sh` files. The timed owner-dispatch wrapper suppresses the Python error and exits successfully with the engine’s empty output for these payloads. The harness can therefore accept a faster sample with the skill-loading checkpoint absent."
+  },
+  {
+   "severity": "P3",
+   "title": "Normalize jq’s UTF-8 rendering of escaped sandbox paths",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 243,
+   "body": "For a `TMPDIR` containing both `é` and a double quote, jq emits the literal `é` and escapes the quote. Python’s default `json.dumps` escapes both characters, while the raw-path replacement escapes neither. I confirmed that `norm()` leaves the random sandbox name in this output, so a correct denial gets a different digest on every run."
+  },
+  {
+   "severity": "P3",
+   "title": "Check the raw agent ID length before encoding it",
+   "file": "scripts/owner-dispatch/owner-dispatch.sh",
+   "line": 695,
+   "body": "The engine constructs `@base64` on line 694 before applying the new length check. For an oversized plain-text agent ID, it allocates the encoded value, discards it, and calls `aid_key_from` to encode the same ID again on the fallback path. This makes the new over-limit path pay the allocation the length-first check was meant to avoid."
+  },
+  {
+   "severity": "P3",
+   "title": "Isolate fixture Git commands on versions before 2.32",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 67,
+   "body": "Git 2.28–2.31 supports the fixture’s `git init -b` but ignores `GIT_CONFIG_GLOBAL`, which was introduced in 2.32. On those versions the inherited `HOME` and `XDG_CONFIG_HOME` still expose a developer’s `commit.gpgSign` or `core.hooksPath`, so fixture setup can prompt, fail, or run personal commit hooks."
+  },
+  {
+   "severity": "P3",
+   "title": "Preserve checkout-specific trust when archiving the baseline",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 165,
+   "body": "In a bind-mounted checkout owned by another UID, the caller can legitimately rely on a global `safe.directory` entry for that exact repository. Disabling global config for `git archive` removes that trust, so `--regenerate` and `--dump-baseline` fail with “dubious ownership” even though the baseline object is present. The archive command can scope trust to the known checkout while keeping fixture commits isolated."
+  },
+  {
+   "severity": "P3",
+   "title": "Test that the length check runs before delimiter allocation",
+   "file": "hooks/test_hook_field_reads.py",
+   "line": 440,
+   "body": "Moving `split(\"\\u0000\")` ahead of `length <= 65536` restores the large temporary array for the existing NUL-heavy case. On a host with enough memory, the operation can still finish within five seconds and produce identical output and state. The stall assertions then pass with C1’s memory defect present."
+  },
+  {
+   "severity": "P3",
+   "title": "Record latency for the revised hook scripts",
+   "file": "specs/pretool-dispatch/evidence/validation.md",
+   "line": 173,
+   "body": "The recorded Linux and macOS timings cover earlier hook bodies and predate the new benchmark checks. The candidate changes the filter on every ordinary call, so those measurements cannot establish whether this revision meets the plan’s 40% Linux reduction and macOS no-regression criteria."
+  },
+  {
+   "severity": "P3",
+   "title": "Correct the C1 severity totals",
+   "file": "specs/pretool-dispatch/evidence/validation.md",
+   "line": 166,
+   "body": "The committed challenge contains five P2 findings and three P3 findings. The validation record reports six P2 and two P3, giving readers an incorrect severity breakdown."
+  }
+ ],
+ "selected_client": "codex",
+ "reviewer_family": "codex",
+ "implementer_family": "claude",
+ "base": "04637e34330583742dd22f8403d2c4ffd62d309d",
+ "head": "9cf75b9c6d72f4b38418afbc3768e30ba257aa1f",
+ "candidate_digest": "391f789bde310e85d94a9c39c13fdee47c7d93c7854a30b5714c3bc565a54e9f",
+ "worktree_clean": true,
+ "untracked_files": [],
+ "intent_sha256": "85eed1620cb5ef4164a84b3ffff4a3894dd82ceb83d7070bd17fce7f54598eb5",
+ "elapsed_seconds": 298.6,
+ "attempts": [
+  {
+   "client": "codex",
+   "status": "findings",
+   "returncode": 0,
+   "elapsed_seconds": 298.6,
+   "model": "gpt-6.2-astra",
+   "provider": "openai"
+  }
+ ],
+ "skipped": [
+  {
+   "client": "claude",
+   "reason": "same_family",
+   "model": ""
+  }
+ ],
+ "recorded_at": "2026-11-22T05:56:56+00:00",
+ "diagnostics_path": "(private local diagnostics, not committed)"
+}

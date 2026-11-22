@@ -674,7 +674,7 @@ gated_dirty() { # $1 root
 # =============================================================================
 cmd_pretool() {
   have jq || allow_pretool   # can't parse stdin / determine opt-in => silent fail-open
-  local input tool fp cmd repo rel fields fields_read=""
+  local input tool fp cmd repo rel
   input=$(cat)
   # One jq call reads every field (jq start-up dominates this hook). Each value
   # is what `$(jq -r '.x // default')` gives, trailing newlines stripped. jq
@@ -686,29 +686,34 @@ cmd_pretool() {
   # crafted payload could stall the hook past the host timeout, where it no
   # longer blocks. The agent key is @base64 of the original value, mapped to -_
   # by tr as aid_key_from does.
+  # The values land in hf_* variables, unset first so an inherited export of
+  # these names cannot pass them to children; SID, tool, fp and cmd are then
+  # assigned only where the per-field reads assign them.
+  unset fields fields_read hf_sid hf_aid hf_tool hf_fp hf_cmd hf_aidkey
   fields=$(printf '%s' "$input" | jq -rs '
     def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
-    select(length == 1) | .[0]
+    select(length == 1) | .[0] | . as $doc
     | [(.session_id // "nosession"), (.agent_id // ""), (.tool_name // ""),
        (.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // ""),
-       (.tool_input.command // ""), (.agent_id // "" | @base64)]
+       (.tool_input.command // "")]
     | select(all(.[]; type == "string" and length <= 65536
         and (split("\u0000") | length) < 2))
     | map(trim_nl(16)) | select(all(.[]; type == "string"))
-    | "SID=\(.[0] | @sh) AID=\(.[1] | @sh) tool=\(.[2] | @sh) fp=\(.[3] | @sh) cmd=\(.[4] | @sh) AIDKEY=\(.[5] | @sh) fields_read=1"' 2>/dev/null)
-  case "$fields" in
-    *' fields_read=1')
-      eval "$fields"   # every value is @sh-quoted
-      [ -z "$AIDKEY" ] || AIDKEY=$(printf '%s' "$AIDKEY" | tr '+/' '-_')
-      ;;
-    *)
-      SID=$(printf '%s' "$input" | jq -r '.session_id // "nosession"' 2>/dev/null)
-      AID=$(printf '%s' "$input" | jq -r '.agent_id // empty' 2>/dev/null)   # subagent => per-agent markers
-      AIDKEY=$(printf '%s' "$input" | aid_key_from)                          # injective key (jq, raw JSON)
-      tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
-      ;;
-  esac
-  unset fields   # an inherited export would pass this buffer to every child
+    | . + [$doc.agent_id // "" | @base64]
+    | "hf_sid=\(.[0] | @sh) hf_aid=\(.[1] | @sh) hf_tool=\(.[2] | @sh) hf_fp=\(.[3] | @sh) hf_cmd=\(.[4] | @sh) hf_aidkey=\(.[5] | @sh) fields_read=1"' 2>/dev/null)
+  fields_read=""
+  case "$fields" in *' fields_read=1') eval "$fields" ;; esac   # every value is @sh-quoted
+    if [ -n "$fields_read" ]; then
+    SID=$hf_sid
+    AID=$hf_aid
+    AIDKEY=""; [ -z "$hf_aidkey" ] || AIDKEY=$(printf '%s' "$hf_aidkey" | tr '+/' '-_')
+    tool=$hf_tool
+  else
+    SID=$(printf '%s' "$input" | jq -r '.session_id // "nosession"' 2>/dev/null)
+    AID=$(printf '%s' "$input" | jq -r '.agent_id // empty' 2>/dev/null)   # subagent => per-agent markers
+    AIDKEY=$(printf '%s' "$input" | aid_key_from)                          # injective key (jq, raw JSON)
+    tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
+  fi
 
   HOST_TOOL="${1:-$tool}"
   if [ "$tool" = apply_patch ]; then
@@ -736,7 +741,9 @@ cmd_pretool() {
   fi
   case "$tool" in
     Edit|Write|MultiEdit|NotebookEdit)
-      [ -n "$fields_read" ] || fp=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // empty' 2>/dev/null)
+      if [ -n "$fields_read" ]; then fp=$hf_fp; else
+        fp=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // empty' 2>/dev/null)
+      fi
       [ -n "$fp" ] || allow_pretool
       if [ -e "$fp" ]; then
         local _r; _r=$(realpath "$fp" 2>/dev/null) && [ -n "$_r" ] && fp="$_r"
@@ -773,7 +780,9 @@ cmd_pretool() {
       fi
       ;;
     Bash)
-      [ -n "$fields_read" ] || cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+      if [ -n "$fields_read" ]; then cmd=$hf_cmd; else
+        cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+      fi
       [ -n "$cmd" ] || allow_pretool
       repo=$(opt_in_root "$PWD") || allow_pretool   # cheap walk, git only if candidate
       [ "$(cfg_enabled "$repo")" = "enabled" ] || allow_pretool
