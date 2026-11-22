@@ -248,6 +248,25 @@ All runs use `CCL_BROAD_TEST_REASON=repo-required`, `umask 022`, and pytest and 
 | P2 untracked files in a copied root reach the synthetic build | Not fixed here. The smoke has always copied whole working-tree roots, so the gap applies to every root, not only the two added. Copying the tracked files of each root instead is a separate change. Follow-up: make the host smoke stage roots from the Git index, as `build-assets.mjs` reads them. |
 | P3 full-suite results recorded only for `3eccfb0` | Fixed: the table above records `8db4ef5`. |
 
+## Smoke repair challenge C2 and scope decision
+
+[`challenge-C2.json`](challenge-C2.json): Codex, challenge mode, of the smoke repair after R3 (`3eccfb0`..`22030fb`). It reported 6 findings: 5 P2 and 1 P3.
+
+**Scope decision.** Four findings, like R3's second, ask for a fully hermetic smoke that stages exactly what the real build reads. Two repeat R3's class. All four describe gaps the smoke had before this branch, for every root and every host it drives. Chasing them here would turn a two-line repair of a required check into a redesign of the smoke. This repair therefore stays at what made the smoke run and stop touching the caller's Claude state; the rest is one follow-up.
+
+| Finding | Disposition |
+| --- | --- |
+| P2 environment clearing fails open when `compgen` is unavailable | Fixed in this repair's own code: the list is captured in an assignment, so `set -e` stops the smoke. RED: with `compgen` replaced by a missing command, `22030fb` ran past bootstrap. The fix stops at `stage=bootstrap exit=127`. |
+| P2 roots copied from the working tree instead of the Git index | Follow-up, with R3's second finding. |
+| P2 a hard-linked source passes the smoke but fails the real build | Follow-up: the staging change should preserve the build's link-count check. |
+| P2 `XDG_CONFIG_HOME` points OpenCode at the caller's config | Follow-up: pre-existing; the smoke isolates OpenCode only through `HOME`. |
+| P3 Claude debug-log variables write outside the temporary directory | Follow-up, with the isolation item. |
+| P3 full-suite results not bound to the final smoke candidate | Fixed: the full suite is rerun on the final commit and recorded below. |
+
+**Follow-up for the host smoke** (not in this change):
+- stage each root from the Git index, preserving the build's file-mode and link-count checks;
+- run each host CLI with its config, cache and log locations confined to the temporary directory (`XDG_*`, Claude debug logs).
+
 ## Latency
 
 `evidence/bench/hook_latency.py` compares `788470c` with a candidate tree extracted by `git archive`, in the same run. Figures are medians of 11 runs in ms.
