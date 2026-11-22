@@ -18,7 +18,7 @@ All verification runs use synthetic git repositories and isolated `TMPDIR` scrat
 | Focused unit & hook integration (`T1`–`T5`) | `python3 hooks/test_agy_bridge.py`, `python3 hooks/test_host_input.py`, `bash hooks/test_guard_edit_isolation.sh`, `python3 hooks/test_hook_field_reads.py` | `41 OK`, `41 OK`, `32 passed, 0 failed`, `576 cases, 0 failures` |
 | Coverage gate & downstream installer (`T6`, `T7`) | `REQUIRE_BASELINE=1 bash skills/product-rd-workflow/scripts/test_check_agent_contract_coverage.sh`, `PERF_BOUND_MS=2000 ...`, `python3 scripts/test_install_gates_runtime.py` | `14 passed, 0 failed, 0 skipped` (`~193ms`, `0` forks), `15 passed` with `PERF_BOUND_MS=2000`, `8 OK` |
 | Suite wiring (`T8`) | `python3 scripts/test_select_affected_tests.py`, `python3 -m unittest eval.test_owner_role_audit`, `python3 skills/code-review/scripts/test_kimi_packet_mcp.py`, `python3 scripts/test_lane_isolation.py` | `22 OK`, `8 OK`, `12 OK`, `lane_isolation_ok` (`73` members, `0` unreviewed) |
-| Repository gates (`repository-gates` CI lane) | `CCL_BROAD_TEST_REASON=repo-required make test-repo-gates` + `python3 scripts/check-public-sanitization.py .` + `python3 scripts/check-skill-count.py .` | `PASS` (`ccl_skill_check_interim_ok`, `r0_status=public-fallback`, `public_sanitization_ok`, `skill_count_ok: 33`) |
+| Repository gates (`repository-gates` CI lane) | `CCL_BROAD_TEST_REASON=repo-required make test-repo-gates` + `ALIAS_AUDIT_CMD`/`R0_BASE=origin/main` `check-ccl-skills.sh .` + `python3 scripts/check-public-sanitization.py .` + `python3 scripts/check-skill-count.py .` | `PASS` (`alias_audit_ok`, `r0_status=private-ok`, `ccl_skill_check_clean_ok`, `public_sanitization_ok`, `skill_count_ok: 33`) |
 | Fast & heavy skill regressions (`regression-fast` + `regression-heavy`) | `CCL_BROAD_TEST_REASON=repo-required make test-regressions-fast` + `bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only` | `PASS` |
 | Code-review shards (`code-review-regressions-1/2`) | `CCL_BROAD_TEST_REASON=repo-required make test-code-review-1` + `make test-code-review-2` | `PASS` |
 | Code-review abort-leak (`code-review-abort-leak-1/2`) | `CCL_BROAD_TEST_REASON=repo-required unshare --user --map-current-user --pid --fork --mount-proc make test-code-review-abort-leak` | `PASS` |
@@ -56,13 +56,13 @@ Candidate plugin staged at `<scratch-ws>/.agents/plugins/ccl-skills` inside a sy
 ## Review pass
 - Reviewed commit: `82be530c06268b59c60c43fc5967b4dc5d81ece8` (`specs/hook-turn-key-and-gate-speed/evidence/review-R1.json`)
 - Findings: 2 total (0 P0 / 0 P1 / 2 P2)
-- R0 evidence: `r0_status=public-fallback` (`ccl_skill_check_interim_ok`; `public_sanitization_ok`; `interim: R0 pending maintainer audit`)
+- R0 evidence: `r0_status=public-fallback` during pass run; re-verified clean at closeout with `ALIAS_AUDIT_CMD` and `R0_BASE=origin/main` (`alias_audit_ok`, `r0_status=private-ok`, `ccl_skill_check_clean_ok`, private profile: `both`)
 - Dispositions: none at P0/P1; both P2s fixed (`hooks/agy-bridge.py` stale-transcript new-turn handling and `test_check_agent_contract_coverage.sh` explicit skip/fail-closed baseline reporting)
 
 ## Challenge pass
 - Reviewed commit: `c4338996ad66430dd207e476e6b368395817f1b1` (`specs/hook-turn-key-and-gate-speed/evidence/challenge-C1.json`)
 - Findings: 3 total (0 P0 / 0 P1 / 3 P2)
-- R0 evidence: `r0_status=public-fallback` (`ccl_skill_check_interim_ok`; `public_sanitization_ok`; `interim: R0 pending maintainer audit`)
+- R0 evidence: `r0_status=public-fallback` during pass run; re-verified clean at closeout with `ALIAS_AUDIT_CMD` and `R0_BASE=origin/main` (`alias_audit_ok`, `r0_status=private-ok`, `ccl_skill_check_clean_ok`, private profile: `both`)
 - Gate-fireability applicability: yes (`guard-edit-isolation.sh`, `agy-bridge.py`, `check-agent-contract-coverage.sh`); Item 9 exercised: live `agy` 1.5.14 `PreInvocation` + `PreToolUse` smoke and `jq`-only/no-`realpath` shell probes (`p6j`–`p6m`)
 - Dispositions: none at P0/P1; all 3 P2s fixed in `ccc10004d7d2076c840d910a9be0fb1cb7222e27` (`resolve_turn_key` `replace` simplification to monotonic `seq` at `invocationNum == 0`, shared 16-hop `total_sym_hops` budget in `guard-edit-isolation.sh` + probes `p6l`/`p6m`, and `REQUIRE_BASELINE=1` in `Makefile` + opt-in `PERF_BOUND_MS`)
 
@@ -81,4 +81,4 @@ Candidate plugin staged at `<scratch-ws>/.agents/plugins/ccl-skills` inside a sy
 - **Repo-contract sync**: Updated `skills/product-rd-workflow/scripts/AGENTS.md` Validation list to include `bash skills/product-rd-workflow/scripts/test_check_agent_contract_coverage.sh`. Verified via `bash skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh --repo . --enforce` (`agent contract coverage ok`, exit `0`).
 - **Deliverable-doc pass (`tighten-doc`)**: Ran `tighten-doc` workflow steps 1–4 and standalone-paste closeout sweep on `specs/hook-turn-key-and-gate-speed/plan.md` and `specs/hook-turn-key-and-gate-speed/evidence/validation.md` (mode: technical spec/validation; preserved all decided points, dirty-scan = 0, `doc-lint-repo.py .` = `0 ERROR`).
 - **Security review gate**: `pending-dedicated-review` (`security-first-pass-only` read-only triage recorded above; not a dedicated security audit).
-- **R0 leakage audit**: `ALIAS_AUDIT_CMD` is unset in this environment; `check-ccl-skills.sh .` exits `0` with `r0_status=public-fallback` and `ccl_skill_check_interim_ok`, and `check-public-sanitization.py .` outputs `public_sanitization_ok`. Landing status is `interim` (`R0 pending maintainer audit`).
+- **R0 leakage audit**: `check-ccl-skills.sh .` with `ALIAS_AUDIT_CMD` configured and `R0_BASE=origin/main` exits `0` with `alias_audit_ok`, `r0_status=private-ok`, and final token `ccl_skill_check_clean_ok` (private profile: `both` — `process-retro` plus configured `project-alias` set); `check-public-sanitization.py .` outputs `public_sanitization_ok`.
