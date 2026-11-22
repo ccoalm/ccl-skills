@@ -26,6 +26,7 @@ by the number of reads merged.
 """
 
 import argparse
+import errno
 import concurrent.futures
 import hashlib
 import json
@@ -615,13 +616,33 @@ def summary(result):
 
 
 def fixture_key():
-    """The OS plus the flavour of the tools on PATH whose output reaches the
-    compared results: Homebrew's GNU coreutils on macOS differs from BSD."""
-    flavours = []
-    for tool in ("tr", "basename"):
-        gnu = subprocess.run([tool, "--version"], capture_output=True, text=True)
-        flavours.append("%s-%s" % (tool, "gnu" if "GNU" in gnu.stdout else "other"))
-    return "/".join([platform.system()] + flavours)
+    """A fingerprint of the system behaviour that reaches the compared results.
+
+    Two things differ between hosts: whether `tr -c` replaces a multibyte
+    character byte by byte (GNU, uutils) or once (BSD), and how `basename` and
+    `dirname` fail on a 900 KB argument (Linux caps one exec argument at
+    128 KiB; macOS does not, and BSD and GNU word their errors differently).
+    Hosts that behave alike share one entry, whatever their tools are called.
+    """
+    env = {"PATH": os.environ["PATH"], "LC_ALL": utf8_locale()}
+    tr = subprocess.run(["tr", "-c", "A-Za-z0-9._-", "_"], input="é".encode(),
+                        env=env, capture_output=True).stdout
+    probes = ["tr-replaces-%d" % len(tr)]
+    long_arg = "/" + "a" * 900000
+    for tool in ("basename", "dirname"):
+        try:
+            run = subprocess.run([tool, long_arg], env=env, capture_output=True, text=True)
+        except OSError as exc:  # the kernel refuses the argument before the tool runs
+            probes.append("%s-exec-%s" % (tool, errno.errorcode.get(exc.errno, exc.errno)))
+            continue
+        err = run.stderr.replace(long_arg, "<ARG>").split(":", 1)[-1].strip()
+        probes.append("%s-rc%d-%s" % (tool, run.returncode,
+                                      hashlib.sha256(err.encode()).hexdigest()[:8]))
+    return platform.system() + "/" + "/".join(probes)
+
+
+def jq_version():
+    return subprocess.run(["jq", "--version"], capture_output=True, text=True).stdout.strip()
 
 
 def write_dump(path, results):
@@ -669,8 +690,8 @@ def main():
     if opts.dump_baseline:
         write_dump(opts.dump_baseline, collect("baseline")[0])
         return 0
-    # Baseline output differs where the hooks call system tools (GNU and BSD tr
-    # and basename), so each platform and tool flavour keeps its own entry.
+    # Baseline output differs where the hooks meet system behaviour (tr on
+    # multibyte text, argument-size limits), so each behaviour keeps an entry.
     system = fixture_key()
     fixture = {"baseline": BASELINE, "platforms": {}}
     if os.path.exists(EXPECTED):
@@ -683,24 +704,38 @@ def main():
         if timed_out:
             print("FAIL: the baseline timed out in %s; rerun on a quieter host" % timed_out)
             return 1
-        fixture["baseline"] = BASELINE
         ratios = counts.pop("peak_ratios")
-        fixture["platforms"][system] = {
-            "jq_counts": counts, "peak_ratios": ratios,
-            "cases": {k: digest(v) for k, v in sorted(results.items())}}
+        cases = {k: digest(v) for k, v in sorted(results.items())}
+        if fixture.get("baseline") != BASELINE:
+            fixture = {"baseline": BASELINE, "platforms": {}}
+        entry = fixture["platforms"].get(system)
+        if entry and entry["cases"] != cases:
+            print("FAIL: %s already holds a different baseline; the key misses a behaviour"
+                  % system)
+            return 1
+        entry = entry or {"cases": cases, "peak_ratios": {}}
+        entry["jq_counts"] = counts
+        # Peak memory depends on the jq version, so each version keeps its own.
+        entry["peak_ratios"][jq_version()] = ratios
+        fixture["platforms"][system] = entry
         with open(EXPECTED, "w") as fh:
             json.dump(fixture, fh, indent=1, sort_keys=True, ensure_ascii=False)
             fh.write("\n")
-        print("wrote %d %s cases to %s" % (len(results), system, os.path.relpath(EXPECTED, REPO)))
+        print("wrote %d %s cases (%s) to %s" % (
+            len(results), system, jq_version(), os.path.relpath(EXPECTED, REPO)))
         return 0
 
-    if fixture.get("baseline") != BASELINE or system not in fixture.get("platforms", {}):
-        print("FAIL: no %s fixture from %s; run --regenerate on %s" % (system, BASELINE, system))
+    known = fixture.get("baseline") == BASELINE and system in fixture.get("platforms", {})
+    if not known and not opts.dump:
+        print("FAIL: no %s fixture from %s; run --regenerate on that host" % (system, BASELINE))
         return 1
-    fixture = fixture["platforms"][system]
     results, counts = collect("candidate")
     if opts.dump:
         write_dump(opts.dump, results)
+    if not known:
+        print("FAIL: no %s fixture from %s; run --regenerate on that host" % (system, BASELINE))
+        return 1
+    fixture = fixture["platforms"][system]
 
     failures = []
     expected = fixture["cases"]
@@ -714,11 +749,17 @@ def main():
     for case_id, result in sorted(results.items()):
         if any(SECRET in text for text in stderr_texts(result)):
             failures.append("%s: payload text reached stderr" % case_id)
+    peak = fixture["peak_ratios"].get(jq_version())
+    if peak is None:
+        print("SKIP peak memory: no %s calibration for %s; --regenerate on such a host adds one"
+              % (jq_version(), system))
     for name, ratio in sorted(counts.pop("peak_ratios").items()):
-        limit = fixture["peak_ratios"][name] * 1.25 + 0.1
+        if peak is None:
+            continue
+        limit = peak[name] * 1.25 + 0.1
         if ratio > limit:
             failures.append("%s peaks at %.2fx a plain jq read; at most %.2fx expected (baseline %.2fx)"
-                            % (name, ratio, limit, fixture["peak_ratios"][name]))
+                            % (name, ratio, limit, peak[name]))
     for name, saved in sorted(JQ_SAVED.items()):
         want = fixture["jq_counts"][name] - saved
         if counts[name] > want:

@@ -104,15 +104,24 @@ The edit checkpoint routes hook edits through `skill-extraction-workflow`. The s
 - **Checks on every case.** Payload text that would run a command if evaluated (`$(touch PWNED)`, backticks, an array element) must leave no `PWNED` file anywhere in the sandbox. A marker in malformed fields must not reach stderr.
 - **jq count.** Each script must start at least the merged number of jq processes fewer than baseline. The count runs on one ordinary payload per script, plus a merge command ending in a newline. Each counted run must exit 0 and start at least one jq.
 - **Peak memory.** The merge guard and the engine run on an 800,000-NUL field. Their peak memory, as a ratio to one plain jq read of the same payload on the same host, may exceed the baseline's ratio by at most 25% plus 0.1. Splitting before the length check changes no output, because the read falls back, so only this check sees it.
+  - The ratio depends on the jq version (1.84x with jq 1.6, about 2.7x with jq 1.8.1), so each fixture entry keeps a calibration per jq version.
+  - A jq version without one prints `SKIP peak memory` and leaves the rest of the test in force. A runner jq upgrade therefore cannot turn CI red through this check alone.
 - **Environment.**
   - The hooks run under a UTF-8 locale, as on a host, because under `C` Bash evaluates quoted text much faster and the apostrophe stall disappears. A host without `C.UTF-8` or `en_US.UTF-8` fails the test rather than running a weaker one.
   - Fixture git commands run under a private `HOME` with no global config, and ignore the caller's `GIT_*` variables. Archiving the baseline keeps the caller's global config (for `safe.directory`) but disables replace objects and uses the full commit id.
-- **Fixture entries.** The baseline hooks print different results in 5 cases with GNU and with BSD `tr` and `basename`: non-ASCII session ids, the apostrophe-stall edit and the long agent id. Entries are therefore keyed by OS and by the flavour of those two tools on `PATH`:
-  - Linux with GNU tools;
-  - macOS with BSD tools;
-  - macOS with Homebrew's GNU coreutils first.
+- **Fixture entries.** The baseline hooks print different results in 5 cases on different hosts: non-ASCII session ids, the apostrophe-stall edit and the long agent id. Two behaviours cause it:
+  - `tr -c` replaces a multibyte character byte by byte (GNU, uutils) or once (BSD);
+  - Linux refuses an exec argument over 128 KiB, while macOS runs `basename` and `dirname`, whose errors differ between BSD and GNU.
 
-  A key without an entry fails with the regeneration step. Regeneration refuses a baseline that timed out.
+  Entries are keyed by a fingerprint of those behaviours, probed at run time, so hosts that behave alike share one. The current entries:
+
+  | Key | Covers | jq calibrations |
+  | --- | --- | --- |
+  | `Linux/tr-replaces-2/basename-exec-E2BIG/dirname-exec-E2BIG` | Linux with GNU coreutils; Ubuntu 26.04 with uutils (the CI runner) | jq-1.6, jq-1.8.1 |
+  | `Darwin/tr-replaces-1/...` | macOS with BSD tools | jq-1.8.2 |
+  | `Darwin/tr-replaces-2/...` | macOS with Homebrew's GNU coreutils first | jq-1.8.2 |
+
+  A key without an entry fails with the regeneration step. Regeneration refuses a baseline that timed out, and refuses a second baseline under a key that already holds a different one, because that would mean the key misses a behaviour.
 - **RED.** Commit `0b1bc53`, before the scripts changed: all 506 cases of that version matched baseline, and all 5 jq-count assertions failed (engine 5, merge 4, broad 2, edit 2 processes). Each later regression case was either seen failing on the candidate it guards or is killed by the matching mutation below.
 - **GREEN on `dcbe712`.** Each jq count is 1, and all 576 cases pass:
   - on Linux (bash 5.2.15, jq 1.6);
@@ -291,6 +300,20 @@ On the final code, `0176e3d`, with the settings of Full local verification. The 
 | `npm run smoke:host` | passed | passed |
 
 Every run left the working tree clean. A later commit adds only this table, and the doc checks of `make test-repo-gates` were rerun on it.
+
+## CI on PR #232
+
+The first CI run failed in `repository-gates` only:
+
+```text
+FAIL: no Linux/tr-other/basename-other fixture from 788470c; run --regenerate on Linux/tr-other/basename-other
+```
+
+**Diagnosis.** The runner is Ubuntu 26.04, whose `tr` and `basename` are uutils 0.10.0. The fixture was then keyed by tool name, so the runner matched no entry.
+- An Ubuntu 26.04 container reproduced the failure, running as a non-root user with jq 1.8.1 and bash 5.3.
+- In that container, the baseline hooks gave exactly the GNU Linux results in all 576 cases.
+- The key is now a behaviour fingerprint, which the runner shares with GNU Linux.
+- In the container, the case set then matched the shared entry. The peak-memory check failed against the jq 1.6 calibration (2.68x against 1.84x), which led to the per-version calibrations above. With them, the container passes 576 cases with no failures.
 
 ## Latency
 
