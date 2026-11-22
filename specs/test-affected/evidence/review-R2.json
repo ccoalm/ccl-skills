@@ -1,0 +1,263 @@
+{
+  "schema_version": 3,
+  "runner": "review_diff",
+  "mode": "review",
+  "status": "findings",
+  "reason_code": null,
+  "findings": [
+    {
+      "severity": "P1",
+      "title": "Validate dedicated suites before adding serial commands",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1066,
+      "body": "If `test_gen_report.py` is a symlink to a Python file outside the checkout, changing the test-artifact-management skill schedules pytest against that external file. The dedicated route bypasses `_classify_suite_path`. The sandbox, fast-regression, and abort-leak commands have the same gap. The containment test inspects only `parallel_suites`."
+    },
+    {
+      "severity": "P1",
+      "title": "Preserve containment when escalating to Make targets",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1160,
+      "body": "If a registered hook suite links outside the checkout and the changeset also contains an unrecognized path, `add_suite` skips the link, then the fallback schedules `make test-repo-gates`, whose recipe runs that same path directly. An unrelated change can therefore re-enable a suite the selector explicitly rejected."
+    },
+    {
+      "severity": "P1",
+      "title": "Make the raw-filename regression portable to macOS",
+      "file": "scripts/test_select_affected_tests.py",
+      "line": 284,
+      "body": "The test creates a filename containing byte `0xff`. APFS rejects that filename before the selector runs, so the newly registered test breaks `make test` on macOS. The existing Markdown-link and spec-reference tests exercise this case with synthetic Git output for exactly this reason."
+    },
+    {
+      "severity": "P1",
+      "title": "Pass Make inputs to the selector without shell interpretation",
+      "file": "Makefile",
+      "line": 24,
+      "body": "Both new recipes interpolate `AFFECTED_ARGS` as shell source and insert `CCL_SKILL_DEFAULT_BASE_REF` inside shell double quotes. A caller forwarding a filename or a valid Git ref containing shell metacharacters can change the command before Python sees it. This also affects the advertised read-only preview target."
+    },
+    {
+      "severity": "P2",
+      "title": "Distinguish pytest module setup from a test entrypoint",
+      "file": "scripts/select-affected-tests.py",
+      "line": 180,
+      "body": "A pytest module containing `ROOT = Path(__file__)` followed by a failing `test_*` function is classified as directly executable. Bare Python evaluates the assignment, defines the function, and exits zero without running the assertion. The regression fixture contains only a function definition, so it misses this common form."
+    },
+    {
+      "severity": "P2",
+      "title": "Honor the environment base when explicit files are supplied",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1335,
+      "body": "I confirmed that `CCL_SKILL_BASE_REF=does-not-exist` with `--files eval/owner-role-audit.py --json` exits successfully and reports a null base. A valid environment base is discarded the same way. During execution, the frozen-case check can then skip and the metadata gate can use a different target."
+    },
+    {
+      "severity": "P2",
+      "title": "Require a usable worktree in explicit-file mode",
+      "file": "scripts/select-affected-tests.py",
+      "line": 382,
+      "body": "With `--files` and no CLI base, a directory containing a broken `.git` pointer passes root validation even after `git rev-parse --show-toplevel` fails. An empty explicit file list can consequently report successful completion in an unusable repository. The non-repository test uses a directory with no `.git` entry and misses this branch."
+    },
+    {
+      "severity": "P2",
+      "title": "Escalate deletion of the changed registered suite itself",
+      "file": "scripts/select-affected-tests.py",
+      "line": 623,
+      "body": "Deleting only `skills/code-review/scripts/test_review_client_order.sh` leaves a live Makefile shard registration. I checked the resulting plan with the file classified as missing. It contained neither `missing_suites` nor a fallback command. The drift regression covers an unmapped hook that triggers a registry scan, while a directly changed suite takes this separate path."
+    },
+    {
+      "severity": "P2",
+      "title": "Include the affected eval module in its dedicated unittest command",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1075,
+      "body": "Changing either `eval/owner-role-audit.py` or its existing `eval/test_owner_role_audit.py` schedules five other unittest modules. The blanket `eval/test_*.py` exclusion also suppresses the sibling and self-selection routes, so a broken assertion in this module receives no focused execution."
+    },
+    {
+      "severity": "P2",
+      "title": "Propagate hard failures while probing automatic base refs",
+      "file": "scripts/select-affected-tests.py",
+      "line": 473,
+      "body": "Every failed `rev-parse` is treated as an absent optional ref. If resolving one integration ref fails because its object is unreadable or corrupt and a peer resolves, discovery silently switches targets. Only failures from the subsequent `merge-base` and `rev-list` calls receive the documented hard-error treatment."
+    },
+    {
+      "severity": "P2",
+      "title": "Remove the inherited replacement-object override",
+      "file": "scripts/select-affected-tests.py",
+      "line": 41,
+      "body": "`git rev-parse --local-env-vars` lists `GIT_NO_REPLACE_OBJECTS`, but the scrubber leaves it intact. In a checkout using replacement refs, a caller exporting that variable changes the history seen by discovery and child checks, potentially changing the selected merge-base or making it unreachable."
+    },
+    {
+      "severity": "P2",
+      "title": "Isolate writable child fixtures from Git templates and user hooks",
+      "file": "scripts/select-affected-tests.py",
+      "line": 127,
+      "body": "`_clean_child_env` preserves `GIT_TEMPLATE_DIR` and removes even protective settings such as `GIT_CONFIG_GLOBAL=/dev/null`. A selected suite such as `hooks/test_remind_review_covers_head.sh` initializes repositories and commits in them, so inherited template hooks or a restored global `core.hooksPath` can run there. The template regression exercises the test helper’s `git init`, not this child execution path."
+    },
+    {
+      "severity": "P2",
+      "title": "Bind discovery and execution to the same commit snapshots",
+      "file": "scripts/select-affected-tests.py",
+      "line": 545,
+      "body": "The selector resolves `head_sha` and the base commit, then enumerates changes against symbolic `HEAD` and forwards the symbolic base to child checks. A commit, checkout, or background fetch between these steps can make the selected paths, empty-commit decision, and metadata check describe different candidates."
+    },
+    {
+      "severity": "P2",
+      "title": "Keep machine-readable filenames reversible",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1289,
+      "body": "A filename containing byte `0xff` and a distinct filename containing the literal characters `\\udcff` receive the same JSON spelling after `_display_str`. The dry-run command also substitutes that display spelling for the real argument, so replay can select the wrong file. The regression verifies that the JSON parses, without checking that either pathname round-trips."
+    },
+    {
+      "severity": "P2",
+      "title": "Restrict automatic directory scans to supported suite extensions",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1036,
+      "body": "A regular fixture named `test_payload.json` in a generic skill’s `scripts/` directory is added to `parallel_suites` whenever a script there changes. The parallel runner invokes Bash for every non-Python path, so it tries to execute the fixture as shell code."
+    },
+    {
+      "severity": "P2",
+      "title": "Normalize path aliases before applying dedicated-runner rules",
+      "file": "scripts/select-affected-tests.py",
+      "line": 206,
+      "body": "I confirmed that `--files skills/code-review/scripts/./test_review_gate_abort_leak.sh` places the slow probe in `parallel_suites` without `--include-slow`. The dedicated-suite lookup compares raw strings, while filesystem resolution accepts the embedded `./`. Redundant separators produce the same mismatch."
+    },
+    {
+      "severity": "P2",
+      "title": "Apply the slow-suite policy to individual heavy regressions",
+      "file": "scripts/select-affected-tests.py",
+      "line": 990,
+      "body": "Changing `test_impact_chain_gate_verdict_differential.sh` puts it directly into the default parallel batch with no skip recorded. The regression runner explicitly classifies this multi-worktree test as heavy. Only its aggregate wrapper is on the selector’s dedicated-runner list."
+    },
+    {
+      "severity": "P2",
+      "title": "Handle symlink loops as unsafe paths",
+      "file": "scripts/select-affected-tests.py",
+      "line": 153,
+      "body": "On Python 3.12, `Path.resolve(strict=True)` can raise `RuntimeError` for a symlink loop. A self-referential `hooks/test_loop.sh` therefore aborts planning with a traceback instead of producing the promised unsafe-path note. Both containment exception handlers omit this exception."
+    },
+    {
+      "severity": "P2",
+      "title": "Recheck suite containment at dispatch time",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1236,
+      "body": "The selector resolves suite paths while planning, runs all preflights, then passes the original path strings to the runner. If an editor, checkout, or concurrent process replaces a selected file with an escaping symlink during that interval, the runner follows the replacement. The same interval exists before serial pytest dispatch."
+    },
+    {
+      "severity": "P2",
+      "title": "Forward cancellation to the active runner",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1190,
+      "body": "If an IDE or job supervisor sends SIGTERM to the selector PID, Python exits while its child can continue running. The parallel runner has cleanup traps for its suite process groups, but those traps never fire when only the selector receives the signal. A cancelled advisory run can consequently leave tests operating on the checkout."
+    },
+    {
+      "severity": "P2",
+      "title": "Preserve the repository and environment in replayable previews",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1267,
+      "body": "Running `--repo` from another checkout prints relative commands without changing directory or exporting the selected base. Pasting the preview runs checks in the caller’s checkout. Even from the right directory, base-sensitive checks can skip or use a different ref because the preview omits the environment used by `_run_cmd`."
+    },
+    {
+      "severity": "P2",
+      "title": "Derive suite membership from executable Make recipes",
+      "file": "scripts/select-affected-tests.py",
+      "line": 191,
+      "body": "The whole-file regex treats a commented-out `hooks/test_old.sh` as registered and misses a valid quoted recipe path such as `\"hooks/test_with space.sh\"`. I confirmed both parser results. An unmapped hook change can therefore execute retired work, spuriously escalate, or omit an active suite. The fallback coverage test derives its expected set from the same parser."
+    },
+    {
+      "severity": "P2",
+      "title": "Keep Git discovery failures inside the CLI error contract",
+      "file": "scripts/select-affected-tests.py",
+      "line": 358,
+      "body": "If `git` is unavailable on `PATH` or cannot be launched, `_git_bytes` raises `OSError` before producing a return code. `main` catches only `SelectorError`, so even a dry run prints a traceback instead of returning a controlled discovery error."
+    },
+    {
+      "severity": "P2",
+      "title": "Report untracked files that the selected checks cannot inspect",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1045,
+      "body": "A new untracked `docs/guide.md` with a broken local link appears in `changed_files`. The selected Markdown, spec-reference, lint, and sanitization commands enumerate tracked files, so the run can finish successfully without inspecting the guide. Staging the identical bytes changes the result, and the plan gives no indication of that coverage gap."
+    },
+    {
+      "severity": "P2",
+      "title": "Keep fixture paths out of generated shell source",
+      "file": "scripts/test_select_affected_tests.py",
+      "line": 673,
+      "body": "With a writable `TMPDIR` containing a space, the fake Make script splits the unquoted log pathname at that space. It can redirect output outside the temporary fixture, and the required test then fails when `make-calls.log` is absent. The pipeline test likewise interpolates checkout and interpreter paths into a shell command, where shell metacharacters retain meaning."
+    },
+    {
+      "severity": "P2",
+      "title": "Allow correctly dispatched pytest hook suites in the regression gate",
+      "file": "scripts/test_select_affected_tests.py",
+      "line": 637,
+      "body": "Registering a hook pytest module without a main block correctly places it in `serial_commands`. This assertion nevertheless requires every registered hook suite to appear in `parallel_suites`, so a supported runner configuration makes `make test-repo-gates` fail."
+    },
+    {
+      "severity": "P3",
+      "title": "Flush preview output inside the broken-pipe handler",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1381,
+      "body": "With the pipe reader already closed, I observed both a short `--dry-run` and `--json` exit 120 and print `BrokenPipeError` during interpreter shutdown. Their buffered output flushes after the handler has gone out of scope. The regression disables `pipefail` and never checks the selector’s exit status."
+    },
+    {
+      "severity": "P3",
+      "title": "Emit skip and drift diagnostics on early returns",
+      "file": "scripts/select-affected-tests.py",
+      "line": 1213,
+      "body": "I confirmed that `--run --files ../foo.sh` reports “0 changed files; nothing to run” and drops the stored unsafe-input note. A failing preflight or fallback command similarly returns before printing planned skips and the reason for escalation, precisely when that information would explain the result."
+    },
+    {
+      "severity": "P3",
+      "title": "Preserve checkout names ending in a line terminator",
+      "file": "scripts/select-affected-tests.py",
+      "line": 383,
+      "body": "`rstrip(b\"\\r\\n\")` removes every trailing carriage return or newline from Git’s output. For a valid POSIX checkout whose directory name ends in either byte, it removes part of the actual pathname as well as Git’s output delimiter and rejects the correct worktree root."
+    },
+    {
+      "severity": "P3",
+      "title": "Check the committed whitespace snapshot independently",
+      "file": "scripts/select-affected-tests.py",
+      "line": 706,
+      "body": "If `HEAD` adds trailing whitespace and a staged edit removes it, both generated whitespace checks compare the repaired index or worktree against the merge-base. The committed defect escapes both checks and can still be pushed before the staged repair is committed."
+    },
+    {
+      "severity": "P3",
+      "title": "Escape terminal controls in filename-bearing output",
+      "file": "scripts/select-affected-tests.py",
+      "line": 101,
+      "body": "A filename containing an ANSI escape survives `_display_str` and `_comment_line` unchanged. Displaying the plan can consequently alter or conceal terminal output. In run mode, embedded newlines in raw command and note strings can also make one pathname appear as multiple status lines."
+    },
+    {
+      "severity": "P3",
+      "title": "Exercise base precedence through the actual subprocess boundary",
+      "file": "scripts/test_select_affected_tests.py",
+      "line": 449,
+      "body": "The propagation test inspects a helper-created environment directly. Removing the `resolved_base` argument from `_run_cmd` would leave that test green while real child checks lost their base. The nearest-base fixture likewise puts the nearest ref first, so an implementation that always accepts the first usable ref passes its assertion."
+    },
+    {
+      "severity": "P3",
+      "title": "Exercise option-shaped bases after argument parsing",
+      "file": "scripts/test_select_affected_tests.py",
+      "line": 332,
+      "body": "Passing `--base-ref` and `--independent` as separate arguments makes argparse reject the command before the base validator runs. The test therefore stays green if the validator stops rejecting option-shaped values. The documented `--base-ref=--independent` spelling reaches the intended code path."
+    }
+  ],
+  "selected_client": "codex",
+  "reviewer_family": "codex",
+  "implementer_family": "gemini",
+  "base": "788470c31d70de3c11ef1a5e2df9c95a57916b94",
+  "head": "36fafa632b6a70f055bacff1514829e00e5cbaee",
+  "candidate_digest": "118a399426696268002435b23c12ae8ba75e9ad14e42f7d37885bfa1b0b48683",
+  "worktree_clean": true,
+  "untracked_files": [],
+  "intent_sha256": "53d48fccb3ca7f6ab2c3d0a79888800d057b212534910684a4af2da0927dfb4c",
+  "elapsed_seconds": 301.2,
+  "attempts": [
+    {
+      "client": "codex",
+      "status": "findings",
+      "returncode": 0,
+      "elapsed_seconds": 301.1,
+      "model": "gpt-6.2-astra",
+      "provider": "openai"
+    }
+  ],
+  "skipped": [],
+  "recorded_at": "2026-11-22T03:48:36+00:00",
+  "diagnostics_path": "(private local diagnostics, not committed)"
+}
