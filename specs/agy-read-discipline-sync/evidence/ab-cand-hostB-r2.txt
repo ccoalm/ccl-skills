@@ -1,9 +1,0 @@
-```json
-{
-  "call_count": 3,
-  "max_lines_per_chunk": 118,
-  "max_kb_per_chunk": 8,
-  "verify_middle": true,
-  "note": "Not executed. Read and Bash were listed in the prompt but are not available in this session, so skills/code-review/SKILL.md was not loaded. If they were available, the plan would be three Read calls of at most 118 lines each (offset 1/limit 118, offset 119/limit 118, offset 237/limit 116), each about 5.1 KB on average. That keeps every chunk under both 200 lines and 8 KiB. After reading, check that the line numbers run continuously across chunk boundaries (lines 118/119 and 236/237) to confirm the middle of the file was read."
-}
-```

@@ -2,19 +2,19 @@
 
 ## Behavioral Evidence (`RED-baseline`)
 
-- **Status**: `RED-baseline` (provenance: recorded production sessions where `<46,080`-byte skills were sliced into `1-120`/`1-180` chunks on Antigravity `read_file`, plus constructed unprimed single-host paired scenario run `n=3` per arm against `origin/main@e8ad14af56c8` vs the candidate text, with zero host rules/plugins/memory via `claude -p --setting-sources "" --tools "" --disable-slash-commands --no-session-persistence` in an isolated temporary directory).
-- **Artifacts**: `specs/agy-read-discipline-sync/evidence/ab-base-hostA-r1.txt`..`r3.txt`, `ab-cand-hostA-r1.txt`..`r3.txt`, `ab-cand-hostB-r1.txt`..`r3.txt`.
-- **Results summary**:
-  - **Host A (`read_file` with `ByteOffset`, 800-line / 46,080-byte cap) — Baseline (`origin/main`)**:
-    - `small_skill` (352 lines, 15,200 B): **3/3 RED** (`call_count=3`, `1-120`, `121-240`, `241-352`).
-    - `large_skill` (307 lines, 87,920 B): **3/3 RED** (`call_count=13, 13, 16`, `uses_byte_offset=false`, 20–24 lines per call).
-    - `long_source` (943 lines, 34,500 B): **3/3 RED** (`call_count=5, 5, 6`, 180–190 lines per call).
-  - **Host A (`read_file` with `ByteOffset`, 800-line / 46,080-byte cap) — Candidate**:
-    - `small_skill` (352 lines, 15,200 B): **3/3 GREEN** (`call_count=1`).
-    - `large_skill` (307 lines, 87,920 B): **3/3 GREEN** (`call_count=2`, `uses_byte_offset=true`, `ByteOffset=0` and `ByteOffset=46080`).
-    - `long_source` (943 lines, 34,500 B): **3/3 GREEN** (`call_count=2`, `1-800` and `801-943`).
-  - **Host B Control (`Read(file_path, offset, limit)` / `Bash`, no `ByteOffset`) — Candidate**:
-    - 352-line / 15,200 B skill: **3/3 GREEN** (`call_count=2–3`, `max_lines_per_chunk <= 200`, `max_kb_per_chunk = 8`, `verify_middle = true`).
+- **Status**: `RED-baseline` (provenance: recorded production sessions where `<46,080`-byte skills were sliced into `1-120`/`1-180` chunks on Antigravity `read_file`, plus constructed unprimed single-host paired scenario run `n=3` per arm with live tool execution against `origin/main@e8ad14af56c8` vs the candidate text via `claude -p --output-format stream-json --setting-sources "" --disable-slash-commands --no-session-persistence --strict-mcp-config` and `CLAUDE_CODE_DISABLE_CLAUDE_MDS=1 CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in an isolated temporary directory).
+- **Artifacts**: `specs/agy-read-discipline-sync/evidence/ab-base-hostA-r1.json`..`r3.json`, `ab-cand-hostA-r1.json`..`r3.json`, `ab-cand-hostB-r1.json`..`r3.json`.
+- **Results summary** (all tool calls executed live; mid-file and end-of-file sentinels verified `true` across all 9 runs):
+  - **Host A (`mcp__host__read_file` exposing `read_file(Path, StartLine, EndLine, ByteOffset)`, 800-line / 46,080-byte cap) — Baseline (`origin/main`)** (`22, 22, 23` executed calls total):
+    - `small_skill.md` (352 lines, 13,767 B): **3/3 RED** (`3` executed calls per run: `1-120..241-352` in `r1`/`r3`, `1-150..301-352` in `r2`).
+    - `large_skill.md` (307 lines, 70,537 B raw / 71,963 B formatted): **3/3 RED** (`13` executed calls per run in all 3 runs, 25 lines per call `1-25..301-307`, `ByteOffset` never used).
+    - `long_source.py` (943 lines, 44,152 B): **3/3 RED** (`6, 6, 7` executed calls: 150–180 lines per call).
+  - **Host A (`mcp__host__read_file` exposing `read_file(Path, StartLine, EndLine, ByteOffset)`, 800-line / 46,080-byte cap) — Candidate** (`5, 5, 5` executed calls total):
+    - `small_skill.md` (352 lines, 13,767 B): **3/3 GREEN** (`1` executed call per run with `StartLine`/`EndLine`/`ByteOffset` omitted -> `Showing lines 1-352 of 352`).
+    - `large_skill.md` (307 lines, 70,537 B raw / 71,963 B formatted): **3/3 GREEN** (`2` executed calls per run: initial call with `ByteOffset` omitted returning `Partial read (lines 1-307 of 307). Showing bytes 0-46080 of 71963...`, followed by `StartLine=1, EndLine=307, ByteOffset=46080` returning `Showing bytes 46080-71963 of 71963`).
+    - `long_source.py` (943 lines, 44,152 B): **3/3 GREEN** (`2` executed calls per run: initial call with `StartLine` omitted returning `Showing lines 1-800 of 943`, followed by `StartLine=801` returning `Showing lines 801-943 of 943`).
+  - **Host B Control (built-in `Read(file_path, offset, limit)`, no `ByteOffset` / span headers) — Candidate**:
+    - `small_skill.md` (352 lines, 13,767 B): **3/3 GREEN** (`3, 3, 4` executed `Read` calls: `limit=150, 150, 100` in `r1`/`r2` and `limit=90` × 4 in `r3`, every chunk `<= 150` lines and `< 6` KB, with mid-file `ALPHA_176` and tail `OMEGA_350` verified in 3/3 runs).
 
 ## Deterministic Size, Sync, and Anchor Gates
 

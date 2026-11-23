@@ -1,0 +1,285 @@
+{
+  "arm": "base-hostA",
+  "rep": 1,
+  "harness": "claude -p --output-format stream-json",
+  "init_tools": [
+    "mcp__host__read_file"
+  ],
+  "executed_tool_call_count": 22,
+  "executed_tool_calls": [
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/small_skill.md",
+        "StartLine": 1,
+        "EndLine": 120
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/small_skill.md",
+        "StartLine": 121,
+        "EndLine": 240
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/small_skill.md",
+        "StartLine": 241,
+        "EndLine": 352
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 1,
+        "EndLine": 25
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 26,
+        "EndLine": 50
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 51,
+        "EndLine": 75
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 76,
+        "EndLine": 100
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 101,
+        "EndLine": 125
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 126,
+        "EndLine": 150
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 151,
+        "EndLine": 175
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 176,
+        "EndLine": 200
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 201,
+        "EndLine": 225
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 226,
+        "EndLine": 250
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 251,
+        "EndLine": 275
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 276,
+        "EndLine": 300
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 301,
+        "EndLine": 307
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/long_source.py",
+        "StartLine": 1,
+        "EndLine": 160
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/long_source.py",
+        "StartLine": 161,
+        "EndLine": 320
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/long_source.py",
+        "StartLine": 321,
+        "EndLine": 480
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/long_source.py",
+        "StartLine": 481,
+        "EndLine": 640
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/long_source.py",
+        "StartLine": 641,
+        "EndLine": 800
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/long_source.py",
+        "StartLine": 801,
+        "EndLine": 943
+      }
+    }
+  ],
+  "tool_result_headers": [
+    {
+      "is_error": false,
+      "first_line": "Showing lines 1-120 of 352"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 121-240 of 352"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 241-352 of 352"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 1-25 of 307"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 26-50 of 307"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 51-75 of 307"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 76-100 of 307"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 101-125 of 307"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 126-150 of 307"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 151-175 of 307"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 176-200 of 307"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 201-225 of 307"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 226-250 of 307"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 251-275 of 307"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 276-300 of 307"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 301-307 of 307"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 1-160 of 943"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 161-320 of 943"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 321-480 of 943"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 481-640 of 943"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 641-800 of 943"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 801-943 of 943"
+    }
+  ],
+  "sentinels_verified": {
+    "ALPHA_176": true,
+    "OMEGA_350": true,
+    "BRAVO_160": true,
+    "DELTA_305": true,
+    "CHARLIE_472": true,
+    "ECHO_940": true
+  }
+}

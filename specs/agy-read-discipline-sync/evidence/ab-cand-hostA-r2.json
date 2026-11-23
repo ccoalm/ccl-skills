@@ -1,0 +1,75 @@
+{
+  "arm": "cand-hostA",
+  "rep": 2,
+  "harness": "claude -p --output-format stream-json",
+  "init_tools": [
+    "mcp__host__read_file"
+  ],
+  "executed_tool_call_count": 5,
+  "executed_tool_calls": [
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/small_skill.md"
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md"
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/long_source.py"
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/large_skill.md",
+        "StartLine": 1,
+        "EndLine": 307,
+        "ByteOffset": 46080
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/long_source.py",
+        "StartLine": 801
+      }
+    }
+  ],
+  "tool_result_headers": [
+    {
+      "is_error": false,
+      "first_line": "Showing lines 1-352 of 352"
+    },
+    {
+      "is_error": false,
+      "first_line": "Partial read (lines 1-307 of 307). Showing bytes 0-46080 of 71963 in this line range, truncated at the 46080-byte limit. To read the rest of this line range, call this tool again w"
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 1-800 of 943"
+    },
+    {
+      "is_error": false,
+      "first_line": "Partial read (lines 1-307 of 307). Showing bytes 46080-71963 of 71963 in this line range."
+    },
+    {
+      "is_error": false,
+      "first_line": "Showing lines 801-943 of 943"
+    }
+  ],
+  "sentinels_verified": {
+    "ALPHA_176": true,
+    "OMEGA_350": true,
+    "BRAVO_160": true,
+    "DELTA_305": true,
+    "CHARLIE_472": true,
+    "ECHO_940": true
+  }
+}

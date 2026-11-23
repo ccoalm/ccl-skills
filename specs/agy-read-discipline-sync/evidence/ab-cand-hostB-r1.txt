@@ -1,8 +1,0 @@
-```json
-{
-  "call_count": 3,
-  "max_lines_per_chunk": 200,
-  "max_kb_per_chunk": 8,
-  "verify_middle": true
-}
-```

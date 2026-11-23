@@ -1,0 +1,53 @@
+{
+  "arm": "cand-hostB",
+  "rep": 2,
+  "harness": "claude -p --output-format stream-json",
+  "init_tools": [
+    "Read"
+  ],
+  "executed_tool_call_count": 3,
+  "executed_tool_calls": [
+    {
+      "tool": "Read",
+      "input": {
+        "file_path": "<WORKSPACE>/small_skill.md",
+        "offset": 1,
+        "limit": 150
+      }
+    },
+    {
+      "tool": "Read",
+      "input": {
+        "file_path": "<WORKSPACE>/small_skill.md",
+        "offset": 151,
+        "limit": 150
+      }
+    },
+    {
+      "tool": "Read",
+      "input": {
+        "file_path": "<WORKSPACE>/small_skill.md",
+        "offset": 301,
+        "limit": 100
+      }
+    }
+  ],
+  "tool_result_headers": [
+    {
+      "is_error": false,
+      "first_line": "1\t# Synthetic Workflow Skill (small_skill)"
+    },
+    {
+      "is_error": false,
+      "first_line": "151\tRule 151: Synthetic step 151 guidance."
+    },
+    {
+      "is_error": false,
+      "first_line": "301\tRule 301: Synthetic step 301 guidance."
+    }
+  ],
+  "sentinels_verified": {
+    "ALPHA_176": true,
+    "OMEGA_350": true
+  }
+}
