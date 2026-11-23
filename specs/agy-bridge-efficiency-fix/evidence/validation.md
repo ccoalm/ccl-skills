@@ -48,6 +48,9 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
 | M22 | The held descriptor is revalidated before writing | Move the check after the write | `test_a_second_write_checks_the_file_before_writing_through_it` |
 | M23 | Body length is checked before any copy | Restore the eager slice | `test_a_right_sized_header_over_a_short_body_is_not_a_load` (peak allocation) |
 | M24 | The sweep touches only files older than 24 h | Remove the age filter and both rechecks under the lock | `test_a_new_conversation_empties_only_stale_unlocked_leftover_shadows` (fresh shadow and fresh legacy temp under a free lock) |
+| M25 | The shadow age is rechecked under its lock | Drop only the recheck in `empty_if_stale` | `test_the_sweep_rechecks_age_under_the_lock`. The first version of this test refreshed both files on the first lock call, so the scan skipped the shadow and this mutation stayed green; each file now has its own conversation and is refreshed when that file's lock is taken |
+| M26 | The legacy temp age is rechecked under its lock | Drop only the recheck in `remove_if_stale` | same |
+| M27 | A failed write keeps its descriptor for event-end cleanup | Drop the descriptor when serialization fails | `test_a_write_that_fails_midway_is_still_emptied_at_event_end` |
 
 ## Out-of-Repository Rule (machine-local)
 
@@ -130,3 +133,12 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
   - P2 the shadow was built as two full-size buffers: fixed. Events are serialized and written one at a time.
   - P2 the privacy test interpolated capture paths unquoted: fixed with `shlex.quote`.
   - P2 the machine-local rule looked like a bridge deliverable: rejected. The plan scopes it as out-of-repository, never committed, and now states it is not part of the bridge's acceptance.
+
+## Delta pass D4
+
+- Reviewed commit: `910b826`; packet `git diff e187f32..910b826` over the bridge, its suite, the plan and this record. Result: `evidence/delta-D4.json`.
+- Findings: 3 total (0 P0 / 3 P1 / 0 P2). None is a code defect.
+- Dispositions:
+  - P1 nothing showed that a write failing after its first record is still emptied: fixed with a test (T4g; M27). The code already registered the descriptor before the first write.
+  - P1 the age rechecks under the lock were not separately pinned: fixed (T4h; M25, M26).
+  - P1 the full lane for the incremental writer was not recorded: fixed in Local Verification.

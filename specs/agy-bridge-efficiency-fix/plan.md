@@ -107,6 +107,8 @@ One independent review of the plan (Codex, before the code) returned findings bu
 | T4d | An event that writes no shadow leaves whatever is at the shadow path untouched | fail (old scheme unlinks it) | pass |
 | T4e | A hook adds a hardlink to the shadow between two writes of one event: the event is denied | fail | pass |
 | T4f | At the write boundary: after a hardlink is added, the second write raises before any byte reaches the linked name | fail | pass |
+| T4g | A write that fails after its first record reached the shadow is still emptied, inode kept, at event end | fail (no held descriptor) | pass |
+| T4h | A shadow and a legacy temp refreshed by their own conversation between the sweep's scan and its lock keep their content | fail (no sweep) | pass |
 | T5 | A skill over 46,080 formatted bytes read as three `ByteOffset` chunks (cut inside lines at UTF-8 boundaries, in parallel and in reverse order) synthesizes the `Skill` event | fail | pass |
 | T5b | A chunk requested inside a multi-byte character, which the host serves from that character while echoing the requested offset, counts. The same header with bytes that do not match at the real start does not | fail | pass |
 | T6 | A cut-off last line that is re-read by an overlapping chunk counts. Without the re-read, it does not | fail | pass |

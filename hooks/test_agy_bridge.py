@@ -996,6 +996,55 @@ class ShadowIdentityTests(BridgeCase):
         self.assertEqual(result, {'decision': 'allow'})
         self.assertEqual(shadow.read_text(), 'sentinel')
 
+    def with_state_env(self):
+        previous = os.environ.get('TMPDIR')
+        os.environ['TMPDIR'] = self.env['TMPDIR']
+
+        def restore():
+            if previous is None:
+                os.environ.pop('TMPDIR', None)
+            else:
+                os.environ['TMPDIR'] = previous
+        self.addCleanup(restore)
+
+    def test_a_write_that_fails_midway_is_still_emptied_at_event_end(self):
+        bridge, state = self.state()
+        self.with_state_env()
+        key = self.key(bridge, 'midway')
+        path = Path(bridge.write_shadow(key, [{'n': 1}]))
+        inode = path.stat().st_ino
+        # The second record cannot be serialized, after the first is already on disk.
+        with self.assertRaises(TypeError):
+            bridge.write_shadow(key, [{'n': 1}, {'bad': object()}])
+        self.assertGreater(path.stat().st_size, 0)
+        bridge.clear_shadow(key)
+        self.assertEqual((path.stat().st_ino, path.stat().st_size), (inode, 0))
+
+    def test_the_sweep_rechecks_age_under_the_lock(self):
+        bridge, state = self.state()
+        old = time.time() - 25 * 3600
+        own, other = self.key(bridge, 'refreshed'), self.key(bridge, 'refreshed-temp')
+        shadow, temp = state / f'{own}.jsonl', state / f'{other}.4245.tmp'
+        for key in (own, other):
+            (state / f'{key}.run.lock').write_text('')
+        for path, text in ((shadow, 'refreshed'), (temp, 'refreshed temp')):
+            path.write_text(text)
+            os.utime(path, (old, old))
+        original = bridge.under_run_lock
+        refresh = {own: shadow, other: temp}
+
+        def refreshed_meanwhile(directory, name, action):
+            # That conversation's event writes its file between the scan and the lock.
+            os.utime(refresh[name], None)
+            return original(directory, name, action)
+        bridge.under_run_lock = refreshed_meanwhile
+        try:
+            bridge.sweep_stale(state)
+        finally:
+            bridge.under_run_lock = original
+        self.assertEqual(shadow.read_text(), 'refreshed')
+        self.assertEqual(temp.read_text(), 'refreshed temp')
+
     def test_a_directory_listing_error_never_fails_the_event(self):
         bridge, state = self.state()
 
