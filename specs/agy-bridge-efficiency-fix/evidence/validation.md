@@ -161,3 +161,25 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
   - P1 M28's failing assertion was not shown: fixed (assertion and message in the mutation table).
   - P1 verifier outcomes and the C1 disposition were outside the packet: Local Verification below holds the outcomes with the revision each exercised; C1's dispositions are in Challenge pass (C1).
 - These D6 edits touch only this record and `evidence/`, which are non-executable records, so they owe no further delta pass.
+
+## Local Verification
+
+The landing candidate is the rebased branch on `origin/main` `03ccb75` (`git ls-remote origin refs/heads/main`). `hooks/agy-bridge.py` is blob `8db49fb` at every revision listed. After `2ec2c92`, only `hooks/test_agy_bridge.py`, this round's register row and `specs/` change.
+
+| Check | Command | Revision | Result |
+| --- | --- | --- | --- |
+| Bridge suite | `python3 hooks/test_agy_bridge.py` | `077ed2d` | 62 tests OK |
+| Sibling hook suite | `python3 hooks/test_skill_loading.py` | `2ec2c92` | OK |
+| Repository gates | `CCL_BROAD_TEST_REASON=repo-required make test-repo-gates` | `2ec2c92` | rc 0 |
+| Fast regressions | `CCL_BROAD_TEST_REASON=repo-required make test-regressions-fast` | `2ec2c92` | rc 0 (`regression_fast_lane_ok`) |
+| Code-review shards | `make test-code-review-1`, `make test-code-review-2` | `2ec2c92` | shard 1 rc 0 (`code_review_shard_1_ok: 10 suites`); shard 2 rc 0 (`code_review_shard_2_ok: 9 suites`) |
+| Code-review abort-leak | `unshare --user --map-current-user --pid --fork --mount-proc make test-code-review-abort-leak-1` (and `-2`) | `2ec2c92` | both rc 0 (`review_gate_abort_leak_ok`) |
+| Heavy regressions | `bash skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh --heavy-only` | `2ec2c92` and `077ed2d` | rc 0 (`regression_heavy_lane_ok: 9 suites`) |
+| Public sanitization | `python3 scripts/check-public-sanitization.py .` | `910b826` and `2ec2c92` | rc 0 |
+| Structure, routing and R0 | `R0_BASE=origin/main ALIAS_AUDIT_CMD=… bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` | `077ed2d` | `alias_audit_ok`, `r0_status=private-ok`, `ccl_skill_check_clean_ok` |
+| Spec references and links | `python3 scripts/check-spec-references.py .`, `python3 scripts/check-markdown-links.py .` | `077ed2d` | ok |
+| npm package | `CCL_BROAD_TEST_REASON=repo-required npm --prefix packages/ccl-skills-npm test` and `run test:pack` | `8b86c6c` | 447 tests: 444 pass, 0 fail, 3 skipped; pack 11 of 11 |
+| Shared Git surface | `python3 skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py --repo . --base-ref origin/main --pr-text-file <pr.md>` | final head | `shared_git_surface_gate_ok` |
+| Review evidence present | `python3 skills/skill-extraction-workflow/scripts/check_review_evidence_present.py --repo-root . --base <merge-base>` | final head | `review_evidence_present_ok` |
+
+The three npm skips are macOS-only path-alias cases. The machine-specific workarounds behind these commands are environment setup only: a Python 3.12 virtual environment with `requirements-test.txt`, `umask 022`, `unshare` for the abort-leak lanes, and a detached worktree for the npm suite because its build calls `git ls-files`.
