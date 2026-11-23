@@ -5284,6 +5284,12 @@ git_config_env_probe="$(
   GIT_CONFIG_VALUE_0="$WORK/git-env-decoy" \
   GIT_CONFIG_KEY_custom=include.path \
   GIT_CONFIG_VALUE_custom="$WORK/attacker-include.cfg" \
+  GIT_TEMPLATE_DIR="$WORK/attacker-templates" \
+  GIT_NO_REPLACE_OBJECTS=1 \
+  GIT_GLOB_PATHSPECS=1 \
+  GIT_NOGLOB_PATHSPECS=1 \
+  GIT_LITERAL_PATHSPECS=1 \
+  GIT_ICASE_PATHSPECS=1 \
   PYTHONPATH="$WORK/harness/scripts" python3 - <<'PY' 2>&1
 import os
 
@@ -5298,6 +5304,12 @@ for key in (
     "GIT_CONFIG_VALUE_0",
     "GIT_CONFIG_KEY_custom",
     "GIT_CONFIG_VALUE_custom",
+    "GIT_TEMPLATE_DIR",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_GLOB_PATHSPECS",
+    "GIT_NOGLOB_PATHSPECS",
+    "GIT_LITERAL_PATHSPECS",
+    "GIT_ICASE_PATHSPECS",
 ):
     assert key not in environment, (key, environment[key])
 assert environment["GIT_CONFIG_GLOBAL"] == os.devnull

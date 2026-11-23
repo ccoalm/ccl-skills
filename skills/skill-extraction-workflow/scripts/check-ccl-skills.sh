@@ -1158,32 +1158,76 @@ if [ "$rg_rc" -gt 1 ]; then
   bootstrap_scan_state="partial-unverified"
 fi
 rm -f "$rg_err_tmp"
-while IFS=: read -r path lineno match; do
-  [[ -z "$match" ]] && continue
-  ref=$(echo "$match" | sed -nE 's|.*`((\.\./)?([a-z][a-z0-9_-]+/)?references/[a-z][a-z0-9_./-]+\.md)`.*|\1|p')
-  [[ -z "$ref" ]] && continue
-  if [[ "$ref" == ../* ]]; then
-    candidate="$root/skills/${ref#../}"
-  elif [[ "$ref" == */references/* && "$ref" != references/* ]]; then
-    candidate="$root/skills/$ref"
-  else
-    calling_skill=$(echo "$path" | sed -nE "s|^$root/skills/([^/]+)/.*|\1|p")
-    candidate="$root/skills/$calling_skill/$ref"
-  fi
-  if [[ ! -f "$candidate" ]]; then
-    # Normalize to the repo-relative key form the exemption table uses: strip
-    # the root prefix, then a defensive leading "./" (root="." CI shape).
-    path_rel="${path#"${root%/}/"}"
-    path_rel="${path_rel#./}"
-    line_digest="$(printf '%s' "$match" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -d' ' -f1)"
-    if md_ref_exempt "$path_rel $ref $line_digest"; then
-      echo "md_reference_exempt: $path:$lineno cites \`$ref\` — exempt (append-only historical citation)"
+md_ref_tmp="$(mktemp "${TMPDIR:-/tmp}/mdref-scan.XXXXXX")" || { echo "md_reference_scan_error: mktemp failed" >&2; exit 1; }
+md_ref_scan_rc=0
+printf '%s\n' "$rg_out" | ruby -Ku -rdigest -e '
+  STDIN.binmode
+  STDOUT.binmode
+  root = ARGV[0].dup.force_encoding(Encoding::BINARY)
+  colon = ":".b
+  slash = "/".b
+  lf = "\n".b
+  nul = "\0".b
+  root_clean = root.sub(%r{/\z}n, "".b)
+  prefix_raw = root + slash
+  prefix_clean = root_clean + slash
+  ref_re = /`((?:\.\.\/)?(?:[a-z][a-z0-9_-]+\/)?references\/[a-z][a-z0-9_.\/-]+\.md)`/
+  STDIN.each_line(lf) do |raw|
+    line = raw.chomp(lf)
+    next if line.empty?
+    if line.start_with?(prefix_raw)
+      rel_and_rest = line.byteslice(prefix_raw.bytesize, line.bytesize - prefix_raw.bytesize)
+      rel_part, lineno, match = rel_and_rest.split(colon, 3)
+      path = prefix_raw + rel_part.to_s.b
+    elsif line.start_with?(prefix_clean)
+      rel_and_rest = line.byteslice(prefix_clean.bytesize, line.bytesize - prefix_clean.bytesize)
+      rel_part, lineno, match = rel_and_rest.split(colon, 3)
+      path = prefix_clean + rel_part.to_s.b
     else
-      echo "md_reference_block: $path:$lineno cites \`$ref\` but $candidate does not exist" >&2
-      md_ref_broken=$((md_ref_broken + 1))
-    fi
+      path, lineno, match = line.split(colon, 3)
+      rel_part = path
+    end
+    next if match.nil? || match.empty?
+    match_utf8 = match.dup.force_encoding(Encoding::UTF_8).scrub("?")
+    refs = match_utf8.scan(ref_re).flatten.uniq
+    next if refs.empty?
+    path_rel = rel_part.sub(%r{\A(?:\./|/)+}n, "".b)
+    calling_skill = path_rel.start_with?("skills/".b) ? path_rel.split(slash, 3)[1].to_s.b : "".b
+    digest = nil
+    refs.each do |ref|
+      ref_b = ref.dup.force_encoding(Encoding::BINARY)
+      candidate = if ref.start_with?("../")
+        root + "/skills/".b + ref.delete_prefix("../").b
+      elsif ref.include?("/references/") && !ref.start_with?("references/")
+        root + "/skills/".b + ref_b
+      else
+        root + "/skills/".b + calling_skill + slash + ref_b
+      end
+      next if File.file?(candidate)
+      digest ||= Digest::SHA256.hexdigest(match)
+      STDOUT.write([path_rel, ref_b, digest.b, path, lineno, candidate].join(nul) + nul)
+    end
+  end
+' -- "$root" >"$md_ref_tmp" || md_ref_scan_rc=$?
+while IFS= read -r -d '' path_rel &&
+      IFS= read -r -d '' ref &&
+      IFS= read -r -d '' line_digest &&
+      IFS= read -r -d '' path &&
+      IFS= read -r -d '' lineno &&
+      IFS= read -r -d '' candidate; do
+  if md_ref_exempt "$path_rel $ref $line_digest"; then
+    echo "md_reference_exempt: $path:$lineno cites \`$ref\` — exempt (append-only historical citation)"
+  else
+    echo "md_reference_block: $path:$lineno cites \`$ref\` but $candidate does not exist" >&2
+    md_ref_broken=$((md_ref_broken + 1))
   fi
-done <<< "$rg_out"
+done <"$md_ref_tmp"
+rm -f "$md_ref_tmp"
+if [ "$md_ref_scan_rc" -ne 0 ]; then
+  echo "md_reference_block: md_reference_check Ruby scanner exited $md_ref_scan_rc — failing closed" >&2
+  echo "md_reference_scan_error: ruby exited $md_ref_scan_rc" >&2
+  md_ref_broken=$((md_ref_broken + 1))
+fi
 if [[ "$md_ref_broken" -gt 0 ]]; then
   echo "md_reference_check: $md_ref_broken broken .md reference(s) above — blocking; a routed-to file was renamed or removed, update the citation or restore the target"
 fi

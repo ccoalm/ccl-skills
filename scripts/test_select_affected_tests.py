@@ -45,6 +45,8 @@ _SCRUB_GIT_KEYS = (
     "GIT_NOGLOB_PATHSPECS",
     "GIT_LITERAL_PATHSPECS",
     "GIT_ICASE_PATHSPECS",
+    "GIT_EXTERNAL_DIFF",
+    "GIT_DIFF_OPTS",
     "GIT_TEMPLATE_DIR",
     "GIT_CONFIG",
     "GIT_CONFIG_COUNT",
@@ -347,6 +349,7 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         )
         for expected in (
             "skills/skill-extraction-workflow/scripts/test_ci_checkout_ref_binding.sh",
+            "scripts/test_check_repo_hygiene.py",
             "scripts/test_check_spec_references.py",
             "scripts/test_lane_isolation.py",
             "scripts/test_run_parallel_suites.sh",
@@ -357,14 +360,36 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         mod = load_selector()
         suites = mod.makefile_suites(REPO_ROOT)
         self.assertIn("scripts/test_check_public_sanitization.py", suites)
+        self.assertIn("scripts/test_check_repo_hygiene.py", suites)
         self.assertIn("scripts/test_check_spec_references.py", suites)
         recipe_paths, unsafe = mod.makefile_recipe_paths(REPO_ROOT)
         self.assertFalse(unsafe)
         self.assertIn("scripts/check-public-sanitization.py", recipe_paths)
+        self.assertIn("scripts/check-repo-hygiene.py", recipe_paths)
         self.assertIn(
             "skills/skill-extraction-workflow/scripts/check-evidence-card-leak.sh",
             recipe_paths,
         )
+        text_helper_plan = mod.build_test_plan(["scripts/_repo_text.py"], repo_root=REPO_ROOT)
+        for suite in (
+            "scripts/test_check_markdown_links.py",
+            "scripts/test_check_public_sanitization.py",
+            "scripts/test_check_spec_references.py",
+            "scripts/test_check_repo_hygiene.py",
+        ):
+            self.assertIn(suite, text_helper_plan["parallel_suites"])
+        for hygiene_path in (
+            "packages/ccl-skills-npm/test/orphan.test.mjs",
+            "hooks/sub/test.sh",
+            "skills/skill-extraction-workflow/scripts/foo_test.rb",
+            "eval/evidence/routing-new-tighten-vs-owner-2026-08-15/MANIFEST.json",
+        ):
+            h_plan = mod.build_test_plan([hygiene_path], repo_root=REPO_ROOT)
+            self.assertIn(
+                ["python3", "scripts/check-repo-hygiene.py", "."],
+                h_plan["serial_commands"],
+                msg=hygiene_path,
+            )
 
     def test_git_changed_file_discovery_special_names_cached_head_ascii_json_and_raw_bytes(self):
         mod = load_selector()

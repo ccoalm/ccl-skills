@@ -11,30 +11,16 @@ from pathlib import Path
 from urllib.parse import unquote
 
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _repo_text import display
+
+
 REFERENCE_RE = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*(.+)$")
 INLINE_CODE_RE = re.compile(r"(`+).*?\1")
 FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
 SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 
-
-
-def display(text: str) -> str:
-    """Render untrusted repo text safe to print on one physical line.
-
-    A tracked filename may legally contain a newline, an ANSI escape, or (after
-    os.fsdecode) a surrogate for a byte that is not valid UTF-8. Interpolated
-    raw, one filename splits a finding across two physical lines, so anything
-    reading this output line by line — a human, a CI annotation parser — sees a
-    forged line. Escaping is display-only; the value used for resolution is
-    untouched. Printable non-ASCII (an ordinary CJK filename) is preserved.
-    """
-    # Backslash FIRST, then every non-printable character including tab:
-    # otherwise the encoding is not reversible — a real newline and a filename
-    # containing a literal backslash-n both render as the same two characters,
-    # so two distinct tracked paths produce an identical diagnostic. Printable
-    # non-ASCII (an ordinary CJK filename) is preserved.
-    escaped = text.replace("\\", "\\\\")
-    return "".join(ch if ch.isprintable() else repr(ch)[1:-1] for ch in escaped)
 
 def tracked_markdown_paths(root: Path) -> list[Path]:
     result = subprocess.run(

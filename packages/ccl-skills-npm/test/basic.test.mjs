@@ -37,7 +37,7 @@ test("unified CLI exposes all hosts and accepts one explicit host", () => {
 		encoding: "utf8",
 	});
 	assert.equal(help.status, 0);
-	assert.match(help.stdout, /--host claude\|codex\|opencode/);
+	assert.match(help.stdout, /--host claude\|codex\|opencode\|antigravity/);
 	const parsed = parseArgs(["install", "--host", "codex"]);
 	assert.equal(parsed.direct, undefined);
 	assert.equal(parsed.options?.host, "codex");

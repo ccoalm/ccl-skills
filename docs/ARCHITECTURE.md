@@ -27,11 +27,11 @@
 | `scripts/install.sh` · `Makefile` | 安装/更新/清缓存/跑门禁与 eval(`make help` 列全部目标) |
 | `scripts/control-plane/` · `scripts/owner-dispatch/` · `scripts/verify-sandbox/` | 给产品仓装的 gate backstop、owner 派发闸、沙箱校验(`make install-gates` 一键装) |
 | `eval/` | F4 用的任务库和夹具:路由任务、golden trace、技能有效性、行为夹具 |
-| `packages/` | 对外分发物：统一 npm 包 `ccl-skills-npm`（三端 CLI、离线资产与发布校验）加 OpenCode 插件源码 `opencode-plugin` |
+| `packages/` | 对外分发物：统一 npm 包 `ccl-skills-npm`（四端 CLI、离线资产与发布校验）加 OpenCode 插件源码 `opencode-plugin` |
 | `.github/workflows/ci.yml` · `.githooks/` | GitHub Actions 门禁接线和本地 git hook |
 | `docs/` | 给人读的手册和本仓 review;agent 执行用的门禁/模板仍在各技能 `references/` |
-| `.claude-plugin/{marketplace,plugin}.json` · `.codex-plugin/plugin.json` · `.antigravity-plugin/plugin.json` | 三端 plugin manifest；Antigravity 另读根目录 `hooks.json` |
-| `hooks/agy-bridge.py` | Antigravity 钩子协议桥：把 camelCase protojson 载荷译成 Claude 形状交给 `hooks/` 脚本，再把 `hookSpecificOutput`/`decision:block` 译回 Antigravity 的 `decision`、`injectSteps` 与 `{}`；从 Antigravity transcript 生成结构化影子 transcript（不复制用户原文与工具输出，按会话加锁、每个事件结束即删除），技能加载证据要求 `read_file` 覆盖整份与内置副本逐字节相同的 `SKILL.md` |
+| `.claude-plugin/{marketplace,plugin}.json` · `.codex-plugin/plugin.json` · `.antigravity-plugin/plugin.json` | 三套原生 plugin manifest（OpenCode 经 `opencode.json` 与 `packages/opencode-plugin` 接入）；Antigravity 另读根目录 `hooks.json` |
+| `hooks/agy-bridge.py` | Antigravity 钩子协议桥：把 camelCase protojson 载荷译成 Claude 形状交给 `hooks/` 脚本，再把 `hookSpecificOutput`/`decision:block` 译回 Antigravity 的 `decision`、`injectSteps` 与 `{}`；从 Antigravity transcript 生成结构化影子 transcript（不复制用户原文与工具输出，按会话加锁并复用固定 inode、每个事件结束截断清空），技能加载证据要求 `read_file` 覆盖整份与内置副本逐字节相同的 `SKILL.md` |
 | `.agents/plugins/marketplace.json` | Codex 端 marketplace 清单；Codex 与 Claude 清单都使用本仓 GitHub HTTPS 源 |
 | `opencode.json` | OpenCode 仓库本地配置:加载 `agent-context/session-start.md` 和 `skills/`,便于在源仓内直接使用/验证技能；若同时装了全局 `~/.agents/skills`,以当前 OpenCode 实际加载结果为准 |
 | `packages/opencode-plugin/ccl-skills.ts` | OpenCode 原生 plugin：注入 bootstrap，把 prompt、tool、subagent 和 session-idle 事件适配到 bundled hooks，并对 `edit`、`write`、`apply_patch` 执行主检出隔离 |
@@ -47,7 +47,7 @@
 - **OpenCode 原生路径**:`scripts/install-opencode.sh` 默认同步 skills、commands、plugin、bootstrap 和 `ccl-skills/runtime`，并兼容刷新 `~/.agents/skills`；`--project` 把同一闭包同步到当前仓 `.opencode/`。
 - **运行时检查**:编辑隔离与授权检查保持各自策略。首次明确的源码编辑、当前上下文未核实 owner 加载的委派，各退回 Agent 一次，让它按已有路由补读技能后重试；不请求用户批准读技能。重试和并行的其它调用仍可能执行，因此这个检查点不保证 owner 选择正确，也不替代项目自选的 owner-dispatch 检查。
 - **压缩恢复**:`PreCompact` 记录旧边界，`PostCompact` 按 actor 作废旧状态；确认新原生边界后才接受重新加载的证据，避免延迟日志把旧读取算成新读取。恢复提示在下一次源码编辑或委派前送达。只读技能名称、失败或截断的结果不算完整加载；分段读取须覆盖完整正文。标记只限制提醒次数，不表示已加载或已授权。
-- **交接与继续执行提醒**:Claude Code 与 Codex 的 Stop hook 在最终回复声明非状态类 `proposed-next:` 时退回一次，要求执行已授权且可运行的动作，或遵守当前范围并说明真实阻塞；已有改动或研发交付证据时，最后几行宣布自己的下一步（“接下来我会…”“先推进…”“Next, I'll…”）或把一步挂在无人要求的决定上（“还需要确定费用上限”）也退回一次，要求现在执行可运行的步骤；以“如需/if you want”开头的条件性提议不触发。缺少标记且已有研发交付证据时保留格式提醒。状态类标记、引用示例、纯机器产物和宿主重试标记不会触发新的继续执行提醒。它不生成目标或授权，也不保证模型继续。OpenCode idle 事件未提供当前最终回复，因此该 Stop 行为保持未验证。
+- **交接与继续执行提醒**:Claude Code、Codex 与 Antigravity 的 Stop hook 在最终回复声明非状态类 `proposed-next:` 时退回一次，要求执行已授权且可运行的动作，或遵守当前范围并说明真实阻塞；已有改动或研发交付证据时，最后几行宣布自己的下一步（“接下来我会…”“先推进…”“Next, I'll…”）或把一步挂在无人要求的决定上（“还需要确定费用上限”）也退回一次，要求现在执行可运行的步骤；以“如需/if you want”开头的条件性提议不触发。缺少标记且已有研发交付证据时保留格式提醒。状态类标记、引用示例、纯机器产物和宿主重试标记不会触发新的继续执行提醒。它不生成目标或授权，也不保证模型继续。OpenCode idle 事件未提供当前最终回复，因此该 Stop 行为保持未验证。
 
 技能协同要同时看三种结构，不能把它们压成一张平铺清单或一条固定链：
 

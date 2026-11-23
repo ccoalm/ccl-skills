@@ -52,6 +52,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	python3 scripts/check-spec-references.py .
 	python3 scripts/check-release-version.py .
 	python3 scripts/check-public-sanitization.py .
+	python3 scripts/check-repo-hygiene.py .
 	python3 skills/tighten-doc/scripts/doc-lint-repo.py .
 	bash scripts/test_run_parallel_suites.sh
 	python3 scripts/test_lane_isolation.py
@@ -61,6 +62,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	  scripts/test_check_spec_references.py \
 	  scripts/test_check_release_version.py \
 	  scripts/test_check_public_sanitization.py \
+	  scripts/test_check_repo_hygiene.py \
 	  skills/tighten-doc/scripts/test_doc_lint_repo.py \
 	  scripts/test_install_opencode_skill_migration.sh \
 	  scripts/test_install_antigravity.sh \
@@ -252,7 +254,7 @@ prune-cache: ## 删除 Claude 端 ccl-skills 旧版本插件缓存（保留当�
 	removed=0; for d in "$$base"/*/; do v=$$(basename "$$d"); [ "$$v" = "$$active" ] && continue; echo "删除旧版本缓存 $$v"; rm -rf "$$d"; removed=1; done; \
 	[ "$$removed" = 0 ] && echo "无旧版本缓存可清（当前 $${active}）" || echo "完成，保留当前版本 $$active"
 
-# --- 统一 npm 分发（Claude Code + Codex + OpenCode）---
+# --- 统一 npm 分发（Claude Code + Codex + OpenCode + Antigravity）---
 NPM_PKG_DIR := packages/ccl-skills-npm
 
 install-npm: ## 从 @ccoalm/ccl-skills 安装所有检测到的宿主
@@ -271,7 +273,7 @@ uninstall-npm: ## 卸载 npm 管理的注册；OpenCode 共享文件保留并报
 npm-build: ## npm ci + 构建统一 npm 包
 	cd $(NPM_PKG_DIR) && npm ci && npm run build
 
-npm-test: ## 运行三端 adapter、事务和安全回归
+npm-test: ## 运行四端 adapter、事务和安全回归
 	cd $(NPM_PKG_DIR) && npm ci && npm test
 
 npm-pack-verify: ## 构建并验证统一包的精确 tarball closure

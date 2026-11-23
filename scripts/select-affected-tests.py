@@ -56,6 +56,8 @@ GIT_REPOSITORY_ROUTING_ENV = (
     "GIT_NOGLOB_PATHSPECS",
     "GIT_LITERAL_PATHSPECS",
     "GIT_ICASE_PATHSPECS",
+    "GIT_EXTERNAL_DIFF",
+    "GIT_DIFF_OPTS",
 )
 GIT_CONFIG_ROUTING_ENV = (
     "GIT_TEMPLATE_DIR",
@@ -295,9 +297,42 @@ def normalize_input_relpath(raw: str) -> str:
     return "/".join(cleaned)
 
 
+_HYGIENE_TEST_EXTENSIONS = (".py", ".sh", ".mjs", ".ts", ".js", ".rb")
+
+
 def _is_suite_filename(name: str) -> bool:
     return name.endswith((".py", ".sh")) and (
         name.startswith("test_") or name.endswith((".test.sh", "_test.py"))
+    )
+
+
+def _is_hygiene_trigger_path(path: str) -> bool:
+    lower = path.lower()
+    if lower.endswith(".py"):
+        return True
+    name = Path(path).name
+    if _is_suite_filename(name):
+        return True
+    if path.startswith("eval/evidence/") and name == "MANIFEST.json":
+        return True
+    if path.startswith(("specs/", "eval/evidence/")):
+        return False
+    if not name.endswith(_HYGIENE_TEST_EXTENSIONS):
+        return False
+    return (
+        name.startswith("test_")
+        or name.endswith(
+            (
+                "_test.py",
+                "_test.sh",
+                ".test.sh",
+                ".test.mjs",
+                ".test.ts",
+                ".test.js",
+                "_test.rb",
+            )
+        )
+        or name in ("test.sh", "test.py")
     )
 
 
@@ -1538,6 +1573,7 @@ def build_test_plan(
     need_spec_refs = False
     need_routing_gates = False
     need_sanitization = False
+    need_repo_hygiene = False
     need_skill_count = False
     need_release_version = False
     need_eval_unittest = False
@@ -1570,6 +1606,9 @@ def build_test_plan(
             need_doc_gates = True
             need_sanitization = True
 
+        if _is_hygiene_trigger_path(path):
+            need_repo_hygiene = True
+
         if path in ("README.md", "packages/ccl-skills-npm/README.md"):
             need_skill_count = True
 
@@ -1596,9 +1635,11 @@ def build_test_plan(
                 builder.add_suite("scripts/test_check_spec_references.py")
             if path in ("Makefile", "requirements-test.txt") or path.startswith(".github/"):
                 builder.add_suite("skills/skill-extraction-workflow/scripts/test_ci_checkout_ref_binding.sh")
+                builder.add_suite("scripts/test_check_repo_hygiene.py")
                 builder.add_suite("scripts/test_lane_isolation.py")
                 builder.add_suite("scripts/test_run_parallel_suites.sh")
                 builder.add_suite("scripts/test_select_affected_tests.py")
+                need_repo_hygiene = True
             if path == "opencode.json":
                 need_release_version = True
                 builder.npm_required = True
@@ -1614,6 +1655,8 @@ def build_test_plan(
             builder.add_suite("scripts/test_check_release_version.py")
             builder.add_suite("scripts/test_install_opencode_skill_migration.sh")
             builder.add_suite("scripts/test_install_status.py")
+            if path == "packages/ccl-skills-npm/package.json":
+                need_repo_hygiene = True
             if path.startswith(".antigravity-plugin/"):
                 builder.add_suite("hooks/test_agy_bridge.py")
                 builder.add_suite("scripts/test_install_antigravity.sh")
@@ -1650,7 +1693,18 @@ def build_test_plan(
             need_spec_refs = True
             if path == "scripts/AGENTS.md":
                 continue
-            if path in ("scripts/check-markdown-links.py", "scripts/test_check_markdown_links.py"):
+            if path == "scripts/_repo_text.py":
+                builder.add_suite("scripts/test_check_markdown_links.py")
+                builder.add_suite("scripts/test_check_spec_references.py")
+                builder.add_suite("scripts/test_check_public_sanitization.py")
+                builder.add_suite("scripts/test_check_repo_hygiene.py")
+                need_doc_gates = True
+                need_sanitization = True
+                need_repo_hygiene = True
+            elif path in ("scripts/check-repo-hygiene.py", "scripts/test_check_repo_hygiene.py"):
+                builder.add_suite("scripts/test_check_repo_hygiene.py")
+                need_repo_hygiene = True
+            elif path in ("scripts/check-markdown-links.py", "scripts/test_check_markdown_links.py"):
                 builder.add_suite("scripts/test_check_markdown_links.py")
                 need_doc_gates = True
             elif path in ("scripts/check-spec-references.py", "scripts/test_check_spec_references.py"):
@@ -1888,6 +1942,9 @@ def build_test_plan(
 
     if need_sanitization:
         builder.add_serial(["python3", "scripts/check-public-sanitization.py", "."])
+
+    if need_repo_hygiene and _classify_suite_path(repo_root, "scripts/check-repo-hygiene.py") == "present":
+        builder.add_serial(["python3", "scripts/check-repo-hygiene.py", "."])
 
     if need_skill_count:
         builder.add_serial(["python3", "scripts/check-skill-count.py", "."])

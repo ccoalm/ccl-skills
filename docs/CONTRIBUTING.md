@@ -66,7 +66,7 @@ make test
 
 | Lane | What it runs | CI job |
 | --- | --- | --- |
-| `make test-repo-gates` | `check-ccl-skills.sh`, strict `check-evidence-card-leak.sh --self-test`, agent-contract coverage, markdown-link, spec-reference, release-version, and public-sanitization checks, parallel hook/script/Python suites, `pytest`, and `eval` unittest modules | `repository-gates` |
+| `make test-repo-gates` | `check-ccl-skills.sh`, strict `check-evidence-card-leak.sh --self-test`, agent-contract coverage, markdown-link, spec-reference, release-version, public-sanitization, and repo-hygiene checks, parallel hook/script/Python suites, `pytest`, and `eval` unittest modules | `repository-gates` |
 | `make test-regressions-fast` | the fast regression lane | `regression-fast` |
 | `make test-code-review` | the `code-review` regression family and the abort-leak probes | `code-review-regressions-1/2`, `code-review-abort-leak-1/2` |
 
