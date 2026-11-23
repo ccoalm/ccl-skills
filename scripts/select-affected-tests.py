@@ -2103,6 +2103,42 @@ def _pgid_has_live_members(pgid: int) -> bool:
     return True
 
 
+def _pgid_has_live_non_zombie_members(pgid: int) -> bool:
+    if not _pgid_has_live_members(pgid):
+        return False
+    proc_root = Path("/proc")
+    if not proc_root.is_dir():
+        return True
+    saw_member = False
+    try:
+        entries = os.listdir(proc_root)
+    except OSError:
+        return True
+    for name in entries:
+        if not name.isdigit():
+            continue
+        try:
+            raw = (proc_root / name / "stat").read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        rparen = raw.rfind(")")
+        if rparen == -1:
+            continue
+        fields = raw[rparen + 2 :].split()
+        if len(fields) < 3:
+            continue
+        try:
+            entry_pgid = int(fields[2])
+        except ValueError:
+            continue
+        if entry_pgid != pgid:
+            continue
+        saw_member = True
+        if fields[0] not in ("Z", "X", "x"):
+            return True
+    return not saw_member
+
+
 def _escalate_and_reap(
     procs: list[subprocess.Popen],
     pgids: set[int],
@@ -2136,6 +2172,10 @@ def _escalate_and_reap(
             p.wait(timeout=remaining)
         except subprocess.TimeoutExpired:
             pass
+    while time.monotonic() < reap_deadline and any(
+        _pgid_has_live_non_zombie_members(pgid) for pgid in pgids
+    ):
+        time.sleep(_POLL_INTERVAL_SECONDS)
 
 
 def _watched_signals() -> list[int]:

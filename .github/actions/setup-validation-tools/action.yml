@@ -1,0 +1,93 @@
+name: Setup CCL validation tools
+description: Set up optional Node.js, runner system Python pip cache, pinned ripgrep with tarball cache and mandatory SHA-256 verification, and test dependencies.
+
+inputs:
+  setup-node:
+    description: Install Node.js 20 when set to "true".
+    required: false
+    default: "false"
+  ripgrep-version:
+    description: Pinned ripgrep release version.
+    required: true
+  ripgrep-sha256:
+    description: Expected SHA-256 digest of the ripgrep release tarball.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      if: inputs.setup-node == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Cache pip wheels
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: pip-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('requirements-test.txt') }}
+        restore-keys: |
+          pip-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Cache pinned ripgrep archive
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccl-ci-ripgrep
+        key: ripgrep-${{ runner.os }}-${{ runner.arch }}-${{ inputs.ripgrep-version }}-${{ inputs.ripgrep-sha256 }}
+
+    - name: Install validation tools
+      shell: bash
+      env:
+        RIPGREP_VERSION: ${{ inputs.ripgrep-version }}
+        RIPGREP_SHA256: ${{ inputs.ripgrep-sha256 }}
+      run: |
+        set -euo pipefail
+        archive="ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+        extract_dir="${archive%.tar.gz}"
+        download_url="https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/${archive}"
+        cache_dir="${HOME}/.cache/ccl-ci-ripgrep"
+        cached_archive="${cache_dir}/${archive}"
+        temp_dir="$(mktemp -d)"
+        trap 'rm -rf "$temp_dir"' EXIT
+        mkdir -p "$cache_dir"
+        if [[ -f "$cached_archive" ]] && printf '%s  %s\n' "$RIPGREP_SHA256" "$cached_archive" | sha256sum --check - >/dev/null 2>&1; then
+          cp -f "$cached_archive" "$temp_dir/$archive"
+        else
+          rm -f "$cached_archive"
+          if ! curl --fail --location --silent --show-error \
+            --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 900 \
+            --connect-timeout 15 --max-time 300 \
+            --output "$temp_dir/$archive" \
+            "$download_url"; then
+            echo "failed to download pinned ripgrep ${RIPGREP_VERSION} asset: $download_url" >&2
+            exit 1
+          fi
+          printf '%s  %s\n' "$RIPGREP_SHA256" "$temp_dir/$archive" | sha256sum --check -
+          cp -f "$temp_dir/$archive" "$cached_archive"
+        fi
+        printf '%s  %s\n' "$RIPGREP_SHA256" "$temp_dir/$archive" | sha256sum --check -
+        tar --extract --gzip --file "$temp_dir/$archive" --directory "$temp_dir"
+        sudo install --mode 0755 "$temp_dir/$extract_dir/rg" /usr/local/bin/rg
+        resolved_rg="$(command -v rg)"
+        if [[ "$resolved_rg" != /usr/local/bin/rg ]]; then
+          echo "unexpected ripgrep on PATH: $resolved_rg" >&2
+          exit 1
+        fi
+        installed_version="$(rg --version | head -n 1)"
+        case "$installed_version" in
+          "ripgrep $RIPGREP_VERSION"*) ;;
+          *) echo "unexpected ripgrep version: $installed_version" >&2; exit 1 ;;
+        esac
+        printf '%s\n' "$installed_version"
+        # ubuntu-latest includes Ruby; fail fast if that runner contract changes
+        # instead of reintroducing the apt mirror dependency on this required job.
+        ruby --version
+        # Keep the root-owned system python3 rather than actions/setup-python's
+        # group-writable /opt/hostedtoolcache binaries, which eval manifest
+        # probes (`_reject_shared_write_access`) reject by design.
+        python3 -c 'import os, stat, sys; p = os.path.realpath(sys.executable); m = os.lstat(p).st_mode; assert not (m & (stat.S_IWGRP | stat.S_IWOTH)), f"group/world-writable python3: {p} {oct(m)}"'
+
+    - name: Install Python test dependencies
+      shell: bash
+      run: python3 -m pip install -r requirements-test.txt

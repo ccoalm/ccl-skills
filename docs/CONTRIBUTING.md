@@ -66,14 +66,15 @@ make test
 
 | Lane | What it runs | CI job |
 | --- | --- | --- |
-| `make test-repo-gates` | `check-ccl-skills.sh`, agent-contract coverage, markdown-link and spec-reference checks, hook tests, owner-dispatch and control-plane suites, worktree and testing-strategy script tests, the Python and eval test modules | `repository-gates` |
+| `make test-repo-gates` | `check-ccl-skills.sh`, strict `check-evidence-card-leak.sh --self-test`, agent-contract coverage, markdown-link, spec-reference, release-version, and public-sanitization checks, parallel hook/script/Python suites, `pytest`, and `eval` unittest modules | `repository-gates` |
 | `make test-regressions-fast` | the fast regression lane | `regression-fast` |
 | `make test-code-review` | the `code-review` regression family and the abort-leak probes | `code-review-regressions-1/2`, `code-review-abort-leak-1/2` |
 
-Two CI jobs are outside `make test`, so a green local run is not a green CI run:
+Several CI checks remain outside `make test`, so a green local run is not a green CI run:
 
-- `regression-heavy` runs `test_check_ccl_regressions.sh --heavy-only`.
-- `repository-gates` also runs `python3 scripts/check-public-sanitization.py .`; run it locally when your change touches shared skill text.
+- `regression-heavy` runs `test_check_ccl_regressions.sh --heavy-only`; run it locally when your change touches shared skill text or validators.
+- `repository-gates` also runs `check-skill-count.py` and, on pull requests touching `skills/` or `hooks/`, `check_review_evidence_present.py`.
+- `npm-packages` runs `npm ci`, `npm test`, and `npm run test:pack` in `packages/ccl-skills-npm`.
 
 For a fast signal during local iteration, `make test-affected` (`make test-affected-plan` to preview) runs an advisory path-based subset, and `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .` plus `git diff --check` covers structure, routing, leakage, and whitespace — both are inner-loop aids, not substitutes for `make test`.
 

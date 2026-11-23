@@ -265,7 +265,8 @@ report() {
 self_test() {
   # Checks read output from a here-string, not a pipe: grep -q exits on the first match, and
   # under pipefail a writer still holding the pipe dies of SIGPIPE, which reads as a miss.
-  local tmp rc=0
+  # Isolate from any caller-exported CCL_SKILL_BASE_REF so case (v) tests genuine no-base behavior.
+  local tmp rc=0 CCL_SKILL_BASE_REF=""
   tmp="$(mktemp -d)"
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" RETURN
@@ -471,10 +472,105 @@ self_test() {
   return "$rc"
 }
 
+script_sha256() {
+  local f="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$f" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$f" | awk '{print $1}'
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$f"
+  else
+    return 1
+  fi
+}
+
+# Content-addressed stamp wrapper for repeated check-ccl-skills.sh runs.
+# Bypasses the cache when strict or explicit no-cache flags are set, or when the cache
+# directory fails ownership / symlink / 0700 mode validation. Never caches failed or
+# git-skipped runs.
+self_test_cached() {
+  if [ -n "${CCL_SKILL_EVIDENCE_CARD_STRICT_SELFTEST:-}" ] || [ "${CCL_SKILL_NO_SELFTEST_CACHE:-}" = "1" ]; then
+    self_test
+    return $?
+  fi
+
+  local script_file="${BASH_SOURCE[0]}" hash="" cache_dir="" uid="" mode=""
+  hash="$(script_sha256 "$script_file" 2>/dev/null || true)"
+  case "$hash" in
+    [0-9a-f][0-9a-f][0-9a-f][0-9a-f]*)
+      [ "${#hash}" -eq 64 ] || hash=""
+      ;;
+    *)
+      hash=""
+      ;;
+  esac
+
+  uid="${EUID:-$(id -u 2>/dev/null || echo unknown)}"
+  cache_dir="${CCL_SKILL_SELFTEST_CACHE_DIR:-${TMPDIR:-/tmp}/ccl-skills-selftest-cache-${uid}}"
+
+  if [ -z "$hash" ] || [ -z "$cache_dir" ]; then
+    self_test
+    return $?
+  fi
+
+  if [ ! -e "$cache_dir" ] && [ ! -L "$cache_dir" ]; then
+    ( umask 077 && mkdir -m 0700 "$cache_dir" ) 2>/dev/null || true
+  fi
+  if [ ! -d "$cache_dir" ] || [ -L "$cache_dir" ] || [ ! -O "$cache_dir" ]; then
+    self_test
+    return $?
+  fi
+  mode="$(stat -c '%a' "$cache_dir" 2>/dev/null || stat -f '%Lp' "$cache_dir" 2>/dev/null || true)"
+  if [ "$mode" != "700" ]; then
+    self_test
+    return $?
+  fi
+
+  local stamp="$cache_dir/$hash.ok"
+  if [ -f "$stamp" ] && [ ! -L "$stamp" ] && [ -O "$stamp" ]; then
+    echo "evidence_card_leak_self_test_ok"
+    return 0
+  fi
+
+  local out_tmp="" err_tmp="" rc=0
+  out_tmp="$(mktemp)" || { self_test; return $?; }
+  err_tmp="$(mktemp)" || { rm -f "$out_tmp"; self_test; return $?; }
+  self_test >"$out_tmp" 2>"$err_tmp" || rc=$?
+  cat "$out_tmp"
+  cat "$err_tmp" >&2
+
+  if [ "$rc" -eq 0 ] \
+     && grep -q '^evidence_card_leak_self_test_ok$' "$out_tmp" \
+     && ! grep -q 'evidence_card_leak_self_test_skipped' "$err_tmp"; then
+    local count excess s stamp_tmp=""
+    count="$(find "$cache_dir" -maxdepth 1 -type f -name '*.ok' 2>/dev/null | wc -l | tr -d ' ')"
+    if [ "${count:-0}" -ge 64 ]; then
+      excess=$(( count - 63 ))
+      while IFS= read -r -d '' s; do
+        [ "$excess" -gt 0 ] || break
+        rm -f "$s" 2>/dev/null || true
+        excess=$((excess - 1))
+      done < <(find "$cache_dir" -maxdepth 1 -type f -name '*.ok' -print0 2>/dev/null || true)
+    fi
+    if stamp_tmp="$(umask 077 && mktemp "$cache_dir/.stamp.XXXXXX" 2>/dev/null)"; then
+      printf '%s\n' "$hash" >"$stamp_tmp" 2>/dev/null \
+        && mv -f "$stamp_tmp" "$stamp" 2>/dev/null \
+        || rm -f "$stamp_tmp" 2>/dev/null || true
+    fi
+  fi
+
+  rm -f "$out_tmp" "$err_tmp"
+  return "$rc"
+}
+
 main() {
   case "${1:-}" in
     --self-test)
       self_test
+      ;;
+    --self-test-cached)
+      self_test_cached
       ;;
     --all)
       shift

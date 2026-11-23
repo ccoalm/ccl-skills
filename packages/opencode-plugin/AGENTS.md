@@ -14,4 +14,5 @@ Rules:
 Validation:
 
 - `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .`
+- `npm --prefix packages/ccl-skills-npm test` (runs `tsc -p ../opencode-plugin/tsconfig.json` and OpenCode hook integration tests)
 - JSON/schema validation when OpenCode config changes.

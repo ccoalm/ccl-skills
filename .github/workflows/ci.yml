@@ -34,52 +34,11 @@ jobs:
           # contains the base and the merge commit adds no content — the branch
           # tip is what actually lands.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-validation-tools
         with:
-          node-version: "20"
-      - name: Install validation tools
-        run: |
-          set -euo pipefail
-          archive="ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          extract_dir="${archive%.tar.gz}"
-          download_url="https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/${archive}"
-          temp_dir="$(mktemp -d)"
-          trap 'rm -rf "$temp_dir"' EXIT
-          if ! curl --fail --location --silent --show-error \
-            --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 900 \
-            --connect-timeout 15 --max-time 300 \
-            --output "$temp_dir/$archive" \
-            "$download_url"; then
-            echo "failed to download pinned ripgrep ${RIPGREP_VERSION} asset: $download_url" >&2
-            exit 1
-          fi
-          printf '%s  %s\n' "$RIPGREP_SHA256" "$temp_dir/$archive" | sha256sum --check -
-          tar --extract --gzip --file "$temp_dir/$archive" --directory "$temp_dir"
-          sudo install --mode 0755 "$temp_dir/$extract_dir/rg" /usr/local/bin/rg
-          resolved_rg="$(command -v rg)"
-          if [[ "$resolved_rg" != /usr/local/bin/rg ]]; then
-            echo "unexpected ripgrep on PATH: $resolved_rg" >&2
-            exit 1
-          fi
-          installed_version="$(rg --version | head -n 1)"
-          case "$installed_version" in
-            "ripgrep $RIPGREP_VERSION"*) ;;
-            *) echo "unexpected ripgrep version: $installed_version" >&2; exit 1 ;;
-          esac
-          printf '%s\n' "$installed_version"
-          # ubuntu-latest includes Ruby; fail fast if that runner contract changes
-          # instead of reintroducing the apt mirror dependency on this required job.
-          ruby --version
-      - name: Install Python test dependencies
-        run: python3 -m pip install -r requirements-test.txt
-      - name: Public sanitization regression
-        run: python3 scripts/test_check_public_sanitization.py
-      - name: Public sanitization gate
-        run: python3 scripts/check-public-sanitization.py .
-      - name: Markdown link gate
-        run: python3 scripts/check-markdown-links.py .
-      - name: Spec reference gate
-        run: python3 scripts/check-spec-references.py .
+          setup-node: "true"
+          ripgrep-version: ${{ env.RIPGREP_VERSION }}
+          ripgrep-sha256: ${{ env.RIPGREP_SHA256 }}
       - name: Skill count regression
         run: python3 scripts/test_check_skill_count.py
       - name: Skill count gate
@@ -138,44 +97,11 @@ jobs:
           # contains the base and the merge commit adds no content — the branch
           # tip is what actually lands.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-validation-tools
         with:
-          node-version: "20"
-      - name: Install validation tools
-        run: |
-          set -euo pipefail
-          archive="ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          extract_dir="${archive%.tar.gz}"
-          download_url="https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/${archive}"
-          temp_dir="$(mktemp -d)"
-          trap 'rm -rf "$temp_dir"' EXIT
-          if ! curl --fail --location --silent --show-error \
-            --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 900 \
-            --connect-timeout 15 --max-time 300 \
-            --output "$temp_dir/$archive" \
-            "$download_url"; then
-            echo "failed to download pinned ripgrep ${RIPGREP_VERSION} asset: $download_url" >&2
-            exit 1
-          fi
-          printf '%s  %s\n' "$RIPGREP_SHA256" "$temp_dir/$archive" | sha256sum --check -
-          tar --extract --gzip --file "$temp_dir/$archive" --directory "$temp_dir"
-          sudo install --mode 0755 "$temp_dir/$extract_dir/rg" /usr/local/bin/rg
-          resolved_rg="$(command -v rg)"
-          if [[ "$resolved_rg" != /usr/local/bin/rg ]]; then
-            echo "unexpected ripgrep on PATH: $resolved_rg" >&2
-            exit 1
-          fi
-          installed_version="$(rg --version | head -n 1)"
-          case "$installed_version" in
-            "ripgrep $RIPGREP_VERSION"*) ;;
-            *) echo "unexpected ripgrep version: $installed_version" >&2; exit 1 ;;
-          esac
-          printf '%s\n' "$installed_version"
-          # ubuntu-latest includes Ruby; fail fast if that runner contract changes
-          # instead of reintroducing the apt mirror dependency on this required job.
-          ruby --version
-      - name: Install Python test dependencies
-        run: python3 -m pip install -r requirements-test.txt
+          setup-node: "true"
+          ripgrep-version: ${{ env.RIPGREP_VERSION }}
+          ripgrep-sha256: ${{ env.RIPGREP_SHA256 }}
       - name: Code-review regression shard 1
         env:
           CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -205,44 +131,11 @@ jobs:
           # contains the base and the merge commit adds no content — the branch
           # tip is what actually lands.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-validation-tools
         with:
-          node-version: "20"
-      - name: Install validation tools
-        run: |
-          set -euo pipefail
-          archive="ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          extract_dir="${archive%.tar.gz}"
-          download_url="https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/${archive}"
-          temp_dir="$(mktemp -d)"
-          trap 'rm -rf "$temp_dir"' EXIT
-          if ! curl --fail --location --silent --show-error \
-            --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 900 \
-            --connect-timeout 15 --max-time 300 \
-            --output "$temp_dir/$archive" \
-            "$download_url"; then
-            echo "failed to download pinned ripgrep ${RIPGREP_VERSION} asset: $download_url" >&2
-            exit 1
-          fi
-          printf '%s  %s\n' "$RIPGREP_SHA256" "$temp_dir/$archive" | sha256sum --check -
-          tar --extract --gzip --file "$temp_dir/$archive" --directory "$temp_dir"
-          sudo install --mode 0755 "$temp_dir/$extract_dir/rg" /usr/local/bin/rg
-          resolved_rg="$(command -v rg)"
-          if [[ "$resolved_rg" != /usr/local/bin/rg ]]; then
-            echo "unexpected ripgrep on PATH: $resolved_rg" >&2
-            exit 1
-          fi
-          installed_version="$(rg --version | head -n 1)"
-          case "$installed_version" in
-            "ripgrep $RIPGREP_VERSION"*) ;;
-            *) echo "unexpected ripgrep version: $installed_version" >&2; exit 1 ;;
-          esac
-          printf '%s\n' "$installed_version"
-          # ubuntu-latest includes Ruby; fail fast if that runner contract changes
-          # instead of reintroducing the apt mirror dependency on this required job.
-          ruby --version
-      - name: Install Python test dependencies
-        run: python3 -m pip install -r requirements-test.txt
+          setup-node: "true"
+          ripgrep-version: ${{ env.RIPGREP_VERSION }}
+          ripgrep-sha256: ${{ env.RIPGREP_SHA256 }}
       - name: Code-review regression shard 2
         env:
           CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -300,41 +193,10 @@ jobs:
           # test_ci_checkout_ref_binding.sh for why the impact-chain gate
           # needs the branch's own first-parent chain.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Install validation tools
-        run: |
-          set -euo pipefail
-          archive="ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          extract_dir="${archive%.tar.gz}"
-          download_url="https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/${archive}"
-          temp_dir="$(mktemp -d)"
-          trap 'rm -rf "$temp_dir"' EXIT
-          if ! curl --fail --location --silent --show-error \
-            --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 900 \
-            --connect-timeout 15 --max-time 300 \
-            --output "$temp_dir/$archive" \
-            "$download_url"; then
-            echo "failed to download pinned ripgrep ${RIPGREP_VERSION} asset: $download_url" >&2
-            exit 1
-          fi
-          printf '%s  %s\n' "$RIPGREP_SHA256" "$temp_dir/$archive" | sha256sum --check -
-          tar --extract --gzip --file "$temp_dir/$archive" --directory "$temp_dir"
-          sudo install --mode 0755 "$temp_dir/$extract_dir/rg" /usr/local/bin/rg
-          resolved_rg="$(command -v rg)"
-          if [[ "$resolved_rg" != /usr/local/bin/rg ]]; then
-            echo "unexpected ripgrep on PATH: $resolved_rg" >&2
-            exit 1
-          fi
-          installed_version="$(rg --version | head -n 1)"
-          case "$installed_version" in
-            "ripgrep $RIPGREP_VERSION"*) ;;
-            *) echo "unexpected ripgrep version: $installed_version" >&2; exit 1 ;;
-          esac
-          printf '%s\n' "$installed_version"
-          # ubuntu-latest includes Ruby; fail fast if that runner contract changes
-          # instead of reintroducing the apt mirror dependency on this required job.
-          ruby --version
-      - name: Install Python test dependencies
-        run: python3 -m pip install -r requirements-test.txt
+      - uses: ./.github/actions/setup-validation-tools
+        with:
+          ripgrep-version: ${{ env.RIPGREP_VERSION }}
+          ripgrep-sha256: ${{ env.RIPGREP_SHA256 }}
       - name: Fast regression lane
         env:
           CANDIDATE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -362,41 +224,10 @@ jobs:
           # test_ci_checkout_ref_binding.sh for why the impact-chain gate
           # needs the branch's own first-parent chain.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Install validation tools
-        run: |
-          set -euo pipefail
-          archive="ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          extract_dir="${archive%.tar.gz}"
-          download_url="https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/${archive}"
-          temp_dir="$(mktemp -d)"
-          trap 'rm -rf "$temp_dir"' EXIT
-          if ! curl --fail --location --silent --show-error \
-            --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 900 \
-            --connect-timeout 15 --max-time 300 \
-            --output "$temp_dir/$archive" \
-            "$download_url"; then
-            echo "failed to download pinned ripgrep ${RIPGREP_VERSION} asset: $download_url" >&2
-            exit 1
-          fi
-          printf '%s  %s\n' "$RIPGREP_SHA256" "$temp_dir/$archive" | sha256sum --check -
-          tar --extract --gzip --file "$temp_dir/$archive" --directory "$temp_dir"
-          sudo install --mode 0755 "$temp_dir/$extract_dir/rg" /usr/local/bin/rg
-          resolved_rg="$(command -v rg)"
-          if [[ "$resolved_rg" != /usr/local/bin/rg ]]; then
-            echo "unexpected ripgrep on PATH: $resolved_rg" >&2
-            exit 1
-          fi
-          installed_version="$(rg --version | head -n 1)"
-          case "$installed_version" in
-            "ripgrep $RIPGREP_VERSION"*) ;;
-            *) echo "unexpected ripgrep version: $installed_version" >&2; exit 1 ;;
-          esac
-          printf '%s\n' "$installed_version"
-          # ubuntu-latest includes Ruby; fail fast if that runner contract changes
-          # instead of reintroducing the apt mirror dependency on this required job.
-          ruby --version
-      - name: Install Python test dependencies
-        run: python3 -m pip install -r requirements-test.txt
+      - uses: ./.github/actions/setup-validation-tools
+        with:
+          ripgrep-version: ${{ env.RIPGREP_VERSION }}
+          ripgrep-sha256: ${{ env.RIPGREP_SHA256 }}
       - name: Heavy regression lane
         # Same base-ref guard as the Repository test suite step: clone-driving
         # tests inherit CCL_SKILL_BASE_REF, and a clone of the detached Actions

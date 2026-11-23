@@ -56,7 +56,7 @@ input=$(head -c 1048576) || exit 0
 # or memory. The values land in hf_* variables, unset first so an inherited
 # export of these names cannot pass them to children.
 unset fields fields_read hf_tool hf_cmd
-fields=$(printf '%s' "$input" | jq -rs '
+fields=$(printf '%s' "$input" 2>/dev/null | jq -rs '
   def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
   select(length == 1) | .[0]
   | [(.tool_name // ""), (.tool_input.command // "")]
@@ -68,34 +68,36 @@ fields_read=""
 case "$fields" in *' fields_read=1') eval "$fields" ;; esac   # every value is @sh-quoted
 
 if [ -n "$fields_read" ]; then tool=$hf_tool; else
-  tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
+  tool=$(printf '%s' "$input" 2>/dev/null | jq -r '.tool_name // empty' 2>/dev/null)
 fi
 case "$tool" in ''|Bash) ;; *) exit 0 ;; esac
 
 if [ -n "$fields_read" ]; then cmd=$hf_cmd; else
-  cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+  cmd=$(printf '%s' "$input" 2>/dev/null | jq -r '.tool_input.command // empty' 2>/dev/null)
 fi
 [ -z "$cmd" ] && exit 0
 
 # Same mask as the sibling hooks, after dropping escaped characters so `\"`
 # cannot close a quote early: quoted prose cannot fire, single-word quoted
-# values keep their content. The awk stops at the first heredoc: its body is
-# text, often a commit message naming the very targets this hook matches.
-# Commands after the heredoc go unchecked, on the quiet side. Last, redirection
-# targets go: an output file under tests/ is not a test selection.
+# values keep their content. The awk stops printing at the first heredoc while
+# draining the remaining lines so upstream `tr` never hits EPIPE when a host
+# invokes the hook with SIGPIPE ignored: the heredoc body is text, often a
+# commit message naming the very targets this hook matches. Commands after the
+# heredoc go unchecked, on the quiet side. Last, redirection targets go: an
+# output file under tests/ is not a test selection.
 # Newlines become a placeholder for the mask so a quote can span lines.
-masked=$(printf '%s' "$cmd" | tr '\n' '\036' | sed -E \
+masked=$(printf '%s' "$cmd" 2>/dev/null | tr '\n' '\036' 2>/dev/null | sed -E \
   -e 's/\\.//g' \
   -e $'s/"([^"[:space:];|&<>()\036]*)"/\\1/g' \
   -e $'s/\'([^\'[:space:];|&<>()\036]*)\'/\\1/g' \
   -e 's/"[^"]*"/QUOTED/g' \
-  -e "s/'[^']*'/QUOTED/g" \
-  | tr '\036' '\n' \
-  | awk '{ print } /<</ { exit }' \
-  | sed -E 's/[0-9]*(>>?|<)&?[[:space:]]*[^;&|()[:space:]]+/ /g') || exit 0
+  -e "s/'[^']*'/QUOTED/g" 2>/dev/null \
+  | tr '\036' '\n' 2>/dev/null \
+  | awk '!s { print } /<</ { s = 1 }' 2>/dev/null \
+  | sed -E 's/[0-9]*(>>?|<)&?[[:space:]]*[^;&|()[:space:]]+/ /g' 2>/dev/null) || exit 0
 
 # A cheap exit for the common case, since this runs before every Bash call.
-printf '%s' "$masked" | grep -Eq 'make|npm|pnpm|yarn|bun|pytest|go|playwright|node' || exit 0
+printf '%s' "$masked" 2>/dev/null | grep -Eq 'make|npm|pnpm|yarn|bun|pytest|go|playwright|node' 2>/dev/null || exit 0
 
 sp='[[:space:]]'
 tok='[^;&|()[:space:]]'
@@ -107,7 +109,7 @@ entry="(tests?|test[-_:](all|full)|$slow)"
 # or file option to make is not a target.
 jsopt="($sp+-$tok+($sp+[^-;&|()[:space:]]$tok*)?)*"
 jsrun="(npm|pnpm|yarn|bun)$jsopt($sp+(run|run-script)$jsopt)?"
-scan=$(printf '%s' "$masked" | sed -E "s/(^|$sp)(-C|-f|--directory|--file|--makefile)$sp+$tok+/ /g") || exit 0
+scan=$(printf '%s' "$masked" 2>/dev/null | sed -E "s/(^|$sp)(-C|-f|--directory|--file|--makefile)$sp+$tok+/ /g" 2>/dev/null) || exit 0
 
 broad="$pos(make($sp+$tok+)*$sp+$entry"
 broad="$broad|$jsrun$sp+(t|$entry)"
@@ -115,7 +117,7 @@ broad="$broad|pytest|playwright$sp+test"
 broad="$broad|node$sp+--test($sp+$tok*\\*$tok*)*"
 broad="$broad|go$sp+test($sp+$tok+)*$sp+(\\./\\.\\.\\.|\\./$tok*(integration|scenario|e2e)$tok*))$end"
 
-printf '%s' "$scan" | grep -Eq -- "$broad" || exit 0
+printf '%s' "$scan" 2>/dev/null | grep -Eq -- "$broad" 2>/dev/null || exit 0
 
 # Anything that names tests, reads instead of runs, or states a reason. A grep
 # error (status 2) allows, like a match.
@@ -133,16 +135,16 @@ selects="$selects|$jsrun$sp+(t|$entry)$sp+(--$sp+)?$arg"
 selects="$selects|playwright$sp+test($sp+-$tok+)*$sp+$arg"
 selects="$selects|(pytest|node$sp+--test)($sp+$tok+)*$sp+$patharg"
 selects="$selects|(^|$sp)CCL_BROAD_TEST_REASON=(user-request|ci-failure|repo-wide|repo-required)($sp|\$)"
-printf '%s' "$scan" | grep -Eq -- "$selects"
+printf '%s' "$scan" 2>/dev/null | grep -Eq -- "$selects" 2>/dev/null
 [ $? -eq 1 ] || exit 0
 
 # A named file or directory selects, unless it is a glob or a Go package tree.
 # Only "the last grep found nothing, and the filter before it ran cleanly" means
 # no selector. A match, a grep error at either stage, or SIGPIPE after an early
 # match allows.
-words=$(printf '%s' "$scan" | tr -s '[:space:]' '\n') || exit 0
-printf '%s\n' "$words" | grep -Ev '[*]|\.\.\.$' \
-  | grep -Eq '(\.test\.|\.spec\.|_test\.(go|py)|(^|/)test_[^/]*\.py|::|(^|/)tests?/[^/]|(^|/)__tests__/)'
+words=$(printf '%s' "$scan" 2>/dev/null | tr -s '[:space:]' '\n' 2>/dev/null) || exit 0
+printf '%s\n' "$words" 2>/dev/null | grep -Ev '[*]|\.\.\.$' 2>/dev/null \
+  | grep -Eq '(\.test\.|\.spec\.|_test\.(go|py)|(^|/)test_[^/]*\.py|::|(^|/)tests?/[^/]|(^|/)__tests__/)' 2>/dev/null
 st=("${PIPESTATUS[@]}")
 [ "${st[2]}" -eq 1 ] && [ "${st[1]}" -le 1 ] || exit 0
 

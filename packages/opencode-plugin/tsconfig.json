@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "typeRoots": ["../ccl-skills-npm/node_modules/@types"],
+    "types": ["node"]
+  },
+  "include": ["./*.ts"]
+}

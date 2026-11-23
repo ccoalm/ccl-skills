@@ -167,6 +167,6 @@ AGENTS.md         Rules for coding agents working in this repository
 
 Read [the contribution guide](docs/CONTRIBUTING.md) before making a change. It covers worktree setup, repository rules, review, and required checks.
 
-Verify with `make test`. It chains the three local lanes CI splits into `repository-gates`, `regression-fast`, and the `code-review` regression and abort-leak jobs. Two CI jobs sit outside it, so a green local run is not a green CI run: `regression-heavy`, and the `check-public-sanitization.py` step inside `repository-gates`. The [contribution guide](docs/CONTRIBUTING.md) has the per-lane table.
+Verify with `make test`. It chains the three local lanes CI splits into `repository-gates`, `regression-fast`, and the `code-review` regression and abort-leak jobs. Several CI checks remain outside `make test`, so a green local run is not a green CI run: `regression-heavy` (`test_check_ccl_regressions.sh --heavy-only`), `repository-gates`'s `check-skill-count.py` and PR-only `check_review_evidence_present.py` (when `skills/` or `hooks/` change), and `npm-packages` (`packages/ccl-skills-npm`). The [contribution guide](docs/CONTRIBUTING.md) has the per-lane table.
 
 Maintainers should also read the [npm release runbook](docs/npm-release.md) before changing a version or creating a release tag.

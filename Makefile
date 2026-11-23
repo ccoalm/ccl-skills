@@ -45,51 +45,59 @@ test-affected-plan: ## 预览按改动路径选中的辅助测试命令（只读
 
 test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository-gates job；不含 code-review 族与 fast 回归 lane）
 	bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
+	CCL_SKILL_EVIDENCE_CARD_STRICT_SELFTEST=1 bash skills/skill-extraction-workflow/scripts/check-evidence-card-leak.sh --self-test
 	python3 skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py --repo . --default-base-ref "$(CCL_SKILL_DEFAULT_BASE_REF)"
 	bash skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh --repo . --enforce
-	REQUIRE_BASELINE=1 bash skills/product-rd-workflow/scripts/test_check_agent_contract_coverage.sh
-	python3 scripts/test_check_markdown_links.py
 	python3 scripts/check-markdown-links.py .
-	python3 scripts/test_check_spec_references.py
 	python3 scripts/check-spec-references.py .
-	python3 scripts/test_check_release_version.py
 	python3 scripts/check-release-version.py .
-	python3 skills/tighten-doc/scripts/test_doc_lint_repo.py
+	python3 scripts/check-public-sanitization.py .
 	python3 skills/tighten-doc/scripts/doc-lint-repo.py .
-	bash scripts/test_install_opencode_skill_migration.sh
-	bash scripts/test_install_antigravity.sh
-	python3 scripts/test_install_status.py
-	python3 scripts/test_install_gates_runtime.py
 	bash scripts/test_run_parallel_suites.sh
 	python3 scripts/test_lane_isolation.py
-	python3 scripts/test_select_affected_tests.py
-	python3 skills/skill-extraction-workflow/scripts/test_eval_runtime.py
-	python3 skills/skill-extraction-workflow/scripts/test_skill_paired_eval.py
-	python3 hooks/test_host_input.py
-	python3 hooks/test_skill_loading.py
-	python3 hooks/test_task_entry.py
-	python3 hooks/test_proposed_next.py
-	python3 hooks/test_agy_bridge.py
+	REQUIRE_BASELINE=1 bash scripts/run-parallel-suites.sh --label repo_gates \
+	  skills/product-rd-workflow/scripts/test_check_agent_contract_coverage.sh \
+	  scripts/test_check_markdown_links.py \
+	  scripts/test_check_spec_references.py \
+	  scripts/test_check_release_version.py \
+	  scripts/test_check_public_sanitization.py \
+	  skills/tighten-doc/scripts/test_doc_lint_repo.py \
+	  scripts/test_install_opencode_skill_migration.sh \
+	  scripts/test_install_antigravity.sh \
+	  scripts/test_install_status.py \
+	  scripts/test_install_gates_runtime.py \
+	  scripts/test_select_affected_tests.py \
+	  skills/skill-extraction-workflow/scripts/test_eval_runtime.py \
+	  skills/skill-extraction-workflow/scripts/test_skill_paired_eval.py \
+	  hooks/test_host_input.py \
+	  hooks/test_skill_loading.py \
+	  hooks/test_task_entry.py \
+	  hooks/test_proposed_next.py \
+	  hooks/test_agy_bridge.py \
+	  hooks/test_guard_delegation_owner.sh \
+	  hooks/test_guard_edit_isolation.sh \
+	  hooks/test_guard_merge_authorization.sh \
+	  hooks/test_headless_background_stop.sh \
+	  hooks/test_merge_authorization_prompt.sh \
+	  hooks/test_remind_post_merge_cleanup.sh \
+	  hooks/test_remind_review_covers_head.sh \
+	  hooks/test_guard_broad_local_test.sh \
+	  hooks/test_remind_unverified_cli_flag.sh \
+	  hooks/test_remind_untracked_background.sh \
+	  hooks/test_session_start.sh \
+	  skills/testing-strategy/scripts/client-terminal-ansi-check.test.sh \
+	  skills/testing-strategy/scripts/lang-basics-ast-check.test.sh \
+	  skills/testing-strategy/scripts/lang-basics-go-check.test.sh \
+	  skills/tighten-doc/scripts/test_figure_and_doc_lint.sh \
+	  skills/worktree-isolation/scripts/test_worktree_status.sh \
+	  skills/worktree-isolation/scripts/test_worktree_sweep.sh \
+	  scripts/owner-dispatch/test.sh \
+	  scripts/control-plane/test.sh
+	# test_hook_field_reads.py runs its own ThreadPoolExecutor over 576 cases
+	# with a 5s wall-clock STALL_SECONDS budget and RUSAGE_CHILDREN peak-RSS
+	# probes; run it outside run-parallel-suites.sh to avoid 4-vCPU runner
+	# oversubscription timeouts.
 	python3 hooks/test_hook_field_reads.py
-	bash hooks/test_guard_delegation_owner.sh
-	bash hooks/test_guard_edit_isolation.sh
-	bash hooks/test_guard_merge_authorization.sh
-	bash hooks/test_headless_background_stop.sh
-	bash hooks/test_merge_authorization_prompt.sh
-	bash hooks/test_remind_post_merge_cleanup.sh
-	bash hooks/test_remind_review_covers_head.sh
-	bash hooks/test_guard_broad_local_test.sh
-	bash hooks/test_remind_unverified_cli_flag.sh
-	bash hooks/test_remind_untracked_background.sh
-	bash hooks/test_session_start.sh
-	bash skills/testing-strategy/scripts/client-terminal-ansi-check.test.sh
-	bash skills/testing-strategy/scripts/lang-basics-ast-check.test.sh
-	bash skills/testing-strategy/scripts/lang-basics-go-check.test.sh
-	bash skills/tighten-doc/scripts/test_figure_and_doc_lint.sh
-	bash skills/worktree-isolation/scripts/test_worktree_status.sh
-	bash skills/worktree-isolation/scripts/test_worktree_sweep.sh
-	bash scripts/owner-dispatch/test.sh
-	bash scripts/control-plane/test.sh
 	python3 -m pytest -q skills/test-artifact-management/references/test_gen_report.py
 	python3 -m unittest eval.test_subagent_owner_audit eval.test_skill_effectiveness_bridge eval.test_skill_effectiveness_trial eval.test_reviewer_calibration_protocol eval.test_design_judge eval.test_owner_role_audit
 

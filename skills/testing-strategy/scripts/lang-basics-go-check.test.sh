@@ -9,8 +9,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 src="$here/lang-basics-go-check.go"
 command -v go >/dev/null 2>&1 || { echo "go toolchain required" >&2; exit 2; }
-base="${TMPDIR:-/tmp}"
-tmp="$(mktemp -d "${base%/}/lbgo.XXXXXX")"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/lbgo.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 bin="$tmp/lbgo"

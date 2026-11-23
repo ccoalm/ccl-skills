@@ -28,6 +28,17 @@
 # lane is a correctness bug this runner cannot detect for you.
 set -uo pipefail
 
+# Non-interactive shells cannot reset an inherited SIG_IGN with `trap - PIPE`
+# (POSIX), and CI runners (.NET/Node) can spawn step shells with SIGPIPE
+# ignored, turning normal early-closing pipelines (`printf ... | head`,
+# `... | grep -q`) into `write error: Broken pipe` diagnostics on stderr.
+# Re-exec once through python3 so SIGPIPE enters bash as SIG_DFL.
+if [ -z "${_CCL_PARALLEL_SIGPIPE_RESET:-}" ] && command -v python3 >/dev/null 2>&1; then
+  export _CCL_PARALLEL_SIGPIPE_RESET=1
+  exec python3 -c 'import os, signal, sys; signal.signal(signal.SIGPIPE, signal.SIG_DFL); os.execvp(sys.argv[1], sys.argv[1:])' "${BASH:-bash}" -- "$0" "$@"
+fi
+unset _CCL_PARALLEL_SIGPIPE_RESET
+
 usage() {
   cat <<'EOF'
 Usage: run-parallel-suites.sh [--jobs N] [--label NAME] <suite-path>...

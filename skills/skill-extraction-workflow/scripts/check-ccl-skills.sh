@@ -765,14 +765,17 @@ if [[ ! -f "$evidence_card_script" ]]; then
   exit 2
 fi
 # Invoke via `bash` so a missing +x bit (common after checkout / on CI) is not a false miss.
-# The --self-test is a fixture regression for the detector's own logic. A self-test FAILURE
-# (a pure-shape assertion failed, or CCL_SKILL_EVIDENCE_CARD_STRICT_SELFTEST=1 flagged
-# missing fixture infra) is BLOCKING — a broken detector must not be silently trusted. By
-# default, missing git fixture infra SKIPS the changed-scope sub-tests inside the self-test
-# (returning success with a printed warning), so unrelated authors on minimal images are not
-# blocked. The changed-file scan below blocks on a real offender; a base-less degraded scan is
-# warning-pass by default (set CCL_SKILL_EVIDENCE_CARD_STRICT_BASE=1 to enforce coverage).
-if ! bash "$evidence_card_script" --self-test; then
+# `--self-test-cached` runs the detector's fixture regression on cold runs and whenever the
+# detector's SHA-256 changes, reusing a per-UID 0700 stamp across unchanged repeat invocations
+# (strict / no-cache flags bypass the stamp; `make test-repo-gates` also runs uncached strict
+# `--self-test`). A self-test FAILURE (a pure-shape assertion failed, or
+# CCL_SKILL_EVIDENCE_CARD_STRICT_SELFTEST=1 flagged missing fixture infra) is BLOCKING — a
+# broken detector must not be silently trusted. By default, missing git fixture infra SKIPS the
+# changed-scope sub-tests inside the self-test (returning success with a printed warning and no
+# cache stamp), so unrelated authors on minimal images are not blocked. The changed-file scan
+# below blocks on a real offender; a base-less degraded scan is warning-pass by default (set
+# CCL_SKILL_EVIDENCE_CARD_STRICT_BASE=1 to enforce coverage).
+if ! bash "$evidence_card_script" --self-test-cached; then
   echo "evidence_card_leak_self_test_failed: detector self-test failed — blocking. (Set CCL_SKILL_EVIDENCE_CARD_STRICT_SELFTEST only to make missing fixture infra fail; it is not needed to pass normally.)" >&2
   exit 1
 fi
@@ -852,7 +855,7 @@ else
   if ! bash "$generic_r0_scan" "$root"; then
     exit 1
   fi
-  echo "alias_audit_unavailable: ALIAS_AUDIT_CMD unset; ran the generic public leak scan over added diff lines as the public R0 fallback. This permits interim commit/push/Draft MR, but is NOT private-alias clean-landing evidence — clean landing still requires alias_audit_ok, a named private profile, or an explicit risk-owner waiver (see skill-extraction-workflow/references/r0-leakage-audit.md)."
+  echo "alias_audit_unavailable: ALIAS_AUDIT_CMD unset; ran the generic public leak scan over added diff lines as the public R0 fallback. Before recording interim on a multi-host machine, check whether ~/.<host>/.private-aliases/run-r0-audit.sh exists in another host profile (.claude, .codex, .gemini, .config/opencode) and rerun with ALIAS_AUDIT_CMD set. Public fallback permits interim commit/push/Draft MR, but is NOT private-alias clean-landing evidence — clean landing still requires alias_audit_ok, a named private profile, or an explicit risk-owner waiver (see skill-extraction-workflow/references/r0-leakage-audit.md)."
   r0_clean_landing_status="public-fallback"
   echo "r0_status=public-fallback"
 fi

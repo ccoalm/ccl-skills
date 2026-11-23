@@ -138,3 +138,14 @@ test("direct entrypoint accepts macOS /var alias", {
 	const alias = real.startsWith("/private/var/") ? real.slice(8) : real;
 	assert.equal(isDirectEntrypoint(pathToFileURL(real).href, alias), true);
 });
+test("package.json declares Antigravity metadata, uniform 2-space indent, opencode-plugin tsc gate, and decoupled pack suite", () => {
+	const raw = readFileSync("package.json", "utf8");
+	assert.doesNotMatch(raw, /\t/, "package.json must use 2-space indentation without tabs");
+	const manifest = JSON.parse(raw);
+	assert.match(manifest.description, /Antigravity/);
+	assert.equal(manifest.keywords.includes("antigravity"), true);
+	assert.match(manifest.scripts.test, /tsc\b.*opencode-plugin\/tsconfig\.json/);
+	assert.doesNotMatch(manifest.scripts["test:pack"], /test\/pack\.test\.mjs/);
+	assert.equal(existsSync("test/pack.test.mjs"), false, "pack suite must live outside test/*.test.mjs so unit tests stay decoupled from test:pack");
+	assert.equal(existsSync("scripts/check-pack-suite.mjs"), true);
+});

@@ -7,8 +7,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 script="$here/lang-basics-ast-check.py"
 command -v python3 >/dev/null 2>&1 || { echo "python3 required" >&2; exit 2; }
-base="${TMPDIR:-/tmp}"
-tmp="$(mktemp -d "${base%/}/lbast.XXXXXX")"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/lbast.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 pass=0 fail=0
