@@ -8,7 +8,7 @@ Runs use synthetic data in private temporary directories on Linux (`agy` 1.5.14,
 | --- | --- | --- |
 | Reproduction probe: three `edit_file` events in one conversation | `deny` `First source-edit skill checkpoint` three times, three distinct checkpoint epochs | first `deny`, later `allow` |
 | Reproduction probe: `Partial read` header over a valid `grill-me` body | 0 of 80 lines covered (control: the same body under `Showing lines` covers 80 of 80) | full coverage when the chunks verify |
-| `hooks/test_agy_bridge.py`, final candidate tests with the baseline bridge in a disposable copy | 14 failures and 4 errors, every new case. Each error is a missing behavior: no shadow file left to stat, no sweep, no single canonical copy, and an idle event that removes the file at the shadow path | 56 tests OK |
+| `hooks/test_agy_bridge.py`, final candidate tests with the baseline bridge in a disposable copy | 15 failures and 4 errors, every new case except the short-body rejection (T6f), which the baseline also rejects because it counts no `Partial read` at all. Each error is a missing behavior: no shadow file left to stat, no sweep, no single canonical copy, and an idle event that removes the file at the shadow path | 58 tests OK |
 
 T1 initially passed on the baseline. On ext4 the inode the baseline unlinked was often handed straight back to the next event's temp file, so the identity looked stable by accident. Whether it stays stable depends on what else allocates inodes in between, such as the checkpoint's own attempt directories. On tmpfs, inode numbers never repeat. T1 now keeps the bridge state on `/dev/shm` when it exists, and the baseline then fails it 3 of 3 runs for the intended reason (the second edit is denied). T2 pins persistence of the inode on any filesystem.
 
@@ -42,6 +42,7 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
 | M16 | One canonical copy per skill, whatever ranges are claimed | Key the copy by range (lookup and store) | `test_many_claimed_ranges_keep_one_canonical_copy`. A first mutation that only skipped reuse stayed green because it still overwrote a single copy, so it did not break this predicate |
 | M17 | A later write checks that the name still holds the descriptor | Skip the identity comparison | `test_a_replacement_between_two_writes_of_one_event_fails_closed` |
 | M18 | An event that wrote nothing touches nothing | Empty by path when no descriptor is held | `test_an_event_that_wrote_nothing_leaves_the_shadow_path_alone` |
+| M19 | A later write revalidates the held descriptor (single link) | Plain `fstat` instead of the safety check | `test_a_hardlink_added_between_two_writes_of_one_event_fails_closed` |
 
 ## Out-of-Repository Rule (machine-local)
 
@@ -84,3 +85,16 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
   - P1 cleanup by path when the event wrote nothing could empty a replacement: fixed. That branch is gone, and the sweep handles leftovers of killed events (T4d; M18).
   - P1 verifier outcomes for this candidate were not recorded: fixed in Local Verification.
 - Same-class design check: R1 (sweep vs other conversations), C1 (rename during an event) and D1 (replacement between writes) each found a new instance of one class, same-uid interference with the private state directory. Decision: **narrow**. Keep the cheap invariants that stop stale or accidental state from redirecting a write: no-follow open, regular file, own uid, single link, descriptor-and-name identity. Remove the path-based cleanup branch instead of hardening it further. Record that a process with this uid acting deliberately is outside the threat model, because it already owns the `0700` directory (plan, Threat boundary). The scheme this replaces made the same assumption with no checks at all.
+
+Not verifiable by mutation: the body-length check that precedes the byte comparison only bounds work, because the comparison rejects the same inputs without it. It is pinned functionally by `test_a_right_sized_header_over_a_short_body_is_not_a_load` and by reading the code.
+
+## Delta pass D2
+
+- Reviewed commit: `0da41c3`; packet `git diff ac6c444..0da41c3`. D1's open items were carried verbatim. Result: `evidence/delta-D2.json`.
+- Findings: 5 total (0 P0 / 5 P1 / 0 P2). D1's three code items did not reproduce.
+- Dispositions:
+  - P1 the full claimed interval was copied before the body length was checked: fixed. The length is checked first and the bytes are compared through a `memoryview` (T6f).
+  - P1 no test pinned revalidation of the held descriptor against a hardlink added between writes: fixed (T4e; M19).
+  - P1 verifier outcomes for this candidate were not recorded: fixed in Local Verification.
+  - P1 coverage is combined only within one requested line range, so two different ranges that each show part of one row do not combine: rejected. It needs a second range read that starts at a byte offset inside a row of the first. The host's continuation hint keeps the same range, and a range read from offset 0 shows its first row whole. The effect is a conservative miss (one extra checkpoint at most), never false evidence.
+  - P1 the packet omitted the unchanged sweep and event-lifecycle code: input scope, not a candidate defect. That code was in the C1 packet, and every later change to it is in the D1 and D2 packets.

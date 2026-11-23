@@ -727,6 +727,11 @@ class PartialReadTests(BridgeCase):
         self.assertEqual(len(stored), 1)
         self.assertEqual(len(stored[0][0]), len(self.stream))
 
+    def test_a_right_sized_header_over_a_short_body_is_not_a_load(self):
+        (s1, e1), (s2, e2), (s3, e3) = self.tile()
+        short = (s2, self.result(s2, e2, body=self.stream[s2:s2 + 10].decode()))
+        self.assertEqual(self.loaded([self.good()[0], short, self.good()[2]]), [])
+
     def test_incomplete_or_mismatched_chunks_are_not_a_load(self):
         (s1, e1), (s2, e2), (s3, e3) = self.tile()
         good = self.good()
@@ -899,6 +904,18 @@ class ShadowIdentityTests(BridgeCase):
         shadow = state / f'{self.key(bridge, "swap")}.jsonl'
         self.assertEqual(shadow.read_text(), 'replacement')
         self.assertEqual(shadow.with_name(shadow.name + '.moved').stat().st_size, 0)
+
+    def test_a_hardlink_added_between_two_writes_of_one_event_fails_closed(self):
+        copy = self.tmp / 'plugin'
+        shutil.copytree(ROOT / 'hooks', copy / 'hooks')
+        twin = self.tmp / 'twin.jsonl'
+        (copy / 'hooks/guard-edit-isolation.sh').write_text(
+            f'#!/bin/sh\nt=$(jq -r .transcript_path)\n[ -e {twin} ] || ln "$t" {twin}\n')
+        patch = '*** Begin Patch\n*** Update File: one.md\n*** Update File: two.md\n*** End Patch'
+        result = self.bridge('PreToolUse', self.edit('apply_patch', {'Input': patch}, self.tmp, conversation='twin'),
+                             root=copy)
+        self.assertEqual(result['decision'], 'deny', result)
+        self.assertEqual(twin.stat().st_size, 0, 'the second write never went through the extra name')
 
     def test_an_event_that_wrote_nothing_leaves_the_shadow_path_alone(self):
         bridge, state = self.state()

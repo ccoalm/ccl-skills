@@ -105,6 +105,7 @@ One independent review of the plan (Codex, before the code) returned findings bu
 | T4b | A directory listing that fails midway does not escape the sweep | fail (no sweep) | pass |
 | T4c | A hook replaces the shadow between two writes of one event: the event is denied, the replacement keeps its content and the original inode is emptied | fail | pass |
 | T4d | An event that writes no shadow leaves whatever is at the shadow path untouched | fail (old scheme unlinks it) | pass |
+| T4e | A hook adds a hardlink to the shadow between two writes of one event: the event is denied | fail | pass |
 | T5 | A skill over 46,080 formatted bytes read as three `ByteOffset` chunks (cut inside lines at UTF-8 boundaries, in parallel and in reverse order) synthesizes the `Skill` event | fail | pass |
 | T5b | A chunk requested inside a multi-byte character, which the host serves from that character while echoing the requested offset, counts. The same header with bytes that do not match at the real start does not | fail | pass |
 | T6 | A cut-off last line that is re-read by an overlapping chunk counts. Without the re-read, it does not | fail | pass |
@@ -112,6 +113,7 @@ One independent review of the plan (Codex, before the code) returned findings bu
 | T6c | A chunk whose body starts with text shaped like a `Showing lines` header still counts as a `Partial read` | fail | pass |
 | T6d | Complementary chunks of two skills with identical layouts never combine into a load, and complete reads of both load both | fail | pass |
 | T6e | Hundreds of distinct claimed line ranges keep one canonical copy of the skill | fail (no such storage) | pass |
+| T6f | A header with the right sizes over a short body is rejected (its length is checked before any comparison) | pass (nothing counted) | pass |
 | T7 | No `Skill` event when: the middle chunk is missing, a byte is tampered, a line number is forged at equal length, `Z` is wrong, `T` is wrong, or the start offset is misplaced with mismatched body length | pass (nothing counted) | pass |
 | T8 | The existing `Showing lines` evidence tests are unchanged | pass | pass |
 

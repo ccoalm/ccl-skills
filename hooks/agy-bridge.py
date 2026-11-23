@@ -325,7 +325,7 @@ def partial_lines(content, header, lines, spans):
         # An offset inside a character makes the host start at that character's
         # first byte but still report the requested offset.
         start = lead
-    if stream[base + start:base + end] != body:
+    if len(body) != end - start or memoryview(stream)[base + start:base + end] != body:
         return set()
     merged = merge_spans(spans.get((first, last), []) + [(start, end)])
     spans[(first, last)] = merged
