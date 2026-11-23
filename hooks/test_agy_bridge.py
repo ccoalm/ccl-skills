@@ -532,7 +532,8 @@ class EvidenceTests(BridgeCase):
         capture = self.tmp / 'captured'
         (copy / 'hooks/proposed-next-stop.sh').write_text(
             '#!/bin/sh\nt=$(jq -r .transcript_path)\npython3 -c "import os,stat,sys; s=os.stat(sys.argv[1]); '
-            f'print(s.st_ino, oct(stat.S_IMODE(s.st_mode))[2:])" "$t" >> {capture}.ids\ncp "$t" {capture}\n')
+            f'print(s.st_ino, oct(stat.S_IMODE(s.st_mode))[2:])" "$t" >> {shlex.quote(str(capture) + ".ids")}\n'
+            f'cp "$t" {shlex.quote(str(capture))}\n')
         stop = {'conversationId': 'priv', 'cwd': str(self.tmp), 'transcriptPath': str(transcript),
                 'terminationReason': 'NO_TOOL_CALL'}
         between = []
@@ -876,6 +877,7 @@ class ShadowIdentityTests(BridgeCase):
         content = {
             f'{key["left"]}.jsonl': 'left', f'{key["fresh"]}.jsonl': 'fresh', f'{key["held"]}.jsonl': 'held',
             f'{key["paused"]}.jsonl': '', f'{key["left"]}.4242.tmp': 'temp', 'notes.tmp': 'other',
+            f'{key["fresh"]}.run.lock': '', f'{key["fresh"]}.4244.tmp': 'fresh temp',
             f'{key["held"]}.4243.tmp': 'temp of a running event',
             'other.jsonl': 'other', 'other.run.lock': '', f'{key["left"]}.lock': '', f'{key["left"]}.run.lock': '',
             f'{key["left"]}.active.turn': '{}', f'{key["unlocked"]}.jsonl': 'no lock file',
@@ -883,7 +885,7 @@ class ShadowIdentityTests(BridgeCase):
             f'{key["left"]}.\u0664\u0662.tmp': 'not ascii digits'}
         for name, text in content.items():
             (state / name).write_text(text)
-            if name != f'{key["fresh"]}.jsonl':
+            if not name.startswith(key['fresh']):
                 os.utime(state / name, (old, old))
         inode = (state / f'{key["left"]}.jsonl').stat().st_ino
         paused = (state / f'{key["paused"]}.jsonl').stat().st_ino

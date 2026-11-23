@@ -328,7 +328,8 @@ def partial_lines(content, header, lines, spans):
     if len(body) != end - start or memoryview(stream)[base + start:base + end] != body:
         return set()
     # Intervals live in whole-skill coordinates, so reads of different line ranges
-    # combine. A range read to its end also shows the separator after its last row.
+    # combine. A range read to its end also counts the separator after its last row:
+    # the header proves the range ended there, though no body carries that byte.
     stop = base + end + (end == size and last < total)
     merged = spans['verified'] = merge_spans(spans.get('verified', []) + [(base + start, stop)])
     # A row counts with its separator, so complete rows imply a complete stream.
@@ -473,7 +474,6 @@ OPEN_SHADOWS = {}  # key -> the descriptor this event validated and writes throu
 def write_shadow(key, events, extra=None):
     directory = state_dir()
     target = directory / f'{key}.jsonl'
-    data = ''.join(json.dumps(event) + '\n' for event in events + ([extra] if extra else [])).encode('utf-8')
     descriptor, created = OPEN_SHADOWS.get(key), False
     if descriptor is None:
         try:
@@ -487,10 +487,13 @@ def write_shadow(key, events, extra=None):
         if (held.st_dev, held.st_ino) != (named.st_dev, named.st_ino):
             raise BridgeError('shadow transcript was replaced during the event')
     os.lseek(descriptor, 0, os.SEEK_SET)
-    view = memoryview(data)
-    while view:
-        view = view[os.write(descriptor, view):]
-    os.ftruncate(descriptor, len(data))
+    written = 0
+    for event in events + ([extra] if extra else []):
+        view = memoryview((json.dumps(event) + '\n').encode('utf-8'))
+        written += len(view)
+        while view:
+            view = view[os.write(descriptor, view):]
+    os.ftruncate(descriptor, written)
     if created:
         sweep_stale(directory)
     return str(target)

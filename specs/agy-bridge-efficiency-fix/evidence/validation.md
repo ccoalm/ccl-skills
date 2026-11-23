@@ -44,9 +44,10 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
 | M18 | An event that wrote nothing touches nothing | Empty by path when no descriptor is held | `test_an_event_that_wrote_nothing_leaves_the_shadow_path_alone` |
 | M19 | A later write revalidates the held descriptor (single link) | Plain `fstat` instead of the safety check | `test_a_hardlink_added_between_two_writes_of_one_event_fails_closed`, `test_a_second_write_checks_the_file_before_writing_through_it` |
 | M20 | Verified intervals combine across line ranges | Key intervals by range | `test_reads_of_different_line_ranges_combine` |
-| M21 | A range read to its end shows its trailing separator | Drop the extension | same |
+| M21 | A range read to its end counts its trailing separator, inferred from the header | Drop the extension | same |
 | M22 | The held descriptor is revalidated before writing | Move the check after the write | `test_a_second_write_checks_the_file_before_writing_through_it` |
 | M23 | Body length is checked before any copy | Restore the eager slice | `test_a_right_sized_header_over_a_short_body_is_not_a_load` (peak allocation) |
+| M24 | The sweep touches only files older than 24 h | Remove the age filter and both rechecks under the lock | `test_a_new_conversation_empties_only_stale_unlocked_leftover_shadows` (fresh shadow and fresh legacy temp under a free lock) |
 
 ## Out-of-Repository Rule (machine-local)
 
@@ -116,3 +117,16 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
   - P1 the short-body test could not see the eager copy: fixed with a `tracemalloc` peak bound (T6f; M23).
   - P1 the fixture path was interpolated into a shell script unquoted: fixed with `shlex.quote`.
   - P1 packet scope and P1 verifier record: handled by the checkpoint above.
+
+## Review pass R2 (full candidate)
+
+- Reviewed commit: `e187f32`. Packet `c05fb28..e187f32` over `hooks/agy-bridge.py`, `hooks/test_agy_bridge.py`, the register, the plan and this record. The review receipts were left out to stay under the packet cap. Result: `evidence/review-R2.json`.
+- Findings: 7 total (0 P0 / 1 P1 / 6 P2). No P0/P1 in code.
+- Dispositions:
+  - P1 the verifier record was missing: fixed in Local Verification.
+  - P2 the range-end separator is counted without being compared: kept, and the claim is now worded as an inference from the header (plan, code comment, M21). A byte missing inside a range still blocks the load (T6b).
+  - P2 each sweep restarts its scan, so with a directory too large to scan within the budget a leftover beyond that point is never reached: deferred. This takes tens of thousands of entries, and a conversation's own next event rewrites its shadow anyway. Residual risk: such a leftover can outlive 24 h on a host with that many bridge state files.
+  - P2 the fresh-file case passed even with every age check removed: fixed (fresh shadow and fresh legacy temp under a free run lock; M24).
+  - P2 the shadow was built as two full-size buffers: fixed. Events are serialized and written one at a time.
+  - P2 the privacy test interpolated capture paths unquoted: fixed with `shlex.quote`.
+  - P2 the machine-local rule looked like a bridge deliverable: rejected. The plan scopes it as out-of-repository, never committed, and now states it is not part of the bridge's acceptance.
