@@ -8,7 +8,7 @@ Runs use synthetic data in private temporary directories on Linux (`agy` 1.5.14,
 | --- | --- | --- |
 | Reproduction probe: three `edit_file` events in one conversation | `deny` `First source-edit skill checkpoint` three times, three distinct checkpoint epochs | first `deny`, later `allow` |
 | Reproduction probe: `Partial read` header over a valid `grill-me` body | 0 of 80 lines covered (control: the same body under `Showing lines` covers 80 of 80) | full coverage when the chunks verify |
-| `hooks/test_agy_bridge.py`, final candidate tests with the baseline bridge in a disposable copy | 12 failures and 1 error, every new case. The error is the privacy test finding no shadow file to stat after an event, which is the defect | 51 tests OK |
+| `hooks/test_agy_bridge.py`, final candidate tests with the baseline bridge in a disposable copy | 13 failures and 2 errors, every new case. The errors are the privacy test finding no shadow file to stat after an event and the listing-error test finding no sweep, which are the defects | 53 tests OK |
 
 T1 initially passed on the baseline. On ext4 the inode the baseline unlinked was often handed straight back to the next event's temp file, so the identity looked stable by accident. Whether it stays stable depends on what else allocates inodes in between, such as the checkpoint's own attempt directories. On tmpfs, inode numbers never repeat. T1 now keeps the bridge state on `/dev/shm` when it exists, and the baseline then fails it 3 of 3 runs for the intended reason (the second edit is denied). T2 pins persistence of the inode on any filesystem.
 
@@ -26,16 +26,19 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
 | M5 | Mid-character back-off accepted | Remove the back-off | `test_an_offset_inside_a_character_counts_where_the_host_really_started` |
 | M5b | Back-off stops at the lead byte of the character holding the offset | Derive the start from the body length | same |
 | M5c | The earliest header in a result is the tool's | Prefer `Showing lines` wherever it appears | `test_header_like_text_at_the_start_of_a_chunk_body_is_not_a_header` |
-| M5d | Byte intervals are kept per skill | Key all skills together | `test_byte_intervals_of_two_skills_never_combine` |
+| M5d | Byte intervals are kept per skill | Key all skills together | `test_byte_intervals_of_two_skills_never_combine`. After the canonical stream was cached in the same per-skill table, global keying rejected the second skill instead of mixing it, and M5d went green; the test now also requires complete reads of both skills to load both |
 | M6 | Shadow has a single link | Drop the `st_nlink` check | `test_an_unsafe_shadow_path_blocks_and_is_not_written_through` |
 | M7 | Sweep skips a shadow whose run lock is held | Skip the `flock` | `test_a_new_conversation_empties_only_stale_unlocked_leftover_shadows` |
 | M7b | Sweep leaves a shadow without a lock file alone | Create the missing lock | same |
 | M7c | Another conversation's unsafe file does not fail this event | Catch only `OSError` | same |
 | M8 | Sweep empties a shadow, never removes it | Unlink instead | same |
+| M14 | Sweep removes a legacy temp only under its conversation's run lock | Remove without the lock | same |
+| M15 | A failing directory listing stays inside the sweep | Drop the outer guard | `test_a_directory_listing_error_never_fails_the_event` |
 | M9 | Sweep touches exact shadow names only | Match any `*.jsonl` | same. The first run of M9 stayed green because the unrelated fixture file had no lock file; `other.run.lock` was added so only the name check protects it |
 | M10 | Legacy temp names are ASCII PIDs without a leading zero | `\d+` | same |
 | M11 | Event end keeps the inode | Restore the old unlink | `test_source_edit_checkpoint_fires_once_per_conversation`, plus the T3 and T4 cases that also rely on the shadow surviving |
 | M12 | Event end leaves no content | Skip the truncation | `test_shadow_transcript_is_private_structural_and_empty_after_the_event` |
+| M13 | Event end empties the inode it wrote, not whatever holds the name | Close the held descriptor and empty by path | `test_event_end_empties_the_inode_it_wrote_even_after_a_rename` |
 
 ## Out-of-Repository Rule (machine-local)
 
@@ -50,6 +53,20 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
   - P1 sweep lets `BridgeError` from another conversation's hardlinked shadow escape and deny this event: fixed (`except (OSError, BridgeError)`; M7c; stale hardlinked shadow case in T4).
   - P1 sweep without a lock file races a starting event: fixed (a shadow with no run lock is left alone; M7b).
   - P1 an internal row separator could stay unread while every row looked shown: fixed (the separator is part of the required span; M4b; T6b).
-  - P1 verifier outcomes and the challenge were not yet recorded: fixed by this record and the challenge pass below.
+  - P1 verifier outcomes and the challenge were not yet recorded: fixed. Outcomes are in Local Verification and the challenge in Challenge pass (C1).
   - P2 back-off not pinned to the lead byte: fixed (M5b). P2 header chosen by regex order: fixed (M5c; T6c). P2 `\d` accepts non-ASCII digits and leading zeros: fixed (M10). P2 rows × intervals scan: fixed with one monotonic pass. P2 privacy test checked only after the last event: fixed (stats after every event). P2 fixture tied to a real skill's size: fixed (synthetic bundled skills). P2 per-skill keying unpinned: fixed (T6d; M5d). P2 `TMPDIR` restore: fixed in the new helper. P2 overstated "every event gets a new identity": fixed in the plan and register row.
-  - P2 "the global rule was not requested": rejected. The request reads "及本机 Antigravity 全局执行规则固化", and the rule is machine-local, outside the candidate.
+  - P2 "the global rule was not requested": rejected. The rule is a requested machine-local deliverable, outside the candidate and never committed.
+
+## Challenge pass (C1)
+
+- Reviewed commit: `ba6aa5e`. Packet `c05fb28..ba6aa5e`, unprimed adversarial framing, same reviewer family and risk tags as R1. Result: `evidence/challenge-C1.json`.
+- Findings: 6 total (0 P0 / 1 P1 / 5 P2).
+- R0 evidence: unchanged register content since the R1 audit run. Re-run on the final candidate under Local Verification.
+- Gate-fireability applicability: no. The candidate changes no gate that decides review evidence.
+- Dispositions:
+  - P1 event-end cleanup reopened the path, so a rename during the event left the original inode full, and a replacement at the name could be emptied: fixed. The event holds its validated descriptor and empties through it; T3b; M13.
+  - P2 legacy temp removed without its conversation's lock: fixed (M14; a lock-held legacy temp survives in T4).
+  - P2 a listing error raised mid-iteration escaped the sweep: fixed (T4b; M15).
+  - P2 every result rebuilt the canonical stream for its range: fixed. The stream is built once per skill and range, then each chunk is one slice comparison plus one pass over rows and merged spans.
+  - P2 the validation record pointed at results it did not yet contain: fixed (this section and Local Verification).
+  - P2 bind each chunk to the call's requested `ByteOffset`: rejected, keep. The same class came up in the plan review. A result paired with the wrong call still counts only if its bytes equal that skill's canonical stream at the offsets it states, so it can only report text the agent was actually shown. The requested offset is the tool's vocabulary, and the backed-up mid-character answer echoes it anyway. The invariant the bridge owns is the byte comparison.

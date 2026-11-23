@@ -302,12 +302,17 @@ def partial_lines(content, header, lines, spans):
     first, last, total, start, end, size = (int(value) for value in header.groups())
     if total != len(lines) or not 1 <= first <= last <= total:
         return set()
-    rows = [f'{n}: {lines[n - 1]}'.encode('utf-8') for n in range(first, last + 1)]
-    stream = b'\n'.join(rows)
     if content[header.end():header.end() + 1] != '\n':
         return set()
+    formatted = spans.get(('formatted', first, last))  # built once per skill and range
+    if formatted is None:
+        rows = [f'{n}: {lines[n - 1]}'.encode('utf-8') for n in range(first, last + 1)]
+        formatted = spans[('formatted', first, last)] = (rows, b'\n'.join(rows))
+    rows, stream = formatted
+    if size != len(stream):
+        return set()
     body = content[header.end() + 1:].encode('utf-8', 'surrogatepass')
-    if size != len(stream) or not 0 <= start < end <= size:
+    if not 0 <= start < end <= size:
         return set()
     lead = start
     while lead > 0 and stream[lead] & 0xC0 == 0x80:
@@ -450,33 +455,39 @@ def checked_shadow(descriptor):
     return descriptor
 
 
+OPEN_SHADOWS = {}  # key -> the descriptor this event validated and writes through
+
+
 def write_shadow(key, events, extra=None):
     directory = state_dir()
     target = directory / f'{key}.jsonl'
     data = ''.join(json.dumps(event) + '\n' for event in events + ([extra] if extra else [])).encode('utf-8')
-    try:
-        descriptor, created = os.open(target, WRITE_FLAGS | os.O_CREAT | os.O_EXCL, 0o600), True
-    except FileExistsError:
-        descriptor, created = os.open(target, WRITE_FLAGS), False
-    checked_shadow(descriptor)
-    try:
-        view = memoryview(data)
-        while view:
-            view = view[os.write(descriptor, view):]
-        os.ftruncate(descriptor, len(data))
-    finally:
-        os.close(descriptor)
+    descriptor, created = OPEN_SHADOWS.get(key), False
+    if descriptor is None:
+        try:
+            descriptor, created = os.open(target, WRITE_FLAGS | os.O_CREAT | os.O_EXCL, 0o600), True
+        except FileExistsError:
+            descriptor = os.open(target, WRITE_FLAGS)
+        OPEN_SHADOWS[key] = checked_shadow(descriptor)
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    view = memoryview(data)
+    while view:
+        view = view[os.write(descriptor, view):]
+    os.ftruncate(descriptor, len(data))
     if created:
         sweep_stale(directory)
     return str(target)
 
 
 def clear_shadow(key):
-    try:
-        descriptor = os.open(state_dir() / f'{key}.jsonl', WRITE_FLAGS)
-    except FileNotFoundError:
-        return
-    checked_shadow(descriptor)
+    """Empty the shadow at event end through the descriptor the event wrote, so a
+    rename or replacement of the name during the event cannot keep content around."""
+    descriptor = OPEN_SHADOWS.pop(key, None)
+    if descriptor is None:
+        try:
+            descriptor = checked_shadow(os.open(state_dir() / f'{key}.jsonl', WRITE_FLAGS))
+        except FileNotFoundError:
+            return
     try:
         os.ftruncate(descriptor, 0)
     finally:
@@ -487,45 +498,57 @@ def sweep_stale(directory, budget=1.0):
     """Empty shadows an interrupted event left full and drop the old scheme's temp files.
 
     Runs when a conversation's shadow is first created. A shadow is emptied, never
-    removed, so a paused conversation keeps its identity; one whose run lock is held
-    belongs to a running event and is skipped. Failures never affect the event.
+    removed, so a paused conversation keeps its identity. Either kind of file is
+    touched only under its conversation's run lock, so a running event is skipped.
+    Failures never affect the event.
     """
     started, cutoff = time.monotonic(), time.time() - SHADOW_TTL
     try:
-        entries = os.scandir(directory)
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if time.monotonic() - started > budget:
+                    return
+                try:
+                    info = entry.stat(follow_symlinks=False)
+                    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                            or info.st_mtime >= cutoff):
+                        continue
+                    if LEGACY_TEMP_RE.match(entry.name):
+                        under_run_lock(directory, entry.name.split('.', 1)[0],
+                                       lambda: remove_if_stale(entry.path, cutoff))
+                    elif SHADOW_NAME_RE.match(entry.name) and info.st_size:
+                        key = entry.name[:-len('.jsonl')]
+                        under_run_lock(directory, key, lambda: empty_if_stale(directory / entry.name, cutoff))
+                except (OSError, BridgeError):
+                    continue  # another conversation's unsafe file is its own event's problem
     except OSError:
         return
-    with entries:
-        for entry in entries:
-            if time.monotonic() - started > budget:
-                return
-            try:
-                info = entry.stat(follow_symlinks=False)
-                if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
-                        or info.st_mtime >= cutoff):
-                    continue
-                if LEGACY_TEMP_RE.match(entry.name):
-                    os.unlink(entry.path)
-                elif SHADOW_NAME_RE.match(entry.name) and info.st_size:
-                    empty_unless_running(directory, entry.name[:-len('.jsonl')], cutoff)
-            except (OSError, BridgeError):
-                continue  # another conversation's unsafe file is its own event's problem
 
 
-def empty_unless_running(directory, key, cutoff):
+def under_run_lock(directory, key, action):
     # Every event takes this lock before writing; without it the age check races a
-    # starting event, so a shadow with no lock file is left alone.
+    # starting event, so a file whose conversation has no lock file is left alone.
     lock = os.open(directory / f'{key}.run.lock', WRITE_FLAGS)
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        descriptor = checked_shadow(os.open(directory / f'{key}.jsonl', WRITE_FLAGS))
-        try:
-            if os.fstat(descriptor).st_mtime < cutoff:
-                os.ftruncate(descriptor, 0)
-        finally:
-            os.close(descriptor)
+        action()
     finally:
         os.close(lock)
+
+
+def remove_if_stale(path, cutoff):
+    info = os.lstat(path)
+    if stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_mtime < cutoff:
+        os.unlink(path)
+
+
+def empty_if_stale(path, cutoff):
+    descriptor = checked_shadow(os.open(path, WRITE_FLAGS))
+    try:
+        if os.fstat(descriptor).st_mtime < cutoff:
+            os.ftruncate(descriptor, 0)
+    finally:
+        os.close(descriptor)
 
 
 def context(agy, extra=None):

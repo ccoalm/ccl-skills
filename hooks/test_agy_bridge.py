@@ -711,6 +711,8 @@ class PartialReadTests(BridgeCase):
         self.assertEqual(self.loaded(mixed), [])
         complete = mixed + [(self.skill, start, self.result(start, end)) for start, end in rest]
         self.assertEqual(self.loaded(complete), ['ccl-skills:sample-skill'])
+        both = complete + [(other, first[0], self.result(*first, stream=other_stream, lines=other_lines))]
+        self.assertEqual(sorted(self.loaded(both)), ['ccl-skills:sample-other', 'ccl-skills:sample-skill'])
 
     def test_incomplete_or_mismatched_chunks_are_not_a_load(self):
         (s1, e1), (s2, e2), (s3, e3) = self.tile()
@@ -808,6 +810,7 @@ class ShadowIdentityTests(BridgeCase):
         content = {
             f'{key["left"]}.jsonl': 'left', f'{key["fresh"]}.jsonl': 'fresh', f'{key["held"]}.jsonl': 'held',
             f'{key["paused"]}.jsonl': '', f'{key["left"]}.4242.tmp': 'temp', 'notes.tmp': 'other',
+            f'{key["held"]}.4243.tmp': 'temp of a running event',
             'other.jsonl': 'other', 'other.run.lock': '', f'{key["left"]}.lock': '', f'{key["left"]}.run.lock': '',
             f'{key["left"]}.active.turn': '{}', f'{key["unlocked"]}.jsonl': 'no lock file',
             f'{key["multi"]}.run.lock': '', f'{key["left"]}.04242.tmp': 'leading zero',
@@ -850,6 +853,43 @@ class ShadowIdentityTests(BridgeCase):
         self.assertEqual(twin.read_text(), 'multi\n', "another conversation's linked file is left alone")
         self.assertEqual(swept['decision'], 'allow', "another conversation's unsafe file does not block this one")
         self.assertEqual((state / f'{self.key(bridge, "sweeper")}.jsonl').stat().st_size, 0)
+
+
+    def test_event_end_empties_the_inode_it_wrote_even_after_a_rename(self):
+        copy = self.tmp / 'plugin'
+        shutil.copytree(ROOT / 'hooks', copy / 'hooks')
+        (copy / 'hooks/proposed-next-stop.sh').write_text(
+            '#!/bin/sh\nt=$(jq -r .transcript_path)\nmv "$t" "$t.moved"\nprintf replacement > "$t"\n'
+            'chmod 600 "$t"\n')
+        transcript = self.tmp / 'logs/transcript.jsonl'
+        transcript.parent.mkdir()
+        transcript.write_text(json.dumps({'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0}) + '\n')
+        self.bridge('Stop', {'conversationId': 'moved', 'cwd': str(self.tmp), 'transcriptPath': str(transcript),
+                             'terminationReason': 'NO_TOOL_CALL'}, root=copy)
+        bridge, state = self.state()
+        shadow = state / f'{self.key(bridge, "moved")}.jsonl'
+        self.assertEqual(shadow.with_name(shadow.name + '.moved').stat().st_size, 0,
+                         'the inode the event wrote is emptied wherever it went')
+        self.assertEqual(shadow.read_text(), 'replacement', 'a file that took the name is not the event\'s to empty')
+
+    def test_a_directory_listing_error_never_fails_the_event(self):
+        bridge, state = self.state()
+
+        class Broken:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def __iter__(self):
+                raise OSError('listing failed')
+        original = bridge.os.scandir
+        bridge.os.scandir = lambda _: Broken()
+        try:
+            bridge.sweep_stale(state)
+        finally:
+            bridge.os.scandir = original
 
 
 class ScopeExemptionTests(BridgeCase):
