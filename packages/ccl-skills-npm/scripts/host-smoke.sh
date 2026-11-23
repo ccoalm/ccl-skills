@@ -35,7 +35,7 @@ unset exported           # an inherited export would pass the list to every chil
 exported=$(compgen -e)   # an assignment, so set -e stops the smoke if this fails
 for var in $exported; do
   case "$var" in
-    CLAUDE_CONFIG_DIR|CLAUDE_CODE_PLUGIN_*|OPENCODE_CONFIG*|GIT_*|GITHUB_*|CI_*)
+    CLAUDE_CONFIG_DIR|CLAUDE_CODE_PLUGIN_*|OPENCODE_CONFIG*|ANTIGRAVITY_*|AGY_*|GIT_*|GITHUB_*|CI_*)
       unset "$var"
       ;;
   esac
@@ -81,9 +81,25 @@ for (const rec of entries) {
   const rel = rec.slice(tab + 1);
   const mode = gitMode === "100644" ? 0o644 : gitMode === "100755" ? 0o755 : null;
   if (tab < 0 || mode === null) throw new Error("unsupported git mode: " + (rel || rec));
-  const src = join(repo, rel);
-  const st = lstatSync(src);
-  if (!st.isFile() || st.isSymbolicLink() || st.nlink !== 1) {
+  const parts = rel.split("/");
+  let cur = repo;
+  let st = null;
+  for (let i = 0; i < parts.length; i += 1) {
+    cur = join(cur, parts[i]);
+    try {
+      st = lstatSync(cur);
+    } catch (err) {
+      if (err && err.code === "ENOENT") {
+        throw new Error("tracked source entry missing from working tree: " + rel);
+      }
+      throw err;
+    }
+    if (st.isSymbolicLink()) {
+      throw new Error("tracked source entry traverses symlink: " + rel);
+    }
+  }
+  const src = cur;
+  if (!st || !st.isFile() || st.nlink !== 1) {
     throw new Error("tracked source entry is not a single-link regular file: " + rel);
   }
   const dst = join(dest, rel);

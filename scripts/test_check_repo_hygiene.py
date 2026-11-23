@@ -152,6 +152,37 @@ class RepoHygieneTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("repo_hygiene_ok", proc.stdout)
 
+        # Also verify tracked_paths() honors safe.directory when global git config is /dev/null
+        sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        root = _make_git_repo(sandbox, {"scripts/ok.py": "x = 1\n"})
+        shim_dir = sandbox / "git-shim"
+        shim_dir.mkdir()
+        real_git = subprocess.check_output(["sh", "-c", "command -v git"], text=True).strip()
+        shim = shim_dir / "git"
+        shim.write_text(
+            "#!/usr/bin/env python3\n"
+            "import os, subprocess, sys\n"
+            f"root = {str(root.resolve())!r}\n"
+            "args = sys.argv[1:]\n"
+            "if 'ls-files' in args:\n"
+            "    ok = any(\n"
+            "        args[i] == '-c' and i + 1 < len(args) and args[i + 1] in (f'safe.directory={root}', 'safe.directory=*')\n"
+            "        for i in range(len(args))\n"
+            "    )\n"
+            "    if not ok:\n"
+            "        sys.stderr.write(f\"fatal: detected dubious ownership in repository at '{root}'\\n\")\n"
+            "        raise SystemExit(128)\n"
+            f"raise SystemExit(subprocess.call([{real_git!r}, *args]))\n",
+            encoding="utf-8",
+        )
+        shim.chmod(0o755)
+        old_path = os.environ.get("PATH", "")
+        os.environ["PATH"] = f"{shim_dir}:{old_path}"
+        try:
+            self.assertEqual(MODULE.tracked_paths(root.resolve()), ["scripts/ok.py"])
+        finally:
+            os.environ["PATH"] = old_path
+
     def test_minimal_fixture_satisfies_checks_and_spares_exempt_surfaces(self) -> None:
         sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
         files = _minimal_clean_repo_files()
@@ -264,6 +295,18 @@ class RepoHygieneTest(unittest.TestCase):
             opt_in_suites={"a": "t1", "b": "t2", "c": "t3"},
         )
         self.assertTrue(any("test-registration-cap-exceeded" in f for f in cap_findings))
+
+        # Multi-line YAML parse error and CR/control-char runner entry must stay single-line via display()
+        (root / ".github/workflows/ci.yml").write_text("jobs:\n  broken: [\n", encoding="utf-8")
+        (root / "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh").write_bytes(
+            b"#!/usr/bin/env bash\nfast_tests=(\n  test_bad\rname.sh\n)\nheavy_tests=(\n  test_reg_two.sh\n)\n"
+        )
+        escaped_findings = MODULE.check_test_registration(root, tracked)
+        self.assertTrue(any("test-registration-ci-yaml-error:" in f for f in escaped_findings))
+        self.assertTrue(any("test-registration-missing-runner-entry:" in f for f in escaped_findings))
+        for item in escaped_findings:
+            self.assertNotIn("\n", item)
+            self.assertNotIn("\r", item)
 
     def test_python_warnings_catches_invalid_escape_and_tampered_manifest_archive(self) -> None:
         sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))

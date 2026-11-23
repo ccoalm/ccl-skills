@@ -137,6 +137,7 @@ def _clean_git_env() -> dict[str, str]:
 
 
 def tracked_paths(root: Path) -> list[str]:
+    resolved = root.resolve()
     proc = subprocess.run(
         [
             "git",
@@ -144,8 +145,10 @@ def tracked_paths(root: Path) -> list[str]:
             "core.fsmonitor=false",
             "-c",
             "core.hooksPath=/dev/null",
+            "-c",
+            f"safe.directory={resolved}",
             "-C",
-            str(root),
+            str(resolved),
             "ls-files",
             "-z",
         ],
@@ -232,7 +235,7 @@ def check_git_env_parity(root: Path) -> list[str]:
         try:
             tree = ast.parse(target.read_bytes(), filename=rel)
         except SyntaxError as exc:
-            findings.append(f"git-env-parse-error: {rel}:{exc.lineno}: {exc.msg}")
+            findings.append(f"git-env-parse-error: {display(rel)}:{exc.lineno}: {display(str(exc.msg))}")
             continue
 
         extracted: list[tuple[str, ...]] = []
@@ -318,7 +321,7 @@ def check_display_sharing(root: Path) -> list[str]:
             helper_tree = ast.parse(helper.read_bytes(), filename=DISPLAY_HELPER_REL)
         except SyntaxError as exc:
             findings.append(
-                f"display-helper-parse-error: {DISPLAY_HELPER_REL}:{exc.lineno}: {exc.msg}"
+                f"display-helper-parse-error: {DISPLAY_HELPER_REL}:{exc.lineno}: {display(str(exc.msg))}"
             )
         else:
             has_def = any(
@@ -333,12 +336,12 @@ def check_display_sharing(root: Path) -> list[str]:
     for rel in DISPLAY_CALLERS:
         target = root / rel
         if target.is_symlink() or not target.is_file():
-            findings.append(f"display-caller-missing: {rel}")
+            findings.append(f"display-caller-missing: {display(rel)}")
             continue
         try:
             tree = ast.parse(target.read_bytes(), filename=rel)
         except SyntaxError as exc:
-            findings.append(f"display-caller-parse-error: {rel}:{exc.lineno}: {exc.msg}")
+            findings.append(f"display-caller-parse-error: {display(rel)}:{exc.lineno}: {display(str(exc.msg))}")
             continue
 
         local_defs = [
@@ -681,7 +684,7 @@ def check_test_registration(
         try:
             ci_doc = yaml.safe_load(ci_path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
-            findings.append(f"test-registration-ci-yaml-error: {exc}")
+            findings.append(f"test-registration-ci-yaml-error: {display(str(exc))}")
             ci_doc = None
         if isinstance(ci_doc, dict) and isinstance(ci_doc.get("jobs"), dict):
             for job in ci_doc["jobs"].values():
@@ -733,7 +736,7 @@ def check_test_registration(
                 ).replace("\\", "/")
                 if norm not in tracked_set:
                     findings.append(
-                        f"test-registration-missing-runner-entry: {runner_rel} lists untracked {norm}"
+                        f"test-registration-missing-runner-entry: {runner_rel} lists untracked {display(norm)}"
                     )
                 registered.add(norm)
 
@@ -744,7 +747,7 @@ def check_test_registration(
         try:
             pkg_doc = json.loads(pkg_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            findings.append(f"test-registration-package-json-error: {pkg_rel}: {exc}")
+            findings.append(f"test-registration-package-json-error: {pkg_rel}: {display(str(exc))}")
             pkg_doc = {}
         scripts_map = pkg_doc.get("scripts") if isinstance(pkg_doc, dict) else {}
         if isinstance(scripts_map, dict):
@@ -771,22 +774,22 @@ def check_test_registration(
         child_path = root / child
         parent_path = root / parent
         if child not in tracked_set or not child_path.is_file():
-            findings.append(f"test-registration-stale-delegate: {child} is not tracked")
+            findings.append(f"test-registration-stale-delegate: {display(child)} is not tracked")
             continue
         if parent not in tracked_set or not parent_path.is_file():
             findings.append(
-                f"test-registration-stale-delegate: parent {parent} for {child} is not tracked"
+                f"test-registration-stale-delegate: parent {display(parent)} for {display(child)} is not tracked"
             )
             continue
         if parent not in registered:
             findings.append(
-                f"test-registration-unregistered-parent: parent {parent} for {child} is not CI-registered"
+                f"test-registration-unregistered-parent: parent {display(parent)} for {display(child)} is not CI-registered"
             )
             continue
         parent_text = parent_path.read_text(encoding="utf-8", errors="replace")
         if Path(child).name not in parent_text:
             findings.append(
-                f"test-registration-unreferenced-delegate: {parent} no longer invokes {Path(child).name}"
+                f"test-registration-unreferenced-delegate: {display(parent)} no longer invokes {display(Path(child).name)}"
             )
             continue
         registered.add(child)
@@ -794,11 +797,11 @@ def check_test_registration(
     # 6. Bounded opt-in environment-gated suites (e.g. Docker-only target in Makefile)
     for suite, make_target in sorted(opt_ins.items()):
         if suite not in tracked_set or not (root / suite).is_file():
-            findings.append(f"test-registration-stale-opt-in: {suite} is not tracked")
+            findings.append(f"test-registration-stale-opt-in: {display(suite)} is not tracked")
             continue
         if make_target not in make_targets:
             findings.append(
-                f"test-registration-missing-opt-in-target: Makefile lacks {make_target} for {suite}"
+                f"test-registration-missing-opt-in-target: Makefile lacks {display(make_target)} for {display(suite)}"
             )
             continue
         _, target_recipes = make_targets[make_target]
@@ -807,7 +810,7 @@ def check_test_registration(
             target_paths.update(_extract_paths_from_shell_line(rline))
         if suite not in target_paths:
             findings.append(
-                f"test-registration-unreferenced-opt-in: Makefile target {make_target} does not run {suite}"
+                f"test-registration-unreferenced-opt-in: Makefile target {display(make_target)} does not run {display(suite)}"
             )
             continue
         registered.add(suite)

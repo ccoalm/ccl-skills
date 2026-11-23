@@ -325,6 +325,13 @@ process.exit(0);
 const fs = require("node:fs");
 const path = require("node:path");
 const args = process.argv.slice(2);
+const leakedAgyEnv = Object.keys(process.env).filter(
+  (k) => k.startsWith("ANTIGRAVITY_") || k.startsWith("AGY_"),
+);
+if (leakedAgyEnv.length) {
+  console.error("leaked ANTIGRAVITY/AGY env into agy: " + leakedAgyEnv.join(","));
+  process.exit(9);
+}
 const leakedReleaseEnv = Object.keys(process.env).filter(
   (k) =>
     k === "CI" ||
@@ -339,7 +346,7 @@ const leakedReleaseEnv = Object.keys(process.env).filter(
 if (process.env.SMOKE_ENV_AUDIT_LOG) {
   fs.appendFileSync(
     process.env.SMOKE_ENV_AUDIT_LOG,
-    JSON.stringify({ tool: "agy", args, leakedReleaseEnv }) + "\\n",
+    JSON.stringify({ tool: "agy", args, leakedReleaseEnv, leakedAgyEnv }) + "\\n",
   );
 }
 if (leakedReleaseEnv.length) {
@@ -350,7 +357,8 @@ if (args.includes("--LogFile") || process.env.SMOKE_AGY_CALL_LOG) {
   if (process.env.SMOKE_AGY_CALL_LOG) fs.appendFileSync(process.env.SMOKE_AGY_CALL_LOG, args.join(" ") + "\\n");
 }
 if (args[0] === "--version") { console.log("1.5.14"); process.exit(0); }
-const dest = path.join(process.env.HOME, ".gemini/config/plugins/ccl-skills");
+const geminiRoot = process.env.ANTIGRAVITY_GEMINI_DIR || path.join(process.env.HOME, ".gemini");
+const dest = path.join(geminiRoot, "config/plugins/ccl-skills");
 if (args[0] === "plugin" && args[1] === "list") {
   console.log(JSON.stringify(fs.existsSync(dest) ? [{ name: "ccl-skills", enabled: true, source: "antigravity", path: dest }] : []));
   process.exit(0);
@@ -431,6 +439,10 @@ test("host-smoke isolates XDG/OPENCODE/CCL_SKILLS_REPO env, stages only tracked 
 				CCL_SKILLS_REPO: join(sandbox, "nonexistent-override-repo"),
 				CLAUDE_CONFIG_DIR: join(sandbox, "poison-claude"),
 				CLAUDE_CODE_PLUGIN_ROOT: join(sandbox, "poison-plugin-root"),
+				ANTIGRAVITY_GEMINI_DIR: join(sandbox, "poison-agy-gemini"),
+				ANTIGRAVITY_CONFIG_REL_DIR: "poison-agy-config",
+				ANTIGRAVITY_APP_DATA_DIR: join(sandbox, "poison-agy-appdata"),
+				AGY_ACCOUNT: "poison@example.invalid",
 				GIT_DIR: join(sandbox, "poison-git-dir"),
 				GIT_WORK_TREE: join(sandbox, "poison-work-tree"),
 				GIT_EXEC_PATH: join(sandbox, "poison-git-exec"),
@@ -481,8 +493,23 @@ test("host-smoke isolates XDG/OPENCODE/CCL_SKILLS_REPO env, stages only tracked 
 		assert.equal(envAudits.length > 0, true);
 		for (const audit of envAudits) {
 			assert.deepEqual(audit.leakedReleaseEnv, []);
+			assert.deepEqual(audit.leakedAgyEnv, []);
 		}
 		assert.equal(existsSync(join(sandbox, "caller-home")), false, "caller HOME must stay untouched");
+		assert.equal(existsSync(join(sandbox, "poison-agy-gemini")), false, "caller ANTIGRAVITY_GEMINI_DIR must stay untouched");
+
+		// Unstaged deletion of a tracked source file must fail closed with an explicit message
+		rmSync(join(repo, "skills/code-review/SKILL.md"));
+		const missingRes = spawnSync("bash", [smokeScript], {
+			encoding: "utf8",
+			env: {
+				...process.env,
+				PATH: `${bin}:${process.env.PATH}`,
+				HOME: join(sandbox, "caller-home-2"),
+			},
+		});
+		assert.notEqual(missingRes.status, 0);
+		assert.match(missingRes.stderr, /tracked source entry missing from working tree: skills\/code-review\/SKILL\.md/);
 	} finally {
 		rmSync(sandbox, { recursive: true, force: true });
 	}
