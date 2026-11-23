@@ -102,6 +102,34 @@ if (leakedGit.length) {
   process.exit(9);
 }
 const args = process.argv.slice(2);
+const isBuild = args[0] === "run" && args[1] === "build";
+const forbiddenCiEnv = [
+  "CONTINUOUS_INTEGRATION",
+  "BUILD_NUMBER",
+  "GITLAB_CI",
+  "BUILDKITE",
+  "CIRCLECI",
+  "TRAVIS",
+  "TEAMCITY_VERSION",
+  "JENKINS_URL",
+  "EXPECT_SOURCE_COMMIT",
+  "REQUIRE_CLEAN_RELEASE",
+  ...(isBuild ? [] : ["CI"]),
+];
+const leakedCi = [
+  ...forbiddenCiEnv.filter((k) => process.env[k] !== undefined),
+  ...Object.keys(process.env).filter(
+    (k) => k.startsWith("GITHUB_") || (k.startsWith("CI_") && !(isBuild && k === "CI_COMMIT_SHA")),
+  ),
+];
+if (leakedCi.length) {
+  console.error("leaked CI/release env into npm(" + args.join(" ") + "): " + leakedCi.join(","));
+  process.exit(9);
+}
+if (isBuild && !/^0{39}[12]$/.test(process.env.CI_COMMIT_SHA || "")) {
+  console.error("unexpected CI_COMMIT_SHA in synthetic build: " + process.env.CI_COMMIT_SHA);
+  process.exit(9);
+}
 if (args[0] === "ci") {
   fs.mkdirSync("node_modules/.bin", { recursive: true });
   process.exit(0);
@@ -126,6 +154,21 @@ if (args[0] === "pack") {
     process.exit(9);
   }
   const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  const release = JSON.parse(fs.readFileSync("dist/assets/release.json", "utf8"));
+  const expectedCommit = "0".repeat(39) + pkg.version.split(".")[0];
+  if (release.sourceCommit !== expectedCommit || release.sourceState !== "clean") {
+    console.error(
+      "unexpected synthetic release metadata: " +
+        JSON.stringify({ sourceCommit: release.sourceCommit, sourceState: release.sourceState, expectedCommit }),
+    );
+    process.exit(9);
+  }
+  if (process.env.SMOKE_PACK_RELEASE_LOG) {
+    fs.appendFileSync(
+      process.env.SMOKE_PACK_RELEASE_LOG,
+      JSON.stringify({ version: pkg.version, sourceCommit: release.sourceCommit, sourceState: release.sourceState }) + "\\n",
+    );
+  }
   const outName = "ccoalm-ccl-skills-" + pkg.version + ".tgz";
   const stage = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "stub-pack-"));
   const dst = path.join(stage, "package");
@@ -265,6 +308,27 @@ process.exit(0);
 const fs = require("node:fs");
 const path = require("node:path");
 const args = process.argv.slice(2);
+const leakedReleaseEnv = Object.keys(process.env).filter(
+  (k) =>
+    k === "CI" ||
+    k === "CONTINUOUS_INTEGRATION" ||
+    k === "BUILD_NUMBER" ||
+    k === "GITLAB_CI" ||
+    k === "EXPECT_SOURCE_COMMIT" ||
+    k === "REQUIRE_CLEAN_RELEASE" ||
+    k.startsWith("GITHUB_") ||
+    k.startsWith("CI_"),
+);
+if (process.env.SMOKE_ENV_AUDIT_LOG) {
+  fs.appendFileSync(
+    process.env.SMOKE_ENV_AUDIT_LOG,
+    JSON.stringify({ tool: "agy", args, leakedReleaseEnv }) + "\\n",
+  );
+}
+if (leakedReleaseEnv.length) {
+  console.error("leaked CI/release env into agy: " + leakedReleaseEnv.join(","));
+  process.exit(9);
+}
 if (args.includes("--LogFile") || process.env.SMOKE_AGY_CALL_LOG) {
   if (process.env.SMOKE_AGY_CALL_LOG) fs.appendFileSync(process.env.SMOKE_AGY_CALL_LOG, args.join(" ") + "\\n");
 }
@@ -328,6 +392,8 @@ test("host-smoke isolates XDG/OPENCODE/CCL_SKILLS_REPO env, stages only tracked 
 		const { smokeScript, prebuiltDist } = buildMiniSmokeRepo(sandbox);
 		const bin = makeStubBin(sandbox, prebuiltDist);
 		const agyLog = join(sandbox, "agy-calls.log");
+		const packReleaseLog = join(sandbox, "pack-release.jsonl");
+		const envAuditLog = join(sandbox, "env-audit.jsonl");
 		const poisonXdg = join(sandbox, "poison-xdg");
 		mkdirSync(join(poisonXdg, "opencode"), { recursive: true });
 		writeFileSync(join(poisonXdg, "opencode/opencode.json"), '{"plugin":[]}');
@@ -358,12 +424,19 @@ test("host-smoke isolates XDG/OPENCODE/CCL_SKILLS_REPO env, stages only tracked 
 				GIT_CONFIG_KEY_0: "core.sshCommand",
 				GIT_CONFIG_VALUE_0: "false",
 				CI: "true",
+				CONTINUOUS_INTEGRATION: "1",
 				GITHUB_ACTIONS: "true",
+				GITHUB_REF: "refs/heads/main",
+				GITHUB_REF_NAME: "main",
 				GITHUB_SHA: "f".repeat(40),
+				GITLAB_CI: "true",
+				CI_COMMIT_REF_NAME: "main",
 				CI_COMMIT_SHA: "e".repeat(40),
 				EXPECT_SOURCE_COMMIT: "d".repeat(40),
 				REQUIRE_CLEAN_RELEASE: "1",
 				SMOKE_AGY_CALL_LOG: agyLog,
+				SMOKE_PACK_RELEASE_LOG: packReleaseLog,
+				SMOKE_ENV_AUDIT_LOG: envAuditLog,
 			},
 		});
 		assert.equal(res.status, 0, `stdout:\n${res.stdout}\nstderr:\n${res.stderr}`);
@@ -375,6 +448,22 @@ test("host-smoke isolates XDG/OPENCODE/CCL_SKILLS_REPO env, stages only tracked 
 		const agyCalls = readFileSync(agyLog, "utf8");
 		assert.match(agyCalls, /^plugin install /m);
 		assert.match(agyCalls, /^plugin uninstall ccl-skills$/m);
+		const packedReleases = readFileSync(packReleaseLog, "utf8")
+			.trim()
+			.split("\n")
+			.map((line) => JSON.parse(line));
+		assert.deepEqual(packedReleases, [
+			{ version: "1.0.0", sourceCommit: `${"0".repeat(39)}1`, sourceState: "clean" },
+			{ version: "2.0.0", sourceCommit: `${"0".repeat(39)}2`, sourceState: "clean" },
+		]);
+		const envAudits = readFileSync(envAuditLog, "utf8")
+			.trim()
+			.split("\n")
+			.map((line) => JSON.parse(line));
+		assert.equal(envAudits.length > 0, true);
+		for (const audit of envAudits) {
+			assert.deepEqual(audit.leakedReleaseEnv, []);
+		}
 		assert.equal(existsSync(join(sandbox, "caller-home")), false, "caller HOME must stay untouched");
 	} finally {
 		rmSync(sandbox, { recursive: true, force: true });
