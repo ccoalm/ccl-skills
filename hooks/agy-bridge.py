@@ -76,6 +76,9 @@ PATH_KEYS = {'path', 'targetfile', 'target_file', 'absolutepath', 'absolute_path
              'file_path', 'notebookpath', 'notebook_path'}
 PATCH_PATH_RE = re.compile(r'^\*\*\* (?:(?:Add|Update|Delete) File|Move to): (.+?)\s*$', re.M)
 SHOWING_RE = re.compile(r'^Showing lines (\d+)-(\d+) of (\d+)\s*$', re.M)
+# A read past the byte limit: offsets index the formatted `N: line` stream of lines A-B.
+PARTIAL_RE = re.compile(r'^Partial read \(lines (\d{1,9})-(\d{1,9}) of (\d{1,9})\)\. Showing bytes '
+                        r'(\d{1,9})-(\d{1,9}) of (\d{1,9}) in this line range\b[^\n]*$', re.M)
 NUMBERED_RE = re.compile(r'(\d+): ?(.*)\Z', re.S)
 SESSION_RE = re.compile(r'[A-Za-z0-9_-]{1,128}\Z')
 HANDLER_BUDGET = {'SessionStart': 12, 'PreInvocation': 17, 'PreToolUse': 72,
@@ -84,6 +87,7 @@ HANDLER_BUDGET = {'SessionStart': 12, 'PreInvocation': 17, 'PreToolUse': 72,
 MAX_TRANSCRIPT_BYTES = 32 * 1024 * 1024
 MAX_SKILL_BYTES = 256 * 1024
 MAX_NOTE_BYTES = 8 * 1024
+SHADOW_TTL = 24 * 3600
 
 
 class BridgeError(Exception):
@@ -277,13 +281,62 @@ def bundled_skill(path):
     return slug, [line.rstrip('\r') for line in lines]
 
 
-def covered_lines(content, lines):
-    """Line numbers a read_file result shows verbatim; empty when it does not match."""
+def merge_spans(spans):
+    merged = []
+    for start, end in sorted(spans):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def partial_lines(content, header, lines, spans):
+    """Lines that verified byte chunks of one line range show whole.
+
+    Each chunk must equal the canonical formatted stream at the offsets its header
+    names, so a cut, shifted, tampered or renumbered chunk adds nothing. `spans`
+    keeps the verified intervals per line range across reads, so a line cut at a
+    chunk boundary counts once the next chunk shows the rest of it.
+    """
+    first, last, total, start, end, size = (int(value) for value in header.groups())
+    if total != len(lines) or not 1 <= first <= last <= total:
+        return set()
+    rows = [f'{n}: {lines[n - 1]}'.encode('utf-8') for n in range(first, last + 1)]
+    stream = b'\n'.join(rows)
+    if content[header.end():header.end() + 1] != '\n':
+        return set()
+    body = content[header.end() + 1:].encode('utf-8', 'surrogatepass')
+    if size != len(stream) or not 0 <= start < end <= size:
+        return set()
+    if 0 < len(body) - (end - start) <= 3 and stream[start] & 0xC0 == 0x80:
+        # An offset inside a character makes the host start at that character but
+        # still report the requested offset; verify the bytes where they really start.
+        start = end - len(body)
+    if stream[start:end] != body:
+        return set()
+    merged = merge_spans(spans.get((first, last), []) + [(start, end)])
+    spans[(first, last)] = merged
+    shown, position = set(), 0
+    for number, row in zip(range(first, last + 1), rows):
+        if any(low <= position and position + len(row) <= high for low, high in merged):
+            shown.add(number)
+        position += len(row) + 1
+    return shown
+
+
+def covered_lines(content, lines, spans=None):
+    """Line numbers a read_file result shows verbatim; empty when it does not match.
+
+    `spans` carries verified byte intervals between results; without it a byte-limited
+    `Partial read` result counts for nothing.
+    """
     if not isinstance(content, str):
         return set()
     header = SHOWING_RE.search(content)
     if not header:
-        return set()
+        partial = PARTIAL_RE.search(content)
+        return partial_lines(content, partial, lines, spans) if partial and spans is not None else set()
     first, last, total = (int(value) for value in header.groups())
     if total != len(lines) or not 1 <= first <= last <= total:
         return set()
@@ -303,7 +356,7 @@ def shadow_events(steps, cwd):
 
     User prompt text and tool output are not copied; the hooks need structure.
     """
-    events, turn_id, last_prose, coverage, loaded = [], None, None, {}, set()
+    events, turn_id, last_prose, coverage, loaded, chunks = [], None, None, {}, set(), {}
     index = 0
     while index < len(steps):
         step = steps[index]
@@ -352,7 +405,7 @@ def shadow_events(steps, cwd):
                 continue
             slug, lines = skill
             seen = coverage.setdefault(slug, set())
-            seen |= covered_lines(result.get('content'), lines)
+            seen |= covered_lines(result.get('content'), lines, chunks.setdefault(slug, {}))
             if len(seen) == len(lines):
                 loaded.add(slug)
                 skill_id = f'skill-{number}-{position}'
@@ -365,22 +418,107 @@ def shadow_events(steps, cwd):
     return events, turn_id, last_prose
 
 
+# The shadow keeps one inode for the conversation's lifetime, as a host transcript
+# does: skill-loading.py keys its once-per-context checkpoint on (st_dev, st_ino).
+# Its content lives only while an event runs; between events the file is empty.
+SHADOW_NAME_RE = re.compile(r'[0-9a-f]{64}\.jsonl\Z')
+LEGACY_TEMP_RE = re.compile(r'[0-9a-f]{64}\.\d+\.tmp\Z')
+WRITE_FLAGS = os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+
+
+def checked_shadow(descriptor):
+    """Accept only a private regular file with a single name; never write through a link."""
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
+            raise BridgeError('unsafe shadow transcript')
+        if stat.S_IMODE(info.st_mode) != 0o600:
+            os.fchmod(descriptor, 0o600)
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
 def write_shadow(key, events, extra=None):
-    target = state_dir() / f'{key}.jsonl'
-    temporary = target.with_name(f'{key}.{os.getpid()}.tmp')
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
-        for event in events + ([extra] if extra else []):
-            stream.write(json.dumps(event) + '\n')
-    os.replace(temporary, target)
+    directory = state_dir()
+    target = directory / f'{key}.jsonl'
+    data = ''.join(json.dumps(event) + '\n' for event in events + ([extra] if extra else [])).encode('utf-8')
+    try:
+        descriptor, created = os.open(target, WRITE_FLAGS | os.O_CREAT | os.O_EXCL, 0o600), True
+    except FileExistsError:
+        descriptor, created = os.open(target, WRITE_FLAGS), False
+    checked_shadow(descriptor)
+    try:
+        view = memoryview(data)
+        while view:
+            view = view[os.write(descriptor, view):]
+        os.ftruncate(descriptor, len(data))
+    finally:
+        os.close(descriptor)
+    if created:
+        sweep_stale(directory)
     return str(target)
 
 
-def remove_shadow(key):
+def clear_shadow(key):
     try:
-        (state_dir() / f'{key}.jsonl').unlink()
+        descriptor = os.open(state_dir() / f'{key}.jsonl', WRITE_FLAGS)
     except FileNotFoundError:
-        pass
+        return
+    checked_shadow(descriptor)
+    try:
+        os.ftruncate(descriptor, 0)
+    finally:
+        os.close(descriptor)
+
+
+def sweep_stale(directory, budget=1.0):
+    """Empty shadows an interrupted event left full and drop the old scheme's temp files.
+
+    Runs when a conversation's shadow is first created. A shadow is emptied, never
+    removed, so a paused conversation keeps its identity; one whose run lock is held
+    belongs to a running event and is skipped. Failures never affect the event.
+    """
+    started, cutoff = time.monotonic(), time.time() - SHADOW_TTL
+    try:
+        entries = os.scandir(directory)
+    except OSError:
+        return
+    with entries:
+        for entry in entries:
+            if time.monotonic() - started > budget:
+                return
+            try:
+                info = entry.stat(follow_symlinks=False)
+                if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                        or info.st_mtime >= cutoff):
+                    continue
+                if LEGACY_TEMP_RE.match(entry.name):
+                    os.unlink(entry.path)
+                elif SHADOW_NAME_RE.match(entry.name) and info.st_size:
+                    empty_unless_running(directory, entry.name[:-len('.jsonl')], cutoff)
+            except OSError:
+                continue
+
+
+def empty_unless_running(directory, key, cutoff):
+    try:
+        lock = os.open(directory / f'{key}.run.lock', WRITE_FLAGS)
+    except FileNotFoundError:
+        lock = None
+    try:
+        if lock is not None:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        descriptor = checked_shadow(os.open(directory / f'{key}.jsonl', WRITE_FLAGS))
+        try:
+            if os.fstat(descriptor).st_mtime < cutoff:
+                os.ftruncate(descriptor, 0)
+        finally:
+            os.close(descriptor)
+    finally:
+        if lock is not None:
+            os.close(lock)
 
 
 def context(agy, extra=None):
@@ -710,7 +848,7 @@ def fallback(event):
 
 
 def handle(event, agy):
-    """Run one event under the conversation's run lock; the shadow lives only for that run.
+    """Run one event under the conversation's run lock; the shadow's content lives only for that run.
 
     The deadline starts before the lock is requested and the wait is bounded, so an
     event queued behind a slow one still answers before the host's timeout.
@@ -730,7 +868,7 @@ def handle(event, agy):
         try:
             return HANDLERS[event](agy, deadline)
         finally:
-            remove_shadow(key)
+            clear_shadow(key)
     finally:
         os.close(descriptor)
 
