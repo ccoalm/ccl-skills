@@ -51,10 +51,7 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
 | M25 | The shadow age is rechecked under its lock | Drop only the recheck in `empty_if_stale` | `test_the_sweep_rechecks_age_under_the_lock`. The first version of this test refreshed both files on the first lock call, so the scan skipped the shadow and this mutation stayed green; each file now has its own conversation and is refreshed when that file's lock is taken |
 | M26 | The legacy temp age is rechecked under its lock | Drop only the recheck in `remove_if_stale` | same |
 | M27 | A failed write keeps its descriptor for event-end cleanup | Drop the descriptor when serialization fails | `test_a_write_that_fails_midway_is_still_emptied_at_event_end` |
-
-## Out-of-Repository Rule (machine-local)
-
-`~/.gemini/config/rules/agy-execution-efficiency.md` (1,734 bytes, `trigger: always_on`). A live `agy -p` run asked for the rule by its heading and answered with the heading and `4` items. The paired control asked for a heading that does not exist and answered `NONE`.
+| M28 | The sweep never follows a link | Follow links when checking and opening | `test_a_new_conversation_empties_only_stale_unlocked_leftover_shadows` (the link's conversation has a free lock) |
 
 ## Review pass (R1)
 
@@ -67,7 +64,7 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
   - P1 an internal row separator could stay unread while every row looked shown: fixed (the separator is part of the required span; M4b; T6b).
   - P1 verifier outcomes and the challenge were not yet recorded: fixed. Outcomes are in Local Verification and the challenge in Challenge pass (C1).
   - P2 back-off not pinned to the lead byte: fixed (M5b). P2 header chosen by regex order: fixed (M5c; T6c). P2 `\d` accepts non-ASCII digits and leading zeros: fixed (M10). P2 rows × intervals scan: fixed with one monotonic pass. P2 privacy test checked only after the last event: fixed (stats after every event). P2 fixture tied to a real skill's size: fixed (synthetic bundled skills). P2 per-skill keying unpinned: fixed (T6d; M5d). P2 `TMPDIR` restore: fixed in the new helper. P2 overstated "every event gets a new identity": fixed in the plan and register row.
-  - P2 "the global rule was not requested": rejected. The rule is a requested machine-local deliverable, outside the candidate and never committed.
+  - P2 "the global rule was not requested": superseded, see D5.
 
 ## Challenge pass (C1)
 
@@ -132,7 +129,7 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
   - P2 the fresh-file case passed even with every age check removed: fixed (fresh shadow and fresh legacy temp under a free run lock; M24).
   - P2 the shadow was built as two full-size buffers: fixed. Events are serialized and written one at a time.
   - P2 the privacy test interpolated capture paths unquoted: fixed with `shlex.quote`.
-  - P2 the machine-local rule looked like a bridge deliverable: rejected. The plan scopes it as out-of-repository, never committed, and now states it is not part of the bridge's acceptance.
+  - P2 the machine-local rule looked like a bridge deliverable: superseded, see D5.
 
 ## Delta pass D4
 
@@ -142,3 +139,15 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
   - P1 nothing showed that a write failing after its first record is still emptied: fixed with a test (T4g; M27). The code already registered the descriptor before the first write.
   - P1 the age rechecks under the lock were not separately pinned: fixed (T4h; M25, M26).
   - P1 the full lane for the incremental writer was not recorded: fixed in Local Verification.
+
+## Delta pass D5 (after the rebase onto the current target)
+
+- Reviewed commit: the rebased candidate; packet `git diff 03ccb75..HEAD` over the source register (the one file both this branch and the target's new commits changed), this round's test suite and the plan. Result: `evidence/delta-D5.json`.
+- Rebase check: `git diff <pre-rebase head> HEAD -- hooks/agy-bridge.py hooks/test_agy_bridge.py specs/agy-bridge-efficiency-fix` is empty. The bridge and its suite are byte-identical to what R2 and D4 reviewed. The register gains only this round's row on top of the target's rows.
+- Findings: 5 total (0 P0 / 5 P1 / 0 P2). None is a defect in the bridge code.
+- Dispositions:
+  - P1 T4g set up its descriptor with an earlier successful write and called the cleanup itself: fixed. It now runs the real event entry point with a first write that fails after its first record, and asserts the deny verdict and an empty same inode with no manual cleanup.
+  - P1 the swept symlink's conversation had no lock file, so the missing-lock rule protected it on its own: fixed (free run lock added; only the no-follow rule protects it now).
+  - P1 the packet lacked the bridge source: addressed by the rebase check above. The source is unchanged from the R2 and D4 packets. The register row now says which separator is inferred.
+  - P1 the plan cited verifiers whose outcomes were not attached: fixed in Local Verification.
+  - P1 the machine-local rule sat in the landing plan: this class was raised in R1, R2 and D5. Decision **narrow**: the machine-local rule and its live check left the plan and this record. They are machine configuration, not part of this change.

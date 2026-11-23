@@ -8,9 +8,11 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import io
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -878,6 +880,7 @@ class ShadowIdentityTests(BridgeCase):
             f'{key["left"]}.jsonl': 'left', f'{key["fresh"]}.jsonl': 'fresh', f'{key["held"]}.jsonl': 'held',
             f'{key["paused"]}.jsonl': '', f'{key["left"]}.4242.tmp': 'temp', 'notes.tmp': 'other',
             f'{key["fresh"]}.run.lock': '', f'{key["fresh"]}.4244.tmp': 'fresh temp',
+            f'{key["linked"]}.run.lock': '',
             f'{key["held"]}.4243.tmp': 'temp of a running event',
             'other.jsonl': 'other', 'other.run.lock': '', f'{key["left"]}.lock': '', f'{key["left"]}.run.lock': '',
             f'{key["left"]}.active.turn': '{}', f'{key["unlocked"]}.jsonl': 'no lock file',
@@ -1010,14 +1013,29 @@ class ShadowIdentityTests(BridgeCase):
     def test_a_write_that_fails_midway_is_still_emptied_at_event_end(self):
         bridge, state = self.state()
         self.with_state_env()
-        key = self.key(bridge, 'midway')
-        path = Path(bridge.write_shadow(key, [{'n': 1}]))
-        inode = path.stat().st_ino
-        # The second record cannot be serialized, after the first is already on disk.
-        with self.assertRaises(TypeError):
-            bridge.write_shadow(key, [{'n': 1}, {'bad': object()}])
-        self.assertGreater(path.stat().st_size, 0)
-        bridge.clear_shadow(key)
+        path = state / f'{self.key(bridge, "midway")}.jsonl'
+        seen, real_write, real_events = {}, bridge.os.write, bridge.shadow_events
+
+        def write(descriptor, data):
+            written = real_write(descriptor, data)
+            seen.setdefault('first', (os.fstat(descriptor).st_ino, path.stat().st_size))
+            return written
+        # The second record cannot be serialized after the first reached the fresh shadow.
+        bridge.shadow_events = lambda steps, cwd: ([{'n': 1}, {'bad': object()}], None, None)
+        bridge.os.write = write
+        stdin, stdout = sys.stdin, sys.stdout
+        sys.stdin = io.StringIO(json.dumps({'conversationId': 'midway', 'cwd': str(self.tmp), 'toolCall': {
+            'id': 'x', 'name': 'run_command', 'args': {'CommandLine': 'ls'}}}))
+        sys.stdout = io.StringIO()
+        try:
+            bridge.main(['agy-bridge.py', 'PreToolUse'])
+            printed = sys.stdout.getvalue()
+        finally:
+            bridge.os.write, bridge.shadow_events = real_write, real_events
+            sys.stdin, sys.stdout = stdin, stdout
+        inode, size = seen['first']
+        self.assertGreater(size, 0, 'the first record reached the shadow before the failure')
+        self.assertEqual(json.loads(printed)['decision'], 'deny')
         self.assertEqual((path.stat().st_ino, path.stat().st_size), (inode, 0))
 
     def test_the_sweep_rechecks_age_under_the_lock(self):
