@@ -7,7 +7,7 @@ Checks four fast, deterministic invariants on tracked repository state:
    `skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py`.
 2. Single-source `display()` usage from `scripts/_repo_text.py` across
    `scripts/check-markdown-links.py`, `scripts/check-public-sanitization.py`,
-   and `scripts/check-spec-references.py`.
+   `scripts/check-repo-hygiene.py`, and `scripts/check-spec-references.py`.
 3. Tracked test-file registration completeness across CI-executed dispatch
    surfaces (`Makefile` `test` closure, `.github/workflows/ci.yml`,
    `test_check_ccl_regressions.sh`, `packages/ccl-skills-npm/package.json`,
@@ -33,6 +33,10 @@ from pathlib import Path
 import yaml
 
 sys.dont_write_bytecode = True
+
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _repo_text import display
 
 GIT_ENV_TARGETS = (
     ("scripts/select-affected-tests.py", "_clean_git_env"),
@@ -84,6 +88,7 @@ DISPLAY_HELPER_REL = "scripts/_repo_text.py"
 DISPLAY_CALLERS = (
     "scripts/check-markdown-links.py",
     "scripts/check-public-sanitization.py",
+    "scripts/check-repo-hygiene.py",
     "scripts/check-spec-references.py",
 )
 
@@ -105,11 +110,6 @@ _EVAL_MODULE_RE = re.compile(r"^eval\.test_[A-Za-z0-9_]*$")
 _REPO_PATH_TOKEN_RE = re.compile(
     r"^(?:hooks|scripts|skills|eval|packages)/[A-Za-z0-9_./-]+$"
 )
-
-
-def _display(text: str) -> str:
-    escaped = text.replace("\\", "\\\\")
-    return "".join(ch if ch.isprintable() else repr(ch)[1:-1] for ch in escaped)
 
 
 def _clean_git_env() -> dict[str, str]:
@@ -613,7 +613,7 @@ def check_test_registration(
 
     for cand in candidates:
         if cand not in registered:
-            findings.append(f"unregistered-test-file: {_display(cand)}")
+            findings.append(f"unregistered-test-file: {display(cand)}")
 
     return findings
 
@@ -660,7 +660,7 @@ def check_python_warnings(root: Path, tracked_set: set[str]) -> list[str]:
         try:
             raw = target.read_bytes()
         except OSError as exc:
-            findings.append(f"python-unreadable: {_display(rel)}: {_display(str(exc))}")
+            findings.append(f"python-unreadable: {display(rel)}: {display(str(exc))}")
             continue
 
         expected_sha = sealed_hashes.get(rel)
@@ -675,9 +675,9 @@ def check_python_warnings(root: Path, tracked_set: set[str]) -> list[str]:
                 compile(raw, rel, "exec", dont_inherit=True)
             except (SyntaxError, Warning, ValueError, UnicodeDecodeError) as exc:
                 lineno = getattr(exc, "lineno", None)
-                loc = f"{_display(rel)}:{lineno}" if lineno else _display(rel)
+                loc = f"{display(rel)}:{lineno}" if lineno else display(rel)
                 findings.append(
-                    f"python-compile-error: {loc}: {type(exc).__name__}: {_display(str(exc))}"
+                    f"python-compile-error: {loc}: {type(exc).__name__}: {display(str(exc))}"
                 )
 
     return findings

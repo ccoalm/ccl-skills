@@ -79,6 +79,7 @@ def _minimal_clean_repo_files() -> dict[str, str | bytes]:
         ),
         "scripts/check-markdown-links.py": "from _repo_text import display\n",
         "scripts/check-public-sanitization.py": "from _repo_text import display\n",
+        "scripts/check-repo-hygiene.py": "from _repo_text import display\n",
         "scripts/check-spec-references.py": "from _repo_text import display\n",
         "Makefile": (
             "test: test-repo-gates test-regressions-fast\n"
@@ -191,14 +192,18 @@ class RepoHygieneTest(unittest.TestCase):
         self.assertIn("git-env-unscrubbed-constant", joined)
 
     def test_display_sharing_catches_inline_duplicate_and_missing_import(self) -> None:
+        self.assertIn("scripts/check-repo-hygiene.py", MODULE.DISPLAY_CALLERS)
         sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
         files = _minimal_clean_repo_files()
         files["scripts/check-markdown-links.py"] = "def display(x):\n    return x\n"
+        files["scripts/check-repo-hygiene.py"] = "def display(x):\n    return x\n"
         root = _make_git_repo(sandbox, files)
         findings = MODULE.check_display_sharing(root)
         joined = "\n".join(findings)
         self.assertIn("display-inline-duplicate: scripts/check-markdown-links.py", joined)
         self.assertIn("display-missing-shared-import: scripts/check-markdown-links.py", joined)
+        self.assertIn("display-inline-duplicate: scripts/check-repo-hygiene.py", joined)
+        self.assertIn("display-missing-shared-import: scripts/check-repo-hygiene.py", joined)
 
     def test_registration_catches_orphan_tests_dead_makefile_targets_and_stale_delegates(self) -> None:
         sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))

@@ -225,6 +225,57 @@ case "$out2" in
 esac
 git -C "$REPO2" checkout -- agent-context/session-start.md
 
+# (b3) fail-closed Ruby dependency and md_reference_check scanner status:
+#   - if ruby is absent from PATH, the validator fails closed (rc 2) at preflight;
+#   - if the md_reference_check Ruby scanner exits non-zero (missing/crashing
+#     mid-stream), md_reference_check emits md_reference_block + md_reference_scan_error
+#     and fails closed (rc 1) instead of silently passing with md_ref_broken=0.
+NO_RUBY_BIN="$TMP/no-ruby-bin"
+NO_RUBY_BIN="$NO_RUBY_BIN" python3 - <<'PY'
+import os
+import pathlib
+
+dst = pathlib.Path(os.environ["NO_RUBY_BIN"])
+dst.mkdir(parents=True, exist_ok=True)
+seen = set()
+for entry in os.environ.get("PATH", "").split(os.pathsep):
+    if not entry or not os.path.isdir(entry):
+        continue
+    for name in os.listdir(entry):
+        if name == "ruby" or name in seen:
+            continue
+        src = os.path.join(entry, name)
+        if os.path.isfile(src) and os.access(src, os.X_OK):
+            os.symlink(src, dst / name)
+            seen.add(name)
+PY
+set +e
+out2="$(PATH="$NO_RUBY_BIN" env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF "$NO_RUBY_BIN/bash" "$CHECK_SCRIPT" "$REPO2" 2>&1)"
+rc2=$?
+set -e
+assert_rc "$rc2" 2 "missing ruby on PATH must fail closed"
+assert_contains "missing_required_command: ruby" "$out2" "missing ruby preflight diagnostic present"
+
+REAL_RUBY="$(command -v ruby)"
+MDREF_FAIL_BIN="$TMP/mdref-fail-ruby-bin"
+mkdir -p "$MDREF_FAIL_BIN"
+cat > "$MDREF_FAIL_BIN/ruby" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  *"STDOUT.write([path_rel, ref, digest"*) exit 127 ;;
+esac
+exec "$REAL_RUBY" "\$@"
+EOF
+chmod +x "$MDREF_FAIL_BIN/ruby"
+set +e
+out2="$(PATH="$MDREF_FAIL_BIN:$PATH" env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF bash "$CHECK_SCRIPT" "$REPO2" 2>&1)"
+rc2=$?
+set -e
+assert_rc "$rc2" 1 "non-zero md_reference_check Ruby scanner exit must fail closed"
+assert_contains "md_reference_block:" "$out2" "Ruby scanner failure must emit md_reference_block"
+assert_contains "md_reference_scan_error: ruby exited 127" "$out2" "Ruby scanner failure marker present"
+assert_contains "sync_reference_blocking_failed" "$out2" "Ruby scanner failure must trigger sync_reference_blocking_failed"
+
 diag2_lines_matching() {
   printf '%s\n' "$out2" | grep -F "$1" | grep -F "$2" || true
 }
