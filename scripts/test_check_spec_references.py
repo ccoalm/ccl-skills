@@ -1076,6 +1076,9 @@ class WaivedPathPresenceTest(unittest.TestCase):
         waived_path = next(iter(MODULE.LEDGER_CITATION_WAIVERS))[0]
         (root / "scripts").mkdir(parents=True)
         (root / "scripts" / SCRIPT.name).write_bytes(SCRIPT.read_bytes())
+        (root / "scripts" / "_repo_text.py").write_bytes(
+            SCRIPT.with_name("_repo_text.py").read_bytes()
+        )
         target = root / waived_path
         target.parent.mkdir(parents=True, exist_ok=True)
         source_target = source_root / waived_path

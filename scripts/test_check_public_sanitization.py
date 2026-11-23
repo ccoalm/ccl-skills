@@ -70,9 +70,24 @@ def main() -> int:
         clean = run(root)
         assert clean.returncode == 0, f"Git SSH transport flagged: {clean.stdout}{clean.stderr}"
 
+        # Lines mixing non-LF whitespace (\v, \f, \x85), example emails, and
+        # GitHub SSH transports must preserve exact span alignment: clean lines
+        # pass, while a real private email or URL sharing a line with a valid
+        # SSH transport still blocks.
+        write_and_track(
+            root,
+            "non-lf-clean.txt",
+            f"prefix\x0bperson@example.com\x0c{transport_user}:example/repo.git\x85person@example.org\n",
+        )
+        clean = run(root)
+        assert clean.returncode == 0, f"non-LF clean line flagged: {clean.stdout}{clean.stderr}"
+
         cases = {
             "private-ip": "10." + "1.2.3",
             "private-email": "person@" + "corp.local",
+            "git-ssh-plus-real-email-same-line": f"{transport_user}:example/project.git and person@" + "corp.local",
+            "vertical-tab-before-private-email": "note\x0bperson@" + "corp.local",
+            "nel-before-private-url": "note\x85https://service." + "internal/api",
             "escaped-newline-then-real-email": '"\\nfoo@' + 'corp.com"',
             "bare-git-email": transport_user,
             "other-github-user": "person@" + "github.com:example/project.git",
@@ -131,6 +146,18 @@ def main() -> int:
     if os.fsencode(entries[1]).split(b"/")[-1] != b"bad\xff-name.md":
         print(f"tracked name did not round-trip to its original bytes: {entries[1]!r}", file=sys.stderr)
         return 1
+
+    # display() must come from the shared scripts/_repo_text.py helper rather
+    # than a local duplicate copy.
+    repo_text_spec = importlib.util.spec_from_file_location(
+        "_repo_text", CHECKER.with_name("_repo_text.py")
+    )
+    assert repo_text_spec is not None and repo_text_spec.loader is not None
+    repo_text_mod = importlib.util.module_from_spec(repo_text_spec)
+    repo_text_spec.loader.exec_module(repo_text_mod)
+    assert module.display.__code__.co_filename == repo_text_mod.display.__code__.co_filename
+    assert module.display("a\nb.txt") != module.display("a\\nb.txt")
+    assert module.display("中文.md") == "中文.md"
 
     print("public_sanitization_test_ok")
     return 0

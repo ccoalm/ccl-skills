@@ -13,4 +13,4 @@
 ## Validation
 
 - Run `npm test` from `packages/ccl-skills-npm/` after changing runtime behavior.
-- Run `npm run test:pack` and `npm run smoke:host` when distribution or Codex-host behavior changes.
+- Run `npm run test:pack` and `npm run smoke:host` when distribution or host-CLI adapter behavior changes.

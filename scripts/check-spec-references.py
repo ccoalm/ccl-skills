@@ -29,6 +29,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _repo_text import display
+
 # Anchored on the separator so `specsheet.md` and `specs-old/x.md` are not
 # spec citations. The token is whatever sits between backticks on one line.
 #
@@ -188,24 +192,6 @@ LEDGER_CITATION_WAIVERS: dict[tuple[str, str], tuple[str, tuple[tuple[int, str],
 # and keeps the corpus whole.
 
 
-
-def display(text: str) -> str:
-    """Render untrusted repo text safe to print on one physical line.
-
-    A tracked filename may legally contain a newline, an ANSI escape, or (after
-    os.fsdecode) a surrogate for a byte that is not valid UTF-8. Interpolated
-    raw, one filename splits a finding across two physical lines, so anything
-    reading this output line by line — a human, a CI annotation parser — sees a
-    forged line. Escaping is display-only; the value used for resolution is
-    untouched. Printable non-ASCII (an ordinary CJK filename) is preserved.
-    """
-    # Backslash FIRST, then every non-printable character including tab:
-    # otherwise the encoding is not reversible — a real newline and a filename
-    # containing a literal backslash-n both render as the same two characters,
-    # so two distinct tracked paths produce an identical diagnostic. Printable
-    # non-ASCII (an ordinary CJK filename) is preserved.
-    escaped = text.replace("\\", "\\\\")
-    return "".join(ch if ch.isprintable() else repr(ch)[1:-1] for ch in escaped)
 
 def tracked_files(root: Path) -> list[str]:
     # Split on NUL as BYTES, then decode each entry -- the idiom the sibling

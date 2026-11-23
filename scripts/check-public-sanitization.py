@@ -11,31 +11,17 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _repo_text import display
 
-
-def display(text: str) -> str:
-    """Render untrusted repo text safe to print on one physical line.
-
-    A tracked filename may legally contain a newline, an ANSI escape, or (after
-    os.fsdecode) a surrogate for a byte that is not valid UTF-8. Interpolated
-    raw, one filename splits a finding across two physical lines, so anything
-    reading this output line by line — a human, a CI annotation parser — sees a
-    forged line. Escaping is display-only; the value used for resolution is
-    untouched. Printable non-ASCII (an ordinary CJK filename) is preserved.
-    """
-    # Backslash FIRST, then every non-printable character including tab:
-    # otherwise the encoding is not reversible — a real newline and a filename
-    # containing a literal backslash-n both render as the same two characters,
-    # so two distinct tracked paths produce an identical diagnostic. Printable
-    # non-ASCII (an ordinary CJK filename) is preserved.
-    escaped = text.replace("\\", "\\\\")
-    return "".join(ch if ch.isprintable() else repr(ch)[1:-1] for ch in escaped)
 
 def tracked_paths(root: Path) -> list[str]:
     result = subprocess.run(
         ["git", "-C", str(root), "ls-files", "-z"],
         check=True,
         capture_output=True,
+        timeout=30,
     )
     # os.fsdecode, not a strict decode: git tracks raw bytes and Linux allows a
     # filename that is not valid UTF-8, which made every one of these three
@@ -99,50 +85,61 @@ def scan(root: Path) -> list[tuple[str, str]]:
         else:
             content = target.read_bytes().decode("utf-8", errors="ignore")
 
-        for value in IP_RE.findall(content):
-            try:
-                if ipaddress.ip_address(value).is_private:
-                    findings.append((relative, "content:private-ipv4"))
-            except ValueError:
-                findings.append((relative, "content:malformed-private-ipv4"))
+        # None of IP_RE, GIT_SSH_RE, EMAIL_RE, or URL_RE can match across "\n",
+        # so cheap per-line substring prefilters skip regex evaluation on lines
+        # without candidate markers while preserving exact whole-file findings.
+        for line in content.split("\n"):
+            if "10." in line or "192.168." in line or "172." in line:
+                for value in IP_RE.findall(line):
+                    try:
+                        if ipaddress.ip_address(value).is_private:
+                            findings.append((relative, "content:private-ipv4"))
+                    except ValueError:
+                        findings.append((relative, "content:malformed-private-ipv4"))
 
-        # GitHub's fixed SSH transport user is not a person's email. Exempt
-        # only its span inside a complete repository URL, never the domain.
-        git_identities = {match.span("identity") for match in GIT_SSH_RE.finditer(content)}
-        for match in EMAIL_RE.finditer(content):
-            if match.span() in git_identities:
-                continue
-            # A literal JSON escape butting against a Python decorator — the byte
-            # sequence `\n@pytest.fixture` inside stored model output — parses as
-            # local part "n" with "domain" pytest.fixture. Exempt ONLY a
-            # single escape letter immediately preceded by a backslash; a real
-            # address right after an escape (local part longer than one
-            # character) still reports.
-            local = match.group(0)[: -len(match.group(1)) - 1]
-            if (
-                local in {"n", "t", "r"}
-                and match.start() > 0
-                and content[match.start() - 1] == "\\"
-            ):
-                continue
-            if match.group(1).casefold() not in ALLOWED_EMAIL_DOMAINS:
-                findings.append((relative, "content:non-example-email"))
+            if "@" in line:
+                # GitHub's fixed SSH transport user is not a person's email. Exempt
+                # only its span inside a complete repository URL, never the domain.
+                git_identities = (
+                    {match.span("identity") for match in GIT_SSH_RE.finditer(line)}
+                    if "git@" in line
+                    else set()
+                )
+                for match in EMAIL_RE.finditer(line):
+                    if match.span() in git_identities:
+                        continue
+                    # A literal JSON escape butting against a Python decorator — the byte
+                    # sequence `\n@pytest.fixture` inside stored model output — parses as
+                    # local part "n" with "domain" pytest.fixture. Exempt ONLY a
+                    # single escape letter immediately preceded by a backslash; a real
+                    # address right after an escape (local part longer than one
+                    # character) still reports.
+                    local = match.group(0)[: -len(match.group(1)) - 1]
+                    if (
+                        local in {"n", "t", "r"}
+                        and match.start() > 0
+                        and line[match.start() - 1] == "\\"
+                    ):
+                        continue
+                    if match.group(1).casefold() not in ALLOWED_EMAIL_DOMAINS:
+                        findings.append((relative, "content:non-example-email"))
 
-        for raw_url in URL_RE.findall(content):
-            host = (urlparse(raw_url).hostname or "").casefold()
-            if not host:
-                continue
-            if host.endswith((".internal", ".local")):
-                findings.append((relative, "content:private-hostname"))
-                continue
-            if is_organization_saas_tenant(host):
-                findings.append((relative, "content:organization-saas-tenant-hostname"))
-                continue
-            try:
-                if ipaddress.ip_address(host).is_private:
-                    findings.append((relative, "content:private-url-host"))
-            except ValueError:
-                pass
+            if "://" in line:
+                for raw_url in URL_RE.findall(line):
+                    host = (urlparse(raw_url).hostname or "").casefold()
+                    if not host:
+                        continue
+                    if host.endswith((".internal", ".local")):
+                        findings.append((relative, "content:private-hostname"))
+                        continue
+                    if is_organization_saas_tenant(host):
+                        findings.append((relative, "content:organization-saas-tenant-hostname"))
+                        continue
+                    try:
+                        if ipaddress.ip_address(host).is_private:
+                            findings.append((relative, "content:private-url-host"))
+                    except ValueError:
+                        pass
 
     return sorted(set(findings))
 

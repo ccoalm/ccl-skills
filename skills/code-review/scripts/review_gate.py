@@ -70,23 +70,32 @@ GIT_REPOSITORY_ROUTING_ENV = (
     "GIT_DISCOVERY_ACROSS_FILESYSTEM",
     "GIT_GRAFT_FILE",
     "GIT_SHALLOW_FILE",
+    "GIT_NO_REPLACE_OBJECTS",
     "GIT_REPLACE_REF_BASE",
     "GIT_PREFIX",
     "GIT_INTERNAL_SUPER_PREFIX",
     "GIT_QUARANTINE_PATH",
+    "GIT_GLOB_PATHSPECS",
+    "GIT_NOGLOB_PATHSPECS",
+    "GIT_LITERAL_PATHSPECS",
+    "GIT_ICASE_PATHSPECS",
     "GIT_EXTERNAL_DIFF",
     "GIT_DIFF_OPTS",
+)
+GIT_CONFIG_ROUTING_ENV = (
+    "GIT_TEMPLATE_DIR",
     "GIT_CONFIG",
+    "GIT_CONFIG_COUNT",
     "GIT_CONFIG_GLOBAL",
     "GIT_CONFIG_SYSTEM",
     "GIT_CONFIG_NOSYSTEM",
-    "GIT_CONFIG_COUNT",
     "GIT_CONFIG_PARAMETERS",
 )
-GIT_REPOSITORY_ROUTING_ENV_PREFIXES = (
+GIT_CONFIG_ROUTING_ENV_PREFIXES = (
     "GIT_CONFIG_KEY_",
     "GIT_CONFIG_VALUE_",
 )
+GIT_REPOSITORY_ROUTING_ENV_PREFIXES = GIT_CONFIG_ROUTING_ENV_PREFIXES
 STATIC_CLIENT_FAMILIES = {
     "claude": "claude",
     "kimi": "moonshot",
@@ -727,10 +736,12 @@ def run(
 
 def git_environment() -> dict[str, str]:
     environment = os.environ.copy()
-    for key in GIT_REPOSITORY_ROUTING_ENV:
-        environment.pop(key, None)
     for key in tuple(environment):
-        if key.startswith(GIT_REPOSITORY_ROUTING_ENV_PREFIXES):
+        if (
+            key in GIT_REPOSITORY_ROUTING_ENV
+            or key in GIT_CONFIG_ROUTING_ENV
+            or key.startswith(GIT_CONFIG_ROUTING_ENV_PREFIXES)
+        ):
             environment.pop(key, None)
     environment["GIT_CONFIG_GLOBAL"] = os.devnull
     environment["GIT_CONFIG_SYSTEM"] = os.devnull

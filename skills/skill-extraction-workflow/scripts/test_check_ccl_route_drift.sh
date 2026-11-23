@@ -210,6 +210,21 @@ assert_contains "md_reference_block:" "$out2" "broken-md block line present"
 assert_contains "sync_reference_blocking_failed" "$out2" "combined sync blocking verdict present"
 git -C "$REPO2" checkout -- agent-context/session-start.md
 
+# (b2) multi-citation line where the FIRST backticked references/*.md is missing
+# and a LATER backticked references/*.md on the same line exists: greedy `.*` in
+# sed used to check only the last citation and let sync_reference pass without
+# emitting md_reference_block or sync_reference_blocking_failed.
+printf '\nRead `requirement-doc-writer/references/definitely-missing-first.md` and `requirement-doc-writer/references/requirement-closure-contract.md`.\n' >> "$REPO2/agent-context/session-start.md"
+run_check2
+assert_rc "$rc2" 1 "a broken first .md reference on a multi-citation line must fail the gate"
+assert_contains "md_reference_block:" "$out2" "broken first citation on multi-citation line must emit md_reference_block"
+assert_contains "definitely-missing-first.md" "$out2" "broken first citation on multi-citation line must be named"
+assert_contains "sync_reference_blocking_failed" "$out2" "broken first citation on multi-citation line must trigger sync_reference_blocking_failed"
+case "$out2" in
+  *requirement-closure-contract.md*) fail "valid second citation on multi-citation line must not be flagged" ;;
+esac
+git -C "$REPO2" checkout -- agent-context/session-start.md
+
 diag2_lines_matching() {
   printf '%s\n' "$out2" | grep -F "$1" | grep -F "$2" || true
 }

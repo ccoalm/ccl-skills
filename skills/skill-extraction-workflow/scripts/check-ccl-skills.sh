@@ -1158,32 +1158,61 @@ if [ "$rg_rc" -gt 1 ]; then
   bootstrap_scan_state="partial-unverified"
 fi
 rm -f "$rg_err_tmp"
-while IFS=: read -r path lineno match; do
-  [[ -z "$match" ]] && continue
-  ref=$(echo "$match" | sed -nE 's|.*`((\.\./)?([a-z][a-z0-9_-]+/)?references/[a-z][a-z0-9_./-]+\.md)`.*|\1|p')
-  [[ -z "$ref" ]] && continue
-  if [[ "$ref" == ../* ]]; then
-    candidate="$root/skills/${ref#../}"
-  elif [[ "$ref" == */references/* && "$ref" != references/* ]]; then
-    candidate="$root/skills/$ref"
+while IFS= read -r -d '' path_rel &&
+      IFS= read -r -d '' ref &&
+      IFS= read -r -d '' line_digest &&
+      IFS= read -r -d '' path &&
+      IFS= read -r -d '' lineno &&
+      IFS= read -r -d '' candidate; do
+  if md_ref_exempt "$path_rel $ref $line_digest"; then
+    echo "md_reference_exempt: $path:$lineno cites \`$ref\` — exempt (append-only historical citation)"
   else
-    calling_skill=$(echo "$path" | sed -nE "s|^$root/skills/([^/]+)/.*|\1|p")
-    candidate="$root/skills/$calling_skill/$ref"
+    echo "md_reference_block: $path:$lineno cites \`$ref\` but $candidate does not exist" >&2
+    md_ref_broken=$((md_ref_broken + 1))
   fi
-  if [[ ! -f "$candidate" ]]; then
-    # Normalize to the repo-relative key form the exemption table uses: strip
-    # the root prefix, then a defensive leading "./" (root="." CI shape).
-    path_rel="${path#"${root%/}/"}"
-    path_rel="${path_rel#./}"
-    line_digest="$(printf '%s' "$match" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -d' ' -f1)"
-    if md_ref_exempt "$path_rel $ref $line_digest"; then
-      echo "md_reference_exempt: $path:$lineno cites \`$ref\` — exempt (append-only historical citation)"
-    else
-      echo "md_reference_block: $path:$lineno cites \`$ref\` but $candidate does not exist" >&2
-      md_ref_broken=$((md_ref_broken + 1))
-    fi
-  fi
-done <<< "$rg_out"
+done < <(
+  printf '%s\n' "$rg_out" | ruby -Ku -rdigest -e '
+    root = ARGV[0]
+    root_clean = root.sub(%r{/\z}, "")
+    prefix_raw = "#{root}/"
+    prefix_clean = "#{root_clean}/"
+    ref_re = /`((?:\.\.\/)?(?:[a-z][a-z0-9_-]+\/)?references\/[a-z][a-z0-9_.\/-]+\.md)`/
+    STDIN.each_line do |raw|
+      line = raw.chomp("\n")
+      next if line.empty?
+      if line.start_with?(prefix_raw)
+        rel_and_rest = line.byteslice(prefix_raw.bytesize, line.bytesize - prefix_raw.bytesize)
+        rel_part, lineno, match = rel_and_rest.split(":", 3)
+        path = "#{prefix_raw}#{rel_part}"
+      elsif line.start_with?(prefix_clean)
+        rel_and_rest = line.byteslice(prefix_clean.bytesize, line.bytesize - prefix_clean.bytesize)
+        rel_part, lineno, match = rel_and_rest.split(":", 3)
+        path = "#{prefix_clean}#{rel_part}"
+      else
+        path, lineno, match = line.split(":", 3)
+        rel_part = path
+      end
+      next if match.nil? || match.empty?
+      refs = match.scan(ref_re).flatten.uniq
+      next if refs.empty?
+      path_rel = rel_part.sub(%r{\A(?:\./|/)+}, "")
+      calling_skill = path_rel.start_with?("skills/") ? path_rel.split("/", 3)[1].to_s : ""
+      digest = nil
+      refs.each do |ref|
+        candidate = if ref.start_with?("../")
+          "#{root}/skills/#{ref.delete_prefix("../")}"
+        elsif ref.include?("/references/") && !ref.start_with?("references/")
+          "#{root}/skills/#{ref}"
+        else
+          "#{root}/skills/#{calling_skill}/#{ref}"
+        end
+        next if File.file?(candidate)
+        digest ||= Digest::SHA256.hexdigest(match)
+        STDOUT.write([path_rel, ref, digest, path, lineno, candidate].join("\0") + "\0")
+      end
+    end
+  ' -- "$root"
+)
 if [[ "$md_ref_broken" -gt 0 ]]; then
   echo "md_reference_check: $md_ref_broken broken .md reference(s) above — blocking; a routed-to file was renamed or removed, update the citation or restore the target"
 fi
