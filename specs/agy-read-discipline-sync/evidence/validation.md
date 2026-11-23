@@ -23,7 +23,7 @@
   - **Host B Control (built-in `Read(file_path, offset, limit)`, no `ByteOffset` / span headers) — Candidate**:
     - `small_skill.md` (352 lines, 13,767 B): **3/3 GREEN** (`3, 3, 4` executed `Read` calls: `limit=150, 150, 100` in `r1`/`r2` and `limit=90` × 4 in `r3`, every chunk `<= 150` lines and `< 6` KB, with mid-file `ALPHA_176` and tail `OMEGA_350` verified in 3/3 runs).
   - **Host C Control (`mcp__trunc__read_lines` silently dropping middle past 256 lines or 10,240 bytes with no truncation marker and no `Showing lines`/`Partial read` headers) — Candidate**:
-    - `large_skill.md` (307 lines, 70,537 B) + `long_source.py` (943 lines, 44,152 B): **3/3 GREEN** (`15, 18, 17` executed `read_lines` calls: `30–35` lines / `1,667–8,275` B per chunk on `large_skill.md` and `143–160` lines / `2,226–8,319` B per chunk on `long_source.py` — every call stayed below `<200` lines and the 10 KiB middle-drop threshold, recovering `BRAVO_160`, `DELTA_305`, `CHARLIE_472`, and `ECHO_940` in 3/3 runs).
+    - `large_skill.md` (307 lines, 70,537 B) + `long_source.py` (943 lines, 44,152 B): `15, 18, 17` executed `read_lines` calls (`30–35` lines on `large_skill.md`, `143–160` lines on `long_source.py`). Raw file bytes per chunk stayed `< 8` KiB (`<= 7,520` B) across all 3 runs; with the server's `NNN: ` line-number prefix added, `r2` stayed strictly `< 8,192` B (`1,667–7,799` B across all 18 calls), while `r1` and `r3` reached `8,275–8,319` B (`~8.1` KiB, `+83` to `+127` B over `8,192` B against the `~8 KiB` guideline, and well under the `10,240`-byte silent middle-drop cutoff), recovering `BRAVO_160`, `DELTA_305`, `CHARLIE_472`, and `ECHO_940` in 3/3 runs.
 
 ## Deterministic Size, Sync, and Anchor Gates
 
@@ -70,4 +70,42 @@ Derived mechanically across all 4 touched Markdown files (`12 + 2 + 3 + 2 = 19` 
 
 ## Reader-Facing Prose Check (`tighten-doc`)
 
-- Closeout sweep run across `agent-context/session-start.md`, `agent-context/session-policy.md`, `skills/skill-extraction-workflow/SKILL.md` L55, `skills/skill-extraction-workflow/references/source-to-skill-extraction.md` L335, `skills/skill-extraction-workflow/references/source-register.md` L887–888, and `specs/agy-read-discipline-sync/plan.md`: zero meta self-narration, zero session-vantage leakage, all KEEP thresholds (`800` lines, `46,080` bytes, `~256` lines / `10` KiB, `200` lines / `8` KiB) and anchors preserved.
+- Mode: `Tighten`; docs checked: `agent-context/session-start.md`, `agent-context/session-policy.md`, `skills/skill-extraction-workflow/SKILL.md` L55, `skills/skill-extraction-workflow/references/source-to-skill-extraction.md` L335, `skills/skill-extraction-workflow/references/source-register.md` L887–888, `specs/agy-read-discipline-sync/plan.md`, and `specs/agy-read-discipline-sync/evidence/validation.md`; result: applied in-place tightening (`session-start.md` `-2` B, `SKILL.md` `-7` B / `-7` words, zero meta self-narration, zero session-vantage leakage, all KEEP thresholds and anchors preserved).
+
+## Review pass
+
+- Reviewed commit: `dd63053c91f013959630618f3c164fae04be61a4` (`specs/agy-read-discipline-sync/evidence/review-R1.json`, `selected_client=claude`, `packet_sha256=f92e09c80cc70074b868fdba9a4d894af287ab216829c629cc0e25bef7f286c6`)
+- Findings: 3 total (0 P0 / 1 P1 / 2 P2)
+- R0 evidence: `alias_audit_ok` (`r0_status=private-ok`, `ccl_skill_check_clean_ok`)
+- Dispositions:
+  - R1-P1 (`specs/agy-read-discipline-sync/evidence/validation.md:20`, `--tools ""` probe recorded planned calls rather than executed tool calls): **fixed** (`393412c6ab8baefbe6b77bdf459e12cf7822a872`) — replaced `ab-*.txt` with live tool-executing `claude -p --output-format stream-json` runs (`ab-base-hostA-r1..r3.json`, `ab-cand-hostA-r1..r3.json`, `ab-cand-hostB-r1..r3.json`) verifying mid-file and tail sentinels across all runs.
+  - R1-P2a (`specs/agy-read-discipline-sync/evidence/validation.md:16`, harness name and omitted-vs-`0` initial `ByteOffset` summary mismatch): **fixed** (`393412c6ab8baefbe6b77bdf459e12cf7822a872`) — aligned `plan.md` and `validation.md` on `claude -p --output-format stream-json` and recorded exact observed arguments (`ByteOffset` omitted on initial read, `ByteOffset=46080` on continuation).
+  - R1-P2b (`specs/agy-read-discipline-sync/evidence/validation.md:1`, commit review receipts under `specs/agy-read-discipline-sync/evidence/`): **fixed** (`393412c6ab8baefbe6b77bdf459e12cf7822a872`) — committed `review-R1.json` (followed by `challenge-C1.json` and `delta-D1.json`).
+
+## Challenge pass
+
+- Reviewed commit: `393412c6ab8baefbe6b77bdf459e12cf7822a872` (`specs/agy-read-discipline-sync/evidence/challenge-C1.json`, `selected_client=claude`, `packet_sha256=14defe8eec6af3ff44d9b6e3ed0f8c574cc662f34dd539ecc4ab98ce6d1e0c66`)
+- Findings: 5 total (0 P0 / 2 P1 / 3 P2)
+- R0 evidence: `alias_audit_ok` (`r0_status=private-ok`, `ccl_skill_check_clean_ok`)
+- Gate-fireability applicability: `yes — edits the read-discipline conditional rule across always-on and skill carriers`; Item 9 exercised: `specs/agy-read-discipline-sync/evidence/challenge-C1.json` (`findings[0]` Path 1 & Path 2 bypass-by-omission analysis and `concern_results[0]`)
+- Dispositions:
+  - C1-P1a (`agent-context/session-start.md:37`, keying contiguous branch on `ByteOffset` parameter without requiring observed `Showing lines`/`Partial read` headers and `E=Z` / `B=T` completion targets): **fixed** (`61f5a8f979095b77d1f02a4f5872a122691ccf5a`) — all four carriers now require observed `Showing lines`/`Partial read` headers and continuation until `E=Z` and `B=T`, falling back to `<200` lines & `<8` KB chunking otherwise.
+  - C1-P1b (`specs/agy-read-discipline-sync/evidence/review-R1.json:1`, claiming `status=findings` is inconclusive and requesting candidate-SHA binding in `check_review_evidence_present.py`): **source-refuted** — `skills/skill-extraction-workflow/scripts/check_review_evidence_present.py` L4–26, L38 defines `CONCLUSIVE = ("passed", "findings")` and explicitly retired candidate-hash binding, and `skills/skill-extraction-workflow/references/dual-track-review-gate.md` L506, L510–512, L526 mandates committing each pass's JSON receipt without hash-rebinding while covering post-review edits via an Agent-run delta pass (`delta-D1.json`).
+  - C1-P2a (`agent-context/session-start.md:37`, exact `46,080B` cap and ordering for files exceeding both `800` lines and `46,080` bytes): **fixed** (`61f5a8f979095b77d1f02a4f5872a122691ccf5a`) — stated `46,080B` and `ByteOffset` to `E=Z` per range before `StartLine` to `B=T`, verified by `ab-cand-dualcap-r1..r3.json` (`950` lines, `89,181` B).
+  - C1-P2b (`specs/agy-read-discipline-sync/evidence/validation.md:19`, add silent head+tail truncating control >256 lines / 10 KiB on `large_skill.md` and `long_source.py`): **fixed** (`61f5a8f979095b77d1f02a4f5872a122691ccf5a`) — added `ab-cand-hostC-r1..r3.json` over a silent middle-dropping tool (`>256` lines or `>10,240` B).
+  - C1-P2c (`skills/skill-extraction-workflow/references/source-register.md:887`, claiming `firing-path: file:...#...` must be a Markdown heading): **source-refuted** — `skills/skill-extraction-workflow/scripts/impact-chain-gate.rb` L1283–1305 and L1376–1398 (`enforcing_file_locator_valid`) requires a unique `>=16`-char literal substring on an added normative list/table rule line and rejects unchanged headings; verified green by `check-ccl-skills.sh`.
+
+## Delta pass 1
+
+- Reviewed commit: `61f5a8f979095b77d1f02a4f5872a122691ccf5a`; packet: `git diff 393412c6ab8baefbe6b77bdf459e12cf7822a872..61f5a8f979095b77d1f02a4f5872a122691ccf5a` (`specs/agy-read-discipline-sync/evidence/delta-D1.json`, `selected_client=claude`, `packet_sha256=f10076e0ef50327812f3076df02d8c832f7af483bc482a68b2df0759cbb72cc6`)
+- Findings: 3 total (0 P0 / 1 P1 / 2 P2)
+- R0 evidence: `alias_audit_ok` (`r0_status=private-ok`, `ccl_skill_check_clean_ok`)
+- Dispositions:
+  - D1-P1 (`specs/agy-read-discipline-sync/evidence/challenge-C1.json:1`, same claim as C1-P1b that `status=findings` on an earlier commit SHA is non-conclusive): **source-refuted** — `check_review_evidence_present.py` L22–26, L38 (`CONCLUSIVE = ("passed", "findings")`, hash binding retired) and `dual-track-review-gate.md` L506, L510–512, L526; `delta-D1.json` itself covers `393412c6..61f5a8f9` and only non-executable `evidence/` records change afterward.
+  - D1-P2a (`specs/agy-read-discipline-sync/evidence/validation.md:29`, note that line-number-prefixed Host C chunks in `r1`/`r3` reached `8,275–8,319` B vs `8,192` B): **fixed** (in this closeout evidence commit) — reported raw (`<= 7,520` B) vs line-prefixed (`1,667–7,799` B in `r2`, `8,275–8,319` B in `r1`/`r3`, `~8.1` KiB vs `~8` KiB guideline) chunk sizes explicitly in `validation.md`.
+  - D1-P2b (`skills/skill-extraction-workflow/references/source-register.md:888`, same heading-vs-substring claim as C1-P2c): **source-refuted** — `impact-chain-gate.rb` L1283–1305 and L1376–1398 requires an added normative rule-line substring (`>=16` chars, unique), verified green by `check-ccl-skills.sh`.
+
+## Post-review delta
+
+- `specs/agy-read-discipline-sync/evidence/delta-D1.json`: archive controller receipt JSON for Delta pass 1 (`393412c6..61f5a8f9`).
+- `specs/agy-read-discipline-sync/evidence/validation.md`: record `R1`, `C1`, `Delta pass 1` dispositions, `Post-review delta` manifest, and exact raw-vs-prefixed Host C byte figures (non-executable `evidence/` record files only; no further delta pass owed per `dual-track-review-gate.md` §The extraction review lane step 4).
