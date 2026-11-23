@@ -35,7 +35,7 @@
 
 ## Pre-Cover First-Draft Blind-Spot Axes
 
-1. **Security / privacy / authority / data-loss**: No credential, permission, sandbox, or destructive path touched. Any `read_file` that does not echo `Showing lines`/`Partial read` headers falls back to the `<200 lines & <8 KB` branch, and partial spans require `ByteOffset` continuation to `E=Z` within each line range before advancing `StartLine` to `B=T` (`hooks/agy-bridge.py` independently refuses partial line/byte coverage).
+1. **Security / privacy / authority / data-loss**: No credential, permission, sandbox, or destructive path touched. Any `read_file` that does not echo `Showing lines`/`Partial read` headers falls back to the `<200 lines & <8 KB` branch, and partial spans require `ByteOffset` continuation to `E=Z` within each line range before advancing `StartLine` to `B=T` (for bundled `SKILL.md` loads, `hooks/agy-bridge.py` independently refuses partial line/byte coverage; other files rely on this `E=Z` / `B=T` rule).
 2. **Concurrency & lifecycle**: Stateless prompt/skill rule text; `not-applicable`.
 3. **Resource bounds**: Preserves `800-line / 46,080B` contiguous bound on `Showing lines`/`Partial read` `read_file` and `<200 lines AND <8 KiB` bound on all other outputs; zero net growth on `session-start.md`, `SKILL.md`, and `source-to-skill-extraction.md`.
 4. **Rollout / migration ordering**: `hooks/agy-bridge.py` (`PR #235`, `e8ad14a`) already landed before this prose update, so runtime verification of `Partial read` byte chunks is already live.
@@ -105,7 +105,17 @@ Derived mechanically across all 4 touched Markdown files (`12 + 2 + 3 + 2 = 19` 
   - D1-P2a (`specs/agy-read-discipline-sync/evidence/validation.md:29`, note that line-number-prefixed Host C chunks in `r1`/`r3` reached `8,275–8,319` B vs `8,192` B): **fixed** (in this closeout evidence commit) — reported raw (`<= 7,520` B) vs line-prefixed (`1,667–7,799` B in `r2`, `8,275–8,319` B in `r1`/`r3`, `~8.1` KiB vs `~8` KiB guideline) chunk sizes explicitly in `validation.md`.
   - D1-P2b (`skills/skill-extraction-workflow/references/source-register.md:888`, same heading-vs-substring claim as C1-P2c): **source-refuted** — `impact-chain-gate.rb` L1283–1305 and L1376–1398 requires an added normative rule-line substring (`>=16` chars, unique), verified green by `check-ccl-skills.sh`.
 
+## Full-candidate review pass
+
+- Reviewed commit: `7ff85a5e327afb07cc2fa9944555d8fd3adc3d65`; packet: `git diff e8ad14af56c8c8fdaaaed330838a4ad75d30f0aa..7ff85a5e327afb07cc2fa9944555d8fd3adc3d65` (`selected_client=claude`, `packet_sha256=bc261a94c4efa8f9fc2e66c5893936c210f205391c33d802579d5464a63f391c`, `candidate_sha256=12de07e65f9e5557e1aa891986cee076eda8f81faa0a9a286ae13c9a7af572e1`)
+- Findings: 1 total (0 P0 / 0 P1 / 1 P2); companion repository-scope consult (`code-review:read-only-repository`, `evidence_sufficient=true`) verified 0 P0 / 0 P1 across both layers and surfaced 2 P2 notes on `validation.md` L38 and third-party MCP header spoofing.
+- R0 evidence: `alias_audit_ok` (`r0_status=private-ok`, `ccl_skill_check_clean_ok`)
+- Dispositions:
+  - F1-P2 (`skills/skill-extraction-workflow/references/source-register.md:887`, row 887 carries Round 1 `dd63053c` byte/word figures while row 888 carries Round 2 `61f5a8f9` landed figures): **deferred: append-only per-commit ledger invariant** — `skills/skill-extraction-workflow/scripts/impact-chain-gate.rb` L147–164 and L490–504 cuts rounds at commits touching `source-register.md` and requires Round 1's added row to survive verbatim at `HEAD` so Round 1 (`e8ad14af..dd63053c`) remains declared; row 888 immediately below records the Round 2 (`dd63053c..61f5a8f9`) refinement and landed figures, matching existing multi-round ledger pairs (rows 866/868 and 869–872/873).
+  - Consult-P2a (`specs/agy-read-discipline-sync/evidence/validation.md:38`, scope `hooks/agy-bridge.py` runtime refusal note to bundled `SKILL.md` loads): **fixed** (in this closeout evidence commit) — narrowed L38 to state `for bundled SKILL.md loads, hooks/agy-bridge.py independently refuses partial line/byte coverage; other files rely on this E=Z / B=T rule`.
+  - Consult-P2b (`agent-context/session-start.md:37`, hypothetical third-party MCP tool named `read_file` spoofing `Showing lines` headers while truncating internally): **deferred: accepted residual risk** — `source-to-skill-extraction.md` L335 already specifies `verified contiguous Showing lines / Partial read span headers`, while `session-start.md` (`7,792` / `7,794` B) keys on the host `read_file` header contract.
+
 ## Post-review delta
 
 - `specs/agy-read-discipline-sync/evidence/delta-D1.json`: archive controller receipt JSON for Delta pass 1 (`393412c6..61f5a8f9`).
-- `specs/agy-read-discipline-sync/evidence/validation.md`: record `R1`, `C1`, `Delta pass 1` dispositions, `Post-review delta` manifest, and exact raw-vs-prefixed Host C byte figures (non-executable `evidence/` record files only; no further delta pass owed per `dual-track-review-gate.md` §The extraction review lane step 4).
+- `specs/agy-read-discipline-sync/evidence/validation.md`: record `R1`, `C1`, `Delta pass 1`, and `Full-candidate review pass` dispositions, `Post-review delta` manifest, raw-vs-prefixed Host C byte figures, and `bundled SKILL.md` runtime-check scope (non-executable `evidence/` record files only; no further delta pass owed per `dual-track-review-gate.md` §The extraction review lane step 4).
