@@ -1,0 +1,257 @@
+{
+  "arm": "cand-hostC",
+  "rep": 3,
+  "harness": "claude -p --output-format stream-json",
+  "init_tools": [
+    "mcp__trunc__read_lines"
+  ],
+  "executed_tool_call_count": 17,
+  "executed_tool_calls": [
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 1,
+        "end_line": 30
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 31,
+        "end_line": 60
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 61,
+        "end_line": 90
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 91,
+        "end_line": 120
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 121,
+        "end_line": 150
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 151,
+        "end_line": 180
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 181,
+        "end_line": 210
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 211,
+        "end_line": 240
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 241,
+        "end_line": 270
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 271,
+        "end_line": 300
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 301,
+        "end_line": 307
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/long_source.py",
+        "start_line": 1,
+        "end_line": 160
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/long_source.py",
+        "start_line": 161,
+        "end_line": 320
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/long_source.py",
+        "start_line": 321,
+        "end_line": 480
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/long_source.py",
+        "start_line": 481,
+        "end_line": 640
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/long_source.py",
+        "start_line": 641,
+        "end_line": 800
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/long_source.py",
+        "start_line": 801,
+        "end_line": 943
+      }
+    }
+  ],
+  "tool_result_stats": [
+    {
+      "is_error": false,
+      "output_lines": 30,
+      "output_bytes": 6628,
+      "first_line": "1: # Synthetic Large Entrypoint Skill (large_skill)"
+    },
+    {
+      "is_error": false,
+      "output_lines": 30,
+      "output_bytes": 7049,
+      "first_line": "31: Section 031: Clause 031 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering bound"
+    },
+    {
+      "is_error": false,
+      "output_lines": 30,
+      "output_bytes": 7049,
+      "first_line": "61: Section 061: Clause 061 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering bound"
+    },
+    {
+      "is_error": false,
+      "output_lines": 30,
+      "output_bytes": 7070,
+      "first_line": "91: Section 091: Clause 091 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering bound"
+    },
+    {
+      "is_error": false,
+      "output_lines": 30,
+      "output_bytes": 7079,
+      "first_line": "121: Section 121: Clause 121 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering boun"
+    },
+    {
+      "is_error": false,
+      "output_lines": 30,
+      "output_bytes": 7095,
+      "first_line": "151: Section 151: Clause 151 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering boun"
+    },
+    {
+      "is_error": false,
+      "output_lines": 30,
+      "output_bytes": 7079,
+      "first_line": "181: Section 181: Clause 181 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering boun"
+    },
+    {
+      "is_error": false,
+      "output_lines": 30,
+      "output_bytes": 7079,
+      "first_line": "211: Section 211: Clause 211 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering boun"
+    },
+    {
+      "is_error": false,
+      "output_lines": 30,
+      "output_bytes": 7079,
+      "first_line": "241: Section 241: Clause 241 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering boun"
+    },
+    {
+      "is_error": false,
+      "output_lines": 30,
+      "output_bytes": 7079,
+      "first_line": "271: Section 271: Clause 271 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering boun"
+    },
+    {
+      "is_error": false,
+      "output_lines": 7,
+      "output_bytes": 1667,
+      "first_line": "301: Section 301: Clause 301 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering boun"
+    },
+    {
+      "is_error": false,
+      "output_lines": 160,
+      "output_bytes": 8053,
+      "first_line": "1: \"\"\"Synthetic module long_source.py.\"\"\""
+    },
+    {
+      "is_error": false,
+      "output_lines": 160,
+      "output_bytes": 8319,
+      "first_line": "161: def helper_0161(x: int) -> int: return x + 161"
+    },
+    {
+      "is_error": false,
+      "output_lines": 160,
+      "output_bytes": 8317,
+      "first_line": "321: def helper_0321(x: int) -> int: return x + 321"
+    },
+    {
+      "is_error": false,
+      "output_lines": 160,
+      "output_bytes": 8319,
+      "first_line": "481: def helper_0481(x: int) -> int: return x + 481"
+    },
+    {
+      "is_error": false,
+      "output_lines": 160,
+      "output_bytes": 8319,
+      "first_line": "641: def helper_0641(x: int) -> int: return x + 641"
+    },
+    {
+      "is_error": false,
+      "output_lines": 143,
+      "output_bytes": 7426,
+      "first_line": "801: def helper_0801(x: int) -> int: return x + 801"
+    }
+  ],
+  "sentinels_verified": {
+    "BRAVO_160": true,
+    "DELTA_305": true,
+    "CHARLIE_472": true,
+    "ECHO_940": true
+  }
+}

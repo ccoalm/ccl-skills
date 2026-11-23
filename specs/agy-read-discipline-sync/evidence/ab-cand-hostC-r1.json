@@ -1,0 +1,229 @@
+{
+  "arm": "cand-hostC",
+  "rep": 1,
+  "harness": "claude -p --output-format stream-json",
+  "init_tools": [
+    "mcp__trunc__read_lines"
+  ],
+  "executed_tool_call_count": 15,
+  "executed_tool_calls": [
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 1,
+        "end_line": 34
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 35,
+        "end_line": 68
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 69,
+        "end_line": 102
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 103,
+        "end_line": 136
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 137,
+        "end_line": 170
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 171,
+        "end_line": 204
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 205,
+        "end_line": 238
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 239,
+        "end_line": 272
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/large_skill.md",
+        "start_line": 273,
+        "end_line": 307
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/long_source.py",
+        "start_line": 1,
+        "end_line": 160
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/long_source.py",
+        "start_line": 161,
+        "end_line": 320
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/long_source.py",
+        "start_line": 321,
+        "end_line": 480
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/long_source.py",
+        "start_line": 481,
+        "end_line": 640
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/long_source.py",
+        "start_line": 641,
+        "end_line": 800
+      }
+    },
+    {
+      "tool": "mcp__trunc__read_lines",
+      "input": {
+        "path": "<WORKSPACE>/long_source.py",
+        "start_line": 801,
+        "end_line": 943
+      }
+    }
+  ],
+  "tool_result_stats": [
+    {
+      "is_error": false,
+      "output_lines": 34,
+      "output_bytes": 7568,
+      "first_line": "1: # Synthetic Large Entrypoint Skill (large_skill)"
+    },
+    {
+      "is_error": false,
+      "output_lines": 34,
+      "output_bytes": 7989,
+      "first_line": "35: Section 035: Clause 035 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering bound"
+    },
+    {
+      "is_error": false,
+      "output_lines": 34,
+      "output_bytes": 7992,
+      "first_line": "69: Section 069: Clause 069 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering bound"
+    },
+    {
+      "is_error": false,
+      "output_lines": 34,
+      "output_bytes": 8023,
+      "first_line": "103: Section 103: Clause 103 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering boun"
+    },
+    {
+      "is_error": false,
+      "output_lines": 34,
+      "output_bytes": 8039,
+      "first_line": "137: Section 137: Clause 137 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering boun"
+    },
+    {
+      "is_error": false,
+      "output_lines": 34,
+      "output_bytes": 8023,
+      "first_line": "171: Section 171: Clause 171 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering boun"
+    },
+    {
+      "is_error": false,
+      "output_lines": 34,
+      "output_bytes": 8023,
+      "first_line": "205: Section 205: Clause 205 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering boun"
+    },
+    {
+      "is_error": false,
+      "output_lines": 34,
+      "output_bytes": 8023,
+      "first_line": "239: Section 239: Clause 239 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering boun"
+    },
+    {
+      "is_error": false,
+      "output_lines": 35,
+      "output_bytes": 8275,
+      "first_line": "273: Section 273: Clause 273 neutral reusable contract guidance covering boundary checks, verification gates, and fallback handling neutral reusable contract guidance covering boun"
+    },
+    {
+      "is_error": false,
+      "output_lines": 160,
+      "output_bytes": 8053,
+      "first_line": "1: \"\"\"Synthetic module long_source.py.\"\"\""
+    },
+    {
+      "is_error": false,
+      "output_lines": 160,
+      "output_bytes": 8319,
+      "first_line": "161: def helper_0161(x: int) -> int: return x + 161"
+    },
+    {
+      "is_error": false,
+      "output_lines": 160,
+      "output_bytes": 8317,
+      "first_line": "321: def helper_0321(x: int) -> int: return x + 321"
+    },
+    {
+      "is_error": false,
+      "output_lines": 160,
+      "output_bytes": 8319,
+      "first_line": "481: def helper_0481(x: int) -> int: return x + 481"
+    },
+    {
+      "is_error": false,
+      "output_lines": 160,
+      "output_bytes": 8319,
+      "first_line": "641: def helper_0641(x: int) -> int: return x + 641"
+    },
+    {
+      "is_error": false,
+      "output_lines": 143,
+      "output_bytes": 7426,
+      "first_line": "801: def helper_0801(x: int) -> int: return x + 801"
+    }
+  ],
+  "sentinels_verified": {
+    "BRAVO_160": true,
+    "DELTA_305": true,
+    "CHARLIE_472": true,
+    "ECHO_940": true
+  }
+}

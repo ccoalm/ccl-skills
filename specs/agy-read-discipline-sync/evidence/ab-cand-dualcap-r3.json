@@ -1,0 +1,57 @@
+{
+  "arm": "cand-dualcap",
+  "rep": 3,
+  "harness": "claude -p --output-format stream-json",
+  "init_tools": [
+    "mcp__host__read_file"
+  ],
+  "executed_tool_call_count": 3,
+  "executed_tool_calls": [
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/dual_cap_skill.md"
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/dual_cap_skill.md",
+        "StartLine": 1,
+        "EndLine": 800,
+        "ByteOffset": 46080
+      }
+    },
+    {
+      "tool": "mcp__host__read_file",
+      "input": {
+        "Path": "<WORKSPACE>/dual_cap_skill.md",
+        "StartLine": 801
+      }
+    }
+  ],
+  "tool_result_stats": [
+    {
+      "is_error": false,
+      "output_lines": 469,
+      "output_bytes": 46317,
+      "first_line": "Partial read (lines 1-800 of 950). Showing bytes 0-46080 of 78962 in this line range, truncated at the 46080-byte limit. To read the rest of this line range, call this tool again w"
+    },
+    {
+      "is_error": false,
+      "output_lines": 334,
+      "output_bytes": 32972,
+      "first_line": "Partial read (lines 1-800 of 950). Showing bytes 46080-78962 of 78962 in this line range."
+    },
+    {
+      "is_error": false,
+      "output_lines": 151,
+      "output_bytes": 14888,
+      "first_line": "Showing lines 801-950 of 950"
+    }
+  ],
+  "sentinels_verified": {
+    "FOXTROT_720": true,
+    "GOLF_945": true
+  }
+}
