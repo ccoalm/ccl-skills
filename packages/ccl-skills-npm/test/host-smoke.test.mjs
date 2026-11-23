@@ -95,6 +95,12 @@ process.umask(0o022);
 const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+const allowedGitEnv = new Set(["GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM"]);
+const leakedGit = Object.keys(process.env).filter((k) => k.startsWith("GIT_") && !allowedGitEnv.has(k));
+if (leakedGit.length) {
+  console.error("leaked GIT env into host-smoke: " + leakedGit.join(","));
+  process.exit(9);
+}
 const args = process.argv.slice(2);
 if (args[0] === "ci") {
   fs.mkdirSync("node_modules/.bin", { recursive: true });
@@ -115,6 +121,10 @@ if (args[0] === "run" && args[1] === "build") {
   process.exit(r.status ?? 1);
 }
 if (args[0] === "pack") {
+  if (fs.existsSync("UNTRACKED_PKG_CANARY.txt")) {
+    console.error("untracked package file leaked into staged source");
+    process.exit(9);
+  }
   const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
   const outName = "ccoalm-ccl-skills-" + pkg.version + ".tgz";
   const stage = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "stub-pack-"));
@@ -338,6 +348,15 @@ test("host-smoke isolates XDG/OPENCODE/CCL_SKILLS_REPO env, stages only tracked 
 				CCL_SKILLS_REPO: join(sandbox, "nonexistent-override-repo"),
 				CLAUDE_CONFIG_DIR: join(sandbox, "poison-claude"),
 				CLAUDE_CODE_PLUGIN_ROOT: join(sandbox, "poison-plugin-root"),
+				GIT_DIR: join(sandbox, "poison-git-dir"),
+				GIT_WORK_TREE: join(sandbox, "poison-work-tree"),
+				GIT_EXEC_PATH: join(sandbox, "poison-git-exec"),
+				GIT_SSH_COMMAND: "false",
+				GIT_ASKPASS: "false",
+				GIT_TRACE: join(sandbox, "poison-git-trace.log"),
+				GIT_CONFIG_COUNT: "1",
+				GIT_CONFIG_KEY_0: "core.sshCommand",
+				GIT_CONFIG_VALUE_0: "false",
 				SMOKE_AGY_CALL_LOG: agyLog,
 			},
 		});

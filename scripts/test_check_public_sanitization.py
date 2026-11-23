@@ -109,6 +109,8 @@ def main() -> int:
             + "feishu.cn:443/base/BASxxx",
             "port-lark-tenant-hostname": "https://team-workspace."
             + "larksuite.com:8443/wiki/WIKxxx",
+            "loopback-url-host": "http://127." + "0.0.1:8080/api",
+            "link-local-url-host": "http://169.254." + "169.254/latest/meta-data",
         }
         for index, (label, value) in enumerate(cases.items()):
             relative = f"case-{index}.txt"
@@ -158,6 +160,16 @@ def main() -> int:
     assert module.display.__code__.co_filename == repo_text_mod.display.__code__.co_filename
     assert module.display("a\nb.txt") != module.display("a\\nb.txt")
     assert module.display("中文.md") == "中文.md"
+
+    # Exhaustively verify across all 256x256 leading octet pairs that no IP_RE
+    # match can bypass IP_LINE_PREFIXES.
+    for oct_a in range(256):
+        for oct_b in range(256):
+            probe = f"addr={oct_a}.{oct_b}.1.1"
+            if module.IP_RE.search(probe):
+                assert any(p in probe for p in module.IP_LINE_PREFIXES), (
+                    f"IP_RE matched {probe!r} without matching IP_LINE_PREFIXES"
+                )
 
     print("public_sanitization_test_ok")
     return 0

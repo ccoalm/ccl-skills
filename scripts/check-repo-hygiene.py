@@ -13,8 +13,8 @@ Checks four fast, deterministic invariants on tracked repository state:
    `test_check_ccl_regressions.sh`, `packages/ccl-skills-npm/package.json`,
    verified parent-suite delegates, and bounded opt-in environment suites).
 4. Warning-free compilation (`warnings.simplefilter("error")`) for all tracked
-   Python source files outside `specs/` and `MANIFEST.json`-SHA256-sealed
-   concluded `eval/evidence/` archives.
+   Python source files outside `specs/` and the explicit `MANIFEST.json`-pinned
+   `SEALED_HISTORICAL_PYTHON_ARCHIVES` allowlist.
 """
 
 from __future__ import annotations
@@ -96,6 +96,7 @@ TEST_EXTENSIONS = (".py", ".sh", ".mjs", ".ts", ".js", ".rb")
 # Explicit caps prevent allowlists from growing into silent exemptions.
 MAX_PARENT_SUITE_DELEGATES = 4
 MAX_OPT_IN_ENV_SUITES = 2
+MAX_SEALED_HISTORICAL_PYTHON_ARCHIVES = 1
 
 PARENT_SUITE_DELEGATES: dict[str, str] = {
     "skills/code-review/scripts/test_abort_leak_readiness.py": (
@@ -105,10 +106,20 @@ PARENT_SUITE_DELEGATES: dict[str, str] = {
 OPT_IN_ENV_SUITES: dict[str, str] = {
     "scripts/verify-sandbox/test.sh": "test-verify-sandbox",
 }
+SEALED_HISTORICAL_PYTHON_ARCHIVES: dict[str, tuple[str, str]] = {
+    "eval/evidence/routing-new-tighten-vs-owner-2026-08-15/recompute-aggregates.py": (
+        "eval/evidence/routing-new-tighten-vs-owner-2026-08-15/MANIFEST.json",
+        "d02142f53596b7c8ee68602ed32095a62b7410ed184efb11f5ef1455304d9ba9",
+    ),
+}
 
 _EVAL_MODULE_RE = re.compile(r"^eval\.test_[A-Za-z0-9_]*$")
 _REPO_PATH_TOKEN_RE = re.compile(
     r"^(?:hooks|scripts|skills|eval|packages)/[A-Za-z0-9_./-]+$"
+)
+_ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*$")
+_RUNNER_COMMANDS = frozenset(
+    {"python3", "python", "bash", "sh", "node", "pytest", "ruby"}
 )
 
 
@@ -409,6 +420,56 @@ def _parse_makefile_targets(makefile_text: str) -> dict[str, tuple[list[str], li
     return targets
 
 
+def _extract_paths_from_simple_command(segment: list[str]) -> set[str]:
+    found: set[str] = set()
+    idx = 0
+    while idx < len(segment) and _ENV_ASSIGN_RE.match(segment[idx]):
+        idx += 1
+    if idx < len(segment) and segment[idx] == "env":
+        idx += 1
+        while idx < len(segment):
+            tok = segment[idx]
+            if tok in ("-i", "--ignore-environment"):
+                idx += 1
+            elif tok == "-u" and idx + 1 < len(segment):
+                idx += 2
+            elif tok.startswith("--unset=") or _ENV_ASSIGN_RE.match(tok):
+                idx += 1
+            else:
+                break
+    if idx >= len(segment):
+        return found
+
+    cmd = segment[idx]
+    args = segment[idx + 1 :]
+    if "$" in cmd:
+        return found
+
+    cmd_base = os.path.basename(cmd)
+    cmd_norm = os.path.normpath(cmd).replace("\\", "/")
+    if cmd_base in _RUNNER_COMMANDS:
+        for tok in args:
+            if tok in ("-c", "-e"):
+                break
+            if "$" in tok:
+                continue
+            if _EVAL_MODULE_RE.match(tok):
+                found.add(tok.replace(".", "/") + ".py")
+                continue
+            cleaned = os.path.normpath(tok).replace("\\", "/")
+            if _REPO_PATH_TOKEN_RE.match(cleaned):
+                found.add(cleaned)
+    elif _REPO_PATH_TOKEN_RE.match(cmd_norm):
+        found.add(cmd_norm)
+        for tok in args:
+            if "$" in tok:
+                continue
+            cleaned = os.path.normpath(tok).replace("\\", "/")
+            if _REPO_PATH_TOKEN_RE.match(cleaned):
+                found.add(cleaned)
+    return found
+
+
 def _extract_paths_from_shell_line(line: str) -> set[str]:
     found: set[str] = set()
     try:
@@ -418,15 +479,16 @@ def _extract_paths_from_shell_line(line: str) -> set[str]:
         tokens = list(lex)
     except ValueError:
         return found
+    segment: list[str] = []
     for tok in tokens:
-        if "$" in tok:
-            continue
-        if _EVAL_MODULE_RE.match(tok):
-            found.add(tok.replace(".", "/") + ".py")
-            continue
-        cleaned = os.path.normpath(tok).replace("\\", "/")
-        if _REPO_PATH_TOKEN_RE.match(cleaned):
-            found.add(cleaned)
+        if tok and set(tok) <= set(";&|()"):
+            if segment:
+                found.update(_extract_paths_from_simple_command(segment))
+                segment = []
+        else:
+            segment.append(tok)
+    if segment:
+        found.update(_extract_paths_from_simple_command(segment))
     return found
 
 
@@ -618,38 +680,55 @@ def check_test_registration(
     return findings
 
 
-def _load_sealed_manifest_hashes(
-    root: Path, tracked_set: set[str]
-) -> dict[str, str]:
-    """Return repo-relative path -> pinned sha256 from tracked eval/evidence/*/MANIFEST.json."""
-    sealed: dict[str, str] = {}
-    for rel in sorted(tracked_set):
-        if not (rel.startswith("eval/evidence/") and rel.endswith("/MANIFEST.json")):
-            continue
-        mpath = root / rel
-        if mpath.is_symlink() or not mpath.is_file():
-            continue
-        try:
-            doc = json.loads(mpath.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            continue
-        if not isinstance(doc, dict):
-            continue
-        files_sha = doc.get("files_sha256")
-        if not isinstance(files_sha, dict):
-            continue
-        prefix = rel[: -len("MANIFEST.json")]
-        for sub_rel, digest in files_sha.items():
-            if isinstance(sub_rel, str) and isinstance(digest, str):
-                norm = os.path.normpath(prefix + sub_rel).replace("\\", "/")
-                if norm.startswith(prefix):
-                    sealed[norm] = digest
-    return sealed
+def _verify_sealed_archive_manifest(
+    root: Path,
+    tracked_set: set[str],
+    rel: str,
+    manifest_rel: str,
+    expected_sha: str,
+) -> bool:
+    if manifest_rel not in tracked_set:
+        return False
+    mpath = root / manifest_rel
+    if mpath.is_symlink() or not mpath.is_file():
+        return False
+    try:
+        doc = json.loads(mpath.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(doc, dict):
+        return False
+    files_sha = doc.get("files_sha256")
+    if not isinstance(files_sha, dict) or not manifest_rel.endswith("/MANIFEST.json"):
+        return False
+    prefix = manifest_rel[: -len("MANIFEST.json")]
+    if not rel.startswith(prefix):
+        return False
+    sub_rel = rel[len(prefix) :]
+    return files_sha.get(sub_rel) == expected_sha
 
 
-def check_python_warnings(root: Path, tracked_set: set[str]) -> list[str]:
+def check_python_warnings(
+    root: Path,
+    tracked_set: set[str],
+    *,
+    sealed_archives: dict[str, tuple[str, str]] | None = None,
+) -> list[str]:
     findings: list[str] = []
-    sealed_hashes = _load_sealed_manifest_hashes(root, tracked_set)
+    archives = (
+        SEALED_HISTORICAL_PYTHON_ARCHIVES
+        if sealed_archives is None
+        else sealed_archives
+    )
+    if len(archives) > MAX_SEALED_HISTORICAL_PYTHON_ARCHIVES:
+        findings.append(
+            f"python-warnings-cap-exceeded: SEALED_HISTORICAL_PYTHON_ARCHIVES has {len(archives)} > {MAX_SEALED_HISTORICAL_PYTHON_ARCHIVES}"
+        )
+    for archive_rel in sorted(archives):
+        if archive_rel not in tracked_set:
+            findings.append(
+                f"python-warnings-stale-archive: {display(archive_rel)} is not tracked"
+            )
 
     for rel in sorted(p for p in tracked_set if p.endswith(".py")):
         if rel.startswith("specs/"):
@@ -663,10 +742,13 @@ def check_python_warnings(root: Path, tracked_set: set[str]) -> list[str]:
             findings.append(f"python-unreadable: {display(rel)}: {display(str(exc))}")
             continue
 
-        expected_sha = sealed_hashes.get(rel)
-        if expected_sha is not None:
+        sealed_entry = archives.get(rel)
+        if sealed_entry is not None:
+            manifest_rel, expected_sha = sealed_entry
             actual_sha = hashlib.sha256(raw).hexdigest()
-            if actual_sha == expected_sha:
+            if actual_sha == expected_sha and _verify_sealed_archive_manifest(
+                root, tracked_set, rel, manifest_rel, expected_sha
+            ):
                 continue
 
         with warnings.catch_warnings():

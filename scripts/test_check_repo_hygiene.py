@@ -155,7 +155,7 @@ class RepoHygieneTest(unittest.TestCase):
     def test_synthetic_clean_repo_passes_and_spares_non_test_surfaces(self) -> None:
         sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
         files = _minimal_clean_repo_files()
-        # Spare cases: JSON fixture named test_*, specs/ test script, and MANIFEST-sealed eval/evidence .py with \A
+        # Spare cases: JSON fixture named test_*, specs/ test script, and pinned MANIFEST-sealed eval/evidence .py with \A
         sealed_py = b'"""legacy \\A escape in sealed archive"""\nx = 1\n'
         sealed_sha = hashlib.sha256(sealed_py).hexdigest()
         files["hooks/test_fixture.expected.json"] = '{"ok": true}\n'
@@ -166,7 +166,23 @@ class RepoHygieneTest(unittest.TestCase):
             {"files_sha256": {"recompute.py": sealed_sha}}
         )
         root = _make_git_repo(sandbox, files)
-        self.assertEqual(MODULE.run_all_checks(root), [])
+        tracked = set(MODULE.tracked_paths(root))
+        self.assertEqual(MODULE.check_git_env_parity(root), [])
+        self.assertEqual(MODULE.check_display_sharing(root), [])
+        self.assertEqual(MODULE.check_test_registration(root, tracked), [])
+        self.assertEqual(
+            MODULE.check_python_warnings(
+                root,
+                tracked,
+                sealed_archives={
+                    "eval/evidence/archive-1/recompute.py": (
+                        "eval/evidence/archive-1/MANIFEST.json",
+                        sealed_sha,
+                    )
+                },
+            ),
+            [],
+        )
 
     def test_git_env_parity_catches_missing_extra_and_unscrubbed_constants(self) -> None:
         sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
@@ -209,10 +225,14 @@ class RepoHygieneTest(unittest.TestCase):
         sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
         files = _minimal_clean_repo_files()
         files["Makefile"] = (
-            str(files["Makefile"])
+            str(files["Makefile"]).replace(
+                "test-repo-gates:\n",
+                "test-repo-gates:\n\techo scripts/test_echo_only.py && ls scripts/test_echo_only.py && test -f scripts/test_echo_only.py\n",
+            )
             + "dead-target:\n\tpython3 scripts/test_in_dead_target.py\n"
         )
         files["scripts/test_orphan.py"] = "assert True\n"
+        files["scripts/test_echo_only.py"] = "assert True\n"
         files["hooks/test_orphan.sh"] = "#!/usr/bin/env bash\n"
         files["packages/ccl-skills-npm/scripts/orphan.test.mjs"] = "export {};\n"
         files["scripts/test_in_dead_target.py"] = "assert True\n"
@@ -223,6 +243,7 @@ class RepoHygieneTest(unittest.TestCase):
         findings = MODULE.check_test_registration(root, tracked)
         joined = "\n".join(findings)
         self.assertIn("unregistered-test-file: scripts/test_orphan.py", joined)
+        self.assertIn("unregistered-test-file: scripts/test_echo_only.py", joined)
         self.assertIn("unregistered-test-file: hooks/test_orphan.sh", joined)
         self.assertIn("unregistered-test-file: packages/ccl-skills-npm/scripts/orphan.test.mjs", joined)
         self.assertIn("unregistered-test-file: scripts/test_in_dead_target.py", joined)
@@ -239,16 +260,34 @@ class RepoHygieneTest(unittest.TestCase):
         sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
         files = _minimal_clean_repo_files()
         files["scripts/has_escape_warning.py"] = 'DOC = "bad \\e escape"\n'
-        files["eval/evidence/tampered/recompute.py"] = 'DOC = "bad \\A escape"\n'
+        tampered_py = b'DOC = "bad \\A escape"\n'
+        files["eval/evidence/tampered/recompute.py"] = tampered_py
         files["eval/evidence/tampered/MANIFEST.json"] = json.dumps(
             {"files_sha256": {"recompute.py": "0" * 64}}
         )
+        # Author-created unapproved MANIFEST.json with matching sha256 must NOT bypass compilation!
+        self_sealed_py = b'DOC = "self-sealed \\A escape"\n'
+        self_sealed_sha = hashlib.sha256(self_sealed_py).hexdigest()
+        files["eval/evidence/self-sealed/bad.py"] = self_sealed_py
+        files["eval/evidence/self-sealed/MANIFEST.json"] = json.dumps(
+            {"files_sha256": {"bad.py": self_sealed_sha}}
+        )
         root = _make_git_repo(sandbox, files)
         tracked = set(MODULE.tracked_paths(root))
-        findings = MODULE.check_python_warnings(root, tracked)
+        findings = MODULE.check_python_warnings(
+            root,
+            tracked,
+            sealed_archives={
+                "eval/evidence/tampered/recompute.py": (
+                    "eval/evidence/tampered/MANIFEST.json",
+                    "0" * 64,
+                )
+            },
+        )
         joined = "\n".join(findings)
         self.assertIn("scripts/has_escape_warning.py", joined)
         self.assertIn("eval/evidence/tampered/recompute.py", joined)
+        self.assertIn("eval/evidence/self-sealed/bad.py", joined)
 
 
 if __name__ == "__main__":

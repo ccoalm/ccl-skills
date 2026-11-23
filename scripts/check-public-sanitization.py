@@ -39,7 +39,13 @@ GIT_SSH_RE = re.compile(
     r"(?P<identity>git@github\.com)(?(scheme)/|:)"
     r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\.git(?=$|[\s<>\"')\]])"
 )
-IP_RE = re.compile(r"(?<![0-9])(?:10(?:\.[0-9]{1,3}){3}|192\.168(?:\.[0-9]{1,3}){2}|172\.(?:1[6-9]|2[0-9]|3[01])(?:\.[0-9]{1,3}){2})(?![0-9])")
+# Every leading-octet prefix IP_RE can match; test_check_public_sanitization.py
+# verifies across all 0..255x0..255 leading octet pairs that no IP_RE match can
+# bypass IP_LINE_PREFIXES.
+IP_LINE_PREFIXES = ("10.", "192.168.", "172.")
+IP_RE = re.compile(
+    r"(?<![0-9])(?:10(?:\.[0-9]{1,3}){3}|192\.168(?:\.[0-9]{1,3}){2}|172\.(?:1[6-9]|2[0-9]|3[01])(?:\.[0-9]{1,3}){2})(?![0-9])"
+)
 ALLOWED_EMAIL_DOMAINS = {"example.com", "example.org", "example.net", "example.invalid"}
 SAAS_TENANT_SUFFIXES = ("feishu.cn", "larksuite.com")
 PUBLIC_SAAS_HOSTS = {
@@ -77,6 +83,7 @@ def is_organization_saas_tenant(host: str) -> bool:
 
 def scan(root: Path) -> list[tuple[str, str]]:
     findings: list[tuple[str, str]] = []
+    ip_p0, ip_p1, ip_p2 = IP_LINE_PREFIXES
 
     for relative in tracked_paths(root):
         target = root / relative
@@ -89,7 +96,7 @@ def scan(root: Path) -> list[tuple[str, str]]:
         # so cheap per-line substring prefilters skip regex evaluation on lines
         # without candidate markers while preserving exact whole-file findings.
         for line in content.split("\n"):
-            if "10." in line or "192.168." in line or "172." in line:
+            if ip_p0 in line or ip_p1 in line or ip_p2 in line:
                 for value in IP_RE.findall(line):
                     try:
                         if ipaddress.ip_address(value).is_private:
