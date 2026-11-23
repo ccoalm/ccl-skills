@@ -297,9 +297,42 @@ def normalize_input_relpath(raw: str) -> str:
     return "/".join(cleaned)
 
 
+_HYGIENE_TEST_EXTENSIONS = (".py", ".sh", ".mjs", ".ts", ".js", ".rb")
+
+
 def _is_suite_filename(name: str) -> bool:
     return name.endswith((".py", ".sh")) and (
         name.startswith("test_") or name.endswith((".test.sh", "_test.py"))
+    )
+
+
+def _is_hygiene_trigger_path(path: str) -> bool:
+    lower = path.lower()
+    if lower.endswith(".py"):
+        return True
+    name = Path(path).name
+    if _is_suite_filename(name):
+        return True
+    if path.startswith("eval/evidence/") and name == "MANIFEST.json":
+        return True
+    if path.startswith(("specs/", "eval/evidence/")):
+        return False
+    if not name.endswith(_HYGIENE_TEST_EXTENSIONS):
+        return False
+    return (
+        name.startswith("test_")
+        or name.endswith(
+            (
+                "_test.py",
+                "_test.sh",
+                ".test.sh",
+                ".test.mjs",
+                ".test.ts",
+                ".test.js",
+                "_test.rb",
+            )
+        )
+        or name in ("test.sh", "test.py")
     )
 
 
@@ -1573,7 +1606,7 @@ def build_test_plan(
             need_doc_gates = True
             need_sanitization = True
 
-        if lower.endswith(".py") or _is_suite_filename(Path(path).name):
+        if _is_hygiene_trigger_path(path):
             need_repo_hygiene = True
 
         if path in ("README.md", "packages/ccl-skills-npm/README.md"):

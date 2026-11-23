@@ -68,7 +68,11 @@ const sourceRoots = [
   ".worktree-only",
   "packages/ccl-skills-npm",
 ];
-const out = execFileSync("git", ["-C", repo, "ls-files", "--stage", "-z", "--", ...sourceRoots], { encoding: "buffer" });
+const out = execFileSync(
+  "git",
+  ["-c", "core.fsmonitor=false", "-c", `safe.directory=${repo}`, "-C", repo, "ls-files", "--stage", "-z", "--", ...sourceRoots],
+  { encoding: "buffer" },
+);
 const entries = out.toString("utf8").split("\0").filter(Boolean);
 if (!entries.length) throw new Error("tracked runtime closure is empty");
 for (const rec of entries) {

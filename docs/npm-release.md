@@ -43,7 +43,7 @@ npm view @ccoalm/ccl-skills version dist.integrity repository --json
 npx @ccoalm/ccl-skills@<version> --version
 ```
 
-Then run the three-host lifecycle smoke with the published tarball or exact version. Confirm the npm package page shows provenance from `ccoalm/ccl-skills` and the expected workflow.
+Then run the four-host lifecycle smoke (`codex`, `claude`, `opencode`, and `agy` on `PATH`) with `TGZ_PATH=<tarball> npm --prefix packages/ccl-skills-npm run smoke:host`. Confirm the npm package page shows provenance from `ccoalm/ccl-skills` and the expected workflow.
 
 ## Bad release
 

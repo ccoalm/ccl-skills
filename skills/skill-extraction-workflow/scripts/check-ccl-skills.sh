@@ -1161,43 +1161,51 @@ rm -f "$rg_err_tmp"
 md_ref_tmp="$(mktemp "${TMPDIR:-/tmp}/mdref-scan.XXXXXX")" || { echo "md_reference_scan_error: mktemp failed" >&2; exit 1; }
 md_ref_scan_rc=0
 printf '%s\n' "$rg_out" | ruby -Ku -rdigest -e '
-  root = ARGV[0]
-  root_clean = root.sub(%r{/\z}, "")
-  prefix_raw = "#{root}/"
-  prefix_clean = "#{root_clean}/"
+  STDIN.binmode
+  STDOUT.binmode
+  root = ARGV[0].dup.force_encoding(Encoding::BINARY)
+  colon = ":".b
+  slash = "/".b
+  lf = "\n".b
+  nul = "\0".b
+  root_clean = root.sub(%r{/\z}n, "".b)
+  prefix_raw = root + slash
+  prefix_clean = root_clean + slash
   ref_re = /`((?:\.\.\/)?(?:[a-z][a-z0-9_-]+\/)?references\/[a-z][a-z0-9_.\/-]+\.md)`/
-  STDIN.each_line do |raw|
-    line = raw.chomp("\n")
+  STDIN.each_line(lf) do |raw|
+    line = raw.chomp(lf)
     next if line.empty?
     if line.start_with?(prefix_raw)
       rel_and_rest = line.byteslice(prefix_raw.bytesize, line.bytesize - prefix_raw.bytesize)
-      rel_part, lineno, match = rel_and_rest.split(":", 3)
-      path = "#{prefix_raw}#{rel_part}"
+      rel_part, lineno, match = rel_and_rest.split(colon, 3)
+      path = prefix_raw + rel_part.to_s.b
     elsif line.start_with?(prefix_clean)
       rel_and_rest = line.byteslice(prefix_clean.bytesize, line.bytesize - prefix_clean.bytesize)
-      rel_part, lineno, match = rel_and_rest.split(":", 3)
-      path = "#{prefix_clean}#{rel_part}"
+      rel_part, lineno, match = rel_and_rest.split(colon, 3)
+      path = prefix_clean + rel_part.to_s.b
     else
-      path, lineno, match = line.split(":", 3)
+      path, lineno, match = line.split(colon, 3)
       rel_part = path
     end
     next if match.nil? || match.empty?
-    refs = match.scan(ref_re).flatten.uniq
+    match_utf8 = match.dup.force_encoding(Encoding::UTF_8).scrub("?")
+    refs = match_utf8.scan(ref_re).flatten.uniq
     next if refs.empty?
-    path_rel = rel_part.sub(%r{\A(?:\./|/)+}, "")
-    calling_skill = path_rel.start_with?("skills/") ? path_rel.split("/", 3)[1].to_s : ""
+    path_rel = rel_part.sub(%r{\A(?:\./|/)+}n, "".b)
+    calling_skill = path_rel.start_with?("skills/".b) ? path_rel.split(slash, 3)[1].to_s.b : "".b
     digest = nil
     refs.each do |ref|
+      ref_b = ref.dup.force_encoding(Encoding::BINARY)
       candidate = if ref.start_with?("../")
-        "#{root}/skills/#{ref.delete_prefix("../")}"
+        root + "/skills/".b + ref.delete_prefix("../").b
       elsif ref.include?("/references/") && !ref.start_with?("references/")
-        "#{root}/skills/#{ref}"
+        root + "/skills/".b + ref_b
       else
-        "#{root}/skills/#{calling_skill}/#{ref}"
+        root + "/skills/".b + calling_skill + slash + ref_b
       end
       next if File.file?(candidate)
       digest ||= Digest::SHA256.hexdigest(match)
-      STDOUT.write([path_rel, ref, digest, path, lineno, candidate].join("\0") + "\0")
+      STDOUT.write([path_rel, ref_b, digest.b, path, lineno, candidate].join(nul) + nul)
     end
   end
 ' -- "$root" >"$md_ref_tmp" || md_ref_scan_rc=$?

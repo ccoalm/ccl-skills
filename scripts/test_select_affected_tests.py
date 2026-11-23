@@ -378,6 +378,18 @@ class SelectAffectedTestsUnit(unittest.TestCase):
             "scripts/test_check_repo_hygiene.py",
         ):
             self.assertIn(suite, text_helper_plan["parallel_suites"])
+        for hygiene_path in (
+            "packages/ccl-skills-npm/test/orphan.test.mjs",
+            "hooks/sub/test.sh",
+            "skills/skill-extraction-workflow/scripts/foo_test.rb",
+            "eval/evidence/routing-new-tighten-vs-owner-2026-08-15/MANIFEST.json",
+        ):
+            h_plan = mod.build_test_plan([hygiene_path], repo_root=REPO_ROOT)
+            self.assertIn(
+                ["python3", "scripts/check-repo-hygiene.py", "."],
+                h_plan["serial_commands"],
+                msg=hygiene_path,
+            )
 
     def test_git_changed_file_discovery_special_names_cached_head_ascii_json_and_raw_bytes(self):
         mod = load_selector()

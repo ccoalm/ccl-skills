@@ -262,7 +262,7 @@ mkdir -p "$MDREF_FAIL_BIN"
 cat > "$MDREF_FAIL_BIN/ruby" <<EOF
 #!/usr/bin/env bash
 case "\$*" in
-  *"STDOUT.write([path_rel, ref, digest"*) exit 127 ;;
+  *"STDOUT.write([path_rel, ref_b, digest.b"*) exit 127 ;;
 esac
 exec "$REAL_RUBY" "\$@"
 EOF
@@ -275,6 +275,32 @@ assert_rc "$rc2" 1 "non-zero md_reference_check Ruby scanner exit must fail clos
 assert_contains "md_reference_block:" "$out2" "Ruby scanner failure must emit md_reference_block"
 assert_contains "md_reference_scan_error: ruby exited 127" "$out2" "Ruby scanner failure marker present"
 assert_contains "sync_reference_blocking_failed" "$out2" "Ruby scanner failure must trigger sync_reference_blocking_failed"
+
+# (b4) non-UTF-8 byte sequence in rg output must NOT crash the Ruby scanner with
+# md_reference_scan_error; it must still inspect citations on that line and later lines.
+REAL_RG="$(command -v rg)"
+NONUTF8_RG_BIN="$TMP/nonutf8-rg-bin"
+mkdir -p "$NONUTF8_RG_BIN"
+cat > "$NONUTF8_RG_BIN/rg" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  *"agent-context/session-start.md"*)
+    printf '%s:1:Latin1 \377 byte cites \`requirement-doc-writer/references/missing-on-nonutf8-line.md\`\n' "$REPO2/agent-context/session-start.md"
+    ;;
+esac
+exec "$REAL_RG" "\$@"
+EOF
+chmod +x "$NONUTF8_RG_BIN/rg"
+set +e
+out2="$(PATH="$NONUTF8_RG_BIN:$PATH" env -u ALIAS_AUDIT_CMD -u CCL_SKILL_BASE_REF bash "$CHECK_SCRIPT" "$REPO2" 2>&1)"
+rc2=$?
+set -e
+assert_rc "$rc2" 1 "broken citation on a non-UTF-8 line must fail the gate without crashing the Ruby scanner"
+case "$out2" in
+  *md_reference_scan_error:*) fail "non-UTF-8 line in rg stream must not abort the Ruby scanner: $out2" ;;
+esac
+assert_contains "missing-on-nonutf8-line.md" "$out2" "broken citation on non-UTF-8 line must still be reported"
+assert_contains "sync_reference_blocking_failed" "$out2" "non-UTF-8 broken citation must trigger sync_reference_blocking_failed"
 
 diag2_lines_matching() {
   printf '%s\n' "$out2" | grep -F "$1" | grep -F "$2" || true

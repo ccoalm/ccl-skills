@@ -118,9 +118,6 @@ _REPO_PATH_TOKEN_RE = re.compile(
     r"^(?:hooks|scripts|skills|eval|packages)/[A-Za-z0-9_./-]+$"
 )
 _ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*$")
-_RUNNER_COMMANDS = frozenset(
-    {"python3", "python", "bash", "sh", "node", "pytest", "ruby"}
-)
 
 
 def _clean_git_env() -> dict[str, str]:
@@ -420,6 +417,24 @@ def _parse_makefile_targets(makefile_text: str) -> dict[str, tuple[list[str], li
     return targets
 
 
+def _collect_parallel_runner_args(rest: list[str]) -> set[str]:
+    found: set[str] = set()
+    k = 0
+    while k < len(rest):
+        tok = rest[k]
+        if tok in ("--label", "--jobs") and k + 1 < len(rest):
+            k += 2
+            continue
+        if tok.startswith("-") or "$" in tok:
+            k += 1
+            continue
+        cleaned = os.path.normpath(tok).replace("\\", "/")
+        if _REPO_PATH_TOKEN_RE.match(cleaned):
+            found.add(cleaned)
+        k += 1
+    return found
+
+
 def _extract_paths_from_simple_command(segment: list[str]) -> set[str]:
     found: set[str] = set()
     idx = 0
@@ -447,26 +462,150 @@ def _extract_paths_from_simple_command(segment: list[str]) -> set[str]:
 
     cmd_base = os.path.basename(cmd)
     cmd_norm = os.path.normpath(cmd).replace("\\", "/")
-    if cmd_base in _RUNNER_COMMANDS:
-        for tok in args:
-            if tok in ("-c", "-e"):
+    if cmd_base in ("python", "python3"):
+        i = 0
+        while i < len(args):
+            tok = args[i]
+            if tok in ("-c", "-"):
+                return found
+            if tok in ("-W", "-X") and i + 1 < len(args):
+                i += 2
+                continue
+            if tok == "-m":
+                if i + 1 >= len(args):
+                    return found
+                mod = args[i + 1]
+                if "$" in mod:
+                    return found
+                if mod in ("pytest", "unittest"):
+                    rest = args[i + 2 :]
+                    k = 0
+                    while k < len(rest):
+                        sub = rest[k]
+                        if sub in ("-k", "-m", "-c", "-o", "--rootdir", "-s", "-p", "-t") and k + 1 < len(rest):
+                            k += 2
+                            continue
+                        if sub.startswith("-") or "$" in sub:
+                            k += 1
+                            continue
+                        if _EVAL_MODULE_RE.match(sub):
+                            found.add(sub.replace(".", "/") + ".py")
+                        else:
+                            cleaned = os.path.normpath(sub).replace("\\", "/")
+                            if _REPO_PATH_TOKEN_RE.match(cleaned):
+                                found.add(cleaned)
+                        k += 1
+                elif _EVAL_MODULE_RE.match(mod):
+                    found.add(mod.replace(".", "/") + ".py")
+                return found
+            if tok == "--":
+                i += 1
                 break
-            if "$" in tok:
+            if tok.startswith("-"):
+                i += 1
                 continue
-            if _EVAL_MODULE_RE.match(tok):
-                found.add(tok.replace(".", "/") + ".py")
+            break
+        if i < len(args) and "$" not in args[i]:
+            cleaned = os.path.normpath(args[i]).replace("\\", "/")
+            if _REPO_PATH_TOKEN_RE.match(cleaned):
+                found.add(cleaned)
+        return found
+
+    if cmd_base == "pytest":
+        k = 0
+        while k < len(args):
+            tok = args[k]
+            if tok in ("-k", "-m", "-c", "-o", "--rootdir") and k + 1 < len(args):
+                k += 2
+                continue
+            if tok.startswith("-") or "$" in tok:
+                k += 1
                 continue
             cleaned = os.path.normpath(tok).replace("\\", "/")
             if _REPO_PATH_TOKEN_RE.match(cleaned):
                 found.add(cleaned)
-    elif _REPO_PATH_TOKEN_RE.match(cmd_norm):
+            k += 1
+        return found
+
+    if cmd_base in ("bash", "sh", "ruby"):
+        i = 0
+        while i < len(args):
+            tok = args[i]
+            if (cmd_base in ("bash", "sh") and tok == "-c") or (cmd_base == "ruby" and tok == "-e"):
+                return found
+            if cmd_base in ("bash", "sh") and tok == "-o" and i + 1 < len(args):
+                i += 2
+                continue
+            if cmd_base == "ruby" and tok in ("-I", "-r", "-C") and i + 1 < len(args):
+                i += 2
+                continue
+            if tok == "--":
+                i += 1
+                break
+            if tok.startswith("-"):
+                i += 1
+                continue
+            break
+        if i < len(args) and "$" not in args[i]:
+            script_norm = os.path.normpath(args[i]).replace("\\", "/")
+            if _REPO_PATH_TOKEN_RE.match(script_norm):
+                found.add(script_norm)
+            if script_norm == "scripts/run-parallel-suites.sh":
+                found.update(_collect_parallel_runner_args(args[i + 1 :]))
+        return found
+
+    if cmd_base == "node":
+        if "--test" in args:
+            k = 0
+            while k < len(args):
+                tok = args[k]
+                if tok in (
+                    "--test-name-pattern",
+                    "--test-skip-pattern",
+                    "--test-reporter",
+                    "--test-reporter-destination",
+                    "--test-concurrency",
+                    "--test-timeout",
+                    "-r",
+                    "--require",
+                    "--import",
+                    "--loader",
+                ) and k + 1 < len(args):
+                    k += 2
+                    continue
+                if tok.startswith("-") or "$" in tok:
+                    k += 1
+                    continue
+                cleaned = os.path.normpath(tok).replace("\\", "/")
+                if _REPO_PATH_TOKEN_RE.match(cleaned):
+                    found.add(cleaned)
+                k += 1
+            return found
+        i = 0
+        while i < len(args):
+            tok = args[i]
+            if tok in ("-e", "--eval", "-p", "--print"):
+                return found
+            if tok in ("-r", "--require", "--import", "--loader", "-C", "--conditions") and i + 1 < len(args):
+                i += 2
+                continue
+            if tok == "--":
+                i += 1
+                break
+            if tok.startswith("-"):
+                i += 1
+                continue
+            break
+        if i < len(args) and "$" not in args[i]:
+            cleaned = os.path.normpath(args[i]).replace("\\", "/")
+            if _REPO_PATH_TOKEN_RE.match(cleaned):
+                found.add(cleaned)
+        return found
+
+    if _REPO_PATH_TOKEN_RE.match(cmd_norm):
         found.add(cmd_norm)
-        for tok in args:
-            if "$" in tok:
-                continue
-            cleaned = os.path.normpath(tok).replace("\\", "/")
-            if _REPO_PATH_TOKEN_RE.match(cleaned):
-                found.add(cleaned)
+        if cmd_norm == "scripts/run-parallel-suites.sh":
+            found.update(_collect_parallel_runner_args(args))
     return found
 
 

@@ -227,13 +227,20 @@ class RepoHygieneTest(unittest.TestCase):
         files["Makefile"] = (
             str(files["Makefile"]).replace(
                 "test-repo-gates:\n",
-                "test-repo-gates:\n\techo scripts/test_echo_only.py && ls scripts/test_echo_only.py && test -f scripts/test_echo_only.py\n",
+                (
+                    "test-repo-gates:\n"
+                    "\techo scripts/test_echo_only.py && ls scripts/test_echo_only.py && test -f scripts/test_echo_only.py\n"
+                    "\tpython3 scripts/select-affected-tests.py scripts/test_arg_only.py\n"
+                    "\tbash skills/code-review/scripts/test_review_gate_abort_leak.sh --exclude hooks/test_arg_only.sh\n"
+                ),
             )
             + "dead-target:\n\tpython3 scripts/test_in_dead_target.py\n"
         )
         files["scripts/test_orphan.py"] = "assert True\n"
         files["scripts/test_echo_only.py"] = "assert True\n"
+        files["scripts/test_arg_only.py"] = "assert True\n"
         files["hooks/test_orphan.sh"] = "#!/usr/bin/env bash\n"
+        files["hooks/test_arg_only.sh"] = "#!/usr/bin/env bash\n"
         files["packages/ccl-skills-npm/scripts/orphan.test.mjs"] = "export {};\n"
         files["scripts/test_in_dead_target.py"] = "assert True\n"
         # Break delegate reference in parent
@@ -244,7 +251,9 @@ class RepoHygieneTest(unittest.TestCase):
         joined = "\n".join(findings)
         self.assertIn("unregistered-test-file: scripts/test_orphan.py", joined)
         self.assertIn("unregistered-test-file: scripts/test_echo_only.py", joined)
+        self.assertIn("unregistered-test-file: scripts/test_arg_only.py", joined)
         self.assertIn("unregistered-test-file: hooks/test_orphan.sh", joined)
+        self.assertIn("unregistered-test-file: hooks/test_arg_only.sh", joined)
         self.assertIn("unregistered-test-file: packages/ccl-skills-npm/scripts/orphan.test.mjs", joined)
         self.assertIn("unregistered-test-file: scripts/test_in_dead_target.py", joined)
         self.assertIn("test-registration-unreferenced-delegate", joined)

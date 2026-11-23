@@ -80,6 +80,23 @@ function makeStubBin(sandbox, prebuiltDist) {
 	const bin = join(sandbox, "stub-bin");
 	mkdirSync(bin, { recursive: true });
 
+	const whichGit = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" });
+	const realGit = whichGit.stdout.trim();
+	writeFileSync(join(bin, "git"), `#!/usr/bin/env node
+const { spawnSync } = require("node:child_process");
+const args = process.argv.slice(2);
+const guardedRepo = process.env.SMOKE_DUBIOUS_OWNERSHIP_REPO;
+if (guardedRepo && args.includes("ls-files") && args.includes(guardedRepo)) {
+  const hasSafeDir = args.some((a, idx) => a === "-c" && (args[idx + 1] === "safe.directory=" + guardedRepo || args[idx + 1] === "safe.directory=*"));
+  if (!hasSafeDir) {
+    console.error("fatal: detected dubious ownership in repository at '" + guardedRepo + "'");
+    process.exit(128);
+  }
+}
+const res = spawnSync(${JSON.stringify(realGit)}, args, { stdio: "inherit" });
+process.exit(res.status ?? 1);
+`, { mode: 0o755 });
+
 	// Offline fast `npm` + `tsc` shims exercising real build-assets.mjs, verify-packed.mjs, tarballs, and dist/cli.js
 	writeFileSync(join(bin, "tsc"), `#!/usr/bin/env node
 const fs = require("node:fs");
@@ -362,7 +379,7 @@ process.exit(2);
 test("host-smoke fails closed with exit 4 when agy CLI is missing", () => {
 	const sandbox = mkdtempSync(join(tmpdir(), "ccl-host-smoke-missing-"));
 	try {
-		const { smokeScript, prebuiltDist } = buildMiniSmokeRepo(sandbox);
+		const { repo, smokeScript, prebuiltDist } = buildMiniSmokeRepo(sandbox);
 		const bin = makeStubBin(sandbox, prebuiltDist);
 		rmSync(join(bin, "agy"));
 		// Symlink only essential POSIX utilities into an isolated PATH without agy
@@ -389,7 +406,7 @@ test("host-smoke fails closed with exit 4 when agy CLI is missing", () => {
 test("host-smoke isolates XDG/OPENCODE/CCL_SKILLS_REPO env, stages only tracked files, and exercises all 4 hosts including antigravity", () => {
 	const sandbox = mkdtempSync(join(tmpdir(), "ccl-host-smoke-e2e-"));
 	try {
-		const { smokeScript, prebuiltDist } = buildMiniSmokeRepo(sandbox);
+		const { repo, smokeScript, prebuiltDist } = buildMiniSmokeRepo(sandbox);
 		const bin = makeStubBin(sandbox, prebuiltDist);
 		const agyLog = join(sandbox, "agy-calls.log");
 		const packReleaseLog = join(sandbox, "pack-release.jsonl");
@@ -437,6 +454,7 @@ test("host-smoke isolates XDG/OPENCODE/CCL_SKILLS_REPO env, stages only tracked 
 				SMOKE_AGY_CALL_LOG: agyLog,
 				SMOKE_PACK_RELEASE_LOG: packReleaseLog,
 				SMOKE_ENV_AUDIT_LOG: envAuditLog,
+				SMOKE_DUBIOUS_OWNERSHIP_REPO: repo,
 			},
 		});
 		assert.equal(res.status, 0, `stdout:\n${res.stdout}\nstderr:\n${res.stderr}`);
