@@ -172,9 +172,15 @@ codex_uninstall_json=$(node "$cli_v2" uninstall --host codex --yes --json)
 grep -q '"status":"uninstalled"' <<< "$codex_uninstall_json"
 stage=verify-public-absence
 codex_markets_after=$(codex plugin marketplace list)
-! grep -q '^ccl-skills-npm ' <<< "$codex_markets_after"
+if grep -q '^ccl-skills-npm ' <<< "$codex_markets_after"; then
+  echo "codex marketplace still listed after uninstall" >&2
+  exit 1
+fi
 codex_plugins_after=$(codex plugin list)
-! grep -q '^ccl-skills@ccl-skills-npm ' <<< "$codex_plugins_after"
+if grep -q '^ccl-skills@ccl-skills-npm ' <<< "$codex_plugins_after"; then
+  echo "codex plugin still listed after uninstall" >&2
+  exit 1
+fi
 
 stage=claude-install-v1
 claude_install_json=$(node "$cli_v1" install --host claude --json)
@@ -190,7 +196,10 @@ stage=claude-uninstall-v2
 claude_uninstall_json=$(node "$cli_v2" uninstall --host claude --yes --json)
 grep -q '"status":"uninstalled"' <<< "$claude_uninstall_json"
 claude_list_after=$(claude plugin list --json)
-! grep -q 'ccl-skills@ccl-skills-npm' <<< "$claude_list_after"
+if grep -q 'ccl-skills@ccl-skills-npm' <<< "$claude_list_after"; then
+  echo "claude plugin still listed after uninstall" >&2
+  exit 1
+fi
 
 stage=opencode-install-v1
 opencode_install_json=$(node "$cli_v1" install --host opencode --json)
@@ -238,7 +247,10 @@ stage=antigravity-uninstall-v2
 agy_uninstall_json=$(node "$cli_v2" uninstall --host antigravity --yes --json)
 grep -q '"status":"uninstalled"' <<< "$agy_uninstall_json"
 agy_list_after=$(agy plugin list --json)
-! grep -q '"name"[[:space:]]*:[[:space:]]*"ccl-skills"' <<< "$agy_list_after"
+if grep -q '"name"[[:space:]]*:[[:space:]]*"ccl-skills"' <<< "$agy_list_after"; then
+  echo "antigravity plugin still listed after uninstall" >&2
+  exit 1
+fi
 test ! -e "$HOME/.gemini/config/plugins/ccl-skills"
 test ! -e "$HOME/.gemini/ccl-skills-npm/install-receipt.json"
 

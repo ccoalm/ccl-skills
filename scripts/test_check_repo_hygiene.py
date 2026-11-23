@@ -267,7 +267,14 @@ class RepoHygieneTest(unittest.TestCase):
             )
             + "dead-target:\n\tpython3 scripts/test_in_dead_target.py\n"
         )
+        files[".github/workflows/ci.yml"] = (
+            str(files[".github/workflows/ci.yml"])
+            + "      - working-directory: packages/ccl-skills-npm\n"
+            + "        run: python3 scripts/test_wd_relative.py\n"
+        )
         files["scripts/test_orphan.py"] = "assert True\n"
+        files["scripts/test_wd_relative.py"] = "assert True\n"
+        files["packages/ccl-skills-npm/scripts/test_wd_relative.py"] = "assert True\n"
         files["scripts/test_echo_only.py"] = "assert True\n"
         files["scripts/test_arg_only.py"] = "assert True\n"
         files["hooks/test_orphan.sh"] = "#!/usr/bin/env bash\n"
@@ -281,6 +288,8 @@ class RepoHygieneTest(unittest.TestCase):
         findings = MODULE.check_test_registration(root, tracked)
         joined = "\n".join(findings)
         self.assertIn("unregistered-test-file: scripts/test_orphan.py", joined)
+        self.assertIn("unregistered-test-file: scripts/test_wd_relative.py", joined)
+        self.assertNotIn("unregistered-test-file: packages/ccl-skills-npm/scripts/test_wd_relative.py", joined)
         self.assertIn("unregistered-test-file: scripts/test_echo_only.py", joined)
         self.assertIn("unregistered-test-file: scripts/test_arg_only.py", joined)
         self.assertIn("unregistered-test-file: hooks/test_orphan.sh", joined)

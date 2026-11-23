@@ -713,7 +713,16 @@ def check_test_registration(
                                 ci_runs_npm_test = True
                             elif stripped == "npm run test:pack":
                                 ci_runs_npm_pack = True
-                        registered.update(_extract_paths_from_shell_line(stripped))
+                        extracted = _extract_paths_from_shell_line(stripped)
+                        if workdir:
+                            if "$" in workdir:
+                                continue
+                            for rel_item in extracted:
+                                joined_rel = os.path.normpath(f"{workdir}/{rel_item}").replace("\\", "/")
+                                if not joined_rel.startswith("..") and _REPO_PATH_TOKEN_RE.match(joined_rel):
+                                    registered.add(joined_rel)
+                        else:
+                            registered.update(extracted)
 
     # 3. Regression runner arrays (only when the runner itself is CI/Makefile-dispatched)
     runner_rel = "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh"

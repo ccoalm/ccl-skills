@@ -4,10 +4,11 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 process.umask(0o022);
 
-const pkgDir = process.cwd();
+const pkgDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = resolve(pkgDir, "../..");
 
 function buildMiniSmokeRepo(sandbox) {
@@ -57,10 +58,16 @@ function buildMiniSmokeRepo(sandbox) {
 	const realDist = join(pkgDir, "dist");
 	const prebuiltDist = join(sandbox, "prebuilt-dist");
 	mkdirSync(prebuiltDist, { recursive: true });
-	for (const entry of readdirSync(realDist)) {
-		if (entry.endsWith(".js")) {
-			cpSync(join(realDist, entry), join(prebuiltDist, entry));
+	if (existsSync(join(realDist, "cli.js"))) {
+		for (const entry of readdirSync(realDist)) {
+			if (entry.endsWith(".js")) {
+				cpSync(join(realDist, entry), join(prebuiltDist, entry));
+			}
 		}
+	} else {
+		const tscBin = existsSync(join(pkgDir, "node_modules/.bin/tsc")) ? join(pkgDir, "node_modules/.bin/tsc") : "tsc";
+		const built = spawnSync(tscBin, ["-p", join(pkgDir, "tsconfig.json"), "--outDir", prebuiltDist], { encoding: "utf8" });
+		assert.equal(built.status, 0, built.stderr || built.stdout);
 	}
 
 	const gitEnv = { ...process.env, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" };
@@ -359,7 +366,16 @@ if (args.includes("--LogFile") || process.env.SMOKE_AGY_CALL_LOG) {
 if (args[0] === "--version") { console.log("1.5.14"); process.exit(0); }
 const geminiRoot = process.env.ANTIGRAVITY_GEMINI_DIR || path.join(process.env.HOME, ".gemini");
 const dest = path.join(geminiRoot, "config/plugins/ccl-skills");
+const staleMarker = path.join(geminiRoot, "stale-post-uninstall.flag");
 if (args[0] === "plugin" && args[1] === "list") {
+  if (process.env.SMOKE_STALE_POST_UNINSTALL_LIST === "1" && fs.existsSync(staleMarker)) {
+    const count = Number(fs.readFileSync(staleMarker, "utf8")) + 1;
+    fs.writeFileSync(staleMarker, String(count));
+    if (count >= 2) {
+      console.log(JSON.stringify([{ name: "ccl-skills", enabled: true, source: "antigravity", path: dest }]));
+      process.exit(0);
+    }
+  }
   console.log(JSON.stringify(fs.existsSync(dest) ? [{ name: "ccl-skills", enabled: true, source: "antigravity", path: dest }] : []));
   process.exit(0);
 }
@@ -369,6 +385,7 @@ if (args[0] === "plugin" && args[1] === "install") {
     console.error("untracked workspace file leaked into packaged plugin");
     process.exit(9);
   }
+  fs.rmSync(staleMarker, { force: true });
   fs.rmSync(dest, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.cpSync(src, dest, { recursive: true });
@@ -376,6 +393,10 @@ if (args[0] === "plugin" && args[1] === "install") {
 }
 if (args[0] === "plugin" && args[1] === "uninstall") {
   fs.rmSync(dest, { recursive: true, force: true });
+  if (process.env.SMOKE_STALE_POST_UNINSTALL_LIST === "1") {
+    fs.mkdirSync(geminiRoot, { recursive: true });
+    fs.writeFileSync(staleMarker, "0");
+  }
   process.exit(0);
 }
 process.exit(2);
@@ -497,6 +518,19 @@ test("host-smoke isolates XDG/OPENCODE/CCL_SKILLS_REPO env, stages only tracked 
 		}
 		assert.equal(existsSync(join(sandbox, "caller-home")), false, "caller HOME must stay untouched");
 		assert.equal(existsSync(join(sandbox, "poison-agy-gemini")), false, "caller ANTIGRAVITY_GEMINI_DIR must stay untouched");
+
+		// Stale post-uninstall plugin list entry must fail closed (not be ignored by `! grep -q` under `set -e`)
+		const staleListRes = spawnSync("bash", [smokeScript], {
+			encoding: "utf8",
+			env: {
+				...process.env,
+				PATH: `${bin}:${process.env.PATH}`,
+				HOME: join(sandbox, "caller-home-stale"),
+				SMOKE_STALE_POST_UNINSTALL_LIST: "1",
+			},
+		});
+		assert.notEqual(staleListRes.status, 0, "stale post-uninstall plugin list must fail host-smoke.sh");
+		assert.match(staleListRes.stderr, /antigravity plugin still listed after uninstall/);
 
 		// Unstaged deletion of a tracked source file must fail closed with an explicit message
 		rmSync(join(repo, "skills/code-review/SKILL.md"));
