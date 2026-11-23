@@ -51,7 +51,7 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
 | M25 | The shadow age is rechecked under its lock | Drop only the recheck in `empty_if_stale` | `test_the_sweep_rechecks_age_under_the_lock`. The first version of this test refreshed both files on the first lock call, so the scan skipped the shadow and this mutation stayed green; each file now has its own conversation and is refreshed when that file's lock is taken |
 | M26 | The legacy temp age is rechecked under its lock | Drop only the recheck in `remove_if_stale` | same |
 | M27 | A failed write keeps its descriptor for event-end cleanup | Drop the descriptor when serialization fails | `test_a_write_that_fails_midway_is_still_emptied_at_event_end` |
-| M28 | The sweep never follows a link | Follow links when checking and opening | `test_a_new_conversation_empties_only_stale_unlocked_leftover_shadows` (the link's conversation has a free lock) |
+| M28 | The sweep never follows a link | Follow links when checking and opening | `test_a_new_conversation_empties_only_stale_unlocked_leftover_shadows`, failing at `self.assertEqual(outside.read_text(), 'keep\n')` with `'' != 'keep\n'`: the link's target outside the directory was emptied. The link's conversation has a free lock, so only the no-follow rule protects it; the unmutated control passes |
 
 ## Review pass (R1)
 
@@ -143,7 +143,7 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
 ## Delta pass D5 (after the rebase onto the current target)
 
 - Reviewed commit: the rebased candidate; packet `git diff 03ccb75..HEAD` over the source register (the one file both this branch and the target's new commits changed), this round's test suite and the plan. Result: `evidence/delta-D5.json`.
-- Rebase check: `git diff <pre-rebase head> HEAD -- hooks/agy-bridge.py hooks/test_agy_bridge.py specs/agy-bridge-efficiency-fix` is empty. The bridge and its suite are byte-identical to what R2 and D4 reviewed. The register gains only this round's row on top of the target's rows.
+- Rebase check: `git diff 975036c 2ec2c92 -- hooks/agy-bridge.py hooks/test_agy_bridge.py specs/agy-bridge-efficiency-fix` is empty (`975036c` is the pre-rebase head, `2ec2c92` the rebased one). `hooks/agy-bridge.py` is blob `8db49fb` at `910b826` (the D4 packet), `975036c`, `2ec2c92` and `077ed2d`. The bridge and its suite are byte-identical to what R2 and D4 reviewed. The register gains only this round's row on top of the target's rows.
 - Findings: 5 total (0 P0 / 5 P1 / 0 P2). None is a defect in the bridge code.
 - Dispositions:
   - P1 T4g set up its descriptor with an earlier successful write and called the cleanup itself: fixed. It now runs the real event entry point with a first write that fails after its first record, and asserts the deny verdict and an empty same inode with no manual cleanup.
@@ -151,3 +151,13 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
   - P1 the packet lacked the bridge source: addressed by the rebase check above. The source is unchanged from the R2 and D4 packets. The register row now says which separator is inferred.
   - P1 the plan cited verifiers whose outcomes were not attached: fixed in Local Verification.
   - P1 the machine-local rule sat in the landing plan: this class was raised in R1, R2 and D5. Decision **narrow**: the machine-local rule and its live check left the plan and this record. They are machine configuration, not part of this change.
+
+## Delta pass D6
+
+- Reviewed commit: `077ed2d`; packet `git diff 2ec2c92..077ed2d`. D5's two test items were carried verbatim. Result: `evidence/delta-D6.json`.
+- Findings: 3 total (0 P0 / 3 P1 / 0 P2). None is a code or test defect, and D5's test items did not reproduce.
+- Dispositions:
+  - P1 the rebase comparison named no revisions or blob: fixed (blob IDs and revisions in D5 above).
+  - P1 M28's failing assertion was not shown: fixed (assertion and message in the mutation table).
+  - P1 verifier outcomes and the C1 disposition were outside the packet: Local Verification below holds the outcomes with the revision each exercised; C1's dispositions are in Challenge pass (C1).
+- These D6 edits touch only this record and `evidence/`, which are non-executable records, so they owe no further delta pass.
