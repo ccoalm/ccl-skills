@@ -27,7 +27,7 @@ export XDG_CONFIG_HOME="$tmp/home/.config"
 export XDG_DATA_HOME="$tmp/home/.local/share"
 export XDG_STATE_HOME="$tmp/home/.local/state"
 export XDG_CACHE_HOME="$tmp/home/.cache"
-unset npm_config_allow_scripts NPM_CONFIG_ALLOW_SCRIPTS OPENCODE_CONFIG OPENCODE_CONFIG_DIR OPENCODE_CONFIG_CONTENT CCL_SKILLS_REPO
+unset npm_config_allow_scripts NPM_CONFIG_ALLOW_SCRIPTS OPENCODE_CONFIG OPENCODE_CONFIG_DIR OPENCODE_CONFIG_CONTENT CCL_SKILLS_REPO GITHUB_SHA CI_COMMIT_SHA EXPECT_SOURCE_COMMIT REQUIRE_CLEAN_RELEASE
 # Scrub host profile/plugin overrides and Git routing/config overrides so the
 # smoke never reads or mutates caller state or resolves another repository.
 unset exported           # an inherited export would pass the list to every child

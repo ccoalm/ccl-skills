@@ -142,7 +142,7 @@ def _minimal_clean_repo_files() -> dict[str, str | bytes]:
 
 
 class RepoHygieneTest(unittest.TestCase):
-    def test_live_repository_passes_all_hygiene_checks(self) -> None:
+    def test_current_worktree_satisfies_hygiene_gate(self) -> None:
         proc = subprocess.run(
             [sys.executable, str(SCRIPT), str(REPO_ROOT)],
             capture_output=True,
@@ -152,7 +152,7 @@ class RepoHygieneTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("repo_hygiene_ok", proc.stdout)
 
-    def test_synthetic_clean_repo_passes_and_spares_non_test_surfaces(self) -> None:
+    def test_minimal_fixture_satisfies_checks_and_spares_exempt_surfaces(self) -> None:
         sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
         files = _minimal_clean_repo_files()
         # Spare cases: JSON fixture named test_*, specs/ test script, and pinned MANIFEST-sealed eval/evidence .py with \A

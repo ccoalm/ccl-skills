@@ -357,6 +357,12 @@ test("host-smoke isolates XDG/OPENCODE/CCL_SKILLS_REPO env, stages only tracked 
 				GIT_CONFIG_COUNT: "1",
 				GIT_CONFIG_KEY_0: "core.sshCommand",
 				GIT_CONFIG_VALUE_0: "false",
+				CI: "true",
+				GITHUB_ACTIONS: "true",
+				GITHUB_SHA: "f".repeat(40),
+				CI_COMMIT_SHA: "e".repeat(40),
+				EXPECT_SOURCE_COMMIT: "d".repeat(40),
+				REQUIRE_CLEAN_RELEASE: "1",
 				SMOKE_AGY_CALL_LOG: agyLog,
 			},
 		});
