@@ -714,6 +714,19 @@ class PartialReadTests(BridgeCase):
         both = complete + [(other, first[0], self.result(*first, stream=other_stream, lines=other_lines))]
         self.assertEqual(sorted(self.loaded(both)), ['ccl-skills:sample-other', 'ccl-skills:sample-skill'])
 
+    def test_many_claimed_ranges_keep_one_canonical_copy(self):
+        spec = importlib.util.spec_from_file_location('agy_bridge_copy', self.plugin / 'hooks/agy-bridge.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        spans, total = {}, len(self.lines)
+        for first in range(1, 401):
+            content = (f'Partial read (lines {first}-{total} of {total}). Showing bytes 0-1 of 1 in this line range.'
+                       '\nx')
+            self.assertEqual(module.covered_lines(content, self.lines, spans), set())
+        stored = [value for value in spans.values() if isinstance(value, tuple)]
+        self.assertEqual(len(stored), 1)
+        self.assertEqual(len(stored[0][0]), len(self.stream))
+
     def test_incomplete_or_mismatched_chunks_are_not_a_load(self):
         (s1, e1), (s2, e2), (s3, e3) = self.tile()
         good = self.good()
@@ -871,6 +884,30 @@ class ShadowIdentityTests(BridgeCase):
         self.assertEqual(shadow.with_name(shadow.name + '.moved').stat().st_size, 0,
                          'the inode the event wrote is emptied wherever it went')
         self.assertEqual(shadow.read_text(), 'replacement', 'a file that took the name is not the event\'s to empty')
+
+    def test_a_replacement_between_two_writes_of_one_event_fails_closed(self):
+        copy = self.tmp / 'plugin'
+        shutil.copytree(ROOT / 'hooks', copy / 'hooks')
+        (copy / 'hooks/guard-edit-isolation.sh').write_text(
+            '#!/bin/sh\nt=$(jq -r .transcript_path)\n[ -e "$t.moved" ] || { mv "$t" "$t.moved"; printf replacement > "$t"; '
+            'chmod 600 "$t"; }\n')
+        patch = '*** Begin Patch\n*** Update File: one.md\n*** Update File: two.md\n*** End Patch'
+        result = self.bridge('PreToolUse', self.edit('apply_patch', {'Input': patch}, self.tmp, conversation='swap'),
+                             root=copy)
+        self.assertEqual(result['decision'], 'deny', result)
+        bridge, state = self.state()
+        shadow = state / f'{self.key(bridge, "swap")}.jsonl'
+        self.assertEqual(shadow.read_text(), 'replacement')
+        self.assertEqual(shadow.with_name(shadow.name + '.moved').stat().st_size, 0)
+
+    def test_an_event_that_wrote_nothing_leaves_the_shadow_path_alone(self):
+        bridge, state = self.state()
+        shadow = state / f'{self.key(bridge, "idle")}.jsonl'
+        shadow.write_text('sentinel')
+        result = self.bridge('PreToolUse', self.edit('read_file', {'Path': '/etc/hostname'}, self.tmp,
+                                                     conversation='idle'))
+        self.assertEqual(result, {'decision': 'allow'})
+        self.assertEqual(shadow.read_text(), 'sentinel')
 
     def test_a_directory_listing_error_never_fails_the_event(self):
         bridge, state = self.state()

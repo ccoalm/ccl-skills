@@ -297,43 +297,47 @@ def partial_lines(content, header, lines, spans):
     Each chunk must equal the canonical formatted stream at the offsets its header
     names, so a cut, shifted, tampered or renumbered chunk adds nothing. `spans`
     keeps the verified intervals per line range across reads, so a line cut at a
-    chunk boundary counts once the next chunk shows the rest of it.
+    chunk boundary counts once the next chunk shows the rest of it. The canonical
+    stream is built once per skill; a range is a window into it.
     """
     first, last, total, start, end, size = (int(value) for value in header.groups())
     if total != len(lines) or not 1 <= first <= last <= total:
         return set()
     if content[header.end():header.end() + 1] != '\n':
         return set()
-    formatted = spans.get(('formatted', first, last))  # built once per skill and range
-    if formatted is None:
-        rows = [f'{n}: {lines[n - 1]}'.encode('utf-8') for n in range(first, last + 1)]
-        formatted = spans[('formatted', first, last)] = (rows, b'\n'.join(rows))
-    rows, stream = formatted
-    if size != len(stream):
+    canonical = spans.get('canonical')
+    if canonical is None:
+        rows = [f'{n}: {line}'.encode('utf-8') for n, line in enumerate(lines, start=1)]
+        offsets, position = [], 0
+        for row in rows:
+            offsets.append(position)
+            position += len(row) + 1
+        canonical = spans['canonical'] = (b'\n'.join(rows), offsets, [len(row) for row in rows])
+    stream, offsets, lengths = canonical
+    base = offsets[first - 1]
+    if size != offsets[last - 1] + lengths[last - 1] - base or not 0 <= start < end <= size:
         return set()
     body = content[header.end() + 1:].encode('utf-8', 'surrogatepass')
-    if not 0 <= start < end <= size:
-        return set()
     lead = start
-    while lead > 0 and stream[lead] & 0xC0 == 0x80:
+    while lead > 0 and stream[base + lead] & 0xC0 == 0x80:
         lead -= 1
     if lead != start and len(body) == end - lead:
         # An offset inside a character makes the host start at that character's
         # first byte but still report the requested offset.
         start = lead
-    if stream[start:end] != body:
+    if stream[base + start:base + end] != body:
         return set()
     merged = merge_spans(spans.get((first, last), []) + [(start, end)])
     spans[(first, last)] = merged
     # A row counts with its separator, so complete rows imply a complete stream.
-    shown, position, index = set(), 0, 0
-    for number, row in zip(range(first, last + 1), rows):
-        needed = position + len(row) + (number < last)
+    shown, index = set(), 0
+    for number in range(first, last + 1):
+        position = offsets[number - 1] - base
+        needed = position + lengths[number - 1] + (number < last)
         while index < len(merged) and merged[index][1] < needed:
             index += 1
         if index < len(merged) and merged[index][0] <= position:
             shown.add(number)
-        position += len(row) + 1
     return shown
 
 
@@ -441,14 +445,20 @@ LEGACY_TEMP_RE = re.compile(r'[0-9a-f]{64}\.[1-9][0-9]*\.tmp\Z')
 WRITE_FLAGS = os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK
 
 
+def safe_shadow(descriptor):
+    """Raise unless the descriptor is a private regular file with a single name."""
+    info = os.fstat(descriptor)
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
+        raise BridgeError('unsafe shadow transcript')
+    if stat.S_IMODE(info.st_mode) != 0o600:
+        os.fchmod(descriptor, 0o600)
+    return info
+
+
 def checked_shadow(descriptor):
-    """Accept only a private regular file with a single name; never write through a link."""
+    """Accept a newly opened descriptor only if it is safe; never write through a link."""
     try:
-        info = os.fstat(descriptor)
-        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
-            raise BridgeError('unsafe shadow transcript')
-        if stat.S_IMODE(info.st_mode) != 0o600:
-            os.fchmod(descriptor, 0o600)
+        safe_shadow(descriptor)
     except BaseException:
         os.close(descriptor)
         raise
@@ -469,6 +479,11 @@ def write_shadow(key, events, extra=None):
         except FileExistsError:
             descriptor = os.open(target, WRITE_FLAGS)
         OPEN_SHADOWS[key] = checked_shadow(descriptor)
+    else:
+        # A later write of the same event must still name the file the hooks will read.
+        held, named = safe_shadow(descriptor), os.lstat(target)
+        if (held.st_dev, held.st_ino) != (named.st_dev, named.st_ino):
+            raise BridgeError('shadow transcript was replaced during the event')
     os.lseek(descriptor, 0, os.SEEK_SET)
     view = memoryview(data)
     while view:
@@ -481,13 +496,12 @@ def write_shadow(key, events, extra=None):
 
 def clear_shadow(key):
     """Empty the shadow at event end through the descriptor the event wrote, so a
-    rename or replacement of the name during the event cannot keep content around."""
+    rename or replacement of the name during the event cannot keep content around.
+    An event that wrote nothing touches nothing; the sweep empties what a killed
+    event left behind."""
     descriptor = OPEN_SHADOWS.pop(key, None)
     if descriptor is None:
-        try:
-            descriptor = checked_shadow(os.open(state_dir() / f'{key}.jsonl', WRITE_FLAGS))
-        except FileNotFoundError:
-            return
+        return
     try:
         os.ftruncate(descriptor, 0)
     finally:

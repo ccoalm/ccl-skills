@@ -8,7 +8,7 @@ Runs use synthetic data in private temporary directories on Linux (`agy` 1.5.14,
 | --- | --- | --- |
 | Reproduction probe: three `edit_file` events in one conversation | `deny` `First source-edit skill checkpoint` three times, three distinct checkpoint epochs | first `deny`, later `allow` |
 | Reproduction probe: `Partial read` header over a valid `grill-me` body | 0 of 80 lines covered (control: the same body under `Showing lines` covers 80 of 80) | full coverage when the chunks verify |
-| `hooks/test_agy_bridge.py`, final candidate tests with the baseline bridge in a disposable copy | 13 failures and 2 errors, every new case. The errors are the privacy test finding no shadow file to stat after an event and the listing-error test finding no sweep, which are the defects | 53 tests OK |
+| `hooks/test_agy_bridge.py`, final candidate tests with the baseline bridge in a disposable copy | 14 failures and 4 errors, every new case. Each error is a missing behavior: no shadow file left to stat, no sweep, no single canonical copy, and an idle event that removes the file at the shadow path | 56 tests OK |
 
 T1 initially passed on the baseline. On ext4 the inode the baseline unlinked was often handed straight back to the next event's temp file, so the identity looked stable by accident. Whether it stays stable depends on what else allocates inodes in between, such as the checkpoint's own attempt directories. On tmpfs, inode numbers never repeat. T1 now keeps the bridge state on `/dev/shm` when it exists, and the baseline then fails it 3 of 3 runs for the intended reason (the second edit is denied). T2 pins persistence of the inode on any filesystem.
 
@@ -38,7 +38,10 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
 | M10 | Legacy temp names are ASCII PIDs without a leading zero | `\d+` | same |
 | M11 | Event end keeps the inode | Restore the old unlink | `test_source_edit_checkpoint_fires_once_per_conversation`, plus the T3 and T4 cases that also rely on the shadow surviving |
 | M12 | Event end leaves no content | Skip the truncation | `test_shadow_transcript_is_private_structural_and_empty_after_the_event` |
-| M13 | Event end empties the inode it wrote, not whatever holds the name | Close the held descriptor and empty by path | `test_event_end_empties_the_inode_it_wrote_even_after_a_rename` |
+| M13 | Event end empties the inode it wrote, not whatever holds the name | Close the held descriptor without emptying it | `test_event_end_empties_the_inode_it_wrote_even_after_a_rename` |
+| M16 | One canonical copy per skill, whatever ranges are claimed | Key the copy by range (lookup and store) | `test_many_claimed_ranges_keep_one_canonical_copy`. A first mutation that only skipped reuse stayed green because it still overwrote a single copy, so it did not break this predicate |
+| M17 | A later write checks that the name still holds the descriptor | Skip the identity comparison | `test_a_replacement_between_two_writes_of_one_event_fails_closed` |
+| M18 | An event that wrote nothing touches nothing | Empty by path when no descriptor is held | `test_an_event_that_wrote_nothing_leaves_the_shadow_path_alone` |
 
 ## Out-of-Repository Rule (machine-local)
 
@@ -70,3 +73,14 @@ Each mutation was applied to a disposable copy of the candidate. The owning test
   - P2 every result rebuilt the canonical stream for its range: fixed. The stream is built once per skill and range, then each chunk is one slice comparison plus one pass over rows and merged spans.
   - P2 the validation record pointed at results it did not yet contain: fixed (this section and Local Verification).
   - P2 bind each chunk to the call's requested `ByteOffset`: rejected, keep. The same class came up in the plan review. A result paired with the wrong call still counts only if its bytes equal that skill's canonical stream at the offsets it states, so it can only report text the agent was actually shown. The requested offset is the tool's vocabulary, and the backed-up mid-character answer echoes it anyway. The invariant the bridge owns is the byte comparison.
+
+## Delta pass D1
+
+- Reviewed commit: `ac6c444`; packet `git diff ba6aa5e..ac6c444`. Generic controller `review_gate.sh --mode review`, because the delta holds no extraction-owned file. C1's P1 was carried verbatim as an open item. Result: `evidence/delta-D1.json`.
+- Findings: 4 total (0 P0 / 4 P1 / 0 P2).
+- Dispositions:
+  - P1 one cached copy of the stream per claimed range, kept even for rejected results: fixed. One canonical copy per skill, with ranges as windows into it (T6e; M16).
+  - P1 a later write in the same event reused the descriptor without checking the name: fixed. The name must still hold that inode, or the event fails closed (T4c; M17).
+  - P1 cleanup by path when the event wrote nothing could empty a replacement: fixed. That branch is gone, and the sweep handles leftovers of killed events (T4d; M18).
+  - P1 verifier outcomes for this candidate were not recorded: fixed in Local Verification.
+- Same-class design check: R1 (sweep vs other conversations), C1 (rename during an event) and D1 (replacement between writes) each found a new instance of one class, same-uid interference with the private state directory. Decision: **narrow**. Keep the cheap invariants that stop stale or accidental state from redirecting a write: no-follow open, regular file, own uid, single link, descriptor-and-name identity. Remove the path-based cleanup branch instead of hardening it further. Record that a process with this uid acting deliberately is outside the threat model, because it already owns the `0700` directory (plan, Threat boundary). The scheme this replaces made the same assumption with no checks at all.
