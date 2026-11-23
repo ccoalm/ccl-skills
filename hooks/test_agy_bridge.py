@@ -534,14 +534,24 @@ class EvidenceTests(BridgeCase):
             f'print(s.st_ino, oct(stat.S_IMODE(s.st_mode))[2:])" "$t" >> {capture}.ids\ncp "$t" {capture}\n')
         stop = {'conversationId': 'priv', 'cwd': str(self.tmp), 'transcriptPath': str(transcript),
                 'terminationReason': 'NO_TOOL_CALL'}
-        self.bridge('Stop', stop, root=copy)
+        between = []
+
+        def event(name, payload):
+            self.bridge(name, payload, root=copy)
+            shadow = next(next((self.tmp / 'state').glob('ccl-skills-agy-*')).glob('*.jsonl'))
+            info = shadow.stat()
+            between.append((info.st_ino, info.st_mode & 0o777, info.st_size))
+        event('Stop', stop)
         self.assertNotIn('secret-user-text', capture.read_text())
         self.assertIn('turn-0', capture.read_text())
         edit = self.edit('write_file', {'Path': str(self.tmp / 'notes.md')}, self.tmp, conversation='priv')
-        self.bridge('PreToolUse', {**edit, 'transcriptPath': str(transcript)}, root=copy)
-        self.bridge('PreToolUse', {**self.edit('run_command', {'CommandLine': 'ls'}, self.tmp, conversation='priv'),
-                                   'transcriptPath': str(transcript)}, root=copy)
-        self.bridge('Stop', stop, root=copy)
+        event('PreToolUse', {**edit, 'transcriptPath': str(transcript)})
+        event('PreToolUse', {**self.edit('run_command', {'CommandLine': 'ls'}, self.tmp, conversation='priv'),
+                             'transcriptPath': str(transcript)})
+        event('Stop', stop)
+        self.assertEqual(len({inode for inode, _, _ in between}), 1, between)
+        self.assertEqual({(mode, size) for _, mode, size in between}, {(0o600, 0)},
+                         'after every event the shadow is private and empty')
         seen = [line.split() for line in capture.with_name('captured.ids').read_text().splitlines()]
         self.assertEqual(len(seen), 2)
         self.assertEqual({mode for _, mode in seen}, {'600'})
@@ -571,98 +581,140 @@ class PartialReadTests(BridgeCase):
 
     The offsets index the formatted stream `"\\n".join(f"{n}: {line}")` in UTF-8 bytes; the
     tool cuts at a character boundary at or below the limit and its hint names the next offset.
+    A synthetic bundled skill in a private plugin copy keeps the byte layout under test control.
     """
     LIMIT = 46080
-    SKILL = ROOT / 'skills/skill-extraction-workflow/SKILL.md'
 
     def setUp(self):
         super().setUp()
-        self.lines = self.SKILL.read_text().split('\n')[:-1]
-        self.stream = '\n'.join(f'{n}: {line}' for n, line in enumerate(self.lines, start=1)).encode()
-        self.assertGreater(len(self.stream), 2 * self.LIMIT, 'fixture skill must need three chunks')
+        self.plugin = self.tmp / 'plugin'
+        (self.plugin / 'hooks').mkdir(parents=True)
+        shutil.copyfile(BRIDGE, self.plugin / 'hooks/agy-bridge.py')
+        self.skill, self.lines, self.stream = self.make('sample-skill', 'x')
+        self.assertGreater(len(self.stream), 2 * self.LIMIT)
+        self.assertLess(len(self.stream), 3 * self.LIMIT)
 
-    def cut(self, start):
-        end = min(start + self.LIMIT, len(self.stream))
-        while end < len(self.stream) and self.stream[end] & 0xC0 == 0x80:
+    def make(self, slug, filler, extra=()):
+        lines = ['---', f'name: {slug}', 'description: synthetic fixture', '---']
+        lines += [f'Rule {i}: ' + '中文' * (i % 7) + filler * (20 + i % 50) for i in range(1500)]
+        lines[900:900] = list(extra)
+        path = self.plugin / 'skills' / slug / 'SKILL.md'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('\n'.join(lines) + '\n')
+        stream = '\n'.join(f'{n}: {line}' for n, line in enumerate(lines, start=1)).encode()
+        return path, lines, stream
+
+    def cut(self, start, stream=None):
+        stream = self.stream if stream is None else stream
+        end = min(start + self.LIMIT, len(stream))
+        while end < len(stream) and stream[end] & 0xC0 == 0x80:
             end -= 1
         return end
 
-    def chunks(self):
-        spans, start = [], 0
-        while start < len(self.stream):
-            end = self.cut(start)
+    def tile(self, *starts, stream=None):
+        """Chunks covering the stream, with extra request offsets forced in."""
+        stream = self.stream if stream is None else stream
+        spans, start, forced = [], 0, sorted(set(starts))
+        while start < len(stream):
+            end = min([self.cut(start, stream)] + [s for s in forced if s > start])
             spans.append((start, end))
             start = end
         return spans
 
-    def line_start(self, offset):
-        return self.stream.rfind(b'\n', 0, offset) + 1
-
-    def result(self, start, end, body=None, size=None, total=None, shown_start=None):
-        size = len(self.stream) if size is None else size
-        header = (f'Partial read (lines 1-{len(self.lines)} of {total or len(self.lines)}). Showing bytes '
+    def result(self, start, end, body=None, size=None, total=None, shown_start=None, stream=None, lines=None):
+        stream = self.stream if stream is None else stream
+        lines = self.lines if lines is None else lines
+        size = len(stream) if size is None else size
+        header = (f'Partial read (lines 1-{len(lines)} of {total or len(lines)}). Showing bytes '
                   f'{start if shown_start is None else shown_start}-{end} of {size} in this line range')
         header += (f', truncated at the {self.LIMIT}-byte limit. To read the rest of this line range, call this '
-                   f'tool again with the same StartLine and EndLine and ByteOffset={end}.' if end < len(self.stream)
+                   f'tool again with the same StartLine and EndLine and ByteOffset={end}.' if end < len(stream)
                    else '.')
-        text = self.stream[start:end].decode() if body is None else body
+        text = stream[start:end].decode() if body is None else body
         return f'Created At: t\nCompleted At: t\n{header}\n{text}'
 
     def loaded(self, results, parallel=False):
+        """`results` are (offset, content) for the main skill or (path, offset, content)."""
+        results = [r if len(r) == 3 else (self.skill, *r) for r in results]
         steps = [{'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0, 'content': 'x'}]
-        calls = [{'name': 'read_file', 'args': {'Path': str(self.SKILL), 'ByteOffset': offset}} for offset, _ in results]
-        done = [{'type': 'GENERIC', 'status': 'DONE', 'content': content} for _, content in results]
+        calls = [{'name': 'read_file', 'args': {'Path': str(path), 'ByteOffset': offset}} for path, offset, _ in results]
+        done = [{'type': 'GENERIC', 'status': 'DONE', 'content': content} for _, _, content in results]
         if parallel:
             steps += [{'type': 'PLANNER_RESPONSE', 'tool_calls': calls}] + done
         else:
             for call, outcome in zip(calls, done):
                 steps += [{'type': 'PLANNER_RESPONSE', 'tool_calls': [call]}, outcome]
         steps = [dict(step, step_index=index) for index, step in enumerate(steps)]
-        events, _, _ = load_bridge().shadow_events(steps, str(self.tmp))
+        spec = importlib.util.spec_from_file_location('agy_bridge_copy', self.plugin / 'hooks/agy-bridge.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        events, _, _ = module.shadow_events(steps, str(self.tmp))
         return [item['input']['skill'] for event in events
                 for item in event['message']['content'] if item.get('name') == 'Skill']
 
+    def good(self, spans=None):
+        return [(start, self.result(start, end)) for start, end in (spans or self.tile())]
+
     def test_parallel_byte_chunks_covering_the_skill_count_as_a_load(self):
-        spans = self.chunks()
+        spans = self.tile()
         self.assertEqual(len(spans), 3)
         self.assertTrue(any(self.stream[end - 1:end] != b'\n' and self.stream[end:end + 1] != b'\n'
                             for _, end in spans[:-1]), 'fixture must cut inside a line')
-        results = [(start, self.result(start, end)) for start, end in spans]
-        self.assertEqual(self.loaded(results, parallel=True), ['ccl-skills:skill-extraction-workflow'])
-        self.assertEqual(self.loaded(results[::-1]), ['ccl-skills:skill-extraction-workflow'])
+        results = self.good(spans)
+        self.assertEqual(self.loaded(results, parallel=True), ['ccl-skills:sample-skill'])
+        self.assertEqual(self.loaded(results[::-1]), ['ccl-skills:sample-skill'])
 
     def test_an_offset_inside_a_character_counts_where_the_host_really_started(self):
-        (s1, e1), _, (_, e3) = self.chunks()
-        inside = next(n for n in range(e1, e3) if self.stream[n] & 0xC0 == 0x80)
-        boundary = inside
-        while self.stream[boundary] & 0xC0 == 0x80:
-            boundary -= 1
-        first = (0, self.result(0, boundary))
-        rest = self.cut(boundary)
-        tail = [(rest, self.result(rest, e3))] if rest < e3 else []
+        inside = next(n for n in range(self.LIMIT, len(self.stream)) if self.stream[n] & 0xC0 == 0x80)
+        lead = inside
+        while self.stream[lead] & 0xC0 == 0x80:
+            lead -= 1
+        spans = self.tile(lead)
+        at = next(i for i, (start, _) in enumerate(spans) if start == lead)
+        rest = spans[at][1]
+        results = self.good(spans)
         # The host answers ByteOffset=inside from the character's first byte but echoes `inside`.
-        backed = (inside, self.result(boundary, rest, shown_start=inside))
-        self.assertEqual(self.loaded([first, backed] + tail), ['ccl-skills:skill-extraction-workflow'])
-        short = (inside, self.result(boundary + 1, rest, shown_start=inside,
-                                     body=self.stream[boundary + 1:rest].decode('utf-8', 'replace')))
-        self.assertEqual(self.loaded([first, short] + tail), [], 'bytes must match where they really start')
+        results[at] = (inside, self.result(lead, rest, shown_start=inside))
+        self.assertEqual(self.loaded(results), ['ccl-skills:sample-skill'])
+        # A body reaching back past that character's first byte is not the host's answer.
+        results[at] = (inside, self.result(lead - 1, rest, shown_start=inside))
+        self.assertEqual(self.loaded(results), [], 'back-off stops at the character that holds the offset')
 
     def test_a_cut_line_counts_only_once_some_chunk_shows_it_whole(self):
-        (s1, e1), (_, e2), (s3, e3) = self.chunks()
-        resume = self.line_start(e1)
+        (_, e1), *_ = self.tile()
+        resume = self.stream.rfind(b'\n', 0, e1) + 1
         self.assertLess(resume, e1)
-        reread = self.cut(resume)
-        overlapping = [(0, self.result(s1, e1)), (resume, self.result(resume, reread)),
-                       (reread, self.result(reread, e3))]
-        self.assertEqual(self.loaded(overlapping), ['ccl-skills:skill-extraction-workflow'])
+        reread = [(0, self.result(0, e1))] + [r for r in self.good(self.tile(resume)) if r[0] >= resume]
+        self.assertEqual(self.loaded(reread), ['ccl-skills:sample-skill'])
         skip = self.stream.index(b'\n', e1) + 1
-        skipped = [(0, self.result(s1, e1)), (skip, self.result(skip, self.cut(skip))),
-                   (self.cut(skip), self.result(self.cut(skip), e3))]
+        skipped = [(0, self.result(0, e1))] + [r for r in self.good(self.tile(skip)) if r[0] >= skip]
         self.assertEqual(self.loaded(skipped), [], 'the line cut at the first boundary was never shown whole')
 
+    def test_every_separator_byte_must_be_shown(self):
+        newline = self.stream.index(b'\n', self.LIMIT // 2)
+        spans = [span for span in self.tile(newline, newline + 1) if span != (newline, newline + 1)]
+        self.assertEqual(self.loaded(self.good(spans)), [], 'one row separator was never shown')
+        self.assertEqual(self.loaded(self.good(self.tile(newline, newline + 1))), ['ccl-skills:sample-skill'])
+
+    def test_header_like_text_at_the_start_of_a_chunk_body_is_not_a_header(self):
+        self.skill, self.lines, self.stream = self.make('sample-skill', 'x', extra=['Showing lines 1-2 of 3'])
+        text = self.stream.index(b'Showing lines 1-2 of 3')
+        self.assertEqual(self.loaded(self.good(self.tile(text))), ['ccl-skills:sample-skill'])
+
+    def test_byte_intervals_of_two_skills_never_combine(self):
+        other, other_lines, other_stream = self.make('sample-other', 'y')
+        self.assertEqual(len(other_stream), len(self.stream))
+        first, *rest = self.tile()
+        mixed = [(self.skill, first[0], self.result(*first))]
+        mixed += [(other, start, self.result(start, end, stream=other_stream, lines=other_lines))
+                  for start, end in rest]
+        self.assertEqual(self.loaded(mixed), [])
+        complete = mixed + [(self.skill, start, self.result(start, end)) for start, end in rest]
+        self.assertEqual(self.loaded(complete), ['ccl-skills:sample-skill'])
+
     def test_incomplete_or_mismatched_chunks_are_not_a_load(self):
-        (s1, e1), (s2, e2), (s3, e3) = self.chunks()
-        good = [(s1, self.result(s1, e1)), (s2, self.result(s2, e2)), (s3, self.result(s3, e3))]
+        (s1, e1), (s2, e2), (s3, e3) = self.tile()
+        good = self.good()
         middle = self.stream[s2:e2].decode()
         tampered = middle[:100] + ('X' if middle[100] != 'X' else 'Y') + middle[101:]
         row = middle.index('\n') + 1
@@ -683,17 +735,21 @@ class PartialReadTests(BridgeCase):
         for name, results in cases.items():
             with self.subTest(case=name):
                 self.assertEqual(self.loaded(results), [])
-        self.assertEqual(self.loaded(good), ['ccl-skills:skill-extraction-workflow'], 'control')
+        self.assertEqual(self.loaded(good), ['ccl-skills:sample-skill'], 'control')
 
 
 class ShadowIdentityTests(BridgeCase):
     def state(self):
         bridge = load_bridge()
+        previous = os.environ.get('TMPDIR')
         os.environ['TMPDIR'] = self.env['TMPDIR']
         try:
             return bridge, bridge.state_dir()
         finally:
-            del os.environ['TMPDIR']
+            if previous is None:
+                del os.environ['TMPDIR']
+            else:
+                os.environ['TMPDIR'] = previous
 
     def key(self, bridge, conversation):
         return bridge.conversation({'conversationId': conversation})[1]
@@ -745,20 +801,27 @@ class ShadowIdentityTests(BridgeCase):
     def test_a_new_conversation_empties_only_stale_unlocked_leftover_shadows(self):
         bridge, state = self.state()
         old = time.time() - 25 * 3600
-        key = {name: self.key(bridge, name) for name in ('left', 'fresh', 'held', 'paused', 'linked')}
+        key = {name: self.key(bridge, name) for name in ('left', 'fresh', 'held', 'paused', 'linked',
+                                                       'unlocked', 'multi')}
         outside = self.tmp / 'outside.jsonl'
         outside.write_text('keep\n')
         content = {
             f'{key["left"]}.jsonl': 'left', f'{key["fresh"]}.jsonl': 'fresh', f'{key["held"]}.jsonl': 'held',
             f'{key["paused"]}.jsonl': '', f'{key["left"]}.4242.tmp': 'temp', 'notes.tmp': 'other',
-            'other.jsonl': 'other', f'{key["left"]}.lock': '', f'{key["left"]}.run.lock': '',
-            f'{key["left"]}.active.turn': '{}'}
+            'other.jsonl': 'other', 'other.run.lock': '', f'{key["left"]}.lock': '', f'{key["left"]}.run.lock': '',
+            f'{key["left"]}.active.turn': '{}', f'{key["unlocked"]}.jsonl': 'no lock file',
+            f'{key["multi"]}.run.lock': '', f'{key["left"]}.04242.tmp': 'leading zero',
+            f'{key["left"]}.\u0664\u0662.tmp': 'not ascii digits'}
         for name, text in content.items():
             (state / name).write_text(text)
             if name != f'{key["fresh"]}.jsonl':
                 os.utime(state / name, (old, old))
         inode = (state / f'{key["left"]}.jsonl').stat().st_ino
         paused = (state / f'{key["paused"]}.jsonl').stat().st_ino
+        twin = self.tmp / 'twin.txt'
+        twin.write_text('multi\n')
+        os.utime(twin, (old, old))
+        os.link(twin, state / f'{key["multi"]}.jsonl')
         link = state / f'{key["linked"]}.jsonl'
         link.symlink_to(outside)
         os.utime(outside, (old, old))
@@ -768,7 +831,8 @@ class ShadowIdentityTests(BridgeCase):
                                    str(state / f'{key["held"]}.run.lock')], stdout=subprocess.PIPE, text=True)
         try:
             self.assertEqual(holder.stdout.readline().strip(), 'held')
-            self.bridge('PreToolUse', self.edit('run_command', {'CommandLine': 'ls'}, self.tmp, conversation='sweeper'))
+            swept = self.bridge('PreToolUse', self.edit('run_command', {'CommandLine': 'ls'}, self.tmp,
+                                                       conversation='sweeper'))
         finally:
             holder.kill()
             holder.wait()
@@ -783,6 +847,8 @@ class ShadowIdentityTests(BridgeCase):
         self.assertEqual((state / f'{key["paused"]}.jsonl').stat().st_ino, paused, 'a paused conversation keeps its identity')
         self.assertTrue(link.is_symlink(), 'a link is not a regular shadow file')
         self.assertEqual(outside.read_text(), 'keep\n')
+        self.assertEqual(twin.read_text(), 'multi\n', "another conversation's linked file is left alone")
+        self.assertEqual(swept['decision'], 'allow', "another conversation's unsafe file does not block this one")
         self.assertEqual((state / f'{self.key(bridge, "sweeper")}.jsonl').stat().st_size, 0)
 
 

@@ -309,17 +309,24 @@ def partial_lines(content, header, lines, spans):
     body = content[header.end() + 1:].encode('utf-8', 'surrogatepass')
     if size != len(stream) or not 0 <= start < end <= size:
         return set()
-    if 0 < len(body) - (end - start) <= 3 and stream[start] & 0xC0 == 0x80:
-        # An offset inside a character makes the host start at that character but
-        # still report the requested offset; verify the bytes where they really start.
-        start = end - len(body)
+    lead = start
+    while lead > 0 and stream[lead] & 0xC0 == 0x80:
+        lead -= 1
+    if lead != start and len(body) == end - lead:
+        # An offset inside a character makes the host start at that character's
+        # first byte but still report the requested offset.
+        start = lead
     if stream[start:end] != body:
         return set()
     merged = merge_spans(spans.get((first, last), []) + [(start, end)])
     spans[(first, last)] = merged
-    shown, position = set(), 0
+    # A row counts with its separator, so complete rows imply a complete stream.
+    shown, position, index = set(), 0, 0
     for number, row in zip(range(first, last + 1), rows):
-        if any(low <= position and position + len(row) <= high for low, high in merged):
+        needed = position + len(row) + (number < last)
+        while index < len(merged) and merged[index][1] < needed:
+            index += 1
+        if index < len(merged) and merged[index][0] <= position:
             shown.add(number)
         position += len(row) + 1
     return shown
@@ -334,9 +341,12 @@ def covered_lines(content, lines, spans=None):
     if not isinstance(content, str):
         return set()
     header = SHOWING_RE.search(content)
+    partial = PARTIAL_RE.search(content)
+    # The first header is the tool's; a later match is file text inside the body.
+    if partial and (not header or partial.start() < header.start()):
+        return partial_lines(content, partial, lines, spans) if spans is not None else set()
     if not header:
-        partial = PARTIAL_RE.search(content)
-        return partial_lines(content, partial, lines, spans) if partial and spans is not None else set()
+        return set()
     first, last, total = (int(value) for value in header.groups())
     if total != len(lines) or not 1 <= first <= last <= total:
         return set()
@@ -422,7 +432,7 @@ def shadow_events(steps, cwd):
 # does: skill-loading.py keys its once-per-context checkpoint on (st_dev, st_ino).
 # Its content lives only while an event runs; between events the file is empty.
 SHADOW_NAME_RE = re.compile(r'[0-9a-f]{64}\.jsonl\Z')
-LEGACY_TEMP_RE = re.compile(r'[0-9a-f]{64}\.\d+\.tmp\Z')
+LEGACY_TEMP_RE = re.compile(r'[0-9a-f]{64}\.[1-9][0-9]*\.tmp\Z')
 WRITE_FLAGS = os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK
 
 
@@ -498,18 +508,16 @@ def sweep_stale(directory, budget=1.0):
                     os.unlink(entry.path)
                 elif SHADOW_NAME_RE.match(entry.name) and info.st_size:
                     empty_unless_running(directory, entry.name[:-len('.jsonl')], cutoff)
-            except OSError:
-                continue
+            except (OSError, BridgeError):
+                continue  # another conversation's unsafe file is its own event's problem
 
 
 def empty_unless_running(directory, key, cutoff):
+    # Every event takes this lock before writing; without it the age check races a
+    # starting event, so a shadow with no lock file is left alone.
+    lock = os.open(directory / f'{key}.run.lock', WRITE_FLAGS)
     try:
-        lock = os.open(directory / f'{key}.run.lock', WRITE_FLAGS)
-    except FileNotFoundError:
-        lock = None
-    try:
-        if lock is not None:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         descriptor = checked_shadow(os.open(directory / f'{key}.jsonl', WRITE_FLAGS))
         try:
             if os.fstat(descriptor).st_mtime < cutoff:
@@ -517,8 +525,7 @@ def empty_unless_running(directory, key, cutoff):
         finally:
             os.close(descriptor)
     finally:
-        if lock is not None:
-            os.close(lock)
+        os.close(lock)
 
 
 def context(agy, extra=None):

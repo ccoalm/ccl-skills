@@ -2,7 +2,7 @@
 
 Fix two defects in `hooks/agy-bridge.py` that make Antigravity sessions slower than Claude Code and Codex sessions running the same hooks:
 
-1. **Shadow transcript identity churn.** The bridge rebuilds its shadow transcript for each hook event, swaps it into place with `os.replace`, and unlinks it when the event ends. Every event therefore hands the hooks a new `(st_dev, st_ino)`. `hooks/skill-loading.py` keys its once-per-context checkpoint attempt on that identity (`epoch = [context_id, st_dev, st_ino]`), so the `First source-edit skill checkpoint` denies every source edit instead of only the first one in a context. Claude Code and Codex append to one persistent transcript file, so on those hosts the identity is constant and the checkpoint fires once.
+1. **Shadow transcript identity churn.** The bridge rebuilds its shadow transcript for each hook event, swaps it into place with `os.replace`, and unlinks it when the event ends. Each event can therefore hand the hooks a new `(st_dev, st_ino)`: always on tmpfs, and on ext4 whenever something else took the freed inode in between. `hooks/skill-loading.py` keys its once-per-context checkpoint attempt on that identity (`epoch = [context_id, st_dev, st_ino]`), so each new identity re-arms the `First source-edit skill checkpoint`. In the recorded reproduction, it denied three consecutive edits. Claude Code and Codex append to one persistent transcript file, so on those hosts the identity is constant and the checkpoint fires once.
 2. **Byte-chunked reads never count as a skill load.** Antigravity `read_file` returns at most 46,080 bytes. A larger read answers with a `Partial read (lines A-B of T). Showing bytes S-E of Z in this line range...` header instead of `Showing lines A-B of T`. `covered_lines()` only recognizes the latter, so reading a large `SKILL.md` with `ByteOffset` chunks never produces the synthesized `Skill` event. The agent then has to re-read the file in small line ranges to satisfy the hooks.
 
 ## Extraction Charter
@@ -103,6 +103,9 @@ One independent review of the plan (Codex, before the code) returned findings bu
 | T5 | A skill over 46,080 formatted bytes read as three `ByteOffset` chunks (cut inside lines at UTF-8 boundaries, in parallel and in reverse order) synthesizes the `Skill` event | fail | pass |
 | T5b | A chunk requested inside a multi-byte character, which the host serves from that character while echoing the requested offset, counts. The same header with bytes that do not match at the real start does not | fail | pass |
 | T6 | A cut-off last line that is re-read by an overlapping chunk counts. Without the re-read, it does not | fail | pass |
+| T6b | A single row-separator byte left unread blocks the load | fail (nothing counted) | pass |
+| T6c | A chunk whose body starts with text shaped like a `Showing lines` header still counts as a `Partial read` | fail | pass |
+| T6d | Complementary chunks of two skills with identical layouts never combine into a load | fail (nothing counted) | pass |
 | T7 | No `Skill` event when: the middle chunk is missing, a byte is tampered, a line number is forged at equal length, `Z` is wrong, `T` is wrong, or the start offset is misplaced with mismatched body length | pass (nothing counted) | pass |
 | T8 | The existing `Showing lines` evidence tests are unchanged | pass | pass |
 
