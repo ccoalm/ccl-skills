@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -727,10 +728,57 @@ class PartialReadTests(BridgeCase):
         self.assertEqual(len(stored), 1)
         self.assertEqual(len(stored[0][0]), len(self.stream))
 
+    def module(self):
+        spec = importlib.util.spec_from_file_location('agy_bridge_copy', self.plugin / 'hooks/agy-bridge.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def ranged(self, first, last, start, end):
+        """A result for an explicit StartLine/EndLine read; offsets are relative to that range."""
+        rows = '\n'.join(f'{n}: {self.lines[n - 1]}' for n in range(first, last + 1)).encode()
+        header = (f'Partial read (lines {first}-{last} of {len(self.lines)}). Showing bytes {start}-{end} of '
+                  f'{len(rows)} in this line range.')
+        return f'{header}\n{rows[start:end].decode()}', len(rows)
+
+    def row_start(self, number):
+        return len('\n'.join(f'{n}: {self.lines[n - 1]}' for n in range(1, number)).encode()) + (number > 1)
+
+    def test_reads_of_different_line_ranges_combine(self):
+        total, k = len(self.lines), 700
+        cut = self.row_start(k) + 3  # stops inside row k
+        module, spans = self.module(), {}
+        head, _ = self.ranged(1, total, 0, cut)
+        self.assertNotIn(k, module.covered_lines(head, self.lines, spans))
+        _, size = self.ranged(k, total, 0, 1)
+        resume = cut - self.row_start(k)  # the rest of row k, in the second range's offsets
+        tail, _ = self.ranged(k, total, resume, size)
+        self.assertEqual(module.covered_lines(tail, self.lines, dict(spans)), set(range(1, total + 1)))
+        gap, _ = self.ranged(k, total, resume + 1, size)
+        self.assertNotIn(k, module.covered_lines(gap, self.lines, dict(spans)), 'one byte of row k unread')
+        adjacent = {}
+        _, size_a = self.ranged(1, k, 0, 1)
+        _, size_b = self.ranged(k + 1, total, 0, 1)
+        module.covered_lines(self.ranged(1, k, 0, size_a)[0], self.lines, adjacent)
+        shown = module.covered_lines(self.ranged(k + 1, total, 0, size_b)[0], self.lines, adjacent)
+        self.assertEqual(shown, set(range(1, total + 1)), 'two whole adjacent ranges cover every row')
+
     def test_a_right_sized_header_over_a_short_body_is_not_a_load(self):
         (s1, e1), (s2, e2), (s3, e3) = self.tile()
         short = (s2, self.result(s2, e2, body=self.stream[s2:s2 + 10].decode()))
         self.assertEqual(self.loaded([self.good()[0], short, self.good()[2]]), [])
+        # The rejection must not copy the claimed interval first.
+        import tracemalloc
+        module, spans = self.module(), {}
+        module.covered_lines(self.good()[0][1], self.lines, spans)
+        content = short[1]
+        tracemalloc.start()
+        try:
+            module.covered_lines(content, self.lines, spans)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        self.assertLess(peak, (e2 - s2) // 2, 'a short body is rejected before the claimed interval is copied')
 
     def test_incomplete_or_mismatched_chunks_are_not_a_load(self):
         (s1, e1), (s2, e2), (s3, e3) = self.tile()
@@ -905,12 +953,32 @@ class ShadowIdentityTests(BridgeCase):
         self.assertEqual(shadow.read_text(), 'replacement')
         self.assertEqual(shadow.with_name(shadow.name + '.moved').stat().st_size, 0)
 
+    def test_a_second_write_checks_the_file_before_writing_through_it(self):
+        bridge, state = self.state()
+        key = self.key(bridge, 'boundary')
+        previous = os.environ.get('TMPDIR')
+        os.environ['TMPDIR'] = self.env['TMPDIR']
+        try:
+            path = Path(bridge.write_shadow(key, [{'n': 1}]))
+            twin = self.tmp / 'boundary-twin.jsonl'
+            os.link(path, twin)
+            with self.assertRaises(bridge.BridgeError):
+                bridge.write_shadow(key, [{'n': 2}])
+            self.assertEqual(twin.read_text(), json.dumps({'n': 1}) + '\n', 'nothing was written through the link')
+            bridge.clear_shadow(key)
+        finally:
+            if previous is None:
+                del os.environ['TMPDIR']
+            else:
+                os.environ['TMPDIR'] = previous
+
     def test_a_hardlink_added_between_two_writes_of_one_event_fails_closed(self):
         copy = self.tmp / 'plugin'
         shutil.copytree(ROOT / 'hooks', copy / 'hooks')
         twin = self.tmp / 'twin.jsonl'
+        quoted = shlex.quote(str(twin))
         (copy / 'hooks/guard-edit-isolation.sh').write_text(
-            f'#!/bin/sh\nt=$(jq -r .transcript_path)\n[ -e {twin} ] || ln "$t" {twin}\n')
+            f'#!/bin/sh\nt=$(jq -r .transcript_path)\n[ -e {quoted} ] || ln "$t" {quoted}\n')
         patch = '*** Begin Patch\n*** Update File: one.md\n*** Update File: two.md\n*** End Patch'
         result = self.bridge('PreToolUse', self.edit('apply_patch', {'Input': patch}, self.tmp, conversation='twin'),
                              root=copy)

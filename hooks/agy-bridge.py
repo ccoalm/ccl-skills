@@ -296,9 +296,9 @@ def partial_lines(content, header, lines, spans):
 
     Each chunk must equal the canonical formatted stream at the offsets its header
     names, so a cut, shifted, tampered or renumbered chunk adds nothing. `spans`
-    keeps the verified intervals per line range across reads, so a line cut at a
-    chunk boundary counts once the next chunk shows the rest of it. The canonical
-    stream is built once per skill; a range is a window into it.
+    keeps the verified intervals per skill across reads, so a line cut at a chunk
+    boundary counts once any later chunk shows the rest of it. The canonical stream
+    is built once per skill; a range is a window into it.
     """
     first, last, total, start, end, size = (int(value) for value in header.groups())
     if total != len(lines) or not 1 <= first <= last <= total:
@@ -327,13 +327,15 @@ def partial_lines(content, header, lines, spans):
         start = lead
     if len(body) != end - start or memoryview(stream)[base + start:base + end] != body:
         return set()
-    merged = merge_spans(spans.get((first, last), []) + [(start, end)])
-    spans[(first, last)] = merged
+    # Intervals live in whole-skill coordinates, so reads of different line ranges
+    # combine. A range read to its end also shows the separator after its last row.
+    stop = base + end + (end == size and last < total)
+    merged = spans['verified'] = merge_spans(spans.get('verified', []) + [(base + start, stop)])
     # A row counts with its separator, so complete rows imply a complete stream.
     shown, index = set(), 0
-    for number in range(first, last + 1):
-        position = offsets[number - 1] - base
-        needed = position + lengths[number - 1] + (number < last)
+    for number in range(1, total + 1):
+        position = offsets[number - 1]
+        needed = position + lengths[number - 1] + (number < total)
         while index < len(merged) and merged[index][1] < needed:
             index += 1
         if index < len(merged) and merged[index][0] <= position:
