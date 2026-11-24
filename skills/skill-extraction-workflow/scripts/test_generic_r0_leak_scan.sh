@@ -198,6 +198,16 @@ swap_rg="$(wc -l < "$RG_LOG" | tr -d ' ')"
 [ "$swap_rg" -ge 1 ] || fail "expected swapped rg binary on PATH to miss prior stamp and invoke rg, got $swap_rg"
 [ "$swap_rc" -ne 0 ] || fail "expected broken swapped rg on PATH to fail --self-test-cached, got rc=0"
 
+# 7d3: RIPGREP_CONFIG_PATH with --fixed-strings cannot poison scan_stream or --self-test.
+BAD_RG_CFG="$TMP/bad-ripgreprc"
+printf '%s\n' '--fixed-strings' > "$BAD_RG_CFG"
+set +e
+cfg_self_out="$(RIPGREP_CONFIG_PATH="$BAD_RG_CFG" bash "$SCAN_SCRIPT" --self-test 2>&1)"
+cfg_self_rc=$?
+set -e
+assert_rc "$cfg_self_rc" 0 "RIPGREP_CONFIG_PATH=--fixed-strings must be ignored (--no-config)"
+assert_contains "generic_r0_leak_scan_self_test_ok" "$cfg_self_out" "--no-config self-test ok"
+
 # 7e: broken mutant never writes a stamp.
 BROKEN_SCRIPT="$TMP/generic-r0-broken.sh"
 sed 's|/Users/\[A-Za-z0-9._-\]|/NEVER_MATCHES_USERS_PATH|' "$SCAN_SCRIPT" > "$BROKEN_SCRIPT"

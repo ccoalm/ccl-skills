@@ -66,7 +66,7 @@ scan_stream() {
   for p in "${leak_patterns[@]}"; do args+=( -e "$p" ); done
   # Capture rg's real status in the else branch (a false `if` with no else would
   # otherwise reset $? to 0). rg: 0=match, 1=no match, 2=error.
-  if out="$(rg --no-line-number --no-filename --color never "${args[@]}" 2>/dev/null)"; then
+  if out="$(rg --no-config --no-line-number --no-filename --color never "${args[@]}" 2>/dev/null)"; then
     rc=0
   else
     rc=$?

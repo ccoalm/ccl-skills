@@ -35,7 +35,7 @@ Measured in an uncontended interleaved A/B harness (`base, cand, base, cand...` 
 | `bash .../check-ccl-skills.sh .` (warm cache) | `7718.34` | `5171.37` | `1.49x` (`-2546.97 ms`) | `[7792.08, 7718.34, 7772.43, 7654.49, 7641.61, 7736.97, 7646.4]` | `[5248.94, 5211.11, 5245.71, 5130.83, 5153.95, 5171.37, 5138.57]` |
 | `bash .../check-ccl-skills.sh .` (cold cache) | `15273.93` | `12877.78` | `1.19x` (`-2396.15 ms`) | `[15273.93, 15305.05, 15399.05, 15042.44, 15174.81, 15375.46, 15078.49]` | `[12880.75, 12877.78, 12908.86, 12760.78, 12695.69, 12703.66, 12968.56]` |
 
-## 3. Applied Differential Killing-Mutation Walk (`25/25` Killed)
+## 3. Applied Differential Killing-Mutation Walk (`26/26` Killed)
 
 Executed in isolated temporary clones outside the delivery worktree (`control_rc=0` verified before each mutant):
 
@@ -66,8 +66,9 @@ Executed in isolated temporary clones outside the delivery worktree (`control_rc
 | `M17_opencode_three_revparse_fallback` | `packages/opencode-plugin/ccl-skills.ts` | Force 3-call `git rev-parse` fallback in `repoCheckoutPaths` | `0` | `1` | `expected 1 plugin git rev-parse call on linked worktree edit, got 3` |
 | `M18_r0_stamp_omit_rg_identity` | `skills/skill-extraction-workflow/scripts/generic-r0-leak-scan.sh` | Drop `rg_bin:rg_hash` from `selftest_stamp_key` | `0` | `1` | `expected swapped rg binary on PATH to miss prior stamp and invoke rg, got 0` |
 | `M19_ap27_utf8_prefix_encoding` | `skills/skill-extraction-workflow/scripts/check-ccl-skills.sh` | Revert `# encoding: BINARY` + `.b` prefix to `# encoding: UTF-8` in Anti-pattern 27 | `0` | `1` | `FAIL p14 non-ASCII root path` (`Encoding::CompatibilityError`) |
+| `M20_r0_scan_omit_no_config` | `skills/skill-extraction-workflow/scripts/generic-r0-leak-scan.sh` | Drop `--no-config` from `rg` in `scan_stream()` | `0` | `1` | `FAIL: expected rc=0 got rc=1 (RIPGREP_CONFIG_PATH=--fixed-strings must be ignored (--no-config))` |
 
-Note: `M03b` was observed directly during the initial mutation-walk run before `[ "${#input}" -le 65536 ]` was added (`25/25` distinct mutations verified).
+Note: `M03b` was observed directly during the initial mutation-walk run before `[ "${#input}" -le 65536 ]` was added (`26/26` distinct mutations verified).
 
 ## 4. Contract Sync & `tighten-doc` Closeout Evidence
 
