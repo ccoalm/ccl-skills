@@ -16,9 +16,9 @@ All new assertions were authored and executed against the unpatched `fb7874f6b1a
 | `T1` | `skills/code-review/scripts/test_init_policy_matrix.sh` | `exit 1` — `init_policy_matrix.py spawned 270 child Python processes (expected <= 6 in-process + CLI parity smoke)` | `exit 0` (`init_policy_matrix_ok`; `4` child Python spawns for CLI parity smoke, `__main__` divergence mutant caught, `guard-self-check-broken-mutant` and all `7` policy mutants caught) |
 | `T2` | `skills/skill-extraction-workflow/scripts/test_check_evidence_card_leak_cache.sh` | `exit 1` — `FAIL - heading-less --all scan spawned mktemp or failed: rc=0 mktemp_calls=3` | `exit 0` (`passed=15 failed=0`; `0` `mktemp` spawns on heading-less `--all` scan, fenced-heading + unfenced-tier file passes, unfenced card fails) |
 | `T3a` | `skills/skill-extraction-workflow/scripts/test_register_firing_path_resolution.sh` | `exit 1` — `expected SKILL.md=1 and demo.rb<=2 File.read calls, got SKILL.md=4 demo.rb=5` | `exit 0` (`register_firing_path_resolution_tests_ok (68 assertions)`; `SKILL.md=1`, `demo.rb=2`) |
-| `T3b` | `skills/skill-extraction-workflow/scripts/test_validate_skill_credential_cwd.sh` | `exit 1` — `expected 0 dirname spawns during root discovery, got 3` (and `3` `ruby` spawns) | `exit 0` (`test_validate_skill_credential_cwd: ok`; `0` `dirname` spawns, `2` `ruby` spawns, exact YAML and missing-reference error tokens preserved) |
-| `T3c` | `skills/skill-extraction-workflow/scripts/test_check_contract_anchors.sh` | `exit 1` — `FAIL S1-subproc: unexpected grep/wc/tr spawns` | `exit 0` (`test_check_contract_anchors: ok`; `0` `grep`/`wc`/`tr`/`ruby` spawns, glob-metacharacter fixed-string row `S0-glob-meta` green, `M1`–`M9` / `B1`–`B3` / `D1` / `R1` green) |
-| `T4` | `packages/ccl-skills-npm/test/{basic.test.mjs,opencode-hooks.test.mjs}` | `exit 1` — `dist/assets must exclude repo-only test suites, found 107` and `✖ source-extra-repo-test-script` (`delegation-owner guard`) | `exit 0` (`0` leaked repo-only test suites in `release.json`, runtime hooks and contract fixtures retained, `CCL_SKILLS_REPO` override excludes repo-only skill tests, and `sameSkillDirectory` accepts single-link regular repo-test scripts while rejecting extra runtime scripts, symlinks, and hardlinks) |
+| `T3b` | `skills/skill-extraction-workflow/scripts/test_validate_skill_credential_cwd.sh` | `exit 1` — `expected 0 dirname spawns during root discovery, got 3` (and `3` `ruby` spawns) | `exit 0` (`test_validate_skill_credential_cwd: ok`; `0` `dirname` spawns, `2` `ruby` spawns, exact YAML, missing-reference, and fail-closed `install_visibility_scan_error` tokens preserved) |
+| `T3c` | `skills/skill-extraction-workflow/scripts/test_check_contract_anchors.sh` | `exit 1` — `FAIL S1-subproc: unexpected grep/wc/tr spawns` | `exit 0` (`test_check_contract_anchors: ok`; `0` `grep`/`wc`/`tr`/`ruby` spawns, glob-metacharacter fixed-string row `S0-glob-meta` green, `M1`–`M10` / `B1`–`B3` / `D1` / `R1` green) |
+| `T4` | `packages/ccl-skills-npm/test/{basic.test.mjs,opencode-hooks.test.mjs}` | `exit 1` — `dist/assets must exclude repo-only test suites, found 107` and `✖ source-extra-repo-test-script` (`delegation-owner guard`) | `exit 0` (`0` leaked repo-only test suites in `release.json`, runtime hooks and contract fixtures retained, `CCL_SKILLS_REPO` override excludes repo-only skill tests, and `sameSkillDirectory` skips one-sided single-link regular repo-test scripts while rejecting tampered shared test scripts, extra runtime scripts, symlinks, and hardlinks) |
 
 ## Interleaved Paired Benchmarks & Package Size Deltas
 
@@ -44,9 +44,9 @@ Paired benchmarks interleaved `origin/main` (`fb7874f6b1a8353f969c10596d74178b71
 | Unpacked `dist/assets` bytes | `12,549,074` B (`11.97 MiB`) | `9,285,431` B (`8.86 MiB`) | `-3,263,643` B (`-3.11 MiB`, `-26.0%`) |
 | Packed `.tgz` artifact bytes | `4,032,863` B (`3.85 MiB`) | `3,276,763` B (`3.12 MiB`) | `-756,100` B (`-738.4 KiB`, `-18.7%`) |
 
-## Applied Differential Killing-Mutation Walk (`17/17`)
+## Applied Differential Killing-Mutation Walk (`18/18` + `4/4` Post-Challenge Regressions)
 
-Executed in a disposable clone outside the candidate worktree (`pre_digests == post_digests` verified across all `17` modified files; all `8` target test commands passed GREEN on the unmutated copy first):
+Executed in a disposable clone outside the candidate worktree (`pre_digests == post_digests` verified across all modified files; all target test commands passed GREEN on the unmutated copy first):
 
 | Mutant ID | Target File | Mutated Predicate | Differential RED Attribution (`rc=1`) |
 | --- | --- | --- | --- |
@@ -67,6 +67,14 @@ Executed in a disposable clone outside the candidate worktree (`pre_digests == p
 | `M15_opencode_sameSkillDirectory_ignores_regular_repo_tests` | `packages/opencode-plugin/ccl-skills.ts` | Disable `scripts/` repo-test filter in `visibleSkillEntries` | `✖ source-extra-repo-test-script` (`source-matching` remained `ok`) |
 | `M16_opencode_sameSkillDirectory_rejects_symlink_repo_test` | `packages/opencode-plugin/ccl-skills.ts` | Ignore symlinked `scripts/test_*` entries | `✖ source-symlink-repo-test-script` (`source-extra-repo-test-script` remained `ok`) |
 | `M17_opencode_sameSkillDirectory_rejects_hardlink_repo_test` | `packages/opencode-plugin/ccl-skills.ts` | Drop `st.nlink !== 1` check on `scripts/test_*` entries | `✖ source-hardlink-repo-test-script` (`source-symlink-repo-test-script` remained `ok`) |
+| `M18_abort_leak_subreaper_reparent` | `skills/code-review/scripts/test_review_gate_abort_leak.sh` | Revert `wrapper_is_reparented` to hardcoded `ppid == 1` | `abort_leak_setup_lost: wrapper ... was never reparented` under synthetic `PR_SET_CHILD_SUBREAPER` (`test_abort_leak_state_helpers.sh`) |
+
+Post-challenge P2 RED-to-GREEN regressions verified on `e5be42f226ef8b7b73bfda924c8afb7dc9a639c5` and `30380275b1386a5bfe4a14180ca85f37b78fe6ac`:
+
+1. `tampered-shared-repo-test-script` (`packages/ccl-skills-npm/test/opencode-hooks.test.mjs`): fails when `sameSkillDirectory` ignores `scripts/test_*` present on both sides with differing bytes; passes when only one-sided single-link regular `scripts/{test_*,*.test.sh}` files are skipped.
+2. `M10-abs` & `M10-dotdot` (`skills/skill-extraction-workflow/scripts/test_check_contract_anchors.sh`): fails when `check-contract-anchors.sh` accepts `/etc/...` or `../...` paths; passes (`exit 2`, `contract_anchor_row_malformed`) when path containment inside `root` is enforced.
+3. `_SINGLE_USE_GUARD` (`skills/code-review/scripts/test_init_policy_matrix.sh`): fails when `parse_probe_result.py` shares one module dictionary across 270 runs; passes when `_compile_parser_code` executes each `(case, path)` pair in a fresh module namespace.
+4. `3d` (`skills/skill-extraction-workflow/scripts/test_validate_skill_credential_cwd.sh`): fails when `CHECK_INSTALL_VISIBILITY=1` masks a Ruby failure behind process substitution as `install_visibility_not_found`; passes (`exit 2`, `install_visibility_scan_error`, no `install_visibility_not_found`) when Ruby output is captured and checked before the loop.
 
 ## Verification By Layer & Sync Gates
 
@@ -75,14 +83,60 @@ Executed in a disposable clone outside the candidate worktree (`pre_digests == p
 - **Integration / Contract**: `select-affected-tests.py --run`, `make test` (`test-repo-gates`, `test-regressions-fast`, `test-code-review`), `check-skill-count.py`, `test_check_ccl_regressions.sh --heavy-only`, `npm --prefix packages/ccl-skills-npm test`, `npm --prefix packages/ccl-skills-npm run test:pack` — all `exit 0`.
 - **E2E / Host Smoke**: `npm --prefix packages/ccl-skills-npm run smoke:host` — `exit 0` (`{"status":"four-host-smoke-passed","codexHooks":"native-plugin-registered","openCodeHooks":"plugin-registered","openCodeSharedFiles":"retained","antigravityPlugin":"native-plugin-registered"}`).
 - **Contract Sync**: Updated `packages/ccl-skills-npm/scripts/AGENTS.md` to record the closed repo-test exclusion boundary; verified via `skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh` (`exit 0`) and `scripts/check-spec-references.py .` + `scripts/check-markdown-links.py .` (`exit 0`).
-- **R0 Leakage & Shared Git Surface**: Verified via configured private `process-retro` / maintainer audit wrapper (`alias_audit_ok`, `r0_status=private-ok`, terminal token `ccl_skill_check_clean_ok`) and `shared_git_surface_gate.py --repo . --base-ref origin/main` (`exit 0`).
-- **Document Closeout (`tighten-doc`)**: `Tighten` mode readback completed across `specs/ci-gate-npm-slimming/plan.md`, `specs/ci-gate-npm-slimming/evidence/validation.md`, and `packages/ccl-skills-npm/scripts/AGENTS.md` (decided points preserved, zero session-vantage / meta-narration / cross-section duplication defects).
+- **R0 Leakage & Shared Git Surface**: Verified via configured private `process-retro` / maintainer audit wrapper (`alias_audit_ok`, `r0_status=private-ok`, terminal token `ccl_skill_check_clean_ok`), `check_review_evidence_present.py` (`review_evidence_present_ok: 3 review, 1 challenge`), and `shared_git_surface_gate.py --repo . --base-ref origin/main --pr-text-file` (`exit 0`).
+- **Document Closeout (`tighten-doc`)**: `Tighten` mode closeout readback completed across `specs/ci-gate-npm-slimming/plan.md`, `specs/ci-gate-npm-slimming/evidence/validation.md`, and `packages/ccl-skills-npm/scripts/AGENTS.md` (decided points preserved, zero session-vantage, meta-narration, or cross-section duplication defects).
 
 ## Behavioral Evidence
 
 - **Status**: `RED-baseline`
-- **Artifact + outcome**: Constructed scenarios (`T1`–`T4` above, executed before and after implementation edits) plus quantitative profiling at `fb7874f6b1a8353f969c10596d74178b71453822` — baseline spawned `270` Python processes (`27.77s`), `3+` `mktemp` calls on heading-less scans (`6.00s` strict self-test), `4–5` repeated `File.read` calls per target, `3` `dirname` + `3` `ruby` calls on 3-skill validation, per-row `grep|wc|tr` subprocesses, and shipped `107` repo-only test files (`3.11 MiB` unpacked) in `dist/assets`; post-fix candidate satisfies all bounds (`4` CLI-parity Python spawns / `0.72s`, `0` `mktemp` spawns on heading-less scans / `1.03s` strict self-test, memoized target reads, `0` `dirname` / `2` `ruby` spawns, `0` `grep`/`wc`/`tr`/`ruby` spawns in `check-contract-anchors.sh` at `0.020s`, and `0` repo-only test files in `dist/assets` with `four-host-smoke-passed`).
+- **Artifact + outcome**: Constructed scenarios (`T1`–`T4` above plus post-challenge P2 regressions, executed before and after implementation edits) and quantitative profiling at `fb7874f6b1a8353f969c10596d74178b71453822` — baseline spawned `270` Python processes (`27.77s`), `3+` `mktemp` calls on heading-less scans (`6.00s` strict self-test), `4–5` repeated `File.read` calls per target, `3` `dirname` + `3` `ruby` calls on 3-skill validation, per-row `grep|wc|tr` subprocesses, and shipped `107` repo-only test files (`3.11 MiB` unpacked) in `dist/assets`; post-fix candidate satisfies all bounds (`4` CLI-parity Python spawns / `0.72s`, `0` `mktemp` spawns on heading-less scans / `1.03s` strict self-test, memoized target reads, `0` `dirname` / `2` `ruby` spawns, `0` `grep`/`wc`/`tr`/`ruby` spawns in `check-contract-anchors.sh` at `0.020s`, and `0` repo-only test files in `dist/assets` with `four-host-smoke-passed`).
 
 ## Dual-Track Review & Challenge Passes
 
-*(Populated immediately after single-shot `extraction_review_gate.sh` `--mode review` and `--mode challenge` passes against the committed candidate.)*
+- **Landing-target base attestation**: `remote=origin`, `ref=refs/heads/main`, `sha=fb7874f6b1a8353f969c10596d74178b71453822`, `rev-list --count HEAD..fb7874f6b1a8353f969c10596d74178b71453822 = 0`, re-confirmed live via `git ls-remote origin refs/heads/main` at `2026-11-24T20:15:36Z`.
+
+### Review pass
+
+- **Reviewed commit**: `88595604f573a1c09029834498f9a75cc4789013` (`candidate_sha256=c64b08b6c99244967120f87d6a28d5d548540f5fe6f6413bb26763c0a7e4c536`, `packet_sha256=a64549428291a85d99071e4547b7f5e703a3b14ffe691da8e858f2c769c5e1a0`)
+- **Controller receipt**: `specs/ci-gate-npm-slimming/evidence/pass1-review.json` (`status=passed`, `native_skill_binding=established`)
+- **Findings**: `0 total (0 P0 / 0 P1 / 0 P2)`
+- **R0 evidence**: `alias_audit_ok` / `ccl_skill_check_clean_ok` (`r0_status=private-ok`)
+- **Dispositions**: `none` (`0` findings)
+
+### Challenge pass
+
+- **Reviewed commit**: `88595604f573a1c09029834498f9a75cc4789013` (`candidate_sha256=c64b08b6c99244967120f87d6a28d5d548540f5fe6f6413bb26763c0a7e4c536`, `packet_sha256=c64b08b6c99244967120f87d6a28d5d548540f5fe6f6413bb26763c0a7e4c536`)
+- **Controller receipt**: `specs/ci-gate-npm-slimming/evidence/pass2-challenge.json` (`status=findings`, `native_skill_binding=established`)
+- **Findings**: `4 total (0 P0 / 0 P1 / 4 P2)`
+- **R0 evidence**: `alias_audit_ok` / `ccl_skill_check_clean_ok` (`r0_status=private-ok`)
+- **Gate-fireability applicability**: `yes — edits shared-gate validators and OpenCode owner-verification predicates`; **Item 9 exercised**: `specs/ci-gate-npm-slimming/evidence/pass2-challenge.json` (`challenge_focus` item `(5)`)
+- **Dispositions**: `0` P0/P1; all `4` P2s fixed in `e5be42f226ef8b7b73bfda924c8afb7dc9a639c5`:
+  1. `packages/opencode-plugin/ccl-skills.ts:558` (P2): `fixed` — skip single-link regular `scripts/{test_*,*.test.sh}` only when absent from the peer side; compare stat and bytes when present on both sides (`tampered-shared-repo-test-script`).
+  2. `skills/skill-extraction-workflow/scripts/check-contract-anchors.sh:124` (P2): `fixed` — reject absolute, `..`, symlinked, and out-of-`root` paths as malformed (`exit 2`, `M10-abs` and `M10-dotdot`).
+  3. `skills/code-review/scripts/init_policy_matrix.py:453` (P2): `fixed` — compile `parse_probe_result.py` once to bytecode and execute each `(case, path)` pair in a fresh module namespace (`_SINGLE_USE_GUARD`).
+  4. `skills/skill-extraction-workflow/scripts/validate-skill.sh:241` (P2): `fixed` — capture `CHECK_INSTALL_VISIBILITY=1` Ruby output before the loop and exit `2` with `install_visibility_scan_error` on Ruby failure (`3d`).
+
+### Delta pass 1
+
+- **Reviewed commit**: `e5be42f226ef8b7b73bfda924c8afb7dc9a639c5`; **packet**: `git diff 88595604f573a1c09029834498f9a75cc4789013..e5be42f226ef8b7b73bfda924c8afb7dc9a639c5` (`candidate_sha256=9c50cf39cec11f699511cf4ddf65d43690213837987a5366d139daf45a446a3a`, `packet_sha256=43eca7c1028abed5491fe1292fbaad7dfa8ec31228ef0d6d4bee2233a14b362e`)
+- **Controller receipt**: `specs/ci-gate-npm-slimming/evidence/pass3-delta-review.json` (`status=findings`, `native_skill_binding=established`)
+- **Findings**: `1 total (0 P0 / 0 P1 / 1 P2)`
+- **R0 evidence**: `alias_audit_ok` / `ccl_skill_check_clean_ok` (`r0_status=private-ok`)
+- **Dispositions**: `0` P0/P1; `1` P2 `fixed` in `30380275b1386a5bfe4a14180ca85f37b78fe6ac` (`skills/skill-extraction-workflow/scripts/test_validate_skill_credential_cwd.sh:158` `3d` matches the visibility Ruby snippet by argument content rather than call index and asserts `rc == 2`, `install_visibility_scan_error` present, and `install_visibility_not_found` absent, alongside Round 2 `source-register.md` Rows `907` & `908`).
+
+### Delta pass 2
+
+- **Reviewed commit**: `30380275b1386a5bfe4a14180ca85f37b78fe6ac`; **packet**: `git diff e5be42f226ef8b7b73bfda924c8afb7dc9a639c5..30380275b1386a5bfe4a14180ca85f37b78fe6ac` (`candidate_sha256=53d8e73a2160f0bfa72b9b357263343909292567b81751ac88741bb6a8264d0a`, `packet_sha256=a2fbfd96b071d263d946b86ee00bcfd9e5de186459067208120b01f7b3ad46eb`)
+- **Controller receipt**: `specs/ci-gate-npm-slimming/evidence/pass4-delta2-review.json` (`status=passed`, `native_skill_binding=established`)
+- **Findings**: `0 total (0 P0 / 0 P1 / 0 P2)`
+- **R0 evidence**: `alias_audit_ok` / `ccl_skill_check_clean_ok` (`r0_status=private-ok`)
+- **Dispositions**: `none` (`0` findings; converged across walked axes: correctness, safety, failure paths, tests/evidence, compatibility, rollout/rollback, observability, claim strength, high-risk boundary, repository contract, and Item 9 gate-fireability; standing open items: `none`)
+
+### Post-review delta
+
+- `git diff --stat 30380275b1386a5bfe4a14180ca85f37b78fe6ac..HEAD`:
+  - `specs/ci-gate-npm-slimming/evidence/pass1-review.json` (initial review receipt)
+  - `specs/ci-gate-npm-slimming/evidence/pass2-challenge.json` (adversarial challenge receipt)
+  - `specs/ci-gate-npm-slimming/evidence/pass3-delta-review.json` (delta pass 1 receipt)
+  - `specs/ci-gate-npm-slimming/evidence/pass4-delta2-review.json` (delta pass 2 receipt)
+  - `specs/ci-gate-npm-slimming/evidence/validation.md` (validation log and pass dispositions)
