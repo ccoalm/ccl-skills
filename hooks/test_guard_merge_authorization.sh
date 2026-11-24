@@ -1073,6 +1073,78 @@ rm -f "$VAUTH_DIR/$VSID"
 probe_sid deny "$FEAT_CWD" "$VSID" 'gh pr merge 45 --merge --help'
 sentinel_state absent 'a help probe without a grant creates nothing'
 
+# Lazy git-context loading: ordinary non-landing commands (including git status,
+# git diff, git checkout -b, pytest, ls, gh pr view) must spawn ZERO git child
+# processes, while git push/merge/pull and unset-origin/HEAD degrade warnings
+# still resolve the repo context on demand.
+git_shim_dir="$tmp/git-count-shim"
+git_count_file="$tmp/git-count.log"
+real_git="$(command -v git)"
+mkdir -p "$git_shim_dir"
+cat > "$git_shim_dir/git" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$git_count_file"
+exec "$real_git" "\$@"
+EOF
+chmod +x "$git_shim_dir/git"
+
+for quiet_cmd in \
+  'ls -la' \
+  'pytest -q' \
+  'git status --short' \
+  'git diff HEAD' \
+  'git checkout -b ccoalm/another-branch' \
+  'gh pr view 45'; do
+  : > "$git_count_file"
+  out_q=$(jq -nc --arg c "$quiet_cmd" --arg w "$FEAT_CWD" --arg s "quiet-sid" \
+    '{tool_input:{command:$c},cwd:$w,session_id:$s}' | PATH="$git_shim_dir:$PATH" TMPDIR="$tmp" bash "$GUARD")
+  cnt_q=$(wc -l < "$git_count_file" | tr -d ' ')
+  if [ "$cnt_q" -eq 0 ] && ! printf '%s' "$out_q" | grep -q '"permissionDecision":"deny"'; then
+    pass=$((pass+1))
+  else
+    fail=$((fail+1))
+    echo "FAIL lazy git context: '$quiet_cmd' spawned $cnt_q git processes (expected 0), out=$out_q" >&2
+  fi
+done
+
+: > "$git_count_file"
+out_push=$(jq -nc --arg c 'git push origin feat' --arg w "$FEAT_CWD" --arg s "push-sid" \
+  '{tool_input:{command:$c},cwd:$w,session_id:$s}' | PATH="$git_shim_dir:$PATH" TMPDIR="$tmp" bash "$GUARD")
+cnt_push=$(wc -l < "$git_count_file" | tr -d ' ')
+if [ "$cnt_push" -gt 0 ] && ! printf '%s' "$out_push" | grep -q '"permissionDecision":"deny"'; then
+  pass=$((pass+1))
+else
+  fail=$((fail+1))
+  echo "FAIL lazy git context: 'git push origin feat' expected >0 git spawns and allow, got cnt=$cnt_push out=$out_push" >&2
+fi
+
+# Non-standard default branch (origin/HEAD -> origin/release): gh/HTTP merge forms
+# and git push/merge targeting or standing on `release` must all be denied.
+REL_REMOTE="$tmp/rel-remote.git"
+REL_CWD="$tmp/rel-cwd"
+git init -q --bare "$REL_REMOTE"
+git init -q -b release "$REL_CWD"
+git -C "$REL_CWD" config user.email t@example.com
+git -C "$REL_CWD" config user.name t
+git -C "$REL_CWD" commit -q --allow-empty -m init
+git -C "$REL_CWD" remote add origin "$REL_REMOTE"
+git -C "$REL_CWD" push -q -u origin release
+git -C "$REL_CWD" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/release
+git -C "$REL_CWD" branch feat
+probe_sid deny "$REL_CWD" "rel-sid-1" 'gh pr merge --squash'
+probe_sid deny "$REL_CWD" "rel-sid-2" 'curl -X PUT https://api.github.com/repos/acme/demo/pulls/12/merge'
+probe_sid deny "$REL_CWD" "rel-sid-3" 'git push origin HEAD:release'
+probe_sid deny "$REL_CWD" "rel-sid-4" 'git merge feat'
+# `cd` into a sub-repo whose origin/HEAD is unset while hook cwd has origin/HEAD=main
+# must keep the sub-repo's unresolved-origin fallback (denying `trunk`).
+UNSET_SUB="$tmp/unset-sub"
+git init -q -b feat "$UNSET_SUB"
+git -C "$UNSET_SUB" config user.email t@example.com
+git -C "$UNSET_SUB" config user.name t
+git -C "$UNSET_SUB" commit -q --allow-empty -m init
+git -C "$UNSET_SUB" remote add origin "$REL_REMOTE"
+probe_sid deny "$FEAT_CWD" "rel-sid-5" "cd $UNSET_SUB && git push origin HEAD:trunk"
+
 if [ "$fail" -ne 0 ]; then
   echo "test_guard_merge_authorization: FAIL pass=$pass fail=$fail" >&2
   exit 1

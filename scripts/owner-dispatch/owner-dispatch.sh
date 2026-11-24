@@ -44,7 +44,12 @@ set -u
 
 # Absolute path to this engine, so remediation messages name a command that works
 # from any product repo's cwd (a product repo only holds `.owner-dispatch.json`).
-SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)/$(basename "${BASH_SOURCE[0]}")"
+_self_src="${BASH_SOURCE[0]}"
+case "$_self_src" in
+  */*) _self_dir="${_self_src%/*}"; [ -n "$_self_dir" ] || _self_dir="/" ;;
+  *) _self_dir="." ;;
+esac
+SELF="$(cd "$_self_dir" 2>/dev/null && pwd)/${_self_src##*/}"
 SID="nosession"   # set per-invocation from the hook's session_id (pretool/stop)
 AID=""            # agent_id (raw) — non-empty only inside a dispatched subagent (PreToolUse
                   # fires in subagents carrying agent_id; SubagentStop carries it too).
@@ -54,7 +59,8 @@ AIDKEY=""         # filename-safe, INJECTIVE key for agent_id, computed by jq @b
                   # collide on the same marker). Empty iff no agent_id. Scopes the activity
                   # marker / block-cap / waiver to ONE subagent.
 
-HOST_INPUT="$(cd "$(dirname "$SELF")/../.." && pwd)/hooks/host-input.py"
+HOST_INPUT="$(cd "${SELF%/*}/../.." && pwd)/hooks/host-input.py"
+unset _self_src _self_dir
 HOST_TOOL=""
 
 # ----- fail-open helpers ------------------------------------------------------
@@ -77,11 +83,21 @@ have() { command -v "$1" >/dev/null 2>&1; }
 # (The match here is a CANDIDATE; opt_in_root verifies it is a tracked top-level
 # config before the gate activates.)
 find_config_dir() { # $1 start dir -> echo candidate root dir, or fail
-  local d="$1"
-  [ -d "$d" ] || d=$(dirname -- "$d")
+  local d="${1:-}"
+  [ -n "$d" ] || return 1
+  case "$d" in
+    /*) ;;
+    .) d="$PWD" ;;
+    *) d="$PWD/$d" ;;
+  esac
+  while [ "$d" != "/" ] && [ "${d%/}" != "$d" ]; do d="${d%/}"; done
+  if [ ! -d "$d" ]; then
+    d="${d%/*}"
+    [ -n "$d" ] || d="/"
+  fi
   while [ -n "$d" ] && [ "$d" != "/" ] && [ "$d" != "." ]; do
     [ -f "$d/.owner-dispatch.json" ] && { printf '%s' "$d"; return 0; }
-    d=$(dirname -- "$d")
+    d="${d%/*}"
   done
   [ -f "/.owner-dispatch.json" ] && { printf '%s' "/"; return 0; }
   return 1
@@ -676,6 +692,21 @@ cmd_pretool() {
   have jq || allow_pretool   # can't parse stdin / determine opt-in => silent fail-open
   local input tool fp cmd repo rel
   input=$(cat)
+  # Non-opted-in Bash fast path: stdin is already drained above (preserving Bash
+  # NUL-byte stderr diagnostics). Guard `${#input} -le 65536` first so multi-MiB
+  # payloads never allocate a wide-char fnmatch buffer in `case "$input"` (which
+  # would raise peak RSS above `test_hook_field_reads.py`'s 800k-NUL ratio cap).
+  # When no explicit tool override ($1) is passed and $PWD has no
+  # `.owner-dispatch.json` ancestor, `cmd_pretool` handles only Edit, Write,
+  # MultiEdit, NotebookEdit, apply_patch, and Bash; only the edit/patch tools can
+  # inspect a path outside $PWD, and without `\` JSON strings cannot encode
+  # `\uXXXX` escapes.
+  if [ "$#" -eq 0 ] && [ "${#input}" -le 65536 ] && ! find_config_dir "$PWD" >/dev/null; then
+    case "$input" in
+      *\\*|*[Ee]dit*|*[Ww]rite*|*apply_patch*) ;;
+      *) allow_pretool ;;
+    esac
+  fi
   # One jq call reads every field (jq start-up dominates this hook). Each value
   # is what `$(jq -r '.x // default')` gives, trailing newlines stripped. jq
   # prints nothing, and the per-field reads below run as before, unless the

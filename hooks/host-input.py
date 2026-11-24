@@ -1112,6 +1112,16 @@ AGENT_DOC_DIRS = {'memory', '.claude', '.codex', '.git', 'node_modules', 'skills
                   'scratchpad'}
 
 
+def _is_agent_scratch_doc(parts):
+    """True for Antigravity per-conversation scratch paths (`.../brain/<id>/scratch/...`),
+    keeping user-facing artifacts (`.../brain/<id>/walkthrough.md`) in reader_docs."""
+    lowered = [p.lower() for p in parts[:-1]]
+    return any(
+        seg == 'brain' and idx + 2 < len(lowered) and bool(lowered[idx + 1]) and lowered[idx + 2] == 'scratch'
+        for idx, seg in enumerate(lowered)
+    )
+
+
 def reader_docs(edit_paths, cwd):
     base = os.path.realpath(cwd) if isinstance(cwd, str) and cwd else None
     temp_roots = tuple(os.path.realpath(root) + os.sep
@@ -1127,7 +1137,9 @@ def reader_docs(edit_paths, cwd):
             continue
         else:
             parts = real.split(os.sep)
-        if parts[-1].lower() in AGENT_DOC_NAMES or any(p.lower() in AGENT_DOC_DIRS for p in parts[:-1]):
+        if (parts[-1].lower() in AGENT_DOC_NAMES
+                or any(p.lower() in AGENT_DOC_DIRS for p in parts[:-1])
+                or _is_agent_scratch_doc(parts)):
             continue
         found.append(real)
     return found

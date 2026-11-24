@@ -271,11 +271,30 @@ function nearestExistingDir(filePath: string) {
   return existsSync(dir) ? dir : null
 }
 
-function isPrimaryCheckout(repoRoot: string, cwd: string) {
+function repoCheckoutPaths(cwd: string) {
+  // Resolve toplevel, git-dir, and git-common-dir in one git process; fall back
+  // to three individual calls only when a repo path itself contains a newline.
+  const combined = execFileSync("git", ["rev-parse", "--show-toplevel", "--git-dir", "--git-common-dir"], {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).replace(/\r?\n$/, "")
+  const parts = combined.split(/\r?\n/)
+  if (parts.length === 3 && parts[0]) {
+    return { repoRoot: parts[0], gitDir: parts[1], gitCommonDir: parts[2] }
+  }
+  const repoRoot = git(["rev-parse", "--show-toplevel"], cwd)
+  if (!repoRoot) return null
+  return {
+    repoRoot,
+    gitDir: git(["rev-parse", "--git-dir"], cwd),
+    gitCommonDir: git(["rev-parse", "--git-common-dir"], cwd),
+  }
+}
+
+function isPrimaryCheckout(repoRoot: string, gitDir: string, gitCommonDir: string) {
   // A linked worktree's git-dir lives under <common>/.git/worktrees/<id>;
   // in the primary checkout git-dir and git-common-dir are the same path.
-  const gitDir = git(["rev-parse", "--git-dir"], cwd)
-  const gitCommonDir = git(["rev-parse", "--git-common-dir"], cwd)
   return resolve(repoRoot, gitDir) === resolve(repoRoot, gitCommonDir)
 }
 
@@ -320,9 +339,10 @@ function blockReason(filePath: string) {
     cwd = realpathSync(cwd)
     // Repo membership comes from the file's own directory, so no separate
     // containment check is needed (mirrors the Claude hook).
-    const repoRoot = git(["rev-parse", "--show-toplevel"], cwd)
-    if (!repoRoot) return null
-    if (!isPrimaryCheckout(repoRoot, cwd)) return null
+    const paths = repoCheckoutPaths(cwd)
+    if (!paths) return null
+    const { repoRoot, gitDir, gitCommonDir } = paths
+    if (!isPrimaryCheckout(repoRoot, gitDir, gitCommonDir)) return null
 
     if (existsSync(join(repoRoot, WORKTREE_MARKER))) {
       return `[${repoRoot}] is marked as a shared repository (.worktree-only): never edit the primary checkout directly, regardless of branch.`

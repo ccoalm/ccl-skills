@@ -999,6 +999,24 @@ class ProposedNextTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('unavailable', json.loads(result.stdout).get('systemMessage', ''))
 
+    def test_antigravity_brain_scratch_markdown_is_excluded_from_reader_docs(self):
+        spec = importlib.util.spec_from_file_location('host_input_scratch_probe', self.hooks / 'host-input.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        in_cwd_scratch = self.root / 'brain' / 'conv-1234' / 'scratch' / 'charter-draft.md'
+        in_cwd_walkthrough = self.root / 'brain' / 'conv-1234' / 'walkthrough.md'
+        ext_scratch = '/var/lib/agy-app-data/brain/conv-1234/scratch/sub/notes.md'
+        ext_walkthrough = '/var/lib/agy-app-data/brain/conv-1234/walkthrough.md'
+        repo_doc = self.root / 'docs' / 'guide.md'
+        docs = module.reader_docs(
+            [str(in_cwd_scratch), str(in_cwd_walkthrough), ext_scratch, ext_walkthrough, str(repo_doc)],
+            str(self.root),
+        )
+        self.assertEqual(
+            docs,
+            [os.path.realpath(in_cwd_walkthrough), os.path.realpath(ext_walkthrough), os.path.realpath(repo_doc)],
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

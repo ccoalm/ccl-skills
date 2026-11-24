@@ -51,8 +51,9 @@ BROAD = "hooks/guard-broad-local-test.sh"
 EDIT = "hooks/guard-edit-isolation.sh"
 STOP = "hooks/owner-dispatch-stop.sh"
 # jq processes each script stops starting for the counted payload: the engine
-# merges 5 reads, the merge guard 4, the broad-test guard 2, the edit guard 2.
-JQ_SAVED = {"engine-edit": 4, "engine-bash": 4, "merge": 3, "merge-trailing-newline": 3,
+# merges 5 reads on Edit and skips jq altogether (saving all 5) on non-opted-in
+# Bash, the merge guard merges 4, the broad-test guard 2, the edit guard 2.
+JQ_SAVED = {"engine-edit": 4, "engine-bash": 5, "merge": 3, "merge-trailing-newline": 3,
             "broad": 1, "edit": 1}
 # Half the 10 s timeout hooks.json gives every PreToolUse hook: a hook that
 # outlives the host timeout does not block. Both sides finish in under 1 s.
@@ -539,7 +540,7 @@ def run_group(source, group, calibrated=None):
         if group is None:
             version = calibration_key(sb)
             probe = calibrated is None or version in calibrated
-            return {}, dict(count_jq(sb), calibration=version,
+            return {}, dict(count_jq(sb, source), calibration=version,
                             peak_ratios=peak_ratios(sb) if probe else None)
         group(sb, record)
         sb.check_not_executed()
@@ -548,7 +549,7 @@ def run_group(source, group, calibrated=None):
         sb.close()
 
 
-def count_jq(sb):
+def count_jq(sb, source="candidate"):
     """jq processes started for one ordinary payload per script."""
     runs = {
         "engine-edit": (ENGINE, {"session_id": "S1", "tool_name": "Edit",
@@ -573,9 +574,44 @@ def count_jq(sb):
         res = sb.run(script, jtext(payload), args=args, extra_env=env)
         with open(count_file) as fh:
             counts[name] = len(fh.read().splitlines())
-        if res["rc"] != 0 or counts[name] < 1:
+        min_jq = 0 if (source == "candidate" and name == "engine-bash") else 1
+        if res["rc"] != 0 or counts[name] < min_jq:
             raise AssertionError("jq count run for %s failed: %s, %d jq processes" % (
                 name, res, counts[name]))
+    if source == "candidate":
+        # Opted-in repos must still run the single merged jq read on Bash, and
+        # find_config_dir must walk ancestors in pure Bash (0 dirname spawns).
+        sb.reset()
+        count_file = os.path.join(sb.root, "jq-count-opted")
+        dirname_count_file = os.path.join(sb.root, "dirname-count")
+        open(count_file, "w").close()
+        open(dirname_count_file, "w").close()
+        dirname_shim_dir = os.path.join(sb.root, "dirname-shim")
+        os.makedirs(dirname_shim_dir, exist_ok=True)
+        dirname_shim = os.path.join(dirname_shim_dir, "dirname")
+        real_dirname = shutil.which("dirname") or "/usr/bin/dirname"
+        with open(dirname_shim, "w") as fh:
+            fh.write('#!/usr/bin/env bash\necho x >> "$DIRNAME_COUNT_FILE"\nexec "%s" "$@"\n' % real_dirname)
+        os.chmod(dirname_shim, 0o755)
+        env = {"PATH": dirname_shim_dir + os.pathsep + os.path.join(sb.root, "shim") + os.pathsep + os.environ["PATH"],
+               "JQ_COUNT_FILE": count_file, "DIRNAME_COUNT_FILE": dirname_count_file}
+        opted_res = sb.run(ENGINE, jtext({"session_id": "S1", "tool_name": "Bash",
+                                          "tool_input": {"command": "ls"}}),
+                           cwd=sb.prod, args=("pretool",), extra_env=env)
+        with open(count_file) as fh:
+            opted_jq = len(fh.read().splitlines())
+        if opted_res["rc"] != 0 or opted_jq < 1:
+            raise AssertionError("opted-in engine-bash expected >=1 jq process, got %d: %s" % (opted_jq, opted_res))
+        plain_deep = os.path.join(sb.root, "plain", "a", "b", "c")
+        os.makedirs(plain_deep, exist_ok=True)
+        open(dirname_count_file, "w").close()
+        non_opted_res = sb.run(ENGINE, jtext({"session_id": "S1", "tool_name": "Bash",
+                                              "tool_input": {"command": "ls"}}),
+                               cwd=plain_deep, args=("pretool",), extra_env=env)
+        with open(dirname_count_file) as fh:
+            dirname_spawns = len(fh.read().splitlines())
+        if non_opted_res["rc"] != 0 or dirname_spawns != 0:
+            raise AssertionError("find_config_dir spawned %d dirname processes (expected 0)" % dirname_spawns)
     return counts
 
 

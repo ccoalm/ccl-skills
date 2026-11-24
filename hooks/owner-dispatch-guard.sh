@@ -3,9 +3,12 @@
 # Existing opt-in policy takes precedence. The default source-edit checkpoint
 # creates one model replan opportunity per actor/context; it is not a load-proof
 # gate. Failures preserve the engine output and never synthesize an allow.
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+_odg_dir="${0%/*}"
+[ "$_odg_dir" = "$0" ] && _odg_dir="."
+SCRIPT_DIR="$(cd "$_odg_dir" && pwd)"
 IN=$(cat 2>/dev/null) || exit 0
-ENGINE="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}/scripts/owner-dispatch/owner-dispatch.sh"
+ENGINE="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}/scripts/owner-dispatch/owner-dispatch.sh"
+unset _odg_dir
 out=""
 if [ -r "$ENGINE" ]; then
   out=$(printf '%s' "$IN" | bash "$ENGINE" pretool 2>/dev/null) || out=""

@@ -557,35 +557,44 @@ if [[ -d "$root/hooks" || -d "$root/scripts" ]]; then
     echo "git_identity_predicate_scan_error: find exited $gid_find_rc walking ${gid_roots[*]#"$root"/} — the walk is INCOMPLETE, which is not the same as clean" >&2
     exit 1
   fi
-  while IFS= read -r -d '' gid_file; do
-    [[ -n "$gid_file" ]] || continue
-    case "${gid_file##*/}" in test_*.sh|test.sh) continue ;; esac
-    # A no-match is grep status 1; anything above that is a real scan error (file vanished
-    # after find, unreadable, I/O). Swallowing those with `|| true` would print the ok
-    # token for a scan that never happened — a clean result that means nothing.
-    # Same `set -e` hazard: a plain `gid_out=$(grep ...)` exits the checker on the FIRST
-    # no-match file (status 1), i.e. on virtually every run — the gate would never be
-    # reached in production while every extracted-section probe stayed green.
-    if gid_out="$(grep -nE '\*['"'"'"]?/worktrees/['"'"'"]?\*' "$gid_file" 2>/dev/null)"; then
-      gid_rc=0
-    else
-      gid_rc=$?
-    fi
-    if [[ "$gid_rc" -gt 1 ]]; then
-      rm -f "$gid_list"
-      echo "git_identity_predicate_scan_error: grep exited $gid_rc while scanning ${gid_file#"$root"/} — unreadable or I/O failure means the result is UNKNOWN, not clean" >&2
-      exit 1
-    fi
-    [[ "$gid_rc" -eq 0 ]] || continue
-    while IFS= read -r gid_line; do
-      [[ -n "$gid_line" ]] || continue
-      gid_text="${gid_line#*:}"
-      [[ "$gid_text" =~ ^[[:space:]]*# ]] && continue
-      gid_hits+="${gid_file#"$root"/}:$gid_line"$'\n'
-    done <<< "$gid_out"
-  done < "$gid_list"
+  if gid_hits="$(ruby -e '# encoding: BINARY
+    STDOUT.binmode
+    STDERR.binmode
+    root = ARGV.fetch(0).b
+    list_path = ARGV.fetch(1)
+    prefix = root.end_with?("/") ? root : (root + "/")
+    pat = /\*[\x27"]?\/worktrees\/[\x27"]?\*/n
+    comment_re = /\A[[:space:]]*#/n
+    hits = []
+    File.binread(list_path).split("\0").each do |file|
+      next if file.empty?
+      base = File.basename(file)
+      next if base == "test.sh" || (base.start_with?("test_") && base.end_with?(".sh"))
+      rel = file.start_with?(prefix) ? file[prefix.bytesize..] : file
+      begin
+        raw = File.binread(file)
+      rescue SystemCallError => e
+        warn "git_identity_predicate_scan_error: cannot read #{rel} (#{e.class}) — unreadable or I/O failure means the result is UNKNOWN, not clean"
+        exit 2
+      end
+      raw.lines.each_with_index do |raw_line, idx|
+        line = raw_line.delete_suffix("\n")
+        next unless line.match?(pat)
+        next if line.match?(comment_re)
+        hits << "#{rel}:#{idx + 1}:#{line}"
+      end
+    end
+    hits.sort.each { |h| STDOUT.write(h); STDOUT.write("\n") }
+  ' "$root" "$gid_list")"; then
+    gid_scan_rc=0
+  else
+    gid_scan_rc=$?
+  fi
   rm -f "$gid_list"
-  [[ -n "${gid_hits//[$'\n']/}" ]] && gid_hits="$(printf '%s' "$gid_hits" | sort)"$'\n'
+  if [[ "$gid_scan_rc" -ne 0 ]]; then
+    exit 1
+  fi
+  [[ -n "${gid_hits//[$'\n']/}" ]] && gid_hits+=$'\n'
 fi
 if [[ -n "${gid_hits//[$'\n']/}" ]]; then
   printf '%s' "$gid_hits"
@@ -648,103 +657,81 @@ if [[ "$liveness_find_rc" -ne 0 ]]; then
   echo "liveness_predicate_scan_error: find exited $liveness_find_rc — the walk is INCOMPLETE, which is not the same as clean" >&2
   exit 1
 fi
-while IFS= read -r -d '' liveness_file; do
-  [[ -n "$liveness_file" ]] || continue
-  case "${liveness_file##*/}" in test_*.sh|test.sh) : ;; *) continue ;; esac
-  # `[^=]*[^!=]=` rather than `.*=`: an unrestricted `.*` swallows the `!` of a `!=`, so
-  # the negated assertion `[ "$(ps -o ppid= -p "$pid")" != "1" ]` — which checks a process
-  # is NOT reparented, the opposite of the banned oracle — was reported as a violation.
-  # A false positive on a blocking gate is the failure this checklist's promotion
-  # guidance weighs heaviest, because it is what gets a gate loosened until it catches
-  # nothing.
-  if liveness_out="$(grep -nE 'ps[[:space:]]+-o[[:space:]]+ppid=[^=]*[^!=]=[[:space:]]*"?1"?[[:space:]]*\]' "$liveness_file" 2>/dev/null)"; then
-    liveness_rc=0
-  else
-    liveness_rc=$?
-  fi
-  if [[ "$liveness_rc" -gt 1 ]]; then
-    rm -f "$liveness_list"
-    echo "liveness_predicate_scan_error: grep exited $liveness_rc while scanning ${liveness_file#"$root"/} — unreadable or I/O failure means the result is UNKNOWN, not clean" >&2
-    exit 1
-  fi
-  [[ "$liveness_rc" -eq 0 ]] || continue
-  while IFS= read -r liveness_line; do
-    [[ -n "$liveness_line" ]] || continue
-    liveness_no="${liveness_line%%:*}"
-    liveness_text="${liveness_line#*:}"
-    [[ "$liveness_text" =~ ^[[:space:]]*# ]] && continue
-    # Window clear: a process-state consult within two lines either side is the fix, so
-    # a corrected site stops being reported without needing a waiver marker.
-    liveness_lo=$(( liveness_no > 2 ? liveness_no - 2 : 1 ))
-    liveness_hi=$(( liveness_no + 2 ))
-    # Whole-line comments are dropped before the window is inspected: a prose mention
-    # such as a TODO naming the helper would otherwise clear a real violation beside it,
-    # and the gate would print ok for a line it had actually found. The waiver must be
-    # CODE that consults process state, not a note saying someone should.
-    # Only WHOLE-LINE comments are dropped, matching how the hit line itself is filtered.
-    # Stripping trailing comments would need to decide whether a `#` opens a comment or
-    # belongs to `${var#prefix}`, which needs a shell parser — the same call Anti-pattern
-    # 27 makes above. Recall limit: a mention in a TRAILING comment can still clear the
-    # window; the checklist row records it.
-    liveness_win="$(sed -n "${liveness_lo},${liveness_hi}p" "$liveness_file" 2>/dev/null |
-                      grep -vE '^[[:space:]]*#' || true)"
-    # A direct `ps -o stat=` in the window is the consult itself. Anchored on `-o stat=`
-    # rather than bare `stat=`: an unrelated assignment such as `stat=unknown` is not a
-    # process-state read, and accepting it was the fourth way this waiver was found to
-    # clear a real hit.
-    # Here-string, not a pipe: under `pipefail`, `grep -q` exits on its match while
-    # `printf` may still be writing the rest of the window, the writer dies of SIGPIPE,
-    # and the waiver reads a miss, which reports a violation on a line this check clears.
-    if grep -qE '\-o[[:space:]]*stat=' <<<"$liveness_win"; then
-      continue
-    fi
-    # Otherwise the window may CALL a state helper — but only one this file actually
-    # defines and which itself consults process state. Accepting any `*_state` token
-    # made an unrelated `record_state "$pid"` read as remediation and skipped a real
-    # hit, which is a hole rather than a stated recall limit.
-    # The file must also actually consult process state somewhere, so a file with no
-    # `stat=` at all cannot be cleared by a bookkeeping helper that merely ends in
-    # `_state`. Recall limit: a file that separately defines such a helper AND reads
-    # process state elsewhere clears the window without proving the two are connected —
-    # tying a call to its definition needs a shell parser, the same call made above.
-    # Deliberately POSIX-portable: `\b` and BSD-sed `\?` are not, and a silently failing
-    # match here would loosen the gate on exactly the host that runs it most.
-    # The named helper's OWN BODY must reach a process-state read. Checking "the file
-    # defines it" and "the file reads state somewhere" as two independent facts let a
-    # hollow helper plus an unrelated `ps -o stat=` elsewhere clear a real hit — the two
-    # conditions were never tied to each other. awk rather than sed: BSD sed lacks `\?`
-    # and a silently failing match here loosens the gate on the host that runs it most.
-    liveness_helper_ok=0
-    while IFS= read -r liveness_helper; do
-      [[ -n "$liveness_helper" ]] || continue
-      if awk -v fn="$liveness_helper" '
-           $0 ~ "^[[:space:]]*(function[[:space:]]+)?" fn "[[:space:]]*\\(\\)" {
-             # The declaration line is part of the body: a one-line definition both opens
-             # and closes here. Skipping it with a bare `next` left `inbody` set through
-             # `fn() { echo live; }` and credited the NEXT function\047s state read to this
-             # hollow one.
-             if ($0 ~ /-o[[:space:]]*stat=/) { found = 1; exit }
-             if ($0 ~ /}/) { exit }
-             inbody = 1
-             next
-           }
-           inbody && /-o[[:space:]]*stat=/ { found = 1; exit }
-           inbody && /^[[:space:]]*}/ { exit }
-           END { exit !found }
-         ' "$liveness_file" 2>/dev/null; then
-        liveness_helper_ok=1
-        break
-      fi
-    done < <(printf '%s\n' "$liveness_win" | grep -oE '[A-Za-z_][A-Za-z0-9_]*_state' | sort -u)
-    [[ "$liveness_helper_ok" -eq 1 ]] && continue
-    liveness_hits+="${liveness_file#"$root"/}:$liveness_line"$'\n'
-  done <<< "$liveness_out"
-done < "$liveness_list"
+# Single binary-safe Ruby pass over NUL-delimited paths (replaces per-file grep/sed/awk
+# subprocess loops while keeping exact operator, +-2 window, and helper-body semantics).
+if liveness_hits="$(ruby -e '# encoding: BINARY
+  STDOUT.binmode
+  STDERR.binmode
+  root = ARGV.fetch(0).b
+  list_path = ARGV.fetch(1)
+  prefix = root.end_with?("/") ? root : (root + "/")
+  pat = /ps[[:space:]]+-o[[:space:]]+ppid=[^=]*[^!=]=[[:space:]]*"?1"?[[:space:]]*\]/n
+  comment_re = /\A[[:space:]]*#/n
+  stat_re = /-o[[:space:]]*stat=/n
+  helper_call_re = /[A-Za-z_][A-Za-z0-9_]*_state/n
+  close_brace_re = /\A[[:space:]]*\}/n
+  hits = []
+  File.binread(list_path).split("\0").each do |file|
+    next if file.empty?
+    base = File.basename(file)
+    next unless base == "test.sh" || (base.start_with?("test_") && base.end_with?(".sh"))
+    rel = file.start_with?(prefix) ? file[prefix.bytesize..] : file
+    begin
+      raw = File.binread(file)
+    rescue SystemCallError => e
+      warn "liveness_predicate_scan_error: cannot read #{rel} (#{e.class}) — unreadable or I/O failure means the result is UNKNOWN, not clean"
+      exit 2
+    end
+    lines = raw.lines.map { |l| l.delete_suffix("\n") }
+    lines.each_with_index do |line, idx|
+      next unless line.match?(pat)
+      next if line.match?(comment_re)
+      lineno = idx + 1
+      lo = [lineno - 2, 1].max
+      hi = [lineno + 2, lines.length].min
+      win = lines[(lo - 1)..(hi - 1)].reject { |wl| wl.match?(comment_re) }
+      next if win.any? { |wl| wl.match?(stat_re) }
+      helpers = win.flat_map { |wl| wl.scan(helper_call_re) }.uniq.sort
+      helper_ok = helpers.any? do |fn|
+        decl_re = /\A[[:space:]]*(?:function[[:space:]]+)?#{Regexp.escape(fn)}[[:space:]]*\(\)/n
+        inbody = false
+        found = false
+        lines.each do |fl|
+          if fl.match?(decl_re)
+            if fl.match?(stat_re)
+              found = true
+              break
+            end
+            break if fl.include?("}")
+            inbody = true
+            next
+          end
+          if inbody && fl.match?(stat_re)
+            found = true
+            break
+          end
+          break if inbody && fl.match?(close_brace_re)
+        end
+        found
+      end
+      next if helper_ok
+      hits << "#{rel}:#{lineno}:#{line}"
+    end
+  end
+  hits.sort.each { |h| STDOUT.write(h); STDOUT.write("\n") }
+' "$root" "$liveness_list")"; then
+  liveness_scan_rc=0
+else
+  liveness_scan_rc=$?
+fi
 rm -f "$liveness_list"
+if [[ "$liveness_scan_rc" -ne 0 ]]; then
+  exit 1
+fi
 if [[ -n "${liveness_hits//[$'\n']/}" ]]; then
   # Trailing newline restored explicitly: command substitution strips it, which ran the
   # last hit and the diagnosis together on one line.
-  printf '%s\n' "$(printf '%s' "$liveness_hits" | sort)"
+  printf '%s\n' "$liveness_hits"
   echo "liveness_predicate_scan_failed: the lines above decide that a process is a LIVE orphan from a ppid read alone, which an unreaped corpse answers the same way — the check says alive while the suite's own verdict scans exclude zombies and say gone. Consult process STATE (\`ps -o stat=\`, or a helper that returns live/zombie/absent) before concluding liveness. See skill-extraction-workflow/references/recurring-anti-patterns-checklist.md (Anti-pattern 28)." >&2
   exit 1
 fi
@@ -846,9 +833,10 @@ else
     echo "missing_generic_r0_leak_scan_script: $generic_r0_scan" >&2
     exit 2
   fi
-  # Run the matcher's own fixture self-test first (a broken detector must not be
-  # silently trusted), then the real diff scan. A leak hit blocks (exit 1).
-  if ! bash "$generic_r0_scan" --self-test >/dev/null; then
+  # Run the matcher's own fixture self-test first (cached by 0700 per-UID SHA-256
+  # stamp across unchanged runs; uncached `--self-test` runs in `make test-repo-gates`),
+  # then the real diff scan. A leak hit blocks (exit 1).
+  if ! bash "$generic_r0_scan" --self-test-cached >/dev/null; then
     echo "generic_r0_leak_scan_self_test_failed: matcher self-test failed — blocking" >&2
     exit 1
   fi

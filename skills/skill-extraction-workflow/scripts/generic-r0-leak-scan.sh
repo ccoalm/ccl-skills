@@ -66,7 +66,7 @@ scan_stream() {
   for p in "${leak_patterns[@]}"; do args+=( -e "$p" ); done
   # Capture rg's real status in the else branch (a false `if` with no else would
   # otherwise reset $? to 0). rg: 0=match, 1=no match, 2=error.
-  if out="$(rg --no-line-number --no-filename --color never "${args[@]}" 2>/dev/null)"; then
+  if out="$(rg --no-config --no-line-number --no-filename --color never "${args[@]}" 2>/dev/null)"; then
     rc=0
   else
     rc=$?
@@ -129,23 +129,41 @@ run_self_test() {
     $'clean\texample.invalid is a reserved test host'
     $'clean\tSHA-256 digest of the file'
   )
-  local failed=0 expect content line flagged
-  local i=1
+  local failed=0 expect content line
+  local flag_stream="" clean_stream="" flag_count=0 i=1
+  local -a flag_contents=()
+  local -a flag_ids=()
   for fx in "${fixtures[@]}"; do
     expect="${fx%%$'\t'*}"
     content="${fx#*$'\t'}"
     line="selftest:${i}:${content}"
-    if [ -n "$(printf '%s\n' "$line" | scan_stream)" ]; then
-      flagged=flag
+    if [ "$expect" = "flag" ]; then
+      flag_stream+="${line}"$'\n'
+      flag_ids+=( "selftest:${i}:" )
+      flag_contents+=( "$content" )
+      flag_count=$((flag_count + 1))
     else
-      flagged=clean
-    fi
-    if [ "$flagged" != "$expect" ]; then
-      echo "generic_r0_leak_scan_self_test: MISMATCH expected=$expect got=$flagged :: $content" >&2
-      failed=1
+      clean_stream+="${line}"$'\n'
     fi
     i=$((i + 1))
   done
+  local flag_hits clean_hits idx prefix
+  flag_hits="$(printf '%s' "$flag_stream" | scan_stream)" || return 2
+  for idx in "${!flag_ids[@]}"; do
+    prefix="${flag_ids[$idx]}"
+    if ! grep -qF "$prefix" <<<"$flag_hits"; then
+      echo "generic_r0_leak_scan_self_test: MISMATCH expected=flag got=clean :: ${flag_contents[$idx]}" >&2
+      failed=1
+    fi
+  done
+  clean_hits="$(printf '%s' "$clean_stream" | scan_stream)" || return 2
+  if [ -n "$clean_hits" ]; then
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      echo "generic_r0_leak_scan_self_test: MISMATCH expected=clean got=flag :: ${line#selftest:*:}" >&2
+    done <<<"$clean_hits"
+    failed=1
+  fi
   # Status-decision unit: base-unavailable clean outcome must be a DISTINCT
   # scan_degraded (not a reassuring _ok), warning-pass by default, blocking under
   # strict; a covered clean outcome must be scan_ok.
@@ -276,7 +294,117 @@ if ! command -v rg >/dev/null 2>&1; then
   exit 2
 fi
 
+file_sha256() {
+  local f="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$f" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$f" | awk '{print $1}'
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$f"
+  else
+    return 1
+  fi
+}
+
+selftest_stamp_key() {
+  local script_file="$1" rg_bin="" s_hash="" rg_hash="" raw=""
+  rg_bin="$(command -v rg 2>/dev/null || true)"
+  [ -n "$rg_bin" ] && [ -r "$rg_bin" ] || return 1
+  s_hash="$(file_sha256 "$script_file" 2>/dev/null || true)"
+  rg_hash="$(file_sha256 "$rg_bin" 2>/dev/null || true)"
+  [ "${#s_hash}" -eq 64 ] && [ "${#rg_hash}" -eq 64 ] || return 1
+  raw="${s_hash}:${rg_bin}:${rg_hash}"
+  if command -v sha256sum >/dev/null 2>&1; then
+    printf '%s\n' "$raw" | sha256sum | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    printf '%s\n' "$raw" | shasum -a 256 | awk '{print $1}'
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import hashlib,sys; print(hashlib.sha256((sys.argv[1] + "\n").encode("utf-8", "surrogateescape")).hexdigest())' "$raw"
+  else
+    return 1
+  fi
+}
+
+# Content-addressed 0700 per-UID stamp wrapper for check-ccl-skills.sh.
+# Hashes both generic-r0-leak-scan.sh and the resolved rg binary on PATH without spawning rg.
+# Bypasses the cache when CCL_SKILL_NO_SELFTEST_CACHE=1 is set or when the cache
+# directory fails ownership / symlink / 0700 mode validation. Never caches failed runs.
+run_self_test_cached() {
+  if [ "${CCL_SKILL_NO_SELFTEST_CACHE:-}" = "1" ]; then
+    run_self_test
+    return $?
+  fi
+
+  local script_file="${BASH_SOURCE[0]}" hash="" cache_dir="" uid="" mode=""
+  hash="$(selftest_stamp_key "$script_file" 2>/dev/null || true)"
+  case "$hash" in
+    [0-9a-f][0-9a-f][0-9a-f][0-9a-f]*)
+      [ "${#hash}" -eq 64 ] || hash=""
+      ;;
+    *)
+      hash=""
+      ;;
+  esac
+
+  uid="${EUID:-$(id -u 2>/dev/null || echo unknown)}"
+  cache_dir="${CCL_SKILL_SELFTEST_CACHE_DIR:-${TMPDIR:-/tmp}/ccl-r0-leak-selftest-${uid}}"
+
+  if [ -z "$hash" ] || [ -z "$cache_dir" ]; then
+    run_self_test
+    return $?
+  fi
+
+  if [ ! -e "$cache_dir" ] && [ ! -L "$cache_dir" ]; then
+    ( umask 077 && mkdir -m 0700 "$cache_dir" ) 2>/dev/null || true
+  fi
+  if [ ! -d "$cache_dir" ] || [ -L "$cache_dir" ] || [ ! -O "$cache_dir" ]; then
+    run_self_test
+    return $?
+  fi
+  mode="$(stat -c '%a' "$cache_dir" 2>/dev/null || stat -f '%Lp' "$cache_dir" 2>/dev/null || true)"
+  if [ "$mode" != "700" ]; then
+    run_self_test
+    return $?
+  fi
+
+  local stamp="$cache_dir/$hash.ok"
+  if [ -f "$stamp" ] && [ ! -L "$stamp" ] && [ -O "$stamp" ]; then
+    echo "generic_r0_leak_scan_self_test_ok"
+    return 0
+  fi
+
+  local out_tmp="" err_tmp="" rc=0
+  out_tmp="$(mktemp "${TMPDIR:-/tmp}/r0-selftest-out.XXXXXX")" || { run_self_test; return $?; }
+  err_tmp="$(mktemp "${TMPDIR:-/tmp}/r0-selftest-err.XXXXXX")" || { rm -f "$out_tmp"; run_self_test; return $?; }
+  run_self_test >"$out_tmp" 2>"$err_tmp" || rc=$?
+  cat "$out_tmp"
+  cat "$err_tmp" >&2
+
+  if [ "$rc" -eq 0 ] && grep -q '^generic_r0_leak_scan_self_test_ok$' "$out_tmp"; then
+    local count excess s stamp_tmp=""
+    count="$(find "$cache_dir" -maxdepth 1 -type f -name '*.ok' 2>/dev/null | wc -l | tr -d ' ')"
+    if [ "${count:-0}" -ge 64 ]; then
+      excess=$(( count - 63 ))
+      while IFS= read -r -d '' s; do
+        [ "$excess" -gt 0 ] || break
+        rm -f "$s" 2>/dev/null || true
+        excess=$((excess - 1))
+      done < <(find "$cache_dir" -maxdepth 1 -type f -name '*.ok' -print0 2>/dev/null || true)
+    fi
+    if stamp_tmp="$(umask 077 && mktemp "$cache_dir/.stamp.XXXXXX" 2>/dev/null)"; then
+      printf '%s\n' "$hash" >"$stamp_tmp" 2>/dev/null \
+        && mv -f "$stamp_tmp" "$stamp" 2>/dev/null \
+        || rm -f "$stamp_tmp" 2>/dev/null || true
+    fi
+  fi
+
+  rm -f "$out_tmp" "$err_tmp"
+  return "$rc"
+}
+
 case "${1:-}" in
   --self-test) run_self_test ;;
+  --self-test-cached) run_self_test_cached ;;
   *) main_scan "${1:-.}" ;;
 esac

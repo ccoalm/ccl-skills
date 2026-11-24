@@ -46,6 +46,7 @@ test-affected-plan: ## 预览按改动路径选中的辅助测试命令（只读
 test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository-gates job；不含 code-review 族与 fast 回归 lane）
 	bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .
 	CCL_SKILL_EVIDENCE_CARD_STRICT_SELFTEST=1 bash skills/skill-extraction-workflow/scripts/check-evidence-card-leak.sh --self-test
+	bash skills/skill-extraction-workflow/scripts/generic-r0-leak-scan.sh --self-test
 	python3 skills/skill-extraction-workflow/scripts/shared_git_surface_gate.py --repo . --default-base-ref "$(CCL_SKILL_DEFAULT_BASE_REF)"
 	bash skills/product-rd-workflow/scripts/check-agent-contract-coverage.sh --repo . --enforce
 	python3 scripts/check-markdown-links.py .

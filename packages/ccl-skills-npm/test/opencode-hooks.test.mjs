@@ -144,6 +144,53 @@ test("OpenCode runs the headless background guard without an inherited Claude Co
 	}
 });
 
+test("OpenCode edit isolation resolves toplevel, git-dir, and git-common-dir in one git rev-parse call", async () => {
+	const root = mkdtempSync(join(tmpdir(), "ccl-opencode-revparse-"));
+	const home = join(root, "home"), primary = join(root, "primary"), linked = join(root, "linked");
+	mkdirSync(home);
+	initProtectedRepo(primary);
+	writeFileSync(join(primary, "README.md"), "seed\n");
+	assert.equal(spawnSync("git", ["-C", primary, "add", "."]).status, 0);
+	assert.equal(spawnSync("git", ["-C", primary, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qm", "init"]).status, 0);
+	assert.equal(spawnSync("git", ["-C", primary, "worktree", "add", "-q", "-b", "feat/one-revparse", linked]).status, 0);
+	copyRuntime(home);
+
+	const shimDir = join(root, "git-shim");
+	const revParseLog = join(root, "rev-parse.log");
+	const realGit = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+	mkdirSync(shimDir);
+	writeFileSync(join(shimDir, "git"), `#!/bin/sh
+case "$*" in
+  *rev-parse*) printf '%s\\n' "$*" >> '${revParseLog}' ;;
+esac
+exec '${realGit}' "$@"
+`, { mode: 0o755 });
+
+	const previousPath = process.env.PATH;
+	let hooks;
+	try {
+		({ hooks } = await loadPlugin(home, linked));
+		writeFileSync(revParseLog, "");
+		process.env.PATH = `${shimDir}:${previousPath}`;
+		await assert.doesNotReject(() => hooks["tool.execute.before"](
+			{ tool: "write", sessionID: "revparse-linked", callID: "w-linked" },
+			{ args: { filePath: join(linked, "notes.txt"), content: "ok\n" } },
+		));
+		const linkedCalls = readFileSync(revParseLog, "utf8").trim().split("\n").filter((line) => line.startsWith("rev-parse "));
+		// ccl-skills.ts runs `git rev-parse ...` in `cwd` (without `-C`); shell hooks pass `-C`.
+		assert.equal(linkedCalls.length, 1, `expected 1 plugin git rev-parse call on linked worktree edit, got ${linkedCalls.length}: ${linkedCalls.join(" | ")}`);
+
+		await assert.rejects(() => hooks["tool.execute.before"](
+			{ tool: "write", sessionID: "revparse-primary", callID: "w-primary" },
+			{ args: { filePath: join(primary, "README.md"), content: "blocked\n" } },
+		), /\.worktree-only/);
+	} finally {
+		process.env.PATH = previousPath;
+		if (hooks) await hooks.dispose();
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("OpenCode blocks apply_patch targets in a protected primary checkout", async () => {
 	const root = mkdtempSync(join(tmpdir(), "ccl-opencode-apply-patch-"));
 	const home = join(root, "home"), project = join(root, "project");

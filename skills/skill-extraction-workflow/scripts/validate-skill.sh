@@ -111,41 +111,49 @@ leak_status=0
 # integration tests, so excluding them here does not weaken real leak coverage of
 # authored skill content. (Rationale recorded per the scripts/ AGENTS.md allowlist
 # rule.)
+abs_roots=()
+orig_by_abs=()
 for root in "${roots[@]}"; do
-  # rg matches --glob patterns relative to its working directory, so running this
-  # gate from a subdirectory (e.g. scripts/, as the tests and the mandated
-  # worktree workflow do) would stop the self-exclusion globs from matching and
-  # the detector scripts would flag their OWN embedded pattern literals (a
-  # cwd-dependent false positive). cd into the root and search '.' so the globs
-  # are always anchored to the search root. Roots are always skill dirs (each has
-  # SKILL.md), never the repo root, so '.' never pulls in a top-level .git file.
-  # `cd "$root" || exit 3` distinguishes a vanished/inaccessible root (exit 3 ->
-  # fail closed below) from a genuine rg no-match (exit 1); scanning "." keeps the
-  # globs anchored to the search root regardless of the caller's cwd.
-  if leak_output="$(cd "$root" || exit 3; rg -n --hidden \
-    --glob '!**/scripts/validate-skill.sh' \
-    --glob '!**/scripts/generic-r0-leak-scan.sh' \
-    --glob '!**/scripts/test_generic_r0_leak_scan.sh' \
-    --glob '!**/scripts/test_validate_skill_credential_cwd.sh' \
-    'glpat-|PRIVATE-TOKEN: ?[a-zA-Z0-9]|oauth2:[^[:space:]@]+@|/Users/[^/[:space:]]+|\bsk-[A-Za-z0-9_-]{20,}' \
-    .)"; then
-    # Re-attach the root so offenders stay locatable across multiple skill roots.
-    # Pure bash (no sed) so a root path containing sed-special chars (& #) cannot
-    # corrupt the reported offender path or abort the pipeline.
-    while IFS= read -r line; do
-      printf '%s\n' "${root%/}/${line#./}"
-    done <<<"$leak_output"
-    leak_status=1
-  else
-    rg_status=$?
-    # 1 = rg clean (no matches). 2 = rg error, 3 = cd into root failed: both fail
-    # closed so an unscannable root is never silently reported clean.
-    if [[ "$rg_status" -ne 1 ]]; then
-      echo "credential_path_scan_error: scan exited $rg_status for $root" >&2
-      exit 1
-    fi
+  # Verify every skill root is reachable and readable up front so a vanished or
+  # chmod-000 root still fails closed with credential_path_scan_error. Resolving
+  # physical paths and invoking a single `rg` from `/` keeps `--glob` exclusions
+  # independent of the caller's cwd while replacing N per-root `rg` spawns with 1.
+  if ! abs_root="$(cd "$root" 2>/dev/null && [ -r . ] && pwd -P)"; then
+    echo "credential_path_scan_error: scan exited 3 for $root" >&2
+    exit 1
   fi
+  abs_roots+=("$abs_root")
+  orig_by_abs+=("$abs_root"$'\t'"${root%/}")
 done
+if leak_output="$(cd / && rg -n --hidden --with-filename --color never \
+  --glob '!**/scripts/validate-skill.sh' \
+  --glob '!**/scripts/generic-r0-leak-scan.sh' \
+  --glob '!**/scripts/test_generic_r0_leak_scan.sh' \
+  --glob '!**/scripts/test_validate_skill_credential_cwd.sh' \
+  'glpat-|PRIVATE-TOKEN: ?[a-zA-Z0-9]|oauth2:[^[:space:]@]+@|/Users/[^/[:space:]]+|\bsk-[A-Za-z0-9_-]{20,}' \
+  "${abs_roots[@]}")"; then
+  # Re-attach the caller's root spelling with pure bash (no sed) so characters
+  # like `&` or `#` in a root path cannot corrupt the reported offender line.
+  while IFS= read -r line; do
+    mapped="$line"
+    for pair in "${orig_by_abs[@]}"; do
+      abs_p="${pair%%$'\t'*}"
+      orig_p="${pair#*$'\t'}"
+      if [[ "$line" == "$abs_p/"* ]]; then
+        mapped="$orig_p/${line#"$abs_p/"}"
+        break
+      fi
+    done
+    printf '%s\n' "$mapped"
+  done <<<"$leak_output"
+  leak_status=1
+else
+  rg_status=$?
+  if [[ "$rg_status" -ne 1 ]]; then
+    echo "credential_path_scan_error: scan exited $rg_status for ${roots[*]}" >&2
+    exit 1
+  fi
+fi
 if [[ "$leak_status" -eq 0 ]]; then
   echo "credential_path_scan_ok"
 else

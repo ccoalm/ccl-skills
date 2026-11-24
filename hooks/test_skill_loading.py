@@ -525,5 +525,88 @@ class SkillLoadingTests(unittest.TestCase):
                 patch.object(module, 'normalizer', return_value=reader), \
                 patch.object(module, 'regular_info', return_value=info):
             self.assertEqual(self.decision(module.handle(self.payload('spawn_agent'), {})), 'deny')
+
+    def test_non_write_bash_and_unhandled_events_do_not_load_normalizer(self):
+        spec = importlib.util.spec_from_file_location('checkpoint_lazy_test', ROOT / 'hooks/skill-loading.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        real_normalizer = module.normalizer
+        calls = []
+
+        def spy_normalizer():
+            calls.append(1)
+            return real_normalizer()
+
+        root = self.ccl_checkout()
+        target = root / 'skills' / 'sample-owner' / 'SKILL.md'
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with patch.object(module, 'normalizer', side_effect=spy_normalizer):
+            for cmd in ('ls -la', 'pytest -q', 'git status --short', 'git diff origin/main',
+                        'rg "pattern" skills/', 'gh pr checks 12'):
+                with self.subTest(non_write=cmd):
+                    calls.clear()
+                    res = module.handle(self.payload('Bash', cwd=str(root), tool_input={'command': cmd}), {})
+                    self.assertEqual(res, {})
+                    self.assertEqual(len(calls), 0, f'normalizer() must not load for {cmd!r}')
+            calls.clear()
+            self.assertEqual(module.handle(self.payload('Read'), {}), {})
+            self.assertEqual(len(calls), 0, 'unhandled tools must not load normalizer()')
+
+            for idx, cmd in enumerate((
+                f"r'm' {target}",
+                f"/bin/cp /etc/hosts {target}",
+                f"echo hi > {target}",
+                f"\\rm {target}",
+                f"python3<<'EOF'\nopen('{target}', 'w').write('x')\nEOF",
+            )):
+                with self.subTest(write_cmd=cmd):
+                    calls.clear()
+                    payload = self.payload('Bash', session_id=f'lazy-w-{idx}', cwd=str(root),
+                                           tool_input={'command': cmd})
+                    res = module.handle(payload, {})
+                    self.assertEqual(len(calls), 1, f'normalizer() must load once for {cmd!r}')
+                    self.assertEqual(self.decision(res), 'deny')
+
+        # Boundary tokens (backticks, braces, negation) and every _segment write
+        # family in host-input.bash_write_targets must satisfy may_write_from_bash.
+        for boundary_cmd in (
+            f"echo `rm {target}`",
+            f"{{ rm {target}; }}",
+            f"! rm {target}",
+        ):
+            self.assertTrue(module.may_write_from_bash(boundary_cmd), boundary_cmd)
+
+        host_input = real_normalizer()
+        other = root / 'skills' / 'sample-owner' / 'moved.md'
+        for write_cmd in (
+            f"echo x > {target}",
+            f"echo x >> {target}",
+            f"git mv {target} {other}",
+            f"git rm {target}",
+            f"tee {target}",
+            f"sed -i 's/a/b/' {target}",
+            f"perl -pi -e 's/a/b/' {target}",
+            f"cp /etc/hosts {target}",
+            f"mv {target} {other}",
+            f"install -m 644 /etc/hosts {target}",
+            f"ln -s /etc/hosts {target}",
+            f"rsync -a /etc/hosts {target}",
+            f"touch {target}",
+            f"truncate -s 0 {target}",
+            f"rm {target}",
+            f"unlink {target}",
+            f"sudo rm {target}",
+            f"env FOO=1 cp /etc/hosts {target}",
+            f"bash -c 'rm {target}'",
+            f"python3 -c \"open('{target}', 'w')\"",
+            f"node -e \"fs.writeFileSync('{target}', 'x')\"",
+            f"ruby -e \"File.write('{target}', 'x')\"",
+        ):
+            targets = host_input.bash_write_targets(write_cmd, str(root))
+            self.assertTrue(targets, f'fixture must produce bash_write_targets: {write_cmd!r}')
+            self.assertTrue(module.may_write_from_bash(write_cmd),
+                            f'may_write_from_bash missed {write_cmd!r} -> {targets}')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -128,4 +128,132 @@ set -e
 assert_rc "$strict_rc" 1 "strict mode blocks degraded coverage"
 assert_contains "generic_r0_leak_scan_degraded_blocking" "$strict_out" "strict block marker"
 
+# Case 7: --self-test-cached contract (cold stamp write, warm 0-rg hit,
+# CCL_SKILL_NO_SELFTEST_CACHE=1 bypass, 1-byte edit invalidation, broken mutant
+# non-caching, symlink/0777 cache-dir rejection, <=64 pruning, check-ccl-skills.sh
+# --self-test-cached wiring, and Makefile uncached --self-test wiring).
+CACHE_DIR="$TMP/selftest-cache"
+RG_SHIM_DIR="$TMP/rg-shim"
+RG_LOG="$TMP/rg.log"
+REAL_RG="$(command -v rg)"
+mkdir -p "$RG_SHIM_DIR"
+cat > "$RG_SHIM_DIR/rg" <<EOF
+#!/usr/bin/env bash
+echo x >> "$RG_LOG"
+exec "$REAL_RG" "\$@"
+EOF
+chmod +x "$RG_SHIM_DIR/rg"
+
+# 7a: cold --self-test-cached runs self-test (batched <= 2 rg calls) and writes a 0700 dir + stamp.
+: > "$RG_LOG"
+set +e
+cold_out="$(PATH="$RG_SHIM_DIR:$PATH" CCL_SKILL_SELFTEST_CACHE_DIR="$CACHE_DIR" env -u CCL_SKILL_NO_SELFTEST_CACHE bash "$SCAN_SCRIPT" --self-test-cached 2>&1)"
+cold_rc=$?
+set -e
+assert_rc "$cold_rc" 0 "cold --self-test-cached should pass"
+assert_contains "generic_r0_leak_scan_self_test_ok" "$cold_out" "cold self-test ok token"
+cold_rg="$(wc -l < "$RG_LOG" | tr -d ' ')"
+[ "$cold_rg" -ge 1 ] && [ "$cold_rg" -le 2 ] || fail "expected batched cold self-test to spawn 1-2 rg calls, got $cold_rg"
+stamp_count="$(find "$CACHE_DIR" -maxdepth 1 -type f -name '*.ok' | wc -l | tr -d ' ')"
+[ "$stamp_count" -eq 1 ] || fail "expected 1 stamp file after cold run, got $stamp_count"
+
+# 7b: warm --self-test-cached reuses stamp with 0 rg spawns.
+: > "$RG_LOG"
+warm_out="$(PATH="$RG_SHIM_DIR:$PATH" CCL_SKILL_SELFTEST_CACHE_DIR="$CACHE_DIR" env -u CCL_SKILL_NO_SELFTEST_CACHE bash "$SCAN_SCRIPT" --self-test-cached 2>&1)"
+assert_contains "generic_r0_leak_scan_self_test_ok" "$warm_out" "warm self-test ok token"
+warm_rg="$(wc -l < "$RG_LOG" | tr -d ' ')"
+[ "$warm_rg" -eq 0 ] || fail "expected 0 rg calls on warm --self-test-cached hit, got $warm_rg"
+
+# 7c: CCL_SKILL_NO_SELFTEST_CACHE=1 bypasses stamp and runs self-test.
+: > "$RG_LOG"
+nocache_out="$(PATH="$RG_SHIM_DIR:$PATH" CCL_SKILL_SELFTEST_CACHE_DIR="$CACHE_DIR" CCL_SKILL_NO_SELFTEST_CACHE=1 bash "$SCAN_SCRIPT" --self-test-cached 2>&1)"
+assert_contains "generic_r0_leak_scan_self_test_ok" "$nocache_out" "no-cache self-test ok token"
+nocache_rg="$(wc -l < "$RG_LOG" | tr -d ' ')"
+[ "$nocache_rg" -ge 1 ] || fail "expected CCL_SKILL_NO_SELFTEST_CACHE=1 to run rg, got 0"
+
+# 7d: 1-byte script change invalidates stamp and writes a second stamp.
+COPY_SCRIPT="$TMP/generic-r0-copy.sh"
+cp "$SCAN_SCRIPT" "$COPY_SCRIPT"
+printf '\n# 1-byte-ish comment invalidation\n' >> "$COPY_SCRIPT"
+: > "$RG_LOG"
+PATH="$RG_SHIM_DIR:$PATH" CCL_SKILL_SELFTEST_CACHE_DIR="$CACHE_DIR" env -u CCL_SKILL_NO_SELFTEST_CACHE bash "$COPY_SCRIPT" --self-test-cached >/dev/null
+edit_rg="$(wc -l < "$RG_LOG" | tr -d ' ')"
+[ "$edit_rg" -ge 1 ] || fail "expected edited copy to miss prior stamp and run rg"
+
+# 7d2: swapping rg on PATH (different binary/shim) invalidates prior stamp and fails closed on a broken rg.
+BROKEN_RG_DIR="$TMP/rg-shim-broken"
+mkdir -p "$BROKEN_RG_DIR"
+cat > "$BROKEN_RG_DIR/rg" <<EOF
+#!/usr/bin/env bash
+echo x >> "$RG_LOG"
+exit 1
+EOF
+chmod +x "$BROKEN_RG_DIR/rg"
+: > "$RG_LOG"
+set +e
+PATH="$BROKEN_RG_DIR:$PATH" CCL_SKILL_SELFTEST_CACHE_DIR="$CACHE_DIR" env -u CCL_SKILL_NO_SELFTEST_CACHE bash "$SCAN_SCRIPT" --self-test-cached >/dev/null 2>&1
+swap_rc=$?
+set -e
+swap_rg="$(wc -l < "$RG_LOG" | tr -d ' ')"
+[ "$swap_rg" -ge 1 ] || fail "expected swapped rg binary on PATH to miss prior stamp and invoke rg, got $swap_rg"
+[ "$swap_rc" -ne 0 ] || fail "expected broken swapped rg on PATH to fail --self-test-cached, got rc=0"
+
+# 7d3: RIPGREP_CONFIG_PATH with --fixed-strings cannot poison scan_stream or --self-test.
+BAD_RG_CFG="$TMP/bad-ripgreprc"
+printf '%s\n' '--fixed-strings' > "$BAD_RG_CFG"
+set +e
+cfg_self_out="$(RIPGREP_CONFIG_PATH="$BAD_RG_CFG" bash "$SCAN_SCRIPT" --self-test 2>&1)"
+cfg_self_rc=$?
+set -e
+assert_rc "$cfg_self_rc" 0 "RIPGREP_CONFIG_PATH=--fixed-strings must be ignored (--no-config)"
+assert_contains "generic_r0_leak_scan_self_test_ok" "$cfg_self_out" "--no-config self-test ok"
+
+# 7e: broken mutant never writes a stamp.
+BROKEN_SCRIPT="$TMP/generic-r0-broken.sh"
+sed 's|/Users/\[A-Za-z0-9._-\]|/NEVER_MATCHES_USERS_PATH|' "$SCAN_SCRIPT" > "$BROKEN_SCRIPT"
+FAIL_CACHE="$TMP/fail-cache"
+set +e
+CCL_SKILL_SELFTEST_CACHE_DIR="$FAIL_CACHE" bash "$BROKEN_SCRIPT" --self-test-cached >/dev/null 2>&1
+broken_rc=$?
+set -e
+[ "$broken_rc" -ne 0 ] || fail "broken mutant must fail --self-test-cached"
+broken_stamps="$(find "$FAIL_CACHE" -maxdepth 1 -type f -name '*.ok' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$broken_stamps" -eq 0 ] || fail "broken mutant must write 0 stamps, got $broken_stamps"
+
+# 7f: symlink or 0777 cache dir is rejected (bypasses cache without trusting/writing stamp).
+BAD_MODE_DIR="$TMP/bad-mode-cache"
+mkdir -p "$BAD_MODE_DIR"
+chmod 0777 "$BAD_MODE_DIR"
+: > "$RG_LOG"
+PATH="$RG_SHIM_DIR:$PATH" CCL_SKILL_SELFTEST_CACHE_DIR="$BAD_MODE_DIR" env -u CCL_SKILL_NO_SELFTEST_CACHE bash "$SCAN_SCRIPT" --self-test-cached >/dev/null
+PATH="$RG_SHIM_DIR:$PATH" CCL_SKILL_SELFTEST_CACHE_DIR="$BAD_MODE_DIR" env -u CCL_SKILL_NO_SELFTEST_CACHE bash "$SCAN_SCRIPT" --self-test-cached >/dev/null
+bad_rg="$(wc -l < "$RG_LOG" | tr -d ' ')"
+bad_stamps="$(find "$BAD_MODE_DIR" -maxdepth 1 -type f -name '*.ok' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$bad_rg" -ge 4 ] || fail "0777 cache dir must bypass stamp on every call (expected >=4 rg spawns across 2 runs), got rg=$bad_rg"
+[ "$bad_stamps" -eq 0 ] || fail "0777 cache dir must write 0 stamps, got $bad_stamps"
+
+SYMLINK_DIR="$TMP/symlink-cache"
+ln -s "$CACHE_DIR" "$SYMLINK_DIR"
+: > "$RG_LOG"
+PATH="$RG_SHIM_DIR:$PATH" CCL_SKILL_SELFTEST_CACHE_DIR="$SYMLINK_DIR" env -u CCL_SKILL_NO_SELFTEST_CACHE bash "$SCAN_SCRIPT" --self-test-cached >/dev/null
+sym_rg="$(wc -l < "$RG_LOG" | tr -d ' ')"
+[ "$sym_rg" -ge 1 ] || fail "symlinked cache dir must bypass stamp, got rg=$sym_rg"
+
+# 7g: stamp pruning caps cache directory at <= 64 `.ok` files.
+PRUNE_DIR="$TMP/prune-cache"
+( umask 077 && mkdir -m 0700 "$PRUNE_DIR" )
+for idx in $(seq 1 70); do
+  printf 'seed\n' > "$(printf '%s/%064d.ok' "$PRUNE_DIR" "$idx")"
+done
+CCL_SKILL_SELFTEST_CACHE_DIR="$PRUNE_DIR" env -u CCL_SKILL_NO_SELFTEST_CACHE bash "$SCAN_SCRIPT" --self-test-cached >/dev/null
+pruned_count="$(find "$PRUNE_DIR" -maxdepth 1 -type f -name '*.ok' | wc -l | tr -d ' ')"
+[ "$pruned_count" -le 64 ] || fail "expected <=64 stamps after pruning, got $pruned_count"
+
+# 7h: check-ccl-skills.sh uses --self-test-cached while Makefile test-repo-gates keeps uncached --self-test.
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd -P)"
+grep -q 'bash "\$generic_r0_scan" --self-test-cached' "$SCRIPT_DIR/check-ccl-skills.sh" \
+  || fail "check-ccl-skills.sh must invoke generic-r0-leak-scan.sh --self-test-cached"
+grep -q 'generic-r0-leak-scan.sh --self-test$' "$REPO_ROOT/Makefile" \
+  || fail "Makefile test-repo-gates must run uncached generic-r0-leak-scan.sh --self-test"
+
 echo "test_generic_r0_leak_scan: ok"

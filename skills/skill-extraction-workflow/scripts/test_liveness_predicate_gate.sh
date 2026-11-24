@@ -299,6 +299,35 @@ run_gate "$r"
 if [ "$RC" -eq 0 ]; then ok
 else note "p14 KNOWN LIMIT CHANGED: a discarded same-pid state read now fires — update the checklist (rc=$RC)"; fi
 
+# --- P15: scanning multi-file test trees spawns 0 per-file grep processes -----
+grep_shim_dir="$TMP/grep-shim"
+grep_log="$TMP/grep.log"
+real_grep="$(command -v grep)"
+mkdir -p "$grep_shim_dir"
+cat > "$grep_shim_dir/grep" <<EOF
+#!/usr/bin/env bash
+echo x >> "$grep_log"
+exec "$real_grep" "\$@"
+EOF
+chmod +x "$grep_shim_dir/grep"
+r_many=$(mk_root many_tests)
+for idx in 1 2 3 4 5 6; do
+  printf '#!/usr/bin/env bash\necho test %s\n' "$idx" > "$r_many/scripts/test_case_${idx}.sh"
+done
+: > "$grep_log"
+OUT=$( PATH="$grep_shim_dir:$PATH" bash "$section" "$r_many" 2>&1 ); RC=$?
+grep_spawns=$(wc -l < "$grep_log" | tr -d ' ')
+if [ "$RC" -eq 0 ] && [ "$grep_spawns" -eq 0 ]; then ok
+else note "p15 batched liveness scan expected rc=0 and 0 grep spawns across 6 files, got rc=$RC spawns=$grep_spawns: $OUT"; fi
+
+# --- P16: non-ASCII UTF-8 repository root path does not raise Encoding::CompatibilityError ----
+r_utf8="$TMP/仓库-p16"
+mkdir -p "$r_utf8/scripts"
+printf '#!/usr/bin/env bash\necho clean\n' > "$r_utf8/scripts/test_utf8.sh"
+run_gate "$r_utf8"
+if [ "$RC" -eq 0 ]; then ok
+else note "p16 non-ASCII root path must pass without encoding error (rc=$RC): $OUT"; fi
+
 printf 'liveness_predicate_gate: pass=%s fail=%s\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1
 echo "liveness_predicate_gate_ok"
