@@ -137,25 +137,27 @@ printf '%s' "$out3c" | grep -qF "missing_markdown_references:" \
 # step exits non-zero, rather than swallowing process-substitution failure as
 # install_visibility_not_found.
 VIS_SHIM_DIR="$TMP/vis-ruby-shim"
-VIS_COUNT_FILE="$TMP/vis-ruby.count"
 mkdir -p "$VIS_SHIM_DIR" "$TMP/empty-host-skills"
 cat > "$VIS_SHIM_DIR/ruby" <<EOF
 #!/usr/bin/env bash
-c=0
-[ -f "$VIS_COUNT_FILE" ] && c="\$(cat "$VIS_COUNT_FILE")"
-c=\$((c + 1))
-printf '%s\n' "\$c" > "$VIS_COUNT_FILE"
-if [ "\$c" -eq 3 ]; then
-  echo "simulated install-visibility ruby failure" >&2
-  exit 1
-fi
+case "\$*" in
+  *'missing_frontmatter_name:'*)
+    echo "simulated install-visibility ruby failure" >&2
+    exit 1
+    ;;
+esac
 exec "$REAL_RUBY" "\$@"
 EOF
 chmod +x "$VIS_SHIM_DIR/ruby"
 set +e
 out3d="$(cd "$SCRIPT_DIR" && PATH="$VIS_SHIM_DIR:$PATH" CHECK_INSTALL_VISIBILITY=1 HOST_SKILL_DIRS="$TMP/empty-host-skills" bash "$VALIDATE" "$MULTI" 2>&1)"; rc3d=$?
 set -e
-[ "$rc3d" -ne 0 ] || fail "CHECK_INSTALL_VISIBILITY=1 must fail closed when Ruby exits non-zero:\n$out3d"
+[ "$rc3d" -eq 2 ] || fail "CHECK_INSTALL_VISIBILITY=1 must exit 2 when Ruby exits non-zero (got $rc3d):\n$out3d"
+printf '%s' "$out3d" | grep -qF "install_visibility_scan_error" \
+  || fail "expected install_visibility_scan_error token:\n$out3d"
+if printf '%s' "$out3d" | grep -qF "install_visibility_not_found"; then
+  fail "must not emit install_visibility_not_found on Ruby failure:\n$out3d"
+fi
 
 # (4) Unreadable skill root still fails closed with credential_path_scan_error.
 chmod 000 "$MULTI/skills/beta" 2>/dev/null || true
