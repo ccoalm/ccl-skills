@@ -324,8 +324,10 @@ base_current_branch=""
 base_origin_exists=0
 base_git_loaded=0
 
-# Lazily resolve the hook-cwd repository baselines only when a git push/merge/pull
-# segment (or the post-loop unset-origin/HEAD degrade check) actually needs them.
+# Lazily resolve the hook-cwd repository baselines on demand. Platform CLI/HTTP
+# merge arms (gh, glab, tea, hub, curl/wget) deny merges unconditionally without
+# consulting branch names; only git push/merge/pull and the post-loop
+# unset-origin/HEAD warning read these variables.
 ensure_base_git_context() {
   [ "$base_git_loaded" = 1 ] && return 0
   base_git_loaded=1
@@ -343,6 +345,11 @@ ensure_base_git_context() {
 # (common during trunk migrations). The main|master union is only the
 # fallback for the unresolved case (which warns visibly below).
 is_default_name() {
+  if [ "${seg_git_loaded:-0}" = 0 ]; then
+    ensure_base_git_context
+    default_branch="$base_default_branch"
+    origin_flag="$base_origin_exists"
+  fi
   if [ -n "$default_branch" ]; then
     [ "$1" = "$default_branch" ]
   elif [ "$origin_flag" = 1 ]; then
@@ -495,6 +502,7 @@ printf '%s\n' "$masked" | tr ';|&(){}' '\n' | while IFS= read -r seg; do
   done
   set -- $rfiltered
   [ $# -eq 0 ] && continue
+  seg_git_loaded=0
   while [ $# -gt 0 ]; do
     case "$1" in
       *=*) shift ;;
@@ -997,6 +1005,7 @@ printf '%s\n' "$masked" | tr ';|&(){}' '\n' | while IFS= read -r seg; do
           continue
           ;;
         push|merge|pull)
+          seg_git_loaded=1
           deny_git_tag="DENY_GIT"
           if [ "$gdir" = "$cwd" ]; then
             ensure_base_git_context

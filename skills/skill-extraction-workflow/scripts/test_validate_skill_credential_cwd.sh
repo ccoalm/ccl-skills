@@ -102,4 +102,16 @@ else
   chmod 755 "$MULTI/skills/beta" 2>/dev/null || true
 fi
 
+# (5) Non-1 rg exit fails closed and names the scanned skill roots.
+RG_ERR_DIR="$TMP/rg-err-shim"
+mkdir -p "$RG_ERR_DIR"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 2' > "$RG_ERR_DIR/rg"
+chmod +x "$RG_ERR_DIR/rg"
+set +e
+out5="$(cd "$SCRIPT_DIR" && PATH="$RG_ERR_DIR:$PATH" bash "$VALIDATE" "$MULTI" 2>&1)"; rc5=$?
+set -e
+[ "$rc5" -ne 0 ] || fail "rg exit 2 must fail closed"
+printf '%s' "$out5" | grep -qF "credential_path_scan_error: scan exited 2 for $MULTI/skills/alpha" \
+  || fail "rg exit 2 diagnostic must name scanned roots; got:\n$out5"
+
 echo "test_validate_skill_credential_cwd: ok"

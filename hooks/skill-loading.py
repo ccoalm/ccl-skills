@@ -23,17 +23,17 @@ EXTRACTION_OWNER = 'ccl-skills:skill-extraction-workflow'
 PRODUCT_WORKFLOW = 'ccl-skills:product-rd-workflow'
 STAGE_REFERENCES = ('references/stage-plan-and-design.md', 'references/stage-quality-and-landing.md')
 BASH_WRITE_HINT_RE = re.compile(
-    r'(?:^|[\s;&|<>()/])(?:mv|rm|tee|sed|perl|cp|install|ln|rsync|touch|truncate|unlink'
-    r'|bash|sh|zsh|python[0-9.]*|node|ruby)(?=$|[\s;&|<>()])'
+    r'(?:^|[\s;&|<>()/`{!])(?:mv|rm|tee|sed|perl|cp|install|ln|rsync|touch|truncate|unlink'
+    r'|bash|sh|zsh|python[0-9.]*|node|ruby)(?=$|[\s;&|<>()`}])'
 )
 
 
 def may_write_from_bash(command):
-    """Conservative over-approximation of host-input.bash_write_targets.
+    """Conservative prefilter for commands that can yield host-input.bash_write_targets.
 
-    Returns False only when `command` provably cannot yield any write target in
-    host-input._segment (no redirects, no backslashes, and after stripping shell
-    quotes no write, shell, or interpreter command token).
+    Returns False only when `command` contains no redirects (`>`), no backslashes,
+    and after stripping shell quotes no write, shell, or interpreter command token
+    at shell, subshell, brace, negation, or backtick boundaries.
     """
     if not isinstance(command, str) or not command or len(command) > 65536:
         return False

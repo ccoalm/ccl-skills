@@ -35,7 +35,7 @@ Measured in an uncontended interleaved A/B harness (`base, cand, base, cand...` 
 | `bash .../check-ccl-skills.sh .` (warm cache) | `7718.34` | `5171.37` | `1.49x` (`-2546.97 ms`) | `[7792.08, 7718.34, 7772.43, 7654.49, 7641.61, 7736.97, 7646.4]` | `[5248.94, 5211.11, 5245.71, 5130.83, 5153.95, 5171.37, 5138.57]` |
 | `bash .../check-ccl-skills.sh .` (cold cache) | `15273.93` | `12877.78` | `1.19x` (`-2396.15 ms`) | `[15273.93, 15305.05, 15399.05, 15042.44, 15174.81, 15375.46, 15078.49]` | `[12880.75, 12877.78, 12908.86, 12760.78, 12695.69, 12703.66, 12968.56]` |
 
-## 3. Applied Differential Killing-Mutation Walk (`22/22` Killed)
+## 3. Applied Differential Killing-Mutation Walk (`23/23` Killed)
 
 Executed in isolated temporary clones outside the delivery worktree (`control_rc=0` verified before each mutant):
 
@@ -46,6 +46,7 @@ Executed in isolated temporary clones outside the delivery worktree (`control_rc
 | `M03_owner_dispatch_always_run_jq` | `scripts/owner-dispatch/owner-dispatch.sh` | Disable non-opt-in `cmd_pretool` fast path | `0` | `1` | `engine-bash starts 1 jq processes; at most 0 expected` |
 | `M03b_owner_dispatch_drop_len_bound` | `scripts/owner-dispatch/owner-dispatch.sh` | Omit `[ "${#input}" -le 65536 ]` before `case "$input"` | `0` | `1` | `FAIL engine-bash peaks at 3.86x a plain jq read; at most 3.83x expected` |
 | `M04_skill_loading_drop_quote_strip` | `hooks/skill-loading.py` | Skip stripping `"` / `'` in `may_write_from_bash` | `0` | `1` | `normalizer() must load once` (`r'm' ...`) |
+| `M04b_skill_loading_drop_backtick_boundary` | `hooks/skill-loading.py` | Drop `` ` `` from `BASH_WRITE_HINT_RE` leading boundary class | `0` | `1` | `AssertionError: False is not true` (`echo \`rm ...\``) |
 | `M05_skill_loading_drop_heredoc_boundary` | `hooks/skill-loading.py` | Drop `<` from `BASH_WRITE_HINT_RE` lookahead | `0` | `1` | `normalizer() must load once` (`python3<<'EOF'`) |
 | `M06_skill_loading_eager_normalizer` | `hooks/skill-loading.py` | Load `normalizer()` eagerly at top of `handle()` | `0` | `1` | `normalizer() must not load for 'ls -la'` |
 | `M07_merge_guard_noop_lazy_git_context` | `hooks/guard-merge-authorization.sh` | Return early inside `ensure_base_git_context` | `0` | `1` | `FAIL` on default-branch push/merge and `cnt_push` |
@@ -64,7 +65,7 @@ Executed in isolated temporary clones outside the delivery worktree (`control_rc
 | `M16b_ap28_oneline_hollow_helper_leak` | `skills/skill-extraction-workflow/scripts/check-ccl-skills.sh` | Drop one-line `}` close check in Anti-pattern 28 helper body parser | `0` | `1` | `p12 a one-line hollow helper must NOT borrow a later read` |
 | `M17_opencode_three_revparse_fallback` | `packages/opencode-plugin/ccl-skills.ts` | Force 3-call `git rev-parse` fallback in `repoCheckoutPaths` | `0` | `1` | `expected 1 plugin git rev-parse call on linked worktree edit, got 3` |
 
-Note: `M03b` was observed directly during the initial mutation-walk run before `[ "${#input}" -le 65536 ]` was added (`22/22` distinct mutations verified).
+Note: `M03b` was observed directly during the initial mutation-walk run before `[ "${#input}" -le 65536 ]` was added (`23/23` distinct mutations verified).
 
 ## 4. Contract Sync & `tighten-doc` Closeout Evidence
 

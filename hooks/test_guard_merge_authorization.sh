@@ -1118,6 +1118,33 @@ else
   echo "FAIL lazy git context: 'git push origin feat' expected >0 git spawns and allow, got cnt=$cnt_push out=$out_push" >&2
 fi
 
+# Non-standard default branch (origin/HEAD -> origin/release): gh/HTTP merge forms
+# and git push/merge targeting or standing on `release` must all be denied.
+REL_REMOTE="$tmp/rel-remote.git"
+REL_CWD="$tmp/rel-cwd"
+git init -q --bare "$REL_REMOTE"
+git init -q -b release "$REL_CWD"
+git -C "$REL_CWD" config user.email t@example.com
+git -C "$REL_CWD" config user.name t
+git -C "$REL_CWD" commit -q --allow-empty -m init
+git -C "$REL_CWD" remote add origin "$REL_REMOTE"
+git -C "$REL_CWD" push -q -u origin release
+git -C "$REL_CWD" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/release
+git -C "$REL_CWD" branch feat
+probe_sid deny "$REL_CWD" "rel-sid-1" 'gh pr merge --squash'
+probe_sid deny "$REL_CWD" "rel-sid-2" 'curl -X PUT https://api.github.com/repos/acme/demo/pulls/12/merge'
+probe_sid deny "$REL_CWD" "rel-sid-3" 'git push origin HEAD:release'
+probe_sid deny "$REL_CWD" "rel-sid-4" 'git merge feat'
+# `cd` into a sub-repo whose origin/HEAD is unset while hook cwd has origin/HEAD=main
+# must keep the sub-repo's unresolved-origin fallback (denying `trunk`).
+UNSET_SUB="$tmp/unset-sub"
+git init -q -b feat "$UNSET_SUB"
+git -C "$UNSET_SUB" config user.email t@example.com
+git -C "$UNSET_SUB" config user.name t
+git -C "$UNSET_SUB" commit -q --allow-empty -m init
+git -C "$UNSET_SUB" remote add origin "$REL_REMOTE"
+probe_sid deny "$FEAT_CWD" "rel-sid-5" "cd $UNSET_SUB && git push origin HEAD:trunk"
+
 if [ "$fail" -ne 0 ]; then
   echo "test_guard_merge_authorization: FAIL pass=$pass fail=$fail" >&2
   exit 1

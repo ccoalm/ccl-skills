@@ -150,7 +150,7 @@ if leak_output="$(cd / && rg -n --hidden --with-filename --color never \
 else
   rg_status=$?
   if [[ "$rg_status" -ne 1 ]]; then
-    echo "credential_path_scan_error: scan exited $rg_status" >&2
+    echo "credential_path_scan_error: scan exited $rg_status for ${roots[*]}" >&2
     exit 1
   fi
 fi

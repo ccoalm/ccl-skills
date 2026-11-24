@@ -567,6 +567,46 @@ class SkillLoadingTests(unittest.TestCase):
                     self.assertEqual(len(calls), 1, f'normalizer() must load once for {cmd!r}')
                     self.assertEqual(self.decision(res), 'deny')
 
+        # Boundary tokens (backticks, braces, negation) and every _segment write
+        # family in host-input.bash_write_targets must satisfy may_write_from_bash.
+        for boundary_cmd in (
+            f"echo `rm {target}`",
+            f"{{ rm {target}; }}",
+            f"! rm {target}",
+        ):
+            self.assertTrue(module.may_write_from_bash(boundary_cmd), boundary_cmd)
+
+        host_input = real_normalizer()
+        other = root / 'skills' / 'sample-owner' / 'moved.md'
+        for write_cmd in (
+            f"echo x > {target}",
+            f"echo x >> {target}",
+            f"git mv {target} {other}",
+            f"git rm {target}",
+            f"tee {target}",
+            f"sed -i 's/a/b/' {target}",
+            f"perl -pi -e 's/a/b/' {target}",
+            f"cp /etc/hosts {target}",
+            f"mv {target} {other}",
+            f"install -m 644 /etc/hosts {target}",
+            f"ln -s /etc/hosts {target}",
+            f"rsync -a /etc/hosts {target}",
+            f"touch {target}",
+            f"truncate -s 0 {target}",
+            f"rm {target}",
+            f"unlink {target}",
+            f"sudo rm {target}",
+            f"env FOO=1 cp /etc/hosts {target}",
+            f"bash -c 'rm {target}'",
+            f"python3 -c \"open('{target}', 'w')\"",
+            f"node -e \"fs.writeFileSync('{target}', 'x')\"",
+            f"ruby -e \"File.write('{target}', 'x')\"",
+        ):
+            targets = host_input.bash_write_targets(write_cmd, str(root))
+            self.assertTrue(targets, f'fixture must produce bash_write_targets: {write_cmd!r}')
+            self.assertTrue(module.may_write_from_bash(write_cmd),
+                            f'may_write_from_bash missed {write_cmd!r} -> {targets}')
+
 
 if __name__ == '__main__':
     unittest.main()

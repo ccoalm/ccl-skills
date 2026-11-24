@@ -697,12 +697,13 @@ cmd_pretool() {
   # payloads never allocate a wide-char fnmatch buffer in `case "$input"` (which
   # would raise peak RSS above `test_hook_field_reads.py`'s 800k-NUL ratio cap).
   # When no explicit tool override ($1) is passed and $PWD has no
-  # `.owner-dispatch.json` ancestor, only Edit/Write/MultiEdit/NotebookEdit or
-  # apply_patch can inspect a path outside $PWD; without `\`, JSON strings cannot
-  # encode `\uXXXX` escapes.
+  # `.owner-dispatch.json` ancestor, `cmd_pretool` handles only Edit, Write,
+  # MultiEdit, NotebookEdit, apply_patch, and Bash; only the edit/patch tools can
+  # inspect a path outside $PWD, and without `\` JSON strings cannot encode
+  # `\uXXXX` escapes.
   if [ "$#" -eq 0 ] && [ "${#input}" -le 65536 ] && ! find_config_dir "$PWD" >/dev/null; then
     case "$input" in
-      *\\*|*Edit*|*Write*|*apply_patch*) ;;
+      *\\*|*[Ee]dit*|*[Ww]rite*|*apply_patch*) ;;
       *) allow_pretool ;;
     esac
   fi
