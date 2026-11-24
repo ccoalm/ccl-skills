@@ -7,8 +7,8 @@ Every new assertion was written and executed against unmodified `origin/main` (`
 | ID | Suite | Pre-Fix RED Result | Post-Fix GREEN Result |
 | --- | --- | --- | --- |
 | `T1a` | `hooks/test_hook_field_reads.py` (+ `hooks/test_hook_remaining_field_reads.py`) | `rc=1` (`AssertionError: find_config_dir spawned 8 dirname processes (expected 0)` and `engine-bash` spawned `1` `jq` instead of `0`) | `rc=0` (`576 cases, 0 failures`; `532 remaining-hook differential cases match baseline`; `800k-NUL` `peak_ratios` within cap) |
-| `T1b` | `hooks/test_skill_loading.py` | `rc=1` (`FAILED (failures=7)`: `normalizer()` loaded on `ls -la`, `pytest -q`, `git status`, `git diff`, `rg`, `gh`, and `Read`) | `rc=0` (`Ran 36 tests ... OK`; `0` `normalizer()` loads on non-write `Bash` / `Read`, `1` load + `deny` on `r'm'`, `/bin/cp`, `>`, `\rm`, `python3<<'EOF'`) |
-| `T2` | `hooks/test_guard_merge_authorization.sh` | `rc=1` (`FAIL pass=494 fail=6`: `'ls -la'`, `'pytest -q'`, `'git status --short'`, `'git diff HEAD'`, `'git checkout -b ...'`, `'gh pr view 45'` each spawned `4` `git` processes) | `rc=0` (`test_guard_merge_authorization_ok pass=501`, `0` `git` spawns on all 6 non-landing commands) |
+| `T1b` | `hooks/test_skill_loading.py` | `rc=1` (`FAILED (failures=7)`: `normalizer()` loaded on `ls -la`, `pytest -q`, `git status`, `git diff`, `rg`, `gh`, and `Read`) | `rc=0` (`Ran 36 tests ... OK`; `0` `normalizer()` loads on non-write `Bash` / `Read`, `1` load + `deny` on `r'm'`, `/bin/cp`, `>`, `\rm`, `python3<<'EOF'`, backtick/`{`/`!` boundaries, and all 21 `bash_write_targets` families) |
+| `T2` | `hooks/test_guard_merge_authorization.sh` | `rc=1` (`FAIL pass=494 fail=6`: `'ls -la'`, `'pytest -q'`, `'git status --short'`, `'git diff HEAD'`, `'git checkout -b ...'`, `'gh pr view 45'` each spawned `4` `git` processes) | `rc=0` (`test_guard_merge_authorization_ok pass=505`, `0` `git` spawns on all 6 non-landing commands + `origin/HEAD=release` and sub-repo `cd` regression checks) |
 | `T3a` | `packages/ccl-skills-npm/test/opencode-hooks.test.mjs` | `rc=1` (`expected 1 git rev-parse call on linked worktree edit` — plugin spawned `3` `rev-parse` calls) | `rc=0` (`52/52` pass, `1` plugin `git rev-parse` call on linked worktree edit; primary `.worktree-only` checkout blocked) |
 | `T3b` | `hooks/test_agy_bridge.py` | `rc=1` (`AssertionError: 'headless-background-stop.sh' unexpectedly found in invoked` when `CLAUDE_CODE_ENTRYPOINT` unset) | `rc=0` (`Ran 68 tests ... OK`; skipped when unset, executed under `CLAUDE_CODE_ENTRYPOINT=sdk-ts`, `--bindings` 1:1 with `hooks/hooks.json`) |
 | `T3c` | `hooks/test_proposed_next.py` | `rc=1` (`brain/conv-1234/scratch/*.md` included in `reader_docs`) | `rc=0` (`Ran 73 tests ... OK`; `brain/<id>/scratch/**` excluded while `brain/<id>/walkthrough.md` and `docs/guide.md` retained) |
@@ -72,7 +72,37 @@ Note: `M03b` was observed directly during the initial mutation-walk run before `
 - **Repo-local contracts updated**:
   - `hooks/AGENTS.md`: documents `agy-bridge.py` `Stop` skip of `headless-background-stop.sh` outside `sdk|sdk-*` entrypoints (while keeping `DISPATCH['Stop']` parity) and the `0`-`jq` non-opt-in `owner-dispatch.sh` `PreToolUse:Bash` fast path.
   - `skills/skill-extraction-workflow/scripts/AGENTS.md`: adds `test_generic_r0_leak_scan.sh` alongside `test_check_evidence_card_leak_cache.sh`.
-  - `skills/skill-extraction-workflow/references/source-register.md`: appends two rows (one for `skill-extraction-workflow` validator/gate batching & caching, one for `skill-extraction-workflow` `(plugin runtime surface)` hook/bridge optimizations).
+  - `skills/skill-extraction-workflow/references/source-register.md`: appends four rows (`899–902`: two initial rows for `skill-extraction-workflow` validator/gate batching & caching and `skill-extraction-workflow (plugin runtime surface)` hook/bridge optimizations, plus two append-only remediation rows for `3ca6f633949a19a4ee90ea68313cab79a7d540fb`).
   - OpenCode `Stop` boundary note: `packages/opencode-plugin/ccl-skills.ts` continues running `commandHooks(root, "Stop")` because `packages/ccl-skills-npm/test/opencode-hooks.test.mjs` (`L123-145`, `L317`) pins 1:1 execution of every `Stop` command hook in `hooks/hooks.json` with `CLAUDE_CODE_ENTRYPOINT` scrubbed (`headless-background-stop.sh` exits in ~1.5 ms pure shell).
 - **`tighten-doc` closeout reread**:
-  - `mode`: `closeout-reread` over `specs/bash-hotpath-and-gate-slimming/plan.md`, `specs/bash-hotpath-and-gate-slimming/evidence/validation.md`, `hooks/AGENTS.md`, `skills/skill-extraction-workflow/scripts/AGENTS.md`, and the appended `source-register.md` rows; verified zero session-vantage leakage (`tighten-doc/references/session-vantage-leakage.md`), preserved all decided points, and passed `doc-lint-repo.py .`.
+  - Surface reread: `specs/bash-hotpath-and-gate-slimming/evidence/validation.md` in full, cross-checked against `specs/bash-hotpath-and-gate-slimming/plan.md`, `hooks/AGENTS.md`, `skills/skill-extraction-workflow/scripts/AGENTS.md`, and `skills/skill-extraction-workflow/references/source-register.md` (`L899-902`).
+  - Blocks touched since prior reread: `T1b`/`T2` summary rows, `source-register.md` row count, and the dual-track review/challenge sections below.
+  - Card/family scan trigger: not applicable (round validation record + local `AGENTS.md` contracts, not an execution-card family).
+  - Defects found & fixed: synchronized `T2` assertion count (`501 -> 505`) and `source-register.md` row count (`two -> four`, `899–902`); zero session-vantage leakage, duplicate sections, or register drift.
+  - Scope boundary reason: `plan.md`, `hooks/AGENTS.md`, `scripts/AGENTS.md`, and `source-register.md` were already reread in full and had no edits after `3ca6f633949a19a4ee90ea68313cab79a7d540fb`.
+
+## Review pass
+
+- Reviewed commit: `f8b0872dc8f77201e3953deb3fc502d5e493dc69` (base `origin/main` `827f7f684b41842452ca6af3421a45f3e4d364ef`; receipt: `specs/bash-hotpath-and-gate-slimming/evidence/pass1-review.json`; client: `claude`)
+- Findings: 3 total (0 P0 / 1 P1 / 2 P2)
+- R0 evidence: `ccl_skill_check_clean_ok` (`r0_status=private-ok`)
+- Dispositions:
+  - `P1` (`hooks/guard-merge-authorization.sh:318`): `fixed` (and source-verified) — `gh`/`glab`/`tea`/`hub`/HTTP merge arms at `hooks/guard-merge-authorization.sh:367-998` block platform merges unconditionally without reading `default_branch`, `current_branch`, `origin_flag`, or `is_default_name()`; commit `3ca6f633949a19a4ee90ea68313cab79a7d540fb` also adds per-segment `seg_git_loaded` lazy initialization inside `is_default_name()` plus `origin/HEAD=release` and sub-repo `cd` regression tests in `hooks/test_guard_merge_authorization.sh` (`pass=505`).
+  - `P2` (`hooks/skill-loading.py:26`): `fixed` in `3ca6f633949a19a4ee90ea68313cab79a7d540fb` — added backtick, `{`, and `!` leading boundaries to `BASH_WRITE_HINT_RE`, added 21-family `host-input.bash_write_targets` implication tests in `hooks/test_skill_loading.py`, and recorded killing mutant `M04b`.
+  - `P2` (`scripts/owner-dispatch/owner-dispatch.sh:703`): `fixed` in `3ca6f633949a19a4ee90ea68313cab79a7d540fb` — broadened fast-path tool-name matching to `*[Ee]dit*|*[Ww]rite*|*apply_patch*`; also included `${roots[*]}` in `validate-skill.sh` non-1 `rg` diagnostics (`test_validate_skill_credential_cwd.sh`).
+
+## Challenge pass
+
+- Reviewed commit: `3ca6f633949a19a4ee90ea68313cab79a7d540fb` (base `origin/main` `827f7f684b41842452ca6af3421a45f3e4d364ef`; receipt: `specs/bash-hotpath-and-gate-slimming/evidence/pass2-challenge.json`; client: `claude`)
+- Findings: 2 total (0 P0 / 1 P1 / 1 P2)
+- R0 evidence: `ccl_skill_check_clean_ok` (`r0_status=private-ok`)
+- Gate-fireability applicability: yes; Item 9 exercised: `specs/bash-hotpath-and-gate-slimming/evidence/pass2-challenge.json` (`challenge_focus` + `concern_results`)
+- Dispositions:
+  - `P1` (`hooks/skill-loading.py:38`): `pre-existing & out-of-scope` (source-refuted as a regression) — at base `827f7f684b41842452ca6af3421a45f3e4d364ef`, `hooks/host-input.py:504` (`bash_write_targets`) already enforces `if not isinstance(command, str) or not command or len(command) > 65536: return []`, so `Bash` commands over `65,536` characters already returned `[]` and skipped the shared-skill write checkpoint before this change; reachability and severity are unchanged.
+  - `P2` (`hooks/guard-merge-authorization.sh:1031`): `pre-existing & out-of-scope` (source-refuted) — at base `827f7f684b41842452ca6af3421a45f3e4d364ef`, `hooks/guard-merge-authorization.sh` (`L995-1118`) had only `checkout|switch`, `push`, `merge`, and `pull` arms in `case "$sub"`; no other git subcommand arm existed, so `*) continue` skips zero pre-existing checks.
+
+## Post-review delta
+
+- `specs/bash-hotpath-and-gate-slimming/evidence/pass1-review.json` — added controller review receipt covering `f8b0872dc8f77201e3953deb3fc502d5e493dc69`
+- `specs/bash-hotpath-and-gate-slimming/evidence/pass2-challenge.json` — added controller challenge receipt covering `3ca6f633949a19a4ee90ea68313cab79a7d540fb`
+- `specs/bash-hotpath-and-gate-slimming/evidence/validation.md` — recorded dual-track review/challenge receipts, dispositions, and post-review delta (non-executable `evidence/` records only)
