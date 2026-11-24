@@ -107,6 +107,30 @@ if cli_div_out="$(python3 "$script_dir/init_policy_matrix.py" "$cli_divergent" 2
   exit 1
 fi
 
+state_probe="$tmp_dir/parser_single_use_globals.py"
+python3 - "$parser" "$state_probe" <<'PY'
+import sys
+from pathlib import Path
+
+source, target = sys.argv[1:3]
+text = Path(source).read_text(encoding="utf-8")
+needle = "def main() -> int:"
+if text.count(needle) != 1:
+    raise SystemExit(f"expected 1 main() definition, saw {text.count(needle)}")
+injected = (
+    "_SINGLE_USE_GUARD = []\n\n\n"
+    "def main() -> int:\n"
+    "    if _SINGLE_USE_GUARD:\n"
+    "        raise RuntimeError('module globals leaked across in-process runs')\n"
+    "    _SINGLE_USE_GUARD.append(1)"
+)
+Path(target).write_text(text.replace(needle, injected, 1), encoding="utf-8")
+PY
+if ! state_out="$(python3 "$script_dir/init_policy_matrix.py" "$state_probe" 2>&1)"; then
+  printf 'init_policy_matrix.py leaked module globals across in-process cases:\n%s\n' "$state_out" >&2
+  exit 1
+fi
+
 # Each entry is NAME, then the literal to replace, then its replacement. The
 # literals are chosen to be load-bearing lines rather than incidental text, so a
 # refactor that moves them fails loudly here instead of quietly disarming the

@@ -367,16 +367,14 @@ PATHS = {
 }
 
 
-def _load_parser_module(parser: Path):
-    spec = importlib.util.spec_from_file_location(
-        f"_init_policy_parser_{abs(hash(str(parser.resolve())))}",
-        str(parser),
-    )
-    if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load parser spec from {parser}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def _compile_parser_code(parser: Path):
+    source_bytes = parser.read_bytes()
+    code = compile(source_bytes, str(parser), "exec")
+    probe_ns = {"__name__": "_init_policy_parser_probe", "__file__": str(parser)}
+    exec(code, probe_ns)
+    if not callable(probe_ns.get("main")):
+        raise AttributeError(f"{parser} does not define callable main()")
+    return code
 
 
 def _parse_verdict(rc: int, raw_stdout: str) -> tuple[str, str]:
@@ -389,7 +387,7 @@ def _parse_verdict(rc: int, raw_stdout: str) -> tuple[str, str]:
     return wrapper_arm(reason), reason
 
 
-def _run_case_inproc(entry, module, parser: Path, out: Path, err: Path, path: str) -> tuple[str, str]:
+def _run_case_inproc(entry, code, parser: Path, out: Path, err: Path, path: str) -> tuple[str, str]:
     out.write_text("\n".join(json.dumps(ev) for ev in entry["events"]), encoding="utf-8")
     err.write_text("", encoding="utf-8")
     stdout_buf = io.StringIO()
@@ -399,7 +397,9 @@ def _run_case_inproc(entry, module, parser: Path, out: Path, err: Path, path: st
     try:
         sys.argv = [str(parser), "0", str(out), str(err), *PATHS[path]]
         with contextlib.redirect_stdout(stdout_buf), contextlib.redirect_stderr(stderr_buf):
-            ret = module.main()
+            ns = {"__name__": "_init_policy_parser", "__file__": str(parser)}
+            exec(code, ns)
+            ret = ns["main"]()
             rc = 0 if ret is None else int(ret)
     except SystemExit as exc:
         if exc.code is None:
@@ -429,10 +429,10 @@ def run_case(entry, parser=PARSER, path="probe"):
 
 def main():
     parser = Path(sys.argv[1]) if len(sys.argv) > 1 else PARSER
-    module = None
+    code = None
     load_error = ""
     try:
-        module = _load_parser_module(parser)
+        code = _compile_parser_code(parser)
     except BaseException as exc:
         load_error = f"{type(exc).__name__}: {exc}"[:120]
 
@@ -445,18 +445,18 @@ def main():
         for entry in CASES:
             for path in PATHS:
                 runs += 1
-                if module is None:
+                if code is None:
                     actual, reason = "unparseable", load_error
                 else:
-                    actual, reason = _run_case_inproc(entry, module, parser, out, err, path)
+                    actual, reason = _run_case_inproc(entry, code, parser, out, err, path)
                 observed[(entry["name"], path)] = (actual, reason)
                 if actual != entry["expected"]:
                     failures.append((f"{entry['name']}/{path}", entry["expected"],
                                      actual, reason[:160]))
 
     # Keep a bounded real-CLI parity smoke (2 cases x 2 paths = 4 subprocesses)
-    # whenever the module loaded so __main__ wiring stays end-to-end verified.
-    if module is not None:
+    # whenever the parser loaded so __main__ wiring stays end-to-end verified.
+    if code is not None:
         smoke_names = ("clean", "declared-tool")
         for entry in CASES:
             if entry["name"] not in smoke_names:

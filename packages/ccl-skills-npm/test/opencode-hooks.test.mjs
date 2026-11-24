@@ -500,7 +500,7 @@ test("OpenCode first delegation checkpoint requires a completed native skill loa
 test("OpenCode owner evidence binds inactive progressive-disclosure files to the active skill", async (t) => {
 	const cases = [
 		...['source', 'project', 'compatibility'].flatMap((layout) => ['matching', 'reference', 'script'].map((change) => [layout, change])),
-		['source', 'missing-reference'], ['source', 'extra-script'], ['source', 'extra-repo-test-script'], ['source', 'symlink-repo-test-script'], ['source', 'hardlink-repo-test-script'], ['source', 'symlink-reference'],
+		['source', 'missing-reference'], ['source', 'extra-script'], ['source', 'extra-repo-test-script'], ['source', 'tampered-shared-repo-test-script'], ['source', 'symlink-repo-test-script'], ['source', 'hardlink-repo-test-script'], ['source', 'symlink-reference'],
 		['source-active', 'edited'], ['project-active', 'edited'],
 	];
 	for (const [layout, change] of cases) await t.test(`${layout}-${change}`, async () => {
@@ -540,6 +540,10 @@ test("OpenCode owner evidence binds inactive progressive-disclosure files to the
 		if (change === 'extra-repo-test-script') {
 			writeFileSync(join(dir, 'scripts/test_synthetic.sh'), '#!/bin/sh\nexit 0\n');
 			writeFileSync(join(dir, 'scripts/smoke.test.sh'), '#!/bin/sh\nexit 0\n');
+		}
+		if (change === 'tampered-shared-repo-test-script') {
+			writeFileSync(join(active, 'scripts/test_shared.sh'), '#!/bin/sh\nexit 0\n');
+			writeFileSync(join(dir, 'scripts/test_shared.sh'), '#!/bin/sh\nexit 99\n');
 		}
 		if (change === 'symlink-repo-test-script') {
 			symlinkSync(join(active, reference), join(dir, 'scripts/test_symlink.sh'));

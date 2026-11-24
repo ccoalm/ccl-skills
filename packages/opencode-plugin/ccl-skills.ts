@@ -546,23 +546,14 @@ export const CclSkills = async (context: {
     return name.startsWith("test_") || name.endsWith(".test.sh")
   }
 
-  function visibleSkillEntries(dir: string, relDir: string) {
-    const names = readdirSync(dir).sort()
-    if (relDir !== "scripts") return names
-    // Bundled npm skills omit repo-only skill test scripts (`scripts/test_*`,
-    // `scripts/*.test.sh`), while a git source checkout or source-copy install
-    // retains them. Ignore only single-link regular non-symlink repo-test files
-    // in `scripts/` so symlinks, hardlinks, directories, references, and runtime
-    // scripts stay strict.
-    return names.filter((name) => {
-      if (!isRepoTestScriptName(name)) return true
-      try {
-        const st = lstatSync(join(dir, name))
-        return !st.isFile() || st.isSymbolicLink() || st.nlink !== 1
-      } catch {
-        return true
-      }
-    })
+  function isSingleLinkRegularRepoTest(dir: string, name: string) {
+    if (!isRepoTestScriptName(name)) return false
+    try {
+      const st = lstatSync(join(dir, name))
+      return st.isFile() && !st.isSymbolicLink() && st.nlink === 1
+    } catch {
+      return false
+    }
   }
 
   function sameSkillDirectory(loaded: string, active: string) {
@@ -573,7 +564,19 @@ export const CclSkills = async (context: {
       const copyStat = lstatSync(copy), ownerStat = lstatSync(owner)
       if (copyStat.isSymbolicLink() || ownerStat.isSymbolicLink()) return false
       if (copyStat.isDirectory() && ownerStat.isDirectory()) {
-        const copyNames = visibleSkillEntries(copy, relDir), ownerNames = visibleSkillEntries(owner, relDir)
+        const rawCopyNames = readdirSync(copy).sort(), rawOwnerNames = readdirSync(owner).sort()
+        const copySet = new Set(rawCopyNames), ownerSet = new Set(rawOwnerNames)
+        // Bundled npm skills omit repo-only skill test scripts (`scripts/test_*`,
+        // `scripts/*.test.sh`), while a git source checkout retains them. Skip
+        // single-link regular repo-test files ONLY when absent from the peer side;
+        // when present on both sides, still compare stat and bytes so tampered
+        // shared test scripts are rejected.
+        const copyNames = relDir === "scripts"
+          ? rawCopyNames.filter((name) => ownerSet.has(name) || !isSingleLinkRegularRepoTest(copy, name))
+          : rawCopyNames
+        const ownerNames = relDir === "scripts"
+          ? rawOwnerNames.filter((name) => copySet.has(name) || !isSingleLinkRegularRepoTest(owner, name))
+          : rawOwnerNames
         if (copyNames.length !== ownerNames.length || copyNames.some((name, index) => name !== ownerNames[index])) return false
         for (const name of ownerNames) pending.push([join(copy, name), join(owner, name), relDir ? `${relDir}/${name}` : name])
       } else if (!copyStat.isFile() || !ownerStat.isFile() || copyStat.size !== ownerStat.size || !readFileSync(copy).equals(readFileSync(owner))) return false

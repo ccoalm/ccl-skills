@@ -225,6 +225,17 @@ end
 if [[ "${CHECK_INSTALL_VISIBILITY:-0}" = "1" ]]; then
   visible_count=0
   IFS=: read -r -a host_skill_dirs <<< "${HOST_SKILL_DIRS:-${CODEX_HOME:-$HOME/.codex}/skills:$HOME/.claude/skills}"
+  if ! skill_names_out="$(ruby -ryaml -e '
+    ARGV.each do |r|
+      d = YAML.load(File.read(File.join(r, "SKILL.md"))) || {}
+      name = d.is_a?(Hash) ? d["name"].to_s.strip : ""
+      abort "missing_frontmatter_name: #{r}/SKILL.md" if name.empty?
+      puts name
+    end
+  ' "${roots[@]}")"; then
+    echo "install_visibility_scan_error" >&2
+    exit 2
+  fi
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
     for skill_home in "${host_skill_dirs[@]}"; do
@@ -238,7 +249,7 @@ if [[ "${CHECK_INSTALL_VISIBILITY:-0}" = "1" ]]; then
         fi
       fi
     done
-  done < <(ruby -ryaml -e 'ARGV.each { |r| puts YAML.load_file(File.join(r, "SKILL.md"))["name"] }' "${roots[@]}")
+  done <<<"$skill_names_out"
   if [[ "$visible_count" -eq 0 ]]; then
     echo "install_visibility_not_found"
   fi

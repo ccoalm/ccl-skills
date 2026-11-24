@@ -59,6 +59,7 @@ import os
 import sys
 
 root, table = sys.argv[1], sys.argv[2]
+real_root = os.path.realpath(root)
 table_base = os.path.basename(table)
 anchor_count = 0
 fail_count = 0
@@ -122,9 +123,27 @@ for idx, raw in enumerate(raw_lines):
         infra_count += 1
         continue
 
-    anchor_count += 1
+    rel_parts = rel_path.replace("\\", "/").split("/")
+    if os.path.isabs(rel_path) or rel_path.startswith("/") or ".." in rel_parts:
+        print(
+            f"contract_anchor_row_malformed: line {line_no} of {table} (path must stay relative inside root: {rel_path})",
+            file=sys.stderr,
+        )
+        infra_count += 1
+        continue
+
     target = os.path.join(root, rel_path)
-    if not os.path.isfile(target):
+    real_target = os.path.realpath(target)
+    if real_target == real_root or not real_target.startswith(real_root + os.sep):
+        print(
+            f"contract_anchor_row_malformed: line {line_no} of {table} (path escapes root: {rel_path})",
+            file=sys.stderr,
+        )
+        infra_count += 1
+        continue
+
+    anchor_count += 1
+    if not os.path.isfile(target) or os.path.islink(target):
         print(f"contract_anchor_file_missing: {anchor_id} {rel_path}", file=sys.stderr)
         print(
             f"  fix: restore the anchored file, or — for an intentional move/retirement — "

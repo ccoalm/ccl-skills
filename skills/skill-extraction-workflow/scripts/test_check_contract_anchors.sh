@@ -159,6 +159,21 @@ else
   note "ok M9-completeness"
 fi
 
+# M10 absolute and parent-traversal paths must fail closed (rc 2), never escape root
+make_fixture
+outside_doc="$tmp/outside-contract.md"
+printf 'Outside file carrying decided by exactly one discriminating predicate.\n' > "$outside_doc"
+printf '%s\t%s\t%s\t%s\n' "abs-escape" "$outside_doc" \
+  "decided by exactly one discriminating predicate" "abs row" > "$tmp/fx/anchors.tsv"
+run "$tmp/fx" "$tmp/fx/anchors.tsv"
+expect M10-abs 2 "$got_rc" "contract_anchor_row_malformed" "$got_out"
+
+make_fixture
+printf '%s\t%s\t%s\t%s\n' "dotdot-escape" "../outside-contract.md" \
+  "decided by exactly one discriminating predicate" "traversal row" > "$tmp/fx/anchors.tsv"
+run "$tmp/fx" "$tmp/fx/anchors.tsv"
+expect M10-dotdot 2 "$got_rc" "contract_anchor_row_malformed" "$got_out"
+
 # B1 benign neighbor: same line, outside the pinned span
 make_fixture
 perl -pi -e 's/predicate here\./predicate here, with a clarifying tail./' "$tmp/fx/docs/sample-contract.md"
