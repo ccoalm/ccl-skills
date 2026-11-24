@@ -22,6 +22,25 @@ SOURCE_EXTENSIONS = frozenset((
 EXTRACTION_OWNER = 'ccl-skills:skill-extraction-workflow'
 PRODUCT_WORKFLOW = 'ccl-skills:product-rd-workflow'
 STAGE_REFERENCES = ('references/stage-plan-and-design.md', 'references/stage-quality-and-landing.md')
+BASH_WRITE_HINT_RE = re.compile(
+    r'(?:^|[\s;&|<>()/])(?:mv|rm|tee|sed|perl|cp|install|ln|rsync|touch|truncate|unlink'
+    r'|bash|sh|zsh|python[0-9.]*|node|ruby)(?=$|[\s;&|<>()])'
+)
+
+
+def may_write_from_bash(command):
+    """Conservative over-approximation of host-input.bash_write_targets.
+
+    Returns False only when `command` provably cannot yield any write target in
+    host-input._segment (no redirects, no backslashes, and after stripping shell
+    quotes no write, shell, or interpreter command token).
+    """
+    if not isinstance(command, str) or not command or len(command) > 65536:
+        return False
+    if '\\' in command or '>' in command:
+        return True
+    unquoted = command.replace('"', '').replace("'", '')
+    return bool(BASH_WRITE_HINT_RE.search(unquoted))
 
 
 def shared_skill_paths(paths, cwd):
@@ -179,14 +198,21 @@ def handle(payload, base):
         return base
     event = payload.get('hook_event_name')
     tool = payload.get('tool_name')
-    module = normalizer()
+    _module = None
+
+    def get_normalizer():
+        nonlocal _module
+        if _module is None:
+            _module = normalizer()
+        return _module
+
     shell = False
     if event in ('PreCompact', 'PostCompact'):
         lane = 'compact'
     elif event == 'PreToolUse' and tool in ('Task', 'Agent', 'spawn_agent'):
         lane = 'delegation'
     elif event == 'PreToolUse' and tool in ('Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'apply_patch'):
-        parsed = module.paths(payload)
+        parsed = get_normalizer().paths(payload)
         if parsed['malformed_patch']:
             return base
         edit_cwd = payload.get('cwd') if isinstance(payload.get('cwd'), str) else os.getcwd()
@@ -202,8 +228,10 @@ def handle(payload, base):
         # because a false positive would spend the context's single attempt.
         args = payload.get('tool_input')
         command = args.get('command') if isinstance(args, dict) else None
+        if not may_write_from_bash(command):
+            return base
         edit_cwd = payload.get('cwd') if isinstance(payload.get('cwd'), str) else os.getcwd()
-        shared = [path for path in shared_skill_paths(module.bash_write_targets(command, edit_cwd), edit_cwd)
+        shared = [path for path in shared_skill_paths(get_normalizer().bash_write_targets(command, edit_cwd), edit_cwd)
                   if Path(path).suffix.lower() in SOURCE_EXTENSIONS or Path(path).suffix.lower() == '.md']
         if not shared:
             return base
@@ -220,7 +248,7 @@ def handle(payload, base):
             if event == 'PreCompact':
                 # Snapshot only: a cancelled/failed compaction must not reset
                 # checkpoints or invalidate instructions still in context.
-                summary = module.context_transcript(path, cwd)
+                summary = get_normalizer().context_transcript(path, cwd)
                 state.save('precompact.json', info, summary.get('context_id'))
             else:
                 before = state.read('precompact.json')
@@ -244,8 +272,8 @@ def handle(payload, base):
             offset = record['offset']
         # Establish the boundary before reading proof. The reverse order can
         # combine delayed old reads with a boundary appended between snapshots.
-        latest = module.context_transcript(path, cwd).get('context_id') if record else None
-        summary = module.context_transcript(path, cwd, start_offset=offset)
+        latest = get_normalizer().context_transcript(path, cwd).get('context_id') if record else None
+        summary = get_normalizer().context_transcript(path, cwd, start_offset=offset)
         current_info = regular_info(path)
         if ((info.st_dev, info.st_ino) != (current_info.st_dev, current_info.st_ino)
                 or current_info.st_size < info.st_size):

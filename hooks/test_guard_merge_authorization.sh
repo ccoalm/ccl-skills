@@ -1073,6 +1073,51 @@ rm -f "$VAUTH_DIR/$VSID"
 probe_sid deny "$FEAT_CWD" "$VSID" 'gh pr merge 45 --merge --help'
 sentinel_state absent 'a help probe without a grant creates nothing'
 
+# Lazy git-context loading: ordinary non-landing commands (including git status,
+# git diff, git checkout -b, pytest, ls, gh pr view) must spawn ZERO git child
+# processes, while git push/merge/pull and unset-origin/HEAD degrade warnings
+# still resolve the repo context on demand.
+git_shim_dir="$tmp/git-count-shim"
+git_count_file="$tmp/git-count.log"
+real_git="$(command -v git)"
+mkdir -p "$git_shim_dir"
+cat > "$git_shim_dir/git" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$git_count_file"
+exec "$real_git" "\$@"
+EOF
+chmod +x "$git_shim_dir/git"
+
+for quiet_cmd in \
+  'ls -la' \
+  'pytest -q' \
+  'git status --short' \
+  'git diff HEAD' \
+  'git checkout -b ccoalm/another-branch' \
+  'gh pr view 45'; do
+  : > "$git_count_file"
+  out_q=$(jq -nc --arg c "$quiet_cmd" --arg w "$FEAT_CWD" --arg s "quiet-sid" \
+    '{tool_input:{command:$c},cwd:$w,session_id:$s}' | PATH="$git_shim_dir:$PATH" TMPDIR="$tmp" bash "$GUARD")
+  cnt_q=$(wc -l < "$git_count_file" | tr -d ' ')
+  if [ "$cnt_q" -eq 0 ] && ! printf '%s' "$out_q" | grep -q '"permissionDecision":"deny"'; then
+    pass=$((pass+1))
+  else
+    fail=$((fail+1))
+    echo "FAIL lazy git context: '$quiet_cmd' spawned $cnt_q git processes (expected 0), out=$out_q" >&2
+  fi
+done
+
+: > "$git_count_file"
+out_push=$(jq -nc --arg c 'git push origin feat' --arg w "$FEAT_CWD" --arg s "push-sid" \
+  '{tool_input:{command:$c},cwd:$w,session_id:$s}' | PATH="$git_shim_dir:$PATH" TMPDIR="$tmp" bash "$GUARD")
+cnt_push=$(wc -l < "$git_count_file" | tr -d ' ')
+if [ "$cnt_push" -gt 0 ] && ! printf '%s' "$out_push" | grep -q '"permissionDecision":"deny"'; then
+  pass=$((pass+1))
+else
+  fail=$((fail+1))
+  echo "FAIL lazy git context: 'git push origin feat' expected >0 git spawns and allow, got cnt=$cnt_push out=$out_push" >&2
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "test_guard_merge_authorization: FAIL pass=$pass fail=$fail" >&2
   exit 1

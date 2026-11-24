@@ -1462,7 +1462,11 @@ def stop(agy, deadline):
     if ctx['turn_id']:
         data['turn_id'] = ctx['turn_id']
     reasons = []
+    entrypoint = os.environ.get('CLAUDE_CODE_ENTRYPOINT', '')
+    sdk_entrypoint = entrypoint == 'sdk' or entrypoint.startswith('sdk-')
     for script in DISPATCH['Stop']:
+        if script == 'headless-background-stop.sh' and not sdk_entrypoint:
+            continue
         status, out = run_hook(script, data, ctx['cwd'], deadline, STOP_CAPS.get(script, 5))
         text = out.get('reason')
         if status == 'ok' and out.get('decision') == 'block' and isinstance(text, str) and text.strip():

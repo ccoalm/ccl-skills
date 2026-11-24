@@ -221,7 +221,7 @@ def resolve_target(raw: str) -> str:
     return LOCATOR_RE.sub("", without_fragment).rstrip("/")
 
 
-def escapes_root(root: Path, target: str) -> bool:
+def escapes_root(root: Path, target: str, resolved_root: Path | None = None) -> bool:
     """True when the citation resolves outside the repository.
 
     A citation like specs/../../etc/passwd starts with the prefix but leaves the
@@ -232,7 +232,7 @@ def escapes_root(root: Path, target: str) -> bool:
     """
     try:
         resolved = (root / target).resolve()
-        resolved.relative_to(root.resolve())
+        resolved.relative_to(root.resolve() if resolved_root is None else resolved_root)
     except (ValueError, OSError, RuntimeError):
         # RuntimeError covers the symlink-loop shape older Pythons raise from
         # resolve(); an unresolvable target is treated as escaping, never as
@@ -244,6 +244,9 @@ def escapes_root(root: Path, target: str) -> bool:
 def waiver_can_apply_to_target(target: str, escaped: bool) -> bool:
     """Use one target-domain predicate for application and liveness."""
     return bool(target) and not escaped
+
+
+_DEFAULT_ESCAPES_ROOT = escapes_root
 
 
 def owning_repository_root() -> Path:
@@ -287,13 +290,14 @@ def broken_spec_references(
     # omitted the optional table argument. Passing the shipped table explicitly
     # must not turn deletion or untracking into a way to void its guard. Custom
     # entries remain inert on absence, as do all entries against a foreign corpus.
+    resolved_root = root.resolve()
     required_waiver_keys = (
         {
             key
             for key in waivers
             if key in LEDGER_CITATION_WAIVERS
         }
-        if root.resolve() == owning_repository_root()
+        if resolved_root == owning_repository_root()
         else set()
     )
     # Per waived PATH, the union of every (line number, digest) pin written for
@@ -302,6 +306,26 @@ def broken_spec_references(
     pins_by_path: dict[str, set[tuple[int, str]]] = {}
     for (path, _token), (_reason, pins) in waivers.items():
         pins_by_path.setdefault(path, set()).update(pins)
+    # Memoize per-target filesystem existence and root-containment checks across
+    # repeated citations (e.g. one `<slug>/plan.md` under specs/ cited across rows).
+    target_cache: dict[str, tuple[bool, bool]] = {}
+
+    def check_target(target_path: str) -> tuple[bool, bool]:
+        cached = target_cache.get(target_path)
+        if cached is not None:
+            return cached
+        try:
+            resolves_now = (root / target_path).exists()
+        except OSError:
+            resolves_now = False
+        escaped_now = (
+            escapes_root(root, target_path, resolved_root)
+            if escapes_root is _DEFAULT_ESCAPES_ROOT
+            else escapes_root(root, target_path)
+        )
+        verdict = (resolves_now, escaped_now)
+        target_cache[target_path] = verdict
+        return verdict
     # A pin is "seen" when its line is found at its pinned number AND that line
     # actually carries the token the waiver names. Not when a finding is waived:
     # if the citation ever started resolving on its own the waiver would become
@@ -340,12 +364,20 @@ def broken_spec_references(
         # failure and fails the run instead of being skipped -- an unscannable
         # file means the verdict does not cover the corpus it claims to.
         try:
-            text = path.read_bytes().decode("utf-8", errors="surrogateescape")
+            raw_bytes = path.read_bytes()
         except OSError as error:
             unreadable.append((name, str(error)))
             continue
         if pins_here is not None:
             scanned_waived_paths.add(name)
+        if b"`specs/" not in raw_bytes:
+            # Every `CITATION_RE` match begins with the ASCII literal `` `specs/ ``,
+            # which encodes 1-to-1 in UTF-8 / surrogateescape. Recording waived paths
+            # in `scanned_waived_paths` first ensures an edited waived file lacking
+            # `` `specs/ `` still fails closed as stale, while skipping line/digest
+            # work whenever zero citations can match.
+            continue
+        text = raw_bytes.decode("utf-8", errors="surrogateescape")
         # keepends: the digest has to cover the terminator, so the split must
         # keep it. `stored.splitlines()[0]` recovers exactly the line the scan
         # used before, including for the exotic separators splitlines() honours.
@@ -374,7 +406,8 @@ def broken_spec_references(
                             and pin in entry_pins
                             and waived_token in tokens_on_line
                             and waiver_can_apply_to_target(
-                                waived_target, escapes_root(root, waived_target)
+                                waived_target,
+                                check_target(waived_target)[1] if waived_target else True,
                             )
                         ):
                             seen_pins.add((waived_path, waived_token, pin))
@@ -391,11 +424,7 @@ def broken_spec_references(
                 # raised ENAMETOOLONG and crashed this mandatory gate mid-run.
                 # Fail CLOSED: a target that cannot even be interrogated has not
                 # been shown to resolve.
-                try:
-                    resolves = (root / target).exists()
-                except OSError:
-                    resolves = False
-                escaped = escapes_root(root, target)
+                resolves, escaped = check_target(target)
                 if escaped or not resolves:
                     token = raw.strip()
                     entry = waivers.get((name, token))

@@ -93,7 +93,7 @@ if [[ ! -d "$root/skills" ]]; then
   exit 0
 fi
 
-ruby -e '# encoding: UTF-8
+ruby -rdigest -e '# encoding: UTF-8
 begin
 root = ARGV.fetch(0)
 size_state = "ok"
@@ -169,8 +169,16 @@ def git_text(*args, root:)
   IO.popen(["git", "-C", root, *args], err: File::NULL, &:read)
 end
 
-def resolve_base(root)
-  return [nil, "not-a-git-worktree"] unless git_success?("rev-parse", "--is-inside-work-tree", root: root)
+def git_worktree_root?(root)
+  toplevel = IO.popen(["git", "-C", root, "rev-parse", "--show-toplevel"], err: File::NULL, &:read).chomp("\n")
+  return false unless $?.success? && !toplevel.empty? && File.directory?(toplevel)
+  File.realpath(root) == File.realpath(toplevel)
+rescue StandardError
+  false
+end
+
+def resolve_base(root, is_git:)
+  return [nil, "not-a-git-worktree"] unless is_git
 
   candidates = []
   env_base = ENV.fetch("CCL_SKILL_BASE_REF", "").strip
@@ -191,24 +199,85 @@ rescue StandardError => e
   [nil, "#{e.class.name}:#{e.message.lines.first.to_s.strip}"]
 end
 
-def base_skill_metrics(root, base)
-  paths = git_lines("ls-tree", "-r", "--name-only", base, "--", "skills", root: root).grep(%r{\Askills/[^/]+/SKILL\.md\z})
+def load_base_tree_oids(root, base)
+  raw = IO.popen(["git", "-C", root, "ls-tree", "--full-tree", "-r", "-z", base, "--", "skills", "agent-context/session-start.md"], "rb", err: File::NULL, &:read)
+  raise "git ls-tree exited #{$?.exitstatus}" unless $?.success?
+  oids = {}
+  raw.split("\0").each do |entry|
+    next if entry.empty?
+    meta, rel = entry.split("\t", 2)
+    next unless meta && rel
+    _mode, type, oid = meta.split(" ")
+    oids[rel] = oid if type == "blob" && oid
+  end
+  oids
+end
+
+def load_base_blobs(root, oids)
+  unique = oids.compact.uniq
+  return {} if unique.empty?
+  blobs = {}
+  IO.popen(["git", "-C", root, "cat-file", "--batch"], "r+b", err: File::NULL) do |io|
+    unique.each { |oid| io.write("#{oid}\n") }
+    io.close_write
+    unique.each do |req_oid|
+      header = io.gets("\n")
+      raise "unexpected EOF from git cat-file --batch for #{req_oid}" unless header
+      parts = header.chomp("\n").split(" ")
+      next if parts[1] == "missing"
+      size = Integer(parts.fetch(2))
+      data = size.zero? ? "".b : io.read(size)
+      raise "short read from git cat-file --batch for #{req_oid}" if data.nil? || data.bytesize != size
+      io.read(1)
+      blobs[parts[0]] = data
+    end
+  end
+  raise "git cat-file --batch exited #{$?.exitstatus}" unless $?.success?
+  blobs
+end
+
+def base_blob_for_path(root, base, rel, base_oids, blob_cache, head_raw_by_rel, head_sha1_by_rel)
+  return :unknown if base.nil? || base_oids.nil?
+  oid = base_oids[rel]
+  return :missing unless oid
+  return head_raw_by_rel[rel] if head_sha1_by_rel[rel] == oid && head_raw_by_rel.key?(rel)
+  unless blob_cache.key?(oid)
+    fetched = load_base_blobs(root, [oid])
+    return :missing unless fetched.key?(oid)
+    blob_cache[oid] = fetched[oid]
+  end
+  blob_cache[oid]
+end
+
+def base_skill_metrics(root, base_oids, blob_cache, head_metrics, head_sha1_by_rel)
+  skill_rels = base_oids.keys.grep(%r{\Askills/[^/]+/SKILL\.md\z})
+  missing_oids = []
+  skill_rels.each do |rel|
+    oid = base_oids[rel]
+    missing_oids << oid unless head_sha1_by_rel[rel] == oid || blob_cache.key?(oid)
+  end
+  blob_cache.merge!(load_base_blobs(root, missing_oids)) unless missing_oids.empty?
   metrics = {}
-  paths.each do |rel|
-    text = git_text("show", "#{base}:#{rel}", root: root)
-    next if text.empty? && !git_success?("cat-file", "-e", "#{base}:#{rel}", root: root)
-    metrics[rel] = metric_for_text(text)
+  skill_rels.each do |rel|
+    oid = base_oids[rel]
+    if head_sha1_by_rel[rel] == oid && head_metrics.key?(rel)
+      metrics[rel] = head_metrics[rel]
+    elsif blob_cache.key?(oid)
+      metrics[rel] = metric_for_text(blob_cache[oid])
+    end
   end
   metrics
 end
 
-def base_metric_for_path(root, base, rel)
+def base_metric_for_path(root, base, rel, base_oids, blob_cache, head_raw_by_rel, head_sha1_by_rel, base_metrics)
   return :unknown if base.nil?
-  return :missing unless git_success?("cat-file", "-e", "#{base}:#{rel}", root: root)
-  metric_for_text(git_text("show", "#{base}:#{rel}", root: root))
+  return base_metrics[rel] if base_metrics && base_metrics.key?(rel)
+  raw = base_blob_for_path(root, base, rel, base_oids, blob_cache, head_raw_by_rel, head_sha1_by_rel)
+  raw.is_a?(Symbol) ? raw : metric_for_text(raw)
 end
 
-def head_metric_for_path(root, rel)
+def head_metric_for_path(root, rel, head_metrics = nil)
+  return head_metrics[rel] if head_metrics && head_metrics.key?(rel)
   full = File.join(root, rel)
   return :missing unless File.file?(full)
   metric_for_file(full)
@@ -225,10 +294,10 @@ def ref_info_for_text(raw)
   { lines: lines.length, headings: lines.count { |l| l.match?(/\A##[ \t]/) } }
 end
 
-def base_ref_info_for_path(root, base, rel)
+def base_ref_info_for_path(root, base, rel, base_oids, blob_cache, head_raw_by_rel, head_sha1_by_rel)
   return :unknown if base.nil?
-  return :missing unless git_success?("cat-file", "-e", "#{base}:#{rel}", root: root)
-  ref_info_for_text(git_text("show", "#{base}:#{rel}", root: root))
+  raw = base_blob_for_path(root, base, rel, base_oids, blob_cache, head_raw_by_rel, head_sha1_by_rel)
+  raw.is_a?(Symbol) ? raw : ref_info_for_text(raw)
 end
 
 def head_ref_info_for_path(root, rel)
@@ -267,9 +336,14 @@ end
 skill_files = Dir[File.join(root, "skills", "*", "SKILL.md")].sort
 severe_lines = []
 head_metrics = {}
+head_raw_by_rel = {}
+head_sha1_by_rel = {}
 skill_files.each do |path|
   rel = path.start_with?(root + "/") ? path[(root.length + 1)..] : path.sub(%r{\A\./}, "")
-  metric = metric_for_file(path)
+  raw = File.binread(path)
+  head_raw_by_rel[rel] = raw
+  head_sha1_by_rel[rel] = Digest::SHA1.hexdigest("blob #{raw.bytesize}\0#{raw}")
+  metric = metric_for_text(raw)
   head_metrics[rel] = metric
   if metric.bytes > 50000
     severe_lines << "  entrypoint_size_severe_debt: #{rel} bytes=#{metric.bytes} hard_advisory_max=50000"
@@ -279,12 +353,18 @@ head_debt_count = debt_count(head_metrics.values)
 head_severe_count = severe_count(head_metrics.values)
 head_word_over_limit_count = word_over_limit_count(head_metrics.values)
 
-base, base_source = resolve_base(root)
+is_git = git_worktree_root?(root)
+base, base_source = resolve_base(root, is_git: is_git)
+base_oids = nil
+blob_cache = {}
 base_metrics = nil
 if base
   begin
-    base_metrics = base_skill_metrics(root, base)
+    base_oids = load_base_tree_oids(root, base)
+    base_metrics = base_skill_metrics(root, base_oids, blob_cache, head_metrics, head_sha1_by_rel)
   rescue StandardError => e
+    base_oids = nil
+    base_metrics = nil
     warn "entrypoint_size_trend_partial: base=unknown reason=#{e.class.name} #{e.message.lines.first.to_s.strip}"
   end
 else
@@ -295,43 +375,44 @@ base_debt_count = base_metrics ? debt_count(base_metrics.values) : nil
 base_severe_count = base_metrics ? severe_count(base_metrics.values) : nil
 base_word_over_limit_count = base_metrics ? word_over_limit_count(base_metrics.values) : nil
 
-# --- changed skills/*/SKILL.md (diff-scoped; same detection shape the validator
-#     uses elsewhere) get a STABLE per-file token at edit time ----------------
+# --- changed skills/** and agent-context/session-start.md (single shared diff scan) ---
 changed = []
-begin
-  if system("git", "-C", root, "rev-parse", "--is-inside-work-tree", out: File::NULL, err: File::NULL)
-    paths = []
-    paths.concat(git_lines("diff", "--name-only", base, "HEAD", "--", "skills/*/SKILL.md", root: root)) if base
-    paths.concat(git_lines("diff", "--name-only", "--", "skills/*/SKILL.md", root: root))
-    paths.concat(git_lines("diff", "--cached", "--name-only", "--", "skills/*/SKILL.md", root: root))
-    paths.concat(git_lines("ls-files", "--others", "--exclude-standard", "--", "skills/*/SKILL.md", root: root))
-    changed = paths.map { |p| p[%r{\Askills/[^/]+/SKILL\.md\z}] }.compact.uniq
-  end
-rescue StandardError => e
-  warn "changed_entrypoint_size_scan_skipped: #{e.class.name} #{e.message.lines.first.to_s.strip}"
-end
-# agent-context/session-start.md gets the same changed-detection shape (committed vs base, staged,
-# unstaged, untracked) for its own net-growth delta verdict below. A probe
-# failure must not silently read as "unchanged" — that would false-green a real
-# growth on the newly-blocking rule, so it fails closed as a partial below.
 bootstrap_changed = false
 bootstrap_scan_error = nil
+ref_changed = []
+ref_scan_error = nil
 begin
-  if system("git", "-C", root, "rev-parse", "--is-inside-work-tree", out: File::NULL, err: File::NULL)
-    bpaths = []
-    bpaths.concat(git_lines("diff", "--name-only", base, "HEAD", "--", "agent-context/session-start.md", root: root)) if base
-    bpaths.concat(git_lines("diff", "--name-only", "--", "agent-context/session-start.md", root: root))
-    bpaths.concat(git_lines("diff", "--cached", "--name-only", "--", "agent-context/session-start.md", root: root))
-    bpaths.concat(git_lines("ls-files", "--others", "--exclude-standard", "--", "agent-context/session-start.md", root: root))
-    bootstrap_changed = bpaths.include?("agent-context/session-start.md")
+  if is_git
+    all_paths = []
+    all_paths.concat(git_lines("diff", "--name-only", base, "HEAD", "--", "skills", "agent-context/session-start.md", root: root)) if base
+    all_paths.concat(git_lines("diff", "--name-only", "--", "skills", "agent-context/session-start.md", root: root))
+    all_paths.concat(git_lines("diff", "--cached", "--name-only", "--", "skills", "agent-context/session-start.md", root: root))
+    all_paths.concat(git_lines("ls-files", "--others", "--exclude-standard", "--", "skills", "agent-context/session-start.md", root: root))
+    changed = all_paths.map { |p| p[%r{\Askills/[^/]+/SKILL\.md\z}] }.compact.uniq
+    bootstrap_changed = all_paths.include?("agent-context/session-start.md")
+    ref_changed = all_paths.select { |p| p.match?(REF_PATH_RE) }.reject { |p| p.match?(REF_LEDGER_RE) }.uniq
   end
 rescue StandardError => e
-  bootstrap_scan_error = "#{e.class.name} #{e.message.lines.first.to_s.strip}"
-  warn "changed_bootstrap_size_scan_skipped: #{bootstrap_scan_error}"
+  err_msg = "#{e.class.name} #{e.message.lines.first.to_s.strip}"
+  bootstrap_scan_error = err_msg
+  ref_scan_error = err_msg
+  warn "changed_entrypoint_size_scan_skipped: #{err_msg}"
+  warn "changed_bootstrap_size_scan_skipped: #{err_msg}"
+  warn "changed_reference_line_scan_skipped: #{err_msg}"
 end
+
+# Pre-batch any base blobs needed by changed SKILL.md, bootstrap, or changed references.
+if base && base_oids
+  needed = []
+  (changed + ref_changed + (bootstrap_changed ? ["agent-context/session-start.md"] : [])).each do |rel|
+    oid = base_oids[rel]
+    needed << oid if oid && head_sha1_by_rel[rel] != oid && !blob_cache.key?(oid)
+  end
+  blob_cache.merge!(load_base_blobs(root, needed)) unless needed.empty?
+end
+
 changed.sort.each do |rel|
-  full = File.join(root, rel)
-  head_metric = head_metric_for_path(root, rel)
+  head_metric = head_metric_for_path(root, rel, head_metrics)
   if head_metric.is_a?(Metric)
     if head_metric.body_chars > 5000
       puts "changed_entrypoint_above_recommended: #{rel} body_chars=#{head_metric.body_chars} recommended_max=5000"
@@ -339,7 +420,7 @@ changed.sort.each do |rel|
       puts "changed_entrypoint_below_recommended: #{rel} body_chars=#{head_metric.body_chars} recommended_min=1000 verify_trigger_owner_hardstop_pointer_do_not_pad"
     end
   end
-  base_metric = base_metric_for_path(root, base, rel)
+  base_metric = base_metric_for_path(root, base, rel, base_oids, blob_cache, head_raw_by_rel, head_sha1_by_rel, base_metrics)
   puts "changed_entrypoint_size_delta: #{rel} base_body_chars=#{fmt_metric_value(base_metric, :body_chars)} head_body_chars=#{fmt_metric_value(head_metric, :body_chars)} delta_body_chars=#{fmt_delta(base_metric, head_metric, :body_chars)} base_bytes=#{fmt_metric_value(base_metric, :bytes)} head_bytes=#{fmt_metric_value(head_metric, :bytes)} delta_bytes=#{fmt_delta(base_metric, head_metric, :bytes)}"
   puts "changed_entrypoint_word_delta: #{rel} base_body_words=#{fmt_metric_value(base_metric, :body_words)} head_body_words=#{fmt_metric_value(head_metric, :body_words)} delta_body_words=#{fmt_delta(base_metric, head_metric, :body_words)}"
 end
@@ -373,25 +454,30 @@ puts "size_budget_visibility_note: counts above are visibility/debt-management o
 # file also grew (move+growth blocks as severe growth). `changed` collapses
 # renames into the new path only, so R pairs are gathered from --name-status.
 move_map = {}
+ref_move_map = {}
 begin
-  if system("git", "-C", root, "rev-parse", "--is-inside-work-tree", out: File::NULL, err: File::NULL)
+  if is_git && (!changed.empty? || !ref_changed.empty?)
     status_args = []
     status_args << ["diff", "--name-status", base, "HEAD"] if base
     status_args << ["diff", "--name-status", "--cached"]
     status_args << ["diff", "--name-status"]
     status_args.each do |cmd|
-      git_lines(*cmd, "--", "skills/*/SKILL.md", root: root).each do |line|
+      git_lines(*cmd, "--", "skills", root: root).each do |line|
         status, *paths = line.split("	")
         next unless status.start_with?("R") && paths.length >= 2
         next unless status[1..].to_i >= 90
-        old_rel = paths[0][%r{\Askills/[^/]+/SKILL\.md\z}]
-        new_rel = paths[1][%r{\Askills/[^/]+/SKILL\.md\z}]
-        move_map[new_rel] = old_rel if old_rel && new_rel
+        old_skill = paths[0][%r{\Askills/[^/]+/SKILL\.md\z}]
+        new_skill = paths[1][%r{\Askills/[^/]+/SKILL\.md\z}]
+        move_map[new_skill] = old_skill if old_skill && new_skill
+        old_ref = paths[0].match?(REF_PATH_RE) ? paths[0] : nil
+        new_ref = paths[1].match?(REF_PATH_RE) ? paths[1] : nil
+        ref_move_map[new_ref] = old_ref if old_ref && new_ref
       end
     end
   end
 rescue StandardError => e
   warn "move_pair_scan_skipped: #{e.class.name}"
+  warn "reference_move_pair_scan_skipped: #{e.class.name}"
 end
 
 blocks = []
@@ -401,7 +487,7 @@ word_partials = []
 partials << "agent-context/session-start.md: changed-detection failed (#{bootstrap_scan_error}) — net-growth check unavailable (fail-closed)" if bootstrap_scan_error && File.file?(File.join(root, "agent-context/session-start.md"))
 changed.sort.each do |rel|
   begin
-    head_metric = head_metric_for_path(root, rel)
+    head_metric = head_metric_for_path(root, rel, head_metrics)
   rescue StandardError => e
     partials << "#{rel}: head metric unreadable (#{e.class.name}) — size check unavailable (fail-closed)"
     next
@@ -411,14 +497,14 @@ changed.sort.each do |rel|
     partials << "#{rel}: head metric unavailable (#{head_metric}) — size check unavailable (fail-closed)"
     next
   end
-  base_metric = base_metric_for_path(root, base, rel)
+  base_metric = base_metric_for_path(root, base, rel, base_oids, blob_cache, head_raw_by_rel, head_sha1_by_rel, base_metrics)
 
   if head_metric.body_words > WORD_BUDGET_MAX
     if base_metric == :unknown
       word_partials << "#{rel}: base unknown — historical word allowance unavailable (fail-closed)"
     elsif base_metric == :missing || base_metric.body_words <= WORD_BUDGET_MAX
       source_rel = move_map[rel]
-      source_metric = source_rel ? base_metric_for_path(root, base, source_rel) : nil
+      source_metric = source_rel ? base_metric_for_path(root, base, source_rel, base_oids, blob_cache, head_raw_by_rel, head_sha1_by_rel, base_metrics) : nil
       if source_metric.is_a?(Metric) && source_metric.body_words > WORD_BUDGET_MAX
         if head_metric.body_words <= source_metric.body_words
           puts "entrypoint_word_budget_move_ok: #{rel} head_body_words=#{head_metric.body_words} allowed_body_words=#{source_metric.body_words} moved_from=#{source_rel}"
@@ -440,7 +526,7 @@ changed.sort.each do |rel|
       partials << "#{rel}: base unknown — severe-growth check unavailable (fail-closed)"
     elsif base_metric == :missing || base_metric.bytes <= 50000
       source_rel = move_map[rel]
-      source_metric = source_rel ? base_metric_for_path(root, base, source_rel) : nil
+      source_metric = source_rel ? base_metric_for_path(root, base, source_rel, base_oids, blob_cache, head_raw_by_rel, head_sha1_by_rel, base_metrics) : nil
       if source_metric.is_a?(Metric) && source_metric.bytes > 50000 && head_metric.bytes <= source_metric.bytes
         puts "entrypoint_size_move_ok: #{rel} bytes=#{head_metric.bytes} — moved from #{source_rel} without growing"
       else
@@ -464,20 +550,7 @@ if bootstrap_changed
     :unreadable
   end
   if b_head.is_a?(Metric)
-    # The baseline is the SAME path at base, and nothing else. There is
-    # deliberately no way to nominate a different file as the yardstick: any such
-    # mechanism is a way for the candidate to choose its own budget. Relocating
-    # the always-on layer therefore reads as a new every-session injection and
-    # blocks — that is intended, not a gap. A relocation is a rare, deliberate,
-    # human-reviewed event; letting it through automatically costs more than it
-    # saves, and two rounds of independent review plus adversarial challenge
-    # broke every automatic recogniser tried here: git rename pairing (similarity
-    # is not identity, so an unrelated blob can be imported as the baseline), and
-    # parsing the BOOTSTRAP assignment out of the hook (export, eval, and
-    # same-line overrides defeat any regex; shell is not safely readable by one).
-    # NOTE: no apostrophes in this block — the whole program is a single-quoted
-    # shell string, so one would terminate it and break the script.
-    b_base = base_metric_for_path(root, base, "agent-context/session-start.md")
+    b_base = base_metric_for_path(root, base, "agent-context/session-start.md", base_oids, blob_cache, head_raw_by_rel, head_sha1_by_rel, base_metrics)
     puts "changed_bootstrap_size_delta: agent-context/session-start.md base_bytes=#{fmt_metric_value(b_base, :bytes)} head_bytes=#{fmt_metric_value(b_head, :bytes)} delta_bytes=#{fmt_delta(b_base, b_head, :bytes)}"
     if b_base == :unknown
       partials << "agent-context/session-start.md: base unknown — every-session-injection growth check unavailable (fail-closed)"
@@ -500,46 +573,9 @@ end
 # exemption.
 ref_blocks = []
 ref_partials = []
-ref_changed = []
-ref_scan_error = nil
-begin
-  if system("git", "-C", root, "rev-parse", "--is-inside-work-tree", out: File::NULL, err: File::NULL)
-    rpaths = []
-    rpaths.concat(git_lines("diff", "--name-only", base, "HEAD", "--", "skills", root: root)) if base
-    rpaths.concat(git_lines("diff", "--name-only", "--", "skills", root: root))
-    rpaths.concat(git_lines("diff", "--cached", "--name-only", "--", "skills", root: root))
-    rpaths.concat(git_lines("ls-files", "--others", "--exclude-standard", "--", "skills", root: root))
-    ref_changed = rpaths.select { |p| p.match?(REF_PATH_RE) }.reject { |p| p.match?(REF_LEDGER_RE) }.uniq
-  end
-rescue StandardError => e
-  ref_scan_error = "#{e.class.name} #{e.message.lines.first.to_s.strip}"
-  warn "changed_reference_line_scan_skipped: #{ref_scan_error}"
-end
 # A scan failure must not silently read as "no references changed" — that would
 # false-green a real growth, so it fails closed as a partial.
 ref_partials << "skills/*/references: changed-detection failed (#{ref_scan_error}) — line-budget check unavailable (fail-closed)" if ref_scan_error
-
-ref_move_map = {}
-begin
-  if system("git", "-C", root, "rev-parse", "--is-inside-work-tree", out: File::NULL, err: File::NULL)
-    status_args = []
-    status_args << ["diff", "--name-status", base, "HEAD"] if base
-    status_args << ["diff", "--name-status", "--cached"]
-    status_args << ["diff", "--name-status"]
-    status_args.each do |cmd|
-      git_lines(*cmd, "--", "skills", root: root).each do |line|
-        status, *paths = line.split("\t")
-        next unless status.start_with?("R") && paths.length >= 2
-        next unless status[1..].to_i >= 90
-        old_rel = paths[0].match?(REF_PATH_RE) ? paths[0] : nil
-        new_rel = paths[1].match?(REF_PATH_RE) ? paths[1] : nil
-        ref_move_map[new_rel] = old_rel if old_rel && new_rel
-      end
-    end
-  end
-rescue StandardError => e
-  warn "reference_move_pair_scan_skipped: #{e.class.name}"
-end
 
 # The census is visibility only, so an unreadable or vanished file must degrade the
 # COUNTER to unknown rather than abort the program: aborting here would skip the
@@ -607,7 +643,7 @@ ref_changed.sort.each do |rel|
     next
   end
   next if head_info == :missing # deleted reference: nothing left to gate
-  base_info = base_ref_info_for_path(root, base, rel)
+  base_info = base_ref_info_for_path(root, base, rel, base_oids, blob_cache, head_raw_by_rel, head_sha1_by_rel)
   puts "changed_reference_line_delta: #{rel} base_lines=#{fmt_ref_value(base_info)} head_lines=#{head_info[:lines]} delta_lines=#{fmt_ref_delta(base_info, head_info)}"
   if base_info == :missing && head_info[:lines] > REF_NAV_MIN_LINES && head_info[:headings].zero?
     warn "reference_nav_advisory: #{rel} lines=#{head_info[:lines]} headings=0 — a new reference over #{REF_NAV_MIN_LINES} lines needs ## section structure so chunked reads and greps can navigate (advisory, never blocks)"
@@ -617,7 +653,7 @@ ref_changed.sort.each do |rel|
     ref_partials << "#{rel}: base unknown — reference line-budget check unavailable (fail-closed)"
   elsif base_info == :missing || base_info[:lines] <= REF_LINE_MAX
     source_rel = ref_move_map[rel]
-    source_info = source_rel ? base_ref_info_for_path(root, base, source_rel) : nil
+    source_info = source_rel ? base_ref_info_for_path(root, base, source_rel, base_oids, blob_cache, head_raw_by_rel, head_sha1_by_rel) : nil
     if source_info.is_a?(Hash) && source_info[:lines] > REF_LINE_MAX && head_info[:lines] <= source_info[:lines]
       puts "reference_line_budget_move_ok: #{rel} head_lines=#{head_info[:lines]} allowed_lines=#{source_info[:lines]} moved_from=#{source_rel}"
     else

@@ -17,3 +17,4 @@ Validation:
 
 - `bash skills/skill-extraction-workflow/scripts/check-ccl-skills.sh .`
 - `bash skills/skill-extraction-workflow/scripts/test_check_evidence_card_leak_cache.sh`
+- `bash skills/skill-extraction-workflow/scripts/test_generic_r0_leak_scan.sh`

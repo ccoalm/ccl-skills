@@ -1754,6 +1754,45 @@ class HotpathCacheTests(BridgeCase):
         finally:
             bridge.os.write = real_write
 
+    def test_stop_skips_inert_headless_background_hook_unless_claude_sdk_entrypoint(self):
+        bridge = load_bridge()
+        self.assertIn('headless-background-stop.sh', bridge.DISPATCH['Stop'])
+        invoked = []
+        real_run_hook = bridge.run_hook
+
+        def spy_run_hook(script, data, cwd, deadline, cap=None):
+            invoked.append(script)
+            return 'ok', {}
+
+        stop_payload = {
+            'conversationId': 'stop-headless-skip',
+            'hookEventName': 'Stop',
+            'cwd': str(self.tmp),
+            'workspacePaths': [str(self.tmp)],
+            'terminationReason': 'NO_TOOL_CALL',
+        }
+        bridge.run_hook = spy_run_hook
+        old_entry = os.environ.pop('CLAUDE_CODE_ENTRYPOINT', None)
+        try:
+            invoked.clear()
+            res = bridge.handle('Stop', stop_payload)
+            self.assertEqual(res, {'decision': 'allow'})
+            self.assertNotIn('headless-background-stop.sh', invoked)
+            self.assertEqual(invoked, ['owner-dispatch-stop.sh', 'skill-extraction-gate-stop.sh',
+                                       'proposed-next-stop.sh'])
+
+            invoked.clear()
+            os.environ['CLAUDE_CODE_ENTRYPOINT'] = 'sdk-ts'
+            res_sdk = bridge.handle('Stop', stop_payload)
+            self.assertEqual(res_sdk, {'decision': 'allow'})
+            self.assertIn('headless-background-stop.sh', invoked)
+        finally:
+            bridge.run_hook = real_run_hook
+            if old_entry is None:
+                os.environ.pop('CLAUDE_CODE_ENTRYPOINT', None)
+            else:
+                os.environ['CLAUDE_CODE_ENTRYPOINT'] = old_entry
+
 
 if __name__ == '__main__':
     unittest.main()

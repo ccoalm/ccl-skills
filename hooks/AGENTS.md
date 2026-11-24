@@ -19,12 +19,17 @@ Rules:
   merge guard that cannot run blocks every command), verdict aggregation (deny over ask over allow)
   and Stop loop prevention. Its dispatch lists are the binding inventory and must
   equal the command hooks in `hooks.json`; it prints exactly one JSON object per
-  event. Its shadow transcript (`{key}.jsonl`) holds content only during an
+  event. In `Stop`, `headless-background-stop.sh` stays in `DISPATCH['Stop']`
+  for `--bindings` parity with `hooks/hooks.json`, while the runtime loop skips
+  spawning it unless `CLAUDE_CODE_ENTRYPOINT` matches `sdk` or `sdk-*`. Its
+  shadow transcript (`{key}.jsonl`) holds content only during an
   event and is truncated to zero at event end; its incremental parse cache
   (`{key}.cache.json`) stores only structural tags and byte offsets into the
   host transcript (never user prompts, tool output, commands, paths or assistant
   prose) and is swept under `{key}.run.lock` when stale.
-- A hook reads its payload fields with one jq call, because jq start-up is most
+- A hook reads its payload fields with one jq call (or zero jq calls on
+  `owner-dispatch.sh` `PreToolUse:Bash` when `$PWD` has no `.owner-dispatch.json`
+  ancestor and raw stdin cannot name an edit tool), because jq start-up is most
   of a hook's latency. Each value must equal what `$(jq -r '.x // default')`
   gave. A payload the merged read cannot decode that way, or could decode only
   in more than linear time or memory (values over 65,536 characters, NULs,

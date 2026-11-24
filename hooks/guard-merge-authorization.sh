@@ -316,17 +316,26 @@ http_merge_id() { # $1 = normalized URL operand
 # main|master and that degradation is made VISIBLE (warning below), not
 # silent, or a develop/trunk-default repo bypasses the gate unnoticed.
 default_branch=""
+current_branch=""
 origin_exists=0
-if git -C "$cwd" rev-parse --git-dir >/dev/null 2>&1; then
-  git -C "$cwd" config --get remote.origin.url >/dev/null 2>&1 && origin_exists=1
-  default_branch=$(git -C "$cwd" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
-fi
-current_branch=$(git -C "$cwd" rev-parse --abbrev-ref HEAD 2>/dev/null)
-# Hook-cwd baselines; git segments reset from these (a `git -C` overrides).
-base_default_branch="$default_branch"
-base_current_branch="$current_branch"
-base_origin_exists="$origin_exists"
-origin_flag="$origin_exists"
+origin_flag=0
+base_default_branch=""
+base_current_branch=""
+base_origin_exists=0
+base_git_loaded=0
+
+# Lazily resolve the hook-cwd repository baselines only when a git push/merge/pull
+# segment (or the post-loop unset-origin/HEAD degrade check) actually needs them.
+ensure_base_git_context() {
+  [ "$base_git_loaded" = 1 ] && return 0
+  base_git_loaded=1
+  if git -C "$cwd" rev-parse --git-dir >/dev/null 2>&1; then
+    git -C "$cwd" config --get remote.origin.url >/dev/null 2>&1 && base_origin_exists=1
+    base_default_branch=$(git -C "$cwd" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+  fi
+  base_current_branch=$(git -C "$cwd" rev-parse --abbrev-ref HEAD 2>/dev/null)
+  origin_exists="$base_origin_exists"
+}
 
 # Is this token the default-branch name? When the repo's default IS resolved
 # (origin/HEAD), gate on that value alone — hardcoding main|master on top
@@ -971,25 +980,6 @@ printf '%s\n' "$masked" | tr ';|&(){}' '\n' | while IFS= read -r seg; do
       # this is". The overwhelmingly common cause is an unexpanded shell variable —
       # `git -C "$WT" merge origin/main` — because this guard reads the command text
       # and cannot expand it. Tag it so the deny can say that instead.
-      deny_git_tag="DENY_GIT"
-      if [ "$gdir" = "$cwd" ]; then
-        default_branch="$base_default_branch"
-        current_branch="$base_current_branch"
-        origin_flag="$base_origin_exists"
-      elif git -C "$gdir" rev-parse --git-dir >/dev/null 2>&1; then
-        default_branch=$(git -C "$gdir" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
-        current_branch=$(git -C "$gdir" rev-parse --abbrev-ref HEAD 2>/dev/null)
-        origin_flag=0
-        git -C "$gdir" config --get remote.origin.url >/dev/null 2>&1 && origin_flag=1
-      else
-        default_branch="$base_default_branch"
-        current_branch="$base_current_branch"
-        origin_flag="$base_origin_exists"
-        [ "$used_C" = 1 ] && deny_git_tag="DENY_GIT_UNRESOLVED"
-      fi
-      if [ -n "$eff_branch" ] && [ "$used_C" = 0 ]; then
-        current_branch="$eff_branch"
-      fi
       sub="${1:-}"; [ -n "$sub" ] && shift
       case "$sub" in
         checkout|switch)
@@ -1006,6 +996,34 @@ printf '%s\n' "$masked" | tr ';|&(){}' '\n' | while IFS= read -r seg; do
           [ -n "$nb" ] && eff_branch="$nb"
           continue
           ;;
+        push|merge|pull)
+          deny_git_tag="DENY_GIT"
+          if [ "$gdir" = "$cwd" ]; then
+            ensure_base_git_context
+            default_branch="$base_default_branch"
+            current_branch="$base_current_branch"
+            origin_flag="$base_origin_exists"
+          elif git -C "$gdir" rev-parse --git-dir >/dev/null 2>&1; then
+            default_branch=$(git -C "$gdir" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+            current_branch=$(git -C "$gdir" rev-parse --abbrev-ref HEAD 2>/dev/null)
+            origin_flag=0
+            git -C "$gdir" config --get remote.origin.url >/dev/null 2>&1 && origin_flag=1
+          else
+            ensure_base_git_context
+            default_branch="$base_default_branch"
+            current_branch="$base_current_branch"
+            origin_flag="$base_origin_exists"
+            [ "$used_C" = 1 ] && deny_git_tag="DENY_GIT_UNRESOLVED"
+          fi
+          if [ -n "$eff_branch" ] && [ "$used_C" = 0 ]; then
+            current_branch="$eff_branch"
+          fi
+          ;;
+        *)
+          continue
+          ;;
+      esac
+      case "$sub" in
         push)
           # Positional #1 is the remote; #2+ are refspecs. argi tracks that
           # so `git push origin <feature>` counts as having a refspec while
@@ -1281,8 +1299,11 @@ fi
 # but its default branch could not be resolved, and this command touches
 # push/merge — tell the session the gate is narrowed to main|master instead
 # of silently half-enforcing. Non-push/merge commands stay quiet (no noise).
-if [ "$origin_exists" = 1 ] && [ -z "$default_branch" ] && printf '%s' "$masked" | grep -Eq '(^|[^[:alnum:]_-])git([^|;&]*[[:space:]])?(push|merge)([[:space:]]|$)'; then
-  printf '{"systemMessage":"⚠️ merge-authorization guard: 无法解析该仓的默认分支（origin/HEAD 未设置）；本闸按 main/master/dev/develop/trunk 兜底判定，其余名字的默认分支可能漏拦。修复：git remote set-head origin -a"}\n'
+if printf '%s' "$masked" | grep -Eq '(^|[^[:alnum:]_-])git([^|;&]*[[:space:]])?(push|merge)([[:space:]]|$)'; then
+  ensure_base_git_context
+  if [ "$base_origin_exists" = 1 ] && [ -z "$base_default_branch" ]; then
+    printf '{"systemMessage":"⚠️ merge-authorization guard: 无法解析该仓的默认分支（origin/HEAD 未设置）；本闸按 main/master/dev/develop/trunk 兜底判定，其余名字的默认分支可能漏拦。修复：git remote set-head origin -a"}\n'
+  fi
 fi
 
 exit 0

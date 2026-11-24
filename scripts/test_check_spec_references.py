@@ -1010,6 +1010,56 @@ class LedgerCitationWaiverTest(unittest.TestCase):
         self.assertIn("spec_reference_waiver_stale", result.stderr)
         self.assertNotIn("spec_reference_check_ok", result.stdout)
 
+    def test_byte_prefilter_skips_regex_on_non_citing_files_and_memoizes_targets(self) -> None:
+        spec_prefix = "sp" + "ecs/"
+        dead = f"`{spec_prefix}999-missing/plan.md`"
+        live_rel = f"{spec_prefix}001-live/plan.md"
+        live = f"`{live_rel}`"
+        files = {
+            live_rel: "# live plan\n",
+            "docs/citing.md": f"First {live} and {live}#sec and {dead}.\n",
+        }
+        for idx in range(25):
+            files[f"src/plain_{idx}.py"] = "x = 'ordinary code mentioning specs/ without backtick'\n"
+        root = self.make_repo(files)
+
+        real_re = MODULE.CITATION_RE
+        finditer_calls = 0
+
+        class CountingPattern:
+            def finditer(self, line: str):
+                nonlocal finditer_calls
+                finditer_calls += 1
+                return real_re.finditer(line)
+
+        escape_calls = 0
+        real_escapes = MODULE.escapes_root
+
+        def counting_escapes(r: Path, target: str) -> bool:
+            nonlocal escape_calls
+            escape_calls += 1
+            return real_escapes(r, target)
+
+        MODULE.CITATION_RE = CountingPattern()  # type: ignore[assignment]
+        MODULE.escapes_root = counting_escapes  # type: ignore[assignment]
+        try:
+            findings = MODULE.broken_spec_references(root, None, [], [], {})
+        finally:
+            MODULE.CITATION_RE = real_re
+            MODULE.escapes_root = real_escapes
+
+        self.assertEqual(findings, [("docs/citing.md", 1, f"{spec_prefix}999-missing/plan.md")])
+        self.assertEqual(
+            finditer_calls,
+            1,
+            f"expected CITATION_RE to run only on the 1 file containing backticked specs/, got {finditer_calls}",
+        )
+        self.assertEqual(
+            escape_calls,
+            2,
+            f"expected duplicate resolved targets to be memoized (2 unique targets, got {escape_calls})",
+        )
+
 
 class ProductionWaiverTableTest(unittest.TestCase):
     """Row 1 — the shipped table, against the repository it was written for.

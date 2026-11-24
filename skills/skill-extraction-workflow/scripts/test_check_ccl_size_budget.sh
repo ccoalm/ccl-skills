@@ -1083,4 +1083,53 @@ case "$size_wiring_line" in
   *"|| true"*) fail "validator demoted size gate back to || true advisory" ;;
 esac
 
+# Case h1: subprocess batching — check-size-budget.sh must read base blobs via a
+# single `git cat-file --batch` pass (0 `git show` calls) and probe
+# `--is-inside-work-tree` at most once per run.
+GIT_SHIM_DIR="$TMP/git-batch-shim"
+GIT_LOG="$TMP/git-batch.log"
+REAL_GIT="$(command -v git)"
+mkdir -p "$GIT_SHIM_DIR"
+cat > "$GIT_SHIM_DIR/git" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$GIT_LOG"
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$GIT_SHIM_DIR/git"
+: > "$GIT_LOG"
+set +e
+batch_out="$(PATH="$GIT_SHIM_DIR:$PATH" env -u CCL_SKILL_BASE_REF bash "$SIZE_SCRIPT" "$REF_REPO" 2>&1)"
+batch_rc=$?
+set -e
+assert_rc "$batch_rc" 0 "batched git run on REF_REPO must pass"
+assert_contains "entrypoint_size_blocking_ok" "$batch_out" "batched run keeps blocking_ok token"
+show_calls="$(grep -c ' show ' "$GIT_LOG" || true)"
+worktree_probes="$(grep -c 'rev-parse --show-toplevel' "$GIT_LOG" || true)"
+total_git_calls="$(wc -l < "$GIT_LOG" | tr -d ' ')"
+[ "$show_calls" -eq 0 ] || fail "expected 0 'git show' calls (use cat-file --batch), got $show_calls"
+[ "$worktree_probes" -eq 1 ] || fail "expected 1 'rev-parse --show-toplevel' probe, got $worktree_probes"
+[ "$total_git_calls" -le 12 ] || fail "expected <=12 total git calls on clean tree, got $total_git_calls"
+
+# Case h2: an exported skill tree unpacked INSIDE an enclosing git checkout is
+# not a git worktree root; check-size-budget.sh must treat it as non-git
+# (unevaluated, rc=0) instead of adjudicating the enclosing repository's git
+# history/untracked list against the nested directory's files.
+NESTED_EXPORT="$REF_REPO/nested-export-fixture"
+mkdir -p "$NESTED_EXPORT/skills/nested-mega/references"
+{
+  printf '%s\n' '---' 'name: nested-mega' 'description: nested export fixture.' '---' ''
+  repeat_char 'N' 60000
+  printf '\n'
+} > "$NESTED_EXPORT/skills/nested-mega/SKILL.md"
+write_reference_lines "$NESTED_EXPORT/skills/nested-mega/references/long.md" 650
+set +e
+nested_out="$(env -u CCL_SKILL_BASE_REF bash "$SIZE_SCRIPT" "$NESTED_EXPORT" 2>&1)"
+nested_rc=$?
+set -e
+rm -rf "$NESTED_EXPORT"
+assert_rc "$nested_rc" 0 "nested export inside enclosing checkout must downgrade like non-git (rc=0)"
+assert_contains "entrypoint_size_trend_partial: base=unknown reason=not-a-git-worktree" "$nested_out" "nested export reports not-a-git-worktree"
+assert_contains "entrypoint_size_blocking_unevaluated" "$nested_out" "nested export emits unevaluated token"
+assert_not_contains "entrypoint_size_blocking_ok" "$nested_out" "nested export must not claim blocking_ok"
+
 echo "test_check_ccl_size_budget: ok"

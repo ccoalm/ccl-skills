@@ -234,7 +234,28 @@ else
 fi
 
 # Self-pin: a deleted or commented-out probe must fail the suite, not shrink it.
-EXPECTED_PROBES=17
+# --- P13: scanning multi-file trees spawns 0 per-file grep child processes ----
+grep_shim_dir="$TMP/grep-shim"
+grep_log="$TMP/grep.log"
+real_grep="$(command -v grep)"
+mkdir -p "$grep_shim_dir"
+cat > "$grep_shim_dir/grep" <<EOF
+#!/usr/bin/env bash
+echo x >> "$grep_log"
+exec "$real_grep" "\$@"
+EOF
+chmod +x "$grep_shim_dir/grep"
+r_many=$(mk_root many_files)
+for idx in 1 2 3 4 5 6; do
+  printf '#!/usr/bin/env bash\necho ok %s\n' "$idx" > "$r_many/hooks/h_${idx}.sh"
+done
+: > "$grep_log"
+OUT=$( PATH="$grep_shim_dir:$PATH" bash "$section" "$r_many" 2>&1 ); RC=$?
+grep_spawns=$(wc -l < "$grep_log" | tr -d ' ')
+if [ "$RC" -eq 0 ] && [ "$grep_spawns" -eq 0 ]; then ok
+else note "p13 batched scan expected rc=0 and 0 grep spawns across 6 files, got rc=$RC spawns=$grep_spawns: $OUT"; fi
+
+EXPECTED_PROBES=18
 actual_probes=$(grep -cE '^[[:space:]]*(ok$|ok;|if \[ "\$RC")' "$0")
 echo "git_identity_predicate_gate: $pass passed, $fail failed, $skipped skipped${skipped_labels:+ ($skipped_labels )}"
 [ "$((pass + fail + skipped))" -eq "$EXPECTED_PROBES" ] \
