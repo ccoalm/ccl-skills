@@ -1,6 +1,6 @@
 # Validation Evidence — Antigravity Bridge Hot-Path Slimming and Single-`jq` Hook Convergence
 
-Status: local unit/integration/differential/benchmark/mutation verification and private R0 audit complete; ready for dual-track independent review and challenge.
+Status: complete — local unit/integration/differential/benchmark/mutation verification, private R0 audit, and dual-track independent review + adversarial challenge + post-challenge delta review all green.
 
 ## 1. Behavioral Evidence (`RED-baseline` — Constructed Scenarios Run Before and After Fix)
 
@@ -86,4 +86,31 @@ Oracle dimensions crossed (`testing-strategy` closed-contract check): **shape** 
 
 ## 5. Dual-Track Independent Review & Adversarial Challenge
 
-Pending execution on the committed candidate checkpoint (`extraction_review_gate.sh` `--mode review` and `--mode challenge`).
+### Review pass
+- **Reviewed commit**: `35c87cce4345755c35b09e9c349d2a3c7dff1c00` (pinned base `origin` `refs/heads/main` `461ef5581604c5c8cfdd5c0128cf14da0b6d95d4` confirmed at `2026-11-24T00:30:52Z`, `behind=0`; controller receipt: `specs/hook-runtime-hotpath-slimming/evidence/review-pass.json`)
+- **Findings**: `2 total (0 P0 / 1 P1 / 1 P2)`
+- **R0 evidence**: `ccl_skill_check_clean_ok` (`r0_status=private-ok`)
+- **Dispositions**:
+  - `P1` (`Makefile:103` — `REQUIRE_BASELINE=1 python3 hooks/test_hook_remaining_field_reads.py` fails on shallow clones lacking `788470c`): `fixed` in `d301abf2a662a7642d21345bbde905e05eb4d0c0` (`Makefile` invokes `python3 hooks/test_hook_remaining_field_reads.py` without forcing `REQUIRE_BASELINE=1`, matching `test_hook_field_reads.py`, so `fetch-depth: 0` CI jobs and full clones test live against `788470c` while shallow clones fall back to per-field `jq` reference copies).
+  - `P2` (`hooks/agy-bridge.py:945` — 8 KiB head/tail hashes miss same-length in-place edits in the middle of a transcript): `fixed` in `d301abf2a662a7642d21345bbde905e05eb4d0c0` (`version: 2` `1 MiB` `block_sha256` digests verify every byte of `window_start..cand_end` on reuse and reuse verified full `1 MiB` prefix blocks on append writes, pinned by middle `DONE`→`FAIL` test and `M05_cache_skip_span_digest`).
+
+### Challenge pass
+- **Reviewed commit**: `d301abf2a662a7642d21345bbde905e05eb4d0c0` (pinned base `origin` `refs/heads/main` `461ef5581604c5c8cfdd5c0128cf14da0b6d95d4` confirmed at `2026-11-24T00:58:31Z`, `behind=0`; controller receipt: `specs/hook-runtime-hotpath-slimming/evidence/challenge-pass.json`)
+- **Findings**: `3 total (0 P0 / 0 P1 / 3 P2)`
+- **R0 evidence**: `ccl_skill_check_clean_ok` (`r0_status=private-ok`)
+- **Gate-fireability applicability**: `yes — change modifies shipped runtime enforcement/advisory hooks and test-lane isolation gates`; Item 9 exercised: `specs/hook-runtime-hotpath-slimming/evidence/challenge-pass.json`
+- **Dispositions**: `0 P0/P1`; all `3 P2` findings `fixed` in `1eeb5c5745ffa4627023e465c3116eb5185f8586`:
+  - `P2` (`hooks/agy-bridge.py:1` — unvalidated `step_index` values in `parse_tail_slice` / `emit_cached_records` allow string `step_index` text into `{key}.cache.json`): `fixed` in `1eeb5c5745ffa4627023e465c3116eb5185f8586` (`U` and `C` records freeze only when `is_int(number)`, leaving non-integer `step_index` steps unfrozen for tail re-parse, and `emit_cached_records` validates record tuple lengths and `is_int`, pinned by `M23_cache_allow_string_step_index`).
+  - `P2` (`scripts/select-affected-tests.py:881` — `HOOK_FILE_MAP` entry narrowed `hooks/skill-extraction-gate-stop.sh` away from the unmapped hook fan-out): `fixed` in `1eeb5c5745ffa4627023e465c3116eb5185f8586` (`hooks/skill-extraction-gate-stop.sh` stays unmapped in `HOOK_FILE_MAP` while remaining in `HOOK_FIELD_READS_REMAINING_TRIGGERS` so edits run all hook suites, serial field-read suites, `test_install_opencode_skill_migration.sh`, and `npm_required`).
+  - `P2` (`hooks/test_agy_bridge.py:1180` — cache tests stayed `< 1 MiB` without exercising multi-block `prior_blocks` reuse): `fixed` in `1eeb5c5745ffa4627023e465c3116eb5185f8586` (`> 2 MiB` 3-block append prefix-reuse seek test + block-`0`/`1` same-length edit invalidation + `M24_cache_drop_multiblock_reuse`).
+
+### Delta pass 1 (after post-challenge fixes)
+- **Reviewed commit**: `1eeb5c5745ffa4627023e465c3116eb5185f8586`; packet: `git diff d301abf2a662a7642d21345bbde905e05eb4d0c0..1eeb5c5745ffa4627023e465c3116eb5185f8586` (controller receipt: `specs/hook-runtime-hotpath-slimming/evidence/delta-pass-1.json`)
+- **Findings / Dispositions**: `0 total (0 P0 / 0 P1 / 0 P2)` (`status: passed`, `0` remaining open findings); R0 evidence: `ccl_skill_check_clean_ok` (`r0_status=private-ok`).
+
+### Post-review delta
+- Non-executable evidence-only record files in `specs/hook-runtime-hotpath-slimming/evidence/` (`git diff --stat 1eeb5c5745ffa4627023e465c3116eb5185f8586..HEAD`):
+  - `specs/hook-runtime-hotpath-slimming/evidence/challenge-pass.json`
+  - `specs/hook-runtime-hotpath-slimming/evidence/delta-pass-1.json`
+  - `specs/hook-runtime-hotpath-slimming/evidence/review-pass.json`
+  - `specs/hook-runtime-hotpath-slimming/evidence/validation.md`
