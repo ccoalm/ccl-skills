@@ -46,7 +46,32 @@ input=$(cat)
 # jq absent: cannot safely parse/emit — degrade to no reminder (never break Bash).
 command -v jq >/dev/null 2>&1 || exit 0
 
-cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+unset fields fields_read hf_cmd hf_fail hf_resp hf_cwd
+fields=$(printf '%s' "$input" 2>/dev/null | jq -rs '
+  def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
+  def fail_flag($r):
+    if ($r | type) == "object" then
+      ((($r.exit_code // $r.returncode // $r.exitCode // 0) | tostring) as $ec
+       | if (($ec | test("^-?[0-9]+$")) and $ec != "0") or ($r.is_error == true) or ($r.interrupted == true)
+         then "fail" else "" end)
+    else "" end;
+  def bounded_resp($v):
+    ($v // "")
+    | if type == "string" then (if length <= 65536 then . else null end)
+      elif (type == "number" or type == "boolean") then tostring
+      else (tostring | if length <= 65536 then . else null end) end;
+  select(length == 1) | .[0] | select(type == "object")
+  | [(.tool_input.command // ""), fail_flag(.tool_response // {}), bounded_resp(.tool_response), (.cwd // "")]
+  | select(all(.[]; type == "string" and length <= 65536
+      and (split("\u0000") | length) < 2))
+  | map(trim_nl(16)) | select(all(.[]; type == "string"))
+  | "hf_cmd=\(.[0] | @sh) hf_fail=\(.[1] | @sh) hf_resp=\(.[2] | @sh) hf_cwd=\(.[3] | @sh) fields_read=1"' 2>/dev/null)
+fields_read=""
+case "$fields" in *' fields_read=1') eval "$fields" ;; esac
+
+if [ -n "$fields_read" ]; then cmd=$hf_cmd; else
+  cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+fi
 [ -z "$cmd" ] && exit 0
 
 # Mask quoted prose spans (commit messages / MR titles) so a mere MENTION like
@@ -94,16 +119,20 @@ printf '%s' "$masked" | grep -Eq -- '(^|[[:space:]])(-h|--help)([[:space:]]|$)' 
 
 # (1) Structured failure signal from the tool result, when the host provides one
 #     (exit code / is_error / interrupted). Harmless no-op when absent.
-fail_struct=$(printf '%s' "$input" | jq -r '
-  (.tool_response // {}) as $r
-  | if ($r|type)=="object"
-    then ( (($r.exit_code // $r.returncode // $r.exitCode // 0)|tostring) as $ec
-           | if (($ec|test("^-?[0-9]+$")) and $ec!="0") or ($r.is_error==true) or ($r.interrupted==true)
-             then "fail" else "" end )
-    else "" end' 2>/dev/null)
+if [ -n "$fields_read" ]; then fail_struct=$hf_fail; else
+  fail_struct=$(printf '%s' "$input" | jq -r '
+    (.tool_response // {}) as $r
+    | if ($r|type)=="object"
+      then ( (($r.exit_code // $r.returncode // $r.exitCode // 0)|tostring) as $ec
+             | if (($ec|test("^-?[0-9]+$")) and $ec!="0") or ($r.is_error==true) or ($r.interrupted==true)
+               then "fail" else "" end )
+      else "" end' 2>/dev/null)
+fi
 [ "$fail_struct" = "fail" ] && exit 0
 
-resp=$(printf '%s' "$input" | jq -r '(.tool_response // "") | tostring' 2>/dev/null)
+if [ -n "$fields_read" ]; then resp=$hf_resp; else
+  resp=$(printf '%s' "$input" | jq -r '(.tool_response // "") | tostring' 2>/dev/null)
+fi
 
 # (2) Scheduled / queued auto-merge (flags or response phrasing). Explicit
 #     immediate override (--auto-merge=false) does NOT match the flag branch.
@@ -120,7 +149,9 @@ printf '%s' "$resp" | grep -Eqi \
   'CONFLICT|is not mergeable|cannot be merged|merge failed|not authorized|unauthorized|forbidden|permission denied|[^a-z]denied|not accessible|could not resolve|no such|not found|does not exist|HTTP [45][0-9][0-9]|exit (status|code) [1-9]|operation canceled|rate limit' \
   && exit 0
 
-cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+if [ -n "$fields_read" ]; then cwd=$hf_cwd; else
+  cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+fi
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd=$(pwd)
 
 # Best-effort worktree inventory so the reminder is actionable (agent sees the

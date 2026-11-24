@@ -546,7 +546,10 @@ def main() -> None:
     # wall-clock latency/stall budgets or RUSAGE_CHILDREN peak-RSS ratios must
     # run outside run-parallel-suites.sh so 4-vCPU CI runners do not
     # oversubscribe them into false timeouts.
-    self_threaded_wallclock_suites = {"test_hook_field_reads.py"}
+    self_threaded_wallclock_suites = {
+        "test_hook_field_reads.py",
+        "test_hook_remaining_field_reads.py",
+    }
     bad_parallel = sorted(
         p.name for p in members if p.name in self_threaded_wallclock_suites
     )

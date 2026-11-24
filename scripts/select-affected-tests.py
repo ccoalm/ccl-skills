@@ -85,6 +85,8 @@ _MAKE_ENV_POLLUTION_KEYS = (
 # therefore must not enter parallel dispatch via generic self/sibling rules.
 DEDICATED_RUNNER_SUITES = frozenset(
     {
+        "hooks/test_hook_field_reads.py",
+        "hooks/test_hook_remaining_field_reads.py",
         "skills/code-review/scripts/test_review_gate_abort_leak.sh",
         "skills/skill-extraction-workflow/scripts/test_check_ccl_regressions.sh",
         "skills/test-artifact-management/references/test_gen_report.py",
@@ -876,7 +878,30 @@ HOOK_FILE_MAP: dict[str, tuple[str, ...]] = {
     "hooks/test_remind_untracked_background.sh": ("hooks/test_remind_untracked_background.sh",),
     "hooks/session-start.sh": ("hooks/test_session_start.sh", "hooks/test_skill_loading.py"),
     "hooks/test_session_start.sh": ("hooks/test_session_start.sh",),
+    "hooks/skill-extraction-gate-stop.sh": ("hooks/test_host_input.py", "hooks/test_agy_bridge.py"),
 }
+
+HOOK_FIELD_READS_ORIG_TRIGGERS = frozenset(
+    {
+        "hooks/test_hook_field_reads.py",
+        "hooks/test_hook_field_reads.expected.json",
+        "hooks/guard-merge-authorization.sh",
+        "hooks/guard-broad-local-test.sh",
+        "hooks/guard-edit-isolation.sh",
+        "hooks/owner-dispatch-stop.sh",
+        "hooks/owner-dispatch-guard.sh",
+    }
+)
+HOOK_FIELD_READS_REMAINING_TRIGGERS = frozenset(
+    {
+        "hooks/test_hook_remaining_field_reads.py",
+        "hooks/skill-extraction-gate-stop.sh",
+        "hooks/remind-review-covers-head.sh",
+        "hooks/remind-post-merge-cleanup.sh",
+        "hooks/merge-authorization-prompt.sh",
+        "hooks/remind-unverified-cli-flag.sh",
+    }
+)
 
 CODE_REVIEW_LEAF_MAP: dict[str, tuple[str, ...]] = {
     "classify_envelope.py": (
@@ -1583,7 +1608,9 @@ def build_test_plan(
     selected_heavy_individuals: list[str] = []
     fallback_full = False
 
-    hook_suites = sorted(s for s in registered_suites if s.startswith("hooks/"))
+    hook_suites = sorted(
+        s for s in registered_suites if s.startswith("hooks/") and not _is_dedicated_suite(s, heavy_suites)
+    )
     code_review_shard_suites = sorted(
         s
         for s in registered_suites
@@ -1674,6 +1701,16 @@ def build_test_plan(
             need_sanitization = True
             if path == "hooks/AGENTS.md":
                 continue
+            if path in HOOK_FIELD_READS_ORIG_TRIGGERS:
+                builder.add_serial_suite(
+                    ["python3", "hooks/test_hook_field_reads.py"],
+                    "hooks/test_hook_field_reads.py",
+                )
+            if path in HOOK_FIELD_READS_REMAINING_TRIGGERS:
+                builder.add_serial_suite(
+                    ["python3", "hooks/test_hook_remaining_field_reads.py"],
+                    "hooks/test_hook_remaining_field_reads.py",
+                )
             if path in HOOK_FILE_MAP:
                 for suite in HOOK_FILE_MAP[path]:
                     builder.add_suite(suite)
@@ -1681,9 +1718,23 @@ def build_test_plan(
                 builder.add_suite("hooks/test_agy_bridge.py")
                 builder.add_suite("scripts/test_install_antigravity.sh")
                 builder.npm_required = True
+            elif path in (
+                "hooks/test_hook_field_reads.py",
+                "hooks/test_hook_field_reads.expected.json",
+                "hooks/test_hook_remaining_field_reads.py",
+            ):
+                builder.npm_required = True
             else:
                 for suite in hook_suites:
                     builder.add_suite(suite)
+                builder.add_serial_suite(
+                    ["python3", "hooks/test_hook_field_reads.py"],
+                    "hooks/test_hook_field_reads.py",
+                )
+                builder.add_serial_suite(
+                    ["python3", "hooks/test_hook_remaining_field_reads.py"],
+                    "hooks/test_hook_remaining_field_reads.py",
+                )
                 builder.add_suite("scripts/test_install_opencode_skill_migration.sh")
                 builder.npm_required = True
             continue
@@ -1734,6 +1785,10 @@ def build_test_plan(
                 builder.add_suite("scripts/test_install_gates_runtime.py")
             elif path.startswith("scripts/owner-dispatch/"):
                 builder.add_suite("scripts/owner-dispatch/test.sh")
+                builder.add_serial_suite(
+                    ["python3", "hooks/test_hook_field_reads.py"],
+                    "hooks/test_hook_field_reads.py",
+                )
                 builder.npm_required = True
             elif path.startswith("scripts/control-plane/"):
                 builder.add_suite("scripts/control-plane/test.sh")

@@ -77,7 +77,21 @@ input=$(head -c 1048576)
 
 command -v jq >/dev/null 2>&1 || exit 0
 
-cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+unset fields fields_read hf_cmd hf_session
+fields=$(printf '%s' "$input" 2>/dev/null | jq -rs '
+  def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
+  select(length == 1) | .[0] | select(type == "object")
+  | [(.tool_input.command // ""), (.session_id // "")]
+  | select(all(.[]; type == "string" and length <= 65536
+      and (split("\u0000") | length) < 2))
+  | map(trim_nl(16)) | select(all(.[]; type == "string"))
+  | "hf_cmd=\(.[0] | @sh) hf_session=\(.[1] | @sh) fields_read=1"' 2>/dev/null)
+fields_read=""
+case "$fields" in *' fields_read=1') eval "$fields" ;; esac
+
+if [ -n "$fields_read" ]; then cmd=$hf_cmd; else
+  cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+fi
 [ -z "$cmd" ] && exit 0
 
 # Mask whitespace-bearing quoted spans so an ordinary commit message or grep
@@ -179,7 +193,9 @@ fi
 # guard is still written — so deleting one silently turns the suite red even
 # though its behavior stays unverified. Presence is not behavior; the check
 # exists only so an unverified guard cannot also become an unnoticed one.
-session=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)
+if [ -n "$fields_read" ]; then session=$hf_session; else
+  session=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)
+fi
 if [ -n "$session" ]; then
   tmp_root="${TMPDIR:-/tmp}"
   # PRECONDITION, because the TOCTOU below cannot be closed from bash. Every

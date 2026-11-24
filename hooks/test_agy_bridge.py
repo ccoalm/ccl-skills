@@ -1176,5 +1176,438 @@ class BoundTests(BridgeCase):
         self.assertEqual([s['step_index'] for s in steps], [7])
 
 
+class HotpathCacheTests(BridgeCase):
+    def with_state_env(self):
+        previous = os.environ.get('TMPDIR')
+        os.environ['TMPDIR'] = self.env['TMPDIR']
+
+        def restore():
+            if previous is None:
+                os.environ.pop('TMPDIR', None)
+            else:
+                os.environ['TMPDIR'] = previous
+        self.addCleanup(restore)
+
+    def run_inprocess(self, bridge, event, payload):
+        stdin, stdout = sys.stdin, sys.stdout
+        sys.stdin = io.StringIO(json.dumps(payload))
+        sys.stdout = io.StringIO()
+        try:
+            rc = bridge.main(['agy-bridge.py', event])
+            self.assertEqual(rc, 0)
+            return json.loads(sys.stdout.getvalue().strip())
+        finally:
+            sys.stdin, sys.stdout = stdin, stdout
+
+    def test_incremental_transcript_cache_skips_prior_generic_steps_without_persisting_content(self):
+        self.with_state_env()
+        bridge = load_bridge()
+        state = bridge.state_dir()
+        _, conv_key = bridge.conversation({'conversationId': 'inc-cache'})
+
+        grill_path = ROOT / 'skills/grill-me/SKILL.md'
+        grill_lines = grill_path.read_text().split('\n')[:-1]
+        half = len(grill_lines) // 2
+        wt_path = ROOT / 'skills/worktree-isolation/SKILL.md'
+        wt_lines = wt_path.read_text().split('\n')[:-1]
+
+        secrets = (
+            'SECRET_USER_PROMPT_TOKEN',
+            'SECRET_COMMAND_TOKEN',
+            'SECRET_SUBAGENT_TOKEN',
+            'SECRET_FILE_PATH_TOKEN',
+            'SECRET_TOOL_OUTPUT_TOKEN',
+            'SECRET_ASSISTANT_PROSE_TOKEN',
+        )
+        steps = [
+            {'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0,
+             'content': 'SECRET_USER_PROMPT_TOKEN'},
+            {'type': 'PLANNER_RESPONSE', 'step_index': 1, 'tool_calls': [
+                {'id': 'g1', 'name': 'read_file',
+                 'args': {'Path': str(grill_path), 'StartLine': 1, 'EndLine': half}}]},
+            {'type': 'GENERIC', 'status': 'DONE', 'step_index': 2,
+             'content': f'Showing lines 1-{half} of {len(grill_lines)}\n'
+                        + '\n'.join(f'{n}: {grill_lines[n - 1]}' for n in range(1, half + 1))},
+        ]
+        for idx in range(12):
+            step_no = 3 + idx * 2
+            steps.append({
+                'type': 'PLANNER_RESPONSE', 'step_index': step_no,
+                'tool_calls': [
+                    {'id': f'cmd-{idx}', 'name': 'run_command',
+                     'args': {'CommandLine': f'echo SECRET_COMMAND_TOKEN_{idx}'}},
+                    {'id': f'sub-{idx}', 'name': 'invoke_subagent',
+                     'args': {'TypeName': 'research', 'Role': 'Reader',
+                              'Prompt': f'SECRET_SUBAGENT_TOKEN_{idx}'}},
+                    {'id': f'ed-{idx}', 'name': 'write_file',
+                     'args': {'Path': f'SECRET_FILE_PATH_TOKEN_{idx}.txt', 'Content': 'x'}},
+                ],
+            })
+            for sub_pos in range(3):
+                steps.append({
+                    'type': 'GENERIC', 'status': 'DONE',
+                    'content': f'SECRET_TOOL_OUTPUT_TOKEN_{idx}_{sub_pos}: ' + ('payload-' * 120),
+                })
+        # Step with omitted step_index (tests fallback positional numbering), second half of grill-me,
+        # assistant prose, and a trailing OPEN PLANNER_RESPONSE awaiting its GENERIC result.
+        steps.extend([
+            {'type': 'PLANNER_RESPONSE', 'tool_calls': [
+                {'name': 'read_file',
+                 'args': {'Path': str(grill_path), 'StartLine': half + 1, 'EndLine': len(grill_lines)}}]},
+            {'type': 'GENERIC', 'status': 'DONE',
+             'content': f'Showing lines {half + 1}-{len(grill_lines)} of {len(grill_lines)}\n'
+                        + '\n'.join(f'{n}: {grill_lines[n - 1]}'
+                                    for n in range(half + 1, len(grill_lines) + 1))},
+            {'type': 'PLANNER_RESPONSE',
+             'content': 'SECRET_ASSISTANT_PROSE_TOKEN\nproposed-next: none — status only'},
+            {'type': 'PLANNER_RESPONSE', 'step_index': 90, 'tool_calls': [
+                {'id': 'wt-open', 'name': 'read_file', 'args': {'Path': str(wt_path)}}]},
+        ])
+
+        transcript = self.tmp / 'logs/transcript_full.jsonl'
+        transcript.parent.mkdir(parents=True)
+        transcript.write_text(''.join(json.dumps(s) + '\n' for s in steps))
+        tx_arg = str(transcript.with_name('transcript.jsonl'))
+
+        cmd_payload = {
+            'conversationId': 'inc-cache', 'hookEventName': 'PreToolUse',
+            'cwd': str(self.tmp), 'workspacePaths': [str(self.tmp)], 'transcriptPath': tx_arg,
+            'toolCall': {'id': 'live-1', 'name': 'run_command', 'args': {'CommandLine': 'echo ok'}},
+        }
+        first_res = self.run_inprocess(bridge, 'PreToolUse', cmd_payload)
+        self.assertEqual(first_res['decision'], 'allow')
+
+        cache_path = state / f'{conv_key}.cache.json'
+        self.assertTrue(cache_path.is_file(), 'incremental transcript cache file was not created')
+        cache_stat = os.lstat(cache_path)
+        self.assertEqual(cache_stat.st_mode & 0o777, 0o600)
+        self.assertEqual(cache_stat.st_nlink, 1)
+        cache_raw = cache_path.read_text(encoding='utf-8')
+        for secret in (*secrets, str(self.tmp)):
+            self.assertNotIn(secret, cache_raw, f'cache leaked sensitive transcript text: {secret}')
+        self.assertEqual(len(list(state.glob('*.jsonl'))), 1)
+        self.assertEqual(next(state.glob('*.jsonl')).stat().st_size, 0)
+
+        # Append the GENERIC result closing step 90 (`worktree-isolation` SKILL.md) + one new step.
+        appended = [
+            {'type': 'GENERIC', 'status': 'DONE', 'step_index': 91,
+             'content': f'Showing lines 1-{len(wt_lines)} of {len(wt_lines)}\n'
+                        + '\n'.join(f'{n}: {line}' for n, line in enumerate(wt_lines, start=1))},
+            {'type': 'PLANNER_RESPONSE',
+             'content': 'Final answer ready.\nproposed-next: none — status only'},
+        ]
+        with transcript.open('a', encoding='utf-8') as fh:
+            for item in appended:
+                fh.write(json.dumps(item) + '\n')
+
+        parsed_lines = []
+        real_loads = bridge.json.loads
+
+        def spy_loads(raw_text, *args, **kwargs):
+            parsed_lines.append(raw_text if isinstance(raw_text, str) else raw_text.decode('utf-8', 'replace'))
+            return real_loads(raw_text, *args, **kwargs)
+
+        captured_events = {}
+        real_write_shadow = bridge.write_shadow
+
+        def spy_write_shadow(key, events, *args, **kwargs):
+            captured_events['cached'] = (list(events), kwargs)
+            return real_write_shadow(key, events, *args, **kwargs)
+
+        bridge.json.loads = spy_loads
+        bridge.write_shadow = spy_write_shadow
+        try:
+            second_res = self.run_inprocess(bridge, 'Stop', {
+                'conversationId': 'inc-cache', 'cwd': str(self.tmp),
+                'transcriptPath': tx_arg, 'terminationReason': 'NO_TOOL_CALL',
+            })
+        finally:
+            bridge.json.loads = real_loads
+            bridge.write_shadow = real_write_shadow
+
+        self.assertEqual(second_res['decision'], 'allow', second_res)
+        self.assertFalse(
+            any('SECRET_TOOL_OUTPUT_TOKEN_' in item for item in parsed_lines),
+            'incremental cache hit re-parsed historical GENERIC tool-result lines',
+        )
+        uncached_events, uncached_turn, uncached_prose = bridge.shadow_events(
+            bridge.transcript_steps({'transcriptPath': tx_arg}), str(self.tmp),
+        )
+        self.assertEqual(captured_events['cached'][0], uncached_events)
+        self.assertEqual(uncached_turn, 'turn-0')
+        self.assertEqual(uncached_prose, 'Final answer ready.\nproposed-next: none — status only')
+        loaded_skills = [
+            item['input']['skill']
+            for ev in captured_events['cached'][0]
+            for item in ev['message']['content']
+            if item.get('name') == 'Skill'
+        ]
+        self.assertEqual(loaded_skills, ['ccl-skills:grill-me', 'ccl-skills:worktree-isolation'])
+
+        # In-place overwrite on the same inode (same-layout prefix edit, longer rewrite, and shorter rewrite)
+        # must all invalidate cleanly via boundary SHA-256 digests and size checks.
+        same_layout_bytes = transcript.read_bytes().replace(b'"step_index": 0', b'"step_index": 9', 1)
+        self.assertEqual(len(same_layout_bytes), transcript.stat().st_size)
+        transcript.write_bytes(same_layout_bytes)
+        same_layout_res = self.run_inprocess(bridge, 'Stop', {
+            'conversationId': 'inc-cache', 'cwd': str(self.tmp),
+            'transcriptPath': tx_arg, 'terminationReason': 'NO_TOOL_CALL',
+        })
+        self.assertEqual(same_layout_res['decision'], 'allow')
+        _, cached_turn_after_same_len, _ = bridge.cached_transcript_events(
+            {'transcriptPath': tx_arg}, conv_key, str(self.tmp),
+        )
+        self.assertEqual(cached_turn_after_same_len, 'turn-9', 'boundary digest must catch same-length in-place edit')
+
+        orig_len = transcript.stat().st_size
+        rewritten_longer = [
+            {'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 3, 'content': 'rewritten-long'},
+            {'type': 'PLANNER_RESPONSE', 'step_index': 4,
+             'content': 'Longer rewritten prose. ' + ('pad-' * (orig_len // 4 + 64))
+                        + '\nproposed-next: none — status only'},
+        ]
+        transcript.write_text(''.join(json.dumps(s) + '\n' for s in rewritten_longer), encoding='utf-8')
+        self.assertGreaterEqual(transcript.stat().st_size, orig_len)
+        captured_after_long = {}
+
+        def capture_long(key, events, *args, **kwargs):
+            captured_after_long['events'] = list(events)
+            return real_write_shadow(key, events, *args, **kwargs)
+
+        bridge.write_shadow = capture_long
+        try:
+            self.run_inprocess(bridge, 'Stop', {
+                'conversationId': 'inc-cache', 'cwd': str(self.tmp),
+                'transcriptPath': tx_arg, 'terminationReason': 'NO_TOOL_CALL',
+            })
+        finally:
+            bridge.write_shadow = real_write_shadow
+        fresh_long, _, _ = bridge.shadow_events(
+            bridge.transcript_steps({'transcriptPath': tx_arg}), str(self.tmp),
+        )
+        self.assertEqual(captured_after_long['events'], fresh_long)
+
+        rewritten = [
+            {'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 5, 'content': 'rewritten'},
+            {'type': 'PLANNER_RESPONSE', 'step_index': 6,
+             'content': 'Rewritten prose.\nproposed-next: none — status only'},
+        ]
+        transcript.write_text(''.join(json.dumps(s) + '\n' for s in rewritten), encoding='utf-8')
+        captured_after_rewrite = {}
+
+        def capture_rewrite(key, events, *args, **kwargs):
+            captured_after_rewrite['events'] = list(events)
+            return real_write_shadow(key, events, *args, **kwargs)
+
+        bridge.write_shadow = capture_rewrite
+        try:
+            self.run_inprocess(bridge, 'Stop', {
+                'conversationId': 'inc-cache', 'cwd': str(self.tmp),
+                'transcriptPath': tx_arg, 'terminationReason': 'NO_TOOL_CALL',
+            })
+        finally:
+            bridge.write_shadow = real_write_shadow
+        fresh_rewritten, _, _ = bridge.shadow_events(
+            bridge.transcript_steps({'transcriptPath': tx_arg}), str(self.tmp),
+        )
+        self.assertEqual(captured_after_rewrite['events'], fresh_rewritten)
+
+        # Planted symlink or hardlink at {key}.cache.json is never followed or written through.
+        for kind in ('symlink', 'hardlink'):
+            with self.subTest(cache_link=kind):
+                cache_path.unlink(missing_ok=True)
+                outside = self.tmp / f'outside-{kind}.json'
+                outside.write_text('{"keep": true}\n', encoding='utf-8')
+                if kind == 'symlink':
+                    cache_path.symlink_to(outside)
+                else:
+                    os.link(outside, cache_path)
+                res = self.run_inprocess(bridge, 'PreToolUse', cmd_payload)
+                self.assertEqual(res['decision'], 'allow')
+                self.assertEqual(outside.read_text(encoding='utf-8'), '{"keep": true}\n')
+                cache_path.unlink(missing_ok=True)
+
+    def test_stale_transcript_cache_is_swept_under_run_lock_and_absent_transcript_writes_no_cache(self):
+        self.with_state_env()
+        bridge = load_bridge()
+        state = bridge.state_dir()
+
+        # Conversation without transcriptPath creates no .cache.json file.
+        _, notx_key = bridge.conversation({'conversationId': 'no-tx-conv'})
+        res = self.run_inprocess(
+            bridge, 'PreToolUse',
+            self.edit('run_command', {'CommandLine': 'echo hi'}, self.tmp, conversation='no-tx-conv'),
+        )
+        self.assertEqual(res['decision'], 'allow')
+        self.assertFalse((state / f'{notx_key}.cache.json').exists())
+
+        old = time.time() - 25 * 3600
+        keys = {name: bridge.conversation({'conversationId': f'cache-{name}'})[1]
+                for name in ('stale', 'fresh', 'held', 'refreshed')}
+        for name in ('stale', 'fresh', 'held', 'refreshed'):
+            (state / f'{keys[name]}.run.lock').write_text('')
+            cpath = state / f'{keys[name]}.cache.json'
+            cpath.write_text('{"version":1}')
+            if name != 'fresh':
+                os.utime(cpath, (old, old))
+
+        holder = subprocess.Popen(
+            ['python3', '-c',
+             'import fcntl,os,sys,time; fd=os.open(sys.argv[1], os.O_WRONLY|os.O_CREAT, 0o600); '
+             'fcntl.flock(fd, fcntl.LOCK_EX); print("held", flush=True); time.sleep(30)',
+             str(state / f'{keys["held"]}.run.lock')],
+            stdout=subprocess.PIPE, text=True,
+        )
+        original_under_lock = bridge.under_run_lock
+
+        def refresh_on_lock(directory, k, action):
+            if k == keys['refreshed']:
+                os.utime(state / f'{k}.cache.json', None)
+            return original_under_lock(directory, k, action)
+
+        bridge.under_run_lock = refresh_on_lock
+        try:
+            self.assertEqual(holder.stdout.readline().strip(), 'held')
+            bridge.sweep_stale(state)
+        finally:
+            bridge.under_run_lock = original_under_lock
+            holder.kill()
+            holder.wait()
+            holder.stdout.close()
+
+        self.assertFalse((state / f'{keys["stale"]}.cache.json').exists(), 'stale cache must be swept')
+        self.assertTrue((state / f'{keys["fresh"]}.cache.json').exists(), 'fresh cache must remain')
+        self.assertTrue((state / f'{keys["held"]}.cache.json').exists(), 'locked cache must remain')
+        self.assertTrue((state / f'{keys["refreshed"]}.cache.json').exists(), 'age must be rechecked under lock')
+
+    def test_stat_keyed_bundled_skill_entry_avoids_reread_until_file_changes(self):
+        plugin = self.tmp / 'plugin'
+        (plugin / 'hooks').mkdir(parents=True)
+        shutil.copyfile(BRIDGE, plugin / 'hooks/agy-bridge.py')
+        skill = plugin / 'skills/demo-skill/SKILL.md'
+        skill.parent.mkdir(parents=True)
+        skill.write_text('---\nname: demo-skill\ndescription: d\n---\nLine one\nLine two\n', encoding='utf-8')
+
+        spec = importlib.util.spec_from_file_location('agy_bridge_skill_cache', plugin / 'hooks/agy-bridge.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        reads = []
+        real_read_regular = module.read_regular
+
+        def spy_read_regular(path):
+            reads.append(str(path))
+            return real_read_regular(path)
+
+        module.read_regular = spy_read_regular
+        try:
+            first = module.bundled_skill(skill)
+            for _ in range(4):
+                again = module.bundled_skill(skill)
+                self.assertEqual(again, first)
+            self.assertEqual(len(reads), 1, f'expected 1 disk read for 5 unchanged calls, got {len(reads)}')
+
+            # Modified external copy must still be rejected byte-for-byte.
+            ext_copy = self.tmp / 'external/skills/demo-skill/SKILL.md'
+            ext_copy.parent.mkdir(parents=True)
+            ext_copy.write_text(skill.read_text(encoding='utf-8') + 'tampered\n', encoding='utf-8')
+            self.assertIsNone(module.bundled_skill(ext_copy))
+
+            # Updating the canonical SKILL.md on disk must invalidate the cache immediately.
+            skill.write_text(
+                '---\nname: demo-skill\ndescription: d\n---\nLine one\nLine two\nLine three\n',
+                encoding='utf-8',
+            )
+            updated = module.bundled_skill(skill)
+            self.assertIsNotNone(updated)
+            self.assertEqual(updated[1][-1], 'Line three')
+        finally:
+            module.read_regular = real_read_regular
+
+    def test_write_shadow_batches_chunks_and_rewrites_only_tail_for_multi_target_patches(self):
+        self.with_state_env()
+        bridge = load_bridge()
+        key = bridge.conversation({'conversationId': 'batched-shadow'})[1]
+
+        writes = []
+        real_write = bridge.os.write
+
+        def spy_write(descriptor, data):
+            if descriptor not in bridge.OPEN_SHADOWS.values():
+                return real_write(descriptor, data)
+            pos = os.lseek(descriptor, 0, os.SEEK_CUR)
+            n = real_write(descriptor, data)
+            writes.append((pos, n))
+            return n
+
+        bridge.os.write = spy_write
+        try:
+            events_small = [{'i': i, 'pad': 'a' * 80} for i in range(400)]
+            target = Path(bridge.write_shadow(key, events_small))
+            self.assertEqual(len(writes), 1, f'expected single buffered write under 64 KiB, got {len(writes)}')
+            self.assertEqual(len(target.read_text(encoding='utf-8').splitlines()), 400)
+            bridge.clear_shadow(key)
+
+            writes.clear()
+            events_large = [{'i': i, 'pad': 'b' * 90} for i in range(2000)]
+            bridge.write_shadow(key, events_large)
+            self.assertLessEqual(len(writes), 6, f'expected chunked writes, got {len(writes)}')
+            bridge.clear_shadow(key)
+
+            # Buffered T4g invariant: if a later record fails serialization before 64 KiB fills,
+            # earlier buffered records are still flushed to the shadow fd before re-raising.
+            err_key = bridge.conversation({'conversationId': 'partial-flush-err'})[1]
+            err_target = bridge.state_dir() / f'{err_key}.jsonl'
+            with self.assertRaises(TypeError):
+                bridge.write_shadow(err_key, [{'ok': 'x' * 64}, {'unserializable': {1, 2}}])
+            self.assertGreater(err_target.stat().st_size, 0, 'buffered records must flush before re-raising')
+            bridge.clear_shadow(err_key)
+            self.assertEqual(err_target.stat().st_size, 0)
+
+            # Renaming the shadow path aside and planting a new file at the same path keeps
+            # held.st_nlink == 1, so (held.st_dev, held.st_ino) != (named.st_dev, named.st_ino) must catch it.
+            swap_key = bridge.conversation({'conversationId': 'swap-during-reuse'})[1]
+            swap_target = Path(bridge.write_shadow(swap_key, [{'ok': 1}], {'tail': 1}))
+            moved_shadow = self.tmp / 'moved-shadow.jsonl'
+            try:
+                swap_target.rename(moved_shadow)
+                swap_target.write_text('replaced\n', encoding='utf-8')
+                with self.assertRaisesRegex(bridge.BridgeError, 'replaced during the event'):
+                    bridge.write_shadow(swap_key, [{'ok': 1}], {'tail': 2}, reuse_prefix=True)
+            finally:
+                bridge.clear_shadow(swap_key)
+                moved_shadow.unlink(missing_ok=True)
+
+            # Multi-target apply_patch: after context() writes the base events once,
+            # each target iteration must write only the single pending tool_use tail.
+            writes.clear()
+            transcript = self.tmp / 'patch-logs/transcript_full.jsonl'
+            transcript.parent.mkdir(parents=True)
+            tx_steps = [{'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0}]
+            for idx in range(1, 250):
+                tx_steps.append({'type': 'PLANNER_RESPONSE', 'step_index': idx * 2 - 1,
+                                 'tool_calls': [{'id': f'c{idx}', 'name': 'run_command',
+                                                 'args': {'CommandLine': f'echo {idx}'}}]})
+                tx_steps.append({'type': 'GENERIC', 'status': 'DONE', 'step_index': idx * 2, 'content': 'ok'})
+            transcript.write_text(''.join(json.dumps(s) + '\n' for s in tx_steps), encoding='utf-8')
+
+            work = self.tmp / 'patch-work'
+            work.mkdir()
+            patch_lines = ['*** Begin Patch'] + [f'*** Update File: f{i}.txt' for i in range(6)] + ['*** End Patch']
+            res = self.run_inprocess(bridge, 'PreToolUse', {
+                'conversationId': 'multi-target', 'hookEventName': 'PreToolUse',
+                'cwd': str(work), 'workspacePaths': [str(work)],
+                'transcriptPath': str(transcript.with_name('transcript.jsonl')),
+                'toolCall': {'id': 'p1', 'name': 'apply_patch', 'args': {'Input': '\n'.join(patch_lines)}},
+            })
+            self.assertEqual(res['decision'], 'allow', res)
+            base_writes = [size for offset, size in writes if offset == 0]
+            tail_writes = [size for offset, size in writes if offset > 0 and size < 1024]
+            self.assertEqual(len(base_writes), 1, f'expected base prefix written once, got writes={writes}')
+            self.assertEqual(len(tail_writes), 6, f'expected 6 tail-only pending writes, got writes={writes}')
+        finally:
+            bridge.os.write = real_write
+
+
 if __name__ == '__main__':
     unittest.main()
