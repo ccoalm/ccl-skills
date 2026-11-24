@@ -1505,6 +1505,127 @@ class HotpathCacheTests(BridgeCase):
         self.assertTrue((state / f'{keys["held"]}.cache.json').exists(), 'locked cache must remain')
         self.assertTrue((state / f'{keys["refreshed"]}.cache.json').exists(), 'age must be rechecked under lock')
 
+    def test_multiblock_span_digests_keep_prefix_and_reject_string_step_index(self):
+        self.with_state_env()
+        bridge = load_bridge()
+        state = bridge.state_dir()
+
+        # 1. Non-int step_index values must never be frozen into {key}.cache.json or accepted by emit_cached_records.
+        with self.assertRaises(ValueError):
+            bridge.emit_cached_records(io.BytesIO(b''), [['U', 'not-an-int']], str(self.tmp))
+        with self.assertRaises(ValueError):
+            bridge.emit_cached_records(io.BytesIO(b'{}'), [['C', 'not-an-int', 0, 2, 1, '0', []]], str(self.tmp))
+
+        _, str_key = bridge.conversation({'conversationId': 'str-step-index'})
+        str_tx = self.tmp / 'str-logs/transcript_full.jsonl'
+        str_tx.parent.mkdir(parents=True)
+        str_tx_arg = str(str_tx.with_name('transcript.jsonl'))
+        str_steps = [
+            {'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0, 'content': 'u0'},
+            {'type': 'USER_INPUT', 'source': 'USER_EXPLICIT',
+             'step_index': 'SECRET_USER_STEP_INDEX_TOKEN', 'content': 'u1'},
+            {'type': 'PLANNER_RESPONSE', 'step_index': 'SECRET_CALL_STEP_INDEX_TOKEN',
+             'tool_calls': [{'name': 'run_command', 'args': {'CommandLine': 'echo 1'}}]},
+            {'type': 'GENERIC', 'status': 'DONE', 'step_index': 3, 'content': 'ok'},
+            {'type': 'PLANNER_RESPONSE', 'step_index': 4,
+             'content': 'Done.\nproposed-next: none — status only'},
+        ]
+        str_tx.write_text(''.join(json.dumps(s) + '\n' for s in str_steps), encoding='utf-8')
+        events_1, turn_1, prose_1 = bridge.cached_transcript_events({'transcriptPath': str_tx_arg}, str_key, str(self.tmp))
+        uncached_1 = bridge.shadow_events(bridge.transcript_steps({'transcriptPath': str_tx_arg}), str(self.tmp))
+        self.assertEqual((events_1, turn_1, prose_1), uncached_1)
+        str_cache_raw = (state / f'{str_key}.cache.json').read_text(encoding='utf-8')
+        self.assertNotIn('SECRET_USER_STEP_INDEX_TOKEN', str_cache_raw)
+        self.assertNotIn('SECRET_CALL_STEP_INDEX_TOKEN', str_cache_raw)
+        with str_tx.open('a', encoding='utf-8') as fh:
+            fh.write(json.dumps({'type': 'PLANNER_RESPONSE', 'step_index': 5,
+                                 'content': 'Appended.\nproposed-next: none — status only'}) + '\n')
+        events_2, turn_2, prose_2 = bridge.cached_transcript_events({'transcriptPath': str_tx_arg}, str_key, str(self.tmp))
+        uncached_2 = bridge.shadow_events(bridge.transcript_steps({'transcriptPath': str_tx_arg}), str(self.tmp))
+        self.assertEqual((events_2, turn_2, prose_2), uncached_2)
+
+        # 2. Multi-block (> 2 MiB) transcript exercises prior_blocks reuse on append and invalidates edits in any block.
+        _, mb_key = bridge.conversation({'conversationId': 'multi-block-cache'})
+        mb_tx = self.tmp / 'mb-logs/transcript_full.jsonl'
+        mb_tx.parent.mkdir(parents=True)
+        mb_tx_arg = str(mb_tx.with_name('transcript.jsonl'))
+        mb_steps = [{'type': 'USER_INPUT', 'source': 'USER_EXPLICIT', 'step_index': 0, 'content': 'start'}]
+        for idx in range(18):
+            mb_steps.append({
+                'type': 'PLANNER_RESPONSE', 'step_index': 1 + idx * 2,
+                'tool_calls': [{'id': f'mb-{idx}', 'name': 'run_command', 'args': {'CommandLine': f'echo {idx}'}}],
+            })
+            mb_steps.append({
+                'type': 'GENERIC', 'status': 'DONE', 'step_index': 2 + idx * 2,
+                'content': f'MB_ANCHOR_{idx}:' + ('p' * (135 * 1024)),
+            })
+        mb_steps.append({'type': 'PLANNER_RESPONSE', 'step_index': 99,
+                         'content': 'Ready.\nproposed-next: none — status only'})
+        mb_tx.write_text(''.join(json.dumps(s) + '\n' for s in mb_steps), encoding='utf-8')
+        self.assertGreater(mb_tx.stat().st_size, 2 * bridge.CACHE_BLOCK_BYTES + 100_000)
+        self.assertLess(mb_tx.stat().st_size, 3 * bridge.CACHE_BLOCK_BYTES - 100_000)
+
+        init_events = bridge.cached_transcript_events({'transcriptPath': mb_tx_arg}, mb_key, str(self.tmp))
+        self.assertEqual(init_events, bridge.shadow_events(bridge.transcript_steps({'transcriptPath': mb_tx_arg}), str(self.tmp)))
+        mb_cache = json.loads((state / f'{mb_key}.cache.json').read_text(encoding='utf-8'))
+        self.assertEqual(len(mb_cache['block_sha256']), 3)
+
+        # Append a step and verify write-side span_block_digests reuses the 2 full 1 MiB prefix blocks
+        # without re-seeking into bytes 0 .. 2 MiB during the cache update.
+        with mb_tx.open('a', encoding='utf-8') as fh:
+            fh.write(json.dumps({'type': 'PLANNER_RESPONSE', 'step_index': 100,
+                                 'content': 'After append.\nproposed-next: none — status only'}) + '\n')
+        real_span_digests = bridge.span_block_digests
+        write_seek_offsets = []
+
+        def spy_span_digests(stream, start, end, prior_blocks=None, prior_end=None):
+            if prior_blocks is not None:
+                real_seek = stream.seek
+
+                def rec_seek(off, *a):
+                    write_seek_offsets.append(off)
+                    return real_seek(off, *a)
+
+                stream.seek = rec_seek
+                try:
+                    return real_span_digests(stream, start, end, prior_blocks, prior_end)
+                finally:
+                    stream.seek = real_seek
+            return real_span_digests(stream, start, end, prior_blocks, prior_end)
+
+        bridge.span_block_digests = spy_span_digests
+        try:
+            app_events = bridge.cached_transcript_events({'transcriptPath': mb_tx_arg}, mb_key, str(self.tmp))
+        finally:
+            bridge.span_block_digests = real_span_digests
+        self.assertEqual(app_events, bridge.shadow_events(bridge.transcript_steps({'transcriptPath': mb_tx_arg}), str(self.tmp)))
+        self.assertTrue(write_seek_offsets, 'expected write-side span_block_digests call on append')
+        self.assertGreaterEqual(
+            min(write_seek_offsets),
+            2 * bridge.CACHE_BLOCK_BYTES,
+            f'write-side span_block_digests re-read full prefix blocks instead of reusing prior_blocks: {write_seek_offsets}',
+        )
+        # Second call after append must also hit the updated 3-block cache cleanly.
+        hit_after_append = bridge.cached_transcript_events({'transcriptPath': mb_tx_arg}, mb_key, str(self.tmp))
+        self.assertEqual(hit_after_append, app_events)
+
+        # Same-length edit inside reused block 0 (< 1 MiB) and block 1 (1..2 MiB) must both invalidate.
+        for anchor, lo, hi in (
+            (b'MB_ANCHOR_2:', 0, bridge.CACHE_BLOCK_BYTES),
+            (b'MB_ANCHOR_10:', bridge.CACHE_BLOCK_BYTES, 2 * bridge.CACHE_BLOCK_BYTES),
+        ):
+            raw = mb_tx.read_bytes()
+            anchor_pos = raw.index(anchor)
+            done_pos = raw.rfind(b'"status": "DONE"', 0, anchor_pos)
+            self.assertGreaterEqual(done_pos, lo)
+            self.assertLess(done_pos, hi)
+            edited = raw[:done_pos] + b'"status": "FAIL"' + raw[done_pos + len(b'"status": "DONE"'):]
+            self.assertEqual(len(edited), len(raw))
+            mb_tx.write_bytes(edited)
+            got = bridge.cached_transcript_events({'transcriptPath': mb_tx_arg}, mb_key, str(self.tmp))
+            want = bridge.shadow_events(bridge.transcript_steps({'transcriptPath': mb_tx_arg}), str(self.tmp))
+            self.assertEqual(got, want)
+
     def test_stat_keyed_bundled_skill_entry_avoids_reread_until_file_changes(self):
         plugin = self.tmp / 'plugin'
         (plugin / 'hooks').mkdir(parents=True)

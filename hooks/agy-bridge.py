@@ -680,11 +680,15 @@ def emit_cached_records(stream, records, cwd):
             raise ValueError('malformed record')
         tag = rec[0]
         if tag == 'U':
+            if len(rec) != 2 or not is_int(rec[1]):
+                raise ValueError('bad user record')
             _, number = rec
             turn_id, last_prose = f'turn-{number}', None
             events.append({'type': 'user', 'uuid': turn_id, 'promptId': turn_id,
                            'message': {'role': 'user', 'content': [{'type': 'text', 'text': ''}]}})
         elif tag == 'P':
+            if len(rec) != 3:
+                raise ValueError('bad prose record')
             _, line_off, line_len = rec
             if not (is_int(line_off) and is_int(line_len) and line_off >= 0 and line_len >= 0):
                 raise ValueError('bad prose span')
@@ -701,8 +705,12 @@ def emit_cached_records(stream, records, cwd):
                 events.append({'type': 'assistant', 'message': {
                     'role': 'assistant', 'content': [{'type': 'text', 'text': prose}]}})
         elif tag == 'C':
+            if len(rec) != 7:
+                raise ValueError('bad call record')
             _, number, line_off, line_len, paired_int, failed_hex, loaded_on_step = rec
-            if not (is_int(line_off) and is_int(line_len) and line_off >= 0 and line_len >= 0
+            if not (is_int(number) and is_int(line_off) and is_int(line_len)
+                    and is_int(paired_int) and paired_int in (0, 1)
+                    and line_off >= 0 and line_len >= 0
                     and isinstance(failed_hex, str) and isinstance(loaded_on_step, list)):
                 raise ValueError('bad call record')
             stream.seek(line_off)
@@ -715,7 +723,11 @@ def emit_cached_records(stream, records, cwd):
             calls = [c for c in step.get('tool_calls') or [] if isinstance(c, dict)]
             paired = bool(paired_int)
             failed_bits = int(failed_hex, 16)
-            loaded_map = {pos: slug for pos, slug in loaded_on_step}
+            loaded_map = {}
+            for item in loaded_on_step:
+                if not (isinstance(item, list) and len(item) == 2 and is_int(item[0]) and isinstance(item[1], str)):
+                    raise ValueError('bad loaded_on_step item')
+                loaded_map[item[0]] = item[1]
             for position, call in enumerate(calls):
                 name, args = str(call.get('name') or ''), tool_args(call)
                 failed = bool((failed_bits >> position) & 1)
@@ -797,13 +809,14 @@ def parse_tail_slice(
         cur_step_index += 1
 
         if kind == 'USER_INPUT':
-            if step.get('source') == 'USER_EXPLICIT':
+            explicit = step.get('source') == 'USER_EXPLICIT'
+            if explicit:
                 turn_id, last_prose = f'turn-{number}', None
                 events.append({'type': 'user', 'uuid': turn_id, 'promptId': turn_id,
                                'message': {'role': 'user', 'content': [{'type': 'text', 'text': ''}]}})
-                if can_freeze and has_nl:
+            if can_freeze and has_nl and (not explicit or is_int(number)):
+                if explicit:
                     frozen_records.append(['U', number])
-            if can_freeze and has_nl:
                 frozen_end = parsed_steps[idx][0] if idx < len(parsed_steps) else complete_end
                 frozen_step_count = cur_step_index
             else:
@@ -886,7 +899,7 @@ def parse_tail_slice(
                     {'type': 'tool_result', 'tool_use_id': skill_id, 'content': 'loaded',
                      'is_error': False}]}})
 
-        if can_freeze and is_closed:
+        if can_freeze and is_closed and is_int(number):
             frozen_records.append(['C', number, line_off, line_len, 1 if paired else 0,
                                    f'{failed_bits:x}', loaded_on_step])
             frozen_end = parsed_steps[idx][0]

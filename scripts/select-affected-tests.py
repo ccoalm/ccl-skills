@@ -878,7 +878,6 @@ HOOK_FILE_MAP: dict[str, tuple[str, ...]] = {
     "hooks/test_remind_untracked_background.sh": ("hooks/test_remind_untracked_background.sh",),
     "hooks/session-start.sh": ("hooks/test_session_start.sh", "hooks/test_skill_loading.py"),
     "hooks/test_session_start.sh": ("hooks/test_session_start.sh",),
-    "hooks/skill-extraction-gate-stop.sh": ("hooks/test_host_input.py", "hooks/test_agy_bridge.py"),
 }
 
 HOOK_FIELD_READS_ORIG_TRIGGERS = frozenset(

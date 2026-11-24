@@ -2090,8 +2090,16 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         rem_cmd = ["python3", "hooks/test_hook_remaining_field_reads.py"]
 
         ext_plan = mod.build_test_plan(["hooks/skill-extraction-gate-stop.sh"], repo_root=REPO_ROOT)
-        self.assertIn("hooks/test_host_input.py", ext_plan["parallel_suites"])
-        self.assertIn("hooks/test_agy_bridge.py", ext_plan["parallel_suites"])
+        self.assertTrue(ext_plan["npm_required"])
+        for expected_suite in (
+            "hooks/test_host_input.py",
+            "hooks/test_agy_bridge.py",
+            "hooks/test_skill_loading.py",
+            "hooks/test_proposed_next.py",
+            "scripts/test_install_opencode_skill_migration.sh",
+        ):
+            self.assertIn(expected_suite, ext_plan["parallel_suites"])
+        self.assertIn(field_cmd, ext_plan["serial_commands"])
         self.assertIn(rem_cmd, ext_plan["serial_commands"])
         self.assertNotIn("hooks/test_hook_field_reads.py", ext_plan["parallel_suites"])
         self.assertNotIn("hooks/test_hook_remaining_field_reads.py", ext_plan["parallel_suites"])
