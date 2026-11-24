@@ -255,7 +255,15 @@ grep_spawns=$(wc -l < "$grep_log" | tr -d ' ')
 if [ "$RC" -eq 0 ] && [ "$grep_spawns" -eq 0 ]; then ok
 else note "p13 batched scan expected rc=0 and 0 grep spawns across 6 files, got rc=$RC spawns=$grep_spawns: $OUT"; fi
 
-EXPECTED_PROBES=18
+# --- P14: non-ASCII UTF-8 repository root path does not raise Encoding::CompatibilityError ----
+r_utf8="$TMP/仓库-p14"
+mkdir -p "$r_utf8/hooks" "$r_utf8/scripts"
+printf '#!/usr/bin/env bash\necho clean\n' > "$r_utf8/hooks/clean.sh"
+OUT=$( bash "$section" "$r_utf8" 2>&1 ); RC=$?
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q 'git_identity_predicate_scan_ok'; then ok
+else note "p14 non-ASCII root path must pass without encoding error (rc=$RC): $OUT"; fi
+
+EXPECTED_PROBES=19
 actual_probes=$(grep -cE '^[[:space:]]*(ok$|ok;|if \[ "\$RC")' "$0")
 echo "git_identity_predicate_gate: $pass passed, $fail failed, $skipped skipped${skipped_labels:+ ($skipped_labels )}"
 [ "$((pass + fail + skipped))" -eq "$EXPECTED_PROBES" ] \

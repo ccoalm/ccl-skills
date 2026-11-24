@@ -176,10 +176,27 @@ COPY_SCRIPT="$TMP/generic-r0-copy.sh"
 cp "$SCAN_SCRIPT" "$COPY_SCRIPT"
 printf '\n# 1-byte-ish comment invalidation\n' >> "$COPY_SCRIPT"
 : > "$RG_LOG"
-bash "$COPY_SCRIPT" --self-test-cached >/dev/null
 PATH="$RG_SHIM_DIR:$PATH" CCL_SKILL_SELFTEST_CACHE_DIR="$CACHE_DIR" env -u CCL_SKILL_NO_SELFTEST_CACHE bash "$COPY_SCRIPT" --self-test-cached >/dev/null
 edit_rg="$(wc -l < "$RG_LOG" | tr -d ' ')"
 [ "$edit_rg" -ge 1 ] || fail "expected edited copy to miss prior stamp and run rg"
+
+# 7d2: swapping rg on PATH (different binary/shim) invalidates prior stamp and fails closed on a broken rg.
+BROKEN_RG_DIR="$TMP/rg-shim-broken"
+mkdir -p "$BROKEN_RG_DIR"
+cat > "$BROKEN_RG_DIR/rg" <<EOF
+#!/usr/bin/env bash
+echo x >> "$RG_LOG"
+exit 1
+EOF
+chmod +x "$BROKEN_RG_DIR/rg"
+: > "$RG_LOG"
+set +e
+PATH="$BROKEN_RG_DIR:$PATH" CCL_SKILL_SELFTEST_CACHE_DIR="$CACHE_DIR" env -u CCL_SKILL_NO_SELFTEST_CACHE bash "$SCAN_SCRIPT" --self-test-cached >/dev/null 2>&1
+swap_rc=$?
+set -e
+swap_rg="$(wc -l < "$RG_LOG" | tr -d ' ')"
+[ "$swap_rg" -ge 1 ] || fail "expected swapped rg binary on PATH to miss prior stamp and invoke rg, got $swap_rg"
+[ "$swap_rc" -ne 0 ] || fail "expected broken swapped rg on PATH to fail --self-test-cached, got rc=0"
 
 # 7e: broken mutant never writes a stamp.
 BROKEN_SCRIPT="$TMP/generic-r0-broken.sh"

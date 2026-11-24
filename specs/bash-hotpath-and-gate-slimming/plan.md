@@ -2,7 +2,7 @@
 
 ## Binding Proposal & Scope
 
-Turn 1 audited `/home/liumo/work/code/src/github.com/ccoalm/ccl-skills` at `827f7f684b41842452ca6af3421a45f3e4d364ef` and recommended `方向 1` as the default next slice; Turn 2 (`继续优化`) bound short affirmative assent to that verbatim proposal:
+Initial repository-wide audit of `<repo-root>` at `827f7f684b41842452ca6af3421a45f3e4d364ef` recommended `方向 1` as the default next slice; affirmative user continuation (`继续优化`) bound scope to that verbatim proposal:
 
 > 下一步建议按以下四个方向推进（默认优先做 **方向 1**）：
 > ### 1. 会话 `Bash` 热路径与内环门禁再削峰（推荐首选）

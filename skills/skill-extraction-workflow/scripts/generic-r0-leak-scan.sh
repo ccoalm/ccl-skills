@@ -294,7 +294,7 @@ if ! command -v rg >/dev/null 2>&1; then
   exit 2
 fi
 
-script_sha256() {
+file_sha256() {
   local f="$1"
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$f" | awk '{print $1}'
@@ -307,7 +307,27 @@ script_sha256() {
   fi
 }
 
+selftest_stamp_key() {
+  local script_file="$1" rg_bin="" s_hash="" rg_hash="" raw=""
+  rg_bin="$(command -v rg 2>/dev/null || true)"
+  [ -n "$rg_bin" ] && [ -r "$rg_bin" ] || return 1
+  s_hash="$(file_sha256 "$script_file" 2>/dev/null || true)"
+  rg_hash="$(file_sha256 "$rg_bin" 2>/dev/null || true)"
+  [ "${#s_hash}" -eq 64 ] && [ "${#rg_hash}" -eq 64 ] || return 1
+  raw="${s_hash}:${rg_bin}:${rg_hash}"
+  if command -v sha256sum >/dev/null 2>&1; then
+    printf '%s\n' "$raw" | sha256sum | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    printf '%s\n' "$raw" | shasum -a 256 | awk '{print $1}'
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import hashlib,sys; print(hashlib.sha256((sys.argv[1] + "\n").encode("utf-8", "surrogateescape")).hexdigest())' "$raw"
+  else
+    return 1
+  fi
+}
+
 # Content-addressed 0700 per-UID stamp wrapper for check-ccl-skills.sh.
+# Hashes both generic-r0-leak-scan.sh and the resolved rg binary on PATH without spawning rg.
 # Bypasses the cache when CCL_SKILL_NO_SELFTEST_CACHE=1 is set or when the cache
 # directory fails ownership / symlink / 0700 mode validation. Never caches failed runs.
 run_self_test_cached() {
@@ -317,7 +337,7 @@ run_self_test_cached() {
   fi
 
   local script_file="${BASH_SOURCE[0]}" hash="" cache_dir="" uid="" mode=""
-  hash="$(script_sha256 "$script_file" 2>/dev/null || true)"
+  hash="$(selftest_stamp_key "$script_file" 2>/dev/null || true)"
   case "$hash" in
     [0-9a-f][0-9a-f][0-9a-f][0-9a-f]*)
       [ "${#hash}" -eq 64 ] || hash=""

@@ -15,9 +15,9 @@ Every new assertion was written and executed against unmodified `origin/main` (`
 | `T4` | `scripts/test_check_spec_references.py` | `rc=1` (`AssertionError: 27 != 1 : expected CITATION_RE to run only on the 1 file containing backticked specs/, got 27`) | `rc=0` (`Ran 80 tests ... OK`; `finditer_calls=1`, `escape_calls=2`, `spec_reference_check_ok`) |
 | `T5a` | `skills/skill-extraction-workflow/scripts/test_check_ccl_size_budget.sh` | `rc=1` (`FAIL: expected 0 'git show' calls (use cat-file --batch), got 2`) | `rc=0` (`test_check_ccl_size_budget: ok`; `0` `git show`, `1` `rev-parse --show-toplevel`, `<=12` total git calls, nested export inside enclosing checkout downgrades cleanly) |
 | `T5b` | `skills/skill-extraction-workflow/scripts/test_validate_skill_credential_cwd.sh` | `rc=1` (`FAIL: expected 1 batched rg spawn across 3 non-git skill roots, got 3`) | `rc=0` (`test_validate_skill_credential_cwd: ok`; `1` `rg` spawn across 3 skill roots from subdir `cwd`, unreadable root fails closed) |
-| `T5c` | `skills/skill-extraction-workflow/scripts/test_git_identity_predicate_gate.sh` | `rc=1` (`FAIL p13 batched scan expected rc=0 and 0 grep spawns across 6 files, got rc=0 spawns=6`) | `rc=0` (`18 passed, 0 failed, 0 skipped`, `test_git_identity_predicate_gate_ok`) |
-| `T5d` | `skills/skill-extraction-workflow/scripts/test_liveness_predicate_gate.sh` | `rc=1` (`FAIL p15 batched liveness scan expected rc=0 and 0 grep spawns across 6 files, got rc=0 spawns=6`) | `rc=0` (`pass=24 fail=0`, `liveness_predicate_gate_ok`) |
-| `T5e` | `skills/skill-extraction-workflow/scripts/test_generic_r0_leak_scan.sh` | `rc=1` (`FAIL: expected rc=0 got rc=2 (cold --self-test-cached should pass)`) | `rc=0` (`test_generic_r0_leak_scan: ok`; cold `2`-`rg` batch, warm `0`-`rg` hit, `CCL_SKILL_NO_SELFTEST_CACHE=1`, 1-byte invalidation, broken mutant non-caching, `0777`/symlink rejection, `<=64` pruning, `Makefile` uncached `--self-test`) |
+| `T5c` | `skills/skill-extraction-workflow/scripts/test_git_identity_predicate_gate.sh` | `rc=1` (`FAIL p13 batched scan expected rc=0 and 0 grep spawns across 6 files, got rc=0 spawns=6`) | `rc=0` (`19 passed, 0 failed, 0 skipped`, `test_git_identity_predicate_gate_ok`, incl. `p14` non-ASCII root path) |
+| `T5d` | `skills/skill-extraction-workflow/scripts/test_liveness_predicate_gate.sh` | `rc=1` (`FAIL p15 batched liveness scan expected rc=0 and 0 grep spawns across 6 files, got rc=0 spawns=6`) | `rc=0` (`pass=25 fail=0`, `liveness_predicate_gate_ok`, incl. `p16` non-ASCII root path) |
+| `T5e` | `skills/skill-extraction-workflow/scripts/test_generic_r0_leak_scan.sh` | `rc=1` (`FAIL: expected rc=0 got rc=2 (cold --self-test-cached should pass)`) | `rc=0` (`test_generic_r0_leak_scan: ok`; cold `2`-`rg` batch, warm `0`-`rg` hit, `CCL_SKILL_NO_SELFTEST_CACHE=1`, 1-byte invalidation, `7d2` swapped-`rg` invalidation, broken mutant non-caching, `0777`/symlink rejection, `<=64` pruning, `Makefile` uncached `--self-test`) |
 
 ## 2. Interleaved Paired `N=7` Benchmarks (`origin/main` vs Candidate)
 
@@ -35,7 +35,7 @@ Measured in an uncontended interleaved A/B harness (`base, cand, base, cand...` 
 | `bash .../check-ccl-skills.sh .` (warm cache) | `7718.34` | `5171.37` | `1.49x` (`-2546.97 ms`) | `[7792.08, 7718.34, 7772.43, 7654.49, 7641.61, 7736.97, 7646.4]` | `[5248.94, 5211.11, 5245.71, 5130.83, 5153.95, 5171.37, 5138.57]` |
 | `bash .../check-ccl-skills.sh .` (cold cache) | `15273.93` | `12877.78` | `1.19x` (`-2396.15 ms`) | `[15273.93, 15305.05, 15399.05, 15042.44, 15174.81, 15375.46, 15078.49]` | `[12880.75, 12877.78, 12908.86, 12760.78, 12695.69, 12703.66, 12968.56]` |
 
-## 3. Applied Differential Killing-Mutation Walk (`23/23` Killed)
+## 3. Applied Differential Killing-Mutation Walk (`25/25` Killed)
 
 Executed in isolated temporary clones outside the delivery worktree (`control_rc=0` verified before each mutant):
 
@@ -64,8 +64,10 @@ Executed in isolated temporary clones outside the delivery worktree (`control_rc
 | `M16_r0_cache_accept_unsafe_0777_mode` | `skills/skill-extraction-workflow/scripts/generic-r0-leak-scan.sh` | Disable `mode != "700"` check in `run_self_test_cached` | `0` | `1` | `0777 cache dir must bypass stamp on every call` |
 | `M16b_ap28_oneline_hollow_helper_leak` | `skills/skill-extraction-workflow/scripts/check-ccl-skills.sh` | Drop one-line `}` close check in Anti-pattern 28 helper body parser | `0` | `1` | `p12 a one-line hollow helper must NOT borrow a later read` |
 | `M17_opencode_three_revparse_fallback` | `packages/opencode-plugin/ccl-skills.ts` | Force 3-call `git rev-parse` fallback in `repoCheckoutPaths` | `0` | `1` | `expected 1 plugin git rev-parse call on linked worktree edit, got 3` |
+| `M18_r0_stamp_omit_rg_identity` | `skills/skill-extraction-workflow/scripts/generic-r0-leak-scan.sh` | Drop `rg_bin:rg_hash` from `selftest_stamp_key` | `0` | `1` | `expected swapped rg binary on PATH to miss prior stamp and invoke rg, got 0` |
+| `M19_ap27_utf8_prefix_encoding` | `skills/skill-extraction-workflow/scripts/check-ccl-skills.sh` | Revert `# encoding: BINARY` + `.b` prefix to `# encoding: UTF-8` in Anti-pattern 27 | `0` | `1` | `FAIL p14 non-ASCII root path` (`Encoding::CompatibilityError`) |
 
-Note: `M03b` was observed directly during the initial mutation-walk run before `[ "${#input}" -le 65536 ]` was added (`23/23` distinct mutations verified).
+Note: `M03b` was observed directly during the initial mutation-walk run before `[ "${#input}" -le 65536 ]` was added (`25/25` distinct mutations verified).
 
 ## 4. Contract Sync & `tighten-doc` Closeout Evidence
 

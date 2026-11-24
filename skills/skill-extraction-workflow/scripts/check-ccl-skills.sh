@@ -557,10 +557,12 @@ if [[ -d "$root/hooks" || -d "$root/scripts" ]]; then
     echo "git_identity_predicate_scan_error: find exited $gid_find_rc walking ${gid_roots[*]#"$root"/} — the walk is INCOMPLETE, which is not the same as clean" >&2
     exit 1
   fi
-  if gid_hits="$(ruby -e '# encoding: UTF-8
-    root = ARGV.fetch(0)
+  if gid_hits="$(ruby -e '# encoding: BINARY
+    STDOUT.binmode
+    STDERR.binmode
+    root = ARGV.fetch(0).b
     list_path = ARGV.fetch(1)
-    prefix = root.end_with?("/") ? root : "#{root}/"
+    prefix = root.end_with?("/") ? root : (root + "/")
     pat = /\*[\x27"]?\/worktrees\/[\x27"]?\*/n
     comment_re = /\A[[:space:]]*#/n
     hits = []
@@ -582,7 +584,7 @@ if [[ -d "$root/hooks" || -d "$root/scripts" ]]; then
         hits << "#{rel}:#{idx + 1}:#{line}"
       end
     end
-    hits.sort.each { |h| puts h }
+    hits.sort.each { |h| STDOUT.write(h); STDOUT.write("\n") }
   ' "$root" "$gid_list")"; then
     gid_scan_rc=0
   else
@@ -657,10 +659,12 @@ if [[ "$liveness_find_rc" -ne 0 ]]; then
 fi
 # Single binary-safe Ruby pass over NUL-delimited paths (replaces per-file grep/sed/awk
 # subprocess loops while keeping exact operator, +-2 window, and helper-body semantics).
-if liveness_hits="$(ruby -e '# encoding: UTF-8
-  root = ARGV.fetch(0)
+if liveness_hits="$(ruby -e '# encoding: BINARY
+  STDOUT.binmode
+  STDERR.binmode
+  root = ARGV.fetch(0).b
   list_path = ARGV.fetch(1)
-  prefix = root.end_with?("/") ? root : "#{root}/"
+  prefix = root.end_with?("/") ? root : (root + "/")
   pat = /ps[[:space:]]+-o[[:space:]]+ppid=[^=]*[^!=]=[[:space:]]*"?1"?[[:space:]]*\]/n
   comment_re = /\A[[:space:]]*#/n
   stat_re = /-o[[:space:]]*stat=/n
@@ -714,7 +718,7 @@ if liveness_hits="$(ruby -e '# encoding: UTF-8
       hits << "#{rel}:#{lineno}:#{line}"
     end
   end
-  hits.sort.each { |h| puts h }
+  hits.sort.each { |h| STDOUT.write(h); STDOUT.write("\n") }
 ' "$root" "$liveness_list")"; then
   liveness_scan_rc=0
 else
