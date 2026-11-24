@@ -1,11 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 import { isDirectEntrypoint, parseArgs } from "../dist/cli.js";
+import { runOpenCode } from "../dist/opencode-adapter.js";
 function env(version = "codex-cli 0.133.0", versionExit = 0) {
 	const t = mkdtempSync(join(tmpdir(), "codex-npm-")),
 		bin = join(t, "bin");
@@ -148,4 +149,53 @@ test("package.json declares Antigravity metadata, uniform 2-space indent, openco
 	assert.doesNotMatch(manifest.scripts["test:pack"], /test\/pack\.test\.mjs/);
 	assert.equal(existsSync("test/pack.test.mjs"), false, "pack suite must live outside test/*.test.mjs so unit tests stay decoupled from test:pack");
 	assert.equal(existsSync("scripts/check-pack-suite.mjs"), true);
+});
+test("bundled release.json excludes repo-only test suites while retaining runtime hooks and contract fixtures", () => {
+	const release = JSON.parse(readFileSync("dist/assets/release.json", "utf8"));
+	const paths = new Set(release.files.map((entry) => entry.path));
+	const repoTestPattern = /^marketplace\/plugins\/ccl-skills\/(?:hooks\/test_[^/]+|scripts\/owner-dispatch\/test\.sh|skills\/[^/]+\/scripts\/(?:test_[^/]+|[^/]+\.test\.sh))$/;
+	const leakedTests = [...paths].filter((entry) => repoTestPattern.test(entry));
+	assert.deepEqual(
+		leakedTests,
+		[],
+		`dist/assets must exclude repo-only test suites, found ${leakedTests.length}: ${leakedTests.slice(0, 8).join(", ")}`,
+	);
+	for (const requiredRuntimePath of [
+		"marketplace/plugins/ccl-skills/hooks/guard-broad-local-test.sh",
+		"marketplace/plugins/ccl-skills/scripts/owner-dispatch/owner-dispatch.sh",
+		"marketplace/plugins/ccl-skills/skills/tighten-doc/scripts/tests/svg/figure-contract.json",
+		"marketplace/plugins/ccl-skills/skills/tighten-doc/scripts/tests/doc/control.md",
+		"marketplace/plugins/ccl-skills/skills/test-artifact-management/references/test_gen_report.py",
+		"marketplace/plugins/ccl-skills/skills/code-review/scripts/review_gate.sh",
+	]) {
+		assert.equal(paths.has(requiredRuntimePath), true, `missing required runtime/contract asset: ${requiredRuntimePath}`);
+	}
+});
+test("OpenCode CCL_SKILLS_REPO override excludes repo-only skill test scripts while keeping runtime scripts", () => {
+	const root = mkdtempSync(join(tmpdir(), "opencode-override-slimming-"));
+	try {
+		const home = join(root, "home"), bin = join(root, "bin"), repoOverride = join(root, "repo");
+		mkdirSync(home, { recursive: true });
+		mkdirSync(bin, { recursive: true });
+		writeFileSync(join(bin, "opencode"), "#!/bin/sh\n[ \"$1\" = --version ] && { echo 'opencode 1.0.0'; exit 0; }\nexit 0\n", { mode: 0o755 });
+		cpSync(resolve("dist/assets/marketplace/plugins/ccl-skills"), repoOverride, { recursive: true });
+		const scriptsDir = join(repoOverride, "skills/code-review/scripts");
+		writeFileSync(join(scriptsDir, "test_synthetic_override.sh"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+		writeFileSync(join(scriptsDir, "override.test.sh"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+		const res = runOpenCode(
+			"install",
+			{ yes: true },
+			{
+				home,
+				assets: resolve("dist/assets"),
+				env: { ...process.env, HOME: home, PATH: `${bin}:${process.env.PATH}`, CCL_SKILLS_REPO: repoOverride },
+			},
+		);
+		assert.equal(res.code, 0, res.message);
+		assert.equal(existsSync(join(home, ".config/opencode/skills/code-review/scripts/review_gate.sh")), true);
+		assert.equal(existsSync(join(home, ".config/opencode/skills/code-review/scripts/test_synthetic_override.sh")), false);
+		assert.equal(existsSync(join(home, ".config/opencode/skills/code-review/scripts/override.test.sh")), false);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
 });

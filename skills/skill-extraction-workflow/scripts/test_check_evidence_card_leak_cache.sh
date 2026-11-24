@@ -214,6 +214,57 @@ else
   bad "check-ccl-skills.sh still invokes uncached --self-test"
 fi
 
+# 10. Heading-less markdown files skip sanitized_file() mktemp/awk work, while
+#     fenced cards still pass and unfenced cards still fail.
+FAST_TREE="$WORK/fast-tree"
+mkdir -p "$FAST_TREE/skills/demo/references"
+printf '# notes\nplain prose without card headings\n' > "$FAST_TREE/skills/demo/references/a.md"
+printf '# risk\n- Tier: L2\n- First-hand evidence: x\n- Reusable pattern: y\n' > "$FAST_TREE/skills/demo/references/b.md"
+printf '# guide\n- Recommended path: L1\n' > "$FAST_TREE/skills/demo/references/c.md"
+MKTEMP_SPY="$WORK/mktemp-spy"
+MKTEMP_LOG="$WORK/mktemp.log"
+REAL_MKTEMP="$(command -v mktemp)"
+mkdir -p "$MKTEMP_SPY"
+cat > "$MKTEMP_SPY/mktemp" <<EOF
+#!/usr/bin/env bash
+printf 'mktemp\n' >> "$MKTEMP_LOG"
+exec "$REAL_MKTEMP" "\$@"
+EOF
+chmod 0755 "$MKTEMP_SPY/mktemp"
+: > "$MKTEMP_LOG"
+set +e
+fast_out="$(PATH="$MKTEMP_SPY:$PATH" bash "$DETECTOR" --all "$FAST_TREE" 2>&1)"
+fast_rc=$?
+set -e
+mktemp_calls="$(wc -l < "$MKTEMP_LOG" | tr -d ' ')"
+if [ "$fast_rc" -eq 0 ] && grep -q 'evidence_card_leak_scan_ok' <<<"$fast_out" && [ "$mktemp_calls" -eq 0 ]; then
+  ok "heading-less --all scan runs 0 mktemp calls ($mktemp_calls)"
+else
+  bad "heading-less --all scan spawned mktemp or failed: rc=$fast_rc mktemp_calls=$mktemp_calls out=$fast_out"
+fi
+
+printf '%b' '# example\n- Tier: L2\n```\n## Evidence Card\n- Recommended path: L2\n```\n' > "$FAST_TREE/skills/demo/references/fenced.md"
+set +e
+fenced_out="$(bash "$DETECTOR" --all "$FAST_TREE" 2>&1)"
+fenced_rc=$?
+set -e
+if [ "$fenced_rc" -eq 0 ] && grep -q 'evidence_card_leak_scan_ok' <<<"$fenced_out"; then
+  ok "fenced card alongside heading-less files still passes --all"
+else
+  bad "fenced card false-triggered --all: rc=$fenced_rc out=$fenced_out"
+fi
+
+printf '## Evidence Card\n- Recommended path: L2\n' > "$FAST_TREE/skills/demo/references/unfenced-leak.md"
+set +e
+leak_out="$(bash "$DETECTOR" --all "$FAST_TREE" 2>&1)"
+leak_rc=$?
+set -e
+if [ "$leak_rc" -ne 0 ] && grep -q 'skills/demo/references/unfenced-leak.md' <<<"$leak_out"; then
+  ok "unfenced card alongside heading-less files still fails --all"
+else
+  bad "unfenced card missed in mixed tree: rc=$leak_rc out=$leak_out"
+fi
+
 echo "----"
 echo "passed=$pass failed=$fail"
 [ "$fail" -eq 0 ]

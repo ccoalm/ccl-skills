@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
 	cpSync,
 	existsSync,
+	linkSync,
 	mkdtempSync,
 	mkdirSync,
 	readFileSync,
@@ -499,7 +500,7 @@ test("OpenCode first delegation checkpoint requires a completed native skill loa
 test("OpenCode owner evidence binds inactive progressive-disclosure files to the active skill", async (t) => {
 	const cases = [
 		...['source', 'project', 'compatibility'].flatMap((layout) => ['matching', 'reference', 'script'].map((change) => [layout, change])),
-		['source', 'missing-reference'], ['source', 'extra-script'], ['source', 'symlink-reference'],
+		['source', 'missing-reference'], ['source', 'extra-script'], ['source', 'extra-repo-test-script'], ['source', 'tampered-shared-repo-test-script'], ['source', 'symlink-repo-test-script'], ['source', 'hardlink-repo-test-script'], ['source', 'symlink-reference'],
 		['source-active', 'edited'], ['project-active', 'edited'],
 	];
 	for (const [layout, change] of cases) await t.test(`${layout}-${change}`, async () => {
@@ -536,6 +537,20 @@ test("OpenCode owner evidence binds inactive progressive-disclosure files to the
 		if (change === 'script' || change === 'edited') writeFileSync(join(dir, script), '#!/bin/sh\nexit 42\n');
 		if (change === 'missing-reference') rmSync(join(dir, reference));
 		if (change === 'extra-script') writeFileSync(join(dir, 'scripts/extra.sh'), 'exit 42\n');
+		if (change === 'extra-repo-test-script') {
+			writeFileSync(join(dir, 'scripts/test_synthetic.sh'), '#!/bin/sh\nexit 0\n');
+			writeFileSync(join(dir, 'scripts/smoke.test.sh'), '#!/bin/sh\nexit 0\n');
+		}
+		if (change === 'tampered-shared-repo-test-script') {
+			writeFileSync(join(active, 'scripts/test_shared.sh'), '#!/bin/sh\nexit 0\n');
+			writeFileSync(join(dir, 'scripts/test_shared.sh'), '#!/bin/sh\nexit 99\n');
+		}
+		if (change === 'symlink-repo-test-script') {
+			symlinkSync(join(active, reference), join(dir, 'scripts/test_symlink.sh'));
+		}
+		if (change === 'hardlink-repo-test-script') {
+			linkSync(join(active, reference), join(dir, 'scripts/test_hardlink.sh'));
+		}
 		if (change === 'symlink-reference') {
 			rmSync(join(dir, reference));
 			symlinkSync(join(active, reference), join(dir, reference));
@@ -549,7 +564,7 @@ test("OpenCode owner evidence binds inactive progressive-disclosure files to the
 			// checkpoint is covered separately and must not consume this attempt.
 			await hooks['tool.execute.before']({ tool: 'skill', sessionID, callID: 'load' }, { args });
 			await hooks['tool.execute.after']({ tool: 'skill', sessionID, callID: 'load', args }, { output: 'loaded', metadata: { name: args.name, dir } });
-			if (change === 'matching' || change === 'edited') await assert.doesNotReject(dispatch);
+			if (change === 'matching' || change === 'edited' || change === 'extra-repo-test-script') await assert.doesNotReject(dispatch);
 			else await assert.rejects(dispatch, /delegation-owner guard/);
 		} finally { await hooks.dispose(); }
 	});

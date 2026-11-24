@@ -542,17 +542,43 @@ export const CclSkills = async (context: {
     return typeof command === "string" && /\b(?:git\s+(?:push|merge)|gh\b[^\n;&|]*\bpr\s+merge|glab\b[^\n;&|]*\bmr\s+(?:merge|accept)|curl|wget)\b/i.test(command)
   }
 
+  function isRepoTestScriptName(name: string) {
+    return name.startsWith("test_") || name.endsWith(".test.sh")
+  }
+
+  function isSingleLinkRegularRepoTest(dir: string, name: string) {
+    if (!isRepoTestScriptName(name)) return false
+    try {
+      const st = lstatSync(join(dir, name))
+      return st.isFile() && !st.isSymbolicLink() && st.nlink === 1
+    } catch {
+      return false
+    }
+  }
+
   function sameSkillDirectory(loaded: string, active: string) {
     if (loaded === realpathSync(active)) return true
-    const pending = [[loaded, active]]
+    const pending: Array<[string, string, string]> = [[loaded, active, ""]]
     while (pending.length) {
-      const [copy, owner] = pending.pop()!
+      const [copy, owner, relDir] = pending.pop()!
       const copyStat = lstatSync(copy), ownerStat = lstatSync(owner)
       if (copyStat.isSymbolicLink() || ownerStat.isSymbolicLink()) return false
       if (copyStat.isDirectory() && ownerStat.isDirectory()) {
-        const copyNames = readdirSync(copy).sort(), ownerNames = readdirSync(owner).sort()
+        const rawCopyNames = readdirSync(copy).sort(), rawOwnerNames = readdirSync(owner).sort()
+        const copySet = new Set(rawCopyNames), ownerSet = new Set(rawOwnerNames)
+        // Bundled npm skills omit repo-only skill test scripts (`scripts/test_*`,
+        // `scripts/*.test.sh`), while a git source checkout retains them. Skip
+        // single-link regular repo-test files ONLY when absent from the peer side;
+        // when present on both sides, still compare stat and bytes so tampered
+        // shared test scripts are rejected.
+        const copyNames = relDir === "scripts"
+          ? rawCopyNames.filter((name) => ownerSet.has(name) || !isSingleLinkRegularRepoTest(copy, name))
+          : rawCopyNames
+        const ownerNames = relDir === "scripts"
+          ? rawOwnerNames.filter((name) => copySet.has(name) || !isSingleLinkRegularRepoTest(owner, name))
+          : rawOwnerNames
         if (copyNames.length !== ownerNames.length || copyNames.some((name, index) => name !== ownerNames[index])) return false
-        for (const name of ownerNames) pending.push([join(copy, name), join(owner, name)])
+        for (const name of ownerNames) pending.push([join(copy, name), join(owner, name), relDir ? `${relDir}/${name}` : name])
       } else if (!copyStat.isFile() || !ownerStat.isFile() || copyStat.size !== ownerStat.size || !readFileSync(copy).equals(readFileSync(owner))) return false
     }
     return true

@@ -78,7 +78,11 @@ function regular(path: string) {
 	return stat;
 }
 
-function walk(root: string, prefix: string, destinationPrefix: string): Entry[] {
+function isSkillScriptRepoTest(rel: string) {
+	return /^[^/]+\/scripts\/(?:test_[^/]+|[^/]+\.test\.sh)$/.test(rel.replaceAll("\\", "/"));
+}
+
+function walk(root: string, prefix: string, destinationPrefix: string, include?: (rel: string) => boolean): Entry[] {
 	const output: Entry[] = [];
 	function visit(directory: string) {
 		for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -88,6 +92,7 @@ function walk(root: string, prefix: string, destinationPrefix: string): Entry[] 
 			if (entry.isDirectory()) visit(path);
 			else {
 				const rel = relative(root, path);
+				if (include && !include(rel)) continue;
 				output.push({ source: join(prefix, rel), destination: join(destinationPrefix, rel), sha256: sha256(path), mode: stat.mode & 0o777 });
 			}
 		}
@@ -108,7 +113,7 @@ function source(context: OpenCodeContext) {
 	for (const helper of ["host-input.py", "skill-loading.py"]) regular(join(hooks, helper));
 	const skillNames = readdirSync(skills, { withFileTypes: true }).filter((entry) => entry.isDirectory() && existsSync(join(skills, entry.name, "SKILL.md"))).map((entry) => entry.name).sort();
 	if (!skillNames.length) throw new Error("invalid CCL_SKILLS_REPO: no skills found");
-	let entries = walk(skills, "skills", "skills");
+	let entries = walk(skills, "skills", "skills", (rel) => !isSkillScriptRepoTest(rel));
 	entries.push({ source: "packages/opencode-plugin/ccl-skills.ts", destination: "plugins/ccl-skills.ts", sha256: sha256(plugin), mode: regular(plugin).mode & 0o777 });
 	entries.push({ source: "agent-context/session-start.md", destination: "ccl-skills/bootstrap.md", sha256: sha256(bootstrap), mode: regular(bootstrap).mode & 0o777 });
 	const policy = join(agentContext, "session-policy.md");

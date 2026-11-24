@@ -49,78 +49,156 @@ if [[ ! -d "$root" ]]; then
   echo "contract_anchor_root_missing: $root" >&2
   exit 2
 fi
-if [[ ! -f "$table" ]]; then
+if [[ ! -f "$table" || ! -r "$table" ]]; then
   echo "contract_anchor_table_missing: $table" >&2
   exit 2
 fi
 
-anchor_count=0
-fail_count=0
-infra_count=0
-# Bash 3.2-safe id-uniqueness set (stock macOS bash has no associative arrays):
-# newline-delimited membership string, ids are TSV fields so they carry no tabs
-# and no newlines.
-seen_ids=$'\n'
-line_no=0
-while IFS= read -r raw || [[ -n "$raw" ]]; do
-  line_no=$((line_no + 1))
-  [[ -z "$raw" || "$raw" == \#* ]] && continue
-  IFS=$'\t' read -r id path literal note <<<"$raw"
-  if [[ -z "${id:-}" || -z "${path:-}" || -z "${literal:-}" || -z "${note:-}" ]]; then
-    echo "contract_anchor_row_malformed: line $line_no of $table (need id<TAB>path<TAB>literal<TAB>note)" >&2
-    infra_count=$((infra_count + 1))
-    continue
-  fi
-  if [[ "$note" == *$'\t'* ]]; then
-    echo "contract_anchor_row_malformed: line $line_no of $table (extra tab-separated field)" >&2
-    infra_count=$((infra_count + 1))
-    continue
-  fi
-  case "$seen_ids" in
-    *$'\n'"$id"$'\n'*)
-      echo "contract_anchor_duplicate_id: $id (line $line_no repeats an earlier row's id)" >&2
-      infra_count=$((infra_count + 1))
-      continue
-      ;;
-  esac
-  seen_ids="$seen_ids$id"$'\n'
-  if (( ${#literal} < 16 )); then
-    echo "contract_anchor_literal_too_short: $id (${#literal} chars, need >=16)" >&2
-    infra_count=$((infra_count + 1))
-    continue
-  fi
-  anchor_count=$((anchor_count + 1))
-  target="$root/$path"
-  fix_line="  fix: restore the contract wording, or — for an intentional contract change — update this anchor row in $(basename "$table") in the same MR"
-  if [[ ! -f "$target" ]]; then
-    echo "contract_anchor_file_missing: $id $path" >&2
-    echo "  fix: restore the anchored file, or — for an intentional move/retirement — update or remove this anchor row in $(basename "$table") in the same MR" >&2
-    fail_count=$((fail_count + 1))
-    continue
-  fi
-  occurrences=$(grep -oF -- "$literal" "$target" | wc -l | tr -d '[:space:]')
-  if [[ "$occurrences" -eq 0 ]]; then
-    echo "contract_anchor_missing: $id in $path" >&2
-    echo "  pinned literal: $literal" >&2
-    echo "$fix_line" >&2
-    fail_count=$((fail_count + 1))
-  elif [[ "$occurrences" -gt 1 ]]; then
-    echo "contract_anchor_duplicate: $id in $path ($occurrences occurrences; the anchor can no longer prove which copy is the contract)" >&2
-    echo "  fix: keep the pinned wording in exactly one place (dedupe the copy), or repin the anchor row in $(basename "$table") to a longer unique literal in the same MR" >&2
-    fail_count=$((fail_count + 1))
-  fi
-done < "$table"
+exec python3 - "$root" "$table" <<'PY'
+import os
+import sys
 
-if [[ "$infra_count" -gt 0 ]]; then
-  echo "contract_anchor_table_invalid: $infra_count integrity error(s) in $table (no verdict from a broken table — fail-closed)" >&2
-  exit 2
-fi
-if [[ "$anchor_count" -eq 0 ]]; then
-  echo "contract_anchor_table_empty: $table has no data rows (an empty anchor set must never certify)" >&2
-  exit 2
-fi
-if [[ "$fail_count" -gt 0 ]]; then
-  echo "contract_anchor_gate_failed: $fail_count of $anchor_count anchors" >&2
-  exit 1
-fi
-echo "contract_anchor_gate_ok ($anchor_count anchors)"
+root, table = sys.argv[1], sys.argv[2]
+real_root = os.path.realpath(root)
+table_base = os.path.basename(table)
+anchor_count = 0
+fail_count = 0
+infra_count = 0
+seen_ids = set()
+file_cache = {}
+
+try:
+    with open(table, "rb") as fh:
+        raw_lines = fh.read().decode("utf-8", errors="surrogateescape").split("\n")
+except OSError:
+    print(f"contract_anchor_table_missing: {table}", file=sys.stderr)
+    raise SystemExit(2)
+
+if raw_lines and raw_lines[-1] == "":
+    raw_lines.pop()
+
+fix_line = (
+    f"  fix: restore the contract wording, or — for an intentional contract change — "
+    f"update this anchor row in {table_base} in the same MR"
+)
+
+for idx, raw in enumerate(raw_lines):
+    line_no = idx + 1
+    if raw.endswith("\r"):
+        raw = raw[:-1]
+    if not raw or raw.startswith("#"):
+        continue
+
+    fields = raw.split("\t")
+    if len(fields) < 4 or any(f == "" for f in fields[:4]):
+        print(
+            f"contract_anchor_row_malformed: line {line_no} of {table} (need id<TAB>path<TAB>literal<TAB>note)",
+            file=sys.stderr,
+        )
+        infra_count += 1
+        continue
+    if len(fields) > 4:
+        print(
+            f"contract_anchor_row_malformed: line {line_no} of {table} (extra tab-separated field)",
+            file=sys.stderr,
+        )
+        infra_count += 1
+        continue
+
+    anchor_id, rel_path, literal, _note = fields
+    if anchor_id in seen_ids:
+        print(
+            f"contract_anchor_duplicate_id: {anchor_id} (line {line_no} repeats an earlier row's id)",
+            file=sys.stderr,
+        )
+        infra_count += 1
+        continue
+    seen_ids.add(anchor_id)
+
+    if len(literal) < 16:
+        print(
+            f"contract_anchor_literal_too_short: {anchor_id} ({len(literal)} chars, need >=16)",
+            file=sys.stderr,
+        )
+        infra_count += 1
+        continue
+
+    rel_parts = rel_path.replace("\\", "/").split("/")
+    if os.path.isabs(rel_path) or rel_path.startswith("/") or ".." in rel_parts:
+        print(
+            f"contract_anchor_row_malformed: line {line_no} of {table} (path must stay relative inside root: {rel_path})",
+            file=sys.stderr,
+        )
+        infra_count += 1
+        continue
+
+    target = os.path.join(root, rel_path)
+    real_target = os.path.realpath(target)
+    if real_target == real_root or not real_target.startswith(real_root + os.sep):
+        print(
+            f"contract_anchor_row_malformed: line {line_no} of {table} (path escapes root: {rel_path})",
+            file=sys.stderr,
+        )
+        infra_count += 1
+        continue
+
+    anchor_count += 1
+    if not os.path.isfile(target) or os.path.islink(target):
+        print(f"contract_anchor_file_missing: {anchor_id} {rel_path}", file=sys.stderr)
+        print(
+            f"  fix: restore the anchored file, or — for an intentional move/retirement — "
+            f"update or remove this anchor row in {table_base} in the same MR",
+            file=sys.stderr,
+        )
+        fail_count += 1
+        continue
+
+    content = file_cache.get(target)
+    if content is None:
+        try:
+            with open(target, "rb") as fh:
+                content = fh.read()
+        except OSError:
+            print(f"contract_anchor_file_unreadable: {anchor_id} {rel_path}", file=sys.stderr)
+            infra_count += 1
+            continue
+        file_cache[target] = content
+
+    lit_bytes = literal.encode("utf-8", errors="surrogateescape")
+    occurrences = content.count(lit_bytes)
+    if occurrences == 0:
+        print(f"contract_anchor_missing: {anchor_id} in {rel_path}", file=sys.stderr)
+        print(f"  pinned literal: {literal}", file=sys.stderr)
+        print(fix_line, file=sys.stderr)
+        fail_count += 1
+    elif occurrences > 1:
+        print(
+            f"contract_anchor_duplicate: {anchor_id} in {rel_path} "
+            f"({occurrences} occurrences; the anchor can no longer prove which copy is the contract)",
+            file=sys.stderr,
+        )
+        print(
+            f"  fix: keep the pinned wording in exactly one place (dedupe the copy), or repin the anchor row "
+            f"in {table_base} to a longer unique literal in the same MR",
+            file=sys.stderr,
+        )
+        fail_count += 1
+
+if infra_count > 0:
+    print(
+        f"contract_anchor_table_invalid: {infra_count} integrity error(s) in {table} "
+        f"(no verdict from a broken table — fail-closed)",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+if anchor_count == 0:
+    print(
+        f"contract_anchor_table_empty: {table} has no data rows (an empty anchor set must never certify)",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+if fail_count > 0:
+    print(f"contract_anchor_gate_failed: {fail_count} of {anchor_count} anchors", file=sys.stderr)
+    raise SystemExit(1)
+print(f"contract_anchor_gate_ok ({anchor_count} anchors)")
+PY

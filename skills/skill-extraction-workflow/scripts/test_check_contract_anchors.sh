@@ -30,6 +30,8 @@
 #   R1 shipped table against the repo root -> rc 0 and pinned output grammar
 #      "contract_anchor_gate_ok (<N> anchors)"
 set -u
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 checker="$script_dir/check-contract-anchors.sh"
@@ -157,6 +159,21 @@ else
   note "ok M9-completeness"
 fi
 
+# M10 absolute and parent-traversal paths must fail closed (rc 2), never escape root
+make_fixture
+outside_doc="$tmp/outside-contract.md"
+printf 'Outside file carrying decided by exactly one discriminating predicate.\n' > "$outside_doc"
+printf '%s\t%s\t%s\t%s\n' "abs-escape" "$outside_doc" \
+  "decided by exactly one discriminating predicate" "abs row" > "$tmp/fx/anchors.tsv"
+run "$tmp/fx" "$tmp/fx/anchors.tsv"
+expect M10-abs 2 "$got_rc" "contract_anchor_row_malformed" "$got_out"
+
+make_fixture
+printf '%s\t%s\t%s\t%s\n' "dotdot-escape" "../outside-contract.md" \
+  "decided by exactly one discriminating predicate" "traversal row" > "$tmp/fx/anchors.tsv"
+run "$tmp/fx" "$tmp/fx/anchors.tsv"
+expect M10-dotdot 2 "$got_rc" "contract_anchor_row_malformed" "$got_out"
+
 # B1 benign neighbor: same line, outside the pinned span
 make_fixture
 perl -pi -e 's/predicate here\./predicate here, with a clarifying tail./' "$tmp/fx/docs/sample-contract.md"
@@ -187,6 +204,36 @@ if [[ "$got_out" == *"healthy-anchor"* ]]; then
   fail=1
 else
   note "ok D1-attribution"
+fi
+
+# S1 single-pass check: must not spawn per-row grep/wc/tr/ruby subprocesses,
+# and glob metacharacters in pinned literals must match as fixed strings.
+make_fixture
+printf 'Literal with glob metacharacters: [a-z]*? stays fixed.\n' >> "$tmp/fx/docs/sample-contract.md"
+printf '%s\t%s\t%s\t%s\n' "glob-meta-anchor" "docs/sample-contract.md" \
+  "Literal with glob metacharacters: [a-z]*? stays fixed." "glob meta row" >> "$tmp/fx/anchors.tsv"
+run "$tmp/fx" "$tmp/fx/anchors.tsv"
+expect S0-glob-meta 0 "$got_rc" "contract_anchor_gate_ok (2 anchors)" "$got_out"
+
+mkdir -p "$tmp/no-subproc"
+subproc_log="$tmp/subproc.log"
+: > "$subproc_log"
+for cmd in grep wc tr ruby; do
+  cat > "$tmp/no-subproc/$cmd" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "$cmd" >> "$subproc_log"
+exit 99
+EOF
+  chmod +x "$tmp/no-subproc/$cmd"
+done
+got_out=$(PATH="$tmp/no-subproc:$PATH" bash "$checker" "$repo_root" --table "$script_dir/contract-anchors.tsv" 2>&1)
+got_rc=$?
+expect S1 0 "$got_rc" "contract_anchor_gate_ok (" "$got_out"
+if [[ -s "$subproc_log" ]]; then
+  note "FAIL S1-subproc: unexpected grep/wc/tr/ruby spawns: $(tr '\n' ' ' < "$subproc_log")"
+  fail=1
+else
+  note "ok S1-subproc"
 fi
 
 if [[ "$fail" -ne 0 ]]; then

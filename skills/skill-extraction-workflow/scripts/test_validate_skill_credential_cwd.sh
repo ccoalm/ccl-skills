@@ -11,6 +11,8 @@
 # no false positive on the self-excluded detectors and (2) a real leak is still
 # caught.
 set -euo pipefail
+# Ruby takes its encoding from the locale; under a POSIX/unset locale it reads the UTF-8 skill text as US-ASCII and crashes. Pin UTF-8, as CI runs.
+case " ${RUBYOPT:-} " in *" -Ku "*) ;; *) export RUBYOPT="-Ku${RUBYOPT:+ $RUBYOPT}" ;; esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 VALIDATE="$SCRIPT_DIR/validate-skill.sh"
@@ -74,21 +76,88 @@ EOF
 done
 RG_SHIM_DIR="$TMP/rg-shim"
 RG_LOG="$TMP/rg.log"
+DIRNAME_LOG="$TMP/dirname.log"
+RUBY_LOG="$TMP/ruby.log"
 REAL_RG="$(command -v rg)"
+REAL_DIRNAME="$(command -v dirname)"
+REAL_RUBY="$(command -v ruby)"
 mkdir -p "$RG_SHIM_DIR"
 cat > "$RG_SHIM_DIR/rg" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$RG_LOG"
 exec "$REAL_RG" "\$@"
 EOF
-chmod +x "$RG_SHIM_DIR/rg"
+cat > "$RG_SHIM_DIR/dirname" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$DIRNAME_LOG"
+exec "$REAL_DIRNAME" "\$@"
+EOF
+cat > "$RG_SHIM_DIR/ruby" <<EOF
+#!/usr/bin/env bash
+printf 'ruby\n' >> "$RUBY_LOG"
+exec "$REAL_RUBY" "\$@"
+EOF
+chmod +x "$RG_SHIM_DIR/rg" "$RG_SHIM_DIR/dirname" "$RG_SHIM_DIR/ruby"
 : > "$RG_LOG"
+: > "$DIRNAME_LOG"
+: > "$RUBY_LOG"
 set +e
 out3="$(cd "$SCRIPT_DIR" && PATH="$RG_SHIM_DIR:$PATH" bash "$VALIDATE" "$MULTI" 2>&1)"; rc3=$?
 set -e
 [ "$rc3" -eq 0 ] || fail "multi-root clean validate-skill should pass; rc=$rc3\n$out3"
 rg_spawns="$(wc -l < "$RG_LOG" | tr -d ' ')"
+dirname_spawns="$(wc -l < "$DIRNAME_LOG" | tr -d ' ')"
+ruby_spawns="$(wc -l < "$RUBY_LOG" | tr -d ' ')"
 [ "$rg_spawns" -eq 1 ] || fail "expected 1 batched rg spawn across 3 non-git skill roots, got $rg_spawns:\n$(cat "$RG_LOG")"
+[ "$dirname_spawns" -eq 0 ] || fail "expected 0 dirname spawns during root discovery, got $dirname_spawns:\n$(cat "$DIRNAME_LOG")"
+[ "$ruby_spawns" -le 2 ] || fail "expected <= 2 ruby spawns (merged pre-rg YAML+ref pass + post-rg heuristics), got $ruby_spawns"
+
+# (3b) Merged pre-rg Ruby pass still preserves exact YAML and markdown-ref failure tokens.
+BAD_YAML="$TMP/bad-yaml"
+mkdir -p "$BAD_YAML"
+printf '%s\n' '---' 'name: bad-yaml' 'description: ""' '---' > "$BAD_YAML/SKILL.md"
+set +e
+out3b="$(cd "$SCRIPT_DIR" && bash "$VALIDATE" "$BAD_YAML" 2>&1)"; rc3b=$?
+set -e
+[ "$rc3b" -eq 1 ] || fail "empty description must exit 1, got $rc3b:\n$out3b"
+printf '%s' "$out3b" | grep -qF "missing_frontmatter_description: $BAD_YAML/SKILL.md" \
+  || fail "missing_frontmatter_description token missing:\n$out3b"
+
+BAD_REF="$TMP/bad-ref"
+mkdir -p "$BAD_REF"
+printf '%s\n' '---' 'name: bad-ref' 'description: test.' '---' 'See `references/nonexistent.md`.' > "$BAD_REF/SKILL.md"
+set +e
+out3c="$(cd "$SCRIPT_DIR" && bash "$VALIDATE" "$BAD_REF" 2>&1)"; rc3c=$?
+set -e
+[ "$rc3c" -eq 1 ] || fail "missing markdown ref must exit 1, got $rc3c:\n$out3c"
+printf '%s' "$out3c" | grep -qF "missing_markdown_references:" \
+  || fail "missing_markdown_references token missing:\n$out3c"
+
+# (3d) CHECK_INSTALL_VISIBILITY=1 must fail closed if the Ruby name-extraction
+# step exits non-zero, rather than swallowing process-substitution failure as
+# install_visibility_not_found.
+VIS_SHIM_DIR="$TMP/vis-ruby-shim"
+mkdir -p "$VIS_SHIM_DIR" "$TMP/empty-host-skills"
+cat > "$VIS_SHIM_DIR/ruby" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  *'missing_frontmatter_name:'*)
+    echo "simulated install-visibility ruby failure" >&2
+    exit 1
+    ;;
+esac
+exec "$REAL_RUBY" "\$@"
+EOF
+chmod +x "$VIS_SHIM_DIR/ruby"
+set +e
+out3d="$(cd "$SCRIPT_DIR" && PATH="$VIS_SHIM_DIR:$PATH" CHECK_INSTALL_VISIBILITY=1 HOST_SKILL_DIRS="$TMP/empty-host-skills" bash "$VALIDATE" "$MULTI" 2>&1)"; rc3d=$?
+set -e
+[ "$rc3d" -eq 2 ] || fail "CHECK_INSTALL_VISIBILITY=1 must exit 2 when Ruby exits non-zero (got $rc3d):\n$out3d"
+printf '%s' "$out3d" | grep -qF "install_visibility_scan_error" \
+  || fail "expected install_visibility_scan_error token:\n$out3d"
+if printf '%s' "$out3d" | grep -qF "install_visibility_not_found"; then
+  fail "must not emit install_visibility_not_found on Ruby failure:\n$out3d"
+fi
 
 # (4) Unreadable skill root still fails closed with credential_path_scan_error.
 chmod 000 "$MULTI/skills/beta" 2>/dev/null || true

@@ -234,12 +234,16 @@ def syntactically_contained?(rel)
   !rel.start_with?("/") && !rel.split("/").include?("..")
 end
 
+REAL_ROOT = File.realpath(root)
+RESOLVES_INSIDE_CACHE = {}
+
 def resolves_inside?(root, rel)
-  real_root = File.realpath(root)
+  return RESOLVES_INSIDE_CACHE[rel] if RESOLVES_INSIDE_CACHE.key?(rel)
+
   real = File.realpath(File.join(root, rel))
-  real == real_root || real.start_with?(real_root + File::SEPARATOR)
+  RESOLVES_INSIDE_CACHE[rel] = (real == REAL_ROOT || real.start_with?(REAL_ROOT + File::SEPARATOR))
 rescue Errno::ENOENT, Errno::ELOOP, Errno::ENAMETOOLONG
-  false
+  RESOLVES_INSIDE_CACHE[rel] = false
 end
 
 RUBY_NON_CODE_LINE_TOKENS = %i[
@@ -520,6 +524,8 @@ skipped_runners = []
 # Built once, lazily: a repo with no executable locators never pays for it, and a
 # repo with many does not re-walk the tree per locator (O(locators x files)).
 runner_corpus = nil
+reachable_cache = {}
+target_cache = {}
 build_runner_corpus = lambda do |root|
   (Dir.glob(File.join(root, "**", "*.{sh,py,rb,yml,yaml}"), File::FNM_DOTMATCH) +
    Dir.glob(File.join(root, "**", "{Makefile,makefile}"), File::FNM_DOTMATCH)).reject do |cand|
@@ -714,16 +720,18 @@ File.foreach(register_path).with_index(1) do |line, lineno|
           # that sweeps its directory with a wildcard -- `for t in dir/*.sh` names
           # no basename yet fires every file there. Missing the second shape is a
           # FALSE ALARM on a live locator, which the acceptance bars, so both count.
-          needle = /(?<![\w.-])#{Regexp.escape(File.basename(rel))}(?![\w-])/
-          dirn = File.dirname(rel)
-          sweep = /#{Regexp.escape(dirn)}\/[^\s"']*[*?]/
-          # FNM_DOTMATCH is required, not cosmetic: the yml/yaml shapes this glob
-          # seeks live in .github/workflows, and without it the glob never
-          # descends there -- a target fired only by CI read as unrunnable.
-          runner_corpus ||= build_runner_corpus.call(root)
-          reachable = runner_corpus.any? do |cand, body|
-            next false if File.identical?(cand, target)
-            body.match?(needle) || body.match?(sweep)
+          reachable = reachable_cache.fetch(rel) do
+            needle = /(?<![\w.-])#{Regexp.escape(File.basename(rel))}(?![\w-])/
+            dirn = File.dirname(rel)
+            sweep = /#{Regexp.escape(dirn)}\/[^\s"']*[*?]/
+            # FNM_DOTMATCH is required, not cosmetic: the yml/yaml shapes this glob
+            # seeks live in .github/workflows, and without it the glob never
+            # descends there -- a target fired only by CI read as unrunnable.
+            runner_corpus ||= build_runner_corpus.call(root)
+            reachable_cache[rel] = runner_corpus.any? do |cand, body|
+              next false if File.identical?(cand, target)
+              body.match?(needle) || body.match?(sweep)
+            end
           end
           unrunnable << [lineno, locator, rel] unless reachable
         end
@@ -741,8 +749,10 @@ File.foreach(register_path).with_index(1) do |line, lineno|
         # NEW row from inheriting the waiver by quoting the retired locator.
         next if anchor_waived
 
-        raw_body = File.read(target)
-        body = strip_fences(raw_body)
+        entry = (target_cache[target] ||= begin
+          raw = File.read(target)
+          { raw_body: raw, body: nil, slugs: nil, ruby_info: nil, digest_map: nil }
+        end)
         if anchor.start_with?("line-sha256:")
           encoded_line_sha256 = anchor.delete_prefix("line-sha256:")
           expected_line_sha256 = encoded_line_sha256.delete("-")
@@ -756,14 +766,19 @@ File.foreach(register_path).with_index(1) do |line, lineno|
             next
           end
 
-          ruby_code_lines, ruby_reachable_lines, ruby_parsed = ruby_line_classification(raw_body)
-          digest_lines = raw_body.each_line.with_index(1).filter_map do |source_line, line_number|
-            normalized_line = source_line.strip
-            next if normalized_line.empty?
-            next unless Digest::SHA256.hexdigest(normalized_line) == expected_line_sha256
+          ruby_code_lines, ruby_reachable_lines, ruby_parsed =
+            (entry[:ruby_info] ||= ruby_line_classification(entry[:raw_body]))
+          digest_map = (entry[:digest_map] ||= begin
+            map = Hash.new { |h, k| h[k] = [] }
+            entry[:raw_body].each_line.with_index(1) do |source_line, line_number|
+              normalized_line = source_line.strip
+              next if normalized_line.empty?
 
-            line_number
-          end
+              map[Digest::SHA256.hexdigest(normalized_line)] << line_number
+            end
+            map
+          end)
+          digest_lines = digest_map[expected_line_sha256]
           next if digest_lines.any? { |line_number| ruby_reachable_lines[line_number] }
 
           if digest_lines.any? { |line_number| ruby_code_lines[line_number] }
@@ -779,8 +794,10 @@ File.foreach(register_path).with_index(1) do |line, lineno|
           unresolved << [lineno, locator, "line-sha256 source line absent from target"]
           next
         end
+        body = (entry[:body] ||= strip_fences(entry[:raw_body]))
         next if body.include?(anchor)
-        next if heading_slugs(body).include?(anchor.downcase)
+        slugs = (entry[:slugs] ||= heading_slugs(body).each_with_object({}) { |s, h| h[s] = true })
+        next if slugs[anchor.downcase]
 
         unresolved << [lineno, locator, "anchor text absent from target"]
       end

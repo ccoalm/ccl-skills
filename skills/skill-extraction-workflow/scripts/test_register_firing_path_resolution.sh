@@ -838,5 +838,46 @@ assert_rc "$rc" 1 "a moved-path entry cannot point outside the repository"
 assert_contains "path escapes the repository" "$out" "moved escape"
 pass "a relocation outside the repository turns the gate RED"
 
-[ "$passed" -eq 66 ] || fail "expected 66 assertions, saw $passed (a case was skipped or misplaced)"
+# ── Memoization: repeated locators into the same target read/parse once ──────
+READ_SPY="$TMP/read_spy.rb"
+READ_LOG="$TMP/read_spy.log"
+cat > "$READ_SPY" <<'RB'
+module RegisterReadSpy
+  def read(name, *args, **kwargs)
+    log = ENV["REGISTER_READ_SPY_LOG"]
+    if log && !log.empty?
+      full = File.expand_path(name.to_s)
+      if full.end_with?("/skills/demo-skill/SKILL.md", "/skills/demo-skill/scripts/demo.rb")
+        File.open(log, "a") { |fh| fh.puts(full) }
+      end
+    end
+    super
+  end
+end
+File.singleton_class.prepend(RegisterReadSpy)
+RB
+new_fixture memoized_targets \
+  "$LITERAL" "$SLUG" "$LITERAL" "$SLUG" \
+  "$LINE_DIGEST" "$LINE_DIGEST" "$LINE_DIGEST" "$LINE_DIGEST"
+printf '#!/usr/bin/env bash\nruby skills/demo-skill/scripts/demo.rb\n' > "$FIX/run.sh"
+: > "$READ_LOG"
+set +e
+out="$(REGISTER_FIRING_PATH_EXEMPT_DIGESTS="$EMPTY_DIGEST_TABLE" \
+  REGISTER_FIRING_PATH_MOVED_PATHS="$EMPTY_MOVED_TABLE" \
+  REGISTER_READ_SPY_LOG="$READ_LOG" \
+  RUBYOPT="${RUBYOPT:+$RUBYOPT }-r$READ_SPY" ruby "$GATE" "$FIX" 2>&1)"
+rc=$?
+set -e
+assert_rc "$rc" 0 "repeated healthy locators must resolve"
+assert_contains "(8 locators resolved)" "$out" "all 8 repeated locators counted"
+pass "eight repeated locators resolve with exact count"
+skill_reads="$(grep -c '/skills/demo-skill/SKILL\.md$' "$READ_LOG" || true)"
+rb_reads="$(grep -c '/skills/demo-skill/scripts/demo\.rb$' "$READ_LOG" || true)"
+# demo.rb may be read once by build_runner_corpus (UTF-8 invalid: :replace) and
+# once by target_cache (strict File.read), vs 5 times without target memoization.
+[ "$skill_reads" -eq 1 ] && [ "$rb_reads" -le 2 ] \
+  || fail "expected SKILL.md=1 and demo.rb<=2 File.read calls, got SKILL.md=$skill_reads demo.rb=$rb_reads"
+pass "per-target File.read and Ripper classification are memoized across locators"
+
+[ "$passed" -eq 68 ] || fail "expected 68 assertions, saw $passed (a case was skipped or misplaced)"
 echo "register_firing_path_resolution_tests_ok ($passed assertions)"

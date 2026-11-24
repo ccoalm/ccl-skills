@@ -113,6 +113,48 @@ wrapper_state() {
   esac
 }
 
+# Measure which process adopts orphans in this session: PID 1 on bare init hosts, or the
+# nearest PR_SET_CHILD_SUBREAPER ancestor (such as `systemd --user`) when one is active.
+# Two pipes synchronize without sleeps: the intermediate child exits and is reaped before
+# the grandchild reads getppid(), so the kernel has already completed reparenting.
+orphan_reaper_pid() {
+  python3 -c '
+import os
+gr, gw = os.pipe()
+rr, rw = os.pipe()
+pid = os.fork()
+if pid == 0:
+    os.close(gw)
+    os.close(rr)
+    g = os.fork()
+    if g == 0:
+        os.read(gr, 1)
+        os.write(rw, f"{os.getppid()}\n".encode())
+        os._exit(0)
+    os._exit(0)
+os.close(gr)
+os.close(rw)
+os.waitpid(pid, 0)
+os.close(gw)
+data = os.read(rr, 64).decode().strip()
+os.close(rr)
+print(data)
+'
+}
+
+wrapper_is_reparented() {
+  [ "$(ps -o ppid= -p "$1" 2>/dev/null | tr -d ' ')" = "$ORPHAN_REAPER_PID" ] &&
+    [ "$(wrapper_state "$1")" = live ]
+}
+
+ORPHAN_REAPER_PID="$(orphan_reaper_pid)"
+case "$ORPHAN_REAPER_PID" in
+  ''|*[!0-9]*|0)
+    echo "abort leak probe: could not determine orphan reaper pid (got '${ORPHAN_REAPER_PID:-empty}')" >&2
+    exit 2
+    ;;
+esac
+
 fails=0
 check() {
   if eval "$2"; then echo "ok   - $1"; else echo "FAIL - $1"; fails=$((fails+1)); fi
@@ -325,6 +367,7 @@ orphan_target_wrapper() {
     ''|*[!0-9]*) : ;;
     *)
       if [ "$controller_pid" -gt 1 ] \
+        && [ "$controller_pid" != "$ORPHAN_REAPER_PID" ] \
         && [ "$(ps -o ppid= -p "$wrapper_pid" 2>/dev/null | tr -d ' ')" = "$controller_pid" ] \
         && { case "$(ps -o command= -p "$controller_pid" 2>/dev/null || true)" in
                *"$PROBE_TMP/"*|*"$PROBE_TMP_REAL/"*) true ;; *) false ;; esac; }; then
@@ -366,8 +409,7 @@ orphan_target_wrapper() {
     # A corpse is not an orphan. The old spelling of this check read ppid, which a zombie
     # answers, so a wrapper some reaper had already killed passed for a live orphan and
     # the leg went on to make assertions about a scenario it had never built.
-    if [ "$(ps -o ppid= -p "$wrapper_pid" 2>/dev/null | tr -d ' ')" = "1" ] &&
-       [ "$(wrapper_state "$wrapper_pid")" = live ]; then
+    if wrapper_is_reparented "$wrapper_pid"; then
       return 0
     fi
     case "$(wrapper_state "$wrapper_pid")" in
