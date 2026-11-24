@@ -75,14 +75,14 @@ Note: `M03b` was observed directly during the initial mutation-walk run before `
 - **Repo-local contracts updated**:
   - `hooks/AGENTS.md`: documents `agy-bridge.py` `Stop` skip of `headless-background-stop.sh` outside `sdk|sdk-*` entrypoints (while keeping `DISPATCH['Stop']` parity) and the `0`-`jq` non-opt-in `owner-dispatch.sh` `PreToolUse:Bash` fast path.
   - `skills/skill-extraction-workflow/scripts/AGENTS.md`: adds `test_generic_r0_leak_scan.sh` alongside `test_check_evidence_card_leak_cache.sh`.
-  - `skills/skill-extraction-workflow/references/source-register.md`: appends four rows (`899–902`: two initial rows for `skill-extraction-workflow` validator/gate batching & caching and `skill-extraction-workflow (plugin runtime surface)` hook/bridge optimizations, plus two append-only remediation rows for `3ca6f633949a19a4ee90ea68313cab79a7d540fb`).
+  - `skills/skill-extraction-workflow/references/source-register.md`: appends six rows (`899–904`: two initial rows for `skill-extraction-workflow` validator/gate batching & caching and `skill-extraction-workflow (plugin runtime surface)` hook/bridge optimizations, plus four append-only remediation rows for `3ca6f633949a19a4ee90ea68313cab79a7d540fb`, `25f2638ff91b2d5f20e96fff3c436bd31cb8f8fc`, and `509adc8dbd82bb36a62e06602fef0f98f7df185b`).
   - OpenCode `Stop` boundary note: `packages/opencode-plugin/ccl-skills.ts` continues running `commandHooks(root, "Stop")` because `packages/ccl-skills-npm/test/opencode-hooks.test.mjs` (`L123-145`, `L317`) pins 1:1 execution of every `Stop` command hook in `hooks/hooks.json` with `CLAUDE_CODE_ENTRYPOINT` scrubbed (`headless-background-stop.sh` exits in ~1.5 ms pure shell).
 - **`tighten-doc` closeout reread**:
-  - Surface reread: `specs/bash-hotpath-and-gate-slimming/evidence/validation.md` in full, cross-checked against `specs/bash-hotpath-and-gate-slimming/plan.md`, `hooks/AGENTS.md`, `skills/skill-extraction-workflow/scripts/AGENTS.md`, and `skills/skill-extraction-workflow/references/source-register.md` (`L899-902`).
-  - Blocks touched since prior reread: `T1b`/`T2` summary rows, `source-register.md` row count, and the dual-track review/challenge sections below.
+  - Surface reread: `specs/bash-hotpath-and-gate-slimming/plan.md` and `specs/bash-hotpath-and-gate-slimming/evidence/validation.md` in full, cross-checked against `hooks/AGENTS.md`, `skills/skill-extraction-workflow/scripts/AGENTS.md`, and `skills/skill-extraction-workflow/references/source-register.md` (`L899-904`).
+  - Blocks touched since prior reread: `plan.md` opening scope line, `T5c`/`T5d`/`T5e` summary rows, `M18`–`M20` mutation rows (`26/26`), `source-register.md` row count (`899–904`), and the partitioned/full-repo/delta review sections below.
   - Card/family scan trigger: not applicable (round validation record + local `AGENTS.md` contracts, not an execution-card family).
-  - Defects found & fixed: synchronized `T2` assertion count (`501 -> 505`) and `source-register.md` row count (`two -> four`, `899–902`); zero session-vantage leakage, duplicate sections, or register drift.
-  - Scope boundary reason: `plan.md`, `hooks/AGENTS.md`, `scripts/AGENTS.md`, and `source-register.md` were already reread in full and had no edits after `3ca6f633949a19a4ee90ea68313cab79a7d540fb`.
+  - Defects found & fixed: sanitized `plan.md` local checkout path and turn-numbered phrasing, synchronized probe/mutation/register counts (`19`, `25`, `26/26`, rows `899–904`), and withheld raw JSON receipts that quote local filesystem paths from tracked `evidence/`.
+  - Scope boundary reason: `hooks/AGENTS.md` and `scripts/AGENTS.md` were already reread in full and had no edits after `3ca6f633949a19a4ee90ea68313cab79a7d540fb`.
 
 ## Review pass
 
@@ -101,11 +101,45 @@ Note: `M03b` was observed directly during the initial mutation-walk run before `
 - R0 evidence: `ccl_skill_check_clean_ok` (`r0_status=private-ok`)
 - Gate-fireability applicability: yes; Item 9 exercised: `specs/bash-hotpath-and-gate-slimming/evidence/pass2-challenge.json` (`challenge_focus` + `concern_results`)
 - Dispositions:
-  - `P1` (`hooks/skill-loading.py:38`): `pre-existing & out-of-scope` (source-refuted as a regression) — at base `827f7f684b41842452ca6af3421a45f3e4d364ef`, `hooks/host-input.py:504` (`bash_write_targets`) already enforces `if not isinstance(command, str) or not command or len(command) > 65536: return []`, so `Bash` commands over `65,536` characters already returned `[]` and skipped the shared-skill write checkpoint before this change; reachability and severity are unchanged.
-  - `P2` (`hooks/guard-merge-authorization.sh:1031`): `pre-existing & out-of-scope` (source-refuted) — at base `827f7f684b41842452ca6af3421a45f3e4d364ef`, `hooks/guard-merge-authorization.sh` (`L995-1118`) had only `checkout|switch`, `push`, `merge`, and `pull` arms in `case "$sub"`; no other git subcommand arm existed, so `*) continue` skips zero pre-existing checks.
+  - `P1` (`hooks/skill-loading.py:38`): `pre-existing & out-of-scope` (source-refuted as a regression, then confirmed `passed` in widened Partition 1 challenge `part1-challenge.json`) — at base `827f7f684b41842452ca6af3421a45f3e4d364ef`, `hooks/host-input.py:504` (`bash_write_targets`) already enforces `if not isinstance(command, str) or not command or len(command) > 65536: return []`, so `Bash` commands over `65,536` characters already returned `[]` before this change.
+  - `P2` (`hooks/guard-merge-authorization.sh:1031`): `pre-existing & out-of-scope` (source-refuted, then confirmed `passed` in widened Partition 1 challenge `part1-challenge.json`) — at base `827f7f684b41842452ca6af3421a45f3e4d364ef`, `hooks/guard-merge-authorization.sh` (`L995-1118`) had only `checkout|switch`, `push`, `merge`, and `pull` arms in `case "$sub"`.
+
+## Partitioned Widened-Context & Full-Repository Read-Only Passes (`claude`)
+
+To eliminate packet-only 3-line diff blindness and >2,000-line single-packet dilution, all 32 changed files at `db5bcebfe1c2fe63bf7fd2f58782efb3d731637f` were split into 3 focused widened-context partitions (`part1` hooks/owner-dispatch, `part2` OpenCode/spec-refs/Makefile/docs, `part3` extraction gates/cache; union = 32/32 files) and paired with full-repository `review_diff.py --client-order claude` (`--tools Read,Grep,Glob`):
+
+- **Partition 1 (`hooks/*`, `scripts/owner-dispatch/owner-dispatch.sh`, `source-register.md` + full surrounding functions)**:
+  - `review` (`specs/bash-hotpath-and-gate-slimming/evidence/part1-review.json`, `packet_sha256=b72e0ae910204bcd09b18b36c582f63fa224e9af136a4b5b2d2cb039d4852fb9`): `0 P0 / 0 P1 / 1 P2` (cross-partition note that `part2`/`part3` files are reviewed in their own partitions).
+  - `challenge` (`specs/bash-hotpath-and-gate-slimming/evidence/part1-challenge.json`, `packet_sha256=03e64f6748bdf3d84bc376f225fe281d9440c6291152c8379b8f1b6f4304cd81`): `passed` (`0` findings).
+- **Partition 2 (`Makefile`, `packages/*`, `scripts/check-spec-references.py`, `scripts/test_check_spec_references.py`, `specs/bash-hotpath-and-gate-slimming/`, `source-register.md` + full surrounding functions)**:
+  - `review` (`packet_sha256=6a82ce37032d4399b0e0f3fd5d378fc7f55822cfdc9e85c781a434b8007e40e3`; raw receipt retained in private scratch because reviewer prose quotes a partial backticked `specs` byte prefix): `0 P0 / 0 P1 / 1 P2` (cross-partition note that `part1`/`part3` files are reviewed in their own partitions).
+  - `challenge` (`packet_sha256=7d2a0c37c64ef5102757aa319d6b38b88435b7f6ce0a9d9448fa955c59e3ef09`; raw receipt retained in private scratch for the same partial backticked byte-prefix quote): `passed` (`0` findings).
+- **Partition 3 (`skills/skill-extraction-workflow/scripts/*`, `source-register.md`, `plan.md` + full surrounding functions)**:
+  - `review` (`packet_sha256=d52276f50cf3cfc7953bc7f7150702c079fca3a8f1d03ad10ecf2d13f3079358`; raw receipt retained in private scratch because its finding text quotes the pre-fix local checkout path): `0 P0 / 1 P1 / 0 P2` — `P1` (`specs/bash-hotpath-and-gate-slimming/plan.md:5` local checkout path and turn labels) `fixed` in `25f2638ff91b2d5f20e96fff3c436bd31cb8f8fc`.
+  - `challenge` (`specs/bash-hotpath-and-gate-slimming/evidence/part3-challenge.json`, `packet_sha256=9a7f3e232cb6b3a15bde36c973fde09770bf92be5b634026e2877be073867033`): `0 P0 / 0 P1 / 1 P2` — `P2` (`generic-r0-leak-scan.sh:319` bind stamp key to `rg` binary) `fixed` in `25f2638ff91b2d5f20e96fff3c436bd31cb8f8fc` (`test_generic_r0_leak_scan.sh` `7d2`, `M18`).
+- **Full-Repository Read-Only `Read,Grep,Glob` Passes (`review_diff.py --client-order claude`; raw receipts retained in private scratch because `diagnostics_path` embeds the host gitdir path)**:
+  - `review` on `db5bcebfe1c2fe63bf7fd2f58782efb3d731637f` (`candidate_digest=6ccab7d8d7a29f9cd76b37316e5464ad312a08b303907f24d7a486768a64a6aa`, `287.6s`): `0 P0 / 0 P1 / 1 P2 / 2 P3` — `P2` (`rg` stamp key) and `P3` (`check-ccl-skills.sh` non-ASCII root `Encoding::CompatibilityError`) `fixed` in `25f2638ff91b2d5f20e96fff3c436bd31cb8f8fc` (`p14`, `p16`, `M19`); `P3` (`hooks/host-input.py` `brain/<id>/scratch` matching across configurable `appDataDir` roots) retained by design to match `AGENT_DOC_DIRS` (`scratchpad`) and `T3c`.
+  - `challenge` on `25f2638ff91b2d5f20e96fff3c436bd31cb8f8fc` (`candidate_digest=b03c92d9a8dca7c9a326da2114080dfecdf18f482cd97b0b80801878aa456e1d`, `275.5s`): `0 P0 / 0 P1 / 1 P2` — `P2` (`generic-r0-leak-scan.sh` `rg --no-config` against `RIPGREP_CONFIG_PATH` poisoning) `fixed` in `509adc8dbd82bb36a62e06602fef0f98f7df185b` (`7d3`, `M20`).
+
+## Delta pass 1
+
+- Reviewed commit: `25f2638ff91b2d5f20e96fff3c436bd31cb8f8fc`; packet: `git diff db5bcebfe1c2fe63bf7fd2f58782efb3d731637f..25f2638ff91b2d5f20e96fff3c436bd31cb8f8fc` (receipt: `specs/bash-hotpath-and-gate-slimming/evidence/delta1-review.json`; client: `claude`)
+- Findings: 0 total (`passed`)
+- R0 evidence: `ccl_skill_check_clean_ok` (`r0_status=private-ok`)
+- Dispositions: none (`0` findings)
+
+## Delta pass 2
+
+- Reviewed commit: `509adc8dbd82bb36a62e06602fef0f98f7df185b`; packet: `git diff 25f2638ff91b2d5f20e96fff3c436bd31cb8f8fc..509adc8dbd82bb36a62e06602fef0f98f7df185b` (receipt: `specs/bash-hotpath-and-gate-slimming/evidence/delta2-review.json`; client: `claude`)
+- Findings: 0 total (`passed`)
+- R0 evidence: `ccl_skill_check_clean_ok` (`r0_status=private-ok`)
+- Dispositions: none (`0` findings)
 
 ## Post-review delta
 
-- `specs/bash-hotpath-and-gate-slimming/evidence/pass1-review.json` — added controller review receipt covering `f8b0872dc8f77201e3953deb3fc502d5e493dc69`
-- `specs/bash-hotpath-and-gate-slimming/evidence/pass2-challenge.json` — added controller challenge receipt covering `3ca6f633949a19a4ee90ea68313cab79a7d540fb`
-- `specs/bash-hotpath-and-gate-slimming/evidence/validation.md` — recorded dual-track review/challenge receipts, dispositions, and post-review delta (non-executable `evidence/` records only)
+- `specs/bash-hotpath-and-gate-slimming/evidence/part1-review.json` — added Partition 1 widened review receipt (`db5bcebfe1c2fe63bf7fd2f58782efb3d731637f`)
+- `specs/bash-hotpath-and-gate-slimming/evidence/part1-challenge.json` — added Partition 1 widened challenge receipt (`passed`)
+- `specs/bash-hotpath-and-gate-slimming/evidence/part3-challenge.json` — added Partition 3 widened challenge receipt (`db5bcebfe1c2fe63bf7fd2f58782efb3d731637f`)
+- `specs/bash-hotpath-and-gate-slimming/evidence/delta1-review.json` — added Delta pass 1 receipt covering `25f2638ff91b2d5f20e96fff3c436bd31cb8f8fc` (`passed`)
+- `specs/bash-hotpath-and-gate-slimming/evidence/delta2-review.json` — added Delta pass 2 receipt covering `509adc8dbd82bb36a62e06602fef0f98f7df185b` (`passed`)
+- `specs/bash-hotpath-and-gate-slimming/evidence/validation.md` — recorded partitioned, full-repository read-only, and delta review/challenge receipts and dispositions (non-executable `evidence/` records only after `509adc8dbd82bb36a62e06602fef0f98f7df185b`)
