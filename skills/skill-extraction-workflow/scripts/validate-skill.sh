@@ -22,7 +22,11 @@ if [[ -f "$target/SKILL.md" ]]; then
 else
   roots=()
   while IFS= read -r skill_file; do
-    roots+=("$(dirname "$skill_file")")
+    if [[ "$skill_file" == */* ]]; then
+      roots+=("${skill_file%/*}")
+    else
+      roots+=(".")
+    fi
   done < <({ find "$target" -mindepth 2 -maxdepth 2 -name SKILL.md -type f
              # Repo-root runs over a skills/<name>/SKILL.md layout: pick up depth-3
              # roots ONLY under a literal skills/ directory (never nested fixtures).
@@ -38,27 +42,30 @@ fi
 echo "validating ${#roots[@]} skill root(s)"
 
 ruby -ryaml -e '
-ARGV.each do |root|
-  data = YAML.load_file(File.join(root, "SKILL.md"))
+roots = ARGV
+skill_texts = {}
+roots.each do |root|
+  skill_path = File.join(root, "SKILL.md")
+  text = File.read(skill_path)
+  skill_texts[skill_path] = text
+  data = YAML.load(text) || {}
   %w[name description].each do |key|
-    if data[key].to_s.strip.empty?
-      warn "missing_frontmatter_#{key}: #{File.join(root, "SKILL.md")}"
+    if !data.is_a?(Hash) || data[key].to_s.strip.empty?
+      warn "missing_frontmatter_#{key}: #{skill_path}"
       exit 1
     end
   end
   Dir[File.join(root, "agents", "*.yaml")].each { |f| YAML.load_file(f) }
 end
 puts "yaml_ok"
-' "${roots[@]}"
+$stdout.flush
 
-ruby -e '
-roots = ARGV
 missing = []
 roots.each do |root|
   files = [File.join(root, "SKILL.md")] + Dir[File.join(root, "references", "*.md")]
   files.each do |path|
     next unless File.file?(path)
-    text = File.read(path)
+    text = skill_texts[path] || File.read(path)
     text.scan(/`([^`]+\.md)`/).flatten.each do |ref|
       next if ref.include?("*")
       # Cross-package reference: `<pkg>/references/...` resolves against the
@@ -81,8 +88,8 @@ roots.each do |root|
           # Relative Markdown references navigate from the document that
           # contains them. SKILL.md still resolves from root because it lives
           # there; references/*.md resolves from references/. Preserve the
-          # Preserve the legacy skill-root lookup as a compatibility fallback
-          # for older prose locators until those documents are migrated.
+          # legacy skill-root lookup as a compatibility fallback for older
+          # prose locators until those documents are migrated.
           [File.expand_path(ref, File.dirname(path)), File.expand_path(ref, root)].uniq
         else
           [File.join(root, ref)]
@@ -218,8 +225,8 @@ end
 if [[ "${CHECK_INSTALL_VISIBILITY:-0}" = "1" ]]; then
   visible_count=0
   IFS=: read -r -a host_skill_dirs <<< "${HOST_SKILL_DIRS:-${CODEX_HOME:-$HOME/.codex}/skills:$HOME/.claude/skills}"
-  for root in "${roots[@]}"; do
-    name="$(ruby -ryaml -e 'puts YAML.load_file(ARGV[0])["name"]' "$root/SKILL.md")"
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
     for skill_home in "${host_skill_dirs[@]}"; do
       if [[ -e "$skill_home/$name" ]]; then
         if [[ -e "$skill_home/$name/SKILL.md" ]]; then
@@ -231,7 +238,7 @@ if [[ "${CHECK_INSTALL_VISIBILITY:-0}" = "1" ]]; then
         fi
       fi
     done
-  done
+  done < <(ruby -ryaml -e 'ARGV.each { |r| puts YAML.load_file(File.join(r, "SKILL.md"))["name"] }' "${roots[@]}")
   if [[ "$visible_count" -eq 0 ]]; then
     echo "install_visibility_not_found"
   fi

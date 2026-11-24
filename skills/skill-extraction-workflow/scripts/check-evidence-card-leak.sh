@@ -98,6 +98,7 @@ count_core_fields() {
   for lbl in "${CORE_FIELD_RES[@]}"; do
     if grep -Eiq "^[[:space:]]*([-*|][[:space:]]*)?(\*\*)?${lbl}(\*\*)?[[:space:]]*[:|]" "$f"; then
       n=$((n + 1))
+      [ "$n" -ge 2 ] && break
     fi
   done
   printf '%s' "$n"
@@ -138,18 +139,25 @@ sanitized_file() {
 }
 
 file_is_card() {
-  local f="$1" san h core concl k
+  local f="$1" san core
   [ -f "$f" ] || return 1
+  # Fence stripping removes lines and never synthesizes headings, so a file
+  # with no heading-shaped line anywhere cannot match after sanitization.
+  grep -Eiq "$HEADING_RE" "$f" || return 1
   san="$(sanitized_file "$f")" || return 1   # match on a fence-stripped copy
-  if grep -Eiq "$HEADING_RE" "$san"; then h=1; else h=0; fi
-  core="$(count_core_fields "$san")"
-  concl="$(classify_conclusion "$san")"
-  rm -f "$san"
-  if [ "$concl" = filled ]; then k=1; else k=0; fi
+  if ! grep -Eiq "$HEADING_RE" "$san"; then
+    rm -f "$san"
+    return 1
+  fi
   # A card heading is REQUIRED. (a) heading + concrete conclusion, OR (b) heading + >=2 core.
   # No heading-less branch: heading-less cards are the accepted recall limit (see header).
-  if [ "$h" -eq 1 ] && [ "$k" -eq 1 ]; then return 0; fi
-  if [ "$h" -eq 1 ] && [ "$core" -ge 2 ]; then return 0; fi
+  if [ "$(classify_conclusion "$san")" = filled ]; then
+    rm -f "$san"
+    return 0
+  fi
+  core="$(count_core_fields "$san")"
+  rm -f "$san"
+  if [ "$core" -ge 2 ]; then return 0; fi
   return 1
 }
 
@@ -311,12 +319,19 @@ self_test() {
   fi
 
   # ---- offenders that must each BLOCK (create, assert, remove) ----
-  block_case() { # $1 label, $2 rel path under $tmp, $3 body (printf %b)
-    printf '%b' "$3" > "$tmp/$2"
-    if scan_all "$tmp" >/dev/null; then
+  # Run per-shape offender probes in an isolated root so each probe scans 1 file
+  # rather than re-scanning all 16 baseline files 14 times, then verify mixed-tree
+  # detection alongside the baseline tree below.
+  local tmp_block="$tmp/_isolated_block"
+  mkdir -p \
+    "$tmp_block/skills/demo/references/sub/deep" \
+    "$tmp_block/skills/demo/notes"
+  block_case() { # $1 label, $2 rel path under $tmp_block, $3 body (printf %b)
+    printf '%b' "$3" > "$tmp_block/$2"
+    if scan_all "$tmp_block" >/dev/null; then
       echo "self-test FAIL: $1 not detected" >&2; rc=1
     fi
-    rm -f "$tmp/$2"
+    rm -f "$tmp_block/$2"
   }
 
   block_case "shallow classic card" "skills/demo/references/leak.md" \
@@ -347,6 +362,13 @@ self_test() {
     '## Lesson Card\n- Tier: L2 (escalate, routing surface)\n'
   block_case "heading + upgrade-to verdict" "skills/demo/references/upg.md" \
     '## Captured Evidence\n- Disposition: upgrade-to-L1/L2\n'
+
+  # Mixed-tree check: an offender alongside the 16 clean baseline files must still block.
+  printf '## Evidence Card\n- Recommended path: L2\n' > "$tmp/skills/demo/references/mixed-leak.md"
+  if scan_all "$tmp" >/dev/null; then
+    echo "self-test FAIL: mixed-tree offender not detected" >&2; rc=1
+  fi
+  rm -f "$tmp/skills/demo/references/mixed-leak.md"
 
   # ---- allowlist exemption: a fully filled card AT the allow path must PASS ----
   printf '## Evidence Card\n- Trigger / context: x\n- First-hand evidence: y\n- Recommended path: L2\n' \

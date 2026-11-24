@@ -542,17 +542,40 @@ export const CclSkills = async (context: {
     return typeof command === "string" && /\b(?:git\s+(?:push|merge)|gh\b[^\n;&|]*\bpr\s+merge|glab\b[^\n;&|]*\bmr\s+(?:merge|accept)|curl|wget)\b/i.test(command)
   }
 
+  function isRepoTestScriptName(name: string) {
+    return name.startsWith("test_") || name.endsWith(".test.sh")
+  }
+
+  function visibleSkillEntries(dir: string, relDir: string) {
+    const names = readdirSync(dir).sort()
+    if (relDir !== "scripts") return names
+    // Bundled npm skills omit repo-only skill test scripts (`scripts/test_*`,
+    // `scripts/*.test.sh`), while a git source checkout or source-copy install
+    // retains them. Ignore only single-link regular non-symlink repo-test files
+    // in `scripts/` so symlinks, hardlinks, directories, references, and runtime
+    // scripts stay strict.
+    return names.filter((name) => {
+      if (!isRepoTestScriptName(name)) return true
+      try {
+        const st = lstatSync(join(dir, name))
+        return !st.isFile() || st.isSymbolicLink() || st.nlink !== 1
+      } catch {
+        return true
+      }
+    })
+  }
+
   function sameSkillDirectory(loaded: string, active: string) {
     if (loaded === realpathSync(active)) return true
-    const pending = [[loaded, active]]
+    const pending: Array<[string, string, string]> = [[loaded, active, ""]]
     while (pending.length) {
-      const [copy, owner] = pending.pop()!
+      const [copy, owner, relDir] = pending.pop()!
       const copyStat = lstatSync(copy), ownerStat = lstatSync(owner)
       if (copyStat.isSymbolicLink() || ownerStat.isSymbolicLink()) return false
       if (copyStat.isDirectory() && ownerStat.isDirectory()) {
-        const copyNames = readdirSync(copy).sort(), ownerNames = readdirSync(owner).sort()
+        const copyNames = visibleSkillEntries(copy, relDir), ownerNames = visibleSkillEntries(owner, relDir)
         if (copyNames.length !== ownerNames.length || copyNames.some((name, index) => name !== ownerNames[index])) return false
-        for (const name of ownerNames) pending.push([join(copy, name), join(owner, name)])
+        for (const name of ownerNames) pending.push([join(copy, name), join(owner, name), relDir ? `${relDir}/${name}` : name])
       } else if (!copyStat.isFile() || !ownerStat.isFile() || copyStat.size !== ownerStat.size || !readFileSync(copy).equals(readFileSync(owner))) return false
     }
     return true

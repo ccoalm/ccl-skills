@@ -50,6 +50,63 @@ if [ -z "$control_cases" ] || [ "$control_cases" -le 0 ]; then
   exit 1
 fi
 
+# Performance & CLI-parity contract: init_policy_matrix.py must evaluate the
+# 270-case matrix in-process (spawning <= 6 child Python processes for its
+# bounded CLI parity smoke, rather than 270 subprocesses per matrix run) while
+# still catching divergence in parse_probe_result.py's __main__ CLI entrypoint.
+spawn_log="$tmp_dir/python_spawns.log"
+: > "$spawn_log"
+mkdir -p "$tmp_dir/py_spy"
+cat > "$tmp_dir/py_spy/sitecustomize.py" <<'PY'
+import os
+
+log = os.environ.get("INIT_MATRIX_SPAWN_LOG")
+root_pid = os.environ.get("INIT_MATRIX_ROOT_PID")
+if log and root_pid and str(os.getpid()) != root_pid:
+    with open(log, "a", encoding="utf-8") as fh:
+        fh.write(f"{os.getpid()}\n")
+PY
+PYTHONPATH="$tmp_dir/py_spy${PYTHONPATH:+:$PYTHONPATH}" INIT_MATRIX_SPAWN_LOG="$spawn_log" \
+  python3 - "$script_dir/init_policy_matrix.py" <<'PY' >/dev/null
+import os
+import runpy
+import sys
+
+target = sys.argv[1]
+os.environ["INIT_MATRIX_ROOT_PID"] = str(os.getpid())
+sys.argv = [target]
+try:
+    runpy.run_path(target, run_name="__main__")
+except SystemExit as exc:
+    if exc.code not in (None, 0):
+        raise
+PY
+spawn_count="$(wc -l < "$spawn_log" | tr -d ' ')"
+if [ "$spawn_count" -gt 6 ]; then
+  printf 'init_policy_matrix.py spawned %s child Python processes (expected <= 6 in-process + CLI parity smoke)\n' "$spawn_count" >&2
+  exit 1
+fi
+
+cli_divergent="$tmp_dir/mutant_cli_divergent.py"
+python3 - "$parser" "$cli_divergent" <<'PY'
+import sys
+from pathlib import Path
+
+source, target = sys.argv[1:3]
+text = Path(source).read_text(encoding="utf-8")
+needle = 'if __name__ == "__main__":'
+if text.count(needle) != 1:
+    raise SystemExit(f"expected 1 __main__ guard, saw {text.count(needle)}")
+Path(target).write_text(
+    text.replace(needle, 'if __name__ == "__main__":\n    raise SystemExit(0)\nif False:'),
+    encoding="utf-8",
+)
+PY
+if cli_div_out="$(python3 "$script_dir/init_policy_matrix.py" "$cli_divergent" 2>&1)"; then
+  printf 'init_policy_matrix.py missed a broken __main__ CLI entrypoint:\n%s\n' "$cli_div_out" >&2
+  exit 1
+fi
+
 # Each entry is NAME, then the literal to replace, then its replacement. The
 # literals are chosen to be load-bearing lines rather than incidental text, so a
 # refactor that moves them fails loudly here instead of quietly disarming the

@@ -1293,6 +1293,7 @@ if [[ ! -f "$project_assessment_template" ]]; then
   echo "project_assessment_template_missing: $project_assessment_template" >&2
   exit 1
 fi
+project_assessment_template_text="$(<"$project_assessment_template")"
 for required_phrase in \
   "Assessment launch checklist" \
   "product/user paths" \
@@ -1307,7 +1308,7 @@ for required_phrase in \
   "verification evidence by layer" \
   "issue/risk registration" \
   "reusable-process disposition"; do
-  if ! rg -qF "$required_phrase" "$project_assessment_template"; then
+  if [[ "$project_assessment_template_text" != *"$required_phrase"* ]]; then
     echo "project_assessment_template_gate_missing: $required_phrase" >&2
     exit 1
   fi
@@ -1324,13 +1325,15 @@ if [[ ! -f "$task_retro_reference" ]]; then
   echo "task_retro_reference_missing: $task_retro_reference" >&2
   exit 1
 fi
+skill_extraction_entry_text="$(<"$skill_extraction_entry")"
+task_retro_reference_text="$(<"$task_retro_reference")"
 for required_phrase in \
   "would other teammates hit this" \
   "will we forget next time" \
   "teamwide recurrence" \
   "reusable routing/process/team failure" \
   "memory-only landing as insufficient"; do
-  if ! rg -qF "$required_phrase" "$skill_extraction_entry"; then
+  if [[ "$skill_extraction_entry_text" != *"$required_phrase"* ]]; then
     echo "skill_extraction_teammate_trigger_gate_missing: $required_phrase" >&2
     exit 1
   fi
@@ -1341,7 +1344,7 @@ for required_phrase in \
   "Do not classify reusable process defects" \
   "others will hit this too" \
   "shared skill/reference/validator/checklist/project-template landing"; do
-  if ! rg -qF "$required_phrase" "$task_retro_reference"; then
+  if [[ "$task_retro_reference_text" != *"$required_phrase"* ]]; then
     echo "task_retro_memory_escape_gate_missing: $required_phrase" >&2
     exit 1
   fi
@@ -1358,6 +1361,11 @@ if [[ ! -f "$product_rd_entry" ]]; then
   echo "product_rd_entry_missing: $product_rd_entry" >&2
   exit 1
 fi
+testing_strategy_entry_text="$(<"$testing_strategy_entry")"
+if ! product_rd_entry_text="$(<"$product_rd_entry")" 2>/dev/null; then
+  echo "product_rd_entrypoint_anchor_gate_scan_error: failed reading $product_rd_entry" >&2
+  exit 1
+fi
 for required_phrase in \
   "先写测试用例" \
   "test cases first" \
@@ -1366,7 +1374,7 @@ for required_phrase in \
   "RED-before-implementation rule" \
   "run RED before implementation" \
   "Do not answer \"tests are complete\" from command output alone"; do
-  if ! rg -qF "$required_phrase" "$testing_strategy_entry"; then
+  if [[ "$testing_strategy_entry_text" != *"$required_phrase"* ]]; then
     echo "testing_strategy_test_case_first_gate_missing: $required_phrase" >&2
     exit 1
   fi
@@ -1377,7 +1385,7 @@ for required_phrase in \
   "run it RED before coding" \
   "not applicable: behavior-neutral/docs/config-only" \
   "do not claim TDD"; do
-  if ! rg -qF "$required_phrase" "$product_rd_entry"; then
+  if [[ "$product_rd_entry_text" != *"$required_phrase"* ]]; then
     echo "product_rd_test_case_first_gate_missing: $required_phrase" >&2
     exit 1
   fi
@@ -1406,16 +1414,11 @@ for required_phrase in \
   "Do not send a completion-only, solved, fixed, or fully-closed final response" \
   "### Feature Deprecation" \
   'A deprecation slice is `complete` only when steps'; do
-  if rg -qF "$required_phrase" "$product_rd_entry"; then
+  if [[ "$product_rd_entry_text" == *"$required_phrase"* ]]; then
     continue
   else
-    rg_status=$?
-    if [[ "$rg_status" -eq 1 ]]; then
-      echo "product_rd_entrypoint_anchor_gate_missing: $required_phrase" >&2
-      echo "fix: keep the stable anchor in product-rd-workflow/SKILL.md, or update this gate in the same MR when intentionally replacing the anchor" >&2
-      exit 1
-    fi
-    echo "product_rd_entrypoint_anchor_gate_scan_error: rg exited $rg_status while checking $required_phrase" >&2
+    echo "product_rd_entrypoint_anchor_gate_missing: $required_phrase" >&2
+    echo "fix: keep the stable anchor in product-rd-workflow/SKILL.md, or update this gate in the same MR when intentionally replacing the anchor" >&2
     exit 1
   fi
 done
@@ -1424,7 +1427,7 @@ for required_phrase in \
   "Test-case register before fixes/tests" \
   "RED/pass-existing/blocked/gap status" \
   "Running test commands before writing the test-case register"; do
-  if ! rg -qF "$required_phrase" "$project_assessment_template"; then
+  if [[ "$project_assessment_template_text" != *"$required_phrase"* ]]; then
     echo "project_assessment_test_case_first_gate_missing: $required_phrase" >&2
     exit 1
   fi
@@ -1434,7 +1437,7 @@ for required_phrase in \
   'target-output map must include `testing-strategy`' \
   'coordinating workflow such as `product-rd-workflow`' \
   "durable test-case-first prevention rule"; do
-  if ! rg -qF "$required_phrase" "$skill_extraction_entry"; then
+  if [[ "$skill_extraction_entry_text" != *"$required_phrase"* ]]; then
     echo "skill_extraction_test_case_first_gate_missing: $required_phrase" >&2
     exit 1
   fi

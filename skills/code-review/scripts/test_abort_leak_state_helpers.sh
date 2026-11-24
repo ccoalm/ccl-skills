@@ -55,11 +55,16 @@ helpers=$TMP/helpers.sh
   echo 'set -uo pipefail'
   awk '/^wrapper_state\(\) \{/{p=1} p; p && /^\}$/{exit}' "$PROBE"
   awk '/^await_suite_exit\(\) \{/{p=1} p; p && /^\}$/{exit}' "$PROBE"
+  awk '/^orphan_reaper_pid\(\) \{/{p=1} p; p && /^\}$/{exit}' "$PROBE"
+  awk '/^wrapper_is_reparented\(\) \{/{p=1} p; p && /^\}$/{exit}' "$PROBE"
 } > "$helpers"
 grep -q 'wrapper_state()' "$helpers" || { echo "FAIL: could not lift wrapper_state (moved?)" >&2; exit 1; }
 grep -q 'await_suite_exit()' "$helpers" || { echo "FAIL: could not lift await_suite_exit (moved?)" >&2; exit 1; }
+grep -q 'orphan_reaper_pid()' "$helpers" || { echo "FAIL: could not lift orphan_reaper_pid (moved?)" >&2; exit 1; }
+grep -q 'wrapper_is_reparented()' "$helpers" || { echo "FAIL: could not lift wrapper_is_reparented (moved?)" >&2; exit 1; }
 # shellcheck disable=SC1090
 . "$helpers"
+ORPHAN_REAPER_PID="$(orphan_reaper_pid)"
 
 # --- states -----------------------------------------------------------------
 sleep 300 & live_pid=$!; KIDS="$KIDS $live_pid"
@@ -142,6 +147,130 @@ else
   ok
 fi
 reap_kid "$unknown_pid"
+
+# Orphan reparenting: on bare init hosts orphans reparent to PID 1, while under a
+# Linux PR_SET_CHILD_SUBREAPER supervisor (such as `systemd --user`) they reparent to
+# that subreaper instead. Probing the actual adopter keeps both environments accurate.
+case "$ORPHAN_REAPER_PID" in
+  ''|*[!0-9]*|0) note "orphan_reaper_pid must be a positive integer, got '$ORPHAN_REAPER_PID'" ;;
+  *) ok ;;
+esac
+sleep 300 & direct_pid=$!; KIDS="$KIDS $direct_pid"
+if wrapper_is_reparented "$direct_pid"; then
+  note "a direct child with live parent must not report reparented"
+else
+  ok
+fi
+reap_kid "$direct_pid"
+
+orphan_pid="$(python3 -c '
+import os, subprocess
+gr, gw = os.pipe()
+pr, pw = os.pipe()
+pid = os.fork()
+if pid == 0:
+    os.close(gw)
+    os.close(pr)
+    p = subprocess.Popen(
+        ["sleep", "300"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    os.write(pw, f"{p.pid}\n".encode())
+    os.close(pw)
+    os.read(gr, 1)
+    os._exit(0)
+os.close(gr)
+os.close(pw)
+child_pid = os.read(pr, 64).decode().strip()
+os.close(pr)
+os.close(gw)
+os.waitpid(pid, 0)
+print(child_pid)
+')"
+if [ -n "$orphan_pid" ]; then
+  KIDS="$KIDS $orphan_pid"
+  reparented_ok=0
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if wrapper_is_reparented "$orphan_pid"; then reparented_ok=1; break; fi
+    sleep 0.1
+  done
+  [ "$reparented_ok" = 1 ] && ok || note "an orphaned live session leader must satisfy wrapper_is_reparented (reaper=$ORPHAN_REAPER_PID, ppid=$(ps -o ppid= -p "$orphan_pid" 2>/dev/null | tr -d ' '))"
+  reap_kid "$orphan_pid"
+else
+  note "could not construct an orphan process"
+fi
+
+# On Linux, force a synthetic PR_SET_CHILD_SUBREAPER (>1) so CI hosts whose ambient
+# adopter is PID 1 still exercise and pin the non-1 subreaper branch.
+if [ "$(uname -s)" = "Linux" ]; then
+  cat > "$TMP/subreaper_probe.py" <<'PY'
+import ctypes, os, signal, subprocess, sys
+
+libc = ctypes.CDLL(None)
+if libc.prctl(36, 1, 0, 0, 0) != 0:
+    sys.exit(1)
+
+r, w = os.pipe()
+mid = os.fork()
+if mid == 0:
+    os.close(r)
+    p = subprocess.Popen(
+        ["sleep", "300"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    os.write(w, f"{p.pid}\n".encode())
+    os.close(w)
+    os._exit(0)
+os.close(w)
+orphan_pid = int(os.read(r, 64).decode().strip())
+os.close(r)
+os.waitpid(mid, 0)
+
+try:
+    cmd = """
+set -uo pipefail
+. "$HELPERS_PATH"
+ORPHAN_REAPER_PID="$(orphan_reaper_pid)"
+[ "$ORPHAN_REAPER_PID" = "$EXPECTED_REAPER" ] || exit 11
+[ "$ORPHAN_REAPER_PID" -gt 1 ] || exit 12
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  if wrapper_is_reparented "$ORPHAN_PID"; then exit 0; fi
+  sleep 0.1
+done
+exit 13
+"""
+    env = dict(
+        os.environ,
+        EXPECTED_REAPER=str(os.getpid()),
+        ORPHAN_PID=str(orphan_pid),
+    )
+    rc = subprocess.call(["bash", "-c", cmd], env=env)
+finally:
+    try:
+        os.kill(orphan_pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    while True:
+        try:
+            wpid, _ = os.waitpid(-1, os.WNOHANG)
+            if wpid == 0:
+                break
+        except ChildProcessError:
+            break
+sys.exit(rc)
+PY
+  if HELPERS_PATH="$helpers" python3 "$TMP/subreaper_probe.py"; then
+    ok
+  else
+    note "synthetic Linux PR_SET_CHILD_SUBREAPER probe failed (rc=$?)"
+  fi
+fi
 
 printf 'abort_leak_state_helpers: pass=%s fail=%s\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1

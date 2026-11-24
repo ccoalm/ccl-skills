@@ -44,6 +44,9 @@ refactor away from being vacuous.
 """
 from __future__ import annotations
 
+import contextlib
+import importlib.util
+import io
 import json
 import subprocess
 import sys
@@ -316,24 +319,40 @@ for phrase in ROUTING_PHRASES:
                             tools=["Write"]), TERMINAL))
 
 
-def wrapper_arm(reason: str) -> str:
-    """Mirror emit_runtime_inconclusive's case order from the wrapper source."""
-    source = WRAPPER.read_text()
+_WRAPPER_ARMS: list[tuple[str, str]] | None = None
+
+
+def _load_wrapper_arms() -> list[tuple[str, str]]:
+    global _WRAPPER_ARMS
+    if _WRAPPER_ARMS is not None:
+        return _WRAPPER_ARMS
+    source = WRAPPER.read_text(encoding="utf-8")
     block = source.split("emit_runtime_inconclusive() {", 1)[1].split("\n}", 1)[0]
+    arms: list[tuple[str, str]] = []
     for line in block.splitlines():
         line = line.strip()
         if not line.startswith("*") or ")" not in line:
             continue
-        patterns = line.split(")", 1)[0]
-        body = line.split(")", 1)[1]
+        patterns, body = line.split(")", 1)
+        if "stop_reviewer_lane" in body:
+            verdict = TERMINAL
+        elif "fallback" in body:
+            verdict = FALLBACK
+        else:
+            verdict = "other:" + body.strip()[:40]
         for raw in patterns.split("|"):
             needle = raw.strip().strip("*").strip('"')
-            if needle and needle in reason:
-                if "stop_reviewer_lane" in body:
-                    return TERMINAL
-                if "fallback" in body:
-                    return FALLBACK
-                return "other:" + body.strip()[:40]
+            if needle:
+                arms.append((needle, verdict))
+    _WRAPPER_ARMS = arms
+    return arms
+
+
+def wrapper_arm(reason: str) -> str:
+    """Mirror emit_runtime_inconclusive's case order from the wrapper source."""
+    for needle, verdict in _load_wrapper_arms():
+        if needle in reason:
+            return verdict
     return TERMINAL  # the wrapper's default arm stops the lane
 
 
@@ -348,35 +367,107 @@ PATHS = {
 }
 
 
+def _load_parser_module(parser: Path):
+    spec = importlib.util.spec_from_file_location(
+        f"_init_policy_parser_{abs(hash(str(parser.resolve())))}",
+        str(parser),
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load parser spec from {parser}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _parse_verdict(rc: int, raw_stdout: str) -> tuple[str, str]:
+    if rc == 0:
+        return TOLERATED, ""
+    try:
+        reason = json.loads(raw_stdout)["reason"]
+    except Exception:
+        return "unparseable", raw_stdout[:120]
+    return wrapper_arm(reason), reason
+
+
+def _run_case_inproc(entry, module, parser: Path, out: Path, err: Path, path: str) -> tuple[str, str]:
+    out.write_text("\n".join(json.dumps(ev) for ev in entry["events"]), encoding="utf-8")
+    err.write_text("", encoding="utf-8")
+    stdout_buf = io.StringIO()
+    stderr_buf = io.StringIO()
+    saved_argv = sys.argv
+    rc = 0
+    try:
+        sys.argv = [str(parser), "0", str(out), str(err), *PATHS[path]]
+        with contextlib.redirect_stdout(stdout_buf), contextlib.redirect_stderr(stderr_buf):
+            ret = module.main()
+            rc = 0 if ret is None else int(ret)
+    except SystemExit as exc:
+        if exc.code is None:
+            rc = 0
+        elif isinstance(exc.code, int):
+            rc = exc.code
+        else:
+            rc = 1
+    except Exception as exc:
+        return "unparseable", f"{type(exc).__name__}: {exc}"[:120]
+    finally:
+        sys.argv = saved_argv
+    return _parse_verdict(rc, stdout_buf.getvalue())
+
+
 def run_case(entry, parser=PARSER, path="probe"):
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp, "stdout")
         err = Path(tmp, "stderr")
-        out.write_text("\n".join(json.dumps(ev) for ev in entry["events"]))
-        err.write_text("")
+        out.write_text("\n".join(json.dumps(ev) for ev in entry["events"]), encoding="utf-8")
+        err.write_text("", encoding="utf-8")
         proc = subprocess.run(
             [sys.executable, str(parser), "0", str(out), str(err), *PATHS[path]],
             capture_output=True, text=True)
-    if proc.returncode == 0:
-        return TOLERATED, ""
-    try:
-        reason = json.loads(proc.stdout)["reason"]
-    except Exception:
-        return "unparseable", proc.stdout[:120]
-    return wrapper_arm(reason), reason
+    return _parse_verdict(proc.returncode, proc.stdout)
 
 
 def main():
     parser = Path(sys.argv[1]) if len(sys.argv) > 1 else PARSER
+    module = None
+    load_error = ""
+    try:
+        module = _load_parser_module(parser)
+    except BaseException as exc:
+        load_error = f"{type(exc).__name__}: {exc}"[:120]
+
     failures = []
+    observed: dict[tuple[str, str], tuple[str, str]] = {}
     runs = 0
-    for entry in CASES:
-        for path in PATHS:
-            runs += 1
-            actual, reason = run_case(entry, parser, path)
-            if actual != entry["expected"]:
-                failures.append((f"{entry['name']}/{path}", entry["expected"],
-                                 actual, reason[:160]))
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp, "stdout")
+        err = Path(tmp, "stderr")
+        for entry in CASES:
+            for path in PATHS:
+                runs += 1
+                if module is None:
+                    actual, reason = "unparseable", load_error
+                else:
+                    actual, reason = _run_case_inproc(entry, module, parser, out, err, path)
+                observed[(entry["name"], path)] = (actual, reason)
+                if actual != entry["expected"]:
+                    failures.append((f"{entry['name']}/{path}", entry["expected"],
+                                     actual, reason[:160]))
+
+    # Keep a bounded real-CLI parity smoke (2 cases x 2 paths = 4 subprocesses)
+    # whenever the module loaded so __main__ wiring stays end-to-end verified.
+    if module is not None:
+        smoke_names = ("clean", "declared-tool")
+        for entry in CASES:
+            if entry["name"] not in smoke_names:
+                continue
+            for path in PATHS:
+                inproc_actual, _ = observed[(entry["name"], path)]
+                cli_actual, cli_reason = run_case(entry, parser, path)
+                if cli_actual != inproc_actual:
+                    failures.append((f"{entry['name']}/{path}/cli-parity",
+                                     inproc_actual, cli_actual, cli_reason[:160]))
+
     print(f"cases: {runs}  mismatches: {len(failures)}")
     for name, expected, actual, reason in failures:
         print(f"  MISMATCH {name}: expected {expected}, got {actual}")
