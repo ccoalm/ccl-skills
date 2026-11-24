@@ -87,6 +87,9 @@ HANDLER_BUDGET = {'SessionStart': 12, 'PreInvocation': 17, 'PreToolUse': 72,
 MAX_TRANSCRIPT_BYTES = 32 * 1024 * 1024
 MAX_SKILL_BYTES = 256 * 1024
 MAX_NOTE_BYTES = 8 * 1024
+MAX_CACHE_BYTES = 4 * 1024 * 1024
+CACHE_BLOCK_BYTES = 1024 * 1024
+SHADOW_WRITE_CHUNK = 65536
 SHADOW_TTL = 24 * 3600
 
 
@@ -258,18 +261,35 @@ def read_regular(path):
         return stream.read(MAX_SKILL_BYTES + 1)
 
 
-def bundled_skill(path):
-    """(slug, lines) of the bundled skill when `path` is a byte-identical copy of it."""
-    path = Path(path)
-    if path.name != 'SKILL.md' or path.parent.parent.name != 'skills':
-        return None
-    slug = path.parent.name
+SKILL_CACHE = {}  # slug -> [stat_sig, canonical_real, raw_bytes, lines, canonical_stream_or_None]
+
+
+def build_canonical_stream(lines):
+    rows = [f'{n}: {line}'.encode('utf-8') for n, line in enumerate(lines, start=1)]
+    offsets, position = [], 0
+    for row in rows:
+        offsets.append(position)
+        position += len(row) + 1
+    return b'\n'.join(rows), offsets, [len(row) for row in rows]
+
+
+def bundled_skill_entry(slug):
     canonical = SKILLS_DIR / slug / 'SKILL.md'
     try:
-        raw = read_regular(canonical)
-        if os.path.realpath(path) != os.path.realpath(canonical) and read_regular(path) != raw:
+        info = os.stat(canonical)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_SKILL_BYTES:
             return None
+        sig = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+        cached = SKILL_CACHE.get(slug)
+        if cached is not None and cached[0] == sig and len(cached[2]) == info.st_size:
+            return cached
+        raw = read_regular(canonical)
+        post = os.stat(canonical)
+        if not stat.S_ISREG(post.st_mode) or len(raw) != post.st_size:
+            return None
+        sig = (post.st_dev, post.st_ino, post.st_size, post.st_mtime_ns)
         text = raw.decode('utf-8')
+        canonical_real = os.path.realpath(canonical)
     except (OSError, UnicodeError, BridgeError):
         return None
     frontmatter = re.match(r'\A---\r?\n(.*?)\r?\n---\r?\n', text, re.S)
@@ -278,7 +298,27 @@ def bundled_skill(path):
     lines = text.split('\n')
     if lines and lines[-1] == '':
         lines.pop()
-    return slug, [line.rstrip('\r') for line in lines]
+    entry = [sig, canonical_real, raw, [line.rstrip('\r') for line in lines], None]
+    SKILL_CACHE[slug] = entry
+    return entry
+
+
+def bundled_skill(path):
+    """(slug, lines) of the bundled skill when `path` is a byte-identical copy of it."""
+    path = Path(path)
+    if path.name != 'SKILL.md' or path.parent.parent.name != 'skills':
+        return None
+    slug = path.parent.name
+    entry = bundled_skill_entry(slug)
+    if entry is None:
+        return None
+    _, canonical_real, raw, lines, _ = entry
+    try:
+        if os.path.realpath(path) != canonical_real and read_regular(path) != raw:
+            return None
+    except (OSError, BridgeError):
+        return None
+    return slug, lines
 
 
 def merge_spans(spans):
@@ -307,12 +347,7 @@ def partial_lines(content, header, lines, spans):
         return set()
     canonical = spans.get('canonical')
     if canonical is None:
-        rows = [f'{n}: {line}'.encode('utf-8') for n, line in enumerate(lines, start=1)]
-        offsets, position = [], 0
-        for row in rows:
-            offsets.append(position)
-            position += len(row) + 1
-        canonical = spans['canonical'] = (b'\n'.join(rows), offsets, [len(row) for row in rows])
+        canonical = spans['canonical'] = build_canonical_stream(lines)
     stream, offsets, lengths = canonical
     base = offsets[first - 1]
     if size != offsets[last - 1] + lengths[last - 1] - base or not 0 <= start < end <= size:
@@ -427,7 +462,13 @@ def shadow_events(steps, cwd):
                 continue
             slug, lines = skill
             seen = coverage.setdefault(slug, set())
-            seen |= covered_lines(result.get('content'), lines, chunks.setdefault(slug, {}))
+            skill_chunks = chunks.setdefault(slug, {})
+            cached_entry = SKILL_CACHE.get(slug)
+            if cached_entry is not None and cached_entry[3] is lines and 'canonical' not in skill_chunks:
+                if cached_entry[4] is None:
+                    cached_entry[4] = build_canonical_stream(lines)
+                skill_chunks['canonical'] = cached_entry[4]
+            seen |= covered_lines(result.get('content'), lines, skill_chunks)
             if len(seen) == len(lines):
                 loaded.add(slug)
                 skill_id = f'skill-{number}-{position}'
@@ -440,12 +481,517 @@ def shadow_events(steps, cwd):
     return events, turn_id, last_prose
 
 
+_DEFAULT_TRANSCRIPT_STEPS = transcript_steps
+_DEFAULT_SHADOW_EVENTS = shadow_events
+
+
 # The shadow keeps one inode for the conversation's lifetime, as a host transcript
 # does: skill-loading.py keys its once-per-context checkpoint on (st_dev, st_ino).
 # Its content lives only while an event runs; between events the file is empty.
+# {key}.cache.json keeps only structural step tags and byte offsets into the host
+# transcript file — never prompt text, tool outputs, commands, paths or prose.
 SHADOW_NAME_RE = re.compile(r'[0-9a-f]{64}\.jsonl\Z')
+CACHE_NAME_RE = re.compile(r'[0-9a-f]{64}\.cache\.json\Z')
 LEGACY_TEMP_RE = re.compile(r'[0-9a-f]{64}\.[1-9][0-9]*\.tmp\Z')
 WRITE_FLAGS = os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+READ_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+
+
+def resolve_transcript_stream(agy):
+    raw = agy.get('transcriptPath')
+    if not isinstance(raw, str) or not raw:
+        return None
+    path = Path(os.path.expanduser(raw))
+    if not path.is_absolute():
+        return None
+    for candidate in (path.with_name('transcript_full.jsonl'), path):
+        try:
+            descriptor = os.open(candidate, os.O_RDONLY | os.O_NONBLOCK)
+        except OSError:
+            continue
+        stream = os.fdopen(descriptor, 'rb')
+        try:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode):
+                stream.close()
+                continue
+            return stream, info
+        except BaseException:
+            stream.close()
+            raise
+    return None
+
+
+def compute_window_start(stream, size):
+    if size <= MAX_TRANSCRIPT_BYTES:
+        return 0
+    pos = size - MAX_TRANSCRIPT_BYTES
+    stream.seek(pos)
+    remaining = MAX_TRANSCRIPT_BYTES
+    while remaining > 0:
+        chunk = stream.read(min(65536, remaining))
+        if not chunk:
+            return size
+        nl = chunk.find(b'\n')
+        if nl != -1:
+            return pos + nl + 1
+        pos += len(chunk)
+        remaining -= len(chunk)
+    return size
+
+
+def span_block_digests(stream, start, end, prior_blocks=None, prior_end=None):
+    span = end - start
+    if span < 0:
+        return None, False
+    if span == 0:
+        return [], True
+    reused = 0
+    blocks = []
+    if prior_blocks is not None and prior_end is not None and start <= prior_end <= end:
+        full = (prior_end - start) // CACHE_BLOCK_BYTES
+        if full <= len(prior_blocks):
+            reused = full
+            blocks.extend(prior_blocks[:reused])
+    pos = start + reused * CACHE_BLOCK_BYTES
+    while pos < end:
+        want = min(CACHE_BLOCK_BYTES, end - pos)
+        stream.seek(pos)
+        chunk = stream.read(want)
+        if len(chunk) != want:
+            return None, False
+        blocks.append(hashlib.sha256(chunk).hexdigest())
+        pos += want
+    stream.seek(end - 1)
+    if stream.read(1) != b'\n':
+        return None, False
+    return blocks, True
+
+
+def read_cache_state(key):
+    path = state_dir() / f'{key}.cache.json'
+    try:
+        descriptor = os.open(path, READ_FLAGS)
+    except OSError:
+        return None
+    try:
+        with os.fdopen(descriptor, 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                    or info.st_nlink != 1 or info.st_size > MAX_CACHE_BYTES):
+                return None
+            parsed = json.loads(stream.read(MAX_CACHE_BYTES + 1).decode('utf-8'))
+            return parsed if isinstance(parsed, dict) else None
+    except (OSError, UnicodeError, ValueError):
+        return None
+
+
+def write_cache_state(key, payload):
+    path = state_dir() / f'{key}.cache.json'
+    descriptor = None
+    try:
+        try:
+            descriptor = os.open(path, WRITE_FLAGS | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            descriptor = os.open(path, WRITE_FLAGS)
+        safe_shadow(descriptor)
+        encoded = (json.dumps(payload, separators=(',', ':')) + '\n').encode('utf-8')
+        if len(encoded) > MAX_CACHE_BYTES:
+            return
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        _write_all(descriptor, encoded)
+        os.ftruncate(descriptor, len(encoded))
+    except (OSError, BridgeError):
+        return
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def serialize_skill_state(loaded, coverage, chunks):
+    tracked = set(loaded) | set(coverage) | set(chunks)
+    sigs = {}
+    for slug in sorted(tracked):
+        entry = bundled_skill_entry(slug)
+        if entry is None:
+            return None
+        sigs[slug] = list(entry[0])
+    cov_out = {
+        slug: [list(span) for span in merge_spans((n, n + 1) for n in nums)]
+        for slug, nums in sorted(coverage.items())
+        if slug not in loaded and nums
+    }
+    ver_out = {
+        slug: [list(span) for span in chunks[slug].get('verified', [])]
+        for slug in sorted(chunks)
+        if slug not in loaded and chunks[slug].get('verified')
+    }
+    return {'loaded': sorted(loaded), 'coverage': cov_out, 'verified': ver_out, 'skill_sigs': sigs}
+
+
+def restore_skill_state(cache):
+    sigs = cache.get('skill_sigs')
+    loaded_raw = cache.get('loaded')
+    cov_raw = cache.get('coverage')
+    ver_raw = cache.get('verified')
+    if not (isinstance(sigs, dict) and isinstance(loaded_raw, list)
+            and isinstance(cov_raw, dict) and isinstance(ver_raw, dict)):
+        return None
+    for slug, want in sigs.items():
+        if not isinstance(slug, str) or not isinstance(want, list) or len(want) != 4:
+            return None
+        entry = bundled_skill_entry(slug)
+        if entry is None or list(entry[0]) != want:
+            return None
+    loaded = {s for s in loaded_raw if isinstance(s, str)}
+    if len(loaded) != len(loaded_raw):
+        return None
+    coverage = {}
+    for slug, ranges in cov_raw.items():
+        if not isinstance(slug, str) or not isinstance(ranges, list):
+            return None
+        nums = set()
+        for pair in ranges:
+            if not (isinstance(pair, list) and len(pair) == 2 and is_int(pair[0]) and is_int(pair[1])
+                    and 1 <= pair[0] < pair[1] <= 100000):
+                return None
+            nums.update(range(pair[0], pair[1]))
+        coverage[slug] = nums
+    chunks = {}
+    for slug, ranges in ver_raw.items():
+        if not isinstance(slug, str) or not isinstance(ranges, list):
+            return None
+        pairs = []
+        for pair in ranges:
+            if not (isinstance(pair, list) and len(pair) == 2 and is_int(pair[0]) and is_int(pair[1])
+                    and 0 <= pair[0] <= pair[1] <= MAX_SKILL_BYTES * 2):
+                return None
+            pairs.append((pair[0], pair[1]))
+        chunks[slug] = {'verified': pairs}
+    return loaded, coverage, chunks
+
+
+def emit_cached_records(stream, records, cwd):
+    events, turn_id, last_prose = [], None, None
+    if not isinstance(records, list):
+        raise ValueError('records is not a list')
+    for rec in records:
+        if not isinstance(rec, list) or not rec:
+            raise ValueError('malformed record')
+        tag = rec[0]
+        if tag == 'U':
+            if len(rec) != 2 or not is_int(rec[1]):
+                raise ValueError('bad user record')
+            _, number = rec
+            turn_id, last_prose = f'turn-{number}', None
+            events.append({'type': 'user', 'uuid': turn_id, 'promptId': turn_id,
+                           'message': {'role': 'user', 'content': [{'type': 'text', 'text': ''}]}})
+        elif tag == 'P':
+            if len(rec) != 3:
+                raise ValueError('bad prose record')
+            _, line_off, line_len = rec
+            if not (is_int(line_off) and is_int(line_len) and line_off >= 0 and line_len >= 0):
+                raise ValueError('bad prose span')
+            stream.seek(line_off)
+            raw_line = stream.read(line_len)
+            if len(raw_line) != line_len:
+                raise ValueError('short prose read')
+            step = json.loads(raw_line.decode('utf-8', 'replace'))
+            if not isinstance(step, dict) or step.get('type') != 'PLANNER_RESPONSE':
+                raise ValueError('stale prose step')
+            prose = step.get('content') if isinstance(step.get('content'), str) else ''
+            if prose.strip():
+                last_prose = prose
+                events.append({'type': 'assistant', 'message': {
+                    'role': 'assistant', 'content': [{'type': 'text', 'text': prose}]}})
+        elif tag == 'C':
+            if len(rec) != 7:
+                raise ValueError('bad call record')
+            _, number, line_off, line_len, paired_int, failed_hex, loaded_on_step = rec
+            if not (is_int(number) and is_int(line_off) and is_int(line_len)
+                    and is_int(paired_int) and paired_int in (0, 1)
+                    and line_off >= 0 and line_len >= 0
+                    and isinstance(failed_hex, str) and isinstance(loaded_on_step, list)):
+                raise ValueError('bad call record')
+            stream.seek(line_off)
+            raw_line = stream.read(line_len)
+            if len(raw_line) != line_len:
+                raise ValueError('short call read')
+            step = json.loads(raw_line.decode('utf-8', 'replace'))
+            if not isinstance(step, dict) or step.get('type') != 'PLANNER_RESPONSE':
+                raise ValueError('stale call step')
+            calls = [c for c in step.get('tool_calls') or [] if isinstance(c, dict)]
+            paired = bool(paired_int)
+            failed_bits = int(failed_hex, 16)
+            loaded_map = {}
+            for item in loaded_on_step:
+                if not (isinstance(item, list) and len(item) == 2 and is_int(item[0]) and isinstance(item[1], str)):
+                    raise ValueError('bad loaded_on_step item')
+                loaded_map[item[0]] = item[1]
+            for position, call in enumerate(calls):
+                name, args = str(call.get('name') or ''), tool_args(call)
+                failed = bool((failed_bits >> position) & 1)
+                base = str(call.get('id') or f'call-{number}-{position}')
+                for offset, (tool, tool_input) in enumerate(claude_calls(name, args, cwd)):
+                    call_id = base if offset == 0 else f'{base}-{offset}'
+                    events.append({'type': 'assistant', 'message': {'role': 'assistant', 'content': [
+                        {'type': 'tool_use', 'id': call_id, 'name': tool, 'input': tool_input}]}})
+                    if paired:
+                        events.append({'type': 'user', 'message': {'role': 'user', 'content': [
+                            {'type': 'tool_result', 'tool_use_id': call_id, 'content': '',
+                             'is_error': failed}]}})
+                slug = loaded_map.get(position)
+                if slug is not None:
+                    skill_id = f'skill-{number}-{position}'
+                    events.append({'type': 'assistant', 'message': {'role': 'assistant', 'content': [
+                        {'type': 'tool_use', 'id': skill_id, 'name': 'Skill',
+                         'input': {'skill': f'ccl-skills:{slug}'}}]}})
+                    events.append({'type': 'user', 'message': {'role': 'user', 'content': [
+                        {'type': 'tool_result', 'tool_use_id': skill_id, 'content': 'loaded',
+                         'is_error': False}]}})
+        else:
+            raise ValueError('unknown record tag')
+    return events, turn_id, last_prose
+
+
+def parse_tail_slice(
+    raw_bytes,
+    parse_start,
+    cwd,
+    *,
+    events,
+    turn_id,
+    last_prose,
+    coverage,
+    loaded,
+    chunks,
+    step_count,
+    prior_records,
+):
+    parsed_steps = []
+    complete_end = parse_start
+    pos, total_bytes = 0, len(raw_bytes)
+    while pos < total_bytes:
+        nl = raw_bytes.find(b'\n', pos)
+        if nl == -1:
+            raw_line, has_nl, next_end = raw_bytes[pos:], False, parse_start + total_bytes
+            pos = total_bytes
+        else:
+            raw_line, has_nl, next_end = raw_bytes[pos:nl], True, parse_start + nl + 1
+            pos = nl + 1
+        line_off = parse_start + (next_end - parse_start - len(raw_line) - (1 if has_nl else 0))
+        try:
+            step = json.loads(raw_line.decode('utf-8', 'replace'))
+        except ValueError:
+            if has_nl:
+                complete_end = next_end
+            continue
+        if isinstance(step, dict):
+            parsed_steps.append((line_off, len(raw_line), has_nl, next_end, step))
+        if has_nl:
+            complete_end = next_end
+
+    frozen_records = list(prior_records)
+    frozen_end = parse_start
+    frozen_step_count = step_count
+    frozen_loaded = set(loaded)
+    frozen_coverage = {k: set(v) for k, v in coverage.items()}
+    frozen_chunks = {k: {'verified': list(v.get('verified', []))} for k, v in chunks.items()}
+    can_freeze = True
+
+    cur_step_index = step_count
+    idx = 0
+    while idx < len(parsed_steps):
+        line_off, line_len, has_nl, line_end, step = parsed_steps[idx]
+        step_ord = cur_step_index
+        kind, number = step.get('type'), step.get('step_index', step_ord)
+        idx += 1
+        cur_step_index += 1
+
+        if kind == 'USER_INPUT':
+            explicit = step.get('source') == 'USER_EXPLICIT'
+            if explicit:
+                turn_id, last_prose = f'turn-{number}', None
+                events.append({'type': 'user', 'uuid': turn_id, 'promptId': turn_id,
+                               'message': {'role': 'user', 'content': [{'type': 'text', 'text': ''}]}})
+            if can_freeze and has_nl and (not explicit or is_int(number)):
+                if explicit:
+                    frozen_records.append(['U', number])
+                frozen_end = parsed_steps[idx][0] if idx < len(parsed_steps) else complete_end
+                frozen_step_count = cur_step_index
+            else:
+                can_freeze = False
+            continue
+
+        if kind != 'PLANNER_RESPONSE':
+            if can_freeze and has_nl:
+                frozen_end = parsed_steps[idx][0] if idx < len(parsed_steps) else complete_end
+                frozen_step_count = cur_step_index
+            else:
+                can_freeze = False
+            continue
+
+        calls = [c for c in step.get('tool_calls') or [] if isinstance(c, dict)]
+        prose = step.get('content') if isinstance(step.get('content'), str) else ''
+        if not calls:
+            if prose.strip():
+                last_prose = prose
+                events.append({'type': 'assistant', 'message': {
+                    'role': 'assistant', 'content': [{'type': 'text', 'text': prose}]}})
+                if can_freeze and has_nl:
+                    frozen_records.append(['P', line_off, line_len])
+            if can_freeze and has_nl:
+                frozen_end = parsed_steps[idx][0] if idx < len(parsed_steps) else complete_end
+                frozen_step_count = cur_step_index
+            else:
+                can_freeze = False
+            continue
+
+        results = []
+        while idx < len(parsed_steps) and parsed_steps[idx][4].get('type') not in ('PLANNER_RESPONSE', 'USER_INPUT'):
+            if parsed_steps[idx][4].get('type') == 'GENERIC':
+                results.append(parsed_steps[idx][4])
+            idx += 1
+            cur_step_index += 1
+
+        is_closed = idx < len(parsed_steps) and has_nl
+        paired = len(results) == len(calls)
+        failed_bits = 0
+        loaded_on_step = []
+        for position, call in enumerate(calls):
+            name, args = str(call.get('name') or ''), tool_args(call)
+            result = results[position] if paired else None
+            failed = result is None or result.get('status') != 'DONE' or bool(result.get('error'))
+            if failed:
+                failed_bits |= 1 << position
+            base = str(call.get('id') or f'call-{number}-{position}')
+            for offset, (tool, tool_input) in enumerate(claude_calls(name, args, cwd)):
+                call_id = base if offset == 0 else f'{base}-{offset}'
+                events.append({'type': 'assistant', 'message': {'role': 'assistant', 'content': [
+                    {'type': 'tool_use', 'id': call_id, 'name': tool, 'input': tool_input}]}})
+                if paired:
+                    events.append({'type': 'user', 'message': {'role': 'user', 'content': [
+                        {'type': 'tool_result', 'tool_use_id': call_id, 'content': '',
+                         'is_error': failed}]}})
+            if name not in ('read_file', 'view_file') or failed:
+                continue
+            target = edit_paths(args, cwd)
+            skill = bundled_skill(target[0]) if target else None
+            if not skill or skill[0] in loaded:
+                continue
+            slug, lines = skill
+            seen = coverage.setdefault(slug, set())
+            skill_chunks = chunks.setdefault(slug, {})
+            cached_entry = SKILL_CACHE.get(slug)
+            if cached_entry is not None and cached_entry[3] is lines and 'canonical' not in skill_chunks:
+                if cached_entry[4] is None:
+                    cached_entry[4] = build_canonical_stream(lines)
+                skill_chunks['canonical'] = cached_entry[4]
+            seen |= covered_lines(result.get('content'), lines, skill_chunks)
+            if len(seen) == len(lines):
+                loaded.add(slug)
+                loaded_on_step.append([position, slug])
+                skill_id = f'skill-{number}-{position}'
+                events.append({'type': 'assistant', 'message': {'role': 'assistant', 'content': [
+                    {'type': 'tool_use', 'id': skill_id, 'name': 'Skill',
+                     'input': {'skill': f'ccl-skills:{slug}'}}]}})
+                events.append({'type': 'user', 'message': {'role': 'user', 'content': [
+                    {'type': 'tool_result', 'tool_use_id': skill_id, 'content': 'loaded',
+                     'is_error': False}]}})
+
+        if can_freeze and is_closed and is_int(number):
+            frozen_records.append(['C', number, line_off, line_len, 1 if paired else 0,
+                                   f'{failed_bits:x}', loaded_on_step])
+            frozen_end = parsed_steps[idx][0]
+            frozen_step_count = cur_step_index
+            frozen_loaded = set(loaded)
+            frozen_coverage = {k: set(v) for k, v in coverage.items()}
+            frozen_chunks = {k: {'verified': list(v.get('verified', []))} for k, v in chunks.items()}
+        else:
+            can_freeze = False
+
+    if can_freeze and not parsed_steps:
+        frozen_end = complete_end
+
+    frozen_state = (frozen_end, frozen_step_count, frozen_records,
+                    frozen_loaded, frozen_coverage, frozen_chunks)
+    return events, turn_id, last_prose, frozen_state
+
+
+def cached_transcript_events(agy, key, cwd):
+    opened = resolve_transcript_stream(agy)
+    if opened is None:
+        return [], None, None
+    stream, info = opened
+    try:
+        size = info.st_size
+        window_start = compute_window_start(stream, size)
+        cwd_hash = digest(cwd or '')
+        cache = read_cache_state(key)
+
+        base_events, turn_id, last_prose = [], None, None
+        loaded, coverage, chunks = set(), {}, {}
+        parse_start = window_start
+        step_count = 0
+        prior_records = []
+        reusable_blocks, reusable_end = None, None
+
+        if (cache is not None and cache.get('version') == 2
+                and cache.get('dev') == info.st_dev and cache.get('ino') == info.st_ino
+                and cache.get('cwd') == cwd_hash and cache.get('window_start') == window_start):
+            cand_end = cache.get('frozen_end')
+            cand_steps = cache.get('step_count')
+            cached_blocks = cache.get('block_sha256')
+            if (is_int(cand_end) and is_int(cand_steps) and isinstance(cached_blocks, list)
+                    and window_start <= cand_end <= size and cand_steps >= 0):
+                verified_blocks, ok = span_block_digests(stream, window_start, cand_end)
+                restored = restore_skill_state(cache) if ok else None
+                if ok and restored is not None and verified_blocks == cached_blocks:
+                    try:
+                        prior_records = cache.get('records')
+                        base_events, turn_id, last_prose = emit_cached_records(stream, prior_records, cwd)
+                        loaded, coverage, chunks = restored
+                        parse_start = cand_end
+                        step_count = cand_steps
+                        reusable_blocks, reusable_end = verified_blocks, cand_end
+                    except (OSError, ValueError, TypeError, KeyError, IndexError, OverflowError):
+                        base_events, turn_id, last_prose = [], None, None
+                        loaded, coverage, chunks = set(), {}, {}
+                        parse_start = window_start
+                        step_count = 0
+                        prior_records = []
+                        reusable_blocks, reusable_end = None, None
+
+        stream.seek(parse_start)
+        tail_bytes = stream.read(max(0, size - parse_start))
+        events, turn_id, last_prose, frozen = parse_tail_slice(
+            tail_bytes, parse_start, cwd,
+            events=base_events, turn_id=turn_id, last_prose=last_prose,
+            coverage=coverage, loaded=loaded, chunks=chunks,
+            step_count=step_count, prior_records=prior_records,
+        )
+        frozen_end, frozen_steps, frozen_records, f_loaded, f_cov, f_chunks = frozen
+        skill_blob = serialize_skill_state(f_loaded, f_cov, f_chunks)
+        if skill_blob is not None and (cache is None or cache.get('version') != 2
+                                       or frozen_end != cache.get('frozen_end')
+                                       or reusable_blocks is None
+                                       or cache.get('dev') != info.st_dev
+                                       or cache.get('ino') != info.st_ino
+                                       or cache.get('cwd') != cwd_hash
+                                       or cache.get('window_start') != window_start):
+            new_blocks, ok = span_block_digests(
+                stream, window_start, frozen_end, reusable_blocks, reusable_end,
+            )
+            if ok:
+                write_cache_state(key, {
+                    'version': 2, 'dev': info.st_dev, 'ino': info.st_ino, 'cwd': cwd_hash,
+                    'window_start': window_start, 'frozen_end': frozen_end,
+                    'step_count': frozen_steps, 'block_sha256': new_blocks,
+                    'records': frozen_records, **skill_blob,
+                })
+        return events, turn_id, last_prose
+    finally:
+        stream.close()
 
 
 def safe_shadow(descriptor):
@@ -469,12 +1015,44 @@ def checked_shadow(descriptor):
 
 
 OPEN_SHADOWS = {}  # key -> the descriptor this event validated and writes through
+SHADOW_BASES = {}  # key -> byte length of the base events written for this event
 
 
-def write_shadow(key, events, extra=None):
+def _write_all(descriptor, data):
+    view = memoryview(data)
+    while view:
+        view = view[os.write(descriptor, view):]
+
+
+def _write_events(descriptor, records):
+    buf = bytearray()
+    written = 0
+    try:
+        for event in records:
+            line = (json.dumps(event) + '\n').encode('utf-8')
+            if buf and len(buf) + len(line) > SHADOW_WRITE_CHUNK:
+                _write_all(descriptor, buf)
+                written += len(buf)
+                buf.clear()
+            if len(line) >= SHADOW_WRITE_CHUNK:
+                _write_all(descriptor, line)
+                written += len(line)
+            else:
+                buf.extend(line)
+    except BaseException:
+        if buf:
+            _write_all(descriptor, buf)
+        raise
+    if buf:
+        _write_all(descriptor, buf)
+        written += len(buf)
+    return written
+
+
+def write_shadow(key, events, extra=None, reuse_prefix=False):
     directory = state_dir()
     target = directory / f'{key}.jsonl'
-    descriptor, created = OPEN_SHADOWS.get(key), False
+    descriptor, created, held = OPEN_SHADOWS.get(key), False, None
     if descriptor is None:
         try:
             descriptor, created = os.open(target, WRITE_FLAGS | os.O_CREAT | os.O_EXCL, 0o600), True
@@ -486,13 +1064,15 @@ def write_shadow(key, events, extra=None):
         held, named = safe_shadow(descriptor), os.lstat(target)
         if (held.st_dev, held.st_ino) != (named.st_dev, named.st_ino):
             raise BridgeError('shadow transcript was replaced during the event')
-    os.lseek(descriptor, 0, os.SEEK_SET)
-    written = 0
-    for event in events + ([extra] if extra else []):
-        view = memoryview((json.dumps(event) + '\n').encode('utf-8'))
-        written += len(view)
-        while view:
-            view = view[os.write(descriptor, view):]
+    base = SHADOW_BASES.get(key) if (reuse_prefix and held is not None and extra is not None) else None
+    if base is not None and held.st_size >= base:
+        os.lseek(descriptor, base, os.SEEK_SET)
+        written = base + _write_events(descriptor, [extra])
+    else:
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        base_written = _write_events(descriptor, events)
+        SHADOW_BASES[key] = base_written
+        written = base_written + (_write_events(descriptor, [extra]) if extra else 0)
     os.ftruncate(descriptor, written)
     if created:
         sweep_stale(directory)
@@ -504,6 +1084,7 @@ def clear_shadow(key):
     rename or replacement of the name during the event cannot keep content around.
     An event that wrote nothing touches nothing; the sweep empties what a killed
     event left behind."""
+    SHADOW_BASES.pop(key, None)
     descriptor = OPEN_SHADOWS.pop(key, None)
     if descriptor is None:
         return
@@ -514,7 +1095,7 @@ def clear_shadow(key):
 
 
 def sweep_stale(directory, budget=1.0):
-    """Empty shadows an interrupted event left full and drop the old scheme's temp files.
+    """Empty shadows an interrupted event left full and drop stale parse caches / legacy temp files.
 
     Runs when a conversation's shadow is first created. A shadow is emptied, never
     removed, so a paused conversation keeps its identity. Either kind of file is
@@ -534,10 +1115,13 @@ def sweep_stale(directory, budget=1.0):
                         continue
                     if LEGACY_TEMP_RE.match(entry.name):
                         under_run_lock(directory, entry.name.split('.', 1)[0],
-                                       lambda: remove_if_stale(entry.path, cutoff))
+                                       lambda p=entry.path: remove_if_stale(p, cutoff))
+                    elif CACHE_NAME_RE.match(entry.name):
+                        key = entry.name[:-len('.cache.json')]
+                        under_run_lock(directory, key, lambda p=entry.path: remove_if_stale(p, cutoff))
                     elif SHADOW_NAME_RE.match(entry.name) and info.st_size:
                         key = entry.name[:-len('.jsonl')]
-                        under_run_lock(directory, key, lambda: empty_if_stale(directory / entry.name, cutoff))
+                        under_run_lock(directory, key, lambda n=entry.name: empty_if_stale(directory / n, cutoff))
                 except (OSError, BridgeError):
                     continue  # another conversation's unsafe file is its own event's problem
     except OSError:
@@ -573,7 +1157,10 @@ def empty_if_stale(path, cutoff):
 def context(agy, extra=None):
     cwd = resolve_cwd(agy)
     session, key = conversation(agy)
-    events, turn_id, prose = shadow_events(transcript_steps(agy), cwd)
+    if transcript_steps is _DEFAULT_TRANSCRIPT_STEPS and shadow_events is _DEFAULT_SHADOW_EVENTS:
+        events, turn_id, prose = cached_transcript_events(agy, key, cwd)
+    else:
+        events, turn_id, prose = shadow_events(transcript_steps(agy), cwd)
     return {'cwd': cwd or os.getcwd(), 'known_cwd': cwd, 'session': session, 'key': key, 'turn_id': turn_id, 'prose': prose,
             'events': events, 'transcript': write_shadow(key, events, extra)}
 
@@ -812,7 +1399,7 @@ def pre_tool_use(agy, deadline):
             pending = {'type': 'assistant', 'message': {'role': 'assistant', 'content': [
                 {'type': 'tool_use', 'id': str(call.get('id') or 'call-current'), 'name': tool,
                  'input': tool_input}]}}
-            ctx['transcript'] = write_shadow(ctx['key'], ctx['events'], pending)
+            ctx['transcript'] = write_shadow(ctx['key'], ctx['events'], pending, reuse_prefix=True)
             data = payload(ctx, 'PreToolUse', tool_name=tool, tool_input=tool_input)
             verdict, notes, _ = evaluate(DISPATCH['PreToolUse:edit'], data, ctx['cwd'], deadline,
                                          FAIL_CLOSED['PreToolUse:edit'])

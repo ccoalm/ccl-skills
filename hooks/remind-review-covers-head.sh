@@ -37,7 +37,21 @@ input=$(cat)
 command -v jq >/dev/null 2>&1 || exit 0
 command -v git >/dev/null 2>&1 || exit 0
 
-cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+unset fields fields_read hf_cmd hf_cwd
+fields=$(printf '%s' "$input" 2>/dev/null | jq -rs '
+  def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
+  select(length == 1) | .[0] | select(type == "object")
+  | [(.tool_input.command // ""), (.cwd // "")]
+  | select(all(.[]; type == "string" and length <= 65536
+      and (split("\u0000") | length) < 2))
+  | map(trim_nl(16)) | select(all(.[]; type == "string"))
+  | "hf_cmd=\(.[0] | @sh) hf_cwd=\(.[1] | @sh) fields_read=1"' 2>/dev/null)
+fields_read=""
+case "$fields" in *' fields_read=1') eval "$fields" ;; esac
+
+if [ -n "$fields_read" ]; then cmd=$hf_cmd; else
+  cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+fi
 [ -z "$cmd" ] && exit 0
 
 # Same unwrap-then-mask as remind-post-merge-cleanup.sh, so a mention inside a
@@ -64,7 +78,9 @@ moves_head=$(printf '%s\n' "$segments" | awk \
   -v help='(^|[[:space:]])(-h|--help)([[:space:]]|$)' \
   '$0 ~ mv { moved = 1 } $0 ~ op && $0 !~ help && moved { m = 1 } END { print m + 0 }')
 
-cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+if [ -n "$fields_read" ]; then cwd=$hf_cwd; else
+  cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+fi
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd=$(pwd)
 # A leading `cd <dir> &&` names the worktree the command runs in. A quoted
 # directory is read from the original command, since masking replaced it; the
@@ -122,11 +138,32 @@ if [ ! -f "$receipt" ] || [ -L "$receipt" ]; then
   note="⚠️ 已注入 code-review 覆盖检查：这个 worktree 没有结论性评审记录。"
   message="⚠️ code-review 覆盖检查（自动）：这个 worktree 没有记录到任何结论性的 code-review 结果（检查的收据：${receipt}），就要开 / 就绪 / 合并 PR。别处保存的评审结果文件不算收据，也不说明链已处置——打开它看 status 与 next_action。若本次改了代码或可执行测试，先按 ${walk} 由你自己跑评审，不交给人工 review；确实不需要评审（纯文档且不属共享技能改动等）就在报告里写明理由。"
 else
-  reviewed=$(jq -r '.head // empty' "$receipt" 2>/dev/null)
-  clean=$(jq -r '.worktree_clean // empty' "$receipt" 2>/dev/null)
-  mode=$(jq -r '.mode // "?"' "$receipt" 2>/dev/null)
-  status=$(jq -r '.status // "?"' "$receipt" 2>/dev/null)
-  at=$(jq -r '.recorded_at // "?"' "$receipt" 2>/dev/null)
+  unset receipt_fields receipt_read hf_reviewed hf_clean hf_mode hf_status hf_at
+  receipt_fields=$(jq -rs '
+    def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
+    def opt_empty($v): [$v // empty] | if length == 0 then "" elif (.[0] | type) == "boolean" then (.[0] | tostring) else .[0] end;
+    def opt_q($v): ($v // "?") | if type == "boolean" then tostring else . end;
+    select(length == 1) | .[0] | select(type == "object")
+    | [opt_empty(.head), opt_empty(.worktree_clean), opt_q(.mode), opt_q(.status), opt_q(.recorded_at)]
+    | select(all(.[]; type == "string" and length <= 65536
+        and (split("\u0000") | length) < 2))
+    | map(trim_nl(16)) | select(all(.[]; type == "string"))
+    | "hf_reviewed=\(.[0] | @sh) hf_clean=\(.[1] | @sh) hf_mode=\(.[2] | @sh) hf_status=\(.[3] | @sh) hf_at=\(.[4] | @sh) receipt_read=1"' "$receipt" 2>/dev/null)
+  receipt_read=""
+  case "$receipt_fields" in *' receipt_read=1') eval "$receipt_fields" ;; esac
+  if [ -n "$receipt_read" ]; then
+    reviewed=$hf_reviewed
+    clean=$hf_clean
+    mode=$hf_mode
+    status=$hf_status
+    at=$hf_at
+  else
+    reviewed=$(jq -r '.head // empty' "$receipt" 2>/dev/null)
+    clean=$(jq -r '.worktree_clean // empty' "$receipt" 2>/dev/null)
+    mode=$(jq -r '.mode // "?"' "$receipt" 2>/dev/null)
+    status=$(jq -r '.status // "?"' "$receipt" 2>/dev/null)
+    at=$(jq -r '.recorded_at // "?"' "$receipt" 2>/dev/null)
+  fi
   printf '%s' "$reviewed" | grep -Eq '^[0-9a-f]{40,64}$' || exit 0
   covered=0
   if [ "$moves_head" = 0 ] && [ "$clean" = "true" ]; then

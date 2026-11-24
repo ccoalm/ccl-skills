@@ -47,8 +47,25 @@ input=$(cat)
 
 command -v jq >/dev/null 2>&1 || exit 0
 
-prompt=$(printf '%s' "$input" | jq -r '.prompt // empty' 2>/dev/null)
-sid=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)
+unset fields fields_read hf_prompt hf_sid hf_cwd
+fields=$(printf '%s' "$input" 2>/dev/null | jq -rs '
+  def trim_nl($n): if endswith("\n") then (if $n == 0 then null else .[:-1] | trim_nl($n - 1) end) else . end;
+  select(length == 1) | .[0] | select(type == "object")
+  | [(.prompt // ""), (.session_id // ""), (.cwd // "")]
+  | select(all(.[]; type == "string" and length <= 65536
+      and (split("\u0000") | length) < 2))
+  | map(trim_nl(16)) | select(all(.[]; type == "string"))
+  | "hf_prompt=\(.[0] | @sh) hf_sid=\(.[1] | @sh) hf_cwd=\(.[2] | @sh) fields_read=1"' 2>/dev/null)
+fields_read=""
+case "$fields" in *' fields_read=1') eval "$fields" ;; esac
+
+if [ -n "$fields_read" ]; then
+  prompt=$hf_prompt
+  sid=$hf_sid
+else
+  prompt=$(printf '%s' "$input" | jq -r '.prompt // empty' 2>/dev/null)
+  sid=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)
+fi
 [ -z "$sid" ] && exit 0
 case "$sid" in */*|*..*) exit 0 ;; esac   # session_id is a path component
 
@@ -142,7 +159,9 @@ fi
 # are recognized. No host configuration, remote API or agent-written plan is
 # used to infer the scope. Unsupported origin forms remain unresolved.
 if printf '%s' "$trimmed" | grep -Eiq '^(请[[:space:]]*)?(完成并合并|finish[[:space:]]+and[[:space:]]+merge)[[:space:]]+(PR|MR)[[:space:]]+[!#]?[1-9][0-9]{0,5}[。.!！]*$'; then
-  cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+  if [ -n "$fields_read" ]; then cwd=$hf_cwd; else
+    cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+  fi
   repo=$(git -C "$cwd" config --local --get remote.origin.url 2>/dev/null)
   case "$repo" in
     https://*) repo="${repo#https://}" ;;

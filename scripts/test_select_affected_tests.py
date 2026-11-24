@@ -1229,7 +1229,8 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         dispatched_hooks = set(plan["parallel_suites"]) | {
             cmd[-1]
             for cmd in plan["serial_commands"]
-            if len(cmd) >= 5 and cmd[:4] == ["python3", "-m", "pytest", "-q"]
+            if (len(cmd) >= 5 and cmd[:4] == ["python3", "-m", "pytest", "-q"])
+            or (len(cmd) == 2 and cmd[0] == "python3" and cmd[1].startswith("hooks/"))
         }
         self.assertEqual(hook_suites - dispatched_hooks, set())
 
@@ -2082,6 +2083,67 @@ class SelectAffectedTestsUnit(unittest.TestCase):
                     mod._pgid_has_live_non_zombie_members(424242),
                     "runnable post-SIGKILL member must keep reaping until it reaches Z or exits",
                 )
+
+    def test_self_threaded_hook_field_suites_schedule_serially_and_map_extraction_stop(self):
+        mod = load_selector()
+        field_cmd = ["python3", "hooks/test_hook_field_reads.py"]
+        rem_cmd = ["python3", "hooks/test_hook_remaining_field_reads.py"]
+
+        ext_plan = mod.build_test_plan(["hooks/skill-extraction-gate-stop.sh"], repo_root=REPO_ROOT)
+        self.assertTrue(ext_plan["npm_required"])
+        for expected_suite in (
+            "hooks/test_host_input.py",
+            "hooks/test_agy_bridge.py",
+            "hooks/test_skill_loading.py",
+            "hooks/test_proposed_next.py",
+            "scripts/test_install_opencode_skill_migration.sh",
+        ):
+            self.assertIn(expected_suite, ext_plan["parallel_suites"])
+        self.assertIn(field_cmd, ext_plan["serial_commands"])
+        self.assertIn(rem_cmd, ext_plan["serial_commands"])
+        self.assertNotIn("hooks/test_hook_field_reads.py", ext_plan["parallel_suites"])
+        self.assertNotIn("hooks/test_hook_remaining_field_reads.py", ext_plan["parallel_suites"])
+
+        for rem_target in (
+            "hooks/test_hook_remaining_field_reads.py",
+            "hooks/remind-review-covers-head.sh",
+            "hooks/remind-post-merge-cleanup.sh",
+            "hooks/merge-authorization-prompt.sh",
+            "hooks/remind-unverified-cli-flag.sh",
+        ):
+            plan = mod.build_test_plan([rem_target], repo_root=REPO_ROOT)
+            self.assertIn(rem_cmd, plan["serial_commands"], msg=rem_target)
+            self.assertNotIn("hooks/test_hook_remaining_field_reads.py", plan["parallel_suites"], msg=rem_target)
+            self.assertNotIn("hooks/test_hook_field_reads.py", plan["parallel_suites"], msg=rem_target)
+
+        for orig_target in (
+            "hooks/test_hook_field_reads.py",
+            "hooks/test_hook_field_reads.expected.json",
+            "hooks/guard-merge-authorization.sh",
+            "hooks/guard-broad-local-test.sh",
+            "hooks/guard-edit-isolation.sh",
+            "scripts/owner-dispatch/owner-dispatch.sh",
+        ):
+            plan = mod.build_test_plan([orig_target], repo_root=REPO_ROOT)
+            self.assertIn(field_cmd, plan["serial_commands"], msg=orig_target)
+            self.assertNotIn("hooks/test_hook_field_reads.py", plan["parallel_suites"], msg=orig_target)
+
+        unmapped_plan = mod.build_test_plan(["hooks/unmapped-new-hook.sh"], repo_root=REPO_ROOT)
+        self.assertIn(field_cmd, unmapped_plan["serial_commands"])
+        self.assertIn(rem_cmd, unmapped_plan["serial_commands"])
+        self.assertNotIn("hooks/test_hook_field_reads.py", unmapped_plan["parallel_suites"])
+        self.assertNotIn("hooks/test_hook_remaining_field_reads.py", unmapped_plan["parallel_suites"])
+
+        makefile_lines = [
+            ln.strip()
+            for ln in (REPO_ROOT / "Makefile").read_text(encoding="utf-8").splitlines()
+            if "hooks/test_hook_remaining_field_reads.py" in ln and not ln.lstrip().startswith("#")
+        ]
+        self.assertEqual(
+            makefile_lines,
+            ["python3 hooks/test_hook_remaining_field_reads.py"],
+            "Makefile must allow shallow clones to fall back when 788470c is absent while auto-using 788470c on full clones",
+        )
 
 
 if __name__ == "__main__":
