@@ -1246,7 +1246,7 @@ class HotpathCacheTests(BridgeCase):
             for sub_pos in range(3):
                 steps.append({
                     'type': 'GENERIC', 'status': 'DONE',
-                    'content': f'SECRET_TOOL_OUTPUT_TOKEN_{idx}_{sub_pos}: ' + ('payload-' * 120),
+                    'content': f'SECRET_TOOL_OUTPUT_TOKEN_{idx}_{sub_pos}: ' + ('payload-' * 220),
                 })
         # Step with omitted step_index (tests fallback positional numbering), second half of grill-me,
         # assistant prose, and a trailing OPEN PLANNER_RESPONSE awaiting its GENERIC result.
@@ -1344,8 +1344,33 @@ class HotpathCacheTests(BridgeCase):
         ]
         self.assertEqual(loaded_skills, ['ccl-skills:grill-me', 'ccl-skills:worktree-isolation'])
 
-        # In-place overwrite on the same inode (same-layout prefix edit, longer rewrite, and shorter rewrite)
-        # must all invalidate cleanly via boundary SHA-256 digests and size checks.
+        # In-place overwrite on the same inode (same-layout prefix edit, same-layout middle edit
+        # outside 8 KiB head/tail boundaries, longer rewrite, and shorter rewrite) must all invalidate cleanly.
+        raw_before_mid = transcript.read_bytes()
+        mid_anchor = b'SECRET_TOOL_OUTPUT_TOKEN_6_0'
+        anchor_pos = raw_before_mid.index(mid_anchor)
+        done_pos = raw_before_mid.rfind(b'"status": "DONE"', 0, anchor_pos)
+        self.assertGreater(done_pos, 16384, 'middle edit must sit well past the first 8 KiB')
+        self.assertLess(done_pos, len(raw_before_mid) - 16384, 'middle edit must sit well before the last 8 KiB')
+        mid_edited = (
+            raw_before_mid[:done_pos]
+            + b'"status": "FAIL"'
+            + raw_before_mid[done_pos + len(b'"status": "DONE"'):]
+        )
+        self.assertEqual(len(mid_edited), len(raw_before_mid))
+        transcript.write_bytes(mid_edited)
+        cached_mid_events, _, _ = bridge.cached_transcript_events(
+            {'transcriptPath': tx_arg}, conv_key, str(self.tmp),
+        )
+        uncached_mid_events, _, _ = bridge.shadow_events(
+            bridge.transcript_steps({'transcriptPath': tx_arg}), str(self.tmp),
+        )
+        self.assertEqual(
+            cached_mid_events,
+            uncached_mid_events,
+            'whole-span block SHA-256 must detect same-length in-place edit in the middle of the transcript',
+        )
+
         same_layout_bytes = transcript.read_bytes().replace(b'"step_index": 0', b'"step_index": 9', 1)
         self.assertEqual(len(same_layout_bytes), transcript.stat().st_size)
         transcript.write_bytes(same_layout_bytes)

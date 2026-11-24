@@ -44,6 +44,7 @@ Validation:
 - `python3 hooks/test_agy_bridge.py` when the bridge, `hooks.json` or the root
   `hooks.json` changes
 - `python3 hooks/test_hook_field_reads.py` and
-  `REQUIRE_BASELINE=1 python3 hooks/test_hook_remaining_field_reads.py` when a
-  hook's payload field reads change; regenerate `test_hook_field_reads.expected.json`
-  only from the pinned baseline
+  `python3 hooks/test_hook_remaining_field_reads.py` when a hook's payload
+  field reads change (`REQUIRE_BASELINE=1` requires `788470c` in local git
+  history rather than falling back on shallow clones); regenerate
+  `test_hook_field_reads.expected.json` only from the pinned baseline

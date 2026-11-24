@@ -100,7 +100,7 @@ test-repo-gates: ## 仓库确定性 gate 与脚本/Python 回归（CI repository
 	# RUSAGE_CHILDREN peak-RSS probes; run them outside run-parallel-suites.sh to
 	# avoid 4-vCPU runner oversubscription timeouts.
 	python3 hooks/test_hook_field_reads.py
-	REQUIRE_BASELINE=1 python3 hooks/test_hook_remaining_field_reads.py
+	python3 hooks/test_hook_remaining_field_reads.py
 	python3 -m pytest -q skills/test-artifact-management/references/test_gen_report.py
 	python3 -m unittest eval.test_subagent_owner_audit eval.test_skill_effectiveness_bridge eval.test_skill_effectiveness_trial eval.test_reviewer_calibration_protocol eval.test_design_judge eval.test_owner_role_audit
 

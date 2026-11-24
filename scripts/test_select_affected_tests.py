@@ -2126,6 +2126,17 @@ class SelectAffectedTestsUnit(unittest.TestCase):
         self.assertNotIn("hooks/test_hook_field_reads.py", unmapped_plan["parallel_suites"])
         self.assertNotIn("hooks/test_hook_remaining_field_reads.py", unmapped_plan["parallel_suites"])
 
+        makefile_lines = [
+            ln.strip()
+            for ln in (REPO_ROOT / "Makefile").read_text(encoding="utf-8").splitlines()
+            if "hooks/test_hook_remaining_field_reads.py" in ln and not ln.lstrip().startswith("#")
+        ]
+        self.assertEqual(
+            makefile_lines,
+            ["python3 hooks/test_hook_remaining_field_reads.py"],
+            "Makefile must allow shallow clones to fall back when 788470c is absent while auto-using 788470c on full clones",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

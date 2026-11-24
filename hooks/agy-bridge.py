@@ -88,7 +88,7 @@ MAX_TRANSCRIPT_BYTES = 32 * 1024 * 1024
 MAX_SKILL_BYTES = 256 * 1024
 MAX_NOTE_BYTES = 8 * 1024
 MAX_CACHE_BYTES = 4 * 1024 * 1024
-CACHE_HASH_WINDOW = 8192
+CACHE_BLOCK_BYTES = 1024 * 1024
 SHADOW_WRITE_CHUNK = 65536
 SHADOW_TTL = 24 * 3600
 
@@ -540,19 +540,32 @@ def compute_window_start(stream, size):
     return size
 
 
-def boundary_digests(stream, start, end):
+def span_block_digests(stream, start, end, prior_blocks=None, prior_end=None):
     span = end - start
-    if span <= 0:
-        empty = digest('')
-        return empty, empty, True
-    head_len = min(CACHE_HASH_WINDOW, span)
-    stream.seek(start)
-    head = stream.read(head_len)
-    tail_len = min(CACHE_HASH_WINDOW, span)
-    stream.seek(end - tail_len)
-    tail = stream.read(tail_len)
-    ok = len(head) == head_len and len(tail) == tail_len and tail.endswith(b'\n')
-    return hashlib.sha256(head).hexdigest(), hashlib.sha256(tail).hexdigest(), ok
+    if span < 0:
+        return None, False
+    if span == 0:
+        return [], True
+    reused = 0
+    blocks = []
+    if prior_blocks is not None and prior_end is not None and start <= prior_end <= end:
+        full = (prior_end - start) // CACHE_BLOCK_BYTES
+        if full <= len(prior_blocks):
+            reused = full
+            blocks.extend(prior_blocks[:reused])
+    pos = start + reused * CACHE_BLOCK_BYTES
+    while pos < end:
+        want = min(CACHE_BLOCK_BYTES, end - pos)
+        stream.seek(pos)
+        chunk = stream.read(want)
+        if len(chunk) != want:
+            return None, False
+        blocks.append(hashlib.sha256(chunk).hexdigest())
+        pos += want
+    stream.seek(end - 1)
+    if stream.read(1) != b'\n':
+        return None, False
+    return blocks, True
 
 
 def read_cache_state(key):
@@ -908,31 +921,33 @@ def cached_transcript_events(agy, key, cwd):
         parse_start = window_start
         step_count = 0
         prior_records = []
+        reusable_blocks, reusable_end = None, None
 
-        if (cache is not None and cache.get('version') == 1
+        if (cache is not None and cache.get('version') == 2
                 and cache.get('dev') == info.st_dev and cache.get('ino') == info.st_ino
                 and cache.get('cwd') == cwd_hash and cache.get('window_start') == window_start):
             cand_end = cache.get('frozen_end')
             cand_steps = cache.get('step_count')
-            if (is_int(cand_end) and is_int(cand_steps)
+            cached_blocks = cache.get('block_sha256')
+            if (is_int(cand_end) and is_int(cand_steps) and isinstance(cached_blocks, list)
                     and window_start <= cand_end <= size and cand_steps >= 0):
-                head_sha, tail_sha, ok = boundary_digests(stream, window_start, cand_end)
+                verified_blocks, ok = span_block_digests(stream, window_start, cand_end)
                 restored = restore_skill_state(cache) if ok else None
-                if (ok and restored is not None
-                        and head_sha == cache.get('head_sha256')
-                        and tail_sha == cache.get('tail_sha256')):
+                if ok and restored is not None and verified_blocks == cached_blocks:
                     try:
                         prior_records = cache.get('records')
                         base_events, turn_id, last_prose = emit_cached_records(stream, prior_records, cwd)
                         loaded, coverage, chunks = restored
                         parse_start = cand_end
                         step_count = cand_steps
+                        reusable_blocks, reusable_end = verified_blocks, cand_end
                     except (OSError, ValueError, TypeError, KeyError, IndexError, OverflowError):
                         base_events, turn_id, last_prose = [], None, None
                         loaded, coverage, chunks = set(), {}, {}
                         parse_start = window_start
                         step_count = 0
                         prior_records = []
+                        reusable_blocks, reusable_end = None, None
 
         stream.seek(parse_start)
         tail_bytes = stream.read(max(0, size - parse_start))
@@ -944,17 +959,21 @@ def cached_transcript_events(agy, key, cwd):
         )
         frozen_end, frozen_steps, frozen_records, f_loaded, f_cov, f_chunks = frozen
         skill_blob = serialize_skill_state(f_loaded, f_cov, f_chunks)
-        if skill_blob is not None and (cache is None or frozen_end != cache.get('frozen_end')
+        if skill_blob is not None and (cache is None or cache.get('version') != 2
+                                       or frozen_end != cache.get('frozen_end')
+                                       or reusable_blocks is None
                                        or cache.get('dev') != info.st_dev
                                        or cache.get('ino') != info.st_ino
                                        or cache.get('cwd') != cwd_hash
                                        or cache.get('window_start') != window_start):
-            h_sha, t_sha, ok = boundary_digests(stream, window_start, frozen_end)
+            new_blocks, ok = span_block_digests(
+                stream, window_start, frozen_end, reusable_blocks, reusable_end,
+            )
             if ok:
                 write_cache_state(key, {
-                    'version': 1, 'dev': info.st_dev, 'ino': info.st_ino, 'cwd': cwd_hash,
+                    'version': 2, 'dev': info.st_dev, 'ino': info.st_ino, 'cwd': cwd_hash,
                     'window_start': window_start, 'frozen_end': frozen_end,
-                    'step_count': frozen_steps, 'head_sha256': h_sha, 'tail_sha256': t_sha,
+                    'step_count': frozen_steps, 'block_sha256': new_blocks,
                     'records': frozen_records, **skill_blob,
                 })
         return events, turn_id, last_prose
